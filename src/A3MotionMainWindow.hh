@@ -8,4 +8,6 @@ class A3MotionMainWindow :
 {
 public:
     A3MotionMainWindow(String const & name);
+
+    void userTriedToCloseWindow() override;
 };

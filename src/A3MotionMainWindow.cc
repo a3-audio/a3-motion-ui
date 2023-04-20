@@ -4,7 +4,12 @@ A3MotionMainWindow::
 A3MotionMainWindow(String const & name) :
     ResizableWindow(name, true)
 {
-    setResizable(true, false);
-
     // TODO create content
+}
+
+void
+A3MotionMainWindow::
+userTriedToCloseWindow()
+{
+    JUCEApplicationBase::quit();
 }

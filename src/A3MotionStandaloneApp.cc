@@ -30,3 +30,10 @@ getApplicationVersion()
 {
     return "0.0.0";
 }
+
+void
+A3MotionStandaloneApp::
+systemRequestedQuit()
+{
+    Logger::writeToLog("systemRequestedQuit()");
+}

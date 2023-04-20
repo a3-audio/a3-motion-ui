@@ -19,6 +19,8 @@ public:
     const String getApplicationName() override;
     const String getApplicationVersion() override;
 
+    void systemRequestedQuit() override;
+
 private:
     std::unique_ptr<A3MotionMainWindow> mainWindow;
 };
