@@ -22,21 +22,41 @@
 
 #include <JuceHeader.h>
 
-#include "A3MotionAudioProcessor.hh"
+#include <vector>
 
+#include "engine/Channel.hh"
 
-class A3MotionMainUIComponent :
-    public juce::Component
+#include "ui/ChannelFooter.hh"
+#include "ui/ChannelHeader.hh"
+#include "ui/MotionComponent.hh"
+
+namespace a3
+{
+
+class MainComponent : public juce::Component
 {
 public:
-    A3MotionMainUIComponent();
-    ~A3MotionMainUIComponent();
+  MainComponent (int const numChannels);
+  ~MainComponent ();
 
-    void paint(Graphics& g) override;
-    void resized() override;
+  void paint (Graphics &g) override;
+  void resized () override;
+
+  float getMinimumWidth () const;
+  float getMinimumHeight () const;
 
 private:
+  // void createMockupUI ();
+  void createChannels (int const numChannels);
+  void createChannelsUI ();
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR
-    (A3MotionMainUIComponent)
+  std::vector<Channel> channels;
+  std::vector<ChannelHeader> headers;
+  std::vector<ChannelFooter> footers;
+
+  MotionComponent motionComp;
+
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };
+
+}

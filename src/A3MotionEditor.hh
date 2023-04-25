@@ -23,22 +23,26 @@
 #include <JuceHeader.h>
 
 #include "A3MotionAudioProcessor.hh"
-#include "A3MotionMainUIComponent.hh"
 
-class A3MotionEditor
-    : public AudioProcessorEditor
+#include "MainComponent.hh"
+
+namespace a3
+{
+
+class A3MotionEditor : public AudioProcessorEditor
 {
 public:
-    A3MotionEditor(A3MotionAudioProcessor&);
-    ~A3MotionEditor();
+  A3MotionEditor (A3MotionAudioProcessor &);
+  ~A3MotionEditor ();
 
-    void paint(Graphics& g) override;
-    void resized() override;
+  void paint (Graphics &g) override;
+  void resized () override;
 
 private:
-    A3MotionAudioProcessor& processor;
-    A3MotionMainUIComponent componentMainUI;
+  A3MotionAudioProcessor &processor;
+  MainComponent mainComponent;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR
-    (A3MotionEditor)
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionEditor)
 };
+
+}

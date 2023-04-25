@@ -19,8 +19,8 @@ juce_add_plugin(${PROJECT}
         PLUGIN_MANUFACTURER_CODE A3AU               # A four-character manufacturer id with at least one upper-case character
         PLUGIN_CODE A3MC                            # A unique four-character plugin id with at least one upper-case character
         PLUGIN_NAME "A3 Motion UI"
-        FORMATS "Standalone;VST3"                        # The formats to build. Other valid formats are: AAX Unity VST AU AUv3
-        PRODUCT_NAME "a3-motion-ui")                   # The name of the final executable, which can differ from the target name
+        FORMATS "Standalone;VST3"                   # The formats to build. Other valid formats are: AAX Unity VST AU AUv3
+        PRODUCT_NAME "a3-motion-ui")                # The name of the final executable, which can differ from the target name
 
 juce_generate_juce_header(${PROJECT})
 
@@ -29,12 +29,20 @@ target_sources(${PROJECT} PRIVATE
     src/A3MotionAudioProcessor.hh
     src/A3MotionEditor.cc
     src/A3MotionEditor.hh
-    src/A3MotionStandaloneApp.cc
-    src/A3MotionStandaloneApp.hh
-    src/A3MotionMainWindow.cc
-    src/A3MotionMainWindow.hh
-    src/A3MotionMainUIComponent.cc
-    src/A3MotionMainUIComponent.hh
+    src/StandaloneApp.cc
+    src/StandaloneApp.hh
+    src/MainComponent.cc
+    src/MainComponent.hh
+    src/MainWindow.cc
+    src/MainWindow.hh
+    src/ui/LayoutHints.cc
+    src/ui/LayoutHints.hh
+    src/ui/ChannelHeader.cc
+    src/ui/ChannelHeader.hh
+    src/ui/ChannelFooter.cc
+    src/ui/ChannelFooter.hh
+    src/ui/MotionComponent.cc
+    src/ui/MotionComponent.hh
 )
 
 target_compile_definitions(${PROJECT} PUBLIC

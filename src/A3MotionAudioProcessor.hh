@@ -22,46 +22,48 @@
 
 #include <JuceHeader.h>
 
+namespace a3
+{
 
-class A3MotionAudioProcessor :
-  public AudioProcessor
+class A3MotionAudioProcessor : public AudioProcessor
 {
 public:
-    A3MotionAudioProcessor();
-    ~A3MotionAudioProcessor();
+  A3MotionAudioProcessor ();
+  ~A3MotionAudioProcessor ();
 
-    void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override;
+  void prepareToPlay (double sampleRate, int samplesPerBlock) override;
+  void releaseResources () override;
 
-    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
+  bool isBusesLayoutSupported (const BusesLayout &layouts) const override;
 
-    void processBlock (AudioBuffer<float>&, MidiBuffer&) override;
+  void processBlock (AudioBuffer<float> &, MidiBuffer &) override;
 
-    AudioProcessorEditor* createEditor() override;
-    bool hasEditor() const override;
+  AudioProcessorEditor *createEditor () override;
+  bool hasEditor () const override;
 
-    const String getName() const override;
+  const String getName () const override;
 
-    bool acceptsMidi() const override;
-    bool producesMidi() const override;
-    bool isMidiEffect() const override;
+  bool acceptsMidi () const override;
+  bool producesMidi () const override;
+  bool isMidiEffect () const override;
 
-    double getTailLengthSeconds() const override;
+  double getTailLengthSeconds () const override;
 
-    int getNumPrograms() override;
-    int getCurrentProgram() override;
-    void setCurrentProgram (int index) override;
-    const String getProgramName (int index) override;
-    void changeProgramName (int index, const String& newName) override;
+  int getNumPrograms () override;
+  int getCurrentProgram () override;
+  void setCurrentProgram (int index) override;
+  const String getProgramName (int index) override;
+  void changeProgramName (int index, const String &newName) override;
 
-    void getStateInformation (MemoryBlock& destData) override;
-    void setStateInformation (const void* data, int sizeInBytes) override;
+  void getStateInformation (MemoryBlock &destData) override;
+  void setStateInformation (const void *data, int sizeInBytes) override;
 
 private:
+  String const namePlugin;
 
-    String const namePlugin;
+  std::unique_ptr<FileLogger> fileLogger;
 
-    std::unique_ptr<FileLogger> fileLogger;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionAudioProcessor)
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionAudioProcessor)
 };
+
+}

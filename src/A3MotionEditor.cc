@@ -20,31 +20,31 @@
 
 #include "A3MotionEditor.hh"
 
-A3MotionEditor::
-A3MotionEditor
-(A3MotionAudioProcessor & processor) :
-    AudioProcessorEditor(&processor),
-    processor(processor)
+#include "Config.hh"
+
+namespace a3 {
+
+A3MotionEditor::A3MotionEditor (A3MotionAudioProcessor &processor)
+  : AudioProcessorEditor (&processor), processor (processor),
+    mainComponent (numChannelsInitial)
 {
-    // auto scaleFactor = SystemStats::getEnvironmentVariable
-    //     ("OSCCONTROL_SCALE_FACTOR", "1").getFloatValue();
-    // setScaleFactor (scaleFactor);
+  // auto scaleFactor = SystemStats::getEnvironmentVariable
+  //     ("OSCCONTROL_SCALE_FACTOR", "1").getFloatValue();
+  // setScaleFactor (scaleFactor);
 }
 
-A3MotionEditor::
-~A3MotionEditor()
+A3MotionEditor::~A3MotionEditor () {}
+
+void
+A3MotionEditor::paint (Graphics &g)
 {
+  g.fillAll (
+      getLookAndFeel ().findColour (ResizableWindow::backgroundColourId));
 }
 
 void
-A3MotionEditor::
-paint
-(Graphics& g)
+A3MotionEditor::resized ()
 {
-    g.fillAll (getLookAndFeel().findColour
-        (ResizableWindow::backgroundColourId));
 }
 
-void A3MotionEditor::resized()
-{
 }
