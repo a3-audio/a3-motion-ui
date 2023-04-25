@@ -100,14 +100,13 @@ MainComponent::resized ()
   auto bounds = getLocalBounds ();
 
   // Motion Component
-  auto heightMotionComponent = bounds.getHeight ()
-                               - LayoutHints::Channels::heightHeader
-                               - LayoutHints::Channels::heightFooter;
-  motionComp.setBounds (0, LayoutHints::Channels::heightHeader,
-                        bounds.getWidth (), heightMotionComponent);
+  auto boundsMotion
+      = bounds.withTrimmedTop (LayoutHints::Channels::heightHeader)
+            .withTrimmedBottom (LayoutHints::Channels::heightFooter);
+  motionComp.setBounds (boundsMotion);
 
   // Channel headers/footers
-  auto widthChannel = getWidth () / float (headers.size ());
+  auto widthChannel = bounds.getWidth () / float (headers.size ());
   for (auto idxChannel = 0; idxChannel < headers.size (); ++idxChannel)
     {
       auto offsetInt = juce::roundToInt (idxChannel * widthChannel);
@@ -119,7 +118,7 @@ MainComponent::resized ()
                                      LayoutHints::Channels::heightHeader);
       footers[idxChannel].setBounds (
           offsetInt,
-          LayoutHints::Channels::heightHeader + heightMotionComponent,
+          LayoutHints::Channels::heightHeader + boundsMotion.getHeight (),
           widthInt, LayoutHints::Channels::heightFooter);
     }
 }
