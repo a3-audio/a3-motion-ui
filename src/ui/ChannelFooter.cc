@@ -30,9 +30,7 @@ ChannelFooter::ChannelFooter (ChannelFooter &&rhs) : channel (rhs.channel) {}
 void
 ChannelFooter::paint (juce::Graphics &g)
 {
-  juce::Random rng;
-  auto colour = juce::Colour::fromHSL (rng.nextFloat (), 0.5f, 0.8f, 1.f);
-  g.fillAll (colour);
+  auto const color = findColour (backgroundColourId);
+  g.fillAll (color);
 }
-
 }

@@ -30,6 +30,11 @@ class Channel;
 class ChannelHeader : public juce::Component
 {
 public:
+  enum ColourIds
+  {
+    backgroundColourId = 0xa3000000
+  };
+
   ChannelHeader (Channel const &);
   ChannelHeader (ChannelHeader &&);
 

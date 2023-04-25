@@ -46,7 +46,6 @@ public:
   float getMinimumHeight () const;
 
 private:
-  // void createMockupUI ();
   void createChannels (int const numChannels);
   void createChannelsUI ();
 

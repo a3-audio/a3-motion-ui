@@ -52,7 +52,8 @@ MainComponent::createChannelsUI ()
   headers.reserve (numChannels);
   footers.reserve (numChannels);
 
-  juce::Random rng;
+  auto hueStart = 0.f;
+  auto hueNorm = hueStart;
   for (auto const &channel : channels)
     {
       auto &header = headers.emplace_back (channel);
@@ -64,15 +65,26 @@ MainComponent::createChannelsUI ()
       header.setVisible (true);
       footer.setVisible (true);
 
-      // set the channel colors
-      // auto color = Colour::fromHSL (rng.nextFloat (), 0.5f, 0.8f, 1.f);
+      // set channel colors
+      auto hue = hueNorm / 360.f * 256.f; // for now rescale to
+                                          // (arbitrary) range "in
+                                          // degrees" that stems from
+                                          // misunderstanding the
+                                          // QColor documentation of
+                                          // the old python
+                                          // implementation.
+
+      auto color = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
+      hueNorm += 1.f / channels.size ();
+
+      header.setColour (ChannelHeader::backgroundColourId, color);
+      footer.setColour (ChannelFooter::backgroundColourId, color);
     }
 }
 
 void
 MainComponent::paint (juce::Graphics &g)
 {
-  // g.fillAll (Colours::blueviolet);
 }
 
 float
