@@ -28,10 +28,10 @@ ChannelHeader::ChannelHeader (Channel const &channel) : channel (channel) {}
 ChannelHeader::ChannelHeader (ChannelHeader &&rhs) : channel (rhs.channel) {}
 
 void
-ChannelHeader::paint (Graphics &g)
+ChannelHeader::paint (juce::Graphics &g)
 {
-  Random rng;
-  auto colour = Colour::fromHSL (rng.nextFloat (), 0.5f, 0.8f, 1.f);
+  juce::Random rng;
+  auto colour = juce::Colour::fromHSL (rng.nextFloat (), 0.5f, 0.8f, 1.f);
   g.fillAll (colour);
 }
 

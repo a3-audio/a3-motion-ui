@@ -39,7 +39,7 @@ public:
   MainComponent (int const numChannels);
   ~MainComponent ();
 
-  void paint (Graphics &g) override;
+  void paint (juce::Graphics &g) override;
   void resized () override;
 
   float getMinimumWidth () const;

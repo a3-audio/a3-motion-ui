@@ -24,11 +24,11 @@ namespace a3
 {
 
 void
-StandaloneApp::initialise (String const &commandLine)
+StandaloneApp::initialise (juce::String const &commandLine)
 {
   auto appNameVer = getApplicationName () + " " + getApplicationVersion ();
 
-  Logger::writeToLog (appNameVer);
+  juce::Logger::writeToLog (appNameVer);
 
   // splash = std::make_unique<SplashScreen> (
   //     appNameVer,
@@ -52,13 +52,13 @@ StandaloneApp::shutdown ()
 {
 }
 
-String const
+juce::String const
 StandaloneApp::getApplicationName ()
 {
   return "A3 Motion UI";
 }
 
-String const
+juce::String const
 StandaloneApp::getApplicationVersion ()
 {
   return "0.0.0";
@@ -67,7 +67,7 @@ StandaloneApp::getApplicationVersion ()
 void
 StandaloneApp::systemRequestedQuit ()
 {
-  Logger::writeToLog ("systemRequestedQuit()");
+  juce::Logger::writeToLog ("systemRequestedQuit()");
 }
 
 }

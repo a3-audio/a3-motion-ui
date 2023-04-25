@@ -47,12 +47,12 @@ MainComponent::createChannelsUI ()
 {
   auto const numChannels = channels.size ();
 
-  Logger::writeToLog (String (numChannels));
+  juce::Logger::writeToLog (juce::String (numChannels));
 
   headers.reserve (numChannels);
   footers.reserve (numChannels);
 
-  Random rng;
+  juce::Random rng;
   for (auto const &channel : channels)
     {
       auto &header = headers.emplace_back (channel);
@@ -70,7 +70,7 @@ MainComponent::createChannelsUI ()
 }
 
 void
-MainComponent::paint (Graphics &g)
+MainComponent::paint (juce::Graphics &g)
 {
   // g.fillAll (Colours::blueviolet);
 }
@@ -95,7 +95,7 @@ MainComponent::resized ()
 {
   jassert (headers.size () == footers.size ());
 
-  Component::resized ();
+  juce::Component::resized ();
 
   auto bounds = getLocalBounds ();
 
@@ -110,8 +110,8 @@ MainComponent::resized ()
   auto widthChannel = getWidth () / float (headers.size ());
   for (auto idxChannel = 0; idxChannel < headers.size (); ++idxChannel)
     {
-      auto offsetInt = roundToInt (idxChannel * widthChannel);
-      auto offsetIntNext = roundToInt ((idxChannel + 1) * widthChannel);
+      auto offsetInt = juce::roundToInt (idxChannel * widthChannel);
+      auto offsetIntNext = juce::roundToInt ((idxChannel + 1) * widthChannel);
       auto widthInt = offsetIntNext - offsetInt; // account for
                                                  // rounding discrepancies
 

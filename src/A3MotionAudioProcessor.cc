@@ -29,30 +29,30 @@ namespace a3
 {
 
 A3MotionAudioProcessor::A3MotionAudioProcessor ()
-    : AudioProcessor (
-        BusesProperties ().withInput ("Input", AudioChannelSet::stereo ())),
+    : AudioProcessor (BusesProperties ().withInput (
+        "Input", juce::AudioChannelSet::stereo ())),
       namePlugin ("A3 Motion UI")
 {
   auto useFileLogger = false;
   if (useFileLogger)
     {
-      auto const filenameLog = String ("a3-motion-ui.log");
-      auto fileExecutable = File::getSpecialLocation (
-          File::SpecialLocationType::currentExecutableFile);
-      fileLogger = std::make_unique<FileLogger> (
+      auto const filenameLog = juce::String ("a3-motion-ui.log");
+      auto fileExecutable = juce::File::getSpecialLocation (
+          juce::File::SpecialLocationType::currentExecutableFile);
+      fileLogger = std::make_unique<juce::FileLogger> (
           fileExecutable.getParentDirectory ().getChildFile (filenameLog),
           "A3 Motion UI Log", 0);
-      Logger::setCurrentLogger (fileLogger.get ());
+      juce::Logger::setCurrentLogger (fileLogger.get ());
     }
 }
 
 A3MotionAudioProcessor::~A3MotionAudioProcessor ()
 {
   // Logger::writeToLog ("~A3MotionAudioProcessor");
-  Logger::setCurrentLogger (nullptr);
+  juce::Logger::setCurrentLogger (nullptr);
 }
 
-const String
+const juce::String
 A3MotionAudioProcessor::getName () const
 {
   // Logger::writeToLog("getName : " + namePlugin);
@@ -110,7 +110,7 @@ A3MotionAudioProcessor::setCurrentProgram (int index)
   // Logger::writeToLog("setCurrentProgram");
 }
 
-const String
+const juce::String
 A3MotionAudioProcessor::getProgramName (int index)
 {
   // Logger::writeToLog("getProgramName");
@@ -118,7 +118,8 @@ A3MotionAudioProcessor::getProgramName (int index)
 }
 
 void
-A3MotionAudioProcessor::changeProgramName (int index, const String &newName)
+A3MotionAudioProcessor::changeProgramName (int index,
+                                           const juce::String &newName)
 {
   // Logger::writeToLog("changeProgramName");
 }
@@ -144,8 +145,8 @@ A3MotionAudioProcessor::isBusesLayoutSupported (
 }
 
 void
-A3MotionAudioProcessor::processBlock (AudioBuffer<float> &buffer,
-                                      MidiBuffer &midiMessages)
+A3MotionAudioProcessor::processBlock (juce::AudioBuffer<float> &buffer,
+                                      juce::MidiBuffer &midiMessages)
 {
   auto mainInputOutput = getBusBuffer (buffer, true, 0);
 
@@ -168,7 +169,7 @@ A3MotionAudioProcessor::hasEditor () const
   return true;
 }
 
-AudioProcessorEditor *
+juce::AudioProcessorEditor *
 A3MotionAudioProcessor::createEditor ()
 {
   // Logger::writeToLog("createEditor");
@@ -176,7 +177,7 @@ A3MotionAudioProcessor::createEditor ()
 }
 
 void
-A3MotionAudioProcessor::getStateInformation (MemoryBlock &destData)
+A3MotionAudioProcessor::getStateInformation (juce::MemoryBlock &destData)
 {
   // Logger::writeToLog("getStateInformation");
 }
@@ -190,7 +191,7 @@ A3MotionAudioProcessor::setStateInformation (const void *data, int sizeInBytes)
 } // namespace a3 end
 
 // This creates new instances of the plugin..
-AudioProcessor *JUCE_CALLTYPE
+juce::AudioProcessor *JUCE_CALLTYPE
 createPluginFilter ()
 {
   // Logger::writeToLog("createPluginFilter");

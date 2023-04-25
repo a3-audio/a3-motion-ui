@@ -29,13 +29,13 @@
 namespace a3
 {
 
-class A3MotionEditor : public AudioProcessorEditor
+class A3MotionEditor : public juce::AudioProcessorEditor
 {
 public:
   A3MotionEditor (A3MotionAudioProcessor &);
   ~A3MotionEditor ();
 
-  void paint (Graphics &g) override;
+  void paint (juce::Graphics &g) override;
   void resized () override;
 
 private:

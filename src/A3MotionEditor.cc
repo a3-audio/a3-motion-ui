@@ -22,11 +22,12 @@
 
 #include "Config.hh"
 
-namespace a3 {
+namespace a3
+{
 
 A3MotionEditor::A3MotionEditor (A3MotionAudioProcessor &processor)
-  : AudioProcessorEditor (&processor), processor (processor),
-    mainComponent (numChannelsInitial)
+    : AudioProcessorEditor (&processor), processor (processor),
+      mainComponent (numChannelsInitial)
 {
   // auto scaleFactor = SystemStats::getEnvironmentVariable
   //     ("OSCCONTROL_SCALE_FACTOR", "1").getFloatValue();
@@ -36,10 +37,10 @@ A3MotionEditor::A3MotionEditor (A3MotionAudioProcessor &processor)
 A3MotionEditor::~A3MotionEditor () {}
 
 void
-A3MotionEditor::paint (Graphics &g)
+A3MotionEditor::paint (juce::Graphics &g)
 {
-  g.fillAll (
-      getLookAndFeel ().findColour (ResizableWindow::backgroundColourId));
+  g.fillAll (getLookAndFeel ().findColour (
+      juce::ResizableWindow::backgroundColourId));
 }
 
 void

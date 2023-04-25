@@ -33,7 +33,7 @@ public:
   ChannelFooter (Channel const &);
   ChannelFooter (ChannelFooter &&);
 
-  void paint (Graphics &) override;
+  void paint (juce::Graphics &) override;
 
 private:
   Channel const &channel;

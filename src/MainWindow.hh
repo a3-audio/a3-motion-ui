@@ -27,16 +27,16 @@
 namespace a3
 {
 
-class MainWindow : public ResizableWindow, private KeyListener
+class MainWindow : public juce::ResizableWindow, private juce::KeyListener
 {
 public:
-  MainWindow (String const &name);
+  MainWindow (juce::String const &name);
 
   void userTriedToCloseWindow () override;
   void resized () override;
 
 private:
-  bool keyPressed (const KeyPress &k, Component *c) override;
+  bool keyPressed (const juce::KeyPress &k, juce::Component *c) override;
 
   juce::Viewport viewport;
   MainComponent mainComponent;

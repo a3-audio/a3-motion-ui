@@ -36,6 +36,8 @@ struct LayoutHints
   {
     static float const heightMin;
   };
+
+  static float const lineHeight;
 };
 
 }

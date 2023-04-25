@@ -25,15 +25,15 @@ namespace a3
 
 MotionComponent::MotionComponent ()
 {
-  image.setImage (
-      ImageFileFormat::loadFrom (File ("./resources/a3_logo-dark.png")));
+  image.setImage (juce::ImageFileFormat::loadFrom (
+      juce::File ("./resources/a3_logo-dark.png")));
 
   addChildComponent (image);
   image.setVisible (true);
 }
 
 void
-MotionComponent::paint (Graphics &g)
+MotionComponent::paint (juce::Graphics &g)
 {
 }
 

@@ -29,23 +29,23 @@
 namespace a3
 {
 
-class StandaloneApp : public JUCEApplication
+class StandaloneApp : public juce::JUCEApplication
 {
 public:
   StandaloneApp () {}
   ~StandaloneApp () {}
 
-  void initialise (String const &commandLine) override;
+  void initialise (juce::String const &commandLine) override;
   void shutdown () override;
 
-  const String getApplicationName () override;
-  const String getApplicationVersion () override;
+  const juce::String getApplicationName () override;
+  const juce::String getApplicationVersion () override;
 
   void systemRequestedQuit () override;
 
 private:
   std::unique_ptr<MainWindow> mainWindow;
-  std::unique_ptr<SplashScreen> splash;
+  std::unique_ptr<juce::SplashScreen> splash;
 };
 
 } // namespace a3 end

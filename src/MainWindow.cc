@@ -25,8 +25,8 @@
 namespace a3
 {
 
-MainWindow::MainWindow (String const &name)
-    : ResizableWindow (name, true), mainComponent (numChannelsInitial)
+MainWindow::MainWindow (juce::String const &name)
+    : juce::ResizableWindow (name, true), mainComponent (numChannelsInitial)
 {
   setWantsKeyboardFocus (true);
   addKeyListener (this);
@@ -39,11 +39,11 @@ MainWindow::MainWindow (String const &name)
 }
 
 bool
-MainWindow::keyPressed (const KeyPress &k, Component *c)
+MainWindow::keyPressed (const juce::KeyPress &k, juce::Component *c)
 {
-  if (k.getKeyCode () == KeyPress::escapeKey)
+  if (k.getKeyCode () == juce::KeyPress::escapeKey)
     {
-      JUCEApplicationBase::quit ();
+      juce::JUCEApplicationBase::quit ();
       return true;
     }
 
@@ -53,22 +53,24 @@ MainWindow::keyPressed (const KeyPress &k, Component *c)
 void
 MainWindow::userTriedToCloseWindow ()
 {
-  JUCEApplicationBase::quit ();
+  juce::JUCEApplicationBase::quit ();
 }
 
 void
 MainWindow::resized ()
 {
-  ResizableWindow::resized ();
+  juce::ResizableWindow::resized ();
 
   auto const bounds = getLocalBounds ();
   viewport.setBounds (bounds);
 
   // compute bounds for main component
-  auto boundsContent = Rectangle<int> (
-      0.f, 0.f, //
-      jmax (float (bounds.getWidth ()), mainComponent.getMinimumWidth ()),
-      jmax (float (bounds.getHeight ()), mainComponent.getMinimumHeight ()));
+  auto boundsContent
+      = juce::Rectangle<int> (0.f, 0.f, //
+                              juce::jmax (float (bounds.getWidth ()),
+                                          mainComponent.getMinimumWidth ()),
+                              juce::jmax (float (bounds.getHeight ()),
+                                          mainComponent.getMinimumHeight ()));
 
   mainComponent.setBounds (boundsContent);
 }

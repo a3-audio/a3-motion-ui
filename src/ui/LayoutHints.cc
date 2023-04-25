@@ -29,4 +29,5 @@ float const LayoutHints::Channels::heightFooter = 100.f;
 
 float const LayoutHints::MotionComponent::heightMin = 100.f;
 
+float const LayoutHints::lineHeight = 30.f;
 }
