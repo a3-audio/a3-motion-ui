@@ -27,6 +27,8 @@ namespace a3
 
 MainComponent::MainComponent (int const numChannels)
 {
+  setLookAndFeel (&lookAndFeel);
+
   createChannels (numChannels);
   createChannelsUI ();
 
@@ -34,7 +36,10 @@ MainComponent::MainComponent (int const numChannels)
   motionComp.setVisible (true);
 }
 
-MainComponent::~MainComponent () {}
+MainComponent::~MainComponent ()
+{
+  setLookAndFeel (nullptr);
+}
 
 void
 MainComponent::createChannels (int const numChannels)
@@ -56,14 +61,14 @@ MainComponent::createChannelsUI ()
   auto hueNorm = hueStart;
   for (auto const &channel : channels)
     {
-      auto &header = headers.emplace_back (channel);
-      auto &footer = footers.emplace_back (channel);
+      auto header = std::make_unique<ChannelHeader> (*channel);
+      auto footer = std::make_unique<ChannelFooter> (*channel);
 
-      addChildComponent (header);
-      addChildComponent (footer);
+      addChildComponent (*header);
+      addChildComponent (*footer);
 
-      header.setVisible (true);
-      footer.setVisible (true);
+      header->setVisible (true);
+      footer->setVisible (true);
 
       // set channel colors
       auto hue = hueNorm / 360.f * 256.f; // for now rescale to
@@ -77,8 +82,11 @@ MainComponent::createChannelsUI ()
       auto color = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
       hueNorm += 1.f / channels.size ();
 
-      header.setColour (ChannelHeader::backgroundColourId, color);
-      footer.setColour (ChannelFooter::backgroundColourId, color);
+      header->setColour (ChannelHeader::backgroundColourId, color);
+      footer->setColour (ChannelFooter::backgroundColourId, color);
+
+      headers.push_back (std::move (header));
+      footers.push_back (std::move (footer));
     }
 }
 
@@ -97,7 +105,7 @@ MainComponent::getMinimumWidth () const
 float
 MainComponent::getMinimumHeight () const
 {
-  return LayoutHints::Channels::heightHeader
+  return LayoutHints::Channels::heightHeader ()
          + LayoutHints::Channels::heightFooter
          + LayoutHints::MotionComponent::heightMin;
 }
@@ -113,7 +121,7 @@ MainComponent::resized ()
 
   // Motion Component
   auto boundsMotion
-      = bounds.withTrimmedTop (LayoutHints::Channels::heightHeader)
+      = bounds.withTrimmedTop (LayoutHints::Channels::heightHeader ())
             .withTrimmedBottom (LayoutHints::Channels::heightFooter);
   motionComp.setBounds (boundsMotion);
 
@@ -126,11 +134,11 @@ MainComponent::resized ()
       auto widthInt = offsetIntNext - offsetInt; // account for
                                                  // rounding discrepancies
 
-      headers[idxChannel].setBounds (offsetInt, 0, widthInt,
-                                     LayoutHints::Channels::heightHeader);
-      footers[idxChannel].setBounds (
+      headers[idxChannel]->setBounds (offsetInt, 0, widthInt,
+                                      LayoutHints::Channels::heightHeader ());
+      footers[idxChannel]->setBounds (
           offsetInt,
-          LayoutHints::Channels::heightHeader + boundsMotion.getHeight (),
+          LayoutHints::Channels::heightHeader () + boundsMotion.getHeight (),
           widthInt, LayoutHints::Channels::heightFooter);
     }
 }

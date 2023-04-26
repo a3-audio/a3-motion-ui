@@ -28,6 +28,7 @@
 
 #include "ui/ChannelFooter.hh"
 #include "ui/ChannelHeader.hh"
+#include "ui/LookAndFeel.hh"
 #include "ui/MotionComponent.hh"
 
 namespace a3
@@ -49,9 +50,11 @@ private:
   void createChannels (int const numChannels);
   void createChannelsUI ();
 
-  std::vector<Channel> channels;
-  std::vector<ChannelHeader> headers;
-  std::vector<ChannelFooter> footers;
+  LookAndFeel_A3 lookAndFeel;
+
+  std::vector<std::unique_ptr<Channel> > channels;
+  std::vector<std::unique_ptr<ChannelHeader> > headers;
+  std::vector<std::unique_ptr<ChannelFooter> > footers;
 
   MotionComponent motionComp;
 

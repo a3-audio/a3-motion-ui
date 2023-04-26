@@ -43,7 +43,8 @@ StandaloneApp::initialise (juce::String const &commandLine)
   //                           true /* removeOnMouseClick */);
 
   mainWindow = std::make_unique<MainWindow> (getApplicationName ());
-  mainWindow->setBounds (0, 0, 500, 800);
+  // mainWindow->setBounds (0, 0, 600, 1024);
+  mainWindow->setBounds (0, 0, 450, 768);
   mainWindow->setVisible (true);
 }
 

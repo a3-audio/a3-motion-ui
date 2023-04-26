@@ -35,6 +35,8 @@ target_sources(${PROJECT} PRIVATE
     src/MainComponent.hh
     src/MainWindow.cc
     src/MainWindow.hh
+    src/ui/LookAndFeel.cc
+    src/ui/LookAndFeel.hh
     src/ui/LayoutHints.cc
     src/ui/LayoutHints.hh
     src/ui/ChannelHeader.cc

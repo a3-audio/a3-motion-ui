@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <array>
+
 #include <JuceHeader.h>
 
 namespace a3
@@ -35,14 +37,20 @@ public:
     backgroundColourId = 0xa3000000
   };
 
-  ChannelHeader (Channel const &);
-  ChannelHeader (ChannelHeader &&);
+  static int constexpr numSlidersFX = 2;
 
+  ChannelHeader (Channel const &);
+
+  void resized () override;
   void paint (juce::Graphics &) override;
 
 private:
   Channel const &channel;
 
+  std::array<juce::Slider, numSlidersFX> slidersFX;
+  std::array<juce::Label, numSlidersFX> labelsFX;
+
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelHeader)
 };
+
 }
