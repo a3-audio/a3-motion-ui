@@ -142,7 +142,7 @@ private:
             })
         == v.end ());
     jassert (v.size () < v.capacity ());
-    v.push_back (message.ptr);
+    v.push_back (std::move (message.ptr));
 
     message.ack.set_value ();
   }
@@ -173,7 +173,7 @@ TempoClock::queueEventHandlerAddition (std::function<CallbackT> handler,
 {
   auto guard = std::lock_guard<std::mutex> (mutexWriteFifo);
 
-  auto ptr = std::make_shared<std::function<CallbackT> > (handler);
+  auto ptr = std::make_shared<std::function<CallbackT> > (std::move (handler));
 
   auto future = timer->pushFifoMessage (
       { std::weak_ptr<std::function<CallbackT> > (ptr), event, notification });
