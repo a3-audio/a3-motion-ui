@@ -94,12 +94,9 @@ private:
     std::promise<void> ack;
   };
 
+  template <class FuncT>
   void
-  forEachHandlerType (
-      std::function<void (a3::TempoClock::Event event,
-                          a3::TempoClock::Notification notification,
-                          ContainerT &)>
-          func)
+  forEachHandlerType (FuncT func)
   {
     for (auto event :
          { a3::TempoClock::Event::Tick, a3::TempoClock::Event::Beat,
