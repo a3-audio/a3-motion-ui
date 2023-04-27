@@ -35,6 +35,14 @@ target_sources(${PROJECT} PRIVATE
     src/MainComponent.hh
     src/MainWindow.cc
     src/MainWindow.hh
+    src/engine/MotionEngine.cc
+    src/engine/MotionEngine.hh
+    src/engine/Channel.cc
+    src/engine/Channel.hh
+    src/engine/Master.cc
+    src/engine/Master.hh
+    src/engine/TempoClock.cc
+    src/engine/TempoClock.hh
     src/ui/LookAndFeel.cc
     src/ui/LookAndFeel.hh
     src/ui/LayoutHints.cc

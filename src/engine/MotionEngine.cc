@@ -18,12 +18,32 @@
 
 */
 
-#pragma once
+#include "MotionEngine.hh"
 
 namespace a3
 {
 
-constexpr int numChannelsInitial = 4;
-constexpr auto numHandlersPreAllocated = 10;
+MotionEngine::MotionEngine (int const numChannels)
+{
+  createChannels (numChannels);
+
+  tempoClock.start ();
+
+  //  juce::Thread::sleep (1000);
+
+  //   tempoClock.stop ();
+}
+
+void
+MotionEngine::createChannels (int const numChannels)
+{
+  channels.resize (numChannels);
+}
+
+std::vector<std::unique_ptr<Channel> > &
+MotionEngine::getChannels ()
+{
+  return channels;
+}
 
 }

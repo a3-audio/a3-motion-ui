@@ -20,10 +20,27 @@
 
 #pragma once
 
+#include "Channel.hh"
+#include "Master.hh"
+#include "TempoClock.hh"
+
 namespace a3
 {
 
-constexpr int numChannelsInitial = 4;
-constexpr auto numHandlersPreAllocated = 10;
+class MotionEngine
+{
+public:
+  MotionEngine (int const numChannels);
 
-}
+  std::vector<std::unique_ptr<Channel> > &getChannels ();
+
+private:
+  void createChannels (int const numChannels);
+
+  TempoClock tempoClock;
+
+  Master master;
+  std::vector<std::unique_ptr<Channel> > channels;
+};
+
+};

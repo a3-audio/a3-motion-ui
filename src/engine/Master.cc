@@ -18,12 +18,11 @@
 
 */
 
-#pragma once
+#include "Master.hh"
 
 namespace a3
 {
 
-constexpr int numChannelsInitial = 4;
-constexpr auto numHandlersPreAllocated = 10;
+Master::Master () {}
 
 }
