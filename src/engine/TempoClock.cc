@@ -32,17 +32,9 @@ public:
 
   struct FifoMessage
   {
-    enum class MessageType
-    {
-      Add,
-      Remove
-    };
-
     PointerT ptr;
     a3::TempoClock::Event event;
     a3::TempoClock::Notification notification;
-
-    MessageType type;
   };
 
   ClockTimer (int numHandlersPreAllocated)
@@ -72,7 +64,7 @@ public:
     // fantasize a time for now
     auto time = std::chrono::steady_clock::now ().time_since_epoch ().count ();
 
-    // execute and remove/erase callbacks
+    // execute or remove/erase callbacks
     forEachHandlerType ([&] (auto event, auto notification, auto &container) {
       container.erase (
           std::remove_if (
@@ -140,20 +132,17 @@ private:
   void
   handleFifoMessage (SubmittedMessage &message)
   {
-    if (message.type == FifoMessage::MessageType::Add)
-      {
-        auto &v = handlers[{ message.event, message.notification }];
-        jassert (std::find (v.begin (), v.end (), message.ptr) == v.end ());
-        jassert (v.size () < v.capacity ());
-        v.push_back (message.ptr);
-      }
-    else if (message.type == FifoMessage::MessageType::Remove)
-      {
-        forEachHandlerType (
-            [&] (auto event, auto notification, auto &container) {
-              std::remove (container.begin (), container.end (), message.ptr);
-            });
-      }
+    auto &v = handlers[{ message.event, message.notification }];
+    jassert (
+        std::find_if (
+            v.begin (), v.end (),
+            [&] (const std::weak_ptr<std::function<a3::TempoClock::CallbackT> >
+                     &func_ptr) {
+              return func_ptr.lock () == message.ptr.lock ();
+            })
+        == v.end ());
+    jassert (v.size () < v.capacity ());
+    v.push_back (message.ptr);
 
     message.ack.set_value ();
   }
@@ -187,8 +176,7 @@ TempoClock::queueEventHandlerAddition (std::function<CallbackT> handler,
   auto ptr = std::make_shared<std::function<CallbackT> > (handler);
 
   auto future = timer->pushFifoMessage (
-      { std::weak_ptr<std::function<CallbackT> > (ptr), event, notification,
-        ClockTimer::FifoMessage::MessageType::Add });
+      { std::weak_ptr<std::function<CallbackT> > (ptr), event, notification });
 
   if (waitForAck)
     future.wait ();
