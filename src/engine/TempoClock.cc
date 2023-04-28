@@ -161,7 +161,10 @@ TempoClock::TempoClock ()
   timer = std::make_unique<ClockTimer> (numHandlersPreAllocated);
 }
 
-TempoClock::~TempoClock () {}
+TempoClock::~TempoClock ()
+{
+  timer->stopTimer ();
+}
 
 TempoClock::PointerT
 TempoClock::queueEventHandlerAddition (std::function<CallbackT> handler,
