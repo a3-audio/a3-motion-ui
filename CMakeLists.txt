@@ -60,3 +60,21 @@ target_link_libraries(${PROJECT} PRIVATE
     # juce::juce_gui_basics
     juce::juce_osc
 )
+
+# unit testing
+set(ENABLE_TESTING TRUE CACHE BOOL "enable unit testing with GoogleTest")
+if(ENABLE_TESTING)
+    include(GoogleTest)
+
+    add_executable(
+        a3-motion-ui-tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_example.cc"
+    )
+    target_link_libraries(
+        a3-motion-ui-tests
+        gtest
+        gtest_main
+    )
+
+    gtest_discover_tests(a3-motion-ui-tests)
+endif()
