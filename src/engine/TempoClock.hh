@@ -40,6 +40,14 @@ namespace a3
  * millisecond timer resolution. We'll try it and see if the
  * performance is sufficient. Otherwise we might choose to implement
  * the timer ourselves with a realtime thread and a higher resolution.
+ *
+ * TODO: with the current implementation, a callback's std::function
+ * object could be deallocated on the realtime thread. This happens
+ * when the user thread's shared_ptr lifetime ends while the weak_ptr
+ * is currently locked. If this should turn out to noticeably mess
+ * with our clock accuracy, we can perform explicit garbage collection
+ * on an additional low-priority thread as suggested in the 2015
+ * CppCon talk by Timur Doumler: https://youtu.be/boPEO2auJj4?t=2817
  */
 class TempoClock
 {
