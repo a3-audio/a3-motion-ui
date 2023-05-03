@@ -34,12 +34,12 @@ public:
   {
     PointerT ptr;
     a3::TempoClock::Event event;
-    a3::TempoClock::Notification notification;
+    a3::TempoClock::Execution execution;
   };
 
   ClockTimer (int numHandlersPreAllocated)
   {
-    forEachHandlerType ([&] (auto event, auto notification, auto &container) {
+    forEachHandlerType ([&] (auto event, auto execution, auto &container) {
       container.reserve (numHandlersPreAllocated);
     });
   }
@@ -65,7 +65,7 @@ public:
     auto time = std::chrono::steady_clock::now ().time_since_epoch ().count ();
 
     // execute or remove/erase callbacks
-    forEachHandlerType ([&] (auto event, auto notification, auto &container) {
+    forEachHandlerType ([&] (auto event, auto execution, auto &container) {
       auto it_erase_begin = std::remove_if (
           container.begin (), container.end (),
           [&] (const std::weak_ptr<std::function<a3::TempoClock::CallbackT> >
@@ -105,8 +105,9 @@ private:
     for (auto event :
          { a3::TempoClock::Event::Tick, a3::TempoClock::Event::Beat,
            a3::TempoClock::Event::Bar })
-      for (auto notification : { a3::TempoClock::Notification::Sync,
-                                 a3::TempoClock::Notification::Async })
+      for (auto notification :
+           { a3::TempoClock::Execution::TimerThread,
+             a3::TempoClock::Execution::JuceMessageThread })
         func (event, notification, handlers[{ event, notification }]);
   }
 
@@ -143,7 +144,7 @@ private:
   void
   handleFifoMessage (SubmittedMessage &message)
   {
-    auto &v = handlers[{ message.event, message.notification }];
+    auto &v = handlers[{ message.event, message.execution }];
     jassert (
         std::find_if (
             v.begin (), v.end (),
@@ -162,7 +163,7 @@ private:
   juce::AbstractFifo abstractFifo{ fifoSize };
   std::array<SubmittedMessage, fifoSize> fifo;
 
-  std::map<std::pair<a3::TempoClock::Event, a3::TempoClock::Notification>,
+  std::map<std::pair<a3::TempoClock::Event, a3::TempoClock::Execution>,
            ContainerT>
       handlers;
 
@@ -186,8 +187,7 @@ TempoClock::~TempoClock ()
 
 TempoClock::PointerT
 TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
-                                          Event event,
-                                          Notification notification,
+                                          Event event, Execution execution,
                                           bool waitForAck)
 {
   auto guard = std::lock_guard<std::mutex> (mutexWriteFifo);
@@ -195,7 +195,7 @@ TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
   auto ptr = std::make_shared<std::function<CallbackT> > (std::move (handler));
 
   auto future = timer->submitFifoMessage (
-      { std::weak_ptr<std::function<CallbackT> > (ptr), event, notification });
+      { std::weak_ptr<std::function<CallbackT> > (ptr), event, execution });
 
   if (waitForAck)
     future.wait ();

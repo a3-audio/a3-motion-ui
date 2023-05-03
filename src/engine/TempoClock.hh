@@ -79,10 +79,10 @@ public:
     int bar;
   };
 
-  enum class Notification
+  enum class Execution
   {
-    Sync,
-    Async
+    JuceMessageThread,
+    TimerThread
   };
   enum class Event
   {
@@ -105,8 +105,7 @@ public:
    until the handler has been picked up by the high priority thread.
    */
   PointerT scheduleEventHandlerAddition (std::function<CallbackT> handler,
-                                         Event event,
-                                         Notification notification,
+                                         Event event, Execution execution,
                                          bool waitForAck = false);
 
   void start ();
