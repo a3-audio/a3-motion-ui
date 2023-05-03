@@ -57,7 +57,11 @@ target_compile_definitions(${PROJECT} PUBLIC
     DONT_SET_USING_JUCE_NAMESPACE=1
 )
 
-target_link_libraries(${PROJECT} PRIVATE
+target_include_directories(${PROJECT} PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(${PROJECT} PUBLIC
     juce::juce_audio_utils
     # juce::juce_gui_basics
     juce::juce_osc
@@ -70,12 +74,17 @@ if(ENABLE_TESTING)
 
     add_executable(
         a3-motion-ui-tests
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_example.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/TestRunnerApplication.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/TempoClock.cc"
+    )
+    target_include_directories(
+        a3-motion-ui-tests PRIVATE
+        "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT}_artefacts/JuceLibraryCode"
     )
     target_link_libraries(
         a3-motion-ui-tests
+        a3-motion-ui
         gtest
-        gtest_main
     )
 
     gtest_discover_tests(a3-motion-ui-tests)
