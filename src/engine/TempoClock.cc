@@ -61,8 +61,11 @@ public:
   {
     readFifoMessages ();
 
-    // fantasize a time for now
-    auto time = std::chrono::steady_clock::now ().time_since_epoch ().count ();
+    // fantasize a time and event for now
+    auto time = std::chrono::high_resolution_clock::now ()
+                    .time_since_epoch ()
+                    .count ();
+    auto event = a3::TempoClock::Event::Tick;
 
     // execute or remove/erase callbacks
     forEachHandlerType ([&] (auto event, auto execution, auto &container) {
@@ -72,8 +75,23 @@ public:
                    &func_ptr) {
             if (auto f = func_ptr.lock ())
               {
-                // execute callback if pointer still valid
-                (*f) (event, time);
+                // if pointer still valid
+
+                switch (execution)
+                  {
+                  case a3::TempoClock::Execution::TimerThread:
+                    (*f) (event, time); // execute directly
+                    break;
+                  case a3::TempoClock::Execution::JuceMessageThread:
+                    // NOTE: we create a *copy* of the temporary
+                    // shared_ptr to extend the lifetime of our
+                    // callback object until the event thread has
+                    // handled this.
+                    juce::MessageManager::callAsync (
+                        [f, event, time] () { (*f) (event, time); });
+                    break;
+                  }
+
                 return false;
               }
             else // remove otherwise
