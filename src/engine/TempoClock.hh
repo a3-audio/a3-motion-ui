@@ -25,6 +25,8 @@
 
 #include <JuceHeader.h>
 
+#include "../Config.hh"
+
 class ClockTimer;
 
 namespace a3
@@ -44,10 +46,29 @@ class TempoClock
 public:
   struct Config
   {
-    int beatsPerMinute = 90;
-    int beatsPerBar = 4;
-    int ticksPerBeat = 32;
-    int timerIntervalMs = 1;
+    Config ()
+        : beatsPerMinute (90), beatsPerBar (4), ticksPerBeat (32),
+          timerIntervalMs (1)
+    {
+    }
+
+    // can't use default initializers due to a compiler-bug that
+    // prevents us from doing this otherwise:
+    // TempoClock (Config const &config = Config {});
+    // https://stackoverflow.com/questions/53408962/try-to-understand-compiler-error-message-default-member-initializer-required-be
+    int beatsPerMinute;
+    int beatsPerBar;
+    int ticksPerBeat;
+    int timerIntervalMs;
+  };
+
+  struct Measure
+  {
+    Measure () : time_ns (0), tick (0), beat (0), bar (0) {}
+    uint64_t time_ns;
+    int tick;
+    int beat;
+    int bar;
   };
 
   enum class Notification
@@ -62,16 +83,23 @@ public:
     Tick
   };
 
-  using CallbackT = void (Event, unsigned long long);
+  using CallbackT = void (Event, uint64_t);
   using PointerT = std::shared_ptr<std::function<CallbackT> >;
 
-  TempoClock ();
+  TempoClock (Config const &config = Config{},
+              int const numHandlersPreAllocated = a3::numHandlersPreAllocated);
   ~TempoClock ();
 
-  PointerT queueEventHandlerAddition (std::function<CallbackT> handler,
-                                      Event event, Notification notification,
-                                      bool waitForAck = false);
-  void queueEventHandlerRemoval (PointerT id, bool waitForAck = false);
+  /* Schedule addition of an event handler. The function returns a
+   shared_ptr to the message handler, which has to be kept alive by
+   the caller. The callback is deleted when the shared_ptr is
+   invalidated or goes out of scope. waitForAck can be passed to wait
+   until the handler has been picked up by the high priority thread.
+   */
+  PointerT scheduleEventHandlerAddition (std::function<CallbackT> handler,
+                                         Event event,
+                                         Notification notification,
+                                         bool waitForAck = false);
 
   void start ();
   void pause ();
@@ -79,6 +107,7 @@ public:
 
 private:
   Config config;
+  Measure measure;
 
   std::unique_ptr<ClockTimer> timer;
 

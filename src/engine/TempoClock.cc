@@ -45,7 +45,7 @@ public:
   }
 
   std::future<void>
-  pushFifoMessage (FifoMessage const &message)
+  submitFifoMessage (FifoMessage const &message)
   {
     const auto scope = abstractFifo.write (1);
 
@@ -53,7 +53,7 @@ public:
     jassert (scope.blockSize2 == 0);
     fifo[scope.startIndex1] = SubmittedMessage{ message };
 
-    return fifo[scope.startIndex1].ack.get_future ();
+    return fifo[scope.startIndex1].acknowledge.get_future ();
   }
 
   void
@@ -66,20 +66,24 @@ public:
 
     // execute or remove/erase callbacks
     forEachHandlerType ([&] (auto event, auto notification, auto &container) {
-      container.erase (
-          std::remove_if (
-              container.begin (), container.end (),
-              [&] (const std::weak_ptr<
-                   std::function<a3::TempoClock::CallbackT> > &func_ptr) {
-                if (auto f = func_ptr.lock ())
-                  {
-                    (*f) (event, time); // callback
-                    return false;
-                  }
-                else
-                  return true;
-              }),
-          container.end ());
+      auto it_erase_begin = std::remove_if (
+          container.begin (), container.end (),
+          [&] (const std::weak_ptr<std::function<a3::TempoClock::CallbackT> >
+                   &func_ptr) {
+            if (auto f = func_ptr.lock ())
+              {
+                // execute callback if pointer still valid
+                (*f) (event, time);
+                return false;
+              }
+            else // remove otherwise
+              return true;
+          });
+
+      auto count = container.end () - it_erase_begin;
+      container.erase (it_erase_begin, container.end ());
+      if (count)
+        juce::Logger::writeToLog ("erased elements: " + juce::String (count));
     });
   }
 
@@ -91,7 +95,7 @@ private:
         : FifoMessage{ fifoMessage }
     {
     }
-    std::promise<void> ack;
+    std::promise<void> acknowledge;
   };
 
   template <class FuncT>
@@ -112,11 +116,15 @@ private:
     const auto scope = abstractFifo.read (abstractFifo.getNumReady ());
 
     if (scope.blockSize1 > 0)
-      for (int idx = scope.startIndex1;
-           idx < scope.startIndex1 + scope.blockSize1; ++idx)
-        {
-          handleFifoMessage (fifo[idx]);
-        }
+      {
+        juce::Logger::writeToLog ("Processing FIFO messages: "
+                                  + juce::String (scope.blockSize1));
+        for (int idx = scope.startIndex1;
+             idx < scope.startIndex1 + scope.blockSize1; ++idx)
+          {
+            handleFifoMessage (fifo[idx]);
+          }
+      }
 
     if (scope.blockSize2 > 0)
       for (int idx = scope.startIndex1;
@@ -124,6 +132,12 @@ private:
         {
           handleFifoMessage (fifo[idx]);
         }
+
+    auto numElements = scope.blockSize1 + scope.blockSize2;
+    if (numElements)
+      juce::Logger::writeToLog (
+          "added " + juce::String (scope.blockSize1 + scope.blockSize2)
+          + " elements");
   }
 
   void
@@ -141,7 +155,7 @@ private:
     jassert (v.size () < v.capacity ());
     v.push_back (std::move (message.ptr));
 
-    message.ack.set_value ();
+    message.acknowledge.set_value ();
   }
 
   static constexpr int fifoSize = 32;
@@ -151,12 +165,16 @@ private:
   std::map<std::pair<a3::TempoClock::Event, a3::TempoClock::Notification>,
            ContainerT>
       handlers;
+
+  a3::TempoClock::Measure measure;
 };
 
 namespace a3
 {
 
-TempoClock::TempoClock ()
+TempoClock::TempoClock (TempoClock::Config const &config,
+                        int const numHandlersPreAllocated)
+    : config (config)
 {
   timer = std::make_unique<ClockTimer> (numHandlersPreAllocated);
 }
@@ -167,27 +185,22 @@ TempoClock::~TempoClock ()
 }
 
 TempoClock::PointerT
-TempoClock::queueEventHandlerAddition (std::function<CallbackT> handler,
-                                       Event event, Notification notification,
-                                       bool waitForAck)
+TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
+                                          Event event,
+                                          Notification notification,
+                                          bool waitForAck)
 {
   auto guard = std::lock_guard<std::mutex> (mutexWriteFifo);
 
   auto ptr = std::make_shared<std::function<CallbackT> > (std::move (handler));
 
-  auto future = timer->pushFifoMessage (
+  auto future = timer->submitFifoMessage (
       { std::weak_ptr<std::function<CallbackT> > (ptr), event, notification });
 
   if (waitForAck)
     future.wait ();
 
   return ptr;
-}
-
-void
-TempoClock::queueEventHandlerRemoval (PointerT ptr, bool waitForAck)
-{
-  jassert (false && "not implemented");
 }
 
 void
