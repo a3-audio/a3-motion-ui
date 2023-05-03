@@ -190,16 +190,20 @@ TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
                                           Event event, Execution execution,
                                           bool waitForAck)
 {
+  // makes sure that multiple threads/writers can schedule additions
+  // without a race.
   auto guard = std::lock_guard<std::mutex> (mutexWriteFifo);
 
+  // wrap the passed handler in a shared_ptr for lifetime management
   auto ptr = std::make_shared<std::function<CallbackT> > (std::move (handler));
 
+  // submit to fifo queue and optionally wait for acknowledgement
   auto future = timer->submitFifoMessage (
       { std::weak_ptr<std::function<CallbackT> > (ptr), event, execution });
-
   if (waitForAck)
     future.wait ();
 
+  // return shared_ptr to user as callback handle for deletion
   return ptr;
 }
 
