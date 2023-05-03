@@ -80,10 +80,13 @@ public:
               return true;
           });
 
-      auto count = container.end () - it_erase_begin;
       container.erase (it_erase_begin, container.end ());
+
+#ifdef DEBUG
+      auto count = container.end () - it_erase_begin;
       if (count)
         juce::Logger::writeToLog ("erased elements: " + juce::String (count));
+#endif
     });
   }
 
@@ -118,8 +121,10 @@ private:
 
     if (scope.blockSize1 > 0)
       {
+#ifdef DEBUG
         juce::Logger::writeToLog ("Processing FIFO messages: "
                                   + juce::String (scope.blockSize1));
+#endif
         for (int idx = scope.startIndex1;
              idx < scope.startIndex1 + scope.blockSize1; ++idx)
           {
@@ -134,11 +139,13 @@ private:
           handleFifoMessage (fifo[idx]);
         }
 
+#ifdef DEBUG
     auto numElements = scope.blockSize1 + scope.blockSize2;
     if (numElements)
       juce::Logger::writeToLog (
           "added " + juce::String (scope.blockSize1 + scope.blockSize2)
           + " elements");
+#endif
   }
 
   void
@@ -182,7 +189,7 @@ TempoClock::TempoClock (TempoClock::Config const &config,
 
 TempoClock::~TempoClock ()
 {
-  timer->stopTimer ();
+  stop ();
 }
 
 TempoClock::PointerT
@@ -211,21 +218,26 @@ void
 TempoClock::start ()
 {
   timer->startTimer (config.timerIntervalMs);
+#ifdef DEBUG
   juce::Logger::writeToLog ("TempoClock: started");
+#endif
 }
 
 void
 TempoClock::pause ()
 {
   timer->stopTimer ();
+#ifdef DEBUG
   juce::Logger::writeToLog ("TempoClock: paused");
+#endif
 }
 
 void
 TempoClock::stop ()
 {
   timer->stopTimer (); // TODO and reset beat count
+#ifdef DEBUG
   juce::Logger::writeToLog ("TempoClock: stopped");
+#endif
 }
-
 }
