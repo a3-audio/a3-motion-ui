@@ -29,6 +29,7 @@ class ClockTimer : public juce::HighResolutionTimer
 public:
   using PointerT = std::weak_ptr<std::function<a3::TempoClock::CallbackT> >;
   using ContainerT = std::vector<PointerT>;
+  using ClockT = std::chrono::high_resolution_clock;
 
   struct FifoMessage
   {
@@ -59,54 +60,27 @@ public:
   void
   hiResTimerCallback () override
   {
+    auto now = ClockT::now ();
+
+    if (resetStartTime)
+      {
+        resetStartTime = false;
+        startTime = now;
+      }
+
+    if (resetMeasure)
+      {
+        resetMeasure = false;
+        measure = {};
+      }
+
     readFifoMessages ();
 
-    // fantasize a time and event for now
-    auto time = std::chrono::high_resolution_clock::now ()
-                    .time_since_epoch ()
-                    .count ();
-    auto event = a3::TempoClock::Event::Tick;
-
-    // execute or remove/erase callbacks
-    forEachHandlerType ([&] (auto event, auto execution, auto &container) {
-      auto it_erase_begin = std::remove_if (
-          container.begin (), container.end (),
-          [&] (const std::weak_ptr<std::function<a3::TempoClock::CallbackT> >
-                   &func_ptr) {
-            if (auto f = func_ptr.lock ())
-              {
-                // if pointer still valid
-
-                switch (execution)
-                  {
-                  case a3::TempoClock::Execution::TimerThread:
-                    (*f) (event, time); // execute directly
-                    break;
-                  case a3::TempoClock::Execution::JuceMessageThread:
-                    // NOTE: we create a *copy* of the temporary
-                    // shared_ptr to extend the lifetime of our
-                    // callback object until the event thread has
-                    // handled this.
-                    juce::MessageManager::callAsync (
-                        [f, event, time] () { (*f) (event, time); });
-                    break;
-                  }
-
-                return false;
-              }
-            else // remove otherwise
-              return true;
-          });
-
-      container.erase (it_erase_begin, container.end ());
-
-#ifdef DEBUG
-      auto count = container.end () - it_erase_begin;
-      if (count)
-        juce::Logger::writeToLog ("erased elements: " + juce::String (count));
-#endif
-    });
+    executeOrRemoveHandlers ();
   }
+
+  std::atomic<bool> resetStartTime = true;
+  std::atomic<bool> resetMeasure = true;
 
 private:
   struct SubmittedMessage : public FifoMessage
@@ -184,6 +158,50 @@ private:
     message.acknowledge.set_value ();
   }
 
+  void
+  executeOrRemoveHandlers ()
+  {
+    // execute or remove/erase callbacks
+    forEachHandlerType ([&] (auto event, auto execution, auto &container) {
+      auto it_erase_begin = std::remove_if (
+          container.begin (), container.end (),
+          [&] (const std::weak_ptr<std::function<a3::TempoClock::CallbackT> >
+                   &func_ptr) {
+            if (auto f = func_ptr.lock ()) // if pointer still valid
+              {
+                switch (execution)
+                  {
+                  case a3::TempoClock::Execution::TimerThread:
+                    (*f) (measure); // execute directly
+                    break;
+                  case a3::TempoClock::Execution::JuceMessageThread:
+                    // NOTE: we copy the weak_ptr and check for
+                    // validity again during the asynchronous
+                    // execution in the message thread.
+                    a3::TempoClock::Measure measureTmp{ measure };
+                    juce::MessageManager::callAsync (
+                        [func_ptr, measureTmp] () {
+                          if (auto f = func_ptr.lock ())
+                            (*f) (measureTmp);
+                        });
+                    break;
+                  }
+                return false;
+              }
+            else // remove otherwise
+              return true;
+          });
+
+      container.erase (it_erase_begin, container.end ());
+
+#ifdef DEBUG
+      auto count = container.end () - it_erase_begin;
+      if (count)
+        juce::Logger::writeToLog ("erased elements: " + juce::String (count));
+#endif
+    });
+  }
+
   static constexpr int fifoSize = 32;
   juce::AbstractFifo abstractFifo{ fifoSize };
   std::array<SubmittedMessage, fifoSize> fifo;
@@ -192,6 +210,7 @@ private:
            ContainerT>
       handlers;
 
+  ClockT::time_point startTime;
   a3::TempoClock::Measure measure;
 };
 
@@ -205,10 +224,7 @@ TempoClock::TempoClock (TempoClock::Config const &config,
   timer = std::make_unique<ClockTimer> (numHandlersPreAllocated);
 }
 
-TempoClock::~TempoClock ()
-{
-  stop ();
-}
+TempoClock::~TempoClock () {}
 
 TempoClock::PointerT
 TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
@@ -216,7 +232,7 @@ TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
                                           bool waitForAck)
 {
   // makes sure that multiple threads/writers can schedule additions
-  // without a race.
+  // without a race. should this be moved into the caller's responsibility?
   auto guard = std::lock_guard<std::mutex> (mutexWriteFifo);
 
   // wrap the passed handler in a shared_ptr for lifetime management
@@ -228,34 +244,50 @@ TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
   if (waitForAck)
     future.wait ();
 
-  // return shared_ptr to user as callback handle for deletion
+  // return shared_ptr to the user as callback for unregistration/deletion
   return ptr;
 }
 
 void
 TempoClock::start ()
 {
-  timer->startTimer (config.timerIntervalMs);
+  auto now = ClockTimer::ClockT::now ();
+
+  if (!timer->isTimerRunning ())
+    {
+      timer->resetStartTime = true;
+      timer->startTimer (config.timerIntervalMs);
 #ifdef DEBUG
-  juce::Logger::writeToLog ("TempoClock: started");
+      juce::Logger::writeToLog ("TempoClock: started");
+#endif
+    }
+#ifdef DEBUG
+  else
+    {
+      juce::Logger::writeToLog ("TempoClock: was already started!");
+    }
 #endif
 }
 
-void
-TempoClock::pause ()
-{
-  timer->stopTimer ();
-#ifdef DEBUG
-  juce::Logger::writeToLog ("TempoClock: paused");
-#endif
-}
+// void
+// TempoClock::pause ()
+// {
+//   timer->stopTimer ();
+// #ifdef DEBUG
+//   juce::Logger::writeToLog ("TempoClock: paused");
+// #endif
+// }
 
 void
 TempoClock::stop ()
 {
-  timer->stopTimer (); // TODO and reset beat count
+  if (timer->isTimerRunning ())
+    {
+      timer->stopTimer ();
+      timer->resetMeasure = true;
 #ifdef DEBUG
-  juce::Logger::writeToLog ("TempoClock: stopped");
+      juce::Logger::writeToLog ("TempoClock: stopped");
 #endif
+    }
 }
 }

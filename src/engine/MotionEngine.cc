@@ -20,6 +20,9 @@
 
 #include "MotionEngine.hh"
 
+#include "../util/Helpers.hh"
+#include "../util/Timing.hh"
+
 namespace a3
 {
 
@@ -29,9 +32,13 @@ MotionEngine::MotionEngine (int const numChannels)
 
   tempoClock.start ();
 
-  //  juce::Thread::sleep (1000);
+  // TODO: move to a unit (?) test
+  // testAddRemoveHandlers ();
+}
 
-  //   tempoClock.stop ();
+MotionEngine::~MotionEngine ()
+{
+  tempoClock.stop ();
 }
 
 void
@@ -44,6 +51,51 @@ std::vector<std::unique_ptr<Channel> > &
 MotionEngine::getChannels ()
 {
   return channels;
+}
+
+void
+MotionEngine::testAddRemoveHandlers ()
+{
+  Timings<std::chrono::steady_clock> timings;
+
+  {
+    ScopedTimer timer{ timings, "sync tick" };
+    auto callback = tempoClock.scheduleEventHandlerAddition (
+        [] (auto measure) {
+          juce::Logger::writeToLog ("Sync Tick event");
+          // auto dt = std::chrono::high_resolution_clock::now ()
+          //               .time_since_epoch ()
+          //               .count ()
+          //           - measure.time_ns;
+          // juce::Logger::writeToLog ("dt: " + juce::String (dt));
+        },
+        TempoClock::Event::Tick, TempoClock::Execution::TimerThread, true);
+
+    juce::Thread::sleep (10);
+
+    callback = nullptr;
+  }
+
+  {
+    ScopedTimer timer (timings, "async tick");
+    auto callback = tempoClock.scheduleEventHandlerAddition (
+        [] (auto measure) {
+          juce::Logger::writeToLog ("Async Tick event");
+          // auto dt = std::chrono::high_resolution_clock::now ()
+          //               .time_since_epoch ()
+          //               .count ()
+          //           - measure.time_ns;
+          // juce::Logger::writeToLog ("dt: " + juce::String (dt));
+        },
+        TempoClock::Event::Tick, TempoClock::Execution::JuceMessageThread,
+        true);
+
+    juce::Thread::sleep (100);
+
+    callback = nullptr;
+  }
+
+  printTimerMeasurements (timings);
 }
 
 }

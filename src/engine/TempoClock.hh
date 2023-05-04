@@ -91,7 +91,7 @@ public:
     Tick
   };
 
-  using CallbackT = void (Event, uint64_t);
+  using CallbackT = void (a3::TempoClock::Measure);
   using PointerT = std::shared_ptr<std::function<CallbackT> >;
 
   TempoClock (Config const &config = Config{},
@@ -109,7 +109,7 @@ public:
                                          bool waitForAck = false);
 
   void start ();
-  void pause ();
+  // void pause (); // needs more thought
   void stop ();
 
 private:
