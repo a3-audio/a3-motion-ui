@@ -58,7 +58,7 @@ public:
   struct Config
   {
     Config ()
-        : beatsPerMinute (90), beatsPerBar (4), ticksPerBeat (64),
+        : beatsPerMinute (90), beatsPerBar (4), ticksPerBeat (128),
           timerIntervalMs (1)
     {
     }
@@ -66,7 +66,7 @@ public:
     int
     ns_per_tick () const
     {
-      return 60 * 10 ^ 9 / ticksPerBeat / beatsPerMinute;
+      return uint64_t (60) * 1000000000 / ticksPerBeat / beatsPerMinute;
     }
 
     // can't use default initializers due to a compiler-bug that
