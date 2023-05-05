@@ -57,26 +57,17 @@ public:
   // nuances.
   struct Config
   {
-    Config ()
-        : beatsPerMinute (90), beatsPerBar (4), ticksPerBeat (128),
-          timerIntervalMs (1)
-    {
-    }
-
     int
     ns_per_tick () const
     {
       return uint64_t (60) * 1000000000 / ticksPerBeat / beatsPerMinute;
     }
 
-    // can't use default initializers due to a compiler-bug that
-    // prevents us from doing this otherwise:
-    // TempoClock (Config const &config = Config {});
-    // https://stackoverflow.com/questions/53408962/try-to-understand-compiler-error-message-default-member-initializer-required-be
-    int beatsPerMinute;
-    int beatsPerBar;
-    int ticksPerBeat;
-    int timerIntervalMs;
+    std::atomic<int> beatsPerMinute{ 90 };
+    std::atomic<int> beatsPerBar{ 4 };
+
+    static constexpr int ticksPerBeat = 128;
+    static_assert (std::atomic<int>::is_always_lock_free);
   };
 
   struct Measure
@@ -103,9 +94,10 @@ public:
   using CallbackT = void (a3::TempoClock::Measure);
   using PointerT = std::shared_ptr<std::function<CallbackT> >;
 
-  TempoClock (Config const &config = Config{},
-              int const numHandlersPreAllocated = a3::numHandlersPreAllocated);
+  TempoClock ();
   ~TempoClock ();
+
+  Config &getConfig ();
 
   /* Schedule addition of an event handler. The function returns a
    shared_ptr to the message handler, which has to be kept alive by
@@ -125,6 +117,7 @@ private:
   Config config;
 
   std::unique_ptr<ClockTimer> timer;
+  static constexpr int timerIntervalMs = 1;
 
   // We use a single-producer single-consumer lock-less ring buffer to
   // forward add/delete requests of event handlers to the timer

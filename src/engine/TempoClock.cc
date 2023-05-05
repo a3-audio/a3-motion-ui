@@ -38,9 +38,7 @@ public:
     a3::TempoClock::Execution execution;
   };
 
-  ClockTimer (a3::TempoClock::Config const &config,
-              int numHandlersPreAllocated)
-      : config (config)
+  ClockTimer (a3::TempoClock::Config const &config) : config (config)
   {
     forEachHandlerType ([&] (auto event, auto execution, auto &container) {
       container.reserve (numHandlersPreAllocated);
@@ -246,6 +244,7 @@ private:
       }
   }
 
+  static constexpr int numHandlersPreAllocated = 10;
   static constexpr int fifoSize = 32;
   juce::AbstractFifo abstractFifo{ fifoSize };
   std::array<SubmittedMessage, fifoSize> fifo;
@@ -265,14 +264,18 @@ private:
 namespace a3
 {
 
-TempoClock::TempoClock (TempoClock::Config const &config,
-                        int const numHandlersPreAllocated)
-    : config (config)
+TempoClock::TempoClock ()
 {
-  timer = std::make_unique<ClockTimer> (this->config, numHandlersPreAllocated);
+  timer = std::make_unique<ClockTimer> (config);
 }
 
 TempoClock::~TempoClock () {}
+
+TempoClock::Config &
+TempoClock::getConfig ()
+{
+  return config;
+}
 
 TempoClock::PointerT
 TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
@@ -304,7 +307,7 @@ TempoClock::start ()
   if (!timer->isTimerRunning ())
     {
       timer->reset = true;
-      timer->startTimer (config.timerIntervalMs);
+      timer->startTimer (timerIntervalMs);
 #ifdef DEBUG
       juce::Logger::writeToLog ("TempoClock: started");
 #endif
