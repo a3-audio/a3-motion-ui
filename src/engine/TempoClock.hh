@@ -52,12 +52,21 @@ namespace a3
 class TempoClock
 {
 public:
+  // ticksPerBeat equal PPQN (pulses per quarter note). MIDI uses 24,
+  // modern sequencers up to 960 (Wikipedia) to capture timing
+  // nuances.
   struct Config
   {
     Config ()
-        : beatsPerMinute (90), beatsPerBar (4), ticksPerBeat (32),
+        : beatsPerMinute (90), beatsPerBar (4), ticksPerBeat (64),
           timerIntervalMs (1)
     {
+    }
+
+    int
+    ns_per_tick () const
+    {
+      return 60 * 10 ^ 9 / ticksPerBeat / beatsPerMinute;
     }
 
     // can't use default initializers due to a compiler-bug that
@@ -114,7 +123,6 @@ public:
 
 private:
   Config config;
-  Measure measure;
 
   std::unique_ptr<ClockTimer> timer;
 
