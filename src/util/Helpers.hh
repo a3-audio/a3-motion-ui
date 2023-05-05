@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <chrono>
+
 #include <JuceHeader.h>
 
 #include "../engine/TempoClock.hh"
@@ -45,10 +47,14 @@ print (Timings<ClockT> const &timings)
 void
 print (a3::TempoClock::Measure const &measure, juce::String prefix = "")
 {
-  juce::Logger::writeToLog (prefix + " " + juce::String (measure.bar) + "."
-                            + juce::String (measure.beat) + "."
-                            + juce::String (measure.tick) + ":"
-                            + juce::String (measure.time_ns));
+  auto ts = std::chrono::high_resolution_clock::now ()
+                .time_since_epoch ()
+                .count ();
+
+  juce::Logger::writeToLog (
+      prefix + " " + juce::String (measure.bar) + "."
+      + juce::String (measure.beat) + "." + juce::String (measure.tick) + ":"
+      + juce::String (measure.time_ns) + " @ " + juce::String (ts));
 }
 
 }
