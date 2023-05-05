@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include "../engine/TempoClock.hh"
 #include "Timing.hh"
 
 namespace a3
@@ -29,7 +30,7 @@ namespace a3
 
 template <class ClockT>
 void
-printTimerMeasurements (Timings<ClockT> const &timings)
+print (Timings<ClockT> const &timings)
 {
   for (auto const &t : timings.get ())
     {
@@ -40,4 +41,14 @@ printTimerMeasurements (Timings<ClockT> const &timings)
                   .count ()));
     }
 }
+
+void
+print (a3::TempoClock::Measure const &measure, juce::String prefix = "")
+{
+  juce::Logger::writeToLog (prefix + " " + juce::String (measure.bar) + "."
+                            + juce::String (measure.beat) + "."
+                            + juce::String (measure.tick) + ":"
+                            + juce::String (measure.time_ns));
+}
+
 }

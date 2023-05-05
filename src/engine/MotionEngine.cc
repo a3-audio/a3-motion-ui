@@ -59,43 +59,24 @@ MotionEngine::testAddRemoveHandlers ()
   Timings<std::chrono::steady_clock> timings;
 
   {
-    ScopedTimer timer{ timings, "sync tick" };
-    auto callback = tempoClock.scheduleEventHandlerAddition (
-        [] (auto measure) {
-          juce::Logger::writeToLog ("Sync Tick event");
-          // auto dt = std::chrono::high_resolution_clock::now ()
-          //               .time_since_epoch ()
-          //               .count ()
-          //           - measure.time_ns;
-          // juce::Logger::writeToLog ("dt: " + juce::String (dt));
-        },
-        TempoClock::Event::Tick, TempoClock::Execution::TimerThread, true);
-
-    juce::Thread::sleep (10);
-
-    callback = nullptr;
+    // ScopedTimer timer{ timings, "sync tick" };
+    callbackHandleTimer = tempoClock.scheduleEventHandlerAddition (
+        [] (auto measure) { print (measure, "==="); }, TempoClock::Event::Tick,
+        TempoClock::Execution::TimerThread, true);
   }
 
   {
-    ScopedTimer timer (timings, "async tick");
-    auto callback = tempoClock.scheduleEventHandlerAddition (
-        [] (auto measure) {
-          juce::Logger::writeToLog ("Async Tick event");
-          // auto dt = std::chrono::high_resolution_clock::now ()
-          //               .time_since_epoch ()
-          //               .count ()
-          //           - measure.time_ns;
-          // juce::Logger::writeToLog ("dt: " + juce::String (dt));
-        },
-        TempoClock::Event::Tick, TempoClock::Execution::JuceMessageThread,
-        true);
-
-    juce::Thread::sleep (100);
-
-    callback = nullptr;
+    // ScopedTimer timer (timings, "async tick");
+    callbackHandleMessage = tempoClock.scheduleEventHandlerAddition (
+        [] (auto measure) { print (measure, "---"); }, TempoClock::Event::Tick,
+        TempoClock::Execution::JuceMessageThread, true);
   }
 
-  printTimerMeasurements (timings);
+  // juce::Thread::sleep (2000);
+  // callbackHandleTimer = nullptr;
+  // callbackHandleMessage = nullptr;
+
+  // print (timings);
 }
 
 }

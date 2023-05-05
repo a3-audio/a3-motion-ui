@@ -42,12 +42,10 @@ private:
   void testAddRemoveHandlers ();
 
   TempoClock tempoClock;
-
-  Master master;
   std::vector<std::unique_ptr<Channel> > channels;
 
-  // TempoClock::PointerT callbackHandleSync;
-  // TempoClock::PointerT callbackHandleAsync;
+  TempoClock::PointerT callbackHandleTimer;
+  TempoClock::PointerT callbackHandleMessage;
 };
 
 };
