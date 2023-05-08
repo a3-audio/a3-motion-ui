@@ -20,26 +20,44 @@
 
 #pragma once
 
-#include "MainComponent.hh"
-
 #include <JuceHeader.h>
+
+#include <vector>
+
+#include <a3-motion-engine/MotionEngine.hh>
+
+#include <a3-motion-ui/LookAndFeel.hh>
+#include <a3-motion-ui/components/ChannelFooter.hh>
+#include <a3-motion-ui/components/ChannelHeader.hh>
+#include <a3-motion-ui/components/MotionComponent.hh>
 
 namespace a3
 {
 
-class MainWindow : public juce::ResizableWindow, private juce::KeyListener
+class MainComponent : public juce::Component
 {
 public:
-  MainWindow (juce::String const &name);
+  MainComponent (int const numChannels);
+  ~MainComponent ();
 
-  void userTriedToCloseWindow () override;
+  void paint (juce::Graphics &g) override;
   void resized () override;
 
-private:
-  bool keyPressed (const juce::KeyPress &k, juce::Component *c) override;
+  float getMinimumWidth () const;
+  float getMinimumHeight () const;
 
-  juce::Viewport viewport;
-  MainComponent mainComponent;
+private:
+  void createChannelsUI ();
+
+  MotionEngine engine;
+
+  // UI
+  LookAndFeel_A3 lookAndFeel;
+  std::vector<std::unique_ptr<ChannelHeader> > headers;
+  std::vector<std::unique_ptr<ChannelFooter> > footers;
+  MotionComponent motionComp;
+
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };
 
 }

@@ -20,8 +20,8 @@
 
 #include "MotionEngine.hh"
 
-#include "../util/Helpers.hh"
-#include "../util/Timing.hh"
+#include <a3-motion-engine/util/Helpers.hh>
+#include <a3-motion-engine/util/Timing.hh>
 
 namespace a3
 {

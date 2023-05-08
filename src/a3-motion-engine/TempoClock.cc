@@ -22,6 +22,8 @@
 
 #include <future>
 
+#include <JuceHeader.h>
+
 #include "../Config.hh"
 
 class ClockTimer : public juce::HighResolutionTimer

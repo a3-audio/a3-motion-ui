@@ -20,10 +20,11 @@
 
 #pragma once
 
+#include <atomic>
+#include <functional>
 #include <map>
+#include <memory>
 #include <mutex>
-
-#include <JuceHeader.h>
 
 #include "../Config.hh"
 
@@ -60,7 +61,7 @@ public:
     int
     ns_per_tick () const
     {
-      return uint64_t (60) * 1000000000 / ticksPerBeat / beatsPerMinute;
+      return int64_t (60) * 1000000000 / ticksPerBeat / beatsPerMinute;
     }
 
     std::atomic<int> beatsPerMinute{ 90 };

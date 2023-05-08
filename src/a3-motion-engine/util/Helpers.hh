@@ -22,10 +22,11 @@
 
 #include <chrono>
 
+// #include <juce_core/logging/juce_Logger.h>
 #include <JuceHeader.h>
 
-#include "../engine/TempoClock.hh"
-#include "Timing.hh"
+#include <a3-motion-engine/TempoClock.hh>
+#include <a3-motion-engine/util/Timing.hh>
 
 namespace a3
 {

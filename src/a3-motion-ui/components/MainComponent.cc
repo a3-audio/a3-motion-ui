@@ -20,7 +20,7 @@
 
 #include "MainComponent.hh"
 
-#include "ui/LayoutHints.hh"
+#include <a3-motion-ui/LayoutHints.hh>
 
 namespace a3
 {

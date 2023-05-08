@@ -7,93 +7,28 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(JUCE CONFIG REQUIRED)
 
-juce_add_plugin(${PROJECT}
-    # VERSION ...                               # Set this if the plugin version is different to the project version
-    # ICON_BIG ...                              # ICON_* arguments specify a path to an image file to use as an icon for the Standalone
-    # ICON_SMALL ...
-    COMPANY_NAME "A3 Audio"                     # Specify the name of the plugin's author
-    IS_SYNTH FALSE                              # Is this a synth or an effect?
-    NEEDS_MIDI_INPUT FALSE                      # Does the plugin need midi input?
-    NEEDS_MIDI_OUTPUT FALSE                     # Does the plugin need midi output?
-    IS_MIDI_EFFECT FALSE                        # Is this plugin a MIDI effect?
-    EDITOR_WANTS_KEYBOARD_FOCUS TRUE            # Does the editor need keyboard focus?
-    COPY_PLUGIN_AFTER_BUILD FALSE               # Should the plugin be installed to a default location after building?
-    PLUGIN_MANUFACTURER_CODE A3AU               # A four-character manufacturer id with at least one upper-case character
-    PLUGIN_CODE A3MC                            # A unique four-character plugin id with at least one upper-case character
-    PLUGIN_NAME "A3 Motion UI"
-    FORMATS "Standalone;VST3"                   # The formats to build. Other valid formats are: AAX Unity VST AU AUv3
-    PRODUCT_NAME "a3-motion-ui")                # The name of the final executable, which can differ from the target name
+add_subdirectory("src/a3-motion-engine")
+add_subdirectory("src/a3-motion-ui")
 
-juce_generate_juce_header(${PROJECT})
+# # unit testing
+# set(ENABLE_TESTING TRUE CACHE BOOL "enable unit testing with GoogleTest")
+# if(ENABLE_TESTING)
+#     include(GoogleTest)
 
-target_sources(${PROJECT} PRIVATE
-    src/A3MotionAudioProcessor.cc
-    src/A3MotionAudioProcessor.hh
-    src/A3MotionEditor.cc
-    src/A3MotionEditor.hh
-    src/StandaloneApp.cc
-    src/StandaloneApp.hh
-    src/MainComponent.cc
-    src/MainComponent.hh
-    src/MainWindow.cc
-    src/MainWindow.hh
-    src/engine/MotionEngine.cc
-    src/engine/MotionEngine.hh
-    src/engine/Channel.cc
-    src/engine/Channel.hh
-    src/engine/Master.cc
-    src/engine/Master.hh
-    src/engine/TempoClock.cc
-    src/engine/TempoClock.hh
-    src/ui/LookAndFeel.cc
-    src/ui/LookAndFeel.hh
-    src/ui/LayoutHints.cc
-    src/ui/LayoutHints.hh
-    src/ui/ChannelHeader.cc
-    src/ui/ChannelHeader.hh
-    src/ui/ChannelFooter.cc
-    src/ui/ChannelFooter.hh
-    src/ui/MotionComponent.cc
-    src/ui/MotionComponent.hh
-)
+#     add_executable(
+#         a3-motion-ui-tests
+#         "${CMAKE_CURRENT_SOURCE_DIR}/tests/TestRunnerApplication.cc"
+#         "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/TempoClock.cc"
+#     )
+#     target_include_directories(
+#         a3-motion-ui-tests PRIVATE
+#         "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT}_artefacts/JuceLibraryCode"
+#     )
+#     target_link_libraries(
+#         a3-motion-ui-tests
+#         a3-motion-ui
+#         gtest
+#     )
 
-target_compile_definitions(${PROJECT} PUBLIC
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
-    JUCE_VST3_CAN_REPLACE_VST2=0
-    JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1
-    DONT_SET_USING_JUCE_NAMESPACE=1
-)
-
-target_include_directories(${PROJECT} PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/src"
-)
-
-target_link_libraries(${PROJECT} PUBLIC
-    juce::juce_audio_utils
-    # juce::juce_gui_basics
-    juce::juce_osc
-)
-
-# unit testing
-set(ENABLE_TESTING TRUE CACHE BOOL "enable unit testing with GoogleTest")
-if(ENABLE_TESTING)
-    include(GoogleTest)
-
-    add_executable(
-        a3-motion-ui-tests
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/TestRunnerApplication.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/TempoClock.cc"
-    )
-    target_include_directories(
-        a3-motion-ui-tests PRIVATE
-        "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT}_artefacts/JuceLibraryCode"
-    )
-    target_link_libraries(
-        a3-motion-ui-tests
-        a3-motion-ui
-        gtest
-    )
-
-    gtest_discover_tests(a3-motion-ui-tests)
-endif()
+#     gtest_discover_tests(a3-motion-ui-tests)
+# endif()

@@ -18,26 +18,28 @@
 
 */
 
-#include "LayoutHints.hh"
+#pragma once
 
-#include "ChannelHeader.hh"
+#include <JuceHeader.h>
+
+#include <a3-motion-ui/components/MainComponent.hh>
 
 namespace a3
 {
 
-float const LayoutHints::Channels::widthMin = 100.f;
-float const LayoutHints::Channels::heightFooter = 150.f;
-
-float const LayoutHints::MotionComponent::heightMin = 100.f;
-
-float const LayoutHints::padding = 5.f;
-float const LayoutHints::lineHeight = 50.f;
-
-float
-LayoutHints::Channels::heightHeader ()
+class MainWindow : public juce::ResizableWindow, private juce::KeyListener
 {
-  return ChannelHeader::numSlidersFX * LayoutHints::lineHeight
-         + 2 * LayoutHints::padding;
-}
+public:
+  MainWindow (juce::String const &name);
+
+  void userTriedToCloseWindow () override;
+  void resized () override;
+
+private:
+  bool keyPressed (const juce::KeyPress &k, juce::Component *c) override;
+
+  juce::Viewport viewport;
+  MainComponent mainComponent;
+};
 
 }

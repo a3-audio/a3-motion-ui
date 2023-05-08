@@ -18,31 +18,26 @@
 
 */
 
-#pragma once
+#include "LayoutHints.hh"
 
-#include <JuceHeader.h>
-
-#include "A3MotionAudioProcessor.hh"
-
-#include "MainComponent.hh"
+#include <a3-motion-ui/components/ChannelHeader.hh>
 
 namespace a3
 {
 
-class A3MotionEditor : public juce::AudioProcessorEditor
+float const LayoutHints::Channels::widthMin = 100.f;
+float const LayoutHints::Channels::heightFooter = 150.f;
+
+float const LayoutHints::MotionComponent::heightMin = 100.f;
+
+float const LayoutHints::padding = 5.f;
+float const LayoutHints::lineHeight = 50.f;
+
+float
+LayoutHints::Channels::heightHeader ()
 {
-public:
-  A3MotionEditor (A3MotionAudioProcessor &);
-  ~A3MotionEditor ();
-
-  void paint (juce::Graphics &g) override;
-  void resized () override;
-
-private:
-  A3MotionAudioProcessor &processor;
-  MainComponent mainComponent;
-
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionEditor)
-};
+  return ChannelHeader::numSlidersFX * LayoutHints::lineHeight
+         + 2 * LayoutHints::padding;
+}
 
 }

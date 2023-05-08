@@ -18,7 +18,7 @@
 
 */
 
-#include "ScopedTimer.hh"
+#include "Timing.hh"
 
 namespace a3
 {
