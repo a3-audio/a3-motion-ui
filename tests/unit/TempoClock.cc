@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
-#include <engine/TempoClock.hh>
-#include <util/ScopedTimer.hh>
+#include <JuceHeader.h>
+
+#include <a3-motion-engine/TempoClock.hh>
+#include <a3-motion-engine/util/Timing.hh>
 
 using namespace a3;
 
@@ -10,17 +12,17 @@ TEST (TempoClock, TimingSyncAsync)
   TempoClock tempoClock;
   // tempoClock.start ();
 
-  ScopedTimer<>::TimingResults results;
+  Timings timings;
 
   constexpr auto numTries = 10;
   for (int i = 0; i < numTries; ++i)
     { // testing
-      ScopedTimer<> t{ results, "waiting" };
+      ScopedTimer<> t{ timings, "waiting" };
       auto ptr = tempoClock.scheduleEventHandlerAddition (
-          [] (auto event, auto time) {
-            juce::Logger::writeToLog ("sync: " + juce::String (time));
+          [] (auto measure) {
+            // juce::Logger::writeToLog ("sync: " + juce::String (time));
           },
-          TempoClock::Event::Beat, TempoClock::Notification::Sync, true);
+          TempoClock::Event::Beat, TempoClock::Execution::TimerThread, true);
     }
 
   tempoClock.start ();

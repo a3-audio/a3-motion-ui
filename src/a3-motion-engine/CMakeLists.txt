@@ -6,12 +6,16 @@ target_link_libraries(juce_dependencies
         juce::juce_core
     PUBLIC
         juce::juce_recommended_config_flags
-        juce::juce_recommended_warning_flags)
+        juce::juce_recommended_warning_flags
+        juce::juce_recommended_lto_flags)
 
 target_compile_definitions(juce_dependencies
     PUBLIC
         JucePlugin_Build_Standalone=1
         JUCE_STANDALONE_APPLICATION=JucePlugin_Build_Standalone
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        DONT_SET_USING_JUCE_NAMESPACE=1
     INTERFACE
         $<TARGET_PROPERTY:juce_dependencies,COMPILE_DEFINITIONS>)
 
@@ -19,17 +23,12 @@ target_include_directories(juce_dependencies
     INTERFACE
         $<TARGET_PROPERTY:juce_dependencies,INCLUDE_DIRECTORIES>)
 
-# function defined elsewhere. enables PIC, hidden symbols
-# set_default_properties(juce_dependencies)
 
-
-
-add_library("a3-motion-engine")
-_juce_initialise_target("a3-motion-engine")
-
+add_library("a3-motion-engine" STATIC)
 set_target_properties("a3-motion-engine" PROPERTIES
     POSITION_INDEPENDENT_CODE TRUE)
 
+_juce_initialise_target("a3-motion-engine")
 juce_generate_juce_header("a3-motion-engine")
 
 target_sources("a3-motion-engine" PRIVATE
