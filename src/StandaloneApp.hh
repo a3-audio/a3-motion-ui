@@ -33,7 +33,7 @@ class StandaloneApp : public juce::JUCEApplication
 {
 public:
   StandaloneApp () {}
-  ~StandaloneApp () {}
+  ~StandaloneApp ();
 
   void initialise (juce::String const &commandLine) override;
   void shutdown () override;
@@ -44,8 +44,11 @@ public:
   void systemRequestedQuit () override;
 
 private:
+  void setupFileLogger ();
+
   std::unique_ptr<MainWindow> mainWindow;
   std::unique_ptr<juce::SplashScreen> splash;
+  std::unique_ptr<juce::Logger> logger;
 };
 
 } // namespace a3 end

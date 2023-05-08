@@ -23,11 +23,14 @@
 namespace a3
 {
 
+StandaloneApp::~StandaloneApp () {}
+
 void
 StandaloneApp::initialise (juce::String const &commandLine)
 {
-  auto appNameVer = getApplicationName () + " " + getApplicationVersion ();
+  setupFileLogger ();
 
+  auto appNameVer = getApplicationName () + " " + getApplicationVersion ();
   juce::Logger::writeToLog (appNameVer);
 
   // splash = std::make_unique<SplashScreen> (
@@ -49,8 +52,25 @@ StandaloneApp::initialise (juce::String const &commandLine)
 }
 
 void
+StandaloneApp::setupFileLogger ()
+{
+  auto fileExecutable = juce::File::getSpecialLocation (
+      juce::File::SpecialLocationType::currentExecutableFile);
+  auto filenameLog = fileExecutable.getFileNameWithoutExtension () + ".log";
+
+  logger = std::make_unique<juce::FileLogger> (
+      fileExecutable.getParentDirectory ().getChildFile (filenameLog),
+      "a3-motion-ui debug log", 0);
+  juce::Logger::setCurrentLogger (logger.get ());
+}
+
+void
 StandaloneApp::shutdown ()
 {
+  // explicit deletion of MainWindow to capture tear-down messages
+  // with our logger
+  mainWindow = nullptr;
+  juce::Logger::setCurrentLogger (nullptr);
 }
 
 juce::String const

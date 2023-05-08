@@ -24,7 +24,7 @@
 
 #include <vector>
 
-#include "engine/Channel.hh"
+#include "engine/MotionEngine.hh"
 
 #include "ui/ChannelFooter.hh"
 #include "ui/ChannelHeader.hh"
@@ -47,15 +47,14 @@ public:
   float getMinimumHeight () const;
 
 private:
-  void createChannels (int const numChannels);
   void createChannelsUI ();
 
-  LookAndFeel_A3 lookAndFeel;
+  MotionEngine engine;
 
-  std::vector<std::unique_ptr<Channel> > channels;
+  // UI
+  LookAndFeel_A3 lookAndFeel;
   std::vector<std::unique_ptr<ChannelHeader> > headers;
   std::vector<std::unique_ptr<ChannelFooter> > footers;
-
   MotionComponent motionComp;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)

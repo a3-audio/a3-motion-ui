@@ -20,9 +20,17 @@
 
 #pragma once
 
+#include "TempoClock.hh"
+
 namespace a3
 {
 
-constexpr int numChannelsInitial = 4;
+class Master
+{
+public:
+  Master ();
+
+private:
+};
 
 }

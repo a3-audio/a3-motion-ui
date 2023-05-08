@@ -20,9 +20,32 @@
 
 #pragma once
 
+#include "Channel.hh"
+#include "Master.hh"
+#include "TempoClock.hh"
+
 namespace a3
 {
 
-constexpr int numChannelsInitial = 4;
+class MotionEngine
+{
+public:
+  MotionEngine (int const numChannels);
+  ~MotionEngine ();
 
-}
+  std::vector<std::unique_ptr<Channel> > &getChannels ();
+
+private:
+  void createChannels (int const numChannels);
+
+  // testing
+  void testAddRemoveHandlers ();
+
+  TempoClock tempoClock;
+  std::vector<std::unique_ptr<Channel> > channels;
+
+  TempoClock::PointerT callbackHandleTimer;
+  TempoClock::PointerT callbackHandleMessage;
+};
+
+};

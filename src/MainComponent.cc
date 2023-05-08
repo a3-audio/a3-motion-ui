@@ -25,11 +25,10 @@
 namespace a3
 {
 
-MainComponent::MainComponent (int const numChannels)
+MainComponent::MainComponent (int const numChannels) : engine (numChannels)
 {
   setLookAndFeel (&lookAndFeel);
 
-  createChannels (numChannels);
   createChannelsUI ();
 
   addChildComponent (motionComp);
@@ -42,24 +41,16 @@ MainComponent::~MainComponent ()
 }
 
 void
-MainComponent::createChannels (int const numChannels)
-{
-  channels.resize (numChannels);
-}
-
-void
 MainComponent::createChannelsUI ()
 {
-  auto const numChannels = channels.size ();
-
-  juce::Logger::writeToLog (juce::String (numChannels));
+  auto const numChannels = engine.getChannels ().size ();
 
   headers.reserve (numChannels);
   footers.reserve (numChannels);
 
   auto hueStart = 0.f;
   auto hueNorm = hueStart;
-  for (auto const &channel : channels)
+  for (auto const &channel : engine.getChannels ())
     {
       auto header = std::make_unique<ChannelHeader> (*channel);
       auto footer = std::make_unique<ChannelFooter> (*channel);
@@ -80,7 +71,7 @@ MainComponent::createChannelsUI ()
                                           // implementation.
 
       auto color = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
-      hueNorm += 1.f / channels.size ();
+      hueNorm += 1.f / numChannels;
 
       header->setColour (ChannelHeader::backgroundColourId, color);
       footer->setColour (ChannelFooter::backgroundColourId, color);

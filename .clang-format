@@ -10,4 +10,5 @@ IndentWidth: 2
 ---
 Language: Cpp
 AllowShortFunctionsOnASingleLine: Empty
+AlwaysBreakTemplateDeclarations: Yes
 ---

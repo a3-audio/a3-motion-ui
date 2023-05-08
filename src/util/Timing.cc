@@ -18,11 +18,9 @@
 
 */
 
-#pragma once
+#include "ScopedTimer.hh"
 
 namespace a3
 {
-
-constexpr int numChannelsInitial = 4;
 
 }

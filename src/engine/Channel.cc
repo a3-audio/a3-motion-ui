@@ -18,11 +18,7 @@
 
 */
 
-#pragma once
-
 namespace a3
 {
-
-constexpr int numChannelsInitial = 4;
 
 }
