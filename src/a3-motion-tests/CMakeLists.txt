@@ -1,7 +1,7 @@
 include(GoogleTest)
 
 juce_add_console_app(a3-motion-tests
-    COMPANY_NAME "A3 Audio"
+    COMPANY_NAME "a3-audio"
     PRODUCT_NAME "a3-motion-tests")
 juce_generate_juce_header("a3-motion-tests")
 

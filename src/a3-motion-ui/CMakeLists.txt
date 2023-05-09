@@ -2,7 +2,7 @@ juce_add_plugin("a3-motion-ui"
     # VERSION ...                               # Set this if the plugin version is different to the project version
     # ICON_BIG ...                              # ICON_* arguments specify a path to an image file to use as an icon for the Standalone
     # ICON_SMALL ...
-    COMPANY_NAME "A3 Audio"                     # Specify the name of the plugin's author
+    COMPANY_NAME "a3-audio"                     # Specify the name of the plugin's author
     IS_SYNTH FALSE                              # Is this a synth or an effect?
     NEEDS_MIDI_INPUT FALSE                      # Does the plugin need midi input?
     NEEDS_MIDI_OUTPUT FALSE                     # Does the plugin need midi output?
@@ -13,7 +13,8 @@ juce_add_plugin("a3-motion-ui"
     PLUGIN_CODE A3MC                            # A unique four-character plugin id with at least one upper-case character
     PLUGIN_NAME "A3 Motion UI"
     FORMATS "Standalone;VST3"                   # The formats to build. Other valid formats are: AAX Unity VST AU AUv3
-    PRODUCT_NAME "a3-motion-ui")                # The name of the final executable, which can differ from the target name
+    PRODUCT_NAME "a3-motion-ui"                 # The name of the final executable, which can differ from the target name
+)
 
 juce_generate_juce_header("a3-motion-ui")
 
