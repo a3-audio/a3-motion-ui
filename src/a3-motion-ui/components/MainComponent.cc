@@ -25,14 +25,14 @@
 namespace a3
 {
 
-MainComponent::MainComponent (int const numChannels) : engine (numChannels)
+MainComponent::MainComponent (int const numChannels) : _engine (numChannels)
 {
-  setLookAndFeel (&lookAndFeel);
+  setLookAndFeel (&_lookAndFeel);
 
   createChannelsUI ();
 
-  addChildComponent (motionComp);
-  motionComp.setVisible (true);
+  addChildComponent (_motionComp);
+  _motionComp.setVisible (true);
 }
 
 MainComponent::~MainComponent ()
@@ -43,14 +43,14 @@ MainComponent::~MainComponent ()
 void
 MainComponent::createChannelsUI ()
 {
-  auto const numChannels = engine.getChannels ().size ();
+  auto const numChannels = _engine.getChannels ().size ();
 
-  headers.reserve (numChannels);
-  footers.reserve (numChannels);
+  _headers.reserve (numChannels);
+  _footers.reserve (numChannels);
 
   auto hueStart = 0.f;
   auto hueNorm = hueStart;
-  for (auto const &channel : engine.getChannels ())
+  for (auto const &channel : _engine.getChannels ())
     {
       auto header = std::make_unique<ChannelHeader> (*channel);
       auto footer = std::make_unique<ChannelFooter> (*channel);
@@ -76,21 +76,22 @@ MainComponent::createChannelsUI ()
       header->setColour (ChannelHeader::backgroundColourId, color);
       footer->setColour (ChannelFooter::backgroundColourId, color);
 
-      headers.push_back (std::move (header));
-      footers.push_back (std::move (footer));
+      _headers.push_back (std::move (header));
+      _footers.push_back (std::move (footer));
     }
 }
 
 void
 MainComponent::paint (juce::Graphics &g)
 {
+  juce::ignoreUnused (g);
 }
 
 float
 MainComponent::getMinimumWidth () const
 {
-  jassert (headers.size () == footers.size ());
-  return headers.size () * LayoutHints::Channels::widthMin;
+  jassert (_headers.size () == _footers.size ());
+  return _headers.size () * LayoutHints::Channels::widthMin;
 }
 
 float
@@ -104,7 +105,7 @@ MainComponent::getMinimumHeight () const
 void
 MainComponent::resized ()
 {
-  jassert (headers.size () == footers.size ());
+  jassert (_headers.size () == _footers.size ());
 
   juce::Component::resized ();
 
@@ -114,20 +115,20 @@ MainComponent::resized ()
   auto boundsMotion
       = bounds.withTrimmedTop (LayoutHints::Channels::heightHeader ())
             .withTrimmedBottom (LayoutHints::Channels::heightFooter);
-  motionComp.setBounds (boundsMotion);
+  _motionComp.setBounds (boundsMotion);
 
   // Channel headers/footers
-  auto widthChannel = bounds.getWidth () / float (headers.size ());
-  for (auto idxChannel = 0; idxChannel < headers.size (); ++idxChannel)
+  auto widthChannel = bounds.getWidth () / float (_headers.size ());
+  for (auto idxChannel = 0; idxChannel < _headers.size (); ++idxChannel)
     {
       auto offsetInt = juce::roundToInt (idxChannel * widthChannel);
       auto offsetIntNext = juce::roundToInt ((idxChannel + 1) * widthChannel);
       auto widthInt = offsetIntNext - offsetInt; // account for
                                                  // rounding discrepancies
 
-      headers[idxChannel]->setBounds (offsetInt, 0, widthInt,
-                                      LayoutHints::Channels::heightHeader ());
-      footers[idxChannel]->setBounds (
+      _headers[idxChannel]->setBounds (offsetInt, 0, widthInt,
+                                       LayoutHints::Channels::heightHeader ());
+      _footers[idxChannel]->setBounds (
           offsetInt,
           LayoutHints::Channels::heightHeader () + boundsMotion.getHeight (),
           widthInt, LayoutHints::Channels::heightFooter);

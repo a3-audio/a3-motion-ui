@@ -31,7 +31,7 @@ namespace a3
 A3MotionAudioProcessor::A3MotionAudioProcessor ()
     : AudioProcessor (BusesProperties ().withInput (
         "Input", juce::AudioChannelSet::stereo ())),
-      namePlugin ("A3 Motion UI")
+      _namePlugin ("A3 Motion UI")
 {
   auto useFileLogger = false;
   if (useFileLogger)
@@ -39,10 +39,10 @@ A3MotionAudioProcessor::A3MotionAudioProcessor ()
       auto const filenameLog = juce::String ("a3-motion-ui.log");
       auto fileExecutable = juce::File::getSpecialLocation (
           juce::File::SpecialLocationType::currentExecutableFile);
-      fileLogger = std::make_unique<juce::FileLogger> (
+      _fileLogger = std::make_unique<juce::FileLogger> (
           fileExecutable.getParentDirectory ().getChildFile (filenameLog),
           "A3 Motion UI Log", 0);
-      juce::Logger::setCurrentLogger (fileLogger.get ());
+      juce::Logger::setCurrentLogger (_fileLogger.get ());
     }
 }
 
@@ -56,7 +56,7 @@ const juce::String
 A3MotionAudioProcessor::getName () const
 {
   // Logger::writeToLog("getName : " + namePlugin);
-  return namePlugin;
+  return _namePlugin;
 }
 
 bool

@@ -23,9 +23,7 @@
 namespace a3
 {
 
-ChannelFooter::ChannelFooter (Channel const &channel) : channel (channel) {}
-
-ChannelFooter::ChannelFooter (ChannelFooter &&rhs) : channel (rhs.channel) {}
+ChannelFooter::ChannelFooter (Channel const &channel) : _channel (channel) {}
 
 void
 ChannelFooter::paint (juce::Graphics &g)
@@ -33,4 +31,5 @@ ChannelFooter::paint (juce::Graphics &g)
   auto const color = findColour (backgroundColourId);
   g.fillAll (color);
 }
+
 }

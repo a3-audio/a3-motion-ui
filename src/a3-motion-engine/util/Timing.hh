@@ -44,12 +44,12 @@ public:
   ContainerT const &
   get () const
   {
-    return measurements;
+    return _measurements;
   }
 
 private:
   friend class ScopedTimer<ClockT>;
-  ContainerT measurements;
+  ContainerT _measurements;
 };
 
 template <typename ClockT = std::chrono::high_resolution_clock>
@@ -57,20 +57,20 @@ class ScopedTimer
 {
 public:
   ScopedTimer (Timings<ClockT> &timings, std::string tag = "")
-      : timings (timings), tag (tag)
+      : _timings (timings), _tag (tag)
   {
-    t0 = ClockT::now ();
+    _t0 = ClockT::now ();
   }
   ~ScopedTimer ()
   {
-    auto duration = ClockT::now () - t0;
-    timings.measurements.push_back ({ duration, tag });
+    auto duration = ClockT::now () - _t0;
+    _timings._measurements.push_back ({ duration, _tag });
   }
 
 private:
-  std::string tag;
-  std::chrono::time_point<ClockT> t0;
-  Timings<ClockT> &timings;
+  std::string _tag;
+  std::chrono::time_point<ClockT> _t0;
+  Timings<ClockT> &_timings;
 };
 
 }

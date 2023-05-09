@@ -28,6 +28,8 @@ StandaloneApp::~StandaloneApp () {}
 void
 StandaloneApp::initialise (juce::String const &commandLine)
 {
+  juce::ignoreUnused (commandLine);
+
   setupFileLogger ();
 
   auto appNameVer = getApplicationName () + " " + getApplicationVersion ();
@@ -45,10 +47,10 @@ StandaloneApp::initialise (juce::String const &commandLine)
   // splash->deleteAfterDelay (RelativeTime::seconds (3),
   //                           true /* removeOnMouseClick */);
 
-  mainWindow = std::make_unique<MainWindow> (getApplicationName ());
+  _mainWindow = std::make_unique<MainWindow> (getApplicationName ());
   // mainWindow->setBounds (0, 0, 600, 1024);
-  mainWindow->setBounds (0, 0, 450, 768);
-  mainWindow->setVisible (true);
+  _mainWindow->setBounds (0, 0, 450, 768);
+  _mainWindow->setVisible (true);
 }
 
 void
@@ -58,10 +60,10 @@ StandaloneApp::setupFileLogger ()
       juce::File::SpecialLocationType::currentExecutableFile);
   auto filenameLog = fileExecutable.getFileNameWithoutExtension () + ".log";
 
-  logger = std::make_unique<juce::FileLogger> (
+  _logger = std::make_unique<juce::FileLogger> (
       fileExecutable.getParentDirectory ().getChildFile (filenameLog),
       "a3-motion-ui debug log", 0);
-  juce::Logger::setCurrentLogger (logger.get ());
+  juce::Logger::setCurrentLogger (_logger.get ());
 }
 
 void
@@ -69,7 +71,7 @@ StandaloneApp::shutdown ()
 {
   // explicit deletion of MainWindow to capture tear-down messages
   // with our logger
-  mainWindow = nullptr;
+  _mainWindow = nullptr;
   juce::Logger::setCurrentLogger (nullptr);
 }
 

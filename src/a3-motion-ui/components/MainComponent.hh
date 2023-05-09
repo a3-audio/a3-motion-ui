@@ -49,13 +49,13 @@ public:
 private:
   void createChannelsUI ();
 
-  MotionEngine engine;
+  MotionEngine _engine;
 
   // UI
-  LookAndFeel_A3 lookAndFeel;
-  std::vector<std::unique_ptr<ChannelHeader> > headers;
-  std::vector<std::unique_ptr<ChannelFooter> > footers;
-  MotionComponent motionComp;
+  LookAndFeel_A3 _lookAndFeel;
+  std::vector<std::unique_ptr<ChannelHeader> > _headers;
+  std::vector<std::unique_ptr<ChannelFooter> > _footers;
+  MotionComponent _motionComp;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };

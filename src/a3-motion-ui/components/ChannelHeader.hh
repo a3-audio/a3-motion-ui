@@ -45,10 +45,10 @@ public:
   void paint (juce::Graphics &) override;
 
 private:
-  Channel const &channel;
+  Channel const &_channel;
 
-  std::array<juce::Slider, numSlidersFX> slidersFX;
-  std::array<juce::Label, numSlidersFX> labelsFX;
+  std::array<juce::Slider, numSlidersFX> _slidersFX;
+  std::array<juce::Label, numSlidersFX> _labelsFX;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelHeader)
 };

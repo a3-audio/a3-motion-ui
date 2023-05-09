@@ -26,11 +26,11 @@
 namespace a3
 {
 
-MotionEngine::MotionEngine (int const numChannels)
+MotionEngine::MotionEngine (unsigned int const numChannels)
 {
   createChannels (numChannels);
 
-  tempoClock.start ();
+  _tempoClock.start ();
 
   // TODO: move to a unit (?) test
   // testAddRemoveHandlers ();
@@ -38,19 +38,19 @@ MotionEngine::MotionEngine (int const numChannels)
 
 MotionEngine::~MotionEngine ()
 {
-  tempoClock.stop ();
+  _tempoClock.stop ();
 }
 
 void
-MotionEngine::createChannels (int const numChannels)
+MotionEngine::createChannels (unsigned int const numChannels)
 {
-  channels.resize (numChannels);
+  _channels.resize (numChannels);
 }
 
 std::vector<std::unique_ptr<Channel> > &
 MotionEngine::getChannels ()
 {
-  return channels;
+  return _channels;
 }
 
 void
@@ -60,14 +60,14 @@ MotionEngine::testAddRemoveHandlers ()
 
   {
     // ScopedTimer timer{ timings, "sync tick" };
-    callbackHandleTimer = tempoClock.scheduleEventHandlerAddition (
+    _callbackHandleTimer = _tempoClock.scheduleEventHandlerAddition (
         [] (auto measure) { print (measure, "==="); }, TempoClock::Event::Tick,
         TempoClock::Execution::TimerThread, true);
   }
 
   {
     // ScopedTimer timer (timings, "async tick");
-    callbackHandleMessage = tempoClock.scheduleEventHandlerAddition (
+    _callbackHandleMessage = _tempoClock.scheduleEventHandlerAddition (
         [] (auto measure) { print (measure, "---"); }, TempoClock::Event::Tick,
         TempoClock::Execution::JuceMessageThread, true);
   }

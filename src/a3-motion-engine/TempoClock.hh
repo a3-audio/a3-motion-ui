@@ -115,16 +115,16 @@ public:
   void stop ();
 
 private:
-  Config config;
-
-  std::unique_ptr<ClockTimer> timer;
   static constexpr int timerIntervalMs = 1;
+
+  Config _config;
+  std::unique_ptr<ClockTimer> _timer;
 
   // We use a single-producer single-consumer lock-less ring buffer to
   // forward add/delete requests of event handlers to the timer
   // thread. To extend this to multiple callers we lock on the
   // producer side.
-  std::mutex mutexWriteFifo;
+  std::mutex _mutexWriteFifo;
 };
 
 }

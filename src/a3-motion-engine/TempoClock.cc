@@ -40,9 +40,9 @@ public:
     a3::TempoClock::Execution execution;
   };
 
-  ClockTimer (a3::TempoClock::Config const &config) : config (config)
+  ClockTimer (a3::TempoClock::Config const &config) : _config (config)
   {
-    forEachHandlerType ([&] (auto event, auto execution, auto &container) {
+    forEachHandlerType ([&] (auto, auto, auto &container) {
       container.reserve (numHandlersPreAllocated);
     });
   }
@@ -50,13 +50,17 @@ public:
   std::future<void>
   submitFifoMessage (FifoMessage const &message)
   {
-    const auto scope = abstractFifo.write (1);
+    const auto scope = _abstractFifo.write (1);
 
     jassert (scope.blockSize1 == 1);
     jassert (scope.blockSize2 == 0);
-    fifo[scope.startIndex1] = SubmittedMessage{ message };
 
-    return fifo[scope.startIndex1].acknowledge.get_future ();
+    jassert (scope.startIndex1 >= 0);
+    auto startIndex = static_cast<std::size_t> (scope.startIndex1);
+
+    _fifo[startIndex] = SubmittedMessage{ message };
+
+    return _fifo[startIndex].acknowledge.get_future ();
   }
 
   void
@@ -89,13 +93,13 @@ private:
       for (auto notification :
            { a3::TempoClock::Execution::TimerThread,
              a3::TempoClock::Execution::JuceMessageThread })
-        func (event, notification, handlers[{ event, notification }]);
+        func (event, notification, _handlers[{ event, notification }]);
   }
 
   void
   readFifoMessages ()
   {
-    const auto scope = abstractFifo.read (abstractFifo.getNumReady ());
+    const auto scope = _abstractFifo.read (_abstractFifo.getNumReady ());
 
     if (scope.blockSize1 > 0)
       {
@@ -106,7 +110,8 @@ private:
         for (int idx = scope.startIndex1;
              idx < scope.startIndex1 + scope.blockSize1; ++idx)
           {
-            handleFifoMessage (fifo[idx]);
+            jassert (idx >= 0);
+            handleFifoMessage (_fifo[static_cast<std::size_t> (idx)]);
           }
       }
 
@@ -114,7 +119,8 @@ private:
       for (int idx = scope.startIndex1;
            idx < scope.startIndex1 + scope.blockSize1; ++idx)
         {
-          handleFifoMessage (fifo[idx]);
+          jassert (idx >= 0);
+          handleFifoMessage (_fifo[static_cast<std::size_t> (idx)]);
         }
 
 #ifdef DEBUG
@@ -129,7 +135,7 @@ private:
   void
   handleFifoMessage (SubmittedMessage &message)
   {
-    auto &v = handlers[{ message.event, message.execution }];
+    auto &v = _handlers[{ message.event, message.execution }];
     jassert (
         std::find_if (
             v.begin (), v.end (),
@@ -148,12 +154,12 @@ private:
   advanceMeasure ()
   {
     auto now = ClockT::now ();
-    auto ns_per_tick = config.ns_per_tick ();
+    auto ns_per_tick = _config.ns_per_tick ();
 
     if (reset)
       {
-        startTime = lastTick = now;
-        measure = {};
+        _startTime = _lastTick = now;
+        _measure = {};
 
         emitEvent (a3::TempoClock::Event::Tick);
         emitEvent (a3::TempoClock::Event::Beat);
@@ -165,15 +171,17 @@ private:
       {
         // catch up ticks
         while (std::chrono::duration_cast<std::chrono::nanoseconds> (
-                   now - lastTick)
+                   now - _lastTick)
                    .count ()
                >= ns_per_tick)
           {
-            lastTick += std::chrono::nanoseconds (ns_per_tick);
-            measure.time_ns
+            _lastTick += std::chrono::nanoseconds (ns_per_tick);
+            auto time_ns
                 = std::chrono::duration_cast<std::chrono::nanoseconds> (
-                      lastTick - startTime)
+                      _lastTick - _startTime)
                       .count ();
+            jassert (time_ns >= 0);
+            _measure.time_ns = static_cast<uint64_t> (time_ns);
             countTick ();
           }
       }
@@ -182,15 +190,15 @@ private:
   void
   countTick ()
   {
-    ++measure.tick;
-    if (measure.tick == config.ticksPerBeat)
+    ++_measure.tick;
+    if (_measure.tick == _config.ticksPerBeat)
       {
-        measure.tick = 0;
-        ++measure.beat;
-        if (measure.beat == config.beatsPerBar)
+        _measure.tick = 0;
+        ++_measure.beat;
+        if (_measure.beat == _config.beatsPerBar)
           {
-            measure.beat = 0;
-            ++measure.bar;
+            _measure.beat = 0;
+            ++_measure.bar;
             emitEvent (a3::TempoClock::Event::Bar);
           }
         emitEvent (a3::TempoClock::Event::Beat);
@@ -204,29 +212,30 @@ private:
     for (auto execution : { a3::TempoClock::Execution::TimerThread,
                             a3::TempoClock::Execution::JuceMessageThread })
       {
-        auto &container = handlers[{ event, execution }];
+        auto &container = _handlers[{ event, execution }];
 
         auto it_erase_begin = std::remove_if (
             container.begin (), container.end (),
             [&] (const std::weak_ptr<std::function<a3::TempoClock::CallbackT> >
-                     &func_ptr) {
-              if (auto f = func_ptr.lock ()) // if pointer still valid
+                     &ptrFuncWeak) {
+              if (auto ptrFuncShared
+                  = ptrFuncWeak.lock ()) // if pointer still valid
                 {
                   switch (execution)
                     {
                     case a3::TempoClock::Execution::TimerThread:
-                      (*f) (measure); // execute directly
+                      (*ptrFuncShared) (_measure); // execute directly
                       break;
                     case a3::TempoClock::Execution::JuceMessageThread:
                       // NOTE: we copy the weak_ptr and check for
                       // validity again during the asynchronous
                       // execution in the message thread.
-                      auto measureCopy{ measure };
-                      juce::MessageManager::callAsync (
-                          [func_ptr, measureCopy] () {
-                            if (auto f = func_ptr.lock ())
-                              (*f) (measureCopy);
-                          });
+                      auto measureCopy{ _measure };
+                      juce::MessageManager::callAsync ([ptrFuncWeak,
+                                                        measureCopy] () {
+                        if (auto ptrFuncSharedMessage = ptrFuncWeak.lock ())
+                          (*ptrFuncSharedMessage) (measureCopy);
+                      });
                       break;
                     }
                   return false;
@@ -248,19 +257,19 @@ private:
 
   static constexpr int numHandlersPreAllocated = 10;
   static constexpr int fifoSize = 32;
-  juce::AbstractFifo abstractFifo{ fifoSize };
-  std::array<SubmittedMessage, fifoSize> fifo;
+  juce::AbstractFifo _abstractFifo{ fifoSize };
+  std::array<SubmittedMessage, fifoSize> _fifo;
 
   std::map<std::pair<a3::TempoClock::Event, a3::TempoClock::Execution>,
            ContainerT>
-      handlers;
+      _handlers;
 
-  a3::TempoClock::Config const &config;
+  a3::TempoClock::Config const &_config;
 
-  ClockT::time_point startTime;
-  ClockT::time_point lastTick;
+  ClockT::time_point _startTime;
+  ClockT::time_point _lastTick;
 
-  a3::TempoClock::Measure measure;
+  a3::TempoClock::Measure _measure;
 };
 
 namespace a3
@@ -268,7 +277,7 @@ namespace a3
 
 TempoClock::TempoClock ()
 {
-  timer = std::make_unique<ClockTimer> (config);
+  _timer = std::make_unique<ClockTimer> (_config);
 }
 
 TempoClock::~TempoClock () {}
@@ -276,7 +285,7 @@ TempoClock::~TempoClock () {}
 TempoClock::Config &
 TempoClock::getConfig ()
 {
-  return config;
+  return _config;
 }
 
 TempoClock::PointerT
@@ -286,13 +295,13 @@ TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
 {
   // makes sure that multiple threads/writers can schedule additions
   // without a race. should this be moved into the caller's responsibility?
-  std::lock_guard<std::mutex> const guard{ mutexWriteFifo };
+  std::lock_guard<std::mutex> const guard{ _mutexWriteFifo };
 
   // wrap the passed handler in a shared_ptr for lifetime management
   auto ptr = std::make_shared<std::function<CallbackT> > (std::move (handler));
 
   // submit to fifo queue and optionally wait for acknowledgement
-  auto future = timer->submitFifoMessage (
+  auto future = _timer->submitFifoMessage (
       { std::weak_ptr<std::function<CallbackT> > (ptr), event, execution });
   if (waitForAck)
     future.wait ();
@@ -304,12 +313,10 @@ TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
 void
 TempoClock::start ()
 {
-  auto now = ClockTimer::ClockT::now ();
-
-  if (!timer->isTimerRunning ())
+  if (!_timer->isTimerRunning ())
     {
-      timer->reset = true;
-      timer->startTimer (timerIntervalMs);
+      _timer->reset = true;
+      _timer->startTimer (timerIntervalMs);
 #ifdef DEBUG
       juce::Logger::writeToLog ("TempoClock: started");
 #endif
@@ -334,12 +341,13 @@ TempoClock::start ()
 void
 TempoClock::stop ()
 {
-  if (timer->isTimerRunning ())
+  if (_timer->isTimerRunning ())
     {
-      timer->stopTimer ();
+      _timer->stopTimer ();
 #ifdef DEBUG
       juce::Logger::writeToLog ("TempoClock: stopped");
 #endif
     }
 }
+
 }

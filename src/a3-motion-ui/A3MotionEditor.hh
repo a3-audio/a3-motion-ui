@@ -39,8 +39,8 @@ public:
   void resized () override;
 
 private:
-  A3MotionAudioProcessor &processor;
-  MainComponent mainComponent;
+  A3MotionAudioProcessor &_processor;
+  MainComponent _mainComponent;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionEditor)
 };

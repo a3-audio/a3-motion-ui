@@ -38,8 +38,8 @@ public:
 private:
   bool keyPressed (const juce::KeyPress &k, juce::Component *c) override;
 
-  juce::Viewport viewport;
-  MainComponent mainComponent;
+  juce::Viewport _viewport;
+  MainComponent _mainComponent;
 };
 
 }

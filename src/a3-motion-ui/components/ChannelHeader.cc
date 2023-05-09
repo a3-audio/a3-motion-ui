@@ -26,20 +26,20 @@ namespace a3
 {
 
 ChannelHeader::ChannelHeader (Channel const &channel)
-    : channel (channel), slidersFX{ { { juce::Slider::RotaryVerticalDrag,
-                                        juce::Slider::NoTextBox },
-                                      { juce::Slider::RotaryVerticalDrag,
-                                        juce::Slider::NoTextBox } } },
-      labelsFX{ { { juce::String (), juce::String ("FX1") },
-                  { juce::String (), juce::String ("FX2") } } }
+    : _channel (channel), _slidersFX{ { { juce::Slider::RotaryVerticalDrag,
+                                          juce::Slider::NoTextBox },
+                                        { juce::Slider::RotaryVerticalDrag,
+                                          juce::Slider::NoTextBox } } },
+      _labelsFX{ { { juce::String (), juce::String ("FX1") },
+                   { juce::String (), juce::String ("FX2") } } }
 {
-  for (auto &slider : slidersFX)
+  for (auto &slider : _slidersFX)
     {
       // slider.setNumDecimalPlacesToDisplay (2);
       addChildComponent (slider);
       slider.setVisible (true);
     }
-  for (auto &label : labelsFX)
+  for (auto &label : _labelsFX)
     {
       addChildComponent (label);
       label.setVisible (true);
@@ -65,7 +65,7 @@ ChannelHeader::paint (juce::Graphics &g)
 void
 ChannelHeader::resized ()
 {
-  jassert (slidersFX.size () == labelsFX.size ());
+  jassert (_slidersFX.size () == _labelsFX.size ());
 
   auto bounds = getLocalBounds ();
   bounds = bounds.withTrimmedTop (LayoutHints::padding)
@@ -73,13 +73,14 @@ ChannelHeader::resized ()
                .withTrimmedRight (LayoutHints::padding)
                .withHeight (LayoutHints::lineHeight);
 
-  for (auto idx = 0; idx < slidersFX.size (); ++idx)
+  for (auto idx = 0; idx < _slidersFX.size (); ++idx)
     {
       auto boundsLabel = bounds.withTrimmedRight (LayoutHints::lineHeight);
 
-      labelsFX[idx].setBounds (boundsLabel);
-      slidersFX[idx].setBounds (boundsLabel.withWidth (LayoutHints::lineHeight)
-                                    .withRightX (bounds.getRight ()));
+      _labelsFX[idx].setBounds (boundsLabel);
+      _slidersFX[idx].setBounds (
+          boundsLabel.withWidth (LayoutHints::lineHeight)
+              .withRightX (bounds.getRight ()));
       bounds = bounds.translated (0, LayoutHints::lineHeight);
     }
 }

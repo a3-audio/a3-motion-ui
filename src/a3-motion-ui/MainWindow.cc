@@ -26,16 +26,16 @@ namespace a3
 {
 
 MainWindow::MainWindow (juce::String const &name)
-    : juce::ResizableWindow (name, true), mainComponent (numChannelsInitial)
+    : juce::ResizableWindow (name, true), _mainComponent (numChannelsInitial)
 {
   setWantsKeyboardFocus (true);
   addKeyListener (this);
 
-  setContentNonOwned (&viewport, false /* resizeToFitWhenContentChangesSize */
+  setContentNonOwned (&_viewport, false /* resizeToFitWhenContentChangesSize */
   );
-  viewport.setViewedComponent (&mainComponent);
-  viewport.setVisible (true);
-  mainComponent.setVisible (true);
+  _viewport.setViewedComponent (&_mainComponent);
+  _viewport.setVisible (true);
+  _mainComponent.setVisible (true);
 }
 
 bool
@@ -62,17 +62,17 @@ MainWindow::resized ()
   juce::ResizableWindow::resized ();
 
   auto const bounds = getLocalBounds ();
-  viewport.setBounds (bounds);
+  _viewport.setBounds (bounds);
 
   // compute bounds for main component
   auto boundsContent
       = juce::Rectangle<int> (0.f, 0.f, //
                               juce::jmax (float (bounds.getWidth ()),
-                                          mainComponent.getMinimumWidth ()),
+                                          _mainComponent.getMinimumWidth ()),
                               juce::jmax (float (bounds.getHeight ()),
-                                          mainComponent.getMinimumHeight ()));
+                                          _mainComponent.getMinimumHeight ()));
 
-  mainComponent.setBounds (boundsContent);
+  _mainComponent.setBounds (boundsContent);
 }
 
 }

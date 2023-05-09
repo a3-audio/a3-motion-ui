@@ -30,22 +30,22 @@ namespace a3
 class MotionEngine
 {
 public:
-  MotionEngine (int const numChannels);
+  MotionEngine (unsigned int const numChannels);
   ~MotionEngine ();
 
   std::vector<std::unique_ptr<Channel> > &getChannels ();
 
 private:
-  void createChannels (int const numChannels);
+  void createChannels (unsigned int const numChannels);
 
   // testing
   void testAddRemoveHandlers ();
 
-  TempoClock tempoClock;
-  std::vector<std::unique_ptr<Channel> > channels;
+  TempoClock _tempoClock;
+  std::vector<std::unique_ptr<Channel> > _channels;
 
-  TempoClock::PointerT callbackHandleTimer;
-  TempoClock::PointerT callbackHandleMessage;
+  TempoClock::PointerT _callbackHandleTimer;
+  TempoClock::PointerT _callbackHandleMessage;
 };
 
 };

@@ -59,9 +59,9 @@ public:
   void setStateInformation (const void *data, int sizeInBytes) override;
 
 private:
-  juce::String const namePlugin;
+  juce::String const _namePlugin;
 
-  std::unique_ptr<juce::FileLogger> fileLogger;
+  std::unique_ptr<juce::FileLogger> _fileLogger;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionAudioProcessor)
 };

@@ -25,22 +25,23 @@ namespace a3
 
 MotionComponent::MotionComponent ()
 {
-  image.setImage (juce::ImageFileFormat::loadFrom (
+  _image.setImage (juce::ImageFileFormat::loadFrom (
       juce::File ("./resources/a3_logo-dark.png")));
 
-  addChildComponent (image);
-  image.setVisible (true);
+  addChildComponent (_image);
+  _image.setVisible (true);
 }
 
 void
 MotionComponent::paint (juce::Graphics &g)
 {
+  juce::ignoreUnused (g);
 }
 
 void
 MotionComponent::resized ()
 {
-  image.setBounds (getLocalBounds ());
+  _image.setBounds (getLocalBounds ());
 }
 
 }

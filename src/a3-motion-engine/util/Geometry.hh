@@ -29,7 +29,7 @@ public:
   ScalarT radius () const;
 
 private:
-  ScalarT x_, y_, z_;
+  ScalarT _x, _y, _z;
 };
 
 template <typename ScalarT>
@@ -37,7 +37,7 @@ void
 Position<ScalarT>::setCartesian (ScalarT const &x, ScalarT const &y,
                                  ScalarT const &z)
 {
-  x_ = x;
-  y_ = y;
-  z_ = z;
+  _x = x;
+  _y = y;
+  _z = z;
 }

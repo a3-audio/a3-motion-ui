@@ -36,12 +36,11 @@ public:
   };
 
   ChannelFooter (Channel const &);
-  ChannelFooter (ChannelFooter &&);
 
   void paint (juce::Graphics &) override;
 
 private:
-  Channel const &channel;
+  Channel const &_channel;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelFooter)
 };

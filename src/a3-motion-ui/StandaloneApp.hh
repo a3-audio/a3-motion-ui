@@ -46,9 +46,9 @@ public:
 private:
   void setupFileLogger ();
 
-  std::unique_ptr<MainWindow> mainWindow;
-  std::unique_ptr<juce::SplashScreen> splash;
-  std::unique_ptr<juce::Logger> logger;
+  std::unique_ptr<MainWindow> _mainWindow;
+  std::unique_ptr<juce::SplashScreen> _splash;
+  std::unique_ptr<juce::Logger> _logger;
 };
 
 } // namespace a3 end

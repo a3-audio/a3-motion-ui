@@ -17,7 +17,7 @@ TEST (TempoClock, TimingSyncAsync)
   {
     ScopedTimer<> t{ timings, "waiting" };
     auto ptr = tempoClock.scheduleEventHandlerAddition (
-        [] (auto measure) {
+        [] (auto) {
           // juce::Logger::writeToLog ("sync: " + juce::String (time));
         },
         TempoClock::Event::Beat, TempoClock::Execution::TimerThread, true);
