@@ -11,13 +11,12 @@ target_link_libraries(juce_dependencies
 
 target_compile_definitions(juce_dependencies
     PUBLIC
-        JucePlugin_Build_Standalone=1
-        JUCE_STANDALONE_APPLICATION=JucePlugin_Build_Standalone
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         DONT_SET_USING_JUCE_NAMESPACE=1
     INTERFACE
-        $<TARGET_PROPERTY:juce_dependencies,COMPILE_DEFINITIONS>)
+    $<TARGET_PROPERTY:juce_dependencies,COMPILE_DEFINITIONS>
+)
 
 target_include_directories(juce_dependencies
     INTERFACE
