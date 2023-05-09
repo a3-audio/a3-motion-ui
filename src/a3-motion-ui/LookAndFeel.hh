@@ -36,7 +36,7 @@ struct Colours
  * A note on the enum values for our custom ColourIds. JUCE uses
  * per-Component globally unique ColourIds, so we use the same
  * mechanism for our own Components. JUCE IDs start at 0x1000000, A3
- * IDs start at 0xa3000000.
+ * IDs start at 0x03000000.
  *
  * Formatting convention of IDs is as follows: 0xa3000204 identifies
  * color 4 of the A3 widget with running Component number 2. Every

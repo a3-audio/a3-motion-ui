@@ -25,7 +25,8 @@
 namespace a3
 {
 
-MainComponent::MainComponent (int const numChannels) : _engine (numChannels)
+MainComponent::MainComponent (unsigned int const numChannels)
+    : _engine (numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
@@ -119,7 +120,7 @@ MainComponent::resized ()
 
   // Channel headers/footers
   auto widthChannel = bounds.getWidth () / float (_headers.size ());
-  for (auto idxChannel = 0; idxChannel < _headers.size (); ++idxChannel)
+  for (auto idxChannel = 0u; idxChannel < _headers.size (); ++idxChannel)
     {
       auto offsetInt = juce::roundToInt (idxChannel * widthChannel);
       auto offsetIntNext = juce::roundToInt ((idxChannel + 1) * widthChannel);

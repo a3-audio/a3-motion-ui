@@ -107,12 +107,14 @@ A3MotionAudioProcessor::getCurrentProgram ()
 void
 A3MotionAudioProcessor::setCurrentProgram (int index)
 {
+  juce::ignoreUnused (index);
   // Logger::writeToLog("setCurrentProgram");
 }
 
 const juce::String
 A3MotionAudioProcessor::getProgramName (int index)
 {
+  juce::ignoreUnused (index);
   // Logger::writeToLog("getProgramName");
   return {};
 }
@@ -121,12 +123,17 @@ void
 A3MotionAudioProcessor::changeProgramName (int index,
                                            const juce::String &newName)
 {
+  juce::ignoreUnused (index);
+  juce::ignoreUnused (newName);
   // Logger::writeToLog("changeProgramName");
 }
 
 void
 A3MotionAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+  juce::ignoreUnused (sampleRate);
+  juce::ignoreUnused (samplesPerBlock);
+
   // Logger::writeToLog("prepareToPlay");
 }
 
@@ -140,6 +147,8 @@ bool
 A3MotionAudioProcessor::isBusesLayoutSupported (
     const BusesLayout &layouts) const
 {
+  juce::ignoreUnused (layouts);
+
   // Logger::writeToLog("isBusesLayoutSupported");
   return true;
 }
@@ -148,6 +157,8 @@ void
 A3MotionAudioProcessor::processBlock (juce::AudioBuffer<float> &buffer,
                                       juce::MidiBuffer &midiMessages)
 {
+  juce::ignoreUnused (midiMessages);
+
   auto mainInputOutput = getBusBuffer (buffer, true, 0);
 
   // add a hopefully inaudible float epsilon here to circumvent VST3
@@ -179,12 +190,17 @@ A3MotionAudioProcessor::createEditor ()
 void
 A3MotionAudioProcessor::getStateInformation (juce::MemoryBlock &destData)
 {
+  juce::ignoreUnused (destData);
+
   // Logger::writeToLog("getStateInformation");
 }
 
 void
 A3MotionAudioProcessor::setStateInformation (const void *data, int sizeInBytes)
 {
+  juce::ignoreUnused (data);
+  juce::ignoreUnused (sizeInBytes);
+
   // Logger::writeToLog("setStateInformation");
 }
 

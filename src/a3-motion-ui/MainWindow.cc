@@ -29,7 +29,6 @@ MainWindow::MainWindow (juce::String const &name)
     : juce::ResizableWindow (name, true), _mainComponent (numChannelsInitial)
 {
   setWantsKeyboardFocus (true);
-  addKeyListener (this);
 
   setContentNonOwned (&_viewport, false /* resizeToFitWhenContentChangesSize */
   );
@@ -39,7 +38,7 @@ MainWindow::MainWindow (juce::String const &name)
 }
 
 bool
-MainWindow::keyPressed (const juce::KeyPress &k, juce::Component *c)
+MainWindow::keyPressed (const juce::KeyPress &k)
 {
   if (k.getKeyCode () == juce::KeyPress::escapeKey)
     {

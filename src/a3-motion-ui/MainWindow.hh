@@ -27,7 +27,7 @@
 namespace a3
 {
 
-class MainWindow : public juce::ResizableWindow, private juce::KeyListener
+class MainWindow : public juce::ResizableWindow
 {
 public:
   MainWindow (juce::String const &name);
@@ -36,7 +36,7 @@ public:
   void resized () override;
 
 private:
-  bool keyPressed (const juce::KeyPress &k, juce::Component *c) override;
+  bool keyPressed (const juce::KeyPress &k) override;
 
   juce::Viewport _viewport;
   MainComponent _mainComponent;

@@ -37,7 +37,7 @@ namespace a3
 class MainComponent : public juce::Component
 {
 public:
-  MainComponent (int const numChannels);
+  MainComponent (unsigned int const numChannels);
   ~MainComponent ();
 
   void paint (juce::Graphics &g) override;

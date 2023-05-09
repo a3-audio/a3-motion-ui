@@ -73,7 +73,7 @@ ChannelHeader::resized ()
                .withTrimmedRight (LayoutHints::padding)
                .withHeight (LayoutHints::lineHeight);
 
-  for (auto idx = 0; idx < _slidersFX.size (); ++idx)
+  for (auto idx = 0u; idx < _slidersFX.size (); ++idx)
     {
       auto boundsLabel = bounds.withTrimmedRight (LayoutHints::lineHeight);
 

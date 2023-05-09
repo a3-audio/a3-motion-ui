@@ -32,7 +32,7 @@ class ChannelFooter : public juce::Component
 public:
   enum ColourIds
   {
-    backgroundColourId = 0xa3000100
+    backgroundColourId = 0x03000100
   };
 
   ChannelFooter (Channel const &);

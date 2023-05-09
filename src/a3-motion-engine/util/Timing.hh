@@ -57,7 +57,7 @@ class ScopedTimer
 {
 public:
   ScopedTimer (Timings<ClockT> &timings, std::string tag = "")
-      : _timings (timings), _tag (tag)
+      : _tag (tag), _timings (timings)
   {
     _t0 = ClockT::now ();
   }

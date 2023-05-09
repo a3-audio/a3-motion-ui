@@ -34,7 +34,7 @@ class ChannelHeader : public juce::Component
 public:
   enum ColourIds
   {
-    backgroundColourId = 0xa3000000
+    backgroundColourId = 0x03000000
   };
 
   static int constexpr numSlidersFX = 2;
