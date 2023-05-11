@@ -8,6 +8,7 @@ juce_generate_juce_header("a3-motion-tests")
 target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/TestRunnerApp.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TempoClock.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/Position.cc"
     )
 
 target_link_libraries(a3-motion-tests PUBLIC
