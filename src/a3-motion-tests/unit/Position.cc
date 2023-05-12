@@ -211,3 +211,29 @@ TYPED_TEST (PositionTest, SetSphericalQueryCartesian)
                                           xyz_aed_equivalence.first, p);
     }
 }
+
+TYPED_TEST (PositionTest, Addition)
+{
+  using PosT = Position<TypeParam>;
+  PosT p0 = PosT::fromCartesian (2, 5, 1);
+  PosT p1 = PosT::fromCartesian (4, 7, -5);
+
+  auto p = p1 + p0;
+  ASSERT_THAT (p, CartesianEq<TypeParam> ({ 6, 12, -4 }));
+
+  p += p0;
+  ASSERT_THAT (p, CartesianEq<TypeParam> ({ 8, 17, -3 }));
+}
+
+TYPED_TEST (PositionTest, Subtraction)
+{
+  using PosT = Position<TypeParam>;
+  PosT p0 = PosT::fromCartesian (2, 5, 1);
+  PosT p1 = PosT::fromCartesian (4, 7, -5);
+
+  auto p = p1 - p0;
+  ASSERT_THAT (p, CartesianEq<TypeParam> ({ 2, 2, -6 }));
+
+  p -= p0;
+  ASSERT_THAT (p, CartesianEq<TypeParam> ({ 0, -3, -7 }));
+}

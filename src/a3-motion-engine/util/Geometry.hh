@@ -82,6 +82,8 @@ public:
   static Position fromCartesian (ScalarT const &x, //
                                  ScalarT const &y, //
                                  ScalarT const &z);
+  // template <typename ArrayT>
+  // static Position fromCartesian (ArrayT const &xyz);
 
   // Spherical coordinates
   void setAzimuth (ScalarT const &azimuth);
@@ -95,6 +97,38 @@ public:
   static Position fromSpherical (ScalarT const &azimuth,   //
                                  ScalarT const &elevation, //
                                  ScalarT const &distance);
+
+  Position &
+  operator+= (const Position &rhs)
+  {
+    _x += rhs._x;
+    _y += rhs._y;
+    _z += rhs._z;
+    return *this;
+  }
+
+  friend Position
+  operator+ (Position lhs, const Position &rhs)
+  {
+    lhs += rhs;
+    return lhs;
+  }
+
+  Position &
+  operator-= (const Position &rhs)
+  {
+    _x -= rhs._x;
+    _y -= rhs._y;
+    _z -= rhs._z;
+    return *this;
+  }
+
+  friend Position
+  operator- (Position lhs, const Position &rhs)
+  {
+    lhs -= rhs;
+    return lhs;
+  }
 
 private:
   ScalarT _x, _y, _z;
@@ -149,7 +183,8 @@ Position<ScalarT>::z () const
 
 template <typename ScalarT>
 Position<ScalarT>
-Position<ScalarT>::fromCartesian (ScalarT const &x, ScalarT const &y,
+Position<ScalarT>::fromCartesian (ScalarT const &x, //
+                                  ScalarT const &y, //
                                   ScalarT const &z)
 {
   Position<ScalarT> p;
@@ -158,6 +193,16 @@ Position<ScalarT>::fromCartesian (ScalarT const &x, ScalarT const &y,
   p._z = z;
   return p;
 }
+
+// template <typename ScalarT>
+// template <typename ArrayT>
+// Position<ScalarT>
+// Position<ScalarT>::fromCartesian (ArrayT const &xyz)
+// {
+//   static_assert (xyz.size () == 3);
+//   auto const &data = std::data (xyz);
+//   return fromCartesian (data[0], data[1], data[2]);
+// }
 
 template <typename ScalarT>
 ScalarT
