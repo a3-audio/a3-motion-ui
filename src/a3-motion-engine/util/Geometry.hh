@@ -54,14 +54,15 @@ sign (ScalarT const &val)
   return (ScalarT (0) < val) - (val < ScalarT (0));
 }
 
-template <typename ScalarT>
-int
-dot (const Position<ScalarT> &lhs, const Position<ScalarT> &rhs)
-{
-  return lhs.x () * rhs.x () + //
-         lhs.y () * rhs.y () + //
-         lhs.z () * rhs.z ();
-}
+// // currently unused
+// template <typename ScalarT>
+// int
+// dot (const Position<ScalarT> &lhs, const Position<ScalarT> &rhs)
+// {
+//   return lhs.x () * rhs.x () + //
+//          lhs.y () * rhs.y () + //
+//          lhs.z () * rhs.z ();
+// }
 
 template <typename ScalarT>
 class Position

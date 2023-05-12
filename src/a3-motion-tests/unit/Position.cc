@@ -52,17 +52,49 @@ TEST (Position, SetCartesianQueryCartesian)
 
 using xyz_aed_equivalence_list_t = const std::initializer_list<std::pair<
     std::tuple<double, double, double>, std::tuple<double, double, double> > >;
+
+// elevation angle between the diagonal of a cube and the diagonal
+// of one of its sides.
+const auto elevation_cube
+    = std::acos (std::sqrt (2.) / std::sqrt (3.)) * 180 / pi<double> ();
+
 const auto xyz_aed_equivalence_list = xyz_aed_equivalence_list_t{
-  { { 1.f, 0.f, 0.f }, { 0.f, 0.f, 1.f } },                  //
-  { { 2.f, 0.f, 0.f }, { 0.f, 0.f, 2.f } },                  //
+  // main axes
+  { { 1.f, 0.f, 0.f }, { 0.f, 0.f, 1.f } },    //
+  { { -1.f, 0.f, 0.f }, { 180.f, 0.f, 1.f } }, //
+  { { 0.f, 1.f, 0.f }, { 90.f, 0.f, 1.f } },   //
+  { { 0.f, -1.f, 0.f }, { -90.f, 0.f, 1.f } }, //
+  { { 0.f, 0.f, 1.f }, { 0.f, 90.f, 1.f } },   //
+  { { 0.f, 0.f, -1.f }, { 0.f, -90.f, 1.f } }, //
+  // magnitude sanity
+  { { 2.f, 0.f, 0.f }, { 0.f, 0.f, 2.f } }, //
+  // planes through the origin: xy
   { { 1.f, 1.f, 0.f }, { 45.f, 0.f, std::sqrt (2.f) } },     //
   { { 1.f, -1.f, 0.f }, { -45.f, 0.f, std::sqrt (2.f) } },   //
-  { { 0.f, 1.f, 0.f }, { 90.f, 0.f, 1.f } },                 //
-  { { 0.f, -1.f, 0.f }, { -90.f, 0.f, 1.f } },               //
   { { -1.f, 1.f, 0.f }, { 135.f, 0.f, std::sqrt (2.f) } },   //
   { { -1.f, -1.f, 0.f }, { -135.f, 0.f, std::sqrt (2.f) } }, //
-  { { -1.f, 0.f, 0.f }, { 180.f, 0.f, 1.f } },               //
-  // { { 1.f, 1.f, 1.f }, { 45.f, 45.f, std::sqrt (3.f) } },    //
+  // planes through the origin: xz
+  { { 1.f, 0.f, 1.f }, { 0.f, 45.f, std::sqrt (2.f) } },      //
+  { { 1.f, 0.f, -1.f }, { 0.f, -45.f, std::sqrt (2.f) } },    //
+  { { -1.f, 0.f, 1.f }, { 180.f, 45.f, std::sqrt (2.f) } },   //
+  { { -1.f, 0.f, -1.f }, { 180.f, -45.f, std::sqrt (2.f) } }, //
+  // planes through the origin: yz
+  { { 0.f, 1.f, 1.f }, { 90.f, 45.f, std::sqrt (2.f) } },     //
+  { { 0.f, 1.f, -1.f }, { 90.f, -45.f, std::sqrt (2.f) } },   //
+  { { 0.f, -1.f, 1.f }, { -90.f, 45.f, std::sqrt (2.f) } },   //
+  { { 0.f, -1.f, -1.f }, { -90.f, -45.f, std::sqrt (2.f) } }, //
+  // corners of the unit cube
+  { { 1.f, 1.f, 1.f }, { 45.f, elevation_cube, std::sqrt (3.f) } },       //
+  { { 1.f, 1.f, -1.f }, { 45.f, -elevation_cube, std::sqrt (3.f) } },     //
+  { { 1.f, -1.f, 1.f }, { -45.f, elevation_cube, std::sqrt (3.f) } },     //
+  { { 1.f, -1.f, -1.f }, { -45.f, -elevation_cube, std::sqrt (3.f) } },   //
+  { { -1.f, 1.f, 1.f }, { 135.f, elevation_cube, std::sqrt (3.f) } },     //
+  { { -1.f, 1.f, -1.f }, { 135.f, -elevation_cube, std::sqrt (3.f) } },   //
+  { { -1.f, -1.f, 1.f }, { -135.f, elevation_cube, std::sqrt (3.f) } },   //
+  { { -1.f, -1.f, -1.f }, { -135.f, -elevation_cube, std::sqrt (3.f) } }, //
+  // origin in the limit from above/below
+  { { 0.f, 0.f, 0.f }, { 0.f, 90.f, 0.f } },   //
+  { { 0.f, 0.f, -0.f }, { 0.f, -90.f, 0.f } }, //
 };
 
 auto
@@ -85,10 +117,10 @@ xyz_to_aed_error (const std::tuple<double, double, double> &input,
   std::ostringstream ss;
   ss << "FROM INPUT XYZ: " << x << " " << y << " " << z << std::endl;
   ss << "EXPECTED - RECEIVED:" << std::endl
-     << "azimuth: " << azimuth << " - " << received.azimuth () << std::endl
-     << "elevation: " << elevation << " - " << received.elevation ()
+     << "azimuth: " << azimuth << " | " << received.azimuth () << std::endl
+     << "elevation: " << elevation << " | " << received.elevation ()
      << std::endl //
-     << "distance: " << distance << " - " << received.distance () << std::endl;
+     << "distance: " << distance << " | " << received.distance () << std::endl;
   return ss.str ();
 }
 
