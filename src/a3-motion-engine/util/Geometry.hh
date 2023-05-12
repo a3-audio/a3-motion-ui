@@ -92,6 +92,10 @@ public:
   ScalarT elevation () const;
   ScalarT distance () const;
 
+  static Position fromSpherical (ScalarT const &azimuth,   //
+                                 ScalarT const &elevation, //
+                                 ScalarT const &distance);
+
 private:
   ScalarT _x, _y, _z;
 };
@@ -149,9 +153,9 @@ Position<ScalarT>::fromCartesian (ScalarT const &x, ScalarT const &y,
                                   ScalarT const &z)
 {
   Position<ScalarT> p;
-  p.setX (x);
-  p.setY (y);
-  p.setZ (z);
+  p._x = x;
+  p._y = y;
+  p._z = z;
   return p;
 }
 
@@ -178,6 +182,26 @@ Position<ScalarT>::distance () const
   return std::sqrt (_x * _x + _y * _y + _z * _z);
 }
 
-using Pos = Position<float>;
+template <typename ScalarT>
+Position<ScalarT>
+Position<ScalarT>::fromSpherical (ScalarT const &azimuth,
+                                  ScalarT const &elevation,
+                                  ScalarT const &distance)
+{
+  auto a = azimuth * pi<ScalarT> () / 180;
+  auto e = elevation * pi<ScalarT> () / 180;
+
+  Position<ScalarT> p;
+  p._x = std::cos (a) * std::cos (e) * distance;
+  p._y = std::sin (a) * std::cos (e) * distance;
+  p._z = std::sin (e) * distance;
+
+  return p;
+}
+
+using PosF = Position<float>;
+using PosD = Position<double>;
+
+using Pos = PosF;
 
 }

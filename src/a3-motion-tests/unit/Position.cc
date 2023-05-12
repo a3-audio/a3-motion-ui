@@ -9,45 +9,17 @@
 
 using namespace a3;
 
-TEST (Position, PosIsFloat)
+template <typename ScalarT>
+ScalarT
+error_bound ()
 {
-  ASSERT_TRUE ((std::is_same_v<Pos, Position<float> >));
-}
+  static_assert (std::is_same_v<ScalarT, float>
+                 || std::is_same_v<ScalarT, double>);
 
-TEST (Position, ZeroInitialise)
-{
-  Pos p;
-
-  ASSERT_FLOAT_EQ (p.x (), 0.f);
-  ASSERT_FLOAT_EQ (p.y (), 0.f);
-  ASSERT_FLOAT_EQ (p.z (), 0.f);
-}
-
-TEST (Position, SetCartesianQueryCartesian)
-{
-  Pos p;
-
-  auto inputX = 23.f;
-  auto inputY = 17.5f;
-  auto inputZ = 42.f;
-
-  p.setX (inputX);
-  p.setY (inputY);
-  p.setZ (inputZ);
-
-  ASSERT_FLOAT_EQ (p.x (), inputX);
-  ASSERT_FLOAT_EQ (p.y (), inputY);
-  ASSERT_FLOAT_EQ (p.z (), inputZ);
-
-  inputX = 13.37f;
-  inputY = 69.f;
-  inputZ = 4.20f;
-
-  p = Pos::fromCartesian (inputX, inputY, inputZ);
-
-  ASSERT_FLOAT_EQ (p.x (), inputX);
-  ASSERT_FLOAT_EQ (p.y (), inputY);
-  ASSERT_FLOAT_EQ (p.z (), inputZ);
+  if constexpr (std::is_same_v<ScalarT, float>)
+    return 1e-5f;
+  if constexpr (std::is_same_v<ScalarT, double>)
+    return 2e-14;
 }
 
 using xyz_aed_equivalence_list_t = const std::initializer_list<std::pair<
@@ -60,57 +32,89 @@ const auto elevation_cube
 
 const auto xyz_aed_equivalence_list = xyz_aed_equivalence_list_t{
   // main axes
-  { { 1.f, 0.f, 0.f }, { 0.f, 0.f, 1.f } },    //
-  { { -1.f, 0.f, 0.f }, { 180.f, 0.f, 1.f } }, //
-  { { 0.f, 1.f, 0.f }, { 90.f, 0.f, 1.f } },   //
-  { { 0.f, -1.f, 0.f }, { -90.f, 0.f, 1.f } }, //
-  { { 0.f, 0.f, 1.f }, { 0.f, 90.f, 1.f } },   //
-  { { 0.f, 0.f, -1.f }, { 0.f, -90.f, 1.f } }, //
+  { { 1., 0., 0. }, { 0., 0., 1. } },    //
+  { { -1., 0., 0. }, { 180., 0., 1. } }, //
+  { { 0., 1., 0. }, { 90., 0., 1. } },   //
+  { { 0., -1., 0. }, { -90., 0., 1. } }, //
+  { { 0., 0., 1. }, { 0., 90., 1. } },   //
+  { { 0., 0., -1. }, { 0., -90., 1. } }, //
   // magnitude sanity
-  { { 2.f, 0.f, 0.f }, { 0.f, 0.f, 2.f } }, //
+  { { 2., 0., 0. }, { 0., 0., 2. } }, //
   // planes through the origin: xy
-  { { 1.f, 1.f, 0.f }, { 45.f, 0.f, std::sqrt (2.f) } },     //
-  { { 1.f, -1.f, 0.f }, { -45.f, 0.f, std::sqrt (2.f) } },   //
-  { { -1.f, 1.f, 0.f }, { 135.f, 0.f, std::sqrt (2.f) } },   //
-  { { -1.f, -1.f, 0.f }, { -135.f, 0.f, std::sqrt (2.f) } }, //
+  { { 1., 1., 0. }, { 45., 0., std::sqrt (2.) } },     //
+  { { 1., -1., 0. }, { -45., 0., std::sqrt (2.) } },   //
+  { { -1., 1., 0. }, { 135., 0., std::sqrt (2.) } },   //
+  { { -1., -1., 0. }, { -135., 0., std::sqrt (2.) } }, //
   // planes through the origin: xz
-  { { 1.f, 0.f, 1.f }, { 0.f, 45.f, std::sqrt (2.f) } },      //
-  { { 1.f, 0.f, -1.f }, { 0.f, -45.f, std::sqrt (2.f) } },    //
-  { { -1.f, 0.f, 1.f }, { 180.f, 45.f, std::sqrt (2.f) } },   //
-  { { -1.f, 0.f, -1.f }, { 180.f, -45.f, std::sqrt (2.f) } }, //
+  { { 1., 0., 1. }, { 0., 45., std::sqrt (2.) } },      //
+  { { 1., 0., -1. }, { 0., -45., std::sqrt (2.) } },    //
+  { { -1., 0., 1. }, { 180., 45., std::sqrt (2.) } },   //
+  { { -1., 0., -1. }, { 180., -45., std::sqrt (2.) } }, //
   // planes through the origin: yz
-  { { 0.f, 1.f, 1.f }, { 90.f, 45.f, std::sqrt (2.f) } },     //
-  { { 0.f, 1.f, -1.f }, { 90.f, -45.f, std::sqrt (2.f) } },   //
-  { { 0.f, -1.f, 1.f }, { -90.f, 45.f, std::sqrt (2.f) } },   //
-  { { 0.f, -1.f, -1.f }, { -90.f, -45.f, std::sqrt (2.f) } }, //
+  { { 0., 1., 1. }, { 90., 45., std::sqrt (2.) } },     //
+  { { 0., 1., -1. }, { 90., -45., std::sqrt (2.) } },   //
+  { { 0., -1., 1. }, { -90., 45., std::sqrt (2.) } },   //
+  { { 0., -1., -1. }, { -90., -45., std::sqrt (2.) } }, //
   // corners of the unit cube
-  { { 1.f, 1.f, 1.f }, { 45.f, elevation_cube, std::sqrt (3.f) } },       //
-  { { 1.f, 1.f, -1.f }, { 45.f, -elevation_cube, std::sqrt (3.f) } },     //
-  { { 1.f, -1.f, 1.f }, { -45.f, elevation_cube, std::sqrt (3.f) } },     //
-  { { 1.f, -1.f, -1.f }, { -45.f, -elevation_cube, std::sqrt (3.f) } },   //
-  { { -1.f, 1.f, 1.f }, { 135.f, elevation_cube, std::sqrt (3.f) } },     //
-  { { -1.f, 1.f, -1.f }, { 135.f, -elevation_cube, std::sqrt (3.f) } },   //
-  { { -1.f, -1.f, 1.f }, { -135.f, elevation_cube, std::sqrt (3.f) } },   //
-  { { -1.f, -1.f, -1.f }, { -135.f, -elevation_cube, std::sqrt (3.f) } }, //
+  { { 1., 1., 1. }, { 45., elevation_cube, std::sqrt (3.) } },       //
+  { { 1., 1., -1. }, { 45., -elevation_cube, std::sqrt (3.) } },     //
+  { { 1., -1., 1. }, { -45., elevation_cube, std::sqrt (3.) } },     //
+  { { 1., -1., -1. }, { -45., -elevation_cube, std::sqrt (3.) } },   //
+  { { -1., 1., 1. }, { 135., elevation_cube, std::sqrt (3.) } },     //
+  { { -1., 1., -1. }, { 135., -elevation_cube, std::sqrt (3.) } },   //
+  { { -1., -1., 1. }, { -135., elevation_cube, std::sqrt (3.) } },   //
+  { { -1., -1., -1. }, { -135., -elevation_cube, std::sqrt (3.) } }, //
   // origin in the limit from above/below
-  { { 0.f, 0.f, 0.f }, { 0.f, 90.f, 0.f } },   //
-  { { 0.f, 0.f, -0.f }, { 0.f, -90.f, 0.f } }, //
+  { { 0., 0., 0. }, { 0., 90., 0. } },   //
+  { { 0., 0., -0. }, { 0., -90., 0. } }, //
 };
 
 auto
-AzimuthElevationDistanceEq (std::tuple<double, double, double> const &expected)
+GenericNear (double const scalar, double const error)
+{
+  return ::testing::DoubleNear (scalar, error);
+}
+
+auto
+GenericNear (float const scalar, float const error)
+{
+  return ::testing::FloatNear (scalar, error);
+}
+
+template <typename ScalarT>
+auto
+SphericalEq (std::tuple<ScalarT, ScalarT, ScalarT> const &expected)
 {
   using namespace ::testing;
   const auto [azimuth, elevation, distance] = expected;
-  return AllOf (Property (&Pos::azimuth, FloatEq (azimuth)),
-                Property (&Pos::elevation, FloatEq (elevation)),
-                Property (&Pos::distance, FloatEq (distance)));
+
+  return AllOf (Property (&Position<ScalarT>::azimuth,
+                          GenericNear (azimuth, error_bound<ScalarT> ())),
+                Property (&Position<ScalarT>::elevation,
+                          GenericNear (elevation, error_bound<ScalarT> ())),
+                Property (&Position<ScalarT>::distance,
+                          GenericNear (distance, error_bound<ScalarT> ())));
 }
 
+template <typename ScalarT>
+auto
+CartesianEq (std::tuple<ScalarT, ScalarT, ScalarT> const &expected)
+{
+  using namespace ::testing;
+  const auto [x, y, z] = expected;
+  return AllOf (Property (&Position<ScalarT>::x,
+                          GenericNear (x, error_bound<ScalarT> ())),
+                Property (&Position<ScalarT>::y,
+                          GenericNear (y, error_bound<ScalarT> ())),
+                Property (&Position<ScalarT>::z,
+                          GenericNear (z, error_bound<ScalarT> ())));
+}
+
+template <typename ScalarT>
 std::string
-xyz_to_aed_error (const std::tuple<double, double, double> &input,
-                  const std::tuple<double, double, double> &expected,
-                  const Pos &received)
+xyz_to_aed_error (const std::tuple<ScalarT, ScalarT, ScalarT> &input,
+                  const std::tuple<ScalarT, ScalarT, ScalarT> &expected,
+                  const Position<ScalarT> &received)
 {
   const auto [x, y, z] = input;
   const auto [azimuth, elevation, distance] = expected;
@@ -124,14 +128,86 @@ xyz_to_aed_error (const std::tuple<double, double, double> &input,
   return ss.str ();
 }
 
-TEST (Position, SetCartesianQuerySpherical)
+template <typename ScalarT>
+std::string
+aed_to_xyz_error (const std::tuple<ScalarT, ScalarT, ScalarT> &input,
+                  const std::tuple<ScalarT, ScalarT, ScalarT> &expected,
+                  const Position<ScalarT> &received)
+{
+  const auto [azimuth, elevation, distance] = input;
+  const auto [x, y, z] = expected;
+  std::ostringstream ss;
+  ss << "FROM INPUT AED: " << azimuth << " " << elevation << " " << distance
+     << std::endl;
+  ss << "EXPECTED - RECEIVED:" << std::endl
+     << "x: " << x << " | " << received.x () << std::endl
+     << "y: " << y << " | " << received.y () << std::endl //
+     << "z: " << z << " | " << received.z () << std::endl;
+  return ss.str ();
+}
+
+TEST (Position, PosIsFloat)
+{
+  ASSERT_TRUE ((std::is_same_v<Pos, Position<float> >));
+}
+
+template <typename ScalarT>
+class PositionTest : public testing::Test
+{
+};
+using ScalarTypes = ::testing::Types<float, double>;
+TYPED_TEST_SUITE (PositionTest, ScalarTypes);
+
+TYPED_TEST (PositionTest, ZeroInitialise)
+{
+  Position<TypeParam> p;
+  ASSERT_THAT (p, CartesianEq<TypeParam> ({ 0, 0, 0 }));
+}
+
+TYPED_TEST (PositionTest, SetCartesianQueryCartesian)
+{
+  Position<TypeParam> p;
+
+  auto inputX = TypeParam{ 23. };
+  auto inputY = TypeParam{ 17.5 };
+  auto inputZ = TypeParam{ 42. };
+
+  p = Position<TypeParam>::fromCartesian (inputX, inputY, inputZ);
+
+  ASSERT_THAT (p, CartesianEq<TypeParam> ({ inputX, inputY, inputZ }));
+
+  inputX = 13.37f;
+  inputY = 69.f;
+  inputZ = 4.20f;
+
+  p.setX (inputX);
+  p.setY (inputY);
+  p.setZ (inputZ);
+
+  ASSERT_THAT (p, CartesianEq<TypeParam> ({ inputX, inputY, inputZ }));
+}
+
+TYPED_TEST (PositionTest, SetCartesianQuerySpherical)
 {
   for (auto const &xyz_aed_equivalence : xyz_aed_equivalence_list)
     {
       const auto [x, y, z] = xyz_aed_equivalence.first;
-      auto p = Pos::fromCartesian (x, y, z);
-      ASSERT_THAT (p, AzimuthElevationDistanceEq (xyz_aed_equivalence.second))
-          << xyz_to_aed_error (xyz_aed_equivalence.first,
-                               xyz_aed_equivalence.second, p);
+      auto p = Position<TypeParam>::fromCartesian (x, y, z);
+      ASSERT_THAT (p, SphericalEq<TypeParam> (xyz_aed_equivalence.second))
+          << xyz_to_aed_error<TypeParam> (xyz_aed_equivalence.first,
+                                          xyz_aed_equivalence.second, p);
+    }
+}
+
+TYPED_TEST (PositionTest, SetSphericalQueryCartesian)
+{
+  for (auto const &xyz_aed_equivalence : xyz_aed_equivalence_list)
+    {
+      const auto [azimuth, elevation, distance] = xyz_aed_equivalence.second;
+      auto p
+          = Position<TypeParam>::fromSpherical (azimuth, elevation, distance);
+      ASSERT_THAT (p, CartesianEq<TypeParam> (xyz_aed_equivalence.first))
+          << aed_to_xyz_error<TypeParam> (xyz_aed_equivalence.second,
+                                          xyz_aed_equivalence.first, p);
     }
 }
