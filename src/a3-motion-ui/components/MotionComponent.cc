@@ -23,19 +23,36 @@
 namespace a3
 {
 
-MotionComponent::MotionComponent ()
+MotionComponent::MotionComponent (
+    std::vector<std::unique_ptr<Channel> > const &channels)
+    : _channels (channels),
+      _slider (juce::Slider::RotaryVerticalDrag, juce::Slider::NoTextBox)
 {
-  _image.setImage (juce::ImageFileFormat::loadFrom (
-      juce::File ("./resources/a3_logo-dark.png")));
+  // _image.setImage (juce::ImageFileFormat::loadFrom (
+  //     juce::File ("./resources/a3_logo-dark.png")));
 
-  addChildComponent (_image);
-  _image.setVisible (true);
+  // addChildComponent (_image);
+  // _image.setVisible (true);
+
+  addChildComponent (_slider);
+  _slider.setBounds (0, 0, 50, 50);
+  _slider.setVisible (true);
+
+  _glContext.setRenderer (this);
+  _glContext.setContinuousRepainting (true);
+  _glContext.attachTo (*this);
+}
+
+MotionComponent::~MotionComponent ()
+{
+  _glContext.detach ();
 }
 
 void
 MotionComponent::paint (juce::Graphics &g)
 {
-  juce::ignoreUnused (g);
+  //  juce::ignoreUnused (g);
+  g.fillAll (juce::Colours::aquamarine);
 }
 
 void
@@ -44,4 +61,35 @@ MotionComponent::resized ()
   _image.setBounds (getLocalBounds ());
 }
 
+void
+MotionComponent::newOpenGLContextCreated ()
+{
+  DBG ("newOpenGLContextCreated");
+
+  using namespace juce::gl;
+  glDebugMessageControl (GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER,
+                         GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
+}
+
+void
+MotionComponent::renderOpenGL ()
+{
+  // DBG ("renderOpenGL");
+
+  static auto lastT = std::chrono::high_resolution_clock::now ();
+
+  auto now = std::chrono::high_resolution_clock::now ();
+  auto deltaT
+      = std::chrono::duration_cast<std::chrono::milliseconds> (now - lastT)
+            .count ();
+  lastT = now;
+
+  juce::Logger::writeToLog ("frametime: " + juce::String (deltaT));
+}
+
+void
+MotionComponent::openGLContextClosing ()
+{
+  DBG ("openGLContextClosing");
+}
 }

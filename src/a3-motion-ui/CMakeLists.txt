@@ -57,4 +57,5 @@ target_link_libraries("a3-motion-ui" PUBLIC
     a3-motion-engine
     juce::juce_audio_utils
     juce::juce_gui_basics
+    juce::juce_opengl
 )

@@ -18,7 +18,23 @@
 
 */
 
+#include "Channel.hh"
+
 namespace a3
 {
+
+Channel::Channel () : _position (Pos::fromSpherical (0, 0, 1)) {}
+
+void
+Channel::setPosition (Pos const &position)
+{
+  _position = position;
+}
+
+Pos
+Channel::getPosition () const
+{
+  return _position;
+}
 
 }

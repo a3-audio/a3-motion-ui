@@ -20,12 +20,21 @@
 
 #pragma once
 
+#include <a3-motion-engine/util/Geometry.hh>
+
 namespace a3
 {
 
 class Channel
 {
 public:
+  Channel ();
+
+  void setPosition (Pos const &position);
+  Pos getPosition () const;
+
+private:
+  Pos _position;
 };
 
 }

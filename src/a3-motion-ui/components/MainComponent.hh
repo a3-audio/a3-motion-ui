@@ -51,7 +51,6 @@ private:
 
   MotionEngine _engine;
 
-  // UI
   LookAndFeel_A3 _lookAndFeel;
   std::vector<std::unique_ptr<ChannelHeader> > _headers;
   std::vector<std::unique_ptr<ChannelFooter> > _footers;

@@ -26,7 +26,7 @@ namespace a3
 {
 
 MainComponent::MainComponent (unsigned int const numChannels)
-    : _engine (numChannels)
+    : _engine (numChannels), _motionComp (_engine.getChannels ())
 {
   setLookAndFeel (&_lookAndFeel);
 

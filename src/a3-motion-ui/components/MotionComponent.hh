@@ -25,17 +25,30 @@
 namespace a3
 {
 
-class MotionComponent : public juce::Component
+class Channel;
+
+class MotionComponent : public juce::Component, public juce::OpenGLRenderer
 {
 public:
-  MotionComponent ();
+  MotionComponent (std::vector<std::unique_ptr<Channel> > const &channels);
+  ~MotionComponent ();
 
   void resized () override;
   void paint (juce::Graphics &g) override;
 
+  void newOpenGLContextCreated () override;
+  void renderOpenGL () override;
+  void openGLContextClosing () override;
+
 private:
   juce::Label _label;
   juce::ImageComponent _image;
+
+  std::vector<std::unique_ptr<Channel> > const &_channels;
+
+  juce::OpenGLContext _glContext;
+
+  juce::Slider _slider;
 };
 
 }
