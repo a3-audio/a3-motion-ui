@@ -38,7 +38,7 @@ struct Colours
  * mechanism for our own Components. JUCE IDs start at 0x1000000, A3
  * IDs start at 0x03000000.
  *
- * Formatting convention of IDs is as follows: 0xa3000204 identifies
+ * Formatting convention of IDs is as follows: 0x03000204 identifies
  * color 4 of the A3 widget with running Component number 2. Every
  * newly introduced Component class increases the component number by
  * one. The per-Component custom colors are then numbered 00-ff in the
