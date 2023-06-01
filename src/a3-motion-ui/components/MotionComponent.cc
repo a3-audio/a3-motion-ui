@@ -20,26 +20,53 @@
 
 #include "MotionComponent.hh"
 
+#include <a3-motion-ui/LookAndFeel.hh>
+
+namespace
+{
+
+/* Convenience RAII object to make sure we always free the
+ * OpenGLGraphicsContext after it was used in the rendering callback.
+ */
+class GLContextGraphics
+{
+public:
+  GLContextGraphics (juce::OpenGLContext &glContext, int width, int height)
+      : _glRenderer (
+          juce::createOpenGLGraphicsContext (glContext, width, height)),
+        _graphics (*_glRenderer)
+  {
+    _graphics.addTransform (
+        juce::AffineTransform::scale (float (glContext.getRenderingScale ())));
+  }
+
+  ~GLContextGraphics ()
+  {
+    _glRenderer = nullptr;
+  }
+
+  juce::Graphics &
+  get ()
+  {
+    return _graphics;
+  }
+
+private:
+  std::unique_ptr<juce::LowLevelGraphicsContext> _glRenderer;
+  juce::Graphics _graphics;
+};
+}
+
 namespace a3
 {
 
 MotionComponent::MotionComponent (
     std::vector<std::unique_ptr<Channel> > const &channels)
-    : _channels (channels),
-      _slider (juce::Slider::RotaryVerticalDrag, juce::Slider::NoTextBox)
+    : _channels (channels)
 {
-  // _image.setImage (juce::ImageFileFormat::loadFrom (
-  //     juce::File ("./resources/a3_logo-dark.png")));
-
-  // addChildComponent (_image);
-  // _image.setVisible (true);
-
-  addChildComponent (_slider);
-  _slider.setBounds (0, 0, 50, 50);
-  _slider.setVisible (true);
-
   _glContext.setRenderer (this);
   _glContext.setContinuousRepainting (true);
+  _glContext.setComponentPaintingEnabled (false);
   _glContext.attachTo (*this);
 }
 
@@ -51,14 +78,14 @@ MotionComponent::~MotionComponent ()
 void
 MotionComponent::paint (juce::Graphics &g)
 {
-  //  juce::ignoreUnused (g);
-  g.fillAll (juce::Colours::aquamarine);
+  juce::ignoreUnused (g);
 }
 
 void
 MotionComponent::resized ()
 {
-  _image.setBounds (getLocalBounds ());
+  auto lock = std::lock_guard<std::mutex> (_mutexBounds);
+  _bounds = getLocalBounds ();
 }
 
 void
@@ -74,17 +101,50 @@ MotionComponent::newOpenGLContextCreated ()
 void
 MotionComponent::renderOpenGL ()
 {
-  // DBG ("renderOpenGL");
+  using namespace juce::gl;
+  using juce::OpenGLHelpers;
 
+  jassert (OpenGLHelpers::isContextActive ());
+
+  // printFrameTime ();
+
+  updateBounds ();
+  GLContextGraphics graphics (_glContext, //
+                              _boundsRender.getWidth (),
+                              _boundsRender.getHeight ());
+
+  OpenGLHelpers::clear (Colours::background);
+  draw2D (graphics.get ());
+}
+
+void
+MotionComponent::printFrameTime ()
+{
   static auto lastT = std::chrono::high_resolution_clock::now ();
 
   auto now = std::chrono::high_resolution_clock::now ();
   auto deltaT
-      = std::chrono::duration_cast<std::chrono::milliseconds> (now - lastT)
-            .count ();
+      = std::chrono::duration_cast<std::chrono::microseconds> (now - lastT)
+            .count ()
+        / 1000.f;
   lastT = now;
 
   juce::Logger::writeToLog ("frametime: " + juce::String (deltaT));
+}
+
+void
+MotionComponent::updateBounds ()
+{
+  auto lock = std::lock_guard<std::mutex> (_mutexBounds);
+  if (_bounds != _boundsRender)
+    _boundsRender = _bounds;
+}
+
+void
+MotionComponent::draw2D (juce::Graphics &g)
+{
+  g.setColour (juce::Colours::aquamarine);
+  g.drawEllipse (_boundsRender.toFloat (), 10.f);
 }
 
 void

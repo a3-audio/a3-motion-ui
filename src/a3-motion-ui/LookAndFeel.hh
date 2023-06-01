@@ -27,7 +27,7 @@ namespace a3
 
 struct Colours
 {
-  static juce::Colour const black;
+  static juce::Colour const background;
 };
 
 /*

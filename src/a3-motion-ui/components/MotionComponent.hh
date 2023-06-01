@@ -41,14 +41,24 @@ public:
   void openGLContextClosing () override;
 
 private:
-  juce::Label _label;
-  juce::ImageComponent _image;
+  void printFrameTime ();
+  void updateBounds ();
+
+  void draw2D (juce::Graphics &g);
 
   std::vector<std::unique_ptr<Channel> > const &_channels;
 
   juce::OpenGLContext _glContext;
 
-  juce::Slider _slider;
-};
+  // component bounds updated by the UI thread
+  juce::Rectangle<int> _bounds;
 
+  // copies of the component bounds for asynchronous use in the GL
+  // renderer thread
+  std::mutex _mutexBounds;
+  juce::Rectangle<int> _boundsRender;
+
+  // derived bounds for drawing convenience
+  juce::Rectangle<int> _boundsCenterRegion;
+};
 }

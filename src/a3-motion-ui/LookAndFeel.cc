@@ -23,7 +23,7 @@
 namespace a3
 {
 
-const juce::Colour Colours::black{ 0xff292f36 };
+const juce::Colour Colours::background{ 0xff292f36 };
 
 LookAndFeel_A3::LookAndFeel_A3 ()
 {
