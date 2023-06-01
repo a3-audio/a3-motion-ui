@@ -24,6 +24,7 @@ namespace a3
 {
 
 const juce::Colour Colours::background{ 0xff292f36 };
+const juce::Colour Colours::circle{ 0xff8da9c4 };
 
 LookAndFeel_A3::LookAndFeel_A3 ()
 {

@@ -75,11 +75,12 @@ MotionComponent::~MotionComponent ()
   _glContext.detach ();
 }
 
-void
-MotionComponent::paint (juce::Graphics &g)
-{
-  juce::ignoreUnused (g);
-}
+// void
+// MotionComponent::paint (juce::Graphics &g)
+// {
+//   juce::ignoreUnused (g);
+//   jassert (false); // we do all 2D drawing in the OpenGL render thread
+// }
 
 void
 MotionComponent::resized ()
@@ -135,16 +136,52 @@ MotionComponent::printFrameTime ()
 void
 MotionComponent::updateBounds ()
 {
-  auto lock = std::lock_guard<std::mutex> (_mutexBounds);
-  if (_bounds != _boundsRender)
-    _boundsRender = _bounds;
+  {
+    auto lock = std::lock_guard<std::mutex> (_mutexBounds);
+    if (_bounds != _boundsRender)
+      _boundsRender = _bounds;
+  }
+
+  auto shorterSideLength
+      = juce::jmin (_boundsRender.getWidth (), _boundsRender.getHeight ());
+  _boundsCenterRegion = _boundsRender.withSizeKeepingCentre (
+      shorterSideLength, shorterSideLength);
 }
 
 void
 MotionComponent::draw2D (juce::Graphics &g)
 {
-  g.setColour (juce::Colours::aquamarine);
-  g.drawEllipse (_boundsRender.toFloat (), 10.f);
+  drawArrowCircle (g);
+}
+
+void
+MotionComponent::drawArrowCircle (juce::Graphics &g)
+{
+  jassert (_boundsCenterRegion.getWidth ()
+           == _boundsCenterRegion.getHeight ());
+
+  auto constexpr reduceFactorCircle = 0.9f;
+  auto const diameter = _boundsCenterRegion.getWidth () * reduceFactorCircle;
+  auto const boundsCircle
+      = _boundsCenterRegion.withSizeKeepingCentre (diameter, diameter);
+  auto const thickness = diameter / 50.f;
+
+  g.setColour (Colours::circle);
+  g.drawEllipse (boundsCircle.toFloat (), thickness);
+
+  auto constexpr reduceFactorArrow = 0.8f; // relative to the already reduced
+                                           // circle
+
+  auto const height = diameter * reduceFactorArrow;
+  auto const boundsArrow
+      = boundsCircle.withSizeKeepingCentre (boundsCircle.getWidth (), height);
+  auto const start = juce::Point<float> (boundsCircle.getCentreX (),
+                                         boundsArrow.getBottom ());
+  auto const end = juce::Point<float> (boundsCircle.getCentreX (), //
+                                       boundsArrow.getY ());
+  auto headSize = 4.f * thickness;
+
+  g.drawArrow ({ start, end }, thickness, headSize, headSize);
 }
 
 void

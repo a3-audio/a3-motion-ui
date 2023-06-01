@@ -34,7 +34,7 @@ public:
   ~MotionComponent ();
 
   void resized () override;
-  void paint (juce::Graphics &g) override;
+  // void paint (juce::Graphics &g) override;
 
   void newOpenGLContextCreated () override;
   void renderOpenGL () override;
@@ -45,6 +45,7 @@ private:
   void updateBounds ();
 
   void draw2D (juce::Graphics &g);
+  void drawArrowCircle (juce::Graphics &g);
 
   std::vector<std::unique_ptr<Channel> > const &_channels;
 
