@@ -41,6 +41,8 @@ public:
   // void paint (juce::Graphics &g) override;
 
   void mouseMove (const juce::MouseEvent &) override;
+  void mouseDown (const juce::MouseEvent &) override;
+  void mouseDrag (const juce::MouseEvent &) override;
 
   void newOpenGLContextCreated () override;
   void renderOpenGL () override;
@@ -58,6 +60,7 @@ private:
 
   float getBlobSize () const;
   juce::Point<float> normalizedToLocalPosition (Pos const &posNorm) const;
+  Pos localToNormalizedPosition (juce::Point<float> const &posLocal) const;
 
   std::vector<std::unique_ptr<Channel> > const &_channels;
   std::vector<std::unique_ptr<ChannelViewState> > &_viewStates;

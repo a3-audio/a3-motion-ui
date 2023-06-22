@@ -96,7 +96,7 @@ auto constexpr reduceFactorArrow = 0.8f;  // relative to the already reduced
                                           // circle
 
 // relative to the (square) component extents
-auto constexpr activeAreaAroundBlobFactor = 0.1f;
+auto constexpr activeAreaAroundBlobFactor = 0.05f;
 auto constexpr blobHighlightFactor = 1.1f;
 
 }
@@ -143,6 +143,40 @@ MotionComponent::mouseMove (const juce::MouseEvent &event)
 }
 
 void
+MotionComponent::mouseDown (const juce::MouseEvent &event)
+{
+  for (auto channelIndex = 0u; channelIndex < _channels.size ();
+       ++channelIndex)
+    {
+      _viewStates[channelIndex]->grabbed
+          = _viewStates[channelIndex]->highlighted;
+
+      if (_viewStates[channelIndex]->grabbed)
+        {
+          _viewStates[channelIndex]->grabOffset
+              = normalizedToLocalPosition (
+                    _channels[channelIndex]->getPosition ())
+                - event.getPosition ().toFloat ();
+        }
+    }
+}
+
+void
+MotionComponent::mouseDrag (const juce::MouseEvent &event)
+{
+  for (auto channelIndex = 0u; channelIndex < _channels.size ();
+       ++channelIndex)
+    {
+      if (_viewStates[channelIndex]->grabbed)
+        {
+          _channels[channelIndex]->setPosition (localToNormalizedPosition (
+              event.getPosition ().toFloat ()
+              + _viewStates[channelIndex]->grabOffset));
+        }
+    }
+}
+
+void
 MotionComponent::updateChannelBlobHighlight (juce::Point<float> mousePosition)
 {
   jassert (_boundsCenterRegion.getWidth ()
@@ -157,15 +191,9 @@ MotionComponent::updateChannelBlobHighlight (juce::Point<float> mousePosition)
       auto const blobPosInPixel = normalizedToLocalPosition (
           _channels[channelIndex]->getPosition ());
 
-      if (blobPosInPixel.getDistanceFrom (mousePosition)
-          < activeDistanceInPixel)
-        {
-          _viewStates[channelIndex]->highlight = true;
-        }
-      else
-        {
-          _viewStates[channelIndex]->highlight = false;
-        }
+      _viewStates[channelIndex]->highlighted
+          = blobPosInPixel.getDistanceFrom (mousePosition)
+            < activeDistanceInPixel;
     }
 }
 
@@ -237,7 +265,8 @@ void
 MotionComponent::renderBoundsChanged ()
 {
   // juce::Logger::writeToLog (juce::String ("bounds changed: ")
-  //                           + juce::String (_boundsRender.getWidth ()) + " x
+  //                           + juce::String (_boundsRender.getWidth ()) + "
+  //                           x
   //                           "
   //                           + juce::String (_boundsRender.getHeight ()));
 
@@ -302,7 +331,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 
         auto colour = _viewStates[channelIndex]->colour;
 
-        if (_viewStates[channelIndex]->highlight)
+        if (_viewStates[channelIndex]->highlighted)
           {
             gFBO.setColour (
                 colour.withLightness (colour.getLightness () + 0.2f));
@@ -334,6 +363,25 @@ MotionComponent::normalizedToLocalPosition (Pos const &posNorm) const
   return _boundsCenterRegion.getCentre ().toFloat ()
          + juce::Point<float> (posNorm.x () * halfSize * reduceFactorCircle,
                                posNorm.y () * halfSize * reduceFactorCircle);
+}
+
+Pos
+MotionComponent::localToNormalizedPosition (
+    juce::Point<float> const &posLocal) const
+{
+  jassert (_boundsCenterRegion.getWidth ()
+           == _boundsCenterRegion.getHeight ());
+
+  auto const halfSize = _boundsCenterRegion.getWidth () / 2.f;
+
+  auto posNormalized = (posLocal - _boundsCenterRegion.getCentre ().toFloat ())
+                       / halfSize / reduceFactorCircle;
+
+  return Pos::fromCartesian ( //
+      posNormalized.getX (),  //
+      posNormalized.getY (),  //
+      0                       // no elevation for now
+  );
 }
 
 void
