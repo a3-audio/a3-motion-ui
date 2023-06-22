@@ -20,7 +20,10 @@
 
 #include "MotionComponent.hh"
 
+#include <a3-motion-engine/Channel.hh>
+
 #include <a3-motion-ui/LookAndFeel.hh>
+#include <a3-motion-ui/components/ChannelViewState.hh>
 
 namespace
 {
@@ -55,15 +58,53 @@ private:
   std::unique_ptr<juce::LowLevelGraphicsContext> _glRenderer;
   juce::Graphics _graphics;
 };
+
+// struct VertexUV
+// {
+//   float position[3];
+//   float texCoord[2];
+// };
+
+// std::unique_ptr<juce::OpenGLShaderProgram::Attribute>
+// createAttribute (juce::OpenGLShaderProgram &shader, const char
+// *attributeName)
+// {
+//   using namespace ::juce::gl;
+
+//   if (glGetAttribLocation (shader.getProgramID (), attributeName) < 0)
+//     return nullptr;
+
+//   return std::make_unique<juce::OpenGLShaderProgram::Attribute> (
+//       shader, attributeName);
+// }
+
+// std::unique_ptr<juce::OpenGLShaderProgram::Uniform>
+// createUniform (juce::OpenGLShaderProgram &shader, const char *uniformName)
+// {
+//   using namespace ::juce::gl;
+
+//   if (glGetUniformLocation (shader.getProgramID (), uniformName) < 0)
+//     return nullptr;
+
+//   return std::make_unique<juce::OpenGLShaderProgram::Uniform> (shader,
+//                                                                uniformName);
+// }
+
+auto constexpr reduceFactorCircle = 0.9f;
+auto constexpr reduceFactorArrow = 0.8f; // relative to the already reduced
+                                         // circle
 }
 
 namespace a3
 {
 
 MotionComponent::MotionComponent (
-    std::vector<std::unique_ptr<Channel> > const &channels)
-    : _channels (channels)
+    std::vector<std::unique_ptr<Channel> > const &channels,
+    std::vector<std::unique_ptr<ChannelViewState> > &viewStates)
+    : _channels (channels), _viewStates (viewStates)
 {
+  _glContext.setOpenGLVersionRequired (
+      juce::OpenGLContext::OpenGLVersion::openGL4_3);
   _glContext.setRenderer (this);
   _glContext.setContinuousRepainting (true);
   _glContext.setComponentPaintingEnabled (false);
@@ -115,7 +156,9 @@ MotionComponent::renderOpenGL ()
                               _boundsRender.getHeight ());
 
   OpenGLHelpers::clear (Colours::background);
-  draw2D (graphics.get ());
+
+  drawArrowCircle (graphics.get ());
+  drawChannelBlobs (graphics.get ());
 }
 
 void
@@ -139,7 +182,10 @@ MotionComponent::updateBounds ()
   {
     auto lock = std::lock_guard<std::mutex> (_mutexBounds);
     if (_bounds != _boundsRender)
-      _boundsRender = _bounds;
+      {
+        _boundsRender = _bounds;
+        renderBoundsChanged ();
+      }
   }
 
   auto shorterSideLength
@@ -149,9 +195,17 @@ MotionComponent::updateBounds ()
 }
 
 void
-MotionComponent::draw2D (juce::Graphics &g)
+MotionComponent::renderBoundsChanged ()
 {
-  drawArrowCircle (g);
+  // juce::Logger::writeToLog (juce::String ("bounds changed: ")
+  //                           + juce::String (_boundsRender.getWidth ()) + " x
+  //                           "
+  //                           + juce::String (_boundsRender.getHeight ()));
+
+  _imageBlend = std::make_unique<juce::Image> (
+      juce::Image::PixelFormat::ARGB,                        //
+      _boundsRender.getWidth (), _boundsRender.getHeight (), //
+      false, juce::OpenGLImageType ());
 }
 
 void
@@ -160,7 +214,6 @@ MotionComponent::drawArrowCircle (juce::Graphics &g)
   jassert (_boundsCenterRegion.getWidth ()
            == _boundsCenterRegion.getHeight ());
 
-  auto constexpr reduceFactorCircle = 0.9f;
   auto const diameter = _boundsCenterRegion.getWidth () * reduceFactorCircle;
   auto const boundsCircle
       = _boundsCenterRegion.withSizeKeepingCentre (diameter, diameter);
@@ -168,9 +221,6 @@ MotionComponent::drawArrowCircle (juce::Graphics &g)
 
   g.setColour (Colours::circle);
   g.drawEllipse (boundsCircle.toFloat (), thickness);
-
-  auto constexpr reduceFactorArrow = 0.8f; // relative to the already reduced
-                                           // circle
 
   auto const height = diameter * reduceFactorArrow;
   auto const boundsArrow
@@ -181,7 +231,56 @@ MotionComponent::drawArrowCircle (juce::Graphics &g)
                                        boundsArrow.getY ());
   auto headSize = 4.f * thickness;
 
+  auto boundsStartCircle
+      = juce::Rectangle<float> (start.getX (), start.getY (), 0, 0);
+  boundsStartCircle = boundsStartCircle.withSizeKeepingCentre (20, 20);
+
   g.drawArrow ({ start, end }, thickness, headSize, headSize);
+}
+
+void
+MotionComponent::drawChannelBlobs (juce::Graphics &g)
+{
+  using namespace juce::gl;
+
+  auto const blobSize = getBlobSize ();
+
+  {
+    juce::Graphics gFBO{ *_imageBlend };
+    gFBO.fillAll (juce::Colours::transparentBlack);
+
+    auto blob = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
+
+    for (auto channelIndex = 0u; channelIndex < _channels.size ();
+         ++channelIndex)
+      {
+        auto pos = normalizedToLocalPosition (
+            _channels[channelIndex]->getPosition ());
+        gFBO.setColour (_viewStates[channelIndex]->colour);
+        gFBO.fillEllipse (blob.withCentre (pos));
+      }
+  }
+
+  g.drawImage (*_imageBlend, _boundsRender.toFloat ());
+}
+
+float
+MotionComponent::getBlobSize () const
+{
+  return _boundsCenterRegion.getWidth () * 0.05f;
+}
+
+juce::Point<float>
+MotionComponent::normalizedToLocalPosition (Pos const &posNorm) const
+{
+  jassert (_boundsCenterRegion.getWidth ()
+           == _boundsCenterRegion.getHeight ());
+
+  auto const halfSize = _boundsCenterRegion.getWidth () / 2.f;
+
+  return _boundsCenterRegion.getCentre ().toFloat ()
+         + juce::Point<float> (posNorm.x () * halfSize * reduceFactorCircle,
+                               posNorm.y () * halfSize * reduceFactorCircle);
 }
 
 void

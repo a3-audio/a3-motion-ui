@@ -29,10 +29,12 @@
 #include <a3-motion-ui/LookAndFeel.hh>
 #include <a3-motion-ui/components/ChannelFooter.hh>
 #include <a3-motion-ui/components/ChannelHeader.hh>
-#include <a3-motion-ui/components/MotionComponent.hh>
+#include <a3-motion-ui/components/ChannelViewState.hh>
 
 namespace a3
 {
+
+class MotionComponent;
 
 class MainComponent : public juce::Component
 {
@@ -52,9 +54,10 @@ private:
   MotionEngine _engine;
 
   LookAndFeel_A3 _lookAndFeel;
+  std::vector<std::unique_ptr<ChannelViewState> > _viewStates;
   std::vector<std::unique_ptr<ChannelHeader> > _headers;
   std::vector<std::unique_ptr<ChannelFooter> > _footers;
-  MotionComponent _motionComp;
+  std::unique_ptr<MotionComponent> _motionComp;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };

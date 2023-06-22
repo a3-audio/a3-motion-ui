@@ -20,16 +20,21 @@
 
 #include "ChannelFooter.hh"
 
+#include <a3-motion-ui/components/ChannelViewState.hh>
+
 namespace a3
 {
 
-ChannelFooter::ChannelFooter (Channel const &channel) : _channel (channel) {}
+ChannelFooter::ChannelFooter (Channel const &channel,
+                              ChannelViewState const &viewState)
+    : _channel (channel), _viewState (viewState)
+{
+}
 
 void
 ChannelFooter::paint (juce::Graphics &g)
 {
-  auto const color = findColour (backgroundColourId);
-  g.fillAll (color);
+  g.fillAll (_viewState.colour);
 }
 
 }

@@ -26,21 +26,18 @@ namespace a3
 {
 
 class Channel;
+class ChannelViewState;
 
 class ChannelFooter : public juce::Component
 {
 public:
-  enum ColourIds
-  {
-    backgroundColourId = 0x03000100
-  };
-
-  ChannelFooter (Channel const &);
+  ChannelFooter (Channel const &, ChannelViewState const &);
 
   void paint (juce::Graphics &) override;
 
 private:
   Channel const &_channel;
+  ChannelViewState const &_viewState;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelFooter)
 };

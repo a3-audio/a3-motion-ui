@@ -21,19 +21,22 @@
 #include "MainComponent.hh"
 
 #include <a3-motion-ui/LayoutHints.hh>
+#include <a3-motion-ui/components/MotionComponent.hh>
 
 namespace a3
 {
 
 MainComponent::MainComponent (unsigned int const numChannels)
-    : _engine (numChannels), _motionComp (_engine.getChannels ())
+    : _engine (numChannels), _motionComp ()
 {
   setLookAndFeel (&_lookAndFeel);
 
   createChannelsUI ();
 
-  addChildComponent (_motionComp);
-  _motionComp.setVisible (true);
+  _motionComp = std::make_unique<MotionComponent> (_engine.getChannels (),
+                                                   _viewStates);
+  addChildComponent (*_motionComp);
+  _motionComp->setVisible (true);
 }
 
 MainComponent::~MainComponent ()
@@ -46,23 +49,15 @@ MainComponent::createChannelsUI ()
 {
   auto const numChannels = _engine.getChannels ().size ();
 
-  _headers.reserve (numChannels);
+  _viewStates.reserve (numChannels);
+  _footers.reserve (numChannels);
   _footers.reserve (numChannels);
 
   auto hueStart = 0.f;
   auto hueNorm = hueStart;
   for (auto const &channel : _engine.getChannels ())
     {
-      auto header = std::make_unique<ChannelHeader> (*channel);
-      auto footer = std::make_unique<ChannelFooter> (*channel);
-
-      addChildComponent (*header);
-      addChildComponent (*footer);
-
-      header->setVisible (true);
-      footer->setVisible (true);
-
-      // set channel colors
+      auto viewState = std::make_unique<ChannelViewState> ();
       auto hue = hueNorm / 360.f * 256.f; // for now rescale to
                                           // (arbitrary) range "in
                                           // degrees" that stems from
@@ -71,12 +66,19 @@ MainComponent::createChannelsUI ()
                                           // the old python
                                           // implementation.
 
-      auto color = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
+      viewState->colour = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
       hueNorm += 1.f / numChannels;
 
-      header->setColour (ChannelHeader::backgroundColourId, color);
-      footer->setColour (ChannelFooter::backgroundColourId, color);
+      auto header = std::make_unique<ChannelHeader> (*channel, *viewState);
+      auto footer = std::make_unique<ChannelFooter> (*channel, *viewState);
 
+      addChildComponent (*header);
+      addChildComponent (*footer);
+
+      header->setVisible (true);
+      footer->setVisible (true);
+
+      _viewStates.push_back (std::move (viewState));
       _headers.push_back (std::move (header));
       _footers.push_back (std::move (footer));
     }
@@ -116,7 +118,7 @@ MainComponent::resized ()
   auto boundsMotion
       = bounds.withTrimmedTop (LayoutHints::Channels::heightHeader ())
             .withTrimmedBottom (LayoutHints::Channels::heightFooter);
-  _motionComp.setBounds (boundsMotion);
+  _motionComp->setBounds (boundsMotion);
 
   // Channel headers/footers
   auto widthChannel = bounds.getWidth () / float (_headers.size ());

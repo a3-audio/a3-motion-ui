@@ -22,15 +22,19 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/util/Geometry.hh>
+
 namespace a3
 {
 
 class Channel;
+class ChannelViewState;
 
 class MotionComponent : public juce::Component, public juce::OpenGLRenderer
 {
 public:
-  MotionComponent (std::vector<std::unique_ptr<Channel> > const &channels);
+  MotionComponent (std::vector<std::unique_ptr<Channel> > const &,
+                   std::vector<std::unique_ptr<ChannelViewState> > &);
   ~MotionComponent ();
 
   void resized () override;
@@ -43,11 +47,16 @@ public:
 private:
   void printFrameTime ();
   void updateBounds ();
+  void renderBoundsChanged ();
 
-  void draw2D (juce::Graphics &g);
   void drawArrowCircle (juce::Graphics &g);
+  void drawChannelBlobs (juce::Graphics &g);
+
+  float getBlobSize () const;
+  juce::Point<float> normalizedToLocalPosition (Pos const &posNorm) const;
 
   std::vector<std::unique_ptr<Channel> > const &_channels;
+  std::vector<std::unique_ptr<ChannelViewState> > &_viewStates;
 
   juce::OpenGLContext _glContext;
 
@@ -61,5 +70,7 @@ private:
 
   // derived bounds for drawing convenience
   juce::Rectangle<int> _boundsCenterRegion;
+
+  std::unique_ptr<juce::Image> _imageBlend;
 };
 }

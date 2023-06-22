@@ -20,34 +20,14 @@
 
 #pragma once
 
-#include <array>
-
 #include <JuceHeader.h>
 
 namespace a3
 {
 
-class Channel;
-class ChannelViewState;
-
-class ChannelHeader : public juce::Component
+struct ChannelViewState
 {
-public:
-  static int constexpr numSlidersFX = 2;
-
-  ChannelHeader (Channel const &, ChannelViewState const &);
-
-  void resized () override;
-  void paint (juce::Graphics &) override;
-
-private:
-  Channel const &_channel;
-  ChannelViewState const &_viewState;
-
-  std::array<juce::Slider, numSlidersFX> _slidersFX;
-  std::array<juce::Label, numSlidersFX> _labelsFX;
-
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelHeader)
+  juce::Colour colour;
 };
 
 }
