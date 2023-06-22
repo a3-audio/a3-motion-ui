@@ -122,16 +122,17 @@ MainComponent::resized ()
 
   // Channel headers/footers
   auto widthChannel = bounds.getWidth () / float (_headers.size ());
-  for (auto idxChannel = 0u; idxChannel < _headers.size (); ++idxChannel)
+  for (auto channelIndex = 0u; channelIndex < _headers.size (); ++channelIndex)
     {
-      auto offsetInt = juce::roundToInt (idxChannel * widthChannel);
-      auto offsetIntNext = juce::roundToInt ((idxChannel + 1) * widthChannel);
+      auto offsetInt = juce::roundToInt (channelIndex * widthChannel);
+      auto offsetIntNext
+          = juce::roundToInt ((channelIndex + 1) * widthChannel);
       auto widthInt = offsetIntNext - offsetInt; // account for
                                                  // rounding discrepancies
 
-      _headers[idxChannel]->setBounds (offsetInt, 0, widthInt,
-                                       LayoutHints::Channels::heightHeader ());
-      _footers[idxChannel]->setBounds (
+      _headers[channelIndex]->setBounds (
+          offsetInt, 0, widthInt, LayoutHints::Channels::heightHeader ());
+      _footers[channelIndex]->setBounds (
           offsetInt,
           LayoutHints::Channels::heightHeader () + boundsMotion.getHeight (),
           widthInt, LayoutHints::Channels::heightFooter);

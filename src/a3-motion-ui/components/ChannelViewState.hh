@@ -28,6 +28,7 @@ namespace a3
 struct ChannelViewState
 {
   juce::Colour colour;
+  bool highlight = false;
 };
 
 }

@@ -40,6 +40,8 @@ public:
   void resized () override;
   // void paint (juce::Graphics &g) override;
 
+  void mouseMove (const juce::MouseEvent &) override;
+
   void newOpenGLContextCreated () override;
   void renderOpenGL () override;
   void openGLContextClosing () override;
@@ -48,6 +50,8 @@ private:
   void printFrameTime ();
   void updateBounds ();
   void renderBoundsChanged ();
+
+  void updateChannelBlobHighlight (juce::Point<float> mousePosition);
 
   void drawArrowCircle (juce::Graphics &g);
   void drawChannelBlobs (juce::Graphics &g);

@@ -90,9 +90,15 @@ private:
 //                                                                uniformName);
 // }
 
-auto constexpr reduceFactorCircle = 0.9f;
-auto constexpr reduceFactorArrow = 0.8f; // relative to the already reduced
-                                         // circle
+auto constexpr reduceFactorCircle = 0.9f; // relative to the (square)
+                                          // component extents
+auto constexpr reduceFactorArrow = 0.8f;  // relative to the already reduced
+                                          // circle
+
+// relative to the (square) component extents
+auto constexpr activeAreaAroundBlobFactor = 0.1f;
+auto constexpr blobHighlightFactor = 1.1f;
+
 }
 
 namespace a3
@@ -128,6 +134,39 @@ MotionComponent::resized ()
 {
   auto lock = std::lock_guard<std::mutex> (_mutexBounds);
   _bounds = getLocalBounds ();
+}
+
+void
+MotionComponent::mouseMove (const juce::MouseEvent &event)
+{
+  updateChannelBlobHighlight (event.getPosition ().toFloat ());
+}
+
+void
+MotionComponent::updateChannelBlobHighlight (juce::Point<float> mousePosition)
+{
+  jassert (_boundsCenterRegion.getWidth ()
+           == _boundsCenterRegion.getHeight ());
+
+  auto activeDistanceInPixel
+      = _boundsCenterRegion.getWidth () * activeAreaAroundBlobFactor;
+
+  for (auto channelIndex = 0u; channelIndex < _channels.size ();
+       ++channelIndex)
+    {
+      auto const blobPosInPixel = normalizedToLocalPosition (
+          _channels[channelIndex]->getPosition ());
+
+      if (blobPosInPixel.getDistanceFrom (mousePosition)
+          < activeDistanceInPixel)
+        {
+          _viewStates[channelIndex]->highlight = true;
+        }
+      else
+        {
+          _viewStates[channelIndex]->highlight = false;
+        }
+    }
 }
 
 void
@@ -245,18 +284,32 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 
   auto const blobSize = getBlobSize ();
 
+  _imageBlend->clear (_imageBlend->getBounds ());
+
   {
     juce::Graphics gFBO{ *_imageBlend };
-    gFBO.fillAll (juce::Colours::transparentBlack);
 
-    auto blob = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
+    auto const blob = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
+    auto const blobHighlight = juce::Rectangle<float> (
+        0.f, 0.f, //
+        blobSize * blobHighlightFactor, blobSize * blobHighlightFactor);
 
     for (auto channelIndex = 0u; channelIndex < _channels.size ();
          ++channelIndex)
       {
         auto pos = normalizedToLocalPosition (
             _channels[channelIndex]->getPosition ());
-        gFBO.setColour (_viewStates[channelIndex]->colour);
+
+        auto colour = _viewStates[channelIndex]->colour;
+
+        if (_viewStates[channelIndex]->highlight)
+          {
+            gFBO.setColour (
+                colour.withLightness (colour.getLightness () + 0.2f));
+            gFBO.fillEllipse (blobHighlight.withCentre (pos));
+          }
+
+        gFBO.setColour (colour);
         gFBO.fillEllipse (blob.withCentre (pos));
       }
   }
