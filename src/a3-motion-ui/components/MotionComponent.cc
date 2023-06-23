@@ -182,18 +182,58 @@ MotionComponent::updateChannelBlobHighlight (juce::Point<float> mousePosition)
   jassert (_boundsCenterRegion.getWidth ()
            == _boundsCenterRegion.getHeight ());
 
-  auto activeDistanceInPixel
+  enum HighlightStrategy
+  {
+    Closest,
+    AllWithinActiveArea
+  };
+
+  auto const strategy = HighlightStrategy::Closest;
+
+  auto const activeDistanceInPixel
       = _boundsCenterRegion.getWidth () * activeAreaAroundBlobFactor;
 
-  for (auto channelIndex = 0u; channelIndex < _channels.size ();
-       ++channelIndex)
+  switch (strategy)
     {
-      auto const blobPosInPixel = normalizedToLocalPosition (
-          _channels[channelIndex]->getPosition ());
+    case HighlightStrategy::Closest:
+      {
+        auto minDistance = std::numeric_limits<float>::infinity ();
+        auto minIndex = 0u;
+        for (auto channelIndex = 0u; channelIndex < _channels.size ();
+             ++channelIndex)
+          {
+            auto const blobPosInPixel = normalizedToLocalPosition (
+                _channels[channelIndex]->getPosition ());
 
-      _viewStates[channelIndex]->highlighted
-          = blobPosInPixel.getDistanceFrom (mousePosition)
-            < activeDistanceInPixel;
+            _viewStates[channelIndex]->highlighted = false;
+
+            auto const distance
+                = blobPosInPixel.getDistanceFrom (mousePosition);
+            if (distance < minDistance)
+              {
+                minDistance = distance;
+                minIndex = channelIndex;
+              }
+          }
+
+        if (minDistance < activeDistanceInPixel)
+          _viewStates[minIndex]->highlighted = true;
+
+        break;
+      }
+    case HighlightStrategy::AllWithinActiveArea:
+      {
+        for (auto channelIndex = 0u; channelIndex < _channels.size ();
+             ++channelIndex)
+          {
+            auto const blobPosInPixel = normalizedToLocalPosition (
+                _channels[channelIndex]->getPosition ());
+            _viewStates[channelIndex]->highlighted
+                = blobPosInPixel.getDistanceFrom (mousePosition)
+                  < activeDistanceInPixel;
+          }
+        break;
+      }
     }
 }
 
