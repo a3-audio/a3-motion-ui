@@ -35,28 +35,29 @@ class GLContextGraphics
 {
 public:
   GLContextGraphics (juce::OpenGLContext &glContext, int width, int height)
-      : _glRenderer (
-          juce::createOpenGLGraphicsContext (glContext, width, height)),
-        _graphics (*_glRenderer)
   {
-    _graphics.addTransform (
+    _glRenderer = juce::createOpenGLGraphicsContext (glContext, width, height);
+
+    _graphics = std::make_unique<juce::Graphics> (*_glRenderer);
+    _graphics->addTransform (
         juce::AffineTransform::scale (float (glContext.getRenderingScale ())));
   }
 
   ~GLContextGraphics ()
   {
+    _graphics = nullptr;
     _glRenderer = nullptr;
   }
 
   juce::Graphics &
   get ()
   {
-    return _graphics;
+    return *_graphics;
   }
 
 private:
   std::unique_ptr<juce::LowLevelGraphicsContext> _glRenderer;
-  juce::Graphics _graphics;
+  std::unique_ptr<juce::Graphics> _graphics;
 };
 
 // struct VertexUV
@@ -90,10 +91,9 @@ private:
 //                                                                uniformName);
 // }
 
-auto constexpr reduceFactorCircle = 0.9f; // relative to the (square)
-                                          // component extents
-auto constexpr reduceFactorArrow = 0.8f;  // relative to the already reduced
-                                          // circle
+// relative to the (square) component extents
+auto constexpr reduceFactorCircle = .9f;
+auto constexpr reduceFactorHead = .35f;
 
 // relative to the (square) component extents
 auto constexpr activeAreaAroundBlobFactor = 0.05f;
@@ -115,6 +115,12 @@ MotionComponent::MotionComponent (
   _glContext.setContinuousRepainting (true);
   _glContext.setComponentPaintingEnabled (false);
   _glContext.attachTo (*this);
+
+  // @TODO: compile as binary resources into executable
+  _imageIsoSphere = juce::ImageFileFormat::loadFrom (
+      juce::File ("resources/iso-sphere-wireframe.png"));
+  _drawableHead
+      = juce::Drawable::createFromSVGFile (juce::File ("resources/head.svg"));
 }
 
 MotionComponent::~MotionComponent ()
@@ -258,14 +264,17 @@ MotionComponent::renderOpenGL ()
   // printFrameTime ();
 
   updateBounds ();
-  GLContextGraphics graphics (_glContext, //
-                              _boundsRender.getWidth (),
-                              _boundsRender.getHeight ());
 
-  OpenGLHelpers::clear (Colours::background);
+  {
+    GLContextGraphics graphics (_glContext, //
+                                _boundsRender.getWidth (),
+                                _boundsRender.getHeight ());
 
-  drawArrowCircle (graphics.get ());
-  drawChannelBlobs (graphics.get ());
+    OpenGLHelpers::clear (Colours::background);
+
+    drawCircle (graphics.get ());
+    drawChannelBlobs (graphics.get ());
+  }
 }
 
 void
@@ -317,33 +326,30 @@ MotionComponent::renderBoundsChanged ()
 }
 
 void
-MotionComponent::drawArrowCircle (juce::Graphics &g)
+MotionComponent::drawCircle (juce::Graphics &g)
 {
   jassert (_boundsCenterRegion.getWidth ()
            == _boundsCenterRegion.getHeight ());
 
-  auto const diameter = _boundsCenterRegion.getWidth () * reduceFactorCircle;
+  auto constexpr opacityHead = 0.4f;
+  auto const diameterHead = _boundsCenterRegion.getWidth () * reduceFactorHead;
+  auto const boundsHead
+      = _boundsCenterRegion.toFloat ().withSizeKeepingCentre (diameterHead,
+                                                              diameterHead);
+  _drawableHead->drawWithin (g, boundsHead, juce::RectanglePlacement::centred,
+                             opacityHead);
+
+  auto const diameterCircle
+      = _boundsCenterRegion.getWidth () * reduceFactorCircle;
   auto const boundsCircle
-      = _boundsCenterRegion.withSizeKeepingCentre (diameter, diameter);
-  auto const thickness = diameter / 50.f;
+      = _boundsCenterRegion.toFloat ().withSizeKeepingCentre (diameterCircle,
+                                                              diameterCircle);
 
-  g.setColour (Colours::circle);
-  g.drawEllipse (boundsCircle.toFloat (), thickness);
+  auto constexpr opacityIsoSphere = 0.6f;
+  g.setOpacity (opacityIsoSphere);
+  g.drawImage (_imageIsoSphere, boundsCircle);
 
-  auto const height = diameter * reduceFactorArrow;
-  auto const boundsArrow
-      = boundsCircle.withSizeKeepingCentre (boundsCircle.getWidth (), height);
-  auto const start = juce::Point<float> (boundsCircle.getCentreX (),
-                                         boundsArrow.getBottom ());
-  auto const end = juce::Point<float> (boundsCircle.getCentreX (), //
-                                       boundsArrow.getY ());
-  auto headSize = 4.f * thickness;
-
-  auto boundsStartCircle
-      = juce::Rectangle<float> (start.getX (), start.getY (), 0, 0);
-  boundsStartCircle = boundsStartCircle.withSizeKeepingCentre (20, 20);
-
-  g.drawArrow ({ start, end }, thickness, headSize, headSize);
+  g.setOpacity (1.f);
 }
 
 void
@@ -383,7 +389,9 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
       }
   }
 
+  g.setOpacity (0.8f);
   g.drawImage (*_imageBlend, _boundsRender.toFloat ());
+  g.setOpacity (1.f);
 }
 
 float

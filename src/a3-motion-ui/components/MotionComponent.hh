@@ -55,7 +55,7 @@ private:
 
   void updateChannelBlobHighlight (juce::Point<float> mousePosition);
 
-  void drawArrowCircle (juce::Graphics &g);
+  void drawCircle (juce::Graphics &g);
   void drawChannelBlobs (juce::Graphics &g);
 
   float getBlobSize () const;
@@ -79,5 +79,7 @@ private:
   juce::Rectangle<int> _boundsCenterRegion;
 
   std::unique_ptr<juce::Image> _imageBlend;
+  juce::Image _imageIsoSphere;
+  std::unique_ptr<juce::Drawable> _drawableHead;
 };
 }
