@@ -118,9 +118,11 @@ MotionComponent::MotionComponent (
 
   // @TODO: compile as binary resources into executable
   _imageIsoSphere = juce::ImageFileFormat::loadFrom (
-      juce::File ("resources/iso-sphere-wireframe.png"));
-  _drawableHead
-      = juce::Drawable::createFromSVGFile (juce::File ("resources/head.svg"));
+      juce::File::getCurrentWorkingDirectory ().getChildFile (
+          "resources/iso-sphere-wireframe.png"));
+  _drawableHead = juce::Drawable::createFromSVGFile (
+      juce::File::getCurrentWorkingDirectory ().getChildFile (
+          "resources/head.svg"));
 }
 
 MotionComponent::~MotionComponent ()
@@ -331,6 +333,7 @@ MotionComponent::drawCircle (juce::Graphics &g)
   jassert (_boundsCenterRegion.getWidth ()
            == _boundsCenterRegion.getHeight ());
 
+  // draw head
   auto constexpr opacityHead = 0.4f;
   auto const diameterHead = _boundsCenterRegion.getWidth () * reduceFactorHead;
   auto const boundsHead
@@ -339,15 +342,46 @@ MotionComponent::drawCircle (juce::Graphics &g)
   _drawableHead->drawWithin (g, boundsHead, juce::RectanglePlacement::centred,
                              opacityHead);
 
+  // draw iso sphere
+  if (!_shaderTextured)
+    {
+      auto fragmentFile = juce::File (
+          juce::File::getCurrentWorkingDirectory ().getChildFile (
+              "resources/shaders/textured.fsh"));
+
+      auto fragmentCode = fragmentFile.loadFileAsString ();
+      juce::Logger::writeToLog (fragmentCode);
+
+      _shaderTextured
+          = std::make_unique<juce::OpenGLGraphicsContextCustomShader> (
+              fragmentCode);
+
+      auto result
+          = _shaderTextured->checkCompilation (g.getInternalContext ());
+      if (result.failed ())
+        {
+          juce::Logger::writeToLog (result.getErrorMessage ());
+          exit (0);
+        }
+      else
+        {
+          juce::Logger::writeToLog (
+              "SUCCESSSUCCESSSUCCESSSUCCESSSUCCESSSUCCESS");
+        }
+    }
+
   auto const diameterCircle
       = _boundsCenterRegion.getWidth () * reduceFactorCircle;
   auto const boundsCircle
       = _boundsCenterRegion.toFloat ().withSizeKeepingCentre (diameterCircle,
                                                               diameterCircle);
 
-  auto constexpr opacityIsoSphere = 0.6f;
-  g.setOpacity (opacityIsoSphere);
-  g.drawImage (_imageIsoSphere, boundsCircle);
+  // _shaderTextured->fillRect (g.getInternalContext (),
+  //                            boundsCircle.toNearestInt ());
+
+  // auto constexpr opacityIsoSphere = 0.6f;
+  // g.setOpacity (opacityIsoSphere);
+  // g.drawImage (_imageIsoSphere, boundsCircle);
 
   g.setOpacity (1.f);
 }

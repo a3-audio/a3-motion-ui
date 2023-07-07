@@ -79,7 +79,10 @@ private:
   juce::Rectangle<int> _boundsCenterRegion;
 
   std::unique_ptr<juce::Image> _imageBlend;
+
   juce::Image _imageIsoSphere;
+  std::unique_ptr<juce::OpenGLGraphicsContextCustomShader> _shaderTextured;
+
   std::unique_ptr<juce::Drawable> _drawableHead;
 };
 }
