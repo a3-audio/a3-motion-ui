@@ -96,7 +96,7 @@ auto constexpr reduceFactorCircle = .9f;
 auto constexpr reduceFactorHead = .35f;
 
 // relative to the (square) component extents
-auto constexpr activeAreaAroundBlobFactor = 0.05f;
+auto constexpr activeAreaAroundBlobFactor = 0.1f;
 auto constexpr blobHighlightFactor = 1.1f;
 
 }
@@ -153,17 +153,17 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
 {
   for (auto channelIndex = 0u; channelIndex < _channels.size ();
        ++channelIndex)
-    {
-      _viewStates[channelIndex]->grabbed
-          = _viewStates[channelIndex]->highlighted;
+    _viewStates[channelIndex]->grabbed = false;
 
-      if (_viewStates[channelIndex]->grabbed)
-        {
-          _viewStates[channelIndex]->grabOffset
-              = normalizedToLocalPosition (
-                    _channels[channelIndex]->getPosition ())
-                - event.getPosition ().toFloat ();
-        }
+  auto closestIndex = getClosestBlobIndexWithinRadius (
+      event.getPosition ().toFloat (), getActiveDistanceInPixel ());
+  if (closestIndex.has_value ())
+    {
+      auto const index = closestIndex.value ();
+      _viewStates[index]->grabbed = true;
+      _viewStates[index]->grabOffset
+          = normalizedToLocalPosition (_channels[index]->getPosition ())
+            - event.getPosition ().toFloat ();
     }
 }
 
@@ -183,64 +183,51 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
 }
 
 void
-MotionComponent::updateChannelBlobHighlight (juce::Point<float> mousePosition)
+MotionComponent::updateChannelBlobHighlight (juce::Point<float> posMousePixel)
 {
   jassert (_boundsCenterRegion.getWidth ()
            == _boundsCenterRegion.getHeight ());
 
-  enum HighlightStrategy
-  {
-    Closest,
-    AllWithinActiveArea
-  };
+  for (auto channelIndex = 0u; channelIndex < _channels.size ();
+       ++channelIndex)
+    _viewStates[channelIndex]->highlighted = false;
 
-  auto const strategy = HighlightStrategy::Closest;
+  auto closestIndex = getClosestBlobIndexWithinRadius (
+      posMousePixel, getActiveDistanceInPixel ());
+  if (closestIndex.has_value ())
+    _viewStates[closestIndex.value ()]->highlighted = true;
+}
 
-  auto const activeDistanceInPixel
-      = _boundsCenterRegion.getWidth () * activeAreaAroundBlobFactor;
-
-  switch (strategy)
+std::optional<size_t>
+MotionComponent::getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
+                                                  float radiusPixel) const
+{
+  auto minDistance = std::numeric_limits<float>::infinity ();
+  auto minIndex = 0u;
+  for (auto channelIndex = 0u; channelIndex < _channels.size ();
+       ++channelIndex)
     {
-    case HighlightStrategy::Closest:
-      {
-        auto minDistance = std::numeric_limits<float>::infinity ();
-        auto minIndex = 0u;
-        for (auto channelIndex = 0u; channelIndex < _channels.size ();
-             ++channelIndex)
-          {
-            auto const blobPosInPixel = normalizedToLocalPosition (
-                _channels[channelIndex]->getPosition ());
+      auto const blobPosInPixel = normalizedToLocalPosition (
+          _channels[channelIndex]->getPosition ());
 
-            _viewStates[channelIndex]->highlighted = false;
-
-            auto const distance
-                = blobPosInPixel.getDistanceFrom (mousePosition);
-            if (distance < minDistance)
-              {
-                minDistance = distance;
-                minIndex = channelIndex;
-              }
-          }
-
-        if (minDistance < activeDistanceInPixel)
-          _viewStates[minIndex]->highlighted = true;
-
-        break;
-      }
-    case HighlightStrategy::AllWithinActiveArea:
-      {
-        for (auto channelIndex = 0u; channelIndex < _channels.size ();
-             ++channelIndex)
-          {
-            auto const blobPosInPixel = normalizedToLocalPosition (
-                _channels[channelIndex]->getPosition ());
-            _viewStates[channelIndex]->highlighted
-                = blobPosInPixel.getDistanceFrom (mousePosition)
-                  < activeDistanceInPixel;
-          }
-        break;
-      }
+      auto const distance = blobPosInPixel.getDistanceFrom (posPixel);
+      if (distance < radiusPixel && distance < minDistance)
+        {
+          minDistance = distance;
+          minIndex = channelIndex;
+        }
     }
+
+  if (std::isfinite (minDistance))
+    return { minIndex };
+
+  return {};
+}
+
+float
+MotionComponent::getActiveDistanceInPixel () const
+{
+  return _boundsCenterRegion.getWidth () * activeAreaAroundBlobFactor;
 }
 
 void
@@ -357,7 +344,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 {
   using namespace juce::gl;
 
-  auto const blobSize = getBlobSize ();
+  auto const blobSize = getBlobSizeInPixel ();
 
   _imageBlend->clear (_imageBlend->getBounds ());
 
@@ -395,7 +382,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 }
 
 float
-MotionComponent::getBlobSize () const
+MotionComponent::getBlobSizeInPixel () const
 {
   return _boundsCenterRegion.getWidth () * 0.05f;
 }

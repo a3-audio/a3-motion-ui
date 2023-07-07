@@ -53,14 +53,19 @@ private:
   void updateBounds ();
   void renderBoundsChanged ();
 
-  void updateChannelBlobHighlight (juce::Point<float> mousePosition);
+  void updateChannelBlobHighlight (juce::Point<float> posMousePixel);
 
   void drawCircle (juce::Graphics &g);
   void drawChannelBlobs (juce::Graphics &g);
 
-  float getBlobSize () const;
+  float getBlobSizeInPixel () const;
+  float getActiveDistanceInPixel () const;
   juce::Point<float> normalizedToLocalPosition (Pos const &posNorm) const;
   Pos localToNormalizedPosition (juce::Point<float> const &posLocal) const;
+
+  std::optional<size_t>
+  getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
+                                   float radiusPixel) const;
 
   std::vector<std::unique_ptr<Channel> > const &_channels;
   std::vector<std::unique_ptr<ChannelViewState> > &_viewStates;
