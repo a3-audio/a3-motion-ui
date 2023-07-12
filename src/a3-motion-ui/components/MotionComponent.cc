@@ -96,7 +96,7 @@ auto constexpr reduceFactorCircle = .9f;
 auto constexpr reduceFactorHead = .35f;
 
 // relative to the (square) component extents
-auto constexpr activeAreaAroundBlobFactor = 0.1f;
+auto constexpr activeAreaAroundBlobFactor = 0.07f;
 auto constexpr blobHighlightFactor = 1.1f;
 
 }
@@ -149,6 +149,89 @@ MotionComponent::mouseMove (const juce::MouseEvent &event)
 }
 
 void
+MotionComponent::disoccludeBlobs ()
+{
+  jassert (_grabbedIndex.has_value ());
+
+  auto posGrabbedPixel = normalizedToLocalPosition (
+      _channels[_grabbedIndex.value ()]->getPosition ());
+
+  for (auto channelIndex = 0u; channelIndex < _channels.size ();
+       ++channelIndex)
+    {
+      if (!_viewStates[channelIndex]->grabbed)
+        {
+          auto posPixel = normalizedToLocalPosition (
+              _channels[channelIndex]->getPosition ());
+
+          auto const distance = posPixel.getDistanceFrom (posGrabbedPixel);
+          if (distance < getActiveDistanceInPixel ())
+            { // push out onto circumference
+              // juce::Logger::writeToLog ("disoccluding point "
+              //                           + juce::String (channelIndex));
+              auto offset = posPixel - posGrabbedPixel;
+              offset *= getActiveDistanceInPixel ()
+                        / offset.getDistanceFromOrigin ();
+
+              posPixel = posGrabbedPixel + offset;
+            }
+          else if (posPixel.getDistanceFrom (
+                       _viewStates[channelIndex]->posAnchor)
+                   > 1.f)
+            { // snap back by projection onto circle
+              // borrowing math from:
+              // https://www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
+              auto R = getActiveDistanceInPixel ();
+
+              auto C = posGrabbedPixel;
+              auto P = posPixel;
+              auto Pa = _viewStates[channelIndex]->posAnchor;
+              auto D = Pa - posPixel;
+
+              auto Delta = P - C;
+              auto D_dot_Delta = D.getDotProduct (Delta);
+
+              auto delta
+                  = D_dot_Delta * D_dot_Delta
+                    - D.getDistanceSquaredFromOrigin ()
+                          * (Delta.getDistanceSquaredFromOrigin () - R * R);
+
+              auto t = .2f;
+              if (delta > 0.f)
+                {
+                  auto t0 = -(D_dot_Delta - std::sqrt (delta))
+                            / D.getDistanceSquaredFromOrigin ();
+                  auto t1 = -(D_dot_Delta + std::sqrt (delta))
+                            / D.getDistanceSquaredFromOrigin ();
+
+                  std::set<float> ts;
+                  if (t0 > 0.f && t0 <= 1.f)
+                    ts.insert (t0);
+                  if (t1 > 0.f && t1 <= 1.f)
+                    ts.insert (t1);
+
+                  auto tIt = std::min_element (
+                      ts.begin (), ts.end (),
+                      [&] (auto const &lhs, auto const &rhs) {
+                        return P.getDistanceSquaredFrom (P + lhs * D)
+                               < P.getDistanceSquaredFrom (P + rhs * D);
+                        ;
+                      });
+
+                  if (tIt != ts.end ())
+                    t = *tIt;
+                }
+
+              posPixel = P + t * D;
+            }
+
+          _channels[channelIndex]->setPosition (
+              localToNormalizedPosition (posPixel));
+        }
+    }
+}
+
+void
 MotionComponent::mouseDown (const juce::MouseEvent &event)
 {
   for (auto channelIndex = 0u; channelIndex < _channels.size ();
@@ -164,7 +247,27 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
       _viewStates[index]->grabOffset
           = normalizedToLocalPosition (_channels[index]->getPosition ())
             - event.getPosition ().toFloat ();
+      _grabbedIndex = index;
+
+      // disocclusion: save anchor position for all channels
+      for (auto channelIndex = 0u; channelIndex < _channels.size ();
+           ++channelIndex)
+        {
+          _viewStates[channelIndex]->posAnchor = normalizedToLocalPosition (
+              _channels[channelIndex]->getPosition ());
+        }
     }
+}
+
+void
+MotionComponent::mouseUp (const juce::MouseEvent &event)
+{
+  for (auto channelIndex = 0u; channelIndex < _channels.size ();
+       ++channelIndex)
+    {
+      _viewStates[channelIndex]->grabbed = false;
+    }
+  _grabbedIndex = {};
 }
 
 void
@@ -249,6 +352,10 @@ MotionComponent::renderOpenGL ()
   jassert (OpenGLHelpers::isContextActive ());
 
   // printFrameTime ();
+
+  // just use paint as event thread callback?...
+  if (_grabbedIndex.has_value ())
+    disoccludeBlobs ();
 
   updateBounds ();
 
@@ -352,6 +459,9 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
     juce::Graphics gFBO{ *_imageBlend };
 
     auto const blob = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
+    auto const blobGrabbed = juce::Rectangle<float> (
+        0.f, 0.f, //
+        2.f * getActiveDistanceInPixel (), 2.f * getActiveDistanceInPixel ());
     auto const blobHighlight = juce::Rectangle<float> (
         0.f, 0.f, //
         blobSize * blobHighlightFactor, blobSize * blobHighlightFactor);
@@ -364,6 +474,12 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 
         auto colour = _viewStates[channelIndex]->colour;
 
+        if (_viewStates[channelIndex]->grabbed)
+          {
+            gFBO.setColour (juce::Colours::grey.withAlpha (0.2f));
+            gFBO.fillEllipse (blobGrabbed.withCentre (pos));
+          }
+
         if (_viewStates[channelIndex]->highlighted)
           {
             gFBO.setColour (
@@ -371,6 +487,10 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
             gFBO.fillEllipse (blobHighlight.withCentre (pos));
           }
 
+        // debug: draw anchor
+        // gFBO.setColour (colour.withAlpha (0.4f));
+        // gFBO.fillEllipse (
+        //     blob.withCentre (_viewStates[channelIndex]->posAnchor));
         gFBO.setColour (colour);
         gFBO.fillEllipse (blob.withCentre (pos));
       }

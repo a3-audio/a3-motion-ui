@@ -32,5 +32,7 @@ struct ChannelViewState
 
   bool grabbed = false;
   juce::Point<float> grabOffset;
+
+  juce::Point<float> posAnchor;
 };
 }

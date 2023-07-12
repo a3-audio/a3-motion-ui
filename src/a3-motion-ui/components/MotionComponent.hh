@@ -42,6 +42,7 @@ public:
 
   void mouseMove (const juce::MouseEvent &) override;
   void mouseDown (const juce::MouseEvent &) override;
+  void mouseUp (const juce::MouseEvent &) override;
   void mouseDrag (const juce::MouseEvent &) override;
 
   void newOpenGLContextCreated () override;
@@ -67,8 +68,11 @@ private:
   getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
                                    float radiusPixel) const;
 
+  void disoccludeBlobs ();
+
   std::vector<std::unique_ptr<Channel> > const &_channels;
   std::vector<std::unique_ptr<ChannelViewState> > &_viewStates;
+  std::optional<size_t> _grabbedIndex;
 
   juce::OpenGLContext _glContext;
 
