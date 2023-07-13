@@ -207,8 +207,9 @@ MotionComponent::disoccludeBlobs ()
                     - D.getDistanceSquaredFromOrigin ()
                           * (Delta.getDistanceSquaredFromOrigin () - R * R);
 
-              auto t = .01f;
-              if (delta >= 0.f)
+              auto t = .01f; // default: snap back with exponential smoothing
+              std::set<float> ts;
+              if (delta > 0.f)
                 {
                   auto t0 = -(D_dot_Delta - std::sqrt (delta))
                             / D.getDistanceSquaredFromOrigin ();
@@ -216,7 +217,6 @@ MotionComponent::disoccludeBlobs ()
                             / D.getDistanceSquaredFromOrigin ();
 
                   auto constexpr eps = 0.001f;
-                  std::set<float> ts;
                   if (t0 >= -eps && t0 <= 1.f + eps)
                     ts.insert (t0);
                   if (t1 >= -eps && t1 <= 1.f + eps)
@@ -235,6 +235,16 @@ MotionComponent::disoccludeBlobs ()
                 }
 
               posPixel = P + t * D;
+
+              if (!ts.empty ())
+                {
+                  // after projecting shift outwards to induce slipping
+                  auto Drot = juce::Point<float> (-D.y, D.x);
+                  Drot /= Drot.getDistanceFromOrigin ();
+                  if ((P - C).getDotProduct (Drot) < 0.f)
+                    Drot *= -1.f;
+                  posPixel += .25f * Drot;
+                }
             }
 
           _channels[channelIndex]->setPosition (
@@ -496,9 +506,9 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
           }
 
         // debug: draw anchor
-        gFBO.setColour (colour.withAlpha (0.4f));
-        gFBO.fillEllipse (
-            blob.withCentre (_viewStates[channelIndex]->posAnchor));
+        // gFBO.setColour (colour.withAlpha (0.4f));
+        // gFBO.fillEllipse (
+        //     blob.withCentre (_viewStates[channelIndex]->posAnchor));
         gFBO.setColour (colour);
         gFBO.fillEllipse (blob.withCentre (pos));
       }
