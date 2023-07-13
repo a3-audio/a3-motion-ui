@@ -30,7 +30,9 @@ namespace a3
 class Channel;
 class ChannelViewState;
 
-class MotionComponent : public juce::Component, public juce::OpenGLRenderer
+class MotionComponent : public juce::Component,
+                        public juce::OpenGLRenderer,
+                        public juce::Timer
 {
 public:
   MotionComponent (std::vector<std::unique_ptr<Channel> > const &,
@@ -48,6 +50,8 @@ public:
   void newOpenGLContextCreated () override;
   void renderOpenGL () override;
   void openGLContextClosing () override;
+
+  void timerCallback () override;
 
 private:
   void printFrameTime ();

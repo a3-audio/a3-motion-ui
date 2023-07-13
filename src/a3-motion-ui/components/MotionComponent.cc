@@ -121,10 +121,14 @@ MotionComponent::MotionComponent (
       juce::File ("resources/iso-sphere-wireframe.png"));
   _drawableHead
       = juce::Drawable::createFromSVGFile (juce::File ("resources/head.svg"));
+
+  // start disocclusion / animation timer
+  startTimer (1 / 60.f);
 }
 
 MotionComponent::~MotionComponent ()
 {
+  stopTimer ();
   _glContext.detach ();
 }
 
@@ -149,6 +153,13 @@ MotionComponent::mouseMove (const juce::MouseEvent &event)
 }
 
 void
+MotionComponent::timerCallback ()
+{
+  if (_grabbedIndex.has_value ())
+    disoccludeBlobs ();
+}
+
+void
 MotionComponent::disoccludeBlobs ()
 {
   jassert (_grabbedIndex.has_value ());
@@ -170,7 +181,7 @@ MotionComponent::disoccludeBlobs ()
               // juce::Logger::writeToLog ("disoccluding point "
               //                           + juce::String (channelIndex));
               auto offset = posPixel - posGrabbedPixel;
-              offset *= getActiveDistanceInPixel ()
+              offset *= (getActiveDistanceInPixel () + 1.f)
                         / offset.getDistanceFromOrigin ();
 
               posPixel = posGrabbedPixel + offset;
@@ -196,18 +207,19 @@ MotionComponent::disoccludeBlobs ()
                     - D.getDistanceSquaredFromOrigin ()
                           * (Delta.getDistanceSquaredFromOrigin () - R * R);
 
-              auto t = .2f;
-              if (delta > 0.f)
+              auto t = .01f;
+              if (delta >= 0.f)
                 {
                   auto t0 = -(D_dot_Delta - std::sqrt (delta))
                             / D.getDistanceSquaredFromOrigin ();
                   auto t1 = -(D_dot_Delta + std::sqrt (delta))
                             / D.getDistanceSquaredFromOrigin ();
 
+                  auto constexpr eps = 0.001f;
                   std::set<float> ts;
-                  if (t0 > 0.f && t0 <= 1.f)
+                  if (t0 >= -eps && t0 <= 1.f + eps)
                     ts.insert (t0);
-                  if (t1 > 0.f && t1 <= 1.f)
+                  if (t1 >= -eps && t1 <= 1.f + eps)
                     ts.insert (t1);
 
                   auto tIt = std::min_element (
@@ -353,10 +365,6 @@ MotionComponent::renderOpenGL ()
 
   // printFrameTime ();
 
-  // just use paint as event thread callback?...
-  if (_grabbedIndex.has_value ())
-    disoccludeBlobs ();
-
   updateBounds ();
 
   {
@@ -488,9 +496,9 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
           }
 
         // debug: draw anchor
-        // gFBO.setColour (colour.withAlpha (0.4f));
-        // gFBO.fillEllipse (
-        //     blob.withCentre (_viewStates[channelIndex]->posAnchor));
+        gFBO.setColour (colour.withAlpha (0.4f));
+        gFBO.fillEllipse (
+            blob.withCentre (_viewStates[channelIndex]->posAnchor));
         gFBO.setColour (colour);
         gFBO.fillEllipse (blob.withCentre (pos));
       }
