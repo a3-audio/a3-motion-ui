@@ -92,7 +92,7 @@ private:
 // }
 
 // relative to the (square) component extents
-auto constexpr reduceFactorCircle = .9f;
+auto constexpr reduceFactorCircle = .8f;
 auto constexpr reduceFactorHead = .35f;
 auto constexpr reduceFactorBlobs = 0.05f;
 
@@ -481,7 +481,7 @@ MotionComponent::drawCircle (juce::Graphics &g)
   auto const boundsCircle = juce::Rectangle<float> ().withSizeKeepingCentre (
       diameterCircle, diameterCircle);
 
-  auto constexpr opacityIsoSphere = 0.6f;
+  auto constexpr opacityIsoSphere = 0.3f;
   g.setOpacity (opacityIsoSphere);
   g.drawImage (_imageIsoSphere, boundsCircle);
 
