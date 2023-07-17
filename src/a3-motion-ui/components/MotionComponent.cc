@@ -309,6 +309,12 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
           auto const posHOA = localToNormalized2DPosition (posPixel);
           _channels[channelIndex]->setPosition (posHOA);
           _channels[channelIndex]->recomputeHeight ();
+
+          auto posHOAWithHeight = _channels[channelIndex]->getPosition ();
+          // DBG (juce::String ("dragging position: ")         //
+          //      + juce::String (posHOAWithHeight.x ()) + " " //
+          //      + juce::String (posHOAWithHeight.y ()) + " " //
+          //      + juce::String (posHOAWithHeight.z ()));
         }
     }
 }
@@ -487,26 +493,32 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 {
   using namespace juce::gl;
 
-  auto const blobSize = 2 * reduceFactorBlobs;
-
   _imageBlend->clear (_imageBlend->getBounds ());
 
   {
     juce::Graphics gFBO{ *_imageBlend };
     gFBO.addTransform (_transformNormalizedToLocal);
 
-    auto const blob = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
-    auto const blobGrabbed
-        = juce::Rectangle<float> (0.f, 0.f, //
-                                  blobSize * activeAreaAroundBlobFactor,
-                                  blobSize * activeAreaAroundBlobFactor);
-    auto const blobHighlight = juce::Rectangle<float> (
-        0.f, 0.f, //
-        blobSize * blobHighlightFactor, blobSize * blobHighlightFactor);
-
     for (auto channelIndex = 0u; channelIndex < _channels.size ();
          ++channelIndex)
       {
+        auto blobSize = 2 * reduceFactorBlobs;
+        blobSize
+            *= (1.f
+                + std::clamp (_channels[channelIndex]->getPosition ().z (),
+                              0.f, 1.f)
+                      * 0.7f);
+
+        auto const blob
+            = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
+        auto const blobGrabbed
+            = juce::Rectangle<float> (0.f, 0.f, //
+                                      blobSize * activeAreaAroundBlobFactor,
+                                      blobSize * activeAreaAroundBlobFactor);
+        auto const blobHighlight = juce::Rectangle<float> (
+            0.f, 0.f, //
+            blobSize * blobHighlightFactor, blobSize * blobHighlightFactor);
+
         auto pos
             = cartesian2DHOA2JUCE (_channels[channelIndex]->getPosition ());
 

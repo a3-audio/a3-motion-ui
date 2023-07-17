@@ -18,39 +18,17 @@
 
 */
 
-#include "Channel.hh"
+#pragma once
 
-#include <JuceHeader.h>
-
-#include <a3-motion-engine/elevation/HeightMapFlat.hh>
-#include <a3-motion-engine/elevation/HeightMapSphere.hh>
+#include <a3-motion-engine/elevation/HeightMap.hh>
 
 namespace a3
 {
 
-Channel::Channel ()
-    : _position (Pos::fromSpherical (0, 0, 1)),
-      _heightMap (std::make_unique<HeightMapSphere> ())
+class HeightMapSphere : public HeightMap
 {
-}
-
-void
-Channel::setPosition (Pos const &position)
-{
-  _position = position;
-}
-
-Pos
-Channel::getPosition () const
-{
-  return _position;
-}
-
-void
-Channel::recomputeHeight ()
-{
-  jassert (_heightMap);
-  _position.setZ (_heightMap->computeHeight (_position));
-}
+public:
+  float computeHeight (Pos const &pos) const override;
+};
 
 }
