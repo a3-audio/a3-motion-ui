@@ -46,14 +46,15 @@ MotionEngine::createChannels (unsigned int const numChannels)
 {
   _channels.resize (numChannels);
 
-  auto const azimuthSpacing = 360.f / numChannels;
-  auto azimuth = azimuthSpacing / 2.f;
+  auto constexpr spread = 120.f;
+  auto const azimuthSpacing = spread / (numChannels - 1);
+  auto azimuth = (numChannels - 1) * azimuthSpacing / 2.f;
   for (auto &channel : _channels)
     {
       channel = std::make_unique<Channel> ();
       auto position = Pos::fromSpherical (azimuth, 0, 1.f);
       channel->setPosition (position);
-      azimuth += azimuthSpacing;
+      azimuth -= azimuthSpacing;
     }
 }
 
