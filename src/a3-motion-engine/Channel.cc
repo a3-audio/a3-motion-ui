@@ -20,10 +20,18 @@
 
 #include "Channel.hh"
 
+#include <JuceHeader.h>
+
+#include <a3-motion-engine/elevation/HeightMapFlat.hh>
+
 namespace a3
 {
 
-Channel::Channel () : _position (Pos::fromSpherical (0, 0, 1)) {}
+Channel::Channel ()
+    : _position (Pos::fromSpherical (0, 0, 1)),
+      _heightMap (std::make_unique<HeightMapFlat> ())
+{
+}
 
 void
 Channel::setPosition (Pos const &position)
@@ -35,6 +43,13 @@ Pos
 Channel::getPosition () const
 {
   return _position;
+}
+
+void
+Channel::recomputeHeight ()
+{
+  jassert (_heightMap);
+  _position.setZ (_heightMap->computeHeight (_position));
 }
 
 }

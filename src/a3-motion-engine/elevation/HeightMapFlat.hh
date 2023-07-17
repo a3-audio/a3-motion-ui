@@ -20,28 +20,15 @@
 
 #pragma once
 
-#include <memory>
-
-#include <a3-motion-engine/util/Geometry.hh>
-
 #include <a3-motion-engine/elevation/HeightMap.hh>
 
 namespace a3
 {
 
-class Channel
+class HeightMapFlat : public HeightMap
 {
 public:
-  Channel ();
-
-  void setPosition (Pos const &position);
-  Pos getPosition () const;
-
-  void recomputeHeight ();
-
-private:
-  Pos _position;
-  std::unique_ptr<HeightMap> _heightMap;
+  float computeHeight (Pos const &pos) const override;
 };
 
 }

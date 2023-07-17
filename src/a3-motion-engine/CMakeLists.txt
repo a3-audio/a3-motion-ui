@@ -39,6 +39,9 @@ target_sources("a3-motion-engine" PRIVATE
     MotionEngine.hh
     TempoClock.cc
     TempoClock.hh
+    elevation/HeightMap.hh
+    elevation/HeightMapFlat.cc
+    elevation/HeightMapFlat.hh
     util/Timing.cc
     util/Timing.hh
     util/Geometry.hh

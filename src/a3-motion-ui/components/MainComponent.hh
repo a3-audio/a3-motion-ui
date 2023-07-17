@@ -26,10 +26,10 @@
 
 #include <a3-motion-engine/MotionEngine.hh>
 
-#include <a3-motion-ui/LookAndFeel.hh>
 #include <a3-motion-ui/components/ChannelFooter.hh>
 #include <a3-motion-ui/components/ChannelHeader.hh>
 #include <a3-motion-ui/components/ChannelViewState.hh>
+#include <a3-motion-ui/components/LookAndFeel.hh>
 
 namespace a3
 {

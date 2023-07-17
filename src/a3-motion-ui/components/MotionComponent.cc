@@ -22,8 +22,8 @@
 
 #include <a3-motion-engine/Channel.hh>
 
-#include <a3-motion-ui/LookAndFeel.hh>
 #include <a3-motion-ui/components/ChannelViewState.hh>
+#include <a3-motion-ui/components/LookAndFeel.hh>
 
 namespace
 {
@@ -94,9 +94,9 @@ private:
 // relative to the (square) component extents
 auto constexpr reduceFactorCircle = .9f;
 auto constexpr reduceFactorHead = .35f;
+auto constexpr reduceFactorBlobs = 0.05f;
 
-// relative to the (square) component extents
-auto constexpr activeAreaAroundBlobFactor = 0.07f;
+auto constexpr activeAreaAroundBlobFactor = 2.5f;
 auto constexpr blobHighlightFactor = 1.1f;
 
 }
@@ -164,7 +164,7 @@ MotionComponent::disoccludeBlobs ()
 {
   jassert (_grabbedIndex.has_value ());
 
-  auto posGrabbedPixel = normalizedToLocalPosition (
+  auto posGrabbedPixel = normalizedToLocal2DPosition (
       _channels[_grabbedIndex.value ()]->getPosition ());
 
   for (auto channelIndex = 0u; channelIndex < _channels.size ();
@@ -172,7 +172,7 @@ MotionComponent::disoccludeBlobs ()
     {
       if (!_viewStates[channelIndex]->grabbed)
         {
-          auto posPixel = normalizedToLocalPosition (
+          auto posPixel = normalizedToLocal2DPosition (
               _channels[channelIndex]->getPosition ());
 
           auto const distance = posPixel.getDistanceFrom (posGrabbedPixel);
@@ -190,8 +190,10 @@ MotionComponent::disoccludeBlobs ()
                        _viewStates[channelIndex]->posAnchor)
                    > 1.f)
             { // snap back by projection onto circle
-              // borrowing math from:
-              // https://www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
+            // borrowing math from:
+            //
+            https
+                : // www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
               auto R = getActiveDistanceInPixel ();
 
               auto C = posGrabbedPixel;
@@ -207,7 +209,8 @@ MotionComponent::disoccludeBlobs ()
                     - D.getDistanceSquaredFromOrigin ()
                           * (Delta.getDistanceSquaredFromOrigin () - R * R);
 
-              auto t = .01f; // default: snap back with exponential smoothing
+              auto t = .01f; // default: snap back with exponential
+                             // smoothing
               std::set<float> ts;
               if (delta > 0.f)
                 {
@@ -248,7 +251,8 @@ MotionComponent::disoccludeBlobs ()
             }
 
           _channels[channelIndex]->setPosition (
-              localToNormalizedPosition (posPixel));
+              localToNormalized2DPosition (posPixel));
+          _channels[channelIndex]->recomputeHeight ();
         }
     }
 }
@@ -267,7 +271,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
       auto const index = closestIndex.value ();
       _viewStates[index]->grabbed = true;
       _viewStates[index]->grabOffset
-          = normalizedToLocalPosition (_channels[index]->getPosition ())
+          = normalizedToLocal2DPosition (_channels[index]->getPosition ())
             - event.getPosition ().toFloat ();
       _grabbedIndex = index;
 
@@ -275,7 +279,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
       for (auto channelIndex = 0u; channelIndex < _channels.size ();
            ++channelIndex)
         {
-          _viewStates[channelIndex]->posAnchor = normalizedToLocalPosition (
+          _viewStates[channelIndex]->posAnchor = normalizedToLocal2DPosition (
               _channels[channelIndex]->getPosition ());
         }
     }
@@ -300,9 +304,11 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
     {
       if (_viewStates[channelIndex]->grabbed)
         {
-          _channels[channelIndex]->setPosition (localToNormalizedPosition (
-              event.getPosition ().toFloat ()
-              + _viewStates[channelIndex]->grabOffset));
+          auto const posPixel = event.getPosition ().toFloat ()
+                                + _viewStates[channelIndex]->grabOffset;
+          auto const posHOA = localToNormalized2DPosition (posPixel);
+          _channels[channelIndex]->setPosition (posHOA);
+          _channels[channelIndex]->recomputeHeight ();
         }
     }
 }
@@ -332,7 +338,7 @@ MotionComponent::getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
   for (auto channelIndex = 0u; channelIndex < _channels.size ();
        ++channelIndex)
     {
-      auto const blobPosInPixel = normalizedToLocalPosition (
+      auto const blobPosInPixel = normalizedToLocal2DPosition (
           _channels[channelIndex]->getPosition ());
 
       auto const distance = blobPosInPixel.getDistanceFrom (posPixel);
@@ -352,7 +358,8 @@ MotionComponent::getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
 float
 MotionComponent::getActiveDistanceInPixel () const
 {
-  return _boundsCenterRegion.getWidth () * activeAreaAroundBlobFactor;
+  return _boundsCenterRegion.getWidth () * reduceFactorBlobs
+         * activeAreaAroundBlobFactor / 2.f;
 }
 
 void
@@ -375,17 +382,24 @@ MotionComponent::renderOpenGL ()
 
   // printFrameTime ();
 
-  updateBounds ();
+  updateBoundsAndTransform ();
 
   {
     GLContextGraphics graphics (_glContext, //
                                 _boundsRender.getWidth (),
                                 _boundsRender.getHeight ());
 
+    graphics.get ().addTransform (_transformNormalizedToLocal);
+
     OpenGLHelpers::clear (Colours::background);
 
     drawCircle (graphics.get ());
     drawChannelBlobs (graphics.get ());
+
+    // auto constexpr blobSize = 2;
+    // auto blob = juce::Rectangle<float> (blobSize, blobSize);
+    // graphics.get ().fillEllipse (
+    //     blob.withCentre (juce::Point<float> (0.f, 0.f)));
   }
 }
 
@@ -405,7 +419,7 @@ MotionComponent::printFrameTime ()
 }
 
 void
-MotionComponent::updateBounds ()
+MotionComponent::updateBoundsAndTransform ()
 {
   {
     auto lock = std::lock_guard<std::mutex> (_mutexBounds);
@@ -419,7 +433,14 @@ MotionComponent::updateBounds ()
   auto shorterSideLength
       = juce::jmin (_boundsRender.getWidth (), _boundsRender.getHeight ());
   _boundsCenterRegion = _boundsRender.withSizeKeepingCentre (
-      shorterSideLength, shorterSideLength);
+      shorterSideLength * reduceFactorCircle,
+      shorterSideLength * reduceFactorCircle);
+
+  _transformNormalizedToLocal = juce::AffineTransform ( //
+      _boundsCenterRegion.getWidth () / 2.f, 0.f,
+      _boundsCenterRegion.getCentreX (),           //
+      0.f, _boundsCenterRegion.getHeight () / 2.f, //
+      _boundsCenterRegion.getCentreY ());
 }
 
 void
@@ -444,18 +465,15 @@ MotionComponent::drawCircle (juce::Graphics &g)
            == _boundsCenterRegion.getHeight ());
 
   auto constexpr opacityHead = 0.4f;
-  auto const diameterHead = _boundsCenterRegion.getWidth () * reduceFactorHead;
-  auto const boundsHead
-      = _boundsCenterRegion.toFloat ().withSizeKeepingCentre (diameterHead,
-                                                              diameterHead);
+  auto const diameterHead = 2.f * reduceFactorHead;
+  auto const boundsHead = juce::Rectangle<float> ().withSizeKeepingCentre (
+      diameterHead, diameterHead);
   _drawableHead->drawWithin (g, boundsHead, juce::RectanglePlacement::centred,
                              opacityHead);
 
-  auto const diameterCircle
-      = _boundsCenterRegion.getWidth () * reduceFactorCircle;
-  auto const boundsCircle
-      = _boundsCenterRegion.toFloat ().withSizeKeepingCentre (diameterCircle,
-                                                              diameterCircle);
+  auto const diameterCircle = 2.f;
+  auto const boundsCircle = juce::Rectangle<float> ().withSizeKeepingCentre (
+      diameterCircle, diameterCircle);
 
   auto constexpr opacityIsoSphere = 0.6f;
   g.setOpacity (opacityIsoSphere);
@@ -469,17 +487,19 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 {
   using namespace juce::gl;
 
-  auto const blobSize = getBlobSizeInPixel ();
+  auto const blobSize = 2 * reduceFactorBlobs;
 
   _imageBlend->clear (_imageBlend->getBounds ());
 
   {
     juce::Graphics gFBO{ *_imageBlend };
+    gFBO.addTransform (_transformNormalizedToLocal);
 
     auto const blob = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
-    auto const blobGrabbed = juce::Rectangle<float> (
-        0.f, 0.f, //
-        2.f * getActiveDistanceInPixel (), 2.f * getActiveDistanceInPixel ());
+    auto const blobGrabbed
+        = juce::Rectangle<float> (0.f, 0.f, //
+                                  blobSize * activeAreaAroundBlobFactor,
+                                  blobSize * activeAreaAroundBlobFactor);
     auto const blobHighlight = juce::Rectangle<float> (
         0.f, 0.f, //
         blobSize * blobHighlightFactor, blobSize * blobHighlightFactor);
@@ -487,10 +507,14 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
     for (auto channelIndex = 0u; channelIndex < _channels.size ();
          ++channelIndex)
       {
-        auto pos = normalizedToLocalPosition (
-            _channels[channelIndex]->getPosition ());
+        auto pos
+            = cartesian2DHOA2JUCE (_channels[channelIndex]->getPosition ());
 
         auto colour = _viewStates[channelIndex]->colour;
+
+        // DBG (juce::String ("drawing at position: ")
+        //      + juce::String (pos.getX ()) + " " + juce::String (pos.getY
+        //      ()));
 
         if (_viewStates[channelIndex]->grabbed)
           {
@@ -515,47 +539,46 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
   }
 
   g.setOpacity (0.8f);
-  g.drawImage (*_imageBlend, _boundsRender.toFloat ());
+  g.drawImage (*_imageBlend, _boundsRender.toFloat ().transformedBy (
+                                 _transformNormalizedToLocal.inverted ()));
   g.setOpacity (1.f);
 }
 
-float
-MotionComponent::getBlobSizeInPixel () const
-{
-  return _boundsCenterRegion.getWidth () * 0.05f;
-}
-
 juce::Point<float>
-MotionComponent::normalizedToLocalPosition (Pos const &posNorm) const
+MotionComponent::normalizedToLocal2DPosition (Pos const &posNorm) const
 {
-  jassert (_boundsCenterRegion.getWidth ()
-           == _boundsCenterRegion.getHeight ());
-
-  auto const halfSize = _boundsCenterRegion.getWidth () / 2.f;
-
-  return _boundsCenterRegion.getCentre ().toFloat ()
-         + juce::Point<float> (posNorm.x () * halfSize * reduceFactorCircle,
-                               posNorm.y () * halfSize * reduceFactorCircle);
+  return cartesian2DHOA2JUCE (posNorm).transformedBy (
+      _transformNormalizedToLocal);
 }
 
 Pos
-MotionComponent::localToNormalizedPosition (
+MotionComponent::localToNormalized2DPosition (
     juce::Point<float> const &posLocal) const
 {
-  jassert (_boundsCenterRegion.getWidth ()
-           == _boundsCenterRegion.getHeight ());
-
-  auto const halfSize = _boundsCenterRegion.getWidth () / 2.f;
-
-  auto posNormalized = (posLocal - _boundsCenterRegion.getCentre ().toFloat ())
-                       / halfSize / reduceFactorCircle;
-
-  return Pos::fromCartesian ( //
-      posNormalized.getX (),  //
-      posNormalized.getY (),  //
-      0                       // no elevation for now
-  );
+  return cartesian2DJUCE2HOA (
+      posLocal.transformedBy (_transformNormalizedToLocal.inverted ()));
 }
+
+// Pos
+// MotionComponent::localToNormalizedPosition (
+//     juce::Point<float> const &posLocal) const
+// {
+//   jassert (_boundsCenterRegion.getWidth ()
+//            == _boundsCenterRegion.getHeight ());
+
+//   auto const halfSize = _boundsCenterRegion.getWidth () / 2.f;
+
+//   auto posNormalized = (posLocal - _boundsCenterRegion.getCentre
+//   ().toFloat
+//   ())
+//                        / halfSize / reduceFactorCircle;
+
+//   return Pos::fromCartesian ( //
+//       posNormalized.getX (),  //
+//       posNormalized.getY (),  //
+//       0                       // no elevation for now
+//   );
+// }
 
 void
 MotionComponent::openGLContextClosing ()

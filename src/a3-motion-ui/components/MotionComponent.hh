@@ -24,6 +24,8 @@
 
 #include <a3-motion-engine/util/Geometry.hh>
 
+#include <a3-motion-ui/Helpers.hh>
+
 namespace a3
 {
 
@@ -55,7 +57,7 @@ public:
 
 private:
   void printFrameTime ();
-  void updateBounds ();
+  void updateBoundsAndTransform ();
   void renderBoundsChanged ();
 
   void updateChannelBlobHighlight (juce::Point<float> posMousePixel);
@@ -63,10 +65,10 @@ private:
   void drawCircle (juce::Graphics &g);
   void drawChannelBlobs (juce::Graphics &g);
 
-  float getBlobSizeInPixel () const;
   float getActiveDistanceInPixel () const;
-  juce::Point<float> normalizedToLocalPosition (Pos const &posNorm) const;
-  Pos localToNormalizedPosition (juce::Point<float> const &posLocal) const;
+
+  juce::Point<float> normalizedToLocal2DPosition (Pos const &posNorm) const;
+  Pos localToNormalized2DPosition (juce::Point<float> const &posLocal) const;
 
   std::optional<size_t>
   getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
@@ -90,9 +92,11 @@ private:
 
   // derived bounds for drawing convenience
   juce::Rectangle<int> _boundsCenterRegion;
+  juce::AffineTransform _transformNormalizedToLocal;
 
   std::unique_ptr<juce::Image> _imageBlend;
   juce::Image _imageIsoSphere;
   std::unique_ptr<juce::Drawable> _drawableHead;
 };
+
 }

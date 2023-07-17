@@ -20,28 +20,26 @@
 
 #pragma once
 
-#include <memory>
+#include <JuceHeader.h>
 
 #include <a3-motion-engine/util/Geometry.hh>
-
-#include <a3-motion-engine/elevation/HeightMap.hh>
 
 namespace a3
 {
 
-class Channel
+template <typename Scalar>
+juce::Point<Scalar>
+cartesian2DHOA2JUCE (Position<Scalar> const &posHOA)
 {
-public:
-  Channel ();
+  return { -posHOA.y (), -posHOA.x () };
+}
 
-  void setPosition (Pos const &position);
-  Pos getPosition () const;
-
-  void recomputeHeight ();
-
-private:
-  Pos _position;
-  std::unique_ptr<HeightMap> _heightMap;
-};
+template <typename Scalar>
+Position<Scalar>
+cartesian2DJUCE2HOA (juce::Point<Scalar> const &posJUCE)
+{
+  return Position<Scalar>::fromCartesian (-posJUCE.getY (), -posJUCE.getX (),
+                                          0.f);
+}
 
 }

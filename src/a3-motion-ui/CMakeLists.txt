@@ -27,10 +27,10 @@ target_sources("a3-motion-ui" PRIVATE
     StandaloneApp.hh
     MainWindow.cc
     MainWindow.hh
-    LookAndFeel.cc
-    LookAndFeel.hh
-    LayoutHints.cc
-    LayoutHints.hh
+    components/LookAndFeel.cc
+    components/LookAndFeel.hh
+    components/LayoutHints.cc
+    components/LayoutHints.hh
     components/MainComponent.cc
     components/MainComponent.hh
     components/ChannelHeader.cc
