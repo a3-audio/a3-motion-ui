@@ -309,12 +309,6 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
           auto const posHOA = localToNormalized2DPosition (posPixel);
           _channels[channelIndex]->setPosition (posHOA);
           _channels[channelIndex]->recomputeHeight ();
-
-          auto posHOAWithHeight = _channels[channelIndex]->getPosition ();
-          // DBG (juce::String ("dragging position: ")         //
-          //      + juce::String (posHOAWithHeight.x ()) + " " //
-          //      + juce::String (posHOAWithHeight.y ()) + " " //
-          //      + juce::String (posHOAWithHeight.z ()));
         }
     }
 }
