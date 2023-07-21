@@ -22,6 +22,8 @@
 
 #include "Channel.hh"
 #include "Master.hh"
+
+#include "AsyncCommandQueue.hh"
 #include "TempoClock.hh"
 
 namespace a3
@@ -33,19 +35,35 @@ public:
   MotionEngine (unsigned int const numChannels);
   ~MotionEngine ();
 
-  std::vector<std::unique_ptr<Channel> > &getChannels ();
+  // TODO: provide iterator interface instead of exposing
+  // implementation details!
+  std::vector<std::unique_ptr<Channel> > const &getChannels () const;
 
 private:
   void createChannels (unsigned int const numChannels);
 
-  // testing
-  void testAddRemoveHandlers ();
+  // MotionEngine runs the record/playback engine, checks for changed
+  // parameters and and schedules corresponding commands with the
+  // dispatcher.
+  void tickCallback ();
 
-  TempoClock _tempoClock;
   std::vector<std::unique_ptr<Channel> > _channels;
 
-  TempoClock::PointerT _callbackHandleTimer;
-  TempoClock::PointerT _callbackHandleMessage;
+  // The tempo clock is the main timing engine that runs at a 'tick'
+  // resolution relative to the current metrum. Callbacks for metrum
+  // events (tick, beat, bar) can be registered to be called either
+  // from within the high-priority thread, or the main JUCE event
+  // thread.
+  TempoClock _tempoClock;
+  TempoClock::PointerT _callbackHandleTick;
+
+  // The command dispatcher runs on its own high-priority thread and
+  // receives motion / effect commands from the high-prio TempoClock
+  // thread via a lockless command queue. It passes the messages to a
+  // backend implementation that in turn performs the network
+  // communication.
+  AsyncCommandQueue _commandQueue;
+  std::vector<Pos> _lastSentPositions;
 };
 
 };

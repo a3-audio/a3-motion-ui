@@ -29,15 +29,19 @@ namespace a3
 MotionEngine::MotionEngine (unsigned int const numChannels)
 {
   createChannels (numChannels);
+  _lastSentPositions.resize (numChannels);
+
+  _callbackHandleTick = _tempoClock.scheduleEventHandlerAddition (
+      { [this] (auto) { tickCallback (); } }, TempoClock::Event::Tick,
+      TempoClock::Execution::TimerThread, false);
 
   _tempoClock.start ();
-
-  // TODO: move to a unit (?) test
-  // testAddRemoveHandlers ();
+  _commandQueue.startThread (juce::Thread::Priority::high);
 }
 
 MotionEngine::~MotionEngine ()
 {
+  _commandQueue.stopThread (-1);
   _tempoClock.stop ();
 }
 
@@ -58,36 +62,30 @@ MotionEngine::createChannels (unsigned int const numChannels)
     }
 }
 
-std::vector<std::unique_ptr<Channel> > &
-MotionEngine::getChannels ()
+std::vector<std::unique_ptr<Channel> > const &
+MotionEngine::getChannels () const
 {
   return _channels;
 }
 
 void
-MotionEngine::testAddRemoveHandlers ()
+MotionEngine::tickCallback ()
 {
-  Timings<std::chrono::steady_clock> timings;
+  // juce::Logger::writeToLog ("MotionEngine: tick callback");
 
-  {
-    // ScopedTimer timer{ timings, "sync tick" };
-    _callbackHandleTimer = _tempoClock.scheduleEventHandlerAddition (
-        [] (auto measure) { print (measure, "==="); }, TempoClock::Event::Tick,
-        TempoClock::Execution::TimerThread, true);
-  }
+  // execute record / playback engine
 
-  {
-    // ScopedTimer timer (timings, "async tick");
-    _callbackHandleMessage = _tempoClock.scheduleEventHandlerAddition (
-        [] (auto measure) { print (measure, "---"); }, TempoClock::Event::Tick,
-        TempoClock::Execution::JuceMessageThread, true);
-  }
-
-  // juce::Thread::sleep (2000);
-  // callbackHandleTimer = nullptr;
-  // callbackHandleMessage = nullptr;
-
-  // print (timings);
+  // compare with last enqueued values and enqueue on change
+  // scheduleChangedPositionsForSending ();
+  for (auto index = 0u; index < _channels.size (); ++index)
+    {
+      auto pos = _channels[index]->getPosition ();
+      if (_lastSentPositions[index] != pos)
+        {
+          _commandQueue.submitCommand ({ int (index), pos });
+          _lastSentPositions[index] = pos;
+        }
+    }
 }
 
 }

@@ -1,10 +1,9 @@
 add_library(juce_dependencies OBJECT)
 
 target_link_libraries(juce_dependencies
-    PRIVATE
+    PUBLIC
         juce::juce_osc
         juce::juce_core
-    PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags
         juce::juce_recommended_lto_flags)
@@ -22,7 +21,6 @@ target_include_directories(juce_dependencies
     INTERFACE
         $<TARGET_PROPERTY:juce_dependencies,INCLUDE_DIRECTORIES>)
 
-
 add_library("a3-motion-engine" STATIC)
 set_target_properties("a3-motion-engine" PROPERTIES
     POSITION_INDEPENDENT_CODE TRUE)
@@ -39,6 +37,11 @@ target_sources("a3-motion-engine" PRIVATE
     MotionEngine.hh
     TempoClock.cc
     TempoClock.hh
+    AsyncCommandQueue.cc
+    AsyncCommandQueue.hh
+    backends/SpatBackend.hh
+    backends/SpatBackendIEM.cc
+    backends/SpatBackendIEM.hh
     elevation/HeightMap.hh
     elevation/HeightMapFlat.cc
     elevation/HeightMapFlat.hh
