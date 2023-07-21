@@ -22,7 +22,7 @@
 
 #include <cmath>
 
-#include <iostream>
+#include <JuceHeader.h>
 
 namespace a3
 {
@@ -115,7 +115,7 @@ public:
   }
 
   Position &
-  operator-= (const Position &rhs)
+  operator-= (Position const &rhs)
   {
     _x -= rhs._x;
     _y -= rhs._y;
@@ -124,10 +124,24 @@ public:
   }
 
   friend Position
-  operator- (Position lhs, const Position &rhs)
+  operator- (Position lhs, Position const &rhs)
   {
     lhs -= rhs;
     return lhs;
+  }
+
+  friend bool
+  operator== (Position const &lhs, Position const &rhs)
+  {
+    return juce::exactlyEqual (lhs._x, rhs._x) && //
+           juce::exactlyEqual (lhs._y, rhs._y) && //
+           juce::exactlyEqual (lhs._z, rhs._z);
+  }
+
+  friend bool
+  operator!= (Position const &lhs, Position const &rhs)
+  {
+    return !(lhs == rhs);
   }
 
 private:
@@ -193,16 +207,6 @@ Position<ScalarT>::fromCartesian (ScalarT const &x, //
   p._z = z;
   return p;
 }
-
-// template <typename ScalarT>
-// template <typename ArrayT>
-// Position<ScalarT>
-// Position<ScalarT>::fromCartesian (ArrayT const &xyz)
-// {
-//   static_assert (xyz.size () == 3);
-//   auto const &data = std::data (xyz);
-//   return fromCartesian (data[0], data[1], data[2]);
-// }
 
 template <typename ScalarT>
 ScalarT
