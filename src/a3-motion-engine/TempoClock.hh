@@ -53,9 +53,6 @@ namespace a3
 class TempoClock
 {
 public:
-  // ticksPerBeat equal PPQN (pulses per quarter note). MIDI uses 24,
-  // modern sequencers up to 960 (Wikipedia) to capture timing
-  // nuances.
   struct Config
   {
     int
@@ -67,7 +64,11 @@ public:
     std::atomic<int> beatsPerMinute{ 90 };
     std::atomic<int> beatsPerBar{ 4 };
 
+    // ticksPerBeat equal PPQN (pulses per quarter note). MIDI uses 24,
+    // modern sequencers up to 960 (Wikipedia) to capture timing
+    // nuances.
     static constexpr int ticksPerBeat = 128;
+
     static_assert (std::atomic<int>::is_always_lock_free);
   };
 
@@ -106,7 +107,7 @@ public:
    invalidated or goes out of scope. waitForAck can be passed to wait
    until the handler has been picked up by the high priority thread.
    */
-  PointerT scheduleEventHandlerAddition (std::function<CallbackT> handler,
+  PointerT scheduleEventHandlerAddition (std::function<CallbackT> &&handler,
                                          Event event, Execution execution,
                                          bool waitForAck = false);
 

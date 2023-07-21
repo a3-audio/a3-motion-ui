@@ -26,6 +26,8 @@
 
 #include "../Config.hh"
 
+// TODO define this in anonymous namespace or move to internal
+// implementation file?
 class ClockTimer : public juce::HighResolutionTimer
 {
 public:
@@ -50,8 +52,9 @@ public:
   std::future<void>
   submitFifoMessage (FifoMessage const &message)
   {
-    const auto scope = _abstractFifo.write (1);
+    jassert (_abstractFifo.getFreeSpace () > 0);
 
+    const auto scope = _abstractFifo.write (1);
     jassert (scope.blockSize1 == 1);
     jassert (scope.blockSize2 == 0);
 
@@ -99,7 +102,10 @@ private:
   void
   readFifoMessages ()
   {
-    const auto scope = _abstractFifo.read (_abstractFifo.getNumReady ());
+    auto const ready = _abstractFifo.getNumReady ();
+    const auto scope = _abstractFifo.read (ready);
+
+    jassert (scope.blockSize1 + scope.blockSize2 == ready);
 
     if (scope.blockSize1 > 0)
       {
@@ -289,7 +295,7 @@ TempoClock::getConfig ()
 }
 
 TempoClock::PointerT
-TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
+TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> &&handler,
                                           Event event, Execution execution,
                                           bool waitForAck)
 {
@@ -306,7 +312,7 @@ TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> handler,
   if (waitForAck)
     future.wait ();
 
-  // return shared_ptr to the user as callback for unregistration/deletion
+  // return shared_ptr to the user as handle for unregistration/deletion
   return ptr;
 }
 
