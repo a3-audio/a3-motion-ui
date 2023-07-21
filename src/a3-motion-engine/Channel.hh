@@ -21,6 +21,7 @@
 #pragma once
 
 #include <memory>
+#include <shared_mutex>
 
 #include <a3-motion-engine/util/Geometry.hh>
 
@@ -42,6 +43,12 @@ public:
 private:
   Pos _position;
   std::unique_ptr<HeightMap> _heightMap;
+
+  // for now we use a "fair" RW lock using std::shared_mutex to see
+  // how it performs.  we might implement a write-preferring RW lock
+  // based on the example at
+  // https://en.wikipedia.org/wiki/Readers%E2%80%93writer_lock#Using_a_condition_variable_and_a_mutex
+  mutable std::shared_mutex _mutex;
 };
 
 }

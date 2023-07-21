@@ -37,20 +37,28 @@ Channel::Channel ()
 void
 Channel::setPosition (Pos const &position)
 {
+  _mutex.lock ();
   _position = position;
+  _mutex.unlock ();
 }
 
 Pos
 Channel::getPosition () const
 {
-  return _position;
+  _mutex.lock_shared ();
+  auto position = _position;
+  _mutex.unlock_shared ();
+
+  return position;
 }
 
 void
 Channel::recomputeHeight ()
 {
   jassert (_heightMap);
+  _mutex.lock ();
   _position.setZ (_heightMap->computeHeight (_position));
+  _mutex.unlock ();
 }
 
 }
