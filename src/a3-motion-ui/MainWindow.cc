@@ -26,15 +26,16 @@ namespace a3
 {
 
 MainWindow::MainWindow (juce::String const &name)
-    : juce::ResizableWindow (name, true), _mainComponent (numChannelsInitial)
+    : juce::ResizableWindow (name, true),
+      _motionController (numChannelsInitial)
 {
   setWantsKeyboardFocus (true);
 
   setContentNonOwned (&_viewport, false /* resizeToFitWhenContentChangesSize */
   );
-  _viewport.setViewedComponent (&_mainComponent);
+  _viewport.setViewedComponent (&_motionController);
   _viewport.setVisible (true);
-  _mainComponent.setVisible (true);
+  _motionController.setVisible (true);
 }
 
 bool
@@ -64,14 +65,14 @@ MainWindow::resized ()
   _viewport.setBounds (bounds);
 
   // compute bounds for main component
-  auto boundsContent
-      = juce::Rectangle<int> (0.f, 0.f, //
-                              juce::jmax (float (bounds.getWidth ()),
-                                          _mainComponent.getMinimumWidth ()),
-                              juce::jmax (float (bounds.getHeight ()),
-                                          _mainComponent.getMinimumHeight ()));
+  auto boundsContent = juce::Rectangle<int> (
+      0.f, 0.f, //
+      juce::jmax (float (bounds.getWidth ()),
+                  _motionController.getMinimumWidth ()),
+      juce::jmax (float (bounds.getHeight ()),
+                  _motionController.getMinimumHeight ()));
 
-  _mainComponent.setBounds (boundsContent);
+  _motionController.setBounds (boundsContent);
 }
 
 }

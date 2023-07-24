@@ -24,7 +24,7 @@
 
 #include "A3MotionAudioProcessor.hh"
 
-#include <a3-motion-ui/components/MainComponent.hh>
+#include <a3-motion-ui/MotionController.hh>
 
 namespace a3
 {
@@ -39,7 +39,7 @@ public:
   void resized () override;
 
 private:
-  MainComponent _mainComponent;
+  MotionController _motionController;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionEditor)
 };

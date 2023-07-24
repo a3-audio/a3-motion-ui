@@ -1,0 +1,3 @@
+[submodule "extern/serial"]
+	path = extern/serial
+	url = git@github.com:yan9a/serial.git

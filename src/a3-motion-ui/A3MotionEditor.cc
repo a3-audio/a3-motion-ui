@@ -26,7 +26,7 @@ namespace a3
 {
 
 A3MotionEditor::A3MotionEditor (A3MotionAudioProcessor &p)
-    : AudioProcessorEditor (&p), _mainComponent (numChannelsInitial)
+    : AudioProcessorEditor (&p), _motionController (numChannelsInitial)
 {
   // auto scaleFactor = SystemStats::getEnvironmentVariable
   //     ("OSCCONTROL_SCALE_FACTOR", "1").getFloatValue();

@@ -18,7 +18,7 @@
 
 */
 
-#include "MainComponent.hh"
+#include "MotionController.hh"
 
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
@@ -26,26 +26,26 @@
 namespace a3
 {
 
-MainComponent::MainComponent (unsigned int const numChannels)
-    : _engine (numChannels), _motionComp ()
+MotionController::MotionController (unsigned int const numChannels)
+    : _engine (numChannels), _motionComponent ()
 {
   setLookAndFeel (&_lookAndFeel);
 
   createChannelsUI ();
 
-  _motionComp = std::make_unique<MotionComponent> (_engine.getChannels (),
-                                                   _viewStates);
-  addChildComponent (*_motionComp);
-  _motionComp->setVisible (true);
+  _motionComponent = std::make_unique<MotionComponent> (_engine.getChannels (),
+                                                        _viewStates);
+  addChildComponent (*_motionComponent);
+  _motionComponent->setVisible (true);
 }
 
-MainComponent::~MainComponent ()
+MotionController::~MotionController ()
 {
   setLookAndFeel (nullptr);
 }
 
 void
-MainComponent::createChannelsUI ()
+MotionController::createChannelsUI ()
 {
   auto const numChannels = _engine.getChannels ().size ();
 
@@ -85,20 +85,20 @@ MainComponent::createChannelsUI ()
 }
 
 void
-MainComponent::paint (juce::Graphics &g)
+MotionController::paint (juce::Graphics &g)
 {
   juce::ignoreUnused (g);
 }
 
 float
-MainComponent::getMinimumWidth () const
+MotionController::getMinimumWidth () const
 {
   jassert (_headers.size () == _footers.size ());
   return _headers.size () * LayoutHints::Channels::widthMin;
 }
 
 float
-MainComponent::getMinimumHeight () const
+MotionController::getMinimumHeight () const
 {
   return LayoutHints::Channels::heightHeader ()
          + LayoutHints::Channels::heightFooter
@@ -106,7 +106,7 @@ MainComponent::getMinimumHeight () const
 }
 
 void
-MainComponent::resized ()
+MotionController::resized ()
 {
   jassert (_headers.size () == _footers.size ());
 
@@ -118,7 +118,7 @@ MainComponent::resized ()
   auto boundsMotion
       = bounds.withTrimmedTop (LayoutHints::Channels::heightHeader ())
             .withTrimmedBottom (LayoutHints::Channels::heightFooter);
-  _motionComp->setBounds (boundsMotion);
+  _motionComponent->setBounds (boundsMotion);
 
   // Channel headers/footers
   auto widthChannel = bounds.getWidth () / float (_headers.size ());

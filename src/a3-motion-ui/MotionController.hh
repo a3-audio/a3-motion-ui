@@ -36,11 +36,11 @@ namespace a3
 
 class MotionComponent;
 
-class MainComponent : public juce::Component
+class MotionController : public juce::Component
 {
 public:
-  MainComponent (unsigned int const numChannels);
-  ~MainComponent ();
+  MotionController (unsigned int const numChannels);
+  ~MotionController ();
 
   void paint (juce::Graphics &g) override;
   void resized () override;
@@ -57,9 +57,9 @@ private:
   std::vector<std::unique_ptr<ChannelViewState> > _viewStates;
   std::vector<std::unique_ptr<ChannelHeader> > _headers;
   std::vector<std::unique_ptr<ChannelFooter> > _footers;
-  std::unique_ptr<MotionComponent> _motionComp;
+  std::unique_ptr<MotionComponent> _motionComponent;
 
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MotionController)
 };
 
 }

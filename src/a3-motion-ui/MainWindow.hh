@@ -22,7 +22,7 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-ui/components/MainComponent.hh>
+#include <a3-motion-ui/MotionController.hh>
 
 namespace a3
 {
@@ -39,7 +39,7 @@ private:
   bool keyPressed (const juce::KeyPress &k) override;
 
   juce::Viewport _viewport;
-  MainComponent _mainComponent;
+  MotionController _motionController;
 };
 
 }
