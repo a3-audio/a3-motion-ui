@@ -35,21 +35,89 @@ namespace a3
 {
 
 class MotionComponent;
+class InputOutputAdapter;
 
-class MotionController : public juce::Component
+class MotionController : public juce::Component, public juce::MessageListener
+
 {
 public:
+  struct InputMessage : public juce::Message
+  {
+  public:
+    enum class Type
+    {
+      Button,
+      Encoder,
+      Poti,
+    };
+
+    Type type;
+  };
+
+  struct InputMessageButton : public InputMessage
+  {
+    enum class Event
+    {
+      Press,
+      Release,
+    };
+
+    enum class ButtonId
+    {
+      Pad,
+      Record,
+      Tap,
+      Shift,
+    };
+
+    Event event;
+    ButtonId id;
+    std::array<int, 2> padIndex;
+
+    Type type = Type::Button;
+  };
+
+  struct InputMessageEncoder : public InputMessage
+  {
+    enum class Event
+    {
+      Press,
+      Release,
+      Increment,
+      Decrement,
+    };
+
+    Event event;
+    int index;
+
+    Type type = Type::Encoder;
+  };
+
+  struct InputMessagePoti : public InputMessage
+  {
+    int index;
+    float valueNormalized;
+
+    Type type = Type::Poti;
+  };
+
   MotionController (unsigned int const numChannels);
   ~MotionController ();
 
   void paint (juce::Graphics &g) override;
   void resized () override;
 
+  void handleMessage (juce::Message const &) override;
+
   float getMinimumWidth () const;
   float getMinimumHeight () const;
 
 private:
   void createChannelsUI ();
+
+  void handleButton (InputMessageButton const &message);
+  void handleEncoder (InputMessageEncoder const &message);
+  void handlePoti (InputMessagePoti const &message);
 
   MotionEngine _engine;
 
@@ -58,6 +126,8 @@ private:
   std::vector<std::unique_ptr<ChannelHeader> > _headers;
   std::vector<std::unique_ptr<ChannelFooter> > _footers;
   std::unique_ptr<MotionComponent> _motionComponent;
+
+  std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MotionController)
 };

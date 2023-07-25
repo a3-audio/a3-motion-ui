@@ -1,3 +1,0 @@
-[submodule "src/a3-motion-ui/extern/serial"]
-	path = src/a3-motion-ui/extern/serial
-	url = git@github.com:yan9a/serial.git

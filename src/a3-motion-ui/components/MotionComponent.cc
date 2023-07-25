@@ -118,10 +118,11 @@ MotionComponent::MotionComponent (
 
   // @TODO: compile as binary resources into executable
   _imageIsoSphere = juce::ImageFileFormat::loadFrom (
-    juce::File::getCurrentWorkingDirectory().getChildFile ("resources/iso-sphere-wireframe.png"));
-  _drawableHead
-    = juce::Drawable::createFromSVGFile (
-      juce::File::getCurrentWorkingDirectory().getChildFile ("resources/head.svg"));
+      juce::File::getCurrentWorkingDirectory ().getChildFile (
+          "resources/iso-sphere-wireframe.png"));
+  _drawableHead = juce::Drawable::createFromSVGFile (
+      juce::File::getCurrentWorkingDirectory ().getChildFile (
+          "resources/head.svg"));
 
   // start disocclusion / animation timer
   startTimer (1 / 60.f);
@@ -191,8 +192,8 @@ MotionComponent::disoccludeBlobs ()
                        _viewStates[channelIndex]->posAnchor)
                    > 1.f)
             { // snap back by projection onto circle
-            // borrowing math from:
-            // https:// www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
+              // borrowing math from:
+              // https://www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
               auto R = getActiveDistanceInPixel ();
 
               auto C = posGrabbedPixel;
@@ -287,6 +288,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
 void
 MotionComponent::mouseUp (const juce::MouseEvent &event)
 {
+  juce::ignoreUnused (event);
   for (auto channelIndex = 0u; channelIndex < _channels.size ();
        ++channelIndex)
     {

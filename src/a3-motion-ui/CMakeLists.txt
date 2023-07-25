@@ -29,6 +29,10 @@ target_sources("a3-motion-ui" PRIVATE
     MainWindow.hh
     MotionController.cc
     MotionController.hh
+    io/InputOutputAdapter.cc
+    io/InputOutputAdapter.hh
+    io/InputOutputAdapterV2.cc
+    io/InputOutputAdapterV2.hh
     components/LookAndFeel.cc
     components/LookAndFeel.hh
     components/LayoutHints.cc
@@ -51,6 +55,7 @@ target_compile_definitions("a3-motion-ui" PUBLIC
 
 target_include_directories("a3-motion-ui" PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/.."
+    "${CMAKE_CURRENT_SOURCE_DIR}/extern"
 )
 
 target_link_libraries("a3-motion-ui" PUBLIC

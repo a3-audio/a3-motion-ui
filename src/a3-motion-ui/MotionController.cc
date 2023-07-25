@@ -22,6 +22,7 @@
 
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
+#include <a3-motion-ui/io/InputOutputAdapterV2.hh>
 
 namespace a3
 {
@@ -37,10 +38,15 @@ MotionController::MotionController (unsigned int const numChannels)
                                                         _viewStates);
   addChildComponent (*_motionComponent);
   _motionComponent->setVisible (true);
+
+  _ioAdapter = std::make_unique<InputOutputAdapterV2> (*this);
+  _ioAdapter->startThread ();
 }
 
 MotionController::~MotionController ()
 {
+  _ioAdapter->stopThread (-1);
+
   setLookAndFeel (nullptr);
 }
 
@@ -90,21 +96,6 @@ MotionController::paint (juce::Graphics &g)
   juce::ignoreUnused (g);
 }
 
-float
-MotionController::getMinimumWidth () const
-{
-  jassert (_headers.size () == _footers.size ());
-  return _headers.size () * LayoutHints::Channels::widthMin;
-}
-
-float
-MotionController::getMinimumHeight () const
-{
-  return LayoutHints::Channels::heightHeader ()
-         + LayoutHints::Channels::heightFooter
-         + LayoutHints::MotionComponent::heightMin;
-}
-
 void
 MotionController::resized ()
 {
@@ -137,6 +128,65 @@ MotionController::resized ()
           LayoutHints::Channels::heightHeader () + boundsMotion.getHeight (),
           widthInt, LayoutHints::Channels::heightFooter);
     }
+}
+
+void
+MotionController::handleMessage (juce::Message const &message)
+{
+  juce::Logger::writeToLog ("message received");
+
+  auto inputMessage = reinterpret_cast<InputMessage const *> (&message);
+  switch (inputMessage->type)
+    {
+    case InputMessage::Type::Button:
+      juce::Logger::writeToLog ("button message received");
+      handleButton (*reinterpret_cast<InputMessageButton const *> (&message));
+      break;
+    case InputMessage::Type::Encoder:
+      juce::Logger::writeToLog ("encoder message received");
+      handleEncoder (
+          *reinterpret_cast<InputMessageEncoder const *> (&message));
+      break;
+    case InputMessage::Type::Poti:
+      juce::Logger::writeToLog ("poti message received");
+      handlePoti (*reinterpret_cast<InputMessagePoti const *> (&message));
+      break;
+    }
+}
+
+void
+MotionController::handleButton (InputMessageButton const &message)
+{
+  if (message.id == InputMessageButton::ButtonId::Pad)
+    {
+      auto const debugMessage = juce::String ("received pad message");
+      juce::Logger::writeToLog (debugMessage);
+    }
+}
+
+void
+MotionController::handleEncoder (InputMessageEncoder const &message)
+{
+}
+
+void
+MotionController::handlePoti (InputMessagePoti const &message)
+{
+}
+
+float
+MotionController::getMinimumWidth () const
+{
+  jassert (_headers.size () == _footers.size ());
+  return _headers.size () * LayoutHints::Channels::widthMin;
+}
+
+float
+MotionController::getMinimumHeight () const
+{
+  return LayoutHints::Channels::heightHeader ()
+         + LayoutHints::Channels::heightFooter
+         + LayoutHints::MotionComponent::heightMin;
 }
 
 }
