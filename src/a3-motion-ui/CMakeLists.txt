@@ -12,7 +12,7 @@ juce_add_plugin("a3-motion-ui"
     PLUGIN_MANUFACTURER_CODE A3AU               # A four-character manufacturer id with at least one upper-case character
     PLUGIN_CODE A3MC                            # A unique four-character plugin id with at least one upper-case character
     PLUGIN_NAME "A3 Motion UI"
-    FORMATS "Standalone;VST3"                   # The formats to build. Other valid formats are: AAX Unity VST AU AUv3
+    FORMATS "Standalone"                        # The formats to build. Other valid formats are: AAX Unity VST AU AUv3
     PRODUCT_NAME "a3-motion-ui"                 # The name of the final executable, which can differ from the target name
 )
 
@@ -56,6 +56,7 @@ target_include_directories("a3-motion-ui" PUBLIC
 target_link_libraries("a3-motion-ui" PUBLIC
     a3-motion-engine
     juce::juce_audio_utils
+    juce::juce_audio_devices
     juce::juce_gui_basics
     juce::juce_opengl
 )
