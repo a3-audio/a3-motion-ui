@@ -118,9 +118,10 @@ MotionComponent::MotionComponent (
 
   // @TODO: compile as binary resources into executable
   _imageIsoSphere = juce::ImageFileFormat::loadFrom (
-      juce::File ("resources/iso-sphere-wireframe.png"));
+    juce::File::getCurrentWorkingDirectory().getChildFile ("resources/iso-sphere-wireframe.png"));
   _drawableHead
-      = juce::Drawable::createFromSVGFile (juce::File ("resources/head.svg"));
+    = juce::Drawable::createFromSVGFile (
+      juce::File::getCurrentWorkingDirectory().getChildFile ("resources/head.svg"));
 
   // start disocclusion / animation timer
   startTimer (1 / 60.f);
