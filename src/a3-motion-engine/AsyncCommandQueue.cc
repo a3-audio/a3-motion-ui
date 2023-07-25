@@ -25,9 +25,9 @@
 namespace a3
 {
 
-AsyncCommandQueue::AsyncCommandQueue () : juce::Thread ("AsyncCommandQueue")
+AsyncCommandQueue::AsyncCommandQueue (std::unique_ptr<SpatBackend> backend) : juce::Thread ("AsyncCommandQueue")
 {
-  _backend = std::make_unique<SpatBackendIEM> ("127.0.0.1", 8910);
+  _backend = std::move(backend);
 }
 
 AsyncCommandQueue::~AsyncCommandQueue () {}

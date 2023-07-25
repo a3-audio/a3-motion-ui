@@ -44,9 +44,6 @@ SpatBackendA3::sendChannelPosition (int index, Pos const &pos)
   message = juce::OSCMessage (elevationPattern, pos.elevation ());
   bundle.addElement ({ message });
 
-  juce::Logger::writeToLog(azimuthPattern);
-  juce::Logger::writeToLog(elevationPattern);
-
   _sender.sendToIPAddress (_address, _port, bundle);
 }
 

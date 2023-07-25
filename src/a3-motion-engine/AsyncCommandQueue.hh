@@ -38,7 +38,7 @@ public:
     Pos position;
   };
 
-  AsyncCommandQueue ();
+  AsyncCommandQueue (std::unique_ptr<SpatBackend> backend);
   ~AsyncCommandQueue ();
 
   void submitCommand (Command &&command);
