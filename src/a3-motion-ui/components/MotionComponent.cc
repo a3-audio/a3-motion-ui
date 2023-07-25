@@ -110,7 +110,7 @@ MotionComponent::MotionComponent (
     : _channels (channels), _viewStates (viewStates)
 {
   _glContext.setOpenGLVersionRequired (
-      juce::OpenGLContext::OpenGLVersion::openGL4_3);
+      juce::OpenGLContext::OpenGLVersion::defaultGLVersion);
   _glContext.setRenderer (this);
   _glContext.setContinuousRepainting (true);
   _glContext.setComponentPaintingEnabled (false);
