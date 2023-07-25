@@ -96,7 +96,7 @@ auto constexpr reduceFactorCircle = .8f;
 auto constexpr reduceFactorHead = .35f;
 auto constexpr reduceFactorBlobs = 0.05f;
 
-auto constexpr activeAreaAroundBlobFactor = 2.5f;
+auto constexpr activeAreaAroundBlobFactor = 3.f;
 auto constexpr blobHighlightFactor = 1.1f;
 
 }
