@@ -66,4 +66,4 @@ private:
   std::vector<Pos> _lastSentPositions;
 };
 
-};
+}
