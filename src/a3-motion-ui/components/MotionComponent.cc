@@ -192,9 +192,7 @@ MotionComponent::disoccludeBlobs ()
                    > 1.f)
             { // snap back by projection onto circle
             // borrowing math from:
-            //
-            https
-                : // www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
+            // https:// www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
               auto R = getActiveDistanceInPixel ();
 
               auto C = posGrabbedPixel;
