@@ -20,8 +20,6 @@
 
 #include "InputOutputAdapter.hh"
 
-#include <a3-motion-ui/MotionController.hh>
-
 namespace a3
 {
 
@@ -61,6 +59,22 @@ InputOutputAdapter::setPadValue (std::array<int, 2> const &padIndex,
           = value ? MotionController::InputMessageButton::Event::Press
                   : MotionController::InputMessageButton::Event::Release;
       message->padIndex = padIndex;
+
+      _motionController.postMessage (message);
+    }
+}
+
+void
+InputOutputAdapter::setButtonValue (ButtonId id, bool value)
+{
+  if (value != _lastButtonValues[id])
+    {
+      auto message = new MotionController::InputMessageButton ();
+
+      message->id = id;
+      message->event
+          = value ? MotionController::InputMessageButton::Event::Press
+                  : MotionController::InputMessageButton::Event::Release;
 
       _motionController.postMessage (message);
     }

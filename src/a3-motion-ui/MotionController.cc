@@ -139,16 +139,16 @@ MotionController::handleMessage (juce::Message const &message)
   switch (inputMessage->type)
     {
     case InputMessage::Type::Button:
-      juce::Logger::writeToLog ("button message received");
+      // juce::Logger::writeToLog ("button message received");
       handleButton (*reinterpret_cast<InputMessageButton const *> (&message));
       break;
     case InputMessage::Type::Encoder:
-      juce::Logger::writeToLog ("encoder message received");
+      // juce::Logger::writeToLog ("encoder message received");
       handleEncoder (
           *reinterpret_cast<InputMessageEncoder const *> (&message));
       break;
     case InputMessage::Type::Poti:
-      juce::Logger::writeToLog ("poti message received");
+      // juce::Logger::writeToLog ("poti message received");
       handlePoti (*reinterpret_cast<InputMessagePoti const *> (&message));
       break;
     }
@@ -160,6 +160,21 @@ MotionController::handleButton (InputMessageButton const &message)
   if (message.id == InputMessageButton::ButtonId::Pad)
     {
       auto const debugMessage = juce::String ("received pad message");
+      juce::Logger::writeToLog (debugMessage);
+    }
+  if (message.id == InputMessageButton::ButtonId::Shift)
+    {
+      auto const debugMessage = juce::String ("received shift button message");
+      juce::Logger::writeToLog (debugMessage);
+    }
+  if (message.id == InputMessageButton::ButtonId::Tap)
+    {
+      auto const debugMessage = juce::String ("received tap button message");
+      juce::Logger::writeToLog (debugMessage);
+    }
+  if (message.id == InputMessageButton::ButtonId::Record)
+    {
+      auto const debugMessage = juce::String ("received record button message");
       juce::Logger::writeToLog (debugMessage);
     }
 }

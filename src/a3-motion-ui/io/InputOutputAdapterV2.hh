@@ -20,19 +20,41 @@
 
 #pragma once
 
+#include <libserial/SerialPort.h>
+
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 
 namespace a3
 {
 
+class GPIOThread;
+
 class InputOutputAdapterV2 : public InputOutputAdapter
 {
 public:
   InputOutputAdapterV2 (MotionController &);
+  ~InputOutputAdapterV2();
 
   void processInput () override;
 
 private:
+  enum GPIOButton {
+    Shift,
+    Record,
+    Tap,
+  };
+
+  void serialInit();
+  void serialParseLine();
+
+  void gpioInit();
+
+  LibSerial::SerialPort _serialPort;
+  static int constexpr serialBufferSize = 64;
+  std::array<char, serialBufferSize> _serialBuffer;
+  size_t _nextWriteOffset = 0;
+
+  std::unique_ptr<GPIOThread> _gpioThread;
 };
 
 }

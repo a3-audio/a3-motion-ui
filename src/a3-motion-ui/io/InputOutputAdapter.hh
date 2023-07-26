@@ -22,29 +22,33 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/MotionController.hh>
+
 namespace a3
 {
-
-class MotionController;
 
 class InputOutputAdapter : public juce::Thread
 {
 public:
+  using ButtonId = MotionController::InputMessageButton::ButtonId;
+
   InputOutputAdapter (MotionController &);
   virtual ~InputOutputAdapter ();
 
   void run () override;
 
+  void setPadValue (std::array<int, 2> const &padIndex, bool value);
+  void setButtonValue (ButtonId id, bool value);
+
 protected:
   virtual void processInput () = 0;
-
-  void setPadValue (std::array<int, 2> const &padIndex, bool value);
 
 private:
   void processLEDOutput ();
 
   MotionController &_motionController;
   std::map<std::array<int, 2>, bool> _lastPadValues;
+  std::map<ButtonId, bool> _lastButtonValues;
 };
 
 }

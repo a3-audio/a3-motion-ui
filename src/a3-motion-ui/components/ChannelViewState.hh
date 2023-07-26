@@ -35,4 +35,5 @@ struct ChannelViewState
 
   juce::Point<float> posAnchor;
 };
+
 }
