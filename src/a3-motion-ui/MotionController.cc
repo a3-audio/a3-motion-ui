@@ -56,7 +56,7 @@ MotionController::createChannelsUI ()
   auto const numChannels = _engine.getChannels ().size ();
 
   _viewStates.reserve (numChannels);
-  _footers.reserve (numChannels);
+  _headers.reserve (numChannels);
   _footers.reserve (numChannels);
 
   auto hueStart = 0.f;
