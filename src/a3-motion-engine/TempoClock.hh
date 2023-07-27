@@ -26,7 +26,7 @@
 #include <memory>
 #include <mutex>
 
-#include "../Config.hh"
+#include <a3-motion-engine/Config.hh>
 
 class ClockTimer;
 

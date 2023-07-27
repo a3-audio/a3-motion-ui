@@ -31,8 +31,6 @@ target_sources("a3-motion-ui" PRIVATE
     MotionController.hh
     io/InputOutputAdapter.cc
     io/InputOutputAdapter.hh
-    io/InputOutputAdapterV2.cc
-    io/InputOutputAdapterV2.hh
     components/LookAndFeel.cc
     components/LookAndFeel.hh
     components/LayoutHints.cc
@@ -44,6 +42,24 @@ target_sources("a3-motion-ui" PRIVATE
     components/MotionComponent.cc
     components/MotionComponent.hh
 )
+set(HARDWARE_INTERFACE_ENABLED FALSE CACHE BOOL "Enable interfacing with hardware")
+if(${HARDWARE_INTERFACE_ENABLED})
+    set(HARDWARE_INTERFACE_VERSION "V2" CACHE STRING "Hardware interface to use, options are: V2")
+else()
+    unset(HARDWARE_INTERFACE_VERSION CACHE)
+endif()
+
+set(HARDWARE_INTERFACE_LIBRARIES "")
+set(HARDWARE_INTERFACE_V2 FALSE)
+if("${HARDWARE_INTERFACE_VERSION}" STREQUAL "V2")
+    set(HARDWARE_INTERFACE_V2 TRUE)
+    target_sources("a3-motion-ui" PRIVATE
+        io/InputOutputAdapterV2.cc
+        io/InputOutputAdapterV2.hh
+    )
+    set(HARDWARE_INTERFACE_LIBRARIES "serial;gpiod")
+endif()
+
 
 target_compile_definitions("a3-motion-ui" PUBLIC
     JUCE_WEB_BROWSER=0
@@ -64,6 +80,16 @@ target_link_libraries("a3-motion-ui" PUBLIC
     juce::juce_audio_devices
     juce::juce_gui_basics
     juce::juce_opengl
-    serial
-    gpiod
+)
+
+if(${HARDWARE_INTERFACE_ENABLED})
+target_link_libraries("a3-motion-ui" PRIVATE
+    ${HARDWARE_INTERFACE_LIBRARIES}
+)
+
+endif()
+
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/Config.hh.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Config.hh"
 )

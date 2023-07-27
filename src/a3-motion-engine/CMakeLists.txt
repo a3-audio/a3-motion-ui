@@ -62,3 +62,9 @@ target_include_directories("a3-motion-engine" PUBLIC
 target_link_libraries("a3-motion-engine" PUBLIC
     juce_dependencies
 )
+
+set(MOTION_NUM_CHANNELS 4 CACHE STRING "Number of channels")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/Config.hh.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Config.hh"
+)

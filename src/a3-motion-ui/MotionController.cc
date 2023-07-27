@@ -20,15 +20,20 @@
 
 #include "MotionController.hh"
 
+#include <a3-motion-ui/Config.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
+
+#include <a3-motion-ui/io/InputOutputAdapter.hh>
+#ifdef HARDWARE_INTERFACE_V2
 #include <a3-motion-ui/io/InputOutputAdapterV2.hh>
+#endif
 
 namespace a3
 {
 
 MotionController::MotionController (unsigned int const numChannels)
-    : _engine (numChannels), _motionComponent ()
+    : _engine (numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
@@ -39,13 +44,21 @@ MotionController::MotionController (unsigned int const numChannels)
   addChildComponent (*_motionComponent);
   _motionComponent->setVisible (true);
 
-  _ioAdapter = std::make_unique<InputOutputAdapterV2> (*this);
+#ifdef HARDWARE_INTERFACE_V2
+  _ioAdapter = std::make_unique<InputOutputAdapter> (*this);
+#else
+  _ioAdapter = nullptr;
+#endif
+#if HARDWARE_INTERFACE_ENABLED
   _ioAdapter->startThread ();
+#endif
 }
 
 MotionController::~MotionController ()
 {
+#if HARDWARE_INTERFACE_ENABLED
   _ioAdapter->stopThread (-1);
+#endif
 
   setLookAndFeel (nullptr);
 }
@@ -174,7 +187,8 @@ MotionController::handleButton (InputMessageButton const &message)
     }
   if (message.id == InputMessageButton::ButtonId::Record)
     {
-      auto const debugMessage = juce::String ("received record button message");
+      auto const debugMessage
+          = juce::String ("received record button message");
       juce::Logger::writeToLog (debugMessage);
     }
 }
@@ -182,11 +196,13 @@ MotionController::handleButton (InputMessageButton const &message)
 void
 MotionController::handleEncoder (InputMessageEncoder const &message)
 {
+  juce::ignoreUnused (message);
 }
 
 void
 MotionController::handlePoti (InputMessagePoti const &message)
 {
+  juce::ignoreUnused (message);
 }
 
 float
@@ -203,5 +219,4 @@ MotionController::getMinimumHeight () const
          + LayoutHints::Channels::heightFooter
          + LayoutHints::MotionComponent::heightMin;
 }
-
 }

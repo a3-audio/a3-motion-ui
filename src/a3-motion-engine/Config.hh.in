@@ -23,6 +23,6 @@
 namespace a3
 {
 
-constexpr int numChannelsInitial = 4;
+constexpr int numChannelsInitial = ${MOTION_NUM_CHANNELS};
 
 }

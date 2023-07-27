@@ -24,7 +24,7 @@
 
 #include <JuceHeader.h>
 
-#include "../Config.hh"
+#include <a3-motion-engine/Config.hh>
 
 // TODO define this in anonymous namespace or move to internal
 // implementation file?
