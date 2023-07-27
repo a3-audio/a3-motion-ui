@@ -20,14 +20,14 @@
 
 #pragma once
 
-// #include <libserial/SerialPort.h>
+#include <libserial/SerialPort.h>
 
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 
 namespace a3
 {
 
-// class GPIOThread;
+class GPIOThread;
 
 class InputOutputAdapterV2 : public InputOutputAdapter
 {
