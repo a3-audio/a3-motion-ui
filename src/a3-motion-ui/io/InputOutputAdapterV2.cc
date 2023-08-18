@@ -20,114 +20,16 @@
 
 #include "InputOutputAdapterV2.hh"
 
-#include <gpiod.h>
-#include <time.h>
-
-#include <a3-motion-ui/MotionController.hh>
-
-namespace
-{
-
-auto constexpr nameConsumer = "a3-motion-ui";
-auto constexpr gpioChipname = "gpiochip0";
-
-auto constexpr gpioOffsetShiftButton = 17;
-auto constexpr gpioOffsetShiftLED = 27;
-
-auto constexpr gpioOffsetTapButton = 23;
-auto constexpr gpioOffsetTapLED = 24;
-
-auto constexpr gpioOffsetRecordButton = 12;
-auto constexpr gpioOffsetRecordLED = 16;
-
-}
-
 namespace a3
 {
 
-class GPIOThread : public juce::Thread
-{
-public:
-  GPIOThread (InputOutputAdapterV2 &ioAdapter)
-      : juce::Thread ("InputOutputAdapterV2 GPIO"), _ioAdapter (ioAdapter)
-  {
-  }
-
-  static int
-  eventCallback (int eventType, uint lineOffset, const timespec *,
-                 void *userdata)
-  {
-    auto gpioThread = static_cast<GPIOThread *> (userdata);
-
-    if (gpioThread->threadShouldExit ())
-      return GPIOD_CTXLESS_EVENT_CB_RET_STOP;
-    if (eventType == GPIOD_CTXLESS_EVENT_CB_TIMEOUT)
-      return GPIOD_CTXLESS_EVENT_CB_RET_OK;
-
-    auto value
-        = eventType == GPIOD_CTXLESS_EVENT_CB_RISING_EDGE ? true : false;
-
-    switch (lineOffset)
-      {
-      case gpioOffsetShiftButton:
-        gpioThread->_ioAdapter.setButtonValue (
-            MotionController::InputMessageButton::ButtonId::Shift, value);
-        break;
-      case gpioOffsetTapButton:
-        gpioThread->_ioAdapter.setButtonValue (
-            MotionController::InputMessageButton::ButtonId::Tap, value);
-        break;
-      case gpioOffsetRecordButton:
-        gpioThread->_ioAdapter.setButtonValue (
-            MotionController::InputMessageButton::ButtonId::Record, value);
-        break;
-      default:
-        break;
-      }
-
-    return GPIOD_CTXLESS_EVENT_CB_RET_OK;
-  }
-
-  void
-  run () override
-  {
-    uint constexpr offsets[] = {
-      gpioOffsetShiftButton,
-      gpioOffsetTapButton,
-      gpioOffsetRecordButton,
-    };
-
-    auto const timeout = timespec{ 1, 0 };
-    gpiod_ctxless_event_monitor_multiple (gpioChipname,                   //
-                                          GPIOD_CTXLESS_EVENT_BOTH_EDGES, //
-                                          offsets, 3,                     //
-                                          false,                          //
-                                          nameConsumer,                   //
-                                          &timeout,                       //
-                                          nullptr,                        //
-                                          eventCallback,                  //
-                                          this                            //
-    );
-
-    juce::Logger::writeToLog ("gpiod_ctxless_event_monitor_multiple returned");
-  }
-
-private:
-  InputOutputAdapterV2 &_ioAdapter;
-};
-
-InputOutputAdapterV2::InputOutputAdapterV2 (MotionController &motionController)
-    : InputOutputAdapter (motionController)
+InputOutputAdapterV2::InputOutputAdapterV2 () : InputOutputAdapter ()
 {
   serialInit ();
-
-  _gpioThread = std::make_unique<GPIOThread> (*this);
-  _gpioThread->startThread ();
 }
 
 InputOutputAdapterV2::~InputOutputAdapterV2 ()
 {
-  _gpioThread->stopThread (-1);
   _serialPort.Close ();
 }
 
@@ -137,7 +39,7 @@ InputOutputAdapterV2::serialInit ()
   using namespace LibSerial;
 
   auto constexpr serialDevice = "/dev/ttyACM0";
-  _serialPort.Open (serialDevice, std::ios::in);
+  _serialPort.Open (serialDevice, std::ios::in | std::ios::out);
   _serialPort.SetBaudRate (BaudRate::BAUD_115200);
   _serialPort.SetCharacterSize (CharacterSize::CHAR_SIZE_8);
   _serialPort.SetFlowControl (FlowControl::FLOW_CONTROL_NONE);
@@ -148,34 +50,109 @@ InputOutputAdapterV2::serialInit ()
 }
 
 void
-InputOutputAdapterV2::gpioInit ()
-{
-}
-
-void
 InputOutputAdapterV2::processInput ()
 {
   if (_serialPort.IsDataAvailable ())
     {
+      char c;
       auto const bytesReady = _serialPort.GetNumberOfBytesAvailable ();
       for (auto readCount = 0; readCount < bytesReady; ++readCount)
         {
-          char c;
           _serialPort.ReadByte (c);
-          _serialBuffer[_nextWriteOffset++] = c;
           if (c == '\n')
             {
-              serialParseLine ();
+              serialParseLine (
+                  juce::String (_serialBuffer.data (), _nextWriteOffset));
               _nextWriteOffset = 0;
+              break;
             }
+          _serialBuffer[_nextWriteOffset++] = c;
         }
     }
 }
 
 void
-InputOutputAdapterV2::serialParseLine ()
+InputOutputAdapterV2::serialParseLine (juce::String line)
 {
-  juce::Logger::writeToLog (juce::String (&_serialBuffer[0]));
+  // juce::Logger::writeToLog (line);
+
+  auto const prefixButton = juce::String ("B");
+  auto const prefixEncoderPress = juce::String ("EB");
+  auto const prefixEncoderIncrement = juce::String ("Enc");
+  auto const prefixPot = juce::String ("P");
+  auto const delimiter = juce::String (":");
+
+  auto const value
+      = line.fromFirstOccurrenceOf (delimiter, false, false).getIntValue ();
+
+  if (line.startsWith (prefixButton))
+    {
+      auto const index = line.substring (prefixButton.length ())
+                             .upToFirstOccurrenceOf (delimiter, false, false)
+                             .getIntValue ();
+      if (index < 16)
+        {
+          auto const channel = index % numChannels;
+          auto const pad = index / numChannels;
+          inputPadValue ({ channel, pad }, value);
+        }
+      else
+        {
+          switch (index)
+            {
+            case 16:
+              inputButtonValue (InputMessageButton::Id::Shift, value);
+              break;
+            case 17:
+              inputButtonValue (InputMessageButton::Id::Record, value);
+              break;
+            case 18:
+              inputButtonValue (InputMessageButton::Id::Tap, value);
+              break;
+            }
+        }
+    }
+  else if (line.startsWith (prefixEncoderPress))
+    {
+      auto const index = line.substring (prefixEncoderPress.length ())
+                             .upToFirstOccurrenceOf (delimiter, false, false)
+                             .getIntValue ();
+      if (value == 1)
+        inputEncoderEvent (index, InputMessageEncoder::Event::Press);
+      else if (value == 0)
+        inputEncoderEvent (index, InputMessageEncoder::Event::Release);
+    }
+  else if (line.startsWith (prefixEncoderIncrement))
+    {
+      auto const index = line.substring (prefixEncoderIncrement.length ())
+                             .upToFirstOccurrenceOf (delimiter, false, false)
+                             .getIntValue ();
+      if (value == 1)
+        inputEncoderEvent (index, InputMessageEncoder::Event::Increment);
+      else if (value == -1)
+        inputEncoderEvent (index, InputMessageEncoder::Event::Decrement);
+    }
+  else if (line.startsWith (prefixPot))
+    {
+      auto const index = line.substring (prefixPot.length ())
+                             .upToFirstOccurrenceOf (delimiter, false, false)
+                             .getIntValue ();
+      auto const channel = index % numChannels;
+      auto const pad = index / numChannels;
+      auto constexpr potMaxValue = 1023.f;
+      inputPotValue (channel, pad, value / potMaxValue);
+    }
+}
+
+void
+InputOutputAdapterV2::outputButtonLED (Button button, bool value)
+{
+  juce::String line = "BL,";
+  line += juce::String (static_cast<int> (button));
+  line += ",";
+  line += juce::String (static_cast<int> (value));
+  line += "\n";
+  _serialPort.Write (line.toStdString ());
 }
 
 }

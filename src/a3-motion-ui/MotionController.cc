@@ -45,12 +45,21 @@ MotionController::MotionController (unsigned int const numChannels)
   _motionComponent->setVisible (true);
 
 #ifdef HARDWARE_INTERFACE_V2
-  _ioAdapter = std::make_unique<InputOutputAdapter> (*this);
+  _ioAdapter = std::make_unique<InputOutputAdapterV2> ();
 #else
   _ioAdapter = nullptr;
 #endif
 #if HARDWARE_INTERFACE_ENABLED
   _ioAdapter->startThread ();
+  _ioAdapter->getButton (InputOutputAdapter::Button::Shift).addListener (this);
+  _ioAdapter->getButton (InputOutputAdapter::Button::Record)
+      .addListener (this);
+  _ioAdapter->getButton (InputOutputAdapter::Button::Tap).addListener (this);
+  _ioAdapter->getPad (0, 0).addListener (this);
+  _ioAdapter->getEncoderIncrement (0).addListener (this);
+  _ioAdapter->getEncoderPress (0).addListener (this);
+  _ioAdapter->getPot (0, 0).addListener (this);
+  _ioAdapter->getPot (0, 1).addListener (this);
 #endif
 }
 
@@ -143,68 +152,6 @@ MotionController::resized ()
     }
 }
 
-void
-MotionController::handleMessage (juce::Message const &message)
-{
-  juce::Logger::writeToLog ("message received");
-
-  auto inputMessage = reinterpret_cast<InputMessage const *> (&message);
-  switch (inputMessage->type)
-    {
-    case InputMessage::Type::Button:
-      // juce::Logger::writeToLog ("button message received");
-      handleButton (*reinterpret_cast<InputMessageButton const *> (&message));
-      break;
-    case InputMessage::Type::Encoder:
-      // juce::Logger::writeToLog ("encoder message received");
-      handleEncoder (
-          *reinterpret_cast<InputMessageEncoder const *> (&message));
-      break;
-    case InputMessage::Type::Poti:
-      // juce::Logger::writeToLog ("poti message received");
-      handlePoti (*reinterpret_cast<InputMessagePoti const *> (&message));
-      break;
-    }
-}
-
-void
-MotionController::handleButton (InputMessageButton const &message)
-{
-  if (message.id == InputMessageButton::ButtonId::Pad)
-    {
-      auto const debugMessage = juce::String ("received pad message");
-      juce::Logger::writeToLog (debugMessage);
-    }
-  if (message.id == InputMessageButton::ButtonId::Shift)
-    {
-      auto const debugMessage = juce::String ("received shift button message");
-      juce::Logger::writeToLog (debugMessage);
-    }
-  if (message.id == InputMessageButton::ButtonId::Tap)
-    {
-      auto const debugMessage = juce::String ("received tap button message");
-      juce::Logger::writeToLog (debugMessage);
-    }
-  if (message.id == InputMessageButton::ButtonId::Record)
-    {
-      auto const debugMessage
-          = juce::String ("received record button message");
-      juce::Logger::writeToLog (debugMessage);
-    }
-}
-
-void
-MotionController::handleEncoder (InputMessageEncoder const &message)
-{
-  juce::ignoreUnused (message);
-}
-
-void
-MotionController::handlePoti (InputMessagePoti const &message)
-{
-  juce::ignoreUnused (message);
-}
-
 float
 MotionController::getMinimumWidth () const
 {
@@ -218,5 +165,58 @@ MotionController::getMinimumHeight () const
   return LayoutHints::Channels::heightHeader ()
          + LayoutHints::Channels::heightFooter
          + LayoutHints::MotionComponent::heightMin;
+}
+
+void
+MotionController::valueChanged (juce::Value &value)
+{
+  if (value.refersToSameSourceAs (
+          _ioAdapter->getButton (InputOutputAdapter::Button::Shift)))
+    {
+      juce::Logger::writeToLog ("MotionController: SHIFT: "
+                                + value.toString ());
+      _ioAdapter->getButtonLED (InputOutputAdapter::Button::Shift)
+          = value.getValue ();
+    }
+  else if (value.refersToSameSourceAs (
+               _ioAdapter->getButton (InputOutputAdapter::Button::Record)))
+    {
+      juce::Logger::writeToLog ("MotionController: RECORD: "
+                                + value.toString ());
+      _ioAdapter->getButtonLED (InputOutputAdapter::Button::Record)
+          = value.getValue ();
+    }
+  else if (value.refersToSameSourceAs (
+               _ioAdapter->getButton (InputOutputAdapter::Button::Tap)))
+    {
+      juce::Logger::writeToLog ("MotionController: TAP: " + value.toString ());
+      _ioAdapter->getButtonLED (InputOutputAdapter::Button::Tap)
+          = value.getValue ();
+    }
+  else if (value.refersToSameSourceAs (_ioAdapter->getPad (0, 0)))
+    {
+      juce::Logger::writeToLog ("MotionController: PAD 0 0: "
+                                + value.toString ());
+    }
+  else if (value.refersToSameSourceAs (_ioAdapter->getEncoderPress (0)))
+    {
+      juce::Logger::writeToLog ("MotionController: Encoder Press 0: "
+                                + value.toString ());
+    }
+  else if (value.refersToSameSourceAs (_ioAdapter->getEncoderIncrement (0)))
+    {
+      juce::Logger::writeToLog ("MotionController: Encoder Increment 0: "
+                                + value.toString ());
+    }
+  else if (value.refersToSameSourceAs (_ioAdapter->getPot (0, 0)))
+    {
+      juce::Logger::writeToLog ("MotionController: Pot 0 0: "
+                                + value.toString ());
+    }
+  else if (value.refersToSameSourceAs (_ioAdapter->getPot (0, 1)))
+    {
+      juce::Logger::writeToLog ("MotionController: Pot 0 1: "
+                                + value.toString ());
+    }
 }
 }

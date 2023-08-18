@@ -23,12 +23,59 @@
 namespace a3
 {
 
-InputOutputAdapter::InputOutputAdapter (MotionController &motionController)
-    : juce::Thread ("InputOutputAdapter"), _motionController (motionController)
+InputOutputAdapter::InputOutputAdapter () : juce::Thread ("InputOutputAdapter")
 {
+  for (auto &valueLED : _valueButtonLEDs)
+    valueLED.addListener (this);
 }
 
-InputOutputAdapter::~InputOutputAdapter () {}
+InputOutputAdapter::~InputOutputAdapter ()
+{
+  for (auto &valueLED : _valueButtonLEDs)
+    valueLED.removeListener (this);
+}
+
+juce::Value &
+InputOutputAdapter::getButton (Button button)
+{
+  return _valueButtons[static_cast<size_t> (button)];
+}
+
+juce::Value &
+InputOutputAdapter::getButtonLED (Button button)
+{
+  return _valueButtonLEDs[static_cast<size_t> (button)];
+}
+
+juce::Value &
+InputOutputAdapter::getPad (int channel, int pad)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  jassert (pad >= 0 && pad < numPadsPerChannel);
+  return _valuePads[static_cast<size_t> (channel)][static_cast<size_t> (pad)];
+}
+
+juce::Value &
+InputOutputAdapter::getEncoderPress (int channel)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  return _valueEncoderPresses[static_cast<size_t> (channel)];
+}
+
+juce::Value &
+InputOutputAdapter::getEncoderIncrement (int channel)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  return _valueEncoderIncrements[static_cast<size_t> (channel)];
+}
+
+juce::Value &
+InputOutputAdapter::getPot (int channel, int pot)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  jassert (pot >= 0 && pot < numPotsPerChannel);
+  return _valuePots[static_cast<size_t> (channel)][static_cast<size_t> (pot)];
+}
 
 void
 InputOutputAdapter::run ()
@@ -39,7 +86,7 @@ InputOutputAdapter::run ()
         break;
 
       processInput ();
-      processLEDOutput ();
+      // processOutput ();
 
       auto constexpr sleepMs = 1;
       juce::Thread::sleep (sleepMs);
@@ -47,42 +94,173 @@ InputOutputAdapter::run ()
 }
 
 void
-InputOutputAdapter::setPadValue (std::array<int, 2> const &padIndex,
-                                 bool value)
+InputOutputAdapter::inputPadValue (InputMessagePad::PadIndex const &padIndex,
+                                   bool value)
 {
   if (value != _lastPadValues[padIndex])
     {
-      auto message = new MotionController::InputMessageButton ();
+      auto message = new InputMessagePad ();
 
-      message->id = MotionController::InputMessageButton::ButtonId::Pad;
-      message->event
-          = value ? MotionController::InputMessageButton::Event::Press
-                  : MotionController::InputMessageButton::Event::Release;
+      message->event = value ? InputMessagePad::Event::Press
+                             : InputMessagePad::Event::Release;
       message->padIndex = padIndex;
+      postMessage (message);
 
-      _motionController.postMessage (message);
+      _lastPadValues[padIndex] = value;
     }
 }
 
 void
-InputOutputAdapter::setButtonValue (ButtonId id, bool value)
+InputOutputAdapter::inputButtonValue (InputMessageButton::Id id, bool value)
 {
   if (value != _lastButtonValues[id])
     {
-      auto message = new MotionController::InputMessageButton ();
-
+      auto message = new InputMessageButton ();
       message->id = id;
-      message->event
-          = value ? MotionController::InputMessageButton::Event::Press
-                  : MotionController::InputMessageButton::Event::Release;
+      message->event = value ? InputMessageButton::Event::Press
+                             : InputMessageButton::Event::Release;
+      postMessage (message);
 
-      _motionController.postMessage (message);
+      _lastButtonValues[id] = value;
     }
 }
 
 void
-InputOutputAdapter::processLEDOutput ()
+InputOutputAdapter::inputEncoderEvent (int index,
+                                       InputMessageEncoder::Event event)
 {
+  auto message = new InputMessageEncoder ();
+  message->event = event;
+  message->index = index;
+  postMessage (message);
+}
+
+void
+InputOutputAdapter::inputPotValue (int channel, int pot, float value)
+{
+  auto message = new InputMessagePot ();
+  message->channel = channel;
+  message->pot = pot;
+  message->value = value;
+  postMessage (message);
+}
+
+void
+InputOutputAdapter::handleMessage (juce::Message const &message)
+{
+  // juce::Logger::writeToLog ("handling message");
+  auto inputMessage = reinterpret_cast<InputMessage const *> (&message);
+  switch (inputMessage->type)
+    {
+    case InputMessage::Type::Pad:
+      handlePad (*reinterpret_cast<InputMessagePad const *> (&message));
+      break;
+    case InputMessage::Type::Button:
+      // juce::Logger::writeToLog ("handling button message");
+      handleButton (*reinterpret_cast<InputMessageButton const *> (&message));
+      break;
+    case InputMessage::Type::Encoder:
+      // juce::Logger::writeToLog ("handling encoder message");
+      handleEncoder (
+          *reinterpret_cast<InputMessageEncoder const *> (&message));
+      break;
+    case InputMessage::Type::Pot:
+      //   // juce::Logger::writeToLog ("pot message received");
+      handlePot (*reinterpret_cast<InputMessagePot const *> (&message));
+      break;
+    }
+}
+
+void
+InputOutputAdapter::handlePad (InputMessagePad const &message)
+{
+  _valuePads[static_cast<size_t> (message.padIndex.channel)]
+            [static_cast<size_t> (message.padIndex.pad)]
+      = message.event == InputMessagePad::Event::Press ? true : false;
+}
+
+void
+InputOutputAdapter::handleButton (InputMessageButton const &message)
+{
+  switch (message.id)
+    {
+    case InputMessageButton::Id::Shift:
+      {
+        _valueButtons[static_cast<size_t> (Button::Shift)]
+            = message.event == InputMessageButton::Event::Press ? true : false;
+        break;
+      }
+    case InputMessageButton::Id::Tap:
+      {
+        _valueButtons[static_cast<size_t> (Button::Tap)]
+            = message.event == InputMessageButton::Event::Press ? true : false;
+        break;
+      }
+    case InputMessageButton::Id::Record:
+      {
+        _valueButtons[static_cast<size_t> (Button::Record)]
+            = message.event == InputMessageButton::Event::Press ? true : false;
+        break;
+      }
+    default:
+      {
+        throw std::runtime_error (
+            "InputOutputAdapter::handleButton: unknown button type");
+      }
+    }
+}
+
+void
+InputOutputAdapter::handleEncoder (InputMessageEncoder const &message)
+{
+  if (message.event == InputMessageEncoder::Event::Increment
+      || message.event == InputMessageEncoder::Event::Decrement)
+    {
+      auto offset
+          = message.event == InputMessageEncoder::Event::Increment ? 1 : -1;
+
+      auto value
+          = _valueEncoderIncrements[static_cast<size_t> (message.index)];
+
+      // The following is required to send the same increment
+      // repeatedly. juce::Value notifies observers only when the
+      // actual value changes.
+      if (value.getValue ().isInt ()
+          && static_cast<int> (value.getValue ()) == offset)
+        {
+          // last value was 'offset' -> notify observers manually
+          value.getValueSource ().sendChangeMessage (true);
+        }
+      else
+        {
+          // if value was not 'offset' -> assignment triggers notification
+          value = offset;
+        }
+    }
+  else if (message.event == InputMessageEncoder::Event::Press
+           || message.event == InputMessageEncoder::Event::Release)
+    {
+      auto value = _valueEncoderPresses[static_cast<size_t> (message.index)];
+      value = message.event == InputMessageEncoder::Event::Press ? 1 : 0;
+    }
+}
+
+void
+InputOutputAdapter::handlePot (InputMessagePot const &message)
+{
+  _valuePots[static_cast<size_t> (message.channel)]
+            [static_cast<size_t> (message.pot)]
+      = message.value;
+}
+
+void
+InputOutputAdapter::valueChanged (juce::Value &value)
+{
+  for (auto index = 0u; index < numButtonTypes; ++index)
+    {
+      if (value.refersToSameSourceAs (_valueButtonLEDs[index]))
+        outputButtonLED (static_cast<Button> (index), value.getValue ());
+    }
 }
 
 }
