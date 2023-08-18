@@ -525,7 +525,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 
         if (_viewStates[channelIndex]->grabbed)
           {
-            gFBO.setColour (juce::Colours::grey.withAlpha (0.2f));
+            gFBO.setColour (colour.withAlpha (0.4f));
             gFBO.fillEllipse (blobGrabbed.withCentre (pos));
           }
 
