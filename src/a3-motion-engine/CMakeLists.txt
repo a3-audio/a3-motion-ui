@@ -35,10 +35,16 @@ target_sources("a3-motion-engine" PRIVATE
     Master.hh
     MotionEngine.cc
     MotionEngine.hh
-    TempoClock.cc
-    TempoClock.hh
     AsyncCommandQueue.cc
     AsyncCommandQueue.hh
+    tempo/TempoClock.cc
+    tempo/TempoClock.hh
+    tempo/TempoEstimator.cc
+    tempo/TempoEstimator.hh
+    tempo/TempoEstimatorMean.cc
+    tempo/TempoEstimatorMean.hh
+    tempo/TempoEstimatorMeanSelective.cc
+    tempo/TempoEstimatorMeanSelective.hh
     backends/SpatBackend.hh
     backends/SpatBackendIEM.cc
     backends/SpatBackendIEM.hh

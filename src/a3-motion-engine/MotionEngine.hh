@@ -20,11 +20,10 @@
 
 #pragma once
 
-#include "Channel.hh"
-#include "Master.hh"
-
-#include "AsyncCommandQueue.hh"
-#include "TempoClock.hh"
+#include <a3-motion-engine/AsyncCommandQueue.hh>
+#include <a3-motion-engine/Channel.hh>
+#include <a3-motion-engine/Master.hh>
+#include <a3-motion-engine/tempo/TempoClock.hh>
 
 namespace a3
 {

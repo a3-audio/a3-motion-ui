@@ -18,30 +18,21 @@
 
 */
 
-#include <gtest/gtest.h>
+#include <a3-motion-engine/tempo/TempoEstimator.hh>
 
-#include <JuceHeader.h>
+#include <chrono>
 
-#include <a3-motion-engine/tempo/TempoClock.hh>
-#include <a3-motion-engine/util/Timing.hh>
-
-using namespace a3;
-
-TEST (TempoClock, TimingSyncAsync)
+namespace a3
 {
-  TempoClock tempoClock;
-  tempoClock.start ();
 
-  Timings timings;
+class TempoEstimatorMeanSelective : public TempoEstimator
+{
+public:
+  TempoEstimatorMeanSelective (int numSelectedDeltas);
+  void estimateTempo () override;
 
-  {
-    ScopedTimer<> t{ timings, "waiting" };
-    auto ptr = tempoClock.scheduleEventHandlerAddition (
-        [] (auto) {
-          // juce::Logger::writeToLog ("sync: " + juce::String (time));
-        },
-        TempoClock::Event::Beat, TempoClock::Execution::TimerThread, true);
-  }
+private:
+  int _numSelectedDeltas;
+};
 
-  tempoClock.stop ();
 }

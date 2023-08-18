@@ -18,30 +18,30 @@
 
 */
 
-#include <gtest/gtest.h>
+#include "TempoEstimatorMean.hh"
+
+#include <numeric>
 
 #include <JuceHeader.h>
 
-#include <a3-motion-engine/tempo/TempoClock.hh>
-#include <a3-motion-engine/util/Timing.hh>
-
-using namespace a3;
-
-TEST (TempoClock, TimingSyncAsync)
+namespace a3
 {
-  TempoClock tempoClock;
-  tempoClock.start ();
 
-  Timings timings;
+TempoEstimatorMean::TempoEstimatorMean () {}
 
-  {
-    ScopedTimer<> t{ timings, "waiting" };
-    auto ptr = tempoClock.scheduleEventHandlerAddition (
-        [] (auto) {
-          // juce::Logger::writeToLog ("sync: " + juce::String (time));
-        },
-        TempoClock::Event::Beat, TempoClock::Execution::TimerThread, true);
-  }
+void
+TempoEstimatorMean::estimateTempo ()
+{
+  jassert (_queueDeltaTs.size () > 0);
 
-  tempoClock.stop ();
+  ClockT::duration sumDeltaT{ 0 };
+  for (auto &deltaT : _queueDeltaTs)
+    {
+      sumDeltaT += deltaT;
+    }
+  auto tempoDeltaT = sumDeltaT / _queueDeltaTs.size ();
+
+  setTempoDeltaT (tempoDeltaT);
+}
+
 }

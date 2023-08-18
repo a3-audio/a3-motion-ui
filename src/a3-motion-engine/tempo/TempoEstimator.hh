@@ -18,30 +18,43 @@
 
 */
 
-#include <gtest/gtest.h>
+#pragma once
 
-#include <JuceHeader.h>
+#include <chrono>
+#include <deque>
 
-#include <a3-motion-engine/tempo/TempoClock.hh>
-#include <a3-motion-engine/util/Timing.hh>
-
-using namespace a3;
-
-TEST (TempoClock, TimingSyncAsync)
+namespace a3
 {
-  TempoClock tempoClock;
-  tempoClock.start ();
 
-  Timings timings;
-
+class TempoEstimator
+{
+public:
+  enum class TapResult
   {
-    ScopedTimer<> t{ timings, "waiting" };
-    auto ptr = tempoClock.scheduleEventHandlerAddition (
-        [] (auto) {
-          // juce::Logger::writeToLog ("sync: " + juce::String (time));
-        },
-        TempoClock::Event::Beat, TempoClock::Execution::TimerThread, true);
-  }
+    TempoAvailable,
+    TempoNotAvailable
+  };
 
-  tempoClock.stop ();
+  virtual ~TempoEstimator (){};
+
+  TapResult tap ();
+  virtual void estimateTempo () = 0;
+
+  float getTempoBPM () const;
+
+protected:
+  using ClockT = std::chrono::high_resolution_clock;
+  static auto constexpr numTapsMin = 3;
+  static auto constexpr numTapsMax = 16;
+  static auto constexpr timeBetweenTapsMax = std::chrono::seconds (2);
+
+  void setTempoDeltaT (ClockT::duration deltaT);
+
+  std::deque<ClockT::duration> _queueDeltaTs;
+
+private:
+  ClockT::time_point timeTapLast;
+  ClockT::duration _tempoDeltaT;
+};
+
 }

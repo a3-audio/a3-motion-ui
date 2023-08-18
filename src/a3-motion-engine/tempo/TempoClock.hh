@@ -56,12 +56,12 @@ public:
   struct Config
   {
     int
-    ns_per_tick () const
+    nsPerTick () const
     {
       return int64_t (60) * 1000000000 / ticksPerBeat / beatsPerMinute;
     }
 
-    std::atomic<int> beatsPerMinute{ 90 };
+    std::atomic<float> beatsPerMinute{ 90.f };
     std::atomic<int> beatsPerBar{ 4 };
 
     // ticksPerBeat equal PPQN (pulses per quarter note). MIDI uses 24,
@@ -69,6 +69,7 @@ public:
     // nuances.
     static constexpr int ticksPerBeat = 128;
 
+    static_assert (std::atomic<float>::is_always_lock_free);
     static_assert (std::atomic<int>::is_always_lock_free);
   };
 

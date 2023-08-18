@@ -20,7 +20,7 @@
 
 #pragma once
 
-#include "TempoClock.hh"
+#include <a3-motion-engine/tempo/TempoClock.hh>
 
 namespace a3
 {

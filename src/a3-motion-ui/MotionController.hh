@@ -33,6 +33,7 @@
 
 namespace a3
 {
+class TempoEstimator;
 
 class MotionComponent;
 class InputOutputAdapter;
@@ -56,6 +57,7 @@ private:
   void createChannelsUI ();
 
   MotionEngine _engine;
+  std::unique_ptr<TempoEstimator> _tempoEstimator;
 
   LookAndFeel_A3 _lookAndFeel;
   std::vector<std::unique_ptr<ChannelViewState> > _viewStates;

@@ -160,7 +160,7 @@ private:
   advanceMeasure ()
   {
     auto now = ClockT::now ();
-    auto ns_per_tick = _config.ns_per_tick ();
+    auto ns_per_tick = _config.nsPerTick ();
 
     if (reset)
       {

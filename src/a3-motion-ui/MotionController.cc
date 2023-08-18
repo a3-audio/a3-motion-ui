@@ -20,6 +20,8 @@
 
 #include "MotionController.hh"
 
+#include <a3-motion-engine/tempo/TempoEstimatorMean.hh>
+
 #include <a3-motion-ui/Config.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
@@ -35,6 +37,8 @@ namespace a3
 MotionController::MotionController (unsigned int const numChannels)
     : _engine (numChannels)
 {
+  _tempoEstimator = std::make_unique<TempoEstimatorMean> ();
+
   setLookAndFeel (&_lookAndFeel);
 
   createChannelsUI ();
@@ -189,7 +193,11 @@ MotionController::valueChanged (juce::Value &value)
   else if (value.refersToSameSourceAs (
                _ioAdapter->getButton (InputOutputAdapter::Button::Tap)))
     {
-      juce::Logger::writeToLog ("MotionController: TAP: " + value.toString ());
+      if (value.getValue ())
+        _tempoEstimator->tap ();
+
+      // juce::Logger::writeToLog ("MotionController: TAP: " + value.toString
+      // ());
       _ioAdapter->getButtonLED (InputOutputAdapter::Button::Tap)
           = value.getValue ();
     }
