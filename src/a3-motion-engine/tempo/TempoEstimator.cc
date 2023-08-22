@@ -29,44 +29,85 @@ namespace a3
 {
 
 TempoEstimator::TapResult
-TempoEstimator::tap ()
+TempoEstimator::tap (juce::int64 timeMicros)
 {
-  auto timeTap = ClockT::now ();
-  auto deltaT = timeTap - timeTapLast;
-  timeTapLast = timeTap;
+  auto deltaT = timeMicros - timeTapLastMicros;
+  timeTapLastMicros = timeMicros;
 
-  if (deltaT > timeBetweenTapsMax)
+  if (deltaT > std::chrono::duration_cast<std::chrono::microseconds> (
+                   timeBetweenTapsMax)
+                   .count ())
     {
-      juce::Logger::writeToLog ("flushing deltaTs queue");
-      std::deque<ClockT::duration> queueEmpty;
-      std::swap (_queueDeltaTs, queueEmpty);
+      // juce::Logger::writeToLog ("flushing tap time queue");
+      std::deque<ClockT::time_point> queueEmpty;
+      std::swap (_queueTapTimes, queueEmpty);
     }
-  else
+  else if (_queueTapTimes.size () == numTapsMax)
+    _queueTapTimes.pop_front ();
+
+  _queueTapTimes.push_back (ClockT::time_point ()
+                            + std::chrono::microseconds (timeMicros));
+
+  if (_queueTapTimes.size () >= numTapsMin)
     {
-      if (_queueDeltaTs.size () == numTapsMax - 1)
-        _queueDeltaTs.pop_front ();
-
-      // juce::Logger::writeToLog (
-      //     "recording deltaT: "
-      //     + juce::String (
-      //         std::chrono::duration_cast<std::chrono::milliseconds> (deltaT)
-      //             .count ()));
-      _queueDeltaTs.push_back (deltaT);
-
-      if (_queueDeltaTs.size () >= numTapsMin)
-        {
-          estimateTempo ();
-          return TapResult::TempoAvailable;
-        }
+      estimateTempo ();
+      return TapResult::TempoAvailable;
     }
 
   return TapResult::TempoNotAvailable;
+}
+
+std::vector<TempoEstimator::ClockT::time_point>
+TempoEstimator::getTapTimes ()
+{
+  std::vector<ClockT::time_point> tapTimes;
+  tapTimes.reserve (_queueTapTimes.size ());
+  std::copy (_queueTapTimes.begin (), _queueTapTimes.end (),
+             std::back_inserter (tapTimes));
+  return tapTimes;
+}
+
+std::vector<TempoEstimator::ClockT::duration>
+TempoEstimator::getTapTimeDeltas ()
+{
+  auto tapTimeDeltas
+      = std::vector<ClockT::duration> (_queueTapTimes.size () - 1);
+  auto timeLast = ClockT::time_point ();
+  for (auto index = 0u; index < _queueTapTimes.size (); ++index)
+    {
+      if (index == 0)
+        {
+          timeLast = _queueTapTimes[index];
+          continue;
+        }
+
+      tapTimeDeltas[index - 1] = _queueTapTimes[index] - timeLast;
+      timeLast = _queueTapTimes[index];
+    }
+
+  return tapTimeDeltas;
 }
 
 void
 TempoEstimator::setTempoDeltaT (ClockT::duration deltaT)
 {
   _tempoDeltaT = deltaT;
+}
+
+TempoEstimator::ClockT::duration
+TempoEstimator::getTempoDeltaT () const
+{
+  return _tempoDeltaT;
+}
+
+float
+TempoEstimator::getTempoBPM () const
+{
+  auto const tempoDeltaTMicros
+      = std::chrono::duration_cast<std::chrono::microseconds> (
+            getTempoDeltaT ())
+            .count ();
+  return float (60.0 * 1e6 / tempoDeltaTMicros);
 }
 
 }

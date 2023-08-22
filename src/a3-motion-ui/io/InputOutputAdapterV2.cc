@@ -82,8 +82,9 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
   auto const prefixPot = juce::String ("P");
   auto const delimiter = juce::String (":");
 
-  auto const value
-      = line.fromFirstOccurrenceOf (delimiter, false, false).getIntValue ();
+  auto const value = line.fromFirstOccurrenceOf (delimiter, false, false)
+                         .upToFirstOccurrenceOf (delimiter, false, false)
+                         .getIntValue ();
 
   if (line.startsWith (prefixButton))
     {
@@ -108,6 +109,13 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
               break;
             case 18:
               inputButtonValue (InputMessageButton::Id::Tap, value);
+              if (value)
+                {
+                  auto const timeMicros
+                      = line.fromLastOccurrenceOf (delimiter, false, false)
+                            .getLargeIntValue ();
+                  inputTapTime (timeMicros);
+                }
               break;
             }
         }

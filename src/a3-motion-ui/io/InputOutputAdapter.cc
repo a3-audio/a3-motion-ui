@@ -77,6 +77,12 @@ InputOutputAdapter::getPot (int channel, int pot)
   return _valuePots[static_cast<size_t> (channel)][static_cast<size_t> (pot)];
 }
 
+juce::Value &
+InputOutputAdapter::getTapTimeMicros ()
+{
+  return _valueTapTimeMicros;
+}
+
 void
 InputOutputAdapter::run ()
 {
@@ -97,6 +103,9 @@ void
 InputOutputAdapter::inputPadValue (InputMessagePad::PadIndex const &padIndex,
                                    bool value)
 {
+  jassert (padIndex.channel >= 0 && padIndex.channel < numChannels);
+  jassert (padIndex.pad >= 0 && padIndex.pad < numPadsPerChannel);
+
   if (value != _lastPadValues[padIndex])
     {
       auto message = new InputMessagePad ();
@@ -126,18 +135,24 @@ InputOutputAdapter::inputButtonValue (InputMessageButton::Id id, bool value)
 }
 
 void
-InputOutputAdapter::inputEncoderEvent (int index,
+InputOutputAdapter::inputEncoderEvent (int channel,
                                        InputMessageEncoder::Event event)
 {
+  jassert (channel >= 0 && channel < numChannels);
+
   auto message = new InputMessageEncoder ();
   message->event = event;
-  message->index = index;
+  message->channel = channel;
   postMessage (message);
 }
 
 void
 InputOutputAdapter::inputPotValue (int channel, int pot, float value)
 {
+  jassert (channel >= 0 && channel < numChannels);
+  jassert (pot >= 0 && pot < numPotsPerChannel);
+  jassert (value >= 0 && value <= 1.f);
+
   auto message = new InputMessagePot ();
   message->channel = channel;
   message->pot = pot;
@@ -146,9 +161,16 @@ InputOutputAdapter::inputPotValue (int channel, int pot, float value)
 }
 
 void
+InputOutputAdapter::inputTapTime (juce::int64 timeMicros)
+{
+  auto message = new InputMessageTap ();
+  message->timeMicros = timeMicros;
+  postMessage (message);
+}
+
+void
 InputOutputAdapter::handleMessage (juce::Message const &message)
 {
-  // juce::Logger::writeToLog ("handling message");
   auto inputMessage = reinterpret_cast<InputMessage const *> (&message);
   switch (inputMessage->type)
     {
@@ -156,17 +178,17 @@ InputOutputAdapter::handleMessage (juce::Message const &message)
       handlePad (*reinterpret_cast<InputMessagePad const *> (&message));
       break;
     case InputMessage::Type::Button:
-      // juce::Logger::writeToLog ("handling button message");
       handleButton (*reinterpret_cast<InputMessageButton const *> (&message));
       break;
     case InputMessage::Type::Encoder:
-      // juce::Logger::writeToLog ("handling encoder message");
       handleEncoder (
           *reinterpret_cast<InputMessageEncoder const *> (&message));
       break;
     case InputMessage::Type::Pot:
-      //   // juce::Logger::writeToLog ("pot message received");
       handlePot (*reinterpret_cast<InputMessagePot const *> (&message));
+      break;
+    case InputMessage::Type::Tap:
+      handleTap (*reinterpret_cast<InputMessageTap const *> (&message));
       break;
     }
 }
@@ -220,7 +242,7 @@ InputOutputAdapter::handleEncoder (InputMessageEncoder const &message)
           = message.event == InputMessageEncoder::Event::Increment ? 1 : -1;
 
       auto value
-          = _valueEncoderIncrements[static_cast<size_t> (message.index)];
+          = _valueEncoderIncrements[static_cast<size_t> (message.channel)];
 
       // The following is required to send the same increment
       // repeatedly. juce::Value notifies observers only when the
@@ -240,7 +262,7 @@ InputOutputAdapter::handleEncoder (InputMessageEncoder const &message)
   else if (message.event == InputMessageEncoder::Event::Press
            || message.event == InputMessageEncoder::Event::Release)
     {
-      auto value = _valueEncoderPresses[static_cast<size_t> (message.index)];
+      auto value = _valueEncoderPresses[static_cast<size_t> (message.channel)];
       value = message.event == InputMessageEncoder::Event::Press ? 1 : 0;
     }
 }
@@ -251,6 +273,21 @@ InputOutputAdapter::handlePot (InputMessagePot const &message)
   _valuePots[static_cast<size_t> (message.channel)]
             [static_cast<size_t> (message.pot)]
       = message.value;
+}
+
+void
+InputOutputAdapter::handleTap (InputMessageTap const &message)
+{
+  auto &value = _valueTapTimeMicros;
+  if (value.getValue ().isInt64 ()
+      && static_cast<juce::int64> (value.getValue ()) == message.timeMicros)
+    {
+      value.getValueSource ().sendChangeMessage (true);
+    }
+  else
+    {
+      value = message.timeMicros;
+    }
 }
 
 void

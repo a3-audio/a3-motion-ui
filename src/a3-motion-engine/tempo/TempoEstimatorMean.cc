@@ -32,15 +32,15 @@ TempoEstimatorMean::TempoEstimatorMean () {}
 void
 TempoEstimatorMean::estimateTempo ()
 {
-  jassert (_queueDeltaTs.size () > 0);
+  auto deltaTs = getTapTimeDeltas ();
+  jassert (deltaTs.size () > 0);
 
   ClockT::duration sumDeltaT{ 0 };
-  for (auto &deltaT : _queueDeltaTs)
+  for (auto &deltaT : deltaTs)
     {
       sumDeltaT += deltaT;
     }
-  auto tempoDeltaT = sumDeltaT / _queueDeltaTs.size ();
-
+  auto tempoDeltaT = sumDeltaT / deltaTs.size ();
   setTempoDeltaT (tempoDeltaT);
 }
 

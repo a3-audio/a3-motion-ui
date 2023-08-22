@@ -48,6 +48,7 @@ public:
   juce::Value &getEncoderPress (int channel);
   juce::Value &getEncoderIncrement (int channel);
   juce::Value &getPot (int channel, int pot);
+  juce::Value &getTapTimeMicros ();
 
   void handleMessage (juce::Message const &) override;
   void valueChanged (juce::Value &) override;
@@ -68,6 +69,7 @@ protected:
       Button,
       Encoder,
       Pot,
+      Tap,
     };
 
     Type type;
@@ -136,7 +138,7 @@ protected:
       Decrement,
     } event;
 
-    int index;
+    int channel;
   };
 
   struct InputMessagePot : public InputMessage
@@ -151,6 +153,16 @@ protected:
     float value;
   };
 
+  struct InputMessageTap : public InputMessage
+  {
+    InputMessageTap ()
+    {
+      type = Type::Tap;
+    }
+
+    juce::int64 timeMicros;
+  };
+
   // called by the derived classes to read the specific hardware
   // interface and call the input* methods accordingly.
   virtual void processInput () = 0;
@@ -159,8 +171,9 @@ protected:
   // InputOutputAdapter thread (this).
   void inputPadValue (InputMessagePad::PadIndex const &padIndex, bool value);
   void inputButtonValue (InputMessageButton::Id id, bool value);
-  void inputEncoderEvent (int index, InputMessageEncoder::Event event);
+  void inputEncoderEvent (int channel, InputMessageEncoder::Event event);
   void inputPotValue (int channel, int pot, float value);
+  void inputTapTime (juce::int64 timeMicros);
 
   virtual void outputButtonLED (Button button, bool value) = 0;
 
@@ -169,6 +182,7 @@ private:
   void handleButton (InputMessageButton const &message);
   void handleEncoder (InputMessageEncoder const &message);
   void handlePot (InputMessagePot const &message);
+  void handleTap (InputMessageTap const &message);
 
   std::map<InputMessagePad::PadIndex, bool> _lastPadValues;
   std::array<std::array<juce::Value, numPadsPerChannel>, numChannels>
@@ -184,6 +198,8 @@ private:
 
   std::array<std::array<juce::Value, numPotsPerChannel>, numChannels>
       _valuePots;
+
+  juce::Value _valueTapTimeMicros;
 };
 
 }

@@ -20,11 +20,14 @@
 
 #include "MotionController.hh"
 
-#include <a3-motion-engine/tempo/TempoEstimatorMean.hh>
+#include <chrono>
+#include <fstream>
 
 #include <a3-motion-ui/Config.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
+
+#include <a3-motion-ui/tests/TempoEstimatorTest.hh>
 
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 #ifdef HARDWARE_INTERFACE_V2
@@ -37,34 +40,22 @@ namespace a3
 MotionController::MotionController (unsigned int const numChannels)
     : _engine (numChannels)
 {
-  _tempoEstimator = std::make_unique<TempoEstimatorMean> ();
-
   setLookAndFeel (&_lookAndFeel);
 
   createChannelsUI ();
+  createHardwareInterface ();
 
   _motionComponent = std::make_unique<MotionComponent> (_engine.getChannels (),
                                                         _viewStates);
   addChildComponent (*_motionComponent);
   _motionComponent->setVisible (true);
 
-#ifdef HARDWARE_INTERFACE_V2
-  _ioAdapter = std::make_unique<InputOutputAdapterV2> ();
-#else
-  _ioAdapter = nullptr;
-#endif
-#if HARDWARE_INTERFACE_ENABLED
-  _ioAdapter->startThread ();
-  _ioAdapter->getButton (InputOutputAdapter::Button::Shift).addListener (this);
-  _ioAdapter->getButton (InputOutputAdapter::Button::Record)
-      .addListener (this);
-  _ioAdapter->getButton (InputOutputAdapter::Button::Tap).addListener (this);
-  _ioAdapter->getPad (0, 0).addListener (this);
-  _ioAdapter->getEncoderIncrement (0).addListener (this);
-  _ioAdapter->getEncoderPress (0).addListener (this);
-  _ioAdapter->getPot (0, 0).addListener (this);
-  _ioAdapter->getPot (0, 1).addListener (this);
-#endif
+  auto constexpr testTempoEstimation = false;
+  if (testTempoEstimation)
+    {
+      _tempoEstimatorTest = std::make_unique<TempoEstimatorTest> ();
+      _ioAdapter->getTapTimeMicros ().addListener (_tempoEstimatorTest.get ());
+    }
 }
 
 MotionController::~MotionController ()
@@ -114,6 +105,29 @@ MotionController::createChannelsUI ()
       _headers.push_back (std::move (header));
       _footers.push_back (std::move (footer));
     }
+}
+
+void
+MotionController::createHardwareInterface ()
+{
+#if HARDWARE_INTERFACE_ENABLED
+#ifdef HARDWARE_INTERFACE_V2
+  _ioAdapter = std::make_unique<InputOutputAdapterV2> ();
+#else
+#error hardware interface enabled but no implementation selected!
+#endif
+  _ioAdapter->startThread ();
+  _ioAdapter->getButton (InputOutputAdapter::Button::Shift).addListener (this);
+  _ioAdapter->getButton (InputOutputAdapter::Button::Record)
+      .addListener (this);
+  _ioAdapter->getButton (InputOutputAdapter::Button::Tap).addListener (this);
+  _ioAdapter->getPad (0, 0).addListener (this);
+  _ioAdapter->getEncoderIncrement (0).addListener (this);
+  _ioAdapter->getEncoderPress (0).addListener (this);
+  _ioAdapter->getPot (0, 0).addListener (this);
+  _ioAdapter->getPot (0, 1).addListener (this);
+  _ioAdapter->getTapTimeMicros ().addListener (this);
+#endif
 }
 
 void
@@ -193,13 +207,8 @@ MotionController::valueChanged (juce::Value &value)
   else if (value.refersToSameSourceAs (
                _ioAdapter->getButton (InputOutputAdapter::Button::Tap)))
     {
-      if (value.getValue ())
-        _tempoEstimator->tap ();
-
-      // juce::Logger::writeToLog ("MotionController: TAP: " + value.toString
-      // ());
-      _ioAdapter->getButtonLED (InputOutputAdapter::Button::Tap)
-          = value.getValue ();
+      // _ioAdapter->getButtonLED (InputOutputAdapter::Button::Tap)
+      //     = value.getValue ();
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getPad (0, 0)))
     {
@@ -225,6 +234,10 @@ MotionController::valueChanged (juce::Value &value)
     {
       juce::Logger::writeToLog ("MotionController: Pot 0 1: "
                                 + value.toString ());
+    }
+  else if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
+    {
+      _engine.tap (value.getValue ());
     }
 }
 }

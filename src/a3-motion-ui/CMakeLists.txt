@@ -41,7 +41,10 @@ target_sources("a3-motion-ui" PRIVATE
     components/ChannelFooter.hh
     components/MotionComponent.cc
     components/MotionComponent.hh
+    tests/TempoEstimatorTest.cc
+    tests/TempoEstimatorTest.hh
 )
+
 set(HARDWARE_INTERFACE_ENABLED FALSE CACHE BOOL "Enable interfacing with hardware")
 if(${HARDWARE_INTERFACE_ENABLED})
     set(HARDWARE_INTERFACE_VERSION "V2" CACHE STRING "Hardware interface to use, options are: V2")

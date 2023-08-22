@@ -39,19 +39,15 @@ TempoEstimatorMeanSelective::TempoEstimatorMeanSelective (
 void
 TempoEstimatorMeanSelective::estimateTempo ()
 {
-  jassert (_queueDeltaTs.size () > 0);
-
-  auto deltaTs = std::vector<ClockT::duration> ();
-  deltaTs.reserve (_queueDeltaTs.size ());
-  std::copy (_queueDeltaTs.begin (), _queueDeltaTs.end (),
-             std::back_inserter (deltaTs));
+  auto deltaTs = getTapTimeDeltas ();
+  jassert (deltaTs.size () > 0);
 
   ClockT::duration sumDeltaT{ 0 };
   for (auto &deltaT : deltaTs)
     {
       sumDeltaT += deltaT;
     }
-  auto deltaTAverage = sumDeltaT / _queueDeltaTs.size ();
+  auto deltaTAverage = sumDeltaT / deltaTs.size ();
 
   std::sort (deltaTs.begin (), deltaTs.end (),
              [deltaTAverage] (auto &a, auto &b) {

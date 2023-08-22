@@ -18,16 +18,23 @@
 
 */
 
-#include "HeightMapFlat.hh"
+#include "TempoEstimatorLast.hh"
+
+#include <numeric>
+
+#include <JuceHeader.h>
 
 namespace a3
 {
 
-float
-HeightMapFlat::computeHeight (Pos const &pos) const
+TempoEstimatorLast::TempoEstimatorLast () {}
+
+void
+TempoEstimatorLast::estimateTempo ()
 {
-  juce::ignoreUnused (pos);
-  return 0.f;
+  auto deltaTs = getTapTimeDeltas ();
+  jassert (deltaTs.size () > 0);
+  setTempoDeltaT (deltaTs.back ());
 }
 
 }

@@ -18,16 +18,34 @@
 
 */
 
-#include "HeightMapFlat.hh"
+#pragma once
+
+#include <fstream>
+
+#include <JuceHeader.h>
 
 namespace a3
 {
 
-float
-HeightMapFlat::computeHeight (Pos const &pos) const
+class TempoEstimator;
+
+class TempoEstimatorTest : public juce::Value::Listener
 {
-  juce::ignoreUnused (pos);
-  return 0.f;
-}
+public:
+  TempoEstimatorTest ();
+  ~TempoEstimatorTest ();
+
+  void valueChanged (juce::Value &value) override;
+
+private:
+  struct EstimatorTest
+  {
+    juce::String name;
+    std::unique_ptr<a3::TempoEstimator> estimator;
+  };
+
+  std::vector<EstimatorTest> _vectorEstimatorTests;
+  std::ofstream _outTimings;
+};
 
 }

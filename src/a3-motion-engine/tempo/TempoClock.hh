@@ -100,7 +100,7 @@ public:
   TempoClock ();
   ~TempoClock ();
 
-  Config &getConfig ();
+  void setTempoBPM (float tempoBPM);
 
   /* Schedule addition of an event handler. The function returns a
    shared_ptr to the message handler, which has to be kept alive by

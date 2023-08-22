@@ -23,6 +23,8 @@
 #include <a3-motion-engine/util/Helpers.hh>
 #include <a3-motion-engine/util/Timing.hh>
 
+#include <a3-motion-engine/tempo/TempoEstimatorMean.hh>
+
 #include <a3-motion-engine/backends/SpatBackendA3.hh>
 
 namespace a3
@@ -33,6 +35,8 @@ MotionEngine::MotionEngine (unsigned int const numChannels) :
 {
   createChannels (numChannels);
   _lastSentPositions.resize (numChannels);
+
+  _tempoEstimator = std::make_unique<TempoEstimatorMean> ();
 
   _callbackHandleTick = _tempoClock.scheduleEventHandlerAddition (
       { [this] (auto) { tickCallback (); } }, TempoClock::Event::Tick,
@@ -69,6 +73,17 @@ std::vector<std::unique_ptr<Channel> > const &
 MotionEngine::getChannels () const
 {
   return _channels;
+}
+
+void
+MotionEngine::tap (juce::int64 timeMicros)
+{
+  if (_tempoEstimator->tap (timeMicros)
+      == TempoEstimator::TapResult::TempoAvailable)
+    {
+      _tempoClock.setTempoBPM (_tempoEstimator->getTempoBPM ());
+      // TODO: send OSC tempo via async command queue
+    }
 }
 
 void

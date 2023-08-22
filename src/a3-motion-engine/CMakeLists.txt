@@ -1,3 +1,5 @@
+pkg_check_modules(GSL REQUIRED gsl)
+
 add_library(juce_dependencies OBJECT)
 
 target_link_libraries(juce_dependencies
@@ -41,10 +43,14 @@ target_sources("a3-motion-engine" PRIVATE
     tempo/TempoClock.hh
     tempo/TempoEstimator.cc
     tempo/TempoEstimator.hh
+    tempo/TempoEstimatorLast.cc
+    tempo/TempoEstimatorLast.hh
     tempo/TempoEstimatorMean.cc
     tempo/TempoEstimatorMean.hh
     tempo/TempoEstimatorMeanSelective.cc
     tempo/TempoEstimatorMeanSelective.hh
+    tempo/TempoEstimatorIRLS.cc
+    tempo/TempoEstimatorIRLS.hh
     backends/SpatBackend.hh
     backends/SpatBackendIEM.cc
     backends/SpatBackendIEM.hh
@@ -63,10 +69,16 @@ target_sources("a3-motion-engine" PRIVATE
 
 target_include_directories("a3-motion-engine" PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/.."
+    ${GSL_INCLUDE_DIRS}
 )
 
 target_link_libraries("a3-motion-engine" PUBLIC
     juce_dependencies
+    ${GSL_LIBRARIES}
+)
+
+target_compile_options("a3-motion-engine" PUBLIC
+    ${GSL_CFLAGS_OTHER}
 )
 
 set(MOTION_NUM_CHANNELS 4 CACHE STRING "Number of channels")

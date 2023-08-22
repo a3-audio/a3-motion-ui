@@ -23,6 +23,8 @@
 #include <chrono>
 #include <deque>
 
+#include <JuceHeader.h>
+
 namespace a3
 {
 
@@ -37,23 +39,28 @@ public:
 
   virtual ~TempoEstimator (){};
 
-  TapResult tap ();
+  TapResult tap (juce::int64 timeMicros);
   virtual void estimateTempo () = 0;
 
   float getTempoBPM () const;
 
-protected:
+  // for testing
   using ClockT = std::chrono::high_resolution_clock;
-  static auto constexpr numTapsMin = 3;
+  ClockT::duration getTempoDeltaT () const;
+
+protected:
+  static auto constexpr numTapsMin = 2;
   static auto constexpr numTapsMax = 16;
   static auto constexpr timeBetweenTapsMax = std::chrono::seconds (2);
 
+  std::vector<ClockT::time_point> getTapTimes ();
+  std::vector<ClockT::duration> getTapTimeDeltas ();
+
   void setTempoDeltaT (ClockT::duration deltaT);
 
-  std::deque<ClockT::duration> _queueDeltaTs;
-
 private:
-  ClockT::time_point timeTapLast;
+  std::deque<ClockT::time_point> _queueTapTimes;
+  juce::int64 timeTapLastMicros;
   ClockT::duration _tempoDeltaT;
 };
 

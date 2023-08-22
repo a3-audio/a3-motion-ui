@@ -18,16 +18,18 @@
 
 */
 
-#include "HeightMapFlat.hh"
+#include <a3-motion-engine/tempo/TempoEstimator.hh>
+
+#include <chrono>
 
 namespace a3
 {
 
-float
-HeightMapFlat::computeHeight (Pos const &pos) const
+class TempoEstimatorLast : public TempoEstimator
 {
-  juce::ignoreUnused (pos);
-  return 0.f;
-}
+public:
+  TempoEstimatorLast ();
+  void estimateTempo () override;
+};
 
 }

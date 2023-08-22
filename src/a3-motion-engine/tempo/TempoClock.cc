@@ -288,10 +288,10 @@ TempoClock::TempoClock ()
 
 TempoClock::~TempoClock () {}
 
-TempoClock::Config &
-TempoClock::getConfig ()
+void
+TempoClock::setTempoBPM (float tempoBPM)
 {
-  return _config;
+  _config.beatsPerMinute = tempoBPM;
 }
 
 TempoClock::PointerT
