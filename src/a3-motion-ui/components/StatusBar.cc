@@ -18,30 +18,23 @@
 
 */
 
-#pragma once
+#include "StatusBar.hh"
 
-#include <JuceHeader.h>
-
-#include "A3MotionAudioProcessor.hh"
-
-#include <a3-motion-ui/components/A3MotionUIComponent.hh>
+#include <a3-motion-ui/components/LookAndFeel.hh>
 
 namespace a3
 {
 
-class A3MotionEditor : public juce::AudioProcessorEditor
+void
+StatusBar::resized ()
 {
-public:
-  A3MotionEditor (A3MotionAudioProcessor &);
-  ~A3MotionEditor ();
+}
 
-  void paint (juce::Graphics &g) override;
-  void resized () override;
-
-private:
-  A3MotionUIComponent _motionController;
-
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionEditor)
-};
+void
+StatusBar::paint (juce::Graphics &g)
+{
+  g.setColour (Colours::statusBar);
+  g.fillAll ();
+}
 
 }

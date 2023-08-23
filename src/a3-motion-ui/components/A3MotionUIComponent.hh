@@ -36,15 +36,17 @@ namespace a3
 class TempoEstimator;
 class TempoEstimatorTest;
 
+class StatusBar;
 class MotionComponent;
 class InputOutputAdapter;
 
-class MotionController : public juce::Component, public juce::Value::Listener
+class A3MotionUIComponent : public juce::Component,
+                            public juce::Value::Listener
 
 {
 public:
-  MotionController (unsigned int const numChannels);
-  ~MotionController ();
+  A3MotionUIComponent (unsigned int const numChannels);
+  ~A3MotionUIComponent ();
 
   void paint (juce::Graphics &g) override;
   void resized () override;
@@ -66,10 +68,11 @@ private:
   std::vector<std::unique_ptr<ChannelHeader> > _headers;
   std::vector<std::unique_ptr<ChannelFooter> > _footers;
   std::unique_ptr<MotionComponent> _motionComponent;
+  std::unique_ptr<StatusBar> _statusBar;
 
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MotionController)
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };
 
 }

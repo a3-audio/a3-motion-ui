@@ -18,7 +18,7 @@
 
 */
 
-#include "MotionController.hh"
+#include "A3MotionUIComponent.hh"
 
 #include <chrono>
 #include <fstream>
@@ -26,6 +26,7 @@
 #include <a3-motion-ui/Config.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
+#include <a3-motion-ui/components/StatusBar.hh>
 
 #include <a3-motion-ui/tests/TempoEstimatorTest.hh>
 
@@ -37,13 +38,17 @@
 namespace a3
 {
 
-MotionController::MotionController (unsigned int const numChannels)
+A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     : _engine (numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
   createChannelsUI ();
   createHardwareInterface ();
+
+  _statusBar = std::make_unique<StatusBar> ();
+  addChildComponent (*_statusBar);
+  _statusBar->setVisible (true);
 
   _motionComponent = std::make_unique<MotionComponent> (_engine.getChannels (),
                                                         _viewStates);
@@ -58,7 +63,7 @@ MotionController::MotionController (unsigned int const numChannels)
     }
 }
 
-MotionController::~MotionController ()
+A3MotionUIComponent::~A3MotionUIComponent ()
 {
 #if HARDWARE_INTERFACE_ENABLED
   _ioAdapter->stopThread (-1);
@@ -68,7 +73,7 @@ MotionController::~MotionController ()
 }
 
 void
-MotionController::createChannelsUI ()
+A3MotionUIComponent::createChannelsUI ()
 {
   auto const numChannels = _engine.getChannels ().size ();
 
@@ -108,7 +113,7 @@ MotionController::createChannelsUI ()
 }
 
 void
-MotionController::createHardwareInterface ()
+A3MotionUIComponent::createHardwareInterface ()
 {
 #if HARDWARE_INTERFACE_ENABLED
 #ifdef HARDWARE_INTERFACE_V2
@@ -131,13 +136,13 @@ MotionController::createHardwareInterface ()
 }
 
 void
-MotionController::paint (juce::Graphics &g)
+A3MotionUIComponent::paint (juce::Graphics &g)
 {
   juce::ignoreUnused (g);
 }
 
 void
-MotionController::resized ()
+A3MotionUIComponent::resized ()
 {
   jassert (_headers.size () == _footers.size ());
 
@@ -145,11 +150,19 @@ MotionController::resized ()
 
   auto bounds = getLocalBounds ();
 
-  // Motion Component
-  auto boundsMotion
-      = bounds.withTrimmedTop (LayoutHints::Channels::heightHeader ())
-            .withTrimmedBottom (LayoutHints::Channels::heightFooter);
-  _motionComponent->setBounds (boundsMotion);
+  auto boundsHeaders
+      = bounds.removeFromTop (LayoutHints::Channels::heightHeader ());
+  auto boundsFooters
+      = bounds.removeFromBottom (LayoutHints::Channels::heightFooter);
+
+  auto constexpr statusBarOnTop = false;
+  auto constexpr statusBarHeight = 25;
+  auto boundsStatus = statusBarOnTop
+                          ? bounds.removeFromTop (statusBarHeight)
+                          : bounds.removeFromBottom (statusBarHeight);
+  _statusBar->setBounds (boundsStatus);
+
+  _motionComponent->setBounds (bounds);
 
   // Channel headers/footers
   auto widthChannel = bounds.getWidth () / float (_headers.size ());
@@ -160,25 +173,22 @@ MotionController::resized ()
           = juce::roundToInt ((channelIndex + 1) * widthChannel);
       auto widthInt = offsetIntNext - offsetInt; // account for
                                                  // rounding discrepancies
-
       _headers[channelIndex]->setBounds (
-          offsetInt, 0, widthInt, LayoutHints::Channels::heightHeader ());
+          boundsHeaders.removeFromLeft (widthInt));
       _footers[channelIndex]->setBounds (
-          offsetInt,
-          LayoutHints::Channels::heightHeader () + boundsMotion.getHeight (),
-          widthInt, LayoutHints::Channels::heightFooter);
+          boundsFooters.removeFromLeft (widthInt));
     }
 }
 
 float
-MotionController::getMinimumWidth () const
+A3MotionUIComponent::getMinimumWidth () const
 {
   jassert (_headers.size () == _footers.size ());
   return _headers.size () * LayoutHints::Channels::widthMin;
 }
 
 float
-MotionController::getMinimumHeight () const
+A3MotionUIComponent::getMinimumHeight () const
 {
   return LayoutHints::Channels::heightHeader ()
          + LayoutHints::Channels::heightFooter
@@ -186,7 +196,7 @@ MotionController::getMinimumHeight () const
 }
 
 void
-MotionController::valueChanged (juce::Value &value)
+A3MotionUIComponent::valueChanged (juce::Value &value)
 {
   if (value.refersToSameSourceAs (
           _ioAdapter->getButton (InputOutputAdapter::Button::Shift)))
@@ -240,4 +250,5 @@ MotionController::valueChanged (juce::Value &value)
       _engine.tap (value.getValue ());
     }
 }
+
 }

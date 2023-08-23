@@ -27,14 +27,16 @@ target_sources("a3-motion-ui" PRIVATE
     StandaloneApp.hh
     MainWindow.cc
     MainWindow.hh
-    MotionController.cc
-    MotionController.hh
     io/InputOutputAdapter.cc
     io/InputOutputAdapter.hh
+    components/A3MotionUIComponent.cc
+    components/A3MotionUIComponent.hh
     components/LookAndFeel.cc
     components/LookAndFeel.hh
     components/LayoutHints.cc
     components/LayoutHints.hh
+    components/StatusBar.cc
+    components/StatusBar.hh
     components/ChannelHeader.cc
     components/ChannelHeader.hh
     components/ChannelFooter.cc
