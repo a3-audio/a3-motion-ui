@@ -22,8 +22,6 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-ui/MotionController.hh>
-
 namespace a3
 {
 
