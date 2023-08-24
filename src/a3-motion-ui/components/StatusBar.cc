@@ -20,7 +20,10 @@
 
 #include "StatusBar.hh"
 
+#include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
+
+#include <sstream>
 
 namespace a3
 {
@@ -35,6 +38,18 @@ StatusBar::paint (juce::Graphics &g)
 {
   g.setColour (Colours::statusBar);
   g.fillAll ();
+
+  g.setColour (juce::Colours::white);
+  g.setFont (20.f);
+
+  auto const bpm = 120.f;
+  auto boundsTextBPM
+      = getLocalBounds ().withTrimmedLeft (LayoutHints::padding);
+  auto stringStream = std::stringstream ();
+  stringStream.precision (2);
+  stringStream << "BPM " << std::fixed << bpm;
+  g.drawText (stringStream.str (), boundsTextBPM,
+              juce::Justification::centredLeft);
 }
 
 }

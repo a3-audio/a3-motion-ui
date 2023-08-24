@@ -72,6 +72,8 @@ private:
 
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
+  bool const _drawHeaders = false;
+
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };
 

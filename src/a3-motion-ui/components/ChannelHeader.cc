@@ -33,8 +33,8 @@ ChannelHeader::ChannelHeader (Channel const &channel,
                                               juce::Slider::NoTextBox },
                                             { juce::Slider::RotaryVerticalDrag,
                                               juce::Slider::NoTextBox } } },
-      _labelsFX{ { { juce::String (), juce::String ("FX1") },
-                   { juce::String (), juce::String ("FX2") } } }
+      _labelsFX{ { { juce::String (), juce::String ("Width") },
+                   { juce::String (), juce::String ("Reverb") } } }
 {
   for (auto &slider : _slidersFX)
     {
@@ -86,4 +86,5 @@ ChannelHeader::resized ()
       bounds = bounds.translated (0, LayoutHints::lineHeight);
     }
 }
+
 }

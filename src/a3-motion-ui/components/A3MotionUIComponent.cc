@@ -78,7 +78,8 @@ A3MotionUIComponent::createChannelsUI ()
   auto const numChannels = _engine.getChannels ().size ();
 
   _viewStates.reserve (numChannels);
-  _headers.reserve (numChannels);
+  if (_drawHeaders)
+    _headers.reserve (numChannels);
   _footers.reserve (numChannels);
 
   auto hueStart = 0.f;
@@ -97,18 +98,20 @@ A3MotionUIComponent::createChannelsUI ()
       viewState->colour = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
       hueNorm += 1.f / numChannels;
 
-      auto header = std::make_unique<ChannelHeader> (*channel, *viewState);
+      if (_drawHeaders)
+        {
+          auto header = std::make_unique<ChannelHeader> (*channel, *viewState);
+          addChildComponent (*header);
+          header->setVisible (true);
+          _headers.push_back (std::move (header));
+        }
+
       auto footer = std::make_unique<ChannelFooter> (*channel, *viewState);
-
-      addChildComponent (*header);
       addChildComponent (*footer);
-
-      header->setVisible (true);
       footer->setVisible (true);
+      _footers.push_back (std::move (footer));
 
       _viewStates.push_back (std::move (viewState));
-      _headers.push_back (std::move (header));
-      _footers.push_back (std::move (footer));
     }
 }
 
@@ -144,18 +147,23 @@ A3MotionUIComponent::paint (juce::Graphics &g)
 void
 A3MotionUIComponent::resized ()
 {
-  jassert (_headers.size () == _footers.size ());
+  if (_drawHeaders)
+    jassert (_headers.size () == _footers.size ());
 
   juce::Component::resized ();
 
   auto bounds = getLocalBounds ();
 
-  auto boundsHeaders
-      = bounds.removeFromTop (LayoutHints::Channels::heightHeader ());
+  auto boundsHeaders = juce::Rectangle<int> ();
+  if (_drawHeaders)
+    {
+      boundsHeaders
+          = bounds.removeFromTop (LayoutHints::Channels::heightHeader ());
+    }
   auto boundsFooters
       = bounds.removeFromBottom (LayoutHints::Channels::heightFooter);
 
-  auto constexpr statusBarOnTop = false;
+  auto constexpr statusBarOnTop = true;
   auto constexpr statusBarHeight = 25;
   auto boundsStatus = statusBarOnTop
                           ? bounds.removeFromTop (statusBarHeight)
@@ -165,16 +173,20 @@ A3MotionUIComponent::resized ()
   _motionComponent->setBounds (bounds);
 
   // Channel headers/footers
-  auto widthChannel = bounds.getWidth () / float (_headers.size ());
-  for (auto channelIndex = 0u; channelIndex < _headers.size (); ++channelIndex)
+  auto widthChannel = bounds.getWidth () / float (_footers.size ());
+  for (auto channelIndex = 0u; channelIndex < _footers.size (); ++channelIndex)
     {
       auto offsetInt = juce::roundToInt (channelIndex * widthChannel);
       auto offsetIntNext
           = juce::roundToInt ((channelIndex + 1) * widthChannel);
       auto widthInt = offsetIntNext - offsetInt; // account for
                                                  // rounding discrepancies
-      _headers[channelIndex]->setBounds (
-          boundsHeaders.removeFromLeft (widthInt));
+
+      if (_drawHeaders)
+        {
+          _headers[channelIndex]->setBounds (
+              boundsHeaders.removeFromLeft (widthInt));
+        }
       _footers[channelIndex]->setBounds (
           boundsFooters.removeFromLeft (widthInt));
     }
@@ -183,16 +195,19 @@ A3MotionUIComponent::resized ()
 float
 A3MotionUIComponent::getMinimumWidth () const
 {
-  jassert (_headers.size () == _footers.size ());
-  return _headers.size () * LayoutHints::Channels::widthMin;
+  return _footers.size () * LayoutHints::Channels::widthMin;
 }
 
 float
 A3MotionUIComponent::getMinimumHeight () const
 {
-  return LayoutHints::Channels::heightHeader ()
-         + LayoutHints::Channels::heightFooter
-         + LayoutHints::MotionComponent::heightMin;
+  auto minimumHeight = LayoutHints::Channels::heightFooter
+                       + LayoutHints::MotionComponent::heightMin;
+  if (_drawHeaders)
+    {
+      minimumHeight += LayoutHints::Channels::heightHeader ();
+    }
+  return minimumHeight;
 }
 
 void
