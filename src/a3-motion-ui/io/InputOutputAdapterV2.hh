@@ -38,7 +38,7 @@ public:
 
 private:
   void serialInit ();
-  void serialParseLine (juce::String);
+  void serialParseLine (juce::String line);
 
   LibSerial::SerialPort _serialPort;
   static int constexpr serialBufferSize = 64;

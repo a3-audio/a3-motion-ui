@@ -43,6 +43,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/ChannelFooter.hh
     components/MotionComponent.cc
     components/MotionComponent.hh
+    components/Ticks.cc
+    components/Ticks.hh
     tests/TempoEstimatorTest.cc
     tests/TempoEstimatorTest.hh
 )

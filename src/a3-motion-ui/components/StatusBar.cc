@@ -25,12 +25,34 @@
 
 #include <sstream>
 
+namespace
+{
+auto constexpr beatsPerBar = 4; // TODO read from tempoclock
+}
+
 namespace a3
 {
+
+StatusBar::StatusBar (juce::Value &tempoBPM)
+    : _ticks (beatsPerBar), _tempoBPM (tempoBPM)
+{
+  addChildComponent (_ticks);
+  _ticks.setVisible (true);
+}
 
 void
 StatusBar::resized ()
 {
+  auto bounds = getLocalBounds ();
+
+  bounds.removeFromTop (LayoutHints::padding);
+  bounds.removeFromLeft (LayoutHints::padding);
+  bounds.removeFromBottom (LayoutHints::padding);
+
+  auto boundsTicks = bounds.removeFromLeft (beatsPerBar * bounds.getHeight ());
+  _ticks.setBounds (boundsTicks);
+
+  _boundsTextArea = bounds.withTrimmedLeft (LayoutHints::padding);
 }
 
 void
@@ -40,15 +62,15 @@ StatusBar::paint (juce::Graphics &g)
   g.fillAll ();
 
   g.setColour (juce::Colours::white);
-  g.setFont (20.f);
+  g.setFont (18.f);
 
-  auto const bpm = 120.f;
-  auto boundsTextBPM
-      = getLocalBounds ().withTrimmedLeft (LayoutHints::padding);
+  jassert (_tempoBPM.getValue ().isDouble ());
+  auto const bpm = static_cast<float> (_tempoBPM.getValue ());
+
   auto stringStream = std::stringstream ();
   stringStream.precision (2);
-  stringStream << "BPM " << std::fixed << bpm;
-  g.drawText (stringStream.str (), boundsTextBPM,
+  stringStream << std::fixed << bpm << " BPM";
+  g.drawText (stringStream.str (), _boundsTextArea,
               juce::Justification::centredLeft);
 }
 

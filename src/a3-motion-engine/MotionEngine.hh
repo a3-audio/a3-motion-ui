@@ -40,7 +40,15 @@ public:
   // implementation details!
   std::vector<std::unique_ptr<Channel> > const &getChannels () const;
 
-  void tap (juce::int64 timeMicros);
+  enum class TapResult
+  {
+    TempoAvailable,
+    TempoNotAvailable
+  };
+
+  float getTempoBPM ();
+  void setTempoBPM (float tempoBPM);
+  TapResult tap (juce::int64 timeMicros);
 
 private:
   void createChannels (unsigned int const numChannels);

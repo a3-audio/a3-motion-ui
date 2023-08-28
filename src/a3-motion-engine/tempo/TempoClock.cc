@@ -122,12 +122,14 @@ private:
       }
 
     if (scope.blockSize2 > 0)
-      for (int idx = scope.startIndex1;
-           idx < scope.startIndex1 + scope.blockSize1; ++idx)
-        {
-          jassert (idx >= 0);
-          handleFifoMessage (_fifo[static_cast<std::size_t> (idx)]);
-        }
+      {
+        for (int idx = scope.startIndex2;
+             idx < scope.startIndex2 + scope.blockSize2; ++idx)
+          {
+            jassert (idx >= 0);
+            handleFifoMessage (_fifo[static_cast<std::size_t> (idx)]);
+          }
+      }
 
 #ifdef DEBUG
     auto numElements = scope.blockSize1 + scope.blockSize2;
@@ -287,6 +289,12 @@ TempoClock::TempoClock ()
 }
 
 TempoClock::~TempoClock () {}
+
+float
+TempoClock::getTempoBPM ()
+{
+  return _config.beatsPerMinute;
+}
 
 void
 TempoClock::setTempoBPM (float tempoBPM)

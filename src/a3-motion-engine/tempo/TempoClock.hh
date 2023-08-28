@@ -100,6 +100,7 @@ public:
   TempoClock ();
   ~TempoClock ();
 
+  float getTempoBPM ();
   void setTempoBPM (float tempoBPM);
 
   /* Schedule addition of an event handler. The function returns a

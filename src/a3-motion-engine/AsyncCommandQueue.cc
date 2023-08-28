@@ -25,9 +25,10 @@
 namespace a3
 {
 
-AsyncCommandQueue::AsyncCommandQueue (std::unique_ptr<SpatBackend> backend) : juce::Thread ("AsyncCommandQueue")
+AsyncCommandQueue::AsyncCommandQueue (std::unique_ptr<SpatBackend> backend)
+    : juce::Thread ("AsyncCommandQueue")
 {
-  _backend = std::move(backend);
+  _backend = std::move (backend);
 }
 
 AsyncCommandQueue::~AsyncCommandQueue () {}
@@ -81,8 +82,8 @@ AsyncCommandQueue::processFifo ()
     }
 
   if (scope.blockSize2 > 0)
-    for (int idx = scope.startIndex1;
-         idx < scope.startIndex1 + scope.blockSize1; ++idx)
+    for (int idx = scope.startIndex2;
+         idx < scope.startIndex2 + scope.blockSize2; ++idx)
       {
         jassert (idx >= 0);
         processCommand (_fifo[static_cast<std::size_t> (idx)]);

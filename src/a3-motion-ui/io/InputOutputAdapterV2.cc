@@ -39,7 +39,7 @@ InputOutputAdapterV2::serialInit ()
   using namespace LibSerial;
 
   auto constexpr serialDevice = "/dev/ttyACM0";
-  _serialPort.Open (serialDevice, std::ios::in | std::ios::out);
+  _serialPort.Open (serialDevice);
   _serialPort.SetBaudRate (BaudRate::BAUD_115200);
   _serialPort.SetCharacterSize (CharacterSize::CHAR_SIZE_8);
   _serialPort.SetFlowControl (FlowControl::FLOW_CONTROL_NONE);
@@ -52,29 +52,26 @@ InputOutputAdapterV2::serialInit ()
 void
 InputOutputAdapterV2::processInput ()
 {
-  if (_serialPort.IsDataAvailable ())
+  char c;
+  auto const bytesReady = _serialPort.GetNumberOfBytesAvailable ();
+  for (auto readCount = 0; readCount < bytesReady; ++readCount)
     {
-      char c;
-      auto const bytesReady = _serialPort.GetNumberOfBytesAvailable ();
-      for (auto readCount = 0; readCount < bytesReady; ++readCount)
+      _serialPort.ReadByte (c);
+      if (c == '\n')
         {
-          _serialPort.ReadByte (c);
-          if (c == '\n')
-            {
-              serialParseLine (
-                  juce::String (_serialBuffer.data (), _nextWriteOffset));
-              _nextWriteOffset = 0;
-              break;
-            }
-          _serialBuffer[_nextWriteOffset++] = c;
+          auto line = juce::String (_serialBuffer.data (), _nextWriteOffset);
+          serialParseLine (line);
+          _nextWriteOffset = 0;
+          continue;
         }
+      _serialBuffer[_nextWriteOffset++] = c;
     }
 }
 
 void
 InputOutputAdapterV2::serialParseLine (juce::String line)
 {
-  // juce::Logger::writeToLog (line);
+  // juce::Logger::writeToLog (juce::String ("**** parsing line: ") + line);
 
   auto const prefixButton = juce::String ("B");
   auto const prefixEncoderPress = juce::String ("EB");
@@ -102,13 +99,13 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
           switch (index)
             {
             case 16:
-              inputButtonValue (InputMessageButton::Id::Shift, value);
+              inputButtonValue (Button::Shift, value);
               break;
             case 17:
-              inputButtonValue (InputMessageButton::Id::Record, value);
+              inputButtonValue (Button::Record, value);
               break;
             case 18:
-              inputButtonValue (InputMessageButton::Id::Tap, value);
+              inputButtonValue (Button::Tap, value);
               if (value)
                 {
                   auto const timeMicros

@@ -22,24 +22,17 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-ui/components/Ticks.hh>
-
 namespace a3
 {
 
-class StatusBar : public juce::Component
+class Ticks : public juce::Component
 {
 public:
-  StatusBar (juce::Value &tempoBPM);
-
-  void resized () override;
+  Ticks (int numTicks);
   void paint (juce::Graphics &g) override;
 
 private:
-  Ticks _ticks;
-  juce::Rectangle<int> _boundsTextArea;
-
-  juce::Value &_tempoBPM;
+  int _numTicks;
+  int _currentTick;
 };
-
 }

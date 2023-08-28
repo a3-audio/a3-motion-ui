@@ -75,15 +75,29 @@ MotionEngine::getChannels () const
   return _channels;
 }
 
+float
+MotionEngine::getTempoBPM ()
+{
+  return _tempoClock.getTempoBPM ();
+}
+
 void
+MotionEngine::setTempoBPM (float tempoBPM)
+{
+  _tempoClock.setTempoBPM (tempoBPM);
+}
+
+MotionEngine::TapResult
 MotionEngine::tap (juce::int64 timeMicros)
 {
   if (_tempoEstimator->tap (timeMicros)
       == TempoEstimator::TapResult::TempoAvailable)
     {
       _tempoClock.setTempoBPM (_tempoEstimator->getTempoBPM ());
+      return TapResult::TempoAvailable;
       // TODO: send OSC tempo via async command queue
     }
+  return TapResult::TempoNotAvailable;
 }
 
 void

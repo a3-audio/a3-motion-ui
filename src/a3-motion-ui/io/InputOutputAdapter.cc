@@ -19,6 +19,7 @@
 */
 
 #include "InputOutputAdapter.hh"
+#include <memory>
 
 namespace a3
 {
@@ -27,6 +28,8 @@ InputOutputAdapter::InputOutputAdapter () : juce::Thread ("InputOutputAdapter")
 {
   for (auto &valueLED : _valueButtonLEDs)
     valueLED.addListener (this);
+
+  startTimer (1);
 }
 
 InputOutputAdapter::~InputOutputAdapter ()
@@ -92,7 +95,7 @@ InputOutputAdapter::run ()
         break;
 
       processInput ();
-      // processOutput ();
+      processOutput ();
 
       auto constexpr sleepMs = 1;
       juce::Thread::sleep (sleepMs);
@@ -108,29 +111,28 @@ InputOutputAdapter::inputPadValue (InputMessagePad::PadIndex const &padIndex,
 
   if (value != _lastPadValues[padIndex])
     {
-      auto message = new InputMessagePad ();
-
+      auto message = std::make_unique<InputMessagePad> ();
       message->event = value ? InputMessagePad::Event::Press
                              : InputMessagePad::Event::Release;
       message->padIndex = padIndex;
-      postMessage (message);
+      submitInputMessage (std::move (message));
 
       _lastPadValues[padIndex] = value;
     }
 }
 
 void
-InputOutputAdapter::inputButtonValue (InputMessageButton::Id id, bool value)
+InputOutputAdapter::inputButtonValue (Button button, bool value)
 {
-  if (value != _lastButtonValues[id])
+  if (value != _lastButtonValues[button])
     {
-      auto message = new InputMessageButton ();
-      message->id = id;
+      auto message = std::make_unique<InputMessageButton> ();
+      message->button = button;
       message->event = value ? InputMessageButton::Event::Press
                              : InputMessageButton::Event::Release;
-      postMessage (message);
+      submitInputMessage (std::move (message));
 
-      _lastButtonValues[id] = value;
+      _lastButtonValues[button] = value;
     }
 }
 
@@ -140,10 +142,10 @@ InputOutputAdapter::inputEncoderEvent (int channel,
 {
   jassert (channel >= 0 && channel < numChannels);
 
-  auto message = new InputMessageEncoder ();
+  auto message = std::make_unique<InputMessageEncoder> ();
   message->event = event;
   message->channel = channel;
-  postMessage (message);
+  submitInputMessage (std::move (message));
 }
 
 void
@@ -153,44 +155,113 @@ InputOutputAdapter::inputPotValue (int channel, int pot, float value)
   jassert (pot >= 0 && pot < numPotsPerChannel);
   jassert (value >= 0 && value <= 1.f);
 
-  auto message = new InputMessagePot ();
+  auto message = std::make_unique<InputMessagePot> ();
   message->channel = channel;
   message->pot = pot;
   message->value = value;
-  postMessage (message);
+  submitInputMessage (std::move (message));
 }
 
 void
 InputOutputAdapter::inputTapTime (juce::int64 timeMicros)
 {
-  auto message = new InputMessageTap ();
+  auto message = std::make_unique<InputMessageTap> ();
   message->timeMicros = timeMicros;
-  postMessage (message);
+  std::cout << "inputTapTime: " << timeMicros << std::endl;
+  submitInputMessage (std::move (message));
 }
 
 void
-InputOutputAdapter::handleMessage (juce::Message const &message)
+InputOutputAdapter::submitInputMessage (std::unique_ptr<InputMessage> message)
 {
-  auto inputMessage = reinterpret_cast<InputMessage const *> (&message);
-  switch (inputMessage->type)
+  jassert (_fifoAbstractInput.getFreeSpace () > 0);
+
+  const auto scope = _fifoAbstractInput.write (1);
+  jassert (scope.blockSize1 == 1);
+  jassert (scope.blockSize2 == 0);
+  jassert (scope.startIndex1 >= 0);
+
+  auto startIndex = static_cast<std::size_t> (scope.startIndex1);
+  _fifoInput[startIndex] = std::move (message);
+}
+
+void
+InputOutputAdapter::timerCallback ()
+{
+  auto const ready = _fifoAbstractInput.getNumReady ();
+  const auto scope = _fifoAbstractInput.read (ready);
+
+  jassert (scope.blockSize1 + scope.blockSize2 == ready);
+
+  if (scope.blockSize1 > 0)
+    {
+      for (int idx = scope.startIndex1;
+           idx < scope.startIndex1 + scope.blockSize1; ++idx)
+        {
+          jassert (idx >= 0);
+          handleInputMessage (
+              std::move (_fifoInput[static_cast<std::size_t> (idx)]));
+        }
+    }
+
+  if (scope.blockSize2 > 0)
+    {
+      for (int idx = scope.startIndex2;
+           idx < scope.startIndex2 + scope.blockSize2; ++idx)
+        {
+          jassert (idx >= 0);
+          handleInputMessage (
+              std::move (_fifoInput[static_cast<std::size_t> (idx)]));
+        }
+    }
+}
+
+void
+InputOutputAdapter::handleInputMessage (std::unique_ptr<InputMessage> message)
+{
+  switch (message->type)
     {
     case InputMessage::Type::Pad:
-      handlePad (*reinterpret_cast<InputMessagePad const *> (&message));
-      break;
+      {
+        auto messagePad = dynamic_cast<InputMessagePad *> (message.get ());
+        jassert (messagePad != nullptr);
+        handlePad (*messagePad);
+        break;
+      }
     case InputMessage::Type::Button:
-      handleButton (*reinterpret_cast<InputMessageButton const *> (&message));
-      break;
+      {
+        auto messageButton
+            = dynamic_cast<InputMessageButton *> (message.get ());
+        jassert (messageButton != nullptr);
+        handleButton (*messageButton);
+        break;
+      }
     case InputMessage::Type::Encoder:
-      handleEncoder (
-          *reinterpret_cast<InputMessageEncoder const *> (&message));
-      break;
+      {
+        auto messageEncoder
+            = dynamic_cast<InputMessageEncoder *> (message.get ());
+        jassert (messageEncoder != nullptr);
+        handleEncoder (*messageEncoder);
+        break;
+      }
     case InputMessage::Type::Pot:
-      handlePot (*reinterpret_cast<InputMessagePot const *> (&message));
-      break;
+      {
+        auto messagePot = dynamic_cast<InputMessagePot *> (message.get ());
+        jassert (messagePot != nullptr);
+        handlePot (*messagePot);
+        break;
+      }
     case InputMessage::Type::Tap:
-      handleTap (*reinterpret_cast<InputMessageTap const *> (&message));
-      break;
+      {
+        auto messageTap = dynamic_cast<InputMessageTap *> (message.get ());
+        jassert (messageTap != nullptr);
+        handleTap (*messageTap);
+        break;
+      }
     }
+
+  // freeing should happen automatically by leaving the scope
+  message = nullptr;
 }
 
 void
@@ -204,32 +275,11 @@ InputOutputAdapter::handlePad (InputMessagePad const &message)
 void
 InputOutputAdapter::handleButton (InputMessageButton const &message)
 {
-  switch (message.id)
-    {
-    case InputMessageButton::Id::Shift:
-      {
-        _valueButtons[static_cast<size_t> (Button::Shift)]
-            = message.event == InputMessageButton::Event::Press ? true : false;
-        break;
-      }
-    case InputMessageButton::Id::Tap:
-      {
-        _valueButtons[static_cast<size_t> (Button::Tap)]
-            = message.event == InputMessageButton::Event::Press ? true : false;
-        break;
-      }
-    case InputMessageButton::Id::Record:
-      {
-        _valueButtons[static_cast<size_t> (Button::Record)]
-            = message.event == InputMessageButton::Event::Press ? true : false;
-        break;
-      }
-    default:
-      {
-        throw std::runtime_error (
-            "InputOutputAdapter::handleButton: unknown button type");
-      }
-    }
+  jassert (juce::MessageManager::getInstance ()->isThisTheMessageThread ());
+
+  auto index = static_cast<size_t> (message.button);
+  _valueButtons[index]
+      = message.event == InputMessageButton::Event::Press ? true : false;
 }
 
 void
@@ -296,8 +346,76 @@ InputOutputAdapter::valueChanged (juce::Value &value)
   for (auto index = 0u; index < numButtonTypes; ++index)
     {
       if (value.refersToSameSourceAs (_valueButtonLEDs[index]))
-        outputButtonLED (static_cast<Button> (index), value.getValue ());
+        {
+          auto message = std::make_unique<OutputMessageButtonLED> ();
+          message->button = static_cast<Button> (index);
+          message->value = value.getValue ();
+          submitOutputMessage (std::move (message));
+        }
     }
+}
+
+void
+InputOutputAdapter::submitOutputMessage (
+    std::unique_ptr<OutputMessage> message)
+{
+  jassert (_fifoAbstractOutput.getFreeSpace () > 0);
+
+  const auto scope = _fifoAbstractOutput.write (1);
+  jassert (scope.blockSize1 == 1);
+  jassert (scope.blockSize2 == 0);
+  jassert (scope.startIndex1 >= 0);
+
+  auto startIndex = static_cast<std::size_t> (scope.startIndex1);
+  _fifoOutput[startIndex] = std::move (message);
+}
+
+void
+InputOutputAdapter::processOutput ()
+{
+  auto const ready = _fifoAbstractOutput.getNumReady ();
+  const auto scope = _fifoAbstractOutput.read (ready);
+
+  jassert (scope.blockSize1 + scope.blockSize2 == ready);
+
+  if (scope.blockSize1 > 0)
+    {
+      for (int idx = scope.startIndex1;
+           idx < scope.startIndex1 + scope.blockSize1; ++idx)
+        {
+          jassert (idx >= 0);
+          handleOutputMessage (
+              std::move (_fifoOutput[static_cast<std::size_t> (idx)]));
+        }
+    }
+
+  if (scope.blockSize2 > 0)
+    {
+      for (int idx = scope.startIndex2;
+           idx < scope.startIndex2 + scope.blockSize2; ++idx)
+        {
+          jassert (idx >= 0);
+          handleOutputMessage (
+              std::move (_fifoOutput[static_cast<std::size_t> (idx)]));
+        }
+    }
+}
+
+void
+InputOutputAdapter::handleOutputMessage (
+    std::unique_ptr<OutputMessage> message)
+{
+  switch (message->type)
+    {
+    case OutputMessage::Type::ButtonLED:
+      auto messageButtonLED
+          = dynamic_cast<OutputMessageButtonLED *> (message.get ());
+      jassert (messageButtonLED != nullptr);
+      outputButtonLED (messageButtonLED->button, messageButtonLED->value);
+      break;
+    }
+
+  message = nullptr;
 }
 
 }

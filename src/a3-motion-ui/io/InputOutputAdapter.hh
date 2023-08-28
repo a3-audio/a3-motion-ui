@@ -26,7 +26,7 @@ namespace a3
 {
 
 class InputOutputAdapter : public juce::Thread,
-                           public juce::MessageListener,
+                           public juce::Timer,
                            public juce::Value::Listener
 {
 public:
@@ -48,10 +48,9 @@ public:
   juce::Value &getPot (int channel, int pot);
   juce::Value &getTapTimeMicros ();
 
-  void handleMessage (juce::Message const &) override;
   void valueChanged (juce::Value &) override;
-
   void run () override;
+  void timerCallback () override;
 
 protected:
   static auto constexpr numChannels = 4;
@@ -59,8 +58,10 @@ protected:
   static auto constexpr numPotsPerChannel = 2;
   static auto constexpr numButtonTypes = 3;
 
-  struct InputMessage : public juce::Message
+  struct InputMessage
   {
+    virtual ~InputMessage (){};
+
     enum class Type
     {
       Pad,
@@ -86,12 +87,7 @@ protected:
       Release,
     } event;
 
-    enum class Id
-    {
-      Record,
-      Tap,
-      Shift,
-    } id;
+    Button button;
   };
 
   struct InputMessagePad : public InputMessage
@@ -161,6 +157,29 @@ protected:
     juce::int64 timeMicros;
   };
 
+  struct OutputMessage
+  {
+    virtual ~OutputMessage (){};
+
+    enum class Type
+    {
+      ButtonLED
+    };
+
+    Type type;
+  };
+
+  struct OutputMessageButtonLED : public OutputMessage
+  {
+    OutputMessageButtonLED ()
+    {
+      type = Type::ButtonLED;
+    }
+
+    Button button;
+    bool value;
+  };
+
   // called by the derived classes to read the specific hardware
   // interface and call the input* methods accordingly.
   virtual void processInput () = 0;
@@ -168,7 +187,7 @@ protected:
   // input functions are called by the derived classes in the
   // InputOutputAdapter thread (this).
   void inputPadValue (InputMessagePad::PadIndex const &padIndex, bool value);
-  void inputButtonValue (InputMessageButton::Id id, bool value);
+  void inputButtonValue (Button button, bool value);
   void inputEncoderEvent (int channel, InputMessageEncoder::Event event);
   void inputPotValue (int channel, int pot, float value);
   void inputTapTime (juce::int64 timeMicros);
@@ -176,17 +195,23 @@ protected:
   virtual void outputButtonLED (Button button, bool value) = 0;
 
 private:
+  void submitInputMessage (std::unique_ptr<InputMessage> message);
+  void handleInputMessage (std::unique_ptr<InputMessage> message);
   void handlePad (InputMessagePad const &message);
   void handleButton (InputMessageButton const &message);
   void handleEncoder (InputMessageEncoder const &message);
   void handlePot (InputMessagePot const &message);
   void handleTap (InputMessageTap const &message);
 
+  void submitOutputMessage (std::unique_ptr<OutputMessage> message);
+  void processOutput ();
+  void handleOutputMessage (std::unique_ptr<OutputMessage> message);
+
   std::map<InputMessagePad::PadIndex, bool> _lastPadValues;
   std::array<std::array<juce::Value, numPadsPerChannel>, numChannels>
       _valuePads;
 
-  std::map<InputMessageButton::Id, bool> _lastButtonValues;
+  std::map<Button, bool> _lastButtonValues;
   std::array<juce::Value, numButtonTypes> _valueButtons;
   std::array<juce::Value, numButtonTypes> _valueButtonLEDs;
 
@@ -198,6 +223,12 @@ private:
       _valuePots;
 
   juce::Value _valueTapTimeMicros;
+
+  static constexpr int fifoSize = 32;
+  juce::AbstractFifo _fifoAbstractInput{ fifoSize };
+  std::array<std::unique_ptr<InputMessage>, fifoSize> _fifoInput;
+  juce::AbstractFifo _fifoAbstractOutput{ fifoSize };
+  std::array<std::unique_ptr<OutputMessage>, fifoSize> _fifoOutput;
 };
 
 }
