@@ -43,7 +43,12 @@ InputOutputAdapterV2::InputOutputAdapterV2 () : InputOutputAdapter ()
   _serialPort.Write ("L,8,0,255,0\n");
   _serialPort.Write ("L,9,255,255,255\n");
   _serialPort.Write ("L,10,255,0,0\n");
-  // _serialPort.Write ("L,11,255,255,255\n");
+  _serialPort.Write ("L,11,0,0,0\n");
+
+  _serialPort.Write ("L,12,0,0,0\n");
+  _serialPort.Write ("L,13,0,0,0\n");
+  _serialPort.Write ("L,14,0,0,0\n");
+  _serialPort.Write ("L,15,0,0,0\n");
 
   _serialPort.FlushOutputBuffer ();
 }
