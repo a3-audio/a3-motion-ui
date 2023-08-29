@@ -274,5 +274,4 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
         }
     }
 }
-
 }

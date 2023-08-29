@@ -20,6 +20,8 @@
 
 #include "StandaloneApp.hh"
 
+#include <a3-motion-engine/UserConfig.hh>
+
 namespace a3
 {
 
@@ -34,6 +36,15 @@ StandaloneApp::initialise (juce::String const &commandLine)
 
   auto appNameVer = getApplicationName () + " " + getApplicationVersion ();
   juce::Logger::writeToLog (appNameVer);
+
+  if (juce::JSON::parse (juce::File::getCurrentWorkingDirectory ()
+                             .getChildFile ("config/config.json")
+                             .loadFileAsString (),
+                         userConfig)
+          .failed ())
+    {
+      throw std::runtime_error ("could not parse config/config.json");
+    }
 
   // splash = std::make_unique<SplashScreen> (
   //     appNameVer,

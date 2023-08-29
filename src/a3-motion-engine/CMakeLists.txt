@@ -31,12 +31,14 @@ _juce_initialise_target("a3-motion-engine")
 juce_generate_juce_header("a3-motion-engine")
 
 target_sources("a3-motion-engine" PRIVATE
+    UserConfig.cc
+    UserConfig.hh
+    MotionEngine.cc
+    MotionEngine.hh
     Channel.cc
     Channel.hh
     Master.cc
     Master.hh
-    MotionEngine.cc
-    MotionEngine.hh
     AsyncCommandQueue.cc
     AsyncCommandQueue.hh
     tempo/TempoClock.cc

@@ -20,17 +20,17 @@
 
 #include "MotionEngine.hh"
 
+#include <a3-motion-engine/UserConfig.hh>
+#include <a3-motion-engine/backends/SpatBackendA3.hh>
 #include <a3-motion-engine/util/Helpers.hh>
 #include <a3-motion-engine/util/Timing.hh>
-
-#include <a3-motion-engine/backends/SpatBackendA3.hh>
 
 namespace a3
 {
 
 MotionEngine::MotionEngine (unsigned int const numChannels)
-    : _commandQueue (
-        std::make_unique<SpatBackendA3> (backendHostname, backendPort))
+    : _commandQueue (std::make_unique<SpatBackendA3> (userConfig["hostname"],
+                                                      userConfig["port"]))
 {
   createChannels (numChannels);
   _lastSentPositions.resize (numChannels);
