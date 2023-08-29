@@ -80,6 +80,8 @@ StandaloneApp::setupFileLogger ()
 void
 StandaloneApp::shutdown ()
 {
+  userConfig = juce::var{};
+
   // explicit deletion of MainWindow to capture tear-down messages
   // with our logger
   _mainWindow = nullptr;
