@@ -234,6 +234,11 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     {
       _ioAdapter->getButtonLED (InputOutputAdapter::Button::Tap)
           = value.getValue ();
+      if (bool (_ioAdapter->getButton (InputOutputAdapter::Button::Shift)
+                    .getValue ()))
+        {
+          _engine.getTempoClock ().reset ();
+        }
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getPad (0, 0)))
     {

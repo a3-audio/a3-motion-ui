@@ -40,10 +40,10 @@ public:
 private:
   Ticks _ticks;
   juce::Rectangle<int> _boundsTextBPM;
-  juce::Rectangle<int> _boundsTextMeasure;
+  // juce::Rectangle<int> _boundsTextMeasure;
 
   TempoClock &_tempoClock;
-  TempoClock::Measure _measure;
+  // TempoClock::Measure _measure;
   TempoClock::PointerT _callbackHandle;
 };
 

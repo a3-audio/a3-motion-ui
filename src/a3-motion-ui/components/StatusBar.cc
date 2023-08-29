@@ -41,7 +41,7 @@ StatusBar::StatusBar (TempoClock &tempoClock)
 
   _callbackHandle = _tempoClock.scheduleEventHandlerAddition (
       [this] (auto measure) {
-        _measure = measure;
+        // _measure = measure;
         _ticks.setCurrentTick (measure.beat);
         repaint ();
       },
@@ -59,7 +59,7 @@ StatusBar::resized ()
 
   _boundsTextBPM = bounds.withTrimmedLeft (LayoutHints::padding)
                        .withTrimmedRight (LayoutHints::padding);
-  _boundsTextMeasure = _boundsTextBPM;
+  // _boundsTextMeasure = _boundsTextBPM;
 
   auto boundsTicks = bounds.withSizeKeepingCentre (bounds.getWidth () * 0.3f,
                                                    bounds.getHeight ());
@@ -79,14 +79,15 @@ StatusBar::paint (juce::Graphics &g)
 
   auto stringStream = std::stringstream ();
   stringStream.precision (1);
-  stringStream << std::fixed << bpm << " BPM";
+  stringStream << "BPM " << std::fixed << bpm;
   g.drawText (stringStream.str (), _boundsTextBPM,
-              juce::Justification::centredRight);
-
-  stringStream.str ("");
-  stringStream.clear ();
-  stringStream << _measure.bar + 1 << "." << _measure.beat + 1;
-  g.drawText (stringStream.str (), _boundsTextMeasure,
               juce::Justification::centredLeft);
+
+  // stringStream.str ("");
+  // stringStream.clear ();
+  // stringStream << _measure.bar + 1 << "." << _measure.beat + 1;
+  // g.drawText (stringStream.str (), _boundsTextMeasure,
+  //             juce::Justification::centredRight);
 }
+
 }
