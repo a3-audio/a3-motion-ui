@@ -103,8 +103,7 @@ InputOutputAdapter::run ()
 }
 
 void
-InputOutputAdapter::inputPadValue (InputMessagePad::PadIndex const &padIndex,
-                                   bool value)
+InputOutputAdapter::inputPadValue (PadIndex const &padIndex, bool value)
 {
   jassert (padIndex.channel >= 0 && padIndex.channel < numChannels);
   jassert (padIndex.pad >= 0 && padIndex.pad < numPadsPerChannel);
@@ -407,11 +406,21 @@ InputOutputAdapter::handleOutputMessage (
   switch (message->type)
     {
     case OutputMessage::Type::ButtonLED:
-      auto messageButtonLED
-          = dynamic_cast<OutputMessageButtonLED *> (message.get ());
-      jassert (messageButtonLED != nullptr);
-      outputButtonLED (messageButtonLED->button, messageButtonLED->value);
-      break;
+      {
+        auto messageButtonLED
+            = dynamic_cast<OutputMessageButtonLED *> (message.get ());
+        jassert (messageButtonLED != nullptr);
+        outputButtonLED (messageButtonLED->button, messageButtonLED->value);
+        break;
+      }
+    case OutputMessage::Type::PadLED:
+      {
+        auto messagePadLED
+            = dynamic_cast<OutputMessagePadLED *> (message.get ());
+        jassert (messagePadLED != nullptr);
+        outputPadLED (messagePadLED->padIndex, messagePadLED->colour);
+        break;
+      }
     }
 
   message = nullptr;

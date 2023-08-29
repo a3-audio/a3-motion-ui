@@ -43,6 +43,7 @@ public:
   juce::Value &getButton (Button button);
   juce::Value &getButtonLED (Button button);
   juce::Value &getPad (int channel, int pad);
+  juce::Value &getPadLED (int channel, int pad);
   juce::Value &getEncoderPress (int channel);
   juce::Value &getEncoderIncrement (int channel);
   juce::Value &getPot (int channel, int pot);
@@ -57,6 +58,18 @@ protected:
   static auto constexpr numPadsPerChannel = 4;
   static auto constexpr numPotsPerChannel = 2;
   static auto constexpr numButtonTypes = 3;
+
+  struct PadIndex
+  {
+    int channel;
+    int pad;
+
+    friend bool
+    operator< (const PadIndex &lhs, const PadIndex &rhs)
+    {
+      return std::tie (lhs.channel, lhs.pad) < std::tie (rhs.channel, rhs.pad);
+    }
+  };
 
   struct InputMessage
   {
@@ -103,18 +116,7 @@ protected:
       Release,
     } event;
 
-    struct PadIndex
-    {
-      int channel;
-      int pad;
-
-      friend bool
-      operator< (const PadIndex &lhs, const PadIndex &rhs)
-      {
-        return std::tie (lhs.channel, lhs.pad)
-               < std::tie (rhs.channel, rhs.pad);
-      }
-    } padIndex;
+    PadIndex padIndex;
   };
 
   struct InputMessageEncoder : public InputMessage
@@ -163,7 +165,8 @@ protected:
 
     enum class Type
     {
-      ButtonLED
+      ButtonLED,
+      PadLED
     };
 
     Type type;
@@ -180,19 +183,31 @@ protected:
     bool value;
   };
 
+  struct OutputMessagePadLED : public OutputMessage
+  {
+    OutputMessagePadLED ()
+    {
+      type = Type::PadLED;
+    }
+
+    PadIndex padIndex;
+    juce::Colour colour;
+  };
+
   // called by the derived classes to read the specific hardware
   // interface and call the input* methods accordingly.
   virtual void processInput () = 0;
 
   // input functions are called by the derived classes in the
   // InputOutputAdapter thread (this).
-  void inputPadValue (InputMessagePad::PadIndex const &padIndex, bool value);
+  void inputPadValue (PadIndex const &padIndex, bool value);
   void inputButtonValue (Button button, bool value);
   void inputEncoderEvent (int channel, InputMessageEncoder::Event event);
   void inputPotValue (int channel, int pot, float value);
   void inputTapTime (juce::int64 timeMicros);
 
   virtual void outputButtonLED (Button button, bool value) = 0;
+  virtual void outputPadLED (PadIndex, juce::Colour colour) = 0;
 
 private:
   void submitInputMessage (std::unique_ptr<InputMessage> message);
@@ -207,7 +222,7 @@ private:
   void processOutput ();
   void handleOutputMessage (std::unique_ptr<OutputMessage> message);
 
-  std::map<InputMessagePad::PadIndex, bool> _lastPadValues;
+  std::map<PadIndex, bool> _lastPadValues;
   std::array<std::array<juce::Value, numPadsPerChannel>, numChannels>
       _valuePads;
 

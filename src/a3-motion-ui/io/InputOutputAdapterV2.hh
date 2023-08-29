@@ -35,6 +35,7 @@ public:
 
   void processInput () override;
   void outputButtonLED (Button button, bool value) override;
+  void outputPadLED (PadIndex padIndex, juce::Colour colour) override;
 
 private:
   void serialInit ();
