@@ -39,14 +39,14 @@ namespace a3
 {
 
 A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
-    : _engine (numChannels), _tempoBPM (_engine.getTempoBPM ())
+    : _engine (numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
   createChannelsUI ();
   createHardwareInterface ();
 
-  _statusBar = std::make_unique<StatusBar> (_tempoBPM);
+  _statusBar = std::make_unique<StatusBar> (_engine.getTempoClock ());
   addChildComponent (*_statusBar);
   _statusBar->setVisible (true);
 
@@ -262,10 +262,9 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
     {
-      if (_engine.tap (value.getValue ())
-          == MotionEngine::TapResult::TempoAvailable)
+      if (_engine.getTempoClock ().tap (value.getValue ())
+          == TempoClock::TapResult::TempoAvailable)
         {
-          _tempoBPM = _engine.getTempoBPM ();
           _statusBar->repaint ();
         }
     }

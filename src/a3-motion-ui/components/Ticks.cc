@@ -31,6 +31,13 @@ Ticks::Ticks (int numTicks) : _numTicks (numTicks), _currentTick (0)
 }
 
 void
+Ticks::setCurrentTick (int tick)
+{
+  jassert (tick >= 0 && tick < _numTicks);
+  _currentTick = tick;
+}
+
+void
 Ticks::paint (juce::Graphics &g)
 {
   g.setColour (juce::Colours::lightgrey);

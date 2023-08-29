@@ -25,6 +25,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/Config.hh>
+#include <a3-motion-engine/tempo/TempoEstimatorMean.hh>
 
 // TODO define this in anonymous namespace or move to internal
 // implementation file?
@@ -286,21 +287,10 @@ namespace a3
 TempoClock::TempoClock ()
 {
   _timer = std::make_unique<ClockTimer> (_config);
+  _tempoEstimator = std::make_unique<TempoEstimatorMean> ();
 }
 
 TempoClock::~TempoClock () {}
-
-float
-TempoClock::getTempoBPM ()
-{
-  return _config.beatsPerMinute;
-}
-
-void
-TempoClock::setTempoBPM (float tempoBPM)
-{
-  _config.beatsPerMinute = tempoBPM;
-}
 
 TempoClock::PointerT
 TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> &&handler,
@@ -322,6 +312,31 @@ TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> &&handler,
 
   // return shared_ptr to the user as handle for unregistration/deletion
   return ptr;
+}
+
+float
+TempoClock::getTempoBPM () const
+{
+  return _config.beatsPerMinute;
+}
+
+void
+TempoClock::setTempoBPM (float tempoBPM)
+{
+  _config.beatsPerMinute = tempoBPM;
+}
+
+TempoClock::TapResult
+TempoClock::tap (juce::int64 timeMicros)
+{
+  if (_tempoEstimator->tap (timeMicros)
+      == TempoEstimator::TapResult::TempoAvailable)
+    {
+      setTempoBPM (_tempoEstimator->getTempoBPM ());
+      return TapResult::TempoAvailable;
+      // TODO: send OSC tempo via async command queue
+    }
+  return TapResult::TempoNotAvailable;
 }
 
 void
@@ -362,6 +377,12 @@ TempoClock::stop ()
       juce::Logger::writeToLog ("TempoClock: stopped");
 #endif
     }
+}
+
+void
+TempoClock::reset ()
+{
+  _timer->reset = true;
 }
 
 }

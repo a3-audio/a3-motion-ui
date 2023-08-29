@@ -29,6 +29,7 @@ class Ticks : public juce::Component
 {
 public:
   Ticks (int numTicks);
+  void setCurrentTick (int tick);
   void paint (juce::Graphics &g) override;
 
 private:

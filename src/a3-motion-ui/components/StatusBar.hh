@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/tempo/TempoClock.hh>
+
 #include <a3-motion-ui/components/Ticks.hh>
 
 namespace a3
@@ -30,16 +32,19 @@ namespace a3
 class StatusBar : public juce::Component
 {
 public:
-  StatusBar (juce::Value &tempoBPM);
+  StatusBar (TempoClock &tempoClock);
 
   void resized () override;
   void paint (juce::Graphics &g) override;
 
 private:
   Ticks _ticks;
-  juce::Rectangle<int> _boundsTextArea;
+  juce::Rectangle<int> _boundsTextBPM;
+  juce::Rectangle<int> _boundsTextMeasure;
 
-  juce::Value &_tempoBPM;
+  TempoClock &_tempoClock;
+  TempoClock::Measure _measure;
+  TempoClock::PointerT _callbackHandle;
 };
 
 }

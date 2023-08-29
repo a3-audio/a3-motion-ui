@@ -167,7 +167,6 @@ InputOutputAdapter::inputTapTime (juce::int64 timeMicros)
 {
   auto message = std::make_unique<InputMessageTap> ();
   message->timeMicros = timeMicros;
-  std::cout << "inputTapTime: " << timeMicros << std::endl;
   submitInputMessage (std::move (message));
 }
 

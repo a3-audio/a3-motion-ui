@@ -26,12 +26,16 @@
 #include <memory>
 #include <mutex>
 
+#include <JuceHeader.h>
+
 #include <a3-motion-engine/Config.hh>
 
 class ClockTimer;
 
 namespace a3
 {
+
+class TempoEstimator;
 
 /*
  * TempoClock drives the motion engine for playback/recording and OSC
@@ -42,7 +46,7 @@ namespace a3
  * performance is sufficient. Otherwise we might choose to implement
  * the timer ourselves with a realtime thread and a higher resolution.
  *
- * TODO: with the current implementation, a callback's std::function
+ * NOTE: with the current implementation, a callback's std::function
  * object could be deallocated on the realtime thread. This happens
  * when the user thread's shared_ptr lifetime ends while the weak_ptr
  * is currently locked. If this should turn out to noticeably mess
@@ -55,22 +59,22 @@ class TempoClock
 public:
   struct Config
   {
-    int
+    int64_t
     nsPerTick () const
     {
-      return int64_t (60) * 1000000000 / ticksPerBeat / beatsPerMinute;
+      return int64_t (60) * 1000000000 / double (beatsPerMinute)
+             / ticksPerBeat;
     }
 
     std::atomic<float> beatsPerMinute{ 90.f };
     std::atomic<int> beatsPerBar{ 4 };
+    static_assert (std::atomic<float>::is_always_lock_free);
+    static_assert (std::atomic<int>::is_always_lock_free);
 
     // ticksPerBeat equal PPQN (pulses per quarter note). MIDI uses 24,
     // modern sequencers up to 960 (Wikipedia) to capture timing
     // nuances.
     static constexpr int ticksPerBeat = 128;
-
-    static_assert (std::atomic<float>::is_always_lock_free);
-    static_assert (std::atomic<int>::is_always_lock_free);
   };
 
   struct Measure
@@ -94,13 +98,21 @@ public:
     Tick
   };
 
+  enum class TapResult
+  {
+    TempoAvailable,
+    TempoNotAvailable
+  };
+
   using CallbackT = void (a3::TempoClock::Measure);
   using PointerT = std::shared_ptr<std::function<CallbackT> >;
 
   TempoClock ();
   ~TempoClock ();
 
-  float getTempoBPM ();
+  TapResult tap (juce::int64 timeMicros);
+
+  float getTempoBPM () const;
   void setTempoBPM (float tempoBPM);
 
   /* Schedule addition of an event handler. The function returns a
@@ -116,6 +128,7 @@ public:
   void start ();
   // void pause (); // needs more thought
   void stop ();
+  void reset ();
 
 private:
   static constexpr int timerIntervalMs = 1;
@@ -128,6 +141,8 @@ private:
   // thread. To extend this to multiple callers we lock on the
   // producer side.
   std::mutex _mutexWriteFifo;
+
+  std::unique_ptr<TempoEstimator> _tempoEstimator;
 };
 
 }

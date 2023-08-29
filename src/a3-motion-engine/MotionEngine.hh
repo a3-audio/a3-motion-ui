@@ -28,8 +28,6 @@
 namespace a3
 {
 
-class TempoEstimator;
-
 class MotionEngine
 {
 public:
@@ -40,15 +38,7 @@ public:
   // implementation details!
   std::vector<std::unique_ptr<Channel> > const &getChannels () const;
 
-  enum class TapResult
-  {
-    TempoAvailable,
-    TempoNotAvailable
-  };
-
-  float getTempoBPM ();
-  void setTempoBPM (float tempoBPM);
-  TapResult tap (juce::int64 timeMicros);
+  TempoClock &getTempoClock ();
 
 private:
   void createChannels (unsigned int const numChannels);
@@ -67,7 +57,6 @@ private:
   // thread.
   TempoClock _tempoClock;
   TempoClock::PointerT _callbackHandleTick;
-  std::unique_ptr<TempoEstimator> _tempoEstimator;
 
   // The command dispatcher runs on its own high-priority thread and
   // receives motion / effect commands from the high-prio TempoClock

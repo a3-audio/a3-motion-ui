@@ -74,8 +74,6 @@ private:
 
   bool const _drawHeaders = false;
 
-  juce::Value _tempoBPM;
-
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };
 

@@ -157,6 +157,8 @@ InputOutputAdapterV2::outputButtonLED (Button button, bool value)
   line += ",";
   line += juce::String (static_cast<int> (value));
   line += "\n";
+
+  // juce::Logger::writeToLog ("++++ sending: " + line);
   _serialPort.Write (line.toStdString ());
 }
 

@@ -33,11 +33,19 @@ auto constexpr beatsPerBar = 4; // TODO read from tempoclock
 namespace a3
 {
 
-StatusBar::StatusBar (juce::Value &tempoBPM)
-    : _ticks (beatsPerBar), _tempoBPM (tempoBPM)
+StatusBar::StatusBar (TempoClock &tempoClock)
+    : _ticks (beatsPerBar), _tempoClock (tempoClock)
 {
   addChildComponent (_ticks);
   _ticks.setVisible (true);
+
+  _callbackHandle = _tempoClock.scheduleEventHandlerAddition (
+      [this] (auto measure) {
+        _measure = measure;
+        _ticks.setCurrentTick (measure.beat);
+        repaint ();
+      },
+      TempoClock::Event::Beat, TempoClock::Execution::JuceMessageThread);
 }
 
 void
@@ -49,10 +57,13 @@ StatusBar::resized ()
   bounds.removeFromLeft (LayoutHints::padding);
   bounds.removeFromBottom (LayoutHints::padding);
 
-  auto boundsTicks = bounds.removeFromLeft (beatsPerBar * bounds.getHeight ());
-  _ticks.setBounds (boundsTicks);
+  _boundsTextBPM = bounds.withTrimmedLeft (LayoutHints::padding)
+                       .withTrimmedRight (LayoutHints::padding);
+  _boundsTextMeasure = _boundsTextBPM;
 
-  _boundsTextArea = bounds.withTrimmedLeft (LayoutHints::padding);
+  auto boundsTicks = bounds.withSizeKeepingCentre (bounds.getWidth () * 0.3f,
+                                                   bounds.getHeight ());
+  _ticks.setBounds (boundsTicks);
 }
 
 void
@@ -64,14 +75,18 @@ StatusBar::paint (juce::Graphics &g)
   g.setColour (juce::Colours::white);
   g.setFont (18.f);
 
-  jassert (_tempoBPM.getValue ().isDouble ());
-  auto const bpm = static_cast<float> (_tempoBPM.getValue ());
+  auto const bpm = _tempoClock.getTempoBPM ();
 
   auto stringStream = std::stringstream ();
-  stringStream.precision (2);
+  stringStream.precision (1);
   stringStream << std::fixed << bpm << " BPM";
-  g.drawText (stringStream.str (), _boundsTextArea,
+  g.drawText (stringStream.str (), _boundsTextBPM,
+              juce::Justification::centredRight);
+
+  stringStream.str ("");
+  stringStream.clear ();
+  stringStream << _measure.bar + 1 << "." << _measure.beat + 1;
+  g.drawText (stringStream.str (), _boundsTextMeasure,
               juce::Justification::centredLeft);
 }
-
 }
