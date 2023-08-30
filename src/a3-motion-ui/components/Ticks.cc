@@ -52,7 +52,7 @@ Ticks::paint (juce::Graphics &g)
       boundsSquare.setWidth (width);
       boundsSquare.expand (-2, -2);
 
-      g.setColour (tick <= _currentTick ? juce::Colours::white
+      g.setColour (tick == _currentTick ? juce::Colours::white
                                         : Colours::statusBar);
 
       g.fillRect (boundsSquare);
