@@ -226,29 +226,23 @@ A3MotionUIComponent::getMinimumHeight () const
 void
 A3MotionUIComponent::valueChanged (juce::Value &value)
 {
-  if (value.refersToSameSourceAs (
-          _ioAdapter->getButton (InputOutputAdapter::Button::Shift)))
+  using Button = InputOutputAdapter::Button;
+
+  if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Shift)))
     {
-      juce::Logger::writeToLog ("MotionController: SHIFT: "
-                                + value.toString ());
-      _ioAdapter->getButtonLED (InputOutputAdapter::Button::Shift)
-          = value.getValue ();
+      _ioAdapter->getButtonLED (Button::Shift) = value.getValue ();
     }
-  else if (value.refersToSameSourceAs (
-               _ioAdapter->getButton (InputOutputAdapter::Button::Record)))
+  else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Record)))
     {
       juce::Logger::writeToLog ("MotionController: RECORD: "
                                 + value.toString ());
-      _ioAdapter->getButtonLED (InputOutputAdapter::Button::Record)
-          = value.getValue ();
+      _ioAdapter->getButtonLED (Button::Record) = value.getValue ();
     }
-  else if (value.refersToSameSourceAs (
-               _ioAdapter->getButton (InputOutputAdapter::Button::Tap)))
+  else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Tap)))
     {
-      _ioAdapter->getButtonLED (InputOutputAdapter::Button::Tap)
-          = value.getValue ();
-      if (bool (_ioAdapter->getButton (InputOutputAdapter::Button::Shift)
-                    .getValue ()))
+      _ioAdapter->getButtonLED (Button::Tap) = value.getValue ();
+      if (_ioAdapter->getButton (Button::Shift).getValue ()
+          && _ioAdapter->getButton (Button::Tap).getValue ())
         {
           _engine.getTempoClock ().reset ();
         }
@@ -280,10 +274,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
     {
-      if (_engine.getTempoClock ().tap (value.getValue ())
-          == TempoClock::TapResult::TempoAvailable)
+      if (!_ioAdapter->getButton (Button::Shift).getValue ())
         {
-          _statusBar->repaint ();
+          auto const result = _engine.getTempoClock ().tap (value.getValue ());
+          if (result == TempoClock::TapResult::TempoAvailable)
+            {
+              _statusBar->repaint ();
+            }
         }
     }
 }
