@@ -24,6 +24,24 @@
 
 #include <a3-motion-engine/util/Geometry.hh>
 
+namespace juce
+{
+template <>
+struct VariantConverter<juce::Colour>
+{
+  static Colour
+  fromVar (const var &v)
+  {
+    return Colour{ static_cast<juce::uint32> (static_cast<juce::int64> (v)) };
+  }
+  static var
+  toVar (const Colour &colour)
+  {
+    return static_cast<juce::int64> (colour.getARGB ());
+  }
+};
+}
+
 namespace a3
 {
 

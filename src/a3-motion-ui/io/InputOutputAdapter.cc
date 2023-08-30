@@ -19,21 +19,30 @@
 */
 
 #include "InputOutputAdapter.hh"
+
 #include <memory>
+
+#include <a3-motion-ui/Helpers.hh>
 
 namespace a3
 {
 
 InputOutputAdapter::InputOutputAdapter () : juce::Thread ("InputOutputAdapter")
 {
-  for (auto &valueLED : _valueButtonLEDs)
-    valueLED.addListener (this);
+  for (auto &buttonLED : _valueButtonLEDs)
+    buttonLED.addListener (this);
+  for (auto &channelLEDs : _valuePadLEDs)
+    for (auto &padLED : channelLEDs)
+      padLED.addListener (this);
 
   startTimer (1);
 }
 
 InputOutputAdapter::~InputOutputAdapter ()
 {
+  for (auto &channelLEDs : _valuePadLEDs)
+    for (auto &padLED : channelLEDs)
+      padLED.removeListener (this);
   for (auto &valueLED : _valueButtonLEDs)
     valueLED.removeListener (this);
 }
@@ -56,6 +65,15 @@ InputOutputAdapter::getPad (int channel, int pad)
   jassert (channel >= 0 && channel < numChannels);
   jassert (pad >= 0 && pad < numPadsPerChannel);
   return _valuePads[static_cast<size_t> (channel)][static_cast<size_t> (pad)];
+}
+
+juce::Value &
+InputOutputAdapter::getPadLED (int channel, int pad)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  jassert (pad >= 0 && pad < numPadsPerChannel);
+  return _valuePadLEDs[static_cast<size_t> (channel)]
+                      [static_cast<size_t> (pad)];
 }
 
 juce::Value &
@@ -84,6 +102,30 @@ juce::Value &
 InputOutputAdapter::getTapTimeMicros ()
 {
   return _valueTapTimeMicros;
+}
+
+int
+InputOutputAdapter::getNumChannels ()
+{
+  return numChannels;
+}
+
+int
+InputOutputAdapter::getNumPadsPerChannel ()
+{
+  return numPadsPerChannel;
+}
+
+int
+InputOutputAdapter::getNumPotsPerChannel ()
+{
+  return numPotsPerChannel;
+}
+
+int
+InputOutputAdapter::getNumButtons ()
+{
+  return numButtons;
 }
 
 void
@@ -341,7 +383,7 @@ InputOutputAdapter::handleTap (InputMessageTap const &message)
 void
 InputOutputAdapter::valueChanged (juce::Value &value)
 {
-  for (auto index = 0u; index < numButtonTypes; ++index)
+  for (auto index = 0u; index < numButtons; ++index)
     {
       if (value.refersToSameSourceAs (_valueButtonLEDs[index]))
         {
@@ -349,6 +391,23 @@ InputOutputAdapter::valueChanged (juce::Value &value)
           message->button = static_cast<Button> (index);
           message->value = value.getValue ();
           submitOutputMessage (std::move (message));
+          return;
+        }
+    }
+  for (auto channel = 0u; channel < numChannels; ++channel)
+    {
+      for (auto pad = 0u; pad < numPadsPerChannel; ++pad)
+        {
+          if (value.refersToSameSourceAs (_valuePadLEDs[channel][pad]))
+            {
+              auto message = std::make_unique<OutputMessagePadLED> ();
+              message->padIndex.channel = static_cast<int> (channel);
+              message->padIndex.pad = static_cast<int> (pad);
+              message->colour = juce::VariantConverter<juce::Colour>::fromVar (
+                  value.getValue ());
+              submitOutputMessage (std::move (message));
+              return;
+            }
         }
     }
 }
@@ -425,5 +484,4 @@ InputOutputAdapter::handleOutputMessage (
 
   message = nullptr;
 }
-
 }

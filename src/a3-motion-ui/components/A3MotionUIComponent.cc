@@ -19,6 +19,7 @@
 */
 
 #include "A3MotionUIComponent.hh"
+#include "a3-motion-engine/Config.hh"
 
 #include <chrono>
 #include <fstream>
@@ -61,6 +62,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       _tempoEstimatorTest = std::make_unique<TempoEstimatorTest> ();
       _ioAdapter->getTapTimeMicros ().addListener (_tempoEstimatorTest.get ());
     }
+
+  initializePadLEDs ();
 }
 
 A3MotionUIComponent::~A3MotionUIComponent ()
@@ -136,6 +139,16 @@ A3MotionUIComponent::createHardwareInterface ()
   _ioAdapter->getPot (0, 1).addListener (this);
   _ioAdapter->getTapTimeMicros ().addListener (this);
 #endif
+}
+
+void
+A3MotionUIComponent::initializePadLEDs ()
+{
+  for (auto channel = 0; channel < _ioAdapter->getNumChannels (); ++channel)
+    for (auto pad = 0; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
+      _ioAdapter->getPadLED (channel, pad)
+          .setValue (juce::VariantConverter<juce::Colour>::toVar (
+              juce::Colours::black));
 }
 
 void

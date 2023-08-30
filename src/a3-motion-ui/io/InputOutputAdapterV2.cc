@@ -26,31 +26,6 @@ namespace a3
 InputOutputAdapterV2::InputOutputAdapterV2 () : InputOutputAdapter ()
 {
   serialInit ();
-
-  juce::Thread::sleep (1000);
-
-  // temporary: set some pad LED values for demo purposes
-  _serialPort.Write ("L,0,255,255,255\n");
-  _serialPort.Write ("L,1,0,255,0\n");
-  _serialPort.Write ("L,2,255,255,255\n");
-  _serialPort.Write ("L,3,255,255,255\n");
-
-  _serialPort.Write ("L,4,255,255,255\n");
-  _serialPort.Write ("L,5,255,255,255\n");
-  _serialPort.Write ("L,6,255,255,255\n");
-  _serialPort.Write ("L,7,0,255,0\n");
-
-  _serialPort.Write ("L,8,0,255,0\n");
-  _serialPort.Write ("L,9,255,255,255\n");
-  _serialPort.Write ("L,10,255,0,0\n");
-  _serialPort.Write ("L,11,0,0,0\n");
-
-  _serialPort.Write ("L,12,0,0,0\n");
-  _serialPort.Write ("L,13,0,0,0\n");
-  _serialPort.Write ("L,14,0,0,0\n");
-  _serialPort.Write ("L,15,0,0,0\n");
-
-  _serialPort.FlushOutputBuffer ();
 }
 
 InputOutputAdapterV2::~InputOutputAdapterV2 ()
@@ -190,7 +165,19 @@ InputOutputAdapterV2::outputButtonLED (Button button, bool value)
 void
 InputOutputAdapterV2::outputPadLED (PadIndex padIndex, juce::Colour colour)
 {
-  // TODO: implement me
+  juce::String line = "L,";
+  line += juce::String (
+      static_cast<int> (padIndex.channel + numChannels * padIndex.pad));
+  line += ",";
+  line += juce::String (colour.getRed ());
+  line += ",";
+  line += juce::String (colour.getGreen ());
+  line += ",";
+  line += juce::String (colour.getBlue ());
+  line += "\n";
+
+  // juce::Logger::writeToLog ("++++ sending: " + line);
+  _serialPort.Write (line.toStdString ());
 }
 
 }

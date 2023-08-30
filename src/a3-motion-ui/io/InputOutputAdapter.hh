@@ -53,11 +53,18 @@ public:
   void run () override;
   void timerCallback () override;
 
+  // these might become virtual and be implemented by the specific
+  // hardware interface later on.
+  int getNumChannels ();
+  int getNumPadsPerChannel ();
+  int getNumPotsPerChannel ();
+  int getNumButtons ();
+
 protected:
   static auto constexpr numChannels = 4;
   static auto constexpr numPadsPerChannel = 4;
   static auto constexpr numPotsPerChannel = 2;
-  static auto constexpr numButtonTypes = 3;
+  static auto constexpr numButtons = 3;
 
   struct PadIndex
   {
@@ -225,10 +232,12 @@ private:
   std::map<PadIndex, bool> _lastPadValues;
   std::array<std::array<juce::Value, numPadsPerChannel>, numChannels>
       _valuePads;
+  std::array<std::array<juce::Value, numPadsPerChannel>, numChannels>
+      _valuePadLEDs;
 
   std::map<Button, bool> _lastButtonValues;
-  std::array<juce::Value, numButtonTypes> _valueButtons;
-  std::array<juce::Value, numButtonTypes> _valueButtonLEDs;
+  std::array<juce::Value, numButtons> _valueButtons;
+  std::array<juce::Value, numButtons> _valueButtonLEDs;
 
   std::map<int, bool> _lastEncoderPressValues;
   std::array<juce::Value, numChannels> _valueEncoderPresses;

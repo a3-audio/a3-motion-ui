@@ -59,6 +59,7 @@ public:
 private:
   void createChannelsUI ();
   void createHardwareInterface ();
+  void initializePadLEDs ();
 
   MotionEngine _engine;
   std::unique_ptr<TempoEstimatorTest> _tempoEstimatorTest;
