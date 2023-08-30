@@ -29,8 +29,6 @@ struct LayoutHints
   {
     static float const widthMin;
     static float const heightFooter;
-
-    static float heightHeader ();
   };
 
   struct MotionComponent
@@ -38,8 +36,8 @@ struct LayoutHints
     static float const heightMin;
   };
 
-  static float const padding;
-  static float const lineHeight;
+  static auto constexpr padding = 5.f;
+  static auto constexpr lineHeight = 35.f;
 };
 
 }

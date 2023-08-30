@@ -73,7 +73,7 @@ StatusBar::paint (juce::Graphics &g)
   g.fillAll ();
 
   g.setColour (juce::Colours::white);
-  g.setFont (18.f);
+  g.setFont (LayoutHints::lineHeight - 2 * LayoutHints::padding);
 
   auto const bpm = _tempoClock.getTempoBPM ();
 

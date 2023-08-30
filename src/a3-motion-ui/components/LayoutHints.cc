@@ -30,14 +30,4 @@ float const LayoutHints::Channels::heightFooter = 150.f;
 
 float const LayoutHints::MotionComponent::heightMin = 100.f;
 
-float const LayoutHints::padding = 5.f;
-float const LayoutHints::lineHeight = 50.f;
-
-float
-LayoutHints::Channels::heightHeader ()
-{
-  return ChannelHeader::numSlidersFX * LayoutHints::lineHeight
-         + 2 * LayoutHints::padding;
-}
-
 }

@@ -87,4 +87,11 @@ ChannelHeader::resized ()
     }
 }
 
+int
+ChannelHeader::getMinimumHeight ()
+{
+  return LayoutHints::padding //
+         + numSlidersFX * (LayoutHints::lineHeight + LayoutHints::padding);
+}
+
 }

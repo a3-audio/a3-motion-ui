@@ -171,13 +171,13 @@ A3MotionUIComponent::resized ()
   if (_drawHeaders)
     {
       boundsHeaders
-          = bounds.removeFromTop (LayoutHints::Channels::heightHeader ());
+          = bounds.removeFromTop (ChannelHeader::getMinimumHeight ());
     }
   auto boundsFooters
       = bounds.removeFromBottom (LayoutHints::Channels::heightFooter);
 
   auto constexpr statusBarOnTop = true;
-  auto constexpr statusBarHeight = 25;
+  auto constexpr statusBarHeight = LayoutHints::lineHeight;
   auto boundsStatus = statusBarOnTop
                           ? bounds.removeFromTop (statusBarHeight)
                           : bounds.removeFromBottom (statusBarHeight);
@@ -218,7 +218,7 @@ A3MotionUIComponent::getMinimumHeight () const
                        + LayoutHints::MotionComponent::heightMin;
   if (_drawHeaders)
     {
-      minimumHeight += LayoutHints::Channels::heightHeader ();
+      minimumHeight += ChannelHeader::getMinimumHeight ();
     }
   return minimumHeight;
 }

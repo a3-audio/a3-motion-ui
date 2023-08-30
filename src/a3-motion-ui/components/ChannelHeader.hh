@@ -40,6 +40,8 @@ public:
   void resized () override;
   void paint (juce::Graphics &) override;
 
+  static int getMinimumHeight ();
+
 private:
   Channel const &_channel;
   ChannelViewState const &_viewState;
