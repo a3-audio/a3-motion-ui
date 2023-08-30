@@ -47,7 +47,11 @@ TempoEstimatorMeanSelective::estimateTempo ()
     {
       sumDeltaT += deltaT;
     }
-  auto deltaTAverage = sumDeltaT / deltaTs.size ();
+
+  // casting because chrono::abs below chokes on signedness with
+  // gcc 13.1
+  jassert (deltaTs.size () <= std::numeric_limits<ssize_t>::max ());
+  auto deltaTAverage = sumDeltaT / static_cast<ssize_t> (deltaTs.size ());
 
   std::sort (deltaTs.begin (), deltaTs.end (),
              [deltaTAverage] (auto &a, auto &b) {
