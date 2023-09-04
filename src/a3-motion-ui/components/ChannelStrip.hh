@@ -22,36 +22,37 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-engine/tempo/TempoClock.hh>
-
-#include <a3-motion-ui/components/LayoutHints.hh>
+#include "a3-motion-ui/components/LayoutHints.hh"
+#include <a3-motion-ui/components/PatternMenu.hh>
 #include <a3-motion-ui/components/Ticks.hh>
 
 namespace a3
 {
 
-class StatusBar : public juce::Component, public juce::Value::Listener
+class Channel;
+class ChannelViewState;
+
+class ChannelStrip : public juce::Component
 {
 public:
-  StatusBar (juce::Value &valueBPM);
+  ChannelStrip (ChannelViewState const &channelViewState,
+                juce::Value &valueEncoderIncrement);
 
   void resized () override;
-  void paint (juce::Graphics &g) override;
-
-  void valueChanged (juce::Value &value) override;
-  void measureChanged (TempoClock::Measure measure);
+  void paint (juce::Graphics &) override;
 
   static constexpr int
   getMinimumHeight ()
   {
-    return LayoutHints::lineHeight + 2 * LayoutHints::padding;
+    return PatternMenu::getMinimumHeight () //
+           + 2 * LayoutHints::padding;
   }
 
 private:
-  Ticks _ticks;
+  ChannelViewState const &_viewState;
+  PatternMenu _patternMenu;
 
-  juce::Label _labelBPM;
-  juce::Value &_valueBPM;
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelStrip)
 };
 
 }

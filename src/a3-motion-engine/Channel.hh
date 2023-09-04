@@ -23,9 +23,7 @@
 #include <memory>
 #include <shared_mutex>
 
-#include <a3-motion-engine/util/Geometry.hh>
-
-#include <a3-motion-engine/elevation/HeightMap.hh>
+#include <a3-motion-engine/util/Types.hh>
 
 namespace a3
 {
@@ -38,11 +36,8 @@ public:
   void setPosition (Pos const &position);
   Pos getPosition () const;
 
-  void recomputeHeight ();
-
 private:
   Pos _position;
-  std::unique_ptr<HeightMap> _heightMap;
 
   // for now we use a "fair" RW lock using std::shared_mutex to see
   // how it performs.  we might implement a write-preferring RW lock

@@ -18,23 +18,4 @@
 
 */
 
-#include "ChannelFooter.hh"
-
-#include <a3-motion-ui/components/ChannelViewState.hh>
-
-namespace a3
-{
-
-ChannelFooter::ChannelFooter (Channel const &channel,
-                              ChannelViewState const &viewState)
-    : _channel (channel), _viewState (viewState)
-{
-}
-
-void
-ChannelFooter::paint (juce::Graphics &g)
-{
-  g.fillAll (_viewState.colour);
-}
-
-}
+#include "Pattern.hh"

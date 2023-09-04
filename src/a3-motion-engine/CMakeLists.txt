@@ -37,6 +37,8 @@ target_sources("a3-motion-engine" PRIVATE
     MotionEngine.hh
     Channel.cc
     Channel.hh
+    Pattern.cc
+    Pattern.hh
     Master.cc
     Master.hh
     AsyncCommandQueue.cc
@@ -67,6 +69,7 @@ target_sources("a3-motion-engine" PRIVATE
     util/Timing.hh
     util/Geometry.hh
     util/Helpers.hh
+    util/Helpers.cc
 )
 
 target_include_directories("a3-motion-engine" PUBLIC

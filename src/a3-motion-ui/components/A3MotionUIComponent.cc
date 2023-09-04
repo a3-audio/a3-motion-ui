@@ -19,12 +19,17 @@
 */
 
 #include "A3MotionUIComponent.hh"
-#include "a3-motion-engine/Config.hh"
+
+#include <a3-motion-engine/Config.hh>
+#include <a3-motion-engine/Pattern.hh>
 
 #include <chrono>
 #include <fstream>
 
 #include <a3-motion-ui/Config.hh>
+#include <a3-motion-ui/components/ChannelHeader.hh>
+#include <a3-motion-ui/components/ChannelStrip.hh>
+#include <a3-motion-ui/components/ChannelViewState.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
@@ -44,17 +49,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
-  createChannelsUI ();
   createHardwareInterface ();
+  createChannelsUI ();
+  createMainUI ();
 
-  _statusBar = std::make_unique<StatusBar> (_engine.getTempoClock ());
-  addChildComponent (*_statusBar);
-  _statusBar->setVisible (true);
-
-  _motionComponent = std::make_unique<MotionComponent> (_engine.getChannels (),
-                                                        _viewStates);
-  addChildComponent (*_motionComponent);
-  _motionComponent->setVisible (true);
+  initializePatterns ();
 
   auto constexpr testTempoEstimation = false;
   if (testTempoEstimation)
@@ -62,8 +61,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       _tempoEstimatorTest = std::make_unique<TempoEstimatorTest> ();
       _ioAdapter->getTapTimeMicros ().addListener (_tempoEstimatorTest.get ());
     }
-
-  initializePadLEDs ();
 }
 
 A3MotionUIComponent::~A3MotionUIComponent ()
@@ -78,18 +75,19 @@ A3MotionUIComponent::~A3MotionUIComponent ()
 void
 A3MotionUIComponent::createChannelsUI ()
 {
-  auto const numChannels = _engine.getChannels ().size ();
+  auto const numChannels = _engine.getNumChannels ();
 
   _viewStates.reserve (numChannels);
   if (_drawHeaders)
     _headers.reserve (numChannels);
-  _footers.reserve (numChannels);
+  _channelStrips.reserve (numChannels);
 
   auto hueStart = 0.f;
-  auto hueNorm = hueStart;
-  for (auto const &channel : _engine.getChannels ())
+  for (auto channel = 0u; channel < numChannels; ++channel)
     {
       auto viewState = std::make_unique<ChannelViewState> ();
+      auto const hueNorm
+          = hueStart + static_cast<float> (channel) / numChannels;
       auto hue = hueNorm / 360.f * 256.f; // for now rescale to
                                           // (arbitrary) range "in
                                           // degrees" that stems from
@@ -99,23 +97,39 @@ A3MotionUIComponent::createChannelsUI ()
                                           // implementation.
 
       viewState->colour = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
-      hueNorm += 1.f / numChannels;
 
       if (_drawHeaders)
         {
-          auto header = std::make_unique<ChannelHeader> (*channel, *viewState);
+          auto header = std::make_unique<ChannelHeader> (*viewState);
           addChildComponent (*header);
           header->setVisible (true);
           _headers.push_back (std::move (header));
         }
 
-      auto footer = std::make_unique<ChannelFooter> (*channel, *viewState);
-      addChildComponent (*footer);
-      footer->setVisible (true);
-      _footers.push_back (std::move (footer));
+      auto strip = std::make_unique<ChannelStrip> (
+          *viewState, _ioAdapter->getEncoderIncrement (channel));
+      addChildComponent (*strip);
+      strip->setVisible (true);
+      _channelStrips.push_back (std::move (strip));
 
       _viewStates.push_back (std::move (viewState));
     }
+}
+
+void
+A3MotionUIComponent::createMainUI ()
+{
+  _statusBar = std::make_unique<StatusBar> (_valueBPM);
+  addChildComponent (*_statusBar);
+  _statusBar->setVisible (true);
+  _statusBarCallbackHandle
+      = _engine.getTempoClock ().scheduleEventHandlerAddition (
+          [this] (auto measure) { _statusBar->measureChanged (measure); },
+          TempoClock::Event::Beat, TempoClock::Execution::JuceMessageThread);
+
+  _motionComponent = std::make_unique<MotionComponent> (_engine, _viewStates);
+  addChildComponent (*_motionComponent);
+  _motionComponent->setVisible (true);
 }
 
 void
@@ -127,25 +141,33 @@ A3MotionUIComponent::createHardwareInterface ()
 #else
 #error hardware interface enabled but no implementation selected!
 #endif
+  using Button = InputOutputAdapter::Button;
   _ioAdapter->startThread ();
-  _ioAdapter->getButton (InputOutputAdapter::Button::Shift).addListener (this);
-  _ioAdapter->getButton (InputOutputAdapter::Button::Record)
-      .addListener (this);
-  _ioAdapter->getButton (InputOutputAdapter::Button::Tap).addListener (this);
-  _ioAdapter->getPad (0, 0).addListener (this);
-  _ioAdapter->getEncoderIncrement (0).addListener (this);
-  _ioAdapter->getEncoderPress (0).addListener (this);
-  _ioAdapter->getPot (0, 0).addListener (this);
-  _ioAdapter->getPot (0, 1).addListener (this);
+  _ioAdapter->getButton (Button::Shift).addListener (this);
+  _ioAdapter->getButton (Button::Record).addListener (this);
+  _ioAdapter->getButton (Button::Tap).addListener (this);
   _ioAdapter->getTapTimeMicros ().addListener (this);
 #endif
 }
 
 void
-A3MotionUIComponent::initializePadLEDs ()
+A3MotionUIComponent::initializePatterns ()
 {
-  for (auto channel = 0; channel < _ioAdapter->getNumChannels (); ++channel)
-    for (auto pad = 0; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
+  _patterns.resize (_ioAdapter->getNumChannels ());
+  for (auto &pattern : _patterns)
+    {
+      auto numPatterns = numPages * _ioAdapter->getNumPadsPerChannel ();
+      pattern.resize (numPatterns);
+    }
+
+  updatePadLEDs ();
+}
+
+void
+A3MotionUIComponent::updatePadLEDs ()
+{
+  for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
+    for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
       _ioAdapter->getPadLED (channel, pad)
           .setValue (juce::VariantConverter<juce::Colour>::toVar (
               juce::Colours::black));
@@ -161,11 +183,18 @@ void
 A3MotionUIComponent::resized ()
 {
   if (_drawHeaders)
-    jassert (_headers.size () == _footers.size ());
+    jassert (_headers.size () == _channelStrips.size ());
 
   juce::Component::resized ();
 
   auto bounds = getLocalBounds ();
+
+  auto constexpr statusBarOnTop = true;
+  auto constexpr statusBarHeight = StatusBar::getMinimumHeight ();
+  auto boundsStatus = statusBarOnTop
+                          ? bounds.removeFromTop (statusBarHeight)
+                          : bounds.removeFromBottom (statusBarHeight);
+  _statusBar->setBounds (boundsStatus);
 
   auto boundsHeaders = juce::Rectangle<int> ();
   if (_drawHeaders)
@@ -173,21 +202,14 @@ A3MotionUIComponent::resized ()
       boundsHeaders
           = bounds.removeFromTop (ChannelHeader::getMinimumHeight ());
     }
-  auto boundsFooters
-      = bounds.removeFromBottom (LayoutHints::Channels::heightFooter);
-
-  auto constexpr statusBarOnTop = true;
-  auto constexpr statusBarHeight = LayoutHints::lineHeight;
-  auto boundsStatus = statusBarOnTop
-                          ? bounds.removeFromTop (statusBarHeight)
-                          : bounds.removeFromBottom (statusBarHeight);
-  _statusBar->setBounds (boundsStatus);
+  auto boundsStrips = bounds.removeFromTop (ChannelStrip::getMinimumHeight ());
 
   _motionComponent->setBounds (bounds);
 
-  // Channel headers/footers
-  auto widthChannel = bounds.getWidth () / float (_footers.size ());
-  for (auto channelIndex = 0u; channelIndex < _footers.size (); ++channelIndex)
+  // Channel headers/strips
+  auto widthChannel = bounds.getWidth () / float (_channelStrips.size ());
+  for (auto channelIndex = 0u; channelIndex < _channelStrips.size ();
+       ++channelIndex)
     {
       auto offsetInt = juce::roundToInt (channelIndex * widthChannel);
       auto offsetIntNext
@@ -200,21 +222,21 @@ A3MotionUIComponent::resized ()
           _headers[channelIndex]->setBounds (
               boundsHeaders.removeFromLeft (widthInt));
         }
-      _footers[channelIndex]->setBounds (
-          boundsFooters.removeFromLeft (widthInt));
+      _channelStrips[channelIndex]->setBounds (
+          boundsStrips.removeFromLeft (widthInt));
     }
 }
 
 float
 A3MotionUIComponent::getMinimumWidth () const
 {
-  return _footers.size () * LayoutHints::Channels::widthMin;
+  return _channelStrips.size () * LayoutHints::Channels::widthMin;
 }
 
 float
 A3MotionUIComponent::getMinimumHeight () const
 {
-  auto minimumHeight = LayoutHints::Channels::heightFooter
+  auto minimumHeight = ChannelStrip::getMinimumHeight ()
                        + LayoutHints::MotionComponent::heightMin;
   if (_drawHeaders)
     {
@@ -234,8 +256,6 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Record)))
     {
-      juce::Logger::writeToLog ("MotionController: RECORD: "
-                                + value.toString ());
       _ioAdapter->getButtonLED (Button::Record) = value.getValue ();
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Tap)))
@@ -247,41 +267,21 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           _engine.getTempoClock ().reset ();
         }
     }
-  else if (value.refersToSameSourceAs (_ioAdapter->getPad (0, 0)))
-    {
-      juce::Logger::writeToLog ("MotionController: PAD 0 0: "
-                                + value.toString ());
-    }
-  else if (value.refersToSameSourceAs (_ioAdapter->getEncoderPress (0)))
-    {
-      juce::Logger::writeToLog ("MotionController: Encoder Press 0: "
-                                + value.toString ());
-    }
-  else if (value.refersToSameSourceAs (_ioAdapter->getEncoderIncrement (0)))
-    {
-      juce::Logger::writeToLog ("MotionController: Encoder Increment 0: "
-                                + value.toString ());
-    }
-  else if (value.refersToSameSourceAs (_ioAdapter->getPot (0, 0)))
-    {
-      juce::Logger::writeToLog ("MotionController: Pot 0 0: "
-                                + value.toString ());
-    }
-  else if (value.refersToSameSourceAs (_ioAdapter->getPot (0, 1)))
-    {
-      juce::Logger::writeToLog ("MotionController: Pot 0 1: "
-                                + value.toString ());
-    }
   else if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
     {
       if (!_ioAdapter->getButton (Button::Shift).getValue ())
         {
-          auto const result = _engine.getTempoClock ().tap (value.getValue ());
+          auto const tapTime = juce::int64 (value.getValue ());
+          auto const result = _engine.getTempoClock ().tap (tapTime);
+          juce::Logger::writeToLog ("tapping: " + juce::String (tapTime));
           if (result == TempoClock::TapResult::TempoAvailable)
             {
-              _statusBar->repaint ();
+              auto const bpm = _engine.getTempoClock ().getTempoBPM ();
+              _valueBPM = bpm;
+              juce::Logger::writeToLog ("tempo bpm: " + juce::String (bpm));
             }
         }
     }
 }
+
 }

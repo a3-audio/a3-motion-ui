@@ -79,11 +79,70 @@ public:
 
   struct Measure
   {
-    Measure () : time_ns (0), tick (0), beat (0), bar (0) {}
-    uint64_t time_ns;
-    int tick;
-    int beat;
+    Measure () : bar (0), beat (0), tick (0) {}
+    // uint64_t time_ns;
     int bar;
+    int beat;
+    int tick;
+
+    Measure &
+    operator+= (const Measure &rhs)
+    {
+      bar += rhs.bar;
+      beat += rhs.beat;
+      tick += rhs.tick;
+      return *this;
+    }
+
+    friend Measure
+    operator+ (Measure lhs, const Measure &rhs)
+    {
+      lhs += rhs;
+      return lhs;
+    }
+
+    Measure &
+    operator-= (Measure const &rhs)
+    {
+      bar -= rhs.bar;
+      beat -= rhs.beat;
+      tick -= rhs.tick;
+      return *this;
+    }
+
+    friend Measure
+    operator- (Measure lhs, Measure const &rhs)
+    {
+      lhs -= rhs;
+      return lhs;
+    }
+
+    friend bool
+    operator== (Measure const &lhs, Measure const &rhs)
+    {
+      return lhs.bar == rhs.bar &&   //
+             lhs.beat == rhs.beat && //
+             lhs.tick == rhs.tick;
+    }
+
+    friend bool
+    operator!= (Measure const &lhs, Measure const &rhs)
+    {
+      return !(lhs == rhs);
+    }
+
+    friend bool
+    operator< (const Measure &lhs, const Measure &rhs)
+    {
+      return std::tie (lhs.bar, lhs.beat, lhs.tick)
+             < std::tie (rhs.bar, rhs.beat, rhs.tick);
+    }
+
+    friend bool
+    operator>= (const Measure &lhs, const Measure &rhs)
+    {
+      return !(lhs < rhs);
+    }
   };
 
   enum class Execution
@@ -129,6 +188,8 @@ public:
   // void pause (); // needs more thought
   void stop ();
   void reset ();
+
+  static Measure nextDownBeat (Measure const &measure);
 
 private:
   static constexpr int timerIntervalMs = 1;

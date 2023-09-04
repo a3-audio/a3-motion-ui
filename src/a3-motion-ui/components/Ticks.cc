@@ -35,6 +35,7 @@ Ticks::setCurrentTick (int tick)
 {
   jassert (tick >= 0 && tick < _numTicks);
   _currentTick = tick;
+  repaint ();
 }
 
 void

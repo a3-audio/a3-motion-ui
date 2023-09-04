@@ -39,12 +39,14 @@ target_sources("a3-motion-ui" PRIVATE
     components/StatusBar.hh
     components/ChannelHeader.cc
     components/ChannelHeader.hh
-    components/ChannelFooter.cc
-    components/ChannelFooter.hh
+    components/ChannelStrip.cc
+    components/ChannelStrip.hh
     components/MotionComponent.cc
     components/MotionComponent.hh
     components/Ticks.cc
     components/Ticks.hh
+    components/PatternMenu.cc
+    components/PatternMenu.hh
     tests/TempoEstimatorTest.cc
     tests/TempoEstimatorTest.hh
 )

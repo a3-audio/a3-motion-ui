@@ -248,9 +248,4 @@ Position<ScalarT>::fromSpherical (ScalarT const &azimuth,
   return p;
 }
 
-using PosF = Position<float>;
-using PosD = Position<double>;
-
-using Pos = PosF;
-
 }

@@ -35,7 +35,7 @@ class ChannelHeader : public juce::Component
 public:
   static int constexpr numSlidersFX = 2;
 
-  ChannelHeader (Channel const &, ChannelViewState const &);
+  ChannelHeader (ChannelViewState const &);
 
   void resized () override;
   void paint (juce::Graphics &) override;
@@ -43,7 +43,6 @@ public:
   static int getMinimumHeight ();
 
 private:
-  Channel const &_channel;
   ChannelViewState const &_viewState;
 
   std::array<juce::Slider, numSlidersFX> _slidersFX;

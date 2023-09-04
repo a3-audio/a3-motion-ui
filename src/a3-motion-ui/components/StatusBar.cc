@@ -20,7 +20,6 @@
 
 #include "StatusBar.hh"
 
-#include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 
 #include <sstream>
@@ -33,19 +32,11 @@ auto constexpr beatsPerBar = 4; // TODO read from tempoclock
 namespace a3
 {
 
-StatusBar::StatusBar (TempoClock &tempoClock)
-    : _ticks (beatsPerBar), _tempoClock (tempoClock)
+StatusBar::StatusBar (juce::Value &valueBPM)
+    : _ticks (beatsPerBar), _valueBPM (valueBPM)
 {
   addChildComponent (_ticks);
   _ticks.setVisible (true);
-
-  _callbackHandle = _tempoClock.scheduleEventHandlerAddition (
-      [this] (auto measure) {
-        // _measure = measure;
-        _ticks.setCurrentTick (measure.beat);
-        repaint ();
-      },
-      TempoClock::Event::Beat, TempoClock::Execution::JuceMessageThread);
 }
 
 void
@@ -54,40 +45,42 @@ StatusBar::resized ()
   auto bounds = getLocalBounds ();
 
   bounds.removeFromTop (LayoutHints::padding);
-  bounds.removeFromLeft (LayoutHints::padding);
   bounds.removeFromBottom (LayoutHints::padding);
 
-  _boundsTextBPM = bounds.withTrimmedLeft (LayoutHints::padding)
-                       .withTrimmedRight (LayoutHints::padding);
-  // _boundsTextMeasure = _boundsTextBPM;
+  _labelBPM.setBounds (bounds.withTrimmedLeft (LayoutHints::padding)
+                           .withTrimmedRight (LayoutHints::padding));
 
-  auto boundsTicks = bounds.withSizeKeepingCentre (bounds.getWidth () * 0.3f,
-                                                   bounds.getHeight ());
+  auto boundsTicks = bounds.withSizeKeepingCentre (bounds.getWidth () * 0.4f,
+                                                   bounds.getHeight () * 0.6f);
   _ticks.setBounds (boundsTicks);
 }
 
 void
 StatusBar::paint (juce::Graphics &g)
 {
-  g.setColour (Colours::statusBar);
-  g.fillAll ();
+  juce::ignoreUnused (g);
+}
 
-  g.setColour (juce::Colours::white);
-  g.setFont (LayoutHints::lineHeight - 2 * LayoutHints::padding);
+void
+StatusBar::valueChanged (juce::Value &value)
+{
+  if (value.refersToSameSourceAs (_valueBPM))
+    {
+      jassert (value.getValue ().isDouble ());
 
-  auto const bpm = _tempoClock.getTempoBPM ();
+      auto const bpm = static_cast<float> (value.getValue ());
+      auto stringStream = std::stringstream ();
+      stringStream.precision (1);
+      stringStream << "BPM " << std::fixed << bpm;
 
-  auto stringStream = std::stringstream ();
-  stringStream.precision (1);
-  stringStream << "BPM " << std::fixed << bpm;
-  g.drawText (stringStream.str (), _boundsTextBPM,
-              juce::Justification::centredLeft);
+      _labelBPM.setText (stringStream.str (), juce::dontSendNotification);
+    }
+}
 
-  // stringStream.str ("");
-  // stringStream.clear ();
-  // stringStream << _measure.bar + 1 << "." << _measure.beat + 1;
-  // g.drawText (stringStream.str (), _boundsTextMeasure,
-  //             juce::Justification::centredRight);
+void
+StatusBar::measureChanged (TempoClock::Measure measure)
+{
+  _ticks.setCurrentTick (measure.beat);
 }
 
 }

@@ -26,10 +26,8 @@
 namespace a3
 {
 
-ChannelHeader::ChannelHeader (Channel const &channel,
-                              ChannelViewState const &viewState)
-    : _channel (channel),
-      _viewState (viewState), _slidersFX{ { { juce::Slider::RotaryVerticalDrag,
+ChannelHeader::ChannelHeader (ChannelViewState const &viewState)
+    : _viewState (viewState), _slidersFX{ { { juce::Slider::RotaryVerticalDrag,
                                               juce::Slider::NoTextBox },
                                             { juce::Slider::RotaryVerticalDrag,
                                               juce::Slider::NoTextBox } } },

@@ -22,17 +22,10 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-engine/elevation/HeightMapFlat.hh>
-#include <a3-motion-engine/elevation/HeightMapSphere.hh>
-
 namespace a3
 {
 
-Channel::Channel ()
-    : _position (Pos::fromSpherical (0, 0, 1)),
-      _heightMap (std::make_unique<HeightMapSphere> ())
-{
-}
+Channel::Channel () : _position (Pos::fromSpherical (0, 0, 1)) {}
 
 void
 Channel::setPosition (Pos const &position)
@@ -50,15 +43,6 @@ Channel::getPosition () const
   _mutex.unlock_shared ();
 
   return position;
-}
-
-void
-Channel::recomputeHeight ()
-{
-  jassert (_heightMap);
-  _mutex.lock ();
-  _position.setZ (_heightMap->computeHeight (_position));
-  _mutex.unlock ();
 }
 
 }

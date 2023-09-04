@@ -22,5 +22,7 @@
 
 namespace a3
 {
+
 juce::var userConfig;
+
 }

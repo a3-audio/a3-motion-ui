@@ -18,40 +18,22 @@
 
 */
 
-#pragma once
-
-#include <JuceHeader.h>
-
-#include <a3-motion-engine/tempo/TempoClock.hh>
-
-#include <a3-motion-ui/components/LayoutHints.hh>
-#include <a3-motion-ui/components/Ticks.hh>
+#include "Helpers.hh"
 
 namespace a3
 {
 
-class StatusBar : public juce::Component, public juce::Value::Listener
+void
+print (a3::TempoClock::Measure const &measure, juce::String prefix)
 {
-public:
-  StatusBar (juce::Value &valueBPM);
+  // auto ts = std::chrono::high_resolution_clock::now ()
+  //               .time_since_epoch ()
+  //               .count ();
 
-  void resized () override;
-  void paint (juce::Graphics &g) override;
-
-  void valueChanged (juce::Value &value) override;
-  void measureChanged (TempoClock::Measure measure);
-
-  static constexpr int
-  getMinimumHeight ()
-  {
-    return LayoutHints::lineHeight + 2 * LayoutHints::padding;
-  }
-
-private:
-  Ticks _ticks;
-
-  juce::Label _labelBPM;
-  juce::Value &_valueBPM;
-};
+  juce::Logger::writeToLog (prefix + " " + juce::String (measure.bar) + "."
+                            + juce::String (measure.beat) + "."
+                            + juce::String (measure.tick) + ":");
+  // + juce::String (measure.time_ns) + " @ " + juce::String (ts));
+}
 
 }

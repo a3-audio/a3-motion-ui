@@ -20,7 +20,7 @@
 
 #include "MotionComponent.hh"
 
-#include <a3-motion-engine/Channel.hh>
+#include <a3-motion-engine/MotionEngine.hh>
 
 #include <a3-motion-ui/components/ChannelViewState.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
@@ -105,9 +105,9 @@ namespace a3
 {
 
 MotionComponent::MotionComponent (
-    std::vector<std::unique_ptr<Channel> > const &channels,
+    MotionEngine &engine,
     std::vector<std::unique_ptr<ChannelViewState> > &viewStates)
-    : _channels (channels), _viewStates (viewStates)
+    : _engine (engine), _viewStates (viewStates)
 {
   _glContext.setOpenGLVersionRequired (
       juce::OpenGLContext::OpenGLVersion::defaultGLVersion);
@@ -167,15 +167,14 @@ MotionComponent::disoccludeBlobs ()
   jassert (_grabbedIndex.has_value ());
 
   auto posGrabbedPixel = normalizedToLocal2DPosition (
-      _channels[_grabbedIndex.value ()]->getPosition ());
+      _engine.getChannelPosition (_grabbedIndex.value ()));
 
-  for (auto channelIndex = 0u; channelIndex < _channels.size ();
-       ++channelIndex)
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     {
-      if (!_viewStates[channelIndex]->grabbed)
+      if (!_viewStates[channel]->grabbed)
         {
           auto posPixel = normalizedToLocal2DPosition (
-              _channels[channelIndex]->getPosition ());
+              _engine.getChannelPosition (channel));
 
           auto const distance = posPixel.getDistanceFrom (posGrabbedPixel);
           if (distance < getActiveDistanceInPixel ())
@@ -188,8 +187,7 @@ MotionComponent::disoccludeBlobs ()
 
               posPixel = posGrabbedPixel + offset;
             }
-          else if (posPixel.getDistanceFrom (
-                       _viewStates[channelIndex]->posAnchor)
+          else if (posPixel.getDistanceFrom (_viewStates[channel]->posAnchor)
                    > 1.f)
             { // snap back by projection onto circle
               // borrowing math from:
@@ -198,7 +196,7 @@ MotionComponent::disoccludeBlobs ()
 
               auto C = posGrabbedPixel;
               auto P = posPixel;
-              auto Pa = _viewStates[channelIndex]->posAnchor;
+              auto Pa = _viewStates[channel]->posAnchor;
               auto D = Pa - posPixel;
 
               auto Delta = P - C;
@@ -250,9 +248,8 @@ MotionComponent::disoccludeBlobs ()
                 }
             }
 
-          _channels[channelIndex]->setPosition (
-              localToNormalized2DPosition (posPixel));
-          _channels[channelIndex]->recomputeHeight ();
+          _engine.setChannel2DPosition (
+              channel, localToNormalized2DPosition (posPixel));
         }
     }
 }
@@ -260,9 +257,8 @@ MotionComponent::disoccludeBlobs ()
 void
 MotionComponent::mouseDown (const juce::MouseEvent &event)
 {
-  for (auto channelIndex = 0u; channelIndex < _channels.size ();
-       ++channelIndex)
-    _viewStates[channelIndex]->grabbed = false;
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+    _viewStates[channel]->grabbed = false;
 
   auto closestIndex = getClosestBlobIndexWithinRadius (
       event.getPosition ().toFloat (), getActiveDistanceInPixel ());
@@ -271,16 +267,15 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
       auto const index = closestIndex.value ();
       _viewStates[index]->grabbed = true;
       _viewStates[index]->grabOffset
-          = normalizedToLocal2DPosition (_channels[index]->getPosition ())
+          = normalizedToLocal2DPosition (_engine.getChannelPosition (index))
             - event.getPosition ().toFloat ();
       _grabbedIndex = index;
 
       // disocclusion: save anchor position for all channels
-      for (auto channelIndex = 0u; channelIndex < _channels.size ();
-           ++channelIndex)
+      for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
         {
-          _viewStates[channelIndex]->posAnchor = normalizedToLocal2DPosition (
-              _channels[channelIndex]->getPosition ());
+          _viewStates[channel]->posAnchor = normalizedToLocal2DPosition (
+              _engine.getChannelPosition (channel));
         }
     }
 }
@@ -289,10 +284,9 @@ void
 MotionComponent::mouseUp (const juce::MouseEvent &event)
 {
   juce::ignoreUnused (event);
-  for (auto channelIndex = 0u; channelIndex < _channels.size ();
-       ++channelIndex)
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     {
-      _viewStates[channelIndex]->grabbed = false;
+      _viewStates[channel]->grabbed = false;
     }
   _grabbedIndex = {};
 }
@@ -300,16 +294,14 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
 void
 MotionComponent::mouseDrag (const juce::MouseEvent &event)
 {
-  for (auto channelIndex = 0u; channelIndex < _channels.size ();
-       ++channelIndex)
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     {
-      if (_viewStates[channelIndex]->grabbed)
+      if (_viewStates[channel]->grabbed)
         {
           auto const posPixel = event.getPosition ().toFloat ()
-                                + _viewStates[channelIndex]->grabOffset;
+                                + _viewStates[channel]->grabOffset;
           auto const posHOA = localToNormalized2DPosition (posPixel);
-          _channels[channelIndex]->setPosition (posHOA);
-          _channels[channelIndex]->recomputeHeight ();
+          _engine.setChannel2DPosition (channel, posHOA);
         }
     }
 }
@@ -320,9 +312,8 @@ MotionComponent::updateChannelBlobHighlight (juce::Point<float> posMousePixel)
   jassert (_boundsCenterRegion.getWidth ()
            == _boundsCenterRegion.getHeight ());
 
-  for (auto channelIndex = 0u; channelIndex < _channels.size ();
-       ++channelIndex)
-    _viewStates[channelIndex]->highlighted = false;
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+    _viewStates[channel]->highlighted = false;
 
   auto closestIndex = getClosestBlobIndexWithinRadius (
       posMousePixel, getActiveDistanceInPixel ());
@@ -336,17 +327,16 @@ MotionComponent::getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
 {
   auto minDistance = std::numeric_limits<float>::infinity ();
   auto minIndex = 0u;
-  for (auto channelIndex = 0u; channelIndex < _channels.size ();
-       ++channelIndex)
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     {
-      auto const blobPosInPixel = normalizedToLocal2DPosition (
-          _channels[channelIndex]->getPosition ());
+      auto const blobPosInPixel
+          = normalizedToLocal2DPosition (_engine.getChannelPosition (channel));
 
       auto const distance = blobPosInPixel.getDistanceFrom (posPixel);
       if (distance < radiusPixel && distance < minDistance)
         {
           minDistance = distance;
-          minIndex = channelIndex;
+          minIndex = channel;
         }
     }
 
@@ -494,15 +484,11 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
     juce::Graphics gFBO{ *_imageBlend };
     gFBO.addTransform (_transformNormalizedToLocal);
 
-    for (auto channelIndex = 0u; channelIndex < _channels.size ();
-         ++channelIndex)
+    for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
       {
+        auto const position = _engine.getChannelPosition (channel);
         auto blobSize = 2 * reduceFactorBlobs;
-        blobSize
-            *= (1.f
-                + std::clamp (_channels[channelIndex]->getPosition ().z (),
-                              0.f, 1.f)
-                      * 0.7f);
+        blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
 
         auto const blob
             = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
@@ -514,26 +500,25 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
             0.f, 0.f, //
             blobSize * blobHighlightFactor, blobSize * blobHighlightFactor);
 
-        auto pos
-            = cartesian2DHOA2JUCE (_channels[channelIndex]->getPosition ());
+        auto posScreenNormalized = cartesian2DHOA2JUCE (position);
 
-        auto colour = _viewStates[channelIndex]->colour;
+        auto colour = _viewStates[channel]->colour;
 
         // DBG (juce::String ("drawing at position: ")
         //      + juce::String (pos.getX ()) + " " + juce::String (pos.getY
         //      ()));
 
-        if (_viewStates[channelIndex]->grabbed)
+        if (_viewStates[channel]->grabbed)
           {
             gFBO.setColour (colour.withAlpha (0.4f));
-            gFBO.fillEllipse (blobGrabbed.withCentre (pos));
+            gFBO.fillEllipse (blobGrabbed.withCentre (posScreenNormalized));
           }
 
-        if (_viewStates[channelIndex]->highlighted)
+        if (_viewStates[channel]->highlighted)
           {
             gFBO.setColour (
                 colour.withLightness (colour.getLightness () + 0.2f));
-            gFBO.fillEllipse (blobHighlight.withCentre (pos));
+            gFBO.fillEllipse (blobHighlight.withCentre (posScreenNormalized));
           }
 
         // debug: draw anchor
@@ -541,7 +526,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
         // gFBO.fillEllipse (
         //     blob.withCentre (_viewStates[channelIndex]->posAnchor));
         gFBO.setColour (colour);
-        gFBO.fillEllipse (blob.withCentre (pos));
+        gFBO.fillEllipse (blob.withCentre (posScreenNormalized));
       }
   }
 
@@ -566,30 +551,10 @@ MotionComponent::localToNormalized2DPosition (
       posLocal.transformedBy (_transformNormalizedToLocal.inverted ()));
 }
 
-// Pos
-// MotionComponent::localToNormalizedPosition (
-//     juce::Point<float> const &posLocal) const
-// {
-//   jassert (_boundsCenterRegion.getWidth ()
-//            == _boundsCenterRegion.getHeight ());
-
-//   auto const halfSize = _boundsCenterRegion.getWidth () / 2.f;
-
-//   auto posNormalized = (posLocal - _boundsCenterRegion.getCentre
-//   ().toFloat
-//   ())
-//                        / halfSize / reduceFactorCircle;
-
-//   return Pos::fromCartesian ( //
-//       posNormalized.getX (),  //
-//       posNormalized.getY (),  //
-//       0                       // no elevation for now
-//   );
-// }
-
 void
 MotionComponent::openGLContextClosing ()
 {
   DBG ("openGLContextClosing");
 }
+
 }

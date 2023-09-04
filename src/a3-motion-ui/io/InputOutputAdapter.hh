@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/util/Types.hh>
+
 namespace a3
 {
 
@@ -42,11 +44,11 @@ public:
 
   juce::Value &getButton (Button button);
   juce::Value &getButtonLED (Button button);
-  juce::Value &getPad (int channel, int pad);
-  juce::Value &getPadLED (int channel, int pad);
-  juce::Value &getEncoderPress (int channel);
-  juce::Value &getEncoderIncrement (int channel);
-  juce::Value &getPot (int channel, int pot);
+  juce::Value &getPad (index_t channel, index_t pad);
+  juce::Value &getPadLED (index_t channel, index_t pad);
+  juce::Value &getEncoderPress (index_t channel);
+  juce::Value &getEncoderIncrement (index_t channel);
+  juce::Value &getPot (index_t channel, index_t pot);
   juce::Value &getTapTimeMicros ();
 
   void valueChanged (juce::Value &) override;
@@ -55,21 +57,21 @@ public:
 
   // these might become virtual and be implemented by the specific
   // hardware interface later on.
-  int getNumChannels ();
-  int getNumPadsPerChannel ();
-  int getNumPotsPerChannel ();
-  int getNumButtons ();
+  index_t getNumChannels ();
+  index_t getNumPadsPerChannel ();
+  index_t getNumPotsPerChannel ();
+  index_t getNumButtons ();
 
 protected:
-  static auto constexpr numChannels = 4;
-  static auto constexpr numPadsPerChannel = 4;
-  static auto constexpr numPotsPerChannel = 2;
-  static auto constexpr numButtons = 3;
+  static auto constexpr numChannels = 4u;
+  static auto constexpr numPadsPerChannel = 4u;
+  static auto constexpr numPotsPerChannel = 2u;
+  static auto constexpr numButtons = 3u;
 
   struct PadIndex
   {
-    int channel;
-    int pad;
+    index_t channel;
+    index_t pad;
 
     friend bool
     operator< (const PadIndex &lhs, const PadIndex &rhs)
@@ -141,7 +143,7 @@ protected:
       Decrement,
     } event;
 
-    int channel;
+    index_t channel;
   };
 
   struct InputMessagePot : public InputMessage
@@ -151,8 +153,8 @@ protected:
       type = Type::Pot;
     }
 
-    int channel;
-    int pot;
+    index_t channel;
+    index_t pot;
     float value;
   };
 
@@ -209,8 +211,8 @@ protected:
   // InputOutputAdapter thread (this).
   void inputPadValue (PadIndex const &padIndex, bool value);
   void inputButtonValue (Button button, bool value);
-  void inputEncoderEvent (int channel, InputMessageEncoder::Event event);
-  void inputPotValue (int channel, int pot, float value);
+  void inputEncoderEvent (index_t channel, InputMessageEncoder::Event event);
+  void inputPotValue (index_t channel, index_t pot, float value);
   void inputTapTime (juce::int64 timeMicros);
 
   virtual void outputButtonLED (Button button, bool value) = 0;

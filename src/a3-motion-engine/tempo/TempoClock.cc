@@ -36,7 +36,7 @@ public:
   using ContainerT = std::vector<PointerT>;
   using ClockT = std::chrono::high_resolution_clock;
 
-  struct FifoMessage
+  struct Message
   {
     PointerT ptr;
     a3::TempoClock::Event event;
@@ -51,7 +51,7 @@ public:
   }
 
   std::future<void>
-  submitFifoMessage (FifoMessage const &message)
+  submitFifoMessage (Message const &message)
   {
     jassert (_abstractFifo.getFreeSpace () > 0);
 
@@ -70,20 +70,17 @@ public:
   void
   hiResTimerCallback () override
   {
-    readFifoMessages ();
+    processFifoMessages ();
     advanceMeasure ();
   }
 
   std::atomic<bool> reset{ true };
 
 private:
-  struct SubmittedMessage : public FifoMessage
+  struct SubmittedMessage : public Message
   {
-    SubmittedMessage () : FifoMessage{} {}
-    SubmittedMessage (FifoMessage const &fifoMessage)
-        : FifoMessage{ fifoMessage }
-    {
-    }
+    SubmittedMessage () : Message{} {}
+    SubmittedMessage (Message const &fifoMessage) : Message{ fifoMessage } {}
     std::promise<void> acknowledge;
   };
 
@@ -101,7 +98,7 @@ private:
   }
 
   void
-  readFifoMessages ()
+  processFifoMessages ()
   {
     auto const ready = _abstractFifo.getNumReady ();
     const auto scope = _abstractFifo.read (ready);
@@ -118,7 +115,7 @@ private:
              idx < scope.startIndex1 + scope.blockSize1; ++idx)
           {
             jassert (idx >= 0);
-            handleFifoMessage (_fifo[static_cast<std::size_t> (idx)]);
+            handleMessage (_fifo[static_cast<std::size_t> (idx)]);
           }
       }
 
@@ -128,7 +125,7 @@ private:
              idx < scope.startIndex2 + scope.blockSize2; ++idx)
           {
             jassert (idx >= 0);
-            handleFifoMessage (_fifo[static_cast<std::size_t> (idx)]);
+            handleMessage (_fifo[static_cast<std::size_t> (idx)]);
           }
       }
 
@@ -142,7 +139,7 @@ private:
   }
 
   void
-  handleFifoMessage (SubmittedMessage &message)
+  handleMessage (SubmittedMessage &message)
   {
     auto &v = _handlers[{ message.event, message.execution }];
     jassert (
@@ -185,12 +182,6 @@ private:
                >= ns_per_tick)
           {
             _lastTick += std::chrono::nanoseconds (ns_per_tick);
-            auto time_ns
-                = std::chrono::duration_cast<std::chrono::nanoseconds> (
-                      _lastTick - _startTime)
-                      .count ();
-            jassert (time_ns >= 0);
-            _measure.time_ns = static_cast<uint64_t> (time_ns);
             countTick ();
           }
       }
@@ -383,6 +374,21 @@ void
 TempoClock::reset ()
 {
   _timer->reset = true;
+}
+
+TempoClock::Measure
+TempoClock::nextDownBeat (Measure const &measure)
+{
+  auto downbeat = measure;
+
+  if (downbeat.beat != 0 || downbeat.tick != 0)
+    {
+      ++downbeat.bar;
+      downbeat.beat = 0;
+      downbeat.tick = 0;
+    }
+
+  return downbeat;
 }
 
 }

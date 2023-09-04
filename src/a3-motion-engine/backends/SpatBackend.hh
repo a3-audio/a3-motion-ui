@@ -20,7 +20,7 @@
 
 #pragma once
 
-#include <a3-motion-engine/util/Geometry.hh>
+#include <a3-motion-engine/util/Types.hh>
 
 namespace a3
 {

@@ -20,15 +20,14 @@
 
 #pragma once
 
+#include "a3-motion-ui/components/ChannelStrip.hh"
+#include "a3-motion-ui/components/ChannelViewState.hh"
 #include <JuceHeader.h>
 
 #include <vector>
 
 #include <a3-motion-engine/MotionEngine.hh>
 
-#include <a3-motion-ui/components/ChannelFooter.hh>
-#include <a3-motion-ui/components/ChannelHeader.hh>
-#include <a3-motion-ui/components/ChannelViewState.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 
 namespace a3
@@ -38,7 +37,12 @@ class TempoEstimatorTest;
 
 class StatusBar;
 class MotionComponent;
+class ChannelStrip;
+class ChannelHeader;
+class ChannelViewState;
+
 class InputOutputAdapter;
+class Pattern;
 
 class A3MotionUIComponent : public juce::Component,
                             public juce::Value::Listener
@@ -57,23 +61,30 @@ public:
   void valueChanged (juce::Value &value) override;
 
 private:
-  void createChannelsUI ();
-  void createHardwareInterface ();
-  void initializePadLEDs ();
-
   MotionEngine _engine;
+  juce::Value _valueBPM;
   std::unique_ptr<TempoEstimatorTest> _tempoEstimatorTest;
 
   LookAndFeel_A3 _lookAndFeel;
-  std::vector<std::unique_ptr<ChannelViewState> > _viewStates;
+
+  void createChannelsUI ();
+  bool const _drawHeaders = false;
   std::vector<std::unique_ptr<ChannelHeader> > _headers;
-  std::vector<std::unique_ptr<ChannelFooter> > _footers;
+  std::vector<std::unique_ptr<ChannelStrip> > _channelStrips;
+  std::vector<std::unique_ptr<ChannelViewState> > _viewStates;
+
+  void createMainUI ();
   std::unique_ptr<MotionComponent> _motionComponent;
   std::unique_ptr<StatusBar> _statusBar;
+  TempoClock::PointerT _statusBarCallbackHandle;
 
+  void createHardwareInterface ();
+  void updatePadLEDs ();
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
-  bool const _drawHeaders = false;
+  void initializePatterns ();
+  std::vector<std::vector<std::unique_ptr<Pattern> > > _patterns;
+  static auto constexpr numPages = 4u;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };

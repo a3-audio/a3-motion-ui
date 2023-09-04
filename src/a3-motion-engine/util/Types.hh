@@ -20,38 +20,12 @@
 
 #pragma once
 
-#include <JuceHeader.h>
-
-#include <a3-motion-engine/tempo/TempoClock.hh>
-
-#include <a3-motion-ui/components/LayoutHints.hh>
-#include <a3-motion-ui/components/Ticks.hh>
+#include <a3-motion-engine/util/Geometry.hh>
 
 namespace a3
 {
 
-class StatusBar : public juce::Component, public juce::Value::Listener
-{
-public:
-  StatusBar (juce::Value &valueBPM);
-
-  void resized () override;
-  void paint (juce::Graphics &g) override;
-
-  void valueChanged (juce::Value &value) override;
-  void measureChanged (TempoClock::Measure measure);
-
-  static constexpr int
-  getMinimumHeight ()
-  {
-    return LayoutHints::lineHeight + 2 * LayoutHints::padding;
-  }
-
-private:
-  Ticks _ticks;
-
-  juce::Label _labelBPM;
-  juce::Value &_valueBPM;
-};
+using index_t = unsigned int;
+using Pos = Position<float>;
 
 }

@@ -44,17 +44,6 @@ print (Timings<ClockT> const &timings)
     }
 }
 
-void
-print (a3::TempoClock::Measure const &measure, juce::String prefix = "")
-{
-  auto ts = std::chrono::high_resolution_clock::now ()
-                .time_since_epoch ()
-                .count ();
-
-  juce::Logger::writeToLog (
-      prefix + " " + juce::String (measure.bar) + "."
-      + juce::String (measure.beat) + "." + juce::String (measure.tick) + ":"
-      + juce::String (measure.time_ns) + " @ " + juce::String (ts));
-}
+void print (TempoClock::Measure const &measure, juce::String prefix = "");
 
 }

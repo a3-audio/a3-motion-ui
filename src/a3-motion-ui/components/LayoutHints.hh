@@ -28,7 +28,6 @@ struct LayoutHints
   struct Channels
   {
     static float const widthMin;
-    static float const heightFooter;
   };
 
   struct MotionComponent
@@ -38,6 +37,7 @@ struct LayoutHints
 
   static auto constexpr padding = 5.f;
   static auto constexpr lineHeight = 35.f;
+  static auto constexpr fontSize = lineHeight - 2 * padding;
 };
 
 }

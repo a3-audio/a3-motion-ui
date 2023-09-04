@@ -21,34 +21,46 @@
 #pragma once
 
 #include <a3-motion-engine/AsyncCommandQueue.hh>
-#include <a3-motion-engine/Channel.hh>
 #include <a3-motion-engine/Master.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
+#include <a3-motion-engine/util/Helpers.hh>
 
 namespace a3
 {
 
+class Channel;
+class Pattern;
+class HeightMap;
+
 class MotionEngine
 {
 public:
-  MotionEngine (unsigned int const numChannels);
+  MotionEngine (index_t numChannels);
   ~MotionEngine ();
-
-  // TODO: provide iterator interface instead of exposing
-  // implementation details!
-  std::vector<std::unique_ptr<Channel> > const &getChannels () const;
 
   TempoClock &getTempoClock ();
 
+  index_t getNumChannels ();
+  Pos getChannelPosition (index_t channel);
+  void setChannel2DPosition (index_t channel, Pos const &position);
+  void setChannel3DPosition (index_t channel, Pos const &position);
+
+  void setRecordPosition (Pos const &position);
+  void releaseRecordPosition ();
+
+  void recordToPattern (std::shared_ptr<Pattern> pattern,
+                        TempoClock::Measure timepoint,
+                        TempoClock::Measure length);
+
 private:
-  void createChannels (unsigned int const numChannels);
+  void createChannels (index_t numChannels);
+  std::vector<std::unique_ptr<Channel> > _channels;
+  std::unique_ptr<HeightMap> _heightMap;
 
   // MotionEngine runs the record/playback engine, checks for changed
   // parameters and and schedules corresponding commands with the
   // dispatcher.
   void tickCallback ();
-
-  std::vector<std::unique_ptr<Channel> > _channels;
 
   // The tempo clock is the main timing engine that runs at a 'tick'
   // resolution relative to the current metrum. Callbacks for metrum
@@ -57,6 +69,48 @@ private:
   // thread.
   TempoClock _tempoClock;
   TempoClock::PointerT _callbackHandleTick;
+
+  // This is designed like a union currently, where not all fields are
+  // valid for all message types. TODO: make this more explicit and
+  // safe by using std::variant.
+  struct Message
+  {
+    enum class Command
+    {
+      SetRecordPosition,
+      ReleaseRecordPosition,
+      RecordStart,
+      RecordStop,
+    } command;
+
+    Pos position;
+    std::shared_ptr<Pattern> pattern;
+    TempoClock::Measure timepoint;
+    TempoClock::Measure length;
+
+    friend bool
+    operator< (const Message &lhs, const Message &rhs)
+    {
+      return lhs.timepoint < rhs.timepoint;
+    }
+  };
+
+  void submitFifoMessage (Message const &message);
+  void processFifo ();
+  void handleFifoMessage (Message const &message);
+  static constexpr int fifoSize = 32;
+  juce::AbstractFifo _abstractFifo{ fifoSize };
+  std::array<Message, fifoSize> _fifo;
+
+  void handleStartStopMessages ();
+  std::priority_queue<Message> _messagesStartStop;
+
+  void performRecording ();
+  void performPlayback ();
+  TempoClock::Measure _now;
+  TempoClock::Measure _recordLength;
+  std::shared_ptr<Pattern> _recordPattern;
+  std::optional<Pos> _recordPosition;
 
   // The command dispatcher runs on its own high-priority thread and
   // receives motion / effect commands from the high-prio TempoClock

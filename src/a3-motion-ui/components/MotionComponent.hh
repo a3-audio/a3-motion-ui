@@ -22,14 +22,14 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-engine/util/Geometry.hh>
+#include <a3-motion-engine/util/Types.hh>
 
 #include <a3-motion-ui/Helpers.hh>
 
 namespace a3
 {
 
-class Channel;
+class MotionEngine;
 class ChannelViewState;
 
 class MotionComponent : public juce::Component,
@@ -37,7 +37,7 @@ class MotionComponent : public juce::Component,
                         public juce::Timer
 {
 public:
-  MotionComponent (std::vector<std::unique_ptr<Channel> > const &,
+  MotionComponent (MotionEngine &engine,
                    std::vector<std::unique_ptr<ChannelViewState> > &);
   ~MotionComponent ();
 
@@ -70,15 +70,16 @@ private:
   juce::Point<float> normalizedToLocal2DPosition (Pos const &posNorm) const;
   Pos localToNormalized2DPosition (juce::Point<float> const &posLocal) const;
 
-  std::optional<size_t>
+  std::optional<index_t>
   getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
                                    float radiusPixel) const;
 
   void disoccludeBlobs ();
 
-  std::vector<std::unique_ptr<Channel> > const &_channels;
+  MotionEngine &_engine;
+
   std::vector<std::unique_ptr<ChannelViewState> > &_viewStates;
-  std::optional<size_t> _grabbedIndex;
+  std::optional<index_t> _grabbedIndex;
 
   juce::OpenGLContext _glContext;
 

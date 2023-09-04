@@ -60,42 +60,41 @@ InputOutputAdapter::getButtonLED (Button button)
 }
 
 juce::Value &
-InputOutputAdapter::getPad (int channel, int pad)
+InputOutputAdapter::getPad (index_t channel, index_t pad)
 {
-  jassert (channel >= 0 && channel < numChannels);
-  jassert (pad >= 0 && pad < numPadsPerChannel);
-  return _valuePads[static_cast<size_t> (channel)][static_cast<size_t> (pad)];
+  jassert (channel < numChannels);
+  jassert (pad < numPadsPerChannel);
+  return _valuePads[channel][pad];
 }
 
 juce::Value &
-InputOutputAdapter::getPadLED (int channel, int pad)
+InputOutputAdapter::getPadLED (index_t channel, index_t pad)
 {
-  jassert (channel >= 0 && channel < numChannels);
-  jassert (pad >= 0 && pad < numPadsPerChannel);
-  return _valuePadLEDs[static_cast<size_t> (channel)]
-                      [static_cast<size_t> (pad)];
+  jassert (channel < numChannels);
+  jassert (pad < numPadsPerChannel);
+  return _valuePadLEDs[channel][pad];
 }
 
 juce::Value &
-InputOutputAdapter::getEncoderPress (int channel)
+InputOutputAdapter::getEncoderPress (index_t channel)
 {
-  jassert (channel >= 0 && channel < numChannels);
-  return _valueEncoderPresses[static_cast<size_t> (channel)];
+  jassert (channel < numChannels);
+  return _valueEncoderPresses[channel];
 }
 
 juce::Value &
-InputOutputAdapter::getEncoderIncrement (int channel)
+InputOutputAdapter::getEncoderIncrement (index_t channel)
 {
-  jassert (channel >= 0 && channel < numChannels);
-  return _valueEncoderIncrements[static_cast<size_t> (channel)];
+  jassert (channel < numChannels);
+  return _valueEncoderIncrements[channel];
 }
 
 juce::Value &
-InputOutputAdapter::getPot (int channel, int pot)
+InputOutputAdapter::getPot (index_t channel, index_t pot)
 {
-  jassert (channel >= 0 && channel < numChannels);
-  jassert (pot >= 0 && pot < numPotsPerChannel);
-  return _valuePots[static_cast<size_t> (channel)][static_cast<size_t> (pot)];
+  jassert (channel < numChannels);
+  jassert (pot < numPotsPerChannel);
+  return _valuePots[channel][pot];
 }
 
 juce::Value &
@@ -104,25 +103,25 @@ InputOutputAdapter::getTapTimeMicros ()
   return _valueTapTimeMicros;
 }
 
-int
+index_t
 InputOutputAdapter::getNumChannels ()
 {
   return numChannels;
 }
 
-int
+index_t
 InputOutputAdapter::getNumPadsPerChannel ()
 {
   return numPadsPerChannel;
 }
 
-int
+index_t
 InputOutputAdapter::getNumPotsPerChannel ()
 {
   return numPotsPerChannel;
 }
 
-int
+index_t
 InputOutputAdapter::getNumButtons ()
 {
   return numButtons;
@@ -147,8 +146,8 @@ InputOutputAdapter::run ()
 void
 InputOutputAdapter::inputPadValue (PadIndex const &padIndex, bool value)
 {
-  jassert (padIndex.channel >= 0 && padIndex.channel < numChannels);
-  jassert (padIndex.pad >= 0 && padIndex.pad < numPadsPerChannel);
+  jassert (padIndex.channel < numChannels);
+  jassert (padIndex.pad < numPadsPerChannel);
 
   if (value != _lastPadValues[padIndex])
     {
@@ -178,10 +177,10 @@ InputOutputAdapter::inputButtonValue (Button button, bool value)
 }
 
 void
-InputOutputAdapter::inputEncoderEvent (int channel,
+InputOutputAdapter::inputEncoderEvent (index_t channel,
                                        InputMessageEncoder::Event event)
 {
-  jassert (channel >= 0 && channel < numChannels);
+  jassert (channel < numChannels);
 
   auto message = std::make_unique<InputMessageEncoder> ();
   message->event = event;
@@ -190,10 +189,10 @@ InputOutputAdapter::inputEncoderEvent (int channel,
 }
 
 void
-InputOutputAdapter::inputPotValue (int channel, int pot, float value)
+InputOutputAdapter::inputPotValue (index_t channel, index_t pot, float value)
 {
-  jassert (channel >= 0 && channel < numChannels);
-  jassert (pot >= 0 && pot < numPotsPerChannel);
+  jassert (channel < numChannels);
+  jassert (pot < numPotsPerChannel);
   jassert (value >= 0 && value <= 1.f);
 
   auto message = std::make_unique<InputMessagePot> ();
@@ -307,8 +306,7 @@ InputOutputAdapter::handleInputMessage (std::unique_ptr<InputMessage> message)
 void
 InputOutputAdapter::handlePad (InputMessagePad const &message)
 {
-  _valuePads[static_cast<size_t> (message.padIndex.channel)]
-            [static_cast<size_t> (message.padIndex.pad)]
+  _valuePads[message.padIndex.channel][message.padIndex.pad]
       = message.event == InputMessagePad::Event::Press ? true : false;
 }
 
@@ -331,8 +329,7 @@ InputOutputAdapter::handleEncoder (InputMessageEncoder const &message)
       auto offset
           = message.event == InputMessageEncoder::Event::Increment ? 1 : -1;
 
-      auto value
-          = _valueEncoderIncrements[static_cast<size_t> (message.channel)];
+      auto value = _valueEncoderIncrements[message.channel];
 
       // The following is required to send the same increment
       // repeatedly. juce::Value notifies observers only when the
@@ -352,7 +349,7 @@ InputOutputAdapter::handleEncoder (InputMessageEncoder const &message)
   else if (message.event == InputMessageEncoder::Event::Press
            || message.event == InputMessageEncoder::Event::Release)
     {
-      auto value = _valueEncoderPresses[static_cast<size_t> (message.channel)];
+      auto value = _valueEncoderPresses[message.channel];
       value = message.event == InputMessageEncoder::Event::Press ? 1 : 0;
     }
 }
@@ -360,9 +357,7 @@ InputOutputAdapter::handleEncoder (InputMessageEncoder const &message)
 void
 InputOutputAdapter::handlePot (InputMessagePot const &message)
 {
-  _valuePots[static_cast<size_t> (message.channel)]
-            [static_cast<size_t> (message.pot)]
-      = message.value;
+  _valuePots[message.channel][message.pot] = message.value;
 }
 
 void
@@ -401,8 +396,8 @@ InputOutputAdapter::valueChanged (juce::Value &value)
           if (value.refersToSameSourceAs (_valuePadLEDs[channel][pad]))
             {
               auto message = std::make_unique<OutputMessagePadLED> ();
-              message->padIndex.channel = static_cast<int> (channel);
-              message->padIndex.pad = static_cast<int> (pad);
+              message->padIndex.channel = channel;
+              message->padIndex.pad = pad;
               message->colour = juce::VariantConverter<juce::Colour>::fromVar (
                   value.getValue ());
               submitOutputMessage (std::move (message));

@@ -22,24 +22,34 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/components/LayoutHints.hh>
+
 namespace a3
 {
 
-class Channel;
-class ChannelViewState;
-
-class ChannelFooter : public juce::Component
+class PatternMenu : public juce::Component, public juce::Value::Listener
 {
 public:
-  ChannelFooter (Channel const &, ChannelViewState const &);
+  PatternMenu (juce::Value &valueEncoderIncrement);
+  void resized () override;
 
-  void paint (juce::Graphics &) override;
+  void valueChanged (juce::Value &value) override;
+
+  static constexpr int
+  getMinimumHeight ()
+  {
+    return LayoutHints::lineHeight;
+  }
 
 private:
-  Channel const &_channel;
-  ChannelViewState const &_viewState;
+  void updateLengthValue ();
 
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelFooter)
+  juce::Label labelLength;
+  juce::Label labelLengthValue;
+  int lengthLog2 = 0;
+
+  static constexpr auto lengthMinLog2 = -2;
+  static constexpr auto lengthMaxLog2 = 4;
 };
 
 }
