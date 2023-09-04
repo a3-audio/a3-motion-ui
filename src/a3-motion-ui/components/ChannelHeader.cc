@@ -20,17 +20,17 @@
 
 #include "ChannelHeader.hh"
 
-#include <a3-motion-ui/components/ChannelViewState.hh>
+#include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 
 namespace a3
 {
 
-ChannelHeader::ChannelHeader (ChannelViewState const &viewState)
-    : _viewState (viewState), _slidersFX{ { { juce::Slider::RotaryVerticalDrag,
-                                              juce::Slider::NoTextBox },
-                                            { juce::Slider::RotaryVerticalDrag,
-                                              juce::Slider::NoTextBox } } },
+ChannelHeader::ChannelHeader (ChannelUIState const &uiState)
+    : _uiState (uiState), _slidersFX{ { { juce::Slider::RotaryVerticalDrag,
+                                          juce::Slider::NoTextBox },
+                                        { juce::Slider::RotaryVerticalDrag,
+                                          juce::Slider::NoTextBox } } },
       _labelsFX{ { { juce::String (), juce::String ("Width") },
                    { juce::String (), juce::String ("Reverb") } } }
 {
@@ -50,7 +50,7 @@ ChannelHeader::ChannelHeader (ChannelViewState const &viewState)
 void
 ChannelHeader::paint (juce::Graphics &g)
 {
-  g.fillAll (_viewState.colour);
+  g.fillAll (_uiState.colour);
 
   // g.setColour (juce::Colours::red);
 

@@ -30,7 +30,7 @@ namespace a3
 {
 
 class MotionEngine;
-class ChannelViewState;
+class ChannelUIState;
 
 class MotionComponent : public juce::Component,
                         public juce::OpenGLRenderer,
@@ -38,7 +38,7 @@ class MotionComponent : public juce::Component,
 {
 public:
   MotionComponent (MotionEngine &engine,
-                   std::vector<std::unique_ptr<ChannelViewState> > &);
+                   std::vector<std::unique_ptr<ChannelUIState> > &);
   ~MotionComponent ();
 
   void resized () override;
@@ -78,7 +78,7 @@ private:
 
   MotionEngine &_engine;
 
-  std::vector<std::unique_ptr<ChannelViewState> > &_viewStates;
+  std::vector<std::unique_ptr<ChannelUIState> > &_uiStates;
   std::optional<index_t> _grabbedIndex;
 
   juce::OpenGLContext _glContext;

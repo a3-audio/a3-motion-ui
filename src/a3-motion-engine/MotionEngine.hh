@@ -48,9 +48,8 @@ public:
   void setRecordPosition (Pos const &position);
   void releaseRecordPosition ();
 
-  void recordToPattern (std::shared_ptr<Pattern> pattern,
-                        TempoClock::Measure timepoint,
-                        TempoClock::Measure length);
+  void recordToPattern (std::shared_ptr<Pattern> pattern, //
+                        Measure timepoint, Measure length);
 
 private:
   void createChannels (index_t numChannels);
@@ -85,8 +84,8 @@ private:
 
     Pos position;
     std::shared_ptr<Pattern> pattern;
-    TempoClock::Measure timepoint;
-    TempoClock::Measure length;
+    Measure timepoint;
+    Measure length;
 
     friend bool
     operator< (const Message &lhs, const Message &rhs)
@@ -107,10 +106,14 @@ private:
 
   void performRecording ();
   void performPlayback ();
-  TempoClock::Measure _now;
-  TempoClock::Measure _recordLength;
-  std::shared_ptr<Pattern> _recordPattern;
+  Measure _now;
+  Measure _recordLength;
   std::optional<Pos> _recordPosition;
+  // NOTE: the MotionEngine holding a set of shared_ptr might lead to
+  // pattern deallocations on the realtime thread. If this turns out to be
+  // problematic, implement garbage collection on a low-prio thread as
+  // suggested by Timur Doumler, see TempoClock.hh.
+  std::set<std::shared_ptr<Pattern> > _recordPatterns;
 
   // The command dispatcher runs on its own high-priority thread and
   // receives motion / effect commands from the high-prio TempoClock

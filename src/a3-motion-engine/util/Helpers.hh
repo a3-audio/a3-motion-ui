@@ -24,7 +24,7 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-engine/tempo/TempoClock.hh>
+#include <a3-motion-engine/tempo/Measure.hh>
 #include <a3-motion-engine/util/Timing.hh>
 
 namespace a3
@@ -44,6 +44,6 @@ print (Timings<ClockT> const &timings)
     }
 }
 
-void print (TempoClock::Measure const &measure, juce::String prefix = "");
+void print (Measure const &measure, juce::String prefix = "");
 
 }

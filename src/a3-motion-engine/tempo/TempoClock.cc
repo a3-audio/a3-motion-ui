@@ -25,6 +25,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/Config.hh>
+#include <a3-motion-engine/tempo/Measure.hh>
 #include <a3-motion-engine/tempo/TempoEstimatorMean.hh>
 
 // TODO define this in anonymous namespace or move to internal
@@ -190,15 +191,15 @@ private:
   void
   countTick ()
   {
-    ++_measure.tick;
-    if (_measure.tick == _config.ticksPerBeat)
+    ++_measure.tick ();
+    if (_measure.tick () == _config.ticksPerBeat)
       {
-        _measure.tick = 0;
-        ++_measure.beat;
-        if (_measure.beat == _config.beatsPerBar)
+        _measure.tick () = 0;
+        ++_measure.beat ();
+        if (_measure.beat () == _config.beatsPerBar)
           {
-            _measure.beat = 0;
-            ++_measure.bar;
+            _measure.beat () = 0;
+            ++_measure.bar ();
             emitEvent (a3::TempoClock::Event::Bar);
           }
         emitEvent (a3::TempoClock::Event::Beat);
@@ -269,7 +270,7 @@ private:
   ClockT::time_point _startTime;
   ClockT::time_point _lastTick;
 
-  a3::TempoClock::Measure _measure;
+  a3::Measure _measure;
 };
 
 namespace a3
@@ -376,16 +377,16 @@ TempoClock::reset ()
   _timer->reset = true;
 }
 
-TempoClock::Measure
+Measure
 TempoClock::nextDownBeat (Measure const &measure)
 {
   auto downbeat = measure;
 
-  if (downbeat.beat != 0 || downbeat.tick != 0)
+  if (downbeat.beat () != 0 || downbeat.tick () != 0)
     {
-      ++downbeat.bar;
-      downbeat.beat = 0;
-      downbeat.tick = 0;
+      ++downbeat.bar ();
+      downbeat.beat () = 0;
+      downbeat.tick () = 0;
     }
 
   return downbeat;

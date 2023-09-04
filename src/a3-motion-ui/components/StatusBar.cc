@@ -78,9 +78,9 @@ StatusBar::valueChanged (juce::Value &value)
 }
 
 void
-StatusBar::measureChanged (TempoClock::Measure measure)
+StatusBar::beatCallback (Measure measure)
 {
-  _ticks.setCurrentTick (measure.beat);
+  _ticks.setCurrentTick (measure.beat ());
 }
 
 }

@@ -29,9 +29,10 @@
 #include <a3-motion-ui/Config.hh>
 #include <a3-motion-ui/components/ChannelHeader.hh>
 #include <a3-motion-ui/components/ChannelStrip.hh>
-#include <a3-motion-ui/components/ChannelViewState.hh>
+#include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
+#include <a3-motion-ui/components/PatternUIState.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
 
 #include <a3-motion-ui/tests/TempoEstimatorTest.hh>
@@ -55,6 +56,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   initializePatterns ();
 
+  _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
+      [this] (auto measure) { tickCallback (measure); },
+      TempoClock::Event::Beat, TempoClock::Execution::JuceMessageThread);
+
   auto constexpr testTempoEstimation = false;
   if (testTempoEstimation)
     {
@@ -77,7 +82,7 @@ A3MotionUIComponent::createChannelsUI ()
 {
   auto const numChannels = _engine.getNumChannels ();
 
-  _viewStates.reserve (numChannels);
+  _channelUIStates.reserve (numChannels);
   if (_drawHeaders)
     _headers.reserve (numChannels);
   _channelStrips.reserve (numChannels);
@@ -85,7 +90,7 @@ A3MotionUIComponent::createChannelsUI ()
   auto hueStart = 0.f;
   for (auto channel = 0u; channel < numChannels; ++channel)
     {
-      auto viewState = std::make_unique<ChannelViewState> ();
+      auto uiState = std::make_unique<ChannelUIState> ();
       auto const hueNorm
           = hueStart + static_cast<float> (channel) / numChannels;
       auto hue = hueNorm / 360.f * 256.f; // for now rescale to
@@ -96,23 +101,23 @@ A3MotionUIComponent::createChannelsUI ()
                                           // the old python
                                           // implementation.
 
-      viewState->colour = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
+      uiState->colour = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
 
       if (_drawHeaders)
         {
-          auto header = std::make_unique<ChannelHeader> (*viewState);
+          auto header = std::make_unique<ChannelHeader> (*uiState);
           addChildComponent (*header);
           header->setVisible (true);
           _headers.push_back (std::move (header));
         }
 
       auto strip = std::make_unique<ChannelStrip> (
-          *viewState, _ioAdapter->getEncoderIncrement (channel));
+          *uiState, _ioAdapter->getEncoderIncrement (channel));
       addChildComponent (*strip);
       strip->setVisible (true);
       _channelStrips.push_back (std::move (strip));
 
-      _viewStates.push_back (std::move (viewState));
+      _channelUIStates.push_back (std::move (uiState));
     }
 }
 
@@ -124,10 +129,11 @@ A3MotionUIComponent::createMainUI ()
   _statusBar->setVisible (true);
   _statusBarCallbackHandle
       = _engine.getTempoClock ().scheduleEventHandlerAddition (
-          [this] (auto measure) { _statusBar->measureChanged (measure); },
+          [this] (auto measure) { _statusBar->beatCallback (measure); },
           TempoClock::Event::Beat, TempoClock::Execution::JuceMessageThread);
 
-  _motionComponent = std::make_unique<MotionComponent> (_engine, _viewStates);
+  _motionComponent
+      = std::make_unique<MotionComponent> (_engine, _channelUIStates);
   addChildComponent (*_motionComponent);
   _motionComponent->setVisible (true);
 }
@@ -141,12 +147,18 @@ A3MotionUIComponent::createHardwareInterface ()
 #else
 #error hardware interface enabled but no implementation selected!
 #endif
-  using Button = InputOutputAdapter::Button;
-  _ioAdapter->startThread ();
   _ioAdapter->getButton (Button::Shift).addListener (this);
   _ioAdapter->getButton (Button::Record).addListener (this);
   _ioAdapter->getButton (Button::Tap).addListener (this);
   _ioAdapter->getTapTimeMicros ().addListener (this);
+  for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
+    {
+      for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
+        {
+          _ioAdapter->getPad (channel, pad).addListener (this);
+        }
+    }
+  _ioAdapter->startThread ();
 #endif
 }
 
@@ -154,11 +166,13 @@ void
 A3MotionUIComponent::initializePatterns ()
 {
   _patterns.resize (_ioAdapter->getNumChannels ());
-  for (auto &pattern : _patterns)
-    {
-      auto numPatterns = numPages * _ioAdapter->getNumPadsPerChannel ();
-      pattern.resize (numPatterns);
-    }
+  _patternUIStates.resize (_ioAdapter->getNumChannels ());
+
+  auto numPatternsPerChannel = numPages * _ioAdapter->getNumPadsPerChannel ();
+  for (auto &channelPatterns : _patterns)
+    channelPatterns.resize (numPatternsPerChannel);
+  for (auto &channelPatternUIStates : _patternUIStates)
+    channelPatternUIStates.resize (numPatternsPerChannel);
 
   updatePadLEDs ();
 }
@@ -248,8 +262,6 @@ A3MotionUIComponent::getMinimumHeight () const
 void
 A3MotionUIComponent::valueChanged (juce::Value &value)
 {
-  using Button = InputOutputAdapter::Button;
-
   if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Shift)))
     {
       _ioAdapter->getButtonLED (Button::Shift) = value.getValue ();
@@ -282,6 +294,50 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
             }
         }
     }
+  else
+    {
+      for (auto channel = 0u; channel < _ioAdapter->getNumChannels ();
+           ++channel)
+        {
+          for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
+            {
+              if (value.refersToSameSourceAs (
+                      _ioAdapter->getPad (channel, pad)))
+                {
+                  if (value.getValue ())
+                    {
+                      handlePadPress (channel, pad);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void
+A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
+{
+  if (isButtonPressed (Button::Record))
+    {
+      juce::Logger::writeToLog ("scheduling record into pad ("
+                                + juce::String (channel) + ", "
+                                + juce::String (pad) + ") on next downbeat");
+      _engine.recordToPattern (_patterns[channel][pad],
+                               TempoClock::nextDownBeat (_now),
+                               Measure (1, 0, 0));
+    }
+}
+
+bool
+A3MotionUIComponent::isButtonPressed (Button button)
+{
+  return _ioAdapter->getButton (button).getValue ();
+}
+
+void
+A3MotionUIComponent::tickCallback (Measure measure)
+{
+  _now = measure;
 }
 
 }

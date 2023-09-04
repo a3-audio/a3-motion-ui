@@ -20,8 +20,7 @@
 
 #pragma once
 
-#include "a3-motion-ui/components/ChannelStrip.hh"
-#include "a3-motion-ui/components/ChannelViewState.hh"
+#include "a3-motion-engine/tempo/TempoClock.hh"
 #include <JuceHeader.h>
 
 #include <vector>
@@ -29,20 +28,21 @@
 #include <a3-motion-engine/MotionEngine.hh>
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/io/InputOutputAdapter.hh>
 
 namespace a3
 {
 class TempoEstimator;
 class TempoEstimatorTest;
 
-class StatusBar;
 class MotionComponent;
+
+class StatusBar;
 class ChannelStrip;
 class ChannelHeader;
-class ChannelViewState;
-
-class InputOutputAdapter;
+class ChannelUIState;
 class Pattern;
+class PatternUIState;
 
 class A3MotionUIComponent : public juce::Component,
                             public juce::Value::Listener
@@ -59,10 +59,14 @@ public:
   float getMinimumHeight () const;
 
   void valueChanged (juce::Value &value) override;
+  void tickCallback (Measure measure);
 
 private:
   MotionEngine _engine;
+
+  Measure _now;
   juce::Value _valueBPM;
+  TempoClock::PointerT _tickCallbackHandle;
   std::unique_ptr<TempoEstimatorTest> _tempoEstimatorTest;
 
   LookAndFeel_A3 _lookAndFeel;
@@ -71,19 +75,24 @@ private:
   bool const _drawHeaders = false;
   std::vector<std::unique_ptr<ChannelHeader> > _headers;
   std::vector<std::unique_ptr<ChannelStrip> > _channelStrips;
-  std::vector<std::unique_ptr<ChannelViewState> > _viewStates;
+  std::vector<std::unique_ptr<ChannelUIState> > _channelUIStates;
 
   void createMainUI ();
   std::unique_ptr<MotionComponent> _motionComponent;
   std::unique_ptr<StatusBar> _statusBar;
   TempoClock::PointerT _statusBarCallbackHandle;
 
+  using Button = InputOutputAdapter::Button;
   void createHardwareInterface ();
   void updatePadLEDs ();
+  void handlePadPress (index_t channel, index_t pad);
+  bool isButtonPressed (Button button);
+
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
   void initializePatterns ();
-  std::vector<std::vector<std::unique_ptr<Pattern> > > _patterns;
+  std::vector<std::vector<std::shared_ptr<Pattern> > > _patterns;
+  std::vector<std::vector<std::unique_ptr<PatternUIState> > > _patternUIStates;
   static auto constexpr numPages = 4u;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)

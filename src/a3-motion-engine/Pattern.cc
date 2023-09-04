@@ -19,3 +19,32 @@
 */
 
 #include "Pattern.hh"
+
+namespace a3
+{
+
+void
+Pattern::clear ()
+{
+  std::fill (_ticks.begin (), _ticks.end (), Pos::invalid);
+}
+
+void
+Pattern::resize (index_t lengthBeats)
+{
+  _ticks.resize (TempoClock::Config::ticksPerBeat * lengthBeats, Pos::invalid);
+}
+
+void
+Pattern::setIsRecording (bool isRecording)
+{
+  _isRecording = isRecording;
+}
+
+void
+Pattern::setIsPlaying (bool isPlaying)
+{
+  _isPlaying = isPlaying;
+}
+
+}

@@ -30,12 +30,12 @@ namespace a3
 {
 
 class Channel;
-class ChannelViewState;
+class ChannelUIState;
 
 class ChannelStrip : public juce::Component
 {
 public:
-  ChannelStrip (ChannelViewState const &channelViewState,
+  ChannelStrip (ChannelUIState const &channelViewState,
                 juce::Value &valueEncoderIncrement);
 
   void resized () override;
@@ -49,7 +49,7 @@ public:
   }
 
 private:
-  ChannelViewState const &_viewState;
+  ChannelUIState const &_uiState;
   PatternMenu _patternMenu;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelStrip)

@@ -43,6 +43,8 @@ target_sources("a3-motion-engine" PRIVATE
     Master.hh
     AsyncCommandQueue.cc
     AsyncCommandQueue.hh
+    tempo/Measure.cc
+    tempo/Measure.hh
     tempo/TempoClock.cc
     tempo/TempoClock.hh
     tempo/TempoEstimator.cc

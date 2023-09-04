@@ -39,7 +39,7 @@ public:
   void paint (juce::Graphics &g) override;
 
   void valueChanged (juce::Value &value) override;
-  void measureChanged (TempoClock::Measure measure);
+  void beatCallback (Measure measure);
 
   static constexpr int
   getMinimumHeight ()

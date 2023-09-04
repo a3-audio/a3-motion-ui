@@ -29,9 +29,17 @@ namespace a3
 class Pattern
 {
 public:
+  void clear ();
+  void resize (index_t lengthBeats);
+
+  void setIsRecording (bool isRecording);
+  void setIsPlaying (bool isPlaying);
+
 private:
-  // std::atomic<bool> _isRecording = false;
-  std::array<Pos, TempoClock::Config::ticksPerBeat> _ticks;
+  std::atomic<bool> _isRecording = false;
+  std::atomic<bool> _isPlaying = false;
+  std::atomic<int> _recordLengthBeats = 0;
+  std::vector<Pos> _ticks;
 };
 
 }

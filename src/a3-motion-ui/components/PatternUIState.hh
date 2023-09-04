@@ -25,15 +25,8 @@
 namespace a3
 {
 
-struct ChannelViewState
+struct PatternUIState
 {
-  juce::Colour colour;
-  bool highlighted = false;
-
-  bool grabbed = false;
-  juce::Point<float> grabOffset;
-
-  juce::Point<float> posAnchor;
 };
 
 }

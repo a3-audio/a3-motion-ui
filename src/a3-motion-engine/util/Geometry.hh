@@ -23,6 +23,7 @@
 #include <cmath>
 
 #include <JuceHeader.h>
+#include <limits>
 
 namespace a3
 {
@@ -68,6 +69,8 @@ template <typename ScalarT>
 class Position
 {
 public:
+  static const Position invalid;
+
   Position ();
 
   // Cartesian coordinates
@@ -247,5 +250,12 @@ Position<ScalarT>::fromSpherical (ScalarT const &azimuth,
 
   return p;
 }
+
+template <typename ScalarT>
+const Position<ScalarT> Position<ScalarT>::invalid
+    = Position<ScalarT>::fromCartesian (
+        std::numeric_limits<ScalarT>::signaling_NaN (),
+        std::numeric_limits<ScalarT>::signaling_NaN (),
+        std::numeric_limits<ScalarT>::signaling_NaN ());
 
 }

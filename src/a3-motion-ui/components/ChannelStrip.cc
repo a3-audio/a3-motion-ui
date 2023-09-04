@@ -22,14 +22,14 @@
 
 #include <a3-motion-engine/Channel.hh>
 
-#include <a3-motion-ui/components/ChannelViewState.hh>
+#include <a3-motion-ui/components/ChannelUIState.hh>
 
 namespace a3
 {
 
-ChannelStrip::ChannelStrip (ChannelViewState const &viewState,
+ChannelStrip::ChannelStrip (ChannelUIState const &uiState,
                             juce::Value &valueEncoderIncrement)
-    : _viewState (viewState), _patternMenu (valueEncoderIncrement)
+    : _uiState (uiState), _patternMenu (valueEncoderIncrement)
 {
   addChildComponent (_patternMenu);
   _patternMenu.setVisible (true);
@@ -53,11 +53,11 @@ ChannelStrip::paint (juce::Graphics &g)
 {
   auto bounds = getLocalBounds ();
 
-  g.setColour (_viewState.colour);
+  g.setColour (_uiState.colour);
   g.fillRect (bounds.removeFromBottom (LayoutHints::padding));
   g.fillRect (bounds.removeFromTop (LayoutHints::padding));
 
-  g.setColour (_viewState.colour.withLightness (0.3));
+  g.setColour (_uiState.colour.withLightness (0.3));
   g.fillRect (bounds);
 }
 

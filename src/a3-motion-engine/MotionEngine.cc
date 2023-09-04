@@ -128,8 +128,7 @@ MotionEngine::releaseRecordPosition ()
 
 void
 MotionEngine::recordToPattern (std::shared_ptr<Pattern> pattern,
-                               TempoClock::Measure timepoint,
-                               TempoClock::Measure length)
+                               Measure timepoint, Measure length)
 {
   Message message;
   message.command = Message::Command::RecordStart;
@@ -263,6 +262,7 @@ MotionEngine::handleStartStopMessages ()
         {
         case Message::Command::RecordStart:
           juce::Logger::writeToLog ("MotionEngine: starting recording");
+          _recordPatterns.insert (message.pattern);
           break;
         case Message::Command::RecordStop:
           juce::Logger::writeToLog ("MotionEngine: stopping recording");
