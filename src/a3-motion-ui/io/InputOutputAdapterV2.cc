@@ -85,9 +85,13 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
 
   if (line.startsWith (prefixButton))
     {
-      auto const index = line.substring (prefixButton.length ())
-                             .upToFirstOccurrenceOf (delimiter, false, false)
-                             .getIntValue ();
+      auto const indexSigned
+          = line.substring (prefixButton.length ())
+                .upToFirstOccurrenceOf (delimiter, false, false)
+                .getIntValue ();
+      jassert (indexSigned >= 0);
+      auto const index = static_cast<index_t> (indexSigned);
+
       if (index < 16)
         {
           auto const channel = index % numChannels;
@@ -119,9 +123,13 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
     }
   else if (line.startsWith (prefixEncoderPress))
     {
-      auto const index = line.substring (prefixEncoderPress.length ())
-                             .upToFirstOccurrenceOf (delimiter, false, false)
-                             .getIntValue ();
+      auto const indexSigned
+          = line.substring (prefixEncoderPress.length ())
+                .upToFirstOccurrenceOf (delimiter, false, false)
+                .getIntValue ();
+      jassert (indexSigned >= 0);
+      auto const index = static_cast<index_t> (indexSigned);
+
       if (value == 1)
         inputEncoderEvent (index, InputMessageEncoder::Event::Press);
       else if (value == 0)
@@ -129,9 +137,13 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
     }
   else if (line.startsWith (prefixEncoderIncrement))
     {
-      auto const index = line.substring (prefixEncoderIncrement.length ())
-                             .upToFirstOccurrenceOf (delimiter, false, false)
-                             .getIntValue ();
+      auto const indexSigned
+          = line.substring (prefixEncoderIncrement.length ())
+                .upToFirstOccurrenceOf (delimiter, false, false)
+                .getIntValue ();
+      jassert (indexSigned >= 0);
+      auto const index = static_cast<index_t> (indexSigned);
+
       if (value == 1)
         inputEncoderEvent (index, InputMessageEncoder::Event::Increment);
       else if (value == -1)
@@ -139,9 +151,13 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
     }
   else if (line.startsWith (prefixPot))
     {
-      auto const index = line.substring (prefixPot.length ())
-                             .upToFirstOccurrenceOf (delimiter, false, false)
-                             .getIntValue ();
+      auto const indexSigned
+          = line.substring (prefixPot.length ())
+                .upToFirstOccurrenceOf (delimiter, false, false)
+                .getIntValue ();
+      jassert (indexSigned >= 0);
+      auto const index = static_cast<index_t> (indexSigned);
+
       auto const channel = index % numChannels;
       auto const pad = index / numChannels;
       auto constexpr potMaxValue = 1023.f;
