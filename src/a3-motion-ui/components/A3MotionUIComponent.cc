@@ -27,6 +27,7 @@
 #include <fstream>
 
 #include <a3-motion-ui/Config.hh>
+#include <a3-motion-ui/Helpers.hh>
 #include <a3-motion-ui/components/ChannelHeader.hh>
 #include <a3-motion-ui/components/ChannelStrip.hh>
 #include <a3-motion-ui/components/ChannelUIState.hh>
@@ -38,6 +39,7 @@
 #include <a3-motion-ui/tests/TempoEstimatorTest.hh>
 
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
+#include <a3-motion-ui/io/LEDColours.hh>
 #ifdef HARDWARE_INTERFACE_V2
 #include <a3-motion-ui/io/InputOutputAdapterV2.hh>
 #endif
@@ -57,8 +59,18 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   initializePatterns ();
 
   _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
-      [this] (auto measure) { tickCallback (measure); },
-      TempoClock::Event::Beat, TempoClock::Execution::JuceMessageThread);
+      [this] (auto measure) {
+        tickCallback (measure);
+        if (measure.beat () == 0 && measure.tick () == 0)
+          {
+            stepsLED = 0;
+          }
+        if (measure.tick () % ticksPerStepPadLEDs == 0)
+          {
+            padLEDCallback (stepsLED++);
+          }
+      },
+      TempoClock::Event::Tick, TempoClock::Execution::JuceMessageThread);
 
   auto constexpr testTempoEstimation = false;
   if (testTempoEstimation)
@@ -70,6 +82,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
+  // blankPadLEDs ();
+  // juce::Thread::sleep (500);
+
 #if HARDWARE_INTERFACE_ENABLED
   _ioAdapter->stopThread (-1);
 #endif
@@ -174,17 +189,16 @@ A3MotionUIComponent::initializePatterns ()
   for (auto &channelPatternUIStates : _patternUIStates)
     channelPatternUIStates.resize (numPatternsPerChannel);
 
-  updatePadLEDs ();
+  blankPadLEDs ();
 }
 
 void
-A3MotionUIComponent::updatePadLEDs ()
+A3MotionUIComponent::blankPadLEDs ()
 {
   for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
     for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
       _ioAdapter->getPadLED (channel, pad)
-          .setValue (juce::VariantConverter<juce::Colour>::toVar (
-              juce::Colours::black));
+          = juce::VariantConverter<juce::Colour>::toVar (juce::Colours::black);
 }
 
 void
@@ -285,12 +299,10 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
         {
           auto const tapTime = juce::int64 (value.getValue ());
           auto const result = _engine.getTempoClock ().tap (tapTime);
-          juce::Logger::writeToLog ("tapping: " + juce::String (tapTime));
           if (result == TempoClock::TapResult::TempoAvailable)
             {
               auto const bpm = _engine.getTempoClock ().getTempoBPM ();
               _valueBPM = bpm;
-              juce::Logger::writeToLog ("tempo bpm: " + juce::String (bpm));
             }
         }
     }
@@ -317,11 +329,17 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
 void
 A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 {
+  // juce::Logger::writeToLog ("pad (" + juce::String (channel) + ", "
+  //                           + juce::String (pad) + ")");
+
   if (isButtonPressed (Button::Record))
     {
-      juce::Logger::writeToLog ("scheduling record into pad ("
-                                + juce::String (channel) + ", "
-                                + juce::String (pad) + ") on next downbeat");
+      if (!_patterns[channel][pad])
+        {
+          _patterns[channel][pad] = std::make_shared<Pattern> ();
+        }
+
+      _patterns[channel][pad]->resize (16); // TODO use record length
       _engine.recordToPattern (_patterns[channel][pad],
                                TempoClock::nextDownBeat (_now),
                                Measure (1, 0, 0));
@@ -338,6 +356,62 @@ void
 A3MotionUIComponent::tickCallback (Measure measure)
 {
   _now = measure;
+}
+
+void
+A3MotionUIComponent::padLEDCallback (int step)
+{
+  for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
+    {
+      for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
+        {
+          auto colour = LEDColours::empty;
+          if (_patterns[channel][pad] != nullptr)
+            {
+              switch (_patterns[channel][pad]->getStatus ())
+                {
+                case Pattern::Status::Empty:
+                  {
+                    colour = LEDColours::empty;
+                    break;
+                  }
+                case Pattern::Status::Idle:
+                  {
+                    colour = LEDColours::idle;
+                    break;
+                  }
+                case Pattern::Status::ScheduledForRecording:
+                  {
+                    if (step % 2 == 0)
+                      colour = LEDColours::recording;
+                    else
+                      colour = LEDColours::scheduledForRecording;
+                    break;
+                  }
+                case Pattern::Status::Recording:
+                  {
+                    colour = LEDColours::recording;
+                    break;
+                  }
+                case Pattern::Status::ScheduledForPlaying:
+                  {
+                    if (step % 2 == 0)
+                      colour = LEDColours::playing;
+                    else
+                      colour = LEDColours::scheduledForPlaying;
+                    break;
+                  }
+                case Pattern::Status::Playing:
+                  {
+                    colour = LEDColours::playing;
+                    break;
+                  }
+                }
+              _ioAdapter->getPadLED (channel, pad)
+                  = juce::VariantConverter<juce::Colour>::toVar (colour);
+            }
+        }
+    }
 }
 
 }

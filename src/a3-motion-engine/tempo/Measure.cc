@@ -118,4 +118,10 @@ operator>= (const Measure &lhs, const Measure &rhs)
   return !(lhs < rhs);
 }
 
+bool
+operator<= (const Measure &lhs, const Measure &rhs)
+{
+  return lhs < rhs || lhs == rhs;
+}
+
 }

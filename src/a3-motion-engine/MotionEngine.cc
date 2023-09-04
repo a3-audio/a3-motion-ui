@@ -21,6 +21,7 @@
 #include "MotionEngine.hh"
 
 #include <a3-motion-engine/Channel.hh>
+#include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-engine/backends/SpatBackendA3.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
@@ -186,10 +187,6 @@ MotionEngine::processFifo ()
 
   if (scope.blockSize1 > 0)
     {
-#ifdef DEBUG
-      juce::Logger::writeToLog ("Processing FIFO messages: "
-                                + juce::String (scope.blockSize1));
-#endif
       for (int idx = scope.startIndex1;
            idx < scope.startIndex1 + scope.blockSize1; ++idx)
         {
@@ -207,14 +204,6 @@ MotionEngine::processFifo ()
           handleFifoMessage (_fifo[static_cast<std::size_t> (idx)]);
         }
     }
-
-#ifdef DEBUG
-  auto numElements = scope.blockSize1 + scope.blockSize2;
-  if (numElements)
-    juce::Logger::writeToLog (
-        "added " + juce::String (scope.blockSize1 + scope.blockSize2)
-        + " elements");
-#endif
 }
 
 void
@@ -234,6 +223,7 @@ MotionEngine::handleFifoMessage (Message const &message)
       }
     case Message::Command::RecordStart:
       {
+        message.pattern->setStatus (Pattern::Status::ScheduledForRecording);
         _messagesStartStop.push (message);
         break;
       }
@@ -248,24 +238,19 @@ MotionEngine::handleFifoMessage (Message const &message)
 void
 MotionEngine::handleStartStopMessages ()
 {
-  if (_messagesStartStop.empty ())
-    return;
-
-  auto &message = _messagesStartStop.top ();
-  jassert (message.timepoint >= _now);
-
-  if (message.timepoint == _now)
+  while (!_messagesStartStop.empty ()
+         && _messagesStartStop.top ().timepoint <= _now)
     {
-      _messagesStartStop.pop ();
-
+      auto message = _messagesStartStop.top ();
       switch (message.command)
         {
         case Message::Command::RecordStart:
-          juce::Logger::writeToLog ("MotionEngine: starting recording");
-          _recordPatterns.insert (message.pattern);
+          // juce::Logger::writeToLog ("MotionEngine: starting recording");
+          message.pattern->setStatus (Pattern::Status::Recording);
+          // _recordPatterns.insert (message.pattern);
           break;
         case Message::Command::RecordStop:
-          juce::Logger::writeToLog ("MotionEngine: stopping recording");
+          // juce::Logger::writeToLog ("MotionEngine: stopping recording");
           break;
         case Message::Command::SetRecordPosition:
         case Message::Command::ReleaseRecordPosition:
@@ -273,6 +258,7 @@ MotionEngine::handleStartStopMessages ()
               "invalid command message in start/stop queue");
           break;
         }
+      _messagesStartStop.pop ();
     }
 }
 

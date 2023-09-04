@@ -50,6 +50,7 @@ public:
   friend bool operator!= (Measure const &lhs, Measure const &rhs);
   friend bool operator< (const Measure &lhs, const Measure &rhs);
   friend bool operator>= (const Measure &lhs, const Measure &rhs);
+  friend bool operator<= (const Measure &lhs, const Measure &rhs);
 
 private:
   int _bar;

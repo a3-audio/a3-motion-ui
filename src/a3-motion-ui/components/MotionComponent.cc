@@ -356,8 +356,6 @@ MotionComponent::getActiveDistanceInPixel () const
 void
 MotionComponent::newOpenGLContextCreated ()
 {
-  DBG ("newOpenGLContextCreated");
-
   using namespace juce::gl;
   glDebugMessageControl (GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER,
                          GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);

@@ -29,16 +29,26 @@ namespace a3
 class Pattern
 {
 public:
+  enum class Status
+  {
+    Empty,
+    Idle,
+    ScheduledForRecording,
+    Recording,
+    ScheduledForPlaying,
+    Playing,
+  };
+
   void clear ();
   void resize (index_t lengthBeats);
 
-  void setIsRecording (bool isRecording);
-  void setIsPlaying (bool isPlaying);
+  void setStatus (Status status);
+  Status getStatus ();
 
 private:
-  std::atomic<bool> _isRecording = false;
-  std::atomic<bool> _isPlaying = false;
-  std::atomic<int> _recordLengthBeats = 0;
+  std::atomic<Status> _status = Status::Idle;
+  static_assert (std::atomic<Status>::is_always_lock_free);
+
   std::vector<Pos> _ticks;
 };
 

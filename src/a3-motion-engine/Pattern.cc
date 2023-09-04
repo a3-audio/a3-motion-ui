@@ -36,15 +36,15 @@ Pattern::resize (index_t lengthBeats)
 }
 
 void
-Pattern::setIsRecording (bool isRecording)
+Pattern::setStatus (Status status)
 {
-  _isRecording = isRecording;
+  _status = status;
 }
 
-void
-Pattern::setIsPlaying (bool isPlaying)
+Pattern::Status
+Pattern::getStatus ()
 {
-  _isPlaying = isPlaying;
+  return _status;
 }
 
 }

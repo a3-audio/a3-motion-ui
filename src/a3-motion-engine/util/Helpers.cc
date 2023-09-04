@@ -23,17 +23,12 @@
 namespace a3
 {
 
-void
-print (Measure const &measure, juce::String prefix)
+juce::String
+toString (Measure const &measure)
 {
-  // auto ts = std::chrono::high_resolution_clock::now ()
-  //               .time_since_epoch ()
-  //               .count ();
-
-  juce::Logger::writeToLog (prefix + " " + juce::String (measure.bar ()) + "."
-                            + juce::String (measure.beat ()) + "."
-                            + juce::String (measure.tick ()) + ":");
-  // + juce::String (measure.time_ns) + " @ " + juce::String (ts));
+  return juce::String (measure.bar ()) + "." +  //
+         juce::String (measure.beat ()) + "." + //
+         juce::String (measure.tick ());
 }
 
 }

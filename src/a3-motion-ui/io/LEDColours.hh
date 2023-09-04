@@ -20,30 +20,28 @@
 
 #pragma once
 
-#include <chrono>
-
 #include <JuceHeader.h>
-
-#include <a3-motion-engine/tempo/Measure.hh>
-#include <a3-motion-engine/util/Timing.hh>
 
 namespace a3
 {
 
-template <class ClockT>
-void
-print (Timings<ClockT> const &timings)
+struct LEDColours
 {
-  for (auto const &t : timings.get ())
-    {
-      juce::Logger::writeToLog (
-          juce::String (t.tag) + ": "
-          + juce::String (
-              std::chrono::duration_cast<std::chrono::nanoseconds> (t.duration)
-                  .count ()));
-    }
-}
+  static const juce::Colour empty;
+  static const juce::Colour idle;
+  static const juce::Colour scheduledForRecording;
+  static const juce::Colour recording;
+  static const juce::Colour scheduledForPlaying;
+  static const juce::Colour playing;
+};
 
-juce::String toString (Measure const &measure);
+const juce::Colour LEDColours::empty = juce::Colour (0, 0, 0);
+const juce::Colour LEDColours::idle = juce::Colour (150, 150, 150);
+
+const juce::Colour LEDColours::scheduledForRecording = juce::Colour (30, 0, 0);
+const juce::Colour LEDColours::recording = juce::Colour (150, 0, 0);
+
+const juce::Colour LEDColours::scheduledForPlaying = juce::Colour (0, 30, 0);
+const juce::Colour LEDColours::playing = juce::Colour (0, 150, 0);
 
 }

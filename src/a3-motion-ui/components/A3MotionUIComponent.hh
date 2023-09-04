@@ -59,14 +59,23 @@ public:
   float getMinimumHeight () const;
 
   void valueChanged (juce::Value &value) override;
-  void tickCallback (Measure measure);
 
 private:
   MotionEngine _engine;
 
+  void tickCallback (Measure measure);
+  void padLEDCallback (int step);
+
   Measure _now;
   juce::Value _valueBPM;
   TempoClock::PointerT _tickCallbackHandle;
+  TempoClock::PointerT _padLEDCallbackHandle;
+  static auto constexpr stepsPerBeatPadLEDs = 2;
+  static auto constexpr ticksPerStepPadLEDs
+      = TempoClock::Config::ticksPerBeat / stepsPerBeatPadLEDs;
+  int ticksLED = 0;
+  uint64_t stepsLED = 0;
+
   std::unique_ptr<TempoEstimatorTest> _tempoEstimatorTest;
 
   LookAndFeel_A3 _lookAndFeel;
@@ -84,7 +93,7 @@ private:
 
   using Button = InputOutputAdapter::Button;
   void createHardwareInterface ();
-  void updatePadLEDs ();
+  void blankPadLEDs ();
   void handlePadPress (index_t channel, index_t pad);
   bool isButtonPressed (Button button);
 
