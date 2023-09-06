@@ -35,14 +35,16 @@ target_sources("a3-motion-engine" PRIVATE
     UserConfig.hh
     MotionEngine.cc
     MotionEngine.hh
+    AsyncCommandQueue.cc
+    AsyncCommandQueue.hh
     Channel.cc
     Channel.hh
     Pattern.cc
     Pattern.hh
+    PatternGenerator.cc
+    PatternGenerator.hh
     Master.cc
     Master.hh
-    AsyncCommandQueue.cc
-    AsyncCommandQueue.hh
     tempo/Measure.cc
     tempo/Measure.hh
     tempo/TempoClock.cc

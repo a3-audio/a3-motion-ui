@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/PatternGenerator.hh>
 
 #include <chrono>
 #include <fstream>
@@ -196,6 +197,15 @@ A3MotionUIComponent::initializePatterns ()
     channelPatternUIStates.resize (numPatternsPerChannel);
 
   blankPadLEDs ();
+
+  for (auto channel = 0u; channel < numChannels; ++channel)
+    {
+      _patterns[channel][0] = PatternGenerator::createCirclePattern (16, 0.8f);
+      _patterns[channel][0]->setChannel (channel);
+
+      _patterns[channel][1] = PatternGenerator::createCirclePattern (16, 0.8f);
+      _patterns[channel][1]->setChannel (channel);
+    }
 }
 
 void
