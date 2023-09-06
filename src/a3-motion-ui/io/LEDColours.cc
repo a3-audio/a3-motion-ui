@@ -18,22 +18,20 @@
 
 */
 
-#pragma once
-
-#include <JuceHeader.h>
+#include "LEDColours.hh"
 
 namespace a3
 {
 
-struct LEDColours
-{
-  static const juce::Colour empty;
-  static const juce::Colour scheduledForIdle;
-  static const juce::Colour idle;
-  static const juce::Colour scheduledForRecording;
-  static const juce::Colour recording;
-  static const juce::Colour scheduledForPlaying;
-  static const juce::Colour playing;
-};
+const juce::Colour LEDColours::empty = juce::Colour (0, 0, 0);
+
+const juce::Colour LEDColours::scheduledForIdle = juce::Colour (40, 30, 20);
+const juce::Colour LEDColours::idle = juce::Colour (150, 100, 50);
+
+const juce::Colour LEDColours::scheduledForRecording = juce::Colour (55, 0, 0);
+const juce::Colour LEDColours::recording = juce::Colour (150, 0, 0);
+
+const juce::Colour LEDColours::scheduledForPlaying = juce::Colour (0, 45, 0);
+const juce::Colour LEDColours::playing = juce::Colour (0, 150, 0);
 
 }

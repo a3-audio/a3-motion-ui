@@ -65,7 +65,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
           {
             stepsLED = 0;
           }
-        if (measure.tick () % ticksPerStepPadLEDs == 0)
+
+        using T =
+            typename std::remove_reference<decltype (measure.tick ())>::type;
+        jassert (ticksPerStepPadLEDs <= std::numeric_limits<T>::max ());
+        auto const divisor = static_cast<T> (ticksPerStepPadLEDs);
+        if (measure.tick () % divisor == 0)
           {
             padLEDCallback (stepsLED++);
           }
@@ -180,8 +185,9 @@ A3MotionUIComponent::createHardwareInterface ()
 void
 A3MotionUIComponent::initializePatterns ()
 {
-  _patterns.resize (_ioAdapter->getNumChannels ());
-  _patternUIStates.resize (_ioAdapter->getNumChannels ());
+  auto const numChannels = _ioAdapter->getNumChannels ();
+  _patterns.resize (numChannels);
+  _patternUIStates.resize (numChannels);
 
   auto numPatternsPerChannel = numPages * _ioAdapter->getNumPadsPerChannel ();
   for (auto &channelPatterns : _patterns)
@@ -332,17 +338,58 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
   // juce::Logger::writeToLog ("pad (" + juce::String (channel) + ", "
   //                           + juce::String (pad) + ")");
 
+  auto const recordLength = Measure (1, 0, 0);
+
   if (isButtonPressed (Button::Record))
     {
       if (!_patterns[channel][pad])
         {
           _patterns[channel][pad] = std::make_shared<Pattern> ();
+          _patterns[channel][pad]->setChannel (channel);
         }
 
       _patterns[channel][pad]->resize (16); // TODO use record length
-      _engine.recordToPattern (_patterns[channel][pad],
-                               TempoClock::nextDownBeat (_now),
-                               Measure (1, 0, 0));
+      _engine.recordPattern (_patterns[channel][pad],
+                             TempoClock::nextDownBeat (_now), recordLength);
+    }
+  else if (_patterns[channel][pad])
+    {
+      auto const status = _patterns[channel][pad]->getStatus ();
+      switch (status)
+        {
+        case Pattern::Status::Empty:
+          {
+            break;
+          }
+        case Pattern::Status::Idle:
+          {
+            _engine.playPattern (_patterns[channel][pad],
+                                 TempoClock::nextDownBeat (_now));
+            break;
+          }
+        case Pattern::Status::Playing:
+        case Pattern::Status::Recording:
+          {
+            _engine.stopPattern (_patterns[channel][pad],
+                                 TempoClock::nextDownBeat (_now));
+            break;
+          }
+        case Pattern::Status::ScheduledForPlaying:
+          {
+            _engine.playPattern (_patterns[channel][pad], _now);
+            break;
+          }
+        case Pattern::Status::ScheduledForRecording:
+          {
+            _engine.recordPattern (_patterns[channel][pad], _now,
+                                   recordLength);
+          }
+        case Pattern::Status::ScheduledForIdle:
+          {
+            _engine.stopPattern (_patterns[channel][pad], _now);
+            break;
+          }
+        }
     }
 }
 
@@ -366,9 +413,18 @@ A3MotionUIComponent::padLEDCallback (int step)
       for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
         {
           auto colour = LEDColours::empty;
-          if (_patterns[channel][pad] != nullptr)
+          if (_patterns[channel][pad])
             {
-              switch (_patterns[channel][pad]->getStatus ())
+              auto const status = _patterns[channel][pad]->getStatus ();
+              auto const statusLast
+                  = _patterns[channel][pad]->getLastStatus ();
+              // juce::Logger::writeToLog (
+              //     juce::String ("(") + juce::String (channel)
+              //     + juce::String (".") + juce::String (pad)
+              //     + juce::String (") : ")
+              //     + juce::String (static_cast<int> (status)));
+
+              switch (status)
                 {
                 case Pattern::Status::Empty:
                   {
@@ -405,6 +461,25 @@ A3MotionUIComponent::padLEDCallback (int step)
                   {
                     colour = LEDColours::playing;
                     break;
+                  }
+                case Pattern::Status::ScheduledForIdle:
+                  {
+                    if (step % 2 == 0)
+                      {
+                        colour = LEDColours::scheduledForIdle;
+                      }
+                    else
+                      {
+                        if (statusLast == Pattern::Status::Playing || //
+                            statusLast == Pattern::Status::ScheduledForPlaying)
+                          {
+                            colour = LEDColours::scheduledForPlaying;
+                          }
+                        else
+                          {
+                            colour = LEDColours::scheduledForRecording;
+                          }
+                      }
                   }
                 }
               _ioAdapter->getPadLED (channel, pad)

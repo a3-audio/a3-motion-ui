@@ -32,6 +32,7 @@ public:
   enum class Status
   {
     Empty,
+    ScheduledForIdle,
     Idle,
     ScheduledForRecording,
     Recording,
@@ -39,15 +40,31 @@ public:
     Playing,
   };
 
+  Pattern ();
+
   void clear ();
   void resize (index_t lengthBeats);
 
   void setStatus (Status status);
-  Status getStatus ();
+  Status getStatus () const;
+
+  Status getLastStatus () const;
+  void restoreStatus ();
+
+  void setChannel (index_t channel);
+  index_t getChannel () const;
 
 private:
-  std::atomic<Status> _status = Status::Idle;
+  friend class PatternGenerator;
+  friend class MotionEngine;
+
   static_assert (std::atomic<Status>::is_always_lock_free);
+  std::atomic<Status> _status = Status::Empty;
+  std::atomic<Status> _statusLast = Status::Empty;
+
+  // for now patterns are fixed to a channel, this will probably
+  // change later on.
+  index_t _channel;
 
   std::vector<Pos> _ticks;
 };

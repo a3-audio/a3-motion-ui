@@ -70,7 +70,7 @@ private:
   juce::Value _valueBPM;
   TempoClock::PointerT _tickCallbackHandle;
   TempoClock::PointerT _padLEDCallbackHandle;
-  static auto constexpr stepsPerBeatPadLEDs = 2;
+  static auto constexpr stepsPerBeatPadLEDs = 4;
   static auto constexpr ticksPerStepPadLEDs
       = TempoClock::Config::ticksPerBeat / stepsPerBeatPadLEDs;
   int ticksLED = 0;

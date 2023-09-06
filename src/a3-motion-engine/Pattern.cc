@@ -23,6 +23,10 @@
 namespace a3
 {
 
+// TODO default-initializing to channel 0 is not clean. Needs to be
+// redesigned. Patterns should be channel-agnostic to begin with.
+Pattern::Pattern () : _channel (0) {}
+
 void
 Pattern::clear ()
 {
@@ -38,13 +42,40 @@ Pattern::resize (index_t lengthBeats)
 void
 Pattern::setStatus (Status status)
 {
+  _statusLast = _status.load ();
   _status = status;
 }
 
 Pattern::Status
-Pattern::getStatus ()
+Pattern::getStatus () const
 {
   return _status;
+}
+
+Pattern::Status
+Pattern::getLastStatus () const
+{
+  return _statusLast;
+}
+
+void
+Pattern::restoreStatus ()
+{
+  // Status statusLast = _status;
+  _status = _statusLast.load ();
+  // _statusLast = statusLast;
+}
+
+void
+Pattern::setChannel (index_t channel)
+{
+  _channel = channel;
+}
+
+index_t
+Pattern::getChannel () const
+{
+  return _channel;
 }
 
 }

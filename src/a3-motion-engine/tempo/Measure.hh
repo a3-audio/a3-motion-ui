@@ -42,6 +42,8 @@ public:
   int const &beat () const;
   int const &tick () const;
 
+  int globalTicks () const;
+
   Measure &operator+= (const Measure &rhs);
   Measure &operator-= (Measure const &rhs);
   friend Measure operator+ (Measure lhs, const Measure &rhs);

@@ -28,16 +28,28 @@
 namespace a3
 {
 
+class Pattern;
+
 class Channel
 {
 public:
   Channel ();
 
-  void setPosition (Pos const &position);
   Pos getPosition () const;
+  void setPosition (Pos const &position);
 
 private:
+  // TODO reconsider: we want to keep the public API for users of the
+  // MotionEngine so that internal state can not be messed with. Can
+  // we design this cleaner without exposing _all_ internals to
+  // MotionEngine as a friend?
+  friend class MotionEngine;
+
   Pos _position;
+  Pos _lastSentPosition;
+
+  std::shared_ptr<Pattern> _patternScheduledForPlaying;
+  std::shared_ptr<Pattern> _patternPlaying;
 
   // for now we use a "fair" RW lock using std::shared_mutex to see
   // how it performs.  we might implement a write-preferring RW lock

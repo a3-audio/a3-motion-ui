@@ -48,8 +48,10 @@ public:
   void setRecordPosition (Pos const &position);
   void releaseRecordPosition ();
 
-  void recordToPattern (std::shared_ptr<Pattern> pattern, //
-                        Measure timepoint, Measure length);
+  void recordPattern (std::shared_ptr<Pattern> pattern, //
+                      Measure timepoint, Measure length);
+  void playPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
+  void stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
 
 private:
   void createChannels (index_t numChannels);
@@ -78,8 +80,9 @@ private:
     {
       SetRecordPosition,
       ReleaseRecordPosition,
-      RecordStart,
-      RecordStop,
+      StartRecording,
+      StartPlaying,
+      Stop,
     } command;
 
     Pos position;
@@ -101,19 +104,23 @@ private:
   juce::AbstractFifo _abstractFifo{ fifoSize };
   std::array<Message, fifoSize> _fifo;
 
+  void schedulePatternForRecording (std::shared_ptr<Pattern> pattern);
+  void schedulePatternForPlaying (std::shared_ptr<Pattern> pattern);
   void handleStartStopMessages ();
   std::priority_queue<Message> _messagesStartStop;
 
   void performRecording ();
   void performPlayback ();
   Measure _now;
-  Measure _recordLength;
-  std::optional<Pos> _recordPosition;
-  // NOTE: the MotionEngine holding a set of shared_ptr might lead to
-  // pattern deallocations on the realtime thread. If this turns out to be
+  Measure _recordingStarted;
+  Pos _recordingPosition;
+
+  // NOTE: the MotionEngine holding shared_ptrs might lead to pattern
+  // deallocations on the realtime thread. If this turns out to be
   // problematic, implement garbage collection on a low-prio thread as
   // suggested by Timur Doumler, see TempoClock.hh.
-  std::set<std::shared_ptr<Pattern> > _recordPatterns;
+  std::shared_ptr<Pattern> _patternRecording;
+  std::shared_ptr<Pattern> _patternScheduledForRecording;
 
   // The command dispatcher runs on its own high-priority thread and
   // receives motion / effect commands from the high-prio TempoClock
@@ -121,7 +128,6 @@ private:
   // backend implementation that in turn performs the network
   // communication.
   AsyncCommandQueue _commandQueue;
-  std::vector<Pos> _lastSentPositions;
 };
 
 }

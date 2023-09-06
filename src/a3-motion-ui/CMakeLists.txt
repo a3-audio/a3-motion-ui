@@ -29,6 +29,8 @@ target_sources("a3-motion-ui" PRIVATE
     MainWindow.hh
     io/InputOutputAdapter.cc
     io/InputOutputAdapter.hh
+    io/LEDColours.cc
+    io/LEDColours.hh
     components/A3MotionUIComponent.cc
     components/A3MotionUIComponent.hh
     components/LookAndFeel.cc
