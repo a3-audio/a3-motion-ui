@@ -23,6 +23,7 @@
 #include <memory>
 #include <shared_mutex>
 
+#include <a3-motion-engine/tempo/Measure.hh>
 #include <a3-motion-engine/util/Types.hh>
 
 namespace a3
@@ -36,7 +37,7 @@ public:
   Channel ();
 
   Pos getPosition () const;
-  void setPosition (Pos const &position);
+  void setPosition (Pos position);
 
 private:
   // TODO reconsider: we want to keep the public API for users of the
@@ -50,6 +51,7 @@ private:
 
   std::shared_ptr<Pattern> _patternScheduledForPlaying;
   std::shared_ptr<Pattern> _patternPlaying;
+  Measure _playingStarted;
 
   // for now we use a "fair" RW lock using std::shared_mutex to see
   // how it performs.  we might implement a write-preferring RW lock

@@ -200,10 +200,12 @@ A3MotionUIComponent::initializePatterns ()
 
   for (auto channel = 0u; channel < numChannels; ++channel)
     {
-      _patterns[channel][0] = PatternGenerator::createCirclePattern (16, 0.8f);
+      _patterns[channel][0]
+          = PatternGenerator::createCirclePattern (16, 0.8f, 360.f);
       _patterns[channel][0]->setChannel (channel);
 
-      _patterns[channel][1] = PatternGenerator::createCirclePattern (16, 0.8f);
+      _patterns[channel][1]
+          = PatternGenerator::createCirclePattern (8, 0.8f, 360.f);
       _patterns[channel][1]->setChannel (channel);
     }
 }
@@ -386,17 +388,17 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           }
         case Pattern::Status::ScheduledForPlaying:
           {
-            _engine.playPattern (_patterns[channel][pad], _now);
+            // _engine.playPattern (_patterns[channel][pad], _now);
             break;
           }
         case Pattern::Status::ScheduledForRecording:
           {
-            _engine.recordPattern (_patterns[channel][pad], _now,
-                                   recordLength);
+            // _engine.recordPattern (_patterns[channel][pad], _now,
+            //                        recordLength);
           }
         case Pattern::Status::ScheduledForIdle:
           {
-            _engine.stopPattern (_patterns[channel][pad], _now);
+            // _engine.stopPattern (_patterns[channel][pad], _now);
             break;
           }
         }

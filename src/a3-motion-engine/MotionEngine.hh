@@ -91,9 +91,9 @@ private:
     Measure length;
 
     friend bool
-    operator< (const Message &lhs, const Message &rhs)
+    operator> (const Message &lhs, const Message &rhs)
     {
-      return lhs.timepoint < rhs.timepoint;
+      return lhs.timepoint > rhs.timepoint;
     }
   };
 
@@ -104,10 +104,15 @@ private:
   juce::AbstractFifo _abstractFifo{ fifoSize };
   std::array<Message, fifoSize> _fifo;
 
-  void schedulePatternForRecording (std::shared_ptr<Pattern> pattern);
-  void schedulePatternForPlaying (std::shared_ptr<Pattern> pattern);
+  void scheduleForRecording (std::shared_ptr<Pattern> pattern);
+  void scheduleForPlaying (std::shared_ptr<Pattern> pattern);
+  void scheduleForStop (std::shared_ptr<Pattern> pattern);
   void handleStartStopMessages ();
-  std::priority_queue<Message> _messagesStartStop;
+  void startRecording (std::shared_ptr<Pattern> pattern);
+  void startPlaying (std::shared_ptr<Pattern> pattern);
+  void stop (std::shared_ptr<Pattern> pattern);
+  std::priority_queue<Message, std::vector<Message>, std::greater<Message> >
+      _messagesStartStop;
 
   void performRecording ();
   void performPlayback ();

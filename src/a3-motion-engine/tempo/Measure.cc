@@ -20,6 +20,8 @@
 
 #include "Measure.hh"
 
+#include <a3-motion-engine/tempo/TempoClock.hh>
+
 namespace a3
 {
 
@@ -113,15 +115,29 @@ operator< (const Measure &lhs, const Measure &rhs)
 }
 
 bool
+operator<= (const Measure &lhs, const Measure &rhs)
+{
+  return lhs < rhs || lhs == rhs;
+}
+
+bool
+operator> (const Measure &lhs, const Measure &rhs)
+{
+  return !(lhs < rhs || lhs == rhs);
+}
+
+bool
 operator>= (const Measure &lhs, const Measure &rhs)
 {
   return !(lhs < rhs);
 }
 
-bool
-operator<= (const Measure &lhs, const Measure &rhs)
+int
+Measure::convertToTicks (const Measure &measure, int beatsPerBar)
 {
-  return lhs < rhs || lhs == rhs;
+  return (measure.bar () * beatsPerBar + measure.beat ())
+             * TempoClock::Config::ticksPerBeat
+         + measure.tick ();
 }
 
 }

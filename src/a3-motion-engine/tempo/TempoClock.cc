@@ -318,6 +318,18 @@ TempoClock::setTempoBPM (float tempoBPM)
   _config.beatsPerMinute = tempoBPM;
 }
 
+int
+TempoClock::getBeatsPerBar () const
+{
+  return _config.beatsPerBar;
+}
+
+void
+TempoClock::setBeatsPerBar (int beatsPerBar)
+{
+  _config.beatsPerBar = beatsPerBar;
+}
+
 TempoClock::TapResult
 TempoClock::tap (juce::int64 timeMicros)
 {

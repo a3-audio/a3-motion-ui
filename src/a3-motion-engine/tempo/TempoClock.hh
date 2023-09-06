@@ -69,14 +69,14 @@ public:
     }
 
     std::atomic<float> beatsPerMinute{ 60.f };
-    std::atomic<index_t> beatsPerBar{ 4 };
+    std::atomic<int> beatsPerBar{ 4 };
     static_assert (std::atomic<float>::is_always_lock_free);
     static_assert (std::atomic<int>::is_always_lock_free);
 
     // ticksPerBeat equal PPQN (pulses per quarter note). MIDI uses 24,
     // modern sequencers up to 960 (Wikipedia) to capture timing
     // nuances.
-    static constexpr index_t ticksPerBeat = 128;
+    static constexpr int ticksPerBeat = 128;
   };
 
   enum class Execution
@@ -107,6 +107,9 @@ public:
 
   float getTempoBPM () const;
   void setTempoBPM (float tempoBPM);
+
+  int getBeatsPerBar () const;
+  void setBeatsPerBar (int beatsPerBar);
 
   /* Schedule addition of an event handler. The function returns a
    shared_ptr to the message handler, which has to be kept alive by

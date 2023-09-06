@@ -28,8 +28,9 @@ namespace a3
 Channel::Channel () : _position (Pos::fromSpherical (0, 0, 1)) {}
 
 void
-Channel::setPosition (Pos const &position)
+Channel::setPosition (Pos position)
 {
+  jassert (position != Pos::invalid);
   _mutex.lock ();
   _position = position;
   _mutex.unlock ();

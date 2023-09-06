@@ -20,6 +20,8 @@
 
 #include "MotionEngine.hh"
 
+#include <cstddef>
+
 #include <a3-motion-engine/Channel.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/UserConfig.hh>
@@ -29,12 +31,11 @@
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 #include <a3-motion-engine/util/Helpers.hh>
 #include <a3-motion-engine/util/Timing.hh>
-#include <cstddef>
 
 namespace a3
 {
 
-MotionEngine::MotionEngine (unsigned int const numChannels)
+MotionEngine::MotionEngine (index_t numChannels)
     : _heightMap (std::make_unique<HeightMapSphere> ()),
       _commandQueue (std::make_unique<SpatBackendA3> (userConfig["hostname"],
                                                       userConfig["port"]))
@@ -245,19 +246,21 @@ MotionEngine::handleFifoMessage (Message const &message)
       }
     case Message::Command::StartRecording:
       {
-        schedulePatternForRecording (message.pattern);
+        scheduleForRecording (message.pattern);
         _messagesStartStop.push (message);
         break;
       }
     case Message::Command::StartPlaying:
       {
-        schedulePatternForPlaying (message.pattern);
+        scheduleForPlaying (message.pattern);
         _messagesStartStop.push (message);
         break;
       }
     case Message::Command::Stop:
       {
-        message.pattern->setStatus (Pattern::Status::ScheduledForIdle);
+        juce::Logger::writeToLog ("scheduling stop: "
+                                  + toString (message.timepoint));
+        scheduleForStop (message.pattern);
         _messagesStartStop.push (message);
         break;
       }
@@ -265,7 +268,7 @@ MotionEngine::handleFifoMessage (Message const &message)
 }
 
 void
-MotionEngine::schedulePatternForRecording (std::shared_ptr<Pattern> pattern)
+MotionEngine::scheduleForRecording (std::shared_ptr<Pattern> pattern)
 {
   if (_patternScheduledForRecording)
     {
@@ -287,7 +290,7 @@ MotionEngine::schedulePatternForRecording (std::shared_ptr<Pattern> pattern)
 }
 
 void
-MotionEngine::schedulePatternForPlaying (std::shared_ptr<Pattern> pattern)
+MotionEngine::scheduleForPlaying (std::shared_ptr<Pattern> pattern)
 {
   auto &channelScheduled = *_channels[pattern->getChannel ()];
 
@@ -309,6 +312,17 @@ MotionEngine::schedulePatternForPlaying (std::shared_ptr<Pattern> pattern)
 }
 
 void
+MotionEngine::scheduleForStop (std::shared_ptr<Pattern> pattern)
+{
+  auto const status = pattern->getStatus ();
+  if (status == Pattern::Status::Playing || //
+      status == Pattern::Status::Recording)
+    {
+      pattern->setStatus (Pattern::Status::ScheduledForIdle);
+    }
+}
+
+void
 MotionEngine::handleStartStopMessages ()
 {
   while (!_messagesStartStop.empty ()
@@ -316,44 +330,24 @@ MotionEngine::handleStartStopMessages ()
     {
       auto message = _messagesStartStop.top ();
       _messagesStartStop.pop ();
+      juce::Logger::writeToLog ("handling message: "
+                                + toString (message.timepoint));
 
       switch (message.command)
         {
         case Message::Command::StartRecording:
           {
-            if (message.pattern != _patternScheduledForRecording)
-              continue;
-
-            if (_patternRecording)
-              {
-                _patternRecording->setStatus (Pattern::Status::Idle);
-              }
-            _patternRecording = _patternScheduledForRecording;
-            _patternRecording->setStatus (Pattern::Status::Recording);
-            _recordingStarted = _now;
-
-            _patternScheduledForRecording = nullptr;
+            startRecording (message.pattern);
             break;
           }
         case Message::Command::StartPlaying:
           {
-            auto &channel = *_channels[message.pattern->getChannel ()];
-            if (message.pattern != channel._patternScheduledForPlaying)
-              continue;
-
-            if (channel._patternPlaying)
-              {
-                channel._patternPlaying->setStatus (Pattern::Status::Idle);
-              }
-            channel._patternPlaying = channel._patternScheduledForPlaying;
-            channel._patternPlaying->setStatus (Pattern::Status::Playing);
-            channel._patternScheduledForPlaying = nullptr;
+            startPlaying (message.pattern);
             break;
           }
         case Message::Command::Stop:
           {
-            // juce::Logger::writeToLog ("MotionEngine: stopping playback");
-            message.pattern->setStatus (Pattern::Status::Idle);
+            stop (message.pattern);
             break;
           }
         case Message::Command::SetRecordPosition:
@@ -365,6 +359,49 @@ MotionEngine::handleStartStopMessages ()
           }
         }
     }
+}
+
+void
+MotionEngine::startRecording (std::shared_ptr<Pattern> pattern)
+{
+  if (pattern != _patternScheduledForRecording)
+    return;
+
+  if (_patternRecording)
+    {
+      _patternRecording->setStatus (Pattern::Status::Idle);
+    }
+  _patternRecording = _patternScheduledForRecording;
+  _patternRecording->setStatus (Pattern::Status::Recording);
+  _recordingStarted = _now;
+
+  _patternScheduledForRecording = nullptr;
+}
+
+void
+MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
+{
+  auto &channel = *_channels[pattern->getChannel ()];
+  if (pattern != channel._patternScheduledForPlaying)
+    return;
+
+  if (channel._patternPlaying)
+    {
+      channel._patternPlaying->setStatus (Pattern::Status::Idle);
+    }
+  channel._patternPlaying = channel._patternScheduledForPlaying;
+  channel._patternPlaying->setStatus (Pattern::Status::Playing);
+  channel._playingStarted = _now;
+
+  channel._patternScheduledForPlaying = nullptr;
+}
+
+void
+MotionEngine::stop (std::shared_ptr<Pattern> pattern)
+{
+  _channels[pattern->_channel]->_patternPlaying = nullptr;
+  _channels[pattern->_channel]->_patternScheduledForPlaying = nullptr;
+  pattern->setStatus (Pattern::Status::Idle);
 }
 
 void
@@ -381,7 +418,36 @@ MotionEngine::performPlayback ()
     {
       if (channel->_patternPlaying)
         {
-          // _channels[channel]->setPosition
+          auto const status = channel->_patternPlaying->getStatus ();
+          auto const statusLast = channel->_patternPlaying->getLastStatus ();
+
+          if (status == Pattern::Status::Playing
+              || (status == Pattern::Status::ScheduledForIdle
+                  && statusLast == Pattern::Status::Playing)
+              || (status == Pattern::Status::ScheduledForRecording
+                  && statusLast == Pattern::Status::Playing))
+            {
+              auto const ticksSinceStart
+                  = Measure::convertToTicks (_now - channel->_playingStarted,
+                                             _tempoClock.getBeatsPerBar ());
+              if (ticksSinceStart < 0)
+                {
+                  juce::Logger::writeToLog ("now: " + toString (_now));
+                  juce::Logger::writeToLog (
+                      "started: " + toString (channel->_playingStarted));
+                }
+              jassert (ticksSinceStart >= 0);
+
+              auto const ticksPatternLength
+                  = channel->_patternPlaying->_ticks.size ();
+
+              auto const tick = static_cast<std::size_t> (ticksSinceStart)
+                                % ticksPatternLength;
+
+              auto position = channel->_patternPlaying->_ticks[tick];
+              if (position != Pos::invalid)
+                channel->setPosition (position);
+            }
         }
     }
 }

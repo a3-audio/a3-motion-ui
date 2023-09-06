@@ -30,8 +30,8 @@ class PatternGenerator
 public:
   // TODO having to pass the channel here is not meaningful, needs to
   // be considered when the pattern to channel mapping is redesigned.
-  static std::unique_ptr<Pattern> createCirclePattern (index_t lengthBeats,
-                                                       float radius);
+  static std::unique_ptr<Pattern>
+  createCirclePattern (index_t lengthBeats, float radius, float degrees);
 
 private:
 };

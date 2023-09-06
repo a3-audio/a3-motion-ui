@@ -22,6 +22,8 @@
 
 #include <tuple>
 
+#include <a3-motion-engine/util/Types.hh>
+
 namespace a3
 {
 
@@ -42,8 +44,6 @@ public:
   int const &beat () const;
   int const &tick () const;
 
-  int globalTicks () const;
-
   Measure &operator+= (const Measure &rhs);
   Measure &operator-= (Measure const &rhs);
   friend Measure operator+ (Measure lhs, const Measure &rhs);
@@ -51,8 +51,11 @@ public:
   friend bool operator== (Measure const &lhs, Measure const &rhs);
   friend bool operator!= (Measure const &lhs, Measure const &rhs);
   friend bool operator< (const Measure &lhs, const Measure &rhs);
-  friend bool operator>= (const Measure &lhs, const Measure &rhs);
   friend bool operator<= (const Measure &lhs, const Measure &rhs);
+  friend bool operator> (const Measure &lhs, const Measure &rhs);
+  friend bool operator>= (const Measure &lhs, const Measure &rhs);
+
+  static int convertToTicks (const Measure &measure, int beatsPerBar);
 
 private:
   int _bar;

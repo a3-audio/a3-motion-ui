@@ -24,7 +24,8 @@ namespace a3
 {
 
 std::unique_ptr<Pattern>
-PatternGenerator::createCirclePattern (index_t lengthBeats, float radius)
+PatternGenerator::createCirclePattern (index_t lengthBeats, float radius,
+                                       float degrees)
 {
   std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
 
@@ -32,7 +33,7 @@ PatternGenerator::createCirclePattern (index_t lengthBeats, float radius)
   auto const numTicks = lengthBeats * TempoClock::Config::ticksPerBeat;
   for (auto tick = 0u; tick < numTicks; ++tick)
     {
-      auto phase = float (tick) / numTicks * 2.f * pi<float> ();
+      auto phase = float (tick) / numTicks * degrees;
 
       // TODO use elevation mapping here?
       pattern->_ticks[tick] = Pos::fromSpherical (phase, 0.f, radius);
