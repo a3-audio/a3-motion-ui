@@ -260,22 +260,33 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
   for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     _uiStates[channel]->grabbed = false;
 
-  auto closestIndex = getClosestBlobIndexWithinRadius (
-      event.getPosition ().toFloat (), getActiveDistanceInPixel ());
-  if (closestIndex.has_value ())
+  if (_engine.isRecording ())
     {
-      auto const index = closestIndex.value ();
-      _uiStates[index]->grabbed = true;
-      _uiStates[index]->grabOffset
-          = normalizedToLocal2DPosition (_engine.getChannelPosition (index))
-            - event.getPosition ().toFloat ();
-      _grabbedIndex = index;
-
-      // disocclusion: save anchor position for all channels
-      for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+      auto const posPixel = event.getPosition ().toFloat ();
+      auto const posHOA = localToNormalized2DPosition (posPixel);
+      _engine.setRecord2DPosition (posHOA);
+    }
+  else
+    {
+      auto closestIndex = getClosestBlobIndexWithinRadius (
+          event.getPosition ().toFloat (), getActiveDistanceInPixel ());
+      if (closestIndex.has_value ())
         {
-          _uiStates[channel]->posAnchor = normalizedToLocal2DPosition (
-              _engine.getChannelPosition (channel));
+          auto const index = closestIndex.value ();
+          _uiStates[index]->grabbed = true;
+          _uiStates[index]->grabOffset
+              = normalizedToLocal2DPosition (
+                    _engine.getChannelPosition (index))
+                - event.getPosition ().toFloat ();
+          _grabbedIndex = index;
+
+          // disocclusion: save anchor position for all channels
+          for (auto channel = 0u; channel < _engine.getNumChannels ();
+               ++channel)
+            {
+              _uiStates[channel]->posAnchor = normalizedToLocal2DPosition (
+                  _engine.getChannelPosition (channel));
+            }
         }
     }
 }
@@ -294,14 +305,25 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
 void
 MotionComponent::mouseDrag (const juce::MouseEvent &event)
 {
-  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+  auto const posPixel = event.getPosition ().toFloat ();
+
+  if (_engine.isRecording ())
     {
-      if (_uiStates[channel]->grabbed)
+      auto const posHOA = localToNormalized2DPosition (posPixel);
+      _engine.setRecord2DPosition (posHOA);
+    }
+  else
+    {
+      for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
         {
-          auto const posPixel = event.getPosition ().toFloat ()
-                                + _uiStates[channel]->grabOffset;
-          auto const posHOA = localToNormalized2DPosition (posPixel);
-          _engine.setChannel2DPosition (channel, posHOA);
+          if (_uiStates[channel]->grabbed)
+            {
+              auto const posPixelOffsetted
+                  = posPixel + _uiStates[channel]->grabOffset;
+              auto const posHOA
+                  = localToNormalized2DPosition (posPixelOffsetted);
+              _engine.setChannel2DPosition (channel, posHOA);
+            }
         }
     }
 }

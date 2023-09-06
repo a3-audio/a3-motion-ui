@@ -45,13 +45,16 @@ public:
   void setChannel2DPosition (index_t channel, Pos const &position);
   void setChannel3DPosition (index_t channel, Pos const &position);
 
-  void setRecordPosition (Pos const &position);
+  void setRecord2DPosition (Pos const &position);
+  void setRecord3DPosition (Pos const &position);
   void releaseRecordPosition ();
 
   void recordPattern (std::shared_ptr<Pattern> pattern, //
                       Measure timepoint, Measure length);
   void playPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
   void stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
+
+  bool isRecording () const;
 
 private:
   void createChannels (index_t numChannels);
@@ -104,9 +107,11 @@ private:
   juce::AbstractFifo _abstractFifo{ fifoSize };
   std::array<Message, fifoSize> _fifo;
 
-  void scheduleForRecording (std::shared_ptr<Pattern> pattern);
-  void scheduleForPlaying (std::shared_ptr<Pattern> pattern);
-  void scheduleForStop (std::shared_ptr<Pattern> pattern);
+  void scheduledForRecording (std::shared_ptr<Pattern> pattern,
+                              Measure timepoint);
+  void scheduledForPlaying (std::shared_ptr<Pattern> pattern,
+                            Measure timepoint);
+  void scheduledForStop (std::shared_ptr<Pattern> pattern);
   void handleStartStopMessages ();
   void startRecording (std::shared_ptr<Pattern> pattern);
   void startPlaying (std::shared_ptr<Pattern> pattern);
@@ -118,7 +123,7 @@ private:
   void performPlayback ();
   Measure _now;
   Measure _recordingStarted;
-  Pos _recordingPosition;
+  Pos _recordingPosition = Pos::invalid;
 
   // NOTE: the MotionEngine holding shared_ptrs might lead to pattern
   // deallocations on the realtime thread. If this turns out to be
