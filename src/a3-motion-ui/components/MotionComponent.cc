@@ -629,14 +629,15 @@ MotionComponent::drawPatternPreview (juce::Graphics &g)
         {
           if (hasStarted)
             {
-              if (path.getLength () > 0.f)
+              if (path.getLength () > lineThickness)
                 {
                   g.strokePath (path, strokeStyle);
                 }
               else
                 {
                   auto ellipse = juce::Rectangle<float> ();
-                  ellipse.setSize (lineThickness * 3.f, lineThickness * 3.f);
+                  auto constexpr sizeEllipse = lineThickness * 2.f;
+                  ellipse.setSize (sizeEllipse, sizeEllipse);
                   g.fillEllipse (
                       ellipse.withCentre (path.getCurrentPosition ()));
                 }
