@@ -669,7 +669,7 @@ MotionComponent::drawPatternPreview (juce::Graphics &g)
           if (!startEllipseDrawn)
             {
               auto ellipse = juce::Rectangle<float> ();
-              auto constexpr sizeEllipse = lineThickness * 4.f;
+              auto constexpr sizeEllipse = lineThickness * 2.f;
               ellipse.setSize (sizeEllipse, sizeEllipse);
               g.setColour (colour);
               g.fillEllipse (ellipse.withCentre (posNormalized));
