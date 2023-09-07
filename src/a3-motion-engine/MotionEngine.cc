@@ -399,6 +399,9 @@ MotionEngine::handleStartStopMessages ()
                 message.pattern,
                 Measure::convertToTicks (message.length,
                                          _tempoClock.getBeatsPerBar ()));
+
+            // one-shot recording for now
+            stopPattern (message.pattern, message.timepoint + message.length);
             break;
           }
         case Message::Command::StartPlaying:
