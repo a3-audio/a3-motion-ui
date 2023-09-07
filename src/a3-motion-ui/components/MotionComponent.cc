@@ -637,9 +637,9 @@ MotionComponent::drawPatternPreview (juce::Graphics &g)
   //   return;
 
   auto constexpr lineThickness = 0.04f;
+  auto constexpr lineAlpha = 0.6f;
 
   auto colour = _uiStates[_patternPreview->getChannel ()]->colour;
-  g.setColour (colour.withAlpha (0.6f));
   auto const strokeStyle = juce::PathStrokeType (
       lineThickness, juce::PathStrokeType::JointStyle::curved,
       juce::PathStrokeType::EndCapStyle::rounded);
@@ -671,6 +671,7 @@ MotionComponent::drawPatternPreview (juce::Graphics &g)
               auto ellipse = juce::Rectangle<float> ();
               auto constexpr sizeEllipse = lineThickness * 4.f;
               ellipse.setSize (sizeEllipse, sizeEllipse);
+              g.setColour (colour);
               g.fillEllipse (ellipse.withCentre (posNormalized));
               startEllipseDrawn = true;
             }
@@ -688,6 +689,7 @@ MotionComponent::drawPatternPreview (juce::Graphics &g)
             {
               if (path.getLength () > lineThickness)
                 {
+                  g.setColour (colour.withAlpha (lineAlpha));
                   g.strokePath (path, strokeStyle);
                 }
               else
@@ -695,6 +697,7 @@ MotionComponent::drawPatternPreview (juce::Graphics &g)
                   auto ellipse = juce::Rectangle<float> ();
                   auto constexpr sizeEllipse = lineThickness * 2.f;
                   ellipse.setSize (sizeEllipse, sizeEllipse);
+                  g.setColour (colour.withAlpha (lineAlpha));
                   g.fillEllipse (
                       ellipse.withCentre (path.getCurrentPosition ()));
                 }
@@ -705,6 +708,7 @@ MotionComponent::drawPatternPreview (juce::Graphics &g)
     }
   if (hasStarted)
     {
+      g.setColour (colour.withAlpha (lineAlpha));
       g.strokePath (path, strokeStyle);
     }
 }
