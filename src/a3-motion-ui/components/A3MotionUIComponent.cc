@@ -339,6 +339,10 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                     {
                       handlePadPress (channel, pad);
                     }
+                  else
+                    {
+                      _motionComponent->setPreviewPattern (nullptr);
+                    }
                 }
             }
         }
@@ -363,6 +367,10 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         }
       _engine.recordPattern (_patterns[channel][pad],
                              TempoClock::nextDownBeat (_now), recordLength);
+    }
+  else if (isButtonPressed (Button::Shift))
+    {
+      _motionComponent->setPreviewPattern (_patterns[channel][pad]);
     }
   else if (_patterns[channel][pad])
     {

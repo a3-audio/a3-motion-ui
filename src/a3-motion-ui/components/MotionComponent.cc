@@ -21,6 +21,7 @@
 #include "MotionComponent.hh"
 
 #include <a3-motion-engine/MotionEngine.hh>
+#include <a3-motion-engine/Pattern.hh>
 
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
@@ -159,6 +160,18 @@ MotionComponent::timerCallback ()
 {
   if (_grabbedIndex.has_value ())
     disoccludeBlobs ();
+}
+
+void
+MotionComponent::setPreviewPattern (std::shared_ptr<Pattern> pattern)
+{
+  _patternPreview = pattern;
+}
+
+void
+MotionComponent::unsetPreviewPattern ()
+{
+  _patternPreview = nullptr;
 }
 
 void
@@ -313,6 +326,8 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
       _uiStates[channel]->grabbed = false;
     }
   _grabbedIndex = {};
+
+  _engine.releaseRecordPosition ();
 }
 
 void
@@ -422,6 +437,11 @@ MotionComponent::renderOpenGL ()
 
     drawCircle (graphics.get ());
     drawChannelBlobs (graphics.get ());
+
+    if (_patternPreview)
+      {
+        drawPatternPreview (graphics.get ());
+      }
 
     // auto constexpr blobSize = 2;
     // auto blob = juce::Rectangle<float> (blobSize, blobSize);
@@ -573,6 +593,62 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
   g.drawImage (*_imageBlend, _boundsRender.toFloat ().transformedBy (
                                  _transformNormalizedToLocal.inverted ()));
   g.setOpacity (1.f);
+}
+
+void
+MotionComponent::drawPatternPreview (juce::Graphics &g)
+{
+  auto ticks = _patternPreview->getTicks ();
+
+  auto constexpr lineThickness = 0.04f;
+
+  auto colour = _uiStates[_patternPreview->getChannel ()]->colour;
+  g.setColour (colour.withAlpha (0.6f));
+  auto const strokeStyle = juce::PathStrokeType (
+      lineThickness, juce::PathStrokeType::JointStyle::curved,
+      juce::PathStrokeType::EndCapStyle::rounded);
+  auto path = juce::Path ();
+
+  jassert (ticks.size () <= std::numeric_limits<int>::max ());
+  path.preallocateSpace (static_cast<int> (ticks.size ()));
+
+  auto hasStarted = false;
+  for (auto &tick : ticks)
+    {
+      if (tick.isValid ())
+        {
+          auto posNormalized = cartesian2DHOA2JUCE (tick);
+          if (!hasStarted)
+            {
+              path.startNewSubPath (posNormalized);
+              hasStarted = true;
+            }
+          path.lineTo (posNormalized);
+        }
+      else
+        {
+          if (hasStarted)
+            {
+              if (path.getLength () > 0.f)
+                {
+                  g.strokePath (path, strokeStyle);
+                }
+              else
+                {
+                  auto ellipse = juce::Rectangle<float> ();
+                  ellipse.setSize (lineThickness * 3.f, lineThickness * 3.f);
+                  g.fillEllipse (
+                      ellipse.withCentre (path.getCurrentPosition ()));
+                }
+              path.clear ();
+              hasStarted = false;
+            }
+        }
+    }
+  if (hasStarted)
+    {
+      g.strokePath (path, strokeStyle);
+    }
 }
 
 juce::Point<float>

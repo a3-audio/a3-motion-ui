@@ -30,6 +30,7 @@ namespace a3
 {
 
 class MotionEngine;
+class Pattern;
 class ChannelUIState;
 
 class MotionComponent : public juce::Component,
@@ -55,6 +56,9 @@ public:
 
   void timerCallback () override;
 
+  void setPreviewPattern (std::shared_ptr<Pattern> pattern);
+  void unsetPreviewPattern ();
+
 private:
   void printFrameTime ();
   void updateBoundsAndTransform ();
@@ -64,6 +68,7 @@ private:
 
   void drawCircle (juce::Graphics &g);
   void drawChannelBlobs (juce::Graphics &g);
+  void drawPatternPreview (juce::Graphics &g);
 
   float getActiveDistanceInPixel () const;
 
@@ -80,6 +85,8 @@ private:
 
   std::vector<std::unique_ptr<ChannelUIState> > &_uiStates;
   std::optional<index_t> _grabbedIndex;
+
+  std::shared_ptr<Pattern> _patternPreview;
 
   juce::OpenGLContext _glContext;
 
