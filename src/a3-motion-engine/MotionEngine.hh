@@ -59,6 +59,8 @@ public:
   void stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
 
   bool isRecording () const;
+  std::shared_ptr<Pattern> getRecordingPattern ();
+  Measure getRecordingStarted () const;
 
 private:
   void createChannels (index_t numChannels);

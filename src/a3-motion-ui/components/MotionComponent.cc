@@ -175,11 +175,20 @@ MotionComponent::unsetPreviewPattern ()
 }
 
 void
+MotionComponent::setPreviewTick (index_t tick)
+{
+  _tickPreview = tick;
+}
+
+void
 MotionComponent::disoccludeBlobs ()
 {
   jassert (_grabbedIndex.has_value ());
 
   auto const posGrabbed = _engine.getChannelPosition (_grabbedIndex.value ());
+  // TODO fix this cleanly!
+  if (!posGrabbed.isValid ())
+    return;
   jassert (posGrabbed.isValid ());
   auto const posGrabbedPixel = normalizedToLocal2DPosition (posGrabbed);
 
@@ -618,6 +627,14 @@ void
 MotionComponent::drawPatternPreview (juce::Graphics &g)
 {
   auto ticks = _patternPreview->getTicks ();
+  // auto firstValidTick = 0u;
+  // for (; firstValidTick < ticks.size (); ++firstValidTick)
+  //   {
+  //     if (ticks[firstValidTick].isValid ())
+  //       break;
+  //   }
+  // if (firstValidTick == ticks.size ())
+  //   return;
 
   auto constexpr lineThickness = 0.04f;
 
@@ -631,12 +648,33 @@ MotionComponent::drawPatternPreview (juce::Graphics &g)
   jassert (ticks.size () <= std::numeric_limits<int>::max ());
   path.preallocateSpace (static_cast<int> (ticks.size ()));
 
+  // juce::Logger::writeToLog ("##################################");
   auto hasStarted = false;
-  for (auto &tick : ticks)
+  // for (auto tick = firstValidTick; tick < firstValidTick + ticks.size ();
+  //      ++tick)
+
+  // TODO TODO TODO bad bad hack just for the sake of the
+  // demonstration, skips the first n ticks because the ticks array
+  // read above may be newer than our reference timepoint. this needs thought
+  // and proper synchronization!!!
+  auto startEllipseDrawn = false;
+  for (auto tick = 4; tick < ticks.size (); ++tick)
     {
-      if (tick.isValid ())
+      auto const tickWrapped = (_tickPreview + tick) % ticks.size ();
+      auto const position = ticks[tickWrapped];
+      auto const posNormalized = cartesian2DHOA2JUCE (position);
+
+      if (position.isValid ())
         {
-          auto posNormalized = cartesian2DHOA2JUCE (tick);
+          if (!startEllipseDrawn)
+            {
+              auto ellipse = juce::Rectangle<float> ();
+              auto constexpr sizeEllipse = lineThickness * 4.f;
+              ellipse.setSize (sizeEllipse, sizeEllipse);
+              g.fillEllipse (ellipse.withCentre (posNormalized));
+              startEllipseDrawn = true;
+            }
+
           if (!hasStarted)
             {
               path.startNewSubPath (posNormalized);

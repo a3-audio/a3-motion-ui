@@ -194,6 +194,18 @@ MotionEngine::isRecording () const
   return _patternRecording != nullptr;
 }
 
+std::shared_ptr<Pattern>
+MotionEngine::getRecordingPattern ()
+{
+  return _patternRecording;
+}
+
+Measure
+MotionEngine::getRecordingStarted () const
+{
+  return _recordingStarted;
+}
+
 void
 MotionEngine::tickCallback ()
 {

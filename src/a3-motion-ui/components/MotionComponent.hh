@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/tempo/Measure.hh>
 #include <a3-motion-engine/util/Types.hh>
 
 #include <a3-motion-ui/Helpers.hh>
@@ -58,6 +59,7 @@ public:
 
   void setPreviewPattern (std::shared_ptr<Pattern> pattern);
   void unsetPreviewPattern ();
+  void setPreviewTick (index_t tick);
 
 private:
   void printFrameTime ();
@@ -87,6 +89,7 @@ private:
   std::optional<index_t> _grabbedIndex;
 
   std::shared_ptr<Pattern> _patternPreview;
+  index_t _tickPreview;
 
   juce::OpenGLContext _glContext;
 

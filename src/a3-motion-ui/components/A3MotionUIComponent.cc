@@ -64,7 +64,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         tickCallback (measure);
         if (measure.beat () == 0 && measure.tick () == 0)
           {
-            stepsLED = 0;
+            _stepsLED = 0;
           }
 
         using T =
@@ -73,13 +73,28 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         auto const divisor = static_cast<T> (ticksPerStepPadLEDs);
         if (measure.tick () % divisor == 0)
           {
-            padLEDCallback (stepsLED++);
+            padLEDCallback (_stepsLED++);
           }
 
         if (!_ioAdapter->getButton (Button::Record).getValue ())
           {
             _ioAdapter->getButtonLED (Button::Record) = _engine.isRecording ();
           }
+
+        if (_engine.isRecording ())
+          {
+            _motionComponent->setPreviewPattern (
+                _engine.getRecordingPattern ());
+            auto const tickPreview = Measure::convertToTicks (
+                measure - _engine.getRecordingStarted (),
+                _engine.getTempoClock ().getBeatsPerBar ());
+            _motionComponent->setPreviewTick (tickPreview);
+          }
+        else if (_wasRecording)
+          {
+            _motionComponent->setPreviewPattern (nullptr);
+          }
+        _wasRecording = _engine.isRecording ();
       },
       TempoClock::Event::Tick, TempoClock::Execution::JuceMessageThread);
 
@@ -361,7 +376,8 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                     }
                   else
                     {
-                      _motionComponent->setPreviewPattern (nullptr);
+                      if (!_engine.isRecording ())
+                        _motionComponent->setPreviewPattern (nullptr);
                     }
                   return;
                 }
@@ -391,7 +407,8 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
     }
   else if (isButtonPressed (Button::Shift))
     {
-      _motionComponent->setPreviewPattern (_patterns[channel][pad]);
+      if (!_engine.isRecording ())
+        _motionComponent->setPreviewPattern (_patterns[channel][pad]);
     }
   else if (_patterns[channel][pad])
     {
