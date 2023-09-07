@@ -22,6 +22,8 @@
 
 #include <algorithm>
 
+#include <a3-motion-engine/tempo/TempoClock.hh>
+
 namespace a3
 {
 
@@ -81,6 +83,14 @@ PatternMenu::updateLengthValue ()
       labelLengthValue.setText ("1/" + juce::String (std::exp2 (-lengthLog2)),
                                 juce::dontSendNotification);
     }
+  juce::Logger::writeToLog ("length beats: "
+                            + juce::String (getLengthBeats (4)));
+}
+
+int
+PatternMenu::getLengthBeats (int beatsPerBar) const
+{
+  return std::round (std::exp2 (lengthLog2) * beatsPerBar);
 }
 
 }

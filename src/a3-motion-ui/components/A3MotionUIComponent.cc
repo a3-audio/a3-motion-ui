@@ -392,8 +392,10 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
   // juce::Logger::writeToLog ("pad (" + juce::String (channel) + ", "
   //                           + juce::String (pad) + ")");
 
-  // TODO read from UI
-  auto const recordLength = Measure (1, 0, 0);
+  auto const recordBeats
+      = _channelStrips[channel]->getPatternMenu ().getLengthBeats (
+          _engine.getTempoClock ().getBeatsPerBar ());
+  auto const recordLength = Measure (0, recordBeats, 0);
 
   if (isButtonPressed (Button::Record))
     {

@@ -41,6 +41,8 @@ public:
     return LayoutHints::lineHeight;
   }
 
+  int getLengthBeats (int beatsPerBar) const;
+
 private:
   void updateLengthValue ();
 

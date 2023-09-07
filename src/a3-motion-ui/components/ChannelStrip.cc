@@ -61,4 +61,10 @@ ChannelStrip::paint (juce::Graphics &g)
   g.fillRect (bounds);
 }
 
+PatternMenu const &
+ChannelStrip::getPatternMenu ()
+{
+  return _patternMenu;
+}
+
 }

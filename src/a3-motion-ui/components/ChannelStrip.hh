@@ -41,6 +41,8 @@ public:
   void resized () override;
   void paint (juce::Graphics &) override;
 
+  PatternMenu const &getPatternMenu ();
+
   static constexpr int
   getMinimumHeight ()
   {
