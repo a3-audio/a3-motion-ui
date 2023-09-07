@@ -75,6 +75,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
           {
             padLEDCallback (stepsLED++);
           }
+
+        if (!_ioAdapter->getButton (Button::Record).getValue ())
+          {
+            _ioAdapter->getButtonLED (Button::Record) = _engine.isRecording ();
+          }
       },
       TempoClock::Event::Tick, TempoClock::Execution::JuceMessageThread);
 
@@ -396,6 +401,11 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           }
         case Pattern::Status::ScheduledForPlaying:
           {
+            // needs more thought. requires us to purge previously
+            // enqueued start/stop messages to be implemented
+            // consistently. std::priority_queue doesn't support that so
+            // we have to find an alternative such as implementing our
+            // own max heap.
             // _engine.playPattern (_patterns[channel][pad], _now);
             break;
           }

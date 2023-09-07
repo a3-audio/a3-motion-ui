@@ -439,7 +439,7 @@ MotionEngine::stop (std::shared_ptr<Pattern> pattern)
   pattern->setStatus (Pattern::Status::Idle);
   // _channels[pattern->_channel]->_patternPlaying = nullptr;
   // _channels[pattern->_channel]->_patternScheduledForPlaying = nullptr;
-  // _patternRecording = nullptr;
+  _patternRecording = nullptr;
 }
 
 void
