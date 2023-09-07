@@ -29,16 +29,18 @@ PatternGenerator::createCirclePattern (index_t lengthBeats, float radius,
 {
   std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
 
-  pattern->resize (lengthBeats);
   auto const numTicks = lengthBeats * TempoClock::Config::ticksPerBeat;
+  pattern->resize (numTicks);
+
   for (auto tick = 0u; tick < numTicks; ++tick)
     {
       auto phase = float (tick) / numTicks * degrees;
 
       // TODO use elevation mapping here?
-      pattern->_ticks[tick] = Pos::fromSpherical (phase, 0.f, radius);
+      pattern->setTick (tick, Pos::fromSpherical (phase, 0.f, radius));
     }
-  pattern->_status = Pattern::Status::Idle;
+
+  pattern->setStatus (Pattern::Status::Idle);
 
   return pattern;
 }

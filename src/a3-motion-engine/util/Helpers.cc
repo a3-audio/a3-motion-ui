@@ -24,6 +24,15 @@ namespace a3
 {
 
 juce::String
+toString (Pos const &position)
+{
+  return "(" +                                 //
+         juce::String (position.x ()) + ", " + //
+         juce::String (position.y ()) + ", " + //
+         juce::String (position.z ()) + ")";
+}
+
+juce::String
 toString (Measure const &measure)
 {
   return juce::String (measure.bar ()) + "." +  //

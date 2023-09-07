@@ -93,7 +93,7 @@ private:
 
   using Button = InputOutputAdapter::Button;
   void createHardwareInterface ();
-  void blankPadLEDs ();
+  void blankLEDs ();
   void handlePadPress (index_t channel, index_t pad);
   bool isButtonPressed (Button button);
 

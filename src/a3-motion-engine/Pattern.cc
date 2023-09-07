@@ -34,16 +34,16 @@ Pattern::clear ()
 }
 
 void
-Pattern::resize (index_t lengthBeats)
+Pattern::resize (index_t lengthTicks)
 {
-  _ticks.resize (TempoClock::Config::ticksPerBeat * lengthBeats, Pos::invalid);
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  _ticks.resize (lengthTicks, Pos::invalid);
 }
 
 void
 Pattern::setStatus (Status status)
 {
-  _statusLast = _status.load ();
-  _status = status;
+  _statusLast = _status.exchange (status);
 }
 
 Pattern::Status
@@ -61,9 +61,7 @@ Pattern::getLastStatus () const
 void
 Pattern::restoreStatus ()
 {
-  // Status statusLast = _status;
-  _status = _statusLast.load ();
-  // _statusLast = statusLast;
+  _status.exchange (_statusLast);
 }
 
 void
@@ -76,6 +74,38 @@ index_t
 Pattern::getChannel () const
 {
   return _channel;
+}
+
+index_t
+Pattern::getNumTicks () const
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  return _ticks.size ();
+}
+
+std::vector<Pos>
+Pattern::getTicks () const
+{
+  // for now we just lock and return a copy while benchmarking and
+  // thinking of a better solution.
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  return _ticks;
+}
+
+Pos
+Pattern::getTick (index_t tick) const
+{
+  jassert (tick < _ticks.size ());
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  return _ticks[tick];
+}
+
+void
+Pattern::setTick (index_t tick, Pos position)
+{
+  jassert (tick < _ticks.size ());
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  _ticks[tick] = position;
 }
 
 }

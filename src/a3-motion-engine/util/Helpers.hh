@@ -44,6 +44,7 @@ print (Timings<ClockT> const &timings)
     }
 }
 
+juce::String toString (Pos const &position);
 juce::String toString (Measure const &measure);
 
 }

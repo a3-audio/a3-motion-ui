@@ -302,10 +302,11 @@ MotionEngine::scheduledForRecording (std::shared_ptr<Pattern> pattern,
     {
       stopPattern (_patternRecording, timepoint);
     }
-  if (_channels[pattern->_channel]->_patternPlaying
-      && _channels[pattern->_channel]->_patternPlaying != pattern)
+  if (_channels[pattern->getChannel ()]->_patternPlaying
+      && _channels[pattern->getChannel ()]->_patternPlaying != pattern)
     {
-      stopPattern (_channels[pattern->_channel]->_patternPlaying, timepoint);
+      stopPattern (_channels[pattern->getChannel ()]->_patternPlaying,
+                   timepoint);
     }
 
   _patternScheduledForRecording = pattern;
@@ -362,7 +363,10 @@ MotionEngine::handleStartStopMessages ()
         {
         case Message::Command::StartRecording:
           {
-            startRecording (message.pattern);
+            startRecording (
+                message.pattern,
+                Measure::convertToTicks (message.length,
+                                         _tempoClock.getBeatsPerBar ()));
             break;
           }
         case Message::Command::StartPlaying:
@@ -387,7 +391,8 @@ MotionEngine::handleStartStopMessages ()
 }
 
 void
-MotionEngine::startRecording (std::shared_ptr<Pattern> pattern)
+MotionEngine::startRecording (std::shared_ptr<Pattern> pattern,
+                              int lengthTicks)
 {
   if (pattern != _patternScheduledForRecording)
     return;
@@ -397,6 +402,11 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern)
       _patternRecording->setStatus (Pattern::Status::Idle);
     }
   _patternRecording = _patternScheduledForRecording;
+
+  jassert (lengthTicks >= 0);
+  _patternRecording->clear ();
+  _patternRecording->resize (static_cast<std::size_t> (lengthTicks));
+
   _patternRecording->setStatus (Pattern::Status::Recording);
   _recordingStarted = _now;
 
@@ -455,14 +465,14 @@ MotionEngine::performRecording ()
         }
       jassert (ticksSinceStart >= 0);
 
-      auto const ticksPatternLength = _patternRecording->_ticks.size ();
+      auto const ticksPatternLength = _patternRecording->getNumTicks ();
       auto const tick
           = static_cast<std::size_t> (ticksSinceStart) % ticksPatternLength;
-      _patternRecording->_ticks[tick] = _recordingPosition;
+      _patternRecording->setTick (tick, _recordingPosition);
 
-      if (_recordingPosition != Pos::invalid)
+      if (_recordingPosition.isValid ())
         {
-          _channels[_patternRecording->_channel]->setPosition (
+          _channels[_patternRecording->getChannel ()]->setPosition (
               _recordingPosition);
         }
     }
@@ -497,14 +507,16 @@ MotionEngine::performPlayback ()
               jassert (ticksSinceStart >= 0);
 
               auto const ticksPatternLength
-                  = channel->_patternPlaying->_ticks.size ();
+                  = channel->_patternPlaying->getNumTicks ();
 
               auto const tick = static_cast<std::size_t> (ticksSinceStart)
                                 % ticksPatternLength;
 
-              auto position = channel->_patternPlaying->_ticks[tick];
-              if (position != Pos::invalid)
-                channel->setPosition (position);
+              auto position = channel->_patternPlaying->getTick (tick);
+              if (position.isValid ())
+                {
+                  channel->setPosition (position);
+                }
             }
         }
     }

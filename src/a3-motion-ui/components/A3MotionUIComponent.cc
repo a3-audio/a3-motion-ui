@@ -88,9 +88,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
-  // blankPadLEDs ();
-  // juce::Thread::sleep (500);
-
 #if HARDWARE_INTERFACE_ENABLED
   _ioAdapter->stopThread (-1);
 #endif
@@ -196,7 +193,7 @@ A3MotionUIComponent::initializePatterns ()
   for (auto &channelPatternUIStates : _patternUIStates)
     channelPatternUIStates.resize (numPatternsPerChannel);
 
-  blankPadLEDs ();
+  blankLEDs ();
 
   for (auto channel = 0u; channel < numChannels; ++channel)
     {
@@ -211,12 +208,16 @@ A3MotionUIComponent::initializePatterns ()
 }
 
 void
-A3MotionUIComponent::blankPadLEDs ()
+A3MotionUIComponent::blankLEDs ()
 {
   for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
     for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
       _ioAdapter->getPadLED (channel, pad)
           = juce::VariantConverter<juce::Colour>::toVar (juce::Colours::black);
+
+  _ioAdapter->getButtonLED (Button::Shift) = false;
+  _ioAdapter->getButtonLED (Button::Record) = false;
+  _ioAdapter->getButtonLED (Button::Tap) = false;
 }
 
 void
@@ -350,6 +351,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
   // juce::Logger::writeToLog ("pad (" + juce::String (channel) + ", "
   //                           + juce::String (pad) + ")");
 
+  // TODO read from UI
   auto const recordLength = Measure (1, 0, 0);
 
   if (isButtonPressed (Button::Record))
@@ -359,8 +361,6 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           _patterns[channel][pad] = std::make_shared<Pattern> ();
           _patterns[channel][pad]->setChannel (channel);
         }
-
-      _patterns[channel][pad]->resize (16); // TODO use record length
       _engine.recordPattern (_patterns[channel][pad],
                              TempoClock::nextDownBeat (_now), recordLength);
     }

@@ -54,19 +54,22 @@ public:
   void setChannel (index_t channel);
   index_t getChannel () const;
 
-private:
-  friend class PatternGenerator;
-  friend class MotionEngine;
+  index_t getNumTicks () const;
+  std::vector<Pos> getTicks () const;
+  Pos getTick (index_t tick) const;
+  void setTick (index_t tick, Pos position);
 
+private:
   static_assert (std::atomic<Status>::is_always_lock_free);
   std::atomic<Status> _status = Status::Empty;
   std::atomic<Status> _statusLast = Status::Empty;
 
   // for now patterns are fixed to a channel, this will probably
   // change later on.
-  index_t _channel;
+  std::atomic<index_t> _channel;
 
   std::vector<Pos> _ticks;
+  mutable std::mutex _ticksMutex;
 };
 
 }

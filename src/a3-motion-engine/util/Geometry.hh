@@ -136,6 +136,10 @@ public:
   friend bool
   operator== (Position const &lhs, Position const &rhs)
   {
+    jassert (
+        !(std::isnan (lhs._x) || std::isnan (lhs._y) || std::isnan (lhs._z)));
+    jassert (
+        !(std::isnan (rhs._x) || std::isnan (rhs._y) || std::isnan (rhs._z)));
     return juce::exactlyEqual (lhs._x, rhs._x) && //
            juce::exactlyEqual (lhs._y, rhs._y) && //
            juce::exactlyEqual (lhs._z, rhs._z);
@@ -145,6 +149,12 @@ public:
   operator!= (Position const &lhs, Position const &rhs)
   {
     return !(lhs == rhs);
+  }
+
+  bool
+  isValid ()
+  {
+    return !(std::isnan (_x) || std::isnan (_y) || std::isnan (_z));
   }
 
 private:
