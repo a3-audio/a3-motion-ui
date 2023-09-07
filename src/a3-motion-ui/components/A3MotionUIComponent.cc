@@ -180,6 +180,8 @@ A3MotionUIComponent::createHardwareInterface ()
         {
           _ioAdapter->getPad (channel, pad).addListener (this);
         }
+
+      _ioAdapter->getPot (channel, 0).addListener (this);
     }
   _ioAdapter->startThread ();
 #endif
@@ -297,6 +299,8 @@ A3MotionUIComponent::getMinimumHeight () const
   return minimumHeight;
 }
 
+// TODO: factor this into separate listeners so not all sources have to
+// be tested exhaustively.
 void
 A3MotionUIComponent::valueChanged (juce::Value &value)
 {
@@ -335,6 +339,17 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       for (auto channel = 0u; channel < _ioAdapter->getNumChannels ();
            ++channel)
         {
+          if (value.refersToSameSourceAs (_ioAdapter->getPot (channel, 0)))
+            {
+              jassert (value.getValue ().isDouble ());
+              auto const width
+                  = static_cast<float> (value.getValue ()) * 180.f;
+              juce::Logger::writeToLog ("setting width: "
+                                        + juce::String (width));
+              _engine.setChannelWidth (channel, width);
+              return;
+            }
+
           for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
             {
               if (value.refersToSameSourceAs (
@@ -348,6 +363,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                     {
                       _motionComponent->setPreviewPattern (nullptr);
                     }
+                  return;
                 }
             }
         }

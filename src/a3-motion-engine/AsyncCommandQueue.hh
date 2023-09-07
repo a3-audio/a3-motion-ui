@@ -32,25 +32,36 @@ namespace a3
 class AsyncCommandQueue : public juce::Thread
 {
 public:
-  struct Command
-  {
-    int index;
-    Pos position;
-  };
-
   AsyncCommandQueue (std::unique_ptr<SpatBackend> backend);
   ~AsyncCommandQueue ();
 
-  void submitCommand (Command &&command);
+  void sendPosition (index_t channel, Pos position);
+  void sendWidth (index_t channel, float width);
+
   void run () override;
 
 private:
+  // TODO turn this into a proper union using std::variant
+  struct Message
+  {
+    enum class Command
+    {
+      SendPosition,
+      SendWidth,
+    } command;
+
+    index_t channel;
+    Pos position;
+    float width;
+  };
+
+  void submitMessage (Message &&message);
   void processFifo ();
-  void processCommand (Command const &command);
+  void processMessage (Message const &message);
 
   static constexpr int fifoSize = 32;
   juce::AbstractFifo _abstractFifo{ fifoSize };
-  std::array<Command, fifoSize> _fifo;
+  std::array<Message, fifoSize> _fifo;
 
   std::unique_ptr<SpatBackend> _backend;
 };

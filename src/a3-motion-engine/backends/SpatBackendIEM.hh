@@ -32,7 +32,8 @@ class SpatBackendIEM : public SpatBackend
 public:
   SpatBackendIEM (juce::String address, int basePort);
 
-  void sendChannelPosition (int index, Pos const &pos) override;
+  void sendChannelPosition (index_t channel, Pos const &pos) override;
+  void sendChannelWidth (index_t channel, float width) override;
 
 private:
   juce::String _address;

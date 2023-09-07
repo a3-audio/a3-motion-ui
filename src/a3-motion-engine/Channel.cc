@@ -45,4 +45,16 @@ Channel::getPosition () const
   return position;
 }
 
+float
+Channel::getWidth () const
+{
+  return _width;
+}
+
+void
+Channel::setWidth (float width)
+{
+  _width = width;
+}
+
 }

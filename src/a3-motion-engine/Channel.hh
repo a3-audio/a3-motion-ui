@@ -39,6 +39,9 @@ public:
   Pos getPosition () const;
   void setPosition (Pos position);
 
+  float getWidth () const;
+  void setWidth (float width);
+
 private:
   // TODO reconsider: we want to keep the public API for users of the
   // MotionEngine so that internal state can not be messed with. Can
@@ -47,7 +50,7 @@ private:
   friend class MotionEngine;
 
   Pos _position;
-  Pos _lastSentPosition;
+  std::atomic<float> _width = 45;
 
   std::shared_ptr<Pattern> _patternScheduledForPlaying;
   std::shared_ptr<Pattern> _patternPlaying;

@@ -586,6 +586,25 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
         //     blob.withCentre (_uiStates[channelIndex]->posAnchor));
         gFBO.setColour (colour);
         gFBO.fillEllipse (blob.withCentre (posScreenNormalized));
+
+        // draw width indicator
+        // auto const width = _engine.getChannelWidth (channel);
+        // auto const posL
+        //     = Pos::fromSpherical (position.azimuth () - width,
+        //                           position.elevation (), position.distance
+        //                           ());
+        // auto const posR
+        //     = Pos::fromSpherical (position.azimuth () + width,
+        //                           position.elevation (), position.distance
+        //                           ());
+
+        // auto const posLNormalized = cartesian2DHOA2JUCE (posL);
+        // auto const posRNormalized = cartesian2DHOA2JUCE (posR);
+
+        // gFBO.setColour (juce::Colours::white);
+        // gFBO.fillEllipse (blob.withCentre (posLNormalized));
+        // gFBO.setColour (juce::Colours::red);
+        // gFBO.fillEllipse (blob.withCentre (posRNormalized));
       }
   }
 

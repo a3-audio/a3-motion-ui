@@ -32,7 +32,7 @@ SpatBackendIEM::SpatBackendIEM (juce::String address, int basePort)
 }
 
 void
-SpatBackendIEM::sendChannelPosition (int index, Pos const &pos)
+SpatBackendIEM::sendChannelPosition (index_t channel, Pos const &pos)
 {
   juce::OSCBundle bundle;
 
@@ -42,7 +42,15 @@ SpatBackendIEM::sendChannelPosition (int index, Pos const &pos)
   message = juce::OSCMessage ("/StereoEncoder/elevation", pos.elevation ());
   bundle.addElement ({ message });
 
-  _sender.sendToIPAddress (_address, _basePort + index, bundle);
+  jassert (channel <= std::numeric_limits<int>::max ());
+  _sender.sendToIPAddress (_address, _basePort + static_cast<int> (channel),
+                           bundle);
+}
+
+void
+SpatBackendIEM::sendChannelWidth (index_t channel, float width)
+{
+  throw std::runtime_error ("SpatBackendIEM::sendChannelWidth: implement me!");
 }
 
 }

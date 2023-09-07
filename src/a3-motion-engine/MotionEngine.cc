@@ -63,6 +63,8 @@ void
 MotionEngine::createChannels (unsigned int const numChannels)
 {
   _channels.resize (numChannels);
+  _lastSentPositions.resize (numChannels);
+  _lastSentWidths.resize (numChannels);
 
   auto constexpr spread = 120.f;
   auto const azimuthSpacing = spread / (numChannels - 1);
@@ -107,6 +109,18 @@ void
 MotionEngine::setChannel3DPosition (index_t channel, Pos const &position)
 {
   _channels[channel]->setPosition (position);
+}
+
+float
+MotionEngine::getChannelWidth (index_t channel)
+{
+  return _channels[channel]->getWidth ();
+}
+
+void
+MotionEngine::setChannelWidth (index_t channel, float width)
+{
+  _channels[channel]->setWidth (width);
 }
 
 void
@@ -193,12 +207,18 @@ MotionEngine::tickCallback ()
   // compare with last enqueued values and enqueue on change
   for (auto index = 0u; index < _channels.size (); ++index)
     {
-      auto &channel = *_channels[index];
-      auto pos = channel.getPosition ();
-      if (pos.isValid () && channel._lastSentPosition != pos)
+      auto const position = _channels[index]->getPosition ();
+      if (position.isValid () && _lastSentPositions[index] != position)
         {
-          _commandQueue.submitCommand ({ int (index), pos });
-          channel._lastSentPosition = pos;
+          _commandQueue.sendPosition (index, position);
+          _lastSentPositions[index] = position;
+        }
+
+      auto const width = _channels[index]->getWidth ();
+      if (!juce::approximatelyEqual (_lastSentWidths[index], width))
+        {
+          _commandQueue.sendWidth (index, width);
+          _lastSentWidths[index] = width;
         }
     }
 }

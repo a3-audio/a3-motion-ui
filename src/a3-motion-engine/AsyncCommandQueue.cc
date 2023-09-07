@@ -34,20 +34,23 @@ AsyncCommandQueue::AsyncCommandQueue (std::unique_ptr<SpatBackend> backend)
 AsyncCommandQueue::~AsyncCommandQueue () {}
 
 void
-AsyncCommandQueue::submitCommand (Command &&command)
+AsyncCommandQueue::sendPosition (index_t channel, Pos position)
 {
-  jassert (_abstractFifo.getFreeSpace () > 0);
+  Message message;
+  message.command = Message::Command::SendPosition;
+  message.channel = channel;
+  message.position = position;
+  submitMessage (std::move (message));
+}
 
-  const auto scope = _abstractFifo.write (1);
-  jassert (scope.blockSize1 == 1);
-  jassert (scope.blockSize2 == 0);
-
-  jassert (scope.startIndex1 >= 0);
-  auto startIndex = static_cast<std::size_t> (scope.startIndex1);
-
-  _fifo[startIndex] = std::move (command);
-
-  notify ();
+void
+AsyncCommandQueue::sendWidth (index_t channel, float width)
+{
+  Message message;
+  message.command = Message::Command::SendWidth;
+  message.channel = channel;
+  message.width = width;
+  submitMessage (std::move (message));
 }
 
 void
@@ -64,6 +67,23 @@ AsyncCommandQueue::run ()
 }
 
 void
+AsyncCommandQueue::submitMessage (Message &&message)
+{
+  jassert (_abstractFifo.getFreeSpace () > 0);
+
+  const auto scope = _abstractFifo.write (1);
+  jassert (scope.blockSize1 == 1);
+  jassert (scope.blockSize2 == 0);
+
+  jassert (scope.startIndex1 >= 0);
+  auto startIndex = static_cast<std::size_t> (scope.startIndex1);
+
+  _fifo[startIndex] = std::move (message);
+
+  notify ();
+}
+
+void
 AsyncCommandQueue::processFifo ()
 {
   auto const ready = _abstractFifo.getNumReady ();
@@ -77,7 +97,7 @@ AsyncCommandQueue::processFifo ()
            idx < scope.startIndex1 + scope.blockSize1; ++idx)
         {
           jassert (idx >= 0);
-          processCommand (_fifo[static_cast<std::size_t> (idx)]);
+          processMessage (_fifo[static_cast<std::size_t> (idx)]);
         }
     }
 
@@ -86,14 +106,26 @@ AsyncCommandQueue::processFifo ()
          idx < scope.startIndex2 + scope.blockSize2; ++idx)
       {
         jassert (idx >= 0);
-        processCommand (_fifo[static_cast<std::size_t> (idx)]);
+        processMessage (_fifo[static_cast<std::size_t> (idx)]);
       }
 }
 
 void
-AsyncCommandQueue::processCommand (Command const &command)
+AsyncCommandQueue::processMessage (Message const &message)
 {
-  _backend->sendChannelPosition (command.index, command.position);
+  switch (message.command)
+    {
+    case Message::Command::SendPosition:
+      {
+        _backend->sendChannelPosition (message.channel, message.position);
+        break;
+      }
+    case Message::Command::SendWidth:
+      {
+        _backend->sendChannelWidth (message.channel, message.width);
+        break;
+      }
+    }
 }
 
 }

@@ -32,19 +32,30 @@ SpatBackendA3::SpatBackendA3 (juce::String address, int port)
 }
 
 void
-SpatBackendA3::sendChannelPosition (int index, Pos const &pos)
+SpatBackendA3::sendChannelPosition (index_t channel, Pos const &pos)
 {
   juce::OSCBundle bundle;
 
-  auto const azimuthPattern = juce::String("/channel/") + juce::String(index) + "/azimuth";
+  auto const azimuthPattern
+      = juce::String ("/channel/") + juce::String (channel) + "/azimuth";
   auto message = juce::OSCMessage (azimuthPattern, pos.azimuth ());
   bundle.addElement ({ message });
 
-  auto const elevationPattern = juce::String("/channel/") + juce::String(index) + "/elevation";
+  auto const elevationPattern
+      = juce::String ("/channel/") + juce::String (channel) + "/elevation";
   message = juce::OSCMessage (elevationPattern, pos.elevation ());
   bundle.addElement ({ message });
 
   _sender.sendToIPAddress (_address, _port, bundle);
+}
+
+void
+SpatBackendA3::sendChannelWidth (index_t channel, float width)
+{
+  auto const widthPattern
+      = juce::String ("/channel/") + juce::String (channel) + "/width";
+  auto message = juce::OSCMessage (widthPattern, width);
+  _sender.sendToIPAddress (_address, _port, message);
 }
 
 }

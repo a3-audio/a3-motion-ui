@@ -41,9 +41,13 @@ public:
   TempoClock &getTempoClock ();
 
   index_t getNumChannels ();
+
   Pos getChannelPosition (index_t channel);
   void setChannel2DPosition (index_t channel, Pos const &position);
   void setChannel3DPosition (index_t channel, Pos const &position);
+
+  float getChannelWidth (index_t channel);
+  void setChannelWidth (index_t channel, float width);
 
   void setRecord2DPosition (Pos const &position);
   void setRecord3DPosition (Pos const &position);
@@ -138,6 +142,8 @@ private:
   // backend implementation that in turn performs the network
   // communication.
   AsyncCommandQueue _commandQueue;
+  std::vector<Pos> _lastSentPositions;
+  std::vector<float> _lastSentWidths;
 };
 
 }
