@@ -152,7 +152,7 @@ public:
   }
 
   bool
-  isValid ()
+  isValid () const
   {
     return !(std::isnan (_x) || std::isnan (_y) || std::isnan (_z));
   }

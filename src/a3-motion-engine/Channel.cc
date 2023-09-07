@@ -30,7 +30,6 @@ Channel::Channel () : _position (Pos::fromSpherical (0, 0, 1)) {}
 void
 Channel::setPosition (Pos position)
 {
-  jassert (position.isValid ());
   _mutex.lock ();
   _position = position;
   _mutex.unlock ();

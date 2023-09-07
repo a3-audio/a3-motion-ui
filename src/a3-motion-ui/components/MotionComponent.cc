@@ -166,17 +166,21 @@ MotionComponent::disoccludeBlobs ()
 {
   jassert (_grabbedIndex.has_value ());
 
-  auto posGrabbedPixel = normalizedToLocal2DPosition (
-      _engine.getChannelPosition (_grabbedIndex.value ()));
+  auto const posGrabbed = _engine.getChannelPosition (_grabbedIndex.value ());
+  jassert (posGrabbed.isValid ());
+  auto const posGrabbedPixel = normalizedToLocal2DPosition (posGrabbed);
 
   for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     {
       if (!_uiStates[channel]->grabbed)
         {
-          auto posPixel = normalizedToLocal2DPosition (
-              _engine.getChannelPosition (channel));
+          auto position = _engine.getChannelPosition (channel);
+          if (!position.isValid ())
+            continue;
 
+          auto posPixel = normalizedToLocal2DPosition (position);
           auto const distance = posPixel.getDistanceFrom (posGrabbedPixel);
+
           if (distance < getActiveDistanceInPixel ())
             { // push out onto circumference
               // juce::Logger::writeToLog ("disoccluding point "
@@ -196,7 +200,15 @@ MotionComponent::disoccludeBlobs ()
 
               auto C = posGrabbedPixel;
               auto P = posPixel;
+
+              jassert (_uiStates[channel]->posAnchor.isFinite ());
+              if (!_uiStates[channel]->posAnchor.isFinite ())
+                {
+                  _uiStates[channel]->posAnchor = posPixel;
+                }
+
               auto Pa = _uiStates[channel]->posAnchor;
+
               auto D = Pa - posPixel;
 
               auto Delta = P - C;
@@ -284,8 +296,9 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           for (auto channel = 0u; channel < _engine.getNumChannels ();
                ++channel)
             {
-              _uiStates[channel]->posAnchor = normalizedToLocal2DPosition (
-                  _engine.getChannelPosition (channel));
+              auto const posChannel = _engine.getChannelPosition (channel);
+              _uiStates[channel]->posAnchor
+                  = normalizedToLocal2DPosition (posChannel);
             }
         }
     }
@@ -351,10 +364,13 @@ MotionComponent::getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
   auto minIndex = 0u;
   for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     {
-      auto const blobPosInPixel
-          = normalizedToLocal2DPosition (_engine.getChannelPosition (channel));
+      auto const blobPos = _engine.getChannelPosition (channel);
+      if (!blobPos.isValid ())
+        continue;
 
-      auto const distance = blobPosInPixel.getDistanceFrom (posPixel);
+      auto const blobPosPixel = normalizedToLocal2DPosition (blobPos);
+      auto const distance = blobPosPixel.getDistanceFrom (posPixel);
+
       if (distance < radiusPixel && distance < minDistance)
         {
           minDistance = distance;
@@ -507,6 +523,9 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
     for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
       {
         auto const position = _engine.getChannelPosition (channel);
+        if (!position.isValid ())
+          continue;
+
         auto blobSize = 2 * reduceFactorBlobs;
         blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
 

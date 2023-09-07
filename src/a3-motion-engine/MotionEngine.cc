@@ -195,7 +195,7 @@ MotionEngine::tickCallback ()
     {
       auto &channel = *_channels[index];
       auto pos = channel.getPosition ();
-      if (channel._lastSentPosition != pos)
+      if (pos.isValid () && channel._lastSentPosition != pos)
         {
           _commandQueue.submitCommand ({ int (index), pos });
           channel._lastSentPosition = pos;
@@ -407,8 +407,9 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern,
   _patternRecording->clear ();
   _patternRecording->resize (static_cast<std::size_t> (lengthTicks));
 
-  _patternRecording->setStatus (Pattern::Status::Recording);
+  _recordingPosition = Pos::invalid;
   _recordingStarted = _now;
+  _patternRecording->setStatus (Pattern::Status::Recording);
 
   _patternScheduledForRecording = nullptr;
 }
@@ -470,11 +471,8 @@ MotionEngine::performRecording ()
           = static_cast<std::size_t> (ticksSinceStart) % ticksPatternLength;
       _patternRecording->setTick (tick, _recordingPosition);
 
-      if (_recordingPosition.isValid ())
-        {
-          _channels[_patternRecording->getChannel ()]->setPosition (
-              _recordingPosition);
-        }
+      _channels[_patternRecording->getChannel ()]->setPosition (
+          _recordingPosition);
     }
 }
 
