@@ -195,6 +195,18 @@ MotionEngine::isRecording () const
 }
 
 void
+MotionEngine::addPatternStatusListener (juce::MessageListener *listener)
+{
+  _patternStatusListeners.insert (listener);
+}
+
+void
+MotionEngine::removePatternStatusListener (juce::MessageListener *listener)
+{
+  _patternStatusListeners.erase (listener);
+}
+
+void
 MotionEngine::tickCallback ()
 {
   processFifo ();
@@ -387,16 +399,24 @@ MotionEngine::handleStartStopMessages ()
 
             // one-shot recording: schedule stop right away
             stopPattern (message.pattern, message.timepoint + message.length);
-            break;
+
+            notifyPatternStatusListeners (
+                PatternStatusMessage::Status::Recording, message.pattern);
           }
         case Message::Command::StartPlaying:
           {
             startPlaying (message.pattern);
+
+            notifyPatternStatusListeners (
+                PatternStatusMessage::Status::Playing, message.pattern);
             break;
           }
         case Message::Command::Stop:
           {
             stop (message.pattern);
+
+            notifyPatternStatusListeners (
+                PatternStatusMessage::Status::Stopped, message.pattern);
             break;
           }
         case Message::Command::SetRecordPosition:
@@ -539,6 +559,20 @@ MotionEngine::performPlayback ()
                 }
             }
         }
+    }
+}
+
+void
+MotionEngine::notifyPatternStatusListeners (
+    PatternStatusMessage::Status status, std::shared_ptr<Pattern> pattern)
+{
+  for (auto listener : _patternStatusListeners)
+    {
+      jassert (listener != nullptr);
+      auto message = new PatternStatusMessage ();
+      message->status = status;
+      message->pattern = pattern;
+      listener->postMessage (message);
     }
 }
 

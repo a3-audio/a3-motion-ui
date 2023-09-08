@@ -60,6 +60,20 @@ public:
 
   bool isRecording () const;
 
+  class PatternStatusMessage : public juce::Message
+  {
+  public:
+    enum class Status
+    {
+      Recording,
+      Playing,
+      Stopped,
+    } status;
+    std::shared_ptr<Pattern> pattern;
+  };
+  void addPatternStatusListener (juce::MessageListener *listener);
+  void removePatternStatusListener (juce::MessageListener *listener);
+
 private:
   void createChannels (index_t numChannels);
   std::vector<std::unique_ptr<Channel> > _channels;
@@ -144,6 +158,10 @@ private:
   AsyncCommandQueue _commandQueue;
   std::vector<Pos> _lastSentPositions;
   std::vector<float> _lastSentWidths;
+
+  void notifyPatternStatusListeners (PatternStatusMessage::Status status,
+                                     std::shared_ptr<Pattern> pattern);
+  std::set<juce::MessageListener *> _patternStatusListeners;
 };
 
 }
