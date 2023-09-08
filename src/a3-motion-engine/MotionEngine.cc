@@ -383,10 +383,10 @@ MotionEngine::handleStartStopMessages ()
         {
         case Message::Command::StartRecording:
           {
-            startRecording (
-                message.pattern,
-                Measure::convertToTicks (message.length,
-                                         _tempoClock.getBeatsPerBar ()));
+            startRecording (message.pattern, message.length);
+
+            // one-shot recording: schedule stop right away
+            stopPattern (message.pattern, message.timepoint + message.length);
             break;
           }
         case Message::Command::StartPlaying:
@@ -411,8 +411,7 @@ MotionEngine::handleStartStopMessages ()
 }
 
 void
-MotionEngine::startRecording (std::shared_ptr<Pattern> pattern,
-                              int lengthTicks)
+MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
 {
   if (pattern != _patternScheduledForRecording)
     return;
@@ -423,9 +422,12 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern,
     }
   _patternRecording = _patternScheduledForRecording;
 
-  jassert (lengthTicks >= 0);
+  auto const ticks
+      = Measure::convertToTicks (length, _tempoClock.getBeatsPerBar ());
+  jassert (ticks >= 0);
+
   _patternRecording->clear ();
-  _patternRecording->resize (static_cast<std::size_t> (lengthTicks));
+  _patternRecording->resize (static_cast<std::size_t> (ticks));
 
   _recordingPosition = Pos::invalid;
   _recordingStarted = _now;

@@ -510,20 +510,29 @@ A3MotionUIComponent::padLEDCallback (int step)
                   }
                 case Pattern::Status::ScheduledForIdle:
                   {
-                    if (step % 2 == 0)
+                    jassert (statusLast
+                                 != Pattern::Status::ScheduledForRecording
+                             && statusLast != Pattern::Status::Idle);
+
+                    // one-shot recording: don't blink when scheduled for idle
+                    if (statusLast == Pattern::Status::Recording)
                       {
-                        colour = LEDColours::scheduledForIdle;
+                        colour = LEDColours::recording;
                       }
                     else
                       {
-                        if (statusLast == Pattern::Status::Playing || //
-                            statusLast == Pattern::Status::ScheduledForPlaying)
+                        if (step % 2 == 0)
                           {
-                            colour = LEDColours::scheduledForPlaying;
+                            colour = LEDColours::scheduledForIdle;
                           }
                         else
                           {
-                            colour = LEDColours::scheduledForRecording;
+                            if (statusLast == Pattern::Status::Playing || //
+                                statusLast
+                                    == Pattern::Status::ScheduledForPlaying)
+                              {
+                                colour = LEDColours::scheduledForPlaying;
+                              }
                           }
                       }
                   }

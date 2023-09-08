@@ -117,7 +117,7 @@ private:
                             Measure timepoint);
   void scheduledForStop (std::shared_ptr<Pattern> pattern);
   void handleStartStopMessages ();
-  void startRecording (std::shared_ptr<Pattern> pattern, int lengthTicks);
+  void startRecording (std::shared_ptr<Pattern> pattern, Measure length);
   void startPlaying (std::shared_ptr<Pattern> pattern);
   void stop (std::shared_ptr<Pattern> pattern);
   std::priority_queue<Message, std::vector<Message>, std::greater<Message> >
