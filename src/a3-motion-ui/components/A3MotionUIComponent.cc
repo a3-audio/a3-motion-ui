@@ -64,7 +64,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         tickCallback (measure);
         if (measure.beat () == 0 && measure.tick () == 0)
           {
-            stepsLED = 0;
+            _stepsLED = 0;
           }
 
         using T =
@@ -73,7 +73,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         auto const divisor = static_cast<T> (ticksPerStepPadLEDs);
         if (measure.tick () % divisor == 0)
           {
-            padLEDCallback (stepsLED++);
+            padLEDCallback (_stepsLED++);
           }
 
         if (!_ioAdapter->getButton (Button::Record).getValue ())

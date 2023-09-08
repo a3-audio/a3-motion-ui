@@ -72,9 +72,8 @@ private:
   TempoClock::PointerT _padLEDCallbackHandle;
   static auto constexpr stepsPerBeatPadLEDs = 4;
   static auto constexpr ticksPerStepPadLEDs
-      = TempoClock::Config::ticksPerBeat / stepsPerBeatPadLEDs;
-  int ticksLED = 0;
-  uint64_t stepsLED = 0;
+      = TempoClock::getTicksPerBeat () / stepsPerBeatPadLEDs;
+  uint64_t _stepsLED = 0;
 
   std::unique_ptr<TempoEstimatorTest> _tempoEstimatorTest;
 

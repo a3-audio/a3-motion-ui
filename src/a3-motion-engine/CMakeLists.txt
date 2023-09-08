@@ -39,14 +39,14 @@ target_sources("a3-motion-engine" PRIVATE
     AsyncCommandQueue.hh
     Channel.cc
     Channel.hh
+    Measure.cc
+    Measure.hh
     Pattern.cc
     Pattern.hh
     PatternGenerator.cc
     PatternGenerator.hh
     Master.cc
     Master.hh
-    tempo/Measure.cc
-    tempo/Measure.hh
     tempo/TempoClock.cc
     tempo/TempoClock.hh
     tempo/TempoEstimator.cc

@@ -136,7 +136,7 @@ int
 Measure::convertToTicks (const Measure &measure, int beatsPerBar)
 {
   return (measure.bar () * beatsPerBar + measure.beat ())
-             * TempoClock::Config::ticksPerBeat
+             * TempoClock::getTicksPerBeat ()
          + measure.tick ();
 }
 

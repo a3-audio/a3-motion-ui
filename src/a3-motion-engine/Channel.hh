@@ -23,7 +23,7 @@
 #include <memory>
 #include <shared_mutex>
 
-#include <a3-motion-engine/tempo/Measure.hh>
+#include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/util/Types.hh>
 
 namespace a3

@@ -29,7 +29,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/Config.hh>
-#include <a3-motion-engine/tempo/Measure.hh>
+#include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/util/Types.hh>
 
 class ClockTimer;
@@ -59,26 +59,6 @@ class TempoEstimator;
 class TempoClock
 {
 public:
-  struct Config
-  {
-    int64_t
-    nsPerTick () const
-    {
-      return int64_t (60) * 1000000000 / double (beatsPerMinute)
-             / ticksPerBeat;
-    }
-
-    std::atomic<float> beatsPerMinute{ 60.f };
-    std::atomic<int> beatsPerBar{ 4 };
-    static_assert (std::atomic<float>::is_always_lock_free);
-    static_assert (std::atomic<int>::is_always_lock_free);
-
-    // ticksPerBeat equal PPQN (pulses per quarter note). MIDI uses 24,
-    // modern sequencers up to 960 (Wikipedia) to capture timing
-    // nuances.
-    static constexpr int ticksPerBeat = 128;
-  };
-
   enum class Execution
   {
     JuceMessageThread,
@@ -111,6 +91,8 @@ public:
   int getBeatsPerBar () const;
   void setBeatsPerBar (int beatsPerBar);
 
+  int64_t getNanoSecondsPerTick () const;
+
   /* Schedule addition of an event handler. The function returns a
    shared_ptr to the message handler, which has to be kept alive by
    the caller. The callback is deleted when the shared_ptr is
@@ -122,17 +104,26 @@ public:
                                          bool waitForAck = false);
 
   void start ();
-  // void pause (); // needs more thought
   void stop ();
   void reset ();
+
+  static constexpr int
+  getTicksPerBeat ()
+  {
+    return ticksPerBeat;
+  }
 
   static Measure nextDownBeat (Measure const &measure);
 
 private:
   static constexpr int timerIntervalMs = 1;
+  // ticksPerBeat equal PPQN (pulses per quarter note). MIDI uses 24,
+  // modern sequencers up to 960 (Wikipedia) to capture timing
+  // nuances.
+  static constexpr int ticksPerBeat = 128;
 
-  Config _config;
   std::unique_ptr<ClockTimer> _timer;
+  std::unique_ptr<TempoEstimator> _tempoEstimator;
 
   // We use a single-producer single-consumer lock-less ring buffer to
   // forward add/delete requests of event handlers to the timer
@@ -140,7 +131,10 @@ private:
   // producer side.
   std::mutex _mutexWriteFifo;
 
-  std::unique_ptr<TempoEstimator> _tempoEstimator;
+  std::atomic<float> _beatsPerMinute{ 60.f };
+  std::atomic<int> _beatsPerBar{ 4 };
+  static_assert (std::atomic<float>::is_always_lock_free);
+  static_assert (std::atomic<int>::is_always_lock_free);
 };
 
 }

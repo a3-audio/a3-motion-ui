@@ -24,7 +24,7 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-engine/tempo/Measure.hh>
+#include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/util/Timing.hh>
 
 namespace a3

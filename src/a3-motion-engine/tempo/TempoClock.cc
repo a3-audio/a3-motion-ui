@@ -25,7 +25,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/Config.hh>
-#include <a3-motion-engine/tempo/Measure.hh>
+#include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/tempo/TempoEstimatorMean.hh>
 
 // TODO define this in anonymous namespace or move to internal
@@ -44,7 +44,7 @@ public:
     a3::TempoClock::Execution execution;
   };
 
-  ClockTimer (a3::TempoClock::Config const &config) : _config (config)
+  ClockTimer (a3::TempoClock const &tempoClock) : _tempoClock (tempoClock)
   {
     forEachHandlerType ([&] (auto, auto, auto &container) {
       container.reserve (numHandlersPreAllocated);
@@ -161,7 +161,7 @@ private:
   advanceMeasure ()
   {
     auto now = ClockT::now ();
-    auto ns_per_tick = _config.nsPerTick ();
+    auto nsPerTick = _tempoClock.getNanoSecondsPerTick ();
 
     if (reset)
       {
@@ -180,9 +180,9 @@ private:
         while (std::chrono::duration_cast<std::chrono::nanoseconds> (
                    now - _lastTick)
                    .count ()
-               >= ns_per_tick)
+               >= nsPerTick)
           {
-            _lastTick += std::chrono::nanoseconds (ns_per_tick);
+            _lastTick += std::chrono::nanoseconds (nsPerTick);
             countTick ();
           }
       }
@@ -192,11 +192,11 @@ private:
   countTick ()
   {
     ++_measure.tick ();
-    if (_measure.tick () == _config.ticksPerBeat)
+    if (_measure.tick () == _tempoClock.getTicksPerBeat ())
       {
         _measure.tick () = 0;
         ++_measure.beat ();
-        if (_measure.beat () == _config.beatsPerBar)
+        if (_measure.beat () == _tempoClock.getBeatsPerBar ())
           {
             _measure.beat () = 0;
             ++_measure.bar ();
@@ -265,7 +265,7 @@ private:
            ContainerT>
       _handlers;
 
-  a3::TempoClock::Config const &_config;
+  a3::TempoClock const &_tempoClock;
 
   ClockT::time_point _startTime;
   ClockT::time_point _lastTick;
@@ -278,7 +278,7 @@ namespace a3
 
 TempoClock::TempoClock ()
 {
-  _timer = std::make_unique<ClockTimer> (_config);
+  _timer = std::make_unique<ClockTimer> (*this);
   _tempoEstimator = std::make_unique<TempoEstimatorMean> ();
 }
 
@@ -309,25 +309,31 @@ TempoClock::scheduleEventHandlerAddition (std::function<CallbackT> &&handler,
 float
 TempoClock::getTempoBPM () const
 {
-  return _config.beatsPerMinute;
+  return _beatsPerMinute;
 }
 
 void
 TempoClock::setTempoBPM (float tempoBPM)
 {
-  _config.beatsPerMinute = tempoBPM;
+  _beatsPerMinute = tempoBPM;
 }
 
 int
 TempoClock::getBeatsPerBar () const
 {
-  return _config.beatsPerBar;
+  return _beatsPerBar;
 }
 
 void
 TempoClock::setBeatsPerBar (int beatsPerBar)
 {
-  _config.beatsPerBar = beatsPerBar;
+  _beatsPerBar = beatsPerBar;
+}
+
+int64_t
+TempoClock::getNanoSecondsPerTick () const
+{
+  return int64_t (60) * 1000000000 / double (_beatsPerMinute) / ticksPerBeat;
 }
 
 TempoClock::TapResult
@@ -339,6 +345,7 @@ TempoClock::tap (juce::int64 timeMicros)
       setTempoBPM (_tempoEstimator->getTempoBPM ());
       return TapResult::TempoAvailable;
       // TODO: send OSC tempo via async command queue
+      // we will have to indirect this through the MotionEngine
     }
   return TapResult::TempoNotAvailable;
 }
@@ -361,15 +368,6 @@ TempoClock::start ()
     }
 #endif
 }
-
-// void
-// TempoClock::pause ()
-// {
-//   timer->stopTimer ();
-// #ifdef DEBUG
-//   juce::Logger::writeToLog ("TempoClock: paused");
-// #endif
-// }
 
 void
 TempoClock::stop ()

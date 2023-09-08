@@ -29,7 +29,9 @@ PatternGenerator::createCirclePattern (index_t lengthBeats, float radius,
 {
   std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
 
-  auto const numTicks = lengthBeats * TempoClock::Config::ticksPerBeat;
+  auto const numTicks
+      = lengthBeats
+        * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
   pattern->resize (numTicks);
 
   for (auto tick = 0u; tick < numTicks; ++tick)
