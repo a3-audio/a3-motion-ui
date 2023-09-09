@@ -47,9 +47,13 @@ public:
            + 2 * LayoutHints::padding;
   }
 
+  void setStatusPercent (float percent);
+
 private:
   ChannelUIState const &_uiState;
   PatternMenu _patternMenu;
+
+  float _statusPercent = 1.f;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelStrip)
 };

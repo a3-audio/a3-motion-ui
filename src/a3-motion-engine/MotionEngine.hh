@@ -153,7 +153,7 @@ private:
   Measure _now;
   Measure _recordingStarted;
   Pos _recordingPosition = Pos::invalid;
-  std::atomic<RecordingMode> _recordingMode = RecordingMode::Loop;
+  std::atomic<RecordingMode> _recordingMode = RecordingMode::OneShot;
 
   // NOTE: the MotionEngine holding shared_ptrs might lead to pattern
   // deallocations on the realtime thread. If this turns out to be

@@ -53,12 +53,31 @@ ChannelStrip::paint (juce::Graphics &g)
 {
   auto bounds = getLocalBounds ();
 
+  g.setColour (_uiState.colour.withLightness (0.3));
+  g.fillRect (bounds);
+
+  auto boundsTop = bounds.removeFromTop (LayoutHints::padding);
+  boundsTop.setWidth (boundsTop.getWidth () * _statusPercent);
+  auto boundsBottom = bounds.removeFromBottom (LayoutHints::padding);
+  boundsBottom.setWidth (boundsBottom.getWidth () * _statusPercent);
   g.setColour (_uiState.colour);
-  g.fillRect (bounds.removeFromBottom (LayoutHints::padding));
-  g.fillRect (bounds.removeFromTop (LayoutHints::padding));
+  g.fillRect (boundsTop);
+  g.fillRect (boundsBottom);
 
   g.setColour (_uiState.colour.withLightness (0.3));
   g.fillRect (bounds);
+}
+
+PatternMenu const &
+ChannelStrip::getPatternMenu ()
+{
+  return _patternMenu;
+}
+
+void
+ChannelStrip::setStatusPercent (float percent)
+{
+  _statusPercent = percent;
 }
 
 }
