@@ -25,10 +25,10 @@
 namespace a3
 {
 
-class Ticks : public juce::Component
+class TickIndicator : public juce::Component
 {
 public:
-  Ticks (int numTicks);
+  TickIndicator (int numTicks);
 
   void setNumTicks (int numTicks);
   void setCurrentTick (int tick);
@@ -39,4 +39,5 @@ private:
   int _numTicks;
   int _currentTick;
 };
+
 }

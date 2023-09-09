@@ -83,15 +83,6 @@ Pattern::getNumTicks () const
   return _ticks.size ();
 }
 
-std::vector<Pos>
-Pattern::getTicks () const
-{
-  // for now we just lock and return a copy while benchmarking and
-  // thinking of a better solution.
-  std::lock_guard<std::mutex> guard (_ticksMutex);
-  return _ticks;
-}
-
 Pos
 Pattern::getTick (index_t tick) const
 {
@@ -106,6 +97,16 @@ Pattern::setTick (index_t tick, Pos position)
   jassert (tick < _ticks.size ());
   std::lock_guard<std::mutex> guard (_ticksMutex);
   _ticks[tick] = position;
+  _lastUpdatedTick = tick;
+}
+
+Pattern::Ticks
+Pattern::getTicks () const
+{
+  // for now we just lock and return a copy while benchmarking and
+  // thinking of a better solution.
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  return { _ticks, _lastUpdatedTick };
 }
 
 }

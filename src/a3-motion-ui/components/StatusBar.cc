@@ -33,10 +33,10 @@ namespace a3
 {
 
 StatusBar::StatusBar (juce::Value &valueBPM)
-    : _ticks (beatsPerBar), _valueBPM (valueBPM)
+    : _tickIndicator (beatsPerBar), _valueBPM (valueBPM)
 {
-  addChildComponent (_ticks);
-  _ticks.setVisible (true);
+  addChildComponent (_tickIndicator);
+  _tickIndicator.setVisible (true);
 }
 
 void
@@ -52,7 +52,7 @@ StatusBar::resized ()
 
   auto boundsTicks = bounds.withSizeKeepingCentre (bounds.getWidth () * 0.4f,
                                                    bounds.getHeight () * 0.6f);
-  _ticks.setBounds (boundsTicks);
+  _tickIndicator.setBounds (boundsTicks);
 }
 
 void
@@ -80,7 +80,7 @@ StatusBar::valueChanged (juce::Value &value)
 void
 StatusBar::beatCallback (Measure measure)
 {
-  _ticks.setCurrentTick (measure.beat ());
+  _tickIndicator.setCurrentTick (measure.beat ());
 }
 
 }

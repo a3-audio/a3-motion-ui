@@ -25,7 +25,7 @@
 #include <a3-motion-engine/tempo/TempoClock.hh>
 
 #include <a3-motion-ui/components/LayoutHints.hh>
-#include <a3-motion-ui/components/Ticks.hh>
+#include <a3-motion-ui/components/TickIndicator.hh>
 
 namespace a3
 {
@@ -48,7 +48,7 @@ public:
   }
 
 private:
-  Ticks _ticks;
+  TickIndicator _tickIndicator;
 
   juce::Label _labelBPM;
   juce::Value &_valueBPM;

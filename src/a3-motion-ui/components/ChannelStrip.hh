@@ -24,7 +24,6 @@
 
 #include "a3-motion-ui/components/LayoutHints.hh"
 #include <a3-motion-ui/components/PatternMenu.hh>
-#include <a3-motion-ui/components/Ticks.hh>
 
 namespace a3
 {

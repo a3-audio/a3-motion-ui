@@ -55,6 +55,7 @@ MotionEngine::MotionEngine (index_t numChannels)
 
 MotionEngine::~MotionEngine ()
 {
+  jassert (_patternStatusListeners.empty ());
   _commandQueue.stopThread (-1);
   _tempoClock.stop ();
 }
@@ -124,10 +125,10 @@ MotionEngine::setChannelWidth (index_t channel, float width)
 }
 
 void
-MotionEngine::setRecord2DPosition (Pos const &position)
+MotionEngine::setRecording2DPosition (Pos const &position)
 {
   Message message;
-  message.command = Message::Command::SetRecordPosition;
+  message.command = Message::Command::SetRecordingPosition;
 
   auto mappedPosition = Pos::fromCartesian (
       position.x (), position.y (), _heightMap->computeHeight (position));
@@ -137,19 +138,19 @@ MotionEngine::setRecord2DPosition (Pos const &position)
 }
 
 void
-MotionEngine::setRecord3DPosition (Pos const &position)
+MotionEngine::setRecording3DPosition (Pos const &position)
 {
   Message message;
-  message.command = Message::Command::SetRecordPosition;
+  message.command = Message::Command::SetRecordingPosition;
   message.position = position;
   submitFifoMessage (message);
 }
 
 void
-MotionEngine::releaseRecordPosition ()
+MotionEngine::releaseRecordingPosition ()
 {
   Message message;
-  message.command = Message::Command::ReleaseRecordPosition;
+  message.command = Message::Command::ReleaseRecordingPosition;
 
   submitFifoMessage (message);
 }
@@ -186,6 +187,21 @@ MotionEngine::stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint)
   message.timepoint = timepoint;
   message.length = {};
   submitFifoMessage (message);
+}
+
+void
+MotionEngine::setRecordingMode (RecordingMode recordingMode)
+{
+  Message message;
+  message.command = Message::Command::SetRecordingMode;
+  message.recordingMode = recordingMode;
+  submitFifoMessage (message);
+}
+
+MotionEngine::RecordingMode
+MotionEngine::getRecordingMode () const
+{
+  return _recordingMode;
 }
 
 bool
@@ -284,14 +300,19 @@ MotionEngine::handleFifoMessage (Message const &message)
 {
   switch (message.command)
     {
-    case Message::Command::SetRecordPosition:
+    case Message::Command::SetRecordingPosition:
       {
         _recordingPosition = message.position;
         break;
       }
-    case Message::Command::ReleaseRecordPosition:
+    case Message::Command::ReleaseRecordingPosition:
       {
         _recordingPosition = Pos::invalid;
+        break;
+      }
+    case Message::Command::SetRecordingMode:
+      {
+        _recordingMode = message.recordingMode;
         break;
       }
     case Message::Command::StartRecording:
@@ -398,7 +419,11 @@ MotionEngine::handleStartStopMessages ()
             startRecording (message.pattern, message.length);
 
             // one-shot recording: schedule stop right away
-            stopPattern (message.pattern, message.timepoint + message.length);
+            if (_recordingMode == RecordingMode::OneShot)
+              {
+                stopPattern (message.pattern,
+                             message.timepoint + message.length);
+              }
 
             notifyPatternStatusListeners (
                 PatternStatusMessage::Status::Recording, message.pattern);
@@ -419,8 +444,9 @@ MotionEngine::handleStartStopMessages ()
                 PatternStatusMessage::Status::Stopped, message.pattern);
             break;
           }
-        case Message::Command::SetRecordPosition:
-        case Message::Command::ReleaseRecordPosition:
+        case Message::Command::SetRecordingPosition:
+        case Message::Command::ReleaseRecordingPosition:
+        case Message::Command::SetRecordingMode:
           {
             throw std::runtime_error (
                 "invalid command message in start/stop queue");

@@ -55,9 +55,18 @@ public:
   index_t getChannel () const;
 
   index_t getNumTicks () const;
-  std::vector<Pos> getTicks () const;
   Pos getTick (index_t tick) const;
   void setTick (index_t tick, Pos position);
+
+  // The Ticks struct enables us to atomically return the positions
+  // together with the last updated value.
+  struct Ticks
+  {
+    std::vector<Pos> positions;
+    index_t lastUpdatedTick;
+  };
+
+  Ticks getTicks () const;
 
 private:
   static_assert (std::atomic<Status>::is_always_lock_free);
@@ -68,6 +77,7 @@ private:
   // change later on.
   std::atomic<index_t> _channel;
 
+  index_t _lastUpdatedTick;
   std::vector<Pos> _ticks;
   mutable std::mutex _ticksMutex;
 };

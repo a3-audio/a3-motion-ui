@@ -26,6 +26,7 @@
 #include <vector>
 
 #include <a3-motion-engine/MotionEngine.hh>
+#include <a3-motion-engine/Pattern.hh>
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
@@ -45,7 +46,8 @@ class Pattern;
 class PatternUIState;
 
 class A3MotionUIComponent : public juce::Component,
-                            public juce::Value::Listener
+                            public juce::Value::Listener,
+                            public juce::MessageListener
 
 {
 public:
@@ -59,12 +61,17 @@ public:
   float getMinimumHeight () const;
 
   void valueChanged (juce::Value &value) override;
+  void handleMessage (juce::Message const &message) override;
 
 private:
+  static auto constexpr numPages = 4u;
+
   MotionEngine _engine;
 
   void tickCallback (Measure measure);
   void padLEDCallback (int step);
+  juce::Colour scheduledForIdleLEDColour (int step,
+                                          Pattern::Status statusLast);
 
   Measure _now;
   juce::Value _valueBPM;
@@ -73,7 +80,7 @@ private:
   static auto constexpr stepsPerBeatPadLEDs = 4;
   static auto constexpr ticksPerStepPadLEDs
       = TempoClock::getTicksPerBeat () / stepsPerBeatPadLEDs;
-  uint64_t _stepsLED = 0;
+  int _stepsLED = 0;
 
   std::unique_ptr<TempoEstimatorTest> _tempoEstimatorTest;
 
@@ -101,7 +108,6 @@ private:
   void initializePatterns ();
   std::vector<std::vector<std::shared_ptr<Pattern> > > _patterns;
   std::vector<std::vector<std::unique_ptr<PatternUIState> > > _patternUIStates;
-  static auto constexpr numPages = 4u;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };

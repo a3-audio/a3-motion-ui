@@ -45,8 +45,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/ChannelStrip.hh
     components/MotionComponent.cc
     components/MotionComponent.hh
-    components/Ticks.cc
-    components/Ticks.hh
+    components/TickIndicator.cc
+    components/TickIndicator.hh
     components/PatternMenu.cc
     components/PatternMenu.hh
     tests/TempoEstimatorTest.cc

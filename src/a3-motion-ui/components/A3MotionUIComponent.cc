@@ -59,6 +59,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   initializePatterns ();
 
+  _engine.addPatternStatusListener (this);
   _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
       [this] (auto measure) {
         tickCallback (measure);
@@ -97,6 +98,7 @@ A3MotionUIComponent::~A3MotionUIComponent ()
   _ioAdapter->stopThread (-1);
 #endif
 
+  _engine.removePatternStatusListener (this);
   setLookAndFeel (nullptr);
 }
 
@@ -361,7 +363,11 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                     }
                   else
                     {
-                      _motionComponent->setPreviewPattern (nullptr);
+                      if (_patterns[channel][pad])
+                        {
+                          _motionComponent->unsetPreviewPattern (
+                              _patterns[channel][pad]);
+                        }
                     }
                   return;
                 }
@@ -391,7 +397,10 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
     }
   else if (isButtonPressed (Button::Shift))
     {
-      _motionComponent->setPreviewPattern (_patterns[channel][pad]);
+      if (_patterns[channel][pad])
+        {
+          _motionComponent->setPreviewPattern (_patterns[channel][pad]);
+        }
     }
   else if (_patterns[channel][pad])
     {
@@ -436,6 +445,32 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
             break;
           }
         }
+    }
+}
+
+void
+A3MotionUIComponent::handleMessage (juce::Message const &message)
+{
+  using Status = MotionEngine::PatternStatusMessage::Status;
+  auto const &messagePatternStatus
+      = static_cast<MotionEngine::PatternStatusMessage const &> (message);
+
+  switch (messagePatternStatus.status)
+    {
+    case Status::Playing:
+      {
+        break;
+      }
+    case Status::Recording:
+      {
+        _motionComponent->setPreviewPattern (messagePatternStatus.pattern);
+        break;
+      }
+    case Status::Stopped:
+      {
+        _motionComponent->unsetPreviewPattern (messagePatternStatus.pattern);
+        break;
+      }
     }
 }
 
@@ -513,28 +548,7 @@ A3MotionUIComponent::padLEDCallback (int step)
                     jassert (statusLast
                                  != Pattern::Status::ScheduledForRecording
                              && statusLast != Pattern::Status::Idle);
-
-                    // one-shot recording: don't blink when scheduled for idle
-                    if (statusLast == Pattern::Status::Recording)
-                      {
-                        colour = LEDColours::recording;
-                      }
-                    else
-                      {
-                        if (step % 2 == 0)
-                          {
-                            colour = LEDColours::scheduledForIdle;
-                          }
-                        else
-                          {
-                            if (statusLast == Pattern::Status::Playing || //
-                                statusLast
-                                    == Pattern::Status::ScheduledForPlaying)
-                              {
-                                colour = LEDColours::scheduledForPlaying;
-                              }
-                          }
-                      }
+                    colour = scheduledForIdleLEDColour (step, statusLast);
                   }
                 }
               _ioAdapter->getPadLED (channel, pad)
@@ -544,4 +558,32 @@ A3MotionUIComponent::padLEDCallback (int step)
     }
 }
 
+juce::Colour
+A3MotionUIComponent::scheduledForIdleLEDColour (int step,
+                                                Pattern::Status statusLast)
+{
+  // one-shot recording: don't blink when scheduled for idle
+  if (_engine.getRecordingMode () == MotionEngine::RecordingMode::OneShot
+      && statusLast == Pattern::Status::Recording)
+    {
+      return LEDColours::recording;
+    }
+
+  if (step % 2 == 0)
+    {
+      return LEDColours::scheduledForIdle;
+    }
+  else
+    {
+      if (statusLast == Pattern::Status::Playing || //
+          statusLast == Pattern::Status::ScheduledForPlaying)
+        {
+          return LEDColours::scheduledForPlaying;
+        }
+      else
+        {
+          return LEDColours::scheduledForRecording;
+        }
+    }
+}
 }

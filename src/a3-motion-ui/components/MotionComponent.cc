@@ -165,13 +165,17 @@ MotionComponent::timerCallback ()
 void
 MotionComponent::setPreviewPattern (std::shared_ptr<Pattern> pattern)
 {
-  _patternPreview = pattern;
+  jassert (pattern != nullptr);
+  std::lock_guard<std::mutex> guard (_mutexPreview);
+  _patternsPreview.insert (pattern);
 }
 
 void
-MotionComponent::unsetPreviewPattern ()
+MotionComponent::unsetPreviewPattern (std::shared_ptr<Pattern> pattern)
 {
-  _patternPreview = nullptr;
+  jassert (pattern != nullptr);
+  std::lock_guard<std::mutex> guard (_mutexPreview);
+  _patternsPreview.erase (pattern);
 }
 
 void
@@ -289,7 +293,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
     {
       auto const posPixel = event.getPosition ().toFloat ();
       auto const posHOA = localToNormalized2DPosition (posPixel);
-      _engine.setRecord2DPosition (posHOA);
+      _engine.setRecording2DPosition (posHOA);
     }
   else
     {
@@ -327,7 +331,7 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
     }
   _grabbedIndex = {};
 
-  _engine.releaseRecordPosition ();
+  _engine.releaseRecordingPosition ();
 }
 
 void
@@ -338,7 +342,7 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
   if (_engine.isRecording ())
     {
       auto const posHOA = localToNormalized2DPosition (posPixel);
-      _engine.setRecord2DPosition (posHOA);
+      _engine.setRecording2DPosition (posHOA);
     }
   else
     {
@@ -438,9 +442,14 @@ MotionComponent::renderOpenGL ()
     drawCircle (graphics.get ());
     drawChannelBlobs (graphics.get ());
 
-    if (_patternPreview)
+    // create a copy of the shared_ptrs to hold the lock only briefly
+    _mutexPreview.lock ();
+    auto const patternsPreview{ _patternsPreview };
+    _mutexPreview.unlock ();
+
+    for (auto &pattern : patternsPreview)
       {
-        drawPatternPreview (graphics.get ());
+        drawPatternPreview (*pattern, graphics.get ());
       }
 
     // auto constexpr blobSize = 2;
@@ -615,25 +624,29 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 }
 
 void
-MotionComponent::drawPatternPreview (juce::Graphics &g)
+MotionComponent::drawPatternPreview (Pattern const &pattern, juce::Graphics &g)
 {
-  auto ticks = _patternPreview->getTicks ();
+  auto ticks = pattern.getTicks ();
 
   auto constexpr lineThickness = 0.04f;
 
-  auto colour = _uiStates[_patternPreview->getChannel ()]->colour;
+  auto colour = _uiStates[pattern.getChannel ()]->colour;
   g.setColour (colour.withAlpha (0.6f));
   auto const strokeStyle = juce::PathStrokeType (
       lineThickness, juce::PathStrokeType::JointStyle::curved,
       juce::PathStrokeType::EndCapStyle::rounded);
   auto path = juce::Path ();
 
-  jassert (ticks.size () <= std::numeric_limits<int>::max ());
-  path.preallocateSpace (static_cast<int> (ticks.size ()));
+  jassert (ticks.positions.size () <= std::numeric_limits<int>::max ());
+  path.preallocateSpace (static_cast<int> (ticks.positions.size ()));
 
   auto hasStarted = false;
-  for (auto &tick : ticks)
+  for (auto offset = 0u; offset < ticks.positions.size (); ++offset)
     {
+      auto const indexWrapped
+          = (ticks.lastUpdatedTick + 1 + offset) % ticks.positions.size ();
+      auto const tick = ticks.positions[indexWrapped];
+
       if (tick.isValid ())
         {
           auto posNormalized = cartesian2DHOA2JUCE (tick);

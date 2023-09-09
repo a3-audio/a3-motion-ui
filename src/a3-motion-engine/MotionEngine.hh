@@ -49,16 +49,23 @@ public:
   float getChannelWidth (index_t channel);
   void setChannelWidth (index_t channel, float width);
 
-  void setRecord2DPosition (Pos const &position);
-  void setRecord3DPosition (Pos const &position);
-  void releaseRecordPosition ();
+  enum class RecordingMode
+  {
+    Loop,
+    OneShot
+  };
 
+  void setRecording2DPosition (Pos const &position);
+  void setRecording3DPosition (Pos const &position);
+  void releaseRecordingPosition ();
+  void setRecordingMode (RecordingMode recordingMode);
+  RecordingMode getRecordingMode () const;
+  bool isRecording () const;
   void recordPattern (std::shared_ptr<Pattern> pattern, //
                       Measure timepoint, Measure length);
+
   void playPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
   void stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
-
-  bool isRecording () const;
 
   class PatternStatusMessage : public juce::Message
   {
@@ -99,8 +106,9 @@ private:
   {
     enum class Command
     {
-      SetRecordPosition,
-      ReleaseRecordPosition,
+      SetRecordingPosition,
+      ReleaseRecordingPosition,
+      SetRecordingMode,
       StartRecording,
       StartPlaying,
       Stop,
@@ -110,6 +118,8 @@ private:
     std::shared_ptr<Pattern> pattern;
     Measure timepoint;
     Measure length;
+
+    RecordingMode recordingMode;
 
     friend bool
     operator> (const Message &lhs, const Message &rhs)
@@ -121,6 +131,7 @@ private:
   void submitFifoMessage (Message const &message);
   void processFifo ();
   void handleFifoMessage (Message const &message);
+
   static constexpr int fifoSize = 32;
   juce::AbstractFifo _abstractFifo{ fifoSize };
   std::array<Message, fifoSize> _fifo;
@@ -142,6 +153,7 @@ private:
   Measure _now;
   Measure _recordingStarted;
   Pos _recordingPosition = Pos::invalid;
+  std::atomic<RecordingMode> _recordingMode = RecordingMode::Loop;
 
   // NOTE: the MotionEngine holding shared_ptrs might lead to pattern
   // deallocations on the realtime thread. If this turns out to be

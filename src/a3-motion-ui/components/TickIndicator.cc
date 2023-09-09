@@ -18,20 +18,21 @@
 
 */
 
-#include "Ticks.hh"
+#include "TickIndicator.hh"
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
 
 namespace a3
 {
 
-Ticks::Ticks (int numTicks) : _numTicks (numTicks), _currentTick (0)
+TickIndicator::TickIndicator (int numTicks)
+    : _numTicks (numTicks), _currentTick (0)
 {
   _currentTick = 1;
 }
 
 void
-Ticks::setCurrentTick (int tick)
+TickIndicator::setCurrentTick (int tick)
 {
   jassert (tick >= 0 && tick < _numTicks);
   _currentTick = tick;
@@ -39,7 +40,7 @@ Ticks::setCurrentTick (int tick)
 }
 
 void
-Ticks::paint (juce::Graphics &g)
+TickIndicator::paint (juce::Graphics &g)
 {
   g.setColour (juce::Colours::lightgrey);
   g.fillAll ();
