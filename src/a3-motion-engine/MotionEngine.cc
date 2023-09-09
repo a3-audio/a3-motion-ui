@@ -124,6 +124,12 @@ MotionEngine::setChannelWidth (index_t channel, float width)
   _channels[channel]->setWidth (width);
 }
 
+std::shared_ptr<Pattern>
+MotionEngine::getPlayingPattern (index_t channel)
+{
+  return _channels[channel]->_patternPlaying;
+}
+
 void
 MotionEngine::setRecording2DPosition (Pos const &position)
 {
@@ -499,6 +505,8 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
 
   channel._patternScheduledForPlaying = nullptr;
   _patternRecording = nullptr;
+
+  pattern->setPlayPosition (0.f);
 }
 
 void
@@ -560,32 +568,53 @@ MotionEngine::performPlayback ()
               || (status == Pattern::Status::ScheduledForRecording
                   && statusLast == Pattern::Status::Playing))
             {
-              auto const ticksSinceStart
-                  = Measure::convertToTicks (_now - channel->_playingStarted,
-                                             _tempoClock.getBeatsPerBar ());
-              if (ticksSinceStart < 0)
-                {
-                  juce::Logger::writeToLog ("now: " + toString (_now));
-                  juce::Logger::writeToLog (
-                      "playing started: "
-                      + toString (channel->_playingStarted));
-                }
-              jassert (ticksSinceStart >= 0);
-
-              auto const ticksPatternLength
-                  = channel->_patternPlaying->getNumTicks ();
-
-              auto const tick = static_cast<std::size_t> (ticksSinceStart)
-                                % ticksPatternLength;
-
+              auto const tick = updatePlayPosition (*channel->_patternPlaying);
               auto position = channel->_patternPlaying->getTick (tick);
               if (position.isValid ())
                 {
                   channel->setPosition (position);
                 }
+
+              // auto const ticksSinceStart
+              //     = Measure::convertToTicks (_now -
+              //     channel->_playingStarted,
+              //                                _tempoClock.getBeatsPerBar ());
+              // if (ticksSinceStart < 0)
+              //   {
+              //     juce::Logger::writeToLog ("now: " + toString (_now));
+              //     juce::Logger::writeToLog (
+              //         "playing started: "
+              //         + toString (channel->_playingStarted));
+              //   }
+              // jassert (ticksSinceStart >= 0);
+
+              // auto const ticksPatternLength
+              //     = channel->_patternPlaying->getNumTicks ();
+
+              // auto const tick = static_cast<std::size_t> (ticksSinceStart)
+              //                   % ticksPatternLength;
             }
         }
     }
+}
+
+index_t
+MotionEngine::updatePlayPosition (Pattern &pattern)
+{
+  auto const ticksPatternLength = pattern.getNumTicks ();
+  auto const ticksPlaybackLength = Measure::convertToTicks (
+      pattern.getPlaybackLength (), _tempoClock.getBeatsPerBar ());
+
+  auto const playPositionDelta = 1. / double (ticksPlaybackLength);
+
+  auto playPosition
+      = std::fmod (pattern.getPlayPosition () + playPositionDelta, 1.);
+  pattern.setPlayPosition (static_cast<float> (playPosition));
+
+  auto step = static_cast<index_t> (ticksPatternLength * playPosition);
+  jassert (step < ticksPatternLength);
+
+  return step;
 }
 
 void

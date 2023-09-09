@@ -49,6 +49,8 @@ public:
   float getChannelWidth (index_t channel);
   void setChannelWidth (index_t channel, float width);
 
+  std::shared_ptr<Pattern> getPlayingPattern (index_t channel);
+
   enum class RecordingMode
   {
     Loop,
@@ -145,11 +147,14 @@ private:
   void startRecording (std::shared_ptr<Pattern> pattern, Measure length);
   void startPlaying (std::shared_ptr<Pattern> pattern);
   void stop (std::shared_ptr<Pattern> pattern);
+
   std::priority_queue<Message, std::vector<Message>, std::greater<Message> >
       _messagesStartStop;
 
   void performRecording ();
   void performPlayback ();
+  index_t updatePlayPosition (Pattern &pattern);
+
   Measure _now;
   Measure _recordingStarted;
   Pos _recordingPosition = Pos::invalid;

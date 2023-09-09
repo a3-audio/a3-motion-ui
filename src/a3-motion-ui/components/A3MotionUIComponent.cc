@@ -53,11 +53,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
+  initializePatterns ();
+
   createHardwareInterface ();
   createChannelsUI ();
   createMainUI ();
 
-  initializePatterns ();
+  blankLEDs ();
 
   _engine.addPatternStatusListener (this);
   _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
@@ -137,11 +139,14 @@ A3MotionUIComponent::createChannelsUI ()
         }
 
       auto strip = std::make_unique<ChannelStrip> (
-          *uiState, _ioAdapter->getEncoderIncrement (channel));
+          *uiState, _engine.getTempoClock (),
+          _ioAdapter->getEncoderIncrement (channel));
+      strip->getPatternMenu ().getLengthBeats ().addListener (this);
+
       addChildComponent (*strip);
       strip->setVisible (true);
-      _channelStrips.push_back (std::move (strip));
 
+      _channelStrips.push_back (std::move (strip));
       _channelUIStates.push_back (std::move (uiState));
     }
 }
@@ -202,28 +207,23 @@ A3MotionUIComponent::initializePatterns ()
   for (auto &channelPatternUIStates : _patternUIStates)
     channelPatternUIStates.resize (numPatternsPerChannel);
 
-  blankLEDs ();
-
+  auto constexpr lengthBeatsPreMadePatterns = 16;
   for (auto channel = 0u; channel < numChannels; ++channel)
     {
-      _patterns[channel][0]
-          = PatternGenerator::createCirclePattern (16, 0.8f, 360.f);
+      auto constexpr radius = .8f;
+      auto constexpr degrees = 360.f;
+      _patterns[channel][0] = PatternGenerator::createCirclePattern (
+          lengthBeatsPreMadePatterns, radius, degrees);
       _patterns[channel][0]->setChannel (channel);
 
-      _patterns[channel][1]
-          = PatternGenerator::createCirclePattern (8, 0.8f, 360.f);
-      _patterns[channel][1]->setChannel (channel);
+      // TODO temporary! needs to come from menu element
+      _patterns[channel][0]->setPlaybackLength ({ 1, 0, 0 });
     }
 }
 
 void
 A3MotionUIComponent::blankLEDs ()
 {
-  for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
-    for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
-      _ioAdapter->getPadLED (channel, pad)
-          = juce::VariantConverter<juce::Colour>::toVar (juce::Colours::black);
-
   _ioAdapter->getButtonLED (Button::Shift) = false;
   _ioAdapter->getButtonLED (Button::Record) = false;
   _ioAdapter->getButtonLED (Button::Tap) = false;
@@ -341,6 +341,18 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       for (auto channel = 0u; channel < _ioAdapter->getNumChannels ();
            ++channel)
         {
+          if (value.refersToSameSourceAs (_channelStrips[channel]
+                                              ->getPatternMenu ()
+                                              .getLengthBeats ()))
+            {
+              auto playingPattern = _engine.getPlayingPattern (channel);
+              if (playingPattern)
+                {
+                  playingPattern->setPlaybackLength (
+                      Measure{ 0, value.getValue (), 0 });
+                }
+            }
+
           if (value.refersToSameSourceAs (_ioAdapter->getPot (channel, 0)))
             {
               jassert (value.getValue ().isDouble ());
@@ -379,9 +391,6 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
 void
 A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 {
-  // juce::Logger::writeToLog ("pad (" + juce::String (channel) + ", "
-  //                           + juce::String (pad) + ")");
-
   // TODO read from UI
   auto const recordLength = Measure (1, 0, 0);
 
@@ -413,6 +422,13 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           }
         case Pattern::Status::Idle:
           {
+            auto playbackLength = Measure{ 0,
+                                           _channelStrips[channel]
+                                               ->getPatternMenu ()
+                                               .getLengthBeats ()
+                                               .getValue (),
+                                           0 };
+            _patterns[channel][pad]->setPlaybackLength (playbackLength);
             _engine.playPattern (_patterns[channel][pad],
                                  TempoClock::nextDownBeat (_now));
             break;

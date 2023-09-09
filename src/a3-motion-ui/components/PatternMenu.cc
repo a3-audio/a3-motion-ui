@@ -22,28 +22,33 @@
 
 #include <algorithm>
 
+#include <a3-motion-engine/tempo/TempoClock.hh>
+
 namespace a3
 {
 
-PatternMenu::PatternMenu (juce::Value &valueEncoderIncrement)
+PatternMenu::PatternMenu (TempoClock const &tempoClock,
+                          juce::Value &valueEncoderIncrement)
+    : _tempoClock (tempoClock)
 {
   valueEncoderIncrement.addListener (this);
 
-  auto font = labelLength.getFont ();
+  auto font = _labelLength.getFont ();
   font.setHeight (LayoutHints::fontSize);
 
-  addChildComponent (labelLength);
-  labelLength.setJustificationType (juce::Justification::centredLeft);
+  addChildComponent (_labelLength);
+  _labelLength.setJustificationType (juce::Justification::centredLeft);
   // labelLength.setBorderSize ({ 0, 0, 0, 0 });
-  labelLength.setFont (font);
-  labelLength.setVisible (true);
-  labelLength.setText ("Bars", juce::dontSendNotification);
+  _labelLength.setFont (font);
+  _labelLength.setVisible (true);
+  _labelLength.setText ("Bars", juce::dontSendNotification);
 
-  addChildComponent (labelLengthValue);
-  labelLengthValue.setJustificationType (juce::Justification::centredRight);
+  addChildComponent (_labelLengthValue);
+  _labelLengthValue.setJustificationType (juce::Justification::centredRight);
   // labelLengthValue.setBorderSize ({ 0, 0, 0, 0 });
-  labelLengthValue.setFont (font);
-  labelLengthValue.setVisible (true);
+  _labelLengthValue.setFont (font);
+  _labelLengthValue.setVisible (true);
+
   updateLengthValue ();
 }
 
@@ -52,8 +57,8 @@ PatternMenu::resized ()
 {
   auto bounds = getLocalBounds ();
   auto boundsLength = bounds.withHeight (LayoutHints::lineHeight);
-  labelLength.setBounds (boundsLength);
-  labelLengthValue.setBounds (boundsLength);
+  _labelLength.setBounds (boundsLength);
+  _labelLengthValue.setBounds (boundsLength);
 }
 
 void
@@ -62,24 +67,34 @@ PatternMenu::valueChanged (juce::Value &value)
   auto const increment = int (value.getValue ());
   jassert (increment == 1 || increment == -1);
 
-  lengthLog2 += increment;
-  lengthLog2 = std::clamp (lengthLog2, lengthMinLog2, lengthMaxLog2);
+  _lengthBarLog2 += increment;
+  _lengthBarLog2
+      = std::clamp (_lengthBarLog2, lengthBarMinLog2, lengthBarMaxLog2);
 
   updateLengthValue ();
+}
+
+juce::Value &
+PatternMenu::getLengthBeats ()
+{
+  return _lengthBeats;
 }
 
 void
 PatternMenu::updateLengthValue ()
 {
-  if (lengthLog2 >= 0)
+  auto lengthBars = std::exp2 (_lengthBarLog2);
+  _lengthBeats = static_cast<int> (lengthBars * _tempoClock.getBeatsPerBar ());
+
+  if (_lengthBarLog2 >= 0)
     {
-      labelLengthValue.setText (juce::String (std::exp2 (lengthLog2)),
-                                juce::dontSendNotification);
+      _labelLengthValue.setText (juce::String (int (lengthBars)),
+                                 juce::dontSendNotification);
     }
   else
     {
-      labelLengthValue.setText ("1/" + juce::String (std::exp2 (-lengthLog2)),
-                                juce::dontSendNotification);
+      _labelLengthValue.setText ("1/" + juce::String (int (1.f / lengthBars)),
+                                 juce::dontSendNotification);
     }
 }
 

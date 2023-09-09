@@ -65,8 +65,13 @@ public:
     std::vector<Pos> positions;
     index_t lastUpdatedTick;
   };
-
   Ticks getTicks () const;
+
+  Measure getPlaybackLength () const;
+  void setPlaybackLength (Measure playbackLength);
+
+  float getPlayPosition () const;
+  void setPlayPosition (float playPosition);
 
 private:
   static_assert (std::atomic<Status>::is_always_lock_free);
@@ -80,6 +85,11 @@ private:
   index_t _lastUpdatedTick;
   std::vector<Pos> _ticks;
   mutable std::mutex _ticksMutex;
+
+  // TODO is float precision sufficient here? do the math!
+  static_assert (std::atomic<float>::is_always_lock_free);
+  std::atomic<float> _playPosition = 0.;
+  std::atomic<Measure> _playbackLength;
 };
 
 }

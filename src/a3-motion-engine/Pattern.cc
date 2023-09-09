@@ -109,4 +109,28 @@ Pattern::getTicks () const
   return { _ticks, _lastUpdatedTick };
 }
 
+Measure
+Pattern::getPlaybackLength () const
+{
+  return _playbackLength;
+}
+
+void
+Pattern::setPlaybackLength (Measure playbackLength)
+{
+  _playbackLength = playbackLength;
+}
+
+float
+Pattern::getPlayPosition () const
+{
+  return _playPosition;
+}
+
+void
+Pattern::setPlayPosition (float playPosition)
+{
+  _playPosition = playPosition;
+}
+
 }
