@@ -189,6 +189,7 @@ A3MotionUIComponent::createHardwareInterface ()
         }
 
       _ioAdapter->getPot (channel, 0).addListener (this);
+      _ioAdapter->getPot (channel, 1).addListener (this);
     }
   _ioAdapter->startThread ();
 #endif
@@ -358,14 +359,27 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                 }
             }
 
-          if (value.refersToSameSourceAs (_ioAdapter->getPot (channel, 0)))
+          else if (value.refersToSameSourceAs (
+                       _ioAdapter->getPot (channel, 0)))
             {
               jassert (value.getValue ().isDouble ());
               auto const width
                   = static_cast<float> (value.getValue ()) * 180.f;
-              juce::Logger::writeToLog ("setting width: "
-                                        + juce::String (width));
+              // juce::Logger::writeToLog ("setting width: "
+              //                           + juce::String (width));
               _engine.setChannelWidth (channel, width);
+              return;
+            }
+          else if (value.refersToSameSourceAs (
+                       _ioAdapter->getPot (channel, 1)))
+            {
+              jassert (value.getValue ().isDouble ());
+              auto order = static_cast<int> (
+                  static_cast<float> (value.getValue ()) * 4.f);
+              order = std::clamp (order, 0, 3);
+              // juce::Logger::writeToLog ("setting order: "
+              //                           + juce::String (order));
+              _engine.setChannelAmbisonicsOrder (channel, order);
               return;
             }
 

@@ -40,6 +40,7 @@ public:
 
   TempoClock &getTempoClock ();
 
+  // TODO refactor to access channels directly
   index_t getNumChannels ();
 
   Pos getChannelPosition (index_t channel);
@@ -48,6 +49,9 @@ public:
 
   float getChannelWidth (index_t channel);
   void setChannelWidth (index_t channel, float width);
+
+  int getChannelAmbisonicsOrder (index_t channel);
+  void setChannelAmbisonicsOrder (index_t channel, int order);
 
   std::shared_ptr<Pattern> getPlayingPattern (index_t channel);
 
@@ -175,6 +179,7 @@ private:
   AsyncCommandQueue _commandQueue;
   std::vector<Pos> _lastSentPositions;
   std::vector<float> _lastSentWidths;
+  std::vector<int> _lastSentAmbisonicsOrders;
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);

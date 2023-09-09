@@ -54,6 +54,16 @@ AsyncCommandQueue::sendWidth (index_t channel, float width)
 }
 
 void
+AsyncCommandQueue::sendAmbisonicsOrder (index_t channel, int order)
+{
+  Message message;
+  message.command = Message::Command::SendAmbisonicsOrder;
+  message.channel = channel;
+  message.order = order;
+  submitMessage (std::move (message));
+}
+
+void
 AsyncCommandQueue::run ()
 {
   while (true)
@@ -117,12 +127,17 @@ AsyncCommandQueue::processMessage (Message const &message)
     {
     case Message::Command::SendPosition:
       {
-        _backend->sendChannelPosition (message.channel, message.position);
+        _backend->sendPosition (message.channel, message.position);
         break;
       }
     case Message::Command::SendWidth:
       {
-        _backend->sendChannelWidth (message.channel, message.width);
+        _backend->sendWidth (message.channel, message.width);
+        break;
+      }
+    case Message::Command::SendAmbisonicsOrder:
+      {
+        _backend->sendAmbisonicsOrder (message.channel, message.order);
         break;
       }
     }

@@ -66,6 +66,7 @@ MotionEngine::createChannels (unsigned int const numChannels)
   _channels.resize (numChannels);
   _lastSentPositions.resize (numChannels);
   _lastSentWidths.resize (numChannels);
+  _lastSentAmbisonicsOrders.resize (numChannels);
 
   auto constexpr spread = 120.f;
   auto const azimuthSpacing = spread / (numChannels - 1);
@@ -122,6 +123,18 @@ void
 MotionEngine::setChannelWidth (index_t channel, float width)
 {
   _channels[channel]->setWidth (width);
+}
+
+int
+MotionEngine::getChannelAmbisonicsOrder (index_t channel)
+{
+  return _channels[channel]->getAmbisonicsOrder ();
+}
+
+void
+MotionEngine::setChannelAmbisonicsOrder (index_t channel, int order)
+{
+  _channels[channel]->setAmbisonicsOrder (order);
 }
 
 std::shared_ptr<Pattern>
@@ -253,6 +266,13 @@ MotionEngine::tickCallback ()
         {
           _commandQueue.sendWidth (index, width);
           _lastSentWidths[index] = width;
+        }
+
+      auto const order = _channels[index]->getAmbisonicsOrder ();
+      if (_lastSentAmbisonicsOrders[index] != order)
+        {
+          _commandQueue.sendAmbisonicsOrder (index, order);
+          _lastSentAmbisonicsOrders[index] = order;
         }
     }
 }

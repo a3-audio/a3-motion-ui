@@ -32,8 +32,9 @@ class SpatBackendA3 : public SpatBackend
 public:
   SpatBackendA3 (juce::String address, int port);
 
-  void sendChannelPosition (index_t channel, Pos const &pos) override;
-  void sendChannelWidth (index_t channel, float width) override;
+  void sendPosition (index_t channel, Pos const &pos) override;
+  void sendWidth (index_t channel, float width) override;
+  void sendAmbisonicsOrder (index_t channel, int order) override;
 
 private:
   juce::String _address;

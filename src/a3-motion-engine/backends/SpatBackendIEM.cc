@@ -32,7 +32,7 @@ SpatBackendIEM::SpatBackendIEM (juce::String address, int basePort)
 }
 
 void
-SpatBackendIEM::sendChannelPosition (index_t channel, Pos const &pos)
+SpatBackendIEM::sendPosition (index_t channel, Pos const &pos)
 {
   juce::OSCBundle bundle;
 
@@ -48,9 +48,16 @@ SpatBackendIEM::sendChannelPosition (index_t channel, Pos const &pos)
 }
 
 void
-SpatBackendIEM::sendChannelWidth (index_t channel, float width)
+SpatBackendIEM::sendWidth (index_t channel, float width)
 {
-  throw std::runtime_error ("SpatBackendIEM::sendChannelWidth: implement me!");
+  throw std::runtime_error ("SpatBackendIEM::sendWidth: implement me!");
+}
+
+void
+SpatBackendIEM::sendAmbisonicsOrder (index_t channel, int order)
+{
+  throw std::runtime_error (
+      "SpatBackendIEM::sendAmbisonicsOrder: implement me!");
 }
 
 }

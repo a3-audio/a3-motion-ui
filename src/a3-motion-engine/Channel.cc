@@ -57,4 +57,16 @@ Channel::setWidth (float width)
   _width = width;
 }
 
+int
+Channel::getAmbisonicsOrder () const
+{
+  return _order;
+}
+
+void
+Channel::setAmbisonicsOrder (int order)
+{
+  _order = order;
+}
+
 }

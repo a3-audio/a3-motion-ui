@@ -42,6 +42,9 @@ public:
   float getWidth () const;
   void setWidth (float width);
 
+  int getAmbisonicsOrder () const;
+  void setAmbisonicsOrder (int order);
+
 private:
   // TODO reconsider: we want to keep the public API for users of the
   // MotionEngine so that internal state can not be messed with. Can
@@ -51,6 +54,7 @@ private:
 
   Pos _position;
   std::atomic<float> _width = 45;
+  std::atomic<int> _order = 3;
 
   std::shared_ptr<Pattern> _patternScheduledForPlaying;
   std::shared_ptr<Pattern> _patternPlaying;

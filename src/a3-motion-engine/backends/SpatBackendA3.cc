@@ -32,7 +32,7 @@ SpatBackendA3::SpatBackendA3 (juce::String address, int port)
 }
 
 void
-SpatBackendA3::sendChannelPosition (index_t channel, Pos const &pos)
+SpatBackendA3::sendPosition (index_t channel, Pos const &pos)
 {
   juce::OSCBundle bundle;
 
@@ -50,7 +50,7 @@ SpatBackendA3::sendChannelPosition (index_t channel, Pos const &pos)
 }
 
 void
-SpatBackendA3::sendChannelWidth (index_t channel, float width)
+SpatBackendA3::sendWidth (index_t channel, float width)
 {
   auto const widthPattern
       = juce::String ("/channel/") + juce::String (channel) + "/width";
@@ -58,4 +58,12 @@ SpatBackendA3::sendChannelWidth (index_t channel, float width)
   _sender.sendToIPAddress (_address, _port, message);
 }
 
+void
+SpatBackendA3::sendAmbisonicsOrder (index_t channel, int order)
+{
+  auto const widthPattern
+      = juce::String ("/channel/") + juce::String (channel) + "/order";
+  auto message = juce::OSCMessage (widthPattern, order);
+  _sender.sendToIPAddress (_address, _port, message);
+}
 }

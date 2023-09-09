@@ -37,6 +37,7 @@ public:
 
   void sendPosition (index_t channel, Pos position);
   void sendWidth (index_t channel, float width);
+  void sendAmbisonicsOrder (index_t channel, int order);
 
   void run () override;
 
@@ -48,11 +49,13 @@ private:
     {
       SendPosition,
       SendWidth,
+      SendAmbisonicsOrder,
     } command;
 
     index_t channel;
     Pos position;
     float width;
+    int order;
   };
 
   void submitMessage (Message &&message);

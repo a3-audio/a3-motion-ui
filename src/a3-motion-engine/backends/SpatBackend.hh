@@ -29,8 +29,9 @@ class SpatBackend
 {
 public:
   virtual ~SpatBackend (){};
-  virtual void sendChannelPosition (index_t channel, Pos const &pos) = 0;
-  virtual void sendChannelWidth (index_t channel, float width) = 0;
+  virtual void sendPosition (index_t channel, Pos const &pos) = 0;
+  virtual void sendWidth (index_t channel, float width) = 0;
+  virtual void sendAmbisonicsOrder (index_t channel, int order) = 0;
 };
 
 }
