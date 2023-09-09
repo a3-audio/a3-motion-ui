@@ -24,8 +24,8 @@ namespace a3
 {
 
 std::unique_ptr<Pattern>
-PatternGenerator::createCirclePattern (index_t lengthBeats, float radius,
-                                       float degrees)
+PatternGenerator::createCircle (index_t lengthBeats, float radius,
+                                float degrees)
 {
   std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
 
@@ -33,16 +33,66 @@ PatternGenerator::createCirclePattern (index_t lengthBeats, float radius,
       = lengthBeats
         * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
   pattern->resize (numTicks);
+  pattern->setStatus (Pattern::Status::Idle);
 
   for (auto tick = 0u; tick < numTicks; ++tick)
     {
       auto phase = float (tick) / numTicks * degrees;
-
-      // TODO use elevation mapping here?
       pattern->setTick (tick, Pos::fromSpherical (phase, 0.f, radius));
     }
 
+  return pattern;
+}
+
+std::unique_ptr<Pattern>
+PatternGenerator::createFigureOfEight (index_t lengthBeats, float radius)
+{
+  std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
+
+  auto const numTicks
+      = lengthBeats
+        * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
+  pattern->resize (numTicks);
   pattern->setStatus (Pattern::Status::Idle);
+
+  for (auto tick = 0u; tick < numTicks; ++tick)
+    {
+      auto phase = float (tick) / numTicks;
+      auto y = radius * std::sin (phase * 2.f * pi<float> ());
+      auto x = radius * std::sin (phase * 4.f * pi<float> ());
+
+      pattern->setTick (tick, Pos::fromCartesian (x, y, 0));
+    }
+
+  return pattern;
+}
+
+std::unique_ptr<Pattern>
+PatternGenerator::createCornerStep (index_t lengthBeats, float radius)
+{
+  std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
+
+  auto const numTicks
+      = lengthBeats
+        * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
+  pattern->resize (numTicks);
+  pattern->setStatus (Pattern::Status::Idle);
+
+  auto const ticksPerQuadrant = numTicks / 4;
+  for (auto tick = 0u; tick < numTicks; ++tick)
+    {
+      if (tick % ticksPerQuadrant == ticksPerQuadrant - 1)
+        {
+          pattern->setTick (tick, Pos::invalid);
+        }
+      else
+        {
+          auto const quadrant = static_cast<int> (tick * 4 / numTicks);
+          auto const x = -radius * (2 * (quadrant % 2) - 1) / std::sqrt (2.f);
+          auto const y = -radius * (2 * (quadrant / 2) - 1) / std::sqrt (2.f);
+          pattern->setTick (tick, Pos::fromCartesian (x, y, 0));
+        }
+    }
 
   return pattern;
 }

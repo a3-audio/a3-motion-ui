@@ -212,12 +212,17 @@ A3MotionUIComponent::initializePatterns ()
     {
       auto constexpr radius = .8f;
       auto constexpr degrees = 360.f;
-      _patterns[channel][0] = PatternGenerator::createCirclePattern (
+      _patterns[channel][0] = PatternGenerator::createCircle (
           lengthBeatsPreMadePatterns, radius, degrees);
       _patterns[channel][0]->setChannel (channel);
 
-      // TODO temporary! needs to come from menu element
-      _patterns[channel][0]->setPlaybackLength ({ 1, 0, 0 });
+      _patterns[channel][1] = PatternGenerator::createFigureOfEight (
+          lengthBeatsPreMadePatterns, radius);
+      _patterns[channel][1]->setChannel (channel);
+
+      _patterns[channel][2] = PatternGenerator::createCornerStep (
+          lengthBeatsPreMadePatterns, radius);
+      _patterns[channel][2]->setChannel (channel);
     }
 }
 

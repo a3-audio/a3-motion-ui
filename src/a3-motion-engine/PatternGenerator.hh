@@ -28,10 +28,16 @@ namespace a3
 class PatternGenerator
 {
 public:
-  // TODO having to pass the channel here is not meaningful, needs to
-  // be considered when the pattern to channel mapping is redesigned.
-  static std::unique_ptr<Pattern>
-  createCirclePattern (index_t lengthBeats, float radius, float degrees);
+  // TODO use elevation mapping here?
+
+  static std::unique_ptr<Pattern> createCircle (index_t lengthBeats,
+                                                float radius, float degrees);
+
+  static std::unique_ptr<Pattern> createFigureOfEight (index_t lengthBeats,
+                                                       float radius);
+
+  static std::unique_ptr<Pattern> createCornerStep (index_t lengthBeats,
+                                                    float radius);
 
 private:
 };
