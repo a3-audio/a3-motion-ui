@@ -233,6 +233,16 @@ A3MotionUIComponent::blankLEDs ()
   _ioAdapter->getButtonLED (Button::Shift) = false;
   _ioAdapter->getButtonLED (Button::Record) = false;
   _ioAdapter->getButtonLED (Button::Tap) = false;
+
+  for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
+    {
+      for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
+        {
+          _ioAdapter->getPadLED (channel, pad)
+              = juce::VariantConverter<juce::Colour>::toVar (
+                  juce::Colours::black);
+        }
+    }
 }
 
 void
