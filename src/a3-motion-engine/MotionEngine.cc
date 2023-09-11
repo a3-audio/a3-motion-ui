@@ -567,8 +567,11 @@ MotionEngine::performRecording ()
           = static_cast<std::size_t> (ticksSinceStart) % ticksPatternLength;
       _patternRecording->setTick (tick, _recordingPosition);
 
-      _channels[_patternRecording->getChannel ()]->setPosition (
-          _recordingPosition);
+      if (_recordingPosition.isValid ())
+        {
+          _channels[_patternRecording->getChannel ()]->setPosition (
+              _recordingPosition);
+        }
     }
 }
 
