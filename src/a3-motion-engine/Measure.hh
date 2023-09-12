@@ -44,6 +44,12 @@ public:
   int const &beat () const;
   int const &tick () const;
 
+  // TODO we need a better design. currently Measure tries to be
+  // somewhat agnostic to beatsPerBar, while in effect it isn't. We
+  // have to answer if there are actual use-cases to
+  // mix/compare/compute with measures of a different metrum.
+  Measure const &consolidate (int beatsPerBar);
+
   Measure &operator+= (const Measure &rhs);
   Measure &operator-= (Measure const &rhs);
   friend Measure operator+ (Measure lhs, const Measure &rhs);

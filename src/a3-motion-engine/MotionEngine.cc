@@ -443,8 +443,10 @@ MotionEngine::handleStartStopMessages ()
             // one-shot recording: schedule stop right away
             if (_recordingMode == RecordingMode::OneShot)
               {
-                stopPattern (message.pattern,
-                             message.timepoint + message.length);
+                auto const timepointStop
+                    = (message.timepoint + message.length)
+                          .consolidate (_tempoClock.getBeatsPerBar ());
+                stopPattern (message.pattern, timepointStop);
               }
 
             notifyPatternStatusListeners (
@@ -550,12 +552,6 @@ MotionEngine::performRecording ()
     {
       auto const ticksSinceStart = Measure::convertToTicks (
           _now - _recordingStarted, _tempoClock.getBeatsPerBar ());
-      if (ticksSinceStart < 0)
-        {
-          juce::Logger::writeToLog ("now: " + toString (_now));
-          juce::Logger::writeToLog ("recording started: "
-                                    + toString (_recordingStarted));
-        }
       jassert (ticksSinceStart >= 0);
 
       auto const ticksPatternLength = _patternRecording->getNumTicks ();

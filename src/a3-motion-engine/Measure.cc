@@ -61,6 +61,20 @@ Measure::tick () const
   return _tick;
 }
 
+Measure const &
+Measure::consolidate (int beatsPerBar)
+{
+  auto const ticksPerBeat = TempoClock::getTicksPerBeat ();
+
+  _beat += _tick / ticksPerBeat;
+  _tick = _tick % ticksPerBeat;
+
+  _bar += _beat / beatsPerBar;
+  _beat = _beat % beatsPerBar;
+
+  return *this;
+}
+
 Measure &
 Measure::operator+= (const Measure &rhs)
 {

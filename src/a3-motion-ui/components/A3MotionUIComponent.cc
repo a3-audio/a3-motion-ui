@@ -368,8 +368,12 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               auto playingPattern = _engine.getPlayingPattern (channel);
               if (playingPattern)
                 {
-                  playingPattern->setPlaybackLength (
-                      Measure{ 0, value.getValue (), 0 });
+                  auto playbackLength
+                      = Measure{ 0, value.getValue (), 0 }.consolidate (
+                          _engine.getTempoClock ().getBeatsPerBar ());
+                  juce::Logger::writeToLog ("setting playback length: "
+                                            + toString (playbackLength));
+                  playingPattern->setPlaybackLength (playbackLength);
                 }
             }
 
@@ -424,12 +428,6 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
 void
 A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 {
-  // TODO read from UI
-  auto const recordLength = Measure{
-    0,
-    _channelStrips[channel]->getPatternMenu ().getLengthBeats ().getValue (), 0
-  };
-
   if (isButtonPressed (Button::Record))
     {
       if (!_patterns[channel][pad])
@@ -437,6 +435,16 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           _patterns[channel][pad] = std::make_shared<Pattern> ();
           _patterns[channel][pad]->setChannel (channel);
         }
+
+      auto recordLength = Measure{ 0,
+                                   _channelStrips[channel]
+                                       ->getPatternMenu ()
+                                       .getLengthBeats ()
+                                       .getValue (),
+                                   0 };
+      recordLength.consolidate (_engine.getTempoClock ().getBeatsPerBar ());
+      juce::Logger::writeToLog ("recording with length: "
+                                + toString (recordLength));
       _engine.recordPattern (_patterns[channel][pad],
                              TempoClock::nextDownBeat (_now), recordLength);
     }
