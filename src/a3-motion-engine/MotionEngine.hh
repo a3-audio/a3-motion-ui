@@ -35,7 +35,7 @@ class HeightMap;
 class MotionEngine
 {
 public:
-  MotionEngine (index_t numChannels);
+  MotionEngine (index_t numChannels, const HeightMap &heightMap);
   ~MotionEngine ();
 
   TempoClock &getTempoClock ();
@@ -90,7 +90,7 @@ public:
 private:
   void createChannels (index_t numChannels);
   std::vector<std::unique_ptr<Channel> > _channels;
-  std::unique_ptr<HeightMap> _heightMap;
+  const HeightMap &_heightMap;
 
   // MotionEngine runs the record/playback engine, checks for changed
   // parameters and and schedules corresponding commands with the

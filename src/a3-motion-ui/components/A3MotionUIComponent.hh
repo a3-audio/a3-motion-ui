@@ -66,6 +66,7 @@ public:
 private:
   static auto constexpr numPages = 4u;
 
+  std::unique_ptr<HeightMap> _heightMap;
   MotionEngine _engine;
 
   void tickCallback (Measure measure);

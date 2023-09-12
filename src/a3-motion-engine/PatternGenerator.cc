@@ -20,12 +20,14 @@
 
 #include "PatternGenerator.hh"
 
+#include <a3-motion-engine/elevation/HeightMap.hh>
+
 namespace a3
 {
 
 std::unique_ptr<Pattern>
 PatternGenerator::createCircle (index_t lengthBeats, float radius,
-                                float degrees)
+                                float degrees, HeightMap const &heightMap)
 {
   std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
 
@@ -38,14 +40,17 @@ PatternGenerator::createCircle (index_t lengthBeats, float radius,
   for (auto tick = 0u; tick < numTicks; ++tick)
     {
       auto phase = float (tick) / numTicks * degrees;
-      pattern->setTick (tick, Pos::fromSpherical (phase, 0.f, radius));
+      auto position = Pos::fromSpherical (phase, 0.f, radius);
+      position.setZ (heightMap.computeHeight (position));
+      pattern->setTick (tick, position);
     }
 
   return pattern;
 }
 
 std::unique_ptr<Pattern>
-PatternGenerator::createFigureOfEight (index_t lengthBeats, float radius)
+PatternGenerator::createFigureOfEight (index_t lengthBeats, float radius,
+                                       HeightMap const &heightMap)
 {
   std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
 
@@ -58,17 +63,22 @@ PatternGenerator::createFigureOfEight (index_t lengthBeats, float radius)
   for (auto tick = 0u; tick < numTicks; ++tick)
     {
       auto phase = float (tick) / numTicks;
-      auto y = radius * std::sin (phase * 2.f * pi<float> ());
-      auto x = radius * std::sin (phase * 4.f * pi<float> ());
 
-      pattern->setTick (tick, Pos::fromCartesian (x, y, 0));
+      auto constexpr offsetX = 0.05; // avoid azimuth singularity
+      auto y = radius * std::sin (phase * 2.f * pi<float> ());
+      auto x = radius * std::sin (phase * 4.f * pi<float> ()) + offsetX;
+
+      auto position = Pos::fromCartesian (x, y, 0);
+      position.setZ (heightMap.computeHeight (position));
+      pattern->setTick (tick, position);
     }
 
   return pattern;
 }
 
 std::unique_ptr<Pattern>
-PatternGenerator::createCornerStep (index_t lengthBeats, float radius)
+PatternGenerator::createCornerStep (index_t lengthBeats, float radius,
+                                    HeightMap const &heightMap)
 {
   std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
 
@@ -90,7 +100,10 @@ PatternGenerator::createCornerStep (index_t lengthBeats, float radius)
           auto const quadrant = static_cast<int> (tick * 4 / numTicks);
           auto const x = -radius * (2 * (quadrant % 2) - 1) / std::sqrt (2.f);
           auto const y = -radius * (2 * (quadrant / 2) - 1) / std::sqrt (2.f);
-          pattern->setTick (tick, Pos::fromCartesian (x, y, 0));
+
+          auto position = Pos::fromCartesian (x, y, 0);
+          position.setZ (heightMap.computeHeight (position));
+          pattern->setTick (tick, position);
         }
     }
 

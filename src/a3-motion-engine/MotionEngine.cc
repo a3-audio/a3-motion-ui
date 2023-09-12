@@ -27,18 +27,15 @@
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-engine/backends/SpatBackendA3.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
-#include <a3-motion-engine/elevation/HeightMapFlat.hh>
-#include <a3-motion-engine/elevation/HeightMapSphere.hh>
 #include <a3-motion-engine/util/Helpers.hh>
 #include <a3-motion-engine/util/Timing.hh>
 
 namespace a3
 {
 
-MotionEngine::MotionEngine (index_t numChannels)
-    : _heightMap (std::make_unique<HeightMapSphere> ()),
-      _commandQueue (std::make_unique<SpatBackendA3> (userConfig["hostname"],
-                                                      userConfig["port"]))
+MotionEngine::MotionEngine (index_t numChannels, const HeightMap &heightMap)
+    : _heightMap (heightMap), _commandQueue (std::make_unique<SpatBackendA3> (
+                                  userConfig["hostname"], userConfig["port"]))
 {
   createChannels (numChannels);
 
@@ -101,9 +98,8 @@ MotionEngine::getChannelPosition (index_t channel)
 void
 MotionEngine::setChannel2DPosition (index_t channel, Pos const &position)
 {
-  jassert (_heightMap);
   auto mappedPosition = Pos::fromCartesian (
-      position.x (), position.y (), _heightMap->computeHeight (position));
+      position.x (), position.y (), _heightMap.computeHeight (position));
   _channels[channel]->setPosition (mappedPosition);
 }
 
@@ -150,7 +146,7 @@ MotionEngine::setRecording2DPosition (Pos const &position)
   message.command = Message::Command::SetRecordingPosition;
 
   auto mappedPosition = Pos::fromCartesian (
-      position.x (), position.y (), _heightMap->computeHeight (position));
+      position.x (), position.y (), _heightMap.computeHeight (position));
   message.position = mappedPosition;
 
   submitFifoMessage (message);
@@ -597,25 +593,6 @@ MotionEngine::performPlayback ()
                 {
                   channel->setPosition (position);
                 }
-
-              // auto const ticksSinceStart
-              //     = Measure::convertToTicks (_now -
-              //     channel->_playingStarted,
-              //                                _tempoClock.getBeatsPerBar ());
-              // if (ticksSinceStart < 0)
-              //   {
-              //     juce::Logger::writeToLog ("now: " + toString (_now));
-              //     juce::Logger::writeToLog (
-              //         "playing started: "
-              //         + toString (channel->_playingStarted));
-              //   }
-              // jassert (ticksSinceStart >= 0);
-
-              // auto const ticksPatternLength
-              //     = channel->_patternPlaying->getNumTicks ();
-
-              // auto const tick = static_cast<std::size_t> (ticksSinceStart)
-              //                   % ticksPatternLength;
             }
         }
     }
@@ -653,5 +630,4 @@ MotionEngine::notifyPatternStatusListeners (
       listener->postMessage (message);
     }
 }
-
 }

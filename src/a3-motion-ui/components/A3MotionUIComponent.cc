@@ -20,12 +20,15 @@
 
 #include "A3MotionUIComponent.hh"
 
+#include <chrono>
+#include <fstream>
+
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternGenerator.hh>
-
-#include <chrono>
-#include <fstream>
+#include <a3-motion-engine/elevation/HeightMap.hh>
+#include <a3-motion-engine/elevation/HeightMapFlat.hh>
+#include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
 #include <a3-motion-ui/Config.hh>
 #include <a3-motion-ui/Helpers.hh>
@@ -49,7 +52,8 @@ namespace a3
 {
 
 A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
-    : _engine (numChannels)
+    : _heightMap (std::make_unique<HeightMapSphere> ()),
+      _engine (numChannels, *_heightMap)
 {
   setLookAndFeel (&_lookAndFeel);
 
@@ -214,15 +218,15 @@ A3MotionUIComponent::initializePatterns ()
       auto constexpr radius = .8f;
       auto constexpr degrees = 360.f;
       _patterns[channel][0] = PatternGenerator::createCircle (
-          lengthBeatsPreMadePatterns, radius, degrees);
+          lengthBeatsPreMadePatterns, radius, degrees, *_heightMap);
       _patterns[channel][0]->setChannel (channel);
 
       _patterns[channel][1] = PatternGenerator::createFigureOfEight (
-          lengthBeatsPreMadePatterns, radius);
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
       _patterns[channel][1]->setChannel (channel);
 
       _patterns[channel][2] = PatternGenerator::createCornerStep (
-          lengthBeatsPreMadePatterns, radius);
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
       _patterns[channel][2]->setChannel (channel);
     }
 }
@@ -421,7 +425,10 @@ void
 A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 {
   // TODO read from UI
-  auto const recordLength = Measure (1, 0, 0);
+  auto const recordLength = Measure{
+    0,
+    _channelStrips[channel]->getPatternMenu ().getLengthBeats ().getValue (), 0
+  };
 
   if (isButtonPressed (Button::Record))
     {

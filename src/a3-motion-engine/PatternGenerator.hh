@@ -25,19 +25,22 @@
 namespace a3
 {
 
+class HeightMap;
+
 class PatternGenerator
 {
 public:
-  // TODO use elevation mapping here?
-
   static std::unique_ptr<Pattern> createCircle (index_t lengthBeats,
-                                                float radius, float degrees);
+                                                float radius, float degrees,
+                                                HeightMap const &heightMap);
 
-  static std::unique_ptr<Pattern> createFigureOfEight (index_t lengthBeats,
-                                                       float radius);
+  static std::unique_ptr<Pattern>
+  createFigureOfEight (index_t lengthBeats, float radius,
+                       HeightMap const &heightMap);
 
-  static std::unique_ptr<Pattern> createCornerStep (index_t lengthBeats,
-                                                    float radius);
+  static std::unique_ptr<Pattern>
+  createCornerStep (index_t lengthBeats, float radius,
+                    HeightMap const &heightMap);
 
 private:
 };
