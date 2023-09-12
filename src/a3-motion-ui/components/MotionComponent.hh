@@ -60,6 +60,8 @@ public:
   void setPreviewPattern (std::shared_ptr<Pattern> pattern);
   void unsetPreviewPattern (std::shared_ptr<Pattern> pattern);
 
+  void setBackgroundColour (juce::Colour const &colour);
+
 private:
   void printFrameTime ();
   void updateBoundsAndTransform ();
@@ -107,6 +109,9 @@ private:
   std::unique_ptr<juce::Image> _imageBlend;
   juce::Image _imageIsoSphere;
   std::unique_ptr<juce::Drawable> _drawableHead;
+
+  juce::Colour _backgroundColour;
+  std::mutex _mutexBackgroundColour;
 };
 
 }

@@ -225,6 +225,12 @@ MotionEngine::isRecording () const
   return _patternRecording != nullptr;
 }
 
+std::shared_ptr<Pattern>
+MotionEngine::getRecordingPattern ()
+{
+  return _patternRecording;
+}
+
 void
 MotionEngine::addPatternStatusListener (juce::MessageListener *listener)
 {

@@ -53,24 +53,31 @@ public:
   int getChannelAmbisonicsOrder (index_t channel);
   void setChannelAmbisonicsOrder (index_t channel, int order);
 
-  std::shared_ptr<Pattern> getPlayingPattern (index_t channel);
-
   enum class RecordingMode
   {
     Loop,
     OneShot
   };
 
+  // Recording
   void setRecording2DPosition (Pos const &position);
   void setRecording3DPosition (Pos const &position);
   void releaseRecordingPosition ();
+
   void setRecordingMode (RecordingMode recordingMode);
   RecordingMode getRecordingMode () const;
+
   bool isRecording () const;
+  std::shared_ptr<Pattern> getRecordingPattern ();
+
   void recordPattern (std::shared_ptr<Pattern> pattern, //
                       Measure timepoint, Measure length);
 
+  // Playback
+  std::shared_ptr<Pattern> getPlayingPattern (index_t channel);
   void playPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
+
+  // Stop
   void stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
 
   class PatternStatusMessage : public juce::Message

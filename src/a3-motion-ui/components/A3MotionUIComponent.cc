@@ -67,27 +67,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   _engine.addPatternStatusListener (this);
   _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
-      [this] (auto measure) {
-        tickCallback (measure);
-        if (measure.beat () == 0 && measure.tick () == 0)
-          {
-            _stepsLED = 0;
-          }
-
-        using T =
-            typename std::remove_reference<decltype (measure.tick ())>::type;
-        jassert (ticksPerStepPadLEDs <= std::numeric_limits<T>::max ());
-        auto const divisor = static_cast<T> (ticksPerStepPadLEDs);
-        if (measure.tick () % divisor == 0)
-          {
-            padLEDCallback (_stepsLED++);
-          }
-
-        if (!_ioAdapter->getButton (Button::Record).getValue ())
-          {
-            _ioAdapter->getButtonLED (Button::Record) = _engine.isRecording ();
-          }
-      },
+      [this] (auto measure) { tickCallback (measure); },
       TempoClock::Event::Tick, TempoClock::Execution::JuceMessageThread);
 
   auto constexpr testTempoEstimation = false;
@@ -544,6 +524,37 @@ void
 A3MotionUIComponent::tickCallback (Measure measure)
 {
   _now = measure;
+
+  if (measure.beat () == 0 && measure.tick () == 0)
+    {
+      _stepsLED = 0;
+    }
+
+  using T = typename std::remove_reference<decltype (measure.tick ())>::type;
+  jassert (ticksPerStepPadLEDs <= std::numeric_limits<T>::max ());
+  auto const divisor = static_cast<T> (ticksPerStepPadLEDs);
+  if (measure.tick () % divisor == 0)
+    {
+      padLEDCallback (_stepsLED++);
+    }
+
+  if (!_ioAdapter->getButton (Button::Record).getValue ())
+    {
+      _ioAdapter->getButtonLED (Button::Record) = _engine.isRecording ();
+    }
+
+  auto recordingPattern = _engine.getRecordingPattern ();
+  if (recordingPattern)
+    {
+      _motionComponent->setBackgroundColour (
+          _channelUIStates[recordingPattern->getChannel ()]->colour.withAlpha (
+              0.2f));
+    }
+  else
+    {
+      _motionComponent->setBackgroundColour (
+          juce::Colours::black.withAlpha (0.f));
+    }
 }
 
 void

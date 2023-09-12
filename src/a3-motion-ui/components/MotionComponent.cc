@@ -179,6 +179,13 @@ MotionComponent::unsetPreviewPattern (std::shared_ptr<Pattern> pattern)
 }
 
 void
+MotionComponent::setBackgroundColour (juce::Colour const &colour)
+{
+  std::lock_guard<std::mutex> guard (_mutexBackgroundColour);
+  _backgroundColour = colour;
+}
+
+void
 MotionComponent::disoccludeBlobs ()
 {
   jassert (_grabbedIndex.has_value ());
@@ -438,7 +445,12 @@ MotionComponent::renderOpenGL ()
 
     graphics.get ().addTransform (_transformNormalizedToLocal);
 
+    _mutexBackgroundColour.lock ();
+    auto const backgroundColour{ _backgroundColour };
+    _mutexBackgroundColour.unlock ();
     OpenGLHelpers::clear (Colours::background);
+    graphics.get ().setColour (backgroundColour);
+    graphics.get ().fillAll ();
 
     drawCircle (graphics.get ());
     drawChannelBlobs (graphics.get ());
