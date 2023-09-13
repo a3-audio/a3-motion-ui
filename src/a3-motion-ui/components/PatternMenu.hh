@@ -29,15 +29,17 @@ namespace a3
 
 class TempoClock;
 
-class PatternMenu : public juce::Component, public juce::Value::Listener
+class PatternMenu : public juce::Component
 {
 public:
-  PatternMenu (TempoClock const &tempoClock,
-               juce::Value &valueEncoderIncrement);
+  PatternMenu (TempoClock const &tempoClock);
   void resized () override;
 
-  void valueChanged (juce::Value &value) override;
+  void increaseLength ();
+  void decreaseLength ();
   juce::Value &getLengthBeats ();
+
+  void setIsRecording (bool isRecording);
 
   static constexpr int
   getMinimumHeight ()
@@ -54,6 +56,8 @@ private:
   juce::Value _lengthBeats;
   juce::Label _labelLength;
   juce::Label _labelLengthValue;
+
+  bool _isRecording = false;
 
   static constexpr auto lengthBarMinLog2 = -2;
   static constexpr auto lengthBarMaxLog2 = 4;

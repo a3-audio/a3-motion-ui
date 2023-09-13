@@ -100,6 +100,13 @@ Pattern::setTick (index_t tick, Pos position)
   _lastUpdatedTick = tick;
 }
 
+index_t
+Pattern::getLastUpdatedTick () const
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  return _lastUpdatedTick;
+}
+
 Pattern::Ticks
 Pattern::getTicks () const
 {

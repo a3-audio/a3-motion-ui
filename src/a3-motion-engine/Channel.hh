@@ -51,14 +51,13 @@ private:
   // we design this cleaner without exposing _all_ internals to
   // MotionEngine as a friend?
   friend class MotionEngine;
+  std::shared_ptr<Pattern> _patternScheduledForPlaying;
+  std::shared_ptr<Pattern> _patternPlaying;
+  Measure _playingStarted;
 
   Pos _position;
   std::atomic<float> _width = 45;
   std::atomic<int> _order = 3;
-
-  std::shared_ptr<Pattern> _patternScheduledForPlaying;
-  std::shared_ptr<Pattern> _patternPlaying;
-  Measure _playingStarted;
 
   // for now we use a "fair" RW lock using std::shared_mutex to see
   // how it performs.  we might implement a write-preferring RW lock

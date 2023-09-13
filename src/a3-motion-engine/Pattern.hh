@@ -57,6 +57,7 @@ public:
   index_t getNumTicks () const;
   Pos getTick (index_t tick) const;
   void setTick (index_t tick, Pos position);
+  index_t getLastUpdatedTick () const;
 
   // The Ticks struct enables us to atomically return the positions
   // together with the last updated value.

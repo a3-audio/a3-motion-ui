@@ -28,10 +28,14 @@ namespace a3
 struct ChannelUIState
 {
   juce::Colour colour;
+
   bool highlighted = false;
   bool grabbed = false;
   juce::Point<float> grabOffset;
   juce::Point<float> posAnchor;
+
+  bool isRecording = false;
+  float progress = 1.f;
 };
 
 }

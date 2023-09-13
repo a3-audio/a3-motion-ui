@@ -28,9 +28,8 @@ namespace a3
 {
 
 ChannelStrip::ChannelStrip (ChannelUIState const &uiState,
-                            TempoClock const &tempoClock,
-                            juce::Value &valueEncoderIncrement)
-    : _uiState (uiState), _patternMenu (tempoClock, valueEncoderIncrement)
+                            TempoClock const &tempoClock)
+    : _uiState (uiState), _patternMenu (tempoClock)
 {
   addChildComponent (_patternMenu);
   _patternMenu.setVisible (true);
@@ -58,9 +57,9 @@ ChannelStrip::paint (juce::Graphics &g)
   g.fillRect (bounds);
 
   auto boundsTop = bounds.removeFromTop (LayoutHints::padding);
-  boundsTop.setWidth (boundsTop.getWidth () * _progressPercent);
+  // boundsTop.setWidth (boundsTop.getWidth () * _uiState.progress);
   auto boundsBottom = bounds.removeFromBottom (LayoutHints::padding);
-  boundsBottom.setWidth (boundsBottom.getWidth () * _progressPercent);
+  boundsBottom.setWidth (boundsBottom.getWidth () * _uiState.progress);
 
   g.setColour (_uiState.colour);
   g.fillRect (boundsTop);
@@ -74,12 +73,6 @@ PatternMenu &
 ChannelStrip::getPatternMenu ()
 {
   return _patternMenu;
-}
-
-void
-ChannelStrip::setProgressPercent (float percent)
-{
-  _progressPercent = percent;
 }
 
 }

@@ -122,9 +122,8 @@ A3MotionUIComponent::createChannelsUI ()
           _headers.push_back (std::move (header));
         }
 
-      auto strip = std::make_unique<ChannelStrip> (
-          *uiState, _engine.getTempoClock (),
-          _ioAdapter->getEncoderIncrement (channel));
+      auto strip = std::make_unique<ChannelStrip> (*uiState,
+                                                   _engine.getTempoClock ());
       strip->getPatternMenu ().getLengthBeats ().addListener (this);
 
       addChildComponent (*strip);
@@ -174,6 +173,7 @@ A3MotionUIComponent::createHardwareInterface ()
 
       _ioAdapter->getPot (channel, 0).addListener (this);
       _ioAdapter->getPot (channel, 1).addListener (this);
+      _ioAdapter->getEncoderIncrement (channel).addListener (this);
     }
   _ioAdapter->startThread ();
 #endif
@@ -341,9 +341,32 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       for (auto channel = 0u; channel < _ioAdapter->getNumChannels ();
            ++channel)
         {
-          if (value.refersToSameSourceAs (_channelStrips[channel]
-                                              ->getPatternMenu ()
-                                              .getLengthBeats ()))
+          if (value.refersToSameSourceAs (
+                  _ioAdapter->getEncoderIncrement (channel)))
+            {
+              auto const increment = static_cast<int> (
+                  _ioAdapter->getEncoderIncrement (channel).getValue ());
+              jassert (value == -1 || value == 1);
+              if (!_engine.isRecording ()
+                  || _engine.getRecordingPattern ()->getChannel () != channel)
+                {
+                  if (increment == 1)
+                    {
+                      _channelStrips[channel]
+                          ->getPatternMenu ()
+                          .increaseLength ();
+                    }
+                  else if (increment == -1)
+                    {
+                      _channelStrips[channel]
+                          ->getPatternMenu ()
+                          .decreaseLength ();
+                    }
+                }
+            }
+          else if (value.refersToSameSourceAs (_channelStrips[channel]
+                                                   ->getPatternMenu ()
+                                                   .getLengthBeats ()))
             {
               auto playingPattern = _engine.getPlayingPattern (channel);
               if (playingPattern)
@@ -504,11 +527,17 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
     case Status::Recording:
       {
         _motionComponent->setPreviewPattern (messagePatternStatus.pattern);
+        _channelStrips[messagePatternStatus.pattern->getChannel ()]
+            ->getPatternMenu ()
+            .setIsRecording (true);
         break;
       }
     case Status::Stopped:
       {
         _motionComponent->unsetPreviewPattern (messagePatternStatus.pattern);
+        _channelStrips[messagePatternStatus.pattern->getChannel ()]
+            ->getPatternMenu ()
+            .setIsRecording (false);
         break;
       }
     }
@@ -546,14 +575,39 @@ A3MotionUIComponent::tickCallback (Measure measure)
   auto recordingPattern = _engine.getRecordingPattern ();
   if (recordingPattern)
     {
+      auto const channel = recordingPattern->getChannel ();
       _motionComponent->setBackgroundColour (
-          _channelUIStates[recordingPattern->getChannel ()]->colour.withAlpha (
-              0.2f));
+          _channelUIStates[channel]->colour.withAlpha (0.2f));
+
+      auto const progress
+          = recordingPattern->getLastUpdatedTick ()
+            / static_cast<float> (recordingPattern->getNumTicks ());
+      _channelUIStates[channel]->progress = progress;
+      _channelStrips[channel]->repaint ();
     }
   else
     {
       _motionComponent->setBackgroundColour (
           juce::Colours::black.withAlpha (0.f));
+    }
+
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+    {
+      auto playingPattern = _engine.getPlayingPattern (channel);
+      if (playingPattern)
+        {
+          auto const playPosition = playingPattern->getPlayPosition ();
+          _channelUIStates[channel]->progress = playPosition;
+          _channelStrips[channel]->repaint ();
+        }
+      else if (!recordingPattern || recordingPattern->getChannel () != channel)
+        {
+          if (!juce::exactlyEqual (_channelUIStates[channel]->progress, 1.f))
+            {
+              _channelUIStates[channel]->progress = 1.f;
+              _channelStrips[channel]->repaint ();
+            }
+        }
     }
 }
 

@@ -27,12 +27,9 @@
 namespace a3
 {
 
-PatternMenu::PatternMenu (TempoClock const &tempoClock,
-                          juce::Value &valueEncoderIncrement)
+PatternMenu::PatternMenu (TempoClock const &tempoClock)
     : _tempoClock (tempoClock)
 {
-  valueEncoderIncrement.addListener (this);
-
   auto font = _labelLength.getFont ();
   font.setHeight (LayoutHints::fontSize);
 
@@ -62,15 +59,20 @@ PatternMenu::resized ()
 }
 
 void
-PatternMenu::valueChanged (juce::Value &value)
+PatternMenu::increaseLength ()
 {
-  auto const increment = int (value.getValue ());
-  jassert (increment == 1 || increment == -1);
-
-  _lengthBarLog2 += increment;
+  ++_lengthBarLog2;
   _lengthBarLog2
       = std::clamp (_lengthBarLog2, lengthBarMinLog2, lengthBarMaxLog2);
+  updateLengthValue ();
+}
 
+void
+PatternMenu::decreaseLength ()
+{
+  --_lengthBarLog2;
+  _lengthBarLog2
+      = std::clamp (_lengthBarLog2, lengthBarMinLog2, lengthBarMaxLog2);
   updateLengthValue ();
 }
 
@@ -95,6 +97,25 @@ PatternMenu::updateLengthValue ()
     {
       _labelLengthValue.setText ("1/" + juce::String (int (1.f / lengthBars)),
                                  juce::dontSendNotification);
+    }
+}
+
+void
+PatternMenu::setIsRecording (bool isRecording)
+{
+  _isRecording = isRecording;
+
+  if (isRecording)
+    {
+      _labelLength.setColour (juce::Label::textColourId, juce::Colours::red);
+      _labelLengthValue.setColour (juce::Label::textColourId,
+                                   juce::Colours::red);
+    }
+  else
+    {
+      _labelLength.setColour (juce::Label::textColourId, juce::Colours::white);
+      _labelLengthValue.setColour (juce::Label::textColourId,
+                                   juce::Colours::white);
     }
 }
 

@@ -35,15 +35,12 @@ class ChannelStrip : public juce::Component
 {
 public:
   ChannelStrip (ChannelUIState const &channelViewState,
-                TempoClock const &tempoClock,
-                juce::Value &valueEncoderIncrement);
+                TempoClock const &tempoClock);
 
   void resized () override;
   void paint (juce::Graphics &) override;
 
   PatternMenu &getPatternMenu ();
-
-  void setProgressPercent (float percent);
 
   static constexpr int
   getMinimumHeight ()
@@ -55,8 +52,6 @@ public:
 private:
   ChannelUIState const &_uiState;
   PatternMenu _patternMenu;
-
-  float _progressPercent = 1.f;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelStrip)
 };
