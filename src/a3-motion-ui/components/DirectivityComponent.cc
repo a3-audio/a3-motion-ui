@@ -20,20 +20,55 @@
 
 #include "DirectivityComponent.hh"
 
+#include <a3-motion-ui/components/ChannelUIState.hh>
+#include <a3-motion-ui/components/LookAndFeel.hh>
+
 namespace a3
 {
 
-DirectivityComponent::DirectivityComponent () : _width (90.f), _order (1) {}
+DirectivityComponent::DirectivityComponent (ChannelUIState const &uiState)
+    : _uiState (uiState), _width (180.f), _order (1)
+{
+}
 
 void
 DirectivityComponent::paint (juce::Graphics &g)
 {
-  auto bounds = getLocalBounds ();
-  jassert (bounds.getWidth () == bounds.getHeight ());
+  auto bounds = getLocalBounds ().toFloat ();
+  // jassert (bounds.getWidth () == bounds.getHeight ());
 
-  auto const widthArc = bounds.getWidth () * 0.1f;
-  auto const radiusArc = (bounds.getWidth () - widthArc) / 2.f;
+  auto const widthArcDirectivity = bounds.getWidth () * 0.05f;
+  auto const radiusArcDirectivity
+      = (bounds.getWidth () - widthArcDirectivity) / 2.f;
+
+  auto const widthArcGap = bounds.getWidth () * 0.02f;
+
+  auto const radiusInnerCircle
+      = bounds.getWidth () / 2.f - widthArcDirectivity - widthArcGap;
+
+  auto const widthArcProgress = bounds.getWidth () * 0.04f;
+  auto const radiusArcProgress = radiusInnerCircle - widthArcProgress / 2.f;
+
   auto const center = bounds.getCentre ();
+
+  auto strokeType
+      = juce::PathStrokeType (widthArcProgress, //
+                              juce::PathStrokeType::JointStyle::mitered,
+                              juce::PathStrokeType::EndCapStyle::butt);
+
+  g.setColour (_uiState.colour.withLightness (0.3));
+  g.fillEllipse (bounds.withSizeKeepingCentre (2.f * radiusInnerCircle,
+                                               2.f * radiusInnerCircle));
+
+  auto path = juce::Path ();
+  auto angleStart = 0.f;
+  auto angleEnd = juce::degreesToRadians (360.f) * _uiState.progress;
+
+  path.addCentredArc (center.getX (), center.getY (), radiusArcProgress,
+                      radiusArcProgress, 0.f, angleStart, angleEnd, true);
+  g.setColour (_uiState.colour);
+  g.strokePath (path, strokeType);
+  path.clear ();
 
   auto pieAngleRad = juce::degreesToRadians (360.f);
   if (_order > 0)
@@ -41,28 +76,22 @@ DirectivityComponent::paint (juce::Graphics &g)
       pieAngleRad /= 2.f * _order;
     }
 
-  juce::Logger::writeToLog ("widthArc: " + juce::String (widthArc));
-  juce::Logger::writeToLog ("radiusArc: " + juce::String (radiusArc));
-  juce::Logger::writeToLog ("center: " + center.toString ());
+  angleStart = juce::degreesToRadians (-_width / 2.f) - pieAngleRad / 2.f;
+  angleEnd = juce::degreesToRadians (-_width / 2.f) + pieAngleRad / 2.f;
 
-  auto strokeType
-      = juce::PathStrokeType (widthArc, //
-                              juce::PathStrokeType::JointStyle::mitered,
-                              juce::PathStrokeType::EndCapStyle::butt);
+  path = juce::Path ();
+  path.addCentredArc (center.getX (), center.getY (), radiusArcDirectivity,
+                      radiusArcDirectivity, 0.f, angleStart, angleEnd, true);
 
-  auto path = juce::Path ();
-  auto angleStart = juce::degreesToRadians (-_width / 2.f) - pieAngleRad / 2.f;
-  auto angleEnd = juce::degreesToRadians (-_width / 2.f) + pieAngleRad / 2.f;
-  path.addCentredArc (center.getX (), center.getY (), radiusArc, radiusArc,
-                      0.f, angleStart, angleEnd, true);
+  strokeType.setStrokeThickness (widthArcDirectivity);
   g.setColour (juce::Colours::white.withAlpha (0.5f));
   g.strokePath (path, strokeType);
 
   path.clear ();
   angleStart = juce::degreesToRadians (_width / 2.f) - pieAngleRad / 2.f;
   angleEnd = juce::degreesToRadians (_width / 2.f) + pieAngleRad / 2.f;
-  path.addCentredArc (center.getX (), center.getY (), radiusArc, radiusArc,
-                      0.f, angleStart, angleEnd, true);
+  path.addCentredArc (center.getX (), center.getY (), radiusArcDirectivity,
+                      radiusArcDirectivity, 0.f, angleStart, angleEnd, true);
   g.setColour (juce::Colours::red.withAlpha (0.5f));
   g.strokePath (path, strokeType);
 }

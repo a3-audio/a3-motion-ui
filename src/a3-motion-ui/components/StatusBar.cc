@@ -59,6 +59,8 @@ void
 StatusBar::paint (juce::Graphics &g)
 {
   juce::ignoreUnused (g);
+  // g.setColour (juce::Colours::azure);
+  // g.fillAll ();
 }
 
 void

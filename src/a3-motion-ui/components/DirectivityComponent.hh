@@ -25,10 +25,12 @@
 namespace a3
 {
 
+class ChannelUIState;
+
 class DirectivityComponent : public juce::Component
 {
 public:
-  DirectivityComponent ();
+  DirectivityComponent (ChannelUIState const &uiState);
 
   void paint (juce::Graphics &g) override;
 
@@ -36,6 +38,8 @@ public:
   void setOrder (int order);
 
 private:
+  ChannelUIState const &_uiState;
+
   float _width;
   int _order;
 };

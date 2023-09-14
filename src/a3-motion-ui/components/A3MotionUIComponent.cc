@@ -122,6 +122,23 @@ A3MotionUIComponent::createChannelsUI ()
       _channelUIStates.push_back (std::move (uiState));
     }
 
+  auto constexpr width = 60.f;
+  _channelStrips[0]->setTextBarsLabel ("1/2");
+  _channelStrips[0]->getDirectivityComponent ().setOrder (0);
+  _channelStrips[0]->getDirectivityComponent ().setWidth (width);
+
+  _channelStrips[1]->setTextBarsLabel ("1");
+  _channelStrips[1]->getDirectivityComponent ().setOrder (1);
+  _channelStrips[1]->getDirectivityComponent ().setWidth (width);
+
+  _channelStrips[2]->setTextBarsLabel ("4");
+  _channelStrips[2]->getDirectivityComponent ().setOrder (2);
+  _channelStrips[2]->getDirectivityComponent ().setWidth (width);
+
+  _channelStrips[3]->setTextBarsLabel ("16");
+  _channelStrips[3]->getDirectivityComponent ().setOrder (3);
+  _channelStrips[3]->getDirectivityComponent ().setWidth (width);
+
   _lengthsBarLog2 = std::vector<int> (numChannels, 0);
 }
 
@@ -294,7 +311,7 @@ A3MotionUIComponent::resized ()
   auto widthChannel = bounds.getWidth () / float (_channelStrips.size ());
 
   auto boundsStrips
-      = bounds.removeFromTop (widthChannel + 2 * LayoutHints::padding);
+      = bounds.removeFromTop (widthChannel + LayoutHints::padding);
   _motionComponent->setBounds (bounds);
 
   // Channel strips
@@ -698,4 +715,5 @@ A3MotionUIComponent::scheduledForIdleLEDColour (int step,
         }
     }
 }
+
 }

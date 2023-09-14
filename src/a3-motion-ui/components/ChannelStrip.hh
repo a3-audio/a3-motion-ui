@@ -39,6 +39,9 @@ public:
   void resized () override;
   void paint (juce::Graphics &) override;
 
+  DirectivityComponent &getDirectivityComponent ();
+  void setTextBarsLabel (juce::String text);
+
   // static constexpr int
   // getMinimumHeight ()
   // {
@@ -48,6 +51,7 @@ public:
 private:
   ChannelUIState const &_uiState;
   DirectivityComponent _directivity;
+  juce::Label _labelBars;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelStrip)
 };

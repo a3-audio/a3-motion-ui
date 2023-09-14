@@ -27,10 +27,20 @@
 namespace a3
 {
 
-ChannelStrip::ChannelStrip (ChannelUIState const &uiState) : _uiState (uiState)
+ChannelStrip::ChannelStrip (ChannelUIState const &uiState)
+    : _uiState (uiState), _directivity (uiState)
 {
   addChildComponent (_directivity);
   _directivity.setVisible (true);
+
+  auto font = juce::Font (juce::Font::getDefaultMonospacedFontName (), 30,
+                          juce::Font::FontStyleFlags::bold);
+
+  addChildComponent (_labelBars);
+  _labelBars.setFont (font);
+  _labelBars.setText ("1/2", juce::NotificationType::dontSendNotification);
+  _labelBars.setJustificationType (juce::Justification::centred);
+  _labelBars.setVisible (true);
 }
 
 void
@@ -38,37 +48,36 @@ ChannelStrip::resized ()
 {
   auto bounds = getLocalBounds ();
 
-  bounds.removeFromTop (LayoutHints::padding);
+  // bounds.removeFromTop (LayoutHints::padding);
   bounds.removeFromBottom (LayoutHints::padding);
 
-  auto paddingDirectivity = bounds.getWidth () * 0.1f;
+  auto paddingDirectivity = bounds.getWidth () * 0.08f;
   bounds.removeFromTop (paddingDirectivity);
   bounds.removeFromBottom (paddingDirectivity);
   bounds.removeFromLeft (paddingDirectivity);
   bounds.removeFromRight (paddingDirectivity);
 
+  bounds.setHeight (bounds.getWidth ());
   _directivity.setBounds (bounds);
+  _labelBars.setBounds (bounds);
 }
 
 void
 ChannelStrip::paint (juce::Graphics &g)
 {
-  auto bounds = getLocalBounds ();
+  juce::ignoreUnused (g);
+}
 
-  // g.setColour (_uiState.colour.withLightness (0.3));
-  // g.fillRect (bounds);
+DirectivityComponent &
+ChannelStrip::getDirectivityComponent ()
+{
+  return _directivity;
+}
 
-  // auto boundsTop = bounds.removeFromTop (LayoutHints::padding);
-  // // boundsTop.setWidth (boundsTop.getWidth () * _uiState.progress);
-  // auto boundsBottom = bounds.removeFromBottom (LayoutHints::padding);
-  // boundsBottom.setWidth (boundsBottom.getWidth () * _uiState.progress);
-
-  // g.setColour (_uiState.colour);
-  // g.fillRect (boundsTop);
-  // g.fillRect (boundsBottom);
-
-  // g.setColour (_uiState.colour.withLightness (0.3));
-  // g.fillRect (bounds);
+void
+ChannelStrip::setTextBarsLabel (juce::String text)
+{
+  _labelBars.setText (text, juce::NotificationType::dontSendNotification);
 }
 
 }
