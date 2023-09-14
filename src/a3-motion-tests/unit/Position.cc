@@ -25,7 +25,7 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-engine/util/Geometry.hh>
+#include <a3-motion-engine/util/Types.hh>
 
 using namespace a3;
 
