@@ -83,6 +83,7 @@ target_include_directories("a3-motion-engine" PUBLIC
 
 target_link_libraries("a3-motion-engine" PUBLIC
     juce_dependencies
+    atomic
     ${GSL_LIBRARIES}
 )
 
