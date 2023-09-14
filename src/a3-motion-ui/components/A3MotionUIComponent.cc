@@ -59,11 +59,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   initializePatterns ();
 
-  createHardwareInterface ();
+  if (runsOnHardware ())
+    {
+      createHardwareInterface ();
+    }
+
   createChannelsUI ();
   createMainUI ();
-
-  blankLEDs ();
 
   _engine.addPatternStatusListener (this);
   _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
@@ -80,9 +82,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
-#if HARDWARE_INTERFACE_ENABLED
-  _ioAdapter->stopThread (-1);
-#endif
+  if (runsOnHardware ())
+    {
+      _ioAdapter->stopThread (-1);
+    }
 
   _engine.removePatternStatusListener (this);
   setLookAndFeel (nullptr);
@@ -151,6 +154,16 @@ A3MotionUIComponent::createMainUI ()
   _motionComponent->setVisible (true);
 }
 
+constexpr bool
+A3MotionUIComponent::runsOnHardware ()
+{
+#if HARDWARE_INTERFACE_ENABLED
+  return true;
+#else
+  return false;
+#endif
+}
+
 void
 A3MotionUIComponent::createHardwareInterface ()
 {
@@ -176,6 +189,8 @@ A3MotionUIComponent::createHardwareInterface ()
       _ioAdapter->getEncoderIncrement (channel).addListener (this);
     }
   _ioAdapter->startThread ();
+
+  blankLEDs ();
 #endif
 }
 
@@ -554,22 +569,26 @@ A3MotionUIComponent::tickCallback (Measure measure)
 {
   _now = measure;
 
-  if (measure.beat () == 0 && measure.tick () == 0)
+  if (runsOnHardware ())
     {
-      _stepsLED = 0;
-    }
+      if (measure.beat () == 0 && measure.tick () == 0)
+        {
+          _stepsLED = 0;
+        }
 
-  using T = typename std::remove_reference<decltype (measure.tick ())>::type;
-  jassert (ticksPerStepPadLEDs <= std::numeric_limits<T>::max ());
-  auto const divisor = static_cast<T> (ticksPerStepPadLEDs);
-  if (measure.tick () % divisor == 0)
-    {
-      padLEDCallback (_stepsLED++);
-    }
+      using T =
+          typename std::remove_reference<decltype (measure.tick ())>::type;
+      jassert (ticksPerStepPadLEDs <= std::numeric_limits<T>::max ());
+      auto const divisor = static_cast<T> (ticksPerStepPadLEDs);
+      if (measure.tick () % divisor == 0)
+        {
+          padLEDCallback (_stepsLED++);
+        }
 
-  if (!_ioAdapter->getButton (Button::Record).getValue ())
-    {
-      _ioAdapter->getButtonLED (Button::Record) = _engine.isRecording ();
+      if (!_ioAdapter->getButton (Button::Record).getValue ())
+        {
+          _ioAdapter->getButtonLED (Button::Record) = _engine.isRecording ();
+        }
     }
 
   auto recordingPattern = _engine.getRecordingPattern ();

@@ -99,11 +99,11 @@ private:
   TempoClock::PointerT _statusBarCallbackHandle;
 
   using Button = InputOutputAdapter::Button;
+  constexpr bool runsOnHardware ();
   void createHardwareInterface ();
   void blankLEDs ();
   void handlePadPress (index_t channel, index_t pad);
   bool isButtonPressed (Button button);
-
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
   void initializePatterns ();
