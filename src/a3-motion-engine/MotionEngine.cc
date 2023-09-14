@@ -77,6 +77,12 @@ MotionEngine::createChannels (index_t const numChannels)
     }
 }
 
+TempoClock const &
+MotionEngine::getTempoClock () const
+{
+  return _tempoClock;
+}
+
 TempoClock &
 MotionEngine::getTempoClock ()
 {

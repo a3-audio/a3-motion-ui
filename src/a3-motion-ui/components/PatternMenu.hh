@@ -35,10 +35,6 @@ public:
   PatternMenu (TempoClock const &tempoClock);
   void resized () override;
 
-  void increaseLength ();
-  void decreaseLength ();
-  juce::Value &getLengthBeats ();
-
   void setIsRecording (bool isRecording);
 
   static constexpr int
@@ -52,15 +48,10 @@ private:
 
   TempoClock const &_tempoClock;
 
-  int _lengthBarLog2 = 0;
-  juce::Value _lengthBeats;
   juce::Label _labelLength;
   juce::Label _labelLengthValue;
 
   bool _isRecording = false;
-
-  static constexpr auto lengthBarMinLog2 = -2;
-  static constexpr auto lengthBarMaxLog2 = 4;
 };
 
 }

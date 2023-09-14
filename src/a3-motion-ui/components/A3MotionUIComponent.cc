@@ -37,7 +37,6 @@
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
-#include <a3-motion-ui/components/PatternUIState.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
 
 #include <a3-motion-ui/tests/TempoEstimatorTest.hh>
@@ -97,8 +96,6 @@ A3MotionUIComponent::createChannelsUI ()
   auto const numChannels = _engine.getNumChannels ();
 
   _channelUIStates.reserve (numChannels);
-  if (_drawHeaders)
-    _headers.reserve (numChannels);
   _channelStrips.reserve (numChannels);
 
   auto hueStart = 0.f;
@@ -117,24 +114,57 @@ A3MotionUIComponent::createChannelsUI ()
 
       uiState->colour = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
 
-      if (_drawHeaders)
-        {
-          auto header = std::make_unique<ChannelHeader> (*uiState);
-          addChildComponent (*header);
-          header->setVisible (true);
-          _headers.push_back (std::move (header));
-        }
-
-      auto strip = std::make_unique<ChannelStrip> (*uiState,
-                                                   _engine.getTempoClock ());
-      strip->getPatternMenu ().getLengthBeats ().addListener (this);
-
+      auto strip = std::make_unique<ChannelStrip> (*uiState);
       addChildComponent (*strip);
       strip->setVisible (true);
 
       _channelStrips.push_back (std::move (strip));
       _channelUIStates.push_back (std::move (uiState));
     }
+
+  _lengthsBarLog2 = std::vector<int> (numChannels, 0);
+}
+
+void
+A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
+{
+  jassert (increment == -1 || increment == 1);
+  if (!_engine.isRecording ()
+      || _engine.getRecordingPattern ()->getChannel () != channel)
+    {
+      if (increment == 1)
+        {
+          ++_lengthsBarLog2[channel];
+          _lengthsBarLog2[channel] = std::clamp (
+              _lengthsBarLog2[channel], lengthBarMinLog2, lengthBarMaxLog2);
+        }
+      else if (increment == -1)
+        {
+          --_lengthsBarLog2[channel];
+          _lengthsBarLog2[channel] = std::clamp (
+              _lengthsBarLog2[channel], lengthBarMinLog2, lengthBarMaxLog2);
+        }
+
+      auto playingPattern = _engine.getPlayingPattern (channel);
+      if (playingPattern)
+        {
+          auto playbackLength
+              = Measure{ 0, getLengthBeats (channel), 0 }.consolidate (
+                  _engine.getTempoClock ().getBeatsPerBar ());
+          juce::Logger::writeToLog ("setting playback length: "
+                                    + toString (playbackLength));
+          playingPattern->setPlaybackLength (playbackLength);
+        }
+    }
+}
+
+int
+A3MotionUIComponent::getLengthBeats (index_t channel) const
+{
+  auto const lengthBars = std::exp2 (_lengthsBarLog2[channel]);
+  auto const lengthBeats = static_cast<int> (
+      lengthBars * _engine.getTempoClock ().getBeatsPerBar ());
+  return lengthBeats;
 }
 
 void
@@ -199,13 +229,10 @@ A3MotionUIComponent::initializePatterns ()
 {
   auto const numChannels = _ioAdapter->getNumChannels ();
   _patterns.resize (numChannels);
-  _patternUIStates.resize (numChannels);
 
   auto numPatternsPerChannel = numPages * _ioAdapter->getNumPadsPerChannel ();
   for (auto &channelPatterns : _patterns)
     channelPatterns.resize (numPatternsPerChannel);
-  for (auto &channelPatternUIStates : _patternUIStates)
-    channelPatternUIStates.resize (numPatternsPerChannel);
 
   auto constexpr lengthBeatsPreMadePatterns = 16;
   for (auto channel = 0u; channel < numChannels; ++channel)
@@ -253,9 +280,6 @@ A3MotionUIComponent::paint (juce::Graphics &g)
 void
 A3MotionUIComponent::resized ()
 {
-  if (_drawHeaders)
-    jassert (_headers.size () == _channelStrips.size ());
-
   juce::Component::resized ();
 
   auto bounds = getLocalBounds ();
@@ -267,18 +291,13 @@ A3MotionUIComponent::resized ()
                           : bounds.removeFromBottom (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
-  auto boundsHeaders = juce::Rectangle<int> ();
-  if (_drawHeaders)
-    {
-      boundsHeaders
-          = bounds.removeFromTop (ChannelHeader::getMinimumHeight ());
-    }
-  auto boundsStrips = bounds.removeFromTop (ChannelStrip::getMinimumHeight ());
+  auto widthChannel = bounds.getWidth () / float (_channelStrips.size ());
 
+  auto boundsStrips
+      = bounds.removeFromTop (widthChannel + 2 * LayoutHints::padding);
   _motionComponent->setBounds (bounds);
 
-  // Channel headers/strips
-  auto widthChannel = bounds.getWidth () / float (_channelStrips.size ());
+  // Channel strips
   for (auto channelIndex = 0u; channelIndex < _channelStrips.size ();
        ++channelIndex)
     {
@@ -287,12 +306,6 @@ A3MotionUIComponent::resized ()
           = juce::roundToInt ((channelIndex + 1) * widthChannel);
       auto widthInt = offsetIntNext - offsetInt; // account for
                                                  // rounding discrepancies
-
-      if (_drawHeaders)
-        {
-          _headers[channelIndex]->setBounds (
-              boundsHeaders.removeFromLeft (widthInt));
-        }
       _channelStrips[channelIndex]->setBounds (
           boundsStrips.removeFromLeft (widthInt));
     }
@@ -307,12 +320,9 @@ A3MotionUIComponent::getMinimumWidth () const
 float
 A3MotionUIComponent::getMinimumHeight () const
 {
-  auto minimumHeight = ChannelStrip::getMinimumHeight ()
-                       + LayoutHints::MotionComponent::heightMin;
-  if (_drawHeaders)
-    {
-      minimumHeight += ChannelHeader::getMinimumHeight ();
-    }
+  // auto minimumHeight = ChannelStrip::getMinimumHeight ()
+  //                      + LayoutHints::MotionComponent::heightMin;
+  auto minimumHeight = LayoutHints::MotionComponent::heightMin;
   return minimumHeight;
 }
 
@@ -361,40 +371,8 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
             {
               auto const increment = static_cast<int> (
                   _ioAdapter->getEncoderIncrement (channel).getValue ());
-              jassert (value == -1 || value == 1);
-              if (!_engine.isRecording ()
-                  || _engine.getRecordingPattern ()->getChannel () != channel)
-                {
-                  if (increment == 1)
-                    {
-                      _channelStrips[channel]
-                          ->getPatternMenu ()
-                          .increaseLength ();
-                    }
-                  else if (increment == -1)
-                    {
-                      _channelStrips[channel]
-                          ->getPatternMenu ()
-                          .decreaseLength ();
-                    }
-                }
+              handleLengthIncrement (channel, increment);
             }
-          else if (value.refersToSameSourceAs (_channelStrips[channel]
-                                                   ->getPatternMenu ()
-                                                   .getLengthBeats ()))
-            {
-              auto playingPattern = _engine.getPlayingPattern (channel);
-              if (playingPattern)
-                {
-                  auto playbackLength
-                      = Measure{ 0, value.getValue (), 0 }.consolidate (
-                          _engine.getTempoClock ().getBeatsPerBar ());
-                  juce::Logger::writeToLog ("setting playback length: "
-                                            + toString (playbackLength));
-                  playingPattern->setPlaybackLength (playbackLength);
-                }
-            }
-
           else if (value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 0)))
             {
@@ -454,12 +432,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           _patterns[channel][pad]->setChannel (channel);
         }
 
-      auto recordLength = Measure{ 0,
-                                   _channelStrips[channel]
-                                       ->getPatternMenu ()
-                                       .getLengthBeats ()
-                                       .getValue (),
-                                   0 };
+      auto recordLength = Measure{ 0, getLengthBeats (channel), 0 };
       recordLength.consolidate (_engine.getTempoClock ().getBeatsPerBar ());
       juce::Logger::writeToLog ("recording with length: "
                                 + toString (recordLength));
@@ -484,12 +457,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           }
         case Pattern::Status::Idle:
           {
-            auto playbackLength = Measure{ 0,
-                                           _channelStrips[channel]
-                                               ->getPatternMenu ()
-                                               .getLengthBeats ()
-                                               .getValue (),
-                                           0 };
+            auto playbackLength = Measure{ 0, getLengthBeats (channel), 0 };
             _patterns[channel][pad]->setPlaybackLength (playbackLength);
             _engine.playPattern (_patterns[channel][pad],
                                  TempoClock::nextDownBeat (_now));
@@ -542,17 +510,17 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
     case Status::Recording:
       {
         _motionComponent->setPreviewPattern (messagePatternStatus.pattern);
-        _channelStrips[messagePatternStatus.pattern->getChannel ()]
-            ->getPatternMenu ()
-            .setIsRecording (true);
+        // _channelStrips[messagePatternStatus.pattern->getChannel ()]
+        //     ->getPatternMenu ()
+        //     .setIsRecording (true);
         break;
       }
     case Status::Stopped:
       {
         _motionComponent->unsetPreviewPattern (messagePatternStatus.pattern);
-        _channelStrips[messagePatternStatus.pattern->getChannel ()]
-            ->getPatternMenu ()
-            .setIsRecording (false);
+        // _channelStrips[messagePatternStatus.pattern->getChannel ()]
+        //     ->getPatternMenu ()
+        //     .setIsRecording (false);
         break;
       }
     }

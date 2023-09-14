@@ -27,12 +27,10 @@
 namespace a3
 {
 
-ChannelStrip::ChannelStrip (ChannelUIState const &uiState,
-                            TempoClock const &tempoClock)
-    : _uiState (uiState), _patternMenu (tempoClock)
+ChannelStrip::ChannelStrip (ChannelUIState const &uiState) : _uiState (uiState)
 {
-  addChildComponent (_patternMenu);
-  _patternMenu.setVisible (true);
+  addChildComponent (_directivity);
+  _directivity.setVisible (true);
 }
 
 void
@@ -42,10 +40,14 @@ ChannelStrip::resized ()
 
   bounds.removeFromTop (LayoutHints::padding);
   bounds.removeFromBottom (LayoutHints::padding);
-  bounds.removeFromLeft (LayoutHints::padding);
-  bounds.removeFromRight (LayoutHints::padding);
 
-  _patternMenu.setBounds (bounds);
+  auto paddingDirectivity = bounds.getWidth () * 0.1f;
+  bounds.removeFromTop (paddingDirectivity);
+  bounds.removeFromBottom (paddingDirectivity);
+  bounds.removeFromLeft (paddingDirectivity);
+  bounds.removeFromRight (paddingDirectivity);
+
+  _directivity.setBounds (bounds);
 }
 
 void
@@ -53,26 +55,20 @@ ChannelStrip::paint (juce::Graphics &g)
 {
   auto bounds = getLocalBounds ();
 
-  g.setColour (_uiState.colour.withLightness (0.3));
-  g.fillRect (bounds);
+  // g.setColour (_uiState.colour.withLightness (0.3));
+  // g.fillRect (bounds);
 
-  auto boundsTop = bounds.removeFromTop (LayoutHints::padding);
-  // boundsTop.setWidth (boundsTop.getWidth () * _uiState.progress);
-  auto boundsBottom = bounds.removeFromBottom (LayoutHints::padding);
-  boundsBottom.setWidth (boundsBottom.getWidth () * _uiState.progress);
+  // auto boundsTop = bounds.removeFromTop (LayoutHints::padding);
+  // // boundsTop.setWidth (boundsTop.getWidth () * _uiState.progress);
+  // auto boundsBottom = bounds.removeFromBottom (LayoutHints::padding);
+  // boundsBottom.setWidth (boundsBottom.getWidth () * _uiState.progress);
 
-  g.setColour (_uiState.colour);
-  g.fillRect (boundsTop);
-  g.fillRect (boundsBottom);
+  // g.setColour (_uiState.colour);
+  // g.fillRect (boundsTop);
+  // g.fillRect (boundsBottom);
 
-  g.setColour (_uiState.colour.withLightness (0.3));
-  g.fillRect (bounds);
-}
-
-PatternMenu &
-ChannelStrip::getPatternMenu ()
-{
-  return _patternMenu;
+  // g.setColour (_uiState.colour.withLightness (0.3));
+  // g.fillRect (bounds);
 }
 
 }

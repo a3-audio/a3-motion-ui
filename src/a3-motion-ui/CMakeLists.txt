@@ -47,8 +47,10 @@ target_sources("a3-motion-ui" PRIVATE
     components/MotionComponent.hh
     components/TickIndicator.cc
     components/TickIndicator.hh
-    components/PatternMenu.cc
-    components/PatternMenu.hh
+    components/DirectivityComponent.cc
+    components/DirectivityComponent.hh
+    # components/PatternMenu.cc
+    # components/PatternMenu.hh
     tests/TempoEstimatorTest.cc
     tests/TempoEstimatorTest.hh
 )

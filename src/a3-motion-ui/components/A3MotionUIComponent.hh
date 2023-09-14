@@ -40,10 +40,8 @@ class MotionComponent;
 
 class StatusBar;
 class ChannelStrip;
-class ChannelHeader;
 class ChannelUIState;
 class Pattern;
-class PatternUIState;
 
 class A3MotionUIComponent : public juce::Component,
                             public juce::Value::Listener,
@@ -88,10 +86,14 @@ private:
   LookAndFeel_A3 _lookAndFeel;
 
   void createChannelsUI ();
-  bool const _drawHeaders = false;
-  std::vector<std::unique_ptr<ChannelHeader> > _headers;
   std::vector<std::unique_ptr<ChannelStrip> > _channelStrips;
   std::vector<std::unique_ptr<ChannelUIState> > _channelUIStates;
+
+  void handleLengthIncrement (index_t channel, int increment);
+  int getLengthBeats (index_t channel) const;
+  std::vector<int> _lengthsBarLog2;
+  static constexpr auto lengthBarMinLog2 = -2;
+  static constexpr auto lengthBarMaxLog2 = 4;
 
   void createMainUI ();
   std::unique_ptr<MotionComponent> _motionComponent;
@@ -108,7 +110,6 @@ private:
 
   void initializePatterns ();
   std::vector<std::vector<std::shared_ptr<Pattern> > > _patterns;
-  std::vector<std::vector<std::unique_ptr<PatternUIState> > > _patternUIStates;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };

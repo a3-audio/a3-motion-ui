@@ -22,8 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include "a3-motion-ui/components/DirectivityComponent.hh"
 #include "a3-motion-ui/components/LayoutHints.hh"
-#include <a3-motion-ui/components/PatternMenu.hh>
 
 namespace a3
 {
@@ -34,24 +34,20 @@ class ChannelUIState;
 class ChannelStrip : public juce::Component
 {
 public:
-  ChannelStrip (ChannelUIState const &channelViewState,
-                TempoClock const &tempoClock);
+  ChannelStrip (ChannelUIState const &channelViewState);
 
   void resized () override;
   void paint (juce::Graphics &) override;
 
-  PatternMenu &getPatternMenu ();
-
-  static constexpr int
-  getMinimumHeight ()
-  {
-    return PatternMenu::getMinimumHeight () //
-           + 2 * LayoutHints::padding;
-  }
+  // static constexpr int
+  // getMinimumHeight ()
+  // {
+  //   return 200;
+  // }
 
 private:
   ChannelUIState const &_uiState;
-  PatternMenu _patternMenu;
+  DirectivityComponent _directivity;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelStrip)
 };

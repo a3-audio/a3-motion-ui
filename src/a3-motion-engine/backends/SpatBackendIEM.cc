@@ -50,12 +50,16 @@ SpatBackendIEM::sendPosition (index_t channel, Pos const &pos)
 void
 SpatBackendIEM::sendWidth (index_t channel, float width)
 {
+  juce::ignoreUnused (channel);
+  juce::ignoreUnused (width);
   throw std::runtime_error ("SpatBackendIEM::sendWidth: implement me!");
 }
 
 void
 SpatBackendIEM::sendAmbisonicsOrder (index_t channel, int order)
 {
+  juce::ignoreUnused (channel);
+  juce::ignoreUnused (order);
   throw std::runtime_error (
       "SpatBackendIEM::sendAmbisonicsOrder: implement me!");
 }

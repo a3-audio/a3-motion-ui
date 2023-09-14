@@ -61,18 +61,12 @@ PatternMenu::resized ()
 void
 PatternMenu::increaseLength ()
 {
-  ++_lengthBarLog2;
-  _lengthBarLog2
-      = std::clamp (_lengthBarLog2, lengthBarMinLog2, lengthBarMaxLog2);
   updateLengthValue ();
 }
 
 void
 PatternMenu::decreaseLength ()
 {
-  --_lengthBarLog2;
-  _lengthBarLog2
-      = std::clamp (_lengthBarLog2, lengthBarMinLog2, lengthBarMaxLog2);
   updateLengthValue ();
 }
 
@@ -85,9 +79,6 @@ PatternMenu::getLengthBeats ()
 void
 PatternMenu::updateLengthValue ()
 {
-  auto lengthBars = std::exp2 (_lengthBarLog2);
-  _lengthBeats = static_cast<int> (lengthBars * _tempoClock.getBeatsPerBar ());
-
   if (_lengthBarLog2 >= 0)
     {
       _labelLengthValue.setText (juce::String (int (lengthBars)),
