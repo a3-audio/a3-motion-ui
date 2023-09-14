@@ -46,7 +46,7 @@ DirectivityComponent::paint (juce::Graphics &g)
   auto const radiusInnerCircle
       = bounds.getWidth () / 2.f - widthArcDirectivity - widthArcGap;
 
-  auto const widthArcProgress = bounds.getWidth () * 0.04f;
+  auto const widthArcProgress = bounds.getWidth () * 0.1f;
   auto const radiusArcProgress = radiusInnerCircle - widthArcProgress / 2.f;
 
   auto const center = bounds.getCentre ();

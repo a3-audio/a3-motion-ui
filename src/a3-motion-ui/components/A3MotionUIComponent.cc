@@ -122,22 +122,33 @@ A3MotionUIComponent::createChannelsUI ()
       _channelUIStates.push_back (std::move (uiState));
     }
 
+  auto rng = juce::Random ();
   auto constexpr width = 60.f;
+  _channelUIStates[0]->progress = rng.nextFloat ();
+  juce::Logger::writeToLog ("_channelUIStates[0]->progress: "
+                            + juce::String (_channelUIStates[0]->progress));
   _channelStrips[0]->setTextBarsLabel ("1/2");
   _channelStrips[0]->getDirectivityComponent ().setOrder (0);
   _channelStrips[0]->getDirectivityComponent ().setWidth (width);
+  _channelStrips[0]->getDirectivityComponent ().repaint ();
 
+  _channelUIStates[1]->progress = rng.nextFloat ();
   _channelStrips[1]->setTextBarsLabel ("1");
   _channelStrips[1]->getDirectivityComponent ().setOrder (1);
   _channelStrips[1]->getDirectivityComponent ().setWidth (width);
+  _channelStrips[1]->getDirectivityComponent ().repaint ();
 
+  _channelUIStates[2]->progress = rng.nextFloat ();
   _channelStrips[2]->setTextBarsLabel ("4");
   _channelStrips[2]->getDirectivityComponent ().setOrder (2);
   _channelStrips[2]->getDirectivityComponent ().setWidth (width);
+  _channelStrips[2]->getDirectivityComponent ().repaint ();
 
+  _channelUIStates[3]->progress = rng.nextFloat ();
   _channelStrips[3]->setTextBarsLabel ("16");
   _channelStrips[3]->getDirectivityComponent ().setOrder (3);
   _channelStrips[3]->getDirectivityComponent ().setWidth (width);
+  _channelStrips[3]->getDirectivityComponent ().repaint ();
 
   _lengthsBarLog2 = std::vector<int> (numChannels, 0);
 }
@@ -608,7 +619,8 @@ A3MotionUIComponent::tickCallback (Measure measure)
         {
           if (!juce::exactlyEqual (_channelUIStates[channel]->progress, 1.f))
             {
-              _channelUIStates[channel]->progress = 1.f;
+              // TODO for testing/preview!
+              // _channelUIStates[channel]->progress = 1.f;
               _channelStrips[channel]->repaint ();
             }
         }
