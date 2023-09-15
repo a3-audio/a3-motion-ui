@@ -122,34 +122,6 @@ A3MotionUIComponent::createChannelsUI ()
       _channelUIStates.push_back (std::move (uiState));
     }
 
-  auto rng = juce::Random ();
-  auto constexpr width = 60.f;
-  _channelUIStates[0]->progress = rng.nextFloat ();
-  juce::Logger::writeToLog ("_channelUIStates[0]->progress: "
-                            + juce::String (_channelUIStates[0]->progress));
-  _channelStrips[0]->setTextBarsLabel ("1/2");
-  _channelStrips[0]->getDirectivityComponent ().setOrder (0);
-  _channelStrips[0]->getDirectivityComponent ().setWidth (width);
-  _channelStrips[0]->getDirectivityComponent ().repaint ();
-
-  _channelUIStates[1]->progress = rng.nextFloat ();
-  _channelStrips[1]->setTextBarsLabel ("1");
-  _channelStrips[1]->getDirectivityComponent ().setOrder (1);
-  _channelStrips[1]->getDirectivityComponent ().setWidth (width);
-  _channelStrips[1]->getDirectivityComponent ().repaint ();
-
-  _channelUIStates[2]->progress = rng.nextFloat ();
-  _channelStrips[2]->setTextBarsLabel ("4");
-  _channelStrips[2]->getDirectivityComponent ().setOrder (2);
-  _channelStrips[2]->getDirectivityComponent ().setWidth (width);
-  _channelStrips[2]->getDirectivityComponent ().repaint ();
-
-  _channelUIStates[3]->progress = rng.nextFloat ();
-  _channelStrips[3]->setTextBarsLabel ("16");
-  _channelStrips[3]->getDirectivityComponent ().setOrder (3);
-  _channelStrips[3]->getDirectivityComponent ().setWidth (width);
-  _channelStrips[3]->getDirectivityComponent ().repaint ();
-
   _lengthsBarLog2 = std::vector<int> (numChannels, 0);
 }
 
@@ -172,6 +144,16 @@ A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
           _lengthsBarLog2[channel] = std::clamp (
               _lengthsBarLog2[channel], lengthBarMinLog2, lengthBarMaxLog2);
         }
+
+     auto const lengthBars = std::exp2 (_lengthsBarLog2[channel]);
+     if (_lengthsBarLog2[channel] >= 0)
+	{
+	  _channelStrips[channel]->setTextBarsLabel(juce::String (lengthBars));
+	}
+      else
+	{
+	  _channelStrips[channel]->setTextBarsLabel("1/" + juce::String (int (1.f / lengthBars)));
+	}
 
       auto playingPattern = _engine.getPlayingPattern (channel);
       if (playingPattern)
@@ -407,9 +389,11 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               jassert (value.getValue ().isDouble ());
               auto const width
                   = static_cast<float> (value.getValue ()) * 180.f;
-              // juce::Logger::writeToLog ("setting width: "
-              //                           + juce::String (width));
+              juce::Logger::writeToLog ("setting width: "
+                                        + juce::String (width));
               _engine.setChannelWidth (channel, width);
+	      _channelStrips[channel]->getDirectivityComponent().setWidth(width);
+	      _channelStrips[channel]->getDirectivityComponent().repaint();
               return;
             }
           else if (value.refersToSameSourceAs (
@@ -419,10 +403,12 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               auto order = static_cast<int> (
                   static_cast<float> (value.getValue ()) * 4.f);
               order = std::clamp (order, 0, 3);
-              // juce::Logger::writeToLog ("setting order: "
-              //                           + juce::String (order));
+              juce::Logger::writeToLog ("setting order: "
+                                        + juce::String (order));
               _engine.setChannelAmbisonicsOrder (channel, order);
-              return;
+	      _channelStrips[channel]->getDirectivityComponent().setOrder(order);
+	      _channelStrips[channel]->getDirectivityComponent().repaint();
+	      return;
             }
 
           for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
@@ -619,8 +605,7 @@ A3MotionUIComponent::tickCallback (Measure measure)
         {
           if (!juce::exactlyEqual (_channelUIStates[channel]->progress, 1.f))
             {
-              // TODO for testing/preview!
-              // _channelUIStates[channel]->progress = 1.f;
+              _channelUIStates[channel]->progress = 1.f;
               _channelStrips[channel]->repaint ();
             }
         }

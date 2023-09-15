@@ -79,16 +79,6 @@ PatternMenu::getLengthBeats ()
 void
 PatternMenu::updateLengthValue ()
 {
-  if (_lengthBarLog2 >= 0)
-    {
-      _labelLengthValue.setText (juce::String (int (lengthBars)),
-                                 juce::dontSendNotification);
-    }
-  else
-    {
-      _labelLengthValue.setText ("1/" + juce::String (int (1.f / lengthBars)),
-                                 juce::dontSendNotification);
-    }
 }
 
 void

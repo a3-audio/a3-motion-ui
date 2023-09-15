@@ -80,4 +80,9 @@ ChannelStrip::setTextBarsLabel (juce::String text)
   _labelBars.setText (text, juce::NotificationType::dontSendNotification);
 }
 
+void ChannelStrip::setTextColor(juce::Colour const& colour)
+{
+  _labelBars.setColour(juce::Label::textColourId, colour);
+}
+
 }
