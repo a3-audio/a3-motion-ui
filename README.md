@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2023 A3 Audio UG (haftungsbeschränkt) <contact@a3-audio.com>
+
+SPDX-License-Identifier: CC0-1.0
+-->
+
 # Install JUCE
 - install development files for xorg, googletest/libgtest/libgmock, alsa if necessary (e.g. Debian/Raspbian: `apt-get install xorg-dev googletest libgtest-dev libgmock-dev libasound2-dev`)
 - clone JUCE repo and checkout `develop` branch
