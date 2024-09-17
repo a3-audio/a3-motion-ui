@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023 A3 Audio UG (haftungsbeschränkt) <contact@a3-audio.com>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 cmake_minimum_required(VERSION 3.11)
 
 set(PROJECT "a3-motion-ui")
