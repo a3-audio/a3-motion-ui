@@ -145,15 +145,17 @@ A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
               _lengthsBarLog2[channel], lengthBarMinLog2, lengthBarMaxLog2);
         }
 
-     auto const lengthBars = std::exp2 (_lengthsBarLog2[channel]);
-     if (_lengthsBarLog2[channel] >= 0)
-	{
-	  _channelStrips[channel]->setTextBarsLabel(juce::String (lengthBars));
-	}
+      auto const lengthBars = std::exp2 (_lengthsBarLog2[channel]);
+      if (_lengthsBarLog2[channel] >= 0)
+        {
+          _channelStrips[channel]->setTextBarsLabel (
+              juce::String (lengthBars));
+        }
       else
-	{
-	  _channelStrips[channel]->setTextBarsLabel("1/" + juce::String (int (1.f / lengthBars)));
-	}
+        {
+          _channelStrips[channel]->setTextBarsLabel (
+              "1/" + juce::String (int (1.f / lengthBars)));
+        }
 
       auto playingPattern = _engine.getPlayingPattern (channel);
       if (playingPattern)
@@ -389,11 +391,12 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               jassert (value.getValue ().isDouble ());
               auto const width
                   = static_cast<float> (value.getValue ()) * 180.f;
-              juce::Logger::writeToLog ("setting width: "
-                                        + juce::String (width));
+              juce::Logger::writeToLog ("channel " + juce::String (channel)
+                                        + " width: " + juce::String (width));
               _engine.setChannelWidth (channel, width);
-	      _channelStrips[channel]->getDirectivityComponent().setWidth(width);
-	      _channelStrips[channel]->getDirectivityComponent().repaint();
+              _channelStrips[channel]->getDirectivityComponent ().setWidth (
+                  width);
+              _channelStrips[channel]->getDirectivityComponent ().repaint ();
               return;
             }
           else if (value.refersToSameSourceAs (
@@ -403,12 +406,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               auto order = static_cast<int> (
                   static_cast<float> (value.getValue ()) * 4.f);
               order = std::clamp (order, 0, 3);
-              juce::Logger::writeToLog ("setting order: "
-                                        + juce::String (order));
+              juce::Logger::writeToLog ("channel " + juce::String (channel)
+                                        + " order: " + juce::String (order));
               _engine.setChannelAmbisonicsOrder (channel, order);
-	      _channelStrips[channel]->getDirectivityComponent().setOrder(order);
-	      _channelStrips[channel]->getDirectivityComponent().repaint();
-	      return;
+              _channelStrips[channel]->getDirectivityComponent ().setOrder (
+                  order);
+              _channelStrips[channel]->getDirectivityComponent ().repaint ();
+              return;
             }
 
           for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
@@ -515,6 +519,7 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
   auto const &messagePatternStatus
       = static_cast<MotionEngine::PatternStatusMessage const &> (message);
 
+  auto const channel = messagePatternStatus.pattern->getChannel ();
   switch (messagePatternStatus.status)
     {
     case Status::Playing:
@@ -524,17 +529,13 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
     case Status::Recording:
       {
         _motionComponent->setPreviewPattern (messagePatternStatus.pattern);
-        // _channelStrips[messagePatternStatus.pattern->getChannel ()]
-        //     ->getPatternMenu ()
-        //     .setIsRecording (true);
+        _channelStrips[channel]->setTextColour (juce::Colours::red);
         break;
       }
     case Status::Stopped:
       {
         _motionComponent->unsetPreviewPattern (messagePatternStatus.pattern);
-        // _channelStrips[messagePatternStatus.pattern->getChannel ()]
-        //     ->getPatternMenu ()
-        //     .setIsRecording (false);
+        _channelStrips[channel]->setTextColour (juce::Colours::white);
         break;
       }
     }

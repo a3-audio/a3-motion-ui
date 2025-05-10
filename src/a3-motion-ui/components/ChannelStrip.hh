@@ -41,7 +41,7 @@ public:
 
   DirectivityComponent &getDirectivityComponent ();
   void setTextBarsLabel (juce::String text);
-  void setTextColor(juce::Colour const& colour);
+  void setTextColour(juce::Colour const& colour);
 
   // static constexpr int
   // getMinimumHeight ()

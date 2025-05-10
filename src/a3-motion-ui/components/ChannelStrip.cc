@@ -38,7 +38,7 @@ ChannelStrip::ChannelStrip (ChannelUIState const &uiState)
 
   addChildComponent (_labelBars);
   _labelBars.setFont (font);
-  _labelBars.setText ("1/2", juce::NotificationType::dontSendNotification);
+  _labelBars.setText ("1", juce::NotificationType::dontSendNotification);
   _labelBars.setJustificationType (juce::Justification::centred);
   _labelBars.setVisible (true);
 }
@@ -80,7 +80,7 @@ ChannelStrip::setTextBarsLabel (juce::String text)
   _labelBars.setText (text, juce::NotificationType::dontSendNotification);
 }
 
-void ChannelStrip::setTextColor(juce::Colour const& colour)
+void ChannelStrip::setTextColour(juce::Colour const& colour)
 {
   _labelBars.setColour(juce::Label::textColourId, colour);
 }
