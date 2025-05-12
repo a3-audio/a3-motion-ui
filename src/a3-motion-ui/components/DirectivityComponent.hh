@@ -25,8 +25,23 @@
 namespace a3
 {
 
-struct PatternUIState
+class ChannelUIState;
+
+class DirectivityComponent : public juce::Component
 {
+public:
+  DirectivityComponent (ChannelUIState const &uiState);
+
+  void paint (juce::Graphics &g) override;
+
+  void setWidth (float width);
+  void setOrder (int order);
+
+private:
+  ChannelUIState const &_uiState;
+
+  float _width;
+  int _order;
 };
 
 }

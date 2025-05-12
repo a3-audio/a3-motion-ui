@@ -25,7 +25,7 @@
 namespace a3
 {
 
-using index_t = unsigned int;
+using index_t = long unsigned int;
 using Pos = Position<float>;
 
 }

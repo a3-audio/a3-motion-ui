@@ -382,7 +382,7 @@ MotionComponent::updateChannelBlobHighlight (juce::Point<float> posMousePixel)
     _uiStates[closestIndex.value ()]->highlighted = true;
 }
 
-std::optional<size_t>
+std::optional<index_t>
 MotionComponent::getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
                                                   float radiusPixel) const
 {

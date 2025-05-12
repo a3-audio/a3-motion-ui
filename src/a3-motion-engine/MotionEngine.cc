@@ -58,7 +58,7 @@ MotionEngine::~MotionEngine ()
 }
 
 void
-MotionEngine::createChannels (unsigned int const numChannels)
+MotionEngine::createChannels (index_t const numChannels)
 {
   _channels.resize (numChannels);
   _lastSentPositions.resize (numChannels);
@@ -75,6 +75,12 @@ MotionEngine::createChannels (unsigned int const numChannels)
       channel->setPosition (position);
       azimuth -= azimuthSpacing;
     }
+}
+
+TempoClock const &
+MotionEngine::getTempoClock () const
+{
+  return _tempoClock;
 }
 
 TempoClock &

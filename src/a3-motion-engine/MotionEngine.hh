@@ -38,6 +38,7 @@ public:
   MotionEngine (index_t numChannels, const HeightMap &heightMap);
   ~MotionEngine ();
 
+  TempoClock const &getTempoClock () const;
   TempoClock &getTempoClock ();
 
   // TODO refactor to access channels directly

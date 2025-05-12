@@ -37,7 +37,6 @@
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
-#include <a3-motion-ui/components/PatternUIState.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
 
 #include <a3-motion-ui/tests/TempoEstimatorTest.hh>
@@ -59,11 +58,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   initializePatterns ();
 
-  createHardwareInterface ();
+  if (runsOnHardware ())
+    {
+      createHardwareInterface ();
+    }
+
   createChannelsUI ();
   createMainUI ();
-
-  blankLEDs ();
 
   _engine.addPatternStatusListener (this);
   _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
@@ -80,9 +81,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
-#if HARDWARE_INTERFACE_ENABLED
-  _ioAdapter->stopThread (-1);
-#endif
+  if (runsOnHardware ())
+    {
+      _ioAdapter->stopThread (-1);
+    }
 
   _engine.removePatternStatusListener (this);
   setLookAndFeel (nullptr);
@@ -94,8 +96,6 @@ A3MotionUIComponent::createChannelsUI ()
   auto const numChannels = _engine.getNumChannels ();
 
   _channelUIStates.reserve (numChannels);
-  if (_drawHeaders)
-    _headers.reserve (numChannels);
   _channelStrips.reserve (numChannels);
 
   auto hueStart = 0.f;
@@ -114,24 +114,69 @@ A3MotionUIComponent::createChannelsUI ()
 
       uiState->colour = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
 
-      if (_drawHeaders)
-        {
-          auto header = std::make_unique<ChannelHeader> (*uiState);
-          addChildComponent (*header);
-          header->setVisible (true);
-          _headers.push_back (std::move (header));
-        }
-
-      auto strip = std::make_unique<ChannelStrip> (*uiState,
-                                                   _engine.getTempoClock ());
-      strip->getPatternMenu ().getLengthBeats ().addListener (this);
-
+      auto strip = std::make_unique<ChannelStrip> (*uiState);
       addChildComponent (*strip);
       strip->setVisible (true);
 
       _channelStrips.push_back (std::move (strip));
       _channelUIStates.push_back (std::move (uiState));
     }
+
+  _lengthsBarLog2 = std::vector<int> (numChannels, 0);
+}
+
+void
+A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
+{
+  jassert (increment == -1 || increment == 1);
+  if (!_engine.isRecording ()
+      || _engine.getRecordingPattern ()->getChannel () != channel)
+    {
+      if (increment == 1)
+        {
+          ++_lengthsBarLog2[channel];
+          _lengthsBarLog2[channel] = std::clamp (
+              _lengthsBarLog2[channel], lengthBarMinLog2, lengthBarMaxLog2);
+        }
+      else if (increment == -1)
+        {
+          --_lengthsBarLog2[channel];
+          _lengthsBarLog2[channel] = std::clamp (
+              _lengthsBarLog2[channel], lengthBarMinLog2, lengthBarMaxLog2);
+        }
+
+      auto const lengthBars = std::exp2 (_lengthsBarLog2[channel]);
+      if (_lengthsBarLog2[channel] >= 0)
+        {
+          _channelStrips[channel]->setTextBarsLabel (
+              juce::String (lengthBars));
+        }
+      else
+        {
+          _channelStrips[channel]->setTextBarsLabel (
+              "1/" + juce::String (int (1.f / lengthBars)));
+        }
+
+      auto playingPattern = _engine.getPlayingPattern (channel);
+      if (playingPattern)
+        {
+          auto playbackLength
+              = Measure{ 0, getLengthBeats (channel), 0 }.consolidate (
+                  _engine.getTempoClock ().getBeatsPerBar ());
+          juce::Logger::writeToLog ("setting playback length: "
+                                    + toString (playbackLength));
+          playingPattern->setPlaybackLength (playbackLength);
+        }
+    }
+}
+
+int
+A3MotionUIComponent::getLengthBeats (index_t channel) const
+{
+  auto const lengthBars = std::exp2 (_lengthsBarLog2[channel]);
+  auto const lengthBeats = static_cast<int> (
+      lengthBars * _engine.getTempoClock ().getBeatsPerBar ());
+  return lengthBeats;
 }
 
 void
@@ -149,6 +194,16 @@ A3MotionUIComponent::createMainUI ()
       = std::make_unique<MotionComponent> (_engine, _channelUIStates);
   addChildComponent (*_motionComponent);
   _motionComponent->setVisible (true);
+}
+
+constexpr bool
+A3MotionUIComponent::runsOnHardware ()
+{
+#if HARDWARE_INTERFACE_ENABLED
+  return true;
+#else
+  return false;
+#endif
 }
 
 void
@@ -176,6 +231,8 @@ A3MotionUIComponent::createHardwareInterface ()
       _ioAdapter->getEncoderIncrement (channel).addListener (this);
     }
   _ioAdapter->startThread ();
+
+  blankLEDs ();
 #endif
 }
 
@@ -184,13 +241,10 @@ A3MotionUIComponent::initializePatterns ()
 {
   auto const numChannels = _ioAdapter->getNumChannels ();
   _patterns.resize (numChannels);
-  _patternUIStates.resize (numChannels);
 
   auto numPatternsPerChannel = numPages * _ioAdapter->getNumPadsPerChannel ();
   for (auto &channelPatterns : _patterns)
     channelPatterns.resize (numPatternsPerChannel);
-  for (auto &channelPatternUIStates : _patternUIStates)
-    channelPatternUIStates.resize (numPatternsPerChannel);
 
   auto constexpr lengthBeatsPreMadePatterns = 16;
   for (auto channel = 0u; channel < numChannels; ++channel)
@@ -238,9 +292,6 @@ A3MotionUIComponent::paint (juce::Graphics &g)
 void
 A3MotionUIComponent::resized ()
 {
-  if (_drawHeaders)
-    jassert (_headers.size () == _channelStrips.size ());
-
   juce::Component::resized ();
 
   auto bounds = getLocalBounds ();
@@ -252,18 +303,13 @@ A3MotionUIComponent::resized ()
                           : bounds.removeFromBottom (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
-  auto boundsHeaders = juce::Rectangle<int> ();
-  if (_drawHeaders)
-    {
-      boundsHeaders
-          = bounds.removeFromTop (ChannelHeader::getMinimumHeight ());
-    }
-  auto boundsStrips = bounds.removeFromTop (ChannelStrip::getMinimumHeight ());
+  auto widthChannel = bounds.getWidth () / float (_channelStrips.size ());
 
+  auto boundsStrips
+      = bounds.removeFromTop (widthChannel + LayoutHints::padding);
   _motionComponent->setBounds (bounds);
 
-  // Channel headers/strips
-  auto widthChannel = bounds.getWidth () / float (_channelStrips.size ());
+  // Channel strips
   for (auto channelIndex = 0u; channelIndex < _channelStrips.size ();
        ++channelIndex)
     {
@@ -272,12 +318,6 @@ A3MotionUIComponent::resized ()
           = juce::roundToInt ((channelIndex + 1) * widthChannel);
       auto widthInt = offsetIntNext - offsetInt; // account for
                                                  // rounding discrepancies
-
-      if (_drawHeaders)
-        {
-          _headers[channelIndex]->setBounds (
-              boundsHeaders.removeFromLeft (widthInt));
-        }
       _channelStrips[channelIndex]->setBounds (
           boundsStrips.removeFromLeft (widthInt));
     }
@@ -292,12 +332,9 @@ A3MotionUIComponent::getMinimumWidth () const
 float
 A3MotionUIComponent::getMinimumHeight () const
 {
-  auto minimumHeight = ChannelStrip::getMinimumHeight ()
-                       + LayoutHints::MotionComponent::heightMin;
-  if (_drawHeaders)
-    {
-      minimumHeight += ChannelHeader::getMinimumHeight ();
-    }
+  // auto minimumHeight = ChannelStrip::getMinimumHeight ()
+  //                      + LayoutHints::MotionComponent::heightMin;
+  auto minimumHeight = LayoutHints::MotionComponent::heightMin;
   return minimumHeight;
 }
 
@@ -346,49 +383,20 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
             {
               auto const increment = static_cast<int> (
                   _ioAdapter->getEncoderIncrement (channel).getValue ());
-              jassert (value == -1 || value == 1);
-              if (!_engine.isRecording ()
-                  || _engine.getRecordingPattern ()->getChannel () != channel)
-                {
-                  if (increment == 1)
-                    {
-                      _channelStrips[channel]
-                          ->getPatternMenu ()
-                          .increaseLength ();
-                    }
-                  else if (increment == -1)
-                    {
-                      _channelStrips[channel]
-                          ->getPatternMenu ()
-                          .decreaseLength ();
-                    }
-                }
+              handleLengthIncrement (channel, increment);
             }
-          else if (value.refersToSameSourceAs (_channelStrips[channel]
-                                                   ->getPatternMenu ()
-                                                   .getLengthBeats ()))
-            {
-              auto playingPattern = _engine.getPlayingPattern (channel);
-              if (playingPattern)
-                {
-                  auto playbackLength
-                      = Measure{ 0, value.getValue (), 0 }.consolidate (
-                          _engine.getTempoClock ().getBeatsPerBar ());
-                  juce::Logger::writeToLog ("setting playback length: "
-                                            + toString (playbackLength));
-                  playingPattern->setPlaybackLength (playbackLength);
-                }
-            }
-
           else if (value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 0)))
             {
               jassert (value.getValue ().isDouble ());
               auto const width
                   = static_cast<float> (value.getValue ()) * 180.f;
-              // juce::Logger::writeToLog ("setting width: "
-              //                           + juce::String (width));
+              juce::Logger::writeToLog ("channel " + juce::String (channel)
+                                        + " width: " + juce::String (width));
               _engine.setChannelWidth (channel, width);
+              _channelStrips[channel]->getDirectivityComponent ().setWidth (
+                  width);
+              _channelStrips[channel]->getDirectivityComponent ().repaint ();
               return;
             }
           else if (value.refersToSameSourceAs (
@@ -398,9 +406,12 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               auto order = static_cast<int> (
                   static_cast<float> (value.getValue ()) * 4.f);
               order = std::clamp (order, 0, 3);
-              // juce::Logger::writeToLog ("setting order: "
-              //                           + juce::String (order));
+              juce::Logger::writeToLog ("channel " + juce::String (channel)
+                                        + " order: " + juce::String (order));
               _engine.setChannelAmbisonicsOrder (channel, order);
+              _channelStrips[channel]->getDirectivityComponent ().setOrder (
+                  order);
+              _channelStrips[channel]->getDirectivityComponent ().repaint ();
               return;
             }
 
@@ -439,12 +450,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           _patterns[channel][pad]->setChannel (channel);
         }
 
-      auto recordLength = Measure{ 0,
-                                   _channelStrips[channel]
-                                       ->getPatternMenu ()
-                                       .getLengthBeats ()
-                                       .getValue (),
-                                   0 };
+      auto recordLength = Measure{ 0, getLengthBeats (channel), 0 };
       recordLength.consolidate (_engine.getTempoClock ().getBeatsPerBar ());
       juce::Logger::writeToLog ("recording with length: "
                                 + toString (recordLength));
@@ -469,12 +475,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           }
         case Pattern::Status::Idle:
           {
-            auto playbackLength = Measure{ 0,
-                                           _channelStrips[channel]
-                                               ->getPatternMenu ()
-                                               .getLengthBeats ()
-                                               .getValue (),
-                                           0 };
+            auto playbackLength = Measure{ 0, getLengthBeats (channel), 0 };
             _patterns[channel][pad]->setPlaybackLength (playbackLength);
             _engine.playPattern (_patterns[channel][pad],
                                  TempoClock::nextDownBeat (_now));
@@ -518,6 +519,7 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
   auto const &messagePatternStatus
       = static_cast<MotionEngine::PatternStatusMessage const &> (message);
 
+  auto const channel = messagePatternStatus.pattern->getChannel ();
   switch (messagePatternStatus.status)
     {
     case Status::Playing:
@@ -527,17 +529,13 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
     case Status::Recording:
       {
         _motionComponent->setPreviewPattern (messagePatternStatus.pattern);
-        _channelStrips[messagePatternStatus.pattern->getChannel ()]
-            ->getPatternMenu ()
-            .setIsRecording (true);
+        _channelStrips[channel]->setTextColour (juce::Colours::red);
         break;
       }
     case Status::Stopped:
       {
         _motionComponent->unsetPreviewPattern (messagePatternStatus.pattern);
-        _channelStrips[messagePatternStatus.pattern->getChannel ()]
-            ->getPatternMenu ()
-            .setIsRecording (false);
+        _channelStrips[channel]->setTextColour (juce::Colours::white);
         break;
       }
     }
@@ -554,22 +552,26 @@ A3MotionUIComponent::tickCallback (Measure measure)
 {
   _now = measure;
 
-  if (measure.beat () == 0 && measure.tick () == 0)
+  if (runsOnHardware ())
     {
-      _stepsLED = 0;
-    }
+      if (measure.beat () == 0 && measure.tick () == 0)
+        {
+          _stepsLED = 0;
+        }
 
-  using T = typename std::remove_reference<decltype (measure.tick ())>::type;
-  jassert (ticksPerStepPadLEDs <= std::numeric_limits<T>::max ());
-  auto const divisor = static_cast<T> (ticksPerStepPadLEDs);
-  if (measure.tick () % divisor == 0)
-    {
-      padLEDCallback (_stepsLED++);
-    }
+      using T =
+          typename std::remove_reference<decltype (measure.tick ())>::type;
+      jassert (ticksPerStepPadLEDs <= std::numeric_limits<T>::max ());
+      auto const divisor = static_cast<T> (ticksPerStepPadLEDs);
+      if (measure.tick () % divisor == 0)
+        {
+          padLEDCallback (_stepsLED++);
+        }
 
-  if (!_ioAdapter->getButton (Button::Record).getValue ())
-    {
-      _ioAdapter->getButtonLED (Button::Record) = _engine.isRecording ();
+      if (!_ioAdapter->getButton (Button::Record).getValue ())
+        {
+          _ioAdapter->getButtonLED (Button::Record) = _engine.isRecording ();
+        }
     }
 
   auto recordingPattern = _engine.getRecordingPattern ();
@@ -711,4 +713,5 @@ A3MotionUIComponent::scheduledForIdleLEDColour (int step,
         }
     }
 }
+
 }
