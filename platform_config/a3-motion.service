@@ -1,0 +1,10 @@
+[Unit]
+Description=A3 Motion User Service
+
+[Service]
+ExecStartPre=/usr/bin/sleep 3
+ExecStart=/home/aaa/bin/a3-motion-ui
+
+[Install]
+WantedBy=default.target
+
