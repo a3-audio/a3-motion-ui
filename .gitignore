@@ -4,3 +4,4 @@ compile_commands.json
 .ccls-root
 src/a3-motion-engine/Config.hh
 src/a3-motion-ui/Config.hh
+.vscode/

@@ -18,4 +18,54 @@
 - `cmake -DCMAKE_BUILD_TYPE=Release ..`
 - `make`
 - `cd ..`
-- run the application: ``
+- run the application: `./build/src/a3-motion-ui/a3-motion-ui_artefacts/Release/Standalone/a3-motion-ui`
+
+
+# Toplavel Overview
+
+```mermaid
+graph TD
+  %% Define main layers
+  subgraph "UI Layer"
+    A[MainWindow] --> B[A3MotionEditor]
+    B --> C[A3MotionUIComponent]
+    C --> D[MotionComponent]
+    C --> E[ChannelStrip]
+    C --> F[StatusBar]
+    C --> G[DirectivityComponent]
+  end
+  
+  subgraph "IO Layer"
+    H[InputOutputAdapter] -.-> I[InputOutputAdapterV2]
+    I --> K[LibSerial::SerialPort]
+  end
+  
+  subgraph "Engine Layer"
+    M[MotionEngine] --> N[Channel]
+    M --> O[Pattern]
+    M --> P[TempoClock]
+    M --> Q[AsyncCommandQueue]
+  end
+  
+  subgraph "Backend Layer"
+    Q --> R[SpatBackendA3]
+    Q --> S[SpatBackendIEM]
+    R --> T[OSC Messages]
+    S --> T
+  end
+  
+  %% Connections between layers
+  C <--> H
+  B --> M
+  
+  %% Class definition
+  classDef ui fill:#d4f1f9,stroke:#333,stroke-width:1px;
+  classDef io fill:#ffeaa7,stroke:#333,stroke-width:1px;
+  classDef engine fill:#d5f5e3,stroke:#333,stroke-width:1px;
+  classDef backend fill:#fadbd8,stroke:#333,stroke-width:1px;
+  
+  class A,B,C,D,E,F,G ui;
+  class H,I,J,K,L io;
+  class M,N,O,P,Q engine;
+  class R,S,T backend;
+    ```
