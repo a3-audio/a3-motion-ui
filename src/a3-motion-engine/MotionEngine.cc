@@ -237,6 +237,12 @@ MotionEngine::getRecordingPattern ()
   return _patternRecording;
 }
 
+std::shared_ptr<Pattern>
+MotionEngine::getScheduledForRecordingPattern ()
+{
+  return _patternScheduledForRecording;
+}
+
 void
 MotionEngine::addPatternStatusListener (juce::MessageListener *listener)
 {
@@ -385,16 +391,10 @@ MotionEngine::scheduledForRecording (std::shared_ptr<Pattern> pattern,
       // event takes place.
     }
 
-  if (_patternRecording && _patternRecording != pattern)
-    {
-      stopPattern (_patternRecording, timepoint);
-    }
-  if (_channels[pattern->getChannel ()]->_patternPlaying
-      && _channels[pattern->getChannel ()]->_patternPlaying != pattern)
-    {
-      stopPattern (_channels[pattern->getChannel ()]->_patternPlaying,
-                   timepoint);
-    }
+  // NOTE: Do NOT stop _patternRecording here - if one pad is currently recording,
+  // and another pad is scheduled for recording at the next downbeat, we should
+  // allow both to proceed. The currently recording pattern will be stopped by
+  // its own scheduled stop message.
 
   _patternScheduledForRecording = pattern;
   _patternScheduledForRecording->setStatus (
@@ -463,6 +463,7 @@ MotionEngine::handleStartStopMessages ()
 
             notifyPatternStatusListeners (
                 PatternStatusMessage::Status::Recording, message.pattern);
+            break;
           }
         case Message::Command::StartPlaying:
           {
@@ -495,14 +496,16 @@ MotionEngine::handleStartStopMessages ()
 void
 MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
 {
-  if (pattern != _patternScheduledForRecording)
+  if (!pattern)
     return;
 
-  if (_patternRecording)
+  // Stop any currently recording pattern
+  if (_patternRecording && _patternRecording != pattern)
     {
       _patternRecording->setStatus (Pattern::Status::Idle);
     }
-  _patternRecording = _patternScheduledForRecording;
+  
+  _patternRecording = pattern;
 
   auto const ticks
       = Measure::convertToTicks (length, _tempoClock.getBeatsPerBar ());
@@ -515,7 +518,11 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
   _recordingStarted = _now;
   _patternRecording->setStatus (Pattern::Status::Recording);
 
-  _patternScheduledForRecording = nullptr;
+  // Clear scheduled flag only if this pattern was scheduled
+  if (_patternScheduledForRecording == pattern)
+    {
+      _patternScheduledForRecording = nullptr;
+    }
 }
 
 void

@@ -70,6 +70,7 @@ public:
 
   bool isRecording () const;
   std::shared_ptr<Pattern> getRecordingPattern ();
+  std::shared_ptr<Pattern> getScheduledForRecordingPattern ();
 
   void recordPattern (std::shared_ptr<Pattern> pattern, //
                       Measure timepoint, Measure length);

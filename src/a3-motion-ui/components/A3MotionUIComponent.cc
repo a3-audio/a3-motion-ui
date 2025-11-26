@@ -167,6 +167,30 @@ A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
                                     + toString (playbackLength));
           playingPattern->setPlaybackLength (playbackLength);
         }
+      
+      // Also update recording pattern length if it's in this channel
+      auto recordingPattern = _engine.getRecordingPattern ();
+      if (recordingPattern && recordingPattern->getChannel () == channel)
+        {
+          auto recordingLength
+              = Measure{ 0, getLengthBeats (channel), 0 }.consolidate (
+                  _engine.getTempoClock ().getBeatsPerBar ());
+          juce::Logger::writeToLog ("updating recording pattern length: "
+                                    + toString (recordingLength));
+          recordingPattern->setPlaybackLength (recordingLength);
+        }
+
+      // Also update scheduled recording pattern length if it's in this channel
+      auto scheduledRecordingPattern = _engine.getScheduledForRecordingPattern ();
+      if (scheduledRecordingPattern && scheduledRecordingPattern->getChannel () == channel)
+        {
+          auto recordingLength
+              = Measure{ 0, getLengthBeats (channel), 0 }.consolidate (
+                  _engine.getTempoClock ().getBeatsPerBar ());
+          juce::Logger::writeToLog ("updating scheduled recording pattern length: "
+                                    + toString (recordingLength));
+          scheduledRecordingPattern->setPlaybackLength (recordingLength);
+        }
     }
 }
 
@@ -433,6 +457,10 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       recordLength.consolidate (_engine.getTempoClock ().getBeatsPerBar ());
       juce::Logger::writeToLog ("recording with length: "
                                 + toString (recordLength));
+      
+      // Store the recording length in the pattern so it can be updated if encoder changes
+      _patterns[channel][pad]->setPlaybackLength (recordLength);
+      
       _engine.recordPattern (_patterns[channel][pad],
                              TempoClock::nextDownBeat (_now), recordLength);
     }
