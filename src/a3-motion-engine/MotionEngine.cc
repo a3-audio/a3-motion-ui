@@ -396,6 +396,14 @@ MotionEngine::scheduledForRecording (std::shared_ptr<Pattern> pattern,
   // allow both to proceed. The currently recording pattern will be stopped by
   // its own scheduled stop message.
 
+  // However, immediately stop any playback in the same channel
+  auto &channel = *_channels[pattern->getChannel ()];
+  if (channel._patternPlaying)
+    {
+      channel._patternPlaying->setStatus (Pattern::Status::Idle);
+      channel._patternPlaying = nullptr;
+    }
+
   _patternScheduledForRecording = pattern;
   _patternScheduledForRecording->setStatus (
       Pattern::Status::ScheduledForRecording);
