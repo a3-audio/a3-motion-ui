@@ -27,13 +27,15 @@ namespace a3
 
 struct LEDColours
 {
-  static const juce::Colour empty;
-  static const juce::Colour scheduledForIdle;
-  static const juce::Colour idle;
-  static const juce::Colour scheduledForRecording;
-  static const juce::Colour recording;
-  static const juce::Colour scheduledForPlaying;
-  static const juce::Colour playing;
+  static juce::Colour empty;
+  static juce::Colour scheduledForIdle;
+  static juce::Colour idle;
+  static juce::Colour scheduledForRecording;
+  static juce::Colour recording;
+  static juce::Colour scheduledForPlaying;
+  static juce::Colour playing;
+
+  static void initializeFromConfig ();
 };
 
 }

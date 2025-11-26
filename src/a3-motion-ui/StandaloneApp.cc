@@ -21,6 +21,7 @@
 #include "StandaloneApp.hh"
 
 #include <a3-motion-engine/UserConfig.hh>
+#include "io/LEDColours.hh"
 
 namespace a3
 {
@@ -45,6 +46,8 @@ StandaloneApp::initialise (juce::String const &commandLine)
     {
       throw std::runtime_error ("could not parse config/config.json");
     }
+
+  LEDColours::initializeFromConfig ();
 
   // splash = std::make_unique<SplashScreen> (
   //     appNameVer,

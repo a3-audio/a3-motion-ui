@@ -27,4 +27,6 @@ namespace a3
 
 extern juce::var userConfig;
 
+void initializeUserConfig ();
+
 }

@@ -1,4 +1,36 @@
 {
   "hostname": "192.168.43.57",
   "port": 9000,
+  "ledColours": {
+    "idle": {
+      "r": 200,
+      "g": 80,
+      "b": 20
+    },
+    "scheduledForIdle": {
+      "r": 60,
+      "g": 30,
+      "b": 10
+    },
+    "recording": {
+      "r": 150,
+      "g": 0,
+      "b": 0
+    },
+    "scheduledForRecording": {
+      "r": 55,
+      "g": 0,
+      "b": 0
+    },
+    "playing": {
+      "r": 0,
+      "g": 150,
+      "b": 0
+    },
+    "scheduledForPlaying": {
+      "r": 0,
+      "g": 45,
+      "b": 0
+    }
+  }
 }
