@@ -39,11 +39,11 @@ public:
   Pos getPosition () const;
   void setPosition (Pos position);
 
-  float getWidth () const;
-  void setWidth (float width);
+  float getPot1 () const;
+  void setPot1 (float pot1);
 
-  int getAmbisonicsOrder () const;
-  void setAmbisonicsOrder (int order);
+  float getPot2 () const;
+  void setPot2 (float pot2);
 
 private:
   // TODO reconsider: we want to keep the public API for users of the
@@ -56,8 +56,8 @@ private:
   Measure _playingStarted;
 
   Pos _position;
-  std::atomic<float> _width = 45;
-  std::atomic<int> _order = 3;
+  std::atomic<float> _pot1 = 0.25f;
+  std::atomic<float> _pot2 = 1.f;
 
   // for now we use a "fair" RW lock using std::shared_mutex to see
   // how it performs.  we might implement a write-preferring RW lock

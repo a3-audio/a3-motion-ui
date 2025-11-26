@@ -44,7 +44,7 @@ public:
   static constexpr int
   getMinimumHeight ()
   {
-    return LayoutHints::lineHeight + 2 * LayoutHints::padding;
+    return LayoutHints::lineHeight;
   }
 
 private:

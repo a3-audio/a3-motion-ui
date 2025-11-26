@@ -36,8 +36,8 @@ public:
   ~AsyncCommandQueue ();
 
   void sendPosition (index_t channel, Pos position);
-  void sendWidth (index_t channel, float width);
-  void sendAmbisonicsOrder (index_t channel, int order);
+  void sendPot1 (index_t channel, float pot1);
+  void sendPot2 (index_t channel, float pot2);
 
   void run () override;
 
@@ -48,14 +48,14 @@ private:
     enum class Command
     {
       SendPosition,
-      SendWidth,
-      SendAmbisonicsOrder,
+      SendPot1,
+      SendPot2,
     } command;
 
     index_t channel;
     Pos position;
-    float width;
-    int order;
+    float pot1;
+    float pot2;
   };
 
   void submitMessage (Message &&message);

@@ -30,8 +30,8 @@ class SpatBackend
 public:
   virtual ~SpatBackend (){};
   virtual void sendPosition (index_t channel, Pos const &pos) = 0;
-  virtual void sendWidth (index_t channel, float width) = 0;
-  virtual void sendAmbisonicsOrder (index_t channel, int order) = 0;
+  virtual void sendPot1 (index_t channel, float pot1) = 0;
+  virtual void sendPot2 (index_t channel, float pot2) = 0;
 };
 
 }

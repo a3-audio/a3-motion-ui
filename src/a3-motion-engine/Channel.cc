@@ -46,27 +46,27 @@ Channel::getPosition () const
 }
 
 float
-Channel::getWidth () const
+Channel::getPot1 () const
 {
-  return _width;
+  return _pot1;
 }
 
 void
-Channel::setWidth (float width)
+Channel::setPot1 (float pot1)
 {
-  _width = width;
+  _pot1 = pot1;
 }
 
-int
-Channel::getAmbisonicsOrder () const
+float
+Channel::getPot2 () const
 {
-  return _order;
+  return _pot2;
 }
 
 void
-Channel::setAmbisonicsOrder (int order)
+Channel::setPot2 (float pot2)
 {
-  _order = order;
+  _pot2 = pot2;
 }
 
 }

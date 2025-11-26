@@ -44,8 +44,10 @@ StatusBar::resized ()
 {
   auto bounds = getLocalBounds ();
 
-  bounds.removeFromTop (LayoutHints::padding);
-  bounds.removeFromBottom (LayoutHints::padding);
+  // Symmetrical padding above and below the clock/timer display
+  auto const verticalPadding = bounds.getHeight () / 6.f;
+  bounds.removeFromTop (verticalPadding);
+  bounds.removeFromBottom (verticalPadding);
 
   _labelBPM.setBounds (bounds.withTrimmedLeft (LayoutHints::padding)
                            .withTrimmedRight (LayoutHints::padding));

@@ -50,20 +50,22 @@ SpatBackendA3::sendPosition (index_t channel, Pos const &pos)
 }
 
 void
-SpatBackendA3::sendWidth (index_t channel, float width)
+SpatBackendA3::sendPot1 (index_t channel, float pot1)
 {
-  auto const widthPattern
-      = juce::String ("/channel/") + juce::String (channel) + "/width";
-  auto message = juce::OSCMessage (widthPattern, width);
+  auto const pot1Pattern
+      = juce::String ("/channel/") + juce::String (channel) + "/pot_1";
+  // pot_1 is already normalized to 0-1
+  auto message = juce::OSCMessage (pot1Pattern, pot1);
   _sender.sendToIPAddress (_address, _port, message);
 }
 
 void
-SpatBackendA3::sendAmbisonicsOrder (index_t channel, int order)
+SpatBackendA3::sendPot2 (index_t channel, float pot2)
 {
-  auto const widthPattern
-      = juce::String ("/channel/") + juce::String (channel) + "/order";
-  auto message = juce::OSCMessage (widthPattern, order);
+  auto const pot2Pattern
+      = juce::String ("/channel/") + juce::String (channel) + "/pot_2";
+  // Send pot_2 as linear 0-1 value
+  auto message = juce::OSCMessage (pot2Pattern, pot2);
   _sender.sendToIPAddress (_address, _port, message);
 }
 }

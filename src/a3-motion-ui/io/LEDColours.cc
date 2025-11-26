@@ -25,8 +25,8 @@ namespace a3
 
 const juce::Colour LEDColours::empty = juce::Colour (0, 0, 0);
 
-const juce::Colour LEDColours::scheduledForIdle = juce::Colour (40, 30, 20);
-const juce::Colour LEDColours::idle = juce::Colour (150, 100, 50);
+const juce::Colour LEDColours::scheduledForIdle = juce::Colour (50, 35, 10);
+const juce::Colour LEDColours::idle = juce::Colour (180, 100, 20);
 
 const juce::Colour LEDColours::scheduledForRecording = juce::Colour (55, 0, 0);
 const juce::Colour LEDColours::recording = juce::Colour (150, 0, 0);

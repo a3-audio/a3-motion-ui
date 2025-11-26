@@ -48,11 +48,11 @@ public:
   void setChannel2DPosition (index_t channel, Pos const &position);
   void setChannel3DPosition (index_t channel, Pos const &position);
 
-  float getChannelWidth (index_t channel);
-  void setChannelWidth (index_t channel, float width);
+  float getChannelPot1 (index_t channel);
+  void setChannelPot1 (index_t channel, float pot1);
 
-  int getChannelAmbisonicsOrder (index_t channel);
-  void setChannelAmbisonicsOrder (index_t channel, int order);
+  float getChannelPot2 (index_t channel);
+  void setChannelPot2 (index_t channel, float pot2);
 
   enum class RecordingMode
   {
@@ -186,8 +186,8 @@ private:
   // communication.
   AsyncCommandQueue _commandQueue;
   std::vector<Pos> _lastSentPositions;
-  std::vector<float> _lastSentWidths;
-  std::vector<int> _lastSentAmbisonicsOrders;
+  std::vector<float> _lastSentPot1s;
+  std::vector<float> _lastSentPot2s;
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);

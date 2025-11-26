@@ -303,24 +303,11 @@ A3MotionUIComponent::resized ()
                           : bounds.removeFromBottom (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
-  auto widthChannel = bounds.getWidth () / float (_channelStrips.size ());
+  // Hide channel strips - no longer needed after removing width/order displays
+  for (auto &strip : _channelStrips)
+    strip->setVisible (false);
 
-  auto boundsStrips
-      = bounds.removeFromTop (widthChannel + LayoutHints::padding);
   _motionComponent->setBounds (bounds);
-
-  // Channel strips
-  for (auto channelIndex = 0u; channelIndex < _channelStrips.size ();
-       ++channelIndex)
-    {
-      auto offsetInt = juce::roundToInt (channelIndex * widthChannel);
-      auto offsetIntNext
-          = juce::roundToInt ((channelIndex + 1) * widthChannel);
-      auto widthInt = offsetIntNext - offsetInt; // account for
-                                                 // rounding discrepancies
-      _channelStrips[channelIndex]->setBounds (
-          boundsStrips.removeFromLeft (widthInt));
-    }
 }
 
 float
@@ -389,29 +376,21 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                        _ioAdapter->getPot (channel, 0)))
             {
               jassert (value.getValue ().isDouble ());
-              auto const width
-                  = static_cast<float> (value.getValue ()) * 180.f;
+              auto const pot1Normalized
+                  = static_cast<float> (value.getValue ());
               juce::Logger::writeToLog ("channel " + juce::String (channel)
-                                        + " width: " + juce::String (width));
-              _engine.setChannelWidth (channel, width);
-              _channelStrips[channel]->getDirectivityComponent ().setWidth (
-                  width);
-              _channelStrips[channel]->getDirectivityComponent ().repaint ();
+                                        + " pot_1: " + juce::String (pot1Normalized));
+              _engine.setChannelPot1 (channel, pot1Normalized);
               return;
             }
           else if (value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 1)))
             {
               jassert (value.getValue ().isDouble ());
-              auto order = static_cast<int> (
-                  static_cast<float> (value.getValue ()) * 4.f);
-              order = std::clamp (order, 0, 3);
+              auto const pot2Normalized = static_cast<float> (value.getValue ());
               juce::Logger::writeToLog ("channel " + juce::String (channel)
-                                        + " order: " + juce::String (order));
-              _engine.setChannelAmbisonicsOrder (channel, order);
-              _channelStrips[channel]->getDirectivityComponent ().setOrder (
-                  order);
-              _channelStrips[channel]->getDirectivityComponent ().repaint ();
+                                        + " pot_2: " + juce::String (pot2Normalized));
+              _engine.setChannelPot2 (channel, pot2Normalized);
               return;
             }
 

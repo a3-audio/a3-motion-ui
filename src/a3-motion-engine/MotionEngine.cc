@@ -62,8 +62,8 @@ MotionEngine::createChannels (index_t const numChannels)
 {
   _channels.resize (numChannels);
   _lastSentPositions.resize (numChannels);
-  _lastSentWidths.resize (numChannels);
-  _lastSentAmbisonicsOrders.resize (numChannels);
+  _lastSentPot1s.resize (numChannels);
+  _lastSentPot2s.resize (numChannels);
 
   auto constexpr spread = 120.f;
   auto const azimuthSpacing = spread / (numChannels - 1);
@@ -116,27 +116,27 @@ MotionEngine::setChannel3DPosition (index_t channel, Pos const &position)
 }
 
 float
-MotionEngine::getChannelWidth (index_t channel)
+MotionEngine::getChannelPot1 (index_t channel)
 {
-  return _channels[channel]->getWidth ();
+  return _channels[channel]->getPot1 ();
 }
 
 void
-MotionEngine::setChannelWidth (index_t channel, float width)
+MotionEngine::setChannelPot1 (index_t channel, float pot1)
 {
-  _channels[channel]->setWidth (width);
+  _channels[channel]->setPot1 (pot1);
 }
 
-int
-MotionEngine::getChannelAmbisonicsOrder (index_t channel)
+float
+MotionEngine::getChannelPot2 (index_t channel)
 {
-  return _channels[channel]->getAmbisonicsOrder ();
+  return _channels[channel]->getPot2 ();
 }
 
 void
-MotionEngine::setChannelAmbisonicsOrder (index_t channel, int order)
+MotionEngine::setChannelPot2 (index_t channel, float pot2)
 {
-  _channels[channel]->setAmbisonicsOrder (order);
+  _channels[channel]->setPot2 (pot2);
 }
 
 std::shared_ptr<Pattern>
@@ -269,18 +269,18 @@ MotionEngine::tickCallback ()
           _lastSentPositions[index] = position;
         }
 
-      auto const width = _channels[index]->getWidth ();
-      if (!juce::approximatelyEqual (_lastSentWidths[index], width))
+      auto const pot1 = _channels[index]->getPot1 ();
+      if (!juce::approximatelyEqual (_lastSentPot1s[index], pot1))
         {
-          _commandQueue.sendWidth (index, width);
-          _lastSentWidths[index] = width;
+          _commandQueue.sendPot1 (index, pot1);
+          _lastSentPot1s[index] = pot1;
         }
 
-      auto const order = _channels[index]->getAmbisonicsOrder ();
-      if (_lastSentAmbisonicsOrders[index] != order)
+      auto const pot2 = _channels[index]->getPot2 ();
+      if (!juce::approximatelyEqual (_lastSentPot2s[index], pot2))
         {
-          _commandQueue.sendAmbisonicsOrder (index, order);
-          _lastSentAmbisonicsOrders[index] = order;
+          _commandQueue.sendPot2 (index, pot2);
+          _lastSentPot2s[index] = pot2;
         }
     }
 }

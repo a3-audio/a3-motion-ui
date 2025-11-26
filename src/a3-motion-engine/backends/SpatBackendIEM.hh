@@ -33,8 +33,8 @@ public:
   SpatBackendIEM (juce::String address, int basePort);
 
   void sendPosition (index_t channel, Pos const &pos) override;
-  void sendWidth (index_t channel, float width) override;
-  void sendAmbisonicsOrder (index_t channel, int order) override;
+  void sendPot1 (index_t channel, float pot1) override;
+  void sendPot2 (index_t channel, float pot2) override;
 
 private:
   juce::String _address;

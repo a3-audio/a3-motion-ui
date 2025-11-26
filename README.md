@@ -8,6 +8,7 @@
   - `mkdir -p ~/local/juce`
   - `mkdir build ; cd build`
   - `cmake -DCMAKE_INSTALL_PREFIX=~/local/juce ..`
+  - `cmake -S . -B build -DHARDWARE_INTERFACE_ENABLED=ON -DHARDWARE_INTERFACE_VERSION=V2 -DCMAKE_BUILD_TYPE=Debug` for hardwaresupport
   - `make ; make install`
 
 # Build and run a3-motion-ui

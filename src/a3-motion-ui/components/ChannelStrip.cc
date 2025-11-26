@@ -31,7 +31,7 @@ ChannelStrip::ChannelStrip (ChannelUIState const &uiState)
     : _uiState (uiState), _directivity (uiState)
 {
   addChildComponent (_directivity);
-  _directivity.setVisible (true);
+  _directivity.setVisible (false);
 
   auto font = juce::Font (juce::Font::getDefaultMonospacedFontName (), 30,
                           juce::Font::FontStyleFlags::bold);

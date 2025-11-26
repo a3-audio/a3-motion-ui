@@ -28,11 +28,8 @@ namespace a3
 
 ChannelHeader::ChannelHeader (ChannelUIState const &uiState)
     : _uiState (uiState), _slidersFX{ { { juce::Slider::RotaryVerticalDrag,
-                                          juce::Slider::NoTextBox },
-                                        { juce::Slider::RotaryVerticalDrag,
                                           juce::Slider::NoTextBox } } },
-      _labelsFX{ { { juce::String (), juce::String ("Width") },
-                   { juce::String (), juce::String ("Reverb") } } }
+      _labelsFX{ { { juce::String (), juce::String ("Reverb") } } }
 {
   for (auto &slider : _slidersFX)
     {

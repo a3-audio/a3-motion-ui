@@ -27,7 +27,7 @@ namespace a3
 {
 
 DirectivityComponent::DirectivityComponent (ChannelUIState const &uiState)
-    : _uiState (uiState), _width (180.f), _order (1)
+    : _uiState (uiState), _pot1 (180.f), _pot2 (1.f)
 {
 }
 
@@ -71,13 +71,13 @@ DirectivityComponent::paint (juce::Graphics &g)
   path.clear ();
 
   auto pieAngleRad = juce::degreesToRadians (360.f);
-  if (_order > 0)
+  if (_pot2 > 0)
     {
-      pieAngleRad /= 2.f * _order;
+      pieAngleRad /= 2.f * _pot2;
     }
 
-  angleStart = juce::degreesToRadians (-_width / 2.f) - pieAngleRad / 2.f;
-  angleEnd = juce::degreesToRadians (-_width / 2.f) + pieAngleRad / 2.f;
+  angleStart = juce::degreesToRadians (-_pot1 / 2.f) - pieAngleRad / 2.f;
+  angleEnd = juce::degreesToRadians (-_pot1 / 2.f) + pieAngleRad / 2.f;
 
   path = juce::Path ();
   path.addCentredArc (center.getX (), center.getY (), radiusArcDirectivity,
@@ -88,8 +88,8 @@ DirectivityComponent::paint (juce::Graphics &g)
   g.strokePath (path, strokeType);
 
   path.clear ();
-  angleStart = juce::degreesToRadians (_width / 2.f) - pieAngleRad / 2.f;
-  angleEnd = juce::degreesToRadians (_width / 2.f) + pieAngleRad / 2.f;
+  angleStart = juce::degreesToRadians (_pot1 / 2.f) - pieAngleRad / 2.f;
+  angleEnd = juce::degreesToRadians (_pot1 / 2.f) + pieAngleRad / 2.f;
   path.addCentredArc (center.getX (), center.getY (), radiusArcDirectivity,
                       radiusArcDirectivity, 0.f, angleStart, angleEnd, true);
   g.setColour (juce::Colours::red.withAlpha (0.5f));
@@ -97,15 +97,15 @@ DirectivityComponent::paint (juce::Graphics &g)
 }
 
 void
-DirectivityComponent::setWidth (float width)
+DirectivityComponent::setPot1 (float pot1)
 {
-  _width = width;
+  _pot1 = pot1;
 }
 
 void
-DirectivityComponent::setOrder (int order)
+DirectivityComponent::setPot2 (float pot2)
 {
-  _order = order;
+  _pot2 = pot2;
 }
 
 }
