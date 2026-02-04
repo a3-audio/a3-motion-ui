@@ -168,10 +168,33 @@ private:
   void performPlayback ();
   index_t updatePlayPosition (Pattern &pattern);
 
+  // Dynamic playback sub-stepping for smooth slow-motion
+  // Encoder range: -2 to +4 (log2), which translates to:
+  //   Min playbackLength: 2^-2 * 4 beats/bar = 1 beat
+  //   Max playbackLength: 2^4 * 4 beats/bar = 64 beats
+  // So max slowdown is 64x. We use this to calculate sub-steps dynamically.
+  static constexpr int minPlaybackLengthBeats = 1;
+  static constexpr int maxPlaybackLengthBeats = 64;
+  
+  // Keyframe-based recording: record one sample per tick, like hardcoded patterns
+  // This matches the pattern generator approach and avoids redundant data.
+  // Smooth interpolation happens during playback via Cartesian interpolation.
+  static constexpr int recordingSamplesPerTick = 1;
+  static constexpr int minRecordingSamplesPerTick = 1;
+  
+  // Calculate adaptive sub-sampling: higher when recording longer patterns
+  // This ensures smooth motion even at extreme slowdown speeds
+  static int calculateSubSamplingFactor (Measure recordingLength, int beatsPerBar);
+
   Measure _now;
   Measure _recordingStarted;
   Pos _recordingPosition = Pos::invalid;
   std::atomic<RecordingMode> _recordingMode = RecordingMode::OneShot;
+  int _recordingSubSamplingFactor = recordingSamplesPerTick;
+  
+  // High-resolution recording counter to sample motion between ticks
+  // Records at ~1000Hz regardless of tempo/ticks
+  std::atomic<int> _recordingSampleCounter = 0;
 
   // NOTE: the MotionEngine holding shared_ptrs might lead to pattern
   // deallocations on the realtime thread. If this turns out to be

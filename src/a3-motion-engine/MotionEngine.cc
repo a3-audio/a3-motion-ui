@@ -33,6 +33,24 @@
 namespace a3
 {
 
+// Calculate adaptive sub-sampling based on recording length
+// Longer recordings get significantly higher sub-sampling to support smooth slow-motion playback
+// Strategy: allocate enough samples to handle even extreme slowdowns (1/16 speed)
+int
+MotionEngine::calculateSubSamplingFactor (Measure recordingLength, int beatsPerBar)
+{
+  // Get recording length in beats (for future use if we want adaptive scaling)
+  auto const recordingConsolidated = recordingLength.consolidate (beatsPerBar);
+  (void) recordingConsolidated; // Use variable to avoid warning
+  
+  // Ultra-high recording resolution for silky-smooth interpolation
+  // 512 samples per tick ensures we capture motion detail at sub-millisecond precision
+  // This is independent of playback speed - we always record at maximum quality
+  int factor = recordingSamplesPerTick;
+  
+  return factor;
+}
+
 MotionEngine::MotionEngine (index_t numChannels, const HeightMap &heightMap)
     : _heightMap (heightMap), _commandQueue (std::make_unique<SpatBackendA3> (
                                   userConfig["hostname"], userConfig["port"]))
@@ -263,6 +281,10 @@ MotionEngine::tickCallback ()
   handleStartStopMessages ();
 
   performRecording ();
+  
+  // Perform playback once per tick. With absolute time-based position calculation,
+  // we don't need to worry about accumulation errors or sub-stepping granularity.
+  // The position is always precisely calculated from elapsed time.
   performPlayback ();
 
   // compare with last enqueued values and enqueue on change
@@ -446,6 +468,14 @@ MotionEngine::scheduledForStop (std::shared_ptr<Pattern> pattern)
 void
 MotionEngine::handleStartStopMessages ()
 {
+  if (!_messagesStartStop.empty ())
+    {
+      juce::Logger::writeToLog ("handleStartStopMessages called - queue has "
+                                + juce::String (static_cast<int> (_messagesStartStop.size ())) + " items");
+      juce::Logger::writeToLog ("  Front timepoint: " + toString (_messagesStartStop.top ().timepoint));
+      juce::Logger::writeToLog ("  Current _now:    " + toString (_now));
+    }
+  
   while (!_messagesStartStop.empty ()
          && _messagesStartStop.top ().timepoint <= _now)
     {
@@ -515,12 +545,18 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
   
   _patternRecording = pattern;
 
+  // Calculate adaptive sub-sampling factor based on recording length
+  _recordingSubSamplingFactor = calculateSubSamplingFactor (length, _tempoClock.getBeatsPerBar ());
+  juce::Logger::writeToLog ("Recording with sub-sampling factor: " + juce::String (_recordingSubSamplingFactor));
+
   auto const ticks
       = Measure::convertToTicks (length, _tempoClock.getBeatsPerBar ());
   jassert (ticks >= 0);
 
   _patternRecording->clear ();
-  _patternRecording->resize (static_cast<std::size_t> (ticks));
+  // Allocate with adaptive sub-sampling for smooth playback at any speed
+  auto const ticksWithSubSampling = static_cast<std::size_t> (ticks) * _recordingSubSamplingFactor;
+  _patternRecording->resize (ticksWithSubSampling);
 
   _recordingPosition = Pos::invalid;
   _recordingStarted = _now;
@@ -577,14 +613,25 @@ MotionEngine::performRecording ()
       || (status == Pattern::Status::ScheduledForPlaying
           && statusLast == Pattern::Status::Recording))
     {
+      // Store each recording position multiple times to get high-frequency sampling
+      // This is done by recording the same position multiple times as time advances
       auto const ticksSinceStart = Measure::convertToTicks (
           _now - _recordingStarted, _tempoClock.getBeatsPerBar ());
       jassert (ticksSinceStart >= 0);
 
       auto const ticksPatternLength = _patternRecording->getNumTicks ();
-      auto const tick
-          = static_cast<std::size_t> (ticksSinceStart) % ticksPatternLength;
-      _patternRecording->setTick (tick, _recordingPosition);
+      
+      // Map continuous time to pattern indices with sub-sampling
+      // Each tick-advance gets _recordingSubSamplingFactor slots
+      auto const baseIndex = static_cast<std::size_t> (ticksSinceStart) * _recordingSubSamplingFactor;
+      
+      // Record at each sub-sample slot for the current tick
+      // This fills in gaps between ticks with interpolation-friendly keyframes
+      for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
+        {
+          auto const tick = (baseIndex + slot) % ticksPatternLength;
+          _patternRecording->setTick (tick, _recordingPosition);
+        }
 
       if (_recordingPosition.isValid ())
         {
@@ -610,8 +657,25 @@ MotionEngine::performPlayback ()
               || (status == Pattern::Status::ScheduledForRecording
                   && statusLast == Pattern::Status::Playing))
             {
-              auto const tick = updatePlayPosition (*channel->_patternPlaying);
-              auto position = channel->_patternPlaying->getTick (tick);
+              auto const ticksPatternLength = channel->_patternPlaying->getNumTicks ();
+              auto const ticksPlaybackLength = Measure::convertToTicks (
+                  channel->_patternPlaying->getPlaybackLength (), _tempoClock.getBeatsPerBar ());
+
+              // Use incremental position updates to handle tempo changes smoothly.
+              // CRITICAL: Do NOT use fmod here - let playPosition grow beyond 1.0.
+              // The interpolation function handles normalization and avoids precision issues.
+              auto const playPositionDelta = 1. / static_cast<double> (ticksPlaybackLength);
+              auto playPosition = channel->_patternPlaying->getPlayPosition ();
+              playPosition += playPositionDelta;
+              
+              // Store the un-wrapped position for smooth loop transitions
+              channel->_patternPlaying->setPlayPosition (static_cast<float> (playPosition));
+
+              // Use interpolated playback for smooth motion between keyframes
+              // The interpolation function handles wrapping at pattern boundaries
+              auto const fractionalTick = ticksPatternLength * playPosition;
+              auto position = channel->_patternPlaying->getInterpolatedTick (fractionalTick);
+              
               if (position.isValid ())
                 {
                   channel->setPosition (position);

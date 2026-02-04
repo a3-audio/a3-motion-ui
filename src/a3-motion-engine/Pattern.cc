@@ -107,6 +107,73 @@ Pattern::getLastUpdatedTick () const
   return _lastUpdatedTick;
 }
 
+Pos
+Pattern::getInterpolatedTick (double fractionalTick) const
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  
+  if (_ticks.empty ())
+    return Pos::invalid;
+
+  auto const numTicks = static_cast<double> (_ticks.size ());
+  auto const lastValidTick = static_cast<double> (_lastUpdatedTick);
+  
+  // Normalize fractionalTick to [0, lastValidTick) for adaptive looping.
+  // This ensures smooth interpolation from the last recorded position back to start.
+  double normalizedTick = fractionalTick;
+  double effectiveLength = lastValidTick;
+  
+  // Only wrap within the recorded range, not the full pattern size
+  if (effectiveLength > 0)
+    {
+      while (normalizedTick >= effectiveLength)
+        normalizedTick -= effectiveLength;
+      while (normalizedTick < 0)
+        normalizedTick += effectiveLength;
+    }
+  else
+    {
+      // Fallback to full pattern length if nothing was recorded
+      while (normalizedTick >= numTicks)
+        normalizedTick -= numTicks;
+      while (normalizedTick < 0)
+        normalizedTick += numTicks;
+    }
+  
+  // Get floor and ceil indices
+  auto const tickFloor = static_cast<index_t> (std::floor (normalizedTick));
+  auto const tickCeil = (tickFloor + 1) % static_cast<index_t> (numTicks);
+  auto const fraction = static_cast<float> (normalizedTick - std::floor (normalizedTick));
+  
+  // Get keyframes
+  auto const posFloor = _ticks[tickFloor];
+  auto const posCeil = _ticks[tickCeil];
+  
+  // If either keyframe is invalid, return the valid one or invalid
+  if (!posFloor.isValid () && !posCeil.isValid ())
+    return Pos::invalid;
+  if (!posFloor.isValid ())
+    return posCeil;
+  if (!posCeil.isValid ())
+    return posFloor;
+  
+  // Interpolate in Cartesian space for smooth, robust interpolation
+  // This avoids azimuth discontinuities (e.g., 350° to 10°)
+  auto const x0 = posFloor.x ();
+  auto const y0 = posFloor.y ();
+  auto const z0 = posFloor.z ();
+  
+  auto const x1 = posCeil.x ();
+  auto const y1 = posCeil.y ();
+  auto const z1 = posCeil.z ();
+  
+  auto const xInterp = x0 + (x1 - x0) * fraction;
+  auto const yInterp = y0 + (y1 - y0) * fraction;
+  auto const zInterp = z0 + (z1 - z0) * fraction;
+  
+  return Pos::fromCartesian (xInterp, yInterp, zInterp);
+}
+
 Pattern::Ticks
 Pattern::getTicks () const
 {

@@ -432,7 +432,7 @@ MotionComponent::renderOpenGL ()
   using juce::OpenGLHelpers;
 
   jassert (OpenGLHelpers::isContextActive ());
-  _glContext.setSwapInterval (1);
+  _glContext.setSwapInterval (0);
 
   // printFrameTime ();
 

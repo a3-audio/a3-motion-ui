@@ -59,6 +59,10 @@ public:
   void setTick (index_t tick, Pos position);
   index_t getLastUpdatedTick () const;
 
+  // Interpolated playback: returns position with linear interpolation between keyframes
+  // This provides smooth motion even with sparse keyframes during slow playback
+  Pos getInterpolatedTick (double fractionalTick) const;
+
   // The Ticks struct enables us to atomically return the positions
   // together with the last updated value.
   struct Ticks
