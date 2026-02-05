@@ -635,13 +635,22 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
             float vuScaled = std::max (rmsScaled, peakScaled * 0.8f);
             float coronaScale = sizeMin + vuScaled * (sizeMax - sizeMin);
             
-            // When grabbed/highlighted, set a minimum size but VU can still make it bigger
+            // Base blob size depends on grabbed/highlighted state
+            // When grabbed, the visible ball uses activeAreaAroundBlobFactor (3.0)
+            // When highlighted, it uses blobHighlightFactor (1.1)
+            float baseBlobScale = 1.0f;
             if (_uiStates[channel]->grabbed)
-              coronaScale = std::max (coronaScale, sizeGrabbed);
+              {
+                baseBlobScale = activeAreaAroundBlobFactor;
+                coronaScale *= sizeGrabbed;  // Additional corona boost when grabbed
+              }
             else if (_uiStates[channel]->highlighted)
-              coronaScale = std::max (coronaScale, blobHighlightFactor);
+              {
+                baseBlobScale = blobHighlightFactor;
+                coronaScale *= 1.2f;  // Smaller boost when highlighted
+              }
             
-            auto coronaSize = blobSize * coronaScale;
+            auto coronaSize = blobSize * baseBlobScale * coronaScale;
             
             // Peak controls BRIGHTNESS
             float coronaAlpha = alphaMin + peakScaled * (alphaMax - alphaMin);

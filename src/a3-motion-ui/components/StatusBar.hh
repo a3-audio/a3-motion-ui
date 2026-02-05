@@ -41,6 +41,10 @@ public:
   void valueChanged (juce::Value &value) override;
   void beatCallback (Measure measure);
 
+  // Update from external OSC data
+  void setExternalBPM (float bpm);
+  void setBeatClock (int beat, int bar);
+
   static constexpr int
   getMinimumHeight ()
   {
@@ -52,6 +56,11 @@ private:
 
   juce::Label _labelBPM;
   juce::Value &_valueBPM;
+  
+  juce::Label _labelBeatClock;
+  std::atomic<float> _externalBPM{ 0.f };
+  std::atomic<int> _beatClockBeat{ 0 };
+  std::atomic<int> _beatClockBar{ 0 };
 };
 
 }

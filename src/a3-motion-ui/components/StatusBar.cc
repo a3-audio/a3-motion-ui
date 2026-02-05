@@ -37,6 +37,14 @@ StatusBar::StatusBar (juce::Value &valueBPM)
 {
   addChildComponent (_tickIndicator);
   _tickIndicator.setVisible (true);
+  
+  addChildComponent (_labelBPM);
+  _labelBPM.setVisible (true);
+  _labelBPM.setJustificationType (juce::Justification::centredLeft);
+  
+  addChildComponent (_labelBeatClock);
+  _labelBeatClock.setVisible (true);
+  _labelBeatClock.setJustificationType (juce::Justification::centredRight);
 }
 
 void
@@ -49,10 +57,16 @@ StatusBar::resized ()
   bounds.removeFromTop (verticalPadding);
   bounds.removeFromBottom (verticalPadding);
 
-  _labelBPM.setBounds (bounds.withTrimmedLeft (LayoutHints::padding)
-                           .withTrimmedRight (LayoutHints::padding));
+  // BPM label on the left
+  auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 3);
+  _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
 
-  auto boundsTicks = bounds.withSizeKeepingCentre (bounds.getWidth () * 0.4f,
+  // Beat clock label on the right
+  auto rightArea = bounds.removeFromRight (bounds.getWidth () / 2);
+  _labelBeatClock.setBounds (rightArea.withTrimmedRight (LayoutHints::padding));
+
+  // Tick indicator in the center
+  auto boundsTicks = bounds.withSizeKeepingCentre (bounds.getWidth () * 0.8f,
                                                    bounds.getHeight () * 0.6f);
   _tickIndicator.setBounds (boundsTicks);
 }
@@ -83,6 +97,35 @@ void
 StatusBar::beatCallback (Measure measure)
 {
   _tickIndicator.setCurrentTick (measure.beat ());
+}
+
+void
+StatusBar::setExternalBPM (float bpm)
+{
+  _externalBPM = bpm;
+  
+  auto stringStream = std::stringstream ();
+  stringStream.precision (1);
+  stringStream << std::fixed << bpm << " BPM";
+  
+  // Update on message thread
+  juce::MessageManager::callAsync ([this, str = stringStream.str ()] () {
+    _labelBPM.setText (str, juce::dontSendNotification);
+  });
+}
+
+void
+StatusBar::setBeatClock (int beat, int bar)
+{
+  _beatClockBeat = beat;
+  _beatClockBar = bar;
+  
+  auto text = juce::String (bar) + "." + juce::String (beat);
+  
+  // Update on message thread
+  juce::MessageManager::callAsync ([this, text] () {
+    _labelBeatClock.setText (text, juce::dontSendNotification);
+  });
 }
 
 }

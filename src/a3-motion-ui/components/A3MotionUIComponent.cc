@@ -761,6 +761,24 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
       return; // Don't log VU messages (too spammy)
     }
   
+  // Handle beat BPM: /beat/1 f <bpm>
+  if (address == "/beat/1" && message.size () >= 1 && message[0].isFloat32 ())
+    {
+      float bpm = message[0].getFloat32 ();
+      _statusBar->setExternalBPM (bpm);
+      return;
+    }
+  
+  // Handle beat clock: /beatclock/1 iiii <timestamp> <bpm_int> <beat> <bar>
+  if (address == "/beatclock/1" && message.size () >= 4)
+    {
+      // Args: timestamp, bpm, beat, bar
+      int beat = message[2].isInt32 () ? message[2].getInt32 () : 0;
+      int bar = message[3].isInt32 () ? message[3].getInt32 () : 0;
+      _statusBar->setBeatClock (beat, bar);
+      return;
+    }
+  
   // Log other OSC messages
   std::cout << "OSC: " << address.toStdString ();
   for (auto &arg : message)
