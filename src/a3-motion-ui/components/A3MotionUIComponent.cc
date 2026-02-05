@@ -27,6 +27,7 @@
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternGenerator.hh>
+#include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-engine/elevation/HeightMapFlat.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
@@ -79,15 +80,40 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       _ioAdapter->getTapTimeMicros ().addListener (_tempoEstimatorTest.get ());
     }
 
-  // Setup OSC Receiver
-  if (_oscReceiver.connect (oscReceivePort))
+  // Setup OSC Receiver from config
+  int oscRecvPort = 7771; // default
+  juce::String oscRecvHost = "0.0.0.0";
+  if (userConfig.hasProperty ("oscReceiver"))
     {
-      std::cout << "OSC Receiver listening on port " << oscReceivePort << std::endl;
+      auto oscRecvConfig = userConfig["oscReceiver"];
+      if (oscRecvConfig.hasProperty ("port"))
+        oscRecvPort = static_cast<int> (oscRecvConfig["port"]);
+      if (oscRecvConfig.hasProperty ("host"))
+        oscRecvHost = oscRecvConfig["host"].toString ();
+    }
+  if (_oscReceiver.connect (oscRecvPort))
+    {
+      std::cout << "OSC Receiver listening on " << oscRecvHost << ":" << oscRecvPort << std::endl;
       _oscReceiver.addListener (this);
     }
   else
     {
-      std::cerr << "ERROR: Could not bind OSC Receiver to port " << oscReceivePort << std::endl;
+      std::cerr << "ERROR: Could not bind OSC Receiver to port " << oscRecvPort << std::endl;
+    }
+
+  // Setup OSC Sender from config (for beatclock)
+  if (userConfig.hasProperty ("oscSender"))
+    {
+      auto oscSendConfig = userConfig["oscSender"];
+      juce::String oscSendHost = oscSendConfig["host"].toString ();
+      // Use beatclockPort if specified, otherwise fall back to port
+      int oscSendPort = static_cast<int> (oscSendConfig["port"]);
+      if (oscSendConfig.hasProperty ("beatclockPort"))
+        oscSendPort = static_cast<int> (oscSendConfig["beatclockPort"]);
+      if (_oscSender.connect (oscSendHost, oscSendPort))
+        std::cout << "OSC Sender for beatclock connected to " << oscSendHost << ":" << oscSendPort << std::endl;
+      else
+        std::cerr << "ERROR: OSC Sender failed to connect to " << oscSendHost << ":" << oscSendPort << std::endl;
     }
 }
 
@@ -95,6 +121,7 @@ A3MotionUIComponent::~A3MotionUIComponent ()
 {
   _oscReceiver.removeListener (this);
   _oscReceiver.disconnect ();
+  _oscSender.disconnect ();
 
   if (runsOnHardware ())
     {
@@ -573,6 +600,16 @@ void
 A3MotionUIComponent::tickCallback (Measure measure)
 {
   _now = measure;
+
+  // Send beatclock via OSC on every beat
+  if (measure.tick () == 0)
+    {
+      auto beatClockMsg = juce::OSCMessage ("/beatclock");
+      beatClockMsg.addInt32 (measure.beat () + 1);  // 1-indexed beat
+      beatClockMsg.addInt32 (measure.bar () + 1);   // 1-indexed bar
+      beatClockMsg.addFloat32 (_engine.getTempoClock ().getTempoBPM ());
+      _oscSender.send (beatClockMsg);
+    }
 
   if (runsOnHardware ())
     {

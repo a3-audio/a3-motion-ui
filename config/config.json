@@ -1,6 +1,13 @@
 {
-  "hostname": "192.168.43.57",
-  "port": 9000,
+  "oscSender": {
+    "host": "192.168.43.57",
+    "port": 9000,
+    "beatclockPort": 7775
+  },
+  "oscReceiver": {
+    "host": "0.0.0.0",
+    "port": 7771
+  },
   "ledColours": {
     "idle": {
       "r": 200,

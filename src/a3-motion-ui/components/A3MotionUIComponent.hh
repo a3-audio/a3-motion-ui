@@ -117,7 +117,9 @@ private:
 
   // OSC Receiver for VU meters, beat clock, etc.
   juce::OSCReceiver _oscReceiver;
-  static constexpr int oscReceivePort = 7771;
+  
+  // OSC Sender for beatclock output
+  juce::OSCSender _oscSender;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };

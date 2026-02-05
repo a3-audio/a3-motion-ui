@@ -53,7 +53,8 @@ MotionEngine::calculateSubSamplingFactor (Measure recordingLength, int beatsPerB
 
 MotionEngine::MotionEngine (index_t numChannels, const HeightMap &heightMap)
     : _heightMap (heightMap), _commandQueue (std::make_unique<SpatBackendA3> (
-                                  userConfig["hostname"], userConfig["port"]))
+                                  userConfig["oscSender"]["host"], 
+                                  static_cast<int> (userConfig["oscSender"]["port"])))
 {
   createChannels (numChannels);
 
