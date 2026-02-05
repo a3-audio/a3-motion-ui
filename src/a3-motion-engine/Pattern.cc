@@ -116,29 +116,23 @@ Pattern::getInterpolatedTick (double fractionalTick) const
     return Pos::invalid;
 
   auto const numTicks = static_cast<double> (_ticks.size ());
-  auto const lastValidTick = static_cast<double> (_lastUpdatedTick);
   
-  // Normalize fractionalTick to [0, lastValidTick) for adaptive looping.
-  // This ensures smooth interpolation from the last recorded position back to start.
-  double normalizedTick = fractionalTick;
-  double effectiveLength = lastValidTick;
+  // Use lastValidTick+1 for the effective length (since indices are 0-based)
+  // If nothing recorded yet, fall back to full pattern size
+  double effectiveLength = (_lastUpdatedTick > 0) 
+                             ? static_cast<double> (_lastUpdatedTick + 1) 
+                             : numTicks;
   
-  // Only wrap within the recorded range, not the full pattern size
-  if (effectiveLength > 0)
-    {
-      while (normalizedTick >= effectiveLength)
-        normalizedTick -= effectiveLength;
-      while (normalizedTick < 0)
-        normalizedTick += effectiveLength;
-    }
-  else
-    {
-      // Fallback to full pattern length if nothing was recorded
-      while (normalizedTick >= numTicks)
-        normalizedTick -= numTicks;
-      while (normalizedTick < 0)
-        normalizedTick += numTicks;
-    }
+  // Safety: effectiveLength must be positive
+  if (effectiveLength <= 0)
+    effectiveLength = numTicks;
+  if (effectiveLength <= 0)
+    return Pos::invalid;  // No valid ticks at all
+  
+  // Normalize fractionalTick to [0, effectiveLength) using fmod
+  double normalizedTick = std::fmod (fractionalTick, effectiveLength);
+  if (normalizedTick < 0)
+    normalizedTick += effectiveLength;
   
   // Get floor and ceil indices
   auto const tickFloor = static_cast<index_t> (std::floor (normalizedTick));

@@ -339,8 +339,16 @@ TempoClock::getNanoSecondsPerTick () const
 TempoClock::TapResult
 TempoClock::tap (juce::int64 timeMicros)
 {
-  if (_tempoEstimator->tap (timeMicros)
-      == TempoEstimator::TapResult::TempoAvailable)
+  auto const result = _tempoEstimator->tap (timeMicros);
+
+  if (result == TempoEstimator::TapResult::FirstTap)
+    {
+      // First tap after timeout - reset beat to 1
+      reset ();
+      return TapResult::FirstTap;
+    }
+
+  if (result == TempoEstimator::TapResult::TempoAvailable)
     {
       setTempoBPM (_tempoEstimator->getTempoBPM ());
       return TapResult::TempoAvailable;

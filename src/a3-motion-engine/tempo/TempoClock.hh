@@ -74,7 +74,8 @@ public:
   enum class TapResult
   {
     TempoAvailable,
-    TempoNotAvailable
+    TempoNotAvailable,
+    FirstTap  // First tap after timeout - beat was reset to 1
   };
 
   using CallbackT = void (Measure);

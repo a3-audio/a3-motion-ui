@@ -87,7 +87,7 @@ private:
   // change later on.
   std::atomic<index_t> _channel;
 
-  index_t _lastUpdatedTick;
+  index_t _lastUpdatedTick{ 0 };
   std::vector<Pos> _ticks;
   mutable std::mutex _ticksMutex;
 

@@ -34,7 +34,8 @@ public:
   enum class TapResult
   {
     TempoAvailable,
-    TempoNotAvailable
+    TempoNotAvailable,
+    FirstTap  // First tap after timeout - beat should reset to 1
   };
 
   virtual ~TempoEstimator (){};
