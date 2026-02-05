@@ -281,7 +281,7 @@ A3MotionUIComponent::createHardwareInterface ()
 #else
 #error hardware interface enabled but no implementation selected!
 #endif
-  _ioAdapter->getButton (Button::Shift).addListener (this);
+  _ioAdapter->getButton (Button::ClockMode).addListener (this);
   _ioAdapter->getButton (Button::Record).addListener (this);
   _ioAdapter->getButton (Button::Tap).addListener (this);
   _ioAdapter->getTapTimeMicros ().addListener (this);
@@ -334,7 +334,7 @@ A3MotionUIComponent::initializePatterns ()
 void
 A3MotionUIComponent::blankLEDs ()
 {
-  _ioAdapter->getButtonLED (Button::Shift) = false;
+  _ioAdapter->getButtonLED (Button::ClockMode) = false;
   _ioAdapter->getButtonLED (Button::Record) = false;
   _ioAdapter->getButtonLED (Button::Tap) = false;
 
@@ -396,9 +396,21 @@ A3MotionUIComponent::getMinimumHeight () const
 void
 A3MotionUIComponent::valueChanged (juce::Value &value)
 {
-  if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Shift)))
+  if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::ClockMode)))
     {
-      _ioAdapter->getButtonLED (Button::Shift) = value.getValue ();
+      // Toggle clock mode on button press (not release)
+      if (value.getValue ())
+        {
+          _clockMode = !_clockMode;
+          _ioAdapter->getButtonLED (Button::ClockMode) = _clockMode;
+          
+          // Send clock mode status via OSC
+          auto clockModeMsg = juce::OSCMessage ("/clockmode");
+          clockModeMsg.addInt32 (_clockMode ? 1 : 0);
+          _oscSender.send (clockModeMsg);
+          
+          std::cout << "ClockMode: " << (_clockMode ? "ON" : "OFF") << std::endl;
+        }
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Record)))
     {
@@ -407,7 +419,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Tap)))
     {
       _ioAdapter->getButtonLED (Button::Tap) = value.getValue ();
-      if (_ioAdapter->getButton (Button::Shift).getValue ()
+      if (_clockMode
           && _ioAdapter->getButton (Button::Tap).getValue ())
         {
           _engine.getTempoClock ().reset ();
@@ -415,7 +427,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
     {
-      if (!_ioAdapter->getButton (Button::Shift).getValue ())
+      if (!_clockMode)
         {
           auto const tapTime = juce::int64 (value.getValue ());
           auto const result = _engine.getTempoClock ().tap (tapTime);
@@ -506,7 +518,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       _engine.recordPattern (_patterns[channel][pad],
                              TempoClock::nextDownBeat (_now), recordLength);
     }
-  else if (isButtonPressed (Button::Shift))
+  else if (_clockMode)
     {
       if (_patterns[channel][pad])
         {

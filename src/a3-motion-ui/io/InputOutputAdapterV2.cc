@@ -103,7 +103,7 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
           switch (index)
             {
             case 16:
-              inputButtonValue (Button::Shift, value);
+              inputButtonValue (Button::ClockMode, value);
               break;
             case 17:
               inputButtonValue (Button::Record, value);

@@ -36,7 +36,7 @@ public:
   {
     Record,
     Tap,
-    Shift,
+    ClockMode,
   };
 
   InputOutputAdapter ();

@@ -120,6 +120,9 @@ private:
   
   // OSC Sender for beatclock output
   juce::OSCSender _oscSender;
+  
+  // ClockMode toggle state
+  bool _clockMode = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };
