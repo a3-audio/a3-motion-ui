@@ -398,13 +398,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
 {
   if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::ClockMode)))
     {
-      // Toggle clock mode on button press (not release)
+      // Toggle ClockMode on button press
       if (value.getValue ())
         {
           _clockMode = !_clockMode;
-          _ioAdapter->getButtonLED (Button::ClockMode) = _clockMode;
           
-          // Update status bar display
+          // Update LED and status bar
+          _ioAdapter->getButtonLED (Button::ClockMode) = _clockMode;
           _statusBar->setClockMode (_clockMode);
           
           // Send clock mode status via OSC
@@ -417,15 +417,39 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Record)))
     {
-      _ioAdapter->getButtonLED (Button::Record) = value.getValue ();
+      if (value.getValue ())
+        {
+          // Button pressed - track for long press detection
+          _recordButtonPressTime = juce::Time::currentTimeMillis ();
+          _recordButtonLongPress = false;
+          _ioAdapter->getButtonLED (Button::Record) = true;
+        }
+      else
+        {
+          // Button released
+          _ioAdapter->getButtonLED (Button::Record) = false;
+          // Long press handling is done when pad is pressed
+        }
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Tap)))
     {
-      _ioAdapter->getButtonLED (Button::Tap) = value.getValue ();
-      if (_clockMode
-          && _ioAdapter->getButton (Button::Tap).getValue ())
+      if (value.getValue ())
         {
-          _engine.getTempoClock ().reset ();
+          // Button pressed - track for long press detection
+          _tapButtonPressTime = juce::Time::currentTimeMillis ();
+          _tapButtonLongPress = false;
+          _ioAdapter->getButtonLED (Button::Tap) = true;
+          
+          // EXT mode: reset beat counter on press
+          if (_clockMode)
+            {
+              _engine.getTempoClock ().reset ();
+            }
+        }
+      else
+        {
+          // Button released
+          _ioAdapter->getButtonLED (Button::Tap) = false;
         }
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
@@ -435,12 +459,8 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           auto const tapTime = juce::int64 (value.getValue ());
           auto const result = _engine.getTempoClock ().tap (tapTime);
           
-          // Reset beat counter on first tap
-          if (result == TempoClock::TapResult::FirstTap)
-            {
-              _engine.getTempoClock ().reset ();
-            }
-          else if (result == TempoClock::TapResult::TempoAvailable)
+          // FirstTap already resets beat counter in TempoClock::tap()
+          if (result == TempoClock::TapResult::TempoAvailable)
             {
               auto const bpm = _engine.getTempoClock ().getTempoBPM ();
               _valueBPM = bpm;
@@ -510,6 +530,9 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 {
   if (isButtonPressed (Button::Record))
     {
+      // Mark as long press since we're using Record for recording
+      _recordButtonLongPress = true;
+      
       if (!_patterns[channel][pad])
         {
           _patterns[channel][pad] = std::make_shared<Pattern> ();
@@ -527,8 +550,10 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       _engine.recordPattern (_patterns[channel][pad],
                              TempoClock::nextDownBeat (_now), recordLength);
     }
-  else if (_clockMode)
+  else if (isButtonPressed (Button::Tap))
     {
+      // Tap held + Pad = show trajectory preview
+      _tapButtonLongPress = true;
       if (_patterns[channel][pad])
         {
           _motionComponent->setPreviewPattern (_patterns[channel][pad]);

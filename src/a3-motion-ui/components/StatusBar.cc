@@ -123,12 +123,12 @@ StatusBar::valueChanged (juce::Value &value)
 void
 StatusBar::beatCallback (Measure measure)
 {
-  _tickIndicator.setCurrentTick (measure.beat ());
-  
-  // Only update beat/bar display when in internal clock mode
+  // Only update tick indicator when in internal clock mode
   if (_clockModeExternal)
     return;
     
+  _tickIndicator.setCurrentTick (measure.beat ());
+  
   // Show as beat/4 (beatsPerBar is fixed to 4)
   auto text = juce::String (measure.beat () + 1) + "/4";
   _labelBeatClock.setText (text, juce::dontSendNotification);
@@ -168,8 +168,10 @@ StatusBar::setBeatClock (int beat, int bar)
   // Show as beat/4 (beatsPerBar is fixed to 4)
   auto text = juce::String (beat) + "/4";
   
-  // Update on message thread
-  juce::MessageManager::callAsync ([this, text] () {
+  // Update on message thread (beat is 1-based from external, convert to 0-based for tick indicator)
+  int tickBeat = (beat - 1) % 4;  // Convert 1-4 to 0-3
+  juce::MessageManager::callAsync ([this, text, tickBeat] () {
+    _tickIndicator.setCurrentTick (tickBeat);
     _labelBeatClock.setText (text, juce::dontSendNotification);
     _labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::orange);
   });

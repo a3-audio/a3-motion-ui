@@ -123,6 +123,15 @@ private:
   
   // ClockMode toggle state
   bool _clockMode = false;
+  
+  // Record button long-press detection
+  juce::int64 _recordButtonPressTime = 0;
+  bool _recordButtonLongPress = false;
+  static constexpr juce::int64 longPressThresholdMs = 300;
+  
+  // Tap button long-press detection (for trajectory preview)
+  juce::int64 _tapButtonPressTime = 0;
+  bool _tapButtonLongPress = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };
