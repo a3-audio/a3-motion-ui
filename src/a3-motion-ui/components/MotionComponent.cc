@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/UserConfig.hh>
 
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
@@ -600,6 +601,64 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
             gFBO.setColour (
                 colour.withLightness (colour.getLightness () + 0.2f));
             gFBO.fillEllipse (blobHighlight.withCentre (posScreenNormalized));
+          }
+
+        // Draw VU corona (glow effect based on audio level)
+        // RMS (vuLevel) controls SIZE, Peak (vuPeak) controls BRIGHTNESS
+        float vuRms = _uiStates[channel]->vuLevel.load ();
+        float vuPeak = _uiStates[channel]->vuPeak.load ();
+        
+        // Also enlarge corona when grabbed or highlighted (like the ball does)
+        bool isActive = _uiStates[channel]->grabbed || _uiStates[channel]->highlighted;
+        
+        if (vuRms > 0.0001f || vuPeak > 0.0001f || isActive)
+          {
+            // Read corona config values (with defaults)
+            auto const &corona = userConfig["corona"];
+            float vuMax = corona.hasProperty ("vuMax") ? static_cast<float> (corona["vuMax"]) : 0.4f;
+            float sizeMin = corona.hasProperty ("sizeMin") ? static_cast<float> (corona["sizeMin"]) : 1.2f;
+            float sizeMax = corona.hasProperty ("sizeMax") ? static_cast<float> (corona["sizeMax"]) : 2.0f;
+            float sizeGrabbed = corona.hasProperty ("sizeGrabbed") ? static_cast<float> (corona["sizeGrabbed"]) : 1.5f;
+            float alphaMin = corona.hasProperty ("alphaMin") ? static_cast<float> (corona["alphaMin"]) : 0.15f;
+            float alphaMax = corona.hasProperty ("alphaMax") ? static_cast<float> (corona["alphaMax"]) : 0.75f;
+            float whiteBlend = corona.hasProperty ("whiteBlend") ? static_cast<float> (corona["whiteBlend"]) : 0.5f;
+            
+            // Scale to expected max
+            float rmsNorm = std::clamp (vuRms / vuMax, 0.0f, 1.0f);
+            float peakNorm = std::clamp (vuPeak / vuMax, 0.0f, 1.0f);
+            
+            // Apply perceptual curve
+            float rmsScaled = std::pow (rmsNorm, 0.6f);
+            float peakScaled = std::pow (peakNorm, 0.6f);
+            
+            // Corona size from RMS, but Peak also adds to size for transient response
+            float vuScaled = std::max (rmsScaled, peakScaled * 0.8f);
+            float coronaScale = sizeMin + vuScaled * (sizeMax - sizeMin);
+            
+            // When grabbed/highlighted, set a minimum size but VU can still make it bigger
+            if (_uiStates[channel]->grabbed)
+              coronaScale = std::max (coronaScale, sizeGrabbed);
+            else if (_uiStates[channel]->highlighted)
+              coronaScale = std::max (coronaScale, blobHighlightFactor);
+            
+            auto coronaSize = blobSize * coronaScale;
+            
+            // Peak controls BRIGHTNESS
+            float coronaAlpha = alphaMin + peakScaled * (alphaMax - alphaMin);
+            
+            // Blend color towards white
+            auto glowColor = colour.interpolatedWith (juce::Colours::white, peakScaled * whiteBlend);
+            
+            // Draw glow layers
+            for (int layer = 2; layer >= 1; --layer)
+              {
+                float layerScale = 1.0f + (layer - 1) * 0.15f;
+                float layerAlpha = coronaAlpha / (layer * 2.0f);
+                auto layerSize = coronaSize * layerScale;
+                auto layerRect = juce::Rectangle<float> (0.f, 0.f, layerSize, layerSize);
+                gFBO.setColour (glowColor.withAlpha (layerAlpha));
+                gFBO.fillEllipse (layerRect.withCentre (posScreenNormalized));
+              }
           }
 
         // debug: draw anchor

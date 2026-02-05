@@ -28,7 +28,10 @@ namespace a3
 SpatBackendA3::SpatBackendA3 (juce::String address, int port)
     : _address (address), _port (port)
 {
-  _sender.connect (address, port);
+  if (_sender.connect (address, port))
+    std::cout << "OSC Sender connected to " << address << ":" << port << std::endl;
+  else
+    std::cerr << "ERROR: OSC Sender failed to connect to " << address << ":" << port << std::endl;
 }
 
 void
@@ -46,7 +49,8 @@ SpatBackendA3::sendPosition (index_t channel, Pos const &pos)
   message = juce::OSCMessage (elevationPattern, pos.elevation ());
   bundle.addElement ({ message });
 
-  _sender.sendToIPAddress (_address, _port, bundle);
+  if (!_sender.sendToIPAddress (_address, _port, bundle))
+    std::cerr << "OSC send failed for channel " << channel << std::endl;
 }
 
 void

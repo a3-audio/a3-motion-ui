@@ -74,10 +74,14 @@ cmake --build . --target a3-motion-ui_Standalone -j3
 BINARY="$BUILD_DIR/src/a3-motion-ui/a3-motion-ui_artefacts/$BUILD_TYPE/Standalone/a3-motion-ui"
 BINARY_DIR="$BUILD_DIR/src/a3-motion-ui/a3-motion-ui_artefacts/$BUILD_TYPE/Standalone"
 
-# Create symlink to resources if not exists
+# Create symlinks to resources and config if not exists
 if [ ! -e "$BINARY_DIR/resources" ]; then
     echo "=== Creating resources symlink ==="
     ln -s "$SRC_DIR/resources" "$BINARY_DIR/resources"
+fi
+if [ ! -e "$BINARY_DIR/config" ]; then
+    echo "=== Creating config symlink ==="
+    ln -s "$SRC_DIR/config" "$BINARY_DIR/config"
 fi
 
 echo ""

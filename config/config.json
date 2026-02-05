@@ -32,5 +32,14 @@
       "g": 45,
       "b": 0
     }
+  },
+  "corona": {
+    "vuMax": 0.25,
+    "sizeMin": 1,
+    "sizeMax": 2,
+    "sizeGrabbed": 3,
+    "alphaMin": 0.15,
+    "alphaMax": 0.75,
+    "whiteBlend": 0.3
   }
 }

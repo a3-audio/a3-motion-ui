@@ -45,7 +45,8 @@ class Pattern;
 
 class A3MotionUIComponent : public juce::Component,
                             public juce::Value::Listener,
-                            public juce::MessageListener
+                            public juce::MessageListener,
+                            public juce::OSCReceiver::Listener<juce::OSCReceiver::MessageLoopCallback>
 
 {
 public:
@@ -60,6 +61,9 @@ public:
 
   void valueChanged (juce::Value &value) override;
   void handleMessage (juce::Message const &message) override;
+  
+  // OSC Receiver
+  void oscMessageReceived (const juce::OSCMessage &message) override;
 
 private:
   static auto constexpr numPages = 4u;
@@ -110,6 +114,10 @@ private:
 
   void initializePatterns ();
   std::vector<std::vector<std::shared_ptr<Pattern> > > _patterns;
+
+  // OSC Receiver for VU meters, beat clock, etc.
+  juce::OSCReceiver _oscReceiver;
+  static constexpr int oscReceivePort = 7771;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };

@@ -22,6 +22,7 @@
 
 #include <chrono>
 #include <fstream>
+#include <iostream>
 
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/Pattern.hh>
@@ -77,10 +78,24 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       _tempoEstimatorTest = std::make_unique<TempoEstimatorTest> ();
       _ioAdapter->getTapTimeMicros ().addListener (_tempoEstimatorTest.get ());
     }
+
+  // Setup OSC Receiver
+  if (_oscReceiver.connect (oscReceivePort))
+    {
+      std::cout << "OSC Receiver listening on port " << oscReceivePort << std::endl;
+      _oscReceiver.addListener (this);
+    }
+  else
+    {
+      std::cerr << "ERROR: Could not bind OSC Receiver to port " << oscReceivePort << std::endl;
+    }
 }
 
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
+  _oscReceiver.removeListener (this);
+  _oscReceiver.disconnect ();
+
   if (runsOnHardware ())
     {
       _ioAdapter->stopThread (-1);
@@ -719,6 +734,45 @@ A3MotionUIComponent::scheduledForIdleLEDColour (int step,
           return LEDColours::scheduledForRecording;
         }
     }
+}
+
+void
+A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
+{
+  auto address = message.getAddressPattern ().toString ();
+  
+  // Handle VU meter messages: /vu/<channel> ff <peak> <rms>
+  if (address.startsWith ("/vu/"))
+    {
+      auto channelStr = address.substring (4);
+      auto channel = channelStr.getIntValue ();
+      
+      // Map OSC channels 0-3 to our channels 0-3
+      if (channel >= 0 
+          && static_cast<size_t>(channel) < _channelUIStates.size ()
+          && message.size () >= 2)
+        {
+          float peak = message[0].getFloat32 ();
+          float rms = message[1].getFloat32 ();
+          
+          _channelUIStates[static_cast<size_t>(channel)]->vuPeak = peak;
+          _channelUIStates[static_cast<size_t>(channel)]->vuLevel = rms;  // vuLevel stores RMS
+        }
+      return; // Don't log VU messages (too spammy)
+    }
+  
+  // Log other OSC messages
+  std::cout << "OSC: " << address.toStdString ();
+  for (auto &arg : message)
+    {
+      if (arg.isFloat32 ())
+        std::cout << " " << arg.getFloat32 ();
+      else if (arg.isInt32 ())
+        std::cout << " " << arg.getInt32 ();
+      else if (arg.isString ())
+        std::cout << " " << arg.getString ();
+    }
+  std::cout << std::endl;
 }
 
 }

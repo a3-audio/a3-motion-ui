@@ -295,6 +295,8 @@ MotionEngine::tickCallback ()
         {
           _commandQueue.sendPosition (index, position);
           _lastSentPositions[index] = position;
+          std::cout << "OSC send ch" << index << ": az=" << position.azimuth () 
+                    << " el=" << position.elevation () << std::endl;
         }
 
       auto const pot1 = _channels[index]->getPot1 ();
