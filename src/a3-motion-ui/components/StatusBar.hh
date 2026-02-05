@@ -34,6 +34,7 @@ class StatusBar : public juce::Component, public juce::Value::Listener
 {
 public:
   StatusBar (juce::Value &valueBPM);
+  ~StatusBar ();
 
   void resized () override;
   void paint (juce::Graphics &g) override;
@@ -44,6 +45,9 @@ public:
   // Update from external OSC data
   void setExternalBPM (float bpm);
   void setBeatClock (int beat, int bar);
+  
+  // Clock mode status (internal/external)
+  void setClockMode (bool external);
 
   static constexpr int
   getMinimumHeight ()
@@ -58,9 +62,11 @@ private:
   juce::Value &_valueBPM;
   
   juce::Label _labelBeatClock;
+  juce::Label _labelClockMode;
   std::atomic<float> _externalBPM{ 0.f };
   std::atomic<int> _beatClockBeat{ 0 };
   std::atomic<int> _beatClockBar{ 0 };
+  std::atomic<bool> _clockModeExternal{ false };
 };
 
 }

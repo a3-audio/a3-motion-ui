@@ -41,7 +41,7 @@
     }
   },
   "corona": {
-    "vuMax": 0.24,
+    "vuMax": 0.27,
     "sizeMin": 0,
     "sizeMax": 2.5,
     "sizeGrabbed": 0.6,
