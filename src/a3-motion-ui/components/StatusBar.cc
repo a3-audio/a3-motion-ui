@@ -140,16 +140,15 @@ StatusBar::setExternalBPM (float bpm)
 {
   _externalBPM = bpm;
   
-  // Only update BPM display when in external clock mode
-  if (!_clockModeExternal)
-    return;
-  
   auto stringStream = std::stringstream ();
   stringStream.precision (1);
   stringStream << std::fixed << bpm << " BPM";
   
-  // Update on message thread
+  // Update on message thread – check clock mode inside lambda to avoid
+  // race condition when mode switches between queuing and execution
   juce::MessageManager::callAsync ([this, str = stringStream.str ()] () {
+    if (!_clockModeExternal)
+      return;
     _labelBPM.setText (str, juce::dontSendNotification);
     _labelBPM.setColour (juce::Label::textColourId, juce::Colours::orange);
   });
@@ -161,16 +160,16 @@ StatusBar::setBeatClock (int beat, int bar)
   _beatClockBeat = beat;
   _beatClockBar = bar;
   
-  // Only update beat/bar display when in external clock mode
-  if (!_clockModeExternal)
-    return;
-  
   // Show as beat/4 (beatsPerBar is fixed to 4)
   auto text = juce::String (beat) + "/4";
   
   // Update on message thread (beat is 1-based from external, convert to 0-based for tick indicator)
+  // Check clock mode inside lambda to avoid race condition when mode
+  // switches between queuing and execution
   int tickBeat = (beat - 1) % 4;  // Convert 1-4 to 0-3
   juce::MessageManager::callAsync ([this, text, tickBeat] () {
+    if (!_clockModeExternal)
+      return;
     _tickIndicator.setCurrentTick (tickBeat);
     _labelBeatClock.setText (text, juce::dontSendNotification);
     _labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::orange);
@@ -202,11 +201,12 @@ StatusBar::setClockMode (bool external)
         
         // Show external beat clock if available
         int beat = _beatClockBeat.load ();
-        int bar = _beatClockBar.load ();
-        if (beat > 0 || bar > 0)
+        if (beat > 0)
           {
-            auto text = juce::String (bar) + "." + juce::String (beat);
+            auto text = juce::String (beat) + "/4";
             _labelBeatClock.setText (text, juce::dontSendNotification);
+            int tickBeat = (beat - 1) % 4;
+            _tickIndicator.setCurrentTick (tickBeat);
           }
       }
     else
@@ -225,6 +225,11 @@ StatusBar::setClockMode (bool external)
             stringStream << "BPM " << std::fixed << bpm;
             _labelBPM.setText (stringStream.str (), juce::dontSendNotification);
           }
+        
+        // Reset tick indicator and beat counter to show internal state
+        // (will be updated on next internal beat via beatCallback)
+        _tickIndicator.setCurrentTick (0);
+        _labelBeatClock.setText ("1/4", juce::dontSendNotification);
       }
   });
 }

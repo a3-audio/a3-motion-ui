@@ -49,19 +49,20 @@ Each channel is represented by a colored blob on the motion area:
 - The motion controller runs its own tempo clock
 - Use **TAP** button to set BPM (first tap resets beat to 1)
 - Status bar shows internal BPM, beat indicator, and beat counter
-- **Internal beatclock is always sent via OSC** (`/beatclock`)
+- `/beat` is sent via OSC
 
 ### EXT (External Clock) – Orange
 - The motion controller receives tempo/beat from an external source via OSC
 - **TAP** button resets beat counter to 1 (sync point)
 - Status bar shows external BPM and beat counter from OSC input
+- **Pattern playback synchronizes to external clock** (BPM and beat phase)
+- `/beat` is NOT sent (to avoid feedback)
 - Use for synchronization with DAWs or other clock sources
-- **Internal beatclock is still sent via OSC** (for downstream applications)
 
 ## General Behavior
 
-- The internal beatclock (`/beatclock`) is **always sent via OSC**, regardless of clock mode
-- In **EXT mode**, the display shows incoming OSC data, but the internal clock continues to run and send
+- In **INT mode**, `/beat` is sent via OSC to the beatclockPort
+- In **EXT mode**, `/beat` is received via OSC and drives display + pattern playback
 
 ## Recording & Playback
 

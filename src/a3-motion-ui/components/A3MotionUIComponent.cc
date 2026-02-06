@@ -403,6 +403,21 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
         {
           _clockMode = !_clockMode;
           
+          if (_clockMode)
+            {
+              // Switching to EXT: save current internal tempo
+              _internalBPM = _engine.getTempoClock ().getTempoBPM ();
+            }
+          else
+            {
+              // Switching to INT: restore saved internal tempo
+              if (_internalBPM > 0.f)
+                {
+                  _engine.getTempoClock ().setTempoBPM (_internalBPM);
+                  _valueBPM = static_cast<double> (_internalBPM);
+                }
+            }
+          
           // Update LED and status bar
           _ioAdapter->getButtonLED (Button::ClockMode) = _clockMode;
           _statusBar->setClockMode (_clockMode);
@@ -658,8 +673,9 @@ A3MotionUIComponent::tickCallback (Measure measure)
 {
   _now = measure;
 
-  // Send beatclock via OSC on every beat
-  if (measure.tick () == 0)
+  // Send beat via OSC on every beat (only in INT mode to avoid feedback with external clock)
+  // AsyncOSCSender enqueues to lock-free FIFO, safe to call from any thread
+  if (!_clockMode && measure.tick () == 0)
     {
       auto beatClockMsg = juce::OSCMessage ("/beat");
       beatClockMsg.addInt32 (measure.beat () + 1);  // 1-indexed beat
@@ -856,15 +872,31 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
     }
   
   // Handle external beat clock: /beat iii <beat> <bar> <bpm>
-  if (address == "/beat" && message.size () >= 3
-      && message[0].isInt32 () && message[1].isInt32 () && message[2].isInt32 ())
+  if (address == "/beat" && message.size () >= 3)
     {
-      int beat = message[0].getInt32 ();
-      int bar = message[1].getInt32 ();
-      int bpm = message[2].getInt32 ();
-      std::cout << "OSC RX: /beat beat=" << beat << " bar=" << bar << " bpm=" << bpm << std::endl;
+      // Accept both int and float arguments
+      auto getIntArg = [] (const juce::OSCArgument &arg) -> int {
+        if (arg.isInt32 ()) return arg.getInt32 ();
+        if (arg.isFloat32 ()) return static_cast<int> (arg.getFloat32 ());
+        return 0;
+      };
+      
+      int beat = getIntArg (message[0]);
+      int bar = getIntArg (message[1]);
+      int bpm = getIntArg (message[2]);
+      
+      std::cout << "RX /beat: " << beat << " " << bar << " " << bpm 
+                << " mode=" << (_clockMode ? "EXT" : "INT") << std::endl;
+      
+      // Update StatusBar (filters by clock mode internally)
       _statusBar->setExternalBPM (static_cast<float> (bpm));
       _statusBar->setBeatClock (beat, bar);
+      
+      // In EXT mode: set internal clock BPM so patterns run at external tempo
+      if (_clockMode)
+        {
+          _engine.getTempoClock ().setTempoBPM (static_cast<float> (bpm));
+        }
       return;
     }
   

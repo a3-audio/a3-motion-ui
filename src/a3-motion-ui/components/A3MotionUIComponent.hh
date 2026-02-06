@@ -29,6 +29,7 @@
 #include <a3-motion-engine/Pattern.hh>
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/io/AsyncOSCSender.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 
 namespace a3
@@ -118,11 +119,12 @@ private:
   // OSC Receiver for VU meters, beat clock, etc.
   juce::OSCReceiver _oscReceiver;
   
-  // OSC Sender for beatclock output
-  juce::OSCSender _oscSender;
+  // Async OSC Sender for beatclock output (non-blocking, dedicated thread)
+  AsyncOSCSender _oscSender;
   
   // ClockMode toggle state
   bool _clockMode = false;
+  float _internalBPM = 0.f;  // saved INT tempo for restore after EXT mode
   
   // Record button long-press detection
   juce::int64 _recordButtonPressTime = 0;
