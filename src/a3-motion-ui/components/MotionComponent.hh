@@ -119,11 +119,11 @@ private:
   // 3D raytraced sphere shader
   SphereShader _sphereShader;
 
-  // VU-driven sphere glow (/vu/5)
+  // VU-driven sphere glow (/vu/4 = subwoofer)
   std::atomic<float> _vuSphereGlowPeak{ 0.f };
   std::atomic<float> _vuSphereGlowRms{ 0.f };
 
-  // VU-driven speaker spotlights (/vu/6-9 → speakers at 45°,135°,225°,315°)
+  // VU-driven speaker spotlights (/vu/5-8 → speakers at 45°,135°,225°,315°)
   std::atomic<float> _vuSpeakerPeak[4]{ {0.f}, {0.f}, {0.f}, {0.f} };
   std::atomic<float> _vuSpeakerRms[4]{ {0.f}, {0.f}, {0.f}, {0.f} };
 

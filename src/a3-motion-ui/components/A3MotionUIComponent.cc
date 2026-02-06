@@ -883,15 +883,15 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
               _channelUIStates[static_cast<size_t>(channel)]->vuPeak = peak;
               _channelUIStates[static_cast<size_t>(channel)]->vuLevel = rms;
             }
-          // Channel 5: sphere glow (reddish)
-          else if (channel == 5)
+          // Channel 4: subwoofer → sphere glow
+          else if (channel == 4)
             {
               _motionComponent->setSphereGlow (peak, rms);
             }
-          // Channels 6-9: speaker spotlights (warm yellow)
-          else if (channel >= 6 && channel <= 9)
+          // Channels 5-8: speaker spotlights
+          else if (channel >= 5 && channel <= 8)
             {
-              _motionComponent->setSpeakerLight (channel - 6, peak, rms);
+              _motionComponent->setSpeakerLight (channel - 5, peak, rms);
             }
         }
       return; // Don't log VU messages (too spammy)

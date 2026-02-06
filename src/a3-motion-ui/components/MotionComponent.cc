@@ -469,6 +469,15 @@ MotionComponent::newOpenGLContextCreated ()
     gc.curve = cfgF (sg, "curve", 0.4f);
     _sphereShader.setGlowConfig (gc);
 
+    SphereShader::BackgroundGlowConfig bgc;
+    auto const &bg = userConfig["backgroundGlow"];
+    bgc.r         = cfgF (bg, "r", 0.9f);
+    bgc.g         = cfgF (bg, "g", 0.10f);
+    bgc.b         = cfgF (bg, "b", 0.05f);
+    bgc.falloff   = cfgF (bg, "falloff", 1.5f);
+    bgc.intensity = cfgF (bg, "intensity", 0.8f);
+    _sphereShader.setBackgroundGlowConfig (bgc);
+
     SphereShader::SpotlightConfig sc;
     auto const &sl = userConfig["speakerLight"];
     sc.r = cfgF (sl, "r", 1.0f);

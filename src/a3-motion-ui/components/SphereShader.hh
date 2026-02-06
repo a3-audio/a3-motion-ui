@@ -82,6 +82,14 @@ public:
   };
   void setGlowConfig (GlowConfig const &cfg);
 
+  struct BackgroundGlowConfig
+  {
+    float r = 0.9f, g = 0.10f, b = 0.05f;
+    float falloff = 1.5f;
+    float intensity = 0.8f;
+  };
+  void setBackgroundGlowConfig (BackgroundGlowConfig const &cfg);
+
   struct SpotlightConfig
   {
     float r = 1.0f, g = 0.85f, b = 0.2f;
@@ -111,6 +119,10 @@ private:
   GLint _uGlowLevel = -1;
   GLint _uGlowColour = -1;
 
+  GLint _uBgGlowColour = -1;
+  GLint _uBgGlowFalloff = -1;
+  GLint _uBgGlowIntensity = -1;
+
   GLint _uSpotLevel[4] = { -1, -1, -1, -1 };
   GLint _uSpotColour = -1;
   GLint _uSpeakerRadius = -1;
@@ -129,6 +141,7 @@ private:
   int _numBlobs = 0;
 
   GlowConfig _glowCfg;
+  BackgroundGlowConfig _bgGlowCfg;
   SpotlightConfig _spotCfg;
 };
 

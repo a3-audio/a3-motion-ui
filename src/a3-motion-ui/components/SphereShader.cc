@@ -63,6 +63,10 @@ uniform vec2  uSphereCentre;
 uniform float uGlowLevel;
 uniform vec3  uGlowColour;
 
+uniform vec3  uBgGlowColour;
+uniform float uBgGlowFalloff;
+uniform float uBgGlowIntensity;
+
 uniform float uSpotLevel0;
 uniform float uSpotLevel1;
 uniform float uSpotLevel2;
@@ -153,9 +157,9 @@ float spotContrib (float spotLevel, float angleDeg, vec2 uv, float dist)
     vec2 spotDir = vec2 (cos (angleRad), sin (angleRad));
     vec2 dirFromCentre = normalize (uv);
     float alignment = max (dot (dirFromCentre, spotDir), 0.0);
-    alignment = pow (alignment, 4.0);
-    float radialFade = 1.0 / (1.0 + (dist - 1.0) * 1.5);
-    return spotLevel * alignment * radialFade * 0.5;
+    alignment = pow (alignment, 2.0);  // wider cone
+    float radialFade = 1.0 / (1.0 + (dist - 1.0) * 0.8);  // slower falloff
+    return spotLevel * alignment * radialFade * 0.8;
 }
 
 float spotSurface (float spotLevel, float angleDeg, vec3 N)
@@ -164,8 +168,8 @@ float spotSurface (float spotLevel, float angleDeg, vec3 N)
     float angleRad = angleDeg * 3.14159265 / 180.0;
     vec3 spotLightDir = normalize (vec3 (cos (angleRad), sin (angleRad), 0.3));
     float spotDot = max (dot (N, spotLightDir), 0.0);
-    spotDot = pow (spotDot, 3.0);
-    return spotLevel * spotDot * 0.25;
+    spotDot = pow (spotDot, 2.0);  // broader light spread
+    return spotLevel * spotDot * 0.5;  // stronger contribution
 }
 
 // ─── main ───────────────────────────────────────────────────────
@@ -178,26 +182,32 @@ void main ()
     // ── Outside sphere ──────────────────────────────────────────
     if (dist > 1.0)
     {
-        vec4 col = vec4 (0.0);
+        vec3 col = vec3 (0.0);
+        float alpha = 0.0;
 
-        // Sphere glow
+        // Background glow — config-driven colour, falloff, intensity
         if (uGlowLevel > 0.001)
         {
-            float glowFalloff = 1.0 / (1.0 + (dist - 1.0) * 2.5);
+            float glowFalloff = 1.0 / (1.0 + (dist - 1.0) * uBgGlowFalloff);
             glowFalloff *= glowFalloff;
-            float glowAlpha = uGlowLevel * glowFalloff * 0.7;
-            col += vec4 (uGlowColour * glowAlpha, glowAlpha);
+            float ga = uGlowLevel * glowFalloff * uBgGlowIntensity;
+            col += uBgGlowColour * ga;
+            alpha = max(alpha, ga);
         }
 
-        // Speaker spotlights outside sphere
+        // Speaker spotlights — magenta-orange beams from speaker positions
         float sa = 0.0;
         sa += spotContrib (uSpotLevel0,  45.0, uv, dist);
         sa += spotContrib (uSpotLevel1, 135.0, uv, dist);
         sa += spotContrib (uSpotLevel2, 225.0, uv, dist);
         sa += spotContrib (uSpotLevel3, 315.0, uv, dist);
-        col += vec4 (uSpotColour * sa, sa);
+        if (sa > 0.001)
+        {
+            col += uSpotColour * sa;
+            alpha = max(alpha, sa * 0.9);
+        }
 
-        gl_FragColor = col;
+        gl_FragColor = vec4 (col, alpha);
         return;
     }
 
@@ -269,17 +279,19 @@ void main ()
     float headEdge = smoothstep (0.0, 0.03, abs (headDist));
     headEdge = (1.0 - headEdge) * 0.15;
 
-    // VU glow on surface
-    float surfaceGlow = uGlowLevel * (1.0 - dist * 0.5) * 0.4;
+    // VU glow on surface — red absorption glow
+    float surfaceGlow = uGlowLevel * (1.0 - dist * 0.3) * 0.5;
     vec3 glowOnSurface = uGlowColour * surfaceGlow;
 
-    // Spot light on surface
+    // Spot light on surface — sphere absorbs into reddish glow
     float ss = 0.0;
     ss += spotSurface (uSpotLevel0,  45.0, N);
     ss += spotSurface (uSpotLevel1, 135.0, N);
     ss += spotSurface (uSpotLevel2, 225.0, N);
     ss += spotSurface (uSpotLevel3, 315.0, N);
-    vec3 spotOnSurface = uSpotColour * ss;
+    // Incoming magenta-orange light absorbed → shifted to warm red glow
+    vec3 absorbedColour = vec3 (0.9, 0.12, 0.06);
+    vec3 spotOnSurface = mix (uSpotColour, absorbedColour, 0.7) * ss;
 
     // Compose
     vec3 colour = baseCol;
@@ -340,8 +352,11 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uResolution    = glGetUniformLocation (pid, "uResolution");
   _uSphereRadius  = glGetUniformLocation (pid, "uSphereRadius");
   _uSphereCentre  = glGetUniformLocation (pid, "uSphereCentre");
-  _uGlowLevel     = glGetUniformLocation (pid, "uGlowLevel");
-  _uGlowColour    = glGetUniformLocation (pid, "uGlowColour");
+  _uGlowLevel       = glGetUniformLocation (pid, "uGlowLevel");
+  _uGlowColour      = glGetUniformLocation (pid, "uGlowColour");
+  _uBgGlowColour    = glGetUniformLocation (pid, "uBgGlowColour");
+  _uBgGlowFalloff   = glGetUniformLocation (pid, "uBgGlowFalloff");
+  _uBgGlowIntensity = glGetUniformLocation (pid, "uBgGlowIntensity");
   _uSpotLevel[0]  = glGetUniformLocation (pid, "uSpotLevel0");
   _uSpotLevel[1]  = glGetUniformLocation (pid, "uSpotLevel1");
   _uSpotLevel[2]  = glGetUniformLocation (pid, "uSpotLevel2");
@@ -429,6 +444,14 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     if (_uGlowColour >= 0) glUniform3f (_uGlowColour, _glowCfg.r, _glowCfg.g, _glowCfg.b);
   }
 
+  // Background glow
+  if (_uBgGlowColour >= 0)
+    glUniform3f (_uBgGlowColour, _bgGlowCfg.r, _bgGlowCfg.g, _bgGlowCfg.b);
+  if (_uBgGlowFalloff >= 0)
+    glUniform1f (_uBgGlowFalloff, _bgGlowCfg.falloff);
+  if (_uBgGlowIntensity >= 0)
+    glUniform1f (_uBgGlowIntensity, _bgGlowCfg.intensity);
+
   // Speaker spotlights
   for (int i = 0; i < 4; ++i)
     {
@@ -503,6 +526,9 @@ void SphereShader::setNumBlobs (int n)
 
 void SphereShader::setGlowConfig (GlowConfig const &c)
 { _glowCfg = c; }
+
+void SphereShader::setBackgroundGlowConfig (BackgroundGlowConfig const &c)
+{ _bgGlowCfg = c; }
 
 void SphereShader::setSpotlightConfig (SpotlightConfig const &c)
 { _spotCfg = c; }
