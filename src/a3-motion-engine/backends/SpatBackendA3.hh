@@ -41,6 +41,13 @@ private:
   int _port;
 
   juce::OSCSender _sender;
+
+  // Pre-cached OSC address patterns (avoid heap allocation per send)
+  static constexpr int kMaxChannels = 8;
+  juce::String _azimuthPatterns[kMaxChannels];
+  juce::String _elevationPatterns[kMaxChannels];
+  juce::String _pot1Patterns[kMaxChannels];
+  juce::String _pot2Patterns[kMaxChannels];
 };
 
 }

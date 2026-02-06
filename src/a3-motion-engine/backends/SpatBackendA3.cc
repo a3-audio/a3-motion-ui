@@ -32,21 +32,28 @@ SpatBackendA3::SpatBackendA3 (juce::String address, int port)
     std::cout << "OSC Sender connected to " << address << ":" << port << std::endl;
   else
     std::cerr << "ERROR: OSC Sender failed to connect to " << address << ":" << port << std::endl;
+
+  // Pre-cache OSC address patterns to avoid heap allocation per send
+  for (int ch = 0; ch < kMaxChannels; ++ch)
+    {
+      auto prefix = juce::String ("/channel/") + juce::String (ch);
+      _azimuthPatterns[ch]   = prefix + "/azimuth";
+      _elevationPatterns[ch] = prefix + "/elevation";
+      _pot1Patterns[ch]      = prefix + "/pot_1";
+      _pot2Patterns[ch]      = prefix + "/pot_2";
+    }
 }
 
 void
 SpatBackendA3::sendPosition (index_t channel, Pos const &pos)
 {
+  jassert (channel < kMaxChannels);
   juce::OSCBundle bundle;
 
-  auto const azimuthPattern
-      = juce::String ("/channel/") + juce::String (channel) + "/azimuth";
-  auto message = juce::OSCMessage (azimuthPattern, pos.azimuth ());
+  auto message = juce::OSCMessage (_azimuthPatterns[channel], pos.azimuth ());
   bundle.addElement ({ message });
 
-  auto const elevationPattern
-      = juce::String ("/channel/") + juce::String (channel) + "/elevation";
-  message = juce::OSCMessage (elevationPattern, pos.elevation ());
+  message = juce::OSCMessage (_elevationPatterns[channel], pos.elevation ());
   bundle.addElement ({ message });
 
   if (!_sender.sendToIPAddress (_address, _port, bundle))
@@ -56,20 +63,16 @@ SpatBackendA3::sendPosition (index_t channel, Pos const &pos)
 void
 SpatBackendA3::sendPot1 (index_t channel, float pot1)
 {
-  auto const pot1Pattern
-      = juce::String ("/channel/") + juce::String (channel) + "/pot_1";
-  // pot_1 is already normalized to 0-1
-  auto message = juce::OSCMessage (pot1Pattern, pot1);
+  jassert (channel < kMaxChannels);
+  auto message = juce::OSCMessage (_pot1Patterns[channel], pot1);
   _sender.sendToIPAddress (_address, _port, message);
 }
 
 void
 SpatBackendA3::sendPot2 (index_t channel, float pot2)
 {
-  auto const pot2Pattern
-      = juce::String ("/channel/") + juce::String (channel) + "/pot_2";
-  // Send pot_2 as linear 0-1 value
-  auto message = juce::OSCMessage (pot2Pattern, pot2);
+  jassert (channel < kMaxChannels);
+  auto message = juce::OSCMessage (_pot2Patterns[channel], pot2);
   _sender.sendToIPAddress (_address, _port, message);
 }
 }

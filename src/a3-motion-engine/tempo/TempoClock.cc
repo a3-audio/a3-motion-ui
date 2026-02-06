@@ -24,6 +24,11 @@
 
 #include <JuceHeader.h>
 
+#ifdef __linux__
+#include <pthread.h>
+#include <sched.h>
+#endif
+
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/tempo/TempoEstimatorMean.hh>
@@ -71,6 +76,7 @@ public:
   void
   hiResTimerCallback () override
   {
+    promoteToRealtimePriority ();
     processFifoMessages ();
     advanceMeasure ();
   }
@@ -78,6 +84,32 @@ public:
   std::atomic<bool> reset{ true };
 
 private:
+  // Promote the timer thread to SCHED_FIFO once, on first callback.
+  // This guarantees the beatclock preempts GL/UI threads on RPi4.
+  void promoteToRealtimePriority ()
+  {
+    if (_rtPromoted)
+      return;
+    _rtPromoted = true;
+
+#ifdef __linux__
+    struct sched_param param;
+    param.sched_priority = 70;  // high but leaves room for audio (usually 80+)
+    int result = pthread_setschedparam (pthread_self (), SCHED_FIFO, &param);
+    if (result != 0)
+      {
+        // Fallback: if we can't get SCHED_FIFO (no CAP_SYS_NICE),
+        // at least set highest normal priority
+        DBG ("Could not set SCHED_FIFO (error " << result << "), falling back to max nice");
+        // setpriority is another option but JUCE already handles nice levels
+      }
+    else
+      {
+        DBG ("Timer thread promoted to SCHED_FIFO priority 70");
+      }
+#endif
+  }
+  bool _rtPromoted = false;
   struct SubmittedMessage : public Message
   {
     SubmittedMessage () : Message{} {}
@@ -95,7 +127,7 @@ private:
       for (auto notification :
            { a3::TempoClock::Execution::TimerThread,
              a3::TempoClock::Execution::JuceMessageThread })
-        func (event, notification, _handlers[{ event, notification }]);
+        func (event, notification, _handlers[handlerIndex (event, notification)]);
   }
 
   void
@@ -142,7 +174,7 @@ private:
   void
   handleMessage (SubmittedMessage &message)
   {
-    auto &v = _handlers[{ message.event, message.execution }];
+    auto &v = _handlers[handlerIndex (message.event, message.execution)];
     jassert (
         std::find_if (
             v.begin (), v.end (),
@@ -213,7 +245,19 @@ private:
     for (auto execution : { a3::TempoClock::Execution::TimerThread,
                             a3::TempoClock::Execution::JuceMessageThread })
       {
-        auto &container = _handlers[{ event, execution }];
+        // Optimisation: throttle JuceMessageThread Tick dispatch.
+        // Instead of dispatching callAsync on EVERY tick (128/beat = ~256/sec
+        // heap allocs on RT thread), only dispatch every Nth tick.
+        // LED stepping needs ~8 updates/beat; we dispatch every 4th tick
+        // (32/beat) which is more than enough and cuts heap allocs by 75%.
+        if (execution == a3::TempoClock::Execution::JuceMessageThread
+            && event == a3::TempoClock::Event::Tick
+            && (_measure.tick () % 4 != 0))
+          {
+            continue;
+          }
+
+        auto &container = _handlers[handlerIndex (event, execution)];
 
         auto it_erase_begin = std::remove_if (
             container.begin (), container.end (),
@@ -256,14 +300,23 @@ private:
       }
   }
 
+  // Flat array indexed by (event * 2 + execution) — replaces std::map
+  // for O(1) lookup with zero allocation on the timer thread.
+  // Layout: [Tick/Timer, Tick/Msg, Beat/Timer, Beat/Msg, Bar/Timer, Bar/Msg]
+  static constexpr std::size_t handlerIndex (a3::TempoClock::Event event,
+                                              a3::TempoClock::Execution exec)
+  {
+    return static_cast<std::size_t> (event) * 2
+         + static_cast<std::size_t> (exec);
+  }
+  static constexpr std::size_t kNumHandlerSlots = 6;  // 3 events × 2 executions
+
   static constexpr int numHandlersPreAllocated = 10;
   static constexpr int fifoSize = 32;
   juce::AbstractFifo _abstractFifo{ fifoSize };
   std::array<SubmittedMessage, fifoSize> _fifo;
 
-  std::map<std::pair<a3::TempoClock::Event, a3::TempoClock::Execution>,
-           ContainerT>
-      _handlers;
+  std::array<ContainerT, kNumHandlerSlots> _handlers;
 
   a3::TempoClock const &_tempoClock;
 

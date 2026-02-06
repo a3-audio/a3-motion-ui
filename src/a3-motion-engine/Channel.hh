@@ -20,8 +20,8 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
-#include <shared_mutex>
 
 #include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/util/Types.hh>
@@ -59,11 +59,10 @@ private:
   std::atomic<float> _pot1 = 0.25f;
   std::atomic<float> _pot2 = 1.f;
 
-  // for now we use a "fair" RW lock using std::shared_mutex to see
-  // how it performs.  we might implement a write-preferring RW lock
-  // based on the example at
-  // https://en.wikipedia.org/wiki/Readers%E2%80%93writer_lock#Using_a_condition_variable_and_a_mutex
-  mutable std::shared_mutex _mutex;
+  // SeqLock for lock-free position access.
+  // Writer (RT timer thread) never blocks.
+  // Reader (GL/UI thread) retries on torn read — always consistent, never blocks writer.
+  mutable std::atomic<unsigned> _seqCount{ 0 };
 };
 
 }

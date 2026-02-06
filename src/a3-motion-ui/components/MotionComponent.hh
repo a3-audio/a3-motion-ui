@@ -127,8 +127,24 @@ private:
   std::atomic<float> _vuSpeakerPeak[4]{ {0.f}, {0.f}, {0.f}, {0.f} };
   std::atomic<float> _vuSpeakerRms[4]{ {0.f}, {0.f}, {0.f}, {0.f} };
 
-  juce::Colour _backgroundColour;
-  std::mutex _mutexBackgroundColour;
+  // Background colour packed as ARGB — lock-free atomic access
+  std::atomic<juce::uint32> _backgroundColourPacked{ 0 };
+
+  // Cached corona config (loaded once in newOpenGLContextCreated, avoids JSON lookup per frame)
+  struct CoronaConfig
+  {
+    float vuMax = 0.4f;
+    float sizeMin = 1.2f;
+    float sizeMax = 2.0f;
+    float sizeGrabbed = 1.5f;
+    float alphaMin = 0.15f;
+    float alphaMax = 0.75f;
+    float whiteBlend = 0.5f;
+  };
+  CoronaConfig _coronaCfg;
+
+  // Frame counter for throttling expensive 2D overlay (speaker SVGs)
+  unsigned _frameCount = 0;
 };
 
 }

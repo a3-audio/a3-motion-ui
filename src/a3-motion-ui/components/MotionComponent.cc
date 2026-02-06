@@ -130,8 +130,9 @@ MotionComponent::MotionComponent (
       juce::File::getCurrentWorkingDirectory ().getChildFile (
           "resources/speaker.svg"));
 
-  // start disocclusion / animation timer
-  startTimer (1 / 60.f);
+  // start disocclusion / animation timer at 30 Hz
+  // (GL renders at 60 Hz vsync, 30 Hz is enough for blob push-away)
+  startTimerHz (30);
 }
 
 MotionComponent::~MotionComponent ()
@@ -157,7 +158,9 @@ MotionComponent::resized ()
 void
 MotionComponent::mouseMove (const juce::MouseEvent &event)
 {
-  updateChannelBlobHighlight (event.getPosition ().toFloat ());
+  // Skip highlight computation while dragging — saves 4× position lookups per move
+  if (!_grabbedIndex.has_value ())
+    updateChannelBlobHighlight (event.getPosition ().toFloat ());
 }
 
 void
@@ -186,8 +189,7 @@ MotionComponent::unsetPreviewPattern (std::shared_ptr<Pattern> pattern)
 void
 MotionComponent::setBackgroundColour (juce::Colour const &colour)
 {
-  std::lock_guard<std::mutex> guard (_mutexBackgroundColour);
-  _backgroundColour = colour;
+  _backgroundColourPacked.store (colour.getARGB (), std::memory_order_relaxed);
 }
 
 void
@@ -267,7 +269,8 @@ MotionComponent::disoccludeBlobs ()
 
               auto t = .01f; // default: snap back with exponential
                              // smoothing
-              std::set<float> ts;
+              int numValid = 0;
+              float validTs[2];
               if (delta > 0.f)
                 {
                   auto t0 = -(D_dot_Delta - std::sqrt (delta))
@@ -277,25 +280,26 @@ MotionComponent::disoccludeBlobs ()
 
                   auto constexpr eps = 0.001f;
                   if (t0 >= -eps && t0 <= 1.f + eps)
-                    ts.insert (t0);
+                    validTs[numValid++] = t0;
                   if (t1 >= -eps && t1 <= 1.f + eps)
-                    ts.insert (t1);
+                    validTs[numValid++] = t1;
 
-                  auto tIt = std::min_element (
-                      ts.begin (), ts.end (),
-                      [&] (auto const &lhs, auto const &rhs) {
-                        return P.getDistanceSquaredFrom (P + lhs * D)
-                               < P.getDistanceSquaredFrom (P + rhs * D);
-                        ;
-                      });
-
-                  if (tIt != ts.end ())
-                    t = *tIt;
+                  // Pick the t that moves P closest to its target
+                  float bestDist = std::numeric_limits<float>::max ();
+                  for (int ti = 0; ti < numValid; ++ti)
+                    {
+                      auto d = P.getDistanceSquaredFrom (P + validTs[ti] * D);
+                      if (d < bestDist)
+                        {
+                          bestDist = d;
+                          t = validTs[ti];
+                        }
+                    }
                 }
 
               posPixel = P + t * D;
 
-              if (!ts.empty ())
+              if (numValid > 0)
                 {
                   // after projecting shift outwards to induce slipping
                   auto Drot = juce::Point<float> (-D.y, D.x);
@@ -373,19 +377,15 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
       auto const posHOA = localToNormalized2DPosition (posPixel);
       _engine.setRecording2DPosition (posHOA);
     }
-  else
+  else if (_grabbedIndex.has_value ())
     {
-      for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
-        {
-          if (_uiStates[channel]->grabbed)
-            {
-              auto const posPixelOffsetted
-                  = posPixel + _uiStates[channel]->grabOffset;
-              auto const posHOA
-                  = localToNormalized2DPosition (posPixelOffsetted);
-              _engine.setChannel2DPosition (channel, posHOA);
-            }
-        }
+      // Direct lookup via cached index — no loop over all channels
+      auto const channel = _grabbedIndex.value ();
+      auto const posPixelOffsetted
+          = posPixel + _uiStates[channel]->grabOffset;
+      auto const posHOA
+          = localToNormalized2DPosition (posPixelOffsetted);
+      _engine.setChannel2DPosition (channel, posHOA);
     }
 }
 
@@ -461,9 +461,9 @@ MotionComponent::newOpenGLContextCreated ()
 
     SphereShader::GlowConfig gc;
     auto const &sg = userConfig["sphereGlow"];
-    gc.r = cfgF (sg, "r", 0.9f);
-    gc.g = cfgF (sg, "g", 0.12f);
-    gc.b = cfgF (sg, "b", 0.05f);
+    gc.r = cfgF (sg, "r", 230.f) / 255.f;
+    gc.g = cfgF (sg, "g", 26.f) / 255.f;
+    gc.b = cfgF (sg, "b", 13.f) / 255.f;
     gc.alphaMax = cfgF (sg, "alphaMax", 0.6f);
     gc.vuMax = cfgF (sg, "vuMax", 0.2f);
     gc.curve = cfgF (sg, "curve", 0.4f);
@@ -471,23 +471,40 @@ MotionComponent::newOpenGLContextCreated ()
 
     SphereShader::BackgroundGlowConfig bgc;
     auto const &bg = userConfig["backgroundGlow"];
-    bgc.r         = cfgF (bg, "r", 0.9f);
-    bgc.g         = cfgF (bg, "g", 0.10f);
-    bgc.b         = cfgF (bg, "b", 0.05f);
+    bgc.r         = cfgF (bg, "r", 230.f) / 255.f;
+    bgc.g         = cfgF (bg, "g", 26.f) / 255.f;
+    bgc.b         = cfgF (bg, "b", 13.f) / 255.f;
     bgc.falloff   = cfgF (bg, "falloff", 1.5f);
     bgc.intensity = cfgF (bg, "intensity", 0.8f);
     _sphereShader.setBackgroundGlowConfig (bgc);
 
     SphereShader::SpotlightConfig sc;
     auto const &sl = userConfig["speakerLight"];
-    sc.r = cfgF (sl, "r", 1.0f);
-    sc.g = cfgF (sl, "g", 0.85f);
-    sc.b = cfgF (sl, "b", 0.2f);
+    sc.r = cfgF (sl, "r", 255.f) / 255.f;
+    sc.g = cfgF (sl, "g", 64.f) / 255.f;
+    sc.b = cfgF (sl, "b", 166.f) / 255.f;
     sc.alphaMax = cfgF (sl, "alphaMax", 0.35f);
     sc.vuMax = cfgF (sl, "vuMax", 0.2f);
     sc.curve = cfgF (sl, "curve", 0.4f);
     sc.speakerRadius = cfgF (sl, "speakerRadius", 1.55f);
     _sphereShader.setSpotlightConfig (sc);
+  }
+
+  // Cache corona config (avoids JSON lookups every frame per blob)
+  {
+    auto cfgF = [] (const juce::var &obj, const char *key,
+                    float def) -> float {
+      return obj.hasProperty (key) ? static_cast<float> (obj[key]) : def;
+    };
+    auto const &corona = userConfig["corona"];
+    _coronaCfg.vuMax       = cfgF (corona, "vuMax", 0.4f);
+    _coronaCfg.sizeMin     = cfgF (corona, "sizeMin", 1.2f);
+    _coronaCfg.sizeMax     = cfgF (corona, "sizeMax", 2.0f);
+    _coronaCfg.sizeGrabbed = cfgF (corona, "sizeGrabbed", 1.5f);
+    _coronaCfg.alphaMin    = cfgF (corona, "alphaMin", 0.15f);
+    _coronaCfg.alphaMax    = cfgF (corona, "alphaMax", 0.75f);
+    _coronaCfg.whiteBlend  = cfgF (corona, "whiteBlend", 0.5f);
+    // Corona config is used directly by drawChannelBlobs() (2D overlay)
   }
 }
 
@@ -498,16 +515,13 @@ MotionComponent::renderOpenGL ()
   using juce::OpenGLHelpers;
 
   jassert (OpenGLHelpers::isContextActive ());
-  _glContext.setSwapInterval (0);
+  _glContext.setSwapInterval (1);  // vsync @ 60 Hz — frees CPU for timer thread
 
   // printFrameTime ();
 
   updateBoundsAndTransform ();
 
   // Clear background first
-  _mutexBackgroundColour.lock ();
-  auto const backgroundColour{ _backgroundColour };
-  _mutexBackgroundColour.unlock ();
   OpenGLHelpers::clear (Colours::background);
 
   // ── 3D scene via shader ───────────────────────────────────────
@@ -578,20 +592,27 @@ MotionComponent::renderOpenGL ()
                         centreY);
   }
 
-  // ── 2D overlay (speakers, blobs, pattern preview) ──────────────
+  // ── 2D overlay (blobs, corona, speakers, pattern preview) ──────
   {
+    _mutexPreview.lock ();
+    auto const patternsPreview{ _patternsPreview };
+    _mutexPreview.unlock ();
+
+    ++_frameCount;
+
     GLContextGraphics graphics (_glContext,
                                 _boundsRender.getWidth (),
                                 _boundsRender.getHeight ());
     graphics.get ().addTransform (_transformNormalizedToLocal);
 
-    drawCircle (graphics.get ());
+    // Speaker SVGs — every frame (lightweight without FBO)
+    if (_drawableSpeaker != nullptr)
+      drawCircle (graphics.get ());
+
+    // Channel blobs + corona — every frame for responsive interaction
     drawChannelBlobs (graphics.get ());
 
-    _mutexPreview.lock ();
-    auto const patternsPreview{ _patternsPreview };
-    _mutexPreview.unlock ();
-
+    // Pattern preview paths
     for (auto &pattern : patternsPreview)
       drawPatternPreview (*pattern, graphics.get ());
   }
@@ -658,11 +679,6 @@ MotionComponent::drawCircle (juce::Graphics &g)
   jassert (_boundsCenterRegion.getWidth ()
            == _boundsCenterRegion.getHeight ());
 
-  // Helper to read float from config with default
-  auto cfgF = [] (const juce::var &obj, const char *key, float def) -> float {
-    return obj.hasProperty (key) ? static_cast<float> (obj[key]) : def;
-  };
-
   // The 3D sphere (body, rim, specular, wireframe, head silhouette,
   // VU glow and spotlights) is now rendered by the SphereShader in
   // renderOpenGL() before this 2D overlay pass.
@@ -672,10 +688,10 @@ MotionComponent::drawCircle (juce::Graphics &g)
   // --- 4 speakers outside the sphere, like spotlights ---
   if (_drawableSpeaker != nullptr)
     {
-      auto const &cfg = userConfig["speakerLight"];
       auto constexpr opacitySpeaker = 0.35f;
       auto constexpr speakerSize = 0.28f;
-      float speakerRadius = cfgF (cfg, "speakerRadius", 1.55f);
+      // Use cached speaker radius from spotlight config
+      float speakerRadius = _sphereShader.getSpeakerRadius ();
 
       for (int i = 0; i < 4; ++i)
         {
@@ -705,153 +721,94 @@ MotionComponent::drawCircle (juce::Graphics &g)
 void
 MotionComponent::drawChannelBlobs (juce::Graphics &g)
 {
-  using namespace juce::gl;
+  // Draw blobs + corona directly — no FBO compositing (_imageBlend) for
+  // maximum performance on RPi4.
 
-  _imageBlend->clear (_imageBlend->getBounds ());
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+    {
+      auto const position = _engine.getChannelPosition (channel);
+      if (!position.isValid ())
+        continue;
 
-  {
-    juce::Graphics gFBO{ *_imageBlend };
-    gFBO.addTransform (_transformNormalizedToLocal);
+      auto blobSize = 2 * reduceFactorBlobs;
+      blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
 
-    for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
-      {
-        auto const position = _engine.getChannelPosition (channel);
-        if (!position.isValid ())
-          continue;
+      auto posScreenNormalized = cartesian2DHOA2JUCE (position);
+      auto colour = _uiStates[channel]->colour;
 
-        auto blobSize = 2 * reduceFactorBlobs;
-        blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
+      // Draw VU corona (glow effect based on audio level)
+      float vuRms = _uiStates[channel]->vuLevel.load ();
+      float vuPeak = _uiStates[channel]->vuPeak.load ();
+      bool isGrabbed = _uiStates[channel]->grabbed;
+      bool isHighlighted = _uiStates[channel]->highlighted;
 
-        auto const blob
-            = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
-        auto const blobGrabbed
-            = juce::Rectangle<float> (0.f, 0.f, //
-                                      blobSize * activeAreaAroundBlobFactor,
-                                      blobSize * activeAreaAroundBlobFactor);
-        auto const blobHighlight = juce::Rectangle<float> (
-            0.f, 0.f, //
-            blobSize * blobHighlightFactor, blobSize * blobHighlightFactor);
+      if (vuRms > 0.0001f || vuPeak > 0.0001f || isGrabbed || isHighlighted)
+        {
+          float vuMax = _coronaCfg.vuMax;
+          float rmsNorm = std::clamp (vuRms / vuMax, 0.0f, 1.0f);
+          float peakNorm = std::clamp (vuPeak / vuMax, 0.0f, 1.0f);
 
-        auto posScreenNormalized = cartesian2DHOA2JUCE (position);
+          // Perceptual curve: x^0.6 ≈ sqrt(x)*x^0.1 — use sqrt approx
+          float rmsScaled = std::sqrt (rmsNorm) * (0.4f + 0.6f * rmsNorm);
+          float peakScaled = std::sqrt (peakNorm) * (0.4f + 0.6f * peakNorm);
 
-        auto colour = _uiStates[channel]->colour;
+          float vuScaled = std::max (rmsScaled, peakScaled * 0.8f);
+          float coronaScale = _coronaCfg.sizeMin
+                              + vuScaled * (_coronaCfg.sizeMax - _coronaCfg.sizeMin);
 
-        // DBG (juce::String ("drawing at position: ")
-        //      + juce::String (pos.getX ()) + " " + juce::String (pos.getY
-        //      ()));
+          float baseBlobScale = 1.0f;
+          if (isGrabbed)
+            {
+              baseBlobScale = activeAreaAroundBlobFactor;
+              coronaScale *= _coronaCfg.sizeGrabbed;
+            }
+          else if (isHighlighted)
+            {
+              baseBlobScale = blobHighlightFactor;
+              coronaScale *= 1.2f;
+            }
 
-        if (_uiStates[channel]->grabbed)
-          {
-            gFBO.setColour (colour.withAlpha (0.4f));
-            gFBO.fillEllipse (blobGrabbed.withCentre (posScreenNormalized));
-          }
+          auto coronaDiam = blobSize * baseBlobScale * coronaScale;
+          float coronaAlpha = _coronaCfg.alphaMin
+                              + peakScaled * (_coronaCfg.alphaMax - _coronaCfg.alphaMin);
+          auto glowColor = colour.interpolatedWith (
+              juce::Colours::white, peakScaled * _coronaCfg.whiteBlend);
 
-        if (_uiStates[channel]->highlighted)
-          {
-            gFBO.setColour (
-                colour.withLightness (colour.getLightness () + 0.2f));
-            gFBO.fillEllipse (blobHighlight.withCentre (posScreenNormalized));
-          }
+          // Two glow layers (outer → inner)
+          for (int layer = 2; layer >= 1; --layer)
+            {
+              float layerScale = 1.0f + (layer - 1) * 0.15f;
+              float layerAlpha = coronaAlpha / (layer * 2.0f);
+              auto layerSize = coronaDiam * layerScale;
+              auto layerRect = juce::Rectangle<float> (0.f, 0.f, layerSize, layerSize);
+              g.setColour (glowColor.withAlpha (layerAlpha));
+              g.fillEllipse (layerRect.withCentre (posScreenNormalized));
+            }
+        }
 
-        // Draw VU corona (glow effect based on audio level)
-        // RMS (vuLevel) controls SIZE, Peak (vuPeak) controls BRIGHTNESS
-        float vuRms = _uiStates[channel]->vuLevel.load ();
-        float vuPeak = _uiStates[channel]->vuPeak.load ();
-        
-        // Also enlarge corona when grabbed or highlighted (like the ball does)
-        bool isActive = _uiStates[channel]->grabbed || _uiStates[channel]->highlighted;
-        
-        if (vuRms > 0.0001f || vuPeak > 0.0001f || isActive)
-          {
-            // Read corona config values (with defaults)
-            auto const &corona = userConfig["corona"];
-            float vuMax = corona.hasProperty ("vuMax") ? static_cast<float> (corona["vuMax"]) : 0.4f;
-            float sizeMin = corona.hasProperty ("sizeMin") ? static_cast<float> (corona["sizeMin"]) : 1.2f;
-            float sizeMax = corona.hasProperty ("sizeMax") ? static_cast<float> (corona["sizeMax"]) : 2.0f;
-            float sizeGrabbed = corona.hasProperty ("sizeGrabbed") ? static_cast<float> (corona["sizeGrabbed"]) : 1.5f;
-            float alphaMin = corona.hasProperty ("alphaMin") ? static_cast<float> (corona["alphaMin"]) : 0.15f;
-            float alphaMax = corona.hasProperty ("alphaMax") ? static_cast<float> (corona["alphaMax"]) : 0.75f;
-            float whiteBlend = corona.hasProperty ("whiteBlend") ? static_cast<float> (corona["whiteBlend"]) : 0.5f;
-            
-            // Scale to expected max
-            float rmsNorm = std::clamp (vuRms / vuMax, 0.0f, 1.0f);
-            float peakNorm = std::clamp (vuPeak / vuMax, 0.0f, 1.0f);
-            
-            // Apply perceptual curve
-            float rmsScaled = std::pow (rmsNorm, 0.6f);
-            float peakScaled = std::pow (peakNorm, 0.6f);
-            
-            // Corona size from RMS, but Peak also adds to size for transient response
-            float vuScaled = std::max (rmsScaled, peakScaled * 0.8f);
-            float coronaScale = sizeMin + vuScaled * (sizeMax - sizeMin);
-            
-            // Base blob size depends on grabbed/highlighted state
-            // When grabbed, the visible ball uses activeAreaAroundBlobFactor (3.0)
-            // When highlighted, it uses blobHighlightFactor (1.1)
-            float baseBlobScale = 1.0f;
-            if (_uiStates[channel]->grabbed)
-              {
-                baseBlobScale = activeAreaAroundBlobFactor;
-                coronaScale *= sizeGrabbed;  // Additional corona boost when grabbed
-              }
-            else if (_uiStates[channel]->highlighted)
-              {
-                baseBlobScale = blobHighlightFactor;
-                coronaScale *= 1.2f;  // Smaller boost when highlighted
-              }
-            
-            auto coronaSize = blobSize * baseBlobScale * coronaScale;
-            
-            // Peak controls BRIGHTNESS
-            float coronaAlpha = alphaMin + peakScaled * (alphaMax - alphaMin);
-            
-            // Blend color towards white
-            auto glowColor = colour.interpolatedWith (juce::Colours::white, peakScaled * whiteBlend);
-            
-            // Draw glow layers
-            for (int layer = 2; layer >= 1; --layer)
-              {
-                float layerScale = 1.0f + (layer - 1) * 0.15f;
-                float layerAlpha = coronaAlpha / (layer * 2.0f);
-                auto layerSize = coronaSize * layerScale;
-                auto layerRect = juce::Rectangle<float> (0.f, 0.f, layerSize, layerSize);
-                gFBO.setColour (glowColor.withAlpha (layerAlpha));
-                gFBO.fillEllipse (layerRect.withCentre (posScreenNormalized));
-              }
-          }
+      // Grabbed: transparent area
+      if (isGrabbed)
+        {
+          auto grabSize = blobSize * activeAreaAroundBlobFactor;
+          auto grabRect = juce::Rectangle<float> (0.f, 0.f, grabSize, grabSize);
+          g.setColour (colour.withAlpha (0.4f));
+          g.fillEllipse (grabRect.withCentre (posScreenNormalized));
+        }
 
-        // debug: draw anchor
-        // gFBO.setColour (colour.withAlpha (0.4f));
-        // gFBO.fillEllipse (
-        //     blob.withCentre (_uiStates[channelIndex]->posAnchor));
-        gFBO.setColour (colour);
-        gFBO.fillEllipse (blob.withCentre (posScreenNormalized));
+      // Highlighted: brighter outline
+      if (isHighlighted)
+        {
+          auto hlSize = blobSize * blobHighlightFactor;
+          auto hlRect = juce::Rectangle<float> (0.f, 0.f, hlSize, hlSize);
+          g.setColour (colour.withLightness (colour.getLightness () + 0.2f));
+          g.fillEllipse (hlRect.withCentre (posScreenNormalized));
+        }
 
-        // draw width indicator
-        // auto const width = _engine.getChannelWidth (channel);
-        // auto const posL
-        //     = Pos::fromSpherical (position.azimuth () - width,
-        //                           position.elevation (), position.distance
-        //                           ());
-        // auto const posR
-        //     = Pos::fromSpherical (position.azimuth () + width,
-        //                           position.elevation (), position.distance
-        //                           ());
-
-        // auto const posLNormalized = cartesian2DHOA2JUCE (posL);
-        // auto const posRNormalized = cartesian2DHOA2JUCE (posR);
-
-        // gFBO.setColour (juce::Colours::white);
-        // gFBO.fillEllipse (blob.withCentre (posLNormalized));
-        // gFBO.setColour (juce::Colours::red);
-        // gFBO.fillEllipse (blob.withCentre (posRNormalized));
-      }
-  }
-
-  g.setOpacity (0.8f);
-  g.drawImage (*_imageBlend, _boundsRender.toFloat ().transformedBy (
-                                 _transformNormalizedToLocal.inverted ()));
-  g.setOpacity (1.f);
+      // Solid blob disc
+      auto blob = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
+      g.setColour (colour);
+      g.fillEllipse (blob.withCentre (posScreenNormalized));
+    }
 }
 
 void

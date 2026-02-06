@@ -66,7 +66,7 @@ MotionEngine::MotionEngine (index_t numChannels, const HeightMap &heightMap)
       TempoClock::Event::Tick, TempoClock::Execution::TimerThread, false);
 
   _tempoClock.start ();
-  _commandQueue.startThread (juce::Thread::Priority::high);
+  _commandQueue.startThread (juce::Thread::Priority::normal);  // lower than timer thread
 }
 
 MotionEngine::~MotionEngine ()
@@ -296,8 +296,6 @@ MotionEngine::tickCallback ()
         {
           _commandQueue.sendPosition (index, position);
           _lastSentPositions[index] = position;
-          std::cout << "OSC send ch" << index << ": az=" << position.azimuth () 
-                    << " el=" << position.elevation () << std::endl;
         }
 
       auto const pot1 = _channels[index]->getPot1 ();
@@ -394,8 +392,10 @@ MotionEngine::handleFifoMessage (Message const &message)
       }
     case Message::Command::Stop:
       {
+#ifdef DEBUG
         juce::Logger::writeToLog ("scheduling stop: "
                                   + toString (message.timepoint));
+#endif
         scheduledForStop (message.pattern);
         _messagesStartStop.push (message);
         break;
@@ -471,6 +471,7 @@ MotionEngine::scheduledForStop (std::shared_ptr<Pattern> pattern)
 void
 MotionEngine::handleStartStopMessages ()
 {
+#ifdef DEBUG
   if (!_messagesStartStop.empty ())
     {
       juce::Logger::writeToLog ("handleStartStopMessages called - queue has "
@@ -478,14 +479,17 @@ MotionEngine::handleStartStopMessages ()
       juce::Logger::writeToLog ("  Front timepoint: " + toString (_messagesStartStop.top ().timepoint));
       juce::Logger::writeToLog ("  Current _now:    " + toString (_now));
     }
+#endif
   
   while (!_messagesStartStop.empty ()
          && _messagesStartStop.top ().timepoint <= _now)
     {
       auto message = _messagesStartStop.top ();
       _messagesStartStop.pop ();
+#ifdef DEBUG
       juce::Logger::writeToLog ("handling message: "
                                 + toString (message.timepoint));
+#endif
 
       switch (message.command)
         {
@@ -550,7 +554,9 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
 
   // Calculate adaptive sub-sampling factor based on recording length
   _recordingSubSamplingFactor = calculateSubSamplingFactor (length, _tempoClock.getBeatsPerBar ());
+#ifdef DEBUG
   juce::Logger::writeToLog ("Recording with sub-sampling factor: " + juce::String (_recordingSubSamplingFactor));
+#endif
 
   auto const ticks
       = Measure::convertToTicks (length, _tempoClock.getBeatsPerBar ());

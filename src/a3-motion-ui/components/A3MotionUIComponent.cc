@@ -141,21 +141,32 @@ A3MotionUIComponent::createChannelsUI ()
   _channelUIStates.reserve (numChannels);
   _channelStrips.reserve (numChannels);
 
-  auto hueStart = 0.f;
+  // Read optional per-channel colours from config
+  auto const &channelsCfg = userConfig["channels"];
+
   for (auto channel = 0u; channel < numChannels; ++channel)
     {
       auto uiState = std::make_unique<ChannelUIState> ();
-      auto const hueNorm
-          = hueStart + static_cast<float> (channel) / numChannels;
-      auto hue = hueNorm / 360.f * 256.f; // for now rescale to
-                                          // (arbitrary) range "in
-                                          // degrees" that stems from
-                                          // misunderstanding the
-                                          // QColor documentation of
-                                          // the old python
-                                          // implementation.
 
-      uiState->colour = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
+      if (channelsCfg.isArray ()
+          && static_cast<int> (channel) < channelsCfg.size ())
+        {
+          auto const &chCfg = channelsCfg[static_cast<int> (channel)];
+          int r = chCfg.hasProperty ("r") ? static_cast<int> (chCfg["r"]) : 128;
+          int g = chCfg.hasProperty ("g") ? static_cast<int> (chCfg["g"]) : 128;
+          int b = chCfg.hasProperty ("b") ? static_cast<int> (chCfg["b"]) : 128;
+          uiState->colour = juce::Colour (static_cast<juce::uint8> (r),
+                                           static_cast<juce::uint8> (g),
+                                           static_cast<juce::uint8> (b));
+        }
+      else
+        {
+          // Fallback: generate colours from HSV
+          auto const hueNorm
+              = static_cast<float> (channel) / numChannels;
+          auto hue = hueNorm / 360.f * 256.f;
+          uiState->colour = juce::Colour::fromHSV (hue, 0.6f, 0.8f, 1.f);
+        }
 
       auto strip = std::make_unique<ChannelStrip> (*uiState);
       addChildComponent (*strip);
@@ -206,8 +217,10 @@ A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
           auto playbackLength
               = Measure{ 0, getLengthBeats (channel), 0 }.consolidate (
                   _engine.getTempoClock ().getBeatsPerBar ());
+#ifdef DEBUG
           juce::Logger::writeToLog ("setting playback length: "
                                     + toString (playbackLength));
+#endif
           playingPattern->setPlaybackLength (playbackLength);
         }
       
@@ -218,8 +231,10 @@ A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
           auto recordingLength
               = Measure{ 0, getLengthBeats (channel), 0 }.consolidate (
                   _engine.getTempoClock ().getBeatsPerBar ());
+#ifdef DEBUG
           juce::Logger::writeToLog ("updating recording pattern length: "
                                     + toString (recordingLength));
+#endif
           recordingPattern->setPlaybackLength (recordingLength);
         }
 
@@ -230,8 +245,10 @@ A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
           auto recordingLength
               = Measure{ 0, getLengthBeats (channel), 0 }.consolidate (
                   _engine.getTempoClock ().getBeatsPerBar ());
+#ifdef DEBUG
           juce::Logger::writeToLog ("updating scheduled recording pattern length: "
                                     + toString (recordingLength));
+#endif
           scheduledRecordingPattern->setPlaybackLength (recordingLength);
         }
     }
@@ -417,8 +434,10 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           
           if (_clockMode)
             {
-              // Switching to EXT: save current internal tempo
+              // Switching to EXT: save current internal tempo and reset clock
+              // phase so external beats don't conflict with running internal clock
               _internalBPM = _engine.getTempoClock ().getTempoBPM ();
+              _engine.getTempoClock ().reset ();
             }
           else
             {
@@ -438,8 +457,6 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           auto clockModeMsg = juce::OSCMessage ("/clockmode");
           clockModeMsg.addInt32 (_clockMode ? 1 : 0);
           _oscSender.send (clockModeMsg);
-          
-          std::cout << "ClockMode: " << (_clockMode ? "EXT" : "INT") << std::endl;
         }
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Record)))
@@ -523,8 +540,10 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               jassert (value.getValue ().isDouble ());
               auto const pot1Normalized
                   = static_cast<float> (value.getValue ());
+#ifdef DEBUG
               juce::Logger::writeToLog ("channel " + juce::String (channel)
                                         + " pot_1: " + juce::String (pot1Normalized));
+#endif
               _engine.setChannelPot1 (channel, pot1Normalized);
               _filterDisplay->setSweep (static_cast<int> (channel), pot1Normalized);
               return;
@@ -534,8 +553,10 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
             {
               jassert (value.getValue ().isDouble ());
               auto const pot2Normalized = static_cast<float> (value.getValue ());
+#ifdef DEBUG
               juce::Logger::writeToLog ("channel " + juce::String (channel)
                                         + " pot_2: " + juce::String (pot2Normalized));
+#endif
               _engine.setChannelPot2 (channel, pot2Normalized);
               _filterDisplay->setQ (static_cast<int> (channel), pot2Normalized);
               return;
@@ -581,8 +602,10 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 
       auto recordLength = Measure{ 0, getLengthBeats (channel), 0 };
       recordLength.consolidate (_engine.getTempoClock ().getBeatsPerBar ());
+#ifdef DEBUG
       juce::Logger::writeToLog ("recording with length: "
                                 + toString (recordLength));
+#endif
       
       // Store the recording length in the pattern so it can be updated if encoder changes
       _patterns[channel][pad]->setPlaybackLength (recordLength);
@@ -720,6 +743,10 @@ A3MotionUIComponent::tickCallback (Measure measure)
         }
     }
 
+  // Throttle repaint to ~30 Hz (every 4th tick at typical tick rate)
+  // The channel strips are hidden but progress values still update
+  bool shouldRepaint = (measure.tick () % 4 == 0);
+
   auto recordingPattern = _engine.getRecordingPattern ();
   if (recordingPattern)
     {
@@ -731,7 +758,8 @@ A3MotionUIComponent::tickCallback (Measure measure)
           = recordingPattern->getLastUpdatedTick ()
             / static_cast<float> (recordingPattern->getNumTicks ());
       _channelUIStates[channel]->progress = progress;
-      _channelStrips[channel]->repaint ();
+      if (shouldRepaint)
+        _channelStrips[channel]->repaint ();
     }
   else
     {
@@ -746,7 +774,8 @@ A3MotionUIComponent::tickCallback (Measure measure)
         {
           auto const playPosition = playingPattern->getPlayPosition ();
           _channelUIStates[channel]->progress = playPosition;
-          _channelStrips[channel]->repaint ();
+          if (shouldRepaint)
+            _channelStrips[channel]->repaint ();
         }
       else if (!recordingPattern || recordingPattern->getChannel () != channel)
         {
@@ -911,9 +940,6 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
       int bar = getIntArg (message[1]);
       int bpm = getIntArg (message[2]);
       
-      std::cout << "RX /beat: " << beat << " " << bar << " " << bpm 
-                << " mode=" << (_clockMode ? "EXT" : "INT") << std::endl;
-      
       // Update StatusBar (filters by clock mode internally)
       _statusBar->setExternalBPM (static_cast<float> (bpm));
       _statusBar->setBeatClock (beat, bar);
@@ -926,7 +952,8 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
       return;
     }
   
-  // Log other OSC messages
+  // Log other OSC messages (debug only — cout blocks the message thread)
+#ifdef DEBUG
   std::cout << "OSC: " << address.toStdString ();
   for (auto &arg : message)
     {
@@ -938,6 +965,7 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
         std::cout << " " << arg.getString ();
     }
   std::cout << std::endl;
+#endif
 }
 
 }

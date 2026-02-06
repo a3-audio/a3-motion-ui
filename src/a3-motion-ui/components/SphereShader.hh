@@ -72,6 +72,8 @@ public:
   void setBlob (int index, BlobData const &data);
   void setNumBlobs (int n);
 
+  // Note: CoronaConfig now lives in MotionComponent (2D blob overlay)
+
   // ── Config ─────────────────────────────────────────────────────
   struct GlowConfig
   {
@@ -99,6 +101,7 @@ public:
     float speakerRadius = 1.55f;
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
+  float getSpeakerRadius () const { return _spotCfg.speakerRadius; }
 
 private:
   static juce::String getVertexShader ();
@@ -127,10 +130,11 @@ private:
   GLint _uSpotColour = -1;
   GLint _uSpeakerRadius = -1;
 
-  // Blob uniforms
+  // Blob uniforms (position+colour kept for lighting on sphere surface)
   GLint _uBlobPosSize[kMaxBlobs] = {};  // vec4: x, y, size, vuLevel
   GLint _uBlobCol[kMaxBlobs] = {};      // vec3: r, g, b
   GLint _uNumBlobs = -1;
+  // Note: blob disc + corona are drawn as 2D overlay by MotionComponent
 
   GLint _aPos = -1;
 
