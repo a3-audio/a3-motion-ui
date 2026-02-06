@@ -45,6 +45,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/ChannelStrip.hh
     components/MotionComponent.cc
     components/MotionComponent.hh
+    components/SphereShader.cc
+    components/SphereShader.hh
     components/TickIndicator.cc
     components/TickIndicator.hh
     components/FilterDisplay.cc

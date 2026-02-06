@@ -26,6 +26,7 @@
 
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/components/SphereShader.hh>
 
 namespace
 {
@@ -125,6 +126,9 @@ MotionComponent::MotionComponent (
   _drawableHead = juce::Drawable::createFromSVGFile (
       juce::File::getCurrentWorkingDirectory ().getChildFile (
           "resources/head.svg"));
+  _drawableSpeaker = juce::Drawable::createFromSVGFile (
+      juce::File::getCurrentWorkingDirectory ().getChildFile (
+          "resources/speaker.svg"));
 
   // start disocclusion / animation timer
   startTimer (1 / 60.f);
@@ -184,6 +188,23 @@ MotionComponent::setBackgroundColour (juce::Colour const &colour)
 {
   std::lock_guard<std::mutex> guard (_mutexBackgroundColour);
   _backgroundColour = colour;
+}
+
+void
+MotionComponent::setSphereGlow (float peak, float rms)
+{
+  _vuSphereGlowPeak = peak;
+  _vuSphereGlowRms = rms;
+}
+
+void
+MotionComponent::setSpeakerLight (int speakerIndex, float peak, float rms)
+{
+  if (speakerIndex >= 0 && speakerIndex < 4)
+    {
+      _vuSpeakerPeak[speakerIndex] = peak;
+      _vuSpeakerRms[speakerIndex] = rms;
+    }
 }
 
 void
@@ -424,6 +445,40 @@ MotionComponent::newOpenGLContextCreated ()
   using namespace juce::gl;
   glDebugMessageControl (GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER,
                          GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
+
+  // Initialise the 3D sphere shader
+  if (!_sphereShader.initialise (_glContext))
+    {
+      DBG ("WARNING: SphereShader failed to initialise – falling back to 2D");
+    }
+
+  // Load glow / spotlight config from userConfig
+  {
+    auto cfgF = [] (const juce::var &obj, const char *key,
+                    float def) -> float {
+      return obj.hasProperty (key) ? static_cast<float> (obj[key]) : def;
+    };
+
+    SphereShader::GlowConfig gc;
+    auto const &sg = userConfig["sphereGlow"];
+    gc.r = cfgF (sg, "r", 0.9f);
+    gc.g = cfgF (sg, "g", 0.12f);
+    gc.b = cfgF (sg, "b", 0.05f);
+    gc.alphaMax = cfgF (sg, "alphaMax", 0.6f);
+    gc.vuMax = cfgF (sg, "vuMax", 0.2f);
+    gc.curve = cfgF (sg, "curve", 0.4f);
+    _sphereShader.setGlowConfig (gc);
+
+    SphereShader::SpotlightConfig sc;
+    auto const &sl = userConfig["speakerLight"];
+    sc.r = cfgF (sl, "r", 1.0f);
+    sc.g = cfgF (sl, "g", 0.85f);
+    sc.b = cfgF (sl, "b", 0.2f);
+    sc.alphaMax = cfgF (sl, "alphaMax", 0.35f);
+    sc.vuMax = cfgF (sl, "vuMax", 0.2f);
+    sc.curve = cfgF (sl, "curve", 0.4f);
+    _sphereShader.setSpotlightConfig (sc);
+  }
 }
 
 void
@@ -439,6 +494,45 @@ MotionComponent::renderOpenGL ()
 
   updateBoundsAndTransform ();
 
+  // Clear background first
+  _mutexBackgroundColour.lock ();
+  auto const backgroundColour{ _backgroundColour };
+  _mutexBackgroundColour.unlock ();
+  OpenGLHelpers::clear (Colours::background);
+
+  // ── 3D sphere via shader (before 2D overlay) ──────────────────
+  {
+    // Forward VU data to shader
+    _sphereShader.setSphereGlow (_vuSphereGlowPeak.load (),
+                                _vuSphereGlowRms.load ());
+    for (int i = 0; i < 4; ++i)
+      _sphereShader.setSpeakerLight (i, _vuSpeakerPeak[i].load (),
+                                     _vuSpeakerRms[i].load ());
+
+    // Compute sphere position and radius in pixels
+    auto const vpW = _boundsRender.getWidth ();
+    auto const vpH = _boundsRender.getHeight ();
+    auto const scale = static_cast<float> (_glContext.getRenderingScale ());
+
+    // _boundsCenterRegion is the square area for the circle
+    auto const centreX
+        = static_cast<float> (_boundsCenterRegion.getCentreX ()) * scale;
+    // GL has Y flipped compared to JUCE
+    auto const centreY
+        = static_cast<float> (vpH) * scale
+          - static_cast<float> (_boundsCenterRegion.getCentreY ()) * scale;
+    auto const radius
+        = static_cast<float> (_boundsCenterRegion.getWidth ()) / 2.f * scale;
+
+    glViewport (0, 0, static_cast<int> (vpW * scale),
+                static_cast<int> (vpH * scale));
+
+    _sphereShader.draw (static_cast<int> (vpW * scale),
+                        static_cast<int> (vpH * scale), radius, centreX,
+                        centreY);
+  }
+
+  // ── 2D overlay (speakers, blobs, patterns) ────────────────────
   {
     GLContextGraphics graphics (_glContext, //
                                 _boundsRender.getWidth (),
@@ -446,12 +540,9 @@ MotionComponent::renderOpenGL ()
 
     graphics.get ().addTransform (_transformNormalizedToLocal);
 
-    _mutexBackgroundColour.lock ();
-    auto const backgroundColour{ _backgroundColour };
-    _mutexBackgroundColour.unlock ();
-    OpenGLHelpers::clear (Colours::background);
-    graphics.get ().setColour (backgroundColour);
-    graphics.get ().fillAll ();
+    // Background fill (behind the sphere the shader already drew)
+    // We skip fillAll here since the shader drew the sphere already
+    // but we still draw the 2D overlay elements
 
     drawCircle (graphics.get ());
     drawChannelBlobs (graphics.get ());
@@ -465,11 +556,6 @@ MotionComponent::renderOpenGL ()
       {
         drawPatternPreview (*pattern, graphics.get ());
       }
-
-    // auto constexpr blobSize = 2;
-    // auto blob = juce::Rectangle<float> (blobSize, blobSize);
-    // graphics.get ().fillEllipse (
-    //     blob.withCentre (juce::Point<float> (0.f, 0.f)));
   }
 }
 
@@ -534,20 +620,46 @@ MotionComponent::drawCircle (juce::Graphics &g)
   jassert (_boundsCenterRegion.getWidth ()
            == _boundsCenterRegion.getHeight ());
 
-  auto constexpr opacityHead = 0.4f;
-  auto const diameterHead = 2.f * reduceFactorHead;
-  auto const boundsHead = juce::Rectangle<float> ().withSizeKeepingCentre (
-      diameterHead, diameterHead);
-  _drawableHead->drawWithin (g, boundsHead, juce::RectanglePlacement::centred,
-                             opacityHead);
+  // Helper to read float from config with default
+  auto cfgF = [] (const juce::var &obj, const char *key, float def) -> float {
+    return obj.hasProperty (key) ? static_cast<float> (obj[key]) : def;
+  };
 
-  auto const diameterCircle = 2.f;
-  auto const boundsCircle = juce::Rectangle<float> ().withSizeKeepingCentre (
-      diameterCircle, diameterCircle);
+  // The 3D sphere (body, rim, specular, wireframe, head silhouette,
+  // VU glow and spotlights) is now rendered by the SphereShader in
+  // renderOpenGL() before this 2D overlay pass.
+  //
+  // What remains here: speaker icons drawn as SVG overlays.
 
-  auto constexpr opacityIsoSphere = 0.3f;
-  g.setOpacity (opacityIsoSphere);
-  g.drawImage (_imageIsoSphere, boundsCircle);
+  // --- 4 speakers outside the sphere, like spotlights ---
+  if (_drawableSpeaker != nullptr)
+    {
+      auto const &cfg = userConfig["speakerLight"];
+      auto constexpr opacitySpeaker = 0.35f;
+      auto constexpr speakerSize = 0.28f;
+      float speakerRadius = cfgF (cfg, "speakerRadius", 1.55f);
+
+      for (int i = 0; i < 4; ++i)
+        {
+          float angleDeg = 45.f + i * 90.f;
+          float angleRad = angleDeg * juce::MathConstants<float>::pi / 180.f;
+
+          float sx = speakerRadius * std::cos (angleRad);
+          float sy = speakerRadius * std::sin (angleRad);
+
+          auto speakerBounds = juce::Rectangle<float> ().withSizeKeepingCentre (
+              speakerSize, speakerSize);
+
+          g.saveState ();
+          g.addTransform (juce::AffineTransform::rotation (
+              angleRad + juce::MathConstants<float>::pi, sx, sy));
+          g.setOpacity (opacitySpeaker);
+          _drawableSpeaker->drawWithin (
+              g, speakerBounds.withCentre ({ sx, sy }),
+              juce::RectanglePlacement::centred, opacitySpeaker);
+          g.restoreState ();
+        }
+    }
 
   g.setOpacity (1.f);
 }
@@ -784,6 +896,7 @@ void
 MotionComponent::openGLContextClosing ()
 {
   DBG ("openGLContextClosing");
+  _sphereShader.shutdown ();
 }
 
 }

@@ -871,16 +871,28 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
       auto channelStr = address.substring (4);
       auto channel = channelStr.getIntValue ();
       
-      // Map OSC channels 0-3 to our channels 0-3
-      if (channel >= 0 
-          && static_cast<size_t>(channel) < _channelUIStates.size ()
-          && message.size () >= 2)
+      if (message.size () >= 2)
         {
           float peak = message[0].getFloat32 ();
           float rms = message[1].getFloat32 ();
-          
-          _channelUIStates[static_cast<size_t>(channel)]->vuPeak = peak;
-          _channelUIStates[static_cast<size_t>(channel)]->vuLevel = rms;  // vuLevel stores RMS
+
+          // Channels 0-3: channel blob coronas
+          if (channel >= 0 
+              && static_cast<size_t>(channel) < _channelUIStates.size ())
+            {
+              _channelUIStates[static_cast<size_t>(channel)]->vuPeak = peak;
+              _channelUIStates[static_cast<size_t>(channel)]->vuLevel = rms;
+            }
+          // Channel 5: sphere glow (reddish)
+          else if (channel == 5)
+            {
+              _motionComponent->setSphereGlow (peak, rms);
+            }
+          // Channels 6-9: speaker spotlights (warm yellow)
+          else if (channel >= 6 && channel <= 9)
+            {
+              _motionComponent->setSpeakerLight (channel - 6, peak, rms);
+            }
         }
       return; // Don't log VU messages (too spammy)
     }

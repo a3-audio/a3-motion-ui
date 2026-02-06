@@ -48,5 +48,29 @@
     "alphaMin": 0.15,
     "alphaMax": 0.75,
     "whiteBlend": 0.3
+  },
+  "sphereGlow": {
+    "vuMax": 0.2,
+    "r": 0.9,
+    "g": 0.12,
+    "b": 0.05,
+    "alphaMax": 0.6,
+    "layers": 6,
+    "innerSize": 0.6,
+    "outerSize": 2.4,
+    "curve": 0.4
+  },
+  "speakerLight": {
+    "vuMax": 0.2,
+    "r": 1.0,
+    "g": 0.85,
+    "b": 0.2,
+    "alphaMax": 0.35,
+    "layers": 8,
+    "length": 1.7,
+    "widthStart": 0.1,
+    "widthEnd": 0.9,
+    "curve": 0.4,
+    "speakerRadius": 1.55
   }
 }

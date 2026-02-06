@@ -26,6 +26,7 @@
 #include <a3-motion-engine/util/Types.hh>
 
 #include <a3-motion-ui/Helpers.hh>
+#include <a3-motion-ui/components/SphereShader.hh>
 
 namespace a3
 {
@@ -61,6 +62,10 @@ public:
   void unsetPreviewPattern (std::shared_ptr<Pattern> pattern);
 
   void setBackgroundColour (juce::Colour const &colour);
+
+  // VU-driven lighting: sphere glow and speaker spotlights
+  void setSphereGlow (float peak, float rms);
+  void setSpeakerLight (int speakerIndex, float peak, float rms);
 
 private:
   void printFrameTime ();
@@ -109,6 +114,18 @@ private:
   std::unique_ptr<juce::Image> _imageBlend;
   juce::Image _imageIsoSphere;
   std::unique_ptr<juce::Drawable> _drawableHead;
+  std::unique_ptr<juce::Drawable> _drawableSpeaker;
+
+  // 3D raytraced sphere shader
+  SphereShader _sphereShader;
+
+  // VU-driven sphere glow (/vu/5)
+  std::atomic<float> _vuSphereGlowPeak{ 0.f };
+  std::atomic<float> _vuSphereGlowRms{ 0.f };
+
+  // VU-driven speaker spotlights (/vu/6-9 → speakers at 45°,135°,225°,315°)
+  std::atomic<float> _vuSpeakerPeak[4]{ {0.f}, {0.f}, {0.f}, {0.f} };
+  std::atomic<float> _vuSpeakerRms[4]{ {0.f}, {0.f}, {0.f}, {0.f} };
 
   juce::Colour _backgroundColour;
   std::mutex _mutexBackgroundColour;
