@@ -47,6 +47,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/MotionComponent.hh
     components/TickIndicator.cc
     components/TickIndicator.hh
+    components/FilterDisplay.cc
+    components/FilterDisplay.hh
     components/DirectivityComponent.cc
     components/DirectivityComponent.hh
     # components/PatternMenu.cc

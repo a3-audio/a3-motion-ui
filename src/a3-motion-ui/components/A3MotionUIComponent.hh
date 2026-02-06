@@ -39,6 +39,7 @@ class TempoEstimatorTest;
 
 class MotionComponent;
 
+class FilterDisplay;
 class StatusBar;
 class ChannelStrip;
 class ChannelUIState;
@@ -104,6 +105,7 @@ private:
   std::unique_ptr<MotionComponent> _motionComponent;
   std::unique_ptr<StatusBar> _statusBar;
   TempoClock::PointerT _statusBarCallbackHandle;
+  std::unique_ptr<FilterDisplay> _filterDisplay;
 
   using Button = InputOutputAdapter::Button;
   constexpr bool runsOnHardware ();

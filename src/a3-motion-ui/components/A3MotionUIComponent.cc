@@ -37,6 +37,7 @@
 #include <a3-motion-ui/components/ChannelHeader.hh>
 #include <a3-motion-ui/components/ChannelStrip.hh>
 #include <a3-motion-ui/components/ChannelUIState.hh>
+#include <a3-motion-ui/components/FilterDisplay.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
@@ -260,6 +261,12 @@ A3MotionUIComponent::createMainUI ()
       = std::make_unique<MotionComponent> (_engine, _channelUIStates);
   addChildComponent (*_motionComponent);
   _motionComponent->setVisible (true);
+
+  _filterDisplay = std::make_unique<FilterDisplay> ();
+  addChildComponent (*_filterDisplay);
+  _filterDisplay->setVisible (true);
+  for (auto ch = 0u; ch < _channelUIStates.size () && ch < FilterDisplay::numChannels; ++ch)
+    _filterDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
 }
 
 constexpr bool
@@ -368,6 +375,11 @@ A3MotionUIComponent::resized ()
                           ? bounds.removeFromTop (statusBarHeight)
                           : bounds.removeFromBottom (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
+
+  // Filter display at the bottom
+  auto constexpr filterDisplayHeight = FilterDisplay::getMinimumHeight ();
+  auto boundsFilter = bounds.removeFromBottom (filterDisplayHeight);
+  _filterDisplay->setBounds (boundsFilter);
 
   // Hide channel strips - no longer needed after removing width/order displays
   for (auto &strip : _channelStrips)
@@ -514,6 +526,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               juce::Logger::writeToLog ("channel " + juce::String (channel)
                                         + " pot_1: " + juce::String (pot1Normalized));
               _engine.setChannelPot1 (channel, pot1Normalized);
+              _filterDisplay->setSweep (static_cast<int> (channel), pot1Normalized);
               return;
             }
           else if (value.refersToSameSourceAs (
@@ -524,6 +537,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               juce::Logger::writeToLog ("channel " + juce::String (channel)
                                         + " pot_2: " + juce::String (pot2Normalized));
               _engine.setChannelPot2 (channel, pot2Normalized);
+              _filterDisplay->setQ (static_cast<int> (channel), pot2Normalized);
               return;
             }
 
