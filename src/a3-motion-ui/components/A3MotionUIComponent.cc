@@ -440,10 +440,14 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           _tapButtonLongPress = false;
           _ioAdapter->getButtonLED (Button::Tap) = true;
           
-          // EXT mode: reset beat counter on press
+          // EXT mode: reset beat counter on press and send /tap
           if (_clockMode)
             {
               _engine.getTempoClock ().reset ();
+              
+              auto tapMsg = juce::OSCMessage ("/tap");
+              tapMsg.addInt32 (1);
+              _oscSender.send (tapMsg);
             }
         }
       else
@@ -459,7 +463,14 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           auto const tapTime = juce::int64 (value.getValue ());
           auto const result = _engine.getTempoClock ().tap (tapTime);
           
-          // FirstTap already resets beat counter in TempoClock::tap()
+          // FirstTap = beat 1 detected, send /tap via OSC
+          if (result == TempoClock::TapResult::FirstTap)
+            {
+              auto tapMsg = juce::OSCMessage ("/tap");
+              tapMsg.addInt32 (1);
+              _oscSender.send (tapMsg);
+            }
+          
           if (result == TempoClock::TapResult::TempoAvailable)
             {
               auto const bpm = _engine.getTempoClock ().getTempoBPM ();
@@ -650,10 +661,10 @@ A3MotionUIComponent::tickCallback (Measure measure)
   // Send beatclock via OSC on every beat
   if (measure.tick () == 0)
     {
-      auto beatClockMsg = juce::OSCMessage ("/beatclock");
+      auto beatClockMsg = juce::OSCMessage ("/beat");
       beatClockMsg.addInt32 (measure.beat () + 1);  // 1-indexed beat
       beatClockMsg.addInt32 (measure.bar () + 1);   // 1-indexed bar
-      beatClockMsg.addFloat32 (_engine.getTempoClock ().getTempoBPM ());
+      beatClockMsg.addInt32 (static_cast<int> (std::round (_engine.getTempoClock ().getTempoBPM ())));
       _oscSender.send (beatClockMsg);
     }
 
@@ -844,24 +855,15 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
       return; // Don't log VU messages (too spammy)
     }
   
-  // Handle beat BPM: /beat/1 f <bpm>
-  if (address == "/beat/1" && message.size () >= 1 && message[0].isFloat32 ())
+  // Handle external beat clock: /beat iii <beat> <bar> <bpm>
+  if (address == "/beat" && message.size () >= 3
+      && message[0].isInt32 () && message[1].isInt32 () && message[2].isInt32 ())
     {
-      float bpm = message[0].getFloat32 ();
-      std::cout << "OSC RX: /beat/1 bpm=" << bpm << std::endl;
-      _statusBar->setExternalBPM (bpm);
-      return;
-    }
-  
-  // Handle beat clock: /beatclock/1 iiii <timestamp> <bpm_int> <beat> <bar>
-  if (address == "/beatclock/1" && message.size () >= 4)
-    {
-      // Args: timestamp, bpm, beat, bar
-      int bpmInt = message[1].isInt32 () ? message[1].getInt32 () : 0;
-      int beat = message[2].isInt32 () ? message[2].getInt32 () : 0;
-      int bar = message[3].isInt32 () ? message[3].getInt32 () : 0;
-      std::cout << "OSC RX: /beatclock/1 bpm=" << bpmInt << " beat=" << beat << " bar=" << bar << std::endl;
-      _statusBar->setExternalBPM (static_cast<float>(bpmInt));
+      int beat = message[0].getInt32 ();
+      int bar = message[1].getInt32 ();
+      int bpm = message[2].getInt32 ();
+      std::cout << "OSC RX: /beat beat=" << beat << " bar=" << bar << " bpm=" << bpm << std::endl;
+      _statusBar->setExternalBPM (static_cast<float> (bpm));
       _statusBar->setBeatClock (beat, bar);
       return;
     }

@@ -133,7 +133,8 @@ The motion controller communicates via OSC (Open Sound Control) with external ap
 
 | Address | Arguments | Description |
 |---------|-----------|-------------|
-| `/beatclock` | `i i f` (beat, bar, bpm) | Internal clock beat (1-4), bar (1-indexed), current BPM |
+| `/beat` | `i i i` (beat, bar, bpm) | Internal clock beat (1-4), bar (1-indexed), current BPM (rounded) |
+| `/tap` | `i` (1) | Sent when beat 1 is detected (first tap in INT mode, tap press in EXT mode) |
 | `/clockmode` | `i` (0 or 1) | Clock mode status: 0=internal, 1=external |
 
 ## OSC Messages Received (Input on `oscReceiver.port`)
@@ -141,8 +142,7 @@ The motion controller communicates via OSC (Open Sound Control) with external ap
 | Address | Arguments | Description |
 |---------|-----------|-------------|
 | `/vu/<n>` | `f f` (peak, rms) | VU meter data for channel n (1-4). Used for corona visualization around channel blobs. |
-| `/beat/1` | `f` (bpm) | External BPM. Displayed in status bar. |
-| `/beatclock/1` | `i i i i` (timestamp, bpm, beat, bar) | External beat clock. Displayed in status bar. |
+| `/beat` | `i i i` (beat, bar, bpm) | External beat clock. Beat (1-4), bar (1-indexed), BPM. Displayed in status bar (EXT mode). |
 
 ## Clock Mode Behavior
 
