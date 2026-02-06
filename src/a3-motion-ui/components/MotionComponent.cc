@@ -477,6 +477,7 @@ MotionComponent::newOpenGLContextCreated ()
     sc.alphaMax = cfgF (sl, "alphaMax", 0.35f);
     sc.vuMax = cfgF (sl, "vuMax", 0.2f);
     sc.curve = cfgF (sl, "curve", 0.4f);
+    sc.speakerRadius = cfgF (sl, "speakerRadius", 1.55f);
     _sphereShader.setSpotlightConfig (sc);
   }
 }
@@ -500,7 +501,7 @@ MotionComponent::renderOpenGL ()
   _mutexBackgroundColour.unlock ();
   OpenGLHelpers::clear (Colours::background);
 
-  // ── 3D sphere via shader (before 2D overlay) ──────────────────
+  // ── 3D scene via shader ───────────────────────────────────────
   {
     // Forward VU data to shader
     _sphereShader.setSphereGlow (_vuSphereGlowPeak.load (),
@@ -509,12 +510,48 @@ MotionComponent::renderOpenGL ()
       _sphereShader.setSpeakerLight (i, _vuSpeakerPeak[i].load (),
                                      _vuSpeakerRms[i].load ());
 
+    // Forward blob data to shader
+    auto numChannels = static_cast<int> (_engine.getNumChannels ());
+    _sphereShader.setNumBlobs (numChannels);
+    for (int ch = 0; ch < numChannels && ch < SphereShader::kMaxBlobs; ++ch)
+      {
+        SphereShader::BlobData bd;
+        auto const position = _engine.getChannelPosition (ch);
+        if (position.isValid ())
+          {
+            auto posJuce = cartesian2DHOA2JUCE (position);
+            // JUCE 2D: Y down. Shader: Y up. Flip Y.
+            bd.x = posJuce.getX ();
+            bd.y = -posJuce.getY ();
+            bd.visible = true;
+          }
+
+        auto blobSize = reduceFactorBlobs;
+        if (position.isValid ())
+          blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
+        if (_uiStates[ch]->grabbed)
+          blobSize *= activeAreaAroundBlobFactor;
+        else if (_uiStates[ch]->highlighted)
+          blobSize *= blobHighlightFactor;
+        bd.size = blobSize;
+
+        auto col = _uiStates[ch]->colour;
+        bd.r = col.getFloatRed ();
+        bd.g = col.getFloatGreen ();
+        bd.b = col.getFloatBlue ();
+        bd.vuPeak = _uiStates[ch]->vuPeak.load ();
+        bd.vuRms = _uiStates[ch]->vuLevel.load ();
+        bd.grabbed = _uiStates[ch]->grabbed;
+        bd.highlighted = _uiStates[ch]->highlighted;
+
+        _sphereShader.setBlob (ch, bd);
+      }
+
     // Compute sphere position and radius in pixels
     auto const vpW = _boundsRender.getWidth ();
     auto const vpH = _boundsRender.getHeight ();
     auto const scale = static_cast<float> (_glContext.getRenderingScale ());
 
-    // _boundsCenterRegion is the square area for the circle
     auto const centreX
         = static_cast<float> (_boundsCenterRegion.getCentreX ()) * scale;
     // GL has Y flipped compared to JUCE
@@ -532,30 +569,22 @@ MotionComponent::renderOpenGL ()
                         centreY);
   }
 
-  // ── 2D overlay (speakers, blobs, patterns) ────────────────────
+  // ── 2D overlay (speakers, blobs, pattern preview) ──────────────
   {
-    GLContextGraphics graphics (_glContext, //
+    GLContextGraphics graphics (_glContext,
                                 _boundsRender.getWidth (),
                                 _boundsRender.getHeight ());
-
     graphics.get ().addTransform (_transformNormalizedToLocal);
-
-    // Background fill (behind the sphere the shader already drew)
-    // We skip fillAll here since the shader drew the sphere already
-    // but we still draw the 2D overlay elements
 
     drawCircle (graphics.get ());
     drawChannelBlobs (graphics.get ());
 
-    // create a copy of the shared_ptrs to hold the lock only briefly
     _mutexPreview.lock ();
     auto const patternsPreview{ _patternsPreview };
     _mutexPreview.unlock ();
 
     for (auto &pattern : patternsPreview)
-      {
-        drawPatternPreview (*pattern, graphics.get ());
-      }
+      drawPatternPreview (*pattern, graphics.get ());
   }
 }
 

@@ -63,12 +63,22 @@ uniform vec2  uSphereCentre;
 uniform float uGlowLevel;
 uniform vec3  uGlowColour;
 
-// 4 speaker spot levels as separate floats (can't loop-index vec4 reliably)
 uniform float uSpotLevel0;
 uniform float uSpotLevel1;
 uniform float uSpotLevel2;
 uniform float uSpotLevel3;
 uniform vec3  uSpotColour;
+
+// Channel blobs as coloured light sources
+uniform vec4  uBlobPosSize0;  // xy=position, z=size, w=vuLevel
+uniform vec4  uBlobPosSize1;
+uniform vec4  uBlobPosSize2;
+uniform vec4  uBlobPosSize3;
+uniform vec3  uBlobCol0;
+uniform vec3  uBlobCol1;
+uniform vec3  uBlobCol2;
+uniform vec3  uBlobCol3;
+uniform float uNumBlobs;
 
 // ─── helpers ────────────────────────────────────────────────────
 
@@ -81,7 +91,7 @@ float sphereIntersect (vec2 uv, out vec3 normal)
     return z;
 }
 
-// ─── head silhouette SDF ────────────────────────────────────────
+// ─── head silhouette SDF (nose points UP = +Y in GL) ────────────
 
 float sdCircle (vec2 p, vec2 c, float r)
 {
@@ -96,16 +106,45 @@ float sdBox (vec2 p, vec2 c, vec2 halfSize)
 
 float headSDF (vec2 uv)
 {
-    float cranium = sdCircle (uv, vec2 (0.0), 0.38);
-    float earL = sdCircle (uv, vec2 (-0.39, 0.0), 0.09);
-    float earR = sdCircle (uv, vec2 ( 0.39, 0.0), 0.09);
-    float nose = sdBox (uv, vec2 (0.0, -0.40), vec2 (0.045, 0.09));
+    // Scale head to sit well inside the sphere (matching reduceFactorHead ~0.35)
+    // Head occupies about 35% of sphere diameter
+    float s = 0.6;  // scale factor: smaller = head more centred
+    vec2 p = uv / s;
+    float cranium = sdCircle (p, vec2 (0.0), 0.38);
+    float earL = sdCircle (p, vec2 (-0.39, 0.0), 0.09);
+    float earR = sdCircle (p, vec2 ( 0.39, 0.0), 0.09);
+    // Nose pointing UP (+Y in GL = up on screen)
+    float nose = sdBox (p, vec2 (0.0, 0.42), vec2 (0.045, 0.09));
     float head = min (cranium, min (earL, earR));
     head = min (head, nose);
-    return head;
+    return head * s;  // scale distance back
 }
 
-// ─── spotlight helper ───────────────────────────────────────────
+// ─── spotlight helpers ──────────────────────────────────────────
+
+float getSpotLevel (int i)
+{
+    if (i == 0) return uSpotLevel0;
+    if (i == 1) return uSpotLevel1;
+    if (i == 2) return uSpotLevel2;
+    return uSpotLevel3;
+}
+
+vec4 getBlobPosSize (int i)
+{
+    if (i == 0) return uBlobPosSize0;
+    if (i == 1) return uBlobPosSize1;
+    if (i == 2) return uBlobPosSize2;
+    return uBlobPosSize3;
+}
+
+vec3 getBlobCol (int i)
+{
+    if (i == 0) return uBlobCol0;
+    if (i == 1) return uBlobCol1;
+    if (i == 2) return uBlobCol2;
+    return uBlobCol3;
+}
 
 float spotContrib (float spotLevel, float angleDeg, vec2 uv, float dist)
 {
@@ -183,20 +222,35 @@ void main ()
                    + vec3 (0.03, 0.03, 0.04) * smoothstep (0.5, 0.9, envV);
     float envStrength = fresnel * 0.6;
 
-    // Specular (key light upper-left)
-    vec3 lightDir = normalize (vec3 (-0.5, -0.6, 0.8));
-    vec3 halfVec = normalize (lightDir + viewDir);
-    float spec = pow (max (dot (N, halfVec), 0.0), 80.0);
-    vec3 specColour = vec3 (0.85, 0.9, 1.0);
+    // No white key/fill lights — blobs provide the coloured lighting
 
-    // Secondary specular (fill)
-    vec3 lightDir2 = normalize (vec3 (0.3, -0.4, 0.6));
-    vec3 halfVec2 = normalize (lightDir2 + viewDir);
-    float spec2 = pow (max (dot (N, halfVec2), 0.0), 30.0);
-    vec3 specColour2 = vec3 (0.6, 0.65, 0.75);
+    // Blob-driven coloured spotlights on sphere surface
+    vec3 blobLight = vec3 (0.0);
+    vec3 blobSpec = vec3 (0.0);
+    for (int b = 0; b < 4; b++)
+    {
+        if (float(b) >= uNumBlobs) break;
+        vec4 bps = getBlobPosSize (b);
+        vec3 bcol = getBlobCol (b);
+        if (bps.z < 0.001) continue;
 
-    // Diffuse
-    float diffuse = max (dot (N, lightDir), 0.0) * 0.08;
+        // Blob position on the 2D plane → treat as a point light above the surface
+        vec3 blobLightDir = normalize (vec3 (bps.xy - uv, 0.5));
+
+        // Diffuse contribution
+        float bDiff = max (dot (N, blobLightDir), 0.0);
+        // Distance attenuation (closer blobs light more)
+        float bDist = length (bps.xy - uv);
+        float bAtten = 1.0 / (1.0 + bDist * 2.0);
+        // VU-driven intensity boost
+        float bIntensity = 0.3 + bps.w * 0.7;
+        blobLight += bcol * bDiff * bAtten * bIntensity * 0.5;
+
+        // Specular reflection of blob colour on sphere
+        vec3 bHalf = normalize (blobLightDir + viewDir);
+        float bSpec = pow (max (dot (N, bHalf), 0.0), 40.0);
+        blobSpec += bcol * bSpec * bAtten * bIntensity * 0.6;
+    }
 
     // Wireframe (procedural great circles)
     float gridFreq = 8.0;
@@ -229,11 +283,10 @@ void main ()
 
     // Compose
     vec3 colour = baseCol;
-    colour += diffuse * vec3 (1.0);
     colour += envColour * envStrength;
     colour += rimColour * rimStrength * fresnel;
-    colour += specColour * spec * 0.7;
-    colour += specColour2 * spec2 * 0.2;
+    colour += blobLight;
+    colour += blobSpec;
     colour += vec3 (wireframe);
     colour += glowOnSurface;
     colour += spotOnSurface;
@@ -259,43 +312,54 @@ SphereShader::initialise (juce::OpenGLContext &context)
 
   _shader = std::make_unique<juce::OpenGLShaderProgram> (context);
 
-  auto vertSrc = getVertexShader ();
-  auto fragSrc = getFragmentShader ();
-
-  if (!_shader->addVertexShader (vertSrc))
+  if (!_shader->addVertexShader (getVertexShader ()))
     {
-      DBG ("SphereShader vertex compile error: " + _shader->getLastError ());
+      juce::Logger::writeToLog (
+          "SphereShader vertex error: " + _shader->getLastError ());
       _shader.reset ();
       return false;
     }
 
-  if (!_shader->addFragmentShader (fragSrc))
+  if (!_shader->addFragmentShader (getFragmentShader ()))
     {
-      DBG ("SphereShader fragment compile error: " + _shader->getLastError ());
+      juce::Logger::writeToLog (
+          "SphereShader fragment error: " + _shader->getLastError ());
       _shader.reset ();
       return false;
     }
 
   if (!_shader->link ())
     {
-      DBG ("SphereShader link error: " + _shader->getLastError ());
+      juce::Logger::writeToLog (
+          "SphereShader link error: " + _shader->getLastError ());
       _shader.reset ();
       return false;
     }
 
-  // Cache uniform locations
   auto pid = _shader->getProgramID ();
-  _uResolution   = glGetUniformLocation (pid, "uResolution");
-  _uSphereRadius = glGetUniformLocation (pid, "uSphereRadius");
-  _uSphereCentre = glGetUniformLocation (pid, "uSphereCentre");
-  _uGlowLevel    = glGetUniformLocation (pid, "uGlowLevel");
-  _uGlowColour   = glGetUniformLocation (pid, "uGlowColour");
-  _uSpotLevel[0] = glGetUniformLocation (pid, "uSpotLevel0");
-  _uSpotLevel[1] = glGetUniformLocation (pid, "uSpotLevel1");
-  _uSpotLevel[2] = glGetUniformLocation (pid, "uSpotLevel2");
-  _uSpotLevel[3] = glGetUniformLocation (pid, "uSpotLevel3");
-  _uSpotColour   = glGetUniformLocation (pid, "uSpotColour");
-  _aPos          = glGetAttribLocation (pid, "aPos");
+  _uResolution    = glGetUniformLocation (pid, "uResolution");
+  _uSphereRadius  = glGetUniformLocation (pid, "uSphereRadius");
+  _uSphereCentre  = glGetUniformLocation (pid, "uSphereCentre");
+  _uGlowLevel     = glGetUniformLocation (pid, "uGlowLevel");
+  _uGlowColour    = glGetUniformLocation (pid, "uGlowColour");
+  _uSpotLevel[0]  = glGetUniformLocation (pid, "uSpotLevel0");
+  _uSpotLevel[1]  = glGetUniformLocation (pid, "uSpotLevel1");
+  _uSpotLevel[2]  = glGetUniformLocation (pid, "uSpotLevel2");
+  _uSpotLevel[3]  = glGetUniformLocation (pid, "uSpotLevel3");
+  _uSpotColour    = glGetUniformLocation (pid, "uSpotColour");
+  _uSpeakerRadius = glGetUniformLocation (pid, "uSpeakerRadius");
+  _uNumBlobs      = glGetUniformLocation (pid, "uNumBlobs");
+
+  _uBlobPosSize[0] = glGetUniformLocation (pid, "uBlobPosSize0");
+  _uBlobPosSize[1] = glGetUniformLocation (pid, "uBlobPosSize1");
+  _uBlobPosSize[2] = glGetUniformLocation (pid, "uBlobPosSize2");
+  _uBlobPosSize[3] = glGetUniformLocation (pid, "uBlobPosSize3");
+  _uBlobCol[0]     = glGetUniformLocation (pid, "uBlobCol0");
+  _uBlobCol[1]     = glGetUniformLocation (pid, "uBlobCol1");
+  _uBlobCol[2]     = glGetUniformLocation (pid, "uBlobCol2");
+  _uBlobCol[3]     = glGetUniformLocation (pid, "uBlobCol3");
+
+  _aPos = glGetAttribLocation (pid, "aPos");
 
   createQuad ();
   return true;
@@ -309,25 +373,16 @@ SphereShader::shutdown ()
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Fullscreen quad geometry
+// Fullscreen quad geometry (no VAO – GL 2.1)
 // ─────────────────────────────────────────────────────────────────
 void
 SphereShader::createQuad ()
 {
   using namespace juce::gl;
-
-  // clang-format off
-  static const float quadVertices[] = {
-    -1.f, -1.f,
-     1.f, -1.f,
-    -1.f,  1.f,
-     1.f,  1.f,
-  };
-  // clang-format on
-
+  static const float quadVerts[] = { -1, -1, 1, -1, -1, 1, 1, 1 };
   glGenBuffers (1, &_vbo);
   glBindBuffer (GL_ARRAY_BUFFER, _vbo);
-  glBufferData (GL_ARRAY_BUFFER, sizeof (quadVertices), quadVertices,
+  glBufferData (GL_ARRAY_BUFFER, sizeof (quadVerts), quadVerts,
                 GL_STATIC_DRAW);
   glBindBuffer (GL_ARRAY_BUFFER, 0);
 }
@@ -336,8 +391,7 @@ void
 SphereShader::deleteQuad ()
 {
   using namespace juce::gl;
-
-  if (_vbo != 0)
+  if (_vbo)
     {
       glDeleteBuffers (1, &_vbo);
       _vbo = 0;
@@ -359,95 +413,98 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
 
   _shader->use ();
 
-  // Set uniforms
   if (_uResolution >= 0)
-    glUniform2f (_uResolution, static_cast<float> (viewportWidth),
-                 static_cast<float> (viewportHeight));
-
+    glUniform2f (_uResolution, float (viewportWidth), float (viewportHeight));
   if (_uSphereRadius >= 0)
     glUniform1f (_uSphereRadius, sphereRadius);
-
   if (_uSphereCentre >= 0)
     glUniform2f (_uSphereCentre, sphereCentreX, sphereCentreY);
 
   // Sphere glow
   {
-    float level = std::max (_glowRms, _glowPeak * 0.8f);
-    float norm = std::clamp (level / _glowCfg.vuMax, 0.f, 1.f);
-    float scaled = std::pow (norm, _glowCfg.curve);
-    if (_uGlowLevel >= 0)
-      glUniform1f (_uGlowLevel, scaled);
-    if (_uGlowColour >= 0)
-      glUniform3f (_uGlowColour, _glowCfg.r, _glowCfg.g, _glowCfg.b);
+    float lvl = std::max (_glowRms, _glowPeak * 0.8f);
+    float n = std::clamp (lvl / _glowCfg.vuMax, 0.f, 1.f);
+    float s = std::pow (n, _glowCfg.curve);
+    if (_uGlowLevel >= 0)  glUniform1f (_uGlowLevel, s);
+    if (_uGlowColour >= 0) glUniform3f (_uGlowColour, _glowCfg.r, _glowCfg.g, _glowCfg.b);
   }
 
   // Speaker spotlights
-  {
-    float levels[4];
-    for (int i = 0; i < 4; ++i)
-      {
-        float lvl = std::max (_spotRms[i], _spotPeak[i] * 0.8f);
-        float norm = std::clamp (lvl / _spotCfg.vuMax, 0.f, 1.f);
-        levels[i] = std::pow (norm, _spotCfg.curve);
-      }
-    for (int i = 0; i < 4; ++i)
-      if (_uSpotLevel[i] >= 0)
-        glUniform1f (_uSpotLevel[i], levels[i]);
-    if (_uSpotColour >= 0)
-      glUniform3f (_uSpotColour, _spotCfg.r, _spotCfg.g, _spotCfg.b);
-  }
+  for (int i = 0; i < 4; ++i)
+    {
+      float lvl = std::max (_spotRms[i], _spotPeak[i] * 0.8f);
+      float n = std::clamp (lvl / _spotCfg.vuMax, 0.f, 1.f);
+      float s = std::pow (n, _spotCfg.curve);
+      if (_uSpotLevel[i] >= 0) glUniform1f (_uSpotLevel[i], s);
+    }
+  if (_uSpotColour >= 0)
+    glUniform3f (_uSpotColour, _spotCfg.r, _spotCfg.g, _spotCfg.b);
+  if (_uSpeakerRadius >= 0)
+    glUniform1f (_uSpeakerRadius, _spotCfg.speakerRadius);
 
-  // Draw
+  // Blobs
+  if (_uNumBlobs >= 0)
+    glUniform1f (_uNumBlobs, static_cast<float> (_numBlobs));
+  for (int i = 0; i < kMaxBlobs; ++i)
+    {
+      auto const &b = _blobs[i];
+      float vuL = 0.f;
+      if (b.visible)
+        {
+          float peak = b.vuPeak, rms = b.vuRms;
+          vuL = std::max (rms, peak * 0.8f);
+          vuL = std::clamp (vuL / 0.4f, 0.f, 1.f);  // normalise
+          vuL = std::pow (vuL, 0.6f);
+        }
+      if (_uBlobPosSize[i] >= 0)
+        glUniform4f (_uBlobPosSize[i],
+                     b.visible ? b.x : 999.f,
+                     b.visible ? b.y : 999.f,
+                     b.visible ? b.size : 0.f,
+                     vuL);
+      if (_uBlobCol[i] >= 0)
+        glUniform3f (_uBlobCol[i], b.r, b.g, b.b);
+    }
+
+  // Draw fullscreen quad
   glEnable (GL_BLEND);
   glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   glBindBuffer (GL_ARRAY_BUFFER, _vbo);
   if (_aPos >= 0)
     {
-      glEnableVertexAttribArray (static_cast<GLuint> (_aPos));
-      glVertexAttribPointer (static_cast<GLuint> (_aPos), 2, GL_FLOAT,
-                             GL_FALSE, 2 * sizeof (float), nullptr);
+      glEnableVertexAttribArray (GLuint (_aPos));
+      glVertexAttribPointer (GLuint (_aPos), 2, GL_FLOAT, GL_FALSE,
+                             2 * sizeof (float), nullptr);
     }
 
   glDrawArrays (GL_TRIANGLE_STRIP, 0, 4);
 
   if (_aPos >= 0)
-    glDisableVertexAttribArray (static_cast<GLuint> (_aPos));
+    glDisableVertexAttribArray (GLuint (_aPos));
   glBindBuffer (GL_ARRAY_BUFFER, 0);
-
   glUseProgram (0);
 }
 
 // ─────────────────────────────────────────────────────────────────
 // Setters
 // ─────────────────────────────────────────────────────────────────
-void
-SphereShader::setSphereGlow (float peak, float rms)
-{
-  _glowPeak = peak;
-  _glowRms = rms;
-}
+void SphereShader::setSphereGlow (float peak, float rms)
+{ _glowPeak = peak; _glowRms = rms; }
 
-void
-SphereShader::setSpeakerLight (int index, float peak, float rms)
-{
-  if (index >= 0 && index < 4)
-    {
-      _spotPeak[index] = peak;
-      _spotRms[index] = rms;
-    }
-}
+void SphereShader::setSpeakerLight (int i, float peak, float rms)
+{ if (i >= 0 && i < 4) { _spotPeak[i] = peak; _spotRms[i] = rms; } }
 
-void
-SphereShader::setGlowConfig (GlowConfig const &cfg)
-{
-  _glowCfg = cfg;
-}
+void SphereShader::setBlob (int i, BlobData const &d)
+{ if (i >= 0 && i < kMaxBlobs) _blobs[i] = d; }
 
-void
-SphereShader::setSpotlightConfig (SpotlightConfig const &cfg)
-{
-  _spotCfg = cfg;
-}
+void SphereShader::setNumBlobs (int n)
+{ _numBlobs = std::min (n, kMaxBlobs); }
+
+void SphereShader::setGlowConfig (GlowConfig const &c)
+{ _glowCfg = c; }
+
+void SphereShader::setSpotlightConfig (SpotlightConfig const &c)
+{ _spotCfg = c; }
 
 } // namespace a3

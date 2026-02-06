@@ -50,11 +50,11 @@
     "whiteBlend": 0.3
   },
   "sphereGlow": {
-    "vuMax": 0.2,
+    "vuMax": 0.3,
     "r": 0.9,
-    "g": 0.12,
+    "g": 0.10,
     "b": 0.05,
-    "alphaMax": 0.6,
+    "alphaMax": 0.7,
     "layers": 6,
     "innerSize": 0.6,
     "outerSize": 2.4,

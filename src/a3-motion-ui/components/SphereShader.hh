@@ -26,16 +26,18 @@ namespace a3
 {
 
 /**
- * Raytraced 3D sphere rendered via a fullscreen quad with a fragment
- * shader.  Features: dark reflective surface, Fresnel rim glow,
- * specular highlights, iso-sphere wireframe hint, head silhouette,
- * VU-driven sphere glow and 4 speaker spotlights.
+ * Full-scene 3D renderer via a fullscreen-quad fragment shader.
+ * Raytraces: dark reflective sphere with head silhouette, 4 speaker
+ * boxes, volumetric speaker light beams, and up to 4 channel blobs
+ * as lit 3D spheres with VU corona glow.
  *
- * Compatible with OpenGL ES 3.1 / GLSL ES 3.10 (RPi 4 V3D).
+ * GLSL 1.20 compatible (GL 2.1 desktop on RPi 4 V3D).
  */
 class SphereShader
 {
 public:
+  static constexpr int kMaxBlobs = 4;
+
   SphereShader ();
   ~SphereShader ();
 
@@ -46,23 +48,31 @@ public:
   void shutdown ();
 
   /**
-   * Draw the sphere.  Must be called while the GL context is current.
-   *
-   * @param viewportWidth   viewport width in pixels
-   * @param viewportHeight  viewport height in pixels
-   * @param sphereRadius    radius of the sphere in normalised coords
-   *                        (0..1 fraction of the shorter viewport side)
-   * @param sphereCentreX   centre X in normalised coords (0..1)
-   * @param sphereCentreY   centre Y in normalised coords (0..1)
+   * Draw everything.  Must be called while the GL context is current.
    */
   void draw (int viewportWidth, int viewportHeight,
              float sphereRadius, float sphereCentreX, float sphereCentreY);
 
-  // ── VU-driven lighting uniforms ────────────────────────────────
+  // ── VU-driven lighting ─────────────────────────────────────────
   void setSphereGlow (float peak, float rms);
   void setSpeakerLight (int index, float peak, float rms);
 
-  // ── Glow config (from config.json) ─────────────────────────────
+  // ── Blob data (set each frame before draw) ─────────────────────
+  struct BlobData
+  {
+    float x = 0.f, y = 0.f;          // normalised position (-1..1)
+    float r = 0.f, g = 0.f, b = 0.f; // colour
+    float size = 0.f;                 // radius in sphere-normalised units
+    float vuPeak = 0.f;
+    float vuRms = 0.f;
+    bool visible = false;
+    bool grabbed = false;
+    bool highlighted = false;
+  };
+  void setBlob (int index, BlobData const &data);
+  void setNumBlobs (int n);
+
+  // ── Config ─────────────────────────────────────────────────────
   struct GlowConfig
   {
     float r = 0.9f, g = 0.12f, b = 0.05f;
@@ -78,6 +88,7 @@ public:
     float alphaMax = 0.35f;
     float vuMax = 0.2f;
     float curve = 0.4f;
+    float speakerRadius = 1.55f;
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
 
@@ -90,10 +101,9 @@ private:
 
   std::unique_ptr<juce::OpenGLShaderProgram> _shader;
 
-  // Quad VBO
   GLuint _vbo = 0;
 
-  // Uniform locations (cached after link)
+  // Uniform locations
   GLint _uResolution = -1;
   GLint _uSphereRadius = -1;
   GLint _uSphereCentre = -1;
@@ -103,13 +113,20 @@ private:
 
   GLint _uSpotLevel[4] = { -1, -1, -1, -1 };
   GLint _uSpotColour = -1;
+  GLint _uSpeakerRadius = -1;
 
-  // Attribute location
+  // Blob uniforms
+  GLint _uBlobPosSize[kMaxBlobs] = {};  // vec4: x, y, size, vuLevel
+  GLint _uBlobCol[kMaxBlobs] = {};      // vec3: r, g, b
+  GLint _uNumBlobs = -1;
+
   GLint _aPos = -1;
 
   // CPU-side state
   float _glowPeak = 0.f, _glowRms = 0.f;
   float _spotPeak[4]{}, _spotRms[4]{};
+  BlobData _blobs[kMaxBlobs];
+  int _numBlobs = 0;
 
   GlowConfig _glowCfg;
   SpotlightConfig _spotCfg;
