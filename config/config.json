@@ -64,11 +64,11 @@
     "r": 110,
     "g": 250,
     "b": 251,
-    "falloff": 1.5,
-    "intensity": 0.8
+    "falloff": 1.1,
+    "intensity": 0.5
   },
   "speakerLight": {
-    "vuMax": 0.6,
+    "vuMax": 0.4,
     "r": 110,
     "g": 250,
     "b": 251,

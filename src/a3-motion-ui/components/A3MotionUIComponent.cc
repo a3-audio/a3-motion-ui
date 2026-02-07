@@ -479,24 +479,22 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     {
       if (value.getValue ())
         {
-          // Button pressed - track for long press detection
           _tapButtonPressTime = juce::Time::currentTimeMillis ();
           _tapButtonLongPress = false;
           _ioAdapter->getButtonLED (Button::Tap) = true;
-          
-          // EXT mode: reset beat counter on press and send /tap
+
+          // Send /tap via OSC on every button press
+          auto tapMsg = juce::OSCMessage ("/tap");
+          tapMsg.addInt32 (1);
+          _oscSender.send (tapMsg);
+          std::cout << "[TAP] " << (_clockMode ? "EXT" : "INT") << std::endl;
+
+          // EXT mode: also reset beat counter
           if (_clockMode)
-            {
-              _engine.getTempoClock ().reset ();
-              
-              auto tapMsg = juce::OSCMessage ("/tap");
-              tapMsg.addInt32 (1);
-              _oscSender.send (tapMsg);
-            }
+            _engine.getTempoClock ().reset ();
         }
       else
         {
-          // Button released
           _ioAdapter->getButtonLED (Button::Tap) = false;
         }
     }
@@ -506,18 +504,11 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
         {
           auto const tapTime = juce::int64 (value.getValue ());
           auto const result = _engine.getTempoClock ().tap (tapTime);
-          
-          // FirstTap = beat 1 detected, send /tap via OSC
-          if (result == TempoClock::TapResult::FirstTap)
-            {
-              auto tapMsg = juce::OSCMessage ("/tap");
-              tapMsg.addInt32 (1);
-              _oscSender.send (tapMsg);
-            }
-          
+
           if (result == TempoClock::TapResult::TempoAvailable)
             {
               auto const bpm = _engine.getTempoClock ().getTempoBPM ();
+              std::cout << "[TAP] BPM=" << bpm << std::endl;
               _valueBPM = bpm;
             }
         }
