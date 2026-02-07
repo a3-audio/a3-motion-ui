@@ -479,19 +479,30 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     {
       if (value.getValue ())
         {
-          _tapButtonPressTime = juce::Time::currentTimeMillis ();
+          // Debounce: ignore taps closer than 80ms to prevent hardware bounce
+          auto now = juce::Time::currentTimeMillis ();
+          auto elapsed = now - _tapButtonPressTime;
+          _tapButtonPressTime = now;
           _tapButtonLongPress = false;
           _ioAdapter->getButtonLED (Button::Tap) = true;
 
-          // Send /tap via OSC on every button press
-          auto tapMsg = juce::OSCMessage ("/tap");
-          tapMsg.addInt32 (1);
-          _oscSender.send (tapMsg);
-          std::cout << "[TAP] " << (_clockMode ? "EXT" : "INT") << std::endl;
+          if (elapsed < 80)
+            {
+              std::cout << "[TAP] DEBOUNCE (ignored, " << elapsed << "ms)" << std::endl;
+            }
+          else
+            {
+              // Send /tap via OSC on every button press
+              auto tapMsg = juce::OSCMessage ("/tap");
+              tapMsg.addInt32 (1);
+              _oscSender.send (tapMsg);
+              std::cout << "[TAP] " << (_clockMode ? "EXT" : "INT")
+                        << " dt=" << elapsed << "ms" << std::endl;
 
-          // EXT mode: also reset beat counter
-          if (_clockMode)
-            _engine.getTempoClock ().reset ();
+              // EXT mode: also reset beat counter
+              if (_clockMode)
+                _engine.getTempoClock ().reset ();
+            }
         }
       else
         {

@@ -197,18 +197,7 @@ void main ()
             colOut += uSpotColour * uSpotLevel3 * (cone + glow) * df * uBeamIntensity;
         }
 
-        // Blob outside glow
-        for (int b = 0; b < 4; b++)
-        {
-            if (float(b) >= uNumBlobs) break;
-            vec4 bps = getBlobPosSize (b);
-            if (bps.w < 0.001) continue;
-            vec2 toBlobDir = normalize (bps.xy);
-            float align = max (dot (dirN, toBlobDir), 0.0);
-            align = align * align * align;
-            float rf = 1.0 / (1.0 + (dist - 1.0) * 1.2);
-            colOut += getBlobCol (b) * bps.w * align * rf * 0.6;
-        }
+        // Blob outside glow removed — blobs only create reflections on sphere surface
     }
 
     // ── On the sphere surface contribution ──────────────────────

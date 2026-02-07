@@ -20,6 +20,8 @@
 
 #include "InputOutputAdapterV2.hh"
 
+#include <iostream>
+
 namespace a3
 {
 
@@ -112,10 +114,15 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
               inputButtonValue (Button::Tap, value);
               if (value)
                 {
+                  std::cout << "[SERIAL] TAP press (raw)" << std::endl;
                   auto const timeMicros
                       = line.fromLastOccurrenceOf (delimiter, false, false)
                             .getLargeIntValue ();
                   inputTapTime (timeMicros);
+                }
+              else
+                {
+                  std::cout << "[SERIAL] TAP release (raw)" << std::endl;
                 }
               break;
             }

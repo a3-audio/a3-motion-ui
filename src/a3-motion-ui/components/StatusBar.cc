@@ -156,11 +156,13 @@ StatusBar::setExternalBPM (float bpm)
   
   // Update on message thread – check clock mode inside lambda to avoid
   // race condition when mode switches between queuing and execution
-  juce::MessageManager::callAsync ([this, str = stringStream.str ()] () {
-    if (!_clockModeExternal)
+  juce::Component::SafePointer<StatusBar> safeThis (this);
+  juce::MessageManager::callAsync ([safeThis, str = stringStream.str ()] () {
+    if (safeThis == nullptr) return;
+    if (!safeThis->_clockModeExternal)
       return;
-    _labelBPM.setText (str, juce::dontSendNotification);
-    _labelBPM.setColour (juce::Label::textColourId, juce::Colours::orange);
+    safeThis->_labelBPM.setText (str, juce::dontSendNotification);
+    safeThis->_labelBPM.setColour (juce::Label::textColourId, juce::Colours::orange);
   });
 }
 
@@ -177,12 +179,14 @@ StatusBar::setBeatClock (int beat, int bar)
   // Check clock mode inside lambda to avoid race condition when mode
   // switches between queuing and execution
   int tickBeat = (beat - 1) % 4;  // Convert 1-4 to 0-3
-  juce::MessageManager::callAsync ([this, text, tickBeat] () {
-    if (!_clockModeExternal)
+  juce::Component::SafePointer<StatusBar> safeThis (this);
+  juce::MessageManager::callAsync ([safeThis, text, tickBeat] () {
+    if (safeThis == nullptr) return;
+    if (!safeThis->_clockModeExternal)
       return;
-    _tickIndicator.setCurrentTick (tickBeat);
-    _labelBeatClock.setText (text, juce::dontSendNotification);
-    _labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::orange);
+    safeThis->_tickIndicator.setCurrentTick (tickBeat);
+    safeThis->_labelBeatClock.setText (text, juce::dontSendNotification);
+    safeThis->_labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::orange);
   });
 }
 
@@ -191,55 +195,58 @@ StatusBar::setClockMode (bool external)
 {
   _clockModeExternal = external;
   
-  juce::MessageManager::callAsync ([this, external] () {
+  juce::Component::SafePointer<StatusBar> safeThis (this);
+  juce::MessageManager::callAsync ([safeThis, external] () {
+    if (safeThis == nullptr) return;
+    auto *self = safeThis.getComponent ();
     if (external)
       {
-        _labelClockMode.setText ("EXT", juce::dontSendNotification);
-        _labelClockMode.setColour (juce::Label::textColourId, juce::Colours::orange);
-        _labelBPM.setColour (juce::Label::textColourId, juce::Colours::orange);
-        _labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::orange);
+        self->_labelClockMode.setText ("EXT", juce::dontSendNotification);
+        self->_labelClockMode.setColour (juce::Label::textColourId, juce::Colours::orange);
+        self->_labelBPM.setColour (juce::Label::textColourId, juce::Colours::orange);
+        self->_labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::orange);
         
         // Show external BPM if available
-        float extBpm = _externalBPM.load ();
+        float extBpm = self->_externalBPM.load ();
         if (extBpm > 0.f)
           {
             auto stringStream = std::stringstream ();
             stringStream.precision (1);
             stringStream << std::fixed << extBpm << " BPM";
-            _labelBPM.setText (stringStream.str (), juce::dontSendNotification);
+            self->_labelBPM.setText (stringStream.str (), juce::dontSendNotification);
           }
         
         // Show external beat clock if available
-        int beat = _beatClockBeat.load ();
+        int beat = self->_beatClockBeat.load ();
         if (beat > 0)
           {
             auto text = juce::String (beat) + "/4";
-            _labelBeatClock.setText (text, juce::dontSendNotification);
+            self->_labelBeatClock.setText (text, juce::dontSendNotification);
             int tickBeat = (beat - 1) % 4;
-            _tickIndicator.setCurrentTick (tickBeat);
+            self->_tickIndicator.setCurrentTick (tickBeat);
           }
       }
     else
       {
-        _labelClockMode.setText ("INT", juce::dontSendNotification);
-        _labelClockMode.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
-        _labelBPM.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
-        _labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
+        self->_labelClockMode.setText ("INT", juce::dontSendNotification);
+        self->_labelClockMode.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
+        self->_labelBPM.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
+        self->_labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
         
         // Show internal BPM
-        if (_valueBPM.getValue ().isDouble ())
+        if (self->_valueBPM.getValue ().isDouble ())
           {
-            auto const bpm = static_cast<float> (_valueBPM.getValue ());
+            auto const bpm = static_cast<float> (self->_valueBPM.getValue ());
             auto stringStream = std::stringstream ();
             stringStream.precision (1);
             stringStream << "BPM " << std::fixed << bpm;
-            _labelBPM.setText (stringStream.str (), juce::dontSendNotification);
+            self->_labelBPM.setText (stringStream.str (), juce::dontSendNotification);
           }
         
         // Reset tick indicator and beat counter to show internal state
         // (will be updated on next internal beat via beatCallback)
-        _tickIndicator.setCurrentTick (0);
-        _labelBeatClock.setText ("1/4", juce::dontSendNotification);
+        self->_tickIndicator.setCurrentTick (0);
+        self->_labelBeatClock.setText ("1/4", juce::dontSendNotification);
       }
   });
 }

@@ -546,8 +546,11 @@ void
 MotionComponent::newOpenGLContextCreated ()
 {
   using namespace juce::gl;
-  glDebugMessageControl (GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER,
-                         GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
+  // glDebugMessageControl is GL 4.3 / GL_KHR_debug — not available on
+  // RPi4 V3D (GL 2.1).  The JUCE-loaded function pointer may be null.
+  if (glDebugMessageControl != nullptr)
+    glDebugMessageControl (GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER,
+                           GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
 
   // Initialise the 3D sphere shader
   if (!_sphereShader.initialise (_glContext))

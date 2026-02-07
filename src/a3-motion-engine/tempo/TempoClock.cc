@@ -39,7 +39,7 @@
 // jitter-free tick scheduling.  Replaces juce::HighResolutionTimer
 // which internally uses usleep and is susceptible to OS scheduling
 // jitter.
-class ClockTimer
+class ClockTimer : public juce::AsyncUpdater
 {
 public:
   using PointerT = std::weak_ptr<std::function<a3::TempoClock::CallbackT> >;
@@ -97,6 +97,44 @@ public:
     _running.store (false);
     if (_thread.joinable ())
       _thread.join ();
+  }
+
+  // Called on the JUCE message thread — dispatches pending events to
+  // JuceMessageThread handlers without any heap allocation on the RT thread.
+  void handleAsyncUpdate () override
+  {
+    // Atomically read and clear pending event flags
+    unsigned flags = _pendingEvents.exchange (0, std::memory_order_acq_rel);
+    if (!flags) return;
+
+    // Read the latest measure snapshot (written by RT thread)
+    a3::Measure m;
+    {
+      // SeqLock read — retry if writer was active
+      unsigned seq;
+      do {
+        seq = _measureSeq.load (std::memory_order_acquire);
+        m = _measureSnapshot;
+        std::atomic_thread_fence (std::memory_order_acquire);
+      } while (seq != _measureSeq.load (std::memory_order_acquire) || (seq & 1));
+    }
+
+    auto dispatch = [&] (a3::TempoClock::Event event) {
+      auto &container = _handlers[handlerIndex (event,
+                           a3::TempoClock::Execution::JuceMessageThread)];
+      auto it = std::remove_if (
+          container.begin (), container.end (),
+          [&] (const PointerT &pw) {
+            if (auto ps = pw.lock ())
+              { (*ps) (m); return false; }
+            return true;
+          });
+      container.erase (it, container.end ());
+    };
+
+    if (flags & kPendingTick) dispatch (a3::TempoClock::Event::Tick);
+    if (flags & kPendingBeat) dispatch (a3::TempoClock::Event::Beat);
+    if (flags & kPendingBar)  dispatch (a3::TempoClock::Event::Bar);
   }
 
   bool
@@ -300,18 +338,30 @@ private:
     for (auto execution : { a3::TempoClock::Execution::TimerThread,
                             a3::TempoClock::Execution::JuceMessageThread })
       {
-        // Optimisation: throttle JuceMessageThread Tick dispatch.
-        // Instead of dispatching callAsync on EVERY tick (128/beat = ~256/sec
-        // heap allocs on RT thread), only dispatch every Nth tick.
-        // LED stepping needs ~8 updates/beat; we dispatch every 4th tick
-        // (32/beat) which is more than enough and cuts heap allocs by 75%.
-        if (execution == a3::TempoClock::Execution::JuceMessageThread
-            && event == a3::TempoClock::Event::Tick
-            && (_measure.tick () % 4 != 0))
+        if (execution == a3::TempoClock::Execution::JuceMessageThread)
           {
+            // Throttle tick dispatch to every 4th tick
+            if (event == a3::TempoClock::Event::Tick
+                && (_measure.tick () % 4 != 0))
+              continue;
+
+            // Lock-free dispatch: write measure snapshot via SeqLock,
+            // set pending event flag, and trigger async update.
+            // Zero heap allocations on the RT thread.
+            unsigned seq = _measureSeq.load (std::memory_order_relaxed);
+            _measureSeq.store (seq + 1, std::memory_order_release); // odd = writing
+            _measureSnapshot = _measure;
+            _measureSeq.store (seq + 2, std::memory_order_release); // even = done
+
+            unsigned bit = (event == a3::TempoClock::Event::Tick) ? kPendingTick
+                         : (event == a3::TempoClock::Event::Beat) ? kPendingBeat
+                         : kPendingBar;
+            _pendingEvents.fetch_or (bit, std::memory_order_release);
+            triggerAsyncUpdate ();
             continue;
           }
 
+        // TimerThread: execute directly on this thread
         auto &container = _handlers[handlerIndex (event, execution)];
 
         auto it_erase_begin = std::remove_if (
@@ -319,28 +369,12 @@ private:
             [&] (const std::weak_ptr<std::function<a3::TempoClock::CallbackT> >
                      &ptrFuncWeak) {
               if (auto ptrFuncShared
-                  = ptrFuncWeak.lock ()) // if pointer still valid
+                  = ptrFuncWeak.lock ())
                 {
-                  switch (execution)
-                    {
-                    case a3::TempoClock::Execution::TimerThread:
-                      (*ptrFuncShared) (_measure); // execute directly
-                      break;
-                    case a3::TempoClock::Execution::JuceMessageThread:
-                      // NOTE: we copy the weak_ptr and check for
-                      // validity again during the asynchronous
-                      // execution in the message thread.
-                      auto measureCopy{ _measure };
-                      juce::MessageManager::callAsync ([ptrFuncWeak,
-                                                        measureCopy] () {
-                        if (auto ptrFuncSharedMessage = ptrFuncWeak.lock ())
-                          (*ptrFuncSharedMessage) (measureCopy);
-                      });
-                      break;
-                    }
+                  (*ptrFuncShared) (_measure);
                   return false;
                 }
-              else // remove otherwise
+              else
                 return true;
             });
 
@@ -382,6 +416,16 @@ private:
   ClockT::time_point _lastTick;
 
   a3::Measure _measure;
+
+  // Lock-free RT → message-thread dispatch (no heap allocs)
+  static constexpr unsigned kPendingTick = 1u;
+  static constexpr unsigned kPendingBeat = 2u;
+  static constexpr unsigned kPendingBar  = 4u;
+  std::atomic<unsigned> _pendingEvents{ 0 };
+
+  // SeqLock for Measure snapshot (RT writes, message-thread reads)
+  std::atomic<unsigned> _measureSeq{ 0 };
+  a3::Measure _measureSnapshot;
 };
 
 namespace a3
