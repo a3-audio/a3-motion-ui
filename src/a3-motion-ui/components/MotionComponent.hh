@@ -119,6 +119,21 @@ private:
   // 3D raytraced sphere shader
   SphereShader _sphereShader;
 
+  // Blit resources for compositing 2D overlay onto 3D shader output
+  struct BlitResources
+  {
+    unsigned int program = 0;
+    unsigned int vbo = 0;
+    int  aPos = -1;
+    int  uTex = -1;
+    bool valid = false;
+
+    void create ();
+    void destroy ();
+    void blit (unsigned int textureID, int vpW, int vpH) const;
+  };
+  BlitResources _blit;
+
   // VU-driven sphere glow (/vu/4 = subwoofer)
   std::atomic<float> _vuSphereGlowPeak{ 0.f };
   std::atomic<float> _vuSphereGlowRms{ 0.f };

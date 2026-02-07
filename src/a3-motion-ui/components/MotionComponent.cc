@@ -52,90 +52,6 @@ void main() {
   gl_FragColor = texture2D(uTex, vUV);
 })";
 
-/* One-time blit resources (created in newOpenGLContextCreated) */
-struct BlitResources
-{
-  GLuint program = 0;
-  GLuint vbo = 0;
-  GLint  aPos = -1;
-  GLint  uTex = -1;
-  bool   valid = false;
-
-  void create ()
-  {
-    using namespace juce::gl;
-    // Compile vertex shader
-    GLuint vs = glCreateShader (GL_VERTEX_SHADER);
-    glShaderSource (vs, 1, &blitVertSrc, nullptr);
-    glCompileShader (vs);
-    // Compile fragment shader
-    GLuint fs = glCreateShader (GL_FRAGMENT_SHADER);
-    glShaderSource (fs, 1, &blitFragSrc, nullptr);
-    glCompileShader (fs);
-    // Link
-    program = glCreateProgram ();
-    glAttachShader (program, vs);
-    glAttachShader (program, fs);
-    glLinkProgram (program);
-    glDeleteShader (vs);
-    glDeleteShader (fs);
-
-    aPos = glGetAttribLocation (program, "aPos");
-    uTex = glGetUniformLocation (program, "uTex");
-
-    // Fullscreen quad VBO
-    static const float quad[] = { -1, -1, 1, -1, -1, 1, 1, 1 };
-    glGenBuffers (1, &vbo);
-    glBindBuffer (GL_ARRAY_BUFFER, vbo);
-    glBufferData (GL_ARRAY_BUFFER, sizeof (quad), quad, GL_STATIC_DRAW);
-    glBindBuffer (GL_ARRAY_BUFFER, 0);
-
-    valid = true;
-  }
-
-  void destroy ()
-  {
-    using namespace juce::gl;
-    if (vbo)     { glDeleteBuffers (1, &vbo); vbo = 0; }
-    if (program) { glDeleteProgram (program);  program = 0; }
-    valid = false;
-  }
-
-  /** Draw textureID as fullscreen quad with alpha blending. */
-  void blit (GLuint textureID, int vpW, int vpH) const
-  {
-    using namespace juce::gl;
-    if (!valid || !textureID) return;
-
-    glViewport (0, 0, vpW, vpH);
-    glEnable (GL_BLEND);
-    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glUseProgram (program);
-    glActiveTexture (GL_TEXTURE0);
-    glBindTexture (GL_TEXTURE_2D, textureID);
-    if (uTex >= 0) glUniform1i (uTex, 0);
-
-    glBindBuffer (GL_ARRAY_BUFFER, vbo);
-    if (aPos >= 0)
-      {
-        glEnableVertexAttribArray (GLuint (aPos));
-        glVertexAttribPointer (GLuint (aPos), 2, GL_FLOAT, GL_FALSE,
-                               2 * sizeof (float), nullptr);
-      }
-
-    glDrawArrays (GL_TRIANGLE_STRIP, 0, 4);
-
-    if (aPos >= 0) glDisableVertexAttribArray (GLuint (aPos));
-    glBindBuffer (GL_ARRAY_BUFFER, 0);
-    glBindTexture (GL_TEXTURE_2D, 0);
-    glUseProgram (0);
-    glDisable (GL_BLEND);
-  }
-};
-
-static BlitResources s_blit;
-
 // struct VertexUV
 // {
 //   float position[3];
@@ -179,6 +95,120 @@ auto constexpr blobHighlightFactor = 1.1f;
 
 namespace a3
 {
+
+/* ── BlitResources member methods ─────────────────────────────── */
+
+void MotionComponent::BlitResources::create ()
+{
+  using namespace juce::gl;
+  // Compile vertex shader
+  GLuint vs = glCreateShader (GL_VERTEX_SHADER);
+  glShaderSource (vs, 1, &blitVertSrc, nullptr);
+  glCompileShader (vs);
+  {
+    GLint ok = 0;
+    glGetShaderiv (vs, GL_COMPILE_STATUS, &ok);
+    if (!ok)
+      {
+        char buf[512];
+        glGetShaderInfoLog (vs, sizeof (buf), nullptr, buf);
+        DBG ("BlitResources: vertex shader compile error: " << buf);
+        glDeleteShader (vs);
+        return;
+      }
+  }
+  // Compile fragment shader
+  GLuint fs = glCreateShader (GL_FRAGMENT_SHADER);
+  glShaderSource (fs, 1, &blitFragSrc, nullptr);
+  glCompileShader (fs);
+  {
+    GLint ok = 0;
+    glGetShaderiv (fs, GL_COMPILE_STATUS, &ok);
+    if (!ok)
+      {
+        char buf[512];
+        glGetShaderInfoLog (fs, sizeof (buf), nullptr, buf);
+        DBG ("BlitResources: fragment shader compile error: " << buf);
+        glDeleteShader (vs);
+        glDeleteShader (fs);
+        return;
+      }
+  }
+  // Link
+  program = glCreateProgram ();
+  glAttachShader (program, vs);
+  glAttachShader (program, fs);
+  glLinkProgram (program);
+  glDeleteShader (vs);
+  glDeleteShader (fs);
+  {
+    GLint ok = 0;
+    glGetProgramiv (program, GL_LINK_STATUS, &ok);
+    if (!ok)
+      {
+        char buf[512];
+        glGetProgramInfoLog (program, sizeof (buf), nullptr, buf);
+        DBG ("BlitResources: program link error: " << buf);
+        glDeleteProgram (program);
+        program = 0;
+        return;
+      }
+  }
+
+  aPos = glGetAttribLocation (program, "aPos");
+  uTex = glGetUniformLocation (program, "uTex");
+
+  // Fullscreen quad VBO
+  static const float quad[] = { -1, -1, 1, -1, -1, 1, 1, 1 };
+  glGenBuffers (1, &vbo);
+  glBindBuffer (GL_ARRAY_BUFFER, vbo);
+  glBufferData (GL_ARRAY_BUFFER, sizeof (quad), quad, GL_STATIC_DRAW);
+  glBindBuffer (GL_ARRAY_BUFFER, 0);
+
+  valid = true;
+}
+
+void MotionComponent::BlitResources::destroy ()
+{
+  using namespace juce::gl;
+  if (vbo)     { glDeleteBuffers (1, &vbo); vbo = 0; }
+  if (program) { glDeleteProgram (program);  program = 0; }
+  valid = false;
+}
+
+void MotionComponent::BlitResources::blit (unsigned int textureID,
+                                           int vpW, int vpH) const
+{
+  using namespace juce::gl;
+  if (!valid || !textureID) return;
+
+  glViewport (0, 0, vpW, vpH);
+  glEnable (GL_BLEND);
+  glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+  glUseProgram (program);
+  glActiveTexture (GL_TEXTURE0);
+  glBindTexture (GL_TEXTURE_2D, textureID);
+  if (uTex >= 0) glUniform1i (uTex, 0);
+
+  glBindBuffer (GL_ARRAY_BUFFER, vbo);
+  if (aPos >= 0)
+    {
+      glEnableVertexAttribArray (GLuint (aPos));
+      glVertexAttribPointer (GLuint (aPos), 2, GL_FLOAT, GL_FALSE,
+                             2 * sizeof (float), nullptr);
+    }
+
+  glDrawArrays (GL_TRIANGLE_STRIP, 0, 4);
+
+  if (aPos >= 0) glDisableVertexAttribArray (GLuint (aPos));
+  glBindBuffer (GL_ARRAY_BUFFER, 0);
+  glBindTexture (GL_TEXTURE_2D, 0);
+  glUseProgram (0);
+  glDisable (GL_BLEND);
+}
+
+/* ── MotionComponent ──────────────────────────────────────────── */
 
 MotionComponent::MotionComponent (
     MotionEngine &engine,
@@ -526,7 +556,7 @@ MotionComponent::newOpenGLContextCreated ()
     }
 
   // Initialise blit shader for FBO compositing
-  s_blit.create ();
+  _blit.create ();
 
   // Load glow / spotlight config from userConfig
   {
@@ -734,7 +764,7 @@ MotionComponent::renderOpenGL ()
 
             auto const scale
                 = static_cast<float> (_glContext.getRenderingScale ());
-            s_blit.blit (
+            _blit.blit (
                 fb->getTextureID (),
                 static_cast<int> (_boundsRender.getWidth () * scale),
                 static_cast<int> (_boundsRender.getHeight () * scale));
@@ -1014,7 +1044,7 @@ void
 MotionComponent::openGLContextClosing ()
 {
   DBG ("openGLContextClosing");
-  s_blit.destroy ();
+  _blit.destroy ();
   _sphereShader.shutdown ();
 }
 
