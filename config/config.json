@@ -68,20 +68,20 @@
     "intensity": 0.8
   },
   "speakerLight": {
-    "vuMax": 0.7,
+    "vuMax": 0.6,
     "r": 110,
     "g": 250,
     "b": 251,
-    "alphaMax": 0.7,
-    "layers": 8,
-    "length": 1.7,
+    "alphaMax": 0.5,
+    "layers": 6,
+    "length": 1.4,
     "widthStart": 0.1,
-    "widthEnd": 0.9,
-    "curve": 0.3,
+    "widthEnd": 0.4,
+    "curve": 0.1,
     "speakerRadius": 1.55,
-    "beamConeExp": 6,
-    "beamFalloff": 0.6,
-    "beamIntensity": 0.8
+    "beamConeExp": 2,
+    "beamFalloff": 0.3,
+    "beamIntensity": 0.2
   },
   "channels": [
     { "r": 216, "g":  17, "b":  89 },

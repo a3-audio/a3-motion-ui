@@ -58,6 +58,7 @@ public:
 private:
   TickIndicator _tickIndicator;
 
+  juce::Label _labelOrientation;
   juce::Label _labelBPM;
   juce::Value &_valueBPM;
   

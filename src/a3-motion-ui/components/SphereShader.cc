@@ -99,20 +99,6 @@ float sphereIntersect (vec2 uv, out vec3 normal)
     return z;
 }
 
-// ─── head silhouette SDF ────────────────────────────────────────
-
-float headSDF (vec2 uv)
-{
-    float s = 0.6;
-    vec2 p = uv / s;
-    float cranium = length (p) - 0.38;
-    float earL = length (p - vec2 (-0.39, 0.0)) - 0.09;
-    float earR = length (p - vec2 ( 0.39, 0.0)) - 0.09;
-    vec2 nd = abs (p - vec2 (0.0, 0.42)) - vec2 (0.045, 0.09);
-    float nose = length (max (nd, 0.0)) + min (max (nd.x, nd.y), 0.0);
-    return min (min (cranium, min (earL, earR)), nose) * s;
-}
-
 // ─── data accessors (unrolled for GLSL 1.20) ───────────────────
 
 vec4 getBlobPosSize (int i)
@@ -156,48 +142,62 @@ void main ()
             colOut += uBgGlowColour * uGlowLevel * gf * gf * uBgGlowIntensity;
         }
 
-        // Speaker beams — rays FROM speaker positions towards sphere
-        // Each speaker sits at speakerRadius along its diagonal.
-        // The beam is a line segment from speaker to sphere edge;
-        // pixel brightness = exp falloff from distance to that segment.
+        // Speaker beams — dynamic VU-driven cones from speakers
+        // Width grows with VU level, absorbed at sphere edge
         float spkR = uSpeakerRadius;
-        vec2 spkDir0 = vec2 (-0.7071, 0.7071); // 135°
-        vec2 spkDir1 = vec2 ( 0.7071, 0.7071); // 45°
-        vec2 spkDir2 = vec2 ( 0.7071,-0.7071); // 315°
-        vec2 spkDir3 = vec2 (-0.7071,-0.7071); // 225°
+        vec2 dirN = uv / dist;
 
-        // For each speaker: project pixel onto segment, get perpendicular distance
-        // Segment: from spkPos (at spkR) towards origin, ending at sphere edge (dist=1)
-        float beamSum = 0.0;
-        for (int s = 0; s < 4; s++)
-        {
-            vec2 sDir = (s == 0) ? spkDir0 : (s == 1) ? spkDir1
-                      : (s == 2) ? spkDir2 : spkDir3;
-            float sLvl = (s == 0) ? uSpotLevel0 : (s == 1) ? uSpotLevel1
-                       : (s == 2) ? uSpotLevel2 : uSpotLevel3;
-            if (sLvl < 0.001) continue;
-
-            vec2 spkPos = sDir * spkR;
-            vec2 toOrigin = -sDir;  // direction from speaker towards centre
-            // Project pixel onto beam axis
-            vec2 toPixel = uv - spkPos;
-            float along = dot (toPixel, toOrigin);
-            float segLen = spkR - 1.0; // speaker to sphere edge
-            float t = clamp (along / segLen, 0.0, 1.0);
-            vec2 closest = spkPos + toOrigin * along;
-            float perpDist = length (uv - closest);
-
-            // Beam width: narrow near sphere, wider near speaker
-            float beamWidth = 0.04 + (1.0 - t) * 0.06;
-            float beam = exp (-perpDist * perpDist / (beamWidth * beamWidth * 2.0));
-            // Fade along beam: brightest near speaker, absorbed near sphere
-            float alongFade = smoothstep (0.0, 0.15, t) * smoothstep (1.0, 0.7, t);
-            beamSum += sLvl * beam * alongFade;
+        // Unrolled: GLSL 1.20 has no local arrays
+        // Speaker 0: 135°
+        if (uSpotLevel0 > 0.001) {
+            vec2 sd = vec2 (-0.7071, 0.7071);
+            vec2 tp = uv - sd * spkR;
+            float tpL = length (tp);
+            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
+            float bw = 0.3 + uSpotLevel0 * 0.4;
+            float cone = smoothstep (1.0 - bw, 1.0, al);
+            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
+            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
+            colOut += uSpotColour * uSpotLevel0 * (cone + glow) * df * uBeamIntensity;
         }
-        colOut += uSpotColour * beamSum * uBeamIntensity;
+        // Speaker 1: 45°
+        if (uSpotLevel1 > 0.001) {
+            vec2 sd = vec2 ( 0.7071, 0.7071);
+            vec2 tp = uv - sd * spkR;
+            float tpL = length (tp);
+            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
+            float bw = 0.3 + uSpotLevel1 * 0.4;
+            float cone = smoothstep (1.0 - bw, 1.0, al);
+            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
+            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
+            colOut += uSpotColour * uSpotLevel1 * (cone + glow) * df * uBeamIntensity;
+        }
+        // Speaker 2: 315°
+        if (uSpotLevel2 > 0.001) {
+            vec2 sd = vec2 ( 0.7071,-0.7071);
+            vec2 tp = uv - sd * spkR;
+            float tpL = length (tp);
+            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
+            float bw = 0.3 + uSpotLevel2 * 0.4;
+            float cone = smoothstep (1.0 - bw, 1.0, al);
+            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
+            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
+            colOut += uSpotColour * uSpotLevel2 * (cone + glow) * df * uBeamIntensity;
+        }
+        // Speaker 3: 225°
+        if (uSpotLevel3 > 0.001) {
+            vec2 sd = vec2 (-0.7071,-0.7071);
+            vec2 tp = uv - sd * spkR;
+            float tpL = length (tp);
+            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
+            float bw = 0.3 + uSpotLevel3 * 0.4;
+            float cone = smoothstep (1.0 - bw, 1.0, al);
+            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
+            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
+            colOut += uSpotColour * uSpotLevel3 * (cone + glow) * df * uBeamIntensity;
+        }
 
         // Blob outside glow
-        vec2 dirN = uv / dist;
         for (int b = 0; b < 4; b++)
         {
             if (float(b) >= uNumBlobs) break;
@@ -261,19 +261,27 @@ void main ()
         float wf = 1.0 - smoothstep (0.01, 0.04, min (gl1, min (gl2, gl3)));
         colSurf += vec3 (wf * 0.08 * (1.0 - fresnel * 0.8));
 
-        // Head silhouette
-        float hd = headSDF (uv);
-        float headEdge = (1.0 - smoothstep (0.0, 0.03, abs (hd))) * 0.15;
-        colSurf += headEdge * vec3 (0.6, 0.65, 0.7);
-        colSurf -= (1.0 - smoothstep (-0.01, 0.02, hd)) * 0.2;
-        colSurf = max (colSurf, vec3 (0.0));
-
         // Surface glow
         colSurf += uGlowColour * uGlowLevel * (1.0 - dist * 0.3) * 0.5;
 
-        // Speaker VU on surface (omnidirectional)
-        float ssOmni = (uSpotLevel0 + uSpotLevel1 + uSpotLevel2 + uSpotLevel3) * 0.1;
-        colSurf += vec3 (0.9, 0.12, 0.06) * ssOmni;
+        // Speaker beams flowing INTO sphere — from rim towards centre
+        // Each speaker lights its quadrant, strongest at rim, fading inward
+        // Blends with sphereGlow colour for seamless fusion
+        vec2 uvN = (length(uv) > 0.001) ? uv / length(uv) : vec2(0.0);
+        float rimFade = dist * dist; // stronger at rim (dist→1), fades to centre (dist→0)
+
+        float q0 = max (dot (uvN, vec2 (-0.7071, 0.7071)), 0.0); // 135°
+        float q1 = max (dot (uvN, vec2 ( 0.7071, 0.7071)), 0.0); // 45°
+        float q2 = max (dot (uvN, vec2 ( 0.7071,-0.7071)), 0.0); // 315°
+        float q3 = max (dot (uvN, vec2 (-0.7071,-0.7071)), 0.0); // 225°
+
+        // Directional beam per quadrant (q^2 for ~90° spread)
+        float surfBeam = uSpotLevel0 * q0 * q0 + uSpotLevel1 * q1 * q1
+                       + uSpotLevel2 * q2 * q2 + uSpotLevel3 * q3 * q3;
+
+        // Blend speaker colour into sphereGlow colour towards centre
+        vec3 beamCol = mix (uGlowColour, uSpotColour, rimFade);
+        colSurf += beamCol * surfBeam * rimFade * 0.35;
     }
 
     // Blend outside and surface with smooth AA transition

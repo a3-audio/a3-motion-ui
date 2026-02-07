@@ -21,21 +21,25 @@
 #include "TempoClock.hh"
 
 #include <future>
+#include <thread>
 
 #include <JuceHeader.h>
 
 #ifdef __linux__
 #include <pthread.h>
 #include <sched.h>
+#include <time.h>
 #endif
 
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/tempo/TempoEstimatorMean.hh>
 
-// TODO define this in anonymous namespace or move to internal
-// implementation file?
-class ClockTimer : public juce::HighResolutionTimer
+// Dedicated real-time clock thread using clock_nanosleep for
+// jitter-free tick scheduling.  Replaces juce::HighResolutionTimer
+// which internally uses usleep and is susceptible to OS scheduling
+// jitter.
+class ClockTimer
 {
 public:
   using PointerT = std::weak_ptr<std::function<a3::TempoClock::CallbackT> >;
@@ -56,6 +60,11 @@ public:
     });
   }
 
+  ~ClockTimer ()
+  {
+    stopThread ();
+  }
+
   std::future<void>
   submitFifoMessage (Message const &message)
   {
@@ -74,42 +83,88 @@ public:
   }
 
   void
-  hiResTimerCallback () override
+  startThread ()
   {
-    promoteToRealtimePriority ();
-    processFifoMessages ();
-    advanceMeasure ();
+    if (_running.load ())
+      return;
+    _running.store (true);
+    _thread = std::thread (&ClockTimer::threadFunc, this);
+  }
+
+  void
+  stopThread ()
+  {
+    _running.store (false);
+    if (_thread.joinable ())
+      _thread.join ();
+  }
+
+  bool
+  isRunning () const
+  {
+    return _running.load ();
   }
 
   std::atomic<bool> reset{ true };
 
 private:
-  // Promote the timer thread to SCHED_FIFO once, on first callback.
+  void
+  threadFunc ()
+  {
+    promoteToRealtimePriority ();
+
+#ifdef __linux__
+    // Use CLOCK_MONOTONIC + TIMER_ABSTIME for jitter-free scheduling.
+    // We compute absolute wake-up times so accumulated drift is zero.
+    struct timespec nextWake;
+    clock_gettime (CLOCK_MONOTONIC, &nextWake);
+
+    while (_running.load (std::memory_order_relaxed))
+      {
+        processFifoMessages ();
+        advanceMeasure ();
+
+        // Sleep until next 1ms boundary (absolute time — no drift)
+        nextWake.tv_nsec += 1000000;  // 1 ms
+        if (nextWake.tv_nsec >= 1000000000)
+          {
+            nextWake.tv_nsec -= 1000000000;
+            nextWake.tv_sec += 1;
+          }
+        clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &nextWake, nullptr);
+      }
+#else
+    // Fallback for non-Linux: use chrono sleep
+    auto nextWake = std::chrono::steady_clock::now ();
+    while (_running.load (std::memory_order_relaxed))
+      {
+        processFifoMessages ();
+        advanceMeasure ();
+
+        nextWake += std::chrono::microseconds (1000);  // 1 ms
+        std::this_thread::sleep_until (nextWake);
+      }
+#endif
+  }
+
+  // Promote the clock thread to SCHED_FIFO once.
   // This guarantees the beatclock preempts GL/UI threads on RPi4.
   void promoteToRealtimePriority ()
   {
-    if (_rtPromoted)
-      return;
-    _rtPromoted = true;
-
 #ifdef __linux__
     struct sched_param param;
     param.sched_priority = 70;  // high but leaves room for audio (usually 80+)
     int result = pthread_setschedparam (pthread_self (), SCHED_FIFO, &param);
     if (result != 0)
       {
-        // Fallback: if we can't get SCHED_FIFO (no CAP_SYS_NICE),
-        // at least set highest normal priority
-        DBG ("Could not set SCHED_FIFO (error " << result << "), falling back to max nice");
-        // setpriority is another option but JUCE already handles nice levels
+        DBG ("Clock thread: could not set SCHED_FIFO (error " << result << ")");
       }
     else
       {
-        DBG ("Timer thread promoted to SCHED_FIFO priority 70");
+        DBG ("Clock thread promoted to SCHED_FIFO priority 70");
       }
 #endif
   }
-  bool _rtPromoted = false;
   struct SubmittedMessage : public Message
   {
     SubmittedMessage () : Message{} {}
@@ -318,6 +373,9 @@ private:
 
   std::array<ContainerT, kNumHandlerSlots> _handlers;
 
+  std::atomic<bool> _running{ false };
+  std::thread _thread;
+
   a3::TempoClock const &_tempoClock;
 
   ClockT::time_point _startTime;
@@ -414,12 +472,12 @@ TempoClock::tap (juce::int64 timeMicros)
 void
 TempoClock::start ()
 {
-  if (!_timer->isTimerRunning ())
+  if (!_timer->isRunning ())
     {
       _timer->reset = true;
-      _timer->startTimer (timerIntervalMs);
+      _timer->startThread ();
 #ifdef DEBUG
-      juce::Logger::writeToLog ("TempoClock: started");
+      juce::Logger::writeToLog ("TempoClock: started (dedicated thread)");
 #endif
     }
 #ifdef DEBUG
@@ -433,9 +491,9 @@ TempoClock::start ()
 void
 TempoClock::stop ()
 {
-  if (_timer->isTimerRunning ())
+  if (_timer->isRunning ())
     {
-      _timer->stopTimer ();
+      _timer->stopThread ();
 #ifdef DEBUG
       juce::Logger::writeToLog ("TempoClock: stopped");
 #endif

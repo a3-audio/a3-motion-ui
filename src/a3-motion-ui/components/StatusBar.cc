@@ -38,6 +38,12 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   addChildComponent (_tickIndicator);
   _tickIndicator.setVisible (true);
   
+  addChildComponent (_labelOrientation);
+  _labelOrientation.setVisible (true);
+  _labelOrientation.setJustificationType (juce::Justification::centredLeft);
+  _labelOrientation.setText (juce::CharPointer_UTF8 ("0\xc2\xb0"), juce::dontSendNotification);
+  _labelOrientation.setColour (juce::Label::textColourId, juce::Colours::grey);
+
   addChildComponent (_labelBPM);
   _labelBPM.setVisible (true);
   _labelBPM.setJustificationType (juce::Justification::centredLeft);
@@ -75,7 +81,11 @@ StatusBar::resized ()
   bounds.removeFromTop (verticalPadding);
   bounds.removeFromBottom (verticalPadding);
 
-  // BPM label on the left
+  // Orientation label on the far left
+  auto orientArea = bounds.removeFromLeft (40);
+  _labelOrientation.setBounds (orientArea.withTrimmedLeft (LayoutHints::padding));
+
+  // BPM label next to orientation
   auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 4);
   _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
 
