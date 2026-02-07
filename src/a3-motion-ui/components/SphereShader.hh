@@ -99,6 +99,9 @@ public:
     float vuMax = 0.2f;
     float curve = 0.4f;
     float speakerRadius = 1.55f;
+    float beamConeExp = 6.f;
+    float beamFalloff = 0.6f;
+    float beamIntensity = 0.8f;
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
   float getSpeakerRadius () const { return _spotCfg.speakerRadius; }
@@ -129,6 +132,9 @@ private:
   GLint _uSpotLevel[4] = { -1, -1, -1, -1 };
   GLint _uSpotColour = -1;
   GLint _uSpeakerRadius = -1;
+  GLint _uBeamConeExp = -1;
+  GLint _uBeamFalloff = -1;
+  GLint _uBeamIntensity = -1;
 
   // Blob uniforms (position+colour kept for lighting on sphere surface)
   GLint _uBlobPosSize[kMaxBlobs] = {};  // vec4: x, y, size, vuLevel

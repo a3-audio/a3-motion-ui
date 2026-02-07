@@ -127,6 +127,11 @@ private:
   std::atomic<float> _vuSpeakerPeak[4]{ {0.f}, {0.f}, {0.f}, {0.f} };
   std::atomic<float> _vuSpeakerRms[4]{ {0.f}, {0.f}, {0.f}, {0.f} };
 
+  // Smoothed VU values (updated per render frame, exponential decay)
+  float _smoothGlowPeak = 0.f, _smoothGlowRms = 0.f;
+  float _smoothSpotPeak[4]{}, _smoothSpotRms[4]{};
+  float _smoothBlobPeak[4]{}, _smoothBlobRms[4]{};
+
   // Background colour packed as ARGB — lock-free atomic access
   std::atomic<juce::uint32> _backgroundColourPacked{ 0 };
 

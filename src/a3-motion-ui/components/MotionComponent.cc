@@ -31,37 +31,110 @@
 namespace
 {
 
-/* Convenience RAII object to make sure we always free the
- * OpenGLGraphicsContext after it was used in the rendering callback.
+/* Minimal GLSL 1.20 shader for compositing a texture over the framebuffer
+ * with alpha blending.  Replaces the old GLContextGraphics approach which
+ * called juce::createOpenGLGraphicsContext and clobbered the shader output.
  */
-class GLContextGraphics
+static const char *blitVertSrc = R"(
+#version 120
+attribute vec2 aPos;
+varying   vec2 vUV;
+void main() {
+  vUV = aPos * 0.5 + 0.5;             // no Y flip — JUCE FBO is standard GL
+  gl_Position = vec4(aPos, 0.0, 1.0);
+})";
+
+static const char *blitFragSrc = R"(
+#version 120
+uniform sampler2D uTex;
+varying vec2 vUV;
+void main() {
+  gl_FragColor = texture2D(uTex, vUV);
+})";
+
+/* One-time blit resources (created in newOpenGLContextCreated) */
+struct BlitResources
 {
-public:
-  GLContextGraphics (juce::OpenGLContext &glContext, int width, int height)
-  {
-    _glRenderer = juce::createOpenGLGraphicsContext (glContext, width, height);
+  GLuint program = 0;
+  GLuint vbo = 0;
+  GLint  aPos = -1;
+  GLint  uTex = -1;
+  bool   valid = false;
 
-    _graphics = std::make_unique<juce::Graphics> (*_glRenderer);
-    _graphics->addTransform (
-        juce::AffineTransform::scale (float (glContext.getRenderingScale ())));
+  void create ()
+  {
+    using namespace juce::gl;
+    // Compile vertex shader
+    GLuint vs = glCreateShader (GL_VERTEX_SHADER);
+    glShaderSource (vs, 1, &blitVertSrc, nullptr);
+    glCompileShader (vs);
+    // Compile fragment shader
+    GLuint fs = glCreateShader (GL_FRAGMENT_SHADER);
+    glShaderSource (fs, 1, &blitFragSrc, nullptr);
+    glCompileShader (fs);
+    // Link
+    program = glCreateProgram ();
+    glAttachShader (program, vs);
+    glAttachShader (program, fs);
+    glLinkProgram (program);
+    glDeleteShader (vs);
+    glDeleteShader (fs);
+
+    aPos = glGetAttribLocation (program, "aPos");
+    uTex = glGetUniformLocation (program, "uTex");
+
+    // Fullscreen quad VBO
+    static const float quad[] = { -1, -1, 1, -1, -1, 1, 1, 1 };
+    glGenBuffers (1, &vbo);
+    glBindBuffer (GL_ARRAY_BUFFER, vbo);
+    glBufferData (GL_ARRAY_BUFFER, sizeof (quad), quad, GL_STATIC_DRAW);
+    glBindBuffer (GL_ARRAY_BUFFER, 0);
+
+    valid = true;
   }
 
-  ~GLContextGraphics ()
+  void destroy ()
   {
-    _graphics = nullptr;
-    _glRenderer = nullptr;
+    using namespace juce::gl;
+    if (vbo)     { glDeleteBuffers (1, &vbo); vbo = 0; }
+    if (program) { glDeleteProgram (program);  program = 0; }
+    valid = false;
   }
 
-  juce::Graphics &
-  get ()
+  /** Draw textureID as fullscreen quad with alpha blending. */
+  void blit (GLuint textureID, int vpW, int vpH) const
   {
-    return *_graphics;
-  }
+    using namespace juce::gl;
+    if (!valid || !textureID) return;
 
-private:
-  std::unique_ptr<juce::LowLevelGraphicsContext> _glRenderer;
-  std::unique_ptr<juce::Graphics> _graphics;
+    glViewport (0, 0, vpW, vpH);
+    glEnable (GL_BLEND);
+    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glUseProgram (program);
+    glActiveTexture (GL_TEXTURE0);
+    glBindTexture (GL_TEXTURE_2D, textureID);
+    if (uTex >= 0) glUniform1i (uTex, 0);
+
+    glBindBuffer (GL_ARRAY_BUFFER, vbo);
+    if (aPos >= 0)
+      {
+        glEnableVertexAttribArray (GLuint (aPos));
+        glVertexAttribPointer (GLuint (aPos), 2, GL_FLOAT, GL_FALSE,
+                               2 * sizeof (float), nullptr);
+      }
+
+    glDrawArrays (GL_TRIANGLE_STRIP, 0, 4);
+
+    if (aPos >= 0) glDisableVertexAttribArray (GLuint (aPos));
+    glBindBuffer (GL_ARRAY_BUFFER, 0);
+    glBindTexture (GL_TEXTURE_2D, 0);
+    glUseProgram (0);
+    glDisable (GL_BLEND);
+  }
 };
+
+static BlitResources s_blit;
 
 // struct VertexUV
 // {
@@ -452,6 +525,9 @@ MotionComponent::newOpenGLContextCreated ()
       DBG ("WARNING: SphereShader failed to initialise – falling back to 2D");
     }
 
+  // Initialise blit shader for FBO compositing
+  s_blit.create ();
+
   // Load glow / spotlight config from userConfig
   {
     auto cfgF = [] (const juce::var &obj, const char *key,
@@ -487,6 +563,9 @@ MotionComponent::newOpenGLContextCreated ()
     sc.vuMax = cfgF (sl, "vuMax", 0.2f);
     sc.curve = cfgF (sl, "curve", 0.4f);
     sc.speakerRadius = cfgF (sl, "speakerRadius", 1.55f);
+    sc.beamConeExp = cfgF (sl, "beamConeExp", 6.f);
+    sc.beamFalloff = cfgF (sl, "beamFalloff", 0.6f);
+    sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
     _sphereShader.setSpotlightConfig (sc);
   }
 
@@ -524,14 +603,35 @@ MotionComponent::renderOpenGL ()
   // Clear background first
   OpenGLHelpers::clear (Colours::background);
 
+  // ── Smooth VU values (exponential moving average per frame) ───
+  // Attack fast (~0.5), release slower (~0.15) → no flicker, responsive feel
+  {
+    auto smooth = [] (float &current, float target) {
+      float alpha = (target > current) ? 0.5f : 0.15f;
+      current += alpha * (target - current);
+    };
+    smooth (_smoothGlowPeak, _vuSphereGlowPeak.load ());
+    smooth (_smoothGlowRms,  _vuSphereGlowRms.load ());
+    for (int i = 0; i < 4; ++i)
+      {
+        smooth (_smoothSpotPeak[i], _vuSpeakerPeak[i].load ());
+        smooth (_smoothSpotRms[i],  _vuSpeakerRms[i].load ());
+      }
+    auto numCh = static_cast<int> (_engine.getNumChannels ());
+    for (int ch = 0; ch < numCh && ch < 4; ++ch)
+      {
+        smooth (_smoothBlobPeak[ch], _uiStates[ch]->vuPeak.load ());
+        smooth (_smoothBlobRms[ch],  _uiStates[ch]->vuLevel.load ());
+      }
+  }
+
   // ── 3D scene via shader ───────────────────────────────────────
   {
-    // Forward VU data to shader
-    _sphereShader.setSphereGlow (_vuSphereGlowPeak.load (),
-                                _vuSphereGlowRms.load ());
+    // Forward smoothed VU data to shader
+    _sphereShader.setSphereGlow (_smoothGlowPeak, _smoothGlowRms);
     for (int i = 0; i < 4; ++i)
-      _sphereShader.setSpeakerLight (i, _vuSpeakerPeak[i].load (),
-                                     _vuSpeakerRms[i].load ());
+      _sphereShader.setSpeakerLight (i, _smoothSpotPeak[i],
+                                     _smoothSpotRms[i]);
 
     // Forward blob data to shader
     auto numChannels = static_cast<int> (_engine.getNumChannels ());
@@ -562,8 +662,8 @@ MotionComponent::renderOpenGL ()
         bd.r = col.getFloatRed ();
         bd.g = col.getFloatGreen ();
         bd.b = col.getFloatBlue ();
-        bd.vuPeak = _uiStates[ch]->vuPeak.load ();
-        bd.vuRms = _uiStates[ch]->vuLevel.load ();
+        bd.vuPeak = _smoothBlobPeak[ch];
+        bd.vuRms = _smoothBlobRms[ch];
         bd.grabbed = _uiStates[ch]->grabbed;
         bd.highlighted = _uiStates[ch]->highlighted;
 
@@ -593,6 +693,9 @@ MotionComponent::renderOpenGL ()
   }
 
   // ── 2D overlay (blobs, corona, speakers, pattern preview) ──────
+  // Drawn into _imageBlend FBO with transparent background, then composited
+  // over the shader output. This prevents the JUCE software rasterizer from
+  // clobbering the shader-rendered background glow and speaker beams.
   {
     _mutexPreview.lock ();
     auto const patternsPreview{ _patternsPreview };
@@ -600,21 +703,43 @@ MotionComponent::renderOpenGL ()
 
     ++_frameCount;
 
-    GLContextGraphics graphics (_glContext,
-                                _boundsRender.getWidth (),
-                                _boundsRender.getHeight ());
-    graphics.get ().addTransform (_transformNormalizedToLocal);
+    if (_imageBlend)
+      {
+        _imageBlend->clear (_imageBlend->getBounds ());
 
-    // Speaker SVGs — every frame (lightweight without FBO)
-    if (_drawableSpeaker != nullptr)
-      drawCircle (graphics.get ());
+        {
+          juce::Graphics gFBO{ *_imageBlend };
+          gFBO.addTransform (_transformNormalizedToLocal);
 
-    // Channel blobs + corona — every frame for responsive interaction
-    drawChannelBlobs (graphics.get ());
+          // Speaker SVGs
+          if (_drawableSpeaker != nullptr)
+            drawCircle (gFBO);
 
-    // Pattern preview paths
-    for (auto &pattern : patternsPreview)
-      drawPatternPreview (*pattern, graphics.get ());
+          // Channel blobs + corona
+          drawChannelBlobs (gFBO);
+
+          // Pattern preview paths
+          for (auto &pattern : patternsPreview)
+            drawPatternPreview (*pattern, gFBO);
+        }
+
+        // Composite the FBO over the shader output using native GL blitting.
+        // The old GLContextGraphics approach called createOpenGLGraphicsContext
+        // which reset GL state and clobbered the shader-rendered pixels.
+        auto *fb = juce::OpenGLImageType::getFrameBufferFrom (*_imageBlend);
+        if (fb && fb->getTextureID ())
+          {
+            // Ensure we're drawing to the default framebuffer (screen)
+            juce::gl::glBindFramebuffer (juce::gl::GL_FRAMEBUFFER, 0);
+
+            auto const scale
+                = static_cast<float> (_glContext.getRenderingScale ());
+            s_blit.blit (
+                fb->getTextureID (),
+                static_cast<int> (_boundsRender.getWidth () * scale),
+                static_cast<int> (_boundsRender.getHeight () * scale));
+          }
+      }
   }
 }
 
@@ -737,8 +862,8 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
       auto colour = _uiStates[channel]->colour;
 
       // Draw VU corona (glow effect based on audio level)
-      float vuRms = _uiStates[channel]->vuLevel.load ();
-      float vuPeak = _uiStates[channel]->vuPeak.load ();
+      float vuRms = (channel < 4) ? _smoothBlobRms[channel] : 0.f;
+      float vuPeak = (channel < 4) ? _smoothBlobPeak[channel] : 0.f;
       bool isGrabbed = _uiStates[channel]->grabbed;
       bool isHighlighted = _uiStates[channel]->highlighted;
 
@@ -771,17 +896,15 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
           auto coronaDiam = blobSize * baseBlobScale * coronaScale;
           float coronaAlpha = _coronaCfg.alphaMin
                               + peakScaled * (_coronaCfg.alphaMax - _coronaCfg.alphaMin);
-          auto glowColor = colour.interpolatedWith (
-              juce::Colours::white, peakScaled * _coronaCfg.whiteBlend);
 
-          // Two glow layers (outer → inner)
+          // Two glow layers (outer → inner) — same colour as ball
           for (int layer = 2; layer >= 1; --layer)
             {
               float layerScale = 1.0f + (layer - 1) * 0.15f;
               float layerAlpha = coronaAlpha / (layer * 2.0f);
               auto layerSize = coronaDiam * layerScale;
               auto layerRect = juce::Rectangle<float> (0.f, 0.f, layerSize, layerSize);
-              g.setColour (glowColor.withAlpha (layerAlpha));
+              g.setColour (colour.withAlpha (layerAlpha));
               g.fillEllipse (layerRect.withCentre (posScreenNormalized));
             }
         }
@@ -891,6 +1014,7 @@ void
 MotionComponent::openGLContextClosing ()
 {
   DBG ("openGLContextClosing");
+  s_blit.destroy ();
   _sphereShader.shutdown ();
 }
 

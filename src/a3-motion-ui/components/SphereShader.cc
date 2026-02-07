@@ -72,6 +72,10 @@ uniform float uSpotLevel1;
 uniform float uSpotLevel2;
 uniform float uSpotLevel3;
 uniform vec3  uSpotColour;
+uniform float uSpeakerRadius;
+uniform float uBeamConeExp;
+uniform float uBeamFalloff;
+uniform float uBeamIntensity;
 
 // Channel blobs (position, size, VU, colour, state)
 uniform vec4  uBlobPosSize0;
@@ -137,33 +141,63 @@ void main ()
     vec3 col = vec3 (0.0);
     float alpha = 1.0;
 
-    // ── Outside sphere ──────────────────────────────────────────
-    if (dist > 1.0)
+    // AA blend zone: 3 pixels wide in sphere-space
+    float aaWidth = 3.0 / uSphereRadius;
+    float surfaceMix = smoothstep (1.0 + aaWidth, 1.0 - aaWidth, dist);
+
+    // ── Outside sphere contribution ─────────────────────────────
+    vec3 colOut = vec3 (0.0);
+    if (dist > 1.0 - aaWidth)
     {
-        // Background glow
+        // Background glow (VU-driven from subwoofer /vu/4)
         if (uGlowLevel > 0.001)
         {
             float gf = 1.0 / (1.0 + (dist - 1.0) * uBgGlowFalloff);
-            col += uBgGlowColour * uGlowLevel * gf * gf * uBgGlowIntensity;
+            colOut += uBgGlowColour * uGlowLevel * gf * gf * uBgGlowIntensity;
         }
 
-        // Speaker beams — 4 fixed angles
-        float sa = 0.0;
-        vec2 dirN = uv / dist;  // normalised direction, reuse
-        float radFade = 1.0 / (1.0 + (dist - 1.0) * 0.8);
+        // Speaker beams — rays FROM speaker positions towards sphere
+        // Each speaker sits at speakerRadius along its diagonal.
+        // The beam is a line segment from speaker to sphere edge;
+        // pixel brightness = exp falloff from distance to that segment.
+        float spkR = uSpeakerRadius;
+        vec2 spkDir0 = vec2 (-0.7071, 0.7071); // 135°
+        vec2 spkDir1 = vec2 ( 0.7071, 0.7071); // 45°
+        vec2 spkDir2 = vec2 ( 0.7071,-0.7071); // 315°
+        vec2 spkDir3 = vec2 (-0.7071,-0.7071); // 225°
 
-        // Inline spot contributions — avoid function call overhead
-        float a0 = max (dot (dirN, vec2 (-0.7071, 0.7071)), 0.0); // 135°
-        sa += uSpotLevel0 * a0 * a0 * radFade;
-        float a1 = max (dot (dirN, vec2 ( 0.7071, 0.7071)), 0.0); // 45°
-        sa += uSpotLevel1 * a1 * a1 * radFade;
-        float a2 = max (dot (dirN, vec2 ( 0.7071,-0.7071)), 0.0); // 315°
-        sa += uSpotLevel2 * a2 * a2 * radFade;
-        float a3 = max (dot (dirN, vec2 (-0.7071,-0.7071)), 0.0); // 225°
-        sa += uSpotLevel3 * a3 * a3 * radFade;
-        col += uSpotColour * sa * 0.8;
+        // For each speaker: project pixel onto segment, get perpendicular distance
+        // Segment: from spkPos (at spkR) towards origin, ending at sphere edge (dist=1)
+        float beamSum = 0.0;
+        for (int s = 0; s < 4; s++)
+        {
+            vec2 sDir = (s == 0) ? spkDir0 : (s == 1) ? spkDir1
+                      : (s == 2) ? spkDir2 : spkDir3;
+            float sLvl = (s == 0) ? uSpotLevel0 : (s == 1) ? uSpotLevel1
+                       : (s == 2) ? uSpotLevel2 : uSpotLevel3;
+            if (sLvl < 0.001) continue;
+
+            vec2 spkPos = sDir * spkR;
+            vec2 toOrigin = -sDir;  // direction from speaker towards centre
+            // Project pixel onto beam axis
+            vec2 toPixel = uv - spkPos;
+            float along = dot (toPixel, toOrigin);
+            float segLen = spkR - 1.0; // speaker to sphere edge
+            float t = clamp (along / segLen, 0.0, 1.0);
+            vec2 closest = spkPos + toOrigin * along;
+            float perpDist = length (uv - closest);
+
+            // Beam width: narrow near sphere, wider near speaker
+            float beamWidth = 0.04 + (1.0 - t) * 0.06;
+            float beam = exp (-perpDist * perpDist / (beamWidth * beamWidth * 2.0));
+            // Fade along beam: brightest near speaker, absorbed near sphere
+            float alongFade = smoothstep (0.0, 0.15, t) * smoothstep (1.0, 0.7, t);
+            beamSum += sLvl * beam * alongFade;
+        }
+        colOut += uSpotColour * beamSum * uBeamIntensity;
 
         // Blob outside glow
+        vec2 dirN = uv / dist;
         for (int b = 0; b < 4; b++)
         {
             if (float(b) >= uNumBlobs) break;
@@ -173,24 +207,26 @@ void main ()
             float align = max (dot (dirN, toBlobDir), 0.0);
             align = align * align * align;
             float rf = 1.0 / (1.0 + (dist - 1.0) * 1.2);
-            col += getBlobCol (b) * bps.w * align * rf * 0.6;
+            colOut += getBlobCol (b) * bps.w * align * rf * 0.6;
         }
     }
-    // ── On the sphere surface ───────────────────────────────────
-    else
+
+    // ── On the sphere surface contribution ──────────────────────
+    vec3 colSurf = vec3 (0.0);
+    if (dist < 1.0 + aaWidth)
     {
         vec3 N;
         sphereIntersect (uv, N);
 
-        col = vec3 (0.04, 0.04, 0.055);
+        colSurf = vec3 (0.04, 0.04, 0.055);
 
         // Fresnel rim
         float fresnel = 1.0 - N.z;
         fresnel = fresnel * fresnel * fresnel;
-        col += vec3 (0.5, 0.55, 0.65) * 0.35 * fresnel;
+        colSurf += vec3 (0.5, 0.55, 0.65) * 0.35 * fresnel;
 
         // Fake env reflection (simplified)
-        col += vec3 (0.02, 0.025, 0.03) * fresnel * 0.6;
+        colSurf += vec3 (0.02, 0.025, 0.03) * fresnel * 0.6;
 
         // Blob lighting on surface (combined diffuse + specular, single loop)
         vec3 viewDir = vec3 (0.0, 0.0, 1.0);
@@ -208,13 +244,13 @@ void main ()
             float inten = 0.3 + bps.w * 0.7;
 
             // Diffuse
-            col += bcol * diff * att * inten * 0.5;
+            colSurf += bcol * diff * att * inten * 0.5;
 
             // Specular (pow 32 via squaring)
             vec3 bh = normalize (bld + viewDir);
             float sp = max (dot (N, bh), 0.0);
             sp = sp * sp; sp = sp * sp; sp = sp * sp; sp = sp * sp; sp = sp * sp; // ^32
-            col += bcol * sp * att * inten * 0.5;
+            colSurf += bcol * sp * att * inten * 0.5;
         }
 
         // Wireframe
@@ -223,28 +259,25 @@ void main ()
         float gl2 = abs (fract (N.y * gf + 0.5) - 0.5);
         float gl3 = abs (fract (N.z * gf + 0.5) - 0.5);
         float wf = 1.0 - smoothstep (0.01, 0.04, min (gl1, min (gl2, gl3)));
-        col += vec3 (wf * 0.08 * (1.0 - fresnel * 0.8));
+        colSurf += vec3 (wf * 0.08 * (1.0 - fresnel * 0.8));
 
         // Head silhouette
         float hd = headSDF (uv);
         float headEdge = (1.0 - smoothstep (0.0, 0.03, abs (hd))) * 0.15;
-        col += headEdge * vec3 (0.6, 0.65, 0.7);
-        col -= (1.0 - smoothstep (-0.01, 0.02, hd)) * 0.2;
-        col = max (col, vec3 (0.0));
+        colSurf += headEdge * vec3 (0.6, 0.65, 0.7);
+        colSurf -= (1.0 - smoothstep (-0.01, 0.02, hd)) * 0.2;
+        colSurf = max (colSurf, vec3 (0.0));
 
         // Surface glow
-        col += uGlowColour * uGlowLevel * (1.0 - dist * 0.3) * 0.5;
+        colSurf += uGlowColour * uGlowLevel * (1.0 - dist * 0.3) * 0.5;
 
         // Speaker VU on surface (omnidirectional)
         float ssOmni = (uSpotLevel0 + uSpotLevel1 + uSpotLevel2 + uSpotLevel3) * 0.1;
-        col += vec3 (0.9, 0.12, 0.06) * ssOmni;
-
-        // Anti-aliased sphere edge
-        col *= smoothstep (1.0, 0.99, dist);
+        colSurf += vec3 (0.9, 0.12, 0.06) * ssOmni;
     }
 
-    // Blobs + corona are drawn as 2D overlay by MotionComponent
-    // for maximum touch interaction performance.
+    // Blend outside and surface with smooth AA transition
+    col = mix (colOut, colSurf, surfaceMix);
 
     gl_FragColor = vec4 (col, 1.0);
 }
@@ -300,6 +333,9 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uSpotLevel[3]  = glGetUniformLocation (pid, "uSpotLevel3");
   _uSpotColour    = glGetUniformLocation (pid, "uSpotColour");
   _uSpeakerRadius = glGetUniformLocation (pid, "uSpeakerRadius");
+  _uBeamConeExp   = glGetUniformLocation (pid, "uBeamConeExp");
+  _uBeamFalloff   = glGetUniformLocation (pid, "uBeamFalloff");
+  _uBeamIntensity = glGetUniformLocation (pid, "uBeamIntensity");
   _uNumBlobs      = glGetUniformLocation (pid, "uNumBlobs");
 
   _uBlobPosSize[0] = glGetUniformLocation (pid, "uBlobPosSize0");
@@ -402,6 +438,12 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform3f (_uSpotColour, _spotCfg.r, _spotCfg.g, _spotCfg.b);
   if (_uSpeakerRadius >= 0)
     glUniform1f (_uSpeakerRadius, _spotCfg.speakerRadius);
+  if (_uBeamConeExp >= 0)
+    glUniform1f (_uBeamConeExp, _spotCfg.beamConeExp);
+  if (_uBeamFalloff >= 0)
+    glUniform1f (_uBeamFalloff, _spotCfg.beamFalloff);
+  if (_uBeamIntensity >= 0)
+    glUniform1f (_uBeamIntensity, _spotCfg.beamIntensity);
 
   // Blobs
   if (_uNumBlobs >= 0)
