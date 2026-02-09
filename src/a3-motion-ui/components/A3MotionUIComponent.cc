@@ -39,6 +39,7 @@
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/FilterDisplay.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
+#include <a3-motion-ui/components/LoopLengthDisplay.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
 
@@ -211,11 +212,17 @@ A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
               "1/" + juce::String (int (1.f / lengthBars)));
         }
 
+      // Update loop length display
+      _loopLengthDisplay->setLoopLengthBeats (static_cast<int> (channel),
+                                              getLengthBeats (channel));
+
       auto playingPattern = _engine.getPlayingPattern (channel);
       if (playingPattern)
         {
+          auto const lengthBeats = static_cast<int> (
+              std::max (1.f, getLengthBeats (channel)));
           auto playbackLength
-              = Measure{ 0, getLengthBeats (channel), 0 }.consolidate (
+              = Measure{ 0, lengthBeats, 0 }.consolidate (
                   _engine.getTempoClock ().getBeatsPerBar ());
 #ifdef DEBUG
           juce::Logger::writeToLog ("setting playback length: "
@@ -228,8 +235,10 @@ A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
       auto recordingPattern = _engine.getRecordingPattern ();
       if (recordingPattern && recordingPattern->getChannel () == channel)
         {
+          auto const lengthBeats = static_cast<int> (
+              std::max (1.f, getLengthBeats (channel)));
           auto recordingLength
-              = Measure{ 0, getLengthBeats (channel), 0 }.consolidate (
+              = Measure{ 0, lengthBeats, 0 }.consolidate (
                   _engine.getTempoClock ().getBeatsPerBar ());
 #ifdef DEBUG
           juce::Logger::writeToLog ("updating recording pattern length: "
@@ -242,8 +251,10 @@ A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
       auto scheduledRecordingPattern = _engine.getScheduledForRecordingPattern ();
       if (scheduledRecordingPattern && scheduledRecordingPattern->getChannel () == channel)
         {
+          auto const lengthBeats = static_cast<int> (
+              std::max (1.f, getLengthBeats (channel)));
           auto recordingLength
-              = Measure{ 0, getLengthBeats (channel), 0 }.consolidate (
+              = Measure{ 0, lengthBeats, 0 }.consolidate (
                   _engine.getTempoClock ().getBeatsPerBar ());
 #ifdef DEBUG
           juce::Logger::writeToLog ("updating scheduled recording pattern length: "
@@ -254,13 +265,13 @@ A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
     }
 }
 
-int
+float
 A3MotionUIComponent::getLengthBeats (index_t channel) const
 {
   auto const lengthBars = std::exp2 (_lengthsBarLog2[channel]);
-  auto const lengthBeats = static_cast<int> (
-      lengthBars * _engine.getTempoClock ().getBeatsPerBar ());
-  return lengthBeats;
+  auto const lengthBeats
+      = lengthBars * _engine.getTempoClock ().getBeatsPerBar ();
+  return static_cast<float> (lengthBeats);
 }
 
 void
@@ -284,6 +295,17 @@ A3MotionUIComponent::createMainUI ()
   _filterDisplay->setVisible (true);
   for (auto ch = 0u; ch < _channelUIStates.size () && ch < FilterDisplay::numChannels; ++ch)
     _filterDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
+
+  _loopLengthDisplay = std::make_unique<LoopLengthDisplay> ();
+  addChildComponent (*_loopLengthDisplay);
+  _loopLengthDisplay->setVisible (true);
+  _loopLengthDisplay->setReferenceBeats (
+      _engine.getTempoClock ().getBeatsPerBar ());
+  for (auto ch = 0u; ch < _channelUIStates.size () && ch < LoopLengthDisplay::numChannels; ++ch)
+    {
+      _loopLengthDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
+      _loopLengthDisplay->setLoopLengthBeats (static_cast<int> (ch), getLengthBeats (ch));
+    }
 }
 
 constexpr bool
@@ -393,6 +415,11 @@ A3MotionUIComponent::resized ()
                           : bounds.removeFromBottom (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
+  // Loop length display below status bar
+  auto constexpr loopLengthDisplayHeight = LoopLengthDisplay::getMinimumHeight ();
+  auto boundsLoopLength = bounds.removeFromTop (loopLengthDisplayHeight);
+  _loopLengthDisplay->setBounds (boundsLoopLength);
+
   // Filter display at the bottom
   auto constexpr filterDisplayHeight = FilterDisplay::getMinimumHeight ();
   auto boundsFilter = bounds.removeFromBottom (filterDisplayHeight);
@@ -452,6 +479,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           // Update LED and status bar
           _ioAdapter->getButtonLED (Button::ClockMode) = _clockMode;
           _statusBar->setClockMode (_clockMode);
+          _loopLengthDisplay->setClockMode (_clockMode);
           
           // Send clock mode status via OSC
           auto clockModeMsg = juce::OSCMessage ("/clockmode");
@@ -498,10 +526,6 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               _oscSender.send (tapMsg);
               std::cout << "[TAP] " << (_clockMode ? "EXT" : "INT")
                         << " dt=" << elapsed << "ms" << std::endl;
-
-              // EXT mode: also reset beat counter
-              if (_clockMode)
-                _engine.getTempoClock ().reset ();
             }
         }
       else
@@ -602,7 +626,8 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           _patterns[channel][pad]->setChannel (channel);
         }
 
-      auto recordLength = Measure{ 0, getLengthBeats (channel), 0 };
+      auto recordLength = Measure{ 0, static_cast<int> (
+          std::max (1.f, getLengthBeats (channel))), 0 };
       recordLength.consolidate (_engine.getTempoClock ().getBeatsPerBar ());
 #ifdef DEBUG
       juce::Logger::writeToLog ("recording with length: "
@@ -635,7 +660,8 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           }
         case Pattern::Status::Idle:
           {
-            auto playbackLength = Measure{ 0, getLengthBeats (channel), 0 };
+            auto playbackLength = Measure{ 0, static_cast<int> (
+                std::max (1.f, getLengthBeats (channel))), 0 };
             _patterns[channel][pad]->setPlaybackLength (playbackLength);
             _engine.playPattern (_patterns[channel][pad],
                                  TempoClock::nextDownBeat (_now));
@@ -767,6 +793,29 @@ A3MotionUIComponent::tickCallback (Measure measure)
     {
       _motionComponent->setBackgroundColour (
           juce::Colours::black.withAlpha (0.f));
+    }
+
+  // Update loop length display with global playhead (INT mode only).
+  // Display = 1 bar reference.  Playhead = position within the bar.
+  // In EXT mode, LoopLengthDisplay interpolates from setExternalBeat().
+  if (!_clockMode)
+    {
+      auto const beatsPerBar = _engine.getTempoClock ().getBeatsPerBar ();
+      auto const ticksPerBeat
+          = static_cast<float> (TempoClock::getTicksPerBeat ());
+      auto const totalTicksPerBar
+          = static_cast<float> (beatsPerBar) * ticksPerBeat;
+
+      auto const ticksInBar
+          = static_cast<float> (measure.beat ()) * ticksPerBeat
+            + static_cast<float> (measure.tick ());
+      auto const barPosition = ticksInBar / totalTicksPerBar;
+
+      for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+        {
+          _loopLengthDisplay->setPlayheadPosition (
+              static_cast<int> (channel), barPosition);
+        }
     }
 
   for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
@@ -946,10 +995,17 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
       _statusBar->setExternalBPM (static_cast<float> (bpm));
       _statusBar->setBeatClock (beat, bar);
       
-      // In EXT mode: set internal clock BPM so patterns run at external tempo
+      // In EXT mode: set internal clock BPM so patterns run at external tempo,
+      // and notify LoopLengthDisplay of the external beat for interpolation.
+      // The display will interpolate smoothly from this beat to the next,
+      // using the measured time between beats.
       if (_clockMode)
         {
           _engine.getTempoClock ().setTempoBPM (static_cast<float> (bpm));
+
+          auto const beatsPerBar
+              = _engine.getTempoClock ().getBeatsPerBar ();
+          _loopLengthDisplay->setExternalBeat (beat, beatsPerBar);
         }
       return;
     }

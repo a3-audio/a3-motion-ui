@@ -40,6 +40,7 @@ class TempoEstimatorTest;
 class MotionComponent;
 
 class FilterDisplay;
+class LoopLengthDisplay;
 class StatusBar;
 class ChannelStrip;
 class ChannelUIState;
@@ -96,16 +97,17 @@ private:
   std::vector<std::unique_ptr<ChannelUIState> > _channelUIStates;
 
   void handleLengthIncrement (index_t channel, int increment);
-  int getLengthBeats (index_t channel) const;
+  float getLengthBeats (index_t channel) const;
   std::vector<int> _lengthsBarLog2;
   static constexpr auto lengthBarMinLog2 = -2;
-  static constexpr auto lengthBarMaxLog2 = 4;
+  static constexpr auto lengthBarMaxLog2 = 3;
 
   void createMainUI ();
   std::unique_ptr<MotionComponent> _motionComponent;
   std::unique_ptr<StatusBar> _statusBar;
   TempoClock::PointerT _statusBarCallbackHandle;
   std::unique_ptr<FilterDisplay> _filterDisplay;
+  std::unique_ptr<LoopLengthDisplay> _loopLengthDisplay;
 
   using Button = InputOutputAdapter::Button;
   constexpr bool runsOnHardware ();

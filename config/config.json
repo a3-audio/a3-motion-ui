@@ -41,7 +41,7 @@
     }
   },
   "corona": {
-    "vuMax": 0.27,
+    "vuMax": 0.2,
     "sizeMin": 0,
     "sizeMax": 2,
     "sizeGrabbed": 0.6,
@@ -72,9 +72,9 @@
     "r": 110,
     "g": 250,
     "b": 251,
-    "alphaMax": 0.5,
+    "alphaMax": 0.4,
     "layers": 6,
-    "length": 1.4,
+    "length": 1,
     "widthStart": 0.1,
     "widthEnd": 0.4,
     "curve": 0.1,
