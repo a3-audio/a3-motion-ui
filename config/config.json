@@ -41,13 +41,15 @@
     }
   },
   "corona": {
-    "vuMax": 0.2,
+    "vuMax": 0.3,
     "sizeMin": 0,
     "sizeMax": 2,
     "sizeGrabbed": 0.6,
     "alphaMin": 0.15,
     "alphaMax": 0.75,
-    "whiteBlend": 0.3
+    "whiteBlend": 0.5,
+    "attack": 0.0,
+    "decay": 0.2
   },
   "sphereGlow": {
     "vuMax": 0.3,

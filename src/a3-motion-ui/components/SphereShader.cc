@@ -127,8 +127,8 @@ void main ()
     vec3 col = vec3 (0.0);
     float alpha = 1.0;
 
-    // AA blend zone: 3 pixels wide in sphere-space
-    float aaWidth = 3.0 / uSphereRadius;
+    // AA blend zone: 2 pixels wide in sphere-space for crisp but smooth edge
+    float aaWidth = 2.0 / uSphereRadius;
     float surfaceMix = smoothstep (1.0 + aaWidth, 1.0 - aaWidth, dist);
 
     // ── Outside sphere contribution ─────────────────────────────
@@ -276,7 +276,16 @@ void main ()
     // Blend outside and surface with smooth AA transition
     col = mix (colOut, colSurf, surfaceMix);
 
-    gl_FragColor = vec4 (col, 1.0);
+    // Alpha: smooth falloff at sphere edge for proper anti-aliasing
+    // Inside sphere: fully opaque. Outside: blend to transparent (shows background).
+    // Outside effects (glow, beams) add their own alpha via additive blending.
+    float edgeAlpha = smoothstep (1.0 + aaWidth * 0.5, 1.0 - aaWidth * 0.5, dist);
+    
+    // If there's glow/beam content outside, keep it visible
+    float outsideContent = length (colOut);
+    alpha = max (edgeAlpha, min (outsideContent * 2.0, 1.0));
+
+    gl_FragColor = vec4 (col, alpha);
 }
 )";
 }

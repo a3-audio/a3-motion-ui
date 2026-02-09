@@ -616,6 +616,8 @@ MotionComponent::newOpenGLContextCreated ()
     _coronaCfg.alphaMin    = cfgF (corona, "alphaMin", 0.15f);
     _coronaCfg.alphaMax    = cfgF (corona, "alphaMax", 0.75f);
     _coronaCfg.whiteBlend  = cfgF (corona, "whiteBlend", 0.5f);
+    _coronaCfg.attack      = cfgF (corona, "attack", 0.02f);
+    _coronaCfg.decay       = cfgF (corona, "decay", 0.4f);
     // Corona config is used directly by drawChannelBlobs() (2D overlay)
   }
 }
@@ -637,24 +639,37 @@ MotionComponent::renderOpenGL ()
   OpenGLHelpers::clear (Colours::background);
 
   // ── Smooth VU values (exponential moving average per frame) ───
-  // Attack fast (~0.5), release slower (~0.15) → no flicker, responsive feel
+  // Attack fast, release slower → no flicker, responsive feel.
+  // Corona uses configurable attack/decay; others use fixed values.
   {
-    auto smooth = [] (float &current, float target) {
+    constexpr float dt = 1.f / 60.f;  // frame time at 60fps
+
+    // Fixed smoothing for glow and speakers
+    auto smoothFixed = [] (float &current, float target) {
       float alpha = (target > current) ? 0.5f : 0.15f;
       current += alpha * (target - current);
     };
-    smooth (_smoothGlowPeak, _vuSphereGlowPeak.load ());
-    smooth (_smoothGlowRms,  _vuSphereGlowRms.load ());
+    smoothFixed (_smoothGlowPeak, _vuSphereGlowPeak.load ());
+    smoothFixed (_smoothGlowRms,  _vuSphereGlowRms.load ());
     for (int i = 0; i < 4; ++i)
       {
-        smooth (_smoothSpotPeak[i], _vuSpeakerPeak[i].load ());
-        smooth (_smoothSpotRms[i],  _vuSpeakerRms[i].load ());
+        smoothFixed (_smoothSpotPeak[i], _vuSpeakerPeak[i].load ());
+        smoothFixed (_smoothSpotRms[i],  _vuSpeakerRms[i].load ());
       }
+
+    // Configurable attack/decay for blob coronas
+    // alpha = 1 - exp(-dt/tau) approximated for small dt/tau
+    float attackAlpha = 1.f - std::exp (-dt / std::max (0.001f, _coronaCfg.attack));
+    float decayAlpha  = 1.f - std::exp (-dt / std::max (0.001f, _coronaCfg.decay));
+    auto smoothBlob = [attackAlpha, decayAlpha] (float &current, float target) {
+      float alpha = (target > current) ? attackAlpha : decayAlpha;
+      current += alpha * (target - current);
+    };
     auto numCh = static_cast<int> (_engine.getNumChannels ());
     for (int ch = 0; ch < numCh && ch < 4; ++ch)
       {
-        smooth (_smoothBlobPeak[ch], _uiStates[ch]->vuPeak.load ());
-        smooth (_smoothBlobRms[ch],  _uiStates[ch]->vuLevel.load ());
+        smoothBlob (_smoothBlobPeak[ch], _uiStates[ch]->vuPeak.load ());
+        smoothBlob (_smoothBlobRms[ch],  _uiStates[ch]->vuLevel.load ());
       }
   }
 
@@ -930,14 +945,16 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
           float coronaAlpha = _coronaCfg.alphaMin
                               + peakScaled * (_coronaCfg.alphaMax - _coronaCfg.alphaMin);
 
-          // Two glow layers (outer → inner) — same colour as ball
+          // Two glow layers (outer → inner) — blend towards white at high VU
+          auto whiteBlend = peakScaled * _coronaCfg.whiteBlend;
+          auto coronaColour = colour.interpolatedWith (juce::Colours::white, whiteBlend);
           for (int layer = 2; layer >= 1; --layer)
             {
               float layerScale = 1.0f + (layer - 1) * 0.15f;
               float layerAlpha = coronaAlpha / (layer * 2.0f);
               auto layerSize = coronaDiam * layerScale;
               auto layerRect = juce::Rectangle<float> (0.f, 0.f, layerSize, layerSize);
-              g.setColour (colour.withAlpha (layerAlpha));
+              g.setColour (coronaColour.withAlpha (layerAlpha));
               g.fillEllipse (layerRect.withCentre (posScreenNormalized));
             }
         }

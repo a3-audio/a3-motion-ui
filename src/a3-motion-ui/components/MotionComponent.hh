@@ -160,6 +160,8 @@ private:
     float alphaMin = 0.15f;
     float alphaMax = 0.75f;
     float whiteBlend = 0.5f;
+    float attack = 0.02f;   // seconds to reach peak
+    float decay = 0.4f;     // seconds to fade out
   };
   CoronaConfig _coronaCfg;
 
