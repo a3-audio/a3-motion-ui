@@ -41,13 +41,13 @@
     }
   },
   "corona": {
-    "vuMax": 0.3,
+    "vuMax": 0.4,
     "sizeMin": 0,
-    "sizeMax": 2,
+    "sizeMax": 1.5,
     "sizeGrabbed": 0.6,
     "alphaMin": 0.15,
     "alphaMax": 0.75,
-    "whiteBlend": 0.5,
+    "whiteBlend": 0.7,
     "attack": 0.0,
     "decay": 0.2
   },

@@ -128,6 +128,7 @@ private:
   GLint _uBgGlowColour = -1;
   GLint _uBgGlowFalloff = -1;
   GLint _uBgGlowIntensity = -1;
+  GLint _uBgColour = -1;
 
   GLint _uSpotLevel[4] = { -1, -1, -1, -1 };
   GLint _uSpotColour = -1;

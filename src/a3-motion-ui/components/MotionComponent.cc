@@ -897,7 +897,24 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
   // Draw blobs + corona directly — no FBO compositing (_imageBlend) for
   // maximum performance on RPi4.
 
-  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+  // Calculate floor Y dynamically based on screen size
+  // In JUCE normalized coords (after _transformNormalizedToLocal):
+  // - Sphere center is at (0, 0)
+  // - Sphere radius is 1.0
+  // - Y grows downward (positive Y = bottom of screen)
+  // Floor should be at bottom edge of the render area
+  float halfHeight = static_cast<float>(_boundsRender.getHeight()) / 
+                     static_cast<float>(_boundsCenterRegion.getHeight()) * 2.0f;
+  // Floor at bottom of screen, but at least just below sphere edge
+  float floorY = std::max(1.02f, halfHeight - 1.0f);
+
+  // Two passes: 0 = reflections (draw first, behind), 1 = real blobs
+  for (int pass = 0; pass < 2; ++pass)
+  {
+    bool isReflectionPass = (pass == 0);
+    float reflectionAlpha = 0.25f;  // Reflection is darker
+
+    for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     {
       auto const position = _engine.getChannelPosition (channel);
       if (!position.isValid ())
@@ -906,8 +923,20 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
       auto blobSize = 2 * reduceFactorBlobs;
       blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
 
-      auto posScreenNormalized = cartesian2DHOA2JUCE (position);
+      auto posNormalized = cartesian2DHOA2JUCE (position);
+      
+      // Mirror Y for reflection pass
+      if (isReflectionPass)
+      {
+        posNormalized.setY (2.0f * floorY - posNormalized.getY ());
+        // Skip if reflection would be above the floor (not visible)
+        if (posNormalized.getY () < floorY)
+          continue;
+      }
+
       auto colour = _uiStates[channel]->colour;
+      if (isReflectionPass)
+        colour = colour.withMultipliedAlpha (reflectionAlpha);
 
       // Draw VU corona (glow effect based on audio level)
       float vuRms = (channel < 4) ? _smoothBlobRms[channel] : 0.f;
@@ -955,7 +984,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
               auto layerSize = coronaDiam * layerScale;
               auto layerRect = juce::Rectangle<float> (0.f, 0.f, layerSize, layerSize);
               g.setColour (coronaColour.withAlpha (layerAlpha));
-              g.fillEllipse (layerRect.withCentre (posScreenNormalized));
+              g.fillEllipse (layerRect.withCentre (posNormalized));
             }
         }
 
@@ -965,7 +994,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
           auto grabSize = blobSize * activeAreaAroundBlobFactor;
           auto grabRect = juce::Rectangle<float> (0.f, 0.f, grabSize, grabSize);
           g.setColour (colour.withAlpha (0.4f));
-          g.fillEllipse (grabRect.withCentre (posScreenNormalized));
+          g.fillEllipse (grabRect.withCentre (posNormalized));
         }
 
       // Highlighted: brighter outline
@@ -974,14 +1003,15 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
           auto hlSize = blobSize * blobHighlightFactor;
           auto hlRect = juce::Rectangle<float> (0.f, 0.f, hlSize, hlSize);
           g.setColour (colour.withLightness (colour.getLightness () + 0.2f));
-          g.fillEllipse (hlRect.withCentre (posScreenNormalized));
+          g.fillEllipse (hlRect.withCentre (posNormalized));
         }
 
       // Solid blob disc
       auto blob = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
       g.setColour (colour);
-      g.fillEllipse (blob.withCentre (posScreenNormalized));
+      g.fillEllipse (blob.withCentre (posNormalized));
     }
+  } // end pass loop
 }
 
 void

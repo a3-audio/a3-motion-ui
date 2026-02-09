@@ -66,6 +66,7 @@ uniform vec3  uGlowColour;
 uniform vec3  uBgGlowColour;
 uniform float uBgGlowFalloff;
 uniform float uBgGlowIntensity;
+uniform vec3  uBgColour;  // solid background colour
 
 uniform float uSpotLevel0;
 uniform float uSpotLevel1;
@@ -122,7 +123,32 @@ void main ()
 {
     vec2 pxCoord = vUV * uResolution;
     vec2 uv = (pxCoord - uSphereCentre) / uSphereRadius;
-    float dist = length (uv);
+    
+    // Floor plane for reflective surface
+    // Calculate floor position dynamically based on screen size
+    // Floor is at the bottom of the screen (y=0 in pixel coords)
+    // Convert to sphere-normalized coordinates
+    float floorYpx = 0.0 - uSphereCentre.y;  // distance from sphere centre to bottom edge
+    float floorY = floorYpx / uSphereRadius;  // normalize to sphere units
+    
+    // Only show reflection if floor is visible (below sphere)
+    // and add small gap below sphere edge
+    floorY = min(floorY, -1.02);  // floor at least just below sphere
+    
+    bool isReflection = uv.y < floorY;
+    
+    // For reflection area: mirror the scene around floor plane
+    vec2 uvScene = uv;
+    float reflectionFade = 1.0;
+    if (isReflection)
+    {
+        uvScene.y = 2.0 * floorY - uv.y;  // mirror around floorY
+        // Fade reflection based on distance from floor
+        float distFromFloor = floorY - uv.y;
+        reflectionFade = 0.25 / (1.0 + distFromFloor * 4.0);
+    }
+    
+    float dist = length (uvScene);
 
     vec3 col = vec3 (0.0);
     float alpha = 1.0;
@@ -145,13 +171,13 @@ void main ()
         // Speaker beams — dynamic VU-driven cones from speakers
         // Width grows with VU level, absorbed at sphere edge
         float spkR = uSpeakerRadius;
-        vec2 dirN = uv / dist;
+        vec2 dirN = uvScene / dist;
 
         // Unrolled: GLSL 1.20 has no local arrays
         // Speaker 0: 135°
         if (uSpotLevel0 > 0.001) {
             vec2 sd = vec2 (-0.7071, 0.7071);
-            vec2 tp = uv - sd * spkR;
+            vec2 tp = uvScene - sd * spkR;
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
             float bw = 0.3 + uSpotLevel0 * 0.4;
@@ -163,7 +189,7 @@ void main ()
         // Speaker 1: 45°
         if (uSpotLevel1 > 0.001) {
             vec2 sd = vec2 ( 0.7071, 0.7071);
-            vec2 tp = uv - sd * spkR;
+            vec2 tp = uvScene - sd * spkR;
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
             float bw = 0.3 + uSpotLevel1 * 0.4;
@@ -175,7 +201,7 @@ void main ()
         // Speaker 2: 315°
         if (uSpotLevel2 > 0.001) {
             vec2 sd = vec2 ( 0.7071,-0.7071);
-            vec2 tp = uv - sd * spkR;
+            vec2 tp = uvScene - sd * spkR;
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
             float bw = 0.3 + uSpotLevel2 * 0.4;
@@ -187,7 +213,7 @@ void main ()
         // Speaker 3: 225°
         if (uSpotLevel3 > 0.001) {
             vec2 sd = vec2 (-0.7071,-0.7071);
-            vec2 tp = uv - sd * spkR;
+            vec2 tp = uvScene - sd * spkR;
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
             float bw = 0.3 + uSpotLevel3 * 0.4;
@@ -205,7 +231,9 @@ void main ()
     if (dist < 1.0 + aaWidth)
     {
         vec3 N;
-        sphereIntersect (uv, N);
+        sphereIntersect (uvScene, N);
+        // Flip normal Y for reflection (looking at underside)
+        if (isReflection) N.y = -N.y;
 
         colSurf = vec3 (0.04, 0.04, 0.055);
 
@@ -226,9 +254,13 @@ void main ()
             vec3 bcol = getBlobCol (b);
             if (bps.z < 0.001) continue;
 
-            vec3 bld = normalize (vec3 (bps.xy - uv, 0.5));
+            // Mirror blob position for reflection
+            vec2 blobPos = bps.xy;
+            if (isReflection) blobPos.y = 2.0 * floorY - blobPos.y;
+
+            vec3 bld = normalize (vec3 (blobPos - uvScene, 0.5));
             float diff = max (dot (N, bld), 0.0);
-            float bd = length (bps.xy - uv);
+            float bd = length (blobPos - uvScene);
             float att = 1.0 / (1.0 + bd * 2.0);
             float inten = 0.3 + bps.w * 0.7;
 
@@ -256,7 +288,7 @@ void main ()
         // Speaker beams flowing INTO sphere — from rim towards centre
         // Each speaker lights its quadrant, strongest at rim, fading inward
         // Blends with sphereGlow colour for seamless fusion
-        vec2 uvN = (length(uv) > 0.001) ? uv / length(uv) : vec2(0.0);
+        vec2 uvN = (length(uvScene) > 0.001) ? uvScene / length(uvScene) : vec2(0.0);
         float rimFade = dist * dist; // stronger at rim (dist→1), fades to centre (dist→0)
 
         float q0 = max (dot (uvN, vec2 (-0.7071, 0.7071)), 0.0); // 135°
@@ -274,18 +306,18 @@ void main ()
     }
 
     // Blend outside and surface with smooth AA transition
-    col = mix (colOut, colSurf, surfaceMix);
+    // Outside: start with solid background, add glow/beams on top
+    vec3 colOutFinal = uBgColour + colOut;
+    col = mix (colOutFinal, colSurf, surfaceMix);
 
-    // Alpha: smooth falloff at sphere edge for proper anti-aliasing
-    // Inside sphere: fully opaque. Outside: blend to transparent (shows background).
-    // Outside effects (glow, beams) add their own alpha via additive blending.
-    float edgeAlpha = smoothstep (1.0 + aaWidth * 0.5, 1.0 - aaWidth * 0.5, dist);
-    
-    // If there's glow/beam content outside, keep it visible
-    float outsideContent = length (colOut);
-    alpha = max (edgeAlpha, min (outsideContent * 2.0, 1.0));
+    // Apply reflection fade (darkens reflection area)
+    if (isReflection)
+    {
+        col = mix (uBgColour, col, reflectionFade);
+    }
 
-    gl_FragColor = vec4 (col, alpha);
+    // Always fully opaque - no alpha blending needed since we render the background
+    gl_FragColor = vec4 (col, 1.0);
 }
 )";
 }
@@ -333,6 +365,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBgGlowColour    = glGetUniformLocation (pid, "uBgGlowColour");
   _uBgGlowFalloff   = glGetUniformLocation (pid, "uBgGlowFalloff");
   _uBgGlowIntensity = glGetUniformLocation (pid, "uBgGlowIntensity");
+  _uBgColour        = glGetUniformLocation (pid, "uBgColour");
   _uSpotLevel[0]  = glGetUniformLocation (pid, "uSpotLevel0");
   _uSpotLevel[1]  = glGetUniformLocation (pid, "uSpotLevel1");
   _uSpotLevel[2]  = glGetUniformLocation (pid, "uSpotLevel2");
@@ -431,6 +464,13 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform1f (_uBgGlowFalloff, _bgGlowCfg.falloff);
   if (_uBgGlowIntensity >= 0)
     glUniform1f (_uBgGlowIntensity, _bgGlowCfg.intensity);
+
+  // Solid background colour (from LookAndFeel Colours::background)
+  if (_uBgColour >= 0)
+    {
+      // 0xff292f36 → RGB normalized
+      glUniform3f (_uBgColour, 0.161f, 0.184f, 0.212f);
+    }
 
   // Speaker spotlights
   for (int i = 0; i < 4; ++i)
