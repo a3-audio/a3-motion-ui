@@ -48,6 +48,13 @@ private:
   juce::String _elevationPatterns[kMaxChannels];
   juce::String _pot1Patterns[kMaxChannels];
   juce::String _pot2Patterns[kMaxChannels];
+
+  // Deduplication: last sent values per channel
+  float _lastAzimuth[kMaxChannels] = {};
+  float _lastElevation[kMaxChannels] = {};
+  
+  // Minimum time between sends per channel (debounce)
+  static constexpr float kAngleTolerance = 0.001f;  // ~0.06 degrees
 };
 
 }

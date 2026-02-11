@@ -21,6 +21,7 @@
 #include "SpatBackendA3.hh"
 
 #include <JuceHeader.h>
+#include <cmath>
 
 namespace a3
 {
@@ -48,12 +49,26 @@ void
 SpatBackendA3::sendPosition (index_t channel, Pos const &pos)
 {
   jassert (channel < kMaxChannels);
+  
+  float az = pos.azimuth();
+  float el = pos.elevation();
+  
+  // Deduplicate: skip if values haven't changed significantly
+  float dAz = std::abs(az - _lastAzimuth[channel]);
+  float dEl = std::abs(el - _lastElevation[channel]);
+  
+  if (dAz < kAngleTolerance && dEl < kAngleTolerance)
+    return;  // Skip duplicate send
+  
+  _lastAzimuth[channel] = az;
+  _lastElevation[channel] = el;
+  
   juce::OSCBundle bundle;
 
-  auto message = juce::OSCMessage (_azimuthPatterns[channel], pos.azimuth ());
+  auto message = juce::OSCMessage (_azimuthPatterns[channel], az);
   bundle.addElement ({ message });
 
-  message = juce::OSCMessage (_elevationPatterns[channel], pos.elevation ());
+  message = juce::OSCMessage (_elevationPatterns[channel], el);
   bundle.addElement ({ message });
 
   if (!_sender.sendToIPAddress (_address, _port, bundle))

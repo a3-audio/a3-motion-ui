@@ -106,8 +106,12 @@ public:
   {
     while (!threadShouldExit ())
       {
+        // Process all pending messages
         processFifo ();
-        wait (-1); // block until notify() or exit
+        
+        // Wait with timeout to avoid missing notifications
+        // Short timeout (10ms) ensures low latency even if notify() is missed
+        wait (10);
       }
     // drain remaining messages on shutdown
     processFifo ();

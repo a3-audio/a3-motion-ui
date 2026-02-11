@@ -69,64 +69,30 @@ FilterDisplay::paint (juce::Graphics &g)
 std::pair<float, float>
 FilterDisplay::computeCutoffs (float sweep, float q)
 {
-  // Sweep controls where the filter "opens":
-  //   sweep=0.0 → LP only (lpCut moves left from 1.0)
-  //   sweep=0.5 → fullrange (lpCut=1.0, hpCut=0.0)
-  //   sweep=1.0 → HP only (hpCut moves right from 0.0)
+  // Sweep controls the center position of the filter.
+  // Q controls both the width between LP and HP cutoffs AND the steepness.
+  //   Low Q = wide gap, gentle slopes (almost fullrange)
+  //   High Q = narrow gap, steep slopes (narrow bandpass)
   //
-  // Without Q: in the LP half (sweep 0-0.5), the LP cutoff sweeps down.
-  //            in the HP half (sweep 0.5-1), the HP cutoff sweeps up.
-  //            The other cutoff stays fully open.
-  //
-  // Q narrows both cutoffs toward the sweep position center.
+  // Cutoffs extend beyond [0,1] to avoid visual "snap" at edges.
 
-  float lpCutoff, hpCutoff;
+  float const overshoot = 0.35f;  // extend beyond visible range for smooth edges
+  float const minPos = -overshoot;
+  float const maxPos = 1.f + overshoot;
 
-  if (sweep <= 0.5f)
-    {
-      // LP region: sweep 0→0.5 maps LP cutoff from 0→1
-      lpCutoff = sweep * 2.f;  // 0=fully closed, 1=fully open
-      hpCutoff = 0.f;          // HP fully open (cutoff at 0)
-    }
-  else
-    {
-      // HP region: sweep 0.5→1 maps HP cutoff from 0→1
-      lpCutoff = 1.f;          // LP fully open (cutoff at 1)
-      hpCutoff = (sweep - 0.5f) * 2.f;  // 0=fully open, 1=fully closed
-    }
+  // Center position: sweep 0→1 maps linearly across full range
+  float center = minPos + sweep * (maxPos - minPos);
 
-  // Q narrows the passband: moves the "open" side inward
-  // toward the sweep position center
-  if (q > 0.f)
-    {
-      // Determine the center frequency based on sweep position
-      // sweep 0→1 maps center from ~0.0 to ~1.0
-      float center = sweep;
+  // Half-width between center and each cutoff
+  // At Q=0: very wide (fullrange-like), cutoffs far apart
+  // At Q=1: very narrow, cutoffs close together
+  float const maxHalfWidth = 0.7f;   // wide at Q=0
+  float const minHalfWidth = 0.08f;  // narrow at Q=1
+  float halfWidth = maxHalfWidth - q * (maxHalfWidth - minHalfWidth);
 
-      // The narrowing factor: at Q=1, both cutoffs meet at center
-      float narrowing = q * q;  // quadratic for more musical response
-
-      if (sweep <= 0.5f)
-        {
-          // LP mode: HP cutoff was 0 (fully open), bring it up toward center
-          hpCutoff = narrowing * center;
-          // Also pull LP cutoff closer to center if it's above center
-          if (lpCutoff > center)
-            lpCutoff = center + (lpCutoff - center) * (1.f - narrowing);
-        }
-      else
-        {
-          // HP mode: LP cutoff was 1 (fully open), bring it down toward center
-          lpCutoff = 1.f - narrowing * (1.f - center);
-          // Also pull HP cutoff closer to center if it's below center
-          if (hpCutoff < center)
-            hpCutoff = center - (center - hpCutoff) * (1.f - narrowing);
-        }
-    }
-
-  // Clamp
-  lpCutoff = juce::jlimit (0.f, 1.f, lpCutoff);
-  hpCutoff = juce::jlimit (0.f, 1.f, hpCutoff);
+  // Create symmetric bell around center
+  float lpCutoff = center + halfWidth;
+  float hpCutoff = center - halfWidth;
 
   return { lpCutoff, hpCutoff };
 }
@@ -167,13 +133,14 @@ FilterDisplay::paintChannel (juce::Graphics &g,
   auto const rightX = static_cast<float> (bounds.getRight ());
   auto const top = static_cast<float> (bounds.getY ());
   auto const bottom = static_cast<float> (bounds.getBottom ());
-  auto const padding = (bottom - top) * 0.1f;
-  auto const drawBottom = bottom - padding;
-  auto const drawTop = top + padding;
+  // Use full height, only minimal margin for stroke visibility
+  auto const drawBottom = bottom - 1.f;
+  auto const drawTop = top + 1.f;
   auto const drawHeight = drawBottom - drawTop;
 
   // Steepness factor for rolloff (higher = steeper filter)
-  auto const steepness = 12.f + q * 20.f;
+  // Q controls steepness: low Q = gentle slopes, high Q = steep slopes
+  auto const steepness = 8.f + q * 25.f;
 
   // Compute raw response for all points
   auto constexpr numPoints = 80;
@@ -185,9 +152,11 @@ FilterDisplay::paintChannel (juce::Graphics &g,
       auto const normX = static_cast<float> (i) / numPoints;
       float response = 1.f;
 
-      if (lpCutoff < 0.99f)
+      // Apply LP filter if cutoff is within or near visible range
+      if (lpCutoff < 1.5f)
         response *= butterworthResponse (normX, lpCutoff, false, steepness);
-      if (hpCutoff > 0.01f)
+      // Apply HP filter if cutoff is within or near visible range
+      if (hpCutoff > -0.5f)
         response *= butterworthResponse (normX, hpCutoff, true, steepness);
 
       responses[i] = response;

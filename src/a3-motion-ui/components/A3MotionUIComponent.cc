@@ -116,6 +116,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         std::cout << "OSC Sender for beatclock connected to " << oscSendHost << ":" << oscSendPort << std::endl;
       else
         std::cerr << "ERROR: OSC Sender failed to connect to " << oscSendHost << ":" << oscSendPort << std::endl;
+      
+      // Direct tap sender (same host/port, bypasses async queue for zero latency)
+      if (_tapSender.connect (oscSendHost, oscSendPort))
+        std::cout << "OSC Tap Sender connected to " << oscSendHost << ":" << oscSendPort << std::endl;
+      else
+        std::cerr << "ERROR: OSC Tap Sender failed to connect" << std::endl;
     }
 }
 
@@ -124,6 +130,7 @@ A3MotionUIComponent::~A3MotionUIComponent ()
   _oscReceiver.removeListener (this);
   _oscReceiver.disconnect ();
   _oscSender.disconnect ();
+  _tapSender.disconnect ();
 
   if (runsOnHardware ())
     {
@@ -408,22 +415,20 @@ A3MotionUIComponent::resized ()
 
   auto bounds = getLocalBounds ();
 
-  auto constexpr statusBarOnTop = true;
+  // Status bar at the top
   auto constexpr statusBarHeight = StatusBar::getMinimumHeight ();
-  auto boundsStatus = statusBarOnTop
-                          ? bounds.removeFromTop (statusBarHeight)
-                          : bounds.removeFromBottom (statusBarHeight);
+  auto boundsStatus = bounds.removeFromTop (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
-  // Loop length display below status bar
+  // Filter display below status bar
+  auto constexpr filterDisplayHeight = FilterDisplay::getMinimumHeight ();
+  auto boundsFilter = bounds.removeFromTop (filterDisplayHeight);
+  _filterDisplay->setBounds (boundsFilter);
+
+  // Loop length display below filter display
   auto constexpr loopLengthDisplayHeight = LoopLengthDisplay::getMinimumHeight ();
   auto boundsLoopLength = bounds.removeFromTop (loopLengthDisplayHeight);
   _loopLengthDisplay->setBounds (boundsLoopLength);
-
-  // Filter display at the bottom
-  auto constexpr filterDisplayHeight = FilterDisplay::getMinimumHeight ();
-  auto boundsFilter = bounds.removeFromBottom (filterDisplayHeight);
-  _filterDisplay->setBounds (boundsFilter);
 
   // Hide channel strips - no longer needed after removing width/order displays
   for (auto &strip : _channelStrips)
@@ -507,26 +512,14 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     {
       if (value.getValue ())
         {
-          // Debounce: ignore taps closer than 80ms to prevent hardware bounce
-          auto now = juce::Time::currentTimeMillis ();
-          auto elapsed = now - _tapButtonPressTime;
-          _tapButtonPressTime = now;
+          // Button pressed - send /tap OSC immediately via DIRECT sender
+          // Bypasses async queue for zero latency - time-critical!
           _tapButtonLongPress = false;
           _ioAdapter->getButtonLED (Button::Tap) = true;
 
-          if (elapsed < 80)
-            {
-              std::cout << "[TAP] DEBOUNCE (ignored, " << elapsed << "ms)" << std::endl;
-            }
-          else
-            {
-              // Send /tap via OSC on every button press
-              auto tapMsg = juce::OSCMessage ("/tap");
-              tapMsg.addInt32 (1);
-              _oscSender.send (tapMsg);
-              std::cout << "[TAP] " << (_clockMode ? "EXT" : "INT")
-                        << " dt=" << elapsed << "ms" << std::endl;
-            }
+          auto tapMsg = juce::OSCMessage ("/tap");
+          tapMsg.addInt32 (1);
+          _tapSender.send (tapMsg);  // Direct, synchronous send - no queue!
         }
       else
         {

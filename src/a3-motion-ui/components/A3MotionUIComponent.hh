@@ -126,6 +126,9 @@ private:
   // Async OSC Sender for beatclock output (non-blocking, dedicated thread)
   AsyncOSCSender _oscSender;
   
+  // Direct OSC Sender for time-critical tap messages (bypasses async queue)
+  juce::OSCSender _tapSender;
+  
   // ClockMode toggle state
   bool _clockMode = false;
   float _internalBPM = 0.f;  // saved INT tempo for restore after EXT mode
@@ -136,7 +139,6 @@ private:
   static constexpr juce::int64 longPressThresholdMs = 300;
   
   // Tap button long-press detection (for trajectory preview)
-  juce::int64 _tapButtonPressTime = 0;
   bool _tapButtonLongPress = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
