@@ -6,7 +6,8 @@
   },
   "oscReceiver": {
     "host": "0.0.0.0",
-    "port": 7771
+    "port": 7771,
+    "vuPort": 7772
   },
   "ledColours": {
     "idle": {

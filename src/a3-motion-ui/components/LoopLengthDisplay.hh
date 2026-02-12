@@ -80,6 +80,14 @@ public:
    *  interpolated from setExternalBeat().  In INT mode, use setPlayheadPosition(). */
   void setClockMode (bool external);
 
+  /** Set whether this row is highlighted for a given channel
+   *  (encoder is pointing at this row in row-select mode). */
+  void setRowHighlighted (int channel, bool highlighted);
+
+  /** Set whether a specific channel's cell is actively selected
+   *  (encoder pressed, in edit mode for loop length). */
+  void setCellSelected (int channel, bool selected);
+
   static constexpr int
   getMinimumHeight ()
   {
@@ -96,6 +104,8 @@ private:
     std::atomic<float> loopLengthBeats{ 4.f };
     std::atomic<float> playheadPosition{ 0.f };
     juce::Colour colour{ juce::Colours::white };
+    bool rowHighlighted{ false };
+    bool cellSelected{ false };
   };
 
   std::array<ChannelLoopState, numChannels> _channels;

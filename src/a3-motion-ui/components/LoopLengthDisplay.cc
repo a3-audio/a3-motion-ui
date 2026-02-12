@@ -126,7 +126,21 @@ LoopLengthDisplay::paintChannel (juce::Graphics &g,
   auto const loopBeats = _channels[channel].loopLengthBeats.load ();
   auto const playhead = _channels[channel].playheadPosition.load ();
   auto const colour = _channels[channel].colour;
+  auto const isHighlighted = _channels[channel].rowHighlighted;
+  auto const isSelected = _channels[channel].cellSelected;
   auto const beatsPerBar = static_cast<float> (_referenceBeats.load ());
+
+  // Highlight/selection background (same style as PadRowDisplay)
+  if (isSelected)
+    {
+      g.setColour (colour.withAlpha (0.4f));
+      g.fillRect (bounds);
+    }
+  else if (isHighlighted)
+    {
+      g.setColour (colour.withAlpha (0.15f));
+      g.fillRect (bounds);
+    }
 
   auto const leftX = static_cast<float> (bounds.getX ());
   auto const rightX = static_cast<float> (bounds.getRight ());
@@ -239,6 +253,22 @@ void
 LoopLengthDisplay::setClockMode (bool external)
 {
   _extClockMode = external;
+}
+
+void
+LoopLengthDisplay::setRowHighlighted (int channel, bool highlighted)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  _channels[channel].rowHighlighted = highlighted;
+  repaint ();
+}
+
+void
+LoopLengthDisplay::setCellSelected (int channel, bool selected)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  _channels[channel].cellSelected = selected;
+  repaint ();
 }
 
 }

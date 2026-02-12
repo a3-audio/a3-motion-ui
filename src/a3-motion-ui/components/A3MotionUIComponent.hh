@@ -70,6 +70,7 @@ public:
   
   // OSC Receiver
   void oscMessageReceived (const juce::OSCMessage &message) override;
+  void oscBundleReceived (const juce::OSCBundle &bundle) override;
 
 private:
   static auto constexpr numPages = 4u;
@@ -130,6 +131,7 @@ private:
   std::vector<std::unique_ptr<PadRowDisplay> > _padRowDisplays;
 
   // Encoder navigation state
+  static auto constexpr loopLengthRowIndex = -1;
   enum class EncoderLevel { RowSelect, OptionEdit };
   std::array<EncoderLevel, 4> _encoderLevel;
   std::array<int, 4> _encoderSelectedRow;
@@ -141,8 +143,10 @@ private:
   int trajectoryNameToIndex (std::string const &name) const;
   std::shared_ptr<Pattern> createPatternForIndex (int index, index_t channel);
 
-  // OSC Receiver for VU meters, beat clock, etc.
+  // OSC Receiver for beat clock (port 7771)
   juce::OSCReceiver _oscReceiver;
+  // OSC Receiver for VU meters (port 7772)
+  juce::OSCReceiver _oscReceiverVU;
   
   // Async OSC Sender for beatclock output (non-blocking, dedicated thread)
   AsyncOSCSender _oscSender;

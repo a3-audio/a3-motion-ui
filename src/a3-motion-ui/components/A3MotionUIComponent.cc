@@ -61,9 +61,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
-  // Initialize encoder state
+  // Initialize encoder state — start on LoopLength row
   _encoderLevel.fill (EncoderLevel::RowSelect);
-  _encoderSelectedRow.fill (0);
+  _encoderSelectedRow.fill (loopLengthRowIndex);
 
   if (runsOnHardware ())
     {
@@ -109,6 +109,24 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       std::cerr << "ERROR: Could not bind OSC Receiver to port " << oscRecvPort << std::endl;
     }
 
+  // Setup OSC Receiver for VU meters (separate port)
+  int oscVuPort = 7772; // default
+  if (userConfig.hasProperty ("oscReceiver"))
+    {
+      auto oscRecvConfig = userConfig["oscReceiver"];
+      if (oscRecvConfig.hasProperty ("vuPort"))
+        oscVuPort = static_cast<int> (oscRecvConfig["vuPort"]);
+    }
+  if (_oscReceiverVU.connect (oscVuPort))
+    {
+      std::cout << "OSC VU Receiver listening on " << oscRecvHost << ":" << oscVuPort << std::endl;
+      _oscReceiverVU.addListener (this);
+    }
+  else
+    {
+      std::cerr << "ERROR: Could not bind OSC VU Receiver to port " << oscVuPort << std::endl;
+    }
+
   // Setup OSC Sender from config (for beatclock)
   if (userConfig.hasProperty ("oscSender"))
     {
@@ -133,6 +151,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
+  _oscReceiverVU.removeListener (this);
+  _oscReceiverVU.disconnect ();
   _oscReceiver.removeListener (this);
   _oscReceiver.disconnect ();
   _oscSender.disconnect ();
@@ -1043,21 +1063,26 @@ A3MotionUIComponent::createPadRowDisplays ()
         {
           display->setChannelColour (static_cast<int> (ch),
                                      _channelUIStates[ch]->colour);
-          // Set initial pad label based on existing pattern
-          auto const padIndex = row;
-          if (padIndex < _patterns[ch].size () && _patterns[ch][padIndex])
-            updatePadRowLabel (ch, padIndex);
         }
       addChildComponent (*display);
       display->setVisible (true);
       _padRowDisplays.push_back (std::move (display));
     }
 
-  // Set initial row highlight (row 0 for all channels)
+  // Set initial trajectory icons now that all displays exist
+  for (auto row = 0u; row < numPadRows; ++row)
+    {
+      for (auto ch = 0u; ch < _engine.getNumChannels (); ++ch)
+        {
+          if (row < _patterns[ch].size () && _patterns[ch][row])
+            updatePadRowLabel (ch, row);
+        }
+    }
+
+  // Set initial row highlight on LoopLength row
   for (auto ch = 0u; ch < _engine.getNumChannels (); ++ch)
     {
-      if (!_padRowDisplays.empty ())
-        _padRowDisplays[0]->setRowHighlighted (static_cast<int> (ch), true);
+      _loopLengthDisplay->setRowHighlighted (static_cast<int> (ch), true);
     }
 }
 
@@ -1066,18 +1091,27 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
 {
   if (_encoderLevel[channel] == EncoderLevel::RowSelect)
     {
-      // Navigate between pad rows
+      // Navigate between LoopLength row (-1) and pad rows (0..numPadRows-1)
       auto oldRow = _encoderSelectedRow[channel];
       auto newRow = oldRow + increment;
-      newRow = std::clamp (newRow, 0, static_cast<int> (numPadRows) - 1);
+      newRow = std::clamp (newRow, loopLengthRowIndex,
+                           static_cast<int> (numPadRows) - 1);
 
       if (newRow != oldRow)
         {
-          // Update highlight
-          if (static_cast<size_t> (oldRow) < _padRowDisplays.size ())
+          // Remove old highlight
+          if (oldRow == loopLengthRowIndex)
+            _loopLengthDisplay->setRowHighlighted (
+                static_cast<int> (channel), false);
+          else if (static_cast<size_t> (oldRow) < _padRowDisplays.size ())
             _padRowDisplays[static_cast<size_t> (oldRow)]
                 ->setRowHighlighted (static_cast<int> (channel), false);
-          if (static_cast<size_t> (newRow) < _padRowDisplays.size ())
+
+          // Set new highlight
+          if (newRow == loopLengthRowIndex)
+            _loopLengthDisplay->setRowHighlighted (
+                static_cast<int> (channel), true);
+          else if (static_cast<size_t> (newRow) < _padRowDisplays.size ())
             _padRowDisplays[static_cast<size_t> (newRow)]
                 ->setRowHighlighted (static_cast<int> (channel), true);
 
@@ -1086,8 +1120,16 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
     }
   else if (_encoderLevel[channel] == EncoderLevel::OptionEdit)
     {
-      // Cycle trajectory type for the selected pad
       auto const row = _encoderSelectedRow[channel];
+
+      // LoopLength row: encoder adjusts loop length
+      if (row == loopLengthRowIndex)
+        {
+          handleLengthIncrement (channel, increment);
+          return;
+        }
+
+      // Pad rows: cycle trajectory type for the selected pad
       auto const padIndex = static_cast<index_t> (row);
 
       // Get current trajectory index
@@ -1153,21 +1195,35 @@ A3MotionUIComponent::handleEncoderPress (index_t channel)
     {
       // Enter edit mode
       _encoderLevel[channel] = EncoderLevel::OptionEdit;
-      if (static_cast<size_t> (row) < _padRowDisplays.size ())
-        _padRowDisplays[static_cast<size_t> (row)]
-            ->setCellSelected (static_cast<int> (channel), true);
 
-      showTrajectoryPreview (channel, static_cast<index_t> (row));
+      if (row == loopLengthRowIndex)
+        {
+          _loopLengthDisplay->setCellSelected (
+              static_cast<int> (channel), true);
+        }
+      else if (static_cast<size_t> (row) < _padRowDisplays.size ())
+        {
+          _padRowDisplays[static_cast<size_t> (row)]
+              ->setCellSelected (static_cast<int> (channel), true);
+          showTrajectoryPreview (channel, static_cast<index_t> (row));
+        }
     }
   else
     {
       // Exit edit mode
       _encoderLevel[channel] = EncoderLevel::RowSelect;
-      if (static_cast<size_t> (row) < _padRowDisplays.size ())
-        _padRowDisplays[static_cast<size_t> (row)]
-            ->setCellSelected (static_cast<int> (channel), false);
 
-      clearTrajectoryPreview (channel);
+      if (row == loopLengthRowIndex)
+        {
+          _loopLengthDisplay->setCellSelected (
+              static_cast<int> (channel), false);
+        }
+      else if (static_cast<size_t> (row) < _padRowDisplays.size ())
+        {
+          _padRowDisplays[static_cast<size_t> (row)]
+              ->setCellSelected (static_cast<int> (channel), false);
+          clearTrajectoryPreview (channel);
+        }
     }
 }
 
@@ -1285,6 +1341,18 @@ A3MotionUIComponent::createPatternForIndex (int index, index_t channel)
   if (p)
     p->setChannel (channel);
   return p;
+}
+
+void
+A3MotionUIComponent::oscBundleReceived (const juce::OSCBundle &bundle)
+{
+  for (auto &element : bundle)
+    {
+      if (element.isMessage ())
+        oscMessageReceived (element.getMessage ());
+      else if (element.isBundle ())
+        oscBundleReceived (element.getBundle ());
+    }
 }
 
 void
