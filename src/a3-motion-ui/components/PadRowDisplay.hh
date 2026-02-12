@@ -22,11 +22,13 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/util/Types.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 
 #include <array>
 #include <atomic>
 #include <functional>
+#include <vector>
 
 namespace a3
 {
@@ -76,6 +78,12 @@ public:
   /** Set the trajectory type for a specific channel's cell. */
   void setTrajectoryType (int channel, TrajectoryType type);
 
+  /** Set tick data for a channel's cell icon.  The icon will be
+   *  generated from the actual XY trajectory of the pattern.
+   *  When set (non-empty), this takes priority over TrajectoryType
+   *  for icon drawing (except for Empty). */
+  void setTickData (int channel, std::vector<Pos> const &ticks);
+
   /** Set the label text (fallback, shown only for Empty type). */
   void setLabel (int channel, juce::String label);
 
@@ -103,6 +111,8 @@ private:
                   int channel);
   void drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
                            TrajectoryType type, juce::Colour colour);
+  void drawTickDataIcon (juce::Graphics &g, juce::Rectangle<float> area,
+                         juce::Colour colour, int channel);
 
   int _rowIndex;  // 0-3 for pad rows 1-4
 
@@ -113,6 +123,10 @@ private:
     bool rowHighlighted{ false };
     bool cellSelected{ false };
     juce::Colour colour{ juce::Colours::white };
+    juce::Path tickPath;       ///< pre-built path from tick data (normalised to [-1,1])
+    bool hasTickData{ false }; ///< true if tickPath is valid
+    bool hasJumpTicks{ false }; ///< true if pattern has invalid/jump ticks (draw dots instead)
+    std::vector<std::pair<float, float>> jumpPoints; ///< normalised jump point positions
   };
 
   std::array<CellState, numChannels> _cells;

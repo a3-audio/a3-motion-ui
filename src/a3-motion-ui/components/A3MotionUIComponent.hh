@@ -29,6 +29,7 @@
 
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/PatternLibrary.hh>
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
@@ -122,11 +123,14 @@ private:
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
   void initializePatterns ();
+  void generateSystemPatterns ();
   std::vector<std::vector<std::shared_ptr<Pattern> > > _patterns;
+
+  // Pattern library: manages system/ and user/ pattern files
+  std::unique_ptr<PatternLibrary> _patternLibrary;
 
   // Pad row display (trajectory option bar)
   static auto constexpr numPadRows = 4u;
-  static auto constexpr numTrajectoryTypes = 19u; // including Empty
   void createPadRowDisplays ();
   std::vector<std::unique_ptr<PadRowDisplay> > _padRowDisplays;
 
@@ -142,6 +146,8 @@ private:
   void clearTrajectoryPreview (index_t channel);
   int trajectoryNameToIndex (std::string const &name) const;
   std::shared_ptr<Pattern> createPatternForIndex (int index, index_t channel);
+  void saveRecordedPattern (std::shared_ptr<Pattern> const &pattern,
+                            index_t channel, index_t pad);
 
   // OSC Receiver for beat clock (port 7771)
   juce::OSCReceiver _oscReceiver;

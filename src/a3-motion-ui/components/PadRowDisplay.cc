@@ -22,6 +22,9 @@
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
 
+#include <cmath>
+#include <limits>
+
 namespace a3
 {
 
@@ -89,7 +92,7 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
                                          : 0.4f;
   auto iconColour = colour.withAlpha (iconAlpha);
 
-  if (cell.trajectoryType == TrajectoryType::Empty)
+  if (cell.trajectoryType == TrajectoryType::Empty && !cell.hasTickData)
     {
       g.setColour (iconColour);
       g.setFont (LayoutHints::fontSize * 0.7f);
@@ -102,7 +105,12 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
       auto const iconSize = h * 0.7f;
       auto iconArea = juce::Rectangle<float> (iconSize, iconSize)
                           .withCentre (bounds.getCentre ().toFloat ());
-      drawTrajectoryIcon (g, iconArea, cell.trajectoryType, iconColour);
+
+      // Prefer tick data icon when available
+      if (cell.hasTickData)
+        drawTickDataIcon (g, iconArea, iconColour, channel);
+      else
+        drawTrajectoryIcon (g, iconArea, cell.trajectoryType, iconColour);
     }
 
   // Thin baseline
@@ -118,6 +126,157 @@ PadRowDisplay::setTrajectoryType (int channel, TrajectoryType type)
   jassert (channel >= 0 && channel < numChannels);
   _cells[static_cast<size_t> (channel)].trajectoryType = type;
   repaint ();
+}
+
+void
+PadRowDisplay::setTickData (int channel, std::vector<Pos> const &ticks)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  auto &cell = _cells[static_cast<size_t> (channel)];
+
+  cell.tickPath.clear ();
+  cell.jumpPoints.clear ();
+  cell.hasTickData = false;
+  cell.hasJumpTicks = false;
+
+  if (ticks.empty ())
+    {
+      repaint ();
+      return;
+    }
+
+  // Find bounding box of valid ticks (XY only)
+  float minX = std::numeric_limits<float>::max ();
+  float maxX = std::numeric_limits<float>::lowest ();
+  float minY = std::numeric_limits<float>::max ();
+  float maxY = std::numeric_limits<float>::lowest ();
+  int validCount = 0;
+
+  for (auto const &pos : ticks)
+    {
+      if (!pos.isValid ())
+        continue;
+      auto x = pos.x ();
+      auto y = pos.y ();
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      ++validCount;
+    }
+
+  if (validCount < 2)
+    {
+      repaint ();
+      return;
+    }
+
+  // Normalise to [-1, 1] range with aspect ratio preserved
+  auto rangeX = maxX - minX;
+  auto rangeY = maxY - minY;
+  auto range = std::max (rangeX, rangeY);
+  if (range < 1e-6f)
+    range = 1.f;
+
+  auto centreX = (minX + maxX) * 0.5f;
+  auto centreY = (minY + maxY) * 0.5f;
+
+  // Downsample: take at most 128 points for the icon path
+  auto const maxIconPoints = 128;
+  auto const step = std::max (1, static_cast<int> (ticks.size ()) / maxIconPoints);
+
+  // Check if this is a jump-only pattern (majority of ticks are invalid)
+  int invalidCount = static_cast<int> (ticks.size ()) - validCount;
+  bool jumpPattern = invalidCount > validCount / 2;
+
+  if (jumpPattern)
+    {
+      // For jump patterns, collect the distinct valid positions as dots
+      cell.hasJumpTicks = true;
+      for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
+        {
+          if (!ticks[i].isValid ())
+            continue;
+          float nx = (ticks[i].x () - centreX) / (range * 0.5f);
+          float ny = (ticks[i].y () - centreY) / (range * 0.5f);
+
+          // Check if this point is already close to an existing one
+          bool duplicate = false;
+          for (auto const &p : cell.jumpPoints)
+            {
+              if (std::abs (p.first - nx) < 0.05f
+                  && std::abs (p.second - ny) < 0.05f)
+                {
+                  duplicate = true;
+                  break;
+                }
+            }
+          if (!duplicate)
+            cell.jumpPoints.push_back ({ nx, ny });
+        }
+    }
+  else
+    {
+      // Continuous path
+      bool started = false;
+      for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
+        {
+          if (!ticks[i].isValid ())
+            {
+              started = false; // break the path at invalid ticks
+              continue;
+            }
+          float nx = (ticks[i].x () - centreX) / (range * 0.5f);
+          float ny = (ticks[i].y () - centreY) / (range * 0.5f);
+          if (!started)
+            {
+              cell.tickPath.startNewSubPath (nx, ny);
+              started = true;
+            }
+          else
+            {
+              cell.tickPath.lineTo (nx, ny);
+            }
+        }
+    }
+
+  cell.hasTickData = true;
+  repaint ();
+}
+
+void
+PadRowDisplay::drawTickDataIcon (juce::Graphics &g,
+                                 juce::Rectangle<float> area,
+                                 juce::Colour colour, int channel)
+{
+  auto const &cell = _cells[static_cast<size_t> (channel)];
+  auto const cx = area.getCentreX ();
+  auto const cy = area.getCentreY ();
+  auto const r = area.getWidth () * 0.45f;
+  auto const strokeThickness = 1.5f;
+
+  g.setColour (colour);
+
+  if (cell.hasJumpTicks)
+    {
+      // Draw dots at each jump position
+      auto const dotR = r * 0.22f;
+      for (auto const &p : cell.jumpPoints)
+        {
+          auto const x = cx + p.first * r;
+          auto const y = cy + p.second * r;
+          g.fillEllipse (x - dotR, y - dotR, dotR * 2.f, dotR * 2.f);
+        }
+    }
+  else
+    {
+      // Scale the normalised [-1,1] path to the icon area
+      auto transform = juce::AffineTransform::scale (r, r)
+                           .translated (cx, cy);
+      g.strokePath (cell.tickPath,
+                    juce::PathStrokeType (strokeThickness),
+                    transform);
+    }
 }
 
 void

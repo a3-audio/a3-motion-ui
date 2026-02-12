@@ -26,7 +26,9 @@
 
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-engine/PatternGenerator.hh>
+#include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-engine/elevation/HeightMapFlat.hh>
@@ -69,6 +71,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     {
       createHardwareInterface ();
     }
+
+  // Initialize pattern library (creates system/ and user/ dirs if needed)
+  auto patternsDir = juce::File::getCurrentWorkingDirectory ()
+                         .getChildFile ("patterns");
+  _patternLibrary = std::make_unique<PatternLibrary> (patternsDir);
+  generateSystemPatterns ();
 
   initializePatterns ();
 
@@ -396,96 +404,86 @@ A3MotionUIComponent::initializePatterns ()
   for (auto &channelPatterns : _patterns)
     channelPatterns.resize (numPatternsPerChannel);
 
-  auto constexpr lengthBeatsPreMadePatterns = 16;
-  auto constexpr radius = .8f;
-
+  // Load patterns from the library into the first page (4 rows).
+  // Each row gets one pattern per channel; channels share the same
+  // library slot but each gets its own Pattern instance.
+  auto const numLibEntries = _patternLibrary->getNumEntries (); // includes Empty at 0
   for (auto channel = 0u; channel < numChannels; ++channel)
     {
-      int idx = 0;
-      // Row 0: Circle, FigureOfEight, CornerStep, Spiral
-      _patterns[channel][idx] = PatternGenerator::createCircle (
-          lengthBeatsPreMadePatterns, radius, 360.f, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createFigureOfEight (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createCornerStep (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createSpiral (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      // Row 1: Lissajous, Rose, Zigzag, Ellipse
-      _patterns[channel][idx] = PatternGenerator::createLissajous (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createRose (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createZigzag (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createEllipse (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      // Row 2: Pendulum, Triangle, Square, Star
-      _patterns[channel][idx] = PatternGenerator::createPendulum (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createTriangle (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createSquare (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createStar (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      // Row 3: Bounce, Helix, Orbit, Cross
-      _patterns[channel][idx] = PatternGenerator::createBounce (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createHelix (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createOrbit (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
-
-      _patterns[channel][idx] = PatternGenerator::createCross (
-          lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][idx]->setChannel (channel);
-      ++idx;
+      for (auto row = 0u; row < numPadRows; ++row)
+        {
+          auto const libIndex = static_cast<int> (row) + 1; // 1-based
+          if (libIndex < numLibEntries)
+            {
+              auto p = _patternLibrary->loadPattern (libIndex);
+              if (p)
+                {
+                  p->setChannel (channel);
+                  _patterns[channel][row] = std::move (p);
+                }
+            }
+        }
     }
+}
+
+void
+A3MotionUIComponent::generateSystemPatterns ()
+{
+  auto systemDir = _patternLibrary->getSystemDir ();
+
+  // Only generate if the system directory is empty
+  auto existing = systemDir.findChildFiles (juce::File::findFiles, false,
+                                            "*.json");
+  if (!existing.isEmpty ())
+    return;
+
+  std::cout << "Generating system pattern files..." << std::endl;
+
+  auto constexpr lengthBeats = 16;
+  auto constexpr radius = .8f;
+
+  struct PatternDef
+  {
+    int num;
+    std::string name;
+    std::function<std::shared_ptr<Pattern> ()> create;
+  };
+
+  // clang-format off
+  std::vector<PatternDef> defs = {
+    { 1,  "Circle",     [&] { return PatternGenerator::createCircle (lengthBeats, radius, 360.f, *_heightMap); }},
+    { 2,  "Figure 8",   [&] { return PatternGenerator::createFigureOfEight (lengthBeats, radius, *_heightMap); }},
+    { 3,  "Corner",     [&] { return PatternGenerator::createCornerStep (lengthBeats, radius, *_heightMap); }},
+    { 4,  "Spiral",     [&] { return PatternGenerator::createSpiral (lengthBeats, radius, *_heightMap); }},
+    { 5,  "Lissajous",  [&] { return PatternGenerator::createLissajous (lengthBeats, radius, *_heightMap); }},
+    { 6,  "Rose",       [&] { return PatternGenerator::createRose (lengthBeats, radius, *_heightMap); }},
+    { 7,  "Zigzag",     [&] { return PatternGenerator::createZigzag (lengthBeats, radius, *_heightMap); }},
+    { 8,  "Ellipse",    [&] { return PatternGenerator::createEllipse (lengthBeats, radius, *_heightMap); }},
+    { 9,  "Pendulum",   [&] { return PatternGenerator::createPendulum (lengthBeats, radius, *_heightMap); }},
+    { 10, "Triangle",   [&] { return PatternGenerator::createTriangle (lengthBeats, radius, *_heightMap); }},
+    { 11, "Square",     [&] { return PatternGenerator::createSquare (lengthBeats, radius, *_heightMap); }},
+    { 12, "Star",       [&] { return PatternGenerator::createStar (lengthBeats, radius, *_heightMap); }},
+    { 13, "Bounce",     [&] { return PatternGenerator::createBounce (lengthBeats, radius, *_heightMap); }},
+    { 14, "Helix",      [&] { return PatternGenerator::createHelix (lengthBeats, radius, *_heightMap); }},
+    { 15, "Orbit",      [&] { return PatternGenerator::createOrbit (lengthBeats, radius, *_heightMap); }},
+    { 16, "Cross",      [&] { return PatternGenerator::createCross (lengthBeats, radius, *_heightMap); }},
+    { 17, "Wave",       [&] { return PatternGenerator::createWave (lengthBeats, radius, *_heightMap); }},
+    { 18, "Hypo",       [&] { return PatternGenerator::createHypo (lengthBeats, radius, *_heightMap); }},
+  };
+  // clang-format on
+
+  for (auto const &def : defs)
+    {
+      auto p = def.create ();
+      auto filename = juce::String::formatted ("%02d_", def.num)
+                      + juce::String (def.name) + ".json";
+      auto file = systemDir.getChildFile (filename);
+      PatternFile::save (p, file);
+      std::cout << "  saved " << file.getFullPathName () << std::endl;
+    }
+
+  // Re-scan library after generating
+  _patternLibrary->refresh ();
 }
 
 void
@@ -730,12 +728,23 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
     {
       // Mark as long press since we're using Record for recording
       _recordButtonLongPress = true;
-      
-      if (!_patterns[channel][pad])
+
+      // Stop any existing pattern at this slot
+      if (_patterns[channel][pad])
         {
-          _patterns[channel][pad] = std::make_shared<Pattern> ();
-          _patterns[channel][pad]->setChannel (channel);
+          auto status = _patterns[channel][pad]->getStatus ();
+          if (status == Pattern::Status::Playing
+              || status == Pattern::Status::Recording)
+            {
+              _engine.stopPattern (_patterns[channel][pad],
+                                   TempoClock::nextDownBeat (_now));
+            }
+          _motionComponent->unsetPreviewPattern (_patterns[channel][pad]);
         }
+
+      // Always create a fresh Pattern for recording (user pattern)
+      _patterns[channel][pad] = std::make_shared<Pattern> ();
+      _patterns[channel][pad]->setChannel (channel);
 
       auto recordLength = Measure{ 0, static_cast<int> (
           std::max (1.f, getLengthBeats (channel))), 0 };
@@ -833,6 +842,23 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
       {
         _motionComponent->unsetPreviewPattern (messagePatternStatus.pattern);
         _channelStrips[channel]->setTextColour (juce::Colours::white);
+
+        // If this was a recording that just finished, save as user pattern
+        if (messagePatternStatus.pattern->getLastStatus ()
+            == Pattern::Status::Recording)
+          {
+            // Find which pad slot this pattern belongs to
+            for (size_t pad = 0; pad < _patterns[channel].size (); ++pad)
+              {
+                if (_patterns[channel][pad] == messagePatternStatus.pattern)
+                  {
+                    saveRecordedPattern (messagePatternStatus.pattern,
+                                         channel,
+                                         static_cast<index_t> (pad));
+                    break;
+                  }
+              }
+          }
         break;
       }
     }
@@ -1137,11 +1163,12 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
       if (_patterns[channel][padIndex])
         currentIndex = trajectoryNameToIndex (_patterns[channel][padIndex]->getName ());
 
-      // Cycle: 0..numTrajectoryTypes-1 where 0=empty, 1..18=patterns
+      // Cycle: 0..numLibEntries-1 where 0=empty, 1..N=patterns (system + user)
+      auto const numLibEntries = _patternLibrary->getNumEntries ();
       int newIndex = currentIndex + increment;
       if (newIndex < 0)
-        newIndex = static_cast<int> (numTrajectoryTypes) - 1;
-      else if (newIndex >= static_cast<int> (numTrajectoryTypes))
+        newIndex = numLibEntries - 1;
+      else if (newIndex >= numLibEntries)
         newIndex = 0;
 
       // Create new pattern or clear
@@ -1230,38 +1257,41 @@ A3MotionUIComponent::handleEncoderPress (index_t channel)
 void
 A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
 {
-  using TT = PadRowDisplay::TrajectoryType;
-
   auto const row = pad; // pad index == row index for first page
   if (row >= numPadRows)
     return;
 
-  TT type = TT::Empty;
+  if (row >= _padRowDisplays.size ())
+    return;
+
   if (_patterns[channel][pad])
     {
       auto const &name = _patterns[channel][pad]->getName ();
-      if (name == "Circle")         type = TT::Circle;
-      else if (name == "Figure 8")  type = TT::FigureOfEight;
-      else if (name == "Corner")    type = TT::CornerStep;
-      else if (name == "Spiral")    type = TT::Spiral;
-      else if (name == "Lissajous") type = TT::Lissajous;
-      else if (name == "Rose")      type = TT::Rose;
-      else if (name == "Zigzag")    type = TT::Zigzag;
-      else if (name == "Ellipse")   type = TT::Ellipse;
-      else if (name == "Pendulum")  type = TT::Pendulum;
-      else if (name == "Triangle")  type = TT::Triangle;
-      else if (name == "Square")    type = TT::Square;
-      else if (name == "Star")      type = TT::Star;
-      else if (name == "Bounce")    type = TT::Bounce;
-      else if (name == "Helix")     type = TT::Helix;
-      else if (name == "Orbit")     type = TT::Orbit;
-      else if (name == "Cross")     type = TT::Cross;
-      else if (name == "Wave")      type = TT::Wave;
-      else if (name == "Hypo")      type = TT::Hypo;
-    }
+      auto libIndex = _patternLibrary->indexForName (name);
 
-  if (row < _padRowDisplays.size ())
-    _padRowDisplays[row]->setTrajectoryType (static_cast<int> (channel), type);
+      if (libIndex > 0)
+        {
+          // Use tick data from the library entry for the icon
+          auto const &entry = _patternLibrary->getEntry (libIndex);
+          _padRowDisplays[row]->setTickData (static_cast<int> (channel),
+                                             entry.ticks);
+        }
+      else
+        {
+          // Pattern not in library (e.g. newly recorded, not yet saved)
+          // Generate icon from the pattern's own tick data
+          auto ticks = _patterns[channel][pad]->getTicks ();
+          _padRowDisplays[row]->setTickData (static_cast<int> (channel),
+                                             ticks.positions);
+        }
+    }
+  else
+    {
+      // Empty: clear tick data and set Empty type
+      _padRowDisplays[row]->setTickData (static_cast<int> (channel), {});
+      _padRowDisplays[row]->setTrajectoryType (
+          static_cast<int> (channel), PadRowDisplay::TrajectoryType::Empty);
+    }
 }
 
 void
@@ -1286,61 +1316,40 @@ A3MotionUIComponent::clearTrajectoryPreview (index_t channel)
 int
 A3MotionUIComponent::trajectoryNameToIndex (std::string const &name) const
 {
-  // 0 = empty, 1..18 = patterns
-  if (name == "Circle")         return 1;
-  if (name == "Figure 8")      return 2;
-  if (name == "Corner")        return 3;
-  if (name == "Spiral")        return 4;
-  if (name == "Lissajous")     return 5;
-  if (name == "Rose")          return 6;
-  if (name == "Zigzag")        return 7;
-  if (name == "Ellipse")       return 8;
-  if (name == "Pendulum")      return 9;
-  if (name == "Triangle")      return 10;
-  if (name == "Square")        return 11;
-  if (name == "Star")          return 12;
-  if (name == "Bounce")        return 13;
-  if (name == "Helix")         return 14;
-  if (name == "Orbit")         return 15;
-  if (name == "Cross")         return 16;
-  if (name == "Wave")          return 17;
-  if (name == "Hypo")          return 18;
-  return 0;
+  return _patternLibrary->indexForName (name);
 }
 
 std::shared_ptr<Pattern>
 A3MotionUIComponent::createPatternForIndex (int index, index_t channel)
 {
-  auto constexpr lengthBeats = 16;
-  auto constexpr radius = .8f;
-  std::shared_ptr<Pattern> p;
-
-  switch (index)
-    {
-    case 1:  p = PatternGenerator::createCircle (lengthBeats, radius, 360.f, *_heightMap); break;
-    case 2:  p = PatternGenerator::createFigureOfEight (lengthBeats, radius, *_heightMap); break;
-    case 3:  p = PatternGenerator::createCornerStep (lengthBeats, radius, *_heightMap); break;
-    case 4:  p = PatternGenerator::createSpiral (lengthBeats, radius, *_heightMap); break;
-    case 5:  p = PatternGenerator::createLissajous (lengthBeats, radius, *_heightMap); break;
-    case 6:  p = PatternGenerator::createRose (lengthBeats, radius, *_heightMap); break;
-    case 7:  p = PatternGenerator::createZigzag (lengthBeats, radius, *_heightMap); break;
-    case 8:  p = PatternGenerator::createEllipse (lengthBeats, radius, *_heightMap); break;
-    case 9:  p = PatternGenerator::createPendulum (lengthBeats, radius, *_heightMap); break;
-    case 10: p = PatternGenerator::createTriangle (lengthBeats, radius, *_heightMap); break;
-    case 11: p = PatternGenerator::createSquare (lengthBeats, radius, *_heightMap); break;
-    case 12: p = PatternGenerator::createStar (lengthBeats, radius, *_heightMap); break;
-    case 13: p = PatternGenerator::createBounce (lengthBeats, radius, *_heightMap); break;
-    case 14: p = PatternGenerator::createHelix (lengthBeats, radius, *_heightMap); break;
-    case 15: p = PatternGenerator::createOrbit (lengthBeats, radius, *_heightMap); break;
-    case 16: p = PatternGenerator::createCross (lengthBeats, radius, *_heightMap); break;
-    case 17: p = PatternGenerator::createWave (lengthBeats, radius, *_heightMap); break;
-    case 18: p = PatternGenerator::createHypo (lengthBeats, radius, *_heightMap); break;
-    default: return nullptr;
-    }
-
+  auto p = _patternLibrary->loadPattern (index);
   if (p)
     p->setChannel (channel);
   return p;
+}
+
+void
+A3MotionUIComponent::saveRecordedPattern (
+    std::shared_ptr<Pattern> const &pattern, index_t channel, index_t pad)
+{
+  if (!pattern || pattern->getNumTicks () == 0)
+    return;
+
+  // Name the recording with a timestamp
+  auto now = juce::Time::getCurrentTime ();
+  auto name = "Rec " + now.formatted ("%H%M%S").toStdString ();
+  pattern->setName (name);
+
+  // Save to user directory
+  auto newIndex = _patternLibrary->saveUserPattern (pattern);
+  if (newIndex > 0)
+    {
+      std::cout << "Recording saved as user pattern '" << name
+                << "' at library index " << newIndex << std::endl;
+    }
+
+  // Update the pad row display icon from the live tick data
+  updatePadRowLabel (channel, pad);
 }
 
 void

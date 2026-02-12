@@ -44,6 +44,10 @@ target_sources("a3-motion-engine" PRIVATE
     Pattern.hh
     PatternGenerator.cc
     PatternGenerator.hh
+    PatternFile.cc
+    PatternFile.hh
+    PatternLibrary.cc
+    PatternLibrary.hh
     Master.cc
     Master.hh
     tempo/TempoClock.cc
