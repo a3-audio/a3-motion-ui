@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <string>
+
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Types.hh>
 
@@ -54,6 +56,9 @@ public:
   void setChannel (index_t channel);
   index_t getChannel () const;
 
+  void setName (std::string name);
+  std::string const &getName () const;
+
   index_t getNumTicks () const;
   Pos getTick (index_t tick) const;
   void setTick (index_t tick, Pos position);
@@ -86,6 +91,8 @@ private:
   // for now patterns are fixed to a channel, this will probably
   // change later on.
   std::atomic<index_t> _channel;
+
+  std::string _name;
 
   index_t _lastUpdatedTick{ 0 };
   std::vector<Pos> _ticks;

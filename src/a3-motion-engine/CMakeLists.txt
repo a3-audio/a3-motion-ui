@@ -7,8 +7,7 @@ target_link_libraries(juce_dependencies
         juce::juce_osc
         juce::juce_core
         juce::juce_recommended_config_flags
-        juce::juce_recommended_warning_flags
-        juce::juce_recommended_lto_flags)
+        juce::juce_recommended_warning_flags)
 
 target_compile_definitions(juce_dependencies
     PUBLIC

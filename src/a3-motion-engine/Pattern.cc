@@ -76,6 +76,18 @@ Pattern::getChannel () const
   return _channel;
 }
 
+void
+Pattern::setName (std::string name)
+{
+  _name = std::move (name);
+}
+
+std::string const &
+Pattern::getName () const
+{
+  return _name;
+}
+
 index_t
 Pattern::getNumTicks () const
 {

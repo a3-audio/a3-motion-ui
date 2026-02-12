@@ -53,6 +53,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/FilterDisplay.hh
     components/LoopLengthDisplay.cc
     components/LoopLengthDisplay.hh
+    components/PadRowDisplay.cc
+    components/PadRowDisplay.hh
     components/DirectivityComponent.cc
     components/DirectivityComponent.hh
     # components/PatternMenu.cc

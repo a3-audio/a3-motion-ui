@@ -42,6 +42,66 @@ public:
   createCornerStep (index_t lengthBeats, float radius,
                     HeightMap const &heightMap);
 
+  static std::unique_ptr<Pattern>
+  createSpiral (index_t lengthBeats, float radius,
+                HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createLissajous (index_t lengthBeats, float radius,
+                   HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createRose (index_t lengthBeats, float radius,
+              HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createZigzag (index_t lengthBeats, float radius,
+                HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createEllipse (index_t lengthBeats, float radius,
+                 HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createPendulum (index_t lengthBeats, float radius,
+                  HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createTriangle (index_t lengthBeats, float radius,
+                  HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createSquare (index_t lengthBeats, float radius,
+                HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createStar (index_t lengthBeats, float radius,
+              HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createBounce (index_t lengthBeats, float radius,
+                HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createHelix (index_t lengthBeats, float radius,
+               HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createOrbit (index_t lengthBeats, float radius,
+               HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createCross (index_t lengthBeats, float radius,
+               HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createWave (index_t lengthBeats, float radius,
+              HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createHypo (index_t lengthBeats, float radius,
+              HeightMap const &heightMap);
+
 private:
 };
 

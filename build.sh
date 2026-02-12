@@ -65,7 +65,7 @@ fi
 # Configure if needed
 if [ ! -f CMakeCache.txt ] || ! grep -q "CMAKE_BUILD_TYPE:STRING=$BUILD_TYPE" CMakeCache.txt; then
     echo "=== Configuring for $BUILD_TYPE ==="
-    cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DHARDWARE_INTERFACE_ENABLED=ON "$SRC_DIR"
+    cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DHARDWARE_INTERFACE_ENABLED=ON -DCMAKE_PREFIX_PATH=/home/aaa/local/juce "$SRC_DIR"
 fi
 
 echo "=== Building a3-motion-ui ($BUILD_TYPE) ==="

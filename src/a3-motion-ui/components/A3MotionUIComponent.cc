@@ -41,6 +41,7 @@
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/LoopLengthDisplay.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
+#include <a3-motion-ui/components/PadRowDisplay.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
 
 #include <a3-motion-ui/tests/TempoEstimatorTest.hh>
@@ -60,15 +61,20 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
-  initializePatterns ();
+  // Initialize encoder state
+  _encoderLevel.fill (EncoderLevel::RowSelect);
+  _encoderSelectedRow.fill (0);
 
   if (runsOnHardware ())
     {
       createHardwareInterface ();
     }
 
+  initializePatterns ();
+
   createChannelsUI ();
   createMainUI ();
+  createPadRowDisplays ();
 
   _engine.addPatternStatusListener (this);
   _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
@@ -348,6 +354,7 @@ A3MotionUIComponent::createHardwareInterface ()
       _ioAdapter->getPot (channel, 0).addListener (this);
       _ioAdapter->getPot (channel, 1).addListener (this);
       _ioAdapter->getEncoderIncrement (channel).addListener (this);
+      _ioAdapter->getEncoderPress (channel).addListener (this);
     }
   _ioAdapter->startThread ();
 
@@ -358,29 +365,106 @@ A3MotionUIComponent::createHardwareInterface ()
 void
 A3MotionUIComponent::initializePatterns ()
 {
-  auto const numChannels = _ioAdapter->getNumChannels ();
+  auto const numChannels = runsOnHardware ()
+                               ? _ioAdapter->getNumChannels ()
+                               : _engine.getNumChannels ();
   _patterns.resize (numChannels);
 
-  auto numPatternsPerChannel = numPages * _ioAdapter->getNumPadsPerChannel ();
+  auto numPatternsPerChannel = runsOnHardware ()
+                                   ? numPages * _ioAdapter->getNumPadsPerChannel ()
+                                   : numPages * numPadRows;
   for (auto &channelPatterns : _patterns)
     channelPatterns.resize (numPatternsPerChannel);
 
   auto constexpr lengthBeatsPreMadePatterns = 16;
+  auto constexpr radius = .8f;
+
   for (auto channel = 0u; channel < numChannels; ++channel)
     {
-      auto constexpr radius = .8f;
-      auto constexpr degrees = 360.f;
-      _patterns[channel][0] = PatternGenerator::createCircle (
-          lengthBeatsPreMadePatterns, radius, degrees, *_heightMap);
-      _patterns[channel][0]->setChannel (channel);
+      int idx = 0;
+      // Row 0: Circle, FigureOfEight, CornerStep, Spiral
+      _patterns[channel][idx] = PatternGenerator::createCircle (
+          lengthBeatsPreMadePatterns, radius, 360.f, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
 
-      _patterns[channel][1] = PatternGenerator::createFigureOfEight (
+      _patterns[channel][idx] = PatternGenerator::createFigureOfEight (
           lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][1]->setChannel (channel);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
 
-      _patterns[channel][2] = PatternGenerator::createCornerStep (
+      _patterns[channel][idx] = PatternGenerator::createCornerStep (
           lengthBeatsPreMadePatterns, radius, *_heightMap);
-      _patterns[channel][2]->setChannel (channel);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      _patterns[channel][idx] = PatternGenerator::createSpiral (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      // Row 1: Lissajous, Rose, Zigzag, Ellipse
+      _patterns[channel][idx] = PatternGenerator::createLissajous (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      _patterns[channel][idx] = PatternGenerator::createRose (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      _patterns[channel][idx] = PatternGenerator::createZigzag (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      _patterns[channel][idx] = PatternGenerator::createEllipse (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      // Row 2: Pendulum, Triangle, Square, Star
+      _patterns[channel][idx] = PatternGenerator::createPendulum (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      _patterns[channel][idx] = PatternGenerator::createTriangle (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      _patterns[channel][idx] = PatternGenerator::createSquare (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      _patterns[channel][idx] = PatternGenerator::createStar (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      // Row 3: Bounce, Helix, Orbit, Cross
+      _patterns[channel][idx] = PatternGenerator::createBounce (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      _patterns[channel][idx] = PatternGenerator::createHelix (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      _patterns[channel][idx] = PatternGenerator::createOrbit (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
+
+      _patterns[channel][idx] = PatternGenerator::createCross (
+          lengthBeatsPreMadePatterns, radius, *_heightMap);
+      _patterns[channel][idx]->setChannel (channel);
+      ++idx;
     }
 }
 
@@ -424,6 +508,14 @@ A3MotionUIComponent::resized ()
   auto constexpr loopLengthDisplayHeight = LoopLengthDisplay::getMinimumHeight ();
   auto boundsLoopLength = bounds.removeFromTop (loopLengthDisplayHeight);
   _loopLengthDisplay->setBounds (boundsLoopLength);
+
+  // Pad row displays below loop length display
+  for (auto &padRow : _padRowDisplays)
+    {
+      auto constexpr padRowHeight = PadRowDisplay::getMinimumHeight ();
+      auto boundsPadRow = bounds.removeFromTop (padRowHeight);
+      padRow->setBounds (boundsPadRow);
+    }
 
   // Filter display at the bottom
   auto constexpr filterDisplayHeight = FilterDisplay::getMinimumHeight ();
@@ -551,7 +643,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
             {
               auto const increment = static_cast<int> (
                   _ioAdapter->getEncoderIncrement (channel).getValue ());
-              handleLengthIncrement (channel, increment);
+              handleEncoderIncrement (channel, increment);
+            }
+          else if (value.refersToSameSourceAs (
+                       _ioAdapter->getEncoderPress (channel)))
+            {
+              if (value.getValue ())
+                handleEncoderPress (channel);
             }
           else if (value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 0)))
@@ -931,6 +1029,262 @@ A3MotionUIComponent::scheduledForIdleLEDColour (int step,
           return LEDColours::scheduledForRecording;
         }
     }
+}
+
+void
+A3MotionUIComponent::createPadRowDisplays ()
+{
+  for (auto row = 0u; row < numPadRows; ++row)
+    {
+      auto display = std::make_unique<PadRowDisplay> (static_cast<int> (row));
+      for (auto ch = 0u; ch < _channelUIStates.size ()
+                         && ch < PadRowDisplay::numChannels;
+           ++ch)
+        {
+          display->setChannelColour (static_cast<int> (ch),
+                                     _channelUIStates[ch]->colour);
+          // Set initial pad label based on existing pattern
+          auto const padIndex = row;
+          if (padIndex < _patterns[ch].size () && _patterns[ch][padIndex])
+            updatePadRowLabel (ch, padIndex);
+        }
+      addChildComponent (*display);
+      display->setVisible (true);
+      _padRowDisplays.push_back (std::move (display));
+    }
+
+  // Set initial row highlight (row 0 for all channels)
+  for (auto ch = 0u; ch < _engine.getNumChannels (); ++ch)
+    {
+      if (!_padRowDisplays.empty ())
+        _padRowDisplays[0]->setRowHighlighted (static_cast<int> (ch), true);
+    }
+}
+
+void
+A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
+{
+  if (_encoderLevel[channel] == EncoderLevel::RowSelect)
+    {
+      // Navigate between pad rows
+      auto oldRow = _encoderSelectedRow[channel];
+      auto newRow = oldRow + increment;
+      newRow = std::clamp (newRow, 0, static_cast<int> (numPadRows) - 1);
+
+      if (newRow != oldRow)
+        {
+          // Update highlight
+          if (static_cast<size_t> (oldRow) < _padRowDisplays.size ())
+            _padRowDisplays[static_cast<size_t> (oldRow)]
+                ->setRowHighlighted (static_cast<int> (channel), false);
+          if (static_cast<size_t> (newRow) < _padRowDisplays.size ())
+            _padRowDisplays[static_cast<size_t> (newRow)]
+                ->setRowHighlighted (static_cast<int> (channel), true);
+
+          _encoderSelectedRow[channel] = newRow;
+        }
+    }
+  else if (_encoderLevel[channel] == EncoderLevel::OptionEdit)
+    {
+      // Cycle trajectory type for the selected pad
+      auto const row = _encoderSelectedRow[channel];
+      auto const padIndex = static_cast<index_t> (row);
+
+      // Get current trajectory index
+      int currentIndex = 0;
+      if (_patterns[channel][padIndex])
+        currentIndex = trajectoryNameToIndex (_patterns[channel][padIndex]->getName ());
+
+      // Cycle: 0..numTrajectoryTypes-1 where 0=empty, 1..18=patterns
+      int newIndex = currentIndex + increment;
+      if (newIndex < 0)
+        newIndex = static_cast<int> (numTrajectoryTypes) - 1;
+      else if (newIndex >= static_cast<int> (numTrajectoryTypes))
+        newIndex = 0;
+
+      // Create new pattern or clear
+      if (newIndex == 0)
+        {
+          // Stop if playing
+          if (_patterns[channel][padIndex])
+            {
+              auto status = _patterns[channel][padIndex]->getStatus ();
+              if (status == Pattern::Status::Playing
+                  || status == Pattern::Status::Recording)
+                {
+                  _engine.stopPattern (_patterns[channel][padIndex],
+                                       TempoClock::nextDownBeat (_now));
+                }
+              _motionComponent->unsetPreviewPattern (
+                  _patterns[channel][padIndex]);
+            }
+          _patterns[channel][padIndex] = nullptr;
+        }
+      else
+        {
+          // Stop old pattern if playing
+          if (_patterns[channel][padIndex])
+            {
+              auto status = _patterns[channel][padIndex]->getStatus ();
+              if (status == Pattern::Status::Playing
+                  || status == Pattern::Status::Recording)
+                {
+                  _engine.stopPattern (_patterns[channel][padIndex],
+                                       TempoClock::nextDownBeat (_now));
+                }
+              _motionComponent->unsetPreviewPattern (
+                  _patterns[channel][padIndex]);
+            }
+          _patterns[channel][padIndex]
+              = createPatternForIndex (newIndex, channel);
+        }
+
+      updatePadRowLabel (channel, padIndex);
+      showTrajectoryPreview (channel, padIndex);
+    }
+}
+
+void
+A3MotionUIComponent::handleEncoderPress (index_t channel)
+{
+  auto const row = _encoderSelectedRow[channel];
+
+  if (_encoderLevel[channel] == EncoderLevel::RowSelect)
+    {
+      // Enter edit mode
+      _encoderLevel[channel] = EncoderLevel::OptionEdit;
+      if (static_cast<size_t> (row) < _padRowDisplays.size ())
+        _padRowDisplays[static_cast<size_t> (row)]
+            ->setCellSelected (static_cast<int> (channel), true);
+
+      showTrajectoryPreview (channel, static_cast<index_t> (row));
+    }
+  else
+    {
+      // Exit edit mode
+      _encoderLevel[channel] = EncoderLevel::RowSelect;
+      if (static_cast<size_t> (row) < _padRowDisplays.size ())
+        _padRowDisplays[static_cast<size_t> (row)]
+            ->setCellSelected (static_cast<int> (channel), false);
+
+      clearTrajectoryPreview (channel);
+    }
+}
+
+void
+A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
+{
+  using TT = PadRowDisplay::TrajectoryType;
+
+  auto const row = pad; // pad index == row index for first page
+  if (row >= numPadRows)
+    return;
+
+  TT type = TT::Empty;
+  if (_patterns[channel][pad])
+    {
+      auto const &name = _patterns[channel][pad]->getName ();
+      if (name == "Circle")         type = TT::Circle;
+      else if (name == "Figure 8")  type = TT::FigureOfEight;
+      else if (name == "Corner")    type = TT::CornerStep;
+      else if (name == "Spiral")    type = TT::Spiral;
+      else if (name == "Lissajous") type = TT::Lissajous;
+      else if (name == "Rose")      type = TT::Rose;
+      else if (name == "Zigzag")    type = TT::Zigzag;
+      else if (name == "Ellipse")   type = TT::Ellipse;
+      else if (name == "Pendulum")  type = TT::Pendulum;
+      else if (name == "Triangle")  type = TT::Triangle;
+      else if (name == "Square")    type = TT::Square;
+      else if (name == "Star")      type = TT::Star;
+      else if (name == "Bounce")    type = TT::Bounce;
+      else if (name == "Helix")     type = TT::Helix;
+      else if (name == "Orbit")     type = TT::Orbit;
+      else if (name == "Cross")     type = TT::Cross;
+      else if (name == "Wave")      type = TT::Wave;
+      else if (name == "Hypo")      type = TT::Hypo;
+    }
+
+  if (row < _padRowDisplays.size ())
+    _padRowDisplays[row]->setTrajectoryType (static_cast<int> (channel), type);
+}
+
+void
+A3MotionUIComponent::showTrajectoryPreview (index_t channel, index_t pad)
+{
+  if (_encoderLevel[channel] == EncoderLevel::OptionEdit
+      && _patterns[channel][pad])
+    {
+      _motionComponent->setPreviewPattern (_patterns[channel][pad]);
+    }
+}
+
+void
+A3MotionUIComponent::clearTrajectoryPreview (index_t channel)
+{
+  auto const row = _encoderSelectedRow[channel];
+  auto const pad = static_cast<index_t> (row);
+  if (_patterns[channel][pad])
+    _motionComponent->unsetPreviewPattern (_patterns[channel][pad]);
+}
+
+int
+A3MotionUIComponent::trajectoryNameToIndex (std::string const &name) const
+{
+  // 0 = empty, 1..18 = patterns
+  if (name == "Circle")         return 1;
+  if (name == "Figure 8")      return 2;
+  if (name == "Corner")        return 3;
+  if (name == "Spiral")        return 4;
+  if (name == "Lissajous")     return 5;
+  if (name == "Rose")          return 6;
+  if (name == "Zigzag")        return 7;
+  if (name == "Ellipse")       return 8;
+  if (name == "Pendulum")      return 9;
+  if (name == "Triangle")      return 10;
+  if (name == "Square")        return 11;
+  if (name == "Star")          return 12;
+  if (name == "Bounce")        return 13;
+  if (name == "Helix")         return 14;
+  if (name == "Orbit")         return 15;
+  if (name == "Cross")         return 16;
+  if (name == "Wave")          return 17;
+  if (name == "Hypo")          return 18;
+  return 0;
+}
+
+std::shared_ptr<Pattern>
+A3MotionUIComponent::createPatternForIndex (int index, index_t channel)
+{
+  auto constexpr lengthBeats = 16;
+  auto constexpr radius = .8f;
+  std::shared_ptr<Pattern> p;
+
+  switch (index)
+    {
+    case 1:  p = PatternGenerator::createCircle (lengthBeats, radius, 360.f, *_heightMap); break;
+    case 2:  p = PatternGenerator::createFigureOfEight (lengthBeats, radius, *_heightMap); break;
+    case 3:  p = PatternGenerator::createCornerStep (lengthBeats, radius, *_heightMap); break;
+    case 4:  p = PatternGenerator::createSpiral (lengthBeats, radius, *_heightMap); break;
+    case 5:  p = PatternGenerator::createLissajous (lengthBeats, radius, *_heightMap); break;
+    case 6:  p = PatternGenerator::createRose (lengthBeats, radius, *_heightMap); break;
+    case 7:  p = PatternGenerator::createZigzag (lengthBeats, radius, *_heightMap); break;
+    case 8:  p = PatternGenerator::createEllipse (lengthBeats, radius, *_heightMap); break;
+    case 9:  p = PatternGenerator::createPendulum (lengthBeats, radius, *_heightMap); break;
+    case 10: p = PatternGenerator::createTriangle (lengthBeats, radius, *_heightMap); break;
+    case 11: p = PatternGenerator::createSquare (lengthBeats, radius, *_heightMap); break;
+    case 12: p = PatternGenerator::createStar (lengthBeats, radius, *_heightMap); break;
+    case 13: p = PatternGenerator::createBounce (lengthBeats, radius, *_heightMap); break;
+    case 14: p = PatternGenerator::createHelix (lengthBeats, radius, *_heightMap); break;
+    case 15: p = PatternGenerator::createOrbit (lengthBeats, radius, *_heightMap); break;
+    case 16: p = PatternGenerator::createCross (lengthBeats, radius, *_heightMap); break;
+    case 17: p = PatternGenerator::createWave (lengthBeats, radius, *_heightMap); break;
+    case 18: p = PatternGenerator::createHypo (lengthBeats, radius, *_heightMap); break;
+    default: return nullptr;
+    }
+
+  if (p)
+    p->setChannel (channel);
+  return p;
 }
 
 void

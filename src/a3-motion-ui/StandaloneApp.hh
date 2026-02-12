@@ -52,6 +52,3 @@ private:
 };
 
 } // namespace a3 end
-
-// this generates boilerplate code to launch our app class:
-START_JUCE_APPLICATION (a3::StandaloneApp)

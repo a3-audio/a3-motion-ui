@@ -23,6 +23,8 @@
 #include "a3-motion-engine/tempo/TempoClock.hh"
 #include <JuceHeader.h>
 
+#include <array>
+#include <string>
 #include <vector>
 
 #include <a3-motion-engine/MotionEngine.hh>
@@ -41,6 +43,7 @@ class MotionComponent;
 
 class FilterDisplay;
 class LoopLengthDisplay;
+class PadRowDisplay;
 class StatusBar;
 class ChannelStrip;
 class ChannelUIState;
@@ -119,6 +122,24 @@ private:
 
   void initializePatterns ();
   std::vector<std::vector<std::shared_ptr<Pattern> > > _patterns;
+
+  // Pad row display (trajectory option bar)
+  static auto constexpr numPadRows = 4u;
+  static auto constexpr numTrajectoryTypes = 19u; // including Empty
+  void createPadRowDisplays ();
+  std::vector<std::unique_ptr<PadRowDisplay> > _padRowDisplays;
+
+  // Encoder navigation state
+  enum class EncoderLevel { RowSelect, OptionEdit };
+  std::array<EncoderLevel, 4> _encoderLevel;
+  std::array<int, 4> _encoderSelectedRow;
+  void handleEncoderIncrement (index_t channel, int increment);
+  void handleEncoderPress (index_t channel);
+  void updatePadRowLabel (index_t channel, index_t pad);
+  void showTrajectoryPreview (index_t channel, index_t pad);
+  void clearTrajectoryPreview (index_t channel);
+  int trajectoryNameToIndex (std::string const &name) const;
+  std::shared_ptr<Pattern> createPatternForIndex (int index, index_t channel);
 
   // OSC Receiver for VU meters, beat clock, etc.
   juce::OSCReceiver _oscReceiver;
