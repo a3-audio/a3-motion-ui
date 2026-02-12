@@ -420,15 +420,15 @@ A3MotionUIComponent::resized ()
   auto boundsStatus = bounds.removeFromTop (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
-  // Filter display below status bar
-  auto constexpr filterDisplayHeight = FilterDisplay::getMinimumHeight ();
-  auto boundsFilter = bounds.removeFromTop (filterDisplayHeight);
-  _filterDisplay->setBounds (boundsFilter);
-
-  // Loop length display below filter display
+  // Loop length display below status bar
   auto constexpr loopLengthDisplayHeight = LoopLengthDisplay::getMinimumHeight ();
   auto boundsLoopLength = bounds.removeFromTop (loopLengthDisplayHeight);
   _loopLengthDisplay->setBounds (boundsLoopLength);
+
+  // Filter display at the bottom
+  auto constexpr filterDisplayHeight = FilterDisplay::getMinimumHeight ();
+  auto boundsFilter = bounds.removeFromBottom (filterDisplayHeight);
+  _filterDisplay->setBounds (boundsFilter);
 
   // Hide channel strips - no longer needed after removing width/order displays
   for (auto &strip : _channelStrips)
