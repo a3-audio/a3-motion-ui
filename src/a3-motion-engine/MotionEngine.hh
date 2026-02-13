@@ -82,6 +82,10 @@ public:
   // Stop
   void stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
 
+  // Preview mode: suppress OSC output for a channel while pattern plays
+  void setPreviewMode (index_t channel, bool enabled);
+  bool isPreviewMode (index_t channel) const;
+
   class PatternStatusMessage : public juce::Message
   {
   public:
@@ -212,6 +216,9 @@ private:
   std::vector<Pos> _lastSentPositions;
   std::vector<float> _lastSentPot1s;
   std::vector<float> _lastSentPot2s;
+
+  // Per-channel preview mode: when true, suppress OSC output
+  std::vector<std::atomic<bool>> _previewMode;
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);

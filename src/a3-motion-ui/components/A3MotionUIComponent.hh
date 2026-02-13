@@ -161,8 +161,8 @@ private:
   // Direct OSC Sender for time-critical tap messages (bypasses async queue)
   juce::OSCSender _tapSender;
   
-  // ClockMode toggle state
-  bool _clockMode = false;
+  // ClockMode toggle state: 0 = INT, 1 = EXT, 2 = PIO
+  int _clockMode = 0;
   float _internalBPM = 0.f;  // saved INT tempo for restore after EXT mode
   
   // Pattern directory monitoring
@@ -174,9 +174,10 @@ private:
   juce::int64 _recordButtonPressTime = 0;
   bool _recordButtonLongPress = false;
   static constexpr juce::int64 longPressThresholdMs = 300;
-  
-  // Tap button long-press detection (for trajectory preview)
-  bool _tapButtonLongPress = false;
+
+  // Preview-and-fire: per-channel tracking of held pad for preview mode
+  // -1 means no preview active on that channel
+  std::vector<int> _previewHeldPad;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };

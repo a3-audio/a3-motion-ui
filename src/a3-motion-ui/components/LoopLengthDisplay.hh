@@ -78,7 +78,7 @@ public:
 
   /** Enable/disable external clock mode.  In EXT mode, the playhead is
    *  interpolated from setExternalBeat().  In INT mode, use setPlayheadPosition(). */
-  void setClockMode (bool external);
+  void setClockMode (int mode);
 
   /** Set whether this row is highlighted for a given channel
    *  (encoder is pointing at this row in row-select mode). */
@@ -112,7 +112,7 @@ private:
   std::atomic<int> _referenceBeats{ 4 };
 
   // External clock interpolation state
-  std::atomic<bool> _extClockMode{ false };
+  std::atomic<int> _extClockMode{ 0 };
   std::atomic<int> _extBeat{ 1 };              // last received beat (1-based)
   std::atomic<int> _extBeatsPerBar{ 4 };
   std::atomic<juce::int64> _extBeatTime{ 0 };  // timestamp of last beat (ms)

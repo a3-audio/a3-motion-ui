@@ -42,7 +42,7 @@ void
 LoopLengthDisplay::timerCallback ()
 {
   // In EXT mode: interpolate playhead position based on time since last beat
-  if (_extClockMode.load ())
+  if (_extClockMode.load () != 0)
     {
       auto now = juce::Time::currentTimeMillis ();
       auto beatTime = _extBeatTime.load ();
@@ -250,9 +250,9 @@ LoopLengthDisplay::setExternalBeat (int beat, int beatsPerBar)
 }
 
 void
-LoopLengthDisplay::setClockMode (bool external)
+LoopLengthDisplay::setClockMode (int mode)
 {
-  _extClockMode = external;
+  _extClockMode = mode;
 }
 
 void

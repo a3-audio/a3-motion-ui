@@ -83,6 +83,7 @@ MotionEngine::createChannels (index_t const numChannels)
   _lastSentPositions.resize (numChannels);
   _lastSentPot1s.resize (numChannels);
   _lastSentPot2s.resize (numChannels);
+  _previewMode = std::vector<std::atomic<bool>> (numChannels);
 
   auto constexpr spread = 120.f;
   auto const azimuthSpacing = spread / (numChannels - 1);
@@ -230,6 +231,20 @@ MotionEngine::stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint)
 }
 
 void
+MotionEngine::setPreviewMode (index_t channel, bool enabled)
+{
+  jassert (channel < _previewMode.size ());
+  _previewMode[channel].store (enabled, std::memory_order_relaxed);
+}
+
+bool
+MotionEngine::isPreviewMode (index_t channel) const
+{
+  jassert (channel < _previewMode.size ());
+  return _previewMode[channel].load (std::memory_order_relaxed);
+}
+
+void
 MotionEngine::setRecordingMode (RecordingMode recordingMode)
 {
   Message message;
@@ -291,6 +306,10 @@ MotionEngine::tickCallback ()
   // compare with last enqueued values and enqueue on change
   for (auto index = 0u; index < _channels.size (); ++index)
     {
+      // Skip OSC output for channels in preview mode
+      if (_previewMode[index].load (std::memory_order_relaxed))
+        continue;
+
       auto const position = _channels[index]->getPosition ();
       if (position.isValid () && _lastSentPositions[index] != position)
         {

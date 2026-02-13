@@ -46,8 +46,8 @@ public:
   void setExternalBPM (float bpm);
   void setBeatClock (int beat, int bar);
   
-  // Clock mode status (internal/external)
-  void setClockMode (bool external);
+  // Clock mode status: 0 = INT, 1 = EXT, 2 = PIO
+  void setClockMode (int mode);
 
   static constexpr int
   getMinimumHeight ()
@@ -67,7 +67,7 @@ private:
   std::atomic<float> _externalBPM{ 0.f };
   std::atomic<int> _beatClockBeat{ 0 };
   std::atomic<int> _beatClockBar{ 0 };
-  std::atomic<bool> _clockModeExternal{ false };
+  std::atomic<int> _clockMode{ 0 };
 };
 
 }

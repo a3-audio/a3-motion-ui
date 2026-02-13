@@ -1041,6 +1041,27 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
          -1.f,  0.f, 0.f);  // JUCE y = -HOA x
 
       g.strokePath (displayData.displayPath, strokeStyle, transform);
+
+      // Draw animated position marker when pattern is playing (preview mode)
+      if (pattern.getStatus () == Pattern::Status::Playing
+          || (pattern.getStatus () == Pattern::Status::ScheduledForIdle
+              && pattern.getLastStatus () == Pattern::Status::Playing))
+        {
+          auto const pos = _engine.getChannelPosition (pattern.getChannel ());
+          if (pos.isValid ())
+            {
+              auto constexpr markerSize = 0.12f;
+              auto posJuce = cartesian2DHOA2JUCE (pos);
+              g.setColour (colour.withAlpha (0.9f));
+              g.fillEllipse (juce::Rectangle<float> (markerSize, markerSize)
+                                 .withCentre (posJuce));
+              // Bright outline ring
+              g.setColour (juce::Colours::white.withAlpha (0.7f));
+              g.drawEllipse (juce::Rectangle<float> (markerSize, markerSize)
+                                 .withCentre (posJuce),
+                             lineThickness * 0.5f);
+            }
+        }
       return;
     }
 
@@ -1056,6 +1077,26 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
           auto ellipse = juce::Rectangle<float> (dotSize, dotSize)
                              .withCentre ({ jx, jy });
           g.fillEllipse (ellipse);
+        }
+
+      // Draw animated position marker for jump-dot patterns
+      if (pattern.getStatus () == Pattern::Status::Playing
+          || (pattern.getStatus () == Pattern::Status::ScheduledForIdle
+              && pattern.getLastStatus () == Pattern::Status::Playing))
+        {
+          auto const pos = _engine.getChannelPosition (pattern.getChannel ());
+          if (pos.isValid ())
+            {
+              auto constexpr markerSize = 0.12f;
+              auto posJuce = cartesian2DHOA2JUCE (pos);
+              g.setColour (colour.withAlpha (0.9f));
+              g.fillEllipse (juce::Rectangle<float> (markerSize, markerSize)
+                                 .withCentre (posJuce));
+              g.setColour (juce::Colours::white.withAlpha (0.7f));
+              g.drawEllipse (juce::Rectangle<float> (markerSize, markerSize)
+                                 .withCentre (posJuce),
+                             lineThickness * 0.5f);
+            }
         }
       return;
     }
@@ -1137,6 +1178,26 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
 
   if (!path.isEmpty ())
     g.strokePath (path, strokeStyle);
+
+  // Draw animated position marker for raw-tick patterns
+  if (pattern.getStatus () == Pattern::Status::Playing
+      || (pattern.getStatus () == Pattern::Status::ScheduledForIdle
+          && pattern.getLastStatus () == Pattern::Status::Playing))
+    {
+      auto const pos = _engine.getChannelPosition (pattern.getChannel ());
+      if (pos.isValid ())
+        {
+          auto constexpr markerSize = 0.12f;
+          auto posJuce = cartesian2DHOA2JUCE (pos);
+          g.setColour (colour.withAlpha (0.9f));
+          g.fillEllipse (juce::Rectangle<float> (markerSize, markerSize)
+                             .withCentre (posJuce));
+          g.setColour (juce::Colours::white.withAlpha (0.7f));
+          g.drawEllipse (juce::Rectangle<float> (markerSize, markerSize)
+                             .withCentre (posJuce),
+                         lineThickness * 0.5f);
+        }
+    }
 }
 
 juce::Point<float>

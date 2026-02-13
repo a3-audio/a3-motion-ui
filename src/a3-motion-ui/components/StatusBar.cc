@@ -115,7 +115,7 @@ StatusBar::valueChanged (juce::Value &value)
   if (value.refersToSameSourceAs (_valueBPM))
     {
       // Only update BPM display when in internal clock mode
-      if (_clockModeExternal)
+      if (_clockMode != 0)
         return;
         
       jassert (value.getValue ().isDouble ());
@@ -134,7 +134,7 @@ void
 StatusBar::beatCallback (Measure measure)
 {
   // Only update tick indicator when in internal clock mode
-  if (_clockModeExternal)
+  if (_clockMode != 0)
     return;
     
   _tickIndicator.setCurrentTick (measure.beat ());
@@ -159,10 +159,11 @@ StatusBar::setExternalBPM (float bpm)
   juce::Component::SafePointer<StatusBar> safeThis (this);
   juce::MessageManager::callAsync ([safeThis, str = stringStream.str ()] () {
     if (safeThis == nullptr) return;
-    if (!safeThis->_clockModeExternal)
+    if (safeThis->_clockMode == 0)
       return;
+    auto colour = safeThis->_clockMode == 2 ? juce::Colours::cyan : juce::Colours::orange;
     safeThis->_labelBPM.setText (str, juce::dontSendNotification);
-    safeThis->_labelBPM.setColour (juce::Label::textColourId, juce::Colours::orange);
+    safeThis->_labelBPM.setColour (juce::Label::textColourId, colour);
   });
 }
 
@@ -182,29 +183,34 @@ StatusBar::setBeatClock (int beat, int bar)
   juce::Component::SafePointer<StatusBar> safeThis (this);
   juce::MessageManager::callAsync ([safeThis, text, tickBeat] () {
     if (safeThis == nullptr) return;
-    if (!safeThis->_clockModeExternal)
+    if (safeThis->_clockMode == 0)
       return;
+    auto colour = safeThis->_clockMode == 2 ? juce::Colours::cyan : juce::Colours::orange;
     safeThis->_tickIndicator.setCurrentTick (tickBeat);
     safeThis->_labelBeatClock.setText (text, juce::dontSendNotification);
-    safeThis->_labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::orange);
+    safeThis->_labelBeatClock.setColour (juce::Label::textColourId, colour);
   });
 }
 
 void
-StatusBar::setClockMode (bool external)
+StatusBar::setClockMode (int mode)
 {
-  _clockModeExternal = external;
+  _clockMode = mode;
   
   juce::Component::SafePointer<StatusBar> safeThis (this);
-  juce::MessageManager::callAsync ([safeThis, external] () {
+  juce::MessageManager::callAsync ([safeThis, mode] () {
     if (safeThis == nullptr) return;
     auto *self = safeThis.getComponent ();
-    if (external)
+    if (mode != 0)
       {
-        self->_labelClockMode.setText ("EXT", juce::dontSendNotification);
-        self->_labelClockMode.setColour (juce::Label::textColourId, juce::Colours::orange);
-        self->_labelBPM.setColour (juce::Label::textColourId, juce::Colours::orange);
-        self->_labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::orange);
+        // EXT (1) = orange, PIO (2) = cyan
+        auto colour = mode == 2 ? juce::Colours::cyan : juce::Colours::orange;
+        auto label  = mode == 2 ? "PIO" : "EXT";
+        
+        self->_labelClockMode.setText (label, juce::dontSendNotification);
+        self->_labelClockMode.setColour (juce::Label::textColourId, colour);
+        self->_labelBPM.setColour (juce::Label::textColourId, colour);
+        self->_labelBeatClock.setColour (juce::Label::textColourId, colour);
         
         // Show external BPM if available
         float extBpm = self->_externalBPM.load ();

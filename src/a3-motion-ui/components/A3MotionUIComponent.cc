@@ -223,6 +223,7 @@ A3MotionUIComponent::createChannelsUI ()
     }
 
   _lengthsBarLog2 = std::vector<int> (numChannels, 0);
+  _previewHeldPad = std::vector<int> (numChannels, -1);
 }
 
 void
@@ -516,13 +517,15 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       // Toggle ClockMode on button press
       if (value.getValue ())
         {
-          _clockMode = !_clockMode;
+          // Cycle through clock modes: 0 (INT) → 1 (EXT) → 2 (PIO) → 0
+          _clockMode = (_clockMode + 1) % 3;
           
-          if (_clockMode)
+          if (_clockMode != 0)
             {
-              // Switching to EXT: save current internal tempo and reset clock
+              // Switching to EXT or PIO: save current internal tempo and reset clock
               // phase so external beats don't conflict with running internal clock
-              _internalBPM = _engine.getTempoClock ().getTempoBPM ();
+              if (_internalBPM == 0.f)
+                _internalBPM = _engine.getTempoClock ().getTempoBPM ();
               _engine.getTempoClock ().reset ();
             }
           else
@@ -535,14 +538,14 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                 }
             }
           
-          // Update LED and status bar
-          _ioAdapter->getButtonLED (Button::ClockMode) = _clockMode;
+          // Update LED (on for EXT and PIO) and status bar
+          _ioAdapter->getButtonLED (Button::ClockMode) = (_clockMode != 0);
           _statusBar->setClockMode (_clockMode);
           _loopLengthDisplay->setClockMode (_clockMode);
           
-          // Send clock mode status via OSC
+          // Send clock mode status via OSC (0=INT, 1=EXT, 2=PIO)
           auto clockModeMsg = juce::OSCMessage ("/clockmode");
-          clockModeMsg.addInt32 (_clockMode ? 1 : 0);
+          clockModeMsg.addInt32 (_clockMode);
           _oscSender.send (clockModeMsg);
         }
     }
@@ -568,7 +571,6 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
         {
           // Button pressed - send /tap OSC immediately via DIRECT sender
           // Bypasses async queue for zero latency - time-critical!
-          _tapButtonLongPress = false;
           _ioAdapter->getButtonLED (Button::Tap) = true;
 
           auto tapMsg = juce::OSCMessage ("/tap");
@@ -582,7 +584,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
     {
-      if (!_clockMode)
+      if (_clockMode == 0)
         {
           auto const tapTime = juce::int64 (value.getValue ());
           auto const result = _engine.getTempoClock ().tap (tapTime);
@@ -652,7 +654,22 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                     }
                   else
                     {
-                      if (_patterns[channel][pad])
+                      // Pad released
+                      if (_previewHeldPad[channel] == static_cast<int> (pad))
+                        {
+                          // Preview-and-fire: disable preview mode so OSC
+                          // fires immediately with the current position.
+                          // Pattern keeps playing.
+                          _engine.setPreviewMode (channel, false);
+                          _previewHeldPad[channel] = -1;
+
+                          if (_patterns[channel][pad])
+                            {
+                              _motionComponent->unsetPreviewPattern (
+                                  _patterns[channel][pad]);
+                            }
+                        }
+                      else if (_patterns[channel][pad])
                         {
                           _motionComponent->unsetPreviewPattern (
                               _patterns[channel][pad]);
@@ -704,15 +721,6 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       _engine.recordPattern (_patterns[channel][pad],
                              TempoClock::nextDownBeat (_now), recordLength);
     }
-  else if (isButtonPressed (Button::Tap))
-    {
-      // Tap held + Pad = show trajectory preview
-      _tapButtonLongPress = true;
-      if (_patterns[channel][pad])
-        {
-          setPreviewWithDisplayData (_patterns[channel][pad]);
-        }
-    }
   else if (_patterns[channel][pad])
     {
       auto const status = _patterns[channel][pad]->getStatus ();
@@ -727,8 +735,14 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
             auto playbackLength = Measure{ 0, static_cast<int> (
                 std::max (1.f, getLengthBeats (channel))), 0 };
             _patterns[channel][pad]->setPlaybackLength (playbackLength);
-            _engine.playPattern (_patterns[channel][pad],
-                                 TempoClock::nextDownBeat (_now));
+
+            // Preview-and-fire: start playback immediately in preview
+            // mode (no OSC). On pad release, preview mode is disabled
+            // and OSC fires from the current ball position.
+            _engine.setPreviewMode (channel, true);
+            _previewHeldPad[channel] = static_cast<int> (pad);
+            _engine.playPattern (_patterns[channel][pad], _now);
+            setPreviewWithDisplayData (_patterns[channel][pad]);
             break;
           }
         case Pattern::Status::Playing:
@@ -828,7 +842,7 @@ A3MotionUIComponent::tickCallback (Measure measure)
 
   // Send beat via OSC on every beat (only in INT mode to avoid feedback with external clock)
   // AsyncOSCSender enqueues to lock-free FIFO, safe to call from any thread
-  if (!_clockMode && measure.tick () == 0)
+  if (_clockMode == 0 && measure.tick () == 0)
     {
       auto beatClockMsg = juce::OSCMessage ("/beat");
       beatClockMsg.addInt32 (measure.beat () + 1);  // 1-indexed beat
@@ -886,7 +900,7 @@ A3MotionUIComponent::tickCallback (Measure measure)
   // Update loop length display with global playhead (INT mode only).
   // Display = 1 bar reference.  Playhead = position within the bar.
   // In EXT mode, LoopLengthDisplay interpolates from setExternalBeat().
-  if (!_clockMode)
+  if (_clockMode == 0)
     {
       auto const beatsPerBar = _engine.getTempoClock ().getBeatsPerBar ();
       auto const ticksPerBeat
@@ -1122,41 +1136,55 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
       else if (newIndex >= numLibEntries)
         newIndex = 0;
 
+      // Was the old pattern playing? If so, the new one should
+      // auto-play (seamless switch).  Also track preview-held state.
+      bool const wasPlaying = _patterns[channel][padIndex]
+          && (_patterns[channel][padIndex]->getStatus () == Pattern::Status::Playing
+              || _patterns[channel][padIndex]->getStatus () == Pattern::Status::ScheduledForPlaying);
+      bool const isPreviewHeld
+          = _previewHeldPad[channel] == static_cast<int> (padIndex);
+
+      // Stop & clean up the old pattern
+      if (_patterns[channel][padIndex])
+        {
+          auto status = _patterns[channel][padIndex]->getStatus ();
+          if (status == Pattern::Status::Playing
+              || status == Pattern::Status::Recording)
+            {
+              _engine.stopPattern (_patterns[channel][padIndex], _now);
+            }
+          _motionComponent->unsetPreviewPattern (
+              _patterns[channel][padIndex]);
+        }
+
       // Create new pattern or clear
       if (newIndex == 0)
         {
-          // Stop if playing
-          if (_patterns[channel][padIndex])
-            {
-              auto status = _patterns[channel][padIndex]->getStatus ();
-              if (status == Pattern::Status::Playing
-                  || status == Pattern::Status::Recording)
-                {
-                  _engine.stopPattern (_patterns[channel][padIndex],
-                                       TempoClock::nextDownBeat (_now));
-                }
-              _motionComponent->unsetPreviewPattern (
-                  _patterns[channel][padIndex]);
-            }
           _patterns[channel][padIndex] = nullptr;
+          if (isPreviewHeld)
+            {
+              _engine.setPreviewMode (channel, false);
+              _previewHeldPad[channel] = -1;
+            }
         }
       else
         {
-          // Stop old pattern if playing
-          if (_patterns[channel][padIndex])
-            {
-              auto status = _patterns[channel][padIndex]->getStatus ();
-              if (status == Pattern::Status::Playing
-                  || status == Pattern::Status::Recording)
-                {
-                  _engine.stopPattern (_patterns[channel][padIndex],
-                                       TempoClock::nextDownBeat (_now));
-                }
-              _motionComponent->unsetPreviewPattern (
-                  _patterns[channel][padIndex]);
-            }
           _patterns[channel][padIndex]
               = createPatternForIndex (newIndex, channel);
+
+          // If old pattern was playing (or being previewed), start new
+          // pattern playing immediately so the switch is seamless.
+          if (wasPlaying && _patterns[channel][padIndex])
+            {
+              auto playbackLength = Measure{ 0, static_cast<int> (
+                  std::max (1.f, getLengthBeats (channel))), 0 };
+              _patterns[channel][padIndex]->setPlaybackLength (playbackLength);
+              _engine.playPattern (_patterns[channel][padIndex], _now);
+
+              // Update preview display if pad is still held
+              if (isPreviewHeld)
+                setPreviewWithDisplayData (_patterns[channel][padIndex]);
+            }
         }
 
       updatePadRowLabel (channel, padIndex);
@@ -1240,10 +1268,10 @@ A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
           // Show pattern length in beats
           _padRowDisplays[row]->setLengthBeats (
               static_cast<int> (channel), entry.lengthBeats);
-          // Category prefix: "s" for system, "u" for user
+          // Category prefix: "S" for system, "U" for user
           _padRowDisplays[row]->setCategoryPrefix (
               static_cast<int> (channel),
-              entry.category == PatternLibrary::Category::System ? "s" : "u");
+              entry.category == PatternLibrary::Category::System ? "S" : "U");
         }
       else
         {
@@ -1261,7 +1289,7 @@ A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
           _padRowDisplays[row]->setLengthBeats (
               static_cast<int> (channel), beats);
           _padRowDisplays[row]->setCategoryPrefix (
-              static_cast<int> (channel), "u");
+              static_cast<int> (channel), "U");
         }
     }
   else
@@ -1280,7 +1308,7 @@ A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
           auto const &slotEntry = _patternLibrary->getEntry (slotIndex);
           _padRowDisplays[row]->setCategoryPrefix (
               static_cast<int> (channel),
-              slotEntry.category == PatternLibrary::Category::System ? "s" : "u");
+              slotEntry.category == PatternLibrary::Category::System ? "S" : "U");
         }
       else
         {
@@ -1487,7 +1515,7 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
       // and notify LoopLengthDisplay of the external beat for interpolation.
       // The display will interpolate smoothly from this beat to the next,
       // using the measured time between beats.
-      if (_clockMode)
+      if (_clockMode != 0)
         {
           _engine.getTempoClock ().setTempoBPM (static_cast<float> (bpm));
 
