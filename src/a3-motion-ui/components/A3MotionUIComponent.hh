@@ -144,6 +144,7 @@ private:
   void updatePadRowLabel (index_t channel, index_t pad);
   void showTrajectoryPreview (index_t channel, index_t pad);
   void clearTrajectoryPreview (index_t channel);
+  void setPreviewWithDisplayData (std::shared_ptr<Pattern> const &pattern);
   int trajectoryNameToIndex (std::string const &name) const;
   std::shared_ptr<Pattern> createPatternForIndex (int index, index_t channel);
   void saveRecordedPattern (std::shared_ptr<Pattern> const &pattern,

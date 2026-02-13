@@ -274,11 +274,13 @@ MotionComponent::timerCallback ()
 }
 
 void
-MotionComponent::setPreviewPattern (std::shared_ptr<Pattern> pattern)
+MotionComponent::setPreviewPattern (std::shared_ptr<Pattern> pattern,
+                                    juce::Path displayPath,
+                                    std::vector<std::pair<float,float>> jumpDots)
 {
   jassert (pattern != nullptr);
   std::lock_guard<std::mutex> guard (_mutexPreview);
-  _patternsPreview.insert (pattern);
+  _patternsPreview[pattern] = { std::move (displayPath), std::move (jumpDots) };
 }
 
 void
@@ -767,8 +769,8 @@ MotionComponent::renderOpenGL ()
           drawChannelBlobs (gFBO);
 
           // Pattern preview paths
-          for (auto &pattern : patternsPreview)
-            drawPatternPreview (*pattern, gFBO);
+          for (auto &[pattern, displayData] : patternsPreview)
+            drawPatternPreview (*pattern, displayData, gFBO);
         }
 
         // Composite the FBO over the shader output using native GL blitting.
@@ -1015,10 +1017,10 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 }
 
 void
-MotionComponent::drawPatternPreview (Pattern const &pattern, juce::Graphics &g)
+MotionComponent::drawPatternPreview (Pattern const &pattern,
+                                    PatternDisplayData const &displayData,
+                                    juce::Graphics &g)
 {
-  auto ticks = pattern.getTicks ();
-
   auto constexpr lineThickness = 0.04f;
 
   auto colour = _uiStates[pattern.getChannel ()]->colour;
@@ -1026,12 +1028,49 @@ MotionComponent::drawPatternPreview (Pattern const &pattern, juce::Graphics &g)
   auto const strokeStyle = juce::PathStrokeType (
       lineThickness, juce::PathStrokeType::JointStyle::curved,
       juce::PathStrokeType::EndCapStyle::rounded);
-  auto path = juce::Path ();
 
+  // ── Use the pre-built SVG display path when available ──
+  if (!displayData.displayPath.isEmpty ())
+    {
+      // The display path is in normalised [-1,1] space.
+      // We need to convert from HOA convention (x right, y forward)
+      // to JUCE convention (x = -y_hoa, y = -x_hoa) which is what
+      // cartesian2DHOA2JUCE does.  Apply this as a transform.
+      auto transform = juce::AffineTransform (
+          0.f, -1.f, 0.f,   // JUCE x = -HOA y
+         -1.f,  0.f, 0.f);  // JUCE y = -HOA x
+
+      g.strokePath (displayData.displayPath, strokeStyle, transform);
+      return;
+    }
+
+  // ── Handle jump-dot patterns ──
+  if (!displayData.jumpDots.empty ())
+    {
+      auto constexpr dotSize = lineThickness * 3.f;
+      for (auto const &dot : displayData.jumpDots)
+        {
+          // Convert from HOA to JUCE normalised coords
+          auto const jx = -dot.second;
+          auto const jy = -dot.first;
+          auto ellipse = juce::Rectangle<float> (dotSize, dotSize)
+                             .withCentre ({ jx, jy });
+          g.fillEllipse (ellipse);
+        }
+      return;
+    }
+
+  // ── Fallback: build path from raw tick data with Catmull-Rom ──
+  auto ticks = pattern.getTicks ();
+
+  auto path = juce::Path ();
   jassert (ticks.positions.size () <= std::numeric_limits<int>::max ());
   path.preallocateSpace (static_cast<int> (ticks.positions.size ()));
 
-  auto hasStarted = false;
+  // Collect valid points into segments, splitting at invalid ticks
+  std::vector<std::vector<juce::Point<float>>> segments;
+  segments.emplace_back ();
+
   for (auto offset = 0u; offset < ticks.positions.size (); ++offset)
     {
       auto const indexWrapped
@@ -1040,39 +1079,64 @@ MotionComponent::drawPatternPreview (Pattern const &pattern, juce::Graphics &g)
 
       if (tick.isValid ())
         {
-          auto posNormalized = cartesian2DHOA2JUCE (tick);
-          if (!hasStarted)
-            {
-              path.startNewSubPath (posNormalized);
-              hasStarted = true;
-            }
-          path.lineTo (posNormalized);
+          segments.back ().push_back (cartesian2DHOA2JUCE (tick));
         }
       else
         {
-          if (hasStarted)
-            {
-              if (path.getLength () > lineThickness)
-                {
-                  g.strokePath (path, strokeStyle);
-                }
-              else
-                {
-                  auto ellipse = juce::Rectangle<float> ();
-                  auto constexpr sizeEllipse = lineThickness * 2.f;
-                  ellipse.setSize (sizeEllipse, sizeEllipse);
-                  g.fillEllipse (
-                      ellipse.withCentre (path.getCurrentPosition ()));
-                }
-              path.clear ();
-              hasStarted = false;
-            }
+          if (!segments.back ().empty ())
+            segments.emplace_back ();
         }
     }
-  if (hasStarted)
+
+  // Build Catmull-Rom cubic Bézier path for each segment
+  for (auto const &pts : segments)
     {
-      g.strokePath (path, strokeStyle);
+      if (pts.size () < 2)
+        {
+          if (pts.size () == 1)
+            {
+              auto constexpr sizeEllipse = lineThickness * 2.f;
+              g.fillEllipse (
+                  juce::Rectangle<float> (sizeEllipse, sizeEllipse)
+                      .withCentre (pts[0]));
+            }
+          continue;
+        }
+
+      path.startNewSubPath (pts[0]);
+
+      auto const dist = pts.front ().getDistanceFrom (pts.back ());
+      bool closed = dist < 0.02f && pts.size () > 4;
+
+      auto const n = static_cast<int> (pts.size ());
+      for (int i = 0; i < n - 1; ++i)
+        {
+          juce::Point<float> p0, p1, p2, p3;
+          p1 = pts[static_cast<size_t> (i)];
+          p2 = pts[static_cast<size_t> (i + 1)];
+
+          if (closed)
+            {
+              p0 = pts[static_cast<size_t> ((i - 1 + n) % n)];
+              p3 = pts[static_cast<size_t> ((i + 2) % n)];
+            }
+          else
+            {
+              p0 = (i > 0) ? pts[static_cast<size_t> (i - 1)]
+                           : p1 + (p1 - p2);
+              p3 = (i + 2 < n) ? pts[static_cast<size_t> (i + 2)]
+                               : p2 + (p2 - p1);
+            }
+
+          auto cp1 = p1 + (p2 - p0) / 6.f;
+          auto cp2 = p2 - (p3 - p1) / 6.f;
+
+          path.cubicTo (cp1, cp2, p2);
+        }
     }
+
+  if (!path.isEmpty ())
+    g.strokePath (path, strokeStyle);
 }
 
 juce::Point<float>

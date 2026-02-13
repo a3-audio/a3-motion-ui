@@ -22,6 +22,8 @@
 
 #include <memory>
 #include <string>
+#include <vector>
+#include <utility>
 
 #include <JuceHeader.h>
 
@@ -32,38 +34,45 @@ namespace a3
 
 /**
  * PatternFile handles serialisation/deserialisation of Pattern data
- * to/from JSON files on disk.
+ * to/from SVG files on disk.
  *
- * File format (JSON):
- * {
- *   "name": "Circle",
- *   "lengthBeats": 16,
- *   "ticksPerBeat": 128,
- *   "ticks": [
- *     { "x": 0.8, "y": 0.0, "z": 0.5 },
- *     ...
- *     null,    // invalid tick (NaN jump position)
- *     ...
- *   ]
- * }
+ * File format (SVG):
+ *   <svg xmlns="..." viewBox="-1 -1 2 2"
+ *        data-name="Circle" data-beats="16" data-ppqn="128">
+ *     <path d="M ... C ..." fill="none" stroke="black"/>
+ *     <circle cx="0.5" cy="0.3" r="0.05"/>  <!-- jump-dot patterns -->
+ *   </svg>
+ *
+ * Continuous patterns are stored with Catmull-Rom→Bézier curves
+ * and a palindrome (forward+backward) approach for seamless loops.
+ *
+ * Note: Z (height) is NOT stored — it is computed live by the
+ * HeightMap in PatternLibrary when loading patterns for playback.
  */
 class PatternFile
 {
 public:
-  /** Save a Pattern's tick data to a JSON file.
+  /** Save a Pattern's tick data to an SVG file.
    *  Returns true on success. */
   static bool save (std::shared_ptr<Pattern> const &pattern,
                     juce::File const &file);
 
-  /** Load a Pattern from a JSON file.
+  /** Load a Pattern from an SVG file.
    *  Returns nullptr on failure. The returned pattern has status Idle. */
   static std::shared_ptr<Pattern> load (juce::File const &file);
 
-  /** Read only the name and tick data from a file without creating
-   *  a full Pattern object.  Used for generating thumbnail icons.
-   *  Returns the name, and fills outTicks.  Empty string on failure. */
-  static std::string peekNameAndTicks (juce::File const &file,
-                                       std::vector<Pos> &outTicks);
+  /** Peek result — lightweight data extracted from an SVG file. */
+  struct PeekResult
+  {
+    std::string name;
+    std::string pathData;     ///< SVG path 'd' attribute string
+    std::vector<std::pair<float,float>> jumpDots;
+    int lengthBeats = 0;
+  };
+
+  /** Read metadata from an SVG file without creating a full Pattern.
+   *  Returns empty name on failure. */
+  static PeekResult peek (juce::File const &file);
 };
 
 }

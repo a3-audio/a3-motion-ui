@@ -23,9 +23,395 @@
 #include <a3-motion-engine/tempo/TempoClock.hh>
 
 #include <cmath>
+#include <algorithm>
+#include <iostream>
+#include <sstream>
 
 namespace a3
 {
+
+// ---------------------------------------------------------------------------
+//  Helpers — simple 2D point for path building (no juce::Point in engine)
+// ---------------------------------------------------------------------------
+
+struct Vec2
+{
+  float x = 0.f, y = 0.f;
+  Vec2 () = default;
+  Vec2 (float x_, float y_) : x (x_), y (y_) {}
+  Vec2 operator+ (Vec2 const &o) const { return { x + o.x, y + o.y }; }
+  Vec2 operator- (Vec2 const &o) const { return { x - o.x, y - o.y }; }
+  Vec2 operator/ (float s) const { return { x / s, y / s }; }
+  float distTo (Vec2 const &o) const
+  {
+    auto dx = x - o.x;
+    auto dy = y - o.y;
+    return std::sqrt (dx * dx + dy * dy);
+  }
+};
+
+static std::string
+fts (float v)
+{
+  // Compact float representation: max 4 decimal places, strip trailing zeros
+  char buf[32];
+  std::snprintf (buf, sizeof (buf), "%.4f", static_cast<double> (v));
+  std::string s (buf);
+  if (s.find ('.') != std::string::npos)
+    {
+      auto last = s.find_last_not_of ('0');
+      if (s[last] == '.')
+        --last;
+      s.erase (last + 1);
+    }
+  return s;
+}
+
+// ---------------------------------------------------------------------------
+//  buildSvgPathData — tick data → SVG path string with Catmull-Rom Bézier
+// ---------------------------------------------------------------------------
+
+static std::string
+buildSvgPathData (std::vector<Pos> const &ticks,
+                  std::vector<std::pair<float,float>> &outJumpDots)
+{
+  outJumpDots.clear ();
+
+  if (ticks.empty ())
+    return {};
+
+  // ── Bounding box of valid ticks (XY only) ──
+  float minX =  std::numeric_limits<float>::max ();
+  float maxX =  std::numeric_limits<float>::lowest ();
+  float minY =  std::numeric_limits<float>::max ();
+  float maxY =  std::numeric_limits<float>::lowest ();
+  int validCount = 0;
+
+  for (auto const &pos : ticks)
+    {
+      if (!pos.isValid ())
+        continue;
+      if (pos.x () < minX) minX = pos.x ();
+      if (pos.x () > maxX) maxX = pos.x ();
+      if (pos.y () < minY) minY = pos.y ();
+      if (pos.y () > maxY) maxY = pos.y ();
+      ++validCount;
+    }
+
+  if (validCount < 2)
+    return {};
+
+  auto rangeX = maxX - minX;
+  auto rangeY = maxY - minY;
+  auto range  = std::max (rangeX, rangeY);
+  if (range < 1e-6f)
+    range = 1.f;
+
+  auto centreX = (minX + maxX) * 0.5f;
+  auto centreY = (minY + maxY) * 0.5f;
+
+  // ── Check for jump-only pattern ──
+  int invalidCount = static_cast<int> (ticks.size ()) - validCount;
+  bool jumpPattern = invalidCount > validCount / 2;
+
+  if (jumpPattern)
+    {
+      for (auto const &pos : ticks)
+        {
+          if (!pos.isValid ())
+            continue;
+          float nx = (pos.x () - centreX) / (range * 0.5f);
+          float ny = (pos.y () - centreY) / (range * 0.5f);
+          bool duplicate = false;
+          for (auto const &d : outJumpDots)
+            {
+              if (std::abs (d.first - nx) < 0.05f
+                  && std::abs (d.second - ny) < 0.05f)
+                {
+                  duplicate = true;
+                  break;
+                }
+            }
+          if (!duplicate)
+            outJumpDots.push_back ({ nx, ny });
+        }
+      return {};
+    }
+
+  // ── Downsample to max 128 points ──
+  auto const maxPts = 128;
+  auto const step = std::max (1, static_cast<int> (ticks.size ()) / maxPts);
+
+  // Split at invalid ticks into segments of normalised points
+  std::vector<std::vector<Vec2>> segments;
+  segments.emplace_back ();
+
+  for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
+    {
+      if (!ticks[i].isValid ())
+        {
+          if (!segments.back ().empty ())
+            segments.emplace_back ();
+          continue;
+        }
+      float nx = (ticks[i].x () - centreX) / (range * 0.5f);
+      float ny = (ticks[i].y () - centreY) / (range * 0.5f);
+      segments.back ().push_back ({ nx, ny });
+    }
+
+  // ── Palindrome: for non-closed segments, append reversed ──
+  for (auto &pts : segments)
+    {
+      if (pts.size () < 2)
+        continue;
+
+      auto const dist = pts.front ().distTo (pts.back ());
+      bool closed = dist < 0.08f && pts.size () > 4;
+
+      if (!closed)
+        {
+          auto const origSize = pts.size ();
+          for (int i = static_cast<int> (origSize) - 2; i > 0; --i)
+            pts.push_back (pts[static_cast<size_t> (i)]);
+        }
+    }
+
+  // ── Build Catmull-Rom → cubic Bézier SVG path string ──
+  std::ostringstream out;
+
+  for (auto const &pts : segments)
+    {
+      if (pts.size () < 2)
+        continue;
+
+      out << "M " << fts (pts[0].x) << ' ' << fts (pts[0].y);
+
+      auto const dist = pts.front ().distTo (pts.back ());
+      bool closed = dist < 0.08f && pts.size () > 4;
+
+      auto const n = static_cast<int> (pts.size ());
+      for (int i = 0; i < n - 1; ++i)
+        {
+          Vec2 p0, p1, p2, p3;
+          p1 = pts[static_cast<size_t> (i)];
+          p2 = pts[static_cast<size_t> (i + 1)];
+
+          if (closed)
+            {
+              p0 = pts[static_cast<size_t> ((i - 1 + n) % n)];
+              p3 = pts[static_cast<size_t> ((i + 2) % n)];
+            }
+          else
+            {
+              p0 = (i > 0) ? pts[static_cast<size_t> (i - 1)]
+                           : p1 + (p1 - p2);
+              p3 = (i + 2 < n) ? pts[static_cast<size_t> (i + 2)]
+                               : p2 + (p2 - p1);
+            }
+
+          auto cp1 = p1 + (p2 - p0) / 6.f;
+          auto cp2 = p2 - (p3 - p1) / 6.f;
+
+          out << " C " << fts (cp1.x) << ' ' << fts (cp1.y)
+              << ' ' << fts (cp2.x) << ' ' << fts (cp2.y)
+              << ' ' << fts (p2.x) << ' ' << fts (p2.y);
+        }
+    }
+
+  return out.str ();
+}
+
+// ---------------------------------------------------------------------------
+//  parseSvgPathToTicks — SVG path string → tick positions
+//  Uses De Casteljau subdivision to evaluate cubic Bézier curves.
+// ---------------------------------------------------------------------------
+
+static Vec2
+evalCubic (Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3, float t)
+{
+  auto a = p0 + (p1 - p0) / (1.f / t);
+  auto b = p1 + (p2 - p1) / (1.f / t);
+  auto c = p2 + (p3 - p2) / (1.f / t);
+  auto d = a + (b - a) / (1.f / t);
+  auto e = b + (c - b) / (1.f / t);
+  return d + (e - d) / (1.f / t);
+}
+
+static void
+sampleSvgPathToTicks (std::string const &pathData,
+                      std::vector<std::pair<float,float>> const &jumpDots,
+                      std::size_t numTicks,
+                      std::vector<Pos> &outTicks)
+{
+  outTicks.clear ();
+  outTicks.reserve (numTicks);
+
+  if (!jumpDots.empty ())
+    {
+      // Jump pattern: distribute dots evenly
+      auto const dotsN = jumpDots.size ();
+      auto const ticksPerDot = numTicks / dotsN;
+      for (std::size_t t = 0; t < numTicks; ++t)
+        {
+          auto const dotIdx = t / ticksPerDot;
+          auto const posInDot = t % ticksPerDot;
+          if (posInDot == ticksPerDot - 1 || dotIdx >= dotsN)
+            outTicks.push_back (Pos::invalid);
+          else
+            outTicks.push_back (
+                Pos::fromCartesian (jumpDots[dotIdx].first,
+                                   jumpDots[dotIdx].second, 0.f));
+        }
+      return;
+    }
+
+  if (pathData.empty ())
+    {
+      for (std::size_t t = 0; t < numTicks; ++t)
+        outTicks.push_back (Pos::invalid);
+      return;
+    }
+
+  // Parse the SVG path into a polyline via cubic Bézier subdivision
+  // This approximation is sufficient for tick sampling.
+  std::vector<Vec2> polyline;
+
+  auto tokens = juce::StringArray::fromTokens (juce::String (pathData),
+                                                " ,\t\n\r", "");
+  tokens.removeEmptyStrings ();
+
+  int idx = 0;
+  auto nextF = [&]() -> float {
+    if (idx < tokens.size ())
+      return tokens[idx++].getFloatValue ();
+    return 0.f;
+  };
+
+  Vec2 cur{ 0.f, 0.f };
+
+  while (idx < tokens.size ())
+    {
+      auto cmd = tokens[idx].toStdString ();
+      if (cmd == "M" || cmd == "m")
+        {
+          ++idx;
+          cur = { nextF (), nextF () };
+          polyline.push_back (cur);
+        }
+      else if (cmd == "L" || cmd == "l")
+        {
+          ++idx;
+          cur = { nextF (), nextF () };
+          polyline.push_back (cur);
+        }
+      else if (cmd == "C" || cmd == "c")
+        {
+          ++idx;
+          auto x1 = nextF (), y1 = nextF ();
+          auto x2 = nextF (), y2 = nextF ();
+          auto x3 = nextF (), y3 = nextF ();
+
+          // Subdivide cubic Bézier into ~16 line segments
+          Vec2 p0 = cur;
+          Vec2 cp1{ x1, y1 }, cp2{ x2, y2 }, p3{ x3, y3 };
+          auto constexpr subdivisions = 16;
+          for (int s = 1; s <= subdivisions; ++s)
+            {
+              auto const t = static_cast<float> (s) / subdivisions;
+              // De Casteljau
+              auto a = Vec2 (p0.x + (cp1.x - p0.x) * t,
+                             p0.y + (cp1.y - p0.y) * t);
+              auto b = Vec2 (cp1.x + (cp2.x - cp1.x) * t,
+                             cp1.y + (cp2.y - cp1.y) * t);
+              auto c = Vec2 (cp2.x + (p3.x - cp2.x) * t,
+                             cp2.y + (p3.y - cp2.y) * t);
+              auto d = Vec2 (a.x + (b.x - a.x) * t,
+                             a.y + (b.y - a.y) * t);
+              auto e = Vec2 (b.x + (c.x - b.x) * t,
+                             b.y + (c.y - b.y) * t);
+              polyline.push_back (
+                  Vec2 (d.x + (e.x - d.x) * t, d.y + (e.y - d.y) * t));
+            }
+          cur = p3;
+        }
+      else if (cmd == "Q" || cmd == "q")
+        {
+          ++idx;
+          auto x1 = nextF (), y1 = nextF ();
+          auto x2 = nextF (), y2 = nextF ();
+          Vec2 p0 = cur, cp{ x1, y1 }, p2{ x2, y2 };
+          auto constexpr subdivisions = 16;
+          for (int s = 1; s <= subdivisions; ++s)
+            {
+              auto const t = static_cast<float> (s) / subdivisions;
+              auto a = Vec2 (p0.x + (cp.x - p0.x) * t,
+                             p0.y + (cp.y - p0.y) * t);
+              auto b = Vec2 (cp.x + (p2.x - cp.x) * t,
+                             cp.y + (p2.y - cp.y) * t);
+              polyline.push_back (
+                  Vec2 (a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t));
+            }
+          cur = p2;
+        }
+      else if (cmd == "Z" || cmd == "z")
+        {
+          ++idx;
+        }
+      else
+        {
+          ++idx;
+        }
+    }
+
+  if (polyline.size () < 2)
+    {
+      for (std::size_t t = 0; t < numTicks; ++t)
+        outTicks.push_back (Pos::invalid);
+      return;
+    }
+
+  // Build cumulative arc-length table
+  std::vector<float> arcLen (polyline.size (), 0.f);
+  for (std::size_t i = 1; i < polyline.size (); ++i)
+    arcLen[i] = arcLen[i - 1] + polyline[i].distTo (polyline[i - 1]);
+
+  auto const totalLen = arcLen.back ();
+  if (totalLen < 1e-6f)
+    {
+      for (std::size_t t = 0; t < numTicks; ++t)
+        outTicks.push_back (
+            Pos::fromCartesian (polyline[0].x, polyline[0].y, 0.f));
+      return;
+    }
+
+  // Sample at uniform arc-length intervals
+  for (std::size_t t = 0; t < numTicks; ++t)
+    {
+      auto const targetDist
+          = static_cast<float> (t) / static_cast<float> (numTicks) * totalLen;
+
+      // Binary search for the segment containing targetDist
+      auto it = std::lower_bound (arcLen.begin (), arcLen.end (), targetDist);
+      auto seg = static_cast<std::size_t> (
+          std::max (static_cast<int> (it - arcLen.begin ()) - 1, 0));
+      if (seg >= polyline.size () - 1)
+        seg = polyline.size () - 2;
+
+      auto const segLen = arcLen[seg + 1] - arcLen[seg];
+      auto const frac
+          = (segLen > 1e-8f)
+                ? (targetDist - arcLen[seg]) / segLen
+                : 0.f;
+
+      auto const px = polyline[seg].x + (polyline[seg + 1].x - polyline[seg].x) * frac;
+      auto const py = polyline[seg].y + (polyline[seg + 1].y - polyline[seg].y) * frac;
+      outTicks.push_back (Pos::fromCartesian (px, py, 0.f));
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  save
+// ---------------------------------------------------------------------------
 
 bool
 PatternFile::save (std::shared_ptr<Pattern> const &pattern,
@@ -36,49 +422,45 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
 
   auto ticks = pattern->getTicks ();
 
-  auto *ticksArray = new juce::Array<juce::var> ();
-  for (auto const &pos : ticks.positions)
-    {
-      if (!pos.isValid ())
-        {
-          ticksArray->add (juce::var ()); // null for invalid/jump ticks
-        }
-      else
-        {
-          auto *obj = new juce::DynamicObject ();
-          obj->setProperty ("x", static_cast<double> (pos.x ()));
-          obj->setProperty ("y", static_cast<double> (pos.y ()));
-          obj->setProperty ("z", static_cast<double> (pos.z ()));
-          ticksArray->add (juce::var (obj));
-        }
-    }
-
-  auto *root = new juce::DynamicObject ();
-  root->setProperty ("name", juce::String (pattern->getName ()));
-  root->setProperty ("ticksPerBeat", TempoClock::getTicksPerBeat ());
-
-  // Compute lengthBeats from tick count
   auto const numTicks = ticks.positions.size ();
   auto const lengthBeats
-      = static_cast<int> (numTicks)
-        / TempoClock::getTicksPerBeat ();
-  root->setProperty ("lengthBeats", lengthBeats);
+      = static_cast<int> (numTicks) / TempoClock::getTicksPerBeat ();
 
-  // Move ticks array into a juce::var
-  juce::var ticksVar;
-  for (auto &item : *ticksArray)
-    ticksVar.append (item);
-  delete ticksArray;
+  // Build the SVG path data string (with palindrome for seamless loops)
+  std::vector<std::pair<float,float>> jumpDots;
+  auto pathData = buildSvgPathData (ticks.positions, jumpDots);
 
-  root->setProperty ("ticks", ticksVar);
+  // Build SVG XML
+  auto svg = std::make_unique<juce::XmlElement> ("svg");
+  svg->setAttribute ("xmlns", "http://www.w3.org/2000/svg");
+  svg->setAttribute ("viewBox", "-1 -1 2 2");
+  svg->setAttribute ("data-name", juce::String (pattern->getName ()));
+  svg->setAttribute ("data-beats", lengthBeats);
+  svg->setAttribute ("data-ppqn", TempoClock::getTicksPerBeat ());
 
-  auto json = juce::JSON::toString (juce::var (root));
+  if (!pathData.empty ())
+    {
+      auto *pathEl = svg->createNewChildElement ("path");
+      pathEl->setAttribute ("d", juce::String (pathData));
+      pathEl->setAttribute ("fill", "none");
+      pathEl->setAttribute ("stroke", "black");
+    }
 
-  // Ensure parent directory exists
+  for (auto const &dot : jumpDots)
+    {
+      auto *circleEl = svg->createNewChildElement ("circle");
+      circleEl->setAttribute ("cx", juce::String (dot.first, 4));
+      circleEl->setAttribute ("cy", juce::String (dot.second, 4));
+      circleEl->setAttribute ("r", "0.05");
+    }
+
   file.getParentDirectory ().createDirectory ();
-
-  return file.replaceWithText (json);
+  return file.replaceWithText (svg->toString ());
 }
+
+// ---------------------------------------------------------------------------
+//  load
+// ---------------------------------------------------------------------------
 
 std::shared_ptr<Pattern>
 PatternFile::load (juce::File const &file)
@@ -86,121 +468,87 @@ PatternFile::load (juce::File const &file)
   if (!file.existsAsFile ())
     return nullptr;
 
-  auto json = file.loadFileAsString ();
-  juce::var data;
-  if (juce::JSON::parse (json, data).failed ())
+  auto xml = juce::XmlDocument::parse (file);
+  if (!xml || xml->getTagName () != "svg")
     return nullptr;
 
-  auto name = data["name"].toString ().toStdString ();
-  auto lengthBeats = static_cast<int> (data["lengthBeats"]);
-  auto ticksPerBeat = static_cast<int> (data["ticksPerBeat"]);
-  auto ticksVar = data["ticks"];
+  auto name = xml->getStringAttribute ("data-name").toStdString ();
+  auto lengthBeats = xml->getIntAttribute ("data-beats", 0);
 
-  if (!ticksVar.isArray () || lengthBeats <= 0)
+  if (lengthBeats <= 0)
     return nullptr;
+
+  std::string pathData;
+  std::vector<std::pair<float,float>> jumpDots;
+
+  for (auto *child : xml->getChildIterator ())
+    {
+      if (child->getTagName () == "path")
+        {
+          auto d = child->getStringAttribute ("d");
+          if (d.isNotEmpty ())
+            pathData = d.toStdString ();
+        }
+      else if (child->getTagName () == "circle")
+        {
+          auto cx = child->getStringAttribute ("cx").getFloatValue ();
+          auto cy = child->getStringAttribute ("cy").getFloatValue ();
+          jumpDots.push_back ({ cx, cy });
+        }
+    }
 
   auto pattern = std::make_shared<Pattern> ();
   pattern->setName (name);
   pattern->resize (static_cast<index_t> (lengthBeats));
 
-  auto const *ticksArray = ticksVar.getArray ();
+  auto const numTicks = pattern->getNumTicks ();
 
-  // Handle possible tick count mismatch (file may have different PPQN)
-  auto const fileTotalTicks = ticksArray->size ();
-  auto const patternTotalTicks
-      = static_cast<int> (pattern->getNumTicks ());
+  std::vector<Pos> sampled;
+  sampleSvgPathToTicks (pathData, jumpDots, numTicks, sampled);
 
-  if (ticksPerBeat == TempoClock::getTicksPerBeat ()
-      && fileTotalTicks == patternTotalTicks)
-    {
-      // Direct 1:1 mapping
-      for (int i = 0; i < fileTotalTicks; ++i)
-        {
-          auto const &tickVar = (*ticksArray)[i];
-          if (tickVar.isVoid ())
-            {
-              // null → invalid tick (jump position)
-              pattern->setTick (static_cast<index_t> (i), Pos::invalid);
-            }
-          else
-            {
-              auto x = static_cast<float> (tickVar["x"]);
-              auto y = static_cast<float> (tickVar["y"]);
-              auto z = static_cast<float> (tickVar["z"]);
-              pattern->setTick (static_cast<index_t> (i),
-                                Pos::fromCartesian (x, y, z));
-            }
-        }
-    }
-  else
-    {
-      // Resample: map file ticks to pattern ticks via linear index ratio
-      for (int i = 0; i < patternTotalTicks; ++i)
-        {
-          auto const srcIdx
-              = static_cast<int> (
-                  static_cast<float> (i) / static_cast<float> (patternTotalTicks)
-                  * static_cast<float> (fileTotalTicks));
-          auto const clampedIdx = std::min (srcIdx, fileTotalTicks - 1);
-          auto const &tickVar = (*ticksArray)[clampedIdx];
-          if (tickVar.isVoid ())
-            {
-              pattern->setTick (static_cast<index_t> (i), Pos::invalid);
-            }
-          else
-            {
-              auto x = static_cast<float> (tickVar["x"]);
-              auto y = static_cast<float> (tickVar["y"]);
-              auto z = static_cast<float> (tickVar["z"]);
-              pattern->setTick (static_cast<index_t> (i),
-                                Pos::fromCartesian (x, y, z));
-            }
-        }
-    }
+  for (index_t t = 0; t < numTicks && t < sampled.size (); ++t)
+    pattern->setTick (t, sampled[t]);
 
   pattern->setStatus (Pattern::Status::Idle);
   return pattern;
 }
 
-std::string
-PatternFile::peekNameAndTicks (juce::File const &file,
-                               std::vector<Pos> &outTicks)
+// ---------------------------------------------------------------------------
+//  peek
+// ---------------------------------------------------------------------------
+
+PatternFile::PeekResult
+PatternFile::peek (juce::File const &file)
 {
-  outTicks.clear ();
+  PeekResult result;
 
   if (!file.existsAsFile ())
-    return {};
+    return result;
 
-  auto json = file.loadFileAsString ();
-  juce::var data;
-  if (juce::JSON::parse (json, data).failed ())
-    return {};
+  auto xml = juce::XmlDocument::parse (file);
+  if (!xml || xml->getTagName () != "svg")
+    return result;
 
-  auto name = data["name"].toString ().toStdString ();
-  auto ticksVar = data["ticks"];
+  result.name = xml->getStringAttribute ("data-name").toStdString ();
+  result.lengthBeats = xml->getIntAttribute ("data-beats", 0);
 
-  if (!ticksVar.isArray ())
-    return name;
-
-  auto const *ticksArray = ticksVar.getArray ();
-  outTicks.reserve (static_cast<size_t> (ticksArray->size ()));
-
-  for (auto const &tickVar : *ticksArray)
+  for (auto *child : xml->getChildIterator ())
     {
-      if (tickVar.isVoid ())
+      if (child->getTagName () == "path")
         {
-          outTicks.push_back (Pos::invalid);
+          auto d = child->getStringAttribute ("d");
+          if (d.isNotEmpty ())
+            result.pathData = d.toStdString ();
         }
-      else
+      else if (child->getTagName () == "circle")
         {
-          auto x = static_cast<float> (tickVar["x"]);
-          auto y = static_cast<float> (tickVar["y"]);
-          auto z = static_cast<float> (tickVar["z"]);
-          outTicks.push_back (Pos::fromCartesian (x, y, z));
+          auto cx = child->getStringAttribute ("cx").getFloatValue ();
+          auto cy = child->getStringAttribute ("cy").getFloatValue ();
+          result.jumpDots.push_back ({ cx, cy });
         }
     }
 
-  return name;
+  return result;
 }
 
 }

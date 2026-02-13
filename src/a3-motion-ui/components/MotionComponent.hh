@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <map>
+
 #include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/util/Types.hh>
 
@@ -58,7 +60,9 @@ public:
 
   void timerCallback () override;
 
-  void setPreviewPattern (std::shared_ptr<Pattern> pattern);
+  void setPreviewPattern (std::shared_ptr<Pattern> pattern,
+                         juce::Path displayPath = {},
+                         std::vector<std::pair<float,float>> jumpDots = {});
   void unsetPreviewPattern (std::shared_ptr<Pattern> pattern);
 
   void setBackgroundColour (juce::Colour const &colour);
@@ -76,7 +80,16 @@ private:
 
   void drawCircle (juce::Graphics &g);
   void drawChannelBlobs (juce::Graphics &g);
-  void drawPatternPreview (Pattern const &pattern, juce::Graphics &g);
+
+  struct PatternDisplayData
+  {
+    juce::Path displayPath;
+    std::vector<std::pair<float,float>> jumpDots;
+  };
+
+  void drawPatternPreview (Pattern const &pattern,
+                          PatternDisplayData const &displayData,
+                          juce::Graphics &g);
 
   float getActiveDistanceInPixel () const;
 
@@ -94,7 +107,7 @@ private:
   std::vector<std::unique_ptr<ChannelUIState> > &_uiStates;
   std::optional<index_t> _grabbedIndex;
 
-  std::set<std::shared_ptr<Pattern> > _patternsPreview;
+  std::map<std::shared_ptr<Pattern>, PatternDisplayData> _patternsPreview;
   std::mutex _mutexPreview;
 
   juce::OpenGLContext _glContext;

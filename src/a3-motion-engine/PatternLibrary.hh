@@ -27,22 +27,26 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/elevation/HeightMap.hh>
 
 namespace a3
 {
 
 /**
- * PatternLibrary manages two directories of pattern JSON files:
+ * PatternLibrary manages two directories of pattern files:
  *   - system/  — read-only factory patterns (shipped with the app)
  *   - user/    — user-recorded patterns (created at runtime)
  *
- * Each pattern is a .json file.  The library provides an ordered list
- * of all available patterns (system first, then user) that the UI
- * uses for encoder cycling through trajectories.
+ * The library provides an ordered list of all available patterns
+ * (system first, then user) that the UI uses for encoder cycling
+ * through trajectories.
  *
  * Index 0 is always "Empty" (no pattern).
  * Indices 1..numSystem are system patterns.
  * Indices numSystem+1.. are user patterns.
+ *
+ * Z (height) is not stored in files — it is computed live via
+ * HeightMap when patterns are loaded for playback.
  */
 class PatternLibrary
 {
@@ -58,13 +62,17 @@ public:
     std::string name;
     juce::File file;
     Category category;
-    std::vector<Pos> ticks;  ///< cached tick data for icon generation
+    std::string svgPathData;   ///< SVG path 'd' attribute (normalised [-1,1])
+    bool hasJumpDots{ false }; ///< true if pattern is a jump/dot pattern
+    std::vector<std::pair<float,float>> jumpDots; ///< normalised dot positions
+    std::vector<Pos> ticks;    ///< cached tick data for playback / fallback
   };
 
-  /** Initialise with root directory containing system/ and user/ subdirs. */
-  explicit PatternLibrary (juce::File const &rootDir);
+  /** Initialise with root directory containing system/ and user/ subdirs.
+   *  The HeightMap is used to compute Z when loading patterns for playback. */
+  PatternLibrary (juce::File const &rootDir, HeightMap const &heightMap);
 
-  /** Rescan both directories for .json files.
+  /** Rescan both directories for .svg files.
    *  After this, getEntries() returns the updated list. */
   void refresh ();
 
@@ -99,6 +107,7 @@ private:
   void scanDirectory (juce::File const &dir, Category category);
 
   juce::File _rootDir;
+  HeightMap const &_heightMap;
   std::vector<Entry> _entries;  ///< index 0 unused (Empty), 1..N = patterns
   int _numSystemPatterns = 0;
   int _numUserPatterns = 0;

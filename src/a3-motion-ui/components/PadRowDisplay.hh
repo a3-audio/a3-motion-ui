@@ -84,6 +84,13 @@ public:
    *  for icon drawing (except for Empty). */
   void setTickData (int channel, std::vector<Pos> const &ticks);
 
+  /** Set a pre-built SVG path for the channel's icon.  The path
+   *  must be normalised to [-1,1] coordinate space.  This is the
+   *  preferred method when loading from SVG files.
+   *  For jump-dot patterns, pass an empty path and non-empty jumpDots. */
+  void setIconPath (int channel, juce::Path const &path,
+                    std::vector<std::pair<float,float>> const &jumpDots = {});
+
   /** Set the label text (fallback, shown only for Empty type). */
   void setLabel (int channel, juce::String label);
 
@@ -110,9 +117,9 @@ private:
   void paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
                   int channel);
   void drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
-                           TrajectoryType type, juce::Colour colour);
+                           TrajectoryType type);
   void drawTickDataIcon (juce::Graphics &g, juce::Rectangle<float> area,
-                         juce::Colour colour, int channel);
+                         int channel);
 
   int _rowIndex;  // 0-3 for pad rows 1-4
 

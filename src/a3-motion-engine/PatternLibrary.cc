@@ -28,8 +28,9 @@
 namespace a3
 {
 
-PatternLibrary::PatternLibrary (juce::File const &rootDir)
-    : _rootDir (rootDir)
+PatternLibrary::PatternLibrary (juce::File const &rootDir,
+                                HeightMap const &heightMap)
+    : _rootDir (rootDir), _heightMap (heightMap)
 {
   // Ensure directories exist
   getSystemDir ().createDirectory ();
@@ -63,7 +64,7 @@ PatternLibrary::scanDirectory (juce::File const &dir, Category category)
   if (!dir.isDirectory ())
     return;
 
-  auto files = dir.findChildFiles (juce::File::findFiles, false, "*.json");
+  auto files = dir.findChildFiles (juce::File::findFiles, false, "*.svg");
 
   // Sort alphabetically for deterministic order
   std::sort (files.begin (), files.end (),
@@ -76,7 +77,12 @@ PatternLibrary::scanDirectory (juce::File const &dir, Category category)
       Entry entry;
       entry.file = file;
       entry.category = category;
-      entry.name = PatternFile::peekNameAndTicks (file, entry.ticks);
+
+      auto pr = PatternFile::peek (file);
+      entry.name = pr.name;
+      entry.svgPathData = pr.pathData;
+      entry.jumpDots = pr.jumpDots;
+      entry.hasJumpDots = !pr.jumpDots.empty ();
 
       if (entry.name.empty ())
         {
@@ -124,7 +130,24 @@ PatternLibrary::loadPattern (int index) const
     return nullptr;
 
   auto const &entry = _entries[static_cast<size_t> (index - 1)];
-  return PatternFile::load (entry.file);
+  auto pattern = PatternFile::load (entry.file);
+
+  // Compute Z from HeightMap for all ticks (files store only XY)
+  if (pattern)
+    {
+      auto const numTicks = pattern->getNumTicks ();
+      for (index_t t = 0; t < numTicks; ++t)
+        {
+          auto pos = pattern->getTick (t);
+          if (pos.isValid ())
+            {
+              pos.setZ (_heightMap.computeHeight (pos));
+              pattern->setTick (t, pos);
+            }
+        }
+    }
+
+  return pattern;
 }
 
 int
@@ -137,14 +160,14 @@ PatternLibrary::saveUserPattern (std::shared_ptr<Pattern> const &pattern)
   if (name.empty ())
     name = "Recording";
 
-  // Generate unique filename: user_NNNN_<name>.json
+  // Generate unique filename: user_NNNN_<name>.svg
   auto userDir = getUserDir ();
   userDir.createDirectory ();
 
   // Find next available number
   int maxNum = 0;
   auto existing = userDir.findChildFiles (juce::File::findFiles, false,
-                                          "*.json");
+                                          "*.svg");
   for (auto const &f : existing)
     {
       auto fname = f.getFileNameWithoutExtension ();
@@ -159,7 +182,7 @@ PatternLibrary::saveUserPattern (std::shared_ptr<Pattern> const &pattern)
   auto safeNameStr = juce::String (name)
                          .replaceCharacters (" /\\:*?\"<>|", "__________");
   auto filename = juce::String::formatted ("%04d_", nextNum)
-                  + safeNameStr + ".json";
+                  + safeNameStr + ".svg";
 
   auto file = userDir.getChildFile (filename);
 

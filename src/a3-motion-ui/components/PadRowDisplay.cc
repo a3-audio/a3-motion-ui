@@ -74,28 +74,28 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
   auto const &cell = _cells[static_cast<size_t> (channel)];
   auto const colour = cell.colour;
 
-  // Background based on selection state
-  if (cell.cellSelected)
-    {
-      g.setColour (colour.withAlpha (0.4f));
-      g.fillRect (bounds);
-    }
-  else if (cell.rowHighlighted)
-    {
-      g.setColour (colour.withAlpha (0.15f));
-      g.fillRect (bounds);
-    }
+  // Background: fill with channel colour, intensity depends on state
+  auto bgAlpha = cell.cellSelected ? 0.85f
+                 : cell.rowHighlighted ? 0.55f
+                                       : 0.25f;
+  g.setColour (colour.withAlpha (bgAlpha));
+  g.fillRect (bounds);
 
-  // Draw trajectory figure icon or "---" for empty
-  auto iconAlpha = cell.cellSelected ? 1.0f
-                   : cell.rowHighlighted ? 0.9f
-                                         : 0.4f;
-  auto iconColour = colour.withAlpha (iconAlpha);
+  // Icons drawn in black with white outline for contrast
+  auto const iconBlack = juce::Colours::black;
+  auto const iconWhite = juce::Colours::white.withAlpha (0.9f);
 
   if (cell.trajectoryType == TrajectoryType::Empty && !cell.hasTickData)
     {
-      g.setColour (iconColour);
+      // "---" label: white outline + black fill
       g.setFont (LayoutHints::fontSize * 0.7f);
+      g.setColour (iconWhite);
+      for (int dx = -1; dx <= 1; ++dx)
+        for (int dy = -1; dy <= 1; ++dy)
+          if (dx != 0 || dy != 0)
+            g.drawText (cell.label, bounds.translated (dx, dy),
+                        juce::Justification::centred, false);
+      g.setColour (iconBlack);
       g.drawText (cell.label, bounds, juce::Justification::centred, false);
     }
   else
@@ -108,13 +108,13 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
 
       // Prefer tick data icon when available
       if (cell.hasTickData)
-        drawTickDataIcon (g, iconArea, iconColour, channel);
+        drawTickDataIcon (g, iconArea, channel);
       else
-        drawTrajectoryIcon (g, iconArea, cell.trajectoryType, iconColour);
+        drawTrajectoryIcon (g, iconArea, cell.trajectoryType);
     }
 
   // Thin baseline
-  g.setColour (colour.withAlpha (0.1f));
+  g.setColour (juce::Colours::black.withAlpha (0.15f));
   g.drawHorizontalLine (bounds.getBottom () - 1,
                          static_cast<float> (bounds.getX ()),
                          static_cast<float> (bounds.getRight ()));
@@ -217,25 +217,63 @@ PadRowDisplay::setTickData (int channel, std::vector<Pos> const &ticks)
     }
   else
     {
-      // Continuous path
-      bool started = false;
+      // Collect downsampled normalised points, splitting at invalid ticks
+      std::vector<std::vector<juce::Point<float>>> segments;
+      segments.emplace_back ();
+
       for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
         {
           if (!ticks[i].isValid ())
             {
-              started = false; // break the path at invalid ticks
+              // Start a new segment after a gap
+              if (!segments.back ().empty ())
+                segments.emplace_back ();
               continue;
             }
           float nx = (ticks[i].x () - centreX) / (range * 0.5f);
           float ny = (ticks[i].y () - centreY) / (range * 0.5f);
-          if (!started)
+          segments.back ().push_back ({ nx, ny });
+        }
+
+      // Build Catmull-Rom cubic Bézier path for each segment
+      for (auto const &pts : segments)
+        {
+          if (pts.size () < 2)
+            continue;
+
+          cell.tickPath.startNewSubPath (pts[0]);
+
+          // Check if the segment forms a closed loop
+          auto const dist = pts.front ().getDistanceFrom (pts.back ());
+          bool closed = dist < 0.1f && pts.size () > 4;
+
+          auto const n = static_cast<int> (pts.size ());
+          for (int i = 0; i < n - 1; ++i)
             {
-              cell.tickPath.startNewSubPath (nx, ny);
-              started = true;
-            }
-          else
-            {
-              cell.tickPath.lineTo (nx, ny);
+              // Catmull-Rom: P0, P1, P2, P3
+              // For endpoints, mirror or wrap
+              juce::Point<float> p0, p1, p2, p3;
+              p1 = pts[static_cast<size_t> (i)];
+              p2 = pts[static_cast<size_t> (i + 1)];
+
+              if (closed)
+                {
+                  p0 = pts[static_cast<size_t> ((i - 1 + n) % n)];
+                  p3 = pts[static_cast<size_t> ((i + 2) % n)];
+                }
+              else
+                {
+                  p0 = (i > 0) ? pts[static_cast<size_t> (i - 1)]
+                               : p1 + (p1 - p2);
+                  p3 = (i + 2 < n) ? pts[static_cast<size_t> (i + 2)]
+                                   : p2 + (p2 - p1);
+                }
+
+              // Convert Catmull-Rom to cubic Bézier control points
+              auto cp1 = p1 + (p2 - p0) / 6.f;
+              auto cp2 = p2 - (p3 - p1) / 6.f;
+
+              cell.tickPath.cubicTo (cp1, cp2, p2);
             }
         }
     }
@@ -245,34 +283,85 @@ PadRowDisplay::setTickData (int channel, std::vector<Pos> const &ticks)
 }
 
 void
+PadRowDisplay::setIconPath (int channel, juce::Path const &path,
+                            std::vector<std::pair<float,float>> const &jumpDots)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  auto &cell = _cells[static_cast<size_t> (channel)];
+
+  cell.tickPath.clear ();
+  cell.jumpPoints.clear ();
+  cell.hasTickData = false;
+  cell.hasJumpTicks = false;
+
+  if (path.isEmpty () && jumpDots.empty ())
+    {
+      repaint ();
+      return;
+    }
+
+  if (!jumpDots.empty () && path.isEmpty ())
+    {
+      // Jump-dot pattern: store the dots directly
+      cell.hasJumpTicks = true;
+      cell.jumpPoints = jumpDots;
+    }
+  else
+    {
+      // Continuous path: use SVG path directly
+      cell.tickPath = path;
+    }
+
+  cell.hasTickData = true;
+  repaint ();
+}
+
+void
 PadRowDisplay::drawTickDataIcon (juce::Graphics &g,
                                  juce::Rectangle<float> area,
-                                 juce::Colour colour, int channel)
+                                 int channel)
 {
   auto const &cell = _cells[static_cast<size_t> (channel)];
   auto const cx = area.getCentreX ();
   auto const cy = area.getCentreY ();
   auto const r = area.getWidth () * 0.45f;
   auto const strokeThickness = 1.5f;
-
-  g.setColour (colour);
+  auto const outlineThickness = strokeThickness + 2.0f;
+  auto const iconWhite = juce::Colours::white.withAlpha (0.9f);
+  auto const iconBlack = juce::Colours::black;
 
   if (cell.hasJumpTicks)
     {
-      // Draw dots at each jump position
+      // Draw dots: white outline then black fill
+      // HOA→JUCE: screen x = -HOA_y, screen y = -HOA_x
       auto const dotR = r * 0.22f;
+      auto const dotOutR = dotR + 1.0f;
       for (auto const &p : cell.jumpPoints)
         {
-          auto const x = cx + p.first * r;
-          auto const y = cy + p.second * r;
+          auto const x = cx - p.second * r;
+          auto const y = cy - p.first * r;
+          g.setColour (iconWhite);
+          g.fillEllipse (x - dotOutR, y - dotOutR,
+                         dotOutR * 2.f, dotOutR * 2.f);
+          g.setColour (iconBlack);
           g.fillEllipse (x - dotR, y - dotR, dotR * 2.f, dotR * 2.f);
         }
     }
   else
     {
-      // Scale the normalised [-1,1] path to the icon area
-      auto transform = juce::AffineTransform::scale (r, r)
-                           .translated (cx, cy);
+      // The SVG path is in HOA normalised [-1,1] space.
+      // Convert to JUCE screen coords: JUCE x = -HOA y, JUCE y = -HOA x
+      // then scale to the icon area.
+      auto transform = juce::AffineTransform (
+           0.f, -r, cx,   // JUCE x = -HOA_y * r + cx
+          -r,  0.f, cy);  // JUCE y = -HOA_x * r + cy
+      // White outline
+      g.setColour (iconWhite);
+      g.strokePath (cell.tickPath,
+                    juce::PathStrokeType (outlineThickness),
+                    transform);
+      // Black stroke on top
+      g.setColour (iconBlack);
       g.strokePath (cell.tickPath,
                     juce::PathStrokeType (strokeThickness),
                     transform);
@@ -282,27 +371,48 @@ PadRowDisplay::drawTickDataIcon (juce::Graphics &g,
 void
 PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
                                    juce::Rectangle<float> area,
-                                   TrajectoryType type,
-                                   juce::Colour colour)
+                                   TrajectoryType type)
 {
   auto const cx = area.getCentreX ();
   auto const cy = area.getCentreY ();
   auto const r = area.getWidth () * 0.45f;
 
-  g.setColour (colour);
+  auto const iconWhite = juce::Colours::white.withAlpha (0.9f);
+  auto const iconBlack = juce::Colours::black;
   auto const strokeThickness = 1.5f;
+  auto const outlineThickness = strokeThickness + 2.0f;
+
+  // Helper lambdas for outline+fill drawing pattern
+  auto strokeOutlined = [&] (juce::Path const &path) {
+    g.setColour (iconWhite);
+    g.strokePath (path, juce::PathStrokeType (outlineThickness));
+    g.setColour (iconBlack);
+    g.strokePath (path, juce::PathStrokeType (strokeThickness));
+  };
+
+  auto ellipseOutlined = [&] (float ex, float ey, float ew, float eh) {
+    juce::Path ep;
+    ep.addEllipse (ex, ey, ew, eh);
+    strokeOutlined (ep);
+  };
+
+  auto dotOutlined = [&] (float dx, float dy, float dotR) {
+    auto const dotOut = dotR + 1.0f;
+    g.setColour (iconWhite);
+    g.fillEllipse (dx - dotOut, dy - dotOut, dotOut * 2.f, dotOut * 2.f);
+    g.setColour (iconBlack);
+    g.fillEllipse (dx - dotR, dy - dotR, dotR * 2.f, dotR * 2.f);
+  };
 
   switch (type)
     {
     case TrajectoryType::Circle:
       {
-        // Simple circle
-        g.drawEllipse (cx - r, cy - r, r * 2.f, r * 2.f, strokeThickness);
+        ellipseOutlined (cx - r, cy - r, r * 2.f, r * 2.f);
         break;
       }
     case TrajectoryType::FigureOfEight:
       {
-        // Lemniscate / figure-8 drawn as a path
         juce::Path path;
         auto constexpr numPoints = 64;
         for (int i = 0; i <= numPoints; ++i)
@@ -318,25 +428,21 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
               path.lineTo (x, y);
           }
         path.closeSubPath ();
-        g.strokePath (path, juce::PathStrokeType (strokeThickness));
+        strokeOutlined (path);
         break;
       }
     case TrajectoryType::CornerStep:
       {
-        // 4-corner step: ball jumps between corners (no connecting lines)
         auto const d = r * 0.7f;
         auto const dotR = r * 0.22f;
-
-        // Just 4 dots at the corners
-        g.fillEllipse (cx - d - dotR, cy - d - dotR, dotR * 2.f, dotR * 2.f);
-        g.fillEllipse (cx + d - dotR, cy - d - dotR, dotR * 2.f, dotR * 2.f);
-        g.fillEllipse (cx + d - dotR, cy + d - dotR, dotR * 2.f, dotR * 2.f);
-        g.fillEllipse (cx - d - dotR, cy + d - dotR, dotR * 2.f, dotR * 2.f);
+        dotOutlined (cx - d, cy - d, dotR);
+        dotOutlined (cx + d, cy - d, dotR);
+        dotOutlined (cx + d, cy + d, dotR);
+        dotOutlined (cx - d, cy + d, dotR);
         break;
       }
     case TrajectoryType::Spiral:
       {
-        // Out-and-back spiral (matches actual pattern)
         juce::Path path;
         auto constexpr numPoints = 80;
         for (int i = 0; i <= numPoints; ++i)
@@ -353,12 +459,11 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
             else
               path.lineTo (x, y);
           }
-        g.strokePath (path, juce::PathStrokeType (strokeThickness));
+        strokeOutlined (path);
         break;
       }
     case TrajectoryType::Lissajous:
       {
-        // Lissajous 3:2 with phase offset
         juce::Path path;
         auto constexpr numPoints = 80;
         for (int i = 0; i <= numPoints; ++i)
@@ -375,12 +480,11 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
               path.lineTo (x, y);
           }
         path.closeSubPath ();
-        g.strokePath (path, juce::PathStrokeType (strokeThickness));
+        strokeOutlined (path);
         break;
       }
     case TrajectoryType::Rose:
       {
-        // 3-petal rose: r = cos(3*theta)
         juce::Path path;
         auto constexpr numPoints = 80;
         bool started = false;
@@ -401,12 +505,11 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
               path.lineTo (x, y);
           }
         path.closeSubPath ();
-        g.strokePath (path, juce::PathStrokeType (strokeThickness));
+        strokeOutlined (path);
         break;
       }
     case TrajectoryType::Zigzag:
       {
-        // Circle with zigzag perturbation
         juce::Path path;
         auto constexpr numPoints = 80;
         for (int i = 0; i <= numPoints; ++i)
@@ -414,7 +517,6 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
             auto const t
                 = static_cast<float> (i) / static_cast<float> (numPoints);
             auto const angle = t * juce::MathConstants<float>::twoPi;
-            // Triangle wave for zigzag
             auto const tri
                 = 2.f
                       * std::abs (2.f * (t * 4.f
@@ -428,29 +530,28 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
               path.lineTo (x, y);
           }
         path.closeSubPath ();
-        g.strokePath (path, juce::PathStrokeType (strokeThickness));
+        strokeOutlined (path);
         break;
       }
     case TrajectoryType::Ellipse:
       {
-        // Horizontal ellipse
-        g.drawEllipse (cx - r, cy - r * 0.4f, r * 2.f, r * 0.8f,
-                       strokeThickness);
+        ellipseOutlined (cx - r, cy - r * 0.4f, r * 2.f, r * 0.8f);
         break;
       }
     case TrajectoryType::Pendulum:
       {
-        // Horizontal line with ball ends (swing back and forth)
         auto const lineY = cy;
-        g.drawLine (cx - r, lineY, cx + r, lineY, strokeThickness);
+        juce::Path linePath;
+        linePath.startNewSubPath (cx - r, lineY);
+        linePath.lineTo (cx + r, lineY);
+        strokeOutlined (linePath);
         auto const dotR = r * 0.18f;
-        g.fillEllipse (cx - r - dotR, lineY - dotR, dotR * 2.f, dotR * 2.f);
-        g.fillEllipse (cx + r - dotR, lineY - dotR, dotR * 2.f, dotR * 2.f);
+        dotOutlined (cx - r, lineY, dotR);
+        dotOutlined (cx + r, lineY, dotR);
         break;
       }
     case TrajectoryType::Triangle:
       {
-        // Equilateral triangle path
         juce::Path path;
         for (int i = 0; i <= 3; ++i)
           {
@@ -466,20 +567,19 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
               path.lineTo (x, y);
           }
         path.closeSubPath ();
-        g.strokePath (path, juce::PathStrokeType (strokeThickness));
+        strokeOutlined (path);
         break;
       }
     case TrajectoryType::Square:
       {
-        // Square outline
         auto const d = r * 0.7f;
-        g.drawRect (juce::Rectangle<float> (cx - d, cy - d, d * 2.f, d * 2.f),
-                    strokeThickness);
+        juce::Path rectPath;
+        rectPath.addRectangle (cx - d, cy - d, d * 2.f, d * 2.f);
+        strokeOutlined (rectPath);
         break;
       }
     case TrajectoryType::Star:
       {
-        // 5-pointed star
         juce::Path path;
         for (int i = 0; i <= 5; ++i)
           {
@@ -495,12 +595,11 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
               path.lineTo (x, y);
           }
         path.closeSubPath ();
-        g.strokePath (path, juce::PathStrokeType (strokeThickness));
+        strokeOutlined (path);
         break;
       }
     case TrajectoryType::Bounce:
       {
-        // 3 dots at 120° (jump pattern)
         auto const dotR = r * 0.22f;
         for (int i = 0; i < 3; ++i)
           {
@@ -509,13 +608,12 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
                   * juce::MathConstants<float>::twoPi;
             auto const x = cx + r * 0.65f * std::cos (angle);
             auto const y = cy + r * 0.65f * std::sin (angle);
-            g.fillEllipse (x - dotR, y - dotR, dotR * 2.f, dotR * 2.f);
+            dotOutlined (x, y, dotR);
           }
         break;
       }
     case TrajectoryType::Helix:
       {
-        // Double spiral (out and back)
         juce::Path path;
         auto constexpr numPoints = 80;
         for (int i = 0; i <= numPoints; ++i)
@@ -532,12 +630,11 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
             else
               path.lineTo (x, y);
           }
-        g.strokePath (path, juce::PathStrokeType (strokeThickness));
+        strokeOutlined (path);
         break;
       }
     case TrajectoryType::Orbit:
       {
-        // Eccentric ellipse (egg-shaped)
         juce::Path path;
         auto constexpr numPoints = 64;
         auto constexpr e = 0.6f;
@@ -555,22 +652,20 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
               path.lineTo (x, y);
           }
         path.closeSubPath ();
-        g.strokePath (path, juce::PathStrokeType (strokeThickness));
+        strokeOutlined (path);
         break;
       }
     case TrajectoryType::Cross:
       {
-        // 4 dots on axes (jump pattern)
         auto const dotR = r * 0.22f;
-        g.fillEllipse (cx + r * 0.65f - dotR, cy - dotR, dotR * 2.f, dotR * 2.f);
-        g.fillEllipse (cx - dotR, cy - r * 0.65f - dotR, dotR * 2.f, dotR * 2.f);
-        g.fillEllipse (cx - r * 0.65f - dotR, cy - dotR, dotR * 2.f, dotR * 2.f);
-        g.fillEllipse (cx - dotR, cy + r * 0.65f - dotR, dotR * 2.f, dotR * 2.f);
+        dotOutlined (cx + r * 0.65f, cy, dotR);
+        dotOutlined (cx, cy - r * 0.65f, dotR);
+        dotOutlined (cx - r * 0.65f, cy, dotR);
+        dotOutlined (cx, cy + r * 0.65f, dotR);
         break;
       }
     case TrajectoryType::Wave:
       {
-        // Flower/sun shape (circle with bumps)
         juce::Path path;
         auto constexpr numPoints = 80;
         for (int i = 0; i <= numPoints; ++i)
@@ -587,12 +682,11 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
               path.lineTo (x, y);
           }
         path.closeSubPath ();
-        g.strokePath (path, juce::PathStrokeType (strokeThickness));
+        strokeOutlined (path);
         break;
       }
     case TrajectoryType::Hypo:
       {
-        // Hypotrochoid (Spirograph shape)
         juce::Path path;
         auto constexpr numPoints = 80;
         auto constexpr R = 5.f, rv = 3.f, d = 5.f;
@@ -612,7 +706,7 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
               path.lineTo (x, y);
           }
         path.closeSubPath ();
-        g.strokePath (path, juce::PathStrokeType (strokeThickness));
+        strokeOutlined (path);
         break;
       }
     case TrajectoryType::Empty:

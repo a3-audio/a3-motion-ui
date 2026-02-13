@@ -73,9 +73,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     }
 
   // Initialize pattern library (creates system/ and user/ dirs if needed)
-  auto patternsDir = juce::File::getCurrentWorkingDirectory ()
-                         .getChildFile ("patterns");
-  _patternLibrary = std::make_unique<PatternLibrary> (patternsDir);
+  // Use a fixed location next to the source tree so patterns are shared
+  // across build configurations and survive rebuilds.
+  auto patternsDir = juce::File ("/home/aaa/a3-motion/ui/pattern");
+  _patternLibrary = std::make_unique<PatternLibrary> (patternsDir, *_heightMap);
   generateSystemPatterns ();
 
   initializePatterns ();
@@ -433,7 +434,7 @@ A3MotionUIComponent::generateSystemPatterns ()
 
   // Only generate if the system directory is empty
   auto existing = systemDir.findChildFiles (juce::File::findFiles, false,
-                                            "*.json");
+                                            "*.svg");
   if (!existing.isEmpty ())
     return;
 
@@ -476,7 +477,7 @@ A3MotionUIComponent::generateSystemPatterns ()
     {
       auto p = def.create ();
       auto filename = juce::String::formatted ("%02d_", def.num)
-                      + juce::String (def.name) + ".json";
+                      + juce::String (def.name) + ".svg";
       auto file = systemDir.getChildFile (filename);
       PatternFile::save (p, file);
       std::cout << "  saved " << file.getFullPathName () << std::endl;
@@ -766,7 +767,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       _tapButtonLongPress = true;
       if (_patterns[channel][pad])
         {
-          _motionComponent->setPreviewPattern (_patterns[channel][pad]);
+          setPreviewWithDisplayData (_patterns[channel][pad]);
         }
     }
   else if (_patterns[channel][pad])
@@ -834,7 +835,7 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
       }
     case Status::Recording:
       {
-        _motionComponent->setPreviewPattern (messagePatternStatus.pattern);
+        setPreviewWithDisplayData (messagePatternStatus.pattern);
         _channelStrips[channel]->setTextColour (juce::Colours::red);
         break;
       }
@@ -1271,10 +1272,21 @@ A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
 
       if (libIndex > 0)
         {
-          // Use tick data from the library entry for the icon
+          // Use SVG path from the library entry for the icon
           auto const &entry = _patternLibrary->getEntry (libIndex);
-          _padRowDisplays[row]->setTickData (static_cast<int> (channel),
-                                             entry.ticks);
+          auto iconPath = svgDToPath (entry.svgPathData);
+          if (!iconPath.isEmpty () || entry.hasJumpDots)
+            {
+              _padRowDisplays[row]->setIconPath (
+                  static_cast<int> (channel),
+                  iconPath,
+                  entry.jumpDots);
+            }
+          else
+            {
+              _padRowDisplays[row]->setTickData (
+                  static_cast<int> (channel), entry.ticks);
+            }
         }
       else
         {
@@ -1300,7 +1312,7 @@ A3MotionUIComponent::showTrajectoryPreview (index_t channel, index_t pad)
   if (_encoderLevel[channel] == EncoderLevel::OptionEdit
       && _patterns[channel][pad])
     {
-      _motionComponent->setPreviewPattern (_patterns[channel][pad]);
+      setPreviewWithDisplayData (_patterns[channel][pad]);
     }
 }
 
@@ -1311,6 +1323,30 @@ A3MotionUIComponent::clearTrajectoryPreview (index_t channel)
   auto const pad = static_cast<index_t> (row);
   if (_patterns[channel][pad])
     _motionComponent->unsetPreviewPattern (_patterns[channel][pad]);
+}
+
+void
+A3MotionUIComponent::setPreviewWithDisplayData (
+    std::shared_ptr<Pattern> const &pattern)
+{
+  if (!pattern)
+    return;
+
+  auto const &name = pattern->getName ();
+  auto libIndex = _patternLibrary->indexForName (name);
+
+  if (libIndex > 0)
+    {
+      auto const &entry = _patternLibrary->getEntry (libIndex);
+      auto displayPath = svgDToPath (entry.svgPathData);
+      _motionComponent->setPreviewPattern (pattern, displayPath,
+                                           entry.jumpDots);
+    }
+  else
+    {
+      // No library entry (e.g. live recording) — no display path
+      _motionComponent->setPreviewPattern (pattern);
+    }
 }
 
 int
