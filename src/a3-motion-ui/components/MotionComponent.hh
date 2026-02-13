@@ -65,6 +65,13 @@ public:
                          std::vector<std::pair<float,float>> jumpDots = {});
   void unsetPreviewPattern (std::shared_ptr<Pattern> pattern);
 
+  /** Register display data for a pattern so its trajectory can be drawn
+   *  as a faint line whenever it is playing. */
+  void setPatternDisplayData (std::shared_ptr<Pattern> pattern,
+                              juce::Path displayPath = {},
+                              std::vector<std::pair<float,float>> jumpDots = {});
+  void removePatternDisplayData (std::shared_ptr<Pattern> pattern);
+
   void setBackgroundColour (juce::Colour const &colour);
 
   // VU-driven lighting: sphere glow and speaker spotlights
@@ -91,6 +98,11 @@ private:
                           PatternDisplayData const &displayData,
                           juce::Graphics &g);
 
+  /** Draw a faint trajectory line for a playing pattern. */
+  void drawPlayingTrajectory (Pattern const &pattern,
+                              PatternDisplayData const &displayData,
+                              juce::Graphics &g);
+
   float getActiveDistanceInPixel () const;
 
   juce::Point<float> normalizedToLocal2DPosition (Pos const &posNorm) const;
@@ -109,6 +121,11 @@ private:
 
   std::map<std::shared_ptr<Pattern>, PatternDisplayData> _patternsPreview;
   std::mutex _mutexPreview;
+
+  // Display data for all loaded patterns — used to draw faint trajectory
+  // lines for currently playing patterns (separate from explicit previews).
+  std::map<std::shared_ptr<Pattern>, PatternDisplayData> _patternsDisplayData;
+  std::mutex _mutexDisplayData;
 
   juce::OpenGLContext _glContext;
 

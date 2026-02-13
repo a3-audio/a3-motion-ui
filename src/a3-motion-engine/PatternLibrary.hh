@@ -27,7 +27,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/Pattern.hh>
-#include <a3-motion-engine/elevation/HeightMap.hh>
+
 
 namespace a3
 {
@@ -46,7 +46,7 @@ namespace a3
  * Indices numSystem+1.. are user patterns.
  *
  * Z (height) is not stored in files — it is computed live via
- * HeightMap when patterns are loaded for playback.
+ * the HeightMap at playback time by the MotionEngine.
  */
 class PatternLibrary
 {
@@ -69,9 +69,8 @@ public:
     int lengthBeats{ 0 };      ///< pattern length in beats (from SVG metadata)
   };
 
-  /** Initialise with root directory containing system/ and user/ subdirs.
-   *  The HeightMap is used to compute Z when loading patterns for playback. */
-  PatternLibrary (juce::File const &rootDir, HeightMap const &heightMap);
+  /** Initialise with root directory containing system/ and user/ subdirs. */
+  PatternLibrary (juce::File const &rootDir);
 
   /** Rescan both directories for .svg files.
    *  After this, getEntries() returns the updated list. */
@@ -112,7 +111,6 @@ private:
   void scanDirectory (juce::File const &dir, Category category);
 
   juce::File _rootDir;
-  HeightMap const &_heightMap;
   std::vector<Entry> _entries;  ///< index 0 unused (Empty), 1..N = patterns
   int _numSystemPatterns = 0;
   int _numUserPatterns = 0;

@@ -41,6 +41,7 @@
 #include <a3-motion-ui/components/FilterDisplay.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/LoopLengthDisplay.hh>
+#include <a3-motion-ui/components/ElevationDisplay.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
@@ -62,9 +63,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
-  // Initialize encoder state — start on LoopLength row
+  // Initialize encoder state — start on Elevation row (top)
   _encoderLevel.fill (EncoderLevel::RowSelect);
-  _encoderSelectedRow.fill (loopLengthRowIndex);
+  _encoderSelectedRow.fill (elevationRowIndex);
 
   if (runsOnHardware ())
     {
@@ -75,7 +76,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // Use a fixed location next to the source tree so patterns are shared
   // across build configurations and survive rebuilds.
   auto patternsDir = juce::File ("/home/aaa/a3-motion/ui/pattern");
-  _patternLibrary = std::make_unique<PatternLibrary> (patternsDir, *_heightMap);
+  _patternLibrary = std::make_unique<PatternLibrary> (patternsDir);
   _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
 
   initializePatterns ();
@@ -352,6 +353,13 @@ A3MotionUIComponent::createMainUI ()
       _loopLengthDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
       _loopLengthDisplay->setLoopLengthBeats (static_cast<int> (ch), getLengthBeats (ch));
     }
+
+  _elevationDisplay = std::make_unique<ElevationDisplay> ();
+  addChildComponent (*_elevationDisplay);
+  _elevationDisplay->setVisible (true);
+  _elevationDisplay->setCoverage (_engine.getElevationCoverage ());
+  for (auto ch = 0u; ch < _channelUIStates.size () && ch < ElevationDisplay::numChannels; ++ch)
+    _elevationDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
 }
 
 constexpr bool
@@ -467,7 +475,12 @@ A3MotionUIComponent::resized ()
   auto boundsStatus = bounds.removeFromTop (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
-  // Loop length display below status bar
+  // Elevation display below status bar
+  auto constexpr elevationDisplayHeight = ElevationDisplay::getMinimumHeight ();
+  auto boundsElevation = bounds.removeFromTop (elevationDisplayHeight);
+  _elevationDisplay->setBounds (boundsElevation);
+
+  // Loop length display below elevation
   auto constexpr loopLengthDisplayHeight = LoopLengthDisplay::getMinimumHeight ();
   auto boundsLoopLength = bounds.removeFromTop (loopLengthDisplayHeight);
   _loopLengthDisplay->setBounds (boundsLoopLength);
@@ -1066,14 +1079,17 @@ A3MotionUIComponent::createPadRowDisplays ()
       for (auto ch = 0u; ch < _engine.getNumChannels (); ++ch)
         {
           if (row < _patterns[ch].size () && _patterns[ch][row])
-            updatePadRowLabel (ch, row);
+            {
+              updatePadRowLabel (ch, row);
+              registerPatternDisplayData (_patterns[ch][row]);
+            }
         }
     }
 
-  // Set initial row highlight on LoopLength row
+  // Set initial row highlight on Elevation row
   for (auto ch = 0u; ch < _engine.getNumChannels (); ++ch)
     {
-      _loopLengthDisplay->setRowHighlighted (static_cast<int> (ch), true);
+      _elevationDisplay->setRowHighlighted (static_cast<int> (ch), true);
     }
 }
 
@@ -1082,10 +1098,10 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
 {
   if (_encoderLevel[channel] == EncoderLevel::RowSelect)
     {
-      // Navigate between LoopLength row (-1) and pad rows (0..numPadRows-1)
+      // Navigate between Elevation (-2), LoopLength (-1), pad rows (0..3)
       auto oldRow = _encoderSelectedRow[channel];
       auto newRow = oldRow + increment;
-      newRow = std::clamp (newRow, loopLengthRowIndex,
+      newRow = std::clamp (newRow, elevationRowIndex,
                            static_cast<int> (numPadRows) - 1);
 
       if (newRow != oldRow)
@@ -1094,6 +1110,9 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
           if (oldRow == loopLengthRowIndex)
             _loopLengthDisplay->setRowHighlighted (
                 static_cast<int> (channel), false);
+          else if (oldRow == elevationRowIndex)
+            _elevationDisplay->setRowHighlighted (
+                static_cast<int> (channel), false);
           else if (static_cast<size_t> (oldRow) < _padRowDisplays.size ())
             _padRowDisplays[static_cast<size_t> (oldRow)]
                 ->setRowHighlighted (static_cast<int> (channel), false);
@@ -1101,6 +1120,9 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
           // Set new highlight
           if (newRow == loopLengthRowIndex)
             _loopLengthDisplay->setRowHighlighted (
+                static_cast<int> (channel), true);
+          else if (newRow == elevationRowIndex)
+            _elevationDisplay->setRowHighlighted (
                 static_cast<int> (channel), true);
           else if (static_cast<size_t> (newRow) < _padRowDisplays.size ())
             _padRowDisplays[static_cast<size_t> (newRow)]
@@ -1117,6 +1139,13 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
       if (row == loopLengthRowIndex)
         {
           handleLengthIncrement (channel, increment);
+          return;
+        }
+
+      // Elevation row: encoder adjusts elevation coverage
+      if (row == elevationRowIndex)
+        {
+          handleElevationIncrement (increment);
           return;
         }
 
@@ -1155,6 +1184,8 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
             }
           _motionComponent->unsetPreviewPattern (
               _patterns[channel][padIndex]);
+          _motionComponent->removePatternDisplayData (
+              _patterns[channel][padIndex]);
         }
 
       // Create new pattern or clear
@@ -1171,6 +1202,7 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
         {
           _patterns[channel][padIndex]
               = createPatternForIndex (newIndex, channel);
+          registerPatternDisplayData (_patterns[channel][padIndex]);
 
           // If old pattern was playing (or being previewed), start new
           // pattern playing immediately so the switch is seamless.
@@ -1207,6 +1239,11 @@ A3MotionUIComponent::handleEncoderPress (index_t channel)
           _loopLengthDisplay->setCellSelected (
               static_cast<int> (channel), true);
         }
+      else if (row == elevationRowIndex)
+        {
+          _elevationDisplay->setCellSelected (
+              static_cast<int> (channel), true);
+        }
       else if (static_cast<size_t> (row) < _padRowDisplays.size ())
         {
           _padRowDisplays[static_cast<size_t> (row)]
@@ -1224,12 +1261,39 @@ A3MotionUIComponent::handleEncoderPress (index_t channel)
           _loopLengthDisplay->setCellSelected (
               static_cast<int> (channel), false);
         }
+      else if (row == elevationRowIndex)
+        {
+          _elevationDisplay->setCellSelected (
+              static_cast<int> (channel), false);
+        }
       else if (static_cast<size_t> (row) < _padRowDisplays.size ())
         {
           _padRowDisplays[static_cast<size_t> (row)]
               ->setCellSelected (static_cast<int> (channel), false);
           clearTrajectoryPreview (channel);
         }
+    }
+}
+
+void
+A3MotionUIComponent::handleElevationIncrement (int increment)
+{
+  // Discrete coverage steps: 5%
+  static constexpr float step = 0.05f;
+  auto coverage = _engine.getElevationCoverage ();
+  coverage += static_cast<float> (increment) * step;
+  coverage = std::clamp (coverage, 0.05f, 1.0f);
+
+  _engine.setElevationCoverage (coverage);
+  _elevationDisplay->setCoverage (coverage);
+
+  // Show all currently playing trajectories so the user can see how
+  // the coverage change affects the pattern shapes on the sphere.
+  for (auto ch = 0u; ch < _engine.getNumChannels (); ++ch)
+    {
+      auto playing = _engine.getPlayingPattern (ch);
+      if (playing)
+        setPreviewWithDisplayData (playing);
     }
 }
 
@@ -1361,6 +1425,31 @@ A3MotionUIComponent::setPreviewWithDisplayData (
     }
 }
 
+void
+A3MotionUIComponent::registerPatternDisplayData (
+    std::shared_ptr<Pattern> const &pattern)
+{
+  if (!pattern)
+    return;
+
+  auto const &name = pattern->getName ();
+  auto libIndex = _patternLibrary->indexForName (name);
+
+  if (libIndex > 0)
+    {
+      auto const &entry = _patternLibrary->getEntry (libIndex);
+      auto displayPath = svgDToPath (entry.svgPathData);
+      _motionComponent->setPatternDisplayData (pattern, displayPath,
+                                               entry.jumpDots);
+    }
+  else
+    {
+      // No library entry — register with empty display data
+      // (will use raw tick data fallback in drawPlayingTrajectory)
+      _motionComponent->setPatternDisplayData (pattern);
+    }
+}
+
 int
 A3MotionUIComponent::trajectoryNameToIndex (std::string const &name) const
 {
@@ -1406,6 +1495,7 @@ A3MotionUIComponent::saveRecordedPattern (
         {
           reloaded->setChannel (channel);
           _patterns[channel][pad] = reloaded;
+          registerPatternDisplayData (reloaded);
         }
 
       // Update fingerprint so the timer doesn't re-trigger for this save

@@ -28,7 +28,26 @@ namespace a3
 class HeightMap
 {
 public:
+  virtual ~HeightMap () = default;
+
   virtual float computeHeight (Pos const &pos) const = 0;
+
+  /** Map a 2D position (x,y) onto the 3D sphere/surface.
+   *  Default implementation preserves x,y and sets z = computeHeight().
+   *  Subclasses can override for full spherical wrapping. */
+  virtual Pos mapTo3D (Pos const &pos2D) const
+  {
+    return Pos::fromCartesian (
+        pos2D.x (), pos2D.y (), computeHeight (pos2D));
+  }
+
+  /** Set the coverage parameter (0.0 – 1.0).
+   *  0.0 = flat / top only, 1.0 = full sphere.
+   *  Default implementation is a no-op. */
+  virtual void setCoverage (float /*coverage*/) {}
+
+  /** Get the current coverage parameter. Default: 0.5 (hemisphere). */
+  virtual float getCoverage () const { return 0.5f; }
 };
 
 }

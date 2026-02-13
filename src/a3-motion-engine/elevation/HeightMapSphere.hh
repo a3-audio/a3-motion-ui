@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include <a3-motion-engine/elevation/HeightMap.hh>
 
 namespace a3
@@ -29,6 +31,21 @@ class HeightMapSphere : public HeightMap
 {
 public:
   float computeHeight (Pos const &pos) const override;
+
+  /** Map 2D disc position onto the sphere surface.
+   *  Coverage controls how far around the sphere the disc wraps:
+   *    coverage = 0.5  → hemisphere (north pole to equator)
+   *    coverage = 1.0  → full sphere (north pole to south pole)
+   *    coverage = 0.33 → top third (~60° colatitude)
+   *  The mapping preserves the azimuth angle and remaps the radial
+   *  distance to colatitude: θ = (r / r_max) × θ_max. */
+  Pos mapTo3D (Pos const &pos2D) const override;
+
+  void setCoverage (float coverage) override;
+  float getCoverage () const override;
+
+private:
+  std::atomic<float> _coverage{ 0.5f };  // 0.5 = hemisphere (default)
 };
 
 }

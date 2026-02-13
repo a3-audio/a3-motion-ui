@@ -123,31 +123,8 @@ void main ()
 {
     vec2 pxCoord = vUV * uResolution;
     vec2 uv = (pxCoord - uSphereCentre) / uSphereRadius;
-    
-    // Floor plane for reflective surface
-    // Calculate floor position dynamically based on screen size
-    // Floor is at the bottom of the screen (y=0 in pixel coords)
-    // Convert to sphere-normalized coordinates
-    float floorYpx = 0.0 - uSphereCentre.y;  // distance from sphere centre to bottom edge
-    float floorY = floorYpx / uSphereRadius;  // normalize to sphere units
-    
-    // Only show reflection if floor is visible (below sphere)
-    // and add small gap below sphere edge
-    floorY = min(floorY, -1.02);  // floor at least just below sphere
-    
-    bool isReflection = uv.y < floorY;
-    
-    // For reflection area: mirror the scene around floor plane
+
     vec2 uvScene = uv;
-    float reflectionFade = 1.0;
-    if (isReflection)
-    {
-        uvScene.y = 2.0 * floorY - uv.y;  // mirror around floorY
-        // Fade reflection based on distance from floor
-        float distFromFloor = floorY - uv.y;
-        reflectionFade = 0.25 / (1.0 + distFromFloor * 4.0);
-    }
-    
     float dist = length (uvScene);
 
     vec3 col = vec3 (0.0);
@@ -232,8 +209,6 @@ void main ()
     {
         vec3 N;
         sphereIntersect (uvScene, N);
-        // Flip normal Y for reflection (looking at underside)
-        if (isReflection) N.y = -N.y;
 
         colSurf = vec3 (0.04, 0.04, 0.055);
 
@@ -254,9 +229,7 @@ void main ()
             vec3 bcol = getBlobCol (b);
             if (bps.z < 0.001) continue;
 
-            // Mirror blob position for reflection
             vec2 blobPos = bps.xy;
-            if (isReflection) blobPos.y = 2.0 * floorY - blobPos.y;
 
             vec3 bld = normalize (vec3 (blobPos - uvScene, 0.5));
             float diff = max (dot (N, bld), 0.0);
@@ -310,14 +283,13 @@ void main ()
     vec3 colOutFinal = uBgColour + colOut;
     col = mix (colOutFinal, colSurf, surfaceMix);
 
-    // Apply reflection fade (darkens reflection area)
-    if (isReflection)
-    {
-        col = mix (uBgColour, col, reflectionFade);
-    }
+    // Semi-transparent sphere: alpha < 1 on the sphere surface so
+    // blobs on the back side remain partially visible through it.
+    // Outside the sphere is fully opaque background.
+    float sphereAlpha = 0.75;  // sphere surface transparency
+    alpha = mix (1.0, sphereAlpha, surfaceMix);
 
-    // Always fully opaque - no alpha blending needed since we render the background
-    gl_FragColor = vec4 (col, 1.0);
+    gl_FragColor = vec4 (col, alpha);
 }
 )";
 }
@@ -516,8 +488,9 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
 
     }
 
-  // Draw fullscreen quad
-  glDisable (GL_BLEND);
+  // Draw fullscreen quad (with alpha blending for semi-transparent sphere)
+  glEnable (GL_BLEND);
+  glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   glBindBuffer (GL_ARRAY_BUFFER, _vbo);
   if (_aPos >= 0)

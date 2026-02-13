@@ -29,9 +29,8 @@
 namespace a3
 {
 
-PatternLibrary::PatternLibrary (juce::File const &rootDir,
-                                HeightMap const &heightMap)
-    : _rootDir (rootDir), _heightMap (heightMap)
+PatternLibrary::PatternLibrary (juce::File const &rootDir)
+    : _rootDir (rootDir)
 {
   // Ensure directories exist
   getSystemDir ().createDirectory ();
@@ -134,20 +133,10 @@ PatternLibrary::loadPattern (int index) const
   auto const &entry = _entries[static_cast<size_t> (index - 1)];
   auto pattern = PatternFile::load (entry.file);
 
-  // Compute Z from HeightMap for all ticks (files store only XY)
-  if (pattern)
-    {
-      auto const numTicks = pattern->getNumTicks ();
-      for (index_t t = 0; t < numTicks; ++t)
-        {
-          auto pos = pattern->getTick (t);
-          if (pos.isValid ())
-            {
-              pos.setZ (_heightMap.computeHeight (pos));
-              pattern->setTick (t, pos);
-            }
-        }
-    }
+  // NOTE: patterns store 2D positions (x,y only, z=0).
+  // The HeightMap (elevation coverage) is applied at playback time
+  // by MotionEngine::performPlayback(), not at load time.
+  // This allows dynamic coverage changes without reloading patterns.
 
   return pattern;
 }

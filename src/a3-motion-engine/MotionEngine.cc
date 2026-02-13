@@ -51,7 +51,7 @@ MotionEngine::calculateSubSamplingFactor (Measure recordingLength, int beatsPerB
   return factor;
 }
 
-MotionEngine::MotionEngine (index_t numChannels, const HeightMap &heightMap)
+MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap)
     : _heightMap (heightMap), _commandQueue (std::make_unique<SpatBackendA3> (
                                   userConfig["oscSender"]["host"], 
                                   static_cast<int> (userConfig["oscSender"]["port"])))
@@ -124,8 +124,7 @@ MotionEngine::getChannelPosition (index_t channel)
 void
 MotionEngine::setChannel2DPosition (index_t channel, Pos const &position)
 {
-  auto mappedPosition = Pos::fromCartesian (
-      position.x (), position.y (), _heightMap.computeHeight (position));
+  auto mappedPosition = _heightMap.mapTo3D (position);
   _channels[channel]->setPosition (mappedPosition);
 }
 
@@ -171,9 +170,8 @@ MotionEngine::setRecording2DPosition (Pos const &position)
   Message message;
   message.command = Message::Command::SetRecordingPosition;
 
-  auto mappedPosition = Pos::fromCartesian (
-      position.x (), position.y (), _heightMap.computeHeight (position));
-  message.position = mappedPosition;
+  message.position = _heightMap.mapTo3D (position);
+  message.position2D = position;  // keep original 2D for pattern ticks
 
   submitFifoMessage (message);
 }
@@ -184,6 +182,7 @@ MotionEngine::setRecording3DPosition (Pos const &position)
   Message message;
   message.command = Message::Command::SetRecordingPosition;
   message.position = position;
+  message.position2D = Pos::fromCartesian (position.x (), position.y (), 0.f);
   submitFifoMessage (message);
 }
 
@@ -242,6 +241,18 @@ MotionEngine::isPreviewMode (index_t channel) const
 {
   jassert (channel < _previewMode.size ());
   return _previewMode[channel].load (std::memory_order_relaxed);
+}
+
+void
+MotionEngine::setElevationCoverage (float coverage)
+{
+  _heightMap.setCoverage (coverage);
+}
+
+float
+MotionEngine::getElevationCoverage () const
+{
+  return _heightMap.getCoverage ();
 }
 
 void
@@ -385,11 +396,13 @@ MotionEngine::handleFifoMessage (Message const &message)
     case Message::Command::SetRecordingPosition:
       {
         _recordingPosition = message.position;
+        _recordingPosition2D = message.position2D;
         break;
       }
     case Message::Command::ReleaseRecordingPosition:
       {
         _recordingPosition = Pos::invalid;
+        _recordingPosition2D = Pos::invalid;
         break;
       }
     case Message::Command::SetRecordingMode:
@@ -587,6 +600,7 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
   _patternRecording->resize (ticksWithSubSampling);
 
   _recordingPosition = Pos::invalid;
+  _recordingPosition2D = Pos::invalid;
   _recordingStarted = _now;
   _patternRecording->setStatus (Pattern::Status::Recording);
 
@@ -655,14 +669,16 @@ MotionEngine::performRecording ()
       
       // Record at each sub-sample slot for the current tick
       // This fills in gaps between ticks with interpolation-friendly keyframes
+      // Store 2D positions so elevation coverage can be changed later
       for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
         {
           auto const tick = (baseIndex + slot) % ticksPatternLength;
-          _patternRecording->setTick (tick, _recordingPosition);
+          _patternRecording->setTick (tick, _recordingPosition2D);
         }
 
       if (_recordingPosition.isValid ())
         {
+          // Use 3D mapped position for channel (OSC + visual)
           _channels[_patternRecording->getChannel ()]->setPosition (
               _recordingPosition);
         }
@@ -702,10 +718,12 @@ MotionEngine::performPlayback ()
               // Use interpolated playback for smooth motion between keyframes
               // The interpolation function handles wrapping at pattern boundaries
               auto const fractionalTick = ticksPatternLength * playPosition;
-              auto position = channel->_patternPlaying->getInterpolatedTick (fractionalTick);
+              auto position2D = channel->_patternPlaying->getInterpolatedTick (fractionalTick);
               
-              if (position.isValid ())
+              if (position2D.isValid ())
                 {
+                  // Apply elevation mapping (sphere wrapping) at playback time
+                  auto position = _heightMap.mapTo3D (position2D);
                   channel->setPosition (position);
                 }
             }

@@ -292,6 +292,24 @@ MotionComponent::unsetPreviewPattern (std::shared_ptr<Pattern> pattern)
 }
 
 void
+MotionComponent::setPatternDisplayData (std::shared_ptr<Pattern> pattern,
+                                        juce::Path displayPath,
+                                        std::vector<std::pair<float,float>> jumpDots)
+{
+  jassert (pattern != nullptr);
+  std::lock_guard<std::mutex> guard (_mutexDisplayData);
+  _patternsDisplayData[pattern] = { std::move (displayPath), std::move (jumpDots) };
+}
+
+void
+MotionComponent::removePatternDisplayData (std::shared_ptr<Pattern> pattern)
+{
+  jassert (pattern != nullptr);
+  std::lock_guard<std::mutex> guard (_mutexDisplayData);
+  _patternsDisplayData.erase (pattern);
+}
+
+void
 MotionComponent::setBackgroundColour (juce::Colour const &colour)
 {
   _backgroundColourPacked.store (colour.getARGB (), std::memory_order_relaxed);
@@ -751,6 +769,10 @@ MotionComponent::renderOpenGL ()
     auto const patternsPreview{ _patternsPreview };
     _mutexPreview.unlock ();
 
+    _mutexDisplayData.lock ();
+    auto const patternsDisplayData{ _patternsDisplayData };
+    _mutexDisplayData.unlock ();
+
     ++_frameCount;
 
     if (_imageBlend)
@@ -771,6 +793,17 @@ MotionComponent::renderOpenGL ()
           // Pattern preview paths
           for (auto &[pattern, displayData] : patternsPreview)
             drawPatternPreview (*pattern, displayData, gFBO);
+
+          // Faint trajectory lines for all currently playing patterns
+          // (skip those already drawn as explicit previews)
+          for (auto &[pattern, displayData] : patternsDisplayData)
+            {
+              if (patternsPreview.count (pattern) > 0)
+                continue; // already drawn as preview
+              if (pattern->getStatus () == Pattern::Status::Playing
+                  || pattern->getStatus () == Pattern::Status::Recording)
+                drawPlayingTrajectory (*pattern, displayData, gFBO);
+            }
         }
 
         // Composite the FBO over the shader output using native GL blitting.
@@ -899,25 +932,8 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
   // Draw blobs + corona directly — no FBO compositing (_imageBlend) for
   // maximum performance on RPi4.
 
-  // Calculate floor Y dynamically based on screen size
-  // In JUCE normalized coords (after _transformNormalizedToLocal):
-  // - Sphere center is at (0, 0)
-  // - Sphere radius is 1.0
-  // - Y grows downward (positive Y = bottom of screen)
-  // Floor should be at bottom edge of the render area
-  float halfHeight = static_cast<float>(_boundsRender.getHeight()) / 
-                     static_cast<float>(_boundsCenterRegion.getHeight()) * 2.0f;
-  // Floor at bottom of screen, but at least just below sphere edge
-  float floorY = std::max(1.02f, halfHeight - 1.0f);
-
-  // Two passes: 0 = reflections (draw first, behind), 1 = real blobs
-  for (int pass = 0; pass < 2; ++pass)
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
   {
-    bool isReflectionPass = (pass == 0);
-    float reflectionAlpha = 0.25f;  // Reflection is darker
-
-    for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
-    {
       auto const position = _engine.getChannelPosition (channel);
       if (!position.isValid ())
         continue;
@@ -925,20 +941,20 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
       auto blobSize = 2 * reduceFactorBlobs;
       blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
 
+      // Blobs on the back of the sphere (z < 0): draw smaller and dimmer
+      // to give a sense of depth through the semi-transparent sphere.
+      float backFade = 1.0f;
+      if (position.z () < 0.f)
+        {
+          backFade = 0.3f + 0.7f * std::clamp (position.z () + 1.f, 0.f, 1.f);
+          blobSize *= (0.5f + 0.5f * backFade);
+        }
+
       auto posNormalized = cartesian2DHOA2JUCE (position);
-      
-      // Mirror Y for reflection pass
-      if (isReflectionPass)
-      {
-        posNormalized.setY (2.0f * floorY - posNormalized.getY ());
-        // Skip if reflection would be above the floor (not visible)
-        if (posNormalized.getY () < floorY)
-          continue;
-      }
 
       auto colour = _uiStates[channel]->colour;
-      if (isReflectionPass)
-        colour = colour.withMultipliedAlpha (reflectionAlpha);
+      if (backFade < 1.0f)
+        colour = colour.withMultipliedAlpha (backFade);
 
       // Draw VU corona (glow effect based on audio level)
       float vuRms = (channel < 4) ? _smoothBlobRms[channel] : 0.f;
@@ -1013,7 +1029,6 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
       g.setColour (colour);
       g.fillEllipse (blob.withCentre (posNormalized));
     }
-  } // end pass loop
 }
 
 void
@@ -1198,6 +1213,106 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
                          lineThickness * 0.5f);
         }
     }
+}
+
+void
+MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
+                                        PatternDisplayData const &displayData,
+                                        juce::Graphics &g)
+{
+  auto constexpr lineThickness = 0.025f;
+  auto constexpr faintAlpha = 0.25f;
+
+  auto colour = _uiStates[pattern.getChannel ()]->colour;
+  auto const strokeStyle = juce::PathStrokeType (
+      lineThickness, juce::PathStrokeType::JointStyle::curved,
+      juce::PathStrokeType::EndCapStyle::rounded);
+
+  g.setColour (colour.withAlpha (faintAlpha));
+
+  if (!displayData.displayPath.isEmpty ())
+    {
+      auto transform = juce::AffineTransform (
+          0.f, -1.f, 0.f,
+         -1.f,  0.f, 0.f);
+      g.strokePath (displayData.displayPath, strokeStyle, transform);
+      return;
+    }
+
+  if (!displayData.jumpDots.empty ())
+    {
+      auto constexpr dotSize = lineThickness * 3.f;
+      for (auto const &dot : displayData.jumpDots)
+        {
+          auto const jx = -dot.second;
+          auto const jy = -dot.first;
+          auto ellipse = juce::Rectangle<float> (dotSize, dotSize)
+                             .withCentre ({ jx, jy });
+          g.fillEllipse (ellipse);
+        }
+      return;
+    }
+
+  // Fallback: build path from raw tick data
+  auto ticks = pattern.getTicks ();
+  if (ticks.positions.empty ())
+    return;
+
+  auto path = juce::Path ();
+  path.preallocateSpace (static_cast<int> (ticks.positions.size ()));
+
+  std::vector<std::vector<juce::Point<float>>> segments;
+  segments.emplace_back ();
+
+  for (auto offset = 0u; offset < ticks.positions.size (); ++offset)
+    {
+      auto const indexWrapped
+          = (ticks.lastUpdatedTick + 1 + offset) % ticks.positions.size ();
+      auto const tick = ticks.positions[indexWrapped];
+
+      if (tick.isValid ())
+        segments.back ().push_back (cartesian2DHOA2JUCE (tick));
+      else if (!segments.back ().empty ())
+        segments.emplace_back ();
+    }
+
+  for (auto const &pts : segments)
+    {
+      if (pts.size () < 2)
+        continue;
+
+      path.startNewSubPath (pts[0]);
+      auto const dist = pts.front ().getDistanceFrom (pts.back ());
+      bool closed = dist < 0.02f && pts.size () > 4;
+
+      auto const n = static_cast<int> (pts.size ());
+      for (int i = 0; i < n - 1; ++i)
+        {
+          juce::Point<float> p0, p1, p2, p3;
+          p1 = pts[static_cast<size_t> (i)];
+          p2 = pts[static_cast<size_t> (i + 1)];
+
+          if (closed)
+            {
+              p0 = pts[static_cast<size_t> ((i - 1 + n) % n)];
+              p3 = pts[static_cast<size_t> ((i + 2) % n)];
+            }
+          else
+            {
+              p0 = (i > 0) ? pts[static_cast<size_t> (i - 1)]
+                           : p1 + (p1 - p2);
+              p3 = (i + 2 < n) ? pts[static_cast<size_t> (i + 2)]
+                               : p2 + (p2 - p1);
+            }
+
+          auto cp1 = p1 + (p2 - p0) / 6.f;
+          auto cp2 = p2 - (p3 - p1) / 6.f;
+          path.cubicTo (cp1, cp2, p2);
+        }
+    }
+
+  if (!path.isEmpty ())
+    g.strokePath (path, strokeStyle);
 }
 
 juce::Point<float>

@@ -44,6 +44,7 @@ class MotionComponent;
 
 class FilterDisplay;
 class LoopLengthDisplay;
+class ElevationDisplay;
 class PadRowDisplay;
 class StatusBar;
 class ChannelStrip;
@@ -114,6 +115,7 @@ private:
   TempoClock::PointerT _statusBarCallbackHandle;
   std::unique_ptr<FilterDisplay> _filterDisplay;
   std::unique_ptr<LoopLengthDisplay> _loopLengthDisplay;
+  std::unique_ptr<ElevationDisplay> _elevationDisplay;
 
   using Button = InputOutputAdapter::Button;
   constexpr bool runsOnHardware ();
@@ -135,16 +137,21 @@ private:
   std::vector<std::unique_ptr<PadRowDisplay> > _padRowDisplays;
 
   // Encoder navigation state
+  // Row indices: -2 = Elevation, -1 = LoopLength, 0..3 = PadRows
+  static auto constexpr elevationRowIndex = -2;
   static auto constexpr loopLengthRowIndex = -1;
   enum class EncoderLevel { RowSelect, OptionEdit };
   std::array<EncoderLevel, 4> _encoderLevel;
   std::array<int, 4> _encoderSelectedRow;
   void handleEncoderIncrement (index_t channel, int increment);
   void handleEncoderPress (index_t channel);
+  void handleElevationIncrement (int increment);
   void updatePadRowLabel (index_t channel, index_t pad);
   void showTrajectoryPreview (index_t channel, index_t pad);
   void clearTrajectoryPreview (index_t channel);
   void setPreviewWithDisplayData (std::shared_ptr<Pattern> const &pattern);
+  /** Register display data with MotionComponent for playing-trajectory rendering. */
+  void registerPatternDisplayData (std::shared_ptr<Pattern> const &pattern);
   int trajectoryNameToIndex (std::string const &name) const;
   std::shared_ptr<Pattern> createPatternForIndex (int index, index_t channel);
   void saveRecordedPattern (std::shared_ptr<Pattern> const &pattern,

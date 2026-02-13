@@ -35,7 +35,7 @@ class HeightMap;
 class MotionEngine
 {
 public:
-  MotionEngine (index_t numChannels, const HeightMap &heightMap);
+  MotionEngine (index_t numChannels, HeightMap &heightMap);
   ~MotionEngine ();
 
   TempoClock const &getTempoClock () const;
@@ -86,6 +86,14 @@ public:
   void setPreviewMode (index_t channel, bool enabled);
   bool isPreviewMode (index_t channel) const;
 
+  // Elevation coverage: controls how far around the sphere patterns wrap
+  // 0.5 = hemisphere (default), 1.0 = full sphere, 0.33 = top third
+  void setElevationCoverage (float coverage);
+  float getElevationCoverage () const;
+
+  // Access the HeightMap (for re-applying coverage to loaded patterns)
+  HeightMap const &getHeightMap () const { return _heightMap; }
+
   class PatternStatusMessage : public juce::Message
   {
   public:
@@ -103,7 +111,7 @@ public:
 private:
   void createChannels (index_t numChannels);
   std::vector<std::unique_ptr<Channel> > _channels;
-  const HeightMap &_heightMap;
+  HeightMap &_heightMap;
 
   // MotionEngine runs the record/playback engine, checks for changed
   // parameters and and schedules corresponding commands with the
@@ -134,6 +142,7 @@ private:
     } command;
 
     Pos position;
+    Pos position2D;  // original 2D position (for recording ticks)
     std::shared_ptr<Pattern> pattern;
     Measure timepoint;
     Measure length;
@@ -192,7 +201,8 @@ private:
 
   Measure _now;
   Measure _recordingStarted;
-  Pos _recordingPosition = Pos::invalid;
+  Pos _recordingPosition = Pos::invalid;     // 3D (mapped) — for OSC + visual
+  Pos _recordingPosition2D = Pos::invalid;   // 2D (original) — for storing in ticks
   std::atomic<RecordingMode> _recordingMode = RecordingMode::OneShot;
   int _recordingSubSamplingFactor = recordingSamplesPerTick;
   
