@@ -603,4 +603,247 @@ PatternGenerator::createHypo (index_t lengthBeats, float radius,
   return pattern;
 }
 
+std::unique_ptr<Pattern>
+PatternGenerator::createDiamond (index_t lengthBeats, float radius,
+                                 HeightMap const &heightMap)
+{
+  std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
+  pattern->setName ("Diamond");
+
+  auto const numTicks
+      = lengthBeats
+        * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
+  pattern->resize (numTicks);
+  pattern->setStatus (Pattern::Status::Idle);
+
+  // Diamond (rhombus): 4 corners at top/right/bottom/left
+  auto const quarterTicks = numTicks / 4;
+  struct Pt { float x, y; };
+  Pt corners[4] = {
+    { 0.f, radius },
+    { radius, 0.f },
+    { 0.f, -radius },
+    { -radius, 0.f }
+  };
+
+  for (auto tick = 0u; tick < numTicks; ++tick)
+    {
+      auto const seg = tick / quarterTicks;
+      auto const frac = float (tick % quarterTicks) / float (quarterTicks);
+      auto const i0 = seg % 4;
+      auto const i1 = (seg + 1) % 4;
+      auto const x = corners[i0].x + frac * (corners[i1].x - corners[i0].x);
+      auto const y = corners[i0].y + frac * (corners[i1].y - corners[i0].y);
+      auto position = Pos::fromCartesian (x, y, 0);
+      position.setZ (heightMap.computeHeight (position));
+      pattern->setTick (tick, position);
+    }
+
+  return pattern;
+}
+
+std::unique_ptr<Pattern>
+PatternGenerator::createClover (index_t lengthBeats, float radius,
+                                HeightMap const &heightMap)
+{
+  std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
+  pattern->setName ("Clover");
+
+  auto const numTicks
+      = lengthBeats
+        * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
+  pattern->resize (numTicks);
+  pattern->setStatus (Pattern::Status::Idle);
+
+  // 4-leaf clover: r = radius * cos(2*theta)
+  for (auto tick = 0u; tick < numTicks; ++tick)
+    {
+      auto const t = float (tick) / numTicks;
+      auto const angle = t * 2.f * pi<float> ();
+      auto const r = radius * std::abs (std::cos (2.f * angle));
+      auto const x = r * std::cos (angle);
+      auto const y = r * std::sin (angle);
+      auto position = Pos::fromCartesian (x, y, 0);
+      position.setZ (heightMap.computeHeight (position));
+      pattern->setTick (tick, position);
+    }
+
+  return pattern;
+}
+
+std::unique_ptr<Pattern>
+PatternGenerator::createInfinity (index_t lengthBeats, float radius,
+                                  HeightMap const &heightMap)
+{
+  std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
+  pattern->setName ("Infinity");
+
+  auto const numTicks
+      = lengthBeats
+        * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
+  pattern->resize (numTicks);
+  pattern->setStatus (Pattern::Status::Idle);
+
+  // Lemniscate of Bernoulli: x = a*cos(t)/(1+sin^2(t)), y = a*sin(t)*cos(t)/(1+sin^2(t))
+  for (auto tick = 0u; tick < numTicks; ++tick)
+    {
+      auto const t = float (tick) / numTicks;
+      auto const angle = t * 2.f * pi<float> ();
+      auto const s = std::sin (angle);
+      auto const c = std::cos (angle);
+      auto const denom = 1.f + s * s;
+      auto const x = radius * c / denom;
+      auto const y = radius * s * c / denom;
+      auto position = Pos::fromCartesian (x, y, 0);
+      position.setZ (heightMap.computeHeight (position));
+      pattern->setTick (tick, position);
+    }
+
+  return pattern;
+}
+
+std::unique_ptr<Pattern>
+PatternGenerator::createPetal (index_t lengthBeats, float radius,
+                               HeightMap const &heightMap)
+{
+  std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
+  pattern->setName ("Petal");
+
+  auto const numTicks
+      = lengthBeats
+        * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
+  pattern->resize (numTicks);
+  pattern->setStatus (Pattern::Status::Idle);
+
+  // 3-petal rose: r = radius * sin(3*theta)
+  for (auto tick = 0u; tick < numTicks; ++tick)
+    {
+      auto const t = float (tick) / numTicks;
+      auto const angle = t * pi<float> (); // 0 to pi for a full 3-petal rose
+      auto const r = radius * std::abs (std::sin (3.f * angle));
+      auto const x = r * std::cos (angle);
+      auto const y = r * std::sin (angle);
+      auto position = Pos::fromCartesian (x, y, 0);
+      position.setZ (heightMap.computeHeight (position));
+      pattern->setTick (tick, position);
+    }
+
+  return pattern;
+}
+
+std::unique_ptr<Pattern>
+PatternGenerator::createArc (index_t lengthBeats, float radius,
+                             HeightMap const &heightMap)
+{
+  std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
+  pattern->setName ("Arc");
+
+  auto const numTicks
+      = lengthBeats
+        * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
+  pattern->resize (numTicks);
+  pattern->setStatus (Pattern::Status::Idle);
+
+  // Semi-circle: 180° arc, ping-pong (forward then backward)
+  auto const halfTicks = numTicks / 2;
+  for (auto tick = 0u; tick < numTicks; ++tick)
+    {
+      float frac;
+      if (tick < halfTicks)
+        frac = float (tick) / float (halfTicks);
+      else
+        frac = float (numTicks - tick) / float (numTicks - halfTicks);
+      auto const angle = frac * pi<float> ();
+      auto const x = radius * std::cos (angle);
+      auto const y = radius * std::sin (angle);
+      auto position = Pos::fromCartesian (x, y, 0);
+      position.setZ (heightMap.computeHeight (position));
+      pattern->setTick (tick, position);
+    }
+
+  return pattern;
+}
+
+std::unique_ptr<Pattern>
+PatternGenerator::createHeart (index_t lengthBeats, float radius,
+                               HeightMap const &heightMap)
+{
+  std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
+  pattern->setName ("Heart");
+
+  auto const numTicks
+      = lengthBeats
+        * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
+  pattern->resize (numTicks);
+  pattern->setStatus (Pattern::Status::Idle);
+
+  // Heart curve parametric: x = sin^3(t), y = cos(t) - cos^2(t) ... etc
+  // Simplified cardioid-based heart
+  for (auto tick = 0u; tick < numTicks; ++tick)
+    {
+      auto const t = float (tick) / numTicks;
+      auto const angle = t * 2.f * pi<float> ();
+      auto const s = std::sin (angle);
+      auto const c = std::cos (angle);
+      auto const x = radius * 0.6f * s * s * s;
+      auto const y = radius * 0.55f * (
+          13.f * c - 5.f * std::cos (2.f * angle)
+          - 2.f * std::cos (3.f * angle) - std::cos (4.f * angle)) / 16.f;
+      auto position = Pos::fromCartesian (x, y, 0);
+      position.setZ (heightMap.computeHeight (position));
+      pattern->setTick (tick, position);
+    }
+
+  return pattern;
+}
+
+std::unique_ptr<Pattern>
+PatternGenerator::createRandom (index_t lengthBeats, float radius,
+                                HeightMap const &heightMap)
+{
+  std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
+  pattern->setName ("Random");
+
+  auto const numTicks
+      = lengthBeats
+        * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
+  pattern->resize (numTicks);
+  pattern->setStatus (Pattern::Status::Idle);
+
+  // Random walk: jump to random positions at beat boundaries,
+  // linearly interpolate between them
+  auto const ticksPerBeat
+      = static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
+  auto const numBeats = lengthBeats + 1; // +1 for wrap-around target
+
+  // Generate random control points using simple LCG
+  std::vector<float> cx (numBeats), cy (numBeats);
+  unsigned int seed = 42;
+  auto nextRand = [&seed] () -> float {
+    seed = seed * 1103515245u + 12345u;
+    return (static_cast<float> ((seed >> 16) & 0x7FFF) / 32767.f) * 2.f - 1.f;
+  };
+  for (std::size_t i = 0; i < numBeats; ++i)
+    {
+      cx[i] = nextRand () * radius;
+      cy[i] = nextRand () * radius;
+    }
+  // Wrap: last point = first point
+  cx[numBeats - 1] = cx[0];
+  cy[numBeats - 1] = cy[0];
+
+  for (auto tick = 0u; tick < numTicks; ++tick)
+    {
+      auto const beat = tick / ticksPerBeat;
+      auto const frac = float (tick % ticksPerBeat) / float (ticksPerBeat);
+      auto const x = cx[beat] + frac * (cx[beat + 1] - cx[beat]);
+      auto const y = cy[beat] + frac * (cy[beat + 1] - cy[beat]);
+      auto position = Pos::fromCartesian (x, y, 0);
+      position.setZ (heightMap.computeHeight (position));
+      pattern->setTick (tick, position);
+    }
+
+  return pattern;
+}
+
 }

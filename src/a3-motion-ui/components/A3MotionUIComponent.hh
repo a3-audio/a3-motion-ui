@@ -123,7 +123,6 @@ private:
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
   void initializePatterns ();
-  void generateSystemPatterns ();
   std::vector<std::vector<std::shared_ptr<Pattern> > > _patterns;
 
   // Pattern library: manages system/ and user/ pattern files

@@ -102,6 +102,34 @@ public:
   createHypo (index_t lengthBeats, float radius,
               HeightMap const &heightMap);
 
+  static std::unique_ptr<Pattern>
+  createDiamond (index_t lengthBeats, float radius,
+                 HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createClover (index_t lengthBeats, float radius,
+                HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createInfinity (index_t lengthBeats, float radius,
+                  HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createPetal (index_t lengthBeats, float radius,
+               HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createArc (index_t lengthBeats, float radius,
+             HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createHeart (index_t lengthBeats, float radius,
+               HeightMap const &heightMap);
+
+  static std::unique_ptr<Pattern>
+  createRandom (index_t lengthBeats, float radius,
+                HeightMap const &heightMap);
+
 private:
 };
 

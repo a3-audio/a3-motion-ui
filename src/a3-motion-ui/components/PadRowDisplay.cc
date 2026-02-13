@@ -81,36 +81,95 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
   g.setColour (colour.withAlpha (bgAlpha));
   g.fillRect (bounds);
 
-  // Icons drawn in black with white outline for contrast
-  auto const iconBlack = juce::Colours::black;
-  auto const iconWhite = juce::Colours::white.withAlpha (0.9f);
-
   if (cell.trajectoryType == TrajectoryType::Empty && !cell.hasTickData)
     {
-      // "---" label: white outline + black fill
+      // "---" label: dark outline + channel colour fill
       g.setFont (LayoutHints::fontSize * 0.7f);
-      g.setColour (iconWhite);
+      auto const outlineColour = juce::Colours::black.withAlpha (0.4f);
+      g.setColour (outlineColour);
       for (int dx = -1; dx <= 1; ++dx)
         for (int dy = -1; dy <= 1; ++dy)
           if (dx != 0 || dy != 0)
             g.drawText (cell.label, bounds.translated (dx, dy),
                         juce::Justification::centred, false);
-      g.setColour (iconBlack);
+      g.setColour (colour);
       g.drawText (cell.label, bounds, juce::Justification::centred, false);
     }
   else
     {
-      // Square icon area centered in the cell
+      // Layout: [prefix] [beats] [icon]
+      // prefix = "s"/"u" on the left, beats number in the middle-left,
+      // icon on the right
       auto const h = static_cast<float> (bounds.getHeight ());
+      auto boundsF = bounds.toFloat ();
+
+      // --- Category prefix (far left) ---
+      auto const prefixWidth = h * 0.45f;
+      if (cell.categoryPrefix.isNotEmpty ())
+        {
+          auto const fontSize = h * 0.30f;
+          g.setFont (fontSize);
+          auto prefixArea = boundsF.removeFromLeft (prefixWidth)
+                                .withTrimmedLeft (2.f);
+
+          // Dark outline for readability
+          g.setColour (juce::Colours::black.withAlpha (0.5f));
+          for (int dx = -1; dx <= 1; ++dx)
+            for (int dy = -1; dy <= 1; ++dy)
+              if (dx != 0 || dy != 0)
+                g.drawText (cell.categoryPrefix,
+                            prefixArea.translated (
+                                static_cast<float> (dx),
+                                static_cast<float> (dy)),
+                            juce::Justification::centredLeft, false);
+          g.setColour (colour.brighter (0.2f));
+          g.drawText (cell.categoryPrefix, prefixArea,
+                      juce::Justification::centredLeft, false);
+        }
+      else
+        {
+          boundsF.removeFromLeft (prefixWidth);
+        }
+
+      // --- Beats count (left of icon) ---
+      auto const beatsWidth = h * 0.45f;
+      if (cell.lengthBeats > 0)
+        {
+          auto beatsStr = juce::String (cell.lengthBeats);
+          auto const fontSize = h * 0.32f;
+          g.setFont (fontSize);
+          auto beatsArea = boundsF.removeFromLeft (beatsWidth);
+
+          // Dark outline for readability
+          g.setColour (juce::Colours::black.withAlpha (0.5f));
+          for (int dx = -1; dx <= 1; ++dx)
+            for (int dy = -1; dy <= 1; ++dy)
+              if (dx != 0 || dy != 0)
+                g.drawText (beatsStr,
+                            beatsArea.translated (
+                                static_cast<float> (dx),
+                                static_cast<float> (dy)),
+                            juce::Justification::centred, false);
+          g.setColour (colour.brighter (0.3f));
+          g.drawText (beatsStr, beatsArea,
+                      juce::Justification::centred, false);
+        }
+      else
+        {
+          boundsF.removeFromLeft (beatsWidth);
+        }
+
+      // --- Icon (fills remaining space on the right) ---
       auto const iconSize = h * 0.7f;
+      auto iconCentre = boundsF.getCentre ();
       auto iconArea = juce::Rectangle<float> (iconSize, iconSize)
-                          .withCentre (bounds.getCentre ().toFloat ());
+                          .withCentre (iconCentre);
 
       // Prefer tick data icon when available
       if (cell.hasTickData)
         drawTickDataIcon (g, iconArea, channel);
       else
-        drawTrajectoryIcon (g, iconArea, cell.trajectoryType);
+        drawTrajectoryIcon (g, iconArea, cell.trajectoryType, channel);
     }
 
   // Thin baseline
@@ -327,12 +386,12 @@ PadRowDisplay::drawTickDataIcon (juce::Graphics &g,
   auto const r = area.getWidth () * 0.45f;
   auto const strokeThickness = 1.5f;
   auto const outlineThickness = strokeThickness + 2.0f;
-  auto const iconWhite = juce::Colours::white.withAlpha (0.9f);
-  auto const iconBlack = juce::Colours::black;
+  auto const iconColour = cell.colour;
+  auto const outlineColour = juce::Colours::black.withAlpha (0.6f);
 
   if (cell.hasJumpTicks)
     {
-      // Draw dots: white outline then black fill
+      // Draw dots: dark outline then channel colour fill
       // HOA→JUCE: screen x = -HOA_y, screen y = -HOA_x
       auto const dotR = r * 0.22f;
       auto const dotOutR = dotR + 1.0f;
@@ -340,10 +399,10 @@ PadRowDisplay::drawTickDataIcon (juce::Graphics &g,
         {
           auto const x = cx - p.second * r;
           auto const y = cy - p.first * r;
-          g.setColour (iconWhite);
+          g.setColour (outlineColour);
           g.fillEllipse (x - dotOutR, y - dotOutR,
                          dotOutR * 2.f, dotOutR * 2.f);
-          g.setColour (iconBlack);
+          g.setColour (iconColour);
           g.fillEllipse (x - dotR, y - dotR, dotR * 2.f, dotR * 2.f);
         }
     }
@@ -355,13 +414,13 @@ PadRowDisplay::drawTickDataIcon (juce::Graphics &g,
       auto transform = juce::AffineTransform (
            0.f, -r, cx,   // JUCE x = -HOA_y * r + cx
           -r,  0.f, cy);  // JUCE y = -HOA_x * r + cy
-      // White outline
-      g.setColour (iconWhite);
+      // Dark outline for readability
+      g.setColour (outlineColour);
       g.strokePath (cell.tickPath,
                     juce::PathStrokeType (outlineThickness),
                     transform);
-      // Black stroke on top
-      g.setColour (iconBlack);
+      // Channel colour stroke on top
+      g.setColour (iconColour);
       g.strokePath (cell.tickPath,
                     juce::PathStrokeType (strokeThickness),
                     transform);
@@ -371,22 +430,24 @@ PadRowDisplay::drawTickDataIcon (juce::Graphics &g,
 void
 PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
                                    juce::Rectangle<float> area,
-                                   TrajectoryType type)
+                                   TrajectoryType type,
+                                   int channel)
 {
   auto const cx = area.getCentreX ();
   auto const cy = area.getCentreY ();
   auto const r = area.getWidth () * 0.45f;
 
-  auto const iconWhite = juce::Colours::white.withAlpha (0.9f);
-  auto const iconBlack = juce::Colours::black;
+  auto const &cell = _cells[static_cast<size_t> (channel)];
+  auto const iconColour = cell.colour;
+  auto const outlineColour = juce::Colours::black.withAlpha (0.6f);
   auto const strokeThickness = 1.5f;
   auto const outlineThickness = strokeThickness + 2.0f;
 
   // Helper lambdas for outline+fill drawing pattern
   auto strokeOutlined = [&] (juce::Path const &path) {
-    g.setColour (iconWhite);
+    g.setColour (outlineColour);
     g.strokePath (path, juce::PathStrokeType (outlineThickness));
-    g.setColour (iconBlack);
+    g.setColour (iconColour);
     g.strokePath (path, juce::PathStrokeType (strokeThickness));
   };
 
@@ -398,9 +459,9 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
 
   auto dotOutlined = [&] (float dx, float dy, float dotR) {
     auto const dotOut = dotR + 1.0f;
-    g.setColour (iconWhite);
+    g.setColour (outlineColour);
     g.fillEllipse (dx - dotOut, dy - dotOut, dotOut * 2.f, dotOut * 2.f);
-    g.setColour (iconBlack);
+    g.setColour (iconColour);
     g.fillEllipse (dx - dotR, dy - dotR, dotR * 2.f, dotR * 2.f);
   };
 
@@ -720,6 +781,22 @@ PadRowDisplay::setLabel (int channel, juce::String label)
 {
   jassert (channel >= 0 && channel < numChannels);
   _cells[static_cast<size_t> (channel)].label = std::move (label);
+  repaint ();
+}
+
+void
+PadRowDisplay::setLengthBeats (int channel, int beats)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  _cells[static_cast<size_t> (channel)].lengthBeats = beats;
+  repaint ();
+}
+
+void
+PadRowDisplay::setCategoryPrefix (int channel, juce::String prefix)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  _cells[static_cast<size_t> (channel)].categoryPrefix = std::move (prefix);
   repaint ();
 }
 

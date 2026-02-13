@@ -21,6 +21,7 @@
 #include "PatternLibrary.hh"
 
 #include <a3-motion-engine/PatternFile.hh>
+#include <a3-motion-engine/tempo/TempoClock.hh>
 
 #include <algorithm>
 #include <iostream>
@@ -83,6 +84,7 @@ PatternLibrary::scanDirectory (juce::File const &dir, Category category)
       entry.svgPathData = pr.pathData;
       entry.jumpDots = pr.jumpDots;
       entry.hasJumpDots = !pr.jumpDots.empty ();
+      entry.lengthBeats = pr.lengthBeats;
 
       if (entry.name.empty ())
         {
@@ -106,7 +108,7 @@ PatternLibrary::Entry const &
 PatternLibrary::getEntry (int index) const
 {
   // Index 0 = empty (should not be called, but return a static empty entry)
-  static Entry emptyEntry{ "Empty", {}, Category::System, {} };
+  static Entry emptyEntry{ "Empty", {}, Category::System, {}, false, {}, {}, 0 };
   if (index <= 0 || static_cast<size_t> (index - 1) >= _entries.size ())
     return emptyEntry;
   return _entries[static_cast<size_t> (index - 1)];
@@ -160,29 +162,29 @@ PatternLibrary::saveUserPattern (std::shared_ptr<Pattern> const &pattern)
   if (name.empty ())
     name = "Recording";
 
-  // Generate unique filename: user_NNNN_<name>.svg
+  // Generate filename: <beats>_<name>.svg  e.g. 04_Rec_123456.svg
   auto userDir = getUserDir ();
   userDir.createDirectory ();
 
-  // Find next available number
-  int maxNum = 0;
-  auto existing = userDir.findChildFiles (juce::File::findFiles, false,
-                                          "*.svg");
-  for (auto const &f : existing)
-    {
-      auto fname = f.getFileNameWithoutExtension ();
-      // Parse leading number from "user_NNNN_name" or just "NNNN_name"
-      auto numStr = fname.upToFirstOccurrenceOf ("_", false, false);
-      auto num = numStr.getIntValue ();
-      if (num > maxNum)
-        maxNum = num;
-    }
+  auto const numTicks = pattern->getNumTicks ();
+  auto const lengthBeats
+      = static_cast<int> (numTicks) / TempoClock::getTicksPerBeat ();
 
-  auto nextNum = maxNum + 1;
   auto safeNameStr = juce::String (name)
                          .replaceCharacters (" /\\:*?\"<>|", "__________");
-  auto filename = juce::String::formatted ("%04d_", nextNum)
-                  + safeNameStr + ".svg";
+  auto basename = juce::String::formatted ("%02d_", lengthBeats)
+                  + safeNameStr;
+
+  // If a file with this name already exists, append _2, _3, ...
+  auto filename = basename + ".svg";
+  auto existing = userDir.findChildFiles (juce::File::findFiles, false,
+                                          "*.svg");
+  int suffix = 1;
+  while (userDir.getChildFile (filename).existsAsFile ())
+    {
+      ++suffix;
+      filename = basename + "_" + juce::String (suffix) + ".svg";
+    }
 
   auto file = userDir.getChildFile (filename);
 

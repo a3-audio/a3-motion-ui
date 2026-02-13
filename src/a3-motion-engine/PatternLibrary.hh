@@ -66,6 +66,7 @@ public:
     bool hasJumpDots{ false }; ///< true if pattern is a jump/dot pattern
     std::vector<std::pair<float,float>> jumpDots; ///< normalised dot positions
     std::vector<Pos> ticks;    ///< cached tick data for playback / fallback
+    int lengthBeats{ 0 };      ///< pattern length in beats (from SVG metadata)
   };
 
   /** Initialise with root directory containing system/ and user/ subdirs.

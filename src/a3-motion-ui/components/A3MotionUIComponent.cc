@@ -27,7 +27,6 @@
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternFile.hh>
-#include <a3-motion-engine/PatternGenerator.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
@@ -77,7 +76,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // across build configurations and survive rebuilds.
   auto patternsDir = juce::File ("/home/aaa/a3-motion/ui/pattern");
   _patternLibrary = std::make_unique<PatternLibrary> (patternsDir, *_heightMap);
-  generateSystemPatterns ();
 
   initializePatterns ();
 
@@ -425,66 +423,6 @@ A3MotionUIComponent::initializePatterns ()
             }
         }
     }
-}
-
-void
-A3MotionUIComponent::generateSystemPatterns ()
-{
-  auto systemDir = _patternLibrary->getSystemDir ();
-
-  // Only generate if the system directory is empty
-  auto existing = systemDir.findChildFiles (juce::File::findFiles, false,
-                                            "*.svg");
-  if (!existing.isEmpty ())
-    return;
-
-  std::cout << "Generating system pattern files..." << std::endl;
-
-  auto constexpr lengthBeats = 16;
-  auto constexpr radius = .8f;
-
-  struct PatternDef
-  {
-    int num;
-    std::string name;
-    std::function<std::shared_ptr<Pattern> ()> create;
-  };
-
-  // clang-format off
-  std::vector<PatternDef> defs = {
-    { 1,  "Circle",     [&] { return PatternGenerator::createCircle (lengthBeats, radius, 360.f, *_heightMap); }},
-    { 2,  "Figure 8",   [&] { return PatternGenerator::createFigureOfEight (lengthBeats, radius, *_heightMap); }},
-    { 3,  "Corner",     [&] { return PatternGenerator::createCornerStep (lengthBeats, radius, *_heightMap); }},
-    { 4,  "Spiral",     [&] { return PatternGenerator::createSpiral (lengthBeats, radius, *_heightMap); }},
-    { 5,  "Lissajous",  [&] { return PatternGenerator::createLissajous (lengthBeats, radius, *_heightMap); }},
-    { 6,  "Rose",       [&] { return PatternGenerator::createRose (lengthBeats, radius, *_heightMap); }},
-    { 7,  "Zigzag",     [&] { return PatternGenerator::createZigzag (lengthBeats, radius, *_heightMap); }},
-    { 8,  "Ellipse",    [&] { return PatternGenerator::createEllipse (lengthBeats, radius, *_heightMap); }},
-    { 9,  "Pendulum",   [&] { return PatternGenerator::createPendulum (lengthBeats, radius, *_heightMap); }},
-    { 10, "Triangle",   [&] { return PatternGenerator::createTriangle (lengthBeats, radius, *_heightMap); }},
-    { 11, "Square",     [&] { return PatternGenerator::createSquare (lengthBeats, radius, *_heightMap); }},
-    { 12, "Star",       [&] { return PatternGenerator::createStar (lengthBeats, radius, *_heightMap); }},
-    { 13, "Bounce",     [&] { return PatternGenerator::createBounce (lengthBeats, radius, *_heightMap); }},
-    { 14, "Helix",      [&] { return PatternGenerator::createHelix (lengthBeats, radius, *_heightMap); }},
-    { 15, "Orbit",      [&] { return PatternGenerator::createOrbit (lengthBeats, radius, *_heightMap); }},
-    { 16, "Cross",      [&] { return PatternGenerator::createCross (lengthBeats, radius, *_heightMap); }},
-    { 17, "Wave",       [&] { return PatternGenerator::createWave (lengthBeats, radius, *_heightMap); }},
-    { 18, "Hypo",       [&] { return PatternGenerator::createHypo (lengthBeats, radius, *_heightMap); }},
-  };
-  // clang-format on
-
-  for (auto const &def : defs)
-    {
-      auto p = def.create ();
-      auto filename = juce::String::formatted ("%02d_", def.num)
-                      + juce::String (def.name) + ".svg";
-      auto file = systemDir.getChildFile (filename);
-      PatternFile::save (p, file);
-      std::cout << "  saved " << file.getFullPathName () << std::endl;
-    }
-
-  // Re-scan library after generating
-  _patternLibrary->refresh ();
 }
 
 void
@@ -1287,6 +1225,13 @@ A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
               _padRowDisplays[row]->setTickData (
                   static_cast<int> (channel), entry.ticks);
             }
+          // Show pattern length in beats
+          _padRowDisplays[row]->setLengthBeats (
+              static_cast<int> (channel), entry.lengthBeats);
+          // Category prefix: "s" for system, "u" for user
+          _padRowDisplays[row]->setCategoryPrefix (
+              static_cast<int> (channel),
+              entry.category == PatternLibrary::Category::System ? "s" : "u");
         }
       else
         {
@@ -1295,6 +1240,16 @@ A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
           auto ticks = _patterns[channel][pad]->getTicks ();
           _padRowDisplays[row]->setTickData (static_cast<int> (channel),
                                              ticks.positions);
+          // Compute beats from tick count
+          auto numTicks = _patterns[channel][pad]->getNumTicks ();
+          auto ticksPerBeat = TempoClock::getTicksPerBeat ();
+          int beats = ticksPerBeat > 0
+                          ? static_cast<int> (numTicks / ticksPerBeat)
+                          : 0;
+          _padRowDisplays[row]->setLengthBeats (
+              static_cast<int> (channel), beats);
+          _padRowDisplays[row]->setCategoryPrefix (
+              static_cast<int> (channel), "u");
         }
     }
   else
@@ -1303,6 +1258,23 @@ A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
       _padRowDisplays[row]->setTickData (static_cast<int> (channel), {});
       _padRowDisplays[row]->setTrajectoryType (
           static_cast<int> (channel), PadRowDisplay::TrajectoryType::Empty);
+      _padRowDisplays[row]->setLengthBeats (
+          static_cast<int> (channel), 0);
+      // Use the category from the library slot (row+1) for the prefix,
+      // even when the current channel has no pattern loaded
+      auto const slotIndex = static_cast<int> (row) + 1;
+      if (slotIndex < _patternLibrary->getNumEntries ())
+        {
+          auto const &slotEntry = _patternLibrary->getEntry (slotIndex);
+          _padRowDisplays[row]->setCategoryPrefix (
+              static_cast<int> (channel),
+              slotEntry.category == PatternLibrary::Category::System ? "s" : "u");
+        }
+      else
+        {
+          _padRowDisplays[row]->setCategoryPrefix (
+              static_cast<int> (channel), "");
+        }
     }
 }
 
@@ -1373,7 +1345,7 @@ A3MotionUIComponent::saveRecordedPattern (
 
   // Name the recording with a timestamp
   auto now = juce::Time::getCurrentTime ();
-  auto name = "Rec " + now.formatted ("%H%M%S").toStdString ();
+  auto name = "Rec_" + now.formatted ("%H%M%S").toStdString ();
   pattern->setName (name);
 
   // Save to user directory
@@ -1382,10 +1354,15 @@ A3MotionUIComponent::saveRecordedPattern (
     {
       std::cout << "Recording saved as user pattern '" << name
                 << "' at library index " << newIndex << std::endl;
-    }
 
-  // Update the pad row display icon from the live tick data
-  updatePadRowLabel (channel, pad);
+      // Re-load from library so the pattern gets proper SVG display data
+      auto reloaded = _patternLibrary->loadPattern (newIndex);
+      if (reloaded)
+        {
+          reloaded->setChannel (channel);
+          _patterns[channel][pad] = reloaded;
+        }
+    }
 }
 
 void

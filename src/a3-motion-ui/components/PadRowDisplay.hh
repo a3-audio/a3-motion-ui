@@ -67,7 +67,14 @@ public:
     Orbit,
     Cross,
     Wave,
-    Hypo
+    Hypo,
+    Diamond,
+    Clover,
+    Infinity,
+    Petal,
+    Arc,
+    Heart,
+    Random
   };
 
   PadRowDisplay (int rowIndex);
@@ -94,6 +101,13 @@ public:
   /** Set the label text (fallback, shown only for Empty type). */
   void setLabel (int channel, juce::String label);
 
+  /** Set the pattern length in beats (shown as small text). */
+  void setLengthBeats (int channel, int beats);
+
+  /** Set the category prefix ("s" for system, "u" for user).
+   *  Shown as a small letter to the left of the icon. */
+  void setCategoryPrefix (int channel, juce::String prefix);
+
   /** Set whether this row is highlighted for a given channel
    *  (encoder is pointing at this row in row-select mode). */
   void setRowHighlighted (int channel, bool highlighted);
@@ -117,7 +131,7 @@ private:
   void paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
                   int channel);
   void drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
-                           TrajectoryType type);
+                           TrajectoryType type, int channel);
   void drawTickDataIcon (juce::Graphics &g, juce::Rectangle<float> area,
                          int channel);
 
@@ -134,6 +148,8 @@ private:
     bool hasTickData{ false }; ///< true if tickPath is valid
     bool hasJumpTicks{ false }; ///< true if pattern has invalid/jump ticks (draw dots instead)
     std::vector<std::pair<float, float>> jumpPoints; ///< normalised jump point positions
+    int lengthBeats{ 0 };  ///< pattern length in beats
+    juce::String categoryPrefix;  ///< "s" or "u" for system/user
   };
 
   std::array<CellState, numChannels> _cells;
