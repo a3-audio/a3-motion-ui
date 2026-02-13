@@ -53,6 +53,10 @@ public:
   Status getLastStatus () const;
   void restoreStatus ();
 
+  /** Returns true if this pattern has been in the Recording state
+   *  at any point during its lifetime. */
+  bool wasRecording () const;
+
   void setChannel (index_t channel);
   index_t getChannel () const;
 
@@ -87,6 +91,7 @@ private:
   static_assert (std::atomic<Status>::is_always_lock_free);
   std::atomic<Status> _status = Status::Empty;
   std::atomic<Status> _statusLast = Status::Empty;
+  std::atomic<bool> _wasRecording{ false };
 
   // for now patterns are fixed to a channel, this will probably
   // change later on.

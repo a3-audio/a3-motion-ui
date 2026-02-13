@@ -53,7 +53,8 @@ class Pattern;
 class A3MotionUIComponent : public juce::Component,
                             public juce::Value::Listener,
                             public juce::MessageListener,
-                            public juce::OSCReceiver::Listener<juce::OSCReceiver::MessageLoopCallback>
+                            public juce::OSCReceiver::Listener<juce::OSCReceiver::MessageLoopCallback>,
+                            private juce::Timer
 
 {
 public:
@@ -164,6 +165,11 @@ private:
   bool _clockMode = false;
   float _internalBPM = 0.f;  // saved INT tempo for restore after EXT mode
   
+  // Pattern directory monitoring
+  void timerCallback () override;
+  void refreshAllPadRowLabels ();
+  juce::int64 _lastLibraryFingerprint = 0;
+
   // Record button long-press detection
   juce::int64 _recordButtonPressTime = 0;
   bool _recordButtonLongPress = false;

@@ -104,6 +104,10 @@ public:
   juce::File getSystemDir () const { return _rootDir.getChildFile ("system"); }
   juce::File getUserDir () const { return _rootDir.getChildFile ("user"); }
 
+  /** Return a fingerprint (hash) of all SVG files in system/ and user/.
+   *  Changes whenever files are added, removed, or modified. */
+  juce::int64 getDirectoryFingerprint () const;
+
 private:
   void scanDirectory (juce::File const &dir, Category category);
 

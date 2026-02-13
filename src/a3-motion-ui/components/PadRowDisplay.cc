@@ -107,7 +107,7 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
       auto const prefixWidth = h * 0.45f;
       if (cell.categoryPrefix.isNotEmpty ())
         {
-          auto const fontSize = h * 0.30f;
+          auto const fontSize = h * 0.45f;
           g.setFont (fontSize);
           auto prefixArea = boundsF.removeFromLeft (prefixWidth)
                                 .withTrimmedLeft (2.f);
@@ -164,6 +164,12 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
       auto iconCentre = boundsF.getCentre ();
       auto iconArea = juce::Rectangle<float> (iconSize, iconSize)
                           .withCentre (iconCentre);
+
+      // Solid channel-colour frame around the icon
+      auto const frameThickness = 1.5f;
+      auto frameRect = iconArea.expanded (3.f);
+      g.setColour (colour);
+      g.drawRoundedRectangle (frameRect, 2.f, frameThickness);
 
       // Prefer tick data icon when available
       if (cell.hasTickData)

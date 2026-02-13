@@ -76,12 +76,16 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // across build configurations and survive rebuilds.
   auto patternsDir = juce::File ("/home/aaa/a3-motion/ui/pattern");
   _patternLibrary = std::make_unique<PatternLibrary> (patternsDir, *_heightMap);
+  _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
 
   initializePatterns ();
 
   createChannelsUI ();
   createMainUI ();
   createPadRowDisplays ();
+
+  // Start directory monitor: check for new/changed SVG files every 2 seconds
+  startTimer (2000);
 
   _engine.addPatternStatusListener (this);
   _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
@@ -158,6 +162,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
+  stopTimer ();
   _oscReceiverVU.removeListener (this);
   _oscReceiverVU.disconnect ();
   _oscReceiver.removeListener (this);
@@ -782,21 +787,28 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
         _motionComponent->unsetPreviewPattern (messagePatternStatus.pattern);
         _channelStrips[channel]->setTextColour (juce::Colours::white);
 
-        // If this was a recording that just finished, save as user pattern
-        if (messagePatternStatus.pattern->getLastStatus ()
-            == Pattern::Status::Recording)
+        // If this was a recording that just finished, save as user pattern.
+        // We use wasRecording() because the status chain is:
+        //   Recording → ScheduledForIdle → Idle
+        // so getLastStatus() returns ScheduledForIdle, not Recording.
+        if (messagePatternStatus.pattern->wasRecording ())
           {
             // Find which pad slot this pattern belongs to
+            bool found = false;
             for (size_t pad = 0; pad < _patterns[channel].size (); ++pad)
               {
                 if (_patterns[channel][pad] == messagePatternStatus.pattern)
                   {
+                    std::cout << "  -> found in pad slot " << pad << std::endl;
                     saveRecordedPattern (messagePatternStatus.pattern,
                                          channel,
                                          static_cast<index_t> (pad));
+                    found = true;
                     break;
                   }
               }
+            if (!found)
+              std::cout << "  -> pattern NOT found in any pad slot!" << std::endl;
           }
         break;
       }
@@ -1350,6 +1362,11 @@ A3MotionUIComponent::saveRecordedPattern (
 
   // Save to user directory
   auto newIndex = _patternLibrary->saveUserPattern (pattern);
+  std::cout << "saveRecordedPattern: channel=" << channel
+            << " pad=" << pad
+            << " ticks=" << pattern->getNumTicks ()
+            << " name=" << name
+            << " newIndex=" << newIndex << std::endl;
   if (newIndex > 0)
     {
       std::cout << "Recording saved as user pattern '" << name
@@ -1362,6 +1379,40 @@ A3MotionUIComponent::saveRecordedPattern (
           reloaded->setChannel (channel);
           _patterns[channel][pad] = reloaded;
         }
+
+      // Update fingerprint so the timer doesn't re-trigger for this save
+      _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
+
+      // Refresh the pad cell display to show the new recording
+      updatePadRowLabel (channel, pad);
+    }
+}
+
+void
+A3MotionUIComponent::refreshAllPadRowLabels ()
+{
+  auto const numChannels = _engine.getNumChannels ();
+  for (index_t ch = 0; ch < numChannels; ++ch)
+    {
+      for (index_t row = 0; row < numPadRows; ++row)
+        {
+          updatePadRowLabel (ch, row);
+        }
+    }
+}
+
+void
+A3MotionUIComponent::timerCallback ()
+{
+  // Periodically check if pattern directories have changed
+  auto fp = _patternLibrary->getDirectoryFingerprint ();
+  if (fp != _lastLibraryFingerprint)
+    {
+      _lastLibraryFingerprint = fp;
+      std::cout << "PatternLibrary: directory change detected, refreshing..."
+                << std::endl;
+      _patternLibrary->refresh ();
+      refreshAllPadRowLabels ();
     }
 }
 

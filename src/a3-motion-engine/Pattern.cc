@@ -44,6 +44,8 @@ void
 Pattern::setStatus (Status status)
 {
   _statusLast = _status.exchange (status);
+  if (status == Status::Recording)
+    _wasRecording = true;
 }
 
 Pattern::Status
@@ -56,6 +58,12 @@ Pattern::Status
 Pattern::getLastStatus () const
 {
   return _statusLast;
+}
+
+bool
+Pattern::wasRecording () const
+{
+  return _wasRecording;
 }
 
 void

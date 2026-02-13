@@ -203,6 +203,29 @@ PatternLibrary::saveUserPattern (std::shared_ptr<Pattern> const &pattern)
   return indexForName (name);
 }
 
+juce::int64
+PatternLibrary::getDirectoryFingerprint () const
+{
+  juce::int64 hash = 0;
+  auto hashDir = [&hash] (juce::File const &dir) {
+    if (!dir.isDirectory ())
+      return;
+    auto files = dir.findChildFiles (juce::File::findFiles, false, "*.svg");
+    for (auto const &f : files)
+      {
+        // Mix filename and modification time into hash
+        hash ^= f.getFileName ().hashCode64 ();
+        hash ^= f.getLastModificationTime ().toMilliseconds ();
+        hash = (hash << 7) | (static_cast<juce::uint64> (hash) >> 57); // rotate
+      }
+    // Also mix file count so deletions are detected
+    hash ^= static_cast<juce::int64> (files.size ()) * 2654435761LL;
+  };
+  hashDir (getSystemDir ());
+  hashDir (getUserDir ());
+  return hash;
+}
+
 int
 PatternLibrary::getNumSystemPatterns () const
 {
