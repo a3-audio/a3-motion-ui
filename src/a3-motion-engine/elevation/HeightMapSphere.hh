@@ -41,6 +41,11 @@ public:
    *  distance to colatitude: θ = (r / r_max) × θ_max. */
   Pos mapTo3D (Pos const &pos2D) const override;
 
+  /** Map 2D disc position onto sphere using an explicit coverage value.
+   *  Same as mapTo3D(pos2D) but uses the given coverage instead of
+   *  the internal stored value. Enables per-channel elevation. */
+  Pos mapTo3D (Pos const &pos2D, float coverage) const override;
+
   void setCoverage (float coverage) override;
   float getCoverage () const override;
 

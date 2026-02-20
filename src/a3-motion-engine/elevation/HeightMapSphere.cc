@@ -41,6 +41,12 @@ HeightMapSphere::computeHeight (Pos const &pos) const
 Pos
 HeightMapSphere::mapTo3D (Pos const &pos2D) const
 {
+  return mapTo3D (pos2D, _coverage.load (std::memory_order_relaxed));
+}
+
+Pos
+HeightMapSphere::mapTo3D (Pos const &pos2D, float coverage) const
+{
   auto const x = pos2D.x ();
   auto const y = pos2D.y ();
   auto const r = std::sqrt (x * x + y * y);
@@ -49,22 +55,15 @@ HeightMapSphere::mapTo3D (Pos const &pos2D) const
   if (r < 1e-6f)
     return Pos::fromCartesian (0.f, 0.f, 1.f); // north pole
 
-  auto const cov = _coverage.load (std::memory_order_relaxed);
-
-  // θ_max = coverage × π
-  // coverage 0.5 → π/2 (hemisphere, equator at rim)
-  // coverage 1.0 → π   (full sphere, south pole at rim)
-  // coverage 0.33 → ~60° (top third)
-  auto const thetaMax = cov * pi<float> ();
-
-  // Map radial distance to colatitude.
-  // r ∈ [0,1] → θ ∈ [0, θ_max]  (within the sphere disc)
-  // r > 1.0 → θ extends past θ_max, wrapping the ball onto the back
-  // of the sphere (underside).  Capped at π (south pole).
-  auto const theta = std::min (r * thetaMax, pi<float> ());
+  auto const cov = std::clamp (coverage, 0.05f, 1.0f);
 
   // Azimuth angle preserved from 2D position
   auto const phi = std::atan2 (y, x);
+
+  // Linear mapping r ∈ [0,1] → θ ∈ [0, θ_max]
+  // coverage 0.5 → π/2 (hemisphere), 1.0 → π (full sphere)
+  auto const thetaMax = cov * pi<float> ();
+  auto const theta = std::min (r * thetaMax, pi<float> ());
 
   // Spherical to Cartesian (unit sphere)
   auto const sinTheta = std::sin (theta);

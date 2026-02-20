@@ -63,9 +63,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
-  // Initialize encoder state — start on Elevation row (top)
+  // Initialize encoder state — start on LoopLength row (top)
   _encoderLevel.fill (EncoderLevel::RowSelect);
-  _encoderSelectedRow.fill (elevationRowIndex);
+  _encoderSelectedRow.fill (loopLengthRowIndex);
 
   if (runsOnHardware ())
     {
@@ -357,9 +357,12 @@ A3MotionUIComponent::createMainUI ()
   _elevationDisplay = std::make_unique<ElevationDisplay> ();
   addChildComponent (*_elevationDisplay);
   _elevationDisplay->setVisible (true);
-  _elevationDisplay->setCoverage (_engine.getElevationCoverage ());
   for (auto ch = 0u; ch < _channelUIStates.size () && ch < ElevationDisplay::numChannels; ++ch)
-    _elevationDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
+    {
+      _elevationDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
+      _elevationDisplay->setCoverage (static_cast<int> (ch),
+                                      _engine.getChannelCoverage (ch));
+    }
 }
 
 constexpr bool
@@ -475,17 +478,17 @@ A3MotionUIComponent::resized ()
   auto boundsStatus = bounds.removeFromTop (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
-  // Elevation display below status bar
-  auto constexpr elevationDisplayHeight = ElevationDisplay::getMinimumHeight ();
-  auto boundsElevation = bounds.removeFromTop (elevationDisplayHeight);
-  _elevationDisplay->setBounds (boundsElevation);
-
-  // Loop length display below elevation
+  // Loop length display below status bar
   auto constexpr loopLengthDisplayHeight = LoopLengthDisplay::getMinimumHeight ();
   auto boundsLoopLength = bounds.removeFromTop (loopLengthDisplayHeight);
   _loopLengthDisplay->setBounds (boundsLoopLength);
 
-  // Pad row displays below loop length display
+  // Elevation display below loop length
+  auto constexpr elevationDisplayHeight = ElevationDisplay::getMinimumHeight ();
+  auto boundsElevation = bounds.removeFromTop (elevationDisplayHeight);
+  _elevationDisplay->setBounds (boundsElevation);
+
+  // Pad row displays below elevation display
   for (auto &padRow : _padRowDisplays)
     {
       auto constexpr padRowHeight = PadRowDisplay::getMinimumHeight ();
@@ -1086,10 +1089,10 @@ A3MotionUIComponent::createPadRowDisplays ()
         }
     }
 
-  // Set initial row highlight on Elevation row
+  // Set initial row highlight on LoopLength row
   for (auto ch = 0u; ch < _engine.getNumChannels (); ++ch)
     {
-      _elevationDisplay->setRowHighlighted (static_cast<int> (ch), true);
+      _loopLengthDisplay->setRowHighlighted (static_cast<int> (ch), true);
     }
 }
 
@@ -1098,10 +1101,10 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
 {
   if (_encoderLevel[channel] == EncoderLevel::RowSelect)
     {
-      // Navigate between Elevation (-2), LoopLength (-1), pad rows (0..3)
+      // Navigate between LoopLength (-2), Elevation (-1), pad rows (0..3)
       auto oldRow = _encoderSelectedRow[channel];
       auto newRow = oldRow + increment;
-      newRow = std::clamp (newRow, elevationRowIndex,
+      newRow = std::clamp (newRow, loopLengthRowIndex,
                            static_cast<int> (numPadRows) - 1);
 
       if (newRow != oldRow)
@@ -1117,6 +1120,22 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
             _padRowDisplays[static_cast<size_t> (oldRow)]
                 ->setRowHighlighted (static_cast<int> (channel), false);
 
+          // Remove trajectory preview from old row
+          if (oldRow == elevationRowIndex)
+            {
+              auto playing = _engine.getPlayingPattern (channel);
+              if (playing)
+                _motionComponent->unsetPreviewPattern (playing);
+            }
+          else if (oldRow >= 0
+                   && static_cast<size_t> (oldRow) < _padRowDisplays.size ())
+            {
+              auto padIdx = static_cast<index_t> (oldRow);
+              if (_patterns[channel][padIdx])
+                _motionComponent->unsetPreviewPattern (
+                    _patterns[channel][padIdx]);
+            }
+
           // Set new highlight
           if (newRow == loopLengthRowIndex)
             _loopLengthDisplay->setRowHighlighted (
@@ -1127,6 +1146,21 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
           else if (static_cast<size_t> (newRow) < _padRowDisplays.size ())
             _padRowDisplays[static_cast<size_t> (newRow)]
                 ->setRowHighlighted (static_cast<int> (channel), true);
+
+          // Show trajectory preview for new row
+          if (newRow == elevationRowIndex)
+            {
+              auto playing = _engine.getPlayingPattern (channel);
+              if (playing)
+                setPreviewWithDisplayData (playing);
+            }
+          else if (newRow >= 0
+                   && static_cast<size_t> (newRow) < _padRowDisplays.size ())
+            {
+              auto padIdx = static_cast<index_t> (newRow);
+              if (_patterns[channel][padIdx])
+                setPreviewWithDisplayData (_patterns[channel][padIdx]);
+            }
 
           _encoderSelectedRow[channel] = newRow;
         }
@@ -1142,10 +1176,10 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
           return;
         }
 
-      // Elevation row: encoder adjusts elevation coverage
+      // Elevation row: encoder adjusts elevation coverage for this channel
       if (row == elevationRowIndex)
         {
-          handleElevationIncrement (increment);
+          handleElevationIncrement (channel, increment);
           return;
         }
 
@@ -1243,6 +1277,11 @@ A3MotionUIComponent::handleEncoderPress (index_t channel)
         {
           _elevationDisplay->setCellSelected (
               static_cast<int> (channel), true);
+          // Show trajectory preview for this channel's playing pattern
+          // so the user can see how elevation coverage changes affect its path.
+          auto playing = _engine.getPlayingPattern (channel);
+          if (playing)
+            setPreviewWithDisplayData (playing);
         }
       else if (static_cast<size_t> (row) < _padRowDisplays.size ())
         {
@@ -1265,6 +1304,10 @@ A3MotionUIComponent::handleEncoderPress (index_t channel)
         {
           _elevationDisplay->setCellSelected (
               static_cast<int> (channel), false);
+          // Remove trajectory preview for this channel shown during elevation editing
+          auto playing = _engine.getPlayingPattern (channel);
+          if (playing)
+            _motionComponent->unsetPreviewPattern (playing);
         }
       else if (static_cast<size_t> (row) < _padRowDisplays.size ())
         {
@@ -1276,25 +1319,22 @@ A3MotionUIComponent::handleEncoderPress (index_t channel)
 }
 
 void
-A3MotionUIComponent::handleElevationIncrement (int increment)
+A3MotionUIComponent::handleElevationIncrement (index_t channel, int increment)
 {
   // Discrete coverage steps: 5%
   static constexpr float step = 0.05f;
-  auto coverage = _engine.getElevationCoverage ();
+  auto coverage = _engine.getChannelCoverage (channel);
   coverage += static_cast<float> (increment) * step;
   coverage = std::clamp (coverage, 0.05f, 1.0f);
 
-  _engine.setElevationCoverage (coverage);
-  _elevationDisplay->setCoverage (coverage);
+  _engine.setChannelCoverage (channel, coverage);
+  _elevationDisplay->setCoverage (static_cast<int> (channel), coverage);
 
-  // Show all currently playing trajectories so the user can see how
-  // the coverage change affects the pattern shapes on the sphere.
-  for (auto ch = 0u; ch < _engine.getNumChannels (); ++ch)
-    {
-      auto playing = _engine.getPlayingPattern (ch);
-      if (playing)
-        setPreviewWithDisplayData (playing);
-    }
+  // Show this channel's playing trajectory so the user can see how
+  // the coverage change affects the pattern shape on the sphere.
+  auto playing = _engine.getPlayingPattern (channel);
+  if (playing)
+    setPreviewWithDisplayData (playing);
 }
 
 void

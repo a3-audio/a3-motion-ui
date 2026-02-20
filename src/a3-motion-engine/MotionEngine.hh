@@ -88,6 +88,11 @@ public:
 
   // Elevation coverage: controls how far around the sphere patterns wrap
   // 0.5 = hemisphere (default), 1.0 = full sphere, 0.33 = top third
+  // Per-channel: each channel has its own coverage value.
+  void setChannelCoverage (index_t channel, float coverage);
+  float getChannelCoverage (index_t channel) const;
+
+  // Convenience: set/get elevation coverage for ALL channels at once
   void setElevationCoverage (float coverage);
   float getElevationCoverage () const;
 
@@ -229,6 +234,10 @@ private:
 
   // Per-channel preview mode: when true, suppress OSC output
   std::vector<std::atomic<bool>> _previewMode;
+
+  // Per-channel elevation coverage: each channel wraps its patterns
+  // independently around the sphere (default 0.5 = hemisphere)
+  std::vector<std::atomic<float>> _channelCoverage;
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);

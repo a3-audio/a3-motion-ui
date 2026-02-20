@@ -48,9 +48,9 @@ public:
   void resized () override;
   void paint (juce::Graphics &g) override;
 
-  /** Set the elevation coverage (0.0 – 1.0). */
-  void setCoverage (float coverage);
-  float getCoverage () const;
+  /** Set the elevation coverage for a specific channel (0.0 – 1.0). */
+  void setCoverage (int channel, float coverage);
+  float getCoverage (int channel) const;
 
   /** Set the display colour for a channel. */
   void setChannelColour (int channel, juce::Colour colour);
@@ -71,13 +71,12 @@ private:
   void paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
                   int channel);
 
-  float _coverage = 0.5f;  // 0.5 = hemisphere (default)
-
   struct CellState
   {
     bool rowHighlighted{ false };
     bool cellSelected{ false };
     juce::Colour colour{ juce::Colours::white };
+    float coverage{ 0.5f };  // per-channel coverage (0.5 = hemisphere)
   };
 
   std::array<CellState, numChannels> _cells;

@@ -137,15 +137,15 @@ private:
   std::vector<std::unique_ptr<PadRowDisplay> > _padRowDisplays;
 
   // Encoder navigation state
-  // Row indices: -2 = Elevation, -1 = LoopLength, 0..3 = PadRows
-  static auto constexpr elevationRowIndex = -2;
-  static auto constexpr loopLengthRowIndex = -1;
+  // Row indices: -2 = LoopLength, -1 = Elevation, 0..3 = PadRows
+  static auto constexpr loopLengthRowIndex = -2;
+  static auto constexpr elevationRowIndex = -1;
   enum class EncoderLevel { RowSelect, OptionEdit };
   std::array<EncoderLevel, 4> _encoderLevel;
   std::array<int, 4> _encoderSelectedRow;
   void handleEncoderIncrement (index_t channel, int increment);
   void handleEncoderPress (index_t channel);
-  void handleElevationIncrement (int increment);
+  void handleElevationIncrement (index_t channel, int increment);
   void updatePadRowLabel (index_t channel, index_t pad);
   void showTrajectoryPreview (index_t channel, index_t pad);
   void clearTrajectoryPreview (index_t channel);

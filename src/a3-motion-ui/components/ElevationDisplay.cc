@@ -67,18 +67,18 @@ ElevationDisplay::paintCell (juce::Graphics &g,
   g.drawVerticalLine (bounds.getRight () - 1, static_cast<float> (bounds.getY ()),
                       static_cast<float> (bounds.getBottom ()));
 
-  // Content: label "ELV" and coverage value
+  // Content: "ELV" and coverage value
   auto boundsF = bounds.toFloat ().reduced (2.f);
   auto const font = juce::Font (h * 0.55f);
   g.setFont (font);
 
-  // Label on the left
+  // Label
   g.setColour (cell.colour.withAlpha (0.6f));
   g.drawText ("ELV", boundsF.removeFromLeft (boundsF.getWidth () * 0.4f),
               juce::Justification::centredLeft, false);
 
-  // Coverage value as percentage
-  auto const coveragePercent = static_cast<int> (std::round (_coverage * 100.f));
+  // Coverage value as percentage (per-channel)
+  auto const coveragePercent = static_cast<int> (std::round (cell.coverage * 100.f));
   auto valueStr = juce::String (coveragePercent) + "%";
   g.setColour (cell.colour);
   g.drawText (valueStr, boundsF, juce::Justification::centredRight, false);
@@ -96,9 +96,9 @@ ElevationDisplay::paintCell (juce::Graphics &g,
                  iconR * 2.f, iconR * 2.f, 1.f);
 
   // Fill arc to show coverage (from top)
-  if (_coverage > 0.01f)
+  if (cell.coverage > 0.01f)
     {
-      auto coverageAngle = _coverage * juce::MathConstants<float>::pi;
+      auto coverageAngle = cell.coverage * juce::MathConstants<float>::pi;
       auto arcPath = juce::Path ();
       // Arc from top, sweeping down by coverage angle
       arcPath.addCentredArc (iconX, iconY, iconR, iconR,
@@ -113,16 +113,22 @@ ElevationDisplay::paintCell (juce::Graphics &g,
 }
 
 void
-ElevationDisplay::setCoverage (float coverage)
+ElevationDisplay::setCoverage (int channel, float coverage)
 {
-  _coverage = std::clamp (coverage, 0.05f, 1.0f);
-  repaint ();
+  if (channel >= 0 && channel < numChannels)
+    {
+      _cells[static_cast<size_t> (channel)].coverage
+          = std::clamp (coverage, 0.05f, 1.0f);
+      repaint ();
+    }
 }
 
 float
-ElevationDisplay::getCoverage () const
+ElevationDisplay::getCoverage (int channel) const
 {
-  return _coverage;
+  if (channel >= 0 && channel < numChannels)
+    return _cells[static_cast<size_t> (channel)].coverage;
+  return 0.5f;
 }
 
 void

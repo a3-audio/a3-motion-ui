@@ -34,11 +34,20 @@ public:
 
   /** Map a 2D position (x,y) onto the 3D sphere/surface.
    *  Default implementation preserves x,y and sets z = computeHeight().
-   *  Subclasses can override for full spherical wrapping. */
+   *  Subclasses can override for full spherical wrapping.
+   *  Uses the stored (global) coverage value. */
   virtual Pos mapTo3D (Pos const &pos2D) const
   {
     return Pos::fromCartesian (
         pos2D.x (), pos2D.y (), computeHeight (pos2D));
+  }
+
+  /** Map a 2D position onto 3D using an explicit coverage value.
+   *  This allows per-channel elevation without changing internal state. */
+  virtual Pos mapTo3D (Pos const &pos2D, float coverage) const
+  {
+    (void) coverage;
+    return mapTo3D (pos2D);
   }
 
   /** Set the coverage parameter (0.0 – 1.0).
