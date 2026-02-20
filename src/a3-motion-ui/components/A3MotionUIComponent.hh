@@ -183,8 +183,14 @@ private:
   static constexpr juce::int64 longPressThresholdMs = 300;
 
   // Preview-and-fire: per-channel tracking of held pad for preview mode
-  // -1 means no preview active on that channel
+  // -1 means no preview active on that channel.
+  // Short press (<longPressThresholdMs) = fire immediately.
+  // Long press (>=longPressThresholdMs):
+  //   - pad released without encoder change → fire (start pattern)
+  //   - encoder changed pattern, then encoder-press exits → save & stop
   std::vector<int> _previewHeldPad;
+  std::vector<juce::int64> _padPressTime;  // timestamp per channel
+  std::vector<bool> _padPatternChanged;    // encoder changed pattern while pad held
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };

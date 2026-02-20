@@ -225,6 +225,8 @@ A3MotionUIComponent::createChannelsUI ()
 
   _lengthsBarLog2 = std::vector<int> (numChannels, 0);
   _previewHeldPad = std::vector<int> (numChannels, -1);
+  _padPressTime = std::vector<juce::int64> (numChannels, 0);
+  _padPatternChanged = std::vector<bool> (numChannels, false);
 }
 
 void
@@ -673,11 +675,14 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                       // Pad released
                       if (_previewHeldPad[channel] == static_cast<int> (pad))
                         {
-                          // Preview-and-fire: disable preview mode so OSC
-                          // fires immediately with the current position.
-                          // Pattern keeps playing.
+                          // Disable preview → OSC fires from current position.
+                          // Pattern keeps playing (both short and long press).
+                          // If user changed pattern via encoder and then
+                          // exits with encoder-press, that path handles
+                          // save & stop separately.
                           _engine.setPreviewMode (channel, false);
                           _previewHeldPad[channel] = -1;
+                          _padPatternChanged[channel] = false;
 
                           if (_patterns[channel][pad])
                             {
@@ -752,9 +757,11 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
                 std::max (1.f, getLengthBeats (channel))), 0 };
             _patterns[channel][pad]->setPlaybackLength (playbackLength);
 
-            // Preview-and-fire: start playback immediately in preview
-            // mode (no OSC). On pad release, preview mode is disabled
-            // and OSC fires from the current ball position.
+            // Start playback in preview mode (no OSC output yet).
+            // On pad release the hold time decides:
+            //   short press → preview off, pattern keeps playing (fire)
+            //   long press  → preview off, pattern stops (preview only)
+            _padPressTime[channel] = juce::Time::currentTimeMillis ();
             _engine.setPreviewMode (channel, true);
             _previewHeldPad[channel] = static_cast<int> (pad);
             _engine.playPattern (_patterns[channel][pad], _now);
@@ -1253,6 +1260,10 @@ A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
             }
         }
 
+      // Mark that the pattern was changed while pad is held
+      if (_previewHeldPad[channel] == static_cast<int> (padIndex))
+        _padPatternChanged[channel] = true;
+
       updatePadRowLabel (channel, padIndex);
       showTrajectoryPreview (channel, padIndex);
     }
@@ -1313,6 +1324,26 @@ A3MotionUIComponent::handleEncoderPress (index_t channel)
         {
           _padRowDisplays[static_cast<size_t> (row)]
               ->setCellSelected (static_cast<int> (channel), false);
+
+          auto const padIndex = static_cast<index_t> (row);
+          // If the pattern was changed via encoder while pad was held,
+          // save the new pattern in the pad slot and stop playback.
+          if (_padPatternChanged[channel]
+              && _previewHeldPad[channel] == static_cast<int> (padIndex))
+            {
+              _engine.setPreviewMode (channel, false);
+              _previewHeldPad[channel] = -1;
+              _padPatternChanged[channel] = false;
+
+              if (_patterns[channel][padIndex])
+                {
+                  _engine.stopPattern (
+                      _patterns[channel][padIndex], _now);
+                  _motionComponent->unsetPreviewPattern (
+                      _patterns[channel][padIndex]);
+                }
+            }
+
           clearTrajectoryPreview (channel);
         }
     }
