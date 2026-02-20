@@ -192,6 +192,13 @@ LoopLengthDisplay::paintChannel (juce::Graphics &g,
   g.setColour (colour);
   g.fillRect (playheadX - 1.f, drawTop, 2.f, drawHeight);
 
+  // White border when row is highlighted (hovered by encoder)
+  if (isHighlighted)
+    {
+      g.setColour (juce::Colours::white.withAlpha (0.8f));
+      g.drawRect (bounds, 2);
+    }
+
   // Thin baseline
   g.setColour (colour.withAlpha (0.1f));
   g.drawHorizontalLine (static_cast<int> (drawBottom), leftX, rightX);

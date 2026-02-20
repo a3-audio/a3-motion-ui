@@ -36,6 +36,11 @@ void
 ElevationDisplay::paint (juce::Graphics &g)
 {
   auto bounds = getLocalBounds ();
+
+  // Grey background matching the StatusBar (same base as PadRowDisplay)
+  g.setColour (Colours::statusBar);
+  g.fillRect (bounds);
+
   auto const cellWidth = bounds.getWidth () / numChannels;
 
   for (int ch = 0; ch < numChannels; ++ch)
@@ -52,46 +57,68 @@ ElevationDisplay::paintCell (juce::Graphics &g,
 {
   auto const &cell = _cells[static_cast<size_t> (channel)];
   auto const h = static_cast<float> (bounds.getHeight ());
+  auto const colour = cell.colour;
 
-  // Background
-  if (cell.cellSelected)
-    g.setColour (cell.colour.withAlpha (0.3f));
-  else if (cell.rowHighlighted)
-    g.setColour (juce::Colour (0xff3a3f47));
-  else
-    g.setColour (juce::Colour (0xff292f36));
+  // Background: channel colour, intensity depends on state (like PadRowDisplay)
+  auto bgAlpha = cell.cellSelected ? 0.85f
+                 : cell.rowHighlighted ? 0.55f
+                                       : 0.25f;
+  g.setColour (colour.withAlpha (bgAlpha));
   g.fillRect (bounds);
 
   // Border between cells
-  g.setColour (juce::Colour (0xff1a1d22));
+  g.setColour (juce::Colours::black.withAlpha (0.15f));
   g.drawVerticalLine (bounds.getRight () - 1, static_cast<float> (bounds.getY ()),
                       static_cast<float> (bounds.getBottom ()));
 
   // Content: "ELV" and coverage value
+  // Use dark outline + channel colour text for readability on coloured bg
   auto boundsF = bounds.toFloat ().reduced (2.f);
   auto const font = juce::Font (h * 0.55f);
   g.setFont (font);
 
-  // Label
-  g.setColour (cell.colour.withAlpha (0.6f));
-  g.drawText ("ELV", boundsF.removeFromLeft (boundsF.getWidth () * 0.4f),
-              juce::Justification::centredLeft, false);
+  auto const outlineColour = juce::Colours::black.withAlpha (0.5f);
+
+  // Label "ELV"
+  auto labelArea = boundsF.removeFromLeft (boundsF.getWidth () * 0.4f);
+  for (int dx = -1; dx <= 1; ++dx)
+    for (int dy = -1; dy <= 1; ++dy)
+      if (dx != 0 || dy != 0)
+        {
+          g.setColour (outlineColour);
+          g.drawText ("ELV", labelArea.translated (
+                          static_cast<float> (dx), static_cast<float> (dy)),
+                      juce::Justification::centredLeft, false);
+        }
+  g.setColour (colour.brighter (0.2f));
+  g.drawText ("ELV", labelArea, juce::Justification::centredLeft, false);
 
   // Coverage value as percentage (per-channel)
   auto const coveragePercent = static_cast<int> (std::round (cell.coverage * 100.f));
   auto valueStr = juce::String (coveragePercent) + "%";
-  g.setColour (cell.colour);
+  for (int dx = -1; dx <= 1; ++dx)
+    for (int dy = -1; dy <= 1; ++dy)
+      if (dx != 0 || dy != 0)
+        {
+          g.setColour (outlineColour);
+          g.drawText (valueStr, boundsF.translated (
+                          static_cast<float> (dx), static_cast<float> (dy)),
+                      juce::Justification::centredRight, false);
+        }
+  g.setColour (colour.brighter (0.3f));
   g.drawText (valueStr, boundsF, juce::Justification::centredRight, false);
 
   // Draw a mini sphere icon showing coverage (small arc)
-  // The arc fills from top to bottom proportional to coverage
   auto iconArea = bounds.toFloat ().reduced (2.f);
   auto iconX = iconArea.getCentreX ();
   auto iconY = iconArea.getCentreY ();
   auto iconR = h * 0.25f;
 
   // Draw sphere outline
-  g.setColour (cell.colour.withAlpha (0.3f));
+  g.setColour (outlineColour);
+  g.drawEllipse (iconX - iconR - 0.5f, iconY - iconR - 0.5f,
+                 iconR * 2.f + 1.f, iconR * 2.f + 1.f, 2.f);
+  g.setColour (colour.withAlpha (0.5f));
   g.drawEllipse (iconX - iconR, iconY - iconR,
                  iconR * 2.f, iconR * 2.f, 1.f);
 
@@ -100,15 +127,21 @@ ElevationDisplay::paintCell (juce::Graphics &g,
     {
       auto coverageAngle = cell.coverage * juce::MathConstants<float>::pi;
       auto arcPath = juce::Path ();
-      // Arc from top, sweeping down by coverage angle
       arcPath.addCentredArc (iconX, iconY, iconR, iconR,
                              0.f,
                              -coverageAngle, coverageAngle,
                              true);
       arcPath.lineTo (iconX, iconY);
       arcPath.closeSubPath ();
-      g.setColour (cell.colour.withAlpha (0.4f));
+      g.setColour (colour.withAlpha (0.4f));
       g.fillPath (arcPath);
+    }
+
+  // White border when row is highlighted (hovered by encoder)
+  if (cell.rowHighlighted)
+    {
+      g.setColour (juce::Colours::white.withAlpha (0.8f));
+      g.drawRect (bounds, 2);
     }
 }
 

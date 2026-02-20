@@ -172,6 +172,13 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
         drawTrajectoryIcon (g, iconArea, cell.trajectoryType, channel);
     }
 
+  // White border when row is highlighted (hovered by encoder)
+  if (cell.rowHighlighted)
+    {
+      g.setColour (juce::Colours::white.withAlpha (0.8f));
+      g.drawRect (bounds, 2);
+    }
+
   // Thin baseline
   g.setColour (juce::Colours::black.withAlpha (0.15f));
   g.drawHorizontalLine (bounds.getBottom () - 1,
