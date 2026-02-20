@@ -1032,115 +1032,24 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
     }
 }
 
-// ── Helper: subdivide a 2D tick segment through the sphere ──
-// Interpolates between two 2D tick positions, projecting each
-// sub-sample through mapTo3D so that the resulting polyline
-// follows the sphere surface curvature.
+// ── Draw a juce::Path (from SVG displayPath) projected onto the sphere ──
+// Flattens the Bézier path into line segments, projects each point
+// through mapTo3D, and draws with depth-band batching.
+// Between consecutive flattened points that are far apart in 2D,
+// intermediate sub-samples are inserted so the line hugs the sphere.
 static void
-subdivideThroughSphere (
-    Pos const &a2D, Pos const &b2D,
-    float coverage,
-    HeightMap const &heightMap,
-    std::vector<std::pair<juce::Point<float>, float>> &out)
+drawPathOnSphere (juce::Path const &displayPath,
+                  float lineThickness,
+                  float alpha,
+                  juce::Colour colour,
+                  float coverage,
+                  HeightMap const &heightMap,
+                  juce::Graphics &g)
 {
-  // Determine how many sub-steps we need.  The required density
-  // grows with both the 2D distance between points and the
-  // coverage factor (which controls how much the sphere wraps).
-  float dx = b2D.x () - a2D.x ();
-  float dy = b2D.y () - a2D.y ();
-  float dist2D = std::sqrt (dx * dx + dy * dy);
-
-  // At coverage ≈ 0 no curvature → 1 step suffices.
-  // At coverage = 1.0 a distance of 1.0 needs ~16 sub-steps.
-  int nSteps = std::max (
-      1, static_cast<int> (std::ceil (dist2D * coverage * 16.f)));
-  // clamp to avoid excessive work for huge jumps
-  nSteps = std::min (nSteps, 32);
-
-  float invN = 1.f / static_cast<float> (nSteps);
-  for (int s = 1; s <= nSteps; ++s)
-    {
-      float t = static_cast<float> (s) * invN;
-      auto mid = Pos::fromCartesian (
-          a2D.x () + dx * t,
-          a2D.y () + dy * t,
-          0.f);
-      auto pos3D = heightMap.mapTo3D (mid, coverage);
-      out.push_back ({ cartesian2DHOA2JUCE (pos3D), pos3D.z () });
-    }
-}
-
-void
-MotionComponent::drawPatternPreview (Pattern const &pattern,
-                                    PatternDisplayData const &displayData,
-                                    juce::Graphics &g)
-{
-  auto constexpr lineThickness = 0.04f;
-
-  auto const ch = pattern.getChannel ();
-  auto colour = _uiStates[ch]->colour;
-  auto const chCoverage = _engine.getChannelCoverage (ch);
-  g.setColour (colour.withAlpha (0.6f));
-
-  // ── Handle jump-dot patterns ──
-  if (!displayData.jumpDots.empty ())
-    {
-      auto const &heightMap = _engine.getHeightMap ();
-      auto constexpr dotSize = lineThickness * 3.f;
-      for (auto const &dot : displayData.jumpDots)
-        {
-          auto pos3D = heightMap.mapTo3D (
-              Pos::fromCartesian (dot.first, dot.second, 0.f), chCoverage);
-          auto posJuce = cartesian2DHOA2JUCE (pos3D);
-          float fade = (pos3D.z () < 0.f)
-              ? 0.3f + 0.7f * std::clamp (pos3D.z () + 1.f, 0.f, 1.f)
-              : 1.0f;
-          float ds = dotSize * (0.5f + 0.5f * fade);
-          g.setColour (colour.withAlpha (0.6f * fade));
-          auto ellipse = juce::Rectangle<float> (ds, ds)
-                             .withCentre (posJuce);
-          g.fillEllipse (ellipse);
-        }
-
-      return;
-    }
-
-  // ── Draw from tick data ──
-  // Uses the same tick positions that the playback engine uses.
-  // Between consecutive ticks we subdivide in 2D and project each
-  // sub-sample through mapTo3D so the displayed line follows the
-  // sphere surface curvature (important at higher coverage/elevation).
-  auto const &heightMap = _engine.getHeightMap ();
-  auto ticks = pattern.getTicks ();
-
-  if (ticks.positions.empty ())
+  if (displayPath.isEmpty ())
     return;
 
-  // First pass: collect ordered 2D tick positions into segments,
-  // splitting at invalid ticks.
-  std::vector<std::vector<Pos>> tickSegments;
-  tickSegments.emplace_back ();
-
-  auto const numTicks = ticks.positions.size ();
-  for (std::size_t offset = 0; offset < numTicks; ++offset)
-    {
-      auto const idx = (ticks.lastUpdatedTick + 1 + offset) % numTicks;
-      auto const &tick = ticks.positions[idx];
-
-      if (tick.isValid ())
-        {
-          tickSegments.back ().push_back (tick);
-        }
-      else
-        {
-          if (!tickSegments.back ().empty ())
-            tickSegments.emplace_back ();
-        }
-    }
-
-  // Second pass: for each segment, subdivide through the sphere
-  // to get densely sampled projected points.
-
+  // Depth-band helpers
   auto depthBand = [] (float z) -> int {
     if (z < -0.5f) return 0;
     if (z < 0.f)   return 1;
@@ -1161,60 +1070,123 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
     auto stroke = juce::PathStrokeType (
         thickness, juce::PathStrokeType::JointStyle::curved,
         juce::PathStrokeType::EndCapStyle::rounded);
-    g.setColour (colour.withAlpha (0.6f * fade));
+    g.setColour (colour.withAlpha (alpha * fade));
     g.strokePath (path, stroke);
   };
 
-  for (auto const &seg2D : tickSegments)
+  // Project a 2D HOA point onto the sphere and return screen pos + z.
+  auto projectPoint = [&] (float x, float y)
+      -> std::pair<juce::Point<float>, float> {
+    auto pos3D = heightMap.mapTo3D (
+        Pos::fromCartesian (x, y, 0.f), coverage);
+    return { cartesian2DHOA2JUCE (pos3D), pos3D.z () };
+  };
+
+  // Maximum 2D step size before we insert intermediate samples.
+  // Smaller = more sub-samples = smoother on the sphere.
+  float const maxStep = (coverage > 0.1f) ? 0.03f : 0.06f;
+
+  // Collect all projected points (with sub-sampling for long segments).
+  std::vector<std::pair<juce::Point<float>, float>> projected;
+  projected.reserve (512);
+
+  juce::PathFlatteningIterator iter (displayPath, {}, 0.005f);
+
+  bool firstPoint = true;
+  float prevX = 0.f, prevY = 0.f;
+
+  while (iter.next ())
     {
-      if (seg2D.empty ())
-        continue;
-
-      // Build projected point list with sphere subdivision
-      std::vector<std::pair<juce::Point<float>, float>> projected;
-      {
-        auto first3D = heightMap.mapTo3D (seg2D[0], chCoverage);
-        projected.push_back (
-            { cartesian2DHOA2JUCE (first3D), first3D.z () });
-      }
-      for (std::size_t i = 1; i < seg2D.size (); ++i)
-        subdivideThroughSphere (
-            seg2D[i - 1], seg2D[i], chCoverage, heightMap, projected);
-
-      if (projected.size () < 2)
+      if (firstPoint)
         {
-          if (projected.size () == 1)
-            {
-              float fade = fadeForZ (projected[0].second);
-              auto constexpr sizeEllipse = lineThickness * 2.f;
-              g.setColour (colour.withAlpha (0.6f * fade));
-              g.fillEllipse (
-                  juce::Rectangle<float> (sizeEllipse * fade,
-                                          sizeEllipse * fade)
-                      .withCentre (projected[0].first));
-            }
-          continue;
+          // The very first point of a sub-path
+          projected.push_back (projectPoint (iter.x1, iter.y1));
+          prevX = iter.x1;
+          prevY = iter.y1;
+          firstPoint = false;
         }
 
-      // Draw with depth-band batching
-      juce::Path currentPath;
-      int currentBand = depthBand (projected[0].second);
-      currentPath.startNewSubPath (projected[0].first);
+      float dx = iter.x2 - prevX;
+      float dy = iter.y2 - prevY;
+      float dist = std::sqrt (dx * dx + dy * dy);
 
-      for (std::size_t i = 1; i < projected.size (); ++i)
+      if (dist > maxStep)
         {
-          int band = depthBand (projected[i].second);
-          if (band != currentBand)
+          // Insert intermediate sub-samples along the 2D line
+          int nSub = static_cast<int> (std::ceil (dist / maxStep));
+          for (int s = 1; s < nSub; ++s)
             {
-              flushPath (currentPath, currentBand);
-              currentPath.clear ();
-              currentPath.startNewSubPath (projected[i - 1].first);
-              currentBand = band;
+              float t = static_cast<float> (s)
+                        / static_cast<float> (nSub);
+              float mx = prevX + dx * t;
+              float my = prevY + dy * t;
+              projected.push_back (projectPoint (mx, my));
             }
-          currentPath.lineTo (projected[i].first);
         }
-      flushPath (currentPath, currentBand);
+
+      projected.push_back (projectPoint (iter.x2, iter.y2));
+      prevX = iter.x2;
+      prevY = iter.y2;
     }
+
+  if (projected.size () < 2)
+    return;
+
+  // Draw with depth-band batching
+  juce::Path currentPath;
+  int currentBand = depthBand (projected[0].second);
+  currentPath.startNewSubPath (projected[0].first);
+
+  for (std::size_t i = 1; i < projected.size (); ++i)
+    {
+      int band = depthBand (projected[i].second);
+      if (band != currentBand)
+        {
+          flushPath (currentPath, currentBand);
+          currentPath.clear ();
+          currentPath.startNewSubPath (projected[i - 1].first);
+          currentBand = band;
+        }
+      currentPath.lineTo (projected[i].first);
+    }
+  flushPath (currentPath, currentBand);
+}
+
+void
+MotionComponent::drawPatternPreview (Pattern const &pattern,
+                                    PatternDisplayData const &displayData,
+                                    juce::Graphics &g)
+{
+  auto constexpr lineThickness = 0.04f;
+
+  auto const ch = pattern.getChannel ();
+  auto colour = _uiStates[ch]->colour;
+  auto const chCoverage = _engine.getChannelCoverage (ch);
+  auto const &heightMap = _engine.getHeightMap ();
+
+  // ── Handle jump-dot patterns ──
+  if (!displayData.jumpDots.empty ())
+    {
+      auto constexpr dotSize = lineThickness * 3.f;
+      for (auto const &dot : displayData.jumpDots)
+        {
+          auto pos3D = heightMap.mapTo3D (
+              Pos::fromCartesian (dot.first, dot.second, 0.f), chCoverage);
+          auto posJuce = cartesian2DHOA2JUCE (pos3D);
+          float fade = (pos3D.z () < 0.f)
+              ? 0.3f + 0.7f * std::clamp (pos3D.z () + 1.f, 0.f, 1.f)
+              : 1.0f;
+          float ds = dotSize * (0.5f + 0.5f * fade);
+          g.setColour (colour.withAlpha (0.6f * fade));
+          g.fillEllipse (juce::Rectangle<float> (ds, ds)
+                             .withCentre (posJuce));
+        }
+      return;
+    }
+
+  // ── Draw from SVG displayPath projected onto sphere ──
+  drawPathOnSphere (displayData.displayPath, lineThickness, 0.6f, colour,
+                    chCoverage, heightMap, g);
 }
 
 void
@@ -1228,13 +1200,11 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
   auto const chCoverage = _engine.getChannelCoverage (ch);
-
-  g.setColour (colour.withAlpha (faintAlpha));
+  auto const &heightMap = _engine.getHeightMap ();
 
   // ── Handle jump-dot patterns ──
   if (!displayData.jumpDots.empty ())
     {
-      auto const &heightMap = _engine.getHeightMap ();
       auto constexpr dotSize = lineThickness * 3.f;
       for (auto const &dot : displayData.jumpDots)
         {
@@ -1246,102 +1216,15 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
               : 1.0f;
           float ds = dotSize * (0.5f + 0.5f * fade);
           g.setColour (colour.withAlpha (faintAlpha * fade));
-          auto ellipse = juce::Rectangle<float> (ds, ds)
-                             .withCentre (posJuce);
-          g.fillEllipse (ellipse);
+          g.fillEllipse (juce::Rectangle<float> (ds, ds)
+                             .withCentre (posJuce));
         }
       return;
     }
 
-  // ── Draw from tick data (same data that drives playback) ──
-  // Subdivide between ticks in 2D before projecting through mapTo3D
-  // so the line follows the sphere surface curvature.
-  auto const &heightMap = _engine.getHeightMap ();
-  auto ticks = pattern.getTicks ();
-  if (ticks.positions.empty ())
-    return;
-
-  // First pass: collect ordered 2D tick positions into segments
-  std::vector<std::vector<Pos>> tickSegments;
-  tickSegments.emplace_back ();
-
-  auto const numTicks = ticks.positions.size ();
-  for (std::size_t offset = 0; offset < numTicks; ++offset)
-    {
-      auto const idx = (ticks.lastUpdatedTick + 1 + offset) % numTicks;
-      auto const &tick = ticks.positions[idx];
-
-      if (tick.isValid ())
-        {
-          tickSegments.back ().push_back (tick);
-        }
-      else
-        {
-          if (!tickSegments.back ().empty ())
-            tickSegments.emplace_back ();
-        }
-    }
-
-  // Second pass: subdivide through sphere, then draw
-  auto depthBand = [] (float z) -> int {
-    if (z < -0.5f) return 0;
-    if (z < 0.f)   return 1;
-    if (z < 0.5f)  return 2;
-    return 3;
-  };
-
-  auto fadeForZ = [] (float z) -> float {
-    return (z < 0.f)
-        ? 0.3f + 0.7f * std::clamp (z + 1.f, 0.f, 1.f)
-        : 1.0f;
-  };
-
-  auto flushPath = [&] (juce::Path &path, int band) {
-    float fade = fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
-                                     : (band == 2 ?  0.25f :  0.75f));
-    float thickness = lineThickness * (0.5f + 0.5f * fade);
-    auto stroke = juce::PathStrokeType (
-        thickness, juce::PathStrokeType::JointStyle::curved,
-        juce::PathStrokeType::EndCapStyle::rounded);
-    g.setColour (colour.withAlpha (faintAlpha * fade));
-    g.strokePath (path, stroke);
-  };
-
-  for (auto const &seg2D : tickSegments)
-    {
-      if (seg2D.size () < 2)
-        continue;
-
-      // Build projected point list with sphere subdivision
-      std::vector<std::pair<juce::Point<float>, float>> projected;
-      {
-        auto first3D = heightMap.mapTo3D (seg2D[0], chCoverage);
-        projected.push_back (
-            { cartesian2DHOA2JUCE (first3D), first3D.z () });
-      }
-      for (std::size_t i = 1; i < seg2D.size (); ++i)
-        subdivideThroughSphere (
-            seg2D[i - 1], seg2D[i], chCoverage, heightMap, projected);
-
-      // Draw with depth-band batching
-      juce::Path currentPath;
-      int currentBand = depthBand (projected[0].second);
-      currentPath.startNewSubPath (projected[0].first);
-
-      for (std::size_t i = 1; i < projected.size (); ++i)
-        {
-          int band = depthBand (projected[i].second);
-          if (band != currentBand)
-            {
-              flushPath (currentPath, currentBand);
-              currentPath.clear ();
-              currentPath.startNewSubPath (projected[i - 1].first);
-              currentBand = band;
-            }
-          currentPath.lineTo (projected[i].first);
-        }
-      flushPath (currentPath, currentBand);
-    }
+  // ── Draw from SVG displayPath projected onto sphere ──
+  drawPathOnSphere (displayData.displayPath, lineThickness, faintAlpha, colour,
+                    chCoverage, heightMap, g);
 }
 
 juce::Point<float>

@@ -151,6 +151,25 @@ buildSvgPathData (std::vector<Pos> const &ticks,
   while (!segments.empty () && segments.back ().empty ())
     segments.pop_back ();
 
+  // ── Detect whether the original tick data forms a closed loop ──
+  // When the first and last *valid* ticks are close, the pattern is
+  // inherently closed.  Downsampling can enlarge the gap between the
+  // first and last *sampled* points, which would fool the per-segment
+  // closed-path detection below.  We record the ground truth here and
+  // pass it through.
+  bool tickDataIsClosed = false;
+  if (segments.size () == 1 && !segments[0].empty ()
+      && ticks.front ().isValid () && ticks.back ().isValid ())
+    {
+      float origDist = std::sqrt (
+          std::pow (ticks.front ().x () - ticks.back ().x (), 2.f)
+          + std::pow (ticks.front ().y () - ticks.back ().y (), 2.f));
+      // Threshold in original (un-normalised) coordinate space.
+      // 0.08 * (range * 0.5) maps to 0.08 in normalised space.
+      tickDataIsClosed = origDist < 0.08f * range * 0.5f
+                         && segments[0].size () > 4;
+    }
+
   // ── Check for jump-only pattern ──
   // A jump pattern consists of segments where each segment is a cluster
   // of (near-)identical points, i.e. the source has no real movement
@@ -207,7 +226,8 @@ buildSvgPathData (std::vector<Pos> const &ticks,
         continue;
 
       auto const dist = pts.front ().distTo (pts.back ());
-      bool closed = dist < 0.08f && pts.size () > 4;
+      bool closed = (dist < 0.08f && pts.size () > 4)
+                    || tickDataIsClosed;
 
       if (!closed)
         {
@@ -228,7 +248,8 @@ buildSvgPathData (std::vector<Pos> const &ticks,
       out << "M " << fts (pts[0].x) << ' ' << fts (pts[0].y);
 
       auto const dist = pts.front ().distTo (pts.back ());
-      bool closed = dist < 0.08f && pts.size () > 4;
+      bool closed = (dist < 0.08f && pts.size () > 4)
+                    || tickDataIsClosed;
 
       auto const n = static_cast<int> (pts.size ());
       // For closed paths we need n segments (including the wrap-around
@@ -261,6 +282,9 @@ buildSvgPathData (std::vector<Pos> const &ticks,
               << ' ' << fts (cp2.x) << ' ' << fts (cp2.y)
               << ' ' << fts (p2.x) << ' ' << fts (p2.y);
         }
+
+      if (closed)
+        out << " Z";
     }
 
   return out.str ();
@@ -424,6 +448,7 @@ sampleSvgPathToTicks (std::string const &pathData,
   };
 
   Vec2 cur{ 0.f, 0.f };
+  Vec2 subPathStart{ 0.f, 0.f };
 
   while (idx < tokens.size ())
     {
@@ -432,6 +457,7 @@ sampleSvgPathToTicks (std::string const &pathData,
         {
           ++idx;
           cur = { nextF (), nextF () };
+          subPathStart = cur;
           polyline.push_back (cur);
         }
       else if (cmd == "L" || cmd == "l")
@@ -464,6 +490,14 @@ sampleSvgPathToTicks (std::string const &pathData,
       else if (cmd == "Z" || cmd == "z")
         {
           ++idx;
+          // Close the sub-path: add the start point so the polyline
+          // includes the closing segment back to the beginning.
+          if (!polyline.empty ()
+              && subPathStart.distTo (cur) > 1e-6f)
+            {
+              polyline.push_back (subPathStart);
+              cur = subPathStart;
+            }
         }
       else
         {
