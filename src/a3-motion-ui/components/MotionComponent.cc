@@ -1032,6 +1032,44 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
     }
 }
 
+// ── Helper: subdivide a 2D tick segment through the sphere ──
+// Interpolates between two 2D tick positions, projecting each
+// sub-sample through mapTo3D so that the resulting polyline
+// follows the sphere surface curvature.
+static void
+subdivideThroughSphere (
+    Pos const &a2D, Pos const &b2D,
+    float coverage,
+    HeightMap const &heightMap,
+    std::vector<std::pair<juce::Point<float>, float>> &out)
+{
+  // Determine how many sub-steps we need.  The required density
+  // grows with both the 2D distance between points and the
+  // coverage factor (which controls how much the sphere wraps).
+  float dx = b2D.x () - a2D.x ();
+  float dy = b2D.y () - a2D.y ();
+  float dist2D = std::sqrt (dx * dx + dy * dy);
+
+  // At coverage ≈ 0 no curvature → 1 step suffices.
+  // At coverage = 1.0 a distance of 1.0 needs ~16 sub-steps.
+  int nSteps = std::max (
+      1, static_cast<int> (std::ceil (dist2D * coverage * 16.f)));
+  // clamp to avoid excessive work for huge jumps
+  nSteps = std::min (nSteps, 32);
+
+  float invN = 1.f / static_cast<float> (nSteps);
+  for (int s = 1; s <= nSteps; ++s)
+    {
+      float t = static_cast<float> (s) * invN;
+      auto mid = Pos::fromCartesian (
+          a2D.x () + dx * t,
+          a2D.y () + dy * t,
+          0.f);
+      auto pos3D = heightMap.mapTo3D (mid, coverage);
+      out.push_back ({ cartesian2DHOA2JUCE (pos3D), pos3D.z () });
+    }
+}
+
 void
 MotionComponent::drawPatternPreview (Pattern const &pattern,
                                     PatternDisplayData const &displayData,
@@ -1043,51 +1081,6 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
   auto colour = _uiStates[ch]->colour;
   auto const chCoverage = _engine.getChannelCoverage (ch);
   g.setColour (colour.withAlpha (0.6f));
-  auto const strokeStyle = juce::PathStrokeType (
-      lineThickness, juce::PathStrokeType::JointStyle::curved,
-      juce::PathStrokeType::EndCapStyle::rounded);
-
-  // ── Use the pre-built SVG display path when available ──
-  if (!displayData.displayPath.isEmpty ())
-    {
-      // Project the 2D display path through the HeightMap's mapTo3D()
-      // so the trajectory matches the sphere-projected blob positions.
-      // Flatten the SVG path into line segments, transform each point
-      // from HOA 2D → 3D sphere surface → JUCE 2D projection.
-      auto const &heightMap = _engine.getHeightMap ();
-      struct Pt { juce::Point<float> p; float z; };
-      std::vector<Pt> pts;
-
-      // Flatten: iterate path with a small tolerance to get line segments
-      juce::PathFlatteningIterator flatIt (displayData.displayPath, {}, 0.005f);
-      while (flatIt.next ())
-        {
-          auto pos3D = heightMap.mapTo3D (
-              Pos::fromCartesian (flatIt.x2, flatIt.y2, 0.f), chCoverage);
-          pts.push_back ({ cartesian2DHOA2JUCE (pos3D), pos3D.z () });
-        }
-
-      // Draw segments with depth-dependent styling:
-      // front (z >= 0) = full colour, back (z < 0) = dimmer & thinner
-      for (size_t i = 0; i + 1 < pts.size (); ++i)
-        {
-          float avgZ = (pts[i].z + pts[i + 1].z) * 0.5f;
-          float fade = (avgZ < 0.f)
-              ? 0.3f + 0.7f * std::clamp (avgZ + 1.f, 0.f, 1.f)
-              : 1.0f;
-          float segThickness = lineThickness * (0.5f + 0.5f * fade);
-          auto segStroke = juce::PathStrokeType (
-              segThickness, juce::PathStrokeType::JointStyle::curved,
-              juce::PathStrokeType::EndCapStyle::rounded);
-          g.setColour (colour.withAlpha (0.6f * fade));
-          juce::Path seg;
-          seg.startNewSubPath (pts[i].p);
-          seg.lineTo (pts[i + 1].p);
-          g.strokePath (seg, segStroke);
-        }
-
-      return;
-    }
 
   // ── Handle jump-dot patterns ──
   if (!displayData.jumpDots.empty ())
@@ -1096,7 +1089,6 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
       auto constexpr dotSize = lineThickness * 3.f;
       for (auto const &dot : displayData.jumpDots)
         {
-          // Project HOA 2D dot through mapTo3D, then to JUCE coords
           auto pos3D = heightMap.mapTo3D (
               Pos::fromCartesian (dot.first, dot.second, 0.f), chCoverage);
           auto posJuce = cartesian2DHOA2JUCE (pos3D);
@@ -1113,98 +1105,115 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
       return;
     }
 
-  // ── Fallback: build path from raw tick data with Catmull-Rom ──
+  // ── Draw from tick data ──
+  // Uses the same tick positions that the playback engine uses.
+  // Between consecutive ticks we subdivide in 2D and project each
+  // sub-sample through mapTo3D so the displayed line follows the
+  // sphere surface curvature (important at higher coverage/elevation).
   auto const &heightMap = _engine.getHeightMap ();
   auto ticks = pattern.getTicks ();
 
-  struct Pt { juce::Point<float> p; float z; };
+  if (ticks.positions.empty ())
+    return;
 
-  // Collect valid points into segments, splitting at invalid ticks
-  std::vector<std::vector<Pt>> segments;
-  segments.emplace_back ();
+  // First pass: collect ordered 2D tick positions into segments,
+  // splitting at invalid ticks.
+  std::vector<std::vector<Pos>> tickSegments;
+  tickSegments.emplace_back ();
 
-  for (auto offset = 0u; offset < ticks.positions.size (); ++offset)
+  auto const numTicks = ticks.positions.size ();
+  for (std::size_t offset = 0; offset < numTicks; ++offset)
     {
-      auto const indexWrapped
-          = (ticks.lastUpdatedTick + 1 + offset) % ticks.positions.size ();
-      auto const tick = ticks.positions[indexWrapped];
+      auto const idx = (ticks.lastUpdatedTick + 1 + offset) % numTicks;
+      auto const &tick = ticks.positions[idx];
 
       if (tick.isValid ())
         {
-          // Project 2D tick through mapTo3D for elevation-aware display
-          auto pos3D = heightMap.mapTo3D (tick, chCoverage);
-          segments.back ().push_back ({ cartesian2DHOA2JUCE (pos3D), pos3D.z () });
+          tickSegments.back ().push_back (tick);
         }
       else
         {
-          if (!segments.back ().empty ())
-            segments.emplace_back ();
+          if (!tickSegments.back ().empty ())
+            tickSegments.emplace_back ();
         }
     }
 
-  // Build Catmull-Rom cubic Bézier path for each segment and draw
-  // with per-segment depth fading
-  for (auto const &pts : segments)
+  // Second pass: for each segment, subdivide through the sphere
+  // to get densely sampled projected points.
+
+  auto depthBand = [] (float z) -> int {
+    if (z < -0.5f) return 0;
+    if (z < 0.f)   return 1;
+    if (z < 0.5f)  return 2;
+    return 3;
+  };
+
+  auto fadeForZ = [] (float z) -> float {
+    return (z < 0.f)
+        ? 0.3f + 0.7f * std::clamp (z + 1.f, 0.f, 1.f)
+        : 1.0f;
+  };
+
+  auto flushPath = [&] (juce::Path &path, int band) {
+    float fade = fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
+                                     : (band == 2 ?  0.25f :  0.75f));
+    float thickness = lineThickness * (0.5f + 0.5f * fade);
+    auto stroke = juce::PathStrokeType (
+        thickness, juce::PathStrokeType::JointStyle::curved,
+        juce::PathStrokeType::EndCapStyle::rounded);
+    g.setColour (colour.withAlpha (0.6f * fade));
+    g.strokePath (path, stroke);
+  };
+
+  for (auto const &seg2D : tickSegments)
     {
-      if (pts.size () < 2)
+      if (seg2D.empty ())
+        continue;
+
+      // Build projected point list with sphere subdivision
+      std::vector<std::pair<juce::Point<float>, float>> projected;
+      {
+        auto first3D = heightMap.mapTo3D (seg2D[0], chCoverage);
+        projected.push_back (
+            { cartesian2DHOA2JUCE (first3D), first3D.z () });
+      }
+      for (std::size_t i = 1; i < seg2D.size (); ++i)
+        subdivideThroughSphere (
+            seg2D[i - 1], seg2D[i], chCoverage, heightMap, projected);
+
+      if (projected.size () < 2)
         {
-          if (pts.size () == 1)
+          if (projected.size () == 1)
             {
-              float fade = (pts[0].z < 0.f)
-                  ? 0.3f + 0.7f * std::clamp (pts[0].z + 1.f, 0.f, 1.f)
-                  : 1.0f;
+              float fade = fadeForZ (projected[0].second);
               auto constexpr sizeEllipse = lineThickness * 2.f;
               g.setColour (colour.withAlpha (0.6f * fade));
               g.fillEllipse (
-                  juce::Rectangle<float> (sizeEllipse * fade, sizeEllipse * fade)
-                      .withCentre (pts[0].p));
+                  juce::Rectangle<float> (sizeEllipse * fade,
+                                          sizeEllipse * fade)
+                      .withCentre (projected[0].first));
             }
           continue;
         }
 
-      // For Catmull-Rom: generate control points, then draw segment by segment
-      auto const dist = pts.front ().p.getDistanceFrom (pts.back ().p);
-      bool closed = dist < 0.02f && pts.size () > 4;
+      // Draw with depth-band batching
+      juce::Path currentPath;
+      int currentBand = depthBand (projected[0].second);
+      currentPath.startNewSubPath (projected[0].first);
 
-      auto const n = static_cast<int> (pts.size ());
-      for (int i = 0; i < n - 1; ++i)
+      for (std::size_t i = 1; i < projected.size (); ++i)
         {
-          juce::Point<float> p0, p1, p2, p3;
-          p1 = pts[static_cast<size_t> (i)].p;
-          p2 = pts[static_cast<size_t> (i + 1)].p;
-
-          if (closed)
+          int band = depthBand (projected[i].second);
+          if (band != currentBand)
             {
-              p0 = pts[static_cast<size_t> ((i - 1 + n) % n)].p;
-              p3 = pts[static_cast<size_t> ((i + 2) % n)].p;
+              flushPath (currentPath, currentBand);
+              currentPath.clear ();
+              currentPath.startNewSubPath (projected[i - 1].first);
+              currentBand = band;
             }
-          else
-            {
-              p0 = (i > 0) ? pts[static_cast<size_t> (i - 1)].p
-                           : p1 + (p1 - p2);
-              p3 = (i + 2 < n) ? pts[static_cast<size_t> (i + 2)].p
-                               : p2 + (p2 - p1);
-            }
-
-          auto cp1 = p1 + (p2 - p0) / 6.f;
-          auto cp2 = p2 - (p3 - p1) / 6.f;
-
-          float avgZ = (pts[static_cast<size_t> (i)].z
-                        + pts[static_cast<size_t> (i + 1)].z) * 0.5f;
-          float fade = (avgZ < 0.f)
-              ? 0.3f + 0.7f * std::clamp (avgZ + 1.f, 0.f, 1.f)
-              : 1.0f;
-          float segThickness = lineThickness * (0.5f + 0.5f * fade);
-          auto segStroke = juce::PathStrokeType (
-              segThickness, juce::PathStrokeType::JointStyle::curved,
-              juce::PathStrokeType::EndCapStyle::rounded);
-          g.setColour (colour.withAlpha (0.6f * fade));
-
-          juce::Path seg;
-          seg.startNewSubPath (p1);
-          seg.cubicTo (cp1, cp2, p2);
-          g.strokePath (seg, segStroke);
+          currentPath.lineTo (projected[i].first);
         }
+      flushPath (currentPath, currentBand);
     }
 }
 
@@ -1219,44 +1228,10 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
   auto const chCoverage = _engine.getChannelCoverage (ch);
-  auto const strokeStyle = juce::PathStrokeType (
-      lineThickness, juce::PathStrokeType::JointStyle::curved,
-      juce::PathStrokeType::EndCapStyle::rounded);
 
   g.setColour (colour.withAlpha (faintAlpha));
 
-  if (!displayData.displayPath.isEmpty ())
-    {
-      // Project the 2D path through mapTo3D for elevation-aware display
-      auto const &heightMap = _engine.getHeightMap ();
-      struct Pt { juce::Point<float> p; float z; };
-      std::vector<Pt> pts;
-      juce::PathFlatteningIterator flatIt (displayData.displayPath, {}, 0.005f);
-      while (flatIt.next ())
-        {
-          auto pos3D = heightMap.mapTo3D (
-              Pos::fromCartesian (flatIt.x2, flatIt.y2, 0.f), chCoverage);
-          pts.push_back ({ cartesian2DHOA2JUCE (pos3D), pos3D.z () });
-        }
-      for (size_t i = 0; i + 1 < pts.size (); ++i)
-        {
-          float avgZ = (pts[i].z + pts[i + 1].z) * 0.5f;
-          float fade = (avgZ < 0.f)
-              ? 0.3f + 0.7f * std::clamp (avgZ + 1.f, 0.f, 1.f)
-              : 1.0f;
-          float segThickness = lineThickness * (0.5f + 0.5f * fade);
-          auto segStroke = juce::PathStrokeType (
-              segThickness, juce::PathStrokeType::JointStyle::curved,
-              juce::PathStrokeType::EndCapStyle::rounded);
-          g.setColour (colour.withAlpha (faintAlpha * fade));
-          juce::Path seg;
-          seg.startNewSubPath (pts[i].p);
-          seg.lineTo (pts[i + 1].p);
-          g.strokePath (seg, segStroke);
-        }
-      return;
-    }
-
+  // ── Handle jump-dot patterns ──
   if (!displayData.jumpDots.empty ())
     {
       auto const &heightMap = _engine.getHeightMap ();
@@ -1278,79 +1253,94 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
       return;
     }
 
-  // Fallback: build path from raw tick data
+  // ── Draw from tick data (same data that drives playback) ──
+  // Subdivide between ticks in 2D before projecting through mapTo3D
+  // so the line follows the sphere surface curvature.
   auto const &heightMap = _engine.getHeightMap ();
   auto ticks = pattern.getTicks ();
   if (ticks.positions.empty ())
     return;
 
-  struct Pt { juce::Point<float> p; float z; };
+  // First pass: collect ordered 2D tick positions into segments
+  std::vector<std::vector<Pos>> tickSegments;
+  tickSegments.emplace_back ();
 
-  std::vector<std::vector<Pt>> segments;
-  segments.emplace_back ();
-
-  for (auto offset = 0u; offset < ticks.positions.size (); ++offset)
+  auto const numTicks = ticks.positions.size ();
+  for (std::size_t offset = 0; offset < numTicks; ++offset)
     {
-      auto const indexWrapped
-          = (ticks.lastUpdatedTick + 1 + offset) % ticks.positions.size ();
-      auto const tick = ticks.positions[indexWrapped];
+      auto const idx = (ticks.lastUpdatedTick + 1 + offset) % numTicks;
+      auto const &tick = ticks.positions[idx];
 
       if (tick.isValid ())
         {
-          auto pos3D = heightMap.mapTo3D (tick, chCoverage);
-          segments.back ().push_back ({ cartesian2DHOA2JUCE (pos3D), pos3D.z () });
+          tickSegments.back ().push_back (tick);
         }
-      else if (!segments.back ().empty ())
-        segments.emplace_back ();
+      else
+        {
+          if (!tickSegments.back ().empty ())
+            tickSegments.emplace_back ();
+        }
     }
 
-  for (auto const &pts : segments)
+  // Second pass: subdivide through sphere, then draw
+  auto depthBand = [] (float z) -> int {
+    if (z < -0.5f) return 0;
+    if (z < 0.f)   return 1;
+    if (z < 0.5f)  return 2;
+    return 3;
+  };
+
+  auto fadeForZ = [] (float z) -> float {
+    return (z < 0.f)
+        ? 0.3f + 0.7f * std::clamp (z + 1.f, 0.f, 1.f)
+        : 1.0f;
+  };
+
+  auto flushPath = [&] (juce::Path &path, int band) {
+    float fade = fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
+                                     : (band == 2 ?  0.25f :  0.75f));
+    float thickness = lineThickness * (0.5f + 0.5f * fade);
+    auto stroke = juce::PathStrokeType (
+        thickness, juce::PathStrokeType::JointStyle::curved,
+        juce::PathStrokeType::EndCapStyle::rounded);
+    g.setColour (colour.withAlpha (faintAlpha * fade));
+    g.strokePath (path, stroke);
+  };
+
+  for (auto const &seg2D : tickSegments)
     {
-      if (pts.size () < 2)
+      if (seg2D.size () < 2)
         continue;
 
-      auto const dist = pts.front ().p.getDistanceFrom (pts.back ().p);
-      bool closed = dist < 0.02f && pts.size () > 4;
+      // Build projected point list with sphere subdivision
+      std::vector<std::pair<juce::Point<float>, float>> projected;
+      {
+        auto first3D = heightMap.mapTo3D (seg2D[0], chCoverage);
+        projected.push_back (
+            { cartesian2DHOA2JUCE (first3D), first3D.z () });
+      }
+      for (std::size_t i = 1; i < seg2D.size (); ++i)
+        subdivideThroughSphere (
+            seg2D[i - 1], seg2D[i], chCoverage, heightMap, projected);
 
-      auto const n = static_cast<int> (pts.size ());
-      for (int i = 0; i < n - 1; ++i)
+      // Draw with depth-band batching
+      juce::Path currentPath;
+      int currentBand = depthBand (projected[0].second);
+      currentPath.startNewSubPath (projected[0].first);
+
+      for (std::size_t i = 1; i < projected.size (); ++i)
         {
-          juce::Point<float> p0, p1, p2, p3;
-          p1 = pts[static_cast<size_t> (i)].p;
-          p2 = pts[static_cast<size_t> (i + 1)].p;
-
-          if (closed)
+          int band = depthBand (projected[i].second);
+          if (band != currentBand)
             {
-              p0 = pts[static_cast<size_t> ((i - 1 + n) % n)].p;
-              p3 = pts[static_cast<size_t> ((i + 2) % n)].p;
+              flushPath (currentPath, currentBand);
+              currentPath.clear ();
+              currentPath.startNewSubPath (projected[i - 1].first);
+              currentBand = band;
             }
-          else
-            {
-              p0 = (i > 0) ? pts[static_cast<size_t> (i - 1)].p
-                           : p1 + (p1 - p2);
-              p3 = (i + 2 < n) ? pts[static_cast<size_t> (i + 2)].p
-                               : p2 + (p2 - p1);
-            }
-
-          auto cp1 = p1 + (p2 - p0) / 6.f;
-          auto cp2 = p2 - (p3 - p1) / 6.f;
-
-          float avgZ = (pts[static_cast<size_t> (i)].z
-                        + pts[static_cast<size_t> (i + 1)].z) * 0.5f;
-          float fade = (avgZ < 0.f)
-              ? 0.3f + 0.7f * std::clamp (avgZ + 1.f, 0.f, 1.f)
-              : 1.0f;
-          float segThickness = lineThickness * (0.5f + 0.5f * fade);
-          auto segStroke = juce::PathStrokeType (
-              segThickness, juce::PathStrokeType::JointStyle::curved,
-              juce::PathStrokeType::EndCapStyle::rounded);
-          g.setColour (colour.withAlpha (faintAlpha * fade));
-
-          juce::Path seg;
-          seg.startNewSubPath (p1);
-          seg.cubicTo (cp1, cp2, p2);
-          g.strokePath (seg, segStroke);
+          currentPath.lineTo (projected[i].first);
         }
+      flushPath (currentPath, currentBand);
     }
 }
 

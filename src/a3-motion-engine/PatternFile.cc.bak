@@ -267,106 +267,8 @@ buildSvgPathData (std::vector<Pos> const &ticks,
 }
 
 // ---------------------------------------------------------------------------
-//  Adaptive cubic Bezier flattening -- matches JUCE PathFlatteningIterator
-//  Recursively subdivides until the control-point deviation from the chord
-//  is below the given tolerance.  This ensures the playback polyline matches
-//  the display polyline pixel-for-pixel.
-// ---------------------------------------------------------------------------
-
-static void
-flattenCubic (Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3,
-              std::vector<Vec2> &out, float tolerance, int depth = 0)
-{
-  // Maximum recursion depth to avoid infinite loops
-  if (depth > 12)
-    {
-      out.push_back (p3);
-      return;
-    }
-
-  // Flatness test: max distance of control points from the chord p0->p3
-  auto const dx = p3.x - p0.x;
-  auto const dy = p3.y - p0.y;
-  auto const lenSq = dx * dx + dy * dy;
-
-  float d1, d2;
-  if (lenSq < 1e-12f)
-    {
-      // Degenerate: chord has zero length, use distance from p0
-      d1 = std::sqrt ((p1.x - p0.x) * (p1.x - p0.x)
-                      + (p1.y - p0.y) * (p1.y - p0.y));
-      d2 = std::sqrt ((p2.x - p0.x) * (p2.x - p0.x)
-                      + (p2.y - p0.y) * (p2.y - p0.y));
-    }
-  else
-    {
-      // Distance of control points from chord (perpendicular distance)
-      d1 = std::abs ((p1.x - p0.x) * dy - (p1.y - p0.y) * dx)
-           / std::sqrt (lenSq);
-      d2 = std::abs ((p2.x - p0.x) * dy - (p2.y - p0.y) * dx)
-           / std::sqrt (lenSq);
-    }
-
-  if (d1 <= tolerance && d2 <= tolerance)
-    {
-      out.push_back (p3);
-      return;
-    }
-
-  // De Casteljau split at t=0.5
-  auto const m01  = Vec2 ((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f);
-  auto const m12  = Vec2 ((p1.x + p2.x) * 0.5f, (p1.y + p2.y) * 0.5f);
-  auto const m23  = Vec2 ((p2.x + p3.x) * 0.5f, (p2.y + p3.y) * 0.5f);
-  auto const m012 = Vec2 ((m01.x + m12.x) * 0.5f, (m01.y + m12.y) * 0.5f);
-  auto const m123 = Vec2 ((m12.x + m23.x) * 0.5f, (m12.y + m23.y) * 0.5f);
-  auto const mid  = Vec2 ((m012.x + m123.x) * 0.5f,
-                           (m012.y + m123.y) * 0.5f);
-
-  flattenCubic (p0, m01, m012, mid, out, tolerance, depth + 1);
-  flattenCubic (mid, m123, m23, p3, out, tolerance, depth + 1);
-}
-
-static void
-flattenQuadratic (Vec2 p0, Vec2 p1, Vec2 p2,
-                  std::vector<Vec2> &out, float tolerance, int depth = 0)
-{
-  if (depth > 12)
-    {
-      out.push_back (p2);
-      return;
-    }
-
-  // Flatness: distance of control point from chord
-  auto const dx = p2.x - p0.x;
-  auto const dy = p2.y - p0.y;
-  auto const lenSq = dx * dx + dy * dy;
-
-  float d;
-  if (lenSq < 1e-12f)
-    d = std::sqrt ((p1.x - p0.x) * (p1.x - p0.x)
-                   + (p1.y - p0.y) * (p1.y - p0.y));
-  else
-    d = std::abs ((p1.x - p0.x) * dy - (p1.y - p0.y) * dx)
-        / std::sqrt (lenSq);
-
-  if (d <= tolerance)
-    {
-      out.push_back (p2);
-      return;
-    }
-
-  auto const m01 = Vec2 ((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f);
-  auto const m12 = Vec2 ((p1.x + p2.x) * 0.5f, (p1.y + p2.y) * 0.5f);
-  auto const mid = Vec2 ((m01.x + m12.x) * 0.5f, (m01.y + m12.y) * 0.5f);
-
-  flattenQuadratic (p0, m01, mid, out, tolerance, depth + 1);
-  flattenQuadratic (mid, m12, p2, out, tolerance, depth + 1);
-}
-
-// ---------------------------------------------------------------------------
-//  sampleSvgPathToTicks -- SVG path string -> tick positions
-//  Uses adaptive Bezier flattening (same tolerance as display pipeline)
-//  to produce an identical polyline, then resamples at uniform arc-length.
+//  parseSvgPathToTicks — SVG path string → tick positions
+//  Uses De Casteljau subdivision to evaluate cubic Bézier curves.
 // ---------------------------------------------------------------------------
 
 static void
@@ -404,12 +306,8 @@ sampleSvgPathToTicks (std::string const &pathData,
       return;
     }
 
-  // Parse the SVG path into a polyline via adaptive Bezier flattening.
-  // Uses the SAME tolerance (0.005) as the display pipeline
-  // (PathFlatteningIterator in MotionComponent) so both pipelines
-  // produce identical polylines from the same SVG data.
-  static constexpr float kFlattenTolerance = 0.005f;
-
+  // Parse the SVG path into a polyline via cubic Bézier subdivision
+  // This approximation is sufficient for tick sampling.
   std::vector<Vec2> polyline;
 
   auto tokens = juce::StringArray::fromTokens (juce::String (pathData),
@@ -447,19 +345,47 @@ sampleSvgPathToTicks (std::string const &pathData,
           auto x2 = nextF (), y2 = nextF ();
           auto x3 = nextF (), y3 = nextF ();
 
-          flattenCubic (cur, { x1, y1 }, { x2, y2 }, { x3, y3 },
-                        polyline, kFlattenTolerance);
-          cur = { x3, y3 };
+          // Subdivide cubic Bézier into ~16 line segments
+          Vec2 p0 = cur;
+          Vec2 cp1{ x1, y1 }, cp2{ x2, y2 }, p3{ x3, y3 };
+          auto constexpr subdivisions = 16;
+          for (int s = 1; s <= subdivisions; ++s)
+            {
+              auto const t = static_cast<float> (s) / subdivisions;
+              // De Casteljau
+              auto a = Vec2 (p0.x + (cp1.x - p0.x) * t,
+                             p0.y + (cp1.y - p0.y) * t);
+              auto b = Vec2 (cp1.x + (cp2.x - cp1.x) * t,
+                             cp1.y + (cp2.y - cp1.y) * t);
+              auto c = Vec2 (cp2.x + (p3.x - cp2.x) * t,
+                             cp2.y + (p3.y - cp2.y) * t);
+              auto d = Vec2 (a.x + (b.x - a.x) * t,
+                             a.y + (b.y - a.y) * t);
+              auto e = Vec2 (b.x + (c.x - b.x) * t,
+                             b.y + (c.y - b.y) * t);
+              polyline.push_back (
+                  Vec2 (d.x + (e.x - d.x) * t, d.y + (e.y - d.y) * t));
+            }
+          cur = p3;
         }
       else if (cmd == "Q" || cmd == "q")
         {
           ++idx;
           auto x1 = nextF (), y1 = nextF ();
           auto x2 = nextF (), y2 = nextF ();
-
-          flattenQuadratic (cur, { x1, y1 }, { x2, y2 },
-                            polyline, kFlattenTolerance);
-          cur = { x2, y2 };
+          Vec2 p0 = cur, cp{ x1, y1 }, p2{ x2, y2 };
+          auto constexpr subdivisions = 16;
+          for (int s = 1; s <= subdivisions; ++s)
+            {
+              auto const t = static_cast<float> (s) / subdivisions;
+              auto a = Vec2 (p0.x + (cp.x - p0.x) * t,
+                             p0.y + (cp.y - p0.y) * t);
+              auto b = Vec2 (cp.x + (p2.x - cp.x) * t,
+                             cp.y + (p2.y - cp.y) * t);
+              polyline.push_back (
+                  Vec2 (a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t));
+            }
+          cur = p2;
         }
       else if (cmd == "Z" || cmd == "z")
         {

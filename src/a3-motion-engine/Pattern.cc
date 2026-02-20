@@ -154,9 +154,12 @@ Pattern::getInterpolatedTick (double fractionalTick) const
   if (normalizedTick < 0)
     normalizedTick += effectiveLength;
   
-  // Get floor and ceil indices
+  // Get floor and ceil indices — wrap within effectiveLength so that
+  // partially-recorded patterns don't interpolate with ticks beyond
+  // the recorded range.
+  auto const effLen = static_cast<index_t> (effectiveLength);
   auto const tickFloor = static_cast<index_t> (std::floor (normalizedTick));
-  auto const tickCeil = (tickFloor + 1) % static_cast<index_t> (numTicks);
+  auto const tickCeil = (tickFloor + 1) % effLen;
   auto const fraction = static_cast<float> (normalizedTick - std::floor (normalizedTick));
   
   // Get keyframes
