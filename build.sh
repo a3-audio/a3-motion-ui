@@ -18,8 +18,8 @@
 
 set -e
 
-BUILD_DIR="/home/aaa/a3-motion/ui/build"
-SRC_DIR="/home/aaa/a3-motion/ui"
+BUILD_DIR="/home/aaa/a3-motion-ui/build"
+SRC_DIR="/home/aaa/a3-motion-ui"
 BUILD_TYPE="Release"
 DO_CLEAN=false
 DO_RESTART=false

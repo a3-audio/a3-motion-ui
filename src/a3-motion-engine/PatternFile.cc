@@ -616,6 +616,8 @@ PatternFile::load (juce::File const &file)
 
   auto name = xml->getStringAttribute ("data-name").toStdString ();
   auto lengthBeats = xml->getIntAttribute ("data-beats", 0);
+  auto ppqn = xml->getIntAttribute ("data-ppqn",
+                                     TempoClock::getTicksPerBeat ());
 
   if (lengthBeats <= 0)
     return nullptr;
@@ -641,7 +643,7 @@ PatternFile::load (juce::File const &file)
 
   auto pattern = std::make_shared<Pattern> ();
   pattern->setName (name);
-  pattern->resize (static_cast<index_t> (lengthBeats));
+  pattern->resize (static_cast<index_t> (lengthBeats * ppqn));
 
   auto const numTicks = pattern->getNumTicks ();
 

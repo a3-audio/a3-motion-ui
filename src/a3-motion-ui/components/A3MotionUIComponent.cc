@@ -73,9 +73,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     }
 
   // Initialize pattern library (creates system/ and user/ dirs if needed)
-  // Use a fixed location next to the source tree so patterns are shared
-  // across build configurations and survive rebuilds.
-  auto patternsDir = juce::File ("/home/aaa/a3-motion/ui/pattern");
+  // Path is configurable via "patternDir" in config.json.
+  auto patternsDir = userConfig.hasProperty ("patternDir")
+      ? juce::File (userConfig["patternDir"].toString ())
+      : juce::File ("/home/aaa/a3-motion-ui/pattern");
   _patternLibrary = std::make_unique<PatternLibrary> (patternsDir);
   _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
 
