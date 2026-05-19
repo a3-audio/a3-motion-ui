@@ -48,6 +48,7 @@ class ElevationDisplay;
 class PadRowDisplay;
 class StatusBar;
 class ChannelStrip;
+class OverlayMenuComponent;
 class ChannelUIState;
 class Pattern;
 
@@ -171,6 +172,14 @@ private:
   // ClockMode toggle state: 0 = INT, 1 = EXT, 2 = PIO
   int _clockMode = 0;
   float _internalBPM = 0.f;  // saved INT tempo for restore after EXT mode
+
+  // Overlay settings menu (opened by simultaneous press of buttons 00+09)
+  std::unique_ptr<OverlayMenuComponent> _overlayMenu;
+  bool  _menuOpen        = false;
+  float _menuNavLastPot  = 0.f;
+  void  openMenu ();
+  void  closeMenu (bool applySelection);
+  void  applyClockMode (int mode);
   
   // Pattern directory monitoring
   void timerCallback () override;

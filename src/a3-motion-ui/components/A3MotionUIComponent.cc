@@ -44,6 +44,7 @@
 #include <a3-motion-ui/components/ElevationDisplay.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
+#include <a3-motion-ui/components/OverlayMenuComponent.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
 
 #include <a3-motion-ui/tests/TempoEstimatorTest.hh>
@@ -88,6 +89,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   createChannelsUI ();
   createMainUI ();
   createPadRowDisplays ();
+
+  // Overlay menu (hidden by default, covers full window)
+  _overlayMenu = std::make_unique<OverlayMenuComponent> ();
+  addChildComponent (*_overlayMenu);
 
   // Start directory monitor: check for new/changed SVG files every 2 seconds
   startTimer (2000);
@@ -393,6 +398,7 @@ A3MotionUIComponent::createHardwareInterface ()
 #error hardware interface enabled but no implementation selected!
 #endif
   _ioAdapter->getButton (Button::ClockMode).addListener (this);
+  _ioAdapter->getButton (Button::Menu).addListener (this);
   _ioAdapter->getButton (Button::Record).addListener (this);
   _ioAdapter->getButton (Button::Tap).addListener (this);
   _ioAdapter->getTapTimeMicros ().addListener (this);
@@ -408,8 +414,10 @@ A3MotionUIComponent::createHardwareInterface ()
       _ioAdapter->getEncoderIncrement (channel).addListener (this);
       _ioAdapter->getEncoderPress (channel).addListener (this);
     }
-  _ioAdapter->startThread ();
+  // Pot encoder press on channel 3 (upper-right): used for menu confirm
+  _ioAdapter->getEncoderPress (3, 1).addListener (this);
 
+  _ioAdapter->startThread ();
   blankLEDs ();
 #endif
 }
@@ -514,6 +522,10 @@ A3MotionUIComponent::resized ()
     strip->setVisible (false);
 
   _motionComponent->setBounds (bounds);
+
+  // Overlay covers the whole component
+  if (_overlayMenu)
+    _overlayMenu->setBounds (getLocalBounds ());
 }
 
 float
@@ -538,40 +550,25 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
 {
   if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::ClockMode)))
     {
-      // Toggle ClockMode on button press
-      if (value.getValue ())
-        {
-          // Cycle through clock modes: 0 (INT) → 1 (EXT) → 2 (PIO) → 0
-          _clockMode = (_clockMode + 1) % 3;
-          
-          if (_clockMode != 0)
-            {
-              // Switching to EXT or PIO: save current internal tempo and reset clock
-              // phase so external beats don't conflict with running internal clock
-              if (_internalBPM == 0.f)
-                _internalBPM = _engine.getTempoClock ().getTempoBPM ();
-              _engine.getTempoClock ().reset ();
-            }
-          else
-            {
-              // Switching to INT: restore saved internal tempo
-              if (_internalBPM > 0.f)
-                {
-                  _engine.getTempoClock ().setTempoBPM (_internalBPM);
-                  _valueBPM = static_cast<double> (_internalBPM);
-                }
-            }
-          
-          // Update LED (on for EXT and PIO) and status bar
-          _ioAdapter->getButtonLED (Button::ClockMode) = (_clockMode != 0);
-          _statusBar->setClockMode (_clockMode);
-          _loopLengthDisplay->setClockMode (_clockMode);
-          
-          // Send clock mode status via OSC (0=INT, 1=EXT, 2=PIO)
-          auto clockModeMsg = juce::OSCMessage ("/clockmode");
-          clockModeMsg.addInt32 (_clockMode);
-          _oscSender.send (clockModeMsg);
-        }
+      // ClockMode button is kept for backward compat but no longer cycles;
+      // clock mode is changed via the overlay menu.
+      (void) value;
+    }
+  else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Menu)))
+    {
+      bool const pressed = static_cast<bool> (value.getValue ());
+      if (pressed)
+        openMenu ();
+      else
+        closeMenu (false); // releasing the chord → cancel without applying
+    }
+  else if (runsOnHardware () &&
+           value.refersToSameSourceAs (_ioAdapter->getEncoderPress (3, 1)))
+    {
+      // Pot encoder ch3 press: confirm menu selection
+      bool const pressed = static_cast<bool> (value.getValue ());
+      if (pressed && _menuOpen)
+        closeMenu (true);
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Record)))
     {
@@ -649,8 +646,21 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               juce::Logger::writeToLog ("channel " + juce::String (channel)
                                         + " pot_1: " + juce::String (pot1Normalized));
 #endif
-              _engine.setChannelPot1 (channel, pot1Normalized);
-              _filterDisplay->setSweep (static_cast<int> (channel), pot1Normalized);
+              if (channel == 3u && _menuOpen)
+                {
+                  // Use pot-encoder rotation on ch3 to navigate the overlay menu
+                  float delta = pot1Normalized - _menuNavLastPot;
+                  if (std::abs (delta) > 0.001f)
+                    {
+                      _overlayMenu->navigate (delta > 0.f ? 1 : -1);
+                      _menuNavLastPot = pot1Normalized;
+                    }
+                }
+              else
+                {
+                  _engine.setChannelPot1 (channel, pot1Normalized);
+                  _filterDisplay->setSweep (static_cast<int> (channel), pot1Normalized);
+                }
               return;
             }
           else if (value.refersToSameSourceAs (
@@ -1707,6 +1717,84 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
     }
   std::cout << std::endl;
 #endif
+}
+
+// ── Overlay menu helpers ──────────────────────────────────────────────────────
+
+void
+A3MotionUIComponent::openMenu ()
+{
+  if (_menuOpen)
+    return;
+
+  _menuOpen = true;
+
+  // Build or rebuild items with current clock mode as active
+  std::vector<OverlayMenuComponent::Item> items{
+    { "INT", juce::Colours::white },
+    { "EXT", juce::Colours::white },
+    { "PIO", juce::Colours::white },
+  };
+  _overlayMenu->setItems (std::move (items));
+  _overlayMenu->setActiveIndex (_clockMode);
+  _overlayMenu->setSelectedIndex (_clockMode);
+
+  // Snapshot current pot value for delta navigation
+  if (runsOnHardware ())
+    {
+      _menuNavLastPot = static_cast<float> (
+          _ioAdapter->getPot (3, 0).getValue ());
+    }
+
+  _overlayMenu->setVisible (true);
+  _overlayMenu->toFront (false);
+}
+
+void
+A3MotionUIComponent::closeMenu (bool applySelection)
+{
+  if (!_menuOpen)
+    return;
+
+  _menuOpen = false;
+  _overlayMenu->setVisible (false);
+
+  if (applySelection)
+    applyClockMode (_overlayMenu->getSelectedIndex ());
+}
+
+void
+A3MotionUIComponent::applyClockMode (int mode)
+{
+  if (mode == _clockMode)
+    return;
+
+  _clockMode = mode;
+
+  if (_clockMode != 0)
+    {
+      if (_internalBPM == 0.f)
+        _internalBPM = _engine.getTempoClock ().getTempoBPM ();
+      _engine.getTempoClock ().reset ();
+    }
+  else
+    {
+      if (_internalBPM > 0.f)
+        {
+          _engine.getTempoClock ().setTempoBPM (_internalBPM);
+          _valueBPM = static_cast<double> (_internalBPM);
+        }
+    }
+
+  if (runsOnHardware ())
+    _ioAdapter->getButtonLED (Button::ClockMode) = (_clockMode != 0);
+
+  _statusBar->setClockMode (_clockMode);
+  _loopLengthDisplay->setClockMode (_clockMode);
+
+  auto clockModeMsg = juce::OSCMessage ("/clockmode");
+  clockModeMsg.addInt32 (_clockMode);
+  _oscSender.send (clockModeMsg);
 }
 
 }

@@ -59,6 +59,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/ElevationDisplay.hh
     components/DirectivityComponent.cc
     components/DirectivityComponent.hh
+    components/OverlayMenuComponent.cc
+    components/OverlayMenuComponent.hh
     # components/PatternMenu.cc
     # components/PatternMenu.hh
     tests/TempoEstimatorTest.cc

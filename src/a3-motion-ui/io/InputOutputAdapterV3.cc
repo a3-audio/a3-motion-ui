@@ -201,8 +201,19 @@ InputOutputAdapterV3::dispatchButtonEvent (int idx, bool pressed)
 
   switch (m.role)
     {
-    case ButtonRole::Shift:
-      inputButtonValue (Button::ClockMode, pressed);
+    case ButtonRole::MenuToggle:
+      {
+        // Track button 00 (idx 40) and button 09 (idx 42) independently.
+        // Fire Button::Menu when both become simultaneously pressed.
+        int slot = (idx == 3) ? 0 : 1;
+        bool wasBothPressed = _menuButtonState[0] && _menuButtonState[1];
+        _menuButtonState[slot] = pressed;
+        bool isBothPressed = _menuButtonState[0] && _menuButtonState[1];
+        if (isBothPressed && !wasBothPressed)
+          inputButtonValue (Button::Menu, true);
+        else if (!isBothPressed && wasBothPressed)
+          inputButtonValue (Button::Menu, false);
+      }
       break;
 
     case ButtonRole::Record:
@@ -297,8 +308,9 @@ InputOutputAdapterV3::processEncSwitch (index_t ch, bool isPotEncoder,
       // CLICK: full press-release in one cycle
       if (isPotEncoder)
         {
-          // Toggle which pot encoder A is editing
           _selectedPot[ch] = (_selectedPot[ch] + 1) % numPotsPerChannel;
+          inputEncoderEvent (ch, 1, InputMessageEncoder::Event::Press);
+          inputEncoderEvent (ch, 1, InputMessageEncoder::Event::Release);
         }
       else
         {
@@ -314,6 +326,7 @@ InputOutputAdapterV3::processEncSwitch (index_t ch, bool isPotEncoder,
       if (isPotEncoder)
         {
           _selectedPot[ch] = (_selectedPot[ch] + 1) % numPotsPerChannel;
+          inputEncoderEvent (ch, 1, InputMessageEncoder::Event::Press);
         }
       else
         {
@@ -324,7 +337,9 @@ InputOutputAdapterV3::processEncSwitch (index_t ch, bool isPotEncoder,
     {
       // Released
       pressActive = false;
-      if (!isPotEncoder)
+      if (isPotEncoder)
+        inputEncoderEvent (ch, 1, InputMessageEncoder::Event::Release);
+      else
         inputEncoderEvent (ch, 0, InputMessageEncoder::Event::Release);
     }
   // sw == 2 (BOUNCE): no action

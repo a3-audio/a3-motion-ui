@@ -37,6 +37,7 @@ public:
     Record,
     Tap,
     ClockMode,
+    Menu,
   };
 
   InputOutputAdapter ();
@@ -68,7 +69,7 @@ protected:
   static auto constexpr numPadsPerChannel = 8u;
   static auto constexpr numPotsPerChannel = 2u;
   static auto constexpr numEncodersPerChannel = 2u;
-  static auto constexpr numButtons = 3u;
+  static auto constexpr numButtons = 4u;
 
   struct PadIndex
   {

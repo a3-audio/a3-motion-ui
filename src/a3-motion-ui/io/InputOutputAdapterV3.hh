@@ -95,7 +95,7 @@ private:
   enum class ButtonRole : uint8_t
   {
     Spare,
-    Shift,
+    MenuToggle,
     Record,
     Tap,
     Pad,
@@ -114,7 +114,7 @@ private:
     { ButtonRole::Spare,  0, 0 },  //  0: "40" row4 col0 – spare
     { ButtonRole::Spare,  0, 0 },  //  1: "30" row3 col0 – spare
     { ButtonRole::Tap,    0, 0 },  //  2: "20" row2 col0 – Tap (left)
-    { ButtonRole::Spare,  0, 0 },  //  3: "50" row5 col0 – spare
+    { ButtonRole::MenuToggle, 0, 0 },  //  3: "50" row5 col0 – Menu toggle (left)
     { ButtonRole::Pad,    0, 0 },  //  4: "21" ch0 left-col  row2 → pad0
     { ButtonRole::Pad,    0, 3 },  //  5: "51" ch0 left-col  row5 → pad3
     { ButtonRole::Pad,    0, 1 },  //  6: "31" ch0 left-col  row3 → pad1
@@ -148,19 +148,20 @@ private:
     { ButtonRole::Pad,    3, 4 },  // 34: "28" ch3 right-col row2 → pad4
     { ButtonRole::Pad,    3, 7 },  // 35: "58" ch3 right-col row5 → pad7
     { ButtonRole::Tap,    0, 0 },  // 36: "29" row2 col9 – Tap (right)
-    { ButtonRole::Spare,  0, 0 },  // 37: "59" row5 col9 – spare
+    { ButtonRole::MenuToggle, 0, 0 },  // 37: "59" row5 col9 – Menu toggle (right)
     { ButtonRole::Spare,  0, 0 },  // 38: "39" row3 col9 – spare
     { ButtonRole::Spare,  0, 0 },  // 39: "49" row4 col9 – spare
-    { ButtonRole::Shift,  0, 0 },  // 40: "00" row0 col0 – Shift (left)
-    { ButtonRole::Record, 0, 0 },  // 41: "10" row1 col0 – Record (left)
-    { ButtonRole::Shift,  0, 0 },  // 42: "09" row0 col9 – Shift (right)
-    { ButtonRole::Record, 0, 0 },  // 43: "19" row1 col9 – Record (right)
+    { ButtonRole::Spare,        0, 0 },  // 40: "00" row0 col0 – spare
+    { ButtonRole::Record,        0, 0 },  // 41: "10" row1 col0 – Record (left)
+    { ButtonRole::Spare,         0, 0 },  // 42: "09" row0 col9 – spare
+    { ButtonRole::Record,        0, 0 },  // 43: "19" row1 col9 – Record (right)
   };
 
   static constexpr int numHwButtons = 44;
 
   // ── Button state tracking ─────────────────────────────────────────────────
   std::array<bool, numHwButtons> _buttonPressed{};
+  std::array<bool, 2> _menuButtonState{};  // [0]=btn50 (idx3), [1]=btn59 (idx37)
 
   void parseButtons (const uint8_t *raw, int offset);
   void dispatchButtonEvent (int idx, bool pressed);
