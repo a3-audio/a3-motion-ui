@@ -76,17 +76,19 @@ InputOutputAdapter::getPadLED (index_t channel, index_t pad)
 }
 
 juce::Value &
-InputOutputAdapter::getEncoderPress (index_t channel)
+InputOutputAdapter::getEncoderPress (index_t channel, index_t encoderIndex)
 {
   jassert (channel < numChannels);
-  return _valueEncoderPresses[channel];
+  jassert (encoderIndex < numEncodersPerChannel);
+  return _valueEncoderPresses[channel][encoderIndex];
 }
 
 juce::Value &
-InputOutputAdapter::getEncoderIncrement (index_t channel)
+InputOutputAdapter::getEncoderIncrement (index_t channel, index_t encoderIndex)
 {
   jassert (channel < numChannels);
-  return _valueEncoderIncrements[channel];
+  jassert (encoderIndex < numEncodersPerChannel);
+  return _valueEncoderIncrements[channel][encoderIndex];
 }
 
 juce::Value &
@@ -119,6 +121,12 @@ index_t
 InputOutputAdapter::getNumPotsPerChannel ()
 {
   return numPotsPerChannel;
+}
+
+index_t
+InputOutputAdapter::getNumEncodersPerChannel ()
+{
+  return numEncodersPerChannel;
 }
 
 index_t
@@ -180,11 +188,20 @@ void
 InputOutputAdapter::inputEncoderEvent (index_t channel,
                                        InputMessageEncoder::Event event)
 {
+  inputEncoderEvent (channel, 0, event);
+}
+
+void
+InputOutputAdapter::inputEncoderEvent (index_t channel, index_t encoderIndex,
+                                       InputMessageEncoder::Event event)
+{
   jassert (channel < numChannels);
+  jassert (encoderIndex < numEncodersPerChannel);
 
   auto message = std::make_unique<InputMessageEncoder> ();
   message->event = event;
   message->channel = channel;
+  message->encoderIndex = encoderIndex;
   submitInputMessage (std::move (message));
 }
 
@@ -329,7 +346,7 @@ InputOutputAdapter::handleEncoder (InputMessageEncoder const &message)
       auto offset
           = message.event == InputMessageEncoder::Event::Increment ? 1 : -1;
 
-      auto value = _valueEncoderIncrements[message.channel];
+      auto value = _valueEncoderIncrements[message.channel][message.encoderIndex];
 
       // The following is required to send the same increment
       // repeatedly. juce::Value notifies observers only when the
@@ -349,7 +366,7 @@ InputOutputAdapter::handleEncoder (InputMessageEncoder const &message)
   else if (message.event == InputMessageEncoder::Event::Press
            || message.event == InputMessageEncoder::Event::Release)
     {
-      auto value = _valueEncoderPresses[message.channel];
+      auto value = _valueEncoderPresses[message.channel][message.encoderIndex];
       value = message.event == InputMessageEncoder::Event::Press ? 1 : 0;
     }
 }

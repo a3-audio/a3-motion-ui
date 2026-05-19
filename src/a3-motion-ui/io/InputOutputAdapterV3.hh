@@ -1,0 +1,200 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2023 Patric Schmitz
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#pragma once
+
+#include <array>
+#include <cstdint>
+
+#include <libserial/SerialPort.h>
+
+#include <JuceHeader.h>
+
+#include <a3-motion-ui/io/InputOutputAdapter.hh>
+
+namespace a3
+{
+
+/**
+ * InputOutputAdapterV3
+ *
+ * Hardware: ESP32-S3-DevKitC-1 with
+ *   44 buttons (2-bit state per button, packed)
+ *    8 encoders with push-button (i16 delta + u8 switch state)
+ *    4 potentiometers (u16 raw ADC, 0-4095)
+ *
+ * Physical layout (Label format RC = Row, Col):
+ *   Col 0 & Col 9   – function buttons (6 per side, mirrored left/right-hand)
+ *                     Row 0 = Shift, Row 1 = Record, Row 2 = Tap, Rows 3-5 = spare
+ *   Cols 1-2 / 3-4 / 5-6 / 7-8  – channel pairs 0-3
+ *                     Each channel: 2 cols × 4 rows (Rows 2-5) = 8 sample pads
+ *
+ * Encoder mapping (firmware index 0-7):
+ *   Even  (0,2,4,6) → Pot-Encoder  (encoder A) per channel 0-3:
+ *                     rotate adjusts selected pot value [0,1],
+ *                     push toggles between pot 0 and pot 1
+ *   Odd   (1,3,5,7) → Motion-Encoder (encoder B) per channel 0-3:
+ *                     mapped to base-class encoderIndex 0
+ *
+ * Hardware pots (4 total, read every potDivider cycles):
+ *   Exposed via getGlobalPot(0-3), independent of the per-channel pot system.
+ */
+class InputOutputAdapterV3 : public InputOutputAdapter
+{
+public:
+  InputOutputAdapterV3 ();
+  ~InputOutputAdapterV3 ();
+
+  void processInput () override;
+  void outputButtonLED (Button button, bool value) override;
+  void outputPadLED (PadIndex padIndex, juce::Colour colour) override;
+
+  // V3-specific: 4 global hardware potentiometers
+  juce::Value &getGlobalPot (index_t potIndex);
+
+private:
+  // ── Serial ────────────────────────────────────────────────────────────────
+  void serialInit ();
+  bool readExact (uint8_t *buf, std::size_t n);
+
+  LibSerial::SerialPort _serialPort;
+  bool _hardwareAvailable = false;
+
+  // ── Protocol constants ────────────────────────────────────────────────────
+  static constexpr uint8_t cmdPing       = 0x01;
+  static constexpr uint8_t cmdGetPots    = 0x02;
+  static constexpr uint8_t cmdGetEncoders = 0x03;
+  static constexpr uint8_t cmdGetButtons = 0x04;
+
+  // Response sizes (including the leading command echo byte)
+  static constexpr std::size_t btnFrameSize = 12;  // 1 + 11 packed bytes
+  static constexpr std::size_t encFrameSize = 25;  // 1 + 8×3 bytes
+  static constexpr std::size_t potFrameSize =  9;  // 1 + 4×u16
+
+  static constexpr int potDivider      = 5;   // read pots every Nth cycle
+  static constexpr unsigned int serialTimeoutMs = 250;
+
+  // ── Button mapping ────────────────────────────────────────────────────────
+  enum class ButtonRole : uint8_t
+  {
+    Spare,
+    Shift,
+    Record,
+    Tap,
+    Pad,
+  };
+
+  struct ButtonMapping
+  {
+    ButtonRole role;
+    uint8_t    channel;
+    uint8_t    pad;
+  };
+
+  // Indexed by firmware button index [0..43].
+  // Labels are "RC" (Row, Col); see Python script BUTTON_LABELS[] for order.
+  static constexpr ButtonMapping buttonMap[44] = {
+    { ButtonRole::Spare,  0, 0 },  //  0: "40" row4 col0 – spare
+    { ButtonRole::Spare,  0, 0 },  //  1: "30" row3 col0 – spare
+    { ButtonRole::Tap,    0, 0 },  //  2: "20" row2 col0 – Tap (left)
+    { ButtonRole::Spare,  0, 0 },  //  3: "50" row5 col0 – spare
+    { ButtonRole::Pad,    0, 0 },  //  4: "21" ch0 left-col  row2 → pad0
+    { ButtonRole::Pad,    0, 3 },  //  5: "51" ch0 left-col  row5 → pad3
+    { ButtonRole::Pad,    0, 1 },  //  6: "31" ch0 left-col  row3 → pad1
+    { ButtonRole::Pad,    0, 2 },  //  7: "41" ch0 left-col  row4 → pad2
+    { ButtonRole::Pad,    0, 6 },  //  8: "42" ch0 right-col row4 → pad6
+    { ButtonRole::Pad,    0, 5 },  //  9: "32" ch0 right-col row3 → pad5
+    { ButtonRole::Pad,    0, 4 },  // 10: "22" ch0 right-col row2 → pad4
+    { ButtonRole::Pad,    0, 7 },  // 11: "52" ch0 right-col row5 → pad7
+    { ButtonRole::Pad,    1, 0 },  // 12: "23" ch1 left-col  row2 → pad0
+    { ButtonRole::Pad,    1, 3 },  // 13: "53" ch1 left-col  row5 → pad3
+    { ButtonRole::Pad,    1, 1 },  // 14: "33" ch1 left-col  row3 → pad1
+    { ButtonRole::Pad,    1, 2 },  // 15: "43" ch1 left-col  row4 → pad2
+    { ButtonRole::Pad,    1, 6 },  // 16: "44" ch1 right-col row4 → pad6
+    { ButtonRole::Pad,    1, 5 },  // 17: "34" ch1 right-col row3 → pad5
+    { ButtonRole::Pad,    1, 4 },  // 18: "24" ch1 right-col row2 → pad4
+    { ButtonRole::Pad,    1, 7 },  // 19: "54" ch1 right-col row5 → pad7
+    { ButtonRole::Pad,    2, 0 },  // 20: "25" ch2 left-col  row2 → pad0
+    { ButtonRole::Pad,    2, 3 },  // 21: "55" ch2 left-col  row5 → pad3
+    { ButtonRole::Pad,    2, 1 },  // 22: "35" ch2 left-col  row3 → pad1
+    { ButtonRole::Pad,    2, 2 },  // 23: "45" ch2 left-col  row4 → pad2
+    { ButtonRole::Pad,    2, 6 },  // 24: "46" ch2 right-col row4 → pad6
+    { ButtonRole::Pad,    2, 5 },  // 25: "36" ch2 right-col row3 → pad5
+    { ButtonRole::Pad,    2, 4 },  // 26: "26" ch2 right-col row2 → pad4
+    { ButtonRole::Pad,    2, 7 },  // 27: "56" ch2 right-col row5 → pad7
+    { ButtonRole::Pad,    3, 0 },  // 28: "27" ch3 left-col  row2 → pad0
+    { ButtonRole::Pad,    3, 3 },  // 29: "57" ch3 left-col  row5 → pad3
+    { ButtonRole::Pad,    3, 1 },  // 30: "37" ch3 left-col  row3 → pad1
+    { ButtonRole::Pad,    3, 2 },  // 31: "47" ch3 left-col  row4 → pad2
+    { ButtonRole::Pad,    3, 6 },  // 32: "48" ch3 right-col row4 → pad6
+    { ButtonRole::Pad,    3, 5 },  // 33: "38" ch3 right-col row3 → pad5
+    { ButtonRole::Pad,    3, 4 },  // 34: "28" ch3 right-col row2 → pad4
+    { ButtonRole::Pad,    3, 7 },  // 35: "58" ch3 right-col row5 → pad7
+    { ButtonRole::Tap,    0, 0 },  // 36: "29" row2 col9 – Tap (right)
+    { ButtonRole::Spare,  0, 0 },  // 37: "59" row5 col9 – spare
+    { ButtonRole::Spare,  0, 0 },  // 38: "39" row3 col9 – spare
+    { ButtonRole::Spare,  0, 0 },  // 39: "49" row4 col9 – spare
+    { ButtonRole::Shift,  0, 0 },  // 40: "00" row0 col0 – Shift (left)
+    { ButtonRole::Record, 0, 0 },  // 41: "10" row1 col0 – Record (left)
+    { ButtonRole::Shift,  0, 0 },  // 42: "09" row0 col9 – Shift (right)
+    { ButtonRole::Record, 0, 0 },  // 43: "19" row1 col9 – Record (right)
+  };
+
+  static constexpr int numHwButtons = 44;
+
+  // ── Button state tracking ─────────────────────────────────────────────────
+  std::array<bool, numHwButtons> _buttonPressed{};
+
+  void parseButtons (const uint8_t *raw, int offset);
+  void dispatchButtonEvent (int idx, bool pressed);
+
+  // ── Encoder state ─────────────────────────────────────────────────────────
+  // Encoder A (even firmware index) = pot encoder per channel
+  // Encoder B (odd  firmware index) = motion encoder per channel (encoderIndex 0)
+
+  // Which pot (0 or 1) encoder A is currently adjusting per channel
+  std::array<index_t, numChannels> _selectedPot{};
+
+  // Accumulated pot values controlled by encoder A [0.0, 1.0]
+  std::array<std::array<float, numPotsPerChannel>, numChannels> _encoderPotValues{};
+
+  // Press state tracking for encoder switches
+  std::array<bool, numChannels> _encAPressActive{};  // pot encoder push
+  std::array<bool, numChannels> _encBPressActive{};  // motion encoder push
+
+  static constexpr float potEncoderSensitivity = 0.01f;
+
+  void parseEncoders (const uint8_t *raw, int offset);
+  void processEncSwitch (index_t ch, bool isPotEncoder, uint8_t sw);
+
+  // ── Hardware pot state ────────────────────────────────────────────────────
+  static constexpr int numGlobalPots = 4;
+  static constexpr int potDeadband   = 8;  // raw ADC counts
+
+  std::array<int, numGlobalPots> _prevPotRaw{};
+  std::array<juce::Value, numGlobalPots> _globalPotValues;
+
+  void parsePots (const uint8_t *raw, int offset);
+
+  // ── Cycle counter ─────────────────────────────────────────────────────────
+  int _cycle = 0;
+};
+
+}

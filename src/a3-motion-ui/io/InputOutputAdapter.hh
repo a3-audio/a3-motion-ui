@@ -46,8 +46,8 @@ public:
   juce::Value &getButtonLED (Button button);
   juce::Value &getPad (index_t channel, index_t pad);
   juce::Value &getPadLED (index_t channel, index_t pad);
-  juce::Value &getEncoderPress (index_t channel);
-  juce::Value &getEncoderIncrement (index_t channel);
+  juce::Value &getEncoderPress (index_t channel, index_t encoderIndex = 0);
+  juce::Value &getEncoderIncrement (index_t channel, index_t encoderIndex = 0);
   juce::Value &getPot (index_t channel, index_t pot);
   juce::Value &getTapTimeMicros ();
 
@@ -60,12 +60,14 @@ public:
   index_t getNumChannels ();
   index_t getNumPadsPerChannel ();
   index_t getNumPotsPerChannel ();
+  index_t getNumEncodersPerChannel ();
   index_t getNumButtons ();
 
 protected:
   static auto constexpr numChannels = 4u;
-  static auto constexpr numPadsPerChannel = 4u;
+  static auto constexpr numPadsPerChannel = 8u;
   static auto constexpr numPotsPerChannel = 2u;
+  static auto constexpr numEncodersPerChannel = 2u;
   static auto constexpr numButtons = 3u;
 
   struct PadIndex
@@ -144,6 +146,7 @@ protected:
     } event;
 
     index_t channel;
+    index_t encoderIndex = 0;
   };
 
   struct InputMessagePot : public InputMessage
@@ -212,6 +215,7 @@ protected:
   void inputPadValue (PadIndex const &padIndex, bool value);
   void inputButtonValue (Button button, bool value);
   void inputEncoderEvent (index_t channel, InputMessageEncoder::Event event);
+  void inputEncoderEvent (index_t channel, index_t encoderIndex, InputMessageEncoder::Event event);
   void inputPotValue (index_t channel, index_t pot, float value);
   void inputTapTime (juce::int64 timeMicros);
 
@@ -242,8 +246,10 @@ private:
   std::array<juce::Value, numButtons> _valueButtonLEDs;
 
   std::map<int, bool> _lastEncoderPressValues;
-  std::array<juce::Value, numChannels> _valueEncoderPresses;
-  std::array<juce::Value, numChannels> _valueEncoderIncrements;
+  std::array<std::array<juce::Value, numEncodersPerChannel>, numChannels>
+      _valueEncoderPresses;
+  std::array<std::array<juce::Value, numEncodersPerChannel>, numChannels>
+      _valueEncoderIncrements;
 
   std::array<std::array<juce::Value, numPotsPerChannel>, numChannels>
       _valuePots;

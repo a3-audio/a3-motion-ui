@@ -67,18 +67,26 @@ target_sources("a3-motion-ui" PRIVATE
 
 set(HARDWARE_INTERFACE_ENABLED FALSE CACHE BOOL "Enable interfacing with hardware")
 if(${HARDWARE_INTERFACE_ENABLED})
-    set(HARDWARE_INTERFACE_VERSION "V2" CACHE STRING "Hardware interface to use, options are: V2")
+    set(HARDWARE_INTERFACE_VERSION "V3" CACHE STRING "Hardware interface to use, options are: V2, V3")
 else()
     unset(HARDWARE_INTERFACE_VERSION CACHE)
 endif()
 
 set(HARDWARE_INTERFACE_LIBRARIES "")
 set(HARDWARE_INTERFACE_V2 FALSE)
+set(HARDWARE_INTERFACE_V3 FALSE)
 if("${HARDWARE_INTERFACE_VERSION}" STREQUAL "V2")
     set(HARDWARE_INTERFACE_V2 TRUE)
     target_sources("a3-motion-ui" PRIVATE
         io/InputOutputAdapterV2.cc
         io/InputOutputAdapterV2.hh
+    )
+    set(HARDWARE_INTERFACE_LIBRARIES "serial;gpiod")
+elseif("${HARDWARE_INTERFACE_VERSION}" STREQUAL "V3")
+    set(HARDWARE_INTERFACE_V3 TRUE)
+    target_sources("a3-motion-ui" PRIVATE
+        io/InputOutputAdapterV3.cc
+        io/InputOutputAdapterV3.hh
     )
     set(HARDWARE_INTERFACE_LIBRARIES "serial;gpiod")
 endif()
@@ -90,6 +98,9 @@ target_compile_definitions("a3-motion-ui" PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1
     DONT_SET_USING_JUCE_NAMESPACE=1
+    $<$<BOOL:${HARDWARE_INTERFACE_ENABLED}>:HARDWARE_INTERFACE_ENABLED>
+    $<$<BOOL:${HARDWARE_INTERFACE_V2}>:HARDWARE_INTERFACE_V2>
+    $<$<BOOL:${HARDWARE_INTERFACE_V3}>:HARDWARE_INTERFACE_V3>
 )
 
 target_include_directories("a3-motion-ui" PUBLIC

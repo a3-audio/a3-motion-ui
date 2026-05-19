@@ -53,6 +53,9 @@
 #ifdef HARDWARE_INTERFACE_V2
 #include <a3-motion-ui/io/InputOutputAdapterV2.hh>
 #endif
+#ifdef HARDWARE_INTERFACE_V3
+#include <a3-motion-ui/io/InputOutputAdapterV3.hh>
+#endif
 
 namespace a3
 {
@@ -384,6 +387,8 @@ A3MotionUIComponent::createHardwareInterface ()
 #if HARDWARE_INTERFACE_ENABLED
 #ifdef HARDWARE_INTERFACE_V2
   _ioAdapter = std::make_unique<InputOutputAdapterV2> ();
+#elif defined(HARDWARE_INTERFACE_V3)
+  _ioAdapter = std::make_unique<InputOutputAdapterV3> ();
 #else
 #error hardware interface enabled but no implementation selected!
 #endif
