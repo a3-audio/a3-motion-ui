@@ -182,7 +182,14 @@ V2 ist simpel, aber stärker vom Firmware-Stringformat abhängig.
 
 ### 5.3 V3-Adapter
 
+Repository zur Hardware / Firmware
+https://github.com/a3-audio/a3-motion/tree/v03.2
+
 `InputOutputAdapterV3` verwendet binär gepackte Poll-Frames mit dedizierten Kommandos.
+
+Hinweis zu v03.2: Laut `firmware/host.py` kann die USB-CDC-Antwort je nach Stack in
+`BTN+ENC` oder `ENC+BTN` Reihenfolge eintreffen. Der Adapter sollte Marker-basiert
+validieren und beide Layouts akzeptieren.
 
 Hardwaremodell laut Kommentar/Mapping:
 

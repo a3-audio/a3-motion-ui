@@ -74,6 +74,9 @@ public:
 
   void setBackgroundColour (juce::Colour const &colour);
 
+  // Temporarily pause/resume GL redraws (keeps component alive and interactive).
+  void setRenderingPaused (bool paused);
+
   // VU-driven lighting: sphere glow and speaker spotlights
   void setSphereGlow (float peak, float rms);
   void setSpeakerLight (int speakerIndex, float peak, float rms);

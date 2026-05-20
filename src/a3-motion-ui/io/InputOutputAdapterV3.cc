@@ -53,28 +53,41 @@ InputOutputAdapterV3::serialInit ()
 {
   using namespace LibSerial;
 
-  auto constexpr serialDevice = "/dev/ttyACM0";
-  try
-    {
-      _serialPort.Open (serialDevice);
-      _serialPort.SetBaudRate (BaudRate::BAUD_115200);
-      _serialPort.SetCharacterSize (CharacterSize::CHAR_SIZE_8);
-      _serialPort.SetFlowControl (FlowControl::FLOW_CONTROL_NONE);
-      _serialPort.SetParity (Parity::PARITY_NONE);
-      _serialPort.SetStopBits (StopBits::STOP_BITS_1);
+  std::array<juce::String, 6> const candidates = {
+    "/dev/ttyACM0", "/dev/ttyACM1", "/dev/ttyACM2",
+    "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyUSB2"
+  };
 
-      // Give the device a moment to settle
-      juce::Thread::sleep (100);
-      _hardwareAvailable = true;
-      juce::Logger::writeToLog ("InputOutputAdapterV3: serial port opened");
-    }
-  catch (const std::exception &e)
+  for (auto const &serialDevice : candidates)
     {
-      juce::Logger::writeToLog (
-          juce::String ("InputOutputAdapterV3: cannot open serial port: ")
-          + e.what ());
-      _hardwareAvailable = false;
+      try
+        {
+          _serialPort.Open (serialDevice.toStdString ());
+          _serialPort.SetBaudRate (BaudRate::BAUD_115200);
+          _serialPort.SetCharacterSize (CharacterSize::CHAR_SIZE_8);
+          _serialPort.SetFlowControl (FlowControl::FLOW_CONTROL_NONE);
+          _serialPort.SetParity (Parity::PARITY_NONE);
+          _serialPort.SetStopBits (StopBits::STOP_BITS_1);
+
+          // Give the device a moment to settle
+          juce::Thread::sleep (100);
+          _hardwareAvailable = true;
+          juce::Logger::writeToLog (
+              "InputOutputAdapterV3: serial port opened: " + serialDevice);
+          return;
+        }
+      catch (const std::exception &e)
+        {
+          juce::Logger::writeToLog (
+              "InputOutputAdapterV3: serial candidate failed: " + serialDevice
+              + " (" + e.what () + ")");
+        }
     }
+
+  _hardwareAvailable = false;
+  juce::Logger::writeToLog (
+      "InputOutputAdapterV3: no usable serial port found "
+      "(/dev/ttyACM0..2, /dev/ttyUSB0..2)");
 }
 
 bool
@@ -96,6 +109,47 @@ InputOutputAdapterV3::readExact (uint8_t *buf, std::size_t n)
           return false;
         }
     }
+  return true;
+}
+
+bool
+InputOutputAdapterV3::resolveFrameOffsets (const uint8_t *raw, bool withPots,
+                                           int &buttonOffset,
+                                           int &encoderOffset,
+                                           int &potOffset)
+{
+  potOffset = withPots ? static_cast<int> (btnFrameSize + encFrameSize) : -1;
+
+  // Layout A: BTN(12) + ENC(25) [+ POT(9)]
+  if (raw[0] == cmdGetButtons && raw[btnFrameSize] == cmdGetEncoders)
+    {
+      buttonOffset = 0;
+      encoderOffset = static_cast<int> (btnFrameSize);
+    }
+  // Layout B: ENC(25) + BTN(12) [+ POT(9)]
+  else if (raw[0] == cmdGetEncoders && raw[encFrameSize] == cmdGetButtons)
+    {
+      encoderOffset = 0;
+      buttonOffset = static_cast<int> (encFrameSize);
+    }
+  else
+    {
+      juce::Logger::writeToLog (
+          "InputOutputAdapterV3: bad frame markers: b0="
+          + juce::String (raw[0]) + " b12="
+          + juce::String (raw[btnFrameSize]) + " b25="
+          + juce::String (raw[encFrameSize]));
+      return false;
+    }
+
+  if (withPots && raw[potOffset] != cmdGetPots)
+    {
+      juce::Logger::writeToLog (
+          "InputOutputAdapterV3: bad pot frame marker: "
+          + juce::String (raw[potOffset]));
+      return false;
+    }
+
   return true;
 }
 
@@ -122,9 +176,20 @@ InputOutputAdapterV3::processInput ()
           _cycle = 0;
           return;
         }
-      parseButtons (raw, 0);
-      parseEncoders (raw, static_cast<int> (btnFrameSize));
-      parsePots (raw, static_cast<int> (btnFrameSize + encFrameSize));
+
+      int buttonOffset = 0;
+      int encoderOffset = 0;
+      int potOffset = -1;
+      if (!resolveFrameOffsets (raw, true, buttonOffset, encoderOffset,
+                                potOffset))
+        {
+          _cycle = 0;
+          return;
+        }
+
+      parseButtons (raw, buttonOffset);
+      parseEncoders (raw, encoderOffset);
+      parsePots (raw, potOffset);
     }
   else
     {
@@ -138,8 +203,19 @@ InputOutputAdapterV3::processInput ()
           _cycle = 0;
           return;
         }
-      parseButtons (raw, 0);
-      parseEncoders (raw, static_cast<int> (btnFrameSize));
+
+      int buttonOffset = 0;
+      int encoderOffset = 0;
+      int potOffset = -1;
+      if (!resolveFrameOffsets (raw, false, buttonOffset, encoderOffset,
+                                potOffset))
+        {
+          _cycle = 0;
+          return;
+        }
+
+      parseButtons (raw, buttonOffset);
+      parseEncoders (raw, encoderOffset);
     }
 
   ++_cycle;

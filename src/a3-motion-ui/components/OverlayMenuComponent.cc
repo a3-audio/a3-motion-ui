@@ -73,17 +73,15 @@ OverlayMenuComponent::paint (juce::Graphics &g)
       panelW, panelH);
 
   // ── panel background ──────────────────────────────────────────────────────
-  g.setColour (juce::Colour (0x22ffffff));
+  g.setColour (juce::Colour (0x10ffffff)); // lower alpha for less visible edge
   g.fillRoundedRectangle (panelBounds.toFloat (), 10.f);
-  g.setColour (juce::Colour (0x55ffffff));
-  g.drawRoundedRectangle (panelBounds.toFloat (), 10.f, 1.f);
 
   // ── items ─────────────────────────────────────────────────────────────────
   auto row = panelBounds.reduced (paddingH, paddingV);
   auto const &item = _items[static_cast<size_t> (_selectedIndex)];
   bool const isActive = (_selectedIndex == _activeIndex);
 
-  g.setColour (juce::Colour (0x22ffffff));
+  g.setColour (juce::Colour (0x10ffffff)); // lower alpha for less visible edge
   g.fillRoundedRectangle (row.toFloat (), 6.f);
 
   auto labelArea = row.removeFromLeft (row.getWidth () * 3 / 5).reduced (8, 0);
@@ -93,11 +91,10 @@ OverlayMenuComponent::paint (juce::Graphics &g)
   g.setColour (juce::Colours::white.withAlpha (0.90f));
   g.drawText (item.description, labelArea, juce::Justification::centredLeft, true);
 
-  auto valueBorderColour = _valueFieldSelected
-                               ? juce::Colours::white.withAlpha (0.95f)
-                               : juce::Colours::white.withAlpha (0.45f);
-  g.setColour (valueBorderColour);
-  g.drawRoundedRectangle (valueArea.toFloat (), 5.f, _valueFieldSelected ? 2.0f : 1.0f);
+  g.setColour (_valueFieldSelected
+                   ? juce::Colours::white.withAlpha (0.18f)
+                   : juce::Colours::white.withAlpha (0.08f));
+  g.fillRoundedRectangle (valueArea.toFloat (), 5.f);
 
   g.setFont (juce::Font (18.f, juce::Font::bold));
   g.setColour (isActive ? item.colour : juce::Colours::white.withAlpha (0.9f));

@@ -73,6 +73,9 @@ private:
   // ── Serial ────────────────────────────────────────────────────────────────
   void serialInit ();
   bool readExact (uint8_t *buf, std::size_t n);
+  bool resolveFrameOffsets (const uint8_t *raw, bool withPots,
+                            int &buttonOffset, int &encoderOffset,
+                            int &potOffset);
 
   LibSerial::SerialPort _serialPort;
   bool _hardwareAvailable = false;

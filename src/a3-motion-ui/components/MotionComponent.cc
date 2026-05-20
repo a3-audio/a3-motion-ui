@@ -220,7 +220,7 @@ MotionComponent::MotionComponent (
       juce::OpenGLContext::OpenGLVersion::defaultGLVersion);
   _glContext.setRenderer (this);
   _glContext.setContinuousRepainting (true);
-  _glContext.setComponentPaintingEnabled (false);
+  _glContext.setComponentPaintingEnabled (true);
   _glContext.attachTo (*this);
 
   // @TODO: compile as binary resources into executable
@@ -314,6 +314,12 @@ void
 MotionComponent::setBackgroundColour (juce::Colour const &colour)
 {
   _backgroundColourPacked.store (colour.getARGB (), std::memory_order_relaxed);
+}
+
+void
+MotionComponent::setRenderingPaused (bool paused)
+{
+  _glContext.setContinuousRepainting (!paused);
 }
 
 void

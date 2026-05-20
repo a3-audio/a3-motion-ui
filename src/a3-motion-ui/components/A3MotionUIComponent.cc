@@ -92,6 +92,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   // Overlay menu (hidden by default, covers full window)
   _overlayMenu = std::make_unique<OverlayMenuComponent> ();
+  _overlayMenu->setAlwaysOnTop (true);
   addChildComponent (*_overlayMenu);
 
   // Start directory monitor: check for new/changed SVG files every 2 seconds
@@ -522,10 +523,14 @@ A3MotionUIComponent::resized ()
     strip->setVisible (false);
 
   _motionComponent->setBounds (bounds);
-
-  // Overlay covers the whole component
+  // Keep menu strictly above the motion sphere area.
   if (_overlayMenu)
-    _overlayMenu->setBounds (getLocalBounds ());
+    {
+      auto overlayBounds = getLocalBounds ().withHeight (bounds.getY ());
+      if (overlayBounds.getHeight () <= 0)
+        overlayBounds = getLocalBounds ();
+      _overlayMenu->setBounds (overlayBounds);
+    }
 }
 
 float
@@ -1786,14 +1791,17 @@ A3MotionUIComponent::openMenu ()
           _ioAdapter->getPot (3, 1).getValue ());
     }
 
-  _overlayMenu->setVisible (true);
-  _overlayMenu->toFront (false);
-
-  // MotionComponent uses an attached OpenGL context which can appear above
-  // sibling JUCE components depending on platform/compositor. Hide it while
-  // menu is open so the overlay remains visible.
   if (_motionComponent)
-    _motionComponent->setVisible (false);
+    {
+      auto overlayBounds = getLocalBounds ().withHeight (_motionComponent->getY ());
+      if (overlayBounds.getHeight () > 0)
+        _overlayMenu->setBounds (overlayBounds);
+    }
+
+  _overlayMenu->setVisible (true);
+  _overlayMenu->toFront (true);
+  if (_motionComponent)
+    _motionComponent->setRenderingPaused (true);
 }
 
 void
@@ -1806,9 +1814,8 @@ A3MotionUIComponent::closeMenu (bool applySelection)
   _menuValueFieldSelected = false;
   _overlayMenu->setVisible (false);
   _overlayMenu->setValueFieldSelected (false);
-
   if (_motionComponent)
-    _motionComponent->setVisible (true);
+    _motionComponent->setRenderingPaused (false);
 
   if (applySelection)
     applyClockMode (_overlayMenu->getSelectedIndex ());

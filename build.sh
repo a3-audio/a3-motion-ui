@@ -18,11 +18,16 @@
 
 set -e
 
-BUILD_DIR="/home/aaa/a3-motion-ui/build"
-SRC_DIR="/home/aaa/a3-motion-ui"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BUILD_DIR="$SCRIPT_DIR/build"
+SRC_DIR="$SCRIPT_DIR"
 BUILD_TYPE="Release"
 DO_CLEAN=false
 DO_RESTART=false
+
+# Prefer explicit JUCE_DIR (cmake package dir), then JUCE_PREFIX_PATH, then CMAKE_PREFIX_PATH,
+# finally fall back to ~/local/juce.
+JUCE_PREFIX_PATH="${JUCE_DIR:-${JUCE_PREFIX_PATH:-${CMAKE_PREFIX_PATH:-$HOME/local/juce}}}"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -54,22 +59,25 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-cd "$BUILD_DIR"
+mkdir -p "$BUILD_DIR"
 
 # Clean if requested
 if [ "$DO_CLEAN" = true ]; then
     echo "=== Cleaning ==="
-    rm -rf CMakeCache.txt CMakeFiles
+    rm -rf "$BUILD_DIR/CMakeCache.txt" "$BUILD_DIR/CMakeFiles"
 fi
 
 # Configure if needed
-if [ ! -f CMakeCache.txt ] || ! grep -q "CMAKE_BUILD_TYPE:STRING=$BUILD_TYPE" CMakeCache.txt; then
+if [ ! -f "$BUILD_DIR/CMakeCache.txt" ] || ! grep -q "CMAKE_BUILD_TYPE:STRING=$BUILD_TYPE" "$BUILD_DIR/CMakeCache.txt"; then
     echo "=== Configuring for $BUILD_TYPE ==="
-    cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DHARDWARE_INTERFACE_ENABLED=ON -DCMAKE_PREFIX_PATH=/home/aaa/local/juce "$SRC_DIR"
+    cmake -S "$SRC_DIR" -B "$BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+        -DHARDWARE_INTERFACE_ENABLED=ON \
+        -DCMAKE_PREFIX_PATH="$JUCE_PREFIX_PATH"
 fi
 
 echo "=== Building a3-motion-ui ($BUILD_TYPE) ==="
-cmake --build . --target a3-motion-ui_Standalone -j3
+cmake --build "$BUILD_DIR" --target a3-motion-ui_Standalone -j4
 
 BINARY="$BUILD_DIR/src/a3-motion-ui/a3-motion-ui_artefacts/$BUILD_TYPE/Standalone/a3-motion-ui"
 BINARY_DIR="$BUILD_DIR/src/a3-motion-ui/a3-motion-ui_artefacts/$BUILD_TYPE/Standalone"
@@ -87,15 +95,7 @@ fi
 echo ""
 echo "=== Build complete ==="
 echo "Binary: $BINARY"
-
-# Update wrapper script to point to correct build type
-cat > /home/aaa/bin/a3-motion-ui << EOF
-#!/bin/bash
-cd $BUILD_DIR/src/a3-motion-ui/a3-motion-ui_artefacts/$BUILD_TYPE/Standalone/
-./a3-motion-ui
-EOF
-chmod +x /home/aaa/bin/a3-motion-ui
-echo "Updated: /home/aaa/bin/a3-motion-ui -> $BUILD_TYPE"
+echo "Run: $BINARY"
 
 # Restart service if requested
 if [ "$DO_RESTART" = true ]; then
