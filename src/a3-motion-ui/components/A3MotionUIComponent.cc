@@ -558,17 +558,32 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     {
       bool const pressed = static_cast<bool> (value.getValue ());
       if (pressed)
-        openMenu ();
-      else
-        closeMenu (false); // releasing the chord → cancel without applying
+        {
+          if (_menuOpen)
+            closeMenu (false);
+          else
+            openMenu ();
+        }
+      // release: ignored (toggle on press)
     }
   else if (runsOnHardware () &&
            value.refersToSameSourceAs (_ioAdapter->getEncoderPress (3, 1)))
     {
-      // Pot encoder ch3 press: confirm menu selection
+      // Pot encoder ch3 press:
+      // first press selects value field, second press confirms and applies.
       bool const pressed = static_cast<bool> (value.getValue ());
       if (pressed && _menuOpen)
-        closeMenu (true);
+        {
+          if (!_menuValueFieldSelected)
+            {
+              _menuValueFieldSelected = true;
+              _overlayMenu->setValueFieldSelected (true);
+            }
+          else
+            {
+              closeMenu (true);
+            }
+        }
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Record)))
     {
@@ -628,6 +643,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
             {
               auto const increment = static_cast<int> (
                   _ioAdapter->getEncoderIncrement (channel).getValue ());
+              if (_menuOpen && channel == 3u && _menuValueFieldSelected)
+                {
+                  if (increment != 0)
+                    _overlayMenu->navigate (increment > 0 ? 1 : -1);
+                  return;
+                }
+
               handleEncoderIncrement (channel, increment);
             }
           else if (value.refersToSameSourceAs (
@@ -648,13 +670,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
 #endif
               if (channel == 3u && _menuOpen)
                 {
-                  // Use pot-encoder rotation on ch3 to navigate the overlay menu
-                  float delta = pot1Normalized - _menuNavLastPot;
-                  if (std::abs (delta) > 0.001f)
+                  // Menu value changes only while value field is selected.
+                  float delta = pot1Normalized - _menuNavLastPots[0];
+                  if (_menuValueFieldSelected && std::abs (delta) > 0.001f)
                     {
                       _overlayMenu->navigate (delta > 0.f ? 1 : -1);
-                      _menuNavLastPot = pot1Normalized;
                     }
+                  _menuNavLastPots[0] = pot1Normalized;
                 }
               else
                 {
@@ -672,8 +694,22 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               juce::Logger::writeToLog ("channel " + juce::String (channel)
                                         + " pot_2: " + juce::String (pot2Normalized));
 #endif
-              _engine.setChannelPot2 (channel, pot2Normalized);
-              _filterDisplay->setQ (static_cast<int> (channel), pot2Normalized);
+              if (channel == 3u && _menuOpen)
+                {
+                  // Encoder press on channel 3 toggles selected pot (0/1),
+                  // so accept both as menu-navigation sources.
+                  float delta = pot2Normalized - _menuNavLastPots[1];
+                  if (_menuValueFieldSelected && std::abs (delta) > 0.001f)
+                    {
+                      _overlayMenu->navigate (delta > 0.f ? 1 : -1);
+                    }
+                  _menuNavLastPots[1] = pot2Normalized;
+                }
+              else
+                {
+                  _engine.setChannelPot2 (channel, pot2Normalized);
+                  _filterDisplay->setQ (static_cast<int> (channel), pot2Normalized);
+                }
               return;
             }
 
@@ -1728,26 +1764,36 @@ A3MotionUIComponent::openMenu ()
     return;
 
   _menuOpen = true;
+  _menuValueFieldSelected = false;
 
   // Build or rebuild items with current clock mode as active
   std::vector<OverlayMenuComponent::Item> items{
-    { "INT", juce::Colours::white },
-    { "EXT", juce::Colours::white },
-    { "PIO", juce::Colours::white },
+    { "Clockmode", "INT", juce::Colours::white },
+    { "Clockmode", "EXT", juce::Colours::white },
+    { "Clockmode", "PIO", juce::Colours::white },
   };
   _overlayMenu->setItems (std::move (items));
   _overlayMenu->setActiveIndex (_clockMode);
   _overlayMenu->setSelectedIndex (_clockMode);
+  _overlayMenu->setValueFieldSelected (false);
 
   // Snapshot current pot value for delta navigation
   if (runsOnHardware ())
     {
-      _menuNavLastPot = static_cast<float> (
+      _menuNavLastPots[0] = static_cast<float> (
           _ioAdapter->getPot (3, 0).getValue ());
+      _menuNavLastPots[1] = static_cast<float> (
+          _ioAdapter->getPot (3, 1).getValue ());
     }
 
   _overlayMenu->setVisible (true);
   _overlayMenu->toFront (false);
+
+  // MotionComponent uses an attached OpenGL context which can appear above
+  // sibling JUCE components depending on platform/compositor. Hide it while
+  // menu is open so the overlay remains visible.
+  if (_motionComponent)
+    _motionComponent->setVisible (false);
 }
 
 void
@@ -1757,7 +1803,12 @@ A3MotionUIComponent::closeMenu (bool applySelection)
     return;
 
   _menuOpen = false;
+  _menuValueFieldSelected = false;
   _overlayMenu->setVisible (false);
+  _overlayMenu->setValueFieldSelected (false);
+
+  if (_motionComponent)
+    _motionComponent->setVisible (true);
 
   if (applySelection)
     applyClockMode (_overlayMenu->getSelectedIndex ());
@@ -1773,7 +1824,7 @@ A3MotionUIComponent::applyClockMode (int mode)
 
   if (_clockMode != 0)
     {
-      if (_internalBPM == 0.f)
+      if (std::abs (_internalBPM) < 0.0001f)
         _internalBPM = _engine.getTempoClock ().getTempoBPM ();
       _engine.getTempoClock ().reset ();
     }

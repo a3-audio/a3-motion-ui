@@ -176,7 +176,8 @@ private:
   // Overlay settings menu (opened by simultaneous press of buttons 00+09)
   std::unique_ptr<OverlayMenuComponent> _overlayMenu;
   bool  _menuOpen        = false;
-  float _menuNavLastPot  = 0.f;
+  bool  _menuValueFieldSelected = false;
+  std::array<float, 2> _menuNavLastPots{ { 0.f, 0.f } };
   void  openMenu ();
   void  closeMenu (bool applySelection);
   void  applyClockMode (int mode);

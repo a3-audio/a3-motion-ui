@@ -51,6 +51,13 @@ OverlayMenuComponent::navigate (int delta)
 }
 
 void
+OverlayMenuComponent::setValueFieldSelected (bool selected)
+{
+  _valueFieldSelected = selected;
+  repaint ();
+}
+
+void
 OverlayMenuComponent::paint (juce::Graphics &g)
 {
   // ── dim background ────────────────────────────────────────────────────────
@@ -59,7 +66,7 @@ OverlayMenuComponent::paint (juce::Graphics &g)
   if (_items.empty ())
     return;
 
-  int panelH = paddingV * 2 + static_cast<int> (_items.size ()) * itemH;
+  int panelH = paddingV * 2 + itemH;
   auto panelBounds = juce::Rectangle<int> (
       (getWidth () - panelW) / 2,
       (getHeight () - panelH) / 2,
@@ -72,39 +79,29 @@ OverlayMenuComponent::paint (juce::Graphics &g)
   g.drawRoundedRectangle (panelBounds.toFloat (), 10.f, 1.f);
 
   // ── items ─────────────────────────────────────────────────────────────────
-  auto itemArea = panelBounds.reduced (paddingH, paddingV);
-  for (int i = 0; i < static_cast<int> (_items.size ()); ++i)
-    {
-      auto row = itemArea.removeFromTop (itemH);
-      bool isSelected = (i == _selectedIndex);
-      bool isActive   = (i == _activeIndex);
+  auto row = panelBounds.reduced (paddingH, paddingV);
+  auto const &item = _items[static_cast<size_t> (_selectedIndex)];
+  bool const isActive = (_selectedIndex == _activeIndex);
 
-      // highlight selected row
-      if (isSelected)
-        {
-          g.setColour (_items[i].colour.withAlpha (0.25f));
-          g.fillRoundedRectangle (row.toFloat (), 6.f);
-          g.setColour (_items[i].colour.withAlpha (0.6f));
-          g.drawRoundedRectangle (row.toFloat (), 6.f, 1.5f);
-        }
+  g.setColour (juce::Colour (0x22ffffff));
+  g.fillRoundedRectangle (row.toFloat (), 6.f);
 
-      // active indicator (dot on the right)
-      if (isActive)
-        {
-          auto dot = row.withWidth (12).withHeight (12)
-                        .withRightX (row.getRight () - 8)
-                        .withY (row.getCentreY () - 6);
-          g.setColour (_items[i].colour);
-          g.fillEllipse (dot.toFloat ());
-        }
+  auto labelArea = row.removeFromLeft (row.getWidth () * 3 / 5).reduced (8, 0);
+  auto valueArea = row.reduced (8, 8);
 
-      // label
-      g.setFont (juce::Font (22.f, isSelected ? juce::Font::bold : juce::Font::plain));
-      g.setColour (isSelected ? _items[i].colour
-                              : juce::Colours::white.withAlpha (0.55f));
-      g.drawText (_items[i].label, row.reduced (4, 0),
-                  juce::Justification::centredLeft, true);
-    }
+  g.setFont (juce::Font (19.f, juce::Font::plain));
+  g.setColour (juce::Colours::white.withAlpha (0.90f));
+  g.drawText (item.description, labelArea, juce::Justification::centredLeft, true);
+
+  auto valueBorderColour = _valueFieldSelected
+                               ? juce::Colours::white.withAlpha (0.95f)
+                               : juce::Colours::white.withAlpha (0.45f);
+  g.setColour (valueBorderColour);
+  g.drawRoundedRectangle (valueArea.toFloat (), 5.f, _valueFieldSelected ? 2.0f : 1.0f);
+
+  g.setFont (juce::Font (18.f, juce::Font::bold));
+  g.setColour (isActive ? item.colour : juce::Colours::white.withAlpha (0.9f));
+  g.drawText (item.value, valueArea, juce::Justification::centred, true);
 }
 
 } // namespace a3

@@ -31,7 +31,8 @@ class OverlayMenuComponent : public juce::Component
 public:
   struct Item
   {
-    juce::String label;
+    juce::String description;
+    juce::String value;
     juce::Colour colour{ juce::Colours::white };
   };
 
@@ -50,14 +51,17 @@ public:
   // Move selection by delta steps (wraps around).
   void navigate (int delta);
 
+  void setValueFieldSelected (bool selected);
+
   void paint (juce::Graphics &g) override;
 
 private:
   std::vector<Item> _items;
   int _activeIndex   = 0;
   int _selectedIndex = 0;
+  bool _valueFieldSelected = false;
 
-  static constexpr int panelW     = 320;
+  static constexpr int panelW     = 520;
   static constexpr int itemH      = 52;
   static constexpr int paddingV   = 24;
   static constexpr int paddingH   = 32;
