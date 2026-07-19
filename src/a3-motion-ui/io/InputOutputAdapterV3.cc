@@ -30,6 +30,7 @@ namespace a3
 
 // ── constexpr out-of-line definition (C++14 compatibility) ───────────────────
 constexpr InputOutputAdapterV3::ButtonMapping InputOutputAdapterV3::buttonMap[44];
+constexpr uint8_t InputOutputAdapterV3::hwIndexToLedId[44];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -444,18 +445,65 @@ InputOutputAdapterV3::parsePots (const uint8_t *raw, int offset)
     }
 }
 
-// ── Output (LED) – stubs for V3 (protocol TBD) ───────────────────────────────
+// ── Output (LED) ──────────────────────────────────────────────────────────────
 
 void
-InputOutputAdapterV3::outputButtonLED (Button, bool)
+InputOutputAdapterV3::writeSetLed (uint8_t ledId, juce::Colour colour)
 {
-  // TODO: implement V3 LED output protocol
+  if (!_hardwareAvailable)
+    return;
+
+  const uint8_t frame[] = { cmdSetLed, ledId, colour.getRed (),
+                            colour.getGreen (), colour.getBlue () };
+  _serialPort.Write (
+      std::string (reinterpret_cast<const char *> (frame), sizeof (frame)));
 }
 
 void
-InputOutputAdapterV3::outputPadLED (PadIndex, juce::Colour)
+InputOutputAdapterV3::outputButtonLED (Button button, bool value)
 {
-  // TODO: implement V3 LED output protocol
+  // Record/Tap/Menu are each wired to a mirrored pair of physical buttons
+  // (left + right hand side); both share one logical Button and light up
+  // together. ClockMode was a V2-only physical button with no LED on V3
+  // hardware (kept for backward compat), so there's nothing to send for it.
+  static constexpr int recordHwIndices[] = { 41, 43 };
+  static constexpr int tapHwIndices[]    = { 2, 36 };
+  static constexpr int menuHwIndices[]   = { 3, 37 };
+
+  auto const colour = value ? juce::Colours::white : juce::Colours::black;
+
+  switch (button)
+    {
+    case Button::Record:
+      for (auto idx : recordHwIndices)
+        writeSetLed (hwIndexToLedId[idx], colour);
+      break;
+    case Button::Tap:
+      for (auto idx : tapHwIndices)
+        writeSetLed (hwIndexToLedId[idx], colour);
+      break;
+    case Button::Menu:
+      for (auto idx : menuHwIndices)
+        writeSetLed (hwIndexToLedId[idx], colour);
+      break;
+    case Button::ClockMode:
+      break;
+    }
+}
+
+void
+InputOutputAdapterV3::outputPadLED (PadIndex padIndex, juce::Colour colour)
+{
+  for (int i = 0; i < numHwButtons; ++i)
+    {
+      auto const &m = buttonMap[i];
+      if (m.role == ButtonRole::Pad && m.channel == padIndex.channel
+          && m.pad == padIndex.pad)
+        {
+          writeSetLed (hwIndexToLedId[i], colour);
+          return;
+        }
+    }
 }
 
 // ── Global pot accessor ───────────────────────────────────────────────────────

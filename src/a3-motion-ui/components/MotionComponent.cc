@@ -85,7 +85,7 @@ void main() {
 // }
 
 // relative to the (square) component extents
-auto constexpr reduceFactorCircle = .8f;
+auto constexpr reduceFactorCircle = .55f;
 auto constexpr reduceFactorHead = .35f;
 auto constexpr reduceFactorBlobs = 0.05f;
 
@@ -466,9 +466,17 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
         {
           auto const index = closestIndex.value ();
           _uiStates[index]->grabbed = true;
+
+          // Recover the raw 2D position via the exact inverse mapping
+          // (unambiguous between front/back hemisphere) rather than
+          // inverting the on-screen (orthographic) position, which would
+          // be ambiguous whenever the blob is currently on the back of
+          // the sphere and could snap it to the front on grab.
+          auto const posRaw2D = _engine.getHeightMap ().mapTo2D (
+              _engine.getChannelPosition (index),
+              _engine.getChannelCoverage (index));
           _uiStates[index]->grabOffset
-              = normalizedToLocal2DPosition (
-                    _engine.getChannelPosition (index))
+              = normalizedToLocal2DPosition (posRaw2D)
                 - event.getPosition ().toFloat ();
           _grabbedIndex = index;
 

@@ -46,6 +46,12 @@ public:
    *  the internal stored value. Enables per-channel elevation. */
   Pos mapTo3D (Pos const &pos2D, float coverage) const override;
 
+  /** Exact inverse of mapTo3D(): recovers the 2D disc position from a full
+   *  3D point, unambiguous between front and back hemisphere (see
+   *  HeightMap::mapTo2D). */
+  Pos mapTo2D (Pos const &pos3D) const override;
+  Pos mapTo2D (Pos const &pos3D, float coverage) const override;
+
   void setCoverage (float coverage) override;
   float getCoverage () const override;
 

@@ -85,6 +85,8 @@ private:
   static constexpr uint8_t cmdGetPots    = 0x02;
   static constexpr uint8_t cmdGetEncoders = 0x03;
   static constexpr uint8_t cmdGetButtons = 0x04;
+  static constexpr uint8_t cmdSetLed      = 0x05;
+  static constexpr uint8_t cmdSetAllLeds  = 0x06;
 
   // Response sizes (including the leading command echo byte)
   static constexpr std::size_t btnFrameSize = 12;  // 1 + 11 packed bytes
@@ -161,6 +163,20 @@ private:
   };
 
   static constexpr int numHwButtons = 44;
+
+  // Firmware button index [0..43] → NeoPixel chain index (SET_LED's led_id).
+  // The LED daisy chain is wired in a different physical order than the
+  // button-read order above; this table is the permutation between
+  // multiplexer_map.h's MATRIX_BUTTONS[] (buttonMap order) and LED_MAP[]/
+  // config.h's LED_PHYSICAL_ORDER[] (this array's order), matched by the "RC"
+  // labels in the buttonMap comments above.
+  static constexpr uint8_t hwIndexToLedId[44] = {
+    39, 40, 41, 38, 34, 37, 35, 36, 31, 32, 33, 30, 26, 29, 27, 28,
+    23, 24, 25, 22, 18, 21, 19, 20, 15, 16, 17, 14, 10, 13, 11, 12,
+     7,  8,  9,  6,  2,  5,  3,  4, 43, 42,  0,  1
+  };
+
+  void writeSetLed (uint8_t ledId, juce::Colour colour);
 
   // ── Button state tracking ─────────────────────────────────────────────────
   std::array<bool, numHwButtons> _buttonPressed{};

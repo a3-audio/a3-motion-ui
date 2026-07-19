@@ -50,6 +50,24 @@ public:
     return mapTo3D (pos2D);
   }
 
+  /** Exact inverse of mapTo3D(): recover the 2D disc position that was
+   *  originally used to produce this 3D position. Unlike re-deriving a 2D
+   *  position from the on-screen (orthographic) projection of pos3D — which
+   *  is ambiguous, since sin(theta) is the same for a colatitude and its
+   *  supplement — this uses the full 3D point (including z) and is
+   *  therefore unambiguous between the front and back hemisphere. */
+  virtual Pos mapTo2D (Pos const &pos3D) const
+  {
+    return Pos::fromCartesian (pos3D.x (), pos3D.y (), 0.f);
+  }
+
+  /** Same as mapTo2D(pos3D) but uses an explicit coverage value. */
+  virtual Pos mapTo2D (Pos const &pos3D, float coverage) const
+  {
+    (void) coverage;
+    return mapTo2D (pos3D);
+  }
+
   /** Set the coverage parameter (0.0 – 1.0).
    *  0.0 = flat / top only, 1.0 = full sphere.
    *  Default implementation is a no-op. */

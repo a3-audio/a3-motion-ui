@@ -76,8 +76,25 @@ Each channel is represented by a colored blob on the motion area:
 
 # Installation
 
+## Install system packages
+
+On a fresh Debian/Raspbian system, install the following before building anything:
+
+- Toolchain: `build-essential cmake pkg-config git`
+- JUCE dependencies: `xorg-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev` (on newer
+  Debian releases the freetype package was renamed to `libfreetype-dev`; install whichever exists)
+- a3-motion-engine dependency (GSL, checked via `pkg_check_modules`): `libgsl-dev`
+- Hardware interface (`HARDWARE_INTERFACE_ENABLED=ON`, V2 or V3): `libserial-dev libgpiod-dev`
+- Unit tests (`TESTS_ENABLED`, on by default): `googletest libgtest-dev libgmock-dev`
+
+```
+apt-get install build-essential cmake pkg-config git \
+    xorg-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev \
+    libgsl-dev libserial-dev libgpiod-dev \
+    googletest libgtest-dev libgmock-dev
+```
+
 ## Install JUCE
-- install development files for xorg, googletest/libgtest/libgmock, alsa if necessary (e.g. Debian/Raspbian: `apt-get install xorg-dev googletest libgtest-dev libgmock-dev libasound2-dev`)
 - clone JUCE repo and checkout `develop` branch
   - `mkdir ~/src ; cd ~/src`
   - `git clone https://github.com/juce-framework/JUCE.git`
