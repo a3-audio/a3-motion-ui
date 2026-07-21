@@ -95,7 +95,9 @@ HeightMapSphere::mapTo3D (Pos const &pos2D, float coverage) const
                               : r * thetaMax;
     }
 
-  theta = std::min (theta, pi<float> ());
+  theta = (_edgeMode.load (std::memory_order_relaxed) == EdgeMode::Clamp)
+              ? std::min (theta, thetaMax)
+              : std::min (theta, pi<float> ());
 
   // Spherical to Cartesian (unit sphere)
   auto const sinTheta = std::sin (theta);
@@ -173,6 +175,18 @@ float
 HeightMapSphere::getCoverage () const
 {
   return _coverage.load (std::memory_order_relaxed);
+}
+
+void
+HeightMapSphere::setEdgeMode (EdgeMode mode)
+{
+  _edgeMode.store (mode, std::memory_order_relaxed);
+}
+
+HeightMapSphere::EdgeMode
+HeightMapSphere::getEdgeMode () const
+{
+  return _edgeMode.load (std::memory_order_relaxed);
 }
 
 }

@@ -72,6 +72,8 @@ target_sources("a3-motion-engine" PRIVATE
     elevation/HeightMapFlat.hh
     elevation/HeightMapSphere.cc
     elevation/HeightMapSphere.hh
+    elevation/HeightMapSelectable.cc
+    elevation/HeightMapSelectable.hh
     util/Timing.cc
     util/Timing.hh
     util/Geometry.hh

@@ -30,6 +30,16 @@ namespace a3
 class HeightMapSphere : public HeightMap
 {
 public:
+  /** Controls what happens when a 2D position is dragged past the visible
+   *  disc (r > 1): Wrap keeps growing colatitude past thetaMax so the
+   *  position continues under the sphere (default, original behaviour).
+   *  Clamp freezes colatitude at thetaMax, i.e. the position stays pinned
+   *  to the sphere's edge instead of wrapping underneath. */
+  enum class EdgeMode { Wrap, Clamp };
+
+  void setEdgeMode (EdgeMode mode);
+  EdgeMode getEdgeMode () const;
+
   float computeHeight (Pos const &pos) const override;
 
   /** Map 2D disc position onto the sphere surface.
@@ -57,6 +67,7 @@ public:
 
 private:
   std::atomic<float> _coverage{ 0.5f };  // 0.5 = hemisphere (default)
+  std::atomic<EdgeMode> _edgeMode{ EdgeMode::Wrap };
 };
 
 }

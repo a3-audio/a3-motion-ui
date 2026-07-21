@@ -16,37 +16,63 @@ OverlayMenuComponent::OverlayMenuComponent ()
 }
 
 void
-OverlayMenuComponent::setItems (std::vector<Item> items)
+OverlayMenuComponent::setOptions (std::vector<Option> options)
 {
-  _items = std::move (items);
-  _selectedIndex = juce::jlimit (0, (int) _items.size () - 1, _selectedIndex);
-  _activeIndex   = juce::jlimit (0, (int) _items.size () - 1, _activeIndex);
+  _options = std::move (options);
+  _optionIndex = juce::jlimit (0, (int) _options.size () - 1, _optionIndex);
+  _selectedValueIndex = 0;
   repaint ();
 }
 
 void
-OverlayMenuComponent::setActiveIndex (int index)
+OverlayMenuComponent::setOptionIndex (int index)
 {
-  _activeIndex = index;
-  repaint ();
-}
-
-void
-OverlayMenuComponent::setSelectedIndex (int index)
-{
-  if (_items.empty ())
+  if (_options.empty ())
     return;
-  _selectedIndex = juce::jlimit (0, (int) _items.size () - 1, index);
+  _optionIndex = juce::jlimit (0, (int) _options.size () - 1, index);
   repaint ();
 }
 
 void
-OverlayMenuComponent::navigate (int delta)
+OverlayMenuComponent::setSelectedValueIndex (int index)
 {
-  if (_items.empty ())
+  if (_options.empty ())
     return;
-  int n = static_cast<int> (_items.size ());
-  _selectedIndex = (_selectedIndex + delta % n + n) % n;
+  auto const &values = _options[static_cast<size_t> (_optionIndex)].values;
+  _selectedValueIndex = juce::jlimit (0, (int) values.size () - 1, index);
+  repaint ();
+}
+
+void
+OverlayMenuComponent::setActiveValueIndex (int optionIndex, int activeIndex)
+{
+  if (optionIndex < 0 || optionIndex >= (int) _options.size ())
+    return;
+  auto &option = _options[static_cast<size_t> (optionIndex)];
+  option.activeIndex = juce::jlimit (0, (int) option.values.size () - 1, activeIndex);
+  repaint ();
+}
+
+void
+OverlayMenuComponent::navigateOption (int delta)
+{
+  if (_options.empty ())
+    return;
+  int n = static_cast<int> (_options.size ());
+  _optionIndex = (_optionIndex + delta % n + n) % n;
+  repaint ();
+}
+
+void
+OverlayMenuComponent::navigateValue (int delta)
+{
+  if (_options.empty ())
+    return;
+  auto const &values = _options[static_cast<size_t> (_optionIndex)].values;
+  if (values.empty ())
+    return;
+  int n = static_cast<int> (values.size ());
+  _selectedValueIndex = (_selectedValueIndex + delta % n + n) % n;
   repaint ();
 }
 
@@ -54,6 +80,8 @@ void
 OverlayMenuComponent::setValueFieldSelected (bool selected)
 {
   _valueFieldSelected = selected;
+  if (selected && !_options.empty ())
+    _selectedValueIndex = _options[static_cast<size_t> (_optionIndex)].activeIndex;
   repaint ();
 }
 
@@ -63,10 +91,12 @@ OverlayMenuComponent::paint (juce::Graphics &g)
   // ── dim background ────────────────────────────────────────────────────────
   g.fillAll (juce::Colour (0, 0, 0).withAlpha (0.72f));
 
-  if (_items.empty ())
+  if (_options.empty ())
     return;
 
-  int panelH = paddingV * 2 + itemH;
+  int const numOptions = static_cast<int> (_options.size ());
+  int const panelW = juce::jmin (maxPanelW, getWidth () - 2 * paddingH);
+  int const panelH = paddingV * 2 + numOptions * itemH + (numOptions - 1) * rowGap;
   auto panelBounds = juce::Rectangle<int> (
       (getWidth () - panelW) / 2,
       (getHeight () - panelH) / 2,
@@ -76,29 +106,45 @@ OverlayMenuComponent::paint (juce::Graphics &g)
   g.setColour (juce::Colour (0x10ffffff)); // lower alpha for less visible edge
   g.fillRoundedRectangle (panelBounds.toFloat (), 10.f);
 
-  // ── items ─────────────────────────────────────────────────────────────────
-  auto row = panelBounds.reduced (paddingH, paddingV);
-  auto const &item = _items[static_cast<size_t> (_selectedIndex)];
-  bool const isActive = (_selectedIndex == _activeIndex);
+  // ── one row per Option ───────────────────────────────────────────────────
+  auto rows = panelBounds.reduced (paddingH, paddingV);
 
-  g.setColour (juce::Colour (0x10ffffff)); // lower alpha for less visible edge
-  g.fillRoundedRectangle (row.toFloat (), 6.f);
+  for (int i = 0; i < numOptions; ++i)
+    {
+      auto row = rows.removeFromTop (itemH);
+      if (i < numOptions - 1)
+        rows.removeFromTop (rowGap);
 
-  auto labelArea = row.removeFromLeft (row.getWidth () * 3 / 5).reduced (8, 0);
-  auto valueArea = row.reduced (8, 8);
+      auto const &option = _options[static_cast<size_t> (i)];
+      if (option.values.empty ())
+        continue;
 
-  g.setFont (juce::Font (19.f, juce::Font::plain));
-  g.setColour (juce::Colours::white.withAlpha (0.90f));
-  g.drawText (item.description, labelArea, juce::Justification::centredLeft, true);
+      bool const isBrowsedRow = (i == _optionIndex);
+      bool const isArmedRow = isBrowsedRow && _valueFieldSelected;
+      int const shownValueIndex = isArmedRow ? _selectedValueIndex : option.activeIndex;
+      auto const &item = option.values[static_cast<size_t> (shownValueIndex)];
 
-  g.setColour (_valueFieldSelected
-                   ? juce::Colours::white.withAlpha (0.18f)
-                   : juce::Colours::white.withAlpha (0.08f));
-  g.fillRoundedRectangle (valueArea.toFloat (), 5.f);
+      g.setColour (isArmedRow ? juce::Colour (0x22ffffff)
+                    : isBrowsedRow ? juce::Colour (0x16ffffff)
+                                   : juce::Colour (0x10ffffff));
+      g.fillRoundedRectangle (row.toFloat (), 6.f);
 
-  g.setFont (juce::Font (18.f, juce::Font::bold));
-  g.setColour (isActive ? item.colour : juce::Colours::white.withAlpha (0.9f));
-  g.drawText (item.value, valueArea, juce::Justification::centred, true);
+      auto labelArea = row.removeFromLeft (row.getWidth () * 3 / 5).reduced (8, 0);
+      auto valueArea = row.reduced (8, 8);
+
+      g.setFont (juce::Font (19.f, juce::Font::plain));
+      g.setColour (juce::Colours::white.withAlpha (isBrowsedRow ? 0.90f : 0.55f));
+      g.drawText (option.name, labelArea, juce::Justification::centredLeft, true);
+
+      g.setColour (isArmedRow
+                       ? juce::Colours::white.withAlpha (0.18f)
+                       : juce::Colours::white.withAlpha (0.08f));
+      g.fillRoundedRectangle (valueArea.toFloat (), 5.f);
+
+      g.setFont (juce::Font (18.f, juce::Font::bold));
+      g.setColour (isBrowsedRow ? item.colour : juce::Colours::white.withAlpha (0.6f));
+      g.drawText (item.value, valueArea, juce::Justification::centred, true);
+    }
 }
 
 } // namespace a3

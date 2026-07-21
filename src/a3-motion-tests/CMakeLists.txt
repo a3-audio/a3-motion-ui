@@ -9,6 +9,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/TestRunnerApp.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TempoClock.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Position.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/HeightMapSphere.cc"
     )
 
 target_link_libraries(a3-motion-tests PUBLIC

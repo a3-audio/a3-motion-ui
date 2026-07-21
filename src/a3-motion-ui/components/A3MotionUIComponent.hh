@@ -51,6 +51,7 @@ class ChannelStrip;
 class OverlayMenuComponent;
 class ChannelUIState;
 class Pattern;
+class HeightMapSelectable;
 
 class A3MotionUIComponent : public juce::Component,
                             public juce::Value::Listener,
@@ -79,7 +80,7 @@ public:
 private:
   static auto constexpr numPages = 4u;
 
-  std::unique_ptr<HeightMap> _heightMap;
+  std::unique_ptr<HeightMapSelectable> _heightMap;
   MotionEngine _engine;
 
   void tickCallback (Measure measure);
@@ -173,14 +174,19 @@ private:
   int _clockMode = 0;
   float _internalBPM = 0.f;  // saved INT tempo for restore after EXT mode
 
-  // Overlay settings menu (opened by simultaneous press of buttons 00+09)
+  // Elevation map mode: 0 = Sphere (wrap), 1 = Sphere (clamped), 2 = Flat
+  int _elevationMapMode = 0;
+
+  // Overlay settings menu (opened by simultaneous press of buttons 50+59)
   std::unique_ptr<OverlayMenuComponent> _overlayMenu;
   bool  _menuOpen        = false;
   bool  _menuValueFieldSelected = false;
-  std::array<float, 2> _menuNavLastPots{ { 0.f, 0.f } };
+  int   _menuOptionIndex = 0;   // 0 = Clockmode, 1 = Elevation Map
   void  openMenu ();
-  void  closeMenu (bool applySelection);
+  void  closeMenu ();
+  void  confirmMenuOption ();
   void  applyClockMode (int mode);
+  void  applyElevationMap (int mode);
   
   // Pattern directory monitoring
   void timerCallback () override;

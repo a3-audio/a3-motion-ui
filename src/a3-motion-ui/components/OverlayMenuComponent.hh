@@ -22,49 +22,73 @@ namespace a3
 /**
  * OverlayMenuComponent
  *
- * Full-window semi-transparent overlay with a centred selection list.
- * Navigation via navigate(+1/-1), confirmation via confirmSelection().
- * Caller reads getSelectedIndex() to apply the chosen value.
+ * Full-window semi-transparent overlay with a centred, multi-row settings
+ * panel: every Option (e.g. "Clockmode", "Elevation Map") is shown as its
+ * own row simultaneously, sized to fit however many Options are supplied.
+ *
+ * Navigation is driven by a single rotary encoder: two-level, one input.
+ * Turning it while no row is armed calls navigateOption() to move the
+ * highlighted row (browse level); pushing arms that row's value field
+ * (setValueFieldSelected(true), which also seeds the candidate value from
+ * the row's current active value); turning it while armed calls
+ * navigateValue() to cycle that Option's values (edit level). The caller
+ * reads getSelectedValueIndex() to apply the chosen value.
  */
 class OverlayMenuComponent : public juce::Component
 {
 public:
-  struct Item
+  struct ValueItem
   {
-    juce::String description;
     juce::String value;
     juce::Colour colour{ juce::Colours::white };
   };
 
+  struct Option
+  {
+    juce::String name;
+    std::vector<ValueItem> values;
+    int activeIndex = 0;
+  };
+
   explicit OverlayMenuComponent ();
 
-  void setItems (std::vector<Item> items);
+  void setOptions (std::vector<Option> options);
 
-  // The "active" index is the currently applied value (shown with a marker).
-  void setActiveIndex (int index);
-  int  getActiveIndex () const { return _activeIndex; }
+  // Which Option is currently shown/browsed.
+  void setOptionIndex (int index);
+  int  getOptionIndex () const { return _optionIndex; }
 
-  // The "selected" index is the highlighted candidate during navigation.
-  void setSelectedIndex (int index);
-  int  getSelectedIndex () const { return _selectedIndex; }
+  // The candidate value index within the current Option, while armed.
+  void setSelectedValueIndex (int index);
+  int  getSelectedValueIndex () const { return _selectedValueIndex; }
 
-  // Move selection by delta steps (wraps around).
-  void navigate (int delta);
+  // Update an Option's applied ("active") value, e.g. after confirming.
+  void setActiveValueIndex (int optionIndex, int activeIndex);
 
+  // Move between Options (browse level). Wraps around.
+  void navigateOption (int delta);
+
+  // Move between values of the current Option (edit level). Wraps around.
+  void navigateValue (int delta);
+
+  // Arming (selected=true) seeds the candidate value from the current
+  // Option's active value, so turning the encoder starts from what's
+  // currently applied.
   void setValueFieldSelected (bool selected);
 
   void paint (juce::Graphics &g) override;
 
 private:
-  std::vector<Item> _items;
-  int _activeIndex   = 0;
-  int _selectedIndex = 0;
+  std::vector<Option> _options;
+  int _optionIndex        = 0;
+  int _selectedValueIndex = 0;
   bool _valueFieldSelected = false;
 
-  static constexpr int panelW     = 520;
-  static constexpr int itemH      = 52;
-  static constexpr int paddingV   = 24;
-  static constexpr int paddingH   = 32;
+  static constexpr int maxPanelW = 760;
+  static constexpr int itemH     = 52;
+  static constexpr int rowGap    = 6;
+  static constexpr int paddingV  = 24;
+  static constexpr int paddingH  = 32;
 };
 
 } // namespace a3
