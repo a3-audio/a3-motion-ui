@@ -27,6 +27,12 @@
 namespace a3
 {
 
+/**
+ * Alternate SpatBackend for the IEM plugin suite. Intentionally parked,
+ * not yet wired up: never selected in MotionEngine.cc (which hardcodes
+ * SpatBackendA3), and sendPot1/sendPot2 are stubs. Not dead code pending
+ * removal.
+ */
 class SpatBackendIEM : public SpatBackend
 {
 public:
