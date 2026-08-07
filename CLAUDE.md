@@ -98,8 +98,8 @@ generator and the test runner:
   user-recorded patterns in `pattern/user`; see `pattern/system/*.svg` for the built-in shape set).
 - `backends/SpatBackend*` — abstract backend interface with `SpatBackendA3` and `SpatBackendIEM`
   implementations; these are what actually format and dispatch OSC motion data.
-- `elevation/HeightMap*` — maps 2D recorded positions onto a 3D sphere (`Flat` vs `Sphere`
-  strategies), used for elevation coverage behavior.
+- `elevation/HeightMap*` — maps 2D recorded positions onto a 3D sphere via the `HeightMapSphere`
+  strategy, used for elevation coverage behavior.
 - `AsyncCommandQueue` — the lock-free bridge from the high-priority tempo-clock thread to the
   backend/network thread, so OSC I/O never blocks realtime scheduling.
 
@@ -116,7 +116,7 @@ High-level structure, top to bottom in `A3MotionUIComponent::resized()`: `Status
 the screen split into `MotionComponent` (the sphere) and, docked to the bottom quarter, the
 "settings area" — `ClipSettingsComponent` (permanent, shows the last-selected clip's 7 parameters:
 Trajectory Shape/Speed/Direction/End-Action/Scale/Sweep/Q) with `GlobalSettingsComponent`
-(Clockmode/Elevation Map, opened by the Menu button) drawn on top of it while open. Both settings
+(Clockmode/Pot Size/Font Size, opened by the Menu button) drawn on top of it while open. Both settings
 components share that bottom-quarter rect, carved out of `MotionComponent`'s actual bounds rather
 than just overlaid — `MotionComponent` renders via its own directly-attached `OpenGLContext`, which
 always composites above normal JUCE components regardless of z-order/`toFront()`, so nothing can

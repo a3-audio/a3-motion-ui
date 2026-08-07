@@ -54,7 +54,7 @@ Hinweis: `ChannelStrip`-Instanzen existieren weiterhin, sind aber aktuell verbor
 	Zeigt pro Kanal die aktuell selektierten Pattern-/Trajektorien-Slots.
 
 - `GlobalSettingsComponent`
-	Geräteweites Menü (Clockmode, Elevation Map). Teilt sich den unteren
+	Geräteweites Menü (Clockmode, Pot Size, Font Size). Teilt sich den unteren
 	Settings-Bereich mit `ClipSettingsComponent` (siehe dort).
 
 ### 2.3 Global Settings (aktuelles Verhalten)
@@ -98,8 +98,8 @@ Aktuelles Verhalten in `valueChanged(...)`:
 	Der direkte Cycle ist deaktiviert (nur Legacy-Platzhalter, keine Aktion).
 
 - `Button::Menu`
-	`pressed -> openMenu()`, `released -> closeMenu(false)`.
-	Das bedeutet: Das Menü ist in der aktuellen Implementierung gedrückt-halten-basiert und ein Loslassen verwirft die Auswahl, sofern nicht zuvor bestätigt wurde.
+	`pressed -> openGlobalSettings()` bzw. `closeGlobalSettings()`, je nachdem ob das Menü bereits offen ist. `released` wird ignoriert.
+	Das bedeutet: Das Menü ist Toggle-on-Press — ein Druck öffnet oder schließt es, Loslassen hat keine eigene Wirkung.
 
 - `Button::Record`
 	Long-Press-Tracking für Recording-Interaktionen, inkl. LED-Steuerung.
@@ -238,16 +238,14 @@ Zusätzlich wird in mehreren Pfaden darauf geachtet, Playback- und Recording-Lä
 1. Läuft der korrekte Adapter (V2 oder V3 Build-Flag)?
 2. Ist `/dev/ttyACM0` erreichbar?
 3. Kommen Adapter-Events in `valueChanged(...)` an?
-4. Werden Menü-/ClockMode-Zustände (`_menuOpen`, `_clockMode`) korrekt umgeschaltet?
+4. Werden Menü-/ClockMode-Zustände (`_globalSettingsOpen`, `_clockMode`) korrekt umgeschaltet?
 
 ### 7.2 Wenn Menüverhalten unerwartet ist
 
 Aktueller Stand:
 
 - V3-Chord erzeugt `Menu true/false`
-- UI behandelt `Menu` als press-hold-semantik (`open` bei true, `close(cancel)` bei false)
-
-Wenn Toggle gewünscht ist, muss die Semantik in `A3MotionUIComponent::valueChanged(...)` angepasst werden (Press toggelt, Release ignoriert).
+- UI behandelt `Menu` als Toggle-on-Press: Press öffnet/schließt `GlobalSettingsComponent`, Release wird ignoriert (siehe `A3MotionUIComponent::valueChanged(...)`).
 
 ### 7.3 Wenn Tempoanzeige inkonsistent ist
 

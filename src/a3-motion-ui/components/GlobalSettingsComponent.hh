@@ -22,7 +22,7 @@ namespace a3
 /**
  * GlobalSettingsComponent
  *
- * Device-wide settings menu (Clockmode, Elevation Map), opened by the Menu
+ * Device-wide settings menu (Clockmode, Pot Size, Font Size), opened by the Menu
  * button. Shares the bottom-quarter "settings area" of the screen with
  * ClipSettingsComponent — the two are never shown at once, this one is
  * drawn on top while open. Every Option is shown as its own row

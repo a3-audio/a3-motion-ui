@@ -45,7 +45,8 @@ namespace a3
  *
  * Physical layout (Label format RC = Row, Col):
  *   Col 0 & Col 9   – function buttons (6 per side, mirrored left/right-hand)
- *                     Row 0 = Shift, Row 1 = Record, Row 2 = Tap, Rows 3-5 = spare
+ *                     Row 0 = Shift, Row 1 = Record, Row 2 = Tap, Rows 3-4 = spare,
+ *                     Row 5 = Menu toggle
  *   Cols 1-2 / 3-4 / 5-6 / 7-8  – channel pairs 0-3
  *                     Each channel: 2 cols × 4 rows (Rows 2-5) = 8 sample pads
  *
