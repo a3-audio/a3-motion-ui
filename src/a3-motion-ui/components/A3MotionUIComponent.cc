@@ -460,8 +460,6 @@ A3MotionUIComponent::getMinimumWidth () const
 float
 A3MotionUIComponent::getMinimumHeight () const
 {
-  // auto minimumHeight = ChannelStrip::getMinimumHeight ()
-  //                      + LayoutHints::MotionComponent::heightMin;
   auto minimumHeight = LayoutHints::MotionComponent::heightMin;
   return minimumHeight;
 }

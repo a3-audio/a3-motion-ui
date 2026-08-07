@@ -48,18 +48,8 @@ public:
   void resized () override;
   void paint (juce::Graphics &g) override;
 
-  /** Set the elevation coverage for a specific channel (0.0 – 1.0). */
-  void setCoverage (int channel, float coverage);
-  float getCoverage (int channel) const;
-
   /** Set the display colour for a channel. */
   void setChannelColour (int channel, juce::Colour colour);
-
-  /** Set whether this row is highlighted for a given channel. */
-  void setRowHighlighted (int channel, bool highlighted);
-
-  /** Set whether a specific channel's cell is actively selected. */
-  void setCellSelected (int channel, bool selected);
 
   static constexpr int
   getMinimumHeight ()

@@ -99,23 +99,12 @@ public:
   void setIconPath (int channel, juce::Path const &path,
                     std::vector<std::pair<float,float>> const &jumpDots = {});
 
-  /** Set the label text (fallback, shown only for Empty type). */
-  void setLabel (int channel, juce::String label);
-
   /** Set the pattern length in beats (shown as small text). */
   void setLengthBeats (int channel, int beats);
 
   /** Set the category prefix ("s" for system, "u" for user).
    *  Shown as a small letter to the left of the icon. */
   void setCategoryPrefix (int channel, juce::String prefix);
-
-  /** Set whether this row is highlighted for a given channel
-   *  (encoder is pointing at this row in row-select mode). */
-  void setRowHighlighted (int channel, bool highlighted);
-
-  /** Set whether a specific channel's cell is actively selected
-   *  (encoder pressed, in edit mode). */
-  void setCellSelected (int channel, bool selected);
 
   /** Set the channel colour. */
   void setChannelColour (int channel, juce::Colour colour);
@@ -125,8 +114,6 @@ public:
   {
     return LayoutHints::lineHeight;
   }
-
-  int getRowIndex () const { return _rowIndex; }
 
 private:
   void paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,

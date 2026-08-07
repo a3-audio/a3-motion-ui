@@ -34,9 +34,6 @@ public:
 
   void paint (juce::Graphics &g) override;
 
-  void setPot1 (float pot1);
-  void setPot2 (float pot2);
-
 private:
   ChannelUIState const &_uiState;
 

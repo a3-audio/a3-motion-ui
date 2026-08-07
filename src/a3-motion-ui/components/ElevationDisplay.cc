@@ -146,49 +146,10 @@ ElevationDisplay::paintCell (juce::Graphics &g,
 }
 
 void
-ElevationDisplay::setCoverage (int channel, float coverage)
-{
-  if (channel >= 0 && channel < numChannels)
-    {
-      _cells[static_cast<size_t> (channel)].coverage
-          = std::clamp (coverage, 0.05f, 1.0f);
-      repaint ();
-    }
-}
-
-float
-ElevationDisplay::getCoverage (int channel) const
-{
-  if (channel >= 0 && channel < numChannels)
-    return _cells[static_cast<size_t> (channel)].coverage;
-  return 0.5f;
-}
-
-void
 ElevationDisplay::setChannelColour (int channel, juce::Colour colour)
 {
   if (channel >= 0 && channel < numChannels)
     _cells[static_cast<size_t> (channel)].colour = colour;
-}
-
-void
-ElevationDisplay::setRowHighlighted (int channel, bool highlighted)
-{
-  if (channel >= 0 && channel < numChannels)
-    {
-      _cells[static_cast<size_t> (channel)].rowHighlighted = highlighted;
-      repaint ();
-    }
-}
-
-void
-ElevationDisplay::setCellSelected (int channel, bool selected)
-{
-  if (channel >= 0 && channel < numChannels)
-    {
-      _cells[static_cast<size_t> (channel)].cellSelected = selected;
-      repaint ();
-    }
 }
 
 }

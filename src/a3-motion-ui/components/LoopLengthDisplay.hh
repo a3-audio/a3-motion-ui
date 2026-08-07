@@ -84,10 +84,6 @@ public:
    *  (encoder is pointing at this row in row-select mode). */
   void setRowHighlighted (int channel, bool highlighted);
 
-  /** Set whether a specific channel's cell is actively selected
-   *  (encoder pressed, in edit mode for loop length). */
-  void setCellSelected (int channel, bool selected);
-
   static constexpr int
   getMinimumHeight ()
   {

@@ -61,7 +61,6 @@ public:
   int  getOptionIndex () const { return _optionIndex; }
 
   // The candidate value index within the current Option, while armed.
-  void setSelectedValueIndex (int index);
   int  getSelectedValueIndex () const { return _selectedValueIndex; }
 
   // Update an Option's applied ("active") value, e.g. after confirming.

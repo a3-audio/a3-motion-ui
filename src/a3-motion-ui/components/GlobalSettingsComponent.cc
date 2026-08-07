@@ -34,16 +34,6 @@ GlobalSettingsComponent::setOptionIndex (int index)
 }
 
 void
-GlobalSettingsComponent::setSelectedValueIndex (int index)
-{
-  if (_options.empty ())
-    return;
-  auto const &values = _options[static_cast<size_t> (_optionIndex)].values;
-  _selectedValueIndex = juce::jlimit (0, (int) values.size () - 1, index);
-  repaint ();
-}
-
-void
 GlobalSettingsComponent::setActiveValueIndex (int optionIndex, int activeIndex)
 {
   if (optionIndex < 0 || optionIndex >= (int) _options.size ())

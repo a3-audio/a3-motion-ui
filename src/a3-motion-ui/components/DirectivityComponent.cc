@@ -96,16 +96,4 @@ DirectivityComponent::paint (juce::Graphics &g)
   g.strokePath (path, strokeType);
 }
 
-void
-DirectivityComponent::setPot1 (float pot1)
-{
-  _pot1 = pot1;
-}
-
-void
-DirectivityComponent::setPot2 (float pot2)
-{
-  _pot2 = pot2;
-}
-
 }

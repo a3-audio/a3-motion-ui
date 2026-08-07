@@ -562,14 +562,6 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
 }
 
 void
-PadRowDisplay::setLabel (int channel, juce::String label)
-{
-  jassert (channel >= 0 && channel < numChannels);
-  _cells[static_cast<size_t> (channel)].label = std::move (label);
-  repaint ();
-}
-
-void
 PadRowDisplay::setLengthBeats (int channel, int beats)
 {
   jassert (channel >= 0 && channel < numChannels);
@@ -582,22 +574,6 @@ PadRowDisplay::setCategoryPrefix (int channel, juce::String prefix)
 {
   jassert (channel >= 0 && channel < numChannels);
   _cells[static_cast<size_t> (channel)].categoryPrefix = std::move (prefix);
-  repaint ();
-}
-
-void
-PadRowDisplay::setRowHighlighted (int channel, bool highlighted)
-{
-  jassert (channel >= 0 && channel < numChannels);
-  _cells[static_cast<size_t> (channel)].rowHighlighted = highlighted;
-  repaint ();
-}
-
-void
-PadRowDisplay::setCellSelected (int channel, bool selected)
-{
-  jassert (channel >= 0 && channel < numChannels);
-  _cells[static_cast<size_t> (channel)].cellSelected = selected;
   repaint ();
 }
 

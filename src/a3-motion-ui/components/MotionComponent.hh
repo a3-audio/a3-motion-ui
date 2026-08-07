@@ -82,7 +82,6 @@ public:
   void setSpeakerLight (int speakerIndex, float peak, float rms);
 
 private:
-  void printFrameTime ();
   void updateBoundsAndTransform ();
   void renderBoundsChanged ();
 

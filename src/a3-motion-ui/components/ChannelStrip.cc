@@ -68,18 +68,6 @@ ChannelStrip::paint (juce::Graphics &g)
   juce::ignoreUnused (g);
 }
 
-DirectivityComponent &
-ChannelStrip::getDirectivityComponent ()
-{
-  return _directivity;
-}
-
-void
-ChannelStrip::setTextBarsLabel (juce::String text)
-{
-  _labelBars.setText (text, juce::NotificationType::dontSendNotification);
-}
-
 void ChannelStrip::setTextColour(juce::Colour const& colour)
 {
   _labelBars.setColour(juce::Label::textColourId, colour);

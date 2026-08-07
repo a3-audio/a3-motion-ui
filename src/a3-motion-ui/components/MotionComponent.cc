@@ -678,8 +678,6 @@ MotionComponent::renderOpenGL ()
   jassert (OpenGLHelpers::isContextActive ());
   _glContext.setSwapInterval (1);  // vsync @ 60 Hz — frees CPU for timer thread
 
-  // printFrameTime ();
-
   updateBoundsAndTransform ();
 
   // Clear background first
@@ -851,21 +849,6 @@ MotionComponent::renderOpenGL ()
           }
       }
   }
-}
-
-void
-MotionComponent::printFrameTime ()
-{
-  static auto lastT = std::chrono::high_resolution_clock::now ();
-
-  auto now = std::chrono::high_resolution_clock::now ();
-  auto deltaT
-      = std::chrono::duration_cast<std::chrono::microseconds> (now - lastT)
-            .count ()
-        / 1000.f;
-  lastT = now;
-
-  juce::Logger::writeToLog ("frametime: " + juce::String (deltaT));
 }
 
 void

@@ -270,12 +270,4 @@ LoopLengthDisplay::setRowHighlighted (int channel, bool highlighted)
   repaint ();
 }
 
-void
-LoopLengthDisplay::setCellSelected (int channel, bool selected)
-{
-  jassert (channel >= 0 && channel < numChannels);
-  _channels[channel].cellSelected = selected;
-  repaint ();
-}
-
 }

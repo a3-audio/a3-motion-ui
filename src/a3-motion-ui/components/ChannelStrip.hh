@@ -39,15 +39,7 @@ public:
   void resized () override;
   void paint (juce::Graphics &) override;
 
-  DirectivityComponent &getDirectivityComponent ();
-  void setTextBarsLabel (juce::String text);
   void setTextColour(juce::Colour const& colour);
-
-  // static constexpr int
-  // getMinimumHeight ()
-  // {
-  //   return 200;
-  // }
 
 private:
   ChannelUIState const &_uiState;
