@@ -20,6 +20,8 @@
 
 #include "Pattern.hh"
 
+#include <algorithm>
+
 namespace a3
 {
 
@@ -222,6 +224,91 @@ void
 Pattern::setPlayPosition (float playPosition)
 {
   _playPosition = playPosition;
+}
+
+float
+Pattern::getReach () const
+{
+  return _reach;
+}
+
+void
+Pattern::setReach (float reach)
+{
+  _reach = std::clamp (reach, 0.05f, 1.0f);
+}
+
+bool
+Pattern::getMirrorSouth () const
+{
+  return _mirrorSouth;
+}
+
+void
+Pattern::setMirrorSouth (bool mirrorSouth)
+{
+  _mirrorSouth = mirrorSouth;
+}
+
+float
+Pattern::getClipTop () const
+{
+  return _clipTop;
+}
+
+void
+Pattern::setClipTop (float clipTop)
+{
+  _clipTop = std::clamp (clipTop, 0.0f, 1.0f);
+}
+
+float
+Pattern::getClipBottom () const
+{
+  return _clipBottom;
+}
+
+void
+Pattern::setClipBottom (float clipBottom)
+{
+  _clipBottom = std::clamp (clipBottom, 0.0f, 1.0f);
+}
+
+bool
+Pattern::getFlat () const
+{
+  return _flat;
+}
+
+void
+Pattern::setFlat (bool flat)
+{
+  _flat = flat;
+}
+
+float
+Pattern::getFlatElevation () const
+{
+  return _flatElevation;
+}
+
+void
+Pattern::setFlatElevation (float flatElevation)
+{
+  _flatElevation = std::clamp (flatElevation, 0.0f, 1.0f);
+}
+
+ElevationParams
+Pattern::getElevationParams () const
+{
+  ElevationParams params;
+  params.reach = _reach;
+  params.mirrorSouth = _mirrorSouth;
+  params.clipTop = _clipTop;
+  params.clipBottom = _clipBottom;
+  params.flat = _flat;
+  params.flatElevation = _flatElevation;
+  return params;
 }
 
 }

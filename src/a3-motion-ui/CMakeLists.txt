@@ -29,8 +29,6 @@ target_sources("a3-motion-ui" PRIVATE
     MainWindow.hh
     io/InputOutputAdapter.cc
     io/InputOutputAdapter.hh
-    io/LEDColours.cc
-    io/LEDColours.hh
     components/A3MotionUIComponent.cc
     components/A3MotionUIComponent.hh
     components/LookAndFeel.cc
@@ -55,12 +53,16 @@ target_sources("a3-motion-ui" PRIVATE
     components/LoopLengthDisplay.hh
     components/PadRowDisplay.cc
     components/PadRowDisplay.hh
+    components/TrajectoryIcon.cc
+    components/TrajectoryIcon.hh
     components/ElevationDisplay.cc
     components/ElevationDisplay.hh
     components/DirectivityComponent.cc
     components/DirectivityComponent.hh
-    components/OverlayMenuComponent.cc
-    components/OverlayMenuComponent.hh
+    components/GlobalSettingsComponent.cc
+    components/GlobalSettingsComponent.hh
+    components/ClipSettingsComponent.cc
+    components/ClipSettingsComponent.hh
     # components/PatternMenu.cc
     # components/PatternMenu.hh
     tests/TempoEstimatorTest.cc

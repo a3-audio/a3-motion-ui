@@ -84,8 +84,16 @@ void main() {
 //                                                                uniformName);
 // }
 
-// relative to the (square) component extents
-auto constexpr reduceFactorCircle = .55f;
+// relative to the (square) component extents. Speakers are drawn at
+// speakerRadius (config.json's speakerLight.speakerRadius, default 1.55,
+// plus their own icon half-diagonal, speakerSize/2*sqrt(2) ≈ 0.20 — see
+// drawCircle()) in this same normalized space via the same transform, so
+// this factor also controls how close they sit to the component's edge.
+// 0.9 pushed their icons past the component's shorter-side edge (clipped,
+// not "fully in picture"); 0.57 keeps their full icon — not just their
+// centre point — within that edge (0.57 * (1.55+0.20)/2 ≈ 0.50), while
+// still noticeably bigger than the original 0.55.
+auto constexpr reduceFactorCircle = .57f;
 auto constexpr reduceFactorHead = .35f;
 auto constexpr reduceFactorBlobs = 0.05f;
 
@@ -471,10 +479,14 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           // (unambiguous between front/back hemisphere) rather than
           // inverting the on-screen (orthographic) position, which would
           // be ambiguous whenever the blob is currently on the back of
-          // the sphere and could snap it to the front on grab.
+          // the sphere and could snap it to the front on grab. No Pattern
+          // is in scope here (this is a live/manual grab, not a clip) — use
+          // whatever clip is currently playing on the channel, if any.
+          auto const playing = _engine.getPlayingPattern (index);
+          auto const params
+              = playing ? playing->getElevationParams () : ElevationParams{};
           auto const posRaw2D = _engine.getHeightMap ().mapTo2D (
-              _engine.getChannelPosition (index),
-              _engine.getChannelCoverage (index));
+              _engine.getChannelPosition (index), params);
           _uiStates[index]->grabOffset
               = normalizedToLocal2DPosition (posRaw2D)
                 - event.getPosition ().toFloat ();
@@ -1056,7 +1068,8 @@ drawPathOnSphere (juce::Path const &displayPath,
                   float lineThickness,
                   float alpha,
                   juce::Colour colour,
-                  float coverage,
+                  bool fadeByDepth,
+                  ElevationParams const &elevationParams,
                   HeightMap const &heightMap,
                   juce::Graphics &g)
 {
@@ -1071,6 +1084,11 @@ drawPathOnSphere (juce::Path const &displayPath,
     return 3;
   };
 
+  // z >= 0 (elevation >= 50%, i.e. at/above the horizon) is always fully
+  // visible; below that it fades toward the far/south pole so it reads as
+  // "behind" the sphere. fadeByDepth == false skips this entirely — used
+  // for whichever trajectory is currently being edited, which must stay
+  // fully legible no matter where it sits.
   auto fadeForZ = [] (float z) -> float {
     return (z < 0.f)
         ? 0.3f + 0.7f * std::clamp (z + 1.f, 0.f, 1.f)
@@ -1078,8 +1096,10 @@ drawPathOnSphere (juce::Path const &displayPath,
   };
 
   auto flushPath = [&] (juce::Path &path, int band) {
-    float fade = fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
-                                     : (band == 2 ?  0.25f :  0.75f));
+    float fade = fadeByDepth
+        ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
+                              : (band == 2 ?  0.25f :  0.75f))
+        : 1.0f;
     float thickness = lineThickness * (0.5f + 0.5f * fade);
     auto stroke = juce::PathStrokeType (
         thickness, juce::PathStrokeType::JointStyle::curved,
@@ -1091,14 +1111,15 @@ drawPathOnSphere (juce::Path const &displayPath,
   // Project a 2D HOA point onto the sphere and return screen pos + z.
   auto projectPoint = [&] (float x, float y)
       -> std::pair<juce::Point<float>, float> {
-    auto pos3D = heightMap.mapTo3D (
-        Pos::fromCartesian (x, y, 0.f), coverage);
+    auto pos3D = heightMap.mapTo3D (Pos::fromCartesian (x, y, 0.f),
+                                    elevationParams);
     return { cartesian2DHOA2JUCE (pos3D), pos3D.z () };
   };
 
   // Maximum 2D step size before we insert intermediate samples.
-  // Smaller = more sub-samples = smoother on the sphere.
-  float const maxStep = (coverage > 0.1f) ? 0.03f : 0.06f;
+  // Smaller = more sub-samples = smoother on the sphere. Flat mode has no
+  // sphere curvature at all, so coarse sampling is fine there.
+  float const maxStep = elevationParams.flat ? 0.06f : 0.03f;
 
   // Collect all projected points (with sub-sampling for long segments).
   std::vector<std::pair<juce::Point<float>, float>> projected;
@@ -1175,32 +1196,30 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
 
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
-  auto const chCoverage = _engine.getChannelCoverage (ch);
+  auto const params = pattern.getElevationParams ();
   auto const &heightMap = _engine.getHeightMap ();
 
   // ── Handle jump-dot patterns ──
+  // The pattern currently being edited must always stay fully legible, no
+  // matter which hemisphere it sits in — no depth fade.
   if (!displayData.jumpDots.empty ())
     {
       auto constexpr dotSize = lineThickness * 3.f;
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
-              Pos::fromCartesian (dot.first, dot.second, 0.f), chCoverage);
+              Pos::fromCartesian (dot.first, dot.second, 0.f), params);
           auto posJuce = cartesian2DHOA2JUCE (pos3D);
-          float fade = (pos3D.z () < 0.f)
-              ? 0.3f + 0.7f * std::clamp (pos3D.z () + 1.f, 0.f, 1.f)
-              : 1.0f;
-          float ds = dotSize * (0.5f + 0.5f * fade);
-          g.setColour (colour.withAlpha (0.6f * fade));
-          g.fillEllipse (juce::Rectangle<float> (ds, ds)
+          g.setColour (colour);
+          g.fillEllipse (juce::Rectangle<float> (dotSize, dotSize)
                              .withCentre (posJuce));
         }
       return;
     }
 
   // ── Draw from SVG displayPath projected onto sphere ──
-  drawPathOnSphere (displayData.displayPath, lineThickness, 0.6f, colour,
-                    chCoverage, heightMap, g);
+  drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
+                    false, params, heightMap, g);
 }
 
 void
@@ -1208,12 +1227,15 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
                                         PatternDisplayData const &displayData,
                                         juce::Graphics &g)
 {
+  // Thinner line is what distinguishes a merely-playing trajectory from
+  // the one currently being edited — depth fade still applies here (full
+  // at/above the horizon, receding toward the far pole below it), unlike
+  // drawPatternPreview()'s always-full override above.
   auto constexpr lineThickness = 0.025f;
-  auto constexpr faintAlpha = 0.25f;
 
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
-  auto const chCoverage = _engine.getChannelCoverage (ch);
+  auto const params = pattern.getElevationParams ();
   auto const &heightMap = _engine.getHeightMap ();
 
   // ── Handle jump-dot patterns ──
@@ -1223,13 +1245,13 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
-              Pos::fromCartesian (dot.first, dot.second, 0.f), chCoverage);
+              Pos::fromCartesian (dot.first, dot.second, 0.f), params);
           auto posJuce = cartesian2DHOA2JUCE (pos3D);
           float fade = (pos3D.z () < 0.f)
               ? 0.3f + 0.7f * std::clamp (pos3D.z () + 1.f, 0.f, 1.f)
               : 1.0f;
           float ds = dotSize * (0.5f + 0.5f * fade);
-          g.setColour (colour.withAlpha (faintAlpha * fade));
+          g.setColour (colour.withAlpha (fade));
           g.fillEllipse (juce::Rectangle<float> (ds, ds)
                              .withCentre (posJuce));
         }
@@ -1237,8 +1259,8 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
     }
 
   // ── Draw from SVG displayPath projected onto sphere ──
-  drawPathOnSphere (displayData.displayPath, lineThickness, faintAlpha, colour,
-                    chCoverage, heightMap, g);
+  drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
+                    true, params, heightMap, g);
 }
 
 juce::Point<float>

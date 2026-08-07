@@ -20,10 +20,35 @@
 
 #include "PatternGenerator.hh"
 
+#include <cmath>
+#include <numeric>
+
 #include <a3-motion-engine/elevation/HeightMap.hh>
 
 namespace a3
 {
+
+namespace
+{
+
+// Hypotrochoids/epicycloids x(angle) = (R∓r)*cos(angle) + d*cos((R∓r)/r *
+// angle) only return to their start after `angle` sweeps a whole number of
+// full turns of *both* cosine terms — a single 2*pi is only enough when
+// (R∓r)/r happens to be an integer. In general the curve closes after
+// r / gcd(R, r) turns (R∓r and r share the same gcd as R and r), so a
+// single-loop parametric sweep must scale `angle` by that many turns, or
+// the path is left open and the SVG writer's closing logic draws a
+// straight line across the gap.
+float
+closureTurns (float R, float r)
+{
+  auto const Ri = static_cast<long> (std::lround (R));
+  auto const ri = static_cast<long> (std::lround (r));
+  auto const g = std::gcd (Ri, ri);
+  return g > 0 ? static_cast<float> (ri / g) : 1.f;
+}
+
+}
 
 std::unique_ptr<Pattern>
 PatternGenerator::createCircle (index_t lengthBeats, float radius,
@@ -146,6 +171,8 @@ PatternGenerator::createSpiral (index_t lengthBeats, float radius,
 
 std::unique_ptr<Pattern>
 PatternGenerator::createLissajous (index_t lengthBeats, float radius,
+                                   float freqA, float freqB,
+                                   float phaseOffset,
                                    HeightMap const &heightMap)
 {
   std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
@@ -161,8 +188,8 @@ PatternGenerator::createLissajous (index_t lengthBeats, float radius,
     {
       auto const t = float (tick) / numTicks;
       auto const angle = t * 2.f * pi<float> ();
-      auto const x = radius * std::sin (3.f * angle + pi<float> () / 2.f);
-      auto const y = radius * std::sin (2.f * angle);
+      auto const x = radius * std::sin (freqA * angle + phaseOffset);
+      auto const y = radius * std::sin (freqB * angle);
 
       auto position = Pos::fromCartesian (x, y, 0);
       position.setZ (heightMap.computeHeight (position));
@@ -173,7 +200,7 @@ PatternGenerator::createLissajous (index_t lengthBeats, float radius,
 }
 
 std::unique_ptr<Pattern>
-PatternGenerator::createRose (index_t lengthBeats, float radius,
+PatternGenerator::createRose (index_t lengthBeats, float radius, float k,
                               HeightMap const &heightMap)
 {
   std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
@@ -185,11 +212,15 @@ PatternGenerator::createRose (index_t lengthBeats, float radius,
   pattern->resize (numTicks);
   pattern->setStatus (Pattern::Status::Idle);
 
+  // r = cos(k*theta) over theta in [0, 2*pi) closes exactly for integer k
+  // (odd k -> k petals traced once each; even k -> 2k petals, each traced
+  // once, since cos(k*theta) goes negative and the negative radius flips
+  // the point to the opposite side, filling in the "missing" petals).
   for (auto tick = 0u; tick < numTicks; ++tick)
     {
       auto const t = float (tick) / numTicks;
       auto const theta = t * 2.f * pi<float> ();
-      auto const rad = radius * std::cos (3.f * theta);
+      auto const rad = radius * std::cos (k * theta);
       auto const x = rad * std::cos (theta);
       auto const y = rad * std::sin (theta);
 
@@ -572,8 +603,8 @@ PatternGenerator::createWave (index_t lengthBeats, float radius,
 }
 
 std::unique_ptr<Pattern>
-PatternGenerator::createHypo (index_t lengthBeats, float radius,
-                              HeightMap const &heightMap)
+PatternGenerator::createHypo (index_t lengthBeats, float radius, float R,
+                              float r, float d, HeightMap const &heightMap)
 {
   std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
   pattern->setName ("Hypo");
@@ -584,16 +615,52 @@ PatternGenerator::createHypo (index_t lengthBeats, float radius,
   pattern->resize (numTicks);
   pattern->setStatus (Pattern::Status::Idle);
 
-  auto constexpr R = 5.f, rv = 3.f, d = 5.f;
-  auto const scale = radius / (R - rv + d);
+  // Normalises against the same (R - r + d) bound the original fixed
+  // R=5,r=3,d=5 used — not a tight bound for every ratio, but keeps the
+  // curve comfortably inside the unit disc without per-ratio tuning.
+  auto const scale = radius / (R - r + d);
+  auto const turns = closureTurns (R, r);
   for (auto tick = 0u; tick < numTicks; ++tick)
     {
       auto const t = float (tick) / numTicks;
-      auto const angle = t * 2.f * pi<float> ();
-      auto const x = scale * ((R - rv) * std::cos (angle)
-                               + d * std::cos ((R - rv) / rv * angle));
-      auto const y = scale * ((R - rv) * std::sin (angle)
-                               - d * std::sin ((R - rv) / rv * angle));
+      auto const angle = t * turns * 2.f * pi<float> ();
+      auto const x = scale * ((R - r) * std::cos (angle)
+                               + d * std::cos ((R - r) / r * angle));
+      auto const y = scale * ((R - r) * std::sin (angle)
+                               - d * std::sin ((R - r) / r * angle));
+
+      auto position = Pos::fromCartesian (x, y, 0);
+      position.setZ (heightMap.computeHeight (position));
+      pattern->setTick (tick, position);
+    }
+
+  return pattern;
+}
+
+std::unique_ptr<Pattern>
+PatternGenerator::createEpicycloid (index_t lengthBeats, float radius,
+                                    float R, float r, float d,
+                                    HeightMap const &heightMap)
+{
+  std::unique_ptr<Pattern> pattern = std::make_unique<Pattern> ();
+  pattern->setName ("Epicycloid");
+
+  auto const numTicks
+      = lengthBeats
+        * static_cast<std::size_t> (TempoClock::getTicksPerBeat ());
+  pattern->resize (numTicks);
+  pattern->setStatus (Pattern::Status::Idle);
+
+  auto const scale = radius / (R + r + d);
+  auto const turns = closureTurns (R, r);
+  for (auto tick = 0u; tick < numTicks; ++tick)
+    {
+      auto const t = float (tick) / numTicks;
+      auto const angle = t * turns * 2.f * pi<float> ();
+      auto const x = scale * ((R + r) * std::cos (angle)
+                               - d * std::cos ((R + r) / r * angle));
+      auto const y = scale * ((R + r) * std::sin (angle)
+                               - d * std::sin ((R + r) / r * angle));
 
       auto position = Pos::fromCartesian (x, y, 0);
       position.setZ (heightMap.computeHeight (position));

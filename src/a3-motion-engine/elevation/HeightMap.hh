@@ -25,6 +25,40 @@
 namespace a3
 {
 
+/** Per-clip elevation parameters — see HeightMap::mapTo3D()'s struct
+ *  overload for the full semantics. Kept as a bundle (rather than separate
+ *  arguments) since it has grown past what's comfortable as a positional
+ *  parameter list; also lets Pattern hand it out as one value via
+ *  Pattern::getElevationParams(). */
+struct ElevationParams
+{
+  // 0.05..1.0: how far around the sphere the pattern's own coordinate
+  // range reaches from the pole. 0.5 = hemisphere (its outer edge sits on
+  // the equator), 1.0 = full sphere (opposite pole). r=0 (pad centre)
+  // always maps to the pole itself. "Its own coordinate range" is the -1..1
+  // SVG viewBox every pattern is authored in (corner distance sqrt(2)) —
+  // see HeightMapSphere's kPatternCoordinateMaxRadius — not the touchpad's
+  // visible-circle radius, so non-circular shapes (whose points commonly
+  // exceed r=1, e.g. a Square's corners at r=sqrt(2)) scale proportionally
+  // instead of overshooting past reach's edge.
+  float reach = 0.5f;
+  // false: the reach cone grows from the north pole (default). true: grows
+  // from the south pole instead (mirrors the cone through the equator).
+  bool mirrorSouth = false;
+  // 0..1: absolute hard bound excluding this fraction of the range from
+  // the north pole side. A plain final clamp — does not interact with
+  // reach/mirrorSouth's shape.
+  float clipTop = 0.0f;
+  // 0..1: same as clipTop but excluding from the south pole side.
+  float clipBottom = 0.0f;
+  // If true, ignore reach/mirrorSouth entirely and use flatElevation for
+  // every point on the trajectory (azimuth is still preserved).
+  bool flat = false;
+  // 0..1 (0 = north pole, 1 = south pole): fixed elevation used when
+  // flat == true.
+  float flatElevation = 0.5f;
+};
+
 class HeightMap
 {
 public:
@@ -50,6 +84,20 @@ public:
     return mapTo3D (pos2D);
   }
 
+  /** Map a 2D position onto 3D using an explicit per-clip ElevationParams
+   *  set — allows per-clip elevation without touching any shared/global
+   *  state. Strictly monotonic in r (unlike the old wrap/elevation/base-
+   *  point scheme this replaced): r=0 is always the pole, r=1 is always
+   *  `reach`'s point, nothing folds back on itself. See ElevationParams for
+   *  the individual field semantics.
+   *
+   *  Default implementation ignores everything but `reach` and falls back
+   *  to the 2-arg overload. */
+  virtual Pos mapTo3D (Pos const &pos2D, ElevationParams const &params) const
+  {
+    return mapTo3D (pos2D, params.reach);
+  }
+
   /** Exact inverse of mapTo3D(): recover the 2D disc position that was
    *  originally used to produce this 3D position. Unlike re-deriving a 2D
    *  position from the on-screen (orthographic) projection of pos3D — which
@@ -66,6 +114,13 @@ public:
   {
     (void) coverage;
     return mapTo2D (pos3D);
+  }
+
+  /** Same as mapTo2D(pos3D, coverage) but with an explicit ElevationParams
+   *  set too — see mapTo3D()'s struct overload. */
+  virtual Pos mapTo2D (Pos const &pos3D, ElevationParams const &params) const
+  {
+    return mapTo2D (pos3D, params.reach);
   }
 
   /** Set the coverage parameter (0.0 – 1.0).

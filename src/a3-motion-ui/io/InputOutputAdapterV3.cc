@@ -36,8 +36,6 @@ constexpr uint8_t InputOutputAdapterV3::hwIndexToLedId[44];
 
 InputOutputAdapterV3::InputOutputAdapterV3 () : InputOutputAdapter ()
 {
-  for (auto &vals : _encoderPotValues)
-    vals.fill (0.5f);
   _prevPotRaw.fill (0);
 
   serialInit ();
@@ -280,7 +278,7 @@ InputOutputAdapterV3::dispatchButtonEvent (int idx, bool pressed)
     {
     case ButtonRole::MenuToggle:
       {
-        // Track button 00 (idx 40) and button 09 (idx 42) independently.
+        // Track button 50 (idx 3) and button 59 (idx 37) independently.
         // Fire Button::Menu when both become simultaneously pressed.
         int slot = (idx == 3) ? 0 : 1;
         bool wasBothPressed = _menuButtonState[0] && _menuButtonState[1];
@@ -295,6 +293,10 @@ InputOutputAdapterV3::dispatchButtonEvent (int idx, bool pressed)
 
     case ButtonRole::Record:
       inputButtonValue (Button::Record, pressed);
+      break;
+
+    case ButtonRole::Shift:
+      inputButtonValue (Button::Shift, pressed);
       break;
 
     case ButtonRole::Tap:
@@ -349,28 +351,15 @@ InputOutputAdapterV3::parseEncoders (const uint8_t *raw, int offset)
       if (delta == 0)
         continue;
 
-      if (isPotEncoder)
-        {
-          // Encoder A: accumulate pot value for the selected pot
-          index_t selPot = _selectedPot[ch];
-          float   step   = static_cast<float> (delta) * potEncoderSensitivity;
-          float   newVal = std::clamp (_encoderPotValues[ch][selPot] + step,
-                                       0.0f, 1.0f);
-          if (newVal != _encoderPotValues[ch][selPot])
-            {
-              _encoderPotValues[ch][selPot] = newVal;
-              inputPotValue (ch, selPot, newVal);
-            }
-        }
-      else
-        {
-          // Encoder B: motion encoder – emit individual increment/decrement events
-          int    absSteps = std::abs (delta);
-          auto   event    = delta > 0 ? InputMessageEncoder::Event::Increment
-                                      : InputMessageEncoder::Event::Decrement;
-          for (int s = 0; s < absSteps; ++s)
-            inputEncoderEvent (ch, 0, event);
-        }
+      // Both encoders emit individual increment/decrement events per step;
+      // encoder A (pot encoder) as encoderIndex 1, encoder B (motion
+      // encoder) as encoderIndex 0. The UI layer decides what each does.
+      index_t const encoderIndex = isPotEncoder ? 1 : 0;
+      int           absSteps     = std::abs (delta);
+      auto          event        = delta > 0 ? InputMessageEncoder::Event::Increment
+                                             : InputMessageEncoder::Event::Decrement;
+      for (int s = 0; s < absSteps; ++s)
+        inputEncoderEvent (ch, encoderIndex, event);
     }
 }
 
@@ -379,45 +368,26 @@ InputOutputAdapterV3::processEncSwitch (index_t ch, bool isPotEncoder,
                                         uint8_t sw)
 {
   bool &pressActive = isPotEncoder ? _encAPressActive[ch] : _encBPressActive[ch];
+  index_t const encoderIndex = isPotEncoder ? 1 : 0;
 
   if (sw == 3)
     {
       // CLICK: full press-release in one cycle
-      if (isPotEncoder)
-        {
-          _selectedPot[ch] = (_selectedPot[ch] + 1) % numPotsPerChannel;
-          inputEncoderEvent (ch, 1, InputMessageEncoder::Event::Press);
-          inputEncoderEvent (ch, 1, InputMessageEncoder::Event::Release);
-        }
-      else
-        {
-          inputEncoderEvent (ch, 0, InputMessageEncoder::Event::Press);
-          inputEncoderEvent (ch, 0, InputMessageEncoder::Event::Release);
-        }
+      inputEncoderEvent (ch, encoderIndex, InputMessageEncoder::Event::Press);
+      inputEncoderEvent (ch, encoderIndex, InputMessageEncoder::Event::Release);
       pressActive = false;
     }
   else if (sw == 0 && !pressActive)
     {
       // Button just pressed (HOLD)
       pressActive = true;
-      if (isPotEncoder)
-        {
-          _selectedPot[ch] = (_selectedPot[ch] + 1) % numPotsPerChannel;
-          inputEncoderEvent (ch, 1, InputMessageEncoder::Event::Press);
-        }
-      else
-        {
-          inputEncoderEvent (ch, 0, InputMessageEncoder::Event::Press);
-        }
+      inputEncoderEvent (ch, encoderIndex, InputMessageEncoder::Event::Press);
     }
   else if (sw == 1 && pressActive)
     {
       // Released
       pressActive = false;
-      if (isPotEncoder)
-        inputEncoderEvent (ch, 1, InputMessageEncoder::Event::Release);
-      else
-        inputEncoderEvent (ch, 0, InputMessageEncoder::Event::Release);
+      inputEncoderEvent (ch, encoderIndex, InputMessageEncoder::Event::Release);
     }
   // sw == 2 (BOUNCE): no action
 }
@@ -462,13 +432,15 @@ InputOutputAdapterV3::writeSetLed (uint8_t ledId, juce::Colour colour)
 void
 InputOutputAdapterV3::outputButtonLED (Button button, bool value)
 {
-  // Record/Tap/Menu are each wired to a mirrored pair of physical buttons
-  // (left + right hand side); both share one logical Button and light up
-  // together. ClockMode was a V2-only physical button with no LED on V3
-  // hardware (kept for backward compat), so there's nothing to send for it.
+  // Record/Tap/Menu/Shift are each wired to a mirrored pair of physical
+  // buttons (left + right hand side); both share one logical Button and
+  // light up together. ClockMode was a V2-only physical button with no LED
+  // on V3 hardware (kept for backward compat), so there's nothing to send
+  // for it.
   static constexpr int recordHwIndices[] = { 41, 43 };
   static constexpr int tapHwIndices[]    = { 2, 36 };
   static constexpr int menuHwIndices[]   = { 3, 37 };
+  static constexpr int shiftHwIndices[]  = { 40, 42 };
 
   auto const colour = value ? juce::Colours::white : juce::Colours::black;
 
@@ -484,6 +456,10 @@ InputOutputAdapterV3::outputButtonLED (Button button, bool value)
       break;
     case Button::Menu:
       for (auto idx : menuHwIndices)
+        writeSetLed (hwIndexToLedId[idx], colour);
+      break;
+    case Button::Shift:
+      for (auto idx : shiftHwIndices)
         writeSetLed (hwIndexToLedId[idx], colour);
       break;
     case Button::ClockMode:

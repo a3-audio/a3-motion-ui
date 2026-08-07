@@ -46,12 +46,19 @@ public:
   createSpiral (index_t lengthBeats, float radius,
                 HeightMap const &heightMap);
 
+  // freqA/freqB are the sin() multipliers on x/y (classic Lissajous a:b
+  // ratio — larger a:b gcd means fewer distinct lobes); phaseOffset shifts
+  // x's phase (pi/2 gives the "open" figure most ratios are drawn with).
   static std::unique_ptr<Pattern>
-  createLissajous (index_t lengthBeats, float radius,
+  createLissajous (index_t lengthBeats, float radius, float freqA,
+                   float freqB, float phaseOffset,
                    HeightMap const &heightMap);
 
+  // k is the petal parameter of r = cos(k * theta): odd integer k gives k
+  // petals, even integer k gives 2k petals (only integer k is guaranteed
+  // to close after a single 2*pi sweep — see the .cc for why).
   static std::unique_ptr<Pattern>
-  createRose (index_t lengthBeats, float radius,
+  createRose (index_t lengthBeats, float radius, float k,
               HeightMap const &heightMap);
 
   static std::unique_ptr<Pattern>
@@ -98,9 +105,21 @@ public:
   createWave (index_t lengthBeats, float radius,
               HeightMap const &heightMap);
 
+  // Hypotrochoid: a small circle of radius r rolling inside a fixed circle
+  // of radius R, tracing a point at distance d from the small circle's
+  // centre — the classic "inner Spirograph" loops. R and r should share a
+  // small integer ratio for the curve to close within one 2*pi sweep (the
+  // ratio also sets the number of loops/cusps).
   static std::unique_ptr<Pattern>
-  createHypo (index_t lengthBeats, float radius,
+  createHypo (index_t lengthBeats, float radius, float R, float r, float d,
               HeightMap const &heightMap);
+
+  // Epicycloid/epitrochoid: same idea as createHypo() but the small circle
+  // rolls around the *outside* of the fixed circle — "outer Spirograph"
+  // loops, visually distinct (bulging out rather than pinching in).
+  static std::unique_ptr<Pattern>
+  createEpicycloid (index_t lengthBeats, float radius, float R, float r,
+                    float d, HeightMap const &heightMap);
 
   static std::unique_ptr<Pattern>
   createDiamond (index_t lengthBeats, float radius,

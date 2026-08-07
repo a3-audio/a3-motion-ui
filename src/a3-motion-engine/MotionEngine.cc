@@ -84,9 +84,6 @@ MotionEngine::createChannels (index_t const numChannels)
   _lastSentPot1s.resize (numChannels);
   _lastSentPot2s.resize (numChannels);
   _previewMode = std::vector<std::atomic<bool>> (numChannels);
-  _channelCoverage = std::vector<std::atomic<float>> (numChannels);
-  for (auto &cov : _channelCoverage)
-    cov.store (0.5f, std::memory_order_relaxed);
 
   auto constexpr spread = 120.f;
   auto const azimuthSpacing = spread / (numChannels - 1);
@@ -127,8 +124,12 @@ MotionEngine::getChannelPosition (index_t channel)
 void
 MotionEngine::setChannel2DPosition (index_t channel, Pos const &position)
 {
-  auto const cov = _channelCoverage[channel].load (std::memory_order_relaxed);
-  auto mappedPosition = _heightMap.mapTo3D (position, cov);
+  // No Pattern context for a manual/live drag — use whatever clip is
+  // currently playing on this channel (if any), else a neutral default.
+  auto const playing = getPlayingPattern (channel);
+  auto const params
+      = playing ? playing->getElevationParams () : ElevationParams{};
+  auto mappedPosition = _heightMap.mapTo3D (position, params);
   _channels[channel]->setPosition (mappedPosition);
 }
 
@@ -247,35 +248,6 @@ MotionEngine::isPreviewMode (index_t channel) const
 {
   jassert (channel < _previewMode.size ());
   return _previewMode[channel].load (std::memory_order_relaxed);
-}
-
-void
-MotionEngine::setChannelCoverage (index_t channel, float coverage)
-{
-  jassert (channel < _channelCoverage.size ());
-  auto clamped = std::clamp (coverage, 0.05f, 1.0f);
-  _channelCoverage[channel].store (clamped, std::memory_order_relaxed);
-}
-
-float
-MotionEngine::getChannelCoverage (index_t channel) const
-{
-  jassert (channel < _channelCoverage.size ());
-  return _channelCoverage[channel].load (std::memory_order_relaxed);
-}
-
-void
-MotionEngine::setElevationCoverage (float coverage)
-{
-  _heightMap.setCoverage (coverage);
-  for (auto &cov : _channelCoverage)
-    cov.store (std::clamp (coverage, 0.05f, 1.0f), std::memory_order_relaxed);
-}
-
-float
-MotionEngine::getElevationCoverage () const
-{
-  return _heightMap.getCoverage ();
 }
 
 void
@@ -701,10 +673,12 @@ MotionEngine::performRecording ()
 
       if (_recordingPosition2D.isValid ())
         {
-          // Apply per-channel elevation mapping for channel position (OSC + visual)
+          // Apply this clip's own elevation mapping for channel position
+          // (OSC + visual) — elevation parameters live on the Pattern
+          // itself.
           auto const recChannel = _patternRecording->getChannel ();
-          auto const cov = _channelCoverage[recChannel].load (std::memory_order_relaxed);
-          auto pos3D = _heightMap.mapTo3D (_recordingPosition2D, cov);
+          auto const params = _patternRecording->getElevationParams ();
+          auto pos3D = _heightMap.mapTo3D (_recordingPosition2D, params);
           _channels[recChannel]->setPosition (pos3D);
         }
     }
@@ -748,9 +722,12 @@ MotionEngine::performPlayback ()
               
               if (position2D.isValid ())
                 {
-                  // Apply per-channel elevation mapping (sphere wrapping) at playback time
-                  auto const cov = _channelCoverage[chIdx].load (std::memory_order_relaxed);
-                  auto position = _heightMap.mapTo3D (position2D, cov);
+                  // Apply this clip's own elevation mapping (sphere
+                  // projection) at playback time — elevation parameters
+                  // live on the Pattern itself, not the channel.
+                  auto const params
+                      = channel->_patternPlaying->getElevationParams ();
+                  auto position = _heightMap.mapTo3D (position2D, params);
                   channel->setPosition (position);
                 }
             }

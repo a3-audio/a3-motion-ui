@@ -24,6 +24,7 @@
 
 #include <a3-motion-engine/util/Types.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
+#include <a3-motion-ui/components/TrajectoryIcon.hh>
 
 #include <array>
 #include <atomic>
@@ -132,8 +133,6 @@ private:
                   int channel);
   void drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
                            TrajectoryType type, int channel);
-  void drawTickDataIcon (juce::Graphics &g, juce::Rectangle<float> area,
-                         int channel);
 
   int _rowIndex;  // 0-3 for pad rows 1-4
 
@@ -144,10 +143,7 @@ private:
     bool rowHighlighted{ false };
     bool cellSelected{ false };
     juce::Colour colour{ juce::Colours::white };
-    juce::Path tickPath;       ///< pre-built path from tick data (normalised to [-1,1])
-    bool hasTickData{ false }; ///< true if tickPath is valid
-    bool hasJumpTicks{ false }; ///< true if pattern has invalid/jump ticks (draw dots instead)
-    std::vector<std::pair<float, float>> jumpPoints; ///< normalised jump point positions
+    TrajectoryIconData icon; ///< built by setTickData()/setIconPath()
     int lengthBeats{ 0 };  ///< pattern length in beats
     juce::String categoryPrefix;  ///< "s" or "u" for system/user
   };

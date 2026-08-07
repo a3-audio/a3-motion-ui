@@ -6,6 +6,7 @@ compile_commands.json
 src/a3-motion-engine/Config.hh
 src/a3-motion-ui/Config.hh
 microsoft.gpg
+config/ui_state.json
 
 # IDE
 .idea/

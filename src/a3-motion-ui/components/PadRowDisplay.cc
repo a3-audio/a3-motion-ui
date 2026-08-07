@@ -81,7 +81,7 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
   g.setColour (colour.withAlpha (bgAlpha));
   g.fillRect (bounds);
 
-  if (cell.trajectoryType == TrajectoryType::Empty && !cell.hasTickData)
+  if (cell.trajectoryType == TrajectoryType::Empty && !cell.icon.hasIcon)
     {
       // "---" label: dark outline + channel colour fill
       g.setFont (LayoutHints::fontSize * 0.7f);
@@ -166,8 +166,8 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
                           .withCentre (iconCentre);
 
       // Prefer tick data icon when available
-      if (cell.hasTickData)
-        drawTickDataIcon (g, iconArea, channel);
+      if (cell.icon.hasIcon)
+        a3::drawTrajectoryIcon (g, iconArea, cell.icon, cell.colour);
       else
         drawTrajectoryIcon (g, iconArea, cell.trajectoryType, channel);
     }
@@ -198,153 +198,7 @@ void
 PadRowDisplay::setTickData (int channel, std::vector<Pos> const &ticks)
 {
   jassert (channel >= 0 && channel < numChannels);
-  auto &cell = _cells[static_cast<size_t> (channel)];
-
-  cell.tickPath.clear ();
-  cell.jumpPoints.clear ();
-  cell.hasTickData = false;
-  cell.hasJumpTicks = false;
-
-  if (ticks.empty ())
-    {
-      repaint ();
-      return;
-    }
-
-  // Find bounding box of valid ticks (XY only)
-  float minX = std::numeric_limits<float>::max ();
-  float maxX = std::numeric_limits<float>::lowest ();
-  float minY = std::numeric_limits<float>::max ();
-  float maxY = std::numeric_limits<float>::lowest ();
-  int validCount = 0;
-
-  for (auto const &pos : ticks)
-    {
-      if (!pos.isValid ())
-        continue;
-      auto x = pos.x ();
-      auto y = pos.y ();
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-      ++validCount;
-    }
-
-  if (validCount < 2)
-    {
-      repaint ();
-      return;
-    }
-
-  // Normalise to [-1, 1] range with aspect ratio preserved
-  auto rangeX = maxX - minX;
-  auto rangeY = maxY - minY;
-  auto range = std::max (rangeX, rangeY);
-  if (range < 1e-6f)
-    range = 1.f;
-
-  auto centreX = (minX + maxX) * 0.5f;
-  auto centreY = (minY + maxY) * 0.5f;
-
-  // Downsample: take at most 128 points for the icon path
-  auto const maxIconPoints = 128;
-  auto const step = std::max (1, static_cast<int> (ticks.size ()) / maxIconPoints);
-
-  // Check if this is a jump-only pattern (majority of ticks are invalid)
-  int invalidCount = static_cast<int> (ticks.size ()) - validCount;
-  bool jumpPattern = invalidCount > validCount / 2;
-
-  if (jumpPattern)
-    {
-      // For jump patterns, collect the distinct valid positions as dots
-      cell.hasJumpTicks = true;
-      for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
-        {
-          if (!ticks[i].isValid ())
-            continue;
-          float nx = (ticks[i].x () - centreX) / (range * 0.5f);
-          float ny = (ticks[i].y () - centreY) / (range * 0.5f);
-
-          // Check if this point is already close to an existing one
-          bool duplicate = false;
-          for (auto const &p : cell.jumpPoints)
-            {
-              if (std::abs (p.first - nx) < 0.05f
-                  && std::abs (p.second - ny) < 0.05f)
-                {
-                  duplicate = true;
-                  break;
-                }
-            }
-          if (!duplicate)
-            cell.jumpPoints.push_back ({ nx, ny });
-        }
-    }
-  else
-    {
-      // Collect downsampled normalised points, splitting at invalid ticks
-      std::vector<std::vector<juce::Point<float>>> segments;
-      segments.emplace_back ();
-
-      for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
-        {
-          if (!ticks[i].isValid ())
-            {
-              // Start a new segment after a gap
-              if (!segments.back ().empty ())
-                segments.emplace_back ();
-              continue;
-            }
-          float nx = (ticks[i].x () - centreX) / (range * 0.5f);
-          float ny = (ticks[i].y () - centreY) / (range * 0.5f);
-          segments.back ().push_back ({ nx, ny });
-        }
-
-      // Build Catmull-Rom cubic Bézier path for each segment
-      for (auto const &pts : segments)
-        {
-          if (pts.size () < 2)
-            continue;
-
-          cell.tickPath.startNewSubPath (pts[0]);
-
-          // Check if the segment forms a closed loop
-          auto const dist = pts.front ().getDistanceFrom (pts.back ());
-          bool closed = dist < 0.1f && pts.size () > 4;
-
-          auto const n = static_cast<int> (pts.size ());
-          for (int i = 0; i < n - 1; ++i)
-            {
-              // Catmull-Rom: P0, P1, P2, P3
-              // For endpoints, mirror or wrap
-              juce::Point<float> p0, p1, p2, p3;
-              p1 = pts[static_cast<size_t> (i)];
-              p2 = pts[static_cast<size_t> (i + 1)];
-
-              if (closed)
-                {
-                  p0 = pts[static_cast<size_t> ((i - 1 + n) % n)];
-                  p3 = pts[static_cast<size_t> ((i + 2) % n)];
-                }
-              else
-                {
-                  p0 = (i > 0) ? pts[static_cast<size_t> (i - 1)]
-                               : p1 + (p1 - p2);
-                  p3 = (i + 2 < n) ? pts[static_cast<size_t> (i + 2)]
-                                   : p2 + (p2 - p1);
-                }
-
-              // Convert Catmull-Rom to cubic Bézier control points
-              auto cp1 = p1 + (p2 - p0) / 6.f;
-              auto cp2 = p2 - (p3 - p1) / 6.f;
-
-              cell.tickPath.cubicTo (cp1, cp2, p2);
-            }
-        }
-    }
-
-  cell.hasTickData = true;
+  _cells[static_cast<size_t> (channel)].icon = trajectoryIconFromTicks (ticks);
   repaint ();
 }
 
@@ -353,85 +207,9 @@ PadRowDisplay::setIconPath (int channel, juce::Path const &path,
                             std::vector<std::pair<float,float>> const &jumpDots)
 {
   jassert (channel >= 0 && channel < numChannels);
-  auto &cell = _cells[static_cast<size_t> (channel)];
-
-  cell.tickPath.clear ();
-  cell.jumpPoints.clear ();
-  cell.hasTickData = false;
-  cell.hasJumpTicks = false;
-
-  if (path.isEmpty () && jumpDots.empty ())
-    {
-      repaint ();
-      return;
-    }
-
-  if (!jumpDots.empty () && path.isEmpty ())
-    {
-      // Jump-dot pattern: store the dots directly
-      cell.hasJumpTicks = true;
-      cell.jumpPoints = jumpDots;
-    }
-  else
-    {
-      // Continuous path: use SVG path directly
-      cell.tickPath = path;
-    }
-
-  cell.hasTickData = true;
+  _cells[static_cast<size_t> (channel)].icon
+      = trajectoryIconFromPath (path, jumpDots);
   repaint ();
-}
-
-void
-PadRowDisplay::drawTickDataIcon (juce::Graphics &g,
-                                 juce::Rectangle<float> area,
-                                 int channel)
-{
-  auto const &cell = _cells[static_cast<size_t> (channel)];
-  auto const cx = area.getCentreX ();
-  auto const cy = area.getCentreY ();
-  auto const r = area.getWidth () * 0.45f;
-  auto const strokeThickness = 1.5f;
-  auto const outlineThickness = strokeThickness + 2.0f;
-  auto const iconColour = cell.colour;
-  auto const outlineColour = juce::Colours::black.withAlpha (0.6f);
-
-  if (cell.hasJumpTicks)
-    {
-      // Draw dots: dark outline then channel colour fill
-      // HOA→JUCE: screen x = -HOA_y, screen y = -HOA_x
-      auto const dotR = r * 0.22f;
-      auto const dotOutR = dotR + 1.0f;
-      for (auto const &p : cell.jumpPoints)
-        {
-          auto const x = cx - p.second * r;
-          auto const y = cy - p.first * r;
-          g.setColour (outlineColour);
-          g.fillEllipse (x - dotOutR, y - dotOutR,
-                         dotOutR * 2.f, dotOutR * 2.f);
-          g.setColour (iconColour);
-          g.fillEllipse (x - dotR, y - dotR, dotR * 2.f, dotR * 2.f);
-        }
-    }
-  else
-    {
-      // The SVG path is in HOA normalised [-1,1] space.
-      // Convert to JUCE screen coords: JUCE x = -HOA y, JUCE y = -HOA x
-      // then scale to the icon area.
-      auto transform = juce::AffineTransform (
-           0.f, -r, cx,   // JUCE x = -HOA_y * r + cx
-          -r,  0.f, cy);  // JUCE y = -HOA_x * r + cy
-      // Dark outline for readability
-      g.setColour (outlineColour);
-      g.strokePath (cell.tickPath,
-                    juce::PathStrokeType (outlineThickness),
-                    transform);
-      // Channel colour stroke on top
-      g.setColour (iconColour);
-      g.strokePath (cell.tickPath,
-                    juce::PathStrokeType (strokeThickness),
-                    transform);
-    }
 }
 
 void

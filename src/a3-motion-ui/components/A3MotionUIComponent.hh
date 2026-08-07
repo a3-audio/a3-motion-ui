@@ -48,10 +48,11 @@ class ElevationDisplay;
 class PadRowDisplay;
 class StatusBar;
 class ChannelStrip;
-class OverlayMenuComponent;
+class GlobalSettingsComponent;
+class ClipSettingsComponent;
 class ChannelUIState;
 class Pattern;
-class HeightMapSelectable;
+class HeightMapSphere;
 
 class A3MotionUIComponent : public juce::Component,
                             public juce::Value::Listener,
@@ -78,14 +79,16 @@ public:
   void oscBundleReceived (const juce::OSCBundle &bundle) override;
 
 private:
-  static auto constexpr numPages = 4u;
-
-  std::unique_ptr<HeightMapSelectable> _heightMap;
+  std::unique_ptr<HeightMapSphere> _heightMap;
   MotionEngine _engine;
 
   void tickCallback (Measure measure);
   void padLEDCallback (int step);
-  juce::Colour scheduledForIdleLEDColour (int step,
+  juce::Colour channelColourForPadStatus (juce::Colour base,
+                                          Pattern::Status status,
+                                          Pattern::Status statusLast,
+                                          int step);
+  juce::Colour scheduledForIdleLEDColour (juce::Colour base, int step,
                                           Pattern::Status statusLast);
 
   Measure _now;
@@ -105,11 +108,16 @@ private:
   std::vector<std::unique_ptr<ChannelStrip> > _channelStrips;
   std::vector<std::unique_ptr<ChannelUIState> > _channelUIStates;
 
-  void handleLengthIncrement (index_t channel, int increment);
-  float getLengthBeats (index_t channel) const;
-  std::vector<int> _lengthsBarLog2;
-  static constexpr auto lengthBarMinLog2 = -2;
-  static constexpr auto lengthBarMaxLog2 = 3;
+  // Speed (Motion section): per-clip, quantized to musical note-value
+  // fractions/multiples of a bar (see ClipUIParams::speedLog2) rather than
+  // a free-running multiplier — playback length is literally how many
+  // beats one full pattern cycle spans, so this doubles/halves that.
+  float getLengthBeats (index_t channel, index_t slot) const;
+  // Speed knob: far left = speedLog2Max (16 bars, slowest), far right =
+  // speedLog2Min (1/128 bar, fastest) — see updateClipSettingsDisplay()'s
+  // speedFrac, which is deliberately inverted against these bounds.
+  static constexpr auto speedLog2Min = -7; // 2^-7 bar = a 128th note
+  static constexpr auto speedLog2Max = 4;  // 2^4 bar = 16 bars
 
   void createMainUI ();
   std::unique_ptr<MotionComponent> _motionComponent;
@@ -128,36 +136,25 @@ private:
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
   void initializePatterns ();
+  // _patterns[channel][slot]: 2 clip slots per channel (see numClipSlots).
   std::vector<std::vector<std::shared_ptr<Pattern> > > _patterns;
 
   // Pattern library: manages system/ and user/ pattern files
   std::unique_ptr<PatternLibrary> _patternLibrary;
 
-  // Pad row display (trajectory option bar)
-  static auto constexpr numPadRows = 4u;
+  // Pad row display (trajectory option bar) — one row per clip slot.
+  static auto constexpr numClipSlots = 2u;
   void createPadRowDisplays ();
   std::vector<std::unique_ptr<PadRowDisplay> > _padRowDisplays;
 
-  // Encoder navigation state
-  // Row indices: -2 = LoopLength, -1 = Elevation, 0..3 = PadRows
-  static auto constexpr loopLengthRowIndex = -2;
-  static auto constexpr elevationRowIndex = -1;
-  enum class EncoderLevel { RowSelect, OptionEdit };
-  std::array<EncoderLevel, 4> _encoderLevel;
-  std::array<int, 4> _encoderSelectedRow;
-  void handleEncoderIncrement (index_t channel, int increment);
-  void handleEncoderPress (index_t channel);
-  void handleElevationIncrement (index_t channel, int increment);
-  void updatePadRowLabel (index_t channel, index_t pad);
-  void showTrajectoryPreview (index_t channel, index_t pad);
-  void clearTrajectoryPreview (index_t channel);
+  void updatePadRowLabel (index_t channel, index_t slot);
   void setPreviewWithDisplayData (std::shared_ptr<Pattern> const &pattern);
   /** Register display data with MotionComponent for playing-trajectory rendering. */
   void registerPatternDisplayData (std::shared_ptr<Pattern> const &pattern);
   int trajectoryNameToIndex (std::string const &name) const;
   std::shared_ptr<Pattern> createPatternForIndex (int index, index_t channel);
   void saveRecordedPattern (std::shared_ptr<Pattern> const &pattern,
-                            index_t channel, index_t pad);
+                            index_t channel, index_t slot);
 
   // OSC Receiver for beat clock (port 7771)
   juce::OSCReceiver _oscReceiver;
@@ -174,39 +171,94 @@ private:
   int _clockMode = 0;
   float _internalBPM = 0.f;  // saved INT tempo for restore after EXT mode
 
-  // Elevation map mode: 0 = Sphere (wrap), 1 = Sphere (clamped), 2 = Flat
-  int _elevationMapMode = 0;
-
-  // Overlay settings menu (opened by simultaneous press of buttons 50+59)
-  std::unique_ptr<OverlayMenuComponent> _overlayMenu;
-  bool  _menuOpen        = false;
-  bool  _menuValueFieldSelected = false;
-  int   _menuOptionIndex = 0;   // 0 = Clockmode, 1 = Elevation Map
-  void  openMenu ();
-  void  closeMenu ();
-  void  confirmMenuOption ();
+  // Global Settings: device-wide menu (Clockmode, Pot Size, Font Size —
+  // Elevation Map moved to being a per-clip setting, see
+  // ClipSettingsComponent), opened by simultaneous press of buttons 50+59
+  // (Button::Menu). Shares the bottom-quarter settings area with
+  // ClipSettingsComponent.
+  std::unique_ptr<GlobalSettingsComponent> _globalSettings;
+  bool  _globalSettingsOpen        = false;
+  bool  _globalSettingsValueFieldSelected = false;
+  // 0 = Clockmode, 1 = Pot Size, 2 = Font Size
+  int   _globalSettingsOptionIndex = 0;
+  void  openGlobalSettings ();
+  void  closeGlobalSettings ();
+  void  confirmGlobalSettingsOption ();
   void  applyClockMode (int mode);
-  void  applyElevationMap (int mode);
-  
+  void  applyPotSize (int index);
+  void  applyFontSize (int index);
+  // Index into potSizeScales/potSizeLabels — scales every knob/toggle in
+  // ClipSettingsComponent uniformly (see ClipSettingsComponent::
+  // setPotSizeScale()), adjustable live from the Global Settings menu.
+  int _potSizeIndex = 1; // default 100%
+  static constexpr float potSizeScales[] = { 0.75f, 1.0f, 1.25f, 1.5f,
+                                             1.75f };
+  static constexpr char const *potSizeLabels[] = { "75%", "100%", "125%",
+                                                    "150%", "175%" };
+  // Same, but for knob/toggle label/value text (ClipSettingsComponent::
+  // setFontSizeScale()) — independent of pot size.
+  int _fontSizeIndex = 1; // default 100%
+  static constexpr float fontSizeScales[] = { 0.75f, 1.0f, 1.25f, 1.5f,
+                                              1.75f };
+  static constexpr char const *fontSizeLabels[] = { "75%", "100%", "125%",
+                                                     "150%", "175%" };
+
+  // Persisted UI preferences (Clockmode, Pot Size, Font Size) — a small
+  // JSON file alongside config.json (see StandaloneApp.cc's config.json
+  // load — same getCurrentWorkingDirectory()-relative resolution), read
+  // once at startup and rewritten whenever one of those actually changes,
+  // so they survive app restarts instead of resetting to defaults.
+  juce::File getPersistedSettingsFile () const;
+  void       loadPersistedSettings ();
+  void       savePersistedSettings ();
+
   // Pattern directory monitoring
   void timerCallback () override;
   void refreshAllPadRowLabels ();
   juce::int64 _lastLibraryFingerprint = 0;
 
-  // Record button long-press detection
-  juce::int64 _recordButtonPressTime = 0;
-  bool _recordButtonLongPress = false;
-  static constexpr juce::int64 longPressThresholdMs = 300;
+  // Preview-and-fire: holding Shift + Action for a channel's clip slot plays
+  // it in preview mode (OSC output silenced); releasing Action exits preview
+  // (pattern keeps playing). -1 means no preview active on that channel.
+  std::vector<int> _previewHeldPad; // holds the SLOT index, or -1
 
-  // Preview-and-fire: per-channel tracking of held pad for preview mode
-  // -1 means no preview active on that channel.
-  // Short press (<longPressThresholdMs) = fire immediately.
-  // Long press (>=longPressThresholdMs):
-  //   - pad released without encoder change → fire (start pattern)
-  //   - encoder changed pattern, then encoder-press exits → save & stop
-  std::vector<int> _previewHeldPad;
-  std::vector<juce::int64> _padPressTime;  // timestamp per channel
-  std::vector<bool> _padPatternChanged;    // encoder changed pattern while pad held
+  // Clip Settings: permanent bottom panel showing the last-selected clip's
+  // settings. Selected by a slot's Settings button; the Motion-
+  // Encoder (upper, per channel) scrolls its 4 menu items, the Pot-Encoder
+  // (lower) changes the value of whichever (sub-)item is selected.
+  // Trajectory Shape/Sweep/Q/Speed are real (pattern selection / audio
+  // filter / playback length, see ClipUIParams::speedLog2); Direction/
+  // End-Action are still UI-only placeholders (no engine parameter exists
+  // for them yet).
+  std::unique_ptr<ClipSettingsComponent> _clipSettings;
+  index_t _clipSettingsChannel = 0;
+  index_t _clipSettingsSlot = 0;
+  int _clipSettingsMenuIndex = 0; // 0..3, see ClipSettingsComponent
+  // Which sub-element of the current section the Pot-Encoder edits, cycled
+  // by pressing it (e.g. Elevation: 0 = reach, 1 = clip-top, 2 = clip-
+  // bottom, 3 = mirror-south, 4 = flat, 5 = flat-elevation; Motion: 0 =
+  // speed, 1 = direction, 2 = end-action; Filter: 0 = sweep, 1 = Q).
+  // Reset to 0 whenever the section changes; Shape only has one.
+  int _clipSettingsSubIndex = 0;
+  void selectClip (index_t channel, index_t slot);
+  void updateControlReadout (juce::String const &text);
+  void handleClipSettingsScroll (index_t channel, int increment);
+  void handleClipSettingsValueChange (index_t channel, int increment);
+  void handleClipSettingsSubElementCycle (index_t channel);
+  int numSubElementsForSection (int menuIndex) const;
+  void updateClipSettingsDisplay ();
+
+  struct ClipUIParams
+  {
+    // log2 of the pattern's playback length in bars — see speedLog2Min/Max.
+    // 0 = 1 bar (native tempo), negative = faster (note-value fraction of
+    // a bar), positive = slower (multiple bars per cycle).
+    int speedLog2 = 0;
+    int direction = 0;   // 0=Forward, 1=Reverse, 2=PingPong
+    int endAction = 0;   // 0=Loop, 1=Stop, 2=Bounce
+  };
+  // [channel][slot], sized alongside _patterns in initializePatterns().
+  std::vector<std::vector<ClipUIParams> > _clipUIParams;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };

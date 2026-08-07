@@ -5,18 +5,18 @@
 
 */
 
-#include "OverlayMenuComponent.hh"
+#include "GlobalSettingsComponent.hh"
 
 namespace a3
 {
 
-OverlayMenuComponent::OverlayMenuComponent ()
+GlobalSettingsComponent::GlobalSettingsComponent ()
 {
   setInterceptsMouseClicks (false, false);
 }
 
 void
-OverlayMenuComponent::setOptions (std::vector<Option> options)
+GlobalSettingsComponent::setOptions (std::vector<Option> options)
 {
   _options = std::move (options);
   _optionIndex = juce::jlimit (0, (int) _options.size () - 1, _optionIndex);
@@ -25,7 +25,7 @@ OverlayMenuComponent::setOptions (std::vector<Option> options)
 }
 
 void
-OverlayMenuComponent::setOptionIndex (int index)
+GlobalSettingsComponent::setOptionIndex (int index)
 {
   if (_options.empty ())
     return;
@@ -34,7 +34,7 @@ OverlayMenuComponent::setOptionIndex (int index)
 }
 
 void
-OverlayMenuComponent::setSelectedValueIndex (int index)
+GlobalSettingsComponent::setSelectedValueIndex (int index)
 {
   if (_options.empty ())
     return;
@@ -44,7 +44,7 @@ OverlayMenuComponent::setSelectedValueIndex (int index)
 }
 
 void
-OverlayMenuComponent::setActiveValueIndex (int optionIndex, int activeIndex)
+GlobalSettingsComponent::setActiveValueIndex (int optionIndex, int activeIndex)
 {
   if (optionIndex < 0 || optionIndex >= (int) _options.size ())
     return;
@@ -54,7 +54,7 @@ OverlayMenuComponent::setActiveValueIndex (int optionIndex, int activeIndex)
 }
 
 void
-OverlayMenuComponent::navigateOption (int delta)
+GlobalSettingsComponent::navigateOption (int delta)
 {
   if (_options.empty ())
     return;
@@ -64,7 +64,7 @@ OverlayMenuComponent::navigateOption (int delta)
 }
 
 void
-OverlayMenuComponent::navigateValue (int delta)
+GlobalSettingsComponent::navigateValue (int delta)
 {
   if (_options.empty ())
     return;
@@ -77,7 +77,7 @@ OverlayMenuComponent::navigateValue (int delta)
 }
 
 void
-OverlayMenuComponent::setValueFieldSelected (bool selected)
+GlobalSettingsComponent::setValueFieldSelected (bool selected)
 {
   _valueFieldSelected = selected;
   if (selected && !_options.empty ())
@@ -86,7 +86,7 @@ OverlayMenuComponent::setValueFieldSelected (bool selected)
 }
 
 void
-OverlayMenuComponent::paint (juce::Graphics &g)
+GlobalSettingsComponent::paint (juce::Graphics &g)
 {
   // ── dim background ────────────────────────────────────────────────────────
   g.fillAll (juce::Colour (0, 0, 0).withAlpha (0.72f));

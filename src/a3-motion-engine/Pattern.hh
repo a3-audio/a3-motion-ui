@@ -22,6 +22,7 @@
 
 #include <string>
 
+#include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Types.hh>
 
@@ -87,6 +88,36 @@ public:
   float getPlayPosition () const;
   void setPlayPosition (float playPosition);
 
+  // Elevation is a per-clip property: each Pattern remembers its own
+  // reach/mirrorSouth/clipTop/clipBottom/flat/flatElevation so playback/
+  // recording/preview all read the same values regardless of which other
+  // clip is currently being edited on the same channel. Strictly monotonic
+  // in the recorded 2D radius r: r=0 is always the pole, r=1 is always
+  // `reach`'s point (0.5 = hemisphere/equator, 1.0 = full sphere/opposite
+  // pole) — see HeightMap::mapTo3D()'s ElevationParams overload for full
+  // semantics, and ElevationParams itself for field-by-field docs.
+  float getReach () const;
+  void setReach (float reach); // clamped to [0.05, 1.0]
+
+  bool getMirrorSouth () const;
+  void setMirrorSouth (bool mirrorSouth);
+
+  float getClipTop () const;
+  void setClipTop (float clipTop); // clamped to [0.0, 1.0]
+
+  float getClipBottom () const;
+  void setClipBottom (float clipBottom); // clamped to [0.0, 1.0]
+
+  bool getFlat () const;
+  void setFlat (bool flat);
+
+  float getFlatElevation () const;
+  void setFlatElevation (float flatElevation); // clamped to [0.0, 1.0]
+
+  /** Convenience bundle of the above, ready to pass to
+   *  HeightMap::mapTo3D()/mapTo2D(). */
+  ElevationParams getElevationParams () const;
+
 private:
   static_assert (std::atomic<Status>::is_always_lock_free);
   std::atomic<Status> _status = Status::Empty;
@@ -107,6 +138,13 @@ private:
   static_assert (std::atomic<float>::is_always_lock_free);
   std::atomic<float> _playPosition = 0.;
   std::atomic<Measure> _playbackLength;
+
+  std::atomic<float> _reach{ 0.5f };
+  std::atomic<bool> _mirrorSouth{ false };
+  std::atomic<float> _clipTop{ 0.0f };
+  std::atomic<float> _clipBottom{ 0.0f };
+  std::atomic<bool> _flat{ false };
+  std::atomic<float> _flatElevation{ 0.5f };
 };
 
 }

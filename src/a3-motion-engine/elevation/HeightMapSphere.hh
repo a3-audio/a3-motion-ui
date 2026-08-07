@@ -40,6 +40,12 @@ public:
   void setEdgeMode (EdgeMode mode);
   EdgeMode getEdgeMode () const;
 
+  // Un-hide HeightMap's other mapTo3D/mapTo2D overloads (e.g. the 1-arg
+  // ones), which would otherwise be hidden by overriding just some of them
+  // below.
+  using HeightMap::mapTo3D;
+  using HeightMap::mapTo2D;
+
   float computeHeight (Pos const &pos) const override;
 
   /** Map 2D disc position onto the sphere surface.
@@ -56,11 +62,28 @@ public:
    *  the internal stored value. Enables per-channel elevation. */
   Pos mapTo3D (Pos const &pos2D, float coverage) const override;
 
+  /** Same as mapTo3D(pos2D, coverage) but with an explicit edge mode too,
+   *  instead of reading the internal stored value. Enables per-clip
+   *  elevation strategy without touching shared state. */
+  Pos mapTo3D (Pos const &pos2D, float coverage, EdgeMode edgeMode) const;
+
+  /** Per-clip elevation mapping — see HeightMap::mapTo3D()'s
+   *  ElevationParams overload for the parameter semantics. Independent of
+   *  EdgeMode/coverage/setCoverage, which stay as the separate, stateful
+   *  mechanism used for live blob dragging past the visible disc (r > 1). */
+  Pos mapTo3D (Pos const &pos2D, ElevationParams const &params) const override;
+
   /** Exact inverse of mapTo3D(): recovers the 2D disc position from a full
    *  3D point, unambiguous between front and back hemisphere (see
    *  HeightMap::mapTo2D). */
   Pos mapTo2D (Pos const &pos3D) const override;
   Pos mapTo2D (Pos const &pos3D, float coverage) const override;
+  Pos mapTo2D (Pos const &pos3D, float coverage, EdgeMode edgeMode) const;
+
+  /** Best-effort inverse of mapTo3D(pos2D, ElevationParams) — exact for the
+   *  reach/mirrorSouth shape; in flat mode there is no radius information
+   *  left to recover, so it falls back to a nominal mid radius. */
+  Pos mapTo2D (Pos const &pos3D, ElevationParams const &params) const override;
 
   void setCoverage (float coverage) override;
   float getCoverage () const override;

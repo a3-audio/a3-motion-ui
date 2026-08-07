@@ -103,6 +103,7 @@ private:
     MenuToggle,
     Record,
     Tap,
+    Shift,
     Pad,
   };
 
@@ -156,9 +157,9 @@ private:
     { ButtonRole::MenuToggle, 0, 0 },  // 37: "59" row5 col9 – Menu toggle (right)
     { ButtonRole::Spare,  0, 0 },  // 38: "39" row3 col9 – spare
     { ButtonRole::Spare,  0, 0 },  // 39: "49" row4 col9 – spare
-    { ButtonRole::Spare,        0, 0 },  // 40: "00" row0 col0 – spare
+    { ButtonRole::Shift,        0, 0 },  // 40: "00" row0 col0 – Shift (left)
     { ButtonRole::Record,        0, 0 },  // 41: "10" row1 col0 – Record (left)
-    { ButtonRole::Spare,         0, 0 },  // 42: "09" row0 col9 – spare
+    { ButtonRole::Shift,         0, 0 },  // 42: "09" row0 col9 – Shift (right)
     { ButtonRole::Record,        0, 0 },  // 43: "19" row1 col9 – Record (right)
   };
 
@@ -186,20 +187,14 @@ private:
   void dispatchButtonEvent (int idx, bool pressed);
 
   // ── Encoder state ─────────────────────────────────────────────────────────
-  // Encoder A (even firmware index) = pot encoder per channel
-  // Encoder B (odd  firmware index) = motion encoder per channel (encoderIndex 0)
-
-  // Which pot (0 or 1) encoder A is currently adjusting per channel
-  std::array<index_t, numChannels> _selectedPot{};
-
-  // Accumulated pot values controlled by encoder A [0.0, 1.0]
-  std::array<std::array<float, numPotsPerChannel>, numChannels> _encoderPotValues{};
+  // Encoder A (even firmware index) = pot encoder per channel, encoderIndex 1
+  // Encoder B (odd  firmware index) = motion encoder per channel, encoderIndex 0
+  // Both emit generic increment/decrement + press/release events; the
+  // meaning of each is decided by the UI layer (A3MotionUIComponent).
 
   // Press state tracking for encoder switches
   std::array<bool, numChannels> _encAPressActive{};  // pot encoder push
   std::array<bool, numChannels> _encBPressActive{};  // motion encoder push
-
-  static constexpr float potEncoderSensitivity = 0.01f;
 
   void parseEncoders (const uint8_t *raw, int offset);
   void processEncSwitch (index_t ch, bool isPotEncoder, uint8_t sw);

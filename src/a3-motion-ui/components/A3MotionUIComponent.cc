@@ -30,8 +30,6 @@
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
-#include <a3-motion-engine/elevation/HeightMapFlat.hh>
-#include <a3-motion-engine/elevation/HeightMapSelectable.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
 #include <a3-motion-ui/Config.hh>
@@ -45,13 +43,13 @@
 #include <a3-motion-ui/components/ElevationDisplay.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
-#include <a3-motion-ui/components/OverlayMenuComponent.hh>
+#include <a3-motion-ui/components/GlobalSettingsComponent.hh>
+#include <a3-motion-ui/components/ClipSettingsComponent.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
 
 #include <a3-motion-ui/tests/TempoEstimatorTest.hh>
 
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
-#include <a3-motion-ui/io/LEDColours.hh>
 #ifdef HARDWARE_INTERFACE_V2
 #include <a3-motion-ui/io/InputOutputAdapterV2.hh>
 #endif
@@ -63,14 +61,10 @@ namespace a3
 {
 
 A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
-    : _heightMap (std::make_unique<HeightMapSelectable> ()),
+    : _heightMap (std::make_unique<HeightMapSphere> ()),
       _engine (numChannels, *_heightMap)
 {
   setLookAndFeel (&_lookAndFeel);
-
-  // Initialize encoder state — start on LoopLength row (top)
-  _encoderLevel.fill (EncoderLevel::RowSelect);
-  _encoderSelectedRow.fill (loopLengthRowIndex);
 
   if (runsOnHardware ())
     {
@@ -91,10 +85,20 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   createMainUI ();
   createPadRowDisplays ();
 
-  // Overlay menu (hidden by default, covers full window)
-  _overlayMenu = std::make_unique<OverlayMenuComponent> ();
-  _overlayMenu->setAlwaysOnTop (true);
-  addChildComponent (*_overlayMenu);
+  // Global Settings (hidden by default, shown on top of the settings area)
+  _globalSettings = std::make_unique<GlobalSettingsComponent> ();
+  _globalSettings->setAlwaysOnTop (true);
+  addChildComponent (*_globalSettings);
+
+  // Clip Settings: permanent bottom panel, always visible.
+  _clipSettings = std::make_unique<ClipSettingsComponent> ();
+  _clipSettings->setAlwaysOnTop (true);
+  addChildComponent (*_clipSettings);
+  _clipSettings->setVisible (true);
+  selectClip (0, 0); // sensible default before any button has been pressed
+
+  // Restore Clockmode/Pot Size/Font Size from the last session, if any.
+  loadPersistedSettings ();
 
   // Start directory monitor: check for new/changed SVG files every 2 seconds
   startTimer (2000);
@@ -234,101 +238,14 @@ A3MotionUIComponent::createChannelsUI ()
       _channelUIStates.push_back (std::move (uiState));
     }
 
-  _lengthsBarLog2 = std::vector<int> (numChannels, 0);
   _previewHeldPad = std::vector<int> (numChannels, -1);
-  _padPressTime = std::vector<juce::int64> (numChannels, 0);
-  _padPatternChanged = std::vector<bool> (numChannels, false);
-}
-
-void
-A3MotionUIComponent::handleLengthIncrement (index_t channel, int increment)
-{
-  jassert (increment == -1 || increment == 1);
-  if (!_engine.isRecording ()
-      || _engine.getRecordingPattern ()->getChannel () != channel)
-    {
-      if (increment == 1)
-        {
-          ++_lengthsBarLog2[channel];
-          _lengthsBarLog2[channel] = std::clamp (
-              _lengthsBarLog2[channel], lengthBarMinLog2, lengthBarMaxLog2);
-        }
-      else if (increment == -1)
-        {
-          --_lengthsBarLog2[channel];
-          _lengthsBarLog2[channel] = std::clamp (
-              _lengthsBarLog2[channel], lengthBarMinLog2, lengthBarMaxLog2);
-        }
-
-      auto const lengthBars = std::exp2 (_lengthsBarLog2[channel]);
-      if (_lengthsBarLog2[channel] >= 0)
-        {
-          _channelStrips[channel]->setTextBarsLabel (
-              juce::String (lengthBars));
-        }
-      else
-        {
-          _channelStrips[channel]->setTextBarsLabel (
-              "1/" + juce::String (int (1.f / lengthBars)));
-        }
-
-      // Update loop length display
-      _loopLengthDisplay->setLoopLengthBeats (static_cast<int> (channel),
-                                              getLengthBeats (channel));
-
-      auto playingPattern = _engine.getPlayingPattern (channel);
-      if (playingPattern)
-        {
-          auto const lengthBeats = static_cast<int> (
-              std::max (1.f, getLengthBeats (channel)));
-          auto playbackLength
-              = Measure{ 0, lengthBeats, 0 }.consolidate (
-                  _engine.getTempoClock ().getBeatsPerBar ());
-#ifdef DEBUG
-          juce::Logger::writeToLog ("setting playback length: "
-                                    + toString (playbackLength));
-#endif
-          playingPattern->setPlaybackLength (playbackLength);
-        }
-      
-      // Also update recording pattern length if it's in this channel
-      auto recordingPattern = _engine.getRecordingPattern ();
-      if (recordingPattern && recordingPattern->getChannel () == channel)
-        {
-          auto const lengthBeats = static_cast<int> (
-              std::max (1.f, getLengthBeats (channel)));
-          auto recordingLength
-              = Measure{ 0, lengthBeats, 0 }.consolidate (
-                  _engine.getTempoClock ().getBeatsPerBar ());
-#ifdef DEBUG
-          juce::Logger::writeToLog ("updating recording pattern length: "
-                                    + toString (recordingLength));
-#endif
-          recordingPattern->setPlaybackLength (recordingLength);
-        }
-
-      // Also update scheduled recording pattern length if it's in this channel
-      auto scheduledRecordingPattern = _engine.getScheduledForRecordingPattern ();
-      if (scheduledRecordingPattern && scheduledRecordingPattern->getChannel () == channel)
-        {
-          auto const lengthBeats = static_cast<int> (
-              std::max (1.f, getLengthBeats (channel)));
-          auto recordingLength
-              = Measure{ 0, lengthBeats, 0 }.consolidate (
-                  _engine.getTempoClock ().getBeatsPerBar ());
-#ifdef DEBUG
-          juce::Logger::writeToLog ("updating scheduled recording pattern length: "
-                                    + toString (recordingLength));
-#endif
-          scheduledRecordingPattern->setPlaybackLength (recordingLength);
-        }
-    }
 }
 
 float
-A3MotionUIComponent::getLengthBeats (index_t channel) const
+A3MotionUIComponent::getLengthBeats (index_t channel, index_t slot) const
 {
-  auto const lengthBars = std::exp2 (_lengthsBarLog2[channel]);
+  auto const lengthBars
+      = std::exp2 (_clipUIParams[channel][slot].speedLog2);
   auto const lengthBeats
       = lengthBars * _engine.getTempoClock ().getBeatsPerBar ();
   return static_cast<float> (lengthBeats);
@@ -350,31 +267,37 @@ A3MotionUIComponent::createMainUI ()
   addChildComponent (*_motionComponent);
   _motionComponent->setVisible (true);
 
+  // Hidden: no longer part of the visible layout (see resized()), but keeps
+  // receiving its normal update calls underneath.
   _filterDisplay = std::make_unique<FilterDisplay> ();
   addChildComponent (*_filterDisplay);
-  _filterDisplay->setVisible (true);
+  _filterDisplay->setVisible (false);
   for (auto ch = 0u; ch < _channelUIStates.size () && ch < FilterDisplay::numChannels; ++ch)
     _filterDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
 
+  // Hidden: see comment on _filterDisplay above.
   _loopLengthDisplay = std::make_unique<LoopLengthDisplay> ();
   addChildComponent (*_loopLengthDisplay);
-  _loopLengthDisplay->setVisible (true);
+  _loopLengthDisplay->setVisible (false);
   _loopLengthDisplay->setReferenceBeats (
       _engine.getTempoClock ().getBeatsPerBar ());
   for (auto ch = 0u; ch < _channelUIStates.size () && ch < LoopLengthDisplay::numChannels; ++ch)
     {
       _loopLengthDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
-      _loopLengthDisplay->setLoopLengthBeats (static_cast<int> (ch), getLengthBeats (ch));
+      _loopLengthDisplay->setLoopLengthBeats (static_cast<int> (ch),
+                                              getLengthBeats (ch, 0));
     }
 
+  // Hidden: see comment on _filterDisplay above.
   _elevationDisplay = std::make_unique<ElevationDisplay> ();
   addChildComponent (*_elevationDisplay);
-  _elevationDisplay->setVisible (true);
+  _elevationDisplay->setVisible (false);
   for (auto ch = 0u; ch < _channelUIStates.size () && ch < ElevationDisplay::numChannels; ++ch)
     {
       _elevationDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
-      _elevationDisplay->setCoverage (static_cast<int> (ch),
-                                      _engine.getChannelCoverage (ch));
+      // Coverage is per-clip now (see ClipSettingsComponent), not
+      // per-channel — this hidden legacy display just keeps its own
+      // built-in default.
     }
 }
 
@@ -403,6 +326,7 @@ A3MotionUIComponent::createHardwareInterface ()
   _ioAdapter->getButton (Button::Menu).addListener (this);
   _ioAdapter->getButton (Button::Record).addListener (this);
   _ioAdapter->getButton (Button::Tap).addListener (this);
+  _ioAdapter->getButton (Button::Shift).addListener (this);
   _ioAdapter->getTapTimeMicros ().addListener (this);
   for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
     {
@@ -415,6 +339,8 @@ A3MotionUIComponent::createHardwareInterface ()
       _ioAdapter->getPot (channel, 1).addListener (this);
       _ioAdapter->getEncoderIncrement (channel).addListener (this);
       _ioAdapter->getEncoderPress (channel).addListener (this);
+      _ioAdapter->getEncoderIncrement (channel, 1).addListener (this);
+      _ioAdapter->getEncoderPress (channel, 1).addListener (this);
     }
 
   _ioAdapter->startThread ();
@@ -429,29 +355,31 @@ A3MotionUIComponent::initializePatterns ()
                                ? _ioAdapter->getNumChannels ()
                                : _engine.getNumChannels ();
   _patterns.resize (numChannels);
+  _clipUIParams.resize (numChannels);
 
-  auto numPatternsPerChannel = runsOnHardware ()
-                                   ? numPages * _ioAdapter->getNumPadsPerChannel ()
-                                   : numPages * numPadRows;
   for (auto &channelPatterns : _patterns)
-    channelPatterns.resize (numPatternsPerChannel);
+    channelPatterns.resize (numClipSlots);
+  for (auto &channelParams : _clipUIParams)
+    channelParams.resize (numClipSlots);
 
-  // Load patterns from the library into the first page (4 rows).
-  // Each row gets one pattern per channel; channels share the same
-  // library slot but each gets its own Pattern instance.
+  // Load patterns from the library, one per clip slot; channels share the
+  // same library slot but each gets its own Pattern instance. Default
+  // shape is "Square" (name lookup rather than a raw library index, so it
+  // doesn't depend on alphabetical file ordering).
   auto const numLibEntries = _patternLibrary->getNumEntries (); // includes Empty at 0
+  auto const defaultLibIndex = _patternLibrary->indexForName ("Square");
   for (auto channel = 0u; channel < numChannels; ++channel)
     {
-      for (auto row = 0u; row < numPadRows; ++row)
+      for (auto slot = 0u; slot < numClipSlots; ++slot)
         {
-          auto const libIndex = static_cast<int> (row) + 1; // 1-based
-          if (libIndex < numLibEntries)
+          auto const libIndex = defaultLibIndex + static_cast<int> (slot);
+          if (libIndex > 0 && libIndex < numLibEntries)
             {
               auto p = _patternLibrary->loadPattern (libIndex);
               if (p)
                 {
                   p->setChannel (channel);
-                  _patterns[channel][row] = std::move (p);
+                  _patterns[channel][slot] = std::move (p);
                 }
             }
         }
@@ -464,6 +392,7 @@ A3MotionUIComponent::blankLEDs ()
   _ioAdapter->getButtonLED (Button::ClockMode) = false;
   _ioAdapter->getButtonLED (Button::Record) = false;
   _ioAdapter->getButtonLED (Button::Tap) = false;
+  _ioAdapter->getButtonLED (Button::Shift) = false;
 
   for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
     {
@@ -494,45 +423,33 @@ A3MotionUIComponent::resized ()
   auto boundsStatus = bounds.removeFromTop (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
-  // Loop length display below status bar
-  auto constexpr loopLengthDisplayHeight = LoopLengthDisplay::getMinimumHeight ();
-  auto boundsLoopLength = bounds.removeFromTop (loopLengthDisplayHeight);
-  _loopLengthDisplay->setBounds (boundsLoopLength);
-
-  // Elevation display below loop length
-  auto constexpr elevationDisplayHeight = ElevationDisplay::getMinimumHeight ();
-  auto boundsElevation = bounds.removeFromTop (elevationDisplayHeight);
-  _elevationDisplay->setBounds (boundsElevation);
-
-  // Pad row displays below elevation display
-  for (auto &padRow : _padRowDisplays)
-    {
-      auto constexpr padRowHeight = PadRowDisplay::getMinimumHeight ();
-      auto boundsPadRow = bounds.removeFromTop (padRowHeight);
-      padRow->setBounds (boundsPadRow);
-    }
-
-  // Filter display at the bottom
-  auto constexpr filterDisplayHeight = FilterDisplay::getMinimumHeight ();
-  auto boundsFilter = bounds.removeFromBottom (filterDisplayHeight);
-  _filterDisplay->setBounds (boundsFilter);
+  // LoopLength/Elevation/PadRow/Filter option bars are hidden (see
+  // createMainUI()/createPadRowDisplays()) — they no longer get screen
+  // space, but keep receiving their normal update calls under the hood.
 
   // Hide channel strips - no longer needed after removing width/order displays
   for (auto &strip : _channelStrips)
     strip->setVisible (false);
 
-  _motionComponent->setBounds (bounds);
+  // Clip Settings panel: permanent bottom quarter of the screen. Carved out
+  // of MotionComponent's actual bounds (not just overlaid) because
   // MotionComponent renders via its own directly-attached OpenGLContext
   // (see MotionComponent.cc), which always composites above normal JUCE
-  // components regardless of z-order/toFront() — so the menu must stay
-  // strictly above the motion sphere area or it gets painted over.
-  if (_overlayMenu)
-    {
-      auto overlayBounds = getLocalBounds ().withHeight (bounds.getY ());
-      if (overlayBounds.getHeight () <= 0)
-        overlayBounds = getLocalBounds ();
-      _overlayMenu->setBounds (overlayBounds);
-    }
+  // components regardless of z-order/toFront()/rendering-paused state, so
+  // nothing can visibly overlap it.
+  auto const clipSettingsHeight = bounds.getHeight () / 4;
+  auto boundsClipSettings = bounds.removeFromBottom (clipSettingsHeight);
+  if (_clipSettings)
+    _clipSettings->setBounds (boundsClipSettings);
+
+  _motionComponent->setBounds (bounds);
+
+  // Global Settings (Clockmode/Elevation Map) shares the same safe zone as
+  // the Clip Settings panel — it's real screen space carved out of
+  // MotionComponent's bounds above, so ordinary JUCE z-order/toFront() is
+  // enough to show it on top while open (no GL composite-order issue here).
+  if (_globalSettings)
+    _globalSettings->setBounds (boundsClipSettings);
 }
 
 float
@@ -558,36 +475,38 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
   if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::ClockMode)))
     {
       // ClockMode button is kept for backward compat but no longer cycles;
-      // clock mode is changed via the overlay menu.
-      (void) value;
+      // clock mode is changed via Global Settings.
+      if (value.getValue ())
+        updateControlReadout ("-- CLOCKMODE");
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Menu)))
     {
       bool const pressed = static_cast<bool> (value.getValue ());
       if (pressed)
         {
-          if (_menuOpen)
-            closeMenu ();
+          updateControlReadout ("-- MENU");
+          if (_globalSettingsOpen)
+            closeGlobalSettings ();
           else
-            openMenu ();
+            openGlobalSettings ();
         }
       // release: ignored (toggle on press)
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Record)))
     {
-      if (value.getValue ())
-        {
-          // Button pressed - track for long press detection
-          _recordButtonPressTime = juce::Time::currentTimeMillis ();
-          _recordButtonLongPress = false;
-          _ioAdapter->getButtonLED (Button::Record) = true;
-        }
-      else
-        {
-          // Button released
-          _ioAdapter->getButtonLED (Button::Record) = false;
-          // Long press handling is done when pad is pressed
-        }
+      _ioAdapter->getButtonLED (Button::Record) = value.getValue ();
+      updateControlReadout (juce::String ("-- RECORD ")
+                            + (value.getValue () ? "ON" : "OFF"));
+      // Recording itself is armed when a slot's Play|Pause pad is pressed
+      // while this button is held — see handlePadPress().
+    }
+  else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Shift)))
+    {
+      // Pure modifier: level-checked via isButtonPressed(Button::Shift) when
+      // a slot's Action pad is pressed (preview-and-fire gesture).
+      _ioAdapter->getButtonLED (Button::Shift) = value.getValue ();
+      updateControlReadout (juce::String ("-- SHIFT ")
+                            + (value.getValue () ? "ON" : "OFF"));
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Tap)))
     {
@@ -596,6 +515,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           // Button pressed - send /tap OSC immediately via DIRECT sender
           // Bypasses async queue for zero latency - time-critical!
           _ioAdapter->getButtonLED (Button::Tap) = true;
+          updateControlReadout ("-- TAP");
 
           auto tapMsg = juce::OSCMessage ("/tap");
           tapMsg.addInt32 (1);
@@ -629,51 +549,82 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           if (value.refersToSameSourceAs (
                   _ioAdapter->getEncoderIncrement (channel)))
             {
+              // Motion-Encoder (upper): scrolls the Clip Settings panel's
+              // menu items, except on channel 3 while Global Settings is
+              // open (that encoder is reserved for menu navigation there).
               auto const increment = static_cast<int> (
                   _ioAdapter->getEncoderIncrement (channel).getValue ());
-              if (_menuOpen && channel == 3u)
+              if (increment != 0)
+                updateControlReadout (
+                    "CH" + juce::String (channel + 1) + " ENC "
+                    + (increment > 0 ? "+" : "") + juce::String (increment));
+              if (_globalSettingsOpen && channel == 3u)
                 {
                   if (increment != 0)
                     {
-                      if (_menuValueFieldSelected)
-                        _overlayMenu->navigateValue (increment > 0 ? 1 : -1);
+                      if (_globalSettingsValueFieldSelected)
+                        _globalSettings->navigateValue (increment > 0 ? 1 : -1);
                       else
                         {
-                          _overlayMenu->navigateOption (increment > 0 ? 1 : -1);
-                          _menuOptionIndex = _overlayMenu->getOptionIndex ();
+                          _globalSettings->navigateOption (increment > 0 ? 1 : -1);
+                          _globalSettingsOptionIndex = _globalSettings->getOptionIndex ();
                         }
                     }
                   return;
                 }
 
-              handleEncoderIncrement (channel, increment);
+              handleClipSettingsScroll (channel, increment);
+            }
+          else if (value.refersToSameSourceAs (
+                       _ioAdapter->getEncoderIncrement (channel, 1)))
+            {
+              // Pot-Encoder (lower): changes the value of the currently
+              // selected Clip Settings menu item. Suppressed on channel 3
+              // while Global Settings is open, matching the Motion-Encoder.
+              auto const increment = static_cast<int> (
+                  _ioAdapter->getEncoderIncrement (channel, 1).getValue ());
+              if (increment != 0)
+                updateControlReadout (
+                    "CH" + juce::String (channel + 1) + " POT-ENC "
+                    + (increment > 0 ? "+" : "") + juce::String (increment));
+              if (_globalSettingsOpen && channel == 3u)
+                return;
+
+              handleClipSettingsValueChange (channel, increment);
             }
           else if (value.refersToSameSourceAs (
                        _ioAdapter->getEncoderPress (channel)))
             {
               if (value.getValue ())
                 {
-                  // The single ch3 encoder also drives the overlay menu
+                  updateControlReadout ("CH" + juce::String (channel + 1)
+                                       + " ENC PRESS");
+                  // The single ch3 encoder also drives Global Settings
                   // while it's open: first press arms the currently
                   // browsed option's value field, second press confirms
                   // and applies it (menu stays open).
-                  if (_menuOpen && channel == 3u)
+                  if (_globalSettingsOpen && channel == 3u)
                     {
-                      if (!_menuValueFieldSelected)
+                      if (!_globalSettingsValueFieldSelected)
                         {
-                          _menuValueFieldSelected = true;
-                          _overlayMenu->setValueFieldSelected (true);
+                          _globalSettingsValueFieldSelected = true;
+                          _globalSettings->setValueFieldSelected (true);
                         }
                       else
                         {
-                          confirmMenuOption ();
+                          confirmGlobalSettingsOption ();
                         }
                     }
-                  else
-                    {
-                      handleEncoderPress (channel);
-                    }
                 }
+            }
+          else if (value.refersToSameSourceAs (
+                       _ioAdapter->getEncoderPress (channel, 1)))
+            {
+              // Pot-Encoder press: cycle the current section's sub-element
+              // (e.g. Elevation: coverage <-> mode). Suppressed on channel 3
+              // while Global Settings is open, matching the Motion-Encoder.
+              if (value.getValue () && !(_globalSettingsOpen && channel == 3u))
+                handleClipSettingsSubElementCycle (channel);
             }
           else if (value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 0)))
@@ -685,7 +636,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               juce::Logger::writeToLog ("channel " + juce::String (channel)
                                         + " pot_1: " + juce::String (pot1Normalized));
 #endif
-              if (channel == 3u && _menuOpen)
+              if (channel == 3u && _globalSettingsOpen)
                 {
                   // Menu navigation is driven exclusively by the ch3
                   // rotary encoder; suppress the pot-encoder's synthetic
@@ -695,6 +646,9 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                 {
                   _engine.setChannelPot1 (channel, pot1Normalized);
                   _filterDisplay->setSweep (static_cast<int> (channel), pot1Normalized);
+                  updateControlReadout ("CH" + juce::String (channel + 1)
+                                       + " POT1 "
+                                       + juce::String (pot1Normalized, 2));
                 }
               return;
             }
@@ -707,7 +661,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               juce::Logger::writeToLog ("channel " + juce::String (channel)
                                         + " pot_2: " + juce::String (pot2Normalized));
 #endif
-              if (channel == 3u && _menuOpen)
+              if (channel == 3u && _globalSettingsOpen)
                 {
                   // Menu navigation is driven exclusively by the ch3
                   // rotary encoder; suppress the pot-encoder's synthetic
@@ -717,6 +671,9 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                 {
                   _engine.setChannelPot2 (channel, pot2Normalized);
                   _filterDisplay->setQ (static_cast<int> (channel), pot2Normalized);
+                  updateControlReadout ("CH" + juce::String (channel + 1)
+                                       + " POT2 "
+                                       + juce::String (pot2Normalized, 2));
                 }
               return;
             }
@@ -726,34 +683,25 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               if (value.refersToSameSourceAs (
                       _ioAdapter->getPad (channel, pad)))
                 {
+                  auto const slot = slotForPadIndex[pad];
                   if (value.getValue ())
                     {
                       handlePadPress (channel, pad);
                     }
-                  else
+                  else if (padFunctionByPadIndex[pad] == PadFunction::Action
+                           && _previewHeldPad[channel]
+                                  == static_cast<int> (slot))
                     {
-                      // Pad released
-                      if (_previewHeldPad[channel] == static_cast<int> (pad))
-                        {
-                          // Disable preview → OSC fires from current position.
-                          // Pattern keeps playing (both short and long press).
-                          // If user changed pattern via encoder and then
-                          // exits with encoder-press, that path handles
-                          // save & stop separately.
-                          _engine.setPreviewMode (channel, false);
-                          _previewHeldPad[channel] = -1;
-                          _padPatternChanged[channel] = false;
+                      // Action released → exit the Shift+Action preview
+                      // gesture. OSC fires from current position, pattern
+                      // keeps playing.
+                      _engine.setPreviewMode (channel, false);
+                      _previewHeldPad[channel] = -1;
 
-                          if (_patterns[channel][pad])
-                            {
-                              _motionComponent->unsetPreviewPattern (
-                                  _patterns[channel][pad]);
-                            }
-                        }
-                      else if (_patterns[channel][pad])
+                      if (_patterns[channel][slot])
                         {
                           _motionComponent->unsetPreviewPattern (
-                              _patterns[channel][pad]);
+                              _patterns[channel][slot]);
                         }
                     }
                   return;
@@ -766,96 +714,110 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
 void
 A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 {
-  if (isButtonPressed (Button::Record))
-    {
-      // Mark as long press since we're using Record for recording
-      _recordButtonLongPress = true;
+  auto const function = padFunctionByPadIndex[pad];
+  auto const slot = slotForPadIndex[pad];
+  auto &pattern = _patterns[channel][slot];
 
+  char const *functionName = "";
+  switch (function)
+    {
+    case PadFunction::PlayPause: functionName = "PLAYPAUSE"; break;
+    case PadFunction::Stop:      functionName = "STOP";      break;
+    case PadFunction::Action:    functionName = "ACTION";    break;
+    case PadFunction::Settings:  functionName = "SETTINGS";  break;
+    }
+  updateControlReadout ("CH" + juce::String (channel + 1) + " "
+                        + functionName);
+
+  if (isButtonPressed (Button::Record) && function == PadFunction::PlayPause)
+    {
       // Stop any existing pattern at this slot
-      if (_patterns[channel][pad])
+      if (pattern)
         {
-          auto status = _patterns[channel][pad]->getStatus ();
+          auto status = pattern->getStatus ();
           if (status == Pattern::Status::Playing
               || status == Pattern::Status::Recording)
             {
-              _engine.stopPattern (_patterns[channel][pad],
-                                   TempoClock::nextDownBeat (_now));
+              _engine.stopPattern (pattern, TempoClock::nextDownBeat (_now));
             }
-          _motionComponent->unsetPreviewPattern (_patterns[channel][pad]);
+          _motionComponent->unsetPreviewPattern (pattern);
         }
 
       // Always create a fresh Pattern for recording (user pattern)
-      _patterns[channel][pad] = std::make_shared<Pattern> ();
-      _patterns[channel][pad]->setChannel (channel);
+      pattern = std::make_shared<Pattern> ();
+      pattern->setChannel (channel);
 
       auto recordLength = Measure{ 0, static_cast<int> (
-          std::max (1.f, getLengthBeats (channel))), 0 };
+          std::max (1.f, getLengthBeats (channel, slot))), 0 };
       recordLength.consolidate (_engine.getTempoClock ().getBeatsPerBar ());
-#ifdef DEBUG
-      juce::Logger::writeToLog ("recording with length: "
-                                + toString (recordLength));
-#endif
-      
+
       // Store the recording length in the pattern so it can be updated if encoder changes
-      _patterns[channel][pad]->setPlaybackLength (recordLength);
-      
-      _engine.recordPattern (_patterns[channel][pad],
-                             TempoClock::nextDownBeat (_now), recordLength);
+      pattern->setPlaybackLength (recordLength);
+
+      _engine.recordPattern (pattern, TempoClock::nextDownBeat (_now),
+                             recordLength);
+      return;
     }
-  else if (_patterns[channel][pad])
+
+  switch (function)
     {
-      auto const status = _patterns[channel][pad]->getStatus ();
-      switch (status)
-        {
-        case Pattern::Status::Empty:
-          {
-            break;
-          }
-        case Pattern::Status::Idle:
+    case PadFunction::PlayPause:
+      {
+        if (!pattern)
+          break;
+        auto const status = pattern->getStatus ();
+        if (status == Pattern::Status::Idle)
           {
             auto playbackLength = Measure{ 0, static_cast<int> (
-                std::max (1.f, getLengthBeats (channel))), 0 };
-            _patterns[channel][pad]->setPlaybackLength (playbackLength);
-
-            // Start playback in preview mode (no OSC output yet).
-            // On pad release the hold time decides:
-            //   short press → preview off, pattern keeps playing (fire)
-            //   long press  → preview off, pattern stops (preview only)
-            _padPressTime[channel] = juce::Time::currentTimeMillis ();
+                std::max (1.f, getLengthBeats (channel, slot))), 0 };
+            pattern->setPlaybackLength (playbackLength);
+            _engine.playPattern (pattern, _now);
+          }
+        else if (status == Pattern::Status::Playing
+                 || status == Pattern::Status::ScheduledForPlaying)
+          {
+            _engine.stopPattern (pattern, TempoClock::nextDownBeat (_now));
+          }
+        break;
+      }
+    case PadFunction::Stop:
+      {
+        if (!pattern)
+          break;
+        auto const status = pattern->getStatus ();
+        if (status == Pattern::Status::Playing
+            || status == Pattern::Status::Recording
+            || status == Pattern::Status::ScheduledForPlaying)
+          {
+            _engine.stopPattern (pattern, TempoClock::nextDownBeat (_now));
+          }
+        break;
+      }
+    case PadFunction::Action:
+      {
+        // Shift+Action: preview-and-fire — play in preview mode (OSC
+        // silenced) while the encoder can browse the library; releasing
+        // Action exits (see valueChanged()'s pad-release branch).
+        // Without Shift: reserved for the Clip Settings Browser preset
+        // trigger, not implemented yet.
+        if (isButtonPressed (Button::Shift) && pattern
+            && pattern->getStatus () == Pattern::Status::Idle)
+          {
+            auto playbackLength = Measure{ 0, static_cast<int> (
+                std::max (1.f, getLengthBeats (channel, slot))), 0 };
+            pattern->setPlaybackLength (playbackLength);
             _engine.setPreviewMode (channel, true);
-            _previewHeldPad[channel] = static_cast<int> (pad);
-            _engine.playPattern (_patterns[channel][pad], _now);
-            setPreviewWithDisplayData (_patterns[channel][pad]);
-            break;
+            _previewHeldPad[channel] = static_cast<int> (slot);
+            _engine.playPattern (pattern, _now);
+            setPreviewWithDisplayData (pattern);
           }
-        case Pattern::Status::Playing:
-        case Pattern::Status::Recording:
-          {
-            _engine.stopPattern (_patterns[channel][pad],
-                                 TempoClock::nextDownBeat (_now));
-            break;
-          }
-        case Pattern::Status::ScheduledForPlaying:
-          {
-            // needs more thought. requires us to purge previously
-            // enqueued start/stop messages to be implemented
-            // consistently. std::priority_queue doesn't support that so
-            // we have to find an alternative such as implementing our
-            // own max heap.
-            // _engine.playPattern (_patterns[channel][pad], _now);
-            break;
-          }
-        case Pattern::Status::ScheduledForRecording:
-          {
-            // _engine.recordPattern (_patterns[channel][pad], _now,
-            //                        recordLength);
-          }
-        case Pattern::Status::ScheduledForIdle:
-          {
-            // _engine.stopPattern (_patterns[channel][pad], _now);
-            break;
-          }
-        }
+        break;
+      }
+    case PadFunction::Settings:
+      {
+        selectClip (channel, slot);
+        break;
+      }
     }
 }
 
@@ -890,22 +852,22 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
         // so getLastStatus() returns ScheduledForIdle, not Recording.
         if (messagePatternStatus.pattern->wasRecording ())
           {
-            // Find which pad slot this pattern belongs to
+            // Find which clip slot this pattern belongs to
             bool found = false;
-            for (size_t pad = 0; pad < _patterns[channel].size (); ++pad)
+            for (size_t slot = 0; slot < _patterns[channel].size (); ++slot)
               {
-                if (_patterns[channel][pad] == messagePatternStatus.pattern)
+                if (_patterns[channel][slot] == messagePatternStatus.pattern)
                   {
-                    std::cout << "  -> found in pad slot " << pad << std::endl;
+                    std::cout << "  -> found in clip slot " << slot << std::endl;
                     saveRecordedPattern (messagePatternStatus.pattern,
                                          channel,
-                                         static_cast<index_t> (pad));
+                                         static_cast<index_t> (slot));
                     found = true;
                     break;
                   }
               }
             if (!found)
-              std::cout << "  -> pattern NOT found in any pad slot!" << std::endl;
+              std::cout << "  -> pattern NOT found in any clip slot!" << std::endl;
           }
         break;
       }
@@ -1029,108 +991,93 @@ A3MotionUIComponent::padLEDCallback (int step)
 {
   for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
     {
+      auto const channelColour = _channelUIStates[channel]->colour;
       for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
         {
-          auto colour = LEDColours::empty;
-          if (_patterns[channel][pad])
-            {
-              auto const status = _patterns[channel][pad]->getStatus ();
-              auto const statusLast
-                  = _patterns[channel][pad]->getLastStatus ();
-              // juce::Logger::writeToLog (
-              //     juce::String ("(") + juce::String (channel)
-              //     + juce::String (".") + juce::String (pad)
-              //     + juce::String (") : ")
-              //     + juce::String (static_cast<int> (status)));
+          // All 4 buttons of a clip slot share that slot's Pattern, so
+          // their LEDs stay in sync.
+          auto const slot = slotForPadIndex[pad];
+          auto const status = _patterns[channel][slot]
+                                   ? _patterns[channel][slot]->getStatus ()
+                                   : Pattern::Status::Empty;
+          auto const statusLast
+              = _patterns[channel][slot]
+                    ? _patterns[channel][slot]->getLastStatus ()
+                    : Pattern::Status::Empty;
 
-              switch (status)
-                {
-                case Pattern::Status::Empty:
-                  {
-                    colour = LEDColours::empty;
-                    break;
-                  }
-                case Pattern::Status::Idle:
-                  {
-                    colour = LEDColours::idle;
-                    break;
-                  }
-                case Pattern::Status::ScheduledForRecording:
-                  {
-                    if (step % 2 == 0)
-                      colour = LEDColours::recording;
-                    else
-                      colour = LEDColours::scheduledForRecording;
-                    break;
-                  }
-                case Pattern::Status::Recording:
-                  {
-                    colour = LEDColours::recording;
-                    break;
-                  }
-                case Pattern::Status::ScheduledForPlaying:
-                  {
-                    if (step % 2 == 0)
-                      colour = LEDColours::playing;
-                    else
-                      colour = LEDColours::scheduledForPlaying;
-                    break;
-                  }
-                case Pattern::Status::Playing:
-                  {
-                    colour = LEDColours::playing;
-                    break;
-                  }
-                case Pattern::Status::ScheduledForIdle:
-                  {
-                    jassert (statusLast
-                                 != Pattern::Status::ScheduledForRecording
-                             && statusLast != Pattern::Status::Idle);
-                    colour = scheduledForIdleLEDColour (step, statusLast);
-                  }
-                }
-              _ioAdapter->getPadLED (channel, pad)
-                  = juce::VariantConverter<juce::Colour>::toVar (colour);
-            }
+          // Play|Pause is the one pad that must be readable at a glance:
+          // green while actually playing, channel colour otherwise (idle/
+          // empty/recording), so play vs. paused/stopped is unambiguous.
+          bool const isPlayingOnPlayPause
+              = padFunctionByPadIndex[pad] == PadFunction::PlayPause
+                && (status == Pattern::Status::Playing
+                    || status == Pattern::Status::ScheduledForPlaying);
+          auto const base
+              = isPlayingOnPlayPause ? juce::Colours::limegreen : channelColour;
+
+          auto const colour = channelColourForPadStatus (
+              base, status, statusLast, step);
+          _ioAdapter->getPadLED (channel, pad)
+              = juce::VariantConverter<juce::Colour>::toVar (colour);
         }
     }
 }
 
 juce::Colour
-A3MotionUIComponent::scheduledForIdleLEDColour (int step,
+A3MotionUIComponent::channelColourForPadStatus (juce::Colour base,
+                                                Pattern::Status status,
+                                                Pattern::Status statusLast,
+                                                int step)
+{
+  switch (status)
+    {
+    case Pattern::Status::Empty:
+      return base.darker (0.85f);
+    case Pattern::Status::Idle:
+      return base.darker (0.3f);
+    case Pattern::Status::ScheduledForRecording:
+      return step % 2 == 0 ? base : base.darker (0.6f);
+    case Pattern::Status::Recording:
+      return base;
+    case Pattern::Status::ScheduledForPlaying:
+      return step % 2 == 0 ? base : base.darker (0.6f);
+    case Pattern::Status::Playing:
+      return base;
+    case Pattern::Status::ScheduledForIdle:
+      jassert (statusLast != Pattern::Status::ScheduledForRecording
+               && statusLast != Pattern::Status::Idle);
+      return scheduledForIdleLEDColour (base, step, statusLast);
+    }
+  return base.darker (0.85f);
+}
+
+juce::Colour
+A3MotionUIComponent::scheduledForIdleLEDColour (juce::Colour base, int step,
                                                 Pattern::Status statusLast)
 {
   // one-shot recording: don't blink when scheduled for idle
   if (_engine.getRecordingMode () == MotionEngine::RecordingMode::OneShot
       && statusLast == Pattern::Status::Recording)
     {
-      return LEDColours::recording;
+      return base;
     }
 
   if (step % 2 == 0)
     {
-      return LEDColours::scheduledForIdle;
+      return base.darker (0.85f);
     }
   else
     {
-      if (statusLast == Pattern::Status::Playing || //
-          statusLast == Pattern::Status::ScheduledForPlaying)
-        {
-          return LEDColours::scheduledForPlaying;
-        }
-      else
-        {
-          return LEDColours::scheduledForRecording;
-        }
+      return base.darker (0.6f);
     }
 }
 
 void
 A3MotionUIComponent::createPadRowDisplays ()
 {
-  for (auto row = 0u; row < numPadRows; ++row)
+  for (auto slot = 0u; slot < numClipSlots; ++slot)
     {
-      auto display = std::make_unique<PadRowDisplay> (static_cast<int> (row));
+      auto display = std::make_unique<PadRowDisplay> (static_cast<int> (slot));
       for (auto ch = 0u; ch < _channelUIStates.size ()
                          && ch < PadRowDisplay::numChannels;
            ++ch)
@@ -1139,19 +1086,21 @@ A3MotionUIComponent::createPadRowDisplays ()
                                      _channelUIStates[ch]->colour);
         }
       addChildComponent (*display);
-      display->setVisible (true);
+      // Hidden: no longer part of the visible layout (see resized()), but
+      // keeps receiving its normal update calls underneath.
+      display->setVisible (false);
       _padRowDisplays.push_back (std::move (display));
     }
 
   // Set initial trajectory icons now that all displays exist
-  for (auto row = 0u; row < numPadRows; ++row)
+  for (auto slot = 0u; slot < numClipSlots; ++slot)
     {
       for (auto ch = 0u; ch < _engine.getNumChannels (); ++ch)
         {
-          if (row < _patterns[ch].size () && _patterns[ch][row])
+          if (slot < _patterns[ch].size () && _patterns[ch][slot])
             {
-              updatePadRowLabel (ch, row);
-              registerPatternDisplayData (_patterns[ch][row]);
+              updatePadRowLabel (ch, slot);
+              registerPatternDisplayData (_patterns[ch][slot]);
             }
         }
     }
@@ -1164,283 +1113,17 @@ A3MotionUIComponent::createPadRowDisplays ()
 }
 
 void
-A3MotionUIComponent::handleEncoderIncrement (index_t channel, int increment)
+A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t slot)
 {
-  if (_encoderLevel[channel] == EncoderLevel::RowSelect)
-    {
-      // Navigate between LoopLength (-2), Elevation (-1), pad rows (0..3)
-      auto oldRow = _encoderSelectedRow[channel];
-      auto newRow = oldRow + increment;
-      newRow = std::clamp (newRow, loopLengthRowIndex,
-                           static_cast<int> (numPadRows) - 1);
-
-      if (newRow != oldRow)
-        {
-          // Remove old highlight
-          if (oldRow == loopLengthRowIndex)
-            _loopLengthDisplay->setRowHighlighted (
-                static_cast<int> (channel), false);
-          else if (oldRow == elevationRowIndex)
-            _elevationDisplay->setRowHighlighted (
-                static_cast<int> (channel), false);
-          else if (static_cast<size_t> (oldRow) < _padRowDisplays.size ())
-            _padRowDisplays[static_cast<size_t> (oldRow)]
-                ->setRowHighlighted (static_cast<int> (channel), false);
-
-          // Remove trajectory preview from old row
-          if (oldRow == elevationRowIndex)
-            {
-              auto playing = _engine.getPlayingPattern (channel);
-              if (playing)
-                _motionComponent->unsetPreviewPattern (playing);
-            }
-          else if (oldRow >= 0
-                   && static_cast<size_t> (oldRow) < _padRowDisplays.size ())
-            {
-              auto padIdx = static_cast<index_t> (oldRow);
-              if (_patterns[channel][padIdx])
-                _motionComponent->unsetPreviewPattern (
-                    _patterns[channel][padIdx]);
-            }
-
-          // Set new highlight
-          if (newRow == loopLengthRowIndex)
-            _loopLengthDisplay->setRowHighlighted (
-                static_cast<int> (channel), true);
-          else if (newRow == elevationRowIndex)
-            _elevationDisplay->setRowHighlighted (
-                static_cast<int> (channel), true);
-          else if (static_cast<size_t> (newRow) < _padRowDisplays.size ())
-            _padRowDisplays[static_cast<size_t> (newRow)]
-                ->setRowHighlighted (static_cast<int> (channel), true);
-
-          // Show trajectory preview for new row
-          if (newRow == elevationRowIndex)
-            {
-              auto playing = _engine.getPlayingPattern (channel);
-              if (playing)
-                setPreviewWithDisplayData (playing);
-            }
-          else if (newRow >= 0
-                   && static_cast<size_t> (newRow) < _padRowDisplays.size ())
-            {
-              auto padIdx = static_cast<index_t> (newRow);
-              if (_patterns[channel][padIdx])
-                setPreviewWithDisplayData (_patterns[channel][padIdx]);
-            }
-
-          _encoderSelectedRow[channel] = newRow;
-        }
-    }
-  else if (_encoderLevel[channel] == EncoderLevel::OptionEdit)
-    {
-      auto const row = _encoderSelectedRow[channel];
-
-      // LoopLength row: encoder adjusts loop length
-      if (row == loopLengthRowIndex)
-        {
-          handleLengthIncrement (channel, increment);
-          return;
-        }
-
-      // Elevation row: encoder adjusts elevation coverage for this channel
-      if (row == elevationRowIndex)
-        {
-          handleElevationIncrement (channel, increment);
-          return;
-        }
-
-      // Pad rows: cycle trajectory type for the selected pad
-      auto const padIndex = static_cast<index_t> (row);
-
-      // Get current trajectory index
-      int currentIndex = 0;
-      if (_patterns[channel][padIndex])
-        currentIndex = trajectoryNameToIndex (_patterns[channel][padIndex]->getName ());
-
-      // Cycle: 0..numLibEntries-1 where 0=empty, 1..N=patterns (system + user)
-      auto const numLibEntries = _patternLibrary->getNumEntries ();
-      int newIndex = currentIndex + increment;
-      if (newIndex < 0)
-        newIndex = numLibEntries - 1;
-      else if (newIndex >= numLibEntries)
-        newIndex = 0;
-
-      // Was the old pattern playing? If so, the new one should
-      // auto-play (seamless switch).  Also track preview-held state.
-      bool const wasPlaying = _patterns[channel][padIndex]
-          && (_patterns[channel][padIndex]->getStatus () == Pattern::Status::Playing
-              || _patterns[channel][padIndex]->getStatus () == Pattern::Status::ScheduledForPlaying);
-      bool const isPreviewHeld
-          = _previewHeldPad[channel] == static_cast<int> (padIndex);
-
-      // Stop & clean up the old pattern
-      if (_patterns[channel][padIndex])
-        {
-          auto status = _patterns[channel][padIndex]->getStatus ();
-          if (status == Pattern::Status::Playing
-              || status == Pattern::Status::Recording)
-            {
-              _engine.stopPattern (_patterns[channel][padIndex], _now);
-            }
-          _motionComponent->unsetPreviewPattern (
-              _patterns[channel][padIndex]);
-          _motionComponent->removePatternDisplayData (
-              _patterns[channel][padIndex]);
-        }
-
-      // Create new pattern or clear
-      if (newIndex == 0)
-        {
-          _patterns[channel][padIndex] = nullptr;
-          if (isPreviewHeld)
-            {
-              _engine.setPreviewMode (channel, false);
-              _previewHeldPad[channel] = -1;
-            }
-        }
-      else
-        {
-          _patterns[channel][padIndex]
-              = createPatternForIndex (newIndex, channel);
-          registerPatternDisplayData (_patterns[channel][padIndex]);
-
-          // If old pattern was playing (or being previewed), start new
-          // pattern playing immediately so the switch is seamless.
-          if (wasPlaying && _patterns[channel][padIndex])
-            {
-              auto playbackLength = Measure{ 0, static_cast<int> (
-                  std::max (1.f, getLengthBeats (channel))), 0 };
-              _patterns[channel][padIndex]->setPlaybackLength (playbackLength);
-              _engine.playPattern (_patterns[channel][padIndex], _now);
-
-              // Update preview display if pad is still held
-              if (isPreviewHeld)
-                setPreviewWithDisplayData (_patterns[channel][padIndex]);
-            }
-        }
-
-      // Mark that the pattern was changed while pad is held
-      if (_previewHeldPad[channel] == static_cast<int> (padIndex))
-        _padPatternChanged[channel] = true;
-
-      updatePadRowLabel (channel, padIndex);
-      showTrajectoryPreview (channel, padIndex);
-    }
-}
-
-void
-A3MotionUIComponent::handleEncoderPress (index_t channel)
-{
-  auto const row = _encoderSelectedRow[channel];
-
-  if (_encoderLevel[channel] == EncoderLevel::RowSelect)
-    {
-      // Enter edit mode
-      _encoderLevel[channel] = EncoderLevel::OptionEdit;
-
-      if (row == loopLengthRowIndex)
-        {
-          _loopLengthDisplay->setCellSelected (
-              static_cast<int> (channel), true);
-        }
-      else if (row == elevationRowIndex)
-        {
-          _elevationDisplay->setCellSelected (
-              static_cast<int> (channel), true);
-          // Show trajectory preview for this channel's playing pattern
-          // so the user can see how elevation coverage changes affect its path.
-          auto playing = _engine.getPlayingPattern (channel);
-          if (playing)
-            setPreviewWithDisplayData (playing);
-        }
-      else if (static_cast<size_t> (row) < _padRowDisplays.size ())
-        {
-          _padRowDisplays[static_cast<size_t> (row)]
-              ->setCellSelected (static_cast<int> (channel), true);
-          showTrajectoryPreview (channel, static_cast<index_t> (row));
-        }
-    }
-  else
-    {
-      // Exit edit mode
-      _encoderLevel[channel] = EncoderLevel::RowSelect;
-
-      if (row == loopLengthRowIndex)
-        {
-          _loopLengthDisplay->setCellSelected (
-              static_cast<int> (channel), false);
-        }
-      else if (row == elevationRowIndex)
-        {
-          _elevationDisplay->setCellSelected (
-              static_cast<int> (channel), false);
-          // Remove trajectory preview for this channel shown during elevation editing
-          auto playing = _engine.getPlayingPattern (channel);
-          if (playing)
-            _motionComponent->unsetPreviewPattern (playing);
-        }
-      else if (static_cast<size_t> (row) < _padRowDisplays.size ())
-        {
-          _padRowDisplays[static_cast<size_t> (row)]
-              ->setCellSelected (static_cast<int> (channel), false);
-
-          auto const padIndex = static_cast<index_t> (row);
-          // If the pattern was changed via encoder while pad was held,
-          // save the new pattern in the pad slot and stop playback.
-          if (_padPatternChanged[channel]
-              && _previewHeldPad[channel] == static_cast<int> (padIndex))
-            {
-              _engine.setPreviewMode (channel, false);
-              _previewHeldPad[channel] = -1;
-              _padPatternChanged[channel] = false;
-
-              if (_patterns[channel][padIndex])
-                {
-                  _engine.stopPattern (
-                      _patterns[channel][padIndex], _now);
-                  _motionComponent->unsetPreviewPattern (
-                      _patterns[channel][padIndex]);
-                }
-            }
-
-          clearTrajectoryPreview (channel);
-        }
-    }
-}
-
-void
-A3MotionUIComponent::handleElevationIncrement (index_t channel, int increment)
-{
-  // Discrete coverage steps: 5%
-  static constexpr float step = 0.05f;
-  auto coverage = _engine.getChannelCoverage (channel);
-  coverage += static_cast<float> (increment) * step;
-  coverage = std::clamp (coverage, 0.05f, 1.0f);
-
-  _engine.setChannelCoverage (channel, coverage);
-  _elevationDisplay->setCoverage (static_cast<int> (channel), coverage);
-
-  // Show this channel's playing trajectory so the user can see how
-  // the coverage change affects the pattern shape on the sphere.
-  auto playing = _engine.getPlayingPattern (channel);
-  if (playing)
-    setPreviewWithDisplayData (playing);
-}
-
-void
-A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
-{
-  auto const row = pad; // pad index == row index for first page
-  if (row >= numPadRows)
+  if (slot >= numClipSlots)
     return;
 
-  if (row >= _padRowDisplays.size ())
+  if (slot >= _padRowDisplays.size ())
     return;
 
-  if (_patterns[channel][pad])
+  if (_patterns[channel][slot])
     {
-      auto const &name = _patterns[channel][pad]->getName ();
+      auto const &name = _patterns[channel][slot]->getName ();
       auto libIndex = _patternLibrary->indexForName (name);
 
       if (libIndex > 0)
@@ -1450,21 +1133,21 @@ A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
           auto iconPath = svgDToPath (entry.svgPathData);
           if (!iconPath.isEmpty () || entry.hasJumpDots)
             {
-              _padRowDisplays[row]->setIconPath (
+              _padRowDisplays[slot]->setIconPath (
                   static_cast<int> (channel),
                   iconPath,
                   entry.jumpDots);
             }
           else
             {
-              _padRowDisplays[row]->setTickData (
+              _padRowDisplays[slot]->setTickData (
                   static_cast<int> (channel), entry.ticks);
             }
           // Show pattern length in beats
-          _padRowDisplays[row]->setLengthBeats (
+          _padRowDisplays[slot]->setLengthBeats (
               static_cast<int> (channel), entry.lengthBeats);
           // Category prefix: "S" for system, "U" for user
-          _padRowDisplays[row]->setCategoryPrefix (
+          _padRowDisplays[slot]->setCategoryPrefix (
               static_cast<int> (channel),
               entry.category == PatternLibrary::Category::System ? "S" : "U");
         }
@@ -1472,64 +1155,45 @@ A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t pad)
         {
           // Pattern not in library (e.g. newly recorded, not yet saved)
           // Generate icon from the pattern's own tick data
-          auto ticks = _patterns[channel][pad]->getTicks ();
-          _padRowDisplays[row]->setTickData (static_cast<int> (channel),
-                                             ticks.positions);
+          auto ticks = _patterns[channel][slot]->getTicks ();
+          _padRowDisplays[slot]->setTickData (static_cast<int> (channel),
+                                              ticks.positions);
           // Compute beats from tick count
-          auto numTicks = _patterns[channel][pad]->getNumTicks ();
+          auto numTicks = _patterns[channel][slot]->getNumTicks ();
           auto ticksPerBeat = TempoClock::getTicksPerBeat ();
           int beats = ticksPerBeat > 0
                           ? static_cast<int> (numTicks / ticksPerBeat)
                           : 0;
-          _padRowDisplays[row]->setLengthBeats (
+          _padRowDisplays[slot]->setLengthBeats (
               static_cast<int> (channel), beats);
-          _padRowDisplays[row]->setCategoryPrefix (
+          _padRowDisplays[slot]->setCategoryPrefix (
               static_cast<int> (channel), "U");
         }
     }
   else
     {
       // Empty: clear tick data and set Empty type
-      _padRowDisplays[row]->setTickData (static_cast<int> (channel), {});
-      _padRowDisplays[row]->setTrajectoryType (
+      _padRowDisplays[slot]->setTickData (static_cast<int> (channel), {});
+      _padRowDisplays[slot]->setTrajectoryType (
           static_cast<int> (channel), PadRowDisplay::TrajectoryType::Empty);
-      _padRowDisplays[row]->setLengthBeats (
+      _padRowDisplays[slot]->setLengthBeats (
           static_cast<int> (channel), 0);
-      // Use the category from the library slot (row+1) for the prefix,
+      // Use the category from the library slot (slot+1) for the prefix,
       // even when the current channel has no pattern loaded
-      auto const slotIndex = static_cast<int> (row) + 1;
-      if (slotIndex < _patternLibrary->getNumEntries ())
+      auto const libSlotIndex = static_cast<int> (slot) + 1;
+      if (libSlotIndex < _patternLibrary->getNumEntries ())
         {
-          auto const &slotEntry = _patternLibrary->getEntry (slotIndex);
-          _padRowDisplays[row]->setCategoryPrefix (
+          auto const &slotEntry = _patternLibrary->getEntry (libSlotIndex);
+          _padRowDisplays[slot]->setCategoryPrefix (
               static_cast<int> (channel),
               slotEntry.category == PatternLibrary::Category::System ? "S" : "U");
         }
       else
         {
-          _padRowDisplays[row]->setCategoryPrefix (
+          _padRowDisplays[slot]->setCategoryPrefix (
               static_cast<int> (channel), "");
         }
     }
-}
-
-void
-A3MotionUIComponent::showTrajectoryPreview (index_t channel, index_t pad)
-{
-  if (_encoderLevel[channel] == EncoderLevel::OptionEdit
-      && _patterns[channel][pad])
-    {
-      setPreviewWithDisplayData (_patterns[channel][pad]);
-    }
-}
-
-void
-A3MotionUIComponent::clearTrajectoryPreview (index_t channel)
-{
-  auto const row = _encoderSelectedRow[channel];
-  auto const pad = static_cast<index_t> (row);
-  if (_patterns[channel][pad])
-    _motionComponent->unsetPreviewPattern (_patterns[channel][pad]);
 }
 
 void
@@ -1598,7 +1262,7 @@ A3MotionUIComponent::createPatternForIndex (int index, index_t channel)
 
 void
 A3MotionUIComponent::saveRecordedPattern (
-    std::shared_ptr<Pattern> const &pattern, index_t channel, index_t pad)
+    std::shared_ptr<Pattern> const &pattern, index_t channel, index_t slot)
 {
   if (!pattern || pattern->getNumTicks () == 0)
     return;
@@ -1611,7 +1275,7 @@ A3MotionUIComponent::saveRecordedPattern (
   // Save to user directory
   auto newIndex = _patternLibrary->saveUserPattern (pattern);
   std::cout << "saveRecordedPattern: channel=" << channel
-            << " pad=" << pad
+            << " slot=" << slot
             << " ticks=" << pattern->getNumTicks ()
             << " name=" << name
             << " newIndex=" << newIndex << std::endl;
@@ -1625,7 +1289,7 @@ A3MotionUIComponent::saveRecordedPattern (
       if (reloaded)
         {
           reloaded->setChannel (channel);
-          _patterns[channel][pad] = reloaded;
+          _patterns[channel][slot] = reloaded;
           registerPatternDisplayData (reloaded);
         }
 
@@ -1633,7 +1297,7 @@ A3MotionUIComponent::saveRecordedPattern (
       _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
 
       // Refresh the pad cell display to show the new recording
-      updatePadRowLabel (channel, pad);
+      updatePadRowLabel (channel, slot);
     }
 }
 
@@ -1643,9 +1307,9 @@ A3MotionUIComponent::refreshAllPadRowLabels ()
   auto const numChannels = _engine.getNumChannels ();
   for (index_t ch = 0; ch < numChannels; ++ch)
     {
-      for (index_t row = 0; row < numPadRows; ++row)
+      for (index_t slot = 0; slot < numClipSlots; ++slot)
         {
-          updatePadRowLabel (ch, row);
+          updatePadRowLabel (ch, slot);
         }
     }
 }
@@ -1763,82 +1427,89 @@ A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
 #endif
 }
 
-// ── Overlay menu helpers ──────────────────────────────────────────────────────
+// ── Global Settings helpers ──────────────────────────────────────────────────────
 
 void
-A3MotionUIComponent::openMenu ()
+A3MotionUIComponent::openGlobalSettings ()
 {
-  if (_menuOpen)
+  if (_globalSettingsOpen)
     return;
 
-  _menuOpen = true;
-  _menuValueFieldSelected = false;
-  _menuOptionIndex = 0;
+  _globalSettingsOpen = true;
+  _globalSettingsValueFieldSelected = false;
+  _globalSettingsOptionIndex = 0;
 
   // Build or rebuild options with current mode as each option's active value
-  std::vector<OverlayMenuComponent::Option> options{
+  std::vector<GlobalSettingsComponent::Option> options{
     { "Clockmode",
       { { "INT", juce::Colours::white },
         { "EXT", juce::Colours::white },
         { "PIO", juce::Colours::white } },
       _clockMode },
-    { "Elevation Map",
-      { { "Sphere", juce::Colours::white },
-        { "Sphere (Clamped)", juce::Colours::white },
-        { "Flat", juce::Colours::white } },
-      _elevationMapMode },
+    { "Pot Size",
+      { { potSizeLabels[0], juce::Colours::white },
+        { potSizeLabels[1], juce::Colours::white },
+        { potSizeLabels[2], juce::Colours::white },
+        { potSizeLabels[3], juce::Colours::white },
+        { potSizeLabels[4], juce::Colours::white } },
+      _potSizeIndex },
+    { "Font Size",
+      { { fontSizeLabels[0], juce::Colours::white },
+        { fontSizeLabels[1], juce::Colours::white },
+        { fontSizeLabels[2], juce::Colours::white },
+        { fontSizeLabels[3], juce::Colours::white },
+        { fontSizeLabels[4], juce::Colours::white } },
+      _fontSizeIndex },
   };
-  _overlayMenu->setOptions (std::move (options));
-  _overlayMenu->setOptionIndex (_menuOptionIndex);
-  _overlayMenu->setValueFieldSelected (false);
+  _globalSettings->setOptions (std::move (options));
+  _globalSettings->setOptionIndex (_globalSettingsOptionIndex);
+  _globalSettings->setValueFieldSelected (false);
 
-  // Keep the menu strictly above the motion sphere area — MotionComponent
-  // renders via its own OpenGLContext, which always composites on top of
-  // normal JUCE components (see resized()).
-  if (_motionComponent)
-    {
-      auto overlayBounds = getLocalBounds ().withHeight (_motionComponent->getY ());
-      if (overlayBounds.getHeight () > 0)
-        _overlayMenu->setBounds (overlayBounds);
-    }
+  // Reuse the Clip Settings panel's safe zone (real screen space carved out
+  // of MotionComponent's bounds in resized(), not overlapping its OpenGL
+  // context) so the menu has room to show its option rows properly.
+  if (_clipSettings)
+    _globalSettings->setBounds (_clipSettings->getBounds ());
 
-  _overlayMenu->setVisible (true);
-  _overlayMenu->toFront (true);
+  _globalSettings->setVisible (true);
+  _globalSettings->toFront (true);
   if (_motionComponent)
     _motionComponent->setRenderingPaused (true);
 }
 
 void
-A3MotionUIComponent::closeMenu ()
+A3MotionUIComponent::closeGlobalSettings ()
 {
-  if (!_menuOpen)
+  if (!_globalSettingsOpen)
     return;
 
-  _menuOpen = false;
-  _menuValueFieldSelected = false;
-  _overlayMenu->setVisible (false);
-  _overlayMenu->setValueFieldSelected (false);
+  _globalSettingsOpen = false;
+  _globalSettingsValueFieldSelected = false;
+  _globalSettings->setVisible (false);
+  _globalSettings->setValueFieldSelected (false);
   if (_motionComponent)
     _motionComponent->setRenderingPaused (false);
 }
 
 void
-A3MotionUIComponent::confirmMenuOption ()
+A3MotionUIComponent::confirmGlobalSettingsOption ()
 {
-  if (!_menuOpen || !_menuValueFieldSelected)
+  if (!_globalSettingsOpen || !_globalSettingsValueFieldSelected)
     return;
 
-  int const chosen = _overlayMenu->getSelectedValueIndex ();
+  int const chosen = _globalSettings->getSelectedValueIndex ();
 
-  if (_menuOptionIndex == 0)
+  if (_globalSettingsOptionIndex == 0)
     applyClockMode (chosen);
+  else if (_globalSettingsOptionIndex == 1)
+    applyPotSize (chosen);
   else
-    applyElevationMap (chosen);
+    applyFontSize (chosen);
 
-  _overlayMenu->setActiveValueIndex (_menuOptionIndex, chosen);
+  _globalSettings->setActiveValueIndex (_globalSettingsOptionIndex, chosen);
 
-  _menuValueFieldSelected = false;
-  _overlayMenu->setValueFieldSelected (false);
+  _globalSettingsValueFieldSelected = false;
+  _globalSettings->setValueFieldSelected (false);
 }
 
 void
@@ -1873,24 +1544,382 @@ A3MotionUIComponent::applyClockMode (int mode)
   auto clockModeMsg = juce::OSCMessage ("/clockmode");
   clockModeMsg.addInt32 (_clockMode);
   _oscSender.send (clockModeMsg);
+
+  savePersistedSettings ();
 }
 
 void
-A3MotionUIComponent::applyElevationMap (int mode)
+A3MotionUIComponent::applyPotSize (int index)
 {
-  if (mode == _elevationMapMode)
+  if (index == _potSizeIndex)
     return;
 
-  _elevationMapMode = mode;
+  _potSizeIndex = index;
+  if (_clipSettings)
+    _clipSettings->setPotSizeScale (potSizeScales[index]);
 
-  using Strategy = HeightMapSelectable::Strategy;
-  Strategy strategy = Strategy::SphereWrap;
-  if (_elevationMapMode == 1)
-    strategy = Strategy::SphereClamped;
-  else if (_elevationMapMode == 2)
-    strategy = Strategy::Flat;
+  savePersistedSettings ();
+}
 
-  _heightMap->setStrategy (strategy);
+void
+A3MotionUIComponent::applyFontSize (int index)
+{
+  if (index == _fontSizeIndex)
+    return;
+
+  _fontSizeIndex = index;
+  if (_clipSettings)
+    _clipSettings->setFontSizeScale (fontSizeScales[index]);
+
+  savePersistedSettings ();
+}
+
+juce::File
+A3MotionUIComponent::getPersistedSettingsFile () const
+{
+  return juce::File::getCurrentWorkingDirectory ()
+      .getChildFile ("config/ui_state.json");
+}
+
+void
+A3MotionUIComponent::loadPersistedSettings ()
+{
+  auto const file = getPersistedSettingsFile ();
+  if (!file.existsAsFile ())
+    return;
+
+  juce::var parsed;
+  if (juce::JSON::parse (file.loadFileAsString (), parsed).failed ())
+    return;
+
+  auto constexpr numPotSizes
+      = static_cast<int> (sizeof (potSizeScales) / sizeof (potSizeScales[0]));
+  auto constexpr numFontSizes = static_cast<int> (
+      sizeof (fontSizeScales) / sizeof (fontSizeScales[0]));
+
+  if (parsed.hasProperty ("clockMode"))
+    applyClockMode (static_cast<int> (parsed["clockMode"]));
+  if (parsed.hasProperty ("potSizeIndex"))
+    applyPotSize (std::clamp (static_cast<int> (parsed["potSizeIndex"]), 0,
+                              numPotSizes - 1));
+  if (parsed.hasProperty ("fontSizeIndex"))
+    applyFontSize (std::clamp (static_cast<int> (parsed["fontSizeIndex"]), 0,
+                               numFontSizes - 1));
+}
+
+void
+A3MotionUIComponent::savePersistedSettings ()
+{
+  auto *obj = new juce::DynamicObject ();
+  obj->setProperty ("clockMode", _clockMode);
+  obj->setProperty ("potSizeIndex", _potSizeIndex);
+  obj->setProperty ("fontSizeIndex", _fontSizeIndex);
+  juce::var const state (obj);
+
+  auto const file = getPersistedSettingsFile ();
+  file.getParentDirectory ().createDirectory ();
+  file.replaceWithText (juce::JSON::toString (state));
+}
+
+void
+A3MotionUIComponent::selectClip (index_t channel, index_t slot)
+{
+  _clipSettingsChannel = channel;
+  _clipSettingsSlot = slot;
+  _clipSettingsMenuIndex = 0;
+  _clipSettingsSubIndex = 0;
+  _clipSettings->setTarget (static_cast<int> (channel),
+                                   static_cast<int> (slot),
+                                   _channelUIStates[channel]->colour);
+  updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::handleClipSettingsScroll (index_t channel, int increment)
+{
+  if (channel != _clipSettingsChannel || increment == 0)
+    return;
+
+  static constexpr int numMenuItems = ClipSettingsComponent::numParameters;
+  _clipSettingsMenuIndex
+      = (_clipSettingsMenuIndex + increment % numMenuItems + numMenuItems)
+        % numMenuItems;
+  _clipSettingsSubIndex = 0;
+  updateClipSettingsDisplay ();
+}
+
+int
+A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
+{
+  if (menuIndex == ClipSettingsComponent::elevationIndex)
+    return 6;
+  if (menuIndex == ClipSettingsComponent::motionIndex)
+    return 3;
+  if (menuIndex == ClipSettingsComponent::filterIndex)
+    return 2;
+  return 1;
+}
+
+void
+A3MotionUIComponent::handleClipSettingsSubElementCycle (index_t channel)
+{
+  if (channel != _clipSettingsChannel)
+    return;
+
+  auto const numSub = numSubElementsForSection (_clipSettingsMenuIndex);
+  _clipSettingsSubIndex = (_clipSettingsSubIndex + 1) % numSub;
+  updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
+                                                    int increment)
+{
+  if (channel != _clipSettingsChannel || increment == 0)
+    return;
+
+  auto const slot = _clipSettingsSlot;
+  auto &params = _clipUIParams[channel][slot];
+
+  switch (_clipSettingsMenuIndex)
+    {
+    case 0: // Trajectory Shape — cycle through the pattern library
+      {
+        auto &pattern = _patterns[channel][slot];
+
+        int currentIndex = 0;
+        if (pattern)
+          currentIndex = trajectoryNameToIndex (pattern->getName ());
+
+        auto const numLibEntries = _patternLibrary->getNumEntries ();
+        int newIndex = currentIndex + increment;
+        if (newIndex < 0)
+          newIndex = numLibEntries - 1;
+        else if (newIndex >= numLibEntries)
+          newIndex = 0;
+
+        bool const wasPlaying
+            = pattern
+              && (pattern->getStatus () == Pattern::Status::Playing
+                  || pattern->getStatus ()
+                         == Pattern::Status::ScheduledForPlaying);
+
+        if (pattern)
+          {
+            auto status = pattern->getStatus ();
+            if (status == Pattern::Status::Playing
+                || status == Pattern::Status::Recording)
+              _engine.stopPattern (pattern, _now);
+            _motionComponent->unsetPreviewPattern (pattern);
+            _motionComponent->removePatternDisplayData (pattern);
+          }
+
+        if (newIndex == 0)
+          {
+            pattern = nullptr;
+          }
+        else
+          {
+            pattern = createPatternForIndex (newIndex, channel);
+            registerPatternDisplayData (pattern);
+
+            if (wasPlaying && pattern)
+              {
+                auto playbackLength = Measure{ 0, static_cast<int> (
+                    std::max (1.f, getLengthBeats (channel, slot))), 0 };
+                pattern->setPlaybackLength (playbackLength);
+                _engine.playPattern (pattern, _now);
+              }
+          }
+
+        updatePadRowLabel (channel, slot);
+        break;
+      }
+    case 1: // Elevation — reach (0), clip-top (1), clip-bottom (2),
+            // mirror-south (3), flat (4), or flat-elevation (5)
+      {
+        auto &pattern = _patterns[channel][slot];
+        if (!pattern)
+          break;
+
+        switch (_clipSettingsSubIndex)
+          {
+          case 0:
+            pattern->setReach (pattern->getReach () + increment * 0.05f);
+            break;
+          case 1:
+            pattern->setClipTop (pattern->getClipTop () + increment * 0.05f);
+            break;
+          case 2:
+            pattern->setClipBottom (pattern->getClipBottom ()
+                                    + increment * 0.05f);
+            break;
+          case 3:
+            // Toggle: turning right selects South, left selects North —
+            // tied to physical direction rather than pulse-counting, so
+            // it can't desync/flicker from missed encoder ticks.
+            pattern->setMirrorSouth (increment > 0);
+            break;
+          case 4:
+            pattern->setFlat (increment > 0);
+            break;
+          default:
+            pattern->setFlatElevation (pattern->getFlatElevation ()
+                                       + increment * 0.05f);
+            break;
+          }
+        break;
+      }
+    case 2: // Motion — speed (0), direction (1), or end-action (2)
+      switch (_clipSettingsSubIndex)
+        {
+        case 0:
+          {
+            // Turning right (increment > 0) should move the knob right,
+            // i.e. toward speedLog2Min (the fast/1-128th end) — subtract,
+            // not add, since speedLog2 runs the opposite way from the
+            // knob's visual left-to-right sweep (see speedLog2Min/Max).
+            params.speedLog2 = std::clamp (params.speedLog2 - increment,
+                                           speedLog2Min, speedLog2Max);
+            // Playback length IS speed here — a full pattern cycle spans
+            // this many beats, so halving/doubling it halves/doubles how
+            // fast the ball moves, quantized to musical note values.
+            auto &pattern = _patterns[channel][slot];
+            if (pattern)
+              {
+                auto const lengthBeats = static_cast<int> (
+                    std::max (1.f, getLengthBeats (channel, slot)));
+                auto const playbackLength
+                    = Measure{ 0, lengthBeats, 0 }.consolidate (
+                        _engine.getTempoClock ().getBeatsPerBar ());
+                pattern->setPlaybackLength (playbackLength);
+              }
+            break;
+          }
+        case 1:
+          params.direction = (params.direction + increment % 3 + 3) % 3;
+          break;
+        default:
+          params.endAction = (params.endAction + increment % 3 + 3) % 3;
+          break;
+        }
+      break;
+    case 3: // Filter — sweep/Pot1 (0) or Q/Pot2 (1)
+      if (_clipSettingsSubIndex == 0)
+        {
+          auto const newVal = std::clamp (
+              _engine.getChannelPot1 (channel) + increment * 0.02f, 0.0f, 1.0f);
+          _engine.setChannelPot1 (channel, newVal);
+          _filterDisplay->setSweep (static_cast<int> (channel), newVal);
+        }
+      else
+        {
+          auto const newVal = std::clamp (
+              _engine.getChannelPot2 (channel) + increment * 0.02f, 0.0f, 1.0f);
+          _engine.setChannelPot2 (channel, newVal);
+          _filterDisplay->setQ (static_cast<int> (channel), newVal);
+        }
+      break;
+    }
+
+  updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::updateClipSettingsDisplay ()
+{
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto const &params = _clipUIParams[channel][slot];
+  auto const &pattern = _patterns[channel][slot];
+
+  // Trajectory Shape: pictogram + name, built the same way as the (hidden)
+  // PadRowDisplay rows — prefer the library's SVG icon, fall back to the
+  // pattern's own tick data if it's not (yet) saved to the library.
+  if (pattern)
+    {
+      auto const &name = pattern->getName ();
+      auto const libIndex = _patternLibrary->indexForName (name);
+      if (libIndex > 0)
+        {
+          auto const &entry = _patternLibrary->getEntry (libIndex);
+          auto iconPath = svgDToPath (entry.svgPathData);
+          if (!iconPath.isEmpty () || entry.hasJumpDots)
+            _clipSettings->setTrajectoryIcon (
+                trajectoryIconFromPath (iconPath, entry.jumpDots));
+          else
+            _clipSettings->setTrajectoryIcon (
+                trajectoryIconFromTicks (entry.ticks));
+        }
+      else
+        {
+          _clipSettings->setTrajectoryIcon (
+              trajectoryIconFromTicks (pattern->getTicks ().positions));
+        }
+      _clipSettings->setTrajectoryName (juce::String (name));
+    }
+  else
+    {
+      _clipSettings->setTrajectoryIcon (TrajectoryIconData{});
+      _clipSettings->setTrajectoryName ("Empty");
+    }
+
+  _clipSettings->setElevationSubIndex (_clipSettingsSubIndex);
+  _clipSettings->setElevationReach (pattern ? pattern->getReach () : 0.5f);
+  _clipSettings->setElevationMirrorSouth (pattern
+                                          && pattern->getMirrorSouth ());
+  _clipSettings->setElevationClipTop (pattern ? pattern->getClipTop ()
+                                              : 0.0f);
+  _clipSettings->setElevationClipBottom (
+      pattern ? pattern->getClipBottom () : 0.0f);
+  _clipSettings->setElevationFlat (pattern && pattern->getFlat ());
+  _clipSettings->setElevationFlatElevation (
+      pattern ? pattern->getFlatElevation () : 0.5f);
+
+  // Motion/Filter: all sub-controls visible in parallel, like Elevation —
+  // _clipSettingsSubIndex only picks which one is highlighted, and only
+  // means anything while that section is actually selected.
+  //
+  // Speed is passed as an already-normalized knob fraction + a formatted
+  // musical label (e.g. "1/4", "2") rather than the raw speedLog2 value,
+  // so ClipSettingsComponent doesn't need to know speedLog2Min/Max.
+  // Inverted against the raw range: far left (frac 0) = speedLog2Max
+  // ("16", slowest), far right (frac 1) = speedLog2Min ("1/128", fastest).
+  auto const speedRange
+      = static_cast<float> (speedLog2Max - speedLog2Min);
+  auto const speedFrac
+      = speedRange > 0.f
+            ? (speedLog2Max - params.speedLog2) / speedRange
+            : 0.f;
+  auto const speedLabel
+      = params.speedLog2 >= 0
+            ? juce::String (static_cast<int> (std::exp2 (params.speedLog2)))
+            : "1/"
+                  + juce::String (
+                      static_cast<int> (std::exp2 (-params.speedLog2)));
+  _clipSettings->setMotionSpeed (speedFrac, speedLabel);
+  _clipSettings->setMotionDirection (params.direction);
+  _clipSettings->setMotionEndAction (params.endAction);
+  _clipSettings->setMotionSubIndex (
+      _clipSettingsMenuIndex == ClipSettingsComponent::motionIndex
+          ? _clipSettingsSubIndex
+          : 0);
+
+  _clipSettings->setFilterSweep (_engine.getChannelPot1 (channel));
+  _clipSettings->setFilterQ (_engine.getChannelPot2 (channel));
+  _clipSettings->setFilterSubIndex (
+      _clipSettingsMenuIndex == ClipSettingsComponent::filterIndex
+          ? _clipSettingsSubIndex
+          : 0);
+
+  _clipSettings->setSelectedParameterIndex (_clipSettingsMenuIndex);
+}
+
+void
+A3MotionUIComponent::updateControlReadout (juce::String const &text)
+{
+  if (_clipSettings)
+    _clipSettings->setLastControlReadout (text);
 }
 
 }

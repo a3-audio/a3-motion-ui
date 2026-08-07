@@ -68,12 +68,8 @@ target_sources("a3-motion-engine" PRIVATE
     backends/SpatBackendA3.cc
     backends/SpatBackendA3.hh
     elevation/HeightMap.hh
-    elevation/HeightMapFlat.cc
-    elevation/HeightMapFlat.hh
     elevation/HeightMapSphere.cc
     elevation/HeightMapSphere.hh
-    elevation/HeightMapSelectable.cc
-    elevation/HeightMapSelectable.hh
     util/Timing.cc
     util/Timing.hh
     util/Geometry.hh

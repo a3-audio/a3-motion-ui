@@ -20,11 +20,13 @@ namespace a3
 {
 
 /**
- * OverlayMenuComponent
+ * GlobalSettingsComponent
  *
- * Full-window semi-transparent overlay with a centred, multi-row settings
- * panel: every Option (e.g. "Clockmode", "Elevation Map") is shown as its
- * own row simultaneously, sized to fit however many Options are supplied.
+ * Device-wide settings menu (Clockmode, Elevation Map), opened by the Menu
+ * button. Shares the bottom-quarter "settings area" of the screen with
+ * ClipSettingsComponent — the two are never shown at once, this one is
+ * drawn on top while open. Every Option is shown as its own row
+ * simultaneously, sized to fit however many Options are supplied.
  *
  * Navigation is driven by a single rotary encoder: two-level, one input.
  * Turning it while no row is armed calls navigateOption() to move the
@@ -34,7 +36,7 @@ namespace a3
  * navigateValue() to cycle that Option's values (edit level). The caller
  * reads getSelectedValueIndex() to apply the chosen value.
  */
-class OverlayMenuComponent : public juce::Component
+class GlobalSettingsComponent : public juce::Component
 {
 public:
   struct ValueItem
@@ -50,7 +52,7 @@ public:
     int activeIndex = 0;
   };
 
-  explicit OverlayMenuComponent ();
+  explicit GlobalSettingsComponent ();
 
   void setOptions (std::vector<Option> options);
 

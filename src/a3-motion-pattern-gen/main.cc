@@ -69,20 +69,34 @@ getPatternDefs ()
     { "Figure 8", 16,  [] (int b, float r, auto const &h) { return PatternGenerator::createFigureOfEight (b, r, h); }},
     { "Heart",    16,  [] (int b, float r, auto const &h) { return PatternGenerator::createHeart     (b, r, h); }},
     { "Helix",    32,  [] (int b, float r, auto const &h) { return PatternGenerator::createHelix     (b, r, h); }},
-    { "Hypo",     32,  [] (int b, float r, auto const &h) { return PatternGenerator::createHypo      (b, r, h); }},
-    { "Infinity", 16,  [] (int b, float r, auto const &h) { return PatternGenerator::createInfinity  (b, r, h); }},
-    { "Lissajous",16,  [] (int b, float r, auto const &h) { return PatternGenerator::createLissajous (b, r, h); }},
-    { "Orbit",    32,  [] (int b, float r, auto const &h) { return PatternGenerator::createOrbit     (b, r, h); }},
-    { "Pendulum",  8,  [] (int b, float r, auto const &h) { return PatternGenerator::createPendulum  (b, r, h); }},
-    { "Petal",    16,  [] (int b, float r, auto const &h) { return PatternGenerator::createPetal     (b, r, h); }},
-    { "Random",    8,  [] (int b, float r, auto const &h) { return PatternGenerator::createRandom    (b, r, h); }},
-    { "Rose",     16,  [] (int b, float r, auto const &h) { return PatternGenerator::createRose      (b, r, h); }},
-    { "Spiral",   32,  [] (int b, float r, auto const &h) { return PatternGenerator::createSpiral    (b, r, h); }},
-    { "Square",    4,  [] (int b, float r, auto const &h) { return PatternGenerator::createSquare    (b, r, h); }},
-    { "Star",      8,  [] (int b, float r, auto const &h) { return PatternGenerator::createStar      (b, r, h); }},
-    { "Triangle",  4,  [] (int b, float r, auto const &h) { return PatternGenerator::createTriangle  (b, r, h); }},
-    { "Wave",     16,  [] (int b, float r, auto const &h) { return PatternGenerator::createWave      (b, r, h); }},
-    { "Zigzag",    8,  [] (int b, float r, auto const &h) { return PatternGenerator::createZigzag    (b, r, h); }},
+    { "Hypo",         32, [] (int b, float r, auto const &h) { return PatternGenerator::createHypo       (b, r, 5.f, 3.f, 5.f, h); }},
+    { "Hypo 7-2",     32, [] (int b, float r, auto const &h) { return PatternGenerator::createHypo       (b, r, 7.f, 2.f, 6.f, h); }},
+    { "Hypo 8-3",     32, [] (int b, float r, auto const &h) { return PatternGenerator::createHypo       (b, r, 8.f, 3.f, 5.f, h); }},
+    { "Epicycloid 3-1", 16, [] (int b, float r, auto const &h) { return PatternGenerator::createEpicycloid (b, r, 3.f, 1.f, 3.f, h); }},
+    { "Epicycloid 5-2", 32, [] (int b, float r, auto const &h) { return PatternGenerator::createEpicycloid (b, r, 5.f, 2.f, 4.f, h); }},
+    { "Epicycloid 7-3", 32, [] (int b, float r, auto const &h) { return PatternGenerator::createEpicycloid (b, r, 7.f, 3.f, 5.f, h); }},
+    { "Infinity",     16, [] (int b, float r, auto const &h) { return PatternGenerator::createInfinity   (b, r, h); }},
+    { "Lissajous",    16, [] (int b, float r, auto const &h) { return PatternGenerator::createLissajous  (b, r, 3.f, 2.f, pi<float> () / 2.f, h); }},
+    { "Lissajous 1-2",16, [] (int b, float r, auto const &h) { return PatternGenerator::createLissajous  (b, r, 1.f, 2.f, pi<float> () / 2.f, h); }},
+    { "Lissajous 2-3",16, [] (int b, float r, auto const &h) { return PatternGenerator::createLissajous  (b, r, 2.f, 3.f, pi<float> () / 2.f, h); }},
+    { "Lissajous 3-4",16, [] (int b, float r, auto const &h) { return PatternGenerator::createLissajous  (b, r, 3.f, 4.f, pi<float> () / 2.f, h); }},
+    { "Lissajous 3-5",16, [] (int b, float r, auto const &h) { return PatternGenerator::createLissajous  (b, r, 3.f, 5.f, pi<float> () / 2.f, h); }},
+    { "Lissajous 5-4",16, [] (int b, float r, auto const &h) { return PatternGenerator::createLissajous  (b, r, 5.f, 4.f, pi<float> () / 2.f, h); }},
+    { "Orbit",        32, [] (int b, float r, auto const &h) { return PatternGenerator::createOrbit      (b, r, h); }},
+    { "Pendulum",      8, [] (int b, float r, auto const &h) { return PatternGenerator::createPendulum   (b, r, h); }},
+    { "Petal",        16, [] (int b, float r, auto const &h) { return PatternGenerator::createPetal      (b, r, h); }},
+    { "Random",        8, [] (int b, float r, auto const &h) { return PatternGenerator::createRandom     (b, r, h); }},
+    { "Rose",         16, [] (int b, float r, auto const &h) { return PatternGenerator::createRose       (b, r, 3.f, h); }},
+    { "Rose 4-Petal", 16, [] (int b, float r, auto const &h) { return PatternGenerator::createRose       (b, r, 2.f, h); }},
+    { "Rose 5-Petal", 16, [] (int b, float r, auto const &h) { return PatternGenerator::createRose       (b, r, 5.f, h); }},
+    { "Rose 7-Petal", 16, [] (int b, float r, auto const &h) { return PatternGenerator::createRose       (b, r, 7.f, h); }},
+    { "Rose 8-Petal", 16, [] (int b, float r, auto const &h) { return PatternGenerator::createRose       (b, r, 4.f, h); }},
+    { "Spiral",       32, [] (int b, float r, auto const &h) { return PatternGenerator::createSpiral     (b, r, h); }},
+    { "Square",        4, [] (int b, float r, auto const &h) { return PatternGenerator::createSquare     (b, r, h); }},
+    { "Star",          8, [] (int b, float r, auto const &h) { return PatternGenerator::createStar       (b, r, h); }},
+    { "Triangle",      4, [] (int b, float r, auto const &h) { return PatternGenerator::createTriangle   (b, r, h); }},
+    { "Wave",         16, [] (int b, float r, auto const &h) { return PatternGenerator::createWave       (b, r, h); }},
+    { "Zigzag",        8, [] (int b, float r, auto const &h) { return PatternGenerator::createZigzag     (b, r, h); }},
   };
   // clang-format on
 }
@@ -108,7 +122,7 @@ printUsage ()
       << "  -h, --help           Show this help\n"
       << "\n"
       << "Examples:\n"
-      << "  a3-pattern-gen                  # all 25 system patterns\n"
+      << "  a3-pattern-gen                  # all system patterns\n"
       << "  a3-pattern-gen -n 8             # first 8 system patterns\n"
       << "  a3-pattern-gen --random -n 12   # 12 randomised patterns\n"
       << "  a3-pattern-gen --random -n 5 --seed 42\n";
@@ -129,7 +143,7 @@ main (int argc, char *argv[])
   // Initialise JUCE without a GUI
   juce::ScopedJuceInitialiser_GUI juceInit;
 
-  std::string outputDir = "/home/aaa/a3-motion/ui/pattern/system";
+  std::string outputDir = "/home/aaa/a3-system/a3-motion-ui/pattern/system";
   std::string onlyPattern;
   int overrideLength = 0; // 0 = use per-pattern default
   float radius = 0.8f;
@@ -218,6 +232,14 @@ main (int argc, char *argv[])
 
           auto pattern = def.create (beats, r, heightMap);
 
+          // Name: Rnd_<index>_<type> — set on the pattern itself too (not
+          // just the filename below), so the saved SVG's data-name (shown
+          // in the UI's Shape browser) matches instead of showing the
+          // generator's generic internal name for every random pattern.
+          auto const name = juce::String::formatted ("Rnd_%03d_%s", n + 1,
+                                                      def.name.c_str ());
+          pattern->setName (name.toStdString ());
+
           // Rotate all ticks by a random angle around the origin
           auto const numTicks = pattern->getNumTicks ();
           float cosA = std::cos (rotAngle * 3.14159265f / 180.f);
@@ -243,9 +265,6 @@ main (int argc, char *argv[])
                              Pos::fromCartesian (rx, ry, 0.f))));
             }
 
-          // Name: Rnd_<index>_<type>
-          auto name = juce::String::formatted ("Rnd_%03d_%s", n + 1,
-                                               def.name.c_str ());
           auto filename = juce::String::formatted ("%02d_", beats)
                           + safeFilename (name.toStdString ()) + ".svg";
           auto file = outDir.getChildFile (filename);
@@ -295,6 +314,11 @@ main (int argc, char *argv[])
     {
       int beats = overrideLength > 0 ? overrideLength : def.defaultBeats;
       auto pattern = def.create (beats, radius, heightMap);
+      // Distinct family members (e.g. the Lissajous/Rose/Hypo ratio
+      // variants) all set the same generic internal name inside their
+      // shared generator function — override with this PatternDef's own
+      // name so the saved SVG's data-name (shown in the UI) matches.
+      pattern->setName (def.name);
 
       auto filename = juce::String::formatted ("%02d_", beats)
                       + safeFilename (def.name) + ".svg";
