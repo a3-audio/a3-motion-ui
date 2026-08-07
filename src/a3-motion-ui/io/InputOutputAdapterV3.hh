@@ -35,6 +35,9 @@ namespace a3
 /**
  * InputOutputAdapterV3
  *
+ * For standalone diagnostics against the same firmware protocol outside this
+ * adapter, use the canonical `host.py` at the repo root (not a copy in here).
+ *
  * Hardware: ESP32-S3-DevKitC-1 with
  *   44 buttons (2-bit state per button, packed)
  *    8 encoders with push-button (i16 delta + u8 switch state)

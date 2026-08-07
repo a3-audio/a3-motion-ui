@@ -34,7 +34,6 @@
 
 #include <a3-motion-ui/Config.hh>
 #include <a3-motion-ui/Helpers.hh>
-#include <a3-motion-ui/components/ChannelHeader.hh>
 #include <a3-motion-ui/components/ChannelStrip.hh>
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/FilterDisplay.hh>

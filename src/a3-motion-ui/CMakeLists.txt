@@ -37,8 +37,6 @@ target_sources("a3-motion-ui" PRIVATE
     components/LayoutHints.hh
     components/StatusBar.cc
     components/StatusBar.hh
-    components/ChannelHeader.cc
-    components/ChannelHeader.hh
     components/ChannelStrip.cc
     components/ChannelStrip.hh
     components/MotionComponent.cc
@@ -63,8 +61,6 @@ target_sources("a3-motion-ui" PRIVATE
     components/GlobalSettingsComponent.hh
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh
-    # components/PatternMenu.cc
-    # components/PatternMenu.hh
     tests/TempoEstimatorTest.cc
     tests/TempoEstimatorTest.hh
 )

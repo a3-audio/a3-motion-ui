@@ -21,7 +21,6 @@
 #pragma once
 
 #include <a3-motion-engine/AsyncCommandQueue.hh>
-#include <a3-motion-engine/Master.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Helpers.hh>
 

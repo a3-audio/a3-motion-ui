@@ -20,8 +20,6 @@
 
 #include "LayoutHints.hh"
 
-#include <a3-motion-ui/components/ChannelHeader.hh>
-
 namespace a3
 {
 
