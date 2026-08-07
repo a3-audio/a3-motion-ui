@@ -108,14 +108,28 @@ generator and the test runner:
 `A3MotionUIComponent` (in `components/`) is the central orchestrator — it owns the main UI tree,
 registers all hardware listeners, translates hardware events into `MotionEngine` calls, and
 handles OSC in/out (beatclock, VU, tap). Read `team.md` (German) for a detailed, currently-accurate
-description of this component's event flow, button semantics, and the clock-mode/overlay-menu
+description of this component's event flow, button semantics, and the clock-mode/settings-area
 state machine — it's the best single source of truth for UI behavior and is worth consulting
-before changing button/menu/clock logic.
+before changing button/settings/clock logic.
 
-High-level structure, top to bottom in `A3MotionUIComponent::resized()`: `StatusBar` →
-`LoopLengthDisplay` → `ElevationDisplay` → per-channel `PadRowDisplay` rows → `FilterDisplay` →
-`MotionComponent` filling the rest → `OverlayMenuComponent` as a fullscreen overlay on top.
-`ChannelStrip` instances still exist but are currently hidden (`setVisible(false)`).
+High-level structure, top to bottom in `A3MotionUIComponent::resized()`: `StatusBar` → the rest of
+the screen split into `MotionComponent` (the sphere) and, docked to the bottom quarter, the
+"settings area" — `ClipSettingsComponent` (permanent, shows the last-selected clip's 7 parameters:
+Trajectory Shape/Speed/Direction/End-Action/Scale/Sweep/Q) with `GlobalSettingsComponent`
+(Clockmode/Elevation Map, opened by the Menu button) drawn on top of it while open. Both settings
+components share that bottom-quarter rect, carved out of `MotionComponent`'s actual bounds rather
+than just overlaid — `MotionComponent` renders via its own directly-attached `OpenGLContext`, which
+always composites above normal JUCE components regardless of z-order/`toFront()`, so nothing can
+visibly overlap it without a real bounds change. `LoopLengthDisplay`, `ElevationDisplay`,
+`PadRowDisplay` rows, and `FilterDisplay` still exist and keep receiving their normal update calls,
+but are permanently hidden (`setVisible(false)`) and no longer given screen space — same for
+`ChannelStrip`.
+
+Each channel has two rotary encoders, both scoped to whichever clip `ClipSettingsComponent`
+currently shows: the Motion-Encoder scrolls the 7 parameter rows, the Pot-Encoder changes the
+selected row's value (`A3MotionUIComponent::handleClipSettingsScroll`/
+`handleClipSettingsValueChange`). Channel 3's encoder pair is reserved for `GlobalSettingsComponent`
+navigation while it's open.
 
 Clock mode (`_clockMode`: `0=INT, 1=EXT, 2=PIO`) governs whether the UI drives its own tempo (tap
 button sets BPM, `/beat` sent via OSC) or follows an externally received `/beat` OSC stream

@@ -53,12 +53,13 @@ Hinweis: `ChannelStrip`-Instanzen existieren weiterhin, sind aber aktuell verbor
 - `PadRowDisplay`
 	Zeigt pro Kanal die aktuell selektierten Pattern-/Trajektorien-Slots.
 
-- `OverlayMenuComponent`
-	Menü zur Auswahl der Clock-Quelle mit den Einträgen `INT`, `EXT`, `PIO`.
+- `GlobalSettingsComponent`
+	Geräteweites Menü (Clockmode, Elevation Map). Teilt sich den unteren
+	Settings-Bereich mit `ClipSettingsComponent` (siehe dort).
 
-### 2.3 Overlay-Menü (aktuelles Verhalten)
+### 2.3 Global Settings (aktuelles Verhalten)
 
-`OverlayMenuComponent::paint()` rendert derzeit:
+`GlobalSettingsComponent::paint()` rendert derzeit:
 
 1. Eine halbtransparente Abdunklung über die gesamte UI (`g.fillAll(...)`)
 2. Ein zentriertes Panel
@@ -258,15 +259,17 @@ Wenn Toggle gewünscht ist, muss die Semantik in `A3MotionUIComponent::valueChan
 ## 8. Bekannte Inkonsistenzen und Pflegehinweise
 
 1. Einige Kommentare nennen andere Button-Labels/Indizes als das aktuelle V3-Mapping; bei Debug immer den tatsächlichen `buttonMap` in V3 heranziehen.
-2. Overlay-Menü-Kommentar in der UI spricht von Chord `00+09`, das aktive V3-Mapping nutzt jedoch derzeit `50+59` als MenuToggle.
+2. Global-Settings-Kommentar in der UI spricht von Chord `00+09`, das aktive V3-Mapping nutzt jedoch derzeit `50+59` als MenuToggle.
 3. Bei Änderungen an Firmware-Indexen muss sowohl Mapping als auch Team-Dokument synchron aktualisiert werden.
 
 ## 9. Wichtige Dateien für Änderungen
 
 - `src/a3-motion-ui/components/A3MotionUIComponent.hh`
 - `src/a3-motion-ui/components/A3MotionUIComponent.cc`
-- `src/a3-motion-ui/components/OverlayMenuComponent.hh`
-- `src/a3-motion-ui/components/OverlayMenuComponent.cc`
+- `src/a3-motion-ui/components/GlobalSettingsComponent.hh`
+- `src/a3-motion-ui/components/GlobalSettingsComponent.cc`
+- `src/a3-motion-ui/components/ClipSettingsComponent.hh`
+- `src/a3-motion-ui/components/ClipSettingsComponent.cc`
 - `src/a3-motion-ui/components/StatusBar.hh`
 - `src/a3-motion-ui/components/StatusBar.cc`
 - `src/a3-motion-ui/io/InputOutputAdapter.hh`
