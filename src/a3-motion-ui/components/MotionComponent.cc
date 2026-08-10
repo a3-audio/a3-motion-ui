@@ -105,6 +105,17 @@ auto constexpr blobHighlightFactor = 1.1f;
 namespace a3
 {
 
+namespace
+{
+juce::File
+visualConfigFile ()
+{
+  return juce::File::getCurrentWorkingDirectory ().getChildFile (
+      "config/config.json");
+}
+}
+
+
 /* ── BlitResources member methods ─────────────────────────────── */
 
 void MotionComponent::BlitResources::create ()
@@ -608,6 +619,7 @@ MotionComponent::newOpenGLContextCreated ()
   // Initialise blit shader for FBO compositing
   _blit.create ();
 
+  _configWatcher = ConfigFileWatcher{ visualConfigFile () };
   applyVisualConfig (userConfig);
 }
 
@@ -674,12 +686,12 @@ MotionComponent::reloadVisualConfigIfChanged ()
     return;
 
   juce::var parsed;
-  auto const file
-      = juce::File::getCurrentWorkingDirectory ().getChildFile ("config/config.json");
-  if (juce::JSON::parse (file.loadFileAsString (), parsed).failed ())
+  if (juce::JSON::parse (visualConfigFile ().loadFileAsString (), parsed)
+          .failed ())
     return; // half-written save — the next check picks up the finished file
 
   applyVisualConfig (parsed);
+  juce::Logger::writeToLog ("reloaded " + visualConfigFile ().getFullPathName ());
 }
 
 void

@@ -37,7 +37,7 @@
     "g": 250,
     "b": 251,
     "falloff": 1.1,
-    "intensity": 0.5
+    "intensity": 0.0
   },
   "speakerLight": {
     "vuMax": 0.025,
@@ -48,12 +48,12 @@
     "layers": 6,
     "length": 1,
     "widthStart": 0.1,
-    "widthEnd": 0.4,
+    "widthEnd": 0.293,
     "curve": 0.8,
     "speakerRadius": 1.55,
-    "beamConeExp": 4,
+    "beamConeExp": 6,
     "beamFalloff": 1.5,
-    "beamIntensity": 0.4
+    "beamIntensity": 0.35
   },
   "channels": [
     { "r": 216, "g":  17, "b":  89 },
