@@ -149,8 +149,10 @@ TEST (OscMessageHandler, BeatAlwaysNotifiesClockButOnlySyncsTempoInExternalMode)
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
 
-  // Set engine's tempo to a known initial state
-  engine.setTempoBPM (0.f);
+  // Seed a known, non-zero tempo. Zero would make TempoClock's live clock
+  // thread divide by zero when computing nanoseconds-per-tick, so never feed
+  // 0 BPM to a running engine.
+  engine.setTempoBPM (60.f);
 
   juce::OSCMessage message ("/beat");
   message.addInt32 (2);   // beat
@@ -165,7 +167,7 @@ TEST (OscMessageHandler, BeatAlwaysNotifiesClockButOnlySyncsTempoInExternalMode)
   EXPECT_EQ (listener.lastBar, 5);
   EXPECT_FLOAT_EQ (listener.lastBpm, 128.f);
   EXPECT_EQ (listener.externalBeatSyncCalls, 0);
-  EXPECT_FLOAT_EQ (engine.getTempoBPM (), 0.f);
+  EXPECT_FLOAT_EQ (engine.getTempoBPM (), 60.f);
 
   // clockMode != 0 (EXT/PIO): tempo is synced and the sync listener fires.
   handler.handleMessage (message, /*clockMode=*/1);
