@@ -37,4 +37,12 @@ namespace a3
  *  `curve` alone controls contrast between speakers. */
 float speakerLightLevel (float vuRms, float vuMax, float curve);
 
+/** Half-angle of a beam cone, in degrees, for a given width value.
+ *
+ *  The shader lights a pixel when `dot(dir, -speakerDir) > 1 - width`, so the
+ *  cone reaches `acos(1 - width)` off-axis. With the speakers 90 degrees
+ *  apart, a half-angle of 45 degrees is the point where neighbouring cones
+ *  just touch. */
+float beamHalfAngleDegrees (float width);
+
 }

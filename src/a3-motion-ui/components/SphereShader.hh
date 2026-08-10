@@ -102,6 +102,8 @@ public:
     float beamConeExp = 6.f;
     float beamFalloff = 0.6f;
     float beamIntensity = 0.8f;
+    float widthStart = 0.1f;
+    float widthEnd = 0.2929f; // 45 deg — neighbouring cones just touch
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
   float getSpeakerRadius () const { return _spotCfg.speakerRadius; }
@@ -136,6 +138,8 @@ private:
   GLint _uBeamConeExp = -1;
   GLint _uBeamFalloff = -1;
   GLint _uBeamIntensity = -1;
+  GLint _uBeamWidthStart = -1;
+  GLint _uBeamWidthEnd = -1;
 
   // Blob uniforms (position+colour kept for lighting on sphere surface)
   GLint _uBlobPosSize[kMaxBlobs] = {};  // vec4: x, y, size, vuLevel

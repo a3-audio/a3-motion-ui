@@ -608,7 +608,14 @@ MotionComponent::newOpenGLContextCreated ()
   // Initialise blit shader for FBO compositing
   _blit.create ();
 
-  // Load glow / spotlight config from userConfig
+  applyVisualConfig (userConfig);
+}
+
+
+void
+MotionComponent::applyVisualConfig (juce::var const &config)
+{
+  // Load glow / spotlight config from config
   {
     auto cfgF = [] (const juce::var &obj, const char *key,
                     float def) -> float {
@@ -616,7 +623,7 @@ MotionComponent::newOpenGLContextCreated ()
     };
 
     SphereShader::GlowConfig gc;
-    auto const &sg = userConfig["sphereGlow"];
+    auto const &sg = config["sphereGlow"];
     gc.r = cfgF (sg, "r", 230.f) / 255.f;
     gc.g = cfgF (sg, "g", 26.f) / 255.f;
     gc.b = cfgF (sg, "b", 13.f) / 255.f;
@@ -626,7 +633,7 @@ MotionComponent::newOpenGLContextCreated ()
     _sphereShader.setGlowConfig (gc);
 
     SphereShader::BackgroundGlowConfig bgc;
-    auto const &bg = userConfig["backgroundGlow"];
+    auto const &bg = config["backgroundGlow"];
     bgc.r         = cfgF (bg, "r", 230.f) / 255.f;
     bgc.g         = cfgF (bg, "g", 26.f) / 255.f;
     bgc.b         = cfgF (bg, "b", 13.f) / 255.f;
@@ -635,7 +642,7 @@ MotionComponent::newOpenGLContextCreated ()
     _sphereShader.setBackgroundGlowConfig (bgc);
 
     SphereShader::SpotlightConfig sc;
-    auto const &sl = userConfig["speakerLight"];
+    auto const &sl = config["speakerLight"];
     sc.r = cfgF (sl, "r", 255.f) / 255.f;
     sc.g = cfgF (sl, "g", 64.f) / 255.f;
     sc.b = cfgF (sl, "b", 166.f) / 255.f;
@@ -646,12 +653,33 @@ MotionComponent::newOpenGLContextCreated ()
     sc.beamConeExp = cfgF (sl, "beamConeExp", 6.f);
     sc.beamFalloff = cfgF (sl, "beamFalloff", 0.6f);
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
+    sc.widthStart = cfgF (sl, "widthStart", 0.1f);
+    sc.widthEnd = cfgF (sl, "widthEnd", 0.2929f);
     _sphereShader.setSpotlightConfig (sc);
   }
 
   // Cache corona config (avoids JSON lookups every frame per blob).
   // Used directly by drawChannelBlobs() (2D overlay).
-  _coronaCfg = loadCoronaConfig (userConfig);
+  _coronaCfg = loadCoronaConfig (config);
+}
+
+// Visual tuning is judged by eye, so the values get changed a lot. Picking up
+// config.json while running turns a rebuild-and-restart cycle into a file save.
+// Runs on the GL thread, throttled to roughly once a second, so no handoff from
+// the message thread is needed.
+void
+MotionComponent::reloadVisualConfigIfChanged ()
+{
+  if (!_configWatcher.hasChanged ())
+    return;
+
+  juce::var parsed;
+  auto const file
+      = juce::File::getCurrentWorkingDirectory ().getChildFile ("config/config.json");
+  if (juce::JSON::parse (file.loadFileAsString (), parsed).failed ())
+    return; // half-written save — the next check picks up the finished file
+
+  applyVisualConfig (parsed);
 }
 
 void
@@ -664,6 +692,9 @@ MotionComponent::renderOpenGL ()
   _glContext.setSwapInterval (1);  // vsync @ 60 Hz — frees CPU for timer thread
 
   updateBoundsAndTransform ();
+
+  if (_frameCount % 60 == 0)
+    reloadVisualConfigIfChanged ();
 
   // Clear background first
   OpenGLHelpers::clear (Colours::background);

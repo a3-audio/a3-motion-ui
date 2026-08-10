@@ -79,6 +79,8 @@ uniform float uSpeakerRadius;
 uniform float uBeamConeExp;
 uniform float uBeamFalloff;
 uniform float uBeamIntensity;
+uniform float uBeamWidthStart;
+uniform float uBeamWidthEnd;
 
 // Channel blobs (position, size, VU, colour, state)
 uniform vec4  uBlobPosSize0;
@@ -159,7 +161,7 @@ void main ()
             vec2 tp = uvScene - sd * spkR;
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = 0.3 + uSpotLevel0 * 0.4;
+            float bw = uBeamWidthStart + uSpotLevel0 * (uBeamWidthEnd - uBeamWidthStart);
             float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
             float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
             float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
@@ -171,7 +173,7 @@ void main ()
             vec2 tp = uvScene - sd * spkR;
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = 0.3 + uSpotLevel1 * 0.4;
+            float bw = uBeamWidthStart + uSpotLevel1 * (uBeamWidthEnd - uBeamWidthStart);
             float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
             float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
             float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
@@ -183,7 +185,7 @@ void main ()
             vec2 tp = uvScene - sd * spkR;
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = 0.3 + uSpotLevel2 * 0.4;
+            float bw = uBeamWidthStart + uSpotLevel2 * (uBeamWidthEnd - uBeamWidthStart);
             float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
             float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
             float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
@@ -195,7 +197,7 @@ void main ()
             vec2 tp = uvScene - sd * spkR;
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = 0.3 + uSpotLevel3 * 0.4;
+            float bw = uBeamWidthStart + uSpotLevel3 * (uBeamWidthEnd - uBeamWidthStart);
             float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
             float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
             float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
@@ -349,6 +351,8 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBeamConeExp   = glGetUniformLocation (pid, "uBeamConeExp");
   _uBeamFalloff   = glGetUniformLocation (pid, "uBeamFalloff");
   _uBeamIntensity = glGetUniformLocation (pid, "uBeamIntensity");
+  _uBeamWidthStart = glGetUniformLocation (pid, "uBeamWidthStart");
+  _uBeamWidthEnd  = glGetUniformLocation (pid, "uBeamWidthEnd");
   _uNumBlobs      = glGetUniformLocation (pid, "uNumBlobs");
 
   _uBlobPosSize[0] = glGetUniformLocation (pid, "uBlobPosSize0");
@@ -462,6 +466,10 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform1f (_uBeamFalloff, _spotCfg.beamFalloff);
   if (_uBeamIntensity >= 0)
     glUniform1f (_uBeamIntensity, _spotCfg.beamIntensity);
+  if (_uBeamWidthStart >= 0)
+    glUniform1f (_uBeamWidthStart, _spotCfg.widthStart);
+  if (_uBeamWidthEnd >= 0)
+    glUniform1f (_uBeamWidthEnd, _spotCfg.widthEnd);
 
   // Blobs
   if (_uNumBlobs >= 0)

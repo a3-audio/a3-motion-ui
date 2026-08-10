@@ -28,6 +28,7 @@
 #include <a3-motion-engine/util/Types.hh>
 
 #include <a3-motion-ui/Helpers.hh>
+#include <a3-motion-ui/ConfigFileWatcher.hh>
 #include <a3-motion-ui/components/CoronaScaling.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
 
@@ -185,6 +186,14 @@ private:
 
   // Cached corona config (loaded once in newOpenGLContextCreated, avoids JSON lookup per frame)
   CoronaConfig _coronaCfg;
+
+  void applyVisualConfig (juce::var const &config);
+  void reloadVisualConfigIfChanged ();
+
+  ConfigFileWatcher _configWatcher{
+    juce::File::getCurrentWorkingDirectory ().getChildFile (
+        "config/config.json")
+  };
 
   // Frame counter for throttling expensive 2D overlay (speaker SVGs)
   unsigned _frameCount = 0;

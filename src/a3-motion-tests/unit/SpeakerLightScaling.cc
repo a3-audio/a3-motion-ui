@@ -98,6 +98,28 @@ TEST (SpeakerLightScaling, ShippedConfigSetsBeamShapeParameters)
   EXPECT_GT (static_cast<float> (speakerLight["beamConeExp"]), 1.f);
 }
 
+// The four speakers sit 90 degrees apart, so at full level the cones should
+// just touch: a half-angle of 45 degrees. Wider than that and they overlap
+// into one another, which is what made them unreadable.
+TEST (SpeakerLightScaling, ShippedConfigConesJustTouchAtFullLevel)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &speakerLight = parsed["speakerLight"];
+
+  ASSERT_TRUE (speakerLight.hasProperty ("widthStart"));
+  ASSERT_TRUE (speakerLight.hasProperty ("widthEnd"));
+
+  auto const widthStart = static_cast<float> (speakerLight["widthStart"]);
+  auto const widthEnd = static_cast<float> (speakerLight["widthEnd"]);
+
+  EXPECT_LT (widthStart, widthEnd) << "cone must widen with level, not narrow";
+  EXPECT_NEAR (beamHalfAngleDegrees (widthEnd), 45.f, 1.f);
+  EXPECT_LT (beamHalfAngleDegrees (widthStart), 45.f);
+}
+
 TEST (SpeakerLightScaling, ShippedConfigKeepsLoudestSpeakerBright)
 {
   auto const params = shippedParams ();

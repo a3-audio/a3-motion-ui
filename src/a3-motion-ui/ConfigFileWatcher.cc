@@ -18,26 +18,37 @@
 
 */
 
-#include "SpeakerLightScaling.hh"
-
-#include <algorithm>
-#include <cmath>
+#include "ConfigFileWatcher.hh"
 
 namespace a3
 {
 
-float
-speakerLightLevel (float vuRms, float vuMax, float curve)
+ConfigFileWatcher::ConfigFileWatcher (juce::File const &file) : _file (file)
 {
-  return std::pow (std::clamp (vuRms / vuMax, 0.f, 1.f), curve);
+  if (_file.existsAsFile ())
+    {
+      _modificationTime = _file.getLastModificationTime ().toMilliseconds ();
+      _size = _file.getSize ();
+    }
 }
 
-float
-beamHalfAngleDegrees (float width)
+bool
+ConfigFileWatcher::hasChanged ()
 {
-  auto constexpr radToDeg = 180.f / 3.14159265358979323846f;
+  if (!_file.existsAsFile ())
+    return false;
 
-  return std::acos (std::clamp (1.f - width, -1.f, 1.f)) * radToDeg;
+  auto const modificationTime
+      = _file.getLastModificationTime ().toMilliseconds ();
+  auto const size = _file.getSize ();
+
+  if (modificationTime == _modificationTime && size == _size)
+    return false;
+
+  _modificationTime = modificationTime;
+  _size = size;
+
+  return true;
 }
 
 }
