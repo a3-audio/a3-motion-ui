@@ -250,6 +250,36 @@ MotionEngine::isPreviewMode (index_t channel) const
   return _previewMode[channel].load (std::memory_order_relaxed);
 }
 
+TempoClock::TapResult
+MotionEngine::tap (juce::int64 timeMicros)
+{
+  return _tempoClock.tap (timeMicros);
+}
+
+float
+MotionEngine::getTempoBPM () const
+{
+  return _tempoClock.getTempoBPM ();
+}
+
+void
+MotionEngine::setTempoBPM (float bpm)
+{
+  _tempoClock.setTempoBPM (bpm);
+}
+
+int
+MotionEngine::getBeatsPerBar () const
+{
+  return _tempoClock.getBeatsPerBar ();
+}
+
+void
+MotionEngine::resetTempo ()
+{
+  _tempoClock.reset ();
+}
+
 void
 MotionEngine::setRecordingMode (RecordingMode recordingMode)
 {

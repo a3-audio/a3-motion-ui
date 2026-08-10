@@ -40,6 +40,14 @@ public:
   TempoClock const &getTempoClock () const;
   TempoClock &getTempoClock ();
 
+  // Tempo facade: forwards to the internal TempoClock so callers (in
+  // particular the UI layer) never need to reach into TempoClock directly.
+  TempoClock::TapResult tap (juce::int64 timeMicros);
+  float getTempoBPM () const;
+  void setTempoBPM (float bpm);
+  int getBeatsPerBar () const;
+  void resetTempo ();
+
   // TODO refactor to access channels directly
   index_t getNumChannels ();
 
