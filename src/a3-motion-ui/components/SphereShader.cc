@@ -160,9 +160,9 @@ void main ()
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
             float bw = 0.3 + uSpotLevel0 * 0.4;
-            float cone = smoothstep (1.0 - bw, 1.0, al);
-            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
+            float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
+            float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
+            float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
             colOut += uSpotColour * uSpotLevel0 * (cone + glow) * df * uBeamIntensity;
         }
         // Speaker 1: 45°
@@ -172,9 +172,9 @@ void main ()
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
             float bw = 0.3 + uSpotLevel1 * 0.4;
-            float cone = smoothstep (1.0 - bw, 1.0, al);
-            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
+            float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
+            float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
+            float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
             colOut += uSpotColour * uSpotLevel1 * (cone + glow) * df * uBeamIntensity;
         }
         // Speaker 2: 315°
@@ -184,9 +184,9 @@ void main ()
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
             float bw = 0.3 + uSpotLevel2 * 0.4;
-            float cone = smoothstep (1.0 - bw, 1.0, al);
-            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
+            float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
+            float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
+            float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
             colOut += uSpotColour * uSpotLevel2 * (cone + glow) * df * uBeamIntensity;
         }
         // Speaker 3: 225°
@@ -196,9 +196,9 @@ void main ()
             float tpL = length (tp);
             float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
             float bw = 0.3 + uSpotLevel3 * 0.4;
-            float cone = smoothstep (1.0 - bw, 1.0, al);
-            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
+            float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
+            float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
+            float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
             colOut += uSpotColour * uSpotLevel3 * (cone + glow) * df * uBeamIntensity;
         }
 
