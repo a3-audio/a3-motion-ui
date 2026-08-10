@@ -11,6 +11,8 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Position.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/HeightMapSphere.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MotionEngine.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SettingsPersistence.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SettingsPersistence.cc"
     )
 
 target_link_libraries(a3-motion-tests PUBLIC

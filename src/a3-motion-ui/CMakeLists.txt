@@ -61,6 +61,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/GlobalSettingsComponent.hh
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh
+    SettingsPersistence.cc
+    SettingsPersistence.hh
     tests/TempoEstimatorTest.cc
     tests/TempoEstimatorTest.hh
 )
