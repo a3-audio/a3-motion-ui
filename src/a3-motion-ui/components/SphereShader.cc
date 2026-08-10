@@ -20,6 +20,8 @@
 
 #include "SphereShader.hh"
 
+#include "SpeakerLightScaling.hh"
+
 #include <cmath>
 
 namespace a3
@@ -447,9 +449,8 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   // Speaker spotlights
   for (int i = 0; i < 4; ++i)
     {
-      float lvl = std::max (_spotRms[i], _spotPeak[i] * 0.8f);
-      float n = std::clamp (lvl / _spotCfg.vuMax, 0.f, 1.f);
-      float s = std::pow (n, _spotCfg.curve);
+      float s = speakerLightLevel (_spotPeak[i], _spotRms[i], _spotCfg.vuMax,
+                                   _spotCfg.curve);
       if (_uSpotLevel[i] >= 0) glUniform1f (_uSpotLevel[i], s);
     }
   if (_uSpotColour >= 0)

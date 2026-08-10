@@ -40,7 +40,7 @@
     "intensity": 0.5
   },
   "speakerLight": {
-    "vuMax": 0.4,
+    "vuMax": 0.08,
     "r": 110,
     "g": 250,
     "b": 251,
@@ -49,7 +49,7 @@
     "length": 1,
     "widthStart": 0.1,
     "widthEnd": 0.4,
-    "curve": 0.1,
+    "curve": 0.8,
     "speakerRadius": 1.55,
     "beamConeExp": 2,
     "beamFalloff": 0.3,
