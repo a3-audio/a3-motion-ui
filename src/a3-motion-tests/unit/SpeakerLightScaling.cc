@@ -34,12 +34,11 @@ namespace
 // the whole point of the display and has to survive to the output — in
 // particular the loudest one must not clip against vuMax, which flattens it
 // against its neighbours.
-struct SpeakerVu
-{
-  float peak, rms;
-};
-constexpr SpeakerVu loudest{ 0.197768f, 0.015763f };  // /vu/8
-constexpr SpeakerVu quietest{ 0.033785f, 0.002692f }; // /vu/6
+// Only the rms is used: peaks on this rig run a crest factor of ~12, so a
+// peak-driven beam chases transients instead of holding still long enough to
+// be compared against its neighbours.
+constexpr float loudestRms = 0.015763f;  // /vu/8
+constexpr float quietestRms = 0.002692f; // /vu/6
 
 struct ShippedParams
 {
@@ -70,10 +69,8 @@ TEST (SpeakerLightScaling, ShippedConfigSeparatesLoudAndQuietSpeakers)
 {
   auto const params = shippedParams ();
 
-  auto const high
-      = speakerLightLevel (loudest.peak, loudest.rms, params.vuMax, params.curve);
-  auto const low = speakerLightLevel (quietest.peak, quietest.rms, params.vuMax,
-                                      params.curve);
+  auto const high = speakerLightLevel (loudestRms, params.vuMax, params.curve);
+  auto const low = speakerLightLevel (quietestRms, params.vuMax, params.curve);
 
   // The perceptual exponent compresses the input spread; below roughly 3x the
   // beams read as equally bright on screen.
@@ -107,9 +104,7 @@ TEST (SpeakerLightScaling, ShippedConfigKeepsLoudestSpeakerBright)
 
   // Contrast alone is not enough — a steep curve with a high vuMax separates
   // the speakers but leaves all of them nearly black.
-  EXPECT_GT (
-      speakerLightLevel (loudest.peak, loudest.rms, params.vuMax, params.curve),
-      0.6f);
+  EXPECT_GT (speakerLightLevel (loudestRms, params.vuMax, params.curve), 0.6f);
 }
 
 }

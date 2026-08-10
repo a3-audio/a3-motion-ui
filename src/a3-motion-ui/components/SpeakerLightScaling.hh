@@ -23,12 +23,18 @@
 namespace a3
 {
 
-/** Brightness of one speaker beam, 0..1, from its raw VU peak/rms.
+/** Brightness of one speaker beam, 0..1, from its VU rms.
+ *
+ *  Deliberately rms-only: the peak on this rig carries a crest factor around
+ *  12, so a peak-driven beam chases transients and never holds still long
+ *  enough to be compared against its neighbours. Peaks are the right input for
+ *  motion, not for a steady brightness — see
+ *  `.claude/notes/speaker-waveform-visualisation.md`.
  *
  *  `curve` is the perceptual exponent and is the only thing that sets how far
  *  apart two speakers read: scaling both by `vuMax` cancels out of the ratio
  *  ((a/m)^c / (b/m)^c == (a/b)^c), so `vuMax` shifts overall brightness while
  *  `curve` alone controls contrast between speakers. */
-float speakerLightLevel (float vuPeak, float vuRms, float vuMax, float curve);
+float speakerLightLevel (float vuRms, float vuMax, float curve);
 
 }

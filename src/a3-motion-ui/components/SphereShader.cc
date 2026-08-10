@@ -449,8 +449,7 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   // Speaker spotlights
   for (int i = 0; i < 4; ++i)
     {
-      float s = speakerLightLevel (_spotPeak[i], _spotRms[i], _spotCfg.vuMax,
-                                   _spotCfg.curve);
+      float s = speakerLightLevel (_spotRms[i], _spotCfg.vuMax, _spotCfg.curve);
       if (_uSpotLevel[i] >= 0) glUniform1f (_uSpotLevel[i], s);
     }
   if (_uSpotColour >= 0)

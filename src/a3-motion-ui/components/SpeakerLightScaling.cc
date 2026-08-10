@@ -27,11 +27,9 @@ namespace a3
 {
 
 float
-speakerLightLevel (float vuPeak, float vuRms, float vuMax, float curve)
+speakerLightLevel (float vuRms, float vuMax, float curve)
 {
-  auto const level = std::max (vuRms, vuPeak * 0.8f);
-
-  return std::pow (std::clamp (level / vuMax, 0.f, 1.f), curve);
+  return std::pow (std::clamp (vuRms / vuMax, 0.f, 1.f), curve);
 }
 
 }
