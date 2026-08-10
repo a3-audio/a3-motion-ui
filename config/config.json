@@ -53,7 +53,7 @@
     "speakerRadius": 1.55,
     "beamConeExp": 2,
     "beamFalloff": 0.3,
-    "beamIntensity": 0.2
+    "beamIntensity": 0.8
   },
   "channels": [
     { "r": 216, "g":  17, "b":  89 },
