@@ -649,24 +649,9 @@ MotionComponent::newOpenGLContextCreated ()
     _sphereShader.setSpotlightConfig (sc);
   }
 
-  // Cache corona config (avoids JSON lookups every frame per blob)
-  {
-    auto cfgF = [] (const juce::var &obj, const char *key,
-                    float def) -> float {
-      return obj.hasProperty (key) ? static_cast<float> (obj[key]) : def;
-    };
-    auto const &corona = userConfig["corona"];
-    _coronaCfg.vuMax       = cfgF (corona, "vuMax", 0.4f);
-    _coronaCfg.sizeMin     = cfgF (corona, "sizeMin", 1.2f);
-    _coronaCfg.sizeMax     = cfgF (corona, "sizeMax", 2.0f);
-    _coronaCfg.sizeGrabbed = cfgF (corona, "sizeGrabbed", 1.5f);
-    _coronaCfg.alphaMin    = cfgF (corona, "alphaMin", 0.15f);
-    _coronaCfg.alphaMax    = cfgF (corona, "alphaMax", 0.75f);
-    _coronaCfg.whiteBlend  = cfgF (corona, "whiteBlend", 0.5f);
-    _coronaCfg.attack      = cfgF (corona, "attack", 0.02f);
-    _coronaCfg.decay       = cfgF (corona, "decay", 0.4f);
-    // Corona config is used directly by drawChannelBlobs() (2D overlay)
-  }
+  // Cache corona config (avoids JSON lookups every frame per blob).
+  // Used directly by drawChannelBlobs() (2D overlay).
+  _coronaCfg = loadCoronaConfig (userConfig);
 }
 
 void
@@ -974,17 +959,9 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 
       if (vuRms > 0.0001f || vuPeak > 0.0001f || isGrabbed || isHighlighted)
         {
-          float vuMax = _coronaCfg.vuMax;
-          float rmsNorm = std::clamp (vuRms / vuMax, 0.0f, 1.0f);
-          float peakNorm = std::clamp (vuPeak / vuMax, 0.0f, 1.0f);
-
-          // Perceptual curve: x^0.6 ≈ sqrt(x)*x^0.1 — use sqrt approx
-          float rmsScaled = std::sqrt (rmsNorm) * (0.4f + 0.6f * rmsNorm);
-          float peakScaled = std::sqrt (peakNorm) * (0.4f + 0.6f * peakNorm);
-
-          float vuScaled = std::max (rmsScaled, peakScaled * 0.8f);
-          float coronaScale = _coronaCfg.sizeMin
-                              + vuScaled * (_coronaCfg.sizeMax - _coronaCfg.sizeMin);
+          float peakScaled = coronaPeakLevel (vuPeak, _coronaCfg.vuMax);
+          float vuScaled = coronaVuLevel (vuPeak, vuRms, _coronaCfg.vuMax);
+          float coronaScale = coronaScaleFactor (vuScaled, _coronaCfg);
 
           float baseBlobScale = 1.0f;
           if (isGrabbed)
@@ -1007,7 +984,10 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
           auto coronaColour = colour.interpolatedWith (juce::Colours::white, whiteBlend);
           for (int layer = 2; layer >= 1; --layer)
             {
-              float layerScale = 1.0f + (layer - 1) * 0.15f;
+              // Layer 2 is the outer one — keep it tied to the constant the
+              // visibility test asserts against.
+              float layerScale
+                  = 1.0f + (layer - 1) * (coronaOuterLayerScale - 1.0f);
               float layerAlpha = coronaAlpha / (layer * 2.0f);
               auto layerSize = coronaDiam * layerScale;
               auto layerRect = juce::Rectangle<float> (0.f, 0.f, layerSize, layerSize);

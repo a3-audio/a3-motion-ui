@@ -11,11 +11,11 @@
     "vuPort": 7772
   },
   "corona": {
-    "vuMax": 0.4,
-    "sizeMin": 0,
-    "sizeMax": 1.5,
-    "sizeGrabbed": 0.6,
-    "alphaMin": 0.15,
+    "vuMax": 0.25,
+    "sizeMin": 1.1,
+    "sizeMax": 2.2,
+    "sizeGrabbed": 1.5,
+    "alphaMin": 0.0,
     "alphaMax": 0.75,
     "whiteBlend": 0.7,
     "attack": 0.0,

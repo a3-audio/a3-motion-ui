@@ -28,6 +28,7 @@
 #include <a3-motion-engine/util/Types.hh>
 
 #include <a3-motion-ui/Helpers.hh>
+#include <a3-motion-ui/components/CoronaScaling.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
 
 namespace a3
@@ -183,18 +184,6 @@ private:
   std::atomic<juce::uint32> _backgroundColourPacked{ 0 };
 
   // Cached corona config (loaded once in newOpenGLContextCreated, avoids JSON lookup per frame)
-  struct CoronaConfig
-  {
-    float vuMax = 0.4f;
-    float sizeMin = 1.2f;
-    float sizeMax = 2.0f;
-    float sizeGrabbed = 1.5f;
-    float alphaMin = 0.15f;
-    float alphaMax = 0.75f;
-    float whiteBlend = 0.5f;
-    float attack = 0.02f;   // seconds to reach peak
-    float decay = 0.4f;     // seconds to fade out
-  };
   CoronaConfig _coronaCfg;
 
   // Frame counter for throttling expensive 2D overlay (speaker SVGs)

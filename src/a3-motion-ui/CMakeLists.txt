@@ -41,6 +41,7 @@ target_sources("a3-motion-ui" PRIVATE
     components/StatusBar.hh
     components/ChannelStrip.cc
     components/ChannelStrip.hh
+    components/CoronaScaling.cc
     components/MotionComponent.cc
     components/MotionComponent.hh
     components/SphereShader.cc
