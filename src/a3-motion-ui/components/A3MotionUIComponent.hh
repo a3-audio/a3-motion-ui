@@ -31,9 +31,11 @@
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 
+#include <a3-motion-ui/SettingsPersistence.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
+#include <a3-motion-ui/osc/OscMessageHandler.hh>
 
 namespace a3
 {
@@ -58,6 +60,7 @@ class A3MotionUIComponent : public juce::Component,
                             public juce::Value::Listener,
                             public juce::MessageListener,
                             public juce::OSCReceiver::Listener<juce::OSCReceiver::MessageLoopCallback>,
+                            public OscMessageHandler::Listener,
                             private juce::Timer
 
 {
@@ -78,9 +81,17 @@ public:
   void oscMessageReceived (const juce::OSCMessage &message) override;
   void oscBundleReceived (const juce::OSCBundle &bundle) override;
 
+  // OscMessageHandler::Listener
+  void onChannelVU (int channel, float peak, float rms) override;
+  void onSubwooferVU (float peak, float rms) override;
+  void onSpeakerVU (int speakerIndex, float peak, float rms) override;
+  void onExternalBeatClock (int beat, int bar, float bpm) override;
+  void onExternalBeatSync (int beat, int beatsPerBar) override;
+
 private:
   std::unique_ptr<HeightMapSphere> _heightMap;
   MotionEngine _engine;
+  std::unique_ptr<OscMessageHandler> _oscMessageHandler;
 
   void tickCallback (Measure measure);
   void padLEDCallback (int step);
@@ -209,8 +220,6 @@ private:
   // once at startup and rewritten whenever one of those actually changes,
   // so they survive app restarts instead of resetting to defaults.
   juce::File getPersistedSettingsFile () const;
-  void       loadPersistedSettings ();
-  void       savePersistedSettings ();
 
   // Pattern directory monitoring
   void timerCallback () override;

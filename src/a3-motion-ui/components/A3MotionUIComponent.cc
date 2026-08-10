@@ -65,6 +65,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
+  _oscMessageHandler = std::make_unique<OscMessageHandler> (_engine, *this);
+
   if (runsOnHardware ())
     {
       createHardwareInterface ();
@@ -97,7 +99,21 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   selectClip (0, 0); // sensible default before any button has been pressed
 
   // Restore Clockmode/Pot Size/Font Size from the last session, if any.
-  loadPersistedSettings ();
+  {
+    // loadSettings() deliberately returns raw parsed values; clamping stays
+    // here because it guards indexing into potSizeScales/fontSizeScales —
+    // same clamp the old loadPersistedSettings() applied. Dropping it would
+    // make a hand-edited/corrupt ui_state.json an out-of-bounds read.
+    auto constexpr numPotSizes
+        = static_cast<int> (sizeof (potSizeScales) / sizeof (potSizeScales[0]));
+    auto constexpr numFontSizes = static_cast<int> (
+        sizeof (fontSizeScales) / sizeof (fontSizeScales[0]));
+
+    auto const settings = loadSettings (getPersistedSettingsFile ());
+    applyClockMode (settings.clockMode);
+    applyPotSize (std::clamp (settings.potSizeIndex, 0, numPotSizes - 1));
+    applyFontSize (std::clamp (settings.fontSizeIndex, 0, numFontSizes - 1));
+  }
 
   // Start directory monitor: check for new/changed SVG files every 2 seconds
   startTimer (2000);
@@ -246,7 +262,7 @@ A3MotionUIComponent::getLengthBeats (index_t channel, index_t slot) const
   auto const lengthBars
       = std::exp2 (_clipUIParams[channel][slot].speedLog2);
   auto const lengthBeats
-      = lengthBars * _engine.getTempoClock ().getBeatsPerBar ();
+      = lengthBars * _engine.getBeatsPerBar ();
   return static_cast<float> (lengthBeats);
 }
 
@@ -279,7 +295,7 @@ A3MotionUIComponent::createMainUI ()
   addChildComponent (*_loopLengthDisplay);
   _loopLengthDisplay->setVisible (false);
   _loopLengthDisplay->setReferenceBeats (
-      _engine.getTempoClock ().getBeatsPerBar ());
+      _engine.getBeatsPerBar ());
   for (auto ch = 0u; ch < _channelUIStates.size () && ch < LoopLengthDisplay::numChannels; ++ch)
     {
       _loopLengthDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
@@ -528,11 +544,11 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       if (_clockMode == 0)
         {
           auto const tapTime = juce::int64 (value.getValue ());
-          auto const result = _engine.getTempoClock ().tap (tapTime);
+          auto const result = _engine.tap (tapTime);
 
           if (result == TempoClock::TapResult::TempoAvailable)
             {
-              auto const bpm = _engine.getTempoClock ().getTempoBPM ();
+              auto const bpm = _engine.getTempoBPM ();
               std::cout << "[TAP] BPM=" << bpm << std::endl;
               _valueBPM = bpm;
             }
@@ -746,7 +762,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 
       auto recordLength = Measure{ 0, static_cast<int> (
           std::max (1.f, getLengthBeats (channel, slot))), 0 };
-      recordLength.consolidate (_engine.getTempoClock ().getBeatsPerBar ());
+      recordLength.consolidate (_engine.getBeatsPerBar ());
 
       // Store the recording length in the pattern so it can be updated if encoder changes
       pattern->setPlaybackLength (recordLength);
@@ -889,7 +905,7 @@ A3MotionUIComponent::tickCallback (Measure measure)
       auto beatClockMsg = juce::OSCMessage ("/beat");
       beatClockMsg.addInt32 (measure.beat () + 1);  // 1-indexed beat
       beatClockMsg.addInt32 (measure.bar () + 1);   // 1-indexed bar
-      beatClockMsg.addInt32 (static_cast<int> (std::round (_engine.getTempoClock ().getTempoBPM ())));
+      beatClockMsg.addInt32 (static_cast<int> (std::round (_engine.getTempoBPM ())));
       _oscSender.send (beatClockMsg);
     }
 
@@ -944,7 +960,7 @@ A3MotionUIComponent::tickCallback (Measure measure)
   // In EXT mode, LoopLengthDisplay interpolates from setExternalBeat().
   if (_clockMode == 0)
     {
-      auto const beatsPerBar = _engine.getTempoClock ().getBeatsPerBar ();
+      auto const beatsPerBar = _engine.getBeatsPerBar ();
       auto const ticksPerBeat
           = static_cast<float> (TempoClock::getTicksPerBeat ());
       auto const totalTicksPerBar
@@ -1341,87 +1357,42 @@ A3MotionUIComponent::oscBundleReceived (const juce::OSCBundle &bundle)
 void
 A3MotionUIComponent::oscMessageReceived (const juce::OSCMessage &message)
 {
-  auto address = message.getAddressPattern ().toString ();
-  
-  // Handle VU meter messages: /vu/<channel> ff <peak> <rms>
-  if (address.startsWith ("/vu/"))
-    {
-      auto channelStr = address.substring (4);
-      auto channel = channelStr.getIntValue ();
-      
-      if (message.size () >= 2)
-        {
-          float peak = message[0].getFloat32 ();
-          float rms = message[1].getFloat32 ();
+  _oscMessageHandler->handleMessage (message, _clockMode);
+}
 
-          // Channels 0-3: channel blob coronas
-          if (channel >= 0 
-              && static_cast<size_t>(channel) < _channelUIStates.size ())
-            {
-              _channelUIStates[static_cast<size_t>(channel)]->vuPeak = peak;
-              _channelUIStates[static_cast<size_t>(channel)]->vuLevel = rms;
-            }
-          // Channel 4: subwoofer → sphere glow
-          else if (channel == 4)
-            {
-              _motionComponent->setSphereGlow (peak, rms);
-            }
-          // Channels 5-8: speaker spotlights
-          else if (channel >= 5 && channel <= 8)
-            {
-              _motionComponent->setSpeakerLight (channel - 5, peak, rms);
-            }
-        }
-      return; // Don't log VU messages (too spammy)
-    }
-  
-  // Handle external beat clock: /beat iii <beat> <bar> <bpm>
-  if (address == "/beat" && message.size () >= 3)
+void
+A3MotionUIComponent::onChannelVU (int channel, float peak, float rms)
+{
+  if (static_cast<size_t> (channel) < _channelUIStates.size ())
     {
-      // Accept both int and float arguments
-      auto getIntArg = [] (const juce::OSCArgument &arg) -> int {
-        if (arg.isInt32 ()) return arg.getInt32 ();
-        if (arg.isFloat32 ()) return static_cast<int> (arg.getFloat32 ());
-        return 0;
-      };
-      
-      int beat = getIntArg (message[0]);
-      int bar = getIntArg (message[1]);
-      int bpm = getIntArg (message[2]);
-      
-      // Update StatusBar (filters by clock mode internally)
-      _statusBar->setExternalBPM (static_cast<float> (bpm));
-      _statusBar->setBeatClock (beat, bar);
-      
-      // In EXT mode: set internal clock BPM so patterns run at external tempo,
-      // and notify LoopLengthDisplay of the external beat for interpolation.
-      // The display will interpolate smoothly from this beat to the next,
-      // using the measured time between beats.
-      if (_clockMode != 0)
-        {
-          _engine.getTempoClock ().setTempoBPM (static_cast<float> (bpm));
+      _channelUIStates[static_cast<size_t> (channel)]->vuPeak = peak;
+      _channelUIStates[static_cast<size_t> (channel)]->vuLevel = rms;
+    }
+}
 
-          auto const beatsPerBar
-              = _engine.getTempoClock ().getBeatsPerBar ();
-          _loopLengthDisplay->setExternalBeat (beat, beatsPerBar);
-        }
-      return;
-    }
-  
-  // Log other OSC messages (debug only — cout blocks the message thread)
-#ifdef DEBUG
-  std::cout << "OSC: " << address.toStdString ();
-  for (auto &arg : message)
-    {
-      if (arg.isFloat32 ())
-        std::cout << " " << arg.getFloat32 ();
-      else if (arg.isInt32 ())
-        std::cout << " " << arg.getInt32 ();
-      else if (arg.isString ())
-        std::cout << " " << arg.getString ();
-    }
-  std::cout << std::endl;
-#endif
+void
+A3MotionUIComponent::onSubwooferVU (float peak, float rms)
+{
+  _motionComponent->setSphereGlow (peak, rms);
+}
+
+void
+A3MotionUIComponent::onSpeakerVU (int speakerIndex, float peak, float rms)
+{
+  _motionComponent->setSpeakerLight (speakerIndex, peak, rms);
+}
+
+void
+A3MotionUIComponent::onExternalBeatClock (int beat, int bar, float bpm)
+{
+  _statusBar->setExternalBPM (bpm);
+  _statusBar->setBeatClock (beat, bar);
+}
+
+void
+A3MotionUIComponent::onExternalBeatSync (int beat, int beatsPerBar)
+{
+  _loopLengthDisplay->setExternalBeat (beat, beatsPerBar);
 }
 
 // ── Global Settings helpers ──────────────────────────────────────────────────────
@@ -1520,14 +1491,14 @@ A3MotionUIComponent::applyClockMode (int mode)
   if (_clockMode != 0)
     {
       if (std::abs (_internalBPM) < 0.0001f)
-        _internalBPM = _engine.getTempoClock ().getTempoBPM ();
-      _engine.getTempoClock ().reset ();
+        _internalBPM = _engine.getTempoBPM ();
+      _engine.resetTempo ();
     }
   else
     {
       if (_internalBPM > 0.f)
         {
-          _engine.getTempoClock ().setTempoBPM (_internalBPM);
+          _engine.setTempoBPM (_internalBPM);
           _valueBPM = static_cast<double> (_internalBPM);
         }
     }
@@ -1542,7 +1513,8 @@ A3MotionUIComponent::applyClockMode (int mode)
   clockModeMsg.addInt32 (_clockMode);
   _oscSender.send (clockModeMsg);
 
-  savePersistedSettings ();
+  saveSettings (getPersistedSettingsFile (),
+               AppSettings{ _clockMode, _potSizeIndex, _fontSizeIndex });
 }
 
 void
@@ -1555,7 +1527,8 @@ A3MotionUIComponent::applyPotSize (int index)
   if (_clipSettings)
     _clipSettings->setPotSizeScale (potSizeScales[index]);
 
-  savePersistedSettings ();
+  saveSettings (getPersistedSettingsFile (),
+               AppSettings{ _clockMode, _potSizeIndex, _fontSizeIndex });
 }
 
 void
@@ -1568,7 +1541,8 @@ A3MotionUIComponent::applyFontSize (int index)
   if (_clipSettings)
     _clipSettings->setFontSizeScale (fontSizeScales[index]);
 
-  savePersistedSettings ();
+  saveSettings (getPersistedSettingsFile (),
+               AppSettings{ _clockMode, _potSizeIndex, _fontSizeIndex });
 }
 
 juce::File
@@ -1576,46 +1550,6 @@ A3MotionUIComponent::getPersistedSettingsFile () const
 {
   return juce::File::getCurrentWorkingDirectory ()
       .getChildFile ("config/ui_state.json");
-}
-
-void
-A3MotionUIComponent::loadPersistedSettings ()
-{
-  auto const file = getPersistedSettingsFile ();
-  if (!file.existsAsFile ())
-    return;
-
-  juce::var parsed;
-  if (juce::JSON::parse (file.loadFileAsString (), parsed).failed ())
-    return;
-
-  auto constexpr numPotSizes
-      = static_cast<int> (sizeof (potSizeScales) / sizeof (potSizeScales[0]));
-  auto constexpr numFontSizes = static_cast<int> (
-      sizeof (fontSizeScales) / sizeof (fontSizeScales[0]));
-
-  if (parsed.hasProperty ("clockMode"))
-    applyClockMode (static_cast<int> (parsed["clockMode"]));
-  if (parsed.hasProperty ("potSizeIndex"))
-    applyPotSize (std::clamp (static_cast<int> (parsed["potSizeIndex"]), 0,
-                              numPotSizes - 1));
-  if (parsed.hasProperty ("fontSizeIndex"))
-    applyFontSize (std::clamp (static_cast<int> (parsed["fontSizeIndex"]), 0,
-                               numFontSizes - 1));
-}
-
-void
-A3MotionUIComponent::savePersistedSettings ()
-{
-  auto *obj = new juce::DynamicObject ();
-  obj->setProperty ("clockMode", _clockMode);
-  obj->setProperty ("potSizeIndex", _potSizeIndex);
-  obj->setProperty ("fontSizeIndex", _fontSizeIndex);
-  juce::var const state (obj);
-
-  auto const file = getPersistedSettingsFile ();
-  file.getParentDirectory ().createDirectory ();
-  file.replaceWithText (juce::JSON::toString (state));
 }
 
 void
@@ -1788,7 +1722,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                     std::max (1.f, getLengthBeats (channel, slot)));
                 auto const playbackLength
                     = Measure{ 0, lengthBeats, 0 }.consolidate (
-                        _engine.getTempoClock ().getBeatsPerBar ());
+                        _engine.getBeatsPerBar ());
                 pattern->setPlaybackLength (playbackLength);
               }
             break;
