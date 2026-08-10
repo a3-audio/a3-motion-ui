@@ -17,9 +17,9 @@
     "sizeGrabbed": 1.5,
     "alphaMin": 0.0,
     "alphaMax": 0.75,
-    "whiteBlend": 0.7,
-    "attack": 0.0,
-    "decay": 0.2
+    "whiteBlend": 0.9,
+    "attack": 0.01,
+    "decay": 0.02
   },
   "sphereGlow": {
     "vuMax": 0.3,
