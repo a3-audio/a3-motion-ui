@@ -98,7 +98,14 @@ uniform float uBeamFloor;      // level the band never drops below
 uniform float uBeamBleed;      // how far it reaches past the annulus
 uniform float uBeamFray;       // how ragged its edge is
 uniform float uBeamCover;      // how strongly the band hides the glow
-uniform float uBeamFilament;   // how much of the beam is filament rather than solid
+uniform float uArcTwist;       // arc detail around the circle
+uniform float uArcScale;       // and along the radius
+uniform float uArcFlow;        // how fast they creep
+uniform float uArcFlicker;     // how fast they strike
+uniform float uArcSharpness;   // how thin the veins are
+uniform float uArcLacunarity;
+uniform float uArcGain;
+uniform float uArcBase;        // band brightness where no vein crosses
 uniform float uApertureHalf;   // half-width of the horn's mouth
 uniform float uMouthOffset;    // mouth position ahead of the speaker centre
 uniform float uBeamReach;      // how far past the mouth the stub carries
@@ -231,6 +238,33 @@ float valueNoise (vec3 p)
                 mix (mix (n001, n101, f.x), mix (n011, n111, f.x), f.y), f.z);
 }
 
+// High-voltage arcs: octave ridges multiplied rather than averaged, so a vein
+// only survives where every octave agrees on it. That is what makes them thin
+// and branching instead of woolly, and what lets the band fray into the glow
+// rather than meet it at a seam. Mirrors arcCombine() in EnergyMap.cc.
+float arcs (vec2 uv, float dist)
+{
+    float len = max (length (uv), 0.000001);
+    vec2 n = uv / len;
+
+    vec3 p = vec3 (n * uArcTwist, dist * uArcScale - uTime * uArcFlow);
+
+    float value = 1.0;
+    float amp = 1.0;
+    for (int octave = 0; octave < 4; ++octave)
+    {
+        float ridge = 1.0 - abs (2.0 * valueNoise (p) - 1.0);
+        value *= 1.0 + amp * (ridge - 1.0);
+        p *= uArcLacunarity;
+        amp *= uArcGain;
+    }
+
+    // Arcs strike and die rather than sitting there.
+    float strike = 0.55 + 0.45 * valueNoise (vec3 (n * 2.0, uTime * uArcFlicker));
+
+    return pow (clamp (value, 0.0, 1.0), uArcSharpness) * strike;
+}
+
 // A beam is a band in the annulus between the horn's mouth and the sphere: it
 // leaves the speaker narrow and opens to a quarter of the way round by the
 // time it arrives, so the four of them close the circle. Its centre line
@@ -238,7 +272,7 @@ float valueNoise (vec3 p)
 // Mirrors beamWrapHalfAngle() in EnergyMap.cc.
 //
 // Needs valueNoise(), so it lives below it.
-float beamDensity (vec2 point, vec2 spkDir, float level)
+vec2 beamDensity (vec2 point, vec2 spkDir, float level)
 {
     float mouthR = uSpeakerRadius - uMouthOffset;
     float d = length (point);
@@ -249,7 +283,7 @@ float beamDensity (vec2 point, vec2 spkDir, float level)
     float span = max (uBeamBleed, 0.0001);
     float radial = smoothstep (0.0, 1.0, clamp ((mouthR + span - d) / span, 0.0, 1.0))
                  * smoothstep (0.0, 1.0, clamp ((d - (1.0 - span)) / span, 0.0, 1.0));
-    if (radial <= 0.0) return 0.0;
+    if (radial <= 0.0) return vec2 (0.0);
 
     // How far along the way in, 0 at the mouth and 1 at the sphere.
     float t = clamp ((mouthR - d) / max (mouthR - 1.0, 0.0001), 0.0, 1.0);
@@ -276,7 +310,7 @@ float beamDensity (vec2 point, vec2 spkDir, float level)
 
     float across = 1.0 - smoothstep (ragged * uBeamEdge, ragged,
                                      abs (dA - wander));
-    if (across <= 0.0) return 0.0;
+    if (across <= 0.0) return vec2 (0.0);
 
     // Denser where it wraps the sphere than where it leaves the speaker.
     float grip = mix (uBeamRoot, 1.0, eased);
@@ -288,10 +322,19 @@ float beamDensity (vec2 point, vec2 spkDir, float level)
                          max (uSpotLevel2, uSpotLevel3));
     float lifted = max (level, uBeamFloor * loudest);
 
-    return lifted * across * grip * radial;
+    // Two things come out of this. The envelope is the band's solid body —
+    // frayed at its edge, but continuous — and is what hides the glow behind
+    // it. The lit value is what you see: the arcs riding on a base, because on
+    // their own they are far too sparse to enclose anything.
+    // Mirrors arcModulation() in EnergyMap.cc.
+    float envelope = lifted * across * grip * radial;
+    float vein = uArcBase + arcs (point, d) * (1.0 - uArcBase);
+
+    return vec2 (envelope, envelope * vein);
 }
 
-float beamTotal (vec2 p)
+// x is the envelope that hides the glow, y is what gets drawn.
+vec2 beamTotal (vec2 p)
 {
     return beamDensity (p, vec2 (-0.7071,  0.7071), uSpotLevel0)
          + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1)
@@ -350,13 +393,6 @@ float innerNet (vec2 uv, float dist)
                          uNetSharpness, uNetOctaves, uNetLacunarity, uNetGain);
 }
 
-// The beam's own filament texture, so it reads as part of the same weather
-// rather than a solid wedge sitting next to it.
-float beamTexture (vec2 uv, float dist)
-{
-    return mix (1.0, innerNet (uv, dist), uBeamFilament);
-}
-
 // The glow's net, running the other way and reaching to the screen edge.
 float glowNet (vec2 uv, float dist)
 {
@@ -390,12 +426,14 @@ void main ()
         // screen — the outward counterpart to the net inside, which runs in.
         // Modulated by the energy arriving from this direction, so the spread
         // outside continues what lands inside.
-        float band = beamTotal (uvScene);
+        vec2 band = beamTotal (uvScene);
 
-        // Where the band is, the band is what you see: both live in this
-        // annulus and would otherwise add up into a wash.
+        // Hidden by the band's body, not by its veins: occluding with the
+        // sparse arcs would leave the glow showing through between them, and
+        // occluding with a clean edge is what put a line here in the first
+        // place. The envelope's own edge is frayed, so neither happens.
         // Mirrors glowVisibility() in EnergyMap.cc.
-        float showGlow = 1.0 - clamp (band * uBeamCover, 0.0, 1.0);
+        float showGlow = 1.0 - clamp (band.x * uBeamCover, 0.0, 1.0);
 
         if (uGlowLevel > 0.001 && showGlow > 0.0)
         {
@@ -407,14 +445,13 @@ void main ()
         }
 
         // Speaker bands wrapping the sphere
-        colOut += uSpotColour * band * beamTexture (uvScene, dist)
-                * uBeamIntensity;
+        colOut += uSpotColour * band.y * uBeamIntensity;
 
 
-        // Outside, the net rides the beams towards the sphere, so a filament
-        // is already visible before it crosses the rim.
-        colOut += uSpotColour * innerNet (uvScene, dist)
-                * beamTotal (uvScene) * uNetBeamIntensity;
+        // Outside, the net rides the band towards the sphere, so a filament is
+        // already visible before it crosses the rim.
+        colOut += uSpotColour * innerNet (uvScene, dist) * band.y
+                * uNetBeamIntensity;
 
         // Blob outside glow removed — blobs only create reflections on sphere surface
     }
@@ -573,9 +610,16 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBeamRoot = glGetUniformLocation (pid, "uBeamRoot");
   _uBeamFray = glGetUniformLocation (pid, "uBeamFray");
   _uBeamCover = glGetUniformLocation (pid, "uBeamCover");
+  _uArcTwist = glGetUniformLocation (pid, "uArcTwist");
+  _uArcScale = glGetUniformLocation (pid, "uArcScale");
+  _uArcFlow = glGetUniformLocation (pid, "uArcFlow");
+  _uArcFlicker = glGetUniformLocation (pid, "uArcFlicker");
+  _uArcSharpness = glGetUniformLocation (pid, "uArcSharpness");
+  _uArcLacunarity = glGetUniformLocation (pid, "uArcLacunarity");
+  _uArcGain = glGetUniformLocation (pid, "uArcGain");
+  _uArcBase = glGetUniformLocation (pid, "uArcBase");
   _uBeamBleed = glGetUniformLocation (pid, "uBeamBleed");
   _uBeamFloor = glGetUniformLocation (pid, "uBeamFloor");
-  _uBeamFilament  = glGetUniformLocation (pid, "uBeamFilament");
   _uApertureHalf  = glGetUniformLocation (pid, "uApertureHalf");
   _uMouthOffset   = glGetUniformLocation (pid, "uMouthOffset");
   _uBeamReach     = glGetUniformLocation (pid, "uBeamReach");
@@ -718,8 +762,14 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uBeamBleed >= 0) glUniform1f (_uBeamBleed, _spotCfg.bleed);
   if (_uBeamFray >= 0) glUniform1f (_uBeamFray, _spotCfg.fray);
   if (_uBeamCover >= 0) glUniform1f (_uBeamCover, _spotCfg.cover);
-  if (_uBeamFilament >= 0)
-    glUniform1f (_uBeamFilament, _spotCfg.filament);
+  if (_uArcTwist >= 0) glUniform1f (_uArcTwist, _spotCfg.arcTwist);
+  if (_uArcScale >= 0) glUniform1f (_uArcScale, _spotCfg.arcScale);
+  if (_uArcFlow >= 0) glUniform1f (_uArcFlow, _spotCfg.arcFlow);
+  if (_uArcFlicker >= 0) glUniform1f (_uArcFlicker, _spotCfg.arcFlicker);
+  if (_uArcSharpness >= 0) glUniform1f (_uArcSharpness, _spotCfg.arcSharpness);
+  if (_uArcLacunarity >= 0) glUniform1f (_uArcLacunarity, _spotCfg.arcLacunarity);
+  if (_uArcGain >= 0) glUniform1f (_uArcGain, _spotCfg.arcGain);
+  if (_uArcBase >= 0) glUniform1f (_uArcBase, _spotCfg.arcBase);
   if (_uApertureHalf >= 0)
     glUniform1f (_uApertureHalf, speakerApertureHalfWidth);
   if (_uMouthOffset >= 0)

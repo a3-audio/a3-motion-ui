@@ -407,4 +407,115 @@ TEST (BeamBand, ReachesInIntoTheNet)
   EXPECT_FLOAT_EQ (beamRadialWindow (1.f - bleed, mouthRadius, bleed), 0.f);
 }
 
+
+// The band and the glow are one continuous piece of weather around the sphere,
+// so they share a colour. They were told apart by colour once, back when it
+// was unclear which element was lighting what — that is no longer the job.
+TEST (BeamBand, BandAndGlowShareTheirColour)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &band = parsed["speakerLight"];
+  auto const &glow = parsed["sphereGlow"];
+
+  for (auto const *channel : { "r", "g", "b" })
+    EXPECT_EQ (static_cast<int> (band[channel]),
+               static_cast<int> (glow[channel]))
+        << "channel " << channel;
+}
+
+
+// ── arcs, not wool ──────────────────────────────────────────────────────
+//
+// The band used to carry the same fractal as the net, which is why the two met
+// in a visible seam. It carries arcs now — the octaves are multiplied instead
+// of averaged, so a vein survives only where every octave agrees on it. That
+// is the difference between a thin branching filament and a woolly texture,
+// and it is what lets the band fray into the glow rather than butt against it.
+
+TEST (Arcs, AVeinNeedsEveryOctaveToAgree)
+{
+  float const ridges[] = { 1.f, 1.f, 1.f };
+
+  EXPECT_FLOAT_EQ (arcCombine (ridges, 3, 1.f), 1.f);
+}
+
+TEST (Arcs, OneOctaveDisagreeingKillsTheVein)
+{
+  float const ridges[] = { 1.f, 0.f, 1.f };
+
+  EXPECT_FLOAT_EQ (arcCombine (ridges, 3, 1.f), 0.f);
+}
+
+// Averaging would let a strong octave carry a weak one, which is what makes
+// the net woolly and the arcs sharp.
+TEST (Arcs, ArcsAreThinnerThanTheirAverage)
+{
+  float const ridges[] = { 0.9f, 0.5f, 0.7f };
+  auto const mean = (0.9f + 0.5f + 0.7f) / 3.f;
+
+  EXPECT_LT (arcCombine (ridges, 3, 1.f), mean);
+}
+
+TEST (Arcs, LaterOctavesCarveLessWhenTheGainDrops)
+{
+  float const ridges[] = { 1.f, 0.2f };
+
+  EXPECT_GT (arcCombine (ridges, 2, 0.3f), arcCombine (ridges, 2, 1.f));
+}
+
+TEST (Arcs, ShippedConfigDrawsArcsRatherThanTexture)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &speakerLight = parsed["speakerLight"];
+
+  ASSERT_TRUE (speakerLight.hasProperty ("arcSharpness"));
+  ASSERT_TRUE (speakerLight.hasProperty ("arcFlicker"));
+
+  EXPECT_GT (static_cast<float> (speakerLight["arcSharpness"]), 1.f)
+      << "without a steep exponent the arcs are just noise again";
+}
+
+
+// Arcs alone cannot enclose the sphere: multiplied octaves are sparse by
+// nature, and measured round the rim they left 42 of 72 directions empty at
+// their densest setting. So they ride on the band rather than replacing it —
+// the base keeps the ring closed, the veins are what you look at.
+
+TEST (Arcs, TheRingSurvivesWhereNoVeinIs)
+{
+  EXPECT_FLOAT_EQ (arcModulation (0.f, 0.3f), 0.3f);
+}
+
+TEST (Arcs, AVeinReachesFullBrightness)
+{
+  EXPECT_FLOAT_EQ (arcModulation (1.f, 0.3f), 1.f);
+}
+
+TEST (Arcs, ABaseOfZeroLeavesArcsAlone)
+{
+  EXPECT_FLOAT_EQ (arcModulation (0.4f, 0.f), 0.4f);
+}
+
+TEST (Arcs, ShippedConfigKeepsABaseUnderTheArcs)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &speakerLight = parsed["speakerLight"];
+
+  ASSERT_TRUE (speakerLight.hasProperty ("arcBase"));
+
+  auto const base = static_cast<float> (speakerLight["arcBase"]);
+  EXPECT_GT (base, 0.f) << "at zero the arcs alone have to close the ring, "
+                           "and they are far too sparse for that";
+  EXPECT_LT (base, 1.f) << "at one there are no veins left, just the band";
+}
+
 }

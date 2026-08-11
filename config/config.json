@@ -42,16 +42,15 @@
   },
   "speakerLight": {
     "vuMax": 0.2,
-    "r": 110,
-    "g": 250,
-    "b": 251,
+    "r": 70,
+    "g": 130,
+    "b": 250,
     "curve": 1.2,
     "speakerRadius": 1.4,
     "beamIntensity": 0.4,
     "attack": 0.08,
     "decay": 0.25,
     "edgeSoftness": 0.7,
-    "filament": 0.7,
     "apertureAngle": 6,
     "wrapAngle": 65,
     "wander": 14,
@@ -62,7 +61,15 @@
     "levelFloor": 0.4,
     "bleed": 0.22,
     "fray": 0.8,
-    "cover": 3.0
+    "cover": 3.0,
+    "arcTwist": 7,
+    "arcScale": 9,
+    "arcFlow": 0.12,
+    "arcFlicker": 0.9,
+    "arcSharpness": 1.6,
+    "arcLacunarity": 2.3,
+    "arcGain": 0.7,
+    "arcBase": 0.35
   },
   "channels": [
     {

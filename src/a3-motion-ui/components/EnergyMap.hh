@@ -145,6 +145,22 @@ float glowVisibility (float bandDensity, float cover);
 float beamRadialWindow (float distanceFromCentre, float mouthRadius,
                         float bleed);
 
+/** Combines octave ridges the way an arc does: multiplied rather than
+ *  averaged, so a vein survives only where every octave agrees on it.
+ *
+ *  That is what separates a thin branching filament from the woolly texture
+ *  the net has — and what lets the band fray into the glow instead of meeting
+ *  it at a seam. `gain` softens how much each later octave is allowed to carve
+ *  into the one before. */
+float arcCombine (float const *ridges, int count, float gain);
+
+/** How bright the band is where an arc of a given strength crosses it.
+ *
+ *  Arcs are sparse by nature — multiplied octaves leave most of the ring
+ *  empty — so they ride on a base rather than replacing the band. The base
+ *  keeps the sphere enclosed, the veins are what draws the eye. */
+float arcModulation (float arcField, float base);
+
 /** Index of the texel a direction falls in. */
 int energyMapTexel (float azimuthDegrees, float elevationDegrees);
 
