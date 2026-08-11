@@ -767,14 +767,15 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.bleed = cfgF (sl, "bleed", 0.22f);
     sc.fray = cfgF (sl, "fray", 0.8f);
     sc.cover = cfgF (sl, "cover", 3.f);
-    sc.arcTwist = cfgF (sl, "arcTwist", 7.f);
-    sc.arcScale = cfgF (sl, "arcScale", 9.f);
-    sc.arcFlow = cfgF (sl, "arcFlow", 0.12f);
-    sc.arcFlicker = cfgF (sl, "arcFlicker", 0.9f);
-    sc.arcSharpness = cfgF (sl, "arcSharpness", 2.5f);
-    sc.arcLacunarity = cfgF (sl, "arcLacunarity", 2.3f);
-    sc.arcGain = cfgF (sl, "arcGain", 0.6f);
     sc.arcBase = cfgF (sl, "arcBase", 0.35f);
+    sc.boltWidth = cfgF (sl, "boltWidth", 0.9f);
+    sc.boltWander = cfgF (sl, "boltWander", 0.55f);
+    sc.boltScale = cfgF (sl, "boltScale", 6.f);
+    sc.boltFlow = cfgF (sl, "boltFlow", 0.5f);
+    sc.boltRate = cfgF (sl, "boltRate", 1.4f);
+    sc.boltDuty = cfgF (sl, "boltDuty", 0.55f);
+    sc.boltCoreExp = cfgF (sl, "boltCoreExp", 5.f);
+    sc.boltCore = cfgF (sl, "boltCore", 0.9f);
     _sphereShader.setSpotlightConfig (sc);
 
     auto const &energy = config["energy"];

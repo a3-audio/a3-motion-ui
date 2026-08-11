@@ -226,6 +226,23 @@ arcModulation (float arcField, float base)
   return base + std::clamp (arcField, 0.f, 1.f) * (1.f - base);
 }
 
+float
+boltFalloff (float distance, float width)
+{
+  auto const w = std::max (width, 1e-6f);
+
+  return w / (std::abs (distance) + w);
+}
+
+float
+boltStrike (float noise, float duty)
+{
+  auto const t = std::clamp ((noise - duty) / std::max (1.f - duty, 1e-4f),
+                             0.f, 1.f);
+
+  return t * t * (3.f - 2.f * t); // smoothstep, matching GLSL
+}
+
 int
 energyMapTexel (float azimuthDegrees, float elevationDegrees)
 {

@@ -123,13 +123,14 @@ public:
     float bleed = 0.22f;       // how far it reaches past the annulus
     float fray = 0.8f;         // how ragged its edge is
     float cover = 3.f;         // how strongly the band hides the glow
-    float arcTwist = 7.f;      // arc detail around the circle
-    float arcScale = 9.f;      // and along the radius
-    float arcFlow = 0.12f;     // how fast they creep
-    float arcFlicker = 0.9f;   // how fast they strike
-    float arcSharpness = 2.5f; // how thin the veins are
-    float arcLacunarity = 2.3f;
-    float arcGain = 0.6f;
+    float boltWidth = 0.9f;    // angular width of a bolt's core, degrees
+    float boltWander = 0.55f;  // how far its path strays across the band
+    float boltScale = 6.f;     // how quickly it strays with radius
+    float boltFlow = 0.5f;     // how fast the path creeps
+    float boltRate = 1.4f;     // how often a bolt strikes
+    float boltDuty = 0.55f;    // and how much of the time it is dark
+    float boltCoreExp = 5.f;   // how tight the white core is
+    float boltCore = 0.9f;     // how bright it runs
     float arcBase = 0.35f;     // band brightness where no vein crosses
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
@@ -206,14 +207,15 @@ private:
   GLint _uBeamBleed = -1;
   GLint _uBeamFray = -1;
   GLint _uBeamCover = -1;
-  GLint _uArcTwist = -1;
-  GLint _uArcScale = -1;
-  GLint _uArcFlow = -1;
-  GLint _uArcFlicker = -1;
-  GLint _uArcSharpness = -1;
-  GLint _uArcLacunarity = -1;
-  GLint _uArcGain = -1;
   GLint _uArcBase = -1;
+  GLint _uBoltWidth = -1;
+  GLint _uBoltWander = -1;
+  GLint _uBoltScale = -1;
+  GLint _uBoltFlow = -1;
+  GLint _uBoltRate = -1;
+  GLint _uBoltDuty = -1;
+  GLint _uBoltCoreExp = -1;
+  GLint _uBoltCore = -1;
   GLint _uApertureHalf = -1;
   GLint _uMouthOffset = -1;
   GLint _uBeamReach = -1;

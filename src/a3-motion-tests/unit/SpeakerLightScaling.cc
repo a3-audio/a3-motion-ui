@@ -98,7 +98,7 @@ TEST (SpeakerLightScaling, ShippedConfigSetsBeamShapeParameters)
 
   EXPECT_TRUE (speakerLight.hasProperty ("edgeSoftness"));
   EXPECT_TRUE (speakerLight.hasProperty ("beamIntensity"));
-  EXPECT_TRUE (speakerLight.hasProperty ("arcSharpness"));
+  EXPECT_TRUE (speakerLight.hasProperty ("boltWidth"));
   EXPECT_TRUE (speakerLight.hasProperty ("root"));
 
   // A softness of 1 has no soft edge at all; 0 fades from the axis outwards

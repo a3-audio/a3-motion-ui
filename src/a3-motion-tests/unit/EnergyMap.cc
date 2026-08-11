@@ -466,21 +466,6 @@ TEST (Arcs, LaterOctavesCarveLessWhenTheGainDrops)
   EXPECT_GT (arcCombine (ridges, 2, 0.3f), arcCombine (ridges, 2, 1.f));
 }
 
-TEST (Arcs, ShippedConfigDrawsArcsRatherThanTexture)
-{
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
-  auto const &speakerLight = parsed["speakerLight"];
-
-  ASSERT_TRUE (speakerLight.hasProperty ("arcSharpness"));
-  ASSERT_TRUE (speakerLight.hasProperty ("arcFlicker"));
-
-  EXPECT_GT (static_cast<float> (speakerLight["arcSharpness"]), 1.f)
-      << "without a steep exponent the arcs are just noise again";
-}
-
 
 // Arcs alone cannot enclose the sphere: multiplied octaves are sparse by
 // nature, and measured round the rim they left 42 of 72 directions empty at
@@ -513,9 +498,72 @@ TEST (Arcs, ShippedConfigKeepsABaseUnderTheArcs)
   ASSERT_TRUE (speakerLight.hasProperty ("arcBase"));
 
   auto const base = static_cast<float> (speakerLight["arcBase"]);
-  EXPECT_GT (base, 0.f) << "at zero the arcs alone have to close the ring, "
-                           "and they are far too sparse for that";
+  EXPECT_GT (base, 0.f) << "at zero the bolts alone have to close the ring, "
+                           "and they strike far too rarely for that";
   EXPECT_LT (base, 1.f) << "at one there are no veins left, just the band";
+}
+
+
+// ── bolts, not fields ───────────────────────────────────────────────────
+//
+// Ridged noise gives a soft field however hard you sharpen it — that is why
+// the band still read as fractal. A bolt is a path with a hard bright core and
+// a glow that trails off without ever quite reaching zero, which is what makes
+// lightning look like lightning against a sky.
+
+TEST (Bolts, TheCoreIsFullBrightness)
+{
+  EXPECT_FLOAT_EQ (boltFalloff (0.f, 0.05f), 1.f);
+}
+
+TEST (Bolts, HalfBrightnessAtOneWidthOut)
+{
+  EXPECT_FLOAT_EQ (boltFalloff (0.05f, 0.05f), 0.5f);
+}
+
+// The tail is the point: a smoothstep edge stops dead, a bolt keeps glowing.
+// That trailing glow is what ties the band into the net inside and the glow
+// outside instead of ending at a line.
+TEST (Bolts, TheGlowTrailsOffWithoutEnding)
+{
+  auto const far = boltFalloff (1.f, 0.05f);
+
+  EXPECT_GT (far, 0.f);
+  EXPECT_LT (far, 0.1f);
+}
+
+TEST (Bolts, FallsOffMonotonically)
+{
+  EXPECT_GT (boltFalloff (0.1f, 0.05f), boltFalloff (0.2f, 0.05f));
+}
+
+// A bolt strikes and is gone. Without a duty cycle they all sit there at once
+// and the whole thing is a texture again.
+TEST (Bolts, MostOfTheTimeThereIsNoStrike)
+{
+  EXPECT_FLOAT_EQ (boltStrike (0.4f, 0.6f), 0.f);
+  EXPECT_FLOAT_EQ (boltStrike (0.6f, 0.6f), 0.f);
+  EXPECT_GT (boltStrike (1.f, 0.6f), 0.9f);
+}
+
+TEST (Bolts, ShippedConfigStrikesRatherThanGlows)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &speakerLight = parsed["speakerLight"];
+
+  ASSERT_TRUE (speakerLight.hasProperty ("boltWidth"));
+  ASSERT_TRUE (speakerLight.hasProperty ("boltDuty"));
+  ASSERT_TRUE (speakerLight.hasProperty ("boltCore"));
+
+  auto const duty = static_cast<float> (speakerLight["boltDuty"]);
+  EXPECT_GT (duty, 0.f) << "at zero every bolt is always on";
+  EXPECT_LT (duty, 1.f) << "at one none of them ever strike";
+
+  EXPECT_GT (static_cast<float> (speakerLight["boltCore"]), 0.f)
+      << "the core is what makes it read as lightning rather than as colour";
 }
 
 }

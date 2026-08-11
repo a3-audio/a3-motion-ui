@@ -161,6 +161,21 @@ float arcCombine (float const *ridges, int count, float gain);
  *  keeps the sphere enclosed, the veins are what draws the eye. */
 float arcModulation (float arcField, float base);
 
+/** Brightness of a bolt at a given distance from its path.
+ *
+ *  `width / (distance + width)`: full at the core, half a width out, and
+ *  trailing off without ever quite reaching zero. That tail is what ties the
+ *  band into the net inside and the glow outside — a smoothstep edge stops
+ *  dead and leaves a line, which is what a field of ridged noise gives you
+ *  however hard you sharpen it. */
+float boltFalloff (float distance, float width);
+
+/** Whether a bolt is striking, from its own noise and a duty cycle.
+ *
+ *  Zero below `duty`, so a bolt is absent most of the time and the band reads
+ *  as strikes rather than as a texture that happens to flicker. */
+float boltStrike (float noise, float duty);
+
 /** Index of the texel a direction falls in. */
 int energyMapTexel (float azimuthDegrees, float elevationDegrees);
 
