@@ -47,16 +47,18 @@
     "b": 251,
     "curve": 1.2,
     "speakerRadius": 1.4,
-    "beamFalloff": 0.8,
     "beamIntensity": 0.6,
     "attack": 0.08,
     "decay": 0.25,
     "edgeSoftness": 0.7,
-    "beamAngleQuiet": 40,
-    "beamAngleLoud": 55,
-    "reach": 0.5,
-    "curl": 0.6,
-    "filament": 0.7
+    "filament": 0.7,
+    "apertureAngle": 6,
+    "wrapAngle": 45,
+    "wander": 14,
+    "wanderTwist": 5,
+    "wanderScale": 4,
+    "wanderFlow": 0.08,
+    "root": 0.35
   },
   "channels": [
     {

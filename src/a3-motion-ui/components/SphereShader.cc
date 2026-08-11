@@ -82,18 +82,18 @@ uniform float uSpotLevel0;
 uniform float uSpotLevel1;
 uniform float uSpotLevel2;
 uniform float uSpotLevel3;
-// tan of the beam's angle off its axis, per speaker — it widens with level,
-// resolved on the CPU so the shader needs no trig
-uniform float uBeamTan0;
-uniform float uBeamTan1;
-uniform float uBeamTan2;
-uniform float uBeamTan3;
 uniform vec3  uSpotColour;
 uniform float uSpeakerRadius;
 uniform float uBeamEdge;       // fraction of the half-width that stays flat
 uniform float uBeamFalloff;
 uniform float uBeamIntensity;
-uniform float uBeamCurl;       // radians the beam wraps by the time it lands
+uniform float uApertureAngle;  // half-angle of the band where it leaves the horn
+uniform float uWrapAngle;      // and where it meets the sphere — 45 closes the circle
+uniform float uWander;         // degrees the centre line wanders
+uniform float uWanderTwist;    // detail of the wander around the circle
+uniform float uWanderScale;    // and along the radius
+uniform float uWanderFlow;     // how fast it creeps
+uniform float uBeamRoot;       // density where it leaves the speaker
 uniform float uBeamFilament;   // how much of the beam is filament rather than solid
 uniform float uApertureHalf;   // half-width of the horn's mouth
 uniform float uMouthOffset;    // mouth position ahead of the speaker centre
@@ -159,49 +159,6 @@ vec3 getBlobCol (int i)
 // Truncated cone leaving the horn's mouth at the mouth's own width. Only ever
 // drawn outside the sphere — where it lands, the net takes over. Mirrors
 // beamHalfWidthAt() in SpeakerLightScaling.cc.
-// Rotates a point about the sphere centre by the beam's curl at that radius.
-// Mirrors beamCurlAngle() in EnergyMap.cc.
-vec2 beamCurled (vec2 p, float mouthR)
-{
-    float span = max (mouthR - 1.0, 0.0001);
-    float t = clamp ((mouthR - length (p)) / span, 0.0, 1.0);
-    float a = uBeamCurl * t * t * (3.0 - 2.0 * t);
-
-    float c = cos (a), s = sin (a);
-    return vec2 (c * p.x - s * p.y, s * p.x + c * p.y);
-}
-
-float beamDensity (vec2 point, vec2 spkDir, float level, float spreadTan)
-{
-    if (level <= 0.001) return 0.0;
-
-    float mouthR = uSpeakerRadius - uMouthOffset;
-
-    // Straight at the horn, wrapping into the sphere's own turn on the way in.
-    vec2 p = beamCurled (point, mouthR);
-    vec2 rel = p - spkDir * mouthR;
-
-    // beam-local: along the axis towards the centre, and across it
-    float s = dot (rel, -spkDir);
-    if (s <= 0.0) return 0.0;              // nothing behind the mouth
-    // Stub only: the energy map carries the spatial information now, the beams
-    // are left as an indicator of which loudspeaker is working.
-    float reach = 1.0 - smoothstep (uBeamReach * 0.5, uBeamReach, s);
-    if (reach <= 0.0) return 0.0;
-    float h = length (rel + spkDir * s);
-
-    // Flat across the beam, soft only at the edge — the mouth is lit across
-    // its full width rather than peaking on the axis.
-    float halfWidth = uApertureHalf + s * spreadTan;
-    float shape = 1.0 - smoothstep (halfWidth * uBeamEdge, halfWidth, h);
-    if (shape <= 0.0) return 0.0;
-
-    float df = 1.0 / (1.0 + s * uBeamFalloff);
-
-    return level * shape * reach * df;
-}
-
-
 // How much of the glow's net has emerged from behind the sphere. Mirrors
 // glowEmergence() in EnergyMap.cc.
 float glowEmergence (float d, float rise)
@@ -216,16 +173,6 @@ float sphereHalfChord (float d)
     return sqrt (1.0 - c * c);
 }
 
-// The speakers all sit in the z=0 plane, so a view ray along z crosses the
-// beams' densest plane at its own position — one sample per speaker, no
-// raymarching.
-float beamTotal (vec2 p)
-{
-    return beamDensity (p, vec2 (-0.7071,  0.7071), uSpotLevel0, uBeamTan0)
-         + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1, uBeamTan1)
-         + beamDensity (p, vec2 ( 0.7071, -0.7071), uSpotLevel2, uBeamTan2)
-         + beamDensity (p, vec2 (-0.7071, -0.7071), uSpotLevel3, uBeamTan3);
-}
 
 // ─── energy map and fractal net ─────────────────────────────────
 
@@ -278,6 +225,56 @@ float valueNoise (vec3 p)
 
     return mix (mix (mix (n000, n100, f.x), mix (n010, n110, f.x), f.y),
                 mix (mix (n001, n101, f.x), mix (n011, n111, f.x), f.y), f.z);
+}
+
+// A beam is a band in the annulus between the horn's mouth and the sphere: it
+// leaves the speaker narrow and opens to a quarter of the way round by the
+// time it arrives, so the four of them close the circle. Its centre line
+// wanders with fractal noise, which is what turns a band into a root.
+// Mirrors beamWrapHalfAngle() in EnergyMap.cc.
+//
+// Needs valueNoise(), so it lives below it.
+float beamDensity (vec2 point, vec2 spkDir, float level)
+{
+    if (level <= 0.001) return 0.0;
+
+    float mouthR = uSpeakerRadius - uMouthOffset;
+    float d = length (point);
+    if (d > mouthR || d < 1.0) return 0.0;   // only in the annulus
+
+    // How far along the way in, 0 at the mouth and 1 at the sphere.
+    float t = clamp ((mouthR - d) / max (mouthR - 1.0, 0.0001), 0.0, 1.0);
+    float eased = t * t * (3.0 - 2.0 * t);
+
+    float halfWidth = radians (mix (uApertureAngle, uWrapAngle, eased));
+
+    // Offset from the speaker's own direction, wrapped to +-pi
+    float a = atan (point.y, point.x);
+    float a0 = atan (spkDir.y, spkDir.x);
+    float dA = mod (a - a0 + 9.42477796, 6.28318531) - 3.14159265;
+
+    // The centre line wanders sideways, more the further it has travelled —
+    // roots, not spokes. Sampled on the direction so it has no seam.
+    vec3 wp = vec3 (cos (a), sin (a), 0.0) * uWanderTwist;
+    wp.z = d * uWanderScale - uTime * uWanderFlow;
+    float wander = (valueNoise (wp) - 0.5) * radians (uWander) * eased;
+
+    float across = 1.0 - smoothstep (halfWidth * uBeamEdge, halfWidth,
+                                     abs (dA - wander));
+    if (across <= 0.0) return 0.0;
+
+    // Denser where it wraps the sphere than where it leaves the speaker.
+    float grip = mix (uBeamRoot, 1.0, eased);
+
+    return level * across * grip;
+}
+
+float beamTotal (vec2 p)
+{
+    return beamDensity (p, vec2 (-0.7071,  0.7071), uSpotLevel0)
+         + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1)
+         + beamDensity (p, vec2 ( 0.7071, -0.7071), uSpotLevel2)
+         + beamDensity (p, vec2 (-0.7071, -0.7071), uSpotLevel3);
 }
 
 // Ridged fractal noise: the filaments are the ridges between noise cells, and
@@ -533,16 +530,18 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uSpotLevel[1]  = glGetUniformLocation (pid, "uSpotLevel1");
   _uSpotLevel[2]  = glGetUniformLocation (pid, "uSpotLevel2");
   _uSpotLevel[3]  = glGetUniformLocation (pid, "uSpotLevel3");
-  _uBeamTan[0]    = glGetUniformLocation (pid, "uBeamTan0");
-  _uBeamTan[1]    = glGetUniformLocation (pid, "uBeamTan1");
-  _uBeamTan[2]    = glGetUniformLocation (pid, "uBeamTan2");
-  _uBeamTan[3]    = glGetUniformLocation (pid, "uBeamTan3");
   _uSpotColour    = glGetUniformLocation (pid, "uSpotColour");
   _uSpeakerRadius = glGetUniformLocation (pid, "uSpeakerRadius");
   _uBeamEdge      = glGetUniformLocation (pid, "uBeamEdge");
   _uBeamFalloff   = glGetUniformLocation (pid, "uBeamFalloff");
   _uBeamIntensity = glGetUniformLocation (pid, "uBeamIntensity");
-  _uBeamCurl      = glGetUniformLocation (pid, "uBeamCurl");
+  _uApertureAngle = glGetUniformLocation (pid, "uApertureAngle");
+  _uWrapAngle = glGetUniformLocation (pid, "uWrapAngle");
+  _uWander = glGetUniformLocation (pid, "uWander");
+  _uWanderTwist = glGetUniformLocation (pid, "uWanderTwist");
+  _uWanderScale = glGetUniformLocation (pid, "uWanderScale");
+  _uWanderFlow = glGetUniformLocation (pid, "uWanderFlow");
+  _uBeamRoot = glGetUniformLocation (pid, "uBeamRoot");
   _uBeamFilament  = glGetUniformLocation (pid, "uBeamFilament");
   _uApertureHalf  = glGetUniformLocation (pid, "uApertureHalf");
   _uMouthOffset   = glGetUniformLocation (pid, "uMouthOffset");
@@ -658,15 +657,12 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
       glUniform3f (_uBgColour, 0.161f, 0.184f, 0.212f);
     }
 
-  // Speaker beams. The cone widens with level, so its spread is per-speaker —
-  // resolved here rather than in the shader, which then needs no trig.
+  // Speaker beams. The band's shape no longer depends on level — that drives
+  // brightness alone now.
   for (int i = 0; i < 4; ++i)
     {
       float s = speakerLightLevel (_spotRms[i], _spotCfg.vuMax, _spotCfg.curve);
-      float angle = beamAngleAtLevel (s, _spotCfg.angleQuiet, _spotCfg.angleLoud);
       if (_uSpotLevel[i] >= 0) glUniform1f (_uSpotLevel[i], s);
-      if (_uBeamTan[i] >= 0)
-        glUniform1f (_uBeamTan[i], beamSpreadTangent (coneWidthFromAngle (angle)));
     }
   if (_uSpotColour >= 0)
     glUniform3f (_uSpotColour, _spotCfg.r, _spotCfg.g, _spotCfg.b);
@@ -678,8 +674,13 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform1f (_uBeamFalloff, _spotCfg.beamFalloff);
   if (_uBeamIntensity >= 0)
     glUniform1f (_uBeamIntensity, _spotCfg.beamIntensity);
-  if (_uBeamCurl >= 0)
-    glUniform1f (_uBeamCurl, _spotCfg.curl);
+  if (_uApertureAngle >= 0) glUniform1f (_uApertureAngle, _spotCfg.apertureAngle);
+  if (_uWrapAngle >= 0) glUniform1f (_uWrapAngle, _spotCfg.wrapAngle);
+  if (_uWander >= 0) glUniform1f (_uWander, _spotCfg.wander);
+  if (_uWanderTwist >= 0) glUniform1f (_uWanderTwist, _spotCfg.wanderTwist);
+  if (_uWanderScale >= 0) glUniform1f (_uWanderScale, _spotCfg.wanderScale);
+  if (_uWanderFlow >= 0) glUniform1f (_uWanderFlow, _spotCfg.wanderFlow);
+  if (_uBeamRoot >= 0) glUniform1f (_uBeamRoot, _spotCfg.root);
   if (_uBeamFilament >= 0)
     glUniform1f (_uBeamFilament, _spotCfg.filament);
   if (_uApertureHalf >= 0)

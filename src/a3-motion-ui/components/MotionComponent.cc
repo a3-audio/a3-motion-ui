@@ -753,13 +753,16 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.vuMax = cfgF (sl, "vuMax", 0.2f);
     sc.curve = cfgF (sl, "curve", 0.4f);
     sc.speakerRadius = cfgF (sl, "speakerRadius", 1.55f);
-    sc.angleQuiet = cfgF (sl, "beamAngleQuiet", 26.f);
-    sc.angleLoud = cfgF (sl, "beamAngleLoud", 70.f);
     sc.edgeSoftness = cfgF (sl, "edgeSoftness", 0.7f);
-    sc.beamFalloff = cfgF (sl, "beamFalloff", 0.6f);
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
     sc.reach = cfgF (sl, "reach", 0.25f);
-    sc.curl = cfgF (sl, "curl", 0.6f);
+    sc.apertureAngle = cfgF (sl, "apertureAngle", 6.f);
+    sc.wrapAngle = cfgF (sl, "wrapAngle", 45.f);
+    sc.wander = cfgF (sl, "wander", 14.f);
+    sc.wanderTwist = cfgF (sl, "wanderTwist", 5.f);
+    sc.wanderScale = cfgF (sl, "wanderScale", 4.f);
+    sc.wanderFlow = cfgF (sl, "wanderFlow", 0.08f);
+    sc.root = cfgF (sl, "root", 0.35f);
     sc.filament = cfgF (sl, "filament", 0.7f);
     _sphereShader.setSpotlightConfig (sc);
 

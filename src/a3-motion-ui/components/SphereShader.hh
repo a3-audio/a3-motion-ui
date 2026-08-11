@@ -108,14 +108,18 @@ public:
     float vuMax = 0.2f;
     float curve = 0.4f;
     float speakerRadius = 1.55f;
-    float angleQuiet = 26.f; // degrees off the axis when silent
-    float angleLoud = 70.f;  // and at full level
     float edgeSoftness = 0.7f;
     float beamFalloff = 0.6f;
     float beamIntensity = 0.8f;
     float reach = 0.25f; // how far past the mouth the stub carries
-    float curl = 0.6f;      // radians the beam wraps by the time it lands
-    float filament = 0.7f;  // how much of it is filament rather than solid
+    float apertureAngle = 6.f; // half-angle where the band leaves the horn
+    float wrapAngle = 45.f;    // and where it meets the sphere
+    float wander = 14.f;       // degrees the centre line wanders
+    float wanderTwist = 5.f;
+    float wanderScale = 4.f;
+    float wanderFlow = 0.08f;
+    float root = 0.35f;        // density where it leaves the speaker
+    float filament = 0.7f;     // how much of it is filament rather than solid
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
 
@@ -175,13 +179,18 @@ private:
   GLint _uBgColour = -1;
 
   GLint _uSpotLevel[4] = { -1, -1, -1, -1 };
-  GLint _uBeamTan[4] = { -1, -1, -1, -1 };
   GLint _uSpotColour = -1;
   GLint _uSpeakerRadius = -1;
   GLint _uBeamEdge = -1;
   GLint _uBeamFalloff = -1;
   GLint _uBeamIntensity = -1;
-  GLint _uBeamCurl = -1;
+  GLint _uApertureAngle = -1;
+  GLint _uWrapAngle = -1;
+  GLint _uWander = -1;
+  GLint _uWanderTwist = -1;
+  GLint _uWanderScale = -1;
+  GLint _uWanderFlow = -1;
+  GLint _uBeamRoot = -1;
   GLint _uBeamFilament = -1;
   GLint _uApertureHalf = -1;
   GLint _uMouthOffset = -1;

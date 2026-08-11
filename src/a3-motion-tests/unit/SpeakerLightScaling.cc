@@ -97,9 +97,9 @@ TEST (SpeakerLightScaling, ShippedConfigSetsBeamShapeParameters)
   auto const &speakerLight = parsed["speakerLight"];
 
   EXPECT_TRUE (speakerLight.hasProperty ("edgeSoftness"));
-  EXPECT_TRUE (speakerLight.hasProperty ("beamFalloff"));
   EXPECT_TRUE (speakerLight.hasProperty ("beamIntensity"));
-  EXPECT_TRUE (speakerLight.hasProperty ("reach"));
+  EXPECT_TRUE (speakerLight.hasProperty ("filament"));
+  EXPECT_TRUE (speakerLight.hasProperty ("root"));
 
   // A softness of 1 has no soft edge at all; 0 fades from the axis outwards
   // and undoes the flat top.

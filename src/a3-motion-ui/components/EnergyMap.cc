@@ -165,12 +165,16 @@ glowEmergence (float distanceFromCentre, float rise)
 }
 
 float
-beamCurlAngle (float distanceFromCentre, float mouthRadius, float curl)
+beamWrapHalfAngle (float distanceFromCentre, float mouthRadius,
+                   float apertureAngleDegrees, float wrapAngleDegrees)
 {
   auto const span = std::max (mouthRadius - 1.f, 1e-4f);
-  auto const t = std::clamp ((mouthRadius - distanceFromCentre) / span, 0.f, 1.f);
+  auto const t
+      = std::clamp ((mouthRadius - distanceFromCentre) / span, 0.f, 1.f);
+  auto const eased = t * t * (3.f - 2.f * t); // smoothstep, matching GLSL
 
-  return curl * t * t * (3.f - 2.f * t); // smoothstep, matching GLSL
+  return apertureAngleDegrees
+         + eased * (wrapAngleDegrees - apertureAngleDegrees);
 }
 
 int

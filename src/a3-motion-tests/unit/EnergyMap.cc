@@ -245,155 +245,60 @@ TEST (EnergyNet, DomainMovesWithTheRadius)
 
 // ── how much rim a beam covers ──────────────────────────────────────────
 
-// The quarter-of-the-rim criterion is gone: the beams are being reworked from
-// straight cones into something that wraps the sphere with the same fractal
-// character as everything else, and a cone's rim coverage says nothing about
-// that. What is left here is the pair of invariants that survive the change.
-TEST (SpeakerBeamReach, ShippedBeamsDoNotNarrowWithLevel)
-{
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
-  auto const &speakerLight = parsed["speakerLight"];
-
-  auto const quiet = static_cast<float> (speakerLight["beamAngleQuiet"]);
-  auto const loud = static_cast<float> (speakerLight["beamAngleLoud"]);
-
-  EXPECT_GT (quiet, 0.f);
-  EXPECT_LE (quiet, loud);
-}
-
-TEST (SpeakerBeamReach, WiderBeamsCoverMoreRim)
-{
-  EXPECT_GT (beamRimCoverageDegrees (60.f, 1.35f),
-             beamRimCoverageDegrees (30.f, 1.35f));
-}
-
-
-
-
-// ── the glow's outward net ──────────────────────────────────────────────
-//
-// The sphere glow used to be a smooth halo hugging the rim. It is filaments
-// now, running the other way from the inner net: out from behind the sphere
-// towards the edge of the screen, so the picture reads as arrival on the
-// inside and spread on the outside.
-
-TEST (GlowNet, FilamentsTravelOutwardsWhenTheFlowIsNegative)
-{
-  auto constexpr filament = 1.0f;
-  auto constexpr flow = -0.2f;
-
-  EXPECT_GT (netFilamentRadius (filament, 1.f, flow),
-             netFilamentRadius (filament, 0.f, flow));
-}
-
-TEST (GlowNet, NothingEmergesInsideTheSphere)
-{
-  EXPECT_FLOAT_EQ (glowEmergence (0.9f, 0.25f), 0.f);
-  EXPECT_FLOAT_EQ (glowEmergence (1.f, 0.25f), 0.f);
-}
-
-// The filaments have to look like they come out from behind the sphere rather
-// than sprouting from its edge, which means nothing at the rim itself.
-TEST (GlowNet, FilamentsAppearBehindTheRimNotOnIt)
-{
-  auto constexpr rise = 0.25f;
-
-  EXPECT_LT (glowEmergence (1.02f, rise), 0.1f);
-  EXPECT_GT (glowEmergence (1.f + rise, rise), 0.9f);
-}
-
-// The screen corner sits about 2.26 sphere radii out: the component is
-// 768 x ~734 px with the sphere at reduceFactorCircle 0.64, so a radius of
-// 734 * 0.64 / 2 = 235 px against a corner distance of hypot(384, 367) = 531.
-// A filament domain that stops short of that freezes exactly where the
-// filaments are supposed to be heading.
-TEST (GlowNet, ShippedConfigReachesTheScreenCorner)
-{
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
-  auto const &glow = parsed["sphereGlow"];
-
-  ASSERT_TRUE (glow.hasProperty ("reach"));
-  EXPECT_GE (static_cast<float> (glow["reach"]), screenCornerDistance);
-}
-
-TEST (GlowNet, ShippedConfigRunsOutwards)
-{
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
-  auto const &glow = parsed["sphereGlow"];
-
-  ASSERT_TRUE (glow.hasProperty ("netFlow"));
-  EXPECT_LT (static_cast<float> (glow["netFlow"]), 0.f)
-      << "a positive flow would run the glow inwards, against the inner net";
-}
-
-// The smooth halo is what these replace; leaving it in would just sit under
-// them and put a step back at the rim.
-TEST (GlowNet, ShippedConfigHasNoSmoothHaloLeft)
-{
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
-
-  EXPECT_FALSE (parsed["sphereGlow"].hasProperty ("falloff"));
-}
-
-
 // ── beams wrapping the sphere ───────────────────────────────────────────
 //
-// A straight cone reads as a foreign object next to filaments that curl. The
-// beam's sample point gets rotated about the sphere centre by an angle that
-// grows as it approaches, so the beam leaves the horn straight and curls into
-// the sphere's own turn by the time it arrives.
+// The beams are no longer cones aimed at the centre, curled or otherwise. They
+// are bands in the annulus between the horn's mouth and the sphere: narrow
+// where they leave the speaker, opening to a quarter of the way round by the
+// time they reach the sphere, so the four of them close the circle and the
+// sphere ends up enclosed. Their centre line wanders with fractal noise, which
+// is what makes them read as roots rather than as geometry.
 
-TEST (BeamCurl, BeamLeavesTheHornStraight)
+TEST (BeamWrap, NarrowWhereItLeavesTheHorn)
 {
   auto constexpr mouthRadius = 1.35f;
-  auto constexpr curl = 0.6f;
 
-  EXPECT_NEAR (beamCurlAngle (mouthRadius, mouthRadius, curl), 0.f, 1e-4f);
+  EXPECT_NEAR (beamWrapHalfAngle (mouthRadius, mouthRadius, 6.f, 45.f), 6.f,
+               0.01f);
 }
 
-TEST (BeamCurl, BeamIsFullyTurnedByTheTimeItReachesTheSphere)
+TEST (BeamWrap, CoversItsQuarterWhereItMeetsTheSphere)
 {
   auto constexpr mouthRadius = 1.35f;
-  auto constexpr curl = 0.6f;
 
-  EXPECT_NEAR (beamCurlAngle (1.f, mouthRadius, curl), curl, 1e-4f);
+  EXPECT_NEAR (beamWrapHalfAngle (1.f, mouthRadius, 6.f, 45.f), 45.f, 0.01f);
 }
 
-TEST (BeamCurl, TurnGrowsAllTheWayIn)
+// The point of the quarter: four of them, both sides each, is the full circle.
+TEST (BeamWrap, FourBeamsCloseTheCircle)
 {
   auto constexpr mouthRadius = 1.35f;
-  auto constexpr curl = 0.6f;
+  auto const halfAngle = beamWrapHalfAngle (1.f, mouthRadius, 6.f, 45.f);
 
-  EXPECT_LT (beamCurlAngle (1.3f, mouthRadius, curl),
-             beamCurlAngle (1.15f, mouthRadius, curl));
-  EXPECT_LT (beamCurlAngle (1.15f, mouthRadius, curl),
-             beamCurlAngle (1.05f, mouthRadius, curl));
+  EXPECT_NEAR (4.f * 2.f * halfAngle, 360.f, 0.1f);
 }
 
-// Behind the mouth and inside the sphere there is no beam to turn, and letting
-// the angle run on there would spin the pattern where it is not drawn.
-TEST (BeamCurl, TurnStopsAtBothEnds)
+TEST (BeamWrap, OpensAllTheWayIn)
 {
   auto constexpr mouthRadius = 1.35f;
-  auto constexpr curl = 0.6f;
 
-  EXPECT_FLOAT_EQ (beamCurlAngle (1.6f, mouthRadius, curl), 0.f);
-  EXPECT_FLOAT_EQ (beamCurlAngle (0.8f, mouthRadius, curl), curl);
+  EXPECT_LT (beamWrapHalfAngle (1.3f, mouthRadius, 6.f, 45.f),
+             beamWrapHalfAngle (1.15f, mouthRadius, 6.f, 45.f));
+  EXPECT_LT (beamWrapHalfAngle (1.15f, mouthRadius, 6.f, 45.f),
+             beamWrapHalfAngle (1.02f, mouthRadius, 6.f, 45.f));
 }
 
-TEST (BeamCurl, ShippedConfigCurlsTheBeams)
+// Outside the annulus there is no band: nothing behind the mouth, nothing
+// inside the sphere.
+TEST (BeamWrap, HeldAtBothEnds)
+{
+  auto constexpr mouthRadius = 1.35f;
+
+  EXPECT_NEAR (beamWrapHalfAngle (1.6f, mouthRadius, 6.f, 45.f), 6.f, 0.01f);
+  EXPECT_NEAR (beamWrapHalfAngle (0.7f, mouthRadius, 6.f, 45.f), 45.f, 0.01f);
+}
+
+TEST (BeamWrap, ShippedConfigWrapsAQuarterEach)
 {
   auto const file = juce::File (A3_CONFIG_JSON_PATH);
   ASSERT_TRUE (file.existsAsFile ());
@@ -401,9 +306,13 @@ TEST (BeamCurl, ShippedConfigCurlsTheBeams)
   auto const parsed = juce::JSON::parse (file.loadFileAsString ());
   auto const &speakerLight = parsed["speakerLight"];
 
-  ASSERT_TRUE (speakerLight.hasProperty ("curl"));
-  EXPECT_GT (std::abs (static_cast<float> (speakerLight["curl"])), 0.1f)
-      << "a straight beam is what this was meant to get away from";
+  ASSERT_TRUE (speakerLight.hasProperty ("wrapAngle"));
+  ASSERT_TRUE (speakerLight.hasProperty ("wander"));
+
+  EXPECT_NEAR (static_cast<float> (speakerLight["wrapAngle"]), 45.f, 2.f)
+      << "four beams have to close the circle between them";
+  EXPECT_GT (static_cast<float> (speakerLight["wander"]), 0.f)
+      << "without wander the bands are geometry again, not roots";
 }
 
 }
