@@ -103,6 +103,7 @@ uniform float uNetTwist;          // detail running around the circle
 uniform float uNetOctaves;        // fractal depth, fractional
 uniform float uNetLacunarity;     // how much finer each octave gets
 uniform float uNetGain;           // how much quieter each octave gets
+
 uniform float uTime;
 
 // Channel blobs (position, size, VU, colour, state)
@@ -313,6 +314,7 @@ void main ()
 
         // Speaker beams on their way to the sphere
         colOut += uSpotColour * beamTotal (uvScene) * uBeamIntensity;
+
 
         // Outside, the net rides the beams towards the sphere, so a filament
         // is already visible before it crosses the rim.

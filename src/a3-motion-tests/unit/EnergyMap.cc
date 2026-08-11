@@ -248,13 +248,13 @@ TEST (EnergyNet, DomainMovesWithTheRadius)
 // Four speakers, so a quarter of the rim each is what closes the circle, and
 // the beams have to manage that already at their narrowest.
 //
-// Two things fall out of that. An exact 90 is not reachable: past roughly 48.4
-// degrees the cone's half-width beats the rim everywhere at once and coverage
-// jumps straight from about 80 to the entire visible half. And with the
-// narrowest state sitting just under that tipping point, there is no room left
-// to widen with level — the angle is effectively fixed and the level drives
-// brightness alone.
-TEST (SpeakerBeamReach, ShippedBeamsEncloseTheSphereAtTheirNarrowest)
+// Opening further with level is not available here, and the reason is
+// geometric rather than a matter of picking a value: from a mouth at radius
+// 1.30 the rim points beyond 45 degrees are easier to reach than the one at
+// 45, so the angle that covers a quarter is the same angle that covers the
+// whole visible half. Coverage goes 79 degrees, then 180, with nothing in
+// between — see issues/a3-motion-ui-beam-opening-cannot-bounce.md.
+TEST (SpeakerBeamReach, ShippedBeamsEncloseTheirQuarterAndNoMore)
 {
   auto const file = juce::File (A3_CONFIG_JSON_PATH);
   ASSERT_TRUE (file.existsAsFile ());
@@ -269,9 +269,9 @@ TEST (SpeakerBeamReach, ShippedBeamsEncloseTheSphereAtTheirNarrowest)
 
   EXPECT_GT (beamRimCoverageDegrees (quiet, speakerRadius), 70.f)
       << "the narrowest beam already has to reach its quarter";
-  EXPECT_LE (quiet, loud) << "beam must not narrow with level";
   EXPECT_LT (beamRimCoverageDegrees (loud, speakerRadius), 110.f)
-      << "past the tipping point every beam blankets the whole visible half";
+      << "any wider and every beam rings the whole sphere at once";
+  EXPECT_LE (quiet, loud) << "beam must not narrow with level";
 }
 
 TEST (SpeakerBeamReach, WiderBeamsCoverMoreRim)
@@ -297,5 +297,6 @@ TEST (SpeakerBeamReach, ShippedStubActuallyReachesTheRim)
   EXPECT_GT (static_cast<float> (speakerLight["reach"]),
              mouthRadius - std::cos (45.f * 3.14159265f / 180.f));
 }
+
 
 }
