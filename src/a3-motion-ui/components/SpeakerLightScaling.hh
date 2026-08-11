@@ -71,9 +71,14 @@ speakerMouthRadius (float speakerRadius)
   return speakerRadius - speakerMouthOffset;
 }
 
-/** Cone width for a coverage angle given the way a loudspeaker's is: the full
- *  angle the cone opens to, not the half-angle off its axis. */
-float coneWidthFromCoverageAngle (float coverageAngleDegrees);
+/** Cone width for an angle measured off the beam's axis — the inverse of
+ *  beamHalfAngleDegrees(). */
+float coneWidthFromAngle (float angleDegrees);
+
+/** Angle off the axis a beam opens to at a given level, between the angle it
+ *  holds when silent and the one it reaches at full level. */
+float beamAngleAtLevel (float level, float quietAngleDegrees,
+                        float loudAngleDegrees);
 
 /** Spread of a beam per unit of travel, for a given cone width. */
 float beamSpreadTangent (float width);

@@ -74,9 +74,12 @@ uniform float uSpotLevel0;
 uniform float uSpotLevel1;
 uniform float uSpotLevel2;
 uniform float uSpotLevel3;
-// tan of the cone half-angle — fixed by the coverage angle, resolved on the
-// CPU so the shader needs no trig
-uniform float uBeamTan;
+// tan of the beam's angle off its axis, per speaker — it widens with level,
+// resolved on the CPU so the shader needs no trig
+uniform float uBeamTan0;
+uniform float uBeamTan1;
+uniform float uBeamTan2;
+uniform float uBeamTan3;
 uniform vec3  uSpotColour;
 uniform float uSpeakerRadius;
 uniform float uBeamEdge;       // fraction of the half-width that stays flat
@@ -131,7 +134,7 @@ vec3 getBlobCol (int i)
 // on its way through the translucent sphere. Mirrors beamHalfWidthAt(),
 // beamPathInsideSphere() and beamAbsorption() in SpeakerLightScaling.cc —
 // change one and the other has to follow.
-float beamDensity (vec2 p, vec2 spkDir, float level)
+float beamDensity (vec2 p, vec2 spkDir, float level, float spreadTan)
 {
     if (level <= 0.001) return 0.0;
 
@@ -145,7 +148,7 @@ float beamDensity (vec2 p, vec2 spkDir, float level)
 
     // Flat across the beam, soft only at the edge — the mouth is lit across
     // its full width rather than peaking on the axis.
-    float halfWidth = uApertureHalf + s * uBeamTan;
+    float halfWidth = uApertureHalf + s * spreadTan;
     float shape = 1.0 - smoothstep (halfWidth * uBeamEdge, halfWidth, h);
     if (shape <= 0.0) return 0.0;
 
@@ -178,10 +181,10 @@ float sphereHalfChord (float d)
 // raymarching.
 float beamTotal (vec2 p)
 {
-    return beamDensity (p, vec2 (-0.7071,  0.7071), uSpotLevel0)
-         + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1)
-         + beamDensity (p, vec2 ( 0.7071, -0.7071), uSpotLevel2)
-         + beamDensity (p, vec2 (-0.7071, -0.7071), uSpotLevel3);
+    return beamDensity (p, vec2 (-0.7071,  0.7071), uSpotLevel0, uBeamTan0)
+         + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1, uBeamTan1)
+         + beamDensity (p, vec2 ( 0.7071, -0.7071), uSpotLevel2, uBeamTan2)
+         + beamDensity (p, vec2 (-0.7071, -0.7071), uSpotLevel3, uBeamTan3);
 }
 
 // ─── main ───────────────────────────────────────────────────────
@@ -342,7 +345,10 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uSpotLevel[1]  = glGetUniformLocation (pid, "uSpotLevel1");
   _uSpotLevel[2]  = glGetUniformLocation (pid, "uSpotLevel2");
   _uSpotLevel[3]  = glGetUniformLocation (pid, "uSpotLevel3");
-  _uBeamTan       = glGetUniformLocation (pid, "uBeamTan");
+  _uBeamTan[0]    = glGetUniformLocation (pid, "uBeamTan0");
+  _uBeamTan[1]    = glGetUniformLocation (pid, "uBeamTan1");
+  _uBeamTan[2]    = glGetUniformLocation (pid, "uBeamTan2");
+  _uBeamTan[3]    = glGetUniformLocation (pid, "uBeamTan3");
   _uSpotColour    = glGetUniformLocation (pid, "uSpotColour");
   _uSpeakerRadius = glGetUniformLocation (pid, "uSpeakerRadius");
   _uBeamEdge      = glGetUniformLocation (pid, "uBeamEdge");
@@ -442,17 +448,16 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
       glUniform3f (_uBgColour, 0.161f, 0.184f, 0.212f);
     }
 
-  // Speaker beams. The coverage angle belongs to the loudspeaker, so it is
-  // fixed and the level drives brightness alone — resolved here rather than in
-  // the shader, which then needs no trig.
+  // Speaker beams. The cone widens with level, so its spread is per-speaker —
+  // resolved here rather than in the shader, which then needs no trig.
   for (int i = 0; i < 4; ++i)
     {
       float s = speakerLightLevel (_spotRms[i], _spotCfg.vuMax, _spotCfg.curve);
+      float angle = beamAngleAtLevel (s, _spotCfg.angleQuiet, _spotCfg.angleLoud);
       if (_uSpotLevel[i] >= 0) glUniform1f (_uSpotLevel[i], s);
+      if (_uBeamTan[i] >= 0)
+        glUniform1f (_uBeamTan[i], beamSpreadTangent (coneWidthFromAngle (angle)));
     }
-  if (_uBeamTan >= 0)
-    glUniform1f (_uBeamTan, beamSpreadTangent (coneWidthFromCoverageAngle (
-                                _spotCfg.coverageAngle)));
   if (_uSpotColour >= 0)
     glUniform3f (_uSpotColour, _spotCfg.r, _spotCfg.g, _spotCfg.b);
   if (_uSpeakerRadius >= 0)

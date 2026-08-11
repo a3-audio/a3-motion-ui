@@ -24,6 +24,8 @@
 
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
+#include <cmath>
+
 using namespace a3;
 
 namespace
@@ -107,14 +109,9 @@ TEST (SpeakerLightScaling, ShippedConfigSetsBeamShapeParameters)
   EXPECT_LT (softness, 1.f);
 }
 
-// The four speakers sit 90 degrees apart, so at full level the cones should
-// just touch: a half-angle of 45 degrees. Wider than that and they overlap
-// into one another, which is what made them unreadable.
-// The coverage angle is a property of the loudspeaker, so it is fixed rather
-// than growing with level — the level drives brightness alone. This replaces
-// the old widthStart/widthEnd pair, whose 45 degree half-angle at full level
-// made neighbouring cones touch.
-TEST (SpeakerLightScaling, ShippedConfigSetsTheCoverageAngle)
+// The beam widens with level, so the two angles bracket that range. Both are
+// measured off the beam's axis.
+TEST (SpeakerLightScaling, ShippedConfigWidensTheBeamWithLevel)
 {
   auto const file = juce::File (A3_CONFIG_JSON_PATH);
   ASSERT_TRUE (file.existsAsFile ());
@@ -122,12 +119,14 @@ TEST (SpeakerLightScaling, ShippedConfigSetsTheCoverageAngle)
   auto const parsed = juce::JSON::parse (file.loadFileAsString ());
   auto const &speakerLight = parsed["speakerLight"];
 
-  ASSERT_TRUE (speakerLight.hasProperty ("coverageAngle"));
+  ASSERT_TRUE (speakerLight.hasProperty ("beamAngleQuiet"));
+  ASSERT_TRUE (speakerLight.hasProperty ("beamAngleLoud"));
 
-  auto const coverage = static_cast<float> (speakerLight["coverageAngle"]);
+  auto const quiet = static_cast<float> (speakerLight["beamAngleQuiet"]);
+  auto const loud = static_cast<float> (speakerLight["beamAngleLoud"]);
 
-  EXPECT_GT (coverage, 0.f);
-  EXPECT_LT (coverage, 180.f);
+  EXPECT_GT (quiet, 0.f);
+  EXPECT_LT (quiet, loud) << "beam must widen with level, not narrow";
 }
 
 TEST (SpeakerLightScaling, ShippedConfigKeepsLoudestSpeakerBright)
@@ -193,12 +192,32 @@ TEST (SpeakerLightGeometry, BeamStartsExactlyAtTheApertureWidth)
                    speakerApertureHalfWidth);
 }
 
-// Coverage angles are quoted the way a loudspeaker's are: the full angle the
-// cone opens to, not the half-angle off its axis.
-TEST (SpeakerLightGeometry, CoverageAngleIsTheFullConeNotTheHalf)
+// Angles are measured off the beam's axis, so 70 means 70 degrees to either
+// side and 140 across.
+TEST (SpeakerLightGeometry, AngleAndWidthAreInverses)
 {
-  EXPECT_NEAR (beamHalfAngleDegrees (coneWidthFromCoverageAngle (70.f)), 35.f,
-               0.01f);
+  EXPECT_NEAR (beamHalfAngleDegrees (coneWidthFromAngle (70.f)), 70.f, 0.01f);
+  EXPECT_NEAR (beamHalfAngleDegrees (coneWidthFromAngle (26.f)), 26.f, 0.01f);
+}
+
+// The cone widens with level again: a loudspeaker's dispersion is fixed, but
+// this is a picture of how much sound is coming out, and a quiet beam that
+// stays as wide as a loud one carries no information in its shape.
+TEST (SpeakerLightGeometry, ConeWidensFromTheQuietAngleToTheLoudOne)
+{
+  auto constexpr quiet = 26.f;
+  auto constexpr loud = 70.f;
+
+  EXPECT_FLOAT_EQ (beamAngleAtLevel (0.f, quiet, loud), quiet);
+  EXPECT_FLOAT_EQ (beamAngleAtLevel (1.f, quiet, loud), loud);
+  EXPECT_FLOAT_EQ (beamAngleAtLevel (0.5f, quiet, loud), 48.f);
+}
+
+TEST (SpeakerLightGeometry, SpreadStaysFiniteAtAGrazingAngle)
+{
+  // tan blows up at 90 degrees; a config typo must not take the beam with it.
+  EXPECT_TRUE (std::isfinite (beamSpreadTangent (coneWidthFromAngle (90.f))));
+  EXPECT_TRUE (std::isfinite (beamSpreadTangent (coneWidthFromAngle (120.f))));
 }
 
 // Having the aperture width at s=0 is not enough on its own — a profile that

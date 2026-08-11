@@ -656,7 +656,8 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.vuMax = cfgF (sl, "vuMax", 0.2f);
     sc.curve = cfgF (sl, "curve", 0.4f);
     sc.speakerRadius = cfgF (sl, "speakerRadius", 1.55f);
-    sc.coverageAngle = cfgF (sl, "coverageAngle", 70.f);
+    sc.angleQuiet = cfgF (sl, "beamAngleQuiet", 26.f);
+    sc.angleLoud = cfgF (sl, "beamAngleLoud", 70.f);
     sc.edgeSoftness = cfgF (sl, "edgeSoftness", 0.7f);
     sc.beamFalloff = cfgF (sl, "beamFalloff", 0.6f);
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);

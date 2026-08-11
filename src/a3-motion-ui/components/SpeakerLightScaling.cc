@@ -50,18 +50,37 @@ beamHalfAngleDegrees (float width)
   return std::acos (std::clamp (1.f - width, -1.f, 1.f)) * radToDeg;
 }
 
-float
-coneWidthFromCoverageAngle (float coverageAngleDegrees)
+namespace
 {
-  auto constexpr degToRad = 3.14159265358979323846f / 180.f;
+// tan runs to infinity at 90 degrees. A beam that grazes its own axis plane is
+// already wider than the picture, so cutting it short here costs nothing and
+// keeps a config typo from producing a NaN.
+constexpr float maxBeamAngleDegrees = 85.f;
+constexpr float degToRad = 3.14159265358979323846f / 180.f;
+}
 
-  return 1.f - std::cos (coverageAngleDegrees * 0.5f * degToRad);
+float
+coneWidthFromAngle (float angleDegrees)
+{
+  return 1.f - std::cos (std::clamp (angleDegrees, 0.f, 180.f) * degToRad);
+}
+
+float
+beamAngleAtLevel (float level, float quietAngleDegrees,
+                  float loudAngleDegrees)
+{
+  auto const t = std::clamp (level, 0.f, 1.f);
+
+  return quietAngleDegrees + t * (loudAngleDegrees - quietAngleDegrees);
 }
 
 float
 beamSpreadTangent (float width)
 {
-  return std::tan (std::acos (std::clamp (1.f - width, -1.f, 1.f)));
+  auto const angle = std::min (beamHalfAngleDegrees (width),
+                               maxBeamAngleDegrees);
+
+  return std::tan (angle * degToRad);
 }
 
 float

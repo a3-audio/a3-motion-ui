@@ -44,8 +44,9 @@
     "decay": 0.25,
     "absorb": 1.0,
     "innerIntensity": 4.0,
-    "coverageAngle": 70,
-    "edgeSoftness": 0.7
+    "edgeSoftness": 0.7,
+    "beamAngleQuiet": 26,
+    "beamAngleLoud": 70
   },
   "channels": [
     {

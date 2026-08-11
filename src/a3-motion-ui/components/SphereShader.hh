@@ -97,7 +97,8 @@ public:
     float vuMax = 0.2f;
     float curve = 0.4f;
     float speakerRadius = 1.55f;
-    float coverageAngle = 70.f; // full angle, the way a loudspeaker's is quoted
+    float angleQuiet = 26.f; // degrees off the axis when silent
+    float angleLoud = 70.f;  // and at full level
     float edgeSoftness = 0.7f;
     float beamFalloff = 0.6f;
     float beamIntensity = 0.8f;
@@ -130,7 +131,7 @@ private:
   GLint _uBgColour = -1;
 
   GLint _uSpotLevel[4] = { -1, -1, -1, -1 };
-  GLint _uBeamTan = -1;
+  GLint _uBeamTan[4] = { -1, -1, -1, -1 };
   GLint _uSpotColour = -1;
   GLint _uSpeakerRadius = -1;
   GLint _uBeamEdge = -1;
