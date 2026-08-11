@@ -33,6 +33,16 @@ speakerLightLevel (float vuRms, float vuMax, float curve)
 }
 
 float
+speakerLightEnvelope (float current, float target, float attackSeconds,
+                      float decaySeconds, float dt)
+{
+  auto const tau = (target > current) ? attackSeconds : decaySeconds;
+  auto const alpha = 1.f - std::exp (-dt / std::max (0.001f, tau));
+
+  return current + alpha * (target - current);
+}
+
+float
 beamHalfAngleDegrees (float width)
 {
   auto constexpr radToDeg = 180.f / 3.14159265358979323846f;

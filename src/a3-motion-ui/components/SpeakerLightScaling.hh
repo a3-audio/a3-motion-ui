@@ -37,6 +37,15 @@ namespace a3
  *  `curve` alone controls contrast between speakers. */
 float speakerLightLevel (float vuRms, float vuMax, float curve);
 
+/** One frame of an asymmetric exponential envelope on a beam's level.
+ *
+ *  Time constants are in seconds, not per-frame coefficients, so the feel does
+ *  not shift with the frame rate. Rising uses `attackSeconds`, falling uses
+ *  `decaySeconds`; a decay much slower than the attack is what lets the beams
+ *  hold still long enough to be compared against each other. */
+float speakerLightEnvelope (float current, float target, float attackSeconds,
+                            float decaySeconds, float dt);
+
 /** Half-angle of a beam cone, in degrees, for a given width value.
  *
  *  The shader lights a pixel when `dot(dir, -speakerDir) > 1 - width`, so the

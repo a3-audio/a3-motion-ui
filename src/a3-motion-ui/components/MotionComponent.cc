@@ -28,6 +28,7 @@
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
 namespace
 {
@@ -668,6 +669,9 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.widthStart = cfgF (sl, "widthStart", 0.1f);
     sc.widthEnd = cfgF (sl, "widthEnd", 0.2929f);
     _sphereShader.setSpotlightConfig (sc);
+
+    _spotAttack = cfgF (sl, "attack", 0.08f);
+    _spotDecay = cfgF (sl, "decay", 0.4f);
   }
 
   // Cache corona config (avoids JSON lookups every frame per blob).
@@ -727,7 +731,13 @@ MotionComponent::renderOpenGL ()
     for (int i = 0; i < 4; ++i)
       {
         smoothFixed (_smoothSpotPeak[i], _vuSpeakerPeak[i].load ());
-        smoothFixed (_smoothSpotRms[i],  _vuSpeakerRms[i].load ());
+
+        // The beams get their own configurable envelope: smoothFixed rises in
+        // two frames and falls in seven, which turns even an rms input back
+        // into a peak follower.
+        _smoothSpotRms[i] = speakerLightEnvelope (
+            _smoothSpotRms[i], _vuSpeakerRms[i].load (), _spotAttack,
+            _spotDecay, dt);
       }
 
     // Configurable attack/decay for blob coronas

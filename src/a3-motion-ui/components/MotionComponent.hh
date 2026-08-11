@@ -187,6 +187,9 @@ private:
   // Cached corona config (loaded once in newOpenGLContextCreated, avoids JSON lookup per frame)
   CoronaConfig _coronaCfg;
 
+  // Envelope time constants for the speaker beams, in seconds
+  float _spotAttack = 0.08f, _spotDecay = 0.4f;
+
   void applyVisualConfig (juce::var const &config);
   void reloadVisualConfigIfChanged ();
 

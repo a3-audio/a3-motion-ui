@@ -19,7 +19,7 @@
     "alphaMax": 0.75,
     "whiteBlend": 0.9,
     "attack": 0.01,
-    "decay": 0.02
+    "decay": 0.25
   },
   "sphereGlow": {
     "vuMax": 0.3,
@@ -40,7 +40,7 @@
     "intensity": 0.0
   },
   "speakerLight": {
-    "vuMax": 0.025,
+    "vuMax": 0.20,
     "r": 110,
     "g": 250,
     "b": 251,
@@ -53,7 +53,9 @@
     "speakerRadius": 1.55,
     "beamConeExp": 6,
     "beamFalloff": 1.5,
-    "beamIntensity": 0.35
+    "beamIntensity": 0.6,
+    "attack": 0.08,
+    "decay": 0.25
   },
   "channels": [
     { "r": 216, "g":  17, "b":  89 },

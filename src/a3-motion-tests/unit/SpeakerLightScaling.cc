@@ -29,16 +29,20 @@ using namespace a3;
 namespace
 {
 
-// One frame captured from a live system via `oscdump 7772`, at the levels the
-// rig actually runs at. The spread between the loudest and quietest speaker is
-// the whole point of the display and has to survive to the output — in
-// particular the loudest one must not clip against vuMax, which flattens it
-// against its neighbours.
-// Only the rms is used: peaks on this rig run a crest factor of ~12, so a
+// Captured from the running rig via `oscdump 7772` — 574 messages over six
+// seconds of programme material. The spread between the loudest and quietest
+// speaker is the whole point of the display and has to survive to the output.
+// Only the rms is used: peaks on this rig run a crest factor around 3, so a
 // peak-driven beam chases transients instead of holding still long enough to
 // be compared against its neighbours.
-constexpr float loudestRms = 0.015763f;  // /vu/8
-constexpr float quietestRms = 0.002692f; // /vu/6
+//
+// An earlier capture put these an order of magnitude lower, which is how
+// `vuMax` ended up at 0.025 — far under the real signal range, so every
+// speaker clipped against it for most of the time and they all read equally
+// bright. Re-measure these before trusting them again.
+constexpr float loudestRms = 0.0763f;  // /vu/8, mean
+constexpr float quietestRms = 0.0165f; // /vu/6, mean
+constexpr float loudestRmsPeak = 0.1869f; // /vu/8, highest single message
 
 struct ShippedParams
 {
@@ -126,7 +130,60 @@ TEST (SpeakerLightScaling, ShippedConfigKeepsLoudestSpeakerBright)
 
   // Contrast alone is not enough — a steep curve with a high vuMax separates
   // the speakers but leaves all of them nearly black.
-  EXPECT_GT (speakerLightLevel (loudestRms, params.vuMax, params.curve), 0.6f);
+  EXPECT_GT (speakerLightLevel (loudestRms, params.vuMax, params.curve), 0.4f);
+}
+
+// The failure mode this guards against: vuMax below the actual signal range
+// pins the level at 1.0 for most of the time, so the beams sit at the stop and
+// only dip in the gaps — indistinguishable from each other, and reading like a
+// peak meter even though they are fed rms.
+TEST (SpeakerLightScaling, ShippedConfigLeavesHeadroomAboveTheLoudestSpeaker)
+{
+  auto const params = shippedParams ();
+
+  EXPECT_LT (speakerLightLevel (loudestRmsPeak, params.vuMax, params.curve),
+             1.f)
+      << "vuMax " << params.vuMax << " is below the measured rms range";
+}
+
+// A step up settles to 1 - 1/e of the way after one time constant. Expressing
+// the smoothing in seconds rather than per-frame coefficients keeps it
+// independent of the frame rate.
+TEST (SpeakerLightScaling, EnvelopeRisesWithTheAttackTimeConstant)
+{
+  auto constexpr attack = 0.08f;
+  auto constexpr decay = 0.4f;
+
+  EXPECT_NEAR (speakerLightEnvelope (0.f, 1.f, attack, decay, attack), 0.632f,
+               0.01f);
+}
+
+TEST (SpeakerLightScaling, EnvelopeFallsWithTheDecayTimeConstant)
+{
+  auto constexpr attack = 0.08f;
+  auto constexpr decay = 0.4f;
+
+  // A fast attack next to a slow decay: picking the wrong branch here is what
+  // turns an rms-driven envelope back into a peak follower.
+  EXPECT_NEAR (speakerLightEnvelope (1.f, 0.f, attack, decay, decay), 0.368f,
+               0.01f);
+}
+
+// The beams are meant to hold still long enough to be compared against each
+// other, which needs a decay slower than the attack.
+TEST (SpeakerLightScaling, ShippedConfigHoldsTheBeamsLongerThanItRaisesThem)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &speakerLight = parsed["speakerLight"];
+
+  ASSERT_TRUE (speakerLight.hasProperty ("attack"));
+  ASSERT_TRUE (speakerLight.hasProperty ("decay"));
+
+  EXPECT_LT (static_cast<float> (speakerLight["attack"]),
+             static_cast<float> (speakerLight["decay"]));
 }
 
 }
