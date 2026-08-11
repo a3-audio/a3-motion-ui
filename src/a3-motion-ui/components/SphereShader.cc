@@ -207,17 +207,16 @@ float beamTotal (vec2 p)
 
 // The display is an orthographic view of the upper hemisphere from above: the
 // centre of the disc is straight up, the rim is the horizon. That is exactly
-// what the sphere's own normal describes, so the direction is the normal with
-// its horizontal axes swapped — the IEM azimuth runs clockwise from the top
-// while the screen angle runs anticlockwise from the right, and swapping x
-// and y is what that exchange comes to. Mirrors energyDirectionForScreen()
-// in EnergyMap.cc.
+// what the sphere's own normal describes, so the direction is that normal with
+// its horizontal axes rearranged to match the way blobs are placed —
+// cartesian2DHOA2JUCE maps a position to { -y, -x } with JUCE's y pointing
+// down. Mirrors energyDirectionForScreen() in EnergyMap.cc.
 vec3 screenToDirection (vec2 uv, float dist)
 {
     float r = min (dist, 1.0);
     float up = sqrt (max (0.0, 1.0 - r * r));
 
-    return vec3 (uv.y, uv.x, up);
+    return vec3 (uv.y, -uv.x, up);
 }
 
 vec2 energyUV (vec3 dir)

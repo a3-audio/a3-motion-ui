@@ -131,30 +131,31 @@ TEST (EnergyMap, ShippedGridHasThePluginsPointCount)
 
 // ── screen position to direction ────────────────────────────────────────
 //
-// Anchored on a fact from the rig: speaker 1 is drawn at the top left and sits
-// at IEM azimuth -45. Everything else follows from that plus the display being
-// an orthographic view of the upper hemisphere from above — the same
-// projection the sphere shader's own normal already describes, which is why
-// the blobs sit on the rim at the horizon rather than half way out.
+// Anchored on the blob pipeline, because that is what actually decides where a
+// direction appears: Position::azimuth() is atan2(y, x) in HOA coordinates and
+// goes straight to /StereoEncoder/azimuth, and cartesian2DHOA2JUCE (Helpers.hh)
+// puts that on screen as { -y, -x } with JUCE's y pointing down. Following that
+// through leaves azimuth 0 at the top of the disc and 90 to the left.
+//
+// The speaker icons are *not* a reliable reference here: drawSpeakers() places
+// them by raw angle without that conversion, so they do not sit where the same
+// azimuth would put a blob.
 
-TEST (EnergyMap, TopLeftIsTheDirectionOfTheFirstSpeaker)
+TEST (EnergyMap, AzimuthZeroIsAtTheTopOfTheDisc)
 {
   // Screen coordinates with y up, as the shader uses them.
-  auto const direction = energyDirectionForScreen (-0.7071f, 0.7071f);
+  auto const direction = energyDirectionForScreen (0.f, 1.f);
 
-  EXPECT_NEAR (direction.azimuthDegrees, -45.f, 0.5f);
+  EXPECT_NEAR (direction.azimuthDegrees, 0.f, 0.5f);
   EXPECT_NEAR (direction.elevationDegrees, 0.f, 0.5f);
 }
 
-TEST (EnergyMap, SpeakersRunClockwiseFromTheTopLeft)
+TEST (EnergyMap, AzimuthRunsAnticlockwiseFromTheTop)
 {
-  EXPECT_NEAR (energyDirectionForScreen (0.7071f, 0.7071f).azimuthDegrees,
-               45.f, 0.5f);
-  EXPECT_NEAR (energyDirectionForScreen (0.7071f, -0.7071f).azimuthDegrees,
-               135.f, 0.5f);
-  EXPECT_NEAR (std::abs (
-                   energyDirectionForScreen (-0.7071f, -0.7071f).azimuthDegrees),
-               135.f, 0.5f);
+  EXPECT_NEAR (energyDirectionForScreen (-1.f, 0.f).azimuthDegrees, 90.f, 0.5f);
+  EXPECT_NEAR (energyDirectionForScreen (1.f, 0.f).azimuthDegrees, -90.f, 0.5f);
+  EXPECT_NEAR (std::abs (energyDirectionForScreen (0.f, -1.f).azimuthDegrees),
+               180.f, 0.5f);
 }
 
 TEST (EnergyMap, CentreOfTheDiscIsStraightUp)

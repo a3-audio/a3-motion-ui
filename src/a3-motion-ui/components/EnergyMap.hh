@@ -62,8 +62,11 @@ constexpr float energyMapSpreadDegrees = 12.f;
  *  Energy from below the horizon has nowhere to go in this projection and is
  *  not shown.
  *
- *  Azimuth follows the IEM convention, which runs the other way round from the
- *  screen angle: speaker 1 is drawn at the top left and sits at -45 degrees. */
+ *  Azimuth is the one the blobs are sent out with — Position::azimuth() as it
+ *  reaches /StereoEncoder/azimuth — so the energy lands where the blob for
+ *  that direction sits: 0 at the top of the disc, running anticlockwise. The
+ *  speaker icons are not a reference for this; drawSpeakers() places them by
+ *  raw angle, without the HOA-to-JUCE conversion the blobs go through. */
 EnergyDirection energyDirectionForScreen (float x, float y);
 
 /** Index of the texel a direction falls in. */

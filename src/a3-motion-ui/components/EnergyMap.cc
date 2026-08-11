@@ -102,14 +102,10 @@ energyDirectionForScreen (float x, float y)
   // unit sphere, so elevation is asin of it rather than linear in radius.
   auto const elevation = std::asin (std::sqrt (std::max (0.f, 1.f - radius * radius)));
 
-  // The screen angle runs anticlockwise from the right, the IEM azimuth
-  // clockwise from the top — hence 90 minus, not plus.
-  auto const screenAngle = std::atan2 (y, x);
-  auto azimuth = 90.f - screenAngle / degToRad;
-  while (azimuth > 180.f)
-    azimuth -= 360.f;
-  while (azimuth <= -180.f)
-    azimuth += 360.f;
+  // Follows the blob pipeline: cartesian2DHOA2JUCE puts a position at
+  // { -y, -x } with JUCE's y pointing down, which lands azimuth 0 at the top
+  // of the disc and runs it anticlockwise.
+  auto const azimuth = std::atan2 (-x, y) / degToRad;
 
   return { azimuth, elevation / degToRad };
 }
