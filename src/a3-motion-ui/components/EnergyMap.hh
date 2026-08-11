@@ -122,6 +122,19 @@ float beamRimCoverageDegrees (float angleDegrees, float speakerRadius);
 float beamWrapHalfAngle (float distanceFromCentre, float mouthRadius,
                          float apertureAngleDegrees, float wrapAngleDegrees);
 
+/** A band's level lifted onto a floor, so a silent speaker thins its band
+ *  rather than losing it and opening the ring around the sphere. */
+float beamBandLevel (float level, float floor);
+
+/** How much of the band survives at a given distance from the sphere centre.
+ *
+ *  Full strength in the annulus between the sphere and the horn's mouth, then
+ *  bleeding past both ends over `bleed` — outwards into the glow's filaments,
+ *  inwards into the net's — so the band joins those two rather than sitting
+ *  between them as a separate object. */
+float beamRadialWindow (float distanceFromCentre, float mouthRadius,
+                        float bleed);
+
 /** Index of the texel a direction falls in. */
 int energyMapTexel (float azimuthDegrees, float elevationDegrees);
 

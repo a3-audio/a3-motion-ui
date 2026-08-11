@@ -119,6 +119,9 @@ public:
     float wanderScale = 4.f;
     float wanderFlow = 0.08f;
     float root = 0.35f;        // density where it leaves the speaker
+    float levelFloor = 0.25f;  // level the band never drops below
+    float bleed = 0.22f;       // how far it reaches past the annulus
+    float fray = 0.8f;         // how ragged its edge is
     float filament = 0.7f;     // how much of it is filament rather than solid
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
@@ -191,6 +194,9 @@ private:
   GLint _uWanderScale = -1;
   GLint _uWanderFlow = -1;
   GLint _uBeamRoot = -1;
+  GLint _uBeamFloor = -1;
+  GLint _uBeamBleed = -1;
+  GLint _uBeamFray = -1;
   GLint _uBeamFilament = -1;
   GLint _uApertureHalf = -1;
   GLint _uMouthOffset = -1;

@@ -177,6 +177,27 @@ beamWrapHalfAngle (float distanceFromCentre, float mouthRadius,
          + eased * (wrapAngleDegrees - apertureAngleDegrees);
 }
 
+float
+beamBandLevel (float level, float floor)
+{
+  return floor + std::clamp (level, 0.f, 1.f) * (1.f - floor);
+}
+
+float
+beamRadialWindow (float distanceFromCentre, float mouthRadius, float bleed)
+{
+  auto const span = std::max (bleed, 1e-4f);
+
+  auto const outside
+      = std::clamp ((mouthRadius + span - distanceFromCentre) / span, 0.f, 1.f);
+  auto const inside
+      = std::clamp ((distanceFromCentre - (1.f - span)) / span, 0.f, 1.f);
+
+  auto const smooth = [] (float t) { return t * t * (3.f - 2.f * t); };
+
+  return smooth (outside) * smooth (inside);
+}
+
 int
 energyMapTexel (float azimuthDegrees, float elevationDegrees)
 {

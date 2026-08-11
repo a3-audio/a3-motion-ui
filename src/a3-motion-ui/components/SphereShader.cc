@@ -94,6 +94,9 @@ uniform float uWanderTwist;    // detail of the wander around the circle
 uniform float uWanderScale;    // and along the radius
 uniform float uWanderFlow;     // how fast it creeps
 uniform float uBeamRoot;       // density where it leaves the speaker
+uniform float uBeamFloor;      // level the band never drops below
+uniform float uBeamBleed;      // how far it reaches past the annulus
+uniform float uBeamFray;       // how ragged its edge is
 uniform float uBeamFilament;   // how much of the beam is filament rather than solid
 uniform float uApertureHalf;   // half-width of the horn's mouth
 uniform float uMouthOffset;    // mouth position ahead of the speaker centre
@@ -240,7 +243,14 @@ float beamDensity (vec2 point, vec2 spkDir, float level)
 
     float mouthR = uSpeakerRadius - uMouthOffset;
     float d = length (point);
-    if (d > mouthR || d < 1.0) return 0.0;   // only in the annulus
+
+    // Full strength in the annulus, bleeding past both ends so the band runs
+    // into the glow's filaments outside and the net's inside instead of
+    // sitting between them. Mirrors beamRadialWindow() in EnergyMap.cc.
+    float span = max (uBeamBleed, 0.0001);
+    float radial = smoothstep (0.0, 1.0, clamp ((mouthR + span - d) / span, 0.0, 1.0))
+                 * smoothstep (0.0, 1.0, clamp ((d - (1.0 - span)) / span, 0.0, 1.0));
+    if (radial <= 0.0) return 0.0;
 
     // How far along the way in, 0 at the mouth and 1 at the sphere.
     float t = clamp ((mouthR - d) / max (mouthR - 1.0, 0.0001), 0.0, 1.0);
@@ -259,14 +269,24 @@ float beamDensity (vec2 point, vec2 spkDir, float level)
     wp.z = d * uWanderScale - uTime * uWanderFlow;
     float wander = (valueNoise (wp) - 0.5) * radians (uWander) * eased;
 
-    float across = 1.0 - smoothstep (halfWidth * uBeamEdge, halfWidth,
+    // The edge frays: its own noise eats into the band so it ends in tendrils
+    // rather than a clean line.
+    vec3 fp = vec3 (cos (a), sin (a), 0.0) * uWanderTwist * 2.0;
+    fp.z = d * uWanderScale * 2.0 - uTime * uWanderFlow * 1.7;
+    float ragged = halfWidth * (1.0 + (valueNoise (fp) - 0.5) * uBeamFray);
+
+    float across = 1.0 - smoothstep (ragged * uBeamEdge, ragged,
                                      abs (dA - wander));
     if (across <= 0.0) return 0.0;
 
     // Denser where it wraps the sphere than where it leaves the speaker.
     float grip = mix (uBeamRoot, 1.0, eased);
 
-    return level * across * grip;
+    // Never lets go entirely — a silent speaker thins its band instead of
+    // dropping it and opening the ring. Mirrors beamBandLevel().
+    float lifted = uBeamFloor + level * (1.0 - uBeamFloor);
+
+    return lifted * across * grip * radial;
 }
 
 float beamTotal (vec2 p)
@@ -542,6 +562,9 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uWanderScale = glGetUniformLocation (pid, "uWanderScale");
   _uWanderFlow = glGetUniformLocation (pid, "uWanderFlow");
   _uBeamRoot = glGetUniformLocation (pid, "uBeamRoot");
+  _uBeamFray = glGetUniformLocation (pid, "uBeamFray");
+  _uBeamBleed = glGetUniformLocation (pid, "uBeamBleed");
+  _uBeamFloor = glGetUniformLocation (pid, "uBeamFloor");
   _uBeamFilament  = glGetUniformLocation (pid, "uBeamFilament");
   _uApertureHalf  = glGetUniformLocation (pid, "uApertureHalf");
   _uMouthOffset   = glGetUniformLocation (pid, "uMouthOffset");
@@ -681,6 +704,9 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uWanderScale >= 0) glUniform1f (_uWanderScale, _spotCfg.wanderScale);
   if (_uWanderFlow >= 0) glUniform1f (_uWanderFlow, _spotCfg.wanderFlow);
   if (_uBeamRoot >= 0) glUniform1f (_uBeamRoot, _spotCfg.root);
+  if (_uBeamFloor >= 0) glUniform1f (_uBeamFloor, _spotCfg.levelFloor);
+  if (_uBeamBleed >= 0) glUniform1f (_uBeamBleed, _spotCfg.bleed);
+  if (_uBeamFray >= 0) glUniform1f (_uBeamFray, _spotCfg.fray);
   if (_uBeamFilament >= 0)
     glUniform1f (_uBeamFilament, _spotCfg.filament);
   if (_uApertureHalf >= 0)

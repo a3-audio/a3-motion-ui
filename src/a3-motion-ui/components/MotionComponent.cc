@@ -763,6 +763,9 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.wanderScale = cfgF (sl, "wanderScale", 4.f);
     sc.wanderFlow = cfgF (sl, "wanderFlow", 0.08f);
     sc.root = cfgF (sl, "root", 0.35f);
+    sc.levelFloor = cfgF (sl, "levelFloor", 0.25f);
+    sc.bleed = cfgF (sl, "bleed", 0.22f);
+    sc.fray = cfgF (sl, "fray", 0.8f);
     sc.filament = cfgF (sl, "filament", 0.7f);
     _sphereShader.setSpotlightConfig (sc);
 

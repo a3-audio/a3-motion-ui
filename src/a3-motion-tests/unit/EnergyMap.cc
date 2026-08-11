@@ -269,8 +269,9 @@ TEST (BeamWrap, CoversItsQuarterWhereItMeetsTheSphere)
   EXPECT_NEAR (beamWrapHalfAngle (1.f, mouthRadius, 6.f, 45.f), 45.f, 0.01f);
 }
 
-// The point of the quarter: four of them, both sides each, is the full circle.
-TEST (BeamWrap, FourBeamsCloseTheCircle)
+// Four of them, both sides each, is the full circle — at 45 degrees the
+// quarters meet exactly.
+TEST (BeamWrap, FourQuartersMeetAtFortyFive)
 {
   auto constexpr mouthRadius = 1.35f;
   auto const halfAngle = beamWrapHalfAngle (1.f, mouthRadius, 6.f, 45.f);
@@ -309,10 +310,84 @@ TEST (BeamWrap, ShippedConfigWrapsAQuarterEach)
   ASSERT_TRUE (speakerLight.hasProperty ("wrapAngle"));
   ASSERT_TRUE (speakerLight.hasProperty ("wander"));
 
-  EXPECT_NEAR (static_cast<float> (speakerLight["wrapAngle"]), 45.f, 2.f)
-      << "four beams have to close the circle between them";
+  // Meeting exactly is not enough in practice: the edges are soft and frayed,
+  // so two bands that only touch leave a thin seam where both have faded out.
+  // Measured just outside the rim at 72 directions, gaps in the ring went
+  // 7 at 45 degrees, 2 at 55, none at 65 — hence overlap rather than 45.
+  EXPECT_GE (static_cast<float> (speakerLight["wrapAngle"]), 45.f)
+      << "below a quarter each the four cannot enclose the sphere at all";
   EXPECT_GT (static_cast<float> (speakerLight["wander"]), 0.f)
       << "without wander the bands are geometry again, not roots";
+}
+
+
+// ── the band never quite lets go ────────────────────────────────────────
+//
+// A silent speaker used to leave its quarter dark, which opened the ring. The
+// sphere is meant to stay enclosed, so the level is lifted onto a floor — the
+// band thins rather than vanishing.
+
+TEST (BeamBand, SilenceStillLeavesABand)
+{
+  EXPECT_FLOAT_EQ (beamBandLevel (0.f, 0.25f), 0.25f);
+}
+
+TEST (BeamBand, FullLevelIsUntouched)
+{
+  EXPECT_FLOAT_EQ (beamBandLevel (1.f, 0.25f), 1.f);
+}
+
+TEST (BeamBand, LouderStillMeansBrighter)
+{
+  EXPECT_LT (beamBandLevel (0.3f, 0.25f), beamBandLevel (0.7f, 0.25f));
+}
+
+TEST (BeamBand, ShippedConfigKeepsTheSphereEnclosed)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &speakerLight = parsed["speakerLight"];
+
+  ASSERT_TRUE (speakerLight.hasProperty ("levelFloor"));
+
+  auto const floor = static_cast<float> (speakerLight["levelFloor"]);
+  EXPECT_GT (floor, 0.f) << "at zero a silent speaker opens the ring again";
+  EXPECT_LT (floor, 0.6f) << "too high and the band stops saying anything";
+}
+
+// ── and it frays at both ends ───────────────────────────────────────────
+//
+// The band used to stop dead at the mouth and at the rim. It bleeds past both
+// now, so it runs into the glow's filaments outside and the net's inside
+// instead of sitting between them as a separate object.
+
+TEST (BeamBand, FullStrengthInsideTheAnnulus)
+{
+  auto constexpr mouthRadius = 1.35f;
+
+  EXPECT_FLOAT_EQ (beamRadialWindow (1.15f, mouthRadius, 0.2f), 1.f);
+}
+
+TEST (BeamBand, ReachesOutIntoTheGlow)
+{
+  auto constexpr mouthRadius = 1.35f;
+  auto constexpr bleed = 0.2f;
+
+  EXPECT_GT (beamRadialWindow (mouthRadius + bleed * 0.4f, mouthRadius, bleed),
+             0.f);
+  EXPECT_FLOAT_EQ (beamRadialWindow (mouthRadius + bleed, mouthRadius, bleed),
+                   0.f);
+}
+
+TEST (BeamBand, ReachesInIntoTheNet)
+{
+  auto constexpr mouthRadius = 1.35f;
+  auto constexpr bleed = 0.2f;
+
+  EXPECT_GT (beamRadialWindow (1.f - bleed * 0.4f, mouthRadius, bleed), 0.f);
+  EXPECT_FLOAT_EQ (beamRadialWindow (1.f - bleed, mouthRadius, bleed), 0.f);
 }
 
 }
