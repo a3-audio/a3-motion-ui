@@ -656,11 +656,10 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.vuMax = cfgF (sl, "vuMax", 0.2f);
     sc.curve = cfgF (sl, "curve", 0.4f);
     sc.speakerRadius = cfgF (sl, "speakerRadius", 1.55f);
-    sc.beamConeExp = cfgF (sl, "beamConeExp", 6.f);
+    sc.coverageAngle = cfgF (sl, "coverageAngle", 70.f);
+    sc.edgeSoftness = cfgF (sl, "edgeSoftness", 0.7f);
     sc.beamFalloff = cfgF (sl, "beamFalloff", 0.6f);
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
-    sc.widthStart = cfgF (sl, "widthStart", 0.1f);
-    sc.widthEnd = cfgF (sl, "widthEnd", 0.2929f);
     sc.absorb = cfgF (sl, "absorb", 1.5f);
     sc.innerIntensity = cfgF (sl, "innerIntensity", 0.8f);
     _sphereShader.setSpotlightConfig (sc);

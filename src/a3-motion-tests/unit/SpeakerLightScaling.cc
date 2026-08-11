@@ -83,9 +83,9 @@ TEST (SpeakerLightScaling, ShippedConfigSeparatesLoudAndQuietSpeakers)
       << "speaker levels " << high << " and " << low << " are too close";
 }
 
-// beamConeExp and beamFalloff were dead for a while: loaded from the config,
-// pushed into uniforms, never read by the shader. They are wired up now, so a
-// config that drops them would silently fall back to the defaults again.
+// These were dead for a while: loaded from the config, pushed into uniforms,
+// never read by the shader. They are wired up now, so a config that drops them
+// would silently fall back to the defaults again.
 TEST (SpeakerLightScaling, ShippedConfigSetsBeamShapeParameters)
 {
   auto const file = juce::File (A3_CONFIG_JSON_PATH);
@@ -94,19 +94,27 @@ TEST (SpeakerLightScaling, ShippedConfigSetsBeamShapeParameters)
   auto const parsed = juce::JSON::parse (file.loadFileAsString ());
   auto const &speakerLight = parsed["speakerLight"];
 
-  EXPECT_TRUE (speakerLight.hasProperty ("beamConeExp"));
+  EXPECT_TRUE (speakerLight.hasProperty ("edgeSoftness"));
   EXPECT_TRUE (speakerLight.hasProperty ("beamFalloff"));
   EXPECT_TRUE (speakerLight.hasProperty ("beamIntensity"));
+  EXPECT_TRUE (speakerLight.hasProperty ("absorb"));
+  EXPECT_TRUE (speakerLight.hasProperty ("innerIntensity"));
 
-  // An exponent of 1 leaves the cone at its full ~67 degrees, which makes the
-  // four beams overlap into a single glow.
-  EXPECT_GT (static_cast<float> (speakerLight["beamConeExp"]), 1.f);
+  // A softness of 1 has no soft edge at all; 0 fades from the axis outwards
+  // and undoes the flat top.
+  auto const softness = static_cast<float> (speakerLight["edgeSoftness"]);
+  EXPECT_GT (softness, 0.f);
+  EXPECT_LT (softness, 1.f);
 }
 
 // The four speakers sit 90 degrees apart, so at full level the cones should
 // just touch: a half-angle of 45 degrees. Wider than that and they overlap
 // into one another, which is what made them unreadable.
-TEST (SpeakerLightScaling, ShippedConfigConesJustTouchAtFullLevel)
+// The coverage angle is a property of the loudspeaker, so it is fixed rather
+// than growing with level — the level drives brightness alone. This replaces
+// the old widthStart/widthEnd pair, whose 45 degree half-angle at full level
+// made neighbouring cones touch.
+TEST (SpeakerLightScaling, ShippedConfigSetsTheCoverageAngle)
 {
   auto const file = juce::File (A3_CONFIG_JSON_PATH);
   ASSERT_TRUE (file.existsAsFile ());
@@ -114,15 +122,12 @@ TEST (SpeakerLightScaling, ShippedConfigConesJustTouchAtFullLevel)
   auto const parsed = juce::JSON::parse (file.loadFileAsString ());
   auto const &speakerLight = parsed["speakerLight"];
 
-  ASSERT_TRUE (speakerLight.hasProperty ("widthStart"));
-  ASSERT_TRUE (speakerLight.hasProperty ("widthEnd"));
+  ASSERT_TRUE (speakerLight.hasProperty ("coverageAngle"));
 
-  auto const widthStart = static_cast<float> (speakerLight["widthStart"]);
-  auto const widthEnd = static_cast<float> (speakerLight["widthEnd"]);
+  auto const coverage = static_cast<float> (speakerLight["coverageAngle"]);
 
-  EXPECT_LT (widthStart, widthEnd) << "cone must widen with level, not narrow";
-  EXPECT_NEAR (beamHalfAngleDegrees (widthEnd), 45.f, 1.f);
-  EXPECT_LT (beamHalfAngleDegrees (widthStart), 45.f);
+  EXPECT_GT (coverage, 0.f);
+  EXPECT_LT (coverage, 180.f);
 }
 
 TEST (SpeakerLightScaling, ShippedConfigKeepsLoudestSpeakerBright)
@@ -186,6 +191,36 @@ TEST (SpeakerLightGeometry, BeamStartsExactlyAtTheApertureWidth)
 {
   EXPECT_FLOAT_EQ (beamHalfWidthAt (0.f, speakerApertureHalfWidth, 1.f),
                    speakerApertureHalfWidth);
+}
+
+// Coverage angles are quoted the way a loudspeaker's are: the full angle the
+// cone opens to, not the half-angle off its axis.
+TEST (SpeakerLightGeometry, CoverageAngleIsTheFullConeNotTheHalf)
+{
+  EXPECT_NEAR (beamHalfAngleDegrees (coneWidthFromCoverageAngle (70.f)), 35.f,
+               0.01f);
+}
+
+// Having the aperture width at s=0 is not enough on its own — a profile that
+// peaks on the axis and falls off still *looks* like it starts as a point. The
+// mouth has to be lit across its whole width.
+TEST (SpeakerLightGeometry, BeamIsAtFullBrightnessAcrossTheWholeMouth)
+{
+  auto constexpr halfWidth = 0.2f;
+  auto constexpr softness = 0.7f;
+
+  EXPECT_FLOAT_EQ (beamProfile (0.f, halfWidth, softness), 1.f);
+  EXPECT_FLOAT_EQ (beamProfile (halfWidth * 0.5f, halfWidth, softness), 1.f);
+}
+
+TEST (SpeakerLightGeometry, BeamFadesOutAtItsEdge)
+{
+  auto constexpr halfWidth = 0.2f;
+  auto constexpr softness = 0.7f;
+
+  EXPECT_FLOAT_EQ (beamProfile (halfWidth, halfWidth, softness), 0.f);
+  EXPECT_GT (beamProfile (halfWidth * 0.85f, halfWidth, softness), 0.f);
+  EXPECT_LT (beamProfile (halfWidth * 0.85f, halfWidth, softness), 1.f);
 }
 
 TEST (SpeakerLightGeometry, BeamCastsNoLightBehindTheMouth)
@@ -258,6 +293,46 @@ TEST (SpeakerLightGeometry, TraversalIsThickestAtTheCentreAndZeroAtTheRim)
   EXPECT_FLOAT_EQ (sphereHalfChord (0.f), 1.f);
   EXPECT_FLOAT_EQ (sphereHalfChord (1.f), 0.f);
   EXPECT_NEAR (sphereHalfChord (0.6f), 0.8f, 0.001f);
+}
+
+// Measured on the running rig via `oscdump 7774`: the subwoofer sits an order
+// of magnitude below the shipped vuMax of 0.3, which left the corona at a
+// level of 0.016 — invisible. Same failure the speaker beams had.
+constexpr float subwooferRmsMean = 0.0129f;
+constexpr float subwooferRmsMax = 0.0237f;
+
+TEST (SphereCorona, ShippedConfigMakesTheCoronaVisible)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &glow = parsed["sphereGlow"];
+
+  ASSERT_TRUE (glow.hasProperty ("vuMax"));
+  ASSERT_TRUE (glow.hasProperty ("intensity"));
+
+  auto const vuMax = static_cast<float> (glow["vuMax"]);
+  auto const curve = static_cast<float> (glow["curve"]);
+  auto const intensity = static_cast<float> (glow["intensity"]);
+
+  EXPECT_GT (speakerLightLevel (subwooferRmsMean, vuMax, curve) * intensity,
+             0.1f)
+      << "vuMax " << vuMax << " is far above the subwoofer's actual range";
+}
+
+TEST (SphereCorona, ShippedConfigLeavesHeadroomAboveTheSubwoofer)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &glow = parsed["sphereGlow"];
+
+  EXPECT_LT (speakerLightLevel (subwooferRmsMax,
+                                static_cast<float> (glow["vuMax"]),
+                                static_cast<float> (glow["curve"])),
+             1.f);
 }
 
 // The beams are meant to hold still long enough to be compared against each

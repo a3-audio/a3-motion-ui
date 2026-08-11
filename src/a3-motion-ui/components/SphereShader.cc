@@ -74,15 +74,12 @@ uniform float uSpotLevel0;
 uniform float uSpotLevel1;
 uniform float uSpotLevel2;
 uniform float uSpotLevel3;
-// tan of the cone half-angle per speaker — computed on the CPU from the
-// level-dependent width, so the shader needs no trig
-uniform float uBeamTan0;
-uniform float uBeamTan1;
-uniform float uBeamTan2;
-uniform float uBeamTan3;
+// tan of the cone half-angle — fixed by the coverage angle, resolved on the
+// CPU so the shader needs no trig
+uniform float uBeamTan;
 uniform vec3  uSpotColour;
 uniform float uSpeakerRadius;
-uniform float uBeamConeExp;
+uniform float uBeamEdge;       // fraction of the half-width that stays flat
 uniform float uBeamFalloff;
 uniform float uBeamIntensity;
 uniform float uApertureHalf;   // half-width of the horn's mouth
@@ -134,7 +131,7 @@ vec3 getBlobCol (int i)
 // on its way through the translucent sphere. Mirrors beamHalfWidthAt(),
 // beamPathInsideSphere() and beamAbsorption() in SpeakerLightScaling.cc —
 // change one and the other has to follow.
-float beamDensity (vec2 p, vec2 spkDir, float level, float spreadTan)
+float beamDensity (vec2 p, vec2 spkDir, float level)
 {
     if (level <= 0.001) return 0.0;
 
@@ -146,9 +143,10 @@ float beamDensity (vec2 p, vec2 spkDir, float level, float spreadTan)
     if (s <= 0.0) return 0.0;              // nothing behind the mouth
     float h = length (rel + spkDir * s);
 
-    float halfWidth = uApertureHalf + s * spreadTan;
-    float core = 1.0 - smoothstep (0.0, halfWidth, h);
-    float shape = pow (core, uBeamConeExp);
+    // Flat across the beam, soft only at the edge — the mouth is lit across
+    // its full width rather than peaking on the axis.
+    float halfWidth = uApertureHalf + s * uBeamTan;
+    float shape = 1.0 - smoothstep (halfWidth * uBeamEdge, halfWidth, h);
     if (shape <= 0.0) return 0.0;
 
     // Path already travelled inside the sphere, from the ray's entry point
@@ -180,10 +178,10 @@ float sphereHalfChord (float d)
 // raymarching.
 float beamTotal (vec2 p)
 {
-    return beamDensity (p, vec2 (-0.7071,  0.7071), uSpotLevel0, uBeamTan0)
-         + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1, uBeamTan1)
-         + beamDensity (p, vec2 ( 0.7071, -0.7071), uSpotLevel2, uBeamTan2)
-         + beamDensity (p, vec2 (-0.7071, -0.7071), uSpotLevel3, uBeamTan3);
+    return beamDensity (p, vec2 (-0.7071,  0.7071), uSpotLevel0)
+         + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1)
+         + beamDensity (p, vec2 ( 0.7071, -0.7071), uSpotLevel2)
+         + beamDensity (p, vec2 (-0.7071, -0.7071), uSpotLevel3);
 }
 
 // ─── main ───────────────────────────────────────────────────────
@@ -344,13 +342,10 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uSpotLevel[1]  = glGetUniformLocation (pid, "uSpotLevel1");
   _uSpotLevel[2]  = glGetUniformLocation (pid, "uSpotLevel2");
   _uSpotLevel[3]  = glGetUniformLocation (pid, "uSpotLevel3");
-  _uBeamTan[0]    = glGetUniformLocation (pid, "uBeamTan0");
-  _uBeamTan[1]    = glGetUniformLocation (pid, "uBeamTan1");
-  _uBeamTan[2]    = glGetUniformLocation (pid, "uBeamTan2");
-  _uBeamTan[3]    = glGetUniformLocation (pid, "uBeamTan3");
+  _uBeamTan       = glGetUniformLocation (pid, "uBeamTan");
   _uSpotColour    = glGetUniformLocation (pid, "uSpotColour");
   _uSpeakerRadius = glGetUniformLocation (pid, "uSpeakerRadius");
-  _uBeamConeExp   = glGetUniformLocation (pid, "uBeamConeExp");
+  _uBeamEdge      = glGetUniformLocation (pid, "uBeamEdge");
   _uBeamFalloff   = glGetUniformLocation (pid, "uBeamFalloff");
   _uBeamIntensity = glGetUniformLocation (pid, "uBeamIntensity");
   _uApertureHalf  = glGetUniformLocation (pid, "uApertureHalf");
@@ -447,22 +442,23 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
       glUniform3f (_uBgColour, 0.161f, 0.184f, 0.212f);
     }
 
-  // Speaker beams. The cone widens with level, so its spread is per-speaker —
-  // resolved here rather than in the shader, which then needs no trig.
+  // Speaker beams. The coverage angle belongs to the loudspeaker, so it is
+  // fixed and the level drives brightness alone — resolved here rather than in
+  // the shader, which then needs no trig.
   for (int i = 0; i < 4; ++i)
     {
       float s = speakerLightLevel (_spotRms[i], _spotCfg.vuMax, _spotCfg.curve);
-      float width
-          = _spotCfg.widthStart + s * (_spotCfg.widthEnd - _spotCfg.widthStart);
       if (_uSpotLevel[i] >= 0) glUniform1f (_uSpotLevel[i], s);
-      if (_uBeamTan[i] >= 0) glUniform1f (_uBeamTan[i], beamSpreadTangent (width));
     }
+  if (_uBeamTan >= 0)
+    glUniform1f (_uBeamTan, beamSpreadTangent (coneWidthFromCoverageAngle (
+                                _spotCfg.coverageAngle)));
   if (_uSpotColour >= 0)
     glUniform3f (_uSpotColour, _spotCfg.r, _spotCfg.g, _spotCfg.b);
   if (_uSpeakerRadius >= 0)
     glUniform1f (_uSpeakerRadius, _spotCfg.speakerRadius);
-  if (_uBeamConeExp >= 0)
-    glUniform1f (_uBeamConeExp, _spotCfg.beamConeExp);
+  if (_uBeamEdge >= 0)
+    glUniform1f (_uBeamEdge, _spotCfg.edgeSoftness);
   if (_uBeamFalloff >= 0)
     glUniform1f (_uBeamFalloff, _spotCfg.beamFalloff);
   if (_uBeamIntensity >= 0)

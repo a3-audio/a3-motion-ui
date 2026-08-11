@@ -71,8 +71,20 @@ speakerMouthRadius (float speakerRadius)
   return speakerRadius - speakerMouthOffset;
 }
 
+/** Cone width for a coverage angle given the way a loudspeaker's is: the full
+ *  angle the cone opens to, not the half-angle off its axis. */
+float coneWidthFromCoverageAngle (float coverageAngleDegrees);
+
 /** Spread of a beam per unit of travel, for a given cone width. */
 float beamSpreadTangent (float width);
+
+/** Brightness across the beam at `offset` from its axis.
+ *
+ *  Flat across the beam and soft only at its edge, so the mouth is lit across
+ *  its full width. A profile that peaks on the axis instead makes the beam
+ *  look like it starts as a point no matter how wide it actually is.
+ *  `edgeSoftness` is the fraction of the half-width that stays flat. */
+float beamProfile (float offset, float halfWidth, float edgeSoftness);
 
 /** Half-width of the beam at `axialDistance` beyond the mouth.
  *

@@ -51,9 +51,29 @@ beamHalfAngleDegrees (float width)
 }
 
 float
+coneWidthFromCoverageAngle (float coverageAngleDegrees)
+{
+  auto constexpr degToRad = 3.14159265358979323846f / 180.f;
+
+  return 1.f - std::cos (coverageAngleDegrees * 0.5f * degToRad);
+}
+
+float
 beamSpreadTangent (float width)
 {
   return std::tan (std::acos (std::clamp (1.f - width, -1.f, 1.f)));
+}
+
+float
+beamProfile (float offset, float halfWidth, float edgeSoftness)
+{
+  auto const edge = std::max (halfWidth, 1e-6f);
+  auto const flat = edge * std::clamp (edgeSoftness, 0.f, 0.999f);
+
+  auto const t = std::clamp ((std::abs (offset) - flat) / (edge - flat), 0.f,
+                             1.f);
+
+  return 1.f - t * t * (3.f - 2.f * t); // smoothstep, matching GLSL
 }
 
 float

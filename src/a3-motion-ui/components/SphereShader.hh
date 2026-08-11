@@ -97,11 +97,10 @@ public:
     float vuMax = 0.2f;
     float curve = 0.4f;
     float speakerRadius = 1.55f;
-    float beamConeExp = 6.f;
+    float coverageAngle = 70.f; // full angle, the way a loudspeaker's is quoted
+    float edgeSoftness = 0.7f;
     float beamFalloff = 0.6f;
     float beamIntensity = 0.8f;
-    float widthStart = 0.1f;
-    float widthEnd = 0.2929f; // 45 deg — neighbouring cones just touch
     float absorb = 1.5f;      // per unit travelled through the sphere
     float innerIntensity = 0.8f;
   };
@@ -131,10 +130,10 @@ private:
   GLint _uBgColour = -1;
 
   GLint _uSpotLevel[4] = { -1, -1, -1, -1 };
-  GLint _uBeamTan[4] = { -1, -1, -1, -1 };
+  GLint _uBeamTan = -1;
   GLint _uSpotColour = -1;
   GLint _uSpeakerRadius = -1;
-  GLint _uBeamConeExp = -1;
+  GLint _uBeamEdge = -1;
   GLint _uBeamFalloff = -1;
   GLint _uBeamIntensity = -1;
   GLint _uApertureHalf = -1;
