@@ -75,22 +75,20 @@ public:
   // Note: CoronaConfig now lives in MotionComponent (2D blob overlay)
 
   // ── Config ─────────────────────────────────────────────────────
+  /** The sphere's own corona: a halo outside it, driven by the subwoofer.
+   *
+   *  It used to light the sphere's skin from within, which is now the beams'
+   *  territory — the sphere is translucent, so they pass into it. */
   struct GlowConfig
   {
     float r = 0.9f, g = 0.12f, b = 0.05f;
     float alphaMax = 0.6f;
     float vuMax = 0.2f;
     float curve = 0.4f;
-  };
-  void setGlowConfig (GlowConfig const &cfg);
-
-  struct BackgroundGlowConfig
-  {
-    float r = 0.9f, g = 0.10f, b = 0.05f;
     float falloff = 1.5f;
     float intensity = 0.8f;
   };
-  void setBackgroundGlowConfig (BackgroundGlowConfig const &cfg);
+  void setGlowConfig (GlowConfig const &cfg);
 
   struct SpotlightConfig
   {
@@ -104,6 +102,8 @@ public:
     float beamIntensity = 0.8f;
     float widthStart = 0.1f;
     float widthEnd = 0.2929f; // 45 deg — neighbouring cones just touch
+    float absorb = 1.5f;      // per unit travelled through the sphere
+    float innerIntensity = 0.8f;
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
   float getSpeakerRadius () const { return _spotCfg.speakerRadius; }
@@ -126,20 +126,21 @@ private:
 
   GLint _uGlowLevel = -1;
   GLint _uGlowColour = -1;
-
-  GLint _uBgGlowColour = -1;
-  GLint _uBgGlowFalloff = -1;
-  GLint _uBgGlowIntensity = -1;
+  GLint _uGlowFalloff = -1;
+  GLint _uGlowIntensity = -1;
   GLint _uBgColour = -1;
 
   GLint _uSpotLevel[4] = { -1, -1, -1, -1 };
+  GLint _uBeamTan[4] = { -1, -1, -1, -1 };
   GLint _uSpotColour = -1;
   GLint _uSpeakerRadius = -1;
   GLint _uBeamConeExp = -1;
   GLint _uBeamFalloff = -1;
   GLint _uBeamIntensity = -1;
-  GLint _uBeamWidthStart = -1;
-  GLint _uBeamWidthEnd = -1;
+  GLint _uApertureHalf = -1;
+  GLint _uMouthOffset = -1;
+  GLint _uBeamAbsorb = -1;
+  GLint _uBeamInner = -1;
 
   // Blob uniforms (position+colour kept for lighting on sphere surface)
   GLint _uBlobPosSize[kMaxBlobs] = {};  // vec4: x, y, size, vuLevel
@@ -156,7 +157,6 @@ private:
   int _numBlobs = 0;
 
   GlowConfig _glowCfg;
-  BackgroundGlowConfig _bgGlowCfg;
   SpotlightConfig _spotCfg;
 };
 

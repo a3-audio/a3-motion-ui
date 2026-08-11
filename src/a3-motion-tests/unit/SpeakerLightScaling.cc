@@ -175,6 +175,91 @@ TEST (SpeakerLightScaling, EnvelopeFallsWithTheDecayTimeConstant)
                0.01f);
 }
 
+// ── Beam geometry ───────────────────────────────────────────────────────
+//
+// The beam used to be an angular cone whose apex was a mathematical point at
+// the speaker's centre — inside the icon, and infinitely thin there, so it
+// looked like it grew through the loudspeaker rather than out of it. It is now
+// a truncated cone that starts at the horn's mouth with the mouth's width.
+
+TEST (SpeakerLightGeometry, BeamStartsExactlyAtTheApertureWidth)
+{
+  EXPECT_FLOAT_EQ (beamHalfWidthAt (0.f, speakerApertureHalfWidth, 1.f),
+                   speakerApertureHalfWidth);
+}
+
+TEST (SpeakerLightGeometry, BeamCastsNoLightBehindTheMouth)
+{
+  EXPECT_FLOAT_EQ (beamHalfWidthAt (-0.1f, speakerApertureHalfWidth, 1.f), 0.f);
+}
+
+// widthEnd 0.2929 is the 45 degree half-angle where neighbouring cones touch,
+// and 45 degrees is exactly one unit of spread per unit of travel.
+TEST (SpeakerLightGeometry, FullWidthSpreadsAtFortyFiveDegrees)
+{
+  EXPECT_NEAR (beamSpreadTangent (0.2929f), 1.f, 0.001f);
+}
+
+TEST (SpeakerLightGeometry, MouthSitsOutsideTheSphere)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const speakerRadius
+      = static_cast<float> (parsed["speakerLight"]["speakerRadius"]);
+
+  // A mouth at or inside the surface would start the beam in the middle of the
+  // volume it is supposed to be entering.
+  EXPECT_GT (speakerMouthRadius (speakerRadius), 1.f);
+}
+
+// The sphere is translucent, so the beam is not blocked — it is absorbed on
+// its way through. Path length is what drives that.
+TEST (SpeakerLightGeometry, OnAxisPathCrossesTheFullDiameter)
+{
+  auto constexpr mouthRadius = 1.3f;
+
+  // Far side of the sphere, straight down the axis.
+  EXPECT_NEAR (beamPathInsideSphere (mouthRadius + 1.f, 0.f, mouthRadius), 2.f,
+               0.001f);
+}
+
+TEST (SpeakerLightGeometry, PathIsHalfTheDiameterAtTheCentre)
+{
+  auto constexpr mouthRadius = 1.3f;
+
+  EXPECT_NEAR (beamPathInsideSphere (mouthRadius, 0.f, mouthRadius), 1.f,
+               0.001f);
+}
+
+TEST (SpeakerLightGeometry, RayPassingBesideTheSphereIsNeverAbsorbed)
+{
+  auto constexpr mouthRadius = 1.3f;
+
+  // Far enough off-axis that the ray misses the unit circle entirely.
+  EXPECT_FLOAT_EQ (beamPathInsideSphere (mouthRadius, 2.f, mouthRadius), 0.f);
+}
+
+TEST (SpeakerLightGeometry, AbsorptionLeavesTheFarSideDimmerThanTheNearSide)
+{
+  auto constexpr coefficient = 1.5f;
+
+  EXPECT_FLOAT_EQ (beamAbsorption (0.f, coefficient), 1.f);
+  EXPECT_LT (beamAbsorption (2.f, coefficient),
+             beamAbsorption (0.5f, coefficient) * 0.5f);
+}
+
+// Weight for the volume lighting: how much sphere a view ray traverses. The
+// speakers all sit in the z=0 plane, so the ray crosses the beam's densest
+// plane exactly at its own position and one sample per speaker is enough.
+TEST (SpeakerLightGeometry, TraversalIsThickestAtTheCentreAndZeroAtTheRim)
+{
+  EXPECT_FLOAT_EQ (sphereHalfChord (0.f), 1.f);
+  EXPECT_FLOAT_EQ (sphereHalfChord (1.f), 0.f);
+  EXPECT_NEAR (sphereHalfChord (0.6f), 0.8f, 0.001f);
+}
+
 // The beams are meant to hold still long enough to be compared against each
 // other, which needs a decay slower than the attack.
 TEST (SpeakerLightScaling, ShippedConfigHoldsTheBeamsLongerThanItRaisesThem)

@@ -23,44 +23,51 @@
   },
   "sphereGlow": {
     "vuMax": 0.3,
-    "r": 110,
-    "g": 250,
-    "b": 251,
+    "r": 70,
+    "g": 130,
+    "b": 250,
     "alphaMax": 0.7,
-    "layers": 6,
-    "innerSize": 0.6,
-    "outerSize": 2.4,
-    "curve": 1.2
-  },
-  "backgroundGlow": {
-    "r": 110,
-    "g": 250,
-    "b": 251,
+    "curve": 1.2,
     "falloff": 1.1,
-    "intensity": 0.0
+    "intensity": 0.6
   },
   "speakerLight": {
-    "vuMax": 0.20,
+    "vuMax": 0.2,
     "r": 110,
     "g": 250,
     "b": 251,
-    "alphaMax": 0.4,
-    "layers": 6,
-    "length": 1,
     "widthStart": 0.1,
     "widthEnd": 0.293,
     "curve": 1.2,
-    "speakerRadius": 1.55,
-    "beamConeExp": 6,
-    "beamFalloff": 1.5,
+    "speakerRadius": 1.35,
+    "beamConeExp": 3,
+    "beamFalloff": 0.8,
     "beamIntensity": 1.0,
     "attack": 0.08,
-    "decay": 0.25
+    "decay": 0.25,
+    "absorb": 1.0,
+    "innerIntensity": 4.0
   },
   "channels": [
-    { "r": 216, "g":  17, "b":  89 },
-    { "r":  69, "g": 78, "b":  158 },
-    { "r":  33, "g":  131, "b": 128 },
-    { "r": 247, "g": 208, "b":  2 }
+    {
+      "r": 216,
+      "g": 17,
+      "b": 89
+    },
+    {
+      "r": 69,
+      "g": 78,
+      "b": 158
+    },
+    {
+      "r": 33,
+      "g": 131,
+      "b": 128
+    },
+    {
+      "r": 247,
+      "g": 208,
+      "b": 2
+    }
   ]
 }

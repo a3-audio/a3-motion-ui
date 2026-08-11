@@ -86,15 +86,15 @@ void main() {
 // }
 
 // relative to the (square) component extents. Speakers are drawn at
-// speakerRadius (config.json's speakerLight.speakerRadius, default 1.55,
-// plus their own icon half-diagonal, speakerSize/2*sqrt(2) ≈ 0.20 — see
-// drawCircle()) in this same normalized space via the same transform, so
-// this factor also controls how close they sit to the component's edge.
-// 0.9 pushed their icons past the component's shorter-side edge (clipped,
-// not "fully in picture"); 0.57 keeps their full icon — not just their
-// centre point — within that edge (0.57 * (1.55+0.20)/2 ≈ 0.50), while
-// still noticeably bigger than the original 0.55.
-auto constexpr reduceFactorCircle = .57f;
+// speakerRadius (config.json's speakerLight.speakerRadius) plus their own icon
+// half-diagonal, speakerSize/2*sqrt(2) ≈ 0.20, in this same normalized space
+// via the same transform — so this factor also controls how close they sit to
+// the component's edge, and the two have to be picked together: the icons are
+// fully in picture as long as reduceFactorCircle * (speakerRadius + 0.20) / 2
+// stays under 0.5.
+// At speakerRadius 1.35 that allows 0.64 (→ 0.496), which buys a noticeably
+// larger sphere without shrinking the speakers.
+auto constexpr reduceFactorCircle = .64f;
 auto constexpr reduceFactorHead = .35f;
 auto constexpr reduceFactorBlobs = 0.05f;
 
@@ -643,16 +643,9 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     gc.alphaMax = cfgF (sg, "alphaMax", 0.6f);
     gc.vuMax = cfgF (sg, "vuMax", 0.2f);
     gc.curve = cfgF (sg, "curve", 0.4f);
+    gc.falloff = cfgF (sg, "falloff", 1.5f);
+    gc.intensity = cfgF (sg, "intensity", 0.8f);
     _sphereShader.setGlowConfig (gc);
-
-    SphereShader::BackgroundGlowConfig bgc;
-    auto const &bg = config["backgroundGlow"];
-    bgc.r         = cfgF (bg, "r", 230.f) / 255.f;
-    bgc.g         = cfgF (bg, "g", 26.f) / 255.f;
-    bgc.b         = cfgF (bg, "b", 13.f) / 255.f;
-    bgc.falloff   = cfgF (bg, "falloff", 1.5f);
-    bgc.intensity = cfgF (bg, "intensity", 0.8f);
-    _sphereShader.setBackgroundGlowConfig (bgc);
 
     SphereShader::SpotlightConfig sc;
     auto const &sl = config["speakerLight"];
@@ -668,6 +661,8 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
     sc.widthStart = cfgF (sl, "widthStart", 0.1f);
     sc.widthEnd = cfgF (sl, "widthEnd", 0.2929f);
+    sc.absorb = cfgF (sl, "absorb", 1.5f);
+    sc.innerIntensity = cfgF (sl, "innerIntensity", 0.8f);
     _sphereShader.setSpotlightConfig (sc);
 
     _spotAttack = cfgF (sl, "attack", 0.08f);

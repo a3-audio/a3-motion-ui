@@ -48,10 +48,60 @@ float speakerLightEnvelope (float current, float target, float attackSeconds,
 
 /** Half-angle of a beam cone, in degrees, for a given width value.
  *
- *  The shader lights a pixel when `dot(dir, -speakerDir) > 1 - width`, so the
- *  cone reaches `acos(1 - width)` off-axis. With the speakers 90 degrees
+ *  A cone reaches `acos(1 - width)` off-axis. With the speakers 90 degrees
  *  apart, a half-angle of 45 degrees is the point where neighbouring cones
  *  just touch. */
 float beamHalfAngleDegrees (float width);
+
+// ── Beam geometry, in units of the sphere radius ────────────────────────
+//
+// Taken from `resources/speaker.svg`, which is drawn into a box of
+// `speakerSize` (see MotionComponent::drawSpeakers). Its horn is a trapezoid
+// whose mouth spans y -16..16 of the 100-unit viewBox, at x = 18. The beam has
+// to leave that mouth at exactly that width — anything else looks like it grew
+// through the loudspeaker instead of out of it.
+constexpr float speakerIconSize = 0.28f;
+constexpr float speakerApertureHalfWidth = 16.f / 100.f * speakerIconSize;
+constexpr float speakerMouthOffset = 18.f / 100.f * speakerIconSize;
+
+/** Distance from the sphere centre to the horn's mouth. */
+constexpr float
+speakerMouthRadius (float speakerRadius)
+{
+  return speakerRadius - speakerMouthOffset;
+}
+
+/** Spread of a beam per unit of travel, for a given cone width. */
+float beamSpreadTangent (float width);
+
+/** Half-width of the beam at `axialDistance` beyond the mouth.
+ *
+ *  Zero behind the mouth: the beam starts at the horn, not at the speaker's
+ *  centre point. */
+float beamHalfWidthAt (float axialDistance, float apertureHalfWidth,
+                       float spreadTangent);
+
+/** Distance a ray from the mouth has travelled inside the sphere by the time
+ *  it reaches a point, in beam-local coordinates: `axialDistance` along the
+ *  beam axis, `perpendicularOffset` across it, with the mouth at the origin
+ *  and the sphere centred `mouthRadius` down the axis.
+ *
+ *  Zero for rays that pass beside the sphere. The sphere is translucent, so
+ *  this feeds absorption rather than an occlusion test. */
+float beamPathInsideSphere (float axialDistance, float perpendicularOffset,
+                            float mouthRadius);
+
+/** Share of a beam surviving after travelling `pathLength` through the
+ *  sphere. This is what keeps the far side from lighting up as brightly as the
+ *  near side. */
+float beamAbsorption (float pathLength, float coefficient);
+
+/** Half the chord a view ray traverses through the sphere at a given distance
+ *  from the centre, 1 at the centre and 0 at the rim.
+ *
+ *  Weight for the volume lighting: the speakers all sit in the z=0 plane, so a
+ *  view ray along z crosses the beams' densest plane at its own position and
+ *  one sample per speaker suffices — no raymarching. */
+float sphereHalfChord (float distanceFromCentre);
 
 }

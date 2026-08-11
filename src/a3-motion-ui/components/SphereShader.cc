@@ -62,25 +62,33 @@ uniform vec2  uResolution;
 uniform float uSphereRadius;
 uniform vec2  uSphereCentre;
 
+// Corona of the whole sphere, driven by the subwoofer
 uniform float uGlowLevel;
 uniform vec3  uGlowColour;
+uniform float uGlowFalloff;
+uniform float uGlowIntensity;
 
-uniform vec3  uBgGlowColour;
-uniform float uBgGlowFalloff;
-uniform float uBgGlowIntensity;
 uniform vec3  uBgColour;  // solid background colour
 
 uniform float uSpotLevel0;
 uniform float uSpotLevel1;
 uniform float uSpotLevel2;
 uniform float uSpotLevel3;
+// tan of the cone half-angle per speaker — computed on the CPU from the
+// level-dependent width, so the shader needs no trig
+uniform float uBeamTan0;
+uniform float uBeamTan1;
+uniform float uBeamTan2;
+uniform float uBeamTan3;
 uniform vec3  uSpotColour;
 uniform float uSpeakerRadius;
 uniform float uBeamConeExp;
 uniform float uBeamFalloff;
 uniform float uBeamIntensity;
-uniform float uBeamWidthStart;
-uniform float uBeamWidthEnd;
+uniform float uApertureHalf;   // half-width of the horn's mouth
+uniform float uMouthOffset;    // mouth position ahead of the speaker centre
+uniform float uBeamAbsorb;     // absorption per unit travelled inside
+uniform float uBeamInner;      // brightness of the volume lighting
 
 // Channel blobs (position, size, VU, colour, state)
 uniform vec4  uBlobPosSize0;
@@ -122,6 +130,62 @@ vec3 getBlobCol (int i)
     return uBlobCol3;
 }
 
+// Truncated cone leaving the horn's mouth at the mouth's own width, absorbed
+// on its way through the translucent sphere. Mirrors beamHalfWidthAt(),
+// beamPathInsideSphere() and beamAbsorption() in SpeakerLightScaling.cc —
+// change one and the other has to follow.
+float beamDensity (vec2 p, vec2 spkDir, float level, float spreadTan)
+{
+    if (level <= 0.001) return 0.0;
+
+    float mouthR = uSpeakerRadius - uMouthOffset;
+    vec2 rel = p - spkDir * mouthR;
+
+    // beam-local: along the axis towards the centre, and across it
+    float s = dot (rel, -spkDir);
+    if (s <= 0.0) return 0.0;              // nothing behind the mouth
+    float h = length (rel + spkDir * s);
+
+    float halfWidth = uApertureHalf + s * spreadTan;
+    float core = 1.0 - smoothstep (0.0, halfWidth, h);
+    float shape = pow (core, uBeamConeExp);
+    if (shape <= 0.0) return 0.0;
+
+    // Path already travelled inside the sphere, from the ray's entry point
+    float len = length (rel);
+    float alongRay = mouthR * s / len;
+    float missSq = mouthR * mouthR - alongRay * alongRay;
+    float path = 0.0;
+    if (missSq < 1.0)
+    {
+        float halfChord = sqrt (1.0 - missSq);
+        float entry = alongRay - halfChord;
+        path = max (0.0, min (len, alongRay + halfChord) - max (entry, 0.0));
+    }
+
+    float df = 1.0 / (1.0 + s * uBeamFalloff);
+
+    return level * shape * df * exp (-uBeamAbsorb * path);
+}
+
+// Half the chord a view ray traverses, 1 at the centre and 0 at the rim.
+float sphereHalfChord (float d)
+{
+    float c = clamp (d, 0.0, 1.0);
+    return sqrt (1.0 - c * c);
+}
+
+// The speakers all sit in the z=0 plane, so a view ray along z crosses the
+// beams' densest plane at its own position — one sample per speaker, no
+// raymarching.
+float beamTotal (vec2 p)
+{
+    return beamDensity (p, vec2 (-0.7071,  0.7071), uSpotLevel0, uBeamTan0)
+         + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1, uBeamTan1)
+         + beamDensity (p, vec2 ( 0.7071, -0.7071), uSpotLevel2, uBeamTan2)
+         + beamDensity (p, vec2 (-0.7071, -0.7071), uSpotLevel3, uBeamTan3);
+}
+
 // ─── main ───────────────────────────────────────────────────────
 void main ()
 {
@@ -142,67 +206,17 @@ void main ()
     vec3 colOut = vec3 (0.0);
     if (dist > 1.0 - aaWidth)
     {
-        // Background glow (VU-driven from subwoofer /vu/4)
+        // Corona of the whole sphere, driven by the subwoofer (/vu/4) — the
+        // sphere's own halo, sitting outside it rather than lighting its skin,
+        // so the beams have the interior to themselves.
         if (uGlowLevel > 0.001)
         {
-            float gf = 1.0 / (1.0 + (dist - 1.0) * uBgGlowFalloff);
-            colOut += uBgGlowColour * uGlowLevel * gf * gf * uBgGlowIntensity;
+            float gf = 1.0 / (1.0 + (dist - 1.0) * uGlowFalloff);
+            colOut += uGlowColour * uGlowLevel * gf * gf * uGlowIntensity;
         }
 
-        // Speaker beams — dynamic VU-driven cones from speakers
-        // Width grows with VU level, absorbed at sphere edge
-        float spkR = uSpeakerRadius;
-        vec2 dirN = uvScene / dist;
-
-        // Unrolled: GLSL 1.20 has no local arrays
-        // Speaker 0: 135°
-        if (uSpotLevel0 > 0.001) {
-            vec2 sd = vec2 (-0.7071, 0.7071);
-            vec2 tp = uvScene - sd * spkR;
-            float tpL = length (tp);
-            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = uBeamWidthStart + uSpotLevel0 * (uBeamWidthEnd - uBeamWidthStart);
-            float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
-            float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
-            colOut += uSpotColour * uSpotLevel0 * (cone + glow) * df * uBeamIntensity;
-        }
-        // Speaker 1: 45°
-        if (uSpotLevel1 > 0.001) {
-            vec2 sd = vec2 ( 0.7071, 0.7071);
-            vec2 tp = uvScene - sd * spkR;
-            float tpL = length (tp);
-            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = uBeamWidthStart + uSpotLevel1 * (uBeamWidthEnd - uBeamWidthStart);
-            float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
-            float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
-            colOut += uSpotColour * uSpotLevel1 * (cone + glow) * df * uBeamIntensity;
-        }
-        // Speaker 2: 315°
-        if (uSpotLevel2 > 0.001) {
-            vec2 sd = vec2 ( 0.7071,-0.7071);
-            vec2 tp = uvScene - sd * spkR;
-            float tpL = length (tp);
-            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = uBeamWidthStart + uSpotLevel2 * (uBeamWidthEnd - uBeamWidthStart);
-            float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
-            float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
-            colOut += uSpotColour * uSpotLevel2 * (cone + glow) * df * uBeamIntensity;
-        }
-        // Speaker 3: 225°
-        if (uSpotLevel3 > 0.001) {
-            vec2 sd = vec2 (-0.7071,-0.7071);
-            vec2 tp = uvScene - sd * spkR;
-            float tpL = length (tp);
-            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = uBeamWidthStart + uSpotLevel3 * (uBeamWidthEnd - uBeamWidthStart);
-            float cone = pow (smoothstep (1.0 - bw, 1.0, al), uBeamConeExp);
-            float glow = pow (smoothstep (1.0 - bw * 1.5, 1.0, al), uBeamConeExp) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * uBeamFalloff);
-            colOut += uSpotColour * uSpotLevel3 * (cone + glow) * df * uBeamIntensity;
-        }
+        // Speaker beams on their way to the sphere
+        colOut += uSpotColour * beamTotal (uvScene) * uBeamIntensity;
 
         // Blob outside glow removed — blobs only create reflections on sphere surface
     }
@@ -259,27 +273,12 @@ void main ()
         float wf = 1.0 - smoothstep (0.01, 0.04, min (gl1, min (gl2, gl3)));
         colSurf += vec3 (wf * 0.08 * (1.0 - fresnel * 0.8));
 
-        // Surface glow
-        colSurf += uGlowColour * uGlowLevel * (1.0 - dist * 0.3) * 0.5;
-
-        // Speaker beams flowing INTO sphere — from rim towards centre
-        // Each speaker lights its quadrant, strongest at rim, fading inward
-        // Blends with sphereGlow colour for seamless fusion
-        vec2 uvN = (length(uvScene) > 0.001) ? uvScene / length(uvScene) : vec2(0.0);
-        float rimFade = dist * dist; // stronger at rim (dist→1), fades to centre (dist→0)
-
-        float q0 = max (dot (uvN, vec2 (-0.7071, 0.7071)), 0.0); // 135°
-        float q1 = max (dot (uvN, vec2 ( 0.7071, 0.7071)), 0.0); // 45°
-        float q2 = max (dot (uvN, vec2 ( 0.7071,-0.7071)), 0.0); // 315°
-        float q3 = max (dot (uvN, vec2 (-0.7071,-0.7071)), 0.0); // 225°
-
-        // Directional beam per quadrant (q^2 for ~90° spread)
-        float surfBeam = uSpotLevel0 * q0 * q0 + uSpotLevel1 * q1 * q1
-                       + uSpotLevel2 * q2 * q2 + uSpotLevel3 * q3 * q3;
-
-        // Blend speaker colour into sphereGlow colour towards centre
-        vec3 beamCol = mix (uGlowColour, uSpotColour, rimFade);
-        colSurf += beamCol * surfBeam * rimFade * 0.35;
+        // Speaker beams lighting the volume. The sphere is translucent, so the
+        // beams pass into it rather than reflecting off its skin; how far they
+        // reach is set by absorption, not by an occlusion test. Weighted by
+        // how much sphere the view ray traverses.
+        colSurf += uSpotColour * beamTotal (uvScene) * sphereHalfChord (dist)
+                 * uBeamInner;
     }
 
     // Blend outside and surface with smooth AA transition
@@ -336,23 +335,28 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uResolution    = glGetUniformLocation (pid, "uResolution");
   _uSphereRadius  = glGetUniformLocation (pid, "uSphereRadius");
   _uSphereCentre  = glGetUniformLocation (pid, "uSphereCentre");
-  _uGlowLevel       = glGetUniformLocation (pid, "uGlowLevel");
-  _uGlowColour      = glGetUniformLocation (pid, "uGlowColour");
-  _uBgGlowColour    = glGetUniformLocation (pid, "uBgGlowColour");
-  _uBgGlowFalloff   = glGetUniformLocation (pid, "uBgGlowFalloff");
-  _uBgGlowIntensity = glGetUniformLocation (pid, "uBgGlowIntensity");
-  _uBgColour        = glGetUniformLocation (pid, "uBgColour");
+  _uGlowLevel     = glGetUniformLocation (pid, "uGlowLevel");
+  _uGlowColour    = glGetUniformLocation (pid, "uGlowColour");
+  _uGlowFalloff   = glGetUniformLocation (pid, "uGlowFalloff");
+  _uGlowIntensity = glGetUniformLocation (pid, "uGlowIntensity");
+  _uBgColour      = glGetUniformLocation (pid, "uBgColour");
   _uSpotLevel[0]  = glGetUniformLocation (pid, "uSpotLevel0");
   _uSpotLevel[1]  = glGetUniformLocation (pid, "uSpotLevel1");
   _uSpotLevel[2]  = glGetUniformLocation (pid, "uSpotLevel2");
   _uSpotLevel[3]  = glGetUniformLocation (pid, "uSpotLevel3");
+  _uBeamTan[0]    = glGetUniformLocation (pid, "uBeamTan0");
+  _uBeamTan[1]    = glGetUniformLocation (pid, "uBeamTan1");
+  _uBeamTan[2]    = glGetUniformLocation (pid, "uBeamTan2");
+  _uBeamTan[3]    = glGetUniformLocation (pid, "uBeamTan3");
   _uSpotColour    = glGetUniformLocation (pid, "uSpotColour");
   _uSpeakerRadius = glGetUniformLocation (pid, "uSpeakerRadius");
   _uBeamConeExp   = glGetUniformLocation (pid, "uBeamConeExp");
   _uBeamFalloff   = glGetUniformLocation (pid, "uBeamFalloff");
   _uBeamIntensity = glGetUniformLocation (pid, "uBeamIntensity");
-  _uBeamWidthStart = glGetUniformLocation (pid, "uBeamWidthStart");
-  _uBeamWidthEnd  = glGetUniformLocation (pid, "uBeamWidthEnd");
+  _uApertureHalf  = glGetUniformLocation (pid, "uApertureHalf");
+  _uMouthOffset   = glGetUniformLocation (pid, "uMouthOffset");
+  _uBeamAbsorb    = glGetUniformLocation (pid, "uBeamAbsorb");
+  _uBeamInner     = glGetUniformLocation (pid, "uBeamInner");
   _uNumBlobs      = glGetUniformLocation (pid, "uNumBlobs");
 
   _uBlobPosSize[0] = glGetUniformLocation (pid, "uBlobPosSize0");
@@ -426,22 +430,15 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uSphereCentre >= 0)
     glUniform2f (_uSphereCentre, sphereCentreX, sphereCentreY);
 
-  // Sphere glow
+  // Sphere corona — rms only. Mixing the peak in was what made the old
+  // background glow flicker, and the corona is a mood, not a transient.
   {
-    float lvl = std::max (_glowRms, _glowPeak * 0.8f);
-    float n = std::clamp (lvl / _glowCfg.vuMax, 0.f, 1.f);
-    float s = std::pow (n, _glowCfg.curve);
-    if (_uGlowLevel >= 0)  glUniform1f (_uGlowLevel, s);
-    if (_uGlowColour >= 0) glUniform3f (_uGlowColour, _glowCfg.r, _glowCfg.g, _glowCfg.b);
+    float s = speakerLightLevel (_glowRms, _glowCfg.vuMax, _glowCfg.curve);
+    if (_uGlowLevel >= 0)     glUniform1f (_uGlowLevel, s);
+    if (_uGlowColour >= 0)    glUniform3f (_uGlowColour, _glowCfg.r, _glowCfg.g, _glowCfg.b);
+    if (_uGlowFalloff >= 0)   glUniform1f (_uGlowFalloff, _glowCfg.falloff);
+    if (_uGlowIntensity >= 0) glUniform1f (_uGlowIntensity, _glowCfg.intensity);
   }
-
-  // Background glow
-  if (_uBgGlowColour >= 0)
-    glUniform3f (_uBgGlowColour, _bgGlowCfg.r, _bgGlowCfg.g, _bgGlowCfg.b);
-  if (_uBgGlowFalloff >= 0)
-    glUniform1f (_uBgGlowFalloff, _bgGlowCfg.falloff);
-  if (_uBgGlowIntensity >= 0)
-    glUniform1f (_uBgGlowIntensity, _bgGlowCfg.intensity);
 
   // Solid background colour (from LookAndFeel Colours::background)
   if (_uBgColour >= 0)
@@ -450,11 +447,15 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
       glUniform3f (_uBgColour, 0.161f, 0.184f, 0.212f);
     }
 
-  // Speaker spotlights
+  // Speaker beams. The cone widens with level, so its spread is per-speaker —
+  // resolved here rather than in the shader, which then needs no trig.
   for (int i = 0; i < 4; ++i)
     {
       float s = speakerLightLevel (_spotRms[i], _spotCfg.vuMax, _spotCfg.curve);
+      float width
+          = _spotCfg.widthStart + s * (_spotCfg.widthEnd - _spotCfg.widthStart);
       if (_uSpotLevel[i] >= 0) glUniform1f (_uSpotLevel[i], s);
+      if (_uBeamTan[i] >= 0) glUniform1f (_uBeamTan[i], beamSpreadTangent (width));
     }
   if (_uSpotColour >= 0)
     glUniform3f (_uSpotColour, _spotCfg.r, _spotCfg.g, _spotCfg.b);
@@ -466,10 +467,14 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform1f (_uBeamFalloff, _spotCfg.beamFalloff);
   if (_uBeamIntensity >= 0)
     glUniform1f (_uBeamIntensity, _spotCfg.beamIntensity);
-  if (_uBeamWidthStart >= 0)
-    glUniform1f (_uBeamWidthStart, _spotCfg.widthStart);
-  if (_uBeamWidthEnd >= 0)
-    glUniform1f (_uBeamWidthEnd, _spotCfg.widthEnd);
+  if (_uApertureHalf >= 0)
+    glUniform1f (_uApertureHalf, speakerApertureHalfWidth);
+  if (_uMouthOffset >= 0)
+    glUniform1f (_uMouthOffset, speakerMouthOffset);
+  if (_uBeamAbsorb >= 0)
+    glUniform1f (_uBeamAbsorb, _spotCfg.absorb);
+  if (_uBeamInner >= 0)
+    glUniform1f (_uBeamInner, _spotCfg.innerIntensity);
 
   // Blobs
   if (_uNumBlobs >= 0)
@@ -534,8 +539,6 @@ void SphereShader::setNumBlobs (int n)
 void SphereShader::setGlowConfig (GlowConfig const &c)
 { _glowCfg = c; }
 
-void SphereShader::setBackgroundGlowConfig (BackgroundGlowConfig const &c)
-{ _bgGlowCfg = c; }
 
 void SphereShader::setSpotlightConfig (SpotlightConfig const &c)
 { _spotCfg = c; }

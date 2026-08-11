@@ -50,4 +50,56 @@ beamHalfAngleDegrees (float width)
   return std::acos (std::clamp (1.f - width, -1.f, 1.f)) * radToDeg;
 }
 
+float
+beamSpreadTangent (float width)
+{
+  return std::tan (std::acos (std::clamp (1.f - width, -1.f, 1.f)));
+}
+
+float
+beamHalfWidthAt (float axialDistance, float apertureHalfWidth,
+                 float spreadTangent)
+{
+  if (axialDistance < 0.f)
+    return 0.f;
+
+  return apertureHalfWidth + axialDistance * spreadTangent;
+}
+
+float
+beamPathInsideSphere (float axialDistance, float perpendicularOffset,
+                      float mouthRadius)
+{
+  auto const length = std::hypot (axialDistance, perpendicularOffset);
+  if (length < 1e-6f)
+    return 0.f;
+
+  // Distance from the sphere centre to the ray, via the projection of the
+  // centre onto it.
+  auto const alongRay = mouthRadius * axialDistance / length;
+  auto const missDistanceSquared = mouthRadius * mouthRadius - alongRay * alongRay;
+  if (missDistanceSquared >= 1.f)
+    return 0.f;
+
+  auto const halfChord = std::sqrt (1.f - missDistanceSquared);
+  auto const entry = alongRay - halfChord;
+  auto const exit = alongRay + halfChord;
+
+  return std::max (0.f, std::min (length, exit) - std::max (entry, 0.f));
+}
+
+float
+beamAbsorption (float pathLength, float coefficient)
+{
+  return std::exp (-coefficient * std::max (pathLength, 0.f));
+}
+
+float
+sphereHalfChord (float distanceFromCentre)
+{
+  auto const d = std::clamp (distanceFromCentre, 0.f, 1.f);
+
+  return std::sqrt (1.f - d * d);
+}
+
 }
