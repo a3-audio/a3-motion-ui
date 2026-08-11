@@ -160,6 +160,14 @@ float boltFalloff (float distance, float width);
  *  as strikes rather than as a texture that happens to flicker. */
 float boltStrike (float noise, float duty);
 
+/** How far a branch has left its trunk at a given distance from the sphere.
+ *
+ *  Zero until the fork, growing after it. A branch that diverges from the
+ *  start is just a second bolt running alongside; one that shares its trunk
+ *  first is what reads as lightning. */
+float boltBranchOffset (float distanceFromCentre, float forkRadius,
+                        float spread);
+
 /** Index of the texel a direction falls in. */
 int energyMapTexel (float azimuthDegrees, float elevationDegrees);
 

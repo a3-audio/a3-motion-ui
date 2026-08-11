@@ -60,11 +60,11 @@
     "wanderScale": 4,
     "wanderFlow": 0.08,
     "root": 0.35,
-    "levelFloor": 0.4,
+    "levelFloor": 0.22,
     "bleed": 0.22,
     "fray": 0.8,
     "cover": 1.6,
-    "boltWidth": 0.9,
+    "boltWidth": 0.45,
     "boltWander": 0.55,
     "boltScale": 6,
     "boltFlow": 0.5,
@@ -74,7 +74,9 @@
     "boltCore": 1.6,
     "boltCount": 7,
     "boltReach": 2.4,
-    "boltEscape": 0.55
+    "boltEscape": 0.55,
+    "boltBranches": 2,
+    "boltBranch": 1.6
   },
   "channels": [
     {

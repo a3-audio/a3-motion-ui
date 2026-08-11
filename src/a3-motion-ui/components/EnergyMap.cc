@@ -222,6 +222,12 @@ boltStrike (float noise, float duty)
   return t * t * (3.f - 2.f * t); // smoothstep, matching GLSL
 }
 
+float
+boltBranchOffset (float distanceFromCentre, float forkRadius, float spread)
+{
+  return std::max (0.f, distanceFromCentre - forkRadius) * spread;
+}
+
 int
 energyMapTexel (float azimuthDegrees, float elevationDegrees)
 {

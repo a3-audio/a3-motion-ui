@@ -109,6 +109,8 @@ uniform float uBoltCore;       // how bright it runs
 uniform float uBoltCount;      // bolts per band
 uniform float uBoltReach;      // how far an escaping one carries
 uniform float uBoltEscape;     // how many of them escape
+uniform float uBoltBranches;   // branches per bolt
+uniform float uBoltBranch;     // how hard a branch leaves its trunk
 uniform float uApertureHalf;   // half-width of the horn's mouth
 uniform float uMouthOffset;    // mouth position ahead of the speaker centre
 uniform float uBeamReach;      // how far past the mouth the stub carries
@@ -268,7 +270,7 @@ vec2 bolts (float dA, float d, float halfWidth, float seed, float mouthR)
         float id = seed + float (i) * 31.7;
 
         // Some bolts stay in the annulus, others break out towards the edge of
-        // the screen — otherwise the band reads as a ring with a hard limit.
+        // the screen -- otherwise the band reads as a ring with a hard limit.
         float escapes = step (uBoltEscape, valueNoise (vec3 (id, 9.0, 0.0)));
         float far = mix (mouthR, uBoltReach, escapes);
         if (d > far) continue;
@@ -277,19 +279,37 @@ vec2 bolts (float dA, float d, float halfWidth, float seed, float mouthR)
         float rad = smoothstep (1.0 - uBeamBleed, 1.0 - uBeamBleed * 0.4, d)
                   * smoothstep (far, far - (far - 1.0) * 0.45, d);
 
-        // Where this bolt sits across the band, and how it strays on the way
-        float lane = (valueNoise (vec3 (id, 0.0, 0.0)) - 0.5) * 1.4;
-        float stray = (valueNoise (vec3 (id, d * uBoltScale, uTime * uBoltFlow))
-                       - 0.5) * 2.0;
-
-        float path = (lane + stray * uBoltWander) * halfWidth;
-
         // Each bolt strikes and is gone rather than sitting there
         float strike = smoothstep (uBoltDuty, 1.0,
                                    valueNoise (vec3 (id, 5.0, uTime * uBoltRate)));
         if (strike <= 0.0) continue;
 
-        best = max (best, boltAt (abs (dA - path), width) * strike * rad);
+        // Where this bolt sits across the band, and how it strays on the way
+        float lane = (valueNoise (vec3 (id, 0.0, 0.0)) - 0.5) * 1.4;
+        float stray = (valueNoise (vec3 (id, d * uBoltScale, uTime * uBoltFlow))
+                       - 0.5) * 2.0;
+        float trunk = (lane + stray * uBoltWander) * halfWidth;
+
+        best = max (best, boltAt (abs (dA - trunk), width) * strike * rad);
+
+        // Branches share the trunk until they fork, then go their own way.
+        // Mirrors boltBranchOffset() in EnergyMap.cc.
+        for (int b = 0; b < 3; ++b)
+        {
+            if (float (b) >= uBoltBranches) break;
+
+            float bid = id + float (b) * 7.13 + 101.0;
+            float fork = 1.0 + valueNoise (vec3 (bid, 1.0, 0.0)) * (far - 1.0);
+            float away = max (0.0, d - fork) * uBoltBranch;
+            float side = (valueNoise (vec3 (bid, 2.0, uTime * uBoltFlow)) - 0.5)
+                       * 2.0;
+
+            float path = trunk + side * away * halfWidth;
+
+            // Thinner and dimmer than what they came off
+            best = max (best, boltAt (abs (dA - path), width * 0.65)
+                              * strike * rad * 0.7);
+        }
     }
 
     return vec2 (best, pow (best, uBoltCoreExp));
@@ -655,6 +675,8 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBoltCount = glGetUniformLocation (pid, "uBoltCount");
   _uBoltReach = glGetUniformLocation (pid, "uBoltReach");
   _uBoltEscape = glGetUniformLocation (pid, "uBoltEscape");
+  _uBoltBranches = glGetUniformLocation (pid, "uBoltBranches");
+  _uBoltBranch = glGetUniformLocation (pid, "uBoltBranch");
   _uBeamBleed = glGetUniformLocation (pid, "uBeamBleed");
   _uBeamFloor = glGetUniformLocation (pid, "uBeamFloor");
   _uApertureHalf  = glGetUniformLocation (pid, "uApertureHalf");
@@ -810,6 +832,8 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uBoltCount >= 0) glUniform1f (_uBoltCount, _spotCfg.boltCount);
   if (_uBoltReach >= 0) glUniform1f (_uBoltReach, _spotCfg.boltReach);
   if (_uBoltEscape >= 0) glUniform1f (_uBoltEscape, _spotCfg.boltEscape);
+  if (_uBoltBranches >= 0) glUniform1f (_uBoltBranches, _spotCfg.boltBranches);
+  if (_uBoltBranch >= 0) glUniform1f (_uBoltBranch, _spotCfg.boltBranch);
   if (_uApertureHalf >= 0)
     glUniform1f (_uApertureHalf, speakerApertureHalfWidth);
   if (_uMouthOffset >= 0)

@@ -782,6 +782,8 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.boltCount = cfgF (sl, "boltCount", 6.f);
     sc.boltReach = cfgF (sl, "boltReach", 2.4f);
     sc.boltEscape = cfgF (sl, "boltEscape", 0.55f);
+    sc.boltBranches = cfgF (sl, "boltBranches", 2.f);
+    sc.boltBranch = cfgF (sl, "boltBranch", 1.6f);
     _sphereShader.setSpotlightConfig (sc);
 
     auto const &energy = config["energy"];

@@ -532,4 +532,42 @@ TEST (GlowNet, ShippedGlowFadesSlowerThanTheBolts)
       << "the room outlasts the events in front of it";
 }
 
+
+// A branch shares its trunk until it forks, then goes its own way — that is
+// what makes a bolt look like lightning rather than like several parallel
+// lines that happen to wobble.
+
+TEST (Bolts, ABranchFollowsItsTrunkUntilItForks)
+{
+  EXPECT_FLOAT_EQ (boltBranchOffset (1.1f, 1.3f, 0.5f), 0.f);
+  EXPECT_FLOAT_EQ (boltBranchOffset (1.3f, 1.3f, 0.5f), 0.f);
+}
+
+TEST (Bolts, ABranchLeavesAfterTheFork)
+{
+  EXPECT_GT (boltBranchOffset (1.6f, 1.3f, 0.5f), 0.f);
+}
+
+TEST (Bolts, ABranchKeepsLeaving)
+{
+  EXPECT_LT (boltBranchOffset (1.5f, 1.3f, 0.5f),
+             boltBranchOffset (1.9f, 1.3f, 0.5f));
+}
+
+TEST (Bolts, ShippedConfigBranchesAndRunsThin)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &speakerLight = parsed["speakerLight"];
+
+  ASSERT_TRUE (speakerLight.hasProperty ("boltBranch"));
+
+  EXPECT_GT (static_cast<float> (speakerLight["boltBranch"]), 0.f)
+      << "at zero every branch sits on top of its trunk";
+  EXPECT_LT (static_cast<float> (speakerLight["boltWidth"]), 0.7f)
+      << "a thick bolt reads as a band again";
+}
+
 }

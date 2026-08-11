@@ -136,6 +136,8 @@ public:
     float boltCount = 6.f;     // bolts per band
     float boltReach = 2.4f;    // how far an escaping one carries
     float boltEscape = 0.55f;  // how many of them escape
+    float boltBranches = 2.f;  // branches per bolt
+    float boltBranch = 1.6f;   // how hard a branch leaves its trunk
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
 
@@ -224,6 +226,8 @@ private:
   GLint _uBoltCount = -1;
   GLint _uBoltReach = -1;
   GLint _uBoltEscape = -1;
+  GLint _uBoltBranches = -1;
+  GLint _uBoltBranch = -1;
   GLint _uApertureHalf = -1;
   GLint _uMouthOffset = -1;
   GLint _uBeamReach = -1;
