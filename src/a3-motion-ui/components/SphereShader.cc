@@ -100,6 +100,7 @@ uniform float uNetIntensity;
 uniform float uNetScale;
 uniform float uNetSharpness;
 uniform float uNetFlow;
+uniform float uNetBeamIntensity;  // filaments carried by the beams
 uniform float uTime;
 
 // Channel blobs (position, size, VU, colour, state)
@@ -261,7 +262,10 @@ float valueNoise (vec3 p)
 float netFilaments (vec2 uv, float dist)
 {
     float azimuthTurns = atan (uv.y, uv.x) / 6.28318531;
-    float radial = clamp (dist, 0.0, 1.4) - uTime * uNetFlow;
+    // Inverts netFilamentRadius() in EnergyMap.cc: the filament standing at
+    // this radius now is the one that started further out. Plus, not minus —
+    // the net runs inwards, the way the sound arrives.
+    float radial = clamp (dist, 0.0, 1.6) + uTime * uNetFlow;
 
     vec3 p = vec3 (azimuthTurns * uNetScale * 2.0, radial * uNetScale,
                    uTime * uNetFlow * 0.3);
@@ -313,15 +317,10 @@ void main ()
         // Speaker beams on their way to the sphere
         colOut += uSpotColour * beamTotal (uvScene) * uBeamIntensity;
 
-        // The net runs on past the rim, thinning out — the filaments leave the
-        // sphere rather than stopping at its edge.
-        float beyond = 1.0 - smoothstep (1.0, 1.35, dist);
-        if (beyond > 0.0)
-        {
-            vec3 dirOut = screenToDirection (uvScene, 1.0);
-            colOut += uEnergyColour * netFilaments (uvScene, dist)
-                    * energyAt (dirOut) * uNetIntensity * beyond;
-        }
+        // Outside, the net rides the beams towards the sphere, so a filament
+        // is already visible before it crosses the rim.
+        colOut += uSpotColour * netFilaments (uvScene, dist)
+                * beamTotal (uvScene) * uNetBeamIntensity;
 
         // Blob outside glow removed — blobs only create reflections on sphere surface
     }
@@ -384,8 +383,17 @@ void main ()
         float energy = energyAt (dir);
 
         colSurf += uEnergyColour * energy * uEnergyIntensity;
-        colSurf += uEnergyColour * netFilaments (uvScene, dist) * energy
+
+        float net = netFilaments (uvScene, dist);
+
+        // Filaments landing on the rim and running in from there. Strongest
+        // where they arrive, thinning out as they travel inwards.
+        vec3 rimDir = screenToDirection (uvScene / max (dist, 0.001), 1.0);
+        colSurf += uEnergyColour * net * energyAt (rimDir) * dist * dist
                  * uNetIntensity;
+
+        // Filaments carried in by the beams themselves.
+        colSurf += uSpotColour * net * beamTotal (uvScene) * uNetBeamIntensity;
 
         // What is left of the beams inside: the stub's own spill.
         colSurf += uSpotColour * beamTotal (uvScene) * sphereHalfChord (dist)
@@ -476,6 +484,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uNetScale        = glGetUniformLocation (pid, "uNetScale");
   _uNetSharpness    = glGetUniformLocation (pid, "uNetSharpness");
   _uNetFlow         = glGetUniformLocation (pid, "uNetFlow");
+  _uNetBeamIntensity = glGetUniformLocation (pid, "uNetBeamIntensity");
   _uTime            = glGetUniformLocation (pid, "uTime");
   _uNumBlobs      = glGetUniformLocation (pid, "uNumBlobs");
 
@@ -611,6 +620,8 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform1f (_uNetSharpness, _energyCfg.netSharpness);
   if (_uNetFlow >= 0)
     glUniform1f (_uNetFlow, _energyCfg.netFlow);
+  if (_uNetBeamIntensity >= 0)
+    glUniform1f (_uNetBeamIntensity, _energyCfg.netBeamIntensity);
   if (_uTime >= 0)
     glUniform1f (_uTime, _time);
 

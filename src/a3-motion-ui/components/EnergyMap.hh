@@ -69,6 +69,14 @@ constexpr float energyMapSpreadDegrees = 12.f;
  *  raw angle, without the HOA-to-JUCE conversion the blobs go through. */
 EnergyDirection energyDirectionForScreen (float x, float y);
 
+/** Radius at which a given filament of the net stands at a given time.
+ *
+ *  The net flows inwards: filaments appear out in the speaker beams and at the
+ *  rim, and travel towards the centre — the direction sound arrives from, not
+ *  the direction it leaves in. The shader picks the filament sitting at a
+ *  pixel by inverting this. */
+float netFilamentRadius (float filamentCoordinate, float time, float flow);
+
 /** Index of the texel a direction falls in. */
 int energyMapTexel (float azimuthDegrees, float elevationDegrees);
 

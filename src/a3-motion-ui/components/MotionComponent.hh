@@ -210,6 +210,8 @@ private:
   float _energyVuMax = 0.05f, _energyCurve = 0.8f;
   float _energyAttack = 0.05f, _energyDecay = 0.25f;
 
+  juce::uint32 _startMillis = 0;
+
   void uploadEnergyMap ();
 
   void applyVisualConfig (juce::var const &config);

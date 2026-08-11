@@ -110,6 +110,12 @@ energyDirectionForScreen (float x, float y)
   return { azimuth, elevation / degToRad };
 }
 
+float
+netFilamentRadius (float filamentCoordinate, float time, float flow)
+{
+  return filamentCoordinate - time * flow;
+}
+
 int
 energyMapTexel (float azimuthDegrees, float elevationDegrees)
 {

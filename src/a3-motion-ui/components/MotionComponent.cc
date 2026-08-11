@@ -707,6 +707,8 @@ MotionComponent::newOpenGLContextCreated ()
       }
   }
 
+  _startMillis = juce::Time::getMillisecondCounter ();
+
   _configWatcher = ConfigFileWatcher{ visualConfigFile () };
   applyVisualConfig (userConfig);
 }
@@ -768,6 +770,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     ec.netScale = cfgF (energy, "netScale", 6.f);
     ec.netSharpness = cfgF (energy, "netSharpness", 8.f);
     ec.netFlow = cfgF (energy, "netFlow", 0.15f);
+    ec.netBeamIntensity = cfgF (energy, "netBeamIntensity", 1.5f);
     _sphereShader.setEnergyConfig (ec);
     _sphereShader.setEnergyTexture (_energyTexture);
 
@@ -815,8 +818,13 @@ MotionComponent::renderOpenGL ()
 
   uploadEnergyMap ();
   _sphereShader.setEnergyTexture (_energyTexture);
-  _sphereShader.setTime (static_cast<float> (juce::Time::getMillisecondCounter ())
-                         * 0.001f);
+  // Seconds since this context came up, not since the machine booted: the
+  // uniform is a float, and on an installation left running for a week the
+  // per-frame increment falls below what it can still represent, freezing the
+  // net in place.
+  _sphereShader.setTime (
+      static_cast<float> (juce::Time::getMillisecondCounter () - _startMillis)
+      * 0.001f);
 
   // Clear background first
   OpenGLHelpers::clear (Colours::background);

@@ -80,10 +80,11 @@
     "r": 150,
     "g": 220,
     "b": 255,
-    "intensity": 0.9,
-    "netIntensity": 1.2,
-    "netScale": 6,
-    "netSharpness": 8,
-    "netFlow": 0.15
+    "intensity": 0.35,
+    "netIntensity": 2.2,
+    "netScale": 9,
+    "netSharpness": 6,
+    "netFlow": 0.18,
+    "netBeamIntensity": 2.5
   }
 }

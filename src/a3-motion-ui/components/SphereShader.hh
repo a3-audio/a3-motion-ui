@@ -118,6 +118,7 @@ public:
     float netScale = 6.f;
     float netSharpness = 8.f;
     float netFlow = 0.15f;
+    float netBeamIntensity = 1.5f;
   };
   void setEnergyConfig (EnergyConfig const &cfg);
 
@@ -170,6 +171,7 @@ private:
   GLint _uNetScale = -1;
   GLint _uNetSharpness = -1;
   GLint _uNetFlow = -1;
+  GLint _uNetBeamIntensity = -1;
   GLint _uTime = -1;
 
   // Blob uniforms (position+colour kept for lighting on sphere surface)

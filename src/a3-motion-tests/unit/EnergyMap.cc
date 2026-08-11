@@ -172,4 +172,32 @@ TEST (EnergyMap, HalfWayOutIsHalfWayUp)
   EXPECT_NEAR (direction.elevationDegrees, 60.f, 0.5f);
 }
 
+
+// ── the net's flow ──────────────────────────────────────────────────────
+//
+// The filaments start out in the speaker beams and at the rim and travel
+// inwards. A sign flip here would send them the other way, which is exactly
+// the difference between sound arriving and sound leaving.
+
+TEST (EnergyNet, FilamentsTravelTowardsTheCentre)
+{
+  auto constexpr filament = 1.0f;
+  auto constexpr flow = 0.2f;
+
+  auto const early = netFilamentRadius (filament, 0.f, flow);
+  auto const late = netFilamentRadius (filament, 1.f, flow);
+
+  EXPECT_LT (late, early);
+}
+
+TEST (EnergyNet, FilamentsCrossTheRimOnTheWayIn)
+{
+  auto constexpr filament = 1.3f;
+  auto constexpr flow = 0.2f;
+
+  // Starts outside the sphere, where the beams are, and ends up inside it.
+  EXPECT_GT (netFilamentRadius (filament, 0.f, flow), 1.f);
+  EXPECT_LT (netFilamentRadius (filament, 2.f, flow), 1.f);
+}
+
 }
