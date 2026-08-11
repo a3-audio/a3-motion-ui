@@ -77,6 +77,27 @@ EnergyDirection energyDirectionForScreen (float x, float y);
  *  pixel by inverting this. */
 float netFilamentRadius (float filamentCoordinate, float time, float flow);
 
+/** Point in the noise domain a place on the display maps to.
+ *
+ *  Built from the direction vector rather than from an azimuth angle: an angle
+ *  wraps, and the wrap put a visible seam due west where the filaments failed
+ *  to meet. `twist` sets how much detail runs around the circle, `scale` how
+ *  much runs along the radius. */
+struct NetDomainPoint
+{
+  float x, y, z;
+};
+
+NetDomainPoint netDomainPoint (float x, float y, float radial, float twist,
+                               float scale);
+
+/** Arc of the sphere's rim a beam covers, in degrees.
+ *
+ *  With four speakers, 90 degrees each is what closes the circle and makes the
+ *  net look like it leaves the loudspeakers rather than appearing at the rim.
+ *  `angleDegrees` is the beam's angle off its own axis. */
+float beamRimCoverageDegrees (float angleDegrees, float speakerRadius);
+
 /** Index of the texel a direction falls in. */
 int energyMapTexel (float azimuthDegrees, float elevationDegrees);
 

@@ -133,14 +133,20 @@ TEST (SpeakerLightScaling, ShippedConfigKeepsLoudestSpeakerBright)
 {
   auto const params = shippedParams ();
 
-  // Contrast alone is not enough — a steep curve with a high vuMax separates
-  // the speakers but leaves all of them nearly black. What reaches the screen
-  // is the level scaled by beamIntensity, so asserting on the level alone lets
-  // a dimmed beamIntensity pass a test that is meant to guard brightness.
+  // What reaches the screen is the level scaled by beamIntensity, so asserting
+  // on the level alone lets a dimmed beamIntensity pass a test that is meant
+  // to guard brightness.
+  //
+  // The threshold used to be 0.25, from when the beams were the display. They
+  // are an indicator now — the energy map carries the spatial information —
+  // so the bar is that they read at all without drowning the net that is
+  // supposed to look like it comes out of them.
   auto const level
       = speakerLightLevel (loudestRms, params.vuMax, params.curve);
+  auto const onScreen = level * params.beamIntensity;
 
-  EXPECT_GT (level * params.beamIntensity, 0.25f);
+  EXPECT_GT (onScreen, 0.08f);
+  EXPECT_LT (onScreen, 0.6f);
 }
 
 // The failure mode this guards against: vuMax below the actual signal range

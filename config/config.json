@@ -40,15 +40,15 @@
     "curve": 1.2,
     "speakerRadius": 1.35,
     "beamFalloff": 0.8,
-    "beamIntensity": 1.0,
+    "beamIntensity": 0.5,
     "attack": 0.08,
     "decay": 0.25,
     "absorb": 1.0,
     "innerIntensity": 4.0,
     "edgeSoftness": 0.7,
-    "beamAngleQuiet": 35,
-    "beamAngleLoud": 75,
-    "reach": 0.25
+    "beamAngleQuiet": 20,
+    "beamAngleLoud": 48.25,
+    "reach": 0.9
   },
   "channels": [
     {
@@ -85,6 +85,10 @@
     "netScale": 9,
     "netSharpness": 6,
     "netFlow": 0.18,
-    "netBeamIntensity": 2.5
+    "netBeamIntensity": 2.5,
+    "netTwist": 9,
+    "netOctaves": 3,
+    "netLacunarity": 2.0,
+    "netGain": 0.5
   }
 }

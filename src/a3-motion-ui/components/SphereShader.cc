@@ -101,6 +101,10 @@ uniform float uNetScale;
 uniform float uNetSharpness;
 uniform float uNetFlow;
 uniform float uNetBeamIntensity;  // filaments carried by the beams
+uniform float uNetTwist;          // detail running around the circle
+uniform float uNetOctaves;        // fractal depth, fractional
+uniform float uNetLacunarity;     // how much finer each octave gets
+uniform float uNetGain;           // how much quieter each octave gets
 uniform float uTime;
 
 // Channel blobs (position, size, VU, colour, state)
@@ -261,28 +265,36 @@ float valueNoise (vec3 p)
 // stacking octaves is what gives them branches within branches.
 float netFilaments (vec2 uv, float dist)
 {
-    float azimuthTurns = atan (uv.y, uv.x) / 6.28318531;
     // Inverts netFilamentRadius() in EnergyMap.cc: the filament standing at
     // this radius now is the one that started further out. Plus, not minus —
     // the net runs inwards, the way the sound arrives.
     float radial = clamp (dist, 0.0, 1.6) + uTime * uNetFlow;
 
-    vec3 p = vec3 (azimuthTurns * uNetScale * 2.0, radial * uNetScale,
-                   uTime * uNetFlow * 0.3);
+    // Domain built from the direction, not from an angle. An angle wraps, and
+    // the wrap left a seam due west where the filaments failed to meet.
+    // Mirrors netDomainPoint() in EnergyMap.cc.
+    float len = max (length (uv), 0.000001);
+    vec2 n = uv / len;
+    vec3 p = vec3 (n * uNetTwist, radial * uNetScale);
 
     float sum = 0.0;
     float amp = 1.0;
     float norm = 0.0;
-    for (int octave = 0; octave < 3; ++octave)
+    for (int octave = 0; octave < 5; ++octave)
     {
+        // Fades the last octave in rather than switching it, so the count can
+        // be tuned continuously.
+        float active = clamp (uNetOctaves - float (octave), 0.0, 1.0);
+        if (active <= 0.0) break;
+
         float ridge = 1.0 - abs (2.0 * valueNoise (p) - 1.0);
-        sum += ridge * amp;
-        norm += amp;
-        p *= 2.0;
-        amp *= 0.5;
+        sum += ridge * amp * active;
+        norm += amp * active;
+        p *= uNetLacunarity;
+        amp *= uNetGain;
     }
 
-    return pow (sum / norm, uNetSharpness);
+    return pow (sum / max (norm, 0.0001), uNetSharpness);
 }
 
 // ─── main ───────────────────────────────────────────────────────
@@ -485,6 +497,10 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uNetSharpness    = glGetUniformLocation (pid, "uNetSharpness");
   _uNetFlow         = glGetUniformLocation (pid, "uNetFlow");
   _uNetBeamIntensity = glGetUniformLocation (pid, "uNetBeamIntensity");
+  _uNetGain = glGetUniformLocation (pid, "uNetGain");
+  _uNetLacunarity = glGetUniformLocation (pid, "uNetLacunarity");
+  _uNetOctaves = glGetUniformLocation (pid, "uNetOctaves");
+  _uNetTwist = glGetUniformLocation (pid, "uNetTwist");
   _uTime            = glGetUniformLocation (pid, "uTime");
   _uNumBlobs      = glGetUniformLocation (pid, "uNumBlobs");
 
@@ -622,6 +638,14 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform1f (_uNetFlow, _energyCfg.netFlow);
   if (_uNetBeamIntensity >= 0)
     glUniform1f (_uNetBeamIntensity, _energyCfg.netBeamIntensity);
+  if (_uNetGain >= 0)
+    glUniform1f (_uNetGain, _energyCfg.netGain);
+  if (_uNetLacunarity >= 0)
+    glUniform1f (_uNetLacunarity, _energyCfg.netLacunarity);
+  if (_uNetOctaves >= 0)
+    glUniform1f (_uNetOctaves, _energyCfg.netOctaves);
+  if (_uNetTwist >= 0)
+    glUniform1f (_uNetTwist, _energyCfg.netTwist);
   if (_uTime >= 0)
     glUniform1f (_uTime, _time);
 

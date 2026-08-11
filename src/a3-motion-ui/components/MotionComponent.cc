@@ -771,6 +771,10 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     ec.netSharpness = cfgF (energy, "netSharpness", 8.f);
     ec.netFlow = cfgF (energy, "netFlow", 0.15f);
     ec.netBeamIntensity = cfgF (energy, "netBeamIntensity", 1.5f);
+    ec.netTwist = cfgF (energy, "netTwist", 9.f);
+    ec.netOctaves = cfgF (energy, "netOctaves", 3.f);
+    ec.netLacunarity = cfgF (energy, "netLacunarity", 2.f);
+    ec.netGain = cfgF (energy, "netGain", 0.5f);
     _sphereShader.setEnergyConfig (ec);
     _sphereShader.setEnergyTexture (_energyTexture);
 

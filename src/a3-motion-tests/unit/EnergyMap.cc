@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/EnergyMap.hh>
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
 #include <algorithm>
 #include <vector>
@@ -198,6 +199,96 @@ TEST (EnergyNet, FilamentsCrossTheRimOnTheWayIn)
   // Starts outside the sphere, where the beams are, and ends up inside it.
   EXPECT_GT (netFilamentRadius (filament, 0.f, flow), 1.f);
   EXPECT_LT (netFilamentRadius (filament, 2.f, flow), 1.f);
+}
+
+
+// ── the net's noise domain ──────────────────────────────────────────────
+//
+// Feeding the noise a plain azimuth angle puts a seam where atan2 wraps, due
+// west on the horizontal, and the filaments visibly fail to meet across it.
+// Building the domain from the direction vector instead closes the circle by
+// construction.
+
+TEST (EnergyNet, DomainHasNoSeamInTheWest)
+{
+  auto constexpr radial = 0.8f;
+  auto constexpr twist = 9.f;
+  auto constexpr scale = 9.f;
+
+  // Just above and just below the horizontal on the west side — the two sides
+  // of the old seam.
+  auto const above = netDomainPoint (-1.f, 0.002f, radial, twist, scale);
+  auto const below = netDomainPoint (-1.f, -0.002f, radial, twist, scale);
+
+  EXPECT_NEAR (above.x, below.x, 0.05f);
+  EXPECT_NEAR (above.y, below.y, 0.05f);
+  EXPECT_NEAR (above.z, below.z, 0.05f);
+}
+
+TEST (EnergyNet, DomainStillSeparatesDifferentDirections)
+{
+  auto constexpr radial = 0.8f;
+
+  auto const west = netDomainPoint (-1.f, 0.f, radial, 9.f, 9.f);
+  auto const east = netDomainPoint (1.f, 0.f, radial, 9.f, 9.f);
+
+  EXPECT_GT (std::abs (west.x - east.x) + std::abs (west.y - east.y), 1.f);
+}
+
+TEST (EnergyNet, DomainMovesWithTheRadius)
+{
+  auto const near = netDomainPoint (0.f, 1.f, 0.4f, 9.f, 9.f);
+  auto const far = netDomainPoint (0.f, 1.f, 0.9f, 9.f, 9.f);
+
+  EXPECT_GT (std::abs (far.z - near.z), 1.f);
+}
+
+// ── how much rim a beam covers ──────────────────────────────────────────
+
+// Four speakers, so a quarter of the rim each is what closes the circle. An
+// exact 90 is not reachable: past roughly 48.4 degrees the cone's half-width
+// beats the rim everywhere at once and coverage jumps straight from about 80
+// to the entire visible half. The value to aim for is the widest one below
+// that tipping point.
+TEST (SpeakerBeamReach, ShippedConfigLetsEachBeamCoverAboutItsQuarterOfTheRim)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &speakerLight = parsed["speakerLight"];
+
+  auto const coverage = beamRimCoverageDegrees (
+      static_cast<float> (speakerLight["beamAngleLoud"]),
+      static_cast<float> (speakerLight["speakerRadius"]));
+
+  EXPECT_GT (coverage, 70.f);
+  EXPECT_LT (coverage, 110.f) << "past the tipping point every beam blankets "
+                                 "the whole visible half of the rim";
+}
+
+TEST (SpeakerBeamReach, WiderBeamsCoverMoreRim)
+{
+  EXPECT_GT (beamRimCoverageDegrees (60.f, 1.35f),
+             beamRimCoverageDegrees (30.f, 1.35f));
+}
+
+TEST (SpeakerBeamReach, ShippedStubActuallyReachesTheRim)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &speakerLight = parsed["speakerLight"];
+
+  auto const mouthRadius = speakerMouthRadius (
+      static_cast<float> (speakerLight["speakerRadius"]));
+
+  // The rim points at the edge of the quarter sit further from the mouth than
+  // the one straight ahead, so the stub has to outlast them or the beam stops
+  // short of the arc it is supposed to light.
+  EXPECT_GT (static_cast<float> (speakerLight["reach"]),
+             mouthRadius - std::cos (45.f * 3.14159265f / 180.f));
 }
 
 }

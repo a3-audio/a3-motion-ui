@@ -20,6 +20,8 @@
 
 #include "EnergyMap.hh"
 
+#include "SpeakerLightScaling.hh"
+
 #include <algorithm>
 #include <cmath>
 
@@ -108,6 +110,42 @@ energyDirectionForScreen (float x, float y)
   auto const azimuth = std::atan2 (-x, y) / degToRad;
 
   return { azimuth, elevation / degToRad };
+}
+
+NetDomainPoint
+netDomainPoint (float x, float y, float radial, float twist, float scale)
+{
+  auto const length = std::hypot (x, y);
+  auto const nx = (length > 1e-6f) ? x / length : 0.f;
+  auto const ny = (length > 1e-6f) ? y / length : 0.f;
+
+  return { nx * twist, ny * twist, radial * scale };
+}
+
+float
+beamRimCoverageDegrees (float angleDegrees, float speakerRadius)
+{
+  auto const mouthRadius = speakerMouthRadius (speakerRadius);
+  auto const spread = std::tan (std::min (angleDegrees, 85.f) * degToRad);
+
+  // Walk out from the axis until the rim leaves the beam. The rim point at
+  // offset phi sits sin(phi) off the axis and mouthRadius - cos(phi) along it.
+  auto covered = 0.f;
+  for (auto phi = 0.f; phi <= 90.f; phi += 0.5f)
+    {
+      auto const rad = phi * degToRad;
+      auto const across = std::sin (rad);
+      auto const along = mouthRadius - std::cos (rad);
+      auto const halfWidth
+          = beamHalfWidthAt (along, speakerApertureHalfWidth, spread);
+
+      if (across > halfWidth)
+        break;
+
+      covered = phi;
+    }
+
+  return covered * 2.f; // both sides of the axis
 }
 
 float
