@@ -61,7 +61,8 @@
     "root": 0.35,
     "levelFloor": 0.4,
     "bleed": 0.22,
-    "fray": 0.8
+    "fray": 0.8,
+    "cover": 3.0
   },
   "channels": [
     {

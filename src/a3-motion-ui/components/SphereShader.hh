@@ -122,6 +122,7 @@ public:
     float levelFloor = 0.25f;  // level the band never drops below
     float bleed = 0.22f;       // how far it reaches past the annulus
     float fray = 0.8f;         // how ragged its edge is
+    float cover = 3.f;         // how strongly the band hides the glow
     float filament = 0.7f;     // how much of it is filament rather than solid
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
@@ -197,6 +198,7 @@ private:
   GLint _uBeamFloor = -1;
   GLint _uBeamBleed = -1;
   GLint _uBeamFray = -1;
+  GLint _uBeamCover = -1;
   GLint _uBeamFilament = -1;
   GLint _uApertureHalf = -1;
   GLint _uMouthOffset = -1;

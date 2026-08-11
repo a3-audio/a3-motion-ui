@@ -178,9 +178,16 @@ beamWrapHalfAngle (float distanceFromCentre, float mouthRadius,
 }
 
 float
-beamBandLevel (float level, float floor)
+beamBandLevel (float level, float floor, float loudestLevel)
 {
-  return floor + std::clamp (level, 0.f, 1.f) * (1.f - floor);
+  return std::max (std::clamp (level, 0.f, 1.f),
+                   std::clamp (floor, 0.f, 1.f) * loudestLevel);
+}
+
+float
+glowVisibility (float bandDensity, float cover)
+{
+  return 1.f - std::clamp (bandDensity * cover, 0.f, 1.f);
 }
 
 float

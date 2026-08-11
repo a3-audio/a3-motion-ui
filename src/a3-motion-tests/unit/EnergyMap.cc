@@ -324,22 +324,29 @@ TEST (BeamWrap, ShippedConfigWrapsAQuarterEach)
 // ── the band never quite lets go ────────────────────────────────────────
 //
 // A silent speaker used to leave its quarter dark, which opened the ring. The
-// sphere is meant to stay enclosed, so the level is lifted onto a floor — the
-// band thins rather than vanishing.
+// floor that fixed that was absolute, so the ring also stood there with no
+// signal at all. It is relative to the loudest band instead: silence
+// everywhere means nothing, one quiet speaker among loud ones still holds its
+// quarter.
 
-TEST (BeamBand, SilenceStillLeavesABand)
+TEST (BeamBand, SilenceEverywhereLeavesNothing)
 {
-  EXPECT_FLOAT_EQ (beamBandLevel (0.f, 0.25f), 0.25f);
+  EXPECT_FLOAT_EQ (beamBandLevel (0.f, 0.4f, 0.f), 0.f);
 }
 
-TEST (BeamBand, FullLevelIsUntouched)
+TEST (BeamBand, AQuietSpeakerAmongLoudOnesKeepsItsQuarter)
 {
-  EXPECT_FLOAT_EQ (beamBandLevel (1.f, 0.25f), 1.f);
+  EXPECT_FLOAT_EQ (beamBandLevel (0.f, 0.4f, 0.8f), 0.32f);
+}
+
+TEST (BeamBand, ALoudSpeakerKeepsItsOwnLevel)
+{
+  EXPECT_FLOAT_EQ (beamBandLevel (0.8f, 0.4f, 0.8f), 0.8f);
 }
 
 TEST (BeamBand, LouderStillMeansBrighter)
 {
-  EXPECT_LT (beamBandLevel (0.3f, 0.25f), beamBandLevel (0.7f, 0.25f));
+  EXPECT_LT (beamBandLevel (0.5f, 0.4f, 1.f), beamBandLevel (0.9f, 0.4f, 1.f));
 }
 
 TEST (BeamBand, ShippedConfigKeepsTheSphereEnclosed)
@@ -354,7 +361,17 @@ TEST (BeamBand, ShippedConfigKeepsTheSphereEnclosed)
 
   auto const floor = static_cast<float> (speakerLight["levelFloor"]);
   EXPECT_GT (floor, 0.f) << "at zero a silent speaker opens the ring again";
-  EXPECT_LT (floor, 0.6f) << "too high and the band stops saying anything";
+  EXPECT_LT (floor, 0.8f) << "too high and the band stops saying anything";
+}
+
+// The glow lives in the same annulus, so where the band is, the band is what
+// you see — it covers the glow rather than adding to it.
+TEST (BeamBand, BandHidesTheGlowBehindIt)
+{
+  EXPECT_FLOAT_EQ (glowVisibility (0.f, 2.f), 1.f);
+  EXPECT_FLOAT_EQ (glowVisibility (1.f, 2.f), 0.f);
+  EXPECT_LT (glowVisibility (0.3f, 2.f), 1.f);
+  EXPECT_GT (glowVisibility (0.3f, 2.f), 0.f);
 }
 
 // ── and it frays at both ends ───────────────────────────────────────────

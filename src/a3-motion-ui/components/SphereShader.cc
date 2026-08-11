@@ -97,6 +97,7 @@ uniform float uBeamRoot;       // density where it leaves the speaker
 uniform float uBeamFloor;      // level the band never drops below
 uniform float uBeamBleed;      // how far it reaches past the annulus
 uniform float uBeamFray;       // how ragged its edge is
+uniform float uBeamCover;      // how strongly the band hides the glow
 uniform float uBeamFilament;   // how much of the beam is filament rather than solid
 uniform float uApertureHalf;   // half-width of the horn's mouth
 uniform float uMouthOffset;    // mouth position ahead of the speaker centre
@@ -239,8 +240,6 @@ float valueNoise (vec3 p)
 // Needs valueNoise(), so it lives below it.
 float beamDensity (vec2 point, vec2 spkDir, float level)
 {
-    if (level <= 0.001) return 0.0;
-
     float mouthR = uSpeakerRadius - uMouthOffset;
     float d = length (point);
 
@@ -283,8 +282,11 @@ float beamDensity (vec2 point, vec2 spkDir, float level)
     float grip = mix (uBeamRoot, 1.0, eased);
 
     // Never lets go entirely — a silent speaker thins its band instead of
-    // dropping it and opening the ring. Mirrors beamBandLevel().
-    float lifted = uBeamFloor + level * (1.0 - uBeamFloor);
+    // dropping it and opening the ring. Relative to the loudest band, so with
+    // nothing playing there is no ring. Mirrors beamBandLevel().
+    float loudest = max (max (uSpotLevel0, uSpotLevel1),
+                         max (uSpotLevel2, uSpotLevel3));
+    float lifted = max (level, uBeamFloor * loudest);
 
     return lifted * across * grip * radial;
 }
@@ -388,18 +390,25 @@ void main ()
         // screen — the outward counterpart to the net inside, which runs in.
         // Modulated by the energy arriving from this direction, so the spread
         // outside continues what lands inside.
-        if (uGlowLevel > 0.001)
+        float band = beamTotal (uvScene);
+
+        // Where the band is, the band is what you see: both live in this
+        // annulus and would otherwise add up into a wash.
+        // Mirrors glowVisibility() in EnergyMap.cc.
+        float showGlow = 1.0 - clamp (band * uBeamCover, 0.0, 1.0);
+
+        if (uGlowLevel > 0.001 && showGlow > 0.0)
         {
             vec3 rimDirection = screenToDirection (uvScene / max (dist, 0.001),
                                                    1.0);
             colOut += uGlowColour * uGlowLevel * glowNet (uvScene, dist)
                     * glowEmergence (dist, uGlowRise)
-                    * energyAt (rimDirection) * uGlowIntensity;
+                    * energyAt (rimDirection) * uGlowIntensity * showGlow;
         }
 
-        // Speaker beams on their way to the sphere, curling as they go
-        colOut += uSpotColour * beamTotal (uvScene)
-                * beamTexture (uvScene, dist) * uBeamIntensity;
+        // Speaker bands wrapping the sphere
+        colOut += uSpotColour * band * beamTexture (uvScene, dist)
+                * uBeamIntensity;
 
 
         // Outside, the net rides the beams towards the sphere, so a filament
@@ -563,6 +572,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uWanderFlow = glGetUniformLocation (pid, "uWanderFlow");
   _uBeamRoot = glGetUniformLocation (pid, "uBeamRoot");
   _uBeamFray = glGetUniformLocation (pid, "uBeamFray");
+  _uBeamCover = glGetUniformLocation (pid, "uBeamCover");
   _uBeamBleed = glGetUniformLocation (pid, "uBeamBleed");
   _uBeamFloor = glGetUniformLocation (pid, "uBeamFloor");
   _uBeamFilament  = glGetUniformLocation (pid, "uBeamFilament");
@@ -707,6 +717,7 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uBeamFloor >= 0) glUniform1f (_uBeamFloor, _spotCfg.levelFloor);
   if (_uBeamBleed >= 0) glUniform1f (_uBeamBleed, _spotCfg.bleed);
   if (_uBeamFray >= 0) glUniform1f (_uBeamFray, _spotCfg.fray);
+  if (_uBeamCover >= 0) glUniform1f (_uBeamCover, _spotCfg.cover);
   if (_uBeamFilament >= 0)
     glUniform1f (_uBeamFilament, _spotCfg.filament);
   if (_uApertureHalf >= 0)

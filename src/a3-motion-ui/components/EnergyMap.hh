@@ -122,9 +122,19 @@ float beamRimCoverageDegrees (float angleDegrees, float speakerRadius);
 float beamWrapHalfAngle (float distanceFromCentre, float mouthRadius,
                          float apertureAngleDegrees, float wrapAngleDegrees);
 
-/** A band's level lifted onto a floor, so a silent speaker thins its band
- *  rather than losing it and opening the ring around the sphere. */
-float beamBandLevel (float level, float floor);
+/** A band's level held up to a share of the loudest band's, so a silent
+ *  speaker thins its band rather than losing it and opening the ring around
+ *  the sphere.
+ *
+ *  Relative rather than absolute: with nothing playing at all there is no
+ *  ring, which an absolute floor would have left standing. */
+float beamBandLevel (float level, float floor, float loudestLevel);
+
+/** How much of the glow shows through where a band covers it.
+ *
+ *  Both live in the annulus outside the sphere, so they would otherwise add
+ *  up into a wash. The band wins. */
+float glowVisibility (float bandDensity, float cover);
 
 /** How much of the band survives at a given distance from the sphere centre.
  *
