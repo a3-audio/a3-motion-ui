@@ -87,8 +87,6 @@ uniform float uBeamFalloff;
 uniform float uBeamIntensity;
 uniform float uApertureHalf;   // half-width of the horn's mouth
 uniform float uMouthOffset;    // mouth position ahead of the speaker centre
-uniform float uBeamAbsorb;     // absorption per unit travelled inside
-uniform float uBeamInner;      // brightness of the volume lighting
 uniform float uBeamReach;      // how far past the mouth the stub carries
 
 // Energy arriving from each direction, folded into an equirectangular map by
@@ -147,10 +145,9 @@ vec3 getBlobCol (int i)
     return uBlobCol3;
 }
 
-// Truncated cone leaving the horn's mouth at the mouth's own width, absorbed
-// on its way through the translucent sphere. Mirrors beamHalfWidthAt(),
-// beamPathInsideSphere() and beamAbsorption() in SpeakerLightScaling.cc —
-// change one and the other has to follow.
+// Truncated cone leaving the horn's mouth at the mouth's own width. Only ever
+// drawn outside the sphere — where it lands, the net takes over. Mirrors
+// beamHalfWidthAt() in SpeakerLightScaling.cc.
 float beamDensity (vec2 p, vec2 spkDir, float level, float spreadTan)
 {
     if (level <= 0.001) return 0.0;
@@ -173,21 +170,9 @@ float beamDensity (vec2 p, vec2 spkDir, float level, float spreadTan)
     float shape = 1.0 - smoothstep (halfWidth * uBeamEdge, halfWidth, h);
     if (shape <= 0.0) return 0.0;
 
-    // Path already travelled inside the sphere, from the ray's entry point
-    float len = length (rel);
-    float alongRay = mouthR * s / len;
-    float missSq = mouthR * mouthR - alongRay * alongRay;
-    float path = 0.0;
-    if (missSq < 1.0)
-    {
-        float halfChord = sqrt (1.0 - missSq);
-        float entry = alongRay - halfChord;
-        path = max (0.0, min (len, alongRay + halfChord) - max (entry, 0.0));
-    }
-
     float df = 1.0 / (1.0 + s * uBeamFalloff);
 
-    return level * shape * reach * df * exp (-uBeamAbsorb * path);
+    return level * shape * reach * df;
 }
 
 // Half the chord a view ray traverses, 1 at the centre and 0 at the rim.
@@ -396,20 +381,14 @@ void main ()
 
         colSurf += uEnergyColour * energy * uEnergyIntensity;
 
+        // The beams stop at the rim. Inside, the net takes over from them:
+        // filaments landing where a beam meets the sphere and running in from
+        // there, strongest at the rim and thinning out as they travel.
         float net = netFilaments (uvScene, dist);
-
-        // Filaments landing on the rim and running in from there. Strongest
-        // where they arrive, thinning out as they travel inwards.
         vec3 rimDir = screenToDirection (uvScene / max (dist, 0.001), 1.0);
+
         colSurf += uEnergyColour * net * energyAt (rimDir) * dist * dist
                  * uNetIntensity;
-
-        // Filaments carried in by the beams themselves.
-        colSurf += uSpotColour * net * beamTotal (uvScene) * uNetBeamIntensity;
-
-        // What is left of the beams inside: the stub's own spill.
-        colSurf += uSpotColour * beamTotal (uvScene) * sphereHalfChord (dist)
-                 * uBeamInner;
     }
 
     // Blend outside and surface with smooth AA transition
@@ -486,8 +465,6 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBeamIntensity = glGetUniformLocation (pid, "uBeamIntensity");
   _uApertureHalf  = glGetUniformLocation (pid, "uApertureHalf");
   _uMouthOffset   = glGetUniformLocation (pid, "uMouthOffset");
-  _uBeamAbsorb    = glGetUniformLocation (pid, "uBeamAbsorb");
-  _uBeamInner     = glGetUniformLocation (pid, "uBeamInner");
   _uBeamReach     = glGetUniformLocation (pid, "uBeamReach");
   _uEnergyMap       = glGetUniformLocation (pid, "uEnergyMap");
   _uEnergyColour    = glGetUniformLocation (pid, "uEnergyColour");
@@ -616,10 +593,6 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform1f (_uApertureHalf, speakerApertureHalfWidth);
   if (_uMouthOffset >= 0)
     glUniform1f (_uMouthOffset, speakerMouthOffset);
-  if (_uBeamAbsorb >= 0)
-    glUniform1f (_uBeamAbsorb, _spotCfg.absorb);
-  if (_uBeamInner >= 0)
-    glUniform1f (_uBeamInner, _spotCfg.innerIntensity);
   if (_uBeamReach >= 0)
     glUniform1f (_uBeamReach, _spotCfg.reach);
 

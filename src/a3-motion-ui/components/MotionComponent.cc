@@ -750,8 +750,6 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.edgeSoftness = cfgF (sl, "edgeSoftness", 0.7f);
     sc.beamFalloff = cfgF (sl, "beamFalloff", 0.6f);
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
-    sc.absorb = cfgF (sl, "absorb", 1.5f);
-    sc.innerIntensity = cfgF (sl, "innerIntensity", 0.8f);
     sc.reach = cfgF (sl, "reach", 0.25f);
     _sphereShader.setSpotlightConfig (sc);
 

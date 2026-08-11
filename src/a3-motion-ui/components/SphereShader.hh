@@ -102,8 +102,6 @@ public:
     float edgeSoftness = 0.7f;
     float beamFalloff = 0.6f;
     float beamIntensity = 0.8f;
-    float absorb = 1.5f;      // per unit travelled through the sphere
-    float innerIntensity = 0.8f;
     float reach = 0.25f; // how far past the mouth the stub carries
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
@@ -164,8 +162,6 @@ private:
   GLint _uBeamIntensity = -1;
   GLint _uApertureHalf = -1;
   GLint _uMouthOffset = -1;
-  GLint _uBeamAbsorb = -1;
-  GLint _uBeamInner = -1;
   GLint _uBeamReach = -1;
 
   GLint _uEnergyMap = -1;

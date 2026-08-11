@@ -99,34 +99,13 @@ TEST (SpeakerLightScaling, ShippedConfigSetsBeamShapeParameters)
   EXPECT_TRUE (speakerLight.hasProperty ("edgeSoftness"));
   EXPECT_TRUE (speakerLight.hasProperty ("beamFalloff"));
   EXPECT_TRUE (speakerLight.hasProperty ("beamIntensity"));
-  EXPECT_TRUE (speakerLight.hasProperty ("absorb"));
-  EXPECT_TRUE (speakerLight.hasProperty ("innerIntensity"));
+  EXPECT_TRUE (speakerLight.hasProperty ("reach"));
 
   // A softness of 1 has no soft edge at all; 0 fades from the axis outwards
   // and undoes the flat top.
   auto const softness = static_cast<float> (speakerLight["edgeSoftness"]);
   EXPECT_GT (softness, 0.f);
   EXPECT_LT (softness, 1.f);
-}
-
-// The beam widens with level, so the two angles bracket that range. Both are
-// measured off the beam's axis.
-TEST (SpeakerLightScaling, ShippedConfigWidensTheBeamWithLevel)
-{
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
-  auto const &speakerLight = parsed["speakerLight"];
-
-  ASSERT_TRUE (speakerLight.hasProperty ("beamAngleQuiet"));
-  ASSERT_TRUE (speakerLight.hasProperty ("beamAngleLoud"));
-
-  auto const quiet = static_cast<float> (speakerLight["beamAngleQuiet"]);
-  auto const loud = static_cast<float> (speakerLight["beamAngleLoud"]);
-
-  EXPECT_GT (quiet, 0.f);
-  EXPECT_LT (quiet, loud) << "beam must widen with level, not narrow";
 }
 
 TEST (SpeakerLightScaling, ShippedConfigKeepsLoudestSpeakerBright)

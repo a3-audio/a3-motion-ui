@@ -245,26 +245,33 @@ TEST (EnergyNet, DomainMovesWithTheRadius)
 
 // ── how much rim a beam covers ──────────────────────────────────────────
 
-// Four speakers, so a quarter of the rim each is what closes the circle. An
-// exact 90 is not reachable: past roughly 48.4 degrees the cone's half-width
-// beats the rim everywhere at once and coverage jumps straight from about 80
-// to the entire visible half. The value to aim for is the widest one below
-// that tipping point.
-TEST (SpeakerBeamReach, ShippedConfigLetsEachBeamCoverAboutItsQuarterOfTheRim)
+// Four speakers, so a quarter of the rim each is what closes the circle, and
+// the beams have to manage that already at their narrowest.
+//
+// Two things fall out of that. An exact 90 is not reachable: past roughly 48.4
+// degrees the cone's half-width beats the rim everywhere at once and coverage
+// jumps straight from about 80 to the entire visible half. And with the
+// narrowest state sitting just under that tipping point, there is no room left
+// to widen with level — the angle is effectively fixed and the level drives
+// brightness alone.
+TEST (SpeakerBeamReach, ShippedBeamsEncloseTheSphereAtTheirNarrowest)
 {
   auto const file = juce::File (A3_CONFIG_JSON_PATH);
   ASSERT_TRUE (file.existsAsFile ());
 
   auto const parsed = juce::JSON::parse (file.loadFileAsString ());
   auto const &speakerLight = parsed["speakerLight"];
+  auto const speakerRadius
+      = static_cast<float> (speakerLight["speakerRadius"]);
 
-  auto const coverage = beamRimCoverageDegrees (
-      static_cast<float> (speakerLight["beamAngleLoud"]),
-      static_cast<float> (speakerLight["speakerRadius"]));
+  auto const quiet = static_cast<float> (speakerLight["beamAngleQuiet"]);
+  auto const loud = static_cast<float> (speakerLight["beamAngleLoud"]);
 
-  EXPECT_GT (coverage, 70.f);
-  EXPECT_LT (coverage, 110.f) << "past the tipping point every beam blankets "
-                                 "the whole visible half of the rim";
+  EXPECT_GT (beamRimCoverageDegrees (quiet, speakerRadius), 70.f)
+      << "the narrowest beam already has to reach its quarter";
+  EXPECT_LE (quiet, loud) << "beam must not narrow with level";
+  EXPECT_LT (beamRimCoverageDegrees (loud, speakerRadius), 110.f)
+      << "past the tipping point every beam blankets the whole visible half";
 }
 
 TEST (SpeakerBeamReach, WiderBeamsCoverMoreRim)
