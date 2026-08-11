@@ -111,6 +111,16 @@ NetDomainPoint netDomainPoint (float x, float y, float radial, float twist,
  *  `angleDegrees` is the beam's angle off its own axis. */
 float beamRimCoverageDegrees (float angleDegrees, float speakerRadius);
 
+/** How far a beam's sample point is rotated about the sphere centre, in
+ *  radians, at a given distance from that centre.
+ *
+ *  Zero at the horn's mouth and growing to `curl` by the time it reaches the
+ *  sphere, so the beam leaves straight and wraps into the sphere's own turn on
+ *  the way in — a straight cone reads as a foreign object next to filaments
+ *  that curl. Held at both ends: there is no beam behind the mouth, and none
+ *  inside the sphere. */
+float beamCurlAngle (float distanceFromCentre, float mouthRadius, float curl);
+
 /** Index of the texel a direction falls in. */
 int energyMapTexel (float azimuthDegrees, float elevationDegrees);
 

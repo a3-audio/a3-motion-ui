@@ -164,6 +164,15 @@ glowEmergence (float distanceFromCentre, float rise)
   return t * t * (3.f - 2.f * t); // smoothstep, matching GLSL
 }
 
+float
+beamCurlAngle (float distanceFromCentre, float mouthRadius, float curl)
+{
+  auto const span = std::max (mouthRadius - 1.f, 1e-4f);
+  auto const t = std::clamp ((mouthRadius - distanceFromCentre) / span, 0.f, 1.f);
+
+  return curl * t * t * (3.f - 2.f * t); // smoothstep, matching GLSL
+}
+
 int
 energyMapTexel (float azimuthDegrees, float elevationDegrees)
 {

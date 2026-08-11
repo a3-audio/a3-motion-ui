@@ -347,4 +347,63 @@ TEST (GlowNet, ShippedConfigHasNoSmoothHaloLeft)
   EXPECT_FALSE (parsed["sphereGlow"].hasProperty ("falloff"));
 }
 
+
+// ── beams wrapping the sphere ───────────────────────────────────────────
+//
+// A straight cone reads as a foreign object next to filaments that curl. The
+// beam's sample point gets rotated about the sphere centre by an angle that
+// grows as it approaches, so the beam leaves the horn straight and curls into
+// the sphere's own turn by the time it arrives.
+
+TEST (BeamCurl, BeamLeavesTheHornStraight)
+{
+  auto constexpr mouthRadius = 1.35f;
+  auto constexpr curl = 0.6f;
+
+  EXPECT_NEAR (beamCurlAngle (mouthRadius, mouthRadius, curl), 0.f, 1e-4f);
+}
+
+TEST (BeamCurl, BeamIsFullyTurnedByTheTimeItReachesTheSphere)
+{
+  auto constexpr mouthRadius = 1.35f;
+  auto constexpr curl = 0.6f;
+
+  EXPECT_NEAR (beamCurlAngle (1.f, mouthRadius, curl), curl, 1e-4f);
+}
+
+TEST (BeamCurl, TurnGrowsAllTheWayIn)
+{
+  auto constexpr mouthRadius = 1.35f;
+  auto constexpr curl = 0.6f;
+
+  EXPECT_LT (beamCurlAngle (1.3f, mouthRadius, curl),
+             beamCurlAngle (1.15f, mouthRadius, curl));
+  EXPECT_LT (beamCurlAngle (1.15f, mouthRadius, curl),
+             beamCurlAngle (1.05f, mouthRadius, curl));
+}
+
+// Behind the mouth and inside the sphere there is no beam to turn, and letting
+// the angle run on there would spin the pattern where it is not drawn.
+TEST (BeamCurl, TurnStopsAtBothEnds)
+{
+  auto constexpr mouthRadius = 1.35f;
+  auto constexpr curl = 0.6f;
+
+  EXPECT_FLOAT_EQ (beamCurlAngle (1.6f, mouthRadius, curl), 0.f);
+  EXPECT_FLOAT_EQ (beamCurlAngle (0.8f, mouthRadius, curl), curl);
+}
+
+TEST (BeamCurl, ShippedConfigCurlsTheBeams)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &speakerLight = parsed["speakerLight"];
+
+  ASSERT_TRUE (speakerLight.hasProperty ("curl"));
+  EXPECT_GT (std::abs (static_cast<float> (speakerLight["curl"])), 0.1f)
+      << "a straight beam is what this was meant to get away from";
+}
+
 }

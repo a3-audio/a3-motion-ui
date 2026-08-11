@@ -114,6 +114,8 @@ public:
     float beamFalloff = 0.6f;
     float beamIntensity = 0.8f;
     float reach = 0.25f; // how far past the mouth the stub carries
+    float curl = 0.6f;      // radians the beam wraps by the time it lands
+    float filament = 0.7f;  // how much of it is filament rather than solid
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
 
@@ -179,6 +181,8 @@ private:
   GLint _uBeamEdge = -1;
   GLint _uBeamFalloff = -1;
   GLint _uBeamIntensity = -1;
+  GLint _uBeamCurl = -1;
+  GLint _uBeamFilament = -1;
   GLint _uApertureHalf = -1;
   GLint _uMouthOffset = -1;
   GLint _uBeamReach = -1;

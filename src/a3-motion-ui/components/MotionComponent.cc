@@ -759,6 +759,8 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.beamFalloff = cfgF (sl, "beamFalloff", 0.6f);
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
     sc.reach = cfgF (sl, "reach", 0.25f);
+    sc.curl = cfgF (sl, "curl", 0.6f);
+    sc.filament = cfgF (sl, "filament", 0.7f);
     _sphereShader.setSpotlightConfig (sc);
 
     auto const &energy = config["energy"];

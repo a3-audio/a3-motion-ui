@@ -54,7 +54,9 @@
     "edgeSoftness": 0.7,
     "beamAngleQuiet": 40,
     "beamAngleLoud": 55,
-    "reach": 0.5
+    "reach": 0.5,
+    "curl": 0.6,
+    "filament": 0.7
   },
   "channels": [
     {
