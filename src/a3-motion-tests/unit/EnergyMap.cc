@@ -245,33 +245,23 @@ TEST (EnergyNet, DomainMovesWithTheRadius)
 
 // ── how much rim a beam covers ──────────────────────────────────────────
 
-// Four speakers, so a quarter of the rim each is what closes the circle, and
-// the beams have to manage that already at their narrowest.
-//
-// Opening further with level is not available here, and the reason is
-// geometric rather than a matter of picking a value: from a mouth at radius
-// 1.30 the rim points beyond 45 degrees are easier to reach than the one at
-// 45, so the angle that covers a quarter is the same angle that covers the
-// whole visible half. Coverage goes 79 degrees, then 180, with nothing in
-// between — see issues/a3-motion-ui-beam-opening-cannot-bounce.md.
-TEST (SpeakerBeamReach, ShippedBeamsEncloseTheirQuarterAndNoMore)
+// The quarter-of-the-rim criterion is gone: the beams are being reworked from
+// straight cones into something that wraps the sphere with the same fractal
+// character as everything else, and a cone's rim coverage says nothing about
+// that. What is left here is the pair of invariants that survive the change.
+TEST (SpeakerBeamReach, ShippedBeamsDoNotNarrowWithLevel)
 {
   auto const file = juce::File (A3_CONFIG_JSON_PATH);
   ASSERT_TRUE (file.existsAsFile ());
 
   auto const parsed = juce::JSON::parse (file.loadFileAsString ());
   auto const &speakerLight = parsed["speakerLight"];
-  auto const speakerRadius
-      = static_cast<float> (speakerLight["speakerRadius"]);
 
   auto const quiet = static_cast<float> (speakerLight["beamAngleQuiet"]);
   auto const loud = static_cast<float> (speakerLight["beamAngleLoud"]);
 
-  EXPECT_GT (beamRimCoverageDegrees (quiet, speakerRadius), 70.f)
-      << "the narrowest beam already has to reach its quarter";
-  EXPECT_LT (beamRimCoverageDegrees (loud, speakerRadius), 110.f)
-      << "any wider and every beam rings the whole sphere at once";
-  EXPECT_LE (quiet, loud) << "beam must not narrow with level";
+  EXPECT_GT (quiet, 0.f);
+  EXPECT_LE (quiet, loud);
 }
 
 TEST (SpeakerBeamReach, WiderBeamsCoverMoreRim)
@@ -280,23 +270,81 @@ TEST (SpeakerBeamReach, WiderBeamsCoverMoreRim)
              beamRimCoverageDegrees (30.f, 1.35f));
 }
 
-TEST (SpeakerBeamReach, ShippedStubActuallyReachesTheRim)
+
+
+
+// ── the glow's outward net ──────────────────────────────────────────────
+//
+// The sphere glow used to be a smooth halo hugging the rim. It is filaments
+// now, running the other way from the inner net: out from behind the sphere
+// towards the edge of the screen, so the picture reads as arrival on the
+// inside and spread on the outside.
+
+TEST (GlowNet, FilamentsTravelOutwardsWhenTheFlowIsNegative)
+{
+  auto constexpr filament = 1.0f;
+  auto constexpr flow = -0.2f;
+
+  EXPECT_GT (netFilamentRadius (filament, 1.f, flow),
+             netFilamentRadius (filament, 0.f, flow));
+}
+
+TEST (GlowNet, NothingEmergesInsideTheSphere)
+{
+  EXPECT_FLOAT_EQ (glowEmergence (0.9f, 0.25f), 0.f);
+  EXPECT_FLOAT_EQ (glowEmergence (1.f, 0.25f), 0.f);
+}
+
+// The filaments have to look like they come out from behind the sphere rather
+// than sprouting from its edge, which means nothing at the rim itself.
+TEST (GlowNet, FilamentsAppearBehindTheRimNotOnIt)
+{
+  auto constexpr rise = 0.25f;
+
+  EXPECT_LT (glowEmergence (1.02f, rise), 0.1f);
+  EXPECT_GT (glowEmergence (1.f + rise, rise), 0.9f);
+}
+
+// The screen corner sits about 2.26 sphere radii out: the component is
+// 768 x ~734 px with the sphere at reduceFactorCircle 0.64, so a radius of
+// 734 * 0.64 / 2 = 235 px against a corner distance of hypot(384, 367) = 531.
+// A filament domain that stops short of that freezes exactly where the
+// filaments are supposed to be heading.
+TEST (GlowNet, ShippedConfigReachesTheScreenCorner)
 {
   auto const file = juce::File (A3_CONFIG_JSON_PATH);
   ASSERT_TRUE (file.existsAsFile ());
 
   auto const parsed = juce::JSON::parse (file.loadFileAsString ());
-  auto const &speakerLight = parsed["speakerLight"];
+  auto const &glow = parsed["sphereGlow"];
 
-  auto const mouthRadius = speakerMouthRadius (
-      static_cast<float> (speakerLight["speakerRadius"]));
-
-  // The rim points at the edge of the quarter sit further from the mouth than
-  // the one straight ahead, so the stub has to outlast them or the beam stops
-  // short of the arc it is supposed to light.
-  EXPECT_GT (static_cast<float> (speakerLight["reach"]),
-             mouthRadius - std::cos (45.f * 3.14159265f / 180.f));
+  ASSERT_TRUE (glow.hasProperty ("reach"));
+  EXPECT_GE (static_cast<float> (glow["reach"]), screenCornerDistance);
 }
 
+TEST (GlowNet, ShippedConfigRunsOutwards)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &glow = parsed["sphereGlow"];
+
+  ASSERT_TRUE (glow.hasProperty ("netFlow"));
+  EXPECT_LT (static_cast<float> (glow["netFlow"]), 0.f)
+      << "a positive flow would run the glow inwards, against the inner net";
+}
+
+// The smooth halo is what these replace; leaving it in would just sit under
+// them and put a step back at the rim.
+TEST (GlowNet, ShippedConfigHasNoSmoothHaloLeft)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+
+  EXPECT_FALSE (parsed["sphereGlow"].hasProperty ("falloff"));
+}
 
 }

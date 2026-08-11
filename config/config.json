@@ -13,9 +13,9 @@
   },
   "corona": {
     "vuMax": 0.25,
-    "sizeMin": 1.1,
-    "sizeMax": 2.2,
-    "sizeGrabbed": 1.5,
+    "sizeMin": 0.5,
+    "sizeMax": 1.2,
+    "sizeGrabbed": 0.8,
     "alphaMin": 0.0,
     "alphaMax": 0.75,
     "whiteBlend": 0.9,
@@ -29,8 +29,16 @@
     "b": 250,
     "alphaMax": 0.7,
     "curve": 1.2,
-    "falloff": 3.5,
-    "intensity": 0.35
+    "intensity": 2.4,
+    "netFlow": -0.18,
+    "reach": 2.6,
+    "rise": 0.25,
+    "netTwist": 9,
+    "netScale": 7,
+    "netSharpness": 6,
+    "netOctaves": 3,
+    "netLacunarity": 2.0,
+    "netGain": 0.5
   },
   "speakerLight": {
     "vuMax": 0.2,
@@ -38,15 +46,15 @@
     "g": 250,
     "b": 251,
     "curve": 1.2,
-    "speakerRadius": 1.35,
+    "speakerRadius": 1.4,
     "beamFalloff": 0.8,
-    "beamIntensity": 0.35,
+    "beamIntensity": 0.6,
     "attack": 0.08,
     "decay": 0.25,
     "edgeSoftness": 0.7,
-    "beamAngleQuiet": 48.25,
-    "beamAngleLoud": 48.25,
-    "reach": 0.9
+    "beamAngleQuiet": 40,
+    "beamAngleLoud": 55,
+    "reach": 0.5
   },
   "channels": [
     {

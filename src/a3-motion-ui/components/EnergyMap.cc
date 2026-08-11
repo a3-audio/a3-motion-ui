@@ -154,6 +154,16 @@ netFilamentRadius (float filamentCoordinate, float time, float flow)
   return filamentCoordinate - time * flow;
 }
 
+float
+glowEmergence (float distanceFromCentre, float rise)
+{
+  auto const t = std::clamp ((distanceFromCentre - 1.f)
+                                 / std::max (rise, 1e-4f),
+                             0.f, 1.f);
+
+  return t * t * (3.f - 2.f * t); // smoothstep, matching GLSL
+}
+
 int
 energyMapTexel (float azimuthDegrees, float elevationDegrees)
 {

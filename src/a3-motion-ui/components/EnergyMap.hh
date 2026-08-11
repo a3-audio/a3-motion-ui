@@ -69,13 +69,26 @@ constexpr float energyMapSpreadDegrees = 12.f;
  *  raw angle, without the HOA-to-JUCE conversion the blobs go through. */
 EnergyDirection energyDirectionForScreen (float x, float y);
 
-/** Radius at which a given filament of the net stands at a given time.
+/** Radius at which a given filament of a net stands at a given time.
  *
- *  The net flows inwards: filaments appear out in the speaker beams and at the
- *  rim, and travel towards the centre — the direction sound arrives from, not
- *  the direction it leaves in. The shader picks the filament sitting at a
- *  pixel by inverting this. */
+ *  `flow` is signed. Positive runs the filaments inwards — the direction sound
+ *  arrives from — which is what the net inside the sphere does. Negative runs
+ *  them outwards, which is what the glow outside it does. The shader picks the
+ *  filament sitting at a pixel by inverting this. */
 float netFilamentRadius (float filamentCoordinate, float time, float flow);
+
+// How far out the screen corner sits, in sphere radii. The component is
+// 768 x ~734 px with the sphere at reduceFactorCircle 0.64, so a radius of
+// 734 * 0.64 / 2 = 235 px against a corner distance of hypot(384, 367) = 531.
+constexpr float screenCornerDistance = 2.26f;
+
+/** How much of the glow's net has emerged from behind the sphere at a given
+ *  distance from the centre.
+ *
+ *  Zero on and inside the rim, rising to one over `rise` beyond it, so the
+ *  filaments look like they come out from behind the sphere rather than
+ *  sprouting from its edge. */
+float glowEmergence (float distanceFromCentre, float rise);
 
 /** Point in the noise domain a place on the display maps to.
  *

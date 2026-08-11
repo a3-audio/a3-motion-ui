@@ -75,18 +75,29 @@ public:
   // Note: CoronaConfig now lives in MotionComponent (2D blob overlay)
 
   // ── Config ─────────────────────────────────────────────────────
-  /** The sphere's own corona: a halo outside it, driven by the subwoofer.
+  /** The sphere's own glow, driven by the subwoofer: filaments coming out
+   *  from behind it and running to the edge of the screen.
    *
-   *  It used to light the sphere's skin from within, which is now the beams'
-   *  territory — the sphere is translucent, so they pass into it. */
+   *  It was a smooth halo hugging the rim before, and before that it lit the
+   *  sphere's skin from within — which is the beams' and the net's territory
+   *  now. `netFlow` is negative here: these run outwards, against the net
+   *  inside. */
   struct GlowConfig
   {
     float r = 0.9f, g = 0.12f, b = 0.05f;
     float alphaMax = 0.6f;
     float vuMax = 0.2f;
     float curve = 0.4f;
-    float falloff = 1.5f;
     float intensity = 0.8f;
+    float netFlow = -0.18f;
+    float netReach = 2.6f;
+    float netRise = 0.25f;
+    float netTwist = 9.f;
+    float netScale = 7.f;
+    float netSharpness = 6.f;
+    float netOctaves = 3.f;
+    float netLacunarity = 2.f;
+    float netGain = 0.5f;
   };
   void setGlowConfig (GlowConfig const &cfg);
 
@@ -149,7 +160,15 @@ private:
 
   GLint _uGlowLevel = -1;
   GLint _uGlowColour = -1;
-  GLint _uGlowFalloff = -1;
+  GLint _uGlowFlow = -1;
+  GLint _uGlowReach = -1;
+  GLint _uGlowRise = -1;
+  GLint _uGlowTwist = -1;
+  GLint _uGlowScale = -1;
+  GLint _uGlowSharpness = -1;
+  GLint _uGlowOctaves = -1;
+  GLint _uGlowLacunarity = -1;
+  GLint _uGlowGain = -1;
   GLint _uGlowIntensity = -1;
   GLint _uBgColour = -1;
 

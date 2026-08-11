@@ -65,8 +65,16 @@ uniform vec2  uSphereCentre;
 // Corona of the whole sphere, driven by the subwoofer
 uniform float uGlowLevel;
 uniform vec3  uGlowColour;
-uniform float uGlowFalloff;
 uniform float uGlowIntensity;
+uniform float uGlowFlow;        // negative: the glow's filaments run outwards
+uniform float uGlowReach;       // how far the domain still varies
+uniform float uGlowRise;        // distance over which they emerge past the rim
+uniform float uGlowTwist;
+uniform float uGlowScale;
+uniform float uGlowSharpness;
+uniform float uGlowOctaves;
+uniform float uGlowLacunarity;
+uniform float uGlowGain;
 
 uniform vec3  uBgColour;  // solid background colour
 
@@ -176,6 +184,13 @@ float beamDensity (vec2 p, vec2 spkDir, float level, float spreadTan)
     return level * shape * reach * df;
 }
 
+// How much of the glow's net has emerged from behind the sphere. Mirrors
+// glowEmergence() in EnergyMap.cc.
+float glowEmergence (float d, float rise)
+{
+    return smoothstep (1.0, 1.0 + max (rise, 0.0001), d);
+}
+
 // Half the chord a view ray traverses, 1 at the centre and 0 at the rim.
 float sphereHalfChord (float d)
 {
@@ -249,19 +264,27 @@ float valueNoise (vec3 p)
 
 // Ridged fractal noise: the filaments are the ridges between noise cells, and
 // stacking octaves is what gives them branches within branches.
-float netFilaments (vec2 uv, float dist)
+// Ridged fractal noise: the filaments are the ridges between noise cells, and
+// stacking octaves is what gives them branches within branches.
+//
+// `radial` already carries the flow — the caller forms it, and its sign is what
+// decides whether the filaments run in or out. `reach` clamps how far out the
+// domain still varies; past it the pattern freezes, so it has to cover
+// wherever the filaments are meant to go.
+float netFilaments (vec2 uv, float dist, float flow, float reach,
+                    float twist, float scale, float sharpness,
+                    float octaves, float lacunarity, float gain)
 {
     // Inverts netFilamentRadius() in EnergyMap.cc: the filament standing at
-    // this radius now is the one that started further out. Plus, not minus —
-    // the net runs inwards, the way the sound arrives.
-    float radial = clamp (dist, 0.0, 1.6) + uTime * uNetFlow;
+    // this radius now is the one that started further along the flow.
+    float radial = clamp (dist, 0.0, reach) + uTime * flow;
 
     // Domain built from the direction, not from an angle. An angle wraps, and
     // the wrap left a seam due west where the filaments failed to meet.
     // Mirrors netDomainPoint() in EnergyMap.cc.
     float len = max (length (uv), 0.000001);
     vec2 n = uv / len;
-    vec3 p = vec3 (n * uNetTwist, radial * uNetScale);
+    vec3 p = vec3 (n * twist, radial * scale);
 
     float sum = 0.0;
     float amp = 1.0;
@@ -270,17 +293,32 @@ float netFilaments (vec2 uv, float dist)
     {
         // Fades the last octave in rather than switching it, so the count can
         // be tuned continuously.
-        float active = clamp (uNetOctaves - float (octave), 0.0, 1.0);
+        float active = clamp (octaves - float (octave), 0.0, 1.0);
         if (active <= 0.0) break;
 
         float ridge = 1.0 - abs (2.0 * valueNoise (p) - 1.0);
         sum += ridge * amp * active;
         norm += amp * active;
-        p *= uNetLacunarity;
-        amp *= uNetGain;
+        p *= lacunarity;
+        amp *= gain;
     }
 
-    return pow (sum / max (norm, 0.0001), uNetSharpness);
+    return pow (sum / max (norm, 0.0001), sharpness);
+}
+
+// The net inside the sphere and along the beams.
+float innerNet (vec2 uv, float dist)
+{
+    return netFilaments (uv, dist, uNetFlow, 1.6, uNetTwist, uNetScale,
+                         uNetSharpness, uNetOctaves, uNetLacunarity, uNetGain);
+}
+
+// The glow's net, running the other way and reaching to the screen edge.
+float glowNet (vec2 uv, float dist)
+{
+    return netFilaments (uv, dist, uGlowFlow, uGlowReach, uGlowTwist,
+                         uGlowScale, uGlowSharpness, uGlowOctaves,
+                         uGlowLacunarity, uGlowGain);
 }
 
 // ─── main ───────────────────────────────────────────────────────
@@ -303,13 +341,18 @@ void main ()
     vec3 colOut = vec3 (0.0);
     if (dist > 1.0 - aaWidth)
     {
-        // Corona of the whole sphere, driven by the subwoofer (/vu/4) — the
-        // sphere's own halo, sitting outside it rather than lighting its skin,
-        // so the beams have the interior to themselves.
+        // The sphere's own glow, driven by the subwoofer (/vu/4). Filaments
+        // coming out from behind the sphere and running to the edge of the
+        // screen — the outward counterpart to the net inside, which runs in.
+        // Modulated by the energy arriving from this direction, so the spread
+        // outside continues what lands inside.
         if (uGlowLevel > 0.001)
         {
-            float gf = 1.0 / (1.0 + (dist - 1.0) * uGlowFalloff);
-            colOut += uGlowColour * uGlowLevel * gf * gf * uGlowIntensity;
+            vec3 rimDirection = screenToDirection (uvScene / max (dist, 0.001),
+                                                   1.0);
+            colOut += uGlowColour * uGlowLevel * glowNet (uvScene, dist)
+                    * glowEmergence (dist, uGlowRise)
+                    * energyAt (rimDirection) * uGlowIntensity;
         }
 
         // Speaker beams on their way to the sphere
@@ -318,7 +361,7 @@ void main ()
 
         // Outside, the net rides the beams towards the sphere, so a filament
         // is already visible before it crosses the rim.
-        colOut += uSpotColour * netFilaments (uvScene, dist)
+        colOut += uSpotColour * innerNet (uvScene, dist)
                 * beamTotal (uvScene) * uNetBeamIntensity;
 
         // Blob outside glow removed — blobs only create reflections on sphere surface
@@ -386,7 +429,7 @@ void main ()
         // The beams stop at the rim. Inside, the net takes over from them:
         // filaments landing where a beam meets the sphere and running in from
         // there, strongest at the rim and thinning out as they travel.
-        float net = netFilaments (uvScene, dist);
+        float net = innerNet (uvScene, dist);
         vec3 rimDir = screenToDirection (uvScene / max (dist, 0.001), 1.0);
 
         colSurf += uEnergyColour * net * energyAt (rimDir) * dist * dist
@@ -449,7 +492,15 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uSphereCentre  = glGetUniformLocation (pid, "uSphereCentre");
   _uGlowLevel     = glGetUniformLocation (pid, "uGlowLevel");
   _uGlowColour    = glGetUniformLocation (pid, "uGlowColour");
-  _uGlowFalloff   = glGetUniformLocation (pid, "uGlowFalloff");
+  _uGlowFlow = glGetUniformLocation (pid, "uGlowFlow");
+  _uGlowReach = glGetUniformLocation (pid, "uGlowReach");
+  _uGlowRise = glGetUniformLocation (pid, "uGlowRise");
+  _uGlowTwist = glGetUniformLocation (pid, "uGlowTwist");
+  _uGlowScale = glGetUniformLocation (pid, "uGlowScale");
+  _uGlowSharpness = glGetUniformLocation (pid, "uGlowSharpness");
+  _uGlowOctaves = glGetUniformLocation (pid, "uGlowOctaves");
+  _uGlowLacunarity = glGetUniformLocation (pid, "uGlowLacunarity");
+  _uGlowGain = glGetUniformLocation (pid, "uGlowGain");
   _uGlowIntensity = glGetUniformLocation (pid, "uGlowIntensity");
   _uBgColour      = glGetUniformLocation (pid, "uBgColour");
   _uSpotLevel[0]  = glGetUniformLocation (pid, "uSpotLevel0");
@@ -560,7 +611,15 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     float s = speakerLightLevel (_glowRms, _glowCfg.vuMax, _glowCfg.curve);
     if (_uGlowLevel >= 0)     glUniform1f (_uGlowLevel, s);
     if (_uGlowColour >= 0)    glUniform3f (_uGlowColour, _glowCfg.r, _glowCfg.g, _glowCfg.b);
-    if (_uGlowFalloff >= 0)   glUniform1f (_uGlowFalloff, _glowCfg.falloff);
+    if (_uGlowFlow >= 0) glUniform1f (_uGlowFlow, _glowCfg.netFlow);
+    if (_uGlowReach >= 0) glUniform1f (_uGlowReach, _glowCfg.netReach);
+    if (_uGlowRise >= 0) glUniform1f (_uGlowRise, _glowCfg.netRise);
+    if (_uGlowTwist >= 0) glUniform1f (_uGlowTwist, _glowCfg.netTwist);
+    if (_uGlowScale >= 0) glUniform1f (_uGlowScale, _glowCfg.netScale);
+    if (_uGlowSharpness >= 0) glUniform1f (_uGlowSharpness, _glowCfg.netSharpness);
+    if (_uGlowOctaves >= 0) glUniform1f (_uGlowOctaves, _glowCfg.netOctaves);
+    if (_uGlowLacunarity >= 0) glUniform1f (_uGlowLacunarity, _glowCfg.netLacunarity);
+    if (_uGlowGain >= 0) glUniform1f (_uGlowGain, _glowCfg.netGain);
     if (_uGlowIntensity >= 0) glUniform1f (_uGlowIntensity, _glowCfg.intensity);
   }
 

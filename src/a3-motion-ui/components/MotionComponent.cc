@@ -732,8 +732,16 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     gc.alphaMax = cfgF (sg, "alphaMax", 0.6f);
     gc.vuMax = cfgF (sg, "vuMax", 0.2f);
     gc.curve = cfgF (sg, "curve", 0.4f);
-    gc.falloff = cfgF (sg, "falloff", 1.5f);
     gc.intensity = cfgF (sg, "intensity", 0.8f);
+    gc.netFlow = cfgF (sg, "netFlow", -0.18f);
+    gc.netReach = cfgF (sg, "reach", 2.6f);
+    gc.netRise = cfgF (sg, "rise", 0.25f);
+    gc.netTwist = cfgF (sg, "netTwist", 9.f);
+    gc.netScale = cfgF (sg, "netScale", 7.f);
+    gc.netSharpness = cfgF (sg, "netSharpness", 6.f);
+    gc.netOctaves = cfgF (sg, "netOctaves", 3.f);
+    gc.netLacunarity = cfgF (sg, "netLacunarity", 2.f);
+    gc.netGain = cfgF (sg, "netGain", 0.5f);
     _sphereShader.setGlowConfig (gc);
 
     SphereShader::SpotlightConfig sc;
