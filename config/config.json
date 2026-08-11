@@ -8,7 +8,8 @@
   "oscReceiver": {
     "host": "0.0.0.0",
     "port": 7771,
-    "vuPort": 7772
+    "vuPort": 7772,
+    "energyPort": 7777
   },
   "corona": {
     "vuMax": 0.25,
@@ -45,8 +46,9 @@
     "absorb": 1.0,
     "innerIntensity": 4.0,
     "edgeSoftness": 0.7,
-    "beamAngleQuiet": 26,
-    "beamAngleLoud": 70
+    "beamAngleQuiet": 35,
+    "beamAngleLoud": 75,
+    "reach": 0.25
   },
   "channels": [
     {
@@ -69,5 +71,19 @@
       "g": 208,
       "b": 2
     }
-  ]
+  ],
+  "energy": {
+    "vuMax": 0.06,
+    "curve": 0.8,
+    "attack": 0.05,
+    "decay": 0.25,
+    "r": 150,
+    "g": 220,
+    "b": 255,
+    "intensity": 0.9,
+    "netIntensity": 1.2,
+    "netScale": 6,
+    "netSharpness": 8,
+    "netFlow": 0.15
+  }
 }

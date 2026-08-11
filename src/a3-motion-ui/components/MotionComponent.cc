@@ -360,6 +360,59 @@ MotionComponent::setSpeakerLight (int speakerIndex, float peak, float rms)
 }
 
 void
+MotionComponent::setEnergyGrid (float const *values, int count)
+{
+  if (count != energyGridPointCount)
+    return;
+
+  juce::SpinLock::ScopedLockType lock{ _energyLock };
+  std::copy (values, values + count, _energyIncoming.begin ());
+  _energyPending = true;
+}
+
+// Runs on the GL thread. The plugin only sends 9 times a second, so the map is
+// eased towards each new frame rather than stepped to it.
+void
+MotionComponent::uploadEnergyMap ()
+{
+  using namespace juce::gl;
+
+  if (_energyProjection == nullptr || _energyTexture == 0)
+    return;
+
+  {
+    juce::SpinLock::ScopedTryLockType lock{ _energyLock };
+    if (lock.isLocked () && _energyPending)
+      {
+        _energyProjection->project (_energyIncoming.data (),
+                                    _energyTarget.data ());
+        _energyPending = false;
+      }
+  }
+
+  constexpr float dt = 1.f / 60.f;
+  for (int i = 0; i < energyMapTexelCount; ++i)
+    {
+      _energySmoothed[static_cast<size_t> (i)] = speakerLightEnvelope (
+          _energySmoothed[static_cast<size_t> (i)],
+          _energyTarget[static_cast<size_t> (i)], _energyAttack, _energyDecay,
+          dt);
+
+      // The perceptual mapping happens here rather than in the shader so the
+      // texture can stay 8-bit, which every GL 2.1 driver handles.
+      auto const level = speakerLightLevel (
+          _energySmoothed[static_cast<size_t> (i)], _energyVuMax, _energyCurve);
+      _energyTexels[static_cast<size_t> (i)]
+          = static_cast<unsigned char> (std::clamp (level, 0.f, 1.f) * 255.f);
+    }
+
+  glBindTexture (GL_TEXTURE_2D, _energyTexture);
+  glTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, energyMapWidth, energyMapHeight,
+                   GL_LUMINANCE, GL_UNSIGNED_BYTE, _energyTexels.data ());
+  glBindTexture (GL_TEXTURE_2D, 0);
+}
+
+void
 MotionComponent::disoccludeBlobs ()
 {
   jassert (_grabbedIndex.has_value ());
@@ -620,6 +673,40 @@ MotionComponent::newOpenGLContextCreated ()
   // Initialise blit shader for FBO compositing
   _blit.create ();
 
+  // Energy map from the IEM EnergyVisualizer. Folding 426 directions into the
+  // map is a fixed geometry problem, so the weights are resolved once here.
+  {
+    auto const grid = loadEnergyGrid (
+        juce::File::getCurrentWorkingDirectory ().getChildFile (
+            "resources/EnergyVisualizerGrid.json"));
+
+    if (grid.size () == energyGridPointCount)
+      {
+        _energyProjection
+            = std::make_unique<EnergyMapProjection> (grid, energyMapSpreadDegrees);
+        _energyTarget.assign (energyMapTexelCount, 0.f);
+        _energySmoothed.assign (energyMapTexelCount, 0.f);
+        _energyTexels.assign (energyMapTexelCount, 0);
+
+        glGenTextures (1, &_energyTexture);
+        glBindTexture (GL_TEXTURE_2D, _energyTexture);
+        glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, energyMapWidth,
+                      energyMapHeight, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE,
+                      _energyTexels.data ());
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // Azimuth wraps, elevation does not.
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture (GL_TEXTURE_2D, 0);
+      }
+    else
+      {
+        juce::Logger::writeToLog (
+            "energy grid missing or wrong size — sphere stays unlit by it");
+      }
+  }
+
   _configWatcher = ConfigFileWatcher{ visualConfigFile () };
   applyVisualConfig (userConfig);
 }
@@ -663,7 +750,26 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
     sc.absorb = cfgF (sl, "absorb", 1.5f);
     sc.innerIntensity = cfgF (sl, "innerIntensity", 0.8f);
+    sc.reach = cfgF (sl, "reach", 0.25f);
     _sphereShader.setSpotlightConfig (sc);
+
+    auto const &energy = config["energy"];
+    _energyVuMax = cfgF (energy, "vuMax", 0.05f);
+    _energyCurve = cfgF (energy, "curve", 0.8f);
+    _energyAttack = cfgF (energy, "attack", 0.05f);
+    _energyDecay = cfgF (energy, "decay", 0.25f);
+
+    SphereShader::EnergyConfig ec;
+    ec.r = cfgF (energy, "r", 255.f) / 255.f;
+    ec.g = cfgF (energy, "g", 255.f) / 255.f;
+    ec.b = cfgF (energy, "b", 255.f) / 255.f;
+    ec.intensity = cfgF (energy, "intensity", 1.0f);
+    ec.netIntensity = cfgF (energy, "netIntensity", 0.8f);
+    ec.netScale = cfgF (energy, "netScale", 6.f);
+    ec.netSharpness = cfgF (energy, "netSharpness", 8.f);
+    ec.netFlow = cfgF (energy, "netFlow", 0.15f);
+    _sphereShader.setEnergyConfig (ec);
+    _sphereShader.setEnergyTexture (_energyTexture);
 
     _spotAttack = cfgF (sl, "attack", 0.08f);
     _spotDecay = cfgF (sl, "decay", 0.4f);
@@ -706,6 +812,11 @@ MotionComponent::renderOpenGL ()
 
   if (_frameCount % 60 == 0)
     reloadVisualConfigIfChanged ();
+
+  uploadEnergyMap ();
+  _sphereShader.setEnergyTexture (_energyTexture);
+  _sphereShader.setTime (static_cast<float> (juce::Time::getMillisecondCounter ())
+                         * 0.001f);
 
   // Clear background first
   OpenGLHelpers::clear (Colours::background);
@@ -1292,7 +1403,14 @@ MotionComponent::localToNormalized2DPosition (
 void
 MotionComponent::openGLContextClosing ()
 {
+  using namespace juce::gl;
+
   DBG ("openGLContextClosing");
+  if (_energyTexture != 0)
+    {
+      glDeleteTextures (1, &_energyTexture);
+      _energyTexture = 0;
+    }
   _blit.destroy ();
   _sphereShader.shutdown ();
 }

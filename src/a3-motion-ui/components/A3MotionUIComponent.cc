@@ -169,6 +169,26 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       std::cerr << "ERROR: Could not bind OSC VU Receiver to port " << oscVuPort << std::endl;
     }
 
+  // Setup OSC Receiver for the IEM EnergyVisualizer (separate port again —
+  // it sends 426 floats at 9 Hz and has no business sharing a socket with the
+  // beat clock).
+  int oscEnergyPort = 7777; // default
+  if (userConfig.hasProperty ("oscReceiver"))
+    {
+      auto oscRecvConfig = userConfig["oscReceiver"];
+      if (oscRecvConfig.hasProperty ("energyPort"))
+        oscEnergyPort = static_cast<int> (oscRecvConfig["energyPort"]);
+    }
+  if (_oscReceiverEnergy.connect (oscEnergyPort))
+    {
+      std::cout << "OSC Energy Receiver listening on " << oscRecvHost << ":" << oscEnergyPort << std::endl;
+      _oscReceiverEnergy.addListener (this);
+    }
+  else
+    {
+      std::cerr << "ERROR: Could not bind OSC Energy Receiver to port " << oscEnergyPort << std::endl;
+    }
+
   // Setup OSC Sender from config (for beatclock)
   if (userConfig.hasProperty ("oscSender"))
     {
@@ -194,6 +214,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
   stopTimer ();
+  _oscReceiverEnergy.removeListener (this);
+  _oscReceiverEnergy.disconnect ();
   _oscReceiverVU.removeListener (this);
   _oscReceiverVU.disconnect ();
   _oscReceiver.removeListener (this);
@@ -1374,6 +1396,12 @@ void
 A3MotionUIComponent::onSubwooferVU (float peak, float rms)
 {
   _motionComponent->setSphereGlow (peak, rms);
+}
+
+void
+A3MotionUIComponent::onEnergyGrid (float const *values, int count)
+{
+  _motionComponent->setEnergyGrid (values, count);
 }
 
 void

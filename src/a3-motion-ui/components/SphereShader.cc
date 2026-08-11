@@ -89,6 +89,18 @@ uniform float uApertureHalf;   // half-width of the horn's mouth
 uniform float uMouthOffset;    // mouth position ahead of the speaker centre
 uniform float uBeamAbsorb;     // absorption per unit travelled inside
 uniform float uBeamInner;      // brightness of the volume lighting
+uniform float uBeamReach;      // how far past the mouth the stub carries
+
+// Energy arriving from each direction, folded into an equirectangular map by
+// EnergyMap.cc from the IEM EnergyVisualizer's 426 points
+uniform sampler2D uEnergyMap;
+uniform vec3  uEnergyColour;
+uniform float uEnergyIntensity;
+uniform float uNetIntensity;
+uniform float uNetScale;
+uniform float uNetSharpness;
+uniform float uNetFlow;
+uniform float uTime;
 
 // Channel blobs (position, size, VU, colour, state)
 uniform vec4  uBlobPosSize0;
@@ -144,6 +156,10 @@ float beamDensity (vec2 p, vec2 spkDir, float level, float spreadTan)
     // beam-local: along the axis towards the centre, and across it
     float s = dot (rel, -spkDir);
     if (s <= 0.0) return 0.0;              // nothing behind the mouth
+    // Stub only: the energy map carries the spatial information now, the beams
+    // are left as an indicator of which loudspeaker is working.
+    float reach = 1.0 - smoothstep (uBeamReach * 0.5, uBeamReach, s);
+    if (reach <= 0.0) return 0.0;
     float h = length (rel + spkDir * s);
 
     // Flat across the beam, soft only at the edge — the mouth is lit across
@@ -166,7 +182,7 @@ float beamDensity (vec2 p, vec2 spkDir, float level, float spreadTan)
 
     float df = 1.0 / (1.0 + s * uBeamFalloff);
 
-    return level * shape * df * exp (-uBeamAbsorb * path);
+    return level * shape * reach * df * exp (-uBeamAbsorb * path);
 }
 
 // Half the chord a view ray traverses, 1 at the centre and 0 at the rim.
@@ -185,6 +201,85 @@ float beamTotal (vec2 p)
          + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1, uBeamTan1)
          + beamDensity (p, vec2 ( 0.7071, -0.7071), uSpotLevel2, uBeamTan2)
          + beamDensity (p, vec2 (-0.7071, -0.7071), uSpotLevel3, uBeamTan3);
+}
+
+// ─── energy map and fractal net ─────────────────────────────────
+
+// The display is an orthographic view of the upper hemisphere from above: the
+// centre of the disc is straight up, the rim is the horizon. That is exactly
+// what the sphere's own normal describes, so the direction is the normal with
+// its horizontal axes swapped — the IEM azimuth runs clockwise from the top
+// while the screen angle runs anticlockwise from the right, and swapping x
+// and y is what that exchange comes to. Mirrors energyDirectionForScreen()
+// in EnergyMap.cc.
+vec3 screenToDirection (vec2 uv, float dist)
+{
+    float r = min (dist, 1.0);
+    float up = sqrt (max (0.0, 1.0 - r * r));
+
+    return vec3 (uv.y, uv.x, up);
+}
+
+vec2 energyUV (vec3 dir)
+{
+    float azimuth = atan (dir.y, dir.x);
+    float elevation = asin (clamp (dir.z, -1.0, 1.0));
+
+    return vec2 (azimuth / 6.28318531 + 0.5, elevation / 3.14159265 + 0.5);
+}
+
+float energyAt (vec3 dir)
+{
+    return texture2D (uEnergyMap, energyUV (dir)).r;
+}
+
+float hash13 (vec3 p)
+{
+    return fract (sin (dot (p, vec3 (127.1, 311.7, 74.7))) * 43758.5453);
+}
+
+float valueNoise (vec3 p)
+{
+    vec3 i = floor (p);
+    vec3 f = fract (p);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float n000 = hash13 (i + vec3 (0.0, 0.0, 0.0));
+    float n100 = hash13 (i + vec3 (1.0, 0.0, 0.0));
+    float n010 = hash13 (i + vec3 (0.0, 1.0, 0.0));
+    float n110 = hash13 (i + vec3 (1.0, 1.0, 0.0));
+    float n001 = hash13 (i + vec3 (0.0, 0.0, 1.0));
+    float n101 = hash13 (i + vec3 (1.0, 0.0, 1.0));
+    float n011 = hash13 (i + vec3 (0.0, 1.0, 1.0));
+    float n111 = hash13 (i + vec3 (1.0, 1.0, 1.0));
+
+    return mix (mix (mix (n000, n100, f.x), mix (n010, n110, f.x), f.y),
+                mix (mix (n001, n101, f.x), mix (n011, n111, f.x), f.y), f.z);
+}
+
+// Ridged fractal noise: the filaments are the ridges between noise cells, and
+// stacking octaves is what gives them branches within branches.
+float netFilaments (vec2 uv, float dist)
+{
+    float azimuthTurns = atan (uv.y, uv.x) / 6.28318531;
+    float radial = clamp (dist, 0.0, 1.4) - uTime * uNetFlow;
+
+    vec3 p = vec3 (azimuthTurns * uNetScale * 2.0, radial * uNetScale,
+                   uTime * uNetFlow * 0.3);
+
+    float sum = 0.0;
+    float amp = 1.0;
+    float norm = 0.0;
+    for (int octave = 0; octave < 3; ++octave)
+    {
+        float ridge = 1.0 - abs (2.0 * valueNoise (p) - 1.0);
+        sum += ridge * amp;
+        norm += amp;
+        p *= 2.0;
+        amp *= 0.5;
+    }
+
+    return pow (sum / norm, uNetSharpness);
 }
 
 // ─── main ───────────────────────────────────────────────────────
@@ -218,6 +313,16 @@ void main ()
 
         // Speaker beams on their way to the sphere
         colOut += uSpotColour * beamTotal (uvScene) * uBeamIntensity;
+
+        // The net runs on past the rim, thinning out — the filaments leave the
+        // sphere rather than stopping at its edge.
+        float beyond = 1.0 - smoothstep (1.0, 1.35, dist);
+        if (beyond > 0.0)
+        {
+            vec3 dirOut = screenToDirection (uvScene, 1.0);
+            colOut += uEnergyColour * netFilaments (uvScene, dist)
+                    * energyAt (dirOut) * uNetIntensity * beyond;
+        }
 
         // Blob outside glow removed — blobs only create reflections on sphere surface
     }
@@ -274,10 +379,16 @@ void main ()
         float wf = 1.0 - smoothstep (0.01, 0.04, min (gl1, min (gl2, gl3)));
         colSurf += vec3 (wf * 0.08 * (1.0 - fresnel * 0.8));
 
-        // Speaker beams lighting the volume. The sphere is translucent, so the
-        // beams pass into it rather than reflecting off its skin; how far they
-        // reach is set by absorption, not by an occlusion test. Weighted by
-        // how much sphere the view ray traverses.
+        // Energy arriving from the direction this pixel stands for. This is
+        // the whole field, not four loudspeakers, so it carries height as well.
+        vec3 dir = screenToDirection (uvScene, dist);
+        float energy = energyAt (dir);
+
+        colSurf += uEnergyColour * energy * uEnergyIntensity;
+        colSurf += uEnergyColour * netFilaments (uvScene, dist) * energy
+                 * uNetIntensity;
+
+        // What is left of the beams inside: the stub's own spill.
         colSurf += uSpotColour * beamTotal (uvScene) * sphereHalfChord (dist)
                  * uBeamInner;
     }
@@ -358,6 +469,15 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uMouthOffset   = glGetUniformLocation (pid, "uMouthOffset");
   _uBeamAbsorb    = glGetUniformLocation (pid, "uBeamAbsorb");
   _uBeamInner     = glGetUniformLocation (pid, "uBeamInner");
+  _uBeamReach     = glGetUniformLocation (pid, "uBeamReach");
+  _uEnergyMap       = glGetUniformLocation (pid, "uEnergyMap");
+  _uEnergyColour    = glGetUniformLocation (pid, "uEnergyColour");
+  _uEnergyIntensity = glGetUniformLocation (pid, "uEnergyIntensity");
+  _uNetIntensity    = glGetUniformLocation (pid, "uNetIntensity");
+  _uNetScale        = glGetUniformLocation (pid, "uNetScale");
+  _uNetSharpness    = glGetUniformLocation (pid, "uNetSharpness");
+  _uNetFlow         = glGetUniformLocation (pid, "uNetFlow");
+  _uTime            = glGetUniformLocation (pid, "uTime");
   _uNumBlobs      = glGetUniformLocation (pid, "uNumBlobs");
 
   _uBlobPosSize[0] = glGetUniformLocation (pid, "uBlobPosSize0");
@@ -476,6 +596,31 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform1f (_uBeamAbsorb, _spotCfg.absorb);
   if (_uBeamInner >= 0)
     glUniform1f (_uBeamInner, _spotCfg.innerIntensity);
+  if (_uBeamReach >= 0)
+    glUniform1f (_uBeamReach, _spotCfg.reach);
+
+  // Energy map and net
+  if (_uEnergyColour >= 0)
+    glUniform3f (_uEnergyColour, _energyCfg.r, _energyCfg.g, _energyCfg.b);
+  if (_uEnergyIntensity >= 0)
+    glUniform1f (_uEnergyIntensity, _energyCfg.intensity);
+  if (_uNetIntensity >= 0)
+    glUniform1f (_uNetIntensity, _energyCfg.netIntensity);
+  if (_uNetScale >= 0)
+    glUniform1f (_uNetScale, _energyCfg.netScale);
+  if (_uNetSharpness >= 0)
+    glUniform1f (_uNetSharpness, _energyCfg.netSharpness);
+  if (_uNetFlow >= 0)
+    glUniform1f (_uNetFlow, _energyCfg.netFlow);
+  if (_uTime >= 0)
+    glUniform1f (_uTime, _time);
+
+  if (_uEnergyMap >= 0)
+    {
+      glActiveTexture (GL_TEXTURE0);
+      glBindTexture (GL_TEXTURE_2D, _energyTexture);
+      glUniform1i (_uEnergyMap, 0);
+    }
 
   // Blobs
   if (_uNumBlobs >= 0)
@@ -540,6 +685,9 @@ void SphereShader::setNumBlobs (int n)
 void SphereShader::setGlowConfig (GlowConfig const &c)
 { _glowCfg = c; }
 
+
+void SphereShader::setEnergyConfig (EnergyConfig const &c)
+{ _energyCfg = c; }
 
 void SphereShader::setSpotlightConfig (SpotlightConfig const &c)
 { _spotCfg = c; }

@@ -84,6 +84,7 @@ public:
   // OscMessageHandler::Listener
   void onChannelVU (int channel, float peak, float rms) override;
   void onSubwooferVU (float peak, float rms) override;
+  void onEnergyGrid (float const *values, int count) override;
   void onSpeakerVU (int speakerIndex, float peak, float rms) override;
   void onExternalBeatClock (int beat, int bar, float bpm) override;
   void onExternalBeatSync (int beat, int beatsPerBar) override;
@@ -171,6 +172,7 @@ private:
   juce::OSCReceiver _oscReceiver;
   // OSC Receiver for VU meters (port 7772)
   juce::OSCReceiver _oscReceiverVU;
+  juce::OSCReceiver _oscReceiverEnergy;
   
   // Async OSC Sender for beatclock output (non-blocking, dedicated thread)
   AsyncOSCSender _oscSender;

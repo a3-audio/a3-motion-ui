@@ -32,6 +32,9 @@ namespace a3
  *  juce::Component dependency so it's directly unit-testable; visual
  *  side-effects are reported through Listener instead of being applied
  *  directly. */
+/** Grid points the IEM EnergyVisualizer sends per message. */
+constexpr int energyGridPointCount = 426;
+
 class OscMessageHandler
 {
 public:
@@ -45,6 +48,11 @@ public:
     virtual void onSubwooferVU (float peak, float rms) = 0;
     // Channels 5-8: speaker spotlights (speakerIndex = channel - 5).
     virtual void onSpeakerVU (int speakerIndex, float peak, float rms) = 0;
+
+    // /EnergyVisualizer/RMS: one value per grid point of the IEM plugin's
+    // 426-point sphere, in the plugin's own order. The pointer is only valid
+    // for the duration of the call.
+    virtual void onEnergyGrid (float const *values, int count) = 0;
 
     // Always fires on /beat, for StatusBar's beat/BPM readout.
     virtual void onExternalBeatClock (int beat, int bar, float bpm) = 0;

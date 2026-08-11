@@ -104,8 +104,28 @@ public:
     float beamIntensity = 0.8f;
     float absorb = 1.5f;      // per unit travelled through the sphere
     float innerIntensity = 0.8f;
+    float reach = 0.25f; // how far past the mouth the stub carries
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
+
+  /** Energy arriving from each direction, from the IEM EnergyVisualizer, plus
+   *  the fractal net drawn on top of it. */
+  struct EnergyConfig
+  {
+    float r = 1.f, g = 1.f, b = 1.f;
+    float intensity = 1.f;
+    float netIntensity = 0.8f;
+    float netScale = 6.f;
+    float netSharpness = 8.f;
+    float netFlow = 0.15f;
+  };
+  void setEnergyConfig (EnergyConfig const &cfg);
+
+  /** Texture holding the equirectangular energy map, owned by the caller. */
+  void setEnergyTexture (unsigned int textureID) { _energyTexture = textureID; }
+
+  /** Seconds since start, for the net's drift. */
+  void setTime (float seconds) { _time = seconds; }
   float getSpeakerRadius () const { return _spotCfg.speakerRadius; }
 
 private:
@@ -141,6 +161,16 @@ private:
   GLint _uMouthOffset = -1;
   GLint _uBeamAbsorb = -1;
   GLint _uBeamInner = -1;
+  GLint _uBeamReach = -1;
+
+  GLint _uEnergyMap = -1;
+  GLint _uEnergyColour = -1;
+  GLint _uEnergyIntensity = -1;
+  GLint _uNetIntensity = -1;
+  GLint _uNetScale = -1;
+  GLint _uNetSharpness = -1;
+  GLint _uNetFlow = -1;
+  GLint _uTime = -1;
 
   // Blob uniforms (position+colour kept for lighting on sphere surface)
   GLint _uBlobPosSize[kMaxBlobs] = {};  // vec4: x, y, size, vuLevel
@@ -158,6 +188,9 @@ private:
 
   GlowConfig _glowCfg;
   SpotlightConfig _spotCfg;
+  EnergyConfig _energyCfg;
+  unsigned int _energyTexture = 0;
+  float _time = 0.f;
 };
 
 } // namespace a3
