@@ -46,7 +46,7 @@ constexpr float loudestRmsPeak = 0.1869f; // /vu/8, highest single message
 
 struct ShippedParams
 {
-  float vuMax, curve;
+  float vuMax, curve, beamIntensity;
 };
 
 ShippedParams
@@ -66,7 +66,8 @@ shippedParams ()
   EXPECT_TRUE (speakerLight.hasProperty ("curve"));
 
   return { static_cast<float> (speakerLight["vuMax"]),
-           static_cast<float> (speakerLight["curve"]) };
+           static_cast<float> (speakerLight["curve"]),
+           static_cast<float> (speakerLight["beamIntensity"]) };
 }
 
 TEST (SpeakerLightScaling, ShippedConfigSeparatesLoudAndQuietSpeakers)
@@ -129,8 +130,13 @@ TEST (SpeakerLightScaling, ShippedConfigKeepsLoudestSpeakerBright)
   auto const params = shippedParams ();
 
   // Contrast alone is not enough — a steep curve with a high vuMax separates
-  // the speakers but leaves all of them nearly black.
-  EXPECT_GT (speakerLightLevel (loudestRms, params.vuMax, params.curve), 0.4f);
+  // the speakers but leaves all of them nearly black. What reaches the screen
+  // is the level scaled by beamIntensity, so asserting on the level alone lets
+  // a dimmed beamIntensity pass a test that is meant to guard brightness.
+  auto const level
+      = speakerLightLevel (loudestRms, params.vuMax, params.curve);
+
+  EXPECT_GT (level * params.beamIntensity, 0.25f);
 }
 
 // The failure mode this guards against: vuMax below the actual signal range

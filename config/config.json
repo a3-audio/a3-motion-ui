@@ -30,7 +30,7 @@
     "layers": 6,
     "innerSize": 0.6,
     "outerSize": 2.4,
-    "curve": 0.4
+    "curve": 1.2
   },
   "backgroundGlow": {
     "r": 110,
@@ -49,11 +49,11 @@
     "length": 1,
     "widthStart": 0.1,
     "widthEnd": 0.293,
-    "curve": 0.8,
+    "curve": 1.2,
     "speakerRadius": 1.55,
     "beamConeExp": 6,
     "beamFalloff": 1.5,
-    "beamIntensity": 0.6,
+    "beamIntensity": 1.0,
     "attack": 0.08,
     "decay": 0.25
   },
