@@ -742,6 +742,10 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     gc.netOctaves = cfgF (sg, "netOctaves", 3.f);
     gc.netLacunarity = cfgF (sg, "netLacunarity", 2.f);
     gc.netGain = cfgF (sg, "netGain", 0.5f);
+    gc.attack = cfgF (sg, "attack", 0.05f);
+    gc.decay = cfgF (sg, "decay", 1.2f);
+    _glowAttack = gc.attack;
+    _glowDecay = gc.decay;
     _sphereShader.setGlowConfig (gc);
 
     SphereShader::SpotlightConfig sc;
@@ -767,7 +771,6 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.bleed = cfgF (sl, "bleed", 0.22f);
     sc.fray = cfgF (sl, "fray", 0.8f);
     sc.cover = cfgF (sl, "cover", 3.f);
-    sc.arcBase = cfgF (sl, "arcBase", 0.35f);
     sc.boltWidth = cfgF (sl, "boltWidth", 0.9f);
     sc.boltWander = cfgF (sl, "boltWander", 0.55f);
     sc.boltScale = cfgF (sl, "boltScale", 6.f);
@@ -776,6 +779,9 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.boltDuty = cfgF (sl, "boltDuty", 0.55f);
     sc.boltCoreExp = cfgF (sl, "boltCoreExp", 5.f);
     sc.boltCore = cfgF (sl, "boltCore", 0.9f);
+    sc.boltCount = cfgF (sl, "boltCount", 6.f);
+    sc.boltReach = cfgF (sl, "boltReach", 2.4f);
+    sc.boltEscape = cfgF (sl, "boltEscape", 0.55f);
     _sphereShader.setSpotlightConfig (sc);
 
     auto const &energy = config["energy"];
@@ -868,7 +874,12 @@ MotionComponent::renderOpenGL ()
       current += alpha * (target - current);
     };
     smoothFixed (_smoothGlowPeak, _vuSphereGlowPeak.load ());
-    smoothFixed (_smoothGlowRms,  _vuSphereGlowRms.load ());
+
+    // The glow is the room rather than an event, so it gets its own envelope
+    // and outlasts the bolts striking in front of it.
+    _smoothGlowRms = speakerLightEnvelope (_smoothGlowRms,
+                                           _vuSphereGlowRms.load (),
+                                           _glowAttack, _glowDecay, dt);
     for (int i = 0; i < 4; ++i)
       {
         smoothFixed (_smoothSpotPeak[i], _vuSpeakerPeak[i].load ());

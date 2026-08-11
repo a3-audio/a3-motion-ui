@@ -206,27 +206,6 @@ beamRadialWindow (float distanceFromCentre, float mouthRadius, float bleed)
 }
 
 float
-arcCombine (float const *ridges, int count, float gain)
-{
-  auto value = 1.f;
-  auto amp = 1.f;
-
-  for (auto i = 0; i < count; ++i)
-    {
-      value *= 1.f + amp * (std::clamp (ridges[i], 0.f, 1.f) - 1.f);
-      amp *= gain;
-    }
-
-  return value;
-}
-
-float
-arcModulation (float arcField, float base)
-{
-  return base + std::clamp (arcField, 0.f, 1.f) * (1.f - base);
-}
-
-float
 boltFalloff (float distance, float width)
 {
   auto const w = std::max (width, 1e-6f);

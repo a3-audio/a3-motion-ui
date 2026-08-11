@@ -197,6 +197,9 @@ private:
   // Envelope time constants for the speaker beams, in seconds
   float _spotAttack = 0.08f, _spotDecay = 0.4f;
 
+  // Envelope for the subwoofer glow, in seconds
+  float _glowAttack = 0.05f, _glowDecay = 1.2f;
+
   // Energy over the sphere, from the IEM EnergyVisualizer. Arrives on the OSC
   // thread at 9 Hz, is folded into an equirectangular map on the GL thread and
   // uploaded as a texture — 426 values cannot be uniforms in GLSL 1.20.

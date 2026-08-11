@@ -98,6 +98,8 @@ public:
     float netOctaves = 3.f;
     float netLacunarity = 2.f;
     float netGain = 0.5f;
+    float attack = 0.05f;      // envelope, seconds
+    float decay = 1.2f;
   };
   void setGlowConfig (GlowConfig const &cfg);
 
@@ -131,7 +133,9 @@ public:
     float boltDuty = 0.55f;    // and how much of the time it is dark
     float boltCoreExp = 5.f;   // how tight the white core is
     float boltCore = 0.9f;     // how bright it runs
-    float arcBase = 0.35f;     // band brightness where no vein crosses
+    float boltCount = 6.f;     // bolts per band
+    float boltReach = 2.4f;    // how far an escaping one carries
+    float boltEscape = 0.55f;  // how many of them escape
   };
   void setSpotlightConfig (SpotlightConfig const &cfg);
 
@@ -150,6 +154,8 @@ public:
     float netOctaves = 3.f;
     float netLacunarity = 2.f;
     float netGain = 0.5f;
+    float attack = 0.05f;      // envelope, seconds
+    float decay = 1.2f;
   };
   void setEnergyConfig (EnergyConfig const &cfg);
 
@@ -207,7 +213,6 @@ private:
   GLint _uBeamBleed = -1;
   GLint _uBeamFray = -1;
   GLint _uBeamCover = -1;
-  GLint _uArcBase = -1;
   GLint _uBoltWidth = -1;
   GLint _uBoltWander = -1;
   GLint _uBoltScale = -1;
@@ -216,6 +221,9 @@ private:
   GLint _uBoltDuty = -1;
   GLint _uBoltCoreExp = -1;
   GLint _uBoltCore = -1;
+  GLint _uBoltCount = -1;
+  GLint _uBoltReach = -1;
+  GLint _uBoltEscape = -1;
   GLint _uApertureHalf = -1;
   GLint _uMouthOffset = -1;
   GLint _uBeamReach = -1;

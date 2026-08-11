@@ -427,83 +427,6 @@ TEST (BeamBand, BandAndGlowShareTheirColour)
 }
 
 
-// ── arcs, not wool ──────────────────────────────────────────────────────
-//
-// The band used to carry the same fractal as the net, which is why the two met
-// in a visible seam. It carries arcs now — the octaves are multiplied instead
-// of averaged, so a vein survives only where every octave agrees on it. That
-// is the difference between a thin branching filament and a woolly texture,
-// and it is what lets the band fray into the glow rather than butt against it.
-
-TEST (Arcs, AVeinNeedsEveryOctaveToAgree)
-{
-  float const ridges[] = { 1.f, 1.f, 1.f };
-
-  EXPECT_FLOAT_EQ (arcCombine (ridges, 3, 1.f), 1.f);
-}
-
-TEST (Arcs, OneOctaveDisagreeingKillsTheVein)
-{
-  float const ridges[] = { 1.f, 0.f, 1.f };
-
-  EXPECT_FLOAT_EQ (arcCombine (ridges, 3, 1.f), 0.f);
-}
-
-// Averaging would let a strong octave carry a weak one, which is what makes
-// the net woolly and the arcs sharp.
-TEST (Arcs, ArcsAreThinnerThanTheirAverage)
-{
-  float const ridges[] = { 0.9f, 0.5f, 0.7f };
-  auto const mean = (0.9f + 0.5f + 0.7f) / 3.f;
-
-  EXPECT_LT (arcCombine (ridges, 3, 1.f), mean);
-}
-
-TEST (Arcs, LaterOctavesCarveLessWhenTheGainDrops)
-{
-  float const ridges[] = { 1.f, 0.2f };
-
-  EXPECT_GT (arcCombine (ridges, 2, 0.3f), arcCombine (ridges, 2, 1.f));
-}
-
-
-// Arcs alone cannot enclose the sphere: multiplied octaves are sparse by
-// nature, and measured round the rim they left 42 of 72 directions empty at
-// their densest setting. So they ride on the band rather than replacing it —
-// the base keeps the ring closed, the veins are what you look at.
-
-TEST (Arcs, TheRingSurvivesWhereNoVeinIs)
-{
-  EXPECT_FLOAT_EQ (arcModulation (0.f, 0.3f), 0.3f);
-}
-
-TEST (Arcs, AVeinReachesFullBrightness)
-{
-  EXPECT_FLOAT_EQ (arcModulation (1.f, 0.3f), 1.f);
-}
-
-TEST (Arcs, ABaseOfZeroLeavesArcsAlone)
-{
-  EXPECT_FLOAT_EQ (arcModulation (0.4f, 0.f), 0.4f);
-}
-
-TEST (Arcs, ShippedConfigKeepsABaseUnderTheArcs)
-{
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
-  auto const &speakerLight = parsed["speakerLight"];
-
-  ASSERT_TRUE (speakerLight.hasProperty ("arcBase"));
-
-  auto const base = static_cast<float> (speakerLight["arcBase"]);
-  EXPECT_GT (base, 0.f) << "at zero the bolts alone have to close the ring, "
-                           "and they strike far too rarely for that";
-  EXPECT_LT (base, 1.f) << "at one there are no veins left, just the band";
-}
-
-
 // ── bolts, not fields ───────────────────────────────────────────────────
 //
 // Ridged noise gives a soft field however hard you sharpen it — that is why
@@ -564,6 +487,49 @@ TEST (Bolts, ShippedConfigStrikesRatherThanGlows)
 
   EXPECT_GT (static_cast<float> (speakerLight["boltCore"]), 0.f)
       << "the core is what makes it read as lightning rather than as colour";
+}
+
+
+// Some bolts stay in the annulus and some break out towards the edge of the
+// screen, which is what stops the band reading as a ring with a hard outer
+// limit. And there have to be enough of them to look like weather.
+TEST (Bolts, ShippedConfigLetsSomeBoltsBreakOut)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &speakerLight = parsed["speakerLight"];
+
+  ASSERT_TRUE (speakerLight.hasProperty ("boltReach"));
+  ASSERT_TRUE (speakerLight.hasProperty ("boltCount"));
+
+  auto const mouthRadius = speakerMouthRadius (
+      static_cast<float> (speakerLight["speakerRadius"]));
+
+  EXPECT_GT (static_cast<float> (speakerLight["boltReach"]), mouthRadius)
+      << "an escaping bolt has to get past the mouth to escape anything";
+  EXPECT_GT (static_cast<float> (speakerLight["boltCount"]), 3.f);
+}
+
+// The subwoofer's glow is the slowest thing on screen — it is the room, not an
+// event, so it has to outlast the bolts striking in front of it.
+TEST (GlowNet, ShippedGlowFadesSlowerThanTheBolts)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+
+  ASSERT_TRUE (parsed["sphereGlow"].hasProperty ("decay"));
+  ASSERT_TRUE (parsed["sphereGlow"].hasProperty ("attack"));
+
+  auto const glowDecay = static_cast<float> (parsed["sphereGlow"]["decay"]);
+
+  EXPECT_GT (glowDecay, static_cast<float> (parsed["sphereGlow"]["attack"]))
+      << "it has to fade slower than it rises, or it flickers";
+  EXPECT_GT (glowDecay, static_cast<float> (parsed["speakerLight"]["decay"]))
+      << "the room outlasts the events in front of it";
 }
 
 }
