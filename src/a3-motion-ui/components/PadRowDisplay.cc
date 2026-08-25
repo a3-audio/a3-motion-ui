@@ -20,6 +20,8 @@
 
 #include "PadRowDisplay.hh"
 
+#include <a3-motion-ui/theme/Theme.hh>
+
 #include <a3-motion-ui/components/LookAndFeel.hh>
 
 #include <cmath>
@@ -84,7 +86,7 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
   if (cell.trajectoryType == TrajectoryType::Empty && !cell.icon.hasIcon)
     {
       // "---" label: dark outline + channel colour fill
-      g.setFont (LayoutHints::fontSize * 0.7f);
+      g.setFont (LayoutHints::fontSize * 0.7f * theme ().fontScale);
       auto const outlineColour = juce::Colours::black.withAlpha (0.4f);
       g.setColour (outlineColour);
       for (int dx = -1; dx <= 1; ++dx)
@@ -108,7 +110,7 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
       if (cell.categoryPrefix.isNotEmpty ())
         {
           auto const fontSize = h * 0.7f;
-          g.setFont (fontSize);
+          g.setFont (fontSize * theme ().fontScale);
           auto prefixArea = boundsF.removeFromLeft (prefixWidth)
                                 .withTrimmedLeft (2.f);
 
@@ -137,7 +139,7 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
         {
           auto beatsStr = juce::String (cell.lengthBeats);
           auto const fontSize = h * 0.7f;
-          g.setFont (fontSize);
+          g.setFont (fontSize * theme ().fontScale);
           auto beatsArea = boundsF.removeFromLeft (beatsWidth);
 
           // Dark outline for readability

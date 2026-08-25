@@ -59,7 +59,7 @@ namespace a3
  * to fill its own section's grid cell; a knob's optional value text
  * (Speed only, e.g. "1/4") sits directly above it, its label directly
  * below. That shared size scales with setPotSizeScale(), and its label/
- * value text separately with setFontSizeScale() — both driven by their
+ * value text separately via the theme's font scale — both driven by their
  * own Global Settings options ("Pot Size"/"Font Size"), adjustable live
  * without a rebuild.
  * Section headings are deliberately small (see paintSectionLabel()) so
@@ -144,8 +144,6 @@ public:
   /** Scale factor for every knob/toggle's label and value text — 1.0 =
    *  default. Independent of setPotSizeScale(), since a knob's circle and
    *  its text may need tuning separately (e.g. a small pot with big,
-   *  legible text). Set from Global Settings' "Font Size" option. */
-  void setFontSizeScale (float scale);
 
   /** One-line terminal-style readout of the last-operated control, shown
    *  top-right (e.g. "CH2 POT1 0.73"). Global, independent of setTarget(). */
@@ -185,11 +183,11 @@ private:
    *  happens to be (see class doc / setPotSizeScale()). */
   juce::Rectangle<int> controlBounds (juce::Rectangle<int> cell,
                                       int knobDiam) const;
-  /** Widens/heightens `area` around its own centre by _fontSizeScale (only
+  /** Widens/heightens `area` around its own centre by the theme's font scale (only
    *  grows, never shrinks below `area` itself) — used as the *target*
    *  passed to drawFittedText() for a control's label/value/state text, so
    *  a bigger font (see the callers' font-size formulas, also scaled by
-   *  _fontSizeScale) actually gets to render at that size instead of being
+   *  the theme's font scale) actually gets to render at that size instead of being
    *  silently re-shrunk by drawFittedText to fit the original, unscaled
    *  area. Purely a text-layout target: doesn't move or resize the knob/
    *  toggle itself, so controls never visibly jump/overlap as Font Size
@@ -243,7 +241,6 @@ private:
   int _filterSubIndex = 0;
   int _selectedIndex = 0;
   float _potSizeScale = 1.0f;
-  float _fontSizeScale = 1.0f;
 
   static constexpr int paddingH = 16;
 

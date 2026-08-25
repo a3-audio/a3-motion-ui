@@ -97,6 +97,23 @@ mutableTheme ()
 }
 }
 
+float
+fontScaleForIndex (int index)
+{
+  constexpr float scales[numFontScales] = { 0.75f, 1.f, 1.25f, 1.5f, 1.75f };
+
+  if (index < 0 || index >= numFontScales)
+    return 1.f;
+
+  return scales[index];
+}
+
+void
+setFontScale (float scale)
+{
+  mutableTheme ().fontScale = juce::jlimit (0.25f, 4.f, scale);
+}
+
 Theme const &
 theme ()
 {

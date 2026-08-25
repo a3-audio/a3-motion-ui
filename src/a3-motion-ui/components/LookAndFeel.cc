@@ -71,4 +71,38 @@ LookAndFeel_A3::applyTheme (Theme const &theme)
   setColour (juce::ScrollBar::thumbColourId, textMuted);
 }
 
+namespace
+{
+juce::Font
+scaled (juce::Font font)
+{
+  return font.withHeight (font.getHeight () * theme ().fontScale);
+}
+}
+
+juce::Font
+LookAndFeel_A3::getLabelFont (juce::Label &label)
+{
+  return scaled (juce::LookAndFeel_V4::getLabelFont (label));
+}
+
+juce::Font
+LookAndFeel_A3::getComboBoxFont (juce::ComboBox &box)
+{
+  return scaled (juce::LookAndFeel_V4::getComboBoxFont (box));
+}
+
+juce::Font
+LookAndFeel_A3::getPopupMenuFont ()
+{
+  return scaled (juce::LookAndFeel_V4::getPopupMenuFont ());
+}
+
+juce::Font
+LookAndFeel_A3::getTextButtonFont (juce::TextButton &button, int buttonHeight)
+{
+  return scaled (
+      juce::LookAndFeel_V4::getTextButtonFont (button, buttonHeight));
+}
+
 }

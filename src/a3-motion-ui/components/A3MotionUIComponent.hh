@@ -212,11 +212,9 @@ private:
                                              1.75f };
   static constexpr char const *potSizeLabels[] = { "75%", "100%", "125%",
                                                     "150%", "175%" };
-  // Same, but for knob/toggle label/value text (ClipSettingsComponent::
-  // setFontSizeScale()) — independent of pot size.
+  // Index into the theme's scale table; the factor itself lives there, because
+  // a saved index has to become a factor at startup, before any menu exists.
   int _fontSizeIndex = 1; // default 100%
-  static constexpr float fontSizeScales[] = { 0.75f, 1.0f, 1.25f, 1.5f,
-                                              1.75f };
   static constexpr char const *fontSizeLabels[] = { "75%", "100%", "125%",
                                                      "150%", "175%" };
 

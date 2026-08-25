@@ -23,6 +23,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ThemeColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LookAndFeelTheme.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/NoColourLiterals.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/FontScale.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SettingsPersistence.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/osc/OscMessageHandler.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/CoronaScaling.cc"

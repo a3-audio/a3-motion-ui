@@ -108,7 +108,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     auto constexpr numPotSizes
         = static_cast<int> (sizeof (potSizeScales) / sizeof (potSizeScales[0]));
     auto constexpr numFontSizes = static_cast<int> (
-        sizeof (fontSizeScales) / sizeof (fontSizeScales[0]));
+        numFontScales);
 
     auto const settings = loadSettings (getPersistedSettingsFile ());
     applyClockMode (settings.clockMode);
@@ -1595,12 +1595,16 @@ A3MotionUIComponent::applyPotSize (int index)
 void
 A3MotionUIComponent::applyFontSize (int index)
 {
-  if (index == _fontSizeIndex)
-    return;
+  // No early return, and no single receiver. The old version did both, and
+  // between them they were the whole bug: a saved index equal to the startup
+  // default jumped straight out, and the one component it did reach was the
+  // only thing that ever grew. The factor now sits at the theme, where every
+  // component reads it, so the work here is a float and a repaint.
+  _fontSizeIndex = juce::jlimit (0, numFontScales - 1, index);
+  setFontScale (fontScaleForIndex (_fontSizeIndex));
 
-  _fontSizeIndex = index;
-  if (_clipSettings)
-    _clipSettings->setFontSizeScale (fontSizeScales[index]);
+  if (auto *root = getTopLevelComponent ())
+    root->repaint ();
 
   saveSettings (getPersistedSettingsFile (),
                AppSettings{ _clockMode, _potSizeIndex, _fontSizeIndex });

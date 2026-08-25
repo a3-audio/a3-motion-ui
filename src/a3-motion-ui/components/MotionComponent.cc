@@ -854,7 +854,11 @@ MotionComponent::applyVisualConfig (juce::var const &config)
 void
 MotionComponent::applyTheme (juce::var const &skin)
 {
-  setTheme (loadTheme (skin));
+  // The menu's font factor is carried across: it comes from the settings file,
+  // not from the skin, and reloading one file must not discard the other.
+  auto loaded = loadTheme (skin);
+  loaded.fontScale = theme ().fontScale;
+  setTheme (loaded);
 
   juce::Component::SafePointer<MotionComponent> safeThis{ this };
   juce::MessageManager::callAsync ([safeThis] {

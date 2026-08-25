@@ -20,6 +20,8 @@
 
 #include "ClipSettingsComponent.hh"
 
+#include <a3-motion-ui/theme/Theme.hh>
+
 #include <cmath>
 
 namespace a3
@@ -170,13 +172,6 @@ ClipSettingsComponent::setPotSizeScale (float scale)
 }
 
 void
-ClipSettingsComponent::setFontSizeScale (float scale)
-{
-  _fontSizeScale = std::clamp (scale, 0.25f, 4.0f);
-  repaint ();
-}
-
-void
 ClipSettingsComponent::setLastControlReadout (juce::String const &text)
 {
   _lastControlText = text;
@@ -288,7 +283,7 @@ ClipSettingsComponent::controlBounds (juce::Rectangle<int> cell,
 juce::Rectangle<int>
 ClipSettingsComponent::textFitArea (juce::Rectangle<int> area) const
 {
-  auto const scale = juce::jmax (1.0f, _fontSizeScale);
+  auto const scale = juce::jmax (1.0f, theme ().fontScale);
   return area.withSizeKeepingCentre (
       static_cast<int> (static_cast<float> (area.getWidth ()) * scale),
       static_cast<int> (static_cast<float> (area.getHeight ()) * scale));
@@ -595,7 +590,7 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
       auto const valueFontSize
           = juce::jmin (static_cast<float> (valueArea.getHeight ()) * 0.8f,
                         static_cast<float> (valueArea.getWidth ()) * 0.3f)
-            * _fontSizeScale;
+            * theme ().fontScale;
       g.setFont (juce::Font (valueFontSize, juce::Font::bold));
       g.setColour (knobColour);
       g.drawFittedText (valueText, textFitArea (valueArea),
@@ -607,7 +602,7 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
   auto const fontSize
       = juce::jmin (static_cast<float> (labelArea.getHeight ()) * 0.75f,
                     static_cast<float> (labelArea.getWidth ()) * 0.16f)
-        * _fontSizeScale;
+        * theme ().fontScale;
   g.setFont (juce::Font (fontSize, juce::Font::plain));
   g.setColour (juce::Colours::white.withAlpha (isSelected ? 0.85f : 0.55f));
   g.drawFittedText (label, textFitArea (labelArea),
@@ -637,7 +632,7 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   auto const fontSizeValue
       = juce::jmin (static_cast<float> (content.getHeight ()) * 0.4f,
                     static_cast<float> (content.getWidth ()) * 0.22f)
-        * _fontSizeScale;
+        * theme ().fontScale;
   g.setFont (juce::Font (fontSizeValue, juce::Font::bold));
   g.setColour (valueColour);
   g.drawFittedText (stateText, textFitArea (content),
@@ -646,7 +641,7 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   auto const fontSizeLabel
       = juce::jmin (static_cast<float> (labelArea.getHeight ()) * 0.75f,
                     static_cast<float> (labelArea.getWidth ()) * 0.16f)
-        * _fontSizeScale;
+        * theme ().fontScale;
   g.setFont (juce::Font (fontSizeLabel, juce::Font::plain));
   g.setColour (juce::Colours::white.withAlpha (isSelected ? 0.85f : 0.55f));
   g.drawFittedText (label, textFitArea (labelArea),

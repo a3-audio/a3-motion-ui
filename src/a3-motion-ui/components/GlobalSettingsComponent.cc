@@ -7,6 +7,8 @@
 
 #include "GlobalSettingsComponent.hh"
 
+#include <a3-motion-ui/theme/Theme.hh>
+
 namespace a3
 {
 
@@ -122,7 +124,8 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
       auto labelArea = row.removeFromLeft (row.getWidth () * 3 / 5).reduced (8, 0);
       auto valueArea = row.reduced (8, 8);
 
-      g.setFont (juce::Font (19.f, juce::Font::plain));
+      g.setFont (juce::Font (theme ().fontSize (FontRole::Label),
+                             juce::Font::plain));
       g.setColour (juce::Colours::white.withAlpha (isBrowsedRow ? 0.90f : 0.55f));
       g.drawText (option.name, labelArea, juce::Justification::centredLeft, true);
 
@@ -131,7 +134,8 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
                        : juce::Colours::white.withAlpha (0.08f));
       g.fillRoundedRectangle (valueArea.toFloat (), 5.f);
 
-      g.setFont (juce::Font (18.f, juce::Font::bold));
+      g.setFont (juce::Font (theme ().fontSize (FontRole::Value),
+                             juce::Font::bold));
       g.setColour (isBrowsedRow ? item.colour : juce::Colours::white.withAlpha (0.6f));
       g.drawText (item.value, valueArea, juce::Justification::centred, true);
     }

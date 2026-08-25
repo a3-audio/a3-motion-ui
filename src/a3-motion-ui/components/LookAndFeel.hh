@@ -52,6 +52,16 @@ public:
    *  Called again after a skin change, which is why it is not just the
    *  constructor: a LookAndFeel outlives the theme it was built from. */
   void applyTheme (Theme const &theme);
+
+  /** Every widget that does not set its own font asks here for one, so this is
+   *  where the Font Size setting can reach a component that never mentions it
+   *  — including one added later. The factor multiplies whatever base the
+   *  widget already had, so a deliberate size keeps its proportion. */
+  juce::Font getLabelFont (juce::Label &label) override;
+  juce::Font getComboBoxFont (juce::ComboBox &box) override;
+  juce::Font getPopupMenuFont () override;
+  juce::Font getTextButtonFont (juce::TextButton &button,
+                                int buttonHeight) override;
 };
 
 }

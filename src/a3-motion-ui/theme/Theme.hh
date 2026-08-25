@@ -121,6 +121,20 @@ Theme loadTheme (juce::var const &skin);
  *  gives the default skin rather than a path that cannot exist. */
 juce::File skinFile (juce::File const &configDir, juce::String const &name);
 
+/** The factors the Font Size menu offers, and the one a saved index means.
+ *
+ *  Lives with the theme rather than with the menu: the menu is one of two
+ *  callers, and a saved index has to be turned into a factor at startup, before
+ *  any menu exists. An index out of range gives 1 — it arrives from a file that
+ *  can be older than this table, or hand-edited. */
+constexpr int numFontScales = 5;
+float fontScaleForIndex (int index);
+
+/** Set only the menu's factor, leaving the skin's own values untouched. The
+ *  two arrive from different files at different times, and neither may throw
+ *  the other away. */
+void setFontScale (float scale);
+
 /** The theme in force. Written only while loading, on the message thread; the
  *  GL thread copies what it needs per frame, as it already does with the
  *  config. Follows the `extern juce::var userConfig` pattern this repo
