@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/theme/Theme.hh>
+
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
 
 namespace a3
@@ -183,16 +185,16 @@ private:
    *  happens to be (see class doc / setPotSizeScale()). */
   juce::Rectangle<int> controlBounds (juce::Rectangle<int> cell,
                                       int knobDiam) const;
-  /** Widens/heightens `area` around its own centre by the theme's font scale (only
-   *  grows, never shrinks below `area` itself) — used as the *target*
-   *  passed to drawFittedText() for a control's label/value/state text, so
-   *  a bigger font (see the callers' font-size formulas, also scaled by
-   *  the theme's font scale) actually gets to render at that size instead of being
-   *  silently re-shrunk by drawFittedText to fit the original, unscaled
-   *  area. Purely a text-layout target: doesn't move or resize the knob/
-   *  toggle itself, so controls never visibly jump/overlap as Font Size
-   *  changes — only their text does. */
-  juce::Rectangle<int> textFitArea (juce::Rectangle<int> area) const;
+  /** Height of a control's caption row, from the Label role. */
+  int labelRowHeight (juce::Rectangle<int> content) const;
+
+  /** Largest size for `role` at which `text` still fits inside `area`. */
+  float fontFor (FontRole role, juce::Rectangle<int> area,
+                 juce::String const &text) const;
+
+  /** A control's cell at full grid width, knob height. */
+  juce::Rectangle<int> textCell (juce::Rectangle<int> cell,
+                                 int knobDiam) const;
   /** Small labelled rotary knob (Ableton/Bitwig-style), sized to fill
    *  `bounds` (a fixed box from controlBounds(), unaffected by Font
    *  Size — see its comment). `angleFrac` is -1..1, mapped onto the
@@ -208,6 +210,7 @@ private:
    *  Font-Size-scaled, but drawn into a widened *fitting* target that
    *  doesn't affect the knob's own (fixed) position or size. */
   void paintMiniKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
+                      int knobDiam,
                       juce::String const &label, float angleFrac,
                       bool fillFromZero, bool isActive, bool isSelected,
                       juce::String const &valueText = {});
@@ -215,6 +218,7 @@ private:
    *  paintMiniKnob: label, then the current state as centred text instead
    *  of an arc. */
   void paintMiniToggle (juce::Graphics &g, juce::Rectangle<int> bounds,
+                        int knobDiam,
                         juce::String const &label, juce::String const &stateText,
                         bool isActive, bool isSelected);
 
