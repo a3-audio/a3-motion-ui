@@ -86,18 +86,14 @@ void main() {
 //                                                                uniformName);
 // }
 
-// relative to the (square) component extents. Speakers are drawn at
-// speakerRadius (config.json's speakerLight.speakerRadius) plus their own icon
-// half-diagonal, speakerSize/2*sqrt(2) ≈ 0.20, in this same normalized space
-// via the same transform — so this factor also controls how close they sit to
-// the component's edge, and the two have to be picked together: the icons are
-// fully in picture as long as reduceFactorCircle * (speakerRadius + 0.20) / 2
-// stays under 0.5.
-// At speakerRadius 1.35 that allows 0.64 (→ 0.496), which buys a noticeably
-// larger sphere without shrinking the speakers.
-auto constexpr reduceFactorCircle = .64f;
+// Sphere and blob size come from config.json now (ui.sphereScale,
+// ui.blobScale); these are the fallbacks. The sphere's scale is not free: the
+// speaker icons are drawn at speakerRadius plus their own half-diagonal in the
+// same normalised space, so past a point they run off the shorter edge. See
+// speakerIconsFitOnScreen() and SphereScale.IconsFitAtTheShippedScale.
+auto constexpr reduceFactorCircleDefault = .62f;
+auto constexpr reduceFactorBlobsDefault = 0.05f;
 auto constexpr reduceFactorHead = .35f;
-auto constexpr reduceFactorBlobs = 0.05f;
 
 auto constexpr activeAreaAroundBlobFactor = 3.f;
 auto constexpr blobHighlightFactor = 1.1f;
@@ -662,7 +658,7 @@ MotionComponent::getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
 float
 MotionComponent::getActiveDistanceInPixel () const
 {
-  return _boundsCenterRegion.getWidth () * reduceFactorBlobs
+  return _boundsCenterRegion.getWidth () * _blobScale
          * activeAreaAroundBlobFactor / 2.f;
 }
 
@@ -821,6 +817,10 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     _sphereShader.setEnergyConfig (ec);
     _sphereShader.setEnergyTexture (_energyTexture);
 
+    auto const &ui = config["ui"];
+    _sphereScale = cfgF (ui, "sphereScale", reduceFactorCircleDefault);
+    _blobScale = cfgF (ui, "blobScale", reduceFactorBlobsDefault);
+
     _spotAttack = cfgF (sl, "attack", 0.08f);
     _spotDecay = cfgF (sl, "decay", 0.4f);
   }
@@ -946,7 +946,7 @@ MotionComponent::renderOpenGL ()
             bd.visible = true;
           }
 
-        auto blobSize = reduceFactorBlobs;
+        auto blobSize = _blobScale;
         if (position.isValid ())
           blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
         if (_uiStates[ch]->grabbed)
@@ -1070,8 +1070,8 @@ MotionComponent::updateBoundsAndTransform ()
   auto shorterSideLength
       = juce::jmin (_boundsRender.getWidth (), _boundsRender.getHeight ());
   _boundsCenterRegion = _boundsRender.withSizeKeepingCentre (
-      shorterSideLength * reduceFactorCircle,
-      shorterSideLength * reduceFactorCircle);
+      shorterSideLength * _sphereScale,
+      shorterSideLength * _sphereScale);
 
   _transformNormalizedToLocal = juce::AffineTransform ( //
       _boundsCenterRegion.getWidth () / 2.f, 0.f,
@@ -1152,7 +1152,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
       if (!position.isValid ())
         continue;
 
-      auto blobSize = 2 * reduceFactorBlobs;
+      auto blobSize = 2 * _blobScale;
       blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
 
       // Blobs on the back of the sphere (z < 0): draw smaller and dimmer

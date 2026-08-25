@@ -80,6 +80,14 @@ float coneWidthFromAngle (float angleDegrees);
 float beamAngleAtLevel (float level, float quietAngleDegrees,
                         float loudAngleDegrees);
 
+/** Whether the speaker icons still fit on screen at a given sphere scale.
+ *
+ *  They are drawn at `speakerRadius` plus their own half-diagonal, in the same
+ *  normalised space the sphere is scaled in, so the two cannot be chosen
+ *  independently: past a point the icons run off the shorter edge and are
+ *  clipped. */
+bool speakerIconsFitOnScreen (float sphereScale, float speakerRadius);
+
 /** Spread of a beam per unit of travel, for a given cone width. */
 float beamSpreadTangent (float width);
 

@@ -356,4 +356,38 @@ TEST (SpeakerLightScaling, ShippedConfigHoldsTheBeamsLongerThanItRaisesThem)
              static_cast<float> (speakerLight["decay"]));
 }
 
+
+// ── how big the sphere may get ──────────────────────────────────────────
+//
+// The sphere's scale and the speaker radius have to be picked together: the
+// icons are drawn at speakerRadius plus their own half-diagonal, in the same
+// normalised space, so past a point they run off the shorter edge. This was a
+// comment next to a constexpr; it is a config value now, so it needs a guard.
+
+TEST (SphereScale, IconsFitAtTheShippedScale)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+
+  ASSERT_TRUE (parsed["ui"].hasProperty ("sphereScale"));
+
+  EXPECT_TRUE (speakerIconsFitOnScreen (
+      static_cast<float> (parsed["ui"]["sphereScale"]),
+      static_cast<float> (parsed["speakerLight"]["speakerRadius"])));
+}
+
+TEST (SphereScale, AnOversizedSphereIsRejected)
+{
+  EXPECT_FALSE (speakerIconsFitOnScreen (0.9f, 1.4f))
+      << "at 0.9 the icons are clipped, which is how this was found";
+}
+
+TEST (SphereScale, PullingTheSpeakersInBuysRoom)
+{
+  EXPECT_FALSE (speakerIconsFitOnScreen (0.7f, 1.4f));
+  EXPECT_TRUE (speakerIconsFitOnScreen (0.7f, 1.0f));
+}
+
 }

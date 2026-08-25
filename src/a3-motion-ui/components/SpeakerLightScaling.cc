@@ -59,6 +59,14 @@ constexpr float maxBeamAngleDegrees = 85.f;
 constexpr float degToRad = 3.14159265358979323846f / 180.f;
 }
 
+bool
+speakerIconsFitOnScreen (float sphereScale, float speakerRadius)
+{
+  auto constexpr halfDiagonal = speakerIconSize * 0.7071068f;
+
+  return sphereScale * (speakerRadius + halfDiagonal) * 0.5f < 0.5f;
+}
+
 float
 coneWidthFromAngle (float angleDegrees)
 {

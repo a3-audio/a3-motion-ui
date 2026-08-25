@@ -90,14 +90,14 @@
       "b": 158
     },
     {
-      "r": 33,
-      "g": 131,
-      "b": 128
-    },
-    {
       "r": 247,
       "g": 208,
       "b": 2
+    },
+    {
+      "r": 33,
+      "g": 131,
+      "b": 128
     }
   ],
   "energy": {
@@ -120,6 +120,8 @@
     "netGain": 0.5
   },
   "ui": {
-    "pauseRenderingInMenu": false
+    "pauseRenderingInMenu": false,
+    "sphereScale": 0.62,
+    "blobScale": 0.05
   }
 }
