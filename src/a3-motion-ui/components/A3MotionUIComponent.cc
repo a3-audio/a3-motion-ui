@@ -576,11 +576,26 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           auto const tapTime = juce::int64 (value.getValue ());
           auto const result = _engine.tap (tapTime);
 
-          if (result == TempoClock::TapResult::TempoAvailable)
+          // FirstTap was falling through here entirely. The clock does reset
+          // itself on it — that much is covered by
+          // TempoClock.FirstTapResetsTheBeat — but the UI gave no sign of it,
+          // and a stale BPM from the previous run stayed on the readout.
+          switch (result)
             {
-              auto const bpm = _engine.getTempoBPM ();
-              std::cout << "[TAP] BPM=" << bpm << std::endl;
-              _valueBPM = bpm;
+            case TempoClock::TapResult::TempoAvailable:
+              {
+                auto const bpm = _engine.getTempoBPM ();
+                juce::Logger::writeToLog ("[TAP] BPM=" + juce::String (bpm));
+                _valueBPM = bpm;
+                break;
+              }
+            case TempoClock::TapResult::FirstTap:
+              juce::Logger::writeToLog ("[TAP] first tap — beat reset to 1");
+              updateControlReadout ("-- TAP 1");
+              break;
+            case TempoClock::TapResult::TempoNotAvailable:
+              juce::Logger::writeToLog ("[TAP] counting, no tempo yet");
+              break;
             }
         }
     }
