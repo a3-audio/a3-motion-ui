@@ -45,6 +45,7 @@ target_sources("a3-motion-ui" PRIVATE
     components/SpeakerLightScaling.cc
     components/EnergyMap.cc
     components/SphereProjection.cc
+    io/ButtonLedColours.cc
     components/MotionComponent.cc
     components/MotionComponent.hh
     components/SphereShader.cc

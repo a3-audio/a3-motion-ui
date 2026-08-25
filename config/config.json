@@ -123,5 +123,27 @@
     "pauseRenderingInMenu": false,
     "sphereScale": 0.62,
     "blobScale": 0.05
+  },
+  "buttonLeds": {
+    "record": {
+      "r": 230,
+      "g": 40,
+      "b": 60
+    },
+    "tap": {
+      "r": 60,
+      "g": 200,
+      "b": 120
+    },
+    "menu": {
+      "r": 90,
+      "g": 140,
+      "b": 250
+    },
+    "shift": {
+      "r": 245,
+      "g": 190,
+      "b": 50
+    }
   }
 }

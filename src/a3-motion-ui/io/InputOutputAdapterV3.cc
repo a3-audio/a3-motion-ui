@@ -20,6 +20,9 @@
 
 #include "InputOutputAdapterV3.hh"
 
+#include <a3-motion-engine/UserConfig.hh>
+#include <a3-motion-ui/io/ButtonLedColours.hh>
+
 #include <algorithm>
 #include <cstring>
 
@@ -442,7 +445,27 @@ InputOutputAdapterV3::outputButtonLED (Button button, bool value)
   static constexpr int menuHwIndices[]   = { 3, 37 };
   static constexpr int shiftHwIndices[]  = { 40, 42 };
 
-  auto const colour = value ? juce::Colours::white : juce::Colours::black;
+  // Each function button lights in its own colour, so the panel says which key
+  // does what without reading the legend. Unconfigured ones stay white, which
+  // is what all of them used to be.
+  auto const named = [&] () -> juce::String {
+    switch (button)
+      {
+      case Button::Record: return "record";
+      case Button::Tap: return "tap";
+      case Button::Menu: return "menu";
+      case Button::Shift: return "shift";
+      case Button::ClockMode: break;
+      }
+    return {};
+  }();
+
+  auto const led = buttonLedColour (userConfig["buttonLeds"], named);
+  auto const colour
+      = value ? juce::Colour (static_cast<juce::uint8> (led.r),
+                              static_cast<juce::uint8> (led.g),
+                              static_cast<juce::uint8> (led.b))
+              : juce::Colours::black;
 
   switch (button)
     {

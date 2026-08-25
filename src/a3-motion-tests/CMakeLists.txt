@@ -18,6 +18,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ConfigFileWatcher.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/EnergyMap.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SphereProjection.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ButtonLedColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SettingsPersistence.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/osc/OscMessageHandler.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/CoronaScaling.cc"
@@ -25,6 +26,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/ConfigFileWatcher.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/EnergyMap.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/SphereProjection.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/io/ButtonLedColours.cc"
     )
 
 # The corona visibility test reads the config that actually ships with the app,
