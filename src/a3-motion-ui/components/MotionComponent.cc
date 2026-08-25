@@ -29,6 +29,7 @@
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
+#include <a3-motion-ui/components/SphereProjection.hh>
 
 namespace
 {
@@ -423,17 +424,10 @@ MotionComponent::disoccludeBlobs ()
   // sqrt(2), and reading in one while writing in the other shrank every
   // untouched blob's radius by that factor per frame until it sat on the
   // centre. See HeightMapSphere.DropZRoundTripShrinksTowardsTheCentre.
-  auto const &heightMap = _engine.getHeightMap ();
-  auto const paramsFor = [this] (index_t channel) {
-    auto const playing = _engine.getPlayingPattern (channel);
-    return playing ? playing->getElevationParams () : ElevationParams{};
-  };
-
-  auto const grabbed = _grabbedIndex.value ();
-  auto const posGrabbed = _engine.getChannelPosition (grabbed);
+  auto const posGrabbed = _engine.getChannelPosition (_grabbedIndex.value ());
   jassert (posGrabbed.isValid ());
-  auto const posGrabbedPixel = normalizedToLocal2DPosition (
-      heightMap.mapTo2D (posGrabbed, paramsFor (grabbed)));
+  auto const posGrabbedPixel
+      = normalizedToLocal2DPosition (directionToDisc (posGrabbed));
 
   for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     {
@@ -443,8 +437,8 @@ MotionComponent::disoccludeBlobs ()
           if (!position.isValid ())
             continue;
 
-          auto posPixel = normalizedToLocal2DPosition (
-              heightMap.mapTo2D (position, paramsFor (channel)));
+          auto posPixel
+              = normalizedToLocal2DPosition (directionToDisc (position));
           auto const distance = posPixel.getDistanceFrom (posGrabbedPixel);
 
           if (distance < getActiveDistanceInPixel ())
@@ -528,8 +522,8 @@ MotionComponent::disoccludeBlobs ()
                 }
             }
 
-          _engine.setChannel2DPosition (
-              channel, localToNormalized2DPosition (posPixel));
+          _engine.setChannel3DPosition (
+              channel, discToDirection (localToNormalized2DPosition (posPixel)));
         }
     }
 }
@@ -562,13 +556,11 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           // the sphere and could snap it to the front on grab. No Pattern
           // is in scope here (this is a live/manual grab, not a clip) — use
           // whatever clip is currently playing on the channel, if any.
-          auto const playing = _engine.getPlayingPattern (index);
-          auto const params
-              = playing ? playing->getElevationParams () : ElevationParams{};
-          auto const posRaw2D = _engine.getHeightMap ().mapTo2D (
-              _engine.getChannelPosition (index), params);
+          // Measured where the blob is drawn, which is where the finger sees
+          // it — anything else and the blob jumps on grab.
           _uiStates[index]->grabOffset
-              = normalizedToLocal2DPosition (posRaw2D)
+              = normalizedToLocal2DPosition (
+                    directionToDisc (_engine.getChannelPosition (index)))
                 - event.getPosition ().toFloat ();
           _grabbedIndex = index;
 
@@ -577,12 +569,8 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
                ++channel)
             {
               auto const posChannel = _engine.getChannelPosition (channel);
-              auto const playingChannel = _engine.getPlayingPattern (channel);
-              auto const paramsChannel = playingChannel
-                  ? playingChannel->getElevationParams ()
-                  : ElevationParams{};
               _uiStates[channel]->posAnchor = normalizedToLocal2DPosition (
-                  _engine.getHeightMap ().mapTo2D (posChannel, paramsChannel));
+                  directionToDisc (posChannel));
             }
         }
     }
@@ -617,9 +605,14 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
       auto const channel = _grabbedIndex.value ();
       auto const posPixelOffsetted
           = posPixel + _uiStates[channel]->grabOffset;
-      auto const posHOA
-          = localToNormalized2DPosition (posPixelOffsetted);
-      _engine.setChannel2DPosition (channel, posHOA);
+
+      // Straight into the projection the blob is drawn in, so it lands under
+      // the finger. Going through the height map's 2D space instead read the
+      // finger's radius as a pattern radius, where 1.0 is 45 degrees off the
+      // zenith rather than the horizon — the blob came up short by 1/sqrt(2).
+      auto const direction
+          = discToDirection (localToNormalized2DPosition (posPixelOffsetted));
+      _engine.setChannel3DPosition (channel, direction);
     }
 }
 

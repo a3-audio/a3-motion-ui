@@ -44,6 +44,7 @@ target_sources("a3-motion-ui" PRIVATE
     components/CoronaScaling.cc
     components/SpeakerLightScaling.cc
     components/EnergyMap.cc
+    components/SphereProjection.cc
     components/MotionComponent.cc
     components/MotionComponent.hh
     components/SphereShader.cc
