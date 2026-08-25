@@ -173,6 +173,10 @@ private:
   // OSC Receiver for VU meters (port 7772)
   juce::OSCReceiver _oscReceiverVU;
   juce::OSCReceiver _oscReceiverEnergy;
+
+  // Whether the sphere stops rendering while the settings menu is open. Off:
+  // it was a concession to the RPi4's GPU, and the rig is on an Intel NUC.
+  bool _pauseRenderingInMenu = false;
   
   // Async OSC Sender for beatclock output (non-blocking, dedicated thread)
   AsyncOSCSender _oscSender;

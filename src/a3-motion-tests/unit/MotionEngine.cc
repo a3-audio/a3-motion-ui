@@ -54,4 +54,41 @@ TEST (MotionEngine, TempoFacadeForwardsToTempoClock)
   EXPECT_FLOAT_EQ (engine.getTempoBPM (), 140.f);
 }
 
+
+// The first tap is supposed to put the beat back to 1. TempoClock::tap() calls
+// reset() for it, and the clock's timer thread applies that by zeroing its
+// measure and emitting Tick/Beat/Bar. This walks that whole path, because
+// reading it told us nothing — every link looked correct while the rig still
+// showed the beat not resetting in INT mode.
+TEST (MotionEngine, FirstTapPutsTheBeatBackToOne)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  std::atomic<int> lastBeat{ -1 };
+  std::atomic<int> beatCallbacks{ 0 };
+
+  auto handle = engine.getTempoClock ().scheduleEventHandlerAddition (
+      [&lastBeat, &beatCallbacks] (Measure measure) {
+        lastBeat = static_cast<int> (measure.beat ());
+        ++beatCallbacks;
+      },
+      TempoClock::Event::Beat, TempoClock::Execution::TimerThread);
+
+  // Let the clock run far enough into a bar that a reset is visible as a
+  // change rather than as the state it was already in.
+  engine.setTempoBPM (240.f);
+  juce::Thread::sleep (600);
+  ASSERT_GT (beatCallbacks.load (), 0) << "the clock is not ticking at all";
+
+  auto const before = beatCallbacks.load ();
+  engine.tap (juce::Time::getHighResolutionTicks ());
+  juce::Thread::sleep (100);
+
+  EXPECT_GT (beatCallbacks.load (), before)
+      << "the tap produced no beat event, so reset() never reached the timer";
+  EXPECT_EQ (lastBeat.load (), 0)
+      << "the beat did not go back to the start of the bar";
+}
+
 }

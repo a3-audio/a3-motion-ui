@@ -133,6 +133,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // Setup OSC Receiver from config
   int oscRecvPort = 7771; // default
   juce::String oscRecvHost = "0.0.0.0";
+  if (userConfig.hasProperty ("ui"))
+    {
+      auto const uiConfig = userConfig["ui"];
+      if (uiConfig.hasProperty ("pauseRenderingInMenu"))
+        _pauseRenderingInMenu
+            = static_cast<bool> (uiConfig["pauseRenderingInMenu"]);
+    }
+
   if (userConfig.hasProperty ("oscReceiver"))
     {
       auto oscRecvConfig = userConfig["oscReceiver"];
@@ -1469,7 +1477,11 @@ A3MotionUIComponent::openGlobalSettings ()
 
   _globalSettings->setVisible (true);
   _globalSettings->toFront (true);
-  if (_motionComponent)
+
+  // Pausing here was a concession to the RPi4's GPU. The rig runs on an Intel
+  // NUC now and the sphere is meant to carry on behind the menu, but the option
+  // stays for a machine that needs it again.
+  if (_motionComponent && _pauseRenderingInMenu)
     _motionComponent->setRenderingPaused (true);
 }
 

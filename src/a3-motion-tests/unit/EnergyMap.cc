@@ -570,4 +570,21 @@ TEST (Bolts, ShippedConfigBranchesAndRunsThin)
       << "a thick bolt reads as a band again";
 }
 
+
+// The sphere used to freeze while the menu was open — deliberate, to save the
+// RPi4 some work. The rig runs on an Intel NUC now and the effects are meant to
+// carry on, but the option has to survive for a possible RPi later.
+TEST (MenuRendering, ShippedConfigKeepsTheSphereRunningWhileTheMenuIsOpen)
+{
+  auto const file = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (file.existsAsFile ());
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const &ui = parsed["ui"];
+
+  ASSERT_TRUE (ui.hasProperty ("pauseRenderingInMenu"))
+      << "the switch has to exist, or the behaviour is baked in again";
+  EXPECT_FALSE (static_cast<bool> (ui["pauseRenderingInMenu"]));
+}
+
 }
