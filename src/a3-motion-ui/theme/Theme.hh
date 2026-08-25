@@ -117,4 +117,21 @@ ThemeColour themeColour (juce::var const &skin, juce::String const &name,
  *  built-in defaults. */
 Theme loadTheme (juce::var const &skin);
 
+/** Where a named skin lives: `<configDir>/skins/<name>.json`. An empty name
+ *  gives the default skin rather than a path that cannot exist. */
+juce::File skinFile (juce::File const &configDir, juce::String const &name);
+
+/** The theme in force. Written only while loading, on the message thread; the
+ *  GL thread copies what it needs per frame, as it already does with the
+ *  config. Follows the `extern juce::var userConfig` pattern this repo
+ *  already uses rather than introducing a second convention. */
+Theme const &theme ();
+void setTheme (Theme newTheme);
+
+/** Contents of the skin `ui.skin` names, beside the given config file. A
+ *  missing file gives a void var, which loadTheme turns into the built-in
+ *  defaults. */
+juce::var loadActiveSkinVar (juce::File const &configFile,
+                             juce::var const &config);
+
 }

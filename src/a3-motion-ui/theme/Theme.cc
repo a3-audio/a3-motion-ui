@@ -79,6 +79,48 @@ themeColour (juce::var const &skin, juce::String const &name,
   return colourFromEntry (skin[key], fallback);
 }
 
+juce::File
+skinFile (juce::File const &configDir, juce::String const &name)
+{
+  auto const chosen = name.isNotEmpty () ? name : juce::String ("default");
+
+  return configDir.getChildFile ("skins").getChildFile (chosen + ".json");
+}
+
+namespace
+{
+Theme &
+mutableTheme ()
+{
+  static Theme instance;
+  return instance;
+}
+}
+
+Theme const &
+theme ()
+{
+  return mutableTheme ();
+}
+
+void
+setTheme (Theme newTheme)
+{
+  mutableTheme () = newTheme;
+}
+
+juce::var
+loadActiveSkinVar (juce::File const &configFile, juce::var const &config)
+{
+  auto const file = skinFile (configFile.getParentDirectory (),
+                              config["ui"]["skin"].toString ());
+
+  if (!file.existsAsFile ())
+    return {};
+
+  return juce::JSON::parse (file.loadFileAsString ());
+}
+
 Theme
 loadTheme (juce::var const &skin)
 {

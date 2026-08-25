@@ -37,6 +37,9 @@ target_compile_definitions(a3-motion-tests PRIVATE
     A3_CONFIG_JSON_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../config/config.json"
     A3_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../resources")
 
+target_include_directories("a3-motion-tests" PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+
 target_link_libraries(a3-motion-tests PUBLIC
     a3-motion-engine
     gtest

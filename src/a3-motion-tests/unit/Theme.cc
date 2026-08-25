@@ -150,4 +150,53 @@ TEST (Theme, EveryRoleIsActuallyRead)
   EXPECT_TRUE (wasRead (theme.energy)) << "energy";
 }
 
+
+// ── the active skin on disk ─────────────────────────────────────────────
+
+TEST (Theme, TheSkinFileSitsBesideTheConfig)
+{
+  auto const configDir = juce::File::getSpecialLocation (
+      juce::File::SpecialLocationType::tempDirectory);
+
+  EXPECT_EQ (skinFile (configDir, "mono").getFullPathName (),
+             configDir.getChildFile ("skins").getChildFile ("mono.json")
+                 .getFullPathName ());
+}
+
+TEST (Theme, AnEmptyNameFallsBackToDefault)
+{
+  auto const configDir = juce::File::getSpecialLocation (
+      juce::File::SpecialLocationType::tempDirectory);
+
+  EXPECT_EQ (skinFile (configDir, "").getFileName (), "default.json");
+}
+
+TEST (Theme, ShippedSkinExistsAndParses)
+{
+  auto const configFile = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (configFile.existsAsFile ());
+
+  auto const config = juce::JSON::parse (configFile.loadFileAsString ());
+  auto const name = config["ui"]["skin"].toString ();
+  ASSERT_TRUE (name.isNotEmpty ()) << "ui.skin names no skin";
+
+  auto const skin = skinFile (configFile.getParentDirectory (), name);
+  ASSERT_TRUE (skin.existsAsFile ()) << skin.getFullPathName ();
+  EXPECT_FALSE (juce::JSON::parse (skin.loadFileAsString ()).isVoid ())
+      << "the shipped skin does not parse";
+}
+
+// The tuned values moved out of config.json; if they were left behind as well
+// there would be two places to change and they would drift.
+TEST (Theme, TheTunedBlocksLeftTheConfig)
+{
+  auto const config = juce::JSON::parse (
+      juce::File (A3_CONFIG_JSON_PATH).loadFileAsString ());
+
+  for (auto const *moved : { "sphereGlow", "speakerLight", "energy",
+                             "corona", "channels" })
+    EXPECT_FALSE (config.hasProperty (moved))
+        << moved << " is still in config.json as well as the skin";
+}
+
 }

@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <ShippedSkin.hh>
+
 #include <a3-motion-ui/components/EnergyMap.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
@@ -301,10 +303,8 @@ TEST (BeamWrap, HeldAtBothEnds)
 
 TEST (BeamWrap, ShippedConfigWrapsAQuarterEach)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &speakerLight = parsed["speakerLight"];
 
   ASSERT_TRUE (speakerLight.hasProperty ("wrapAngle"));
@@ -351,10 +351,8 @@ TEST (BeamBand, LouderStillMeansBrighter)
 
 TEST (BeamBand, ShippedConfigKeepsTheSphereEnclosed)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &speakerLight = parsed["speakerLight"];
 
   ASSERT_TRUE (speakerLight.hasProperty ("levelFloor"));
@@ -413,10 +411,8 @@ TEST (BeamBand, ReachesInIntoTheNet)
 // was unclear which element was lighting what — that is no longer the job.
 TEST (BeamBand, BandAndGlowShareTheirColour)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &band = parsed["speakerLight"];
   auto const &glow = parsed["sphereGlow"];
 
@@ -471,10 +467,8 @@ TEST (Bolts, MostOfTheTimeThereIsNoStrike)
 
 TEST (Bolts, ShippedConfigStrikesRatherThanGlows)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &speakerLight = parsed["speakerLight"];
 
   ASSERT_TRUE (speakerLight.hasProperty ("boltWidth"));
@@ -495,10 +489,8 @@ TEST (Bolts, ShippedConfigStrikesRatherThanGlows)
 // limit. And there have to be enough of them to look like weather.
 TEST (Bolts, ShippedConfigLetsSomeBoltsBreakOut)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &speakerLight = parsed["speakerLight"];
 
   ASSERT_TRUE (speakerLight.hasProperty ("boltReach"));
@@ -516,10 +508,8 @@ TEST (Bolts, ShippedConfigLetsSomeBoltsBreakOut)
 // event, so it has to outlast the bolts striking in front of it.
 TEST (GlowNet, ShippedGlowFadesSlowerThanTheBolts)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
 
   ASSERT_TRUE (parsed["sphereGlow"].hasProperty ("decay"));
   ASSERT_TRUE (parsed["sphereGlow"].hasProperty ("attack"));
@@ -556,10 +546,8 @@ TEST (Bolts, ABranchKeepsLeaving)
 
 TEST (Bolts, ShippedConfigBranchesAndRunsThin)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &speakerLight = parsed["speakerLight"];
 
   ASSERT_TRUE (speakerLight.hasProperty ("boltBranch"));
@@ -576,10 +564,9 @@ TEST (Bolts, ShippedConfigBranchesAndRunsThin)
 // carry on, but the option has to survive for a possible RPi later.
 TEST (MenuRendering, ShippedConfigKeepsTheSphereRunningWhileTheMenuIsOpen)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  // Operational, not a look — stays in config.json while the skin values move.
+  auto const parsed = juce::JSON::parse (
+      juce::File (A3_CONFIG_JSON_PATH).loadFileAsString ());
   auto const &ui = parsed["ui"];
 
   ASSERT_TRUE (ui.hasProperty ("pauseRenderingInMenu"))

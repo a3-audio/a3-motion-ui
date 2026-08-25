@@ -30,6 +30,7 @@
 #include <a3-motion-ui/components/SphereShader.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 
 namespace
 {
@@ -106,10 +107,18 @@ namespace a3
 namespace
 {
 juce::File
-visualConfigFile ()
+configFile ()
 {
   return juce::File::getCurrentWorkingDirectory ().getChildFile (
       "config/config.json");
+}
+
+// The tuned visual values live in the active skin now, not in config.json.
+juce::File
+visualConfigFile ()
+{
+  return skinFile (configFile ().getParentDirectory (),
+                   userConfig["ui"]["skin"].toString ());
 }
 }
 
@@ -718,7 +727,7 @@ MotionComponent::newOpenGLContextCreated ()
   _startMillis = juce::Time::getMillisecondCounter ();
 
   _configWatcher = ConfigFileWatcher{ visualConfigFile () };
-  applyVisualConfig (userConfig);
+  applyVisualConfig (loadActiveSkinVar (configFile (), userConfig));
 }
 
 

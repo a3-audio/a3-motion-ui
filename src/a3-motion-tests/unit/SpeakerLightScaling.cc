@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <ShippedSkin.hh>
+
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
 #include <cmath>
@@ -54,12 +56,10 @@ struct ShippedParams
 ShippedParams
 shippedParams ()
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  EXPECT_TRUE (file.existsAsFile ()) << "no config.json at " << A3_CONFIG_JSON_PATH;
-
   // Keep the parsed var alive — binding a reference straight to
   // JSON::parse(...)["key"] dangles once the temporary dies.
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  EXPECT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &speakerLight = parsed["speakerLight"];
 
   // Both must be set explicitly — falling back to a default here is what made
@@ -90,10 +90,8 @@ TEST (SpeakerLightScaling, ShippedConfigSeparatesLoudAndQuietSpeakers)
 // would silently fall back to the defaults again.
 TEST (SpeakerLightScaling, ShippedConfigSetsBeamShapeParameters)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &speakerLight = parsed["speakerLight"];
 
   EXPECT_TRUE (speakerLight.hasProperty ("edgeSoftness"));
@@ -241,10 +239,8 @@ TEST (SpeakerLightGeometry, FullWidthSpreadsAtFortyFiveDegrees)
 
 TEST (SpeakerLightGeometry, MouthSitsOutsideTheSphere)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const speakerRadius
       = static_cast<float> (parsed["speakerLight"]["speakerRadius"]);
 
@@ -307,10 +303,8 @@ constexpr float subwooferRmsMax = 0.0237f;
 
 TEST (SphereCorona, ShippedConfigMakesTheCoronaVisible)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &glow = parsed["sphereGlow"];
 
   ASSERT_TRUE (glow.hasProperty ("vuMax"));
@@ -327,10 +321,8 @@ TEST (SphereCorona, ShippedConfigMakesTheCoronaVisible)
 
 TEST (SphereCorona, ShippedConfigLeavesHeadroomAboveTheSubwoofer)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &glow = parsed["sphereGlow"];
 
   EXPECT_LT (speakerLightLevel (subwooferRmsMax,
@@ -343,10 +335,8 @@ TEST (SphereCorona, ShippedConfigLeavesHeadroomAboveTheSubwoofer)
 // other, which needs a decay slower than the attack.
 TEST (SpeakerLightScaling, ShippedConfigHoldsTheBeamsLongerThanItRaisesThem)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &speakerLight = parsed["speakerLight"];
 
   ASSERT_TRUE (speakerLight.hasProperty ("attack"));
@@ -366,15 +356,13 @@ TEST (SpeakerLightScaling, ShippedConfigHoldsTheBeamsLongerThanItRaisesThem)
 
 TEST (SphereScale, IconsFitAtTheShippedScale)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
+  auto const parsed = shippedSkin ();
+  ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
 
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
-
-  ASSERT_TRUE (parsed["ui"].hasProperty ("sphereScale"));
+  ASSERT_TRUE (parsed.hasProperty ("sphereScale"));
 
   EXPECT_TRUE (speakerIconsFitOnScreen (
-      static_cast<float> (parsed["ui"]["sphereScale"]),
+      static_cast<float> (parsed["sphereScale"]),
       static_cast<float> (parsed["speakerLight"]["speakerRadius"])));
 }
 

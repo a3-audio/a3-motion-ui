@@ -29,6 +29,7 @@
 #include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/UserConfig.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
@@ -249,7 +250,12 @@ A3MotionUIComponent::createChannelsUI ()
   _channelStrips.reserve (numChannels);
 
   // Read optional per-channel colours from config
-  auto const &channelsCfg = userConfig["channels"];
+  // Channel colours are part of the look, so they live in the skin.
+  auto const skinVar = loadActiveSkinVar (
+      juce::File::getCurrentWorkingDirectory ().getChildFile (
+          "config/config.json"),
+      userConfig);
+  auto const &channelsCfg = skinVar["channels"];
 
   for (auto channel = 0u; channel < numChannels; ++channel)
     {
