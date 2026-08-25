@@ -590,7 +590,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                 break;
               }
             case TempoClock::TapResult::FirstTap:
-              juce::Logger::writeToLog ("[TAP] first tap — beat reset to 1");
+              juce::Logger::writeToLog ("[TAP] first tap: beat reset to 1");
               updateControlReadout ("-- TAP 1");
               break;
             case TempoClock::TapResult::TempoNotAvailable:
