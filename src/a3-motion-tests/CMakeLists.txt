@@ -22,6 +22,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Theme.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ThemeColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LookAndFeelTheme.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/NoColourLiterals.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SettingsPersistence.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/osc/OscMessageHandler.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/CoronaScaling.cc"
@@ -39,6 +40,7 @@ target_sources("a3-motion-tests" PRIVATE
 # so a tuning change that hides the effect fails the suite rather than the eye.
 target_compile_definitions(a3-motion-tests PRIVATE
     A3_CONFIG_JSON_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../config/config.json"
+    A3_UI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui"
     A3_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../resources")
 
 target_include_directories("a3-motion-tests" PRIVATE
