@@ -42,7 +42,7 @@ FilterDisplay::paint (juce::Graphics &g)
   auto bounds = getLocalBounds ();
 
   // Grey background matching the StatusBar
-  g.setColour (Colours::statusBar);
+  g.setColour (Colours::statusBar ());
   g.fillRect (bounds);
 
   // Divide into 4 equal channel sections
@@ -58,7 +58,7 @@ FilterDisplay::paint (juce::Graphics &g)
       // Draw thin separator line between sections
       if (ch < numChannels - 1)
         {
-          g.setColour (Colours::background);
+          g.setColour (Colours::background ());
           g.drawVerticalLine (sectionBounds.getRight (),
                               static_cast<float> (sectionBounds.getY ()),
                               static_cast<float> (sectionBounds.getBottom ()));

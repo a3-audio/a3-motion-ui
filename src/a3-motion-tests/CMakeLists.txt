@@ -20,6 +20,8 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SphereProjection.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ButtonLedColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Theme.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ThemeColours.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/LookAndFeelTheme.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SettingsPersistence.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/osc/OscMessageHandler.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/CoronaScaling.cc"
@@ -29,6 +31,8 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/SphereProjection.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/io/ButtonLedColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/Theme.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/ThemeColours.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/LookAndFeel.cc"
     )
 
 # The corona visibility test reads the config that actually ships with the app,
@@ -42,6 +46,11 @@ target_include_directories("a3-motion-tests" PRIVATE
 
 target_link_libraries(a3-motion-tests PUBLIC
     a3-motion-engine
+    # Colour work is most of the theme, and juce::Colour lives here. Without
+    # it the LookAndFeel and every colour conversion would be untestable.
+    juce::juce_graphics
+    # LookAndFeel_V4 and the ColourIds it defines live here.
+    juce::juce_gui_basics
     gtest
 )
 

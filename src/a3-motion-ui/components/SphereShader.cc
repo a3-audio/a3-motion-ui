@@ -786,7 +786,7 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     if (_uGlowIntensity >= 0) glUniform1f (_uGlowIntensity, _glowCfg.intensity);
   }
 
-  // Solid background colour (from LookAndFeel Colours::background)
+  // Solid background colour (from the theme's background role)
   if (_uBgColour >= 0)
     {
       // 0xff292f36 → RGB normalized

@@ -861,9 +861,17 @@ MotionComponent::applyTheme (juce::var const &skin)
     if (safeThis == nullptr)
       return;
 
+    // The LookAndFeel does cache: findColour reads what setColour last wrote,
+    // so a skin change has to reach it before anything repaints. Asked for via
+    // the parent chain rather than a back-pointer — that is the same chain
+    // every child already resolves its colours through.
+    if (auto *lookAndFeel
+        = dynamic_cast<LookAndFeel_A3 *> (&safeThis->getLookAndFeel ()))
+      lookAndFeel->applyTheme (theme ());
+
     if (auto *root = safeThis->getTopLevelComponent ())
-      root->repaint ();  // the step that is easy to forget: nothing caches the
-                         // theme, but nothing repaints on its own either
+      root->repaint ();  // the step that is easy to forget: nothing else caches
+                         // the theme, but nothing repaints on its own either
   });
 }
 
@@ -930,7 +938,7 @@ MotionComponent::renderOpenGL ()
       * 0.001f);
 
   // Clear background first
-  OpenGLHelpers::clear (Colours::background);
+  OpenGLHelpers::clear (Colours::background ());
 
   // ── Smooth VU values (exponential moving average per frame) ───
   // Attack fast, release slower → no flicker, responsive feel.

@@ -22,14 +22,10 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/theme/ThemeColours.hh>
+
 namespace a3
 {
-
-struct Colours
-{
-  static juce::Colour const background;
-  static juce::Colour const statusBar;
-};
 
 /*
  * Our custom A3 LookAndFeel class.
@@ -50,6 +46,12 @@ class LookAndFeel_A3 : public juce::LookAndFeel_V4
 {
 public:
   LookAndFeel_A3 ();
+
+  /** Point every ColourId this app draws with at the role it belongs to.
+   *
+   *  Called again after a skin change, which is why it is not just the
+   *  constructor: a LookAndFeel outlives the theme it was built from. */
+  void applyTheme (Theme const &theme);
 };
 
 }

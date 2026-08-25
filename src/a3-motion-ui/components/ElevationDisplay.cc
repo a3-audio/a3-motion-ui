@@ -38,7 +38,7 @@ ElevationDisplay::paint (juce::Graphics &g)
   auto bounds = getLocalBounds ();
 
   // Grey background matching the StatusBar (same base as PadRowDisplay)
-  g.setColour (Colours::statusBar);
+  g.setColour (Colours::statusBar ());
   g.fillRect (bounds);
 
   auto const cellWidth = bounds.getWidth () / numChannels;

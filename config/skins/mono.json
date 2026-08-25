@@ -108,5 +108,10 @@
     }
   ],
   "sphereScale": 0.62,
-  "blobScale": 0.05
+  "blobScale": 0.05,
+  "background": {
+    "r": 60,
+    "g": 20,
+    "b": 20
+  }
 }

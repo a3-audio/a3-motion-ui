@@ -55,7 +55,7 @@ TickIndicator::paint (juce::Graphics &g)
       boundsSquare.expand (-2, -2);
 
       g.setColour (tick == _currentTick ? juce::Colours::white
-                                        : Colours::statusBar);
+                                        : Colours::statusBar ());
 
       g.fillRect (boundsSquare);
     }

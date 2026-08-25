@@ -23,19 +23,52 @@
 namespace a3
 {
 
-const juce::Colour Colours::background{ 0xff292f36 };
-const juce::Colour Colours::statusBar{ Colours::background.withLightness (
-    0.4f) };
-
 LookAndFeel_A3::LookAndFeel_A3 ()
 {
-  setColour (juce::Slider::thumbColourId, juce::Colours::lightgrey);
-
-  // setColour (juce::Slider::backgroundColourId, juce::Colours::red);
-  // setColour (juce::Slider::trackColourId, juce::Colours::red);
-  // setColour (juce::Slider::rotarySliderOutlineColourId, Colours::black);
-
-  setColour (juce::Slider::rotarySliderFillColourId,
-             juce::Colours::lightgrey.darker ());
+  applyTheme (theme ());
 }
+
+void
+LookAndFeel_A3::applyTheme (Theme const &theme)
+{
+  auto const surface = toColour (theme.surface);
+  auto const surfaceRaised = toColour (theme.surfaceRaised);
+  auto const background = toColour (theme.background);
+  auto const textPrimary = toColour (theme.textPrimary);
+  auto const textMuted = toColour (theme.textMuted);
+  auto const textOnAccent = toColour (theme.textOnAccent);
+  auto const accent = toColour (theme.accent);
+
+  setColour (juce::ResizableWindow::backgroundColourId, background);
+  setColour (juce::DocumentWindow::textColourId, textPrimary);
+
+  setColour (juce::Label::textColourId, textPrimary);
+  setColour (juce::Label::backgroundColourId, juce::Colours::transparentBlack);
+
+  // The knob keeps its own greys rather than taking the accent: it is a value
+  // readout, and an accent-coloured one would compete with the state colours
+  // sharing the screen with it.
+  setColour (juce::Slider::thumbColourId, textMuted);
+  setColour (juce::Slider::rotarySliderFillColourId, textMuted.darker ());
+  setColour (juce::Slider::rotarySliderOutlineColourId, surfaceRaised);
+  setColour (juce::Slider::backgroundColourId, surface);
+  setColour (juce::Slider::trackColourId, accent);
+
+  setColour (juce::TextButton::buttonColourId, surfaceRaised);
+  setColour (juce::TextButton::buttonOnColourId, accent);
+  setColour (juce::TextButton::textColourOffId, textPrimary);
+  setColour (juce::TextButton::textColourOnId, textOnAccent);
+
+  setColour (juce::ComboBox::backgroundColourId, surfaceRaised);
+  setColour (juce::ComboBox::textColourId, textPrimary);
+  setColour (juce::ComboBox::outlineColourId, surface);
+
+  setColour (juce::PopupMenu::backgroundColourId, surfaceRaised);
+  setColour (juce::PopupMenu::textColourId, textPrimary);
+  setColour (juce::PopupMenu::highlightedBackgroundColourId, accent);
+  setColour (juce::PopupMenu::highlightedTextColourId, textOnAccent);
+
+  setColour (juce::ScrollBar::thumbColourId, textMuted);
+}
+
 }
