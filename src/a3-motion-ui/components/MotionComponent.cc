@@ -726,8 +726,13 @@ MotionComponent::newOpenGLContextCreated ()
 
   _startMillis = juce::Time::getMillisecondCounter ();
 
-  _configWatcher = ConfigFileWatcher{ visualConfigFile () };
-  applyVisualConfig (loadActiveSkinVar (configFile (), userConfig));
+  _activeSkinFile = visualConfigFile ();
+  _appConfigWatcher = ConfigFileWatcher{ configFile () };
+  _configWatcher = ConfigFileWatcher{ _activeSkinFile };
+
+  auto const skin = loadActiveSkinVar (configFile (), userConfig);
+  applyVisualConfig (skin);
+  applyTheme (skin);
 }
 
 
@@ -843,19 +848,61 @@ MotionComponent::applyVisualConfig (juce::var const &config)
 // config.json while running turns a rebuild-and-restart cycle into a file save.
 // Runs on the GL thread, throttled to roughly once a second, so no handoff from
 // the message thread is needed.
+// Loading the theme is the message thread's job — the 2D components read it
+// while painting — so the repaint goes through the message manager rather than
+// being called from here on the GL thread.
+void
+MotionComponent::applyTheme (juce::var const &skin)
+{
+  setTheme (loadTheme (skin));
+
+  juce::Component::SafePointer<MotionComponent> safeThis{ this };
+  juce::MessageManager::callAsync ([safeThis] {
+    if (safeThis == nullptr)
+      return;
+
+    if (auto *root = safeThis->getTopLevelComponent ())
+      root->repaint ();  // the step that is easy to forget: nothing caches the
+                         // theme, but nothing repaints on its own either
+  });
+}
+
 void
 MotionComponent::reloadVisualConfigIfChanged ()
 {
-  if (!_configWatcher.hasChanged ())
+  auto skinChanged = false;
+
+  // config.json first: it may have named a different skin, and then the second
+  // watcher has to follow before it is asked anything.
+  if (_appConfigWatcher.hasChanged ())
+    {
+      juce::var config;
+      if (juce::JSON::parse (configFile ().loadFileAsString (), config)
+              .wasOk ())
+        {
+          auto const named = skinFile (configFile ().getParentDirectory (),
+                                       config["ui"]["skin"].toString ());
+          if (named != _activeSkinFile)
+            {
+              _activeSkinFile = named;
+              _configWatcher = ConfigFileWatcher{ named };
+              skinChanged = true;
+              juce::Logger::writeToLog ("skin is now "
+                                        + named.getFileName ());
+            }
+        }
+    }
+
+  if (!_configWatcher.hasChanged () && !skinChanged)
     return;
 
   juce::var parsed;
-  if (juce::JSON::parse (visualConfigFile ().loadFileAsString (), parsed)
-          .failed ())
+  if (juce::JSON::parse (_activeSkinFile.loadFileAsString (), parsed).failed ())
     return; // half-written save — the next check picks up the finished file
 
   applyVisualConfig (parsed);
-  juce::Logger::writeToLog ("reloaded " + visualConfigFile ().getFullPathName ());
+  applyTheme (parsed);
+  juce::Logger::writeToLog ("reloaded " + _activeSkinFile.getFileName ());
 }
 
 void

@@ -221,7 +221,16 @@ private:
   void uploadEnergyMap ();
 
   void applyVisualConfig (juce::var const &config);
+  void applyTheme (juce::var const &skin);
   void reloadVisualConfigIfChanged ();
+
+  // config.json is watched for ui.skin changing; the second watcher follows
+  // whichever skin that names, so tuning saves are noticed too.
+  ConfigFileWatcher _appConfigWatcher{
+    juce::File::getCurrentWorkingDirectory ().getChildFile (
+        "config/config.json")
+  };
+  juce::File _activeSkinFile;
 
   ConfigFileWatcher _configWatcher{
     juce::File::getCurrentWorkingDirectory ().getChildFile (

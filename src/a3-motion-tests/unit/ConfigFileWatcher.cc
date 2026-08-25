@@ -78,4 +78,51 @@ TEST (ConfigFileWatcher, MissingFileReportsNoChange)
   EXPECT_FALSE (watcher.hasChanged ());
 }
 
+
+// Two files are watched now: config.json for operational changes including
+// which skin is active, and the active skin itself for tuning. They have to
+// report independently, or a tuning save would be missed while config.json
+// sits still.
+TEST (ConfigFileWatcher, TwoWatchersReportIndependently)
+{
+  auto const configLike = tempFile ("a3-watcher-two-config.json");
+  auto const skinLike = tempFile ("a3-watcher-two-skin.json");
+  configLike.replaceWithText ("{}");
+  skinLike.replaceWithText ("{}");
+
+  ConfigFileWatcher configWatcher{ configLike };
+  ConfigFileWatcher skinWatcher{ skinLike };
+
+  skinLike.replaceWithText (R"({"accent": {"r": 1, "g": 2, "b": 3}})");
+
+  EXPECT_TRUE (skinWatcher.hasChanged ()) << "the skin edit was missed";
+  EXPECT_FALSE (configWatcher.hasChanged ())
+      << "the config reported a change it did not have";
+
+  configLike.deleteFile ();
+  skinLike.deleteFile ();
+}
+
+// Switching ui.skin re-points the second watcher. The old file must go quiet
+// and the new one must be heard.
+TEST (ConfigFileWatcher, RepointingFollowsTheNewFile)
+{
+  auto const first = tempFile ("a3-watcher-skin-first.json");
+  auto const second = tempFile ("a3-watcher-skin-second.json");
+  first.replaceWithText ("{}");
+  second.replaceWithText ("{}");
+
+  ConfigFileWatcher watcher{ first };
+  watcher = ConfigFileWatcher{ second };
+
+  first.replaceWithText (R"({"accent": {"r": 9, "g": 9, "b": 9}})");
+  EXPECT_FALSE (watcher.hasChanged ()) << "still listening to the old skin";
+
+  second.replaceWithText (R"({"accent": {"r": 8, "g": 8, "b": 8}})");
+  EXPECT_TRUE (watcher.hasChanged ()) << "not listening to the new skin";
+
+  first.deleteFile ();
+  second.deleteFile ();
+}
+
 }
