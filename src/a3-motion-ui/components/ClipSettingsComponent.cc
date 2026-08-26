@@ -437,10 +437,13 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
 
   // The pattern's name is a value like any other in the bar, and is drawn at
   // the size they share rather than filling whatever room this section has.
+  //
+  // Plain, not bold: a value already stands out against its caption by being
+  // larger and brighter, and bold on top of that reads as shouting.
   g.setFont (juce::Font (juce::jmin (metrics.valueSize,
                                      static_cast<float> (nameArea.getHeight ())
                                          * 0.85f),
-                         juce::Font::bold));
+                         juce::Font::plain));
   g.setColour (controlColour (isSelected));
   g.drawFittedText (_trajectoryName, nameArea, juce::Justification::centred,
                     1);
@@ -736,7 +739,7 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   g.setFont (juce::Font (juce::jmin (metrics.valueSize,
                                      static_cast<float> (content.getHeight ())
                                          * 0.85f),
-                         juce::Font::bold));
+                         juce::Font::plain));
   g.setColour (valueColour);
   g.drawFittedText (stateText, content,
                     juce::Justification::centred, 1);
