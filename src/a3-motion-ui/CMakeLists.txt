@@ -70,6 +70,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/DirectivityComponent.cc
     components/DirectivityComponent.hh
     components/GlobalSettingsComponent.cc
+    components/ColourPickerComponent.cc
+    components/ColourPickerComponent.hh
     components/KeyboardComponent.cc
     components/KeyboardComponent.hh
     components/SkinEditorComponent.cc

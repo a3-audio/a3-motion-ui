@@ -41,16 +41,16 @@ parse (juce::String const &text)
 TEST (SkinParameters, EveryLeafIsListedByItsPath)
 {
   auto const params = skinParameters (parse (R"({
-    "accent": { "r": 1, "g": 2, "b": 3 },
+    "corona": { "sizeMin": 0.95, "sizeMax": 1.8 },
     "sphereScale": 0.62
   })"));
 
-  ASSERT_EQ (params.size (), 4u);
-  EXPECT_EQ (params[0].path, "accent.b") << "sorted, so the list does not "
-                                            "reshuffle between sessions";
-  EXPECT_EQ (params[1].path, "accent.g");
-  EXPECT_EQ (params[2].path, "accent.r");
-  EXPECT_EQ (params[3].path, "sphereScale");
+  ASSERT_EQ (params.size (), 3u);
+  EXPECT_EQ (params[0].path, "corona.sizeMax") << "sorted, so the list does "
+                                                  "not reshuffle between "
+                                                  "sessions";
+  EXPECT_EQ (params[1].path, "corona.sizeMin");
+  EXPECT_EQ (params[2].path, "sphereScale");
 }
 
 TEST (SkinParameters, ArraysAreListedByIndex)
@@ -58,6 +58,7 @@ TEST (SkinParameters, ArraysAreListedByIndex)
   auto const params = skinParameters (parse (R"({
     "channels": [ { "r": 9 }, { "r": 8 } ]
   })"));
+  // Only "r", so these are not colours — see TwoChannelsAreNotAColour.
 
   ASSERT_EQ (params.size (), 2u);
   EXPECT_EQ (params[0].path, "channels.0.r");
@@ -172,6 +173,59 @@ TEST (SkinParameters, AWrittenFloatIsRoundedToSomethingReadable)
   auto const written = juce::JSON::toString (skin);
   EXPECT_FALSE (written.contains ("2.98150695788495")) << written;
   EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 2.9815, 0.0001);
+}
+
+// Three rows of 0..255 are a poor way to say "this colour". Wherever an
+// object carries r, g and b, they become one row, and the page behind it is
+// a picker.
+
+TEST (SkinParameters, ThreeChannelsBecomeOneColour)
+{
+  auto const params = skinParameters (parse (R"({
+    "accent": { "r": 1, "g": 2, "b": 3 }
+  })"));
+
+  ASSERT_EQ (params.size (), 1u);
+  EXPECT_EQ (params[0].path, "accent");
+  EXPECT_TRUE (params[0].isColour);
+}
+
+TEST (SkinParameters, AColourInAnArrayIsGroupedToo)
+{
+  auto const params = skinParameters (parse (R"({
+    "channels": [ { "r": 1, "g": 2, "b": 3 } ]
+  })"));
+
+  ASSERT_EQ (params.size (), 1u);
+  EXPECT_EQ (params[0].path, "channels.0");
+  EXPECT_TRUE (params[0].isColour);
+}
+
+// sphereGlow is a colour and a pile of tuning numbers in one object. The
+// colour groups; its neighbours stay rows of their own.
+TEST (SkinParameters, TheColourGroupsAndItsNeighboursStay)
+{
+  auto const params = skinParameters (parse (R"({
+    "sphereGlow": { "r": 1, "g": 2, "b": 3, "netScale": 7, "netGain": 0.5 }
+  })"));
+
+  ASSERT_EQ (params.size (), 3u);
+  EXPECT_EQ (params[0].path, "sphereGlow");
+  EXPECT_TRUE (params[0].isColour);
+  EXPECT_EQ (params[1].path, "sphereGlow.netGain");
+  EXPECT_EQ (params[2].path, "sphereGlow.netScale");
+}
+
+// Two of the three is not a colour — grouping it would hide a value nobody
+// could then reach.
+TEST (SkinParameters, TwoChannelsAreNotAColour)
+{
+  auto const params = skinParameters (parse (R"({
+    "half": { "r": 1, "g": 2 }
+  })"));
+
+  ASSERT_EQ (params.size (), 2u);
+  EXPECT_FALSE (params[0].isColour);
 }
 
 // One encoder has to cover both a colour channel counted in 255ths and a

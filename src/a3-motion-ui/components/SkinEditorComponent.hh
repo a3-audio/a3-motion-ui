@@ -96,6 +96,10 @@ public:
   /** Asked when a rename is finished, with the typed name. */
   std::function<void (juce::String const &)> onRename;
 
+  /** Asked when a colour row is pressed, with its path — the caller owns
+   *  the picker page. */
+  std::function<void (juce::String const &)> onColourPicked;
+
   /** Asked when a name opens or closes, so the keyboard can come up by
    *  itself — nobody starts typing a name and then goes looking for it. */
   std::function<void (bool)> onNamingChanged;

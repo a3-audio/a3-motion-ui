@@ -117,6 +117,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _keyboard->onBackspace = [this] { _skinEditor->backspaceName (); };
   _keyboard->onDone = [this] { _skinEditor->finishNaming (); };
   _skinEditor->onNamingChanged = [this] (bool naming) { showKeyboard (naming); };
+  _skinEditor->onColourPicked
+      = [this] (auto const &path) { openColourPicker (path); };
+
+  _colourPicker = std::make_unique<ColourPickerComponent> ();
+  _colourPicker->setAlwaysOnTop (true);
+  _motionComponent->addChildComponent (*_colourPicker);
+  _colourPicker->onColourChanged = [this] { applyPickedColour (); };
 
   // Clip Settings: permanent bottom panel, always visible.
   _clipSettings = std::make_unique<ClipSettingsComponent> ();
@@ -533,6 +540,15 @@ A3MotionUIComponent::resized ()
     _globalSettings->setBounds (_motionComponent->getLocalBounds ());
   if (_skinEditor)
     _skinEditor->setBounds (_motionComponent->getLocalBounds ());
+  if (_colourPicker)
+    {
+      // Only the lower part of the screen: the sphere above it is what the
+      // colour is being chosen for, and it has to stay in sight.
+      auto picker = _motionComponent->getLocalBounds ();
+      _colourPicker->setBounds (
+          picker.removeFromBottom (picker.getHeight () * 2 / 5)
+              .reduced (picker.getWidth () / 20, 0));
+    }
   if (_keyboard)
     _keyboard->setBounds (
         _motionComponent->getLocalBounds ().removeFromBottom (
@@ -572,7 +588,9 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           updateControlReadout ("-- MENU");
           // One level at a time: a name being typed, then the editor, then
           // the menu itself.
-          if (_skinEditorOpen && _skinEditor->isNaming ())
+          if (_colourPickerOpen)
+            closeColourPicker ();
+          else if (_skinEditorOpen && _skinEditor->isNaming ())
             _skinEditor->finishNaming ();
           else if (_skinEditorOpen)
             closeSkinEditor ();
@@ -664,6 +682,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                 updateControlReadout (
                     "CH" + juce::String (channel + 1) + " ENC "
                     + (increment > 0 ? "+" : "") + juce::String (increment));
+              if (_colourPickerOpen && channel == 3u)
+                {
+                  if (increment != 0)
+                    _colourPicker->navigate (increment > 0 ? 1 : -1);
+                  return;
+                }
+
               if (_skinEditorOpen && channel == 3u)
                 {
                   if (increment != 0)
@@ -714,6 +739,12 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                                        + " ENC PRESS");
                   // In the skin editor the same press arms the browsed
                   // parameter and lets it go again.
+                  if (_colourPickerOpen && channel == 3u)
+                    {
+                      _colourPicker->toggleEditing ();
+                      return;
+                    }
+
                   if (_skinEditorOpen && channel == 3u)
                     {
                       _skinEditor->toggleEditing ();
@@ -1824,6 +1855,55 @@ A3MotionUIComponent::applyPauseRendering (bool paused)
 }
 
 void
+A3MotionUIComponent::openColourPicker (juce::String const &path)
+{
+  auto const document = _skinEditor->getSkin ();
+  auto const channel = [&document, &path] (char const *name) {
+    return (juce::uint8)juce::jlimit (
+        0, 255, (int)skinValue (document, path + "." + name));
+  };
+
+  _colourPath = path;
+  _colourPicker->setColour (
+      juce::Colour (channel ("r"), channel ("g"), channel ("b")), path);
+  _colourPickerOpen = true;
+  _skinEditor->setVisible (false);
+  _colourPicker->setVisible (true);
+  _colourPicker->toFront (true);
+}
+
+void
+A3MotionUIComponent::closeColourPicker ()
+{
+  if (!_colourPickerOpen)
+    return;
+
+  _colourPickerOpen = false;
+  _colourPath = {};
+  _colourPicker->setVisible (false);
+  _skinEditor->setVisible (true);
+  _skinEditor->toFront (true);
+}
+
+void
+A3MotionUIComponent::applyPickedColour ()
+{
+  if (_colourPath.isEmpty ())
+    return;
+
+  // Back into the document as r/g/b: the file keeps saying what it always
+  // said, and HSL is only how a person reaches the number.
+  auto document = _skinEditor->getSkin ();
+  auto const colour = _colourPicker->getColour ();
+
+  setSkinValue (document, _colourPath + ".r", colour.getRed (), true);
+  setSkinValue (document, _colourPath + ".g", colour.getGreen (), true);
+  setSkinValue (document, _colourPath + ".b", colour.getBlue (), true);
+
+  applyEditedSkin ();
+}
+
+void
 A3MotionUIComponent::showKeyboard (bool shown)
 {
   if (!_keyboard)
@@ -1917,6 +1997,7 @@ A3MotionUIComponent::closeSkinEditor ()
   else
     saveConfigPage ();
 
+  closeColourPicker ();
   showKeyboard (false);
   _skinEditorOpen = false;
   _skinEditor->setVisible (false);

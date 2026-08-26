@@ -33,6 +33,7 @@
 
 #include <a3-motion-ui/SettingsPersistence.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/components/ColourPickerComponent.hh>
 #include <a3-motion-ui/components/KeyboardComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
@@ -232,6 +233,10 @@ private:
                         juce::StringArray const &keys);
   void  saveConfigPage ();
   void  applyPauseRendering (bool paused);
+  /** The picker behind a colour row: HSL to reach it, r/g/b in the file. */
+  void  openColourPicker (juce::String const &path);
+  void  closeColourPicker ();
+  void  applyPickedColour ();
   void  showKeyboard (bool shown);
   void  toggleKeyboard ();
   void  rebuildGlobalSettingsOptions ();
@@ -249,6 +254,9 @@ private:
   int _bodySizeIndex = 1;   // default 100%
   std::unique_ptr<SkinEditorComponent> _skinEditor;
   std::unique_ptr<KeyboardComponent> _keyboard;
+  std::unique_ptr<ColourPickerComponent> _colourPicker;
+  bool _colourPickerOpen = false;
+  juce::String _colourPath;
   bool _skinEditorOpen = false;
   /** Empty while a skin is being edited; the keys of the slice otherwise. */
   juce::StringArray _configPageKeys;

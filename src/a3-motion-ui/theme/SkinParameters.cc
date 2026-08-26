@@ -35,6 +35,18 @@ isNumber (juce::var const &value)
   return value.isDouble () || value.isInt () || value.isInt64 ();
 }
 
+/** Whether this object carries all three colour channels as numbers. */
+bool
+holdsAColour (juce::DynamicObject const &object)
+{
+  for (auto const *channel : { "r", "g", "b" })
+    if (!object.hasProperty (channel)
+        || !isNumber (object.getProperty (channel)))
+      return false;
+
+  return true;
+}
+
 void
 collect (juce::var const &value, juce::String const &prefix,
          std::vector<SkinParameter> &into)
@@ -48,9 +60,24 @@ collect (juce::var const &value, juce::String const &prefix,
 
   if (auto const *object = value.getDynamicObject ())
     {
+      auto const isColour = holdsAColour (*object);
+      if (isColour)
+        {
+          // One row for the three channels; the picker behind it is what
+          // three rows of 0..255 were a poor stand-in for.
+          auto parameter = SkinParameter{ prefix.dropLastCharacters (1) };
+          parameter.isColour = true;
+          into.push_back (parameter);
+        }
+
       for (auto const &property : object->getProperties ())
-        collect (property.value, prefix + property.name.toString () + ".",
-                 into);
+        {
+          auto const name = property.name.toString ();
+          if (isColour && (name == "r" || name == "g" || name == "b"))
+            continue; // part of the colour above
+
+          collect (property.value, prefix + name + ".", into);
+        }
       return;
     }
 

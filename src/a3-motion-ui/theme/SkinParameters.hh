@@ -37,6 +37,9 @@ struct SkinParameter
   juce::String path;          //< "accent.r", "channels.2.b", "oscSender.host"
   bool isWholeNumber = false; //< how the file writes it, and how it steps
   bool isText = false;        //< typed on the keyboard rather than turned
+  /** An object carrying r, g and b: one row, and a picker behind it. The
+   *  path names the object, so its channels are path + ".r" and so on. */
+  bool isColour = false;
 };
 
 /** Every editable leaf, by path, sorted so the list does not reshuffle

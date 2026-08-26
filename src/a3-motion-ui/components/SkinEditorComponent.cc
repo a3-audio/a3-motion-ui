@@ -152,8 +152,8 @@ SkinEditorComponent::navigate (int delta)
     return;
 
   auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
-  if (parameter.isText)
-    return; // typed, not turned
+  if (parameter.isText || parameter.isColour)
+    return; // typed or picked, not turned
 
   auto const stepped
       = stepSkinValue (skinValue (_skin, parameter.path), delta,
@@ -213,6 +213,13 @@ SkinEditorComponent::toggleEditing ()
           return;
 
         auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+        if (parameter.isColour)
+          {
+            if (onColourPicked)
+              onColourPicked (parameter.path);
+            return;
+          }
+
         if (parameter.isText)
           {
             // Text is typed, not turned. The alphabet follows what the value
@@ -280,6 +287,8 @@ SkinEditorComponent::rowValue (int index) const
     return (index == 2 && _deleteAsked) ? "sure?" : "";
 
   auto const &parameter = _parameters[(size_t)(index - _actionRows)];
+  if (parameter.isColour)
+    return {};
   if (parameter.isText)
     return skinText (_skin, parameter.path);
 
@@ -428,14 +437,10 @@ SkinEditorComponent::paint (juce::Graphics &g)
 
       // A colour channel shows the colour it is part of, so a number can be
       // judged without leaving the row it sits in.
-      if (!isAction
-          && isColourChannelPath (_parameters[(size_t)(index - _actionRows)]
-                                      .path))
+      if (!isAction && _parameters[(size_t)(index - _actionRows)].isColour)
         {
-          auto const group
-              = _parameters[(size_t)(index - _actionRows)]
-                    .path.upToLastOccurrenceOf (".", false, false);
-          auto swatch = valueArea.removeFromLeft (itemH / 2).reduced (0, 6);
+          auto const group = _parameters[(size_t)(index - _actionRows)].path;
+          auto swatch = valueArea.reduced (valueArea.getWidth () / 4, 5);
           g.setColour (juce::Colour (
               (juce::uint8)juce::jlimit (0, 255,
                                          (int)skinValue (_skin, group + ".r")),
