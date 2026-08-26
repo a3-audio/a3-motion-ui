@@ -24,6 +24,7 @@
 
 #include <a3-motion-ui/theme/Theme.hh>
 
+#include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
 
 namespace a3
@@ -63,7 +64,10 @@ namespace a3
  * below. That shared size scales with setPotSizeScale(), and its label/
  * value text separately via the theme's font scale — both driven by their
  * own Global Settings options ("Pot Size"/"Font Size"), adjustable live
- * without a rebuild.
+ * without a rebuild. Every caption in the bar is drawn at one size, from
+ * the tightest caption box across all sections (see sharedCaptionSize());
+ * fitting each caption to its own box instead made short captions like
+ * "Q" several times the height of the long ones beside them.
  * Section headings are deliberately small (see paintSectionLabel()) so
  * most of each section's height goes to its controls. Driven by two
  * per-channel encoders in A3MotionUIComponent: the Motion-Encoder scrolls
@@ -143,10 +147,6 @@ public:
    *  rebuild. */
   void setPotSizeScale (float scale);
 
-  /** Scale factor for every knob/toggle's label and value text — 1.0 =
-   *  default. Independent of setPotSizeScale(), since a knob's circle and
-   *  its text may need tuning separately (e.g. a small pot with big,
-
   /** One-line terminal-style readout of the last-operated control, shown
    *  top-right (e.g. "CH2 POT1 0.73"). Global, independent of setTarget(). */
   void setLastControlReadout (juce::String const &text);
@@ -154,10 +154,22 @@ public:
   void paint (juce::Graphics &g) override;
 
 private:
+  /** The two sizes every control in the bar shares, computed once per
+   *  paint(): the knob diameter (Pot Size) and the size every caption is
+   *  drawn at (Font Size, fitted to the tightest caption box in the bar —
+   *  see sharedCaptionSize()). Both are decided from the whole bar's
+   *  geometry, not from the individual control's cell, which is what keeps
+   *  neighbouring controls the same size as each other. */
+  struct ControlMetrics
+  {
+    int knobDiam;
+    float captionSize;
+  };
+
   void paintTrajectorySection (juce::Graphics &g, juce::Rectangle<int> bounds,
                                bool isSelected);
   void paintElevationSection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                              bool isSelected, int knobDiam);
+                              bool isSelected, ControlMetrics metrics);
   /** Side-view sphere graphic for the Elevation section: circle + head dot
    *  at the pole (mirror-south picks which one), grey clip-top/clip-bottom
    *  excluded bands, and a solid marker line at reach's edge — or, while
@@ -170,10 +182,10 @@ private:
   /** Speed (knob) / Direction / End-Action (toggles), single row, always
    *  visible in parallel — same style as the Elevation controls. */
   void paintMotionSection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                           bool isSelected, int knobDiam);
+                           bool isSelected, ControlMetrics metrics);
   /** Sweep / Q (knobs), single row. */
   void paintFilterSection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                           bool isSelected, int knobDiam);
+                           bool isSelected, ControlMetrics metrics);
   /** Small, deliberately unobtrusive section title (see class doc) — most
    *  of a section's height goes to its controls, not this label. */
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
@@ -185,8 +197,9 @@ private:
    *  happens to be (see class doc / setPotSizeScale()). */
   juce::Rectangle<int> controlBounds (juce::Rectangle<int> cell,
                                       int knobDiam) const;
-  /** Height of a control's caption row, from the Label role. */
-  int labelRowHeight (juce::Rectangle<int> content) const;
+  /** Height of a control's caption row, from the bar's shared caption
+   *  size. */
+  int labelRowHeight (juce::Rectangle<int> content, float captionSize) const;
 
   /** Largest size for `role` at which `text` still fits inside `area`. */
   float fontFor (FontRole role, juce::Rectangle<int> area,
@@ -210,7 +223,7 @@ private:
    *  Font-Size-scaled, but drawn into a widened *fitting* target that
    *  doesn't affect the knob's own (fixed) position or size. */
   void paintMiniKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
-                      int knobDiam,
+                      ControlMetrics metrics,
                       juce::String const &label, float angleFrac,
                       bool fillFromZero, bool isActive, bool isSelected,
                       juce::String const &valueText = {});
@@ -218,8 +231,9 @@ private:
    *  paintMiniKnob: label, then the current state as centred text instead
    *  of an arc. */
   void paintMiniToggle (juce::Graphics &g, juce::Rectangle<int> bounds,
-                        int knobDiam,
-                        juce::String const &label, juce::String const &stateText,
+                        ControlMetrics metrics,
+                        juce::String const &label,
+                        juce::String const &stateText,
                         bool isActive, bool isSelected);
 
   int _channel = 0;

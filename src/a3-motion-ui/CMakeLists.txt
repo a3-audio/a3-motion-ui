@@ -68,6 +68,7 @@ target_sources("a3-motion-ui" PRIVATE
     components/DirectivityComponent.hh
     components/GlobalSettingsComponent.cc
     components/GlobalSettingsComponent.hh
+    components/ClipSettingsCaptions.cc
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh
     ConfigFileWatcher.cc

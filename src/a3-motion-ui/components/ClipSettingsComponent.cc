@@ -238,6 +238,26 @@ ClipSettingsComponent::paint (juce::Graphics &g)
       10, static_cast<int> (static_cast<float> (controlBoxBase) / 2.2f
                             * _potSizeScale));
 
+  // One size for every caption in the bar, decided here rather than inside
+  // each control. Fitting a caption to its own box drew "Q" three times the
+  // height of "end-action" standing next to it — a size difference that reads
+  // as a hierarchy which is not there. The sections all carve their columns
+  // out of an equally wide card, so their geometry is known already at this
+  // point.
+  auto const cardW = sectionW - 2 * (gap / 2);
+  auto const sectionContentW = cardW - 2 * juce::jmax (2, cardW / 12);
+  auto const columnGap = juce::jmax (2, sectionContentW / 20);
+  auto const controlBoxH
+      = juce::jmin (elevationRowH,
+                    static_cast<int> (static_cast<float> (knobDiam) * 2.2f))
+        - 4;
+
+  ControlMetrics const metrics{
+    knobDiam,
+    sharedCaptionSize (theme ().fontSize (FontRole::Label), sectionContentW,
+                       columnGap, controlBoxH)
+  };
+
   for (int i = 0; i < numParameters; ++i)
     {
       auto sectionBounds = (i < numParameters - 1)
@@ -249,11 +269,11 @@ ClipSettingsComponent::paint (juce::Graphics &g)
       if (i == trajectoryIndex)
         paintTrajectorySection (g, cardBounds, isSelected);
       else if (i == elevationIndex)
-        paintElevationSection (g, cardBounds, isSelected, knobDiam);
+        paintElevationSection (g, cardBounds, isSelected, metrics);
       else if (i == motionIndex)
-        paintMotionSection (g, cardBounds, isSelected, knobDiam);
+        paintMotionSection (g, cardBounds, isSelected, metrics);
       else
-        paintFilterSection (g, cardBounds, isSelected, knobDiam);
+        paintFilterSection (g, cardBounds, isSelected, metrics);
     }
 }
 
@@ -324,13 +344,13 @@ ClipSettingsComponent::fontFor (FontRole role, juce::Rectangle<int> area,
 }
 
 int
-ClipSettingsComponent::labelRowHeight (juce::Rectangle<int> content) const
+ClipSettingsComponent::labelRowHeight (juce::Rectangle<int> content,
+                                       float captionSize) const
 {
-  // Tall enough for the Label role rather than a fixed fraction of the box.
-  // A quarter of the box was a sliver at any size, which is what forced
+  // Tall enough for the caption rather than a fixed fraction of the box. A
+  // quarter of the box was a sliver at any size, which is what forced
   // drawFittedText to shrink the caption until it was unreadable.
-  auto const needed
-      = static_cast<int> (theme ().fontSize (FontRole::Label) * 1.25f);
+  auto const needed = static_cast<int> (captionSize * 1.25f);
 
   return juce::jlimit (10, juce::jmax (10, content.getHeight () / 2), needed);
 }
@@ -375,7 +395,8 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
 void
 ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
                                               juce::Rectangle<int> bounds,
-                                              bool isSelected, int knobDiam)
+                                              bool isSelected,
+                                              ControlMetrics metrics)
 {
   g.setColour (isSelected ? _channelColour.withAlpha (0.35f)
                           : juce::Colour (0x14ffffff));
@@ -423,24 +444,25 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
   row3.removeFromLeft (gapH);
   auto const &flatElevationArea = row3;
 
-  paintMiniKnob (g, textCell (reachArea, knobDiam), knobDiam, "reach",
-                _elevationReach * 2.f - 1.f, false, _elevationSubIndex == 0,
-                isSelected);
-  paintMiniToggle (g, textCell (mirrorArea, knobDiam), knobDiam, "pole",
+  paintMiniKnob (g, textCell (reachArea, metrics.knobDiam), metrics,
+                 caption::reach, _elevationReach * 2.f - 1.f, false,
+                 _elevationSubIndex == 0, isSelected);
+  paintMiniToggle (g, textCell (mirrorArea, metrics.knobDiam), metrics,
+                   caption::pole,
                    _elevationMirrorSouth ? "South" : "North",
                    _elevationSubIndex == 3, isSelected);
-  paintMiniKnob (g, textCell (clipTopArea, knobDiam), knobDiam, "clip-top",
-                _elevationClipTop * 2.f - 1.f, false, _elevationSubIndex == 1,
-                isSelected);
-  paintMiniKnob (g, textCell (clipBottomArea, knobDiam), knobDiam, "clip-bottom",
-                _elevationClipBottom * 2.f - 1.f, false,
-                _elevationSubIndex == 2, isSelected);
-  paintMiniToggle (g, textCell (flatArea, knobDiam), knobDiam, "flat",
-                   _elevationFlat ? "On" : "Off", _elevationSubIndex == 4,
-                   isSelected);
-  paintMiniKnob (g, textCell (flatElevationArea, knobDiam), knobDiam, "flat-elv",
-                _elevationFlatElevation * 2.f - 1.f, false,
-                _elevationSubIndex == 5, isSelected);
+  paintMiniKnob (g, textCell (clipTopArea, metrics.knobDiam), metrics,
+                 caption::clipTop, _elevationClipTop * 2.f - 1.f, false,
+                 _elevationSubIndex == 1, isSelected);
+  paintMiniKnob (g, textCell (clipBottomArea, metrics.knobDiam), metrics,
+                 caption::clipBottom, _elevationClipBottom * 2.f - 1.f, false,
+                 _elevationSubIndex == 2, isSelected);
+  paintMiniToggle (g, textCell (flatArea, metrics.knobDiam), metrics,
+                   caption::flat, _elevationFlat ? "On" : "Off",
+                   _elevationSubIndex == 4, isSelected);
+  paintMiniKnob (g, textCell (flatElevationArea, metrics.knobDiam), metrics,
+                 caption::flatElevation, _elevationFlatElevation * 2.f - 1.f,
+                 false, _elevationSubIndex == 5, isSelected);
 }
 
 void
@@ -574,7 +596,7 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
 void
 ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
                                       juce::Rectangle<int> bounds,
-                                      int knobDiam,
+                                      ControlMetrics metrics,
                                       juce::String const &label,
                                       float angleFrac, bool fillFromZero,
                                       bool isActive, bool isSelected,
@@ -595,15 +617,16 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
     valueArea = content.removeFromTop (
         static_cast<int> (theme ().fontSize (FontRole::Value) * 1.25f));
 
-  auto labelArea = content.removeFromBottom (labelRowHeight (content));
+  auto labelArea
+      = content.removeFromBottom (labelRowHeight (content, metrics.captionSize));
 
   auto const knobColour = isSelected ? _channelColour
                                      : juce::Colours::white.withAlpha (0.75f);
   // The knob keeps its diameter; the captions get the whole cell. Confining
   // both to knobDiam is what truncated "Forward" and "end-action" to "...".
   auto const knobSize = static_cast<float> (
-      juce::jmin (knobDiam, juce::jmin (content.getWidth (),
-                                        content.getHeight ())));
+      juce::jmin (metrics.knobDiam, juce::jmin (content.getWidth (),
+                                                content.getHeight ())));
   auto const centre = content.toFloat ().getCentre ();
   auto const r = knobSize * 0.5f * 0.82f;
 
@@ -644,7 +667,12 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
                         juce::Justification::centred, 1);
     }
 
-  g.setFont (juce::Font (fontFor (FontRole::Label, labelArea, label),
+  // The shared size, not this caption's own fit. Its box is only consulted as
+  // a floor: a control box too short for the shared size would otherwise have
+  // drawFittedText spill the caption over the row beneath it.
+  g.setFont (juce::Font (juce::jmin (metrics.captionSize,
+                                     static_cast<float> (labelArea.getHeight ())
+                                         * 0.85f),
                          juce::Font::plain));
   g.setColour (juce::Colours::white.withAlpha (isSelected ? 0.85f : 0.55f));
   g.drawFittedText (label, labelArea,
@@ -654,7 +682,7 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
 void
 ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
                                         juce::Rectangle<int> bounds,
-                                        int knobDiam,
+                                        ControlMetrics metrics,
                                         juce::String const &label,
                                         juce::String const &stateText,
                                         bool isActive, bool isSelected)
@@ -667,7 +695,8 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
     }
 
   auto content = bounds.reduced (2);
-  auto labelArea = content.removeFromBottom (labelRowHeight (content));
+  auto labelArea
+      = content.removeFromBottom (labelRowHeight (content, metrics.captionSize));
 
   auto const valueColour = isSelected ? _channelColour
                                       : juce::Colours::white.withAlpha (0.75f);
@@ -677,7 +706,12 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   g.drawFittedText (stateText, content,
                     juce::Justification::centred, 1);
 
-  g.setFont (juce::Font (fontFor (FontRole::Label, labelArea, label),
+  // The shared size, not this caption's own fit. Its box is only consulted as
+  // a floor: a control box too short for the shared size would otherwise have
+  // drawFittedText spill the caption over the row beneath it.
+  g.setFont (juce::Font (juce::jmin (metrics.captionSize,
+                                     static_cast<float> (labelArea.getHeight ())
+                                         * 0.85f),
                          juce::Font::plain));
   g.setColour (juce::Colours::white.withAlpha (isSelected ? 0.85f : 0.55f));
   g.drawFittedText (label, labelArea,
@@ -687,7 +721,8 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
 void
 ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
                                            juce::Rectangle<int> bounds,
-                                           bool isSelected, int knobDiam)
+                                           bool isSelected,
+                                           ControlMetrics metrics)
 {
   g.setColour (isSelected ? _channelColour.withAlpha (0.35f)
                           : juce::Colour (0x14ffffff));
@@ -714,21 +749,22 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
       = { "Forward", "Reverse", "PingPong" };
   static constexpr char const *endActionNames[] = { "Loop", "Stop", "Bounce" };
 
-  paintMiniKnob (g, textCell (speedArea, knobDiam), knobDiam, "speed",
-                _motionSpeedFrac * 2.f - 1.f, false, _motionSubIndex == 0,
-                isSelected, _motionSpeedLabel);
-  paintMiniToggle (g, textCell (directionArea, knobDiam), knobDiam, "direction",
-                   directionNames[_motionDirection], _motionSubIndex == 1,
-                   isSelected);
-  paintMiniToggle (g, textCell (endActionArea, knobDiam), knobDiam, "end-action",
-                   endActionNames[_motionEndAction], _motionSubIndex == 2,
-                   isSelected);
+  paintMiniKnob (g, textCell (speedArea, metrics.knobDiam), metrics,
+                 caption::speed, _motionSpeedFrac * 2.f - 1.f, false,
+                 _motionSubIndex == 0, isSelected, _motionSpeedLabel);
+  paintMiniToggle (g, textCell (directionArea, metrics.knobDiam), metrics,
+                   caption::direction, directionNames[_motionDirection],
+                   _motionSubIndex == 1, isSelected);
+  paintMiniToggle (g, textCell (endActionArea, metrics.knobDiam), metrics,
+                   caption::endAction, endActionNames[_motionEndAction],
+                   _motionSubIndex == 2, isSelected);
 }
 
 void
 ClipSettingsComponent::paintFilterSection (juce::Graphics &g,
                                            juce::Rectangle<int> bounds,
-                                           bool isSelected, int knobDiam)
+                                           bool isSelected,
+                                           ControlMetrics metrics)
 {
   g.setColour (isSelected ? _channelColour.withAlpha (0.35f)
                           : juce::Colour (0x14ffffff));
@@ -746,12 +782,12 @@ ClipSettingsComponent::paintFilterSection (juce::Graphics &g,
   content.removeFromLeft (gapH);
   auto const &qArea = content;
 
-  paintMiniKnob (g, textCell (sweepArea, knobDiam), knobDiam, "sweep",
-                _filterSweep * 2.f - 1.f, false, _filterSubIndex == 0,
-                isSelected);
-  paintMiniKnob (g, textCell (qArea, knobDiam), knobDiam, "Q",
-                _filterQ * 2.f - 1.f, false, _filterSubIndex == 1,
-                isSelected);
+  paintMiniKnob (g, textCell (sweepArea, metrics.knobDiam), metrics,
+                 caption::sweep, _filterSweep * 2.f - 1.f, false,
+                 _filterSubIndex == 0, isSelected);
+  paintMiniKnob (g, textCell (qArea, metrics.knobDiam), metrics, caption::q,
+                 _filterQ * 2.f - 1.f, false, _filterSubIndex == 1,
+                 isSelected);
 }
 
 }
