@@ -142,10 +142,15 @@ setSkinValue (juce::var &skin, juce::String const &path, double value,
   if (parent == nullptr)
     return;
 
+  // Rounded on the way in: stepping compounds, and a double carries every
+  // rounding of the way, so an encoder run would otherwise leave something
+  // like 2.98150695788495 in a file people still read and diff.
+  constexpr double places = 10000.0;
+
   auto const stored
       = asWholeNumber
             ? juce::var (static_cast<int> (std::lround (value)))
-            : juce::var (value);
+            : juce::var (std::round (value * places) / places);
 
   if (auto *array = parent->getArray ())
     {

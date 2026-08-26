@@ -130,6 +130,23 @@ TEST (SkinParameters, AWholeNumberIsWrittenBackWhole)
   EXPECT_FALSE (juce::JSON::toString (skin).contains ("128.0"));
 }
 
+// Stepping compounds, and a double carries every rounding of the way: an
+// encoder run left 2.98150695788495 in the file. Nobody edits that by hand
+// afterwards, and every diff of the file is noise.
+TEST (SkinParameters, AWrittenFloatIsRoundedToSomethingReadable)
+{
+  auto skin = parse (R"({ "corona": { "sizeMin": 0.95 } })");
+
+  auto value = 0.95;
+  for (int i = 0; i < 12; ++i)
+    value = stepSkinValue (value, 1, false);
+  setSkinValue (skin, "corona.sizeMin", value);
+
+  auto const written = juce::JSON::toString (skin);
+  EXPECT_FALSE (written.contains ("2.98150695788495")) << written;
+  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 2.9815, 0.0001);
+}
+
 // One encoder has to cover both a colour channel counted in 255ths and a
 // wrap angle counted in degrees, so a step proportional to the value is the
 // only one that is usable at both ends.
