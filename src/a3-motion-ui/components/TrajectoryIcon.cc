@@ -20,6 +20,8 @@
 
 #include "TrajectoryIcon.hh"
 
+#include <a3-motion-ui/theme/ThemeColours.hh>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -204,7 +206,10 @@ drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
   auto const r = area.getWidth () * 0.45f;
   auto const strokeThickness = 1.5f;
   auto const outlineThickness = strokeThickness + 2.0f;
-  auto const outlineColour = juce::Colours::black.withAlpha (0.6f);
+  // A dark outline behind the stroke, so the icon stays readable on a
+  // channel-coloured pad. A structure, not a state.
+  constexpr float outlineOpacity = 0.6f;
+  auto const outlineColour = toColour (theme ().surface, outlineOpacity);
 
   if (data.hasJumpDots)
     {

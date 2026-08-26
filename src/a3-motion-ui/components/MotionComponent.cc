@@ -1269,7 +1269,11 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 
           // Two glow layers (outer → inner) — blend towards white at high VU
           auto whiteBlend = peakScaled * _coronaCfg.whiteBlend;
-          auto coronaColour = colour.interpolatedWith (juce::Colours::white, whiteBlend);
+          // boltCore rather than textPrimary: this is the white-hot centre
+          // of a light effect, the same role the shader's bolts use, not a
+          // piece of text that happens to be white.
+          auto coronaColour
+              = colour.interpolatedWith (toColour (theme ().boltCore), whiteBlend);
           for (int layer = 2; layer >= 1; --layer)
             {
               // Layer 2 is the outer one — keep it tied to the constant the

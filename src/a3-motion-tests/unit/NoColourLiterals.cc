@@ -40,9 +40,6 @@ namespace
 
 char const *const filesStillHoldingLiterals[] = {
   "components/A3MotionUIComponent.cc",
-  "components/DirectivityComponent.cc",
-  "components/MotionComponent.cc",
-  "components/TrajectoryIcon.cc",
   "io/InputOutputAdapterV3.cc",
 };
 
