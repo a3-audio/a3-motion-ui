@@ -22,7 +22,7 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-ui/theme/SkinNameEntry.hh>
+#include <a3-motion-ui/theme/TextInput.hh>
 
 using namespace a3;
 
@@ -32,28 +32,28 @@ namespace
 // Typing a name with one encoder: turning moves along the name, pressing
 // arms a position, turning then walks its letter through the alphabet.
 
-TEST (SkinNameEntry, ItStartsFromTheNameItIsGiven)
+TEST (TextInput, ItStartsFromTheNameItIsGiven)
 {
-  SkinNameEntry entry{ "neutral" };
+  TextInput entry{ "neutral" };
 
   EXPECT_EQ (entry.name (), "neutral");
   EXPECT_EQ (entry.cursor (), 0);
 }
 
-TEST (SkinNameEntry, TheCursorStopsAtBothEnds)
+TEST (TextInput, TheCursorStopsAtBothEnds)
 {
-  SkinNameEntry entry{ "abc" };
+  TextInput entry{ "abc" };
 
   entry.moveCursor (-5);
   EXPECT_EQ (entry.cursor (), 0);
 
   entry.moveCursor (500);
-  EXPECT_EQ (entry.cursor (), SkinNameEntry::maxLength - 1);
+  EXPECT_EQ (entry.cursor (), TextInput::maxLength - 1);
 }
 
-TEST (SkinNameEntry, ALetterWalksThroughTheAlphabet)
+TEST (TextInput, ALetterWalksThroughTheAlphabet)
 {
-  SkinNameEntry entry{ "neutral" };
+  TextInput entry{ "neutral" };
 
   entry.changeCharacter (1); // n -> o
 
@@ -62,9 +62,9 @@ TEST (SkinNameEntry, ALetterWalksThroughTheAlphabet)
 
 // Shortening a name has to be possible with the same one control: turning a
 // letter down past 'a' blanks it, and the name ends there.
-TEST (SkinNameEntry, BlankingAPositionCutsTheNameShort)
+TEST (TextInput, BlankingAPositionCutsTheNameShort)
 {
-  SkinNameEntry entry{ "neutral" };
+  TextInput entry{ "neutral" };
 
   entry.moveCursor (3);
   while (entry.characterAtCursor () != ' ')
@@ -73,9 +73,9 @@ TEST (SkinNameEntry, BlankingAPositionCutsTheNameShort)
   EXPECT_EQ (entry.name (), "neu");
 }
 
-TEST (SkinNameEntry, TypingPastTheEndMakesTheNameLonger)
+TEST (TextInput, TypingPastTheEndMakesTheNameLonger)
 {
-  SkinNameEntry entry{ "neu" };
+  TextInput entry{ "neu" };
 
   entry.moveCursor (3);
   EXPECT_EQ (entry.characterAtCursor (), ' ') << "past the end is blank";
@@ -87,9 +87,9 @@ TEST (SkinNameEntry, TypingPastTheEndMakesTheNameLonger)
 
 // The alphabet holds exactly what a skin name may hold, so nothing that is
 // dialled in can produce an unusable name.
-TEST (SkinNameEntry, EveryLetterItCanReachIsAllowedInAName)
+TEST (TextInput, EveryLetterItCanReachIsAllowedInAName)
 {
-  SkinNameEntry entry{ "a" };
+  TextInput entry{ "a" };
 
   for (int i = 0; i < 200; ++i)
     {
@@ -100,9 +100,9 @@ TEST (SkinNameEntry, EveryLetterItCanReachIsAllowedInAName)
     }
 }
 
-TEST (SkinNameEntry, TheAlphabetDoesNotWrapPastItsEnds)
+TEST (TextInput, TheAlphabetDoesNotWrapPastItsEnds)
 {
-  SkinNameEntry entry{ "a" };
+  TextInput entry{ "a" };
 
   entry.changeCharacter (-5);
   EXPECT_EQ (entry.characterAtCursor (), ' ');
@@ -114,11 +114,11 @@ TEST (SkinNameEntry, TheAlphabetDoesNotWrapPastItsEnds)
 
 // A name longer than the row it is shown in helps nobody, and a file name
 // this long is a sign something went wrong rather than a long name.
-TEST (SkinNameEntry, ANameCannotGrowPastTheLimit)
+TEST (TextInput, ANameCannotGrowPastTheLimit)
 {
-  SkinNameEntry entry{ "abcdefghijklmnop" };
+  TextInput entry{ "abcdefghijklmnop" };
 
-  EXPECT_LE (entry.name ().length (), SkinNameEntry::maxLength);
+  EXPECT_LE (entry.name ().length (), TextInput::maxLength);
 }
 
 
@@ -126,9 +126,9 @@ TEST (SkinNameEntry, ANameCannotGrowPastTheLimit)
 // appends at the cursor and moves it on, so typing reads left to right the
 // way it looks.
 
-TEST (SkinNameEntry, TypingAKeyAppendsAndMovesOn)
+TEST (TextInput, TypingAKeyAppendsAndMovesOn)
 {
-  SkinNameEntry entry{ "" };
+  TextInput entry{ "" };
 
   entry.type ('a');
   entry.type ('b');
@@ -137,9 +137,9 @@ TEST (SkinNameEntry, TypingAKeyAppendsAndMovesOn)
   EXPECT_EQ (entry.cursor (), 2);
 }
 
-TEST (SkinNameEntry, TypingOverwritesFromTheCursor)
+TEST (TextInput, TypingOverwritesFromTheCursor)
 {
-  SkinNameEntry entry{ "neutral" };
+  TextInput entry{ "neutral" };
 
   entry.moveCursor (0);
   entry.type ('s');
@@ -147,9 +147,9 @@ TEST (SkinNameEntry, TypingOverwritesFromTheCursor)
   EXPECT_EQ (entry.name (), "seutral");
 }
 
-TEST (SkinNameEntry, BackspaceTakesTheCharacterBeforeTheCursor)
+TEST (TextInput, BackspaceTakesTheCharacterBeforeTheCursor)
 {
-  SkinNameEntry entry{ "neu" };
+  TextInput entry{ "neu" };
   entry.moveCursor (3);
 
   entry.backspace ();
@@ -158,9 +158,9 @@ TEST (SkinNameEntry, BackspaceTakesTheCharacterBeforeTheCursor)
   EXPECT_EQ (entry.cursor (), 2);
 }
 
-TEST (SkinNameEntry, BackspaceAtTheStartDoesNothing)
+TEST (TextInput, BackspaceAtTheStartDoesNothing)
 {
-  SkinNameEntry entry{ "neu" };
+  TextInput entry{ "neu" };
 
   entry.backspace ();
 
@@ -170,9 +170,9 @@ TEST (SkinNameEntry, BackspaceAtTheStartDoesNothing)
 
 // A key that a name may not hold is not typed at all — the keyboard offers
 // none, but nothing else may sneak one in either.
-TEST (SkinNameEntry, AKeyOutsideTheAlphabetIsIgnored)
+TEST (TextInput, AKeyOutsideTheAlphabetIsIgnored)
 {
-  SkinNameEntry entry{ "neu" };
+  TextInput entry{ "neu" };
   entry.moveCursor (3);
 
   entry.type ('/');
@@ -181,14 +181,14 @@ TEST (SkinNameEntry, AKeyOutsideTheAlphabetIsIgnored)
   EXPECT_EQ (entry.name (), "neu");
 }
 
-TEST (SkinNameEntry, TypingStopsAtTheLimit)
+TEST (TextInput, TypingStopsAtTheLimit)
 {
-  SkinNameEntry entry{ "" };
+  TextInput entry{ "" };
 
-  for (int i = 0; i < SkinNameEntry::maxLength + 5; ++i)
+  for (int i = 0; i < TextInput::maxLength + 5; ++i)
     entry.type ('a');
 
-  EXPECT_EQ (entry.name ().length (), SkinNameEntry::maxLength);
+  EXPECT_EQ (entry.name ().length (), TextInput::maxLength);
 }
 
 }

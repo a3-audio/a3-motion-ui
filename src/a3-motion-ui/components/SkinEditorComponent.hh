@@ -22,7 +22,7 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-ui/theme/SkinNameEntry.hh>
+#include <a3-motion-ui/theme/TextInput.hh>
 #include <a3-motion-ui/theme/SkinParameters.hh>
 
 #include <functional>
@@ -56,8 +56,14 @@ class SkinEditorComponent : public juce::Component
 public:
   SkinEditorComponent ();
 
-  /** The skin to edit, and the name to show above it. */
+  /** The skin to edit, and the name to show above it. Skins get the three
+   *  actions on top; see setDocument for anything else. */
   void setSkin (juce::var skin, juce::String const &name);
+
+  /** Any other document — a slice of config.json, say. Same list, same two
+   *  encoder levels, no skin actions. */
+  void setDocument (juce::var document, juce::String const &title,
+                    bool withSkinActions);
   juce::var const &getSkin () const { return _skin; }
   juce::String const &getSkinName () const { return _name; }
 
@@ -114,8 +120,9 @@ private:
   /** How many rows fit, given the height this page was handed. */
   int visibleRows () const;
 
-  /** How many rows the actions take before the parameters begin. */
-  static constexpr int numActionRows = 3;
+  /** How many rows the actions take before the parameters begin — three for
+   *  a skin, none for anything else. */
+  int _actionRows = 3;
 
   int totalRows () const;
   juce::String rowLabel (int index) const;
@@ -128,7 +135,9 @@ private:
   bool _editing = false;
   bool _naming = false;
   bool _deleteAsked = false;
-  SkinNameEntry _nameEntry;
+  TextInput _nameEntry;
+  /** Set while a text parameter, rather than a skin name, is being typed. */
+  juce::String _textPath;
 };
 
 }

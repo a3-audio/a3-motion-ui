@@ -34,13 +34,14 @@ namespace a3
  *  register it, and a key removed stops being offered. */
 struct SkinParameter
 {
-  juce::String path;          //< "accent.r", "channels.2.b", "sphereGlow.netGain"
+  juce::String path;          //< "accent.r", "channels.2.b", "oscSender.host"
   bool isWholeNumber = false; //< how the file writes it, and how it steps
+  bool isText = false;        //< typed on the keyboard rather than turned
 };
 
-/** Every number in the skin, by path, sorted so the list does not reshuffle
- *  between sessions. Anything that is not a number is left out — an encoder
- *  has no way to turn into a string. */
+/** Every editable leaf, by path, sorted so the list does not reshuffle
+ *  between sessions. Numbers and text; anything else is structure, and
+ *  there is no control on this panel that could edit structure. */
 std::vector<SkinParameter> skinParameters (juce::var const &skin);
 
 /** The number at `path`, or 0 when there is none. */
@@ -67,6 +68,11 @@ double skinValueStep (double value, bool isWholeNumber);
  *  0 and 255: past that is not a brighter colour, it is a broken file. */
 double stepSkinValue (double value, int detents, bool isWholeNumber,
                       bool isColourChannel = false);
+
+/** The text at `path`, and how to put it back. */
+juce::String skinText (juce::var const &skin, juce::String const &path);
+void setSkinText (juce::var &skin, juce::String const &path,
+                  juce::String const &text);
 
 /** Whether a path names one of a colour's three channels. */
 bool isColourChannelPath (juce::String const &path);

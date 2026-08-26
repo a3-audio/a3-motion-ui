@@ -27,12 +27,14 @@ namespace a3
 
 namespace
 {
-// The rows a name is typed from. Only what isUsableSkinName() allows.
+// A superset of every alphabet a TextEntry accepts — a host needs dots, a
+// path needs slashes and underscores. The entry being typed into is what
+// refuses a character it may not hold, so one keyboard serves all of them.
 char const *const rows[] = {
   "qwertzuiop",
   "asdfghjkl",
-  "yxcvbnm-",
-  "0123456789",
+  "yxcvbnm-._",
+  "0123456789/",
 };
 
 constexpr int numRows = 4;

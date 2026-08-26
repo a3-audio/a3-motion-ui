@@ -64,18 +64,45 @@ TEST (SkinParameters, ArraysAreListedByIndex)
   EXPECT_EQ (params[1].path, "channels.1.r");
 }
 
-// A skin file holds nothing but numbers today. If one ever holds a string,
-// the editor has no way to turn an encoder into it — better left out of the
-// list than shown as an uneditable row.
-TEST (SkinParameters, OnlyNumbersAreEditable)
+// A skin file holds nothing but numbers, but config.json holds host names
+// too, and the same editor shows both — a keyboard is what a text row needs,
+// and there is one now.
+TEST (SkinParameters, TextIsListedAndMarkedAsText)
 {
   auto const params = skinParameters (parse (R"({
-    "name": "mono",
-    "sphereScale": 0.62
+    "host": "127.0.0.1",
+    "port": 9000
+  })"));
+
+  ASSERT_EQ (params.size (), 2u);
+  EXPECT_EQ (params[0].path, "host");
+  EXPECT_TRUE (params[0].isText);
+  EXPECT_EQ (params[1].path, "port");
+  EXPECT_FALSE (params[1].isText);
+}
+
+TEST (SkinParameters, TextIsReadAndWrittenByItsPath)
+{
+  auto skin = parse (R"({ "osc": { "host": "127.0.0.1" } })");
+
+  EXPECT_EQ (skinText (skin, "osc.host"), "127.0.0.1");
+
+  setSkinText (skin, "osc.host", "192.168.8.10");
+
+  EXPECT_EQ (skinText (skin, "osc.host"), "192.168.8.10");
+}
+
+// Nothing else is offered: a nested object or an array is structure, and
+// there is no control on this panel that could edit structure.
+TEST (SkinParameters, StructureItselfIsNotAParameter)
+{
+  auto const params = skinParameters (parse (R"({
+    "osc": { "host": "a" },
+    "flag": true
   })"));
 
   ASSERT_EQ (params.size (), 1u);
-  EXPECT_EQ (params[0].path, "sphereScale");
+  EXPECT_EQ (params[0].path, "osc.host");
 }
 
 TEST (SkinParameters, AWholeNumberIsRememberedAsOne)

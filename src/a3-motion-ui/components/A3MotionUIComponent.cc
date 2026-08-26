@@ -1588,6 +1588,12 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
 
   options.push_back ({ "Skin", std::move (skinValues), _skinIndex });
   options.push_back ({ "Skin Editor", { { "open" } }, 0 });
+  options.push_back ({ "Network", { { "open" } }, 0 });
+  options.push_back ({ "Button LEDs", { { "open" } }, 0 });
+  options.push_back ({ "Pattern Folder", { { "open" } }, 0 });
+  options.push_back ({ "Sphere in Menu",
+                       { { "off" }, { "on" } },
+                       _pauseRenderingInMenu ? 0 : 1 });
   _globalSettings->setOptions (std::move (options));
   _globalSettings->setOptionIndex (_globalSettingsOptionIndex);
   _globalSettings->setValueFieldSelected (false);
@@ -1630,8 +1636,16 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
     applyBodySize (chosen);
   else if (_globalSettingsOptionIndex == 4)
     applySkin (chosen);
-  else
+  else if (_globalSettingsOptionIndex == 5)
     openSkinEditor ();
+  else if (_globalSettingsOptionIndex == 6)
+    openConfigPage ("Network", { "oscSender", "oscReceiver" });
+  else if (_globalSettingsOptionIndex == 7)
+    openConfigPage ("Button LEDs", { "buttonLeds" });
+  else if (_globalSettingsOptionIndex == 8)
+    openConfigPage ("Pattern Folder", { "patternDir" });
+  else
+    applyPauseRendering (chosen == 0);
 
   _globalSettings->setActiveValueIndex (_globalSettingsOptionIndex, chosen);
 
@@ -1733,6 +1747,83 @@ A3MotionUIComponent::openSkinEditor ()
 }
 
 void
+A3MotionUIComponent::openConfigPage (juce::String const &title,
+                                     juce::StringArray const &keys)
+{
+  // A slice of config.json rather than the whole file: a page with one thing
+  // on it is a page somebody can read. The slice is written back key by key,
+  // so the rest of the file is untouched by a visit here.
+  auto const config = juce::JSON::parse (getConfigFile ().loadFileAsString ());
+
+  auto *slice = new juce::DynamicObject ();
+  for (auto const &key : keys)
+    {
+      auto const identifier = juce::Identifier (key);
+      if (config.hasProperty (identifier))
+        slice->setProperty (identifier, config[identifier]);
+    }
+
+  _configPageKeys = keys;
+  _skinEditor->setDocument (juce::var (slice), title, false);
+  _skinEditorOpen = true;
+  _globalSettings->setVisible (false);
+  _skinEditor->setVisible (true);
+  _skinEditor->toFront (true);
+}
+
+void
+A3MotionUIComponent::saveConfigPage ()
+{
+  if (_configPageKeys.isEmpty ())
+    return;
+
+  auto config = juce::JSON::parse (getConfigFile ().loadFileAsString ());
+  auto *object = config.getDynamicObject ();
+  if (object == nullptr)
+    return;
+
+  auto const edited = _skinEditor->getSkin ();
+  for (auto const &key : _configPageKeys)
+    {
+      auto const identifier = juce::Identifier (key);
+      if (edited.hasProperty (identifier))
+        object->setProperty (identifier, edited[identifier]);
+    }
+
+  getConfigFile ().replaceWithText (
+      juce::JSON::toString (config, false) + "\n", false, false, "\n");
+  _configPageKeys.clear ();
+
+  // Ports and hosts are read when a socket opens, so they take effect at the
+  // next start rather than here. Saying so beats a setting that looks live
+  // and is not.
+  updateControlReadout ("network saved - restart to apply");
+}
+
+void
+A3MotionUIComponent::applyPauseRendering (bool paused)
+{
+  _pauseRenderingInMenu = paused;
+
+  auto config = juce::JSON::parse (getConfigFile ().loadFileAsString ());
+  if (auto *object = config.getDynamicObject ())
+    {
+      auto *ui = config["ui"].getDynamicObject ();
+      if (ui != nullptr)
+        {
+          ui->setProperty ("pauseRenderingInMenu", paused);
+          object->setProperty ("ui", config["ui"]);
+          getConfigFile ().replaceWithText (
+              juce::JSON::toString (config, false) + "\n", false, false,
+              "\n");
+        }
+    }
+
+  if (_motionComponent)
+    _motionComponent->setRenderingPaused (paused);
+}
+
+void
 A3MotionUIComponent::showKeyboard (bool shown)
 {
   if (!_keyboard)
@@ -1767,7 +1858,8 @@ A3MotionUIComponent::saveSkinAsNew ()
   // been turned about is meant to keep what is on the screen, not what was
   // last written.
   skinFile (configDir, name)
-      .replaceWithText (juce::JSON::toString (_skinEditor->getSkin (), false),
+      .replaceWithText (juce::JSON::toString (_skinEditor->getSkin (), false)
+                            + "\n",
                         false, false, "\n");
 
   writeActiveSkin (getConfigFile (), name);
@@ -1820,7 +1912,10 @@ A3MotionUIComponent::closeSkinEditor ()
   // Written on the way out rather than on every detent: turning an encoder
   // produces a value per tick, and a file save per tick would spend the
   // session writing to disk and waking the file watcher.
-  saveEditedSkin ();
+  if (_configPageKeys.isEmpty ())
+    saveEditedSkin ();
+  else
+    saveConfigPage ();
 
   showKeyboard (false);
   _skinEditorOpen = false;
@@ -1832,6 +1927,9 @@ A3MotionUIComponent::closeSkinEditor ()
 void
 A3MotionUIComponent::applyEditedSkin ()
 {
+  if (!_configPageKeys.isEmpty ())
+    return; // a config page is not a skin; nothing to put in force live
+
   // Straight to the theme, so the change is visible on the sphere behind the
   // editor while the encoder is still turning. The file follows on close.
   juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
@@ -1850,8 +1948,9 @@ A3MotionUIComponent::saveEditedSkin ()
 
   // Rewritten whole, unlike config.json: a skin file is this editor's own
   // output, and its shape is generated rather than hand-arranged.
-  file.replaceWithText (juce::JSON::toString (_skinEditor->getSkin (), false),
-                        false, false, "\n");
+  file.replaceWithText (
+      juce::JSON::toString (_skinEditor->getSkin (), false) + "\n", false,
+      false, "\n");
 }
 
 void

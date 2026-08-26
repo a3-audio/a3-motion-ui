@@ -54,12 +54,13 @@ collect (juce::var const &value, juce::String const &prefix,
       return;
     }
 
-  if (!isNumber (value))
-    return;
-
   // The trailing separator the recursion carries is not part of a name.
   auto const path = prefix.dropLastCharacters (1);
-  into.push_back ({ path, !value.isDouble () });
+
+  if (isNumber (value))
+    into.push_back ({ path, !value.isDouble (), false });
+  else if (value.isString ())
+    into.push_back ({ path, false, true });
 }
 
 /** The var at `path`'s parent, and the last step of the path. */
@@ -187,6 +188,49 @@ stepSkinValue (double value, int detents, bool isWholeNumber,
     return juce::jlimit (0.0, 255.0, moved);
 
   return moved;
+}
+
+juce::String
+skinText (juce::var const &skin, juce::String const &path)
+{
+  auto copy = skin;
+  juce::String leaf;
+  auto *parent = locate (copy, path, leaf);
+  if (parent == nullptr)
+    return {};
+
+  if (auto *array = parent->getArray ())
+    {
+      auto const index = leaf.getIntValue ();
+      return index >= 0 && index < array->size () ? (*array)[index].toString ()
+                                                  : juce::String{};
+    }
+
+  auto *object = parent->getDynamicObject ();
+  return object != nullptr && object->hasProperty (leaf)
+             ? object->getProperty (leaf).toString ()
+             : juce::String{};
+}
+
+void
+setSkinText (juce::var &skin, juce::String const &path,
+             juce::String const &text)
+{
+  juce::String leaf;
+  auto *parent = locate (skin, path, leaf);
+  if (parent == nullptr)
+    return;
+
+  if (auto *array = parent->getArray ())
+    {
+      auto const index = leaf.getIntValue ();
+      if (index >= 0 && index < array->size ())
+        array->getReference (index) = text;
+      return;
+    }
+
+  if (auto *object = parent->getDynamicObject ())
+    object->setProperty (leaf, text);
 }
 
 bool

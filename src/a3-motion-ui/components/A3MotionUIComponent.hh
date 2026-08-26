@@ -226,6 +226,12 @@ private:
   void  reopenEditorOn (juce::String const &name);
   /** Show or hide the on-screen keyboard, and light the status bar's icon
    *  to match. */
+  /** Open a slice of config.json as an editor page, and write it back on
+   *  the way out. */
+  void  openConfigPage (juce::String const &title,
+                        juce::StringArray const &keys);
+  void  saveConfigPage ();
+  void  applyPauseRendering (bool paused);
   void  showKeyboard (bool shown);
   void  toggleKeyboard ();
   void  rebuildGlobalSettingsOptions ();
@@ -244,6 +250,8 @@ private:
   std::unique_ptr<SkinEditorComponent> _skinEditor;
   std::unique_ptr<KeyboardComponent> _keyboard;
   bool _skinEditorOpen = false;
+  /** Empty while a skin is being edited; the keys of the slice otherwise. */
+  juce::StringArray _configPageKeys;
   juce::StringArray _skinNames;
   int _skinIndex = 0;
   static constexpr char const *fontSizeLabels[] = { "75%", "100%", "125%",

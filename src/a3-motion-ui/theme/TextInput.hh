@@ -27,22 +27,33 @@
 namespace a3
 {
 
-/** A skin name being typed with one encoder.
+/** A short piece of text being typed — a skin's name, a host, a path.
  *
  *  Turning moves along the name, pressing arms a position, turning then
  *  walks its letter through the alphabet — the same two-level rhythm the
  *  rest of this menu uses, because there is only ever one control.
  *
- *  The alphabet holds exactly what a skin name may hold (see
- *  isUsableSkinName), plus a blank: turning a letter down past 'a' blanks
- *  it and the name ends there, which is how a name gets shortened with the
- *  same one control that lengthens it. */
-class SkinNameEntry
+ *  Each entry carries the alphabet it accepts, and that is the guard: the
+ *  keyboard offers a superset — a host needs dots, a path needs slashes —
+ *  and an entry silently ignores a character it may not hold, so a skin
+ *  name cannot pick up a slash from the same keyboard.
+ *
+ *  The blank comes first in every alphabet: turning a letter down past 'a'
+ *  blanks it and the text ends there, which is how it gets shortened with
+ *  the same one control that lengthens it. */
+class TextInput
 {
 public:
-  static constexpr int maxLength = 16;
+  static constexpr int maxLength = 24;
 
-  explicit SkinNameEntry (juce::String const &name = {});
+  /** What a skin's name may hold. */
+  static juce::String const nameAlphabet;
+  /** What a host or a path may hold, on top of that. */
+  static juce::String const hostAlphabet;
+  static juce::String const pathAlphabet;
+
+  explicit TextInput (juce::String const &text = {},
+                      juce::String const &alphabet = nameAlphabet);
 
   /** The name as it stands: everything up to the first blank. */
   juce::String name () const;
@@ -65,6 +76,7 @@ public:
 
 private:
   juce::String _buffer;
+  juce::String _alphabet;
   int _cursor = 0;
 };
 

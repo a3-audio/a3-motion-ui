@@ -47,31 +47,44 @@ SkinEditorComponent::SkinEditorComponent ()
 void
 SkinEditorComponent::setSkin (juce::var skin, juce::String const &name)
 {
-  _skin = std::move (skin);
-  _name = name;
+  setDocument (std::move (skin), name, true);
+}
+
+void
+SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
+                                  bool withSkinActions)
+{
+  _actionRows = withSkinActions ? 3 : 0;
+  _skin = std::move (document);
+  _name = title;
   _parameters = skinParameters (_skin);
   _index = juce::jlimit (0, juce::jmax (0, totalRows () - 1), _index);
   _editing = false;
   _naming = false;
   _deleteAsked = false;
+  _textPath = {};
   repaint ();
 }
 
 int
 SkinEditorComponent::totalRows () const
 {
-  return numActionRows + (int)_parameters.size ();
+  return _actionRows + (int)_parameters.size ();
 }
 
 SkinEditorComponent::Row
 SkinEditorComponent::browsedRow () const
 {
+  // Keyed on how many action rows this document has, not on the index alone:
+  // a page without them starts at its first parameter.
+  if (_index >= _actionRows)
+    return Row::Parameter;
+
   switch (_index)
     {
     case 0: return Row::SaveAsNew;
     case 1: return Row::Rename;
-    case 2: return Row::Delete;
-    default: return Row::Parameter;
+    default: return Row::Delete;
     }
 }
 
@@ -82,12 +95,24 @@ SkinEditorComponent::finishNaming ()
     return;
 
   auto const typed = _nameEntry.name ();
+  auto const path = _textPath;
   _naming = false;
   _editing = false;
+  _textPath = {};
   repaint ();
 
   if (onNamingChanged)
     onNamingChanged (false);
+
+  if (path.isNotEmpty ())
+    {
+      // A text parameter, not the document's own name.
+      setSkinText (_skin, path, typed);
+      repaint ();
+      if (onValueChanged)
+        onValueChanged ();
+      return;
+    }
 
   if (onRename && typed.isNotEmpty () && typed != _name)
     onRename (typed);
@@ -124,7 +149,10 @@ SkinEditorComponent::navigate (int delta)
   if (browsedRow () != Row::Parameter)
     return;
 
-  auto const &parameter = _parameters[(size_t)(_index - numActionRows)];
+  auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+  if (parameter.isText)
+    return; // typed, not turned
+
   auto const stepped
       = stepSkinValue (skinValue (_skin, parameter.path), delta,
                        parameter.isWholeNumber,
@@ -155,7 +183,7 @@ SkinEditorComponent::toggleEditing ()
       return;
 
     case Row::Rename:
-      _nameEntry = SkinNameEntry{ _name };
+      _nameEntry = TextInput{ _name };
       _naming = true;
       _editing = false;
       repaint ();
@@ -178,11 +206,34 @@ SkinEditorComponent::toggleEditing ()
       return;
 
     case Row::Parameter:
-      if (_parameters.empty ())
+      {
+        if (_parameters.empty ())
+          return;
+
+        auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+        if (parameter.isText)
+          {
+            // Text is typed, not turned. The alphabet follows what the value
+            // is: a host takes dots, a path takes slashes as well.
+            auto const alphabet = parameter.path.containsIgnoreCase ("dir")
+                                      ? TextInput::pathAlphabet
+                                      : TextInput::hostAlphabet;
+
+            _textPath = parameter.path;
+            _nameEntry
+                = TextInput{ skinText (_skin, parameter.path), alphabet };
+            _naming = true;
+            _editing = false;
+            repaint ();
+            if (onNamingChanged)
+              onNamingChanged (true);
+            return;
+          }
+
+        _editing = !_editing;
+        repaint ();
         return;
-      _editing = !_editing;
-      repaint ();
-      return;
+      }
     }
 }
 
@@ -209,24 +260,27 @@ SkinEditorComponent::backspaceName ()
 juce::String
 SkinEditorComponent::rowLabel (int index) const
 {
+  if (index >= _actionRows)
+    return _parameters[(size_t)(index - _actionRows)].path;
+
   switch (index)
     {
     case 0: return juce::String::fromUTF8 ("\xc2\xbb Save as new");
     case 1: return juce::String::fromUTF8 ("\xc2\xbb Rename");
-    case 2: return juce::String::fromUTF8 ("\xc2\xbb Delete");
-    default: return _parameters[(size_t)(index - numActionRows)].path;
+    default: return juce::String::fromUTF8 ("\xc2\xbb Delete");
     }
 }
 
 juce::String
 SkinEditorComponent::rowValue (int index) const
 {
-  if (index == 2)
-    return _deleteAsked ? "sure?" : "";
-  if (index < numActionRows)
-    return "";
+  if (index < _actionRows)
+    return (index == 2 && _deleteAsked) ? "sure?" : "";
 
-  auto const &parameter = _parameters[(size_t)(index - numActionRows)];
+  auto const &parameter = _parameters[(size_t)(index - _actionRows)];
+  if (parameter.isText)
+    return skinText (_skin, parameter.path);
+
   auto const value = skinValue (_skin, parameter.path);
 
   return parameter.isWholeNumber ? juce::String ((int)std::lround (value))
@@ -272,8 +326,9 @@ SkinEditorComponent::paint (juce::Graphics &g)
   auto headerArea = content.removeFromTop (headerH);
   g.setFont (juce::Font (theme ().fontSize (FontRole::Header), juce::Font::bold));
   g.setColour (toColour (theme ().accent));
-  g.drawText ("Skin: " + _name, headerArea, juce::Justification::centredLeft,
-              true);
+  // A skin says so; any other page is already named by what it holds.
+  g.drawText (_actionRows > 0 ? "Skin: " + _name : _name, headerArea,
+              juce::Justification::centredLeft, true);
   g.setColour (toColour (theme ().textPrimary, theme ().alphaInactive));
   g.setFont (juce::Font (theme ().fontSize (FontRole::Body), juce::Font::plain));
   g.drawText (juce::String (_index + 1) + " / "
@@ -291,10 +346,10 @@ SkinEditorComponent::paint (juce::Graphics &g)
       g.setColour (toColour (theme ().textPrimary, browsedRowWash));
       g.fillRoundedRectangle (nameRow.toFloat (), 6.f);
 
-      auto const cellW = nameRow.getWidth () / SkinNameEntry::maxLength;
+      auto const cellW = nameRow.getWidth () / TextInput::maxLength;
       auto const buffer = _nameEntry.buffer ();
 
-      for (int i = 0; i < SkinNameEntry::maxLength; ++i)
+      for (int i = 0; i < TextInput::maxLength; ++i)
         {
           auto cell = nameRow.removeFromLeft (cellW);
           bool const atCursor = i == _nameEntry.cursor ();
@@ -341,7 +396,7 @@ SkinEditorComponent::paint (juce::Graphics &g)
       if (i < rows - 1)
         content.removeFromTop (rowGap);
 
-      bool const isAction = index < numActionRows;
+      bool const isAction = index < _actionRows;
       bool const isBrowsed = index == _index;
       bool const isArmed = isBrowsed && _editing;
 
@@ -351,7 +406,10 @@ SkinEditorComponent::paint (juce::Graphics &g)
                                          : rowWash));
       g.fillRoundedRectangle (row.toFloat (), 6.f);
 
-      auto valueArea = row.removeFromRight (row.getWidth () / 3).reduced (8, 0);
+      auto const valueShare
+          = (!isAction && rowValue (index).length () > 8) ? 2 : 3;
+      auto valueArea
+          = row.removeFromRight (row.getWidth () / valueShare).reduced (8, 0);
       auto nameArea = row.reduced (8, 0);
 
       g.setFont (
@@ -369,11 +427,11 @@ SkinEditorComponent::paint (juce::Graphics &g)
       // A colour channel shows the colour it is part of, so a number can be
       // judged without leaving the row it sits in.
       if (!isAction
-          && isColourChannelPath (_parameters[(size_t)(index - numActionRows)]
+          && isColourChannelPath (_parameters[(size_t)(index - _actionRows)]
                                       .path))
         {
           auto const group
-              = _parameters[(size_t)(index - numActionRows)]
+              = _parameters[(size_t)(index - _actionRows)]
                     .path.upToLastOccurrenceOf (".", false, false);
           auto swatch = valueArea.removeFromLeft (itemH / 2).reduced (0, 6);
           g.setColour (juce::Colour (

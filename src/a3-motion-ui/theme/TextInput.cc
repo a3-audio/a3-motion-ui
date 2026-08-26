@@ -18,60 +18,63 @@
 
 */
 
-#include "SkinNameEntry.hh"
+#include "TextInput.hh"
 
 namespace a3
 {
 
-namespace
-{
-// The blank comes first, so turning down past 'a' shortens the name rather
-// than wrapping round to a digit.
-juce::String const alphabet = " abcdefghijklmnopqrstuvwxyz0123456789-";
-}
+// The blank comes first everywhere, so turning down past 'a' shortens the
+// text rather than wrapping round to a digit.
+juce::String const TextInput::nameAlphabet
+    = " abcdefghijklmnopqrstuvwxyz0123456789-";
+juce::String const TextInput::hostAlphabet
+    = " abcdefghijklmnopqrstuvwxyz0123456789-.";
+juce::String const TextInput::pathAlphabet
+    = " abcdefghijklmnopqrstuvwxyz0123456789-./_";
 
-SkinNameEntry::SkinNameEntry (juce::String const &name)
+TextInput::TextInput (juce::String const &text, juce::String const &alphabet)
+    : _alphabet (alphabet)
 {
-  _buffer = name.substring (0, maxLength);
+  _buffer = text.substring (0, maxLength);
   _buffer = _buffer.paddedRight (' ', maxLength);
 }
 
 juce::String
-SkinNameEntry::name () const
+TextInput::name () const
 {
   return _buffer.upToFirstOccurrenceOf (" ", false, false);
 }
 
 void
-SkinNameEntry::moveCursor (int delta)
+TextInput::moveCursor (int delta)
 {
   _cursor = juce::jlimit (0, maxLength - 1, _cursor + delta);
 }
 
 juce::juce_wchar
-SkinNameEntry::characterAtCursor () const
+TextInput::characterAtCursor () const
 {
   return _buffer[juce::jlimit (0, maxLength - 1, _cursor)];
 }
 
 void
-SkinNameEntry::changeCharacter (int delta)
+TextInput::changeCharacter (int delta)
 {
-  auto const current = alphabet.indexOfChar (characterAtCursor ());
+  auto const current = _alphabet.indexOfChar (characterAtCursor ());
   auto const index
-      = juce::jlimit (0, alphabet.length () - 1,
+      = juce::jlimit (0, _alphabet.length () - 1,
                       (current < 0 ? 0 : current) + delta);
 
   _buffer = _buffer.replaceSection (_cursor, 1,
                                     juce::String::charToString (
-                                        alphabet[index]));
+                                        _alphabet[index]));
 }
 
 
 void
-SkinNameEntry::type (juce::juce_wchar character)
+TextInput::type (juce::juce_wchar character)
 {
-  if (alphabet.indexOfChar (character) <= 0)
+  if (_alphabet.indexOfChar (character) <= 0)
     return; // not in the alphabet, or the blank — which backspace() is for
 
   if (_cursor >= maxLength)
@@ -83,7 +86,7 @@ SkinNameEntry::type (juce::juce_wchar character)
 }
 
 void
-SkinNameEntry::backspace ()
+TextInput::backspace ()
 {
   if (_cursor <= 0)
     return;
