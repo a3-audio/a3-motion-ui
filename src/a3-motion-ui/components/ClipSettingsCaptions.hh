@@ -64,8 +64,11 @@ constexpr char const *north = "North";
 constexpr char const *south = "South";
 constexpr char const *on = "On";
 constexpr char const *off = "Off";
-constexpr char const *directionNames[] = { "Forward", "Reverse", "PingPong" };
-constexpr char const *endActionNames[] = { "Loop", "Stop", "Bounce" };
+/** Short on purpose, like the captions: Motion gives each of these a third
+ *  of a section, and the longest one decided how large every value in the
+ *  bar could be drawn. "PingPong" held them all below their own captions. */
+constexpr char const *directionNames[] = { "Fwd", "Rev", "Ping" };
+constexpr char const *endActionNames[] = { "Loop", "Stop", "Bnce" };
 /** The widest speed label the Motion section can produce — whole bars
  *  above 1, fractions below (see A3MotionUIComponent's speedLog2 range). */
 constexpr char const *widestSpeed = "1/16";

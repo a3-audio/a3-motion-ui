@@ -201,24 +201,22 @@ TEST (SharedValueSize, TheValueGetsTheLargerShareOfTheBox)
         << "box " << box;
 }
 
-// "PingPong" is the widest value the bar can show, and Motion gives it a third
-// of a section — 46 px. That, not the box, is what pins the values: even in a
-// tall box the setting cannot make them grow much. Stated here so that a later
-// attempt to make the values scale starts from the right end (the word, or the
-// column), instead of from the font size.
-TEST (SharedValueSize, TheWidestWordIsWhatPinsTheValues)
+// The value words used to be what pinned the values: "PingPong" had to fit
+// Motion's third of a section — 46 px — which held every value in the bar
+// below its own caption's size, no matter how much room the box had. Short
+// enough words move the limit back to the box, where it belongs, and put the
+// value above its caption in size again.
+TEST (SharedValueSize, TheValuesAreLimitedByTheBoxNotByTheirWords)
 {
-  auto const atDefault = sharedValueSize (18.f, contentWidth, columnGap,
-                                          roomyBox);
-  auto const atLargest = sharedValueSize (18.f * 1.75f, contentWidth,
-                                          columnGap, roomyBox);
+  auto const size
+      = sharedValueSize (18.f, contentWidth, columnGap, controlBoxHeight);
 
-  EXPECT_NEAR (atLargest, atDefault, 0.5f)
-      << "default " << atDefault << ", largest " << atLargest;
-
-  auto const motionColumn
-      = static_cast<float> ((contentWidth - 2 * columnGap) / 3);
-  EXPECT_LE (widthOf (value::directionNames[2], atLargest), motionColumn);
+  EXPECT_NEAR (size, controlBoxHeight * valueRowShare / rowHeightFactor, 0.01f)
+      << "the box, not a word, has to be the limit";
+  EXPECT_GT (size,
+             sharedCaptionSize (15.f, contentWidth, columnGap,
+                                controlBoxHeight))
+      << "a value must not be drawn smaller than the caption naming it";
 }
 
 }
