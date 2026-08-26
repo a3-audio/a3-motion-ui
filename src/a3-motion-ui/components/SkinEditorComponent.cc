@@ -58,7 +58,9 @@ SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
   _skin = std::move (document);
   _name = title;
   _parameters = skinParameters (_skin);
-  _index = juce::jlimit (0, juce::jmax (0, totalRows () - 1), _index);
+  // Every page opens at its top: carrying a row number over from another
+  // document lands on whatever happens to sit at that number.
+  _index = 0;
   _editing = false;
   _naming = false;
   _deleteAsked = false;

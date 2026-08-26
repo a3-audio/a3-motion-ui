@@ -36,6 +36,7 @@ TextInput::TextInput (juce::String const &text, juce::String const &alphabet)
     : _alphabet (alphabet)
 {
   _buffer = text.substring (0, maxLength);
+  _cursor = juce::jmin (maxLength - 1, _buffer.length ());
   _buffer = _buffer.paddedRight (' ', maxLength);
 }
 

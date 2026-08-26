@@ -37,7 +37,9 @@ TEST (TextInput, ItStartsFromTheNameItIsGiven)
   TextInput entry{ "neutral" };
 
   EXPECT_EQ (entry.name (), "neutral");
-  EXPECT_EQ (entry.cursor (), 0);
+  EXPECT_EQ (entry.cursor (), 7) << "the caret starts after the text, the way "
+                                    "every text field does — typing carries "
+                                    "on rather than overwriting the front";
 }
 
 TEST (TextInput, TheCursorStopsAtBothEnds)
@@ -54,6 +56,7 @@ TEST (TextInput, TheCursorStopsAtBothEnds)
 TEST (TextInput, ALetterWalksThroughTheAlphabet)
 {
   TextInput entry{ "neutral" };
+  entry.moveCursor (-7); // to the first letter
 
   entry.changeCharacter (1); // n -> o
 
@@ -66,7 +69,7 @@ TEST (TextInput, BlankingAPositionCutsTheNameShort)
 {
   TextInput entry{ "neutral" };
 
-  entry.moveCursor (3);
+  entry.moveCursor (-4); // from the end back to the fourth letter
   while (entry.characterAtCursor () != ' ')
     entry.changeCharacter (-1);
 
@@ -77,7 +80,6 @@ TEST (TextInput, TypingPastTheEndMakesTheNameLonger)
 {
   TextInput entry{ "neu" };
 
-  entry.moveCursor (3);
   EXPECT_EQ (entry.characterAtCursor (), ' ') << "past the end is blank";
 
   entry.changeCharacter (1); // blank -> a
@@ -90,6 +92,7 @@ TEST (TextInput, TypingPastTheEndMakesTheNameLonger)
 TEST (TextInput, EveryLetterItCanReachIsAllowedInAName)
 {
   TextInput entry{ "a" };
+  entry.moveCursor (-1);
 
   for (int i = 0; i < 200; ++i)
     {
@@ -103,6 +106,7 @@ TEST (TextInput, EveryLetterItCanReachIsAllowedInAName)
 TEST (TextInput, TheAlphabetDoesNotWrapPastItsEnds)
 {
   TextInput entry{ "a" };
+  entry.moveCursor (-1);
 
   entry.changeCharacter (-5);
   EXPECT_EQ (entry.characterAtCursor (), ' ');
@@ -141,7 +145,7 @@ TEST (TextInput, TypingOverwritesFromTheCursor)
 {
   TextInput entry{ "neutral" };
 
-  entry.moveCursor (0);
+  entry.moveCursor (-7); // to the first letter
   entry.type ('s');
 
   EXPECT_EQ (entry.name (), "seutral");
@@ -150,7 +154,6 @@ TEST (TextInput, TypingOverwritesFromTheCursor)
 TEST (TextInput, BackspaceTakesTheCharacterBeforeTheCursor)
 {
   TextInput entry{ "neu" };
-  entry.moveCursor (3);
 
   entry.backspace ();
 
@@ -161,6 +164,7 @@ TEST (TextInput, BackspaceTakesTheCharacterBeforeTheCursor)
 TEST (TextInput, BackspaceAtTheStartDoesNothing)
 {
   TextInput entry{ "neu" };
+  entry.moveCursor (-3);
 
   entry.backspace ();
 
