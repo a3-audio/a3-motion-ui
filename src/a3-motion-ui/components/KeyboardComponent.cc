@@ -27,21 +27,36 @@ namespace a3
 
 namespace
 {
-// A superset of every alphabet a TextEntry accepts — a host needs dots, a
-// path needs slashes and underscores. The entry being typed into is what
-// refuses a character it may not hold, so one keyboard serves all of them.
-char const *const rows[] = {
-  "qwertzuiop",
-  "asdfghjkl",
-  "yxcvbnm-._",
-  "0123456789/\\",
+// A German keyboard, in the order the hands know it: digits on top, then
+// QWERTZ, ASDF, YXCV. No umlauts — a skin name, a host and a path are all
+// ascii, and a key that does nothing when pressed is worse than a missing
+// one.
+//
+// The last row carries what a path needs and the two commands. The
+// characters here are a superset of every alphabet a TextInput accepts;
+// the field being typed into is what refuses one it may not hold, so one
+// keyboard serves all of them.
+struct Row
+{
+  char const *keys;
+  float indent; //< in key widths, the stagger that makes it read as a keyboard
+};
+
+constexpr Row rows[] = {
+  { "1234567890", 0.0f },
+  { "qwertzuiop", 0.25f },
+  { "asdfghjkl", 0.75f },
+  { "yxcvbnm", 1.25f },
 };
 
 constexpr int numRows = 4;
-constexpr int keyGap = 4;
+constexpr char const *symbolRow = "-._/\\";
+
+constexpr int keyGap = 5;
 constexpr float overlayOpacity = 0.72f;
-constexpr float keyWash = 0.12f;
-constexpr float pressedWash = 0.3f;
+constexpr float keyWash = 0.14f;
+constexpr float keyTopWash = 0.22f;
+constexpr float pressedWash = 0.34f;
 }
 
 KeyboardComponent::KeyboardComponent ()
@@ -63,30 +78,43 @@ KeyboardComponent::layOutKeys ()
   auto area = getLocalBounds ().reduced (keyGap * 2);
   auto const rowH = area.getHeight () / (numRows + 1);
 
+  // Every row is set out on the same grid as the widest one, so the columns
+  // line up and the stagger reads as a keyboard rather than as four
+  // differently sized rows.
+  auto const columns = 10;
+  auto const keyW = area.getWidth () / columns;
+
   for (int row = 0; row < numRows; ++row)
     {
-      auto rowArea = area.removeFromTop (rowH).reduced (0, keyGap / 2);
-      auto const letters = juce::String (rows[row]);
-      auto const keyW = rowArea.getWidth () / juce::jmax (1, letters.length ());
+      auto rowArea = area.removeFromTop (rowH);
+      auto const letters = juce::String (rows[row].keys);
 
-      // Centred, so the shorter rows sit under the middle of the longer ones
-      // the way a keyboard looks.
-      rowArea = rowArea.withWidth (keyW * letters.length ())
-                    .withX (rowArea.getX ()
-                            + (rowArea.getWidth ()
-                               - keyW * letters.length ())
-                                  / 2);
+      auto x = rowArea.getX ()
+               + static_cast<int> (rows[row].indent * keyW);
 
       for (int i = 0; i < letters.length (); ++i)
-        _keys.push_back ({ juce::String::charToString (letters[i]), letters[i],
-                           false, false,
-                           rowArea.removeFromLeft (keyW).reduced (keyGap / 2) });
+        {
+          auto const bounds
+              = juce::Rectangle<int> (x, rowArea.getY (), keyW,
+                                      rowArea.getHeight ())
+                    .reduced (keyGap / 2);
+          _keys.push_back ({ juce::String::charToString (letters[i]),
+                             letters[i], false, false, bounds });
+          x += keyW;
+        }
     }
 
-  // The two command keys share the last row.
-  auto commandRow = area.removeFromTop (rowH).reduced (0, keyGap / 2);
-  auto const half = commandRow.getWidth () / 2;
+  // The bottom row: what a path needs, then the two commands, which take
+  // the width that is left.
+  auto commandRow = area.removeFromTop (rowH);
+  auto const symbols = juce::String (symbolRow);
 
+  for (int i = 0; i < symbols.length (); ++i)
+    _keys.push_back ({ juce::String::charToString (symbols[i]), symbols[i],
+                       false, false,
+                       commandRow.removeFromLeft (keyW).reduced (keyGap / 2) });
+
+  auto const half = commandRow.getWidth () / 2;
   _keys.push_back ({ juce::String::fromUTF8 ("\xe2\x8c\xab"), 0, true, false,
                      commandRow.removeFromLeft (half).reduced (keyGap / 2) });
   _keys.push_back ({ "done", 0, false, true, commandRow.reduced (keyGap / 2) });
@@ -100,14 +128,26 @@ KeyboardComponent::paint (juce::Graphics &g)
   for (int i = 0; i < (int)_keys.size (); ++i)
     {
       auto const &key = _keys[(size_t)i];
+      auto const face = key.bounds.toFloat ();
+      bool const pressed = i == _pressed;
 
-      g.setColour (toColour (theme ().textPrimary,
-                             i == _pressed ? pressedWash : keyWash));
-      g.fillRoundedRectangle (key.bounds.toFloat (), 5.f);
+      // A key face with a lighter top: enough to read as a key rather than
+      // as a rectangle with a letter in it, without turning into chrome.
+      g.setGradientFill (juce::ColourGradient (
+          toColour (theme ().textPrimary,
+                    pressed ? pressedWash : keyTopWash),
+          face.getX (), face.getY (),
+          toColour (theme ().textPrimary, pressed ? pressedWash : keyWash),
+          face.getX (), face.getBottom (), false));
+      g.fillRoundedRectangle (face, 6.f);
 
-      g.setFont (juce::Font (theme ().fontSize (FontRole::Body),
-                             key.isDone ? juce::Font::bold
-                                        : juce::Font::plain));
+      g.setColour (toColour (theme ().textPrimary, keyWash));
+      g.drawRoundedRectangle (face, 6.f, 1.f);
+
+      g.setFont (juce::Font (juce::FontOptions (
+                                 theme ().fontSize (FontRole::Body) * 1.1f))
+                     .withStyle (key.isDone ? juce::Font::bold
+                                            : juce::Font::plain));
       g.setColour (key.isDone ? toColour (theme ().accent)
                               : toColour (theme ().textPrimary));
       g.drawText (key.label, key.bounds, juce::Justification::centred, false);
