@@ -71,6 +71,7 @@ public:
    *  where they are reached first and cannot be turned past by accident. */
   enum class Row
   {
+    Save,
     SaveAsNew,
     Rename,
     Delete,
@@ -90,6 +91,7 @@ public:
 
   /** Asked when an action row is pressed. Delete asks twice: the row says so
    *  in between. */
+  std::function<void ()> onSave;
   std::function<void ()> onSaveAsNew;
   std::function<void ()> onDelete;
 
@@ -109,9 +111,15 @@ public:
   bool isNaming () const { return _naming; }
   void finishNaming ();
 
-  /** The touchscreen's way into the name being typed. */
+  /** The touchscreen's way into whatever is being typed. */
   void typeIntoName (juce::juce_wchar character);
   void backspaceName ();
+
+  /** Start typing the browsed row — a number as much as a name. Returns
+   *  false when the row is not something that can be typed, which is what
+   *  greys the keyboard icon out. */
+  bool beginTypingBrowsedRow ();
+  bool canTypeBrowsedRow () const;
 
   /** Called whenever a value changed, so the caller can put the edited skin
    *  in force straight away — seeing the change is the whole point of
@@ -139,9 +147,12 @@ private:
   bool _editing = false;
   bool _naming = false;
   bool _deleteAsked = false;
+  /** Shown briefly on the Save row, so a press that writes a file says so. */
+  bool _saved = false;
   TextInput _nameEntry;
   /** Set while a text parameter, rather than a skin name, is being typed. */
   juce::String _textPath;
+  bool _typingNumber = false;
 };
 
 }

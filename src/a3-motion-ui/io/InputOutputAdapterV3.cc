@@ -281,16 +281,21 @@ InputOutputAdapterV3::dispatchButtonEvent (int idx, bool pressed)
     {
     case ButtonRole::MenuToggle:
       {
-        // Track button 50 (idx 3) and button 59 (idx 37) independently.
-        // Fire Button::Menu when both become simultaneously pressed.
-        int slot = (idx == 3) ? 0 : 1;
-        bool wasBothPressed = _menuButtonState[0] && _menuButtonState[1];
+        // Two physical buttons (50 at idx 3, 59 at idx 37), either of which
+        // is the Menu button. They used to have to be pressed together — a
+        // chord to reach the menu, which is a lot of ceremony for the one
+        // key somebody presses to get out of somewhere.
+        //
+        // Tracked separately so that holding one and pressing the other
+        // does not read as a release: Menu is down while either is down.
+        int const slot = (idx == 3) ? 0 : 1;
+        bool const wasAnyPressed
+            = _menuButtonState[0] || _menuButtonState[1];
         _menuButtonState[slot] = pressed;
-        bool isBothPressed = _menuButtonState[0] && _menuButtonState[1];
-        if (isBothPressed && !wasBothPressed)
-          inputButtonValue (Button::Menu, true);
-        else if (!isBothPressed && wasBothPressed)
-          inputButtonValue (Button::Menu, false);
+        bool const isAnyPressed = _menuButtonState[0] || _menuButtonState[1];
+
+        if (isAnyPressed != wasAnyPressed)
+          inputButtonValue (Button::Menu, isAnyPressed);
       }
       break;
 

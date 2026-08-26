@@ -54,7 +54,7 @@ void
 SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
                                   bool withSkinActions)
 {
-  _actionRows = withSkinActions ? 3 : 0;
+  _actionRows = withSkinActions ? 4 : 0;
   _skin = std::move (document);
   _name = title;
   _parameters = skinParameters (_skin);
@@ -84,8 +84,9 @@ SkinEditorComponent::browsedRow () const
 
   switch (_index)
     {
-    case 0: return Row::SaveAsNew;
-    case 1: return Row::Rename;
+    case 0: return Row::Save;
+    case 1: return Row::SaveAsNew;
+    case 2: return Row::Rename;
     default: return Row::Delete;
     }
 }
@@ -108,8 +109,17 @@ SkinEditorComponent::finishNaming ()
 
   if (path.isNotEmpty ())
     {
-      // A text parameter, not the document's own name.
-      setSkinText (_skin, path, typed);
+      // A parameter, not the document's own name.
+      if (_typingNumber)
+        {
+          auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+          setSkinValue (_skin, path, typed.getDoubleValue (),
+                        parameter.isWholeNumber);
+        }
+      else
+        setSkinText (_skin, path, typed);
+
+      _typingNumber = false;
       repaint ();
       if (onValueChanged)
         onValueChanged ();
@@ -144,6 +154,7 @@ SkinEditorComponent::navigate (int delta)
       // Turning away is how a delete is called off — it never waits around
       // for a press that was meant for something else.
       _deleteAsked = false;
+      _saved = false;
       repaint ();
       return;
     }
@@ -179,6 +190,13 @@ SkinEditorComponent::toggleEditing ()
 
   switch (browsedRow ())
     {
+    case Row::Save:
+      _saved = true;
+      repaint ();
+      if (onSave)
+        onSave ();
+      return;
+
     case Row::SaveAsNew:
       if (onSaveAsNew)
         onSaveAsNew ();
@@ -246,6 +264,51 @@ SkinEditorComponent::toggleEditing ()
     }
 }
 
+bool
+SkinEditorComponent::canTypeBrowsedRow () const
+{
+  if (_naming)
+    return true;
+
+  return browsedRow () == Row::Rename
+         || (browsedRow () == Row::Parameter && !_parameters.empty ());
+}
+
+bool
+SkinEditorComponent::beginTypingBrowsedRow ()
+{
+  if (_naming || !canTypeBrowsedRow ())
+    return false;
+
+  if (browsedRow () == Row::Rename)
+    {
+      toggleEditing (); // the rename row already knows how
+      return true;
+    }
+
+  auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+  if (parameter.isColour)
+    return false; // a colour is picked, not typed
+
+  // A number is typed as its digits and read back as a number on the way
+  // out — one keyboard, whatever the row holds.
+  _textPath = parameter.path;
+  _typingNumber = !parameter.isText;
+  _nameEntry = TextInput{ parameter.isText
+                              ? skinText (_skin, parameter.path)
+                              : rowValue (_index),
+                          parameter.isText ? TextInput::pathAlphabet
+                                           : TextInput::numberAlphabet };
+  _naming = true;
+  _editing = false;
+  repaint ();
+
+  if (onNamingChanged)
+    onNamingChanged (true);
+
+  return true;
+}
+
 void
 SkinEditorComponent::typeIntoName (juce::juce_wchar character)
 {
@@ -274,8 +337,9 @@ SkinEditorComponent::rowLabel (int index) const
 
   switch (index)
     {
-    case 0: return juce::String::fromUTF8 ("\xc2\xbb Save as new");
-    case 1: return juce::String::fromUTF8 ("\xc2\xbb Rename");
+    case 0: return juce::String::fromUTF8 ("\xc2\xbb Save");
+    case 1: return juce::String::fromUTF8 ("\xc2\xbb Save as new");
+    case 2: return juce::String::fromUTF8 ("\xc2\xbb Rename");
     default: return juce::String::fromUTF8 ("\xc2\xbb Delete");
     }
 }
@@ -284,7 +348,11 @@ juce::String
 SkinEditorComponent::rowValue (int index) const
 {
   if (index < _actionRows)
-    return (index == 2 && _deleteAsked) ? "sure?" : "";
+    {
+      if (index == 3 && _deleteAsked)
+        return "sure?";
+      return (index == 0 && _saved) ? "saved" : "";
+    }
 
   auto const &parameter = _parameters[(size_t)(index - _actionRows)];
   if (parameter.isColour)
@@ -357,31 +425,29 @@ SkinEditorComponent::paint (juce::Graphics &g)
       g.setColour (toColour (theme ().textPrimary, browsedRowWash));
       g.fillRoundedRectangle (nameRow.toFloat (), 6.f);
 
-      auto const cellW = nameRow.getWidth () / TextInput::maxLength;
-      auto const buffer = _nameEntry.buffer ();
+      // Drawn as text with a caret under it, not a character per cell: a
+      // cell grid reads as spaced-out letters, which a short name survives
+      // and a path does not.
+      auto const font
+          = juce::Font (juce::FontOptions (theme ().fontSize (FontRole::Header)));
+      g.setFont (font);
 
-      for (int i = 0; i < TextInput::maxLength; ++i)
-        {
-          auto cell = nameRow.removeFromLeft (cellW);
-          bool const atCursor = i == _nameEntry.cursor ();
+      auto const textArea = nameRow.reduced (10, 0);
+      auto const typed = _nameEntry.buffer ().trimEnd ();
 
-          if (atCursor)
-            {
-              g.setColour (toColour (theme ().textPrimary,
-                                     _editing ? armedRowWash : rowWash));
-              g.fillRoundedRectangle (cell.reduced (2).toFloat (), 3.f);
-            }
+      g.setColour (toColour (theme ().textPrimary));
+      g.drawText (typed, textArea, juce::Justification::centredLeft, false);
 
-          g.setFont (juce::Font (theme ().fontSize (FontRole::Header),
-                                 juce::Font::bold));
-          g.setColour (atCursor && _editing
-                           ? toColour (theme ().accent)
-                           : toColour (theme ().textPrimary,
-                                       atCursor ? 1.f
-                                                : theme ().alphaInactive));
-          g.drawText (juce::String::charToString (buffer[i]), cell,
-                      juce::Justification::centred, false);
-        }
+      // The caret sits after everything before it.
+      auto const before = juce::GlyphArrangement::getStringWidth (
+          font, _nameEntry.buffer ().substring (0, _nameEntry.cursor ()));
+      auto const caretW = juce::jmax (
+          2.f, juce::GlyphArrangement::getStringWidth (font, "n"));
+
+      g.setColour (toColour (theme ().accent,
+                             _editing ? 1.f : theme ().alphaInactive));
+      g.fillRect (static_cast<float> (textArea.getX ()) + before,
+                  static_cast<float> (textArea.getBottom () - 5), caretW, 2.f);
 
       content.removeFromTop (rowGap);
       g.setFont (

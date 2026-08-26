@@ -44,13 +44,18 @@ namespace a3
 class TextInput
 {
 public:
-  static constexpr int maxLength = 24;
+  /** As long as a row can show. A skin name is short by nature; a path is
+   *  not, and cutting one silently is how "/…/a3-motion-ui/pattern" became
+   *  "/…/a3-m". */
+  static constexpr int maxLength = 96;
 
   /** What a skin's name may hold. */
   static juce::String const nameAlphabet;
   /** What a host or a path may hold, on top of that. */
   static juce::String const hostAlphabet;
   static juce::String const pathAlphabet;
+  /** Digits, a dot and a minus — what a number in a skin can look like. */
+  static juce::String const numberAlphabet;
 
   explicit TextInput (juce::String const &text = {},
                       juce::String const &alphabet = nameAlphabet);

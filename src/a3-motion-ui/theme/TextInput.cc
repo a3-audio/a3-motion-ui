@@ -29,8 +29,9 @@ juce::String const TextInput::nameAlphabet
     = " abcdefghijklmnopqrstuvwxyz0123456789-";
 juce::String const TextInput::hostAlphabet
     = " abcdefghijklmnopqrstuvwxyz0123456789-.";
+juce::String const TextInput::numberAlphabet = " 0123456789.-";
 juce::String const TextInput::pathAlphabet
-    = " abcdefghijklmnopqrstuvwxyz0123456789-./_";
+    = " abcdefghijklmnopqrstuvwxyz0123456789-./_\\";
 
 TextInput::TextInput (juce::String const &text, juce::String const &alphabet)
     : _alphabet (alphabet)

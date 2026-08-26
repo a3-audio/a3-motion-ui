@@ -34,7 +34,7 @@ char const *const rows[] = {
   "qwertzuiop",
   "asdfghjkl",
   "yxcvbnm-._",
-  "0123456789/",
+  "0123456789/\\",
 };
 
 constexpr int numRows = 4;

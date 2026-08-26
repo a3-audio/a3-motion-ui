@@ -103,6 +103,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _skinEditor->setAlwaysOnTop (true);
   _motionComponent->addChildComponent (*_skinEditor);
   _skinEditor->onValueChanged = [this] { applyEditedSkin (); };
+  _skinEditor->onSave = [this] { saveEditedSkin (); };
   _skinEditor->onSaveAsNew = [this] { saveSkinAsNew (); };
   _skinEditor->onRename = [this] (auto const &name) { renameEditedSkin (name); };
   _skinEditor->onDelete = [this] { deleteEditedSkin (); };
@@ -551,9 +552,18 @@ A3MotionUIComponent::resized ()
               .reduced (picker.getWidth () / 20, 0));
     }
   if (_keyboard)
-    _keyboard->setBounds (
-        _motionComponent->getLocalBounds ().removeFromBottom (
-            _motionComponent->getHeight () / 2));
+    {
+      // As tall as its five rows need at the current Body Size, so the
+      // keyboard scales with the setting rather than always taking half the
+      // screen. Never more than half, whatever the setting says.
+      auto keyboardArea = _motionComponent->getLocalBounds ();
+      auto const rowHeight
+          = static_cast<int> (theme ().fontSize (FontRole::Body) * 2.4f);
+      auto const wanted = rowHeight * 5 + 16;
+
+      _keyboard->setBounds (keyboardArea.removeFromBottom (
+          juce::jmin (wanted, _motionComponent->getHeight () / 2)));
+    }
 }
 
 float
@@ -693,7 +703,10 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               if (_skinEditorOpen && channel == 3u)
                 {
                   if (increment != 0)
-                    _skinEditor->navigate (increment > 0 ? 1 : -1);
+                    {
+                      _skinEditor->navigate (increment > 0 ? 1 : -1);
+                      refreshKeyboardIcon ();
+                    }
                   return;
                 }
 
@@ -702,7 +715,15 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                   if (increment != 0)
                     {
                       if (_globalSettingsValueFieldSelected)
-                        _globalSettings->navigateValue (increment > 0 ? 1 : -1);
+                        {
+                          _globalSettings->navigateValue (increment > 0 ? 1
+                                                                        : -1);
+
+                          if (static_cast<MenuRow> (_globalSettingsOptionIndex)
+                              == MenuRow::Skin)
+                            previewSkin (
+                                _globalSettings->getSelectedValueIndex ());
+                        }
                       else
                         {
                           _globalSettings->navigateOption (increment > 0 ? 1 : -1);
@@ -1940,19 +1961,44 @@ A3MotionUIComponent::showKeyboard (bool shown)
   if (shown)
     _keyboard->toFront (true);
 
-  if (_statusBar)
-    _statusBar->setKeyboardShown (shown);
+  refreshKeyboardIcon ();
 }
 
 void
 A3MotionUIComponent::toggleKeyboard ()
 {
-  // Only ever useful over something to type into. Rather than a keyboard
-  // that types into nothing, the icon does nothing until a name is open.
-  if (!_skinEditorOpen || !_skinEditor->isNaming ())
+  if (!_skinEditorOpen)
     return;
 
-  showKeyboard (!_keyboard->isVisible ());
+  // Already typing: the icon puts the keyboard away and brings it back, to
+  // see what is behind it.
+  if (_skinEditor->isNaming ())
+    {
+      showKeyboard (!_keyboard->isVisible ());
+      return;
+    }
+
+  // Otherwise it starts typing the row that is browsed — which is how a
+  // port gets entered as digits rather than turned to, and why the icon is
+  // worth tapping outside a rename.
+  _skinEditor->beginTypingBrowsedRow ();
+}
+
+void
+A3MotionUIComponent::refreshKeyboardIcon ()
+{
+  if (!_statusBar)
+    return;
+
+  using State = StatusBar::KeyboardState;
+
+  auto const state
+      = (_keyboard && _keyboard->isVisible ())  ? State::Shown
+        : (_skinEditorOpen && _skinEditor->canTypeBrowsedRow ())
+            ? State::Available
+            : State::Unavailable;
+
+  _statusBar->setKeyboardState (state);
 }
 
 void
@@ -2062,6 +2108,26 @@ A3MotionUIComponent::saveEditedSkin ()
 }
 
 void
+A3MotionUIComponent::previewSkin (int index)
+{
+  if (index < 0 || index >= _skinNames.size ())
+    return;
+
+  // Shown while the encoder is still turning, so a skin is chosen by
+  // looking at it rather than by reading its name. Nothing is written —
+  // the press is what makes it the one that is running.
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              _skinNames[index]);
+  auto const loaded = loadTheme (juce::JSON::parse (file.loadFileAsString ()));
+
+  juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
+  juce::MessageManager::callAsync ([safeThis, loaded] {
+    if (safeThis != nullptr)
+      applyThemeEverywhere (loaded, *safeThis);
+  });
+}
+
+void
 A3MotionUIComponent::applySkin (int index)
 {
   if (index < 0 || index >= _skinNames.size ())
@@ -2096,8 +2162,8 @@ A3MotionUIComponent::applySkin (int index)
 void
 A3MotionUIComponent::refreshFonts ()
 {
-  // The status bar's height follows the header size, so this is a layout
-  // change and not only a repaint — and the layout has to come first: the
+  // The status bar's height and the keyboard's follow the font sizes, so
+  // this is a layout change and not only a repaint — and the layout has to come first: the
   // bar sizes its own text against the height it holds, so giving it the new
   // height is what lets the text follow.
   resized ();

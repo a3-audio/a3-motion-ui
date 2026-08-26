@@ -185,12 +185,12 @@ StatusBar::resized ()
 }
 
 void
-StatusBar::setKeyboardShown (bool shown)
+StatusBar::setKeyboardState (KeyboardState state)
 {
-  if (_keyboardShown == shown)
+  if (_keyboardState == state)
     return;
 
-  _keyboardShown = shown;
+  _keyboardState = state;
   repaint ();
 }
 
@@ -217,9 +217,11 @@ StatusBar::paint (juce::Graphics &g)
   if (face.isEmpty ())
     return;
 
-  g.setColour (_keyboardShown
+  g.setColour (_keyboardState == KeyboardState::Shown
                    ? toColour (theme ().accent)
-                   : toColour (theme ().textMuted, theme ().alphaInactive));
+               : _keyboardState == KeyboardState::Available
+                   ? toColour (theme ().textMuted)
+                   : toColour (theme ().textMuted, theme ().alphaDisabled));
   g.drawRoundedRectangle (face.toFloat (), 2.f, 1.f);
 
   auto const keyW = face.getWidth () / 5.f;

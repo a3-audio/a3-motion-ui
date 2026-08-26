@@ -214,6 +214,8 @@ private:
   void  refreshFonts ();
   void  applyBodySize (int index);
   /** Point config.json at another skin; the file watcher reloads it. */
+  /** Show a skin without making it the one that runs. */
+  void  previewSkin (int index);
   void  applySkin (int index);
   /** Open the skin editor as a page of the settings menu, close it again
    *  (which is when the edited skin is written), put an edit in force, and
@@ -244,6 +246,8 @@ private:
   void  applyTheme () override;
   void  showKeyboard (bool shown);
   void  toggleKeyboard ();
+  /** Light the status bar's icon for what the browsed row allows. */
+  void  refreshKeyboardIcon ();
   void  rebuildGlobalSettingsOptions ();
 
   /** The menu's rows, by name. They were numbered by hand, and inserting one

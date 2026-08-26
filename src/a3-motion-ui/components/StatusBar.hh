@@ -59,8 +59,17 @@ public:
    *  The bar owns no keyboard — it only says the icon was hit. */
   std::function<void ()> onKeyboardIconTapped;
 
-  /** Whether to draw the icon lit, i.e. the keyboard is up. */
-  void setKeyboardShown (bool shown);
+  /** How the keyboard icon reads: there is nothing to type into, there is
+   *  and it is hidden, or it is up. A tap that does nothing has to look
+   *  like one. */
+  enum class KeyboardState
+  {
+    Unavailable,
+    Available,
+    Shown,
+  };
+
+  void setKeyboardState (KeyboardState state);
 
   void mouseUp (juce::MouseEvent const &event) override;
 
@@ -85,7 +94,7 @@ public:
 
 private:
   juce::Rectangle<int> _keyboardIconArea;
-  bool _keyboardShown = false;
+  KeyboardState _keyboardState = KeyboardState::Unavailable;
   TickIndicator _tickIndicator;
 
   juce::Label _labelOrientation;
