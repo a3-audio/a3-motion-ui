@@ -461,11 +461,9 @@ InputOutputAdapterV3::outputButtonLED (Button button, bool value)
   }();
 
   auto const led = buttonLedColour (userConfig["buttonLeds"], named);
-  auto const colour
-      = value ? juce::Colour (static_cast<juce::uint8> (led.r),
-                              static_cast<juce::uint8> (led.g),
-                              static_cast<juce::uint8> (led.b))
-              : juce::Colours::black;
+  // Off is unlit, not black-coloured — transparentBlack is how this codebase
+  // says "no colour", and the wire carries the rgb, which is zero either way.
+  auto const colour = value ? toColour (led) : juce::Colours::transparentBlack;
 
   switch (button)
     {

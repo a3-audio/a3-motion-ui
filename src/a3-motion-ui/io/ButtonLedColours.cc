@@ -45,4 +45,13 @@ buttonLedColour (juce::var const &buttonLedsConfig, juce::String const &name)
   return LedColour{ channel ("r"), channel ("g"), channel ("b") };
 }
 
+
+juce::Colour
+toColour (LedColour const &colour)
+{
+  return juce::Colour (static_cast<juce::uint8> (colour.r),
+                       static_cast<juce::uint8> (colour.g),
+                       static_cast<juce::uint8> (colour.b));
+}
+
 }

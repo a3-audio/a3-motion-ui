@@ -52,4 +52,7 @@ constexpr LedColour ledColourUnassigned{ 255, 255, 255 };
 LedColour buttonLedColour (juce::var const &buttonLedsConfig,
                            juce::String const &name);
 
+/** An LED colour as juce states one. */
+juce::Colour toColour (LedColour const &colour);
+
 }

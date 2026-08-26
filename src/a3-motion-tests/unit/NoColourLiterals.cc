@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <set>
+#include <vector>
 
 namespace
 {
@@ -33,15 +34,14 @@ namespace
 // announce itself: the app still builds, still runs, and merely ignores the
 // skin in that one place.
 //
-// The list below is what has not been migrated yet, and it is a ratchet. A file
-// missing from it may hold no literal; a file on it must still hold one, so an
-// entry cannot be left behind after its file is clean. It shrinks to nothing as
-// the migration proceeds, and this test is what keeps it from growing again.
+// The list below is what has not been migrated yet. It is empty: every drawing
+// site in the UI takes its colour from a role. The list stays because it is a
+// ratchet in both directions — a file missing from it may hold no literal, and
+// a file on it must still hold one, so an entry cannot outlive its reason.
+// Adding a name here is how a migration in progress is declared, and the
+// second test below is what makes the entry go away again.
 
-char const *const filesStillHoldingLiterals[] = {
-  "components/A3MotionUIComponent.cc",
-  "io/InputOutputAdapterV3.cc",
-};
+std::vector<char const *> const filesStillHoldingLiterals = {};
 
 /** A named JUCE colour, or a juce::Colour built from a number.
  *
@@ -61,8 +61,11 @@ lineHoldsAColourLiteral (juce::String const &line)
   auto const afterCtor = trimmed.fromFirstOccurrenceOf ("juce::Colour (", false,
                                                         false);
 
+  // A cast counts too: juce::Colour (static_cast<juce::uint8> (r), ...) builds
+  // a colour out of numbers just as much as juce::Colour (0xff112233) does,
+  // and it slipped past this test until a file that used it turned up clean.
   return afterCtor.isNotEmpty ()
-         && (afterCtor.startsWith ("0x")
+         && (afterCtor.startsWith ("0x") || afterCtor.startsWith ("static_cast")
              || juce::CharacterFunctions::isDigit (afterCtor[0]));
 }
 
@@ -84,8 +87,11 @@ filesWithLiterals ()
       auto const path
           = entry.getFile ().getRelativePathFrom (root).replace ("\\", "/");
 
-      // The theme is where the built-in defaults live; literals are its job.
-      if (path.startsWith ("theme/"))
+      // The conversion points. Turning numbers into a juce::Colour is what
+      // these files are for — theme/ for the skin's roles, ButtonLedColours
+      // for the hardware's LEDs, which the skin does not own. Everywhere else
+      // asks one of them.
+      if (path.startsWith ("theme/") || path == "io/ButtonLedColours.cc")
         continue;
 
       juce::StringArray lines;
@@ -104,8 +110,8 @@ filesWithLiterals ()
 
 TEST (NoColourLiterals, NoFileOutsideTheListHoldsOne)
 {
-  std::set<juce::String> allowed (std::begin (filesStillHoldingLiterals),
-                                  std::end (filesStillHoldingLiterals));
+  std::set<juce::String> allowed (filesStillHoldingLiterals.begin (),
+                                  filesStillHoldingLiterals.end ());
 
   for (auto const &path : filesWithLiterals ())
     EXPECT_TRUE (allowed.count (path) > 0)

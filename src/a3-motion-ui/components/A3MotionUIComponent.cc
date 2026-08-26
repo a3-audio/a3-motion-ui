@@ -262,17 +262,12 @@ A3MotionUIComponent::createChannelsUI ()
     {
       auto uiState = std::make_unique<ChannelUIState> ();
 
-      if (channelsCfg.isArray ()
-          && static_cast<int> (channel) < channelsCfg.size ())
-        {
-          auto const &chCfg = channelsCfg[static_cast<int> (channel)];
-          int r = chCfg.hasProperty ("r") ? static_cast<int> (chCfg["r"]) : 128;
-          int g = chCfg.hasProperty ("g") ? static_cast<int> (chCfg["g"]) : 128;
-          int b = chCfg.hasProperty ("b") ? static_cast<int> (chCfg["b"]) : 128;
-          uiState->colour = juce::Colour (static_cast<juce::uint8> (r),
-                                           static_cast<juce::uint8> (g),
-                                           static_cast<juce::uint8> (b));
-        }
+      // Straight from the theme, which parsed the very same skin file. This
+      // used to read `channels` out of the skin var a second time, by hand,
+      // with a grey fallback of its own — two parsers for one array, and only
+      // one of them knew what a channel's colour is when the skin omits it.
+      if (static_cast<int> (channel) < numThemeChannels)
+        uiState->colour = toColour (theme ().channel[channel]);
       else
         {
           // Fallback: generate colours from HSV
@@ -450,9 +445,12 @@ A3MotionUIComponent::blankLEDs ()
     {
       for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
         {
+          // An LED that is off is not coloured black, it is unlit —
+          // transparentBlack is how this codebase says "no colour", and the
+          // hardware path reads the rgb, which is zero either way.
           _ioAdapter->getPadLED (channel, pad)
               = juce::VariantConverter<juce::Colour>::toVar (
-                  juce::Colours::black);
+                  juce::Colours::transparentBlack);
         }
     }
 }
@@ -904,13 +902,14 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
     case Status::Recording:
       {
         setPreviewWithDisplayData (messagePatternStatus.pattern);
-        _channelStrips[channel]->setTextColour (juce::Colours::red);
+        _channelStrips[channel]->setTextColour (toColour (theme ().danger));
         break;
       }
     case Status::Stopped:
       {
         _motionComponent->unsetPreviewPattern (messagePatternStatus.pattern);
-        _channelStrips[channel]->setTextColour (juce::Colours::white);
+        _channelStrips[channel]->setTextColour (
+            toColour (theme ().textPrimary));
 
         // If this was a recording that just finished, save as user pattern.
         // We use wasRecording() because the status chain is:
@@ -1004,8 +1003,8 @@ A3MotionUIComponent::tickCallback (Measure measure)
     }
   else
     {
-      _motionComponent->setBackgroundColour (
-          juce::Colours::black.withAlpha (0.f));
+      // No background rather than a black one — the sphere shows through.
+      _motionComponent->setBackgroundColour (juce::Colours::transparentBlack);
     }
 
   // Update loop length display with global playhead (INT mode only).
@@ -1079,7 +1078,8 @@ A3MotionUIComponent::padLEDCallback (int step)
                 && (status == Pattern::Status::Playing
                     || status == Pattern::Status::ScheduledForPlaying);
           auto const base
-              = isPlayingOnPlayPause ? juce::Colours::limegreen : channelColour;
+              = isPlayingOnPlayPause ? toColour (theme ().accent)
+                                     : channelColour;
 
           auto const colour = channelColourForPadStatus (
               base, status, statusLast, step);
