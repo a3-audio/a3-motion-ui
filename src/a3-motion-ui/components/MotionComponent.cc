@@ -27,6 +27,7 @@
 
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
@@ -875,8 +876,14 @@ MotionComponent::applyTheme (juce::var const &skin)
       lookAndFeel->applyTheme (theme ());
 
     if (auto *root = safeThis->getTopLevelComponent ())
-      root->repaint ();  // the step that is easy to forget: nothing else caches
-                         // the theme, but nothing repaints on its own either
+      {
+        // Most components read the theme while painting, so the repaint is
+        // all they need. The ones that cache — juce::Labels take a colour and
+        // a font once and keep them — have to be told first, or they go on
+        // showing the previous skin.
+        applyThemeToTree (*root);
+        root->repaint ();
+      }
   });
 }
 

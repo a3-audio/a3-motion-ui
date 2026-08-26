@@ -61,7 +61,10 @@ struct Theme
 {
   // Surfaces
   ThemeColour surface{ 0, 0, 0 };
-  ThemeColour surfaceRaised{ 20, 23, 27 };
+  /** The band the status bar sits on, raised above the sphere behind it.
+   *  Its value is what juce's stock window background happened to be, which
+   *  is where this band's colour came from until a skin could reach it. */
+  ThemeColour surfaceRaised{ 50, 62, 68 };
   ThemeColour background{ 41, 47, 54 }; // was 0xff292f36 in LookAndFeel.cc
 
   // Text

@@ -43,13 +43,11 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   _labelOrientation.setVisible (true);
   _labelOrientation.setJustificationType (juce::Justification::centredLeft);
   _labelOrientation.setText (juce::CharPointer_UTF8 ("0\xc2\xb0"), juce::dontSendNotification);
-  _labelOrientation.setColour (juce::Label::textColourId, toColour (theme ().textMuted, theme ().alphaInactive));
 
   addChildComponent (_labelBPM);
   _labelBPM.setVisible (true);
   _labelBPM.setJustificationType (juce::Justification::centredLeft);
   _labelBPM.setText ("BPM 60.0", juce::dontSendNotification);  // Default tempo
-  _labelBPM.setColour (juce::Label::textColourId, toColour (theme ().accent));
   
   // Register for BPM value changes
   _valueBPM.addListener (this);
@@ -58,15 +56,13 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   _labelBeatClock.setVisible (true);
   _labelBeatClock.setJustificationType (juce::Justification::centredRight);
   _labelBeatClock.setText ("1.1", juce::dontSendNotification);  // Initial beat/bar
-  _labelBeatClock.setColour (juce::Label::textColourId, toColour (theme ().accent));
   
   addChildComponent (_labelClockMode);
   _labelClockMode.setVisible (true);
   _labelClockMode.setJustificationType (juce::Justification::centredRight);
   _labelClockMode.setText ("INT", juce::dontSendNotification);
-  _labelClockMode.setColour (juce::Label::textColourId, toColour (theme ().accent));
 
-  refreshFonts ();
+  applyTheme ();
 }
 
 namespace
@@ -101,6 +97,22 @@ StatusBar::preferredHeight () const
                       / labelShare;
 
   return juce::jmax (getMinimumHeight (), static_cast<int> (needed));
+}
+
+void
+StatusBar::applyTheme ()
+{
+  // The clock readouts are accent; the orientation is a quieter aside beside
+  // them. Set here rather than in the constructor: a skin loaded afterwards
+  // has to reach them, and a Label keeps whatever colour it was given.
+  for (auto *label : { &_labelBPM, &_labelBeatClock, &_labelClockMode })
+    label->setColour (juce::Label::textColourId, toColour (theme ().accent));
+
+  _labelOrientation.setColour (
+      juce::Label::textColourId,
+      toColour (theme ().textMuted, theme ().alphaInactive));
+
+  refreshFonts ();
 }
 
 void
@@ -166,7 +178,10 @@ StatusBar::resized ()
 void
 StatusBar::paint (juce::Graphics &g)
 {
-  juce::ignoreUnused (g);
+  // The window behind this component paints with juce's stock look, which no
+  // skin can reach — the band under the clock stayed the same grey in every
+  // skin. It is painted here instead, from the role that describes it.
+  g.fillAll (toColour (theme ().surfaceRaised));
 }
 
 void
@@ -186,7 +201,6 @@ StatusBar::valueChanged (juce::Value &value)
       stringStream << "BPM " << std::fixed << bpm;
 
       _labelBPM.setText (stringStream.str (), juce::dontSendNotification);
-      _labelBPM.setColour (juce::Label::textColourId, toColour (theme ().accent));
     }
 }
 
@@ -202,7 +216,6 @@ StatusBar::beatCallback (Measure measure)
   // Show as beat/4 (beatsPerBar is fixed to 4)
   auto text = juce::String (measure.beat () + 1) + "/4";
   _labelBeatClock.setText (text, juce::dontSendNotification);
-  _labelBeatClock.setColour (juce::Label::textColourId, toColour (theme ().accent));
 }
 
 void

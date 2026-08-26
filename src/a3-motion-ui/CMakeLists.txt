@@ -48,6 +48,7 @@ target_sources("a3-motion-ui" PRIVATE
     io/ButtonLedColours.cc
     theme/Theme.cc
     theme/ThemeColours.cc
+    theme/ThemedComponent.cc
     components/MotionComponent.cc
     components/MotionComponent.hh
     components/SphereShader.cc

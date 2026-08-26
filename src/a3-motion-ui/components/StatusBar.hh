@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/theme/ThemedComponent.hh>
+
 #include <a3-motion-engine/tempo/TempoClock.hh>
 
 #include <a3-motion-ui/components/LayoutHints.hh>
@@ -30,7 +32,7 @@
 namespace a3
 {
 
-class StatusBar : public juce::Component, public juce::Value::Listener
+class StatusBar : public juce::Component, public ThemedComponent, public juce::Value::Listener
 {
 public:
   StatusBar (juce::Value &valueBPM);
@@ -45,9 +47,12 @@ public:
   // Update from external OSC data
   void setExternalBPM (float bpm);
 
-  /** Re-read the header font size from the theme. The labels here take
-   *  their font once rather than per paint, so a size change has to be
-   *  pushed rather than repainted. */
+  /** Re-read everything this bar caches from the theme: its labels take
+   *  their colour and their font once rather than per paint, so a skin or
+   *  size change has to be pushed rather than repainted. */
+  void applyTheme () override;
+
+  /** Just the font half of applyTheme(), for a size change. */
   void refreshFonts ();
 
   /** The header size this bar can actually show — the theme's, unless the
