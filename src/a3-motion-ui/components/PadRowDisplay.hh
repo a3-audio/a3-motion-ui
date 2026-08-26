@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/theme/ThemeColours.hh>
+
 #include <a3-motion-engine/util/Types.hh>
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
@@ -129,7 +131,9 @@ private:
     TrajectoryType trajectoryType{ TrajectoryType::Empty };
     bool rowHighlighted{ false };
     bool cellSelected{ false };
-    juce::Colour colour{ juce::Colours::white };
+    /** Read at construction, so a cell built after a skin change
+     *  carries the new skin's text colour. */
+    juce::Colour colour = toColour (theme ().textPrimary);
     TrajectoryIconData icon; ///< built by setTickData()/setIconPath()
     int lengthBeats{ 0 };  ///< pattern length in beats
     juce::String categoryPrefix;  ///< "s" or "u" for system/user

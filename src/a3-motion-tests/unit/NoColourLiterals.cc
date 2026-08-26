@@ -41,15 +41,7 @@ namespace
 char const *const filesStillHoldingLiterals[] = {
   "components/A3MotionUIComponent.cc",
   "components/DirectivityComponent.cc",
-  "components/ElevationDisplay.cc",
-  "components/ElevationDisplay.hh",
-  "components/FilterDisplay.hh",
-  "components/LoopLengthDisplay.cc",
-  "components/LoopLengthDisplay.hh",
   "components/MotionComponent.cc",
-  "components/PadRowDisplay.cc",
-  "components/PadRowDisplay.hh",
-  "components/TickIndicator.cc",
   "components/TrajectoryIcon.cc",
   "io/InputOutputAdapterV3.cc",
 };

@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/theme/ThemeColours.hh>
+
 #include <a3-motion-ui/components/LayoutHints.hh>
 
 #include <array>
@@ -87,7 +89,9 @@ private:
   {
     std::atomic<float> sweep{ 0.5f };  // 0=LP, 0.5=full, 1.0=HP
     std::atomic<float> q{ 0.0f };      // 0=wide, 1=narrow band
-    juce::Colour colour{ juce::Colours::white };
+    /** Read at construction, so a cell built after a skin change
+     *  carries the new skin's text colour. */
+    juce::Colour colour = toColour (theme ().textPrimary);
   };
 
   std::array<ChannelFilterState, numChannels> _channels;

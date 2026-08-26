@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/theme/ThemeColours.hh>
+
 #include <a3-motion-ui/components/LayoutHints.hh>
 
 #include <array>
@@ -65,7 +67,9 @@ private:
   {
     bool rowHighlighted{ false };
     bool cellSelected{ false };
-    juce::Colour colour{ juce::Colours::white };
+    /** Read at construction, so a cell built after a skin change
+     *  carries the new skin's text colour. */
+    juce::Colour colour = toColour (theme ().textPrimary);
     float coverage{ 0.5f };  // per-channel coverage (0.5 = hemisphere)
   };
 

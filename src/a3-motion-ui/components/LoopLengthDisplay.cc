@@ -28,6 +28,16 @@
 namespace a3
 {
 
+namespace
+{
+// Structural opacities: the marks that divide a bar into loop repetitions,
+// the single mark where a bar ends inside a longer loop, and the frame around
+// the row the encoder is on.
+constexpr float repetitionMarkOpacity = 0.35f;
+constexpr float barMarkOpacity = 0.2f;
+constexpr float highlightOpacity = 0.8f;
+}
+
 LoopLengthDisplay::LoopLengthDisplay ()
 {
   startTimerHz (60);
@@ -175,7 +185,8 @@ LoopLengthDisplay::paintChannel (juce::Graphics &g,
       for (int i = 1; i < numReps; ++i)
         {
           auto const lineX = leftX + i * loopFraction * drawWidth;
-          g.setColour (juce::Colours::white.withAlpha (0.35f));
+          g.setColour (toColour (theme ().textPrimary,
+                                 repetitionMarkOpacity));
           g.drawVerticalLine (static_cast<int> (lineX), drawTop, drawBottom);
         }
     }
@@ -184,7 +195,7 @@ LoopLengthDisplay::paintChannel (juce::Graphics &g,
       // Long loops: loop longer than 1 bar → show bar boundary within loop
       // One marker showing where the bar ends within the loop
       auto const barEndX = leftX + (1.f / loopFraction) * drawWidth;
-      g.setColour (juce::Colours::white.withAlpha (0.2f));
+      g.setColour (toColour (theme ().textPrimary, barMarkOpacity));
       g.drawVerticalLine (static_cast<int> (barEndX), drawTop, drawBottom);
     }
 
@@ -195,7 +206,7 @@ LoopLengthDisplay::paintChannel (juce::Graphics &g,
   // White border when row is highlighted (hovered by encoder)
   if (isHighlighted)
     {
-      g.setColour (juce::Colours::white.withAlpha (0.8f));
+      g.setColour (toColour (theme ().textPrimary, highlightOpacity));
       g.drawRect (bounds, 2);
     }
 
