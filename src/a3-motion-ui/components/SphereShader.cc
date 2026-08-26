@@ -20,12 +20,29 @@
 
 #include "SphereShader.hh"
 
+#include <a3-motion-ui/theme/Theme.hh>
+
 #include "SpeakerLightScaling.hh"
 
 #include <cmath>
 
 namespace a3
 {
+
+namespace
+{
+/** A theme role as a GL colour. The skin states 0..255; GLSL wants 0..1. */
+void
+setThemeUniform (GLint location, ThemeColour const &colour)
+{
+  if (location < 0)
+    return;
+
+  juce::gl::glUniform3f (location, static_cast<float> (colour.r) / 255.f,
+               static_cast<float> (colour.g) / 255.f,
+               static_cast<float> (colour.b) / 255.f);
+}
+}
 
 SphereShader::SphereShader () = default;
 SphereShader::~SphereShader () = default;
@@ -77,6 +94,10 @@ uniform float uGlowLacunarity;
 uniform float uGlowGain;
 
 uniform vec3  uBgColour;  // solid background colour
+uniform vec3  uSphereSurface;      // the sphere's own dark body
+uniform vec3  uSphereRim;          // the fresnel edge it catches
+uniform vec3  uSphereEnvironment;  // the faint room it reflects
+uniform vec3  uBoltCoreColour;     // the white a bolt runs at its centre
 
 uniform float uSpotLevel0;
 uniform float uSpotLevel1;
@@ -499,7 +520,7 @@ void main ()
         colOut += uSpotColour * band.y * uBeamIntensity;
 
         // The core runs white, the way a bolt does against a sky.
-        colOut += vec3 (1.0) * band.y * uBoltCore;
+        colOut += uBoltCoreColour * band.y * uBoltCore;
 
 
         // Outside, the net rides the band towards the sphere, so a filament is
@@ -517,15 +538,15 @@ void main ()
         vec3 N;
         sphereIntersect (uvScene, N);
 
-        colSurf = vec3 (0.04, 0.04, 0.055);
+        colSurf = uSphereSurface;
 
         // Fresnel rim
         float fresnel = 1.0 - N.z;
         fresnel = fresnel * fresnel * fresnel;
-        colSurf += vec3 (0.5, 0.55, 0.65) * 0.35 * fresnel;
+        colSurf += uSphereRim * 0.35 * fresnel;
 
         // Fake env reflection (simplified)
-        colSurf += vec3 (0.02, 0.025, 0.03) * fresnel * 0.6;
+        colSurf += uSphereEnvironment * fresnel * 0.6;
 
         // Blob lighting on surface (combined diffuse + specular, single loop)
         vec3 viewDir = vec3 (0.0, 0.0, 1.0);
@@ -646,6 +667,10 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uGlowGain = glGetUniformLocation (pid, "uGlowGain");
   _uGlowIntensity = glGetUniformLocation (pid, "uGlowIntensity");
   _uBgColour      = glGetUniformLocation (pid, "uBgColour");
+  _uSphereSurface = glGetUniformLocation (pid, "uSphereSurface");
+  _uSphereRim     = glGetUniformLocation (pid, "uSphereRim");
+  _uSphereEnvironment = glGetUniformLocation (pid, "uSphereEnvironment");
+  _uBoltCoreColour = glGetUniformLocation (pid, "uBoltCoreColour");
   _uSpotLevel[0]  = glGetUniformLocation (pid, "uSpotLevel0");
   _uSpotLevel[1]  = glGetUniformLocation (pid, "uSpotLevel1");
   _uSpotLevel[2]  = glGetUniformLocation (pid, "uSpotLevel2");
@@ -786,12 +811,14 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     if (_uGlowIntensity >= 0) glUniform1f (_uGlowIntensity, _glowCfg.intensity);
   }
 
-  // Solid background colour (from the theme's background role)
-  if (_uBgColour >= 0)
-    {
-      // 0xff292f36 → RGB normalized
-      glUniform3f (_uBgColour, 0.161f, 0.184f, 0.212f);
-    }
+  // The colours the sphere is made of, straight from the theme. Set every
+  // frame, so a skin reload reaches the shader without a restart — the same
+  // path the tuning uniforms above already take.
+  setThemeUniform (_uBgColour, theme ().background);
+  setThemeUniform (_uSphereSurface, theme ().sphereSurface);
+  setThemeUniform (_uSphereRim, theme ().sphereRim);
+  setThemeUniform (_uSphereEnvironment, theme ().sphereEnvironment);
+  setThemeUniform (_uBoltCoreColour, theme ().boltCore);
 
   // Speaker beams. The band's shape no longer depends on level — that drives
   // brightness alone now.

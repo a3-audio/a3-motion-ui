@@ -223,6 +223,10 @@ private:
   GLint _uBoltDuty = -1;
   GLint _uBoltCoreExp = -1;
   GLint _uBoltCore = -1;
+  GLint _uSphereSurface = -1;
+  GLint _uSphereRim = -1;
+  GLint _uSphereEnvironment = -1;
+  GLint _uBoltCoreColour = -1;
   GLint _uBoltCount = -1;
   GLint _uBoltReach = -1;
   GLint _uBoltEscape = -1;
