@@ -165,6 +165,10 @@ StatusBar::resized ()
   _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
 
   // Clock mode label on the far right
+  // The keyboard toggle sits at the very edge, right of everything else, so
+  // it is reachable with a thumb without covering a reading.
+  _keyboardIconArea = bounds.removeFromRight (bounds.getHeight ());
+
   auto clockModeArea = bounds.removeFromRight (
       juce::jmax (50, static_cast<int> (glyphWidth * 3.f
                                         + LayoutHints::padding)));
@@ -181,12 +185,53 @@ StatusBar::resized ()
 }
 
 void
+StatusBar::setKeyboardShown (bool shown)
+{
+  if (_keyboardShown == shown)
+    return;
+
+  _keyboardShown = shown;
+  repaint ();
+}
+
+void
+StatusBar::mouseUp (juce::MouseEvent const &event)
+{
+  if (_keyboardIconArea.contains (event.getPosition ())
+      && onKeyboardIconTapped)
+    onKeyboardIconTapped ();
+}
+
+void
 StatusBar::paint (juce::Graphics &g)
 {
   // The window behind this component paints with juce's stock look, which no
   // skin can reach — the band under the clock stayed the same grey in every
   // skin. It is painted here instead, from the role that describes it.
   g.fillAll (toColour (theme ().surfaceRaised));
+
+  // A keyboard, drawn rather than typed: three rows of keys and a space bar,
+  // small enough to read as an icon at this size.
+  auto const face = _keyboardIconArea.reduced (_keyboardIconArea.getWidth () / 5,
+                                               _keyboardIconArea.getHeight () / 3);
+  if (face.isEmpty ())
+    return;
+
+  g.setColour (_keyboardShown
+                   ? toColour (theme ().accent)
+                   : toColour (theme ().textMuted, theme ().alphaInactive));
+  g.drawRoundedRectangle (face.toFloat (), 2.f, 1.f);
+
+  auto const keyW = face.getWidth () / 5.f;
+  auto const keyH = face.getHeight () / 4.f;
+  for (int row = 0; row < 2; ++row)
+    for (int column = 0; column < 4; ++column)
+      g.fillRect (face.getX () + keyW * (column + 0.5f),
+                  face.getY () + keyH * (row + 0.6f), keyW * 0.6f,
+                  keyH * 0.6f);
+
+  g.fillRect (face.getX () + keyW * 1.f,
+              face.getY () + keyH * 2.7f, keyW * 3.f, keyH * 0.6f);
 }
 
 void

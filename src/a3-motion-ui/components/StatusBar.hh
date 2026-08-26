@@ -55,6 +55,15 @@ public:
   /** Just the font half of applyTheme(), for a size change. */
   void refreshFonts ();
 
+  /** Tapped when the little keyboard icon at the far right is touched.
+   *  The bar owns no keyboard — it only says the icon was hit. */
+  std::function<void ()> onKeyboardIconTapped;
+
+  /** Whether to draw the icon lit, i.e. the keyboard is up. */
+  void setKeyboardShown (bool shown);
+
+  void mouseUp (juce::MouseEvent const &event) override;
+
   /** The header size this bar can actually show — the theme's, unless the
    *  height it was given is the smaller of the two. */
   float headerFontSize () const;
@@ -75,6 +84,8 @@ public:
   }
 
 private:
+  juce::Rectangle<int> _keyboardIconArea;
+  bool _keyboardShown = false;
   TickIndicator _tickIndicator;
 
   juce::Label _labelOrientation;

@@ -86,6 +86,9 @@ SkinEditorComponent::finishNaming ()
   _editing = false;
   repaint ();
 
+  if (onNamingChanged)
+    onNamingChanged (false);
+
   if (onRename && typed.isNotEmpty () && typed != _name)
     onRename (typed);
 }
@@ -156,6 +159,8 @@ SkinEditorComponent::toggleEditing ()
       _naming = true;
       _editing = false;
       repaint ();
+      if (onNamingChanged)
+        onNamingChanged (true);
       return;
 
     case Row::Delete:
@@ -179,6 +184,26 @@ SkinEditorComponent::toggleEditing ()
       repaint ();
       return;
     }
+}
+
+void
+SkinEditorComponent::typeIntoName (juce::juce_wchar character)
+{
+  if (!_naming)
+    return;
+
+  _nameEntry.type (character);
+  repaint ();
+}
+
+void
+SkinEditorComponent::backspaceName ()
+{
+  if (!_naming)
+    return;
+
+  _nameEntry.backspace ();
+  repaint ();
 }
 
 juce::String

@@ -53,6 +53,13 @@ public:
   juce::juce_wchar characterAtCursor () const;
   void changeCharacter (int delta);
 
+  /** Type a character at the cursor and move on — the touchscreen's way in.
+   *  A character a name may not hold is ignored. */
+  void type (juce::juce_wchar character);
+
+  /** Take the character before the cursor. */
+  void backspace ();
+
   /** The whole buffer, blanks included, for drawing the row. */
   juce::String buffer () const { return _buffer; }
 

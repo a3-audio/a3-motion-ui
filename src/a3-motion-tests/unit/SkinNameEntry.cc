@@ -121,4 +121,74 @@ TEST (SkinNameEntry, ANameCannotGrowPastTheLimit)
   EXPECT_LE (entry.name ().length (), SkinNameEntry::maxLength);
 }
 
+
+// The same name, typed on the touchscreen instead of dialled in. A key
+// appends at the cursor and moves it on, so typing reads left to right the
+// way it looks.
+
+TEST (SkinNameEntry, TypingAKeyAppendsAndMovesOn)
+{
+  SkinNameEntry entry{ "" };
+
+  entry.type ('a');
+  entry.type ('b');
+
+  EXPECT_EQ (entry.name (), "ab");
+  EXPECT_EQ (entry.cursor (), 2);
+}
+
+TEST (SkinNameEntry, TypingOverwritesFromTheCursor)
+{
+  SkinNameEntry entry{ "neutral" };
+
+  entry.moveCursor (0);
+  entry.type ('s');
+
+  EXPECT_EQ (entry.name (), "seutral");
+}
+
+TEST (SkinNameEntry, BackspaceTakesTheCharacterBeforeTheCursor)
+{
+  SkinNameEntry entry{ "neu" };
+  entry.moveCursor (3);
+
+  entry.backspace ();
+
+  EXPECT_EQ (entry.name (), "ne");
+  EXPECT_EQ (entry.cursor (), 2);
+}
+
+TEST (SkinNameEntry, BackspaceAtTheStartDoesNothing)
+{
+  SkinNameEntry entry{ "neu" };
+
+  entry.backspace ();
+
+  EXPECT_EQ (entry.name (), "neu");
+  EXPECT_EQ (entry.cursor (), 0);
+}
+
+// A key that a name may not hold is not typed at all — the keyboard offers
+// none, but nothing else may sneak one in either.
+TEST (SkinNameEntry, AKeyOutsideTheAlphabetIsIgnored)
+{
+  SkinNameEntry entry{ "neu" };
+  entry.moveCursor (3);
+
+  entry.type ('/');
+  entry.type ('A');
+
+  EXPECT_EQ (entry.name (), "neu");
+}
+
+TEST (SkinNameEntry, TypingStopsAtTheLimit)
+{
+  SkinNameEntry entry{ "" };
+
+  for (int i = 0; i < SkinNameEntry::maxLength + 5; ++i)
+    entry.type ('a');
+
+  EXPECT_EQ (entry.name ().length (), SkinNameEntry::maxLength);
+}
+
 }

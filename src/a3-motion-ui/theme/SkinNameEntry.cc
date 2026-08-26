@@ -51,7 +51,7 @@ SkinNameEntry::moveCursor (int delta)
 juce::juce_wchar
 SkinNameEntry::characterAtCursor () const
 {
-  return _buffer[_cursor];
+  return _buffer[juce::jlimit (0, maxLength - 1, _cursor)];
 }
 
 void
@@ -65,6 +65,31 @@ SkinNameEntry::changeCharacter (int delta)
   _buffer = _buffer.replaceSection (_cursor, 1,
                                     juce::String::charToString (
                                         alphabet[index]));
+}
+
+
+void
+SkinNameEntry::type (juce::juce_wchar character)
+{
+  if (alphabet.indexOfChar (character) <= 0)
+    return; // not in the alphabet, or the blank — which backspace() is for
+
+  if (_cursor >= maxLength)
+    return;
+
+  _buffer = _buffer.replaceSection (_cursor, 1,
+                                    juce::String::charToString (character));
+  _cursor = juce::jmin (maxLength, _cursor + 1);
+}
+
+void
+SkinNameEntry::backspace ()
+{
+  if (_cursor <= 0)
+    return;
+
+  --_cursor;
+  _buffer = _buffer.replaceSection (_cursor, 1, " ");
 }
 
 }

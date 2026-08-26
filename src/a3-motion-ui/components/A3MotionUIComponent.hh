@@ -33,6 +33,7 @@
 
 #include <a3-motion-ui/SettingsPersistence.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/components/KeyboardComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
@@ -223,6 +224,10 @@ private:
   void  deleteEditedSkin ();
   /** Load `name` into the editor and refresh the menu's list of skins. */
   void  reopenEditorOn (juce::String const &name);
+  /** Show or hide the on-screen keyboard, and light the status bar's icon
+   *  to match. */
+  void  showKeyboard (bool shown);
+  void  toggleKeyboard ();
   void  rebuildGlobalSettingsOptions ();
   // Index into potSizeScales/potSizeLabels — scales every knob/toggle in
   // ClipSettingsComponent uniformly (see ClipSettingsComponent::
@@ -237,6 +242,7 @@ private:
   int _headerSizeIndex = 1; // default 100%
   int _bodySizeIndex = 1;   // default 100%
   std::unique_ptr<SkinEditorComponent> _skinEditor;
+  std::unique_ptr<KeyboardComponent> _keyboard;
   bool _skinEditorOpen = false;
   juce::StringArray _skinNames;
   int _skinIndex = 0;

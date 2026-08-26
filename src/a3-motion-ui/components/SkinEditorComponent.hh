@@ -90,10 +90,18 @@ public:
   /** Asked when a rename is finished, with the typed name. */
   std::function<void (juce::String const &)> onRename;
 
+  /** Asked when a name opens or closes, so the keyboard can come up by
+   *  itself — nobody starts typing a name and then goes looking for it. */
+  std::function<void (bool)> onNamingChanged;
+
   /** True while a name is being typed; the caller's Menu button finishes it
    *  rather than leaving the editor. */
   bool isNaming () const { return _naming; }
   void finishNaming ();
+
+  /** The touchscreen's way into the name being typed. */
+  void typeIntoName (juce::juce_wchar character);
+  void backspaceName ();
 
   /** Called whenever a value changed, so the caller can put the edited skin
    *  in force straight away — seeing the change is the whole point of

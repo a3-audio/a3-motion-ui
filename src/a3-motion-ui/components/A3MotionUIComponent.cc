@@ -107,6 +107,17 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _skinEditor->onRename = [this] (auto const &name) { renameEditedSkin (name); };
   _skinEditor->onDelete = [this] { deleteEditedSkin (); };
 
+  // The touchscreen's way into a name. Shown by itself whenever a name is
+  // being typed, and hidden or brought back with the icon in the status bar.
+  _keyboard = std::make_unique<KeyboardComponent> ();
+  _keyboard->setAlwaysOnTop (true);
+  _motionComponent->addChildComponent (*_keyboard);
+  _keyboard->onCharacter
+      = [this] (auto character) { _skinEditor->typeIntoName (character); };
+  _keyboard->onBackspace = [this] { _skinEditor->backspaceName (); };
+  _keyboard->onDone = [this] { _skinEditor->finishNaming (); };
+  _skinEditor->onNamingChanged = [this] (bool naming) { showKeyboard (naming); };
+
   // Clip Settings: permanent bottom panel, always visible.
   _clipSettings = std::make_unique<ClipSettingsComponent> ();
   _clipSettings->setAlwaysOnTop (true);
@@ -314,6 +325,7 @@ void
 A3MotionUIComponent::createMainUI ()
 {
   _statusBar = std::make_unique<StatusBar> (_valueBPM);
+  _statusBar->onKeyboardIconTapped = [this] { toggleKeyboard (); };
   addChildComponent (*_statusBar);
   _statusBar->setVisible (true);
   _statusBarCallbackHandle
@@ -521,6 +533,10 @@ A3MotionUIComponent::resized ()
     _globalSettings->setBounds (_motionComponent->getLocalBounds ());
   if (_skinEditor)
     _skinEditor->setBounds (_motionComponent->getLocalBounds ());
+  if (_keyboard)
+    _keyboard->setBounds (
+        _motionComponent->getLocalBounds ().removeFromBottom (
+            _motionComponent->getHeight () / 2));
 }
 
 float
@@ -1717,6 +1733,31 @@ A3MotionUIComponent::openSkinEditor ()
 }
 
 void
+A3MotionUIComponent::showKeyboard (bool shown)
+{
+  if (!_keyboard)
+    return;
+
+  _keyboard->setVisible (shown);
+  if (shown)
+    _keyboard->toFront (true);
+
+  if (_statusBar)
+    _statusBar->setKeyboardShown (shown);
+}
+
+void
+A3MotionUIComponent::toggleKeyboard ()
+{
+  // Only ever useful over something to type into. Rather than a keyboard
+  // that types into nothing, the icon does nothing until a name is open.
+  if (!_skinEditorOpen || !_skinEditor->isNaming ())
+    return;
+
+  showKeyboard (!_keyboard->isVisible ());
+}
+
+void
 A3MotionUIComponent::saveSkinAsNew ()
 {
   auto const configDir = getConfigFile ().getParentDirectory ();
@@ -1781,6 +1822,7 @@ A3MotionUIComponent::closeSkinEditor ()
   // session writing to disk and waking the file watcher.
   saveEditedSkin ();
 
+  showKeyboard (false);
   _skinEditorOpen = false;
   _skinEditor->setVisible (false);
   _globalSettings->setVisible (true);
