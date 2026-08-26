@@ -169,7 +169,17 @@ uniform float uNumBlobs;
 float sphereIntersect (vec2 uv, out vec3 normal)
 {
     float d2 = dot (uv, uv);
-    if (d2 > 1.0) return -1.0;
+    if (d2 > 1.0)
+    {
+        // The ray misses, but the antialiasing band outside the silhouette
+        // still asks for a normal here. Hand back the rim's own — pointing
+        // straight out, z = 0 — so that band blends into the rim colour.
+        // Leaving `normal` unwritten left the caller reading an
+        // uninitialised value, which drew a hard black ring two pixels wide
+        // around the sphere.
+        normal = vec3 (normalize (uv), 0.0);
+        return -1.0;
+    }
     float z = sqrt (1.0 - d2);
     normal = vec3 (uv, z);
     return z;
