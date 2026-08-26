@@ -164,6 +164,7 @@ private:
   {
     int knobDiam;
     float captionSize;
+    float valueSize;
   };
 
   void paintTrajectorySection (juce::Graphics &g, juce::Rectangle<int> bounds,
@@ -197,9 +198,9 @@ private:
    *  happens to be (see class doc / setPotSizeScale()). */
   juce::Rectangle<int> controlBounds (juce::Rectangle<int> cell,
                                       int knobDiam) const;
-  /** Height of a control's caption row, from the bar's shared caption
-   *  size. */
-  int labelRowHeight (juce::Rectangle<int> content, float captionSize) const;
+  /** Height of a text row drawn at `size` — the caption row at the bottom
+   *  of a control, or the value row above its knob. */
+  int textRowHeight (juce::Rectangle<int> content, float size) const;
 
   /** Largest size for `role` at which `text` still fits inside `area`. */
   float fontFor (FontRole role, juce::Rectangle<int> area,

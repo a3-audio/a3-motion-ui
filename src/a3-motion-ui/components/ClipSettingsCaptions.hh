@@ -50,16 +50,36 @@ constexpr char const *sweep = "sweep";
 constexpr char const *q = "Q";
 }
 
-/** A caption together with the number of columns its section splits its
- *  width into — Elevation and Filter place two controls side by side,
- *  Motion three, so the same string has less room in Motion. */
-struct CaptionEntry
+/** The value a control shows: the state of a toggle, or the note value
+ *  above the speed knob.
+ *
+ *  Here for the same reason as the captions — the size computation has to
+ *  know every string that can appear, or the widest one is the one that
+ *  gets cut off. */
+namespace value
+{
+constexpr char const *north = "North";
+constexpr char const *south = "South";
+constexpr char const *on = "On";
+constexpr char const *off = "Off";
+constexpr char const *directionNames[] = { "Forward", "Reverse", "PingPong" };
+constexpr char const *endActionNames[] = { "Loop", "Stop", "Bounce" };
+/** The widest speed label the Motion section can produce — whole bars
+ *  above 1, fractions below (see A3MotionUIComponent's speedLog2 range). */
+constexpr char const *widestSpeed = "1/16";
+}
+
+/** A string drawn on a control, together with the number of columns its
+ *  section splits its width into — Elevation and Filter place two controls
+ *  side by side, Motion three, so the same string has less room in
+ *  Motion. */
+struct TextEntry
 {
   char const *text;
   int columns;
 };
 
-constexpr CaptionEntry captionTable[] = {
+constexpr TextEntry captionTable[] = {
   { caption::reach, 2 },  { caption::pole, 2 },
   { caption::clipTop, 2 },     { caption::clipBottom, 2 },
   { caption::flat, 2 },        { caption::flatElevation, 2 },
@@ -68,14 +88,44 @@ constexpr CaptionEntry captionTable[] = {
   { caption::q, 2 },
 };
 
+constexpr TextEntry valueTable[] = {
+  { value::north, 2 },
+  { value::south, 2 },
+  { value::on, 2 },
+  { value::off, 2 },
+  { value::directionNames[0], 3 },
+  { value::directionNames[1], 3 },
+  { value::directionNames[2], 3 },
+  { value::endActionNames[0], 3 },
+  { value::endActionNames[1], 3 },
+  { value::endActionNames[2], 3 },
+  { value::widestSpeed, 3 },
+};
+
 /** The one size every caption in the bar is drawn at.
  *
  *  `baseSize` is what the theme asks for; the result never exceeds it. The
  *  bar's controls all sit in sections of the same width, so a section's
  *  content width plus the gap between its columns is enough to know how
  *  much room each caption has. `controlBoxHeight` is the shortest control
- *  box in the bar — the caption row takes at most half of it. */
+ *  box in the bar; the caption row is given a fixed share of it. */
 float sharedCaptionSize (float baseSize, int sectionContentWidth, int columnGap,
                          int controlBoxHeight);
+
+/** The one size every value in the bar is drawn at, the same way.
+ *
+ *  Its share of the control box is chosen so that a knob carrying both a
+ *  value and a caption still keeps a quarter of its box for the knob
+ *  itself — at 175% the speed knob used to be squeezed out of the picture
+ *  entirely, leaving a lone "1" where a knob should be. */
+float sharedValueSize (float baseSize, int sectionContentWidth, int columnGap,
+                       int controlBoxHeight);
+
+/** The share of a control box each of the two text rows may take. What is
+ *  left over is the knob's. */
+constexpr float captionRowShare = 0.40f;
+constexpr float valueRowShare = 0.35f;
+/** A text row is drawn this much taller than its font. */
+constexpr float rowHeightFactor = 1.25f;
 
 }

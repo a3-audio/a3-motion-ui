@@ -25,23 +25,21 @@ namespace a3
 
 namespace
 {
-// A caption row is drawn 1.25 times the font's height (labelRowHeight) and is
-// given at most half of its control box, so the box allows 0.4 times its own
-// height as a font size.
-constexpr float captionRowShare = 0.5f / 1.25f;
-
 // Below this a caption is no longer a caption. If the bar is ever this small
 // the layout is wrong, not the font size.
 constexpr float smallestReadable = 7.f;
-}
 
+/** The largest size at which every entry still fits both the column it is
+ *  drawn in and the row's share of the control box. */
+template <std::size_t count>
 float
-sharedCaptionSize (float baseSize, int sectionContentWidth, int columnGap,
-                   int controlBoxHeight)
+fittedSize (float baseSize, TextEntry const (&entries)[count],
+            int sectionContentWidth, int columnGap, int controlBoxHeight,
+            float rowShare)
 {
   auto size = baseSize;
 
-  for (auto const &entry : captionTable)
+  for (auto const &entry : entries)
     {
       auto const columnWidth = static_cast<float> (
           (sectionContentWidth - (entry.columns - 1) * columnGap)
@@ -53,10 +51,27 @@ sharedCaptionSize (float baseSize, int sectionContentWidth, int columnGap,
         size = juce::jmin (size, baseSize * columnWidth / width);
     }
 
-  size = juce::jmin (size,
-                     static_cast<float> (controlBoxHeight) * captionRowShare);
+  size = juce::jmin (size, static_cast<float> (controlBoxHeight) * rowShare
+                               / rowHeightFactor);
 
   return juce::jmax (smallestReadable, size);
+}
+}
+
+float
+sharedCaptionSize (float baseSize, int sectionContentWidth, int columnGap,
+                   int controlBoxHeight)
+{
+  return fittedSize (baseSize, captionTable, sectionContentWidth, columnGap,
+                     controlBoxHeight, captionRowShare);
+}
+
+float
+sharedValueSize (float baseSize, int sectionContentWidth, int columnGap,
+                 int controlBoxHeight)
+{
+  return fittedSize (baseSize, valueTable, sectionContentWidth, columnGap,
+                     controlBoxHeight, valueRowShare);
 }
 
 }
