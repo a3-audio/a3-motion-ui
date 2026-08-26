@@ -1629,13 +1629,10 @@ A3MotionUIComponent::applyBodySize (int index)
 void
 A3MotionUIComponent::refreshFonts ()
 {
-  // The status bar draws with juce::Labels, whose font is set once rather
-  // than read per paint, so a repaint alone would leave it at the old size.
-  if (_statusBar)
-    _statusBar->refreshFonts ();
-
   // The status bar's height follows the header size, so this is a layout
-  // change and not only a repaint.
+  // change and not only a repaint — and the layout has to come first: the
+  // bar sizes its own text against the height it holds, so giving it the new
+  // height is what lets the text follow.
   resized ();
 
   if (auto *root = getTopLevelComponent ())

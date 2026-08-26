@@ -126,8 +126,6 @@ StatusBar::refreshFonts ()
   for (auto *label : { &_labelOrientation, &_labelBPM, &_labelBeatClock,
                        &_labelClockMode })
     label->setFont (font);
-
-  resized ();
 }
 
 StatusBar::~StatusBar ()
@@ -138,6 +136,13 @@ StatusBar::~StatusBar ()
 void
 StatusBar::resized ()
 {
+  // The size the labels are drawn at is a function of the height this bar was
+  // just given, so it is read here rather than pushed from outside. Setting it
+  // before the new height arrived was the bug: raising Header Size in the menu
+  // sized the text against the bar's *old* height and left it too small until
+  // the next start, which then looked like the restart was wrong.
+  refreshFonts ();
+
   auto bounds = getLocalBounds ();
 
   // Symmetrical padding above and below the clock/timer display
