@@ -877,6 +877,16 @@ MotionComponent::reloadVisualConfigIfChanged ()
       if (juce::JSON::parse (configFile ().loadFileAsString (), config)
               .wasOk ())
         {
+          // The whole config, not just the skin's name. userConfig was
+          // parsed once at startup and never again, so everything read from
+          // it at runtime — the function keys' LED colours above all — kept
+          // the values the app had booted with, and editing them in the menu
+          // changed the file and nothing else.
+          //
+          // Handed over on the message thread, which is where it is read.
+          juce::MessageManager::callAsync (
+              [config] { userConfig = config; });
+
           auto const named = skinFile (configFile ().getParentDirectory (),
                                        config["ui"]["skin"].toString ());
           if (named != _activeSkinFile)
