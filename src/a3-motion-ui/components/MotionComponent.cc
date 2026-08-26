@@ -555,6 +555,11 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           auto const index = closestIndex.value ();
           _uiStates[index]->grabbed = true;
 
+          // Playback writes this channel's position on every tick, and so
+          // does the drag. Holding it means the clip carries on running and
+          // stops fighting the finger for where the blob is.
+          _engine.setChannelPositionHeld (index, true);
+
           // Recover the raw 2D position via the exact inverse mapping
           // (unambiguous between front/back hemisphere) rather than
           // inverting the on-screen (orthographic) position, which would
@@ -589,6 +594,7 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
   for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     {
       _uiStates[channel]->grabbed = false;
+      _engine.setChannelPositionHeld (channel, false);
     }
   _grabbedIndex = {};
 

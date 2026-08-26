@@ -91,4 +91,52 @@ TEST (MotionEngine, FirstTapPutsTheBeatBackToOne)
       << "the beat did not go back to the start of the bar";
 }
 
+
+// Dragging a blob writes the channel's position; playback writes it again on
+// the very next tick. Both were doing it, so a clip that was running fought
+// the finger — the blob sat under it and slid back out from under it, which
+// reads as "hard to move".
+
+TEST (MotionEngine, AHeldChannelKeepsThePositionItWasGiven)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  auto const held = Pos::fromCartesian (0.3f, 0.2f, 0.9f);
+
+  engine.setChannelPositionHeld (0, true);
+  engine.setChannel3DPosition (0, held);
+
+  EXPECT_TRUE (engine.isChannelPositionHeld (0));
+  EXPECT_NEAR (engine.getChannelPosition (0).x (), held.x (), 0.0001f);
+  EXPECT_NEAR (engine.getChannelPosition (0).y (), held.y (), 0.0001f);
+}
+
+// And letting go hands it back: the clip carries on from wherever it is,
+// rather than the channel staying wherever the finger left it.
+TEST (MotionEngine, ReleasingAChannelEndsTheHold)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.setChannelPositionHeld (0, true);
+  EXPECT_TRUE (engine.isChannelPositionHeld (0));
+
+  engine.setChannelPositionHeld (0, false);
+  EXPECT_FALSE (engine.isChannelPositionHeld (0));
+}
+
+TEST (MotionEngine, HoldingOneChannelLeavesTheOthersAlone)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.setChannelPositionHeld (2, true);
+
+  EXPECT_FALSE (engine.isChannelPositionHeld (0));
+  EXPECT_FALSE (engine.isChannelPositionHeld (1));
+  EXPECT_TRUE (engine.isChannelPositionHeld (2));
+  EXPECT_FALSE (engine.isChannelPositionHeld (3));
+}
+
 }
