@@ -1452,6 +1452,13 @@ A3MotionUIComponent::saveRecordedPattern (
 
       // Refresh the pad cell display to show the new recording
       updatePadRowLabel (channel, slot);
+
+      // And the clip settings bar, if it happens to be showing this slot.
+      // It reads _patterns[channel][slot], which was just replaced — without
+      // this it went on showing the pattern that was there before, until the
+      // next encoder turn happened to refresh it for another reason.
+      if (channel == _clipSettingsChannel && slot == _clipSettingsSlot)
+        updateClipSettingsDisplay ();
     }
 }
 
