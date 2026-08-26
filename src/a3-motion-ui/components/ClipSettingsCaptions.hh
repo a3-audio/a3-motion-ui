@@ -51,7 +51,7 @@ constexpr char const *q = "Q";
 }
 
 /** The value a control shows: the state of a toggle, or the note value
- *  above the speed knob.
+ *  the Speed control displays.
  *
  *  Here for the same reason as the captions — the size computation has to
  *  know every string that can appear, or the widest one is the one that
@@ -114,17 +114,17 @@ float sharedCaptionSize (float baseSize, int sectionContentWidth, int columnGap,
 
 /** The one size every value in the bar is drawn at, the same way.
  *
- *  Its share of the control box is chosen so that a knob carrying both a
- *  value and a caption still keeps a quarter of its box for the knob
- *  itself — at 175% the speed knob used to be squeezed out of the picture
- *  entirely, leaving a lone "1" where a knob should be. */
+ *  A control that shows a value has no knob under it, so the value row and
+ *  the caption row share the box between them. */
 float sharedValueSize (float baseSize, int sectionContentWidth, int columnGap,
                        int controlBoxHeight);
 
-/** The share of a control box each of the two text rows may take. What is
- *  left over is the knob's. */
+/** The share of a control box each text row may take. A knob's box holds a
+ *  caption and the knob; a value's box holds a value and a caption, and
+ *  the value gets the larger share — it is what the control is about,
+ *  the caption only names it. */
 constexpr float captionRowShare = 0.40f;
-constexpr float valueRowShare = 0.35f;
+constexpr float valueRowShare = 0.45f;
 /** A text row is drawn this much taller than its font. */
 constexpr float rowHeightFactor = 1.25f;
 

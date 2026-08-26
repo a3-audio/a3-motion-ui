@@ -217,20 +217,20 @@ private:
    *  bipolar params), false draws it from the sweep's start (for
    *  unipolar params like clip-top/clip-bottom, whose 0..1 range the
    *  caller has already remapped to -1..1). `isActive` highlights it as
-   *  the one the Pot-Encoder currently edits. `valueText` is optional:
-   *  when non-empty, shown above the knob — for quantized/discrete
-   *  params (currently just Speed) where the exact value matters and
-   *  can't be read off the knob angle alone. Label/value text sizing is
-   *  Font-Size-scaled, but drawn into a widened *fitting* target that
-   *  doesn't affect the knob's own (fixed) position or size. */
+   *  the one the Pot-Encoder currently edits. A knob shows no value text:
+   *  a continuous param is read off the angle, and the ones whose exact
+   *  value matters (Speed) are drawn as value displays instead — see
+   *  paintMiniToggle(). The caption's size comes from the bar, not from
+   *  this box; the knob's own position and size are unaffected by Font
+   *  Size. */
   void paintMiniKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
                       ControlMetrics metrics,
                       juce::String const &label, float angleFrac,
-                      bool fillFromZero, bool isActive, bool isSelected,
-                      juce::String const &valueText = {});
-  /** Small labelled two-state toggle (mirror-south, flat), styled to match
-   *  paintMiniKnob: label, then the current state as centred text instead
-   *  of an arc. */
+                      bool fillFromZero, bool isActive, bool isSelected);
+  /** Small labelled value display (mirror-south, flat, direction,
+   *  end-action, speed), styled to match paintMiniKnob: the current state
+   *  or value as centred text instead of an arc, with the caption below
+   *  it. */
   void paintMiniToggle (juce::Graphics &g, juce::Rectangle<int> bounds,
                         ControlMetrics metrics,
                         juce::String const &label,

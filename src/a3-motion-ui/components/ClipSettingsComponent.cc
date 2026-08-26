@@ -601,8 +601,7 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
                                       ControlMetrics metrics,
                                       juce::String const &label,
                                       float angleFrac, bool fillFromZero,
-                                      bool isActive, bool isSelected,
-                                      juce::String const &valueText)
+                                      bool isActive, bool isSelected)
 {
   bool const highlight = isActive && isSelected;
   if (highlight)
@@ -612,12 +611,6 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
     }
 
   auto content = bounds.reduced (2);
-
-  bool const hasValueText = valueText.isNotEmpty ();
-  juce::Rectangle<int> valueArea;
-  if (hasValueText)
-    valueArea = content.removeFromTop (
-        textRowHeight (content, metrics.valueSize));
 
   auto labelArea
       = content.removeFromBottom (textRowHeight (content, metrics.captionSize));
@@ -659,18 +652,6 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
 
   auto const dotR = r * 0.22f;
   g.fillEllipse (juce::Rectangle<float> (dotR, dotR).withCentre (centre));
-
-  if (hasValueText)
-    {
-      g.setFont (juce::Font (juce::jmin (metrics.valueSize,
-                                         static_cast<float> (
-                                             valueArea.getHeight ())
-                                             * 0.85f),
-                             juce::Font::bold));
-      g.setColour (knobColour);
-      g.drawFittedText (valueText, valueArea,
-                        juce::Justification::centred, 1);
-    }
 
   // The shared size, not this caption's own fit. Its box is only consulted as
   // a floor: a control box too short for the shared size would otherwise have
@@ -752,9 +733,11 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   content.removeFromLeft (gapH);
   auto const &endActionArea = content;
 
-  paintMiniKnob (g, textCell (speedArea, metrics.knobDiam), metrics,
-                 caption::speed, _motionSpeedFrac * 2.f - 1.f, false,
-                 _motionSubIndex == 0, isSelected, _motionSpeedLabel);
+  // Speed shows a quantized note value, and a knob angle says nothing a
+  // reader of "1/4" does not already know. Value and caption only.
+  paintMiniToggle (g, textCell (speedArea, metrics.knobDiam), metrics,
+                   caption::speed, _motionSpeedLabel, _motionSubIndex == 0,
+                   isSelected);
   paintMiniToggle (g, textCell (directionArea, metrics.knobDiam), metrics,
                    caption::direction, value::directionNames[_motionDirection],
                    _motionSubIndex == 1, isSelected);

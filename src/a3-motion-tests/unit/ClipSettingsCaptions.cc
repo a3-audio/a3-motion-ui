@@ -167,11 +167,11 @@ TEST (SharedValueSize, EveryValueFitsItsOwnColumn)
     }
 }
 
-// The bug this is really about: at 175% the speed knob's value row ate its
-// whole box, so the knob and its caption disappeared and left a lone "1"
-// standing in the Motion section. Both rows together must leave the knob a
-// quarter of its box, at every font size and every box height.
-TEST (SharedValueSize, AKnobKeepsRoomNextToItsValueAndItsCaption)
+// A control that shows a value has no knob (the toggles, and Speed since its
+// knob was dropped), so its box holds exactly two rows. They have to fit — at
+// 175% the speed knob's value row used to eat the whole box and leave a lone
+// "1" standing where a control should be.
+TEST (SharedValueSize, AValueAndItsCaptionFitTheirBoxTogether)
 {
   // Not below 30: under that the readability floor wins over the share, and a
   // bar with 20 px control boxes has a layout problem, not a font problem.
@@ -183,9 +183,22 @@ TEST (SharedValueSize, AKnobKeepsRoomNextToItsValueAndItsCaption)
                + sharedValueSize (base, contentWidth, columnGap, box))
               * rowHeightFactor;
 
-        EXPECT_LE (rows, static_cast<float> (box) * 0.75f + 0.01f)
+        EXPECT_LE (rows, static_cast<float> (box) + 0.01f)
             << "box " << box << ", base " << base;
       }
+}
+
+// The value is the thing the control is about; its caption only names it, so
+// the value gets the larger share of the box. Checked with columns wide enough
+// that the words are not the limit — in the shipped bar they are, see
+// TheWidestWordIsWhatPinsTheValues, and there the value comes out slightly
+// smaller than its caption no matter what the shares say.
+TEST (SharedValueSize, TheValueGetsTheLargerShareOfTheBox)
+{
+  for (auto const box : { 30, 37, 55, 80 })
+    EXPECT_GT (sharedValueSize (60.f, 600, 10, box),
+               sharedCaptionSize (60.f, 600, 10, box))
+        << "box " << box;
 }
 
 // "PingPong" is the widest value the bar can show, and Motion gives it a third
