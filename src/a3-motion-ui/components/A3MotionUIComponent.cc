@@ -490,8 +490,16 @@ A3MotionUIComponent::resized ()
   if (_clipSettings)
     _clipSettings->setBounds (boundsClipSettings);
 
-  if (!_globalSettingsOpen)
-    _motionComponent->setBounds (bounds);
+  // The sphere renders through its own directly-attached OpenGLContext, which
+  // composites above every ordinary JUCE component whatever the z-order says,
+  // so while the menu is up it has to be got out of the way.
+  //
+  // Moved off-screen, not resized away: a zero size loses the context, and it
+  // did not come back when the menu closed — the sphere stayed black until the
+  // app was restarted. Its size is left alone; only its position moves.
+  _motionComponent->setBounds (_globalSettingsOpen
+                                   ? bounds.withY (getHeight ())
+                                   : bounds);
 
   // Global Settings takes the whole window while it is open. It cannot
   // simply be laid over the sphere: MotionComponent renders through its own
@@ -502,7 +510,7 @@ A3MotionUIComponent::resized ()
     {
       if (_globalSettingsOpen)
         {
-          _motionComponent->setBounds ({});
+          // No GL here, so this one may simply give up its space.
           if (_clipSettings)
             _clipSettings->setBounds ({});
           _globalSettings->setBounds (getLocalBounds ());
