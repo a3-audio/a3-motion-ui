@@ -1665,26 +1665,25 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
 
   int const chosen = _globalSettings->getSelectedValueIndex ();
 
-  if (_globalSettingsOptionIndex == 0)
-    applyClockMode (chosen);
-  else if (_globalSettingsOptionIndex == 1)
-    applyPotSize (chosen);
-  else if (_globalSettingsOptionIndex == 2)
-    applyHeaderSize (chosen);
-  else if (_globalSettingsOptionIndex == 3)
-    applyBodySize (chosen);
-  else if (_globalSettingsOptionIndex == 4)
-    applySkin (chosen);
-  else if (_globalSettingsOptionIndex == 5)
-    openSkinEditor ();
-  else if (_globalSettingsOptionIndex == 6)
-    openConfigPage ("Network", { "oscSender", "oscReceiver" });
-  else if (_globalSettingsOptionIndex == 7)
-    openConfigPage ("Button LEDs", { "buttonLeds" });
-  else if (_globalSettingsOptionIndex == 8)
-    openConfigPage ("Pattern Folder", { "patternDir" });
-  else
-    applyPauseRendering (chosen == 0);
+  switch (static_cast<MenuRow> (_globalSettingsOptionIndex))
+    {
+    case MenuRow::ClockMode: applyClockMode (chosen); break;
+    case MenuRow::PotSize: applyPotSize (chosen); break;
+    case MenuRow::HeaderSize: applyHeaderSize (chosen); break;
+    case MenuRow::BodySize: applyBodySize (chosen); break;
+    case MenuRow::Skin: applySkin (chosen); break;
+    case MenuRow::SkinEditor: openSkinEditor (); break;
+    case MenuRow::Network:
+      openConfigPage ("Network", { "oscSender", "oscReceiver" });
+      break;
+    case MenuRow::ButtonLeds:
+      openConfigPage ("Button LEDs", { "buttonLeds" });
+      break;
+    case MenuRow::PatternFolder:
+      openConfigPage ("Pattern Folder", { "patternDir" });
+      break;
+    case MenuRow::SphereInMenu: applyPauseRendering (chosen == 0); break;
+    }
 
   _globalSettings->setActiveValueIndex (_globalSettingsOptionIndex, chosen);
 

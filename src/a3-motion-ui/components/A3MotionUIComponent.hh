@@ -245,6 +245,25 @@ private:
   void  showKeyboard (bool shown);
   void  toggleKeyboard ();
   void  rebuildGlobalSettingsOptions ();
+
+  /** The menu's rows, by name. They were numbered by hand, and inserting one
+   *  in the middle silently moved every row after it — the encoder then set
+   *  the wrong thing, which is exactly what happened when the font size was
+   *  split into two. The order here and the order they are pushed in
+   *  rebuildGlobalSettingsOptions() are the same list. */
+  enum class MenuRow
+  {
+    ClockMode,
+    PotSize,
+    HeaderSize,
+    BodySize,
+    Skin,
+    SkinEditor,
+    Network,
+    ButtonLeds,
+    PatternFolder,
+    SphereInMenu,
+  };
   // Index into potSizeScales/potSizeLabels — scales every knob/toggle in
   // ClipSettingsComponent uniformly (see ClipSettingsComponent::
   // setPotSizeScale()), adjustable live from the Global Settings menu.
