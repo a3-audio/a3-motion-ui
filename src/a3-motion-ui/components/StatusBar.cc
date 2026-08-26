@@ -21,6 +21,7 @@
 #include "StatusBar.hh"
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/theme/ThemeColours.hh>
 
 #include <sstream>
 
@@ -42,13 +43,13 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   _labelOrientation.setVisible (true);
   _labelOrientation.setJustificationType (juce::Justification::centredLeft);
   _labelOrientation.setText (juce::CharPointer_UTF8 ("0\xc2\xb0"), juce::dontSendNotification);
-  _labelOrientation.setColour (juce::Label::textColourId, juce::Colours::grey);
+  _labelOrientation.setColour (juce::Label::textColourId, toColour (theme ().textMuted, theme ().alphaInactive));
 
   addChildComponent (_labelBPM);
   _labelBPM.setVisible (true);
   _labelBPM.setJustificationType (juce::Justification::centredLeft);
   _labelBPM.setText ("BPM 60.0", juce::dontSendNotification);  // Default tempo
-  _labelBPM.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
+  _labelBPM.setColour (juce::Label::textColourId, toColour (theme ().accent));
   
   // Register for BPM value changes
   _valueBPM.addListener (this);
@@ -57,13 +58,13 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   _labelBeatClock.setVisible (true);
   _labelBeatClock.setJustificationType (juce::Justification::centredRight);
   _labelBeatClock.setText ("1.1", juce::dontSendNotification);  // Initial beat/bar
-  _labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
+  _labelBeatClock.setColour (juce::Label::textColourId, toColour (theme ().accent));
   
   addChildComponent (_labelClockMode);
   _labelClockMode.setVisible (true);
   _labelClockMode.setJustificationType (juce::Justification::centredRight);
   _labelClockMode.setText ("INT", juce::dontSendNotification);
-  _labelClockMode.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
+  _labelClockMode.setColour (juce::Label::textColourId, toColour (theme ().accent));
 }
 
 StatusBar::~StatusBar ()
@@ -126,7 +127,7 @@ StatusBar::valueChanged (juce::Value &value)
       stringStream << "BPM " << std::fixed << bpm;
 
       _labelBPM.setText (stringStream.str (), juce::dontSendNotification);
-      _labelBPM.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
+      _labelBPM.setColour (juce::Label::textColourId, toColour (theme ().accent));
     }
 }
 
@@ -142,7 +143,7 @@ StatusBar::beatCallback (Measure measure)
   // Show as beat/4 (beatsPerBar is fixed to 4)
   auto text = juce::String (measure.beat () + 1) + "/4";
   _labelBeatClock.setText (text, juce::dontSendNotification);
-  _labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
+  _labelBeatClock.setColour (juce::Label::textColourId, toColour (theme ().accent));
 }
 
 void
@@ -161,7 +162,8 @@ StatusBar::setExternalBPM (float bpm)
     if (safeThis == nullptr) return;
     if (safeThis->_clockMode == 0)
       return;
-    auto colour = safeThis->_clockMode == 2 ? juce::Colours::cyan : juce::Colours::orange;
+    auto colour = safeThis->_clockMode == 2 ? toColour (theme ().accent)
+                                            : toColour (theme ().warning);
     safeThis->_labelBPM.setText (str, juce::dontSendNotification);
     safeThis->_labelBPM.setColour (juce::Label::textColourId, colour);
   });
@@ -185,7 +187,8 @@ StatusBar::setBeatClock (int beat, int bar)
     if (safeThis == nullptr) return;
     if (safeThis->_clockMode == 0)
       return;
-    auto colour = safeThis->_clockMode == 2 ? juce::Colours::cyan : juce::Colours::orange;
+    auto colour = safeThis->_clockMode == 2 ? toColour (theme ().accent)
+                                            : toColour (theme ().warning);
     safeThis->_tickIndicator.setCurrentTick (tickBeat);
     safeThis->_labelBeatClock.setText (text, juce::dontSendNotification);
     safeThis->_labelBeatClock.setColour (juce::Label::textColourId, colour);
@@ -204,7 +207,8 @@ StatusBar::setClockMode (int mode)
     if (mode != 0)
       {
         // EXT (1) = orange, PIO (2) = cyan
-        auto colour = mode == 2 ? juce::Colours::cyan : juce::Colours::orange;
+        auto colour = mode == 2 ? toColour (theme ().accent)
+                                            : toColour (theme ().warning);
         auto label  = mode == 2 ? "PIO" : "EXT";
         
         self->_labelClockMode.setText (label, juce::dontSendNotification);
@@ -235,9 +239,9 @@ StatusBar::setClockMode (int mode)
     else
       {
         self->_labelClockMode.setText ("INT", juce::dontSendNotification);
-        self->_labelClockMode.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
-        self->_labelBPM.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
-        self->_labelBeatClock.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
+        self->_labelClockMode.setColour (juce::Label::textColourId, toColour (theme ().accent));
+        self->_labelBPM.setColour (juce::Label::textColourId, toColour (theme ().accent));
+        self->_labelBeatClock.setColour (juce::Label::textColourId, toColour (theme ().accent));
         
         // Show internal BPM
         if (self->_valueBPM.getValue ().isDouble ())

@@ -26,6 +26,7 @@
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
+#include <a3-motion-ui/theme/ThemeColours.hh>
 
 namespace a3
 {
@@ -206,6 +207,17 @@ private:
    *  of a control, or the value row above its knob. */
   int textRowHeight (juce::Rectangle<int> content, float size) const;
 
+  /** A section card's fill: the channel's colour while the section is
+   *  selected, a barely-there wash otherwise. */
+  juce::Colour cardColour (bool isSelected) const;
+  /** What a control is drawn in — its arc, its icon, its value. Takes the
+   *  channel's colour in the selected section so that the section the
+   *  encoders act on is the one that carries the colour. */
+  juce::Colour controlColour (bool isSelected) const;
+  /** The caption naming a control: quieter than the control itself, and
+   *  quieter again outside the selected section. */
+  juce::Colour captionColour (bool isSelected) const;
+
   /** Largest size for `role` at which `text` still fits inside `area`. */
   float fontFor (FontRole role, juce::Rectangle<int> area,
                  juce::String const &text) const;
@@ -243,7 +255,7 @@ private:
 
   int _channel = 0;
   int _slot = 0;
-  juce::Colour _channelColour{ juce::Colours::white };
+  juce::Colour _channelColour; // set from the theme in the constructor
   juce::String _lastControlText;
   TrajectoryIconData _trajectoryIcon;
   juce::String _trajectoryName{ "Empty" };

@@ -27,9 +27,47 @@
 namespace a3
 {
 
+namespace
+{
+// Opacities that describe a structure rather than a state: the panel over the
+// sphere, the shading of the elevation graphic, the unlit part of a knob's
+// track. State — selected, inactive, disabled — comes from the theme's alphas
+// instead.
+constexpr float panelOpacity = 0.85f;
+constexpr float cardWash = 0.08f;
+constexpr float highlightWash = 0.18f;
+constexpr float trackWash = 0.18f;
+constexpr float clippedZoneOpacity = 0.55f;
+constexpr float outlineOpacity = 0.5f;
+constexpr float headOpacity = 0.6f;
+}
+
 ClipSettingsComponent::ClipSettingsComponent ()
 {
   setInterceptsMouseClicks (false, false);
+
+  // Until setTarget names a channel there is no channel colour to show.
+  _channelColour = toColour (theme ().textPrimary);
+}
+
+juce::Colour
+ClipSettingsComponent::cardColour (bool isSelected) const
+{
+  return isSelected ? _channelColour.withAlpha (theme ().alphaDisabled)
+                    : toColour (theme ().textPrimary, cardWash);
+}
+
+juce::Colour
+ClipSettingsComponent::controlColour (bool isSelected) const
+{
+  return isSelected ? _channelColour : toColour (theme ().textMuted);
+}
+
+juce::Colour
+ClipSettingsComponent::captionColour (bool isSelected) const
+{
+  return toColour (theme ().textMuted,
+                   isSelected ? 1.f : theme ().alphaInactive);
 }
 
 void
@@ -181,7 +219,7 @@ ClipSettingsComponent::setLastControlReadout (juce::String const &text)
 void
 ClipSettingsComponent::paint (juce::Graphics &g)
 {
-  g.fillAll (juce::Colour (0, 0, 0).withAlpha (0.85f));
+  g.fillAll (toColour (theme ().surface, panelOpacity));
 
   // Frame the whole panel in the selected clip's channel colour, so it's
   // obvious at a glance which channel is currently shown.
@@ -204,7 +242,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   g.setFont (juce::Font (juce::Font::getDefaultMonospacedFontName (),
                          fontFor (FontRole::Status, readoutArea, _lastControlText),
                          juce::Font::plain));
-  g.setColour (juce::Colours::limegreen.withAlpha (0.85f));
+  g.setColour (toColour (theme ().accent, panelOpacity));
   g.drawText (_lastControlText, readoutArea, juce::Justification::centredRight,
              true);
 
@@ -287,7 +325,9 @@ ClipSettingsComponent::paintSectionLabel (juce::Graphics &g,
 {
   g.setFont (juce::Font (fontFor (FontRole::Heading, labelArea, text),
                          juce::Font::plain));
-  g.setColour (juce::Colours::white.withAlpha (isSelected ? 0.7f : 0.45f));
+  g.setColour (toColour (theme ().textPrimary, isSelected
+                                                    ? theme ().alphaInactive
+                                                    : theme ().alphaDisabled));
   g.drawFittedText (text, labelArea, juce::Justification::centredTop, 1);
 }
 
@@ -362,8 +402,7 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
                                                juce::Rectangle<int> bounds,
                                                bool isSelected)
 {
-  g.setColour (isSelected ? _channelColour.withAlpha (0.35f)
-                          : juce::Colour (0x14ffffff));
+  g.setColour (cardColour (isSelected));
   g.fillRoundedRectangle (bounds.toFloat (), 8.f);
   if (isSelected)
     g.drawRoundedRectangle (bounds.toFloat (), 8.f, 2.f);
@@ -382,14 +421,11 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
       juce::jmin (content.getWidth (), content.getHeight ()));
   auto iconArea = juce::Rectangle<float> (iconSize, iconSize)
                       .withCentre (content.toFloat ().getCentre ());
-  drawTrajectoryIcon (g, iconArea, _trajectoryIcon,
-                      isSelected ? _channelColour
-                                : juce::Colours::white.withAlpha (0.75f));
+  drawTrajectoryIcon (g, iconArea, _trajectoryIcon, controlColour (isSelected));
 
   g.setFont (juce::Font (fontFor (FontRole::Value, nameArea, _trajectoryName),
                          juce::Font::bold));
-  g.setColour (isSelected ? _channelColour
-                          : juce::Colours::white.withAlpha (0.7f));
+  g.setColour (controlColour (isSelected));
   g.drawFittedText (_trajectoryName, nameArea, juce::Justification::centred,
                     1);
 }
@@ -400,8 +436,7 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
                                               bool isSelected,
                                               ControlMetrics metrics)
 {
-  g.setColour (isSelected ? _channelColour.withAlpha (0.35f)
-                          : juce::Colour (0x14ffffff));
+  g.setColour (cardColour (isSelected));
   g.fillRoundedRectangle (bounds.toFloat (), 8.f);
   if (isSelected)
     g.drawRoundedRectangle (bounds.toFloat (), 8.f, 2.f);
@@ -474,12 +509,11 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
 {
   if (isActive && isSelected)
     {
-      g.setColour (_channelColour.withAlpha (0.18f));
+      g.setColour (_channelColour.withAlpha (highlightWash));
       g.fillRoundedRectangle (bounds.toFloat (), 4.f);
     }
 
-  auto const iconColour = isSelected ? _channelColour
-                                     : juce::Colours::white.withAlpha (0.75f);
+  auto const iconColour = controlColour (isSelected);
   auto const r = static_cast<float> (
                      juce::jmin (bounds.getWidth (), bounds.getHeight ()))
                  * 0.42f;
@@ -524,7 +558,7 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
 
   // Excluded (clipped) zones — zero-height rects when bandLow/bandHigh
   // don't actually clip anything, so no explicit if-guard is needed.
-  g.setColour (juce::Colours::black.withAlpha (0.55f));
+  g.setColour (toColour (theme ().surface, clippedZoneOpacity));
   g.fillRect (juce::Rectangle<float> (centre.x - r, centre.y - r, r * 2.f,
                                       fracToY (bandLow) - (centre.y - r)));
   g.fillRect (juce::Rectangle<float> (
@@ -541,7 +575,7 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
 
   g.restoreState ();
 
-  g.setColour (juce::Colours::black.withAlpha (0.5f));
+  g.setColour (toColour (theme ().surface, outlineOpacity));
   g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, 2.f);
   g.setColour (iconColour);
   g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, 1.f);
@@ -556,7 +590,7 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
           auto const halfWidth = std::sqrt (r * r - dy * dy);
           if (boldWidth > 0.f)
             {
-              g.setColour (juce::Colours::black.withAlpha (0.5f));
+              g.setColour (toColour (theme ().surface, outlineOpacity));
               g.drawLine (centre.x - halfWidth, markerY + 1.f,
                          centre.x + halfWidth, markerY + 1.f, boldWidth);
             }
@@ -577,7 +611,7 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
       // centre (r=0) sits — distinct from reach's bolder, channel-coloured
       // marker, so the two are visually separable at a glance.
       drawMarkerChord (poleFrac, 1.5f, 0.f,
-                       juce::Colours::white.withAlpha (0.5f));
+                       toColour (theme ().textPrimary, outlineOpacity));
 
       // reach marker: a solid chord line at the pattern's outer-edge
       // position (r=1) — this line's position IS reach's value (mirrored
@@ -588,7 +622,7 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   // Head: a small dot at the centre (the listener, always at the sphere's
   // literal centre regardless of elevation settings).
   auto const headR = r * 0.16f;
-  g.setColour (juce::Colours::black.withAlpha (0.6f));
+  g.setColour (toColour (theme ().surface, headOpacity));
   g.fillEllipse (centre.x - headR - 0.5f, centre.y - headR - 0.5f,
                 headR * 2.f + 1.f, headR * 2.f + 1.f);
   g.setColour (iconColour);
@@ -606,7 +640,7 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
   bool const highlight = isActive && isSelected;
   if (highlight)
     {
-      g.setColour (_channelColour.withAlpha (0.18f));
+      g.setColour (_channelColour.withAlpha (highlightWash));
       g.fillRoundedRectangle (bounds.toFloat (), 4.f);
     }
 
@@ -615,8 +649,7 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
   auto labelArea
       = content.removeFromBottom (textRowHeight (content, metrics.captionSize));
 
-  auto const knobColour = isSelected ? _channelColour
-                                     : juce::Colours::white.withAlpha (0.75f);
+  auto const knobColour = controlColour (isSelected);
   // The knob keeps its diameter; the captions get the whole cell. Confining
   // both to knobDiam is what truncated "Forward" and "end-action" to "...".
   auto const knobSize = static_cast<float> (
@@ -633,7 +666,7 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
 
   juce::Path track;
   track.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, sweep, true);
-  g.setColour (juce::Colours::white.withAlpha (0.18f));
+  g.setColour (toColour (theme ().textPrimary, trackWash));
   g.strokePath (track, juce::PathStrokeType (juce::jmax (1.f, r * 0.16f)));
 
   // Bipolar params (e.g. wrap) fill from the centre out to the value;
@@ -660,7 +693,7 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
                                      static_cast<float> (labelArea.getHeight ())
                                          * 0.85f),
                          juce::Font::plain));
-  g.setColour (juce::Colours::white.withAlpha (isSelected ? 0.85f : 0.55f));
+  g.setColour (captionColour (isSelected));
   g.drawFittedText (label, labelArea,
                     juce::Justification::centred, 1);
 }
@@ -676,7 +709,7 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   bool const highlight = isActive && isSelected;
   if (highlight)
     {
-      g.setColour (_channelColour.withAlpha (0.18f));
+      g.setColour (_channelColour.withAlpha (highlightWash));
       g.fillRoundedRectangle (bounds.toFloat (), 4.f);
     }
 
@@ -684,8 +717,7 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   auto labelArea
       = content.removeFromBottom (textRowHeight (content, metrics.captionSize));
 
-  auto const valueColour = isSelected ? _channelColour
-                                      : juce::Colours::white.withAlpha (0.75f);
+  auto const valueColour = controlColour (isSelected);
   g.setFont (juce::Font (juce::jmin (metrics.valueSize,
                                      static_cast<float> (content.getHeight ())
                                          * 0.85f),
@@ -701,7 +733,7 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
                                      static_cast<float> (labelArea.getHeight ())
                                          * 0.85f),
                          juce::Font::plain));
-  g.setColour (juce::Colours::white.withAlpha (isSelected ? 0.85f : 0.55f));
+  g.setColour (captionColour (isSelected));
   g.drawFittedText (label, labelArea,
                     juce::Justification::centred, 1);
 }
@@ -712,8 +744,7 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
                                            bool isSelected,
                                            ControlMetrics metrics)
 {
-  g.setColour (isSelected ? _channelColour.withAlpha (0.35f)
-                          : juce::Colour (0x14ffffff));
+  g.setColour (cardColour (isSelected));
   g.fillRoundedRectangle (bounds.toFloat (), 8.f);
   if (isSelected)
     g.drawRoundedRectangle (bounds.toFloat (), 8.f, 2.f);
@@ -752,8 +783,7 @@ ClipSettingsComponent::paintFilterSection (juce::Graphics &g,
                                            bool isSelected,
                                            ControlMetrics metrics)
 {
-  g.setColour (isSelected ? _channelColour.withAlpha (0.35f)
-                          : juce::Colour (0x14ffffff));
+  g.setColour (cardColour (isSelected));
   g.fillRoundedRectangle (bounds.toFloat (), 8.f);
   if (isSelected)
     g.drawRoundedRectangle (bounds.toFloat (), 8.f, 2.f);
