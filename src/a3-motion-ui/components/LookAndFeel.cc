@@ -76,7 +76,7 @@ namespace
 juce::Font
 scaled (juce::Font font)
 {
-  return font.withHeight (font.getHeight () * theme ().fontScale);
+  return font.withHeight (font.getHeight () * theme ().bodyScale);
 }
 }
 

@@ -39,9 +39,10 @@ struct FontScaleTest : public ::testing::Test
   }
 };
 
-// The Font Size setting used to reach exactly one component. Everything else —
-// the status bar, the menu, every label — kept its size, so "175%" meant
-// "175% of the clip settings". The scale has to live where all of them read it.
+// There are two sizes on this screen and no more: the header — the status bar
+// and a section's title — and the body, which is every setting and every value
+// under it. Four roles said the same thing in a way nobody could set from the
+// menu, and left the status bar larger than the headings it sits above.
 
 TEST_F (FontScaleTest, TheMenuIndexPicksAFactor)
 {
@@ -57,47 +58,60 @@ TEST_F (FontScaleTest, AnIndexOutOfRangeFallsBackToUnscaled)
   EXPECT_NEAR (fontScaleForIndex (numFontScales + 5), 1.f, 0.001f);
 }
 
-TEST_F (FontScaleTest, SettingTheScaleLeavesTheRestOfTheThemeAlone)
+// The point of splitting them: one setting must not move the other.
+TEST_F (FontScaleTest, TheTwoScalesAreIndependent)
+{
+  auto const unscaled = loadTheme (juce::var{});
+
+  setHeaderScale (1.75f);
+
+  EXPECT_NEAR (theme ().fontSize (FontRole::Header),
+               unscaled.fontSize (FontRole::Header) * 1.75f, 0.01f);
+  EXPECT_NEAR (theme ().fontSize (FontRole::Body),
+               unscaled.fontSize (FontRole::Body), 0.01f);
+
+  setBodyScale (0.75f);
+
+  EXPECT_NEAR (theme ().fontSize (FontRole::Header),
+               unscaled.fontSize (FontRole::Header) * 1.75f, 0.01f)
+      << "setting the body scale must not disturb the header";
+  EXPECT_NEAR (theme ().fontSize (FontRole::Body),
+               unscaled.fontSize (FontRole::Body) * 0.75f, 0.01f);
+}
+
+TEST_F (FontScaleTest, SettingAScaleLeavesTheRestOfTheThemeAlone)
 {
   Theme skin;
   skin.accent = { 1, 2, 3 };
   skin.sphereScale = 0.5f;
   setTheme (skin);
 
-  setFontScale (1.75f);
+  setBodyScale (1.75f);
 
-  EXPECT_NEAR (theme ().fontScale, 1.75f, 0.001f);
+  EXPECT_NEAR (theme ().bodyScale, 1.75f, 0.001f);
   EXPECT_EQ (theme ().accent.r, 1) << "a font change must not reload the skin";
   EXPECT_NEAR (theme ().sphereScale, 0.5f, 0.001f);
 }
 
-// The other half: a skin reload must not throw away the menu's factor. The two
-// arrive from different files at different times.
-TEST_F (FontScaleTest, ASkinReloadKeepsTheFactor)
+// The other half: a skin reload must not throw away the menu's factors. The
+// two arrive from different files at different times.
+TEST_F (FontScaleTest, ASkinReloadKeepsBothFactors)
 {
-  setFontScale (1.5f);
+  setHeaderScale (1.5f);
+  setBodyScale (0.75f);
 
   auto reloaded = loadTheme (juce::var{});
-  reloaded.fontScale = theme ().fontScale;
+  reloaded.headerScale = theme ().headerScale;
+  reloaded.bodyScale = theme ().bodyScale;
   setTheme (reloaded);
 
-  EXPECT_NEAR (theme ().fontScale, 1.5f, 0.001f);
+  EXPECT_NEAR (theme ().headerScale, 1.5f, 0.001f);
+  EXPECT_NEAR (theme ().bodyScale, 0.75f, 0.001f);
 }
 
-TEST_F (FontScaleTest, EveryRoleGrowsByTheSameFactor)
-{
-  auto const unscaled = loadTheme (juce::var{});
-  setFontScale (1.75f);
-
-  for (auto const role : { FontRole::Heading, FontRole::Label, FontRole::Value,
-                           FontRole::Status })
-    EXPECT_NEAR (theme ().fontSize (role), unscaled.fontSize (role) * 1.75f,
-                 0.01f);
-}
-
-// A saved index has to arrive at the theme, or the setting survives a restart
-// on paper only — it is written back correctly and then ignored.
-TEST_F (FontScaleTest, ASavedIndexReachesTheTheme)
+// Saved indices have to arrive at the theme, or the settings survive a restart
+// on paper only — written back correctly and then ignored.
+TEST_F (FontScaleTest, SavedIndicesReachTheTheme)
 {
   auto const file
       = juce::File::getSpecialLocation (
@@ -105,20 +119,39 @@ TEST_F (FontScaleTest, ASavedIndexReachesTheTheme)
             .getChildFile ("a3-font-scale-test.json");
   file.deleteFile ();
 
-  saveSettings (file, AppSettings{ 0, 1, numFontScales - 1 });
+  saveSettings (file, AppSettings{ 0, 1, numFontScales - 1, 0 });
   auto const loaded = loadSettings (file);
-  setFontScale (fontScaleForIndex (loaded.fontSizeIndex));
 
-  EXPECT_NEAR (theme ().fontScale, 1.75f, 0.001f);
+  EXPECT_EQ (loaded.headerSizeIndex, numFontScales - 1);
+  EXPECT_EQ (loaded.bodySizeIndex, 0);
+
+  file.deleteFile ();
+}
+
+// A settings file written before the split carries one index for both. Reading
+// it as "header only" would silently shrink every caption on the device.
+TEST_F (FontScaleTest, AnOlderSettingsFileSetsBothSizes)
+{
+  auto const file
+      = juce::File::getSpecialLocation (
+            juce::File::SpecialLocationType::tempDirectory)
+            .getChildFile ("a3-font-scale-legacy.json");
+  file.deleteFile ();
+  file.replaceWithText ("{\"clockMode\": 0, \"potSizeIndex\": 1, "
+                        "\"fontSizeIndex\": 4}");
+
+  auto const loaded = loadSettings (file);
+
+  EXPECT_EQ (loaded.headerSizeIndex, 4);
+  EXPECT_EQ (loaded.bodySizeIndex, 4);
 
   file.deleteFile ();
 }
 
 // Labels take their size from the LookAndFeel, which is why the status bar
-// never moved: nothing in it ever called setFont. Scaling there is what makes
-// the setting reach components that never ask for it — including ones added
-// later.
-TEST_F (FontScaleTest, ALabelGrowsWithoutAskingForIt)
+// never moved: nothing in it ever called setFont. Everything JUCE draws for us
+// — menus, buttons, plain labels — is body text.
+TEST_F (FontScaleTest, ALabelGrowsWithTheBodyScale)
 {
   LookAndFeel_A3 lookAndFeel;
   juce::Label label;
@@ -126,7 +159,7 @@ TEST_F (FontScaleTest, ALabelGrowsWithoutAskingForIt)
 
   auto const base = lookAndFeel.getLabelFont (label).getHeight ();
 
-  setFontScale (1.75f);
+  setBodyScale (1.75f);
   auto const scaled = lookAndFeel.getLabelFont (label).getHeight ();
 
   EXPECT_NEAR (scaled, base * 1.75f, 0.5f);
@@ -143,7 +176,7 @@ TEST_F (FontScaleTest, AnExplicitFontKeepsItsProportion)
   label.setLookAndFeel (&lookAndFeel);
   label.setFont (juce::Font (juce::FontOptions (40.f)));
 
-  setFontScale (1.5f);
+  setBodyScale (1.5f);
 
   EXPECT_NEAR (lookAndFeel.getLabelFont (label).getHeight (), 60.f, 0.5f);
 

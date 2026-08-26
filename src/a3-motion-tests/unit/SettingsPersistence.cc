@@ -39,7 +39,8 @@ TEST (SettingsPersistence, MissingFileReturnsDefaults)
   auto const settings = loadSettings (file);
   EXPECT_EQ (settings.clockMode, 0);
   EXPECT_EQ (settings.potSizeIndex, 1);
-  EXPECT_EQ (settings.fontSizeIndex, 1);
+  EXPECT_EQ (settings.headerSizeIndex, 1);
+  EXPECT_EQ (settings.bodySizeIndex, 1);
 }
 
 TEST (SettingsPersistence, MalformedJsonReturnsDefaults)
@@ -52,7 +53,8 @@ TEST (SettingsPersistence, MalformedJsonReturnsDefaults)
   auto const settings = loadSettings (file);
   EXPECT_EQ (settings.clockMode, 0);
   EXPECT_EQ (settings.potSizeIndex, 1);
-  EXPECT_EQ (settings.fontSizeIndex, 1);
+  EXPECT_EQ (settings.headerSizeIndex, 1);
+  EXPECT_EQ (settings.bodySizeIndex, 1);
 
   file.deleteFile ();
 }
@@ -64,13 +66,14 @@ TEST (SettingsPersistence, RoundTripsThroughSaveAndLoad)
                         .getChildFile ("a3-motion-ui-test-settings-roundtrip.json");
   file.deleteFile ();
 
-  AppSettings const original{ 2, 3, 4 };
+  AppSettings const original{ 2, 3, 4, 0 };
   saveSettings (file, original);
 
   auto const loaded = loadSettings (file);
   EXPECT_EQ (loaded.clockMode, original.clockMode);
   EXPECT_EQ (loaded.potSizeIndex, original.potSizeIndex);
-  EXPECT_EQ (loaded.fontSizeIndex, original.fontSizeIndex);
+  EXPECT_EQ (loaded.headerSizeIndex, original.headerSizeIndex);
+  EXPECT_EQ (loaded.bodySizeIndex, original.bodySizeIndex);
 
   file.deleteFile ();
 }

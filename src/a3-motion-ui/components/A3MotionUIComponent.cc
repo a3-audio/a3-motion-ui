@@ -113,7 +113,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     auto const settings = loadSettings (getPersistedSettingsFile ());
     applyClockMode (settings.clockMode);
     applyPotSize (std::clamp (settings.potSizeIndex, 0, numPotSizes - 1));
-    applyFontSize (std::clamp (settings.fontSizeIndex, 0, numFontSizes - 1));
+    applyHeaderSize (std::clamp (settings.headerSizeIndex, 0, numFontSizes - 1));
+    applyBodySize (std::clamp (settings.bodySizeIndex, 0, numFontSizes - 1));
   }
 
   // Start directory monitor: check for new/changed SVG files every 2 seconds
@@ -470,7 +471,8 @@ A3MotionUIComponent::resized ()
   auto bounds = getLocalBounds ();
 
   // Status bar at the top
-  auto constexpr statusBarHeight = StatusBar::getMinimumHeight ();
+  // The bar is as tall as the header size needs; the sphere gets the rest.
+  auto const statusBarHeight = _statusBar->preferredHeight ();
   auto boundsStatus = bounds.removeFromTop (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
@@ -1478,13 +1480,20 @@ A3MotionUIComponent::openGlobalSettings ()
         { potSizeLabels[3] },
         { potSizeLabels[4] } },
       _potSizeIndex },
-    { "Font Size",
+    { "Header Size",
       { { fontSizeLabels[0] },
         { fontSizeLabels[1] },
         { fontSizeLabels[2] },
         { fontSizeLabels[3] },
         { fontSizeLabels[4] } },
-      _fontSizeIndex },
+      _headerSizeIndex },
+    { "Body Size",
+      { { fontSizeLabels[0] },
+        { fontSizeLabels[1] },
+        { fontSizeLabels[2] },
+        { fontSizeLabels[3] },
+        { fontSizeLabels[4] } },
+      _bodySizeIndex },
   };
   _globalSettings->setOptions (std::move (options));
   _globalSettings->setOptionIndex (_globalSettingsOptionIndex);
@@ -1532,8 +1541,10 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
     applyClockMode (chosen);
   else if (_globalSettingsOptionIndex == 1)
     applyPotSize (chosen);
+  else if (_globalSettingsOptionIndex == 2)
+    applyHeaderSize (chosen);
   else
-    applyFontSize (chosen);
+    applyBodySize (chosen);
 
   _globalSettings->setActiveValueIndex (_globalSettingsOptionIndex, chosen);
 
@@ -1575,7 +1586,8 @@ A3MotionUIComponent::applyClockMode (int mode)
   _oscSender.send (clockModeMsg);
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _potSizeIndex, _fontSizeIndex });
+               AppSettings{ _clockMode, _potSizeIndex, _headerSizeIndex,
+                            _bodySizeIndex });
 }
 
 void
@@ -1589,25 +1601,49 @@ A3MotionUIComponent::applyPotSize (int index)
     _clipSettings->setPotSizeScale (potSizeScales[index]);
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _potSizeIndex, _fontSizeIndex });
+               AppSettings{ _clockMode, _potSizeIndex, _headerSizeIndex,
+                            _bodySizeIndex });
 }
 
 void
-A3MotionUIComponent::applyFontSize (int index)
+A3MotionUIComponent::applyHeaderSize (int index)
 {
   // No early return, and no single receiver. The old version did both, and
   // between them they were the whole bug: a saved index equal to the startup
   // default jumped straight out, and the one component it did reach was the
-  // only thing that ever grew. The factor now sits at the theme, where every
-  // component reads it, so the work here is a float and a repaint.
-  _fontSizeIndex = juce::jlimit (0, numFontScales - 1, index);
-  setFontScale (fontScaleForIndex (_fontSizeIndex));
+  // only thing that ever grew. The factors now sit at the theme, where every
+  // component reads them, so the work here is a float and a repaint.
+  _headerSizeIndex = juce::jlimit (0, numFontScales - 1, index);
+  setHeaderScale (fontScaleForIndex (_headerSizeIndex));
+  refreshFonts ();
+}
+
+void
+A3MotionUIComponent::applyBodySize (int index)
+{
+  _bodySizeIndex = juce::jlimit (0, numFontScales - 1, index);
+  setBodyScale (fontScaleForIndex (_bodySizeIndex));
+  refreshFonts ();
+}
+
+void
+A3MotionUIComponent::refreshFonts ()
+{
+  // The status bar draws with juce::Labels, whose font is set once rather
+  // than read per paint, so a repaint alone would leave it at the old size.
+  if (_statusBar)
+    _statusBar->refreshFonts ();
+
+  // The status bar's height follows the header size, so this is a layout
+  // change and not only a repaint.
+  resized ();
 
   if (auto *root = getTopLevelComponent ())
     root->repaint ();
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _potSizeIndex, _fontSizeIndex });
+               AppSettings{ _clockMode, _potSizeIndex, _headerSizeIndex,
+                            _bodySizeIndex });
 }
 
 juce::File

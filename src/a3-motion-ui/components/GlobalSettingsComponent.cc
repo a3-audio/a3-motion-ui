@@ -138,7 +138,7 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
       auto labelArea = row.removeFromLeft (row.getWidth () * 3 / 5).reduced (8, 0);
       auto valueArea = row.reduced (8, 8);
 
-      g.setFont (juce::Font (theme ().fontSize (FontRole::Label),
+      g.setFont (juce::Font (theme ().fontSize (FontRole::Body),
                              juce::Font::plain));
       g.setColour (toColour (theme ().textPrimary,
                          isBrowsedRow ? 1.f : theme ().alphaInactive));
@@ -149,7 +149,7 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
                        : toColour (theme ().textPrimary, rowFrameWash));
       g.fillRoundedRectangle (valueArea.toFloat (), 5.f);
 
-      g.setFont (juce::Font (theme ().fontSize (FontRole::Value),
+      g.setFont (juce::Font (theme ().fontSize (FontRole::Body),
                              juce::Font::bold));
       g.setColour (isBrowsedRow
                        ? item.colour

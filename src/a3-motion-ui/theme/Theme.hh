@@ -37,14 +37,17 @@ struct ThemeColour
 
 constexpr int numThemeChannels = 4;
 
-/** Which font a piece of text is. The skin gives each a base size; the Font
- *  Size setting in the menu scales all of them together. */
+/** Which of the two sizes on this screen a piece of text is.
+ *
+ *  Header is the status bar and a section's title; Body is every setting
+ *  and every value under one. Two and no more: four roles said the same
+ *  thing in a way nobody could set from the menu, and left the status bar
+ *  larger than the headings it sits above. The skin gives each a base
+ *  size, and each has its own factor in the menu. */
 enum class FontRole
 {
-  Heading,
-  Label,
-  Value,
-  Status,
+  Header,
+  Body,
 };
 
 /** Everything about how the device looks, in one place.
@@ -92,17 +95,17 @@ struct Theme
   float strokeThin = 1.f;
   float strokeThick = 2.f;
 
-  // Font base sizes, before the menu's factor
-  float fontHeading = 22.f;
-  float fontLabel = 15.f;
-  float fontValue = 18.f;
-  float fontStatus = 16.f;
+  // Font base sizes, before the menu's factors
+  float fontHeader = 18.f;
+  float fontBody = 15.f;
 
-  /** Set by the Font Size setting in the menu. Multiplies every base size, so
-   *  no component can be forgotten when it changes. */
-  float fontScale = 1.f;
+  /** Set by the two size settings in the menu. Multiply their role's base
+   *  size, so no component can be forgotten when one changes. */
+  float headerScale = 1.f;
+  float bodyScale = 1.f;
 
   float fontSize (FontRole role) const;
+  float scaleFor (FontRole role) const;
 };
 
 /** One colour out of a skin, falling back when it is absent or incomplete.
@@ -130,10 +133,11 @@ juce::File skinFile (juce::File const &configDir, juce::String const &name);
 constexpr int numFontScales = 5;
 float fontScaleForIndex (int index);
 
-/** Set only the menu's factor, leaving the skin's own values untouched. The
- *  two arrive from different files at different times, and neither may throw
- *  the other away. */
-void setFontScale (float scale);
+/** Set only one menu factor, leaving the skin's own values — and the other
+ *  factor — untouched. Skin and settings arrive from different files at
+ *  different times, and neither may throw the other away. */
+void setHeaderScale (float scale);
+void setBodyScale (float scale);
 
 /** The theme in force. Written only while loading, on the message thread; the
  *  GL thread copies what it needs per frame, as it already does with the

@@ -173,7 +173,7 @@ private:
   };
 
   void paintTrajectorySection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                               bool isSelected);
+                               bool isSelected, ControlMetrics metrics);
   void paintElevationSection (juce::Graphics &g, juce::Rectangle<int> bounds,
                               bool isSelected, ControlMetrics metrics);
   /** Side-view sphere graphic for the Elevation section: circle + head dot
@@ -203,6 +203,8 @@ private:
    *  happens to be (see class doc / setPotSizeScale()). */
   juce::Rectangle<int> controlBounds (juce::Rectangle<int> cell,
                                       int knobDiam) const;
+  /** Height of a section's title row, from the Header role. */
+  int titleRowHeight (juce::Rectangle<int> content) const;
   /** Height of a text row drawn at `size` — the caption row at the bottom
    *  of a control, or the value row above its knob. */
   int textRowHeight (juce::Rectangle<int> content, float size) const;

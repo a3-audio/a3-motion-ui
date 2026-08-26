@@ -65,6 +65,57 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   _labelClockMode.setJustificationType (juce::Justification::centredRight);
   _labelClockMode.setText ("INT", juce::dontSendNotification);
   _labelClockMode.setColour (juce::Label::textColourId, toColour (theme ().accent));
+
+  refreshFonts ();
+}
+
+namespace
+{
+// resized() keeps a sixth of the bar free above and below the labels, so a
+// label is given two thirds of the height, and a text row is drawn a quarter
+// taller than its font.
+constexpr float labelShare = 2.f / 3.f;
+constexpr float rowHeightFactor = 1.25f;
+}
+
+float
+StatusBar::headerFontSize () const
+{
+  // The header size, unless the height this bar was actually given is
+  // smaller — then the text would be clipped top and bottom rather than
+  // drawn larger. preferredHeight() is what keeps the two in step.
+  auto const wanted = theme ().fontSize (FontRole::Header);
+  if (getHeight () <= 0)
+    return wanted;
+
+  auto const room
+      = static_cast<float> (getHeight ()) * labelShare / rowHeightFactor;
+
+  return juce::jmin (wanted, room);
+}
+
+int
+StatusBar::preferredHeight () const
+{
+  auto const needed = theme ().fontSize (FontRole::Header) * rowHeightFactor
+                      / labelShare;
+
+  return juce::jmax (getMinimumHeight (), static_cast<int> (needed));
+}
+
+void
+StatusBar::refreshFonts ()
+{
+  // The status bar is a header, and so are the section titles it sits above.
+  // Before they shared a role the bar took juce's default label height and
+  // came out larger than the headings below it.
+  auto const font = juce::Font (juce::FontOptions (headerFontSize ()));
+
+  for (auto *label : { &_labelOrientation, &_labelBPM, &_labelBeatClock,
+                       &_labelClockMode })
+    label->setFont (font);
+
+  resized ();
 }
 
 StatusBar::~StatusBar ()
@@ -82,8 +133,14 @@ StatusBar::resized ()
   bounds.removeFromTop (verticalPadding);
   bounds.removeFromBottom (verticalPadding);
 
+  // The two end labels are as wide as their text needs. Fixed widths cut
+  // "0\xc2\xb0" and "INT" down to an ellipsis as soon as the header size grew.
+  auto const glyphWidth = headerFontSize () * 0.62f;
+
   // Orientation label on the far left
-  auto orientArea = bounds.removeFromLeft (40);
+  auto orientArea = bounds.removeFromLeft (
+      juce::jmax (40, static_cast<int> (glyphWidth * 4.f
+                                        + LayoutHints::padding)));
   _labelOrientation.setBounds (orientArea.withTrimmedLeft (LayoutHints::padding));
 
   // BPM label next to orientation
@@ -91,7 +148,9 @@ StatusBar::resized ()
   _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
 
   // Clock mode label on the far right
-  auto clockModeArea = bounds.removeFromRight (50);
+  auto clockModeArea = bounds.removeFromRight (
+      juce::jmax (50, static_cast<int> (glyphWidth * 3.f
+                                        + LayoutHints::padding)));
   _labelClockMode.setBounds (clockModeArea.withTrimmedRight (LayoutHints::padding));
 
   // Beat clock label next to clock mode

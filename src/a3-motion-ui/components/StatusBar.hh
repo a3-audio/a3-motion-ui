@@ -44,6 +44,20 @@ public:
 
   // Update from external OSC data
   void setExternalBPM (float bpm);
+
+  /** Re-read the header font size from the theme. The labels here take
+   *  their font once rather than per paint, so a size change has to be
+   *  pushed rather than repainted. */
+  void refreshFonts ();
+
+  /** The header size this bar can actually show — the theme's, unless the
+   *  height it was given is the smaller of the two. */
+  float headerFontSize () const;
+
+  /** How tall the bar wants to be for the current header size. Never below
+   *  getMinimumHeight(), so a small header setting does not shrink the bar
+   *  below the layout it was drawn for. */
+  int preferredHeight () const;
   void setBeatClock (int beat, int bar);
   
   // Clock mode status: 0 = INT, 1 = EXT, 2 = PIO

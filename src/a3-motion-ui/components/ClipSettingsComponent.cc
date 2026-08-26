@@ -240,14 +240,14 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // Terminal-style readout of the last-operated control, top-right.
   auto readoutArea = headerArea.removeFromRight (headerArea.getWidth () / 2);
   g.setFont (juce::Font (juce::Font::getDefaultMonospacedFontName (),
-                         fontFor (FontRole::Status, readoutArea, _lastControlText),
+                         fontFor (FontRole::Header, readoutArea, _lastControlText),
                          juce::Font::plain));
   g.setColour (toColour (theme ().accent, panelOpacity));
   g.drawText (_lastControlText, readoutArea, juce::Justification::centredRight,
              true);
 
   auto const slotName = "Slot " + juce::String (_slot + 1);
-  g.setFont (juce::Font (fontFor (FontRole::Status, headerArea, slotName),
+  g.setFont (juce::Font (fontFor (FontRole::Header, headerArea, slotName),
                          juce::Font::bold));
   g.setColour (_channelColour);
   g.drawText (slotName, headerArea,
@@ -264,7 +264,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // layout (its own small label row, then a graphic, then a 2x3 grid of
   // controls), then reused as-is by Motion/Filter's roomier single-row
   // layouts. Scales with _potSizeScale (Global Settings "Pot Size").
-  auto const elevationLabelH = juce::jmax (9, area.getHeight () / 10);
+  auto const elevationLabelH = titleRowHeight (area);
   auto const elevationGraphicH = static_cast<int> (
       static_cast<float> (area.getHeight () - elevationLabelH) * 0.34f);
   auto const elevationGridH
@@ -292,9 +292,9 @@ ClipSettingsComponent::paint (juce::Graphics &g)
 
   ControlMetrics const metrics{
     knobDiam,
-    sharedCaptionSize (theme ().fontSize (FontRole::Label), sectionContentW,
+    sharedCaptionSize (theme ().fontSize (FontRole::Body), sectionContentW,
                        columnGap, controlBoxH),
-    sharedValueSize (theme ().fontSize (FontRole::Value), sectionContentW,
+    sharedValueSize (theme ().fontSize (FontRole::Body), sectionContentW,
                      columnGap, controlBoxH)
   };
 
@@ -307,7 +307,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
 
       bool const isSelected = (i == _selectedIndex);
       if (i == trajectoryIndex)
-        paintTrajectorySection (g, cardBounds, isSelected);
+        paintTrajectorySection (g, cardBounds, isSelected, metrics);
       else if (i == elevationIndex)
         paintElevationSection (g, cardBounds, isSelected, metrics);
       else if (i == motionIndex)
@@ -323,7 +323,7 @@ ClipSettingsComponent::paintSectionLabel (juce::Graphics &g,
                                           juce::String const &text,
                                           bool isSelected)
 {
-  g.setFont (juce::Font (fontFor (FontRole::Heading, labelArea, text),
+  g.setFont (juce::Font (fontFor (FontRole::Header, labelArea, text),
                          juce::Font::plain));
   g.setColour (toColour (theme ().textPrimary, isSelected
                                                     ? theme ().alphaInactive
@@ -386,6 +386,19 @@ ClipSettingsComponent::fontFor (FontRole role, juce::Rectangle<int> area,
 }
 
 int
+ClipSettingsComponent::titleRowHeight (juce::Rectangle<int> content) const
+{
+  // Tall enough for the header size, so a section's title is drawn at the
+  // same size as the status bar rather than at whatever a tenth of the
+  // section happened to be. Never more than a third of the section, or a
+  // large header setting would leave no room for the controls.
+  auto const needed = static_cast<int> (
+      theme ().fontSize (FontRole::Header) * rowHeightFactor);
+
+  return juce::jlimit (9, juce::jmax (9, content.getHeight () / 3), needed);
+}
+
+int
 ClipSettingsComponent::textRowHeight (juce::Rectangle<int> content,
                                       float size) const
 {
@@ -400,7 +413,8 @@ ClipSettingsComponent::textRowHeight (juce::Rectangle<int> content,
 void
 ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
                                                juce::Rectangle<int> bounds,
-                                               bool isSelected)
+                                               bool isSelected,
+                                               ControlMetrics metrics)
 {
   g.setColour (cardColour (isSelected));
   g.fillRoundedRectangle (bounds.toFloat (), 8.f);
@@ -408,13 +422,11 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
     g.drawRoundedRectangle (bounds.toFloat (), 8.f, 2.f);
 
   auto content = bounds.reduced (juce::jmax (2, bounds.getWidth () / 12), 4);
-  auto labelArea = content.removeFromTop (
-      juce::jmax (9, content.getHeight () / 10));
+  auto labelArea = content.removeFromTop (titleRowHeight (content));
   paintSectionLabel (g, labelArea, parameterNames[trajectoryIndex], isSelected);
 
-  auto nameArea = content.removeFromBottom (
-      juce::jmax (14, static_cast<int> (theme ().fontSize (FontRole::Value)
-                                        * 1.35f)));
+  auto nameArea
+      = content.removeFromBottom (textRowHeight (content, metrics.valueSize));
 
   // Pictogram, centred in whatever square area is left above the name.
   auto const iconSize = static_cast<float> (
@@ -423,7 +435,11 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
                       .withCentre (content.toFloat ().getCentre ());
   drawTrajectoryIcon (g, iconArea, _trajectoryIcon, controlColour (isSelected));
 
-  g.setFont (juce::Font (fontFor (FontRole::Value, nameArea, _trajectoryName),
+  // The pattern's name is a value like any other in the bar, and is drawn at
+  // the size they share rather than filling whatever room this section has.
+  g.setFont (juce::Font (juce::jmin (metrics.valueSize,
+                                     static_cast<float> (nameArea.getHeight ())
+                                         * 0.85f),
                          juce::Font::bold));
   g.setColour (controlColour (isSelected));
   g.drawFittedText (_trajectoryName, nameArea, juce::Justification::centred,
@@ -442,8 +458,7 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
     g.drawRoundedRectangle (bounds.toFloat (), 8.f, 2.f);
 
   auto content = bounds.reduced (juce::jmax (2, bounds.getWidth () / 12), 4);
-  auto labelArea = content.removeFromTop (
-      juce::jmax (9, content.getHeight () / 10));
+  auto labelArea = content.removeFromTop (titleRowHeight (content));
   paintSectionLabel (g, labelArea, "Elevation", isSelected);
 
   // Graphic on top (passive visualization, highlighted whenever the active
@@ -750,8 +765,7 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
     g.drawRoundedRectangle (bounds.toFloat (), 8.f, 2.f);
 
   auto content = bounds.reduced (juce::jmax (2, bounds.getWidth () / 12), 4);
-  auto labelArea = content.removeFromTop (
-      juce::jmax (9, content.getHeight () / 10));
+  auto labelArea = content.removeFromTop (titleRowHeight (content));
   paintSectionLabel (g, labelArea, parameterNames[motionIndex], isSelected);
 
   // Single row, no graphic to share space with — speed as a knob,
@@ -789,8 +803,7 @@ ClipSettingsComponent::paintFilterSection (juce::Graphics &g,
     g.drawRoundedRectangle (bounds.toFloat (), 8.f, 2.f);
 
   auto content = bounds.reduced (juce::jmax (2, bounds.getWidth () / 12), 4);
-  auto labelArea = content.removeFromTop (
-      juce::jmax (9, content.getHeight () / 10));
+  auto labelArea = content.removeFromTop (titleRowHeight (content));
   paintSectionLabel (g, labelArea, parameterNames[filterIndex], isSelected);
 
   auto const gapH = juce::jmax (2, content.getWidth () / 20);

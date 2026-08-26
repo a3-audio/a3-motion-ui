@@ -39,8 +39,19 @@ loadSettings (juce::File const &file)
     settings.clockMode = static_cast<int> (parsed["clockMode"]);
   if (parsed.hasProperty ("potSizeIndex"))
     settings.potSizeIndex = static_cast<int> (parsed["potSizeIndex"]);
+  // A file written before the two sizes were split carries one index for
+  // both. Reading it as the header's alone would silently shrink every
+  // caption on the device.
   if (parsed.hasProperty ("fontSizeIndex"))
-    settings.fontSizeIndex = static_cast<int> (parsed["fontSizeIndex"]);
+    {
+      auto const legacy = static_cast<int> (parsed["fontSizeIndex"]);
+      settings.headerSizeIndex = legacy;
+      settings.bodySizeIndex = legacy;
+    }
+  if (parsed.hasProperty ("headerSizeIndex"))
+    settings.headerSizeIndex = static_cast<int> (parsed["headerSizeIndex"]);
+  if (parsed.hasProperty ("bodySizeIndex"))
+    settings.bodySizeIndex = static_cast<int> (parsed["bodySizeIndex"]);
 
   return settings;
 }
@@ -51,7 +62,8 @@ saveSettings (juce::File const &file, AppSettings const &settings)
   auto *obj = new juce::DynamicObject ();
   obj->setProperty ("clockMode", settings.clockMode);
   obj->setProperty ("potSizeIndex", settings.potSizeIndex);
-  obj->setProperty ("fontSizeIndex", settings.fontSizeIndex);
+  obj->setProperty ("headerSizeIndex", settings.headerSizeIndex);
+  obj->setProperty ("bodySizeIndex", settings.bodySizeIndex);
   juce::var const state (obj);
 
   file.getParentDirectory ().createDirectory ();

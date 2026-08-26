@@ -203,7 +203,11 @@ private:
   void  confirmGlobalSettingsOption ();
   void  applyClockMode (int mode);
   void  applyPotSize (int index);
-  void  applyFontSize (int index);
+  void  applyHeaderSize (int index);
+  /** Push a changed font size out to everything that cannot re-read it on
+   *  its own, then persist. */
+  void  refreshFonts ();
+  void  applyBodySize (int index);
   // Index into potSizeScales/potSizeLabels — scales every knob/toggle in
   // ClipSettingsComponent uniformly (see ClipSettingsComponent::
   // setPotSizeScale()), adjustable live from the Global Settings menu.
@@ -214,7 +218,8 @@ private:
                                                     "150%", "175%" };
   // Index into the theme's scale table; the factor itself lives there, because
   // a saved index has to become a factor at startup, before any menu exists.
-  int _fontSizeIndex = 1; // default 100%
+  int _headerSizeIndex = 1; // default 100%
+  int _bodySizeIndex = 1;   // default 100%
   static constexpr char const *fontSizeLabels[] = { "75%", "100%", "125%",
                                                      "150%", "175%" };
 

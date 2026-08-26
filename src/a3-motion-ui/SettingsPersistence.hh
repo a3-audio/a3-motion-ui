@@ -32,7 +32,10 @@ struct AppSettings
 {
   int clockMode = 0;
   int potSizeIndex = 1;  // default 100%, see A3MotionUIComponent::potSizeLabels
-  int fontSizeIndex = 1; // default 100%, see A3MotionUIComponent::fontSizeLabels
+  // Two sizes, two settings — see FontRole. Defaults are 100%; the labels
+  // live in A3MotionUIComponent::fontSizeLabels.
+  int headerSizeIndex = 1;
+  int bodySizeIndex = 1;
 };
 
 /** Returns defaults if the file doesn't exist or fails to parse as JSON. */
