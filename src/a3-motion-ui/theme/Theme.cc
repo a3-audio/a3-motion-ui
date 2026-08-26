@@ -202,6 +202,80 @@ writeActiveSkin (juce::File const &configFile, juce::String const &name)
   return configFile.replaceWithText (juce::String (after), false, false, "\n");
 }
 
+bool
+isUsableSkinName (juce::String const &name)
+{
+  if (name.isEmpty ())
+    return false;
+
+  return name.containsOnly ("abcdefghijklmnopqrstuvwxyz0123456789-");
+}
+
+juce::String
+nextFreeSkinName (juce::File const &configDir, juce::String const &name)
+{
+  // A trailing "-<number>" is a counter this function put there, so a copy of
+  // "neutral-2" is "neutral-3" rather than "neutral-2-2".
+  auto stem = name;
+  auto const tail = name.fromLastOccurrenceOf ("-", false, false);
+  if (tail.isNotEmpty () && tail.containsOnly ("0123456789"))
+    stem = name.upToLastOccurrenceOf ("-", false, false);
+
+  auto const existing = availableSkins (configDir);
+  for (int number = 2; number < 1000; ++number)
+    {
+      auto const candidate = stem + "-" + juce::String (number);
+      if (!existing.contains (candidate))
+        return candidate;
+    }
+
+  return stem;
+}
+
+bool
+renameSkin (juce::File const &configDir, juce::String const &from,
+            juce::String const &to)
+{
+  if (!isUsableSkinName (to) || from == to)
+    return false;
+
+  auto const source = skinFile (configDir, from);
+  auto const target = skinFile (configDir, to);
+
+  if (!source.existsAsFile () || target.existsAsFile ())
+    return false;
+
+  if (!source.moveFileTo (target))
+    return false;
+
+  auto const configFile = configDir.getChildFile ("config.json");
+  if (activeSkinName (configFile) == from)
+    writeActiveSkin (configFile, to);
+
+  return true;
+}
+
+bool
+deleteSkin (juce::File const &configDir, juce::String const &name)
+{
+  auto const remaining = availableSkins (configDir);
+  if (remaining.size () < 2 || !remaining.contains (name))
+    return false;
+
+  auto const file = skinFile (configDir, name);
+  if (!file.existsAsFile () || !file.deleteFile ())
+    return false;
+
+  auto const configFile = configDir.getChildFile ("config.json");
+  if (activeSkinName (configFile) == name)
+    {
+      auto const left = availableSkins (configDir);
+      writeActiveSkin (configFile, left[0]);
+    }
+
+  return true;
+}
+
 Theme
 loadTheme (juce::var const &skin)
 {

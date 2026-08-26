@@ -50,6 +50,7 @@ target_sources("a3-motion-ui" PRIVATE
     theme/ThemeColours.cc
     theme/ThemedComponent.cc
     theme/SkinParameters.cc
+    theme/SkinNameEntry.cc
     components/MotionComponent.cc
     components/MotionComponent.hh
     components/SphereShader.cc

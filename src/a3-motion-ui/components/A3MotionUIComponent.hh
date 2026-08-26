@@ -218,6 +218,12 @@ private:
   void  closeSkinEditor ();
   void  applyEditedSkin ();
   void  saveEditedSkin ();
+  void  saveSkinAsNew ();
+  void  renameEditedSkin (juce::String const &name);
+  void  deleteEditedSkin ();
+  /** Load `name` into the editor and refresh the menu's list of skins. */
+  void  reopenEditorOn (juce::String const &name);
+  void  rebuildGlobalSettingsOptions ();
   // Index into potSizeScales/potSizeLabels — scales every knob/toggle in
   // ClipSettingsComponent uniformly (see ClipSettingsComponent::
   // setPotSizeScale()), adjustable live from the Global Settings menu.

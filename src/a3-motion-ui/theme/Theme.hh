@@ -176,4 +176,29 @@ juce::String activeSkinName (juce::File const &configFile);
  *  hand edit fights with. */
 bool writeActiveSkin (juce::File const &configFile, juce::String const &name);
 
+/** Whether a name may be a skin's.
+ *
+ *  Lowercase letters, digits and dashes. A name is a file name and a key in
+ *  config.json, so what can be dialled in on an encoder has to be narrower
+ *  than what might be dialled in by accident. */
+bool isUsableSkinName (juce::String const &name);
+
+/** The name a copy of `name` should take: the same name with the next free
+ *  number. A name that already ends in one counts on rather than nesting —
+ *  the number is a counter, not part of the name. */
+juce::String nextFreeSkinName (juce::File const &configDir,
+                               juce::String const &name);
+
+/** Move a skin to another name, taking config.json with it when it is the
+ *  one running. Refuses an unusable name and refuses to write over another
+ *  skin; nothing is lost in a refused attempt. */
+bool renameSkin (juce::File const &configDir, juce::String const &from,
+                 juce::String const &to);
+
+/** Remove a skin. If it is the one running, another takes over — the config
+ *  must not be left pointing at nothing. The last skin cannot be deleted:
+ *  an empty folder is a device with no look at all, and getting back out of
+ *  that needs a file manager. */
+bool deleteSkin (juce::File const &configDir, juce::String const &name);
+
 }

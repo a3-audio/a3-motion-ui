@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/theme/SkinNameEntry.hh>
 #include <a3-motion-ui/theme/SkinParameters.hh>
 
 #include <functional>
@@ -60,12 +61,39 @@ public:
   juce::var const &getSkin () const { return _skin; }
   juce::String const &getSkinName () const { return _name; }
 
-  /** Turn the encoder: browse the list, or change the armed row's value. */
+  /** What the browsed row does. The three actions sit above the parameters,
+   *  where they are reached first and cannot be turned past by accident. */
+  enum class Row
+  {
+    SaveAsNew,
+    Rename,
+    Delete,
+    Parameter,
+  };
+
+  /** Turn the encoder: browse the list, or change what the armed row holds. */
   void navigate (int delta);
 
-  /** Press the encoder: arm the browsed row, or let it go again. */
+  /** Press the encoder: arm the browsed row, or let it go again. On an
+   *  action row this is what asks for it — the caller decides whether it
+   *  happens, and tells this component the outcome via setSkin(). */
   void toggleEditing ();
   bool isEditing () const { return _editing; }
+
+  Row browsedRow () const;
+
+  /** Asked when an action row is pressed. Delete asks twice: the row says so
+   *  in between. */
+  std::function<void ()> onSaveAsNew;
+  std::function<void ()> onDelete;
+
+  /** Asked when a rename is finished, with the typed name. */
+  std::function<void (juce::String const &)> onRename;
+
+  /** True while a name is being typed; the caller's Menu button finishes it
+   *  rather than leaving the editor. */
+  bool isNaming () const { return _naming; }
+  void finishNaming ();
 
   /** Called whenever a value changed, so the caller can put the edited skin
    *  in force straight away — seeing the change is the whole point of
@@ -78,11 +106,21 @@ private:
   /** How many rows fit, given the height this page was handed. */
   int visibleRows () const;
 
+  /** How many rows the actions take before the parameters begin. */
+  static constexpr int numActionRows = 3;
+
+  int totalRows () const;
+  juce::String rowLabel (int index) const;
+  juce::String rowValue (int index) const;
+
   juce::var _skin;
   juce::String _name;
   std::vector<SkinParameter> _parameters;
   int _index = 0;
   bool _editing = false;
+  bool _naming = false;
+  bool _deleteAsked = false;
+  SkinNameEntry _nameEntry;
 };
 
 }

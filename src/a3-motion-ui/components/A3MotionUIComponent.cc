@@ -103,6 +103,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _skinEditor->setAlwaysOnTop (true);
   _motionComponent->addChildComponent (*_skinEditor);
   _skinEditor->onValueChanged = [this] { applyEditedSkin (); };
+  _skinEditor->onSaveAsNew = [this] { saveSkinAsNew (); };
+  _skinEditor->onRename = [this] (auto const &name) { renameEditedSkin (name); };
+  _skinEditor->onDelete = [this] { deleteEditedSkin (); };
 
   // Clip Settings: permanent bottom panel, always visible.
   _clipSettings = std::make_unique<ClipSettingsComponent> ();
@@ -551,7 +554,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       if (pressed)
         {
           updateControlReadout ("-- MENU");
-          if (_globalSettingsOpen)
+          // One level at a time: a name being typed, then the editor, then
+          // the menu itself.
+          if (_skinEditorOpen && _skinEditor->isNaming ())
+            _skinEditor->finishNaming ();
+          else if (_skinEditorOpen)
+            closeSkinEditor ();
+          else if (_globalSettingsOpen)
             closeGlobalSettings ();
           else
             openGlobalSettings ();
@@ -1498,7 +1507,30 @@ A3MotionUIComponent::openGlobalSettings ()
   _globalSettingsValueFieldSelected = false;
   _globalSettingsOptionIndex = 0;
 
-  // Build or rebuild options with current mode as each option's active value
+  rebuildGlobalSettingsOptions ();
+
+  // Reuse the Clip Settings panel's safe zone (real screen space carved out
+  // of MotionComponent's bounds in resized(), not overlapping its OpenGL
+  // context) so the menu has room to show its option rows properly.
+  if (_clipSettings)
+    _globalSettings->setBounds (_clipSettings->getBounds ());
+
+  _globalSettings->setVisible (true);
+  _globalSettings->toFront (true);
+  resized (); // the menu takes the whole window, the sphere gives up its bounds
+
+  // Pausing here was a concession to the RPi4's GPU. The rig runs on an Intel
+  // NUC now and the sphere is meant to carry on behind the menu, but the option
+  // stays for a machine that needs it again.
+  if (_motionComponent && _pauseRenderingInMenu)
+    _motionComponent->setRenderingPaused (true);
+}
+
+void
+A3MotionUIComponent::rebuildGlobalSettingsOptions ()
+{
+  // Built fresh rather than patched: the list of skins changes underneath it
+  // whenever the editor saves, renames or deletes one.
   std::vector<GlobalSettingsComponent::Option> options{
     { "Clockmode",
       { { "INT" },
@@ -1543,22 +1575,6 @@ A3MotionUIComponent::openGlobalSettings ()
   _globalSettings->setOptions (std::move (options));
   _globalSettings->setOptionIndex (_globalSettingsOptionIndex);
   _globalSettings->setValueFieldSelected (false);
-
-  // Reuse the Clip Settings panel's safe zone (real screen space carved out
-  // of MotionComponent's bounds in resized(), not overlapping its OpenGL
-  // context) so the menu has room to show its option rows properly.
-  if (_clipSettings)
-    _globalSettings->setBounds (_clipSettings->getBounds ());
-
-  _globalSettings->setVisible (true);
-  _globalSettings->toFront (true);
-  resized (); // the menu takes the whole window, the sphere gives up its bounds
-
-  // Pausing here was a concession to the RPi4's GPU. The rig runs on an Intel
-  // NUC now and the sphere is meant to carry on behind the menu, but the option
-  // stays for a machine that needs it again.
-  if (_motionComponent && _pauseRenderingInMenu)
-    _motionComponent->setRenderingPaused (true);
 }
 
 void
@@ -1698,6 +1714,60 @@ A3MotionUIComponent::openSkinEditor ()
   _globalSettings->setVisible (false);
   _skinEditor->setVisible (true);
   _skinEditor->toFront (true);
+}
+
+void
+A3MotionUIComponent::saveSkinAsNew ()
+{
+  auto const configDir = getConfigFile ().getParentDirectory ();
+  auto const name = nextFreeSkinName (configDir, _skinEditor->getSkinName ());
+
+  // The edited state is what gets copied — "save as new" on a skin that has
+  // been turned about is meant to keep what is on the screen, not what was
+  // last written.
+  skinFile (configDir, name)
+      .replaceWithText (juce::JSON::toString (_skinEditor->getSkin (), false),
+                        false, false, "\n");
+
+  writeActiveSkin (getConfigFile (), name);
+  reopenEditorOn (name);
+}
+
+void
+A3MotionUIComponent::renameEditedSkin (juce::String const &name)
+{
+  auto const configDir = getConfigFile ().getParentDirectory ();
+
+  // Written first: a rename moves the file, and the edits would be left in
+  // the old one.
+  saveEditedSkin ();
+
+  if (renameSkin (configDir, _skinEditor->getSkinName (), name))
+    reopenEditorOn (name);
+}
+
+void
+A3MotionUIComponent::deleteEditedSkin ()
+{
+  auto const configDir = getConfigFile ().getParentDirectory ();
+
+  if (!deleteSkin (configDir, _skinEditor->getSkinName ()))
+    return; // the last one stays — see deleteSkin
+
+  reopenEditorOn (activeSkinName (getConfigFile ()));
+}
+
+void
+A3MotionUIComponent::reopenEditorOn (juce::String const &name)
+{
+  auto const file = skinFile (getConfigFile ().getParentDirectory (), name);
+
+  _skinEditor->setSkin (juce::JSON::parse (file.loadFileAsString ()),
+                        file.getFileNameWithoutExtension ());
+
+  // The menu underneath is showing a list of skins that just changed.
+  rebuildGlobalSettingsOptions ();
+  applyEditedSkin ();
 }
 
 void
