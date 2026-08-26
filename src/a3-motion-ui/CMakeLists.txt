@@ -49,6 +49,7 @@ target_sources("a3-motion-ui" PRIVATE
     theme/Theme.cc
     theme/ThemeColours.cc
     theme/ThemedComponent.cc
+    theme/SkinParameters.cc
     components/MotionComponent.cc
     components/MotionComponent.hh
     components/SphereShader.cc
@@ -68,6 +69,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/DirectivityComponent.cc
     components/DirectivityComponent.hh
     components/GlobalSettingsComponent.cc
+    components/SkinEditorComponent.cc
+    components/SkinEditorComponent.hh
     components/GlobalSettingsComponent.hh
     components/ClipSettingsCaptions.cc
     components/ClipSettingsComponent.cc

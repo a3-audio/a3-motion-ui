@@ -87,10 +87,22 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   createMainUI ();
   createPadRowDisplays ();
 
-  // Global Settings (hidden by default, shown on top of the settings area)
+  // Global Settings (hidden by default). A child of MotionComponent, not of
+  // this component: MotionComponent's OpenGL context is attached with
+  // component painting enabled, so it draws its own children over the
+  // rendered image. That is the only way anything can sit on top of the
+  // sphere — and the only way the menu can be see-through and still show
+  // the skin it is editing behind it.
   _globalSettings = std::make_unique<GlobalSettingsComponent> ();
   _globalSettings->setAlwaysOnTop (true);
-  addChildComponent (*_globalSettings);
+  _motionComponent->addChildComponent (*_globalSettings);
+
+  // The editor is a page of that menu and lives in the same place, for the
+  // same reason: what it changes is mostly the sphere behind it.
+  _skinEditor = std::make_unique<SkinEditorComponent> ();
+  _skinEditor->setAlwaysOnTop (true);
+  _motionComponent->addChildComponent (*_skinEditor);
+  _skinEditor->onValueChanged = [this] { applyEditedSkin (); };
 
   // Clip Settings: permanent bottom panel, always visible.
   _clipSettings = std::make_unique<ClipSettingsComponent> ();
@@ -490,36 +502,22 @@ A3MotionUIComponent::resized ()
   if (_clipSettings)
     _clipSettings->setBounds (boundsClipSettings);
 
-  // The sphere renders through its own directly-attached OpenGLContext, which
-  // composites above every ordinary JUCE component whatever the z-order says,
-  // so while the menu is up it has to be got out of the way.
-  //
-  // Moved off-screen, not resized away: a zero size loses the context, and it
-  // did not come back when the menu closed — the sphere stayed black until the
-  // app was restarted. Its size is left alone; only its position moves.
-  _motionComponent->setBounds (_globalSettingsOpen
-                                   ? bounds.withY (getHeight ())
-                                   : bounds);
-
-  // Global Settings takes the whole window while it is open. It cannot
-  // simply be laid over the sphere: MotionComponent renders through its own
-  // directly-attached OpenGLContext, which composites above every ordinary
-  // JUCE component whatever the z-order says. So the sphere's bounds are
-  // taken away for as long as the menu is up, and given back on close.
-  if (_globalSettings)
+  // While the menu is open the sphere takes the clip settings' space as well,
+  // so the menu — its child — has the whole screen below the status bar to
+  // cover, and the sphere is what shows through it.
+  if (_globalSettingsOpen)
     {
-      if (_globalSettingsOpen)
-        {
-          // No GL here, so this one may simply give up its space.
-          if (_clipSettings)
-            _clipSettings->setBounds ({});
-          _globalSettings->setBounds (getLocalBounds ());
-        }
-      else
-        {
-          _globalSettings->setBounds (boundsClipSettings);
-        }
+      bounds = bounds.getUnion (boundsClipSettings);
+      if (_clipSettings)
+        _clipSettings->setBounds ({}); // no GL here, it may give up its space
     }
+
+  _motionComponent->setBounds (bounds);
+
+  if (_globalSettings)
+    _globalSettings->setBounds (_motionComponent->getLocalBounds ());
+  if (_skinEditor)
+    _skinEditor->setBounds (_motionComponent->getLocalBounds ());
 }
 
 float
@@ -641,6 +639,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                 updateControlReadout (
                     "CH" + juce::String (channel + 1) + " ENC "
                     + (increment > 0 ? "+" : "") + juce::String (increment));
+              if (_skinEditorOpen && channel == 3u)
+                {
+                  if (increment != 0)
+                    _skinEditor->navigate (increment > 0 ? 1 : -1);
+                  return;
+                }
+
               if (_globalSettingsOpen && channel == 3u)
                 {
                   if (increment != 0)
@@ -682,6 +687,14 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                 {
                   updateControlReadout ("CH" + juce::String (channel + 1)
                                        + " ENC PRESS");
+                  // In the skin editor the same press arms the browsed
+                  // parameter and lets it go again.
+                  if (_skinEditorOpen && channel == 3u)
+                    {
+                      _skinEditor->toggleEditing ();
+                      return;
+                    }
+
                   // The single ch3 encoder also drives Global Settings
                   // while it's open: first press arms the currently
                   // browsed option's value field, second press confirms
@@ -1526,6 +1539,7 @@ A3MotionUIComponent::openGlobalSettings ()
     skinValues.push_back ({ name });
 
   options.push_back ({ "Skin", std::move (skinValues), _skinIndex });
+  options.push_back ({ "Skin Editor", { { "open" } }, 0 });
   _globalSettings->setOptions (std::move (options));
   _globalSettings->setOptionIndex (_globalSettingsOptionIndex);
   _globalSettings->setValueFieldSelected (false);
@@ -1553,6 +1567,10 @@ A3MotionUIComponent::closeGlobalSettings ()
   if (!_globalSettingsOpen)
     return;
 
+  // The editor is a page of this menu, so closing the menu leaves it first —
+  // that is also what saves the edited skin.
+  closeSkinEditor ();
+
   _globalSettingsOpen = false;
   _globalSettingsValueFieldSelected = false;
   _globalSettings->setVisible (false);
@@ -1578,8 +1596,10 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
     applyHeaderSize (chosen);
   else if (_globalSettingsOptionIndex == 3)
     applyBodySize (chosen);
-  else
+  else if (_globalSettingsOptionIndex == 4)
     applySkin (chosen);
+  else
+    openSkinEditor ();
 
   _globalSettings->setActiveValueIndex (_globalSettingsOptionIndex, chosen);
 
@@ -1659,6 +1679,67 @@ A3MotionUIComponent::applyBodySize (int index)
   _bodySizeIndex = juce::jlimit (0, numFontScales - 1, index);
   setBodyScale (fontScaleForIndex (_bodySizeIndex));
   refreshFonts ();
+}
+
+void
+A3MotionUIComponent::openSkinEditor ()
+{
+  if (_skinEditorOpen)
+    return;
+
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              _skinNames[juce::jlimit (
+                                  0, juce::jmax (0, _skinNames.size () - 1),
+                                  _skinIndex)]);
+
+  _skinEditor->setSkin (juce::JSON::parse (file.loadFileAsString ()),
+                        file.getFileNameWithoutExtension ());
+  _skinEditorOpen = true;
+  _globalSettings->setVisible (false);
+  _skinEditor->setVisible (true);
+  _skinEditor->toFront (true);
+}
+
+void
+A3MotionUIComponent::closeSkinEditor ()
+{
+  if (!_skinEditorOpen)
+    return;
+
+  // Written on the way out rather than on every detent: turning an encoder
+  // produces a value per tick, and a file save per tick would spend the
+  // session writing to disk and waking the file watcher.
+  saveEditedSkin ();
+
+  _skinEditorOpen = false;
+  _skinEditor->setVisible (false);
+  _globalSettings->setVisible (true);
+  _globalSettings->toFront (true);
+}
+
+void
+A3MotionUIComponent::applyEditedSkin ()
+{
+  // Straight to the theme, so the change is visible on the sphere behind the
+  // editor while the encoder is still turning. The file follows on close.
+  juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
+  auto const loaded = loadTheme (_skinEditor->getSkin ());
+  juce::MessageManager::callAsync ([safeThis, loaded] {
+    if (safeThis != nullptr)
+      applyThemeEverywhere (loaded, *safeThis);
+  });
+}
+
+void
+A3MotionUIComponent::saveEditedSkin ()
+{
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              _skinEditor->getSkinName ());
+
+  // Rewritten whole, unlike config.json: a skin file is this editor's own
+  // output, and its shape is generated rather than hand-arranged.
+  file.replaceWithText (juce::JSON::toString (_skinEditor->getSkin (), false),
+                        false, false, "\n");
 }
 
 void

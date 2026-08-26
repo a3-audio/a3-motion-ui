@@ -17,7 +17,9 @@ namespace
 // Structural washes: the overlay over the panel behind it, and the three
 // depths a settings row can have. State — browsed, inactive — comes from the
 // theme's alphas instead.
-constexpr float overlayOpacity = 0.72f;
+// See-through on purpose: the menu is where a skin is chosen and edited,
+// and the sphere behind it is most of what a skin actually changes.
+constexpr float overlayOpacity = 0.55f;
 constexpr float rowWash = 0.063f;
 constexpr float browsedRowWash = 0.086f;
 constexpr float armedRowWash = 0.133f;

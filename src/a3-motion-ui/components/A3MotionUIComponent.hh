@@ -33,6 +33,7 @@
 
 #include <a3-motion-ui/SettingsPersistence.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
@@ -210,6 +211,13 @@ private:
   void  applyBodySize (int index);
   /** Point config.json at another skin; the file watcher reloads it. */
   void  applySkin (int index);
+  /** Open the skin editor as a page of the settings menu, close it again
+   *  (which is when the edited skin is written), put an edit in force, and
+   *  save. */
+  void  openSkinEditor ();
+  void  closeSkinEditor ();
+  void  applyEditedSkin ();
+  void  saveEditedSkin ();
   // Index into potSizeScales/potSizeLabels — scales every knob/toggle in
   // ClipSettingsComponent uniformly (see ClipSettingsComponent::
   // setPotSizeScale()), adjustable live from the Global Settings menu.
@@ -222,6 +230,8 @@ private:
   // a saved index has to become a factor at startup, before any menu exists.
   int _headerSizeIndex = 1; // default 100%
   int _bodySizeIndex = 1;   // default 100%
+  std::unique_ptr<SkinEditorComponent> _skinEditor;
+  bool _skinEditorOpen = false;
   juce::StringArray _skinNames;
   int _skinIndex = 0;
   static constexpr char const *fontSizeLabels[] = { "75%", "100%", "125%",
