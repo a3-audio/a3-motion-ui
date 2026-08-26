@@ -111,6 +111,8 @@ ColourPickerComponent::resized ()
 
   _header = area.removeFromTop (
       static_cast<int> (theme ().fontSize (FontRole::Header) * 1.6f));
+  _doneButton = _header.removeFromRight (_header.getHeight () * 3);
+  _header.removeFromRight (padding / 2);
   area.removeFromTop (padding / 2);
 
   _field = area.removeFromLeft (juce::jmin (area.getHeight (),
@@ -150,7 +152,17 @@ ColourPickerComponent::pickFrom (juce::Point<int> position)
 void
 ColourPickerComponent::mouseDown (juce::MouseEvent const &event)
 {
+  if (_doneButton.contains (event.getPosition ()))
+    return; // decided on release, so a slip off it is a change of mind
+
   pickFrom (event.getPosition ());
+}
+
+void
+ColourPickerComponent::mouseUp (juce::MouseEvent const &event)
+{
+  if (_doneButton.contains (event.getPosition ()) && onDone)
+    onDone ();
 }
 
 void
@@ -178,6 +190,14 @@ ColourPickerComponent::paint (juce::Graphics &g)
   g.drawText (_title, header, juce::Justification::centredLeft, true);
   g.setColour (_colour);
   g.fillRoundedRectangle (swatch.reduced (2).toFloat (), 4.f);
+
+  // Done, as something to touch. The change is already in force — this is
+  // the way back to the list, not a commit.
+  g.setColour (toColour (theme ().textPrimary, armedRowWash));
+  g.fillRoundedRectangle (_doneButton.toFloat (), 5.f);
+  g.setColour (toColour (theme ().accent));
+  g.setFont (juce::Font (theme ().fontSize (FontRole::Body), juce::Font::bold));
+  g.drawText ("done", _doneButton, juce::Justification::centred, false);
 
   // The field: saturation across, lightness down, at the chosen hue. Drawn
   // in strips rather than as a gradient, because a gradient can only run one

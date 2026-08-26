@@ -54,8 +54,13 @@ public:
 
   std::function<void ()> onColourChanged;
 
+  /** Tapped on the done button. The Menu button does the same thing; a
+   *  touchscreen wants something to touch. */
+  std::function<void ()> onDone;
+
   void paint (juce::Graphics &g) override;
   void mouseDown (juce::MouseEvent const &event) override;
+  void mouseUp (juce::MouseEvent const &event) override;
   void mouseDrag (juce::MouseEvent const &event) override;
 
 private:
@@ -64,6 +69,7 @@ private:
   void setFromHSL (float hue, float saturation, float lightness);
 
   juce::Rectangle<int> _header;
+  juce::Rectangle<int> _doneButton;
   juce::Rectangle<int> _field;  //< saturation across, lightness down
   juce::Rectangle<int> _hueBar;
   juce::Rectangle<int> _rows;

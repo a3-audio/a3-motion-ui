@@ -124,6 +124,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _colourPicker->setAlwaysOnTop (true);
   _motionComponent->addChildComponent (*_colourPicker);
   _colourPicker->onColourChanged = [this] { applyPickedColour (); };
+  _colourPicker->onDone = [this] { closeColourPicker (); };
 
   // Clip Settings: permanent bottom panel, always visible.
   _clipSettings = std::make_unique<ClipSettingsComponent> ();
@@ -1859,6 +1860,26 @@ A3MotionUIComponent::applyPauseRendering (bool paused)
 
   if (_motionComponent)
     _motionComponent->setRenderingPaused (paused);
+}
+
+void
+A3MotionUIComponent::applyTheme ()
+{
+  // A channel's colour was read once, at construction, and kept in
+  // ChannelUIState — so editing it in the skin changed the file and the
+  // theme and nothing on the screen. Every blob, pad and frame is drawn
+  // from this copy, which is why it has to be refreshed here.
+  auto const numChannels = _engine.getNumChannels ();
+  for (index_t channel = 0;
+       channel < numChannels && channel < (index_t)numThemeChannels; ++channel)
+    if (_channelUIStates[channel] != nullptr)
+      _channelUIStates[channel]->colour = toColour (theme ().channel[channel]);
+
+  // The clip settings bar was handed its channel's colour by value too.
+  if (_clipSettings && _channelUIStates[_clipSettingsChannel] != nullptr)
+    _clipSettings->setTarget (static_cast<int> (_clipSettingsChannel),
+                              static_cast<int> (_clipSettingsSlot),
+                              _channelUIStates[_clipSettingsChannel]->colour);
 }
 
 void

@@ -34,6 +34,7 @@
 #include <a3-motion-ui/SettingsPersistence.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/ColourPickerComponent.hh>
+#include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/KeyboardComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
@@ -59,7 +60,8 @@ class ChannelUIState;
 class Pattern;
 class HeightMapSphere;
 
-class A3MotionUIComponent : public juce::Component,
+class A3MotionUIComponent : public ThemedComponent,
+                            public juce::Component,
                             public juce::Value::Listener,
                             public juce::MessageListener,
                             public juce::OSCReceiver::Listener<juce::OSCReceiver::MessageLoopCallback>,
@@ -237,6 +239,9 @@ private:
   void  openColourPicker (juce::String const &path);
   void  closeColourPicker ();
   void  applyPickedColour ();
+  /** Re-read what this component caches from the theme: the channel
+   *  colours, which every blob, pad and frame is drawn in. */
+  void  applyTheme () override;
   void  showKeyboard (bool shown);
   void  toggleKeyboard ();
   void  rebuildGlobalSettingsOptions ();
