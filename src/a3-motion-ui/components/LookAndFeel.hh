@@ -64,4 +64,14 @@ public:
                                 int buttonHeight) override;
 };
 
+
+/** Put a freshly loaded theme in force everywhere on the message thread:
+ *  the LookAndFeel's cached ColourIds, every component that caches something
+ *  of its own, and a repaint.
+ *
+ *  `inTree` is any component in the window — its LookAndFeel is resolved
+ *  through the parent chain, the same chain its children resolve colours
+ *  through, and its top-level component is the tree that gets walked. */
+void applyThemeEverywhere (Theme loaded, juce::Component &inTree);
+
 }

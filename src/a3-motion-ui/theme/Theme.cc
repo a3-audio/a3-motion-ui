@@ -20,6 +20,8 @@
 
 #include "Theme.hh"
 
+#include <regex>
+
 namespace a3
 {
 
@@ -148,6 +150,56 @@ loadActiveSkinVar (juce::File const &configFile, juce::var const &config)
     return {};
 
   return juce::JSON::parse (file.loadFileAsString ());
+}
+
+juce::StringArray
+availableSkins (juce::File const &configDir)
+{
+  juce::StringArray names;
+
+  auto const folder = configDir.getChildFile ("skins");
+  if (folder.isDirectory ())
+    for (auto const &entry : juce::RangedDirectoryIterator (
+             folder, false, "*.json", juce::File::findFiles))
+      names.add (entry.getFile ().getFileNameWithoutExtension ());
+
+  names.sort (true);
+
+  if (names.isEmpty ())
+    names.add ("default");
+
+  return names;
+}
+
+juce::String
+activeSkinName (juce::File const &configFile)
+{
+  auto const config = juce::JSON::parse (configFile.loadFileAsString ());
+  auto const named = config["ui"]["skin"].toString ();
+
+  return named.isNotEmpty () ? named : juce::String ("default");
+}
+
+bool
+writeActiveSkin (juce::File const &configFile, juce::String const &name)
+{
+  auto const text = configFile.loadFileAsString ();
+
+  // The entry as it is written, whatever spacing surrounds the colon.
+  std::regex const entry (R"(("skin"\s*:\s*")[^"]*("))");
+  auto const before = text.toStdString ();
+  std::string after
+      = std::regex_replace (before, entry, "$1" + name.toStdString () + "$2");
+
+  if (after == before && activeSkinName (configFile) != name)
+    return false; // no entry to rewrite
+
+  if (after == before)
+    return true; // already this skin
+
+  // Explicit "\n": replaceWithText writes CRLF by default, which would
+  // rewrite every line in the file to change one word.
+  return configFile.replaceWithText (juce::String (after), false, false, "\n");
 }
 
 Theme

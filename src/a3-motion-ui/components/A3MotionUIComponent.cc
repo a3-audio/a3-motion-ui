@@ -252,10 +252,7 @@ A3MotionUIComponent::createChannelsUI ()
 
   // Read optional per-channel colours from config
   // Channel colours are part of the look, so they live in the skin.
-  auto const skinVar = loadActiveSkinVar (
-      juce::File::getCurrentWorkingDirectory ().getChildFile (
-          "config/config.json"),
-      userConfig);
+  auto const skinVar = loadActiveSkinVar (getConfigFile (), userConfig);
   auto const &channelsCfg = skinVar["channels"];
 
   for (auto channel = 0u; channel < numChannels; ++channel)
@@ -493,14 +490,28 @@ A3MotionUIComponent::resized ()
   if (_clipSettings)
     _clipSettings->setBounds (boundsClipSettings);
 
-  _motionComponent->setBounds (bounds);
+  if (!_globalSettingsOpen)
+    _motionComponent->setBounds (bounds);
 
-  // Global Settings (Clockmode/Elevation Map) shares the same safe zone as
-  // the Clip Settings panel — it's real screen space carved out of
-  // MotionComponent's bounds above, so ordinary JUCE z-order/toFront() is
-  // enough to show it on top while open (no GL composite-order issue here).
+  // Global Settings takes the whole window while it is open. It cannot
+  // simply be laid over the sphere: MotionComponent renders through its own
+  // directly-attached OpenGLContext, which composites above every ordinary
+  // JUCE component whatever the z-order says. So the sphere's bounds are
+  // taken away for as long as the menu is up, and given back on close.
   if (_globalSettings)
-    _globalSettings->setBounds (boundsClipSettings);
+    {
+      if (_globalSettingsOpen)
+        {
+          _motionComponent->setBounds ({});
+          if (_clipSettings)
+            _clipSettings->setBounds ({});
+          _globalSettings->setBounds (getLocalBounds ());
+        }
+      else
+        {
+          _globalSettings->setBounds (boundsClipSettings);
+        }
+    }
 }
 
 float
@@ -1495,6 +1506,18 @@ A3MotionUIComponent::openGlobalSettings ()
         { fontSizeLabels[4] } },
       _bodySizeIndex },
   };
+
+  // Built from what is actually in config/skins, so a skin added on the
+  // device shows up without a rebuild.
+  _skinNames = availableSkins (getConfigFile ().getParentDirectory ());
+  auto const active = activeSkinName (getConfigFile ());
+  _skinIndex = juce::jmax (0, _skinNames.indexOf (active));
+
+  std::vector<GlobalSettingsComponent::ValueItem> skinValues;
+  for (auto const &name : _skinNames)
+    skinValues.push_back ({ name });
+
+  options.push_back ({ "Skin", std::move (skinValues), _skinIndex });
   _globalSettings->setOptions (std::move (options));
   _globalSettings->setOptionIndex (_globalSettingsOptionIndex);
   _globalSettings->setValueFieldSelected (false);
@@ -1507,6 +1530,7 @@ A3MotionUIComponent::openGlobalSettings ()
 
   _globalSettings->setVisible (true);
   _globalSettings->toFront (true);
+  resized (); // the menu takes the whole window, the sphere gives up its bounds
 
   // Pausing here was a concession to the RPi4's GPU. The rig runs on an Intel
   // NUC now and the sphere is meant to carry on behind the menu, but the option
@@ -1525,6 +1549,7 @@ A3MotionUIComponent::closeGlobalSettings ()
   _globalSettingsValueFieldSelected = false;
   _globalSettings->setVisible (false);
   _globalSettings->setValueFieldSelected (false);
+  resized (); // sphere and clip settings get their bounds back
   if (_motionComponent)
     _motionComponent->setRenderingPaused (false);
 }
@@ -1543,8 +1568,10 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
     applyPotSize (chosen);
   else if (_globalSettingsOptionIndex == 2)
     applyHeaderSize (chosen);
-  else
+  else if (_globalSettingsOptionIndex == 3)
     applyBodySize (chosen);
+  else
+    applySkin (chosen);
 
   _globalSettings->setActiveValueIndex (_globalSettingsOptionIndex, chosen);
 
@@ -1627,6 +1654,38 @@ A3MotionUIComponent::applyBodySize (int index)
 }
 
 void
+A3MotionUIComponent::applySkin (int index)
+{
+  if (index < 0 || index >= _skinNames.size ())
+    return;
+
+  _skinIndex = index;
+
+  // Written to config.json rather than kept in a variable: which skin is
+  // running is operation, and config.json is where operation lives. A hand
+  // edit and this menu then say the same thing in the same place.
+  writeActiveSkin (getConfigFile (), _skinNames[index]);
+
+  // The watcher that normally picks that up runs inside the GL render loop,
+  // and the sphere is not rendering while the menu covers it — so the half of
+  // the reload that is pure message-thread work happens here. The sphere's own
+  // tuning follows from the watcher as soon as it draws again, which is when
+  // the menu closes and it is visible in the first place.
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              _skinNames[index]);
+  // Queued rather than applied on the spot, so that a reload the render
+  // thread dispatched a moment ago runs first and this one has the last
+  // word. Applying directly let a callback that was already in flight put
+  // the previous skin back.
+  auto const loaded = loadTheme (juce::JSON::parse (file.loadFileAsString ()));
+  juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
+  juce::MessageManager::callAsync ([safeThis, loaded] {
+    if (safeThis != nullptr)
+      applyThemeEverywhere (loaded, *safeThis);
+  });
+}
+
+void
 A3MotionUIComponent::refreshFonts ()
 {
   // The status bar's height follows the header size, so this is a layout
@@ -1641,6 +1700,13 @@ A3MotionUIComponent::refreshFonts ()
   saveSettings (getPersistedSettingsFile (),
                AppSettings{ _clockMode, _potSizeIndex, _headerSizeIndex,
                             _bodySizeIndex });
+}
+
+juce::File
+A3MotionUIComponent::getConfigFile () const
+{
+  return juce::File::getCurrentWorkingDirectory ().getChildFile (
+      "config/config.json");
 }
 
 juce::File

@@ -155,4 +155,25 @@ void setTheme (Theme newTheme);
 juce::var loadActiveSkinVar (juce::File const &configFile,
                              juce::var const &config);
 
+/** The skins that exist beside the given config directory, by name and
+ *  sorted, so a menu built from this reads the same on every machine.
+ *
+ *  A missing or empty folder still offers "default" — that is what
+ *  skinFile() falls back to, and a menu with no entries would be worse
+ *  than one entry that always works. */
+juce::StringArray availableSkins (juce::File const &configDir);
+
+/** Which skin the config file names, "default" when it names none. */
+juce::String activeSkinName (juce::File const &configFile);
+
+/** Point the config file at another skin, and nothing else.
+ *
+ *  Only the value is rewritten — config.json is hand-maintained, and its
+ *  ordering, spacing and comments are how a person reads it; a parse and
+ *  re-serialise would reformat the whole file to say one word. Returns
+ *  false, and leaves the file untouched, when there is no `ui.skin` entry
+ *  to rewrite: guessing where one should go would write a file the next
+ *  hand edit fights with. */
+bool writeActiveSkin (juce::File const &configFile, juce::String const &name);
+
 }

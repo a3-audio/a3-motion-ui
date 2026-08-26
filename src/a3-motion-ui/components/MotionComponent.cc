@@ -855,35 +855,12 @@ MotionComponent::applyVisualConfig (juce::var const &config)
 void
 MotionComponent::applyTheme (juce::var const &skin)
 {
-  // The menu's font factor is carried across: it comes from the settings file,
-  // not from the skin, and reloading one file must not discard the other.
-  auto loaded = loadTheme (skin);
-  loaded.headerScale = theme ().headerScale;
-  loaded.bodyScale = theme ().bodyScale;
-  setTheme (loaded);
+  auto const loaded = loadTheme (skin);
 
   juce::Component::SafePointer<MotionComponent> safeThis{ this };
-  juce::MessageManager::callAsync ([safeThis] {
-    if (safeThis == nullptr)
-      return;
-
-    // The LookAndFeel does cache: findColour reads what setColour last wrote,
-    // so a skin change has to reach it before anything repaints. Asked for via
-    // the parent chain rather than a back-pointer — that is the same chain
-    // every child already resolves its colours through.
-    if (auto *lookAndFeel
-        = dynamic_cast<LookAndFeel_A3 *> (&safeThis->getLookAndFeel ()))
-      lookAndFeel->applyTheme (theme ());
-
-    if (auto *root = safeThis->getTopLevelComponent ())
-      {
-        // Most components read the theme while painting, so the repaint is
-        // all they need. The ones that cache — juce::Labels take a colour and
-        // a font once and keep them — have to be told first, or they go on
-        // showing the previous skin.
-        applyThemeToTree (*root);
-        root->repaint ();
-      }
+  juce::MessageManager::callAsync ([safeThis, loaded] {
+    if (safeThis != nullptr)
+      applyThemeEverywhere (loaded, *safeThis);
   });
 }
 

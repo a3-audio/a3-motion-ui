@@ -20,6 +20,8 @@
 
 #include "LookAndFeel.hh"
 
+#include <a3-motion-ui/theme/ThemedComponent.hh>
+
 namespace a3
 {
 
@@ -103,6 +105,32 @@ LookAndFeel_A3::getTextButtonFont (juce::TextButton &button, int buttonHeight)
 {
   return scaled (
       juce::LookAndFeel_V4::getTextButtonFont (button, buttonHeight));
+}
+
+
+void
+applyThemeEverywhere (Theme loaded, juce::Component &inTree)
+{
+  // The menu's font factors come from the settings file, not from the skin,
+  // and reloading one must not discard the other.
+  loaded.headerScale = theme ().headerScale;
+  loaded.bodyScale = theme ().bodyScale;
+  setTheme (loaded);
+
+  // The LookAndFeel does cache: findColour reads what setColour last wrote,
+  // so a skin change has to reach it before anything repaints.
+  if (auto *lookAndFeel
+      = dynamic_cast<LookAndFeel_A3 *> (&inTree.getLookAndFeel ()))
+    lookAndFeel->applyTheme (theme ());
+
+  if (auto *root = inTree.getTopLevelComponent ())
+    {
+      // Most components read the theme while painting, so the repaint is all
+      // they need. The ones that cache — juce::Labels take a colour and a
+      // font once and keep them — have to be told first.
+      applyThemeToTree (*root);
+      root->repaint ();
+    }
 }
 
 }

@@ -208,6 +208,8 @@ private:
    *  its own, then persist. */
   void  refreshFonts ();
   void  applyBodySize (int index);
+  /** Point config.json at another skin; the file watcher reloads it. */
+  void  applySkin (int index);
   // Index into potSizeScales/potSizeLabels — scales every knob/toggle in
   // ClipSettingsComponent uniformly (see ClipSettingsComponent::
   // setPotSizeScale()), adjustable live from the Global Settings menu.
@@ -220,6 +222,8 @@ private:
   // a saved index has to become a factor at startup, before any menu exists.
   int _headerSizeIndex = 1; // default 100%
   int _bodySizeIndex = 1;   // default 100%
+  juce::StringArray _skinNames;
+  int _skinIndex = 0;
   static constexpr char const *fontSizeLabels[] = { "75%", "100%", "125%",
                                                      "150%", "175%" };
 
@@ -228,6 +232,7 @@ private:
   // load — same getCurrentWorkingDirectory()-relative resolution), read
   // once at startup and rewritten whenever one of those actually changes,
   // so they survive app restarts instead of resetting to defaults.
+  juce::File getConfigFile () const;
   juce::File getPersistedSettingsFile () const;
 
   // Pattern directory monitoring
