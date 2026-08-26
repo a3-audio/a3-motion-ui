@@ -769,7 +769,7 @@ ClipSettingsComponent::paintFilterSection (juce::Graphics &g,
   auto const &qArea = content;
 
   paintMiniKnob (g, textCell (sweepArea, metrics.knobDiam), metrics,
-                 caption::sweep, _filterSweep * 2.f - 1.f, false,
+                 caption::frequency, _filterSweep * 2.f - 1.f, false,
                  _filterSubIndex == 0, isSelected);
   paintMiniKnob (g, textCell (qArea, metrics.knobDiam), metrics, caption::q,
                  _filterQ * 2.f - 1.f, false, _filterSubIndex == 1,

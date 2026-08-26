@@ -51,23 +51,27 @@ namespace a3
  * All Elevation controls are visible in parallel, with whichever one the
  * Pot-Encoder currently edits highlighted (the graphic highlights too,
  * whenever the highlighted control affects it). Motion (Speed/Direction/
- * End-Action) and Filter (Sweep/Q) use the same small-knob style — Speed/
- * Sweep/Q as rotary knobs, Direction/End-Action (discrete) as two-state-
- * style toggles showing their current name — laid out in a single row per
- * section since there's no graphic to share space with. Every knob/toggle
+ * End-Action) and Filter (Freq/Q) use the same small-control style —
+ * Freq/Q as rotary knobs, Speed/Direction/End-Action as value displays
+ * showing their current name or note value instead of a knob (Speed is
+ * quantized to note values, and a knob angle says nothing a reader of
+ * "1/4" does not already know) — laid out in a single row per section
+ * since there's no graphic to share space with. Every knob/toggle
  * across every section (Elevation included) is given the same fixed-size
  * bounds — see controlBounds() — sized to fit Elevation's tightest layout
  * (graphic + 2x3 grid) and reused as-is (centred, with extra margin) by
  * Motion/Filter's roomier single-row layouts, rather than each stretching
- * to fill its own section's grid cell; a knob's optional value text
- * (Speed only, e.g. "1/4") sits directly above it, its label directly
- * below. That shared size scales with setPotSizeScale(), and its label/
- * value text separately via the theme's font scale — both driven by their
- * own Global Settings options ("Pot Size"/"Font Size"), adjustable live
- * without a rebuild. Every caption in the bar is drawn at one size, from
- * the tightest caption box across all sections (see sharedCaptionSize());
- * fitting each caption to its own box instead made short captions like
- * "Q" several times the height of the long ones beside them.
+ * to fill its own section's grid cell; a control's caption sits directly
+ * below it, and a value display's value directly above its caption. That
+ * shared size scales with setPotSizeScale(), and its text separately via
+ * the theme's font scale — both driven by their own Global Settings
+ * options ("Pot Size"/"Font Size"), adjustable live without a rebuild.
+ * Every caption in the bar is drawn at one size, from the tightest
+ * caption box across all sections (see sharedCaptionSize()); fitting each
+ * caption to its own box instead made short captions like "Q" several
+ * times the height of the long ones beside them. The values share a
+ * second size the same way (see sharedValueSize()), which is what brought
+ * the lone "1" in the Motion section back into proportion.
  * Section headings are deliberately small (see paintSectionLabel()) so
  * most of each section's height goes to its controls. Driven by two
  * per-channel encoders in A3MotionUIComponent: the Motion-Encoder scrolls
@@ -184,7 +188,7 @@ private:
    *  visible in parallel — same style as the Elevation controls. */
   void paintMotionSection (juce::Graphics &g, juce::Rectangle<int> bounds,
                            bool isSelected, ControlMetrics metrics);
-  /** Sweep / Q (knobs), single row. */
+  /** Freq / Q (knobs), single row. */
   void paintFilterSection (juce::Graphics &g, juce::Rectangle<int> bounds,
                            bool isSelected, ControlMetrics metrics);
   /** Small, deliberately unobtrusive section title (see class doc) — most

@@ -46,7 +46,9 @@ constexpr char const *flatElevation = "flat-elv";
 constexpr char const *speed = "speed";
 constexpr char const *direction = "dir";
 constexpr char const *endAction = "end";
-constexpr char const *sweep = "sweep";
+/** The filter's cutoff. The engine still calls it sweep (see
+ *  Pattern/setFilterSweep); on screen it is what it does. */
+constexpr char const *frequency = "freq";
 constexpr char const *q = "Q";
 }
 
@@ -84,7 +86,7 @@ constexpr TextEntry captionTable[] = {
   { caption::clipTop, 2 },     { caption::clipBottom, 2 },
   { caption::flat, 2 },        { caption::flatElevation, 2 },
   { caption::speed, 3 },       { caption::direction, 3 },
-  { caption::endAction, 3 },   { caption::sweep, 2 },
+  { caption::endAction, 3 },   { caption::frequency, 2 },
   { caption::q, 2 },
 };
 
