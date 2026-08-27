@@ -377,10 +377,11 @@ TEST (SphereScale, TheLimitFollowsTheDiagonalPlacementOfTheSpeakers)
   EXPECT_FALSE (speakerIconsFitOnScreen (0.85f, 1.4f));
 }
 
-// Whatever the menu offers has to be a size the guard accepts, or Sphere Size
-// hands somebody a skin that fails the suite. These are
-// A3MotionUIComponent::sphereSizes; "large" is the one with no room to spare.
-TEST (SphereScale, EverySizeTheMenuOffersFits)
+// The sphere's size is a skin value, edited in the skin editor like the rest
+// of the skin — there is no preset list guarding the range any more. This
+// pins the span a skin may reasonably use, so that a change to the icon
+// geometry which narrows it shows up here rather than on the screen.
+TEST (SphereScale, TheUsableRangeReachesFromSmallToJustOverFourFifths)
 {
   for (auto scale : { 0.45f, 0.54f, 0.62f, 0.72f, 0.82f })
     EXPECT_TRUE (speakerIconsFitOnScreen (scale, 1.4f)) << "scale " << scale;

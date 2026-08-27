@@ -146,7 +146,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     applyBodySize (std::clamp (settings.bodySizeIndex, 0, numFontSizes - 1));
   }
 
-  loadSphereSize ();
 
   // Start directory monitor: check for new/changed SVG files every 2 seconds
   startTimer (2000);
@@ -702,13 +701,9 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                           _globalSettings->navigateValue (increment > 0 ? 1
                                                                         : -1);
 
-                          auto const row = static_cast<MenuRow> (
-                              _globalSettingsOptionIndex);
-                          if (row == MenuRow::Skin)
+                          if (static_cast<MenuRow> (_globalSettingsOptionIndex)
+                              == MenuRow::Skin)
                             previewSkin (
-                                _globalSettings->getSelectedValueIndex ());
-                          else if (row == MenuRow::SphereSize)
-                            previewSphereSize (
                                 _globalSettings->getSelectedValueIndex ());
                         }
                       else
@@ -1642,13 +1637,6 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
   for (auto const &name : _skinNames)
     skinValues.push_back ({ name });
 
-  options.push_back ({ "Sphere Size",
-                       { { sphereSizeLabels[0] },
-                         { sphereSizeLabels[1] },
-                         { sphereSizeLabels[2] },
-                         { sphereSizeLabels[3] },
-                         { sphereSizeLabels[4] } },
-                       _sphereSizeIndex });
   options.push_back ({ "Skin", std::move (skinValues), _skinIndex });
   options.push_back ({ "Skin Editor", { { "open" } }, 0, true });
   options.push_back ({ "Network", { { "open" } }, 0, true });
@@ -1695,7 +1683,6 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
     case MenuRow::PotSize: applyPotSize (chosen); break;
     case MenuRow::HeaderSize: applyHeaderSize (chosen); break;
     case MenuRow::BodySize: applyBodySize (chosen); break;
-    case MenuRow::SphereSize: applySphereSize (chosen); break;
     case MenuRow::Skin: applySkin (chosen); break;
     case MenuRow::SkinEditor: openSkinEditor (); break;
     case MenuRow::Network:
@@ -2088,8 +2075,17 @@ A3MotionUIComponent::applyEditedSkin ()
 
   // Straight to the theme, so the change is visible on the sphere behind the
   // editor while the encoder is still turning. The file follows on close.
+  auto const edited = _skinEditor->getSkin ();
+
+  // The sphere's size is not a theme colour — MotionComponent reads it from
+  // the skin file — so it needs its own way through, or it would be the one
+  // value in the editor that waits for the file watcher.
+  if (_motionComponent != nullptr && edited.hasProperty ("sphereScale"))
+    _motionComponent->setSphereScalePreview (
+        static_cast<float> (edited["sphereScale"]));
+
   juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
-  auto const loaded = loadTheme (_skinEditor->getSkin ());
+  auto const loaded = loadTheme (edited);
   juce::MessageManager::callAsync ([safeThis, loaded] {
     if (safeThis != nullptr)
       applyThemeEverywhere (loaded, *safeThis);
@@ -2109,57 +2105,8 @@ A3MotionUIComponent::saveEditedSkin ()
       false, "\n");
 }
 
-void
-A3MotionUIComponent::loadSphereSize ()
-{
-  // Whichever of the offered sizes the active skin is nearest to, so the
-  // menu opens on what is actually on screen.
-  auto const file = skinFile (getConfigFile ().getParentDirectory (),
-                              activeSkinName (getConfigFile ()));
-  auto const skin = juce::JSON::parse (file.loadFileAsString ());
-  auto const scale = skinValue (skin, "sphereScale");
 
-  if (scale <= 0.0)
-    return;
 
-  auto nearest = 0;
-  for (int i = 1; i < numSphereSizes; ++i)
-    if (std::abs (sphereSizes[i] - scale) < std::abs (sphereSizes[nearest] - scale))
-      nearest = i;
-
-  _sphereSizeIndex = nearest;
-}
-
-void
-A3MotionUIComponent::previewSphereSize (int index)
-{
-  if (index < 0 || index >= numSphereSizes || _motionComponent == nullptr)
-    return;
-
-  // Seen while turning, like a skin is. Nothing is written — applySphereSize
-  // puts it in the skin file when the press confirms it.
-  _motionComponent->setSphereScalePreview (sphereSizes[index]);
-}
-
-void
-A3MotionUIComponent::applySphereSize (int index)
-{
-  _sphereSizeIndex = juce::jlimit (0, numSphereSizes - 1, index);
-
-  // The sphere's size is part of the look, so it lives in the skin next to
-  // everything else that is — not in a settings file of its own. Written
-  // there, and the watcher does the rest.
-  auto const file = skinFile (getConfigFile ().getParentDirectory (),
-                              activeSkinName (getConfigFile ()));
-
-  auto skin = juce::JSON::parse (file.loadFileAsString ());
-  if (skin.getDynamicObject () == nullptr)
-    return;
-
-  setSkinValue (skin, "sphereScale", sphereSizes[_sphereSizeIndex]);
-  file.replaceWithText (juce::JSON::toString (skin, false) + "\n", false,
-                        false, "\n");
-}
 
 void
 A3MotionUIComponent::previewSkin (int index)
