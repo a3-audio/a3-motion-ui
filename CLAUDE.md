@@ -15,6 +15,10 @@ Requires JUCE (`develop` branch) built/installed separately; requires `pkg-confi
 packages, and (when hardware support is on) `libserial`/`libgpiod` dev packages, plus GoogleTest
 (`libgtest-dev libgmock-dev`) for the test target.
 
+At **runtime** the UI also expects `onboard` and `dbus-send` for text entry on the touchscreen —
+see "On-screen keyboard" below. Neither is needed to build, and without them every field is still
+reachable with the encoder.
+
 ```bash
 export JUCE_DIR=/home/aaa/local/juce/lib/cmake/JUCE-X.Y.Z   # match installed JUCE version
 
@@ -116,7 +120,8 @@ High-level structure, top to bottom in `A3MotionUIComponent::resized()`: `Status
 the screen split into `MotionComponent` (the sphere) and, docked to the bottom quarter, the
 "settings area" — `ClipSettingsComponent` (permanent, shows the last-selected clip's 7 parameters:
 Trajectory Shape/Speed/Direction/End-Action/Scale/Sweep/Q) with `GlobalSettingsComponent`
-(Clockmode/Pot Size/Font Size, opened by the Menu button) drawn on top of it while open. Both settings
+(Clockmode, Pot Size, Header/Body Size, Sphere Size, Skin, Skin Editor, Network, Button LEDs,
+Pattern Folder, Sphere in Menu — opened by the Menu button) drawn on top of it while open. Both settings
 components share that bottom-quarter rect, carved out of `MotionComponent`'s actual bounds rather
 than just overlaid — `MotionComponent` renders via its own directly-attached `OpenGLContext`, which
 always composites above normal JUCE components regardless of z-order/`toFront()`, so nothing can
@@ -134,6 +139,24 @@ navigation while it's open.
 Clock mode (`_clockMode`: `0=INT, 1=EXT, 2=PIO`) governs whether the UI drives its own tempo (tap
 button sets BPM, `/beat` sent via OSC) or follows an externally received `/beat` OSC stream
 (playback synced to external phase, `/beat` not re-sent to avoid feedback loops).
+
+#### On-screen keyboard
+
+The UI draws no keyboard. `io/OnScreenKeyboard.{hh,cc}` asks **Onboard** — the system's on-screen
+keyboard — to show or hide over D-Bus (`org.onboard.Onboard`, methods `Show`/`Hide`/`ToggleVisible`
+on `/org/onboard/Onboard/Keyboard`), shelling out to `dbus-send`. Onboard's D-Bus service file
+starts it on the first call, so there is nothing to launch and nothing to keep running.
+
+Onboard types into whatever window has the focus, so text arrives as ordinary key events;
+`SkinEditorComponent::keyPressed` is what turns them into edits. The icon at the right of the
+status bar toggles the keyboard, always.
+
+One machine-level setting matters: Onboard docks at the **top** by default, which covers the status
+bar and with it the icon that hides it again. `org.onboard.window docking-edge` must be `bottom`
+(see the README for the one-liner). It lives in the user's dconf database, not in this repo.
+
+A keyboard of the project's own used to live in `components/KeyboardComponent.{hh,cc}`; it was
+removed in favour of Onboard, which already maintains a layout, key faces and a press model.
 
 #### Hardware I/O (`src/a3-motion-ui/io`)
 

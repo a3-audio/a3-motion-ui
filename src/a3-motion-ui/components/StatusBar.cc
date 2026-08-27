@@ -137,27 +137,31 @@ StatusBar::resized ()
   bounds.removeFromTop (verticalPadding);
   bounds.removeFromBottom (verticalPadding);
 
-  // Clock mode on the far left: it is the one reading that changes what the
-  // whole device does, and the left edge is where the eye starts.
   auto const glyphWidth = headerFontSize () * 0.62f;
   auto const modeWidth = juce::jmax (
       50, static_cast<int> (glyphWidth * 3.f + LayoutHints::padding));
-
-  auto clockModeArea = bounds.removeFromLeft (modeWidth);
-  _labelClockMode.setBounds (
-      clockModeArea.withTrimmedLeft (LayoutHints::padding));
-
-  auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 4);
-  _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
 
   // The keyboard toggle sits at the very edge, right of everything else, so
   // it is reachable with a thumb without covering a reading.
   _keyboardIconArea = bounds.removeFromRight (bounds.getHeight ());
 
-  // Tick indicator in the center
-  auto boundsTicks = bounds.withSizeKeepingCentre (bounds.getWidth () * 0.8f,
-                                                   bounds.getHeight () * 0.6f);
-  _tickIndicator.setBounds (boundsTicks);
+  auto clockModeArea = bounds.removeFromRight (modeWidth);
+  _labelClockMode.setBounds (
+      clockModeArea.withTrimmedRight (LayoutHints::padding));
+
+  auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 3);
+  _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
+
+  // Centred on the bar, not on whatever space the labels left over: it is
+  // the one thing here that is looked at rather than read, and an off-centre
+  // beat display reads as a mistake. Kept inside the gap between the labels
+  // so it cannot grow into them.
+  auto const tickWidth
+      = juce::jmin (bounds.getWidth () * 4 / 5, getWidth () / 2);
+  _tickIndicator.setBounds (
+      juce::Rectangle<int> (tickWidth,
+                            static_cast<int> (bounds.getHeight () * 0.6f))
+          .withCentre ({ getWidth () / 2, bounds.getCentreY () }));
 }
 
 void
