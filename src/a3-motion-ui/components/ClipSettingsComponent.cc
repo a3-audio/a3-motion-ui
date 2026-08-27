@@ -271,10 +271,12 @@ ClipSettingsComponent::paint (juce::Graphics &g)
       = area.getHeight () - elevationLabelH - elevationGraphicH;
   auto const elevationRowH = elevationGridH / 3;
   auto const elevationColW = sectionW / 2;
-  auto const controlBoxBase = juce::jmin (elevationRowH, elevationColW);
-  auto const knobDiam = juce::jmax (
-      10, static_cast<int> (static_cast<float> (controlBoxBase) / 2.2f
-                            * _potSizeScale));
+  // Only the width and Pot Size. Taking the row height into account as well
+  // is what made the whole layout depend on the bar's height, and through it
+  // capped the font — see clipSettingsPreferredHeight().
+  juce::ignoreUnused (elevationRowH, elevationColW);
+  auto const knobDiam
+      = knobDiameterForFont (theme ().fontSize (FontRole::Body), _potSizeScale);
 
   // One size for every caption in the bar, decided here rather than inside
   // each control. Fitting a caption to its own box drew "Q" three times the
@@ -285,10 +287,8 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   auto const cardW = sectionW - 2 * (gap / 2);
   auto const sectionContentW = cardW - 2 * juce::jmax (2, cardW / 12);
   auto const columnGap = juce::jmax (2, sectionContentW / 20);
-  auto const controlBoxH
-      = juce::jmin (elevationRowH,
-                    static_cast<int> (static_cast<float> (knobDiam) * 2.2f))
-        - 4;
+  auto const controlBoxH = controlBoxHeightForFont (
+      theme ().fontSize (FontRole::Body), knobDiam);
 
   ControlMetrics const metrics{
     knobDiam,
@@ -354,7 +354,8 @@ ClipSettingsComponent::controlBounds (juce::Rectangle<int> cell,
   // changes (a growing box here previously made neighbouring controls
   // visibly jump/overlap). Font Size instead widens only the *text-fit*
   // target inside paintMiniKnob/paintMiniToggle, not this box.
-  auto const boxH = static_cast<int> (static_cast<float> (knobDiam) * 2.2f);
+  auto const boxH
+      = controlBoxHeightForFont (theme ().fontSize (FontRole::Body), knobDiam);
   return juce::Rectangle<int> (knobDiam, boxH).withCentre (cell.getCentre ());
 }
 
@@ -383,6 +384,21 @@ ClipSettingsComponent::fontFor (FontRole role, juce::Rectangle<int> area,
     size *= room / width;
 
   return juce::jmax (7.f, size);
+}
+
+int
+ClipSettingsComponent::preferredHeight (int width) const
+{
+  // Same geometry the layout uses, asked before there is a layout: the knob
+  // follows the section width and Pot Size, the boxes follow the knob and the
+  // body font, and the bar follows the boxes.
+  juce::ignoreUnused (width);
+  auto const knobDiam
+      = knobDiameterForFont (theme ().fontSize (FontRole::Body), _potSizeScale);
+
+  return clipSettingsPreferredHeight (theme ().fontSize (FontRole::Header),
+                                      theme ().fontSize (FontRole::Body),
+                                      knobDiam);
 }
 
 int

@@ -158,6 +158,11 @@ public:
 
   void paint (juce::Graphics &g) override;
 
+  /** How tall this bar wants to be at the current font and pot sizes, given
+   *  the width it will get. The caller clamps it — see
+   *  clipSettingsHeightWithin(). */
+  int preferredHeight (int width) const;
+
 private:
   /** The two sizes every control in the bar shares, computed once per
    *  paint(): the knob diameter (Pot Size) and the size every caption is

@@ -20,6 +20,8 @@
 
 #include "ClipSettingsCaptions.hh"
 
+#include <cmath>
+
 namespace a3
 {
 
@@ -51,6 +53,10 @@ fittedSize (float baseSize, TextEntry const (&entries)[count],
         size = juce::jmin (size, baseSize * columnWidth / width);
     }
 
+  // Only a floor now, not a ceiling: the box is built to hold this text
+  // (controlBoxHeightForFont), so capping the font against the box would put
+  // the old inversion straight back. It still binds where the bar has been
+  // clamped to its share of the screen, which is the one place it should.
   size = juce::jmin (size, static_cast<float> (controlBoxHeight) * rowShare
                                / rowHeightFactor);
 
@@ -72,6 +78,51 @@ sharedValueSize (float baseSize, int sectionContentWidth, int columnGap,
 {
   return fittedSize (baseSize, valueTable, sectionContentWidth, columnGap,
                      controlBoxHeight, valueRowShare);
+}
+
+int
+knobDiameterForFont (float bodySize, float potSizeScale)
+{
+  // 1.5 x the body size is what the old layout produced at the shipped
+  // settings, where the knob came out of the row height rather than the font.
+  constexpr float knobFontFactor = 1.5f;
+
+  return juce::jmax (
+      10, static_cast<int> (bodySize * knobFontFactor * potSizeScale));
+}
+
+int
+controlBoxHeightForFont (float bodySize, int knobDiameter)
+{
+  // A value row and a caption row, both at the body size, plus the knob.
+  auto const textRows = 2.f * bodySize * rowHeightFactor;
+
+  return knobDiameter + static_cast<int> (std::ceil (textRows));
+}
+
+int
+clipSettingsPreferredHeight (float headerSize, float bodySize,
+                             int knobDiameter)
+{
+  // The elevation section is the tallest: its own title row, a graphic, then
+  // a 2x3 grid of controls. Everything else fits in less, so this is what the
+  // bar has to be able to show.
+  auto const titleRow = static_cast<int> (
+      std::ceil (headerSize * rowHeightFactor));
+  auto const boxes = 3 * controlBoxHeightForFont (bodySize, knobDiameter);
+
+  // The graphic takes the same share of the remainder it always did.
+  auto const graphic = static_cast<int> (std::ceil (boxes * 0.34f / 0.66f));
+
+  return titleRow + graphic + boxes;
+}
+
+int
+clipSettingsHeightWithin (int wanted, int screenHeight)
+{
+  return juce::jmin (
+      wanted, static_cast<int> (static_cast<float> (screenHeight)
+                                * maxClipSettingsScreenShare));
 }
 
 }

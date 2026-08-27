@@ -220,3 +220,63 @@ TEST (SharedValueSize, TheValuesAreLimitedByTheBoxNotByTheirWords)
 }
 
 }
+
+// ── die Leiste folgt der Schrift, nicht umgekehrt ───────────────────────
+//
+// Bis 2026-08-27 war es andersherum: die Leiste war auf ein Viertel des
+// Schirms genagelt, daraus ergab sich die Reglerbox, und die deckelte die
+// Schrift. Body Font Size hat in dieser Leiste deshalb *nichts* getan —
+// am Gerät gemessen 14 px Ink bei 100 % wie bei 175 %, während Pot Size auf
+// 24 px ging. Siehe
+// issues/a3-motion-ui-clip-settings-layout-overflows-at-large-fonts.md.
+
+TEST (ClipSettingsHeight, TheBoxHoldsItsKnobAndBothTextRows)
+{
+  auto const knob = 30;
+  auto const box = controlBoxHeightForFont (15.f, knob);
+
+  EXPECT_GE (box, knob + 2 * (int)(15.f * rowHeightFactor))
+      << "knob plus a value row plus a caption row";
+}
+
+TEST (ClipSettingsHeight, TheBoxGrowsWithTheFont)
+{
+  EXPECT_GT (controlBoxHeightForFont (26.f, 30),
+             controlBoxHeightForFont (15.f, 30));
+}
+
+TEST (ClipSettingsHeight, TheBoxGrowsWithTheKnob)
+{
+  EXPECT_GT (controlBoxHeightForFont (15.f, 50),
+             controlBoxHeightForFont (15.f, 30));
+}
+
+// The whole point: at a larger font the bar must ask for more room, or the
+// setting cannot reach the text.
+TEST (ClipSettingsHeight, TheBarGrowsWithTheBodyFont)
+{
+  auto const atDefault = clipSettingsPreferredHeight (18.f, 15.f, 30);
+  auto const atLargest = clipSettingsPreferredHeight (18.f, 15.f * 1.75f, 30);
+
+  EXPECT_GT (atLargest, atDefault);
+}
+
+TEST (ClipSettingsHeight, TheBarGrowsWithTheHeaderFontToo)
+{
+  EXPECT_GT (clipSettingsPreferredHeight (18.f * 1.75f, 15.f, 30),
+             clipSettingsPreferredHeight (18.f, 15.f, 30));
+}
+
+// A bar that may grow needs a ceiling, or 175 % body next to 175 % pot size
+// leaves the sphere nothing. Beyond it the font is capped again, which is the
+// old behaviour — but only at the extreme, not at every setting.
+TEST (ClipSettingsHeight, TheBarNeverEatsMoreThanItsShareOfTheScreen)
+{
+  auto constexpr screen = 1024;
+  auto const huge = clipSettingsPreferredHeight (18.f * 1.75f, 15.f * 1.75f, 60);
+
+  EXPECT_LE (clipSettingsHeightWithin (huge, screen),
+             (int)(screen * maxClipSettingsScreenShare));
+  EXPECT_EQ (clipSettingsHeightWithin (200, screen), 200)
+      << "a modest request passes through untouched";
+}

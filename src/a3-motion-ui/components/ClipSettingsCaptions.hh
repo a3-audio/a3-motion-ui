@@ -114,6 +114,34 @@ constexpr TextEntry valueTable[] = {
  *  content width plus the gap between its columns is enough to know how
  *  much room each caption has. `controlBoxHeight` is the shortest control
  *  box in the bar; the caption row is given a fixed share of it. */
+/** How wide a knob is: a multiple of the body font, scaled by Pot Size.
+ *
+ *  Tied to the font rather than to the section width, so the whole bar has one
+ *  scale. The factor is what the old height-derived knob came out at with the
+ *  shipped settings, so the default look is unchanged. */
+int knobDiameterForFont (float bodySize, float potSizeScale);
+
+/** How tall a control box must be to hold its knob and both text rows.
+ *
+ *  The dependency used to run the other way: the bar was nailed to a quarter
+ *  of the screen, the box fell out of that, and the box capped the font — so
+ *  Body Font Size changed nothing in this bar at any setting. Now the box is
+ *  as tall as its contents need, and the bar follows. */
+int controlBoxHeightForFont (float bodySize, int knobDiameter);
+
+/** How tall the whole clip settings bar wants to be: a title row, the
+ *  elevation section's graphic, and three rows of control boxes. */
+int clipSettingsPreferredHeight (float headerSize, float bodySize,
+                                 int knobDiameter);
+
+/** The largest share of the screen the bar may take. Past this the font is
+ *  capped again — the old behaviour, but only at the extreme rather than at
+ *  every setting. */
+constexpr float maxClipSettingsScreenShare = 0.50f;
+
+/** `wanted`, clamped to what the screen can spare. */
+int clipSettingsHeightWithin (int wanted, int screenHeight);
+
 float sharedCaptionSize (float baseSize, int sectionContentWidth, int columnGap,
                          int controlBoxHeight);
 

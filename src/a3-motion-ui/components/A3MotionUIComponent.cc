@@ -516,7 +516,16 @@ A3MotionUIComponent::resized ()
   // (see MotionComponent.cc), which always composites above normal JUCE
   // components regardless of z-order/toFront()/rendering-paused state, so
   // nothing can visibly overlap it.
-  auto const clipSettingsHeight = bounds.getHeight () / 4;
+  // The bar asks for what its content needs at the current font and pot
+  // sizes, and gets it up to a share of the screen. A fixed quarter was what
+  // made Font Size inert down there: the height fixed the control boxes, and
+  // the boxes capped the text.
+  auto const clipSettingsHeight
+      = _clipSettings != nullptr
+            ? clipSettingsHeightWithin (
+                  _clipSettings->preferredHeight (bounds.getWidth ()),
+                  bounds.getHeight ())
+            : bounds.getHeight () / 4;
   auto boundsClipSettings = bounds.removeFromBottom (clipSettingsHeight);
   if (_clipSettings)
     _clipSettings->setBounds (boundsClipSettings);
