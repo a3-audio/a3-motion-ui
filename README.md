@@ -145,12 +145,11 @@ point of pinning is that a build here fails for reasons in this repository.
   - `make ; make install`
 
 # Build and run a3-motion-ui
-- tell cmake where to find JUCE (replace `X.Y.Z` with correct version)
+- tell cmake where to find JUCE
   - `export JUCE_DIR=$HOME/local/juce/lib/cmake/JUCE-9.0.1`
-  - An older JUCE may be installed side by side under its own prefix; point `JUCE_DIR` at
-    whichever one you mean. Note that `build.sh` falls back to `$HOME/local/juce` when
-    `JUCE_DIR` is unset, so a stale install at that path is what you get without a word —
-    export it, or keep that prefix on the version this project builds against.
+  - `build.sh` falls back to `$HOME/local/juce` when `JUCE_DIR` is unset. That is the prefix
+    installed above, so the fallback is correct — but it also means a different version left at
+    that path is what you would build against, without a word about it.
 - `mkdir build ; cd build`
 - generate makefiles via cmake (to develop consider passing `Debug`)
 - `cmake -DCMAKE_BUILD_TYPE=Release ..`
