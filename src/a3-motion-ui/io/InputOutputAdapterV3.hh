@@ -27,6 +27,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/io/ButtonLedColours.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 
 namespace a3
@@ -83,6 +84,14 @@ private:
 
   LibSerial::SerialPort _serialPort;
   bool _hardwareAvailable = false;
+
+  /** Light every function button in the resting colour, and keep it in step
+   *  with the config. A key that does something says so without being
+   *  touched; one with no function stays dark, which is how the panel says
+   *  there is nothing there. */
+  void refreshIdleButtonLeds ();
+  /** What was last written, so the serial link only carries a change. */
+  LedColour _idleLedWritten{ -1, -1, -1 };
 
   // ── Protocol constants ────────────────────────────────────────────────────
   static constexpr uint8_t cmdPing       = 0x01;

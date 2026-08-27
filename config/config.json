@@ -8,57 +8,38 @@
   "oscReceiver": {
     "host": "0.0.0.0",
     "port": 7771,
-    "vuPort": 7772
+    "vuPort": 7772,
+    "energyPort": 7777
   },
-  "corona": {
-    "vuMax": 0.25,
-    "sizeMin": 1.1,
-    "sizeMax": 2.2,
-    "sizeGrabbed": 1.5,
-    "alphaMin": 0.0,
-    "alphaMax": 0.75,
-    "whiteBlend": 0.9,
-    "attack": 0.01,
-    "decay": 0.02
+  "ui": {
+    "pauseRenderingInMenu": false,
+    "skin": "default"
   },
-  "sphereGlow": {
-    "vuMax": 0.3,
-    "r": 110,
-    "g": 250,
-    "b": 251,
-    "alphaMax": 0.7,
-    "layers": 6,
-    "innerSize": 0.6,
-    "outerSize": 2.4,
-    "curve": 0.4
-  },
-  "backgroundGlow": {
-    "r": 110,
-    "g": 250,
-    "b": 251,
-    "falloff": 1.1,
-    "intensity": 0.5
-  },
-  "speakerLight": {
-    "vuMax": 0.08,
-    "r": 110,
-    "g": 250,
-    "b": 251,
-    "alphaMax": 0.4,
-    "layers": 6,
-    "length": 1,
-    "widthStart": 0.1,
-    "widthEnd": 0.4,
-    "curve": 0.8,
-    "speakerRadius": 1.55,
-    "beamConeExp": 2,
-    "beamFalloff": 0.3,
-    "beamIntensity": 0.2
-  },
-  "channels": [
-    { "r": 216, "g":  17, "b":  89 },
-    { "r":  69, "g": 78, "b":  158 },
-    { "r":  33, "g":  131, "b": 128 },
-    { "r": 247, "g": 208, "b":  2 }
-  ]
+  "buttonLeds": {
+    "idle": {
+      "r": 255,
+      "g": 255,
+      "b": 255
+    },
+    "record": {
+      "r": 230,
+      "g": 40,
+      "b": 60
+    },
+    "tap": {
+      "r": 60,
+      "g": 200,
+      "b": 120
+    },
+    "menu": {
+      "r": 90,
+      "g": 140,
+      "b": 250
+    },
+    "shift": {
+      "r": 245,
+      "g": 190,
+      "b": 50
+    }
+  }
 }

@@ -22,7 +22,11 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/theme/Theme.hh>
+
+#include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
+#include <a3-motion-ui/theme/ThemeColours.hh>
 
 namespace a3
 {
@@ -48,20 +52,27 @@ namespace a3
  * All Elevation controls are visible in parallel, with whichever one the
  * Pot-Encoder currently edits highlighted (the graphic highlights too,
  * whenever the highlighted control affects it). Motion (Speed/Direction/
- * End-Action) and Filter (Sweep/Q) use the same small-knob style — Speed/
- * Sweep/Q as rotary knobs, Direction/End-Action (discrete) as two-state-
- * style toggles showing their current name — laid out in a single row per
- * section since there's no graphic to share space with. Every knob/toggle
+ * End-Action) and Filter (Freq/Q) use the same small-control style —
+ * Freq/Q as rotary knobs, Speed/Direction/End-Action as value displays
+ * showing their current name or note value instead of a knob (Speed is
+ * quantized to note values, and a knob angle says nothing a reader of
+ * "1/4" does not already know) — laid out in a single row per section
+ * since there's no graphic to share space with. Every knob/toggle
  * across every section (Elevation included) is given the same fixed-size
  * bounds — see controlBounds() — sized to fit Elevation's tightest layout
  * (graphic + 2x3 grid) and reused as-is (centred, with extra margin) by
  * Motion/Filter's roomier single-row layouts, rather than each stretching
- * to fill its own section's grid cell; a knob's optional value text
- * (Speed only, e.g. "1/4") sits directly above it, its label directly
- * below. That shared size scales with setPotSizeScale(), and its label/
- * value text separately with setFontSizeScale() — both driven by their
- * own Global Settings options ("Pot Size"/"Font Size"), adjustable live
- * without a rebuild.
+ * to fill its own section's grid cell; a control's caption sits directly
+ * below it, and a value display's value directly above its caption. That
+ * shared size scales with setPotSizeScale(), and its text separately via
+ * the theme's font scale — both driven by their own Global Settings
+ * options ("Pot Size"/"Font Size"), adjustable live without a rebuild.
+ * Every caption in the bar is drawn at one size, from the tightest
+ * caption box across all sections (see sharedCaptionSize()); fitting each
+ * caption to its own box instead made short captions like "Q" several
+ * times the height of the long ones beside them. The values share a
+ * second size the same way (see sharedValueSize()), which is what brought
+ * the lone "1" in the Motion section back into proportion.
  * Section headings are deliberately small (see paintSectionLabel()) so
  * most of each section's height goes to its controls. Driven by two
  * per-channel encoders in A3MotionUIComponent: the Motion-Encoder scrolls
@@ -141,12 +152,6 @@ public:
    *  rebuild. */
   void setPotSizeScale (float scale);
 
-  /** Scale factor for every knob/toggle's label and value text — 1.0 =
-   *  default. Independent of setPotSizeScale(), since a knob's circle and
-   *  its text may need tuning separately (e.g. a small pot with big,
-   *  legible text). Set from Global Settings' "Font Size" option. */
-  void setFontSizeScale (float scale);
-
   /** One-line terminal-style readout of the last-operated control, shown
    *  top-right (e.g. "CH2 POT1 0.73"). Global, independent of setTarget(). */
   void setLastControlReadout (juce::String const &text);
@@ -154,10 +159,23 @@ public:
   void paint (juce::Graphics &g) override;
 
 private:
+  /** The two sizes every control in the bar shares, computed once per
+   *  paint(): the knob diameter (Pot Size) and the size every caption is
+   *  drawn at (Font Size, fitted to the tightest caption box in the bar —
+   *  see sharedCaptionSize()). Both are decided from the whole bar's
+   *  geometry, not from the individual control's cell, which is what keeps
+   *  neighbouring controls the same size as each other. */
+  struct ControlMetrics
+  {
+    int knobDiam;
+    float captionSize;
+    float valueSize;
+  };
+
   void paintTrajectorySection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                               bool isSelected);
+                               bool isSelected, ControlMetrics metrics);
   void paintElevationSection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                              bool isSelected, int knobDiam);
+                              bool isSelected, ControlMetrics metrics);
   /** Side-view sphere graphic for the Elevation section: circle + head dot
    *  at the pole (mirror-south picks which one), grey clip-top/clip-bottom
    *  excluded bands, and a solid marker line at reach's edge — or, while
@@ -170,10 +188,10 @@ private:
   /** Speed (knob) / Direction / End-Action (toggles), single row, always
    *  visible in parallel — same style as the Elevation controls. */
   void paintMotionSection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                           bool isSelected, int knobDiam);
-  /** Sweep / Q (knobs), single row. */
+                           bool isSelected, ControlMetrics metrics);
+  /** Freq / Q (knobs), single row. */
   void paintFilterSection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                           bool isSelected, int knobDiam);
+                           bool isSelected, ControlMetrics metrics);
   /** Small, deliberately unobtrusive section title (see class doc) — most
    *  of a section's height goes to its controls, not this label. */
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
@@ -185,16 +203,30 @@ private:
    *  happens to be (see class doc / setPotSizeScale()). */
   juce::Rectangle<int> controlBounds (juce::Rectangle<int> cell,
                                       int knobDiam) const;
-  /** Widens/heightens `area` around its own centre by _fontSizeScale (only
-   *  grows, never shrinks below `area` itself) — used as the *target*
-   *  passed to drawFittedText() for a control's label/value/state text, so
-   *  a bigger font (see the callers' font-size formulas, also scaled by
-   *  _fontSizeScale) actually gets to render at that size instead of being
-   *  silently re-shrunk by drawFittedText to fit the original, unscaled
-   *  area. Purely a text-layout target: doesn't move or resize the knob/
-   *  toggle itself, so controls never visibly jump/overlap as Font Size
-   *  changes — only their text does. */
-  juce::Rectangle<int> textFitArea (juce::Rectangle<int> area) const;
+  /** Height of a section's title row, from the Header role. */
+  int titleRowHeight (juce::Rectangle<int> content) const;
+  /** Height of a text row drawn at `size` — the caption row at the bottom
+   *  of a control, or the value row above its knob. */
+  int textRowHeight (juce::Rectangle<int> content, float size) const;
+
+  /** A section card's fill: the channel's colour while the section is
+   *  selected, a barely-there wash otherwise. */
+  juce::Colour cardColour (bool isSelected) const;
+  /** What a control is drawn in — its arc, its icon, its value. Takes the
+   *  channel's colour in the selected section so that the section the
+   *  encoders act on is the one that carries the colour. */
+  juce::Colour controlColour (bool isSelected) const;
+  /** The caption naming a control: quieter than the control itself, and
+   *  quieter again outside the selected section. */
+  juce::Colour captionColour (bool isSelected) const;
+
+  /** Largest size for `role` at which `text` still fits inside `area`. */
+  float fontFor (FontRole role, juce::Rectangle<int> area,
+                 juce::String const &text) const;
+
+  /** A control's cell at full grid width, knob height. */
+  juce::Rectangle<int> textCell (juce::Rectangle<int> cell,
+                                 int knobDiam) const;
   /** Small labelled rotary knob (Ableton/Bitwig-style), sized to fill
    *  `bounds` (a fixed box from controlBounds(), unaffected by Font
    *  Size — see its comment). `angleFrac` is -1..1, mapped onto the
@@ -203,26 +235,29 @@ private:
    *  bipolar params), false draws it from the sweep's start (for
    *  unipolar params like clip-top/clip-bottom, whose 0..1 range the
    *  caller has already remapped to -1..1). `isActive` highlights it as
-   *  the one the Pot-Encoder currently edits. `valueText` is optional:
-   *  when non-empty, shown above the knob — for quantized/discrete
-   *  params (currently just Speed) where the exact value matters and
-   *  can't be read off the knob angle alone. Label/value text sizing is
-   *  Font-Size-scaled, but drawn into a widened *fitting* target that
-   *  doesn't affect the knob's own (fixed) position or size. */
+   *  the one the Pot-Encoder currently edits. A knob shows no value text:
+   *  a continuous param is read off the angle, and the ones whose exact
+   *  value matters (Speed) are drawn as value displays instead — see
+   *  paintMiniToggle(). The caption's size comes from the bar, not from
+   *  this box; the knob's own position and size are unaffected by Font
+   *  Size. */
   void paintMiniKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
+                      ControlMetrics metrics,
                       juce::String const &label, float angleFrac,
-                      bool fillFromZero, bool isActive, bool isSelected,
-                      juce::String const &valueText = {});
-  /** Small labelled two-state toggle (mirror-south, flat), styled to match
-   *  paintMiniKnob: label, then the current state as centred text instead
-   *  of an arc. */
+                      bool fillFromZero, bool isActive, bool isSelected);
+  /** Small labelled value display (mirror-south, flat, direction,
+   *  end-action, speed), styled to match paintMiniKnob: the current state
+   *  or value as centred text instead of an arc, with the caption below
+   *  it. */
   void paintMiniToggle (juce::Graphics &g, juce::Rectangle<int> bounds,
-                        juce::String const &label, juce::String const &stateText,
+                        ControlMetrics metrics,
+                        juce::String const &label,
+                        juce::String const &stateText,
                         bool isActive, bool isSelected);
 
   int _channel = 0;
   int _slot = 0;
-  juce::Colour _channelColour{ juce::Colours::white };
+  juce::Colour _channelColour; // set from the theme in the constructor
   juce::String _lastControlText;
   TrajectoryIconData _trajectoryIcon;
   juce::String _trajectoryName{ "Empty" };
@@ -243,7 +278,6 @@ private:
   int _filterSubIndex = 0;
   int _selectedIndex = 0;
   float _potSizeScale = 1.0f;
-  float _fontSizeScale = 1.0f;
 
   static constexpr int paddingH = 16;
 

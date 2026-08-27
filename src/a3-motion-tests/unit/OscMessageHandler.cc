@@ -49,6 +49,23 @@ struct RecordingListener : public OscMessageHandler::Listener
 
   int externalBeatSyncCalls = 0;
 
+  int energyGridCalls = 0;
+  int lastEnergyCount = -1;
+  float lastEnergyFirst = -1.f;
+  float lastEnergyLast = -1.f;
+
+  void
+  onEnergyGrid (float const *values, int count) override
+  {
+    ++energyGridCalls;
+    lastEnergyCount = count;
+    if (count > 0)
+      {
+        lastEnergyFirst = values[0];
+        lastEnergyLast = values[count - 1];
+      }
+  }
+
   void
   onChannelVU (int channel, float peak, float rms) override
   {
@@ -174,6 +191,45 @@ TEST (OscMessageHandler, BeatAlwaysNotifiesClockButOnlySyncsTempoInExternalMode)
   EXPECT_EQ (listener.externalBeatClockCalls, 2);
   EXPECT_EQ (listener.externalBeatSyncCalls, 1);
   EXPECT_FLOAT_EQ (engine.getTempoBPM (), 128.f);
+}
+
+// The IEM EnergyVisualizer sends one float per grid point in a single message.
+// Order is the plugin's, so the handler must pass it through untouched.
+TEST (OscMessageHandler, EnergyGridIsForwardedInOrder)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine{ 4, heightMap };
+  RecordingListener listener;
+  OscMessageHandler handler{ engine, listener };
+
+  juce::OSCMessage message{ juce::OSCAddressPattern ("/EnergyVisualizer/RMS") };
+  for (int i = 0; i < 426; ++i)
+    message.addFloat32 (static_cast<float> (i) * 0.001f);
+
+  handler.handleMessage (message, 0);
+
+  EXPECT_EQ (listener.energyGridCalls, 1);
+  EXPECT_EQ (listener.lastEnergyCount, 426);
+  EXPECT_FLOAT_EQ (listener.lastEnergyFirst, 0.f);
+  EXPECT_FLOAT_EQ (listener.lastEnergyLast, 0.425f);
+}
+
+// A short message would leave the tail of the map holding stale values, which
+// reads as energy that is no longer there.
+TEST (OscMessageHandler, EnergyGridOfTheWrongLengthIsRejected)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine{ 4, heightMap };
+  RecordingListener listener;
+  OscMessageHandler handler{ engine, listener };
+
+  juce::OSCMessage message{ juce::OSCAddressPattern ("/EnergyVisualizer/RMS") };
+  for (int i = 0; i < 12; ++i)
+    message.addFloat32 (0.5f);
+
+  handler.handleMessage (message, 0);
+
+  EXPECT_EQ (listener.energyGridCalls, 0);
 }
 
 }

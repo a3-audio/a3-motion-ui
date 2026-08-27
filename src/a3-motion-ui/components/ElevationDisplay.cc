@@ -20,10 +20,22 @@
 
 #include "ElevationDisplay.hh"
 
+#include <a3-motion-ui/theme/Theme.hh>
+
 #include <a3-motion-ui/components/LookAndFeel.hh>
 
 namespace a3
 {
+
+namespace
+{
+// Structural opacities: the hairline between cells, the dark outline that
+// keeps text readable on a channel-coloured ground, the frame around the row
+// the encoder is on.
+constexpr float cellBorderWash = 0.15f;
+constexpr float outlineOpacity = 0.5f;
+constexpr float highlightOpacity = 0.8f;
+}
 
 ElevationDisplay::ElevationDisplay () = default;
 
@@ -38,7 +50,7 @@ ElevationDisplay::paint (juce::Graphics &g)
   auto bounds = getLocalBounds ();
 
   // Grey background matching the StatusBar (same base as PadRowDisplay)
-  g.setColour (Colours::statusBar);
+  g.setColour (Colours::statusBar ());
   g.fillRect (bounds);
 
   auto const cellWidth = bounds.getWidth () / numChannels;
@@ -67,17 +79,17 @@ ElevationDisplay::paintCell (juce::Graphics &g,
   g.fillRect (bounds);
 
   // Border between cells
-  g.setColour (juce::Colours::black.withAlpha (0.15f));
+  g.setColour (toColour (theme ().surface, cellBorderWash));
   g.drawVerticalLine (bounds.getRight () - 1, static_cast<float> (bounds.getY ()),
                       static_cast<float> (bounds.getBottom ()));
 
   // Content: "ELV" and coverage value
   // Use dark outline + channel colour text for readability on coloured bg
   auto boundsF = bounds.toFloat ().reduced (2.f);
-  auto const font = juce::Font (h * 0.55f);
+  auto const font = juce::Font (h * 0.55f * theme ().bodyScale);
   g.setFont (font);
 
-  auto const outlineColour = juce::Colours::black.withAlpha (0.5f);
+  auto const outlineColour = toColour (theme ().surface, outlineOpacity);
 
   // Label "ELV"
   auto labelArea = boundsF.removeFromLeft (boundsF.getWidth () * 0.4f);
@@ -140,7 +152,7 @@ ElevationDisplay::paintCell (juce::Graphics &g,
   // White border when row is highlighted (hovered by encoder)
   if (cell.rowHighlighted)
     {
-      g.setColour (juce::Colours::white.withAlpha (0.8f));
+      g.setColour (toColour (theme ().textPrimary, highlightOpacity));
       g.drawRect (bounds, 2);
     }
 }

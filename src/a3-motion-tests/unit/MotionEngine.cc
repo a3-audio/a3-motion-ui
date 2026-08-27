@@ -54,4 +54,89 @@ TEST (MotionEngine, TempoFacadeForwardsToTempoClock)
   EXPECT_FLOAT_EQ (engine.getTempoBPM (), 140.f);
 }
 
+
+// The first tap is supposed to put the beat back to 1. TempoClock::tap() calls
+// reset() for it, and the clock's timer thread applies that by zeroing its
+// measure and emitting Tick/Beat/Bar. This walks that whole path, because
+// reading it told us nothing — every link looked correct while the rig still
+// showed the beat not resetting in INT mode.
+TEST (MotionEngine, FirstTapPutsTheBeatBackToOne)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  std::atomic<int> lastBeat{ -1 };
+  std::atomic<int> beatCallbacks{ 0 };
+
+  auto handle = engine.getTempoClock ().scheduleEventHandlerAddition (
+      [&lastBeat, &beatCallbacks] (Measure measure) {
+        lastBeat = static_cast<int> (measure.beat ());
+        ++beatCallbacks;
+      },
+      TempoClock::Event::Beat, TempoClock::Execution::TimerThread);
+
+  // Let the clock run far enough into a bar that a reset is visible as a
+  // change rather than as the state it was already in.
+  engine.setTempoBPM (240.f);
+  juce::Thread::sleep (600);
+  ASSERT_GT (beatCallbacks.load (), 0) << "the clock is not ticking at all";
+
+  auto const before = beatCallbacks.load ();
+  engine.tap (juce::Time::getHighResolutionTicks ());
+  juce::Thread::sleep (100);
+
+  EXPECT_GT (beatCallbacks.load (), before)
+      << "the tap produced no beat event, so reset() never reached the timer";
+  EXPECT_EQ (lastBeat.load (), 0)
+      << "the beat did not go back to the start of the bar";
+}
+
+
+// Dragging a blob writes the channel's position; playback writes it again on
+// the very next tick. Both were doing it, so a clip that was running fought
+// the finger — the blob sat under it and slid back out from under it, which
+// reads as "hard to move".
+
+TEST (MotionEngine, AHeldChannelKeepsThePositionItWasGiven)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  auto const held = Pos::fromCartesian (0.3f, 0.2f, 0.9f);
+
+  engine.setChannelPositionHeld (0, true);
+  engine.setChannel3DPosition (0, held);
+
+  EXPECT_TRUE (engine.isChannelPositionHeld (0));
+  EXPECT_NEAR (engine.getChannelPosition (0).x (), held.x (), 0.0001f);
+  EXPECT_NEAR (engine.getChannelPosition (0).y (), held.y (), 0.0001f);
+}
+
+// And letting go hands it back: the clip carries on from wherever it is,
+// rather than the channel staying wherever the finger left it.
+TEST (MotionEngine, ReleasingAChannelEndsTheHold)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.setChannelPositionHeld (0, true);
+  EXPECT_TRUE (engine.isChannelPositionHeld (0));
+
+  engine.setChannelPositionHeld (0, false);
+  EXPECT_FALSE (engine.isChannelPositionHeld (0));
+}
+
+TEST (MotionEngine, HoldingOneChannelLeavesTheOthersAlone)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.setChannelPositionHeld (2, true);
+
+  EXPECT_FALSE (engine.isChannelPositionHeld (0));
+  EXPECT_FALSE (engine.isChannelPositionHeld (1));
+  EXPECT_TRUE (engine.isChannelPositionHeld (2));
+  EXPECT_FALSE (engine.isChannelPositionHeld (3));
+}
+
 }

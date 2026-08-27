@@ -22,14 +22,18 @@
 
 #include <JuceHeader.h>
 
+#include <array>
 #include <map>
 
 #include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/util/Types.hh>
 
 #include <a3-motion-ui/Helpers.hh>
+#include <a3-motion-ui/ConfigFileWatcher.hh>
 #include <a3-motion-ui/components/CoronaScaling.hh>
+#include <a3-motion-ui/components/EnergyMap.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
+#include <a3-motion-ui/osc/OscMessageHandler.hh>
 
 namespace a3
 {
@@ -81,6 +85,10 @@ public:
   // VU-driven lighting: sphere glow and speaker spotlights
   void setSphereGlow (float peak, float rms);
   void setSpeakerLight (int speakerIndex, float peak, float rms);
+
+  /** One value per grid point of the IEM EnergyVisualizer, in its own order.
+   *  Safe to call from the OSC thread. */
+  void setEnergyGrid (float const *values, int count);
 
 private:
   void updateBoundsAndTransform ();
@@ -185,6 +193,49 @@ private:
 
   // Cached corona config (loaded once in newOpenGLContextCreated, avoids JSON lookup per frame)
   CoronaConfig _coronaCfg;
+
+  // Sphere and blob size, as a share of the component's shorter side
+  float _sphereScale = 0.62f, _blobScale = 0.05f;
+
+  // Envelope time constants for the speaker beams, in seconds
+  float _spotAttack = 0.08f, _spotDecay = 0.4f;
+
+  // Envelope for the subwoofer glow, in seconds
+  float _glowAttack = 0.05f, _glowDecay = 1.2f;
+
+  // Energy over the sphere, from the IEM EnergyVisualizer. Arrives on the OSC
+  // thread at 9 Hz, is folded into an equirectangular map on the GL thread and
+  // uploaded as a texture — 426 values cannot be uniforms in GLSL 1.20.
+  juce::SpinLock _energyLock;
+  std::array<float, energyGridPointCount> _energyIncoming{};
+  bool _energyPending = false;
+  std::unique_ptr<EnergyMapProjection> _energyProjection;
+  std::vector<float> _energyTarget, _energySmoothed;
+  std::vector<unsigned char> _energyTexels;
+  unsigned int _energyTexture = 0;
+  float _energyVuMax = 0.05f, _energyCurve = 0.8f;
+  float _energyAttack = 0.05f, _energyDecay = 0.25f;
+
+  juce::uint32 _startMillis = 0;
+
+  void uploadEnergyMap ();
+
+  void applyVisualConfig (juce::var const &config);
+  void applyTheme (juce::var const &skin);
+  void reloadVisualConfigIfChanged ();
+
+  // config.json is watched for ui.skin changing; the second watcher follows
+  // whichever skin that names, so tuning saves are noticed too.
+  ConfigFileWatcher _appConfigWatcher{
+    juce::File::getCurrentWorkingDirectory ().getChildFile (
+        "config/config.json")
+  };
+  juce::File _activeSkinFile;
+
+  ConfigFileWatcher _configWatcher{
+    juce::File::getCurrentWorkingDirectory ().getChildFile (
+        "config/config.json")
+  };
 
   // Frame counter for throttling expensive 2D overlay (speaker SVGs)
   unsigned _frameCount = 0;

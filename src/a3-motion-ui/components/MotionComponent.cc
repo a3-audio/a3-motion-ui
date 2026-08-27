@@ -27,7 +27,11 @@
 
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
+#include <a3-motion-ui/components/SphereProjection.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 
 namespace
 {
@@ -84,18 +88,14 @@ void main() {
 //                                                                uniformName);
 // }
 
-// relative to the (square) component extents. Speakers are drawn at
-// speakerRadius (config.json's speakerLight.speakerRadius, default 1.55,
-// plus their own icon half-diagonal, speakerSize/2*sqrt(2) ≈ 0.20 — see
-// drawCircle()) in this same normalized space via the same transform, so
-// this factor also controls how close they sit to the component's edge.
-// 0.9 pushed their icons past the component's shorter-side edge (clipped,
-// not "fully in picture"); 0.57 keeps their full icon — not just their
-// centre point — within that edge (0.57 * (1.55+0.20)/2 ≈ 0.50), while
-// still noticeably bigger than the original 0.55.
-auto constexpr reduceFactorCircle = .57f;
+// Sphere and blob size come from config.json now (ui.sphereScale,
+// ui.blobScale); these are the fallbacks. The sphere's scale is not free: the
+// speaker icons are drawn at speakerRadius plus their own half-diagonal in the
+// same normalised space, so past a point they run off the shorter edge. See
+// speakerIconsFitOnScreen() and SphereScale.IconsFitAtTheShippedScale.
+auto constexpr reduceFactorCircleDefault = .62f;
+auto constexpr reduceFactorBlobsDefault = 0.05f;
 auto constexpr reduceFactorHead = .35f;
-auto constexpr reduceFactorBlobs = 0.05f;
 
 auto constexpr activeAreaAroundBlobFactor = 3.f;
 auto constexpr blobHighlightFactor = 1.1f;
@@ -104,6 +104,25 @@ auto constexpr blobHighlightFactor = 1.1f;
 
 namespace a3
 {
+
+namespace
+{
+juce::File
+configFile ()
+{
+  return juce::File::getCurrentWorkingDirectory ().getChildFile (
+      "config/config.json");
+}
+
+// The tuned visual values live in the active skin now, not in config.json.
+juce::File
+visualConfigFile ()
+{
+  return skinFile (configFile ().getParentDirectory (),
+                   userConfig["ui"]["skin"].toString ());
+}
+}
+
 
 /* ── BlitResources member methods ─────────────────────────────── */
 
@@ -348,13 +367,73 @@ MotionComponent::setSpeakerLight (int speakerIndex, float peak, float rms)
 }
 
 void
+MotionComponent::setEnergyGrid (float const *values, int count)
+{
+  if (count != energyGridPointCount)
+    return;
+
+  juce::SpinLock::ScopedLockType lock{ _energyLock };
+  std::copy (values, values + count, _energyIncoming.begin ());
+  _energyPending = true;
+}
+
+// Runs on the GL thread. The plugin only sends 9 times a second, so the map is
+// eased towards each new frame rather than stepped to it.
+void
+MotionComponent::uploadEnergyMap ()
+{
+  using namespace juce::gl;
+
+  if (_energyProjection == nullptr || _energyTexture == 0)
+    return;
+
+  {
+    juce::SpinLock::ScopedTryLockType lock{ _energyLock };
+    if (lock.isLocked () && _energyPending)
+      {
+        _energyProjection->project (_energyIncoming.data (),
+                                    _energyTarget.data ());
+        _energyPending = false;
+      }
+  }
+
+  constexpr float dt = 1.f / 60.f;
+  for (int i = 0; i < energyMapTexelCount; ++i)
+    {
+      _energySmoothed[static_cast<size_t> (i)] = speakerLightEnvelope (
+          _energySmoothed[static_cast<size_t> (i)],
+          _energyTarget[static_cast<size_t> (i)], _energyAttack, _energyDecay,
+          dt);
+
+      // The perceptual mapping happens here rather than in the shader so the
+      // texture can stay 8-bit, which every GL 2.1 driver handles.
+      auto const level = speakerLightLevel (
+          _energySmoothed[static_cast<size_t> (i)], _energyVuMax, _energyCurve);
+      _energyTexels[static_cast<size_t> (i)]
+          = static_cast<unsigned char> (std::clamp (level, 0.f, 1.f) * 255.f);
+    }
+
+  glBindTexture (GL_TEXTURE_2D, _energyTexture);
+  glTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, energyMapWidth, energyMapHeight,
+                   GL_LUMINANCE, GL_UNSIGNED_BYTE, _energyTexels.data ());
+  glBindTexture (GL_TEXTURE_2D, 0);
+}
+
+void
 MotionComponent::disoccludeBlobs ()
 {
   jassert (_grabbedIndex.has_value ());
 
+  // Everything in here works in the height map's own 2D space, because that is
+  // what setChannel2DPosition reads at the bottom. Projecting by dropping z
+  // instead — which is what the drawing does — is a different space, shorter by
+  // sqrt(2), and reading in one while writing in the other shrank every
+  // untouched blob's radius by that factor per frame until it sat on the
+  // centre. See HeightMapSphere.DropZRoundTripShrinksTowardsTheCentre.
   auto const posGrabbed = _engine.getChannelPosition (_grabbedIndex.value ());
   jassert (posGrabbed.isValid ());
-  auto const posGrabbedPixel = normalizedToLocal2DPosition (posGrabbed);
+  auto const posGrabbedPixel
+      = normalizedToLocal2DPosition (directionToDisc (posGrabbed));
 
   for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     {
@@ -364,7 +443,8 @@ MotionComponent::disoccludeBlobs ()
           if (!position.isValid ())
             continue;
 
-          auto posPixel = normalizedToLocal2DPosition (position);
+          auto posPixel
+              = normalizedToLocal2DPosition (directionToDisc (position));
           auto const distance = posPixel.getDistanceFrom (posGrabbedPixel);
 
           if (distance < getActiveDistanceInPixel ())
@@ -448,8 +528,8 @@ MotionComponent::disoccludeBlobs ()
                 }
             }
 
-          _engine.setChannel2DPosition (
-              channel, localToNormalized2DPosition (posPixel));
+          _engine.setChannel3DPosition (
+              channel, discToDirection (localToNormalized2DPosition (posPixel)));
         }
     }
 }
@@ -475,6 +555,11 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           auto const index = closestIndex.value ();
           _uiStates[index]->grabbed = true;
 
+          // Playback writes this channel's position on every tick, and so
+          // does the drag. Holding it means the clip carries on running and
+          // stops fighting the finger for where the blob is.
+          _engine.setChannelPositionHeld (index, true);
+
           // Recover the raw 2D position via the exact inverse mapping
           // (unambiguous between front/back hemisphere) rather than
           // inverting the on-screen (orthographic) position, which would
@@ -482,14 +567,18 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           // the sphere and could snap it to the front on grab. No Pattern
           // is in scope here (this is a live/manual grab, not a clip) — use
           // whatever clip is currently playing on the channel, if any.
-          auto const playing = _engine.getPlayingPattern (index);
-          auto const params
-              = playing ? playing->getElevationParams () : ElevationParams{};
-          auto const posRaw2D = _engine.getHeightMap ().mapTo2D (
-              _engine.getChannelPosition (index), params);
-          _uiStates[index]->grabOffset
-              = normalizedToLocal2DPosition (posRaw2D)
-                - event.getPosition ().toFloat ();
+          // The blob jumps under the finger and stays there. Keeping the
+          // offset it was grabbed at is the mouse convention, and on a panel
+          // with a fat finger and a small blob it reads as the blob lagging
+          // beside the finger rather than being held by it.
+          _uiStates[index]->grabOffset = {};
+
+          // Put it there now rather than on the first movement: "jumps under
+          // the finger when grabbed" means when grabbed, and a touch that
+          // presses without moving would otherwise leave it where it was.
+          _engine.setChannel3DPosition (
+              index, discToDirection (localToNormalized2DPosition (
+                         event.getPosition ().toFloat ())));
           _grabbedIndex = index;
 
           // disocclusion: save anchor position for all channels
@@ -497,8 +586,8 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
                ++channel)
             {
               auto const posChannel = _engine.getChannelPosition (channel);
-              _uiStates[channel]->posAnchor
-                  = normalizedToLocal2DPosition (posChannel);
+              _uiStates[channel]->posAnchor = normalizedToLocal2DPosition (
+                  directionToDisc (posChannel));
             }
         }
     }
@@ -511,6 +600,7 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
   for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
     {
       _uiStates[channel]->grabbed = false;
+      _engine.setChannelPositionHeld (channel, false);
     }
   _grabbedIndex = {};
 
@@ -533,9 +623,14 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
       auto const channel = _grabbedIndex.value ();
       auto const posPixelOffsetted
           = posPixel + _uiStates[channel]->grabOffset;
-      auto const posHOA
-          = localToNormalized2DPosition (posPixelOffsetted);
-      _engine.setChannel2DPosition (channel, posHOA);
+
+      // Straight into the projection the blob is drawn in, so it lands under
+      // the finger. Going through the height map's 2D space instead read the
+      // finger's radius as a pattern radius, where 1.0 is 45 degrees off the
+      // zenith rather than the horizon — the blob came up short by 1/sqrt(2).
+      auto const direction
+          = discToDirection (localToNormalized2DPosition (posPixelOffsetted));
+      _engine.setChannel3DPosition (channel, direction);
     }
 }
 
@@ -585,7 +680,7 @@ MotionComponent::getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
 float
 MotionComponent::getActiveDistanceInPixel () const
 {
-  return _boundsCenterRegion.getWidth () * reduceFactorBlobs
+  return _boundsCenterRegion.getWidth () * _blobScale
          * activeAreaAroundBlobFactor / 2.f;
 }
 
@@ -608,7 +703,56 @@ MotionComponent::newOpenGLContextCreated ()
   // Initialise blit shader for FBO compositing
   _blit.create ();
 
-  // Load glow / spotlight config from userConfig
+  // Energy map from the IEM EnergyVisualizer. Folding 426 directions into the
+  // map is a fixed geometry problem, so the weights are resolved once here.
+  {
+    auto const grid = loadEnergyGrid (
+        juce::File::getCurrentWorkingDirectory ().getChildFile (
+            "resources/EnergyVisualizerGrid.json"));
+
+    if (grid.size () == energyGridPointCount)
+      {
+        _energyProjection
+            = std::make_unique<EnergyMapProjection> (grid, energyMapSpreadDegrees);
+        _energyTarget.assign (energyMapTexelCount, 0.f);
+        _energySmoothed.assign (energyMapTexelCount, 0.f);
+        _energyTexels.assign (energyMapTexelCount, 0);
+
+        glGenTextures (1, &_energyTexture);
+        glBindTexture (GL_TEXTURE_2D, _energyTexture);
+        glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, energyMapWidth,
+                      energyMapHeight, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE,
+                      _energyTexels.data ());
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // Azimuth wraps, elevation does not.
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture (GL_TEXTURE_2D, 0);
+      }
+    else
+      {
+        juce::Logger::writeToLog (
+            "energy grid missing or wrong size — sphere stays unlit by it");
+      }
+  }
+
+  _startMillis = juce::Time::getMillisecondCounter ();
+
+  _activeSkinFile = visualConfigFile ();
+  _appConfigWatcher = ConfigFileWatcher{ configFile () };
+  _configWatcher = ConfigFileWatcher{ _activeSkinFile };
+
+  auto const skin = loadActiveSkinVar (configFile (), userConfig);
+  applyVisualConfig (skin);
+  applyTheme (skin);
+}
+
+
+void
+MotionComponent::applyVisualConfig (juce::var const &config)
+{
+  // Load glow / spotlight config from config
   {
     auto cfgF = [] (const juce::var &obj, const char *key,
                     float def) -> float {
@@ -616,26 +760,31 @@ MotionComponent::newOpenGLContextCreated ()
     };
 
     SphereShader::GlowConfig gc;
-    auto const &sg = userConfig["sphereGlow"];
+    auto const &sg = config["sphereGlow"];
     gc.r = cfgF (sg, "r", 230.f) / 255.f;
     gc.g = cfgF (sg, "g", 26.f) / 255.f;
     gc.b = cfgF (sg, "b", 13.f) / 255.f;
     gc.alphaMax = cfgF (sg, "alphaMax", 0.6f);
     gc.vuMax = cfgF (sg, "vuMax", 0.2f);
     gc.curve = cfgF (sg, "curve", 0.4f);
+    gc.intensity = cfgF (sg, "intensity", 0.8f);
+    gc.netFlow = cfgF (sg, "netFlow", -0.18f);
+    gc.netReach = cfgF (sg, "reach", 2.6f);
+    gc.netRise = cfgF (sg, "rise", 0.25f);
+    gc.netTwist = cfgF (sg, "netTwist", 9.f);
+    gc.netScale = cfgF (sg, "netScale", 7.f);
+    gc.netSharpness = cfgF (sg, "netSharpness", 6.f);
+    gc.netOctaves = cfgF (sg, "netOctaves", 3.f);
+    gc.netLacunarity = cfgF (sg, "netLacunarity", 2.f);
+    gc.netGain = cfgF (sg, "netGain", 0.5f);
+    gc.attack = cfgF (sg, "attack", 0.05f);
+    gc.decay = cfgF (sg, "decay", 1.2f);
+    _glowAttack = gc.attack;
+    _glowDecay = gc.decay;
     _sphereShader.setGlowConfig (gc);
 
-    SphereShader::BackgroundGlowConfig bgc;
-    auto const &bg = userConfig["backgroundGlow"];
-    bgc.r         = cfgF (bg, "r", 230.f) / 255.f;
-    bgc.g         = cfgF (bg, "g", 26.f) / 255.f;
-    bgc.b         = cfgF (bg, "b", 13.f) / 255.f;
-    bgc.falloff   = cfgF (bg, "falloff", 1.5f);
-    bgc.intensity = cfgF (bg, "intensity", 0.8f);
-    _sphereShader.setBackgroundGlowConfig (bgc);
-
     SphereShader::SpotlightConfig sc;
-    auto const &sl = userConfig["speakerLight"];
+    auto const &sl = config["speakerLight"];
     sc.r = cfgF (sl, "r", 255.f) / 255.f;
     sc.g = cfgF (sl, "g", 64.f) / 255.f;
     sc.b = cfgF (sl, "b", 166.f) / 255.f;
@@ -643,15 +792,139 @@ MotionComponent::newOpenGLContextCreated ()
     sc.vuMax = cfgF (sl, "vuMax", 0.2f);
     sc.curve = cfgF (sl, "curve", 0.4f);
     sc.speakerRadius = cfgF (sl, "speakerRadius", 1.55f);
-    sc.beamConeExp = cfgF (sl, "beamConeExp", 6.f);
-    sc.beamFalloff = cfgF (sl, "beamFalloff", 0.6f);
+    sc.edgeSoftness = cfgF (sl, "edgeSoftness", 0.7f);
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
+    sc.reach = cfgF (sl, "reach", 0.25f);
+    sc.apertureAngle = cfgF (sl, "apertureAngle", 6.f);
+    sc.wrapAngle = cfgF (sl, "wrapAngle", 45.f);
+    sc.wander = cfgF (sl, "wander", 14.f);
+    sc.wanderTwist = cfgF (sl, "wanderTwist", 5.f);
+    sc.wanderScale = cfgF (sl, "wanderScale", 4.f);
+    sc.wanderFlow = cfgF (sl, "wanderFlow", 0.08f);
+    sc.root = cfgF (sl, "root", 0.35f);
+    sc.levelFloor = cfgF (sl, "levelFloor", 0.25f);
+    sc.bleed = cfgF (sl, "bleed", 0.22f);
+    sc.fray = cfgF (sl, "fray", 0.8f);
+    sc.cover = cfgF (sl, "cover", 3.f);
+    sc.boltWidth = cfgF (sl, "boltWidth", 0.9f);
+    sc.boltWander = cfgF (sl, "boltWander", 0.55f);
+    sc.boltScale = cfgF (sl, "boltScale", 6.f);
+    sc.boltFlow = cfgF (sl, "boltFlow", 0.5f);
+    sc.boltRate = cfgF (sl, "boltRate", 1.4f);
+    sc.boltDuty = cfgF (sl, "boltDuty", 0.55f);
+    sc.boltCoreExp = cfgF (sl, "boltCoreExp", 5.f);
+    sc.boltCore = cfgF (sl, "boltCore", 0.9f);
+    sc.boltCount = cfgF (sl, "boltCount", 6.f);
+    sc.boltReach = cfgF (sl, "boltReach", 2.4f);
+    sc.boltEscape = cfgF (sl, "boltEscape", 0.55f);
+    sc.boltBranches = cfgF (sl, "boltBranches", 2.f);
+    sc.boltBranch = cfgF (sl, "boltBranch", 1.6f);
     _sphereShader.setSpotlightConfig (sc);
+
+    auto const &energy = config["energy"];
+    _energyVuMax = cfgF (energy, "vuMax", 0.05f);
+    _energyCurve = cfgF (energy, "curve", 0.8f);
+    _energyAttack = cfgF (energy, "attack", 0.05f);
+    _energyDecay = cfgF (energy, "decay", 0.25f);
+
+    SphereShader::EnergyConfig ec;
+    ec.r = cfgF (energy, "r", 255.f) / 255.f;
+    ec.g = cfgF (energy, "g", 255.f) / 255.f;
+    ec.b = cfgF (energy, "b", 255.f) / 255.f;
+    ec.intensity = cfgF (energy, "intensity", 1.0f);
+    ec.netIntensity = cfgF (energy, "netIntensity", 0.8f);
+    ec.netScale = cfgF (energy, "netScale", 6.f);
+    ec.netSharpness = cfgF (energy, "netSharpness", 8.f);
+    ec.netFlow = cfgF (energy, "netFlow", 0.15f);
+    ec.netBeamIntensity = cfgF (energy, "netBeamIntensity", 1.5f);
+    ec.netTwist = cfgF (energy, "netTwist", 9.f);
+    ec.netOctaves = cfgF (energy, "netOctaves", 3.f);
+    ec.netLacunarity = cfgF (energy, "netLacunarity", 2.f);
+    ec.netGain = cfgF (energy, "netGain", 0.5f);
+    _sphereShader.setEnergyConfig (ec);
+    _sphereShader.setEnergyTexture (_energyTexture);
+
+    // Top level of the skin, which is where they are written — they used to
+    // be read from config["ui"], a place the skin has nothing in, so both
+    // silently kept their built-in defaults. Nobody noticed because the
+    // shipped skin says exactly what those defaults are.
+    _sphereScale = cfgF (config, "sphereScale", reduceFactorCircleDefault);
+    _blobScale = cfgF (config, "blobScale", reduceFactorBlobsDefault);
+
+    _spotAttack = cfgF (sl, "attack", 0.08f);
+    _spotDecay = cfgF (sl, "decay", 0.4f);
   }
 
   // Cache corona config (avoids JSON lookups every frame per blob).
   // Used directly by drawChannelBlobs() (2D overlay).
-  _coronaCfg = loadCoronaConfig (userConfig);
+  _coronaCfg = loadCoronaConfig (config);
+}
+
+// Visual tuning is judged by eye, so the values get changed a lot. Picking up
+// config.json while running turns a rebuild-and-restart cycle into a file save.
+// Runs on the GL thread, throttled to roughly once a second, so no handoff from
+// the message thread is needed.
+// Loading the theme is the message thread's job — the 2D components read it
+// while painting — so the repaint goes through the message manager rather than
+// being called from here on the GL thread.
+void
+MotionComponent::applyTheme (juce::var const &skin)
+{
+  auto const loaded = loadTheme (skin);
+
+  juce::Component::SafePointer<MotionComponent> safeThis{ this };
+  juce::MessageManager::callAsync ([safeThis, loaded] {
+    if (safeThis != nullptr)
+      applyThemeEverywhere (loaded, *safeThis);
+  });
+}
+
+void
+MotionComponent::reloadVisualConfigIfChanged ()
+{
+  auto skinChanged = false;
+
+  // config.json first: it may have named a different skin, and then the second
+  // watcher has to follow before it is asked anything.
+  if (_appConfigWatcher.hasChanged ())
+    {
+      juce::var config;
+      if (juce::JSON::parse (configFile ().loadFileAsString (), config)
+              .wasOk ())
+        {
+          // The whole config, not just the skin's name. userConfig was
+          // parsed once at startup and never again, so everything read from
+          // it at runtime — the function keys' LED colours above all — kept
+          // the values the app had booted with, and editing them in the menu
+          // changed the file and nothing else.
+          //
+          // Handed over on the message thread, which is where it is read.
+          juce::MessageManager::callAsync (
+              [config] { userConfig = config; });
+
+          auto const named = skinFile (configFile ().getParentDirectory (),
+                                       config["ui"]["skin"].toString ());
+          if (named != _activeSkinFile)
+            {
+              _activeSkinFile = named;
+              _configWatcher = ConfigFileWatcher{ named };
+              skinChanged = true;
+              juce::Logger::writeToLog ("skin is now "
+                                        + named.getFileName ());
+            }
+        }
+    }
+
+  if (!_configWatcher.hasChanged () && !skinChanged)
+    return;
+
+  juce::var parsed;
+  if (juce::JSON::parse (_activeSkinFile.loadFileAsString (), parsed).failed ())
+    return; // half-written save — the next check picks up the finished file
+
+  applyVisualConfig (parsed);
+  applyTheme (parsed);
+  juce::Logger::writeToLog ("reloaded " + _activeSkinFile.getFileName ());
 }
 
 void
@@ -665,8 +938,21 @@ MotionComponent::renderOpenGL ()
 
   updateBoundsAndTransform ();
 
+  if (_frameCount % 60 == 0)
+    reloadVisualConfigIfChanged ();
+
+  uploadEnergyMap ();
+  _sphereShader.setEnergyTexture (_energyTexture);
+  // Seconds since this context came up, not since the machine booted: the
+  // uniform is a float, and on an installation left running for a week the
+  // per-frame increment falls below what it can still represent, freezing the
+  // net in place.
+  _sphereShader.setTime (
+      static_cast<float> (juce::Time::getMillisecondCounter () - _startMillis)
+      * 0.001f);
+
   // Clear background first
-  OpenGLHelpers::clear (Colours::background);
+  OpenGLHelpers::clear (Colours::background ());
 
   // ── Smooth VU values (exponential moving average per frame) ───
   // Attack fast, release slower → no flicker, responsive feel.
@@ -680,11 +966,22 @@ MotionComponent::renderOpenGL ()
       current += alpha * (target - current);
     };
     smoothFixed (_smoothGlowPeak, _vuSphereGlowPeak.load ());
-    smoothFixed (_smoothGlowRms,  _vuSphereGlowRms.load ());
+
+    // The glow is the room rather than an event, so it gets its own envelope
+    // and outlasts the bolts striking in front of it.
+    _smoothGlowRms = speakerLightEnvelope (_smoothGlowRms,
+                                           _vuSphereGlowRms.load (),
+                                           _glowAttack, _glowDecay, dt);
     for (int i = 0; i < 4; ++i)
       {
         smoothFixed (_smoothSpotPeak[i], _vuSpeakerPeak[i].load ());
-        smoothFixed (_smoothSpotRms[i],  _vuSpeakerRms[i].load ());
+
+        // The beams get their own configurable envelope: smoothFixed rises in
+        // two frames and falls in seven, which turns even an rms input back
+        // into a peak follower.
+        _smoothSpotRms[i] = speakerLightEnvelope (
+            _smoothSpotRms[i], _vuSpeakerRms[i].load (), _spotAttack,
+            _spotDecay, dt);
       }
 
     // Configurable attack/decay for blob coronas
@@ -727,7 +1024,7 @@ MotionComponent::renderOpenGL ()
             bd.visible = true;
           }
 
-        auto blobSize = reduceFactorBlobs;
+        auto blobSize = _blobScale;
         if (position.isValid ())
           blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
         if (_uiStates[ch]->grabbed)
@@ -851,8 +1148,8 @@ MotionComponent::updateBoundsAndTransform ()
   auto shorterSideLength
       = juce::jmin (_boundsRender.getWidth (), _boundsRender.getHeight ());
   _boundsCenterRegion = _boundsRender.withSizeKeepingCentre (
-      shorterSideLength * reduceFactorCircle,
-      shorterSideLength * reduceFactorCircle);
+      shorterSideLength * _sphereScale,
+      shorterSideLength * _sphereScale);
 
   _transformNormalizedToLocal = juce::AffineTransform ( //
       _boundsCenterRegion.getWidth () / 2.f, 0.f,
@@ -933,7 +1230,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
       if (!position.isValid ())
         continue;
 
-      auto blobSize = 2 * reduceFactorBlobs;
+      auto blobSize = 2 * _blobScale;
       blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
 
       // Blobs on the back of the sphere (z < 0): draw smaller and dimmer
@@ -981,7 +1278,11 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
 
           // Two glow layers (outer → inner) — blend towards white at high VU
           auto whiteBlend = peakScaled * _coronaCfg.whiteBlend;
-          auto coronaColour = colour.interpolatedWith (juce::Colours::white, whiteBlend);
+          // boltCore rather than textPrimary: this is the white-hot centre
+          // of a light effect, the same role the shader's bolts use, not a
+          // piece of text that happens to be white.
+          auto coronaColour
+              = colour.interpolatedWith (toColour (theme ().boltCore), whiteBlend);
           for (int layer = 2; layer >= 1; --layer)
             {
               // Layer 2 is the outer one — keep it tied to the constant the
@@ -1244,7 +1545,14 @@ MotionComponent::localToNormalized2DPosition (
 void
 MotionComponent::openGLContextClosing ()
 {
+  using namespace juce::gl;
+
   DBG ("openGLContextClosing");
+  if (_energyTexture != 0)
+    {
+      glDeleteTextures (1, &_energyTexture);
+      _energyTexture = 0;
+    }
   _blit.destroy ();
   _sphereShader.shutdown ();
 }

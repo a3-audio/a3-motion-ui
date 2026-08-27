@@ -20,6 +20,8 @@ Handbuch beschreibt Bildschirm, Bedienelemente und alle Clip-Parameter.
    - [7.3 Motion](#73-motion)
    - [7.4 Filter](#74-filter)
 8. [Globale Einstellungen](#8-globale-einstellungen)
+   - [8.1 Werte eingeben](#81-werte-eingeben)
+   - [8.2 Bildschirmtastatur](#82-bildschirmtastatur)
 9. [Takt & Tempo](#9-takt--tempo)
 10. [Parameterreferenz](#10-parameterreferenz)
 11. [Problembehandlung](#11-problembehandlung)
@@ -47,7 +49,8 @@ einstellen, direkt am Gerät, ohne Computer.
 
 Der Bildschirm ist von oben nach unten in drei Bereiche gegliedert:
 
-- **Statuszeile** — BPM, Beat-Zähler und aktueller Clock-Modus.
+- **Statuszeile** — BPM, Taktanzeige, aktueller Clock-Modus und das Symbol für
+  die Bildschirmtastatur (Kapitel 8.2).
 - **Sphäre** — die zentrale Bewegungsansicht (siehe Kapitel 3).
 - **Clip-Einstellungen** — das ständig sichtbare Panel am unteren Rand mit den vier
   Sektionen Shape, Elevation, Motion, Filter (Kapitel 7).
@@ -202,14 +205,48 @@ drücken, um den Wert zu bearbeiten, ein zweites Mal, um zu bestätigen.
 |---|---|---|
 | Clockmode | INT / EXT / PIO | INT: Der Controller gibt das Tempo selbst vor (Tap-Tempo). EXT/PIO: folgt einer eingehenden OSC-Beatclock. |
 | Pot Size | 75 – 175 % | Einheitliche Größe aller Drehregler/Umschalter im Clip-Einstellungen-Panel. |
-| Font Size | 75 – 175 % | Schriftgröße von Beschriftung und Wertanzeige dieser Regler, unabhängig von Pot Size. |
+| Header Font Size | 75 – 175 % | Schriftgröße von Statusleiste und Abschnittsüberschriften. |
+| Body Font Size | 75 – 175 % | Schriftgröße von Beschriftungen und Werten, unabhängig von Pot Size. |
+| Sphere Size | small … large | Durchmesser der Sphäre. |
+| Skin | *(vorhandene Skins)* | Farb- und Formschema. Das Bild wechselt schon beim Drehen; erst der Druck macht den Skin zum laufenden. |
+| Skin Editor | open | Jeder Wert des laufenden Skins, einzeln editierbar — dazu Speichern, Als neu speichern, Umbenennen, Löschen. |
+| Network | open | OSC-Hosts und -Ports. Wirken erst nach einem Neustart, weil sie beim Öffnen der Sockets gelesen werden. |
+| Button LEDs | open | Farben der Funktionstasten, inklusive `idle` — der Farbe, in der sie leuchten, **ohne** gedrückt zu sein. |
+| Pattern Folder | open | Verzeichnis, aus dem Trajektorien geladen werden. |
+| Sphere in Menu | an / aus | Ob die Sphäre hinter dem geöffneten Menü sichtbar bleibt. |
 
-Alle drei Einstellungen bleiben nach einem Neustart erhalten.
+Die Einstellungen bleiben nach einem Neustart erhalten.
+
+### 8.1 Werte eingeben
+
+Zeilen mit einem **Text**- oder **Zahlenwert** — Hosts, Ports, das Pattern-
+Verzeichnis, ein Skin-Name — öffnen beim Druck auf den Encoder ein Eingabefeld
+und blenden dazu die Bildschirmtastatur ein. Ein Port ist damit direkt
+eintippbar, statt über zehntausend Werte gedreht werden zu müssen.
+
+Die Werte **im Skin Editor** verhalten sich bewusst anders: sie werden gedreht,
+nicht getippt. Sie werden eingestellt, während man die Sphäre dabei ansieht —
+das ist der Grund, einen Skin überhaupt am Gerät zu bearbeiten. Wer dort doch
+tippen will, erreicht das Eingabefeld über das Tastatur-Symbol.
+
+**Farbzeilen** öffnen statt eines Eingabefeldes einen Farbwähler mit HSL-Feldern.
+
+### 8.2 Bildschirmtastatur
+
+Das Gerät zeichnet keine eigene Tastatur. Es benutzt **Onboard**, die Tastatur
+des Systems, und blendet sie über D-Bus ein und aus; getippt wird in das Fenster,
+das gerade den Fokus hat. Das Symbol rechts in der Statusleiste blendet sie
+jederzeit ein und aus — unabhängig davon, was gerade auf dem Schirm ist.
+
+Onboard muss dafür installiert sein (Paket `onboard`, siehe `README.md`). Fehlt
+es, tut das Symbol nichts, und jedes Feld bleibt weiterhin über den Encoder
+erreichbar.
 
 ## 9. Takt & Tempo
 
-Die Statuszeile zeigt BPM, Beat-Zähler und den aktuellen Clock-Modus farbcodiert: INT
-grün, EXT orange, PIO cyan.
+Die Statuszeile zeigt links die BPM, mittig die Taktanzeige und rechts den
+aktuellen Clock-Modus farbcodiert (INT grün, EXT orange, PIO cyan) sowie das
+Symbol für die Bildschirmtastatur.
 
 Im Modus **INT** tippen Sie das Tempo mehrfach im Takt auf die Tap-Taste — je
 gleichmäßiger, desto präziser das Ergebnis. In **EXT**/**PIO** übernimmt der
@@ -237,7 +274,8 @@ Standardwert.
 | Filter | Q | 0 – 1 | 0 |
 | Global | Clockmode | INT/EXT/PIO | INT |
 | Global | Pot Size | 75–175 % | 100 % |
-| Global | Font Size | 75–175 % | 100 % |
+| Global | Header Font Size | 75–175 % | 100 % |
+| Global | Body Font Size | 75–175 % | 100 % |
 
 ## 11. Problembehandlung
 

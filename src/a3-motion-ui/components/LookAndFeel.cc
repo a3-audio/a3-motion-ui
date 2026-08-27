@@ -20,22 +20,117 @@
 
 #include "LookAndFeel.hh"
 
+#include <a3-motion-ui/theme/ThemedComponent.hh>
+
 namespace a3
 {
 
-const juce::Colour Colours::background{ 0xff292f36 };
-const juce::Colour Colours::statusBar{ Colours::background.withLightness (
-    0.4f) };
-
 LookAndFeel_A3::LookAndFeel_A3 ()
 {
-  setColour (juce::Slider::thumbColourId, juce::Colours::lightgrey);
-
-  // setColour (juce::Slider::backgroundColourId, juce::Colours::red);
-  // setColour (juce::Slider::trackColourId, juce::Colours::red);
-  // setColour (juce::Slider::rotarySliderOutlineColourId, Colours::black);
-
-  setColour (juce::Slider::rotarySliderFillColourId,
-             juce::Colours::lightgrey.darker ());
+  applyTheme (theme ());
 }
+
+void
+LookAndFeel_A3::applyTheme (Theme const &theme)
+{
+  auto const surface = toColour (theme.surface);
+  auto const surfaceRaised = toColour (theme.surfaceRaised);
+  auto const background = toColour (theme.background);
+  auto const textPrimary = toColour (theme.textPrimary);
+  auto const textMuted = toColour (theme.textMuted);
+  auto const textOnAccent = toColour (theme.textOnAccent);
+  auto const accent = toColour (theme.accent);
+
+  setColour (juce::ResizableWindow::backgroundColourId, background);
+  setColour (juce::DocumentWindow::textColourId, textPrimary);
+
+  setColour (juce::Label::textColourId, textPrimary);
+  setColour (juce::Label::backgroundColourId, juce::Colours::transparentBlack);
+
+  // The knob keeps its own greys rather than taking the accent: it is a value
+  // readout, and an accent-coloured one would compete with the state colours
+  // sharing the screen with it.
+  setColour (juce::Slider::thumbColourId, textMuted);
+  setColour (juce::Slider::rotarySliderFillColourId, textMuted.darker ());
+  setColour (juce::Slider::rotarySliderOutlineColourId, surfaceRaised);
+  setColour (juce::Slider::backgroundColourId, surface);
+  setColour (juce::Slider::trackColourId, accent);
+
+  setColour (juce::TextButton::buttonColourId, surfaceRaised);
+  setColour (juce::TextButton::buttonOnColourId, accent);
+  setColour (juce::TextButton::textColourOffId, textPrimary);
+  setColour (juce::TextButton::textColourOnId, textOnAccent);
+
+  setColour (juce::ComboBox::backgroundColourId, surfaceRaised);
+  setColour (juce::ComboBox::textColourId, textPrimary);
+  setColour (juce::ComboBox::outlineColourId, surface);
+
+  setColour (juce::PopupMenu::backgroundColourId, surfaceRaised);
+  setColour (juce::PopupMenu::textColourId, textPrimary);
+  setColour (juce::PopupMenu::highlightedBackgroundColourId, accent);
+  setColour (juce::PopupMenu::highlightedTextColourId, textOnAccent);
+
+  setColour (juce::ScrollBar::thumbColourId, textMuted);
+}
+
+namespace
+{
+juce::Font
+scaled (juce::Font font)
+{
+  return font.withHeight (font.getHeight () * theme ().bodyScale);
+}
+}
+
+juce::Font
+LookAndFeel_A3::getLabelFont (juce::Label &label)
+{
+  return scaled (juce::LookAndFeel_V4::getLabelFont (label));
+}
+
+juce::Font
+LookAndFeel_A3::getComboBoxFont (juce::ComboBox &box)
+{
+  return scaled (juce::LookAndFeel_V4::getComboBoxFont (box));
+}
+
+juce::Font
+LookAndFeel_A3::getPopupMenuFont ()
+{
+  return scaled (juce::LookAndFeel_V4::getPopupMenuFont ());
+}
+
+juce::Font
+LookAndFeel_A3::getTextButtonFont (juce::TextButton &button, int buttonHeight)
+{
+  return scaled (
+      juce::LookAndFeel_V4::getTextButtonFont (button, buttonHeight));
+}
+
+
+void
+applyThemeEverywhere (Theme loaded, juce::Component &inTree)
+{
+  // The menu's font factors come from the settings file, not from the skin,
+  // and reloading one must not discard the other.
+  loaded.headerScale = theme ().headerScale;
+  loaded.bodyScale = theme ().bodyScale;
+  setTheme (loaded);
+
+  // The LookAndFeel does cache: findColour reads what setColour last wrote,
+  // so a skin change has to reach it before anything repaints.
+  if (auto *lookAndFeel
+      = dynamic_cast<LookAndFeel_A3 *> (&inTree.getLookAndFeel ()))
+    lookAndFeel->applyTheme (theme ());
+
+  if (auto *root = inTree.getTopLevelComponent ())
+    {
+      // Most components read the theme while painting, so the repaint is all
+      // they need. The ones that cache — juce::Labels take a colour and a
+      // font once and keep them — have to be told first.
+      applyThemeToTree (*root);
+      root->repaint ();
+    }
+}
+
 }

@@ -20,6 +20,8 @@
 
 #include "OscMessageHandler.hh"
 
+#include <array>
+
 namespace a3
 {
 
@@ -51,6 +53,26 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
         _listener.onSubwooferVU (peak, rms);
       else if (channel >= 5 && channel <= 8)
         _listener.onSpeakerVU (channel - 5, peak, rms);
+
+      return;
+    }
+
+  if (address == "/EnergyVisualizer/RMS")
+    {
+      // A message of the wrong length would leave part of the map holding
+      // values from an earlier frame — energy that is no longer there.
+      if (message.size () != energyGridPointCount)
+        return;
+
+      std::array<float, energyGridPointCount> values;
+      for (int i = 0; i < energyGridPointCount; ++i)
+        {
+          if (!message[i].isFloat32 ())
+            return;
+          values[static_cast<size_t> (i)] = message[i].getFloat32 ();
+        }
+
+      _listener.onEnergyGrid (values.data (), energyGridPointCount);
 
       return;
     }

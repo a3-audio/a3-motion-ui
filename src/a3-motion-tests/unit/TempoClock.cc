@@ -45,3 +45,49 @@ TEST (TempoClock, TimingSyncAsync)
 
   tempoClock.stop ();
 }
+
+// The first tap after a pause is supposed to reset the beat to 1. Reported as
+// not happening in INT clock mode, and the reset runs on the clock's own
+// thread, so this watches what the Beat handler is actually handed rather than
+// what the tap returns.
+TEST (TempoClock, FirstTapResetsTheBeat)
+{
+  TempoClock tempoClock;
+  tempoClock.start ();
+
+  std::atomic<int> lastBeat{ -1 };
+  std::atomic<int> beatCount{ 0 };
+
+  auto handle = tempoClock.scheduleEventHandlerAddition (
+      [&lastBeat, &beatCount] (Measure measure) {
+        lastBeat = static_cast<int> (measure.beat ());
+        ++beatCount;
+      },
+      TempoClock::Event::Beat, TempoClock::Execution::TimerThread, true);
+
+  // Let it run a while so the beat is somewhere other than 1 when we tap.
+  auto const beatsBeforeTap = beatCount.load ();
+  for (int i = 0; i < 200 && beatCount.load () < beatsBeforeTap + 2; ++i)
+    juce::Thread::sleep (10);
+
+  auto const now = juce::Time::getHighResolutionTicks ();
+  auto const micros = static_cast<juce::int64> (
+      static_cast<double> (now)
+      / static_cast<double> (juce::Time::getHighResolutionTicksPerSecond ())
+      * 1'000'000.0);
+
+  auto const result = tempoClock.tap (micros);
+  EXPECT_EQ (result, TempoClock::TapResult::FirstTap)
+      << "a lone tap has to count as the first one";
+
+  auto const countAtTap = beatCount.load ();
+  for (int i = 0; i < 100 && beatCount.load () == countAtTap; ++i)
+    juce::Thread::sleep (5);
+
+  EXPECT_GT (beatCount.load (), countAtTap)
+      << "the reset has to emit a beat, or nothing on screen can update";
+  EXPECT_EQ (lastBeat.load (), 0)
+      << "beat 0 is what the status bar shows as 1/4";
+
+  tempoClock.stop ();
+}

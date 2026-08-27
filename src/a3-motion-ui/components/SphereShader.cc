@@ -20,12 +20,29 @@
 
 #include "SphereShader.hh"
 
+#include <a3-motion-ui/theme/Theme.hh>
+
 #include "SpeakerLightScaling.hh"
 
 #include <cmath>
 
 namespace a3
 {
+
+namespace
+{
+/** A theme role as a GL colour. The skin states 0..255; GLSL wants 0..1. */
+void
+setThemeUniform (GLint location, ThemeColour const &colour)
+{
+  if (location < 0)
+    return;
+
+  juce::gl::glUniform3f (location, static_cast<float> (colour.r) / 255.f,
+               static_cast<float> (colour.g) / 255.f,
+               static_cast<float> (colour.b) / 255.f);
+}
+}
 
 SphereShader::SphereShader () = default;
 SphereShader::~SphereShader () = default;
@@ -62,13 +79,25 @@ uniform vec2  uResolution;
 uniform float uSphereRadius;
 uniform vec2  uSphereCentre;
 
+// Corona of the whole sphere, driven by the subwoofer
 uniform float uGlowLevel;
 uniform vec3  uGlowColour;
+uniform float uGlowIntensity;
+uniform float uGlowFlow;        // negative: the glow's filaments run outwards
+uniform float uGlowReach;       // how far the domain still varies
+uniform float uGlowRise;        // distance over which they emerge past the rim
+uniform float uGlowTwist;
+uniform float uGlowScale;
+uniform float uGlowSharpness;
+uniform float uGlowOctaves;
+uniform float uGlowLacunarity;
+uniform float uGlowGain;
 
-uniform vec3  uBgGlowColour;
-uniform float uBgGlowFalloff;
-uniform float uBgGlowIntensity;
 uniform vec3  uBgColour;  // solid background colour
+uniform vec3  uSphereSurface;      // the sphere's own dark body
+uniform vec3  uSphereRim;          // the fresnel edge it catches
+uniform vec3  uSphereEnvironment;  // the faint room it reflects
+uniform vec3  uBoltCoreColour;     // the white a bolt runs at its centre
 
 uniform float uSpotLevel0;
 uniform float uSpotLevel1;
@@ -76,9 +105,53 @@ uniform float uSpotLevel2;
 uniform float uSpotLevel3;
 uniform vec3  uSpotColour;
 uniform float uSpeakerRadius;
-uniform float uBeamConeExp;
+uniform float uBeamEdge;       // fraction of the half-width that stays flat
 uniform float uBeamFalloff;
 uniform float uBeamIntensity;
+uniform float uApertureAngle;  // half-angle of the band where it leaves the horn
+uniform float uWrapAngle;      // and where it meets the sphere — 45 closes the circle
+uniform float uWander;         // degrees the centre line wanders
+uniform float uWanderTwist;    // detail of the wander around the circle
+uniform float uWanderScale;    // and along the radius
+uniform float uWanderFlow;     // how fast it creeps
+uniform float uBeamRoot;       // density where it leaves the speaker
+uniform float uBeamFloor;      // level the band never drops below
+uniform float uBeamBleed;      // how far it reaches past the annulus
+uniform float uBeamFray;       // how ragged its edge is
+uniform float uBeamCover;      // how strongly the band hides the glow
+uniform float uBoltWidth;      // angular width of a bolt's core, degrees
+uniform float uBoltWander;     // how far its path strays across the band
+uniform float uBoltScale;      // how quickly it strays with radius
+uniform float uBoltFlow;       // how fast the path creeps
+uniform float uBoltRate;       // how often a bolt strikes
+uniform float uBoltDuty;       // and how much of the time it is dark
+uniform float uBoltCoreExp;    // how tight the white core is
+uniform float uBoltCore;       // how bright it runs
+uniform float uBoltCount;      // bolts per band
+uniform float uBoltReach;      // how far an escaping one carries
+uniform float uBoltEscape;     // how many of them escape
+uniform float uBoltBranches;   // branches per bolt
+uniform float uBoltBranch;     // how hard a branch leaves its trunk
+uniform float uApertureHalf;   // half-width of the horn's mouth
+uniform float uMouthOffset;    // mouth position ahead of the speaker centre
+uniform float uBeamReach;      // how far past the mouth the stub carries
+
+// Energy arriving from each direction, folded into an equirectangular map by
+// EnergyMap.cc from the IEM EnergyVisualizer's 426 points
+uniform sampler2D uEnergyMap;
+uniform vec3  uEnergyColour;
+uniform float uEnergyIntensity;
+uniform float uNetIntensity;
+uniform float uNetScale;
+uniform float uNetSharpness;
+uniform float uNetFlow;
+uniform float uNetBeamIntensity;  // filaments carried by the beams
+uniform float uNetTwist;          // detail running around the circle
+uniform float uNetOctaves;        // fractal depth, fractional
+uniform float uNetLacunarity;     // how much finer each octave gets
+uniform float uNetGain;           // how much quieter each octave gets
+
+uniform float uTime;
 
 // Channel blobs (position, size, VU, colour, state)
 uniform vec4  uBlobPosSize0;
@@ -96,7 +169,17 @@ uniform float uNumBlobs;
 float sphereIntersect (vec2 uv, out vec3 normal)
 {
     float d2 = dot (uv, uv);
-    if (d2 > 1.0) return -1.0;
+    if (d2 > 1.0)
+    {
+        // The ray misses, but the antialiasing band outside the silhouette
+        // still asks for a normal here. Hand back the rim's own — pointing
+        // straight out, z = 0 — so that band blends into the rim colour.
+        // Leaving `normal` unwritten left the caller reading an
+        // uninitialised value, which drew a hard black ring two pixels wide
+        // around the sphere.
+        normal = vec3 (normalize (uv), 0.0);
+        return -1.0;
+    }
     float z = sqrt (1.0 - d2);
     normal = vec3 (uv, z);
     return z;
@@ -120,6 +203,288 @@ vec3 getBlobCol (int i)
     return uBlobCol3;
 }
 
+// Truncated cone leaving the horn's mouth at the mouth's own width. Only ever
+// drawn outside the sphere — where it lands, the net takes over. Mirrors
+// beamHalfWidthAt() in SpeakerLightScaling.cc.
+// How much of the glow's net has emerged from behind the sphere. Mirrors
+// glowEmergence() in EnergyMap.cc.
+float glowEmergence (float d, float rise)
+{
+    return smoothstep (1.0, 1.0 + max (rise, 0.0001), d);
+}
+
+// Half the chord a view ray traverses, 1 at the centre and 0 at the rim.
+float sphereHalfChord (float d)
+{
+    float c = clamp (d, 0.0, 1.0);
+    return sqrt (1.0 - c * c);
+}
+
+
+// ─── energy map and fractal net ─────────────────────────────────
+
+// The display is an orthographic view of the upper hemisphere from above: the
+// centre of the disc is straight up, the rim is the horizon. That is exactly
+// what the sphere's own normal describes, so the direction is that normal with
+// its horizontal axes rearranged to match the way blobs are placed —
+// cartesian2DHOA2JUCE maps a position to { -y, -x } with JUCE's y pointing
+// down. Mirrors energyDirectionForScreen() in EnergyMap.cc.
+vec3 screenToDirection (vec2 uv, float dist)
+{
+    float r = min (dist, 1.0);
+    float up = sqrt (max (0.0, 1.0 - r * r));
+
+    return vec3 (uv.y, -uv.x, up);
+}
+
+vec2 energyUV (vec3 dir)
+{
+    float azimuth = atan (dir.y, dir.x);
+    float elevation = asin (clamp (dir.z, -1.0, 1.0));
+
+    return vec2 (azimuth / 6.28318531 + 0.5, elevation / 3.14159265 + 0.5);
+}
+
+float energyAt (vec3 dir)
+{
+    return texture2D (uEnergyMap, energyUV (dir)).r;
+}
+
+float hash13 (vec3 p)
+{
+    return fract (sin (dot (p, vec3 (127.1, 311.7, 74.7))) * 43758.5453);
+}
+
+float boltAt (float distance, float width)
+{
+    return width / (abs (distance) + width);
+}
+
+float valueNoise (vec3 p)
+{
+    vec3 i = floor (p);
+    vec3 f = fract (p);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float n000 = hash13 (i + vec3 (0.0, 0.0, 0.0));
+    float n100 = hash13 (i + vec3 (1.0, 0.0, 0.0));
+    float n010 = hash13 (i + vec3 (0.0, 1.0, 0.0));
+    float n110 = hash13 (i + vec3 (1.0, 1.0, 0.0));
+    float n001 = hash13 (i + vec3 (0.0, 0.0, 1.0));
+    float n101 = hash13 (i + vec3 (1.0, 0.0, 1.0));
+    float n011 = hash13 (i + vec3 (0.0, 1.0, 1.0));
+    float n111 = hash13 (i + vec3 (1.0, 1.0, 1.0));
+
+    return mix (mix (mix (n000, n100, f.x), mix (n010, n110, f.x), f.y),
+                mix (mix (n001, n101, f.x), mix (n011, n111, f.x), f.y), f.z);
+}
+
+// Lightning. A bolt is a path, not a field: for each radius it sits at some
+// angle that wanders with noise, and a pixel's brightness comes from its
+// distance to that path -- width/(distance+width), full at the core and
+// trailing off without ever quite ending. That tail is what ties the band into
+// the net inside and the glow outside; a soft-edged field, however hard it is
+// sharpened, stops at a line instead. Mirrors boltFalloff() and boltStrike()
+// in EnergyMap.cc.
+//
+// Returns the bolt field in x and its hottest core in y, so the core can be
+// drawn white and the glow in colour.
+vec2 bolts (float dA, float d, float halfWidth, float seed, float mouthR)
+{
+    float width = radians (uBoltWidth);
+    float best = 0.0;
+
+    for (int i = 0; i < 8; ++i)
+    {
+        if (float (i) >= uBoltCount) break;
+
+        float id = seed + float (i) * 31.7;
+
+        // Some bolts stay in the annulus, others break out towards the edge of
+        // the screen -- otherwise the band reads as a ring with a hard limit.
+        float escapes = step (uBoltEscape, valueNoise (vec3 (id, 9.0, 0.0)));
+        float far = mix (mouthR, uBoltReach, escapes);
+        if (d > far) continue;
+
+        // Fades in where it reaches into the sphere and out where it ends
+        float rad = smoothstep (1.0 - uBeamBleed, 1.0 - uBeamBleed * 0.4, d)
+                  * smoothstep (far, far - (far - 1.0) * 0.45, d);
+
+        // Each bolt strikes and is gone rather than sitting there
+        float strike = smoothstep (uBoltDuty, 1.0,
+                                   valueNoise (vec3 (id, 5.0, uTime * uBoltRate)));
+        if (strike <= 0.0) continue;
+
+        // Where this bolt sits across the band, and how it strays on the way
+        float lane = (valueNoise (vec3 (id, 0.0, 0.0)) - 0.5) * 1.4;
+        float stray = (valueNoise (vec3 (id, d * uBoltScale, uTime * uBoltFlow))
+                       - 0.5) * 2.0;
+        float trunk = (lane + stray * uBoltWander) * halfWidth;
+
+        best = max (best, boltAt (abs (dA - trunk), width) * strike * rad);
+
+        // Branches share the trunk until they fork, then go their own way.
+        // Mirrors boltBranchOffset() in EnergyMap.cc.
+        for (int b = 0; b < 3; ++b)
+        {
+            if (float (b) >= uBoltBranches) break;
+
+            float bid = id + float (b) * 7.13 + 101.0;
+            float fork = 1.0 + valueNoise (vec3 (bid, 1.0, 0.0)) * (far - 1.0);
+            float away = max (0.0, d - fork) * uBoltBranch;
+            float side = (valueNoise (vec3 (bid, 2.0, uTime * uBoltFlow)) - 0.5)
+                       * 2.0;
+
+            float path = trunk + side * away * halfWidth;
+
+            // Thinner and dimmer than what they came off
+            best = max (best, boltAt (abs (dA - path), width * 0.65)
+                              * strike * rad * 0.7);
+        }
+    }
+
+    return vec2 (best, pow (best, uBoltCoreExp));
+}
+
+// A beam is a band in the annulus between the horn's mouth and the sphere: it
+// leaves the speaker narrow and opens to a quarter of the way round by the
+// time it arrives, so the four of them close the circle. Its centre line
+// wanders with fractal noise, which is what turns a band into a root.
+// Mirrors beamWrapHalfAngle() in EnergyMap.cc.
+//
+// Needs valueNoise(), so it lives below it.
+vec2 beamDensity (vec2 point, vec2 spkDir, float level)
+{
+    float mouthR = uSpeakerRadius - uMouthOffset;
+    float d = length (point);
+
+    // Full strength in the annulus, bleeding past both ends so the band runs
+    // into the glow's filaments outside and the net's inside instead of
+    // sitting between them. Mirrors beamRadialWindow() in EnergyMap.cc.
+    float span = max (uBeamBleed, 0.0001);
+    float radial = smoothstep (0.0, 1.0, clamp ((mouthR + span - d) / span, 0.0, 1.0))
+                 * smoothstep (0.0, 1.0, clamp ((d - (1.0 - span)) / span, 0.0, 1.0));
+
+    // The body stops at the annulus but the bolts do not — escaping ones carry
+    // on to the edge of the screen, so this cannot bail out on `radial`.
+    if (d < 1.0 - span || d > max (mouthR, uBoltReach)) return vec2 (0.0);
+
+    // How far along the way in, 0 at the mouth and 1 at the sphere.
+    float t = clamp ((mouthR - d) / max (mouthR - 1.0, 0.0001), 0.0, 1.0);
+    float eased = t * t * (3.0 - 2.0 * t);
+
+    float halfWidth = radians (mix (uApertureAngle, uWrapAngle, eased));
+
+    // Offset from the speaker's own direction, wrapped to +-pi
+    float a = atan (point.y, point.x);
+    float a0 = atan (spkDir.y, spkDir.x);
+    float dA = mod (a - a0 + 9.42477796, 6.28318531) - 3.14159265;
+
+    // The centre line wanders sideways, more the further it has travelled —
+    // roots, not spokes. Sampled on the direction so it has no seam.
+    vec3 wp = vec3 (cos (a), sin (a), 0.0) * uWanderTwist;
+    wp.z = d * uWanderScale - uTime * uWanderFlow;
+    float wander = (valueNoise (wp) - 0.5) * radians (uWander) * eased;
+
+    // The edge frays: its own noise eats into the band so it ends in tendrils
+    // rather than a clean line.
+    vec3 fp = vec3 (cos (a), sin (a), 0.0) * uWanderTwist * 2.0;
+    fp.z = d * uWanderScale * 2.0 - uTime * uWanderFlow * 1.7;
+    float ragged = halfWidth * (1.0 + (valueNoise (fp) - 0.5) * uBeamFray);
+
+    float across = 1.0 - smoothstep (ragged * uBeamEdge, ragged,
+                                     abs (dA - wander));
+    if (across <= 0.0) return vec2 (0.0);
+
+    // Denser where it wraps the sphere than where it leaves the speaker.
+    float grip = mix (uBeamRoot, 1.0, eased);
+
+    // Never lets go entirely — a silent speaker thins its band instead of
+    // dropping it and opening the ring. Relative to the loudest band, so with
+    // nothing playing there is no ring. Mirrors beamBandLevel().
+    float loudest = max (max (uSpotLevel0, uSpotLevel1),
+                         max (uSpotLevel2, uSpotLevel3));
+    float lifted = max (level, uBeamFloor * loudest);
+
+    // The envelope is not drawn and does not hide anything — it only says
+    // where a bolt may strike, and how brightly. What reaches the screen is
+    // the bolts alone, so the glow behind them stays visible between them.
+    float envelope = lifted * across * grip * radial;
+
+    float seed = spkDir.x * 13.0 + spkDir.y * 71.0;
+    vec2 strike = bolts (dA - wander, d, ragged, seed, mouthR);
+
+    return vec2 (envelope * strike.x, envelope * strike.y);
+}
+
+// x is the bolts' coloured glow, y their white core.
+vec2 beamTotal (vec2 p)
+{
+    return beamDensity (p, vec2 (-0.7071,  0.7071), uSpotLevel0)
+         + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1)
+         + beamDensity (p, vec2 ( 0.7071, -0.7071), uSpotLevel2)
+         + beamDensity (p, vec2 (-0.7071, -0.7071), uSpotLevel3);
+}
+
+// Ridged fractal noise: the filaments are the ridges between noise cells, and
+// stacking octaves is what gives them branches within branches.
+// Ridged fractal noise: the filaments are the ridges between noise cells, and
+// stacking octaves is what gives them branches within branches.
+//
+// `radial` already carries the flow — the caller forms it, and its sign is what
+// decides whether the filaments run in or out. `reach` clamps how far out the
+// domain still varies; past it the pattern freezes, so it has to cover
+// wherever the filaments are meant to go.
+float netFilaments (vec2 uv, float dist, float flow, float reach,
+                    float twist, float scale, float sharpness,
+                    float octaves, float lacunarity, float gain)
+{
+    // Inverts netFilamentRadius() in EnergyMap.cc: the filament standing at
+    // this radius now is the one that started further along the flow.
+    float radial = clamp (dist, 0.0, reach) + uTime * flow;
+
+    // Domain built from the direction, not from an angle. An angle wraps, and
+    // the wrap left a seam due west where the filaments failed to meet.
+    // Mirrors netDomainPoint() in EnergyMap.cc.
+    float len = max (length (uv), 0.000001);
+    vec2 n = uv / len;
+    vec3 p = vec3 (n * twist, radial * scale);
+
+    float sum = 0.0;
+    float amp = 1.0;
+    float norm = 0.0;
+    for (int octave = 0; octave < 5; ++octave)
+    {
+        // Fades the last octave in rather than switching it, so the count can
+        // be tuned continuously.
+        float active = clamp (octaves - float (octave), 0.0, 1.0);
+        if (active <= 0.0) break;
+
+        float ridge = 1.0 - abs (2.0 * valueNoise (p) - 1.0);
+        sum += ridge * amp * active;
+        norm += amp * active;
+        p *= lacunarity;
+        amp *= gain;
+    }
+
+    return pow (sum / max (norm, 0.0001), sharpness);
+}
+
+// The net inside the sphere and along the beams.
+float innerNet (vec2 uv, float dist)
+{
+    return netFilaments (uv, dist, uNetFlow, 1.6, uNetTwist, uNetScale,
+                         uNetSharpness, uNetOctaves, uNetLacunarity, uNetGain);
+}
+
+// The glow's net, running the other way and reaching to the screen edge.
+float glowNet (vec2 uv, float dist)
+{
+    return netFilaments (uv, dist, uGlowFlow, uGlowReach, uGlowTwist,
+                         uGlowScale, uGlowSharpness, uGlowOctaves,
+                         uGlowLacunarity, uGlowGain);
+}
+
 // ─── main ───────────────────────────────────────────────────────
 void main ()
 {
@@ -140,67 +505,38 @@ void main ()
     vec3 colOut = vec3 (0.0);
     if (dist > 1.0 - aaWidth)
     {
-        // Background glow (VU-driven from subwoofer /vu/4)
-        if (uGlowLevel > 0.001)
+        // The sphere's own glow, driven by the subwoofer (/vu/4). Filaments
+        // coming out from behind the sphere and running to the edge of the
+        // screen — the outward counterpart to the net inside, which runs in.
+        // Modulated by the energy arriving from this direction, so the spread
+        // outside continues what lands inside.
+        vec2 band = beamTotal (uvScene);
+
+        // Only the bolts hide anything. They are thin, so the glow behind
+        // them stays visible between them rather than sitting under a veil.
+        // Mirrors glowVisibility() in EnergyMap.cc.
+        float showGlow = 1.0 - clamp (band.x * uBeamCover, 0.0, 1.0);
+
+        if (uGlowLevel > 0.001 && showGlow > 0.0)
         {
-            float gf = 1.0 / (1.0 + (dist - 1.0) * uBgGlowFalloff);
-            colOut += uBgGlowColour * uGlowLevel * gf * gf * uBgGlowIntensity;
+            vec3 rimDirection = screenToDirection (uvScene / max (dist, 0.001),
+                                                   1.0);
+            colOut += uGlowColour * uGlowLevel * glowNet (uvScene, dist)
+                    * glowEmergence (dist, uGlowRise)
+                    * energyAt (rimDirection) * uGlowIntensity * showGlow;
         }
 
-        // Speaker beams — dynamic VU-driven cones from speakers
-        // Width grows with VU level, absorbed at sphere edge
-        float spkR = uSpeakerRadius;
-        vec2 dirN = uvScene / dist;
+        // Speaker bands wrapping the sphere
+        colOut += uSpotColour * band.y * uBeamIntensity;
 
-        // Unrolled: GLSL 1.20 has no local arrays
-        // Speaker 0: 135°
-        if (uSpotLevel0 > 0.001) {
-            vec2 sd = vec2 (-0.7071, 0.7071);
-            vec2 tp = uvScene - sd * spkR;
-            float tpL = length (tp);
-            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = 0.3 + uSpotLevel0 * 0.4;
-            float cone = smoothstep (1.0 - bw, 1.0, al);
-            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
-            colOut += uSpotColour * uSpotLevel0 * (cone + glow) * df * uBeamIntensity;
-        }
-        // Speaker 1: 45°
-        if (uSpotLevel1 > 0.001) {
-            vec2 sd = vec2 ( 0.7071, 0.7071);
-            vec2 tp = uvScene - sd * spkR;
-            float tpL = length (tp);
-            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = 0.3 + uSpotLevel1 * 0.4;
-            float cone = smoothstep (1.0 - bw, 1.0, al);
-            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
-            colOut += uSpotColour * uSpotLevel1 * (cone + glow) * df * uBeamIntensity;
-        }
-        // Speaker 2: 315°
-        if (uSpotLevel2 > 0.001) {
-            vec2 sd = vec2 ( 0.7071,-0.7071);
-            vec2 tp = uvScene - sd * spkR;
-            float tpL = length (tp);
-            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = 0.3 + uSpotLevel2 * 0.4;
-            float cone = smoothstep (1.0 - bw, 1.0, al);
-            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
-            colOut += uSpotColour * uSpotLevel2 * (cone + glow) * df * uBeamIntensity;
-        }
-        // Speaker 3: 225°
-        if (uSpotLevel3 > 0.001) {
-            vec2 sd = vec2 (-0.7071,-0.7071);
-            vec2 tp = uvScene - sd * spkR;
-            float tpL = length (tp);
-            float al = max (dot (tp / max(tpL, 0.001), -sd), 0.0);
-            float bw = 0.3 + uSpotLevel3 * 0.4;
-            float cone = smoothstep (1.0 - bw, 1.0, al);
-            float glow = smoothstep (1.0 - bw * 1.5, 1.0, al) * 0.3;
-            float df = 1.0 / (1.0 + tpL / spkR * 1.5);
-            colOut += uSpotColour * uSpotLevel3 * (cone + glow) * df * uBeamIntensity;
-        }
+        // The core runs white, the way a bolt does against a sky.
+        colOut += uBoltCoreColour * band.y * uBoltCore;
+
+
+        // Outside, the net rides the band towards the sphere, so a filament is
+        // already visible before it crosses the rim.
+        colOut += uSpotColour * innerNet (uvScene, dist) * band.x
+                * uNetBeamIntensity;
 
         // Blob outside glow removed — blobs only create reflections on sphere surface
     }
@@ -212,15 +548,15 @@ void main ()
         vec3 N;
         sphereIntersect (uvScene, N);
 
-        colSurf = vec3 (0.04, 0.04, 0.055);
+        colSurf = uSphereSurface;
 
         // Fresnel rim
         float fresnel = 1.0 - N.z;
         fresnel = fresnel * fresnel * fresnel;
-        colSurf += vec3 (0.5, 0.55, 0.65) * 0.35 * fresnel;
+        colSurf += uSphereRim * 0.35 * fresnel;
 
         // Fake env reflection (simplified)
-        colSurf += vec3 (0.02, 0.025, 0.03) * fresnel * 0.6;
+        colSurf += uSphereEnvironment * fresnel * 0.6;
 
         // Blob lighting on surface (combined diffuse + specular, single loop)
         vec3 viewDir = vec3 (0.0, 0.0, 1.0);
@@ -257,27 +593,21 @@ void main ()
         float wf = 1.0 - smoothstep (0.01, 0.04, min (gl1, min (gl2, gl3)));
         colSurf += vec3 (wf * 0.08 * (1.0 - fresnel * 0.8));
 
-        // Surface glow
-        colSurf += uGlowColour * uGlowLevel * (1.0 - dist * 0.3) * 0.5;
+        // Energy arriving from the direction this pixel stands for. This is
+        // the whole field, not four loudspeakers, so it carries height as well.
+        vec3 dir = screenToDirection (uvScene, dist);
+        float energy = energyAt (dir);
 
-        // Speaker beams flowing INTO sphere — from rim towards centre
-        // Each speaker lights its quadrant, strongest at rim, fading inward
-        // Blends with sphereGlow colour for seamless fusion
-        vec2 uvN = (length(uvScene) > 0.001) ? uvScene / length(uvScene) : vec2(0.0);
-        float rimFade = dist * dist; // stronger at rim (dist→1), fades to centre (dist→0)
+        colSurf += uEnergyColour * energy * uEnergyIntensity;
 
-        float q0 = max (dot (uvN, vec2 (-0.7071, 0.7071)), 0.0); // 135°
-        float q1 = max (dot (uvN, vec2 ( 0.7071, 0.7071)), 0.0); // 45°
-        float q2 = max (dot (uvN, vec2 ( 0.7071,-0.7071)), 0.0); // 315°
-        float q3 = max (dot (uvN, vec2 (-0.7071,-0.7071)), 0.0); // 225°
+        // The beams stop at the rim. Inside, the net takes over from them:
+        // filaments landing where a beam meets the sphere and running in from
+        // there, strongest at the rim and thinning out as they travel.
+        float net = innerNet (uvScene, dist);
+        vec3 rimDir = screenToDirection (uvScene / max (dist, 0.001), 1.0);
 
-        // Directional beam per quadrant (q^2 for ~90° spread)
-        float surfBeam = uSpotLevel0 * q0 * q0 + uSpotLevel1 * q1 * q1
-                       + uSpotLevel2 * q2 * q2 + uSpotLevel3 * q3 * q3;
-
-        // Blend speaker colour into sphereGlow colour towards centre
-        vec3 beamCol = mix (uGlowColour, uSpotColour, rimFade);
-        colSurf += beamCol * surfBeam * rimFade * 0.35;
+        colSurf += uEnergyColour * net * energyAt (rimDir) * dist * dist
+                 * uNetIntensity;
     }
 
     // Blend outside and surface with smooth AA transition
@@ -334,21 +664,72 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uResolution    = glGetUniformLocation (pid, "uResolution");
   _uSphereRadius  = glGetUniformLocation (pid, "uSphereRadius");
   _uSphereCentre  = glGetUniformLocation (pid, "uSphereCentre");
-  _uGlowLevel       = glGetUniformLocation (pid, "uGlowLevel");
-  _uGlowColour      = glGetUniformLocation (pid, "uGlowColour");
-  _uBgGlowColour    = glGetUniformLocation (pid, "uBgGlowColour");
-  _uBgGlowFalloff   = glGetUniformLocation (pid, "uBgGlowFalloff");
-  _uBgGlowIntensity = glGetUniformLocation (pid, "uBgGlowIntensity");
-  _uBgColour        = glGetUniformLocation (pid, "uBgColour");
+  _uGlowLevel     = glGetUniformLocation (pid, "uGlowLevel");
+  _uGlowColour    = glGetUniformLocation (pid, "uGlowColour");
+  _uGlowFlow = glGetUniformLocation (pid, "uGlowFlow");
+  _uGlowReach = glGetUniformLocation (pid, "uGlowReach");
+  _uGlowRise = glGetUniformLocation (pid, "uGlowRise");
+  _uGlowTwist = glGetUniformLocation (pid, "uGlowTwist");
+  _uGlowScale = glGetUniformLocation (pid, "uGlowScale");
+  _uGlowSharpness = glGetUniformLocation (pid, "uGlowSharpness");
+  _uGlowOctaves = glGetUniformLocation (pid, "uGlowOctaves");
+  _uGlowLacunarity = glGetUniformLocation (pid, "uGlowLacunarity");
+  _uGlowGain = glGetUniformLocation (pid, "uGlowGain");
+  _uGlowIntensity = glGetUniformLocation (pid, "uGlowIntensity");
+  _uBgColour      = glGetUniformLocation (pid, "uBgColour");
+  _uSphereSurface = glGetUniformLocation (pid, "uSphereSurface");
+  _uSphereRim     = glGetUniformLocation (pid, "uSphereRim");
+  _uSphereEnvironment = glGetUniformLocation (pid, "uSphereEnvironment");
+  _uBoltCoreColour = glGetUniformLocation (pid, "uBoltCoreColour");
   _uSpotLevel[0]  = glGetUniformLocation (pid, "uSpotLevel0");
   _uSpotLevel[1]  = glGetUniformLocation (pid, "uSpotLevel1");
   _uSpotLevel[2]  = glGetUniformLocation (pid, "uSpotLevel2");
   _uSpotLevel[3]  = glGetUniformLocation (pid, "uSpotLevel3");
   _uSpotColour    = glGetUniformLocation (pid, "uSpotColour");
   _uSpeakerRadius = glGetUniformLocation (pid, "uSpeakerRadius");
-  _uBeamConeExp   = glGetUniformLocation (pid, "uBeamConeExp");
+  _uBeamEdge      = glGetUniformLocation (pid, "uBeamEdge");
   _uBeamFalloff   = glGetUniformLocation (pid, "uBeamFalloff");
   _uBeamIntensity = glGetUniformLocation (pid, "uBeamIntensity");
+  _uApertureAngle = glGetUniformLocation (pid, "uApertureAngle");
+  _uWrapAngle = glGetUniformLocation (pid, "uWrapAngle");
+  _uWander = glGetUniformLocation (pid, "uWander");
+  _uWanderTwist = glGetUniformLocation (pid, "uWanderTwist");
+  _uWanderScale = glGetUniformLocation (pid, "uWanderScale");
+  _uWanderFlow = glGetUniformLocation (pid, "uWanderFlow");
+  _uBeamRoot = glGetUniformLocation (pid, "uBeamRoot");
+  _uBeamFray = glGetUniformLocation (pid, "uBeamFray");
+  _uBeamCover = glGetUniformLocation (pid, "uBeamCover");
+  _uBoltWidth = glGetUniformLocation (pid, "uBoltWidth");
+  _uBoltWander = glGetUniformLocation (pid, "uBoltWander");
+  _uBoltScale = glGetUniformLocation (pid, "uBoltScale");
+  _uBoltFlow = glGetUniformLocation (pid, "uBoltFlow");
+  _uBoltRate = glGetUniformLocation (pid, "uBoltRate");
+  _uBoltDuty = glGetUniformLocation (pid, "uBoltDuty");
+  _uBoltCoreExp = glGetUniformLocation (pid, "uBoltCoreExp");
+  _uBoltCore = glGetUniformLocation (pid, "uBoltCore");
+  _uBoltCount = glGetUniformLocation (pid, "uBoltCount");
+  _uBoltReach = glGetUniformLocation (pid, "uBoltReach");
+  _uBoltEscape = glGetUniformLocation (pid, "uBoltEscape");
+  _uBoltBranches = glGetUniformLocation (pid, "uBoltBranches");
+  _uBoltBranch = glGetUniformLocation (pid, "uBoltBranch");
+  _uBeamBleed = glGetUniformLocation (pid, "uBeamBleed");
+  _uBeamFloor = glGetUniformLocation (pid, "uBeamFloor");
+  _uApertureHalf  = glGetUniformLocation (pid, "uApertureHalf");
+  _uMouthOffset   = glGetUniformLocation (pid, "uMouthOffset");
+  _uBeamReach     = glGetUniformLocation (pid, "uBeamReach");
+  _uEnergyMap       = glGetUniformLocation (pid, "uEnergyMap");
+  _uEnergyColour    = glGetUniformLocation (pid, "uEnergyColour");
+  _uEnergyIntensity = glGetUniformLocation (pid, "uEnergyIntensity");
+  _uNetIntensity    = glGetUniformLocation (pid, "uNetIntensity");
+  _uNetScale        = glGetUniformLocation (pid, "uNetScale");
+  _uNetSharpness    = glGetUniformLocation (pid, "uNetSharpness");
+  _uNetFlow         = glGetUniformLocation (pid, "uNetFlow");
+  _uNetBeamIntensity = glGetUniformLocation (pid, "uNetBeamIntensity");
+  _uNetGain = glGetUniformLocation (pid, "uNetGain");
+  _uNetLacunarity = glGetUniformLocation (pid, "uNetLacunarity");
+  _uNetOctaves = glGetUniformLocation (pid, "uNetOctaves");
+  _uNetTwist = glGetUniformLocation (pid, "uNetTwist");
+  _uTime            = glGetUniformLocation (pid, "uTime");
   _uNumBlobs      = glGetUniformLocation (pid, "uNumBlobs");
 
   _uBlobPosSize[0] = glGetUniformLocation (pid, "uBlobPosSize0");
@@ -422,47 +803,113 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uSphereCentre >= 0)
     glUniform2f (_uSphereCentre, sphereCentreX, sphereCentreY);
 
-  // Sphere glow
+  // Sphere corona — rms only. Mixing the peak in was what made the old
+  // background glow flicker, and the corona is a mood, not a transient.
   {
-    float lvl = std::max (_glowRms, _glowPeak * 0.8f);
-    float n = std::clamp (lvl / _glowCfg.vuMax, 0.f, 1.f);
-    float s = std::pow (n, _glowCfg.curve);
-    if (_uGlowLevel >= 0)  glUniform1f (_uGlowLevel, s);
-    if (_uGlowColour >= 0) glUniform3f (_uGlowColour, _glowCfg.r, _glowCfg.g, _glowCfg.b);
+    float s = speakerLightLevel (_glowRms, _glowCfg.vuMax, _glowCfg.curve);
+    if (_uGlowLevel >= 0)     glUniform1f (_uGlowLevel, s);
+    if (_uGlowColour >= 0)    glUniform3f (_uGlowColour, _glowCfg.r, _glowCfg.g, _glowCfg.b);
+    if (_uGlowFlow >= 0) glUniform1f (_uGlowFlow, _glowCfg.netFlow);
+    if (_uGlowReach >= 0) glUniform1f (_uGlowReach, _glowCfg.netReach);
+    if (_uGlowRise >= 0) glUniform1f (_uGlowRise, _glowCfg.netRise);
+    if (_uGlowTwist >= 0) glUniform1f (_uGlowTwist, _glowCfg.netTwist);
+    if (_uGlowScale >= 0) glUniform1f (_uGlowScale, _glowCfg.netScale);
+    if (_uGlowSharpness >= 0) glUniform1f (_uGlowSharpness, _glowCfg.netSharpness);
+    if (_uGlowOctaves >= 0) glUniform1f (_uGlowOctaves, _glowCfg.netOctaves);
+    if (_uGlowLacunarity >= 0) glUniform1f (_uGlowLacunarity, _glowCfg.netLacunarity);
+    if (_uGlowGain >= 0) glUniform1f (_uGlowGain, _glowCfg.netGain);
+    if (_uGlowIntensity >= 0) glUniform1f (_uGlowIntensity, _glowCfg.intensity);
   }
 
-  // Background glow
-  if (_uBgGlowColour >= 0)
-    glUniform3f (_uBgGlowColour, _bgGlowCfg.r, _bgGlowCfg.g, _bgGlowCfg.b);
-  if (_uBgGlowFalloff >= 0)
-    glUniform1f (_uBgGlowFalloff, _bgGlowCfg.falloff);
-  if (_uBgGlowIntensity >= 0)
-    glUniform1f (_uBgGlowIntensity, _bgGlowCfg.intensity);
+  // The colours the sphere is made of, straight from the theme. Set every
+  // frame, so a skin reload reaches the shader without a restart — the same
+  // path the tuning uniforms above already take.
+  setThemeUniform (_uBgColour, theme ().background);
+  setThemeUniform (_uSphereSurface, theme ().sphereSurface);
+  setThemeUniform (_uSphereRim, theme ().sphereRim);
+  setThemeUniform (_uSphereEnvironment, theme ().sphereEnvironment);
+  setThemeUniform (_uBoltCoreColour, theme ().boltCore);
 
-  // Solid background colour (from LookAndFeel Colours::background)
-  if (_uBgColour >= 0)
-    {
-      // 0xff292f36 → RGB normalized
-      glUniform3f (_uBgColour, 0.161f, 0.184f, 0.212f);
-    }
-
-  // Speaker spotlights
+  // Speaker beams. The band's shape no longer depends on level — that drives
+  // brightness alone now.
   for (int i = 0; i < 4; ++i)
     {
-      float s = speakerLightLevel (_spotPeak[i], _spotRms[i], _spotCfg.vuMax,
-                                   _spotCfg.curve);
+      float s = speakerLightLevel (_spotRms[i], _spotCfg.vuMax, _spotCfg.curve);
       if (_uSpotLevel[i] >= 0) glUniform1f (_uSpotLevel[i], s);
     }
   if (_uSpotColour >= 0)
     glUniform3f (_uSpotColour, _spotCfg.r, _spotCfg.g, _spotCfg.b);
   if (_uSpeakerRadius >= 0)
     glUniform1f (_uSpeakerRadius, _spotCfg.speakerRadius);
-  if (_uBeamConeExp >= 0)
-    glUniform1f (_uBeamConeExp, _spotCfg.beamConeExp);
+  if (_uBeamEdge >= 0)
+    glUniform1f (_uBeamEdge, _spotCfg.edgeSoftness);
   if (_uBeamFalloff >= 0)
     glUniform1f (_uBeamFalloff, _spotCfg.beamFalloff);
   if (_uBeamIntensity >= 0)
     glUniform1f (_uBeamIntensity, _spotCfg.beamIntensity);
+  if (_uApertureAngle >= 0) glUniform1f (_uApertureAngle, _spotCfg.apertureAngle);
+  if (_uWrapAngle >= 0) glUniform1f (_uWrapAngle, _spotCfg.wrapAngle);
+  if (_uWander >= 0) glUniform1f (_uWander, _spotCfg.wander);
+  if (_uWanderTwist >= 0) glUniform1f (_uWanderTwist, _spotCfg.wanderTwist);
+  if (_uWanderScale >= 0) glUniform1f (_uWanderScale, _spotCfg.wanderScale);
+  if (_uWanderFlow >= 0) glUniform1f (_uWanderFlow, _spotCfg.wanderFlow);
+  if (_uBeamRoot >= 0) glUniform1f (_uBeamRoot, _spotCfg.root);
+  if (_uBeamFloor >= 0) glUniform1f (_uBeamFloor, _spotCfg.levelFloor);
+  if (_uBeamBleed >= 0) glUniform1f (_uBeamBleed, _spotCfg.bleed);
+  if (_uBeamFray >= 0) glUniform1f (_uBeamFray, _spotCfg.fray);
+  if (_uBeamCover >= 0) glUniform1f (_uBeamCover, _spotCfg.cover);
+  if (_uBoltWidth >= 0) glUniform1f (_uBoltWidth, _spotCfg.boltWidth);
+  if (_uBoltWander >= 0) glUniform1f (_uBoltWander, _spotCfg.boltWander);
+  if (_uBoltScale >= 0) glUniform1f (_uBoltScale, _spotCfg.boltScale);
+  if (_uBoltFlow >= 0) glUniform1f (_uBoltFlow, _spotCfg.boltFlow);
+  if (_uBoltRate >= 0) glUniform1f (_uBoltRate, _spotCfg.boltRate);
+  if (_uBoltDuty >= 0) glUniform1f (_uBoltDuty, _spotCfg.boltDuty);
+  if (_uBoltCoreExp >= 0) glUniform1f (_uBoltCoreExp, _spotCfg.boltCoreExp);
+  if (_uBoltCore >= 0) glUniform1f (_uBoltCore, _spotCfg.boltCore);
+  if (_uBoltCount >= 0) glUniform1f (_uBoltCount, _spotCfg.boltCount);
+  if (_uBoltReach >= 0) glUniform1f (_uBoltReach, _spotCfg.boltReach);
+  if (_uBoltEscape >= 0) glUniform1f (_uBoltEscape, _spotCfg.boltEscape);
+  if (_uBoltBranches >= 0) glUniform1f (_uBoltBranches, _spotCfg.boltBranches);
+  if (_uBoltBranch >= 0) glUniform1f (_uBoltBranch, _spotCfg.boltBranch);
+  if (_uApertureHalf >= 0)
+    glUniform1f (_uApertureHalf, speakerApertureHalfWidth);
+  if (_uMouthOffset >= 0)
+    glUniform1f (_uMouthOffset, speakerMouthOffset);
+  if (_uBeamReach >= 0)
+    glUniform1f (_uBeamReach, _spotCfg.reach);
+
+  // Energy map and net
+  if (_uEnergyColour >= 0)
+    glUniform3f (_uEnergyColour, _energyCfg.r, _energyCfg.g, _energyCfg.b);
+  if (_uEnergyIntensity >= 0)
+    glUniform1f (_uEnergyIntensity, _energyCfg.intensity);
+  if (_uNetIntensity >= 0)
+    glUniform1f (_uNetIntensity, _energyCfg.netIntensity);
+  if (_uNetScale >= 0)
+    glUniform1f (_uNetScale, _energyCfg.netScale);
+  if (_uNetSharpness >= 0)
+    glUniform1f (_uNetSharpness, _energyCfg.netSharpness);
+  if (_uNetFlow >= 0)
+    glUniform1f (_uNetFlow, _energyCfg.netFlow);
+  if (_uNetBeamIntensity >= 0)
+    glUniform1f (_uNetBeamIntensity, _energyCfg.netBeamIntensity);
+  if (_uNetGain >= 0)
+    glUniform1f (_uNetGain, _energyCfg.netGain);
+  if (_uNetLacunarity >= 0)
+    glUniform1f (_uNetLacunarity, _energyCfg.netLacunarity);
+  if (_uNetOctaves >= 0)
+    glUniform1f (_uNetOctaves, _energyCfg.netOctaves);
+  if (_uNetTwist >= 0)
+    glUniform1f (_uNetTwist, _energyCfg.netTwist);
+  if (_uTime >= 0)
+    glUniform1f (_uTime, _time);
+
+  if (_uEnergyMap >= 0)
+    {
+      glActiveTexture (GL_TEXTURE0);
+      glBindTexture (GL_TEXTURE_2D, _energyTexture);
+      glUniform1i (_uEnergyMap, 0);
+    }
 
   // Blobs
   if (_uNumBlobs >= 0)
@@ -527,8 +974,9 @@ void SphereShader::setNumBlobs (int n)
 void SphereShader::setGlowConfig (GlowConfig const &c)
 { _glowCfg = c; }
 
-void SphereShader::setBackgroundGlowConfig (BackgroundGlowConfig const &c)
-{ _bgGlowCfg = c; }
+
+void SphereShader::setEnergyConfig (EnergyConfig const &c)
+{ _energyCfg = c; }
 
 void SphereShader::setSpotlightConfig (SpotlightConfig const &c)
 { _spotCfg = c; }

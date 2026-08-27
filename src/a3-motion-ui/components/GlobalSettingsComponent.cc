@@ -7,8 +7,25 @@
 
 #include "GlobalSettingsComponent.hh"
 
+#include <a3-motion-ui/theme/Theme.hh>
+
 namespace a3
 {
+
+namespace
+{
+// Structural washes: the overlay over the panel behind it, and the three
+// depths a settings row can have. State — browsed, inactive — comes from the
+// theme's alphas instead.
+// See-through on purpose: the menu is where a skin is chosen and edited,
+// and the sphere behind it is most of what a skin actually changes.
+constexpr float overlayOpacity = 0.55f;
+constexpr float rowWash = 0.063f;
+constexpr float browsedRowWash = 0.086f;
+constexpr float armedRowWash = 0.133f;
+constexpr float armedFrameWash = 0.18f;
+constexpr float rowFrameWash = 0.08f;
+}
 
 GlobalSettingsComponent::GlobalSettingsComponent ()
 {
@@ -79,7 +96,7 @@ void
 GlobalSettingsComponent::paint (juce::Graphics &g)
 {
   // ── dim background ────────────────────────────────────────────────────────
-  g.fillAll (juce::Colour (0, 0, 0).withAlpha (0.72f));
+  g.fillAll (toColour (theme ().surface, overlayOpacity));
 
   if (_options.empty ())
     return;
@@ -93,7 +110,7 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
       panelW, panelH);
 
   // ── panel background ──────────────────────────────────────────────────────
-  g.setColour (juce::Colour (0x10ffffff)); // lower alpha for less visible edge
+  g.setColour (toColour (theme ().textPrimary, rowWash)); // a barely visible edge
   g.fillRoundedRectangle (panelBounds.toFloat (), 10.f);
 
   // ── one row per Option ───────────────────────────────────────────────────
@@ -114,25 +131,32 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
       int const shownValueIndex = isArmedRow ? _selectedValueIndex : option.activeIndex;
       auto const &item = option.values[static_cast<size_t> (shownValueIndex)];
 
-      g.setColour (isArmedRow ? juce::Colour (0x22ffffff)
-                    : isBrowsedRow ? juce::Colour (0x16ffffff)
-                                   : juce::Colour (0x10ffffff));
+      g.setColour (toColour (theme ().textPrimary,
+                             isArmedRow     ? armedRowWash
+                             : isBrowsedRow ? browsedRowWash
+                                            : rowWash));
       g.fillRoundedRectangle (row.toFloat (), 6.f);
 
       auto labelArea = row.removeFromLeft (row.getWidth () * 3 / 5).reduced (8, 0);
       auto valueArea = row.reduced (8, 8);
 
-      g.setFont (juce::Font (19.f, juce::Font::plain));
-      g.setColour (juce::Colours::white.withAlpha (isBrowsedRow ? 0.90f : 0.55f));
+      g.setFont (juce::Font (theme ().fontSize (FontRole::Body),
+                             juce::Font::plain));
+      g.setColour (toColour (theme ().textPrimary,
+                         isBrowsedRow ? 1.f : theme ().alphaInactive));
       g.drawText (option.name, labelArea, juce::Justification::centredLeft, true);
 
       g.setColour (isArmedRow
-                       ? juce::Colours::white.withAlpha (0.18f)
-                       : juce::Colours::white.withAlpha (0.08f));
+                       ? toColour (theme ().textPrimary, armedFrameWash)
+                       : toColour (theme ().textPrimary, rowFrameWash));
       g.fillRoundedRectangle (valueArea.toFloat (), 5.f);
 
-      g.setFont (juce::Font (18.f, juce::Font::bold));
-      g.setColour (isBrowsedRow ? item.colour : juce::Colours::white.withAlpha (0.6f));
+      g.setFont (juce::Font (theme ().fontSize (FontRole::Body),
+                             juce::Font::bold));
+      g.setColour (isBrowsedRow
+                       ? item.colour
+                       : toColour (theme ().textPrimary,
+                                   theme ().alphaInactive));
       g.drawText (item.value, valueArea, juce::Justification::centred, true);
     }
 }

@@ -33,6 +33,9 @@
 
 #include <a3-motion-ui/SettingsPersistence.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/components/ColourPickerComponent.hh>
+#include <a3-motion-ui/theme/ThemedComponent.hh>
+#include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
@@ -56,7 +59,8 @@ class ChannelUIState;
 class Pattern;
 class HeightMapSphere;
 
-class A3MotionUIComponent : public juce::Component,
+class A3MotionUIComponent : public ThemedComponent,
+                            public juce::Component,
                             public juce::Value::Listener,
                             public juce::MessageListener,
                             public juce::OSCReceiver::Listener<juce::OSCReceiver::MessageLoopCallback>,
@@ -84,6 +88,7 @@ public:
   // OscMessageHandler::Listener
   void onChannelVU (int channel, float peak, float rms) override;
   void onSubwooferVU (float peak, float rms) override;
+  void onEnergyGrid (float const *values, int count) override;
   void onSpeakerVU (int speakerIndex, float peak, float rms) override;
   void onExternalBeatClock (int beat, int bar, float bpm) override;
   void onExternalBeatSync (int beat, int beatsPerBar) override;
@@ -171,6 +176,11 @@ private:
   juce::OSCReceiver _oscReceiver;
   // OSC Receiver for VU meters (port 7772)
   juce::OSCReceiver _oscReceiverVU;
+  juce::OSCReceiver _oscReceiverEnergy;
+
+  // Whether the sphere stops rendering while the settings menu is open. Off:
+  // it was a concession to the RPi4's GPU, and the rig is on an Intel NUC.
+  bool _pauseRenderingInMenu = false;
   
   // Async OSC Sender for beatclock output (non-blocking, dedicated thread)
   AsyncOSCSender _oscSender;
@@ -197,7 +207,71 @@ private:
   void  confirmGlobalSettingsOption ();
   void  applyClockMode (int mode);
   void  applyPotSize (int index);
-  void  applyFontSize (int index);
+  void  applyHeaderSize (int index);
+  /** Push a changed font size out to everything that cannot re-read it on
+   *  its own, then persist. */
+  void  refreshFonts ();
+  void  applyBodySize (int index);
+  /** The sphere's share of the shorter side, written into the active skin
+   *  where it lives. */
+  void  applySphereSize (int index);
+  void  loadSphereSize ();
+  /** Point config.json at another skin; the file watcher reloads it. */
+  /** Show a skin without making it the one that runs. */
+  void  previewSkin (int index);
+  void  applySkin (int index);
+  /** Open the skin editor as a page of the settings menu, close it again
+   *  (which is when the edited skin is written), put an edit in force, and
+   *  save. */
+  void  openSkinEditor ();
+  void  closeSkinEditor ();
+  void  applyEditedSkin ();
+  void  saveEditedSkin ();
+  void  saveSkinAsNew ();
+  void  renameEditedSkin (juce::String const &name);
+  void  deleteEditedSkin ();
+  /** Load `name` into the editor and refresh the menu's list of skins. */
+  void  reopenEditorOn (juce::String const &name);
+  /** Show or hide the on-screen keyboard, and light the status bar's icon
+   *  to match. */
+  /** Open a slice of config.json as an editor page, and write it back on
+   *  the way out. */
+  void  openConfigPage (juce::String const &title,
+                        juce::StringArray const &keys);
+  void  saveConfigPage ();
+  void  applyPauseRendering (bool paused);
+  /** The picker behind a colour row: HSL to reach it, r/g/b in the file. */
+  void  openColourPicker (juce::String const &path);
+  void  closeColourPicker ();
+  void  applyPickedColour ();
+  /** Re-read what this component caches from the theme: the channel
+   *  colours, which every blob, pad and frame is drawn in. */
+  void  applyTheme () override;
+  void  showKeyboard (bool shown);
+  void  toggleKeyboard ();
+  /** Light the status bar's icon for what the browsed row allows. */
+  void  refreshKeyboardIcon ();
+  void  rebuildGlobalSettingsOptions ();
+
+  /** The menu's rows, by name. They were numbered by hand, and inserting one
+   *  in the middle silently moved every row after it — the encoder then set
+   *  the wrong thing, which is exactly what happened when the font size was
+   *  split into two. The order here and the order they are pushed in
+   *  rebuildGlobalSettingsOptions() are the same list. */
+  enum class MenuRow
+  {
+    ClockMode,
+    PotSize,
+    HeaderSize,
+    BodySize,
+    SphereSize,
+    Skin,
+    SkinEditor,
+    Network,
+    ButtonLeds,
+    PatternFolder,
+    SphereInMenu,
+  };
   // Index into potSizeScales/potSizeLabels — scales every knob/toggle in
   // ClipSettingsComponent uniformly (see ClipSettingsComponent::
   // setPotSizeScale()), adjustable live from the Global Settings menu.
@@ -206,11 +280,28 @@ private:
                                              1.75f };
   static constexpr char const *potSizeLabels[] = { "75%", "100%", "125%",
                                                     "150%", "175%" };
-  // Same, but for knob/toggle label/value text (ClipSettingsComponent::
-  // setFontSizeScale()) — independent of pot size.
-  int _fontSizeIndex = 1; // default 100%
-  static constexpr float fontSizeScales[] = { 0.75f, 1.0f, 1.25f, 1.5f,
-                                              1.75f };
+  // Index into the theme's scale table; the factor itself lives there, because
+  // a saved index has to become a factor at startup, before any menu exists.
+  int _headerSizeIndex = 1; // default 100%
+  int _bodySizeIndex = 1;   // default 100%
+  int _sphereSizeIndex = 2; // the middle of sphereSizes
+  std::unique_ptr<SkinEditorComponent> _skinEditor;
+  std::unique_ptr<ColourPickerComponent> _colourPicker;
+  bool _colourPickerOpen = false;
+  juce::String _colourPath;
+  bool _skinEditorOpen = false;
+  /** Empty while a skin is being edited; the keys of the slice otherwise. */
+  juce::StringArray _configPageKeys;
+  juce::StringArray _skinNames;
+  int _skinIndex = 0;
+  /** The sphere's share of the shorter side. 0.62 is what the tuned look
+   *  ships with and sits in the middle. */
+  static constexpr float sphereSizes[] = { 0.45f, 0.54f, 0.62f, 0.72f, 0.82f };
+  static constexpr int numSphereSizes
+      = static_cast<int> (sizeof (sphereSizes) / sizeof (sphereSizes[0]));
+  static constexpr char const *sphereSizeLabels[]
+      = { "small", "smaller", "default", "larger", "large" };
+
   static constexpr char const *fontSizeLabels[] = { "75%", "100%", "125%",
                                                      "150%", "175%" };
 
@@ -219,6 +310,7 @@ private:
   // load — same getCurrentWorkingDirectory()-relative resolution), read
   // once at startup and rewritten whenever one of those actually changes,
   // so they survive app restarts instead of resetting to defaults.
+  juce::File getConfigFile () const;
   juce::File getPersistedSettingsFile () const;
 
   // Pattern directory monitoring

@@ -20,6 +20,9 @@
 
 #include "InputOutputAdapterV3.hh"
 
+#include <a3-motion-engine/UserConfig.hh>
+#include <a3-motion-ui/io/ButtonLedColours.hh>
+
 #include <algorithm>
 #include <cstring>
 
@@ -160,6 +163,8 @@ InputOutputAdapterV3::processInput ()
   if (!_hardwareAvailable)
     return;
 
+  refreshIdleButtonLeds ();
+
   bool includePots = (_cycle % potDivider == 0);
 
   if (includePots)
@@ -269,6 +274,37 @@ InputOutputAdapterV3::parseButtons (const uint8_t *raw, int offset)
     }
 }
 
+namespace
+{
+// Record/Tap/Menu/Shift are each wired to a mirrored pair of physical buttons
+// (left + right hand side); both share one logical Button and light together.
+// ClockMode was a V2-only physical button with no LED on V3 hardware, so it
+// has no entry — and therefore stays dark, which is what a key with no
+// function should do.
+constexpr int recordHwIndices[] = { 41, 43 };
+constexpr int tapHwIndices[] = { 2, 36 };
+constexpr int menuHwIndices[] = { 3, 37 };
+constexpr int shiftHwIndices[] = { 40, 42 };
+}
+
+void
+InputOutputAdapterV3::refreshIdleButtonLeds ()
+{
+  // Written when it changes, not every poll: the serial link is shared with
+  // the input frames, and repainting four LEDs at poll rate would crowd it.
+  auto const idle = buttonLedIdleColour (userConfig["buttonLeds"]);
+  if (idle == _idleLedWritten)
+    return;
+
+  _idleLedWritten = idle;
+
+  auto const colour = toColour (idle);
+  for (auto const *pair : { recordHwIndices, tapHwIndices, menuHwIndices,
+                            shiftHwIndices })
+    for (int i = 0; i < 2; ++i)
+      writeSetLed (hwIndexToLedId[pair[i]], colour);
+}
+
 void
 InputOutputAdapterV3::dispatchButtonEvent (int idx, bool pressed)
 {
@@ -278,16 +314,21 @@ InputOutputAdapterV3::dispatchButtonEvent (int idx, bool pressed)
     {
     case ButtonRole::MenuToggle:
       {
-        // Track button 50 (idx 3) and button 59 (idx 37) independently.
-        // Fire Button::Menu when both become simultaneously pressed.
-        int slot = (idx == 3) ? 0 : 1;
-        bool wasBothPressed = _menuButtonState[0] && _menuButtonState[1];
+        // Two physical buttons (50 at idx 3, 59 at idx 37), either of which
+        // is the Menu button. They used to have to be pressed together — a
+        // chord to reach the menu, which is a lot of ceremony for the one
+        // key somebody presses to get out of somewhere.
+        //
+        // Tracked separately so that holding one and pressing the other
+        // does not read as a release: Menu is down while either is down.
+        int const slot = (idx == 3) ? 0 : 1;
+        bool const wasAnyPressed
+            = _menuButtonState[0] || _menuButtonState[1];
         _menuButtonState[slot] = pressed;
-        bool isBothPressed = _menuButtonState[0] && _menuButtonState[1];
-        if (isBothPressed && !wasBothPressed)
-          inputButtonValue (Button::Menu, true);
-        else if (!isBothPressed && wasBothPressed)
-          inputButtonValue (Button::Menu, false);
+        bool const isAnyPressed = _menuButtonState[0] || _menuButtonState[1];
+
+        if (isAnyPressed != wasAnyPressed)
+          inputButtonValue (Button::Menu, isAnyPressed);
       }
       break;
 
@@ -437,12 +478,30 @@ InputOutputAdapterV3::outputButtonLED (Button button, bool value)
   // light up together. ClockMode was a V2-only physical button with no LED
   // on V3 hardware (kept for backward compat), so there's nothing to send
   // for it.
-  static constexpr int recordHwIndices[] = { 41, 43 };
-  static constexpr int tapHwIndices[]    = { 2, 36 };
-  static constexpr int menuHwIndices[]   = { 3, 37 };
-  static constexpr int shiftHwIndices[]  = { 40, 42 };
+  // The lists live at file scope: the resting light writes the same LEDs,
+  // and two hand-kept copies of a wiring map is one too many.
 
-  auto const colour = value ? juce::Colours::white : juce::Colours::black;
+  // Each function button lights in its own colour, so the panel says which key
+  // does what without reading the legend. Unconfigured ones stay white, which
+  // is what all of them used to be.
+  auto const named = [&] () -> juce::String {
+    switch (button)
+      {
+      case Button::Record: return "record";
+      case Button::Tap: return "tap";
+      case Button::Menu: return "menu";
+      case Button::Shift: return "shift";
+      case Button::ClockMode: break;
+      }
+    return {};
+  }();
+
+  // Pressed: the button's own colour, which is what says which key does what.
+  // Let go: the resting colour, not darkness — a key that has a function
+  // should say so while nobody is touching it.
+  auto const &buttonLeds = userConfig["buttonLeds"];
+  auto const colour = toColour (value ? buttonLedColour (buttonLeds, named)
+                                      : buttonLedIdleColour (buttonLeds));
 
   switch (button)
     {

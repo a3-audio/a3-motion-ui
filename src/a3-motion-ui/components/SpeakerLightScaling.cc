@@ -27,11 +27,136 @@ namespace a3
 {
 
 float
-speakerLightLevel (float vuPeak, float vuRms, float vuMax, float curve)
+speakerLightLevel (float vuRms, float vuMax, float curve)
 {
-  auto const level = std::max (vuRms, vuPeak * 0.8f);
+  return std::pow (std::clamp (vuRms / vuMax, 0.f, 1.f), curve);
+}
 
-  return std::pow (std::clamp (level / vuMax, 0.f, 1.f), curve);
+float
+speakerLightEnvelope (float current, float target, float attackSeconds,
+                      float decaySeconds, float dt)
+{
+  auto const tau = (target > current) ? attackSeconds : decaySeconds;
+  auto const alpha = 1.f - std::exp (-dt / std::max (0.001f, tau));
+
+  return current + alpha * (target - current);
+}
+
+float
+beamHalfAngleDegrees (float width)
+{
+  auto constexpr radToDeg = 180.f / 3.14159265358979323846f;
+
+  return std::acos (std::clamp (1.f - width, -1.f, 1.f)) * radToDeg;
+}
+
+namespace
+{
+// tan runs to infinity at 90 degrees. A beam that grazes its own axis plane is
+// already wider than the picture, so cutting it short here costs nothing and
+// keeps a config typo from producing a NaN.
+constexpr float maxBeamAngleDegrees = 85.f;
+constexpr float degToRad = 3.14159265358979323846f / 180.f;
+}
+
+bool
+speakerIconsFitOnScreen (float sphereScale, float speakerRadius)
+{
+  auto constexpr cos45 = 0.7071068f;
+
+  // The speakers sit on the diagonals, so what a vertical screen edge sees of
+  // a speaker at `speakerRadius` is only cos(45) of it — and the icon, a
+  // square rotated to face the centre, reaches cos(45) of its own side beyond
+  // its centre along that same axis. Adding the radius whole, as if the
+  // speaker sat on the axis, put the limit at 0.625 and refused scales that
+  // leave 50 px of clear background on either side.
+  auto const reach = cos45 * (speakerRadius + speakerIconSize);
+
+  // Normalised 1.0 is half the shorter side times sphereScale (see
+  // MotionComponent::updateBoundsAndTransform), so this is the whole test.
+  return sphereScale * reach < 1.f;
+}
+
+float
+coneWidthFromAngle (float angleDegrees)
+{
+  return 1.f - std::cos (std::clamp (angleDegrees, 0.f, 180.f) * degToRad);
+}
+
+float
+beamAngleAtLevel (float level, float quietAngleDegrees,
+                  float loudAngleDegrees)
+{
+  auto const t = std::clamp (level, 0.f, 1.f);
+
+  return quietAngleDegrees + t * (loudAngleDegrees - quietAngleDegrees);
+}
+
+float
+beamSpreadTangent (float width)
+{
+  auto const angle = std::min (beamHalfAngleDegrees (width),
+                               maxBeamAngleDegrees);
+
+  return std::tan (angle * degToRad);
+}
+
+float
+beamProfile (float offset, float halfWidth, float edgeSoftness)
+{
+  auto const edge = std::max (halfWidth, 1e-6f);
+  auto const flat = edge * std::clamp (edgeSoftness, 0.f, 0.999f);
+
+  auto const t = std::clamp ((std::abs (offset) - flat) / (edge - flat), 0.f,
+                             1.f);
+
+  return 1.f - t * t * (3.f - 2.f * t); // smoothstep, matching GLSL
+}
+
+float
+beamHalfWidthAt (float axialDistance, float apertureHalfWidth,
+                 float spreadTangent)
+{
+  if (axialDistance < 0.f)
+    return 0.f;
+
+  return apertureHalfWidth + axialDistance * spreadTangent;
+}
+
+float
+beamPathInsideSphere (float axialDistance, float perpendicularOffset,
+                      float mouthRadius)
+{
+  auto const length = std::hypot (axialDistance, perpendicularOffset);
+  if (length < 1e-6f)
+    return 0.f;
+
+  // Distance from the sphere centre to the ray, via the projection of the
+  // centre onto it.
+  auto const alongRay = mouthRadius * axialDistance / length;
+  auto const missDistanceSquared = mouthRadius * mouthRadius - alongRay * alongRay;
+  if (missDistanceSquared >= 1.f)
+    return 0.f;
+
+  auto const halfChord = std::sqrt (1.f - missDistanceSquared);
+  auto const entry = alongRay - halfChord;
+  auto const exit = alongRay + halfChord;
+
+  return std::max (0.f, std::min (length, exit) - std::max (entry, 0.f));
+}
+
+float
+beamAbsorption (float pathLength, float coefficient)
+{
+  return std::exp (-coefficient * std::max (pathLength, 0.f));
+}
+
+float
+sphereHalfChord (float distanceFromCentre)
+{
+  auto const d = std::clamp (distanceFromCentre, 0.f, 1.f);
+
+  return std::sqrt (1.f - d * d);
 }
 
 }

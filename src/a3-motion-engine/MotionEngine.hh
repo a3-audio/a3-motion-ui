@@ -55,6 +55,15 @@ public:
   void setChannel2DPosition (index_t channel, Pos const &position);
   void setChannel3DPosition (index_t channel, Pos const &position);
 
+  /** Hold a channel's position where it was put, so playback leaves it
+   *  alone until it is let go.
+   *
+   *  Both a drag and playback write the same channel position, and playback
+   *  writes it on every tick — so dragging a blob on a channel with a clip
+   *  running was a tug of war the finger could not win. */
+  void setChannelPositionHeld (index_t channel, bool held);
+  bool isChannelPositionHeld (index_t channel) const;
+
   float getChannelPot1 (index_t channel);
   void setChannelPot1 (index_t channel, float pot1);
 
@@ -231,6 +240,8 @@ private:
 
   // Per-channel preview mode: when true, suppress OSC output
   std::vector<std::atomic<bool>> _previewMode;
+  /** A channel whose position a finger is holding. */
+  std::vector<std::atomic<bool>> _positionHeld;
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);

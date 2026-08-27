@@ -20,6 +20,8 @@
 
 #include "PadRowDisplay.hh"
 
+#include <a3-motion-ui/theme/Theme.hh>
+
 #include <a3-motion-ui/components/LookAndFeel.hh>
 
 #include <cmath>
@@ -27,6 +29,18 @@
 
 namespace a3
 {
+
+namespace
+{
+// Structural opacities. Three different dark outlines, because they sit
+// behind three different things: a pad's own frame, the text on it, and the
+// trajectory icon drawn over it.
+constexpr float padOutlineOpacity = 0.4f;
+constexpr float textOutlineOpacity = 0.5f;
+constexpr float iconOutlineOpacity = 0.6f;
+constexpr float cellBorderWash = 0.15f;
+constexpr float highlightOpacity = 0.8f;
+}
 
 PadRowDisplay::PadRowDisplay (int rowIndex) : _rowIndex (rowIndex)
 {
@@ -43,7 +57,7 @@ PadRowDisplay::paint (juce::Graphics &g)
   auto bounds = getLocalBounds ();
 
   // Grey background matching the StatusBar
-  g.setColour (Colours::statusBar);
+  g.setColour (Colours::statusBar ());
   g.fillRect (bounds);
 
   // Divide into 4 equal channel sections
@@ -59,7 +73,7 @@ PadRowDisplay::paint (juce::Graphics &g)
       // Draw thin separator line between sections
       if (ch < numChannels - 1)
         {
-          g.setColour (Colours::background);
+          g.setColour (Colours::background ());
           g.drawVerticalLine (sectionBounds.getRight (),
                               static_cast<float> (sectionBounds.getY ()),
                               static_cast<float> (sectionBounds.getBottom ()));
@@ -84,8 +98,8 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
   if (cell.trajectoryType == TrajectoryType::Empty && !cell.icon.hasIcon)
     {
       // "---" label: dark outline + channel colour fill
-      g.setFont (LayoutHints::fontSize * 0.7f);
-      auto const outlineColour = juce::Colours::black.withAlpha (0.4f);
+      g.setFont (LayoutHints::fontSize * 0.7f * theme ().bodyScale);
+      auto const outlineColour = toColour (theme ().surface, padOutlineOpacity);
       g.setColour (outlineColour);
       for (int dx = -1; dx <= 1; ++dx)
         for (int dy = -1; dy <= 1; ++dy)
@@ -108,12 +122,12 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
       if (cell.categoryPrefix.isNotEmpty ())
         {
           auto const fontSize = h * 0.7f;
-          g.setFont (fontSize);
+          g.setFont (fontSize * theme ().bodyScale);
           auto prefixArea = boundsF.removeFromLeft (prefixWidth)
                                 .withTrimmedLeft (2.f);
 
           // Dark outline for readability
-          g.setColour (juce::Colours::black.withAlpha (0.5f));
+          g.setColour (toColour (theme ().surface, textOutlineOpacity));
           for (int dx = -1; dx <= 1; ++dx)
             for (int dy = -1; dy <= 1; ++dy)
               if (dx != 0 || dy != 0)
@@ -137,11 +151,11 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
         {
           auto beatsStr = juce::String (cell.lengthBeats);
           auto const fontSize = h * 0.7f;
-          g.setFont (fontSize);
+          g.setFont (fontSize * theme ().bodyScale);
           auto beatsArea = boundsF.removeFromLeft (beatsWidth);
 
           // Dark outline for readability
-          g.setColour (juce::Colours::black.withAlpha (0.5f));
+          g.setColour (toColour (theme ().surface, textOutlineOpacity));
           for (int dx = -1; dx <= 1; ++dx)
             for (int dy = -1; dy <= 1; ++dy)
               if (dx != 0 || dy != 0)
@@ -175,12 +189,12 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
   // White border when row is highlighted (hovered by encoder)
   if (cell.rowHighlighted)
     {
-      g.setColour (juce::Colours::white.withAlpha (0.8f));
+      g.setColour (toColour (theme ().textPrimary, highlightOpacity));
       g.drawRect (bounds, 2);
     }
 
   // Thin baseline
-  g.setColour (juce::Colours::black.withAlpha (0.15f));
+  g.setColour (toColour (theme ().surface, cellBorderWash));
   g.drawHorizontalLine (bounds.getBottom () - 1,
                          static_cast<float> (bounds.getX ()),
                          static_cast<float> (bounds.getRight ()));
@@ -224,7 +238,7 @@ PadRowDisplay::drawTrajectoryIcon (juce::Graphics &g,
 
   auto const &cell = _cells[static_cast<size_t> (channel)];
   auto const iconColour = cell.colour;
-  auto const outlineColour = juce::Colours::black.withAlpha (0.6f);
+  auto const outlineColour = toColour (theme ().surface, iconOutlineOpacity);
   auto const strokeThickness = 1.5f;
   auto const outlineThickness = strokeThickness + 2.0f;
 

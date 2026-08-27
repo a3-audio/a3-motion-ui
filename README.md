@@ -86,13 +86,42 @@ On a fresh Debian/Raspbian system, install the following before building anythin
 - a3-motion-engine dependency (GSL, checked via `pkg_check_modules`): `libgsl-dev`
 - Hardware interface (`HARDWARE_INTERFACE_ENABLED=ON`, V2 or V3): `libserial-dev libgpiod-dev`
 - Unit tests (`TESTS_ENABLED`, on by default): `googletest libgtest-dev libgmock-dev`
+- On-screen keyboard, for entering names and addresses on the touchscreen:
+  `onboard dbus-bin`. The UI does not draw a keyboard of its own — it asks
+  Onboard to show and hide over D-Bus (`org.onboard.Onboard`), and Onboard
+  types into the focused window. Without it, the keyboard icon in the status
+  bar does nothing and every field is still reachable with the encoder.
 
 ```
 apt-get install build-essential cmake pkg-config git \
     xorg-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev \
     libgsl-dev libserial-dev libgpiod-dev \
-    googletest libgtest-dev libgmock-dev
+    googletest libgtest-dev libgmock-dev \
+    onboard dbus-bin
 ```
+
+Onboard docks at the top of the screen by default, where it would cover the
+status bar — including the icon that hides it again. Move it to the bottom
+once per machine:
+
+```
+python3 -c "from gi.repository import Gio; s = Gio.Settings.new('org.onboard.window'); \
+    s.set_string('docking-edge','bottom'); s.set_boolean('docking-enabled', True); \
+    s.set_boolean('docking-shrink-workarea', False)"
+```
+
+Onboard follows the system theme by default, which on this rig is a light beige
+that fights the dark UI. `Blackboard` is the one that matches; `Nightshade` and
+`DarkRoom` are the other dark ones it ships. Set it the same way:
+
+```
+python3 -c "from gi.repository import Gio; s = Gio.Settings.new('org.onboard'); \
+    s.set_boolean('system-theme-tracking-enabled', False); \
+    s.set_string('theme','/usr/share/onboard/themes/Blackboard.theme')"
+```
+
+(`gsettings` does the same thing if it is installed; both settings live in the
+user's dconf database and survive restarts.)
 
 ## Install JUCE
 - clone JUCE repo and checkout `develop` branch

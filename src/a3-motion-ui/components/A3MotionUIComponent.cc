@@ -18,6 +18,7 @@
 
 */
 
+#include <a3-motion-ui/io/OnScreenKeyboard.hh>
 #include "A3MotionUIComponent.hh"
 
 #include <chrono>
@@ -29,6 +30,7 @@
 #include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/UserConfig.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
@@ -86,10 +88,38 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   createMainUI ();
   createPadRowDisplays ();
 
-  // Global Settings (hidden by default, shown on top of the settings area)
+  // Global Settings (hidden by default). A child of MotionComponent, not of
+  // this component: MotionComponent's OpenGL context is attached with
+  // component painting enabled, so it draws its own children over the
+  // rendered image. That is the only way anything can sit on top of the
+  // sphere — and the only way the menu can be see-through and still show
+  // the skin it is editing behind it.
   _globalSettings = std::make_unique<GlobalSettingsComponent> ();
   _globalSettings->setAlwaysOnTop (true);
-  addChildComponent (*_globalSettings);
+  _motionComponent->addChildComponent (*_globalSettings);
+
+  // The editor is a page of that menu and lives in the same place, for the
+  // same reason: what it changes is mostly the sphere behind it.
+  _skinEditor = std::make_unique<SkinEditorComponent> ();
+  _skinEditor->setAlwaysOnTop (true);
+  _motionComponent->addChildComponent (*_skinEditor);
+  _skinEditor->onValueChanged = [this] { applyEditedSkin (); };
+  _skinEditor->onSave = [this] { saveEditedSkin (); };
+  _skinEditor->onSaveAsNew = [this] { saveSkinAsNew (); };
+  _skinEditor->onRename = [this] (auto const &name) { renameEditedSkin (name); };
+  _skinEditor->onDelete = [this] { deleteEditedSkin (); };
+
+  // The keyboard is Onboard, the system's own — see io/OnScreenKeyboard.hh.
+  // It types into whatever window has the focus, which is this one.
+  _skinEditor->onNamingChanged = [this] (bool naming) { showKeyboard (naming); };
+  _skinEditor->onColourPicked
+      = [this] (auto const &path) { openColourPicker (path); };
+
+  _colourPicker = std::make_unique<ColourPickerComponent> ();
+  _colourPicker->setAlwaysOnTop (true);
+  _motionComponent->addChildComponent (*_colourPicker);
+  _colourPicker->onColourChanged = [this] { applyPickedColour (); };
+  _colourPicker->onDone = [this] { closeColourPicker (); };
 
   // Clip Settings: permanent bottom panel, always visible.
   _clipSettings = std::make_unique<ClipSettingsComponent> ();
@@ -107,13 +137,16 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     auto constexpr numPotSizes
         = static_cast<int> (sizeof (potSizeScales) / sizeof (potSizeScales[0]));
     auto constexpr numFontSizes = static_cast<int> (
-        sizeof (fontSizeScales) / sizeof (fontSizeScales[0]));
+        numFontScales);
 
     auto const settings = loadSettings (getPersistedSettingsFile ());
     applyClockMode (settings.clockMode);
     applyPotSize (std::clamp (settings.potSizeIndex, 0, numPotSizes - 1));
-    applyFontSize (std::clamp (settings.fontSizeIndex, 0, numFontSizes - 1));
+    applyHeaderSize (std::clamp (settings.headerSizeIndex, 0, numFontSizes - 1));
+    applyBodySize (std::clamp (settings.bodySizeIndex, 0, numFontSizes - 1));
   }
+
+  loadSphereSize ();
 
   // Start directory monitor: check for new/changed SVG files every 2 seconds
   startTimer (2000);
@@ -133,6 +166,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // Setup OSC Receiver from config
   int oscRecvPort = 7771; // default
   juce::String oscRecvHost = "0.0.0.0";
+  if (userConfig.hasProperty ("ui"))
+    {
+      auto const uiConfig = userConfig["ui"];
+      if (uiConfig.hasProperty ("pauseRenderingInMenu"))
+        _pauseRenderingInMenu
+            = static_cast<bool> (uiConfig["pauseRenderingInMenu"]);
+    }
+
   if (userConfig.hasProperty ("oscReceiver"))
     {
       auto oscRecvConfig = userConfig["oscReceiver"];
@@ -169,6 +210,26 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       std::cerr << "ERROR: Could not bind OSC VU Receiver to port " << oscVuPort << std::endl;
     }
 
+  // Setup OSC Receiver for the IEM EnergyVisualizer (separate port again —
+  // it sends 426 floats at 9 Hz and has no business sharing a socket with the
+  // beat clock).
+  int oscEnergyPort = 7777; // default
+  if (userConfig.hasProperty ("oscReceiver"))
+    {
+      auto oscRecvConfig = userConfig["oscReceiver"];
+      if (oscRecvConfig.hasProperty ("energyPort"))
+        oscEnergyPort = static_cast<int> (oscRecvConfig["energyPort"]);
+    }
+  if (_oscReceiverEnergy.connect (oscEnergyPort))
+    {
+      std::cout << "OSC Energy Receiver listening on " << oscRecvHost << ":" << oscEnergyPort << std::endl;
+      _oscReceiverEnergy.addListener (this);
+    }
+  else
+    {
+      std::cerr << "ERROR: Could not bind OSC Energy Receiver to port " << oscEnergyPort << std::endl;
+    }
+
   // Setup OSC Sender from config (for beatclock)
   if (userConfig.hasProperty ("oscSender"))
     {
@@ -194,6 +255,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
   stopTimer ();
+  _oscReceiverEnergy.removeListener (this);
+  _oscReceiverEnergy.disconnect ();
   _oscReceiverVU.removeListener (this);
   _oscReceiverVU.disconnect ();
   _oscReceiver.removeListener (this);
@@ -219,23 +282,20 @@ A3MotionUIComponent::createChannelsUI ()
   _channelStrips.reserve (numChannels);
 
   // Read optional per-channel colours from config
-  auto const &channelsCfg = userConfig["channels"];
+  // Channel colours are part of the look, so they live in the skin.
+  auto const skinVar = loadActiveSkinVar (getConfigFile (), userConfig);
+  auto const &channelsCfg = skinVar["channels"];
 
   for (auto channel = 0u; channel < numChannels; ++channel)
     {
       auto uiState = std::make_unique<ChannelUIState> ();
 
-      if (channelsCfg.isArray ()
-          && static_cast<int> (channel) < channelsCfg.size ())
-        {
-          auto const &chCfg = channelsCfg[static_cast<int> (channel)];
-          int r = chCfg.hasProperty ("r") ? static_cast<int> (chCfg["r"]) : 128;
-          int g = chCfg.hasProperty ("g") ? static_cast<int> (chCfg["g"]) : 128;
-          int b = chCfg.hasProperty ("b") ? static_cast<int> (chCfg["b"]) : 128;
-          uiState->colour = juce::Colour (static_cast<juce::uint8> (r),
-                                           static_cast<juce::uint8> (g),
-                                           static_cast<juce::uint8> (b));
-        }
+      // Straight from the theme, which parsed the very same skin file. This
+      // used to read `channels` out of the skin var a second time, by hand,
+      // with a grey fallback of its own — two parsers for one array, and only
+      // one of them knew what a channel's colour is when the skin omits it.
+      if (static_cast<int> (channel) < numThemeChannels)
+        uiState->colour = toColour (theme ().channel[channel]);
       else
         {
           // Fallback: generate colours from HSV
@@ -270,6 +330,7 @@ void
 A3MotionUIComponent::createMainUI ()
 {
   _statusBar = std::make_unique<StatusBar> (_valueBPM);
+  _statusBar->onKeyboardIconTapped = [this] { toggleKeyboard (); };
   addChildComponent (*_statusBar);
   _statusBar->setVisible (true);
   _statusBarCallbackHandle
@@ -413,9 +474,12 @@ A3MotionUIComponent::blankLEDs ()
     {
       for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
         {
+          // An LED that is off is not coloured black, it is unlit —
+          // transparentBlack is how this codebase says "no colour", and the
+          // hardware path reads the rgb, which is zero either way.
           _ioAdapter->getPadLED (channel, pad)
               = juce::VariantConverter<juce::Colour>::toVar (
-                  juce::Colours::black);
+                  juce::Colours::transparentBlack);
         }
     }
 }
@@ -434,7 +498,8 @@ A3MotionUIComponent::resized ()
   auto bounds = getLocalBounds ();
 
   // Status bar at the top
-  auto constexpr statusBarHeight = StatusBar::getMinimumHeight ();
+  // The bar is as tall as the header size needs; the sphere gets the rest.
+  auto const statusBarHeight = _statusBar->preferredHeight ();
   auto boundsStatus = bounds.removeFromTop (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
@@ -457,14 +522,31 @@ A3MotionUIComponent::resized ()
   if (_clipSettings)
     _clipSettings->setBounds (boundsClipSettings);
 
+  // While the menu is open the sphere takes the clip settings' space as well,
+  // so the menu — its child — has the whole screen below the status bar to
+  // cover, and the sphere is what shows through it.
+  if (_globalSettingsOpen)
+    {
+      bounds = bounds.getUnion (boundsClipSettings);
+      if (_clipSettings)
+        _clipSettings->setBounds ({}); // no GL here, it may give up its space
+    }
+
   _motionComponent->setBounds (bounds);
 
-  // Global Settings (Clockmode/Elevation Map) shares the same safe zone as
-  // the Clip Settings panel — it's real screen space carved out of
-  // MotionComponent's bounds above, so ordinary JUCE z-order/toFront() is
-  // enough to show it on top while open (no GL composite-order issue here).
   if (_globalSettings)
-    _globalSettings->setBounds (boundsClipSettings);
+    _globalSettings->setBounds (_motionComponent->getLocalBounds ());
+  if (_skinEditor)
+    _skinEditor->setBounds (_motionComponent->getLocalBounds ());
+  if (_colourPicker)
+    {
+      // Only the lower part of the screen: the sphere above it is what the
+      // colour is being chosen for, and it has to stay in sight.
+      auto picker = _motionComponent->getLocalBounds ();
+      _colourPicker->setBounds (
+          picker.removeFromBottom (picker.getHeight () * 2 / 5)
+              .reduced (picker.getWidth () / 20, 0));
+    }
 }
 
 float
@@ -498,7 +580,15 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       if (pressed)
         {
           updateControlReadout ("-- MENU");
-          if (_globalSettingsOpen)
+          // One level at a time: a name being typed, then the editor, then
+          // the menu itself.
+          if (_colourPickerOpen)
+            closeColourPicker ();
+          else if (_skinEditorOpen && _skinEditor->isNaming ())
+            _skinEditor->finishNaming ();
+          else if (_skinEditorOpen)
+            closeSkinEditor ();
+          else if (_globalSettingsOpen)
             closeGlobalSettings ();
           else
             openGlobalSettings ();
@@ -546,11 +636,26 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           auto const tapTime = juce::int64 (value.getValue ());
           auto const result = _engine.tap (tapTime);
 
-          if (result == TempoClock::TapResult::TempoAvailable)
+          // FirstTap was falling through here entirely. The clock does reset
+          // itself on it — that much is covered by
+          // TempoClock.FirstTapResetsTheBeat — but the UI gave no sign of it,
+          // and a stale BPM from the previous run stayed on the readout.
+          switch (result)
             {
-              auto const bpm = _engine.getTempoBPM ();
-              std::cout << "[TAP] BPM=" << bpm << std::endl;
-              _valueBPM = bpm;
+            case TempoClock::TapResult::TempoAvailable:
+              {
+                auto const bpm = _engine.getTempoBPM ();
+                juce::Logger::writeToLog ("[TAP] BPM=" + juce::String (bpm));
+                _valueBPM = bpm;
+                break;
+              }
+            case TempoClock::TapResult::FirstTap:
+              juce::Logger::writeToLog ("[TAP] first tap: beat reset to 1");
+              updateControlReadout ("-- TAP 1");
+              break;
+            case TempoClock::TapResult::TempoNotAvailable:
+              juce::Logger::writeToLog ("[TAP] counting, no tempo yet");
+              break;
             }
         }
     }
@@ -571,12 +676,37 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                 updateControlReadout (
                     "CH" + juce::String (channel + 1) + " ENC "
                     + (increment > 0 ? "+" : "") + juce::String (increment));
+              if (_colourPickerOpen && channel == 3u)
+                {
+                  if (increment != 0)
+                    _colourPicker->navigate (increment > 0 ? 1 : -1);
+                  return;
+                }
+
+              if (_skinEditorOpen && channel == 3u)
+                {
+                  if (increment != 0)
+                    {
+                      _skinEditor->navigate (increment > 0 ? 1 : -1);
+                      refreshKeyboardIcon ();
+                    }
+                  return;
+                }
+
               if (_globalSettingsOpen && channel == 3u)
                 {
                   if (increment != 0)
                     {
                       if (_globalSettingsValueFieldSelected)
-                        _globalSettings->navigateValue (increment > 0 ? 1 : -1);
+                        {
+                          _globalSettings->navigateValue (increment > 0 ? 1
+                                                                        : -1);
+
+                          if (static_cast<MenuRow> (_globalSettingsOptionIndex)
+                              == MenuRow::Skin)
+                            previewSkin (
+                                _globalSettings->getSelectedValueIndex ());
+                        }
                       else
                         {
                           _globalSettings->navigateOption (increment > 0 ? 1 : -1);
@@ -612,6 +742,20 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                 {
                   updateControlReadout ("CH" + juce::String (channel + 1)
                                        + " ENC PRESS");
+                  // In the skin editor the same press arms the browsed
+                  // parameter and lets it go again.
+                  if (_colourPickerOpen && channel == 3u)
+                    {
+                      _colourPicker->toggleEditing ();
+                      return;
+                    }
+
+                  if (_skinEditorOpen && channel == 3u)
+                    {
+                      _skinEditor->toggleEditing ();
+                      return;
+                    }
+
                   // The single ch3 encoder also drives Global Settings
                   // while it's open: first press arms the currently
                   // browsed option's value field, second press confirms
@@ -851,13 +995,14 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
     case Status::Recording:
       {
         setPreviewWithDisplayData (messagePatternStatus.pattern);
-        _channelStrips[channel]->setTextColour (juce::Colours::red);
+        _channelStrips[channel]->setTextColour (toColour (theme ().danger));
         break;
       }
     case Status::Stopped:
       {
         _motionComponent->unsetPreviewPattern (messagePatternStatus.pattern);
-        _channelStrips[channel]->setTextColour (juce::Colours::white);
+        _channelStrips[channel]->setTextColour (
+            toColour (theme ().textPrimary));
 
         // If this was a recording that just finished, save as user pattern.
         // We use wasRecording() because the status chain is:
@@ -951,8 +1096,8 @@ A3MotionUIComponent::tickCallback (Measure measure)
     }
   else
     {
-      _motionComponent->setBackgroundColour (
-          juce::Colours::black.withAlpha (0.f));
+      // No background rather than a black one — the sphere shows through.
+      _motionComponent->setBackgroundColour (juce::Colours::transparentBlack);
     }
 
   // Update loop length display with global playhead (INT mode only).
@@ -1026,7 +1171,8 @@ A3MotionUIComponent::padLEDCallback (int step)
                 && (status == Pattern::Status::Playing
                     || status == Pattern::Status::ScheduledForPlaying);
           auto const base
-              = isPlayingOnPlayPause ? juce::Colours::limegreen : channelColour;
+              = isPlayingOnPlayPause ? toColour (theme ().accent)
+                                     : channelColour;
 
           auto const colour = channelColourForPadStatus (
               base, status, statusLast, step);
@@ -1311,6 +1457,13 @@ A3MotionUIComponent::saveRecordedPattern (
 
       // Refresh the pad cell display to show the new recording
       updatePadRowLabel (channel, slot);
+
+      // And the clip settings bar, if it happens to be showing this slot.
+      // It reads _patterns[channel][slot], which was just replaced — without
+      // this it went on showing the pattern that was there before, until the
+      // next encoder turn happened to refresh it for another reason.
+      if (channel == _clipSettingsChannel && slot == _clipSettingsSlot)
+        updateClipSettingsDisplay ();
     }
 }
 
@@ -1377,6 +1530,12 @@ A3MotionUIComponent::onSubwooferVU (float peak, float rms)
 }
 
 void
+A3MotionUIComponent::onEnergyGrid (float const *values, int count)
+{
+  _motionComponent->setEnergyGrid (values, count);
+}
+
+void
 A3MotionUIComponent::onSpeakerVU (int speakerIndex, float peak, float rms)
 {
   _motionComponent->setSpeakerLight (speakerIndex, peak, rms);
@@ -1407,31 +1566,7 @@ A3MotionUIComponent::openGlobalSettings ()
   _globalSettingsValueFieldSelected = false;
   _globalSettingsOptionIndex = 0;
 
-  // Build or rebuild options with current mode as each option's active value
-  std::vector<GlobalSettingsComponent::Option> options{
-    { "Clockmode",
-      { { "INT", juce::Colours::white },
-        { "EXT", juce::Colours::white },
-        { "PIO", juce::Colours::white } },
-      _clockMode },
-    { "Pot Size",
-      { { potSizeLabels[0], juce::Colours::white },
-        { potSizeLabels[1], juce::Colours::white },
-        { potSizeLabels[2], juce::Colours::white },
-        { potSizeLabels[3], juce::Colours::white },
-        { potSizeLabels[4], juce::Colours::white } },
-      _potSizeIndex },
-    { "Font Size",
-      { { fontSizeLabels[0], juce::Colours::white },
-        { fontSizeLabels[1], juce::Colours::white },
-        { fontSizeLabels[2], juce::Colours::white },
-        { fontSizeLabels[3], juce::Colours::white },
-        { fontSizeLabels[4], juce::Colours::white } },
-      _fontSizeIndex },
-  };
-  _globalSettings->setOptions (std::move (options));
-  _globalSettings->setOptionIndex (_globalSettingsOptionIndex);
-  _globalSettings->setValueFieldSelected (false);
+  rebuildGlobalSettingsOptions ();
 
   // Reuse the Clip Settings panel's safe zone (real screen space carved out
   // of MotionComponent's bounds in resized(), not overlapping its OpenGL
@@ -1441,8 +1576,77 @@ A3MotionUIComponent::openGlobalSettings ()
 
   _globalSettings->setVisible (true);
   _globalSettings->toFront (true);
-  if (_motionComponent)
+  resized (); // the menu takes the whole window, the sphere gives up its bounds
+
+  // Pausing here was a concession to the RPi4's GPU. The rig runs on an Intel
+  // NUC now and the sphere is meant to carry on behind the menu, but the option
+  // stays for a machine that needs it again.
+  if (_motionComponent && _pauseRenderingInMenu)
     _motionComponent->setRenderingPaused (true);
+}
+
+void
+A3MotionUIComponent::rebuildGlobalSettingsOptions ()
+{
+  // Built fresh rather than patched: the list of skins changes underneath it
+  // whenever the editor saves, renames or deletes one.
+  std::vector<GlobalSettingsComponent::Option> options{
+    { "Clockmode",
+      { { "INT" },
+        { "EXT" },
+        { "PIO" } },
+      _clockMode },
+    { "Pot Size",
+      { { potSizeLabels[0] },
+        { potSizeLabels[1] },
+        { potSizeLabels[2] },
+        { potSizeLabels[3] },
+        { potSizeLabels[4] } },
+      _potSizeIndex },
+    { "Header Font Size",
+      { { fontSizeLabels[0] },
+        { fontSizeLabels[1] },
+        { fontSizeLabels[2] },
+        { fontSizeLabels[3] },
+        { fontSizeLabels[4] } },
+      _headerSizeIndex },
+    { "Body Font Size",
+      { { fontSizeLabels[0] },
+        { fontSizeLabels[1] },
+        { fontSizeLabels[2] },
+        { fontSizeLabels[3] },
+        { fontSizeLabels[4] } },
+      _bodySizeIndex },
+  };
+
+  // Built from what is actually in config/skins, so a skin added on the
+  // device shows up without a rebuild.
+  _skinNames = availableSkins (getConfigFile ().getParentDirectory ());
+  auto const active = activeSkinName (getConfigFile ());
+  _skinIndex = juce::jmax (0, _skinNames.indexOf (active));
+
+  std::vector<GlobalSettingsComponent::ValueItem> skinValues;
+  for (auto const &name : _skinNames)
+    skinValues.push_back ({ name });
+
+  options.push_back ({ "Sphere Size",
+                       { { sphereSizeLabels[0] },
+                         { sphereSizeLabels[1] },
+                         { sphereSizeLabels[2] },
+                         { sphereSizeLabels[3] },
+                         { sphereSizeLabels[4] } },
+                       _sphereSizeIndex });
+  options.push_back ({ "Skin", std::move (skinValues), _skinIndex });
+  options.push_back ({ "Skin Editor", { { "open" } }, 0 });
+  options.push_back ({ "Network", { { "open" } }, 0 });
+  options.push_back ({ "Button LEDs", { { "open" } }, 0 });
+  options.push_back ({ "Pattern Folder", { { "open" } }, 0 });
+  options.push_back ({ "Sphere in Menu",
+                       { { "off" }, { "on" } },
+                       _pauseRenderingInMenu ? 0 : 1 });
+  _globalSettings->setOptions (std::move (options));
+  _globalSettings->setOptionIndex (_globalSettingsOptionIndex);
+  _globalSettings->setValueFieldSelected (false);
 }
 
 void
@@ -1451,10 +1655,15 @@ A3MotionUIComponent::closeGlobalSettings ()
   if (!_globalSettingsOpen)
     return;
 
+  // The editor is a page of this menu, so closing the menu leaves it first —
+  // that is also what saves the edited skin.
+  closeSkinEditor ();
+
   _globalSettingsOpen = false;
   _globalSettingsValueFieldSelected = false;
   _globalSettings->setVisible (false);
   _globalSettings->setValueFieldSelected (false);
+  resized (); // sphere and clip settings get their bounds back
   if (_motionComponent)
     _motionComponent->setRenderingPaused (false);
 }
@@ -1467,12 +1676,26 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
 
   int const chosen = _globalSettings->getSelectedValueIndex ();
 
-  if (_globalSettingsOptionIndex == 0)
-    applyClockMode (chosen);
-  else if (_globalSettingsOptionIndex == 1)
-    applyPotSize (chosen);
-  else
-    applyFontSize (chosen);
+  switch (static_cast<MenuRow> (_globalSettingsOptionIndex))
+    {
+    case MenuRow::ClockMode: applyClockMode (chosen); break;
+    case MenuRow::PotSize: applyPotSize (chosen); break;
+    case MenuRow::HeaderSize: applyHeaderSize (chosen); break;
+    case MenuRow::BodySize: applyBodySize (chosen); break;
+    case MenuRow::SphereSize: applySphereSize (chosen); break;
+    case MenuRow::Skin: applySkin (chosen); break;
+    case MenuRow::SkinEditor: openSkinEditor (); break;
+    case MenuRow::Network:
+      openConfigPage ("Network", { "oscSender", "oscReceiver" });
+      break;
+    case MenuRow::ButtonLeds:
+      openConfigPage ("Button LEDs", { "buttonLeds" });
+      break;
+    case MenuRow::PatternFolder:
+      openConfigPage ("Pattern Folder", { "patternDir" });
+      break;
+    case MenuRow::SphereInMenu: applyPauseRendering (chosen == 0); break;
+    }
 
   _globalSettings->setActiveValueIndex (_globalSettingsOptionIndex, chosen);
 
@@ -1514,7 +1737,8 @@ A3MotionUIComponent::applyClockMode (int mode)
   _oscSender.send (clockModeMsg);
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _potSizeIndex, _fontSizeIndex });
+               AppSettings{ _clockMode, _potSizeIndex, _headerSizeIndex,
+                            _bodySizeIndex });
 }
 
 void
@@ -1528,21 +1752,453 @@ A3MotionUIComponent::applyPotSize (int index)
     _clipSettings->setPotSizeScale (potSizeScales[index]);
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _potSizeIndex, _fontSizeIndex });
+               AppSettings{ _clockMode, _potSizeIndex, _headerSizeIndex,
+                            _bodySizeIndex });
 }
 
 void
-A3MotionUIComponent::applyFontSize (int index)
+A3MotionUIComponent::applyHeaderSize (int index)
 {
-  if (index == _fontSizeIndex)
+  // No early return, and no single receiver. The old version did both, and
+  // between them they were the whole bug: a saved index equal to the startup
+  // default jumped straight out, and the one component it did reach was the
+  // only thing that ever grew. The factors now sit at the theme, where every
+  // component reads them, so the work here is a float and a repaint.
+  _headerSizeIndex = juce::jlimit (0, numFontScales - 1, index);
+  setHeaderScale (fontScaleForIndex (_headerSizeIndex));
+  refreshFonts ();
+}
+
+void
+A3MotionUIComponent::applyBodySize (int index)
+{
+  _bodySizeIndex = juce::jlimit (0, numFontScales - 1, index);
+  setBodyScale (fontScaleForIndex (_bodySizeIndex));
+  refreshFonts ();
+}
+
+void
+A3MotionUIComponent::openSkinEditor ()
+{
+  if (_skinEditorOpen)
     return;
 
-  _fontSizeIndex = index;
-  if (_clipSettings)
-    _clipSettings->setFontSizeScale (fontSizeScales[index]);
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              _skinNames[juce::jlimit (
+                                  0, juce::jmax (0, _skinNames.size () - 1),
+                                  _skinIndex)]);
+
+  _skinEditor->setSkin (juce::JSON::parse (file.loadFileAsString ()),
+                        file.getFileNameWithoutExtension ());
+  _skinEditorOpen = true;
+  _globalSettings->setVisible (false);
+  _skinEditor->setVisible (true);
+  _skinEditor->toFront (true);
+}
+
+void
+A3MotionUIComponent::openConfigPage (juce::String const &title,
+                                     juce::StringArray const &keys)
+{
+  // A slice of config.json rather than the whole file: a page with one thing
+  // on it is a page somebody can read. The slice is written back key by key,
+  // so the rest of the file is untouched by a visit here.
+  auto const config = juce::JSON::parse (getConfigFile ().loadFileAsString ());
+
+  auto *slice = new juce::DynamicObject ();
+  for (auto const &key : keys)
+    {
+      auto const identifier = juce::Identifier (key);
+      if (config.hasProperty (identifier))
+        slice->setProperty (identifier, config[identifier]);
+    }
+
+  _configPageKeys = keys;
+  _skinEditor->setDocument (juce::var (slice), title, false,
+                            SkinEditorComponent::Numbers::Typed);
+  _skinEditorOpen = true;
+  _globalSettings->setVisible (false);
+  _skinEditor->setVisible (true);
+  _skinEditor->toFront (true);
+}
+
+void
+A3MotionUIComponent::saveConfigPage ()
+{
+  if (_configPageKeys.isEmpty ())
+    return;
+
+  auto config = juce::JSON::parse (getConfigFile ().loadFileAsString ());
+  auto *object = config.getDynamicObject ();
+  if (object == nullptr)
+    return;
+
+  auto const edited = _skinEditor->getSkin ();
+  for (auto const &key : _configPageKeys)
+    {
+      auto const identifier = juce::Identifier (key);
+      if (edited.hasProperty (identifier))
+        object->setProperty (identifier, edited[identifier]);
+    }
+
+  getConfigFile ().replaceWithText (
+      juce::JSON::toString (config, false) + "\n", false, false, "\n");
+  _configPageKeys.clear ();
+
+  // Ports and hosts are read when a socket opens, so they take effect at the
+  // next start rather than here. Saying so beats a setting that looks live
+  // and is not.
+  updateControlReadout ("network saved - restart to apply");
+}
+
+void
+A3MotionUIComponent::applyPauseRendering (bool paused)
+{
+  _pauseRenderingInMenu = paused;
+
+  auto config = juce::JSON::parse (getConfigFile ().loadFileAsString ());
+  if (auto *object = config.getDynamicObject ())
+    {
+      auto *ui = config["ui"].getDynamicObject ();
+      if (ui != nullptr)
+        {
+          ui->setProperty ("pauseRenderingInMenu", paused);
+          object->setProperty ("ui", config["ui"]);
+          getConfigFile ().replaceWithText (
+              juce::JSON::toString (config, false) + "\n", false, false,
+              "\n");
+        }
+    }
+
+  if (_motionComponent)
+    _motionComponent->setRenderingPaused (paused);
+}
+
+void
+A3MotionUIComponent::applyTheme ()
+{
+  // A channel's colour was read once, at construction, and kept in
+  // ChannelUIState — so editing it in the skin changed the file and the
+  // theme and nothing on the screen. Every blob, pad and frame is drawn
+  // from this copy, which is why it has to be refreshed here.
+  auto const numChannels = _engine.getNumChannels ();
+  for (index_t channel = 0;
+       channel < numChannels && channel < (index_t)numThemeChannels; ++channel)
+    if (_channelUIStates[channel] != nullptr)
+      _channelUIStates[channel]->colour = toColour (theme ().channel[channel]);
+
+  // The clip settings bar was handed its channel's colour by value too.
+  if (_clipSettings && _channelUIStates[_clipSettingsChannel] != nullptr)
+    _clipSettings->setTarget (static_cast<int> (_clipSettingsChannel),
+                              static_cast<int> (_clipSettingsSlot),
+                              _channelUIStates[_clipSettingsChannel]->colour);
+}
+
+void
+A3MotionUIComponent::openColourPicker (juce::String const &path)
+{
+  auto const document = _skinEditor->getSkin ();
+  auto const channel = [&document, &path] (char const *name) {
+    return (juce::uint8)juce::jlimit (
+        0, 255, (int)skinValue (document, path + "." + name));
+  };
+
+  _colourPath = path;
+  _colourPicker->setColour (
+      juce::Colour (channel ("r"), channel ("g"), channel ("b")), path);
+  _colourPickerOpen = true;
+  _skinEditor->setVisible (false);
+  _colourPicker->setVisible (true);
+  _colourPicker->toFront (true);
+}
+
+void
+A3MotionUIComponent::closeColourPicker ()
+{
+  if (!_colourPickerOpen)
+    return;
+
+  _colourPickerOpen = false;
+  _colourPath = {};
+  _colourPicker->setVisible (false);
+  _skinEditor->setVisible (true);
+  _skinEditor->toFront (true);
+}
+
+void
+A3MotionUIComponent::applyPickedColour ()
+{
+  if (_colourPath.isEmpty ())
+    return;
+
+  // Back into the document as r/g/b: the file keeps saying what it always
+  // said, and HSL is only how a person reaches the number.
+  auto document = _skinEditor->getSkin ();
+  auto const colour = _colourPicker->getColour ();
+
+  setSkinValue (document, _colourPath + ".r", colour.getRed (), true);
+  setSkinValue (document, _colourPath + ".g", colour.getGreen (), true);
+  setSkinValue (document, _colourPath + ".b", colour.getBlue (), true);
+
+  applyEditedSkin ();
+}
+
+void
+A3MotionUIComponent::showKeyboard (bool shown)
+{
+  shown ? onScreenKeyboard::show () : onScreenKeyboard::hide ();
+  refreshKeyboardIcon ();
+}
+
+void
+A3MotionUIComponent::toggleKeyboard ()
+{
+  // Always available, whatever is on screen: it is the system's keyboard and
+  // it types into whatever has the focus.
+  auto const wasShown = onScreenKeyboard::isShown ();
+  showKeyboard (!wasShown);
+
+  // Showing it over a row that can be typed says what it is for. A row that
+  // is only turned stays that way; the keyboard is then simply up.
+  if (!wasShown && _skinEditorOpen && !_skinEditor->isNaming ())
+    _skinEditor->beginTypingBrowsedRow ();
+}
+
+void
+A3MotionUIComponent::refreshKeyboardIcon ()
+{
+  if (!_statusBar)
+    return;
+
+  using State = StatusBar::KeyboardState;
+
+  auto const state = onScreenKeyboard::isShown () ? State::Shown
+                                                 : State::Available;
+
+  _statusBar->setKeyboardState (state);
+}
+
+void
+A3MotionUIComponent::saveSkinAsNew ()
+{
+  auto const configDir = getConfigFile ().getParentDirectory ();
+  auto const name = nextFreeSkinName (configDir, _skinEditor->getSkinName ());
+
+  // The edited state is what gets copied — "save as new" on a skin that has
+  // been turned about is meant to keep what is on the screen, not what was
+  // last written.
+  skinFile (configDir, name)
+      .replaceWithText (juce::JSON::toString (_skinEditor->getSkin (), false)
+                            + "\n",
+                        false, false, "\n");
+
+  writeActiveSkin (getConfigFile (), name);
+  reopenEditorOn (name);
+}
+
+void
+A3MotionUIComponent::renameEditedSkin (juce::String const &name)
+{
+  auto const configDir = getConfigFile ().getParentDirectory ();
+
+  // Written first: a rename moves the file, and the edits would be left in
+  // the old one.
+  saveEditedSkin ();
+
+  if (renameSkin (configDir, _skinEditor->getSkinName (), name))
+    reopenEditorOn (name);
+}
+
+void
+A3MotionUIComponent::deleteEditedSkin ()
+{
+  auto const configDir = getConfigFile ().getParentDirectory ();
+
+  if (!deleteSkin (configDir, _skinEditor->getSkinName ()))
+    return; // the last one stays — see deleteSkin
+
+  reopenEditorOn (activeSkinName (getConfigFile ()));
+}
+
+void
+A3MotionUIComponent::reopenEditorOn (juce::String const &name)
+{
+  auto const file = skinFile (getConfigFile ().getParentDirectory (), name);
+
+  _skinEditor->setSkin (juce::JSON::parse (file.loadFileAsString ()),
+                        file.getFileNameWithoutExtension ());
+
+  // The menu underneath is showing a list of skins that just changed.
+  rebuildGlobalSettingsOptions ();
+  applyEditedSkin ();
+}
+
+void
+A3MotionUIComponent::closeSkinEditor ()
+{
+  if (!_skinEditorOpen)
+    return;
+
+  // Written on the way out rather than on every detent: turning an encoder
+  // produces a value per tick, and a file save per tick would spend the
+  // session writing to disk and waking the file watcher.
+  if (_configPageKeys.isEmpty ())
+    saveEditedSkin ();
+  else
+    saveConfigPage ();
+
+  closeColourPicker ();
+  showKeyboard (false);
+  _skinEditorOpen = false;
+  _skinEditor->setVisible (false);
+  _globalSettings->setVisible (true);
+  _globalSettings->toFront (true);
+}
+
+void
+A3MotionUIComponent::applyEditedSkin ()
+{
+  if (!_configPageKeys.isEmpty ())
+    return; // a config page is not a skin; nothing to put in force live
+
+  // Straight to the theme, so the change is visible on the sphere behind the
+  // editor while the encoder is still turning. The file follows on close.
+  juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
+  auto const loaded = loadTheme (_skinEditor->getSkin ());
+  juce::MessageManager::callAsync ([safeThis, loaded] {
+    if (safeThis != nullptr)
+      applyThemeEverywhere (loaded, *safeThis);
+  });
+}
+
+void
+A3MotionUIComponent::saveEditedSkin ()
+{
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              _skinEditor->getSkinName ());
+
+  // Rewritten whole, unlike config.json: a skin file is this editor's own
+  // output, and its shape is generated rather than hand-arranged.
+  file.replaceWithText (
+      juce::JSON::toString (_skinEditor->getSkin (), false) + "\n", false,
+      false, "\n");
+}
+
+void
+A3MotionUIComponent::loadSphereSize ()
+{
+  // Whichever of the offered sizes the active skin is nearest to, so the
+  // menu opens on what is actually on screen.
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              activeSkinName (getConfigFile ()));
+  auto const skin = juce::JSON::parse (file.loadFileAsString ());
+  auto const scale = skinValue (skin, "sphereScale");
+
+  if (scale <= 0.0)
+    return;
+
+  auto nearest = 0;
+  for (int i = 1; i < numSphereSizes; ++i)
+    if (std::abs (sphereSizes[i] - scale) < std::abs (sphereSizes[nearest] - scale))
+      nearest = i;
+
+  _sphereSizeIndex = nearest;
+}
+
+void
+A3MotionUIComponent::applySphereSize (int index)
+{
+  _sphereSizeIndex = juce::jlimit (0, numSphereSizes - 1, index);
+
+  // The sphere's size is part of the look, so it lives in the skin next to
+  // everything else that is — not in a settings file of its own. Written
+  // there, and the watcher does the rest.
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              activeSkinName (getConfigFile ()));
+
+  auto skin = juce::JSON::parse (file.loadFileAsString ());
+  if (skin.getDynamicObject () == nullptr)
+    return;
+
+  setSkinValue (skin, "sphereScale", sphereSizes[_sphereSizeIndex]);
+  file.replaceWithText (juce::JSON::toString (skin, false) + "\n", false,
+                        false, "\n");
+}
+
+void
+A3MotionUIComponent::previewSkin (int index)
+{
+  if (index < 0 || index >= _skinNames.size ())
+    return;
+
+  // Shown while the encoder is still turning, so a skin is chosen by
+  // looking at it rather than by reading its name. Nothing is written —
+  // the press is what makes it the one that is running.
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              _skinNames[index]);
+  auto const loaded = loadTheme (juce::JSON::parse (file.loadFileAsString ()));
+
+  juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
+  juce::MessageManager::callAsync ([safeThis, loaded] {
+    if (safeThis != nullptr)
+      applyThemeEverywhere (loaded, *safeThis);
+  });
+}
+
+void
+A3MotionUIComponent::applySkin (int index)
+{
+  if (index < 0 || index >= _skinNames.size ())
+    return;
+
+  _skinIndex = index;
+
+  // Written to config.json rather than kept in a variable: which skin is
+  // running is operation, and config.json is where operation lives. A hand
+  // edit and this menu then say the same thing in the same place.
+  writeActiveSkin (getConfigFile (), _skinNames[index]);
+
+  // The watcher that normally picks that up runs inside the GL render loop,
+  // and the sphere is not rendering while the menu covers it — so the half of
+  // the reload that is pure message-thread work happens here. The sphere's own
+  // tuning follows from the watcher as soon as it draws again, which is when
+  // the menu closes and it is visible in the first place.
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              _skinNames[index]);
+  // Queued rather than applied on the spot, so that a reload the render
+  // thread dispatched a moment ago runs first and this one has the last
+  // word. Applying directly let a callback that was already in flight put
+  // the previous skin back.
+  auto const loaded = loadTheme (juce::JSON::parse (file.loadFileAsString ()));
+  juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
+  juce::MessageManager::callAsync ([safeThis, loaded] {
+    if (safeThis != nullptr)
+      applyThemeEverywhere (loaded, *safeThis);
+  });
+}
+
+void
+A3MotionUIComponent::refreshFonts ()
+{
+  // The status bar's height and the keyboard's follow the font sizes, so
+  // this is a layout change and not only a repaint — and the layout has to come first: the
+  // bar sizes its own text against the height it holds, so giving it the new
+  // height is what lets the text follow.
+  resized ();
+
+  if (auto *root = getTopLevelComponent ())
+    root->repaint ();
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _potSizeIndex, _fontSizeIndex });
+               AppSettings{ _clockMode, _potSizeIndex, _headerSizeIndex,
+                            _bodySizeIndex });
+}
+
+juce::File
+A3MotionUIComponent::getConfigFile () const
+{
+  return juce::File::getCurrentWorkingDirectory ().getChildFile (
+      "config/config.json");
 }
 
 juce::File

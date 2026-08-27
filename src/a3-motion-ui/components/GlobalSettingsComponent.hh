@@ -16,6 +16,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/theme/ThemeColours.hh>
+
 namespace a3
 {
 
@@ -42,7 +44,9 @@ public:
   struct ValueItem
   {
     juce::String value;
-    juce::Colour colour{ juce::Colours::white };
+    /** Read at construction, so an item built after a skin change carries
+     *  the new skin's text colour. */
+    juce::Colour colour = toColour (theme ().textPrimary);
   };
 
   struct Option

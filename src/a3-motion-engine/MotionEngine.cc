@@ -81,6 +81,7 @@ MotionEngine::createChannels (index_t const numChannels)
 {
   _channels.resize (numChannels);
   _lastSentPositions.resize (numChannels);
+  _positionHeld = std::vector<std::atomic<bool>> (numChannels);
   _lastSentPot1s.resize (numChannels);
   _lastSentPot2s.resize (numChannels);
   _previewMode = std::vector<std::atomic<bool>> (numChannels);
@@ -137,6 +138,18 @@ void
 MotionEngine::setChannel3DPosition (index_t channel, Pos const &position)
 {
   _channels[channel]->setPosition (position);
+}
+
+void
+MotionEngine::setChannelPositionHeld (index_t channel, bool held)
+{
+  _positionHeld[channel].store (held, std::memory_order_relaxed);
+}
+
+bool
+MotionEngine::isChannelPositionHeld (index_t channel) const
+{
+  return _positionHeld[channel].load (std::memory_order_relaxed);
 }
 
 float
@@ -719,6 +732,11 @@ MotionEngine::performPlayback ()
 {
   for (auto chIdx = 0u; chIdx < _channels.size (); ++chIdx)
     {
+      // A finger is on this one: playback keeps running, but it does not
+      // get to write the position, or the blob slides out from under it.
+      if (_positionHeld[chIdx].load (std::memory_order_relaxed))
+        continue;
+
       auto &channel = _channels[chIdx];
       if (channel->_patternPlaying)
         {

@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/theme/ThemeColours.hh>
+
 #include <a3-motion-ui/components/LayoutHints.hh>
 
 #include <array>
@@ -99,7 +101,9 @@ private:
   {
     std::atomic<float> loopLengthBeats{ 4.f };
     std::atomic<float> playheadPosition{ 0.f };
-    juce::Colour colour{ juce::Colours::white };
+    /** Read at construction, so a cell built after a skin change
+     *  carries the new skin's text colour. */
+    juce::Colour colour = toColour (theme ().textPrimary);
     bool rowHighlighted{ false };
     bool cellSelected{ false };
   };

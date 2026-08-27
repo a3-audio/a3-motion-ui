@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <ShippedSkin.hh>
+
 #include <a3-motion-ui/components/CoronaScaling.hh>
 
 using namespace a3;
@@ -72,10 +74,8 @@ TEST (CoronaScaling, ConfigOverridesReplaceDefaults)
 // the blob. Tuning those numbers must not silently switch the effect off again.
 TEST (CoronaScaling, ShippedConfigKeepsCoronaVisibleAtRealisticLevel)
 {
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ()) << "no config.json at " << A3_CONFIG_JSON_PATH;
 
-  auto const cfg = loadCoronaConfig (juce::JSON::parse (file.loadFileAsString ()));
+  auto const cfg = loadCoronaConfig (shippedSkin ());
   auto const level = coronaVuLevel (realisticPeak, realisticRms, cfg.vuMax);
   auto const scale = coronaScaleFactor (level, cfg);
 

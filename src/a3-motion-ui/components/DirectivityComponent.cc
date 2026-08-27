@@ -26,6 +26,12 @@
 namespace a3
 {
 
+namespace
+{
+// Both directivity arcs are drawn at the same, deliberately faint weight.
+constexpr float arcOpacity = 0.5f;
+}
+
 DirectivityComponent::DirectivityComponent (ChannelUIState const &uiState)
     : _uiState (uiState), _pot1 (180.f), _pot2 (1.f)
 {
@@ -84,7 +90,7 @@ DirectivityComponent::paint (juce::Graphics &g)
                       radiusArcDirectivity, 0.f, angleStart, angleEnd, true);
 
   strokeType.setStrokeThickness (widthArcDirectivity);
-  g.setColour (juce::Colours::white.withAlpha (0.5f));
+  g.setColour (toColour (theme ().textPrimary, arcOpacity));
   g.strokePath (path, strokeType);
 
   path.clear ();
@@ -92,7 +98,10 @@ DirectivityComponent::paint (juce::Graphics &g)
   angleEnd = juce::degreesToRadians (_pot1 / 2.f) + pieAngleRad / 2.f;
   path.addCentredArc (center.getX (), center.getY (), radiusArcDirectivity,
                       radiusArcDirectivity, 0.f, angleStart, angleEnd, true);
-  g.setColour (juce::Colours::red.withAlpha (0.5f));
+  // The mirrored lobe is red on purpose, and danger is the catalogue's only
+  // red. If it ever needs to be something other than a warning colour it
+  // earns a role of its own.
+  g.setColour (toColour (theme ().danger, arcOpacity));
   g.strokePath (path, strokeType);
 }
 

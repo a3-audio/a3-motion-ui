@@ -42,7 +42,7 @@ TickIndicator::setCurrentTick (int tick)
 void
 TickIndicator::paint (juce::Graphics &g)
 {
-  g.setColour (juce::Colours::lightgrey);
+  g.setColour (toColour (theme ().textMuted));
   g.fillAll ();
 
   auto bounds = getLocalBounds ();
@@ -54,8 +54,8 @@ TickIndicator::paint (juce::Graphics &g)
       boundsSquare.setWidth (width);
       boundsSquare.expand (-2, -2);
 
-      g.setColour (tick == _currentTick ? juce::Colours::white
-                                        : Colours::statusBar);
+      g.setColour (tick == _currentTick ? toColour (theme ().textPrimary)
+                                        : Colours::statusBar ());
 
       g.fillRect (boundsSquare);
     }

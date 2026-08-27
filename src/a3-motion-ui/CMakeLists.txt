@@ -43,6 +43,16 @@ target_sources("a3-motion-ui" PRIVATE
     components/ChannelStrip.hh
     components/CoronaScaling.cc
     components/SpeakerLightScaling.cc
+    components/EnergyMap.cc
+    components/SphereProjection.cc
+    io/ButtonLedColours.cc
+    io/OnScreenKeyboard.cc
+    io/OnScreenKeyboard.hh
+    theme/Theme.cc
+    theme/ThemeColours.cc
+    theme/ThemedComponent.cc
+    theme/SkinParameters.cc
+    theme/TextInput.cc
     components/MotionComponent.cc
     components/MotionComponent.hh
     components/SphereShader.cc
@@ -62,9 +72,16 @@ target_sources("a3-motion-ui" PRIVATE
     components/DirectivityComponent.cc
     components/DirectivityComponent.hh
     components/GlobalSettingsComponent.cc
+    components/ColourPickerComponent.cc
+    components/ColourPickerComponent.hh
+    components/SkinEditorComponent.cc
+    components/SkinEditorComponent.hh
     components/GlobalSettingsComponent.hh
+    components/ClipSettingsCaptions.cc
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh
+    ConfigFileWatcher.cc
+    ConfigFileWatcher.hh
     SettingsPersistence.cc
     SettingsPersistence.hh
     tests/TempoEstimatorTest.cc
