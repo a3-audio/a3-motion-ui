@@ -29,8 +29,11 @@ public:
   ScopedMessageThread () : juce::Thread ("message thread")
   {
     startThread ();
-    auto wasSignaled = semaphore.wait ();
-    juce::ignoreUnused (wasSignaled);
+    // Waits without a timeout, so there is no outcome to inspect. JUCE 8 gave
+    // the no-argument form a default timeout and therefore a bool; JUCE 9
+    // makes it its own overload returning void. Calling it bare compiles
+    // against both.
+    semaphore.wait ();
   }
 
   ~ScopedMessageThread ()

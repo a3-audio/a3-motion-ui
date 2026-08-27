@@ -81,8 +81,13 @@ Each channel is represented by a colored blob on the motion area:
 On a fresh Debian/Raspbian system, install the following before building anything:
 
 - Toolchain: `build-essential cmake pkg-config git`
-- JUCE dependencies: `xorg-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev` (on newer
-  Debian releases the freetype package was renamed to `libfreetype-dev`; install whichever exists)
+- JUCE dependencies: `xorg-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev libegl-dev`
+  (on newer Debian releases the freetype package was renamed to `libfreetype-dev`; install
+  whichever exists). `libegl-dev` is new with JUCE 9 — its OpenGL module includes `EGL/egl.h`
+  unconditionally on Linux. Install it **before** configuring: if `egl.pc` is missing at configure
+  time, JUCE silently drops its whole `egl;gl` package group and the build fails much later at
+  link time on `glLineWidth` and friends. A rebuild does not recover from that; the build
+  directory has to be configured again.
 - a3-motion-engine dependency (GSL, checked via `pkg_check_modules`): `libgsl-dev`
 - Hardware interface (`HARDWARE_INTERFACE_ENABLED=ON`, V2 or V3): `libserial-dev libgpiod-dev`
 - Unit tests (`TESTS_ENABLED`, on by default): `googletest libgtest-dev libgmock-dev`
@@ -94,7 +99,7 @@ On a fresh Debian/Raspbian system, install the following before building anythin
 
 ```
 apt-get install build-essential cmake pkg-config git \
-    xorg-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev \
+    xorg-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev libegl-dev \
     libgsl-dev libserial-dev libgpiod-dev \
     googletest libgtest-dev libgmock-dev \
     onboard dbus-bin
@@ -124,10 +129,14 @@ python3 -c "from gi.repository import Gio; s = Gio.Settings.new('org.onboard'); 
 user's dconf database and survive restarts.)
 
 ## Install JUCE
-- clone JUCE repo and checkout `develop` branch
+
+This project builds against **JUCE 9.0.1**. A released tag, not `develop`: the
+point of pinning is that a build here fails for reasons in this repository.
+
+- clone JUCE repo and check out the release tag
   - `mkdir ~/src ; cd ~/src`
   - `git clone https://github.com/juce-framework/JUCE.git`
-  - `git checkout develop`
+  - `git checkout 9.0.1`
 - create installation folder and build/install via cmake
   - `mkdir -p ~/local/juce`
   - `mkdir build ; cd build`
@@ -137,7 +146,11 @@ user's dconf database and survive restarts.)
 
 # Build and run a3-motion-ui
 - tell cmake where to find JUCE (replace `X.Y.Z` with correct version)
-  - `export JUCE_DIR=/home/aaa/local/juce/lib/cmake/JUCE-X.Y.Z`
+  - `export JUCE_DIR=$HOME/local/juce/lib/cmake/JUCE-9.0.1`
+  - An older JUCE may be installed side by side under its own prefix; point `JUCE_DIR` at
+    whichever one you mean. Note that `build.sh` falls back to `$HOME/local/juce` when
+    `JUCE_DIR` is unset, so a stale install at that path is what you get without a word —
+    export it, or keep that prefix on the version this project builds against.
 - `mkdir build ; cd build`
 - generate makefiles via cmake (to develop consider passing `Debug`)
 - `cmake -DCMAKE_BUILD_TYPE=Release ..`

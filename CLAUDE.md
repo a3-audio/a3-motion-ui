@@ -11,8 +11,10 @@ spatialization software via OSC.
 
 ## Build
 
-Requires JUCE (`develop` branch) built/installed separately; requires `pkg-config`/`gsl` dev
-packages, and (when hardware support is on) `libserial`/`libgpiod` dev packages, plus GoogleTest
+Requires **JUCE 9.0.1** (release tag, not `develop`) built/installed separately; requires
+`pkg-config`/`gsl` dev packages and `libegl-dev` (JUCE 9's OpenGL module includes `EGL/egl.h` on
+Linux — and if `egl.pc` is absent at configure time JUCE drops its `egl;gl` group silently, so the
+build directory must be configured again after installing it, not merely rebuilt), and (when hardware support is on) `libserial`/`libgpiod` dev packages, plus GoogleTest
 (`libgtest-dev libgmock-dev`) for the test target.
 
 At **runtime** the UI also expects `onboard` and `dbus-send` for text entry on the touchscreen —
@@ -20,7 +22,7 @@ see "On-screen keyboard" below. Neither is needed to build, and without them eve
 reachable with the encoder.
 
 ```bash
-export JUCE_DIR=/home/aaa/local/juce/lib/cmake/JUCE-X.Y.Z   # match installed JUCE version
+export JUCE_DIR=$HOME/local/juce/lib/cmake/JUCE-9.0.1
 
 ./build.sh              # Release build (default)
 ./build.sh -d           # Debug build
