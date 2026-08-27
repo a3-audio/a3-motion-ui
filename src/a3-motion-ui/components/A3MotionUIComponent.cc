@@ -702,9 +702,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                           _globalSettings->navigateValue (increment > 0 ? 1
                                                                         : -1);
 
-                          if (static_cast<MenuRow> (_globalSettingsOptionIndex)
-                              == MenuRow::Skin)
+                          auto const row = static_cast<MenuRow> (
+                              _globalSettingsOptionIndex);
+                          if (row == MenuRow::Skin)
                             previewSkin (
+                                _globalSettings->getSelectedValueIndex ());
+                          else if (row == MenuRow::SphereSize)
+                            previewSphereSize (
                                 _globalSettings->getSelectedValueIndex ());
                         }
                       else
@@ -762,7 +766,16 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                   // and applies it (menu stays open).
                   if (_globalSettingsOpen && channel == 3u)
                     {
-                      if (!_globalSettingsValueFieldSelected)
+                      if (_globalSettings->opensSubmenu (
+                              _globalSettingsOptionIndex))
+                        {
+                          // Nothing to choose, so nothing to arm: the press
+                          // that reaches the row is the press that opens it.
+                          _globalSettingsValueFieldSelected = true;
+                          _globalSettings->setValueFieldSelected (true);
+                          confirmGlobalSettingsOption ();
+                        }
+                      else if (!_globalSettingsValueFieldSelected)
                         {
                           _globalSettingsValueFieldSelected = true;
                           _globalSettings->setValueFieldSelected (true);
@@ -1637,10 +1650,10 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
                          { sphereSizeLabels[4] } },
                        _sphereSizeIndex });
   options.push_back ({ "Skin", std::move (skinValues), _skinIndex });
-  options.push_back ({ "Skin Editor", { { "open" } }, 0 });
-  options.push_back ({ "Network", { { "open" } }, 0 });
-  options.push_back ({ "Button LEDs", { { "open" } }, 0 });
-  options.push_back ({ "Pattern Folder", { { "open" } }, 0 });
+  options.push_back ({ "Skin Editor", { { "open" } }, 0, true });
+  options.push_back ({ "Network", { { "open" } }, 0, true });
+  options.push_back ({ "Button LEDs", { { "open" } }, 0, true });
+  options.push_back ({ "Pattern Folder", { { "open" } }, 0, true });
   options.push_back ({ "Sphere in Menu",
                        { { "off" }, { "on" } },
                        _pauseRenderingInMenu ? 0 : 1 });
@@ -2115,6 +2128,17 @@ A3MotionUIComponent::loadSphereSize ()
       nearest = i;
 
   _sphereSizeIndex = nearest;
+}
+
+void
+A3MotionUIComponent::previewSphereSize (int index)
+{
+  if (index < 0 || index >= numSphereSizes || _motionComponent == nullptr)
+    return;
+
+  // Seen while turning, like a skin is. Nothing is written — applySphereSize
+  // puts it in the skin file when the press confirms it.
+  _motionComponent->setSphereScalePreview (sphereSizes[index]);
 }
 
 void

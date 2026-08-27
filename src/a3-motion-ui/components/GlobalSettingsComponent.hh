@@ -54,6 +54,11 @@ public:
     juce::String name;
     std::vector<ValueItem> values;
     int activeIndex = 0;
+    /** A row that leads somewhere rather than holding a value. It has nothing
+     *  to choose between, so arming its value field is a press that asks a
+     *  question with one answer — it opens on the first press instead, and
+     *  says so with a chevron rather than the word "open". */
+    bool opensSubmenu = false;
   };
 
   explicit GlobalSettingsComponent ();
@@ -75,6 +80,10 @@ public:
 
   // Move between values of the current Option (edit level). Wraps around.
   void navigateValue (int delta);
+
+  /** Whether the row at `index` leads to a submenu rather than holding a
+   *  value — the caller opens it on the first press. */
+  bool opensSubmenu (int index) const;
 
   // Arming (selected=true) seeds the candidate value from the current
   // Option's active value, so turning the encoder starts from what's

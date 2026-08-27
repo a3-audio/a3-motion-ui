@@ -157,8 +157,19 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
                        ? item.colour
                        : toColour (theme ().textPrimary,
                                    theme ().alphaInactive));
-      g.drawText (item.value, valueArea, juce::Justification::centred, true);
+      g.drawText (option.opensSubmenu ? juce::String (">") : item.value,
+                  valueArea, juce::Justification::centred, true);
     }
+}
+
+
+bool
+GlobalSettingsComponent::opensSubmenu (int index) const
+{
+  if (index < 0 || index >= (int)_options.size ())
+    return false;
+
+  return _options[static_cast<size_t> (index)].opensSubmenu;
 }
 
 } // namespace a3

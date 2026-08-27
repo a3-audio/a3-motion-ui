@@ -214,6 +214,8 @@ private:
   void  applyBodySize (int index);
   /** The sphere's share of the shorter side, written into the active skin
    *  where it lives. */
+  /** Show a sphere size while the encoder is still turning. */
+  void previewSphereSize (int index);
   void  applySphereSize (int index);
   void  loadSphereSize ();
   /** Point config.json at another skin; the file watcher reloads it. */

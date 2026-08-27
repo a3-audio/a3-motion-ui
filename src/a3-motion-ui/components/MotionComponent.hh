@@ -80,6 +80,10 @@ public:
   void setBackgroundColour (juce::Colour const &colour);
 
   // Temporarily pause/resume GL redraws (keeps component alive and interactive).
+  /** Show a sphere size without writing it anywhere. The menu previews
+   *  while the encoder turns; only the press makes it the skin's. */
+  void setSphereScalePreview (float scale);
+
   void setRenderingPaused (bool paused);
 
   // VU-driven lighting: sphere glow and speaker spotlights
@@ -195,7 +199,10 @@ private:
   CoronaConfig _coronaCfg;
 
   // Sphere and blob size, as a share of the component's shorter side
-  float _sphereScale = 0.62f, _blobScale = 0.05f;
+  // Read every frame on the GL thread; the menu previews into it from the
+  // message thread while the encoder turns.
+  std::atomic<float> _sphereScale{ 0.62f };
+  float _blobScale = 0.05f;
 
   // Envelope time constants for the speaker beams, in seconds
   float _spotAttack = 0.08f, _spotDecay = 0.4f;

@@ -1134,6 +1134,12 @@ MotionComponent::renderOpenGL ()
 }
 
 void
+MotionComponent::setSphereScalePreview (float scale)
+{
+  _sphereScale = scale;
+}
+
+void
 MotionComponent::updateBoundsAndTransform ()
 {
   {
