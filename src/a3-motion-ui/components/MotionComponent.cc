@@ -567,12 +567,11 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           // the sphere and could snap it to the front on grab. No Pattern
           // is in scope here (this is a live/manual grab, not a clip) — use
           // whatever clip is currently playing on the channel, if any.
-          // Measured where the blob is drawn, which is where the finger sees
-          // it — anything else and the blob jumps on grab.
-          _uiStates[index]->grabOffset
-              = normalizedToLocal2DPosition (
-                    directionToDisc (_engine.getChannelPosition (index)))
-                - event.getPosition ().toFloat ();
+          // The blob jumps under the finger and stays there. Keeping the
+          // offset it was grabbed at is the mouse convention, and on a panel
+          // with a fat finger and a small blob it reads as the blob lagging
+          // beside the finger rather than being held by it.
+          _uiStates[index]->grabOffset = {};
           _grabbedIndex = index;
 
           // disocclusion: save anchor position for all channels
