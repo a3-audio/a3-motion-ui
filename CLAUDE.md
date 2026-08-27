@@ -151,9 +151,13 @@ Onboard types into whatever window has the focus, so text arrives as ordinary ke
 `SkinEditorComponent::keyPressed` is what turns them into edits. The icon at the right of the
 status bar toggles the keyboard, always.
 
-One machine-level setting matters: Onboard docks at the **top** by default, which covers the status
-bar and with it the icon that hides it again. `org.onboard.window docking-edge` must be `bottom`
-(see the README for the one-liner). It lives in the user's dconf database, not in this repo.
+Two machine-level settings matter, both in the user's dconf database rather than in this repo (see
+the README for the one-liners):
+
+- `org.onboard.window docking-edge` must be `bottom`. Onboard docks at the **top** by default,
+  which covers the status bar and with it the icon that hides it again.
+- `org.onboard theme` should be `Blackboard`, with `system-theme-tracking-enabled` off. Onboard
+  otherwise follows the system theme, which here is a light beige against a dark UI.
 
 A keyboard of the project's own used to live in `components/KeyboardComponent.{hh,cc}`; it was
 removed in favour of Onboard, which already maintains a layout, key faces and a press model.

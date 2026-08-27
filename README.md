@@ -110,8 +110,18 @@ python3 -c "from gi.repository import Gio; s = Gio.Settings.new('org.onboard.win
     s.set_boolean('docking-shrink-workarea', False)"
 ```
 
-(`gsettings` does the same thing if it is installed; the setting lives in the
-user's dconf database and survives restarts.)
+Onboard follows the system theme by default, which on this rig is a light beige
+that fights the dark UI. `Blackboard` is the one that matches; `Nightshade` and
+`DarkRoom` are the other dark ones it ships. Set it the same way:
+
+```
+python3 -c "from gi.repository import Gio; s = Gio.Settings.new('org.onboard'); \
+    s.set_boolean('system-theme-tracking-enabled', False); \
+    s.set_string('theme','/usr/share/onboard/themes/Blackboard.theme')"
+```
+
+(`gsettings` does the same thing if it is installed; both settings live in the
+user's dconf database and survive restarts.)
 
 ## Install JUCE
 - clone JUCE repo and checkout `develop` branch
