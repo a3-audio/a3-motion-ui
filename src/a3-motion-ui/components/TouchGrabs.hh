@@ -67,12 +67,19 @@ public:
   /** Whether no finger is on the screen at all. */
   bool empty () const;
 
+  /** The finger that has been down longest — the one a recording follows.
+   *  Oldest, not lowest-numbered: touch indices are slots that get reused as
+   *  fingers come and go, so the lowest one is not the first. */
+  std::optional<int> firstSource () const;
+
   /** Every channel currently held, in no particular order. Disocclusion pushes
    *  the untouched blobs away from all of these. */
   std::vector<index_t> heldChannels () const;
 
 private:
   std::map<int, std::optional<index_t> > _bySource;
+  /** Sources in the order they went down; _bySource is ordered by index. */
+  std::vector<int> _order;
 };
 
 }

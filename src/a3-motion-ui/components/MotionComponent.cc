@@ -551,10 +551,18 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
 
   if (_engine.isRecording ())
     {
+      // A recording follows one finger and has to keep following the same
+      // one. Every finger writing the position would make the trajectory
+      // jump between them — impossible with a single pointer, easy with ten.
+      auto const wasEmpty = _grabs.empty ();
       _grabs.down (source, {});
-      auto const posPixel = event.getPosition ().toFloat ();
-      auto const posHOA = localToNormalized2DPosition (posPixel);
-      _engine.setRecording2DPosition (posHOA);
+
+      if (wasEmpty)
+        {
+          auto const posPixel = event.getPosition ().toFloat ();
+          _engine.setRecording2DPosition (
+              localToNormalized2DPosition (posPixel));
+        }
     }
   else
     {
@@ -631,8 +639,9 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
 
   if (_engine.isRecording ())
     {
-      auto const posHOA = localToNormalized2DPosition (posPixel);
-      _engine.setRecording2DPosition (posHOA);
+      // Only the finger that started it; the others are along for the ride.
+      if (_grabs.firstSource () == std::optional<int>{ event.source.getIndex () })
+        _engine.setRecording2DPosition (localToNormalized2DPosition (posPixel));
     }
   else if (auto const grabbed = _grabs.channelFor (event.source.getIndex ()))
     {

@@ -20,12 +20,17 @@
 
 #include "TouchGrabs.hh"
 
+#include <algorithm>
+
 namespace a3
 {
 
 void
 TouchGrabs::down (int source, std::optional<index_t> channel)
 {
+  if (_bySource.find (source) == _bySource.end ())
+    _order.push_back (source);
+
   _bySource[source] = channel;
 }
 
@@ -58,6 +63,8 @@ TouchGrabs::up (int source)
 
   auto const channel = entry->second;
   _bySource.erase (entry);
+  _order.erase (std::remove (_order.begin (), _order.end (), source),
+                _order.end ());
 
   return channel;
 }
@@ -66,6 +73,15 @@ bool
 TouchGrabs::empty () const
 {
   return _bySource.empty ();
+}
+
+std::optional<int>
+TouchGrabs::firstSource () const
+{
+  if (_order.empty ())
+    return {};
+
+  return _order.front ();
 }
 
 std::vector<index_t>
