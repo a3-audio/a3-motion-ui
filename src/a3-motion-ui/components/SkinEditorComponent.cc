@@ -91,14 +91,15 @@ SkinEditorComponent::keyPressed (juce::KeyPress const &key)
 void
 SkinEditorComponent::setSkin (juce::var skin, juce::String const &name)
 {
-  setDocument (std::move (skin), name, true);
+  setDocument (std::move (skin), name, true, Numbers::Turned);
 }
 
 void
 SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
-                                  bool withSkinActions)
+                                  bool withSkinActions, Numbers numbers)
 {
   _actionRows = withSkinActions ? 4 : 0;
+  _numbers = numbers;
   _skin = std::move (document);
   _name = title;
   _parameters = skinParameters (_skin);
@@ -299,6 +300,13 @@ SkinEditorComponent::toggleEditing ()
             repaint ();
             if (onNamingChanged)
               onNamingChanged (true);
+            return;
+          }
+
+        // A config number is typed, a skin number is dialled — see Numbers.
+        if (_numbers == Numbers::Typed)
+          {
+            beginTypingBrowsedRow ();
             return;
           }
 

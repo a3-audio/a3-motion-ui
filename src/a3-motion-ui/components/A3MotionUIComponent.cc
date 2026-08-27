@@ -1603,14 +1603,14 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
         { potSizeLabels[3] },
         { potSizeLabels[4] } },
       _potSizeIndex },
-    { "Header Size",
+    { "Header Font Size",
       { { fontSizeLabels[0] },
         { fontSizeLabels[1] },
         { fontSizeLabels[2] },
         { fontSizeLabels[3] },
         { fontSizeLabels[4] } },
       _headerSizeIndex },
-    { "Body Size",
+    { "Body Font Size",
       { { fontSizeLabels[0] },
         { fontSizeLabels[1] },
         { fontSizeLabels[2] },
@@ -1814,7 +1814,8 @@ A3MotionUIComponent::openConfigPage (juce::String const &title,
     }
 
   _configPageKeys = keys;
-  _skinEditor->setDocument (juce::var (slice), title, false);
+  _skinEditor->setDocument (juce::var (slice), title, false,
+                            SkinEditorComponent::Numbers::Typed);
   _skinEditorOpen = true;
   _globalSettings->setVisible (false);
   _skinEditor->setVisible (true);

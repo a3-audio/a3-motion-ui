@@ -52,7 +52,8 @@ browseTo (SkinEditorComponent &editor, juce::String const &path)
 TEST (SkinEditorTyping, APortIsARowThatCanBeTyped)
 {
   SkinEditorComponent editor;
-  editor.setDocument (networkSlice (), "Network", false);
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
 
   ASSERT_TRUE (browseTo (editor, "oscReceiver.port"));
   EXPECT_TRUE (editor.canTypeBrowsedRow ());
@@ -61,7 +62,8 @@ TEST (SkinEditorTyping, APortIsARowThatCanBeTyped)
 TEST (SkinEditorTyping, TypingAPortOpensAFieldHoldingItsCurrentValue)
 {
   SkinEditorComponent editor;
-  editor.setDocument (networkSlice (), "Network", false);
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
   ASSERT_TRUE (browseTo (editor, "oscReceiver.port"));
 
   EXPECT_TRUE (editor.beginTypingBrowsedRow ());
@@ -76,7 +78,8 @@ TEST (SkinEditorTyping, TypingAPortOpensAFieldHoldingItsCurrentValue)
 TEST (SkinEditorTyping, APortCanBeTypedWhileTheKeyboardIsAlreadyUp)
 {
   SkinEditorComponent editor;
-  editor.setDocument (networkSlice (), "Network", false);
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
 
   // Somebody typed the host first, and left the keyboard on screen.
   ASSERT_TRUE (browseTo (editor, "oscReceiver.host"));
@@ -86,6 +89,74 @@ TEST (SkinEditorTyping, APortCanBeTypedWhileTheKeyboardIsAlreadyUp)
   ASSERT_TRUE (browseTo (editor, "oscReceiver.port"));
   EXPECT_TRUE (editor.beginTypingBrowsedRow ());
   EXPECT_TRUE (editor.isNaming ());
+}
+
+// Pressing the encoder is how somebody reaches a value, and on a port that has
+// to mean typing: turning is fine for a tuning number watched on the sphere,
+// and useless across ten thousand port numbers. Config pages therefore type
+// their numbers; the skin editor keeps turning them, which is the whole point
+// of editing a skin on the device.
+
+TEST (SkinEditorPress, PressingAPortRowOpensTypingOnAConfigPage)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
+  ASSERT_TRUE (browseTo (editor, "oscReceiver.port"));
+
+  editor.toggleEditing ();
+
+  EXPECT_TRUE (editor.isNaming ());
+  EXPECT_FALSE (editor.isEditing ()) << "typing, not armed for turning";
+  EXPECT_EQ (editor.typedText ().trim (), "7771");
+}
+
+TEST (SkinEditorPress, ATypedPortFromTheEncoderReachesTheDocument)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
+  ASSERT_TRUE (browseTo (editor, "oscReceiver.port"));
+
+  editor.toggleEditing ();
+  for (int i = 0; i < 8; ++i)
+    editor.backspaceName ();
+  for (auto c : { '7', '7', '9', '9' })
+    editor.typeIntoName ((juce::juce_wchar)c);
+  editor.finishNaming ();
+
+  EXPECT_EQ ((int)editor.getSkin ()["oscReceiver"]["port"], 7799);
+}
+
+TEST (SkinEditorPress, PressingANumberInTheSkinEditorStillArmsItForTurning)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (juce::JSON::parse (R"({"sphereScale": 0.62})"), "default",
+                      true, SkinEditorComponent::Numbers::Turned);
+  ASSERT_TRUE (browseTo (editor, "sphereScale"));
+
+  editor.toggleEditing ();
+
+  EXPECT_TRUE (editor.isEditing ());
+  EXPECT_FALSE (editor.isNaming ()) << "a skin value is dialled, not typed";
+
+  editor.navigate (1);
+  EXPECT_NE ((double)editor.getSkin ()["sphereScale"], 0.62);
+}
+
+// A host was always typed on press; that must not have changed with the
+// numbers.
+TEST (SkinEditorPress, PressingAHostRowStillOpensTyping)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
+  ASSERT_TRUE (browseTo (editor, "oscReceiver.host"));
+
+  editor.toggleEditing ();
+
+  EXPECT_TRUE (editor.isNaming ());
+  EXPECT_EQ (editor.typedText ().trim (), "0.0.0.0");
 }
 
 // The typing field used to be two list rows tall whatever the font, while the
@@ -129,7 +200,8 @@ TEST (SkinEditorTypingField, TheCaretSitsJustUnderTheText)
 TEST (SkinEditorTyping, ATypedPortReachesTheDocument)
 {
   SkinEditorComponent editor;
-  editor.setDocument (networkSlice (), "Network", false);
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
   ASSERT_TRUE (browseTo (editor, "oscReceiver.port"));
   ASSERT_TRUE (editor.beginTypingBrowsedRow ());
 

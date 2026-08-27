@@ -70,10 +70,23 @@ public:
    *  actions on top; see setDocument for anything else. */
   void setSkin (juce::var skin, juce::String const &name);
 
+  /** What pressing the encoder on a number row does.
+   *
+   *  A skin value is `Turned`: it is dialled while the sphere it changes is in
+   *  view, which is the reason to edit a skin on the device at all. A config
+   *  value is `Typed`: a port is a number somebody knows, and turning an
+   *  encoder across ten thousand of them is not a way to reach it. Text and
+   *  colour rows ignore this — they were always typed and picked. */
+  enum class Numbers
+  {
+    Turned,
+    Typed,
+  };
+
   /** Any other document — a slice of config.json, say. Same list, same two
    *  encoder levels, no skin actions. */
   void setDocument (juce::var document, juce::String const &title,
-                    bool withSkinActions);
+                    bool withSkinActions, Numbers numbers);
   juce::var const &getSkin () const { return _skin; }
   juce::String const &getSkinName () const { return _name; }
 
@@ -173,6 +186,7 @@ private:
   /** Set while a text parameter, rather than a skin name, is being typed. */
   juce::String _textPath;
   bool _typingNumber = false;
+  Numbers _numbers = Numbers::Turned;
 };
 
 }
