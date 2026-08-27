@@ -152,6 +152,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     applyBodySize (std::clamp (settings.bodySizeIndex, 0, numFontSizes - 1));
   }
 
+  loadSphereSize ();
+
   // Start directory monitor: check for new/changed SVG files every 2 seconds
   startTimer (2000);
 
@@ -1646,6 +1648,13 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
   for (auto const &name : _skinNames)
     skinValues.push_back ({ name });
 
+  options.push_back ({ "Sphere Size",
+                       { { sphereSizeLabels[0] },
+                         { sphereSizeLabels[1] },
+                         { sphereSizeLabels[2] },
+                         { sphereSizeLabels[3] },
+                         { sphereSizeLabels[4] } },
+                       _sphereSizeIndex });
   options.push_back ({ "Skin", std::move (skinValues), _skinIndex });
   options.push_back ({ "Skin Editor", { { "open" } }, 0 });
   options.push_back ({ "Network", { { "open" } }, 0 });
@@ -1692,6 +1701,7 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
     case MenuRow::PotSize: applyPotSize (chosen); break;
     case MenuRow::HeaderSize: applyHeaderSize (chosen); break;
     case MenuRow::BodySize: applyBodySize (chosen); break;
+    case MenuRow::SphereSize: applySphereSize (chosen); break;
     case MenuRow::Skin: applySkin (chosen); break;
     case MenuRow::SkinEditor: openSkinEditor (); break;
     case MenuRow::Network:
@@ -2105,6 +2115,47 @@ A3MotionUIComponent::saveEditedSkin ()
   file.replaceWithText (
       juce::JSON::toString (_skinEditor->getSkin (), false) + "\n", false,
       false, "\n");
+}
+
+void
+A3MotionUIComponent::loadSphereSize ()
+{
+  // Whichever of the offered sizes the active skin is nearest to, so the
+  // menu opens on what is actually on screen.
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              activeSkinName (getConfigFile ()));
+  auto const skin = juce::JSON::parse (file.loadFileAsString ());
+  auto const scale = skinValue (skin, "sphereScale");
+
+  if (scale <= 0.0)
+    return;
+
+  auto nearest = 0;
+  for (int i = 1; i < numSphereSizes; ++i)
+    if (std::abs (sphereSizes[i] - scale) < std::abs (sphereSizes[nearest] - scale))
+      nearest = i;
+
+  _sphereSizeIndex = nearest;
+}
+
+void
+A3MotionUIComponent::applySphereSize (int index)
+{
+  _sphereSizeIndex = juce::jlimit (0, numSphereSizes - 1, index);
+
+  // The sphere's size is part of the look, so it lives in the skin next to
+  // everything else that is — not in a settings file of its own. Written
+  // there, and the watcher does the rest.
+  auto const file = skinFile (getConfigFile ().getParentDirectory (),
+                              activeSkinName (getConfigFile ()));
+
+  auto skin = juce::JSON::parse (file.loadFileAsString ());
+  if (skin.getDynamicObject () == nullptr)
+    return;
+
+  setSkinValue (skin, "sphereScale", sphereSizes[_sphereSizeIndex]);
+  file.replaceWithText (juce::JSON::toString (skin, false) + "\n", false,
+                        false, "\n");
 }
 
 void

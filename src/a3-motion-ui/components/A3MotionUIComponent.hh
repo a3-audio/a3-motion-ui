@@ -213,6 +213,10 @@ private:
    *  its own, then persist. */
   void  refreshFonts ();
   void  applyBodySize (int index);
+  /** The sphere's share of the shorter side, written into the active skin
+   *  where it lives. */
+  void  applySphereSize (int index);
+  void  loadSphereSize ();
   /** Point config.json at another skin; the file watcher reloads it. */
   /** Show a skin without making it the one that runs. */
   void  previewSkin (int index);
@@ -261,6 +265,7 @@ private:
     PotSize,
     HeaderSize,
     BodySize,
+    SphereSize,
     Skin,
     SkinEditor,
     Network,
@@ -280,6 +285,7 @@ private:
   // a saved index has to become a factor at startup, before any menu exists.
   int _headerSizeIndex = 1; // default 100%
   int _bodySizeIndex = 1;   // default 100%
+  int _sphereSizeIndex = 2; // the middle of sphereSizes
   std::unique_ptr<SkinEditorComponent> _skinEditor;
   std::unique_ptr<KeyboardComponent> _keyboard;
   std::unique_ptr<ColourPickerComponent> _colourPicker;
@@ -290,6 +296,14 @@ private:
   juce::StringArray _configPageKeys;
   juce::StringArray _skinNames;
   int _skinIndex = 0;
+  /** The sphere's share of the shorter side. 0.62 is what the tuned look
+   *  ships with and sits in the middle. */
+  static constexpr float sphereSizes[] = { 0.45f, 0.54f, 0.62f, 0.72f, 0.82f };
+  static constexpr int numSphereSizes
+      = static_cast<int> (sizeof (sphereSizes) / sizeof (sphereSizes[0]));
+  static constexpr char const *sphereSizeLabels[]
+      = { "small", "smaller", "default", "larger", "large" };
+
   static constexpr char const *fontSizeLabels[] = { "75%", "100%", "125%",
                                                      "150%", "175%" };
 

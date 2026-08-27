@@ -837,9 +837,12 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     _sphereShader.setEnergyConfig (ec);
     _sphereShader.setEnergyTexture (_energyTexture);
 
-    auto const &ui = config["ui"];
-    _sphereScale = cfgF (ui, "sphereScale", reduceFactorCircleDefault);
-    _blobScale = cfgF (ui, "blobScale", reduceFactorBlobsDefault);
+    // Top level of the skin, which is where they are written — they used to
+    // be read from config["ui"], a place the skin has nothing in, so both
+    // silently kept their built-in defaults. Nobody noticed because the
+    // shipped skin says exactly what those defaults are.
+    _sphereScale = cfgF (config, "sphereScale", reduceFactorCircleDefault);
+    _blobScale = cfgF (config, "blobScale", reduceFactorBlobsDefault);
 
     _spotAttack = cfgF (sl, "attack", 0.08f);
     _spotDecay = cfgF (sl, "decay", 0.4f);
