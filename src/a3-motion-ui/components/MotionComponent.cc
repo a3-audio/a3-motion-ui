@@ -572,6 +572,13 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           // with a fat finger and a small blob it reads as the blob lagging
           // beside the finger rather than being held by it.
           _uiStates[index]->grabOffset = {};
+
+          // Put it there now rather than on the first movement: "jumps under
+          // the finger when grabbed" means when grabbed, and a touch that
+          // presses without moving would otherwise leave it where it was.
+          _engine.setChannel3DPosition (
+              index, discToDirection (localToNormalized2DPosition (
+                         event.getPosition ().toFloat ())));
           _grabbedIndex = index;
 
           // disocclusion: save anchor position for all channels
