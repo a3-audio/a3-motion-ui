@@ -56,15 +56,19 @@ themeFloat (juce::var const &skin, char const *name, float fallback)
 float
 Theme::fontSize (FontRole role) const
 {
-  auto const base = role == FontRole::Header ? fontHeader : fontBody;
-
-  return base * scaleFor (role);
+  return role == FontRole::Header ? fontHeader : fontBody;
 }
 
 float
 Theme::scaleFor (FontRole role) const
 {
-  return role == FontRole::Header ? headerScale : bodyScale;
+  // Against the built-in defaults, which are what the components that scale
+  // JUCE's own fonts were written around.
+  constexpr float defaultHeader = 18.f;
+  constexpr float defaultBody = 15.f;
+
+  return role == FontRole::Header ? fontHeader / defaultHeader
+                                  : fontBody / defaultBody;
 }
 
 ThemeColour
@@ -109,23 +113,6 @@ fontScaleForIndex (int index)
 
 namespace
 {
-float
-usableScale (float scale)
-{
-  return juce::jlimit (0.25f, 4.f, scale);
-}
-}
-
-void
-setHeaderScale (float scale)
-{
-  mutableTheme ().headerScale = usableScale (scale);
-}
-
-void
-setBodyScale (float scale)
-{
-  mutableTheme ().bodyScale = usableScale (scale);
 }
 
 Theme const &
@@ -326,6 +313,7 @@ loadTheme (juce::var const &skin)
 
   theme.fontHeader = themeFloat (skin, "fontHeader", theme.fontHeader);
   theme.fontBody = themeFloat (skin, "fontBody", theme.fontBody);
+  theme.potSize = themeFloat (skin, "potSize", theme.potSize);
 
   return theme;
 }

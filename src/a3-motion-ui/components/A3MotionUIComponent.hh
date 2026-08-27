@@ -272,14 +272,6 @@ private:
     PatternFolder,
     SphereInMenu,
   };
-  // Index into potSizeScales/potSizeLabels — scales every knob/toggle in
-  // ClipSettingsComponent uniformly (see ClipSettingsComponent::
-  // setPotSizeScale()), adjustable live from the Global Settings menu.
-  int _potSizeIndex = 1; // default 100%
-  static constexpr float potSizeScales[] = { 0.75f, 1.0f, 1.25f, 1.5f,
-                                             1.75f };
-  static constexpr char const *potSizeLabels[] = { "75%", "100%", "125%",
-                                                    "150%", "175%" };
   // Index into the theme's scale table; the factor itself lives there, because
   // a saved index has to become a factor at startup, before any menu exists.
   int _headerSizeIndex = 1; // default 100%
@@ -296,8 +288,6 @@ private:
   /** The sphere's share of the shorter side. 0.62 is what the tuned look
    *  ships with and sits in the middle. */
 
-  static constexpr char const *fontSizeLabels[] = { "75%", "100%", "125%",
-                                                     "150%", "175%" };
 
   // Persisted UI preferences (Clockmode, Pot Size, Font Size) — a small
   // JSON file alongside config.json (see StandaloneApp.cc's config.json

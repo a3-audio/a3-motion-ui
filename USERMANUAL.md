@@ -204,10 +204,6 @@ drücken, um den Wert zu bearbeiten, ein zweites Mal, um zu bestätigen.
 | Einstellung | Werte | Beschreibung |
 |---|---|---|
 | Clockmode | INT / EXT / PIO | INT: Der Controller gibt das Tempo selbst vor (Tap-Tempo). EXT/PIO: folgt einer eingehenden OSC-Beatclock. |
-| Pot Size | 75 – 175 % | Einheitliche Größe aller Drehregler/Umschalter im Clip-Einstellungen-Panel. |
-| Header Font Size | 75 – 175 % | Schriftgröße von Statusleiste und Abschnittsüberschriften. |
-| Body Font Size | 75 – 175 % | Schriftgröße von Beschriftungen und Werten, unabhängig von Pot Size. |
-| Sphere Size | small … large | Durchmesser der Sphäre. |
 | Skin | *(vorhandene Skins)* | Farb- und Formschema. Das Bild wechselt schon beim Drehen; erst der Druck macht den Skin zum laufenden. |
 | Skin Editor | open | Jeder Wert des laufenden Skins, einzeln editierbar — dazu Speichern, Als neu speichern, Umbenennen, Löschen. |
 | Network | open | OSC-Hosts und -Ports. Wirken erst nach einem Neustart, weil sie beim Öffnen der Sockets gelesen werden. |
@@ -216,6 +212,13 @@ drücken, um den Wert zu bearbeiten, ein zweites Mal, um zu bestätigen.
 | Sphere in Menu | an / aus | Ob die Sphäre hinter dem geöffneten Menü sichtbar bleibt. |
 
 Die Einstellungen bleiben nach einem Neustart erhalten.
+
+**Größen und Schriften stehen nicht hier, sondern im Skin.** Sphärengröße,
+Reglergröße und die beiden Schriftgrößen sind Teil des Aussehens und wandern
+deshalb mit dem Skin mit — zu finden im **Skin Editor** als `sphereScale`,
+`potSize`, `fontHeader` und `fontBody`. Sie standen einmal als Prozentstufen in
+diesem Menü, während ihre Basiswerte schon im Skin lagen; ein Skinwechsel
+verschob dann die eine Hälfte und ließ die andere stehen.
 
 ### 8.1 Werte eingeben
 
@@ -273,9 +276,10 @@ Standardwert.
 | Filter | Sweep | 0 – 1 | 0 |
 | Filter | Q | 0 – 1 | 0 |
 | Global | Clockmode | INT/EXT/PIO | INT |
-| Global | Pot Size | 75–175 % | 100 % |
-| Global | Header Font Size | 75–175 % | 100 % |
-| Global | Body Font Size | 75–175 % | 100 % |
+| Skin | potSize | Faktor | 1.0 |
+| Skin | fontHeader | px | 18 |
+| Skin | fontBody | px | 15 |
+| Skin | sphereScale | Faktor | 0.62 |
 
 ## 11. Problembehandlung
 

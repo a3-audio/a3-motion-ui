@@ -78,7 +78,8 @@ namespace
 juce::Font
 scaled (juce::Font font)
 {
-  return font.withHeight (font.getHeight () * theme ().bodyScale);
+  return font.withHeight (font.getHeight ()
+                          * theme ().scaleFor (FontRole::Body));
 }
 }
 
@@ -111,10 +112,8 @@ LookAndFeel_A3::getTextButtonFont (juce::TextButton &button, int buttonHeight)
 void
 applyThemeEverywhere (Theme loaded, juce::Component &inTree)
 {
-  // The menu's font factors come from the settings file, not from the skin,
-  // and reloading one must not discard the other.
-  loaded.headerScale = theme ().headerScale;
-  loaded.bodyScale = theme ().bodyScale;
+  // Nothing to carry over any more: the sizes are the skin's, so a reload
+  // brings them along instead of having to be spared from it.
   setTheme (loaded);
 
   // The LookAndFeel does cache: findColour reads what setColour last wrote,

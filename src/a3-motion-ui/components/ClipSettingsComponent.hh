@@ -64,7 +64,7 @@ namespace a3
  * Motion/Filter's roomier single-row layouts, rather than each stretching
  * to fill its own section's grid cell; a control's caption sits directly
  * below it, and a value display's value directly above its caption. That
- * shared size scales with setPotSizeScale(), and its text separately via
+ * shared size scales with the skin's potSize, and its text separately via
  * the theme's font scale — both driven by their own Global Settings
  * options ("Pot Size"/"Font Size"), adjustable live without a rebuild.
  * Every caption in the bar is drawn at one size, from the tightest
@@ -149,8 +149,7 @@ public:
   /** Scale factor for every knob/toggle's shared size (see class doc) —
    *  1.0 = default. Set from A3MotionUIComponent's Global Settings "Pot
    *  Size" option, so it's adjustable live on the device without a
-   *  rebuild. */
-  void setPotSizeScale (float scale);
+
 
   /** One-line terminal-style readout of the last-operated control, shown
    *  top-right (e.g. "CH2 POT1 0.73"). Global, independent of setTarget(). */
@@ -205,7 +204,7 @@ private:
    *  text above), centred within `cell` — every knob/toggle across every
    *  section is given bounds built this way, so they all render at
    *  identical size regardless of how roomy their own section's grid cell
-   *  happens to be (see class doc / setPotSizeScale()). */
+   *  happens to be (see class doc / the skin's potSize). */
   juce::Rectangle<int> controlBounds (juce::Rectangle<int> cell,
                                       int knobDiam) const;
   /** Height of a section's title row, from the Header role. */
@@ -282,7 +281,6 @@ private:
   float _filterQ = 0.0f;
   int _filterSubIndex = 0;
   int _selectedIndex = 0;
-  float _potSizeScale = 1.0f;
 
   static constexpr int paddingH = 16;
 

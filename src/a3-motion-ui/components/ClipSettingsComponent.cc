@@ -202,12 +202,6 @@ ClipSettingsComponent::setSelectedParameterIndex (int index)
   repaint ();
 }
 
-void
-ClipSettingsComponent::setPotSizeScale (float scale)
-{
-  _potSizeScale = std::clamp (scale, 0.25f, 4.0f);
-  repaint ();
-}
 
 void
 ClipSettingsComponent::setLastControlReadout (juce::String const &text)
@@ -263,7 +257,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // controlBounds()) — sized to comfortably fit Elevation's tightest
   // layout (its own small label row, then a graphic, then a 2x3 grid of
   // controls), then reused as-is by Motion/Filter's roomier single-row
-  // layouts. Scales with _potSizeScale (Global Settings "Pot Size").
+  // layouts. Scales with theme ().potSize (Global Settings "Pot Size").
   auto const elevationLabelH = titleRowHeight (area);
   auto const elevationGraphicH = static_cast<int> (
       static_cast<float> (area.getHeight () - elevationLabelH) * 0.34f);
@@ -276,7 +270,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // capped the font — see clipSettingsPreferredHeight().
   juce::ignoreUnused (elevationRowH, elevationColW);
   auto const knobDiam
-      = knobDiameterForFont (theme ().fontSize (FontRole::Body), _potSizeScale);
+      = knobDiameterForFont (theme ().fontSize (FontRole::Body), theme ().potSize);
 
   // One size for every caption in the bar, decided here rather than inside
   // each control. Fitting a caption to its own box drew "Q" three times the
@@ -394,7 +388,7 @@ ClipSettingsComponent::preferredHeight (int width) const
   // body font, and the bar follows the boxes.
   juce::ignoreUnused (width);
   auto const knobDiam
-      = knobDiameterForFont (theme ().fontSize (FontRole::Body), _potSizeScale);
+      = knobDiameterForFont (theme ().fontSize (FontRole::Body), theme ().potSize);
 
   return clipSettingsPreferredHeight (theme ().fontSize (FontRole::Header),
                                       theme ().fontSize (FontRole::Body),

@@ -128,23 +128,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _clipSettings->setVisible (true);
   selectClip (0, 0); // sensible default before any button has been pressed
 
-  // Restore Clockmode/Pot Size/Font Size from the last session, if any.
-  {
-    // loadSettings() deliberately returns raw parsed values; clamping stays
-    // here because it guards indexing into potSizeScales/fontSizeScales —
-    // same clamp the old loadPersistedSettings() applied. Dropping it would
-    // make a hand-edited/corrupt ui_state.json an out-of-bounds read.
-    auto constexpr numPotSizes
-        = static_cast<int> (sizeof (potSizeScales) / sizeof (potSizeScales[0]));
-    auto constexpr numFontSizes = static_cast<int> (
-        numFontScales);
-
-    auto const settings = loadSettings (getPersistedSettingsFile ());
-    applyClockMode (settings.clockMode);
-    applyPotSize (std::clamp (settings.potSizeIndex, 0, numPotSizes - 1));
-    applyHeaderSize (std::clamp (settings.headerSizeIndex, 0, numFontSizes - 1));
-    applyBodySize (std::clamp (settings.bodySizeIndex, 0, numFontSizes - 1));
-  }
+  // Clockmode is all that is left to restore. Pot Size and the two font sizes
+  // are the skin's now, and the skin brings its own.
+  applyClockMode (loadSettings (getPersistedSettingsFile ()).clockMode);
 
 
   // Start directory monitor: check for new/changed SVG files every 2 seconds
@@ -1613,27 +1599,6 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
         { "EXT" },
         { "PIO" } },
       _clockMode },
-    { "Pot Size",
-      { { potSizeLabels[0] },
-        { potSizeLabels[1] },
-        { potSizeLabels[2] },
-        { potSizeLabels[3] },
-        { potSizeLabels[4] } },
-      _potSizeIndex },
-    { "Header Font Size",
-      { { fontSizeLabels[0] },
-        { fontSizeLabels[1] },
-        { fontSizeLabels[2] },
-        { fontSizeLabels[3] },
-        { fontSizeLabels[4] } },
-      _headerSizeIndex },
-    { "Body Font Size",
-      { { fontSizeLabels[0] },
-        { fontSizeLabels[1] },
-        { fontSizeLabels[2] },
-        { fontSizeLabels[3] },
-        { fontSizeLabels[4] } },
-      _bodySizeIndex },
   };
 
   // Built from what is actually in config/skins, so a skin added on the
@@ -1689,9 +1654,6 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
   switch (static_cast<MenuRow> (_globalSettingsOptionIndex))
     {
     case MenuRow::ClockMode: applyClockMode (chosen); break;
-    case MenuRow::PotSize: applyPotSize (chosen); break;
-    case MenuRow::HeaderSize: applyHeaderSize (chosen); break;
-    case MenuRow::BodySize: applyBodySize (chosen); break;
     case MenuRow::Skin: applySkin (chosen); break;
     case MenuRow::SkinEditor: openSkinEditor (); break;
     case MenuRow::Network:
@@ -1746,45 +1708,11 @@ A3MotionUIComponent::applyClockMode (int mode)
   _oscSender.send (clockModeMsg);
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _potSizeIndex, _headerSizeIndex,
-                            _bodySizeIndex });
+               AppSettings{ _clockMode });
 }
 
-void
-A3MotionUIComponent::applyPotSize (int index)
-{
-  if (index == _potSizeIndex)
-    return;
 
-  _potSizeIndex = index;
-  if (_clipSettings)
-    _clipSettings->setPotSizeScale (potSizeScales[index]);
 
-  saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _potSizeIndex, _headerSizeIndex,
-                            _bodySizeIndex });
-}
-
-void
-A3MotionUIComponent::applyHeaderSize (int index)
-{
-  // No early return, and no single receiver. The old version did both, and
-  // between them they were the whole bug: a saved index equal to the startup
-  // default jumped straight out, and the one component it did reach was the
-  // only thing that ever grew. The factors now sit at the theme, where every
-  // component reads them, so the work here is a float and a repaint.
-  _headerSizeIndex = juce::jlimit (0, numFontScales - 1, index);
-  setHeaderScale (fontScaleForIndex (_headerSizeIndex));
-  refreshFonts ();
-}
-
-void
-A3MotionUIComponent::applyBodySize (int index)
-{
-  _bodySizeIndex = juce::jlimit (0, numFontScales - 1, index);
-  setBodyScale (fontScaleForIndex (_bodySizeIndex));
-  refreshFonts ();
-}
 
 void
 A3MotionUIComponent::openSkinEditor ()
@@ -2182,8 +2110,7 @@ A3MotionUIComponent::refreshFonts ()
     root->repaint ();
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _potSizeIndex, _headerSizeIndex,
-                            _bodySizeIndex });
+               AppSettings{ _clockMode });
 }
 
 juce::File

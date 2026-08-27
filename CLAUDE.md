@@ -122,8 +122,8 @@ High-level structure, top to bottom in `A3MotionUIComponent::resized()`: `Status
 the screen split into `MotionComponent` (the sphere) and, docked to the bottom quarter, the
 "settings area" — `ClipSettingsComponent` (permanent, shows the last-selected clip's 7 parameters:
 Trajectory Shape/Speed/Direction/End-Action/Scale/Sweep/Q) with `GlobalSettingsComponent`
-(Clockmode, Pot Size, Header/Body Size, Sphere Size, Skin, Skin Editor, Network, Button LEDs,
-Pattern Folder, Sphere in Menu — opened by the Menu button) drawn on top of it while open. Both settings
+(Clockmode, Skin, Skin Editor, Network, Button LEDs, Pattern Folder, Sphere in Menu — opened by
+the Menu button; sizes and fonts are skin values, edited in the Skin Editor) drawn on top of it while open. Both settings
 components share that bottom-quarter rect, carved out of `MotionComponent`'s actual bounds rather
 than just overlaid — `MotionComponent` renders via its own directly-attached `OpenGLContext`, which
 always composites above normal JUCE components regardless of z-order/`toFront()`, so nothing can

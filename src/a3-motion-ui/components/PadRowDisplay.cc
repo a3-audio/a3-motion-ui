@@ -98,7 +98,7 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
   if (cell.trajectoryType == TrajectoryType::Empty && !cell.icon.hasIcon)
     {
       // "---" label: dark outline + channel colour fill
-      g.setFont (LayoutHints::fontSize * 0.7f * theme ().bodyScale);
+      g.setFont (LayoutHints::fontSize * 0.7f * theme ().scaleFor (FontRole::Body));
       auto const outlineColour = toColour (theme ().surface, padOutlineOpacity);
       g.setColour (outlineColour);
       for (int dx = -1; dx <= 1; ++dx)
@@ -122,7 +122,7 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
       if (cell.categoryPrefix.isNotEmpty ())
         {
           auto const fontSize = h * 0.7f;
-          g.setFont (fontSize * theme ().bodyScale);
+          g.setFont (fontSize * theme ().scaleFor (FontRole::Body));
           auto prefixArea = boundsF.removeFromLeft (prefixWidth)
                                 .withTrimmedLeft (2.f);
 
@@ -151,7 +151,7 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
         {
           auto beatsStr = juce::String (cell.lengthBeats);
           auto const fontSize = h * 0.7f;
-          g.setFont (fontSize * theme ().bodyScale);
+          g.setFont (fontSize * theme ().scaleFor (FontRole::Body));
           auto beatsArea = boundsF.removeFromLeft (beatsWidth);
 
           // Dark outline for readability

@@ -175,5 +175,8 @@
     "b": 255
   },
   "alphaDisabled": 0.3,
-  "alphaInactive": 0.65
+  "alphaInactive": 0.65,
+  "fontHeader": 18.0,
+  "fontBody": 15.0,
+  "potSize": 1.0
 }

@@ -98,16 +98,21 @@ struct Theme
   float strokeThin = 1.f;
   float strokeThick = 2.f;
 
-  // Font base sizes, before the menu's factors
+  // Font sizes, absolute and straight out of the skin. They used to be base
+  // sizes with a percentage from the menu on top — two sources for one size,
+  // where switching skin moved one and left the other.
   float fontHeader = 18.f;
   float fontBody = 15.f;
 
-  /** Set by the two size settings in the menu. Multiply their role's base
-   *  size, so no component can be forgotten when one changes. */
-  float headerScale = 1.f;
-  float bodyScale = 1.f;
+  /** Knob and toggle size in the clip settings bar, relative to the built-in
+   *  size. Part of the look, so it lives with the rest of it. */
+  float potSize = 1.f;
 
   float fontSize (FontRole role) const;
+
+  /** What this skin's size is, relative to the built-in one. Derived, never
+   *  set: it is how the few places that scale JUCE's own fonts (LookAndFeel,
+   *  PadRowDisplay) follow the skin without becoming a second source. */
   float scaleFor (FontRole role) const;
 };
 
@@ -138,9 +143,6 @@ float fontScaleForIndex (int index);
 
 /** Set only one menu factor, leaving the skin's own values — and the other
  *  factor — untouched. Skin and settings arrive from different files at
- *  different times, and neither may throw the other away. */
-void setHeaderScale (float scale);
-void setBodyScale (float scale);
 
 /** The theme in force. Written only while loading, on the message thread; the
  *  GL thread copies what it needs per frame, as it already does with the

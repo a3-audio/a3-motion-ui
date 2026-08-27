@@ -86,7 +86,7 @@ ElevationDisplay::paintCell (juce::Graphics &g,
   // Content: "ELV" and coverage value
   // Use dark outline + channel colour text for readability on coloured bg
   auto boundsF = bounds.toFloat ().reduced (2.f);
-  auto const font = juce::Font (h * 0.55f * theme ().bodyScale);
+  auto const font = juce::Font (h * 0.55f * theme ().scaleFor (FontRole::Body));
   g.setFont (font);
 
   auto const outlineColour = toColour (theme ().surface, outlineOpacity);

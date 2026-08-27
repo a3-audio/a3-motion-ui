@@ -200,3 +200,69 @@ TEST (Theme, TheTunedBlocksLeftTheConfig)
 }
 
 }
+
+// ── Schriftgrößen und Pot Size liegen im Skin ───────────────────────────
+//
+// Bis 2026-08-28 war die Basisgröße im Skin und ein Prozentfaktor daneben in
+// ui_state.json — zwei Quellen für eine Größe, und beim Skinwechsel änderte
+// sich die eine, während die andere stehenblieb. Jetzt trägt der Skin den
+// absoluten Wert, und die Skalen werden daraus abgeleitet, damit LookAndFeel
+// und PadRowDisplay JUCEs eigene Schriften weiterhin mitziehen können.
+
+TEST (SkinSizes, TheSkinCarriesTheFontSizes)
+{
+  auto const theme = loadTheme (
+      juce::JSON::parse (R"({"fontHeader": 24.0, "fontBody": 20.0})"));
+
+  EXPECT_FLOAT_EQ (theme.fontSize (FontRole::Header), 24.f);
+  EXPECT_FLOAT_EQ (theme.fontSize (FontRole::Body), 20.f);
+}
+
+TEST (SkinSizes, ASkinWithoutThemFallsBackToTheDefaults)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_FLOAT_EQ (theme.fontSize (FontRole::Header), 18.f);
+  EXPECT_FLOAT_EQ (theme.fontSize (FontRole::Body), 15.f);
+}
+
+// The scales are no longer set from anywhere — they are what the skin's size
+// is, relative to the built-in one. That keeps the one place JUCE's own fonts
+// are scaled (LookAndFeel, PadRowDisplay) working off the same single source.
+TEST (SkinSizes, TheScalesFollowTheSkinRatherThanBeingSet)
+{
+  auto const theme = loadTheme (
+      juce::JSON::parse (R"({"fontHeader": 36.0, "fontBody": 30.0})"));
+
+  EXPECT_FLOAT_EQ (theme.scaleFor (FontRole::Header), 2.f);
+  EXPECT_FLOAT_EQ (theme.scaleFor (FontRole::Body), 2.f);
+}
+
+TEST (SkinSizes, TheDefaultSkinScalesByOne)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_FLOAT_EQ (theme.scaleFor (FontRole::Header), 1.f);
+  EXPECT_FLOAT_EQ (theme.scaleFor (FontRole::Body), 1.f);
+}
+
+TEST (SkinSizes, TheSkinCarriesPotSize)
+{
+  auto const theme = loadTheme (juce::JSON::parse (R"({"potSize": 1.75})"));
+
+  EXPECT_FLOAT_EQ (theme.potSize, 1.75f);
+  EXPECT_FLOAT_EQ (loadTheme (juce::var{}).potSize, 1.f);
+}
+
+// Changing skin has to move all of it at once — that is the whole point of
+// putting it there.
+TEST (SkinSizes, SwitchingSkinMovesSizesWithIt)
+{
+  auto const small = loadTheme (
+      juce::JSON::parse (R"({"fontBody": 12.0, "potSize": 0.75})"));
+  auto const large = loadTheme (
+      juce::JSON::parse (R"({"fontBody": 26.0, "potSize": 1.75})"));
+
+  EXPECT_LT (small.fontSize (FontRole::Body), large.fontSize (FontRole::Body));
+  EXPECT_LT (small.potSize, large.potSize);
+}

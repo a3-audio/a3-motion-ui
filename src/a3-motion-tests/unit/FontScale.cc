@@ -22,7 +22,6 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-ui/SettingsPersistence.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 
 using namespace a3;
@@ -39,119 +38,13 @@ struct FontScaleTest : public ::testing::Test
   }
 };
 
-// There are two sizes on this screen and no more: the header — the status bar
-// and a section's title — and the body, which is every setting and every value
-// under it. Four roles said the same thing in a way nobody could set from the
-// menu, and left the status bar larger than the headings it sits above.
+// A handful of places draw with JUCE's own default fonts rather than asking
+// the theme for a role — juce::Label above all. They follow the skin through
+// scaleFor(), which is the skin's size against the built-in one. Until
+// 2026-08-28 they followed a percentage set from the menu instead, which lived
+// beside the skin's own size and did not travel with it.
 
-TEST_F (FontScaleTest, TheMenuIndexPicksAFactor)
-{
-  EXPECT_NEAR (fontScaleForIndex (1), 1.f, 0.001f) << "index 1 is 100%";
-  EXPECT_NEAR (fontScaleForIndex (numFontScales - 1), 1.75f, 0.001f);
-}
-
-// An index out of range must not read past the table. It arrives from a saved
-// file, which can be older than the table or hand-edited.
-TEST_F (FontScaleTest, AnIndexOutOfRangeFallsBackToUnscaled)
-{
-  EXPECT_NEAR (fontScaleForIndex (-1), 1.f, 0.001f);
-  EXPECT_NEAR (fontScaleForIndex (numFontScales + 5), 1.f, 0.001f);
-}
-
-// The point of splitting them: one setting must not move the other.
-TEST_F (FontScaleTest, TheTwoScalesAreIndependent)
-{
-  auto const unscaled = loadTheme (juce::var{});
-
-  setHeaderScale (1.75f);
-
-  EXPECT_NEAR (theme ().fontSize (FontRole::Header),
-               unscaled.fontSize (FontRole::Header) * 1.75f, 0.01f);
-  EXPECT_NEAR (theme ().fontSize (FontRole::Body),
-               unscaled.fontSize (FontRole::Body), 0.01f);
-
-  setBodyScale (0.75f);
-
-  EXPECT_NEAR (theme ().fontSize (FontRole::Header),
-               unscaled.fontSize (FontRole::Header) * 1.75f, 0.01f)
-      << "setting the body scale must not disturb the header";
-  EXPECT_NEAR (theme ().fontSize (FontRole::Body),
-               unscaled.fontSize (FontRole::Body) * 0.75f, 0.01f);
-}
-
-TEST_F (FontScaleTest, SettingAScaleLeavesTheRestOfTheThemeAlone)
-{
-  Theme skin;
-  skin.accent = { 1, 2, 3 };
-  skin.sphereScale = 0.5f;
-  setTheme (skin);
-
-  setBodyScale (1.75f);
-
-  EXPECT_NEAR (theme ().bodyScale, 1.75f, 0.001f);
-  EXPECT_EQ (theme ().accent.r, 1) << "a font change must not reload the skin";
-  EXPECT_NEAR (theme ().sphereScale, 0.5f, 0.001f);
-}
-
-// The other half: a skin reload must not throw away the menu's factors. The
-// two arrive from different files at different times.
-TEST_F (FontScaleTest, ASkinReloadKeepsBothFactors)
-{
-  setHeaderScale (1.5f);
-  setBodyScale (0.75f);
-
-  auto reloaded = loadTheme (juce::var{});
-  reloaded.headerScale = theme ().headerScale;
-  reloaded.bodyScale = theme ().bodyScale;
-  setTheme (reloaded);
-
-  EXPECT_NEAR (theme ().headerScale, 1.5f, 0.001f);
-  EXPECT_NEAR (theme ().bodyScale, 0.75f, 0.001f);
-}
-
-// Saved indices have to arrive at the theme, or the settings survive a restart
-// on paper only — written back correctly and then ignored.
-TEST_F (FontScaleTest, SavedIndicesReachTheTheme)
-{
-  auto const file
-      = juce::File::getSpecialLocation (
-            juce::File::SpecialLocationType::tempDirectory)
-            .getChildFile ("a3-font-scale-test.json");
-  file.deleteFile ();
-
-  saveSettings (file, AppSettings{ 0, 1, numFontScales - 1, 0 });
-  auto const loaded = loadSettings (file);
-
-  EXPECT_EQ (loaded.headerSizeIndex, numFontScales - 1);
-  EXPECT_EQ (loaded.bodySizeIndex, 0);
-
-  file.deleteFile ();
-}
-
-// A settings file written before the split carries one index for both. Reading
-// it as "header only" would silently shrink every caption on the device.
-TEST_F (FontScaleTest, AnOlderSettingsFileSetsBothSizes)
-{
-  auto const file
-      = juce::File::getSpecialLocation (
-            juce::File::SpecialLocationType::tempDirectory)
-            .getChildFile ("a3-font-scale-legacy.json");
-  file.deleteFile ();
-  file.replaceWithText ("{\"clockMode\": 0, \"potSizeIndex\": 1, "
-                        "\"fontSizeIndex\": 4}");
-
-  auto const loaded = loadSettings (file);
-
-  EXPECT_EQ (loaded.headerSizeIndex, 4);
-  EXPECT_EQ (loaded.bodySizeIndex, 4);
-
-  file.deleteFile ();
-}
-
-// Labels take their size from the LookAndFeel, which is why the status bar
-// never moved: nothing in it ever called setFont. Everything JUCE draws for us
-// — menus, buttons, plain labels — is body text.
-TEST_F (FontScaleTest, ALabelGrowsWithTheBodyScale)
+TEST_F (FontScaleTest, ALabelFollowsTheSkinsBodySize)
 {
   LookAndFeel_A3 lookAndFeel;
   juce::Label label;
@@ -159,7 +52,8 @@ TEST_F (FontScaleTest, ALabelGrowsWithTheBodyScale)
 
   auto const base = lookAndFeel.getLabelFont (label).getHeight ();
 
-  setBodyScale (1.75f);
+  // 15 is the built-in body size, so this skin is exactly 1.75x it.
+  setTheme (loadTheme (juce::JSON::parse (R"({"fontBody": 26.25})")));
   auto const scaled = lookAndFeel.getLabelFont (label).getHeight ();
 
   EXPECT_NEAR (scaled, base * 1.75f, 0.5f);
@@ -167,8 +61,8 @@ TEST_F (FontScaleTest, ALabelGrowsWithTheBodyScale)
   label.setLookAndFeel (nullptr);
 }
 
-// A label that states its own size keeps that size as its base — the factor
-// multiplies it rather than replacing it.
+// A label that states its own size keeps that size as its base — the skin's
+// ratio multiplies it rather than replacing it.
 TEST_F (FontScaleTest, AnExplicitFontKeepsItsProportion)
 {
   LookAndFeel_A3 lookAndFeel;
@@ -176,9 +70,28 @@ TEST_F (FontScaleTest, AnExplicitFontKeepsItsProportion)
   label.setLookAndFeel (&lookAndFeel);
   label.setFont (juce::Font (juce::FontOptions (40.f)));
 
-  setBodyScale (1.5f);
+  setTheme (loadTheme (juce::JSON::parse (R"({"fontBody": 22.5})")));
 
   EXPECT_NEAR (lookAndFeel.getLabelFont (label).getHeight (), 60.f, 0.5f);
+
+  label.setLookAndFeel (nullptr);
+}
+
+// Switching skin has to move these too, or they stay at the old skin's size
+// while everything asked of the theme by role has already moved.
+TEST_F (FontScaleTest, SwitchingSkinMovesTheLabelsWithIt)
+{
+  LookAndFeel_A3 lookAndFeel;
+  juce::Label label;
+  label.setLookAndFeel (&lookAndFeel);
+
+  setTheme (loadTheme (juce::JSON::parse (R"({"fontBody": 12.0})")));
+  auto const small = lookAndFeel.getLabelFont (label).getHeight ();
+
+  setTheme (loadTheme (juce::JSON::parse (R"({"fontBody": 26.0})")));
+  auto const large = lookAndFeel.getLabelFont (label).getHeight ();
+
+  EXPECT_GT (large, small);
 
   label.setLookAndFeel (nullptr);
 }
