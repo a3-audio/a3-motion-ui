@@ -54,4 +54,11 @@ toColour (LedColour const &colour)
                        static_cast<juce::uint8> (colour.b));
 }
 
+
+LedColour
+buttonLedIdleColour (juce::var const &buttonLedsConfig)
+{
+  return buttonLedColour (buttonLedsConfig, "idle");
+}
+
 }

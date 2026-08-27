@@ -16,6 +16,11 @@
     "skin": "default"
   },
   "buttonLeds": {
+    "idle": {
+      "r": 255,
+      "g": 255,
+      "b": 255
+    },
     "record": {
       "r": 230,
       "g": 40,

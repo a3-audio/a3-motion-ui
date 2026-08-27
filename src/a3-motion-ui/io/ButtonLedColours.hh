@@ -52,6 +52,13 @@ constexpr LedColour ledColourUnassigned{ 255, 255, 255 };
 LedColour buttonLedColour (juce::var const &buttonLedsConfig,
                            juce::String const &name);
 
+/** What a function button lights in while nobody is touching it.
+ *
+ *  A key that does something should say so at rest; the LEDs used to light
+ *  only under a finger, which tells you what you already know. White unless
+ *  the config's `idle` entry says otherwise. */
+LedColour buttonLedIdleColour (juce::var const &buttonLedsConfig);
+
 /** An LED colour as juce states one. */
 juce::Colour toColour (LedColour const &colour);
 

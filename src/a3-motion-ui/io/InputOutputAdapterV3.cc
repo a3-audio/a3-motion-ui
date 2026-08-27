@@ -163,6 +163,8 @@ InputOutputAdapterV3::processInput ()
   if (!_hardwareAvailable)
     return;
 
+  refreshIdleButtonLeds ();
+
   bool includePots = (_cycle % potDivider == 0);
 
   if (includePots)
@@ -270,6 +272,37 @@ InputOutputAdapterV3::parseButtons (const uint8_t *raw, int offset)
         }
       // state == 2 (BOUNCE): no action
     }
+}
+
+namespace
+{
+// Record/Tap/Menu/Shift are each wired to a mirrored pair of physical buttons
+// (left + right hand side); both share one logical Button and light together.
+// ClockMode was a V2-only physical button with no LED on V3 hardware, so it
+// has no entry — and therefore stays dark, which is what a key with no
+// function should do.
+constexpr int recordHwIndices[] = { 41, 43 };
+constexpr int tapHwIndices[] = { 2, 36 };
+constexpr int menuHwIndices[] = { 3, 37 };
+constexpr int shiftHwIndices[] = { 40, 42 };
+}
+
+void
+InputOutputAdapterV3::refreshIdleButtonLeds ()
+{
+  // Written when it changes, not every poll: the serial link is shared with
+  // the input frames, and repainting four LEDs at poll rate would crowd it.
+  auto const idle = buttonLedIdleColour (userConfig["buttonLeds"]);
+  if (idle == _idleLedWritten)
+    return;
+
+  _idleLedWritten = idle;
+
+  auto const colour = toColour (idle);
+  for (auto const *pair : { recordHwIndices, tapHwIndices, menuHwIndices,
+                            shiftHwIndices })
+    for (int i = 0; i < 2; ++i)
+      writeSetLed (hwIndexToLedId[pair[i]], colour);
 }
 
 void
@@ -445,10 +478,8 @@ InputOutputAdapterV3::outputButtonLED (Button button, bool value)
   // light up together. ClockMode was a V2-only physical button with no LED
   // on V3 hardware (kept for backward compat), so there's nothing to send
   // for it.
-  static constexpr int recordHwIndices[] = { 41, 43 };
-  static constexpr int tapHwIndices[]    = { 2, 36 };
-  static constexpr int menuHwIndices[]   = { 3, 37 };
-  static constexpr int shiftHwIndices[]  = { 40, 42 };
+  // The lists live at file scope: the resting light writes the same LEDs,
+  // and two hand-kept copies of a wiring map is one too many.
 
   // Each function button lights in its own colour, so the panel says which key
   // does what without reading the legend. Unconfigured ones stay white, which
@@ -465,10 +496,12 @@ InputOutputAdapterV3::outputButtonLED (Button button, bool value)
     return {};
   }();
 
-  auto const led = buttonLedColour (userConfig["buttonLeds"], named);
-  // Off is unlit, not black-coloured — transparentBlack is how this codebase
-  // says "no colour", and the wire carries the rgb, which is zero either way.
-  auto const colour = value ? toColour (led) : juce::Colours::transparentBlack;
+  // Pressed: the button's own colour, which is what says which key does what.
+  // Let go: the resting colour, not darkness — a key that has a function
+  // should say so while nobody is touching it.
+  auto const &buttonLeds = userConfig["buttonLeds"];
+  auto const colour = toColour (value ? buttonLedColour (buttonLeds, named)
+                                      : buttonLedIdleColour (buttonLeds));
 
   switch (button)
     {

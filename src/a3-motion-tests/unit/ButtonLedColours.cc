@@ -93,4 +93,45 @@ TEST (ButtonLedColours, ShippedConfigGivesEachButtonItsOwn)
     }
 }
 
+
+// A key that does something should say so while nobody is touching it. The
+// LEDs used to light only under a finger, which tells you what you already
+// know and nothing about the panel you are looking at.
+
+TEST (ButtonLedColours, TheIdleColourIsWhiteUnlessTheConfigSaysOtherwise)
+{
+  EXPECT_EQ (buttonLedIdleColour (juce::var{}), ledColourUnassigned);
+  EXPECT_EQ (buttonLedIdleColour (parse (R"({"record": {"r": 1}})")),
+             ledColourUnassigned);
+}
+
+TEST (ButtonLedColours, TheIdleColourCanBeSetInTheConfig)
+{
+  auto const idle = buttonLedIdleColour (
+      parse (R"({"idle": {"r": 40, "g": 40, "b": 60}})"));
+
+  EXPECT_EQ (idle.r, 40);
+  EXPECT_EQ (idle.g, 40);
+  EXPECT_EQ (idle.b, 60);
+}
+
+// Same rule as a button's own colour: all three channels or none, because a
+// missing one would read as 0 and dim the panel for no stated reason.
+TEST (ButtonLedColours, AHalfWrittenIdleColourFallsBackToWhite)
+{
+  EXPECT_EQ (buttonLedIdleColour (parse (R"({"idle": {"r": 40, "g": 40}})")),
+             ledColourUnassigned);
+}
+
+// "idle" sits beside the buttons in the same block, so it must not be mistaken
+// for one of them.
+TEST (ButtonLedColours, IdleIsNotAButton)
+{
+  auto const config = parse (R"({"idle": {"r": 1, "g": 2, "b": 3},
+                                 "record": {"r": 9, "g": 9, "b": 9}})");
+
+  EXPECT_EQ (buttonLedColour (config, "record").r, 9);
+  EXPECT_EQ (buttonLedIdleColour (config).r, 1);
+}
+
 }
