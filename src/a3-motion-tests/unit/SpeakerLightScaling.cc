@@ -349,10 +349,42 @@ TEST (SpeakerLightScaling, ShippedConfigHoldsTheBeamsLongerThanItRaisesThem)
 
 // ── how big the sphere may get ──────────────────────────────────────────
 //
-// The sphere's scale and the speaker radius have to be picked together: the
-// icons are drawn at speakerRadius plus their own half-diagonal, in the same
-// normalised space, so past a point they run off the shorter edge. This was a
-// comment next to a constexpr; it is a config value now, so it needs a guard.
+// The sphere's scale and the speaker radius have to be picked together: past a
+// point the icons run off the shorter edge. This was a comment next to a
+// constexpr; it is a config value now, so it needs a guard.
+//
+// The geometry the guard has to match (MotionComponent::paintOverChildren):
+// the four speakers sit at 45, 135, 225 and 315 degrees — on the diagonals,
+// not on the axes — each drawn as a speakerIconSize square rotated to face the
+// centre. So an icon's distance from a vertical screen edge is
+// cos(45) * speakerRadius, not speakerRadius, and the rotated square reaches
+// cos(45) * speakerIconSize beyond its own centre along that same axis.
+//
+// The transform (updateBoundsAndTransform) maps normalised 1.0 onto
+// shorterSide * sphereScale / 2 pixels, so "on screen" is sphereScale times
+// the normalised extent staying under 1.
+
+TEST (SphereScale, TheLimitFollowsTheDiagonalPlacementOfTheSpeakers)
+{
+  // Treating a speaker as if it sat on the axis at its full radius caps the
+  // scale at 1 / (1.4 + 0.198) = 0.625 and rejects sizes that are visibly
+  // fine: measured on the running app at 0.72, the outermost 50 px on either
+  // side are background and nothing is clipped.
+  EXPECT_TRUE (speakerIconsFitOnScreen (0.72f, 1.4f));
+
+  // cos(45) * (1.4 + 0.28) = 1.188, so the real limit is 1 / 1.188.
+  EXPECT_TRUE (speakerIconsFitOnScreen (0.84f, 1.4f));
+  EXPECT_FALSE (speakerIconsFitOnScreen (0.85f, 1.4f));
+}
+
+// Whatever the menu offers has to be a size the guard accepts, or Sphere Size
+// hands somebody a skin that fails the suite. These are
+// A3MotionUIComponent::sphereSizes; "large" is the one with no room to spare.
+TEST (SphereScale, EverySizeTheMenuOffersFits)
+{
+  for (auto scale : { 0.45f, 0.54f, 0.62f, 0.72f, 0.82f })
+    EXPECT_TRUE (speakerIconsFitOnScreen (scale, 1.4f)) << "scale " << scale;
+}
 
 TEST (SphereScale, IconsFitAtTheShippedScale)
 {
@@ -374,8 +406,8 @@ TEST (SphereScale, AnOversizedSphereIsRejected)
 
 TEST (SphereScale, PullingTheSpeakersInBuysRoom)
 {
-  EXPECT_FALSE (speakerIconsFitOnScreen (0.7f, 1.4f));
-  EXPECT_TRUE (speakerIconsFitOnScreen (0.7f, 1.0f));
+  EXPECT_FALSE (speakerIconsFitOnScreen (0.86f, 1.4f));
+  EXPECT_TRUE (speakerIconsFitOnScreen (0.86f, 1.0f));
 }
 
 }

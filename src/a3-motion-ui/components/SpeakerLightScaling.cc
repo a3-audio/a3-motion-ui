@@ -62,9 +62,19 @@ constexpr float degToRad = 3.14159265358979323846f / 180.f;
 bool
 speakerIconsFitOnScreen (float sphereScale, float speakerRadius)
 {
-  auto constexpr halfDiagonal = speakerIconSize * 0.7071068f;
+  auto constexpr cos45 = 0.7071068f;
 
-  return sphereScale * (speakerRadius + halfDiagonal) * 0.5f < 0.5f;
+  // The speakers sit on the diagonals, so what a vertical screen edge sees of
+  // a speaker at `speakerRadius` is only cos(45) of it — and the icon, a
+  // square rotated to face the centre, reaches cos(45) of its own side beyond
+  // its centre along that same axis. Adding the radius whole, as if the
+  // speaker sat on the axis, put the limit at 0.625 and refused scales that
+  // leave 50 px of clear background on either side.
+  auto const reach = cos45 * (speakerRadius + speakerIconSize);
+
+  // Normalised 1.0 is half the shorter side times sphereScale (see
+  // MotionComponent::updateBoundsAndTransform), so this is the whole test.
+  return sphereScale * reach < 1.f;
 }
 
 float
