@@ -97,11 +97,9 @@ private:
   KeyboardState _keyboardState = KeyboardState::Unavailable;
   TickIndicator _tickIndicator;
 
-  juce::Label _labelOrientation;
   juce::Label _labelBPM;
   juce::Value &_valueBPM;
   
-  juce::Label _labelBeatClock;
   juce::Label _labelClockMode;
   std::atomic<float> _externalBPM{ 0.f };
   std::atomic<int> _beatClockBeat{ 0 };

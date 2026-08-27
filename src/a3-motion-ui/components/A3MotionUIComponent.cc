@@ -18,6 +18,7 @@
 
 */
 
+#include <a3-motion-ui/io/OnScreenKeyboard.hh>
 #include "A3MotionUIComponent.hh"
 
 #include <chrono>
@@ -108,15 +109,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _skinEditor->onRename = [this] (auto const &name) { renameEditedSkin (name); };
   _skinEditor->onDelete = [this] { deleteEditedSkin (); };
 
-  // The touchscreen's way into a name. Shown by itself whenever a name is
-  // being typed, and hidden or brought back with the icon in the status bar.
-  _keyboard = std::make_unique<KeyboardComponent> ();
-  _keyboard->setAlwaysOnTop (true);
-  _motionComponent->addChildComponent (*_keyboard);
-  _keyboard->onCharacter
-      = [this] (auto character) { _skinEditor->typeIntoName (character); };
-  _keyboard->onBackspace = [this] { _skinEditor->backspaceName (); };
-  _keyboard->onDone = [this] { _skinEditor->finishNaming (); };
+  // The keyboard is Onboard, the system's own — see io/OnScreenKeyboard.hh.
+  // It types into whatever window has the focus, which is this one.
   _skinEditor->onNamingChanged = [this] (bool naming) { showKeyboard (naming); };
   _skinEditor->onColourPicked
       = [this] (auto const &path) { openColourPicker (path); };
@@ -552,19 +546,6 @@ A3MotionUIComponent::resized ()
       _colourPicker->setBounds (
           picker.removeFromBottom (picker.getHeight () * 2 / 5)
               .reduced (picker.getWidth () / 20, 0));
-    }
-  if (_keyboard)
-    {
-      // As tall as its five rows need at the current Body Size, so the
-      // keyboard scales with the setting rather than always taking half the
-      // screen. Never more than half, whatever the setting says.
-      auto keyboardArea = _motionComponent->getLocalBounds ();
-      auto const rowHeight
-          = static_cast<int> (theme ().fontSize (FontRole::Body) * 2.4f);
-      auto const wanted = rowHeight * 5 + 16;
-
-      _keyboard->setBounds (keyboardArea.removeFromBottom (
-          juce::jmin (wanted, _motionComponent->getHeight () / 2)));
     }
 }
 
@@ -1964,34 +1945,22 @@ A3MotionUIComponent::applyPickedColour ()
 void
 A3MotionUIComponent::showKeyboard (bool shown)
 {
-  if (!_keyboard)
-    return;
-
-  _keyboard->setVisible (shown);
-  if (shown)
-    _keyboard->toFront (true);
-
+  shown ? onScreenKeyboard::show () : onScreenKeyboard::hide ();
   refreshKeyboardIcon ();
 }
 
 void
 A3MotionUIComponent::toggleKeyboard ()
 {
-  if (!_skinEditorOpen)
-    return;
+  // Always available, whatever is on screen: it is the system's keyboard and
+  // it types into whatever has the focus.
+  auto const wasShown = onScreenKeyboard::isShown ();
+  showKeyboard (!wasShown);
 
-  // Already typing: the icon puts the keyboard away and brings it back, to
-  // see what is behind it.
-  if (_skinEditor->isNaming ())
-    {
-      showKeyboard (!_keyboard->isVisible ());
-      return;
-    }
-
-  // Otherwise it starts typing the row that is browsed — which is how a
-  // port gets entered as digits rather than turned to, and why the icon is
-  // worth tapping outside a rename.
-  _skinEditor->beginTypingBrowsedRow ();
+  // Showing it over a row that can be typed says what it is for. A row that
+  // is only turned stays that way; the keyboard is then simply up.
+  if (!wasShown && _skinEditorOpen && !_skinEditor->isNaming ())
+    _skinEditor->beginTypingBrowsedRow ();
 }
 
 void
@@ -2002,11 +1971,8 @@ A3MotionUIComponent::refreshKeyboardIcon ()
 
   using State = StatusBar::KeyboardState;
 
-  auto const state
-      = (_keyboard && _keyboard->isVisible ())  ? State::Shown
-        : (_skinEditorOpen && _skinEditor->canTypeBrowsedRow ())
-            ? State::Available
-            : State::Unavailable;
+  auto const state = onScreenKeyboard::isShown () ? State::Shown
+                                                 : State::Available;
 
   _statusBar->setKeyboardState (state);
 }

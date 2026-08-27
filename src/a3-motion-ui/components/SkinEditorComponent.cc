@@ -42,6 +42,50 @@ constexpr float armedRowWash = 0.133f;
 SkinEditorComponent::SkinEditorComponent ()
 {
   setInterceptsMouseClicks (false, false);
+  setWantsKeyboardFocus (true);
+}
+
+bool
+SkinEditorComponent::keyPressed (juce::KeyPress const &key)
+{
+  if (!_naming)
+    return false;
+
+  if (key == juce::KeyPress::backspaceKey)
+    {
+      backspaceName ();
+      return true;
+    }
+
+  if (key == juce::KeyPress::returnKey || key == juce::KeyPress::escapeKey)
+    {
+      finishNaming ();
+      return true;
+    }
+
+  if (key == juce::KeyPress::leftKey)
+    {
+      _nameEntry.moveCursor (-1);
+      repaint ();
+      return true;
+    }
+
+  if (key == juce::KeyPress::rightKey)
+    {
+      _nameEntry.moveCursor (1);
+      repaint ();
+      return true;
+    }
+
+  auto const character = key.getTextCharacter ();
+  if (character == 0)
+    return false;
+
+  // Lower case throughout: a name and a host are lower case, and the field
+  // ignores what it may not hold anyway — this only saves a trip through
+  // shift for the common case.
+  typeIntoName (juce::CharacterFunctions::toLowerCase (character));
+  return true;
 }
 
 void
@@ -207,6 +251,7 @@ SkinEditorComponent::toggleEditing ()
       _naming = true;
       _editing = false;
       repaint ();
+      grabKeyboardFocus (); // the keys have to land here, not in the void
       if (onNamingChanged)
         onNamingChanged (true);
       return;
@@ -453,8 +498,8 @@ SkinEditorComponent::paint (juce::Graphics &g)
       g.setFont (
           juce::Font (theme ().fontSize (FontRole::Body), juce::Font::plain));
       g.setColour (toColour (theme ().textPrimary, theme ().alphaInactive));
-      g.drawText (_editing ? "turn: letter   press: let go   menu: done"
-                           : "turn: position   press: change   menu: done",
+      g.drawText (_editing ? "type, or turn: letter   press: let go   menu: done"
+                           : "type, or turn: position   press: change   menu: done",
                   content.removeFromTop (itemH),
                   juce::Justification::centredLeft, true);
       return;

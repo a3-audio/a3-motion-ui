@@ -35,7 +35,6 @@
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/ColourPickerComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
-#include <a3-motion-ui/components/KeyboardComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
@@ -287,7 +286,6 @@ private:
   int _bodySizeIndex = 1;   // default 100%
   int _sphereSizeIndex = 2; // the middle of sphereSizes
   std::unique_ptr<SkinEditorComponent> _skinEditor;
-  std::unique_ptr<KeyboardComponent> _keyboard;
   std::unique_ptr<ColourPickerComponent> _colourPicker;
   bool _colourPickerOpen = false;
   juce::String _colourPath;

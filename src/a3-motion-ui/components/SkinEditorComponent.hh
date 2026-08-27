@@ -126,6 +126,10 @@ public:
    *  editing on the device. */
   std::function<void ()> onValueChanged;
 
+  /** Real key events, from the system's on-screen keyboard or a plugged-in
+   *  one — the app draws no keyboard of its own any more. */
+  bool keyPressed (juce::KeyPress const &key) override;
+
   void paint (juce::Graphics &g) override;
 
 private:

@@ -39,10 +39,6 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   addChildComponent (_tickIndicator);
   _tickIndicator.setVisible (true);
   
-  addChildComponent (_labelOrientation);
-  _labelOrientation.setVisible (true);
-  _labelOrientation.setJustificationType (juce::Justification::centredLeft);
-  _labelOrientation.setText (juce::CharPointer_UTF8 ("0\xc2\xb0"), juce::dontSendNotification);
 
   addChildComponent (_labelBPM);
   _labelBPM.setVisible (true);
@@ -52,10 +48,6 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   // Register for BPM value changes
   _valueBPM.addListener (this);
   
-  addChildComponent (_labelBeatClock);
-  _labelBeatClock.setVisible (true);
-  _labelBeatClock.setJustificationType (juce::Justification::centredRight);
-  _labelBeatClock.setText ("1.1", juce::dontSendNotification);  // Initial beat/bar
   
   addChildComponent (_labelClockMode);
   _labelClockMode.setVisible (true);
@@ -105,12 +97,8 @@ StatusBar::applyTheme ()
   // The clock readouts are accent; the orientation is a quieter aside beside
   // them. Set here rather than in the constructor: a skin loaded afterwards
   // has to reach them, and a Label keeps whatever colour it was given.
-  for (auto *label : { &_labelBPM, &_labelBeatClock, &_labelClockMode })
+  for (auto *label : { &_labelBPM, &_labelClockMode })
     label->setColour (juce::Label::textColourId, toColour (theme ().accent));
-
-  _labelOrientation.setColour (
-      juce::Label::textColourId,
-      toColour (theme ().textMuted, theme ().alphaInactive));
 
   refreshFonts ();
 }
@@ -123,8 +111,7 @@ StatusBar::refreshFonts ()
   // came out larger than the headings below it.
   auto const font = juce::Font (juce::FontOptions (headerFontSize ()));
 
-  for (auto *label : { &_labelOrientation, &_labelBPM, &_labelBeatClock,
-                       &_labelClockMode })
+  for (auto *label : { &_labelBPM, &_labelClockMode })
     label->setFont (font);
 }
 
@@ -150,33 +137,22 @@ StatusBar::resized ()
   bounds.removeFromTop (verticalPadding);
   bounds.removeFromBottom (verticalPadding);
 
-  // The two end labels are as wide as their text needs. Fixed widths cut
-  // "0\xc2\xb0" and "INT" down to an ellipsis as soon as the header size grew.
+  // Clock mode on the far left: it is the one reading that changes what the
+  // whole device does, and the left edge is where the eye starts.
   auto const glyphWidth = headerFontSize () * 0.62f;
+  auto const modeWidth = juce::jmax (
+      50, static_cast<int> (glyphWidth * 3.f + LayoutHints::padding));
 
-  // Orientation label on the far left
-  auto orientArea = bounds.removeFromLeft (
-      juce::jmax (40, static_cast<int> (glyphWidth * 4.f
-                                        + LayoutHints::padding)));
-  _labelOrientation.setBounds (orientArea.withTrimmedLeft (LayoutHints::padding));
+  auto clockModeArea = bounds.removeFromLeft (modeWidth);
+  _labelClockMode.setBounds (
+      clockModeArea.withTrimmedLeft (LayoutHints::padding));
 
-  // BPM label next to orientation
   auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 4);
   _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
 
-  // Clock mode label on the far right
   // The keyboard toggle sits at the very edge, right of everything else, so
   // it is reachable with a thumb without covering a reading.
   _keyboardIconArea = bounds.removeFromRight (bounds.getHeight ());
-
-  auto clockModeArea = bounds.removeFromRight (
-      juce::jmax (50, static_cast<int> (glyphWidth * 3.f
-                                        + LayoutHints::padding)));
-  _labelClockMode.setBounds (clockModeArea.withTrimmedRight (LayoutHints::padding));
-
-  // Beat clock label next to clock mode
-  auto rightArea = bounds.removeFromRight (bounds.getWidth () / 3);
-  _labelBeatClock.setBounds (rightArea.withTrimmedRight (LayoutHints::padding));
 
   // Tick indicator in the center
   auto boundsTicks = bounds.withSizeKeepingCentre (bounds.getWidth () * 0.8f,
@@ -265,9 +241,6 @@ StatusBar::beatCallback (Measure measure)
     
   _tickIndicator.setCurrentTick (measure.beat ());
   
-  // Show as beat/4 (beatsPerBar is fixed to 4)
-  auto text = juce::String (measure.beat () + 1) + "/4";
-  _labelBeatClock.setText (text, juce::dontSendNotification);
 }
 
 void
@@ -299,23 +272,18 @@ StatusBar::setBeatClock (int beat, int bar)
   _beatClockBeat = beat;
   _beatClockBar = bar;
   
-  // Show as beat/4 (beatsPerBar is fixed to 4)
-  auto text = juce::String (beat) + "/4";
-  
   // Update on message thread (beat is 1-based from external, convert to 0-based for tick indicator)
   // Check clock mode inside lambda to avoid race condition when mode
   // switches between queuing and execution
   int tickBeat = (beat - 1) % 4;  // Convert 1-4 to 0-3
   juce::Component::SafePointer<StatusBar> safeThis (this);
-  juce::MessageManager::callAsync ([safeThis, text, tickBeat] () {
+  // The bar/beat reading itself is gone from the panel — the tick indicator
+  // says the same thing without a number to read.
+  juce::MessageManager::callAsync ([safeThis, tickBeat] () {
     if (safeThis == nullptr) return;
     if (safeThis->_clockMode == 0)
       return;
-    auto colour = safeThis->_clockMode == 2 ? toColour (theme ().accent)
-                                            : toColour (theme ().warning);
     safeThis->_tickIndicator.setCurrentTick (tickBeat);
-    safeThis->_labelBeatClock.setText (text, juce::dontSendNotification);
-    safeThis->_labelBeatClock.setColour (juce::Label::textColourId, colour);
   });
 }
 
@@ -338,7 +306,6 @@ StatusBar::setClockMode (int mode)
         self->_labelClockMode.setText (label, juce::dontSendNotification);
         self->_labelClockMode.setColour (juce::Label::textColourId, colour);
         self->_labelBPM.setColour (juce::Label::textColourId, colour);
-        self->_labelBeatClock.setColour (juce::Label::textColourId, colour);
         
         // Show external BPM if available
         float extBpm = self->_externalBPM.load ();
@@ -354,8 +321,6 @@ StatusBar::setClockMode (int mode)
         int beat = self->_beatClockBeat.load ();
         if (beat > 0)
           {
-            auto text = juce::String (beat) + "/4";
-            self->_labelBeatClock.setText (text, juce::dontSendNotification);
             int tickBeat = (beat - 1) % 4;
             self->_tickIndicator.setCurrentTick (tickBeat);
           }
@@ -365,7 +330,6 @@ StatusBar::setClockMode (int mode)
         self->_labelClockMode.setText ("INT", juce::dontSendNotification);
         self->_labelClockMode.setColour (juce::Label::textColourId, toColour (theme ().accent));
         self->_labelBPM.setColour (juce::Label::textColourId, toColour (theme ().accent));
-        self->_labelBeatClock.setColour (juce::Label::textColourId, toColour (theme ().accent));
         
         // Show internal BPM
         if (self->_valueBPM.getValue ().isDouble ())
@@ -380,7 +344,6 @@ StatusBar::setClockMode (int mode)
         // Reset tick indicator and beat counter to show internal state
         // (will be updated on next internal beat via beatCallback)
         self->_tickIndicator.setCurrentTick (0);
-        self->_labelBeatClock.setText ("1/4", juce::dontSendNotification);
       }
   });
 }
