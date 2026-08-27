@@ -269,4 +269,29 @@ isColourChannelPath (juce::String const &path)
   return name == "r" || name == "g" || name == "b";
 }
 
+juce::var
+withKeysReplaced (juce::var const &document, juce::var const &edited,
+                  juce::StringArray const &keys)
+{
+  auto *source = document.getDynamicObject ();
+  if (source == nullptr)
+    return document;
+
+  // A copy, not the original: the caller may still be holding the document it
+  // handed in, and a config page that is only being previewed must not have
+  // already changed what is on disk.
+  auto *merged = new juce::DynamicObject ();
+  for (auto const &property : source->getProperties ())
+    merged->setProperty (property.name, property.value);
+
+  for (auto const &key : keys)
+    {
+      auto const identifier = juce::Identifier (key);
+      if (edited.hasProperty (identifier))
+        merged->setProperty (identifier, edited[identifier]);
+    }
+
+  return juce::var (merged);
+}
+
 }

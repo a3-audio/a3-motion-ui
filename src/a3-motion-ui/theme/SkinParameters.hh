@@ -80,4 +80,14 @@ void setSkinText (juce::var &skin, juce::String const &path,
 /** Whether a path names one of a colour's three channels. */
 bool isColourChannelPath (juce::String const &path);
 
+/** `document` with `keys` replaced by whatever `edited` holds for them.
+ *
+ *  A config page edits a slice of config.json — the keys it was opened with —
+ *  and that slice has to go two places: to disk when the page is left, and
+ *  into the running configuration straight away, so a colour being picked is
+ *  visible while it is being picked. One function for both, so they cannot
+ *  drift apart. Keys `edited` does not carry are left as they were. */
+juce::var withKeysReplaced (juce::var const &document, juce::var const &edited,
+                            juce::StringArray const &keys);
+
 }

@@ -1823,6 +1823,21 @@ A3MotionUIComponent::openConfigPage (juce::String const &title,
 }
 
 void
+A3MotionUIComponent::applyEditedConfigPage ()
+{
+  // The hardware reads the running configuration, not the file, so a colour
+  // being picked has to go in there straight away — otherwise the LEDs only
+  // catch up when the page is left and the file watcher comes round, which
+  // reads as a picker that does nothing.
+  auto const edited = _skinEditor->getSkin ();
+  auto const keys = _configPageKeys;
+
+  juce::MessageManager::callAsync ([edited, keys] {
+    userConfig = withKeysReplaced (userConfig, edited, keys);
+  });
+}
+
+void
 A3MotionUIComponent::saveConfigPage ()
 {
   if (_configPageKeys.isEmpty ())
@@ -1833,13 +1848,7 @@ A3MotionUIComponent::saveConfigPage ()
   if (object == nullptr)
     return;
 
-  auto const edited = _skinEditor->getSkin ();
-  for (auto const &key : _configPageKeys)
-    {
-      auto const identifier = juce::Identifier (key);
-      if (edited.hasProperty (identifier))
-        object->setProperty (identifier, edited[identifier]);
-    }
+  config = withKeysReplaced (config, _skinEditor->getSkin (), _configPageKeys);
 
   getConfigFile ().replaceWithText (
       juce::JSON::toString (config, false) + "\n", false, false, "\n");
@@ -2059,7 +2068,10 @@ void
 A3MotionUIComponent::applyEditedSkin ()
 {
   if (!_configPageKeys.isEmpty ())
-    return; // a config page is not a skin; nothing to put in force live
+    {
+      applyEditedConfigPage ();
+      return;
+    }
 
   // Straight to the theme, so the change is visible on the sphere behind the
   // editor while the encoder is still turning. The file follows on close.

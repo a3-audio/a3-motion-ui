@@ -276,3 +276,53 @@ TEST (SkinParameters, APathIsRecognisedAsAColourChannel)
 }
 
 }
+
+// ── folding an edited config page back ──────────────────────────────────
+//
+// A config page holds a slice of config.json — the keys it was opened with.
+// The same fold is used to write that slice to disk and to put it in force
+// live, so the two cannot say different things.
+
+TEST (ConfigPage, AnEditedKeyReplacesTheOriginal)
+{
+  auto const document = juce::JSON::parse (
+      R"({"buttonLeds": {"idle": {"r": 255}}, "patternDir": "/keep"})");
+  auto const edited
+      = juce::JSON::parse (R"({"buttonLeds": {"idle": {"r": 10}}})");
+
+  auto const merged = withKeysReplaced (document, edited, { "buttonLeds" });
+
+  EXPECT_EQ ((int)merged["buttonLeds"]["idle"]["r"], 10);
+}
+
+TEST (ConfigPage, KeysThePageDidNotTouchAreLeftAlone)
+{
+  auto const document = juce::JSON::parse (
+      R"({"buttonLeds": {"idle": {"r": 255}}, "patternDir": "/keep"})");
+  auto const edited
+      = juce::JSON::parse (R"({"buttonLeds": {"idle": {"r": 10}}})");
+
+  auto const merged = withKeysReplaced (document, edited, { "buttonLeds" });
+
+  EXPECT_EQ (merged["patternDir"].toString (), "/keep");
+}
+
+TEST (ConfigPage, AKeyTheEditedPageDoesNotHaveIsNotInvented)
+{
+  auto const document = juce::JSON::parse (R"({"patternDir": "/keep"})");
+  auto const edited = juce::JSON::parse (R"({})");
+
+  auto const merged
+      = withKeysReplaced (document, edited, { "buttonLeds", "patternDir" });
+
+  EXPECT_FALSE (merged.hasProperty ("buttonLeds"));
+  EXPECT_EQ (merged.toString (), merged.toString ());
+}
+
+TEST (ConfigPage, ADocumentThatIsNotAnObjectComesBackUnchanged)
+{
+  auto const merged
+      = withKeysReplaced (juce::var (42), juce::var (), { "buttonLeds" });
+
+  EXPECT_EQ ((int)merged, 42);
+}

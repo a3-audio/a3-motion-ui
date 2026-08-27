@@ -238,6 +238,9 @@ private:
    *  the way out. */
   void  openConfigPage (juce::String const &title,
                         juce::StringArray const &keys);
+  /** Put an edited config page into the running configuration at once,
+   *  so the hardware follows the picker instead of the file watcher. */
+  void applyEditedConfigPage ();
   void  saveConfigPage ();
   void  applyPauseRendering (bool paused);
   /** The picker behind a colour row: HSL to reach it, r/g/b in the file. */
