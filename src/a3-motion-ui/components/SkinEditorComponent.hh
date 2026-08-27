@@ -31,6 +31,16 @@
 namespace a3
 {
 
+/** How tall the typing field is. Sized from the text it holds, not from a
+ *  count of list rows: a fixed two rows left a large field around a small
+ *  line of text, with the caret stranded well below it. */
+int typingFieldHeight (float textFontSize, int rowHeight);
+
+/** Where the caret's underline sits — just below the text, which is drawn
+ *  centred in the field. Pinned to the field's bottom edge instead, it drifted
+ *  further from the text the taller the field became. */
+float typingCaretY (juce::Rectangle<int> field, juce::Font const &font);
+
 /**
  * SkinEditorComponent
  *
@@ -120,6 +130,12 @@ public:
    *  greys the keyboard icon out. */
   bool beginTypingBrowsedRow ();
   bool canTypeBrowsedRow () const;
+
+  /** The path of the browsed parameter row, empty on an action row. */
+  juce::String browsedPath () const;
+
+  /** What is currently in the typing field. */
+  juce::String typedText () const { return _nameEntry.buffer (); }
 
   /** Called whenever a value changed, so the caller can put the edited skin
    *  in force straight away — seeing the change is the whole point of

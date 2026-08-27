@@ -46,6 +46,46 @@ call (juce::String const &method)
   if (!process.start (command))
     juce::Logger::writeToLog ("on-screen keyboard: could not call " + method);
 }
+
+/** Run a command and hand back what it printed. */
+juce::String
+readCommand (juce::StringArray const &command)
+{
+  juce::ChildProcess process;
+  if (!process.start (command))
+    return {};
+
+  return process.readAllProcessOutput ();
+}
+
+/** Whether anything owns Onboard's bus name. Asked before the property, so
+ *  that a keyboard which is not running is reported as hidden rather than
+ *  being started by the very question. */
+bool
+isRunning ()
+{
+  return readCommand ({ "dbus-send", "--session", "--print-reply",
+                        "--dest=org.freedesktop.DBus",
+                        "/org/freedesktop/DBus",
+                        "org.freedesktop.DBus.NameHasOwner",
+                        "string:org.onboard.Onboard" })
+      .contains ("boolean true");
+}
+}
+
+bool
+replyIsAnAnswer (juce::String const &reply)
+{
+  return reply.contains ("boolean");
+}
+
+bool
+visibleFromReply (juce::String const &reply)
+{
+  // dbus-send prints the property as "variant       boolean true".
+  return reply.fromFirstOccurrenceOf ("boolean", false, false)
+      .trim ()
+      .startsWith ("true");
 }
 
 void
@@ -65,6 +105,21 @@ hide ()
 bool
 isShown ()
 {
+  if (!isRunning ())
+    return false;
+
+  auto const reply = readCommand (
+      { "dbus-send", "--session", "--print-reply",
+        "--dest=org.onboard.Onboard", "/org/onboard/Onboard/Keyboard",
+        "org.freedesktop.DBus.Properties.Get",
+        "string:org.onboard.Onboard.Keyboard", "string:Visible" });
+
+  // No usable answer: fall back on what this process last asked for, which is
+  // still better than guessing "hidden" and never being able to put it away.
+  if (!replyIsAnAnswer (reply))
+    return shown;
+
+  shown = visibleFromReply (reply);
   return shown;
 }
 

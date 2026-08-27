@@ -309,6 +309,30 @@ SkinEditorComponent::toggleEditing ()
     }
 }
 
+int
+typingFieldHeight (float textFontSize, int rowHeight)
+{
+  // The same proportion an ordinary row gives its text, applied to the font
+  // the field actually draws with — and never tighter than a normal row.
+  return juce::jmax (rowHeight,
+                     static_cast<int> (std::lround (textFontSize * 1.9f)));
+}
+
+float
+typingCaretY (juce::Rectangle<int> field, juce::Font const &font)
+{
+  return static_cast<float> (field.getCentreY ()) + font.getHeight () * 0.5f;
+}
+
+juce::String
+SkinEditorComponent::browsedPath () const
+{
+  if (browsedRow () != Row::Parameter || _parameters.empty ())
+    return {};
+
+  return _parameters[(size_t)(_index - _actionRows)].path;
+}
+
 bool
 SkinEditorComponent::canTypeBrowsedRow () const
 {
@@ -466,15 +490,17 @@ SkinEditorComponent::paint (juce::Graphics &g)
   // a panel with one control.
   if (_naming)
     {
-      auto nameRow = content.removeFromTop (itemH * 2);
-      g.setColour (toColour (theme ().textPrimary, browsedRowWash));
-      g.fillRoundedRectangle (nameRow.toFloat (), 6.f);
-
       // Drawn as text with a caret under it, not a character per cell: a
       // cell grid reads as spaced-out letters, which a short name survives
       // and a path does not.
       auto const font
           = juce::Font (juce::FontOptions (theme ().fontSize (FontRole::Header)));
+
+      auto nameRow = content.removeFromTop (typingFieldHeight (
+          theme ().fontSize (FontRole::Header), itemH));
+      g.setColour (toColour (theme ().textPrimary, browsedRowWash));
+      g.fillRoundedRectangle (nameRow.toFloat (), 6.f);
+
       g.setFont (font);
 
       auto const textArea = nameRow.reduced (10, 0);
@@ -492,7 +518,7 @@ SkinEditorComponent::paint (juce::Graphics &g)
       g.setColour (toColour (theme ().accent,
                              _editing ? 1.f : theme ().alphaInactive));
       g.fillRect (static_cast<float> (textArea.getX ()) + before,
-                  static_cast<float> (textArea.getBottom () - 5), caretW, 2.f);
+                  typingCaretY (textArea, font), caretW, 2.f);
 
       content.removeFromTop (rowGap);
       g.setFont (

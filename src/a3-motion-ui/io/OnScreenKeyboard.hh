@@ -39,10 +39,21 @@ namespace onScreenKeyboard
 
 void show ();
 void hide ();
-/** Whether it is up, as far as this process last asked it to be. Onboard is
- *  the authority; this is what the icon in the status bar draws. */
+/** Whether it is on screen right now — asked of Onboard, not remembered.
+ *  Onboard has a second owner of that state, its own "Hide Onboard" key, so
+ *  a flag kept here goes stale the first time somebody uses it and stays
+ *  inverted from then on. This is what the icon in the status bar draws. */
 bool isShown ();
 void toggle ();
+
+/** Whether a `dbus-send --print-reply` body says the keyboard is visible.
+ *  Separated from the call so the parsing is testable without a bus. */
+bool visibleFromReply (juce::String const &reply);
+
+/** Whether that body is an answer at all. A reply that carries no boolean —
+ *  no bus, no Onboard, an error — must not read as a plain "hidden", or the
+ *  icon would only ever show and never hide again. */
+bool replyIsAnAnswer (juce::String const &reply);
 
 }
 
