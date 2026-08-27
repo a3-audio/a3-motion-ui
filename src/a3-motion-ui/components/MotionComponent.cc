@@ -290,14 +290,14 @@ void
 MotionComponent::mouseMove (const juce::MouseEvent &event)
 {
   // Skip highlight computation while dragging — saves 4× position lookups per move
-  if (!_grabbedIndex.has_value ())
+  if (_grabs.empty ())
     updateChannelBlobHighlight (event.getPosition ().toFloat ());
 }
 
 void
 MotionComponent::timerCallback ()
 {
-  if (_grabbedIndex.has_value ())
+  if (!_grabs.heldChannels ().empty ())
     disoccludeBlobs ();
 }
 
@@ -422,114 +422,122 @@ MotionComponent::uploadEnergyMap ()
 void
 MotionComponent::disoccludeBlobs ()
 {
-  jassert (_grabbedIndex.has_value ());
-
   // Everything in here works in the height map's own 2D space, because that is
   // what setChannel2DPosition reads at the bottom. Projecting by dropping z
   // instead — which is what the drawing does — is a different space, shorter by
   // sqrt(2), and reading in one while writing in the other shrank every
   // untouched blob's radius by that factor per frame until it sat on the
   // centre. See HeightMapSphere.DropZRoundTripShrinksTowardsTheCentre.
-  auto const posGrabbed = _engine.getChannelPosition (_grabbedIndex.value ());
-  jassert (posGrabbed.isValid ());
-  auto const posGrabbedPixel
-      = normalizedToLocal2DPosition (directionToDisc (posGrabbed));
-
-  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+  //
+  // With several fingers there is no single blob to give way to. A held blob
+  // never moves — it is where its finger put it — and every untouched one
+  // gives way to all of them in turn.
+  for (auto const held : _grabs.heldChannels ())
     {
-      if (!_uiStates[channel]->grabbed)
+      auto const posGrabbed = _engine.getChannelPosition (held);
+      if (!posGrabbed.isValid ())
+        continue;
+
+      auto const posGrabbedPixel
+          = normalizedToLocal2DPosition (directionToDisc (posGrabbed));
+
+      for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
         {
-          auto position = _engine.getChannelPosition (channel);
-          if (!position.isValid ())
-            continue;
+          if (!_uiStates[channel]->grabbed)
+            {
+              auto position = _engine.getChannelPosition (channel);
+              if (!position.isValid ())
+                continue;
 
-          auto posPixel
-              = normalizedToLocal2DPosition (directionToDisc (position));
-          auto const distance = posPixel.getDistanceFrom (posGrabbedPixel);
+              auto posPixel
+                  = normalizedToLocal2DPosition (directionToDisc (position));
+              auto const distance = posPixel.getDistanceFrom (posGrabbedPixel);
 
-          if (distance < getActiveDistanceInPixel ())
-            { // push out onto circumference
-              // juce::Logger::writeToLog ("disoccluding point "
-              //                           + juce::String (channelIndex));
-              auto offset = posPixel - posGrabbedPixel;
-              offset *= (getActiveDistanceInPixel () + 1.f)
-                        / offset.getDistanceFromOrigin ();
+              if (distance < getActiveDistanceInPixel ())
+                { // push out onto circumference
+                  // juce::Logger::writeToLog ("disoccluding point "
+                  //                           + juce::String (channelIndex));
+                  auto offset = posPixel - posGrabbedPixel;
+                  offset *= (getActiveDistanceInPixel () + 1.f)
+                            / offset.getDistanceFromOrigin ();
 
-              posPixel = posGrabbedPixel + offset;
-            }
-          else if (posPixel.getDistanceFrom (_uiStates[channel]->posAnchor)
-                   > 1.f)
-            { // snap back by projection onto circle
-              // borrowing math from:
-              // https://www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
-              auto R = getActiveDistanceInPixel ();
-
-              auto C = posGrabbedPixel;
-              auto P = posPixel;
-
-              jassert (_uiStates[channel]->posAnchor.isFinite ());
-              if (!_uiStates[channel]->posAnchor.isFinite ())
-                {
-                  _uiStates[channel]->posAnchor = posPixel;
+                  posPixel = posGrabbedPixel + offset;
                 }
+              else if (posPixel.getDistanceFrom (_uiStates[channel]->posAnchor)
+                       > 1.f)
+                { // snap back by projection onto circle
+                  // borrowing math from:
+                  // https://www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
+                  auto R = getActiveDistanceInPixel ();
 
-              auto Pa = _uiStates[channel]->posAnchor;
+                  auto C = posGrabbedPixel;
+                  auto P = posPixel;
 
-              auto D = Pa - posPixel;
-
-              auto Delta = P - C;
-              auto D_dot_Delta = D.getDotProduct (Delta);
-
-              auto delta
-                  = D_dot_Delta * D_dot_Delta
-                    - D.getDistanceSquaredFromOrigin ()
-                          * (Delta.getDistanceSquaredFromOrigin () - R * R);
-
-              auto t = .01f; // default: snap back with exponential
-                             // smoothing
-              int numValid = 0;
-              float validTs[2];
-              if (delta > 0.f)
-                {
-                  auto t0 = -(D_dot_Delta - std::sqrt (delta))
-                            / D.getDistanceSquaredFromOrigin ();
-                  auto t1 = -(D_dot_Delta + std::sqrt (delta))
-                            / D.getDistanceSquaredFromOrigin ();
-
-                  auto constexpr eps = 0.001f;
-                  if (t0 >= -eps && t0 <= 1.f + eps)
-                    validTs[numValid++] = t0;
-                  if (t1 >= -eps && t1 <= 1.f + eps)
-                    validTs[numValid++] = t1;
-
-                  // Pick the t that moves P closest to its target
-                  float bestDist = std::numeric_limits<float>::max ();
-                  for (int ti = 0; ti < numValid; ++ti)
+                  jassert (_uiStates[channel]->posAnchor.isFinite ());
+                  if (!_uiStates[channel]->posAnchor.isFinite ())
                     {
-                      auto d = P.getDistanceSquaredFrom (P + validTs[ti] * D);
-                      if (d < bestDist)
+                      _uiStates[channel]->posAnchor = posPixel;
+                    }
+
+                  auto Pa = _uiStates[channel]->posAnchor;
+
+                  auto D = Pa - posPixel;
+
+                  auto Delta = P - C;
+                  auto D_dot_Delta = D.getDotProduct (Delta);
+
+                  auto delta
+                      = D_dot_Delta * D_dot_Delta
+                        - D.getDistanceSquaredFromOrigin ()
+                              * (Delta.getDistanceSquaredFromOrigin () - R * R);
+
+                  auto t = .01f; // default: snap back with exponential
+                                 // smoothing
+                  int numValid = 0;
+                  float validTs[2];
+                  if (delta > 0.f)
+                    {
+                      auto t0 = -(D_dot_Delta - std::sqrt (delta))
+                                / D.getDistanceSquaredFromOrigin ();
+                      auto t1 = -(D_dot_Delta + std::sqrt (delta))
+                                / D.getDistanceSquaredFromOrigin ();
+
+                      auto constexpr eps = 0.001f;
+                      if (t0 >= -eps && t0 <= 1.f + eps)
+                        validTs[numValid++] = t0;
+                      if (t1 >= -eps && t1 <= 1.f + eps)
+                        validTs[numValid++] = t1;
+
+                      // Pick the t that moves P closest to its target
+                      float bestDist = std::numeric_limits<float>::max ();
+                      for (int ti = 0; ti < numValid; ++ti)
                         {
-                          bestDist = d;
-                          t = validTs[ti];
+                          auto d = P.getDistanceSquaredFrom (P + validTs[ti] * D);
+                          if (d < bestDist)
+                            {
+                              bestDist = d;
+                              t = validTs[ti];
+                            }
                         }
+                    }
+
+                  posPixel = P + t * D;
+
+                  if (numValid > 0)
+                    {
+                      // after projecting shift outwards to induce slipping
+                      auto Drot = juce::Point<float> (-D.y, D.x);
+                      Drot /= Drot.getDistanceFromOrigin ();
+                      if ((P - C).getDotProduct (Drot) < 0.f)
+                        Drot *= -1.f;
+                      posPixel += .25f * Drot;
                     }
                 }
 
-              posPixel = P + t * D;
-
-              if (numValid > 0)
-                {
-                  // after projecting shift outwards to induce slipping
-                  auto Drot = juce::Point<float> (-D.y, D.x);
-                  Drot /= Drot.getDistanceFromOrigin ();
-                  if ((P - C).getDotProduct (Drot) < 0.f)
-                    Drot *= -1.f;
-                  posPixel += .25f * Drot;
-                }
+                  _engine.setChannel3DPosition (
+                      channel,
+                      discToDirection (localToNormalized2DPosition (posPixel)));
             }
-
-          _engine.setChannel3DPosition (
-              channel, discToDirection (localToNormalized2DPosition (posPixel)));
         }
     }
 }
@@ -537,19 +545,32 @@ MotionComponent::disoccludeBlobs ()
 void
 MotionComponent::mouseDown (const juce::MouseEvent &event)
 {
-  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
-    _uiStates[channel]->grabbed = false;
+  // No blanket reset any more: a finger going down must not let go of what
+  // another finger is already holding.
+  auto const source = event.source.getIndex ();
 
   if (_engine.isRecording ())
     {
-      auto const posPixel = event.getPosition ().toFloat ();
-      auto const posHOA = localToNormalized2DPosition (posPixel);
-      _engine.setRecording2DPosition (posHOA);
+      // A recording follows one finger and has to keep following the same
+      // one. Every finger writing the position would make the trajectory
+      // jump between them — impossible with a single pointer, easy with ten.
+      auto const wasEmpty = _grabs.empty ();
+      _grabs.down (source, {});
+
+      if (wasEmpty)
+        {
+          auto const posPixel = event.getPosition ().toFloat ();
+          _engine.setRecording2DPosition (
+              localToNormalized2DPosition (posPixel));
+        }
     }
   else
     {
-      auto closestIndex = getClosestBlobIndexWithinRadius (
+      // The nearest blob that is *free*. Taking one already under somebody
+      // else's finger is how two fingers would end up fighting over one blob.
+      auto closestIndex = getClosestFreeBlobIndexWithinRadius (
           event.getPosition ().toFloat (), getActiveDistanceInPixel ());
+      _grabs.down (source, closestIndex);
       if (closestIndex.has_value ())
         {
           auto const index = closestIndex.value ();
@@ -579,7 +600,6 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           _engine.setChannel3DPosition (
               index, discToDirection (localToNormalized2DPosition (
                          event.getPosition ().toFloat ())));
-          _grabbedIndex = index;
 
           // disocclusion: save anchor position for all channels
           for (auto channel = 0u; channel < _engine.getNumChannels ();
@@ -596,15 +616,20 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
 void
 MotionComponent::mouseUp (const juce::MouseEvent &event)
 {
-  juce::ignoreUnused (event);
-  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+  // Exactly the channel this finger held, and no other. Clearing them all was
+  // right while there could only be one grab; with several it handed every
+  // other blob back to playback mid-drag.
+  auto const released = _grabs.up (event.source.getIndex ());
+  if (released.has_value ())
     {
-      _uiStates[channel]->grabbed = false;
-      _engine.setChannelPositionHeld (channel, false);
+      _uiStates[released.value ()]->grabbed = false;
+      _engine.setChannelPositionHeld (released.value (), false);
     }
-  _grabbedIndex = {};
 
-  _engine.releaseRecordingPosition ();
+  // The recording follows whichever finger is on the screen, so it is only
+  // over when the last one leaves.
+  if (_grabs.empty ())
+    _engine.releaseRecordingPosition ();
 }
 
 void
@@ -614,13 +639,15 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
 
   if (_engine.isRecording ())
     {
-      auto const posHOA = localToNormalized2DPosition (posPixel);
-      _engine.setRecording2DPosition (posHOA);
+      // Only the finger that started it; the others are along for the ride.
+      if (_grabs.firstSource () == std::optional<int>{ event.source.getIndex () })
+        _engine.setRecording2DPosition (localToNormalized2DPosition (posPixel));
     }
-  else if (_grabbedIndex.has_value ())
+  else if (auto const grabbed = _grabs.channelFor (event.source.getIndex ()))
     {
-      // Direct lookup via cached index — no loop over all channels
-      auto const channel = _grabbedIndex.value ();
+      // Only this finger's channel. Another finger's blob is another finger's
+      // business.
+      auto const channel = grabbed.value ();
       auto const posPixelOffsetted
           = posPixel + _uiStates[channel]->grabOffset;
 
@@ -675,6 +702,38 @@ MotionComponent::getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
     return { minIndex };
 
   return {};
+}
+
+std::optional<index_t>
+MotionComponent::getClosestFreeBlobIndexWithinRadius (
+    juce::Point<float> posPixel, float radiusPixel) const
+{
+  // Same search, skipping what another finger already holds. Without this a
+  // second finger landing near an occupied blob takes it away from the first,
+  // which is the single-pointer behaviour wearing a multitouch coat.
+  auto minDistance = std::numeric_limits<float>::infinity ();
+  std::optional<index_t> minIndex;
+
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+    {
+      if (_grabs.isHeld (channel))
+        continue;
+
+      auto const blobPos = _engine.getChannelPosition (channel);
+      if (!blobPos.isValid ())
+        continue;
+
+      auto const distance
+          = normalizedToLocal2DPosition (blobPos).getDistanceFrom (posPixel);
+
+      if (distance < radiusPixel && distance < minDistance)
+        {
+          minDistance = distance;
+          minIndex = channel;
+        }
+    }
+
+  return minIndex;
 }
 
 float

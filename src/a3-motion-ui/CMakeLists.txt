@@ -42,6 +42,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/ChannelStrip.cc
     components/ChannelStrip.hh
     components/CoronaScaling.cc
+    components/TouchGrabs.cc
+    components/TouchGrabs.hh
     components/SpeakerLightScaling.cc
     components/EnergyMap.cc
     components/SphereProjection.cc

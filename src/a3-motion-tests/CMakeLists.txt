@@ -32,6 +32,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TextInput.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinEditorTyping.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OnScreenKeyboard.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/TouchGrabs.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SettingsPersistence.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/osc/OscMessageHandler.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/CoronaScaling.cc"
@@ -49,6 +50,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/TextInput.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/SkinEditorComponent.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/io/OnScreenKeyboard.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/TouchGrabs.cc"
     )
 
 # The corona visibility test reads the config that actually ships with the app,

@@ -31,6 +31,7 @@
 #include <a3-motion-ui/Helpers.hh>
 #include <a3-motion-ui/ConfigFileWatcher.hh>
 #include <a3-motion-ui/components/CoronaScaling.hh>
+#include <a3-motion-ui/components/TouchGrabs.hh>
 #include <a3-motion-ui/components/EnergyMap.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
@@ -127,12 +128,19 @@ private:
   getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
                                    float radiusPixel) const;
 
+  /** The same, but ignoring blobs another finger is already holding. */
+  std::optional<index_t>
+  getClosestFreeBlobIndexWithinRadius (juce::Point<float> posPixel,
+                                       float radiusPixel) const;
+
   void disoccludeBlobs ();
 
   MotionEngine &_engine;
 
   std::vector<std::unique_ptr<ChannelUIState> > &_uiStates;
-  std::optional<index_t> _grabbedIndex;
+  // Which finger holds which channel. JUCE 9 gives every touch its own
+  // MouseInputSource; before it there was one pointer and so one grab.
+  TouchGrabs _grabs;
 
   std::map<std::shared_ptr<Pattern>, PatternDisplayData> _patternsPreview;
   std::mutex _mutexPreview;
