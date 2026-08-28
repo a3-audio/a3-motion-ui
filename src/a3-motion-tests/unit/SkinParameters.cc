@@ -172,7 +172,37 @@ TEST (SkinParameters, AWrittenFloatIsRoundedToSomethingReadable)
 
   auto const written = juce::JSON::toString (skin);
   EXPECT_FALSE (written.contains ("2.98150695788495")) << written;
-  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 2.9815, 0.0001);
+  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 2.98, 0.0001);
+}
+
+// Two places, not four: four still left values nobody would type, and the
+// smallest number any shipped skin carries is 0.01. The step never falls below
+// 0.01 either (see skinValueStep), so no value can round back onto itself and
+// become impossible to turn.
+TEST (SkinParameters, AWrittenFloatKeepsTwoDecimals)
+{
+  auto skin = parse (R"({ "corona": { "sizeMin": 1.0 } })");
+
+  setSkinValue (skin, "corona.sizeMin", 0.8999123);
+  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 0.9, 0.0001);
+
+  setSkinValue (skin, "corona.sizeMin", 14.0648);
+  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 14.06, 0.0001);
+}
+
+// The smallest value a skin actually uses has to survive being written back.
+TEST (SkinParameters, TheSmallestUsedValueSurvivesTheRounding)
+{
+  auto skin = parse (R"({ "corona": { "attack": 0.01 } })");
+
+  setSkinValue (skin, "corona.attack", 0.01);
+  EXPECT_NEAR (skinValue (skin, "corona.attack"), 0.01, 0.0001);
+
+  // And it can still be turned: the step has a floor of 0.01, so a change is
+  // always big enough to show in the second decimal.
+  auto const stepped = stepSkinValue (0.01, 1, false);
+  setSkinValue (skin, "corona.attack", stepped);
+  EXPECT_GT (skinValue (skin, "corona.attack"), 0.01);
 }
 
 // Three rows of 0..255 are a poor way to say "this colour". Wherever an

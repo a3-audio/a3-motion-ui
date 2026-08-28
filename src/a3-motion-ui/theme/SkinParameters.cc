@@ -173,7 +173,12 @@ setSkinValue (juce::var &skin, juce::String const &path, double value,
   // Rounded on the way in: stepping compounds, and a double carries every
   // rounding of the way, so an encoder run would otherwise leave something
   // like 2.98150695788495 in a file people still read and diff.
-  constexpr double places = 10000.0;
+  //
+  // Two places. Four was still more than anybody would type, and nothing is
+  // lost: the smallest number any shipped skin carries is 0.01, and
+  // skinValueStep never returns less than that — so no value can round back
+  // onto itself and become impossible to turn.
+  constexpr double places = 100.0;
 
   auto const stored
       = asWholeNumber
