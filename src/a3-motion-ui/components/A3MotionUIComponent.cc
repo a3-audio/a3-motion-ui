@@ -935,6 +935,11 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
                 _clipUIParams[channel][slot].recordLengthLog2))
             * _engine.getBeatsPerBar ();
 
+      // A take runs until Record is pressed again. OneShot — the default —
+      // schedules its own stop one length in, which is why recording ended by
+      // itself with nobody touching the button.
+      _engine.setRecordingMode (MotionEngine::RecordingMode::Loop);
+
       // Remembered so an empty take can be undone: the slot's pattern is
       // replaced right below, and a stray double press must not cost whatever
       // was in there.

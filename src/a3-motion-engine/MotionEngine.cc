@@ -202,7 +202,12 @@ MotionEngine::setRecording3DPosition (Pos const &position)
   Message message;
   message.command = Message::Command::SetRecordingPosition;
   message.position = position;
-  message.position2D = Pos::fromCartesian (position.x (), position.y (), 0.f);
+  // Not derived here: turning a direction into a pattern coordinate needs the
+  // recording pattern's own elevation parameters, and dropping z instead is
+  // exactly the wrong conversion — it reads the radius in the drawing's space
+  // rather than the pattern's, short by 1/sqrt(2). performRecording() does it
+  // with mapTo2D, where the parameters are known.
+  message.position2D = Pos::invalid;
   submitFifoMessage (message);
 }
 
@@ -715,6 +720,14 @@ MotionEngine::performRecording ()
       // every pass wipe the one before it, and only the last one ever counted.
       // Protecting what is already there is what makes several passes worth
       // running: rough one out, then mend a corner.
+      // The finger arrives as a direction on the sphere. A pattern stores 2D
+      // so elevation coverage can be changed later, and mapTo2D is the exact
+      // inverse of the mapTo3D playback uses — see
+      // HeightMapSphere.MapTo2DRoundTripLeavesAPositionWhereItWas.
+      auto const params = _patternRecording->getElevationParams ();
+      if (_recordingPosition.isValid ())
+        _recordingPosition2D = _heightMap.mapTo2D (_recordingPosition, params);
+
       if (_recordingPosition2D.isValid ())
         for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
           {
@@ -722,14 +735,12 @@ MotionEngine::performRecording ()
             _patternRecording->setTick (tick, _recordingPosition2D);
           }
 
-      if (_recordingPosition2D.isValid ())
+      if (_recordingPosition.isValid ())
         {
-          // Apply this clip's own elevation mapping for channel position
-          // (OSC + visual) — elevation parameters live on the Pattern
-          // itself.
+          // The finger's own direction, not a round trip through the pattern
+          // space — that is what puts the blob exactly under it.
           auto const recChannel = _patternRecording->getChannel ();
-          auto const params = _patternRecording->getElevationParams ();
-          auto pos3D = _heightMap.mapTo3D (_recordingPosition2D, params);
+          auto pos3D = _recordingPosition;
           _channels[recChannel]->setPosition (pos3D);
         }
     }

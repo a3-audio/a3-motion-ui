@@ -559,9 +559,13 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
 
       if (wasEmpty)
         {
+          // The same projection the drag path uses. Handing the finger's
+          // disc position over as a pattern coordinate read its radius in the
+          // wrong space and put the blob short of the finger by 1/sqrt(2) —
+          // the same mistake disoccludeBlobs once made.
           auto const posPixel = event.getPosition ().toFloat ();
-          _engine.setRecording2DPosition (
-              localToNormalized2DPosition (posPixel));
+          _engine.setRecording3DPosition (
+              discToDirection (localToNormalized2DPosition (posPixel)));
         }
     }
   else
@@ -641,7 +645,8 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
     {
       // Only the finger that started it; the others are along for the ride.
       if (_grabs.firstSource () == std::optional<int>{ event.source.getIndex () })
-        _engine.setRecording2DPosition (localToNormalized2DPosition (posPixel));
+        _engine.setRecording3DPosition (
+            discToDirection (localToNormalized2DPosition (posPixel)));
     }
   else if (auto const grabbed = _grabs.channelFor (event.source.getIndex ()))
     {
