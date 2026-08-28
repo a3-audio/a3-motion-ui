@@ -33,6 +33,7 @@ void
 Pattern::clear ()
 {
   std::fill (_ticks.begin (), _ticks.end (), Pos::invalid);
+  std::fill (_written.begin (), _written.end (), false);
 }
 
 void
@@ -40,6 +41,9 @@ Pattern::resize (index_t lengthTicks)
 {
   std::lock_guard<std::mutex> guard (_ticksMutex);
   _ticks.resize (lengthTicks, Pos::invalid);
+  // Started over rather than grown: the mask describes the recording that is
+  // running, and a resize means a different one.
+  _written.assign (lengthTicks, false);
 }
 
 void
@@ -119,6 +123,8 @@ Pattern::setTick (index_t tick, Pos position)
   jassert (tick < _ticks.size ());
   std::lock_guard<std::mutex> guard (_ticksMutex);
   _ticks[tick] = position;
+  if (tick < _written.size ())
+    _written[tick] = true;
   _lastUpdatedTick = tick;
 }
 
@@ -127,6 +133,27 @@ Pattern::getLastUpdatedTick () const
 {
   std::lock_guard<std::mutex> guard (_ticksMutex);
   return _lastUpdatedTick;
+}
+
+std::vector<bool>
+Pattern::writtenTicks () const
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  return _written;
+}
+
+bool
+Pattern::isTickWritten (index_t tick) const
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  return tick < _written.size () && _written[tick];
+}
+
+void
+Pattern::clearWrittenTicks ()
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  std::fill (_written.begin (), _written.end (), false);
 }
 
 Pos

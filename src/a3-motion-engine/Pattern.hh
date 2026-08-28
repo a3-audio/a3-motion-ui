@@ -69,6 +69,16 @@ public:
   void setTick (index_t tick, Pos position);
   index_t getLastUpdatedTick () const;
 
+  /** Which ticks this session's recording has written.
+   *
+   *  Punch-out needs to tell "never touched" from "touched, and holding a
+   *  position that happens to look like nothing". Only setTick() marks; a
+   *  resize starts the mask over, because it is about the recording in
+   *  progress and not about what a file once held. */
+  std::vector<bool> writtenTicks () const;
+  bool isTickWritten (index_t tick) const;
+  void clearWrittenTicks ();
+
   // Interpolated playback: returns position with linear interpolation between keyframes
   // This provides smooth motion even with sparse keyframes during slow playback
   Pos getInterpolatedTick (double fractionalTick) const;
@@ -132,6 +142,7 @@ private:
 
   index_t _lastUpdatedTick{ 0 };
   std::vector<Pos> _ticks;
+  std::vector<bool> _written;
   mutable std::mutex _ticksMutex;
 
   // TODO is float precision sufficient here? do the math!
