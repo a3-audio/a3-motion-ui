@@ -22,7 +22,7 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-engine/AutomationMode.hh>
+#include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-ui/SettingsPersistence.hh>
 
 using namespace a3;
@@ -81,10 +81,10 @@ TEST (SettingsPersistence, TheAutomationModeSurvivesARestart)
   file.deleteFile ();
 
   AppSettings settings;
-  settings.automationMode = AutomationMode::Write;
+  settings.recMode = RecMode::Write;
   saveSettings (file, settings);
 
-  EXPECT_EQ (loadSettings (file).automationMode, AutomationMode::Write);
+  EXPECT_EQ (loadSettings (file).recMode, RecMode::Write);
   file.deleteFile ();
 }
 
@@ -99,7 +99,7 @@ TEST (SettingsPersistence, AFileWithoutOneRecordsAsBefore)
 
   auto const settings = loadSettings (file);
   EXPECT_EQ (settings.clockMode, 2);
-  EXPECT_EQ (settings.automationMode, AutomationMode::Touch);
+  EXPECT_EQ (settings.recMode, RecMode::Touch);
 
   file.deleteFile ();
 }

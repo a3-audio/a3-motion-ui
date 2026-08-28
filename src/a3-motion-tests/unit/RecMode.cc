@@ -20,7 +20,7 @@
 
 #include <gtest/gtest.h>
 
-#include <a3-motion-engine/AutomationMode.hh>
+#include <a3-motion-engine/RecMode.hh>
 
 using namespace a3;
 
@@ -32,62 +32,62 @@ namespace
 // so that one decision is worth having on its own, where it can be read as a
 // table and tested as one.
 
-TEST (AutomationMode, EveryModeWritesUnderTheFinger)
+TEST (RecMode, EveryModeWritesUnderTheFinger)
 {
-  EXPECT_TRUE (shouldWriteTick (AutomationMode::Touch, true, true));
-  EXPECT_TRUE (shouldWriteTick (AutomationMode::Latch, true, true));
-  EXPECT_TRUE (shouldWriteTick (AutomationMode::Write, true, true));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Touch, true, true));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Latch, true, true));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Write, true, true));
 }
 
 // Touch is punch-out: lift the finger and the pass leaves what earlier passes
 // put there. This is what the engine did before there was a choice, and it
 // stays the default.
-TEST (AutomationMode, TouchWritesOnlyUnderTheFinger)
+TEST (RecMode, TouchWritesOnlyUnderTheFinger)
 {
-  EXPECT_FALSE (shouldWriteTick (AutomationMode::Touch, false, false));
-  EXPECT_FALSE (shouldWriteTick (AutomationMode::Touch, false, true));
+  EXPECT_FALSE (shouldWriteTick (RecMode::Touch, false, false));
+  EXPECT_FALSE (shouldWriteTick (RecMode::Touch, false, true));
 }
 
 // Latch takes hold at the first touch and does not let go: after the finger
 // lifts it carries on writing the position it was left at.
-TEST (AutomationMode, LatchKeepsWritingOnceTouched)
+TEST (RecMode, LatchKeepsWritingOnceTouched)
 {
-  EXPECT_FALSE (shouldWriteTick (AutomationMode::Latch, false, false))
+  EXPECT_FALSE (shouldWriteTick (RecMode::Latch, false, false))
       << "nothing has been touched yet, so there is nothing to hold";
-  EXPECT_TRUE (shouldWriteTick (AutomationMode::Latch, false, true));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Latch, false, true));
 }
 
 // Write overwrites the whole pass whether it is touched or not — that is what
 // makes it the one that clears an old take out of the way.
-TEST (AutomationMode, WriteOverwritesEvenUntouched)
+TEST (RecMode, WriteOverwritesEvenUntouched)
 {
-  EXPECT_TRUE (shouldWriteTick (AutomationMode::Write, false, false));
-  EXPECT_TRUE (shouldWriteTick (AutomationMode::Write, false, true));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Write, false, false));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Write, false, true));
 }
 
 // Before the first touch, Latch and Write part company. Getting this the wrong
 // way round would make Latch overwrite a take from its first tick, which is
 // Write's job.
-TEST (AutomationMode, LatchAndWriteDifferBeforeTheFirstTouch)
+TEST (RecMode, LatchAndWriteDifferBeforeTheFirstTouch)
 {
-  EXPECT_NE (shouldWriteTick (AutomationMode::Latch, false, false),
-             shouldWriteTick (AutomationMode::Write, false, false));
+  EXPECT_NE (shouldWriteTick (RecMode::Latch, false, false),
+             shouldWriteTick (RecMode::Write, false, false));
 }
 
-TEST (AutomationMode, NamesRoundTrip)
+TEST (RecMode, NamesRoundTrip)
 {
-  for (auto const mode : { AutomationMode::Touch, AutomationMode::Latch,
-                           AutomationMode::Write })
-    EXPECT_EQ (automationModeFromName (automationModeName (mode)), mode);
+  for (auto const mode : { RecMode::Touch, RecMode::Latch,
+                           RecMode::Write })
+    EXPECT_EQ (recModeFromName (recModeName (mode)), mode);
 }
 
 // An unknown name is what a hand-edited or older settings file hands over.
 // Falling back to the mode that behaves as this device always has is the only
 // safe answer.
-TEST (AutomationMode, AnUnknownNameFallsBackToTouch)
+TEST (RecMode, AnUnknownNameFallsBackToTouch)
 {
-  EXPECT_EQ (automationModeFromName ("Overdub"), AutomationMode::Touch);
-  EXPECT_EQ (automationModeFromName (""), AutomationMode::Touch);
+  EXPECT_EQ (recModeFromName ("Overdub"), RecMode::Touch);
+  EXPECT_EQ (recModeFromName (""), RecMode::Touch);
 }
 
 }

@@ -22,7 +22,7 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-engine/AutomationMode.hh>
+#include <a3-motion-engine/RecMode.hh>
 
 namespace a3
 {
@@ -37,7 +37,7 @@ struct AppSettings
   /** What a recording pass writes where the finger is not. Touch is what the
    *  device did before this was a choice, so a settings file that predates it
    *  keeps behaving exactly as it did. */
-  AutomationMode automationMode = AutomationMode::Touch;
+  RecMode recMode = RecMode::Touch;
 };
 
 /** Returns defaults if the file doesn't exist or fails to parse as JSON. */

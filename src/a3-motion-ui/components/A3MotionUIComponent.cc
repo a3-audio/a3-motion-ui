@@ -72,18 +72,18 @@ namespace
 /** The modes the Automation row offers, in the order it offers them. The row
  *  hands back an index, so this list is what an index means; Read is absent on
  *  purpose — see where the row is built. */
-constexpr std::array<AutomationMode, 3> automationMenuModes{
-  AutomationMode::Touch, AutomationMode::Latch, AutomationMode::Write
+constexpr std::array<RecMode, 3> recMenuModes{
+  RecMode::Touch, RecMode::Latch, RecMode::Write
 };
 
 int
-automationMenuIndex (AutomationMode mode)
+recMenuIndex (RecMode mode)
 {
-  auto const found = std::find (automationMenuModes.begin (),
-                                automationMenuModes.end (), mode);
-  return found == automationMenuModes.end ()
+  auto const found = std::find (recMenuModes.begin (),
+                                recMenuModes.end (), mode);
+  return found == recMenuModes.end ()
              ? 0
-             : static_cast<int> (found - automationMenuModes.begin ());
+             : static_cast<int> (found - recMenuModes.begin ());
 }
 }
 
@@ -159,8 +159,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // are the skin's now, and the skin brings its own.
   auto const persisted = loadSettings (getPersistedSettingsFile ());
   applyClockMode (persisted.clockMode);
-  _automationMode = persisted.automationMode;
-  _engine.setAutomationMode (_automationMode);
+  _recMode = persisted.recMode;
+  _engine.setRecMode (_recMode);
 
 
   // Fast enough for the write head to move while a take runs; the directory
@@ -1753,17 +1753,6 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
   add (MenuRow::ClockMode,
        { "Clockmode", { { "INT" }, { "EXT" }, { "PIO" } }, _clockMode });
 
-  // Read is not offered: it is not a way of recording, it is what the device
-  // does when no take is armed. Offering it would put a setting on the menu
-  // that makes the Record button do nothing.
-  std::vector<GlobalSettingsComponent::ValueItem> automationValues;
-  for (auto const mode : automationMenuModes)
-    automationValues.push_back ({ automationModeName (mode) });
-
-  add (MenuRow::Automation,
-       { "Automation", std::move (automationValues),
-         automationMenuIndex (_automationMode) });
-
   // Built from what is actually in config/skins, so a skin added on the
   // device shows up without a rebuild.
   _skinNames = availableSkins (getConfigFile ().getParentDirectory ());
@@ -1831,7 +1820,6 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
   switch (row.value ())
     {
     case MenuRow::ClockMode: applyClockMode (chosen); break;
-    case MenuRow::Automation: applyAutomationMode (chosen); break;
     case MenuRow::Skin: applySkin (chosen); break;
     case MenuRow::SkinEditor: openSkinEditor (); break;
     case MenuRow::Network:
@@ -1853,16 +1841,16 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
 }
 
 void
-A3MotionUIComponent::applyAutomationMode (int index)
+A3MotionUIComponent::applyRecMode (int index)
 {
-  if (index < 0 || index >= static_cast<int> (automationMenuModes.size ()))
+  if (index < 0 || index >= static_cast<int> (recMenuModes.size ()))
     return;
 
-  _automationMode = automationMenuModes[static_cast<size_t> (index)];
-  _engine.setAutomationMode (_automationMode);
+  _recMode = recMenuModes[static_cast<size_t> (index)];
+  _engine.setRecMode (_recMode);
 
   saveSettings (getPersistedSettingsFile (),
-                AppSettings{ _clockMode, _automationMode });
+                AppSettings{ _clockMode, _recMode });
 }
 
 void
@@ -1899,7 +1887,7 @@ A3MotionUIComponent::applyClockMode (int mode)
   _oscSender.send (clockModeMsg);
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _automationMode });
+               AppSettings{ _clockMode, _recMode });
 }
 
 
@@ -2301,7 +2289,7 @@ A3MotionUIComponent::refreshFonts ()
     root->repaint ();
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _automationMode });
+               AppSettings{ _clockMode, _recMode });
 }
 
 juce::File
@@ -2544,6 +2532,17 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           _filterDisplay->setQ (static_cast<int> (channel), newVal);
         }
       break;
+
+    case ClipSettingsComponent::globalIndex:
+      {
+        // Nothing in _clipUIParams changes here: the strip holds one setting
+        // that every channel shares, which is why it sits outside their
+        // sections rather than inside each of them.
+        auto const count = static_cast<int> (recMenuModes.size ());
+        applyRecMode ((recMenuIndex (_recMode) + increment % count + count)
+                      % count);
+      }
+      break;
     }
 
   updateClipSettingsDisplay ();
@@ -2588,6 +2587,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       _clipSettings->setTrajectoryName ("Empty");
     }
 
+  _clipSettings->setRecMode (_recMode);
   _clipSettings->setElevationSubIndex (_clipSettingsSubIndex);
   _clipSettings->setElevationReach (pattern ? pattern->getReach () : 0.5f);
   _clipSettings->setElevationMirrorSouth (pattern

@@ -33,7 +33,7 @@ namespace a3
  *
  *  This is a second axis, not a replacement for RecordingMode: that one says
  *  when a take ends, this one says what its passes write. */
-enum class AutomationMode
+enum class RecMode
 {
   /** Punch-out. A lifted finger writes nothing, so an earlier pass stands
    *  where this one did not go. Rough a shape out, then mend one corner. */
@@ -53,13 +53,13 @@ enum class AutomationMode
  *  `hasTouched` is about the take, not the tick: whether the finger has been
  *  down at any point since the take began. It is what separates Latch from
  *  Write, which are otherwise the same. */
-bool shouldWriteTick (AutomationMode mode, bool fingerDown, bool hasTouched);
+bool shouldWriteTick (RecMode mode, bool fingerDown, bool hasTouched);
 
 /** The name a settings file stores, and the mode it names.
  *
  *  A name that is not one of the three — an older file, or one edited by
  *  hand — falls back to Touch, the behaviour this device has always had. */
-juce::String automationModeName (AutomationMode mode);
-AutomationMode automationModeFromName (juce::String const &name);
+juce::String recModeName (RecMode mode);
+RecMode recModeFromName (juce::String const &name);
 
 }

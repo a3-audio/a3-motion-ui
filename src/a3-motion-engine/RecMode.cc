@@ -18,24 +18,24 @@
 
 */
 
-#include "AutomationMode.hh"
+#include "RecMode.hh"
 
 namespace a3
 {
 
 bool
-shouldWriteTick (AutomationMode mode, bool fingerDown, bool hasTouched)
+shouldWriteTick (RecMode mode, bool fingerDown, bool hasTouched)
 {
   if (fingerDown)
     return true;
 
   switch (mode)
     {
-    case AutomationMode::Touch:
+    case RecMode::Touch:
       return false;
-    case AutomationMode::Latch:
+    case RecMode::Latch:
       return hasTouched;
-    case AutomationMode::Write:
+    case RecMode::Write:
       return true;
     }
 
@@ -43,29 +43,29 @@ shouldWriteTick (AutomationMode mode, bool fingerDown, bool hasTouched)
 }
 
 juce::String
-automationModeName (AutomationMode mode)
+recModeName (RecMode mode)
 {
   switch (mode)
     {
-    case AutomationMode::Touch:
+    case RecMode::Touch:
       return "Touch";
-    case AutomationMode::Latch:
+    case RecMode::Latch:
       return "Latch";
-    case AutomationMode::Write:
+    case RecMode::Write:
       return "Write";
     }
 
   return "Touch";
 }
 
-AutomationMode
-automationModeFromName (juce::String const &name)
+RecMode
+recModeFromName (juce::String const &name)
 {
   if (name == "Latch")
-    return AutomationMode::Latch;
+    return RecMode::Latch;
   if (name == "Write")
-    return AutomationMode::Write;
-  return AutomationMode::Touch;
+    return RecMode::Write;
+  return RecMode::Touch;
 }
 
 }

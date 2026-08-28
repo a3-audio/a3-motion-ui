@@ -51,6 +51,9 @@ constexpr char const *endAction = "end";
 constexpr char const *frequency = "freq";
 constexpr char const *recordLength = "len";
 constexpr char const *seam = "seam";
+/** What a recording pass writes where the finger is not. The one control in
+ *  the bar that is not the shown clip's — it is the same for every channel. */
+constexpr char const *recMode = "recmode";
 constexpr char const *q = "Q";
 }
 

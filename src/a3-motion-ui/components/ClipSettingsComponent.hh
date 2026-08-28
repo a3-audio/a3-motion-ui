@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/RecMode.hh>
+
 #include <a3-motion-ui/theme/Theme.hh>
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
@@ -86,11 +88,31 @@ namespace a3
 class ClipSettingsComponent : public juce::Component
 {
 public:
-  static constexpr int numParameters = 4;
+  /** How many sections describe the shown clip. They share the bar's width
+   *  equally; the global strip beside them is half as wide again. */
+  static constexpr int numClipSections = 4;
+
+  /** Stops the Motion-Encoder scrolls through: the clip's sections, then the
+   *  global strip. */
+  static constexpr int numParameters = numClipSections + 1;
+
   static constexpr int trajectoryIndex = 0; // leftmost, pictogram section
   static constexpr int elevationIndex = 1;  // sphere/coverage section
   static constexpr int motionIndex = 2;     // speed/direction/end-action
   static constexpr int filterIndex = 3;     // sweep/Q
+  static constexpr int globalIndex = 4;     // rightmost, not the clip's
+
+  /** How wide one of the clip's four sections is, given the width the row of
+   *  sections has to share.
+   *
+   *  Four equal sections plus a strip half that wide: solving
+   *  width = 4 * s + s / 2 for s is where the 2 and the 9 come from. Pulled
+   *  out of paint() so the proportion can be checked without a screen. */
+  static constexpr int
+  clipSectionWidth (int rowWidth)
+  {
+    return rowWidth * 2 / (2 * numClipSections + 1);
+  }
 
   explicit ClipSettingsComponent ();
 
@@ -99,6 +121,10 @@ public:
   void setTarget (int channel, int slot, juce::Colour channelColour);
 
   /** Pictogram + name shown in the Shape section. */
+  /** The recording mode, shown in the global strip. Not a clip setting: it is
+   *  the same for every channel, which is why it sits apart from them. */
+  void setRecMode (RecMode mode);
+
   void setTrajectoryIcon (TrajectoryIconData const &icon);
   void setTrajectoryName (juce::String const &name);
 
@@ -207,6 +233,9 @@ private:
                            bool isSelected, ControlMetrics metrics);
   /** Small, deliberately unobtrusive section title (see class doc) — most
    *  of a section's height goes to its controls, not this label. */
+  void paintGlobalSection (juce::Graphics &g, juce::Rectangle<int> bounds,
+                           bool isSelected, ControlMetrics const &metrics);
+
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
                           juce::String const &text, bool isSelected);
 
@@ -274,6 +303,7 @@ private:
   juce::Colour _channelColour; // set from the theme in the constructor
   juce::String _lastControlText;
   TrajectoryIconData _trajectoryIcon;
+  RecMode _recMode = RecMode::Touch;
   juce::String _trajectoryName{ "Empty" };
   float _elevationReach = 0.5f;
   bool _elevationMirrorSouth = false;
@@ -298,7 +328,7 @@ private:
   static constexpr int paddingH = 16;
 
   static constexpr char const *parameterNames[numParameters] = {
-    "Shape", "Elevation", "Motion", "Filter",
+    "Shape", "Elevation", "Motion", "Filter", "Global",
   };
 };
 

@@ -27,7 +27,7 @@
 #include <string>
 #include <vector>
 
-#include <a3-motion-engine/AutomationMode.hh>
+#include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
@@ -249,7 +249,7 @@ private:
 
   /** Takes the menu row's index, not a mode: the row offers a list, and the
    *  list's order is the only thing that turns one into the other. */
-  void  applyAutomationMode (int index);
+  void  applyRecMode (int index);
   /** The picker behind a colour row: HSL to reach it, r/g/b in the file. */
   void  openColourPicker (juce::String const &path);
   void  closeColourPicker ();
@@ -276,7 +276,6 @@ private:
   enum class MenuRow
   {
     ClockMode,
-    Automation,
     Skin,
     SkinEditor,
     Network,
@@ -296,7 +295,7 @@ private:
   // a saved index has to become a factor at startup, before any menu exists.
   /** What a recording pass writes where the finger is not. A device setting,
    *  so it is persisted beside the clock mode rather than in the skin. */
-  AutomationMode _automationMode = AutomationMode::Touch;
+  RecMode _recMode = RecMode::Touch;
 
   int _headerSizeIndex = 1; // default 100%
   int _bodySizeIndex = 1;   // default 100%

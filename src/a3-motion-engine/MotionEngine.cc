@@ -308,15 +308,15 @@ MotionEngine::setRecordingMode (RecordingMode recordingMode)
 }
 
 void
-MotionEngine::setAutomationMode (AutomationMode mode)
+MotionEngine::setRecMode (RecMode mode)
 {
-  _automationMode.store (mode, std::memory_order_relaxed);
+  _recMode.store (mode, std::memory_order_relaxed);
 }
 
-AutomationMode
-MotionEngine::getAutomationMode () const
+RecMode
+MotionEngine::getRecMode () const
 {
-  return _automationMode.load (std::memory_order_relaxed);
+  return _recMode.load (std::memory_order_relaxed);
 }
 
 MotionEngine::RecordingMode
@@ -795,7 +795,7 @@ MotionEngine::performRecording ()
       auto const positionToWrite
           = fingerDown ? _recordingPosition2D : _recordingHeldPosition2D;
 
-      if (shouldWriteTick (_automationMode.load (std::memory_order_relaxed),
+      if (shouldWriteTick (_recMode.load (std::memory_order_relaxed),
                            fingerDown, _recordingHasTouched)
           && positionToWrite.isValid ())
         for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)

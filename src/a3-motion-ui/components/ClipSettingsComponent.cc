@@ -274,7 +274,10 @@ ClipSettingsComponent::paint (juce::Graphics &g)
 
   // 4 vertical sections side by side, with a small gap between them.
   auto const gap = juce::jmax (3, getWidth () / 200);
-  auto const sectionW = area.getWidth () / numParameters;
+  // Four equal sections for the clip, then a strip half that wide for what is
+  // not the clip's. Solving width = 4*s + s/2 for s is where the 2 and the 9
+  // come from.
+  auto const sectionW = clipSectionWidth (area.getWidth ());
 
   // Shared knob/toggle diameter for every section (see class doc /
   // controlBounds()) — sized to comfortably fit Elevation's tightest
@@ -315,11 +318,9 @@ ClipSettingsComponent::paint (juce::Graphics &g)
                      columnGap, controlBoxH)
   };
 
-  for (int i = 0; i < numParameters; ++i)
+  for (int i = 0; i < numClipSections; ++i)
     {
-      auto sectionBounds = (i < numParameters - 1)
-                               ? area.removeFromLeft (sectionW)
-                               : area;
+      auto sectionBounds = area.removeFromLeft (sectionW);
       auto cardBounds = sectionBounds.reduced (gap / 2, 0);
 
       bool const isSelected = (i == _selectedIndex);
@@ -332,6 +333,44 @@ ClipSettingsComponent::paint (juce::Graphics &g)
       else
         paintFilterSection (g, cardBounds, isSelected, metrics);
     }
+
+  // Whatever is left is the strip. It holds settings that are the same for
+  // every channel, so it is deliberately not framed or tinted in the shown
+  // channel's colour the way the four sections beside it are.
+  paintGlobalSection (g, area.reduced (gap / 2, 0),
+                      _selectedIndex == globalIndex, metrics);
+}
+
+void
+ClipSettingsComponent::setRecMode (RecMode mode)
+{
+  if (mode == _recMode)
+    return;
+  _recMode = mode;
+  repaint ();
+}
+
+void
+ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
+                                           juce::Rectangle<int> bounds,
+                                           bool isSelected,
+                                           ControlMetrics const &metrics)
+{
+  g.setColour (cardColour (isSelected));
+  g.fillRoundedRectangle (bounds.toFloat (), 8.f);
+  if (isSelected)
+    g.drawRoundedRectangle (bounds.toFloat (), 8.f, 2.f);
+
+  auto content = bounds.reduced (juce::jmax (2, bounds.getWidth () / 12), 4);
+  auto labelArea = content.removeFromTop (titleRowHeight (content));
+  paintSectionLabel (g, labelArea, parameterNames[globalIndex], isSelected);
+
+  // Through textCell like every other control in the bar: handed the whole
+  // remaining column instead, the value floated in the middle and its caption
+  // sat pinned to the bottom edge, a finger's width away from what it names.
+  paintMiniToggle (g, textCell (content, metrics.knobDiam), metrics,
+                   caption::recMode, recModeName (_recMode),
+                   _recMode != RecMode::Touch, isSelected);
 }
 
 void

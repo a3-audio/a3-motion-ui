@@ -20,7 +20,7 @@
 
 #pragma once
 
-#include <a3-motion-engine/AutomationMode.hh>
+#include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/AsyncCommandQueue.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Helpers.hh>
@@ -89,8 +89,8 @@ public:
    *  Set straight rather than through the command FIFO: the FIFO is there to
    *  order commands against the clock, and this is a preference chosen in a
    *  menu between takes, with nothing to order it against. */
-  void setAutomationMode (AutomationMode mode);
-  AutomationMode getAutomationMode () const;
+  void setRecMode (RecMode mode);
+  RecMode getRecMode () const;
   RecordingMode getRecordingMode () const;
 
   bool isRecording () const;
@@ -242,7 +242,7 @@ private:
   Pos _recordingPosition = Pos::invalid;     // 3D (mapped) — for OSC + visual
   Pos _recordingPosition2D = Pos::invalid;   // 2D (original) — for storing in ticks
   std::atomic<RecordingMode> _recordingMode = RecordingMode::OneShot;
-  std::atomic<AutomationMode> _automationMode = AutomationMode::Touch;
+  std::atomic<RecMode> _recMode = RecMode::Touch;
 
   /** Whether the finger has been down at any point in this take, and the last
    *  2D position it was at. Latch and Write keep writing that position after

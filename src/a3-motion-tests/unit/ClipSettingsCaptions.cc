@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
+#include <a3-motion-ui/components/ClipSettingsComponent.hh>
 
 using namespace a3;
 
@@ -279,4 +280,25 @@ TEST (ClipSettingsHeight, TheBarNeverEatsMoreThanItsShareOfTheScreen)
              (int)(screen * maxClipSettingsScreenShare));
   EXPECT_EQ (clipSettingsHeightWithin (200, screen), 200)
       << "a modest request passes through untouched";
+}
+
+// The strip on the right holds what is not the shown clip's. It is meant to
+// read as an aside rather than a fifth equal section, so it is half as wide --
+// and the four sections beside it stay equal to each other.
+TEST (ClipSettingsLayout, TheGlobalStripIsHalfASection)
+{
+  for (auto const rowWidth : { 400, 703, 704, 1024, 1920 })
+    {
+      auto const section = ClipSettingsComponent::clipSectionWidth (rowWidth);
+      auto const strip
+          = rowWidth - ClipSettingsComponent::numClipSections * section;
+
+      EXPECT_GT (section, 0) << "row width " << rowWidth;
+
+      // Integer division leaves at most a few pixels over; the strip must not
+      // absorb them into something that reads as a section of its own.
+      EXPECT_NEAR (strip, section / 2, ClipSettingsComponent::numClipSections)
+          << "row width " << rowWidth << ": section " << section << ", strip "
+          << strip;
+    }
 }
