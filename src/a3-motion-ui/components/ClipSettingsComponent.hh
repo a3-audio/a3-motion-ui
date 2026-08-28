@@ -134,6 +134,14 @@ public:
    *  it. All three are always shown; this only controls highlighting. */
   void setMotionSubIndex (int subIndex);
 
+  /** Which stretch-filling a take will use — 0 glide, 1 hard. */
+  void setMotionSeamMode (int mode);
+
+  /** The length the next take will have, already worded ("2", "1/4"), and
+   *  which of the shape section's two elements is armed. */
+  void setRecordLength (juce::String const &label);
+  void setTrajectorySubIndex (int subIndex);
+
   /** Filter section values, both unipolar (0..1). */
   void setFilterSweep (float sweep);
   void setFilterQ (float q);
@@ -277,6 +285,9 @@ private:
   int _motionDirection = 0;
   int _motionEndAction = 0;
   int _motionSubIndex = 0;
+  int _motionSeamMode = 0;
+  int _trajectorySubIndex = 0;
+  juce::String _recordLengthLabel { "1" };
   float _filterSweep = 0.0f;
   float _filterQ = 0.0f;
   int _filterSubIndex = 0;

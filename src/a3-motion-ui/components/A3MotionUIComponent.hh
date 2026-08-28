@@ -358,6 +358,10 @@ private:
     // 0=Glide, 1=Hard — what happens to the stretches a recording never
     // wrote, including the one across the loop point. See closeRecordingSeams.
     int seamMode = 0;
+    // log2 of the length the NEXT take will have, in bars. A setting, not a
+    // property of what is in the slot: an existing pattern's length is its
+    // tick count, and changing that would throw its data away.
+    int recordLengthLog2 = 0;
   };
   // [channel][slot], sized alongside _patterns in initializePatterns().
   std::vector<std::vector<ClipUIParams> > _clipUIParams;

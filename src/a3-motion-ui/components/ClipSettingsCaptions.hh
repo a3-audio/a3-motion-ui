@@ -49,6 +49,8 @@ constexpr char const *endAction = "end";
 /** The filter's cutoff. The engine still calls it sweep (see
  *  Pattern/setFilterSweep); on screen it is what it does. */
 constexpr char const *frequency = "freq";
+constexpr char const *recordLength = "len";
+constexpr char const *seam = "seam";
 constexpr char const *q = "Q";
 }
 
@@ -69,6 +71,8 @@ constexpr char const *off = "Off";
  *  bar could be drawn. "PingPong" held them all below their own captions. */
 constexpr char const *directionNames[] = { "Fwd", "Rev", "Ping" };
 constexpr char const *endActionNames[] = { "Loop", "Stop", "Bnce" };
+// What happens to what a take never wrote — glide across it, or hold and jump.
+constexpr char const *seamNames[] = { "Glide", "Hard" };
 /** The widest speed label the Motion section can produce — whole bars
  *  above 1, fractions below (see A3MotionUIComponent's speedLog2 range). */
 constexpr char const *widestSpeed = "1/16";
@@ -85,12 +89,15 @@ struct TextEntry
 };
 
 constexpr TextEntry captionTable[] = {
-  { caption::reach, 2 },  { caption::pole, 2 },
+  { caption::reach, 2 },       { caption::pole, 2 },
   { caption::clipTop, 2 },     { caption::clipBottom, 2 },
   { caption::flat, 2 },        { caption::flatElevation, 2 },
-  { caption::speed, 3 },       { caption::direction, 3 },
-  { caption::endAction, 3 },   { caption::frequency, 2 },
-  { caption::q, 2 },
+  // Motion carries four since the seam joined it — the tightest columns in
+  // the bar, and what pins the shared size for everything above.
+  { caption::speed, 4 },       { caption::direction, 4 },
+  { caption::endAction, 4 },   { caption::seam, 4 },
+  { caption::frequency, 2 },   { caption::q, 2 },
+  { caption::recordLength, 1 },
 };
 
 constexpr TextEntry valueTable[] = {
@@ -98,13 +105,15 @@ constexpr TextEntry valueTable[] = {
   { value::south, 2 },
   { value::on, 2 },
   { value::off, 2 },
-  { value::directionNames[0], 3 },
-  { value::directionNames[1], 3 },
-  { value::directionNames[2], 3 },
-  { value::endActionNames[0], 3 },
-  { value::endActionNames[1], 3 },
-  { value::endActionNames[2], 3 },
-  { value::widestSpeed, 3 },
+  { value::directionNames[0], 4 },
+  { value::directionNames[1], 4 },
+  { value::directionNames[2], 4 },
+  { value::endActionNames[0], 4 },
+  { value::endActionNames[1], 4 },
+  { value::endActionNames[2], 4 },
+  { value::seamNames[0], 4 },
+  { value::seamNames[1], 4 },
+  { value::widestSpeed, 4 },
 };
 
 /** The one size every caption in the bar is drawn at.

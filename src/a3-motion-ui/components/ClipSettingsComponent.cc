@@ -167,6 +167,27 @@ ClipSettingsComponent::setMotionEndAction (int endAction)
 }
 
 void
+ClipSettingsComponent::setMotionSeamMode (int mode)
+{
+  _motionSeamMode = juce::jlimit (0, 1, mode);
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setRecordLength (juce::String const &label)
+{
+  _recordLengthLabel = label;
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setTrajectorySubIndex (int subIndex)
+{
+  _trajectorySubIndex = subIndex;
+  repaint ();
+}
+
+void
 ClipSettingsComponent::setMotionSubIndex (int subIndex)
 {
   _motionSubIndex = subIndex;
@@ -434,6 +455,15 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   auto content = bounds.reduced (juce::jmax (2, bounds.getWidth () / 12), 4);
   auto labelArea = content.removeFromTop (titleRowHeight (content));
   paintSectionLabel (g, labelArea, parameterNames[trajectoryIndex], isSelected);
+
+  // The length the next take will have. Not what is in the slot — that is what
+  // the pictogram above shows.
+  // Two rows: a mini toggle draws its value above its caption, and one row
+  // leaves the value nowhere to go.
+  auto lengthArea = content.removeFromBottom (
+      2 * textRowHeight (content, metrics.valueSize));
+  paintMiniToggle (g, lengthArea, metrics, caption::recordLength,
+                   _recordLengthLabel, _trajectorySubIndex == 1, isSelected);
 
   auto nameArea
       = content.removeFromBottom (textRowHeight (content, metrics.valueSize));
@@ -784,12 +814,14 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   // Single row, no graphic to share space with — speed as a knob,
   // direction/end-action as toggles (discrete, no continuous value).
   auto const gapH = juce::jmax (2, content.getWidth () / 20);
-  auto const colW = (content.getWidth () - 2 * gapH) / 3;
+  auto const colW = (content.getWidth () - 3 * gapH) / 4;
   auto speedArea = content.removeFromLeft (colW);
   content.removeFromLeft (gapH);
   auto directionArea = content.removeFromLeft (colW);
   content.removeFromLeft (gapH);
-  auto const &endActionArea = content;
+  auto endActionArea = content.removeFromLeft (colW);
+  content.removeFromLeft (gapH);
+  auto const &seamArea = content;
 
   // Speed shows a quantized note value, and a knob angle says nothing a
   // reader of "1/4" does not already know. Value and caption only.
@@ -802,6 +834,11 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   paintMiniToggle (g, textCell (endActionArea, metrics.knobDiam), metrics,
                    caption::endAction, value::endActionNames[_motionEndAction],
                    _motionSubIndex == 2, isSelected);
+  // What happens to the stretches a take never wrote, the one across the loop
+  // point included — glide across them, or hold and jump.
+  paintMiniToggle (g, textCell (seamArea, metrics.knobDiam), metrics,
+                   caption::seam, value::seamNames[_motionSeamMode],
+                   _motionSubIndex == 3, isSelected);
 }
 
 void

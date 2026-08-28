@@ -928,9 +928,12 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           _motionComponent->unsetPreviewPattern (pattern);
         }
 
-      // Read before replacing: this is the length configured on the clip, and
-      // the fresh pattern below has none yet.
-      auto const configuredLengthBeats = getPatternLengthBeats (channel, slot);
+      // The length set for the next take, not whatever the slot happens to
+      // hold. Recording is the only moment a pattern's length is decided.
+      auto const configuredLengthBeats
+          = std::exp2 (static_cast<float> (
+                _clipUIParams[channel][slot].recordLengthLog2))
+            * _engine.getBeatsPerBar ();
 
       // Remembered so an empty take can be undone: the slot's pattern is
       // replaced right below, and a stray double press must not cost whatever
@@ -2270,9 +2273,11 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::elevationIndex)
     return 6;
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 3;
+    return 4; // speed, direction, end-action, seam
   if (menuIndex == ClipSettingsComponent::filterIndex)
     return 2;
+  if (menuIndex == ClipSettingsComponent::trajectoryIndex)
+    return 2; // the shape itself, and the length of the next take
   return 1;
 }
 
@@ -2299,8 +2304,20 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
   switch (_clipSettingsMenuIndex)
     {
-    case 0: // Trajectory Shape — cycle through the pattern library
+    case 0: // Trajectory Shape — the shape itself (0), or the length the next
+            // take will have (1)
       {
+        if (_clipSettingsSubIndex == 1)
+          {
+            // A setting for the next recording, not a property of what is in
+            // the slot: an existing pattern's length is its tick count, and
+            // changing that would throw its data away.
+            params.recordLengthLog2
+                = std::clamp (params.recordLengthLog2 + increment,
+                              speedLog2Min, speedLog2Max);
+            break;
+          }
+
         auto &pattern = _patterns[channel][slot];
 
         int currentIndex = 0;
@@ -2415,8 +2432,13 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         case 1:
           params.direction = (params.direction + increment % 3 + 3) % 3;
           break;
-        default:
+        case 2:
           params.endAction = (params.endAction + increment % 3 + 3) % 3;
+          break;
+        default:
+          // What happens to the stretches a take never wrote: glide across
+          // them, or hold and jump. See closeRecordingSeams().
+          params.seamMode = (params.seamMode + increment % 2 + 2) % 2;
           break;
         }
       break;
@@ -2516,6 +2538,20 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setMotionSpeed (speedFrac, speedLabel);
   _clipSettings->setMotionDirection (params.direction);
   _clipSettings->setMotionEndAction (params.endAction);
+  _clipSettings->setMotionSeamMode (params.seamMode);
+
+  // Worded like Speed is, because it is the same kind of number: bars as a
+  // power of two, "2" for two bars, "1/4" for a quarter of one.
+  _clipSettings->setRecordLength (
+      params.recordLengthLog2 >= 0
+          ? juce::String (static_cast<int> (std::exp2 (params.recordLengthLog2)))
+          : "1/"
+                + juce::String (static_cast<int> (
+                    std::exp2 (-params.recordLengthLog2))));
+  _clipSettings->setTrajectorySubIndex (
+      _clipSettingsMenuIndex == ClipSettingsComponent::trajectoryIndex
+          ? _clipSettingsSubIndex
+          : 0);
   _clipSettings->setMotionSubIndex (
       _clipSettingsMenuIndex == ClipSettingsComponent::motionIndex
           ? _clipSettingsSubIndex
