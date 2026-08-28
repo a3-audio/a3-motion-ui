@@ -60,11 +60,18 @@ closeRecordingSeams (Pattern &pattern, SeamMode mode)
       auto const after
           = pattern.getTick ((span.begin + span.length) % numTicks);
 
+      // Only the stretch across the loop point is the take's own seam — the
+      // place where it happens to have started and stopped. Everything else is
+      // a finger that lifted on purpose, and smoothing that would erase a jump
+      // somebody played.
+      auto const isSeam = span.begin + span.length > numTicks;
+      auto const glide = isSeam && mode == SeamMode::Glide;
+
       for (index_t step = 0; step < span.length; ++step)
         {
           auto const tick = (span.begin + step) % numTicks;
 
-          if (mode == SeamMode::Hard)
+          if (!glide)
             {
               pattern.setTick (tick, before);
               continue;

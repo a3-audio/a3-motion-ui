@@ -25,23 +25,24 @@
 namespace a3
 {
 
-/** What to do with the stretches a recording never wrote. */
+/** What to do with the stretch across a take's loop point.
+ *
+ *  Only that one. A finger lifted mid-take lifted on purpose — that is a jump
+ *  somebody played, and it is always held and then jumped. The seam is where
+ *  the take happens to have started and stopped, which nobody played. */
 enum class SeamMode
 {
-  /** Glide across: interpolate between the written position before the
-   *  stretch and the one after it. Across the loop point this is what closes
-   *  end to start, without the seam needing a case of its own. */
+  /** Interpolate across the seam, so the end meets the start again. */
   Glide,
-  /** Hold the position before the stretch, then jump. For a deliberate hard
-   *  change at the loop point. */
+  /** Hold the last thing played, then jump at the loop point. */
   Hard,
 };
 
 /** Fill every stretch `pattern` never wrote.
  *
- *  There is no difference between a hole in the middle and the seam between
- *  end and start: both are an unwritten stretch between two written ones, and
- *  the seam is the one that runs across the loop point. One rule serves both.
+ *  A stretch in the middle is held at the position before it and then jumps —
+ *  always, whatever `mode` says, because a finger lifted there lifted on
+ *  purpose. Only the stretch across the loop point follows `mode`.
  *
  *  Does nothing to a pattern that wrote nothing at all — the caller discards
  *  such a take rather than filling it with guesses. */

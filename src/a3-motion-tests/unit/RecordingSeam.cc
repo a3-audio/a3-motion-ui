@@ -30,10 +30,17 @@ Pos at (float x) { return Pos::fromCartesian (x, 0.f, 0.f); }
 }
 
 // A recording writes only where the finger was down, so what it leaves behind
-// has gaps. Both kinds — a hole in the middle and the stretch between the last
-// thing written and the first — are the same thing, and one rule fills them.
+// has gaps — but the two kinds are not the same thing.
+//
+// A finger lifted mid-take lifted on purpose: that is a jump somebody played,
+// and smoothing it would erase what they did. It is always held and then
+// jumped.
+//
+// The stretch across the loop point is different. Nobody played it; it is
+// where the take happens to have started and stopped, and a jump there is an
+// artefact. That one, and only that one, the clip's seam setting decides.
 
-TEST (RecordingSeam, GlideFillsAMiddleSpanByInterpolating)
+TEST (RecordingSeam, AMiddleSpanIsHeldEvenWhenGliding)
 {
   Pattern pattern;
   pattern.resize (16);
@@ -42,10 +49,11 @@ TEST (RecordingSeam, GlideFillsAMiddleSpanByInterpolating)
 
   closeRecordingSeams (pattern, SeamMode::Glide);
 
-  EXPECT_NEAR (pattern.getTick (2).x (), 0.5f, 0.02f);
+  EXPECT_NEAR (pattern.getTick (2).x (), 0.f, 0.001f)
+      << "the finger lifted here on purpose - that is a jump somebody played";
 }
 
-TEST (RecordingSeam, HardHoldsTheLastWrittenPosition)
+TEST (RecordingSeam, AMiddleSpanIsHeldWhenHard)
 {
   Pattern pattern;
   pattern.resize (16);
@@ -54,7 +62,52 @@ TEST (RecordingSeam, HardHoldsTheLastWrittenPosition)
 
   closeRecordingSeams (pattern, SeamMode::Hard);
 
-  EXPECT_NEAR (pattern.getTick (2).x (), 0.f, 0.001f) << "held, then a jump";
+  EXPECT_NEAR (pattern.getTick (2).x (), 0.f, 0.001f);
+}
+
+// Tapping four positions is the case this is for: hold each one, jump to the
+// next, rather than touring between them.
+TEST (RecordingSeam, TappedPositionsAreHeldNotToured)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setTick (0, at (0.f));
+  pattern.setTick (4, at (1.f));
+  pattern.setTick (8, at (2.f));
+
+  closeRecordingSeams (pattern, SeamMode::Glide);
+
+  EXPECT_NEAR (pattern.getTick (3).x (), 0.f, 0.001f);
+  EXPECT_NEAR (pattern.getTick (7).x (), 1.f, 0.001f);
+}
+
+// The one span the setting decides: the take's own seam.
+TEST (RecordingSeam, TheSpanAcrossTheLoopPointGlides)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setTick (4, at (0.f));
+  pattern.setTick (8, at (4.f));
+
+  closeRecordingSeams (pattern, SeamMode::Glide);
+
+  // From tick 8 round to tick 4: twelve ticks, so tick 14 is halfway-ish and
+  // must be somewhere between the two, not sitting on either.
+  EXPECT_GT (pattern.getTick (14).x (), 0.2f);
+  EXPECT_LT (pattern.getTick (14).x (), 3.8f);
+}
+
+TEST (RecordingSeam, TheSpanAcrossTheLoopPointHoldsWhenHard)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setTick (4, at (0.f));
+  pattern.setTick (8, at (4.f));
+
+  closeRecordingSeams (pattern, SeamMode::Hard);
+
+  EXPECT_NEAR (pattern.getTick (14).x (), 4.f, 0.001f)
+      << "held at the last thing played, then a jump at the loop point";
 }
 
 // The case the maintainer asked for: almost a full pass recorded, and the end
