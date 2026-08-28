@@ -128,6 +128,10 @@ private:
   // fractions/multiples of a bar (see ClipUIParams::speedLog2) rather than
   // a free-running multiplier — playback length is literally how many
   // beats one full pattern cycle spans, so this doubles/halves that.
+  /** What the pattern in this slot is, in beats — its own length. */
+  float getPatternLengthBeats (index_t channel, index_t slot) const;
+
+  /** How long one traversal takes when played, at this clip's rate. */
   float getLengthBeats (index_t channel, index_t slot) const;
   // Speed knob: far left = speedLog2Max (16 bars, slowest), far right =
   // speedLog2Min (1/128 bar, fastest) — see updateClipSettingsDisplay()'s

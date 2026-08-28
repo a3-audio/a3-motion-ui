@@ -26,6 +26,7 @@
 #include <iostream>
 
 #include <a3-motion-engine/Config.hh>
+#include <a3-motion-engine/PlaybackRate.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
@@ -302,13 +303,29 @@ A3MotionUIComponent::createChannelsUI ()
 }
 
 float
+A3MotionUIComponent::getPatternLengthBeats (index_t channel, index_t slot) const
+{
+  // What the pattern itself is, which every pattern file already states as
+  // data-beats — the shipped shapes carry 4, 8, 16 and 32. Derived from the
+  // tick count the way PatternFile derives it when saving; both rely on
+  // MotionEngine::recordingSamplesPerTick being 1, and would need to divide it
+  // out together if that ever changes.
+  auto const &pattern = _patterns[channel][slot];
+  if (pattern && pattern->getNumTicks () > 0)
+    return static_cast<float> (pattern->getNumTicks ())
+           / static_cast<float> (TempoClock::getTicksPerBeat ());
+
+  return defaultPatternLengthBeats;
+}
+
+float
 A3MotionUIComponent::getLengthBeats (index_t channel, index_t slot) const
 {
-  auto const lengthBars
-      = std::exp2 (_clipUIParams[channel][slot].speedLog2);
-  auto const lengthBeats
-      = lengthBars * _engine.getBeatsPerBar ();
-  return static_cast<float> (lengthBeats);
+  // The pattern's own length, taken at this clip's rate. Speed used to *be*
+  // the length and the pattern's own was ignored, so turning the knob
+  // redefined how long a take had been after the fact.
+  return playbackLengthBeats (getPatternLengthBeats (channel, slot),
+                              _clipUIParams[channel][slot].speedLog2);
 }
 
 void
@@ -903,12 +920,17 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           _motionComponent->unsetPreviewPattern (pattern);
         }
 
+      // Read before replacing: this is the length configured on the clip, and
+      // the fresh pattern below has none yet.
+      auto const configuredLengthBeats = getPatternLengthBeats (channel, slot);
+
       // Always create a fresh Pattern for recording (user pattern)
       pattern = std::make_shared<Pattern> ();
       pattern->setChannel (channel);
 
-      auto recordLength = Measure{ 0, static_cast<int> (
-          std::max (1.f, getLengthBeats (channel, slot))), 0 };
+      auto recordLength = Measure{
+        0, static_cast<int> (std::max (1.f, configuredLengthBeats)), 0
+      };
       recordLength.consolidate (_engine.getBeatsPerBar ());
 
       // Store the recording length in the pattern so it can be updated if encoder changes

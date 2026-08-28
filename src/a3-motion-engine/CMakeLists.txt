@@ -43,6 +43,7 @@ target_sources("a3-motion-engine" PRIVATE
     Pattern.cc
     RecordingSpans.cc
     RecordingSeam.cc
+    PlaybackRate.cc
     Pattern.hh
     PatternGenerator.cc
     PatternGenerator.hh
