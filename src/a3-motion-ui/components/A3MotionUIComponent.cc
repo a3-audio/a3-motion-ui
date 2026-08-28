@@ -2592,7 +2592,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
 
     if (_statusBar)
       _statusBar->setRecordingProgress (
-          isRecordingThis && pattern ? pattern->getPlayPosition () : -1.f,
+          isRecordingThis ? _engine.getRecordingProgress () : -1.f,
           _channelUIStates[channel]->colour);
   }
 

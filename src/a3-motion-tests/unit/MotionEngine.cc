@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/MotionEngine.hh>
+#include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
 using namespace a3;
@@ -124,6 +125,37 @@ TEST (MotionEngine, ReleasingAChannelEndsTheHold)
 
   engine.setChannelPositionHeld (0, false);
   EXPECT_FALSE (engine.isChannelPositionHeld (0));
+}
+
+// A take is armed on the Record button but only starts on the next downbeat,
+// which at a slow tempo is seconds away. In that gap the finger has to already
+// belong to the take: the user puts it down and starts moving before the beat
+// arrives, and expects the blob to come with it. Asking isRecording() there
+// answers "no" — the take has not begun — and the finger falls back to the
+// ordinary grab, which only takes a blob it lands close enough to and which
+// the still-playing old clip keeps dragging away. That is what reads as
+// "I cannot grab the blob straight away" and then "the blob stands still".
+
+TEST (MotionEngine, AnArmedTakeOwnsTheFingerBeforeItsDownbeat)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  auto pattern = std::make_shared<Pattern> ();
+  pattern->setChannel (0);
+  pattern->resize (64);
+
+  engine.setTempoBPM (60.f);
+
+  // Far enough out that the take is certainly still waiting when we look.
+  auto const timepoint = Measure{ 8, 0, 0 };
+  engine.recordPattern (pattern, timepoint, Measure{ 1, 0, 0 });
+  juce::Thread::sleep (100);
+
+  EXPECT_FALSE (engine.isRecording ())
+      << "the take must not have started yet for this test to mean anything";
+  EXPECT_TRUE (engine.isRecordingOrScheduled ())
+      << "an armed take does not claim the finger, so the finger grabs instead";
 }
 
 TEST (MotionEngine, HoldingOneChannelLeavesTheOthersAlone)

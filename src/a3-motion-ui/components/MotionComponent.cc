@@ -549,7 +549,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
   // another finger is already holding.
   auto const source = event.source.getIndex ();
 
-  if (_engine.isRecording ())
+  if (_engine.isRecordingOrScheduled ())
     {
       // A recording follows one finger and has to keep following the same
       // one. Every finger writing the position would make the trajectory
@@ -641,7 +641,7 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
 {
   auto const posPixel = event.getPosition ().toFloat ();
 
-  if (_engine.isRecording ())
+  if (_engine.isRecordingOrScheduled ())
     {
       // Only the finger that started it; the others are along for the ride.
       if (_grabs.firstSource () == std::optional<int>{ event.source.getIndex () })

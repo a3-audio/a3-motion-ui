@@ -319,6 +319,19 @@ MotionEngine::isRecording () const
   return _patternRecording != nullptr;
 }
 
+bool
+MotionEngine::isRecordingOrScheduled () const
+{
+  return _patternRecording != nullptr
+         || _patternScheduledForRecording != nullptr;
+}
+
+float
+MotionEngine::getRecordingProgress () const
+{
+  return _recordingProgress.load ();
+}
+
 std::shared_ptr<Pattern>
 MotionEngine::getRecordingPattern ()
 {
@@ -645,6 +658,7 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
   _recordingPosition = Pos::invalid;
   _recordingPosition2D = Pos::invalid;
   _recordingStarted = _now;
+  _recordingProgress.store (0.f);
   _patternRecording->setStatus (Pattern::Status::Recording);
 
   // Clear scheduled flag only if this pattern was scheduled
@@ -688,7 +702,18 @@ void
 MotionEngine::performRecording ()
 {
   if (!_patternRecording)
-    return;
+    {
+      _recordingProgress.store (-1.f);
+
+      // Armed but still waiting for its downbeat: nothing is written yet, but
+      // the finger already steers the blob, so that it is under the finger the
+      // moment the take does begin instead of jumping there.
+      if (_patternScheduledForRecording && _recordingPosition.isValid ())
+        _channels[_patternScheduledForRecording->getChannel ()]->setPosition (
+            _recordingPosition);
+
+      return;
+    }
 
   auto const status = _patternRecording->getStatus ();
   auto const statusLast = _patternRecording->getLastStatus ();
@@ -705,6 +730,15 @@ MotionEngine::performRecording ()
       jassert (ticksSinceStart >= 0);
 
       auto const ticksPatternLength = _patternRecording->getNumTicks ();
+
+      // Where the write head is, for whoever wants to show it. A take never
+      // reaches updatePlayPosition, so the pattern's own play position stays
+      // at zero and cannot answer this.
+      if (ticksPatternLength > 0)
+        _recordingProgress.store (
+            static_cast<float> (static_cast<index_t> (ticksSinceStart)
+                                % ticksPatternLength)
+            / static_cast<float> (ticksPatternLength));
       
       // Map continuous time to pattern indices with sub-sampling
       // Each tick-advance gets _recordingSubSamplingFactor slots
@@ -754,6 +788,13 @@ MotionEngine::performPlayback ()
       // A finger is on this one: playback keeps running, but it does not
       // get to write the position, or the blob slides out from under it.
       if (_positionHeld[chIdx].load (std::memory_order_relaxed))
+        continue;
+
+      // Same for the finger steering a take that has not started yet: the
+      // outgoing clip carries on running, but it stops writing the position,
+      // or it drags the blob back out from under the finger every tick.
+      if (_patternScheduledForRecording && _recordingPosition.isValid ()
+          && _patternScheduledForRecording->getChannel () == chIdx)
         continue;
 
       auto &channel = _channels[chIdx];

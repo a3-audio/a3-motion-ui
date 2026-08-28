@@ -85,6 +85,24 @@ public:
   RecordingMode getRecordingMode () const;
 
   bool isRecording () const;
+
+  /** Whether a take owns the recording finger — running, or armed and still
+   *  waiting for its downbeat.
+   *
+   *  The input path has to ask this rather than isRecording(): between the
+   *  Record press and the downbeat the finger already belongs to the take,
+   *  and treating it as an ordinary grab in that gap means it only catches a
+   *  blob it lands near, while the outgoing clip keeps pulling that blob
+   *  away from it. */
+  bool isRecordingOrScheduled () const;
+
+  /** How far the running take has got, from 0 to 1, or -1 when none is
+   *  running or one is still waiting for its downbeat.
+   *
+   *  A take does not go through updatePlayPosition — that is for patterns
+   *  being played — so a pattern's play position stays at zero throughout,
+   *  and asking it where the write head is gives the wrong answer. */
+  float getRecordingProgress () const;
   std::shared_ptr<Pattern> getRecordingPattern ();
   std::shared_ptr<Pattern> getScheduledForRecordingPattern ();
 
@@ -215,6 +233,8 @@ private:
   Pos _recordingPosition = Pos::invalid;     // 3D (mapped) — for OSC + visual
   Pos _recordingPosition2D = Pos::invalid;   // 2D (original) — for storing in ticks
   std::atomic<RecordingMode> _recordingMode = RecordingMode::OneShot;
+  /** Written on the clock thread each tick a take is running, read by the UI. */
+  std::atomic<float> _recordingProgress{ -1.f };
   int _recordingSubSamplingFactor = recordingSamplesPerTick;
   
   // High-resolution recording counter to sample motion between ticks
