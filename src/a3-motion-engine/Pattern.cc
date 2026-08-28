@@ -166,6 +166,20 @@ Pattern::getSeamSpan () const
 }
 
 void
+Pattern::setSeamJoin (std::optional<index_t> tick)
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  _seamJoin = tick;
+}
+
+std::optional<index_t>
+Pattern::getSeamJoin () const
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  return _seamJoin;
+}
+
+void
 Pattern::setSeamSpan (UnwrittenSpan span)
 {
   std::lock_guard<std::mutex> guard (_ticksMutex);

@@ -27,43 +27,45 @@
 namespace a3
 {
 
-/** What to do with the stretch across a take's loop point.
+/** How long a take's closing move lasts, counted in sixteenths of a beat.
  *
- *  Only that one. A finger lifted mid-take lifted on purpose — that is a jump
- *  somebody played, and it is always held and then jumped. The seam is where
- *  the take happens to have started and stopped, which nobody played. */
-enum class SeamMode
+ *  Zero is a hard join: the take holds what was last played and jumps. Above
+ *  zero it travels back instead, over that much time, and the time is taken
+ *  out of the end of the take -- the closing move is written over the stale
+ *  pass that sits there, not added to the loop.
+ *
+ *  A length, not a mode, because that is what it always was: the code used to
+ *  work one out from the trajectory's own speed and cap it with two guessed
+ *  limits. Both guesses belonged to whoever is listening. */
+constexpr index_t ticksPerFadeStep (index_t ticksPerBeat)
 {
-  /** Interpolate across the seam, so the end meets the start again. */
-  Glide,
-  /** Hold the last thing played, then jump at the loop point. */
-  Hard,
-};
+  return ticksPerBeat / 16;
+}
 
 /** Fill every stretch `pattern` never wrote.
  *
- *  A stretch in the middle is held at the position before it and then jumps —
- *  always, whatever `mode` says, because a finger lifted there lifted on
- *  purpose. Only the stretch across the loop point follows `mode`.
+ *  A stretch in the middle is held at the position before it and then jumps --
+ *  always, whatever `fadeTicks` says, because a finger lifted there lifted on
+ *  purpose. Only the take's own join follows it.
  *
- *  Does nothing to a pattern that wrote nothing at all — the caller discards
- *  such a take rather than filling it with guesses. */
-/** `stopTick` is where the take stopped: the last tick the freshest pass
+ *  `stopTick` is where the take stopped: the last tick the freshest pass
  *  wrote. Recording in Loop runs several passes, so the ticks after it still
  *  carry an earlier one, and the edge between them is where the motion visibly
  *  breaks. Nothing is missing there, so filling holes never reached it. Left
- *  out, the loop point is used instead. */
-void closeRecordingSeams (Pattern &pattern, SeamMode mode,
+ *  out, the loop point is used instead.
+ *
+ *  Does nothing to a pattern that wrote nothing at all -- the caller discards
+ *  such a take rather than filling it with guesses. */
+void closeRecordingSeams (Pattern &pattern, index_t fadeTicks,
                           std::optional<index_t> stopTick = {});
 
-/** Fill the take's seam again, the other way.
+/** Write the take's closing move again at a new length, from the two played
+ *  positions at either end of the join rather than from the last fill -- so
+ *  changing it repeatedly cannot walk the join somewhere else.
  *
- *  How a seam is filled is a playback setting, not a property of the take —
- *  baking it in at the end of a recording would mean it could never be changed
- *  again. Each call starts from the two played positions at either end of the
- *  seam, never from the last fill, so switching back and forth does not drift.
- *
- *  Does nothing to a pattern whose seam has no length. */
-void applySeamMode (Pattern &pattern, SeamMode mode);
+ *  A playback setting, not a recording one: it can be changed long after the
+ *  take was played, which is why the join's position travels with the pattern
+ *  and survives a restart. */
+void applyFade (Pattern &pattern, index_t fadeTicks);
 
 }

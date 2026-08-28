@@ -366,7 +366,9 @@ private:
     int endAction = 0;   // 0=Loop, 1=Stop, 2=Bounce
     // 0=Glide, 1=Hard — what happens to the stretches a recording never
     // wrote, including the one across the loop point. See closeRecordingSeams.
-    int seamMode = 0;
+    /** How long the take's closing move lasts, in sixteenths of a beat.
+     *  Zero holds and jumps instead of travelling back. */
+    int fadeSixteenths = 4;
     // log2 of the length the NEXT take will have, in bars. A setting, not a
     // property of what is in the slot: an existing pattern's length is its
     // tick count, and changing that would throw its data away.

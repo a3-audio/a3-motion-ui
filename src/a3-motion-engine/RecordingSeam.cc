@@ -48,17 +48,26 @@ between (Pos const &from, Pos const &to, float t)
                              from.z () + (to.z () - from.z ()) * t);
 }
 
+/** Fill `span`, holding at `before` and then travelling to `after` over the
+ *  last `fadeTicks` of it.
+ *
+ *  Holding first and travelling last is what "time taken at the end" means:
+ *  the motion carries on standing where it was left until the closing move
+ *  begins. A fade of zero holds the whole span and jumps; a fade at least as
+ *  long as the span travels the whole way. Either end is a tick somebody
+ *  played, so this can be redone at any length without the join drifting. */
 void
 fillSpan (Pattern &pattern, UnwrittenSpan span, Pos const &before,
-          Pos const &after, bool glide)
+          Pos const &after, index_t fadeTicks)
 {
   auto const numTicks = pattern.getNumTicks ();
 
   for (index_t step = 0; step < span.length; ++step)
     {
       auto const tick = (span.begin + step) % numTicks;
+      auto const remaining = span.length - step;
 
-      if (!glide)
+      if (remaining > fadeTicks)
         {
           pattern.setTick (tick, before);
           continue;
@@ -66,8 +75,8 @@ fillSpan (Pattern &pattern, UnwrittenSpan span, Pos const &before,
 
       // +1 so the far end lands on `after` rather than one step short of it:
       // the span holds `length` ticks between two played ones.
-      auto const t = static_cast<float> (step + 1)
-                     / static_cast<float> (span.length + 1);
+      auto const t = static_cast<float> (fadeTicks - remaining + 1)
+                     / static_cast<float> (fadeTicks + 1);
       pattern.setTick (tick, between (before, after, t));
     }
 }
@@ -75,7 +84,26 @@ fillSpan (Pattern &pattern, UnwrittenSpan span, Pos const &before,
 
 namespace
 {
-/** Close the loop point when both sides of it were played.
+/** How many ticks the closing move may spend.
+ *
+ *  It is written over what follows the join, so it may only spend the stale
+ *  pass sitting there -- the ticks up to the join are the freshest pass, and a
+ *  move long enough to wrap round into them would close the join by deleting
+ *  the take. A guard, unlike the length itself, which is the listener's.
+ *
+ *  A take that stopped on its very last tick has no stale pass at all: its
+ *  join is the loop point, and closing it means trimming the beginning
+ *  instead. That is allowed, but sparingly -- an eighth of the loop -- because
+ *  what sits there was played too. */
+index_t
+closingLength (index_t fadeTicks, index_t numTicks, index_t seamAt)
+{
+  auto const stale = numTicks - 1 - seamAt;
+  auto const room = stale > 0 ? std::min (stale, numTicks / 2) : numTicks / 8;
+  return std::min (fadeTicks, room);
+}
+
+/** Close the take's own join: the tick where it stopped.
  *
  *  Recording in Loop runs several passes, so the last tick carries an early
  *  one and the first a late one. Nothing is missing there -- it is an edge
@@ -83,13 +111,12 @@ namespace
  *  did, has nothing to do with it. The blob snapped from the end back to the
  *  start.
  *
- *  The closing arc is written over the tail, and takes as many ticks as the
- *  trajectory's own speed needs to cover the distance: any shorter and it
- *  reads as a dash across the sphere, any longer and it overwrites more of the
- *  take than closing it costs. Recorded as the seam span, so switching the
- *  mode afterwards refills it like any other seam. */
+ *  The closing move lasts as long as the fade says and is written over the
+ *  stale pass behind the join, never back into the pass just played. Where the
+ *  join is travels with the pattern, so the length can be turned afterwards
+ *  without recording again. */
 void
-closeLoopPoint (Pattern &pattern, SeamMode mode, index_t seamAt)
+closeLoopPoint (Pattern &pattern, index_t fadeTicks, index_t seamAt)
 {
   auto const numTicks = pattern.getNumTicks ();
   if (numTicks < 4)
@@ -104,69 +131,80 @@ closeLoopPoint (Pattern &pattern, SeamMode mode, index_t seamAt)
   if (!last.isValid () || !first.isValid ())
     return;
 
-  // The speed, not the median step: the median counts the ticks that repeat a
-  // position, and on a real take those are most of them, so it is zero.
+  // Where the take stopped travels with the pattern whatever the fade is, so
+  // the length can be turned later without recording again.
+  pattern.setSeamJoin (seamAt % numTicks);
+
+  if (fadeTicks == 0)
+    return; // held and jumped: the take keeps its ending exactly as played
+
+  // The join is only worth closing if it breaks: a take that already comes
+  // round to where it started must keep its ending.
   auto const speed = typicalTrajectorySpeed (positions);
-  if (speed <= 0.f)
-    return; // nothing ever moved, so there is no motion to close
-
-
   auto const gap = std::sqrt (std::pow (last.x () - first.x (), 2.f)
                               + std::pow (last.y () - first.y (), 2.f)
                               + std::pow (last.z () - first.z (), 2.f));
-  if (gap <= trajectoryJumpThreshold (speed))
-    return; // it already comes round to where it started
-
-  // A quarter of the loop is the most this may cost. Past that the take is
-  // being replaced by its own closing move rather than closed.
-  auto const needed = static_cast<index_t> (std::ceil (gap / speed));
-  auto budget = std::min (needed, numTicks / 4);
-
-  // And it may only spend the stale pass that follows the edge. Ticks up to
-  // the edge are the freshest pass -- what was just played -- and a glide long
-  // enough to wrap round into them would close the join by deleting the take.
-  auto const stale = numTicks - 1 - (seamAt % numTicks);
-  if (stale > 0)
-    budget = std::min (budget, stale);
-
-  auto const length = std::max (index_t{ 2 }, budget);
-
-  // The span is recorded either way, so the mode stays a playback setting that
-  // can be changed afterwards. Only Glide writes into it: unlike a stretch
-  // nobody played, this one holds recorded motion, and holding it flat would
-  // delete what the finger actually did to keep a jump that is already there.
-  UnwrittenSpan const span{ (seamAt + 1) % numTicks, length };
-  pattern.setSeamSpan (span);
-
-  if (mode != SeamMode::Glide)
+  if (speed > 0.f && gap <= trajectoryJumpThreshold (speed))
     return;
 
-  // Written over the stale pass that follows the edge, never over the fresh
+  // The closing move may only spend the stale pass behind the join. The ticks
+  // up to it are the freshest pass -- what was just played -- and a fade long
+  // enough to wrap round into them would close the join by deleting the take.
+  // Not a matter of taste like the length itself: a guard.
+  auto const length = closingLength (fadeTicks, numTicks, seamAt % numTicks);
+  UnwrittenSpan const span{ (seamAt + 1) % numTicks, length };
+
+  // Written over the stale pass that follows the join, never over the fresh
   // one before it: the pass just played is the one worth keeping.
   auto const after = pattern.getTick ((span.begin + span.length) % numTicks);
-  fillSpan (pattern, span, last, after, true);
+  fillSpan (pattern, span, last, after, length);
 }
 }
 
 void
-applySeamMode (Pattern &pattern, SeamMode mode)
+applyFade (Pattern &pattern, index_t fadeTicks)
 {
-  auto const span = pattern.getSeamSpan ();
   auto const numTicks = pattern.getNumTicks ();
-  if (span.length == 0 || numTicks == 0)
+  if (numTicks == 0)
     return;
 
-  // From the two played positions at either end, never from the last fill —
-  // otherwise switching back and forth would walk the seam somewhere else.
+  // A take's join: the length is the fade, and both ends are ticks somebody
+  // played, so this can be turned as often as you like without drifting.
+  if (auto const join = pattern.getSeamJoin ())
+    {
+      auto const seamAt = *join % numTicks;
+      auto const budget = closingLength (fadeTicks, numTicks, seamAt);
+
+      if (budget > 0)
+        {
+          UnwrittenSpan const span{ (seamAt + 1) % numTicks, budget };
+          auto const before = pattern.getTick (seamAt);
+          auto const after
+              = pattern.getTick ((span.begin + span.length) % numTicks);
+          fillSpan (pattern, span, before, after, budget);
+        }
+
+      pattern.markComplete ();
+      return;
+    }
+
+  // A hole across the loop point: its length is the hole's, and the fade says
+  // how much of it is spent travelling rather than standing still.
+  auto const span = pattern.getSeamSpan ();
+  if (span.length == 0)
+    return;
+
+  // From the two played positions at either end, never from the last fill --
+  // otherwise turning it repeatedly would walk the seam somewhere else.
   auto const before = pattern.getTick ((span.begin + numTicks - 1) % numTicks);
   auto const after = pattern.getTick ((span.begin + span.length) % numTicks);
 
-  fillSpan (pattern, span, before, after, mode == SeamMode::Glide);
+  fillSpan (pattern, span, before, after, fadeTicks);
   pattern.markComplete ();
 }
 
 void
-closeRecordingSeams (Pattern &pattern, SeamMode mode,
+closeRecordingSeams (Pattern &pattern, index_t fadeTicks,
                      std::optional<index_t> stopTick)
 {
   auto const numTicks = pattern.getNumTicks ();
@@ -198,14 +236,15 @@ closeRecordingSeams (Pattern &pattern, SeamMode mode,
       if (isSeam)
         pattern.setSeamSpan (span);
 
-      auto const glide = isSeam && mode == SeamMode::Glide;
-      fillSpan (pattern, span, before, after, glide);
+      // Only the stretch across the loop point spends the fade; a hole in
+      // the middle is a jump somebody played and is always held.
+      fillSpan (pattern, span, before, after, isSeam ? fadeTicks : index_t{ 0 });
     }
 
   // A take that wrote across the loop point leaves no hole there, so the loop
   // above never saw it. That edge is a seam too.
   if (pattern.getSeamSpan ().length == 0)
-    closeLoopPoint (pattern, mode,
+    closeLoopPoint (pattern, fadeTicks,
                     stopTick.value_or (numTicks - 1) % numTicks);
 
   // Every tick holds something now, and playback has to be told: it reads the

@@ -50,7 +50,8 @@ constexpr char const *endAction = "end";
  *  Pattern/setFilterSweep); on screen it is what it does. */
 constexpr char const *frequency = "freq";
 constexpr char const *recordLength = "len";
-constexpr char const *seam = "seam";
+/** The time taken out of the take's end to close its join. */
+constexpr char const *fade = "fade";
 /** What a recording pass writes where the finger is not. The one control in
  *  the bar that is not the shown clip's — it is the same for every channel. */
 constexpr char const *recMode = "recmode";
@@ -75,7 +76,14 @@ constexpr char const *off = "Off";
 constexpr char const *directionNames[] = { "Fwd", "Rev", "Ping" };
 constexpr char const *endActionNames[] = { "Loop", "Stop", "Bnce" };
 // What happens to what a take never wrote — glide across it, or hold and jump.
-constexpr char const *seamNames[] = { "Glide", "Hard" };
+/** How long the take's closing move lasts, in sixteenths of a beat. "off" is
+ *  a hard join: the take holds and jumps rather than travelling back. */
+inline juce::String fadeName (int sixteenths)
+{
+  if (sixteenths <= 0)
+    return "off";
+  return juce::String (sixteenths) + "/16";
+}
 /** The widest speed label the Motion section can produce — whole bars
  *  above 1, fractions below (see A3MotionUIComponent's speedLog2 range). */
 constexpr char const *widestSpeed = "1/16";
@@ -95,10 +103,10 @@ constexpr TextEntry captionTable[] = {
   { caption::reach, 2 },       { caption::pole, 2 },
   { caption::clipTop, 2 },     { caption::clipBottom, 2 },
   { caption::flat, 2 },        { caption::flatElevation, 2 },
-  // Motion carries four since the seam joined it — the tightest columns in
+  // Motion carries four since the fade joined it — the tightest columns in
   // the bar, and what pins the shared size for everything above.
   { caption::speed, 4 },       { caption::direction, 4 },
-  { caption::endAction, 4 },   { caption::seam, 4 },
+  { caption::endAction, 4 },   { caption::fade, 4 },
   { caption::frequency, 2 },   { caption::q, 2 },
   { caption::recordLength, 1 },
 };
@@ -114,8 +122,7 @@ constexpr TextEntry valueTable[] = {
   { value::endActionNames[0], 4 },
   { value::endActionNames[1], 4 },
   { value::endActionNames[2], 4 },
-  { value::seamNames[0], 4 },
-  { value::seamNames[1], 4 },
+  { "16/16", 4 },
   { value::widestSpeed, 4 },
 };
 

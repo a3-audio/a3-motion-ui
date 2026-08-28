@@ -27,6 +27,8 @@
 #include <a3-motion-engine/util/Types.hh>
 #include <a3-motion-engine/RecordingSpans.hh>
 
+#include <optional>
+
 namespace a3
 {
 
@@ -102,6 +104,18 @@ public:
   UnwrittenSpan getSeamSpan () const;
   void setSeamSpan (UnwrittenSpan span);
 
+  /** Where the take stopped, when it stopped anywhere: the last tick its
+   *  freshest pass wrote, with the previous pass still sitting after it.
+   *
+   *  Kept apart from the seam span on purpose. A span is a hole with a played
+   *  tick at each end, and its length is what it is; this is a single edge, and
+   *  how long the closing move across it lasts is a setting that can be turned
+   *  at any time. Sharing one field made turning it move the join, because the
+   *  far end of a shortened span landed in the previous fill instead of on
+   *  something somebody played. */
+  std::optional<index_t> getSeamJoin () const;
+  void setSeamJoin (std::optional<index_t> tick);
+
   // Interpolated playback: returns position with linear interpolation between keyframes
   // This provides smooth motion even with sparse keyframes during slow playback
   Pos getInterpolatedTick (double fractionalTick) const;
@@ -167,6 +181,7 @@ private:
   std::vector<Pos> _ticks;
   std::vector<bool> _written;
   UnwrittenSpan _seamSpan{ 0u, 0u };
+  std::optional<index_t> _seamJoin;
   mutable std::mutex _ticksMutex;
 
   // TODO is float precision sufficient here? do the math!

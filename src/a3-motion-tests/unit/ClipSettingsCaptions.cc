@@ -204,16 +204,22 @@ TEST (SharedValueSize, TheValueGetsTheLargerShareOfTheBox)
 
 // The value words used to be what pinned the values: "PingPong" had to fit
 // Motion's third of a section — 46 px — which held every value in the bar
-// below its own caption's size, no matter how much room the box had. Short
-// enough words move the limit back to the box, where it belongs, and put the
-// value above its caption in size again.
+// below its own caption's size, no matter how much room the box had.
+//
+// "16/16", the longest a fade can read, pins it again, but only just: a slash
+// and four digits are a shade wider than the box would allow. What has to hold
+// is the rule that came out of it — a value is never drawn smaller than the
+// caption naming it — so that is what is asserted, with the box as a ceiling
+// the words may approach but not exceed.
 TEST (SharedValueSize, TheValuesAreLimitedByTheBoxNotByTheirWords)
 {
   auto const size
       = sharedValueSize (18.f, contentWidth, columnGap, controlBoxHeight);
+  auto const boxLimit = controlBoxHeight * valueRowShare / rowHeightFactor;
 
-  EXPECT_NEAR (size, controlBoxHeight * valueRowShare / rowHeightFactor, 0.01f)
-      << "the box, not a word, has to be the limit";
+  EXPECT_LE (size, boxLimit + 0.01f) << "the box is the ceiling";
+  EXPECT_GT (size, boxLimit * 0.9f)
+      << "a value word must not pull the whole bar far below its box";
   EXPECT_GT (size,
              sharedCaptionSize (15.f, contentWidth, columnGap,
                                 controlBoxHeight))

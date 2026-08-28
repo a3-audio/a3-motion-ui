@@ -49,7 +49,7 @@ TEST (RecordingSeam, AMiddleSpanIsHeldEvenWhenGliding)
   pattern.setTick (0, at (0.f));
   pattern.setTick (4, at (1.f));
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   EXPECT_NEAR (pattern.getTick (2).x (), 0.f, 0.001f)
       << "the finger lifted here on purpose - that is a jump somebody played";
@@ -62,7 +62,7 @@ TEST (RecordingSeam, AMiddleSpanIsHeldWhenHard)
   pattern.setTick (0, at (0.f));
   pattern.setTick (4, at (1.f));
 
-  closeRecordingSeams (pattern, SeamMode::Hard);
+  closeRecordingSeams (pattern, index_t{ 0 });
 
   EXPECT_NEAR (pattern.getTick (2).x (), 0.f, 0.001f);
 }
@@ -77,7 +77,7 @@ TEST (RecordingSeam, TappedPositionsAreHeldNotToured)
   pattern.setTick (4, at (1.f));
   pattern.setTick (8, at (2.f));
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   EXPECT_NEAR (pattern.getTick (3).x (), 0.f, 0.001f);
   EXPECT_NEAR (pattern.getTick (7).x (), 1.f, 0.001f);
@@ -91,7 +91,7 @@ TEST (RecordingSeam, TheSpanAcrossTheLoopPointGlides)
   pattern.setTick (4, at (0.f));
   pattern.setTick (8, at (4.f));
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   // From tick 8 round to tick 4: twelve ticks, so tick 14 is halfway-ish and
   // must be somewhere between the two, not sitting on either.
@@ -99,14 +99,14 @@ TEST (RecordingSeam, TheSpanAcrossTheLoopPointGlides)
   EXPECT_LT (pattern.getTick (14).x (), 3.8f);
 }
 
-TEST (RecordingSeam, TheSpanAcrossTheLoopPointHoldsWhenHard)
+TEST (RecordingSeam, TheSpanAcrossTheLoopPointHoldsWithoutAFade)
 {
   Pattern pattern;
   pattern.resize (16);
   pattern.setTick (4, at (0.f));
   pattern.setTick (8, at (4.f));
 
-  closeRecordingSeams (pattern, SeamMode::Hard);
+  closeRecordingSeams (pattern, index_t{ 0 });
 
   EXPECT_NEAR (pattern.getTick (14).x (), 4.f, 0.001f)
       << "held at the last thing played, then a jump at the loop point";
@@ -124,7 +124,7 @@ TEST (RecordingSeam, GlideLeavesNoTickUnfilledAcrossTheLoopPoint)
   for (index_t tick = 0; tick + 2 < numTicks; ++tick)
     pattern.setTick (tick, at (static_cast<float> (tick) / numTicks));
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   for (index_t tick = 0; tick < numTicks; ++tick)
     EXPECT_TRUE (pattern.getTick (tick).isValid ()) << "tick " << tick;
@@ -137,7 +137,7 @@ TEST (RecordingSeam, AFullyWrittenPatternIsLeftAlone)
   for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
     pattern.setTick (tick, at (0.25f));
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
     EXPECT_NEAR (pattern.getTick (tick).x (), 0.25f, 0.001f);
@@ -148,7 +148,7 @@ TEST (RecordingSeam, APatternThatWroteNothingIsLeftAlone)
   Pattern pattern;
   pattern.resize (16);
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   EXPECT_FALSE (pattern.getTick (0).isValid ())
       << "nothing to interpolate between, so nothing invented";
@@ -162,7 +162,7 @@ TEST (RecordingSeam, ASingleWrittenTickFillsTheWholePattern)
   pattern.resize (16);
   pattern.setTick (3, at (0.7f));
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
     EXPECT_NEAR (pattern.getTick (tick).x (), 0.7f, 0.001f) << "tick " << tick;
@@ -181,7 +181,7 @@ TEST (RecordingSeam, AFilledPatternReportsItsFullLength)
   pattern.setTick (2, Pos::fromCartesian (0.f, 0.f, 0.f));
   pattern.setTick (9, Pos::fromCartesian (1.f, 0.f, 0.f));
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   EXPECT_EQ (pattern.getLastUpdatedTick (), pattern.getNumTicks () - 1)
       << "otherwise playback squeezes the whole take into a fraction of it";
@@ -192,7 +192,7 @@ TEST (RecordingSeam, APatternThatWroteNothingKeepsItsLength)
   Pattern pattern;
   pattern.resize (16);
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   EXPECT_EQ (pattern.getLastUpdatedTick (), 0u) << "nothing was filled";
 }
@@ -211,7 +211,7 @@ TEST (SeamMode, APatternRemembersWhereItsSeamIs)
   pattern.setTick (4, at (0.f));
   pattern.setTick (8, at (4.f));
 
-  closeRecordingSeams (pattern, SeamMode::Hard);
+  closeRecordingSeams (pattern, index_t{ 0 });
 
   EXPECT_EQ (pattern.getSeamSpan ().begin, 9u);
   EXPECT_EQ (pattern.getSeamSpan ().length, 11u) << "9..15 and 0..3";
@@ -223,9 +223,9 @@ TEST (SeamMode, SwitchingToGlideAfterwardsSmoothsTheSeam)
   pattern.resize (16);
   pattern.setTick (4, at (0.f));
   pattern.setTick (8, at (4.f));
-  closeRecordingSeams (pattern, SeamMode::Hard);
+  closeRecordingSeams (pattern, index_t{ 0 });
 
-  applySeamMode (pattern, SeamMode::Glide);
+  applyFade (pattern, index_t{ 64 });
 
   EXPECT_GT (pattern.getTick (14).x (), 0.2f);
   EXPECT_LT (pattern.getTick (14).x (), 3.8f);
@@ -237,9 +237,9 @@ TEST (SeamMode, SwitchingBackToHardRestoresTheJump)
   pattern.resize (16);
   pattern.setTick (4, at (0.f));
   pattern.setTick (8, at (4.f));
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
-  applySeamMode (pattern, SeamMode::Hard);
+  applyFade (pattern, index_t{ 0 });
 
   EXPECT_NEAR (pattern.getTick (14).x (), 4.f, 0.001f);
 }
@@ -252,12 +252,12 @@ TEST (SeamMode, SwitchingBackAndForthIsStable)
   pattern.resize (16);
   pattern.setTick (4, at (0.f));
   pattern.setTick (8, at (4.f));
-  closeRecordingSeams (pattern, SeamMode::Hard);
+  closeRecordingSeams (pattern, index_t{ 0 });
 
   for (int round = 0; round < 5; ++round)
     {
-      applySeamMode (pattern, SeamMode::Glide);
-      applySeamMode (pattern, SeamMode::Hard);
+      applyFade (pattern, index_t{ 64 });
+      applyFade (pattern, index_t{ 0 });
     }
 
   EXPECT_NEAR (pattern.getTick (14).x (), 4.f, 0.001f);
@@ -274,9 +274,9 @@ TEST (SeamMode, MiddleSpansAreNeverTouchedAgain)
   pattern.setTick (0, at (0.f));
   pattern.setTick (4, at (1.f));
   pattern.setTick (8, at (2.f));
-  closeRecordingSeams (pattern, SeamMode::Hard);
+  closeRecordingSeams (pattern, index_t{ 0 });
 
-  applySeamMode (pattern, SeamMode::Glide);
+  applyFade (pattern, index_t{ 64 });
 
   EXPECT_NEAR (pattern.getTick (2).x (), 0.f, 0.001f);
   EXPECT_NEAR (pattern.getTick (6).x (), 1.f, 0.001f);
@@ -288,9 +288,9 @@ TEST (SeamMode, APatternWithoutASeamIsLeftAlone)
   pattern.resize (16);
   for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
     pattern.setTick (tick, at (0.25f));
-  closeRecordingSeams (pattern, SeamMode::Hard);
+  closeRecordingSeams (pattern, index_t{ 0 });
 
-  applySeamMode (pattern, SeamMode::Glide);   // darf nicht abstuerzen
+  applyFade (pattern, index_t{ 64 });   // darf nicht abstuerzen
 
   EXPECT_EQ (pattern.getSeamSpan ().length, 0u);
   EXPECT_NEAR (pattern.getTick (8).x (), 0.25f, 0.001f);
@@ -316,7 +316,7 @@ TEST (SeamMode, TheSeamSurvivesASaveAndLoad)
   written->resize (512);
   written->setTick (100, at (0.f));
   written->setTick (200, at (4.f));
-  closeRecordingSeams (*written, SeamMode::Hard);
+  closeRecordingSeams (*written, index_t{ 0 });
   auto const expected = written->getSeamSpan ();
   ASSERT_GT (expected.length, 0u);
 
@@ -402,7 +402,7 @@ TEST (RecordingSeam, TheLoopPointIsClosedEvenWhenBothSidesWereWritten)
   writeThrough (pattern, ticks);
   auto const before = gapAtLoopPoint (pattern);
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   auto const step = typicalTrajectoryStep (ticks);
   EXPECT_GT (before, trajectoryJumpThreshold (step))
@@ -418,7 +418,7 @@ TEST (RecordingSeam, TheClosingGlideMovesAtTheTrajectorysOwnSpeed)
   Pattern pattern;
   writeThrough (pattern, ticks);
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   auto const step = typicalTrajectoryStep (ticks);
   auto const threshold = trajectoryJumpThreshold (step);
@@ -432,14 +432,14 @@ TEST (RecordingSeam, TheClosingGlideMovesAtTheTrajectorysOwnSpeed)
     }
 }
 
-TEST (RecordingSeam, HardLeavesTheLoopPointAsItWasPlayed)
+TEST (RecordingSeam, AFadeOfZeroLeavesTheJoinAsItWasPlayed)
 {
   auto const ticks = circleWithAGapAtTheLoopPoint ();
   Pattern pattern;
   writeThrough (pattern, ticks);
   auto const before = gapAtLoopPoint (pattern);
 
-  closeRecordingSeams (pattern, SeamMode::Hard);
+  closeRecordingSeams (pattern, index_t{ 0 });
 
   EXPECT_NEAR (gapAtLoopPoint (pattern), before, 0.001f);
 }
@@ -458,7 +458,7 @@ TEST (RecordingSeam, AnAlreadyClosedLoopKeepsItsTail)
   Pattern pattern;
   writeThrough (pattern, ticks);
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
     EXPECT_NEAR (pattern.getTick (tick).x (), ticks[tick].x (), 0.0001f)
@@ -491,7 +491,7 @@ TEST (RecordingSeam, ALoopPointClosesEvenWhenMostTicksRepeat)
   writeThrough (pattern, ticks);
   auto const before = gapAtLoopPoint (pattern);
 
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
 
   EXPECT_GT (before, 0.5f);
   EXPECT_LT (gapAtLoopPoint (pattern), 0.2f)
@@ -546,7 +546,7 @@ TEST (RecordingSeam, TheSeamSitsWhereTheTakeStopped)
   writeThrough (pattern, ticks);
   ASSERT_GT (edge (pattern), 1.f) << "the fixture needs the edge it is about";
 
-  closeRecordingSeams (pattern, SeamMode::Glide, index_t{ 63 });
+  closeRecordingSeams (pattern, index_t{ 64 }, index_t{ 63 });
 
   EXPECT_LT (edge (pattern), 0.3f)
       << "the seam was put at the loop point, where nothing was wrong";
@@ -564,7 +564,7 @@ TEST (RecordingSeam, TheFreshPassIsNotOverwritten)
 
   Pattern pattern;
   writeThrough (pattern, ticks);
-  closeRecordingSeams (pattern, SeamMode::Glide, index_t{ 199 });
+  closeRecordingSeams (pattern, index_t{ 64 }, index_t{ 199 });
 
   for (index_t tick = 0; tick <= 199; ++tick)
     EXPECT_NEAR (pattern.getTick (tick).x (), ticks[tick].x (), 0.0001f)
@@ -588,7 +588,7 @@ TEST (RecordingSeam, AReloadedTakeHasItsLoopPointClosedAgain)
 
   Pattern pattern;
   writeThrough (pattern, ticks);
-  closeRecordingSeams (pattern, SeamMode::Glide);
+  closeRecordingSeams (pattern, index_t{ 64 });
   ASSERT_LT (gapAtLoopPoint (pattern), 0.2f) << "the take itself must close";
 
   auto shared = std::make_shared<Pattern> ();
@@ -607,7 +607,7 @@ TEST (RecordingSeam, AReloadedTakeHasItsLoopPointClosedAgain)
   auto reloaded = PatternFile::load (file);
   ASSERT_NE (reloaded, nullptr);
 
-  closeRecordingSeams (*reloaded, SeamMode::Glide);
+  closeRecordingSeams (*reloaded, index_t{ 64 });
   EXPECT_LT (gapAtLoopPoint (*reloaded), 0.3f)
       << "what came back from the file is what plays, and it was left open";
 

@@ -77,6 +77,15 @@ constexpr std::array<RecMode, 3> recMenuModes{
   RecMode::Touch, RecMode::Latch, RecMode::Write
 };
 
+/** The fade in ticks. Sixteenths of a beat are what the panel offers, because
+ *  that is a length a musician can hear; ticks are what the pattern counts. */
+index_t
+fadeTicksFor (int sixteenths)
+{
+  return static_cast<index_t> (std::max (0, sixteenths))
+         * ticksPerFadeStep (TempoClock::getTicksPerBeat ());
+}
+
 int
 recMenuIndex (RecMode mode)
 {
@@ -1548,9 +1557,7 @@ A3MotionUIComponent::endRecording ()
       // Before stopping, because the save happens on the Stopped message and
       // has to carry the filled stretches with it.
       closeRecordingSeams (*pattern,
-                           _clipUIParams[channel][slot].seamMode == 0
-                               ? SeamMode::Glide
-                               : SeamMode::Hard,
+fadeTicksFor (_clipUIParams[channel][slot].fadeSixteenths),
                            stopTick);
     }
 
@@ -1623,9 +1630,7 @@ A3MotionUIComponent::saveRecordedPattern (
           // back to the loop point -- which after a round trip is exactly
           // where the path's two ends meet, and so exactly the break.
           closeRecordingSeams (*reloaded,
-                               _clipUIParams[channel][slot].seamMode == 0
-                                   ? SeamMode::Glide
-                                   : SeamMode::Hard);
+fadeTicksFor (_clipUIParams[channel][slot].fadeSixteenths));
 
           _patterns[channel][slot] = reloaded;
           registerPatternDisplayData (reloaded);
@@ -2543,12 +2548,12 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             // How the take's seam is filled — glide across it, or hold and
             // jump at the loop point. A playback setting: it takes effect on
             // whatever is in the slot, at once, as often as it is turned.
-            params.seamMode = (params.seamMode + increment % 2 + 2) % 2;
+            params.fadeSixteenths
+                = std::clamp (params.fadeSixteenths + increment, 0, 16);
 
             auto &pattern = _patterns[channel][slot];
             if (pattern)
-              applySeamMode (*pattern, params.seamMode == 0 ? SeamMode::Glide
-                                                            : SeamMode::Hard);
+              applyFade (*pattern, fadeTicksFor (params.fadeSixteenths));
             break;
           }
         }
@@ -2661,7 +2666,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setMotionSpeed (speedFrac, speedLabel);
   _clipSettings->setMotionDirection (params.direction);
   _clipSettings->setMotionEndAction (params.endAction);
-  _clipSettings->setMotionSeamMode (params.seamMode);
+  _clipSettings->setMotionFade (params.fadeSixteenths);
 
   // Worded like Speed is, because it is the same kind of number: bars as a
   // power of two, "2" for two bars, "1/4" for a quarter of one.

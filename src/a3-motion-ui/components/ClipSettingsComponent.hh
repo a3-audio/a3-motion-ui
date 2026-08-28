@@ -161,7 +161,7 @@ public:
   void setMotionSubIndex (int subIndex);
 
   /** Which stretch-filling a take will use — 0 glide, 1 hard. */
-  void setMotionSeamMode (int mode);
+  void setMotionFade (int sixteenths);
 
   /** The length the next take will have, already worded ("2", "1/4"), and
    *  which of the shape section's two elements is armed. */
@@ -317,7 +317,7 @@ private:
   int _motionDirection = 0;
   int _motionEndAction = 0;
   int _motionSubIndex = 0;
-  int _motionSeamMode = 0;
+  int _motionFade = 0;
   int _trajectorySubIndex = 0;
   juce::String _recordLengthLabel { "1" };
   float _filterSweep = 0.0f;

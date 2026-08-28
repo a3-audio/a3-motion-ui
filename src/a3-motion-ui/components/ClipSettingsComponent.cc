@@ -169,9 +169,9 @@ ClipSettingsComponent::setMotionEndAction (int endAction)
 
 
 void
-ClipSettingsComponent::setMotionSeamMode (int mode)
+ClipSettingsComponent::setMotionFade (int sixteenths)
 {
-  _motionSeamMode = juce::jlimit (0, 1, mode);
+  _motionFade = juce::jlimit (0, 16, sixteenths);
   repaint ();
 }
 
@@ -892,10 +892,10 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   paintMiniToggle (g, textCell (endActionArea, metrics.knobDiam), metrics,
                    caption::endAction, value::endActionNames[_motionEndAction],
                    _motionSubIndex == 2, isSelected);
-  // What happens to the stretches a take never wrote, the one across the loop
-  // point included — glide across them, or hold and jump.
+  // How much time at the take's end is spent travelling back to where it
+  // began, rather than jumping there.
   paintMiniToggle (g, textCell (seamArea, metrics.knobDiam), metrics,
-                   caption::seam, value::seamNames[_motionSeamMode],
+                   caption::fade, value::fadeName (_motionFade),
                    _motionSubIndex == 3, isSelected);
 }
 
