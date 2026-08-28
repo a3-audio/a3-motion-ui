@@ -143,13 +143,22 @@ closingCurve (Pos const &from, Pos const &to, Pos const &outgoing,
  *  played -- never from the pattern, which may already carry an earlier
  *  closing move. That is what makes the length free to change in either
  *  direction. */
-void
-writeClosingMove (Pattern &pattern, std::vector<Pos> const &baseline,
-                  UnwrittenSpan span)
+/** The closing move sampled finely, with the distance travelled to each
+ *  sample. Shared by writing it and by asking how long it wants to be. */
+struct SampledCurve
 {
+  std::vector<Pos> point;
+  std::vector<float> arcLength;
+};
+
+SampledCurve
+sampleClosingMove (std::vector<Pos> const &baseline, UnwrittenSpan span)
+{
+  SampledCurve curve;
+
   auto const n = static_cast<index_t> (baseline.size ());
   if (n < 4 || span.length == 0)
-    return;
+    return curve;
 
   auto const at = [&baseline, n] (index_t tick) { return baseline[tick % n]; };
 
@@ -210,9 +219,10 @@ writeClosingMove (Pattern &pattern, std::vector<Pos> const &baseline,
   auto const numSamples
       = static_cast<int> (span.length) * samplesPerTick;
 
-  std::vector<float> arcLength (static_cast<size_t> (numSamples) + 1, 0.f);
-  std::vector<Pos> sample (static_cast<size_t> (numSamples) + 1,
-                           Pos::invalid);
+  auto &arcLength = curve.arcLength;
+  auto &sample = curve.point;
+  arcLength.assign (static_cast<size_t> (numSamples) + 1, 0.f);
+  sample.assign (static_cast<size_t> (numSamples) + 1, Pos::invalid);
 
   for (int i = 0; i <= numSamples; ++i)
     {
@@ -230,6 +240,22 @@ writeClosingMove (Pattern &pattern, std::vector<Pos> const &baseline,
                              + std::pow (b.z () - a.z (), 2.f));
         }
     }
+
+  return curve;
+}
+
+void
+writeClosingMove (Pattern &pattern, std::vector<Pos> const &baseline,
+                  UnwrittenSpan span)
+{
+  auto const n = static_cast<index_t> (baseline.size ());
+  auto const curve = sampleClosingMove (baseline, span);
+  if (curve.point.empty ())
+    return;
+
+  auto const &sample = curve.point;
+  auto const &arcLength = curve.arcLength;
+  auto const numSamples = static_cast<int> (sample.size ()) - 1;
 
   auto const total = arcLength.back ();
   if (total < 1e-6f)
@@ -295,6 +321,35 @@ closeLoopPoint (Pattern &pattern, index_t fadeTicks, index_t seamAt)
   writeClosingMove (pattern, positions,
                     { (seamAt + 1) % numTicks, length });
 }
+}
+
+index_t
+naturalFadeTicks (std::vector<Pos> const &ticks, index_t join)
+{
+  auto const n = static_cast<index_t> (ticks.size ());
+  if (n < 4)
+    return 0;
+
+  auto const speed = typicalTrajectorySpeed (ticks);
+  if (speed <= 0.f)
+    return 0;
+
+  // The curve's shape barely depends on how long it lasts -- its reach comes
+  // from the distance it has to cover, not from the time given to it -- so a
+  // provisional span is enough to measure. Its length only steers the window
+  // the directions are read over.
+  auto const provisional = closingLength (n / 4, n, join % n);
+  if (provisional == 0)
+    return 0;
+
+  auto const curve
+      = sampleClosingMove (ticks, { (join + 1) % n, provisional });
+  if (curve.arcLength.empty ())
+    return 0;
+
+  // Distance over speed is time: how many ticks the move takes if every one of
+  // them covers as much ground as the take's own ticks do.
+  return static_cast<index_t> (std::ceil (curve.arcLength.back () / speed));
 }
 
 void

@@ -23,6 +23,7 @@
 #include <a3-motion-engine/Pattern.hh>
 
 #include <optional>
+#include <vector>
 
 namespace a3
 {
@@ -67,5 +68,14 @@ void closeRecordingSeams (Pattern &pattern, index_t fadeTicks,
  *  take was played, which is why the join's position travels with the pattern
  *  and survives a restart. */
 void applyFade (Pattern &pattern, index_t fadeTicks);
+
+/** How long the closing move needs to travel at the take's own speed.
+ *
+ *  A fixed setting is as likely to crawl as to race: how long the move needs
+ *  depends on how far it has to go and how fast the take was moving, and both
+ *  come out of the take. This is the length the fade starts at, and the value
+ *  shown in the bar, so it can be turned from there. Zero when the take has no
+ *  join worth closing or never moved. */
+index_t naturalFadeTicks (std::vector<Pos> const &ticks, index_t join);
 
 }

@@ -1584,11 +1584,29 @@ A3MotionUIComponent::endRecording ()
 
   if (anyWritten)
     {
+      // How long the closing move wants to be, so that it travels at the
+      // speed the take was played at. Written into the bar as the value the
+      // fade starts from: a fixed setting is as likely to crawl as to race,
+      // because how long the move needs comes out of the take rather than out
+      // of a preference.
+      if (stopTick)
+        {
+          auto const natural
+              = naturalFadeTicks (pattern->getTicks ().positions, *stopTick);
+          if (natural > 0)
+            _clipUIParams[channel][slot].fadeSixteenths = std::clamp (
+                static_cast<int> (std::lround (
+                    static_cast<double> (natural)
+                    / ticksPerFadeStep (TempoClock::getTicksPerBeat ()))),
+                1, 16);
+        }
+
       // Before stopping, because the save happens on the Stopped message and
       // has to carry the filled stretches with it.
-      closeRecordingSeams (*pattern,
-fadeTicksFor (_clipUIParams[channel][slot].fadeSixteenths),
-                           stopTick);
+      closeRecordingSeams (
+          *pattern,
+          fadeTicksFor (_clipUIParams[channel][slot].fadeSixteenths),
+          stopTick);
     }
 
   _engine.stopPattern (pattern, _now);

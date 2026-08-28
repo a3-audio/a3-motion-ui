@@ -809,3 +809,50 @@ TEST (SeamMode, TheClosingMoveTravelsAtAnEvenSpeed)
       << "the closing move races through its middle: longest hop " << longest
       << " against shortest " << shortest;
 }
+
+// Left to a fixed setting, the closing move is as likely to crawl as to race:
+// how long it needs depends on how far it has to go and how fast the take was
+// moving, and both come out of the take. That number is the value the fade
+// starts at.
+TEST (SeamMode, TheNaturalFadeMovesAtTheTakesOwnSpeed)
+{
+  auto const ticks = circleWithAGapAtTheLoopPoint (512);
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+
+  auto const speed = typicalTrajectorySpeed (ticks);
+  auto const natural = naturalFadeTicks (ticks, index_t{ 199 });
+  ASSERT_GT (natural, 0u);
+
+  closeRecordingSeams (pattern, natural, index_t{ 199 });
+
+  float longest = 0.f;
+  for (index_t step = 0; step < natural; ++step)
+    {
+      auto const a = pattern.getTick (200 + step);
+      auto const b = pattern.getTick (201 + step);
+      longest = std::max (longest,
+                          std::hypot (b.x () - a.x (), b.y () - a.y ()));
+    }
+
+  EXPECT_LT (longest, speed * 1.5f)
+      << "the closing move covers " << longest
+      << " a tick where the take covers " << speed;
+  EXPECT_GT (longest, speed * 0.5f) << "and it must not crawl either";
+}
+
+// Twice as fast a take needs half the time to close the same distance.
+TEST (SeamMode, AFasterTakeNeedsAShorterFade)
+{
+  auto const slow = circleWithAGapAtTheLoopPoint (512);
+
+  // The same shape walked in half as many ticks: every other position.
+  std::vector<Pos> fast;
+  for (size_t i = 0; i < slow.size (); ++i)
+    fast.push_back (slow[(i * 2) % slow.size ()]);
+
+  auto const slowFade = naturalFadeTicks (slow, index_t{ 199 });
+  auto const fastFade = naturalFadeTicks (fast, index_t{ 199 });
+
+  EXPECT_LT (fastFade, slowFade);
+}
