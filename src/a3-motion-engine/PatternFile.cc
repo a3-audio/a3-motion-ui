@@ -20,6 +20,8 @@
 
 #include "PatternFile.hh"
 
+#include "TrajectoryShape.hh"
+
 #include <a3-motion-engine/tempo/TempoClock.hh>
 
 #include <cmath>
@@ -114,37 +116,25 @@ buildSvgPathData (std::vector<Pos> const &ticks,
   auto const maxPts = 128;
   auto const step = std::max (1, static_cast<int> (ticks.size ()) / maxPts);
 
-  // Split at invalid ticks into segments of normalised points.
-  // Even when step > 1 we must detect invalid ticks *between* sampled
-  // indices so that jump-boundaries are never silently skipped.
+  // Split into segments wherever the trajectory stops travelling: a gap in
+  // the data, or a teleport. Splitting on gaps alone was enough only while a
+  // take was sparse; a finished one has its seams closed and no gaps left, so
+  // a tapped take came out as one path with a straight line drawn across
+  // every jump — and stayed that way, because this is what goes to disk.
   std::vector<std::vector<Vec2>> segments;
-  segments.emplace_back ();
 
-  for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
+  for (auto const &run : trajectorySegments (ticks))
     {
-      // Check whether any tick in [i, i+step) is invalid (segment break).
-      bool hasInvalid = false;
-      for (size_t j = i;
-           j < std::min (i + static_cast<size_t> (step), ticks.size ());
-           ++j)
-        {
-          if (!ticks[j].isValid ())
-            {
-              hasInvalid = true;
-              break;
-            }
-        }
+      auto const runStep = std::max (
+          size_t{ 1 }, run.size () / static_cast<size_t> (maxPts));
 
-      if (hasInvalid)
-        {
-          if (!segments.back ().empty ())
-            segments.emplace_back ();
-          continue;
-        }
+      std::vector<Vec2> pts;
+      for (size_t i = 0; i < run.size (); i += runStep)
+        pts.push_back ({ (run[i].x () - centreX) / (range * 0.5f),
+                         (run[i].y () - centreY) / (range * 0.5f) });
 
-      float nx = (ticks[i].x () - centreX) / (range * 0.5f);
-      float ny = (ticks[i].y () - centreY) / (range * 0.5f);
-      segments.back ().push_back ({ nx, ny });
+      if (!pts.empty ())
+        segments.push_back (std::move (pts));
     }
 
   // Remove trailing empty segment
@@ -170,53 +160,31 @@ buildSvgPathData (std::vector<Pos> const &ticks,
                          && segments[0].size () > 4;
     }
 
-  // ── Check for jump-only pattern ──
-  // A jump pattern consists of segments where each segment is a cluster
-  // of (near-)identical points, i.e. the source has no real movement
-  // within each segment — it just sits at a position and then jumps.
-  if (segments.size () >= 2)
+  // ── Tapped rather than drawn ──
+  // Decided on the shape of the tick data, not on how many ticks are missing
+  // from it. The old test needed at least two segments, which only ever
+  // happened while gaps were still in the data.
+  if (isTappedTrajectory (ticks))
     {
-      bool allDegenerate = true;
-      for (auto const &seg : segments)
+      for (auto const &held : trajectoryPlateaus (ticks))
         {
-          if (seg.size () < 2)
-            continue;
-          for (size_t i = 1; i < seg.size (); ++i)
+          float const nx = (held.x () - centreX) / (range * 0.5f);
+          float const ny = (held.y () - centreY) / (range * 0.5f);
+
+          bool duplicate = false;
+          for (auto const &d : outJumpDots)
             {
-              if (seg[i].distTo (seg[0]) > 0.05f)
+              if (std::abs (d.first - nx) < 0.05f
+                  && std::abs (d.second - ny) < 0.05f)
                 {
-                  allDegenerate = false;
+                  duplicate = true;
                   break;
                 }
             }
-          if (!allDegenerate)
-            break;
+          if (!duplicate)
+            outJumpDots.push_back ({ nx, ny });
         }
-
-      if (allDegenerate)
-        {
-          for (auto const &seg : segments)
-            {
-              if (seg.empty ())
-                continue;
-              // Use the first point of each segment as the jump dot
-              float nx = seg[0].x;
-              float ny = seg[0].y;
-              bool duplicate = false;
-              for (auto const &d : outJumpDots)
-                {
-                  if (std::abs (d.first - nx) < 0.05f
-                      && std::abs (d.second - ny) < 0.05f)
-                    {
-                      duplicate = true;
-                      break;
-                    }
-                }
-              if (!duplicate)
-                outJumpDots.push_back ({ nx, ny });
-            }
-          return {};
-        }
+      return {};
     }
 
   // ── Palindrome: for non-closed segments, append reversed ──

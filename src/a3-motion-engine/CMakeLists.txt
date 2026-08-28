@@ -48,6 +48,7 @@ target_sources("a3-motion-engine" PRIVATE
     PatternGenerator.cc
     PatternGenerator.hh
     PatternFile.cc
+    TrajectoryShape.cc
     PatternFile.hh
     PatternLibrary.cc
     PatternLibrary.hh

@@ -33,6 +33,8 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinEditorTyping.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OnScreenKeyboard.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TouchGrabs.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/TrajectoryShape.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternFileJumps.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingSpans.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternWrittenTicks.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingSeam.cc"

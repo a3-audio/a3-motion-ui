@@ -20,6 +20,8 @@
 
 #include "TrajectoryIcon.hh"
 
+#include <a3-motion-engine/TrajectoryShape.hh>
+
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
 #include <algorithm>
@@ -93,77 +95,61 @@ trajectoryIconFromTicks (std::vector<Pos> const &ticks)
   auto centreX = (minX + maxX) * 0.5f;
   auto centreY = (minY + maxY) * 0.5f;
 
-  // Downsample: take at most 128 points for the icon path
-  auto const maxIconPoints = 128;
-  auto const step = std::max (1, static_cast<int> (ticks.size ()) / maxIconPoints);
+  auto const normalise = [centreX, centreY, range] (Pos const &pos) {
+    return juce::Point<float>{ (pos.x () - centreX) / (range * 0.5f),
+                               (pos.y () - centreY) / (range * 0.5f) };
+  };
 
-  // Check if this is a jump-only pattern (majority of ticks are invalid)
-  int invalidCount = static_cast<int> (ticks.size ()) - validCount;
-  bool jumpPattern = invalidCount > validCount / 2;
-
-  if (jumpPattern)
+  // Tapped or drawn is a question about the shape of the data, not about how
+  // much of it is missing. Counting invalid ticks only worked while a take was
+  // still being played in; once its seams are closed every tick is valid, and
+  // a tap take then went down the drawn branch and got a straight line put
+  // across every one of its jumps.
+  if (isTappedTrajectory (ticks))
     {
-      // For jump patterns, collect the distinct valid positions as dots
       data.hasJumpDots = true;
-      for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
+      for (auto const &held : trajectoryPlateaus (ticks))
         {
-          if (!ticks[i].isValid ())
-            continue;
-          float nx = (ticks[i].x () - centreX) / (range * 0.5f);
-          float ny = (ticks[i].y () - centreY) / (range * 0.5f);
+          auto const point = normalise (held);
 
-          // Check if this point is already close to an existing one
-          bool duplicate = false;
-          for (auto const &p : data.jumpDots)
-            {
-              if (std::abs (p.first - nx) < 0.05f
-                  && std::abs (p.second - ny) < 0.05f)
-                {
-                  duplicate = true;
-                  break;
-                }
-            }
-          if (!duplicate)
-            data.jumpDots.push_back ({ nx, ny });
+          // Two taps a hair apart are one dot: the icon is a few millimetres
+          // across and cannot show the difference anyway.
+          auto const isDuplicate = std::any_of (
+              data.jumpDots.begin (), data.jumpDots.end (),
+              [&point] (auto const &p) {
+                return std::abs (p.first - point.x) < 0.05f
+                       && std::abs (p.second - point.y) < 0.05f;
+              });
+          if (!isDuplicate)
+            data.jumpDots.push_back ({ point.x, point.y });
         }
     }
   else
     {
-      // Collect downsampled normalised points, splitting at invalid ticks
-      std::vector<std::vector<juce::Point<float>>> segments;
-      segments.emplace_back ();
+      // At most this many points per stroke; beyond it the icon gains no
+      // detail the eye can find at this size.
+      auto const maxIconPoints = 128;
 
-      for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
+      for (auto const &segment : trajectorySegments (ticks))
         {
-          if (!ticks[i].isValid ())
-            {
-              // Start a new segment after a gap
-              if (!segments.back ().empty ())
-                segments.emplace_back ();
-              continue;
-            }
-          float nx = (ticks[i].x () - centreX) / (range * 0.5f);
-          float ny = (ticks[i].y () - centreY) / (range * 0.5f);
-          segments.back ().push_back ({ nx, ny });
-        }
+          auto const step = std::max (
+              size_t{ 1 }, segment.size () / static_cast<size_t> (maxIconPoints));
 
-      // Build Catmull-Rom cubic Bézier path for each segment
-      for (auto const &pts : segments)
-        {
+          std::vector<juce::Point<float> > pts;
+          for (size_t i = 0; i < segment.size (); i += step)
+            pts.push_back (normalise (segment[i]));
+
           if (pts.size () < 2)
             continue;
 
           data.path.startNewSubPath (pts[0]);
 
-          // Check if the segment forms a closed loop
           auto const dist = pts.front ().getDistanceFrom (pts.back ());
-          bool closed = dist < 0.1f && pts.size () > 4;
+          bool const closed = dist < 0.1f && pts.size () > 4;
 
           auto const n = static_cast<int> (pts.size ());
           for (int i = 0; i < n - 1; ++i)
             {
-              // Catmull-Rom: P0, P1, P2, P3
-              // For endpoints, mirror or wrap
               juce::Point<float> p0, p1, p2, p3;
               p1 = pts[static_cast<size_t> (i)];
               p2 = pts[static_cast<size_t> (i + 1)];
@@ -181,13 +167,14 @@ trajectoryIconFromTicks (std::vector<Pos> const &ticks)
                                    : p2 + (p2 - p1);
                 }
 
-              // Convert Catmull-Rom to cubic Bézier control points
               auto cp1 = p1 + (p2 - p0) / 6.f;
               auto cp2 = p2 - (p3 - p1) / 6.f;
-
               data.path.cubicTo (cp1, cp2, p2);
             }
         }
+
+      if (data.path.isEmpty ())
+        return data;
     }
 
   data.hasIcon = true;
