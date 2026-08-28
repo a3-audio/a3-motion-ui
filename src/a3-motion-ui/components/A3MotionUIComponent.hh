@@ -355,9 +355,23 @@ private:
     int speedLog2 = 0;
     int direction = 0;   // 0=Forward, 1=Reverse, 2=PingPong
     int endAction = 0;   // 0=Loop, 1=Stop, 2=Bounce
+    // 0=Glide, 1=Hard — what happens to the stretches a recording never
+    // wrote, including the one across the loop point. See closeRecordingSeams.
+    int seamMode = 0;
   };
   // [channel][slot], sized alongside _patterns in initializePatterns().
   std::vector<std::vector<ClipUIParams> > _clipUIParams;
+
+  /** Which slot the running recording belongs to, and what that slot held
+   *  before it started. The slot's pattern is replaced the moment recording
+   *  begins, so a take that turns out empty can only be undone by putting the
+   *  old one back. */
+  std::optional<std::pair<index_t, index_t> > _recordingSlot;
+  std::shared_ptr<Pattern> _patternBeforeRecording;
+
+  /** Finish the running recording: close what it never wrote, keep it or throw
+   *  it away, and carry on playing. */
+  void endRecording ();
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionUIComponent)
 };

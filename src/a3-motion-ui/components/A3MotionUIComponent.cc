@@ -27,6 +27,7 @@
 
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/PlaybackRate.hh>
+#include <a3-motion-engine/RecordingSeam.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
@@ -611,6 +612,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       _ioAdapter->getButtonLED (Button::Record) = value.getValue ();
       updateControlReadout (juce::String ("-- RECORD ")
                             + (value.getValue () ? "ON" : "OFF"));
+
+      // Pressed while a take is running, this ends it. The finger no longer
+      // bounds a recording — that is what makes a jump recordable — so
+      // something else has to, and Record is the button that started it.
+      if (static_cast<bool> (value.getValue ()) && _engine.isRecording ())
+        endRecording ();
+
       // Recording itself is armed when a slot's Play|Pause pad is pressed
       // while this button is held — see handlePadPress().
     }
@@ -923,6 +931,12 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       // Read before replacing: this is the length configured on the clip, and
       // the fresh pattern below has none yet.
       auto const configuredLengthBeats = getPatternLengthBeats (channel, slot);
+
+      // Remembered so an empty take can be undone: the slot's pattern is
+      // replaced right below, and a stray double press must not cost whatever
+      // was in there.
+      _recordingSlot = std::make_pair (channel, slot);
+      _patternBeforeRecording = pattern;
 
       // Always create a fresh Pattern for recording (user pattern)
       pattern = std::make_shared<Pattern> ();
@@ -1448,6 +1462,56 @@ A3MotionUIComponent::createPatternForIndex (int index, index_t channel)
   if (p)
     p->setChannel (channel);
   return p;
+}
+
+void
+A3MotionUIComponent::endRecording ()
+{
+  auto pattern = _engine.getRecordingPattern ();
+  if (!pattern || !_recordingSlot.has_value ())
+    return;
+
+  auto const channel = _recordingSlot->first;
+  auto const slot = _recordingSlot->second;
+
+  auto const written = pattern->writtenTicks ();
+  auto const anyWritten
+      = std::any_of (written.begin (), written.end (),
+                     [] (bool isWritten) { return isWritten; });
+
+  if (anyWritten)
+    {
+      // Before stopping, because the save happens on the Stopped message and
+      // has to carry the filled stretches with it.
+      closeRecordingSeams (*pattern,
+                           _clipUIParams[channel][slot].seamMode == 0
+                               ? SeamMode::Glide
+                               : SeamMode::Hard);
+    }
+
+  _engine.stopPattern (pattern, _now);
+
+  if (anyWritten)
+    {
+      // The motion was looping anyway; ending a take stops the writing, not
+      // the movement.
+      pattern->setPlaybackLength (
+          Measure{ 0, static_cast<int> (
+                          std::max (1.f, getLengthBeats (channel, slot))),
+                   0 });
+      _engine.playPattern (pattern, _now);
+    }
+  else
+    {
+      // Nothing was ever played into it. Put back what the slot held rather
+      // than leaving a clip made of nothing.
+      _patterns[channel][slot] = _patternBeforeRecording;
+      updateControlReadout ("recording discarded - nothing played");
+    }
+
+  _recordingSlot.reset ();
+  _patternBeforeRecording.reset ();
+  selectClip (channel, slot);
 }
 
 void
