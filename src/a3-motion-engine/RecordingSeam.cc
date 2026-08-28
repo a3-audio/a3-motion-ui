@@ -30,66 +30,21 @@ namespace a3
 
 namespace
 {
-float
-length (Pos const &p)
-{
-  return std::sqrt (p.x () * p.x () + p.y () * p.y () + p.z () * p.z ());
-}
-
+/** A glide from one recorded position to another.
+ *
+ *  Straight, and deliberately so. A pattern stores 2D pattern-space positions
+ *  — mapTo2D, with the radius carrying the colatitude — and playback lerps
+ *  between neighbouring ticks in that same space. A fill that took any other
+ *  route would not match the motion either side of it.
+ *
+ *  Turning this into an arc on the sphere was a mistake: the pattern-space
+ *  origin is the zenith, so arcing about it swings the blob over the pole. */
 Pos
-straightBetween (Pos const &from, Pos const &to, float t)
+between (Pos const &from, Pos const &to, float t)
 {
   return Pos::fromCartesian (from.x () + (to.x () - from.x ()) * t,
                              from.y () + (to.y () - from.y ()) * t,
                              from.z () + (to.z () - from.z ()) * t);
-}
-
-/** A glide from one recorded position to another.
- *
- *  Recorded positions are directions on the unit sphere, and a straight line
- *  between two of them runs through the sphere rather than across it: halfway
- *  between two a quarter turn apart the vector is 0.707 long, and over a long
- *  seam between distant points it dives towards the centre and back out. The
- *  blob leaves the surface and swings.
- *
- *  So the direction turns and the distance from the centre is carried across
- *  separately. Degenerate ends — a zero-length position, or two exactly
- *  opposite ones, where no one arc is the way round — have nothing to turn
- *  about, and fall back to the straight line. */
-Pos
-between (Pos const &from, Pos const &to, float t)
-{
-  auto const fromLength = length (from);
-  auto const toLength = length (to);
-
-  constexpr float epsilon = 1e-6f;
-  if (fromLength < epsilon || toLength < epsilon)
-    return straightBetween (from, to, t);
-
-  auto const dot = (from.x () * to.x () + from.y () * to.y ()
-                    + from.z () * to.z ())
-                   / (fromLength * toLength);
-  auto const angle = std::acos (std::max (-1.f, std::min (1.f, dot)));
-  auto const sinAngle = std::sin (angle);
-
-  if (sinAngle < epsilon)
-    return straightBetween (from, to, t);
-
-  auto const fromWeight = std::sin ((1.f - t) * angle) / sinAngle;
-  auto const toWeight = std::sin (t * angle) / sinAngle;
-
-  // Turn the unit directions, then put back the distance from the centre the
-  // two ends had. For positions on the sphere that distance is 1 at both ends
-  // and stays 1 all the way across.
-  auto const radius = fromLength + (toLength - fromLength) * t;
-
-  return Pos::fromCartesian (
-      (from.x () / fromLength * fromWeight + to.x () / toLength * toWeight)
-          * radius,
-      (from.y () / fromLength * fromWeight + to.y () / toLength * toWeight)
-          * radius,
-      (from.z () / fromLength * fromWeight + to.z () / toLength * toWeight)
-          * radius);
 }
 
 void

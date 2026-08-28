@@ -129,66 +129,6 @@ TEST (RecordingSeam, GlideLeavesNoTickUnfilledAcrossTheLoopPoint)
     EXPECT_TRUE (pattern.getTick (tick).isValid ()) << "tick " << tick;
 }
 
-// Recorded positions are directions on the unit sphere — that is what
-// discToDirection hands the engine. Interpolating between two of them in a
-// straight line goes *through* the sphere: halfway between two points a
-// quarter turn apart the vector is only 0.707 long, and a long seam between
-// distant points dives towards the middle and back out. On screen that is the
-// blob leaving its surface and swinging oddly.
-
-namespace
-{
-float length (Pos const &p)
-{
-  return std::sqrt (p.x () * p.x () + p.y () * p.y () + p.z () * p.z ());
-}
-
-Pos onSphere (float azimuth)
-{
-  return Pos::fromCartesian (std::cos (azimuth), std::sin (azimuth), 0.f);
-}
-}
-
-TEST (RecordingSeam, AGlideStaysOnTheSphere)
-{
-  Pattern pattern;
-  pattern.resize (16);
-  pattern.setTick (4, onSphere (0.f));
-  pattern.setTick (8, onSphere (juce::MathConstants<float>::halfPi));
-
-  closeRecordingSeams (pattern, SeamMode::Glide);
-
-  // The seam runs from tick 8 round to tick 4.
-  for (index_t tick = 9; tick != 4; tick = (tick + 1) % 16)
-    EXPECT_NEAR (length (pattern.getTick (tick)), 1.f, 0.001f)
-        << "tick " << tick << " left the sphere";
-}
-
-// And it gets there by going round rather than by cutting the corner: the
-// angle away from where it started only ever grows.
-TEST (RecordingSeam, AGlideSweepsRoundRatherThanThrough)
-{
-  Pattern pattern;
-  pattern.resize (16);
-  pattern.setTick (4, onSphere (0.f));
-  pattern.setTick (8, onSphere (juce::MathConstants<float>::halfPi));
-
-  closeRecordingSeams (pattern, SeamMode::Glide);
-
-  auto const from = pattern.getTick (8);
-  float lastAngle = 0.f;
-  for (index_t tick = 9; tick != 4; tick = (tick + 1) % 16)
-    {
-      auto const here = pattern.getTick (tick);
-      auto const dot = from.x () * here.x () + from.y () * here.y ()
-                       + from.z () * here.z ();
-      auto const angle = std::acos (juce::jlimit (-1.f, 1.f, dot));
-      EXPECT_GE (angle, lastAngle - 0.001f) << "tick " << tick;
-      lastAngle = angle;
-    }
-  EXPECT_GT (lastAngle, 1.f) << "the glide never got round to the far end";
-}
-
 TEST (RecordingSeam, AFullyWrittenPatternIsLeftAlone)
 {
   Pattern pattern;
