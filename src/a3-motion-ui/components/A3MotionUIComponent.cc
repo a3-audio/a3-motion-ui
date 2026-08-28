@@ -2582,20 +2582,18 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
           : "1/"
                 + juce::String (static_cast<int> (
                     std::exp2 (-params.recordLengthLog2))));
-  // The bar under the pictogram: what the pattern holds, laid out in time.
-  // While a take runs this shows it filling; afterwards it stands as the
-  // length. The write head is the recording's own play position.
+  // How far the running take has got, as a line under the tick indicator in
+  // this channel's own colour — over the sphere, where the eye already is.
   {
     auto const &pattern = _patterns[channel][slot];
     auto const recording = _engine.getRecordingPattern ();
-    auto const isRecordingThis
-        = recording != nullptr && recording == pattern
-          && _engine.isRecording ();
+    auto const isRecordingThis = recording != nullptr && recording == pattern
+                                 && _engine.isRecording ();
 
-    _clipSettings->setPatternProgress (
-        progressBarDivisions (getPatternLengthBeats (channel, slot),
-                              _engine.getBeatsPerBar ()),
-        isRecordingThis && pattern ? pattern->getPlayPosition () : -1.f);
+    if (_statusBar)
+      _statusBar->setRecordingProgress (
+          isRecordingThis && pattern ? pattern->getPlayPosition () : -1.f,
+          _channelUIStates[channel]->colour);
   }
 
   _clipSettings->setTrajectorySubIndex (

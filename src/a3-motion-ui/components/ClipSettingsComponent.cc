@@ -166,51 +166,7 @@ ClipSettingsComponent::setMotionEndAction (int endAction)
   repaint ();
 }
 
-void
-ClipSettingsComponent::setPatternProgress (int divisions, float headFraction)
-{
-  _patternDivisions = juce::jmax (1, divisions);
-  _patternHeadFraction = headFraction;
-  repaint ();
-}
 
-void
-ClipSettingsComponent::paintPatternBar (juce::Graphics &g,
-                                        juce::Rectangle<int> bounds,
-                                        bool isSelected) const
-{
-  auto const bar = bounds.toFloat ();
-
-  g.setColour (toColour (theme ().textPrimary, 0.12f));
-  g.fillRoundedRectangle (bar, 2.f);
-
-  // Filled up to where the pass has got to, and empty again when it starts
-  // over. Showing which individual ticks hold something read as a barcode
-  // rather than as progress — the question here is how far in, and the trail
-  // on the sphere already says where the gaps are.
-  auto const filled
-      = _patternHeadFraction >= 0.f ? _patternHeadFraction : 1.f;
-
-  g.setColour (controlColour (isSelected));
-  g.fillRoundedRectangle (bar.withWidth (bar.getWidth () * filled), 2.f);
-
-  // The metre, so a glance says how far in rather than how far along.
-  g.setColour (toColour (theme ().surface, 0.6f));
-  for (int division = 1; division < _patternDivisions; ++division)
-    {
-      auto const x = bar.getX ()
-                     + bar.getWidth () * static_cast<float> (division)
-                           / static_cast<float> (_patternDivisions);
-      g.fillRect (x, bar.getY (), 1.f, bar.getHeight ());
-    }
-
-  if (_patternHeadFraction >= 0.f)
-    {
-      g.setColour (toColour (theme ().accent));
-      g.fillRect (bar.getX () + bar.getWidth () * _patternHeadFraction,
-                  bar.getY () - 1.f, 2.f, bar.getHeight () + 2.f);
-    }
-}
 
 void
 ClipSettingsComponent::setMotionSeamMode (int mode)
@@ -514,11 +470,6 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   auto nameArea
       = content.removeFromBottom (textRowHeight (content, metrics.valueSize));
 
-  // Between the pictogram and the name: what is in the slot, laid out in time.
-  auto barArea = content.removeFromBottom (
-      juce::jmax (4, textRowHeight (content, metrics.valueSize) / 3));
-  paintPatternBar (g, barArea.reduced (2, 1), isSelected);
-  content.removeFromBottom (2);
 
   // Pictogram, centred in whatever square area is left above the name.
   auto const iconSize = static_cast<float> (
