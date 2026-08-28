@@ -170,19 +170,32 @@ writeClosingMove (Pattern &pattern, std::vector<Pos> const &baseline,
                                a.z () - b.z ());
   };
 
-  // Scaled to the span so the curve leaves and arrives at the speed the take
-  // had: a tangent is a distance per unit of t, and t runs 0..1 across it.
-  auto const perTick = static_cast<float> (span.length)
-                       / static_cast<float> (window);
-  auto const scaled = [perTick] (Pos const &v) {
-    return Pos::fromCartesian (v.x () * perTick, v.y () * perTick,
-                               v.z () * perTick);
+  // Only the direction comes from the motion; how far the curve reaches along
+  // it comes from the distance it has to cover.
+  //
+  // Scaling the tangent by the take's speed across the span looked right on
+  // paper and was a spike on screen: at 128 ticks and a speed of 0.06 that is
+  // a tangent 7.7 long against a gap of one or two, so the curve shot far out
+  // and turned back in a hairpin. A tangent about as long as the chord leaves
+  // along the motion and still heads for where it is going.
+  auto const chord = std::sqrt (std::pow (to.x () - from.x (), 2.f)
+                                + std::pow (to.y () - from.y (), 2.f)
+                                + std::pow (to.z () - from.z (), 2.f));
+
+  auto const along = [chord] (Pos const &v) {
+    auto const length
+        = std::sqrt (v.x () * v.x () + v.y () * v.y () + v.z () * v.z ());
+    if (length < 1e-6f)
+      return Pos::fromCartesian (0.f, 0.f, 0.f);
+    auto const scale = chord / length;
+    return Pos::fromCartesian (v.x () * scale, v.y () * scale,
+                               v.z () * scale);
   };
 
   auto const outgoing
-      = scaled (direction (span.begin + n - 1, span.begin + n - 1 - window));
-  auto const incoming = scaled (direction (
-      span.begin + span.length + window, span.begin + span.length));
+      = along (direction (span.begin + n - 1, span.begin + n - 1 - window));
+  auto const incoming = along (
+      direction (span.begin + span.length + window, span.begin + span.length));
 
   for (index_t step = 0; step < span.length; ++step)
     {

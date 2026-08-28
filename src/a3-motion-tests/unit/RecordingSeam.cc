@@ -734,3 +734,34 @@ TEST (SeamMode, TheCurveSurvivesTicksThatRepeat)
   EXPECT_GT (std::hypot (b.x () - midX, b.y () - midY), 0.01f)
       << "two zero tangents made the closing move a straight line again";
 }
+
+// The curve leaves along the motion, but only so far. Scaled by the take's
+// speed across the span the tangent came out many times longer than the gap it
+// had to cross, so the closing move shot away from its target and turned back
+// in a hairpin -- a spike, not a join.
+TEST (SeamMode, TheClosingMoveDoesNotOvershootItsTarget)
+{
+  // 512 ticks, so the whole closing move fits behind the join: with fewer, it
+  // is trimmed to the stale pass and the arithmetic below runs off the end.
+  auto const ticks = circleWithAGapAtTheLoopPoint (512);
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+  closeRecordingSeams (pattern, index_t{ 64 }, index_t{ 199 });
+
+  auto const from = pattern.getTick (199);
+  auto const to = pattern.getTick (199 + 64 + 1);
+  auto const chord = std::hypot (to.x () - from.x (), to.y () - from.y ());
+
+  // Nothing along the closing move may stray much further from the straight
+  // line between its ends than the ends are apart.
+  for (index_t step = 1; step <= 64; ++step)
+    {
+      auto const here = pattern.getTick (199 + step);
+      auto const reach = std::max (std::hypot (here.x () - from.x (),
+                                               here.y () - from.y ()),
+                                   std::hypot (here.x () - to.x (),
+                                               here.y () - to.y ()));
+      EXPECT_LT (reach, chord * 1.6f)
+          << "tick " << step << " of the closing move overshoots";
+    }
+}
