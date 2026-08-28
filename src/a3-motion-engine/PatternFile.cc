@@ -578,6 +578,16 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
   svg->setAttribute ("viewBox", "-1 -1 2 2");
   svg->setAttribute ("data-name", juce::String (pattern->getName ()));
   svg->setAttribute ("data-beats", lengthBeats);
+  // Where the take's seam lies. Not something that can be worked out again
+  // from the file — once filled, the stretch looks like any other run of
+  // ticks — and how it is filled is a playback setting, so it has to survive
+  // a restart or there is no way back from the last fill.
+  auto const seam = pattern->getSeamSpan ();
+  if (seam.length > 0)
+    {
+      svg->setAttribute ("data-seam-begin", static_cast<int> (seam.begin));
+      svg->setAttribute ("data-seam-length", static_cast<int> (seam.length));
+    }
   svg->setAttribute ("data-ppqn", TempoClock::getTicksPerBeat ());
 
   if (!pathData.empty ())
@@ -644,6 +654,14 @@ PatternFile::load (juce::File const &file)
   auto pattern = std::make_shared<Pattern> ();
   pattern->setName (name);
   pattern->resize (static_cast<index_t> (lengthBeats * ppqn));
+
+  // A file that does not mention a seam has none — a shipped shape, or a take
+  // that filled its whole loop.
+  auto const seamLength = xml->getIntAttribute ("data-seam-length", 0);
+  if (seamLength > 0)
+    pattern->setSeamSpan (
+        { static_cast<index_t> (xml->getIntAttribute ("data-seam-begin", 0)),
+          static_cast<index_t> (seamLength) });
 
   auto const numTicks = pattern->getNumTicks ();
 

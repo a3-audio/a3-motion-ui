@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-engine/RecordingSeam.hh>
+#include <a3-motion-engine/PatternFile.hh>
 
 using namespace a3;
 
@@ -292,4 +293,61 @@ TEST (SeamMode, APatternWithoutASeamIsLeftAlone)
 
   EXPECT_EQ (pattern.getSeamSpan ().length, 0u);
   EXPECT_NEAR (pattern.getTick (8).x (), 0.25f, 0.001f);
+}
+
+// ── the seam has to survive a restart ───────────────────────────────────
+//
+// Where a take's seam lies is not something that can be worked out again from
+// the file: once it is filled, the stretch looks like any other run of ticks.
+// If it is not written down, a restart leaves whatever fill was last applied
+// and no way back.
+
+TEST (SeamMode, TheSeamSurvivesASaveAndLoad)
+{
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-motion-test-seam.svg");
+  file.deleteFile ();
+
+  // 128 ticks to the beat, so a pattern shorter than that saves as zero beats
+  // and will not load again.
+  auto written = std::make_shared<Pattern> ();
+  written->resize (512);
+  written->setTick (100, at (0.f));
+  written->setTick (200, at (4.f));
+  closeRecordingSeams (*written, SeamMode::Hard);
+  auto const expected = written->getSeamSpan ();
+  ASSERT_GT (expected.length, 0u);
+
+  ASSERT_TRUE (PatternFile::save (written, file));
+  auto const loaded = PatternFile::load (file);
+  ASSERT_NE (loaded, nullptr);
+
+  EXPECT_EQ (loaded->getSeamSpan ().begin, expected.begin);
+  EXPECT_EQ (loaded->getSeamSpan ().length, expected.length);
+
+  file.deleteFile ();
+}
+
+// A pattern that never had a seam — a shipped shape, or a take that filled its
+// whole loop — must not acquire one from a file that does not mention it.
+TEST (SeamMode, AFileWithoutASeamLoadsWithoutOne)
+{
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-motion-test-noseam.svg");
+  file.deleteFile ();
+
+  auto written = std::make_shared<Pattern> ();
+  written->resize (512);
+  for (index_t tick = 0; tick < written->getNumTicks (); ++tick)
+    written->setTick (tick, at (0.25f));
+
+  ASSERT_TRUE (PatternFile::save (written, file));
+  auto const loaded = PatternFile::load (file);
+  ASSERT_NE (loaded, nullptr);
+
+  EXPECT_EQ (loaded->getSeamSpan ().length, 0u);
+
+  file.deleteFile ();
 }
