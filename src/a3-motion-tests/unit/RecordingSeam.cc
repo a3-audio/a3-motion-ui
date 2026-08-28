@@ -509,6 +509,68 @@ TEST (RecordingSeam, SpeedIgnoresHeldTicks)
   EXPECT_NEAR (typicalTrajectorySpeed (ticks), 0.1f, 0.001f);
 }
 
+// Recording in Loop runs several passes over the same ticks, so where it stops
+// is an edge: the ticks up to it carry the freshest pass and the ones after it
+// still carry the one before. Nothing is missing there -- 512 of 512 ticks
+// written, no gaps at all on a real take -- so filling holes never reached it,
+// and the seam sat at the loop point where there was nothing wrong.
+//
+// Measured on a real take: one step of 2.01 between two written neighbours,
+// against a 90th percentile of 0.105.
+TEST (RecordingSeam, TheSeamSitsWhereTheTakeStopped)
+{
+  // A full circle, then a second pass over the first quarter that ends
+  // somewhere else entirely: the edge is at tick 63, not at the loop point.
+  std::vector<Pos> ticks;
+  for (int i = 0; i < 256; ++i)
+    {
+      auto const a = juce::MathConstants<float>::twoPi * i / 256.f;
+      ticks.push_back (
+          Pos::fromCartesian (std::cos (a) * 0.6f, std::sin (a) * 0.6f, 0.f));
+    }
+  for (int i = 0; i < 64; ++i)
+    {
+      auto const a = juce::MathConstants<float>::twoPi * i / 256.f;
+      ticks[static_cast<size_t> (i)] = Pos::fromCartesian (
+          std::cos (a) * 0.6f - 1.2f, std::sin (a) * 0.6f, 0.f);
+    }
+
+  auto const edge = [] (Pattern const &p) {
+    auto const a = p.getTick (63);
+    auto const b = p.getTick (64);
+    return std::sqrt (std::pow (a.x () - b.x (), 2.f)
+                      + std::pow (a.y () - b.y (), 2.f));
+  };
+
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+  ASSERT_GT (edge (pattern), 1.f) << "the fixture needs the edge it is about";
+
+  closeRecordingSeams (pattern, SeamMode::Glide, index_t{ 63 });
+
+  EXPECT_LT (edge (pattern), 0.3f)
+      << "the seam was put at the loop point, where nothing was wrong";
+}
+
+// And the fresh pass is what survives: the glide is written over the stale
+// material after the edge, never back into what was just played.
+TEST (RecordingSeam, TheFreshPassIsNotOverwritten)
+{
+  std::vector<Pos> ticks;
+  for (int i = 0; i < 256; ++i)
+    ticks.push_back (Pos::fromCartesian (0.004f * i, 0.f, 0.f));
+  for (int i = 200; i < 256; ++i)
+    ticks[static_cast<size_t> (i)] = Pos::fromCartesian (-0.9f, 0.5f, 0.f);
+
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+  closeRecordingSeams (pattern, SeamMode::Glide, index_t{ 199 });
+
+  for (index_t tick = 0; tick <= 199; ++tick)
+    EXPECT_NEAR (pattern.getTick (tick).x (), ticks[tick].x (), 0.0001f)
+        << "tick " << tick << " is inside the pass that was just played";
+}
+
 // A take is closed when it is recorded, and the file it is written to does not
 // keep it that way. The SVG stores a shape, not a recording: the writer cuts
 // it into segments at its jumps and drops the tick timing, and the reader

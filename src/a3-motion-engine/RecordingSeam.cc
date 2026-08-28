@@ -89,15 +89,17 @@ namespace
  *  take than closing it costs. Recorded as the seam span, so switching the
  *  mode afterwards refills it like any other seam. */
 void
-closeLoopPoint (Pattern &pattern, SeamMode mode)
+closeLoopPoint (Pattern &pattern, SeamMode mode, index_t seamAt)
 {
   auto const numTicks = pattern.getNumTicks ();
   if (numTicks < 4)
     return;
 
   auto const positions = pattern.getTicks ().positions;
-  auto const last = pattern.getTick (numTicks - 1);
-  auto const first = pattern.getTick (0);
+  // The edge to close: from the last tick of the freshest pass to whatever
+  // follows it round the ring.
+  auto const last = pattern.getTick (seamAt % numTicks);
+  auto const first = pattern.getTick ((seamAt + 1) % numTicks);
 
   if (!last.isValid () || !first.isValid ())
     return;
@@ -118,20 +120,31 @@ closeLoopPoint (Pattern &pattern, SeamMode mode)
   // A quarter of the loop is the most this may cost. Past that the take is
   // being replaced by its own closing move rather than closed.
   auto const needed = static_cast<index_t> (std::ceil (gap / speed));
-  auto const length = std::max (index_t{ 2 },
-                                std::min (needed, numTicks / 4));
+  auto budget = std::min (needed, numTicks / 4);
+
+  // And it may only spend the stale pass that follows the edge. Ticks up to
+  // the edge are the freshest pass -- what was just played -- and a glide long
+  // enough to wrap round into them would close the join by deleting the take.
+  auto const stale = numTicks - 1 - (seamAt % numTicks);
+  if (stale > 0)
+    budget = std::min (budget, stale);
+
+  auto const length = std::max (index_t{ 2 }, budget);
 
   // The span is recorded either way, so the mode stays a playback setting that
   // can be changed afterwards. Only Glide writes into it: unlike a stretch
   // nobody played, this one holds recorded motion, and holding it flat would
   // delete what the finger actually did to keep a jump that is already there.
-  UnwrittenSpan const span{ numTicks - length, length };
+  UnwrittenSpan const span{ (seamAt + 1) % numTicks, length };
   pattern.setSeamSpan (span);
 
   if (mode != SeamMode::Glide)
     return;
 
-  fillSpan (pattern, span, pattern.getTick (span.begin - 1), first, true);
+  // Written over the stale pass that follows the edge, never over the fresh
+  // one before it: the pass just played is the one worth keeping.
+  auto const after = pattern.getTick ((span.begin + span.length) % numTicks);
+  fillSpan (pattern, span, last, after, true);
 }
 }
 
@@ -153,7 +166,8 @@ applySeamMode (Pattern &pattern, SeamMode mode)
 }
 
 void
-closeRecordingSeams (Pattern &pattern, SeamMode mode)
+closeRecordingSeams (Pattern &pattern, SeamMode mode,
+                     std::optional<index_t> stopTick)
 {
   auto const numTicks = pattern.getNumTicks ();
   if (numTicks == 0)
@@ -191,7 +205,8 @@ closeRecordingSeams (Pattern &pattern, SeamMode mode)
   // A take that wrote across the loop point leaves no hole there, so the loop
   // above never saw it. That edge is a seam too.
   if (pattern.getSeamSpan ().length == 0)
-    closeLoopPoint (pattern, mode);
+    closeLoopPoint (pattern, mode,
+                    stopTick.value_or (numTicks - 1) % numTicks);
 
   // Every tick holds something now, and playback has to be told: it reads the
   // last written tick as the pattern's length, and the span filled last is the

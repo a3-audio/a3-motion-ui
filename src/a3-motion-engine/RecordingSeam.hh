@@ -22,6 +22,8 @@
 
 #include <a3-motion-engine/Pattern.hh>
 
+#include <optional>
+
 namespace a3
 {
 
@@ -46,7 +48,13 @@ enum class SeamMode
  *
  *  Does nothing to a pattern that wrote nothing at all — the caller discards
  *  such a take rather than filling it with guesses. */
-void closeRecordingSeams (Pattern &pattern, SeamMode mode);
+/** `stopTick` is where the take stopped: the last tick the freshest pass
+ *  wrote. Recording in Loop runs several passes, so the ticks after it still
+ *  carry an earlier one, and the edge between them is where the motion visibly
+ *  breaks. Nothing is missing there, so filling holes never reached it. Left
+ *  out, the loop point is used instead. */
+void closeRecordingSeams (Pattern &pattern, SeamMode mode,
+                          std::optional<index_t> stopTick = {});
 
 /** Fill the take's seam again, the other way.
  *

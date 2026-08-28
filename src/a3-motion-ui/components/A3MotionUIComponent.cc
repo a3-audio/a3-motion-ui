@@ -28,6 +28,7 @@
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/PlaybackRate.hh>
 #include <a3-motion-engine/RecordingSeam.hh>
+#include <a3-motion-engine/RecordingSpans.hh>
 #include <a3-motion-ui/components/PatternProgressBar.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternFile.hh>
@@ -1531,6 +1532,17 @@ A3MotionUIComponent::endRecording ()
       = std::any_of (written.begin (), written.end (),
                      [] (bool isWritten) { return isWritten; });
 
+  // Where the write head stands is where the take stops, and that edge -- the
+  // last tick of the freshest pass against the previous pass still sitting
+  // after it -- is what breaks visibly. Asked before stopping, because the
+  // engine forgets it the moment it does.
+  auto const progress = _engine.getRecordingProgress ();
+  auto const stopTick
+      = progress >= 0.f
+            ? std::optional<index_t>{ static_cast<index_t> (
+                  progress * static_cast<float> (pattern->getNumTicks ())) }
+            : std::nullopt;
+
   if (anyWritten)
     {
       // Before stopping, because the save happens on the Stopped message and
@@ -1538,7 +1550,8 @@ A3MotionUIComponent::endRecording ()
       closeRecordingSeams (*pattern,
                            _clipUIParams[channel][slot].seamMode == 0
                                ? SeamMode::Glide
-                               : SeamMode::Hard);
+                               : SeamMode::Hard,
+                           stopTick);
     }
 
   _engine.stopPattern (pattern, _now);
@@ -1605,6 +1618,10 @@ A3MotionUIComponent::saveRecordedPattern (
           // back. What comes back begins and ends in two different places even
           // when what went in did not. This is the pattern that goes into the
           // slot and plays, so it gets closed too.
+          // Arc-length resampling moves every tick, so the edge is no longer
+          // where it was in the take. Left to find it itself, the seam falls
+          // back to the loop point -- which after a round trip is exactly
+          // where the path's two ends meet, and so exactly the break.
           closeRecordingSeams (*reloaded,
                                _clipUIParams[channel][slot].seamMode == 0
                                    ? SeamMode::Glide
