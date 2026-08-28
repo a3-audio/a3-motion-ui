@@ -516,15 +516,15 @@ A3MotionUIComponent::resized ()
   if (_clipSettings)
     _clipSettings->setBounds (boundsClipSettings);
 
-  // While the menu is open the sphere takes the clip settings' space as well,
-  // so the menu — its child — has the whole screen below the status bar to
-  // cover, and the sphere is what shows through it.
-  if (_globalSettingsOpen)
-    {
-      bounds = bounds.getUnion (boundsClipSettings);
-      if (_clipSettings)
-        _clipSettings->setBounds ({}); // no GL here, it may give up its space
-    }
+  // The menu covers the sphere and nothing else. It used to take the clip
+  // settings' space as well — the bar gave up its bounds and the menu had the
+  // whole screen — which meant the one thing several of its settings change
+  // was invisible while they were being changed. Font and pot sizes are the
+  // bar's own look; you have to see it to set it.
+  //
+  // The bar can stay because the menu is a child of MotionComponent and the
+  // GL context composites above everything else: whatever is not that child
+  // would hide behind the sphere's image, so the menu must not reach past it.
 
   _motionComponent->setBounds (bounds);
 
