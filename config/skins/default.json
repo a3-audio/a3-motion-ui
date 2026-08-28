@@ -107,9 +107,9 @@
       "b": 128
     }
   ],
-  "sphereScale": 0.82,
+  "sphereScale": 0.6681,
   "blobScale": 0.05,
-  "fontHeader": 18.0,
-  "fontBody": 15.0,
-  "potSize": 1.0
+  "fontHeader": 14.0648,
+  "fontBody": 13.7462,
+  "potSize": 0.8999
 }
