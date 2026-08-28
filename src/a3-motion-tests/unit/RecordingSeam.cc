@@ -725,13 +725,28 @@ TEST (SeamMode, TheCurveSurvivesTicksThatRepeat)
   writeThrough (pattern, ticks);
   closeRecordingSeams (pattern, index_t{ 48 }, index_t{ 199 });
 
-  auto const a = pattern.getTick (205);
-  auto const b = pattern.getTick (223);
-  auto const c = pattern.getTick (241);
-  auto const midX = (a.x () + c.x ()) * 0.5f;
-  auto const midY = (a.y () + c.y ()) * 0.5f;
+  // How far the closing move ever strays from the straight line between its
+  // ends. Three hand-picked ticks used to stand in for this, and they moved
+  // when the ticks were laid along the curve by distance instead of by
+  // parameter -- the property never changed, only where it was sampled.
+  auto const from = pattern.getTick (199);
+  auto const to = pattern.getTick (199 + 48 + 1);
+  auto const chordX = to.x () - from.x ();
+  auto const chordY = to.y () - from.y ();
+  auto const chord = std::hypot (chordX, chordY);
+  ASSERT_GT (chord, 0.1f);
 
-  EXPECT_GT (std::hypot (b.x () - midX, b.y () - midY), 0.01f)
+  float worst = 0.f;
+  for (index_t step = 1; step <= 48; ++step)
+    {
+      auto const here = pattern.getTick (199 + step);
+      auto const offX = here.x () - from.x ();
+      auto const offY = here.y () - from.y ();
+      // Distance from the line, as the cross product over the chord length.
+      worst = std::max (worst, std::abs (offX * chordY - offY * chordX) / chord);
+    }
+
+  EXPECT_GT (worst, 0.02f)
       << "two zero tangents made the closing move a straight line again";
 }
 
@@ -764,4 +779,33 @@ TEST (SeamMode, TheClosingMoveDoesNotOvershootItsTarget)
       EXPECT_LT (reach, chord * 1.6f)
           << "tick " << step << " of the closing move overshoots";
     }
+}
+
+// A cubic does not run at a constant rate over its parameter: equal steps in t
+// are unequal steps in space, much longer in the middle than at the ends. Laid
+// out that way the blob crawled out of the join, shot through the middle
+// faster than it had ever moved, and crawled in again. Every tick of the
+// closing move has to cover the same distance as the one before it.
+TEST (SeamMode, TheClosingMoveTravelsAtAnEvenSpeed)
+{
+  auto const ticks = circleWithAGapAtTheLoopPoint (512);
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+  closeRecordingSeams (pattern, index_t{ 64 }, index_t{ 199 });
+
+  float shortest = 1e9f;
+  float longest = 0.f;
+  for (index_t step = 0; step < 64; ++step)
+    {
+      auto const a = pattern.getTick (200 + step);
+      auto const b = pattern.getTick (201 + step);
+      auto const hop = std::hypot (b.x () - a.x (), b.y () - a.y ());
+      shortest = std::min (shortest, hop);
+      longest = std::max (longest, hop);
+    }
+
+  ASSERT_GT (shortest, 0.f);
+  EXPECT_LT (longest / shortest, 1.6f)
+      << "the closing move races through its middle: longest hop " << longest
+      << " against shortest " << shortest;
 }

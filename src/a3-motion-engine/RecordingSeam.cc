@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace a3
 {
@@ -197,12 +198,54 @@ writeClosingMove (Pattern &pattern, std::vector<Pos> const &baseline,
   auto const incoming = along (
       direction (span.begin + span.length + window, span.begin + span.length));
 
+  // Ticks are laid along the curve by distance, not by parameter.
+  //
+  // A cubic does not run at a constant rate over t: equal steps in t are
+  // unequal steps in space, much longer in the middle than at the ends. Placed
+  // by t the blob crawled out of the join, shot through the middle faster than
+  // it had ever moved, and crawled in again. Walking the curve by arc length
+  // gives every tick the same distance, which is what "at the take's own
+  // speed" has to mean.
+  auto constexpr samplesPerTick = 8;
+  auto const numSamples
+      = static_cast<int> (span.length) * samplesPerTick;
+
+  std::vector<float> arcLength (static_cast<size_t> (numSamples) + 1, 0.f);
+  std::vector<Pos> sample (static_cast<size_t> (numSamples) + 1,
+                           Pos::invalid);
+
+  for (int i = 0; i <= numSamples; ++i)
+    {
+      auto const t = static_cast<float> (i) / static_cast<float> (numSamples);
+      sample[static_cast<size_t> (i)]
+          = closingCurve (from, to, outgoing, incoming, t);
+      if (i > 0)
+        {
+          auto const &a = sample[static_cast<size_t> (i - 1)];
+          auto const &b = sample[static_cast<size_t> (i)];
+          arcLength[static_cast<size_t> (i)]
+              = arcLength[static_cast<size_t> (i - 1)]
+                + std::sqrt (std::pow (b.x () - a.x (), 2.f)
+                             + std::pow (b.y () - a.y (), 2.f)
+                             + std::pow (b.z () - a.z (), 2.f));
+        }
+    }
+
+  auto const total = arcLength.back ();
+  if (total < 1e-6f)
+    return;
+
+  int walked = 0;
   for (index_t step = 0; step < span.length; ++step)
     {
-      auto const t = static_cast<float> (step + 1)
-                     / static_cast<float> (span.length + 1);
+      auto const target = total * static_cast<float> (step + 1)
+                          / static_cast<float> (span.length + 1);
+      while (walked < numSamples
+             && arcLength[static_cast<size_t> (walked + 1)] < target)
+        ++walked;
+
       pattern.setTick ((span.begin + step) % n,
-                       closingCurve (from, to, outgoing, incoming, t));
+                       sample[static_cast<size_t> (walked)]);
     }
 }
 
