@@ -149,8 +149,7 @@ public:
    *  The bar answers "how far am I", which the sphere cannot — there the
    *  passes lie on top of each other and a path crossing itself is no longer
    *  two things. Here time is the axis. */
-  void setPatternProgress (std::vector<bool> written, int divisions,
-                           float headFraction);
+  void setPatternProgress (int divisions, float headFraction);
 
   /** Filter section values, both unipolar (0..1). */
   void setFilterSweep (float sweep);
@@ -303,7 +302,6 @@ private:
   int _motionSeamMode = 0;
   int _trajectorySubIndex = 0;
   juce::String _recordLengthLabel { "1" };
-  std::vector<bool> _patternWritten;
   int _patternDivisions = 1;
   float _patternHeadFraction = -1.f;
   float _filterSweep = 0.0f;

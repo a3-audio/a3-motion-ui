@@ -372,6 +372,10 @@ private:
    *  old one back. */
   std::optional<std::pair<index_t, index_t> > _recordingSlot;
   std::shared_ptr<Pattern> _patternBeforeRecording;
+  /** Set when a take ends and started once its Stopped message arrives —
+   *  stopping is asynchronous, and playing before it lands leaves the pattern
+   *  in a state the Play pad does not recognise. */
+  std::shared_ptr<Pattern> _playWhenRecordingStops;
   /** Counts the 50 ms timer, so the directory check keeps its old pace. */
   int _timerTick = 0;
 

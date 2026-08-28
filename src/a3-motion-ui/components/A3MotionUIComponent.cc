@@ -1063,6 +1063,15 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
         // We use wasRecording() because the status chain is:
         //   Recording → ScheduledForIdle → Idle
         // so getLastStatus() returns ScheduledForIdle, not Recording.
+        // The take has definitely stopped now, so it is safe to start it: the
+        // motion was looping anyway, and ending a take stops the writing
+        // rather than the movement.
+        if (_playWhenRecordingStops == messagePatternStatus.pattern)
+          {
+            _playWhenRecordingStops.reset ();
+            _engine.playPattern (messagePatternStatus.pattern, _now);
+          }
+
         if (messagePatternStatus.pattern->wasRecording ())
           {
             // Find which clip slot this pattern belongs to
@@ -1503,13 +1512,14 @@ A3MotionUIComponent::endRecording ()
 
   if (anyWritten)
     {
-      // The motion was looping anyway; ending a take stops the writing, not
-      // the movement.
+      // Started from the Stopped message rather than here. Stopping is
+      // asynchronous, so playing straight after it left the pattern in a state
+      // the Play pad does not know — and the first press on it did nothing.
       pattern->setPlaybackLength (
           Measure{ 0, static_cast<int> (
                           std::max (1.f, getLengthBeats (channel, slot))),
                    0 });
-      _engine.playPattern (pattern, _now);
+      _playWhenRecordingStops = pattern;
     }
   else
     {
@@ -2583,7 +2593,6 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
           && _engine.isRecording ();
 
     _clipSettings->setPatternProgress (
-        pattern ? pattern->writtenTicks () : std::vector<bool>{},
         progressBarDivisions (getPatternLengthBeats (channel, slot),
                               _engine.getBeatsPerBar ()),
         isRecordingThis && pattern ? pattern->getPlayPosition () : -1.f);

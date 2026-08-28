@@ -167,10 +167,8 @@ ClipSettingsComponent::setMotionEndAction (int endAction)
 }
 
 void
-ClipSettingsComponent::setPatternProgress (std::vector<bool> written,
-                                           int divisions, float headFraction)
+ClipSettingsComponent::setPatternProgress (int divisions, float headFraction)
 {
-  _patternWritten = std::move (written);
   _patternDivisions = juce::jmax (1, divisions);
   _patternHeadFraction = headFraction;
   repaint ();
@@ -186,24 +184,15 @@ ClipSettingsComponent::paintPatternBar (juce::Graphics &g,
   g.setColour (toColour (theme ().textPrimary, 0.12f));
   g.fillRoundedRectangle (bar, 2.f);
 
-  // Which ticks hold something. While a take runs this is what the finger has
-  // written so far; afterwards every tick holds something, so the bar fills.
-  if (!_patternWritten.empty ())
-    {
-      auto const perTick = bar.getWidth ()
-                           / static_cast<float> (_patternWritten.size ());
-      g.setColour (controlColour (isSelected));
+  // Filled up to where the pass has got to, and empty again when it starts
+  // over. Showing which individual ticks hold something read as a barcode
+  // rather than as progress — the question here is how far in, and the trail
+  // on the sphere already says where the gaps are.
+  auto const filled
+      = _patternHeadFraction >= 0.f ? _patternHeadFraction : 1.f;
 
-      for (std::size_t tick = 0; tick < _patternWritten.size (); ++tick)
-        {
-          if (!_patternWritten[tick])
-            continue;
-
-          g.fillRect (bar.getX () + static_cast<float> (tick) * perTick,
-                      bar.getY (), juce::jmax (1.f, perTick),
-                      bar.getHeight ());
-        }
-    }
+  g.setColour (controlColour (isSelected));
+  g.fillRoundedRectangle (bar.withWidth (bar.getWidth () * filled), 2.f);
 
   // The metre, so a glance says how far in rather than how far along.
   g.setColour (toColour (theme ().surface, 0.6f));
