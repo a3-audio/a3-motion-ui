@@ -29,6 +29,15 @@ DO_RESTART=false
 # finally fall back to ~/local/juce.
 JUCE_PREFIX_PATH="${JUCE_DIR:-${JUCE_PREFIX_PATH:-${CMAKE_PREFIX_PATH:-$HOME/local/juce}}}"
 
+# An override that points at nothing is worse than no override: a shell profile
+# outlives the JUCE it was written for, and configuring against a path that is
+# not there fails somewhere far from the cause. Say so and use the default.
+if [ ! -d "$JUCE_PREFIX_PATH" ]; then
+    echo "!!! JUCE_DIR/JUCE_PREFIX_PATH points at $JUCE_PREFIX_PATH, which does not exist."
+    echo "!!! Using $HOME/local/juce instead. Check your shell profile."
+    JUCE_PREFIX_PATH="$HOME/local/juce"
+fi
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -75,6 +84,14 @@ if [ ! -f "$BUILD_DIR/CMakeCache.txt" ] || ! grep -q "CMAKE_BUILD_TYPE:STRING=$B
         -DHARDWARE_INTERFACE_ENABLED=ON \
         -DCMAKE_PREFIX_PATH="$JUCE_PREFIX_PATH"
 fi
+
+# Which JUCE this build is against. Resolved from several places and defaulted
+# silently, so a build that picked up the wrong one used to look exactly like a
+# build that picked up the right one. Read back out of the cache once there is
+# one, because that -- not this variable -- is what an existing build dir uses.
+JUCE_IN_USE="$(grep -m1 "^JUCE_DIR:PATH=" "$BUILD_DIR/CMakeCache.txt" 2>/dev/null | cut -d= -f2-)"
+[ -n "$JUCE_IN_USE" ] || JUCE_IN_USE="$JUCE_PREFIX_PATH"
+echo "=== JUCE: $JUCE_IN_USE ==="
 
 echo "=== Building a3-motion-ui ($BUILD_TYPE) ==="
 cmake --build "$BUILD_DIR" --target a3-motion-ui_Standalone -j4

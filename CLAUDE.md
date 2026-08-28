@@ -21,9 +21,11 @@ At **runtime** the UI also expects `onboard` and `dbus-send` for text entry on t
 see "On-screen keyboard" below. Neither is needed to build, and without them every field is still
 reachable with the encoder.
 
-```bash
-export JUCE_DIR=$HOME/local/juce/lib/cmake/JUCE-9.0.1
+`build.sh` finds JUCE at `~/local/juce` on its own and prints which version it
+picked before it builds — nothing needs exporting. `JUCE_DIR` still overrides
+it, for building against a JUCE somewhere else.
 
+```bash
 ./build.sh              # Release build (default)
 ./build.sh -d           # Debug build
 ./build.sh -c -r        # Clean + Release build
@@ -38,7 +40,8 @@ Manual CMake invocation (equivalent, useful for other targets like the test runn
 generator):
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DHARDWARE_INTERFACE_ENABLED=ON -DCMAKE_PREFIX_PATH="$JUCE_DIR"
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DHARDWARE_INTERFACE_ENABLED=ON \
+      -DCMAKE_PREFIX_PATH="$HOME/local/juce"
 cmake --build build -j4
 ```
 
