@@ -78,6 +78,11 @@ closeRecordingSeams (Pattern &pattern, SeamMode mode)
         }
     }
 
+  // Every tick holds something now, and playback has to be told: it reads the
+  // last written tick as the pattern's length, and the span filled last is the
+  // one across the loop point, which ends near the beginning.
+  pattern.markComplete ();
+
   // Filling is not recording: the mask says what the finger wrote, and these
   // ticks were reasoned about, not performed.
   pattern.clearWrittenTicks ();

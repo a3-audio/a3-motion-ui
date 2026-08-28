@@ -159,6 +159,14 @@ Pattern::isTickWritten (index_t tick) const
 }
 
 void
+Pattern::markComplete ()
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  if (!_ticks.empty ())
+    _lastUpdatedTick = _ticks.size () - 1;
+}
+
+void
 Pattern::clearWrittenTicks ()
 {
   std::lock_guard<std::mutex> guard (_ticksMutex);

@@ -82,6 +82,15 @@ public:
   bool isTickWritten (index_t tick) const;
   void clearWrittenTicks ();
 
+  /** Say that every tick now holds something.
+   *
+   *  Playback reads getLastUpdatedTick() + 1 as the pattern's effective
+   *  length — a leftover from when a take only ever filled a prefix and the
+   *  rest was empty. Once the spans are filled that is no longer true, and a
+   *  pattern that does not say so is played inside whatever fraction of
+   *  itself was written last. */
+  void markComplete ();
+
   // Interpolated playback: returns position with linear interpolation between keyframes
   // This provides smooth motion even with sparse keyframes during slow playback
   Pos getInterpolatedTick (double fractionalTick) const;

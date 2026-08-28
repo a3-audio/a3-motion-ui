@@ -112,3 +112,32 @@ TEST (RecordingSeam, ASingleWrittenTickFillsTheWholePattern)
   for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
     EXPECT_NEAR (pattern.getTick (tick).x (), 0.7f, 0.001f) << "tick " << tick;
 }
+
+// Playback takes _lastUpdatedTick + 1 as the pattern's effective length — a
+// leftover from when a take only ever filled a prefix. Filling the spans
+// writes the one across the loop point last, and that one ends at a low tick
+// number, so the whole pattern was played inside those few ticks: four tapped
+// positions came out in a rush. A pattern whose every tick has been filled has
+// to say so.
+TEST (RecordingSeam, AFilledPatternReportsItsFullLength)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setTick (2, Pos::fromCartesian (0.f, 0.f, 0.f));
+  pattern.setTick (9, Pos::fromCartesian (1.f, 0.f, 0.f));
+
+  closeRecordingSeams (pattern, SeamMode::Glide);
+
+  EXPECT_EQ (pattern.getLastUpdatedTick (), pattern.getNumTicks () - 1)
+      << "otherwise playback squeezes the whole take into a fraction of it";
+}
+
+TEST (RecordingSeam, APatternThatWroteNothingKeepsItsLength)
+{
+  Pattern pattern;
+  pattern.resize (16);
+
+  closeRecordingSeams (pattern, SeamMode::Glide);
+
+  EXPECT_EQ (pattern.getLastUpdatedTick (), 0u) << "nothing was filled";
+}
