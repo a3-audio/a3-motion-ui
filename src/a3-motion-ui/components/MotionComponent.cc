@@ -1486,21 +1486,43 @@ drawPathOnSphere (juce::Path const &displayPath,
   // sphere curvature at all, so coarse sampling is fine there.
   float const maxStep = elevationParams.flat ? 0.06f : 0.03f;
 
-  // Collect all projected points (with sub-sampling for long segments).
+  // Collect all projected points (with sub-sampling for long segments), and
+  // remember where one subpath ends and the next begins.
+  //
+  // A path with several subpaths is several strokes: a take cut at its jumps,
+  // a shape drawn in pieces. Only the very first point used to start a run, so
+  // every later subpath was joined to the one before it by a line from where
+  // that ended to where this begins -- a chord straight across the sphere that
+  // is in none of the data. The Shape section never showed it because
+  // strokePath knows about subpaths; this walks them by hand.
   std::vector<std::pair<juce::Point<float>, float>> projected;
+  std::vector<bool> startsRun;
   projected.reserve (512);
+  startsRun.reserve (512);
+
+  auto const addPoint = [&projected, &startsRun] (
+                            std::pair<juce::Point<float>, float> point,
+                            bool starts) {
+    projected.push_back (point);
+    startsRun.push_back (starts);
+  };
 
   juce::PathFlatteningIterator iter (displayPath, {}, 0.005f);
 
   bool firstPoint = true;
+  int currentSubPath = -1;
   float prevX = 0.f, prevY = 0.f;
 
   while (iter.next ())
     {
-      if (firstPoint)
+      auto const beginsSubPath = iter.subPathIndex != currentSubPath;
+      currentSubPath = iter.subPathIndex;
+
+      if (firstPoint || beginsSubPath)
         {
-          // The very first point of a sub-path
-          projected.push_back (projectPoint (iter.x1, iter.y1));
+          // The first point of this subpath. Nothing joins it to what came
+          // before -- that is what makes it a subpath.
+          addPoint (projectPoint (iter.x1, iter.y1), true);
           prevX = iter.x1;
           prevY = iter.y1;
           firstPoint = false;
@@ -1520,11 +1542,11 @@ drawPathOnSphere (juce::Path const &displayPath,
                         / static_cast<float> (nSub);
               float mx = prevX + dx * t;
               float my = prevY + dy * t;
-              projected.push_back (projectPoint (mx, my));
+              addPoint (projectPoint (mx, my), false);
             }
         }
 
-      projected.push_back (projectPoint (iter.x2, iter.y2));
+      addPoint (projectPoint (iter.x2, iter.y2), false);
       prevX = iter.x2;
       prevY = iter.y2;
     }
@@ -1540,6 +1562,17 @@ drawPathOnSphere (juce::Path const &displayPath,
   for (std::size_t i = 1; i < projected.size (); ++i)
     {
       int band = depthBand (projected[i].second);
+
+      if (startsRun[i])
+        {
+          // A new stroke: lift the pen rather than reaching across to it.
+          flushPath (currentPath, currentBand);
+          currentPath.clear ();
+          currentPath.startNewSubPath (projected[i].first);
+          currentBand = band;
+          continue;
+        }
+
       if (band != currentBand)
         {
           flushPath (currentPath, currentBand);

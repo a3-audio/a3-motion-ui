@@ -2582,6 +2582,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                 // The drawn line comes from the library's file, which still
                 // shows the ending the clip had before the fade touched it.
                 refreshPatternDisplayFromTicks (pattern);
+
               }
             break;
           }
