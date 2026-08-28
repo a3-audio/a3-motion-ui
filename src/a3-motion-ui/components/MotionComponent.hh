@@ -104,6 +104,12 @@ private:
   void drawCircle (juce::Graphics &g);
   void drawChannelBlobs (juce::Graphics &g);
 
+public:
+  /** What the running take is being recorded over, or nullptr for none. */
+  void setRecordingUnderlay (std::shared_ptr<Pattern> pattern);
+
+private:
+
   struct PatternDisplayData
   {
     juce::Path displayPath;
@@ -113,6 +119,12 @@ private:
    *  ticks — a fresh recording has no display path. Stretches nobody has
    *  played yet are absent rather than faint. */
   void drawRecordingTrail (Pattern const &pattern, juce::Graphics &g);
+
+  /** What was in the slot before the take began, drawn faintly underneath it
+   *  with a dim blob where it would be playing right now. Touch and Latch
+   *  leave parts of it standing, so you have to see what you are writing over
+   *  and where the old motion is at this point in the loop. */
+  void drawRecordingUnderlay (Pattern const &pattern, juce::Graphics &g);
 
 
   void drawPatternPreview (Pattern const &pattern,
@@ -149,6 +161,11 @@ private:
 
   std::map<std::shared_ptr<Pattern>, PatternDisplayData> _patternsPreview;
   std::mutex _mutexPreview;
+
+  /** The slot's pattern from before the running take. Read on the GL thread,
+   *  set from the message thread when a take starts and ends. */
+  std::shared_ptr<Pattern> _recordingUnderlay;
+  std::mutex _mutexUnderlay;
 
   // Display data for all loaded patterns — used to draw faint trajectory
   // lines for currently playing patterns (separate from explicit previews).

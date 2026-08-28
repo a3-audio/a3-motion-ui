@@ -55,6 +55,14 @@ enum class RecMode
  *  Write, which are otherwise the same. */
 bool shouldWriteTick (RecMode mode, bool fingerDown, bool hasTouched);
 
+/** Whether the take should be drawn over what was in the slot before it.
+ *
+ *  Touch and Latch leave parts of the earlier take standing, so you have to be
+ *  able to see what you are about to write over. Write replaces the whole
+ *  pass, and a ghost of the old one beside the new one would say nothing about
+ *  what is going to be there. */
+bool showsRecordingUnderlay (RecMode mode, bool recording, bool hasPrevious);
+
 /** The name a settings file stores, and the mode it names.
  *
  *  A name that is not one of the three — an older file, or one edited by

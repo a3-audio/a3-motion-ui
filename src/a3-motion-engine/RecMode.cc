@@ -42,6 +42,12 @@ shouldWriteTick (RecMode mode, bool fingerDown, bool hasTouched)
   return false;
 }
 
+bool
+showsRecordingUnderlay (RecMode mode, bool recording, bool hasPrevious)
+{
+  return recording && hasPrevious && mode != RecMode::Write;
+}
+
 juce::String
 recModeName (RecMode mode)
 {

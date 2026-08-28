@@ -314,6 +314,13 @@ MotionComponent::setPreviewPattern (std::shared_ptr<Pattern> pattern,
 }
 
 void
+MotionComponent::setRecordingUnderlay (std::shared_ptr<Pattern> pattern)
+{
+  std::lock_guard<std::mutex> guard (_mutexUnderlay);
+  _recordingUnderlay = std::move (pattern);
+}
+
+void
 MotionComponent::unsetPreviewPattern (std::shared_ptr<Pattern> pattern)
 {
   jassert (pattern != nullptr);
@@ -1166,6 +1173,16 @@ MotionComponent::renderOpenGL ()
           // The take as it stands, while it is being played in. A fresh
           // recording has no display path — those come from the library — so
           // it is drawn from its own ticks.
+          std::shared_ptr<Pattern> underlay;
+          {
+            std::lock_guard<std::mutex> guard (_mutexUnderlay);
+            underlay = _recordingUnderlay;
+          }
+          if (showsRecordingUnderlay (_engine.getRecMode (),
+                                      _engine.isRecording (),
+                                      underlay != nullptr))
+            drawRecordingUnderlay (*underlay, gFBO);
+
           if (auto const recording = _engine.getRecordingPattern ())
             if (_engine.isRecording ())
               drawRecordingTrail (*recording, gFBO);
@@ -1562,6 +1579,62 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
   auto constexpr lineThickness = 0.03f;
   drawPathOnSphere (path, lineThickness, 0.9f, _uiStates[ch]->colour, true,
                     pattern.getElevationParams (), _engine.getHeightMap (), g);
+}
+
+void
+MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
+                                        juce::Graphics &g)
+{
+  auto const ticks = pattern.getTicks ();
+  if (ticks.positions.empty ())
+    return;
+
+  auto const ch = pattern.getChannel ();
+  if (ch >= _uiStates.size ())
+    return;
+
+  auto const params = pattern.getElevationParams ();
+  auto const colour = _uiStates[ch]->colour;
+
+  // Well below the take's own trail, which is drawn straight over this: it has
+  // to be readable as ground, not competing with what is being played in.
+  auto constexpr underlayOpacity = 0.28f;
+  auto constexpr lineThickness = 0.02f;
+
+  juce::Path path;
+  for (auto const &segment : trajectorySegments (ticks.positions))
+    {
+      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
+      for (size_t i = 1; i < segment.size (); ++i)
+        path.lineTo (segment[i].x (), segment[i].y ());
+    }
+
+  drawPathOnSphere (path, lineThickness, underlayOpacity, colour, true, params,
+                    _engine.getHeightMap (), g);
+
+  // And where it would be right now. The write head's own position is the
+  // phase into the loop -- the old pattern is not playing, so there is nothing
+  // else to ask.
+  auto const progress = _engine.getRecordingProgress ();
+  if (progress < 0.f)
+    return;
+
+  auto const count = ticks.positions.size ();
+  auto const index = std::min (
+      count - 1, static_cast<std::size_t> (progress * static_cast<float> (count)));
+  auto const position2D = ticks.positions[index];
+  if (!position2D.isValid ())
+    return;
+
+  auto const position = _engine.getHeightMap ().mapTo3D (position2D, params);
+  if (!position.isValid ())
+    return;
+
+  auto const diameter = 2 * _blobScale * 0.55f;
+  auto const centre = cartesian2DHOA2JUCE (position);
+  g.setColour (colour.withAlpha (underlayOpacity));
+  g.fillEllipse (juce::Rectangle<float> (0.f, 0.f, diameter, diameter)
+                     .withCentre (centre));
 }
 
 void

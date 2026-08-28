@@ -90,4 +90,24 @@ TEST (RecMode, AnUnknownNameFallsBackToTouch)
   EXPECT_EQ (recModeFromName (""), RecMode::Touch);
 }
 
+
+// While a take runs you need to see what is still underneath it, or you are
+// recording over something you cannot see. Not in Write, though: there the
+// whole pass is replaced, so a ghost of the old one is noise beside the take
+// rather than information about it.
+TEST (RecMode, TouchAndLatchShowWhatIsBeingRecordedOver)
+{
+  EXPECT_TRUE (showsRecordingUnderlay (RecMode::Touch, true, true));
+  EXPECT_TRUE (showsRecordingUnderlay (RecMode::Latch, true, true));
+  EXPECT_FALSE (showsRecordingUnderlay (RecMode::Write, true, true));
+}
+
+TEST (RecMode, NothingIsShownWithoutATakeOrWithoutAnythingUnderneath)
+{
+  EXPECT_FALSE (showsRecordingUnderlay (RecMode::Touch, false, true))
+      << "no take is running, so there is nothing being recorded over";
+  EXPECT_FALSE (showsRecordingUnderlay (RecMode::Touch, true, false))
+      << "the slot was empty, so there is nothing to show";
+}
+
 }

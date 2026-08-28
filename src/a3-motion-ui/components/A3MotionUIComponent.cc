@@ -975,6 +975,12 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       _recordingSlot = std::make_pair (channel, slot);
       _patternBeforeRecording = pattern;
 
+      // Drawn faintly under the take so you can see what you are writing over.
+      // MotionComponent decides whether to show it -- Write replaces the whole
+      // pass, and a ghost of the old one there says nothing.
+      if (_motionComponent)
+        _motionComponent->setRecordingUnderlay (_patternBeforeRecording);
+
       // Always create a fresh Pattern for recording (user pattern)
       pattern = std::make_shared<Pattern> ();
       pattern->setChannel (channel);
@@ -1558,6 +1564,8 @@ A3MotionUIComponent::endRecording ()
 
   _recordingSlot.reset ();
   _patternBeforeRecording.reset ();
+  if (_motionComponent)
+    _motionComponent->setRecordingUnderlay (nullptr);
   selectClip (channel, slot);
 }
 
