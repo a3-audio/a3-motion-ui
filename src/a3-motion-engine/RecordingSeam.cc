@@ -34,6 +34,47 @@ between (Pos const &from, Pos const &to, float t)
                              from.y () + (to.y () - from.y ()) * t,
                              from.z () + (to.z () - from.z ()) * t);
 }
+
+void
+fillSpan (Pattern &pattern, UnwrittenSpan span, Pos const &before,
+          Pos const &after, bool glide)
+{
+  auto const numTicks = pattern.getNumTicks ();
+
+  for (index_t step = 0; step < span.length; ++step)
+    {
+      auto const tick = (span.begin + step) % numTicks;
+
+      if (!glide)
+        {
+          pattern.setTick (tick, before);
+          continue;
+        }
+
+      // +1 so the far end lands on `after` rather than one step short of it:
+      // the span holds `length` ticks between two played ones.
+      auto const t = static_cast<float> (step + 1)
+                     / static_cast<float> (span.length + 1);
+      pattern.setTick (tick, between (before, after, t));
+    }
+}
+}
+
+void
+applySeamMode (Pattern &pattern, SeamMode mode)
+{
+  auto const span = pattern.getSeamSpan ();
+  auto const numTicks = pattern.getNumTicks ();
+  if (span.length == 0 || numTicks == 0)
+    return;
+
+  // From the two played positions at either end, never from the last fill —
+  // otherwise switching back and forth would walk the seam somewhere else.
+  auto const before = pattern.getTick ((span.begin + numTicks - 1) % numTicks);
+  auto const after = pattern.getTick ((span.begin + span.length) % numTicks);
+
+  fillSpan (pattern, span, before, after, mode == SeamMode::Glide);
+  pattern.markComplete ();
 }
 
 void
@@ -65,24 +106,11 @@ closeRecordingSeams (Pattern &pattern, SeamMode mode)
       // a finger that lifted on purpose, and smoothing that would erase a jump
       // somebody played.
       auto const isSeam = span.begin + span.length > numTicks;
+      if (isSeam)
+        pattern.setSeamSpan (span);
+
       auto const glide = isSeam && mode == SeamMode::Glide;
-
-      for (index_t step = 0; step < span.length; ++step)
-        {
-          auto const tick = (span.begin + step) % numTicks;
-
-          if (!glide)
-            {
-              pattern.setTick (tick, before);
-              continue;
-            }
-
-          // +1 so the far end lands on `after` rather than one step short of
-          // it: the span holds `length` ticks between two written ones.
-          auto const t = static_cast<float> (step + 1)
-                         / static_cast<float> (span.length + 1);
-          pattern.setTick (tick, between (before, after, t));
-        }
+      fillSpan (pattern, span, before, after, glide);
     }
 
   // Every tick holds something now, and playback has to be told: it reads the

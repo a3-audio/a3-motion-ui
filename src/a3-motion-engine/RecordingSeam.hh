@@ -48,4 +48,14 @@ enum class SeamMode
  *  such a take rather than filling it with guesses. */
 void closeRecordingSeams (Pattern &pattern, SeamMode mode);
 
+/** Fill the take's seam again, the other way.
+ *
+ *  How a seam is filled is a playback setting, not a property of the take —
+ *  baking it in at the end of a recording would mean it could never be changed
+ *  again. Each call starts from the two played positions at either end of the
+ *  seam, never from the last fill, so switching back and forth does not drift.
+ *
+ *  Does nothing to a pattern whose seam has no length. */
+void applySeamMode (Pattern &pattern, SeamMode mode);
+
 }

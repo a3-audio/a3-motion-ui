@@ -2441,10 +2441,18 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           params.endAction = (params.endAction + increment % 3 + 3) % 3;
           break;
         default:
-          // What happens to the stretches a take never wrote: glide across
-          // them, or hold and jump. See closeRecordingSeams().
-          params.seamMode = (params.seamMode + increment % 2 + 2) % 2;
-          break;
+          {
+            // How the take's seam is filled — glide across it, or hold and
+            // jump at the loop point. A playback setting: it takes effect on
+            // whatever is in the slot, at once, as often as it is turned.
+            params.seamMode = (params.seamMode + increment % 2 + 2) % 2;
+
+            auto &pattern = _patterns[channel][slot];
+            if (pattern)
+              applySeamMode (*pattern, params.seamMode == 0 ? SeamMode::Glide
+                                                            : SeamMode::Hard);
+            break;
+          }
         }
       break;
     case 3: // Filter — sweep/Pot1 (0) or Q/Pot2 (1)

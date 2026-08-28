@@ -158,6 +158,20 @@ Pattern::isTickWritten (index_t tick) const
   return tick < _written.size () && _written[tick];
 }
 
+UnwrittenSpan
+Pattern::getSeamSpan () const
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  return _seamSpan;
+}
+
+void
+Pattern::setSeamSpan (UnwrittenSpan span)
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  _seamSpan = span;
+}
+
 void
 Pattern::markComplete ()
 {

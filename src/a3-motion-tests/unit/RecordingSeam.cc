@@ -194,3 +194,102 @@ TEST (RecordingSeam, APatternThatWroteNothingKeepsItsLength)
 
   EXPECT_EQ (pattern.getLastUpdatedTick (), 0u) << "nothing was filled";
 }
+
+// ── the seam is a playback setting, not a recording one ─────────────────
+//
+// Baking it in at the end of a take means it can never be changed again. The
+// pattern therefore remembers where its seam is, and the two positions at
+// either end of it are real ticks somebody played — so it can be filled
+// either way, at any time, as often as you like.
+
+TEST (SeamMode, APatternRemembersWhereItsSeamIs)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setTick (4, at (0.f));
+  pattern.setTick (8, at (4.f));
+
+  closeRecordingSeams (pattern, SeamMode::Hard);
+
+  EXPECT_EQ (pattern.getSeamSpan ().begin, 9u);
+  EXPECT_EQ (pattern.getSeamSpan ().length, 11u) << "9..15 and 0..3";
+}
+
+TEST (SeamMode, SwitchingToGlideAfterwardsSmoothsTheSeam)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setTick (4, at (0.f));
+  pattern.setTick (8, at (4.f));
+  closeRecordingSeams (pattern, SeamMode::Hard);
+
+  applySeamMode (pattern, SeamMode::Glide);
+
+  EXPECT_GT (pattern.getTick (14).x (), 0.2f);
+  EXPECT_LT (pattern.getTick (14).x (), 3.8f);
+}
+
+TEST (SeamMode, SwitchingBackToHardRestoresTheJump)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setTick (4, at (0.f));
+  pattern.setTick (8, at (4.f));
+  closeRecordingSeams (pattern, SeamMode::Glide);
+
+  applySeamMode (pattern, SeamMode::Hard);
+
+  EXPECT_NEAR (pattern.getTick (14).x (), 4.f, 0.001f);
+}
+
+// Switching back and forth must not drift: each fill starts from the two
+// played positions, never from the last fill.
+TEST (SeamMode, SwitchingBackAndForthIsStable)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setTick (4, at (0.f));
+  pattern.setTick (8, at (4.f));
+  closeRecordingSeams (pattern, SeamMode::Hard);
+
+  for (int round = 0; round < 5; ++round)
+    {
+      applySeamMode (pattern, SeamMode::Glide);
+      applySeamMode (pattern, SeamMode::Hard);
+    }
+
+  EXPECT_NEAR (pattern.getTick (14).x (), 4.f, 0.001f);
+  EXPECT_NEAR (pattern.getTick (4).x (), 0.f, 0.001f) << "played ticks untouched";
+  EXPECT_NEAR (pattern.getTick (8).x (), 4.f, 0.001f);
+}
+
+// The stretches somebody played a jump into are not the seam and must stay put
+// however often the setting is turned.
+TEST (SeamMode, MiddleSpansAreNeverTouchedAgain)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setTick (0, at (0.f));
+  pattern.setTick (4, at (1.f));
+  pattern.setTick (8, at (2.f));
+  closeRecordingSeams (pattern, SeamMode::Hard);
+
+  applySeamMode (pattern, SeamMode::Glide);
+
+  EXPECT_NEAR (pattern.getTick (2).x (), 0.f, 0.001f);
+  EXPECT_NEAR (pattern.getTick (6).x (), 1.f, 0.001f);
+}
+
+TEST (SeamMode, APatternWithoutASeamIsLeftAlone)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
+    pattern.setTick (tick, at (0.25f));
+  closeRecordingSeams (pattern, SeamMode::Hard);
+
+  applySeamMode (pattern, SeamMode::Glide);   // darf nicht abstuerzen
+
+  EXPECT_EQ (pattern.getSeamSpan ().length, 0u);
+  EXPECT_NEAR (pattern.getTick (8).x (), 0.25f, 0.001f);
+}

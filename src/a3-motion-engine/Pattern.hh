@@ -25,6 +25,7 @@
 #include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Types.hh>
+#include <a3-motion-engine/RecordingSpans.hh>
 
 namespace a3
 {
@@ -91,6 +92,16 @@ public:
    *  itself was written last. */
   void markComplete ();
 
+  /** Where this take's seam is — the stretch between the last thing played and
+   *  the first, which nobody played.
+   *
+   *  Remembered rather than only filled, because how it is filled is a
+   *  playback setting and not a property of the take: the positions at either
+   *  end are real ticks, so it can be filled either way at any time. A length
+   *  of zero means the take has no seam. */
+  UnwrittenSpan getSeamSpan () const;
+  void setSeamSpan (UnwrittenSpan span);
+
   // Interpolated playback: returns position with linear interpolation between keyframes
   // This provides smooth motion even with sparse keyframes during slow playback
   Pos getInterpolatedTick (double fractionalTick) const;
@@ -155,6 +166,7 @@ private:
   index_t _lastUpdatedTick{ 0 };
   std::vector<Pos> _ticks;
   std::vector<bool> _written;
+  UnwrittenSpan _seamSpan{ 0u, 0u };
   mutable std::mutex _ticksMutex;
 
   // TODO is float precision sufficient here? do the math!
