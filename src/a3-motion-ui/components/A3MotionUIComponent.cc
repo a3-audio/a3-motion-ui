@@ -1518,19 +1518,27 @@ A3MotionUIComponent::registerPatternDisplayData (
   auto const &name = pattern->getName ();
   auto libIndex = _patternLibrary->indexForName (name);
 
+  // A shape made of dots has no line to draw, and its dots are only in the
+  // file: keep taking those from the library.
   if (libIndex > 0)
     {
       auto const &entry = _patternLibrary->getEntry (libIndex);
-      auto displayPath = svgDToPath (entry.svgPathData);
-      _motionComponent->setPatternDisplayData (pattern, displayPath,
-                                               entry.jumpDots);
+      if (entry.hasJumpDots && svgDToPath (entry.svgPathData).isEmpty ())
+        {
+          _motionComponent->setPatternDisplayData (pattern, {},
+                                                   entry.jumpDots);
+          return;
+        }
     }
-  else
-    {
-      // No library entry — register with empty display data
-      // (will use raw tick data fallback in drawPlayingTrajectory)
-      _motionComponent->setPatternDisplayData (pattern);
-    }
+
+  // Everything else is drawn from the ticks, because that is what plays.
+  //
+  // Taking the line from the file was right while the file was a picture of
+  // the pattern. It stopped being one when the take started going to disk as
+  // it was played, with the closing move a setting laid over it: the blob
+  // followed the ending the fade gives it and the line showed a take whose
+  // ends do not meet.
+  refreshPatternDisplayFromTicks (pattern);
 }
 
 int
