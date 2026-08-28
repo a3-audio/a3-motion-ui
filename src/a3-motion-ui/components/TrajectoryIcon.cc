@@ -201,7 +201,9 @@ drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
   if (data.hasJumpDots)
     {
       // HOA→JUCE: screen x = -HOA_y, screen y = -HOA_x
-      auto const dotR = r * 0.22f;
+      // Small enough that four of them read as four marks rather than as one
+      // cluster: at 0.22 of the icon's radius they crowded the field.
+      auto const dotR = r * 0.12f;
       auto const dotOutR = dotR + 1.0f;
       for (auto const &p : data.jumpDots)
         {

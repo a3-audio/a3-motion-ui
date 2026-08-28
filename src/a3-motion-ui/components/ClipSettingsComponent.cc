@@ -531,7 +531,12 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
       juce::jmin (content.getWidth (), content.getHeight ()));
   auto iconArea = juce::Rectangle<float> (iconSize, iconSize)
                       .withCentre (content.toFloat ().getCentre ());
-  drawTrajectoryIcon (g, iconArea, _trajectoryIcon, controlColour (isSelected));
+  // The channel's colour, selected or not: the pictogram stands for the clip
+  // that channel is holding, and it is the same shape in the same colour that
+  // is drawn on the sphere. Which section is selected is already said by the
+  // card behind it, so the icon does not have to say it again -- and saying it
+  // by going white made a tapped take read as somebody else's.
+  drawTrajectoryIcon (g, iconArea, _trajectoryIcon, _channelColour);
 
   // The pattern's name is a value like any other in the bar, and is drawn at
   // the size they share rather than filling whatever room this section has.

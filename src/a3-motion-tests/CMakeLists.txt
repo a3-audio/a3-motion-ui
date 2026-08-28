@@ -40,6 +40,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternFileJumps.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingSpans.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternWrittenTicks.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternPlayback.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingSeam.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PlaybackRate.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternProgressBar.cc"

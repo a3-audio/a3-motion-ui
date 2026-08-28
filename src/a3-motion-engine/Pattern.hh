@@ -198,6 +198,12 @@ private:
   std::optional<index_t> _seamJoin;
   std::vector<Pos> _fadeBaseline;
   index_t _fade = 0;
+
+  /** Past which step from one tick to the next the motion is a jump rather
+   *  than a movement. Worked out once when the ticks are finished, because
+   *  playback asks on every tick and must not walk the whole pattern to find
+   *  out. Zero means nothing is treated as a jump. */
+  float _jumpThreshold = 0.f;
   mutable std::mutex _ticksMutex;
 
   // TODO is float precision sufficient here? do the math!

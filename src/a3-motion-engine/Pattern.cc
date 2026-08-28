@@ -20,6 +20,8 @@
 
 #include "Pattern.hh"
 
+#include "TrajectoryShape.hh"
+
 #include <algorithm>
 
 namespace a3
@@ -220,6 +222,13 @@ Pattern::markComplete ()
   std::lock_guard<std::mutex> guard (_ticksMutex);
   if (!_ticks.empty ())
     _lastUpdatedTick = _ticks.size () - 1;
+
+  // The same measure the drawing uses to decide where one stroke ends and the
+  // next begins, so what is played matches what is shown. The median over all
+  // steps, held ticks included: on a tapped take almost every step is zero and
+  // the few that are not are the taps themselves, while on a drawn one the
+  // median is the motion's own pace and no step comes near eight times it.
+  _jumpThreshold = trajectoryJumpThreshold (typicalTrajectoryStep (_ticks));
 }
 
 void
@@ -276,6 +285,21 @@ Pattern::getInterpolatedTick (double fractionalTick) const
   if (!posCeil.isValid ())
     return posFloor;
   
+  // A jump is played as a jump: stand on this tick until the next one takes
+  // over. Interpolating across it drew the blob at every point along a way
+  // nobody played -- so a tapped take slid between its taps instead of
+  // standing at them, and a tap held only briefly was crossed without ever
+  // being reached.
+  if (_jumpThreshold > 0.f)
+    {
+      auto const step = std::sqrt (
+          std::pow (posCeil.x () - posFloor.x (), 2.f)
+          + std::pow (posCeil.y () - posFloor.y (), 2.f)
+          + std::pow (posCeil.z () - posFloor.z (), 2.f));
+      if (step > _jumpThreshold)
+        return posFloor;
+    }
+
   // Interpolate in Cartesian space for smooth, robust interpolation
   // This avoids azimuth discontinuities (e.g., 350° to 10°)
   auto const x0 = posFloor.x ();
