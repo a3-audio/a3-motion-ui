@@ -20,6 +20,8 @@
 
 #include "MotionComponent.hh"
 
+#include <a3-motion-engine/TrajectoryShape.hh>
+
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/UserConfig.hh>
@@ -1539,28 +1541,22 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
   if (ch >= _uiStates.size ())
     return;
 
-  // One subpath per run of ticks that hold something. What has not been played
-  // is simply absent — plainer than a faint line, and it is the thing you are
-  // looking for while recording: where the gaps still are. The blob is the
-  // write head; it needs no mark of its own.
+  // One subpath per run of ticks that is actually travelled through. What has
+  // not been played is simply absent — plainer than a faint line, and it is
+  // the thing you are looking for while recording: where the gaps still are.
+  // The blob is the write head; it needs no mark of its own.
+  //
+  // Cut at teleports as well as at gaps. Tapping quickly leaves no gap to cut
+  // at: the write head advances a tick or two between two taps, so the last
+  // tick of one and the first of the next are neighbours and the run carried
+  // straight on through, drawing the jump as a line.
   juce::Path path;
-  bool inRun = false;
 
-  for (auto const &position : ticks.positions)
+  for (auto const &segment : trajectorySegments (ticks.positions))
     {
-      if (!position.isValid ())
-        {
-          inRun = false;
-          continue;
-        }
-
-      if (inRun)
-        path.lineTo (position.x (), position.y ());
-      else
-        {
-          path.startNewSubPath (position.x (), position.y ());
-          inRun = true;
-        }
+      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
+      for (size_t i = 1; i < segment.size (); ++i)
+        path.lineTo (segment[i].x (), segment[i].y ());
     }
 
   auto constexpr lineThickness = 0.03f;
