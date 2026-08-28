@@ -916,6 +916,12 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 
       _engine.recordPattern (pattern, TempoClock::nextDownBeat (_now),
                              recordLength);
+
+      // Show what is being recorded. Starting a recording on one channel while
+      // the bar still displayed another one left every setting that shapes the
+      // take — speed above all, which is its length — pointing at the wrong
+      // clip, and the encoders with it.
+      selectClip (channel, slot);
       return;
     }
 
