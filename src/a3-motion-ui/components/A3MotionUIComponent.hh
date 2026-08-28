@@ -259,12 +259,14 @@ private:
    *  the wrong thing, which is exactly what happened when the font size was
    *  split into two. The order here and the order they are pushed in
    *  rebuildGlobalSettingsOptions() are the same list. */
+  /** What each menu row does. The order is not the contract — see
+   *  _menuRowOrder, which is filled next to the rows themselves. Two parallel
+   *  lists that had to agree by position is what broke the menu once: three
+   *  rows were removed and their entries here were not, so every row below the
+   *  first was read as a different one and the presses did nothing. */
   enum class MenuRow
   {
     ClockMode,
-    PotSize,
-    HeaderSize,
-    BodySize,
     Skin,
     SkinEditor,
     Network,
@@ -272,6 +274,14 @@ private:
     PatternFolder,
     SphereInMenu,
   };
+
+  /** What the browsed menu position does, or nothing if it is out of range. */
+  std::optional<MenuRow> browsedMenuRow () const;
+
+  /** The row each menu position stands for, filled where the rows are built.
+   *  A row added or removed in one place is now impossible to forget here. */
+  std::vector<MenuRow> _menuRowOrder;
+
   // Index into the theme's scale table; the factor itself lives there, because
   // a saved index has to become a factor at startup, before any menu exists.
   int _headerSizeIndex = 1; // default 100%

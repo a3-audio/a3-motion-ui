@@ -696,8 +696,8 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                           _globalSettings->navigateValue (increment > 0 ? 1
                                                                         : -1);
 
-                          if (static_cast<MenuRow> (_globalSettingsOptionIndex)
-                              == MenuRow::Skin)
+                          if (browsedMenuRow ()
+                              == std::optional<MenuRow>{ MenuRow::Skin })
                             previewSkin (
                                 _globalSettings->getSelectedValueIndex ());
                         }
@@ -1593,13 +1593,17 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
 {
   // Built fresh rather than patched: the list of skins changes underneath it
   // whenever the editor saves, renames or deletes one.
-  std::vector<GlobalSettingsComponent::Option> options{
-    { "Clockmode",
-      { { "INT" },
-        { "EXT" },
-        { "PIO" } },
-      _clockMode },
+  std::vector<GlobalSettingsComponent::Option> options;
+  _menuRowOrder.clear ();
+
+  // Each row is added with what it does, so the two cannot drift apart.
+  auto const add = [&] (MenuRow row, GlobalSettingsComponent::Option option) {
+    _menuRowOrder.push_back (row);
+    options.push_back (std::move (option));
   };
+
+  add (MenuRow::ClockMode,
+       { "Clockmode", { { "INT" }, { "EXT" }, { "PIO" } }, _clockMode });
 
   // Built from what is actually in config/skins, so a skin added on the
   // device shows up without a rebuild.
@@ -1611,14 +1615,14 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
   for (auto const &name : _skinNames)
     skinValues.push_back ({ name });
 
-  options.push_back ({ "Skin", std::move (skinValues), _skinIndex });
-  options.push_back ({ "Skin Editor", { { "open" } }, 0, true });
-  options.push_back ({ "Network", { { "open" } }, 0, true });
-  options.push_back ({ "Button LEDs", { { "open" } }, 0, true });
-  options.push_back ({ "Pattern Folder", { { "open" } }, 0, true });
-  options.push_back ({ "Sphere in Menu",
-                       { { "off" }, { "on" } },
-                       _pauseRenderingInMenu ? 0 : 1 });
+  add (MenuRow::Skin, { "Skin", std::move (skinValues), _skinIndex });
+  add (MenuRow::SkinEditor, { "Skin Editor", { { "open" } }, 0, true });
+  add (MenuRow::Network, { "Network", { { "open" } }, 0, true });
+  add (MenuRow::ButtonLeds, { "Button LEDs", { { "open" } }, 0, true });
+  add (MenuRow::PatternFolder, { "Pattern Folder", { { "open" } }, 0, true });
+  add (MenuRow::SphereInMenu,
+       { "Sphere in Menu", { { "off" }, { "on" } },
+         _pauseRenderingInMenu ? 0 : 1 });
   _globalSettings->setOptions (std::move (options));
   _globalSettings->setOptionIndex (_globalSettingsOptionIndex);
   _globalSettings->setValueFieldSelected (false);
@@ -1643,6 +1647,16 @@ A3MotionUIComponent::closeGlobalSettings ()
     _motionComponent->setRenderingPaused (false);
 }
 
+std::optional<A3MotionUIComponent::MenuRow>
+A3MotionUIComponent::browsedMenuRow () const
+{
+  if (_globalSettingsOptionIndex < 0
+      || _globalSettingsOptionIndex >= (int)_menuRowOrder.size ())
+    return {};
+
+  return _menuRowOrder[(size_t)_globalSettingsOptionIndex];
+}
+
 void
 A3MotionUIComponent::confirmGlobalSettingsOption ()
 {
@@ -1651,7 +1665,11 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
 
   int const chosen = _globalSettings->getSelectedValueIndex ();
 
-  switch (static_cast<MenuRow> (_globalSettingsOptionIndex))
+  auto const row = browsedMenuRow ();
+  if (!row.has_value ())
+    return;
+
+  switch (row.value ())
     {
     case MenuRow::ClockMode: applyClockMode (chosen); break;
     case MenuRow::Skin: applySkin (chosen); break;
