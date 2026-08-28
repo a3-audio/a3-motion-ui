@@ -109,6 +109,11 @@ private:
     juce::Path displayPath;
     std::vector<std::pair<float,float>> jumpDots;
   };
+  /** The take as it stands while it is being played in, drawn from its own
+   *  ticks — a fresh recording has no display path. Stretches nobody has
+   *  played yet are absent rather than faint. */
+  void drawRecordingTrail (Pattern const &pattern, juce::Graphics &g);
+
 
   void drawPatternPreview (Pattern const &pattern,
                           PatternDisplayData const &displayData,

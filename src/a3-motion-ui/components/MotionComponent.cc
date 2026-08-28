@@ -1161,6 +1161,13 @@ MotionComponent::renderOpenGL ()
           // Channel blobs + corona
           drawChannelBlobs (gFBO);
 
+          // The take as it stands, while it is being played in. A fresh
+          // recording has no display path — those come from the library — so
+          // it is drawn from its own ticks.
+          if (auto const recording = _engine.getRecordingPattern ())
+            if (_engine.isRecording ())
+              drawRecordingTrail (*recording, gFBO);
+
           // Pattern preview paths
           for (auto &[pattern, displayData] : patternsPreview)
             drawPatternPreview (*pattern, displayData, gFBO);
@@ -1519,6 +1526,46 @@ drawPathOnSphere (juce::Path const &displayPath,
       currentPath.lineTo (projected[i].first);
     }
   flushPath (currentPath, currentBand);
+}
+
+void
+MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
+{
+  auto const ticks = pattern.getTicks ();
+  if (ticks.positions.empty ())
+    return;
+
+  auto const ch = pattern.getChannel ();
+  if (ch >= _uiStates.size ())
+    return;
+
+  // One subpath per run of ticks that hold something. What has not been played
+  // is simply absent — plainer than a faint line, and it is the thing you are
+  // looking for while recording: where the gaps still are. The blob is the
+  // write head; it needs no mark of its own.
+  juce::Path path;
+  bool inRun = false;
+
+  for (auto const &position : ticks.positions)
+    {
+      if (!position.isValid ())
+        {
+          inRun = false;
+          continue;
+        }
+
+      if (inRun)
+        path.lineTo (position.x (), position.y ());
+      else
+        {
+          path.startNewSubPath (position.x (), position.y ());
+          inRun = true;
+        }
+    }
+
+  auto constexpr lineThickness = 0.03f;
+  drawPathOnSphere (path, lineThickness, 0.9f, _uiStates[ch]->colour, true,
+                    pattern.getElevationParams (), _engine.getHeightMap (), g);
 }
 
 void
