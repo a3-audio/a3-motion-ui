@@ -107,6 +107,11 @@
       "b": 130
     }
   ],
+  "recordingUnderlay": {
+    "opacity": 0.28,
+    "blobScale": 0.55,
+    "lineThickness": 0.02
+  },
   "sphereScale": 0.62,
   "blobScale": 0.05,
   "surface": {

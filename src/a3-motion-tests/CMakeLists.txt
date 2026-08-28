@@ -71,7 +71,8 @@ target_compile_definitions(a3-motion-tests PRIVATE
     A3_CONFIG_JSON_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../config/config.json"
     A3_UI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui"
     A3_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../resources"
-    A3_PATTERN_SYSTEM_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/system")
+    A3_PATTERN_SYSTEM_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/system"
+    A3_PATTERN_USER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/user")
 
 target_include_directories("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}")

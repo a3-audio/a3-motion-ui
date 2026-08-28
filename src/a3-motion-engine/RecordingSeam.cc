@@ -98,22 +98,26 @@ closeLoopPoint (Pattern &pattern, SeamMode mode)
   auto const positions = pattern.getTicks ().positions;
   auto const last = pattern.getTick (numTicks - 1);
   auto const first = pattern.getTick (0);
+
   if (!last.isValid () || !first.isValid ())
     return;
 
-  auto const step = typicalTrajectoryStep (positions);
-  if (step <= 0.f)
-    return;
+  // The speed, not the median step: the median counts the ticks that repeat a
+  // position, and on a real take those are most of them, so it is zero.
+  auto const speed = typicalTrajectorySpeed (positions);
+  if (speed <= 0.f)
+    return; // nothing ever moved, so there is no motion to close
+
 
   auto const gap = std::sqrt (std::pow (last.x () - first.x (), 2.f)
                               + std::pow (last.y () - first.y (), 2.f)
                               + std::pow (last.z () - first.z (), 2.f));
-  if (gap <= trajectoryJumpThreshold (step))
+  if (gap <= trajectoryJumpThreshold (speed))
     return; // it already comes round to where it started
 
   // A quarter of the loop is the most this may cost. Past that the take is
   // being replaced by its own closing move rather than closed.
-  auto const needed = static_cast<index_t> (std::ceil (gap / step));
+  auto const needed = static_cast<index_t> (std::ceil (gap / speed));
   auto const length = std::max (index_t{ 2 },
                                 std::min (needed, numTicks / 4));
 

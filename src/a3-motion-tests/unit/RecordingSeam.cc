@@ -464,3 +464,90 @@ TEST (RecordingSeam, AnAlreadyClosedLoopKeepsItsTail)
     EXPECT_NEAR (pattern.getTick (tick).x (), ticks[tick].x (), 0.0001f)
         << "tick " << tick;
 }
+
+// What the device actually records. Ticks run at about 277 Hz and a finger
+// reports at 60 to 120, so most ticks repeat the position of the one before
+// them. More than half of all steps are therefore exactly zero, and their
+// median -- the trajectory's "typical step" -- is zero too. True, and useless
+// as a speed: measured against it the closing glide could not be sized, and
+// the loop point was left open on every real take.
+TEST (RecordingSeam, ALoopPointClosesEvenWhenMostTicksRepeat)
+{
+  std::vector<Pos> ticks;
+  for (int i = 0; i < 256; ++i)
+    {
+      // Three quarters of a circle, but each position held for four ticks.
+      auto const a = juce::MathConstants<float>::twoPi * 0.75f
+                     * static_cast<float> (i / 4) / 64.f;
+      ticks.push_back (
+          Pos::fromCartesian (std::cos (a) * 0.6f, std::sin (a) * 0.6f, 0.f));
+    }
+
+  ASSERT_FLOAT_EQ (typicalTrajectoryStep (ticks), 0.f)
+      << "the fixture has to have a zero median or it proves nothing";
+  ASSERT_GT (typicalTrajectorySpeed (ticks), 0.f);
+
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+  auto const before = gapAtLoopPoint (pattern);
+
+  closeRecordingSeams (pattern, SeamMode::Glide);
+
+  EXPECT_GT (before, 0.5f);
+  EXPECT_LT (gapAtLoopPoint (pattern), 0.2f)
+      << "the loop point was left open because the median step is zero";
+}
+
+// The speed only counts the ticks that moved.
+TEST (RecordingSeam, SpeedIgnoresHeldTicks)
+{
+  std::vector<Pos> ticks;
+  for (int i = 0; i < 100; ++i)
+    ticks.push_back (Pos::fromCartesian (0.1f * (i / 10), 0.f, 0.f));
+
+  EXPECT_FLOAT_EQ (typicalTrajectoryStep (ticks), 0.f);
+  EXPECT_NEAR (typicalTrajectorySpeed (ticks), 0.1f, 0.001f);
+}
+
+// A take is closed when it is recorded, and the file it is written to does not
+// keep it that way. The SVG stores a shape, not a recording: the writer cuts
+// it into segments at its jumps and drops the tick timing, and the reader
+// walks the segments end to end at a constant rate. The path then begins where
+// the first segment begins and ends where the last one begins -- two different
+// places, while the ticks they came from were the same one.
+//
+// Measured on a real take: nothing between tick 511 and tick 0 before saving,
+// 0.945 after loading it back. The reloaded pattern is what goes into the slot
+// and plays, so closing the take is not enough -- what comes back has to be
+// closed too.
+TEST (RecordingSeam, AReloadedTakeHasItsLoopPointClosedAgain)
+{
+  auto const ticks = circleWithAGapAtTheLoopPoint (256);
+
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+  closeRecordingSeams (pattern, SeamMode::Glide);
+  ASSERT_LT (gapAtLoopPoint (pattern), 0.2f) << "the take itself must close";
+
+  auto shared = std::make_shared<Pattern> ();
+  writeThrough (*shared, pattern.getTicks ().positions);
+  shared->setName ("Reloaded");
+  shared->resize (512); // a length PatternFile can express in whole beats
+  for (index_t tick = 0; tick < 512; ++tick)
+    shared->setTick (tick, pattern.getTick (tick % pattern.getNumTicks ()));
+
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-reloaded-take.svg");
+  file.deleteFile ();
+  ASSERT_TRUE (PatternFile::save (shared, file));
+
+  auto reloaded = PatternFile::load (file);
+  ASSERT_NE (reloaded, nullptr);
+
+  closeRecordingSeams (*reloaded, SeamMode::Glide);
+  EXPECT_LT (gapAtLoopPoint (*reloaded), 0.3f)
+      << "what came back from the file is what plays, and it was left open";
+
+  file.deleteFile ();
+}

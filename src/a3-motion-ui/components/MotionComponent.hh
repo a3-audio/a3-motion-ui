@@ -234,6 +234,14 @@ private:
   std::atomic<float> _sphereScale{ 0.62f };
   float _blobScale = 0.05f;
 
+  /** How the take's underlay is drawn: how far it fades back behind the trail
+   *  over it, how big its blob is next to a real one, and how thick its line
+   *  is. All three are judged by eye against a running take, which is exactly
+   *  what the skin is for. */
+  float _underlayOpacity = 0.28f;
+  float _underlayBlobScale = 0.55f;
+  float _underlayLineThickness = 0.02f;
+
   // Envelope time constants for the speaker beams, in seconds
   float _spotAttack = 0.08f, _spotDecay = 0.4f;
 

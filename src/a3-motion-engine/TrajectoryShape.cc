@@ -102,6 +102,25 @@ typicalTrajectoryStep (std::vector<Pos> const &ticks)
 }
 
 float
+typicalTrajectorySpeed (std::vector<Pos> const &ticks)
+{
+  if (ticks.size () < 2)
+    return 0.f;
+
+  std::vector<float> moving;
+  for (auto const step : ringSteps (ticks))
+    if (step >= holdDistance)
+      moving.push_back (step);
+
+  if (moving.empty ())
+    return 0.f;
+
+  auto const middle = moving.begin () + static_cast<long> (moving.size () / 2);
+  std::nth_element (moving.begin (), middle, moving.end ());
+  return *middle;
+}
+
+float
 trajectoryJumpThreshold (float typicalStep)
 {
   return std::max (minJumpDistance, jumpFactor * typicalStep);

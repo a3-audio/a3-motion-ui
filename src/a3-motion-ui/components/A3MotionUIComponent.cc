@@ -1598,6 +1598,18 @@ A3MotionUIComponent::saveRecordedPattern (
       if (reloaded)
         {
           reloaded->setChannel (channel);
+
+          // The take was closed before it was written, and the file did not
+          // keep it that way: an SVG stores a shape, so the tick timing is
+          // dropped on the way out and re-derived by arc length on the way
+          // back. What comes back begins and ends in two different places even
+          // when what went in did not. This is the pattern that goes into the
+          // slot and plays, so it gets closed too.
+          closeRecordingSeams (*reloaded,
+                               _clipUIParams[channel][slot].seamMode == 0
+                                   ? SeamMode::Glide
+                                   : SeamMode::Hard);
+
           _patterns[channel][slot] = reloaded;
           registerPatternDisplayData (reloaded);
         }

@@ -924,6 +924,11 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     _sphereScale = cfgF (config, "sphereScale", reduceFactorCircleDefault);
     _blobScale = cfgF (config, "blobScale", reduceFactorBlobsDefault);
 
+    auto const underlay = config["recordingUnderlay"];
+    _underlayOpacity = cfgF (underlay, "opacity", 0.28f);
+    _underlayBlobScale = cfgF (underlay, "blobScale", 0.55f);
+    _underlayLineThickness = cfgF (underlay, "lineThickness", 0.02f);
+
     _spotAttack = cfgF (sl, "attack", 0.08f);
     _spotDecay = cfgF (sl, "decay", 0.4f);
   }
@@ -1597,9 +1602,10 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
   auto const colour = _uiStates[ch]->colour;
 
   // Well below the take's own trail, which is drawn straight over this: it has
-  // to be readable as ground, not competing with what is being played in.
-  auto constexpr underlayOpacity = 0.28f;
-  auto constexpr lineThickness = 0.02f;
+  // to be readable as ground, not competing with what is being played in. How
+  // far below is a judgement made by eye, so it lives in the skin.
+  auto const underlayOpacity = _underlayOpacity;
+  auto const lineThickness = _underlayLineThickness;
 
   juce::Path path;
   for (auto const &segment : trajectorySegments (ticks.positions))
@@ -1630,7 +1636,7 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
   if (!position.isValid ())
     return;
 
-  auto const diameter = 2 * _blobScale * 0.55f;
+  auto const diameter = 2 * _blobScale * _underlayBlobScale;
   auto const centre = cartesian2DHOA2JUCE (position);
   g.setColour (colour.withAlpha (underlayOpacity));
   g.fillEllipse (juce::Rectangle<float> (0.f, 0.f, diameter, diameter)

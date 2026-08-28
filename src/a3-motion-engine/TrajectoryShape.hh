@@ -43,6 +43,15 @@ std::vector<size_t> trajectoryJumps (std::vector<Pos> const &ticks);
  *  they are measured against. Zero when there is nothing to measure. */
 float typicalTrajectoryStep (std::vector<Pos> const &ticks);
 
+/** How far the trajectory moves in a tick while it is moving.
+ *
+ *  Held stretches are left out, and that is the whole point. Ticks run far
+ *  faster than a finger reports, so a real take repeats most of its positions
+ *  and more than half of its steps are exactly zero -- the median over all of
+ *  them is zero, which is true and useless as a speed. Zero when it never
+ *  moved at all. */
+float typicalTrajectorySpeed (std::vector<Pos> const &ticks);
+
 /** Past this, a step is a teleport rather than a movement. */
 float trajectoryJumpThreshold (float typicalStep);
 
