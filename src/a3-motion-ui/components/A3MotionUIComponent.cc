@@ -28,6 +28,7 @@
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/PlaybackRate.hh>
 #include <a3-motion-engine/RecordingSeam.hh>
+#include <a3-motion-engine/TrajectoryShape.hh>
 #include <a3-motion-engine/RecordingSpans.hh>
 #include <a3-motion-ui/components/PatternProgressBar.hh>
 #include <a3-motion-engine/Pattern.hh>
@@ -1487,6 +1488,27 @@ A3MotionUIComponent::setPreviewWithDisplayData (
 }
 
 void
+A3MotionUIComponent::refreshPatternDisplayFromTicks (
+    std::shared_ptr<Pattern> const &pattern)
+{
+  if (!pattern || !_motionComponent)
+    return;
+
+  // Cut at teleports as well as at gaps, the same way the take's own trail is
+  // drawn, so a jump the clip still has is not bridged by a line.
+  juce::Path path;
+  for (auto const &segment :
+       trajectorySegments (pattern->getTicks ().positions))
+    {
+      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
+      for (size_t i = 1; i < segment.size (); ++i)
+        path.lineTo (segment[i].x (), segment[i].y ());
+    }
+
+  _motionComponent->setPatternDisplayData (pattern, path, {});
+}
+
+void
 A3MotionUIComponent::registerPatternDisplayData (
     std::shared_ptr<Pattern> const &pattern)
 {
@@ -2553,7 +2575,13 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
             auto &pattern = _patterns[channel][slot];
             if (pattern)
-              applyFade (*pattern, fadeTicksFor (params.fadeSixteenths));
+              {
+                applyFade (*pattern, fadeTicksFor (params.fadeSixteenths));
+
+                // The drawn line comes from the library's file, which still
+                // shows the ending the clip had before the fade touched it.
+                refreshPatternDisplayFromTicks (pattern);
+              }
             break;
           }
         }

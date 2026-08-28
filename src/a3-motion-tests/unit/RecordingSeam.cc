@@ -613,3 +613,34 @@ TEST (RecordingSeam, AReloadedTakeHasItsLoopPointClosedAgain)
 
   file.deleteFile ();
 }
+
+// The fade is a playback setting, so it has to still take hold after a
+// restart. Where the take stopped cannot be worked out from the file again --
+// once the closing move is written, that stretch looks like any other run of
+// ticks -- so it travels with it.
+TEST (SeamMode, TheJoinSurvivesARestart)
+{
+  auto pattern = std::make_shared<Pattern> ();
+  pattern->setName ("Joined");
+  pattern->resize (512);
+  for (index_t tick = 0; tick < 512; ++tick)
+    {
+      auto const a = juce::MathConstants<float>::twoPi * tick / 512.f;
+      pattern->setTick (tick, Pos::fromCartesian (std::cos (a) * 0.6f,
+                                                  std::sin (a) * 0.6f, 0.f));
+    }
+  pattern->setSeamJoin (index_t{ 271 });
+
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-seam-join.svg");
+  file.deleteFile ();
+  ASSERT_TRUE (PatternFile::save (pattern, file));
+
+  auto const reloaded = PatternFile::load (file);
+  ASSERT_NE (reloaded, nullptr);
+  ASSERT_TRUE (reloaded->getSeamJoin ().has_value ());
+  EXPECT_EQ (*reloaded->getSeamJoin (), 271u);
+
+  file.deleteFile ();
+}

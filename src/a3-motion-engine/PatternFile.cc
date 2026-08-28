@@ -582,6 +582,13 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
       svg->setAttribute ("data-seam-begin", static_cast<int> (seam.begin));
       svg->setAttribute ("data-seam-length", static_cast<int> (seam.length));
     }
+
+  // Where the take stopped. Not something that can be worked out again from
+  // the file -- once the closing move is written, that stretch looks like any
+  // other run of ticks -- and the fade is a playback setting, so without this
+  // turning it after a restart would have nothing to take hold of.
+  if (auto const join = pattern->getSeamJoin ())
+    svg->setAttribute ("data-seam-join", static_cast<int> (*join));
   svg->setAttribute ("data-ppqn", TempoClock::getTicksPerBeat ());
 
   if (!pathData.empty ())
@@ -652,6 +659,10 @@ PatternFile::load (juce::File const &file)
   // A file that does not mention a seam has none — a shipped shape, or a take
   // that filled its whole loop.
   auto const seamLength = xml->getIntAttribute ("data-seam-length", 0);
+  if (xml->hasAttribute ("data-seam-join"))
+    pattern->setSeamJoin (static_cast<index_t> (
+        xml->getIntAttribute ("data-seam-join", 0)));
+
   if (seamLength > 0)
     pattern->setSeamSpan (
         { static_cast<index_t> (xml->getIntAttribute ("data-seam-begin", 0)),
