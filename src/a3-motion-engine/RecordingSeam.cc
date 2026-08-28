@@ -156,17 +156,33 @@ writeClosingMove (Pattern &pattern, std::vector<Pos> const &baseline,
   auto const to = at (span.begin + span.length);
 
   // How the motion was travelling as it arrived at the join, and how it is
-  // travelling where the take picks up again. Scaled to the span so the curve
-  // leaves and arrives at the speed the take had.
-  auto const scale = static_cast<float> (span.length);
-  auto const outgoing = Pos::fromCartesian (
-      (from.x () - at (span.begin + n - 2).x ()) * scale,
-      (from.y () - at (span.begin + n - 2).y ()) * scale,
-      (from.z () - at (span.begin + n - 2).z ()) * scale);
-  auto const incoming = Pos::fromCartesian (
-      (at (span.begin + span.length + 1).x () - to.x ()) * scale,
-      (at (span.begin + span.length + 1).y () - to.y ()) * scale,
-      (at (span.begin + span.length + 1).z () - to.z ()) * scale);
+  // travelling where the take picks up again -- measured over a window, never
+  // over one tick. Ticks run far faster than a finger reports, so the tick
+  // before the join usually repeats the one before it and a one-tick
+  // difference is zero. Two zero tangents turn the curve into exactly what it
+  // was meant to replace: a straight line between the two ends.
+  auto const window = std::max (index_t{ 8 }, span.length / 8);
+
+  auto const direction = [&at, window] (index_t head, index_t tail) {
+    auto const a = at (head);
+    auto const b = at (tail);
+    return Pos::fromCartesian (a.x () - b.x (), a.y () - b.y (),
+                               a.z () - b.z ());
+  };
+
+  // Scaled to the span so the curve leaves and arrives at the speed the take
+  // had: a tangent is a distance per unit of t, and t runs 0..1 across it.
+  auto const perTick = static_cast<float> (span.length)
+                       / static_cast<float> (window);
+  auto const scaled = [perTick] (Pos const &v) {
+    return Pos::fromCartesian (v.x () * perTick, v.y () * perTick,
+                               v.z () * perTick);
+  };
+
+  auto const outgoing
+      = scaled (direction (span.begin + n - 1, span.begin + n - 1 - window));
+  auto const incoming = scaled (direction (
+      span.begin + span.length + window, span.begin + span.length));
 
   for (index_t step = 0; step < span.length; ++step)
     {

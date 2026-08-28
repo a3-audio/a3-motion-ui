@@ -701,3 +701,36 @@ TEST (SeamMode, TheClosingMoveIsACurveNotAChord)
   EXPECT_GT (std::hypot (b.x () - midX, b.y () - midY), 0.01f)
       << "the closing move is a straight line";
 }
+
+// The curve was a curve on paper and a straight line on the device. Its
+// tangents were measured over one tick, and ticks run far faster than a finger
+// reports, so the tick before the join repeats the one before it: both
+// tangents came out zero, and a cubic with two zero tangents is a straight
+// line between its ends -- exactly what it was meant to replace.
+TEST (SeamMode, TheCurveSurvivesTicksThatRepeat)
+{
+  // Every position held for four ticks, as a real take writes them.
+  std::vector<Pos> ticks;
+  for (int i = 0; i < 256; ++i)
+    {
+      auto const a = juce::MathConstants<float>::twoPi * (i / 4) / 64.f;
+      ticks.push_back (
+          Pos::fromCartesian (std::cos (a) * 0.6f, std::sin (a) * 0.6f, 0.f));
+    }
+  for (int i = 200; i < 256; ++i)
+    ticks[static_cast<size_t> (i)]
+        = Pos::fromCartesian (-0.8f, -0.4f + 0.004f * (i - 200), 0.f);
+
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+  closeRecordingSeams (pattern, index_t{ 48 }, index_t{ 199 });
+
+  auto const a = pattern.getTick (205);
+  auto const b = pattern.getTick (223);
+  auto const c = pattern.getTick (241);
+  auto const midX = (a.x () + c.x ()) * 0.5f;
+  auto const midY = (a.y () + c.y ()) * 0.5f;
+
+  EXPECT_GT (std::hypot (b.x () - midX, b.y () - midY), 0.01f)
+      << "two zero tangents made the closing move a straight line again";
+}
