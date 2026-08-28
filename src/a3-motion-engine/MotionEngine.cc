@@ -708,11 +708,19 @@ MotionEngine::performRecording ()
       // Record at each sub-sample slot for the current tick
       // This fills in gaps between ticks with interpolation-friendly keyframes
       // Store 2D positions so elevation coverage can be changed later
-      for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
-        {
-          auto const tick = (baseIndex + slot) % ticksPatternLength;
-          _patternRecording->setTick (tick, _recordingPosition2D);
-        }
+      //
+      // A lifted finger writes nothing at all — punch-out. It used to write
+      // Pos::invalid, which erased whatever an earlier pass had put there.
+      // Since recording wraps and runs as many passes as you let it, that made
+      // every pass wipe the one before it, and only the last one ever counted.
+      // Protecting what is already there is what makes several passes worth
+      // running: rough one out, then mend a corner.
+      if (_recordingPosition2D.isValid ())
+        for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
+          {
+            auto const tick = (baseIndex + slot) % ticksPatternLength;
+            _patternRecording->setTick (tick, _recordingPosition2D);
+          }
 
       if (_recordingPosition2D.isValid ())
         {
