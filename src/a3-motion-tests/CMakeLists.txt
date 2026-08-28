@@ -35,6 +35,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TouchGrabs.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TrajectoryShape.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/AutomationMode.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SystemPatternIcons.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternFileJumps.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingSpans.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternWrittenTicks.cc"
@@ -60,6 +61,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/SkinEditorComponent.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/io/OnScreenKeyboard.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/TouchGrabs.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/TrajectoryIcon.cc"
     )
 
 # The corona visibility test reads the config that actually ships with the app,
@@ -67,7 +69,8 @@ target_sources("a3-motion-tests" PRIVATE
 target_compile_definitions(a3-motion-tests PRIVATE
     A3_CONFIG_JSON_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../config/config.json"
     A3_UI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui"
-    A3_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../resources")
+    A3_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../resources"
+    A3_PATTERN_SYSTEM_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/system")
 
 target_include_directories("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}")

@@ -83,15 +83,24 @@ svgDToPath (std::string const &d)
   while (i < tokens.size ())
     {
       auto cmd = tokens[i];
+      // Read each coordinate into its own variable before handing the pair
+      // over. Passing two nextFloat() calls as arguments leaves the order they
+      // run in up to the compiler, and this one ran them right to left: every
+      // path started at (y, x) and then struck out for its real first point,
+      // which is the straight line that ran out of every shipped shape.
       if (cmd == "M" || cmd == "m")
         {
           ++i;
-          path.startNewSubPath (nextFloat (), nextFloat ());
+          auto const x = nextFloat ();
+          auto const y = nextFloat ();
+          path.startNewSubPath (x, y);
         }
       else if (cmd == "L" || cmd == "l")
         {
           ++i;
-          path.lineTo (nextFloat (), nextFloat ());
+          auto const x = nextFloat ();
+          auto const y = nextFloat ();
+          path.lineTo (x, y);
         }
       else if (cmd == "C" || cmd == "c")
         {
