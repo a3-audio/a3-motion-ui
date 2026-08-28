@@ -75,10 +75,14 @@ public:
    *  indicator, in the recording channel's own colour. A negative fraction
    *  means no take is running and nothing is drawn.
    *
-   *  Under the indicator rather than in it: the beat display keeps its own
-   *  job, and this sits where the eye already is while recording — over the
-   *  sphere rather than at the bottom edge. */
+   *  Laid over the indicator, translucent, so the beats stay readable through
+   *  it: the indicator is the widest thing on this bar and sits over the
+   *  sphere, where the eye already is while recording. */
   void setRecordingProgress (float fraction, juce::Colour colour);
+
+  /** The take's progress is laid over the tick indicator, which is a child —
+   *  so it has to be drawn after the children rather than in paint(). */
+  void paintOverChildren (juce::Graphics &g) override;
 
   void mouseUp (juce::MouseEvent const &event) override;
 

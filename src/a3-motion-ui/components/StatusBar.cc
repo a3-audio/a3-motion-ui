@@ -165,6 +165,25 @@ StatusBar::resized ()
 }
 
 void
+StatusBar::paintOverChildren (juce::Graphics &g)
+{
+  if (_recordingProgress < 0.f)
+    return;
+
+  // How far the running take has got, laid over the tick indicator itself
+  // rather than beside it: the beat display is the widest thing on this bar
+  // and sits over the sphere, where the eye already is while recording. Kept
+  // translucent so the beats stay readable through it, and drawn over the
+  // children because the indicator is one of them.
+  auto const tick = _tickIndicator.getBounds ().toFloat ();
+
+  g.setColour (_recordingColour.withAlpha (0.45f));
+  g.fillRoundedRectangle (tick.withWidth (tick.getWidth ()
+                                          * _recordingProgress),
+                          2.f);
+}
+
+void
 StatusBar::setRecordingProgress (float fraction, juce::Colour colour)
 {
   if (juce::approximatelyEqual (fraction, _recordingProgress)
@@ -201,24 +220,6 @@ StatusBar::paint (juce::Graphics &g)
   // skin can reach — the band under the clock stayed the same grey in every
   // skin. It is painted here instead, from the role that describes it.
   g.fillAll (toColour (theme ().surfaceRaised));
-
-  // How far the running take has got: a thin line under the tick indicator,
-  // in the recording channel's own colour. It sits where the eye already is
-  // while recording, and leaves the beat display its own job.
-  if (_recordingProgress >= 0.f)
-    {
-      auto const tick = _tickIndicator.getBounds ();
-      auto const line
-          = juce::Rectangle<float> (
-                static_cast<float> (tick.getX ()),
-                static_cast<float> (tick.getBottom ()) + 1.f,
-                static_cast<float> (tick.getWidth ()), 2.f);
-
-      g.setColour (_recordingColour.withAlpha (0.25f));
-      g.fillRect (line);
-      g.setColour (_recordingColour);
-      g.fillRect (line.withWidth (line.getWidth () * _recordingProgress));
-    }
 
   // A keyboard, drawn rather than typed: three rows of keys and a space bar,
   // small enough to read as an icon at this size.
