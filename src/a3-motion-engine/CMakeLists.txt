@@ -42,6 +42,7 @@ target_sources("a3-motion-engine" PRIVATE
     Measure.hh
     Pattern.cc
     RecordingSpans.cc
+    RecordingSeam.cc
     Pattern.hh
     PatternGenerator.cc
     PatternGenerator.hh

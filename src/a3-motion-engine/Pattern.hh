@@ -46,7 +46,10 @@ public:
   Pattern ();
 
   void clear ();
-  void resize (index_t lengthBeats);
+  /** Length in **ticks**, not beats — callers pass lengthBeats * ppqn. The
+   *  parameter was named lengthBeats here and lengthTicks in the definition,
+   *  which is a name that lies in the place people read first. */
+  void resize (index_t lengthTicks);
 
   void setStatus (Status status);
   Status getStatus () const;

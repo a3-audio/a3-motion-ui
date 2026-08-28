@@ -114,6 +114,11 @@ Pattern::getTick (index_t tick) const
 {
   jassert (tick < _ticks.size ());
   std::lock_guard<std::mutex> guard (_ticksMutex);
+  // Guarded in release too, not only asserted: the assert is compiled out of
+  // exactly the build that ships, and reading past the end is undefined.
+  if (tick >= _ticks.size ())
+    return Pos::invalid;
+
   return _ticks[tick];
 }
 
@@ -122,6 +127,10 @@ Pattern::setTick (index_t tick, Pos position)
 {
   jassert (tick < _ticks.size ());
   std::lock_guard<std::mutex> guard (_ticksMutex);
+  // Same reason, and here it is worse: writing past the end corrupts the heap.
+  if (tick >= _ticks.size ())
+    return;
+
   _ticks[tick] = position;
   if (tick < _written.size ())
     _written[tick] = true;
