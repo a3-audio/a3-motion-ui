@@ -38,6 +38,14 @@ namespace a3
  *  whole sphere is an ordinary step in one tapped into a corner of it. */
 std::vector<size_t> trajectoryJumps (std::vector<Pos> const &ticks);
 
+/** What this trajectory calls an ordinary step: the median distance between
+ *  neighbouring ticks, so the jumps being looked for cannot drag the yardstick
+ *  they are measured against. Zero when there is nothing to measure. */
+float typicalTrajectoryStep (std::vector<Pos> const &ticks);
+
+/** Past this, a step is a teleport rather than a movement. */
+float trajectoryJumpThreshold (float typicalStep);
+
 /** Whether the pattern was tapped in rather than drawn — a handful of held
  *  positions with teleports between them.
  *

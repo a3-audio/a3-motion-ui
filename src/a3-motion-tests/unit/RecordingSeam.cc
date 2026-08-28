@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-engine/RecordingSeam.hh>
+#include <a3-motion-engine/TrajectoryShape.hh>
 #include <a3-motion-engine/PatternFile.hh>
 
 using namespace a3;
@@ -350,4 +351,116 @@ TEST (SeamMode, AFileWithoutASeamLoadsWithoutOne)
   EXPECT_EQ (loaded->getSeamSpan ().length, 0u);
 
   file.deleteFile ();
+}
+
+// Recording in Loop runs several passes, so the loop point gets written from
+// two different ones: the last tick carries an early pass and the first a late
+// one. There is no unwritten stretch there to fill -- it is an edge between two
+// written ticks -- and the seam, which only ever filled holes, had nothing to
+// do. The blob snapped from the end back to the start.
+
+namespace
+{
+std::vector<Pos> circleWithAGapAtTheLoopPoint (int numTicks = 64)
+{
+  // Three quarters of a circle, evenly stepped, ending nowhere near where it
+  // began: exactly the edge a second pass leaves behind.
+  std::vector<Pos> ticks;
+  for (int i = 0; i < numTicks; ++i)
+    {
+      auto const a = juce::MathConstants<float>::twoPi * 0.75f
+                     * static_cast<float> (i) / static_cast<float> (numTicks);
+      ticks.push_back (
+          Pos::fromCartesian (std::cos (a) * 0.6f, std::sin (a) * 0.6f, 0.f));
+    }
+  return ticks;
+}
+
+// Pattern holds an atomic status, so it neither copies nor moves: filled in
+// place rather than returned.
+void writeThrough (Pattern &pattern, std::vector<Pos> const &ticks)
+{
+  pattern.resize (static_cast<index_t> (ticks.size ()));
+  for (index_t tick = 0; tick < ticks.size (); ++tick)
+    pattern.setTick (tick, ticks[tick]);
+}
+
+float gapAtLoopPoint (Pattern const &pattern)
+{
+  auto const last = pattern.getTick (pattern.getNumTicks () - 1);
+  auto const first = pattern.getTick (0);
+  return std::sqrt (std::pow (last.x () - first.x (), 2.f)
+                    + std::pow (last.y () - first.y (), 2.f)
+                    + std::pow (last.z () - first.z (), 2.f));
+}
+}
+
+TEST (RecordingSeam, TheLoopPointIsClosedEvenWhenBothSidesWereWritten)
+{
+  auto const ticks = circleWithAGapAtTheLoopPoint ();
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+  auto const before = gapAtLoopPoint (pattern);
+
+  closeRecordingSeams (pattern, SeamMode::Glide);
+
+  auto const step = typicalTrajectoryStep (ticks);
+  EXPECT_GT (before, trajectoryJumpThreshold (step))
+      << "the fixture has to start with a jump or this proves nothing";
+  EXPECT_LT (gapAtLoopPoint (pattern), trajectoryJumpThreshold (step));
+}
+
+// And it takes as long as the motion itself would: the closing arc moves at
+// the trajectory's own speed, so it does not read as a dash across the sphere.
+TEST (RecordingSeam, TheClosingGlideMovesAtTheTrajectorysOwnSpeed)
+{
+  auto const ticks = circleWithAGapAtTheLoopPoint ();
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+
+  closeRecordingSeams (pattern, SeamMode::Glide);
+
+  auto const step = typicalTrajectoryStep (ticks);
+  auto const threshold = trajectoryJumpThreshold (step);
+  for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
+    {
+      auto const here = pattern.getTick (tick);
+      auto const next = pattern.getTick ((tick + 1) % pattern.getNumTicks ());
+      auto const hop = std::sqrt (std::pow (here.x () - next.x (), 2.f)
+                                  + std::pow (here.y () - next.y (), 2.f));
+      EXPECT_LT (hop, threshold) << "tick " << tick;
+    }
+}
+
+TEST (RecordingSeam, HardLeavesTheLoopPointAsItWasPlayed)
+{
+  auto const ticks = circleWithAGapAtTheLoopPoint ();
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+  auto const before = gapAtLoopPoint (pattern);
+
+  closeRecordingSeams (pattern, SeamMode::Hard);
+
+  EXPECT_NEAR (gapAtLoopPoint (pattern), before, 0.001f);
+}
+
+// A pass that already comes round to where it started is not touched -- there
+// is nothing to close, and overwriting its tail would be vandalism.
+TEST (RecordingSeam, AnAlreadyClosedLoopKeepsItsTail)
+{
+  std::vector<Pos> ticks;
+  for (int i = 0; i < 64; ++i)
+    {
+      auto const a = juce::MathConstants<float>::twoPi * i / 64.f;
+      ticks.push_back (
+          Pos::fromCartesian (std::cos (a) * 0.6f, std::sin (a) * 0.6f, 0.f));
+    }
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+
+  closeRecordingSeams (pattern, SeamMode::Glide);
+
+  for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
+    EXPECT_NEAR (pattern.getTick (tick).x (), ticks[tick].x (), 0.0001f)
+        << "tick " << tick;
 }

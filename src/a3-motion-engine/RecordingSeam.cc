@@ -21,6 +21,7 @@
 #include "RecordingSeam.hh"
 
 #include <a3-motion-engine/RecordingSpans.hh>
+#include <a3-motion-engine/TrajectoryShape.hh>
 
 #include <algorithm>
 #include <cmath>
@@ -69,6 +70,64 @@ fillSpan (Pattern &pattern, UnwrittenSpan span, Pos const &before,
                      / static_cast<float> (span.length + 1);
       pattern.setTick (tick, between (before, after, t));
     }
+}
+}
+
+namespace
+{
+/** Close the loop point when both sides of it were played.
+ *
+ *  Recording in Loop runs several passes, so the last tick carries an early
+ *  one and the first a late one. Nothing is missing there -- it is an edge
+ *  between two written ticks -- and filling holes, which is all the seam ever
+ *  did, has nothing to do with it. The blob snapped from the end back to the
+ *  start.
+ *
+ *  The closing arc is written over the tail, and takes as many ticks as the
+ *  trajectory's own speed needs to cover the distance: any shorter and it
+ *  reads as a dash across the sphere, any longer and it overwrites more of the
+ *  take than closing it costs. Recorded as the seam span, so switching the
+ *  mode afterwards refills it like any other seam. */
+void
+closeLoopPoint (Pattern &pattern, SeamMode mode)
+{
+  auto const numTicks = pattern.getNumTicks ();
+  if (numTicks < 4)
+    return;
+
+  auto const positions = pattern.getTicks ().positions;
+  auto const last = pattern.getTick (numTicks - 1);
+  auto const first = pattern.getTick (0);
+  if (!last.isValid () || !first.isValid ())
+    return;
+
+  auto const step = typicalTrajectoryStep (positions);
+  if (step <= 0.f)
+    return;
+
+  auto const gap = std::sqrt (std::pow (last.x () - first.x (), 2.f)
+                              + std::pow (last.y () - first.y (), 2.f)
+                              + std::pow (last.z () - first.z (), 2.f));
+  if (gap <= trajectoryJumpThreshold (step))
+    return; // it already comes round to where it started
+
+  // A quarter of the loop is the most this may cost. Past that the take is
+  // being replaced by its own closing move rather than closed.
+  auto const needed = static_cast<index_t> (std::ceil (gap / step));
+  auto const length = std::max (index_t{ 2 },
+                                std::min (needed, numTicks / 4));
+
+  // The span is recorded either way, so the mode stays a playback setting that
+  // can be changed afterwards. Only Glide writes into it: unlike a stretch
+  // nobody played, this one holds recorded motion, and holding it flat would
+  // delete what the finger actually did to keep a jump that is already there.
+  UnwrittenSpan const span{ numTicks - length, length };
+  pattern.setSeamSpan (span);
+
+  if (mode != SeamMode::Glide)
+    return;
+
+  fillSpan (pattern, span, pattern.getTick (span.begin - 1), first, true);
 }
 }
 
@@ -124,6 +183,11 @@ closeRecordingSeams (Pattern &pattern, SeamMode mode)
       auto const glide = isSeam && mode == SeamMode::Glide;
       fillSpan (pattern, span, before, after, glide);
     }
+
+  // A take that wrote across the loop point leaves no hole there, so the loop
+  // above never saw it. That edge is a seam too.
+  if (pattern.getSeamSpan ().length == 0)
+    closeLoopPoint (pattern, mode);
 
   // Every tick holds something now, and playback has to be told: it reads the
   // last written tick as the pattern's length, and the span filled last is the

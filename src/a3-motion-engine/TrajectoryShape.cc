@@ -88,9 +88,23 @@ typicalStep (std::vector<float> const &steps)
 float
 jumpThreshold (std::vector<float> const &steps)
 {
-  return std::max (minJumpDistance, jumpFactor * typicalStep (steps));
+  return trajectoryJumpThreshold (typicalStep (steps));
 }
 
+}
+
+float
+typicalTrajectoryStep (std::vector<Pos> const &ticks)
+{
+  if (ticks.size () < 2)
+    return 0.f;
+  return typicalStep (ringSteps (ticks));
+}
+
+float
+trajectoryJumpThreshold (float typicalStep)
+{
+  return std::max (minJumpDistance, jumpFactor * typicalStep);
 }
 
 std::vector<size_t>
