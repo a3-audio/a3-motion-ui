@@ -1643,28 +1643,17 @@ A3MotionUIComponent::saveRecordedPattern (
       std::cout << "Recording saved as user pattern '" << name
                 << "' at library index " << newIndex << std::endl;
 
-      // Re-load from library so the pattern gets proper SVG display data
-      auto reloaded = _patternLibrary->loadPattern (newIndex);
-      if (reloaded)
-        {
-          reloaded->setChannel (channel);
-
-          // The take was closed before it was written, and the file did not
-          // keep it that way: an SVG stores a shape, so the tick timing is
-          // dropped on the way out and re-derived by arc length on the way
-          // back. What comes back begins and ends in two different places even
-          // when what went in did not. This is the pattern that goes into the
-          // slot and plays, so it gets closed too.
-          // Arc-length resampling moves every tick, so the edge is no longer
-          // where it was in the take. Left to find it itself, the seam falls
-          // back to the loop point -- which after a round trip is exactly
-          // where the path's two ends meet, and so exactly the break.
-          closeRecordingSeams (*reloaded,
-fadeTicksFor (_clipUIParams[channel][slot].fadeSixteenths));
-
-          _patterns[channel][slot] = reloaded;
-          registerPatternDisplayData (reloaded);
-        }
+      // The take stays in the slot. It used to be swapped for a fresh load of
+      // the file it had just been written to, for the sake of the display data
+      // that came with it -- and the line is drawn from the ticks now, so
+      // there is nothing left to fetch.
+      //
+      // The round trip cost more than it gave: loading resamples the shape by
+      // arc length, so every tick moves. The tick where the take stopped means
+      // nothing afterwards, so the closing move landed somewhere else, and the
+      // stretch between two subpaths came back as a hole -- 45 ticks of one on
+      // the take that showed it.
+      registerPatternDisplayData (pattern);
 
       // Update fingerprint so the timer doesn't re-trigger for this save
       _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
