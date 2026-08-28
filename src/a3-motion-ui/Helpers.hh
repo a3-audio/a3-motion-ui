@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/SvgPathTokens.hh>
 #include <a3-motion-engine/util/Geometry.hh>
 
 namespace juce
@@ -69,9 +70,7 @@ svgDToPath (std::string const &d)
   if (d.empty ())
     return path;
 
-  auto tokens = juce::StringArray::fromTokens (juce::String (d),
-                                               " ,\t\n\r", "");
-  tokens.removeEmptyStrings ();
+  auto const tokens = svgPathTokens (juce::String (d));
 
   int i = 0;
   auto nextFloat = [&]() -> float {

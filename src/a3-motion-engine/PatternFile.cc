@@ -20,6 +20,7 @@
 
 #include "PatternFile.hh"
 
+#include "SvgPathTokens.hh"
 #include "TrajectoryShape.hh"
 
 #include <a3-motion-engine/tempo/TempoClock.hh>
@@ -213,6 +214,13 @@ buildSvgPathData (std::vector<Pos> const &ticks,
       if (pts.size () < 2)
         continue;
 
+      // The separator matters: a closed subpath ends in Z, and writing the
+      // next subpath's M straight after it produced "ZM", which is not a
+      // command any more. The reader dropped it, the two runs became one, and
+      // a straight line was drawn across the gap between them.
+      if (out.tellp () > 0)
+        out << ' ';
+
       out << "M " << fts (pts[0].x) << ' ' << fts (pts[0].y);
 
       auto const dist = pts.front ().distTo (pts.back ());
@@ -404,9 +412,14 @@ sampleSvgPathToTicks (std::string const &pathData,
 
   std::vector<Vec2> polyline;
 
-  auto tokens = juce::StringArray::fromTokens (juce::String (pathData),
-                                                " ,\t\n\r", "");
-  tokens.removeEmptyStrings ();
+  // Where each subpath begins. The polyline is flat, so without these the
+  // stretch from the end of one subpath to the start of the next is just
+  // another segment and gets walked like any other -- the blob crossing a gap
+  // the finger left, in a straight line, which is what it looked like at the
+  // end of a trajectory.
+  std::vector<std::size_t> subPathStarts;
+
+  auto tokens = svgPathTokens (juce::String (pathData));
 
   int idx = 0;
   auto nextF = [&]() -> float {
@@ -426,6 +439,7 @@ sampleSvgPathToTicks (std::string const &pathData,
           ++idx;
           cur = { nextF (), nextF () };
           subPathStart = cur;
+          subPathStarts.push_back (polyline.size ());
           polyline.push_back (cur);
         }
       else if (cmd == "L" || cmd == "l")
@@ -512,6 +526,18 @@ sampleSvgPathToTicks (std::string const &pathData,
           = (segLen > 1e-8f)
                 ? (targetDist - arcLen[seg]) / segLen
                 : 0.f;
+
+      // A segment that ends on a subpath's first point is not part of any
+      // shape: it is the gap between two of them. Nothing was played there,
+      // and nothing is written.
+      auto const isBridge
+          = std::find (subPathStarts.begin (), subPathStarts.end (), seg + 1)
+            != subPathStarts.end ();
+      if (isBridge)
+        {
+          outTicks.push_back (Pos::invalid);
+          continue;
+        }
 
       auto const px = polyline[seg].x + (polyline[seg + 1].x - polyline[seg].x) * frac;
       auto const py = polyline[seg].y + (polyline[seg + 1].y - polyline[seg].y) * frac;

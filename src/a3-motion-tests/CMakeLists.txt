@@ -36,6 +36,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TrajectoryShape.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecMode.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SystemPatternIcons.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SvgPathParsing.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternFileJumps.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingSpans.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternWrittenTicks.cc"
