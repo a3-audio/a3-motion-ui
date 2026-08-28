@@ -115,6 +115,68 @@ closingLength (index_t fadeTicks, index_t numTicks, index_t seamAt)
  *  stale pass behind the join, never back into the pass just played. Where the
  *  join is travels with the pattern, so the length can be turned afterwards
  *  without recording again. */
+/** The closing move from `from` to `to`, leaving and arriving along the motion
+ *  either side of it.
+ *
+ *  A straight line was visibly a straight line: two chords laid across a take
+ *  that has none. A cubic that starts along `outgoing` and ends along
+ *  `incoming` continues what was being played instead of cutting across it. */
+Pos
+closingCurve (Pos const &from, Pos const &to, Pos const &outgoing,
+              Pos const &incoming, float t)
+{
+  auto const h00 = 2.f * t * t * t - 3.f * t * t + 1.f;
+  auto const h10 = t * t * t - 2.f * t * t + t;
+  auto const h01 = -2.f * t * t * t + 3.f * t * t;
+  auto const h11 = t * t * t - t * t;
+
+  return Pos::fromCartesian (
+      h00 * from.x () + h10 * outgoing.x () + h01 * to.x () + h11 * incoming.x (),
+      h00 * from.y () + h10 * outgoing.y () + h01 * to.y () + h11 * incoming.y (),
+      h00 * from.z () + h10 * outgoing.z () + h01 * to.z () + h11 * incoming.z ());
+}
+
+/** Lay a closing move over `span`, from the tick before it to the tick after.
+ *
+ *  Both ends and both directions are read from `baseline` -- the take as it was
+ *  played -- never from the pattern, which may already carry an earlier
+ *  closing move. That is what makes the length free to change in either
+ *  direction. */
+void
+writeClosingMove (Pattern &pattern, std::vector<Pos> const &baseline,
+                  UnwrittenSpan span)
+{
+  auto const n = static_cast<index_t> (baseline.size ());
+  if (n < 4 || span.length == 0)
+    return;
+
+  auto const at = [&baseline, n] (index_t tick) { return baseline[tick % n]; };
+
+  auto const from = at (span.begin + n - 1);
+  auto const to = at (span.begin + span.length);
+
+  // How the motion was travelling as it arrived at the join, and how it is
+  // travelling where the take picks up again. Scaled to the span so the curve
+  // leaves and arrives at the speed the take had.
+  auto const scale = static_cast<float> (span.length);
+  auto const outgoing = Pos::fromCartesian (
+      (from.x () - at (span.begin + n - 2).x ()) * scale,
+      (from.y () - at (span.begin + n - 2).y ()) * scale,
+      (from.z () - at (span.begin + n - 2).z ()) * scale);
+  auto const incoming = Pos::fromCartesian (
+      (at (span.begin + span.length + 1).x () - to.x ()) * scale,
+      (at (span.begin + span.length + 1).y () - to.y ()) * scale,
+      (at (span.begin + span.length + 1).z () - to.z ()) * scale);
+
+  for (index_t step = 0; step < span.length; ++step)
+    {
+      auto const t = static_cast<float> (step + 1)
+                     / static_cast<float> (span.length + 1);
+      pattern.setTick ((span.begin + step) % n,
+                       closingCurve (from, to, outgoing, incoming, t));
+    }
+}
+
 void
 closeLoopPoint (Pattern &pattern, index_t fadeTicks, index_t seamAt)
 {
@@ -134,6 +196,7 @@ closeLoopPoint (Pattern &pattern, index_t fadeTicks, index_t seamAt)
   // Where the take stopped travels with the pattern whatever the fade is, so
   // the length can be turned later without recording again.
   pattern.setSeamJoin (seamAt % numTicks);
+  pattern.setFade (fadeTicks);
 
   if (fadeTicks == 0)
     return; // held and jumped: the take keeps its ending exactly as played
@@ -152,12 +215,13 @@ closeLoopPoint (Pattern &pattern, index_t fadeTicks, index_t seamAt)
   // enough to wrap round into them would close the join by deleting the take.
   // Not a matter of taste like the length itself: a guard.
   auto const length = closingLength (fadeTicks, numTicks, seamAt % numTicks);
-  UnwrittenSpan const span{ (seamAt + 1) % numTicks, length };
+  if (length == 0)
+    return;
 
   // Written over the stale pass that follows the join, never over the fresh
   // one before it: the pass just played is the one worth keeping.
-  auto const after = pattern.getTick ((span.begin + span.length) % numTicks);
-  fillSpan (pattern, span, last, after, length);
+  writeClosingMove (pattern, positions,
+                    { (seamAt + 1) % numTicks, length });
 }
 }
 
@@ -168,21 +232,23 @@ applyFade (Pattern &pattern, index_t fadeTicks)
   if (numTicks == 0)
     return;
 
-  // A take's join: the length is the fade, and both ends are ticks somebody
-  // played, so this can be turned as often as you like without drifting.
+  // A take's join: recomputed from what was played every time, so the length
+  // is free to grow, shrink, or go back to nothing.
   if (auto const join = pattern.getSeamJoin ())
     {
-      auto const seamAt = *join % numTicks;
-      auto const budget = closingLength (fadeTicks, numTicks, seamAt);
+      auto const baseline = pattern.getFadeBaseline ();
+      if (baseline.size () != numTicks)
+        return;
 
-      if (budget > 0)
-        {
-          UnwrittenSpan const span{ (seamAt + 1) % numTicks, budget };
-          auto const before = pattern.getTick (seamAt);
-          auto const after
-              = pattern.getTick ((span.begin + span.length) % numTicks);
-          fillSpan (pattern, span, before, after, budget);
-        }
+      for (index_t tick = 0; tick < numTicks; ++tick)
+        pattern.setTick (tick, baseline[tick]);
+
+      auto const seamAt = *join % numTicks;
+      pattern.setFade (fadeTicks);
+      auto const length = closingLength (fadeTicks, numTicks, seamAt);
+      if (length > 0)
+        writeClosingMove (pattern, baseline,
+                          { (seamAt + 1) % numTicks, length });
 
       pattern.markComplete ();
       return;
@@ -241,11 +307,19 @@ closeRecordingSeams (Pattern &pattern, index_t fadeTicks,
       fillSpan (pattern, span, before, after, isSeam ? fadeTicks : index_t{ 0 });
     }
 
+  // What was played, kept before anything is laid over it, so the closing
+  // move can be recomputed at any length later on.
+  pattern.setFadeBaseline (pattern.getTicks ().positions);
+
   // A take that wrote across the loop point leaves no hole there, so the loop
   // above never saw it. That edge is a seam too.
   if (pattern.getSeamSpan ().length == 0)
+    // A pattern that came back from a file already knows where its take
+    // stopped; only a fresh one has to be told, and only it may overwrite it.
     closeLoopPoint (pattern, fadeTicks,
-                    stopTick.value_or (numTicks - 1) % numTicks);
+                    stopTick.value_or (
+                        pattern.getSeamJoin ().value_or (numTicks - 1))
+                        % numTicks);
 
   // Every tick holds something now, and playback has to be told: it reads the
   // last written tick as the pattern's length, and the span filled last is the

@@ -166,6 +166,34 @@ Pattern::getSeamSpan () const
 }
 
 void
+Pattern::setFadeBaseline (std::vector<Pos> positions)
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  _fadeBaseline = std::move (positions);
+}
+
+std::vector<Pos>
+Pattern::getFadeBaseline () const
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  return _fadeBaseline;
+}
+
+index_t
+Pattern::getFade () const
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  return _fade;
+}
+
+void
+Pattern::setFade (index_t ticks)
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  _fade = ticks;
+}
+
+void
 Pattern::setSeamJoin (std::optional<index_t> tick)
 {
   std::lock_guard<std::mutex> guard (_ticksMutex);

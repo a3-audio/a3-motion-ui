@@ -20,6 +20,7 @@
 
 #include "PatternFile.hh"
 
+#include "RecordingSeam.hh"
 #include "SvgPathTokens.hh"
 #include "TrajectoryShape.hh"
 
@@ -558,6 +559,14 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
 
   auto ticks = pattern->getTicks ();
 
+  // The take as it was played, not as it currently reads with a closing move
+  // laid over it. The fade is a setting, so what goes on disk has to be the
+  // thing the setting applies to -- otherwise reopening the clip bakes the
+  // last length in and it can never be shortened again.
+  auto const baseline = pattern->getFadeBaseline ();
+  if (baseline.size () == ticks.positions.size () && !baseline.empty ())
+    ticks.positions = baseline;
+
   auto const numTicks = ticks.positions.size ();
   auto const lengthBeats
       = static_cast<int> (numTicks) / TempoClock::getTicksPerBeat ();
@@ -588,7 +597,10 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
   // other run of ticks -- and the fade is a playback setting, so without this
   // turning it after a restart would have nothing to take hold of.
   if (auto const join = pattern->getSeamJoin ())
-    svg->setAttribute ("data-seam-join", static_cast<int> (*join));
+    {
+      svg->setAttribute ("data-seam-join", static_cast<int> (*join));
+      svg->setAttribute ("data-fade", static_cast<int> (pattern->getFade ()));
+    }
   svg->setAttribute ("data-ppqn", TempoClock::getTicksPerBeat ());
 
   if (!pathData.empty ())
@@ -675,6 +687,13 @@ PatternFile::load (juce::File const &file)
 
   for (index_t t = 0; t < numTicks && t < sampled.size (); ++t)
     pattern->setTick (t, sampled[t]);
+
+  // What came out of the file is the take as played; the closing move is laid
+  // over it here, from the length the file carries.
+  pattern->setFadeBaseline (pattern->getTicks ().positions);
+  if (pattern->getSeamJoin ())
+    applyFade (*pattern, static_cast<index_t> (
+                             xml->getIntAttribute ("data-fade", 0)));
 
   pattern->setStatus (Pattern::Status::Idle);
   return pattern;

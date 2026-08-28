@@ -116,6 +116,20 @@ public:
   std::optional<index_t> getSeamJoin () const;
   void setSeamJoin (std::optional<index_t> tick);
 
+  /** The take as it was played, before any closing move was laid over it.
+   *
+   *  The fade used to be written straight into the ticks, which made it a
+   *  one-way door: lengthening it read its far end from material nobody had
+   *  touched yet and worked, shortening it read from the previous fill and
+   *  changed nothing. Keeping what was played means the closing move can be
+   *  recomputed at any length, including back to none at all. */
+  std::vector<Pos> getFadeBaseline () const;
+  void setFadeBaseline (std::vector<Pos> positions);
+
+  /** How long the closing move currently laid over the take is, in ticks. */
+  index_t getFade () const;
+  void setFade (index_t ticks);
+
   // Interpolated playback: returns position with linear interpolation between keyframes
   // This provides smooth motion even with sparse keyframes during slow playback
   Pos getInterpolatedTick (double fractionalTick) const;
@@ -182,6 +196,8 @@ private:
   std::vector<bool> _written;
   UnwrittenSpan _seamSpan{ 0u, 0u };
   std::optional<index_t> _seamJoin;
+  std::vector<Pos> _fadeBaseline;
+  index_t _fade = 0;
   mutable std::mutex _ticksMutex;
 
   // TODO is float precision sufficient here? do the math!

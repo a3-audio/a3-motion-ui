@@ -644,3 +644,60 @@ TEST (SeamMode, TheJoinSurvivesARestart)
 
   file.deleteFile ();
 }
+
+// The fade used to be written straight into the ticks, which made it a one-way
+// door: lengthening read its far end from material nobody had touched and
+// worked, shortening read from the previous fill -- a point already on the old
+// closing move -- and changed nothing anyone could see.
+TEST (SeamMode, ShorteningTheFadeWorksAsWellAsLengtheningIt)
+{
+  auto const ticks = circleWithAGapAtTheLoopPoint (256);
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+  closeRecordingSeams (pattern, index_t{ 64 }, index_t{ 200 });
+
+  auto const spanOf = [&pattern] (index_t fade) {
+    applyFade (pattern, fade);
+    // How far from the take as played the pattern now reads: a longer closing
+    // move touches more ticks, a shorter one fewer.
+    int touched = 0;
+    auto const baseline = pattern.getFadeBaseline ();
+    for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
+      if (std::abs (pattern.getTick (tick).x () - baseline[tick].x ()) > 1e-5f
+          || std::abs (pattern.getTick (tick).y () - baseline[tick].y ()) > 1e-5f)
+        ++touched;
+    return touched;
+  };
+
+  auto const wide = spanOf (48);
+  auto const narrow = spanOf (16);
+  auto const none = spanOf (0);
+
+  EXPECT_GT (wide, narrow) << "shortening the fade did not shorten anything";
+  EXPECT_GT (narrow, none);
+  EXPECT_EQ (none, 0) << "turning it off must give the take back as played";
+
+  // And going back up gets there again -- no drift from having been turned.
+  EXPECT_EQ (spanOf (48), wide);
+}
+
+// The closing move continues the motion rather than cutting across it: laid
+// out as a straight line it was visibly two chords over a take that has none.
+TEST (SeamMode, TheClosingMoveIsACurveNotAChord)
+{
+  auto const ticks = circleWithAGapAtTheLoopPoint (256);
+  Pattern pattern;
+  writeThrough (pattern, ticks);
+  closeRecordingSeams (pattern, index_t{ 48 }, index_t{ 200 });
+
+  // Three points across the closing move: a straight line puts the middle one
+  // exactly halfway between its neighbours.
+  auto const a = pattern.getTick (205);
+  auto const b = pattern.getTick (215);
+  auto const c = pattern.getTick (225);
+  auto const midX = (a.x () + c.x ()) * 0.5f;
+  auto const midY = (a.y () + c.y ()) * 0.5f;
+
+  EXPECT_GT (std::hypot (b.x () - midX, b.y () - midY), 0.01f)
+      << "the closing move is a straight line";
+}

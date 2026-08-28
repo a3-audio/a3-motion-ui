@@ -2567,9 +2567,10 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           break;
         default:
           {
-            // How the take's seam is filled — glide across it, or hold and
-            // jump at the loop point. A playback setting: it takes effect on
-            // whatever is in the slot, at once, as often as it is turned.
+            // How long the take's closing move lasts. A playback setting: it
+            // takes effect on whatever is in the slot, at once, and is
+            // recomputed from the take as played, so it can be turned down
+            // again as freely as up.
             params.fadeSixteenths
                 = std::clamp (params.fadeSixteenths + increment, 0, 16);
 
