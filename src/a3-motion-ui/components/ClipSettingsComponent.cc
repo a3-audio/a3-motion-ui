@@ -238,11 +238,22 @@ ClipSettingsComponent::paint (juce::Graphics &g)
 {
   g.fillAll (toColour (theme ().surface, panelOpacity));
 
-  // Frame the whole panel in the selected clip's channel colour, so it's
-  // obvious at a glance which channel is currently shown.
   auto const frameThickness = juce::jmax (2, getHeight () / 60);
+
+  // Two panels side by side, not one panel with an odd section on the end.
+  // The channel colour says "this is the shown clip's", so it must stop where
+  // the clip's settings stop: what is in the strip belongs to all four
+  // channels at once and cannot be framed as any one of them.
+  auto globalBounds
+      = getLocalBounds ().removeFromRight (clipSectionWidth (getWidth ()) / 2);
+  auto const clipBounds = getLocalBounds ().withTrimmedRight (
+      globalBounds.getWidth ());
+
   g.setColour (_channelColour);
-  g.drawRect (getLocalBounds (), frameThickness);
+  g.drawRect (clipBounds, frameThickness);
+
+  g.setColour (toColour (theme ().textPrimary, 0.25f));
+  g.drawRect (globalBounds, frameThickness);
 
   // All sizing is derived from the actual height we're given (a fixed
   // fraction of the screen, see A3MotionUIComponent::resized()) rather than
@@ -250,7 +261,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   auto const paddingV = juce::jmax (4, getHeight () / 40);
   auto const headerH = juce::jmax (18, getHeight () / 12);
 
-  auto area = getLocalBounds ().reduced (paddingH, paddingV);
+  auto area = clipBounds.reduced (paddingH, paddingV);
 
   auto headerArea = area.removeFromTop (headerH);
 
@@ -277,7 +288,9 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // Four equal sections for the clip, then a strip half that wide for what is
   // not the clip's. Solving width = 4*s + s/2 for s is where the 2 and the 9
   // come from.
-  auto const sectionW = clipSectionWidth (area.getWidth ());
+  // Inside its own frame now, so the four share what the clip panel has
+  // rather than the whole bar.
+  auto const sectionW = area.getWidth () / numClipSections;
 
   // Shared knob/toggle diameter for every section (see class doc /
   // controlBounds()) — sized to comfortably fit Elevation's tightest
@@ -334,10 +347,13 @@ ClipSettingsComponent::paint (juce::Graphics &g)
         paintFilterSection (g, cardBounds, isSelected, metrics);
     }
 
-  // Whatever is left is the strip. It holds settings that are the same for
-  // every channel, so it is deliberately not framed or tinted in the shown
-  // channel's colour the way the four sections beside it are.
-  paintGlobalSection (g, area.reduced (gap / 2, 0),
+  // The same header row the clip panel spends on "Slot N" is left empty here,
+  // so both panels' cards start on one line. Without it the strip began higher
+  // than the sections beside it and its value sat a row above their knobs.
+  auto globalArea = globalBounds.reduced (paddingH, paddingV);
+  globalArea.removeFromTop (headerH);
+
+  paintGlobalSection (g, globalArea.reduced (gap / 2, 0),
                       _selectedIndex == globalIndex, metrics);
 }
 
