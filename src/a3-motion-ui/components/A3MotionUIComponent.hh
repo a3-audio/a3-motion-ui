@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 
+#include <a3-motion-engine/AutomationMode.hh>
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
@@ -245,6 +246,10 @@ private:
   void applyEditedConfigPage ();
   void  saveConfigPage ();
   void  applyPauseRendering (bool paused);
+
+  /** Takes the menu row's index, not a mode: the row offers a list, and the
+   *  list's order is the only thing that turns one into the other. */
+  void  applyAutomationMode (int index);
   /** The picker behind a colour row: HSL to reach it, r/g/b in the file. */
   void  openColourPicker (juce::String const &path);
   void  closeColourPicker ();
@@ -271,6 +276,7 @@ private:
   enum class MenuRow
   {
     ClockMode,
+    Automation,
     Skin,
     SkinEditor,
     Network,
@@ -288,6 +294,10 @@ private:
 
   // Index into the theme's scale table; the factor itself lives there, because
   // a saved index has to become a factor at startup, before any menu exists.
+  /** What a recording pass writes where the finger is not. A device setting,
+   *  so it is persisted beside the clock mode rather than in the skin. */
+  AutomationMode _automationMode = AutomationMode::Touch;
+
   int _headerSizeIndex = 1; // default 100%
   int _bodySizeIndex = 1;   // default 100%
   std::unique_ptr<SkinEditorComponent> _skinEditor;

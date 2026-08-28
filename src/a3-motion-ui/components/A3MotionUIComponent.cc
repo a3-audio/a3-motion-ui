@@ -61,8 +61,32 @@
 #include <a3-motion-ui/io/InputOutputAdapterV3.hh>
 #endif
 
+#include <algorithm>
+#include <array>
+
 namespace a3
 {
+
+namespace
+{
+/** The modes the Automation row offers, in the order it offers them. The row
+ *  hands back an index, so this list is what an index means; Read is absent on
+ *  purpose — see where the row is built. */
+constexpr std::array<AutomationMode, 3> automationMenuModes{
+  AutomationMode::Touch, AutomationMode::Latch, AutomationMode::Write
+};
+
+int
+automationMenuIndex (AutomationMode mode)
+{
+  auto const found = std::find (automationMenuModes.begin (),
+                                automationMenuModes.end (), mode);
+  return found == automationMenuModes.end ()
+             ? 0
+             : static_cast<int> (found - automationMenuModes.begin ());
+}
+}
+
 
 A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     : _heightMap (std::make_unique<HeightMapSphere> ()),
@@ -133,7 +157,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   // Clockmode is all that is left to restore. Pot Size and the two font sizes
   // are the skin's now, and the skin brings its own.
-  applyClockMode (loadSettings (getPersistedSettingsFile ()).clockMode);
+  auto const persisted = loadSettings (getPersistedSettingsFile ());
+  applyClockMode (persisted.clockMode);
+  _automationMode = persisted.automationMode;
+  _engine.setAutomationMode (_automationMode);
 
 
   // Fast enough for the write head to move while a take runs; the directory
@@ -1726,6 +1753,17 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
   add (MenuRow::ClockMode,
        { "Clockmode", { { "INT" }, { "EXT" }, { "PIO" } }, _clockMode });
 
+  // Read is not offered: it is not a way of recording, it is what the device
+  // does when no take is armed. Offering it would put a setting on the menu
+  // that makes the Record button do nothing.
+  std::vector<GlobalSettingsComponent::ValueItem> automationValues;
+  for (auto const mode : automationMenuModes)
+    automationValues.push_back ({ automationModeName (mode) });
+
+  add (MenuRow::Automation,
+       { "Automation", std::move (automationValues),
+         automationMenuIndex (_automationMode) });
+
   // Built from what is actually in config/skins, so a skin added on the
   // device shows up without a rebuild.
   _skinNames = availableSkins (getConfigFile ().getParentDirectory ());
@@ -1793,6 +1831,7 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
   switch (row.value ())
     {
     case MenuRow::ClockMode: applyClockMode (chosen); break;
+    case MenuRow::Automation: applyAutomationMode (chosen); break;
     case MenuRow::Skin: applySkin (chosen); break;
     case MenuRow::SkinEditor: openSkinEditor (); break;
     case MenuRow::Network:
@@ -1811,6 +1850,19 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
 
   _globalSettingsValueFieldSelected = false;
   _globalSettings->setValueFieldSelected (false);
+}
+
+void
+A3MotionUIComponent::applyAutomationMode (int index)
+{
+  if (index < 0 || index >= static_cast<int> (automationMenuModes.size ()))
+    return;
+
+  _automationMode = automationMenuModes[static_cast<size_t> (index)];
+  _engine.setAutomationMode (_automationMode);
+
+  saveSettings (getPersistedSettingsFile (),
+                AppSettings{ _clockMode, _automationMode });
 }
 
 void
@@ -1847,7 +1899,7 @@ A3MotionUIComponent::applyClockMode (int mode)
   _oscSender.send (clockModeMsg);
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode });
+               AppSettings{ _clockMode, _automationMode });
 }
 
 
@@ -2249,7 +2301,7 @@ A3MotionUIComponent::refreshFonts ()
     root->repaint ();
 
   saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode });
+               AppSettings{ _clockMode, _automationMode });
 }
 
 juce::File

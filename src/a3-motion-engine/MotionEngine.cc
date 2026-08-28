@@ -307,6 +307,18 @@ MotionEngine::setRecordingMode (RecordingMode recordingMode)
   submitFifoMessage (message);
 }
 
+void
+MotionEngine::setAutomationMode (AutomationMode mode)
+{
+  _automationMode.store (mode, std::memory_order_relaxed);
+}
+
+AutomationMode
+MotionEngine::getAutomationMode () const
+{
+  return _automationMode.load (std::memory_order_relaxed);
+}
+
 MotionEngine::RecordingMode
 MotionEngine::getRecordingMode () const
 {
@@ -659,6 +671,16 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
   _recordingPosition2D = Pos::invalid;
   _recordingStarted = _now;
   _recordingProgress.store (0.f);
+
+  // Write starts overwriting from its first tick, before anything has been
+  // touched, so it needs something to write: where the blob stands as the take
+  // begins. Touch and Latch never reach for this.
+  _recordingHasTouched = false;
+  auto const startPosition = _channels[pattern->getChannel ()]->getPosition ();
+  _recordingHeldPosition2D
+      = startPosition.isValid ()
+            ? _heightMap.mapTo2D (startPosition, pattern->getElevationParams ())
+            : Pos::invalid;
   _patternRecording->setStatus (Pattern::Status::Recording);
 
   // Clear scheduled flag only if this pattern was scheduled
@@ -759,14 +781,27 @@ MotionEngine::performRecording ()
       // inverse of the mapTo3D playback uses — see
       // HeightMapSphere.MapTo2DRoundTripLeavesAPositionWhereItWas.
       auto const params = _patternRecording->getElevationParams ();
-      if (_recordingPosition.isValid ())
-        _recordingPosition2D = _heightMap.mapTo2D (_recordingPosition, params);
+      auto const fingerDown = _recordingPosition.isValid ();
 
-      if (_recordingPosition2D.isValid ())
+      if (fingerDown)
+        {
+          _recordingPosition2D = _heightMap.mapTo2D (_recordingPosition, params);
+          _recordingHeldPosition2D = _recordingPosition2D;
+          _recordingHasTouched = true;
+        }
+
+      // With the finger up, Latch and Write carry on writing where it was left
+      // — or, in Write before it was ever put down, where the take started.
+      auto const positionToWrite
+          = fingerDown ? _recordingPosition2D : _recordingHeldPosition2D;
+
+      if (shouldWriteTick (_automationMode.load (std::memory_order_relaxed),
+                           fingerDown, _recordingHasTouched)
+          && positionToWrite.isValid ())
         for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
           {
             auto const tick = (baseIndex + slot) % ticksPatternLength;
-            _patternRecording->setTick (tick, _recordingPosition2D);
+            _patternRecording->setTick (tick, positionToWrite);
           }
 
       if (_recordingPosition.isValid ())

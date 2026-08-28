@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/AutomationMode.hh>
 #include <a3-motion-ui/SettingsPersistence.hh>
 
 using namespace a3;
@@ -65,6 +66,40 @@ TEST (SettingsPersistence, RoundTripsThroughSaveAndLoad)
 
   auto const loaded = loadSettings (file);
   EXPECT_EQ (loaded.clockMode, original.clockMode);
+
+  file.deleteFile ();
+}
+
+
+// The automation mode is a device setting, not an appearance one, so it lives
+// here beside clockMode rather than in the skin.
+TEST (SettingsPersistence, TheAutomationModeSurvivesARestart)
+{
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-automation-settings.json");
+  file.deleteFile ();
+
+  AppSettings settings;
+  settings.automationMode = AutomationMode::Write;
+  saveSettings (file, settings);
+
+  EXPECT_EQ (loadSettings (file).automationMode, AutomationMode::Write);
+  file.deleteFile ();
+}
+
+// A file written before this setting existed must not change how the device
+// records. Touch is what it has always done.
+TEST (SettingsPersistence, AFileWithoutOneRecordsAsBefore)
+{
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-automation-legacy.json");
+  file.replaceWithText ("{\"clockMode\": 2}");
+
+  auto const settings = loadSettings (file);
+  EXPECT_EQ (settings.clockMode, 2);
+  EXPECT_EQ (settings.automationMode, AutomationMode::Touch);
 
   file.deleteFile ();
 }
