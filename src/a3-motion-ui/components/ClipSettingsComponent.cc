@@ -167,6 +167,63 @@ ClipSettingsComponent::setMotionEndAction (int endAction)
 }
 
 void
+ClipSettingsComponent::setPatternProgress (std::vector<bool> written,
+                                           int divisions, float headFraction)
+{
+  _patternWritten = std::move (written);
+  _patternDivisions = juce::jmax (1, divisions);
+  _patternHeadFraction = headFraction;
+  repaint ();
+}
+
+void
+ClipSettingsComponent::paintPatternBar (juce::Graphics &g,
+                                        juce::Rectangle<int> bounds,
+                                        bool isSelected) const
+{
+  auto const bar = bounds.toFloat ();
+
+  g.setColour (toColour (theme ().textPrimary, 0.12f));
+  g.fillRoundedRectangle (bar, 2.f);
+
+  // Which ticks hold something. While a take runs this is what the finger has
+  // written so far; afterwards every tick holds something, so the bar fills.
+  if (!_patternWritten.empty ())
+    {
+      auto const perTick = bar.getWidth ()
+                           / static_cast<float> (_patternWritten.size ());
+      g.setColour (controlColour (isSelected));
+
+      for (std::size_t tick = 0; tick < _patternWritten.size (); ++tick)
+        {
+          if (!_patternWritten[tick])
+            continue;
+
+          g.fillRect (bar.getX () + static_cast<float> (tick) * perTick,
+                      bar.getY (), juce::jmax (1.f, perTick),
+                      bar.getHeight ());
+        }
+    }
+
+  // The metre, so a glance says how far in rather than how far along.
+  g.setColour (toColour (theme ().surface, 0.6f));
+  for (int division = 1; division < _patternDivisions; ++division)
+    {
+      auto const x = bar.getX ()
+                     + bar.getWidth () * static_cast<float> (division)
+                           / static_cast<float> (_patternDivisions);
+      g.fillRect (x, bar.getY (), 1.f, bar.getHeight ());
+    }
+
+  if (_patternHeadFraction >= 0.f)
+    {
+      g.setColour (toColour (theme ().accent));
+      g.fillRect (bar.getX () + bar.getWidth () * _patternHeadFraction,
+                  bar.getY () - 1.f, 2.f, bar.getHeight () + 2.f);
+    }
+}
+
+void
 ClipSettingsComponent::setMotionSeamMode (int mode)
 {
   _motionSeamMode = juce::jlimit (0, 1, mode);
@@ -467,6 +524,12 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
 
   auto nameArea
       = content.removeFromBottom (textRowHeight (content, metrics.valueSize));
+
+  // Between the pictogram and the name: what is in the slot, laid out in time.
+  auto barArea = content.removeFromBottom (
+      juce::jmax (4, textRowHeight (content, metrics.valueSize) / 3));
+  paintPatternBar (g, barArea.reduced (2, 1), isSelected);
+  content.removeFromBottom (2);
 
   // Pictogram, centred in whatever square area is left above the name.
   auto const iconSize = static_cast<float> (

@@ -142,6 +142,16 @@ public:
   void setRecordLength (juce::String const &label);
   void setTrajectorySubIndex (int subIndex);
 
+  /** What the bar under the pictogram shows: which ticks of the pattern hold
+   *  something, how the length divides, and where the write head is while a
+   *  take is running (negative when none is).
+   *
+   *  The bar answers "how far am I", which the sphere cannot — there the
+   *  passes lie on top of each other and a path crossing itself is no longer
+   *  two things. Here time is the axis. */
+  void setPatternProgress (std::vector<bool> written, int divisions,
+                           float headFraction);
+
   /** Filter section values, both unipolar (0..1). */
   void setFilterSweep (float sweep);
   void setFilterQ (float q);
@@ -208,6 +218,11 @@ private:
    *  of a section's height goes to its controls, not this label. */
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
                           juce::String const &text, bool isSelected);
+
+  /** The strip under the pictogram: what the pattern holds, its metre, and the
+   *  write head while a take runs. */
+  void paintPatternBar (juce::Graphics &g, juce::Rectangle<int> bounds,
+                        bool isSelected) const;
   /** Fixed-size (knobDiam wide, tall enough for label + optional value
    *  text above), centred within `cell` — every knob/toggle across every
    *  section is given bounds built this way, so they all render at
@@ -288,6 +303,9 @@ private:
   int _motionSeamMode = 0;
   int _trajectorySubIndex = 0;
   juce::String _recordLengthLabel { "1" };
+  std::vector<bool> _patternWritten;
+  int _patternDivisions = 1;
+  float _patternHeadFraction = -1.f;
   float _filterSweep = 0.0f;
   float _filterQ = 0.0f;
   int _filterSubIndex = 0;

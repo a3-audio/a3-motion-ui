@@ -28,6 +28,7 @@
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/PlaybackRate.hh>
 #include <a3-motion-engine/RecordingSeam.hh>
+#include <a3-motion-ui/components/PatternProgressBar.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
@@ -135,8 +136,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   applyClockMode (loadSettings (getPersistedSettingsFile ()).clockMode);
 
 
-  // Start directory monitor: check for new/changed SVG files every 2 seconds
-  startTimer (2000);
+  // Fast enough for the write head to move while a take runs; the directory
+  // check inside keeps its old two-second pace by counting ticks.
+  startTimer (50);
 
   _engine.addPatternStatusListener (this);
   _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
@@ -1586,6 +1588,15 @@ A3MotionUIComponent::refreshAllPadRowLabels ()
 void
 A3MotionUIComponent::timerCallback ()
 {
+  // While a take runs, the bar under the pictogram fills and its write head
+  // moves. Only then — the rest of the time nothing here changes on its own.
+  if (_engine.isRecording ())
+    updateClipSettingsDisplay ();
+
+  // Every fortieth tick, which is the two seconds this used to run at.
+  if (++_timerTick % 40 != 0)
+    return;
+
   // Periodically check if pattern directories have changed
   auto fp = _patternLibrary->getDirectoryFingerprint ();
   if (fp != _lastLibraryFingerprint)
@@ -2561,6 +2572,23 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
           : "1/"
                 + juce::String (static_cast<int> (
                     std::exp2 (-params.recordLengthLog2))));
+  // The bar under the pictogram: what the pattern holds, laid out in time.
+  // While a take runs this shows it filling; afterwards it stands as the
+  // length. The write head is the recording's own play position.
+  {
+    auto const &pattern = _patterns[channel][slot];
+    auto const recording = _engine.getRecordingPattern ();
+    auto const isRecordingThis
+        = recording != nullptr && recording == pattern
+          && _engine.isRecording ();
+
+    _clipSettings->setPatternProgress (
+        pattern ? pattern->writtenTicks () : std::vector<bool>{},
+        progressBarDivisions (getPatternLengthBeats (channel, slot),
+                              _engine.getBeatsPerBar ()),
+        isRecordingThis && pattern ? pattern->getPlayPosition () : -1.f);
+  }
+
   _clipSettings->setTrajectorySubIndex (
       _clipSettingsMenuIndex == ClipSettingsComponent::trajectoryIndex
           ? _clipSettingsSubIndex

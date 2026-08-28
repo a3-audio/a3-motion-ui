@@ -80,6 +80,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/SkinEditorComponent.hh
     components/GlobalSettingsComponent.hh
     components/ClipSettingsCaptions.cc
+    components/PatternProgressBar.cc
+    components/PatternProgressBar.hh
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh
     ConfigFileWatcher.cc

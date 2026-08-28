@@ -372,6 +372,8 @@ private:
    *  old one back. */
   std::optional<std::pair<index_t, index_t> > _recordingSlot;
   std::shared_ptr<Pattern> _patternBeforeRecording;
+  /** Counts the 50 ms timer, so the directory check keeps its old pace. */
+  int _timerTick = 0;
 
   /** Finish the running recording: close what it never wrote, keep it or throw
    *  it away, and carry on playing. */
