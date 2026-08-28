@@ -157,9 +157,13 @@ SkinEditorComponent::finishNaming ()
       // A parameter, not the document's own name.
       if (_typingNumber)
         {
+          // The same range the encoder is held to. Typing is the other way in,
+          // and a bound only one of them respects is not a bound.
           auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
-          setSkinValue (_skin, path, typed.getDoubleValue (),
-                        parameter.isWholeNumber);
+          setSkinValue (
+              _skin, path,
+              clampSkinValue (_skin, path, typed.getDoubleValue ()),
+              parameter.isWholeNumber);
         }
       else
         setSkinText (_skin, path, typed);
@@ -216,7 +220,12 @@ SkinEditorComponent::navigate (int delta)
                        parameter.isWholeNumber,
                        isColourChannelPath (parameter.path));
 
-  setSkinValue (_skin, parameter.path, stepped, parameter.isWholeNumber);
+  // Held inside whatever range this value has one. In the menu these were
+  // named steps and could not fall out of range; as free numbers in the
+  // editor they lost that, which is how fontBody became turnable down to 0.01.
+  setSkinValue (_skin, parameter.path,
+                clampSkinValue (_skin, parameter.path, stepped),
+                parameter.isWholeNumber);
   repaint ();
 
   if (onValueChanged)

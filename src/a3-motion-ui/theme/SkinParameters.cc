@@ -20,6 +20,8 @@
 
 #include "SkinParameters.hh"
 
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
+
 #include <algorithm>
 #include <cmath>
 
@@ -297,6 +299,43 @@ withKeysReplaced (juce::var const &document, juce::var const &edited,
     }
 
   return juce::var (merged);
+}
+
+double
+clampSkinValue (juce::var const &skin, juce::String const &path, double value)
+{
+  // Derived from each value's own default, so the ranges keep their
+  // proportions if a default ever moves: roughly half up to about 1.75x.
+  if (path == "fontBody")
+    return juce::jlimit (7.8, 26.0, value);
+
+  if (path == "fontHeader")
+    return juce::jlimit (9.4, 31.2, value);
+
+  if (path == "potSize")
+    return juce::jlimit (0.5, 2.0, value);
+
+  if (path == "sphereScale")
+    {
+      // Not a fixed ceiling: the sphere may grow until the speaker icons run
+      // off the screen, and that point moves with speakerRadius. Walking down
+      // from the request keeps the answer honest even if the geometry changes,
+      // without this function having to restate it.
+      auto const speakerRadius = static_cast<float> (
+          skinValue (skin, "speakerLight.speakerRadius"));
+      if (speakerRadius <= 0.f)
+        return juce::jmax (0.3, value);
+
+      auto capped = juce::jmax (0.3, value);
+      while (capped > 0.3
+             && !speakerIconsFitOnScreen (static_cast<float> (capped),
+                                          speakerRadius))
+        capped -= 0.01;
+
+      return capped;
+    }
+
+  return value;
 }
 
 }

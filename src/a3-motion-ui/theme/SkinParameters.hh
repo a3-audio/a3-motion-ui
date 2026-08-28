@@ -77,6 +77,22 @@ juce::String skinText (juce::var const &skin, juce::String const &path);
 void setSkinText (juce::var &skin, juce::String const &path,
                   juce::String const &text);
 
+/** `value` held inside whatever range its path has one.
+ *
+ *  The values that used to be menu rows — the two font sizes, the pot size,
+ *  the sphere's scale — offered named steps there and could not fall out of
+ *  their range. In the editor every value is a free number, so the guard rails
+ *  had to come along; they were lost in the move, not dropped on purpose.
+ *
+ *  Takes the whole skin because one of the ranges is not a number but a
+ *  consequence: the sphere may grow until the speaker icons would be clipped,
+ *  and where that is depends on speakerRadius, which is itself a skin value.
+ *
+ *  A path with no range is returned untouched — a tuning number nobody has
+ *  reasoned about must not silently acquire one. */
+double clampSkinValue (juce::var const &skin, juce::String const &path,
+                       double value);
+
 /** Whether a path names one of a colour's three channels. */
 bool isColourChannelPath (juce::String const &path);
 

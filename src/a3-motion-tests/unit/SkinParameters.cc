@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/theme/SkinParameters.hh>
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
 using namespace a3;
 
@@ -355,4 +356,71 @@ TEST (ConfigPage, ADocumentThatIsNotAnObjectComesBackUnchanged)
       = withKeysReplaced (juce::var (42), juce::var (), { "buttonLeds" });
 
   EXPECT_EQ ((int)merged, 42);
+}
+
+// ── Grenzen für die Werte, die einmal Menüzeilen waren ──────────────────
+//
+// Im Menü boten sie benannte Stufen an und konnten gar nicht aus dem Rahmen
+// fallen. Im Skin-Editor ist jeder Wert eine freie Zahl — `fontBody` liess
+// sich auf 0.01 herunterdrehen und ins Absurde hinauf. Die Schutzgeländer sind
+// beim Umzug verlorengegangen, nicht bewusst entfernt worden.
+
+TEST (SkinClamp, TheBodyFontStaysReadableAndFitsTheBar)
+{
+  auto const skin = parse (R"({ "fontBody": 15.0 })");
+
+  EXPECT_NEAR (clampSkinValue (skin, "fontBody", 0.01), 7.8, 0.001);
+  EXPECT_NEAR (clampSkinValue (skin, "fontBody", 500.0), 26.0, 0.001);
+  EXPECT_NEAR (clampSkinValue (skin, "fontBody", 15.0), 15.0, 0.001);
+}
+
+TEST (SkinClamp, TheHeaderFontKeepsTheSameProportions)
+{
+  auto const skin = parse (R"({ "fontHeader": 18.0 })");
+
+  EXPECT_NEAR (clampSkinValue (skin, "fontHeader", 0.0), 9.4, 0.001);
+  EXPECT_NEAR (clampSkinValue (skin, "fontHeader", 500.0), 31.2, 0.001);
+}
+
+TEST (SkinClamp, PotSizeStaysAFactorAroundOne)
+{
+  auto const skin = parse (R"({ "potSize": 1.0 })");
+
+  EXPECT_NEAR (clampSkinValue (skin, "potSize", -3.0), 0.5, 0.001);
+  EXPECT_NEAR (clampSkinValue (skin, "potSize", 9.0), 2.0, 0.001);
+}
+
+// The sphere's ceiling is not a number but a consequence: past it the speaker
+// icons are clipped, and the shipped-skin guard in the test suite goes red.
+// It moves with speakerRadius, which is itself a skin value — so the clamp has
+// to see the skin, not just the number.
+TEST (SkinClamp, TheSphereStopsWhereTheSpeakerIconsWouldBeClipped)
+{
+  auto const skin = parse (R"({ "speakerLight": { "speakerRadius": 1.4 } })");
+
+  auto const capped = clampSkinValue (skin, "sphereScale", 2.0);
+  EXPECT_TRUE (speakerIconsFitOnScreen ((float)capped, 1.4f))
+      << "clamped to " << capped;
+  EXPECT_GT (capped, 0.8) << "and not further than it has to";
+
+  EXPECT_NEAR (clampSkinValue (skin, "sphereScale", 0.0), 0.3, 0.001);
+}
+
+TEST (SkinClamp, PullingTheSpeakersInLetsTheSphereGrow)
+{
+  auto const tight = parse (R"({ "speakerLight": { "speakerRadius": 1.4 } })");
+  auto const roomy = parse (R"({ "speakerLight": { "speakerRadius": 1.0 } })");
+
+  EXPECT_GT (clampSkinValue (roomy, "sphereScale", 2.0),
+             clampSkinValue (tight, "sphereScale", 2.0));
+}
+
+// Everything else is free. A tuning number nobody has reasoned about a range
+// for must not silently acquire one.
+TEST (SkinClamp, AnUnlistedValueIsLeftAlone)
+{
+  auto const skin = parse (R"({ "corona": { "sizeMin": 0.95 } })");
+
+  EXPECT_NEAR (clampSkinValue (skin, "corona.sizeMin", 42.0), 42.0, 0.001);
+  EXPECT_NEAR (clampSkinValue (skin, "corona.sizeMin", -5.0), -5.0, 0.001);
 }
