@@ -270,6 +270,14 @@ private:
   /** Takes the menu row's index, not a mode: the row offers a list, and the
    *  list's order is the only thing that turns one into the other. */
   void  applyRecMode (int index);
+
+  /** Put a skin in force by name, refreshing the list first — a skin that was
+   *  only just written is not in it yet. */
+  void  applySkinNamed (juce::String const &name);
+
+  /** Put every value of the skin being edited back to the shipped default,
+   *  keeping its name. */
+  void  resetEditedSkinToDefault ();
   /** The picker behind a colour row: HSL to reach it, r/g/b in the file. */
   void  openColourPicker (juce::String const &path);
   void  closeColourPicker ();

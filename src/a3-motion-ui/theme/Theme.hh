@@ -168,6 +168,20 @@ juce::StringArray availableSkins (juce::File const &configDir);
 /** Which skin the config file names, "default" when it names none. */
 juce::String activeSkinName (juce::File const &configFile);
 
+/** The name of the skin that edits to `edited` are written to.
+ *
+ *  The shipped default is never written. It is what "reset" restores from and
+ *  what a device that has been dialled into a corner is brought back to, and
+ *  neither works if it can be overwritten. Editing it therefore branches off:
+ *  the changes land in a skin of their own, which then becomes the active one.
+ *
+ *  Every other name is its own. */
+juce::String skinNameToWriteTo (juce::String const &edited);
+
+/** The skin that must never be written, and the one a branch lands in. */
+constexpr char const *protectedSkinName = "default";
+constexpr char const *branchedSkinName = "custom";
+
 /** Point the config file at another skin, and nothing else.
  *
  *  Only the value is rewritten — config.json is hand-maintained, and its

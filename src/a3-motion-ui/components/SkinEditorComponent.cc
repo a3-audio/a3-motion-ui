@@ -98,7 +98,7 @@ void
 SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
                                   bool withSkinActions, Numbers numbers)
 {
-  _actionRows = withSkinActions ? 4 : 0;
+  _actionRows = withSkinActions ? 5 : 0;
   _numbers = numbers;
   _skin = std::move (document);
   _name = title;
@@ -132,7 +132,8 @@ SkinEditorComponent::browsedRow () const
     case 0: return Row::Save;
     case 1: return Row::SaveAsNew;
     case 2: return Row::Rename;
-    default: return Row::Delete;
+    case 3: return Row::Delete;
+    default: return Row::Reset;
     }
 }
 
@@ -278,6 +279,14 @@ SkinEditorComponent::toggleEditing ()
       _deleteAsked = false;
       if (onDelete)
         onDelete ();
+      return;
+
+    case Row::Reset:
+      // Not asked twice, unlike Delete: this destroys nothing that cannot be
+      // dialled back in, and it is the way out of a skin nobody can read any
+      // more.
+      if (onReset)
+        onReset ();
       return;
 
     case Row::Parameter:
@@ -426,7 +435,8 @@ SkinEditorComponent::rowLabel (int index) const
     case 0: return juce::String::fromUTF8 ("\xc2\xbb Save");
     case 1: return juce::String::fromUTF8 ("\xc2\xbb Save as new");
     case 2: return juce::String::fromUTF8 ("\xc2\xbb Rename");
-    default: return juce::String::fromUTF8 ("\xc2\xbb Delete");
+    case 3: return juce::String::fromUTF8 ("\xc2\xbb Delete");
+    default: return juce::String::fromUTF8 ("\xc2\xbb Reset");
     }
 }
 

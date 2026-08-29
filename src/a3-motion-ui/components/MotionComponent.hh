@@ -265,7 +265,13 @@ private:
 
   void uploadEnergyMap ();
 
+public:
+  /** Take a skin's visual values as they stand — the same door the file
+   *  watcher comes through, so the editor can show a change while it is being
+   *  made rather than after the file is written. */
   void applyVisualConfig (juce::var const &config);
+
+private:
   void applyTheme (juce::var const &skin);
   void reloadVisualConfigIfChanged ();
 

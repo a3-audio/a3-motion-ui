@@ -145,6 +145,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _skinEditor->onSave = [this] { saveEditedSkin (); };
   _skinEditor->onSaveAsNew = [this] { saveSkinAsNew (); };
   _skinEditor->onRename = [this] (auto const &name) { renameEditedSkin (name); };
+  _skinEditor->onReset = [this] { resetEditedSkinToDefault (); };
   _skinEditor->onDelete = [this] { deleteEditedSkin (); };
 
   // The keyboard is Onboard, the system's own — see io/OnScreenKeyboard.hh.
@@ -1997,6 +1998,33 @@ A3MotionUIComponent::applyClockMode (int mode)
 
 
 void
+A3MotionUIComponent::resetEditedSkinToDefault ()
+{
+  auto const source = skinFile (getConfigFile ().getParentDirectory (),
+                                protectedSkinName);
+  auto const restored = juce::JSON::parse (source.loadFileAsString ());
+  if (!restored.isObject ())
+    return;
+
+  // Under the name it already had: the skin is put right, not replaced. What
+  // is on screen changes at once; the file follows when the editor is left,
+  // like every other edit here.
+  _skinEditor->setSkin (restored, _skinEditor->getSkinName ());
+  applyEditedSkin ();
+}
+
+void
+A3MotionUIComponent::applySkinNamed (juce::String const &name)
+{
+  _skinNames = availableSkins (getConfigFile ().getParentDirectory ());
+  auto const index = _skinNames.indexOf (name);
+  if (index < 0)
+    return;
+
+  applySkin (index);
+}
+
+void
 A3MotionUIComponent::openSkinEditor ()
 {
   if (_skinEditorOpen)
@@ -2296,12 +2324,14 @@ A3MotionUIComponent::applyEditedSkin ()
   // editor while the encoder is still turning. The file follows on close.
   auto const edited = _skinEditor->getSkin ();
 
-  // The sphere's size is not a theme colour — MotionComponent reads it from
-  // the skin file — so it needs its own way through, or it would be the one
-  // value in the editor that waits for the file watcher.
-  if (_motionComponent != nullptr && edited.hasProperty ("sphereScale"))
-    _motionComponent->setSphereScalePreview (
-        static_cast<float> (edited["sphereScale"]));
+  // Everything the sphere reads from a skin, handed over the way the file
+  // watcher hands it over — corona, glow, speaker light, the energy net, blob
+  // and sphere size, the recording underlay. Only sphereScale used to come
+  // through here, so every other one of those values sat unchanged while its
+  // encoder turned and only appeared once the editor was closed. A value you
+  // cannot see while you set it is a value you are setting blind.
+  if (_motionComponent != nullptr)
+    _motionComponent->applyVisualConfig (edited);
 
   juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
   auto const loaded = loadTheme (edited);
@@ -2314,14 +2344,23 @@ A3MotionUIComponent::applyEditedSkin ()
 void
 A3MotionUIComponent::saveEditedSkin ()
 {
-  auto const file = skinFile (getConfigFile ().getParentDirectory (),
-                              _skinEditor->getSkinName ());
+  auto const edited = _skinEditor->getSkinName ();
+  auto const target = skinNameToWriteTo (edited);
+
+  auto const file
+      = skinFile (getConfigFile ().getParentDirectory (), target);
 
   // Rewritten whole, unlike config.json: a skin file is this editor's own
   // output, and its shape is generated rather than hand-arranged.
   file.replaceWithText (
       juce::JSON::toString (_skinEditor->getSkin (), false) + "\n", false,
       false, "\n");
+
+  // The edits branched off the default, so the skin they landed in is the one
+  // that should now be in force -- otherwise they would be written and then
+  // immediately not shown.
+  if (target != edited)
+    applySkinNamed (target);
 }
 
 

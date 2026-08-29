@@ -318,4 +318,10 @@ loadTheme (juce::var const &skin)
   return theme;
 }
 
+juce::String
+skinNameToWriteTo (juce::String const &edited)
+{
+  return edited == protectedSkinName ? branchedSkinName : edited;
+}
+
 }

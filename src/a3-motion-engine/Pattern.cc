@@ -205,6 +205,11 @@ void
 Pattern::setPlayDirection (PlayDirection direction)
 {
   _playDirection.store (direction, std::memory_order_relaxed);
+
+  // And which way it is travelling right now, so choosing a direction turns a
+  // clip that is already playing rather than waiting for the next start. Only
+  // Bounce moves the two apart, and it does that as it goes.
+  _playSign.store (initialSign (direction), std::memory_order_relaxed);
 }
 
 EndAction

@@ -182,4 +182,20 @@ TEST_F (SkinFilesTest, TheLastSkinCannotBeDeleted)
   EXPECT_TRUE (exists ("default"));
 }
 
+// The shipped default is what "reset" restores from and what a device dialled
+// into a corner is brought back to. Neither works if editing can overwrite it,
+// so edits to it branch off into a skin of their own.
+TEST (SkinFiles, EditingTheDefaultBranchesOff)
+{
+  EXPECT_EQ (skinNameToWriteTo ("default"), "custom");
+}
+
+TEST (SkinFiles, EveryOtherSkinIsWrittenWhereItCameFrom)
+{
+  EXPECT_EQ (skinNameToWriteTo ("mono"), "mono");
+  EXPECT_EQ (skinNameToWriteTo ("neutral"), "neutral");
+  EXPECT_EQ (skinNameToWriteTo ("custom"), "custom")
+      << "a branch that has already happened does not branch again";
+}
+
 }

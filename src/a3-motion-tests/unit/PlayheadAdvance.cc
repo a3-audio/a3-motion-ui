@@ -20,6 +20,7 @@
 
 #include <gtest/gtest.h>
 
+#include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/Playhead.hh>
 
 using namespace a3;
@@ -138,6 +139,22 @@ TEST (PlayheadAdvance, AHugeStepStaysInsideTheLoop)
       EXPECT_GE (next.position, 0.f);
       EXPECT_LT (next.position, 1.f);
     }
+}
+
+// Choosing a direction has to turn a clip that is already playing. The sign
+// used to be set only when playback started, so a clip kept running the way it
+// had set off until it was stopped and started again.
+TEST (PlayheadAdvance, ChoosingADirectionTurnsAClipAtOnce)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setPlaySign (1.f);
+
+  pattern.setPlayDirection (PlayDirection::Reverse);
+  EXPECT_FLOAT_EQ (pattern.getPlaySign (), -1.f);
+
+  pattern.setPlayDirection (PlayDirection::Forward);
+  EXPECT_FLOAT_EQ (pattern.getPlaySign (), 1.f);
 }
 
 }

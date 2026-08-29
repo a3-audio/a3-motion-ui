@@ -98,6 +98,9 @@ public:
     SaveAsNew,
     Rename,
     Delete,
+    /** Put every value back to what the shipped default holds, keeping the
+     *  skin's own name. The way out of a skin dialled into a corner. */
+    Reset,
     Parameter,
   };
 
@@ -117,6 +120,7 @@ public:
   std::function<void ()> onSave;
   std::function<void ()> onSaveAsNew;
   std::function<void ()> onDelete;
+  std::function<void ()> onReset;
 
   /** Asked when a rename is finished, with the typed name. */
   std::function<void (juce::String const &)> onRename;
