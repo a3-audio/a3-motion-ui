@@ -309,19 +309,15 @@ A3MotionUIComponent::createChannelsUI ()
   _channelUIStates.reserve (numChannels);
   _channelStrips.reserve (numChannels);
 
-  // Read optional per-channel colours from config
-  // Channel colours are part of the look, so they live in the skin.
-  auto const skinVar = loadActiveSkinVar (getConfigFile (), userConfig);
-  auto const &channelsCfg = skinVar["channels"];
-
   for (auto channel = 0u; channel < numChannels; ++channel)
     {
       auto uiState = std::make_unique<ChannelUIState> ();
 
-      // Straight from the theme, which parsed the very same skin file. This
-      // used to read `channels` out of the skin var a second time, by hand,
-      // with a grey fallback of its own — two parsers for one array, and only
-      // one of them knew what a channel's colour is when the skin omits it.
+      // Straight from the theme, which has already parsed the skin file. This
+      // used to read `channels` out of the skin a second time, by hand, with a
+      // grey fallback of its own — two parsers for one array, and only one of
+      // them knew what a channel's colour is when the skin omits it. The
+      // second parse went; the skin it was loading for went with it.
       if (static_cast<int> (channel) < numThemeChannels)
         uiState->colour = toColour (theme ().channel[channel]);
       else

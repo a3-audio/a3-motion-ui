@@ -106,7 +106,6 @@ uniform float uSpotLevel3;
 uniform vec3  uSpotColour;
 uniform float uSpeakerRadius;
 uniform float uBeamEdge;       // fraction of the half-width that stays flat
-uniform float uBeamFalloff;
 uniform float uBeamIntensity;
 uniform float uApertureAngle;  // half-angle of the band where it leaves the horn
 uniform float uWrapAngle;      // and where it meets the sphere — 45 closes the circle
@@ -132,9 +131,7 @@ uniform float uBoltReach;      // how far an escaping one carries
 uniform float uBoltEscape;     // how many of them escape
 uniform float uBoltBranches;   // branches per bolt
 uniform float uBoltBranch;     // how hard a branch leaves its trunk
-uniform float uApertureHalf;   // half-width of the horn's mouth
 uniform float uMouthOffset;    // mouth position ahead of the speaker centre
-uniform float uBeamReach;      // how far past the mouth the stub carries
 
 // Energy arriving from each direction, folded into an equirectangular map by
 // EnergyMap.cc from the IEM EnergyVisualizer's 426 points
@@ -688,7 +685,6 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uSpotColour    = glGetUniformLocation (pid, "uSpotColour");
   _uSpeakerRadius = glGetUniformLocation (pid, "uSpeakerRadius");
   _uBeamEdge      = glGetUniformLocation (pid, "uBeamEdge");
-  _uBeamFalloff   = glGetUniformLocation (pid, "uBeamFalloff");
   _uBeamIntensity = glGetUniformLocation (pid, "uBeamIntensity");
   _uApertureAngle = glGetUniformLocation (pid, "uApertureAngle");
   _uWrapAngle = glGetUniformLocation (pid, "uWrapAngle");
@@ -714,9 +710,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBoltBranch = glGetUniformLocation (pid, "uBoltBranch");
   _uBeamBleed = glGetUniformLocation (pid, "uBeamBleed");
   _uBeamFloor = glGetUniformLocation (pid, "uBeamFloor");
-  _uApertureHalf  = glGetUniformLocation (pid, "uApertureHalf");
   _uMouthOffset   = glGetUniformLocation (pid, "uMouthOffset");
-  _uBeamReach     = glGetUniformLocation (pid, "uBeamReach");
   _uEnergyMap       = glGetUniformLocation (pid, "uEnergyMap");
   _uEnergyColour    = glGetUniformLocation (pid, "uEnergyColour");
   _uEnergyIntensity = glGetUniformLocation (pid, "uEnergyIntensity");
@@ -843,8 +837,6 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform1f (_uSpeakerRadius, _spotCfg.speakerRadius);
   if (_uBeamEdge >= 0)
     glUniform1f (_uBeamEdge, _spotCfg.edgeSoftness);
-  if (_uBeamFalloff >= 0)
-    glUniform1f (_uBeamFalloff, _spotCfg.beamFalloff);
   if (_uBeamIntensity >= 0)
     glUniform1f (_uBeamIntensity, _spotCfg.beamIntensity);
   if (_uApertureAngle >= 0) glUniform1f (_uApertureAngle, _spotCfg.apertureAngle);
@@ -871,12 +863,8 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uBoltEscape >= 0) glUniform1f (_uBoltEscape, _spotCfg.boltEscape);
   if (_uBoltBranches >= 0) glUniform1f (_uBoltBranches, _spotCfg.boltBranches);
   if (_uBoltBranch >= 0) glUniform1f (_uBoltBranch, _spotCfg.boltBranch);
-  if (_uApertureHalf >= 0)
-    glUniform1f (_uApertureHalf, speakerApertureHalfWidth);
   if (_uMouthOffset >= 0)
     glUniform1f (_uMouthOffset, speakerMouthOffset);
-  if (_uBeamReach >= 0)
-    glUniform1f (_uBeamReach, _spotCfg.reach);
 
   // Energy map and net
   if (_uEnergyColour >= 0)

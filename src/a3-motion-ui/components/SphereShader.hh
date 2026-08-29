@@ -111,9 +111,7 @@ public:
     float curve = 0.4f;
     float speakerRadius = 1.55f;
     float edgeSoftness = 0.7f;
-    float beamFalloff = 0.6f;
     float beamIntensity = 0.8f;
-    float reach = 0.25f; // how far past the mouth the stub carries
     float apertureAngle = 6.f; // half-angle where the band leaves the horn
     float wrapAngle = 45.f;    // and where it meets the sphere
     float wander = 14.f;       // degrees the centre line wanders
@@ -202,7 +200,6 @@ private:
   GLint _uSpotColour = -1;
   GLint _uSpeakerRadius = -1;
   GLint _uBeamEdge = -1;
-  GLint _uBeamFalloff = -1;
   GLint _uBeamIntensity = -1;
   GLint _uApertureAngle = -1;
   GLint _uWrapAngle = -1;
@@ -232,9 +229,7 @@ private:
   GLint _uBoltEscape = -1;
   GLint _uBoltBranches = -1;
   GLint _uBoltBranch = -1;
-  GLint _uApertureHalf = -1;
   GLint _uMouthOffset = -1;
-  GLint _uBeamReach = -1;
 
   GLint _uEnergyMap = -1;
   GLint _uEnergyColour = -1;

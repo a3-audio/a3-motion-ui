@@ -867,7 +867,6 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.speakerRadius = cfgF (sl, "speakerRadius", 1.55f);
     sc.edgeSoftness = cfgF (sl, "edgeSoftness", 0.7f);
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
-    sc.reach = cfgF (sl, "reach", 0.25f);
     sc.apertureAngle = cfgF (sl, "apertureAngle", 6.f);
     sc.wrapAngle = cfgF (sl, "wrapAngle", 45.f);
     sc.wander = cfgF (sl, "wander", 14.f);
