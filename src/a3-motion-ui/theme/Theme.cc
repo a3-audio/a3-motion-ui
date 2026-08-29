@@ -136,7 +136,8 @@ loadActiveSkinVar (juce::File const &configFile, juce::var const &config)
   if (!file.existsAsFile ())
     return {};
 
-  return juce::JSON::parse (file.loadFileAsString ());
+  // Every skin passes through the rename on the way in, wherever it came from.
+  return migrateSkinNames (juce::JSON::parse (file.loadFileAsString ()));
 }
 
 juce::StringArray
@@ -288,7 +289,7 @@ loadTheme (juce::var const &skin)
   colour ("sphereRim", theme.sphereRim);
   colour ("sphereEnvironment", theme.sphereEnvironment);
   colour ("boltCore", theme.boltCore);
-  colour ("sphereGlow", theme.sphereGlow);
+  colour ("background", theme.sphereGlow);
   colour ("speakerLight", theme.speakerLight);
   colour ("energy", theme.energy);
 
@@ -307,7 +308,8 @@ loadTheme (juce::var const &skin)
   theme.alphaInactive = themeFloat (skin, "alphaInactive", theme.alphaInactive);
 
   theme.sphereScale = themeFloat (skin, "sphereScale", theme.sphereScale);
-  theme.blobScale = themeFloat (skin, "blobScale", theme.blobScale);
+  theme.blobScale
+      = themeFloat (skin["blob"], "scale", theme.blobScale);
   theme.strokeThin = themeFloat (skin, "strokeThin", theme.strokeThin);
   theme.strokeThick = themeFloat (skin, "strokeThick", theme.strokeThick);
 
@@ -322,6 +324,55 @@ juce::String
 skinNameToWriteTo (juce::String const &edited)
 {
   return edited == protectedSkinName ? branchedSkinName : edited;
+}
+
+juce::var
+migrateSkinNames (juce::var const &skin)
+{
+  auto *object = skin.getDynamicObject ();
+  if (object == nullptr)
+    return skin;
+
+  auto *migrated = new juce::DynamicObject ();
+  for (auto const &property : object->getProperties ())
+    migrated->setProperty (property.name, property.value);
+
+  juce::var result (migrated);
+
+  auto const renameGroup
+      = [migrated] (juce::Identifier const &from, juce::Identifier const &to) {
+          if (!migrated->hasProperty (from))
+            return;
+          if (!migrated->hasProperty (to))
+            migrated->setProperty (to, migrated->getProperty (from));
+          migrated->removeProperty (from);
+        };
+
+  renameGroup ("corona", "blob");
+  renameGroup ("sphereGlow", "background");
+
+  // The blob's size moves in with the rest of the blob, which means reaching
+  // into a group rather than renaming one.
+  if (migrated->hasProperty ("blobScale"))
+    {
+      auto const size = migrated->getProperty ("blobScale");
+      migrated->removeProperty ("blobScale");
+
+      auto blob = migrated->getProperty ("blob");
+      if (auto *blobObject = blob.getDynamicObject ())
+        {
+          if (!blobObject->hasProperty ("scale"))
+            blobObject->setProperty ("scale", size);
+        }
+      else
+        {
+          auto *created = new juce::DynamicObject ();
+          created->setProperty ("scale", size);
+          migrated->setProperty ("blob", juce::var (created));
+        }
+    }
+
+  return result;
 }
 
 }

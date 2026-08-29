@@ -2031,7 +2031,10 @@ A3MotionUIComponent::openSkinEditor ()
                                   0, juce::jmax (0, _skinNames.size () - 1),
                                   _skinIndex)]);
 
-  _skinEditor->setSkin (juce::JSON::parse (file.loadFileAsString ()),
+  // Through the rename, like every other read of a skin: a file still carrying
+  // the old spellings would otherwise show them here while the app runs on the
+  // new ones, and the first save would write a mixture.
+  _skinEditor->setSkin (migrateSkinNames (juce::JSON::parse (file.loadFileAsString ())),
                         file.getFileNameWithoutExtension ());
   _skinEditorOpen = true;
   _globalSettings->setVisible (false);
@@ -2277,7 +2280,7 @@ A3MotionUIComponent::reopenEditorOn (juce::String const &name)
 {
   auto const file = skinFile (getConfigFile ().getParentDirectory (), name);
 
-  _skinEditor->setSkin (juce::JSON::parse (file.loadFileAsString ()),
+  _skinEditor->setSkin (migrateSkinNames (juce::JSON::parse (file.loadFileAsString ())),
                         file.getFileNameWithoutExtension ());
 
   // The menu underneath is showing a list of skins that just changed.
@@ -2373,7 +2376,7 @@ A3MotionUIComponent::previewSkin (int index)
   // the press is what makes it the one that is running.
   auto const file = skinFile (getConfigFile ().getParentDirectory (),
                               _skinNames[index]);
-  auto const loaded = loadTheme (juce::JSON::parse (file.loadFileAsString ()));
+  auto const loaded = loadTheme (migrateSkinNames (juce::JSON::parse (file.loadFileAsString ())));
 
   juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
   juce::MessageManager::callAsync ([safeThis, loaded] {
@@ -2406,7 +2409,7 @@ A3MotionUIComponent::applySkin (int index)
   // thread dispatched a moment ago runs first and this one has the last
   // word. Applying directly let a callback that was already in flight put
   // the previous skin back.
-  auto const loaded = loadTheme (juce::JSON::parse (file.loadFileAsString ()));
+  auto const loaded = loadTheme (migrateSkinNames (juce::JSON::parse (file.loadFileAsString ())));
   juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
   juce::MessageManager::callAsync ([safeThis, loaded] {
     if (safeThis != nullptr)

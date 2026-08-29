@@ -44,7 +44,7 @@ struct CoronaConfig
 /** The corona is drawn as two concentric layers; this is the outer one. */
 constexpr float coronaOuterLayerScale = 1.15f;
 
-/** Reads the "corona" object out of the parsed config.json. Keys that are
+/** Reads the "blob" object out of the parsed skin. Keys that are
  *  absent keep their default. */
 CoronaConfig loadCoronaConfig (juce::var const &config);
 

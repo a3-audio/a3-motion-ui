@@ -1,5 +1,5 @@
 {
-  "corona": {
+  "blob": {
     "vuMax": 0.25,
     "sizeMin": 0.95,
     "sizeMax": 1.8,
@@ -8,9 +8,10 @@
     "alphaMax": 0.75,
     "whiteBlend": 0.9,
     "attack": 0.01,
-    "decay": 0.25
+    "decay": 0.25,
+    "scale": 0.05
   },
-  "sphereGlow": {
+  "background": {
     "vuMax": 0.03,
     "r": 70,
     "g": 130,
@@ -113,7 +114,6 @@
     "lineThickness": 0.02
   },
   "sphereScale": 0.67,
-  "blobScale": 0.05,
   "fontHeader": 14.06,
   "fontBody": 13.75,
   "potSize": 0.9

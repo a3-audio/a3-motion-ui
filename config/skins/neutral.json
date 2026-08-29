@@ -1,5 +1,5 @@
 {
-  "corona": {
+  "blob": {
     "vuMax": 0.25,
     "sizeMin": 0.95,
     "sizeMax": 1.8,
@@ -8,27 +8,13 @@
     "alphaMax": 0.75,
     "whiteBlend": 0.9,
     "attack": 0.01,
-    "decay": 0.25
+    "decay": 0.25,
+    "scale": 0.05
   },
-  "sphereGlow": {
-    "vuMax": 0.03,
-    "r": 90,
-    "g": 130,
-    "b": 180,
-    "alphaMax": 0.7,
-    "curve": 1.2,
-    "intensity": 2.4,
-    "netFlow": -0.18,
-    "reach": 2.6,
-    "rise": 0.25,
-    "netTwist": 9,
-    "netScale": 7,
-    "netSharpness": 6,
-    "netOctaves": 3,
-    "netLacunarity": 2.0,
-    "netGain": 0.5,
-    "attack": 0.05,
-    "decay": 1.2
+  "background": {
+    "r": 26,
+    "g": 28,
+    "b": 32
   },
   "speakerLight": {
     "vuMax": 0.2,
@@ -113,7 +99,6 @@
     "lineThickness": 0.02
   },
   "sphereScale": 0.62,
-  "blobScale": 0.05,
   "surface": {
     "r": 8,
     "g": 8,
@@ -123,11 +108,6 @@
     "r": 34,
     "g": 37,
     "b": 43
-  },
-  "background": {
-    "r": 26,
-    "g": 28,
-    "b": 32
   },
   "textPrimary": {
     "r": 245,

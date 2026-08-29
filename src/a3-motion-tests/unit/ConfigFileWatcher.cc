@@ -58,7 +58,7 @@ TEST (ConfigFileWatcher, RewrittenFileReportsChangeExactlyOnce)
   ConfigFileWatcher watcher{ file };
   ASSERT_FALSE (watcher.hasChanged ());
 
-  file.replaceWithText (R"({"corona": {"sizeMin": 1.4}})");
+  file.replaceWithText (R"({"blob": {"sizeMin": 1.4}})");
 
   EXPECT_TRUE (watcher.hasChanged ()) << "edit was not picked up";
   EXPECT_FALSE (watcher.hasChanged ()) << "same edit reported twice";

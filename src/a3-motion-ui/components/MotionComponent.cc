@@ -833,7 +833,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     };
 
     SphereShader::GlowConfig gc;
-    auto const &sg = config["sphereGlow"];
+    auto const &sg = config["background"];
     gc.r = cfgF (sg, "r", 230.f) / 255.f;
     gc.g = cfgF (sg, "g", 26.f) / 255.f;
     gc.b = cfgF (sg, "b", 13.f) / 255.f;
@@ -921,7 +921,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     // silently kept their built-in defaults. Nobody noticed because the
     // shipped skin says exactly what those defaults are.
     _sphereScale = cfgF (config, "sphereScale", reduceFactorCircleDefault);
-    _blobScale = cfgF (config, "blobScale", reduceFactorBlobsDefault);
+    _blobScale = cfgF (config["blob"], "scale", reduceFactorBlobsDefault);
 
     auto const underlay = config["recordingUnderlay"];
     _underlayOpacity = cfgF (underlay, "opacity", 0.28f);
@@ -999,8 +999,13 @@ MotionComponent::reloadVisualConfigIfChanged ()
   if (juce::JSON::parse (_activeSkinFile.loadFileAsString (), parsed).failed ())
     return; // half-written save — the next check picks up the finished file
 
-  applyVisualConfig (parsed);
-  applyTheme (parsed);
+  // Through the rename like every other read. Skipped here, a file still
+  // carrying the old spellings loses its groups entirely and the sphere falls
+  // back to built-in defaults — which looks like a working skin, only wrong.
+  auto const skin = migrateSkinNames (parsed);
+
+  applyVisualConfig (skin);
+  applyTheme (skin);
   juce::Logger::writeToLog ("reloaded " + _activeSkinFile.getFileName ());
 }
 

@@ -178,6 +178,20 @@ juce::String activeSkinName (juce::File const &configFile);
  *  Every other name is its own. */
 juce::String skinNameToWriteTo (juce::String const &edited);
 
+/** `skin` with the groups under the names they have now.
+ *
+ *  The names grew with the code and stopped saying what the things are: the
+ *  corona is the blob's halo, and the "sphere glow" is the field behind
+ *  everything rather than something the sphere does. blobScale sat at the top
+ *  level while the rest of the blob had a group of its own.
+ *
+ *  Applied on every load rather than once over the files, because a skin can
+ *  arrive from anywhere -- an older device, a copy somebody kept. Running it
+ *  on an already-current skin changes nothing, and where a file carries both
+ *  spellings the current one wins: that file was half-edited, and the new name
+ *  is the one somebody meant. */
+juce::var migrateSkinNames (juce::var const &skin);
+
 /** The skin that must never be written, and the one a branch lands in. */
 constexpr char const *protectedSkinName = "default";
 constexpr char const *branchedSkinName = "custom";
