@@ -39,4 +39,14 @@ constexpr float defaultPatternLengthBeats = 4.f;
  *  it was recorded at. */
 float playbackLengthBeats (float patternLengthBeats, int speedLog2);
 
+/** The same length counted in ticks.
+ *
+ *  Beats are the wrong unit to hand a traversal on in: a whole number of them
+ *  cannot say "half a beat", and clamped up to one it cannot say anything
+ *  faster either. On a four-beat pattern that ceiling sits at 2^-2, so the four
+ *  detents of the speed knob below it changed the reading and nothing else.
+ *
+ *  Never zero: a traversal of no length would divide by nothing. */
+index_t playbackLengthTicks (float lengthBeats, index_t ticksPerBeat);
+
 }

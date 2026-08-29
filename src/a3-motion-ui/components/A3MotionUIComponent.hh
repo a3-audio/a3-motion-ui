@@ -134,6 +134,13 @@ private:
 
   /** How long one traversal takes when played, at this clip's rate. */
   float getLengthBeats (index_t channel, index_t slot) const;
+
+  /** The same length as a Measure, counted in ticks.
+   *
+   *  Every caller used to build it from a whole number of beats clamped up to
+   *  one, which cannot say "half a beat" and so could not say anything faster
+   *  than one beat per traversal either. */
+  Measure getPlaybackLength (index_t channel, index_t slot) const;
   // Speed knob: far left = speedLog2Max (16 bars, slowest), far right =
   // speedLog2Min (1/128 bar, fastest) — see updateClipSettingsDisplay()'s
   // speedFrac, which is deliberately inverted against these bounds.

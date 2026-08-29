@@ -56,3 +56,38 @@ TEST (PlaybackRate, TheRateIsRelativeToWhateverThePatternIs)
   EXPECT_FLOAT_EQ (playbackLengthBeats (32.f, -1), 16.f);
   EXPECT_FLOAT_EQ (playbackLengthBeats (8.f, -1), 4.f);
 }
+
+// A traversal shorter than one beat has to be expressible, or the speed knob
+// runs out of effect long before it runs out of travel. It used to be handed on
+// as a whole number of beats, clamped up to one: on a four-beat pattern that is
+// 2^-2, and the four detents below it did nothing at all.
+TEST (PlaybackRate, AFasterRateThanOneBeatSurvives)
+{
+  auto constexpr ticksPerBeat = 128;
+
+  EXPECT_EQ (playbackLengthTicks (4.f, ticksPerBeat), 512u);
+  EXPECT_EQ (playbackLengthTicks (1.f, ticksPerBeat), 128u);
+  EXPECT_EQ (playbackLengthTicks (0.5f, ticksPerBeat), 64u)
+      << "half a beat was rounded up to a whole one";
+  EXPECT_EQ (playbackLengthTicks (0.125f, ticksPerBeat), 16u);
+}
+
+// Every detent of the knob has to change something, all the way down.
+TEST (PlaybackRate, EveryStepOfTheKnobChangesTheRate)
+{
+  auto constexpr ticksPerBeat = 128;
+  auto const patternBeats = 4.f;
+
+  index_t previous = 0;
+  for (int speedLog2 = 0; speedLog2 >= -7; --speedLog2)
+    {
+      auto const ticks = playbackLengthTicks (
+          playbackLengthBeats (patternBeats, speedLog2), ticksPerBeat);
+
+      EXPECT_GT (ticks, 0u) << "speedLog2 " << speedLog2;
+      if (previous > 0)
+        EXPECT_LT (ticks, previous)
+            << "speedLog2 " << speedLog2 << " is no faster than the step above";
+      previous = ticks;
+    }
+}

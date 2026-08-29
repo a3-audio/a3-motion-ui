@@ -369,6 +369,17 @@ A3MotionUIComponent::getLengthBeats (index_t channel, index_t slot) const
                               _clipUIParams[channel][slot].speedLog2);
 }
 
+Measure
+A3MotionUIComponent::getPlaybackLength (index_t channel, index_t slot) const
+{
+  auto const ticks = playbackLengthTicks (
+      getLengthBeats (channel, slot),
+      static_cast<index_t> (TempoClock::getTicksPerBeat ()));
+
+  return Measure{ 0, 0, static_cast<int> (ticks) }.consolidate (
+      _engine.getBeatsPerBar ());
+}
+
 void
 A3MotionUIComponent::createMainUI ()
 {
@@ -1024,9 +1035,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         auto const status = pattern->getStatus ();
         if (status == Pattern::Status::Idle)
           {
-            auto playbackLength = Measure{ 0, static_cast<int> (
-                std::max (1.f, getLengthBeats (channel, slot))), 0 };
-            pattern->setPlaybackLength (playbackLength);
+            pattern->setPlaybackLength (getPlaybackLength (channel, slot));
             _engine.playPattern (pattern, _now);
           }
         else if (status == Pattern::Status::Playing
@@ -1059,9 +1068,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         if (isButtonPressed (Button::Shift) && pattern
             && pattern->getStatus () == Pattern::Status::Idle)
           {
-            auto playbackLength = Measure{ 0, static_cast<int> (
-                std::max (1.f, getLengthBeats (channel, slot))), 0 };
-            pattern->setPlaybackLength (playbackLength);
+            pattern->setPlaybackLength (getPlaybackLength (channel, slot));
             _engine.setPreviewMode (channel, true);
             _previewHeldPad[channel] = static_cast<int> (slot);
             _engine.playPattern (pattern, _now);
@@ -1616,10 +1623,7 @@ A3MotionUIComponent::endRecording ()
       // Started from the Stopped message rather than here. Stopping is
       // asynchronous, so playing straight after it left the pattern in a state
       // the Play pad does not know — and the first press on it did nothing.
-      pattern->setPlaybackLength (
-          Measure{ 0, static_cast<int> (
-                          std::max (1.f, getLengthBeats (channel, slot))),
-                   0 });
+      pattern->setPlaybackLength (getPlaybackLength (channel, slot));
       _playWhenRecordingStops = pattern;
     }
   else
@@ -2503,9 +2507,8 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
             if (wasPlaying && pattern)
               {
-                auto playbackLength = Measure{ 0, static_cast<int> (
-                    std::max (1.f, getLengthBeats (channel, slot))), 0 };
-                pattern->setPlaybackLength (playbackLength);
+                pattern->setPlaybackLength (
+                    getPlaybackLength (channel, slot));
                 _engine.playPattern (pattern, _now);
               }
           }
@@ -2565,12 +2568,8 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             auto &pattern = _patterns[channel][slot];
             if (pattern)
               {
-                auto const lengthBeats = static_cast<int> (
-                    std::max (1.f, getLengthBeats (channel, slot)));
-                auto const playbackLength
-                    = Measure{ 0, lengthBeats, 0 }.consolidate (
-                        _engine.getBeatsPerBar ());
-                pattern->setPlaybackLength (playbackLength);
+                pattern->setPlaybackLength (
+                    getPlaybackLength (channel, slot));
               }
             break;
           }

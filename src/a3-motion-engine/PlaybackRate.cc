@@ -31,4 +31,12 @@ playbackLengthBeats (float patternLengthBeats, int speedLog2)
   return patternLengthBeats * std::exp2 (static_cast<float> (speedLog2));
 }
 
+index_t
+playbackLengthTicks (float lengthBeats, index_t ticksPerBeat)
+{
+  auto const ticks = static_cast<long> (
+      std::lround (static_cast<double> (lengthBeats) * ticksPerBeat));
+  return static_cast<index_t> (std::max (1L, ticks));
+}
+
 }
