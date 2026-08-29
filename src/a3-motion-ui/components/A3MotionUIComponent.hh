@@ -141,6 +141,10 @@ private:
    *  one, which cannot say "half a beat" and so could not say anything faster
    *  than one beat per traversal either. */
   Measure getPlaybackLength (index_t channel, index_t slot) const;
+
+  /** Push the clip's direction and end action into the pattern, which is where
+   *  the engine reads them. */
+  void applyMotionMode (index_t channel, index_t slot);
   // Speed knob: far left = speedLog2Max (16 bars, slowest), far right =
   // speedLog2Min (1/128 bar, fastest) — see updateClipSettingsDisplay()'s
   // speedFrac, which is deliberately inverted against these bounds.
@@ -378,8 +382,8 @@ private:
     // 0 = 1 bar (native tempo), negative = faster (note-value fraction of
     // a bar), positive = slower (multiple bars per cycle).
     int speedLog2 = 0;
-    int direction = 0;   // 0=Forward, 1=Reverse, 2=PingPong
-    int endAction = 0;   // 0=Loop, 1=Stop, 2=Bounce
+    int direction = 0;   // 0=Forward, 1=Reverse
+    int endAction = 0;   // 0=Loop, 1=Stop, 2=Bounce, 3=Random
     // 0=Glide, 1=Hard — what happens to the stretches a recording never
     // wrote, including the one across the loop point. See closeRecordingSeams.
     /** How long the take's closing move lasts, in sixteenths of a beat.

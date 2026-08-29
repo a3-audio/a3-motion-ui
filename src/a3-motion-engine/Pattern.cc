@@ -195,6 +195,42 @@ Pattern::setFade (index_t ticks)
   _fade = ticks;
 }
 
+PlayDirection
+Pattern::getPlayDirection () const
+{
+  return _playDirection.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setPlayDirection (PlayDirection direction)
+{
+  _playDirection.store (direction, std::memory_order_relaxed);
+}
+
+EndAction
+Pattern::getEndAction () const
+{
+  return _endAction.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setEndAction (EndAction action)
+{
+  _endAction.store (action, std::memory_order_relaxed);
+}
+
+float
+Pattern::getPlaySign () const
+{
+  return _playSign.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setPlaySign (float sign)
+{
+  _playSign.store (sign, std::memory_order_relaxed);
+}
+
 void
 Pattern::setSeamJoin (std::optional<index_t> tick)
 {

@@ -73,8 +73,10 @@ constexpr char const *off = "Off";
 /** Short on purpose, like the captions: Motion gives each of these a third
  *  of a section, and the longest one decided how large every value in the
  *  bar could be drawn. "PingPong" held them all below their own captions. */
-constexpr char const *directionNames[] = { "Fwd", "Rev", "Ping" };
-constexpr char const *endActionNames[] = { "Loop", "Stop", "Bnce" };
+/** Where a clip sets off. "Ping" used to sit here and meant the same thing as
+ *  the Bounce end action -- two controls for one behaviour. */
+constexpr char const *directionNames[] = { "Fwd", "Rev" };
+constexpr char const *endActionNames[] = { "Loop", "Stop", "Bnce", "Rnd" };
 // What happens to what a take never wrote — glide across it, or hold and jump.
 /** How long the take's closing move lasts, in sixteenths of a beat. "off" is
  *  a hard join: the take holds and jumps rather than travelling back. */
@@ -118,10 +120,10 @@ constexpr TextEntry valueTable[] = {
   { value::off, 2 },
   { value::directionNames[0], 4 },
   { value::directionNames[1], 4 },
-  { value::directionNames[2], 4 },
   { value::endActionNames[0], 4 },
   { value::endActionNames[1], 4 },
   { value::endActionNames[2], 4 },
+  { value::endActionNames[3], 4 },
   { "16/16", 4 },
   { value::widestSpeed, 4 },
 };

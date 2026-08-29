@@ -24,6 +24,7 @@
 
 #include <a3-motion-engine/Channel.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/Playhead.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-engine/backends/SpatBackendA3.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
@@ -709,6 +710,13 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   _patternRecording = nullptr;
 
   pattern->setPlayPosition (0.f);
+
+  // Reverse starts at the end and walks back, so the first tick has somewhere
+  // to come from.
+  auto const sign = initialSign (pattern->getPlayDirection ());
+  pattern->setPlaySign (sign);
+  if (sign < 0.f)
+    pattern->setPlayPosition (1.f);
 }
 
 void
@@ -848,19 +856,39 @@ MotionEngine::performPlayback ()
               auto const ticksPlaybackLength = Measure::convertToTicks (
                   channel->_patternPlaying->getPlaybackLength (), _tempoClock.getBeatsPerBar ());
 
-              // Use incremental position updates to handle tempo changes smoothly.
-              // CRITICAL: Do NOT use fmod here - let playPosition grow beyond 1.0.
-              // The interpolation function handles normalization and avoids precision issues.
-              auto const playPositionDelta = 1. / static_cast<double> (ticksPlaybackLength);
-              auto playPosition = channel->_patternPlaying->getPlayPosition ();
-              playPosition += playPositionDelta;
-              
-              // Store the un-wrapped position for smooth loop transitions
-              channel->_patternPlaying->setPlayPosition (static_cast<float> (playPosition));
+              // One tick on, in whichever direction the clip is travelling and
+              // doing at the end whatever its end action says. The phase a
+              // random end action would jump to is drawn here rather than in
+              // there, so the decision itself stays a function that can be
+              // checked.
+              auto const playPositionDelta
+                  = 1.f / static_cast<float> (ticksPlaybackLength);
+
+              auto &playing = *channel->_patternPlaying;
+              auto const stepped = advancePlayhead (
+                  { playing.getPlayPosition (), playing.getPlaySign (), false },
+                  playPositionDelta, playing.getEndAction (),
+                  _random.nextFloat ());
+
+              playing.setPlayPosition (stepped.position);
+              playing.setPlaySign (stepped.sign);
+
+              if (stepped.stopped)
+                {
+                  // Taken out of playback here, so nothing writes this
+                  // channel's position again: the blob stands where the pass
+                  // left it, which is what stopping at the end means.
+                  playing.setStatus (Pattern::Status::Idle);
+                  channel->_patternPlaying = nullptr;
+                  continue;
+                }
+
+              auto const playPosition = stepped.position;
 
               // Use interpolated playback for smooth motion between keyframes
               // The interpolation function handles wrapping at pattern boundaries
-              auto const fractionalTick = ticksPatternLength * playPosition;
+              auto const fractionalTick
+                  = static_cast<double> (ticksPatternLength) * playPosition;
               auto position2D = channel->_patternPlaying->getInterpolatedTick (fractionalTick);
               
               if (position2D.isValid ())

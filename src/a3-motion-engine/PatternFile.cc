@@ -601,6 +601,15 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
       svg->setAttribute ("data-seam-join", static_cast<int> (*join));
       svg->setAttribute ("data-fade", static_cast<int> (pattern->getFade ()));
     }
+  // Clip settings like the fade: without them a clip comes back playing
+  // forwards and looping, whatever it was set to.
+  svg->setAttribute ("data-direction",
+                     pattern->getPlayDirection () == PlayDirection::Reverse
+                         ? "rev"
+                         : "fwd");
+  svg->setAttribute ("data-end-action",
+                     endActionToName (pattern->getEndAction ()));
+
   svg->setAttribute ("data-ppqn", TempoClock::getTicksPerBeat ());
 
   if (!pathData.empty ())
@@ -687,6 +696,11 @@ PatternFile::load (juce::File const &file)
 
   for (index_t t = 0; t < numTicks && t < sampled.size (); ++t)
     pattern->setTick (t, sampled[t]);
+
+  if (xml->getStringAttribute ("data-direction") == "rev")
+    pattern->setPlayDirection (PlayDirection::Reverse);
+  pattern->setEndAction (
+      endActionFromName (xml->getStringAttribute ("data-end-action")));
 
   // What came out of the file is the take as played; the closing move is laid
   // over it here, from the length the file carries.

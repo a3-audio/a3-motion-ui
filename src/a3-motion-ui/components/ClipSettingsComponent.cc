@@ -155,14 +155,14 @@ ClipSettingsComponent::setMotionSpeed (float normalizedFrac,
 void
 ClipSettingsComponent::setMotionDirection (int direction)
 {
-  _motionDirection = direction;
+  _motionDirection = juce::jlimit (0, 1, direction);
   repaint ();
 }
 
 void
 ClipSettingsComponent::setMotionEndAction (int endAction)
 {
-  _motionEndAction = endAction;
+  _motionEndAction = juce::jlimit (0, 3, endAction);
   repaint ();
 }
 

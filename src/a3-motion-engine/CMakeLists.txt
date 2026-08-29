@@ -47,6 +47,7 @@ target_sources("a3-motion-engine" PRIVATE
     Pattern.hh
     PatternGenerator.cc
     PatternGenerator.hh
+    Playhead.cc
     PatternFile.cc
     TrajectoryShape.cc
     RecMode.cc

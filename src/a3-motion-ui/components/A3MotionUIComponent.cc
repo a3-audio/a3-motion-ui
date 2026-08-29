@@ -369,6 +369,26 @@ A3MotionUIComponent::getLengthBeats (index_t channel, index_t slot) const
                               _clipUIParams[channel][slot].speedLog2);
 }
 
+void
+A3MotionUIComponent::applyMotionMode (index_t channel, index_t slot)
+{
+  auto &pattern = _patterns[channel][slot];
+  if (!pattern)
+    return;
+
+  auto const &params = _clipUIParams[channel][slot];
+  pattern->setPlayDirection (params.direction == 1 ? PlayDirection::Reverse
+                                                   : PlayDirection::Forward);
+
+  // The bar's order is the engine's order; a value out of range would be a
+  // list that grew in one place and not the other.
+  auto const actions = { EndAction::Loop, EndAction::Stop, EndAction::Bounce,
+                         EndAction::Random };
+  if (params.endAction >= 0
+      && params.endAction < static_cast<int> (actions.size ()))
+    pattern->setEndAction (*(actions.begin () + params.endAction));
+}
+
 Measure
 A3MotionUIComponent::getPlaybackLength (index_t channel, index_t slot) const
 {
@@ -2574,10 +2594,12 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             break;
           }
         case 1:
-          params.direction = (params.direction + increment % 3 + 3) % 3;
+          params.direction = (params.direction + increment % 2 + 2) % 2;
+          applyMotionMode (channel, slot);
           break;
         case 2:
-          params.endAction = (params.endAction + increment % 3 + 3) % 3;
+          params.endAction = (params.endAction + increment % 4 + 4) % 4;
+          applyMotionMode (channel, slot);
           break;
         default:
           {
@@ -2708,8 +2730,27 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
                   + juce::String (
                       static_cast<int> (std::exp2 (-params.speedLog2)));
   _clipSettings->setMotionSpeed (speedFrac, speedLabel);
-  _clipSettings->setMotionDirection (params.direction);
-  _clipSettings->setMotionEndAction (params.endAction);
+  // Read back off the pattern rather than from this table. The pattern is
+  // where the engine looks and what the file carries, so a clip that came from
+  // disk brings its own settings -- and the bar has to show those, not the
+  // ones the last clip happened to leave in the table.
+  if (pattern)
+    {
+      auto &editable = _clipUIParams[channel][slot];
+      editable.direction
+          = pattern->getPlayDirection () == PlayDirection::Reverse ? 1 : 0;
+
+      switch (pattern->getEndAction ())
+        {
+        case EndAction::Loop: editable.endAction = 0; break;
+        case EndAction::Stop: editable.endAction = 1; break;
+        case EndAction::Bounce: editable.endAction = 2; break;
+        case EndAction::Random: editable.endAction = 3; break;
+        }
+    }
+
+  _clipSettings->setMotionDirection (_clipUIParams[channel][slot].direction);
+  _clipSettings->setMotionEndAction (_clipUIParams[channel][slot].endAction);
   _clipSettings->setMotionFade (params.fadeSixteenths);
 
   // Worded like Speed is, because it is the same kind of number: bars as a

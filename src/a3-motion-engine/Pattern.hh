@@ -25,6 +25,7 @@
 #include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Types.hh>
+#include <a3-motion-engine/Playhead.hh>
 #include <a3-motion-engine/RecordingSpans.hh>
 
 #include <optional>
@@ -130,6 +131,21 @@ public:
   index_t getFade () const;
   void setFade (index_t ticks);
 
+  /** Which way the clip sets off, and what it does when it gets to the end.
+   *
+   *  Clip settings like the playback length and the fade, so they live here
+   *  rather than in the UI's own table -- otherwise the engine cannot see them
+   *  and they survive nothing. */
+  PlayDirection getPlayDirection () const;
+  void setPlayDirection (PlayDirection direction);
+  EndAction getEndAction () const;
+  void setEndAction (EndAction action);
+
+  /** Which way the playhead is travelling right now. Set from the direction
+   *  when playback starts; only Bounce ever turns it round. */
+  float getPlaySign () const;
+  void setPlaySign (float sign);
+
   // Interpolated playback: returns position with linear interpolation between keyframes
   // This provides smooth motion even with sparse keyframes during slow playback
   Pos getInterpolatedTick (double fractionalTick) const;
@@ -204,6 +220,9 @@ private:
    *  playback asks on every tick and must not walk the whole pattern to find
    *  out. Zero means nothing is treated as a jump. */
   float _jumpThreshold = 0.f;
+  std::atomic<PlayDirection> _playDirection{ PlayDirection::Forward };
+  std::atomic<EndAction> _endAction{ EndAction::Loop };
+  std::atomic<float> _playSign{ 1.f };
   mutable std::mutex _ticksMutex;
 
   // TODO is float precision sufficient here? do the math!

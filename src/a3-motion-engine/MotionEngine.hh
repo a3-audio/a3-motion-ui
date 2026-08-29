@@ -252,6 +252,10 @@ private:
   Pos _recordingHeldPosition2D = Pos::invalid;
   /** Written on the clock thread each tick a take is running, read by the UI. */
   std::atomic<float> _recordingProgress{ -1.f };
+
+  /** Where a Random end action carries on. Lives here so the decision itself
+   *  stays a pure function; only the clock thread draws from it. */
+  juce::Random _random;
   int _recordingSubSamplingFactor = recordingSamplesPerTick;
   
   // High-resolution recording counter to sample motion between ticks
