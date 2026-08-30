@@ -44,6 +44,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/CoronaScaling.cc
     components/DragAccumulator.cc
     components/DragAccumulator.hh
+    components/TouchControl.cc
+    components/TouchControl.hh
     components/TouchGrabs.cc
     components/TouchGrabs.hh
     components/SpeakerLightScaling.cc
