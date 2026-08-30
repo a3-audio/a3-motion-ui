@@ -92,6 +92,22 @@ ClipSettingsComponent::createTouchControls ()
           addAndMakeVisible (*into);
         };
 
+  // The grid: one hit area per cell, each carrying its channel and row.
+  for (int col = 0; col < numChannelColumns; ++col)
+    for (int row = 0; row < numChannelRows; ++row)
+      {
+        auto cell = std::make_unique<TouchControl> ();
+        cell->setIdentity (col, row);
+        cell->onDragIncrement
+            = [this] (int channel, int gridRow, int increment) {
+                if (onChannelValueDragged)
+                  onChannelValueDragged (channel, gridRow, increment);
+              };
+        addAndMakeVisible (*cell);
+        _gridTouch[static_cast<size_t> (col)][static_cast<size_t> (row)]
+            = std::move (cell);
+      }
+
   makeButton (_menuTouch, &ClipSettingsComponent::onMenuPressed);
   makeButton (_recTouch, &ClipSettingsComponent::onRecordPressed);
   makeButton (_tapTouch, &ClipSettingsComponent::onTapPressed);
@@ -151,6 +167,14 @@ ClipSettingsComponent::resized ()
     }
 
   _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
+
+  for (int col = 0; col < numChannelColumns; ++col)
+    for (int row = 0; row < numChannelRows; ++row)
+      {
+        auto const c = static_cast<size_t> (col);
+        auto const r = static_cast<size_t> (row);
+        _gridTouch[c][r]->setBounds (_layout.channelGrid[c][r]);
+      }
   _menuTouch->setBounds (_layout.menuButton);
   _recTouch->setBounds (_layout.recButton);
   _tapTouch->setBounds (_layout.tapButton);
@@ -303,23 +327,16 @@ ClipSettingsComponent::setMotionSubIndex (int subIndex)
 }
 
 void
-ClipSettingsComponent::setFilterSweep (float sweep)
+ClipSettingsComponent::setChannelValues (int channel, float freq, float q,
+                                         float threeD)
 {
-  _filterSweep = std::clamp (sweep, 0.0f, 1.0f);
-  repaint ();
-}
+  if (channel < 0 || channel >= numChannelColumns)
+    return;
 
-void
-ClipSettingsComponent::setFilterQ (float q)
-{
-  _filterQ = std::clamp (q, 0.0f, 1.0f);
-  repaint ();
-}
-
-void
-ClipSettingsComponent::setFilterSubIndex (int subIndex)
-{
-  _filterSubIndex = subIndex;
+  auto const c = static_cast<size_t> (channel);
+  _channelFreq[c] = std::clamp (freq, 0.f, 1.f);
+  _channelQ[c] = std::clamp (q, 0.f, 1.f);
+  _channelThreeD[c] = std::clamp (threeD, 0.f, 1.f);
   repaint ();
 }
 
@@ -378,7 +395,6 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   paintTrajectorySection (g, _selectedIndex == trajectoryIndex);
   paintElevationSection (g, _selectedIndex == elevationIndex);
   paintMotionSection (g, _selectedIndex == motionIndex);
-  paintFilterSection (g, _selectedIndex == filterIndex);
   paintGlobalSection (g, _selectedIndex == globalIndex);
 }
 
@@ -436,6 +452,8 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   paintMiniToggle (g, _layout.controls[globalIndex][0], _layout.metrics,
                    caption::recMode, recModeName (_recMode),
                    _recMode != RecMode::Touch, isSelected);
+
+  paintChannelGrid (g);
 
   paintActionButton (g, _layout.menuButton, "MENU", false);
   paintActionButton (g, _layout.recButton, "REC", _recording);
@@ -881,19 +899,68 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
 }
 
 void
-ClipSettingsComponent::paintFilterSection (juce::Graphics &g,
-                                           bool isSelected)
+ClipSettingsComponent::paintChannelGrid (juce::Graphics &g)
 {
-  paintSectionCard (g, filterIndex, isSelected);
-
   auto const &metrics = _layout.metrics;
-  auto const &cells = _layout.controls[filterIndex];
 
-  paintMiniKnob (g, cells[0], metrics, caption::frequency,
-                 _filterSweep * 2.f - 1.f, false, _filterSubIndex == 0,
-                 isSelected);
-  paintMiniKnob (g, cells[1], metrics, caption::q, _filterQ * 2.f - 1.f, false,
-                 _filterSubIndex == 1, isSelected);
+  static char const *rowCaptions[numChannelRows] = { "freq", "Q", "3d" };
+
+  // The row captions once down the side, rather than under all twelve knobs.
+  g.setFont (juce::Font (metrics.captionSize, juce::Font::plain));
+  g.setColour (toColour (theme ().textMuted, theme ().alphaInactive));
+  for (int row = 0; row < numChannelRows; ++row)
+    g.drawFittedText (rowCaptions[row],
+                      _layout.channelRowLabels[static_cast<size_t> (row)],
+                      juce::Justification::centredRight, 1);
+
+  for (int col = 0; col < numChannelColumns; ++col)
+    {
+      auto const c = static_cast<size_t> (col);
+      auto const colour = toColour (theme ().channel[c]);
+
+      // The channel's own colour says which column is whose; a number over
+      // it would only repeat what the colour already tells the eye.
+      g.setFont (juce::Font (metrics.captionSize, juce::Font::bold));
+      g.setColour (colour);
+      g.drawFittedText (juce::String (col + 1), _layout.channelLabels[c],
+                        juce::Justification::centred, 1);
+
+      float const values[numChannelRows]
+          = { _channelFreq[c], _channelQ[c], _channelThreeD[c] };
+
+      for (int row = 0; row < numChannelRows; ++row)
+        paintGridKnob (g, _layout.channelGrid[c][static_cast<size_t> (row)],
+                       values[row], colour);
+    }
+}
+
+/** A knob without a caption: the column says which channel, the row caption
+ *  down the side says which value, so the knob itself has nothing to add. */
+void
+ClipSettingsComponent::paintGridKnob (juce::Graphics &g,
+                                      juce::Rectangle<int> bounds,
+                                      float value, juce::Colour colour)
+{
+  auto const size = static_cast<float> (
+      juce::jmin (bounds.getWidth (), bounds.getHeight ()));
+  auto const centre = bounds.toFloat ().getCentre ();
+  auto const r = size * 0.5f * 0.78f;
+
+  auto constexpr sweep = juce::MathConstants<float>::pi * 0.75f;
+  auto const angle = (std::clamp (value, 0.f, 1.f) * 2.f - 1.f) * sweep;
+
+  juce::Path track;
+  track.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, sweep, true);
+  g.setColour (toColour (theme ().textPrimary, trackWash));
+  g.strokePath (track, juce::PathStrokeType (juce::jmax (1.f, r * 0.18f)));
+
+  juce::Path valueArc;
+  valueArc.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, angle, true);
+  g.setColour (colour);
+  g.strokePath (valueArc, juce::PathStrokeType (juce::jmax (1.5f, r * 0.18f)));
+
+  auto const tip = centre.getPointOnCircumference (r, angle);
+  g.drawLine (centre.x, centre.y, tip.x, tip.y, juce::jmax (1.5f, r * 0.14f));
 }
 
 }

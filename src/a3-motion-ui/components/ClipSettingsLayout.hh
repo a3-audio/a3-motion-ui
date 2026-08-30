@@ -23,6 +23,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/Config.hh>
+
 #include <array>
 #include <vector>
 
@@ -42,8 +44,17 @@ struct ControlMetrics
   float valueSize;
 };
 
-/** Four sections for the clip, then the global strip. */
-constexpr int numClipSettingsSections = 5;
+/** Three sections for the clip, then the global one. Filter used to be a
+ *  fourth: its Freq and Q were never the clip's, they wrote the same
+ *  per-channel values the pots do, so they moved to the global section
+ *  where they belong. */
+constexpr int numClipSettingsSections = 4;
+
+/** The global section's per-channel grid is one column per channel. */
+constexpr int numChannelColumns = numChannelsInitial;
+
+/** ... and three rows: freq, Q, and the third value ("3d"). */
+constexpr int numChannelRows = 3;
 
 /** How many controls a section holds. Must agree with
  *  A3MotionUIComponent::numSubElementsForSection — a tap addresses a
@@ -80,6 +91,18 @@ struct ClipSettingsLayout
    *  flat-elevation. */
   std::array<std::vector<juce::Rectangle<int>>, numClipSettingsSections>
       controls;
+
+  /** The global section's per-channel grid: [channel][row], row 0 = freq,
+   *  1 = Q, 2 = 3d. Not part of `controls` — these belong to a channel each,
+   *  not to the clip the bar is showing, so they are dragged through their
+   *  own callback. */
+  std::array<std::array<juce::Rectangle<int>, numChannelRows>,
+             numChannelColumns>
+      channelGrid;
+  /** The label above each channel column. */
+  std::array<juce::Rectangle<int>, numChannelColumns> channelLabels;
+  /** The row captions down the side: freq, Q, 3d. */
+  std::array<juce::Rectangle<int>, numChannelRows> channelRowLabels;
 
   /** The Elevation section's side-view sphere. */
   juce::Rectangle<int> elevationGraphic;

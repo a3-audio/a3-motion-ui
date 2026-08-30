@@ -99,7 +99,7 @@ class ClipSettingsComponent : public juce::Component,
 public:
   /** How many sections describe the shown clip. They and the global strip
    *  beside them share the bar's width equally. */
-  static constexpr int numClipSections = 4;
+  static constexpr int numClipSections = 3;
 
   /** Stops the Motion-Encoder scrolls through: the clip's sections, then the
    *  global strip. */
@@ -108,8 +108,7 @@ public:
   static constexpr int trajectoryIndex = 0; // leftmost, pictogram section
   static constexpr int elevationIndex = 1;  // sphere/coverage section
   static constexpr int motionIndex = 2;     // speed/direction/end-action
-  static constexpr int filterIndex = 3;     // sweep/Q
-  static constexpr int globalIndex = 4;     // rightmost, not the clip's
+  static constexpr int globalIndex = 3;     // rightmost, not the clip's
 
   /** How wide one of the clip's four sections is, given the width the row of
    *  sections has to share.
@@ -121,7 +120,7 @@ public:
   static constexpr int
   clipSectionWidth (int rowWidth)
   {
-    return rowWidth / numParameters;
+    return rowWidth / 2 / numClipSections;
   }
 
   explicit ClipSettingsComponent ();
@@ -179,14 +178,11 @@ public:
   void setTrajectorySubIndex (int subIndex);
 
 
-  /** Filter section values, both unipolar (0..1). */
-  void setFilterSweep (float sweep);
-  void setFilterQ (float q);
-
-  /** Which of the Filter section's 2 controls (0 = sweep, 1 = Q) the
-   *  Pot-Encoder currently edits, cycled by pressing it. Both are always
-   *  shown; this only controls highlighting. */
-  void setFilterSubIndex (int subIndex);
+  /** One channel's three values in the global section's grid — freq, Q and
+   *  the third one ("3d"), all unipolar (0..1). These belong to the channel,
+   *  not to the clip the bar happens to show, which is why they sit in the
+   *  global section rather than in a section of the clip's. */
+  void setChannelValues (int channel, float freq, float q, float threeD);
 
   /** Which section (0..numParameters-1) is currently selected/highlighted. */
   void setSelectedParameterIndex (int index);
@@ -206,6 +202,11 @@ public:
   /** A control was dragged, by one increment. Same increment the
    *  Pot-Encoder produces, so both go through one handler. */
   std::function<void (int section, int sub, int increment)> onControlDragged;
+
+  /** A cell of the per-channel grid was dragged. `row` is 0 freq, 1 Q,
+   *  2 the third value. */
+  std::function<void (int channel, int row, int increment)>
+      onChannelValueDragged;
 
   /** The global strip's action buttons. Device-wide functions the hardware
    *  has its own keys for — this is the way to them with a finger. */
@@ -254,7 +255,10 @@ private:
    *  visible in parallel — same style as the Elevation controls. */
   void paintMotionSection (juce::Graphics &g, bool isSelected);
   /** Freq / Q (knobs), single row. */
-  void paintFilterSection (juce::Graphics &g, bool isSelected);
+  /** The global section's 4x3 grid, each column in its channel's colour. */
+  void paintChannelGrid (juce::Graphics &g);
+  void paintGridKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
+                      float value, juce::Colour colour);
   /** Small, deliberately unobtrusive section title (see class doc) — most
    *  of a section's height goes to its controls, not this label. */
   void paintGlobalSection (juce::Graphics &g, bool isSelected);
@@ -333,9 +337,9 @@ private:
   int _motionFade = 0;
   int _trajectorySubIndex = 0;
   juce::String _recordLengthLabel { "1" };
-  float _filterSweep = 0.0f;
-  float _filterQ = 0.0f;
-  int _filterSubIndex = 0;
+  std::array<float, numChannelColumns> _channelFreq{};
+  std::array<float, numChannelColumns> _channelQ{};
+  std::array<float, numChannelColumns> _channelThreeD{};
   int _selectedIndex = 0;
 
   /** Every rectangle in the bar, recomputed by updateLayout(). */
@@ -351,6 +355,10 @@ private:
    *  what the controls below it do, and touching a picture should do
    *  nothing. Without it the card underneath would answer. */
   std::unique_ptr<TouchControl> _elevationGraphicTouch;
+  /** One hit area per grid cell, [channel][row]. */
+  std::array<std::array<std::unique_ptr<TouchControl>, numChannelRows>,
+             numChannelColumns>
+      _gridTouch;
   std::unique_ptr<TouchControl> _menuTouch;
   std::unique_ptr<TouchControl> _recTouch;
   std::unique_ptr<TouchControl> _tapTouch;
@@ -362,7 +370,7 @@ private:
   void createTouchControls ();
 
   static constexpr char const *parameterNames[numParameters] = {
-    "Shape", "Elevation", "Motion", "Filter", "Global",
+    "Shape", "Elevation", "Motion", "Global",
   };
 };
 

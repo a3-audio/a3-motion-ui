@@ -235,6 +235,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     selectClipSettingsSection (section);
     selectClipSettingsSubElement (juce::jmax (0, sub));
   };
+  // The grid's cells name their own channel — unlike everything else in the
+  // bar, they are not about the clip on display.
+  _clipSettings->onChannelValueDragged
+      = [this] (int channel, int row, int increment) {
+          handleChannelValueChange (static_cast<index_t> (channel), row,
+                                    increment);
+        };
+
   _clipSettings->onMenuPressed = [this] { toggleGlobalSettings (); };
   _clipSettings->onRecordPressed = [this] { toggleRecordingOnShownClip (); };
   _clipSettings->onTapPressed = [this] { handleScreenTap (); };
@@ -796,184 +804,70 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       for (auto channel = 0u; channel < _ioAdapter->getNumChannels ();
            ++channel)
         {
+          // The encoders have one job each now, the same one whatever is
+          // on screen: freq and Q for their channel. They used to scroll
+          // the bar's sections and drive the menu — that is all touch now,
+          // so nothing here depends on what happens to be open.
           if (value.refersToSameSourceAs (
                   _ioAdapter->getEncoderIncrement (channel)))
             {
-              // Motion-Encoder (upper): scrolls the Clip Settings panel's
-              // menu items, except on channel 3 while Global Settings is
-              // open (that encoder is reserved for menu navigation there).
               auto const increment = static_cast<int> (
                   _ioAdapter->getEncoderIncrement (channel).getValue ());
               if (increment != 0)
-                updateControlReadout (
-                    "CH" + juce::String (channel + 1) + " ENC "
-                    + (increment > 0 ? "+" : "") + juce::String (increment));
-              if (_colourPickerOpen && channel == 3u)
                 {
-                  if (increment != 0)
-                    _colourPicker->navigate (increment > 0 ? 1 : -1);
-                  return;
+                  handleChannelValueChange (channel, 0, increment);
+                  updateControlReadout (
+                      "CH" + juce::String (channel + 1) + " FREQ "
+                      + juce::String (_engine.getChannelPot1 (channel), 2));
                 }
-
-              if (_skinEditorOpen && channel == 3u)
-                {
-                  if (increment != 0)
-                    {
-                      _skinEditor->navigate (increment > 0 ? 1 : -1);
-                      refreshKeyboardIcon ();
-                    }
-                  return;
-                }
-
-              if (_globalSettingsOpen && channel == 3u)
-                {
-                  if (increment != 0)
-                    {
-                      if (_globalSettingsValueFieldSelected)
-                        {
-                          _globalSettings->navigateValue (increment > 0 ? 1
-                                                                        : -1);
-
-                          if (browsedMenuRow ()
-                              == std::optional<MenuRow>{ MenuRow::Skin })
-                            previewSkin (
-                                _globalSettings->getSelectedValueIndex ());
-                        }
-                      else
-                        {
-                          _globalSettings->navigateOption (increment > 0 ? 1 : -1);
-                          _globalSettingsOptionIndex = _globalSettings->getOptionIndex ();
-                        }
-                    }
-                  return;
-                }
-
-              handleClipSettingsScroll (channel, increment);
+              return;
             }
           else if (value.refersToSameSourceAs (
                        _ioAdapter->getEncoderIncrement (channel, 1)))
             {
-              // Pot-Encoder (lower): changes the value of the currently
-              // selected Clip Settings menu item. Suppressed on channel 3
-              // while Global Settings is open, matching the Motion-Encoder.
               auto const increment = static_cast<int> (
                   _ioAdapter->getEncoderIncrement (channel, 1).getValue ());
               if (increment != 0)
-                updateControlReadout (
-                    "CH" + juce::String (channel + 1) + " POT-ENC "
-                    + (increment > 0 ? "+" : "") + juce::String (increment));
-              if (_globalSettingsOpen && channel == 3u)
-                return;
-
-              handleClipSettingsValueChange (channel, _clipSettingsMenuIndex,
-                                             _clipSettingsSubIndex, increment);
-            }
-          else if (value.refersToSameSourceAs (
-                       _ioAdapter->getEncoderPress (channel)))
-            {
-              if (value.getValue ())
                 {
-                  updateControlReadout ("CH" + juce::String (channel + 1)
-                                       + " ENC PRESS");
-                  // In the skin editor the same press arms the browsed
-                  // parameter and lets it go again.
-                  if (_colourPickerOpen && channel == 3u)
-                    {
-                      _colourPicker->toggleEditing ();
-                      return;
-                    }
-
-                  if (_skinEditorOpen && channel == 3u)
-                    {
-                      _skinEditor->toggleEditing ();
-                      return;
-                    }
-
-                  // The single ch3 encoder also drives Global Settings
-                  // while it's open: first press arms the currently
-                  // browsed option's value field, second press confirms
-                  // and applies it (menu stays open).
-                  if (_globalSettingsOpen && channel == 3u)
-                    {
-                      if (_globalSettings->opensSubmenu (
-                              _globalSettingsOptionIndex))
-                        {
-                          // Nothing to choose, so nothing to arm: the press
-                          // that reaches the row is the press that opens it.
-                          _globalSettingsValueFieldSelected = true;
-                          _globalSettings->setValueFieldSelected (true);
-                          confirmGlobalSettingsOption ();
-                        }
-                      else if (!_globalSettingsValueFieldSelected)
-                        {
-                          _globalSettingsValueFieldSelected = true;
-                          _globalSettings->setValueFieldSelected (true);
-                        }
-                      else
-                        {
-                          confirmGlobalSettingsOption ();
-                        }
-                    }
+                  handleChannelValueChange (channel, 1, increment);
+                  updateControlReadout (
+                      "CH" + juce::String (channel + 1) + " Q "
+                      + juce::String (_engine.getChannelPot2 (channel), 2));
                 }
+              return;
             }
           else if (value.refersToSameSourceAs (
+                       _ioAdapter->getEncoderPress (channel))
+                   || value.refersToSameSourceAs (
                        _ioAdapter->getEncoderPress (channel, 1)))
             {
-              // Pot-Encoder press: cycle the current section's sub-element
-              // (e.g. Elevation: coverage <-> mode). Suppressed on channel 3
-              // while Global Settings is open, matching the Motion-Encoder.
-              if (value.getValue () && !(_globalSettingsOpen && channel == 3u))
-                handleClipSettingsSubElementCycle (channel);
+              // Nothing. Pressing used to arm a menu row or cycle a
+              // section's sub-element; both are reached by touch now, and a
+              // press that does something different depending on what is
+              // open is exactly what this rework got rid of.
+              return;
             }
           else if (value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 0)))
             {
               jassert (value.getValue ().isDouble ());
-              auto const pot1Normalized
+              auto const potNormalized
                   = static_cast<float> (value.getValue ());
-#ifdef DEBUG
-              juce::Logger::writeToLog ("channel " + juce::String (channel)
-                                        + " pot_1: " + juce::String (pot1Normalized));
-#endif
-              if (channel == 3u && _globalSettingsOpen)
-                {
-                  // Menu navigation is driven exclusively by the ch3
-                  // rotary encoder; suppress the pot-encoder's synthetic
-                  // pot values while the overlay is open.
-                }
-              else
-                {
-                  _engine.setChannelPot1 (channel, pot1Normalized);
-                  _filterDisplay->setSweep (static_cast<int> (channel), pot1Normalized);
-                  updateControlReadout ("CH" + juce::String (channel + 1)
-                                       + " POT1 "
-                                       + juce::String (pot1Normalized, 2));
-                }
+
+              // The third per-channel value. What Core makes of it is its
+              // business; here it is a number between 0 and 1.
+              _engine.setChannelPot3 (channel, potNormalized);
+              updateControlReadout ("CH" + juce::String (channel + 1)
+                                    + " 3D "
+                                    + juce::String (potNormalized, 2));
+              updateClipSettingsDisplay ();
               return;
             }
           else if (value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 1)))
             {
-              jassert (value.getValue ().isDouble ());
-              auto const pot2Normalized = static_cast<float> (value.getValue ());
-#ifdef DEBUG
-              juce::Logger::writeToLog ("channel " + juce::String (channel)
-                                        + " pot_2: " + juce::String (pot2Normalized));
-#endif
-              if (channel == 3u && _globalSettingsOpen)
-                {
-                  // Menu navigation is driven exclusively by the ch3
-                  // rotary encoder; suppress the pot-encoder's synthetic
-                  // pot values while the overlay is open.
-                }
-              else
-                {
-                  _engine.setChannelPot2 (channel, pot2Normalized);
-                  _filterDisplay->setQ (static_cast<int> (channel), pot2Normalized);
-                  updateControlReadout ("CH" + juce::String (channel + 1)
-                                       + " POT2 "
-                                       + juce::String (pot2Normalized, 2));
-                }
+              // Unassigned. Freq and Q moved to the encoders, and nothing
+              // has taken this pot's place yet.
               return;
             }
 
@@ -1036,6 +930,38 @@ A3MotionUIComponent::handleTapAt (juce::int64 tapTimeMicros)
       juce::Logger::writeToLog ("[TAP] counting, no tempo yet");
       break;
     }
+}
+
+void
+A3MotionUIComponent::handleChannelValueChange (index_t channel, int row,
+                                               int increment)
+{
+  // The same step the encoders take, so a finger and a knob move a value at
+  // the same rate.
+  auto const step = increment * 0.02f;
+
+  switch (row)
+    {
+    case 0:
+      _engine.setChannelPot1 (
+          channel,
+          std::clamp (_engine.getChannelPot1 (channel) + step, 0.f, 1.f));
+      break;
+    case 1:
+      _engine.setChannelPot2 (
+          channel,
+          std::clamp (_engine.getChannelPot2 (channel) + step, 0.f, 1.f));
+      break;
+    case 2:
+      _engine.setChannelPot3 (
+          channel,
+          std::clamp (_engine.getChannelPot3 (channel) + step, 0.f, 1.f));
+      break;
+    default:
+      return;
+    }
+
+  updateClipSettingsDisplay ();
 }
 
 void
@@ -2680,8 +2606,6 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
     return 6;
   if (menuIndex == ClipSettingsComponent::motionIndex)
     return 4; // speed, direction, end-action, seam
-  if (menuIndex == ClipSettingsComponent::filterIndex)
-    return 2;
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
     return 2; // the shape itself, and the length of the next take
   return 1;
@@ -2865,23 +2789,6 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           }
         }
       break;
-    case 3: // Filter — sweep/Pot1 (0) or Q/Pot2 (1)
-      if (sub == 0)
-        {
-          auto const newVal = std::clamp (
-              _engine.getChannelPot1 (channel) + increment * 0.02f, 0.0f, 1.0f);
-          _engine.setChannelPot1 (channel, newVal);
-          _filterDisplay->setSweep (static_cast<int> (channel), newVal);
-        }
-      else
-        {
-          auto const newVal = std::clamp (
-              _engine.getChannelPot2 (channel) + increment * 0.02f, 0.0f, 1.0f);
-          _engine.setChannelPot2 (channel, newVal);
-          _filterDisplay->setQ (static_cast<int> (channel), newVal);
-        }
-      break;
-
     case ClipSettingsComponent::globalIndex:
       {
         // Nothing in _clipUIParams changes here: the strip holds one setting
@@ -3025,12 +2932,15 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
           ? _clipSettingsSubIndex
           : 0);
 
-  _clipSettings->setFilterSweep (_engine.getChannelPot1 (channel));
-  _clipSettings->setFilterQ (_engine.getChannelPot2 (channel));
-  _clipSettings->setFilterSubIndex (
-      _clipSettingsMenuIndex == ClipSettingsComponent::filterIndex
-          ? _clipSettingsSubIndex
-          : 0);
+  // Every channel's three values, not only the shown one's: the grid in the
+  // global section belongs to the channels, not to the clip on display.
+  for (int ch = 0; ch < numChannelColumns; ++ch)
+    {
+      auto const index = static_cast<index_t> (ch);
+      _clipSettings->setChannelValues (ch, _engine.getChannelPot1 (index),
+                                       _engine.getChannelPot2 (index),
+                                       _engine.getChannelPot3 (index));
+    }
 
   _clipSettings->setSelectedParameterIndex (_clipSettingsMenuIndex);
 }

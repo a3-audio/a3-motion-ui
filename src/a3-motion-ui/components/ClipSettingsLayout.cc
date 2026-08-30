@@ -30,13 +30,13 @@ namespace
 {
 constexpr int paddingH = 16;
 
-// Five equal parts: the clip's four sections and the global strip beside
-// them. The strip used to be half a section; it carries the Menu/Rec/Tap
-// buttons now, and those have to be big enough for a finger.
+// The global section takes half the bar — it holds a 4x3 grid of
+// per-channel values plus the rec mode and three action buttons — and the
+// clip's three sections share the other half.
 int
 clipSectionWidth (int rowWidth)
 {
-  return rowWidth / numClipSettingsSections;
+  return rowWidth / 2 / (numClipSettingsSections - 1);
 }
 
 /** The card's inner area, the same reduction every section makes. */
@@ -59,9 +59,7 @@ numControlsInSection (int sectionIndex)
     case 2:
       return 4; // speed, direction, end-action, seam
     case 3:
-      return 2; // sweep, Q
-    case 4:
-      return 1; // rec mode
+      return 1; // rec mode — the global section's only encoder-ish value
     default:
       return 0;
     }
@@ -74,7 +72,7 @@ tapAdvancesValue (int sectionIndex, int subIndex)
     return subIndex == 3 || subIndex == 4; // mirror-south, flat
   if (sectionIndex == 2)
     return subIndex == 1 || subIndex == 2; // direction, end-action
-  if (sectionIndex == 4)
+  if (sectionIndex == 3)
     return subIndex == 0; // rec mode
 
   return false;
@@ -114,8 +112,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   ClipSettingsLayout out;
 
   // Two panels side by side, not one panel with an odd section on the end.
-  out.globalBounds
-      = bounds.removeFromRight (clipSectionWidth (bounds.getWidth ()));
+  out.globalBounds = bounds.removeFromRight (bounds.getWidth () / 2);
   out.clipBounds = bounds;
 
   auto const paddingV = juce::jmax (4, out.clipBounds.getHeight () / 40);
@@ -153,7 +150,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   auto globalArea = out.globalBounds.reduced (paddingH, paddingV);
   globalArea.removeFromTop (headerH);
-  out.sectionCards[4] = globalArea.reduced (gap / 2, 0);
+  out.sectionCards[3] = globalArea.reduced (gap / 2, 0);
 
   // ── Shape ────────────────────────────────────────────────────────────
   {
@@ -242,36 +239,55 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     };
   }
 
-  // ── Filter ───────────────────────────────────────────────────────────
+  // ── Global section ───────────────────────────────────────────────────
   {
     auto content = sectionContent (out.sectionCards[3]);
     out.sectionLabels[3]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
-    auto const gapH = juce::jmax (2, content.getWidth () / 20);
-    auto const sweepArea
-        = content.removeFromLeft (content.getWidth () / 2 - gapH / 2);
-    content.removeFromLeft (gapH);
-    auto const qArea = content;
+    // The grid on the left, the rec mode and the buttons in a strip on the
+    // right. A third of the width is enough for two buttons side by side and
+    // leaves the four channel columns room to stay square-ish.
+    auto strip = content.removeFromRight (content.getWidth () / 3);
+    auto const stripGap = juce::jmax (2, content.getWidth () / 40);
+    content.removeFromRight (stripGap);
 
-    out.controls[3] = {
-      textCell (sweepArea, metrics.knobDiam),
-      textCell (qArea, metrics.knobDiam),
-    };
-  }
+    // ── the 4 x 3 grid ────────────────────────────────────────────────
+    {
+      auto grid = content;
+      auto const labelH = textRowHeight (grid, metrics.captionSize);
+      auto const headerRow = grid.removeFromTop (labelH);
 
-  // ── Global strip ─────────────────────────────────────────────────────
-  {
-    auto content = sectionContent (out.sectionCards[4]);
-    out.sectionLabels[4]
-        = content.removeFromTop (titleRowHeight (content, headerSize));
+      // A narrow gutter down the left for the row captions: freq, Q, 3d
+      // said once each rather than twelve times.
+      auto const gutterW = juce::jmax (labelH, grid.getWidth () / 8);
+      auto gutter = grid.removeFromLeft (gutterW);
+      auto columns = grid;
+      auto headerColumns = headerRow;
+      headerColumns.removeFromLeft (gutterW);
 
-    // Two rows of buttons at the bottom, the rec mode above them in what is
-    // left. The buttons get a fixed share rather than what happens to be
-    // spare: they are the one thing here a finger has to hit, and at large
-    // fonts the rec mode would otherwise eat the strip.
-    auto buttons = content.removeFromBottom (content.getHeight () * 5 / 9);
-    out.controls[4] = { textCell (content, metrics.knobDiam) };
+      auto const colW = columns.getWidth () / numChannelColumns;
+      auto const rowH = columns.getHeight () / numChannelRows;
+
+      for (int row = 0; row < numChannelRows; ++row)
+        out.channelRowLabels[static_cast<size_t> (row)]
+            = gutter.removeFromTop (rowH);
+
+      for (int col = 0; col < numChannelColumns; ++col)
+        {
+          auto const c = static_cast<size_t> (col);
+          out.channelLabels[c] = headerColumns.removeFromLeft (colW);
+
+          auto column = columns.removeFromLeft (colW);
+          for (int row = 0; row < numChannelRows; ++row)
+            out.channelGrid[c][static_cast<size_t> (row)]
+                = column.removeFromTop (rowH).reduced (2);
+        }
+    }
+
+    // ── rec mode and the action buttons ───────────────────────────────
+    auto buttons = strip.removeFromBottom (strip.getHeight () * 5 / 9);
+    out.controls[3] = { textCell (strip, metrics.knobDiam) };
 
     auto const gap = juce::jmax (2, buttons.getHeight () / 20);
     auto topRow = buttons.removeFromTop ((buttons.getHeight () - gap) / 2);

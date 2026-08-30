@@ -75,6 +75,9 @@ public:
   float getChannelPot2 (index_t channel);
   void setChannelPot2 (index_t channel, float pot2);
 
+  float getChannelPot3 (index_t channel);
+  void setChannelPot3 (index_t channel, float pot3);
+
   enum class RecordingMode
   {
     Loop,
@@ -282,6 +285,7 @@ private:
   std::vector<Pos> _lastSentPositions;
   std::vector<float> _lastSentPot1s;
   std::vector<float> _lastSentPot2s;
+  std::vector<float> _lastSentPot3s;
 
   // Per-channel preview mode: when true, suppress OSC output
   std::vector<std::atomic<bool>> _previewMode;

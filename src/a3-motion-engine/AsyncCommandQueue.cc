@@ -64,6 +64,16 @@ AsyncCommandQueue::sendPot2 (index_t channel, float pot2)
 }
 
 void
+AsyncCommandQueue::sendPot3 (index_t channel, float pot3)
+{
+  Message message;
+  message.command = Message::Command::SendPot3;
+  message.channel = channel;
+  message.pot3 = pot3;
+  submitMessage (std::move (message));
+}
+
+void
 AsyncCommandQueue::run ()
 {
   while (true)
@@ -149,6 +159,11 @@ AsyncCommandQueue::processMessage (Message const &message)
     case Message::Command::SendPot2:
       {
         _backend->sendPot2 (message.channel, message.pot2);
+        break;
+      }
+    case Message::Command::SendPot3:
+      {
+        _backend->sendPot3 (message.channel, message.pot3);
         break;
       }
     }

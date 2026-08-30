@@ -42,6 +42,7 @@ public:
   void sendPosition (index_t channel, Pos const &pos) override;
   void sendPot1 (index_t channel, float pot1) override;
   void sendPot2 (index_t channel, float pot2) override;
+  void sendPot3 (index_t channel, float pot3) override;
 
 protected:
   void addressesChanged (OscAddresses const &addresses) override;

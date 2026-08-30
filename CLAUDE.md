@@ -123,8 +123,9 @@ before changing button/settings/clock logic.
 
 High-level structure, top to bottom in `A3MotionUIComponent::resized()`: `StatusBar` → the rest of
 the screen split into `MotionComponent` (the sphere) and, docked to the bottom quarter, the
-"settings area" — `ClipSettingsComponent` (permanent, shows the last-selected clip's 7 parameters:
-Trajectory Shape/Speed/Direction/End-Action/Scale/Sweep/Q) with `GlobalSettingsComponent`
+"settings area" — `ClipSettingsComponent` (permanent; three sections describing the last-selected
+clip — Shape, Elevation, Motion — plus a global section taking the bar's right half) with
+`GlobalSettingsComponent`
 (Clockmode, Skin, Skin Editor, Network, Button LEDs, Pattern Folder, Sphere in Menu — opened by
 the Menu button; sizes and fonts are skin values, edited in the Skin Editor) drawn on top of it while open. Both settings
 components share that bottom-quarter rect, carved out of `MotionComponent`'s actual bounds rather
@@ -135,11 +136,18 @@ visibly overlap it without a real bounds change. `LoopLengthDisplay`, `Elevation
 but are permanently hidden (`setVisible(false)`) and no longer given screen space — same for
 `ChannelStrip`.
 
-Each channel has two rotary encoders, both scoped to whichever clip `ClipSettingsComponent`
-currently shows: the Motion-Encoder scrolls the 7 parameter rows, the Pot-Encoder changes the
-selected row's value (`A3MotionUIComponent::handleClipSettingsScroll`/
-`handleClipSettingsValueChange`). Channel 3's encoder pair is reserved for `GlobalSettingsComponent`
-navigation while it's open.
+Each channel's two rotary encoders have one job each, the same one whatever is on screen:
+**upper = freq, lower = Q** for that channel (`handleChannelValueChange`, writing
+`MotionEngine::setChannelPot1/2`). **Pot 0 = the third per-channel value ("3d",
+`setChannelPot3`)**; **pot 1 is unassigned**. Pressing an encoder does nothing.
+
+They used to scroll the bar's sections, change the selected row's value, and — on channel 3 —
+navigate the settings menu, the skin editor and the colour picker. **All of that is touch now.**
+Nothing in the encoder path depends on what is open any more, which is the point: a knob that means
+something different depending on the screen is a knob you have to look at.
+
+The trade the maintainer accepted knowingly: with the touchscreen out, the device cannot be
+operated at all. It used to be fully drivable from the hardware.
 
 #### Touch
 
@@ -213,8 +221,16 @@ Two things are not obvious:
   Reading a `juce::String` on one thread while another replaces it is a race,
   refcount and all.
 
-The global strip on the right of the clip settings bar carries three action
-buttons — **MENU**, **REC**, **TAP** — beside its rec-mode display. They are the
+The bar's **global section** takes its right half and holds three things: a 4x3 grid of
+per-channel values (columns = channels in their own colours, rows = freq, Q, 3d), the rec mode, and
+the action buttons. A **Filter section** used to sit among the clip's sections showing freq and Q —
+but those were never the clip's: `handleClipSettingsValueChange` wrote them through
+`setChannelPot1/2`, the same per-channel values the hardware drives. Dissolving that section moved
+them where they belong, and nothing was lost. The grid's cells are dragged through
+`onChannelValueDragged` and name their own channel, unlike everything else in the bar, which is
+about the clip on show.
+
+The global section also carries three action buttons — **MENU**, **REC**, **TAP** — beside its rec-mode display. They are the
 finger's way to what the hardware has keys for, and they are not sub-elements of
 the section: no encoder reaches them, so they sit beside `controls` in
 `ClipSettingsLayout` rather than in it, and `numControlsInSection(4)` stays 1.

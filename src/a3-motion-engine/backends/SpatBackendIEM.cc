@@ -75,4 +75,13 @@ SpatBackendIEM::sendPot2 (index_t channel, float pot2)
       "SpatBackendIEM::sendPot2: implement me!");
 }
 
+void
+SpatBackendIEM::sendPot3 (index_t channel, float pot3)
+{
+  juce::ignoreUnused (channel);
+  juce::ignoreUnused (pot3);
+  throw std::runtime_error (
+      "SpatBackendIEM::sendPot3: implement me!");
+}
+
 }

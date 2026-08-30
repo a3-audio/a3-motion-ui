@@ -93,6 +93,7 @@ MotionEngine::createChannels (index_t const numChannels)
   _positionHeld = std::vector<std::atomic<bool>> (numChannels);
   _lastSentPot1s.resize (numChannels);
   _lastSentPot2s.resize (numChannels);
+  _lastSentPot3s.resize (numChannels);
   _previewMode = std::vector<std::atomic<bool>> (numChannels);
 
   auto constexpr spread = 120.f;
@@ -183,6 +184,18 @@ void
 MotionEngine::setChannelPot2 (index_t channel, float pot2)
 {
   _channels[channel]->setPot2 (pot2);
+}
+
+float
+MotionEngine::getChannelPot3 (index_t channel)
+{
+  return _channels[channel]->getPot3 ();
+}
+
+void
+MotionEngine::setChannelPot3 (index_t channel, float pot3)
+{
+  _channels[channel]->setPot3 (pot3);
 }
 
 std::shared_ptr<Pattern>
@@ -417,6 +430,13 @@ MotionEngine::tickCallback ()
         {
           _commandQueue.sendPot2 (index, pot2);
           _lastSentPot2s[index] = pot2;
+        }
+
+      auto const pot3 = _channels[index]->getPot3 ();
+      if (!juce::approximatelyEqual (_lastSentPot3s[index], pot3))
+        {
+          _commandQueue.sendPot3 (index, pot3);
+          _lastSentPot3s[index] = pot3;
         }
     }
 }

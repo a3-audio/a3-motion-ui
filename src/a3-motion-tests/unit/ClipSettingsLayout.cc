@@ -53,8 +53,7 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
   EXPECT_EQ (l.controls[0].size (), 2u); // Shape: pattern, record length
   EXPECT_EQ (l.controls[1].size (), 6u); // Elevation
   EXPECT_EQ (l.controls[2].size (), 4u); // Motion
-  EXPECT_EQ (l.controls[3].size (), 2u); // Filter
-  EXPECT_EQ (l.controls[4].size (), 1u); // Global
+  EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 
 // The count each section reports must be the count it lays out, or a tap
@@ -175,12 +174,8 @@ TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
   EXPECT_FALSE (tapAdvancesValue (0, 0));
   EXPECT_FALSE (tapAdvancesValue (0, 1));
 
-  // Filter: both continuous.
-  EXPECT_FALSE (tapAdvancesValue (3, 0));
-  EXPECT_FALSE (tapAdvancesValue (3, 1));
-
   // Global: the rec mode has few states.
-  EXPECT_TRUE (tapAdvancesValue (4, 0));
+  EXPECT_TRUE (tapAdvancesValue (3, 0));
 }
 
 
@@ -190,7 +185,7 @@ TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
 TEST (ClipSettingsLayout, TheActionButtonsSitInTheGlobalStrip)
 {
   auto const l = defaultLayout ();
-  auto const card = l.sectionCards[4];
+  auto const card = l.sectionCards[3];
 
   EXPECT_TRUE (card.contains (l.menuButton));
   EXPECT_TRUE (card.contains (l.recButton));
@@ -200,7 +195,7 @@ TEST (ClipSettingsLayout, TheActionButtonsSitInTheGlobalStrip)
 TEST (ClipSettingsLayout, TheActionButtonsDoNotOverlapEachOtherOrTheRecMode)
 {
   auto const l = defaultLayout ();
-  auto const recMode = l.controls[4][0];
+  auto const recMode = l.controls[3][0];
 
   for (auto const &a : { l.menuButton, l.recButton, l.tapButton })
     EXPECT_TRUE (a.getIntersection (recMode).isEmpty ());
@@ -247,5 +242,91 @@ TEST (ClipSettingsLayout, TheActionButtonsStayBigEnoughToHit)
             EXPECT_GE (b.getWidth (), 40) << "pot " << potSize;
             EXPECT_GE (b.getHeight (), 30) << "body " << bodySize;
           }
+      }
+}
+
+
+// Freq, Q and the third value belong to a channel each, not to the clip the
+// bar happens to show — so they are a grid of their own in the global
+// section, one column per channel.
+TEST (ClipSettingsLayout, TheChannelGridHasAColumnPerChannelAndThreeRows)
+{
+  auto const l = defaultLayout ();
+  auto const card = l.sectionCards[3];
+
+  for (int col = 0; col < numChannelColumns; ++col)
+    for (int row = 0; row < numChannelRows; ++row)
+      EXPECT_TRUE (card.contains (
+          l.channelGrid[static_cast<size_t> (col)][static_cast<size_t> (row)]))
+          << "channel " << col << " row " << row << " escapes the section";
+}
+
+TEST (ClipSettingsLayout, NoTwoGridCellsOverlap)
+{
+  auto const l = defaultLayout ();
+
+  std::vector<juce::Rectangle<int>> cells;
+  for (auto const &column : l.channelGrid)
+    for (auto const &cell : column)
+      cells.push_back (cell);
+
+  for (size_t a = 0; a < cells.size (); ++a)
+    for (size_t b = a + 1; b < cells.size (); ++b)
+      EXPECT_TRUE (cells[a].getIntersection (cells[b]).isEmpty ())
+          << "cells " << a << " and " << b << " overlap";
+}
+
+// Channels read left to right, the three values top to bottom — freq, Q, 3d.
+TEST (ClipSettingsLayout, TheGridReadsLeftToRightAndTopToBottom)
+{
+  auto const l = defaultLayout ();
+
+  for (int col = 1; col < numChannelColumns; ++col)
+    EXPECT_GT (l.channelGrid[static_cast<size_t> (col)][0].getX (),
+               l.channelGrid[static_cast<size_t> (col - 1)][0].getX ());
+
+  for (int row = 1; row < numChannelRows; ++row)
+    EXPECT_GT (l.channelGrid[0][static_cast<size_t> (row)].getY (),
+               l.channelGrid[0][static_cast<size_t> (row - 1)].getY ());
+}
+
+// The grid must not run into the strip that holds the rec mode and the
+// buttons beside it.
+TEST (ClipSettingsLayout, TheGridClearsTheActionButtonsAndTheRecMode)
+{
+  auto const l = defaultLayout ();
+
+  for (auto const &column : l.channelGrid)
+    for (auto const &cell : column)
+      {
+        EXPECT_TRUE (cell.getIntersection (l.controls[3][0]).isEmpty ());
+        EXPECT_TRUE (cell.getIntersection (l.menuButton).isEmpty ());
+        EXPECT_TRUE (cell.getIntersection (l.recButton).isEmpty ());
+        EXPECT_TRUE (cell.getIntersection (l.tapButton).isEmpty ());
+      }
+}
+
+// A cell a finger can hit, at every size the bar is used at.
+TEST (ClipSettingsLayout, GridCellsStayBigEnoughToHit)
+{
+  for (float potSize : { 0.6f, 1.f, 1.8f })
+    for (float bodySize : { 9.f, 16.f, 28.f })
+      {
+        auto const headerSize = bodySize * 1.3f;
+        auto const knobDiam = knobDiameterForFont (bodySize, potSize);
+        juce::Rectangle<int> const grown{
+          0, 0, panelWidth,
+          clipSettingsPreferredHeight (headerSize, bodySize, knobDiam)
+        };
+
+        auto const l = layOutClipSettings (grown, headerSize, bodySize,
+                                           potSize);
+
+        for (auto const &column : l.channelGrid)
+          for (auto const &cell : column)
+            {
+              EXPECT_GE (cell.getWidth (), 30) << "pot " << potSize;
+              EXPECT_GE (cell.getHeight (), 20) << "body " << bodySize;
+            }
       }
 }

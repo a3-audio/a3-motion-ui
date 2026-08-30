@@ -50,6 +50,7 @@ SpatBackendA3::addressesChanged (OscAddresses const &addresses)
       _elevationPatterns[ch] = withChannel (addresses.channelElevation, ch);
       _pot1Patterns[ch] = withChannel (addresses.channelPot1, ch);
       _pot2Patterns[ch] = withChannel (addresses.channelPot2, ch);
+      _pot3Patterns[ch] = withChannel (addresses.channelPot3, ch);
     }
 }
 
@@ -96,6 +97,14 @@ SpatBackendA3::sendPot2 (index_t channel, float pot2)
 {
   jassert (channel < kMaxChannels);
   auto message = juce::OSCMessage (_pot2Patterns[channel], pot2);
+  _sender.sendToIPAddress (_address, _port, message);
+}
+
+void
+SpatBackendA3::sendPot3 (index_t channel, float pot3)
+{
+  jassert (channel < kMaxChannels);
+  auto message = juce::OSCMessage (_pot3Patterns[channel], pot3);
   _sender.sendToIPAddress (_address, _port, message);
 }
 }

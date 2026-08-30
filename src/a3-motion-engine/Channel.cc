@@ -79,4 +79,16 @@ Channel::setPot2 (float pot2)
   _pot2 = pot2;
 }
 
+float
+Channel::getPot3 () const
+{
+  return _pot3;
+}
+
+void
+Channel::setPot3 (float pot3)
+{
+  _pot3 = pot3;
+}
+
 }

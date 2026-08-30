@@ -36,6 +36,7 @@ public:
   virtual void sendPosition (index_t channel, Pos const &pos) = 0;
   virtual void sendPot1 (index_t channel, float pot1) = 0;
   virtual void sendPot2 (index_t channel, float pot2) = 0;
+  virtual void sendPot3 (index_t channel, float pot3) = 0;
 
   /** New addresses, handed over from the message thread. Stored, not
    *  applied — sending happens on the command queue's thread, and that is

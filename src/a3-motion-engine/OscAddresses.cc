@@ -125,6 +125,7 @@ loadOscAddresses (juce::var const &config)
   readAddress (block, "channelElevation", addresses.channelElevation);
   readAddress (block, "channelPot1", addresses.channelPot1);
   readAddress (block, "channelPot2", addresses.channelPot2);
+  readAddress (block, "channelPot3", addresses.channelPot3);
   readAddress (block, "iemAzimuth", addresses.iemAzimuth);
   readAddress (block, "iemElevation", addresses.iemElevation);
   readAddress (block, "beat", addresses.beat);

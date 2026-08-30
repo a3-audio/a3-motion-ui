@@ -38,6 +38,7 @@ public:
   void sendPosition (index_t channel, Pos position);
   void sendPot1 (index_t channel, float pot1);
   void sendPot2 (index_t channel, float pot2);
+  void sendPot3 (index_t channel, float pot3);
 
   /** Hand new addresses to the backend. Safe from any thread; the backend
    *  picks them up on its own thread at the start of the next drain. */
@@ -54,12 +55,14 @@ private:
       SendPosition,
       SendPot1,
       SendPot2,
+      SendPot3,
     } command;
 
     index_t channel;
     Pos position;
     float pot1;
     float pot2;
+    float pot3;
   };
 
   void submitMessage (Message &&message);

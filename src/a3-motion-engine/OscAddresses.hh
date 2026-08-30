@@ -43,6 +43,11 @@ struct OscAddresses
   juce::String channelElevation{ "/channel/{ch}/elevation" };
   juce::String channelPot1{ "/channel/{ch}/pot_1" };
   juce::String channelPot2{ "/channel/{ch}/pot_2" };
+  /** The third per-channel value ("3d"). Deliberately not
+   *  `/channel/{ch}/3d`: Core dispatches on the last path element, and `3d`
+   *  there is a toggle that fires on the value 1 — a continuous value would
+   *  flip it whenever it passed 1.0 and do nothing the rest of the time. */
+  juce::String channelPot3{ "/channel/{ch}/pot_3" };
 
   // Outgoing, to an IEM plugin chain (SpatBackendIEM).
   juce::String iemAzimuth{ "/StereoEncoder/azimuth" };

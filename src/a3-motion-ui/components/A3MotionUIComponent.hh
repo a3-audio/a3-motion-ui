@@ -405,6 +405,10 @@ private:
   void selectClipSettingsSection (int index);
   void selectClipSettingsSubElement (int index);
 
+  /** One channel's freq/Q/3d, from the global section's grid. Named by
+   *  channel, not by what the bar is showing. */
+  void handleChannelValueChange (index_t channel, int row, int increment);
+
   /** Arm and start a take on this slot. Reached from the hardware (Record
    *  held while a Play|Pause pad is pressed) and from the bar's Rec button,
    *  which has no pad to name a slot and so uses the one on show. */

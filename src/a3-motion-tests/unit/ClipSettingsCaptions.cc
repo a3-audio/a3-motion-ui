@@ -288,24 +288,21 @@ TEST (ClipSettingsHeight, TheBarNeverEatsMoreThanItsShareOfTheScreen)
       << "a modest request passes through untouched";
 }
 
-// The strip on the right holds what is not the shown clip's. It used to be
-// half a section wide, an aside rather than a fifth section -- but it carries
-// the Menu/Rec/Tap buttons now, and a finger needs room, so all five are
-// equal.
-TEST (ClipSettingsLayout, TheGlobalStripIsAsWideAsASection)
+// The global section holds what is not the shown clip's: the per-channel
+// freq/Q/3d grid, the rec mode and the action buttons. That is half the bar
+// now -- it used to be half a *section*, back when it held one value.
+TEST (ClipSettingsLayout, TheGlobalSectionTakesHalfTheBar)
 {
   for (auto const rowWidth : { 400, 703, 704, 1024, 1920 })
     {
       auto const section = ClipSettingsComponent::clipSectionWidth (rowWidth);
-      auto const strip
-          = rowWidth - ClipSettingsComponent::numClipSections * section;
 
       EXPECT_GT (section, 0) << "row width " << rowWidth;
 
-      // Integer division leaves at most a few pixels over, and they all land
-      // in the strip; it must not grow visibly wider than a section for it.
-      EXPECT_NEAR (strip, section, ClipSettingsComponent::numParameters)
-          << "row width " << rowWidth << ": section " << section << ", strip "
-          << strip;
+      // Three clip sections in one half; integer division leaves a few
+      // pixels, which land in the global section.
+      EXPECT_NEAR (section * ClipSettingsComponent::numClipSections,
+                   rowWidth / 2, ClipSettingsComponent::numClipSections)
+          << "row width " << rowWidth << ": section " << section;
     }
 }
