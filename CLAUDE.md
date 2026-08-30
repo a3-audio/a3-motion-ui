@@ -184,6 +184,46 @@ Clock mode (`_clockMode`: `0=INT, 1=EXT, 2=PIO`) governs whether the UI drives i
 button sets BPM, `/beat` sent via OSC) or follows an externally received `/beat` OSC stream
 (playback synced to external phase, `/beat` not re-sent to avoid feedback loops).
 
+#### OSC addresses
+
+Every address this device speaks is a config value, not a literal: the
+`oscAddresses` block in `config/config.json`, read by
+`a3-motion-engine/OscAddresses.{hh,cc}`. Defaults are what the system has
+always used, so a config without the block behaves as before. `{ch}` stands
+for the channel number and is substituted by `withChannel()`.
+
+Two things are not obvious:
+
+- **A bad address is refused, not sent.** `juce::OSCMessage` throws
+  `OSCFormatError` on an address pattern it will not take, and these are typed
+  on the device — so `loadOscAddresses()` validates each one (JUCE's own rule:
+  non-empty, leading slash, every `/`-separated token printable ASCII without
+  a space or `#`) and keeps the default when it fails. That validation is the
+  reason this is a unit of its own rather than a few `getProperty` calls.
+- **Changes apply live, and cross two thread boundaries to do it.** The
+  message thread reads the new config (`A3MotionUIComponent::applyOscAddresses`,
+  called from `MotionComponent::onAppConfigReloaded`). From there:
+  `OscMessageHandler` takes them directly — it receives through
+  `OSCReceiver::MessageLoopCallback`, so it is on that same thread. The send
+  backend does not: `SpatBackend::setAddresses()` stores them under a lock and
+  `applyPendingAddresses()`, called once per drain by `AsyncCommandQueue`,
+  rebuilds the cached per-channel patterns on the sending thread. The beat
+  address needs the same care for the same reason — `tickCallback()` runs on
+  the tempo-clock thread, so it keeps its own copy handed over the same way.
+  Reading a `juce::String` on one thread while another replaces it is a race,
+  refcount and all.
+
+Editing happens on the Menu's **Network** page, which slices `oscSender`,
+`oscReceiver` and `oscAddresses` out of `config.json` and derives its rows from
+the JSON — a key added to the block shows up there without anyone registering
+it.
+
+A changed address only changes *this* side of the conversation: `beat` has to
+match what the beat-analyzer sends, the channel addresses what A3 Core listens
+for. A typo does not fail loudly — the app sends correctly to an address
+nobody subscribes to. The reference for what the rest of the system expects is
+`web/a3-doc/src/ressources/osc.md`.
+
 #### On-screen keyboard
 
 The UI draws no keyboard. `io/OnScreenKeyboard.{hh,cc}` asks **Onboard** — the system's on-screen
