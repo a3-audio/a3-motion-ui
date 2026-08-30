@@ -66,7 +66,7 @@ ClipSettingsComponent::createTouchControls ()
     {
       auto card = std::make_unique<TouchControl> ();
       card->setIdentity (section, 0);
-      card->onTap = [this] (int tappedSection, int) {
+      card->onPress = [this] (int tappedSection, int) {
         if (onControlTapped)
           onControlTapped (tappedSection, 0);
       };
@@ -82,10 +82,16 @@ ClipSettingsComponent::createTouchControls ()
           auto control = std::make_unique<TouchControl> ();
           control->setIdentity (section, sub);
 
-          control->onTap = [this] (int tappedSection, int tappedSub) {
+          // Selection happens once, when the finger lands — not on every
+          // increment. Re-selecting per increment let two fingers on two
+          // controls trade the selection back and forth, and the highlight
+          // flickered between them.
+          control->onPress = [this] (int pressedSection, int pressedSub) {
             if (onControlTapped)
-              onControlTapped (tappedSection, tappedSub);
+              onControlTapped (pressedSection, pressedSub);
+          };
 
+          control->onTap = [this] (int tappedSection, int tappedSub) {
             // A control with two or three states steps on right away:
             // tapping your way to a yes/no and then having to drag it as
             // well would be one move too many. Continuous values are
@@ -96,11 +102,6 @@ ClipSettingsComponent::createTouchControls ()
 
           control->onDragIncrement
               = [this] (int draggedSection, int draggedSub, int increment) {
-                  // Select first, then change: a drag on something that is
-                  // not currently selected must change that one, not the
-                  // other.
-                  if (onControlTapped)
-                    onControlTapped (draggedSection, draggedSub);
                   if (onControlDragged)
                     onControlDragged (draggedSection, draggedSub, increment);
                 };

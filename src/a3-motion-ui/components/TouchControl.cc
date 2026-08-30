@@ -46,6 +46,9 @@ TouchControl::mouseDown (juce::MouseEvent const &)
   // Read here rather than in the constructor: the skin can change while
   // the app runs, and a drag should count with the value in force now.
   _drag = DragAccumulator{ theme ().touchDragPixelsPerStep };
+
+  if (onPress)
+    onPress (_primary, _secondary);
 }
 
 void

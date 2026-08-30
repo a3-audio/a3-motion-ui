@@ -59,6 +59,10 @@ SkinEditorComponent::browseRow (int index)
   // Letting the armed row go, exactly as turning to another row does:
   // otherwise the next drag would edit a row nobody is looking at.
   _editing = false;
+  // And calling off a pending delete, for the same reason turning away does:
+  // it must never wait around for a press meant for something else.
+  _deleteAsked = false;
+  _saved = false;
   resized ();
   repaint ();
 }
@@ -162,6 +166,16 @@ SkinEditorComponent::createTouchControls ()
         // a colour row opens the picker, a typed number calls the keyboard.
         // toggleEditing() already knows all of those cases.
         toggleEditing ();
+      };
+      // The name column is where the list is rolled. Leaving that to a
+      // strip behind the rows meant it could only be grabbed in the gaps
+      // between them, which is to say hardly at all. Left half rolls, right
+      // half changes the value — the two halves of a row, two jobs.
+      touch.name->onDragIncrement = [this] (int, int, int increment) {
+        // Rolls, never edits. navigate() would have changed the armed row's
+        // value instead, because that is its second level — but this column
+        // is the list, not a value.
+        browseRow (browsedRowIndex () + increment);
       };
 
       touch.value = std::make_unique<TouchControl> ();

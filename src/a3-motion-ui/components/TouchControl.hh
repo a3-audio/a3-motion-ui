@@ -58,6 +58,10 @@ public:
 
   void setIdentity (int primary, int secondary = -1);
 
+  /** The finger going down, before anything is known about what it will
+   *  do. Where selection belongs: doing it per increment instead made two
+   *  fingers on two controls fight over the one selection and flicker. */
+  std::function<void (int primary, int secondary)> onPress;
   /** A touch that emitted no step. */
   std::function<void (int primary, int secondary)> onTap;
   /** Once per threshold crossed, with +1 or -1. */
