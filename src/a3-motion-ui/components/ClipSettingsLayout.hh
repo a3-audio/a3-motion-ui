@@ -117,6 +117,7 @@ struct ClipSettingsLayout
    *  functions that the hardware has its own keys for; these are the way to
    *  them with a finger. Beside `controls`, not in it: no encoder reaches
    *  them, so they are not sub-elements of the section. */
+  juce::Rectangle<int> recModeButton;
   juce::Rectangle<int> menuButton;
   juce::Rectangle<int> recButton;
   juce::Rectangle<int> tapButton;

@@ -243,6 +243,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                                     increment);
         };
 
+  _clipSettings->onRecModePressed = [this] {
+    auto const count = static_cast<int> (recMenuModes.size ());
+    applyRecMode ((recMenuIndex (_recMode) + 1) % count);
+    updateClipSettingsDisplay ();
+  };
   _clipSettings->onMenuPressed = [this] { toggleGlobalSettings (); };
   _clipSettings->onRecordPressed = [this] { toggleRecordingOnShownClip (); };
   _clipSettings->onTapPressed = [this] { handleScreenTap (); };

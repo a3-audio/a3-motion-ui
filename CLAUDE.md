@@ -230,7 +230,14 @@ them where they belong, and nothing was lost. The grid's cells are dragged throu
 `onChannelValueDragged` and name their own channel, unlike everything else in the bar, which is
 about the clip on show.
 
-The global section also carries three action buttons — **MENU**, **REC**, **TAP** — beside its rec-mode display. They are the
+The global section is laid out top to bottom: the per-channel grid, centred as one block with its
+row captions, then **four buttons two by two** — rec mode, menu / rec, tap. The rec mode is a
+button like the others now and steps through the modes on a tap, which is what its encoder used to
+do; it reads as active whenever it is not Touch. Rows and columns of the grid are capped to what a
+knob needs rather than sharing out the section's whole width and height, so the twelve knobs sit
+together instead of scattered across half the bar.
+
+The buttons carry three device-wide functions — **MENU**, **REC**, **TAP** — beside its rec-mode display. They are the
 finger's way to what the hardware has keys for, and they are not sub-elements of
 the section: no encoder reaches them, so they sit beside `controls` in
 `ClipSettingsLayout` rather than in it, and `numControlsInSection(4)` stays 1.

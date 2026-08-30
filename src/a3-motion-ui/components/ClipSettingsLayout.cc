@@ -39,11 +39,13 @@ clipSectionWidth (int rowWidth)
   return rowWidth / 2 / (numClipSettingsSections - 1);
 }
 
-/** The card's inner area, the same reduction every section makes. */
+/** The card's inner area, the same reduction every section makes. A twelfth
+ *  of the width was a wide margin on a narrow section and an enormous one on
+ *  the global section, which is half the bar. */
 juce::Rectangle<int>
 sectionContent (juce::Rectangle<int> card)
 {
-  return card.reduced (juce::jmax (2, card.getWidth () / 12), 4);
+  return card.reduced (juce::jmax (3, card.getWidth () / 40), 3);
 }
 }
 
@@ -127,7 +129,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   area.removeFromTop (juce::jmax (4, out.clipBounds.getHeight () / 50));
 
-  auto const gap = juce::jmax (3, out.clipBounds.getWidth () / 200);
+  auto const gap = juce::jmax (2, out.clipBounds.getWidth () / 300);
   auto const sectionW = area.getWidth () / (numClipSettingsSections - 1);
 
   auto const knobDiam = knobDiameterForFont (bodySize, potSizeScale);
@@ -221,15 +223,31 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     out.sectionLabels[2]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
+    // Two by two, not four in a row: the section is a sixth of the bar wide
+    // now, and four columns in it left each control a sliver. The two rows
+    // are as tall as a control box rather than half the section, so the
+    // knobs sit together instead of at opposite ends of the card.
     auto const gapH = juce::jmax (2, content.getWidth () / 20);
-    auto const colW = (content.getWidth () - 3 * gapH) / 4;
-    auto const speedArea = content.removeFromLeft (colW);
-    content.removeFromLeft (gapH);
-    auto const directionArea = content.removeFromLeft (colW);
-    content.removeFromLeft (gapH);
-    auto const endActionArea = content.removeFromLeft (colW);
-    content.removeFromLeft (gapH);
-    auto const seamArea = content;
+    auto const gapV = juce::jmax (2, content.getHeight () / 20);
+    auto const motionRowH = juce::jmin (
+        (content.getHeight () - gapV) / 2,
+        controlBoxHeightForFont (bodySize, metrics.knobDiam));
+
+    content.removeFromTop (
+        (content.getHeight () - (2 * motionRowH + gapV)) / 2);
+
+    auto topRow = content.removeFromTop (motionRowH);
+    content.removeFromTop (gapV);
+    auto bottomRow = content.removeFromTop (motionRowH);
+
+    auto const colW = (topRow.getWidth () - gapH) / 2;
+    auto const speedArea = topRow.removeFromLeft (colW);
+    topRow.removeFromLeft (gapH);
+    auto const directionArea = topRow;
+
+    auto const endActionArea = bottomRow.removeFromLeft (colW);
+    bottomRow.removeFromLeft (gapH);
+    auto const seamArea = bottomRow;
 
     out.controls[2] = {
       textCell (speedArea, metrics.knobDiam),
@@ -245,29 +263,61 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     out.sectionLabels[3]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
-    // The grid on the left, the rec mode and the buttons in a strip on the
-    // right. A third of the width is enough for two buttons side by side and
-    // leaves the four channel columns room to stay square-ish.
-    auto strip = content.removeFromRight (content.getWidth () / 3);
-    auto const stripGap = juce::jmax (2, content.getWidth () / 40);
-    content.removeFromRight (stripGap);
+    // The grid across the whole section, the four buttons in one row under
+    // it. Beside each other the grid was cramped into two thirds of the
+    // width while the strip beside it stood half empty.
+    auto const buttonRowH
+        = juce::jlimit (24, juce::jmax (24, content.getHeight () / 4),
+                        metrics.knobDiam);
+    auto const buttonGap = juce::jmax (2, buttonRowH / 8);
+    auto buttons
+        = content.removeFromBottom (2 * buttonRowH + buttonGap);
+    content.removeFromBottom (juce::jmax (2, buttonRowH / 4));
 
     // ── the 4 x 3 grid ────────────────────────────────────────────────
     {
-      auto grid = content;
-      auto const labelH = textRowHeight (grid, metrics.captionSize);
-      auto const headerRow = grid.removeFromTop (labelH);
+      auto const labelH = textRowHeight (content, metrics.captionSize);
 
-      // A narrow gutter down the left for the row captions: freq, Q, 3d
-      // said once each rather than twelve times.
-      auto const gutterW = juce::jmax (labelH, grid.getWidth () / 8);
+      // As tall as a knob and its breathing room, not a third of whatever
+      // is left: stretched to fill, the twelve knobs floated in cells
+      // several times their size and the grid read as scattered dots.
+      auto const rowH = juce::jmin (
+          (content.getHeight () - labelH) / numChannelRows,
+          juce::jmax (labelH, juce::jmax (metrics.knobDiam + 2,
+                                          static_cast<int> (
+                                              metrics.knobDiam * 1.15f))));
+
+      // Centred in what is left between the title and the buttons: capped
+      // rows leave room over, and a block pinned to the top with a gap under
+      // it looks like something fell off the bottom.
+      auto const blockH = labelH + numChannelRows * rowH;
+      content.removeFromTop ((content.getHeight () - blockH) / 2);
+
+      auto grid = content.removeFromTop (blockH);
+      auto headerRow = grid.removeFromTop (labelH);
+
+      // Columns no wider than a knob needs: spread across the whole section
+      // the four channels sat so far apart that reading a row meant
+      // travelling the width of the bar.
+      auto const gutterW = juce::jmax (labelH, grid.getWidth () / 12);
+      auto const colW = juce::jmin (
+          (grid.getWidth () - gutterW) / numChannelColumns,
+          juce::jmax (labelH, juce::jmax (metrics.knobDiam + 2,
+                                          static_cast<int> (
+                                              metrics.knobDiam * 1.35f))));
+
+      // Captions and knobs are centred together, as one block. Indenting
+      // only the columns left "freq / Q / 3d" stranded at the far edge with
+      // the knobs they name half a section away.
+      auto const blockW = gutterW + colW * numChannelColumns;
+      auto const indent = (grid.getWidth () - blockW) / 2;
+      grid.removeFromLeft (indent);
+      headerRow.removeFromLeft (indent);
+
       auto gutter = grid.removeFromLeft (gutterW);
       auto columns = grid;
       auto headerColumns = headerRow;
       headerColumns.removeFromLeft (gutterW);
-
-      auto const colW = columns.getWidth () / numChannelColumns;
-      auto const rowH = columns.getHeight () / numChannelRows;
 
       for (int row = 0; row < numChannelRows; ++row)
         out.channelRowLabels[static_cast<size_t> (row)]
@@ -281,24 +331,37 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
           auto column = columns.removeFromLeft (colW);
           for (int row = 0; row < numChannelRows; ++row)
             out.channelGrid[c][static_cast<size_t> (row)]
-                = column.removeFromTop (rowH).reduced (2);
+                = column.removeFromTop (rowH).reduced (1);
         }
     }
 
-    // ── rec mode and the action buttons ───────────────────────────────
-    auto buttons = strip.removeFromBottom (strip.getHeight () * 5 / 9);
-    out.controls[3] = { textCell (strip, metrics.knobDiam) };
+    // ── two by two: rec mode, menu / rec, tap ─────────────────────────
+    //
+    // The rec mode is a button now too — it cycles the modes on a tap, which
+    // is what its encoder used to do. Four in a row across the whole section
+    // made each of them long and thin; two by two keeps them the shape of
+    // something you press.
+    {
+      auto const gapH = juce::jmax (2, buttons.getWidth () / 60);
+      auto const buttonW = (buttons.getWidth () - gapH) / 2;
 
-    auto const gap = juce::jmax (2, buttons.getHeight () / 20);
-    auto topRow = buttons.removeFromTop ((buttons.getHeight () - gap) / 2);
-    buttons.removeFromTop (gap);
+      auto top = buttons.removeFromTop (buttonRowH);
+      buttons.removeFromTop (buttonGap);
+      auto bottom = buttons.removeFromTop (buttonRowH);
 
-    auto const gapH = juce::jmax (2, topRow.getWidth () / 20);
-    out.menuButton = topRow.removeFromLeft ((topRow.getWidth () - gapH) / 2);
-    topRow.removeFromLeft (gapH);
-    out.recButton = topRow;
+      out.recModeButton = top.removeFromLeft (buttonW);
+      top.removeFromLeft (gapH);
+      out.menuButton = top.removeFromLeft (buttonW);
 
-    out.tapButton = buttons;
+      out.recButton = bottom.removeFromLeft (buttonW);
+      bottom.removeFromLeft (gapH);
+      out.tapButton = bottom.removeFromLeft (buttonW);
+
+      // The rec mode no longer has a knob-style box of its own; its button
+      // is where it lives. controls[3] stays so the encoder-era index does
+      // not have to be special-cased away everywhere.
+      out.controls[3] = { out.recModeButton };
+    }
   }
 
   return out;

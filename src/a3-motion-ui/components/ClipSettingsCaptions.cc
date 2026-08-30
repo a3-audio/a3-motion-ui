@@ -20,6 +20,10 @@
 
 #include "ClipSettingsCaptions.hh"
 
+#include <a3-motion-ui/components/ClipSettingsLayout.hh>
+
+#include <algorithm>
+
 #include <cmath>
 
 namespace a3
@@ -104,17 +108,38 @@ int
 clipSettingsPreferredHeight (float headerSize, float bodySize,
                              int knobDiameter)
 {
-  // The elevation section is the tallest: its own title row, a graphic, then
-  // a 2x3 grid of controls. Everything else fits in less, so this is what the
-  // bar has to be able to show.
   auto const titleRow = static_cast<int> (
       std::ceil (headerSize * rowHeightFactor));
-  auto const boxes = 3 * controlBoxHeightForFont (bodySize, knobDiameter);
 
+  // The elevation section: its own title row, a graphic, then a 2x3 grid of
+  // controls.
+  auto const boxes = 3 * controlBoxHeightForFont (bodySize, knobDiameter);
   // The graphic takes the same share of the remainder it always did.
   auto const graphic = static_cast<int> (std::ceil (boxes * 0.34f / 0.66f));
+  auto const elevation = titleRow + graphic + boxes;
 
-  return titleRow + graphic + boxes;
+  // The global section: a title row, a row of channel numbers, then three
+  // rows of knobs. It used to fit in whatever Elevation asked for, back when
+  // it held one value — with the per-channel grid it can be the taller of
+  // the two, and then the bar has to grow for it or the knobs get squeezed
+  // to a few pixels.
+  auto const labelRow = static_cast<int> (
+      std::ceil (bodySize * rowHeightFactor));
+  auto const gridRows
+      = numChannelRows * static_cast<int> (std::ceil (knobDiameter * 1.25f));
+  auto const buttonRow = std::max (24, knobDiameter);
+  auto const global = titleRow + labelRow + gridRows + buttonRow;
+
+  auto const sections = std::max (elevation, global);
+
+  // What comes back is a height for the whole bar, but everything above is
+  // what a *section* needs. The bar spends roughly a sixth of itself on its
+  // own chrome before the sections see any of it — the "Slot N" header
+  // (height/12), the vertical padding twice (height/40) and the gap under
+  // the header (height/50). Solving for the total is where the fifth comes
+  // from; without it the sections were handed six sixths of what they asked
+  // for and the global grid's knobs came out a few pixels tall.
+  return sections + sections / 5;
 }
 
 int

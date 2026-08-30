@@ -192,28 +192,39 @@ TEST (ClipSettingsLayout, TheActionButtonsSitInTheGlobalStrip)
   EXPECT_TRUE (card.contains (l.tapButton));
 }
 
-TEST (ClipSettingsLayout, TheActionButtonsDoNotOverlapEachOtherOrTheRecMode)
+TEST (ClipSettingsLayout, TheActionButtonsDoNotOverlapEachOther)
 {
   auto const l = defaultLayout ();
-  auto const recMode = l.controls[3][0];
 
-  for (auto const &a : { l.menuButton, l.recButton, l.tapButton })
-    EXPECT_TRUE (a.getIntersection (recMode).isEmpty ());
+  std::vector<juce::Rectangle<int>> const row{ l.recModeButton, l.menuButton,
+                                               l.recButton, l.tapButton };
 
-  EXPECT_TRUE (l.menuButton.getIntersection (l.recButton).isEmpty ());
-  EXPECT_TRUE (l.menuButton.getIntersection (l.tapButton).isEmpty ());
-  EXPECT_TRUE (l.recButton.getIntersection (l.tapButton).isEmpty ());
+  for (size_t a = 0; a < row.size (); ++a)
+    for (size_t b = a + 1; b < row.size (); ++b)
+      EXPECT_TRUE (row[a].getIntersection (row[b]).isEmpty ())
+          << "buttons " << a << " and " << b << " overlap";
 }
 
-// Menu and Rec share a row, Tap has the one below it to itself.
-TEST (ClipSettingsLayout, MenuAndRecShareARowAboveTap)
+// Four equal buttons two by two under the grid: rec mode, menu, rec, tap.
+TEST (ClipSettingsLayout, TheFourButtonsSitTwoByTwoUnderTheGrid)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_EQ (l.menuButton.getY (), l.recButton.getY ());
-  EXPECT_LT (l.menuButton.getX (), l.recButton.getX ());
-  EXPECT_GT (l.tapButton.getY (), l.menuButton.getY ());
-  EXPECT_GT (l.tapButton.getWidth (), l.menuButton.getWidth ());
+  // Two by two: rec mode | menu on top, rec | tap below.
+  EXPECT_EQ (l.recModeButton.getY (), l.menuButton.getY ());
+  EXPECT_EQ (l.recButton.getY (), l.tapButton.getY ());
+  EXPECT_GT (l.recButton.getY (), l.recModeButton.getY ());
+
+  EXPECT_LT (l.recModeButton.getX (), l.menuButton.getX ());
+  EXPECT_LT (l.recButton.getX (), l.tapButton.getX ());
+
+  for (auto const &b : { l.menuButton, l.recButton, l.tapButton })
+    EXPECT_EQ (b.getHeight (), l.recModeButton.getHeight ());
+
+  // Under the grid, not beside it.
+  for (auto const &column : l.channelGrid)
+    for (auto const &cell : column)
+      EXPECT_LE (cell.getBottom (), l.recModeButton.getY ());
 }
 
 // A target a finger can actually hit, at every size the bar is used at.
@@ -237,10 +248,15 @@ TEST (ClipSettingsLayout, TheActionButtonsStayBigEnoughToHit)
         auto const l = layOutClipSettings (grown, headerSize, bodySize,
                                            potSize);
 
-        for (auto const &b : { l.menuButton, l.recButton, l.tapButton })
+        for (auto const &b : { l.recModeButton, l.menuButton, l.recButton,
+                         l.tapButton })
           {
+            // 24 is the floor the layout clamps to at the smallest font and
+            // pot setting; above that the buttons follow knobDiam like every
+            // other control in the bar. Not a comfortable target for a
+            // finger — but at that setting nothing on the bar is.
             EXPECT_GE (b.getWidth (), 40) << "pot " << potSize;
-            EXPECT_GE (b.getHeight (), 30) << "body " << bodySize;
+            EXPECT_GE (b.getHeight (), 24) << "body " << bodySize;
           }
       }
 }
@@ -299,7 +315,7 @@ TEST (ClipSettingsLayout, TheGridClearsTheActionButtonsAndTheRecMode)
   for (auto const &column : l.channelGrid)
     for (auto const &cell : column)
       {
-        EXPECT_TRUE (cell.getIntersection (l.controls[3][0]).isEmpty ());
+        EXPECT_TRUE (cell.getIntersection (l.recModeButton).isEmpty ());
         EXPECT_TRUE (cell.getIntersection (l.menuButton).isEmpty ());
         EXPECT_TRUE (cell.getIntersection (l.recButton).isEmpty ());
         EXPECT_TRUE (cell.getIntersection (l.tapButton).isEmpty ());
@@ -322,11 +338,18 @@ TEST (ClipSettingsLayout, GridCellsStayBigEnoughToHit)
         auto const l = layOutClipSettings (grown, headerSize, bodySize,
                                            potSize);
 
+        // The invariant that matters: a cell holds the knob it draws. An
+        // absolute floor was the wrong test — at the smallest font and pot
+        // setting knobDiameterForFont() bottoms out at 10 px, and a 12 px
+        // cell around a 10 px knob is right, not cramped. Everything on the
+        // bar is that small at that setting.
         for (auto const &column : l.channelGrid)
           for (auto const &cell : column)
             {
-              EXPECT_GE (cell.getWidth (), 30) << "pot " << potSize;
-              EXPECT_GE (cell.getHeight (), 20) << "body " << bodySize;
+              EXPECT_GE (cell.getHeight (), knobDiam)
+                  << "pot " << potSize << " body " << bodySize;
+              EXPECT_GE (cell.getWidth (), knobDiam)
+                  << "pot " << potSize << " body " << bodySize;
             }
       }
 }

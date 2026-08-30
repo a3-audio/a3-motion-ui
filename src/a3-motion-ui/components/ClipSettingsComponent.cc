@@ -108,6 +108,7 @@ ClipSettingsComponent::createTouchControls ()
             = std::move (cell);
       }
 
+  makeButton (_recModeTouch, &ClipSettingsComponent::onRecModePressed);
   makeButton (_menuTouch, &ClipSettingsComponent::onMenuPressed);
   makeButton (_recTouch, &ClipSettingsComponent::onRecordPressed);
   makeButton (_tapTouch, &ClipSettingsComponent::onTapPressed);
@@ -175,6 +176,7 @@ ClipSettingsComponent::resized ()
         auto const r = static_cast<size_t> (row);
         _gridTouch[c][r]->setBounds (_layout.channelGrid[c][r]);
       }
+  _recModeTouch->setBounds (_layout.recModeButton);
   _menuTouch->setBounds (_layout.menuButton);
   _recTouch->setBounds (_layout.recButton);
   _tapTouch->setBounds (_layout.tapButton);
@@ -363,7 +365,9 @@ ClipSettingsComponent::paint (juce::Graphics &g)
 
   updateLayout ();
 
-  auto const frameThickness = juce::jmax (2, getHeight () / 60);
+  // A hairline, not a border. At height/60 the two panel frames were the
+  // heaviest lines on the screen and boxed in what they only had to separate.
+  auto const frameThickness = juce::jmax (1, getHeight () / 140);
 
   // Two panels side by side, not one panel with an odd section on the end.
   // The channel colour says "this is the shown clip's", so it must stop where
@@ -449,11 +453,11 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // Through textCell like every other control in the bar: handed the whole
   // remaining column instead, the value floated in the middle and its caption
   // sat pinned to the bottom edge, a finger's width away from what it names.
-  paintMiniToggle (g, _layout.controls[globalIndex][0], _layout.metrics,
-                   caption::recMode, recModeName (_recMode),
-                   _recMode != RecMode::Touch, isSelected);
-
   paintChannelGrid (g);
+
+  // The rec mode is a button like the three beside it: a tap steps it on.
+  paintActionButton (g, _layout.recModeButton, recModeName (_recMode),
+                     _recMode != RecMode::Touch);
 
   paintActionButton (g, _layout.menuButton, "MENU", false);
   paintActionButton (g, _layout.recButton, "REC", _recording);
@@ -930,7 +934,7 @@ ClipSettingsComponent::paintChannelGrid (juce::Graphics &g)
 
       for (int row = 0; row < numChannelRows; ++row)
         paintGridKnob (g, _layout.channelGrid[c][static_cast<size_t> (row)],
-                       values[row], colour);
+                       metrics, values[row], colour);
     }
 }
 
@@ -939,10 +943,15 @@ ClipSettingsComponent::paintChannelGrid (juce::Graphics &g)
 void
 ClipSettingsComponent::paintGridKnob (juce::Graphics &g,
                                       juce::Rectangle<int> bounds,
-                                      float value, juce::Colour colour)
+                                      ControlMetrics metrics, float value,
+                                      juce::Colour colour)
 {
-  auto const size = static_cast<float> (
-      juce::jmin (bounds.getWidth (), bounds.getHeight ()));
+  // The same diameter every other knob in the bar is drawn at. Filling the
+  // cell instead made these twelve the largest thing on screen, which is
+  // not what they are.
+  auto const size = static_cast<float> (juce::jmin (
+      metrics.knobDiam,
+      juce::jmin (bounds.getWidth (), bounds.getHeight ())));
   auto const centre = bounds.toFloat ().getCentre ();
   auto const r = size * 0.5f * 0.78f;
 

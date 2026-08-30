@@ -210,6 +210,8 @@ public:
 
   /** The global strip's action buttons. Device-wide functions the hardware
    *  has its own keys for — this is the way to them with a finger. */
+  /** The rec mode steps on — what its encoder used to do. */
+  std::function<void ()> onRecModePressed;
   std::function<void ()> onMenuPressed;
   std::function<void ()> onRecordPressed;
   std::function<void ()> onTapPressed;
@@ -258,7 +260,8 @@ private:
   /** The global section's 4x3 grid, each column in its channel's colour. */
   void paintChannelGrid (juce::Graphics &g);
   void paintGridKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
-                      float value, juce::Colour colour);
+                      ControlMetrics metrics, float value,
+                      juce::Colour colour);
   /** Small, deliberately unobtrusive section title (see class doc) — most
    *  of a section's height goes to its controls, not this label. */
   void paintGlobalSection (juce::Graphics &g, bool isSelected);
@@ -359,6 +362,7 @@ private:
   std::array<std::array<std::unique_ptr<TouchControl>, numChannelRows>,
              numChannelColumns>
       _gridTouch;
+  std::unique_ptr<TouchControl> _recModeTouch;
   std::unique_ptr<TouchControl> _menuTouch;
   std::unique_ptr<TouchControl> _recTouch;
   std::unique_ptr<TouchControl> _tapTouch;
