@@ -141,6 +141,45 @@ selected row's value (`A3MotionUIComponent::handleClipSettingsScroll`/
 `handleClipSettingsValueChange`). Channel 3's encoder pair is reserved for `GlobalSettingsComponent`
 navigation while it's open.
 
+#### Touch
+
+The encoders are not the only way in: `ClipSettingsComponent`, `GlobalSettingsComponent` and
+`SkinEditorComponent` are also operated with a finger. None of them draws a `juce::Slider` or
+`juce::Button` — `LookAndFeel_A3` sets colours for those, but nothing in the project instantiates
+one — so the touch path is built from three small pieces instead:
+
+- **`components/TouchControl.{hh,cc}`** — an invisible `juce::Component` laid over what `paint()`
+  draws. It contributes only what JUCE will not give you without a component: bounds-based hit
+  testing, event routing, and a drag with a proper origin. It draws nothing and holds no value.
+  Each carries an identity (`primary`/`secondary`, e.g. section and sub-element) that comes back
+  unchanged in its `onTap`/`onDragIncrement`/`onRelease` callbacks.
+- **`components/DragAccumulator.{hh,cc}`** — turns a drag into whole ±1 increments. Vertical and
+  relative, up is more. It counts against what it has already emitted rather than per event,
+  because JUCE coalesces movement: per event a fast drag loses steps and a to-and-fro drifts.
+  The threshold is the skin's `touchDragPixelsPerStep` (default 12), so it is adjustable on the
+  device like Pot Size and the font sizes.
+- **`components/ClipSettingsLayout.{hh,cc}`** — every rectangle in the clip settings bar, from one
+  pure calculation that takes bounds plus the header/body font sizes and Pot Size. `paint()` draws
+  into it and `resized()` puts the `TouchControl`s on it, so the picture and the hit areas cannot
+  disagree. `ControlMetrics` lives here too. `GlobalSettingsComponent` and `SkinEditorComponent`
+  do the same thing with their own row geometry (`globalSettingsRowBounds` and friends; the skin
+  editor's stays a private member because its name/value split follows the value's length).
+
+Touch produces the same increments the encoders do and goes through the same handlers in
+`A3MotionUIComponent` — there is no second value model. Where the encoders *cycle*
+(`handleClipSettingsScroll`, `handleClipSettingsSubElementCycle`), touch *sets*
+(`selectClipSettingsSection`, `selectClipSettingsSubElement`), which is why a tap reaches a
+control in one move. A tap on a few-valued control (mirror-south, flat, direction, end-action,
+rec mode — see `tapAdvancesValue`) also steps it on; a continuous value is dragged instead.
+
+Two consequences worth knowing when changing this code:
+
+- A container that should let its children be touched needs `setInterceptsMouseClicks (false,
+  true)` — false for itself, true for children. `GlobalSettingsComponent` deliberately keeps the
+  dimmed area beside its panel transparent to touch so the sphere behind it stays draggable.
+- `ClipSettingsComponent` implements `ThemedComponent`: its whole geometry is built from skin
+  values, so a skin change is a re-layout there, not merely a repaint.
+
 Clock mode (`_clockMode`: `0=INT, 1=EXT, 2=PIO`) governs whether the UI drives its own tempo (tap
 button sets BPM, `/beat` sent via OSC) or follows an externally received `/beat` OSC stream
 (playback synced to external phase, `/beat` not re-sent to avoid feedback loops).
