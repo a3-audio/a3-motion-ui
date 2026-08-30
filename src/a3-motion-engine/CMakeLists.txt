@@ -32,6 +32,8 @@ juce_generate_juce_header("a3-motion-engine")
 target_sources("a3-motion-engine" PRIVATE
     UserConfig.cc
     UserConfig.hh
+    OscAddresses.cc
+    OscAddresses.hh
     MotionEngine.cc
     MotionEngine.hh
     AsyncCommandQueue.cc

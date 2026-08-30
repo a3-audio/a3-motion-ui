@@ -28,6 +28,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsCaptions.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/GlobalSettingsLayout.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/OscAddresses.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ThemedComponent.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinSelection.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinParameters.cc"
