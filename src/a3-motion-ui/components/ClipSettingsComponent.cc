@@ -46,10 +46,86 @@ constexpr float headOpacity = 0.6f;
 
 ClipSettingsComponent::ClipSettingsComponent ()
 {
-  setInterceptsMouseClicks (false, false);
+  // Not for itself, but for its children: the bar's own surface has nothing
+  // to catch, the hit areas over the controls do.
+  setInterceptsMouseClicks (false, true);
 
   // Until setTarget names a channel there is no channel colour to show.
   _channelColour = toColour (theme ().textPrimary);
+
+  createTouchControls ();
+}
+
+void
+ClipSettingsComponent::createTouchControls ()
+{
+  // Cards first, controls after: JUCE hit-tests front to back and puts the
+  // most recently added child in front, so a tap on a knob reaches the knob
+  // rather than the card it lies on.
+  for (int section = 0; section < numParameters; ++section)
+    {
+      auto card = std::make_unique<TouchControl> ();
+      card->setIdentity (section, 0);
+      card->onTap = [this] (int tappedSection, int) {
+        if (onControlTapped)
+          onControlTapped (tappedSection, 0);
+      };
+      addAndMakeVisible (*card);
+      _sectionTouch[static_cast<size_t> (section)] = std::move (card);
+    }
+
+  for (int section = 0; section < numParameters; ++section)
+    {
+      auto const count = numControlsInSection (section);
+      for (int sub = 0; sub < count; ++sub)
+        {
+          auto control = std::make_unique<TouchControl> ();
+          control->setIdentity (section, sub);
+
+          control->onTap = [this] (int tappedSection, int tappedSub) {
+            if (onControlTapped)
+              onControlTapped (tappedSection, tappedSub);
+
+            // A control with two or three states steps on right away:
+            // tapping your way to a yes/no and then having to drag it as
+            // well would be one move too many. Continuous values are
+            // dragged, not tapped.
+            if (tapAdvancesValue (tappedSection, tappedSub) && onControlDragged)
+              onControlDragged (tappedSection, tappedSub, 1);
+          };
+
+          control->onDragIncrement
+              = [this] (int draggedSection, int draggedSub, int increment) {
+                  // Select first, then change: a drag on something that is
+                  // not currently selected must change that one, not the
+                  // other.
+                  if (onControlTapped)
+                    onControlTapped (draggedSection, draggedSub);
+                  if (onControlDragged)
+                    onControlDragged (draggedSection, draggedSub, increment);
+                };
+
+          addAndMakeVisible (*control);
+          _controlTouch[static_cast<size_t> (section)].push_back (
+              std::move (control));
+        }
+    }
+}
+
+void
+ClipSettingsComponent::resized ()
+{
+  updateLayout ();
+
+  for (int section = 0; section < numParameters; ++section)
+    {
+      auto const s = static_cast<size_t> (section);
+      _sectionTouch[s]->setBounds (_layout.sectionCards[s]);
+
+      auto const &cells = _layout.controls[s];
+      for (size_t sub = 0; sub < _controlTouch[s].size (); ++sub)
+        _controlTouch[s][sub]->setBounds (cells[sub]);
+    }
 }
 
 juce::Colour
@@ -285,6 +361,12 @@ ClipSettingsComponent::setRecMode (RecMode mode)
     return;
   _recMode = mode;
   repaint ();
+}
+
+void
+ClipSettingsComponent::applyTheme ()
+{
+  resized ();
 }
 
 void

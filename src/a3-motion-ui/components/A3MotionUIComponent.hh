@@ -379,6 +379,9 @@ private:
   void selectClip (index_t channel, index_t slot);
   void updateControlReadout (juce::String const &text);
   void handleClipSettingsScroll (index_t channel, int increment);
+  /** Select outright, where the handlers above cycle — what a tap does. */
+  void selectClipSettingsSection (int index);
+  void selectClipSettingsSubElement (int index);
   void handleClipSettingsValueChange (index_t channel, int increment);
   void handleClipSettingsSubElementCycle (index_t channel);
   int numSubElementsForSection (int menuIndex) const;

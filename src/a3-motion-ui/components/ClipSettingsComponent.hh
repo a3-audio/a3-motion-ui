@@ -22,14 +22,21 @@
 
 #include <JuceHeader.h>
 
+#include <array>
+#include <functional>
+#include <memory>
+#include <vector>
+
 #include <a3-motion-engine/RecMode.hh>
 
 #include <a3-motion-ui/theme/Theme.hh>
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
+#include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
+#include <a3-motion-ui/theme/ThemedComponent.hh>
 
 namespace a3
 {
@@ -86,7 +93,8 @@ namespace a3
  * its own. Sizing is derived from whatever bounds the parent gives it (see
  * A3MotionUIComponent::resized()), not a fixed pixel height.
  */
-class ClipSettingsComponent : public juce::Component
+class ClipSettingsComponent : public juce::Component,
+                              public ThemedComponent
 {
 public:
   /** How many sections describe the shown clip. They share the bar's width
@@ -191,7 +199,20 @@ public:
    *  top-right (e.g. "CH2 POT1 0.73"). Global, independent of setTarget(). */
   void setLastControlReadout (juce::String const &text);
 
+  /** A control was tapped: select its section and sub-element in one go —
+   *  what the encoders reach by scrolling and pressing. */
+  std::function<void (int section, int sub)> onControlTapped;
+  /** A control was dragged, by one increment. Same increment the
+   *  Pot-Encoder produces, so both go through one handler. */
+  std::function<void (int section, int sub, int increment)> onControlDragged;
+
   void paint (juce::Graphics &g) override;
+  void resized () override;
+
+  /** The bar caches its whole geometry, and that geometry is built from
+   *  the skin's font and pot sizes — so a skin change is a re-layout here,
+   *  not only a repaint. */
+  void applyTheme () override;
 
   /** How tall this bar wants to be at the current font and pot sizes, given
    *  the width it will get. The caller clamps it — see
@@ -304,6 +325,17 @@ private:
 
   /** Every rectangle in the bar, recomputed by updateLayout(). */
   ClipSettingsLayout _layout;
+
+  /** Invisible hit areas over what paint() draws: one per section card,
+   *  and one per control on top of it. The cards are created first so the
+   *  controls sit in front of them — a tap on a knob must not be caught by
+   *  the card it lies on. */
+  std::array<std::unique_ptr<TouchControl>, numParameters> _sectionTouch;
+  std::array<std::vector<std::unique_ptr<TouchControl>>, numParameters>
+      _controlTouch;
+
+  /** Builds the hit areas once; resized() only moves them afterwards. */
+  void createTouchControls ();
 
   static constexpr char const *parameterNames[numParameters] = {
     "Shape", "Elevation", "Motion", "Filter", "Global",

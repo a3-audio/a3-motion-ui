@@ -163,6 +163,20 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // Clip Settings: permanent bottom panel, always visible.
   _clipSettings = std::make_unique<ClipSettingsComponent> ();
   _clipSettings->setAlwaysOnTop (true);
+
+  // A finger reaches the same two handlers the encoders do. Tapping names
+  // section and sub-element at once, which is what the Motion-Encoder's
+  // scrolling and the Pot-Encoder's press reach one step at a time.
+  _clipSettings->onControlTapped = [this] (int section, int sub) {
+    // Section first: it resets the sub-index, so naming the sub-element
+    // afterwards is what makes the tap land where it was aimed.
+    selectClipSettingsSection (section);
+    selectClipSettingsSubElement (sub);
+  };
+  _clipSettings->onControlDragged = [this] (int, int, int increment) {
+    handleClipSettingsValueChange (_clipSettingsChannel, increment);
+  };
+
   addChildComponent (*_clipSettings);
   _clipSettings->setVisible (true);
   selectClip (0, 0); // sensible default before any button has been pressed
@@ -2467,10 +2481,31 @@ A3MotionUIComponent::handleClipSettingsScroll (index_t channel, int increment)
     return;
 
   static constexpr int numMenuItems = ClipSettingsComponent::numParameters;
-  _clipSettingsMenuIndex
-      = (_clipSettingsMenuIndex + increment % numMenuItems + numMenuItems)
-        % numMenuItems;
+  selectClipSettingsSection (
+      (_clipSettingsMenuIndex + increment % numMenuItems + numMenuItems)
+      % numMenuItems);
+}
+
+void
+A3MotionUIComponent::selectClipSettingsSection (int index)
+{
+  // Sets rather than cycles: a finger names the section it wants outright,
+  // where the encoder has to turn past the ones in between.
+  if (index < 0 || index >= ClipSettingsComponent::numParameters)
+    return;
+
+  _clipSettingsMenuIndex = index;
   _clipSettingsSubIndex = 0;
+  updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::selectClipSettingsSubElement (int index)
+{
+  if (index < 0 || index >= numSubElementsForSection (_clipSettingsMenuIndex))
+    return;
+
+  _clipSettingsSubIndex = index;
   updateClipSettingsDisplay ();
 }
 
@@ -2495,8 +2530,7 @@ A3MotionUIComponent::handleClipSettingsSubElementCycle (index_t channel)
     return;
 
   auto const numSub = numSubElementsForSection (_clipSettingsMenuIndex);
-  _clipSettingsSubIndex = (_clipSettingsSubIndex + 1) % numSub;
-  updateClipSettingsDisplay ();
+  selectClipSettingsSubElement ((_clipSettingsSubIndex + 1) % numSub);
 }
 
 void
