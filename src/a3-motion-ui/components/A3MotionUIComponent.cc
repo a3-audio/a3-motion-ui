@@ -134,6 +134,51 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // the skin it is editing behind it.
   _globalSettings = std::make_unique<GlobalSettingsComponent> ();
   _globalSettings->setAlwaysOnTop (true);
+
+  // The same two levels the channel-3 encoder drives, reached with a finger:
+  // tapping a name browses, tapping a value field arms, dragging it chooses,
+  // and letting go applies — the release standing in for the second press.
+  _globalSettings->onRowTapped = [this] (int option) {
+    _globalSettingsOptionIndex = option;
+    _globalSettings->setOptionIndex (option);
+    _globalSettingsValueFieldSelected = false;
+    _globalSettings->setValueFieldSelected (false);
+  };
+
+  _globalSettings->onValueArmed = [this] (int option) {
+    _globalSettingsOptionIndex = option;
+    _globalSettings->setOptionIndex (option);
+
+    // A row that leads somewhere has nothing to choose between, so arming it
+    // would be a question with one answer: it opens instead.
+    if (_globalSettings->opensSubmenu (option))
+      {
+        _globalSettingsValueFieldSelected = true;
+        _globalSettings->setValueFieldSelected (true);
+        confirmGlobalSettingsOption ();
+        return;
+      }
+
+    _globalSettingsValueFieldSelected = true;
+    _globalSettings->setValueFieldSelected (true);
+  };
+
+  _globalSettings->onValueDragged = [this] (int, int increment) {
+    if (!_globalSettingsValueFieldSelected)
+      return;
+
+    _globalSettings->navigateValue (increment > 0 ? 1 : -1);
+
+    // Seeing the skin while choosing it is the point of choosing it here.
+    if (browsedMenuRow () == std::optional<MenuRow>{ MenuRow::Skin })
+      previewSkin (_globalSettings->getSelectedValueIndex ());
+  };
+
+  _globalSettings->onValueReleased = [this] (int) {
+    if (!_globalSettingsValueFieldSelected)
+      return;
+    confirmGlobalSettingsOption ();
+  };
   _motionComponent->addChildComponent (*_globalSettings);
 
   // The editor is a page of that menu and lives in the same place, for the
