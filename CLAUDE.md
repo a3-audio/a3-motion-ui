@@ -213,6 +213,28 @@ Two things are not obvious:
   Reading a `juce::String` on one thread while another replaces it is a race,
   refcount and all.
 
+The global strip on the right of the clip settings bar carries three action
+buttons — **MENU**, **REC**, **TAP** — beside its rec-mode display. They are the
+finger's way to what the hardware has keys for, and they are not sub-elements of
+the section: no encoder reaches them, so they sit beside `controls` in
+`ClipSettingsLayout` rather than in it, and `numControlsInSection(4)` stays 1.
+The strip is a full section wide for them; it used to be half a section, and a
+finger needs a target the size of a finger.
+
+Two of the three are not quite the key they stand for:
+
+- **REC** starts a take on the clip the bar is showing and ends a running one
+  (`toggleRecordingOnShownClip`). The hardware key cannot do that: there it is a
+  *modifier*, held while a slot's Play|Pause pad names the slot — and a finger
+  cannot hold it while pressing a pad that only exists in hardware. The bar
+  already says which slot it describes, so that is the slot it uses.
+- **TAP** has to bring its own timestamp. The hardware's tap arrives with one
+  from the adapter (`getTapTimeMicros`); `handleScreenTap()` reads the clock
+  itself and hands it to the shared `handleTapAt()`, or the tempo estimator
+  would never see a screen tap at all.
+
+MENU is exactly the key (`toggleGlobalSettings`), closing one level at a time.
+
 Editing happens on the Menu's **Network** page, which slices `oscSender`,
 `oscReceiver` and `oscAddresses` out of `config.json` and derives its rows from
 the JSON — a key added to the block shows up there without anyone registering

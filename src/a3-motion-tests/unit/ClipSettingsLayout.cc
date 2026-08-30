@@ -23,6 +23,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 
 using namespace a3;
@@ -180,4 +181,71 @@ TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
 
   // Global: the rec mode has few states.
   EXPECT_TRUE (tapAdvancesValue (4, 0));
+}
+
+
+// Menu, Rec and Tap sit in the global strip beside the clip's sections. They
+// are not sub-elements of it — no encoder reaches them, only a finger — so
+// they live beside `controls`, not in it.
+TEST (ClipSettingsLayout, TheActionButtonsSitInTheGlobalStrip)
+{
+  auto const l = defaultLayout ();
+  auto const card = l.sectionCards[4];
+
+  EXPECT_TRUE (card.contains (l.menuButton));
+  EXPECT_TRUE (card.contains (l.recButton));
+  EXPECT_TRUE (card.contains (l.tapButton));
+}
+
+TEST (ClipSettingsLayout, TheActionButtonsDoNotOverlapEachOtherOrTheRecMode)
+{
+  auto const l = defaultLayout ();
+  auto const recMode = l.controls[4][0];
+
+  for (auto const &a : { l.menuButton, l.recButton, l.tapButton })
+    EXPECT_TRUE (a.getIntersection (recMode).isEmpty ());
+
+  EXPECT_TRUE (l.menuButton.getIntersection (l.recButton).isEmpty ());
+  EXPECT_TRUE (l.menuButton.getIntersection (l.tapButton).isEmpty ());
+  EXPECT_TRUE (l.recButton.getIntersection (l.tapButton).isEmpty ());
+}
+
+// Menu and Rec share a row, Tap has the one below it to itself.
+TEST (ClipSettingsLayout, MenuAndRecShareARowAboveTap)
+{
+  auto const l = defaultLayout ();
+
+  EXPECT_EQ (l.menuButton.getY (), l.recButton.getY ());
+  EXPECT_LT (l.menuButton.getX (), l.recButton.getX ());
+  EXPECT_GT (l.tapButton.getY (), l.menuButton.getY ());
+  EXPECT_GT (l.tapButton.getWidth (), l.menuButton.getWidth ());
+}
+
+// A target a finger can actually hit, at every size the bar is used at.
+//
+// The bar's height follows the font — see A3MotionUIComponent::resized() and
+// clipSettingsPreferredHeight() — so the height has to follow it here too.
+// Held at a fixed 180 px this failed at body size 28, which is a combination
+// the app never puts on screen.
+TEST (ClipSettingsLayout, TheActionButtonsStayBigEnoughToHit)
+{
+  for (float potSize : { 0.6f, 1.f, 1.8f })
+    for (float bodySize : { 9.f, 16.f, 28.f })
+      {
+        auto const headerSize = bodySize * 1.3f;
+        auto const knobDiam = knobDiameterForFont (bodySize, potSize);
+        juce::Rectangle<int> const grown{
+          0, 0, panelWidth,
+          clipSettingsPreferredHeight (headerSize, bodySize, knobDiam)
+        };
+
+        auto const l = layOutClipSettings (grown, headerSize, bodySize,
+                                           potSize);
+
+        for (auto const &b : { l.menuButton, l.recButton, l.tapButton })
+          {
+            EXPECT_GE (b.getWidth (), 40) << "pot " << potSize;
+            EXPECT_GE (b.getHeight (), 30) << "body " << bodySize;
+          }
+      }
 }

@@ -30,13 +30,13 @@ namespace
 {
 constexpr int paddingH = 16;
 
-// Four equal sections for the clip, then a strip half that wide for what is
-// not the clip's. Solving width = 4*s + s/2 for s is where the 2 and the 9
-// come from.
+// Five equal parts: the clip's four sections and the global strip beside
+// them. The strip used to be half a section; it carries the Menu/Rec/Tap
+// buttons now, and those have to be big enough for a finger.
 int
 clipSectionWidth (int rowWidth)
 {
-  return rowWidth * 2 / (2 * numClipSettingsSections - 1);
+  return rowWidth / numClipSettingsSections;
 }
 
 /** The card's inner area, the same reduction every section makes. */
@@ -115,7 +115,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   // Two panels side by side, not one panel with an odd section on the end.
   out.globalBounds
-      = bounds.removeFromRight (clipSectionWidth (bounds.getWidth ()) / 2);
+      = bounds.removeFromRight (clipSectionWidth (bounds.getWidth ()));
   out.clipBounds = bounds;
 
   auto const paddingV = juce::jmax (4, out.clipBounds.getHeight () / 40);
@@ -266,7 +266,23 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     out.sectionLabels[4]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
+    // Two rows of buttons at the bottom, the rec mode above them in what is
+    // left. The buttons get a fixed share rather than what happens to be
+    // spare: they are the one thing here a finger has to hit, and at large
+    // fonts the rec mode would otherwise eat the strip.
+    auto buttons = content.removeFromBottom (content.getHeight () * 5 / 9);
     out.controls[4] = { textCell (content, metrics.knobDiam) };
+
+    auto const gap = juce::jmax (2, buttons.getHeight () / 20);
+    auto topRow = buttons.removeFromTop ((buttons.getHeight () - gap) / 2);
+    buttons.removeFromTop (gap);
+
+    auto const gapH = juce::jmax (2, topRow.getWidth () / 20);
+    out.menuButton = topRow.removeFromLeft ((topRow.getWidth () - gapH) / 2);
+    topRow.removeFromLeft (gapH);
+    out.recButton = topRow;
+
+    out.tapButton = buttons;
   }
 
   return out;

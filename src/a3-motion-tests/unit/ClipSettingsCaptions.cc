@@ -288,10 +288,11 @@ TEST (ClipSettingsHeight, TheBarNeverEatsMoreThanItsShareOfTheScreen)
       << "a modest request passes through untouched";
 }
 
-// The strip on the right holds what is not the shown clip's. It is meant to
-// read as an aside rather than a fifth equal section, so it is half as wide --
-// and the four sections beside it stay equal to each other.
-TEST (ClipSettingsLayout, TheGlobalStripIsHalfASection)
+// The strip on the right holds what is not the shown clip's. It used to be
+// half a section wide, an aside rather than a fifth section -- but it carries
+// the Menu/Rec/Tap buttons now, and a finger needs room, so all five are
+// equal.
+TEST (ClipSettingsLayout, TheGlobalStripIsAsWideAsASection)
 {
   for (auto const rowWidth : { 400, 703, 704, 1024, 1920 })
     {
@@ -301,9 +302,9 @@ TEST (ClipSettingsLayout, TheGlobalStripIsHalfASection)
 
       EXPECT_GT (section, 0) << "row width " << rowWidth;
 
-      // Integer division leaves at most a few pixels over; the strip must not
-      // absorb them into something that reads as a section of its own.
-      EXPECT_NEAR (strip, section / 2, ClipSettingsComponent::numClipSections)
+      // Integer division leaves at most a few pixels over, and they all land
+      // in the strip; it must not grow visibly wider than a section for it.
+      EXPECT_NEAR (strip, section, ClipSettingsComponent::numParameters)
           << "row width " << rowWidth << ": section " << section << ", strip "
           << strip;
     }

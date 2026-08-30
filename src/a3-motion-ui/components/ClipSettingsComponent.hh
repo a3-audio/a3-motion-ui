@@ -97,8 +97,8 @@ class ClipSettingsComponent : public juce::Component,
                               public ThemedComponent
 {
 public:
-  /** How many sections describe the shown clip. They share the bar's width
-   *  equally; the global strip beside them is half as wide again. */
+  /** How many sections describe the shown clip. They and the global strip
+   *  beside them share the bar's width equally. */
   static constexpr int numClipSections = 4;
 
   /** Stops the Motion-Encoder scrolls through: the clip's sections, then the
@@ -114,13 +114,14 @@ public:
   /** How wide one of the clip's four sections is, given the width the row of
    *  sections has to share.
    *
-   *  Four equal sections plus a strip half that wide: solving
-   *  width = 4 * s + s / 2 for s is where the 2 and the 9 come from. Pulled
-   *  out of paint() so the proportion can be checked without a screen. */
+   *  Five equal parts: the four sections and the global strip beside them.
+   *  The strip used to be half a section — an aside rather than a section of
+   *  its own — but it now carries the Menu/Rec/Tap buttons, and a finger
+   *  needs a target the size of a finger. */
   static constexpr int
   clipSectionWidth (int rowWidth)
   {
-    return rowWidth * 2 / (2 * numClipSections + 1);
+    return rowWidth / numParameters;
   }
 
   explicit ClipSettingsComponent ();
@@ -206,6 +207,15 @@ public:
    *  Pot-Encoder produces, so both go through one handler. */
   std::function<void (int section, int sub, int increment)> onControlDragged;
 
+  /** The global strip's action buttons. Device-wide functions the hardware
+   *  has its own keys for — this is the way to them with a finger. */
+  std::function<void ()> onMenuPressed;
+  std::function<void ()> onRecordPressed;
+  std::function<void ()> onTapPressed;
+
+  /** Whether the Rec button should read as armed. */
+  void setRecording (bool recording);
+
   void paint (juce::Graphics &g) override;
   void resized () override;
 
@@ -248,6 +258,11 @@ private:
   /** Small, deliberately unobtrusive section title (see class doc) — most
    *  of a section's height goes to its controls, not this label. */
   void paintGlobalSection (juce::Graphics &g, bool isSelected);
+  /** One action button: a filled, labelled box. Not paintMiniToggle — that
+   *  shows a value under a caption, and these have no value, only a name
+   *  and the fact that they can be pressed. */
+  void paintActionButton (juce::Graphics &g, juce::Rectangle<int> bounds,
+                          juce::String const &label, bool isActive);
 
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
                           juce::String const &text, bool isSelected);
@@ -336,6 +351,10 @@ private:
    *  what the controls below it do, and touching a picture should do
    *  nothing. Without it the card underneath would answer. */
   std::unique_ptr<TouchControl> _elevationGraphicTouch;
+  std::unique_ptr<TouchControl> _menuTouch;
+  std::unique_ptr<TouchControl> _recTouch;
+  std::unique_ptr<TouchControl> _tapTouch;
+  bool _recording = false;
   std::array<std::vector<std::unique_ptr<TouchControl>>, numParameters>
       _controlTouch;
 

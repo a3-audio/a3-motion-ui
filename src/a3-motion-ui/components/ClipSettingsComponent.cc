@@ -81,6 +81,21 @@ ClipSettingsComponent::createTouchControls ()
   _elevationGraphicTouch = std::make_unique<TouchControl> ();
   addAndMakeVisible (*_elevationGraphicTouch);
 
+  auto const makeButton
+      = [this] (std::unique_ptr<TouchControl> &into,
+                std::function<void ()> ClipSettingsComponent::*callback) {
+          into = std::make_unique<TouchControl> ();
+          into->onTap = [this, callback] (int, int) {
+            if (this->*callback)
+              (this->*callback) ();
+          };
+          addAndMakeVisible (*into);
+        };
+
+  makeButton (_menuTouch, &ClipSettingsComponent::onMenuPressed);
+  makeButton (_recTouch, &ClipSettingsComponent::onRecordPressed);
+  makeButton (_tapTouch, &ClipSettingsComponent::onTapPressed);
+
   for (int section = 0; section < numParameters; ++section)
     {
       auto const count = numControlsInSection (section);
@@ -136,6 +151,9 @@ ClipSettingsComponent::resized ()
     }
 
   _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
+  _menuTouch->setBounds (_layout.menuButton);
+  _recTouch->setBounds (_layout.recButton);
+  _tapTouch->setBounds (_layout.tapButton);
 }
 
 juce::Colour
@@ -418,6 +436,42 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   paintMiniToggle (g, _layout.controls[globalIndex][0], _layout.metrics,
                    caption::recMode, recModeName (_recMode),
                    _recMode != RecMode::Touch, isSelected);
+
+  paintActionButton (g, _layout.menuButton, "MENU", false);
+  paintActionButton (g, _layout.recButton, "REC", _recording);
+  paintActionButton (g, _layout.tapButton, "TAP", false);
+}
+
+void
+ClipSettingsComponent::paintActionButton (juce::Graphics &g,
+                                          juce::Rectangle<int> bounds,
+                                          juce::String const &label,
+                                          bool isActive)
+{
+  // Filled rather than outlined: these are the only things in the bar that
+  // do something when touched rather than hold a value, and they should not
+  // read as another knob.
+  g.setColour (isActive ? toColour (theme ().danger)
+                        : toColour (theme ().textPrimary, cardWash * 2.f));
+  g.fillRoundedRectangle (bounds.toFloat (), 5.f);
+
+  g.setColour (toColour (theme ().textPrimary, highlightWash * 2.f));
+  g.drawRoundedRectangle (bounds.toFloat (), 5.f, 1.f);
+
+  g.setFont (juce::Font (fontFor (FontRole::Body, bounds.reduced (6, 4), label),
+                         juce::Font::bold));
+  g.setColour (isActive ? toColour (theme ().textOnAccent)
+                        : toColour (theme ().textPrimary));
+  g.drawFittedText (label, bounds, juce::Justification::centred, 1);
+}
+
+void
+ClipSettingsComponent::setRecording (bool recording)
+{
+  if (recording == _recording)
+    return;
+  _recording = recording;
+  repaint ();
 }
 
 void

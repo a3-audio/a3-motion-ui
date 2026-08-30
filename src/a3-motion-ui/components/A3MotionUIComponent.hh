@@ -404,6 +404,20 @@ private:
   /** Select outright, where the handlers above cycle — what a tap does. */
   void selectClipSettingsSection (int index);
   void selectClipSettingsSubElement (int index);
+
+  /** Arm and start a take on this slot. Reached from the hardware (Record
+   *  held while a Play|Pause pad is pressed) and from the bar's Rec button,
+   *  which has no pad to name a slot and so uses the one on show. */
+  void startRecording (index_t channel, index_t slot);
+
+  /** What the bar's three action buttons do. Each is what the matching
+   *  hardware key does, minus what only a key can do — Record is a modifier
+   *  there, and a finger cannot hold it while pressing a pad. */
+  void toggleGlobalSettings ();
+  void toggleRecordingOnShownClip ();
+  void handleScreenTap ();
+  /** A tap, from the hardware key or from the bar's button. */
+  void handleTapAt (juce::int64 tapTimeMicros);
   /** Change one control's value by an increment. Which control is named
    *  explicitly rather than read off the current selection, so two fingers
    *  on two controls change two values instead of both driving the one that

@@ -89,6 +89,14 @@ struct ClipSettingsLayout
   /** The bar's own header row: "Slot N" left, the readout right. */
   juce::Rectangle<int> slotLabel;
   juce::Rectangle<int> readout;
+
+  /** The global strip's three action buttons — Menu, Rec, Tap. Device-wide
+   *  functions that the hardware has its own keys for; these are the way to
+   *  them with a finger. Beside `controls`, not in it: no encoder reaches
+   *  them, so they are not sub-elements of the section. */
+  juce::Rectangle<int> menuButton;
+  juce::Rectangle<int> recButton;
+  juce::Rectangle<int> tapButton;
 };
 
 /** Lays the whole bar out for the given bounds and the three sizes the

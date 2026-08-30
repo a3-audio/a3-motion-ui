@@ -235,6 +235,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     selectClipSettingsSection (section);
     selectClipSettingsSubElement (juce::jmax (0, sub));
   };
+  _clipSettings->onMenuPressed = [this] { toggleGlobalSettings (); };
+  _clipSettings->onRecordPressed = [this] { toggleRecordingOnShownClip (); };
+  _clipSettings->onTapPressed = [this] { handleScreenTap (); };
+
   _clipSettings->onControlDragged = [this] (int section, int sub,
                                            int increment) {
     handleClipSettingsValueChange (_clipSettingsChannel, section, sub,
@@ -737,19 +741,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       bool const pressed = static_cast<bool> (value.getValue ());
       if (pressed)
         {
-          updateControlReadout ("-- MENU");
-          // One level at a time: a name being typed, then the editor, then
-          // the menu itself.
-          if (_colourPickerOpen)
-            closeColourPicker ();
-          else if (_skinEditorOpen && _skinEditor->isNaming ())
-            _skinEditor->finishNaming ();
-          else if (_skinEditorOpen)
-            closeSkinEditor ();
-          else if (_globalSettingsOpen)
-            closeGlobalSettings ();
-          else
-            openGlobalSettings ();
+          toggleGlobalSettings ();
         }
       // release: ignored (toggle on press)
     }
@@ -797,32 +789,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
   else if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
     {
       if (_clockMode == 0)
-        {
-          auto const tapTime = juce::int64 (value.getValue ());
-          auto const result = _engine.tap (tapTime);
-
-          // FirstTap was falling through here entirely. The clock does reset
-          // itself on it — that much is covered by
-          // TempoClock.FirstTapResetsTheBeat — but the UI gave no sign of it,
-          // and a stale BPM from the previous run stayed on the readout.
-          switch (result)
-            {
-            case TempoClock::TapResult::TempoAvailable:
-              {
-                auto const bpm = _engine.getTempoBPM ();
-                juce::Logger::writeToLog ("[TAP] BPM=" + juce::String (bpm));
-                _valueBPM = bpm;
-                break;
-              }
-            case TempoClock::TapResult::FirstTap:
-              juce::Logger::writeToLog ("[TAP] first tap: beat reset to 1");
-              updateControlReadout ("-- TAP 1");
-              break;
-            case TempoClock::TapResult::TempoNotAvailable:
-              juce::Logger::writeToLog ("[TAP] counting, no tempo yet");
-              break;
-            }
-        }
+        handleTapAt (juce::int64 (value.getValue ()));
     }
   else
     {
@@ -1044,6 +1011,153 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
 }
 
 void
+A3MotionUIComponent::handleTapAt (juce::int64 tapTimeMicros)
+{
+  auto const result = _engine.tap (tapTimeMicros);
+
+  // FirstTap was falling through here entirely. The clock does reset
+  // itself on it — that much is covered by
+  // TempoClock.FirstTapResetsTheBeat — but the UI gave no sign of it,
+  // and a stale BPM from the previous run stayed on the readout.
+  switch (result)
+    {
+    case TempoClock::TapResult::TempoAvailable:
+      {
+        auto const bpm = _engine.getTempoBPM ();
+        juce::Logger::writeToLog ("[TAP] BPM=" + juce::String (bpm));
+        _valueBPM = bpm;
+        break;
+      }
+    case TempoClock::TapResult::FirstTap:
+      juce::Logger::writeToLog ("[TAP] first tap: beat reset to 1");
+      updateControlReadout ("-- TAP 1");
+      break;
+    case TempoClock::TapResult::TempoNotAvailable:
+      juce::Logger::writeToLog ("[TAP] counting, no tempo yet");
+      break;
+    }
+}
+
+void
+A3MotionUIComponent::toggleGlobalSettings ()
+{
+  updateControlReadout ("-- MENU");
+
+  // One level at a time: a name being typed, then the editor, then the menu
+  // itself.
+  if (_colourPickerOpen)
+    closeColourPicker ();
+  else if (_skinEditorOpen && _skinEditor->isNaming ())
+    _skinEditor->finishNaming ();
+  else if (_skinEditorOpen)
+    closeSkinEditor ();
+  else if (_globalSettingsOpen)
+    closeGlobalSettings ();
+  else
+    openGlobalSettings ();
+}
+
+void
+A3MotionUIComponent::toggleRecordingOnShownClip ()
+{
+  if (_engine.isRecording ())
+    {
+      updateControlReadout ("-- REC OFF");
+      endRecording ();
+      return;
+    }
+
+  // The clip the bar is showing. On the hardware the pad names the slot;
+  // there is no pad here, and the bar already says which slot it describes.
+  updateControlReadout ("-- REC ON");
+  startRecording (_clipSettingsChannel, _clipSettingsSlot);
+}
+
+void
+A3MotionUIComponent::handleScreenTap ()
+{
+  updateControlReadout ("-- TAP");
+
+  auto tapMsg = juce::OSCMessage (_oscAddresses.tap);
+  tapMsg.addInt32 (1);
+  _tapSender.send (tapMsg);
+
+  // The hardware's tap carries a timestamp from the adapter; a finger has
+  // to bring its own, or the tempo estimator never sees this tap at all.
+  if (_clockMode == 0)
+    handleTapAt (juce::Time::getHighResolutionTicks ()
+                 * 1000000 / juce::Time::getHighResolutionTicksPerSecond ());
+}
+
+void
+A3MotionUIComponent::startRecording (index_t channel, index_t slot)
+{
+  auto &pattern = _patterns[channel][slot];
+
+  // Stop any existing pattern at this slot
+  if (pattern)
+    {
+      auto status = pattern->getStatus ();
+      if (status == Pattern::Status::Playing
+          || status == Pattern::Status::Recording)
+        {
+          _engine.stopPattern (pattern, TempoClock::nextDownBeat (_now));
+        }
+      _motionComponent->unsetPreviewPattern (pattern);
+    }
+
+  // The length set for the next take, not whatever the slot happens to
+  // hold. Recording is the only moment a pattern's length is decided.
+  auto const configuredLengthBeats
+      = std::exp2 (static_cast<float> (
+            _clipUIParams[channel][slot].recordLengthLog2))
+        * _engine.getBeatsPerBar ();
+
+  // A take runs until Record is pressed again. OneShot — the default —
+  // schedules its own stop one length in, which is why recording ended by
+  // itself with nobody touching the button.
+  _engine.setRecordingMode (MotionEngine::RecordingMode::Loop);
+
+  // Remembered so an empty take can be undone: the slot's pattern is
+  // replaced right below, and a stray double press must not cost whatever
+  // was in there.
+  _recordingSlot = std::make_pair (channel, slot);
+  _patternBeforeRecording = pattern;
+
+  // Drawn faintly under the take so you can see what you are writing over.
+  // MotionComponent decides whether to show it -- Write replaces the whole
+  // pass, and a ghost of the old one there says nothing.
+  if (_motionComponent)
+    _motionComponent->setRecordingUnderlay (_patternBeforeRecording);
+
+  // Always create a fresh Pattern for recording (user pattern)
+  pattern = std::make_shared<Pattern> ();
+  pattern->setChannel (channel);
+
+  auto recordLength = Measure{
+    0, static_cast<int> (std::max (1.f, configuredLengthBeats)), 0
+  };
+  recordLength.consolidate (_engine.getBeatsPerBar ());
+
+  // Store the recording length in the pattern so it can be updated if encoder changes
+  pattern->setPlaybackLength (recordLength);
+
+  _engine.recordPattern (pattern, TempoClock::nextDownBeat (_now),
+                         recordLength);
+
+  // Show what is being recorded. Starting a recording on one channel while
+  // the bar still displayed another one left every setting that shapes the
+  // take — speed above all, which is its length — pointing at the wrong
+  // clip, and the encoders with it.
+  selectClip (channel, slot);
+
+  // The bar's Rec button says so too — it is the only sign a take is
+  // running for anyone not looking at the hardware key's LED.
+  if (_clipSettings)
+    _clipSettings->setRecording (true);
+}
+
+void
 A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 {
   auto const function = padFunctionByPadIndex[pad];
@@ -1063,62 +1177,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 
   if (isButtonPressed (Button::Record) && function == PadFunction::PlayPause)
     {
-      // Stop any existing pattern at this slot
-      if (pattern)
-        {
-          auto status = pattern->getStatus ();
-          if (status == Pattern::Status::Playing
-              || status == Pattern::Status::Recording)
-            {
-              _engine.stopPattern (pattern, TempoClock::nextDownBeat (_now));
-            }
-          _motionComponent->unsetPreviewPattern (pattern);
-        }
-
-      // The length set for the next take, not whatever the slot happens to
-      // hold. Recording is the only moment a pattern's length is decided.
-      auto const configuredLengthBeats
-          = std::exp2 (static_cast<float> (
-                _clipUIParams[channel][slot].recordLengthLog2))
-            * _engine.getBeatsPerBar ();
-
-      // A take runs until Record is pressed again. OneShot — the default —
-      // schedules its own stop one length in, which is why recording ended by
-      // itself with nobody touching the button.
-      _engine.setRecordingMode (MotionEngine::RecordingMode::Loop);
-
-      // Remembered so an empty take can be undone: the slot's pattern is
-      // replaced right below, and a stray double press must not cost whatever
-      // was in there.
-      _recordingSlot = std::make_pair (channel, slot);
-      _patternBeforeRecording = pattern;
-
-      // Drawn faintly under the take so you can see what you are writing over.
-      // MotionComponent decides whether to show it -- Write replaces the whole
-      // pass, and a ghost of the old one there says nothing.
-      if (_motionComponent)
-        _motionComponent->setRecordingUnderlay (_patternBeforeRecording);
-
-      // Always create a fresh Pattern for recording (user pattern)
-      pattern = std::make_shared<Pattern> ();
-      pattern->setChannel (channel);
-
-      auto recordLength = Measure{
-        0, static_cast<int> (std::max (1.f, configuredLengthBeats)), 0
-      };
-      recordLength.consolidate (_engine.getBeatsPerBar ());
-
-      // Store the recording length in the pattern so it can be updated if encoder changes
-      pattern->setPlaybackLength (recordLength);
-
-      _engine.recordPattern (pattern, TempoClock::nextDownBeat (_now),
-                             recordLength);
-
-      // Show what is being recorded. Starting a recording on one channel while
-      // the bar still displayed another one left every setting that shapes the
-      // take — speed above all, which is its length — pointing at the wrong
-      // clip, and the encoders with it.
-      selectClip (channel, slot);
+      startRecording (channel, slot);
       return;
     }
 
@@ -1666,6 +1725,9 @@ A3MotionUIComponent::createPatternForIndex (int index, index_t channel)
 void
 A3MotionUIComponent::endRecording ()
 {
+  if (_clipSettings)
+    _clipSettings->setRecording (false);
+
   auto pattern = _engine.getRecordingPattern ();
   if (!pattern || !_recordingSlot.has_value ())
     return;
