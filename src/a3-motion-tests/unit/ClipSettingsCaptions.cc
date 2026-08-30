@@ -291,7 +291,7 @@ TEST (ClipSettingsHeight, TheBarNeverEatsMoreThanItsShareOfTheScreen)
 // The global section holds what is not the shown clip's: the per-channel
 // freq/Q/3d grid, the rec mode and the action buttons. A third of the bar --
 // it had half while the grid was spread across all of it.
-TEST (ClipSettingsLayout, TheGlobalSectionTakesAThirdOfTheBar)
+TEST (ClipSettingsLayout, TheGlobalSectionTakesAQuarterOfTheBar)
 {
   for (auto const rowWidth : { 400, 703, 704, 1024, 1920 })
     {
@@ -299,10 +299,10 @@ TEST (ClipSettingsLayout, TheGlobalSectionTakesAThirdOfTheBar)
 
       EXPECT_GT (section, 0) << "row width " << rowWidth;
 
-      // Three clip sections in two thirds; integer division leaves a few
-      // pixels, which land in the global section.
+      // Three clip sections in three quarters; integer division leaves a
+      // few pixels, which land in the global section.
       EXPECT_NEAR (section * ClipSettingsComponent::numClipSections,
-                   rowWidth * 2 / 3, ClipSettingsComponent::numClipSections)
+                   rowWidth * 3 / 4, ClipSettingsComponent::numClipSections)
           << "row width " << rowWidth << ": section " << section;
     }
 }

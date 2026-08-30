@@ -30,14 +30,14 @@ namespace
 {
 constexpr int paddingH = 16;
 
-// The global section takes a third of the bar and the clip's three sections
-// share the rest. It had half while its grid was spread across the whole
-// width; capped to what the knobs need, the grid fits in a third and the
-// clip's sections get the room back.
+// The global section takes a quarter of the bar and the clip's three
+// sections share the rest. It had half while its grid was spread across the
+// whole width; capped to what the knobs need, the grid fits in a quarter and
+// the clip's sections get the room back.
 int
 clipSectionWidth (int rowWidth)
 {
-  return rowWidth * 2 / 3 / (numClipSettingsSections - 1);
+  return rowWidth * 3 / 4 / (numClipSettingsSections - 1);
 }
 
 /** The card's inner area, the same reduction every section makes. A twelfth
@@ -115,7 +115,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   ClipSettingsLayout out;
 
   // Two panels side by side, not one panel with an odd section on the end.
-  out.globalBounds = bounds.removeFromRight (bounds.getWidth () / 3);
+  out.globalBounds = bounds.removeFromRight (bounds.getWidth () / 4);
   out.clipBounds = bounds;
 
   auto const paddingV = juce::jmax (4, out.clipBounds.getHeight () / 40);

@@ -120,7 +120,7 @@ public:
   static constexpr int
   clipSectionWidth (int rowWidth)
   {
-    return rowWidth * 2 / 3 / numClipSections;
+    return rowWidth * 3 / 4 / numClipSections;
   }
 
   explicit ClipSettingsComponent ();

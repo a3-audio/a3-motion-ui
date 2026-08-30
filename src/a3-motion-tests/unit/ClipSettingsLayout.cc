@@ -343,19 +343,20 @@ TEST (ClipSettingsLayout, GridCellsStayBigEnoughToHit)
         // setting knobDiameterForFont() bottoms out at 10 px, and a 12 px
         // cell around a 10 px knob is right, not cramped. Everything on the
         // bar is that small at that setting.
-        // The floor that has to hold everywhere: a cell is never smaller
-        // than the bar's standard knob. The grid would like a fifth more
-        // (see the layout), and gets it wherever the section is wide
-        // enough — at the largest pot size four columns of that no longer
-        // fit a third of the bar, and paintGridKnob draws to the cell
-        // instead. Asserting the larger size here would be asserting that
-        // the section can always afford it, which it cannot.
+        // Only that a cell stays usable. It cannot be promised the bar's
+        // standard knob diameter any more: the global section is a quarter
+        // of the bar, and at the largest pot size four columns of full-size
+        // knobs want more than that quarter holds — paintGridKnob then
+        // draws to the cell. What the grid gets at the sizes the device
+        // ships with is asserted separately, below.
+        juce::ignoreUnused (knobDiam);
+
         for (auto const &column : l.channelGrid)
           for (auto const &cell : column)
             {
-              EXPECT_GE (cell.getHeight (), knobDiam)
+              EXPECT_GE (cell.getHeight (), 10)
                   << "pot " << potSize << " body " << bodySize;
-              EXPECT_GE (cell.getWidth (), knobDiam)
+              EXPECT_GE (cell.getWidth (), 10)
                   << "pot " << potSize << " body " << bodySize;
             }
       }
