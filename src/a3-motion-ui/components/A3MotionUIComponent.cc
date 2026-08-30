@@ -215,8 +215,19 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _clipSettings->onControlTapped = [this] (int section, int sub) {
     // Section first: it resets the sub-index, so naming the sub-element
     // afterwards is what makes the tap land where it was aimed.
+    // A tap on a section's free surface names no control (sub < 0). Within
+    // the section that is already selected there is then nothing to do —
+    // and it has to be caught before selectClipSettingsSection(), which
+    // resets the sub-element itself. Going through it anyway armed reach
+    // whenever the Elevation graphic — a picture, not a control — was
+    // touched.
+    if (sub < 0 && section == _clipSettingsMenuIndex)
+      return;
+
+    // Section first: it resets the sub-element, so naming the sub-element
+    // afterwards is what makes the tap land where it was aimed.
     selectClipSettingsSection (section);
-    selectClipSettingsSubElement (sub);
+    selectClipSettingsSubElement (juce::jmax (0, sub));
   };
   _clipSettings->onControlDragged = [this] (int, int, int increment) {
     handleClipSettingsValueChange (_clipSettingsChannel, increment);

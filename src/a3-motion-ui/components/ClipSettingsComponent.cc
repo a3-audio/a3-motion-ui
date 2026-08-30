@@ -65,10 +65,12 @@ ClipSettingsComponent::createTouchControls ()
   for (int section = 0; section < numParameters; ++section)
     {
       auto card = std::make_unique<TouchControl> ();
-      card->setIdentity (section, 0);
+      // -1, not 0: a card is the section's free surface and names no
+      // control. Saying 0 made touching the Elevation graphic arm reach.
+      card->setIdentity (section, -1);
       card->onPress = [this] (int tappedSection, int) {
         if (onControlTapped)
-          onControlTapped (tappedSection, 0);
+          onControlTapped (tappedSection, -1);
       };
       addAndMakeVisible (*card);
       _sectionTouch[static_cast<size_t> (section)] = std::move (card);
