@@ -382,7 +382,12 @@ private:
   /** Select outright, where the handlers above cycle — what a tap does. */
   void selectClipSettingsSection (int index);
   void selectClipSettingsSubElement (int index);
-  void handleClipSettingsValueChange (index_t channel, int increment);
+  /** Change one control's value by an increment. Which control is named
+   *  explicitly rather than read off the current selection, so two fingers
+   *  on two controls change two values instead of both driving the one that
+   *  was selected last. The encoder path passes the selection it drives. */
+  void handleClipSettingsValueChange (index_t channel, int section, int sub,
+                                      int increment);
   void handleClipSettingsSubElementCycle (index_t channel);
   int numSubElementsForSection (int menuIndex) const;
   void updateClipSettingsDisplay ();

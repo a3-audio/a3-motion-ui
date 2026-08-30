@@ -229,8 +229,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     selectClipSettingsSection (section);
     selectClipSettingsSubElement (juce::jmax (0, sub));
   };
-  _clipSettings->onControlDragged = [this] (int, int, int increment) {
-    handleClipSettingsValueChange (_clipSettingsChannel, increment);
+  _clipSettings->onControlDragged = [this] (int section, int sub,
+                                           int increment) {
+    handleClipSettingsValueChange (_clipSettingsChannel, section, sub,
+                                   increment);
   };
 
   addChildComponent (*_clipSettings);
@@ -890,7 +892,8 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               if (_globalSettingsOpen && channel == 3u)
                 return;
 
-              handleClipSettingsValueChange (channel, increment);
+              handleClipSettingsValueChange (channel, _clipSettingsMenuIndex,
+                                             _clipSettingsSubIndex, increment);
             }
           else if (value.refersToSameSourceAs (
                        _ioAdapter->getEncoderPress (channel)))
@@ -2591,20 +2594,25 @@ A3MotionUIComponent::handleClipSettingsSubElementCycle (index_t channel)
 
 void
 A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
+                                                    int section, int sub,
                                                     int increment)
 {
   if (channel != _clipSettingsChannel || increment == 0)
     return;
 
+  // Which control to change is a parameter, not the current selection. Read
+  // off the selection instead, two fingers on two controls both changed
+  // whatever was selected last — one value moving twice as fast rather than
+  // two values moving.
   auto const slot = _clipSettingsSlot;
   auto &params = _clipUIParams[channel][slot];
 
-  switch (_clipSettingsMenuIndex)
+  switch (section)
     {
     case 0: // Trajectory Shape — the shape itself (0), or the length the next
             // take will have (1)
       {
-        if (_clipSettingsSubIndex == 1)
+        if (sub == 1)
           {
             // A setting for the next recording, not a property of what is in
             // the slot: an existing pattern's length is its tick count, and
@@ -2671,7 +2679,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         if (!pattern)
           break;
 
-        switch (_clipSettingsSubIndex)
+        switch (sub)
           {
           case 0:
             pattern->setReach (pattern->getReach () + increment * 0.05f);
@@ -2700,7 +2708,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         break;
       }
     case 2: // Motion — speed (0), direction (1), or end-action (2)
-      switch (_clipSettingsSubIndex)
+      switch (sub)
         {
         case 0:
           {
@@ -2753,7 +2761,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         }
       break;
     case 3: // Filter — sweep/Pot1 (0) or Q/Pot2 (1)
-      if (_clipSettingsSubIndex == 0)
+      if (sub == 0)
         {
           auto const newVal = std::clamp (
               _engine.getChannelPot1 (channel) + increment * 0.02f, 0.0f, 1.0f);
