@@ -116,5 +116,6 @@
   "sphereScale": 0.67,
   "fontHeader": 14.06,
   "fontBody": 13.75,
-  "potSize": 0.9
+  "potSize": 0.9,
+  "touchDragPixelsPerStep": 12
 }

@@ -316,6 +316,9 @@ loadTheme (juce::var const &skin)
   theme.fontHeader = themeFloat (skin, "fontHeader", theme.fontHeader);
   theme.fontBody = themeFloat (skin, "fontBody", theme.fontBody);
   theme.potSize = themeFloat (skin, "potSize", theme.potSize);
+  theme.touchDragPixelsPerStep = juce::roundToInt (
+      themeFloat (skin, "touchDragPixelsPerStep",
+                  static_cast<float> (theme.touchDragPixelsPerStep)));
 
   return theme;
 }

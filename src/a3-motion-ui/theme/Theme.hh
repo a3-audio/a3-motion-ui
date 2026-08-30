@@ -108,6 +108,11 @@ struct Theme
    *  size. Part of the look, so it lives with the rest of it. */
   float potSize = 1.f;
 
+  /** How far a finger has to travel before a control steps once. Here and
+   *  not a compile-time constant because what feels right is decided at
+   *  the panel — the same reason potSize and the font sizes live here. */
+  int touchDragPixelsPerStep = 12;
+
   float fontSize (FontRole role) const;
 
   /** What this skin's size is, relative to the built-in one. Derived, never

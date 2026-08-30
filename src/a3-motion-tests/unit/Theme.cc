@@ -288,3 +288,21 @@ TEST (SkinSizes, SwitchingSkinMovesSizesWithIt)
   EXPECT_LT (small.fontSize (FontRole::Body), large.fontSize (FontRole::Body));
   EXPECT_LT (small.potSize, large.potSize);
 }
+
+
+// The touchscreen's drag sensitivity: how far a finger travels before a
+// control steps once. A skin value like potSize and the font sizes, because
+// what feels right is decided at the panel, not at compile time.
+TEST (Theme, TouchDragPixelsPerStepDefaultsToTwelve)
+{
+  auto const theme = loadTheme (juce::var{});
+  EXPECT_EQ (theme.touchDragPixelsPerStep, 12);
+}
+
+TEST (Theme, TouchDragPixelsPerStepComesFromTheSkin)
+{
+  auto const parsed = juce::JSON::parse (R"({"touchDragPixelsPerStep": 20})");
+  auto const theme = loadTheme (parsed);
+
+  EXPECT_EQ (theme.touchDragPixelsPerStep, 20);
+}
