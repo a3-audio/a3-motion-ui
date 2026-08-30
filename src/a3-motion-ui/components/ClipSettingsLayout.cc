@@ -241,14 +241,16 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     content.removeFromTop (gapV);
     auto bottomRow = content.removeFromTop (motionRowH);
 
+    // The two values you dial on top, the two you pick from below: speed
+    // and fade are continuous-ish, direction and end-action are lists.
     auto const colW = (topRow.getWidth () - gapH) / 2;
     auto const speedArea = topRow.removeFromLeft (colW);
     topRow.removeFromLeft (gapH);
-    auto const directionArea = topRow;
+    auto const seamArea = topRow;
 
-    auto const endActionArea = bottomRow.removeFromLeft (colW);
+    auto const directionArea = bottomRow.removeFromLeft (colW);
     bottomRow.removeFromLeft (gapH);
-    auto const seamArea = bottomRow;
+    auto const endActionArea = bottomRow;
 
     out.controls[2] = {
       textCell (speedArea, metrics.knobDiam),
@@ -256,6 +258,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       textCell (endActionArea, metrics.knobDiam),
       textCell (seamArea, metrics.knobDiam),
     };
+
+    // An open list takes over the section's controls, and only those: the
+    // title stays put so the section is still named while you pick.
+    out.motionDropdown = sectionContent (out.sectionCards[2])
+                             .withTrimmedTop (out.sectionLabels[2].getHeight ());
   }
 
   // ── Global section ───────────────────────────────────────────────────

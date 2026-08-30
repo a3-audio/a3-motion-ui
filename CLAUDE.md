@@ -230,8 +230,22 @@ them where they belong, and nothing was lost. The grid's cells are dragged throu
 `onChannelValueDragged` and name their own channel, unlike everything else in the bar, which is
 about the clip on show.
 
-The global section is laid out top to bottom: the per-channel grid, centred as one block with its
-row captions, then **four buttons two by two** — rec mode, menu / rec, tap. The rec mode is a
+The bar has one button face, `paintBarButton` — a wash and a thin edge, never a filled slab, so a
+button reads as part of the bar rather than pasted on it. Elevation's pole and flat use it, so do
+Motion's two lists and the global section's four. Only an active one carries colour; the global
+four pass `isSelected = false` because they belong to no channel and must not wear the shown clip's
+colour.
+
+**Direction and end-action are lists, not values you nudge.** A tap opens the list *inside the
+Motion section*, over its own controls — it cannot open anywhere else, because MotionComponent's GL
+context composites above anything drawn over it, so a popup outside the bar would be invisible. The
+backdrop is painted opaque before the card wash: `cardColour()` is translucent by design, and on its
+own it left the list and the controls it covers drawn through each other. Picking an entry sends the
+*difference* to `handleClipSettingsValueChange`, whose modulo arithmetic lands it exactly on the
+entry tapped.
+
+The global section is laid out top to bottom: the per-channel grid (rows read **3d, freq, Q** — see
+`channelRow*`), centred as one block with its row captions, then **four buttons two by two** — rec mode, menu / rec, tap. The rec mode is a
 button like the others now and steps through the modes on a tap, which is what its encoder used to
 do; it reads as active whenever it is not Touch. Rows and columns of the grid are capped to what a
 knob needs rather than sharing out the section's whole width and height, so the twelve knobs sit

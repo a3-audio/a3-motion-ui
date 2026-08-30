@@ -945,22 +945,25 @@ A3MotionUIComponent::handleChannelValueChange (index_t channel, int row,
   // the same rate.
   auto const step = increment * 0.02f;
 
+  // The rows read 3d, freq, Q from the top — see channelRow* in
+  // ClipSettingsLayout.hh. The grid's order is the screen's, not the
+  // engine's pot numbering.
   switch (row)
     {
-    case 0:
+    case channelRowThreeD:
+      _engine.setChannelPot3 (
+          channel,
+          std::clamp (_engine.getChannelPot3 (channel) + step, 0.f, 1.f));
+      break;
+    case channelRowFreq:
       _engine.setChannelPot1 (
           channel,
           std::clamp (_engine.getChannelPot1 (channel) + step, 0.f, 1.f));
       break;
-    case 1:
+    case channelRowQ:
       _engine.setChannelPot2 (
           channel,
           std::clamp (_engine.getChannelPot2 (channel) + step, 0.f, 1.f));
-      break;
-    case 2:
-      _engine.setChannelPot3 (
-          channel,
-          std::clamp (_engine.getChannelPot3 (channel) + step, 0.f, 1.f));
       break;
     default:
       return;

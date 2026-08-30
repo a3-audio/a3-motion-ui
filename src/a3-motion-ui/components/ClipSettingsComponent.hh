@@ -203,8 +203,8 @@ public:
    *  Pot-Encoder produces, so both go through one handler. */
   std::function<void (int section, int sub, int increment)> onControlDragged;
 
-  /** A cell of the per-channel grid was dragged. `row` is 0 freq, 1 Q,
-   *  2 the third value. */
+  /** A cell of the per-channel grid was dragged. `row` is in channelRow*
+   *  order. */
   std::function<void (int channel, int row, int increment)>
       onChannelValueDragged;
 
@@ -270,6 +270,11 @@ private:
    *  and the fact that they can be pressed. */
   void paintActionButton (juce::Graphics &g, juce::Rectangle<int> bounds,
                           juce::String const &label, bool isActive);
+  /** The bar's one button face — see the definition. `caption` may be empty
+   *  for a button that names itself. */
+  void paintBarButton (juce::Graphics &g, juce::Rectangle<int> bounds,
+                       juce::String const &label, juce::String const &caption,
+                       bool isActive, bool isSelected);
 
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
                           juce::String const &text, bool isSelected);
@@ -343,6 +348,24 @@ private:
   std::array<float, numChannelColumns> _channelFreq{};
   std::array<float, numChannelColumns> _channelQ{};
   std::array<float, numChannelColumns> _channelThreeD{};
+
+  /** Which Motion list is open: -1 none, otherwise the sub-element index
+   *  (1 = direction, 2 = end-action). While one is open it takes over the
+   *  section's controls — a list cannot open outside the bar, because
+   *  MotionComponent's GL context composites above anything over it. */
+  int _openDropdown = -1;
+  /** How many entries the open list has, and where they sit. Rebuilt when a
+   *  list opens, so paint() and the hit areas read the same rectangles. */
+  std::vector<juce::Rectangle<int>> _dropdownEntries;
+  std::vector<std::unique_ptr<TouchControl>> _dropdownTouch;
+
+  void openDropdown (int sub);
+  void closeDropdown ();
+  void layOutDropdown ();
+  void paintDropdown (juce::Graphics &g);
+  /** The values the given Motion sub-element can take. */
+  juce::StringArray dropdownValues (int sub) const;
+  int dropdownCurrentIndex (int sub) const;
   int _selectedIndex = 0;
 
   /** Every rectangle in the bar, recomputed by updateLayout(). */

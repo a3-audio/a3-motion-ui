@@ -53,8 +53,11 @@ constexpr int numClipSettingsSections = 4;
 /** The global section's per-channel grid is one column per channel. */
 constexpr int numChannelColumns = numChannelsInitial;
 
-/** ... and three rows: freq, Q, and the third value ("3d"). */
+/** ... and three rows. The order they are read in, top to bottom. */
 constexpr int numChannelRows = 3;
+constexpr int channelRowThreeD = 0;
+constexpr int channelRowFreq = 1;
+constexpr int channelRowQ = 2;
 
 /** How many controls a section holds. Must agree with
  *  A3MotionUIComponent::numSubElementsForSection — a tap addresses a
@@ -92,8 +95,8 @@ struct ClipSettingsLayout
   std::array<std::vector<juce::Rectangle<int>>, numClipSettingsSections>
       controls;
 
-  /** The global section's per-channel grid: [channel][row], row 0 = freq,
-   *  1 = Q, 2 = 3d. Not part of `controls` — these belong to a channel each,
+  /** The global section's per-channel grid: [channel][row], the rows in
+   *  channelRow* order. Not part of `controls` — these belong to a channel each,
    *  not to the clip the bar is showing, so they are dragged through their
    *  own callback. */
   std::array<std::array<juce::Rectangle<int>, numChannelRows>,
@@ -117,6 +120,11 @@ struct ClipSettingsLayout
    *  functions that the hardware has its own keys for; these are the way to
    *  them with a finger. Beside `controls`, not in it: no encoder reaches
    *  them, so they are not sub-elements of the section. */
+  /** Where a Motion dropdown opens: the section's content area, which the
+   *  open list takes over. It cannot open outside the bar — MotionComponent's
+   *  GL context composites above anything drawn over it. */
+  juce::Rectangle<int> motionDropdown;
+
   juce::Rectangle<int> recModeButton;
   juce::Rectangle<int> menuButton;
   juce::Rectangle<int> recButton;
