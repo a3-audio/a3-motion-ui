@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/MotionEngine.hh>
+#include <a3-motion-engine/OscAddresses.hh>
 
 namespace a3
 {
@@ -63,9 +64,15 @@ public:
 
   OscMessageHandler (MotionEngine &engine, Listener &listener);
 
+  /** New addresses, e.g. after config.json was edited on the device.
+   *  Messages arrive through OSCReceiver::MessageLoopCallback, so this and
+   *  handleMessage() are both on the message thread — no handover needed. */
+  void setAddresses (OscAddresses const &addresses);
+
   void handleMessage (juce::OSCMessage const &message, int clockMode);
 
 private:
+  OscAddresses _addresses;
   MotionEngine &_engine;
   Listener &_listener;
 };

@@ -31,14 +31,20 @@ OscMessageHandler::OscMessageHandler (MotionEngine &engine, Listener &listener)
 }
 
 void
+OscMessageHandler::setAddresses (OscAddresses const &addresses)
+{
+  _addresses = addresses;
+}
+
+void
 OscMessageHandler::handleMessage (juce::OSCMessage const &message,
                                   int clockMode)
 {
   auto const address = message.getAddressPattern ().toString ();
 
-  if (address.startsWith ("/vu/"))
+  if (address.startsWith (_addresses.vuPrefix))
     {
-      auto const channelStr = address.substring (4);
+      auto const channelStr = address.substring (_addresses.vuPrefix.length ());
       auto const channel = channelStr.getIntValue ();
 
       if (message.size () < 2)
@@ -57,7 +63,7 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
       return;
     }
 
-  if (address == "/EnergyVisualizer/RMS")
+  if (address == _addresses.energyRms)
     {
       // A message of the wrong length would leave part of the map holding
       // values from an earlier frame — energy that is no longer there.
@@ -77,7 +83,7 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
       return;
     }
 
-  if (address == "/beat" && message.size () >= 3)
+  if (address == _addresses.beat && message.size () >= 3)
     {
       auto const getIntArg = [] (juce::OSCArgument const &arg) -> int {
         if (arg.isInt32 ())

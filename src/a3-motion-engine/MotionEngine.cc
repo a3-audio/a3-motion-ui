@@ -26,6 +26,7 @@
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/Playhead.hh>
 #include <a3-motion-engine/UserConfig.hh>
+#include <a3-motion-engine/OscAddresses.hh>
 #include <a3-motion-engine/backends/SpatBackendA3.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-engine/util/Helpers.hh>
@@ -55,7 +56,8 @@ MotionEngine::calculateSubSamplingFactor (Measure recordingLength, int beatsPerB
 MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap)
     : _heightMap (heightMap), _commandQueue (std::make_unique<SpatBackendA3> (
                                   userConfig["oscSender"]["host"], 
-                                  static_cast<int> (userConfig["oscSender"]["port"])))
+                                  static_cast<int> (userConfig["oscSender"]["port"]),
+                                  loadOscAddresses (userConfig)))
 {
   createChannels (numChannels);
 
@@ -75,6 +77,12 @@ MotionEngine::~MotionEngine ()
   jassert (_patternStatusListeners.empty ());
   _commandQueue.stopThread (-1);
   _tempoClock.stop ();
+}
+
+void
+MotionEngine::setOscAddresses (OscAddresses const &addresses)
+{
+  _commandQueue.setAddresses (addresses);
 }
 
 void

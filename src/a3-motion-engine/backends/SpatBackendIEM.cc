@@ -25,10 +25,21 @@
 namespace a3
 {
 
-SpatBackendIEM::SpatBackendIEM (juce::String address, int basePort)
+SpatBackendIEM::SpatBackendIEM (juce::String address, int basePort,
+                                OscAddresses const &addresses)
     : _address (address), _basePort (basePort)
 {
   _sender.connect (address, basePort);
+
+  // Not through setAddresses(): nothing else exists yet to race with.
+  addressesChanged (addresses);
+}
+
+void
+SpatBackendIEM::addressesChanged (OscAddresses const &addresses)
+{
+  _azimuthAddress = addresses.iemAzimuth;
+  _elevationAddress = addresses.iemElevation;
 }
 
 void
@@ -36,10 +47,10 @@ SpatBackendIEM::sendPosition (index_t channel, Pos const &pos)
 {
   juce::OSCBundle bundle;
 
-  auto message = juce::OSCMessage ("/StereoEncoder/azimuth", pos.azimuth ());
+  auto message = juce::OSCMessage (_azimuthAddress, pos.azimuth ());
   bundle.addElement ({ message });
 
-  message = juce::OSCMessage ("/StereoEncoder/elevation", pos.elevation ());
+  message = juce::OSCMessage (_elevationAddress, pos.elevation ());
   bundle.addElement ({ message });
 
   jassert (channel <= std::numeric_limits<int>::max ());

@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <functional>
+
 #include <array>
 #include <map>
 
@@ -48,6 +50,11 @@ class MotionComponent : public juce::Component,
                         public juce::Timer
 {
 public:
+  /** Called on the message thread right after config.json was re-read and
+   *  the global userConfig replaced. The watcher lives here, but things
+   *  outside this component are configured by that file too. */
+  std::function<void (juce::var const &)> onAppConfigReloaded;
+
   MotionComponent (MotionEngine &engine,
                    std::vector<std::unique_ptr<ChannelUIState> > &);
   ~MotionComponent ();

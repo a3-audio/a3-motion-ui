@@ -976,8 +976,15 @@ MotionComponent::reloadVisualConfigIfChanged ()
           // changed the file and nothing else.
           //
           // Handed over on the message thread, which is where it is read.
-          juce::MessageManager::callAsync (
-              [config] { userConfig = config; });
+          juce::Component::SafePointer<MotionComponent> safeThis{ this };
+          juce::MessageManager::callAsync ([safeThis, config] {
+            userConfig = config;
+
+            // Everything that was read out of the file at startup has to be
+            // told, not only the visuals this component owns.
+            if (safeThis != nullptr && safeThis->onAppConfigReloaded)
+              safeThis->onAppConfigReloaded (config);
+          });
 
           auto const named = skinFile (configFile ().getParentDirectory (),
                                        config["ui"]["skin"].toString ());

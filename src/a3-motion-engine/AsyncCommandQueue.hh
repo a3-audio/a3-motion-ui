@@ -39,6 +39,10 @@ public:
   void sendPot1 (index_t channel, float pot1);
   void sendPot2 (index_t channel, float pot2);
 
+  /** Hand new addresses to the backend. Safe from any thread; the backend
+   *  picks them up on its own thread at the start of the next drain. */
+  void setAddresses (OscAddresses const &addresses);
+
   void run () override;
 
 private:

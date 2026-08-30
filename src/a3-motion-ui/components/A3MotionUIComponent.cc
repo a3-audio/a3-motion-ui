@@ -106,6 +106,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   setLookAndFeel (&_lookAndFeel);
 
   _oscMessageHandler = std::make_unique<OscMessageHandler> (_engine, *this);
+  applyOscAddresses (userConfig);
 
   if (runsOnHardware ())
     {
@@ -132,6 +133,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // rendered image. That is the only way anything can sit on top of the
   // sphere — and the only way the menu can be see-through and still show
   // the skin it is editing behind it.
+  // Editing an address in the menu writes config.json; the watcher picks
+  // that up and this puts it in force without a restart.
+  _motionComponent->onAppConfigReloaded
+      = [this] (juce::var const &config) { applyOscAddresses (config); };
+
   _globalSettings = std::make_unique<GlobalSettingsComponent> ();
   _globalSettings->setAlwaysOnTop (true);
 
@@ -779,7 +785,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           _ioAdapter->getButtonLED (Button::Tap) = true;
           updateControlReadout ("-- TAP");
 
-          auto tapMsg = juce::OSCMessage ("/tap");
+          auto tapMsg = juce::OSCMessage (_oscAddresses.tap);
           tapMsg.addInt32 (1);
           _tapSender.send (tapMsg);  // Direct, synchronous send - no queue!
         }
@@ -1248,11 +1254,15 @@ A3MotionUIComponent::tickCallback (Measure measure)
 {
   _now = measure;
 
+  // This thread's own copy of the beat address, taken over here and read
+  // nowhere else.
+  applyPendingBeatAddress ();
+
   // Send beat via OSC on every beat (only in INT mode to avoid feedback with external clock)
   // AsyncOSCSender enqueues to lock-free FIFO, safe to call from any thread
   if (_clockMode == 0 && measure.tick () == 0)
     {
-      auto beatClockMsg = juce::OSCMessage ("/beat");
+      auto beatClockMsg = juce::OSCMessage (_beatAddress);
       beatClockMsg.addInt32 (measure.beat () + 1);  // 1-indexed beat
       beatClockMsg.addInt32 (measure.bar () + 1);   // 1-indexed bar
       beatClockMsg.addInt32 (static_cast<int> (std::round (_engine.getTempoBPM ())));
@@ -1996,7 +2006,8 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
     case MenuRow::Skin: applySkin (chosen); break;
     case MenuRow::SkinEditor: openSkinEditor (); break;
     case MenuRow::Network:
-      openConfigPage ("Network", { "oscSender", "oscReceiver" });
+      openConfigPage ("Network",
+                      { "oscSender", "oscReceiver", "oscAddresses" });
       break;
     case MenuRow::ButtonLeds:
       openConfigPage ("Button LEDs", { "buttonLeds" });
@@ -2011,6 +2022,38 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
 
   _globalSettingsValueFieldSelected = false;
   _globalSettings->setValueFieldSelected (false);
+}
+
+void
+A3MotionUIComponent::applyOscAddresses (juce::var const &config)
+{
+  _oscAddresses = loadOscAddresses (config);
+
+  // The engine's backend sends on its own thread and picks these up there;
+  // the message handler receives on this one and can take them directly.
+  _engine.setOscAddresses (_oscAddresses);
+
+  if (_oscMessageHandler)
+    _oscMessageHandler->setAddresses (_oscAddresses);
+
+  // The beat is sent from the tempo-clock thread, so it cannot read the
+  // struct this function just replaced.
+  {
+    std::lock_guard<std::mutex> lock{ _beatAddressMutex };
+    _pendingBeatAddress = _oscAddresses.beat;
+  }
+  _beatAddressPending.store (true, std::memory_order_release);
+}
+
+void
+A3MotionUIComponent::applyPendingBeatAddress ()
+{
+  if (!_beatAddressPending.load (std::memory_order_acquire))
+    return;
+
+  std::lock_guard<std::mutex> lock{ _beatAddressMutex };
+  _beatAddress = _pendingBeatAddress;
+  _beatAddressPending.store (false, std::memory_order_relaxed);
 }
 
 void
@@ -2055,7 +2098,7 @@ A3MotionUIComponent::applyClockMode (int mode)
   _statusBar->setClockMode (_clockMode);
   _loopLengthDisplay->setClockMode (_clockMode);
 
-  auto clockModeMsg = juce::OSCMessage ("/clockmode");
+  auto clockModeMsg = juce::OSCMessage (_oscAddresses.clockMode);
   clockModeMsg.addInt32 (_clockMode);
   _oscSender.send (clockModeMsg);
 

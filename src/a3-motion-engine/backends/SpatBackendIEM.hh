@@ -36,15 +36,22 @@ namespace a3
 class SpatBackendIEM : public SpatBackend
 {
 public:
-  SpatBackendIEM (juce::String address, int basePort);
+  SpatBackendIEM (juce::String address, int basePort,
+                  OscAddresses const &addresses);
 
   void sendPosition (index_t channel, Pos const &pos) override;
   void sendPot1 (index_t channel, float pot1) override;
   void sendPot2 (index_t channel, float pot2) override;
 
+protected:
+  void addressesChanged (OscAddresses const &addresses) override;
+
 private:
   juce::String _address;
   int _basePort;
+
+  juce::String _azimuthAddress;
+  juce::String _elevationAddress;
 
   juce::OSCSender _sender;
 };

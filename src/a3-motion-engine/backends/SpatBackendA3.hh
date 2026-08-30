@@ -30,11 +30,15 @@ namespace a3
 class SpatBackendA3 : public SpatBackend
 {
 public:
-  SpatBackendA3 (juce::String address, int port);
+  SpatBackendA3 (juce::String address, int port,
+                 OscAddresses const &addresses);
 
   void sendPosition (index_t channel, Pos const &pos) override;
   void sendPot1 (index_t channel, float pot1) override;
   void sendPot2 (index_t channel, float pot2) override;
+
+protected:
+  void addressesChanged (OscAddresses const &addresses) override;
 
 private:
   juce::String _address;

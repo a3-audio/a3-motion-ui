@@ -26,7 +26,8 @@
 namespace a3
 {
 
-SpatBackendA3::SpatBackendA3 (juce::String address, int port)
+SpatBackendA3::SpatBackendA3 (juce::String address, int port,
+                              OscAddresses const &addresses)
     : _address (address), _port (port)
 {
   if (_sender.connect (address, port))
@@ -34,14 +35,21 @@ SpatBackendA3::SpatBackendA3 (juce::String address, int port)
   else
     std::cerr << "ERROR: OSC Sender failed to connect to " << address << ":" << port << std::endl;
 
+  // Not through setAddresses(): nothing else exists yet to race with, and
+  // the cache has to be there before the first send.
+  addressesChanged (addresses);
+}
+
+void
+SpatBackendA3::addressesChanged (OscAddresses const &addresses)
+{
   // Pre-cache OSC address patterns to avoid heap allocation per send
   for (int ch = 0; ch < kMaxChannels; ++ch)
     {
-      auto prefix = juce::String ("/channel/") + juce::String (ch);
-      _azimuthPatterns[ch]   = prefix + "/azimuth";
-      _elevationPatterns[ch] = prefix + "/elevation";
-      _pot1Patterns[ch]      = prefix + "/pot_1";
-      _pot2Patterns[ch]      = prefix + "/pot_2";
+      _azimuthPatterns[ch] = withChannel (addresses.channelAzimuth, ch);
+      _elevationPatterns[ch] = withChannel (addresses.channelElevation, ch);
+      _pot1Patterns[ch] = withChannel (addresses.channelPot1, ch);
+      _pot2Patterns[ch] = withChannel (addresses.channelPot2, ch);
     }
 }
 

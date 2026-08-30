@@ -23,6 +23,9 @@
 #include "a3-motion-engine/tempo/TempoClock.hh"
 #include <JuceHeader.h>
 
+#include <atomic>
+#include <mutex>
+
 #include <array>
 #include <string>
 #include <vector>
@@ -198,6 +201,25 @@ private:
                             index_t channel, index_t slot);
 
   // OSC Receiver for beat clock (port 7771)
+  /** The addresses this device speaks, read from config.json. Pushed on to
+   *  the engine and the message handler whenever the config is reloaded —
+   *  see applyOscAddresses(). */
+  OscAddresses _oscAddresses;
+  void applyOscAddresses (juce::var const &config);
+
+  /** The beat address again, for the tempo-clock thread.
+   *
+   *  tickCallback() runs there, and juce::String is reference counted — so
+   *  reading _oscAddresses.beat from it while the message thread replaces
+   *  the struct is a race. Handed over the same way the send backend gets
+   *  its addresses: stored under the lock, picked up at the top of the tick
+   *  where the flag costs one atomic load. */
+  juce::String _beatAddress{ "/beat" };
+  std::mutex _beatAddressMutex;
+  juce::String _pendingBeatAddress;
+  std::atomic<bool> _beatAddressPending{ false };
+  void applyPendingBeatAddress ();
+
   juce::OSCReceiver _oscReceiver;
   // OSC Receiver for VU meters (port 7772)
   juce::OSCReceiver _oscReceiverVU;
