@@ -76,6 +76,11 @@ ClipSettingsComponent::createTouchControls ()
       _sectionTouch[static_cast<size_t> (section)] = std::move (card);
     }
 
+  // In front of the cards, so it swallows what would otherwise reach the
+  // Elevation card. No callbacks: a picture is not a control.
+  _elevationGraphicTouch = std::make_unique<TouchControl> ();
+  addAndMakeVisible (*_elevationGraphicTouch);
+
   for (int section = 0; section < numParameters; ++section)
     {
       auto const count = numControlsInSection (section);
@@ -129,6 +134,8 @@ ClipSettingsComponent::resized ()
       for (size_t sub = 0; sub < _controlTouch[s].size (); ++sub)
         _controlTouch[s][sub]->setBounds (cells[sub]);
     }
+
+  _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
 }
 
 juce::Colour

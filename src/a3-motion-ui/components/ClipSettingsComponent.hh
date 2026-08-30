@@ -331,6 +331,11 @@ private:
    *  controls sit in front of them — a tap on a knob must not be caught by
    *  the card it lies on. */
   std::array<std::unique_ptr<TouchControl>, numParameters> _sectionTouch;
+  /** Over the Elevation section's sphere graphic, in front of that
+   *  section's card, with no callbacks at all: the graphic is a picture of
+   *  what the controls below it do, and touching a picture should do
+   *  nothing. Without it the card underneath would answer. */
+  std::unique_ptr<TouchControl> _elevationGraphicTouch;
   std::array<std::vector<std::unique_ptr<TouchControl>>, numParameters>
       _controlTouch;
 
