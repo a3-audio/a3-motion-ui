@@ -46,6 +46,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/DragAccumulator.hh
     components/TouchControl.cc
     components/TouchControl.hh
+    components/ClipSettingsLayout.cc
+    components/ClipSettingsLayout.hh
     components/TouchGrabs.cc
     components/TouchGrabs.hh
     components/SpeakerLightScaling.cc

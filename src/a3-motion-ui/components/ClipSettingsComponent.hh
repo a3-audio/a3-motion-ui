@@ -27,6 +27,7 @@
 #include <a3-motion-ui/theme/Theme.hh>
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
+#include <a3-motion-ui/components/ClipSettingsLayout.hh>
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -198,23 +199,17 @@ public:
   int preferredHeight (int width) const;
 
 private:
-  /** The two sizes every control in the bar shares, computed once per
-   *  paint(): the knob diameter (Pot Size) and the size every caption is
-   *  drawn at (Font Size, fitted to the tightest caption box in the bar —
-   *  see sharedCaptionSize()). Both are decided from the whole bar's
-   *  geometry, not from the individual control's cell, which is what keeps
-   *  neighbouring controls the same size as each other. */
-  struct ControlMetrics
-  {
-    int knobDiam;
-    float captionSize;
-    float valueSize;
-  };
+  /** The card behind a section plus its title — every section opens with
+   *  it, and it is the only thing they all draw the same way. */
+  void paintSectionCard (juce::Graphics &g, int sectionIndex, bool isSelected);
 
-  void paintTrajectorySection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                               bool isSelected, ControlMetrics metrics);
-  void paintElevationSection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                              bool isSelected, ControlMetrics metrics);
+  /** Recomputes _layout from the current bounds and theme. Called by both
+   *  paint() and resized(), so the picture and the hit areas can never
+   *  disagree. */
+  void updateLayout ();
+
+  void paintTrajectorySection (juce::Graphics &g, bool isSelected);
+  void paintElevationSection (juce::Graphics &g, bool isSelected);
   /** Side-view sphere graphic for the Elevation section: circle + head dot
    *  at the pole (mirror-south picks which one), grey clip-top/clip-bottom
    *  excluded bands, and a solid marker line at reach's edge — or, while
@@ -226,31 +221,16 @@ private:
                               bool isActive, bool isSelected);
   /** Speed (knob) / Direction / End-Action (toggles), single row, always
    *  visible in parallel — same style as the Elevation controls. */
-  void paintMotionSection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                           bool isSelected, ControlMetrics metrics);
+  void paintMotionSection (juce::Graphics &g, bool isSelected);
   /** Freq / Q (knobs), single row. */
-  void paintFilterSection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                           bool isSelected, ControlMetrics metrics);
+  void paintFilterSection (juce::Graphics &g, bool isSelected);
   /** Small, deliberately unobtrusive section title (see class doc) — most
    *  of a section's height goes to its controls, not this label. */
-  void paintGlobalSection (juce::Graphics &g, juce::Rectangle<int> bounds,
-                           bool isSelected, ControlMetrics const &metrics);
+  void paintGlobalSection (juce::Graphics &g, bool isSelected);
 
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
                           juce::String const &text, bool isSelected);
 
-  /** Fixed-size (knobDiam wide, tall enough for label + optional value
-   *  text above), centred within `cell` — every knob/toggle across every
-   *  section is given bounds built this way, so they all render at
-   *  identical size regardless of how roomy their own section's grid cell
-   *  happens to be (see class doc / the skin's potSize). */
-  juce::Rectangle<int> controlBounds (juce::Rectangle<int> cell,
-                                      int knobDiam) const;
-  /** Height of a section's title row, from the Header role. */
-  int titleRowHeight (juce::Rectangle<int> content) const;
-  /** Height of a text row drawn at `size` — the caption row at the bottom
-   *  of a control, or the value row above its knob. */
-  int textRowHeight (juce::Rectangle<int> content, float size) const;
 
   /** A section card's fill: the channel's colour while the section is
    *  selected, a barely-there wash otherwise. */
@@ -267,9 +247,6 @@ private:
   float fontFor (FontRole role, juce::Rectangle<int> area,
                  juce::String const &text) const;
 
-  /** A control's cell at full grid width, knob height. */
-  juce::Rectangle<int> textCell (juce::Rectangle<int> cell,
-                                 int knobDiam) const;
   /** Small labelled rotary knob (Ableton/Bitwig-style), sized to fill
    *  `bounds` (a fixed box from controlBounds(), unaffected by Font
    *  Size — see its comment). `angleFrac` is -1..1, mapped onto the
@@ -325,7 +302,8 @@ private:
   int _filterSubIndex = 0;
   int _selectedIndex = 0;
 
-  static constexpr int paddingH = 16;
+  /** Every rectangle in the bar, recomputed by updateLayout(). */
+  ClipSettingsLayout _layout;
 
   static constexpr char const *parameterNames[numParameters] = {
     "Shape", "Elevation", "Motion", "Filter", "Global",
