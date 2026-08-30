@@ -41,8 +41,181 @@ constexpr float armedRowWash = 0.133f;
 
 SkinEditorComponent::SkinEditorComponent ()
 {
-  setInterceptsMouseClicks (false, false);
+  // Not for itself, but for its children: the dimmed area beside the panel
+  // stays transparent to touch, the rows on it do not.
+  setInterceptsMouseClicks (false, true);
   setWantsKeyboardFocus (true);
+
+  createTouchControls ();
+}
+
+void
+SkinEditorComponent::browseRow (int index)
+{
+  if (index < 0 || index >= totalRows ())
+    return;
+
+  _index = index;
+  // Letting the armed row go, exactly as turning to another row does:
+  // otherwise the next drag would edit a row nobody is looking at.
+  _editing = false;
+  resized ();
+  repaint ();
+}
+
+int
+SkinEditorComponent::firstVisibleRow () const
+{
+  auto const rows = visibleRows ();
+
+  // The list scrolls around the browsed row rather than paging, so the row
+  // being edited stays put while its value changes.
+  return juce::jlimit (0, juce::jmax (0, totalRows () - rows),
+                       _index - rows / 2);
+}
+
+juce::Rectangle<int>
+SkinEditorComponent::listPanelBounds () const
+{
+  auto const rows = visibleRows ();
+  auto const itemH
+      = static_cast<int> (theme ().fontSize (FontRole::Body) * 1.9f);
+  auto const headerH
+      = static_cast<int> (theme ().fontSize (FontRole::Header) * 2.2f);
+
+  auto const panelW = juce::jmin (maxPanelW, getWidth () - 2 * paddingH);
+  auto const panelH
+      = paddingV * 2 + headerH + rows * itemH + (rows - 1) * rowGap;
+
+  return juce::Rectangle<int> ((getWidth () - panelW) / 2,
+                               (getHeight () - panelH) / 2, panelW, panelH);
+}
+
+juce::Rectangle<int>
+SkinEditorComponent::listContentBounds () const
+{
+  auto const headerH
+      = static_cast<int> (theme ().fontSize (FontRole::Header) * 2.2f);
+
+  auto content = listPanelBounds ().reduced (paddingH, paddingV);
+  content.removeFromTop (headerH);
+  return content;
+}
+
+juce::Rectangle<int>
+SkinEditorComponent::visibleRowBounds (int slot) const
+{
+  auto const itemH
+      = static_cast<int> (theme ().fontSize (FontRole::Body) * 1.9f);
+  auto const content = listContentBounds ();
+
+  return juce::Rectangle<int> (content.getX (),
+                               content.getY () + slot * (itemH + rowGap),
+                               content.getWidth (), itemH);
+}
+
+juce::Rectangle<int>
+SkinEditorComponent::rowValueArea (juce::Rectangle<int> row,
+                                   int absoluteIndex) const
+{
+  bool const isAction = absoluteIndex < _actionRows;
+  auto const valueShare
+      = (!isAction && rowValue (absoluteIndex).length () > 8) ? 2 : 3;
+
+  return row.removeFromRight (row.getWidth () / valueShare).reduced (8, 0);
+}
+
+juce::Rectangle<int>
+SkinEditorComponent::rowNameArea (juce::Rectangle<int> row,
+                                  int absoluteIndex) const
+{
+  bool const isAction = absoluteIndex < _actionRows;
+  auto const valueShare
+      = (!isAction && rowValue (absoluteIndex).length () > 8) ? 2 : 3;
+
+  row.removeFromRight (row.getWidth () / valueShare);
+  return row.reduced (8, 0);
+}
+
+void
+SkinEditorComponent::createTouchControls ()
+{
+  // Behind everything: a drag anywhere on the list that is not on a value
+  // field moves the selection. Added first so the rows sit in front of it.
+  _listScroll = std::make_unique<TouchControl> ();
+  _listScroll->onDragIncrement = [this] (int, int, int increment) {
+    navigate (increment);
+  };
+  addAndMakeVisible (*_listScroll);
+
+  // As many pairs as the panel can ever draw. Which absolute row each shows
+  // changes as the list scrolls, so resized() re-labels them.
+  for (int slot = 0; slot < 24; ++slot)
+    {
+      RowTouch touch;
+
+      touch.name = std::make_unique<TouchControl> ();
+      touch.name->onTap = [this] (int absoluteRow, int) {
+        browseRow (absoluteRow);
+
+        // What the encoder press on this row would do — an action row acts,
+        // a colour row opens the picker, a typed number calls the keyboard.
+        // toggleEditing() already knows all of those cases.
+        toggleEditing ();
+      };
+
+      touch.value = std::make_unique<TouchControl> ();
+      touch.value->onTap = [this] (int absoluteRow, int) {
+        browseRow (absoluteRow);
+        toggleEditing ();
+      };
+      touch.value->onDragIncrement
+          = [this] (int absoluteRow, int, int increment) {
+              if (browsedRowIndex () != absoluteRow)
+                browseRow (absoluteRow);
+              if (!isEditing ())
+                toggleEditing ();
+              navigate (increment);
+            };
+
+      addAndMakeVisible (*touch.name);
+      addAndMakeVisible (*touch.value);
+      _rowTouch.push_back (std::move (touch));
+    }
+}
+
+void
+SkinEditorComponent::resized ()
+{
+  // While a name is being typed the list steps aside, so nothing on it can
+  // be aimed at.
+  auto const listShown = totalRows () > 0 && !_naming;
+
+  _listScroll->setVisible (listShown);
+  if (listShown)
+    _listScroll->setBounds (listContentBounds ());
+
+  auto const rows = listShown ? visibleRows () : 0;
+  auto const first = firstVisibleRow ();
+
+  for (size_t slot = 0; slot < _rowTouch.size (); ++slot)
+    {
+      auto const index = first + static_cast<int> (slot);
+      auto const shown = listShown && static_cast<int> (slot) < rows
+                         && index < totalRows ();
+
+      auto &touch = _rowTouch[slot];
+      touch.name->setVisible (shown);
+      touch.value->setVisible (shown);
+      if (!shown)
+        continue;
+
+      auto const row = visibleRowBounds (static_cast<int> (slot));
+      touch.name->setIdentity (index);
+      touch.value->setIdentity (index);
+      touch.name->setBounds (rowNameArea (row, index));
+      touch.value->setBounds (rowValueArea (row, index));
+    }
 }
 
 bool
@@ -108,6 +281,7 @@ SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
   _index = 0;
   _editing = false;
   _naming = false;
+  resized (); // the list steps aside while typing; its hit areas follow
   _deleteAsked = false;
   _textPath = {};
   repaint ();
@@ -146,6 +320,7 @@ SkinEditorComponent::finishNaming ()
   auto const typed = _nameEntry.name ();
   auto const path = _textPath;
   _naming = false;
+  resized (); // the list steps aside while typing; its hit areas follow
   _editing = false;
   _textPath = {};
   repaint ();
@@ -260,6 +435,7 @@ SkinEditorComponent::toggleEditing ()
     case Row::Rename:
       _nameEntry = TextInput{ _name };
       _naming = true;
+      resized (); // the list steps aside while typing; its hit areas follow
       _editing = false;
       repaint ();
       grabKeyboardFocus (); // the keys have to land here, not in the void
@@ -314,6 +490,7 @@ SkinEditorComponent::toggleEditing ()
             _nameEntry
                 = TextInput{ skinText (_skin, parameter.path), alphabet };
             _naming = true;
+            resized (); // the list steps aside while typing; its hit areas follow
             _editing = false;
             repaint ();
             if (onNamingChanged)
@@ -395,6 +572,7 @@ SkinEditorComponent::beginTypingBrowsedRow ()
                           parameter.isText ? TextInput::pathAlphabet
                                            : TextInput::numberAlphabet };
   _naming = true;
+  resized (); // the list steps aside while typing; its hit areas follow
   _editing = false;
   repaint ();
 
@@ -486,12 +664,7 @@ SkinEditorComponent::paint (juce::Graphics &g)
   auto const itemH = static_cast<int> (theme ().fontSize (FontRole::Body) * 1.9f);
   auto const headerH = static_cast<int> (theme ().fontSize (FontRole::Header) * 2.2f);
 
-  auto const panelW = juce::jmin (maxPanelW, getWidth () - 2 * paddingH);
-  auto const panelH
-      = paddingV * 2 + headerH + rows * itemH + (rows - 1) * rowGap;
-  auto panelBounds
-      = juce::Rectangle<int> ((getWidth () - panelW) / 2,
-                              (getHeight () - panelH) / 2, panelW, panelH);
+  auto const panelBounds = listPanelBounds ();
 
   g.setColour (toColour (theme ().textPrimary, rowWash));
   g.fillRoundedRectangle (panelBounds.toFloat (), 10.f);
@@ -558,8 +731,7 @@ SkinEditorComponent::paint (juce::Graphics &g)
       return;
     }
 
-  auto const first = juce::jlimit (
-      0, juce::jmax (0, totalRows () - rows), _index - rows / 2);
+  auto const first = firstVisibleRow ();
 
   for (int i = 0; i < rows; ++i)
     {
@@ -567,9 +739,7 @@ SkinEditorComponent::paint (juce::Graphics &g)
       if (index >= totalRows ())
         break;
 
-      auto row = content.removeFromTop (itemH);
-      if (i < rows - 1)
-        content.removeFromTop (rowGap);
+      auto const row = visibleRowBounds (i);
 
       bool const isAction = index < _actionRows;
       bool const isBrowsed = index == _index;
@@ -581,11 +751,8 @@ SkinEditorComponent::paint (juce::Graphics &g)
                                          : rowWash));
       g.fillRoundedRectangle (row.toFloat (), 6.f);
 
-      auto const valueShare
-          = (!isAction && rowValue (index).length () > 8) ? 2 : 3;
-      auto valueArea
-          = row.removeFromRight (row.getWidth () / valueShare).reduced (8, 0);
-      auto nameArea = row.reduced (8, 0);
+      auto const valueArea = rowValueArea (row, index);
+      auto const nameArea = rowNameArea (row, index);
 
       g.setFont (
           juce::Font (theme ().fontSize (FontRole::Body), juce::Font::plain));

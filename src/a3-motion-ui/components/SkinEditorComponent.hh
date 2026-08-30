@@ -24,6 +24,9 @@
 
 #include <a3-motion-ui/theme/TextInput.hh>
 #include <a3-motion-ui/theme/SkinParameters.hh>
+#include <a3-motion-ui/components/TouchControl.hh>
+
+#include <memory>
 
 #include <functional>
 #include <vector>
@@ -107,6 +110,17 @@ public:
   /** Turn the encoder: browse the list, or change what the armed row holds. */
   void navigate (int delta);
 
+  /** Name a row outright, which is what a tap does — the encoder has to turn
+   *  past everything in between. Lets an armed row go, like browsing with the
+   *  encoder does. An index outside the list is ignored. */
+  void browseRow (int index);
+  int browsedRowIndex () const { return _index; }
+
+  /** The window of rows currently drawn. The list is far longer than the
+   *  panel, so only these carry hit areas. */
+  int firstVisibleRow () const;
+  int visibleRowCount () const { return visibleRows (); }
+
   /** Press the encoder: arm the browsed row, or let it go again. On an
    *  action row this is what asks for it — the caller decides whether it
    *  happens, and tells this component the outcome via setSkin(). */
@@ -164,8 +178,34 @@ public:
   bool keyPressed (juce::KeyPress const &key) override;
 
   void paint (juce::Graphics &g) override;
+  void resized () override;
 
 private:
+  /** The panel, and a row inside it by its slot in the drawn window. One
+   *  calculation for the picture and for the hit areas. */
+  juce::Rectangle<int> listPanelBounds () const;
+  juce::Rectangle<int> listContentBounds () const;
+  juce::Rectangle<int> visibleRowBounds (int slot) const;
+  /** A row's two halves. The split follows the value's length, so it needs
+   *  the row's index and cannot be a free function. */
+  juce::Rectangle<int> rowValueArea (juce::Rectangle<int> row,
+                                     int absoluteIndex) const;
+  juce::Rectangle<int> rowNameArea (juce::Rectangle<int> row,
+                                    int absoluteIndex) const;
+
+  /** One pair of hit areas per drawn row, plus one behind the whole list
+   *  that a drag scrolls with. Created once; resized() re-places them and
+   *  re-labels them with the absolute row they currently show. */
+  struct RowTouch
+  {
+    std::unique_ptr<TouchControl> name;
+    std::unique_ptr<TouchControl> value;
+  };
+  std::vector<RowTouch> _rowTouch;
+  std::unique_ptr<TouchControl> _listScroll;
+
+  void createTouchControls ();
+
   /** How many rows fit, given the height this page was handed. */
   int visibleRows () const;
 

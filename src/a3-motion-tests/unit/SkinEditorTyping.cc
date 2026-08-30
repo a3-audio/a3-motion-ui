@@ -213,3 +213,71 @@ TEST (SkinEditorTyping, ATypedPortReachesTheDocument)
 
   EXPECT_EQ ((int)editor.getSkin ()["oscReceiver"]["port"], 9001);
 }
+
+
+// A tap names the row it wants outright, where the encoder has to turn past
+// every row in between.
+TEST (SkinEditorTouch, TappingARowBrowsesIt)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
+
+  editor.browseRow (1);
+  EXPECT_EQ (editor.browsedRowIndex (), 1);
+
+  editor.browseRow (0);
+  EXPECT_EQ (editor.browsedRowIndex (), 0);
+}
+
+TEST (SkinEditorTouch, BrowsingOutsideTheListIsIgnored)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
+
+  editor.browseRow (0);
+
+  editor.browseRow (-1);
+  EXPECT_EQ (editor.browsedRowIndex (), 0);
+
+  editor.browseRow (1000000);
+  EXPECT_EQ (editor.browsedRowIndex (), 0);
+}
+
+// Browsing lets an armed row go, the same way turning to another row does —
+// otherwise the next drag would edit a row nobody is looking at.
+TEST (SkinEditorTouch, BrowsingAnotherRowDisarmsTheOldOne)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Turned);
+
+  editor.browseRow (1);
+  editor.toggleEditing ();
+  ASSERT_TRUE (editor.isEditing ());
+
+  editor.browseRow (0);
+  EXPECT_FALSE (editor.isEditing ());
+}
+
+// The window of drawn rows has to keep the browsed row in it, or a tap lands
+// on a row the finger cannot see.
+TEST (SkinEditorTouch, TheDrawnWindowAlwaysHoldsTheBrowsedRow)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (juce::JSON::parse (R"({"a": 1, "b": 2, "c": 3, "d": 4,
+                                         "e": 5, "f": 6, "g": 7, "h": 8,
+                                         "i": 9, "j": 10, "k": 11, "l": 12})"),
+                  "probe");
+  editor.setBounds (0, 0, 768, 400);
+
+  for (int row = 0; row < 12; ++row)
+    {
+      editor.browseRow (row);
+
+      auto const first = editor.firstVisibleRow ();
+      EXPECT_LE (first, row);
+      EXPECT_LT (row, first + editor.visibleRowCount ());
+    }
+}
