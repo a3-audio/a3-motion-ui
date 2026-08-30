@@ -833,7 +833,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     };
 
     SphereShader::GlowConfig gc;
-    auto const &sg = config["background"];
+    auto const &sg = config["backgroundGlow"];
     gc.r = cfgF (sg, "r", 230.f) / 255.f;
     gc.g = cfgF (sg, "g", 26.f) / 255.f;
     gc.b = cfgF (sg, "b", 13.f) / 255.f;

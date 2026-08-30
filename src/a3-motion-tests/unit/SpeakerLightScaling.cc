@@ -305,7 +305,7 @@ TEST (SphereCorona, ShippedConfigMakesTheCoronaVisible)
 {
   auto const parsed = shippedSkin ();
   ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
-  auto const &glow = parsed["background"];
+  auto const &glow = parsed["backgroundGlow"];
 
   ASSERT_TRUE (glow.hasProperty ("vuMax"));
   ASSERT_TRUE (glow.hasProperty ("intensity"));
@@ -323,7 +323,7 @@ TEST (SphereCorona, ShippedConfigLeavesHeadroomAboveTheSubwoofer)
 {
   auto const parsed = shippedSkin ();
   ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
-  auto const &glow = parsed["background"];
+  auto const &glow = parsed["backgroundGlow"];
 
   EXPECT_LT (speakerLightLevel (subwooferRmsMax,
                                 static_cast<float> (glow["vuMax"]),

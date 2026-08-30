@@ -11,7 +11,7 @@
     "decay": 0.25,
     "scale": 0.05
   },
-  "background": {
+  "backgroundGlow": {
     "vuMax": 0.03,
     "r": 70,
     "g": 130,

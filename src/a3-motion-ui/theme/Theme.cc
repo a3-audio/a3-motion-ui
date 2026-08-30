@@ -289,7 +289,7 @@ loadTheme (juce::var const &skin)
   colour ("sphereRim", theme.sphereRim);
   colour ("sphereEnvironment", theme.sphereEnvironment);
   colour ("boltCore", theme.boltCore);
-  colour ("background", theme.sphereGlow);
+  colour ("backgroundGlow", theme.backgroundGlow);
   colour ("speakerLight", theme.speakerLight);
   colour ("energy", theme.energy);
 
@@ -349,7 +349,28 @@ migrateSkinNames (juce::var const &skin)
         };
 
   renameGroup ("corona", "blob");
-  renameGroup ("sphereGlow", "background");
+  renameGroup ("sphereGlow", "backgroundGlow");
+
+  // The glow was briefly renamed onto "background", which is the flat colour
+  // the whole screen sits on -- two shipped skins have spelled it that way
+  // since long before. Skins written in that window carry the glow's group
+  // under the colour's name, and the screen turns the glow's blue. A colour
+  // holds nothing but its channels, so anything else in there is the group.
+  if (auto *background = migrated->getProperty ("background").getDynamicObject ())
+    {
+      auto const isColourOnly = [background] {
+        for (auto const &property : background->getProperties ())
+          if (property.name != juce::Identifier ("r")
+              && property.name != juce::Identifier ("g")
+              && property.name != juce::Identifier ("b")
+              && property.name != juce::Identifier ("a"))
+            return false;
+        return true;
+      };
+
+      if (!isColourOnly ())
+        renameGroup ("background", "backgroundGlow");
+    }
 
   // The blob's size moves in with the rest of the blob, which means reaching
   // into a group rather than renaming one.

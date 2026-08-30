@@ -414,7 +414,7 @@ TEST (BeamBand, BandAndGlowShareTheirColour)
   auto const parsed = shippedSkin ();
   ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &band = parsed["speakerLight"];
-  auto const &glow = parsed["background"];
+  auto const &glow = parsed["backgroundGlow"];
 
   for (auto const *channel : { "r", "g", "b" })
     EXPECT_EQ (static_cast<int> (band[channel]),
@@ -511,12 +511,12 @@ TEST (GlowNet, ShippedGlowFadesSlowerThanTheBolts)
   auto const parsed = shippedSkin ();
   ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
 
-  ASSERT_TRUE (parsed["background"].hasProperty ("decay"));
-  ASSERT_TRUE (parsed["background"].hasProperty ("attack"));
+  ASSERT_TRUE (parsed["backgroundGlow"].hasProperty ("decay"));
+  ASSERT_TRUE (parsed["backgroundGlow"].hasProperty ("attack"));
 
-  auto const glowDecay = static_cast<float> (parsed["background"]["decay"]);
+  auto const glowDecay = static_cast<float> (parsed["backgroundGlow"]["decay"]);
 
-  EXPECT_GT (glowDecay, static_cast<float> (parsed["background"]["attack"]))
+  EXPECT_GT (glowDecay, static_cast<float> (parsed["backgroundGlow"]["attack"]))
       << "it has to fade slower than it rises, or it flickers";
   EXPECT_GT (glowDecay, static_cast<float> (parsed["speakerLight"]["decay"]))
       << "the room outlasts the events in front of it";

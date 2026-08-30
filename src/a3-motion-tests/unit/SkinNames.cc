@@ -51,13 +51,13 @@ TEST (SkinNames, TheOldNamesAreCarriedOver)
   auto const now = migrateSkinNames (old);
 
   EXPECT_TRUE (now.hasProperty ("blob"));
-  EXPECT_TRUE (now.hasProperty ("background"));
+  EXPECT_TRUE (now.hasProperty ("backgroundGlow"));
   EXPECT_FALSE (now.hasProperty ("corona"));
   EXPECT_FALSE (now.hasProperty ("sphereGlow"));
 
   EXPECT_FLOAT_EQ ((float)now["blob"]["vuMax"], 0.3f);
   EXPECT_FLOAT_EQ ((float)now["blob"]["alphaMax"], 0.7f);
-  EXPECT_FLOAT_EQ ((float)now["background"]["intensity"], 2.5f);
+  EXPECT_FLOAT_EQ ((float)now["backgroundGlow"]["intensity"], 2.5f);
 }
 
 // blobScale sat at the top level while everything else about the blob was in a
@@ -112,6 +112,47 @@ TEST (SkinNames, TheNewNameWinsWhenBothArePresent)
   })"));
 
   EXPECT_FLOAT_EQ ((float)now["blob"]["vuMax"], 0.9f);
+}
+
+// The rename put the glow onto a name that was already taken: `background` is
+// the flat colour the whole screen sits on, and two of the shipped skins spell
+// it that way. The glow field is `backgroundGlow`.
+TEST (SkinNames, TheGlowDoesNotLandOnTheBackgroundColour)
+{
+  auto const now = migrateSkinNames (parse (R"({
+    "sphereGlow": { "intensity": 2.4, "r": 70, "g": 130, "b": 250 }
+  })"));
+
+  EXPECT_TRUE (now.hasProperty ("backgroundGlow"));
+  EXPECT_FALSE (now.hasProperty ("background"));
+  EXPECT_FLOAT_EQ ((float)now["backgroundGlow"]["intensity"], 2.4f);
+}
+
+// Skins written while the glow was called `background` carry the whole group
+// under that name. It is recognisable by the fields a colour never has.
+TEST (SkinNames, AGlowGroupWrittenAsBackgroundIsMovedBack)
+{
+  auto const now = migrateSkinNames (parse (R"({
+    "background": { "r": 70, "g": 130, "b": 250, "intensity": 2.4,
+                    "netScale": 7 }
+  })"));
+
+  EXPECT_TRUE (now.hasProperty ("backgroundGlow"));
+  EXPECT_FALSE (now.hasProperty ("background"));
+  EXPECT_FLOAT_EQ ((float)now["backgroundGlow"]["netScale"], 7.0f);
+}
+
+// A plain colour stays exactly where it is -- mono and neutral have spelled it
+// this way since before the glow was renamed at all.
+TEST (SkinNames, APlainBackgroundColourStaysWhereItIs)
+{
+  auto const now = migrateSkinNames (parse (R"({
+    "background": { "r": 26, "g": 28, "b": 32 }
+  })"));
+
+  EXPECT_TRUE (now.hasProperty ("background"));
+  EXPECT_FALSE (now.hasProperty ("backgroundGlow"));
+  EXPECT_EQ ((int)now["background"]["r"], 26);
 }
 
 }

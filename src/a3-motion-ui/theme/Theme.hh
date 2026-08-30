@@ -88,7 +88,7 @@ struct Theme
   ThemeColour sphereRim{ 128, 140, 166 };       // was vec3 (0.5, 0.55, 0.65)
   ThemeColour sphereEnvironment{ 5, 6, 8 };     // was vec3 (0.02, 0.025, 0.03)
   ThemeColour boltCore{ 255, 255, 255 };
-  ThemeColour sphereGlow{ 70, 130, 250 };
+  ThemeColour backgroundGlow{ 70, 130, 250 };
   ThemeColour speakerLight{ 70, 130, 250 };
   ThemeColour energy{ 150, 220, 255 };
 
