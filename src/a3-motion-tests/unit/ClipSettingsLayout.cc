@@ -343,6 +343,13 @@ TEST (ClipSettingsLayout, GridCellsStayBigEnoughToHit)
         // setting knobDiameterForFont() bottoms out at 10 px, and a 12 px
         // cell around a 10 px knob is right, not cramped. Everything on the
         // bar is that small at that setting.
+        // The floor that has to hold everywhere: a cell is never smaller
+        // than the bar's standard knob. The grid would like a fifth more
+        // (see the layout), and gets it wherever the section is wide
+        // enough — at the largest pot size four columns of that no longer
+        // fit a third of the bar, and paintGridKnob draws to the cell
+        // instead. Asserting the larger size here would be asserting that
+        // the section can always afford it, which it cannot.
         for (auto const &column : l.channelGrid)
           for (auto const &cell : column)
             {
@@ -351,5 +358,31 @@ TEST (ClipSettingsLayout, GridCellsStayBigEnoughToHit)
               EXPECT_GE (cell.getWidth (), knobDiam)
                   << "pot " << potSize << " body " << bodySize;
             }
+      }
+}
+
+
+// At the sizes the device actually ships with, the grid gets the fifth more
+// it asks for — the clamp above is for the extremes, not the normal case.
+TEST (ClipSettingsLayout, TheGridGetsItsFullKnobAtShippedSizes)
+{
+  constexpr float bodySize = 14.f;
+  constexpr float headerSize = 18.f;
+  constexpr float potSize = 0.9f; // config/skins/default.json
+
+  auto const knobDiam = knobDiameterForFont (bodySize, potSize);
+  auto const gridKnob = static_cast<int> (knobDiam * 1.2f);
+
+  juce::Rectangle<int> const grown{
+    0, 0, panelWidth,
+    clipSettingsPreferredHeight (headerSize, bodySize, knobDiam)
+  };
+  auto const l = layOutClipSettings (grown, headerSize, bodySize, potSize);
+
+  for (auto const &column : l.channelGrid)
+    for (auto const &cell : column)
+      {
+        EXPECT_GE (cell.getWidth (), gridKnob);
+        EXPECT_GE (cell.getHeight (), gridKnob);
       }
 }

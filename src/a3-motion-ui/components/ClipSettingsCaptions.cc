@@ -125,8 +125,10 @@ clipSettingsPreferredHeight (float headerSize, float bodySize,
   // to a few pixels.
   auto const labelRow = static_cast<int> (
       std::ceil (bodySize * rowHeightFactor));
+  // The grid draws a fifth over the standard diameter and gives each row a
+  // little more again — see layOutClipSettings().
   auto const gridRows
-      = numChannelRows * static_cast<int> (std::ceil (knobDiameter * 1.25f));
+      = numChannelRows * static_cast<int> (std::ceil (knobDiameter * 1.4f));
   auto const buttonRow = std::max (24, knobDiameter);
   auto const global = titleRow + labelRow + gridRows + buttonRow;
 

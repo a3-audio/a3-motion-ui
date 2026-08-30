@@ -30,13 +30,14 @@ namespace
 {
 constexpr int paddingH = 16;
 
-// The global section takes half the bar — it holds a 4x3 grid of
-// per-channel values plus the rec mode and three action buttons — and the
-// clip's three sections share the other half.
+// The global section takes a third of the bar and the clip's three sections
+// share the rest. It had half while its grid was spread across the whole
+// width; capped to what the knobs need, the grid fits in a third and the
+// clip's sections get the room back.
 int
 clipSectionWidth (int rowWidth)
 {
-  return rowWidth / 2 / (numClipSettingsSections - 1);
+  return rowWidth * 2 / 3 / (numClipSettingsSections - 1);
 }
 
 /** The card's inner area, the same reduction every section makes. A twelfth
@@ -114,7 +115,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   ClipSettingsLayout out;
 
   // Two panels side by side, not one panel with an odd section on the end.
-  out.globalBounds = bounds.removeFromRight (bounds.getWidth () / 2);
+  out.globalBounds = bounds.removeFromRight (bounds.getWidth () / 3);
   out.clipBounds = bounds;
 
   auto const paddingV = juce::jmax (4, out.clipBounds.getHeight () / 40);
@@ -281,11 +282,16 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       // As tall as a knob and its breathing room, not a third of whatever
       // is left: stretched to fill, the twelve knobs floated in cells
       // several times their size and the grid read as scattered dots.
+      // A touch larger than the bar's standard knob: at knobDiam these
+      // twelve read smaller than the ones in the clip's sections, because
+      // they carry no caption of their own to give them presence.
+      auto const gridKnob = static_cast<int> (metrics.knobDiam * 1.2f);
+
       auto const rowH = juce::jmin (
           (content.getHeight () - labelH) / numChannelRows,
-          juce::jmax (labelH, juce::jmax (metrics.knobDiam + 2,
+          juce::jmax (labelH, juce::jmax (gridKnob + 2,
                                           static_cast<int> (
-                                              metrics.knobDiam * 1.15f))));
+                                              gridKnob * 1.15f))));
 
       // Centred in what is left between the title and the buttons: capped
       // rows leave room over, and a block pinned to the top with a gap under
@@ -302,9 +308,9 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       auto const gutterW = juce::jmax (labelH, grid.getWidth () / 12);
       auto const colW = juce::jmin (
           (grid.getWidth () - gutterW) / numChannelColumns,
-          juce::jmax (labelH, juce::jmax (metrics.knobDiam + 2,
+          juce::jmax (labelH, juce::jmax (gridKnob + 2,
                                           static_cast<int> (
-                                              metrics.knobDiam * 1.35f))));
+                                              gridKnob * 1.35f))));
 
       // Captions and knobs are centred together, as one block. Indenting
       // only the columns left "freq / Q / 3d" stranded at the far edge with

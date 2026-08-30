@@ -949,8 +949,11 @@ ClipSettingsComponent::paintGridKnob (juce::Graphics &g,
   // The same diameter every other knob in the bar is drawn at. Filling the
   // cell instead made these twelve the largest thing on screen, which is
   // not what they are.
+  // A fifth over the bar's standard diameter — see the grid's layout: these
+  // carry no caption, so at the same size they read smaller than the knobs
+  // in the clip's sections.
   auto const size = static_cast<float> (juce::jmin (
-      metrics.knobDiam,
+      static_cast<int> (metrics.knobDiam * 1.2f),
       juce::jmin (bounds.getWidth (), bounds.getHeight ())));
   auto const centre = bounds.toFloat ().getCentre ();
   auto const r = size * 0.5f * 0.78f;
