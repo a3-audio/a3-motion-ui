@@ -13,7 +13,7 @@
   },
   "ui": {
     "pauseRenderingInMenu": false,
-    "skin": "custom"
+    "skin": "default"
   },
   "buttonLeds": {
     "idle": {
