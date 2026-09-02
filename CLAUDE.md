@@ -230,14 +230,22 @@ them where they belong, and nothing was lost. The grid's cells are dragged throu
 `onChannelValueDragged` and name their own channel, unlike everything else in the bar, which is
 about the clip on show.
 
+**How tall the bar is** comes from `clipSettingsPreferredHeight` — what the tallest section's
+contents need at the current fonts and pot size — times the skin's `clipSettingsHeightScale`
+(default 1.0, clamped 0.5..2.0), and clamped again to half the screen. The scale is a skin value
+like `potSize`, so it is dialled in the Skin Editor rather than compiled in. Note that changing it
+is a *layout* change and A3MotionUIComponent is what hands the bar its bounds — that is why its
+`applyTheme()` ends in `resized()`. Telling the bar alone changes nothing.
+
 The bar has one button face, `paintBarButton` — a wash and a thin edge, never a filled slab, so a
 button reads as part of the bar rather than pasted on it. Elevation's pole and flat use it, so do
 Motion's two lists and the global section's four. Only an active one carries colour; the global
 four pass `isSelected = false` because they belong to no channel and must not wear the shown clip's
 colour.
 
-**Direction and end-action are lists, not values you nudge.** A tap opens the list *inside the
-Motion section*, over its own controls — it cannot open anywhere else, because MotionComponent's GL
+**Direction, end-action and the record length are lists, not values you nudge** — see `opensList`.
+Their buttons carry a small chevron so a list announces itself. A tap opens it *inside its own
+section*, over that section's controls — it cannot open anywhere else, because MotionComponent's GL
 context composites above anything drawn over it, so a popup outside the bar would be invisible. The
 backdrop is painted opaque before the card wash: `cardColour()` is translucent by design, and on its
 own it left the list and the controls it covers drawn through each other. Picking an entry sends the
