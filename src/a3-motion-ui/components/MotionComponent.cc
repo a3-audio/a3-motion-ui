@@ -20,6 +20,7 @@
 
 #include "MotionComponent.hh"
 
+#include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectorySpin.hh>
 
 #include <a3-motion-engine/TrajectoryShape.hh>
@@ -1707,7 +1708,11 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
 
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
-  auto const params = pattern.getElevationParams ();
+  // The same sweep the engine applies before it projects (performPlayback):
+  // the drawn coverage has to be the coverage the blob is running in.
+  auto params = pattern.getElevationParams ();
+  params.reach = lfoSweep (params.reach, pattern.getReachLfo (),
+                           pattern.getReachLfoPhase ());
   auto const &heightMap = _engine.getHeightMap ();
 
   // ── Handle jump-dot patterns ──
@@ -1748,7 +1753,11 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
 
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
-  auto const params = pattern.getElevationParams ();
+  // The same sweep the engine applies before it projects (performPlayback):
+  // the drawn coverage has to be the coverage the blob is running in.
+  auto params = pattern.getElevationParams ();
+  params.reach = lfoSweep (params.reach, pattern.getReachLfo (),
+                           pattern.getReachLfoPhase ());
   auto const &heightMap = _engine.getHeightMap ();
 
   // ── Handle jump-dot patterns ──

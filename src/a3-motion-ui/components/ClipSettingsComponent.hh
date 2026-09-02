@@ -177,6 +177,12 @@ public:
    *  signed step: 0 stands still, the sign is the direction. */
   void setMotionSpin (int step);
 
+  /** How fast reach sweeps out of where it was set, as a TempoLfo step: 0
+   *  holds it still, positive opens the coverage, negative closes it. It
+   *  moves an Elevation value but lives beside spin, because what it is is a
+   *  slow movement of the clip, not a shape of it. */
+  void setMotionSwell (int step);
+
   /** The length the next take will have, already worded ("2", "1/4"), and
    *  which of the shape section's two elements is armed. */
   void setRecordLength (juce::String const &label);
@@ -367,6 +373,7 @@ private:
   int _motionSubIndex = 0;
   int _motionFade = 0;
   int _motionSpin = 0;
+  int _motionSwell = 0;
   int _trajectorySubIndex = 0;
   juce::String _recordLengthLabel { "1" };
   std::array<float, numChannelColumns> _channelFreq{};

@@ -260,6 +260,30 @@ Pattern::setSpinPhase (float phase)
   _spinPhase.store (phase, std::memory_order_relaxed);
 }
 
+int
+Pattern::getReachLfo () const
+{
+  return _reachLfo.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setReachLfo (int step)
+{
+  _reachLfo.store (step, std::memory_order_relaxed);
+}
+
+float
+Pattern::getReachLfoPhase () const
+{
+  return _reachLfoPhase.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setReachLfoPhase (float phase)
+{
+  _reachLfoPhase.store (phase, std::memory_order_relaxed);
+}
+
 void
 Pattern::setSeamJoin (std::optional<index_t> tick)
 {

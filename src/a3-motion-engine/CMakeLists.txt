@@ -53,6 +53,7 @@ target_sources("a3-motion-engine" PRIVATE
     PatternFile.cc
     TrajectoryShape.cc
     TrajectorySpin.cc
+    TempoLfo.cc
     RecMode.cc
     PatternFile.hh
     PatternLibrary.cc

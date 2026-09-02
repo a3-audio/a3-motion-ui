@@ -111,6 +111,15 @@ generator and the test runner:
   strategy, used for elevation coverage behavior.
 - `AsyncCommandQueue` — the lock-free bridge from the high-priority tempo-clock thread to the
   backend/network thread, so OSC I/O never blocks realtime scheduling.
+- `TempoLfo` — the clock the clip's slow movements run on. Everything that moves on its own here
+  is held the same way: a **signed power of two in bars per cycle**, counted off the tempo clock
+  rather than the wall clock, so a cycle comes back to where it started on a bar line instead of
+  drifting through the loop underneath it, and follows a tempo change instead of being left behind
+  by one. The sign is a direction and what it means is the caller's to say. `lfoSweep()` moves a
+  0..1 parameter out of where it was set to the end the sign points at and back — *which* end
+  rather than *how far*, because how far then answers itself, and because a sweep that ran
+  symmetrically either side of the set value would shrink to nothing as that value neared a limit,
+  which is one control quietly switching another off.
 - `TrajectorySpin` — turning the whole trajectory around the vertical axis while the blob keeps
   running along it. Not a second motion path: it is one rotation of the *recorded 2D* position
   around the origin, applied at playback time and never written into the take, so it can be turned
@@ -118,9 +127,7 @@ generator and the test runner:
   azimuth (`HeightMap::mapTo3D()`), which is why turning the disc turns the trajectory around the
   pole and leaves every point at the height it was played in at.
 
-  The speed is a signed power of two — bars per revolution, 32 down to 1/4 — rather than a rate,
-  so a revolution ends on a bar line instead of arguing with the loop under it, and it follows the
-  tempo clock rather than the wall clock. The sign is the direction, and `spinPosition()` is the
+  How fast it turns is a `TempoLfo` step. The sign is the direction, and `spinPosition()` is the
   single place that decides which way that looks: the screen mirrors these coordinates
   (`cartesian2DHOA2JUCE` maps HOA to `{ -y, -x }`), so a mathematically positive turn reads as
   anticlockwise and the rotation is negated there to make a right-hand turn of the control a
@@ -132,6 +139,15 @@ generator and the test runner:
   the path, which would mean copying it every frame. The phase lives on the `Pattern` beside
   `playPosition` and resets when playback starts, so a clip fired again begins where it was
   recorded.
+
+  **The clip's second slow movement, `swell`, works the same way** and is the reason `TempoLfo`
+  is its own module. It sweeps the Pattern's `reach` — how far down the sphere the trajectory's
+  outer edge lands — out of where it was set and back, positive opening the coverage towards the
+  far pole and negative closing it towards the near one. Same two places have to agree: the engine
+  sweeps `params.reach` before projecting, the renderer sweeps it before drawing the line, both
+  from the phase on the `Pattern`. It moves an Elevation value but its control lives in **Motion**,
+  beside spin: what it is is a slow movement of the clip, not a shape of it, and the two bipolar
+  knobs read as the pair they are.
 
 ### UI (`src/a3-motion-ui`)
 

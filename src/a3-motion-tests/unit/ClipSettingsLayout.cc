@@ -74,7 +74,7 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 
   EXPECT_EQ (l.controls[0].size (), 1u); // Shape: the pattern in the slot
   EXPECT_EQ (l.controls[1].size (), 6u); // Elevation
-  EXPECT_EQ (l.controls[2].size (), 5u); // Motion: + spin
+  EXPECT_EQ (l.controls[2].size (), 6u); // Motion: + spin, swell
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 

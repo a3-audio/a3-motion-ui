@@ -36,30 +36,11 @@ namespace a3
  *  turning the disc turns the trajectory around the pole and leaves every
  *  point at the height it was recorded at.
  *
- *  The speed is held as a signed power of two rather than a rate, because a
- *  rotation that does not land on a bar line is a rotation that argues with
- *  the loop under it. Sign is direction: positive turns the trajectory the
- *  way a clock does, *as drawn on the screen* — see spinPosition(), which is
- *  where that is arranged and why it is not simply a positive rotation.
+ *  How fast it turns is a TempoLfo step — bars per revolution, off the tempo
+ *  clock. Positive turns the trajectory the way a clock does *as drawn on the
+ *  screen*; see spinPosition(), which is where that is arranged and why it is
+ *  not simply a positive rotation.
  */
-
-/** The steps either side of a standstill. Eight is where the table runs out
- *  of musically useful lengths: a quarter bar per revolution is already four
- *  turns to the bar. */
-constexpr int spinMaxStep = 8;
-
-/** How many bars one revolution takes, at |step| 1..spinMaxStep: 32, 16, 8,
- *  4, 2, 1, 1/2, 1/4. Zero for a standstill, which has no length. */
-float spinBarsPerRevolution (int step);
-
-/** Revolutions per bar, signed — the rate the phase actually advances at. */
-float spinRevolutionsPerBar (int step);
-
-/** One tick on. `phase` and the result are in revolutions, wrapped to [0, 1):
- *  a rotation has no history, so nothing is gained by letting it grow and
- *  everything is lost once it is large enough that adding a tick to it does
- *  nothing. */
-float advanceSpinPhase (float phase, int step, float ticksPerBar);
 
 /** Turn a recorded 2D position by `phase` revolutions around the origin. */
 Pos spinPosition (Pos const &position, float phase);

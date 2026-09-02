@@ -21,6 +21,7 @@
 #include <a3-motion-ui/io/OnScreenKeyboard.hh>
 #include "A3MotionUIComponent.hh"
 
+#include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectorySpin.hh>
 
 #include <chrono>
@@ -2846,7 +2847,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::elevationIndex)
     return 6;
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 5; // speed, direction, end-action, seam, spin
+    return 6; // speed, direction, end-action, seam, spin, swell
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
     return 2; // the shape itself, and the length of the next take
   return 1;
@@ -3018,7 +3019,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
               }
             break;
           }
-        default:
+        case 4:
           {
             // How fast the whole trajectory turns under the blob. On the
             // Pattern rather than in _clipUIParams because the engine reads
@@ -3026,7 +3027,18 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             auto &pattern = _patterns[channel][slot];
             if (pattern)
               pattern->setSpin (std::clamp (pattern->getSpin () + increment,
-                                            -spinMaxStep, spinMaxStep));
+                                            -lfoMaxStep, lfoMaxStep));
+            break;
+          }
+        default:
+          {
+            // How fast reach sweeps out of where it was set. Same table as
+            // the spin, and on the Pattern for the same reasons.
+            auto &pattern = _patterns[channel][slot];
+            if (pattern)
+              pattern->setReachLfo (std::clamp (
+                  pattern->getReachLfo () + increment, -lfoMaxStep,
+                  lfoMaxStep));
             break;
           }
         }
@@ -3169,6 +3181,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setMotionEndAction (_clipUIParams[channel][slot].endAction);
   _clipSettings->setMotionFade (params.fadeSixteenths);
   _clipSettings->setMotionSpin (pattern ? pattern->getSpin () : 0);
+  _clipSettings->setMotionSwell (pattern ? pattern->getReachLfo () : 0);
 
   // Worded like Speed is, because it is the same kind of number: bars as a
   // power of two, "2" for two bars, "1/4" for a quarter of one.

@@ -18,7 +18,6 @@
 
 */
 
-
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -29,98 +28,6 @@
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
 using namespace a3;
-
-namespace
-{
-constexpr float ticksPerBar = 128.f * 4.f; // ticksPerBeat x a four-beat bar
-}
-
-// Standing still is a value, not the absence of one: it is the middle of the
-// control and the state a clip is in until somebody turns it.
-TEST (TrajectorySpin, ZeroIsAStandstill)
-{
-  EXPECT_EQ (spinRevolutionsPerBar (0), 0.f);
-  EXPECT_EQ (spinBarsPerRevolution (0), 0.f);
-  EXPECT_EQ (advanceSpinPhase (0.25f, 0, ticksPerBar), 0.25f);
-}
-
-// The table the control steps through, written out. Eight steps from a
-// revolution every thirty-two bars to four revolutions in one.
-TEST (TrajectorySpin, EachStepHalvesTheBarsPerRevolution)
-{
-  float const expected[spinMaxStep]
-      = { 32.f, 16.f, 8.f, 4.f, 2.f, 1.f, 0.5f, 0.25f };
-
-  for (int step = 1; step <= spinMaxStep; ++step)
-    {
-      EXPECT_FLOAT_EQ (spinBarsPerRevolution (step),
-                       expected[step - 1])
-          << "step " << step;
-      // The other direction is the same length, travelled the other way.
-      EXPECT_FLOAT_EQ (spinBarsPerRevolution (-step), expected[step - 1]);
-    }
-}
-
-TEST (TrajectorySpin, TheSignIsTheDirection)
-{
-  for (int step = 1; step <= spinMaxStep; ++step)
-    {
-      EXPECT_GT (spinRevolutionsPerBar (step), 0.f);
-      EXPECT_FLOAT_EQ (spinRevolutionsPerBar (-step),
-                       -spinRevolutionsPerBar (step));
-    }
-}
-
-// A step past the end of the table is the end of the table. The control
-// clamps, but the table is what anything else reads.
-TEST (TrajectorySpin, StepsBeyondTheTableAreClamped)
-{
-  EXPECT_FLOAT_EQ (spinRevolutionsPerBar (spinMaxStep + 3),
-                   spinRevolutionsPerBar (spinMaxStep));
-  EXPECT_FLOAT_EQ (spinRevolutionsPerBar (-spinMaxStep - 3),
-                   spinRevolutionsPerBar (-spinMaxStep));
-}
-
-// The point of tying this to the clock: a revolution is a whole number of
-// bars, so it ends where it started, on a bar line.
-TEST (TrajectorySpin, AWholeRevolutionTakesItsBarsExactly)
-{
-  for (int step = 1; step <= spinMaxStep; ++step)
-    {
-      auto const ticks = static_cast<int> (
-          std::lround (spinBarsPerRevolution (step) * ticksPerBar));
-
-      auto phase = 0.f;
-      for (int tick = 0; tick < ticks; ++tick)
-        phase = advanceSpinPhase (phase, step, ticksPerBar);
-
-      // Back to the start, having gone all the way round once. Compared on
-      // the circle: a hair short of a full turn is a hair from where it
-      // started, and 0.9999 is not near 0 on a number line.
-      auto const fromStart = juce::jmin (phase, 1.f - phase);
-      EXPECT_NEAR (fromStart, 0.f, 1e-3f) << "step " << step;
-    }
-}
-
-TEST (TrajectorySpin, ThePhaseStaysInOneRevolution)
-{
-  auto phase = 0.f;
-  for (int tick = 0; tick < 10000; ++tick)
-    {
-      phase = advanceSpinPhase (phase, spinMaxStep, ticksPerBar);
-      ASSERT_GE (phase, 0.f);
-      ASSERT_LT (phase, 1.f);
-    }
-
-  // ... turning the other way too, where a naive fmod goes negative.
-  phase = 0.f;
-  for (int tick = 0; tick < 10000; ++tick)
-    {
-      phase = advanceSpinPhase (phase, -spinMaxStep, ticksPerBar);
-      ASSERT_GE (phase, 0.f);
-      ASSERT_LT (phase, 1.f);
-    }
-}
 
 // The one thing the rotation must not touch. The 2D radius is the elevation,
 // so a spin that changes it would walk the trajectory up and down the sphere
@@ -171,7 +78,6 @@ TEST (TrajectorySpin, AFullRevolutionIsNoTurnAtAll)
   EXPECT_NEAR (spun.x (), p.x (), 1e-5f);
   EXPECT_NEAR (spun.y (), p.y (), 1e-5f);
 }
-
 
 // What the spin is for, checked through the projection playback actually
 // uses rather than only in the flat disc. Turning the recorded point moves

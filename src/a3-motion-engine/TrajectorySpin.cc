@@ -26,58 +26,6 @@
 namespace a3
 {
 
-namespace
-{
-/** Step 1 is a revolution every 32 bars, and every step from there halves
- *  it. Written as an exponent so the table is one line instead of eight. */
-constexpr int slowestExponent = 5; // 2^5 bars at step 1
-
-int
-clampedStep (int step)
-{
-  return std::clamp (step, -spinMaxStep, spinMaxStep);
-}
-}
-
-float
-spinBarsPerRevolution (int step)
-{
-  auto const magnitude = std::abs (clampedStep (step));
-  if (magnitude == 0)
-    return 0.f;
-
-  return std::pow (2.f, static_cast<float> (slowestExponent - (magnitude - 1)));
-}
-
-float
-spinRevolutionsPerBar (int step)
-{
-  auto const bars = spinBarsPerRevolution (step);
-  if (bars == 0.f)
-    return 0.f;
-
-  return (clampedStep (step) > 0 ? 1.f : -1.f) / bars;
-}
-
-float
-advanceSpinPhase (float phase, int step, float ticksPerBar)
-{
-  auto const rate = spinRevolutionsPerBar (step);
-  if (rate == 0.f || ticksPerBar <= 0.f)
-    return phase;
-
-  auto const advanced = phase + rate / ticksPerBar;
-
-  // std::fmod keeps the sign of its left operand, so a rotation running the
-  // other way would come back negative and every reader would have to know
-  // that. Wrapped into [0, 1) here, once.
-  auto wrapped = std::fmod (advanced, 1.f);
-  if (wrapped < 0.f)
-    wrapped += 1.f;
-
-  return wrapped;
-}
-
 Pos
 spinPosition (Pos const &position, float phase)
 {

@@ -164,6 +164,23 @@ public:
   float getSpinPhase () const;
   void setSpinPhase (float phase);
 
+  /** How fast `reach` sweeps out of where it was set and back, as a TempoLfo
+   *  step. Zero holds it still.
+   *
+   *  The sign is which way out: positive opens the coverage towards the far
+   *  pole, negative closes it towards the near one. The distance is whatever
+   *  is left between the set reach and that end, so there is no setting at
+   *  which the two controls conspire to do nothing. */
+  int getReachLfo () const;
+  void setReachLfo (int step);
+
+  /** How far through that sweep it is, in cycles [0, 1). Advanced by the
+   *  engine while the clip plays and read by the renderer, which has to draw
+   *  the coverage the blob is actually running in. Reset with the spin's
+   *  phase when playback starts. */
+  float getReachLfoPhase () const;
+  void setReachLfoPhase (float phase);
+
   // Interpolated playback: returns position with linear interpolation between keyframes
   // This provides smooth motion even with sparse keyframes during slow playback
   Pos getInterpolatedTick (double fractionalTick) const;
@@ -243,6 +260,8 @@ private:
   std::atomic<float> _playSign{ 1.f };
   std::atomic<int> _spin{ 0 };
   std::atomic<float> _spinPhase{ 0.f };
+  std::atomic<int> _reachLfo{ 0 };
+  std::atomic<float> _reachLfoPhase{ 0.f };
   mutable std::mutex _ticksMutex;
 
   // TODO is float precision sufficient here? do the math!

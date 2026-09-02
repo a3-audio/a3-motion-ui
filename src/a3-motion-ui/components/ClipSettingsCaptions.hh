@@ -55,6 +55,11 @@ constexpr char const *fade = "fade";
 /** How fast the whole trajectory turns under the blob, in bars per
  *  revolution either way round. */
 constexpr char const *spin = "spin";
+/** The sweep that opens and closes the coverage: reach travels out of where
+ *  it was set, to one pole or the other, and back. Five letters and not six,
+ *  because every caption in the bar is drawn at one shared size and the
+ *  widest of them sets it — "breath" would have shrunk the lot. */
+constexpr char const *swell = "swell";
 /** What a recording pass writes where the finger is not. The one control in
  *  the bar that is not the shown clip's — it is the same for every channel. */
 constexpr char const *recMode = "recmode";
@@ -112,7 +117,7 @@ constexpr TextEntry captionTable[] = {
   // the bar, and what pins the shared size for everything above.
   { caption::speed, 4 },       { caption::direction, 4 },
   { caption::endAction, 4 },   { caption::fade, 4 },
-  { caption::spin, 4 },
+  { caption::spin, 4 },        { caption::swell, 4 },
   { caption::frequency, 2 },   { caption::q, 2 },
   { caption::recordLength, 1 },
 };

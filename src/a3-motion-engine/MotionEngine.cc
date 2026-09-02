@@ -20,6 +20,7 @@
 
 #include "MotionEngine.hh"
 
+#include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectorySpin.hh>
 
 #include <cstddef>
@@ -744,6 +745,7 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   // last pass stopped would come back somewhere different every time, which
   // is not something you can aim at.
   pattern->setSpinPhase (0.f);
+  pattern->setReachLfoPhase (0.f);
 
   // Reverse starts at the end and walks back, so the first tick has somewhere
   // to come from.
@@ -931,8 +933,11 @@ MotionEngine::performPlayback ()
               auto const ticksPerBar
                   = static_cast<float> (TempoClock::getTicksPerBeat ())
                     * static_cast<float> (_tempoClock.getBeatsPerBar ());
-              playing.setSpinPhase (advanceSpinPhase (
+              playing.setSpinPhase (advanceLfoPhase (
                   playing.getSpinPhase (), playing.getSpin (), ticksPerBar));
+              playing.setReachLfoPhase (
+                  advanceLfoPhase (playing.getReachLfoPhase (),
+                                   playing.getReachLfo (), ticksPerBar));
 
               if (position2D.isValid ())
                 {
@@ -946,8 +951,14 @@ MotionEngine::performPlayback ()
                   // Apply this clip's own elevation mapping (sphere
                   // projection) at playback time — elevation parameters
                   // live on the Pattern itself, not the channel.
-                  auto const params
+                  auto params
                       = channel->_patternPlaying->getElevationParams ();
+                  // ... with the coverage swept out of where it was set, if
+                  // it is sweeping. The renderer does the same, from the same
+                  // phase, or the line would be drawn at a width the blob is
+                  // not running at.
+                  params.reach = lfoSweep (params.reach, playing.getReachLfo (),
+                                           playing.getReachLfoPhase ());
                   auto position = _heightMap.mapTo3D (position2D, params);
                   channel->setPosition (position);
                 }

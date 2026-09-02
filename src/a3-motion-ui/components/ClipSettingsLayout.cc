@@ -63,7 +63,7 @@ numControlsInSection (int sectionIndex)
     case 1:
       return 6; // reach, clip-top, clip-bottom, mirror-south, flat, flat-elev
     case 2:
-      return 5; // speed, direction, end-action, seam, spin
+      return 6; // speed, direction, end-action, seam, spin, swell
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -306,16 +306,21 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                       controlBoxHeightForFont (bodySize, metrics.knobDiam));
     auto topRow = content.removeFromBottom (motionRowH);
 
-    // Spin gets a row to itself, above the pair, and the whole width of it.
-    // Alone in a two-column row it would have read as half of something with
-    // the other half missing, and the section had this room standing empty.
+    // The two slow movements share a row above the pair: spin turns the shape
+    // under the blob, swell opens and closes how far down the sphere it
+    // reaches. Same table, same bipolar knob, same standstill in the middle —
+    // side by side they read as one pair of controls, which is what they are.
     content.removeFromBottom (gapV);
-    auto const spinArea = content.removeFromBottom (
+    auto lfoRow = content.removeFromBottom (
         juce::jmin (content.getHeight (), motionRowH));
 
     // The two values you dial on top, the two you pick from below: speed
     // and fade are continuous-ish, direction and end-action are lists.
     auto const colW = (topRow.getWidth () - gapH) / 2;
+    auto const spinArea = lfoRow.removeFromLeft (colW);
+    lfoRow.removeFromLeft (gapH);
+    auto const swellArea = lfoRow;
+
     auto const speedArea = topRow.removeFromLeft (colW);
     topRow.removeFromLeft (gapH);
     auto const seamArea = topRow;
@@ -335,6 +340,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       buttonCell (endActionArea),
       textCell (seamArea, metrics.knobDiam),
       textCell (spinArea, metrics.knobDiam),
+      textCell (swellArea, metrics.knobDiam),
     };
   }
 

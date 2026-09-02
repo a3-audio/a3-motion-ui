@@ -20,6 +20,7 @@
 
 #include "ClipSettingsComponent.hh"
 
+#include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectorySpin.hh>
 
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
@@ -396,7 +397,14 @@ ClipSettingsComponent::setMotionFade (int sixteenths)
 void
 ClipSettingsComponent::setMotionSpin (int step)
 {
-  _motionSpin = juce::jlimit (-spinMaxStep, spinMaxStep, step);
+  _motionSpin = juce::jlimit (-lfoMaxStep, lfoMaxStep, step);
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setMotionSwell (int step)
+{
+  _motionSwell = juce::jlimit (-lfoMaxStep, lfoMaxStep, step);
   repaint ();
 }
 
@@ -1130,8 +1138,14 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   // which way the trajectory turns.
   paintMiniKnob (g, cells[4], metrics, caption::spin,
                  static_cast<float> (_motionSpin)
-                     / static_cast<float> (spinMaxStep),
+                     / static_cast<float> (lfoMaxStep),
                  true, _motionSubIndex == 4, isSelected);
+  // The section's second slow movement, and the second bipolar knob: this one
+  // opens and closes how far down the sphere the trajectory reaches.
+  paintMiniKnob (g, cells[5], metrics, caption::swell,
+                 static_cast<float> (_motionSwell)
+                     / static_cast<float> (lfoMaxStep),
+                 true, _motionSubIndex == 5, isSelected);
 }
 
 bool
