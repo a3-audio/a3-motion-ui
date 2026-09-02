@@ -524,8 +524,11 @@ ClipSettingsComponent::paintSectionCard (juce::Graphics &g, int sectionIndex,
 
   g.setColour (cardColour (isSelected));
   g.fillRoundedRectangle (card.toFloat (), 8.f);
+  // A hairline like every other edge in the bar. At 2px the selected card
+  // read as a heavier object than the others rather than the same object
+  // lit up, and it is the fill that says "selected" anyway.
   if (isSelected)
-    g.drawRoundedRectangle (card.toFloat (), 8.f, 2.f);
+    g.drawRoundedRectangle (card.toFloat (), 8.f, 1.f);
 
   paintSectionLabel (
       g, _layout.sectionLabels[static_cast<size_t> (sectionIndex)],

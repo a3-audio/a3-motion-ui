@@ -28,7 +28,9 @@ namespace a3
 
 namespace
 {
-constexpr int paddingH = 16;
+// The bar's own margin. The screen edge is already an edge; 16 here put a
+// finger's width of nothing between it and the first section.
+constexpr int paddingH = 8;
 
 // The global section takes a quarter of the bar and the clip's three
 // sections share the rest. It had half while its grid was spread across the
@@ -40,14 +42,15 @@ clipSectionWidth (int rowWidth)
   return rowWidth * 3 / 4 / (numClipSettingsSections - 1);
 }
 
-/** The card's inner area, the same reduction every section makes. A twelfth
- *  of the width was a wide margin on a narrow section and an enormous one on
- *  the global section, which is half the bar. */
-juce::Rectangle<int>
-sectionContent (juce::Rectangle<int> card)
-{
-  return card.reduced (juce::jmax (3, card.getWidth () / 40), 3);
 }
+
+juce::Rectangle<int>
+sectionContentBounds (juce::Rectangle<int> card)
+{
+  // A hairline, not a border zone. It was a fortieth of the card wide, which
+  // at the device's sixth-of-the-bar sections took width from rows that hold
+  // four values.
+  return card.reduced (juce::jmax (2, card.getWidth () / 80), 3);
 }
 
 int
@@ -142,7 +145,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   auto const knobDiam = knobDiameterForFont (bodySize, potSizeScale);
   auto const cardW = sectionW - 2 * (gap / 2);
-  auto const sectionContentW = cardW - 2 * juce::jmax (2, cardW / 12);
+  // The width the controls actually get, not a second guess at it. These
+  // were separate once and the fonts were fitted to the narrower of the two.
+  auto const sectionContentW
+      = sectionContentBounds ({ 0, 0, cardW, 1 }).getWidth ();
   auto const columnGap = juce::jmax (2, sectionContentW / 20);
   auto const controlBoxH = controlBoxHeightForFont (bodySize, knobDiam);
 
@@ -174,7 +180,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   // ── Shape ────────────────────────────────────────────────────────────
   {
-    auto content = sectionContent (out.sectionCards[0]);
+    auto content = sectionContentBounds (out.sectionCards[0]);
     out.sectionLabels[0]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
@@ -214,7 +220,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   // ── Elevation ────────────────────────────────────────────────────────
   {
-    auto content = sectionContent (out.sectionCards[1]);
+    auto content = sectionContentBounds (out.sectionCards[1]);
     out.sectionLabels[1]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
@@ -274,7 +280,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   // ── Motion ───────────────────────────────────────────────────────────
   {
-    auto content = sectionContent (out.sectionCards[2]);
+    auto content = sectionContentBounds (out.sectionCards[2]);
     out.sectionLabels[2]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
@@ -324,7 +330,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   // ── Global section ───────────────────────────────────────────────────
   {
-    auto content = sectionContent (out.sectionCards[3]);
+    auto content = sectionContentBounds (out.sectionCards[3]);
     out.sectionLabels[3]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
@@ -444,7 +450,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   for (int i = 0; i < numClipSettingsSections; ++i)
     {
       auto const c = static_cast<size_t> (i);
-      out.dropdownArea[c] = sectionContent (out.sectionCards[c])
+      out.dropdownArea[c] = sectionContentBounds (out.sectionCards[c])
                                 .withTrimmedTop (
                                     out.sectionLabels[c].getHeight ());
     }

@@ -114,9 +114,9 @@
     "lineThickness": 0.02
   },
   "sphereScale": 0.83,
-  "fontHeader": 14.06,
-  "fontBody": 15.77,
+  "fontHeader": 12.529999999999999,
+  "fontBody": 14.0,
   "clipSettingsHeightScale": 0.81,
-  "potSize": 0.76,
+  "potSize": 0.91,
   "touchDragPixelsPerStep": 12
 }

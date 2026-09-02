@@ -69,6 +69,12 @@ constexpr int channelRowThreeD = 0;
 constexpr int channelRowFreq = 1;
 constexpr int channelRowQ = 2;
 
+/** The area inside a section's card that its controls are laid out in —
+ *  the card less its frame. Public because it is also what the shared
+ *  caption and value sizes are fitted to: fonts sized against one width and
+ *  drawn in another look cramped at widths where they are not. */
+juce::Rectangle<int> sectionContentBounds (juce::Rectangle<int> card);
+
 /** How many controls a section holds. Must agree with
  *  A3MotionUIComponent::numSubElementsForSection — a tap addresses a
  *  control by the same sub-index the encoder does. */

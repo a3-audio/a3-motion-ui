@@ -247,6 +247,44 @@ TEST (ClipSettingsLayout, NoControlBothStepsAndToggles)
           << "section " << section << " sub " << sub;
 }
 
+// The frame around a section is a line, not a border zone. Every control it
+// holds has to sit inside the same content area the fonts were sized against
+// — when those were two separate calculations the text was fitted to a
+// narrower box than it was drawn in, and the sections looked cramped at
+// widths where they were not.
+TEST (ClipSettingsLayout, ControlsStayInsideTheirSectionContent)
+{
+  auto const l = defaultLayout ();
+
+  for (int section = 0; section < numClipSettingsSections; ++section)
+    {
+      auto const content
+          = sectionContentBounds (l.sectionCards[static_cast<size_t> (section)]);
+
+      for (auto const &cell : l.controls[static_cast<size_t> (section)])
+        EXPECT_TRUE (content.contains (cell))
+            << "section " << section << ": " << cell.toString ()
+            << " outside " << content.toString ();
+    }
+}
+
+// A frame that eats more than a tenth of a section's width is a border zone
+// again. At the device's width the three clip sections are a sixth each, and
+// what they lose to their own inset they lose from four-value rows.
+TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
+{
+  auto const l = defaultLayout ();
+
+  for (int section = 0; section < numClipSettingsSections; ++section)
+    {
+      auto const card = l.sectionCards[static_cast<size_t> (section)];
+      auto const content = sectionContentBounds (card);
+
+      EXPECT_LE (card.getWidth () - content.getWidth (), card.getWidth () / 10)
+          << "section " << section;
+    }
+}
+
 // Menu, Rec and Tap sit in the global strip beside the clip's sections. They
 // are not sub-elements of it — no encoder reaches them, only a finger — so
 // they live beside `controls`, not in it.
