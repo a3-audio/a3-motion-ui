@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <ShippedSkin.hh>
+
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 
 using namespace a3;
@@ -280,4 +282,63 @@ TEST (SkinEditorTouch, TheDrawnWindowAlwaysHoldsTheBrowsedRow)
       EXPECT_LE (first, row);
       EXPECT_LT (row, first + editor.visibleRowCount ());
     }
+}
+
+
+// Dragging a value must only ever turn a number. Arming any other kind of
+// row fires it — and on a colour row that opens the picker, which is what
+// dragging the skin's height scale upwards used to do: the window scrolled,
+// the hit area came to stand for the colour row above, and the drag armed it.
+TEST (SkinEditorTouch, OnlyATurnableNumberCanBeDragged)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (shippedSkin (), "default");
+
+  bool sawColourPicker = false;
+  editor.onColourPicked = [&] (juce::String const &) { sawColourPicker = true; };
+
+  // Every row in the shipped skin, including its colours and its three
+  // action rows: none of them may be turnable except plain numbers.
+  for (int row = 0; row < 64; ++row)
+    {
+      editor.browseRow (row);
+      if (editor.browsedRowIndex () != row)
+        break; // ran off the end of the list
+
+      if (!editor.canTurnBrowsedRow ())
+        continue;
+
+      // A row that says it can be turned must survive being turned without
+      // asking anyone for a colour.
+      editor.toggleEditing ();
+      editor.navigate (1);
+      EXPECT_FALSE (sawColourPicker) << "row " << row;
+      if (editor.isEditing ())
+        editor.toggleEditing ();
+    }
+}
+
+TEST (SkinEditorTouch, ActionRowsAreNotTurnable)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (shippedSkin (), "default");
+
+  // Save, Save As New, Rename — the rows above the parameters.
+  for (int row = 0; row < 3; ++row)
+    {
+      editor.browseRow (row);
+      EXPECT_FALSE (editor.canTurnBrowsedRow ()) << "action row " << row;
+    }
+}
+
+// A config page types its numbers rather than turning them, so a drag must
+// not arm one there either.
+TEST (SkinEditorTouch, TypedNumbersAreNotTurnable)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
+
+  ASSERT_TRUE (browseTo (editor, "oscReceiver.port"));
+  EXPECT_FALSE (editor.canTurnBrowsedRow ());
 }

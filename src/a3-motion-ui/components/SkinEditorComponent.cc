@@ -179,18 +179,35 @@ SkinEditorComponent::createTouchControls ()
       };
 
       touch.value = std::make_unique<TouchControl> ();
-      touch.value->onTap = [this] (int absoluteRow, int) {
-        browseRow (absoluteRow);
+
+      // The row is latched when the finger lands and held for the whole
+      // drag — see _dragRow.
+      touch.value->onPress = [this] (int absoluteRow, int) {
+        _dragRow = absoluteRow;
+        if (browsedRowIndex () != absoluteRow)
+          browseRow (absoluteRow);
+      };
+      touch.value->onTap = [this] (int, int) {
+        _dragRow = -1;
         toggleEditing ();
       };
-      touch.value->onDragIncrement
-          = [this] (int absoluteRow, int, int increment) {
-              if (browsedRowIndex () != absoluteRow)
-                browseRow (absoluteRow);
-              if (!isEditing ())
-                toggleEditing ();
-              navigate (increment);
-            };
+      touch.value->onRelease = [this] (int, int) { _dragRow = -1; };
+      touch.value->onDragIncrement = [this] (int, int, int increment) {
+        if (_dragRow < 0 || _dragRow != browsedRowIndex ())
+          return;
+
+        // Only a number a drag can turn. Arming an action, a colour or a
+        // text row here would fire it — which is exactly what dragging past
+        // a colour used to do.
+        if (!isEditing ())
+          {
+            if (!canTurnBrowsedRow ())
+              return;
+            toggleEditing ();
+          }
+
+        navigate (increment);
+      };
 
       addAndMakeVisible (*touch.name);
       addAndMakeVisible (*touch.value);
@@ -558,6 +575,23 @@ SkinEditorComponent::canTypeBrowsedRow () const
 
   return browsedRow () == Row::Rename
          || (browsedRow () == Row::Parameter && !_parameters.empty ());
+}
+
+bool
+SkinEditorComponent::canTurnBrowsedRow () const
+{
+  if (_naming || browsedRow () != Row::Parameter || _parameters.empty ())
+    return false;
+
+  auto const index = _index - _actionRows;
+  if (index < 0 || index >= (int)_parameters.size ())
+    return false;
+
+  auto const &parameter = _parameters[(size_t)index];
+
+  // A config number is typed, not turned — see Numbers.
+  return !parameter.isColour && !parameter.isText
+         && _numbers == Numbers::Turned;
 }
 
 bool

@@ -165,6 +165,12 @@ public:
   /** The path of the browsed parameter row, empty on an action row. */
   juce::String browsedPath () const;
 
+  /** Whether the browsed row is one a drag can turn — a plain number in a
+   *  document whose numbers are turned. An action row acts, a colour row
+   *  opens a picker and a text row opens the keyboard; none of those may be
+   *  set off by a finger that is only dragging past them. */
+  bool canTurnBrowsedRow () const;
+
   /** What is currently in the typing field. */
   juce::String typedText () const { return _nameEntry.buffer (); }
 
@@ -202,6 +208,16 @@ private:
     std::unique_ptr<TouchControl> value;
   };
   std::vector<RowTouch> _rowTouch;
+
+  /** The absolute row a drag started on, or -1.
+   *
+   *  A drag has to stay on the row it began on. browseRow() moves the window
+   *  of drawn rows, resized() then re-labels the hit areas with their new
+   *  absolute rows — and the area under the finger comes to stand for a
+   *  different row mid-drag. Following it turned "drag the value up" into
+   *  "arm whatever scrolled under your finger", which on a colour row opened
+   *  the picker. */
+  int _dragRow = -1;
   std::unique_ptr<TouchControl> _listScroll;
 
   void createTouchControls ();
