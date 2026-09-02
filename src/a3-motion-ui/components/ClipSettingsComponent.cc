@@ -196,11 +196,13 @@ ClipSettingsComponent::createTouchControls ()
                 return;
               }
 
-            // A control with two or three states steps on right away:
-            // tapping your way to a yes/no and then having to drag it as
-            // well would be one move too many. Continuous values are
-            // dragged, not tapped.
-            if (tapAdvancesValue (tappedSection, tappedSub) && onControlDragged)
+            // A control with few states changes right away: tapping your
+            // way to a yes/no and then having to drag it as well would be
+            // one move too many. Continuous values are dragged, not tapped.
+            if (tapTogglesValue (tappedSection, tappedSub) && onControlToggled)
+              onControlToggled (tappedSection, tappedSub);
+            else if (tapAdvancesValue (tappedSection, tappedSub)
+                     && onControlDragged)
               onControlDragged (tappedSection, tappedSub, 1);
           };
 
@@ -822,16 +824,16 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
   auto const &metrics = _layout.metrics;
   auto const &cells = _layout.controls[elevationIndex];
 
-  // Graphic on top (passive visualization, highlighted whenever the active
-  // sub-element affects it — reach/mirror-south/flat/flat-elevation) plus
-  // all six controls below it in a 2x3 grid: reach/mirror-south on the
-  // first row, clip-top/clip-bottom on the second, flat/flat-elevation on
-  // the third. The cells are ordered by sub-index, not by row.
-  auto const graphicActive = _elevationSubIndex == 0 || _elevationSubIndex == 3
-                             || _elevationSubIndex == 4
-                             || _elevationSubIndex == 5;
-  paintElevationGraphic (g, _layout.elevationGraphic, graphicActive,
-                         isSelected);
+  // Graphic on top, then all six controls below it in a 2x3 grid:
+  // reach/mirror-south on the first row, clip-top/clip-bottom on the
+  // second, flat/flat-elevation on the third. The cells are ordered by
+  // sub-index, not by row.
+  //
+  // The graphic never lights up on its own. It used to, whenever the
+  // selected control was one it draws, and that read as "there is something
+  // to grab in here" — there is not; it is a picture of what the controls
+  // under it do. Selection is the card's job, and the card already shows it.
+  paintElevationGraphic (g, _layout.elevationGraphic, isSelected);
 
   paintMiniKnob (g, cells[0], metrics, caption::reach,
                  _elevationReach * 2.f - 1.f, false, _elevationSubIndex == 0,
@@ -857,14 +859,8 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
 void
 ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                                               juce::Rectangle<int> bounds,
-                                              bool isActive, bool isSelected)
+                                              bool isSelected)
 {
-  if (isActive && isSelected)
-    {
-      g.setColour (_channelColour.withAlpha (highlightWash));
-      g.fillRoundedRectangle (bounds.toFloat (), 4.f);
-    }
-
   auto const iconColour = controlColour (isSelected);
   auto const r = static_cast<float> (
                      juce::jmin (bounds.getWidth (), bounds.getHeight ()))

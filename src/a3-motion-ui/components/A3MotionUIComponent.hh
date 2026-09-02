@@ -437,6 +437,10 @@ private:
    *  was selected last. The encoder path passes the selection it drives. */
   void handleClipSettingsValueChange (index_t channel, int section, int sub,
                                       int increment);
+
+  /** Flip a two-state control. Separate from the increment path because a
+   *  tap carries no direction — see ClipSettingsLayout's tapTogglesValue(). */
+  void handleClipSettingsToggle (index_t channel, int section, int sub);
   void handleClipSettingsSubElementCycle (index_t channel);
   int numSubElementsForSection (int menuIndex) const;
   void updateClipSettingsDisplay ();

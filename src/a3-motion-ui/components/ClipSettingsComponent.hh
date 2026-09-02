@@ -203,6 +203,10 @@ public:
   /** A control was dragged, by one increment. Same increment the
    *  Pot-Encoder produces, so both go through one handler. */
   std::function<void (int section, int sub, int increment)> onControlDragged;
+  /** A two-state control was tapped and wants to be flipped. Its own
+   *  callback rather than an increment, because "the other one" is not a
+   *  direction — see tapTogglesValue(). */
+  std::function<void (int section, int sub)> onControlToggled;
 
   /** A cell of the per-channel grid was dragged. `row` is in channelRow*
    *  order. */
@@ -266,7 +270,7 @@ private:
    *  Pot-Encoder currently edits a control that affects this graphic
    *  (reach, mirror-south, flat, or flat-elevation). */
   void paintElevationGraphic (juce::Graphics &g, juce::Rectangle<int> bounds,
-                              bool isActive, bool isSelected);
+                              bool isSelected);
   /** Speed (knob) / Direction / End-Action (toggles), single row, always
    *  visible in parallel — same style as the Elevation controls. */
   void paintMotionSection (juce::Graphics &g, bool isSelected);

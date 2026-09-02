@@ -191,8 +191,13 @@ Touch produces the same increments the encoders do and goes through the same han
 `A3MotionUIComponent` — there is no second value model. Where the encoders *cycle*
 (`handleClipSettingsScroll`, `handleClipSettingsSubElementCycle`), touch *sets*
 (`selectClipSettingsSection`, `selectClipSettingsSubElement`), which is why a tap reaches a
-control in one move. A tap on a few-valued control (mirror-south, flat, direction, end-action,
-rec mode — see `tapAdvancesValue`) also steps it on; a continuous value is dragged instead.
+control in one move. A tap on a few-valued control also changes it, and *how* depends on how many
+values it has: three or more **step** on and wrap (direction, end-action, rec mode —
+`tapAdvancesValue`), exactly two **flip** (pole, flat — `tapTogglesValue`, its own callback
+`onControlToggled`). The split exists because stepping a boolean is direction-tied — an encoder
+turned right meant South — and a tap has no direction, so it always said +1 and the value could
+only ever be switched on. A drag on those two keeps the direction: up is on, down is off. A
+continuous value is dragged, never tapped.
 
 Two consequences worth knowing when changing this code:
 

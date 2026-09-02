@@ -71,12 +71,19 @@ numControlsInSection (int sectionIndex)
 bool
 tapAdvancesValue (int sectionIndex, int subIndex)
 {
-  if (sectionIndex == 1)
-    return subIndex == 3 || subIndex == 4; // mirror-south, flat
   if (sectionIndex == 2)
     return subIndex == 1 || subIndex == 2; // direction, end-action
   if (sectionIndex == 3)
     return subIndex == 0; // rec mode
+
+  return false;
+}
+
+bool
+tapTogglesValue (int sectionIndex, int subIndex)
+{
+  if (sectionIndex == 1)
+    return subIndex == 3 || subIndex == 4; // pole, flat
 
   return false;
 }

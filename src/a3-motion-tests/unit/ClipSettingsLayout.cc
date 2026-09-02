@@ -194,9 +194,10 @@ TEST (ClipSettingsLayout, ElevationControlsAreOrderedBySubIndexNotByScreen)
 
 TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
 {
-  // Elevation: mirror-south (3) and flat (4) are yes/no.
-  EXPECT_TRUE (tapAdvancesValue (1, 3));
-  EXPECT_TRUE (tapAdvancesValue (1, 4));
+  // Elevation: mirror-south (3) and flat (4) are yes/no, and a yes/no is
+  // toggled rather than stepped — see TwoStateControlsToggleRatherThanStep.
+  EXPECT_FALSE (tapAdvancesValue (1, 3));
+  EXPECT_FALSE (tapAdvancesValue (1, 4));
   // reach, clip-top, clip-bottom, flat-elevation are continuous.
   EXPECT_FALSE (tapAdvancesValue (1, 0));
   EXPECT_FALSE (tapAdvancesValue (1, 1));
@@ -217,6 +218,34 @@ TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
   EXPECT_TRUE (tapAdvancesValue (3, 0));
 }
 
+
+// A control with exactly two states is toggled by a tap, not stepped by one.
+// Stepping is what the encoders did, and it was tied to which way they were
+// turned so a missed tick could not desync the value; a tap has no direction,
+// so a stepped boolean could only ever be switched on. Three-state controls
+// keep stepping — they wrap, so a tap always gets somewhere new.
+TEST (ClipSettingsLayout, TwoStateControlsToggleRatherThanStep)
+{
+  EXPECT_TRUE (tapTogglesValue (1, 3));  // pole: north / south
+  EXPECT_TRUE (tapTogglesValue (1, 4));  // flat: on / off
+
+  EXPECT_FALSE (tapTogglesValue (1, 0)); // reach is continuous
+  EXPECT_FALSE (tapTogglesValue (1, 5)); // flat-elevation is continuous
+  EXPECT_FALSE (tapTogglesValue (2, 1)); // direction has three states
+  EXPECT_FALSE (tapTogglesValue (2, 2)); // end-action has more
+  EXPECT_FALSE (tapTogglesValue (3, 0)); // rec mode has three
+}
+
+// The two are alternatives, not layers: a tap either steps a value on or
+// flips it, and a control that claimed both would do both on one tap.
+TEST (ClipSettingsLayout, NoControlBothStepsAndToggles)
+{
+  for (int section = 0; section < numClipSettingsSections; ++section)
+    for (int sub = 0; sub < numControlsInSection (section); ++sub)
+      EXPECT_FALSE (tapAdvancesValue (section, sub)
+                    && tapTogglesValue (section, sub))
+          << "section " << section << " sub " << sub;
+}
 
 // Menu, Rec and Tap sit in the global strip beside the clip's sections. They
 // are not sub-elements of it — no encoder reaches them, only a finger — so

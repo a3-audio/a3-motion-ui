@@ -372,6 +372,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                                    increment);
   };
 
+  _clipSettings->onControlToggled = [this] (int section, int sub) {
+    handleClipSettingsToggle (_clipSettingsChannel, section, sub);
+  };
+
   addChildComponent (*_clipSettings);
   _clipSettings->setVisible (true);
   selectClip (0, 0); // sensible default before any button has been pressed
@@ -3024,6 +3028,32 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
       }
       break;
     }
+
+  updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::handleClipSettingsToggle (index_t channel, int section,
+                                               int sub)
+{
+  if (channel != _clipSettingsChannel)
+    return;
+
+  auto &pattern = _patterns[channel][_clipSettingsSlot];
+  if (!pattern)
+    return;
+
+  // Only Elevation has two-state controls; tapTogglesValue() is the
+  // authority on which, and it says pole (3) and flat (4).
+  if (section != 1)
+    return;
+
+  if (sub == 3)
+    pattern->setMirrorSouth (!pattern->getMirrorSouth ());
+  else if (sub == 4)
+    pattern->setFlat (!pattern->getFlat ());
+  else
+    return;
 
   updateClipSettingsDisplay ();
 }

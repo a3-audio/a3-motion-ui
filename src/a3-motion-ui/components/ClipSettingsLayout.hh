@@ -75,11 +75,19 @@ constexpr int channelRowQ = 2;
 int numControlsInSection (int sectionIndex);
 
 /** Whether a tap on this control already steps its value on, rather than
- *  only selecting it. True for the few-valued ones — mirror-south, flat,
- *  direction, end-action and the global strip's rec mode. False for
- *  anything continuous, and for the lists (pattern, speed, record length,
- *  seam) where tapping through would turn into tapping and tapping. */
+ *  only selecting it. True for the few-valued ones — direction, end-action
+ *  and the global strip's rec mode — which wrap, so every tap arrives
+ *  somewhere new. False for anything continuous, and for the lists
+ *  (pattern, speed, record length, seam) where tapping through would turn
+ *  into tapping and tapping. */
 bool tapAdvancesValue (int sectionIndex, int subIndex);
+
+/** Whether a tap on this control flips it. True for the two-state ones —
+ *  pole and flat. They used to be stepped like the rest, but stepping is
+ *  tied to a direction (an encoder turned right meant South) and a tap has
+ *  none: it always said +1, so the value could be switched on and never
+ *  back off. Mutually exclusive with tapAdvancesValue. */
+bool tapTogglesValue (int sectionIndex, int subIndex);
 
 /** Every rectangle in the bar, from one calculation. paint() draws into
  *  it, resized() puts the TouchControls on it. Two calculations would be
