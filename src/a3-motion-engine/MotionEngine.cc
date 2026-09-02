@@ -20,6 +20,8 @@
 
 #include "MotionEngine.hh"
 
+#include <a3-motion-engine/TrajectorySpin.hh>
+
 #include <cstddef>
 
 #include <a3-motion-engine/Channel.hh>
@@ -738,6 +740,10 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   _patternRecording = nullptr;
 
   pattern->setPlayPosition (0.f);
+  // Unturned, like the take was recorded. A clip that resumed wherever the
+  // last pass stopped would come back somewhere different every time, which
+  // is not something you can aim at.
+  pattern->setSpinPhase (0.f);
 
   // Reverse starts at the end and walks back, so the first tick has somewhere
   // to come from.
@@ -918,9 +924,25 @@ MotionEngine::performPlayback ()
               auto const fractionalTick
                   = static_cast<double> (ticksPatternLength) * playPosition;
               auto position2D = channel->_patternPlaying->getInterpolatedTick (fractionalTick);
-              
+
+              // The whole shape turns under the blob. One tick's worth here,
+              // and the renderer turns the drawn line by the same phase — the
+              // blob has to stay on its line.
+              auto const ticksPerBar
+                  = static_cast<float> (TempoClock::getTicksPerBeat ())
+                    * static_cast<float> (_tempoClock.getBeatsPerBar ());
+              playing.setSpinPhase (advanceSpinPhase (
+                  playing.getSpinPhase (), playing.getSpin (), ticksPerBar));
+
               if (position2D.isValid ())
                 {
+                  // Turned before it is projected: in the recorded 2D disc
+                  // the radius is the elevation and the angle is the azimuth,
+                  // so this turns the trajectory around the pole and leaves
+                  // every point at the height it was played in at.
+                  position2D
+                      = spinPosition (position2D, playing.getSpinPhase ());
+
                   // Apply this clip's own elevation mapping (sphere
                   // projection) at playback time — elevation parameters
                   // live on the Pattern itself, not the channel.

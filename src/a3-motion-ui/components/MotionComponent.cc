@@ -20,6 +20,8 @@
 
 #include "MotionComponent.hh"
 
+#include <a3-motion-engine/TrajectorySpin.hh>
+
 #include <a3-motion-engine/TrajectoryShape.hh>
 
 #include <a3-motion-engine/MotionEngine.hh>
@@ -1447,7 +1449,8 @@ drawPathOnSphere (juce::Path const &displayPath,
                   bool fadeByDepth,
                   ElevationParams const &elevationParams,
                   HeightMap const &heightMap,
-                  juce::Graphics &g)
+                  juce::Graphics &g,
+                  float spinPhase)
 {
   if (displayPath.isEmpty ())
     return;
@@ -1485,10 +1488,15 @@ drawPathOnSphere (juce::Path const &displayPath,
   };
 
   // Project a 2D HOA point onto the sphere and return screen pos + z.
+  // Every point of the line comes through here, which is why the spin is
+  // applied here and not by transforming the path: turning the path would
+  // mean copying it every frame, and the sub-sampling below would then be
+  // measuring distances on the turned copy.
   auto projectPoint = [&] (float x, float y)
       -> std::pair<juce::Point<float>, float> {
-    auto pos3D = heightMap.mapTo3D (Pos::fromCartesian (x, y, 0.f),
-                                    elevationParams);
+    auto pos3D = heightMap.mapTo3D (
+        spinPosition (Pos::fromCartesian (x, y, 0.f), spinPhase),
+        elevationParams);
     return { cartesian2DHOA2JUCE (pos3D), pos3D.z () };
   };
 
@@ -1626,8 +1634,11 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
     }
 
   auto constexpr lineThickness = 0.03f;
+  // 0.f: a take is recorded in the frame it was played in. Turning the trail
+  // under the finger would draw the take somewhere the finger never was.
   drawPathOnSphere (path, lineThickness, 0.9f, _uiStates[ch]->colour, true,
-                    pattern.getElevationParams (), _engine.getHeightMap (), g);
+                    pattern.getElevationParams (), _engine.getHeightMap (), g,
+                    0.f);
 }
 
 void
@@ -1660,7 +1671,7 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
     }
 
   drawPathOnSphere (path, lineThickness, underlayOpacity, colour, true, params,
-                    _engine.getHeightMap (), g);
+                    _engine.getHeightMap (), g, 0.f);
 
   // And where it would be right now. The write head's own position is the
   // phase into the loop -- the old pattern is not playing, so there is nothing
@@ -1708,7 +1719,9 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
-              Pos::fromCartesian (dot.first, dot.second, 0.f), params);
+              spinPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
+                            pattern.getSpinPhase ()),
+              params);
           auto posJuce = cartesian2DHOA2JUCE (pos3D);
           g.setColour (colour);
           g.fillEllipse (juce::Rectangle<float> (dotSize, dotSize)
@@ -1719,7 +1732,7 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
 
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
-                    false, params, heightMap, g);
+                    false, params, heightMap, g, pattern.getSpinPhase ());
 }
 
 void
@@ -1745,7 +1758,9 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
-              Pos::fromCartesian (dot.first, dot.second, 0.f), params);
+              spinPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
+                            pattern.getSpinPhase ()),
+              params);
           auto posJuce = cartesian2DHOA2JUCE (pos3D);
           float fade = (pos3D.z () < 0.f)
               ? 0.3f + 0.7f * std::clamp (pos3D.z () + 1.f, 0.f, 1.f)
@@ -1760,7 +1775,7 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
 
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
-                    true, params, heightMap, g);
+                    true, params, heightMap, g, pattern.getSpinPhase ());
 }
 
 juce::Point<float>

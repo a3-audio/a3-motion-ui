@@ -146,6 +146,24 @@ public:
   float getPlaySign () const;
   void setPlaySign (float sign);
 
+  /** How fast the whole trajectory turns around the vertical axis while the
+   *  blob runs along it, as the signed power-of-two step TrajectorySpin
+   *  describes. Zero stands still.
+   *
+   *  A clip setting like the fade and the end action, and here for the same
+   *  reason: the engine has to see it, and it has to survive being saved. */
+  int getSpin () const;
+  void setSpin (int step);
+
+  /** How far round it has turned, in revolutions [0, 1). Advanced by the
+   *  engine while the clip plays and read by the renderer, which has to draw
+   *  the line in the same place the blob is running.
+   *
+   *  Reset when playback starts, so a clip fired again begins where it was
+   *  recorded rather than wherever the last pass happened to leave it. */
+  float getSpinPhase () const;
+  void setSpinPhase (float phase);
+
   // Interpolated playback: returns position with linear interpolation between keyframes
   // This provides smooth motion even with sparse keyframes during slow playback
   Pos getInterpolatedTick (double fractionalTick) const;
@@ -223,6 +241,8 @@ private:
   std::atomic<PlayDirection> _playDirection{ PlayDirection::Forward };
   std::atomic<EndAction> _endAction{ EndAction::Loop };
   std::atomic<float> _playSign{ 1.f };
+  std::atomic<int> _spin{ 0 };
+  std::atomic<float> _spinPhase{ 0.f };
   mutable std::mutex _ticksMutex;
 
   // TODO is float precision sufficient here? do the math!

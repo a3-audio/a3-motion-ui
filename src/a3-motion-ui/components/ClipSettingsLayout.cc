@@ -63,7 +63,7 @@ numControlsInSection (int sectionIndex)
     case 1:
       return 6; // reach, clip-top, clip-bottom, mirror-south, flat, flat-elev
     case 2:
-      return 4; // speed, direction, end-action, seam
+      return 5; // speed, direction, end-action, seam, spin
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -306,6 +306,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                       controlBoxHeightForFont (bodySize, metrics.knobDiam));
     auto topRow = content.removeFromBottom (motionRowH);
 
+    // Spin gets a row to itself, above the pair, and the whole width of it.
+    // Alone in a two-column row it would have read as half of something with
+    // the other half missing, and the section had this room standing empty.
+    content.removeFromBottom (gapV);
+    auto const spinArea = content.removeFromBottom (
+        juce::jmin (content.getHeight (), motionRowH));
+
     // The two values you dial on top, the two you pick from below: speed
     // and fade are continuous-ish, direction and end-action are lists.
     auto const colW = (topRow.getWidth () - gapH) / 2;
@@ -320,11 +327,14 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // The bottom row is already the button height; the cell is the button.
     auto const buttonCell = [] (juce::Rectangle<int> cell) { return cell; };
 
+    // Appended, not inserted: the four before it are what a finger has
+    // already learned to find.
     out.controls[2] = {
       textCell (speedArea, metrics.knobDiam),
       buttonCell (directionArea),
       buttonCell (endActionArea),
       textCell (seamArea, metrics.knobDiam),
+      textCell (spinArea, metrics.knobDiam),
     };
   }
 

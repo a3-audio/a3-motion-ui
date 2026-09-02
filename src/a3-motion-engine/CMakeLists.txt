@@ -52,6 +52,7 @@ target_sources("a3-motion-engine" PRIVATE
     Playhead.cc
     PatternFile.cc
     TrajectoryShape.cc
+    TrajectorySpin.cc
     RecMode.cc
     PatternFile.hh
     PatternLibrary.cc

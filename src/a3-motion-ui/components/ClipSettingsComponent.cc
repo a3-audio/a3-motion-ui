@@ -20,6 +20,8 @@
 
 #include "ClipSettingsComponent.hh"
 
+#include <a3-motion-engine/TrajectorySpin.hh>
+
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 
 #include <a3-motion-ui/theme/Theme.hh>
@@ -388,6 +390,13 @@ void
 ClipSettingsComponent::setMotionFade (int sixteenths)
 {
   _motionFade = juce::jlimit (0, 16, sixteenths);
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setMotionSpin (int step)
+{
+  _motionSpin = juce::jlimit (-spinMaxStep, spinMaxStep, step);
   repaint ();
 }
 
@@ -1116,6 +1125,13 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   paintMiniKnob (g, cells[3], metrics, caption::fade,
                  (_motionFade / 16.f) * 2.f - 1.f, false, _motionSubIndex == 3,
                  isSelected);
+  // The one bipolar control in the bar, so the one that fills from the
+  // centre: standing still is the middle, and which side of it you are on is
+  // which way the trajectory turns.
+  paintMiniKnob (g, cells[4], metrics, caption::spin,
+                 static_cast<float> (_motionSpin)
+                     / static_cast<float> (spinMaxStep),
+                 true, _motionSubIndex == 4, isSelected);
 }
 
 bool

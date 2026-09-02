@@ -21,6 +21,8 @@
 #include <a3-motion-ui/io/OnScreenKeyboard.hh>
 #include "A3MotionUIComponent.hh"
 
+#include <a3-motion-engine/TrajectorySpin.hh>
+
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -2844,7 +2846,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::elevationIndex)
     return 6;
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 4; // speed, direction, end-action, seam
+    return 5; // speed, direction, end-action, seam, spin
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
     return 2; // the shape itself, and the length of the next take
   return 1;
@@ -2964,7 +2966,8 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           }
         break;
       }
-    case 2: // Motion — speed (0), direction (1), or end-action (2)
+    case 2: // Motion — speed (0), direction (1), end-action (2), fade (3),
+            // spin (4)
       switch (sub)
         {
         case 0:
@@ -2994,7 +2997,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           params.endAction = (params.endAction + increment % 4 + 4) % 4;
           applyMotionMode (channel, slot);
           break;
-        default:
+        case 3:
           {
             // How long the take's closing move lasts. A playback setting: it
             // takes effect on whatever is in the slot, at once, and is
@@ -3013,6 +3016,17 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                 refreshPatternDisplayFromTicks (pattern);
 
               }
+            break;
+          }
+        default:
+          {
+            // How fast the whole trajectory turns under the blob. On the
+            // Pattern rather than in _clipUIParams because the engine reads
+            // it every tick and it has to survive being saved.
+            auto &pattern = _patterns[channel][slot];
+            if (pattern)
+              pattern->setSpin (std::clamp (pattern->getSpin () + increment,
+                                            -spinMaxStep, spinMaxStep));
             break;
           }
         }
@@ -3154,6 +3168,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setMotionDirection (_clipUIParams[channel][slot].direction);
   _clipSettings->setMotionEndAction (_clipUIParams[channel][slot].endAction);
   _clipSettings->setMotionFade (params.fadeSixteenths);
+  _clipSettings->setMotionSpin (pattern ? pattern->getSpin () : 0);
 
   // Worded like Speed is, because it is the same kind of number: bars as a
   // power of two, "2" for two bars, "1/4" for a quarter of one.

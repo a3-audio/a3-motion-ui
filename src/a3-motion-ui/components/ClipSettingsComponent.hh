@@ -173,6 +173,10 @@ public:
   /** Which stretch-filling a take will use — 0 glide, 1 hard. */
   void setMotionFade (int sixteenths);
 
+  /** How fast the trajectory turns under the blob, as TrajectorySpin's
+   *  signed step: 0 stands still, the sign is the direction. */
+  void setMotionSpin (int step);
+
   /** The length the next take will have, already worded ("2", "1/4"), and
    *  which of the shape section's two elements is armed. */
   void setRecordLength (juce::String const &label);
@@ -362,6 +366,7 @@ private:
   int _motionEndAction = 0;
   int _motionSubIndex = 0;
   int _motionFade = 0;
+  int _motionSpin = 0;
   int _trajectorySubIndex = 0;
   juce::String _recordLengthLabel { "1" };
   std::array<float, numChannelColumns> _channelFreq{};

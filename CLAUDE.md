@@ -111,6 +111,27 @@ generator and the test runner:
   strategy, used for elevation coverage behavior.
 - `AsyncCommandQueue` — the lock-free bridge from the high-priority tempo-clock thread to the
   backend/network thread, so OSC I/O never blocks realtime scheduling.
+- `TrajectorySpin` — turning the whole trajectory around the vertical axis while the blob keeps
+  running along it. Not a second motion path: it is one rotation of the *recorded 2D* position
+  around the origin, applied at playback time and never written into the take, so it can be turned
+  down again as freely as up. In the 2D disc the radius is the elevation and the angle is the
+  azimuth (`HeightMap::mapTo3D()`), which is why turning the disc turns the trajectory around the
+  pole and leaves every point at the height it was played in at.
+
+  The speed is a signed power of two — bars per revolution, 32 down to 1/4 — rather than a rate,
+  so a revolution ends on a bar line instead of arguing with the loop under it, and it follows the
+  tempo clock rather than the wall clock. The sign is the direction, and `spinPosition()` is the
+  single place that decides which way that looks: the screen mirrors these coordinates
+  (`cartesian2DHOA2JUCE` maps HOA to `{ -y, -x }`), so a mathematically positive turn reads as
+  anticlockwise and the rotation is negated there to make a right-hand turn of the control a
+  right-hand turn on the sphere.
+
+  Two places apply it and both must, or the blob leaves its line: `MotionEngine::performPlayback()`
+  turns the position before projecting it, and `MotionComponent`'s `drawPathOnSphere()` turns each
+  point of the drawn path by the same phase — inside `projectPoint()` rather than by transforming
+  the path, which would mean copying it every frame. The phase lives on the `Pattern` beside
+  `playPosition` and resets when playback starts, so a clip fired again begins where it was
+  recorded.
 
 ### UI (`src/a3-motion-ui`)
 

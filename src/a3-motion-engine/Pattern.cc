@@ -236,6 +236,30 @@ Pattern::setPlaySign (float sign)
   _playSign.store (sign, std::memory_order_relaxed);
 }
 
+int
+Pattern::getSpin () const
+{
+  return _spin.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setSpin (int step)
+{
+  _spin.store (step, std::memory_order_relaxed);
+}
+
+float
+Pattern::getSpinPhase () const
+{
+  return _spinPhase.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setSpinPhase (float phase)
+{
+  _spinPhase.store (phase, std::memory_order_relaxed);
+}
+
 void
 Pattern::setSeamJoin (std::optional<index_t> tick)
 {
