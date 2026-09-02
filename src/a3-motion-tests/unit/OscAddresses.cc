@@ -35,7 +35,7 @@ TEST (OscAddresses, DefaultsAreWhatTheSystemHasAlwaysUsed)
   EXPECT_EQ (a.channelElevation, "/channel/{ch}/elevation");
   EXPECT_EQ (a.channelPot1, "/channel/{ch}/pot_1");
   EXPECT_EQ (a.channelPot2, "/channel/{ch}/pot_2");
-  EXPECT_EQ (a.channelPot3, "/channel/{ch}/pot_3");
+  EXPECT_EQ (a.channelThreeD, "/channel/{ch}/3d");
   EXPECT_EQ (a.iemAzimuth, "/StereoEncoder/azimuth");
   EXPECT_EQ (a.iemElevation, "/StereoEncoder/elevation");
   EXPECT_EQ (a.beatOut, "/beat");
@@ -68,7 +68,7 @@ TEST (OscAddresses, EveryFieldIsActuallyRead)
       "channelElevation": "/a/{ch}/y",
       "channelPot1":      "/a/{ch}/p",
       "channelPot2":      "/a/{ch}/q",
-      "channelPot3":      "/a/{ch}/r",
+      "channelThreeD":      "/a/{ch}/r",
       "iemAzimuth":       "/b/x",
       "iemElevation":     "/b/y",
       "beatOut":          "/c/beat",
@@ -84,7 +84,7 @@ TEST (OscAddresses, EveryFieldIsActuallyRead)
   EXPECT_NE (a.channelElevation, d.channelElevation);
   EXPECT_NE (a.channelPot1, d.channelPot1);
   EXPECT_NE (a.channelPot2, d.channelPot2);
-  EXPECT_NE (a.channelPot3, d.channelPot3);
+  EXPECT_NE (a.channelThreeD, d.channelThreeD);
   EXPECT_NE (a.iemAzimuth, d.iemAzimuth);
   EXPECT_NE (a.iemElevation, d.iemElevation);
   EXPECT_NE (a.beatOut, d.beatOut);
@@ -144,7 +144,7 @@ TEST (OscAddresses, JuceAcceptsEverySubstitutedDefault)
 
   for (auto const &pattern : { a.channelAzimuth, a.channelElevation,
                                a.channelPot1, a.channelPot2,
-                               a.channelPot3, a.iemAzimuth,
+                               a.channelThreeD, a.iemAzimuth,
                                a.iemElevation, a.beatOut, a.beatIn, a.tap,
                                a.clockMode })
     for (int ch = 0; ch < 4; ++ch)
@@ -164,16 +164,23 @@ TEST (OscAddresses, AnEmptyPrefixIsRefused)
 }
 
 
-// pot_3 deliberately, not `3d`: A3 Core dispatches on the last path element,
-// and `3d` there is a toggle that fires on the value 1 — a continuous value
-// sent to it would flip the state every time it passed 1.0 and do nothing
-// otherwise. See a3-core.py's osc_handler_channel.
-TEST (OscAddresses, TheThirdPotDoesNotCollideWithCoresThreeDeeToggle)
+// `3d` is Core's continuous crossfade now; its old boolean toggle moved to
+// `4d`. The name is free again, and it is the one that says what the value
+// does.
+TEST (OscAddresses, TheThirdValueGoesToCoresThreeDee)
 {
   auto const a = loadOscAddresses (juce::var{});
 
-  EXPECT_FALSE (withChannel (a.channelPot3, 0).endsWith ("/3d"));
-  EXPECT_TRUE (withChannel (a.channelPot3, 2).endsWith ("/pot_3"));
+  EXPECT_EQ (withChannel (a.channelThreeD, 2), "/channel/2/3d");
+}
+
+// A config written while it was still called pot_3 keeps working.
+TEST (OscAddresses, TheOldPotThreeNameIsStillRead)
+{
+  auto const config = juce::JSON::parse (
+      R"({"oscAddresses": {"out": {"channelPot3": "/old/{ch}/name"}}})");
+
+  EXPECT_EQ (loadOscAddresses (config).channelThreeD, "/old/{ch}/name");
 }
 
 

@@ -127,7 +127,9 @@ readAll (juce::var const &block, OscAddresses &into)
   readAddress (block, "channelElevation", into.channelElevation);
   readAddress (block, "channelPot1", into.channelPot1);
   readAddress (block, "channelPot2", into.channelPot2);
-  readAddress (block, "channelPot3", into.channelPot3);
+  readAddress (block, "channelThreeD", into.channelThreeD);
+  // The name it shipped under for a day, while `3d` was still Core's toggle.
+  readAddress (block, "channelPot3", into.channelThreeD);
   readAddress (block, "iemAzimuth", into.iemAzimuth);
   readAddress (block, "iemElevation", into.iemElevation);
   readAddress (block, "beat", into.beatOut);

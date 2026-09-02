@@ -141,7 +141,10 @@ Each channel's two rotary encoders have one job each, the same one whatever is o
 `MotionEngine::setChannelPot1/2`). Pressing an encoder does nothing.
 
 **The panel's four physical potentiometers drive the third per-channel value ("3d",
-`setChannelPot3`), one per channel.** They are `InputOutputAdapter::getGlobalPot(0..3)` — *not*
+`setChannelPot3`), one per channel** — it goes out on `/channel/{ch}/3d` and A3 Core crossfades
+that channel between its stereo and multi encoder on it. Core's boolean `3d` toggle has moved to
+`4d`; the A3 Mixer button that used to send the boolean is gone in hardware v3.2, so nothing
+collides. They are `InputOutputAdapter::getGlobalPot(0..3)` — *not*
 `getPot(channel, n)`, which despite the name is the **pot-encoder's synthetic value** (turning it
 adjusts the selected one, pushing it switches which; see the protocol comment at the top of
 `InputOutputAdapterV3.hh`). Wiring 3d to `getPot()` looked right and did nothing, because that

@@ -50,7 +50,7 @@ SpatBackendA3::addressesChanged (OscAddresses const &addresses)
       _elevationPatterns[ch] = withChannel (addresses.channelElevation, ch);
       _pot1Patterns[ch] = withChannel (addresses.channelPot1, ch);
       _pot2Patterns[ch] = withChannel (addresses.channelPot2, ch);
-      _pot3Patterns[ch] = withChannel (addresses.channelPot3, ch);
+      _pot3Patterns[ch] = withChannel (addresses.channelThreeD, ch);
     }
 }
 

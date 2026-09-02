@@ -17,7 +17,7 @@
       "channelElevation": "/channel/{ch}/elevation",
       "channelPot1": "/channel/{ch}/pot_1",
       "channelPot2": "/channel/{ch}/pot_2",
-      "channelPot3": "/channel/{ch}/pot_3",
+      "channelThreeD": "/channel/{ch}/3d",
       "iemAzimuth": "/StereoEncoder/azimuth",
       "iemElevation": "/StereoEncoder/elevation",
       "beat": "/beat",
