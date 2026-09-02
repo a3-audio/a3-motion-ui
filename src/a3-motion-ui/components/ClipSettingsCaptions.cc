@@ -129,8 +129,14 @@ clipSettingsPreferredHeight (float headerSize, float bodySize,
   // little more again — see layOutClipSettings().
   auto const gridRows
       = numChannelRows * static_cast<int> (std::ceil (knobDiameter * 1.4f));
-  auto const buttonRow = std::max (24, knobDiameter);
-  auto const global = titleRow + labelRow + gridRows + buttonRow;
+  // Three rows of buttons plus the gaps between them — rec mode and clock
+  // mode, menu and rec, then TAP across the width. Asking for one row's
+  // worth is what collapsed the grid above them to a few pixels.
+  auto const buttonRow
+      = std::max (34, static_cast<int> (std::ceil (knobDiameter * 1.6f)));
+  auto const buttons = 3 * buttonRow + 2 * std::max (2, buttonRow / 8);
+
+  auto const global = titleRow + labelRow + gridRows + buttons;
 
   auto const sections = std::max (elevation, global);
 

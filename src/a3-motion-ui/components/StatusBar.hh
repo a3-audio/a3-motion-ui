@@ -52,6 +52,14 @@ public:
    *  size change has to be pushed rather than repainted. */
   void applyTheme () override;
 
+private:
+  /** What the two clock readouts are drawn in — one answer for both, so
+   *  they cannot end up different colours. EXT is a warning: the tempo is
+   *  somebody else's. */
+  juce::Colour clockReadoutColour () const;
+
+public:
+
   /** Just the font half of applyTheme(), for a size change. */
   void refreshFonts ();
 

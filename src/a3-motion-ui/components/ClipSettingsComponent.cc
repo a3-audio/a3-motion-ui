@@ -83,6 +83,14 @@ ClipSettingsComponent::createTouchControls ()
   // In front of the cards, so it swallows what would otherwise reach the
   // Elevation card. No callbacks: a picture is not a control.
   _elevationGraphicTouch = std::make_unique<TouchControl> ();
+  // The graphic is a picture of what the controls under it do, so it names
+  // no control — but it is inside the section, and touching a section
+  // should select it. -1 says "the section, not one of its controls".
+  _elevationGraphicTouch->onPress = [this] (int, int) {
+    closeDropdown ();
+    if (onControlTapped)
+      onControlTapped (elevationIndex, -1);
+  };
   addAndMakeVisible (*_elevationGraphicTouch);
 
   auto const makeButton
@@ -140,6 +148,7 @@ ClipSettingsComponent::createTouchControls ()
     }
 
   makeButton (_recModeTouch, &ClipSettingsComponent::onRecModePressed);
+  makeButton (_clockModeTouch, &ClipSettingsComponent::onClockModePressed);
   makeButton (_menuTouch, &ClipSettingsComponent::onMenuPressed);
   makeButton (_recTouch, &ClipSettingsComponent::onRecordPressed);
   makeButton (_tapTouch, &ClipSettingsComponent::onTapPressed);
@@ -235,6 +244,7 @@ ClipSettingsComponent::resized ()
     }
 
   _recModeTouch->setBounds (_layout.recModeButton);
+  _clockModeTouch->setBounds (_layout.clockModeButton);
   _menuTouch->setBounds (_layout.menuButton);
   _recTouch->setBounds (_layout.recButton);
   _tapTouch->setBounds (_layout.tapButton);
@@ -523,9 +533,15 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // sat pinned to the bottom edge, a finger's width away from what it names.
   paintChannelGrid (g);
 
-  // The rec mode is a button like the three beside it: a tap steps it on.
-  paintActionButton (g, _layout.recModeButton, recModeName (_recMode),
-                     _recMode != RecMode::Touch);
+  // Both carry a value, so both name it: two lines, like every other button
+  // in the bar that stands for something rather than doing something.
+  static char const *clockNames[] = { "INT", "EXT", "PIO" };
+  auto const clock = juce::jlimit (0, 2, _clockMode);
+
+  paintBarButton (g, _layout.recModeButton, recModeName (_recMode), "recmode",
+                  _recMode != RecMode::Touch, false);
+  paintBarButton (g, _layout.clockModeButton, clockNames[clock], "clock",
+                  clock != 0, false);
 
   paintActionButton (g, _layout.menuButton, "MENU", false);
   paintActionButton (g, _layout.recButton, "REC", _recording);
@@ -555,58 +571,83 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
                                        bool isActive, bool isSelected,
                                        bool opensList)
 {
-  auto box = bounds;
-  auto const labelArea
-      = caption.isEmpty ()
-            ? juce::Rectangle<int>{}
-            : box.removeFromBottom (
-                  textRowHeight (box, _layout.metrics.captionSize));
-
-  g.setColour (isActive ? _channelColour.withAlpha (highlightWash * 2.f)
+  // An active button lights in the shown clip's colour, except in the global
+  // section — nothing there belongs to a channel, so it lights grey.
+  g.setColour (isActive ? (isSelected
+                               ? _channelColour.withAlpha (highlightWash * 2.f)
+                               : toColour (theme ().textPrimary,
+                                           highlightWash * 2.f))
                         : toColour (theme ().textPrimary, cardWash));
-  g.fillRoundedRectangle (box.toFloat (), 4.f);
+  g.fillRoundedRectangle (bounds.toFloat (), 4.f);
 
   g.setColour (toColour (theme ().textPrimary, trackWash));
-  g.drawRoundedRectangle (box.toFloat (), 4.f, 1.f);
+  g.drawRoundedRectangle (bounds.toFloat (), 4.f, 1.f);
 
-  auto textArea = box;
-  if (opensList)
+  // Two lines, both inside the box: the caption on top, the value under it.
+  // The caption used to sit below the button, which made a button a
+  // different height from the box it looked like and left the name floating
+  // between two of them.
+  auto box = bounds.reduced (4, 2);
+  auto const captionArea
+      = caption.isEmpty ()
+            ? juce::Rectangle<int>{}
+            : box.removeFromTop (box.getHeight () * 2 / 5);
+
+  if (caption.isNotEmpty ())
     {
-      // A chevron on the right, small and quiet: it says "there is a list
-      // behind this" without competing with the value it stands beside.
-      auto const marker = textArea.removeFromRight (
-          juce::jmax (8, textArea.getHeight () / 3));
-      auto const centre = marker.toFloat ().getCentre ();
-      auto const w = static_cast<float> (marker.getWidth ()) * 0.34f;
-
-      juce::Path chevron;
-      chevron.startNewSubPath (centre.x - w, centre.y - w * 0.5f);
-      chevron.lineTo (centre.x, centre.y + w * 0.5f);
-      chevron.lineTo (centre.x + w, centre.y - w * 0.5f);
-
+      g.setFont (juce::Font (
+          juce::jmin (_layout.metrics.captionSize,
+                      static_cast<float> (captionArea.getHeight ()) * 0.95f),
+          juce::Font::plain));
       g.setColour (captionColour (isSelected));
-      g.strokePath (chevron, juce::PathStrokeType (
-                                 juce::jmax (1.f, w * 0.3f),
-                                 juce::PathStrokeType::curved,
-                                 juce::PathStrokeType::rounded));
+      g.drawFittedText (caption, captionArea, juce::Justification::centred, 1);
     }
 
-  g.setFont (juce::Font (juce::jmin (_layout.metrics.valueSize,
-                                     static_cast<float> (box.getHeight ())
-                                         * 0.7f),
-                         juce::Font::plain));
+  auto const valueSize
+      = juce::jmin (_layout.metrics.valueSize,
+                    static_cast<float> (box.getHeight ()) * 0.9f);
+  g.setFont (juce::Font (valueSize, juce::Font::plain));
   g.setColour (controlColour (isSelected));
-  g.drawFittedText (label, textArea, juce::Justification::centred, 1);
 
-  if (caption.isEmpty ())
-    return;
+  if (!opensList)
+    {
+      g.drawFittedText (label, box, juce::Justification::centred, 1);
+      return;
+    }
 
-  g.setFont (juce::Font (juce::jmin (_layout.metrics.captionSize,
-                                     static_cast<float> (labelArea.getHeight ())
-                                         * 0.85f),
-                         juce::Font::plain));
+  // The chevron sits directly beside the value rather than out at the box's
+  // edge, where it read as belonging to the button next to it.
+  auto const font = g.getCurrentFont ();
+  auto const textW
+      = juce::jmin (static_cast<float> (box.getWidth ()) * 0.7f,
+                    juce::GlyphArrangement::getStringWidth (font, label));
+  auto const gap = juce::jmax (3.f, valueSize * 0.35f);
+  auto const markerW = juce::jmax (5.f, valueSize * 0.4f);
+
+  auto const centre = box.toFloat ().getCentre ();
+  auto const textCentre = centre.x - (gap + markerW) * 0.5f;
+
+  g.drawFittedText (
+      label,
+      juce::Rectangle<int> (juce::roundToInt (textCentre - textW * 0.5f),
+                            box.getY (), juce::roundToInt (textW),
+                            box.getHeight ()),
+      juce::Justification::centred, 1);
+
+  auto const mx = textCentre + textW * 0.5f + gap + markerW * 0.5f;
+  auto const my = centre.y;
+  auto const w = markerW * 0.5f;
+
+  juce::Path chevron;
+  chevron.startNewSubPath (mx - w, my - w * 0.55f);
+  chevron.lineTo (mx, my + w * 0.55f);
+  chevron.lineTo (mx + w, my - w * 0.55f);
+
   g.setColour (captionColour (isSelected));
-  g.drawFittedText (caption, labelArea, juce::Justification::centred, 1);
+  g.strokePath (chevron,
+                juce::PathStrokeType (juce::jmax (1.f, w * 0.35f),
+                                      juce::PathStrokeType::curved,
+                                      juce::PathStrokeType::rounded));
 }
 
 void
@@ -634,6 +675,15 @@ ClipSettingsComponent::setRecording (bool recording)
   if (recording == _recording)
     return;
   _recording = recording;
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setClockMode (int mode)
+{
+  if (mode == _clockMode)
+    return;
+  _clockMode = mode;
   repaint ();
 }
 

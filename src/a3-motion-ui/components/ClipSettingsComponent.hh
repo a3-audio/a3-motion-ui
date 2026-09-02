@@ -217,12 +217,17 @@ public:
    *  has its own keys for — this is the way to them with a finger. */
   /** The rec mode steps on — what its encoder used to do. */
   std::function<void ()> onRecModePressed;
+  /** The clock mode steps on: INT, EXT, PIO. */
+  std::function<void ()> onClockModePressed;
   std::function<void ()> onMenuPressed;
   std::function<void ()> onRecordPressed;
   std::function<void ()> onTapPressed;
 
   /** Whether the Rec button should read as armed. */
   void setRecording (bool recording);
+
+  /** Which clock the device is following: 0 INT, 1 EXT, 2 PIO. */
+  void setClockMode (int mode);
 
   /** A beat went by. TAP lights up for it — the beat is the one thing on
    *  this device you cannot see, and a button that only reacts to being
@@ -401,10 +406,12 @@ private:
              numChannelColumns>
       _gridTouch;
   std::unique_ptr<TouchControl> _recModeTouch;
+  std::unique_ptr<TouchControl> _clockModeTouch;
   std::unique_ptr<TouchControl> _menuTouch;
   std::unique_ptr<TouchControl> _recTouch;
   std::unique_ptr<TouchControl> _tapTouch;
   bool _recording = false;
+  int _clockMode = 0;
   /** TAP is lit: on the beat, and while a finger is on it. */
   bool _tapLit = false;
   void timerCallback () override;

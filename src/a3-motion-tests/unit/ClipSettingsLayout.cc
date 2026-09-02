@@ -38,10 +38,30 @@ constexpr int barHeight = 180;
 
 juce::Rectangle<int> const bar{ 0, 0, panelWidth, barHeight };
 
+// The sizes config/skins/default.json ships with, and the height the bar
+// asks for at them — not a fixed 180px. Held at a fixed height the global
+// section ran out of room for its grid and the rows collapsed onto each
+// other, which says nothing about the layout and everything about the
+// number in the test.
+constexpr float defaultHeaderSize = 18.f;
+constexpr float defaultBodySize = 14.f;
+constexpr float defaultPotSize = 0.9f;
+
+juce::Rectangle<int>
+grownBar (float headerSize, float bodySize, float potSize)
+{
+  return { 0, 0, panelWidth,
+           clipSettingsPreferredHeight (
+               headerSize, bodySize, knobDiameterForFont (bodySize, potSize)) };
+}
+
 ClipSettingsLayout
 defaultLayout ()
 {
-  return layOutClipSettings (bar, 18.f, 14.f, 1.f);
+  return layOutClipSettings (grownBar (defaultHeaderSize, defaultBodySize,
+                                       defaultPotSize),
+                             defaultHeaderSize, defaultBodySize,
+                             defaultPotSize);
 }
 
 }
@@ -215,8 +235,10 @@ TEST (ClipSettingsLayout, TheActionButtonsDoNotOverlapEachOther)
 {
   auto const l = defaultLayout ();
 
-  std::vector<juce::Rectangle<int>> const row{ l.recModeButton, l.menuButton,
-                                               l.recButton, l.tapButton };
+  std::vector<juce::Rectangle<int>> const row{ l.recModeButton,
+                                               l.clockModeButton,
+                                               l.menuButton, l.recButton,
+                                               l.tapButton };
 
   for (size_t a = 0; a < row.size (); ++a)
     for (size_t b = a + 1; b < row.size (); ++b)
@@ -224,20 +246,26 @@ TEST (ClipSettingsLayout, TheActionButtonsDoNotOverlapEachOther)
           << "buttons " << a << " and " << b << " overlap";
 }
 
-// Four equal buttons two by two under the grid: rec mode, menu, rec, tap.
-TEST (ClipSettingsLayout, TheFourButtonsSitTwoByTwoUnderTheGrid)
+// Five buttons under the grid: the two that carry a value on top, the two
+// that do something under them, TAP across the width at the bottom.
+TEST (ClipSettingsLayout, TheButtonsSitInThreeRowsUnderTheGrid)
 {
   auto const l = defaultLayout ();
 
-  // Two by two: rec mode | menu on top, rec | tap below.
-  EXPECT_EQ (l.recModeButton.getY (), l.menuButton.getY ());
-  EXPECT_EQ (l.recButton.getY (), l.tapButton.getY ());
-  EXPECT_GT (l.recButton.getY (), l.recModeButton.getY ());
+  EXPECT_EQ (l.recModeButton.getY (), l.clockModeButton.getY ());
+  EXPECT_EQ (l.menuButton.getY (), l.recButton.getY ());
 
-  EXPECT_LT (l.recModeButton.getX (), l.menuButton.getX ());
-  EXPECT_LT (l.recButton.getX (), l.tapButton.getX ());
+  EXPECT_GT (l.menuButton.getY (), l.recModeButton.getY ());
+  EXPECT_GT (l.tapButton.getY (), l.menuButton.getY ());
 
-  for (auto const &b : { l.menuButton, l.recButton, l.tapButton })
+  EXPECT_LT (l.recModeButton.getX (), l.clockModeButton.getX ());
+  EXPECT_LT (l.menuButton.getX (), l.recButton.getX ());
+
+  // TAP is the one pressed in time, so it gets the width of two.
+  EXPECT_GT (l.tapButton.getWidth (), l.menuButton.getWidth ());
+
+  for (auto const &b : { l.clockModeButton, l.menuButton, l.recButton,
+                         l.tapButton })
     EXPECT_EQ (b.getHeight (), l.recModeButton.getHeight ());
 
   // Under the grid, not beside it.
@@ -259,16 +287,12 @@ TEST (ClipSettingsLayout, TheActionButtonsStayBigEnoughToHit)
       {
         auto const headerSize = bodySize * 1.3f;
         auto const knobDiam = knobDiameterForFont (bodySize, potSize);
-        juce::Rectangle<int> const grown{
-          0, 0, panelWidth,
-          clipSettingsPreferredHeight (headerSize, bodySize, knobDiam)
-        };
+        auto const l = layOutClipSettings (
+            grownBar (headerSize, bodySize, potSize), headerSize, bodySize,
+            potSize);
 
-        auto const l = layOutClipSettings (grown, headerSize, bodySize,
-                                           potSize);
-
-        for (auto const &b : { l.recModeButton, l.menuButton, l.recButton,
-                         l.tapButton })
+        for (auto const &b : { l.recModeButton, l.clockModeButton, l.menuButton,
+                         l.recButton, l.tapButton })
           {
             // 34 is the floor the layout clamps to; above it the buttons
             // follow knobDiam like every other control in the bar. It was 24,
@@ -335,6 +359,7 @@ TEST (ClipSettingsLayout, TheGridClearsTheActionButtonsAndTheRecMode)
     for (auto const &cell : column)
       {
         EXPECT_TRUE (cell.getIntersection (l.recModeButton).isEmpty ());
+        EXPECT_TRUE (cell.getIntersection (l.clockModeButton).isEmpty ());
         EXPECT_TRUE (cell.getIntersection (l.menuButton).isEmpty ());
         EXPECT_TRUE (cell.getIntersection (l.recButton).isEmpty ());
         EXPECT_TRUE (cell.getIntersection (l.tapButton).isEmpty ());
@@ -349,13 +374,9 @@ TEST (ClipSettingsLayout, GridCellsStayBigEnoughToHit)
       {
         auto const headerSize = bodySize * 1.3f;
         auto const knobDiam = knobDiameterForFont (bodySize, potSize);
-        juce::Rectangle<int> const grown{
-          0, 0, panelWidth,
-          clipSettingsPreferredHeight (headerSize, bodySize, knobDiam)
-        };
-
-        auto const l = layOutClipSettings (grown, headerSize, bodySize,
-                                           potSize);
+        auto const l = layOutClipSettings (
+            grownBar (headerSize, bodySize, potSize), headerSize, bodySize,
+            potSize);
 
         // The invariant that matters: a cell holds the knob it draws. An
         // absolute floor was the wrong test — at the smallest font and pot

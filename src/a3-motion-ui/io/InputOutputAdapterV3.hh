@@ -71,8 +71,9 @@ public:
   void outputButtonLED (Button button, bool value) override;
   void outputPadLED (PadIndex padIndex, juce::Colour colour) override;
 
-  // V3-specific: 4 global hardware potentiometers
-  juce::Value &getGlobalPot (index_t potIndex);
+  // The four physical potentiometers.
+  juce::Value &getGlobalPot (index_t potIndex) override;
+  index_t getNumGlobalPots () const override { return numGlobalPots; }
 
 private:
   // ── Serial ────────────────────────────────────────────────────────────────

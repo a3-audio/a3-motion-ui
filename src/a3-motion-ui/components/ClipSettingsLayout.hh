@@ -131,6 +131,7 @@ struct ClipSettingsLayout
   int buttonHeight = 0;
 
   juce::Rectangle<int> recModeButton;
+  juce::Rectangle<int> clockModeButton;
   juce::Rectangle<int> menuButton;
   juce::Rectangle<int> recButton;
   juce::Rectangle<int> tapButton;

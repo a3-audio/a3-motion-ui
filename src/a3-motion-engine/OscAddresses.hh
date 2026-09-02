@@ -53,8 +53,8 @@ struct OscAddresses
   juce::String iemAzimuth{ "/StereoEncoder/azimuth" };
   juce::String iemElevation{ "/StereoEncoder/elevation" };
 
-  // The beat clock, both directions.
-  juce::String beat{ "/beat" };
+  /** The beat clock going out — sent every beat in INT mode. */
+  juce::String beatOut{ "/beat" };
   juce::String tap{ "/tap" };
   juce::String clockMode{ "/clockmode" };
 
@@ -62,6 +62,13 @@ struct OscAddresses
   // read off what follows it.
   juce::String vuPrefix{ "/vu/" };
   juce::String energyRms{ "/EnergyVisualizer/RMS" };
+  /** The beat clock coming in — followed in EXT and PIO mode.
+   *
+   *  Separate from beatOut, and both default to `/beat`: which one is in
+   *  use follows the clock mode, so the two appear under `out` and `in`
+   *  where a reader looks for them. They have to agree with whatever is at
+   *  the other end; nothing here can check that. */
+  juce::String beatIn{ "/beat" };
 };
 
 /** Whether juce::OSCMessage will accept this as an address.

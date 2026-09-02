@@ -73,6 +73,17 @@ public:
   juce::Value &getEncoderPress (index_t channel, index_t encoderIndex = 0);
   juce::Value &getEncoderIncrement (index_t channel, index_t encoderIndex = 0);
   juce::Value &getPot (index_t channel, index_t pot);
+
+  /** The device's physical potentiometers, one per channel.
+   *
+   *  Not to be confused with getPot() above: those are the *pot-encoder's*
+   *  synthetic values — turning it adjusts the selected one, pushing it
+   *  switches which. These are the knobs on the panel. V3 has four and
+   *  overrides this; anything else has none, and hands back a value that
+   *  never changes so a listener costs nothing. */
+  virtual juce::Value &getGlobalPot (index_t potIndex);
+  virtual index_t getNumGlobalPots () const { return 0; }
+
   juce::Value &getTapTimeMicros ();
 
   void valueChanged (juce::Value &) override;
@@ -277,6 +288,8 @@ private:
 
   std::array<std::array<juce::Value, numPotsPerChannel>, numChannels>
       _valuePots;
+  /** Handed back by getGlobalPot() when the hardware has none. */
+  juce::Value _noGlobalPot;
 
   juce::Value _valueTapTimeMicros;
 

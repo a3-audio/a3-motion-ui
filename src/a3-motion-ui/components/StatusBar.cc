@@ -91,14 +91,25 @@ StatusBar::preferredHeight () const
   return juce::jmax (getMinimumHeight (), static_cast<int> (needed));
 }
 
+juce::Colour
+StatusBar::clockReadoutColour () const
+{
+  // EXT is a warning — the tempo is somebody else's. INT and PIO are the
+  // accent.
+  return _clockMode == 1 ? toColour (theme ().warning)
+                         : toColour (theme ().accent);
+}
+
 void
 StatusBar::applyTheme ()
 {
-  // The clock readouts are accent; the orientation is a quieter aside beside
-  // them. Set here rather than in the constructor: a skin loaded afterwards
-  // has to reach them, and a Label keeps whatever colour it was given.
+  // Set here rather than in the constructor: a skin loaded afterwards has to
+  // reach them, and a Label keeps whatever colour it was given. Through the
+  // one colour, not plain accent — resetting both to accent here is what
+  // left the mode reading green while the BPM beside it went orange on the
+  // next external beat, which only recoloured the BPM.
   for (auto *label : { &_labelBPM, &_labelClockMode })
-    label->setColour (juce::Label::textColourId, toColour (theme ().accent));
+    label->setColour (juce::Label::textColourId, clockReadoutColour ());
 
   refreshFonts ();
 }
@@ -294,10 +305,11 @@ StatusBar::setExternalBPM (float bpm)
     if (safeThis == nullptr) return;
     if (safeThis->_clockMode == 0)
       return;
-    auto colour = safeThis->_clockMode == 2 ? toColour (theme ().accent)
-                                            : toColour (theme ().warning);
+    // Both, not only the BPM: they are one reading in two parts.
+    auto const colour = safeThis->clockReadoutColour ();
     safeThis->_labelBPM.setText (str, juce::dontSendNotification);
     safeThis->_labelBPM.setColour (juce::Label::textColourId, colour);
+    safeThis->_labelClockMode.setColour (juce::Label::textColourId, colour);
   });
 }
 
@@ -333,9 +345,7 @@ StatusBar::setClockMode (int mode)
     auto *self = safeThis.getComponent ();
     if (mode != 0)
       {
-        // EXT (1) = orange, PIO (2) = cyan
-        auto colour = mode == 2 ? toColour (theme ().accent)
-                                            : toColour (theme ().warning);
+        auto colour = self->clockReadoutColour ();
         auto label  = mode == 2 ? "PIO" : "EXT";
         
         self->_labelClockMode.setText (label, juce::dontSendNotification);
@@ -363,8 +373,9 @@ StatusBar::setClockMode (int mode)
     else
       {
         self->_labelClockMode.setText ("INT", juce::dontSendNotification);
-        self->_labelClockMode.setColour (juce::Label::textColourId, toColour (theme ().accent));
-        self->_labelBPM.setColour (juce::Label::textColourId, toColour (theme ().accent));
+        auto const colour = self->clockReadoutColour ();
+        self->_labelClockMode.setColour (juce::Label::textColourId, colour);
+        self->_labelBPM.setColour (juce::Label::textColourId, colour);
         
         // Show internal BPM
         if (self->_valueBPM.getValue ().isDouble ())

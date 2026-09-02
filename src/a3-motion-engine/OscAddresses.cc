@@ -130,7 +130,9 @@ readAll (juce::var const &block, OscAddresses &into)
   readAddress (block, "channelPot3", into.channelPot3);
   readAddress (block, "iemAzimuth", into.iemAzimuth);
   readAddress (block, "iemElevation", into.iemElevation);
-  readAddress (block, "beat", into.beat);
+  readAddress (block, "beat", into.beatOut);
+  readAddress (block, "beatOut", into.beatOut);
+  readAddress (block, "beatIn", into.beatIn);
   readAddress (block, "tap", into.tap);
   readAddress (block, "clockMode", into.clockMode);
   readPrefix (block, "vuPrefix", into.vuPrefix);
@@ -152,9 +154,14 @@ loadOscAddresses (juce::var const &config)
   // Network page shows them under headings, and `beat` is in neither `out`
   // nor `in` because it is both, depending on the clock mode.
   readAll (block, addresses);
+  readAll (block["beatclock"], addresses); // the shape before out/in carried it
   readAll (block["out"], addresses);
   readAll (block["in"], addresses);
-  readAll (block["beatclock"], addresses);
+
+  // `beat` under a group means that group's direction, so the same key can
+  // sit in both and mean the right thing in each.
+  readAddress (block["out"], "beat", addresses.beatOut);
+  readAddress (block["in"], "beat", addresses.beatIn);
 
   return addresses;
 }

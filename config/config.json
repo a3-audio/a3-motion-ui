@@ -19,16 +19,15 @@
       "channelPot2": "/channel/{ch}/pot_2",
       "channelPot3": "/channel/{ch}/pot_3",
       "iemAzimuth": "/StereoEncoder/azimuth",
-      "iemElevation": "/StereoEncoder/elevation"
-    },
-    "in": {
-      "vuPrefix": "/vu/",
-      "energyRms": "/EnergyVisualizer/RMS"
-    },
-    "beatclock": {
+      "iemElevation": "/StereoEncoder/elevation",
       "beat": "/beat",
       "tap": "/tap",
       "clockMode": "/clockmode"
+    },
+    "in": {
+      "vuPrefix": "/vu/",
+      "energyRms": "/EnergyVisualizer/RMS",
+      "beat": "/beat"
     }
   },
   "ui": {

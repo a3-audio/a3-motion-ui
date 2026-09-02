@@ -261,6 +261,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     applyRecMode ((recMenuIndex (_recMode) + 1) % count);
     updateClipSettingsDisplay ();
   };
+  _clipSettings->onClockModePressed = [this] {
+    // The same three the menu offers, in the same order.
+    applyClockMode ((_clockMode + 1) % 3);
+    _clipSettings->setClockMode (_clockMode);
+  };
   _clipSettings->onMenuPressed = [this] { toggleGlobalSettings (); };
   _clipSettings->onRecordPressed = [this] { toggleRecordingOnShownClip (); };
   _clipSettings->onTapPressed = [this] { handleScreenTap (); };
@@ -605,6 +610,13 @@ A3MotionUIComponent::createHardwareInterface ()
       _ioAdapter->getEncoderPress (channel, 1).addListener (this);
     }
 
+  // The panel's four physical potentiometers, one per channel — the third
+  // per-channel value ("3d"). Registered outside the per-channel loop
+  // because they are global on the hardware, not per channel: V3 reads four
+  // of them in one frame.
+  for (index_t pot = 0; pot < _ioAdapter->getNumGlobalPots (); ++pot)
+    _ioAdapter->getGlobalPot (pot).addListener (this);
+
   _ioAdapter->startThread ();
   blankLEDs ();
 #endif
@@ -826,6 +838,23 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     }
   else
     {
+      for (index_t pot = 0; pot < _ioAdapter->getNumGlobalPots (); ++pot)
+        {
+          if (!value.refersToSameSourceAs (_ioAdapter->getGlobalPot (pot)))
+            continue;
+
+          jassert (value.getValue ().isDouble ());
+          auto const normalized = static_cast<float> (value.getValue ());
+
+          // One knob per channel. What Core makes of the value is its
+          // business; here it is a number between 0 and 1.
+          _engine.setChannelPot3 (pot, normalized);
+          updateControlReadout ("CH" + juce::String (pot + 1) + " 3D "
+                                + juce::String (normalized, 2));
+          updateClipSettingsDisplay ();
+          return;
+        }
+
       for (auto channel = 0u; channel < _ioAdapter->getNumChannels ();
            ++channel)
         {
@@ -840,7 +869,8 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                   _ioAdapter->getEncoderIncrement (channel).getValue ());
               if (increment != 0)
                 {
-                  handleChannelValueChange (channel, 0, increment);
+                  handleChannelValueChange (channel, channelRowFreq,
+                                            increment);
                   updateControlReadout (
                       "CH" + juce::String (channel + 1) + " FREQ "
                       + juce::String (_engine.getChannelPot1 (channel), 2));
@@ -854,7 +884,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                   _ioAdapter->getEncoderIncrement (channel, 1).getValue ());
               if (increment != 0)
                 {
-                  handleChannelValueChange (channel, 1, increment);
+                  handleChannelValueChange (channel, channelRowQ, increment);
                   updateControlReadout (
                       "CH" + juce::String (channel + 1) + " Q "
                       + juce::String (_engine.getChannelPot2 (channel), 2));
@@ -873,26 +903,13 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               return;
             }
           else if (value.refersToSameSourceAs (
-                       _ioAdapter->getPot (channel, 0)))
-            {
-              jassert (value.getValue ().isDouble ());
-              auto const potNormalized
-                  = static_cast<float> (value.getValue ());
-
-              // The third per-channel value. What Core makes of it is its
-              // business; here it is a number between 0 and 1.
-              _engine.setChannelPot3 (channel, potNormalized);
-              updateControlReadout ("CH" + juce::String (channel + 1)
-                                    + " 3D "
-                                    + juce::String (potNormalized, 2));
-              updateClipSettingsDisplay ();
-              return;
-            }
-          else if (value.refersToSameSourceAs (
+                       _ioAdapter->getPot (channel, 0))
+                   || value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 1)))
             {
-              // Unassigned. Freq and Q moved to the encoders, and nothing
-              // has taken this pot's place yet.
+              // Not the panel's knobs: these are the pot-encoder's synthetic
+              // values, and that encoder turns Q outright now. The physical
+              // pots are getGlobalPot() — see the listener registration.
               return;
             }
 
@@ -2056,7 +2073,7 @@ A3MotionUIComponent::applyOscAddresses (juce::var const &config)
   // struct this function just replaced.
   {
     std::lock_guard<std::mutex> lock{ _beatAddressMutex };
-    _pendingBeatAddress = _oscAddresses.beat;
+    _pendingBeatAddress = _oscAddresses.beatOut;
   }
   _beatAddressPending.store (true, std::memory_order_release);
 }
@@ -2112,6 +2129,8 @@ A3MotionUIComponent::applyClockMode (int mode)
     _ioAdapter->getButtonLED (Button::ClockMode) = (_clockMode != 0);
 
   _statusBar->setClockMode (_clockMode);
+  if (_clipSettings)
+    _clipSettings->setClockMode (_clockMode);
   _loopLengthDisplay->setClockMode (_clockMode);
 
   auto clockModeMsg = juce::OSCMessage (_oscAddresses.clockMode);

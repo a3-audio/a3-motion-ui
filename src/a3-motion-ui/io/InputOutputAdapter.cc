@@ -100,6 +100,13 @@ InputOutputAdapter::getPot (index_t channel, index_t pot)
 }
 
 juce::Value &
+InputOutputAdapter::getGlobalPot (index_t potIndex)
+{
+  juce::ignoreUnused (potIndex);
+  return _noGlobalPot;
+}
+
+juce::Value &
 InputOutputAdapter::getTapTimeMicros ()
 {
   return _valueTapTimeMicros;

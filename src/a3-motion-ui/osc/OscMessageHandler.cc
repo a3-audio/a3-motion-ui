@@ -83,7 +83,7 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
       return;
     }
 
-  if (address == _addresses.beat && message.size () >= 3)
+  if (address == _addresses.beatIn && message.size () >= 3)
     {
       auto const getIntArg = [] (juce::OSCArgument const &arg) -> int {
         if (arg.isInt32 ())

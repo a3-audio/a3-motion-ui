@@ -38,7 +38,8 @@ TEST (OscAddresses, DefaultsAreWhatTheSystemHasAlwaysUsed)
   EXPECT_EQ (a.channelPot3, "/channel/{ch}/pot_3");
   EXPECT_EQ (a.iemAzimuth, "/StereoEncoder/azimuth");
   EXPECT_EQ (a.iemElevation, "/StereoEncoder/elevation");
-  EXPECT_EQ (a.beat, "/beat");
+  EXPECT_EQ (a.beatOut, "/beat");
+  EXPECT_EQ (a.beatIn, "/beat");
   EXPECT_EQ (a.tap, "/tap");
   EXPECT_EQ (a.clockMode, "/clockmode");
   EXPECT_EQ (a.vuPrefix, "/vu/");
@@ -52,7 +53,8 @@ TEST (OscAddresses, AnEntryOnlyReplacesItsOwn)
   auto const a = loadOscAddresses (config);
 
   EXPECT_EQ (a.tap, "/foot/tap");
-  EXPECT_EQ (a.beat, "/beat");
+  EXPECT_EQ (a.beatOut, "/beat");
+  EXPECT_EQ (a.beatIn, "/beat");
   EXPECT_EQ (a.channelAzimuth, "/channel/{ch}/azimuth");
 }
 
@@ -69,7 +71,8 @@ TEST (OscAddresses, EveryFieldIsActuallyRead)
       "channelPot3":      "/a/{ch}/r",
       "iemAzimuth":       "/b/x",
       "iemElevation":     "/b/y",
-      "beat":             "/c/beat",
+      "beatOut":          "/c/beat",
+      "beatIn":           "/c/in",
       "tap":              "/c/tap",
       "clockMode":        "/c/mode",
       "vuPrefix":         "/d/",
@@ -84,7 +87,8 @@ TEST (OscAddresses, EveryFieldIsActuallyRead)
   EXPECT_NE (a.channelPot3, d.channelPot3);
   EXPECT_NE (a.iemAzimuth, d.iemAzimuth);
   EXPECT_NE (a.iemElevation, d.iemElevation);
-  EXPECT_NE (a.beat, d.beat);
+  EXPECT_NE (a.beatOut, d.beatOut);
+  EXPECT_NE (a.beatIn, d.beatIn);
   EXPECT_NE (a.tap, d.tap);
   EXPECT_NE (a.clockMode, d.clockMode);
   EXPECT_NE (a.vuPrefix, d.vuPrefix);
@@ -141,7 +145,8 @@ TEST (OscAddresses, JuceAcceptsEverySubstitutedDefault)
   for (auto const &pattern : { a.channelAzimuth, a.channelElevation,
                                a.channelPot1, a.channelPot2,
                                a.channelPot3, a.iemAzimuth,
-                               a.iemElevation, a.beat, a.tap, a.clockMode })
+                               a.iemElevation, a.beatOut, a.beatIn, a.tap,
+                               a.clockMode })
     for (int ch = 0; ch < 4; ++ch)
       EXPECT_TRUE (isSendableOscAddress (withChannel (pattern, ch)))
           << pattern;
@@ -188,7 +193,7 @@ TEST (OscAddresses, GroupedBlocksAreRead)
   EXPECT_EQ (a.iemAzimuth, "/o/iem");
   EXPECT_EQ (a.vuPrefix, "/i/");
   EXPECT_EQ (a.energyRms, "/i/rms");
-  EXPECT_EQ (a.beat, "/b/beat");
+  EXPECT_EQ (a.beatOut, "/b/beat");
   EXPECT_EQ (a.tap, "/b/tap");
   EXPECT_EQ (a.clockMode, "/b/mode");
 
@@ -216,4 +221,27 @@ TEST (OscAddresses, AGroupedEntryOverridesAFlatOne)
       "beatclock": { "tap": "/grouped/tap" }}})");
 
   EXPECT_EQ (loadOscAddresses (config).tap, "/grouped/tap");
+}
+
+
+// The beat has one key that means two things, depending on which group it
+// sits in: `out.beat` is what INT mode sends, `in.beat` is what EXT follows.
+// They default to the same address and usually stay that way — but the file
+// can now say so in both places, which is where a reader looks.
+TEST (OscAddresses, BeatIsReadPerDirection)
+{
+  auto const config = juce::JSON::parse (R"({"oscAddresses": {
+      "out": { "beat": "/sent/beat" },
+      "in":  { "beat": "/heard/beat" }}})");
+  auto const a = loadOscAddresses (config);
+
+  EXPECT_EQ (a.beatOut, "/sent/beat");
+  EXPECT_EQ (a.beatIn, "/heard/beat");
+}
+
+TEST (OscAddresses, BothBeatsDefaultToTheSameAddress)
+{
+  auto const a = loadOscAddresses (juce::var{});
+  EXPECT_EQ (a.beatOut, a.beatIn);
+  EXPECT_EQ (a.beatOut, "/beat");
 }

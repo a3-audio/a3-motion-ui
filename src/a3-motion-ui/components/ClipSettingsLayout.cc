@@ -182,10 +182,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const lengthCell
         = juce::Rectangle<int> (
               lengthArea.getWidth (),
-              juce::jmin (lengthArea.getHeight (),
-                          out.buttonHeight
-                              + textRowHeight (lengthArea,
-                                               metrics.captionSize)))
+              juce::jmin (lengthArea.getHeight (), out.buttonHeight))
               .withCentre (lengthArea.getCentre ());
 
     out.controls[0] = { out.trajectoryIcon.getUnion (out.trajectoryName),
@@ -232,14 +229,14 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const mirrorArea = row3;
 
     // By sub-index, not by row: mirror-south is 3 but sits on the first row.
-    // The two buttons take the bar's shared button height; the knobs keep
-    // their own box.
+    // The two buttons take the bar's shared button height and sit at the
+    // bottom of their cell — they are the floor of the section, and centred
+    // they floated above it. The caption lives inside the button now, so no
+    // row is reserved under it.
     auto const buttonCell = [&] (juce::Rectangle<int> cell) {
-      auto const withCaption
-          = out.buttonHeight + textRowHeight (cell, metrics.captionSize);
-      return juce::Rectangle<int> (cell.getWidth (),
-                                   juce::jmin (cell.getHeight (), withCaption))
-          .withCentre (cell.getCentre ());
+      auto const h = juce::jmin (cell.getHeight (), out.buttonHeight);
+      return juce::Rectangle<int> (cell.getX (), cell.getBottom () - h,
+                                   cell.getWidth (), h);
     };
 
     out.controls[1] = {
@@ -287,10 +284,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const endActionArea = bottomRow;
 
     auto const buttonCell = [&] (juce::Rectangle<int> cell) {
-      auto const withCaption
-          = out.buttonHeight + textRowHeight (cell, metrics.captionSize);
-      return juce::Rectangle<int> (cell.getWidth (),
-                                   juce::jmin (cell.getHeight (), withCaption))
+      auto const h = juce::jmin (cell.getHeight (), out.buttonHeight);
+      return juce::Rectangle<int> (cell.getWidth (), h)
           .withCentre (cell.getCentre ());
     };
 
@@ -316,7 +311,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const buttonRowH = out.buttonHeight;
     auto const buttonGap = juce::jmax (2, buttonRowH / 8);
     auto buttons
-        = content.removeFromBottom (2 * buttonRowH + buttonGap);
+        = content.removeFromBottom (3 * buttonRowH + 2 * buttonGap);
     content.removeFromBottom (juce::jmax (2, buttonRowH / 4));
 
     // ── the 4 x 3 grid ────────────────────────────────────────────────
@@ -337,12 +332,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                                           static_cast<int> (
                                               gridKnob * 1.15f))));
 
-      // Centred in what is left between the title and the buttons: capped
-      // rows leave room over, and a block pinned to the top with a gap under
-      // it looks like something fell off the bottom.
+      // Straight under the section's title. Centred, the block drifted down
+      // as the bar grew and left the channel numbers a long way from the
+      // heading that names the section they belong to.
       auto const blockH = labelH + numChannelRows * rowH;
-      content.removeFromTop ((content.getHeight () - blockH) / 2);
-
       auto grid = content.removeFromTop (blockH);
       auto headerRow = grid.removeFromTop (labelH);
 
@@ -395,17 +388,24 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       auto const gapH = juce::jmax (2, buttons.getWidth () / 60);
       auto const buttonW = (buttons.getWidth () - gapH) / 2;
 
+      // The two that carry a value on top — rec mode and clock mode — then
+      // the two that do something, then TAP across the width. TAP is the one
+      // pressed in a hurry and in time, so it gets the widest target.
       auto top = buttons.removeFromTop (buttonRowH);
+      buttons.removeFromTop (buttonGap);
+      auto middle = buttons.removeFromTop (buttonRowH);
       buttons.removeFromTop (buttonGap);
       auto bottom = buttons.removeFromTop (buttonRowH);
 
       out.recModeButton = top.removeFromLeft (buttonW);
       top.removeFromLeft (gapH);
-      out.menuButton = top.removeFromLeft (buttonW);
+      out.clockModeButton = top.removeFromLeft (buttonW);
 
-      out.recButton = bottom.removeFromLeft (buttonW);
-      bottom.removeFromLeft (gapH);
-      out.tapButton = bottom.removeFromLeft (buttonW);
+      out.menuButton = middle.removeFromLeft (buttonW);
+      middle.removeFromLeft (gapH);
+      out.recButton = middle.removeFromLeft (buttonW);
+
+      out.tapButton = bottom;
 
       // The rec mode no longer has a knob-style box of its own; its button
       // is where it lives. controls[3] stays so the encoder-era index does
