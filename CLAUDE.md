@@ -138,8 +138,19 @@ but are permanently hidden (`setVisible(false)`) and no longer given screen spac
 
 Each channel's two rotary encoders have one job each, the same one whatever is on screen:
 **upper = freq, lower = Q** for that channel (`handleChannelValueChange`, writing
-`MotionEngine::setChannelPot1/2`). **Pot 0 = the third per-channel value ("3d",
-`setChannelPot3`)**; **pot 1 is unassigned**. Pressing an encoder does nothing.
+`MotionEngine::setChannelPot1/2`). Pressing an encoder does nothing.
+
+**The panel's four physical potentiometers drive the third per-channel value ("3d",
+`setChannelPot3`), one per channel.** They are `InputOutputAdapter::getGlobalPot(0..3)` — *not*
+`getPot(channel, n)`, which despite the name is the **pot-encoder's synthetic value** (turning it
+adjusts the selected one, pushing it switches which; see the protocol comment at the top of
+`InputOutputAdapterV3.hh`). Wiring 3d to `getPot()` looked right and did nothing, because that
+encoder turns Q outright now and never produces those values any more. `getGlobalPot()` is virtual
+on the base class and returns a value that never changes where the hardware has no pots.
+
+Note also that `handleChannelValueChange` takes a **grid row**, not a pot number: the rows read
+3d, freq, Q from the top (`channelRow*`), so passing a literal 0 for "freq" reaches 3d. That is
+exactly what went wrong when the rows were reordered.
 
 They used to scroll the bar's sections, change the selected row's value, and — on channel 3 —
 navigate the settings menu, the skin editor and the colour picker. **All of that is touch now.**
@@ -280,11 +291,11 @@ Two of the three are not quite the key they stand for:
 
 MENU is exactly the key (`toggleGlobalSettings`), closing one level at a time.
 
-The block is **grouped**: `oscAddresses.out` (what goes to Core and IEM),
-`oscAddresses.in` (VU and energy) and `oscAddresses.beatclock` (`beat`, `tap`,
-`clockMode`). The beat clock is neither in nor out — `beat` is sent in INT mode
-and received in EXT, the same address either way, so it has a group of its own
-rather than being filed under a direction that is only half true.
+The block is **grouped**: `oscAddresses.out` (to Core and IEM, plus `beat`, `tap` and `clockMode`)
+and `oscAddresses.in` (VU, energy, and `beat` again). **`beat` appears in both** and is read into
+two fields, `beatOut` and `beatIn`: INT mode sends the first, EXT and PIO follow the second. They
+default to the same address and usually stay that way — but the file says so in both places, which
+is where a reader looks, and nothing here can check that they still agree with the other end.
 `loadOscAddresses()` reads the flat shape first and lets the groups override it,
 so a `config.json` written before the grouping still works: a file on a device
 does not rewrite itself.
