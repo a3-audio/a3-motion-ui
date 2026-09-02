@@ -126,7 +126,7 @@ the screen split into `MotionComponent` (the sphere) and, docked to the bottom q
 "settings area" — `ClipSettingsComponent` (permanent; three sections describing the last-selected
 clip — Shape, Elevation, Motion — plus a global section taking the bar's right half) with
 `GlobalSettingsComponent`
-(Clockmode, Skin, Skin Editor, Network, Button LEDs, Pattern Folder, Sphere in Menu — opened by
+(Skin, Skin Editor, Network, Button LEDs, Pattern Folder, Sphere in Menu — opened by
 the Menu button; sizes and fonts are skin values, edited in the Skin Editor) drawn on top of it while open. Both settings
 components share that bottom-quarter rect, carved out of `MotionComponent`'s actual bounds rather
 than just overlaid — `MotionComponent` renders via its own directly-attached `OpenGLContext`, which
@@ -197,8 +197,7 @@ rec mode — see `tapAdvancesValue`) also steps it on; a continuous value is dra
 Two consequences worth knowing when changing this code:
 
 - A container that should let its children be touched needs `setInterceptsMouseClicks (false,
-  true)` — false for itself, true for children. `GlobalSettingsComponent` deliberately keeps the
-  dimmed area beside its panel transparent to touch so the sphere behind it stays draggable.
+  true)` — false for itself, true for children.
 - `ClipSettingsComponent` implements `ThemedComponent`: its whole geometry is built from skin
   values, so a skin change is a re-layout there, not merely a repaint.
 
@@ -334,6 +333,27 @@ match what the beat-analyzer sends, the channel addresses what A3 Core listens
 for. A typo does not fail loudly — the app sends correctly to an address
 nobody subscribes to. The reference for what the rest of the system expects is
 `web/a3-doc/src/ressources/osc.md`.
+
+#### The menu's two side strips
+
+The strips left and right of the settings panel are drag zones, not margins — `_browseZone` and
+`_valueZone`. Dragging in the **left** one walks the highlighted row; dragging in the **right** one
+arms that row and changes its value, and letting go applies it. That is the encoder's two levels
+laid out as two *places* rather than as a press that switches between them, which is a state you
+have to remember while a room is waiting.
+
+They cover what used to pass touches through to the sphere. That was deliberate once and is not
+any more: with the menu open there is nothing on the sphere worth grabbing. The panel is narrower
+for them — `globalSettingsSideZoneWidth` reserves a fifth of the width on each side, because a
+32px margin is narrower than a fingertip and cannot be landed on without looking.
+
+The right strip **arms on the first increment** rather than asking for a tap first: dragging there
+already means "change this". A row that leads somewhere (`opensSubmenu`) is skipped, since it has
+no value to turn.
+
+**Clockmode is not in this menu.** It is a button in the clip settings bar, visible and switchable
+without opening anything — a setting in two places is a setting whose location you have to
+remember.
 
 #### Getting out of an overlay
 

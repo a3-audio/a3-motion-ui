@@ -327,7 +327,6 @@ private:
    *  first was read as a different one and the presses did nothing. */
   enum class MenuRow
   {
-    ClockMode,
     Skin,
     SkinEditor,
     Network,

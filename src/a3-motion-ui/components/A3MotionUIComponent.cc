@@ -177,9 +177,28 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     _globalSettings->setValueFieldSelected (true);
   };
 
+  // The strip left of the panel walks the rows; the strip right of it
+  // changes the highlighted one. Two places instead of a press that switches
+  // between two levels — which is what the encoder had to do, and what a
+  // finger should not have to remember.
+  _globalSettings->onBrowseDragged = [this] (int delta) {
+    _globalSettingsValueFieldSelected = false;
+    _globalSettings->setValueFieldSelected (false);
+    _globalSettings->navigateOption (delta > 0 ? 1 : -1);
+    _globalSettingsOptionIndex = _globalSettings->getOptionIndex ();
+  };
+
   _globalSettings->onValueDragged = [this] (int, int increment) {
+    // Arms on the first increment: dragging in the right-hand strip means
+    // "change this", so asking for a tap first would be a step that says
+    // nothing.
     if (!_globalSettingsValueFieldSelected)
-      return;
+      {
+        if (_globalSettings->opensSubmenu (_globalSettingsOptionIndex))
+          return; // a row that leads somewhere has no value to turn
+        _globalSettingsValueFieldSelected = true;
+        _globalSettings->setValueFieldSelected (true);
+      }
 
     _globalSettings->navigateValue (increment > 0 ? 1 : -1);
 
@@ -2035,8 +2054,10 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
     options.push_back (std::move (option));
   };
 
-  add (MenuRow::ClockMode,
-       { "Clockmode", { { "INT" }, { "EXT" }, { "PIO" } }, _clockMode });
+  // Clockmode is not here any more: it is a button in the clip settings bar,
+  // where it is visible and switchable without opening anything. A setting
+  // that lives in two places is a setting you have to remember the location
+  // of.
 
   // Built from what is actually in config/skins, so a skin added on the
   // device shows up without a rebuild.
@@ -2106,7 +2127,6 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
 
   switch (row.value ())
     {
-    case MenuRow::ClockMode: applyClockMode (chosen); break;
     case MenuRow::Skin: applySkin (chosen); break;
     case MenuRow::SkinEditor: openSkinEditor (); break;
     case MenuRow::Network:

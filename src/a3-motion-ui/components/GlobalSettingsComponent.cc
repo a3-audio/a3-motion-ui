@@ -35,10 +35,21 @@ constexpr int paddingV = 24;
 constexpr int paddingH = 32;
 }
 
+int
+globalSettingsSideZoneWidth (juce::Rectangle<int> bounds)
+{
+  // A fifth of the width on each side, and never less than the padding the
+  // panel used to have. These are drag zones, not margins — a finger has to
+  // land in one, and 32px is narrower than a fingertip.
+  return juce::jmax (paddingH, bounds.getWidth () / 5);
+}
+
 juce::Rectangle<int>
 globalSettingsPanelBounds (juce::Rectangle<int> bounds, int numOptions)
 {
-  auto const panelW = juce::jmin (maxPanelW, bounds.getWidth () - 2 * paddingH);
+  auto const panelW
+      = juce::jmin (maxPanelW,
+                    bounds.getWidth () - 2 * globalSettingsSideZoneWidth (bounds));
   auto const panelH
       = paddingV * 2 + numOptions * itemH + (numOptions - 1) * rowGap;
 
@@ -78,6 +89,29 @@ GlobalSettingsComponent::GlobalSettingsComponent ()
   // goes on letting touches through to the sphere, while the panel's rows
   // catch them.
   setInterceptsMouseClicks (false, true);
+
+  // Left of the panel: move through the rows. Dragging down goes down the
+  // list, which is why the increment is inverted — TouchControl counts up as
+  // more, and here "more" is further down the page.
+  _browseZone = std::make_unique<TouchControl> ();
+  _browseZone->onDragIncrement = [this] (int, int, int increment) {
+    if (onBrowseDragged)
+      onBrowseDragged (-increment);
+  };
+  addAndMakeVisible (*_browseZone);
+
+  // Right of the panel: change the highlighted row's value. Up is more, as
+  // everywhere else in this interface.
+  _valueZone = std::make_unique<TouchControl> ();
+  _valueZone->onDragIncrement = [this] (int, int, int increment) {
+    if (onValueDragged)
+      onValueDragged (_optionIndex, increment);
+  };
+  _valueZone->onRelease = [this] (int, int) {
+    if (onValueReleased)
+      onValueReleased (_optionIndex);
+  };
+  addAndMakeVisible (*_valueZone);
 }
 
 void
@@ -142,6 +176,11 @@ GlobalSettingsComponent::resized ()
     return;
 
   auto const panel = globalSettingsPanelBounds (getLocalBounds (), numOptions);
+
+  auto sides = getLocalBounds ();
+  _browseZone->setBounds (sides.removeFromLeft (panel.getX ()));
+  _valueZone->setBounds (sides.removeFromRight (
+      juce::jmax (0, getWidth () - panel.getRight ())));
 
   for (int i = 0; i < numOptions; ++i)
     {

@@ -47,6 +47,9 @@ namespace a3
  *  areas are placed by the same arithmetic that draws them. */
 juce::Rectangle<int> globalSettingsPanelBounds (juce::Rectangle<int> bounds,
                                                 int numOptions);
+/** How wide the drag zones beside the panel are. Wide enough to land a
+ *  finger in without looking. */
+int globalSettingsSideZoneWidth (juce::Rectangle<int> bounds);
 juce::Rectangle<int> globalSettingsRowBounds (juce::Rectangle<int> panel,
                                               int numOptions, int index);
 /** A row's two halves: the name, which browses, and the value field, which
@@ -113,6 +116,9 @@ public:
   std::function<void (int option)> onValueArmed;
   /** The armed row's value field was dragged, by one increment. */
   std::function<void (int option, int increment)> onValueDragged;
+  /** Dragged in the strip left of the panel: move the highlighted row. What
+   *  the channel-3 encoder used to do by turning. */
+  std::function<void (int delta)> onBrowseDragged;
   /** The finger came off after such a drag: apply what it landed on. */
   std::function<void (int option)> onValueReleased;
 
@@ -128,6 +134,14 @@ private:
     std::unique_ptr<TouchControl> value;
   };
   std::vector<RowTouch> _rowTouch;
+
+  /** The two strips beside the panel. Left moves through the rows, right
+   *  changes the highlighted row's value — the encoder's two levels, laid
+   *  out as two places rather than as a press that switches between them.
+   *  They cover what used to pass touches through to the sphere; with the
+   *  menu open there is nothing there worth grabbing. */
+  std::unique_ptr<TouchControl> _browseZone;
+  std::unique_ptr<TouchControl> _valueZone;
 
   void rebuildRowTouch ();
 
