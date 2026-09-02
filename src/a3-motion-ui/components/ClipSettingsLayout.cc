@@ -150,8 +150,12 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // One height for every button in the bar. Worked out before any section is
   // laid out, so Elevation's, Motion's and the global ones cannot drift
   // apart.
+  // Half again over a knob, and never under 34px. At knobDiam the buttons
+  // came out 24 high at the shipped sizes, which is under a fingertip — the
+  // maintainer could not hit TAP reliably.
   out.buttonHeight = juce::jlimit (
-      24, juce::jmax (24, out.clipBounds.getHeight () / 6), metrics.knobDiam);
+      34, juce::jmax (34, out.clipBounds.getHeight () / 5),
+      static_cast<int> (metrics.knobDiam * 1.6f));
 
   for (int i = 0; i < numClipSettingsSections - 1; ++i)
     out.sectionCards[static_cast<size_t> (i)]

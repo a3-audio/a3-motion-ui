@@ -143,6 +143,9 @@ ClipSettingsComponent::createTouchControls ()
   makeButton (_menuTouch, &ClipSettingsComponent::onMenuPressed);
   makeButton (_recTouch, &ClipSettingsComponent::onRecordPressed);
   makeButton (_tapTouch, &ClipSettingsComponent::onTapPressed);
+  // The finger's own tap lights it too, so a press that did land looks
+  // different from one that missed.
+  _tapTouch->onPress = [this] (int, int) { beatPulse (); };
 
   for (int section = 0; section < numParameters; ++section)
     {
@@ -526,7 +529,7 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
 
   paintActionButton (g, _layout.menuButton, "MENU", false);
   paintActionButton (g, _layout.recButton, "REC", _recording);
-  paintActionButton (g, _layout.tapButton, "TAP", false);
+  paintActionButton (g, _layout.tapButton, "TAP", _tapLit);
 }
 
 void
@@ -604,6 +607,25 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
                          juce::Font::plain));
   g.setColour (captionColour (isSelected));
   g.drawFittedText (caption, labelArea, juce::Justification::centred, 1);
+}
+
+void
+ClipSettingsComponent::beatPulse ()
+{
+  _tapLit = true;
+  repaint ();
+
+  // Long enough to see, short enough that the next beat has its own flash
+  // even at a fast tempo.
+  startTimer (90);
+}
+
+void
+ClipSettingsComponent::timerCallback ()
+{
+  stopTimer ();
+  _tapLit = false;
+  repaint ();
 }
 
 void

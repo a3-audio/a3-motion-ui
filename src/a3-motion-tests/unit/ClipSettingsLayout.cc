@@ -270,12 +270,12 @@ TEST (ClipSettingsLayout, TheActionButtonsStayBigEnoughToHit)
         for (auto const &b : { l.recModeButton, l.menuButton, l.recButton,
                          l.tapButton })
           {
-            // 24 is the floor the layout clamps to at the smallest font and
-            // pot setting; above that the buttons follow knobDiam like every
-            // other control in the bar. Not a comfortable target for a
-            // finger — but at that setting nothing on the bar is.
+            // 34 is the floor the layout clamps to; above it the buttons
+            // follow knobDiam like every other control in the bar. It was 24,
+            // which measured fine and missed the point: a fingertip is wider
+            // than that, and TAP was hard to hit.
             EXPECT_GE (b.getWidth (), 40) << "pot " << potSize;
-            EXPECT_GE (b.getHeight (), 24) << "body " << bodySize;
+            EXPECT_GE (b.getHeight (), 34) << "body " << bodySize;
           }
       }
 }

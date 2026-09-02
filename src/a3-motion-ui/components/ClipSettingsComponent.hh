@@ -94,7 +94,8 @@ namespace a3
  * A3MotionUIComponent::resized()), not a fixed pixel height.
  */
 class ClipSettingsComponent : public juce::Component,
-                              public ThemedComponent
+                              public ThemedComponent,
+                              private juce::Timer
 {
 public:
   /** How many sections describe the shown clip. They and the global strip
@@ -222,6 +223,11 @@ public:
 
   /** Whether the Rec button should read as armed. */
   void setRecording (bool recording);
+
+  /** A beat went by. TAP lights up for it — the beat is the one thing on
+   *  this device you cannot see, and a button that only reacts to being
+   *  pressed tells you nothing about whether it landed. */
+  void beatPulse ();
 
   void paint (juce::Graphics &g) override;
   void resized () override;
@@ -399,6 +405,9 @@ private:
   std::unique_ptr<TouchControl> _recTouch;
   std::unique_ptr<TouchControl> _tapTouch;
   bool _recording = false;
+  /** TAP is lit: on the beat, and while a finger is on it. */
+  bool _tapLit = false;
+  void timerCallback () override;
   std::array<std::vector<std::unique_ptr<TouchControl>>, numParameters>
       _controlTouch;
 
