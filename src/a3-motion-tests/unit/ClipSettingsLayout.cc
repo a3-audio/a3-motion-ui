@@ -429,8 +429,8 @@ TEST (ClipSettingsLayout, TheGridGetsItsFullKnobAtShippedSizes)
 }
 
 
-// The take's length is seven buttons on the Shape section's floor, four then
-// three, reading 1/4 .. 16 in order. It used to be a dropdown offering the
+// The take's length is eight buttons on the Shape section's floor, two rows
+// of four, reading 1/4 .. 32 in order. It used to be a dropdown offering the
 // whole range from 1/128 to 16 bars.
 TEST (ClipSettingsLayout, TheLengthButtonsSitInTwoRowsInOrder)
 {
@@ -441,7 +441,7 @@ TEST (ClipSettingsLayout, TheLengthButtonsSitInTwoRowsInOrder)
     EXPECT_TRUE (card.contains (l.lengthButtons[static_cast<size_t> (i)]))
         << "length " << recordLengthNames[i] << " escapes its section";
 
-  // Four on the first row, three on the second.
+  // Four on each row.
   for (int i = 1; i < 4; ++i)
     {
       EXPECT_EQ (l.lengthButtons[static_cast<size_t> (i)].getY (),

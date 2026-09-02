@@ -258,8 +258,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     // A setting for the next take, not a property of what is in the slot:
     // an existing pattern's length is its tick count, and changing that
     // would throw its data away.
+    // The table decides what a length may be, not the speed control's range:
+    // they are different settings that happened to share a constant, and 32
+    // bars is one step past what speed offers.
     _clipUIParams[_clipSettingsChannel][_clipSettingsSlot].recordLengthLog2
-        = std::clamp (recordLengthLog2[index], speedLog2Min, speedLog2Max);
+        = recordLengthLog2[index];
     updateClipSettingsDisplay ();
   };
 
@@ -2767,20 +2770,9 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
   switch (section)
     {
-    case 0: // Trajectory Shape — the shape itself (0), or the length the next
-            // take will have (1)
+    case 0: // Trajectory Shape — the shape in the slot. The length of the
+            // next take has its own buttons; see onRecordLengthChosen.
       {
-        if (sub == 1)
-          {
-            // A setting for the next recording, not a property of what is in
-            // the slot: an existing pattern's length is its tick count, and
-            // changing that would throw its data away.
-            params.recordLengthLog2
-                = std::clamp (params.recordLengthLog2 + increment,
-                              speedLog2Min, speedLog2Max);
-            break;
-          }
-
         auto &pattern = _patterns[channel][slot];
 
         int currentIndex = 0;

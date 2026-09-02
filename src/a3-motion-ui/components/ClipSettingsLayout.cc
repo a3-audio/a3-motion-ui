@@ -171,7 +171,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     out.sectionLabels[0]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
-    // Two rows of length buttons on the section's floor, four then three.
+    // Two rows of four length buttons on the section's floor.
     auto const gap = juce::jmax (2, out.buttonHeight / 8);
     auto buttons = content.removeFromBottom (2 * out.buttonHeight + gap);
     content.removeFromBottom (gap);
