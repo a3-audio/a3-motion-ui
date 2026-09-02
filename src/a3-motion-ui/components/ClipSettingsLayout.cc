@@ -271,11 +271,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         juce::jmin (content.getHeight (), out.buttonHeight));
     content.removeFromBottom (gapV);
 
+    // The knobs sit directly on the buttons rather than centred in what is
+    // left above them: the section then reads bottom-up as one block, and the
+    // room the pictogram-less section has over is all in one place.
     auto const motionRowH
         = juce::jmin (content.getHeight (),
                       controlBoxHeightForFont (bodySize, metrics.knobDiam));
-    content.removeFromTop ((content.getHeight () - motionRowH) / 2);
-    auto topRow = content.removeFromTop (motionRowH);
+    auto topRow = content.removeFromBottom (motionRowH);
 
     // The two values you dial on top, the two you pick from below: speed
     // and fade are continuous-ish, direction and end-action are lists.
