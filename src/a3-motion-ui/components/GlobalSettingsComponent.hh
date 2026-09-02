@@ -122,6 +122,9 @@ public:
   /** The finger came off after such a drag: apply what it landed on. */
   std::function<void (int option)> onValueReleased;
 
+  /** Where the panel sits, so the side strips can be put beside it. */
+  juce::Rectangle<int> panelBounds () const;
+
   void paint (juce::Graphics &g) override;
   void resized () override;
 
@@ -134,14 +137,6 @@ private:
     std::unique_ptr<TouchControl> value;
   };
   std::vector<RowTouch> _rowTouch;
-
-  /** The two strips beside the panel. Left moves through the rows, right
-   *  changes the highlighted row's value — the encoder's two levels, laid
-   *  out as two places rather than as a press that switches between them.
-   *  They cover what used to pass touches through to the sphere; with the
-   *  menu open there is nothing there worth grabbing. */
-  std::unique_ptr<TouchControl> _browseZone;
-  std::unique_ptr<TouchControl> _valueZone;
 
   void rebuildRowTouch ();
 

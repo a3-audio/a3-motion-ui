@@ -334,22 +334,31 @@ for. A typo does not fail loudly — the app sends correctly to an address
 nobody subscribes to. The reference for what the rest of the system expects is
 `web/a3-doc/src/ressources/osc.md`.
 
-#### The menu's two side strips
+#### The overlays' two side strips
 
-The strips left and right of the settings panel are drag zones, not margins — `_browseZone` and
-`_valueZone`. Dragging in the **left** one walks the highlighted row; dragging in the **right** one
-arms that row and changes its value, and letting go applies it. That is the encoder's two levels
-laid out as two *places* rather than as a press that switches between them, which is a state you
-have to remember while a room is waiting.
+The strips left and right of an overlay's panel are drag zones, not margins. Dragging in the
+**left** one walks the highlighted row; dragging in the **right** one arms that row and changes
+its value, and letting go applies it. That is the encoder's two levels laid out as two *places*
+rather than as a press that switches between them, which is a state you have to remember while a
+room is waiting. It matters most where the list is longer than the screen — the skin editor — and
+that is the case a per-page solution would have got wrong.
+
+`OverlaySideStrips` is **one component for all overlays**, a sibling of `OverlayButtons` under
+`MotionComponent`. It owns nothing but the two `TouchControl`s and asks the page it sits around
+for `panelBounds()`; `A3MotionUIComponent::updateOverlayButtons()` hands it the bounds of
+whichever overlay is open and routes `onBrowse`/`onValue`/`onValueReleased` to that page. Adding a
+new overlay means giving it a `panelBounds()` and a branch there, not building strips again — the
+first version did build them per page, and the second one existed only to be deleted.
 
 They cover what used to pass touches through to the sphere. That was deliberate once and is not
-any more: with the menu open there is nothing on the sphere worth grabbing. The panel is narrower
-for them — `globalSettingsSideZoneWidth` reserves a fifth of the width on each side, because a
-32px margin is narrower than a fingertip and cannot be landed on without looking.
+any more: with an overlay open there is nothing on the sphere worth grabbing. The menu panel is
+narrower for them — `globalSettingsSideZoneWidth` reserves a fifth of the width on each side,
+because a 32px margin is narrower than a fingertip and cannot be landed on without looking.
 
 The right strip **arms on the first increment** rather than asking for a tap first: dragging there
 already means "change this". A row that leads somewhere (`opensSubmenu`) is skipped, since it has
-no value to turn.
+no value to turn, and the skin editor latches the row it started on (`_dragRow`) so a list that
+scrolls under a moving finger cannot hand the drag to a different row halfway through.
 
 **Clockmode is not in this menu.** It is a button in the clip settings bar, visible and switchable
 without opening anything — a setting in two places is a setting whose location you have to

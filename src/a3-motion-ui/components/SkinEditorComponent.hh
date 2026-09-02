@@ -186,13 +186,17 @@ public:
    *  one — the app draws no keyboard of its own any more. */
   bool keyPressed (juce::KeyPress const &key) override;
 
+  /** Where the list's panel sits, so the side strips can be put beside it. */
+  juce::Rectangle<int> panelBounds () const { return listPanelBounds (); }
+
   void paint (juce::Graphics &g) override;
   void resized () override;
 
-private:
-  /** The panel, and a row inside it by its slot in the drawn window. One
-   *  calculation for the picture and for the hit areas. */
   juce::Rectangle<int> listPanelBounds () const;
+
+private:
+  /** A row inside the panel by its slot in the drawn window. One calculation
+   *  for the picture and for the hit areas. */
   juce::Rectangle<int> listContentBounds () const;
   juce::Rectangle<int> visibleRowBounds (int slot) const;
   /** A row's two halves. The split follows the value's length, so it needs

@@ -146,6 +146,73 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _overlayButtons->onClose = [this] { closeAllOverlays (); };
   _motionComponent->addChildComponent (*_overlayButtons);
 
+  // The strips beside whatever page is open. One set for all of them: a page
+  // that grows a long list should not have to grow a gesture too.
+  _overlayStrips = std::make_unique<OverlaySideStrips> ();
+  _overlayStrips->setAlwaysOnTop (true);
+
+  _overlayStrips->onBrowse = [this] (int delta) {
+    if (_colourPickerOpen)
+      _colourPicker->navigate (delta);
+    else if (_skinEditorOpen)
+      _skinEditor->browseRow (_skinEditor->browsedRowIndex () + delta);
+    else if (_globalSettingsOpen)
+      {
+        _globalSettingsValueFieldSelected = false;
+        _globalSettings->setValueFieldSelected (false);
+        _globalSettings->navigateOption (delta > 0 ? 1 : -1);
+        _globalSettingsOptionIndex = _globalSettings->getOptionIndex ();
+      }
+  };
+
+  _overlayStrips->onValue = [this] (int delta) {
+    if (_skinEditorOpen)
+      {
+        // Arms on the first increment — dragging here already means "change
+        // this" — but only a row a drag may turn. Arming an action or a
+        // colour row would fire it.
+        if (!_skinEditor->isEditing ())
+          {
+            if (!_skinEditor->canTurnBrowsedRow ())
+              return;
+            _skinEditor->toggleEditing ();
+          }
+        _skinEditor->navigate (delta);
+        return;
+      }
+
+    if (!_globalSettingsOpen)
+      return;
+
+    if (!_globalSettingsValueFieldSelected)
+      {
+        if (_globalSettings->opensSubmenu (_globalSettingsOptionIndex))
+          return; // a row that leads somewhere has no value to turn
+        _globalSettingsValueFieldSelected = true;
+        _globalSettings->setValueFieldSelected (true);
+      }
+
+    _globalSettings->navigateValue (delta > 0 ? 1 : -1);
+
+    // Seeing the skin while choosing it is the point of choosing it here.
+    if (browsedMenuRow () == std::optional<MenuRow>{ MenuRow::Skin })
+      previewSkin (_globalSettings->getSelectedValueIndex ());
+  };
+
+  _overlayStrips->onValueReleased = [this] {
+    if (_skinEditorOpen)
+      {
+        if (_skinEditor->isEditing ())
+          _skinEditor->toggleEditing ();
+        return;
+      }
+
+    if (_globalSettingsOpen && _globalSettingsValueFieldSelected)
+      confirmGlobalSettingsOption ();
+  };
+
+  _motionComponent->addChildComponent (*_overlayStrips);
+
   _globalSettings = std::make_unique<GlobalSettingsComponent> ();
   _globalSettings->setAlwaysOnTop (true);
 
@@ -1062,6 +1129,22 @@ A3MotionUIComponent::updateOverlayButtons ()
   auto const anyOpen
       = _globalSettingsOpen || _skinEditorOpen || _colourPickerOpen;
   _overlayButtons->setVisible (anyOpen);
+
+  // The strips sit beside whichever page is showing, so they follow its
+  // panel rather than a fixed width.
+  if (_overlayStrips)
+    {
+      _overlayStrips->setVisible (anyOpen && !_colourPickerOpen);
+      if (anyOpen && !_colourPickerOpen)
+        {
+          _overlayStrips->setBounds (_motionComponent->getLocalBounds ());
+          _overlayStrips->setPanel (_skinEditorOpen
+                                        ? _skinEditor->panelBounds ()
+                                        : _globalSettings->panelBounds ());
+          _overlayStrips->toFront (false);
+        }
+    }
+
   if (!anyOpen)
     return;
 

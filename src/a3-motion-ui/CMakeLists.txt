@@ -48,6 +48,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/TouchControl.hh
     components/OverlayButtons.cc
     components/OverlayButtons.hh
+    components/OverlaySideStrips.cc
+    components/OverlaySideStrips.hh
     components/ClipSettingsLayout.cc
     components/ClipSettingsLayout.hh
     components/TouchGrabs.cc

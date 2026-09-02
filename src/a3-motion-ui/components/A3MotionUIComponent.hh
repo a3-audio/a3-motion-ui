@@ -39,6 +39,7 @@
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/ColourPickerComponent.hh>
 #include <a3-motion-ui/components/OverlayButtons.hh>
+#include <a3-motion-ui/components/OverlaySideStrips.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
@@ -247,6 +248,7 @@ private:
   // ClipSettingsComponent.
   std::unique_ptr<GlobalSettingsComponent> _globalSettings;
   std::unique_ptr<OverlayButtons> _overlayButtons;
+  std::unique_ptr<OverlaySideStrips> _overlayStrips;
   bool  _globalSettingsOpen        = false;
   bool  _globalSettingsValueFieldSelected = false;
   // 0 = Clockmode, 1 = Pot Size, 2 = Font Size
