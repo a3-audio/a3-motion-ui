@@ -57,6 +57,10 @@ private:
    *  they cannot end up different colours. EXT is a warning: the tempo is
    *  somebody else's. */
   juce::Colour clockReadoutColour () const;
+  /** Composes the one reading — "EXT BPM 123.0" — and colours it. Every
+   *  writer goes through here, so mode and tempo cannot end up saying
+   *  different things or wearing different colours. */
+  void refreshClockReadout ();
 
 public:
 
@@ -123,7 +127,6 @@ private:
   juce::Label _labelBPM;
   juce::Value &_valueBPM;
   
-  juce::Label _labelClockMode;
   std::atomic<float> _externalBPM{ 0.f };
   std::atomic<int> _beatClockBeat{ 0 };
   std::atomic<int> _beatClockBar{ 0 };

@@ -372,3 +372,26 @@ TEST (SkinEditorTouch, TypedNumbersAreNotTurnable)
   ASSERT_TRUE (browseTo (editor, "oscReceiver.port"));
   EXPECT_FALSE (editor.canTurnBrowsedRow ());
 }
+
+
+// Scrolling back to the top has to get past the first group's heading. It
+// did not: browseRow stepped over a heading downwards whatever direction it
+// was going, so a drag upwards onto one was pushed straight back down and
+// the action rows above the first group could not be reached at all.
+TEST (SkinEditorTouch, TheListScrollsBackPastTheFirstHeading)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (shippedSkin (), "default");
+
+  // Somewhere in the middle, then climb one row at a time the way a drag on
+  // the name column does.
+  editor.browseRow (12);
+  ASSERT_EQ (editor.browsedRowIndex (), 12);
+
+  for (int i = 0; i < 32; ++i)
+    editor.browseRow (editor.browsedRowIndex () - 1);
+
+  EXPECT_EQ (editor.browsedRowIndex (), 0)
+      << "stuck at " << editor.browsedRowIndex ();
+  EXPECT_EQ (editor.browsedRow (), SkinEditorComponent::Row::Save);
+}

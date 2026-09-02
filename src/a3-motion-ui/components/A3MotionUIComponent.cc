@@ -513,6 +513,11 @@ A3MotionUIComponent::getPlaybackLength (index_t channel, index_t slot) const
 void
 A3MotionUIComponent::createMainUI ()
 {
+  // Seeded before the bar reads it: the value was only ever written on a tap
+  // or a mode change, so until somebody tapped, the internal reading had no
+  // tempo to show at all.
+  _valueBPM = static_cast<double> (_engine.getTempoBPM ());
+
   _statusBar = std::make_unique<StatusBar> (_valueBPM);
   _statusBar->onKeyboardIconTapped = [this] { toggleKeyboard (); };
   addChildComponent (*_statusBar);
@@ -1024,7 +1029,11 @@ A3MotionUIComponent::toggleGlobalSettings ()
 void
 A3MotionUIComponent::toggleRecordingOnShownClip ()
 {
-  if (_engine.isRecording ())
+  // Asked for, not merely running: startRecording() schedules the take for
+  // the next downbeat, so isRecording() is still false right after it. A
+  // second tap inside that window — up to a whole beat at 60 BPM — started
+  // another take instead of ending the first, and the slot ended up with two.
+  if (_engine.isRecording () || _recordingSlot.has_value ())
     {
       updateControlReadout ("-- REC OFF");
       endRecording ();
@@ -1694,7 +1703,23 @@ A3MotionUIComponent::endRecording ()
 
   auto pattern = _engine.getRecordingPattern ();
   if (!pattern || !_recordingSlot.has_value ())
-    return;
+    {
+      // Nothing has started yet: the take was scheduled and is being called
+      // off before its downbeat. Put the slot back the way it was and clear
+      // the request, or the next press would find one still standing.
+      if (_recordingSlot.has_value ())
+        {
+          auto const channel = _recordingSlot->first;
+          auto const slot = _recordingSlot->second;
+          _patterns[channel][slot] = _patternBeforeRecording;
+          if (_motionComponent)
+            _motionComponent->setRecordingUnderlay (nullptr);
+          _recordingSlot.reset ();
+          _patternBeforeRecording = nullptr;
+          updateClipSettingsDisplay ();
+        }
+      return;
+    }
 
   auto const channel = _recordingSlot->first;
   auto const slot = _recordingSlot->second;

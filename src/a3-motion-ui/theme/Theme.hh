@@ -76,6 +76,10 @@ struct Theme
   ThemeColour accent{ 144, 238, 144 }; // was Colours::lightgreen
   ThemeColour warning{ 255, 165, 0 };
   ThemeColour danger{ 255, 0, 0 };
+  /** A state worth noticing that is neither good news nor bad — the Pioneer
+   *  clock, say. accent was blue in an older skin and is green in this one,
+   *  which is why PIO stopped standing out from INT. */
+  ThemeColour notice{ 70, 130, 250 };
   float alphaDisabled = 0.35f;
   float alphaInactive = 0.6f;
 

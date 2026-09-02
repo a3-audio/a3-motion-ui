@@ -284,6 +284,7 @@ loadTheme (juce::var const &skin)
   colour ("accent", theme.accent);
   colour ("warning", theme.warning);
   colour ("danger", theme.danger);
+  colour ("notice", theme.notice);
 
   colour ("sphereSurface", theme.sphereSurface);
   colour ("sphereRim", theme.sphereRim);

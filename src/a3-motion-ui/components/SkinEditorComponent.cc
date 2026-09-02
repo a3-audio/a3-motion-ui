@@ -55,7 +55,11 @@ SkinEditorComponent::browseRow (int index)
   if (index < 0 || index >= totalRows ())
     return;
 
-  _index = skipHeadings (index, 1);
+  // Step over a heading in the direction the browse was going. Always
+  // stepping down meant a drag upwards that landed on one was pushed back
+  // where it came from — the list could not be scrolled past the first
+  // group, and the action rows above it were unreachable.
+  _index = skipHeadings (index, index < _index ? -1 : 1);
   // Letting the armed row go, exactly as turning to another row does:
   // otherwise the next drag would edit a row nobody is looking at.
   _editing = false;
