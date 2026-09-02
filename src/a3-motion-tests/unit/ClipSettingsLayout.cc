@@ -23,6 +23,8 @@
 
 #include <JuceHeader.h>
 
+#include <cmath>
+
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 
@@ -70,7 +72,7 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_EQ (l.controls[0].size (), 2u); // Shape: pattern, record length
+  EXPECT_EQ (l.controls[0].size (), 1u); // Shape: the pattern in the slot
   EXPECT_EQ (l.controls[1].size (), 6u); // Elevation
   EXPECT_EQ (l.controls[2].size (), 4u); // Motion
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
@@ -208,10 +210,8 @@ TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
   EXPECT_FALSE (tapAdvancesValue (2, 0));
   EXPECT_FALSE (tapAdvancesValue (2, 3));
 
-  // Shape: the pattern library and the record length, both too long to tap
-  // through.
+  // Shape: the pattern library, too long to tap through.
   EXPECT_FALSE (tapAdvancesValue (0, 0));
-  EXPECT_FALSE (tapAdvancesValue (0, 1));
 
   // Global: the rec mode has few states.
   EXPECT_TRUE (tapAdvancesValue (3, 0));
@@ -426,4 +426,76 @@ TEST (ClipSettingsLayout, TheGridGetsItsFullKnobAtShippedSizes)
         EXPECT_GE (cell.getWidth (), gridKnob);
         EXPECT_GE (cell.getHeight (), gridKnob);
       }
+}
+
+
+// The take's length is seven buttons on the Shape section's floor, four then
+// three, reading 1/4 .. 16 in order. It used to be a dropdown offering the
+// whole range from 1/128 to 16 bars.
+TEST (ClipSettingsLayout, TheLengthButtonsSitInTwoRowsInOrder)
+{
+  auto const l = defaultLayout ();
+  auto const card = l.sectionCards[0];
+
+  for (int i = 0; i < numRecordLengths; ++i)
+    EXPECT_TRUE (card.contains (l.lengthButtons[static_cast<size_t> (i)]))
+        << "length " << recordLengthNames[i] << " escapes its section";
+
+  // Four on the first row, three on the second.
+  for (int i = 1; i < 4; ++i)
+    {
+      EXPECT_EQ (l.lengthButtons[static_cast<size_t> (i)].getY (),
+                 l.lengthButtons[0].getY ());
+      EXPECT_GT (l.lengthButtons[static_cast<size_t> (i)].getX (),
+                 l.lengthButtons[static_cast<size_t> (i - 1)].getX ());
+    }
+  for (int i = 5; i < numRecordLengths; ++i)
+    {
+      EXPECT_EQ (l.lengthButtons[static_cast<size_t> (i)].getY (),
+                 l.lengthButtons[4].getY ());
+      EXPECT_GT (l.lengthButtons[static_cast<size_t> (i)].getX (),
+                 l.lengthButtons[static_cast<size_t> (i - 1)].getX ());
+    }
+  EXPECT_GT (l.lengthButtons[4].getY (), l.lengthButtons[0].getY ());
+}
+
+TEST (ClipSettingsLayout, NoTwoLengthButtonsOverlap)
+{
+  auto const l = defaultLayout ();
+
+  for (size_t a = 0; a < numRecordLengths; ++a)
+    for (size_t b = a + 1; b < numRecordLengths; ++b)
+      EXPECT_TRUE (l.lengthButtons[a]
+                       .getIntersection (l.lengthButtons[b])
+                       .isEmpty ())
+          << "lengths " << recordLengthNames[a] << " and "
+          << recordLengthNames[b] << " overlap";
+}
+
+// The pictogram keeps the room above them, and they do not run into it.
+TEST (ClipSettingsLayout, TheLengthButtonsClearThePictogram)
+{
+  auto const l = defaultLayout ();
+
+  for (auto const &b : l.lengthButtons)
+    {
+      EXPECT_TRUE (b.getIntersection (l.trajectoryIcon).isEmpty ());
+      EXPECT_GE (b.getY (), l.trajectoryIcon.getBottom ());
+    }
+}
+
+// The wording and the powers of two have to agree: the button says what the
+// take will be, and log2 is what the setting holds.
+TEST (ClipSettingsLayout, TheLengthNamesMatchTheirPowersOfTwo)
+{
+  for (int i = 0; i < numRecordLengths; ++i)
+    {
+      auto const log2 = recordLengthLog2[i];
+      auto const expected
+          = log2 >= 0 ? juce::String (static_cast<int> (std::exp2 (log2)))
+                      : "1/" + juce::String (
+                            static_cast<int> (std::exp2 (-log2)));
+
+      EXPECT_EQ (juce::String (recordLengthNames[i]), expected);
+    }
 }

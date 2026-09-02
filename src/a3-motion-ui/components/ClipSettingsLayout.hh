@@ -55,6 +55,15 @@ constexpr int numChannelColumns = numChannelsInitial;
 
 /** ... and three rows. The order they are read in, top to bottom. */
 constexpr int numChannelRows = 3;
+
+/** The lengths a take can be given, as powers of two of a bar, and how they
+ *  are worded. Seven buttons rather than a list: the whole range from 1/128
+ *  to 16 bars was a dropdown nobody wanted to scroll, and these are the ones
+ *  anybody reaches for. */
+constexpr int numRecordLengths = 7;
+constexpr int recordLengthLog2[numRecordLengths] = { -2, -1, 0, 1, 2, 3, 4 };
+constexpr char const *recordLengthNames[numRecordLengths]
+    = { "1/4", "1/2", "1", "2", "4", "8", "16" };
 constexpr int channelRowThreeD = 0;
 constexpr int channelRowFreq = 1;
 constexpr int channelRowQ = 2;
@@ -112,6 +121,8 @@ struct ClipSettingsLayout
   /** The Shape section's pictogram and the name under it. */
   juce::Rectangle<int> trajectoryIcon;
   juce::Rectangle<int> trajectoryName;
+  /** The length buttons under the pictogram, in recordLengthLog2 order. */
+  std::array<juce::Rectangle<int>, numRecordLengths> lengthButtons;
   /** The bar's own header row: "Slot N" left, the readout right. */
   juce::Rectangle<int> slotLabel;
   juce::Rectangle<int> readout;

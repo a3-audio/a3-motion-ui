@@ -147,6 +147,18 @@ ClipSettingsComponent::createTouchControls ()
       _dropdownTouch.push_back (std::move (entry));
     }
 
+  for (int i = 0; i < numRecordLengths; ++i)
+    {
+      auto button = std::make_unique<TouchControl> ();
+      button->setIdentity (i);
+      button->onTap = [this] (int index, int) {
+        if (onRecordLengthChosen)
+          onRecordLengthChosen (index);
+      };
+      addAndMakeVisible (*button);
+      _lengthTouch[static_cast<size_t> (i)] = std::move (button);
+    }
+
   makeButton (_recModeTouch, &ClipSettingsComponent::onRecModePressed);
   makeButton (_clockModeTouch, &ClipSettingsComponent::onClockModePressed);
   makeButton (_menuTouch, &ClipSettingsComponent::onMenuPressed);
@@ -240,6 +252,10 @@ ClipSettingsComponent::resized ()
           _dropdownTouch[i]->setBounds (_dropdownEntries[i]);
         }
     }
+
+  for (int i = 0; i < numRecordLengths; ++i)
+    _lengthTouch[static_cast<size_t> (i)]->setBounds (
+        _layout.lengthButtons[static_cast<size_t> (i)]);
 
   _recModeTouch->setBounds (_layout.recModeButton);
   _clockModeTouch->setBounds (_layout.clockModeButton);
@@ -380,12 +396,6 @@ ClipSettingsComponent::setRecordLength (juce::String const &label)
   repaint ();
 }
 
-void
-ClipSettingsComponent::setRecordLengthValues (juce::StringArray values)
-{
-  _recordLengthValues = std::move (values);
-  repaint ();
-}
 
 void
 ClipSettingsComponent::setTrajectorySubIndex (int subIndex)
@@ -536,10 +546,14 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   static char const *clockNames[] = { "INT", "EXT", "PIO" };
   auto const clock = juce::jlimit (0, 2, _clockMode);
 
+  // Neither lights up. They carry a value, and the value is written on them —
+  // a wash that comes and goes says the same thing a second time, in grey,
+  // and reads as a button that is somehow half-pressed. REC and TAP still
+  // light, because what they show is momentary and has no label of its own.
   paintBarButton (g, _layout.recModeButton, recModeName (_recMode), "recmode",
-                  _recMode != RecMode::Touch, false);
+                  false, false);
   paintBarButton (g, _layout.clockModeButton, clockNames[clock], "clock",
-                  clock != 0, false);
+                  false, false);
 
   paintActionButton (g, _layout.menuButton, "MENU", false);
   paintActionButton (g, _layout.recButton, "REC", _recording);
@@ -764,9 +778,11 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
 
   // The length the next take will have. Not what is in the slot — that is what
   // the pictogram above shows.
-  paintBarButton (g, _layout.controls[trajectoryIndex][1], _recordLengthLabel,
-                  caption::recordLength,
-                  _trajectorySubIndex == 1 && isSelected, isSelected, true);
+  // Seven lengths, each its own button. The one in force reads as active.
+  for (int i = 0; i < numRecordLengths; ++i)
+    paintBarButton (g, _layout.lengthButtons[static_cast<size_t> (i)],
+                    recordLengthNames[i], {},
+                    _recordLengthLabel == recordLengthNames[i], isSelected);
 
   // Pictogram, centred in whatever square area is left above the name.
   auto const iconSize = static_cast<float> (
@@ -1108,8 +1124,6 @@ ClipSettingsComponent::opensList (int section, int sub)
 {
   if (section == motionIndex)
     return sub == 1 || sub == 2; // direction, end-action
-  if (section == trajectoryIndex)
-    return sub == 1; // the length of the next take
   return false;
 }
 
@@ -1122,18 +1136,12 @@ ClipSettingsComponent::dropdownValues (int section, int sub) const
     return { value::endActionNames[0], value::endActionNames[1],
              value::endActionNames[2], value::endActionNames[3] };
 
-  if (section == trajectoryIndex && sub == 1)
-    return _recordLengthValues;
-
   return {};
 }
 
 int
 ClipSettingsComponent::dropdownCurrentIndex (int section, int sub) const
 {
-  if (section == trajectoryIndex)
-    return _recordLengthValues.indexOf (_recordLengthLabel);
-
   return sub == 1 ? _motionDirection : _motionEndAction;
 }
 

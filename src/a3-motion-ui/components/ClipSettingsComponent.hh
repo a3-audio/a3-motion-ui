@@ -176,10 +176,6 @@ public:
   /** The length the next take will have, already worded ("2", "1/4"), and
    *  which of the shape section's two elements is armed. */
   void setRecordLength (juce::String const &label);
-  /** Every length the next take can have, worded as setRecordLength words
-   *  the current one. Supplied once: it is a fixed range, and the list has
-   *  to know all of it to offer it. */
-  void setRecordLengthValues (juce::StringArray values);
   void setTrajectorySubIndex (int subIndex);
 
 
@@ -217,6 +213,9 @@ public:
    *  has its own keys for — this is the way to them with a finger. */
   /** The rec mode steps on — what its encoder used to do. */
   std::function<void ()> onRecModePressed;
+  /** One of the seven length buttons was pressed, by its index in
+   *  recordLengthLog2. */
+  std::function<void (int index)> onRecordLengthChosen;
   /** The clock mode steps on: INT, EXT, PIO. */
   std::function<void ()> onClockModePressed;
   std::function<void ()> onMenuPressed;
@@ -361,7 +360,6 @@ private:
   int _motionFade = 0;
   int _trajectorySubIndex = 0;
   juce::String _recordLengthLabel { "1" };
-  juce::StringArray _recordLengthValues;
   std::array<float, numChannelColumns> _channelFreq{};
   std::array<float, numChannelColumns> _channelQ{};
   std::array<float, numChannelColumns> _channelThreeD{};
@@ -405,6 +403,7 @@ private:
   std::array<std::array<std::unique_ptr<TouchControl>, numChannelRows>,
              numChannelColumns>
       _gridTouch;
+  std::array<std::unique_ptr<TouchControl>, numRecordLengths> _lengthTouch;
   std::unique_ptr<TouchControl> _recModeTouch;
   std::unique_ptr<TouchControl> _clockModeTouch;
   std::unique_ptr<TouchControl> _menuTouch;

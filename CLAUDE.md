@@ -251,13 +251,23 @@ like `potSize`, so it is dialled in the Skin Editor rather than compiled in. Not
 is a *layout* change and A3MotionUIComponent is what hands the bar its bounds — that is why its
 `applyTheme()` ends in `resized()`. Telling the bar alone changes nothing.
 
+**The take's length is seven buttons**, not a list: `recordLengthLog2` /
+`recordLengthNames` in `ClipSettingsLayout.hh` hold 1/4 .. 16 bars, laid out four then three on the
+Shape section's floor. It was a dropdown over the whole `speedLog2Min..Max` range — twelve entries
+nobody wanted to scroll past. The one in force reads as active.
+
+The rec mode and clock buttons in the global section deliberately **never light**. They carry a
+value and the value is written on them; a wash that comes and goes says the same thing again, in
+grey, and reads as a button stuck half-pressed. REC and TAP still light, because what they show is
+momentary and has no label of its own.
+
 The bar has one button face, `paintBarButton` — a wash and a thin edge, never a filled slab, so a
 button reads as part of the bar rather than pasted on it. Elevation's pole and flat use it, so do
 Motion's two lists and the global section's four. Only an active one carries colour; the global
 four pass `isSelected = false` because they belong to no channel and must not wear the shown clip's
 colour.
 
-**Direction, end-action and the record length are lists, not values you nudge** — see `opensList`.
+**Direction and end-action are lists, not values you nudge** — see `opensList`.
 Their buttons carry a small chevron so a list announces itself. A tap opens it *inside its own
 section*, over that section's controls — it cannot open anywhere else, because MotionComponent's GL
 context composites above anything drawn over it, so a popup outside the bar would be invisible. The

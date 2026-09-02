@@ -56,7 +56,7 @@ numControlsInSection (int sectionIndex)
   switch (sectionIndex)
     {
     case 0:
-      return 2; // the shape itself, and the length of the next take
+      return 1; // the shape in the slot; the lengths are buttons of their own
     case 1:
       return 6; // reach, clip-top, clip-bottom, mirror-south, flat, flat-elev
     case 2:
@@ -171,8 +171,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     out.sectionLabels[0]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
-    auto const lengthArea = content.removeFromBottom (
-        2 * textRowHeight (content, metrics.valueSize));
+    // Two rows of length buttons on the section's floor, four then three.
+    auto const gap = juce::jmax (2, out.buttonHeight / 8);
+    auto buttons = content.removeFromBottom (2 * out.buttonHeight + gap);
+    content.removeFromBottom (gap);
 
     // The name sits *in* the pictogram, centred, rather than on a strip
     // beneath it. On its own row it ended up pressed against the button
@@ -180,15 +182,27 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     out.trajectoryIcon = content;
     out.trajectoryName = content;
 
-    // Sub 0 is the pattern in the slot: the pictogram and the name in it are
-    // one target.
-    auto const lengthCell
-        = juce::Rectangle<int> (
-              lengthArea.getWidth (),
-              juce::jmin (lengthArea.getHeight (), out.buttonHeight))
-              .withCentre (lengthArea.getCentre ());
+    {
+      auto const perRow = 4;
+      auto const colGap = juce::jmax (2, buttons.getWidth () / 60);
+      auto const colW = (buttons.getWidth () - (perRow - 1) * colGap) / perRow;
 
-    out.controls[0] = { out.trajectoryIcon, lengthCell };
+      auto top = buttons.removeFromTop (out.buttonHeight);
+      buttons.removeFromTop (gap);
+      auto bottom = buttons;
+
+      for (int i = 0; i < numRecordLengths; ++i)
+        {
+          auto &row = i < perRow ? top : bottom;
+          out.lengthButtons[static_cast<size_t> (i)]
+              = row.removeFromLeft (colW);
+          row.removeFromLeft (colGap);
+        }
+    }
+
+    // Only the pictogram is a control of the clip's; the lengths are a
+    // setting for the next take and have their own buttons.
+    out.controls[0] = { out.trajectoryIcon };
   }
 
   // ── Elevation ────────────────────────────────────────────────────────

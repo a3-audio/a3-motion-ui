@@ -251,18 +251,17 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                                     increment);
         };
 
-  // Every length the take can have, in the same words the current one gets.
-  // A fixed range, so it is handed over once.
-  {
-    juce::StringArray lengths;
-    for (int log2 = speedLog2Min; log2 <= speedLog2Max; ++log2)
-      lengths.add (log2 >= 0
-                       ? juce::String (static_cast<int> (std::exp2 (log2)))
-                       : "1/"
-                             + juce::String (
-                                 static_cast<int> (std::exp2 (-log2))));
-    _clipSettings->setRecordLengthValues (std::move (lengths));
-  }
+  _clipSettings->onRecordLengthChosen = [this] (int index) {
+    if (index < 0 || index >= numRecordLengths)
+      return;
+
+    // A setting for the next take, not a property of what is in the slot:
+    // an existing pattern's length is its tick count, and changing that
+    // would throw its data away.
+    _clipUIParams[_clipSettingsChannel][_clipSettingsSlot].recordLengthLog2
+        = std::clamp (recordLengthLog2[index], speedLog2Min, speedLog2Max);
+    updateClipSettingsDisplay ();
+  };
 
   _clipSettings->onRecModePressed = [this] {
     auto const count = static_cast<int> (recMenuModes.size ());
