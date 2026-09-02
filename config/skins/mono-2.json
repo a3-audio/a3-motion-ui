@@ -1,0 +1,168 @@
+{
+  "blob": {
+    "vuMax": 0.28,
+    "sizeMin": 0.95,
+    "sizeMax": 1.98,
+    "sizeGrabbed": 1.2,
+    "alphaMin": 0.0,
+    "alphaMax": 0.75,
+    "whiteBlend": 0.9,
+    "attack": 0.01,
+    "decay": 0.25,
+    "scale": 0.06
+  },
+  "background": {
+    "r": 60,
+    "g": 20,
+    "b": 20
+  },
+  "speakerLight": {
+    "vuMax": 0.18,
+    "r": 255,
+    "g": 40,
+    "b": 40,
+    "curve": 1.2,
+    "speakerRadius": 1.4,
+    "beamIntensity": 7.95,
+    "attack": 0.08,
+    "decay": 0.23,
+    "edgeSoftness": 0.7,
+    "apertureAngle": 5,
+    "wrapAngle": 65,
+    "wander": 14,
+    "wanderTwist": 4,
+    "wanderScale": 4,
+    "wanderFlow": 0.07,
+    "root": 0.32,
+    "levelFloor": 0.22,
+    "bleed": 0.22,
+    "fray": 0.72,
+    "cover": 1.44,
+    "boltWidth": 0.45,
+    "boltWander": 0.5,
+    "boltScale": 6,
+    "boltFlow": 0.45,
+    "boltRate": 1.4,
+    "boltDuty": 0.27,
+    "boltCoreExp": 4,
+    "boltCore": 1.6,
+    "boltCount": 7,
+    "boltReach": 2.16,
+    "boltEscape": 0.55,
+    "boltBranches": 1,
+    "boltBranch": 1.6
+  },
+  "energy": {
+    "vuMax": 0.05,
+    "curve": 0.88,
+    "attack": 0.05,
+    "decay": 0.25,
+    "r": 255,
+    "g": 40,
+    "b": 40,
+    "intensity": 0.32,
+    "netIntensity": 2.34,
+    "netScale": 9,
+    "netSharpness": 5,
+    "netFlow": 0.16,
+    "netBeamIntensity": 2.5,
+    "netTwist": 9,
+    "netOctaves": 2,
+    "netLacunarity": 2.0,
+    "netGain": 0.5
+  },
+  "channels": [
+    {
+      "r": 216,
+      "g": 17,
+      "b": 89
+    },
+    {
+      "r": 69,
+      "g": 78,
+      "b": 158
+    },
+    {
+      "r": 247,
+      "g": 208,
+      "b": 2
+    },
+    {
+      "r": 33,
+      "g": 131,
+      "b": 128
+    }
+  ],
+  "recordingUnderlay": {
+    "opacity": 0.25,
+    "blobScale": 0.5,
+    "lineThickness": 0.02
+  },
+  "sphereScale": 0.83,
+  "surface": {
+    "r": 0,
+    "g": 0,
+    "b": 0
+  },
+  "surfaceRaised": {
+    "r": 74,
+    "g": 30,
+    "b": 30
+  },
+  "textPrimary": {
+    "r": 235,
+    "g": 235,
+    "b": 235
+  },
+  "textMuted": {
+    "r": 160,
+    "g": 160,
+    "b": 160
+  },
+  "textOnAccent": {
+    "r": 0,
+    "g": 0,
+    "b": 0
+  },
+  "accent": {
+    "r": 220,
+    "g": 70,
+    "b": 70
+  },
+  "warning": {
+    "r": 150,
+    "g": 150,
+    "b": 150
+  },
+  "danger": {
+    "r": 220,
+    "g": 70,
+    "b": 70
+  },
+  "notice": { "r": 70, "g": 130, "b": 250 },
+  "sphereSurface": {
+    "r": 12,
+    "g": 12,
+    "b": 12
+  },
+  "sphereRim": {
+    "r": 150,
+    "g": 150,
+    "b": 150
+  },
+  "sphereEnvironment": {
+    "r": 6,
+    "g": 6,
+    "b": 6
+  },
+  "boltCore": {
+    "r": 255,
+    "g": 255,
+    "b": 255
+  },
+  "fontHeader": 16.199999999999999,
+  "fontBody": 15.0,
+  "clipSettingsHeightScale": 1.0,
+  "potSize": 1.0,
+  "touchDragPixelsPerStep": 12
+}
