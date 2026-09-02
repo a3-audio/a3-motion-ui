@@ -12,18 +12,24 @@
     "energyPort": 7777
   },
   "oscAddresses": {
-    "channelAzimuth": "/channel/{ch}/azimuth",
-    "channelElevation": "/channel/{ch}/elevation",
-    "channelPot1": "/channel/{ch}/pot_1",
-    "channelPot2": "/channel/{ch}/pot_2",
-    "channelPot3": "/channel/{ch}/pot_3",
-    "iemAzimuth": "/StereoEncoder/azimuth",
-    "iemElevation": "/StereoEncoder/elevation",
-    "beat": "/beat",
-    "tap": "/tap",
-    "clockMode": "/clockmode",
-    "vuPrefix": "/vu/",
-    "energyRms": "/EnergyVisualizer/RMS"
+    "out": {
+      "channelAzimuth": "/channel/{ch}/azimuth",
+      "channelElevation": "/channel/{ch}/elevation",
+      "channelPot1": "/channel/{ch}/pot_1",
+      "channelPot2": "/channel/{ch}/pot_2",
+      "channelPot3": "/channel/{ch}/pot_3",
+      "iemAzimuth": "/StereoEncoder/azimuth",
+      "iemElevation": "/StereoEncoder/elevation"
+    },
+    "in": {
+      "vuPrefix": "/vu/",
+      "energyRms": "/EnergyVisualizer/RMS"
+    },
+    "beatclock": {
+      "beat": "/beat",
+      "tap": "/tap",
+      "clockMode": "/clockmode"
+    }
   },
   "ui": {
     "pauseRenderingInMenu": false,

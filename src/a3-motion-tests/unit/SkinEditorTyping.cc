@@ -225,11 +225,41 @@ TEST (SkinEditorTouch, TappingARowBrowsesIt)
   editor.setDocument (networkSlice (), "Network", false,
                       SkinEditorComponent::Numbers::Typed);
 
+  // Row 0 is the "oscReceiver" heading; its two parameters follow.
+  editor.browseRow (2);
+  EXPECT_EQ (editor.browsedRowIndex (), 2);
+
   editor.browseRow (1);
   EXPECT_EQ (editor.browsedRowIndex (), 1);
+}
+
+// A heading names a group and holds nothing, so browsing to one lands on the
+// row after it rather than sitting on a label.
+TEST (SkinEditorTouch, BrowsingAHeadingStepsOverIt)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
 
   editor.browseRow (0);
-  EXPECT_EQ (editor.browsedRowIndex (), 0);
+  EXPECT_EQ (editor.browsedRowIndex (), 1);
+  EXPECT_EQ (editor.browsedPath (), "oscReceiver.host");
+}
+
+// Turning steps over one too, in whichever direction it is going.
+TEST (SkinEditorTouch, TurningStepsOverAHeading)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (juce::JSON::parse (R"({"a": {"x": 1}, "b": {"y": 2}})"),
+                  "probe");
+
+  ASSERT_TRUE (browseTo (editor, "a.x"));
+
+  editor.navigate (1); // over b's heading, onto b.y
+  EXPECT_EQ (editor.browsedPath (), "b.y");
+
+  editor.navigate (-1); // back over it, onto a.x
+  EXPECT_EQ (editor.browsedPath (), "a.x");
 }
 
 TEST (SkinEditorTouch, BrowsingOutsideTheListIsIgnored)
@@ -238,13 +268,13 @@ TEST (SkinEditorTouch, BrowsingOutsideTheListIsIgnored)
   editor.setDocument (networkSlice (), "Network", false,
                       SkinEditorComponent::Numbers::Typed);
 
-  editor.browseRow (0);
+  editor.browseRow (1);
 
   editor.browseRow (-1);
-  EXPECT_EQ (editor.browsedRowIndex (), 0);
+  EXPECT_EQ (editor.browsedRowIndex (), 1);
 
   editor.browseRow (1000000);
-  EXPECT_EQ (editor.browsedRowIndex (), 0);
+  EXPECT_EQ (editor.browsedRowIndex (), 1);
 }
 
 // Browsing lets an armed row go, the same way turning to another row does —
@@ -255,11 +285,11 @@ TEST (SkinEditorTouch, BrowsingAnotherRowDisarmsTheOldOne)
   editor.setDocument (networkSlice (), "Network", false,
                       SkinEditorComponent::Numbers::Turned);
 
-  editor.browseRow (1);
+  editor.browseRow (2);
   editor.toggleEditing ();
   ASSERT_TRUE (editor.isEditing ());
 
-  editor.browseRow (0);
+  editor.browseRow (1);
   EXPECT_FALSE (editor.isEditing ());
 }
 

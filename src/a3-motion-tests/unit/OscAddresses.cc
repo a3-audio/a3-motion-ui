@@ -170,3 +170,50 @@ TEST (OscAddresses, TheThirdPotDoesNotCollideWithCoresThreeDeeToggle)
   EXPECT_FALSE (withChannel (a.channelPot3, 0).endsWith ("/3d"));
   EXPECT_TRUE (withChannel (a.channelPot3, 2).endsWith ("/pot_3"));
 }
+
+
+// The addresses are grouped in the file so the Network page can show them
+// under headings: what goes out, what comes in, and the beat clock — which
+// is neither, because `beat` is sent in INT mode and received in EXT.
+TEST (OscAddresses, GroupedBlocksAreRead)
+{
+  auto const config = juce::JSON::parse (R"({"oscAddresses": {
+      "out": { "channelAzimuth": "/o/{ch}/az", "iemAzimuth": "/o/iem" },
+      "in":  { "vuPrefix": "/i/", "energyRms": "/i/rms" },
+      "beatclock": { "beat": "/b/beat", "tap": "/b/tap",
+                     "clockMode": "/b/mode" }}})");
+  auto const a = loadOscAddresses (config);
+
+  EXPECT_EQ (a.channelAzimuth, "/o/{ch}/az");
+  EXPECT_EQ (a.iemAzimuth, "/o/iem");
+  EXPECT_EQ (a.vuPrefix, "/i/");
+  EXPECT_EQ (a.energyRms, "/i/rms");
+  EXPECT_EQ (a.beat, "/b/beat");
+  EXPECT_EQ (a.tap, "/b/tap");
+  EXPECT_EQ (a.clockMode, "/b/mode");
+
+  // Untouched keys keep their defaults.
+  EXPECT_EQ (a.channelPot1, "/channel/{ch}/pot_1");
+}
+
+// A config written before the grouping still works — the block was flat when
+// it first shipped, and a file on a device does not rewrite itself.
+TEST (OscAddresses, AFlatBlockIsStillRead)
+{
+  auto const config = juce::JSON::parse (
+      R"({"oscAddresses": {"tap": "/flat/tap", "vuPrefix": "/flat/"}})");
+  auto const a = loadOscAddresses (config);
+
+  EXPECT_EQ (a.tap, "/flat/tap");
+  EXPECT_EQ (a.vuPrefix, "/flat/");
+}
+
+// Grouped wins: if both are present the newer shape is the one meant.
+TEST (OscAddresses, AGroupedEntryOverridesAFlatOne)
+{
+  auto const config = juce::JSON::parse (R"({"oscAddresses": {
+      "tap": "/flat/tap",
+      "beatclock": { "tap": "/grouped/tap" }}})");
+
+  EXPECT_EQ (loadOscAddresses (config).tap, "/grouped/tap");
+}

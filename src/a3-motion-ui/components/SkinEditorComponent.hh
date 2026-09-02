@@ -105,6 +105,9 @@ public:
      *  skin's own name. The way out of a skin dialled into a corner. */
     Reset,
     Parameter,
+    /** A group's name, drawn between its rows and the ones before it. Not
+     *  something you can browse to — turning and tapping step over it. */
+    Heading,
   };
 
   /** Turn the encoder: browse the list, or change what the armed row holds. */
@@ -230,6 +233,29 @@ private:
   int _actionRows = 3;
 
   int totalRows () const;
+
+  /** What the list shows, in the order it shows it: the action rows, then
+   *  the parameters with a heading wherever their group changes.
+   *
+   *  The list used to be the actions followed by _parameters, addressed by
+   *  subtracting _actionRows. Headings sit between them and belong to
+   *  neither, so the offset stopped being enough. */
+  struct DisplayRow
+  {
+    Row kind;
+    /** Into _parameters, for Row::Parameter. -1 otherwise. */
+    int parameter = -1;
+    /** The group's name, for Row::Heading. */
+    juce::String heading;
+  };
+  std::vector<DisplayRow> _rows;
+  void rebuildRows ();
+
+  /** The browsed row's parameter, or nullptr on an action or a heading. */
+  SkinParameter const *browsedParameter () const;
+  /** The nearest browsable row at or after `index`, stepping over headings.
+   *  `delta` says which way to step when `index` lands on one. */
+  int skipHeadings (int index, int delta) const;
   juce::String rowLabel (int index) const;
   juce::String rowValue (int index) const;
 

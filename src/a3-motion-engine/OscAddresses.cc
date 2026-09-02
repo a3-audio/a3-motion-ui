@@ -112,6 +112,32 @@ readPrefix (juce::var const &block, char const *key, juce::String &into)
 }
 }
 
+namespace
+{
+/** Every key, against whichever block it is being read from. Called once
+ *  for the flat block and once per group, so a file written before the
+ *  grouping still reads and a grouped one wins over it. */
+void
+readAll (juce::var const &block, OscAddresses &into)
+{
+  if (!block.isObject ())
+    return;
+
+  readAddress (block, "channelAzimuth", into.channelAzimuth);
+  readAddress (block, "channelElevation", into.channelElevation);
+  readAddress (block, "channelPot1", into.channelPot1);
+  readAddress (block, "channelPot2", into.channelPot2);
+  readAddress (block, "channelPot3", into.channelPot3);
+  readAddress (block, "iemAzimuth", into.iemAzimuth);
+  readAddress (block, "iemElevation", into.iemElevation);
+  readAddress (block, "beat", into.beat);
+  readAddress (block, "tap", into.tap);
+  readAddress (block, "clockMode", into.clockMode);
+  readPrefix (block, "vuPrefix", into.vuPrefix);
+  readAddress (block, "energyRms", into.energyRms);
+}
+}
+
 OscAddresses
 loadOscAddresses (juce::var const &config)
 {
@@ -121,18 +147,14 @@ loadOscAddresses (juce::var const &config)
   if (!block.isObject ())
     return addresses;
 
-  readAddress (block, "channelAzimuth", addresses.channelAzimuth);
-  readAddress (block, "channelElevation", addresses.channelElevation);
-  readAddress (block, "channelPot1", addresses.channelPot1);
-  readAddress (block, "channelPot2", addresses.channelPot2);
-  readAddress (block, "channelPot3", addresses.channelPot3);
-  readAddress (block, "iemAzimuth", addresses.iemAzimuth);
-  readAddress (block, "iemElevation", addresses.iemElevation);
-  readAddress (block, "beat", addresses.beat);
-  readAddress (block, "tap", addresses.tap);
-  readAddress (block, "clockMode", addresses.clockMode);
-  readPrefix (block, "vuPrefix", addresses.vuPrefix);
-  readAddress (block, "energyRms", addresses.energyRms);
+  // The flat shape first: that is how the block shipped, and a config file
+  // on a device does not rewrite itself. The groups then override it — the
+  // Network page shows them under headings, and `beat` is in neither `out`
+  // nor `in` because it is both, depending on the clock mode.
+  readAll (block, addresses);
+  readAll (block["out"], addresses);
+  readAll (block["in"], addresses);
+  readAll (block["beatclock"], addresses);
 
   return addresses;
 }

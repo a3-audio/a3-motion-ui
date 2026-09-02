@@ -55,7 +55,7 @@ SkinEditorComponent::browseRow (int index)
   if (index < 0 || index >= totalRows ())
     return;
 
-  _index = index;
+  _index = skipHeadings (index, 1);
   // Letting the armed row go, exactly as turning to another row does:
   // otherwise the next drag would edit a row nobody is looking at.
   _editing = false;
@@ -241,6 +241,15 @@ SkinEditorComponent::resized ()
       if (!shown)
         continue;
 
+      // A heading holds nothing, so nothing on it is worth touching. The
+      // list is still rolled by dragging over it — that is the scroll strip
+      // behind the rows, not these.
+      auto const isHeading = _rows[(size_t)index].kind == Row::Heading;
+      touch.name->setVisible (!isHeading);
+      touch.value->setVisible (!isHeading);
+      if (isHeading)
+        continue;
+
       auto const row = visibleRowBounds (static_cast<int> (slot));
       touch.name->setIdentity (index);
       touch.value->setIdentity (index);
@@ -307,6 +316,7 @@ SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
   _skin = std::move (document);
   _name = title;
   _parameters = skinParameters (_skin);
+  rebuildRows ();
   // Every page opens at its top: carrying a row number over from another
   // document lands on whatever happens to sit at that number.
   _index = 0;
@@ -318,28 +328,87 @@ SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
   repaint ();
 }
 
+void
+SkinEditorComponent::rebuildRows ()
+{
+  _rows.clear ();
+
+  for (int i = 0; i < _actionRows; ++i)
+    {
+      Row kind = Row::Save;
+      switch (i)
+        {
+        case 0: kind = Row::Save; break;
+        case 1: kind = Row::SaveAsNew; break;
+        case 2: kind = Row::Rename; break;
+        case 3: kind = Row::Delete; break;
+        default: kind = Row::Reset; break;
+        }
+      _rows.push_back ({ kind, -1, {} });
+    }
+
+  // A heading wherever the group changes. The group is the parameter's path
+  // without its last segment — `oscAddresses.out` for
+  // `oscAddresses.out.channelAzimuth` — so the shape of the file is what
+  // groups the list, and a block added there shows up under its own name
+  // without anyone registering it.
+  juce::String group;
+  for (size_t i = 0; i < _parameters.size (); ++i)
+    {
+      auto const &path = _parameters[i].path;
+      auto const dot = path.lastIndexOfChar ('.');
+      auto const here = dot > 0 ? path.substring (0, dot) : juce::String{};
+
+      if (here != group)
+        {
+          group = here;
+          if (here.isNotEmpty ())
+            _rows.push_back ({ Row::Heading, -1, here });
+        }
+
+      _rows.push_back ({ Row::Parameter, (int)i, {} });
+    }
+}
+
 int
 SkinEditorComponent::totalRows () const
 {
-  return _actionRows + (int)_parameters.size ();
+  return (int)_rows.size ();
+}
+
+int
+SkinEditorComponent::skipHeadings (int index, int delta) const
+{
+  auto const step = delta >= 0 ? 1 : -1;
+
+  while (index >= 0 && index < totalRows ()
+         && _rows[(size_t)index].kind == Row::Heading)
+    index += step;
+
+  return juce::jlimit (0, juce::jmax (0, totalRows () - 1), index);
+}
+
+SkinParameter const *
+SkinEditorComponent::browsedParameter () const
+{
+  if (_index < 0 || _index >= totalRows ())
+    return nullptr;
+
+  auto const &row = _rows[(size_t)_index];
+  if (row.kind != Row::Parameter || row.parameter < 0
+      || row.parameter >= (int)_parameters.size ())
+    return nullptr;
+
+  return &_parameters[(size_t)row.parameter];
 }
 
 SkinEditorComponent::Row
 SkinEditorComponent::browsedRow () const
 {
-  // Keyed on how many action rows this document has, not on the index alone:
-  // a page without them starts at its first parameter.
-  if (_index >= _actionRows)
+  if (_index < 0 || _index >= totalRows ())
     return Row::Parameter;
 
-  switch (_index)
-    {
-    case 0: return Row::Save;
-    case 1: return Row::SaveAsNew;
-    case 2: return Row::Rename;
-    case 3: return Row::Delete;
-    default: return Row::Reset;
-    }
+  return _rows[(size_t)_index].kind;
 }
 
 void
@@ -366,7 +435,10 @@ SkinEditorComponent::finishNaming ()
         {
           // The same range the encoder is held to. Typing is the other way in,
           // and a bound only one of them respects is not a bound.
-          auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+          auto const *browsed = browsedParameter ();
+          if (browsed == nullptr)
+            return;
+          auto const &parameter = *browsed;
           setSkinValue (
               _skin, path,
               clampSkinValue (_skin, path, typed.getDoubleValue ()),
@@ -406,7 +478,8 @@ SkinEditorComponent::navigate (int delta)
 
   if (!_editing)
     {
-      _index = juce::jlimit (0, totalRows () - 1, _index + delta);
+      _index = skipHeadings (
+          juce::jlimit (0, totalRows () - 1, _index + delta), delta);
       // Turning away is how a delete is called off — it never waits around
       // for a press that was meant for something else.
       _deleteAsked = false;
@@ -418,7 +491,10 @@ SkinEditorComponent::navigate (int delta)
   if (browsedRow () != Row::Parameter)
     return;
 
-  auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+  auto const *browsed = browsedParameter ();
+  if (browsed == nullptr)
+    return;
+  auto const &parameter = *browsed;
   if (parameter.isText || parameter.isColour)
     return; // typed or picked, not turned
 
@@ -501,7 +577,10 @@ SkinEditorComponent::toggleEditing ()
         if (_parameters.empty ())
           return;
 
-        auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+        auto const *browsed = browsedParameter ();
+  if (browsed == nullptr)
+    return;
+  auto const &parameter = *browsed;
         if (parameter.isColour)
           {
             if (onColourPicked)
@@ -564,7 +643,8 @@ SkinEditorComponent::browsedPath () const
   if (browsedRow () != Row::Parameter || _parameters.empty ())
     return {};
 
-  return _parameters[(size_t)(_index - _actionRows)].path;
+  auto const *browsed = browsedParameter ();
+  return browsed != nullptr ? browsed->path : juce::String{};
 }
 
 bool
@@ -583,11 +663,11 @@ SkinEditorComponent::canTurnBrowsedRow () const
   if (_naming || browsedRow () != Row::Parameter || _parameters.empty ())
     return false;
 
-  auto const index = _index - _actionRows;
-  if (index < 0 || index >= (int)_parameters.size ())
+  auto const *browsed = browsedParameter ();
+  if (browsed == nullptr)
     return false;
 
-  auto const &parameter = _parameters[(size_t)index];
+  auto const &parameter = *browsed;
 
   // A config number is typed, not turned — see Numbers.
   return !parameter.isColour && !parameter.isText
@@ -606,7 +686,10 @@ SkinEditorComponent::beginTypingBrowsedRow ()
       return true;
     }
 
-  auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+  auto const *browsed = browsedParameter ();
+  if (browsed == nullptr)
+    return false;
+  auto const &parameter = *browsed;
   if (parameter.isColour)
     return false; // a colour is picked, not typed
 
@@ -653,30 +736,45 @@ SkinEditorComponent::backspaceName ()
 juce::String
 SkinEditorComponent::rowLabel (int index) const
 {
-  if (index >= _actionRows)
-    return _parameters[(size_t)(index - _actionRows)].path;
+  if (index < 0 || index >= totalRows ())
+    return {};
 
-  switch (index)
+  auto const &row = _rows[(size_t)index];
+
+  switch (row.kind)
     {
-    case 0: return juce::String::fromUTF8 ("\xc2\xbb Save");
-    case 1: return juce::String::fromUTF8 ("\xc2\xbb Save as new");
-    case 2: return juce::String::fromUTF8 ("\xc2\xbb Rename");
-    case 3: return juce::String::fromUTF8 ("\xc2\xbb Delete");
-    default: return juce::String::fromUTF8 ("\xc2\xbb Reset");
+    case Row::Heading: return row.heading;
+    case Row::Parameter:
+      {
+        // Under its heading the group is already said; the row only has to
+        // add what it is called within it.
+        auto const &path = _parameters[(size_t)row.parameter].path;
+        auto const dot = path.lastIndexOfChar ('.');
+        return dot > 0 ? path.substring (dot + 1) : path;
+      }
+    case Row::Save: return juce::String::fromUTF8 ("\xc2\xbb Save");
+    case Row::SaveAsNew: return juce::String::fromUTF8 ("\xc2\xbb Save as new");
+    case Row::Rename: return juce::String::fromUTF8 ("\xc2\xbb Rename");
+    case Row::Delete: return juce::String::fromUTF8 ("\xc2\xbb Delete");
+    case Row::Reset: return juce::String::fromUTF8 ("\xc2\xbb Reset");
     }
+
+  return {};
 }
 
 juce::String
 SkinEditorComponent::rowValue (int index) const
 {
-  if (index < _actionRows)
+  if (index < 0 || index >= totalRows ()
+      || _rows[(size_t)index].kind != Row::Parameter)
     {
       if (index == 3 && _deleteAsked)
         return "sure?";
       return (index == 0 && _saved) ? "saved" : "";
     }
 
-  auto const &parameter = _parameters[(size_t)(index - _actionRows)];
+  auto const &parameter
+      = _parameters[(size_t)_rows[(size_t)index].parameter];
   if (parameter.isColour)
     return {};
   if (parameter.isText)
@@ -789,9 +887,26 @@ SkinEditorComponent::paint (juce::Graphics &g)
 
       auto const row = visibleRowBounds (i);
 
-      bool const isAction = index < _actionRows;
+      auto const kind = _rows[(size_t)index].kind;
+      bool const isAction
+          = kind != Row::Parameter && kind != Row::Heading;
+      bool const isHeading = kind == Row::Heading;
       bool const isBrowsed = index == _index;
       bool const isArmed = isBrowsed && _editing;
+
+      if (isHeading)
+        {
+          // No wash and no value: a heading names what follows, it is not
+          // one of the things you can land on. Drawn small and in the
+          // accent so the eye finds the boundaries between groups without
+          // reading them.
+          g.setFont (juce::Font (theme ().fontSize (FontRole::Body) * 0.85f,
+                                 juce::Font::bold));
+          g.setColour (toColour (theme ().accent, theme ().alphaInactive));
+          g.drawText (rowLabel (index), row.reduced (8, 0),
+                      juce::Justification::centredLeft, true);
+          continue;
+        }
 
       g.setColour (toColour (theme ().textPrimary,
                              isArmed     ? armedRowWash
@@ -816,9 +931,11 @@ SkinEditorComponent::paint (juce::Graphics &g)
 
       // A colour channel shows the colour it is part of, so a number can be
       // judged without leaving the row it sits in.
-      if (!isAction && _parameters[(size_t)(index - _actionRows)].isColour)
+      if (kind == Row::Parameter
+          && _parameters[(size_t)_rows[(size_t)index].parameter].isColour)
         {
-          auto const group = _parameters[(size_t)(index - _actionRows)].path;
+          auto const group
+              = _parameters[(size_t)_rows[(size_t)index].parameter].path;
           auto swatch = valueArea.reduced (valueArea.getWidth () / 4, 5);
           g.setColour (juce::Colour (
               (juce::uint8)juce::jlimit (0, 255,
