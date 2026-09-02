@@ -144,6 +144,33 @@ point of pinning is that a build here fails for reasons in this repository.
   - `cmake -S . -B build -DHARDWARE_INTERFACE_ENABLED=ON -DHARDWARE_INTERFACE_VERSION=V2 -DCMAKE_BUILD_TYPE=Debug` for hardwaresupport
   - `make ; make install`
 
+## Machine configuration (`platform_config/`)
+
+Files that belong to the machine rather than to the build. Nothing copies them
+for you — this directory is the source of truth, and installing is a manual,
+privileged step.
+
+| File | Goes to | What it does |
+| :--- | :--- | :--- |
+| `etc/X11/xorg.conf.d/99-ilitek-no-mouse-emulation.conf` | `/etc/X11/xorg.conf.d/` | The ILITEK panel presents itself twice, once as a mouse emulation with the wrong coordinates. This ignores the emulation. |
+| `etc/X11/xorg.conf.d/99-ilitek-rotation.conf` | `/etc/X11/xorg.conf.d/` | The screen hangs rotated (`xrandr`: `right`); this gives the panel the matching coordinate matrix. |
+| `i3/config` | `~/.config/i3/config` | The window manager's config. |
+| `a3-motion.service` | `~/.config/systemd/user/` | Runs the UI as a user service. |
+
+As root, copy the two X rules into place and restart X so they are read:
+
+```
+cp platform_config/etc/X11/xorg.conf.d/*.conf /etc/X11/xorg.conf.d/
+systemctl restart lightdm
+```
+
+**Both X rules match on the product name, not the device id.** The id changes
+every time the panel re-enumerates — which is what happens when the screen is
+unplugged and plugged back in. That is also why the rotation is an
+`InputClass` and not an `exec` in the i3 config: an `exec` runs once, when i3
+starts, and a panel that appears later gets nothing. The symptom is a
+touchscreen that seems dead but is only 90 degrees out.
+
 # Build and run a3-motion-ui
 - tell cmake where to find JUCE
   - `export JUCE_DIR=$HOME/local/juce/lib/cmake/JUCE-9.0.1`
