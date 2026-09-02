@@ -138,6 +138,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _motionComponent->onAppConfigReloaded
       = [this] (juce::var const &config) { applyOscAddresses (config); };
 
+  // Back and close, over whatever is open. A child of MotionComponent like
+  // the overlays themselves, so it composites above the GL context.
+  _overlayButtons = std::make_unique<OverlayButtons> ();
+  _overlayButtons->setAlwaysOnTop (true);
+  _overlayButtons->onBack = [this] { toggleGlobalSettings (); };
+  _overlayButtons->onClose = [this] { closeAllOverlays (); };
+  _motionComponent->addChildComponent (*_overlayButtons);
+
   _globalSettings = std::make_unique<GlobalSettingsComponent> ();
   _globalSettings->setAlwaysOnTop (true);
 
@@ -1005,6 +1013,45 @@ A3MotionUIComponent::handleChannelValueChange (index_t channel, int row,
     }
 
   updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::closeAllOverlays ()
+{
+  updateControlReadout ("-- CLOSE");
+
+  if (_colourPickerOpen)
+    closeColourPicker ();
+  if (_skinEditorOpen && _skinEditor->isNaming ())
+    _skinEditor->finishNaming ();
+  if (_skinEditorOpen)
+    closeSkinEditor ();
+  if (_globalSettingsOpen)
+    closeGlobalSettings ();
+
+  updateOverlayButtons ();
+}
+
+void
+A3MotionUIComponent::updateOverlayButtons ()
+{
+  if (!_overlayButtons || !_motionComponent)
+    return;
+
+  auto const anyOpen
+      = _globalSettingsOpen || _skinEditorOpen || _colourPickerOpen;
+  _overlayButtons->setVisible (anyOpen);
+  if (!anyOpen)
+    return;
+
+  auto const height = OverlayButtons::preferredHeight ();
+  auto const width = height * 2 + juce::jmax (2, height / 8);
+  auto const margin = juce::jmax (4, height / 4);
+
+  auto const area = _motionComponent->getLocalBounds ();
+  _overlayButtons->setBounds (area.getRight () - width - margin,
+                              area.getY () + margin, width, height);
+  _overlayButtons->toFront (false);
 }
 
 void
@@ -1968,6 +2015,8 @@ A3MotionUIComponent::openGlobalSettings ()
   // stays for a machine that needs it again.
   if (_motionComponent && _pauseRenderingInMenu)
     _motionComponent->setRenderingPaused (true);
+
+  updateOverlayButtons ();
 }
 
 void
@@ -2027,6 +2076,8 @@ A3MotionUIComponent::closeGlobalSettings ()
   resized (); // sphere and clip settings get their bounds back
   if (_motionComponent)
     _motionComponent->setRenderingPaused (false);
+
+  updateOverlayButtons ();
 }
 
 std::optional<A3MotionUIComponent::MenuRow>
@@ -2209,6 +2260,8 @@ A3MotionUIComponent::openSkinEditor ()
   _globalSettings->setVisible (false);
   _skinEditor->setVisible (true);
   _skinEditor->toFront (true);
+
+  updateOverlayButtons ();
 }
 
 void
@@ -2340,6 +2393,8 @@ A3MotionUIComponent::openColourPicker (juce::String const &path)
   _skinEditor->setVisible (false);
   _colourPicker->setVisible (true);
   _colourPicker->toFront (true);
+
+  updateOverlayButtons ();
 }
 
 void
@@ -2353,6 +2408,8 @@ A3MotionUIComponent::closeColourPicker ()
   _colourPicker->setVisible (false);
   _skinEditor->setVisible (true);
   _skinEditor->toFront (true);
+
+  updateOverlayButtons ();
 }
 
 void
@@ -2483,6 +2540,8 @@ A3MotionUIComponent::closeSkinEditor ()
   _skinEditor->setVisible (false);
   _globalSettings->setVisible (true);
   _globalSettings->toFront (true);
+
+  updateOverlayButtons ();
 }
 
 void

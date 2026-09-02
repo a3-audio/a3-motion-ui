@@ -322,6 +322,17 @@ for. A typo does not fail loudly — the app sends correctly to an address
 nobody subscribes to. The reference for what the rest of the system expects is
 `web/a3-doc/src/ressources/osc.md`.
 
+#### Getting out of an overlay
+
+`OverlayButtons` draws **back** and **close** in the top right, over whichever overlay is open —
+the menu, the skin editor, the colour picker. One component rather than three: they are the same
+two questions wherever you are. It is a child of `MotionComponent` like the overlays themselves,
+so it composites above the GL context, and `A3MotionUIComponent::updateOverlayButtons()` shows and
+places it whenever one opens or closes.
+
+Back is exactly what the Menu key does (`toggleGlobalSettings`) — one level at a time. Close
+(`closeAllOverlays`) is the one thing the key cannot offer: out of all of it at once, however deep.
+
 #### On-screen keyboard
 
 The UI draws no keyboard. `io/OnScreenKeyboard.{hh,cc}` asks **Onboard** — the system's on-screen

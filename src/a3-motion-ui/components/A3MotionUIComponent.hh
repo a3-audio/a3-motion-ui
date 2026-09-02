@@ -38,6 +38,7 @@
 #include <a3-motion-ui/SettingsPersistence.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/ColourPickerComponent.hh>
+#include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
@@ -245,6 +246,7 @@ private:
   // (Button::Menu). Shares the bottom-quarter settings area with
   // ClipSettingsComponent.
   std::unique_ptr<GlobalSettingsComponent> _globalSettings;
+  std::unique_ptr<OverlayButtons> _overlayButtons;
   bool  _globalSettingsOpen        = false;
   bool  _globalSettingsValueFieldSelected = false;
   // 0 = Clockmode, 1 = Pot Size, 2 = Font Size
@@ -418,6 +420,12 @@ private:
    *  hardware key does, minus what only a key can do — Record is a modifier
    *  there, and a finger cannot hold it while pressing a pad. */
   void toggleGlobalSettings ();
+  /** Out of every overlay at once, however deep. The Menu key can only step
+   *  back one at a time; the close button is the way out. */
+  void closeAllOverlays ();
+  /** Shows or hides the back/close pair according to whether anything is
+   *  open, and puts it in the corner. */
+  void updateOverlayButtons ();
   void toggleRecordingOnShownClip ();
   void handleScreenTap ();
   /** A tap, from the hardware key or from the bar's button. */
