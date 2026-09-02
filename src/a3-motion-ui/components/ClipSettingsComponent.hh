@@ -229,10 +229,10 @@ public:
   /** Which clock the device is following: 0 INT, 1 EXT, 2 PIO. */
   void setClockMode (int mode);
 
-  /** A beat went by. TAP lights up for it — the beat is the one thing on
-   *  this device you cannot see, and a button that only reacts to being
-   *  pressed tells you nothing about whether it landed. */
-  void beatPulse ();
+  /** TAP lights up briefly, so a press that landed looks different from one
+   *  that missed. Only on touch: it used to blink on every beat as well,
+   *  which put a flashing light on a bar you are meant to read. */
+  void flashTap ();
 
   void paint (juce::Graphics &g) override;
   void resized () override;

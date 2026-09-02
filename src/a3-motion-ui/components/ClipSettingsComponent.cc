@@ -152,9 +152,7 @@ ClipSettingsComponent::createTouchControls ()
   makeButton (_menuTouch, &ClipSettingsComponent::onMenuPressed);
   makeButton (_recTouch, &ClipSettingsComponent::onRecordPressed);
   makeButton (_tapTouch, &ClipSettingsComponent::onTapPressed);
-  // The finger's own tap lights it too, so a press that did land looks
-  // different from one that missed.
-  _tapTouch->onPress = [this] (int, int) { beatPulse (); };
+  _tapTouch->onPress = [this] (int, int) { flashTap (); };
 
   for (int section = 0; section < numParameters; ++section)
     {
@@ -651,14 +649,14 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
 }
 
 void
-ClipSettingsComponent::beatPulse ()
+ClipSettingsComponent::flashTap ()
 {
   _tapLit = true;
   repaint ();
 
-  // Long enough to see, short enough that the next beat has its own flash
-  // even at a fast tempo.
-  startTimer (90);
+  // Long enough to register as a press having landed, short enough not to
+  // linger into the next one.
+  startTimer (110);
 }
 
 void

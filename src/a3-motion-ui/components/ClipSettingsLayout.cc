@@ -256,21 +256,24 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
     // Two by two, not four in a row: the section is a sixth of the bar wide
-    // now, and four columns in it left each control a sliver. The two rows
-    // are as tall as a control box rather than half the section, so the
-    // knobs sit together instead of at opposite ends of the card.
+    // now, and four columns in it left each control a sliver.
+    //
+    // The two buttons go to the section's floor, where Elevation's are —
+    // the bar reads as one row of buttons across its bottom rather than
+    // three sections each arranging their own. The knobs then sit centred
+    // in what is left above them.
     auto const gapH = juce::jmax (2, content.getWidth () / 20);
     auto const gapV = juce::jmax (2, content.getHeight () / 20);
-    auto const motionRowH = juce::jmin (
-        (content.getHeight () - gapV) / 2,
-        controlBoxHeightForFont (bodySize, metrics.knobDiam));
 
-    content.removeFromTop (
-        (content.getHeight () - (2 * motionRowH + gapV)) / 2);
+    auto bottomRow = content.removeFromBottom (
+        juce::jmin (content.getHeight (), out.buttonHeight));
+    content.removeFromBottom (gapV);
 
+    auto const motionRowH
+        = juce::jmin (content.getHeight (),
+                      controlBoxHeightForFont (bodySize, metrics.knobDiam));
+    content.removeFromTop ((content.getHeight () - motionRowH) / 2);
     auto topRow = content.removeFromTop (motionRowH);
-    content.removeFromTop (gapV);
-    auto bottomRow = content.removeFromTop (motionRowH);
 
     // The two values you dial on top, the two you pick from below: speed
     // and fade are continuous-ish, direction and end-action are lists.
@@ -283,11 +286,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     bottomRow.removeFromLeft (gapH);
     auto const endActionArea = bottomRow;
 
-    auto const buttonCell = [&] (juce::Rectangle<int> cell) {
-      auto const h = juce::jmin (cell.getHeight (), out.buttonHeight);
-      return juce::Rectangle<int> (cell.getWidth (), h)
-          .withCentre (cell.getCentre ());
-    };
+    // The bottom row is already the button height; the cell is the button.
+    auto const buttonCell = [] (juce::Rectangle<int> cell) { return cell; };
 
     out.controls[2] = {
       textCell (speedArea, metrics.knobDiam),

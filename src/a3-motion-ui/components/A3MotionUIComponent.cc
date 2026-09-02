@@ -519,14 +519,7 @@ A3MotionUIComponent::createMainUI ()
   _statusBar->setVisible (true);
   _statusBarCallbackHandle
       = _engine.getTempoClock ().scheduleEventHandlerAddition (
-          [this] (auto measure) {
-            _statusBar->beatCallback (measure);
-
-            // TAP blinks along, so the beat is visible where the button is
-            // rather than only at the top of the screen.
-            if (_clipSettings)
-              _clipSettings->beatPulse ();
-          },
+          [this] (auto measure) { _statusBar->beatCallback (measure); },
           TempoClock::Event::Beat, TempoClock::Execution::JuceMessageThread);
 
   _motionComponent
