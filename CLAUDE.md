@@ -280,10 +280,25 @@ Two of the three are not quite the key they stand for:
 
 MENU is exactly the key (`toggleGlobalSettings`), closing one level at a time.
 
+The block is **grouped**: `oscAddresses.out` (what goes to Core and IEM),
+`oscAddresses.in` (VU and energy) and `oscAddresses.beatclock` (`beat`, `tap`,
+`clockMode`). The beat clock is neither in nor out — `beat` is sent in INT mode
+and received in EXT, the same address either way, so it has a group of its own
+rather than being filed under a direction that is only half true.
+`loadOscAddresses()` reads the flat shape first and lets the groups override it,
+so a `config.json` written before the grouping still works: a file on a device
+does not rewrite itself.
+
 Editing happens on the Menu's **Network** page, which slices `oscSender`,
 `oscReceiver` and `oscAddresses` out of `config.json` and derives its rows from
 the JSON — a key added to the block shows up there without anyone registering
-it.
+it. `SkinEditorComponent` draws a **heading** wherever a row's parent path
+changes, so the file's shape is what groups the list; row labels then show only
+their last segment, since the heading has already said the rest. Headings are
+rows in the display list (`_rows`) but not landing places: `browseRow()` and
+`navigate()` step over them and they carry no hit areas. That display list is
+also why `_index` is no longer `_actionRows + parameter`: headings belong to
+neither, so the offset stopped being enough — use `browsedParameter()`.
 
 A changed address only changes *this* side of the conversation: `beat` has to
 match what the beat-analyzer sends, the channel addresses what A3 Core listens
