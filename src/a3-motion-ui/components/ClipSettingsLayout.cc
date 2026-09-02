@@ -173,20 +173,22 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
     auto const lengthArea = content.removeFromBottom (
         2 * textRowHeight (content, metrics.valueSize));
-    out.trajectoryName
-        = content.removeFromBottom (textRowHeight (content, metrics.valueSize));
-    out.trajectoryIcon = content;
 
-    // Sub 0 is the pattern in the slot: its hit area is the pictogram plus
-    // the name underneath, which is what a finger aims at.
+    // The name sits *in* the pictogram, centred, rather than on a strip
+    // beneath it. On its own row it ended up pressed against the button
+    // below, reading as that button's second caption.
+    out.trajectoryIcon = content;
+    out.trajectoryName = content;
+
+    // Sub 0 is the pattern in the slot: the pictogram and the name in it are
+    // one target.
     auto const lengthCell
         = juce::Rectangle<int> (
               lengthArea.getWidth (),
               juce::jmin (lengthArea.getHeight (), out.buttonHeight))
               .withCentre (lengthArea.getCentre ());
 
-    out.controls[0] = { out.trajectoryIcon.getUnion (out.trajectoryName),
-                        lengthCell };
+    out.controls[0] = { out.trajectoryIcon, lengthCell };
   }
 
   // ── Elevation ────────────────────────────────────────────────────────

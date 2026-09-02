@@ -51,7 +51,7 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   
   addChildComponent (_labelClockMode);
   _labelClockMode.setVisible (true);
-  _labelClockMode.setJustificationType (juce::Justification::centredRight);
+  _labelClockMode.setJustificationType (juce::Justification::centredLeft);
   _labelClockMode.setText ("INT", juce::dontSendNotification);
 
   applyTheme ();
@@ -153,12 +153,19 @@ StatusBar::resized ()
       50, static_cast<int> (glyphWidth * 3.f + LayoutHints::padding));
 
   // The keyboard toggle sits at the very edge, right of everything else, so
-  // it is reachable with a thumb without covering a reading.
-  _keyboardIconArea = bounds.removeFromRight (bounds.getHeight ());
+  // it is reachable with a thumb without covering a reading. Half again as
+  // wide as it is tall: the face inside is inset on all four sides, and at a
+  // square it came out small enough to have to aim at.
+  _keyboardIconArea = bounds.removeFromRight (
+      static_cast<int> (bounds.getHeight () * 1.5f));
 
-  auto clockModeArea = bounds.removeFromRight (modeWidth);
+  // Clock mode and tempo read as one statement — which clock, and what it
+  // says — so they sit together on the left rather than at opposite ends of
+  // the bar. The tick indicator is centred on the bar itself (below), not on
+  // what these leave over, so moving them does not move it.
+  auto clockModeArea = bounds.removeFromLeft (modeWidth);
   _labelClockMode.setBounds (
-      clockModeArea.withTrimmedRight (LayoutHints::padding));
+      clockModeArea.withTrimmedLeft (LayoutHints::padding));
 
   auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 3);
   _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
