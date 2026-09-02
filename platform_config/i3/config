@@ -227,9 +227,15 @@ for_window [class="QjackCtl"] move container to workspace 3
 for_window [title="Scarlett 18i20 USB"] move container to workspace 4
 
 #exec --no-startup-id xrandr -o right
-#exec --no-startup-id xinput set-prop "wch.cn USB2IIC_CTP_CONTROL" --type=float "Coordinate Transformation Matrix" 0 1 0 -1 0 1 0 0 1
-exec --no-startup-id xinput set-prop 8 --type=float "Coordinate Transformation Matrix" 0 1 0 -1 0 1 0 0 1
-exec --no-startup-id xinput set-prop "ILITEK       ILITEK-TOUCH" --type=float "Coordinate Transformation Matrix" 0 1 0 -1 0 1 0 0 1
+# The touch panel's rotation is not set here any more. An exec runs once, at
+# i3's start: unplug the screen and plug it back in, the panel re-enumerates,
+# the matrix is gone and nobody sets it again -- which feels like the
+# touchscreen has stopped working, when it is only 90 degrees out.
+#
+# It lives in etc/X11/xorg.conf.d/99-ilitek-rotation.conf instead, which X
+# applies every time the device appears. One of the lines here also addressed
+# the device by the number 8; those change on every re-enumeration, and 8 is
+# the power button today.
 
 # Hide the mouse cursor instantly on touch (--hide-on-touch), and after a
 # short idle period otherwise; real mouse movement keeps it visible.
