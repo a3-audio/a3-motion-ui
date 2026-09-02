@@ -306,3 +306,20 @@ TEST (Theme, TouchDragPixelsPerStepComesFromTheSkin)
 
   EXPECT_EQ (theme.touchDragPixelsPerStep, 20);
 }
+
+
+// How tall the clip settings bar may be, as a multiple of what its contents
+// ask for. A skin value like potSize: the bar takes its room from the sphere,
+// and where that line sits is a matter of taste, not of legibility.
+TEST (Theme, ClipSettingsHeightScaleDefaultsToOne)
+{
+  auto const theme = loadTheme (juce::var{});
+  EXPECT_NEAR (theme.clipSettingsHeightScale, 1.f, 0.001f);
+}
+
+TEST (Theme, ClipSettingsHeightScaleComesFromTheSkin)
+{
+  auto const parsed
+      = juce::JSON::parse (R"({"clipSettingsHeightScale": 0.75})");
+  EXPECT_NEAR (loadTheme (parsed).clipSettingsHeightScale, 0.75f, 0.001f);
+}

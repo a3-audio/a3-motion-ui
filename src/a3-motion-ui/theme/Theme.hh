@@ -113,6 +113,12 @@ struct Theme
    *  the panel — the same reason potSize and the font sizes live here. */
   int touchDragPixelsPerStep = 12;
 
+  /** How tall the clip settings bar is, as a multiple of what its contents
+   *  ask for. 1.0 is what they ask for; below that the bar is squeezed and
+   *  gives the sphere the room back, above it gets more air. A skin value
+   *  like potSize, so it is dialled on the device rather than compiled in. */
+  float clipSettingsHeightScale = 1.f;
+
   float fontSize (FontRole role) const;
 
   /** What this skin's size is, relative to the built-in one. Derived, never

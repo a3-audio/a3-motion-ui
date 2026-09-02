@@ -120,10 +120,15 @@ struct ClipSettingsLayout
    *  functions that the hardware has its own keys for; these are the way to
    *  them with a finger. Beside `controls`, not in it: no encoder reaches
    *  them, so they are not sub-elements of the section. */
-  /** Where a Motion dropdown opens: the section's content area, which the
-   *  open list takes over. It cannot open outside the bar — MotionComponent's
-   *  GL context composites above anything drawn over it. */
-  juce::Rectangle<int> motionDropdown;
+  /** Where a section's dropdown opens: that section's content area, which
+   *  the open list takes over. It cannot open outside the bar —
+   *  MotionComponent's GL context composites above anything drawn over it. */
+  std::array<juce::Rectangle<int>, numClipSettingsSections> dropdownArea;
+
+  /** One height for every button in the bar, whatever section it is in.
+   *  Buttons that sized themselves to their own cell came out three
+   *  different heights in three sections. */
+  int buttonHeight = 0;
 
   juce::Rectangle<int> recModeButton;
   juce::Rectangle<int> menuButton;

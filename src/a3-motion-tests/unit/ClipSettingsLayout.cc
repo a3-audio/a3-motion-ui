@@ -128,27 +128,46 @@ TEST (ClipSettingsLayout, ClipAndGlobalPanelsSplitTheBarWithoutOverlap)
              panelWidth);
 }
 
-// The screen order in the Elevation section is reach, mirror-south,
-// clip-top, ... — the sub-index order is not. Getting this wrong makes a tap
-// on "reach" land on mirror-south.
+// The Elevation section is indexed by sub-element but arranged by eye:
+//
+//   clip-top      clip-bottom
+//   flat-elev     reach
+//   flat          pole
+//
+// Sub-indices run reach(0), clip-top(1), clip-bottom(2), pole(3), flat(4),
+// flat-elevation(5) — nothing like the reading order. Get the mapping wrong
+// and a tap on one control lands on another.
 TEST (ClipSettingsLayout, ElevationControlsAreOrderedBySubIndexNotByScreen)
 {
   auto const l = defaultLayout ();
-  auto const &elevation = l.controls[1];
+  auto const &e = l.controls[1];
 
-  // reach (0) and mirror-south (3) share the top row: same y, reach left.
-  EXPECT_EQ (elevation[0].getY (), elevation[3].getY ());
-  EXPECT_LT (elevation[0].getX (), elevation[3].getX ());
+  auto const reach = e[0];
+  auto const clipTop = e[1];
+  auto const clipBottom = e[2];
+  auto const pole = e[3];
+  auto const flat = e[4];
+  auto const flatElevation = e[5];
 
-  // clip-top (1) and clip-bottom (2) share the row below it.
-  EXPECT_EQ (elevation[1].getY (), elevation[2].getY ());
-  EXPECT_LT (elevation[1].getX (), elevation[2].getX ());
-  EXPECT_GT (elevation[1].getY (), elevation[0].getY ());
+  // Three rows, top to bottom.
+  EXPECT_LT (clipTop.getY (), flatElevation.getY ());
+  EXPECT_LT (flatElevation.getY (), flat.getY ());
 
-  // flat (4) and flat-elevation (5) share the bottom row.
-  EXPECT_EQ (elevation[4].getY (), elevation[5].getY ());
-  EXPECT_LT (elevation[4].getX (), elevation[5].getX ());
-  EXPECT_GT (elevation[4].getY (), elevation[1].getY ());
+  // Left column above left column, right beside right.
+  EXPECT_EQ (clipTop.getY (), clipBottom.getY ());
+  EXPECT_LT (clipTop.getX (), clipBottom.getX ());
+
+  EXPECT_EQ (flatElevation.getY (), reach.getY ());
+  EXPECT_LT (flatElevation.getX (), reach.getX ());
+
+  EXPECT_EQ (flat.getY (), pole.getY ());
+  EXPECT_LT (flat.getX (), pole.getX ());
+
+  // What the maintainer asked for in so many words: the two buttons at the
+  // bottom, flat-elevation directly above flat, reach in the middle on the
+  // right.
+  EXPECT_EQ (flat.getX (), flatElevation.getX ());
+  EXPECT_GT (reach.getX (), flatElevation.getX ());
 }
 
 TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)

@@ -147,6 +147,12 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   auto const &metrics = out.metrics;
 
+  // One height for every button in the bar. Worked out before any section is
+  // laid out, so Elevation's, Motion's and the global ones cannot drift
+  // apart.
+  out.buttonHeight = juce::jlimit (
+      24, juce::jmax (24, out.clipBounds.getHeight () / 6), metrics.knobDiam);
+
   for (int i = 0; i < numClipSettingsSections - 1; ++i)
     out.sectionCards[static_cast<size_t> (i)]
         = area.removeFromLeft (sectionW).reduced (gap / 2, 0);
@@ -169,8 +175,17 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
     // Sub 0 is the pattern in the slot: its hit area is the pictogram plus
     // the name underneath, which is what a finger aims at.
+    auto const lengthCell
+        = juce::Rectangle<int> (
+              lengthArea.getWidth (),
+              juce::jmin (lengthArea.getHeight (),
+                          out.buttonHeight
+                              + textRowHeight (lengthArea,
+                                               metrics.captionSize)))
+              .withCentre (lengthArea.getCentre ());
+
     out.controls[0] = { out.trajectoryIcon.getUnion (out.trajectoryName),
-                        lengthArea };
+                        lengthCell };
   }
 
   // ── Elevation ────────────────────────────────────────────────────────
@@ -194,26 +209,41 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
     auto const gapH = juce::jmax (2, content.getWidth () / 20);
 
-    auto const reachArea = row1.removeFromLeft (row1.getWidth () / 2 - gapH / 2);
-    row1.removeFromLeft (gapH);
-    auto const mirrorArea = row1;
-
+    // Top row the two clips, middle row flat-elevation beside reach, bottom
+    // row the two buttons. Reading down the right: reach, then pole; down
+    // the left: clip-top, flat-elevation, flat — each value above the button
+    // that switches it off.
     auto const clipTopArea
+        = row1.removeFromLeft (row1.getWidth () / 2 - gapH / 2);
+    row1.removeFromLeft (gapH);
+    auto const clipBottomArea = row1;
+
+    auto const flatElevationArea
         = row2.removeFromLeft (row2.getWidth () / 2 - gapH / 2);
     row2.removeFromLeft (gapH);
-    auto const clipBottomArea = row2;
+    auto const reachArea = row2;
 
     auto const flatArea = row3.removeFromLeft (row3.getWidth () / 2 - gapH / 2);
     row3.removeFromLeft (gapH);
-    auto const flatElevationArea = row3;
+    auto const mirrorArea = row3;
 
     // By sub-index, not by row: mirror-south is 3 but sits on the first row.
+    // The two buttons take the bar's shared button height; the knobs keep
+    // their own box.
+    auto const buttonCell = [&] (juce::Rectangle<int> cell) {
+      auto const withCaption
+          = out.buttonHeight + textRowHeight (cell, metrics.captionSize);
+      return juce::Rectangle<int> (cell.getWidth (),
+                                   juce::jmin (cell.getHeight (), withCaption))
+          .withCentre (cell.getCentre ());
+    };
+
     out.controls[1] = {
       textCell (reachArea, metrics.knobDiam),
       textCell (clipTopArea, metrics.knobDiam),
       textCell (clipBottomArea, metrics.knobDiam),
-      textCell (mirrorArea, metrics.knobDiam),
-      textCell (flatArea, metrics.knobDiam),
+      buttonCell (mirrorArea),
+      buttonCell (flatArea),
       textCell (flatElevationArea, metrics.knobDiam),
     };
   }
@@ -252,17 +282,20 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     bottomRow.removeFromLeft (gapH);
     auto const endActionArea = bottomRow;
 
-    out.controls[2] = {
-      textCell (speedArea, metrics.knobDiam),
-      textCell (directionArea, metrics.knobDiam),
-      textCell (endActionArea, metrics.knobDiam),
-      textCell (seamArea, metrics.knobDiam),
+    auto const buttonCell = [&] (juce::Rectangle<int> cell) {
+      auto const withCaption
+          = out.buttonHeight + textRowHeight (cell, metrics.captionSize);
+      return juce::Rectangle<int> (cell.getWidth (),
+                                   juce::jmin (cell.getHeight (), withCaption))
+          .withCentre (cell.getCentre ());
     };
 
-    // An open list takes over the section's controls, and only those: the
-    // title stays put so the section is still named while you pick.
-    out.motionDropdown = sectionContent (out.sectionCards[2])
-                             .withTrimmedTop (out.sectionLabels[2].getHeight ());
+    out.controls[2] = {
+      textCell (speedArea, metrics.knobDiam),
+      buttonCell (directionArea),
+      buttonCell (endActionArea),
+      textCell (seamArea, metrics.knobDiam),
+    };
   }
 
   // ── Global section ───────────────────────────────────────────────────
@@ -274,9 +307,9 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // The grid across the whole section, the four buttons in one row under
     // it. Beside each other the grid was cramped into two thirds of the
     // width while the strip beside it stood half empty.
-    auto const buttonRowH
-        = juce::jlimit (24, juce::jmax (24, content.getHeight () / 4),
-                        metrics.knobDiam);
+    // The bar's one button height — the same one Elevation's and Motion's
+    // buttons get.
+    auto const buttonRowH = out.buttonHeight;
     auto const buttonGap = juce::jmax (2, buttonRowH / 8);
     auto buttons
         = content.removeFromBottom (2 * buttonRowH + buttonGap);
@@ -376,6 +409,16 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       out.controls[3] = { out.recModeButton };
     }
   }
+
+  // An open list takes over a section's controls, and only those: the title
+  // stays put so the section is still named while you pick.
+  for (int i = 0; i < numClipSettingsSections; ++i)
+    {
+      auto const c = static_cast<size_t> (i);
+      out.dropdownArea[c] = sectionContent (out.sectionCards[c])
+                                .withTrimmedTop (
+                                    out.sectionLabels[c].getHeight ());
+    }
 
   return out;
 }

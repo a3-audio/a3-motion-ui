@@ -243,6 +243,19 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                                     increment);
         };
 
+  // Every length the take can have, in the same words the current one gets.
+  // A fixed range, so it is handed over once.
+  {
+    juce::StringArray lengths;
+    for (int log2 = speedLog2Min; log2 <= speedLog2Max; ++log2)
+      lengths.add (log2 >= 0
+                       ? juce::String (static_cast<int> (std::exp2 (log2)))
+                       : "1/"
+                             + juce::String (
+                                 static_cast<int> (std::exp2 (-log2))));
+    _clipSettings->setRecordLengthValues (std::move (lengths));
+  }
+
   _clipSettings->onRecModePressed = [this] {
     auto const count = static_cast<int> (recMenuModes.size ());
     applyRecMode ((recMenuIndex (_recMode) + 1) % count);
@@ -2259,6 +2272,12 @@ A3MotionUIComponent::applyTheme ()
     _clipSettings->setTarget (static_cast<int> (_clipSettingsChannel),
                               static_cast<int> (_clipSettingsSlot),
                               _channelUIStates[_clipSettingsChannel]->colour);
+
+  // How tall the bar is comes out of the skin now — clipSettingsHeightScale,
+  // and the font and pot sizes it already followed. That is a layout change
+  // and not merely a repaint, and it is this component that hands the bar
+  // its bounds, so telling the bar alone would change nothing.
+  resized ();
 }
 
 void
