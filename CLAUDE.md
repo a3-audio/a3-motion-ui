@@ -263,6 +263,11 @@ own it left the list and the controls it covers drawn through each other. Pickin
 *difference* to `handleClipSettingsValueChange`, whose modulo arithmetic lands it exactly on the
 entry tapped.
 
+Every section's buttons sit on the bar's bottom edge — Shape's `len`, Elevation's `flat` and
+`pole`, Motion's `dir` and `end` — so the bar reads as one row of buttons across its floor rather
+than three sections each arranging their own. TAP lights up for **a finger only**; it used to flash
+on every beat too, which put a blinking light on a bar meant to be read.
+
 The global section is laid out top to bottom: the per-channel grid (rows read **3d, freq, Q** — see
 `channelRow*`), centred as one block with its row captions, then **four buttons two by two** — rec mode, menu / rec, tap. The rec mode is a
 button like the others now and steps through the modes on a tap, which is what its encoder used to
