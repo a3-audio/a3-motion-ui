@@ -43,7 +43,7 @@ OverlaySideStrips::OverlaySideStrips ()
     if (onValue)
       onValue (increment);
   };
-  _valueZone->onRelease = [this] (int, int) {
+  _valueZone->onDragEnd = [this] (int, int) {
     if (onValueReleased)
       onValueReleased ();
   };

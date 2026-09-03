@@ -68,6 +68,11 @@ TouchControl::mouseDrag (juce::MouseEvent const &event)
 void
 TouchControl::mouseUp (juce::MouseEvent const &)
 {
+  // First and unconditionally: whoever is holding something needs to hear
+  // that the finger left, and the branch below returns early on a tap.
+  if (onRelease)
+    onRelease (_primary, _secondary);
+
   if (_drag.emittedSteps () == 0)
     {
       if (onTap)
@@ -75,8 +80,8 @@ TouchControl::mouseUp (juce::MouseEvent const &)
       return;
     }
 
-  if (onRelease)
-    onRelease (_primary, _secondary);
+  if (onDragEnd)
+    onDragEnd (_primary, _secondary);
 }
 
 }

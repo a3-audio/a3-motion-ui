@@ -40,6 +40,7 @@
 #include <a3-motion-ui/components/ColourPickerComponent.hh>
 #include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/components/OverlaySideStrips.hh>
+#include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
@@ -168,7 +169,13 @@ private:
   constexpr bool runsOnHardware ();
   void createHardwareInterface ();
   void blankLEDs ();
+  /** Show one of the bar's two pages, and put the screen's modifiers down. */
+  void showBarPage (BarPage page);
+
   void handlePadPress (index_t channel, index_t pad);
+  /** The other half of a pad gesture. Shift+Action previews for as long as it
+   *  is held, so a press without a release leaves the channel previewing. */
+  void handlePadRelease (index_t channel, index_t pad);
   bool isButtonPressed (Button button);
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
@@ -382,6 +389,13 @@ private:
   // it in preview mode (OSC output silenced); releasing Action exits preview
   // (pattern keeps playing). -1 means no preview active on that channel.
   std::vector<int> _previewHeldPad; // holds the SLOT index, or -1
+
+  /** The controller page's modifiers. Held on the screen rather than on the
+   *  panel, and folded into isButtonPressed() so nothing downstream has to
+   *  know which of the two a hand is on. */
+  std::unique_ptr<ControllerComponent> _controller;
+  bool _screenShiftHeld = false;
+  bool _screenRecordHeld = false;
 
   // Clip Settings: permanent bottom panel showing the last-selected clip's
   // settings. Selected by a slot's Settings button; the Motion-

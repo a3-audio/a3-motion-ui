@@ -207,6 +207,16 @@ public:
    *  top-right (e.g. "CH2 POT1 0.73"). Global, independent of setTarget(). */
   void setLastControlReadout (juce::String const &text);
 
+  /** Which page the bar is showing — the clip's settings, or the panel's pads
+   *  (see ControllerComponent). The header row and the global strip belong to
+   *  the bar itself and stay put on both. */
+  void setPage (BarPage page);
+  /** The clip part of the bar, in the bar's own coordinates — what the
+   *  controller page covers when it is showing. */
+  juce::Rectangle<int> clipBounds () const;
+  /** A tab was tapped. */
+  std::function<void (BarPage page)> onPageSelected;
+
   /** A control was tapped: select its section and sub-element in one go —
    *  what the encoders reach by scrolling and pressing. */
   std::function<void (int section, int sub)> onControlTapped;
@@ -263,6 +273,7 @@ public:
 private:
   /** The card behind a section plus its title — every section opens with
    *  it, and it is the only thing they all draw the same way. */
+  void paintTabs (juce::Graphics &g);
   void paintSectionCard (juce::Graphics &g, int sectionIndex, bool isSelected);
 
   /** Recomputes _layout from the current bounds and theme. Called by both
@@ -374,6 +385,7 @@ private:
   int _motionFade = 0;
   int _motionSpin = 0;
   int _motionSwell = 0;
+  BarPage _page = BarPage::Clip;
   int _trajectorySubIndex = 0;
   juce::String _recordLengthLabel { "1" };
   std::array<float, numChannelColumns> _channelFreq{};
@@ -415,6 +427,8 @@ private:
    *  what the controls below it do, and touching a picture should do
    *  nothing. Without it the card underneath would answer. */
   std::unique_ptr<TouchControl> _elevationGraphicTouch;
+  std::unique_ptr<TouchControl> _tabClipTouch;
+  std::unique_ptr<TouchControl> _tabControllerTouch;
   /** One hit area per grid cell, [channel][row]. */
   std::array<std::array<std::unique_ptr<TouchControl>, numChannelRows>,
              numChannelColumns>

@@ -69,6 +69,15 @@ public:
       onDragIncrement;
   /** Coming off after a drag that emitted steps — where there is something
    *  to confirm. */
+  /** The drag ended. Only after one: a press that never moved reports as
+   *  onTap instead. */
+  std::function<void (int primary, int secondary)> onDragEnd;
+  /** The finger came up, whatever it did in between.
+   *
+   *  Separate from onDragEnd because a *held* control — the controller page's
+   *  modifiers, a pad running a preview for as long as it is down — has to
+   *  hear the release even though nothing was dragged, and onDragEnd is
+   *  silent in exactly that case. */
   std::function<void (int primary, int secondary)> onRelease;
 
   void mouseDown (juce::MouseEvent const &event) override;

@@ -379,8 +379,36 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     handleClipSettingsToggle (_clipSettingsChannel, section, sub);
   };
 
+  _clipSettings->onPageSelected
+      = [this] (BarPage page) { showBarPage (page); };
+
+  _controller = std::make_unique<ControllerComponent> ();
+  _controller->onPadPressed = [this] (index_t channel, index_t pad) {
+    handlePadPress (channel, pad);
+  };
+  _controller->onPadReleased = [this] (index_t channel, index_t pad) {
+    handlePadRelease (channel, pad);
+  };
+  _controller->onShiftHeld = [this] (bool held) {
+    _screenShiftHeld = held;
+    updateControlReadout (juce::String ("-- SHIFT ")
+                          + (held ? "ON" : "OFF"));
+  };
+  _controller->onRecordHeld = [this] (bool held) {
+    _screenRecordHeld = held;
+    updateControlReadout (juce::String ("-- RECORD ")
+                          + (held ? "ON" : "OFF"));
+  };
+
   addChildComponent (*_clipSettings);
   _clipSettings->setVisible (true);
+
+  // A child of the bar, not a sibling of it. The bar fills its whole area
+  // with the surface colour at 85% (panelOpacity), so a sibling drawn under
+  // that came through at fifteen percent of itself — a page whose job is
+  // showing which clip is running, showing it in the dark. A child is painted
+  // after its parent by construction, and no z-order call can undo that.
+  _clipSettings->addChildComponent (*_controller);
   selectClip (0, 0); // sensible default before any button has been pressed
 
   // Clockmode is all that is left to restore. Pot Size and the two font sizes
@@ -830,6 +858,13 @@ A3MotionUIComponent::resized ()
   if (_clipSettings)
     _clipSettings->setBounds (boundsClipSettings);
 
+  // The bar's clip part, in the bar's own coordinates — it is a child of the
+  // bar. The header row and the global strip beside it belong to the bar on
+  // both pages, and this paints nothing in the header, so what is drawn there
+  // stays visible and its tabs stay reachable.
+  if (_controller && _clipSettings)
+    _controller->setBounds (_clipSettings->clipBounds ());
+
   // The menu covers the sphere and nothing else. It used to take the clip
   // settings' space as well — the bar gave up its bounds and the menu had the
   // whole screen — which meant the one thing several of its settings change
@@ -1019,27 +1054,10 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               if (value.refersToSameSourceAs (
                       _ioAdapter->getPad (channel, pad)))
                 {
-                  auto const slot = slotForPadIndex[pad];
                   if (value.getValue ())
-                    {
-                      handlePadPress (channel, pad);
-                    }
-                  else if (padFunctionByPadIndex[pad] == PadFunction::Action
-                           && _previewHeldPad[channel]
-                                  == static_cast<int> (slot))
-                    {
-                      // Action released → exit the Shift+Action preview
-                      // gesture. OSC fires from current position, pattern
-                      // keeps playing.
-                      _engine.setPreviewMode (channel, false);
-                      _previewHeldPad[channel] = -1;
-
-                      if (_patterns[channel][slot])
-                        {
-                          _motionComponent->unsetPreviewPattern (
-                              _patterns[channel][slot]);
-                        }
-                    }
+                    handlePadPress (channel, pad);
+                  else
+                    handlePadRelease (channel, pad);
                   return;
                 }
             }
@@ -1371,6 +1389,48 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 }
 
 void
+A3MotionUIComponent::showBarPage (BarPage page)
+{
+  _clipSettings->setPage (page);
+  _controller->setVisible (page == BarPage::Controller);
+
+
+  // A modifier cannot be held across a page it is not drawn on. Leaving it
+  // set would arm the next pad press from a key nobody is touching.
+  if (page != BarPage::Controller)
+    {
+      _screenShiftHeld = false;
+      _screenRecordHeld = false;
+      _controller->setShiftHeld (false);
+      _controller->setRecordHeld (false);
+    }
+}
+
+void
+A3MotionUIComponent::handlePadRelease (index_t channel, index_t pad)
+{
+  auto const slot = slotForPadIndex[pad];
+
+  // Action released -> exit the Shift+Action preview gesture. OSC fires from
+  // the current position, the pattern keeps playing.
+  //
+  // Its own function rather than a branch inside the panel's listener,
+  // because the screen's pads have to leave the gesture the same way they
+  // entered it. A press that could be released only by the hardware would
+  // leave a channel previewing with nothing on screen to stop it.
+  if (padFunctionByPadIndex[pad] != PadFunction::Action)
+    return;
+  if (_previewHeldPad[channel] != static_cast<int> (slot))
+    return;
+
+  _engine.setPreviewMode (channel, false);
+  _previewHeldPad[channel] = -1;
+
+  if (_patterns[channel][slot])
+    _motionComponent->unsetPreviewPattern (_patterns[channel][slot]);
+}
+
+void
 A3MotionUIComponent::handleMessage (juce::Message const &message)
 {
   using Status = MotionEngine::PatternStatusMessage::Status;
@@ -1436,6 +1496,15 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
 bool
 A3MotionUIComponent::isButtonPressed (Button button)
 {
+  // The panel's key or the screen's, whichever is down. One state, so that
+  // everything asking "is Shift held" gets the same answer no matter which
+  // of the two the hand is on — and so that a build with no panel can still
+  // reach the gestures that need a modifier.
+  if (button == Button::Shift && _screenShiftHeld)
+    return true;
+  if (button == Button::Record && _screenRecordHeld)
+    return true;
+
   return _ioAdapter->getButton (button).getValue ();
 }
 
@@ -1583,6 +1652,11 @@ A3MotionUIComponent::padLEDCallback (int step)
               base, status, statusLast, step);
           _ioAdapter->getPadLED (channel, pad)
               = juce::VariantConverter<juce::Colour>::toVar (colour);
+
+          // The same colour to the screen. One place works out what empty,
+          // idle, armed and running look like; two places show it.
+          if (_controller)
+            _controller->setPadColour (channel, pad, colour);
         }
     }
 }

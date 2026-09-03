@@ -406,6 +406,45 @@ scrolls under a moving finger cannot hand the drag to a different row halfway th
 without opening anything — a setting in two places is a setting whose location you have to
 remember.
 
+#### The bar's two pages
+
+The bar shows one of two pages (`BarPage`): the shown clip's settings, or **the panel's pads**.
+Tabs at the head of the bar switch them; the header row and the global strip on the right stand on
+both, because recmode, clock, MENU, REC and TAP belong to the device rather than to the clip and
+losing them while firing clips is the wrong moment to lose them.
+
+The controller page exists because **a plain build has no panel** — `HARDWARE_INTERFACE_ENABLED`
+is off by default — and without pads such a build cannot start a single clip. It decides nothing
+of its own: a press goes out as `(channel, pad)` into the same `handlePadPress()` the hardware
+reaches, and a pad's colour comes in already worked out by `padLEDCallback()`, the one loop that
+also writes the panel's LEDs. Empty, idle, armed and running therefore look on screen exactly as
+they look on the hardware, because one place decides what they mean.
+
+Its geometry is `ControllerLayout` — channels across, slots down, and where they meet one clip with
+its four pads in the panel's own arrangement. A pad's identity comes from `padFunctionByPadIndex` /
+`slotForPadIndex` in `io/PadFunctions.hh`, the same tables the panel is read with; a screen that
+decided for itself what its pads meant would drift silently, and the first sign of it would be a
+finger firing the wrong clip. `fingertipSize` is the floor for anything hit in a hurry, and
+`controllerPreferredHeight()` is why the bar can be taller than the clip settings alone would ask
+for: both pages share one area, so it has to satisfy the hungrier of them.
+
+Two things this cost, both worth knowing before touching it:
+
+- **The page is a child of `ClipSettingsComponent`, not a sibling.** The bar fills its whole area
+  with `surface` at `panelOpacity` (0.85), so a sibling underneath came through at fifteen percent
+  of itself — the page whose job is showing which clip is running, showing it in the dark. A child
+  is painted after its parent by construction and no `toFront()` can undo that.
+- **`TouchControl` has two release callbacks and they are not synonyms.** `onDragEnd` fires only
+  after a drag; `onRelease` fires whenever the finger comes up. The modifiers and the pads need the
+  second, because Shift+Action previews for as long as it is held — with only `onDragEnd` a press
+  that never moved was never released, and the channel previewed forever.
+
+`SHIFT` and `REC` are **held, not latched** (Shift+Action has no meaning without a release) and sit
+on the bar's floor, which is the screen's floor, where a thumb is. `isButtonPressed()` ors the
+screen's state with the panel's, so nothing downstream knows or cares which one a hand is on.
+Switching away from the page puts both down: a modifier held on a page it is not drawn on would arm
+the next pad press from a key nobody is touching.
+
 #### Getting out of an overlay
 
 `OverlayButtons` draws **back** and **close** in the top right, over whichever overlay is open —

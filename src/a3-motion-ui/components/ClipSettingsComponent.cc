@@ -21,6 +21,8 @@
 #include "ClipSettingsComponent.hh"
 
 #include <a3-motion-engine/TempoLfo.hh>
+
+#include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-engine/TrajectorySpin.hh>
 
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
@@ -82,6 +84,18 @@ ClipSettingsComponent::createTouchControls ()
       addAndMakeVisible (*card);
       _sectionTouch[static_cast<size_t> (section)] = std::move (card);
     }
+
+  auto const makeTab = [this] (std::unique_ptr<TouchControl> &into,
+                               BarPage page) {
+    into = std::make_unique<TouchControl> ();
+    into->onTap = [this, page] (int, int) {
+      if (onPageSelected)
+        onPageSelected (page);
+    };
+    addAndMakeVisible (*into);
+  };
+  makeTab (_tabClipTouch, BarPage::Clip);
+  makeTab (_tabControllerTouch, BarPage::Controller);
 
   // In front of the cards, so it swallows what would otherwise reach the
   // Elevation card. No callbacks: a picture is not a control.
@@ -238,6 +252,9 @@ ClipSettingsComponent::resized ()
     }
 
   _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
+
+  _tabClipTouch->setBounds (_layout.tabClip);
+  _tabControllerTouch->setBounds (_layout.tabController);
 
   for (int col = 0; col < numChannelColumns; ++col)
     for (int row = 0; row < numChannelRows; ++row)
@@ -498,13 +515,83 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   g.drawText (slotName, _layout.slotLabel, juce::Justification::centredLeft,
               true);
 
+  paintTabs (g);
+
+  // The global strip stands on both pages: recmode, clock, MENU, REC and TAP
+  // belong to the device rather than to the clip, and losing them while you
+  // are firing clips is exactly the wrong moment to lose them.
+  paintGlobalSection (g, _selectedIndex == globalIndex);
+
+  if (_page == BarPage::Controller)
+    return; // ControllerComponent draws the rest
+
   paintTrajectorySection (g, _selectedIndex == trajectoryIndex);
   paintElevationSection (g, _selectedIndex == elevationIndex);
   paintMotionSection (g, _selectedIndex == motionIndex);
-  paintGlobalSection (g, _selectedIndex == globalIndex);
 
   // Last, so it covers whichever section it belongs to.
   paintDropdown (g);
+}
+
+void
+ClipSettingsComponent::paintTabs (juce::Graphics &g)
+{
+  auto const paintTab = [&] (juce::Rectangle<int> bounds,
+                             juce::String const &label, bool active) {
+    if (bounds.isEmpty ())
+      return;
+
+    // The active one is filled and the other is outlined: which page you are
+    // on has to be answerable with a glance, not by reading two words and
+    // working out which is bolder.
+    g.setColour (active ? _channelColour.withAlpha (0.35f)
+                        : toColour (theme ().textPrimary, 0.06f));
+    g.fillRoundedRectangle (bounds.toFloat (), 3.f);
+    g.setColour (toColour (theme ().textPrimary, active ? 0.35f : 0.15f));
+    g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+
+    g.setFont (juce::Font (fontFor (FontRole::Header, bounds, label),
+                           active ? juce::Font::bold : juce::Font::plain));
+    g.setColour (toColour (theme ().textPrimary, active ? 1.f : 0.55f));
+    g.drawFittedText (label, bounds, juce::Justification::centred, 1);
+  };
+
+  paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
+  paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
+}
+
+juce::Rectangle<int>
+ClipSettingsComponent::clipBounds () const
+{
+  return _layout.clipBounds;
+}
+
+void
+ClipSettingsComponent::setPage (BarPage page)
+{
+  if (_page == page)
+    return;
+
+  _page = page;
+  closeDropdown ();
+
+  // The clip's own controls stop taking touches: they are not drawn on the
+  // controller page, and a hit area with nothing under it is how a finger
+  // changes a value it cannot see.
+  for (int section = 0; section < numParameters; ++section)
+    for (auto &control : _controlTouch[static_cast<size_t> (section)])
+      control->setVisible (_page == BarPage::Clip);
+
+  for (int section = 0; section < numClipSections; ++section)
+    _sectionTouch[static_cast<size_t> (section)]->setVisible (_page
+                                                              == BarPage::Clip);
+
+  _elevationGraphicTouch->setVisible (_page == BarPage::Clip);
+  for (auto &button : _lengthTouch)
+    if (button)
+      button->setVisible (_page == BarPage::Clip);
+
+  repaint ();
 }
 
 void
@@ -782,8 +869,15 @@ ClipSettingsComponent::preferredHeight (int width) const
                                      theme ().fontSize (FontRole::Body),
                                      knobDiam);
 
+  // Both pages share this one area, so it has to satisfy the hungrier of
+  // them: on the controller page a pad that is under a fingertip is a fault,
+  // and it cannot be fixed by switching tabs.
+  auto const needed = juce::jmax (
+      wanted, controllerPreferredHeight (theme ().fontSize (FontRole::Header),
+                                         fingertipSize));
+
   return juce::jmax (
-      1, juce::roundToInt (static_cast<float> (wanted)
+      1, juce::roundToInt (static_cast<float> (needed)
                            * juce::jlimit (0.5f, 2.f,
                                            theme ().clipSettingsHeightScale)));
 }

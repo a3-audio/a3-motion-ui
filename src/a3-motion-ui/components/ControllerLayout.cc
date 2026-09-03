@@ -68,7 +68,7 @@ controllerPreferredHeight (float headerSize, int buttonHeight)
   // and the paddings. Anything else here would be a second guess at the
   // layout, and the two would drift.
   auto const slots = static_cast<int> (numPadSlots);
-  auto const boxH = 2 * padMinSize + padGap;
+  auto const boxH = 2 * fingertipSize + padGap;
   auto const gridH = slots * boxH + (slots - 1) * padGap;
 
   return gridH + buttonHeight + padGap + headerRowHeight (headerSize)

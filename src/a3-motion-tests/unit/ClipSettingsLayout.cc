@@ -27,6 +27,7 @@
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
+#include <a3-motion-ui/components/ControllerLayout.hh>
 
 using namespace a3;
 
@@ -283,6 +284,39 @@ TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
       EXPECT_LE (card.getWidth () - content.getWidth (), card.getWidth () / 10)
           << "section " << section;
     }
+}
+
+// Two pages share the bar — the clip's settings and the panel's pads — and the
+// strip that switches them sits in the header row, ahead of the slot label.
+// Ahead rather than beside the readout, because the readout is written to from
+// half the interface and a tab that moved when it grew would be a tab you have
+// to look for.
+TEST (ClipSettingsLayout, TheTabsLeadTheHeaderRow)
+{
+  auto const l = defaultLayout ();
+
+  EXPECT_FALSE (l.tabClip.isEmpty ());
+  EXPECT_FALSE (l.tabController.isEmpty ());
+
+  // Side by side, in reading order, and clear of what follows them.
+  EXPECT_LE (l.tabClip.getRight (), l.tabController.getX ());
+  EXPECT_LE (l.tabController.getRight (), l.slotLabel.getX ());
+  EXPECT_LE (l.slotLabel.getRight (), l.readout.getX ());
+
+  // On the header's own line, not above or below it.
+  EXPECT_EQ (l.tabClip.getY (), l.readout.getY ());
+  EXPECT_EQ (l.tabClip.getHeight (), l.readout.getHeight ());
+  EXPECT_EQ (l.tabController.getY (), l.readout.getY ());
+}
+
+// A tab is switched mid-set, with one hand, without looking away from the
+// deck. The header row is thin, so width is the only room there is to give.
+TEST (ClipSettingsLayout, ATabIsWideEnoughToHit)
+{
+  auto const l = defaultLayout ();
+
+  EXPECT_GE (l.tabClip.getWidth (), fingertipSize);
+  EXPECT_GE (l.tabController.getWidth (), fingertipSize);
 }
 
 // Menu, Rec and Tap sit in the global strip beside the clip's sections. They

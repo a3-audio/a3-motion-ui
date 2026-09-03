@@ -21,6 +21,8 @@
 
 #include "ClipSettingsLayout.hh"
 
+#include "ControllerLayout.hh"
+
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 
 namespace a3
@@ -136,6 +138,15 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   auto headerArea = area.removeFromTop (headerH);
   out.readout = headerArea.removeFromRight (headerArea.getWidth () / 2);
+
+  // The two pages, ahead of everything: the readout beside them is written to
+  // from half the interface, and a tab that shifted as it grew would be a tab
+  // you have to look for. Sized to be hit rather than to fit their words —
+  // they are switched mid-set, with one hand, without looking down.
+  auto const tabW
+      = juce::jmax (fingertipSize, headerArea.getWidth () / 4);
+  out.tabClip = headerArea.removeFromLeft (tabW);
+  out.tabController = headerArea.removeFromLeft (tabW);
   out.slotLabel = headerArea;
 
   area.removeFromTop (juce::jmax (4, out.clipBounds.getHeight () / 50));

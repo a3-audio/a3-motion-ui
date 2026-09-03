@@ -195,7 +195,7 @@ SkinEditorComponent::createTouchControls ()
         _dragRow = -1;
         toggleEditing ();
       };
-      touch.value->onRelease = [this] (int, int) { _dragRow = -1; };
+      touch.value->onDragEnd = [this] (int, int) { _dragRow = -1; };
       touch.value->onDragIncrement = [this] (int, int, int increment) {
         if (_dragRow < 0 || _dragRow != browsedRowIndex ())
           return;

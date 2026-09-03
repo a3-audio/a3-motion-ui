@@ -60,13 +60,13 @@ struct ControllerLayout
   juce::Rectangle<int> recordButton;
 };
 
-/** No pad narrower or shorter than this. It is the control that is hit most
- *  often and in the most hurry, in the dark, by a hand that is also doing
- *  something else — the one place in this interface where a target smaller
- *  than a fingertip is not a compromise but a fault. */
-constexpr int padMinSize = 34;
+/** The smallest thing a hand can find without looking. Nothing hit in a hurry
+ *  — a pad, a page tab — is drawn narrower or shorter than this: in the dark,
+ *  by a hand that is also doing something else, a target under a fingertip is
+ *  not a compromise but a fault. */
+constexpr int fingertipSize = 34;
 
-/** The height at which the pads first reach `padMinSize`.
+/** The height at which the pads first reach `fingertipSize`.
  *
  *  The bar is one area and both pages share it, so its height has to satisfy
  *  the hungrier of the two — see clipSettingsPreferredHeight(), which is the

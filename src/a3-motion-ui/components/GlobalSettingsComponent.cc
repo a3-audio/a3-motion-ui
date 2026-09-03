@@ -141,7 +141,7 @@ GlobalSettingsComponent::rebuildRowTouch ()
             };
       // Coming off the value field is what the second encoder press does:
       // it applies what the drag landed on.
-      touch.value->onRelease = [this] (int released, int) {
+      touch.value->onDragEnd = [this] (int released, int) {
         if (onValueReleased)
           onValueReleased (released);
       };

@@ -69,6 +69,17 @@ constexpr int channelRowThreeD = 0;
 constexpr int channelRowFreq = 1;
 constexpr int channelRowQ = 2;
 
+/** Which of the bar's two pages is showing.
+ *
+ *  Here rather than inside ClipSettingsComponent because two components and
+ *  the orchestrator between them all speak it, and burying it in one of them
+ *  would drag that component's whole header into the other two. */
+enum class BarPage
+{
+  Clip,
+  Controller,
+};
+
 /** The area inside a section's card that its controls are laid out in —
  *  the card less its frame. Public because it is also what the shared
  *  caption and value sizes are fitted to: fonts sized against one width and
@@ -138,7 +149,10 @@ struct ClipSettingsLayout
   juce::Rectangle<int> trajectoryName;
   /** The length buttons under the pictogram, in recordLengthLog2 order. */
   std::array<juce::Rectangle<int>, numRecordLengths> lengthButtons;
-  /** The bar's own header row: "Slot N" left, the readout right. */
+  /** The bar's own header row, left to right: the two page tabs, "Slot N",
+   *  and the readout. */
+  juce::Rectangle<int> tabClip;
+  juce::Rectangle<int> tabController;
   juce::Rectangle<int> slotLabel;
   juce::Rectangle<int> readout;
 

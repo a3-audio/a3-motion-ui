@@ -90,9 +90,9 @@ TEST (ControllerLayout, AtItsOwnHeightEveryPadIsAFingertipAcross)
     for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
       {
         auto const p = l.pads[channel][pad];
-        EXPECT_GE (p.getWidth (), padMinSize)
+        EXPECT_GE (p.getWidth (), fingertipSize)
             << "channel " << channel << ", pad " << pad;
-        EXPECT_GE (p.getHeight (), padMinSize)
+        EXPECT_GE (p.getHeight (), fingertipSize)
             << "channel " << channel << ", pad " << pad;
       }
 }
