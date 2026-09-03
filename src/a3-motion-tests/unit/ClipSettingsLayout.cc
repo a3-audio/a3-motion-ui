@@ -308,23 +308,26 @@ TEST (ClipSettingsLayout, TheTabsCloseTheHeaderRow)
 }
 
 // The readout says what was last moved, and what moves comes from either page
-// — so it belongs to the strip that stands on both rather than to the half
-// that gets swapped out from under it. It takes the title's row rather than
-// one of its own: an extra row there comes out of the channel grid, which at
-// the smallest skin sizes collapsed its cells to five pixels.
-TEST (ClipSettingsLayout, TheReadoutTakesTheGlobalStripsTitleRow)
+// — so it sits over the global strip, which stands on both, rather than over
+// the half that gets swapped out from under it. Above the strip's card, on the
+// header row's own line: the bar reads across at one height, and a readout
+// dropped into the card would take a row the channel grid needs.
+TEST (ClipSettingsLayout, TheReadoutSitsOverTheGlobalStripOnTheHeaderLine)
 {
   auto const l = defaultLayout ();
 
   EXPECT_FALSE (l.readout.isEmpty ());
   EXPECT_TRUE (l.globalBounds.contains (l.readout));
-  EXPECT_TRUE (l.sectionLabels[3].isEmpty ());
 
-  // Above everything the strip holds.
-  for (auto const &column : l.channelGrid)
-    for (auto const &cell : column)
-      EXPECT_LE (l.readout.getBottom (), cell.getY ());
-  EXPECT_LE (l.readout.getBottom (), l.recModeButton.getY ());
+  // Clear of the card, not inside it.
+  EXPECT_LE (l.readout.getBottom (), l.sectionCards[3].getY ());
+
+  // On the same line as the slot label and the tabs.
+  EXPECT_EQ (l.readout.getY (), l.slotLabel.getY ());
+  EXPECT_EQ (l.readout.getHeight (), l.slotLabel.getHeight ());
+
+  // ... and the strip keeps its own title.
+  EXPECT_FALSE (l.sectionLabels[3].isEmpty ());
 }
 
 // A tab is switched mid-set, with one hand, without looking away from the

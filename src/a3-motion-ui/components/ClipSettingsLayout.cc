@@ -184,7 +184,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         = area.removeFromLeft (sectionW).reduced (gap / 2, 0);
 
   auto globalArea = out.globalBounds.reduced (paddingH, paddingV);
-  globalArea.removeFromTop (headerH);
+
+  // The readout goes in the band above the strip's card — the same band the
+  // slot label and the tabs are on, so the bar reads across at one height.
+  // Over the *global* strip because what it reports comes from either page,
+  // and dropped into the card instead it would take a row the channel grid
+  // needs: at the smallest skin sizes that collapsed its cells to five pixels.
+  out.readout = globalArea.removeFromTop (headerH);
   out.sectionCards[3] = globalArea.reduced (gap / 2, 0);
 
   // ── Shape ────────────────────────────────────────────────────────────
@@ -357,17 +363,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   {
     auto content = sectionContentBounds (out.sectionCards[3]);
 
-    // The readout tops the strip, in the row the word "Global" had. It says
-    // what was last moved, and what moves comes from either page — so it
-    // belongs to the part of the bar that stands on both, not to the half
-    // that gets swapped out from under it.
-    //
-    // In that row rather than above it: an extra row here comes out of the
-    // channel grid, and at the smallest skin sizes that collapsed its cells
-    // to five pixels. Of the two, the strip can better spare a label naming
-    // what is plainly in front of you than the grid can spare its height.
-    out.readout = content.removeFromTop (titleRowHeight (content, headerSize));
-    out.sectionLabels[3] = {};
+    out.sectionLabels[3]
+        = content.removeFromTop (titleRowHeight (content, headerSize));
 
     // The grid across the whole section, the four buttons in one row under
     // it. Beside each other the grid was cramped into two thirds of the

@@ -527,6 +527,17 @@ ClipSettingsComponent::paint (juce::Graphics &g)
 
   paintTabs (g);
 
+  // Over the global strip, on the header row's line: what it reports comes
+  // from either page, so it belongs beside the part of the bar that stands on
+  // both rather than inside the half that gets swapped out.
+  g.setFont (juce::Font (juce::Font::getDefaultMonospacedFontName (),
+                         fontFor (FontRole::Header, _layout.readout,
+                                  _lastControlText),
+                         juce::Font::plain));
+  g.setColour (toColour (theme ().accent, panelOpacity));
+  g.drawText (_lastControlText, _layout.readout,
+              juce::Justification::centredRight, true);
+
   // The global strip stands on both pages: recmode, clock, MENU, REC and TAP
   // belong to the device rather than to the clip, and losing them while you
   // are firing clips is exactly the wrong moment to lose them.
@@ -673,16 +684,6 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
                   false, false);
   paintBarButton (g, _layout.clockModeButton, clockNames[clock], "clock",
                   false, false);
-
-  // The readout tops the strip, where the word "Global" was: what it reports
-  // comes from either page, so it belongs to the part that stands on both.
-  g.setFont (juce::Font (juce::Font::getDefaultMonospacedFontName (),
-                         fontFor (FontRole::Header, _layout.readout,
-                                  _lastControlText),
-                         juce::Font::plain));
-  g.setColour (toColour (theme ().accent, panelOpacity));
-  g.drawText (_lastControlText, _layout.readout,
-              juce::Justification::centred, true);
 
   paintActionButton (g, _layout.menuButton, "MENU", false);
   paintActionButton (g, _layout.recButton, "REC", _recording);

@@ -411,10 +411,11 @@ remember.
 The bar shows one of two pages (`BarPage`): the shown clip's settings, or **the panel's pads**.
 Tabs close the header row and switch them; the header row and the global strip on the right stand
 on both, because recmode, clock, MENU, REC, TAP and SHIFT belong to the device rather than to the
-clip and losing them while firing clips is the wrong moment to lose them. The **readout tops the
-global strip**, in the row the word "Global" had: what it reports comes from either page, so it
-belongs to the part that stands on both — and an extra row there would have come out of the channel
-grid, which at the smallest skin sizes collapsed its cells to five pixels.
+clip and losing them while firing clips is the wrong moment to lose them. The **readout sits over the
+global strip**, in the header row's band and on its line: what it reports comes from either page, so
+it belongs beside the part that stands on both. In that band rather than inside the strip's card,
+because a row taken there comes out of the channel grid, whose cells collapsed to five pixels at the
+smallest skin sizes.
 
 The controller page exists because **a plain build has no panel** — `HARDWARE_INTERFACE_ENABLED`
 is off by default — and without pads such a build cannot start a single clip. It decides nothing
