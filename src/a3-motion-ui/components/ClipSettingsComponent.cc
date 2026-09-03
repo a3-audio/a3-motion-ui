@@ -517,13 +517,19 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   g.setColour (toColour (theme ().textPrimary, 0.25f));
   g.drawRect (_layout.globalBounds, frameThickness);
 
-  auto const slotName = "Slot " + juce::String (_slot + 1);
-  g.setFont (juce::Font (fontFor (FontRole::Header, _layout.slotLabel,
-                                  slotName),
-                         juce::Font::bold));
-  g.setColour (_channelColour);
-  g.drawText (slotName, _layout.slotLabel, juce::Justification::centredLeft,
-              true);
+  // Only on the clip page. The controller page shows every slot at once, so
+  // naming one of them there says something untrue about what you are looking
+  // at.
+  if (_page == BarPage::Clip)
+    {
+      auto const slotName = "Slot " + juce::String (_slot + 1);
+      g.setFont (juce::Font (
+          fontFor (FontRole::Header, _layout.slotLabel, slotName),
+          juce::Font::bold));
+      g.setColour (_channelColour);
+      g.drawText (slotName, _layout.slotLabel,
+                  juce::Justification::centredLeft, true);
+    }
 
   paintTabs (g);
 

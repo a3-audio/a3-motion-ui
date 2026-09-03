@@ -91,3 +91,37 @@ TEST (TempoClock, FirstTapResetsTheBeat)
 
   tempoClock.stop ();
 }
+
+
+// A clip fired from a pad lands on the next beat, not the next bar: a bar is
+// up to four beats away and that is long enough to feel like the button did
+// not work. The bar is still where a *take* is quantised — this is only about
+// when a press takes effect.
+TEST (TempoClock, TheNextBeatIsTheNextOneNotTheNextBar)
+{
+  constexpr int beatsPerBar = 4;
+
+  // Mid-beat: on to the beat that follows.
+  EXPECT_EQ (TempoClock::nextBeat ({ 3, 1, 40 }, beatsPerBar),
+             Measure (3, 2, 0));
+
+  // The last beat of a bar rolls into the next bar's first.
+  EXPECT_EQ (TempoClock::nextBeat ({ 3, 3, 40 }, beatsPerBar),
+             Measure (4, 0, 0));
+}
+
+// Already exactly on a beat is already the answer — the same rule
+// nextDownBeat() follows for a bar. Rounding up here would put every press
+// that landed on time a whole beat late.
+TEST (TempoClock, AMeasureAlreadyOnABeatIsItsOwnNextBeat)
+{
+  EXPECT_EQ (TempoClock::nextBeat ({ 2, 0, 0 }, 4), Measure (2, 0, 0));
+  EXPECT_EQ (TempoClock::nextBeat ({ 2, 3, 0 }, 4), Measure (2, 3, 0));
+}
+
+// Odd metres are a setting here, so the wrap cannot be hard-coded to four.
+TEST (TempoClock, TheWrapFollowsTheMetre)
+{
+  EXPECT_EQ (TempoClock::nextBeat ({ 1, 2, 5 }, 3), Measure (2, 0, 0));
+  EXPECT_EQ (TempoClock::nextBeat ({ 1, 4, 5 }, 7), Measure (1, 5, 0));
+}

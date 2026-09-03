@@ -425,7 +425,9 @@ also writes the panel's LEDs. Empty, idle, armed and running therefore look on s
 they look on the hardware, because one place decides what they mean.
 
 Its geometry is `ControllerLayout` — channels across, slots down, and where they meet one clip with
-its four pads: **play beside stop on top, action beside settings below**. That arrangement was read
+its four pads: **play beside stop on top, action beside settings below**. `Slot N` is not written
+in the header there — the page shows every slot at once, so naming one says something untrue about
+what you are looking at. That arrangement was read
 off the device, not derived: taken from the pad-index order it had action and stop the wrong way
 round, and pressing the pad drawn as ACT reported STOP. A pad's *identity* does come from
 `padFunctionByPadIndex` / `slotForPadIndex` in `io/PadFunctions.hh`, the same tables the panel is
@@ -433,6 +435,23 @@ read with — those say which pad is which function, but only the hardware says 
 sits under a hand. `fingertipSize` is the floor for anything hit in a hurry, and
 `controllerPreferredHeight()` is why the bar can be taller than the clip settings alone would ask
 for: both pages share one area, so it has to satisfy the hungrier of them.
+
+**When a pad takes effect** is a set, not four separate decisions:
+
+| Pad | When |
+|---|---|
+| PlayPause | the **next beat**, starting and stopping alike (`TempoClock::nextBeat()`) |
+| Stop | **now** |
+| Action | **now** — the instant start beside PlayPause's quantised one |
+| Shift+Action | now, in preview mode, for as long as it is held |
+
+The bar is the take's unit — a recording is a whole number of bars — but it is the wrong unit for a
+press: a bar is up to a metre's worth of beats away, and a clip that starts that long after the
+finger reads as a button that did not work. The beat is close enough to feel immediate and still
+lands in time. Stop is the way out of something going wrong and a way out that waits for the music
+is not one, so it is unquantised; Action is the same escape hatch for starting. Quantised by
+default with an instant variant beside it is what a deck offers, and it is the pairing that matters
+rather than either half.
 
 The page is handed `ClipSettingsLayout::clipContent` — the clip part **under** its header row — not
 the whole clip part. It used to work the header's height out for itself from the font, which came

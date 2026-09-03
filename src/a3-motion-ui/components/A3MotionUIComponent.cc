@@ -1340,16 +1340,23 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       {
         if (!pattern)
           break;
+
+        // Both ends on the next beat. The bar is the take's unit, but a bar
+        // is up to a metre's worth of beats away and a clip that starts that
+        // long after the finger reads as a button that did not work; the beat
+        // is close enough to feel immediate and still lands in time.
+        auto const on = TempoClock::nextBeat (_now, _engine.getBeatsPerBar ());
+
         auto const status = pattern->getStatus ();
         if (status == Pattern::Status::Idle)
           {
             pattern->setPlaybackLength (getPlaybackLength (channel, slot));
-            _engine.playPattern (pattern, _now);
+            _engine.playPattern (pattern, on);
           }
         else if (status == Pattern::Status::Playing
                  || status == Pattern::Status::ScheduledForPlaying)
           {
-            _engine.stopPattern (pattern, TempoClock::nextDownBeat (_now));
+            _engine.stopPattern (pattern, on);
           }
         break;
       }
@@ -1357,12 +1364,15 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       {
         if (!pattern)
           break;
+
+        // Now, not on a beat. Stop is the way out of a thing that is going
+        // wrong, and a way out that waits for the music is not one.
         auto const status = pattern->getStatus ();
         if (status == Pattern::Status::Playing
             || status == Pattern::Status::Recording
             || status == Pattern::Status::ScheduledForPlaying)
           {
-            _engine.stopPattern (pattern, TempoClock::nextDownBeat (_now));
+            _engine.stopPattern (pattern, _now);
           }
         break;
       }
@@ -1370,18 +1380,25 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       {
         // Shift+Action: preview-and-fire — play in preview mode (OSC
         // silenced) while the encoder can browse the library; releasing
-        // Action exits (see valueChanged()'s pad-release branch).
-        // Without Shift: reserved for the Clip Settings Browser preset
-        // trigger, not implemented yet.
-        if (isButtonPressed (Button::Shift) && pattern
-            && pattern->getStatus () == Pattern::Status::Idle)
+        // Action exits (see handlePadRelease()).
+        if (!pattern || pattern->getStatus () != Pattern::Status::Idle)
+          break;
+
+        if (isButtonPressed (Button::Shift))
           {
             pattern->setPlaybackLength (getPlaybackLength (channel, slot));
             _engine.setPreviewMode (channel, true);
             _previewHeldPad[channel] = static_cast<int> (slot);
             _engine.playPattern (pattern, _now);
             setPreviewWithDisplayData (pattern);
+            break;
           }
+
+        // Without Shift: the instant start, beside PlayPause's quantised one.
+        // The pair is the point — quantised is what you want almost always,
+        // and this is for the moment that will not wait for the beat.
+        pattern->setPlaybackLength (getPlaybackLength (channel, slot));
+        _engine.playPattern (pattern, _now);
         break;
       }
     case PadFunction::Settings:
