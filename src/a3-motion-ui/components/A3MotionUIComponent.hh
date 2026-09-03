@@ -111,6 +111,9 @@ private:
    *  came and went inside a frame would read as noise on the link. */
   static constexpr int tapBeatLedMillis = 90;
 
+  /** Push the channel grid's three rows, 3d with the accent laid over it. */
+  void refreshChannelValues ();
+
   /** Write every function key's LED from the one rule the strip paints by. */
   void updateFunctionKeyLEDs ();
   /** Blink the panel's TAP key with the beat — at full, unlike the screen's

@@ -75,7 +75,7 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 
   EXPECT_EQ (l.controls[0].size (), 1u); // Shape: the pattern in the slot
   EXPECT_EQ (l.controls[1].size (), 6u); // Elevation
-  EXPECT_EQ (l.controls[2].size (), 6u); // Motion: + spin, swell
+  EXPECT_EQ (l.controls[2].size (), 8u); // Motion: + spin, swell, atk, dec
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 
@@ -361,6 +361,49 @@ TEST (ClipSettingsLayout, TheClipContentStartsBelowTheHeaderRow)
     EXPECT_TRUE (l.clipContent.contains (
         l.sectionCards[static_cast<size_t> (section)]))
         << "section " << section;
+}
+
+// Motion used to fit inside whatever Elevation and the global strip asked for
+// — with three rows of knobs above its buttons it can be the tallest of the
+// three, and a bar sized for the other two squeezed its top row to a sliver.
+TEST (ClipSettingsLayout, MotionsControlsStayBigEnoughToHit)
+{
+  // At what the bar asks for, and at what a skin may cut it to: a skin can
+  // scale the bar down (clipSettingsHeightScale, 0.81 in the one shipped on
+  // the device), and a section that takes its rows one after another from the
+  // bottom leaves the whole shortfall on the row at the top.
+  for (float bodySize : { 9.f, defaultBodySize, 24.f })
+    for (float potSize : { 0.6f, defaultPotSize, 1.4f })
+      for (float scale : { 1.f, 0.81f, 0.6f })
+      {
+        auto bar = grownBar (defaultHeaderSize, bodySize, potSize);
+        bar.setHeight (juce::roundToInt (bar.getHeight () * scale));
+
+        auto const l = layOutClipSettings (bar, defaultHeaderSize, bodySize,
+                                           potSize);
+
+        for (size_t sub = 0; sub < l.controls[2].size (); ++sub)
+          {
+            auto const cell = l.controls[2][sub];
+            EXPECT_GE (cell.getHeight (), 10)
+                << "sub " << sub << ", body " << bodySize << " pot " << potSize
+              << " scale " << scale;
+            EXPECT_GE (cell.getWidth (), 10)
+                << "sub " << sub << ", body " << bodySize << " pot "
+                << potSize << " scale " << scale;
+          }
+
+        // ... and the six knobs are all the same height. One row coming out
+        // thinner than the others is the section running out of room from the
+        // top, which is what a bar sized without Motion in mind does to it.
+        // Subs 1 and 2 are the two dropdowns and a different shape by design.
+        int const knobSubs[] = { 0, 3, 4, 5, 6, 7 };
+        auto const height = l.controls[2][0].getHeight ();
+        for (auto const sub : knobSubs)
+          EXPECT_NEAR (l.controls[2][static_cast<size_t> (sub)].getHeight (),
+                       height, 2)
+              << "sub " << sub << ", body " << bodySize << " pot " << potSize;
+      }
 }
 
 // Menu, Rec and Tap sit in the global strip beside the clip's sections. They

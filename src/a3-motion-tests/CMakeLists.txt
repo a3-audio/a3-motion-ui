@@ -29,6 +29,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TrajectorySpin.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TempoLfo.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/Envelope.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ControllerLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FunctionKeys.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FunctionKeyColours.cc"

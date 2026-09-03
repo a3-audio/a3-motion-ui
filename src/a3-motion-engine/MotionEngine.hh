@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/AsyncCommandQueue.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
@@ -77,6 +78,27 @@ public:
 
   float getChannelPot3 (index_t channel);
   void setChannelPot3 (index_t channel, float pot3);
+
+  /** What actually goes out: the set value with the accent laid over it. The
+   *  grid shows this rather than the setting, so an envelope you fired is an
+   *  envelope you can see — a modulation nothing on screen moves for is one
+   *  you have to take on trust. */
+  float getChannelPot3Effective (index_t channel);
+
+  /** ACT went down or came up on this channel. The accent rises while it is
+   *  down and falls when it is let go; its shape comes from the clip that was
+   *  fired, and it can only ever raise the channel's 3d above what the pot
+   *  and the grid set — see envelopeOver(). */
+  void setChannelAccentHeld (index_t channel, bool held,
+                             std::shared_ptr<Pattern> pattern);
+
+private:
+  /** One tick of every channel's accent. Runs on the tempo-clock thread with
+   *  the rest of playback, so the envelope and the trajectory move together.
+   */
+  void advanceAccents ();
+
+public:
 
   enum class RecordingMode
   {
@@ -286,6 +308,14 @@ private:
   std::vector<float> _lastSentPot1s;
   std::vector<float> _lastSentPot2s;
   std::vector<float> _lastSentPot3s;
+
+  /** The accent per channel: whether ACT is down, where the envelope stands,
+   *  and whose shape it is running. Live only — an accent is a gesture, and a
+   *  gesture is not a thing to reload at startup. */
+  std::vector<char> _accentHeld;
+  std::vector<EnvelopeState> _accentEnvelope;
+  std::vector<std::shared_ptr<Pattern> > _accentPattern;
+
 
   // Per-channel preview mode: when true, suppress OSC output
   std::vector<std::atomic<bool>> _previewMode;

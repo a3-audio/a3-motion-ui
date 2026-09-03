@@ -140,6 +140,25 @@ generator and the test runner:
   `playPosition` and resets when playback starts, so a clip fired again begins where it was
   recorded.
 
+  **The clip's third modulation is not a movement at all.** `Envelope` is the accent: it rises while
+  the **ACT pad is held**, stays up for as long as it is held, and falls when it is let go. The hold
+  is the finger, which is why there is no sustain control — on a pad, how long a thing lasts is a
+  gesture, and a gesture beats a number you would have had to set beforehand for a moment you did not
+  know was coming. Its two times are `atk` and `dec`, in bars off the tempo clock like everything
+  else, but on a shorter table (1/16 of a bar to 4) since it is a gesture rather than a cycle.
+
+  What it drives is the channel's **3d**, and only upwards: `envelopeOver (set, level)` returns the
+  set value at rest — exactly, not nearly, or the pot would drift every time an accent finished —
+  and raises it towards 1 as the envelope climbs. The hardware pot and the grid keep meaning what
+  they always meant; what they mean *is* now the bottom of the swing. `MotionEngine::advanceAccents()`
+  runs it on the tempo-clock thread beside playback, and `getChannelPot3Effective()` is what both the
+  OSC sender and the grid read, so the knob on screen moves with the accent instead of leaving you to
+  take it on trust.
+
+  It fires on ACT **whatever the clip is doing** — an accent is not a start, and behind the
+  start's "is this idle" check it fired only on a clip that happened to be standing still, which is
+  the opposite of when you reach for it.
+
   **The clip's second slow movement, `swell`, works the same way** and is the reason `TempoLfo`
   is its own module. It sweeps the Pattern's `reach` — how far down the sphere the trajectory's
   outer edge lands — out of where it was set and back, positive opening the coverage towards the

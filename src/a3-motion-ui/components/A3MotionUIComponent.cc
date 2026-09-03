@@ -21,6 +21,7 @@
 #include <a3-motion-ui/io/OnScreenKeyboard.hh>
 #include "A3MotionUIComponent.hh"
 
+#include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectorySpin.hh>
 
@@ -1411,6 +1412,12 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         // Shift+Action: preview-and-fire — play in preview mode (OSC
         // silenced) while the encoder can browse the library; releasing
         // Action exits (see handlePadRelease()).
+        // The accent first and unconditionally: it is an accent, not a start.
+        // Behind the check below it fired only on a clip that happened to be
+        // standing still, so hitting ACT on something already running — which
+        // is most of when you would reach for it — did nothing at all.
+        _engine.setChannelAccentHeld (channel, true, pattern);
+
         if (!pattern || pattern->getStatus () != Pattern::Status::Idle)
           break;
 
@@ -1427,6 +1434,10 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         // Without Shift: the instant start, beside PlayPause's quantised one.
         // The pair is the point — quantised is what you want almost always,
         // and this is for the moment that will not wait for the beat.
+        //
+        // And the accent with it: the 3d rises while this is held and falls
+        // when it is let go, from the shape this clip carries. One gesture —
+        // the clip is thrown and the sound opens up on the same finger.
         pattern->setPlaybackLength (getPlaybackLength (channel, slot));
         _engine.playPattern (pattern, _now);
         break;
@@ -1462,6 +1473,12 @@ A3MotionUIComponent::handlePadRelease (index_t channel, index_t pad)
   // leave a channel previewing with nothing on screen to stop it.
   if (padFunctionByPadIndex[pad] != PadFunction::Action)
     return;
+
+  // The accent falls, whichever way the pad was used: with Shift it was a
+  // preview and without it an instant start, but either way the finger has
+  // left and the envelope has to hear that or it holds forever.
+  _engine.setChannelAccentHeld (channel, false, nullptr);
+
   if (_previewHeldPad[channel] != static_cast<int> (slot))
     return;
 
@@ -1582,6 +1599,12 @@ A3MotionUIComponent::tickCallback (Measure measure)
       if (measure.tick () % divisor == 0)
         {
           padLEDCallback (_stepsLED++);
+
+          // The 3d row follows the accent while it runs. On the same tick as
+          // the pad LEDs because it is the same kind of thing — what is shown
+          // catching up with what the engine is doing — and often enough to
+          // read as movement without repainting the bar every tick.
+          refreshChannelValues ();
         }
 
       if (!_ioAdapter->getButton (Button::Record).getValue ())
@@ -1654,6 +1677,25 @@ A3MotionUIComponent::tickCallback (Measure measure)
               _channelStrips[channel]->repaint ();
             }
         }
+    }
+}
+
+void
+A3MotionUIComponent::refreshChannelValues ()
+{
+  if (!_clipSettings)
+    return;
+
+  // Every channel's three, not only the shown one's: the grid belongs to the
+  // channels rather than to the clip on display. The 3d is the *effective*
+  // value — the setting with the accent laid over it — because a modulation
+  // that moves nothing on screen is one you have to take on trust.
+  for (int ch = 0; ch < numChannelColumns; ++ch)
+    {
+      auto const index = static_cast<index_t> (ch);
+      _clipSettings->setChannelValues (
+          ch, _engine.getChannelPot1 (index), _engine.getChannelPot2 (index),
+          _engine.getChannelPot3Effective (index));
     }
 }
 
@@ -3000,7 +3042,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::elevationIndex)
     return 6;
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 6; // speed, direction, end-action, seam, spin, swell
+    return 8; // speed, direction, end-action, seam, spin, swell, atk, dec
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
     return 2; // the shape itself, and the length of the next take
   return 1;
@@ -3183,7 +3225,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                                             -lfoMaxStep, lfoMaxStep));
             break;
           }
-        default:
+        case 5:
           {
             // How fast reach sweeps out of where it was set. Same table as
             // the spin, and on the Pattern for the same reasons.
@@ -3192,6 +3234,25 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
               pattern->setReachLfo (std::clamp (
                   pattern->getReachLfo () + increment, -lfoMaxStep,
                   lfoMaxStep));
+            break;
+          }
+        case 6:
+        default:
+          {
+            // The accent's rise and fall. A gesture's worth of lengths, so
+            // its own shorter table — see Envelope.
+            auto &pattern = _patterns[channel][slot];
+            if (!pattern)
+              break;
+
+            if (sub == 6)
+              pattern->setEnvelopeAttack (
+                  std::clamp (pattern->getEnvelopeAttack () + increment, 0,
+                              envelopeMaxStep));
+            else
+              pattern->setEnvelopeDecay (
+                  std::clamp (pattern->getEnvelopeDecay () + increment, 0,
+                              envelopeMaxStep));
             break;
           }
         }
@@ -3335,6 +3396,9 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setMotionFade (params.fadeSixteenths);
   _clipSettings->setMotionSpin (pattern ? pattern->getSpin () : 0);
   _clipSettings->setMotionSwell (pattern ? pattern->getReachLfo () : 0);
+  _clipSettings->setMotionEnvelope (
+      pattern ? pattern->getEnvelopeAttack () : 0,
+      pattern ? pattern->getEnvelopeDecay () : 0);
 
   // Worded like Speed is, because it is the same kind of number: bars as a
   // power of two, "2" for two bars, "1/4" for a quarter of one.
@@ -3372,10 +3436,9 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   for (int ch = 0; ch < numChannelColumns; ++ch)
     {
       auto const index = static_cast<index_t> (ch);
-      _clipSettings->setChannelValues (ch, _engine.getChannelPot1 (index),
-                                       _engine.getChannelPot2 (index),
-                                       _engine.getChannelPot3 (index));
+      juce::ignoreUnused (index);
     }
+  refreshChannelValues ();
 
   _clipSettings->setSelectedParameterIndex (_clipSettingsMenuIndex);
 }

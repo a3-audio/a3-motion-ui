@@ -67,7 +67,7 @@ numControlsInSection (int sectionIndex)
     case 1:
       return 6; // reach, clip-top, clip-bottom, mirror-south, flat, flat-elev
     case 2:
-      return 6; // speed, direction, end-action, seam, spin, swell
+      return 8; // speed, direction, end-action, seam, spin, swell, atk, dec
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -315,21 +315,33 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         juce::jmin (content.getHeight (), out.buttonHeight));
     content.removeFromBottom (gapV);
 
-    // The knobs sit directly on the buttons rather than centred in what is
-    // left above them: the section then reads bottom-up as one block, and the
-    // room the pictogram-less section has over is all in one place.
-    auto const motionRowH
-        = juce::jmin (content.getHeight (),
-                      controlBoxHeightForFont (bodySize, metrics.knobDiam));
-    auto topRow = content.removeFromBottom (motionRowH);
+    // Three rows of what moves on its own, stacked above the pair that does
+    // not. spin turns the shape under the blob and swell opens and closes how
+    // far down the sphere it reaches — same table, same bipolar knob, same
+    // standstill in the middle. Above them the accent's two, which are a
+    // gesture rather than a cycle and so have a table of their own.
+    //
+    // Shared out rather than taken one after another from the bottom. A skin
+    // can cut the bar down (clipSettingsHeightScale), and a section that helps
+    // itself row by row leaves the whole shortfall on the row at the top —
+    // which came out a sliver while the three below it were untouched. Short
+    // of room, all three give up the same.
+    constexpr int motionKnobRows = 3;
+    auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
+    auto const available
+        = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
+    auto const motionRowH = juce::jmax (1, juce::jmin (wanted, available));
 
-    // The two slow movements share a row above the pair: spin turns the shape
-    // under the blob, swell opens and closes how far down the sphere it
-    // reaches. Same table, same bipolar knob, same standstill in the middle —
-    // side by side they read as one pair of controls, which is what they are.
-    content.removeFromBottom (gapV);
-    auto lfoRow = content.removeFromBottom (
-        juce::jmin (content.getHeight (), motionRowH));
+    auto const knobRow = [&content, motionRowH, gapV] (bool last) {
+      auto row = content.removeFromBottom (motionRowH);
+      if (!last)
+        content.removeFromBottom (gapV);
+      return row;
+    };
+
+    auto topRow = knobRow (false);
+    auto lfoRow = knobRow (false);
+    auto envRow = knobRow (true);
 
     // The two values you dial on top, the two you pick from below: speed
     // and fade are continuous-ish, direction and end-action are lists.
@@ -337,6 +349,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const spinArea = lfoRow.removeFromLeft (colW);
     lfoRow.removeFromLeft (gapH);
     auto const swellArea = lfoRow;
+
+    auto const attackArea = envRow.removeFromLeft (colW);
+    envRow.removeFromLeft (gapH);
+    auto const decayArea = envRow;
 
     auto const speedArea = topRow.removeFromLeft (colW);
     topRow.removeFromLeft (gapH);
@@ -358,6 +374,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       textCell (seamArea, metrics.knobDiam),
       textCell (spinArea, metrics.knobDiam),
       textCell (swellArea, metrics.knobDiam),
+      textCell (attackArea, metrics.knobDiam),
+      textCell (decayArea, metrics.knobDiam),
     };
   }
 

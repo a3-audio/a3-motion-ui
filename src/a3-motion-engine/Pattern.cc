@@ -284,6 +284,30 @@ Pattern::setReachLfoPhase (float phase)
   _reachLfoPhase.store (phase, std::memory_order_relaxed);
 }
 
+int
+Pattern::getEnvelopeAttack () const
+{
+  return _envelopeAttack.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setEnvelopeAttack (int step)
+{
+  _envelopeAttack.store (step, std::memory_order_relaxed);
+}
+
+int
+Pattern::getEnvelopeDecay () const
+{
+  return _envelopeDecay.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setEnvelopeDecay (int step)
+{
+  _envelopeDecay.store (step, std::memory_order_relaxed);
+}
+
 void
 Pattern::setSeamJoin (std::optional<index_t> tick)
 {

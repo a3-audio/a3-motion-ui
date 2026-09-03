@@ -611,6 +611,8 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
                      endActionToName (pattern->getEndAction ()));
   svg->setAttribute ("data-spin", pattern->getSpin ());
   svg->setAttribute ("data-reach-lfo", pattern->getReachLfo ());
+  svg->setAttribute ("data-env-attack", pattern->getEnvelopeAttack ());
+  svg->setAttribute ("data-env-decay", pattern->getEnvelopeDecay ());
 
   svg->setAttribute ("data-ppqn", TempoClock::getTicksPerBeat ());
 
@@ -705,6 +707,10 @@ PatternFile::load (juce::File const &file)
       endActionFromName (xml->getStringAttribute ("data-end-action")));
   pattern->setSpin (xml->getIntAttribute ("data-spin", 0));
   pattern->setReachLfo (xml->getIntAttribute ("data-reach-lfo", 0));
+  pattern->setEnvelopeAttack (
+      xml->getIntAttribute ("data-env-attack", pattern->getEnvelopeAttack ()));
+  pattern->setEnvelopeDecay (
+      xml->getIntAttribute ("data-env-decay", pattern->getEnvelopeDecay ()));
 
   // What came out of the file is the take as played; the closing move is laid
   // over it here, from the length the file carries.

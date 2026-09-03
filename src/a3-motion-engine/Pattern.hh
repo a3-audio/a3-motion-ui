@@ -181,6 +181,17 @@ public:
   float getReachLfoPhase () const;
   void setReachLfoPhase (float phase);
 
+  /** The accent's shape: how long it takes to rise while ACT is held, and how
+   *  long to fall once it is let go, as Envelope steps.
+   *
+   *  Per clip, like the spin and the swell, because the clip you fire brings
+   *  its own accent. What it *drives* is the channel's 3d, whose set value it
+   *  can only raise — see envelopeOver(). */
+  int getEnvelopeAttack () const;
+  void setEnvelopeAttack (int step);
+  int getEnvelopeDecay () const;
+  void setEnvelopeDecay (int step);
+
   // Interpolated playback: returns position with linear interpolation between keyframes
   // This provides smooth motion even with sparse keyframes during slow playback
   Pos getInterpolatedTick (double fractionalTick) const;
@@ -262,6 +273,8 @@ private:
   std::atomic<float> _spinPhase{ 0.f };
   std::atomic<int> _reachLfo{ 0 };
   std::atomic<float> _reachLfoPhase{ 0.f };
+  std::atomic<int> _envelopeAttack{ 2 };
+  std::atomic<int> _envelopeDecay{ 3 };
   mutable std::mutex _ticksMutex;
 
   // TODO is float precision sufficient here? do the math!

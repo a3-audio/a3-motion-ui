@@ -20,6 +20,7 @@
 
 #include "ClipSettingsComponent.hh"
 
+#include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 
 #include <a3-motion-ui/components/ControllerLayout.hh>
@@ -443,6 +444,19 @@ void
 ClipSettingsComponent::setMotionSwell (int step)
 {
   _motionSwell = juce::jlimit (-lfoMaxStep, lfoMaxStep, step);
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setMotionEnvelope (int attackStep, int decayStep)
+{
+  auto const attack = juce::jlimit (0, envelopeMaxStep, attackStep);
+  auto const decay = juce::jlimit (0, envelopeMaxStep, decayStep);
+  if (attack == _motionAttack && decay == _motionDecay)
+    return;
+
+  _motionAttack = attack;
+  _motionDecay = decay;
   repaint ();
 }
 
@@ -1356,6 +1370,18 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
                  static_cast<float> (_motionSwell)
                      / static_cast<float> (lfoMaxStep),
                  true, _motionSubIndex == 5, isSelected);
+
+  // The accent's two. One-sided, not bipolar: a length has no other
+  // direction, so they sweep from the left like speed and fade do.
+  auto const envFrac = [] (int step) {
+    return (static_cast<float> (step) / static_cast<float> (envelopeMaxStep))
+               * 2.f
+           - 1.f;
+  };
+  paintMiniKnob (g, cells[6], metrics, caption::attack, envFrac (_motionAttack),
+                 false, _motionSubIndex == 6, isSelected);
+  paintMiniKnob (g, cells[7], metrics, caption::decay, envFrac (_motionDecay),
+                 false, _motionSubIndex == 7, isSelected);
 }
 
 bool

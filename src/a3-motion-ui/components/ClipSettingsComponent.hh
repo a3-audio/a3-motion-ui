@@ -184,6 +184,10 @@ public:
    *  slow movement of the clip, not a shape of it. */
   void setMotionSwell (int step);
 
+  /** The accent's shape, as Envelope steps: how long it rises while ACT is
+   *  held, how long it falls once let go. */
+  void setMotionEnvelope (int attackStep, int decayStep);
+
   /** The length the next take will have, already worded ("2", "1/4"), and
    *  which of the shape section's two elements is armed. */
   void setRecordLength (juce::String const &label);
@@ -412,6 +416,8 @@ private:
   int _motionFade = 0;
   int _motionSpin = 0;
   int _motionSwell = 0;
+  int _motionAttack = 0;
+  int _motionDecay = 0;
   BarPage _page = BarPage::Clip;
   int _trajectorySubIndex = 0;
   juce::String _recordLengthLabel { "1" };

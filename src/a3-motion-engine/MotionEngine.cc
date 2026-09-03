@@ -97,6 +97,9 @@ MotionEngine::createChannels (index_t const numChannels)
   _lastSentPot1s.resize (numChannels);
   _lastSentPot2s.resize (numChannels);
   _lastSentPot3s.resize (numChannels);
+  _accentHeld.assign (numChannels, 0);
+  _accentEnvelope.resize (numChannels);
+  _accentPattern.resize (numChannels);
   _previewMode = std::vector<std::atomic<bool>> (numChannels);
 
   auto constexpr spread = 120.f;
@@ -195,10 +198,65 @@ MotionEngine::getChannelPot3 (index_t channel)
   return _channels[channel]->getPot3 ();
 }
 
+float
+MotionEngine::getChannelPot3Effective (index_t channel)
+{
+  if (channel >= _accentEnvelope.size ())
+    return getChannelPot3 (channel);
+
+  return envelopeOver (_channels[channel]->getPot3 (),
+                       _accentEnvelope[channel].level);
+}
+
 void
 MotionEngine::setChannelPot3 (index_t channel, float pot3)
 {
   _channels[channel]->setPot3 (pot3);
+}
+
+void
+MotionEngine::advanceAccents ()
+{
+  auto const ticksPerBar = static_cast<float> (TempoClock::getTicksPerBeat ())
+                           * static_cast<float> (_tempoClock.getBeatsPerBar ());
+
+  for (auto index = 0u; index < _accentEnvelope.size (); ++index)
+    {
+      auto const &pattern = _accentPattern[index];
+
+      // A channel that has never been accented has no shape to run and
+      // nothing to run it on; the default steps stand in so a press before
+      // any clip is loaded still does something rather than nothing.
+      auto const attack
+          = pattern ? pattern->getEnvelopeAttack () : 2;
+      auto const decay = pattern ? pattern->getEnvelopeDecay () : 3;
+
+      _accentEnvelope[index]
+          = advanceEnvelope (_accentEnvelope[index], _accentHeld[index] != 0,
+                             attack, decay, ticksPerBar);
+
+      // Let go of the clip once the accent is over, so a slot that was
+      // replaced meanwhile is not kept alive by a finished gesture.
+      if (_accentEnvelope[index].stage == EnvelopeStage::Idle
+          && _accentHeld[index] == 0)
+        _accentPattern[index] = nullptr;
+    }
+}
+
+void
+MotionEngine::setChannelAccentHeld (index_t channel, bool held,
+                                    std::shared_ptr<Pattern> pattern)
+{
+  if (channel >= _accentHeld.size ())
+    return;
+
+  _accentHeld[channel] = held ? 1 : 0;
+
+  // The shape is the firing clip's, taken at the press and kept until the
+  // envelope has finished — swapping clips mid-accent would change how long
+  // the fall lasts while it is falling.
+  if (held && pattern)
+    _accentPattern[channel] = std::move (pattern);
 }
 
 std::shared_ptr<Pattern>
@@ -406,6 +464,7 @@ MotionEngine::tickCallback ()
   // we don't need to worry about accumulation errors or sub-stepping granularity.
   // The position is always precisely calculated from elapsed time.
   performPlayback ();
+  advanceAccents ();
 
   // compare with last enqueued values and enqueue on change
   for (auto index = 0u; index < _channels.size (); ++index)
@@ -435,7 +494,10 @@ MotionEngine::tickCallback ()
           _lastSentPot2s[index] = pot2;
         }
 
-      auto const pot3 = _channels[index]->getPot3 ();
+      // What the pot and the grid set is the floor; the accent raises it and
+      // lets it back down to exactly there. At rest this is the set value
+      // unchanged, which is why nothing had to move for the ones not using it.
+      auto const pot3 = getChannelPot3Effective (index);
       if (!juce::approximatelyEqual (_lastSentPot3s[index], pot3))
         {
           _commandQueue.sendPot3 (index, pot3);
