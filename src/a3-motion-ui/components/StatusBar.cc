@@ -111,13 +111,7 @@ StatusBar::refreshClockReadout ()
 juce::Colour
 StatusBar::clockReadoutColour () const
 {
-  // EXT is a warning — the tempo is somebody else's. PIO is a notice: also
-  // not ours, but not a state to be careful about. INT is the accent.
-  if (_clockMode == 1)
-    return toColour (theme ().warning);
-  if (_clockMode == 2)
-    return toColour (theme ().notice);
-  return toColour (theme ().accent);
+  return Colours::clockMode (_clockMode);
 }
 
 void

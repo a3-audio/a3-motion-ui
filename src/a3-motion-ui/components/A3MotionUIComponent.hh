@@ -106,6 +106,8 @@ private:
   std::unique_ptr<OscMessageHandler> _oscMessageHandler;
 
   void tickCallback (Measure measure);
+  /** Blink the panel's TAP key with the beat, faintly and briefly. */
+  void pulseTapLED ();
   void padLEDCallback (int step);
   juce::Colour channelColourForPadStatus (juce::Colour base,
                                           Pattern::Status status,

@@ -659,7 +659,17 @@ A3MotionUIComponent::createMainUI ()
   _statusBar->setVisible (true);
   _statusBarCallbackHandle
       = _engine.getTempoClock ().scheduleEventHandlerAddition (
-          [this] (auto measure) { _statusBar->beatCallback (measure); },
+          [this] (auto measure) {
+            _statusBar->beatCallback (measure);
+
+            // The TAP key breathes with the beat, on the screen and on the
+            // panel, from the one place that knows a beat went by. It was
+            // taken out once for being too loud; it is a faint wash now, not
+            // the flash a press makes.
+            if (_clipSettings)
+              _clipSettings->pulseTapOnBeat ();
+            pulseTapLED ();
+          },
           TempoClock::Event::Beat, TempoClock::Execution::JuceMessageThread);
 
   _motionComponent
@@ -1626,6 +1636,25 @@ A3MotionUIComponent::tickCallback (Measure measure)
             }
         }
     }
+}
+
+void
+A3MotionUIComponent::pulseTapLED ()
+{
+  // Held on for a beat's own moment, then let go by the same timer the LED
+  // colours already run on. A key that stayed lit would say "held", which is
+  // what Shift means one row over.
+  if (isButtonPressed (Button::Tap))
+    return; // a finger is on it; that light is the press, not the beat
+
+  _ioAdapter->getButtonLED (Button::Tap) = true;
+  juce::Timer::callAfterDelay (70, [safeThis = juce::Component::SafePointer<
+                                        A3MotionUIComponent> (this)] {
+    if (safeThis == nullptr)
+      return;
+    if (!safeThis->isButtonPressed (Button::Tap))
+      safeThis->_ioAdapter->getButtonLED (Button::Tap) = false;
+  });
 }
 
 void

@@ -260,6 +260,10 @@ public:
    *  that missed. Only on touch: it used to blink on every beat as well,
    *  which put a flashing light on a bar you are meant to read. */
   void flashTap ();
+  /** A beat went by. The TAP key breathes with it, faintly — the maintainer
+   *  asked for the blink back after it was taken out for being too loud, so
+   *  it is a wash at a fraction of the touch flash, not the flash itself. */
+  void pulseTapOnBeat ();
 
   void paint (juce::Graphics &g) override;
   void resized () override;
@@ -311,14 +315,19 @@ private:
   /** One action button: a filled, labelled box. Not paintMiniToggle — that
    *  shows a value under a caption, and these have no value, only a name
    *  and the fact that they can be pressed. */
+  /** One of the strip's six function keys. `tint` colours the face and the
+   *  label when it is set — the clock's mode, REC's armed orange — and a
+   *  transparent tint leaves the button in the bar's quiet grey. */
   void paintActionButton (juce::Graphics &g, juce::Rectangle<int> bounds,
-                          juce::String const &label, bool isActive);
+                          juce::String const &label, bool isActive,
+                          juce::Colour tint = {});
   /** The bar's one button face — see the definition. `caption` may be empty
    *  for a button that names itself. */
   void paintBarButton (juce::Graphics &g, juce::Rectangle<int> bounds,
                        juce::String const &label, juce::String const &caption,
                        bool isActive, bool isSelected,
-                       bool opensList = false);
+                       bool opensList = false,
+                       juce::Colour valueColour = {});
 
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
                           juce::String const &text, bool isSelected);
@@ -449,6 +458,7 @@ private:
   int _clockMode = 0;
   /** TAP is lit: on the beat, and while a finger is on it. */
   bool _tapLit = false;
+  bool _tapBeat = false;
   void timerCallback () override;
   std::array<std::vector<std::unique_ptr<TouchControl>>, numParameters>
       _controlTouch;

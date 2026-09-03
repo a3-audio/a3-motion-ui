@@ -41,6 +41,17 @@ namespace Colours
 {
 
 juce::Colour
+clockMode (int mode)
+{
+  if (mode == 1)
+    return toColour (theme ().warning);
+  if (mode == 2)
+    return toColour (theme ().notice);
+
+  return toColour (theme ().accent);
+}
+
+juce::Colour
 background ()
 {
   return toColour (theme ().background);

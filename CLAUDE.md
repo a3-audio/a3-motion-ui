@@ -436,6 +436,24 @@ sits under a hand. `fingertipSize` is the floor for anything hit in a hurry, and
 `controllerPreferredHeight()` is why the bar can be taller than the clip settings alone would ask
 for: both pages share one area, so it has to satisfy the hungrier of them.
 
+**The strip's six buttons stand for the panel's six function keys**, so they are laid out like
+them: one size for all of them, two columns of three, filled top-left to bottom-right — left down
+`TAP`, `clock`, `REC`; right down `recmode`, `MENU`, `SHIFT`. A button sized differently from its
+neighbours reads as a different kind of thing, and all six are the same kind. Three of them carry a
+colour rather than a word for their state:
+
+- **`clock`** writes its mode in that mode's colour, through `Colours::clockMode()` — the same rule
+  the status bar reads it by, because whose tempo this is has one answer and it should not be
+  written in two colours.
+- **`REC`** is orange armed and red running. It is the one key coloured while nothing is happening:
+  recording writes over something you cannot get back, so you should never have to check.
+- **`TAP`** breathes with the beat, on the screen and on the panel, from the tempo clock's Beat
+  handler. It is a wash laid over the finished button (`beatWash`), not the button's own "active"
+  look — routed through that it more than doubled the key's brightness, which is a blink you watch
+  instead of one you catch out of the corner of an eye. It had been removed once for exactly that.
+  A press owns the key while it lasts: `pulseTapOnBeat()` returns early when `_tapLit`, or a beat
+  landing under the finger would cut the press's flash short.
+
 **When a pad takes effect** is a set, not four separate decisions:
 
 | Pad | When |

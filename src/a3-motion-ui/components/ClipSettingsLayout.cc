@@ -21,6 +21,8 @@
 
 #include "ClipSettingsLayout.hh"
 
+#include <tuple>
+
 #include "ControllerLayout.hh"
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
@@ -441,43 +443,33 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         }
     }
 
-    // ── two by two: rec mode, menu / rec, tap ─────────────────────────
+    // ── the six function keys, two by three ───────────────────────────
     //
-    // The rec mode is a button now too — it cycles the modes on a tap, which
-    // is what its encoder used to do. Four in a row across the whole section
-    // made each of them long and thin; two by two keeps them the shape of
-    // something you press.
+    // These stand for the panel's six function keys, so they are laid out
+    // like them: one size for all of them, filled top-left to bottom-right.
+    // Left down: tap, clock, rec. Right down: recmode, menu, shift. A button
+    // sized differently from its neighbours reads as a different kind of
+    // thing, and all six are the same kind — the thing your hand goes to
+    // without looking.
     {
       auto const gapH = juce::jmax (2, buttons.getWidth () / 60);
       auto const buttonW = (buttons.getWidth () - gapH) / 2;
 
-      // The two that carry a value on top — rec mode and clock mode — then
-      // the two that do something, then TAP across the width. TAP is the one
-      // pressed in a hurry and in time, so it gets the widest target.
-      auto top = buttons.removeFromTop (buttonRowH);
-      buttons.removeFromTop (buttonGap);
-      auto middle = buttons.removeFromTop (buttonRowH);
-      buttons.removeFromTop (buttonGap);
-      auto bottom = buttons.removeFromTop (buttonRowH);
+      auto row = [&] (bool last) {
+        auto r = buttons.removeFromTop (buttonRowH);
+        if (!last)
+          buttons.removeFromTop (buttonGap);
 
-      out.recModeButton = top.removeFromLeft (buttonW);
-      top.removeFromLeft (gapH);
-      out.clockModeButton = top.removeFromLeft (buttonW);
+        auto const left = r.removeFromLeft (buttonW);
+        r.removeFromLeft (gapH);
+        return std::pair<juce::Rectangle<int>, juce::Rectangle<int> >{
+          left, r.removeFromLeft (buttonW)
+        };
+      };
 
-      out.menuButton = middle.removeFromLeft (buttonW);
-      middle.removeFromLeft (gapH);
-      out.recButton = middle.removeFromLeft (buttonW);
-
-      // TAP and SHIFT share the floor, but not evenly. SHIFT is here rather
-      // than on the controller page because it modifies the whole device and
-      // a modifier you have to change pages to reach is one you cannot hold
-      // while pressing what it modifies. TAP keeps two thirds of the row: it
-      // is the one control here that has to be hit *in time*, and a tempo tap
-      // that misses is worse than a modifier that takes a second go.
-      auto const shiftW = (bottom.getWidth () - gapH) / 3;
-      out.shiftButton = bottom.removeFromRight (shiftW);
-      bottom.removeFromRight (gapH);
-      out.tapButton = bottom;
+      std::tie (out.tapButton, out.recModeButton) = row (false);
+      std::tie (out.clockModeButton, out.menuButton) = row (false);
+      std::tie (out.recButton, out.shiftButton) = row (true);
 
       // The rec mode no longer has a knob-style box of its own; its button
       // is where it lives. controls[3] stays so the encoder-era index does

@@ -39,6 +39,14 @@ namespace Colours
 {
 juce::Colour background ();
 
+/** What a clock mode looks like: 0 internal, 1 external, 2 Pro DJ Link.
+ *
+ *  One rule, because the status bar and the clip settings bar both say which
+ *  clock is running and two answers to that question is one too many. EXT is
+ *  a warning — the tempo is somebody else's. PIO is a notice: also not ours,
+ *  but not a state to be careful about. INT is the accent. */
+juce::Colour clockMode (int mode);
+
 /** The ground a row of cells sits on. Derived from the background rather than
  *  being its own role: a skin that darkens the background should carry the
  *  status bar with it, and two tokens would have to be kept in step by hand. */

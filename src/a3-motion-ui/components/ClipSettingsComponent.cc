@@ -44,6 +44,10 @@ constexpr float panelOpacity = 0.85f;
 constexpr float cardWash = 0.08f;
 constexpr float highlightWash = 0.18f;
 constexpr float trackWash = 0.18f;
+/** How much the TAP key comes up on a beat. A fifth of the wash a press
+ *  makes: this is the metronome you notice without looking at it, and it was
+ *  taken out once already for being louder than that. */
+constexpr float beatWash = 0.035f;
 constexpr float clippedZoneOpacity = 0.55f;
 constexpr float outlineOpacity = 0.5f;
 constexpr float headOpacity = 0.6f;
@@ -688,12 +692,33 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // light, because what they show is momentary and has no label of its own.
   paintBarButton (g, _layout.recModeButton, recModeName (_recMode), "recmode",
                   false, false);
+  // The clock's own colour, the same rule the status bar reads it by
+  // (Colours::clockMode): whose tempo this is has one answer, in one colour,
+  // wherever it is written.
   paintBarButton (g, _layout.clockModeButton, clockNames[clock], "clock",
-                  false, false);
+                  false, false, false, Colours::clockMode (clock));
 
   paintActionButton (g, _layout.menuButton, "MENU", false);
-  paintActionButton (g, _layout.recButton, "REC", _recording);
+
+  // Orange armed, red running. Recording is the one thing here that writes
+  // over something you cannot get back, so it is the one key that is coloured
+  // even when nothing is happening — you should never have to check.
+  paintActionButton (g, _layout.recButton, "REC", _recording,
+                     _recording ? toColour (theme ().danger)
+                                : toColour (theme ().warning));
+
+  // TAP lights under a finger, and breathes with the beat — but not through
+  // the same door. Routed through the button's own "active" look the beat
+  // more than doubled the key's brightness, which is a blink you watch
+  // instead of one you catch out of the corner of an eye. It is a wash laid
+  // over the finished button instead, a fraction of the press's.
   paintActionButton (g, _layout.tapButton, "TAP", _tapLit);
+  if (_tapBeat && !_tapLit)
+    {
+      g.setColour (toColour (theme ().textPrimary, beatWash));
+      g.fillRoundedRectangle (_layout.tapButton.toFloat (), 4.f);
+    }
+
   // Lit in the accent while it is down. A modifier you cannot see at a glance
   // is a modifier you will get wrong, and this one decides what the next pad
   // press means.
@@ -704,11 +729,28 @@ void
 ClipSettingsComponent::paintActionButton (juce::Graphics &g,
                                           juce::Rectangle<int> bounds,
                                           juce::String const &label,
-                                          bool isActive)
+                                          bool isActive, juce::Colour tint)
 {
   // Not "selected": these belong to no channel, so they must not carry the
   // shown clip's colour — the same reason the global panel's frame is grey.
-  paintBarButton (g, bounds, label, {}, isActive, false, false);
+  if (tint.isTransparent ())
+    {
+      paintBarButton (g, bounds, label, {}, isActive, false, false);
+      return;
+    }
+
+  // A tinted key says what it is by its colour, so it says it quietly: a wash
+  // for the face and the tint itself for the word. Lit, the wash comes up —
+  // the same colour louder, not a second colour.
+  g.setColour (tint.withAlpha (isActive ? highlightWash * 2.f : cardWash));
+  g.fillRoundedRectangle (bounds.toFloat (), 4.f);
+  g.setColour (tint.withAlpha (trackWash));
+  g.drawRoundedRectangle (bounds.toFloat (), 4.f, 1.f);
+
+  g.setFont (juce::Font (fontFor (FontRole::Body, bounds, label),
+                         juce::Font::plain));
+  g.setColour (tint);
+  g.drawFittedText (label, bounds, juce::Justification::centred, 1);
 }
 
 /** The one button face the bar uses — the global section's four, Elevation's
@@ -721,7 +763,8 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
                                        juce::String const &label,
                                        juce::String const &caption,
                                        bool isActive, bool isSelected,
-                                       bool opensList)
+                                       bool opensList,
+                                       juce::Colour valueColour)
 {
   // An active button lights in the shown clip's colour, except in the global
   // section — nothing there belongs to a channel, so it lights grey.
@@ -759,7 +802,10 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
       = juce::jmin (_layout.metrics.valueSize,
                     static_cast<float> (box.getHeight ()) * 0.9f);
   g.setFont (juce::Font (valueSize, juce::Font::plain));
-  g.setColour (controlColour (isSelected));
+  // A value that has a colour of its own — the clock's mode — writes itself
+  // in it. Everything else takes the bar's.
+  g.setColour (valueColour.isTransparent () ? controlColour (isSelected)
+                                            : valueColour);
 
   if (!opensList)
     {
@@ -814,10 +860,28 @@ ClipSettingsComponent::flashTap ()
 }
 
 void
+ClipSettingsComponent::pulseTapOnBeat ()
+{
+  // A press owns the key and its timer while it lasts. Without this a beat
+  // landing under the finger restarted the timer at 70ms and cut the press's
+  // 110ms flash short — the one feedback that says the tap was taken.
+  if (_tapLit)
+    return;
+
+  _tapBeat = true;
+  repaint (_layout.tapButton);
+
+  // Shorter than the touch flash and never in place of it: a finger on the
+  // key must still read as a press even if a beat lands under it.
+  startTimer (70);
+}
+
+void
 ClipSettingsComponent::timerCallback ()
 {
   stopTimer ();
   _tapLit = false;
+  _tapBeat = false;
   repaint ();
 }
 

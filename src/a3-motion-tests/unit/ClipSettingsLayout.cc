@@ -390,33 +390,45 @@ TEST (ClipSettingsLayout, TheActionButtonsDoNotOverlapEachOther)
       EXPECT_TRUE (row[a].getIntersection (row[b]).isEmpty ())
           << "buttons " << a << " and " << b << " overlap";
 }
-
-// Five buttons under the grid: the two that carry a value on top, the two
-// that do something under them, TAP across the width at the bottom.
-TEST (ClipSettingsLayout, TheButtonsSitInThreeRowsUnderTheGrid)
+// The strip's six buttons stand for the panel's six function keys, so they are
+// laid out like them: one size for all of them, two columns of three, filled
+// top-left to bottom-right. Left down: tap, clock, rec. Right down: recmode,
+// menu, shift. A button that is a different size from the others reads as a
+// different kind of thing, and these are all the same kind.
+TEST (ClipSettingsLayout, TheSixFunctionButtonsAreOneGrid)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_EQ (l.recModeButton.getY (), l.clockModeButton.getY ());
-  EXPECT_EQ (l.menuButton.getY (), l.recButton.getY ());
+  std::array<juce::Rectangle<int>, 6> const all{
+    l.tapButton,      l.recModeButton, l.clockModeButton,
+    l.menuButton,     l.recButton,     l.shiftButton,
+  };
 
-  EXPECT_GT (l.menuButton.getY (), l.recModeButton.getY ());
-  EXPECT_GT (l.tapButton.getY (), l.menuButton.getY ());
+  for (auto const &b : all)
+    {
+      EXPECT_EQ (b.getWidth (), l.tapButton.getWidth ());
+      EXPECT_EQ (b.getHeight (), l.tapButton.getHeight ());
+    }
 
-  EXPECT_LT (l.recModeButton.getX (), l.clockModeButton.getX ());
-  EXPECT_LT (l.menuButton.getX (), l.recButton.getX ());
+  // Left column, top to bottom.
+  EXPECT_EQ (l.tapButton.getX (), l.clockModeButton.getX ());
+  EXPECT_EQ (l.tapButton.getX (), l.recButton.getX ());
+  EXPECT_LT (l.tapButton.getY (), l.clockModeButton.getY ());
+  EXPECT_LT (l.clockModeButton.getY (), l.recButton.getY ());
 
-  // TAP is the one pressed in time, so it gets the width of two.
-  EXPECT_GT (l.tapButton.getWidth (), l.menuButton.getWidth ());
+  // Right column, the same three rows.
+  EXPECT_EQ (l.recModeButton.getX (), l.menuButton.getX ());
+  EXPECT_EQ (l.recModeButton.getX (), l.shiftButton.getX ());
+  EXPECT_EQ (l.recModeButton.getY (), l.tapButton.getY ());
+  EXPECT_EQ (l.menuButton.getY (), l.clockModeButton.getY ());
+  EXPECT_EQ (l.shiftButton.getY (), l.recButton.getY ());
 
-  for (auto const &b : { l.clockModeButton, l.menuButton, l.recButton,
-                         l.tapButton })
-    EXPECT_EQ (b.getHeight (), l.recModeButton.getHeight ());
+  EXPECT_LT (l.tapButton.getRight (), l.recModeButton.getX ());
 
   // Under the grid, not beside it.
   for (auto const &column : l.channelGrid)
     for (auto const &cell : column)
-      EXPECT_LE (cell.getBottom (), l.recModeButton.getY ());
+      EXPECT_LE (cell.getBottom (), l.tapButton.getY ());
 }
 
 // A target a finger can actually hit, at every size the bar is used at.
