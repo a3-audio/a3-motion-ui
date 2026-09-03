@@ -40,18 +40,30 @@ TEST (FunctionKeyColours, TheClockKeyCarriesItsModesColour)
     }
 }
 
-// The one key coloured while nothing is happening. Recording writes over what
-// you cannot get back, so it must never be a thing you have to check.
-TEST (FunctionKeyColours, RecordIsArmedOrangeAndRunningRed)
+// The one key coloured while nothing is happening, and red while it is:
+// recording writes over what you cannot get back, so the key that does it
+// says so before it is pressed as well as after. Running is the same red,
+// brighter — a difference in loudness rather than a second thing to learn.
+TEST (FunctionKeyColours, RecordIsRedAndBrighterWhileRunning)
 {
   FunctionKeyLook look;
-
-  EXPECT_EQ (functionKeyColour (FunctionKey::Record, look),
-             toColour (theme ().warning));
+  auto const resting = functionKeyColour (FunctionKey::Record, look);
+  EXPECT_EQ (resting, toColour (theme ().danger));
 
   look.recording = true;
-  EXPECT_EQ (functionKeyColour (FunctionKey::Record, look),
-             toColour (theme ().danger));
+  auto const running = functionKeyColour (FunctionKey::Record, look);
+
+  EXPECT_NE (running, resting);
+
+  // Perceived brightness, not getBrightness(): danger is a fully saturated
+  // red, whose brightness is already 1, so brighter() can only take it
+  // towards white. What the eye reads is the perceived value, and that is
+  // what has to go up.
+  EXPECT_GT (running.getPerceivedBrightness (),
+             resting.getPerceivedBrightness ());
+
+  // Still red: the hue is what the key means, and it does not change.
+  EXPECT_NEAR (running.getHue (), resting.getHue (), 0.02f);
 }
 
 // A modifier you cannot see at a glance is one you will get wrong — but only

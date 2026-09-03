@@ -35,10 +35,13 @@ functionKeyColour (FunctionKey key, FunctionKeyLook const &look)
       return Colours::clockMode (look.clockMode);
 
     case FunctionKey::Record:
-      // Also always, and this is the point of it — recording writes over what
-      // you cannot get back, so armed has to look like something too.
-      return look.recording ? toColour (theme ().danger)
-                            : toColour (theme ().warning);
+      // Red, always. Recording writes over what you cannot get back, and the
+      // key that does it should say so before it is pressed as well as after
+      // — it was orange until it ran, which made the standing state a colour
+      // you had to know the meaning of. Running is the same red, brighter, so
+      // the difference is loudness rather than a second thing to learn.
+      return look.recording ? toColour (theme ().danger).brighter (0.45f)
+                            : toColour (theme ().danger);
 
     case FunctionKey::Shift:
       return look.shiftHeld ? toColour (theme ().accent) : juce::Colour{};
