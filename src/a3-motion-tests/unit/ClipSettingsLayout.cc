@@ -287,26 +287,44 @@ TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
 }
 
 // Two pages share the bar — the clip's settings and the panel's pads — and the
-// strip that switches them sits in the header row, ahead of the slot label.
-// Ahead rather than beside the readout, because the readout is written to from
-// half the interface and a tab that moved when it grew would be a tab you have
-// to look for.
-TEST (ClipSettingsLayout, TheTabsLeadTheHeaderRow)
+// strip that switches them closes the header row, where the readout used to
+// be. The readout moved into the global strip, which is the one part of the
+// bar that stands on both pages.
+TEST (ClipSettingsLayout, TheTabsCloseTheHeaderRow)
 {
   auto const l = defaultLayout ();
 
   EXPECT_FALSE (l.tabClip.isEmpty ());
   EXPECT_FALSE (l.tabController.isEmpty ());
 
-  // Side by side, in reading order, and clear of what follows them.
+  // Side by side, in reading order, after the slot they belong to.
+  EXPECT_LE (l.slotLabel.getRight (), l.tabClip.getX ());
   EXPECT_LE (l.tabClip.getRight (), l.tabController.getX ());
-  EXPECT_LE (l.tabController.getRight (), l.slotLabel.getX ());
-  EXPECT_LE (l.slotLabel.getRight (), l.readout.getX ());
 
   // On the header's own line, not above or below it.
-  EXPECT_EQ (l.tabClip.getY (), l.readout.getY ());
-  EXPECT_EQ (l.tabClip.getHeight (), l.readout.getHeight ());
-  EXPECT_EQ (l.tabController.getY (), l.readout.getY ());
+  EXPECT_EQ (l.tabClip.getY (), l.slotLabel.getY ());
+  EXPECT_EQ (l.tabClip.getHeight (), l.slotLabel.getHeight ());
+  EXPECT_EQ (l.tabController.getY (), l.slotLabel.getY ());
+}
+
+// The readout says what was last moved, and what moves comes from either page
+// — so it belongs to the strip that stands on both rather than to the half
+// that gets swapped out from under it. It takes the title's row rather than
+// one of its own: an extra row there comes out of the channel grid, which at
+// the smallest skin sizes collapsed its cells to five pixels.
+TEST (ClipSettingsLayout, TheReadoutTakesTheGlobalStripsTitleRow)
+{
+  auto const l = defaultLayout ();
+
+  EXPECT_FALSE (l.readout.isEmpty ());
+  EXPECT_TRUE (l.globalBounds.contains (l.readout));
+  EXPECT_TRUE (l.sectionLabels[3].isEmpty ());
+
+  // Above everything the strip holds.
+  for (auto const &column : l.channelGrid)
+    for (auto const &cell : column)
+      EXPECT_LE (l.readout.getBottom (), cell.getY ());
+  EXPECT_LE (l.readout.getBottom (), l.recModeButton.getY ());
 }
 
 // A tab is switched mid-set, with one hand, without looking away from the
@@ -317,6 +335,29 @@ TEST (ClipSettingsLayout, ATabIsWideEnoughToHit)
 
   EXPECT_GE (l.tabClip.getWidth (), fingertipSize);
   EXPECT_GE (l.tabController.getWidth (), fingertipSize);
+}
+
+// Where the clip part's content begins, and the only place that says so. The
+// controller page fills this rather than the whole clip part, because it used
+// to work the header's height out for itself from the font — off by eleven
+// pixels against the bar's own arithmetic, which drew the page's top row of
+// pads under the tabs that switch to it.
+TEST (ClipSettingsLayout, TheClipContentStartsBelowTheHeaderRow)
+{
+  auto const l = defaultLayout ();
+
+  EXPECT_FALSE (l.clipContent.isEmpty ());
+  EXPECT_TRUE (l.clipBounds.contains (l.clipContent));
+
+  EXPECT_GE (l.clipContent.getY (), l.slotLabel.getBottom ());
+  EXPECT_GE (l.clipContent.getY (), l.tabClip.getBottom ());
+  EXPECT_GE (l.clipContent.getY (), l.tabController.getBottom ());
+
+  // And it is what the sections are laid out in, so the two cannot drift.
+  for (int section = 0; section < numClipSettingsSections - 1; ++section)
+    EXPECT_TRUE (l.clipContent.contains (
+        l.sectionCards[static_cast<size_t> (section)]))
+        << "section " << section;
 }
 
 // Menu, Rec and Tap sit in the global strip beside the clip's sections. They

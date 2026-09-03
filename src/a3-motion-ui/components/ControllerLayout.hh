@@ -53,11 +53,6 @@ struct ControllerLayout
   std::array<std::array<juce::Rectangle<int>, numPadsPerChannel>,
              numChannelColumns>
       pads;
-
-  /** Held, not latched — Shift+Action is a hold, and a latch has no release.
-   *  On the bar's floor, which is the screen's floor, where a thumb is. */
-  juce::Rectangle<int> shiftButton;
-  juce::Rectangle<int> recordButton;
 };
 
 /** The smallest thing a hand can find without looking. Nothing hit in a hurry
@@ -70,12 +65,21 @@ constexpr int fingertipSize = 34;
  *
  *  The bar is one area and both pages share it, so its height has to satisfy
  *  the hungrier of the two — see clipSettingsPreferredHeight(), which is the
- *  same idea for the clip settings. */
+ *  same idea for the clip settings.
+ *
+ *  `buttonHeight` is unused since the modifiers moved to the global strip;
+ *  kept so the two preferred-height calls read alike at their call sites. */
 int controllerPreferredHeight (float headerSize, int buttonHeight);
 
 /** Every rectangle of the controller page, from one calculation — the same
- *  rule the clip settings bar follows, for the same reason. */
-ControllerLayout layOutController (juce::Rectangle<int> clipArea,
+ *  rule the clip settings bar follows, for the same reason.
+ *
+ *  `contentArea` is the clip part **under its header row**
+ *  (ClipSettingsLayout::clipContent), not the whole of it. `headerSize` and
+ *  `buttonHeight` are unused since the header became the bar's business and
+ *  the modifiers moved to the global strip; kept so this reads like
+ *  layOutClipSettings() at its call site. */
+ControllerLayout layOutController (juce::Rectangle<int> contentArea,
                                    float headerSize, int buttonHeight);
 
 }

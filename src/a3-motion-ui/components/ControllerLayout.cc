@@ -39,10 +39,14 @@ headerRowHeight (float headerSize)
 
 /** Where a pad sits inside its clip's box, as a column and a row.
  *
- *  Read off the panel rather than invented: pads 0 and 1 are the clip's play
- *  and action, pads 4 and 5 its stop and settings, and on the panel the first
- *  pair sits above the second. Deriving it from the function keeps the two in
- *  step — a pad is where it is because of what it does.
+ *  Read off the panel, not derived from the pad indices — those say which pad
+ *  is which function, but only the hardware says where that function sits
+ *  under a hand. The first arrangement here was taken from the index order
+ *  and had action and stop the wrong way round; pressing the pad drawn as
+ *  ACT reported STOP.
+ *
+ *  Play and stop on top, action and settings below. Keyed on the function so
+ *  a pad is where it is because of what it does.
  */
 juce::Point<int>
 padCellInBox (index_t pad)
@@ -50,8 +54,8 @@ padCellInBox (index_t pad)
   switch (padFunctionByPadIndex[pad])
     {
     case PadFunction::PlayPause: return { 0, 0 };
-    case PadFunction::Action:    return { 1, 0 };
-    case PadFunction::Stop:      return { 0, 1 };
+    case PadFunction::Stop:      return { 1, 0 };
+    case PadFunction::Action:    return { 0, 1 };
     case PadFunction::Settings:  return { 1, 1 };
     }
 
@@ -60,7 +64,7 @@ padCellInBox (index_t pad)
 }
 
 int
-controllerPreferredHeight (float headerSize, int buttonHeight)
+controllerPreferredHeight (float headerSize, int)
 {
   // Read straight back off layOutController's own arithmetic, bottom up:
   // two pad rows and the gap between them make a box, two boxes and a gap
@@ -71,34 +75,21 @@ controllerPreferredHeight (float headerSize, int buttonHeight)
   auto const boxH = 2 * fingertipSize + padGap;
   auto const gridH = slots * boxH + (slots - 1) * padGap;
 
-  return gridH + buttonHeight + padGap + headerRowHeight (headerSize)
-         + 2 * minPadding;
+  return gridH + headerRowHeight (headerSize) + 2 * minPadding;
 }
 
 ControllerLayout
-layOutController (juce::Rectangle<int> clipArea, float headerSize,
-                  int buttonHeight)
+layOutController (juce::Rectangle<int> contentArea, float, int)
 {
   ControllerLayout out;
 
-  auto area = clipArea.reduced (minPadding, minPadding);
-
-  // The bar's own header row, left standing so the page lines up with the
-  // clip settings it replaces.
-  area.removeFromTop (headerRowHeight (headerSize));
+  // What comes in is the clip part's *content* — the bar has already taken
+  // its header row off (ClipSettingsLayout::clipContent). Working that height
+  // out again here put it eleven pixels wrong and drew the top row of pads
+  // under the tabs that switch to this page.
+  auto area = contentArea.reduced (minPadding, minPadding);
 
   auto const gap = padGap;
-
-  // The modifiers take the floor. A thumb rests at the bottom edge of the
-  // screen, and these are held while the other hand taps.
-  auto modifierRow = area.removeFromBottom (juce::jlimit (
-      0, juce::jmax (0, area.getHeight () / 3), buttonHeight));
-  area.removeFromBottom (gap);
-
-  auto const modifierW = juce::jmax (0, (modifierRow.getWidth () - gap) / 2);
-  out.shiftButton = modifierRow.removeFromLeft (modifierW);
-  modifierRow.removeFromLeft (gap);
-  out.recordButton = modifierRow.removeFromLeft (modifierW);
 
   // Clamped at zero rather than trusted: a bar too small for the page is a
   // layout bug somewhere else, and it must arrive here as small rectangles,

@@ -368,6 +368,20 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _clipSettings->onMenuPressed = [this] { toggleGlobalSettings (); };
   _clipSettings->onRecordPressed = [this] { toggleRecordingOnShownClip (); };
   _clipSettings->onTapPressed = [this] { handleScreenTap (); };
+  // Held, not tapped: Shift+Action previews for as long as it is down. In the
+  // global strip it stands on both pages, so it can be held while the other
+  // hand works the pads.
+  _clipSettings->onShiftHeld = [this] (bool held) {
+    _screenShiftHeld = held;
+    updateControlReadout (juce::String ("-- SHIFT ") + (held ? "ON" : "OFF"));
+  };
+  // Held, not tapped: Shift+Action previews for as long as it is down. In the
+  // global strip it stands on both pages, so it can be held while the other
+  // hand works the pads.
+  _clipSettings->onShiftHeld = [this] (bool held) {
+    _screenShiftHeld = held;
+    updateControlReadout (juce::String ("-- SHIFT ") + (held ? "ON" : "OFF"));
+  };
 
   _clipSettings->onControlDragged = [this] (int section, int sub,
                                            int increment) {
@@ -388,16 +402,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
   _controller->onPadReleased = [this] (index_t channel, index_t pad) {
     handlePadRelease (channel, pad);
-  };
-  _controller->onShiftHeld = [this] (bool held) {
-    _screenShiftHeld = held;
-    updateControlReadout (juce::String ("-- SHIFT ")
-                          + (held ? "ON" : "OFF"));
-  };
-  _controller->onRecordHeld = [this] (bool held) {
-    _screenRecordHeld = held;
-    updateControlReadout (juce::String ("-- RECORD ")
-                          + (held ? "ON" : "OFF"));
   };
 
   addChildComponent (*_clipSettings);
@@ -863,7 +867,7 @@ A3MotionUIComponent::resized ()
   // both pages, and this paints nothing in the header, so what is drawn there
   // stays visible and its tabs stay reachable.
   if (_controller && _clipSettings)
-    _controller->setBounds (_clipSettings->clipBounds ());
+    _controller->setBounds (_clipSettings->clipContentBounds ());
 
   // The menu covers the sphere and nothing else. It used to take the clip
   // settings' space as well — the bar gave up its bounds and the menu had the
@@ -1395,15 +1399,6 @@ A3MotionUIComponent::showBarPage (BarPage page)
   _controller->setVisible (page == BarPage::Controller);
 
 
-  // A modifier cannot be held across a page it is not drawn on. Leaving it
-  // set would arm the next pad press from a key nobody is touching.
-  if (page != BarPage::Controller)
-    {
-      _screenShiftHeld = false;
-      _screenRecordHeld = false;
-      _controller->setShiftHeld (false);
-      _controller->setRecordHeld (false);
-    }
 }
 
 void
@@ -1501,8 +1496,6 @@ A3MotionUIComponent::isButtonPressed (Button button)
   // of the two the hand is on — and so that a build with no panel can still
   // reach the gestures that need a modifier.
   if (button == Button::Shift && _screenShiftHeld)
-    return true;
-  if (button == Button::Record && _screenRecordHeld)
     return true;
 
   return _ioAdapter->getButton (button).getValue ();

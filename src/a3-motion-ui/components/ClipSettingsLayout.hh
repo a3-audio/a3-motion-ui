@@ -116,6 +116,12 @@ struct ClipSettingsLayout
   int headerHeight = 0;
 
   juce::Rectangle<int> clipBounds;
+  /** What is left of the clip part under its header row — where the three
+   *  sections are laid out, and what the controller page fills. The one
+   *  statement of where the content begins: the page used to work the
+   *  header's height out for itself and drew its top row of pads under the
+   *  tabs that switch to it. */
+  juce::Rectangle<int> clipContent;
   juce::Rectangle<int> globalBounds;
 
   /** The card per section, indexed like ClipSettingsComponent::*Index. */
@@ -149,11 +155,12 @@ struct ClipSettingsLayout
   juce::Rectangle<int> trajectoryName;
   /** The length buttons under the pictogram, in recordLengthLog2 order. */
   std::array<juce::Rectangle<int>, numRecordLengths> lengthButtons;
-  /** The bar's own header row, left to right: the two page tabs, "Slot N",
-   *  and the readout. */
+  /** The bar's own header row: "Slot N" first, the two page tabs closing it. */
+  juce::Rectangle<int> slotLabel;
   juce::Rectangle<int> tabClip;
   juce::Rectangle<int> tabController;
-  juce::Rectangle<int> slotLabel;
+  /** The last-operated control, at the top of the **global strip** — the one
+   *  part of the bar that stands on both pages. */
   juce::Rectangle<int> readout;
 
   /** The global strip's three action buttons — Menu, Rec, Tap. Device-wide
@@ -175,6 +182,10 @@ struct ClipSettingsLayout
   juce::Rectangle<int> menuButton;
   juce::Rectangle<int> recButton;
   juce::Rectangle<int> tapButton;
+  /** Held, not tapped: Shift+Action previews for as long as it is down. In
+   *  the global strip because it modifies the whole device, and a modifier on
+   *  a page you have to leave is one you cannot hold. */
+  juce::Rectangle<int> shiftButton;
 };
 
 /** Lays the whole bar out for the given bounds and the three sizes the

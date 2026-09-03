@@ -409,9 +409,12 @@ remember.
 #### The bar's two pages
 
 The bar shows one of two pages (`BarPage`): the shown clip's settings, or **the panel's pads**.
-Tabs at the head of the bar switch them; the header row and the global strip on the right stand on
-both, because recmode, clock, MENU, REC and TAP belong to the device rather than to the clip and
-losing them while firing clips is the wrong moment to lose them.
+Tabs close the header row and switch them; the header row and the global strip on the right stand
+on both, because recmode, clock, MENU, REC, TAP and SHIFT belong to the device rather than to the
+clip and losing them while firing clips is the wrong moment to lose them. The **readout tops the
+global strip**, in the row the word "Global" had: what it reports comes from either page, so it
+belongs to the part that stands on both — and an extra row there would have come out of the channel
+grid, which at the smallest skin sizes collapsed its cells to five pixels.
 
 The controller page exists because **a plain build has no panel** — `HARDWARE_INTERFACE_ENABLED`
 is off by default — and without pads such a build cannot start a single clip. It decides nothing
@@ -421,12 +424,19 @@ also writes the panel's LEDs. Empty, idle, armed and running therefore look on s
 they look on the hardware, because one place decides what they mean.
 
 Its geometry is `ControllerLayout` — channels across, slots down, and where they meet one clip with
-its four pads in the panel's own arrangement. A pad's identity comes from `padFunctionByPadIndex` /
-`slotForPadIndex` in `io/PadFunctions.hh`, the same tables the panel is read with; a screen that
-decided for itself what its pads meant would drift silently, and the first sign of it would be a
-finger firing the wrong clip. `fingertipSize` is the floor for anything hit in a hurry, and
+its four pads: **play beside stop on top, action beside settings below**. That arrangement was read
+off the device, not derived: taken from the pad-index order it had action and stop the wrong way
+round, and pressing the pad drawn as ACT reported STOP. A pad's *identity* does come from
+`padFunctionByPadIndex` / `slotForPadIndex` in `io/PadFunctions.hh`, the same tables the panel is
+read with — those say which pad is which function, but only the hardware says where that function
+sits under a hand. `fingertipSize` is the floor for anything hit in a hurry, and
 `controllerPreferredHeight()` is why the bar can be taller than the clip settings alone would ask
 for: both pages share one area, so it has to satisfy the hungrier of them.
+
+The page is handed `ClipSettingsLayout::clipContent` — the clip part **under** its header row — not
+the whole clip part. It used to work the header's height out for itself from the font, which came
+out eleven pixels short of the bar's own arithmetic and drew the top row of pads under the tabs
+that switch to it. One place says where the content begins.
 
 Two things this cost, both worth knowing before touching it:
 
@@ -439,11 +449,14 @@ Two things this cost, both worth knowing before touching it:
   second, because Shift+Action previews for as long as it is held — with only `onDragEnd` a press
   that never moved was never released, and the channel previewed forever.
 
-`SHIFT` and `REC` are **held, not latched** (Shift+Action has no meaning without a release) and sit
-on the bar's floor, which is the screen's floor, where a thumb is. `isButtonPressed()` ors the
-screen's state with the panel's, so nothing downstream knows or cares which one a hand is on.
-Switching away from the page puts both down: a modifier held on a page it is not drawn on would arm
-the next pad press from a key nobody is touching.
+`SHIFT` is **held, not latched** — Shift+Action previews for as long as it is down, so a latch would
+have nothing to release — and it sits in the **global strip beside TAP**, not on the pads page: a
+modifier you have to change pages to reach is one you cannot hold while pressing what it modifies.
+`isButtonPressed()` ors the screen's state with the panel's, so nothing downstream knows or cares
+which one a hand is on. TAP keeps two thirds of that row against SHIFT's one, because it is the
+control here that has to be hit *in time* and a tempo tap that misses is worse than a modifier that
+takes a second go. Record needs no screen twin: the strip's REC button already records into the
+shown clip.
 
 #### Getting out of an overlay
 

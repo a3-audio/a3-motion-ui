@@ -123,8 +123,6 @@ TEST (ControllerLayout, TooLittleRoomMakesSmallRectanglesNotBrokenOnes)
             sane (l.pads[channel][pad], "a pad");
         }
 
-      sane (l.shiftButton, "shift");
-      sane (l.recordButton, "record");
     }
 }
 
@@ -192,23 +190,6 @@ TEST (ControllerLayout, AClipsFourPadsTakeFourDifferentCorners)
       }
 }
 
-// Breaks if the modifier row moves, or if the grid grows into it. They are
-// held while the other hand taps: a modifier under a pad would be covered by
-// the hand that is using it.
-TEST (ControllerLayout, TheModifiersSitBelowEveryPad)
-{
-  auto const l = defaultLayout ();
-
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
-      {
-        EXPECT_LE (l.pads[channel][pad].getBottom (), l.shiftButton.getY ());
-        EXPECT_LE (l.pads[channel][pad].getBottom (), l.recordButton.getY ());
-      }
-
-  EXPECT_LT (l.shiftButton.getRight (), l.recordButton.getX ());
-}
-
 // Breaks if any of it grows past the area it was handed — which on this bar
 // means drawing over the sphere or off the bottom of the screen.
 TEST (ControllerLayout, EverythingStaysInsideTheBar)
@@ -223,6 +204,42 @@ TEST (ControllerLayout, EverythingStaysInsideTheBar)
         EXPECT_TRUE (area.contains (l.pads[channel][pad]));
     }
 
-  EXPECT_TRUE (area.contains (l.shiftButton));
-  EXPECT_TRUE (area.contains (l.recordButton));
+}
+
+
+// Read off the device, not derived: pressing the pad drawn top-right reported
+// STOP and the one drawn bottom-left reported ACTION, so the two were the
+// wrong way round. Pinned here because it is a fact about the panel that
+// nothing else in the build can check — the tables say which pad is which
+// function, but only the hardware says where that function sits under a hand.
+TEST (ControllerLayout, TheClipsPadsSitWhereThePanelsDo)
+{
+  auto const l = defaultLayout ();
+
+  auto const cornerOf = [&l] (index_t channel, PadFunction function,
+                              index_t slot) {
+    for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
+      if (padFunctionByPadIndex[pad] == function
+          && slotForPadIndex[pad] == slot)
+        return l.pads[channel][pad];
+    return juce::Rectangle<int>{};
+  };
+
+  for (index_t channel = 0; channel < numChannelColumns; ++channel)
+    for (index_t slot = 0; slot < numPadSlots; ++slot)
+      {
+        auto const play = cornerOf (channel, PadFunction::PlayPause, slot);
+        auto const stop = cornerOf (channel, PadFunction::Stop, slot);
+        auto const action = cornerOf (channel, PadFunction::Action, slot);
+        auto const settings = cornerOf (channel, PadFunction::Settings, slot);
+
+        // Top row: play beside stop. Bottom row: action beside settings.
+        EXPECT_EQ (play.getY (), stop.getY ());
+        EXPECT_LT (play.getX (), stop.getX ());
+
+        EXPECT_EQ (action.getY (), settings.getY ());
+        EXPECT_LT (action.getX (), settings.getX ());
+
+        EXPECT_LT (play.getY (), action.getY ());
+      }
 }

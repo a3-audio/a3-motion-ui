@@ -137,19 +137,17 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   auto area = out.clipBounds.reduced (paddingH, paddingV);
 
   auto headerArea = area.removeFromTop (headerH);
-  out.readout = headerArea.removeFromRight (headerArea.getWidth () / 2);
-
-  // The two pages, ahead of everything: the readout beside them is written to
-  // from half the interface, and a tab that shifted as it grew would be a tab
-  // you have to look for. Sized to be hit rather than to fit their words —
-  // they are switched mid-set, with one hand, without looking down.
-  auto const tabW
-      = juce::jmax (fingertipSize, headerArea.getWidth () / 4);
-  out.tabClip = headerArea.removeFromLeft (tabW);
-  out.tabController = headerArea.removeFromLeft (tabW);
+  // The two pages close the row, where the readout used to sit. Sized to be
+  // hit rather than to fit their words — they are switched mid-set, with one
+  // hand, without looking down.
+  auto const tabW = juce::jmax (fingertipSize, headerArea.getWidth () / 4);
+  out.tabController = headerArea.removeFromRight (tabW);
+  out.tabClip = headerArea.removeFromRight (tabW);
   out.slotLabel = headerArea;
 
   area.removeFromTop (juce::jmax (4, out.clipBounds.getHeight () / 50));
+
+  out.clipContent = area;
 
   auto const gap = juce::jmax (2, out.clipBounds.getWidth () / 300);
   auto const sectionW = area.getWidth () / (numClipSettingsSections - 1);
@@ -358,8 +356,18 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // ── Global section ───────────────────────────────────────────────────
   {
     auto content = sectionContentBounds (out.sectionCards[3]);
-    out.sectionLabels[3]
-        = content.removeFromTop (titleRowHeight (content, headerSize));
+
+    // The readout tops the strip, in the row the word "Global" had. It says
+    // what was last moved, and what moves comes from either page — so it
+    // belongs to the part of the bar that stands on both, not to the half
+    // that gets swapped out from under it.
+    //
+    // In that row rather than above it: an extra row here comes out of the
+    // channel grid, and at the smallest skin sizes that collapsed its cells
+    // to five pixels. Of the two, the strip can better spare a label naming
+    // what is plainly in front of you than the grid can spare its height.
+    out.readout = content.removeFromTop (titleRowHeight (content, headerSize));
+    out.sectionLabels[3] = {};
 
     // The grid across the whole section, the four buttons in one row under
     // it. Beside each other the grid was cramped into two thirds of the
@@ -463,6 +471,15 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       middle.removeFromLeft (gapH);
       out.recButton = middle.removeFromLeft (buttonW);
 
+      // TAP and SHIFT share the floor, but not evenly. SHIFT is here rather
+      // than on the controller page because it modifies the whole device and
+      // a modifier you have to change pages to reach is one you cannot hold
+      // while pressing what it modifies. TAP keeps two thirds of the row: it
+      // is the one control here that has to be hit *in time*, and a tempo tap
+      // that misses is worse than a modifier that takes a second go.
+      auto const shiftW = (bottom.getWidth () - gapH) / 3;
+      out.shiftButton = bottom.removeFromRight (shiftW);
+      bottom.removeFromRight (gapH);
       out.tapButton = bottom;
 
       // The rec mode no longer has a knob-style box of its own; its button

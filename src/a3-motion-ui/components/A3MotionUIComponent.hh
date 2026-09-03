@@ -390,12 +390,12 @@ private:
   // (pattern keeps playing). -1 means no preview active on that channel.
   std::vector<int> _previewHeldPad; // holds the SLOT index, or -1
 
-  /** The controller page's modifiers. Held on the screen rather than on the
-   *  panel, and folded into isButtonPressed() so nothing downstream has to
-   *  know which of the two a hand is on. */
+  /** Shift held on the screen rather than on the panel, folded into
+   *  isButtonPressed() so nothing downstream has to know which of the two a
+   *  hand is on. Record needs no twin: the global strip's REC button already
+   *  records into the shown clip. */
   std::unique_ptr<ControllerComponent> _controller;
   bool _screenShiftHeld = false;
-  bool _screenRecordHeld = false;
 
   // Clip Settings: permanent bottom panel showing the last-selected clip's
   // settings. Selected by a slot's Settings button; the Motion-

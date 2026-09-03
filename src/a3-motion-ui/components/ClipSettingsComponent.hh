@@ -211,9 +211,10 @@ public:
    *  (see ControllerComponent). The header row and the global strip belong to
    *  the bar itself and stay put on both. */
   void setPage (BarPage page);
-  /** The clip part of the bar, in the bar's own coordinates — what the
-   *  controller page covers when it is showing. */
-  juce::Rectangle<int> clipBounds () const;
+  /** The clip part's content, in the bar's own coordinates — what the
+   *  controller page covers when it is showing. Under the header row, which
+   *  belongs to the bar on both pages. */
+  juce::Rectangle<int> clipContentBounds () const;
   /** A tab was tapped. */
   std::function<void (BarPage page)> onPageSelected;
 
@@ -245,6 +246,9 @@ public:
   std::function<void ()> onMenuPressed;
   std::function<void ()> onRecordPressed;
   std::function<void ()> onTapPressed;
+  /** Shift went down or came up. Held, not tapped: Shift+Action previews for
+   *  as long as it is down, so a latch would have nothing to release. */
+  std::function<void (bool held)> onShiftHeld;
 
   /** Whether the Rec button should read as armed. */
   void setRecording (bool recording);
@@ -439,6 +443,8 @@ private:
   std::unique_ptr<TouchControl> _menuTouch;
   std::unique_ptr<TouchControl> _recTouch;
   std::unique_ptr<TouchControl> _tapTouch;
+  std::unique_ptr<TouchControl> _shiftTouch;
+  bool _shiftHeld = false;
   bool _recording = false;
   int _clockMode = 0;
   /** TAP is lit: on the beat, and while a finger is on it. */

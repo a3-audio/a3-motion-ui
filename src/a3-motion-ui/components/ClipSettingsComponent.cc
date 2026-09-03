@@ -183,6 +183,23 @@ ClipSettingsComponent::createTouchControls ()
   makeButton (_tapTouch, &ClipSettingsComponent::onTapPressed);
   _tapTouch->onPress = [this] (int, int) { flashTap (); };
 
+  // Held, not tapped, and so it needs onRelease rather than onTap — see
+  // TouchControl, where the two are deliberately different things.
+  _shiftTouch = std::make_unique<TouchControl> ();
+  _shiftTouch->onPress = [this] (int, int) {
+    _shiftHeld = true;
+    if (onShiftHeld)
+      onShiftHeld (true);
+    repaint (_layout.shiftButton);
+  };
+  _shiftTouch->onRelease = [this] (int, int) {
+    _shiftHeld = false;
+    if (onShiftHeld)
+      onShiftHeld (false);
+    repaint (_layout.shiftButton);
+  };
+  addAndMakeVisible (*_shiftTouch);
+
   for (int section = 0; section < numParameters; ++section)
     {
       auto const count = numControlsInSection (section);
@@ -252,6 +269,8 @@ ClipSettingsComponent::resized ()
     }
 
   _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
+
+  _shiftTouch->setBounds (_layout.shiftButton);
 
   _tabClipTouch->setBounds (_layout.tabClip);
   _tabControllerTouch->setBounds (_layout.tabController);
@@ -498,15 +517,6 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   g.setColour (toColour (theme ().textPrimary, 0.25f));
   g.drawRect (_layout.globalBounds, frameThickness);
 
-  // Terminal-style readout of the last-operated control, top-right.
-  g.setFont (juce::Font (juce::Font::getDefaultMonospacedFontName (),
-                         fontFor (FontRole::Header, _layout.readout,
-                                  _lastControlText),
-                         juce::Font::plain));
-  g.setColour (toColour (theme ().accent, panelOpacity));
-  g.drawText (_lastControlText, _layout.readout,
-              juce::Justification::centredRight, true);
-
   auto const slotName = "Slot " + juce::String (_slot + 1);
   g.setFont (juce::Font (fontFor (FontRole::Header, _layout.slotLabel,
                                   slotName),
@@ -561,9 +571,9 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
 }
 
 juce::Rectangle<int>
-ClipSettingsComponent::clipBounds () const
+ClipSettingsComponent::clipContentBounds () const
 {
-  return _layout.clipBounds;
+  return _layout.clipContent;
 }
 
 void
@@ -664,9 +674,23 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   paintBarButton (g, _layout.clockModeButton, clockNames[clock], "clock",
                   false, false);
 
+  // The readout tops the strip, where the word "Global" was: what it reports
+  // comes from either page, so it belongs to the part that stands on both.
+  g.setFont (juce::Font (juce::Font::getDefaultMonospacedFontName (),
+                         fontFor (FontRole::Header, _layout.readout,
+                                  _lastControlText),
+                         juce::Font::plain));
+  g.setColour (toColour (theme ().accent, panelOpacity));
+  g.drawText (_lastControlText, _layout.readout,
+              juce::Justification::centred, true);
+
   paintActionButton (g, _layout.menuButton, "MENU", false);
   paintActionButton (g, _layout.recButton, "REC", _recording);
   paintActionButton (g, _layout.tapButton, "TAP", _tapLit);
+  // Lit in the accent while it is down. A modifier you cannot see at a glance
+  // is a modifier you will get wrong, and this one decides what the next pad
+  // press means.
+  paintActionButton (g, _layout.shiftButton, "SHIFT", _shiftHeld);
 }
 
 void

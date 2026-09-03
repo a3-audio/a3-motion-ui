@@ -85,32 +85,6 @@ ControllerComponent::ControllerComponent ()
         }
     }
 
-  // Both members are reached through pointers-to-member rather than
-  // references. A reference to the parameter would dangle the moment this
-  // lambda returned, and the write through it would be silent: the callback
-  // still fired, so the readout said the modifier was down while the flag it
-  // was supposed to set had never been written.
-  auto const modifier
-      = [this] (std::unique_ptr<TouchControl> &into,
-                bool ControllerComponent::*state,
-                std::function<void (bool)> ControllerComponent::*callback) {
-          auto const set = [this, state, callback] (bool held) {
-            this->*state = held;
-            if (this->*callback)
-              (this->*callback) (held);
-            repaint ();
-          };
-
-          into = std::make_unique<TouchControl> ();
-          into->onPress = [set] (int, int) { set (true); };
-          into->onRelease = [set] (int, int) { set (false); };
-          addAndMakeVisible (*into);
-        };
-
-  modifier (_shiftTouch, &ControllerComponent::_shiftHeld,
-            &ControllerComponent::onShiftHeld);
-  modifier (_recordTouch, &ControllerComponent::_recordHeld,
-            &ControllerComponent::onRecordHeld);
 }
 
 ControllerComponent::~ControllerComponent () = default;
@@ -126,24 +100,6 @@ ControllerComponent::setPadColour (index_t channel, index_t pad,
 
   _padColours[channel][pad] = colour;
   repaint (_layout.pads[channel][pad]);
-}
-
-void
-ControllerComponent::setShiftHeld (bool held)
-{
-  if (_shiftHeld == held)
-    return;
-  _shiftHeld = held;
-  repaint (_layout.shiftButton);
-}
-
-void
-ControllerComponent::setRecordHeld (bool held)
-{
-  if (_recordHeld == held)
-    return;
-  _recordHeld = held;
-  repaint (_layout.recordButton);
 }
 
 void
@@ -163,9 +119,6 @@ ControllerComponent::resized ()
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
     for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
       _padTouch[channel][pad]->setBounds (_layout.pads[channel][pad]);
-
-  _shiftTouch->setBounds (_layout.shiftButton);
-  _recordTouch->setBounds (_layout.recordButton);
 }
 
 void
@@ -183,14 +136,6 @@ ControllerComponent::paint (juce::Graphics &g)
     for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
       paintPad (g, _layout.pads[channel][pad], channel, pad);
 
-  // Colour, not a shade. A held modifier changed the button by six values out
-  // of 255 against the bar's near-black ground — and the thing it changes is
-  // what the next pad press does, with Record over Play writing over a take.
-  // That is not something to squint at.
-  paintModifier (g, _layout.shiftButton, "SHIFT", _shiftHeld,
-                 toColour (theme ().accent));
-  paintModifier (g, _layout.recordButton, "REC", _recordHeld,
-                 toColour (theme ().danger));
 }
 
 void
@@ -222,27 +167,5 @@ ControllerComponent::paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
   g.drawFittedText (padName (pad), bounds, juce::Justification::centred, 1);
 }
 
-void
-ControllerComponent::paintModifier (juce::Graphics &g,
-                                    juce::Rectangle<int> bounds,
-                                    juce::String const &label, bool held,
-                                    juce::Colour heldColour)
-{
-  if (bounds.isEmpty ())
-    return;
-
-  g.setColour (held ? heldColour
-                    : toColour (theme ().textPrimary, boxWash));
-  g.fillRoundedRectangle (bounds.toFloat (), padCorner);
-  g.setColour (held ? heldColour.brighter (0.4f)
-                    : toColour (theme ().textPrimary, edgeWash));
-  g.drawRoundedRectangle (bounds.toFloat (), padCorner, 1.f);
-
-  g.setColour (held ? heldColour.contrasting (0.8f)
-                    : toColour (theme ().textPrimary));
-  g.setFont (juce::Font (theme ().fontSize (FontRole::Body),
-                         juce::Font::plain));
-  g.drawFittedText (label, bounds, juce::Justification::centred, 1);
-}
 
 }
