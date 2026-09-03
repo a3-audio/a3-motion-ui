@@ -114,10 +114,7 @@ private:
   enum class ButtonRole : uint8_t
   {
     Spare,
-    MenuToggle,
-    Record,
-    Tap,
-    Shift,
+    Function,
     Pad,
   };
 
@@ -126,55 +123,64 @@ private:
     ButtonRole role;
     uint8_t    channel;
     uint8_t    pad;
+    /** For Function: which row of the panel's end columns this key is, 0 at
+     *  the top. What that row *does* comes from functionKeyOrder — the panel
+     *  and the screen read the same list. */
+    uint8_t    functionRow;
   };
 
   // Indexed by firmware button index [0..43].
   // Labels are "RC" (Row, Col); see Python script BUTTON_LABELS[] for order.
+  //
+  // The two end columns, col0 and col9, are the function keys: six rows each,
+  // mirrored so either hand reaches them. Which row does what is not written
+  // here — it comes from functionKeyOrder (io/FunctionKeys.hh), the same list
+  // the global strip is laid out from.
   static constexpr ButtonMapping buttonMap[44] = {
-    { ButtonRole::Spare,  0, 0 },  //  0: "40" row4 col0 – spare
-    { ButtonRole::Spare,  0, 0 },  //  1: "30" row3 col0 – spare
-    { ButtonRole::Tap,    0, 0 },  //  2: "20" row2 col0 – Tap (left)
-    { ButtonRole::MenuToggle, 0, 0 },  //  3: "50" row5 col0 – Menu toggle (left)
-    { ButtonRole::Pad,    0, 0 },  //  4: "21" ch0 left-col  row2 → pad0
-    { ButtonRole::Pad,    0, 3 },  //  5: "51" ch0 left-col  row5 → pad3
-    { ButtonRole::Pad,    0, 1 },  //  6: "31" ch0 left-col  row3 → pad1
-    { ButtonRole::Pad,    0, 2 },  //  7: "41" ch0 left-col  row4 → pad2
-    { ButtonRole::Pad,    0, 6 },  //  8: "42" ch0 right-col row4 → pad6
-    { ButtonRole::Pad,    0, 5 },  //  9: "32" ch0 right-col row3 → pad5
-    { ButtonRole::Pad,    0, 4 },  // 10: "22" ch0 right-col row2 → pad4
-    { ButtonRole::Pad,    0, 7 },  // 11: "52" ch0 right-col row5 → pad7
-    { ButtonRole::Pad,    1, 0 },  // 12: "23" ch1 left-col  row2 → pad0
-    { ButtonRole::Pad,    1, 3 },  // 13: "53" ch1 left-col  row5 → pad3
-    { ButtonRole::Pad,    1, 1 },  // 14: "33" ch1 left-col  row3 → pad1
-    { ButtonRole::Pad,    1, 2 },  // 15: "43" ch1 left-col  row4 → pad2
-    { ButtonRole::Pad,    1, 6 },  // 16: "44" ch1 right-col row4 → pad6
-    { ButtonRole::Pad,    1, 5 },  // 17: "34" ch1 right-col row3 → pad5
-    { ButtonRole::Pad,    1, 4 },  // 18: "24" ch1 right-col row2 → pad4
-    { ButtonRole::Pad,    1, 7 },  // 19: "54" ch1 right-col row5 → pad7
-    { ButtonRole::Pad,    2, 0 },  // 20: "25" ch2 left-col  row2 → pad0
-    { ButtonRole::Pad,    2, 3 },  // 21: "55" ch2 left-col  row5 → pad3
-    { ButtonRole::Pad,    2, 1 },  // 22: "35" ch2 left-col  row3 → pad1
-    { ButtonRole::Pad,    2, 2 },  // 23: "45" ch2 left-col  row4 → pad2
-    { ButtonRole::Pad,    2, 6 },  // 24: "46" ch2 right-col row4 → pad6
-    { ButtonRole::Pad,    2, 5 },  // 25: "36" ch2 right-col row3 → pad5
-    { ButtonRole::Pad,    2, 4 },  // 26: "26" ch2 right-col row2 → pad4
-    { ButtonRole::Pad,    2, 7 },  // 27: "56" ch2 right-col row5 → pad7
-    { ButtonRole::Pad,    3, 0 },  // 28: "27" ch3 left-col  row2 → pad0
-    { ButtonRole::Pad,    3, 3 },  // 29: "57" ch3 left-col  row5 → pad3
-    { ButtonRole::Pad,    3, 1 },  // 30: "37" ch3 left-col  row3 → pad1
-    { ButtonRole::Pad,    3, 2 },  // 31: "47" ch3 left-col  row4 → pad2
-    { ButtonRole::Pad,    3, 6 },  // 32: "48" ch3 right-col row4 → pad6
-    { ButtonRole::Pad,    3, 5 },  // 33: "38" ch3 right-col row3 → pad5
-    { ButtonRole::Pad,    3, 4 },  // 34: "28" ch3 right-col row2 → pad4
-    { ButtonRole::Pad,    3, 7 },  // 35: "58" ch3 right-col row5 → pad7
-    { ButtonRole::Tap,    0, 0 },  // 36: "29" row2 col9 – Tap (right)
-    { ButtonRole::MenuToggle, 0, 0 },  // 37: "59" row5 col9 – Menu toggle (right)
-    { ButtonRole::Spare,  0, 0 },  // 38: "39" row3 col9 – spare
-    { ButtonRole::Spare,  0, 0 },  // 39: "49" row4 col9 – spare
-    { ButtonRole::Shift,        0, 0 },  // 40: "00" row0 col0 – Shift (left)
-    { ButtonRole::Record,        0, 0 },  // 41: "10" row1 col0 – Record (left)
-    { ButtonRole::Shift,         0, 0 },  // 42: "09" row0 col9 – Shift (right)
-    { ButtonRole::Record,        0, 0 },  // 43: "19" row1 col9 – Record (right)
+    { ButtonRole::Function, 0, 0, 4 },  //  0: "40" row4 col0 (left)
+    { ButtonRole::Function, 0, 0, 3 },  //  1: "30" row3 col0 (left)
+    { ButtonRole::Function, 0, 0, 2 },  //  2: "20" row2 col0 (left)
+    { ButtonRole::Function, 0, 0, 5 },  //  3: "50" row5 col0 (left)
+    { ButtonRole::Pad, 0, 0, 0 },  //  4: "21" ch0 left-col  row2 → pad0
+    { ButtonRole::Pad, 0, 3, 0 },  //  5: "51" ch0 left-col  row5 → pad3
+    { ButtonRole::Pad, 0, 1, 0 },  //  6: "31" ch0 left-col  row3 → pad1
+    { ButtonRole::Pad, 0, 2, 0 },  //  7: "41" ch0 left-col  row4 → pad2
+    { ButtonRole::Pad, 0, 6, 0 },  //  8: "42" ch0 right-col row4 → pad6
+    { ButtonRole::Pad, 0, 5, 0 },  //  9: "32" ch0 right-col row3 → pad5
+    { ButtonRole::Pad, 0, 4, 0 },  // 10: "22" ch0 right-col row2 → pad4
+    { ButtonRole::Pad, 0, 7, 0 },  // 11: "52" ch0 right-col row5 → pad7
+    { ButtonRole::Pad, 1, 0, 0 },  // 12: "23" ch1 left-col  row2 → pad0
+    { ButtonRole::Pad, 1, 3, 0 },  // 13: "53" ch1 left-col  row5 → pad3
+    { ButtonRole::Pad, 1, 1, 0 },  // 14: "33" ch1 left-col  row3 → pad1
+    { ButtonRole::Pad, 1, 2, 0 },  // 15: "43" ch1 left-col  row4 → pad2
+    { ButtonRole::Pad, 1, 6, 0 },  // 16: "44" ch1 right-col row4 → pad6
+    { ButtonRole::Pad, 1, 5, 0 },  // 17: "34" ch1 right-col row3 → pad5
+    { ButtonRole::Pad, 1, 4, 0 },  // 18: "24" ch1 right-col row2 → pad4
+    { ButtonRole::Pad, 1, 7, 0 },  // 19: "54" ch1 right-col row5 → pad7
+    { ButtonRole::Pad, 2, 0, 0 },  // 20: "25" ch2 left-col  row2 → pad0
+    { ButtonRole::Pad, 2, 3, 0 },  // 21: "55" ch2 left-col  row5 → pad3
+    { ButtonRole::Pad, 2, 1, 0 },  // 22: "35" ch2 left-col  row3 → pad1
+    { ButtonRole::Pad, 2, 2, 0 },  // 23: "45" ch2 left-col  row4 → pad2
+    { ButtonRole::Pad, 2, 6, 0 },  // 24: "46" ch2 right-col row4 → pad6
+    { ButtonRole::Pad, 2, 5, 0 },  // 25: "36" ch2 right-col row3 → pad5
+    { ButtonRole::Pad, 2, 4, 0 },  // 26: "26" ch2 right-col row2 → pad4
+    { ButtonRole::Pad, 2, 7, 0 },  // 27: "56" ch2 right-col row5 → pad7
+    { ButtonRole::Pad, 3, 0, 0 },  // 28: "27" ch3 left-col  row2 → pad0
+    { ButtonRole::Pad, 3, 3, 0 },  // 29: "57" ch3 left-col  row5 → pad3
+    { ButtonRole::Pad, 3, 1, 0 },  // 30: "37" ch3 left-col  row3 → pad1
+    { ButtonRole::Pad, 3, 2, 0 },  // 31: "47" ch3 left-col  row4 → pad2
+    { ButtonRole::Pad, 3, 6, 0 },  // 32: "48" ch3 right-col row4 → pad6
+    { ButtonRole::Pad, 3, 5, 0 },  // 33: "38" ch3 right-col row3 → pad5
+    { ButtonRole::Pad, 3, 4, 0 },  // 34: "28" ch3 right-col row2 → pad4
+    { ButtonRole::Pad, 3, 7, 0 },  // 35: "58" ch3 right-col row5 → pad7
+    { ButtonRole::Function, 0, 0, 2 },  // 36: "29" row2 col9 (right)
+    { ButtonRole::Function, 0, 0, 5 },  // 37: "59" row5 col9 (right)
+    { ButtonRole::Function, 0, 0, 3 },  // 38: "39" row3 col9 (right)
+    { ButtonRole::Function, 0, 0, 4 },  // 39: "49" row4 col9 (right)
+    { ButtonRole::Function, 0, 0, 0 },  // 40: "00" row0 col0 (left)
+    { ButtonRole::Function, 0, 0, 1 },  // 41: "10" row1 col0 (left)
+    { ButtonRole::Function, 0, 0, 0 },  // 42: "09" row0 col9 (right)
+    { ButtonRole::Function, 0, 0, 1 },  // 43: "19" row1 col9 (right)
   };
 
   static constexpr int numHwButtons = 44;
@@ -195,7 +201,15 @@ private:
 
   // ── Button state tracking ─────────────────────────────────────────────────
   std::array<bool, numHwButtons> _buttonPressed{};
-  std::array<bool, 2> _menuButtonState{};  // [0]=btn50 (idx3), [1]=btn59 (idx37)
+  /** Each function key twice — the left column and the right — because they
+   *  are one key with two places to press it. A key is down while either side
+   *  is down, so holding one and pressing the other does not read as a
+   *  release. Menu alone used to be tracked this way; all six are now, which
+   *  is what the mirrored columns are for. */
+  std::array<std::array<bool, 2>, numFunctionKeys> _functionKeyState{};
+
+  /** Whether a firmware index sits in the panel's right-hand end column. */
+  static bool isRightHandColumn (int hwIndex);
 
   void parseButtons (const uint8_t *raw, int offset);
   void dispatchButtonEvent (int idx, bool pressed);

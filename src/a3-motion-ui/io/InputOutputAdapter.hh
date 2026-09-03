@@ -27,6 +27,7 @@
 // PadFunction and the two pad-index tables live here, so that the
 // touchscreen's controller page can be laid out from the same tables
 // the panel is read with.
+#include <a3-motion-ui/io/FunctionKeys.hh>
 #include <a3-motion-ui/io/PadFunctions.hh>
 
 namespace a3
@@ -37,14 +38,10 @@ class InputOutputAdapter : public juce::Thread,
                            public juce::Value::Listener
 {
 public:
-  enum class Button
-  {
-    Record,
-    Tap,
-    ClockMode,
-    Menu,
-    Shift,
-  };
+  /** The device's function keys — the panel's two mirrored columns and the
+   *  global strip's six, which are the same set. See io/FunctionKeys.hh for
+   *  the order they are in and why there is only one of it. */
+  using Button = FunctionKey;
 
   InputOutputAdapter ();
   virtual ~InputOutputAdapter ();
@@ -85,7 +82,7 @@ protected:
   static auto constexpr numChannels = 4u;
   static auto constexpr numPotsPerChannel = 2u;
   static auto constexpr numEncodersPerChannel = 2u;
-  static auto constexpr numButtons = 5u;
+  static auto constexpr numButtons = numFunctionKeys;
 
   struct PadIndex
   {

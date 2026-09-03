@@ -737,6 +737,7 @@ A3MotionUIComponent::createHardwareInterface ()
   _ioAdapter->getButton (Button::Record).addListener (this);
   _ioAdapter->getButton (Button::Tap).addListener (this);
   _ioAdapter->getButton (Button::Shift).addListener (this);
+  _ioAdapter->getButton (Button::RecMode).addListener (this);
   _ioAdapter->getTapTimeMicros ().addListener (this);
   for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
     {
@@ -926,10 +927,24 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
 {
   if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::ClockMode)))
     {
-      // ClockMode button is kept for backward compat but no longer cycles;
-      // clock mode is changed via Global Settings.
+      // Cycles, like the strip's clock key it stands beside — the panel and
+      // the screen are two places to reach one function, so they had better
+      // do the same thing when reached.
       if (value.getValue ())
-        updateControlReadout ("-- CLOCKMODE");
+        {
+          applyClockMode ((_clockMode + 1) % 3);
+          _clipSettings->setClockMode (_clockMode);
+          updateControlReadout ("-- CLOCKMODE");
+        }
+    }
+  else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::RecMode)))
+    {
+      if (value.getValue ())
+        {
+          auto const count = static_cast<int> (recMenuModes.size ());
+          applyRecMode ((recMenuIndex (_recMode) + 1) % count);
+          updateControlReadout ("-- RECMODE");
+        }
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Menu)))
     {

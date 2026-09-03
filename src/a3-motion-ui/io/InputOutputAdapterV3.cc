@@ -281,10 +281,18 @@ namespace
 // ClockMode was a V2-only physical button with no LED on V3 hardware, so it
 // has no entry — and therefore stays dark, which is what a key with no
 // function should do.
-constexpr int recordHwIndices[] = { 41, 43 };
-constexpr int tapHwIndices[] = { 2, 36 };
-constexpr int menuHwIndices[] = { 3, 37 };
-constexpr int shiftHwIndices[] = { 40, 42 };
+/** The two firmware indices of each function-key row, left column then
+ *  right, top row first. Read off the panel's RC labels: col0 is
+ *  "00","10","20","30","40","50" and col9 is "09","19","29","39","49","59".
+ *  What each row *does* is not here — it is functionKeyOrder. */
+constexpr int functionRowHwIndices[numFunctionKeys][2] = {
+  { 40, 42 }, // row 0
+  { 41, 43 }, // row 1
+  {  2, 36 }, // row 2
+  {  1, 38 }, // row 3
+  {  0, 39 }, // row 4
+  {  3, 37 }, // row 5
+};
 }
 
 void
@@ -299,10 +307,28 @@ InputOutputAdapterV3::refreshIdleButtonLeds ()
   _idleLedWritten = idle;
 
   auto const colour = toColour (idle);
-  for (auto const *pair : { recordHwIndices, tapHwIndices, menuHwIndices,
-                            shiftHwIndices })
-    for (int i = 0; i < 2; ++i)
-      writeSetLed (hwIndexToLedId[pair[i]], colour);
+  for (auto const &pair : functionRowHwIndices)
+    for (auto const idx : pair)
+      writeSetLed (hwIndexToLedId[idx], colour);
+}
+
+bool
+InputOutputAdapterV3::isRightHandColumn (int hwIndex)
+{
+  // col9's function keys, by firmware index: "09", "19", "29", "39", "49",
+  // "59". Everything else in the end columns is col0.
+  switch (hwIndex)
+    {
+    case 42:
+    case 43:
+    case 36:
+    case 38:
+    case 39:
+    case 37:
+      return true;
+    default:
+      return false;
+    }
 }
 
 void
@@ -312,45 +338,42 @@ InputOutputAdapterV3::dispatchButtonEvent (int idx, bool pressed)
 
   switch (m.role)
     {
-    case ButtonRole::MenuToggle:
+    case ButtonRole::Function:
       {
-        // Two physical buttons (50 at idx 3, 59 at idx 37), either of which
-        // is the Menu button. They used to have to be pressed together — a
-        // chord to reach the menu, which is a lot of ceremony for the one
-        // key somebody presses to get out of somewhere.
-        //
-        // Tracked separately so that holding one and pressing the other
-        // does not read as a release: Menu is down while either is down.
-        int const slot = (idx == 3) ? 0 : 1;
-        bool const wasAnyPressed
-            = _menuButtonState[0] || _menuButtonState[1];
-        _menuButtonState[slot] = pressed;
-        bool const isAnyPressed = _menuButtonState[0] || _menuButtonState[1];
+        // Which row this is comes from the panel; what the row *does* comes
+        // from functionKeyOrder — the same list the global strip is laid out
+        // from, so the hand learns one arrangement and not two.
+        auto const row = static_cast<std::size_t> (m.functionRow);
+        if (row >= functionKeyOrder.size ())
+          break;
 
-        if (isAnyPressed != wasAnyPressed)
-          inputButtonValue (Button::Menu, isAnyPressed);
+        auto const key = functionKeyOrder[row];
+
+        // The two end columns are two places to press one key. Tracked apart
+        // so that holding one side and pressing the other is not a release —
+        // which is the whole point of their being mirrored.
+        auto const side = isRightHandColumn (idx) ? 1u : 0u;
+        auto &state = _functionKeyState[row];
+
+        bool const wasDown = state[0] || state[1];
+        state[side] = pressed;
+        bool const isDown = state[0] || state[1];
+
+        if (isDown == wasDown)
+          break;
+
+        inputButtonValue (key, isDown);
+
+        if (key == FunctionKey::Tap && isDown)
+          {
+            auto ticks = juce::Time::getHighResolutionTicks ();
+            auto freq = juce::Time::getHighResolutionTicksPerSecond ();
+            auto timeMicros = static_cast<juce::int64> (
+                static_cast<double> (ticks) / static_cast<double> (freq)
+                * 1'000'000.0);
+            inputTapTime (timeMicros);
+          }
       }
-      break;
-
-    case ButtonRole::Record:
-      inputButtonValue (Button::Record, pressed);
-      break;
-
-    case ButtonRole::Shift:
-      inputButtonValue (Button::Shift, pressed);
-      break;
-
-    case ButtonRole::Tap:
-      inputButtonValue (Button::Tap, pressed);
-      if (pressed)
-        {
-          auto ticks = juce::Time::getHighResolutionTicks ();
-          auto freq  = juce::Time::getHighResolutionTicksPerSecond ();
-          auto timeMicros = static_cast<juce::int64> (
-              static_cast<double> (ticks) / static_cast<double> (freq)
-              * 1'000'000.0);
-          inputTapTime (timeMicros);
-        }
       break;
 
     case ButtonRole::Pad:
@@ -491,7 +514,8 @@ InputOutputAdapterV3::outputButtonLED (Button button, bool value)
       case Button::Tap: return "tap";
       case Button::Menu: return "menu";
       case Button::Shift: return "shift";
-      case Button::ClockMode: break;
+      case Button::ClockMode: return "clock";
+      case Button::RecMode: return "recmode";
       }
     return {};
   }();
@@ -503,27 +527,14 @@ InputOutputAdapterV3::outputButtonLED (Button button, bool value)
   auto const colour = toColour (value ? buttonLedColour (buttonLeds, named)
                                       : buttonLedIdleColour (buttonLeds));
 
-  switch (button)
-    {
-    case Button::Record:
-      for (auto idx : recordHwIndices)
-        writeSetLed (hwIndexToLedId[idx], colour);
-      break;
-    case Button::Tap:
-      for (auto idx : tapHwIndices)
-        writeSetLed (hwIndexToLedId[idx], colour);
-      break;
-    case Button::Menu:
-      for (auto idx : menuHwIndices)
-        writeSetLed (hwIndexToLedId[idx], colour);
-      break;
-    case Button::Shift:
-      for (auto idx : shiftHwIndices)
-        writeSetLed (hwIndexToLedId[idx], colour);
-      break;
-    case Button::ClockMode:
-      break;
-    }
+  // Both sides of the key light: they are one key with two places to press
+  // it, and a lit left with a dark right would say they were two.
+  auto const row = functionKeyPosition (button);
+  if (row < 0)
+    return;
+
+  for (auto const idx : functionRowHwIndices[row])
+    writeSetLed (hwIndexToLedId[idx], colour);
 }
 
 void

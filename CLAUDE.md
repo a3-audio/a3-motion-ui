@@ -436,11 +436,23 @@ sits under a hand. `fingertipSize` is the floor for anything hit in a hurry, and
 `controllerPreferredHeight()` is why the bar can be taller than the clip settings alone would ask
 for: both pages share one area, so it has to satisfy the hungrier of them.
 
-**The strip's six buttons stand for the panel's six function keys**, so they are laid out like
-them: one size for all of them, two columns of three, filled top-left to bottom-right — left down
-`TAP`, `clock`, `REC`; right down `recmode`, `MENU`, `SHIFT`. A button sized differently from its
-neighbours reads as a different kind of thing, and all six are the same kind. Three of them carry a
-colour rather than a word for their state:
+**The strip's six buttons are the panel's six function keys.** Not "like them" — the same list.
+`io/FunctionKeys.hh` holds `functionKeyOrder` (`TAP, clock, REC, recmode, MENU, SHIFT`), and both
+sides read it: the panel is wired from it row by row, the strip is laid out from it as two columns
+of three filled top-left to bottom-right. A hand that has learned one has learned the other, and two
+tables would eventually disagree.
+
+On the panel those keys are a **vertical column of six at each end** (col0 and col9, rows 0–5),
+mirrored so either hand reaches them. The two columns are one set of keys, not twelve: a key is down
+while *either* side is down, and both sides light together. Menu alone used to be tracked that way —
+which meant holding the left Tap and pressing the right one read as a release. `functionRowHwIndices`
+maps a row to its two firmware indices; what a row *does* is not written there.
+
+`Button` is now an alias for `FunctionKey`, and two keys reached the panel for the first time with
+this: **clock** and **recmode**, in rows that had been spare. Both cycle on press, the same cycle
+their screen twins run, because the panel and the screen are two places to reach one function. All six are one size: a button sized differently
+from its neighbours reads as a different kind of thing, and these are all the same kind. Three carry
+a colour rather than a word for their state:
 
 - **`clock`** writes its mode in that mode's colour, through `Colours::clockMode()` — the same rule
   the status bar reads it by, because whose tempo this is has one answer and it should not be
