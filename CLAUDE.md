@@ -167,6 +167,13 @@ generator and the test runner:
   and only on that edge, once. Stop and Pause end the pass; Loop, Bounce and Random mean "keep
   going" and are left alone, or the accent would be a stop button that only some settings noticed.
 
+  **The bar follows the hand.** Pressing play or the accent on a pad selects that clip in the clip
+  settings, so what you are reading is what you just touched. On a *press*, not on every start: a
+  clip that an end action or a chain started did not come from a finger, and moving somebody's
+  selection out from under them mid-adjustment is what made this a question rather than an obvious
+  yes. Stop and Settings do not move it — Settings is the one that selects without doing anything
+  else, which is what it is for.
+
   It fires on ACT **whatever the clip is doing** — an accent is not a start, and behind the
   start's "is this idle" check it fired only on a clip that happened to be standing still, which is
   the opposite of when you reach for it.

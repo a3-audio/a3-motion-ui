@@ -1368,6 +1368,17 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
   updateControlReadout ("CH" + juce::String (channel + 1) + " "
                         + functionName);
 
+  // The bar follows the hand. Pressing play or the accent on a clip is saying
+  // "this one", so the settings you are looking at should be its — otherwise
+  // you sit there reading one clip's values while another one plays.
+  //
+  // On a press, not on every start: a clip that an end action or a chain
+  // started did not come from a finger, and moving the selection out from
+  // under somebody who is mid-adjustment is the thing that made this a
+  // question rather than an obvious yes (see the issue).
+  if (function == PadFunction::PlayPause || function == PadFunction::Action)
+    selectClip (channel, slot);
+
   if (isButtonPressed (Button::Record) && function == PadFunction::PlayPause)
     {
       startRecording (channel, slot);
