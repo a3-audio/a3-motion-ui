@@ -101,3 +101,106 @@ TEST (MotionModePersistence, AFileWithoutThemLoopsForwards)
 }
 
 }
+
+
+// Every clip setting, in one place, because the ones that were forgotten were
+// forgotten quietly: the whole Elevation section and the playback length were
+// never written, while Pattern.hh said in so many words that each pattern
+// remembers its own elevation. It did — until it was saved.
+//
+// This test enumerates, and there is no way around that in C++: nothing can
+// ask a class what settings it has. So it carries a duty instead — **a new
+// clip setting is added here at the same time it is added to Pattern**, and if
+// that feels like busywork, remember that skipping it is what made a clip come
+// back as a different sound.
+TEST (MotionModePersistence, EveryClipSettingSurvivesARoundTrip)
+{
+  auto pattern = aCircle ("Everything");
+
+  // All deliberately away from their defaults, so a field that is not written
+  // comes back visibly wrong rather than accidentally right.
+  pattern->setPlayDirection (PlayDirection::Reverse);
+  pattern->setEndAction (EndAction::Pause);
+  pattern->setPlaybackLength ({ 3, 2, 0 });
+
+  pattern->setReach (0.37f);
+  pattern->setMirrorSouth (true);
+  pattern->setClipTop (0.21f);
+  pattern->setClipBottom (0.13f);
+  pattern->setFlat (true);
+  pattern->setFlatElevation (0.71f);
+
+  pattern->setSpin (-4);
+  pattern->setReachLfo (5);
+  pattern->setEnvelopeAttack (1);
+  pattern->setEnvelopeDecay (5);
+  pattern->setEnvelopeMax (0.42f);
+
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-motion-every-setting.svg");
+  ASSERT_TRUE (PatternFile::save (pattern, file));
+
+  auto const reloaded = PatternFile::load (file);
+  ASSERT_NE (reloaded, nullptr);
+
+  EXPECT_EQ (reloaded->getPlayDirection (), PlayDirection::Reverse);
+  EXPECT_EQ (reloaded->getEndAction (), EndAction::Pause);
+  EXPECT_EQ (reloaded->getPlaybackLength (), Measure (3, 2, 0));
+
+  EXPECT_FLOAT_EQ (reloaded->getReach (), 0.37f);
+  EXPECT_TRUE (reloaded->getMirrorSouth ());
+  EXPECT_FLOAT_EQ (reloaded->getClipTop (), 0.21f);
+  EXPECT_FLOAT_EQ (reloaded->getClipBottom (), 0.13f);
+  EXPECT_TRUE (reloaded->getFlat ());
+  EXPECT_FLOAT_EQ (reloaded->getFlatElevation (), 0.71f);
+
+  EXPECT_EQ (reloaded->getSpin (), -4);
+  EXPECT_EQ (reloaded->getReachLfo (), 5);
+  EXPECT_EQ (reloaded->getEnvelopeAttack (), 1);
+  EXPECT_EQ (reloaded->getEnvelopeDecay (), 5);
+  EXPECT_FLOAT_EQ (reloaded->getEnvelopeMax (), 0.42f);
+
+  file.deleteFile ();
+}
+
+// A file written before a setting existed has to keep loading, and come back
+// with the value it always behaved as having. Everything added here has a
+// default, and the default is what an old file means.
+TEST (MotionModePersistence, AFileWithoutTheNewSettingsLoadsWithTheirDefaults)
+{
+  auto const written = aCircle ("Old");
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-motion-old-settings.svg");
+  ASSERT_TRUE (PatternFile::save (written, file));
+
+  // Strip the newer attributes back out, which is what an older file is.
+  auto text = file.loadFileAsString ();
+  for (auto const *attribute :
+       { "data-reach", "data-clip-top", "data-clip-bottom",
+         "data-mirror-south", "data-flat", "data-flat-elevation",
+         "data-playback" })
+    {
+      auto const at = text.indexOf (attribute);
+      if (at < 0)
+        continue;
+      auto const end = text.indexOf (at + 1, "\"") + 1;
+      auto const close = text.indexOf (end, "\"") + 1;
+      text = text.substring (0, at) + text.substring (close);
+    }
+  file.replaceWithText (text);
+
+  auto const reloaded = PatternFile::load (file);
+  ASSERT_NE (reloaded, nullptr);
+
+  Pattern const fresh;
+  EXPECT_FLOAT_EQ (reloaded->getReach (), fresh.getReach ());
+  EXPECT_EQ (reloaded->getMirrorSouth (), fresh.getMirrorSouth ());
+  EXPECT_FLOAT_EQ (reloaded->getClipTop (), fresh.getClipTop ());
+  EXPECT_FLOAT_EQ (reloaded->getClipBottom (), fresh.getClipBottom ());
+  EXPECT_EQ (reloaded->getFlat (), fresh.getFlat ());
+  EXPECT_FLOAT_EQ (reloaded->getFlatElevation (), fresh.getFlatElevation ());
+
+  file.deleteFile ();
+}

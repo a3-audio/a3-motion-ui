@@ -615,6 +615,24 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
   svg->setAttribute ("data-env-decay", pattern->getEnvelopeDecay ());
   svg->setAttribute ("data-env-max", pattern->getEnvelopeMax ());
 
+  // The elevation, which is what makes a recorded circle a cap around the
+  // pole or a sweep across the whole dome. Pattern.hh has always said each
+  // pattern remembers its own; it did, right up until it was saved.
+  svg->setAttribute ("data-reach", pattern->getReach ());
+  svg->setAttribute ("data-mirror-south", pattern->getMirrorSouth () ? 1 : 0);
+  svg->setAttribute ("data-clip-top", pattern->getClipTop ());
+  svg->setAttribute ("data-clip-bottom", pattern->getClipBottom ());
+  svg->setAttribute ("data-flat", pattern->getFlat () ? 1 : 0);
+  svg->setAttribute ("data-flat-elevation", pattern->getFlatElevation ());
+
+  // How long a pass takes, which is not the same as how long the take is:
+  // data-beats above is the recording's own length in beats, and this is the
+  // speed it is played back at.
+  auto const playback = pattern->getPlaybackLength ();
+  svg->setAttribute ("data-playback-bar", playback.bar ());
+  svg->setAttribute ("data-playback-beat", playback.beat ());
+  svg->setAttribute ("data-playback-tick", playback.tick ());
+
   svg->setAttribute ("data-ppqn", TempoClock::getTicksPerBeat ());
 
   if (!pathData.empty ())
@@ -714,6 +732,31 @@ PatternFile::load (juce::File const &file)
       xml->getIntAttribute ("data-env-decay", pattern->getEnvelopeDecay ()));
   pattern->setEnvelopeMax (static_cast<float> (
       xml->getDoubleAttribute ("data-env-max", pattern->getEnvelopeMax ())));
+
+  // Each falls back to what a fresh pattern has, so a file written before the
+  // setting existed comes back behaving as it always did.
+  auto const attributeFloat = [&xml] (char const *name, float fallback) {
+    return static_cast<float> (
+        xml->getDoubleAttribute (name, static_cast<double> (fallback)));
+  };
+
+  pattern->setReach (attributeFloat ("data-reach", pattern->getReach ()));
+  pattern->setMirrorSouth (
+      xml->getIntAttribute ("data-mirror-south", pattern->getMirrorSouth ())
+      != 0);
+  pattern->setClipTop (attributeFloat ("data-clip-top", pattern->getClipTop ()));
+  pattern->setClipBottom (
+      attributeFloat ("data-clip-bottom", pattern->getClipBottom ()));
+  pattern->setFlat (xml->getIntAttribute ("data-flat", pattern->getFlat ())
+                    != 0);
+  pattern->setFlatElevation (
+      attributeFloat ("data-flat-elevation", pattern->getFlatElevation ()));
+
+  auto const playback = pattern->getPlaybackLength ();
+  pattern->setPlaybackLength (
+      { xml->getIntAttribute ("data-playback-bar", playback.bar ()),
+        xml->getIntAttribute ("data-playback-beat", playback.beat ()),
+        xml->getIntAttribute ("data-playback-tick", playback.tick ()) });
 
   // What came out of the file is the take as played; the closing move is laid
   // over it here, from the length the file carries.

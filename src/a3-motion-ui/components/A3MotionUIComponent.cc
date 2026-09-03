@@ -126,6 +126,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
 
   initializePatterns ();
+  // What was where last time, on top of the defaults initializePatterns just
+  // laid down. A folder with a set and the takes it names is a gig on a stick.
+  applySet ();
 
   createChannelsUI ();
   createMainUI ();
@@ -1028,6 +1031,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
           // One knob per channel. What Core makes of the value is its
           // business; here it is a number between 0 and 1.
           _engine.setChannelPot3 (pot, normalized);
+          scheduleSetSave ();
           updateControlReadout ("CH" + juce::String (pot + 1) + " 3D "
                                 + juce::String (normalized, 2));
           updateClipSettingsDisplay ();
@@ -1169,6 +1173,7 @@ A3MotionUIComponent::handleChannelValueChange (index_t channel, int row,
     }
 
   updateClipSettingsDisplay ();
+  scheduleSetSave ();
 }
 
 void
@@ -1700,6 +1705,114 @@ A3MotionUIComponent::tickCallback (Measure measure)
     }
 }
 
+juce::File
+A3MotionUIComponent::setFilePath () const
+{
+  if (userConfig.hasProperty ("setFile"))
+    return juce::File (userConfig["setFile"].toString ());
+
+  // Beside the takes by default, so the two travel together without anyone
+  // having to configure that they do.
+  return _patternLibrary->getRootDir ().getChildFile ("set.json");
+}
+
+void
+A3MotionUIComponent::applySet ()
+{
+  auto const numChannels = static_cast<int> (_patterns.size ());
+  auto const set = loadSet (setFilePath (), numChannels,
+                            static_cast<int> (numClipSlots));
+
+  for (int ch = 0; ch < numChannels; ++ch)
+    {
+      auto const index = static_cast<index_t> (ch);
+      auto const &channel = set.channels[static_cast<size_t> (ch)];
+
+      // Where the channel was parked. Empty on a first run, which is zero,
+      // which is where they start anyway.
+      _engine.setChannelPot1 (index, channel.freq);
+      _engine.setChannelPot2 (index, channel.q);
+      _engine.setChannelPot3 (index, channel.threeD);
+
+      for (index_t slot = 0; slot < numClipSlots; ++slot)
+        {
+          auto const &saved = channel.slots[static_cast<size_t> (slot)];
+          _clipUIParams[index][slot].recordLengthLog2
+              = saved.recordLengthLog2;
+
+          if (saved.patternName.empty ())
+            continue;
+
+          // Named, not indexed: a library's order depends on what is in the
+          // folder, and a set that meant "the third file" would mean
+          // something else on the next stick.
+          auto const libIndex = _patternLibrary->indexForName (
+              saved.patternName);
+          if (libIndex <= 0)
+            continue;
+
+          auto loaded = _patternLibrary->loadPattern (libIndex);
+          if (!loaded)
+            continue;
+
+          loaded->setChannel (index);
+          _patterns[index][slot] = std::move (loaded);
+        }
+    }
+}
+
+void
+A3MotionUIComponent::scheduleSetSave ()
+{
+  // Debounced. A drag across the grid is dozens of changes and one
+  // arrangement, and this ends in a file write.
+  auto const generation = ++_setSaveGeneration;
+
+  juce::Timer::callAfterDelay (
+      1500,
+      [safeThis = juce::Component::SafePointer<A3MotionUIComponent> (this),
+       generation] {
+        if (safeThis == nullptr)
+          return;
+        if (safeThis->_setSaveGeneration != generation)
+          return; // something changed since; that one will write
+
+        safeThis->writeSet ();
+      });
+}
+
+void
+A3MotionUIComponent::writeSet ()
+{
+  SetFile set;
+  set.channels.resize (_patterns.size ());
+
+  for (size_t ch = 0; ch < _patterns.size (); ++ch)
+    {
+      auto const index = static_cast<index_t> (ch);
+      auto &channel = set.channels[ch];
+
+      channel.freq = _engine.getChannelPot1 (index);
+      channel.q = _engine.getChannelPot2 (index);
+      // What was set, not what the accent is doing to it right now: a set
+      // that saved mid-accent would come back with the accent baked in.
+      channel.threeD = _engine.getChannelPot3 (index);
+
+      channel.slots.resize (numClipSlots);
+      for (index_t slot = 0; slot < numClipSlots; ++slot)
+        {
+          auto &saved = channel.slots[static_cast<size_t> (slot)];
+          saved.recordLengthLog2
+              = _clipUIParams[index][slot].recordLengthLog2;
+
+          if (auto const &pattern = _patterns[index][slot])
+            saved.patternName = pattern->getName ();
+        }
+    }
+
+  saveSet (setFilePath (), set);
+}
+
 void
 A3MotionUIComponent::refreshChannelValues ()
 {
@@ -2187,6 +2300,9 @@ A3MotionUIComponent::saveRecordedPattern (
     {
       std::cout << "Recording saved as user pattern '" << name
                 << "' at library index " << newIndex << std::endl;
+
+      // The slot now holds a take with a name, which is what a set records.
+      scheduleSetSave ();
 
       // The take stays in the slot. It used to be swapped for a fresh load of
       // the file it had just been written to, for the sake of the display data
@@ -3298,6 +3414,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
     }
 
   updateClipSettingsDisplay ();
+  scheduleSetSave ();
 }
 
 void

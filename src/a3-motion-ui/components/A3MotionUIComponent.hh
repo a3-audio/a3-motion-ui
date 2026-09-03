@@ -40,6 +40,7 @@
 #include <a3-motion-ui/components/ColourPickerComponent.hh>
 #include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/components/OverlaySideStrips.hh>
+#include <a3-motion-ui/SetFile.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
@@ -193,6 +194,18 @@ private:
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
   void initializePatterns ();
+
+  /** Where the set lives: `setFile` in config.json, or `set.json` beside the
+   *  pattern folder. A folder with a set and the takes it names is a gig on a
+   *  stick, which is the whole reason it is a file of its own. */
+  juce::File setFilePath () const;
+  /** Put a loaded set in force: which take sits where, the length the next
+   *  take into each slot gets, and where the channels are parked. */
+  void applySet ();
+  /** Write the set out shortly. Debounced: a drag on the grid is dozens of
+   *  changes and one arrangement. */
+  void scheduleSetSave ();
+  void writeSet ();
   // _patterns[channel][slot]: 2 clip slots per channel (see numClipSlots).
   std::vector<std::vector<std::shared_ptr<Pattern> > > _patterns;
 
@@ -408,6 +421,10 @@ private:
    *  hand is on. Record needs no twin: the global strip's REC button already
    *  records into the shown clip. */
   std::unique_ptr<ControllerComponent> _controller;
+  /** Counts up on every scheduled save so a later one supersedes an earlier:
+   *  a drag on the grid is dozens of changes and one arrangement. */
+  int _setSaveGeneration = 0;
+
   bool _screenShiftHeld = false;
 
   // Clip Settings: permanent bottom panel showing the last-selected clip's

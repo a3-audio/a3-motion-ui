@@ -105,6 +105,27 @@ generator and the test runner:
 - `Pattern` / `PatternFile` / `PatternLibrary` — trajectory data model, on-disk (de)serialization,
   and directory-backed library of available patterns (system patterns in `pattern/system`,
   user-recorded patterns in `pattern/user`; see `pattern/system/*.svg` for the built-in shape set).
+
+  **What is saved where follows one line: is this a property of the take, or of the arrangement?**
+  A take's own file carries everything that makes it that take — the movement, the elevation it is
+  mapped through, its speed, direction and end action, its spin, swell and accent. None of that
+  changes when the take is used in another set, and a take handed to somebody without its elevation
+  is a different sound. The arrangement — which take sits in which slot, the length the next take
+  into that slot gets, where the channels' 3d/freq/Q are parked — is `SetFile` (`a3-motion-ui`),
+  a `set.json` beside the takes. A folder with a set and the takes it names is a gig on a stick,
+  which is the whole reason it is a file of its own rather than something in the app's settings.
+
+  Deliberately **not** in the set: the clock mode and the rec mode. The clock depends on what is
+  plugged into the switch at the venue and the rec mode is a working habit; a set that changed
+  either out from under you on load would be a surprise at the one moment nobody wants one.
+
+  A set names its takes the way the library resolves them (`indexForName`) rather than by index: a
+  library's order depends on what is in the folder, so a set meaning "the third file" would mean
+  something else on the next stick. A missing or unreadable set is an empty set, and a set written
+  by a device with fewer channels or slots grows to fit this one — hardware outlives file formats.
+
+  It is written **debounced**, not on exit: a drag across the grid is dozens of changes and one
+  arrangement, and a device that loses power mid-set should not lose where everything was.
 - `backends/SpatBackend*` — abstract backend interface with `SpatBackendA3` and `SpatBackendIEM`
   implementations; these are what actually format and dispatch OSC motion data.
 - `elevation/HeightMap*` — maps 2D recorded positions onto a 3D sphere via the `HeightMapSphere`
