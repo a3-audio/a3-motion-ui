@@ -451,8 +451,17 @@ maps a row to its two firmware indices; what a row *does* is not written there.
 `Button` is now an alias for `FunctionKey`, and two keys reached the panel for the first time with
 this: **clock** and **recmode**, in rows that had been spare. Both cycle on press, the same cycle
 their screen twins run, because the panel and the screen are two places to reach one function. All six are one size: a button sized differently
-from its neighbours reads as a different kind of thing, and these are all the same kind. Three carry
-a colour rather than a word for their state:
+from its neighbours reads as a different kind of thing, and these are all the same kind.
+
+**What a key looks like is one rule** — `theme/FunctionKeyColours.hh` — and it drives both displays:
+the strip washes the colour into a button face, the panel lights the key outright. What differs is
+not *which* colour but how loudly it is said, because an LED in a dark booth is about as loud at full
+as a wash is on a lit screen. Button LEDs therefore carry a **colour** now, the way pad LEDs always
+did; `outputButtonLED` used to look one up by the key's *name* out of the user config, which meant
+the panel and the screen could disagree about what a key was doing and nothing would say so. A
+transparent colour is the resting light, which the adapter fills in.
+
+Three keys carry a colour rather than a word for their state:
 
 - **`clock`** writes its mode in that mode's colour, through `Colours::clockMode()` — the same rule
   the status bar reads it by, because whose tempo this is has one answer and it should not be
@@ -460,11 +469,18 @@ a colour rather than a word for their state:
 - **`REC`** is orange armed and red running. It is the one key coloured while nothing is happening:
   recording writes over something you cannot get back, so you should never have to check.
 - **`TAP`** breathes with the beat, on the screen and on the panel, from the tempo clock's Beat
-  handler. It is a wash laid over the finished button (`beatWash`), not the button's own "active"
-  look — routed through that it more than doubled the key's brightness, which is a blink you watch
+  handler — and this is the one place the two media are deliberately unequal: the panel gets the
+  key's colour at full, the screen a *colourless* wash, because a coloured flash on a lit screen at
+  every single beat is exactly the loudness that had this removed once. It is a wash laid over the
+  finished button (`beatWash`), not the button's own "active" look — routed through that it more than doubled the key's brightness, which is a blink you watch
   instead of one you catch out of the corner of an eye. It had been removed once for exactly that.
   A press owns the key while it lasts: `pulseTapOnBeat()` returns early when `_tapLit`, or a beat
   landing under the finger would cut the press's flash short.
+
+The status bar shows **the tempo and nothing else** — `BPM 60.0`, in the clock's colour. Which clock
+it is comes from the clock key, on the screen and under the hand; a third place saying it was a third
+place to keep in step. That readout also had three writers, one of which set the text without the
+colour, so what you got depended on which arrived last. One writer now.
 
 **When a pad takes effect** is a set, not four separate decisions:
 

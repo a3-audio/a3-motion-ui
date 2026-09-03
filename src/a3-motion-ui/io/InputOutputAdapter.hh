@@ -206,7 +206,9 @@ protected:
     }
 
     Button button;
-    bool value;
+    /** A transparent colour means the key's resting look — the adapter knows
+     *  what that is, since it comes out of the user config. */
+    juce::Colour colour;
   };
 
   struct OutputMessagePadLED : public OutputMessage
@@ -233,7 +235,10 @@ protected:
   void inputPotValue (index_t channel, index_t pot, float value);
   void inputTapTime (juce::int64 timeMicros);
 
-  virtual void outputButtonLED (Button button, bool value) = 0;
+  /** A key's LED takes a colour, the way a pad's does: what a key looks like
+   *  is one rule (theme/FunctionKeyColours.hh) and this is one of its two
+   *  displays. A transparent colour is the resting look. */
+  virtual void outputButtonLED (Button button, juce::Colour colour) = 0;
   virtual void outputPadLED (PadIndex, juce::Colour colour) = 0;
 
 private:

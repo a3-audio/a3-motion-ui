@@ -43,7 +43,7 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   addChildComponent (_labelBPM);
   _labelBPM.setVisible (true);
   _labelBPM.setJustificationType (juce::Justification::centredLeft);
-  _labelBPM.setText ("INT BPM 60.0", juce::dontSendNotification);
+  _labelBPM.setText ("BPM 60.0", juce::dontSendNotification);
   
   // Register for BPM value changes
   _valueBPM.addListener (this);
@@ -91,7 +91,6 @@ StatusBar::preferredHeight () const
 void
 StatusBar::refreshClockReadout ()
 {
-  static char const *names[] = { "INT", "EXT", "PIO" };
   auto const mode = juce::jlimit (0, 2, _clockMode.load ());
 
   auto const bpm = mode == 0
@@ -100,9 +99,16 @@ StatusBar::refreshClockReadout ()
                               : 0.f)
                        : _externalBPM.load ();
 
-  juce::String text (names[mode]);
+  // The number only. Which clock it comes from is written on the clock key
+  // itself now, in that mode's colour, on the screen and under the hand —
+  // saying it a third time up here was three places to keep in step and one
+  // more thing to read.
+  //
+  // The colour stays: the reading is still somebody else's tempo or ours, and
+  // that is worth knowing at a glance about the number itself.
+  juce::String text;
   if (bpm > 0.f)
-    text << " BPM " << juce::String (bpm, 1);
+    text << "BPM " << juce::String (bpm, 1);
 
   _labelBPM.setText (text, juce::dontSendNotification);
   _labelBPM.setColour (juce::Label::textColourId, clockReadoutColour ());
@@ -281,12 +287,11 @@ StatusBar::valueChanged (juce::Value &value)
         
       jassert (value.getValue ().isDouble ());
 
-      auto const bpm = static_cast<float> (value.getValue ());
-      auto stringStream = std::stringstream ();
-      stringStream.precision (1);
-      stringStream << "BPM " << std::fixed << bpm;
-
-      _labelBPM.setText (stringStream.str (), juce::dontSendNotification);
+      // Through the one writer. Written here directly it came out without the
+      // clock's colour, so the reading told you the tempo but not whose it
+      // was — and only sometimes, depending which of three writers got there
+      // last.
+      refreshClockReadout ();
     }
 }
 

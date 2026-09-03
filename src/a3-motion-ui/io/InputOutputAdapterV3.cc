@@ -494,38 +494,20 @@ InputOutputAdapterV3::writeSetLed (uint8_t ledId, juce::Colour colour)
 }
 
 void
-InputOutputAdapterV3::outputButtonLED (Button button, bool value)
+InputOutputAdapterV3::outputButtonLED (Button button, juce::Colour colour)
 {
-  // Record/Tap/Menu/Shift are each wired to a mirrored pair of physical
-  // buttons (left + right hand side); both share one logical Button and
-  // light up together. ClockMode was a V2-only physical button with no LED
-  // on V3 hardware (kept for backward compat), so there's nothing to send
-  // for it.
-  // The lists live at file scope: the resting light writes the same LEDs,
-  // and two hand-kept copies of a wiring map is one too many.
-
-  // Each function button lights in its own colour, so the panel says which key
-  // does what without reading the legend. Unconfigured ones stay white, which
-  // is what all of them used to be.
-  auto const named = [&] () -> juce::String {
-    switch (button)
-      {
-      case Button::Record: return "record";
-      case Button::Tap: return "tap";
-      case Button::Menu: return "menu";
-      case Button::Shift: return "shift";
-      case Button::ClockMode: return "clock";
-      case Button::RecMode: return "recmode";
-      }
-    return {};
-  }();
-
-  // Pressed: the button's own colour, which is what says which key does what.
-  // Let go: the resting colour, not darkness — a key that has a function
-  // should say so while nobody is touching it.
-  auto const &buttonLeds = userConfig["buttonLeds"];
-  auto const colour = toColour (value ? buttonLedColour (buttonLeds, named)
-                                      : buttonLedIdleColour (buttonLeds));
+  // What a key looks like is decided once, in theme/FunctionKeyColours.hh,
+  // and arrives here already decided — this used to look the colour up by the
+  // key's *name* out of the user config, which meant the panel and the screen
+  // could disagree about what a key was doing and nothing would say so.
+  //
+  // A transparent colour is a key with nothing to report: it takes the resting
+  // light, which is not darkness — a key that has a function should say so
+  // while nobody is touching it.
+  auto const lit
+      = colour.isTransparent ()
+            ? toColour (buttonLedIdleColour (userConfig["buttonLeds"]))
+            : colour;
 
   // Both sides of the key light: they are one key with two places to press
   // it, and a lit left with a dark right would say they were two.
@@ -534,7 +516,7 @@ InputOutputAdapterV3::outputButtonLED (Button button, bool value)
     return;
 
   for (auto const idx : functionRowHwIndices[row])
-    writeSetLed (hwIndexToLedId[idx], colour);
+    writeSetLed (hwIndexToLedId[idx], lit);
 }
 
 void

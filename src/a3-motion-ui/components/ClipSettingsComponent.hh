@@ -36,6 +36,7 @@
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
+#include <a3-motion-ui/theme/FunctionKeyColours.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
 namespace a3
@@ -259,7 +260,20 @@ public:
   /** TAP lights up briefly, so a press that landed looks different from one
    *  that missed. Only on touch: it used to blink on every beat as well,
    *  which put a flashing light on a bar you are meant to read. */
+
+  /** Everything the six function keys' look depends on, gathered here because
+   *  this is the one place that knows all of it — the strip paints from it and
+   *  A3MotionUIComponent mirrors it to the panel's LEDs. */
+  FunctionKeyLook functionKeyLook () const;
+
+  /** Shift is down — from the panel's key or the strip's, they are one
+   *  state. Setting it does not fire onShiftHeld: that reports the *strip's*
+   *  key, and a panel press echoed back would look like a second finger. */
+  void setShiftHeld (bool held);
+
+  /** TAP was pressed — from the strip's key or the panel's. */
   void flashTap ();
+
   /** A beat went by. The TAP key breathes with it, faintly — the maintainer
    *  asked for the blink back after it was taken out for being too loud, so
    *  it is a wash at a fraction of the touch flash, not the flash itself. */

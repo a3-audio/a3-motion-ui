@@ -168,12 +168,14 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
 }
 
 void
-InputOutputAdapterV2::outputButtonLED (Button button, bool value)
+InputOutputAdapterV2::outputButtonLED (Button button, juce::Colour colour)
 {
+  // This panel's keys light or they do not; it has no colour to give them.
+  // A key with a colour of its own is lit, a transparent one is dark.
   juce::String line = "BL,";
   line += juce::String (static_cast<int> (button));
   line += ",";
-  line += juce::String (static_cast<int> (value));
+  line += juce::String (colour.isTransparent () ? 0 : 1);
   line += "\n";
 
   // juce::Logger::writeToLog ("++++ sending: " + line);

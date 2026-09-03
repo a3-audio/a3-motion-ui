@@ -373,6 +373,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // hand works the pads.
   _clipSettings->onShiftHeld = [this] (bool held) {
     _screenShiftHeld = held;
+    updateFunctionKeyLEDs ();
     updateControlReadout (juce::String ("-- SHIFT ") + (held ? "ON" : "OFF"));
   };
   // Held, not tapped: Shift+Action previews for as long as it is down. In the
@@ -807,10 +808,7 @@ A3MotionUIComponent::initializePatterns ()
 void
 A3MotionUIComponent::blankLEDs ()
 {
-  _ioAdapter->getButtonLED (Button::ClockMode) = false;
-  _ioAdapter->getButtonLED (Button::Record) = false;
-  _ioAdapter->getButtonLED (Button::Tap) = false;
-  _ioAdapter->getButtonLED (Button::Shift) = false;
+  updateFunctionKeyLEDs ();
 
   for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
     {
@@ -957,7 +955,6 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Record)))
     {
-      _ioAdapter->getButtonLED (Button::Record) = value.getValue ();
       updateControlReadout (juce::String ("-- RECORD ")
                             + (value.getValue () ? "ON" : "OFF"));
 
@@ -974,9 +971,16 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
     {
       // Pure modifier: level-checked via isButtonPressed(Button::Shift) when
       // a slot's Action pad is pressed (preview-and-fire gesture).
-      _ioAdapter->getButtonLED (Button::Shift) = value.getValue ();
+      //
+      // The panel's key and the strip's are one state, so the strip is told
+      // too: it lights the same in either case, and it is what the LEDs are
+      // written from.
+      bool const held = static_cast<bool> (value.getValue ());
+      if (_clipSettings)
+        _clipSettings->setShiftHeld (held);
+      updateFunctionKeyLEDs ();
       updateControlReadout (juce::String ("-- SHIFT ")
-                            + (value.getValue () ? "ON" : "OFF"));
+                            + (held ? "ON" : "OFF"));
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Tap)))
     {
@@ -984,7 +988,8 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
         {
           // Button pressed - send /tap OSC immediately via DIRECT sender
           // Bypasses async queue for zero latency - time-critical!
-          _ioAdapter->getButtonLED (Button::Tap) = true;
+          _clipSettings->flashTap ();
+          updateFunctionKeyLEDs ();
           updateControlReadout ("-- TAP");
 
           auto tapMsg = juce::OSCMessage (_oscAddresses.tap);
@@ -993,7 +998,6 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
         }
       else
         {
-          _ioAdapter->getButtonLED (Button::Tap) = false;
         }
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
@@ -1333,6 +1337,7 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   // running for anyone not looking at the hardware key's LED.
   if (_clipSettings)
     _clipSettings->setRecording (true);
+    updateFunctionKeyLEDs ();
 }
 
 void
@@ -1581,7 +1586,6 @@ A3MotionUIComponent::tickCallback (Measure measure)
 
       if (!_ioAdapter->getButton (Button::Record).getValue ())
         {
-          _ioAdapter->getButtonLED (Button::Record) = _engine.isRecording ();
         }
     }
 
@@ -1654,22 +1658,40 @@ A3MotionUIComponent::tickCallback (Measure measure)
 }
 
 void
+A3MotionUIComponent::updateFunctionKeyLEDs ()
+{
+  if (!_ioAdapter || !_clipSettings)
+    return;
+
+  // The panel's half of what theme/FunctionKeyColours.hh decides; the global
+  // strip paints the other half from the same look. A key that is coloured on
+  // the screen is coloured under the hand, and neither is worked out twice.
+  auto const look = _clipSettings->functionKeyLook ();
+
+  for (auto const key : functionKeyOrder)
+    _ioAdapter->getButtonLED (key)
+        = juce::VariantConverter<juce::Colour>::toVar (
+            functionKeyColour (key, look));
+}
+
+void
 A3MotionUIComponent::pulseTapLED ()
 {
-  // Held on for a beat's own moment, then let go by the same timer the LED
-  // colours already run on. A key that stayed lit would say "held", which is
-  // what Shift means one row over.
-  if (isButtonPressed (Button::Tap))
-    return; // a finger is on it; that light is the press, not the beat
+  // Louder than the screen's, on purpose. On a lit screen the beat is a faint
+  // wash — any more and it is a blink you watch instead of one you catch. An
+  // LED in a dark booth is the other way round: at anything less than its own
+  // colour, full on, it is not a metronome, it is a flicker.
+  //
+  // The colour itself still comes from the one rule; only how long it stays
+  // is decided here.
+  updateFunctionKeyLEDs ();
 
-  _ioAdapter->getButtonLED (Button::Tap) = true;
-  juce::Timer::callAfterDelay (70, [safeThis = juce::Component::SafePointer<
-                                        A3MotionUIComponent> (this)] {
-    if (safeThis == nullptr)
-      return;
-    if (!safeThis->isButtonPressed (Button::Tap))
-      safeThis->_ioAdapter->getButtonLED (Button::Tap) = false;
-  });
+  juce::Timer::callAfterDelay (
+      tapBeatLedMillis,
+      [safeThis = juce::Component::SafePointer<A3MotionUIComponent> (this)] {
+        if (safeThis != nullptr)
+          safeThis->updateFunctionKeyLEDs ();
+      });
 }
 
 void
@@ -1986,6 +2008,7 @@ A3MotionUIComponent::endRecording ()
 {
   if (_clipSettings)
     _clipSettings->setRecording (false);
+    updateFunctionKeyLEDs ();
 
   auto pattern = _engine.getRecordingPattern ();
   if (!pattern || !_recordingSlot.has_value ())
@@ -2434,13 +2457,15 @@ A3MotionUIComponent::applyClockMode (int mode)
         }
     }
 
-  if (runsOnHardware ())
-    _ioAdapter->getButtonLED (Button::ClockMode) = (_clockMode != 0);
-
   _statusBar->setClockMode (_clockMode);
   if (_clipSettings)
     _clipSettings->setClockMode (_clockMode);
   _loopLengthDisplay->setClockMode (_clockMode);
+
+  // The clock key carries the mode's colour under the hand as well as on the
+  // screen — it is the same rule, so it has to be told at the same moment.
+  if (runsOnHardware ())
+    updateFunctionKeyLEDs ();
 
   auto clockModeMsg = juce::OSCMessage (_oscAddresses.clockMode);
   clockModeMsg.addInt32 (_clockMode);

@@ -106,7 +106,15 @@ private:
   std::unique_ptr<OscMessageHandler> _oscMessageHandler;
 
   void tickCallback (Measure measure);
-  /** Blink the panel's TAP key with the beat, faintly and briefly. */
+  /** How long the panel's TAP key stays lit on a beat. Longer than the
+   *  screen's wash, which is a repaint; this is a serial write, and one that
+   *  came and went inside a frame would read as noise on the link. */
+  static constexpr int tapBeatLedMillis = 90;
+
+  /** Write every function key's LED from the one rule the strip paints by. */
+  void updateFunctionKeyLEDs ();
+  /** Blink the panel's TAP key with the beat — at full, unlike the screen's
+   *  wash: an LED in a dark booth needs its whole colour to read as a beat. */
   void pulseTapLED ();
   void padLEDCallback (int step);
   juce::Colour channelColourForPadStatus (juce::Colour base,

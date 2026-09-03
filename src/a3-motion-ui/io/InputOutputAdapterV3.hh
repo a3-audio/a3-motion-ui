@@ -68,7 +68,7 @@ public:
   ~InputOutputAdapterV3 ();
 
   void processInput () override;
-  void outputButtonLED (Button button, bool value) override;
+  void outputButtonLED (Button button, juce::Colour colour) override;
   void outputPadLED (PadIndex padIndex, juce::Colour colour) override;
 
   // The four physical potentiometers.

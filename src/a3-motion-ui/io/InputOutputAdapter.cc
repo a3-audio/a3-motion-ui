@@ -408,7 +408,8 @@ InputOutputAdapter::valueChanged (juce::Value &value)
         {
           auto message = std::make_unique<OutputMessageButtonLED> ();
           message->button = static_cast<Button> (index);
-          message->value = value.getValue ();
+          message->colour
+              = juce::VariantConverter<juce::Colour>::fromVar (value.getValue ());
           submitOutputMessage (std::move (message));
           return;
         }
@@ -488,7 +489,7 @@ InputOutputAdapter::handleOutputMessage (
         auto messageButtonLED
             = dynamic_cast<OutputMessageButtonLED *> (message.get ());
         jassert (messageButtonLED != nullptr);
-        outputButtonLED (messageButtonLED->button, messageButtonLED->value);
+        outputButtonLED (messageButtonLED->button, messageButtonLED->colour);
         break;
       }
     case OutputMessage::Type::PadLED:

@@ -191,16 +191,14 @@ ClipSettingsComponent::createTouchControls ()
   // TouchControl, where the two are deliberately different things.
   _shiftTouch = std::make_unique<TouchControl> ();
   _shiftTouch->onPress = [this] (int, int) {
-    _shiftHeld = true;
+    setShiftHeld (true);
     if (onShiftHeld)
       onShiftHeld (true);
-    repaint (_layout.shiftButton);
   };
   _shiftTouch->onRelease = [this] (int, int) {
-    _shiftHeld = false;
+    setShiftHeld (false);
     if (onShiftHeld)
       onShiftHeld (false);
-    repaint (_layout.shiftButton);
   };
   addAndMakeVisible (*_shiftTouch);
 
@@ -857,6 +855,29 @@ ClipSettingsComponent::flashTap ()
   // Long enough to register as a press having landed, short enough not to
   // linger into the next one.
   startTimer (110);
+}
+
+void
+ClipSettingsComponent::setShiftHeld (bool held)
+{
+  if (_shiftHeld == held)
+    return;
+
+  _shiftHeld = held;
+  repaint (_layout.shiftButton);
+}
+
+FunctionKeyLook
+ClipSettingsComponent::functionKeyLook () const
+{
+  FunctionKeyLook look;
+  look.clockMode = _clockMode;
+  look.recording = _recording;
+  look.shiftHeld = _shiftHeld;
+  look.tapPressed = _tapLit;
+  look.tapBeat = _tapBeat;
+
+  return look;
 }
 
 void
