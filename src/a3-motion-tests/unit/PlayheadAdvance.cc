@@ -89,13 +89,17 @@ TEST (PlayheadAdvance, BounceTurnsRoundAtTheStartToo)
   EXPECT_FLOAT_EQ (turned.sign, 1.f);
 }
 
-// Stop leaves the playhead exactly where it stood. The clip is taken out of
+// Pause leaves the playhead exactly where it stood. The clip is taken out of
 // playback by the caller, and the channel keeps the position it last had --
 // which is what "the blob stays where it is" means.
-TEST (PlayheadAdvance, StopHoldsThePositionItReached)
+//
+// This used to be what Stop did, and it was the only thing on offer: standing
+// still where you happen to land is a pause, and calling it a stop left no way
+// to ask for the other one.
+TEST (PlayheadAdvance, PauseHoldsThePositionItReached)
 {
   Playhead const nearEnd{ 0.95f, 1.f, false };
-  auto const halted = advancePlayhead (nearEnd, 0.1f, EndAction::Stop, 0.f);
+  auto const halted = advancePlayhead (nearEnd, 0.1f, EndAction::Pause, 0.f);
 
   EXPECT_FLOAT_EQ (halted.position, 0.95f);
   EXPECT_TRUE (halted.stopped);
@@ -157,4 +161,40 @@ TEST (PlayheadAdvance, ChoosingADirectionTurnsAClipAtOnce)
   EXPECT_FLOAT_EQ (pattern.getPlaySign (), 1.f);
 }
 
+}
+
+
+// Stop is a stop: the pass ends and the playhead goes back to where the take
+// begins, so the next start is visibly a start. That was what "stop" did on
+// every deck the maintainer has stood behind, and what this one did was hold
+// still where it happened to land — which is a pause.
+TEST (PlayheadAdvance, StopEndsThePassAtTheBeginning)
+{
+  auto const stepped = advancePlayhead ({ 0.99f, 1.f, false }, 0.02f,
+                                        EndAction::Stop, 0.f);
+
+  EXPECT_TRUE (stepped.stopped);
+  EXPECT_FLOAT_EQ (stepped.position, 0.f);
+}
+
+// Running backwards it is still the beginning it goes to, not the end it came
+// from: "back to the start" is about the take, not about the direction.
+TEST (PlayheadAdvance, StopGoesToTheBeginningWhicheverWayItWasGoing)
+{
+  auto const stepped = advancePlayhead ({ 0.01f, -1.f, false }, 0.02f,
+                                        EndAction::Stop, 0.f);
+
+  EXPECT_TRUE (stepped.stopped);
+  EXPECT_FLOAT_EQ (stepped.position, 0.f);
+}
+
+// And what the old Stop did keeps a name of its own, because it is a useful
+// thing: hold where it got to, and start again from there.
+TEST (PlayheadAdvance, PauseHoldsWhereItGotTo)
+{
+  auto const stepped = advancePlayhead ({ 0.99f, 1.f, false }, 0.02f,
+                                        EndAction::Pause, 0.f);
+
+  EXPECT_TRUE (stepped.stopped);
+  EXPECT_FLOAT_EQ (stepped.position, 0.99f);
 }

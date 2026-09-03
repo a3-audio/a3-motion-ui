@@ -64,6 +64,9 @@ constexpr char const *swell = "swell";
  *  takes to come up while the pad is down, and to fall once it is let go. */
 constexpr char const *attack = "atk";
 constexpr char const *decay = "dec";
+/** How far the accent throws: the 3d it rises to. The channel's own 3d is the
+ *  floor, this the ceiling. */
+constexpr char const *envelopeMax = "max";
 /** What a recording pass writes where the finger is not. The one control in
  *  the bar that is not the shown clip's — it is the same for every channel. */
 constexpr char const *recMode = "recmode";
@@ -88,7 +91,10 @@ constexpr char const *off = "Off";
 /** Where a clip sets off. "Ping" used to sit here and meant the same thing as
  *  the Bounce end action -- two controls for one behaviour. */
 constexpr char const *directionNames[] = { "Fwd", "Rev" };
-constexpr char const *endActionNames[] = { "Loop", "Stop", "Bnce", "Rnd" };
+constexpr char const *endActionNames[] = { "Loop", "Stop", "Paus", "Bnce",
+                                           "Rnd" };
+constexpr int numEndActions
+    = static_cast<int> (sizeof (endActionNames) / sizeof (*endActionNames));
 // What happens to what a take never wrote — glide across it, or hold and jump.
 /** How long the take's closing move lasts, in sixteenths of a beat. "off" is
  *  a hard join: the take holds and jumps rather than travelling back. */
@@ -123,6 +129,7 @@ constexpr TextEntry captionTable[] = {
   { caption::endAction, 4 },   { caption::fade, 4 },
   { caption::spin, 4 },        { caption::swell, 4 },
   { caption::attack, 4 },      { caption::decay, 4 },
+  { caption::envelopeMax, 4 },
   { caption::frequency, 2 },   { caption::q, 2 },
   { caption::recordLength, 1 },
 };
@@ -138,6 +145,7 @@ constexpr TextEntry valueTable[] = {
   { value::endActionNames[1], 4 },
   { value::endActionNames[2], 4 },
   { value::endActionNames[3], 4 },
+  { value::endActionNames[4], 4 },
   { "16/16", 4 },
   { value::widestSpeed, 4 },
 };

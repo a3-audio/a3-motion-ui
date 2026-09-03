@@ -192,6 +192,12 @@ public:
   int getEnvelopeDecay () const;
   void setEnvelopeDecay (int step);
 
+  /** How far the accent throws: the 3d it rises to while ACT is held. The
+   *  channel's own 3d is the floor and this is the ceiling, so a clip carries
+   *  how big its accent is rather than every accent going all the way up. */
+  float getEnvelopeMax () const;
+  void setEnvelopeMax (float value);
+
   // Interpolated playback: returns position with linear interpolation between keyframes
   // This provides smooth motion even with sparse keyframes during slow playback
   Pos getInterpolatedTick (double fractionalTick) const;
@@ -275,6 +281,7 @@ private:
   std::atomic<float> _reachLfoPhase{ 0.f };
   std::atomic<int> _envelopeAttack{ 2 };
   std::atomic<int> _envelopeDecay{ 3 };
+  std::atomic<float> _envelopeMax{ 1.f };
   mutable std::mutex _ticksMutex;
 
   // TODO is float precision sufficient here? do the math!

@@ -308,6 +308,18 @@ Pattern::setEnvelopeDecay (int step)
   _envelopeDecay.store (step, std::memory_order_relaxed);
 }
 
+float
+Pattern::getEnvelopeMax () const
+{
+  return _envelopeMax.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setEnvelopeMax (float value)
+{
+  _envelopeMax.store (std::clamp (value, 0.f, 1.f), std::memory_order_relaxed);
+}
+
 void
 Pattern::setSeamJoin (std::optional<index_t> tick)
 {

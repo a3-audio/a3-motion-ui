@@ -40,9 +40,17 @@ enum class EndAction
 {
   /** Round again, the way it was going. */
   Loop,
-  /** Stand still where it got to. The caller takes the clip out of playback,
-   *  so the channel keeps the last position it was given. */
+  /** End the pass and go back to where the take begins, so the next start is
+   *  visibly a start. What a stop does on every deck. */
   Stop,
+  /** Stand still where it got to, and start again from there. The caller
+   *  takes the clip out of playback, so the channel keeps the last position
+   *  it was given.
+   *
+   *  This is what `Stop` used to do, under the wrong name: standing still
+   *  where you happen to land is a pause, and calling it a stop meant there
+   *  was no way to ask for the other one. */
+  Pause,
   /** Turn round and travel back. Never crosses the loop point, so a take's
    *  closing move is never played in this mode. */
   Bounce,

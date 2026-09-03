@@ -372,6 +372,15 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // Held, not tapped: Shift+Action previews for as long as it is down. In the
   // global strip it stands on both pages, so it can be held while the other
   // hand works the pads.
+  // The bar's ACT plays the shown clip's accent, exactly as its pad does.
+  _clipSettings->onAccentHeld = [this] (bool held) {
+    auto const channel = _clipSettingsChannel;
+    _engine.setChannelAccentHeld (
+        channel, held, held ? _patterns[channel][_clipSettingsSlot] : nullptr);
+    updateControlReadout (juce::String ("CH") + juce::String (channel + 1)
+                          + " ACTION");
+  };
+
   _clipSettings->onShiftHeld = [this] (bool held) {
     _screenShiftHeld = held;
     updateFunctionKeyLEDs ();
@@ -629,8 +638,8 @@ A3MotionUIComponent::applyMotionMode (index_t channel, index_t slot)
 
   // The bar's order is the engine's order; a value out of range would be a
   // list that grew in one place and not the other.
-  auto const actions = { EndAction::Loop, EndAction::Stop, EndAction::Bounce,
-                         EndAction::Random };
+  auto const actions = { EndAction::Loop, EndAction::Stop, EndAction::Pause,
+                         EndAction::Bounce, EndAction::Random };
   if (params.endAction >= 0
       && params.endAction < static_cast<int> (actions.size ()))
     pattern->setEndAction (*(actions.begin () + params.endAction));
@@ -1695,6 +1704,7 @@ A3MotionUIComponent::refreshChannelValues ()
       auto const index = static_cast<index_t> (ch);
       _clipSettings->setChannelValues (
           ch, _engine.getChannelPot1 (index), _engine.getChannelPot2 (index),
+          _engine.getChannelPot3 (index),
           _engine.getChannelPot3Effective (index));
     }
 }
@@ -3042,7 +3052,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::elevationIndex)
     return 6;
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 8; // speed, direction, end-action, seam, spin, swell, atk, dec
+    return 9; // speed, dir, end, seam, spin, swell, atk, dec, max
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
     return 2; // the shape itself, and the length of the next take
   return 1;
@@ -3190,7 +3200,10 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           applyMotionMode (channel, slot);
           break;
         case 2:
-          params.endAction = (params.endAction + increment % 4 + 4) % 4;
+          params.endAction
+              = (params.endAction + increment % value::numEndActions
+                 + value::numEndActions)
+                % value::numEndActions;
           applyMotionMode (channel, slot);
           break;
         case 3:
@@ -3237,10 +3250,11 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             break;
           }
         case 6:
+        case 7:
         default:
           {
-            // The accent's rise and fall. A gesture's worth of lengths, so
-            // its own shorter table — see Envelope.
+            // The accent's rise, fall and depth. The two times get a gesture's
+            // worth of lengths, so their own shorter table — see Envelope.
             auto &pattern = _patterns[channel][slot];
             if (!pattern)
               break;
@@ -3249,10 +3263,13 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
               pattern->setEnvelopeAttack (
                   std::clamp (pattern->getEnvelopeAttack () + increment, 0,
                               envelopeMaxStep));
-            else
+            else if (sub == 7)
               pattern->setEnvelopeDecay (
                   std::clamp (pattern->getEnvelopeDecay () + increment, 0,
                               envelopeMaxStep));
+            else
+              pattern->setEnvelopeMax (pattern->getEnvelopeMax ()
+                                       + increment * 0.05f);
             break;
           }
         }
@@ -3386,8 +3403,9 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
         {
         case EndAction::Loop: editable.endAction = 0; break;
         case EndAction::Stop: editable.endAction = 1; break;
-        case EndAction::Bounce: editable.endAction = 2; break;
-        case EndAction::Random: editable.endAction = 3; break;
+        case EndAction::Pause: editable.endAction = 2; break;
+        case EndAction::Bounce: editable.endAction = 3; break;
+        case EndAction::Random: editable.endAction = 4; break;
         }
     }
 
@@ -3399,6 +3417,8 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setMotionEnvelope (
       pattern ? pattern->getEnvelopeAttack () : 0,
       pattern ? pattern->getEnvelopeDecay () : 0);
+  _clipSettings->setMotionEnvelopeMax (pattern ? pattern->getEnvelopeMax ()
+                                               : 1.f);
 
   // Worded like Speed is, because it is the same kind of number: bars as a
   // power of two, "2" for two bars, "1/4" for a quarter of one.

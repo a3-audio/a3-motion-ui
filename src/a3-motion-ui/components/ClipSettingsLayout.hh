@@ -148,6 +148,12 @@ struct ClipSettingsLayout
   /** The row captions down the side: freq, Q, 3d. */
   std::array<juce::Rectangle<int>, numChannelRows> channelRowLabels;
 
+  /** ACT on the screen, beside the accent's depth: the key that plays the
+   *  envelope, where the envelope is set. Not a sub-element of the section —
+   *  it does something rather than holding a value, like the global strip's
+   *  keys. */
+  juce::Rectangle<int> accentButton;
+
   /** The Elevation section's side-view sphere. */
   juce::Rectangle<int> elevationGraphic;
   /** The Shape section's pictogram and the name under it. */

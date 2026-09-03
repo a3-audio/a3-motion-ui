@@ -106,7 +106,7 @@ advanceEnvelope (EnvelopeState state, bool held, int attackStep,
 }
 
 float
-envelopeOver (float setValue, float level)
+envelopeOver (float setValue, float maxValue, float level)
 {
   // Exactly the set value at rest rather than nearly it: this is read every
   // tick and sent when it changes, and a value that came back a hair off
@@ -114,9 +114,15 @@ envelopeOver (float setValue, float level)
   if (level <= 0.f)
     return setValue;
 
+  // A ceiling under the floor is a setting somebody will make by accident,
+  // and an accent that pushed the value down would surprise in the one
+  // direction nothing else here moves.
+  if (maxValue <= setValue)
+    return setValue;
+
   auto const clamped = std::clamp (level, 0.f, 1.f);
 
-  return setValue + (1.f - setValue) * clamped;
+  return setValue + (maxValue - setValue) * clamped;
 }
 
 }

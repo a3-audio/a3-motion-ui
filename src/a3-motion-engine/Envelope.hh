@@ -65,11 +65,18 @@ struct EnvelopeState
 EnvelopeState advanceEnvelope (EnvelopeState state, bool held, int attackStep,
                                int decayStep, float ticksPerBar);
 
-/** What goes out: the value that was set, raised towards 1 by the envelope.
+/** What goes out: the value that was set, raised towards `maxValue` by the
+ *  envelope.
  *
  *  The set value is the floor and stays it — the hardware pot and the grid
  *  keep meaning exactly what they meant, and what they mean now is the bottom
- *  of the swing rather than the whole of it. */
-float envelopeOver (float setValue, float level);
+ *  of the swing rather than the whole of it. `maxValue` is the ceiling, which
+ *  the clip carries: how far the accent throws is a thing you set rather than
+ *  one you discover, and without it every accent went all the way to 1.
+ *
+ *  A ceiling under the floor leaves the floor alone. It is a setting somebody
+ *  will make by accident, and an accent that pushed the value *down* would be
+ *  a surprise in the one direction nothing else here moves. */
+float envelopeOver (float setValue, float maxValue, float level);
 
 }

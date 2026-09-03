@@ -99,6 +99,23 @@ ClipSettingsComponent::createTouchControls ()
     };
     addAndMakeVisible (*into);
   };
+  // Held, not tapped — the accent lasts as long as the finger does, so this
+  // needs onRelease rather than onTap. Same as the pad it stands for.
+  _accentTouch = std::make_unique<TouchControl> ();
+  _accentTouch->onPress = [this] (int, int) {
+    _accentHeld = true;
+    if (onAccentHeld)
+      onAccentHeld (true);
+    repaint (_layout.accentButton);
+  };
+  _accentTouch->onRelease = [this] (int, int) {
+    _accentHeld = false;
+    if (onAccentHeld)
+      onAccentHeld (false);
+    repaint (_layout.accentButton);
+  };
+  addAndMakeVisible (*_accentTouch);
+
   makeTab (_tabClipTouch, BarPage::Clip);
   makeTab (_tabControllerTouch, BarPage::Controller);
 
@@ -274,6 +291,7 @@ ClipSettingsComponent::resized ()
   _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
 
   _shiftTouch->setBounds (_layout.shiftButton);
+  _accentTouch->setBounds (_layout.accentButton);
 
   _tabClipTouch->setBounds (_layout.tabClip);
   _tabControllerTouch->setBounds (_layout.tabController);
@@ -448,6 +466,17 @@ ClipSettingsComponent::setMotionSwell (int step)
 }
 
 void
+ClipSettingsComponent::setMotionEnvelopeMax (float value)
+{
+  auto const clamped = juce::jlimit (0.f, 1.f, value);
+  if (juce::approximatelyEqual (clamped, _motionEnvelopeMax))
+    return;
+
+  _motionEnvelopeMax = clamped;
+  repaint ();
+}
+
+void
 ClipSettingsComponent::setMotionEnvelope (int attackStep, int decayStep)
 {
   auto const attack = juce::jlimit (0, envelopeMaxStep, attackStep);
@@ -484,15 +513,25 @@ ClipSettingsComponent::setMotionSubIndex (int subIndex)
 
 void
 ClipSettingsComponent::setChannelValues (int channel, float freq, float q,
-                                         float threeD)
+                                         float threeD, float threeDEffective)
 {
   if (channel < 0 || channel >= numChannelColumns)
     return;
 
   auto const c = static_cast<size_t> (channel);
+  auto const set = std::clamp (threeD, 0.f, 1.f);
+  auto const reach = std::clamp (threeDEffective, set, 1.f);
+
+  if (juce::approximatelyEqual (_channelFreq[c], std::clamp (freq, 0.f, 1.f))
+      && juce::approximatelyEqual (_channelQ[c], std::clamp (q, 0.f, 1.f))
+      && juce::approximatelyEqual (_channelThreeD[c], set)
+      && juce::approximatelyEqual (_channelThreeDReach[c], reach))
+    return; // nothing moved; this runs on every LED tick
+
   _channelFreq[c] = std::clamp (freq, 0.f, 1.f);
   _channelQ[c] = std::clamp (q, 0.f, 1.f);
-  _channelThreeD[c] = std::clamp (threeD, 0.f, 1.f);
+  _channelThreeD[c] = set;
+  _channelThreeDReach[c] = reach;
   repaint ();
 }
 
@@ -630,6 +669,7 @@ ClipSettingsComponent::setPage (BarPage page)
                                                               == BarPage::Clip);
 
   _elevationGraphicTouch->setVisible (_page == BarPage::Clip);
+  _accentTouch->setVisible (_page == BarPage::Clip);
   for (auto &button : _lengthTouch)
     if (button)
       button->setVisible (_page == BarPage::Clip);
@@ -1382,6 +1422,16 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
                  false, _motionSubIndex == 6, isSelected);
   paintMiniKnob (g, cells[7], metrics, caption::decay, envFrac (_motionDecay),
                  false, _motionSubIndex == 7, isSelected);
+  paintMiniKnob (g, cells[8], metrics, caption::envelopeMax,
+                 _motionEnvelopeMax * 2.f - 1.f, false, _motionSubIndex == 8,
+                 isSelected);
+
+  // The key that plays what the two knobs above it shape. Lit while it is
+  // down, in the notice colour the grid draws the accent's reach in — the
+  // same colour saying the same thing in two places.
+  paintActionButton (g, _layout.accentButton, "ACT", _accentHeld,
+                     _accentHeld ? toColour (theme ().notice)
+                                 : juce::Colour{});
 }
 
 bool
@@ -1398,8 +1448,12 @@ ClipSettingsComponent::dropdownValues (int section, int sub) const
   if (section == motionIndex && sub == 1)
     return { value::directionNames[0], value::directionNames[1] };
   if (section == motionIndex && sub == 2)
-    return { value::endActionNames[0], value::endActionNames[1],
-             value::endActionNames[2], value::endActionNames[3] };
+    {
+      juce::StringArray names;
+      for (int i = 0; i < value::numEndActions; ++i)
+        names.add (value::endActionNames[i]);
+      return names;
+    }
 
   return {};
 }
@@ -1509,13 +1563,16 @@ ClipSettingsComponent::paintChannelGrid (juce::Graphics &g)
       g.drawFittedText (juce::String (col + 1), _layout.channelLabels[c],
                         juce::Justification::centred, 1);
 
-      // In channelRow* order — 3d on top, then freq, then Q.
+      // In channelRow* order — 3d on top, then freq, then Q. Only 3d has
+      // anything carrying it past where it was set.
       float const values[numChannelRows]
           = { _channelThreeD[c], _channelFreq[c], _channelQ[c] };
+      float const reaches[numChannelRows]
+          = { _channelThreeDReach[c], _channelFreq[c], _channelQ[c] };
 
       for (int row = 0; row < numChannelRows; ++row)
         paintGridKnob (g, _layout.channelGrid[c][static_cast<size_t> (row)],
-                       metrics, values[row], colour);
+                       metrics, values[row], reaches[row], colour);
     }
 }
 
@@ -1525,7 +1582,7 @@ void
 ClipSettingsComponent::paintGridKnob (juce::Graphics &g,
                                       juce::Rectangle<int> bounds,
                                       ControlMetrics metrics, float value,
-                                      juce::Colour colour)
+                                      float reach, juce::Colour colour)
 {
   // The same diameter every other knob in the bar is drawn at. Filling the
   // cell instead made these twelve the largest thing on screen, which is
@@ -1547,10 +1604,27 @@ ClipSettingsComponent::paintGridKnob (juce::Graphics &g,
   g.setColour (toColour (theme ().textPrimary, trackWash));
   g.strokePath (track, juce::PathStrokeType (juce::jmax (1.f, r * 0.18f)));
 
+  auto const thickness = juce::jmax (1.5f, r * 0.18f);
+
   juce::Path valueArc;
   valueArc.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, angle, true);
   g.setColour (colour);
-  g.strokePath (valueArc, juce::PathStrokeType (juce::jmax (1.5f, r * 0.18f)));
+  g.strokePath (valueArc, juce::PathStrokeType (thickness));
+
+  // What a modulation is doing right now: the stretch from the pointer to
+  // where the value has actually been carried. It grows out of the pointer
+  // and shrinks back into it, so the knob shows the floor and the movement at
+  // once — the pointer stays where the hand put it while the arc moves.
+  auto const reachAngle
+      = (std::clamp (reach, 0.f, 1.f) * 2.f - 1.f) * sweep;
+  if (reachAngle > angle)
+    {
+      juce::Path reachArc;
+      reachArc.addCentredArc (centre.x, centre.y, r, r, 0.f, angle, reachAngle,
+                              true);
+      g.setColour (toColour (theme ().notice));
+      g.strokePath (reachArc, juce::PathStrokeType (thickness));
+    }
 
   auto const tip = centre.getPointOnCircumference (r, angle);
   g.drawLine (centre.x, centre.y, tip.x, tip.y, juce::jmax (1.5f, r * 0.14f));

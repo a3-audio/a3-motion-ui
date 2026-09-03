@@ -67,7 +67,7 @@ numControlsInSection (int sectionIndex)
     case 1:
       return 6; // reach, clip-top, clip-bottom, mirror-south, flat, flat-elev
     case 2:
-      return 8; // speed, direction, end-action, seam, spin, swell, atk, dec
+      return 9; // speed, dir, end, seam, spin, swell, atk, dec, max
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -326,7 +326,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // itself row by row leaves the whole shortfall on the row at the top —
     // which came out a sliver while the three below it were untouched. Short
     // of room, all three give up the same.
-    constexpr int motionKnobRows = 3;
+    constexpr int motionKnobRows = 4;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
@@ -339,8 +339,12 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       return row;
     };
 
+    // Taken from the bottom, so the last one out is the topmost. Reading down:
+    // the accent's two times, then how far it throws and the key that throws
+    // it, then the two that turn on their own, then the pair that do not.
     auto topRow = knobRow (false);
     auto lfoRow = knobRow (false);
+    auto accentRow = knobRow (false);
     auto envRow = knobRow (true);
 
     // The two values you dial on top, the two you pick from below: speed
@@ -353,6 +357,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const attackArea = envRow.removeFromLeft (colW);
     envRow.removeFromLeft (gapH);
     auto const decayArea = envRow;
+
+    auto const envelopeMaxArea = accentRow.removeFromLeft (colW);
+    accentRow.removeFromLeft (gapH);
+    out.accentButton = accentRow.removeFromLeft (colW);
 
     auto const speedArea = topRow.removeFromLeft (colW);
     topRow.removeFromLeft (gapH);
@@ -376,6 +384,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       textCell (swellArea, metrics.knobDiam),
       textCell (attackArea, metrics.knobDiam),
       textCell (decayArea, metrics.knobDiam),
+      textCell (envelopeMaxArea, metrics.knobDiam),
     };
   }
 

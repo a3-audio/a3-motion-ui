@@ -138,26 +138,44 @@ TEST (Envelope, PressedAgainWhileFallingItRisesFromWhereItIs)
 }
 
 // The one that matters for what comes out of the machine. Whatever the
-// envelope is doing, the value never dips below what the hand set and never
-// runs past the top of the range.
-TEST (Envelope, TheSetValueIsAFloorAndOneIsACeiling)
+// envelope is doing, the value stays between the floor the hand set and the
+// ceiling the clip carries.
+TEST (Envelope, TheSetValueIsAFloorAndMaxIsTheCeiling)
 {
   for (float set : { 0.f, 0.25f, 0.5f, 0.9f, 1.f })
-    for (int i = 0; i <= 20; ++i)
-      {
-        auto const level = static_cast<float> (i) / 20.f;
-        auto const out = envelopeOver (set, level);
+    for (float max : { 0.f, 0.4f, 0.8f, 1.f })
+      for (int i = 0; i <= 20; ++i)
+        {
+          auto const level = static_cast<float> (i) / 20.f;
+          auto const out = envelopeOver (set, max, level);
 
-        EXPECT_GE (out, set) << "set " << set << " level " << level;
-        EXPECT_LE (out, 1.f) << "set " << set << " level " << level;
-      }
+          EXPECT_GE (out, set)
+              << "set " << set << " max " << max << " level " << level;
+          EXPECT_LE (out, 1.f)
+              << "set " << set << " max " << max << " level " << level;
+        }
 
   // At rest it is exactly what was set — not nearly, exactly, or the pot
   // would drift every time the accent finished.
   for (float set : { 0.f, 0.3f, 1.f })
-    EXPECT_EQ (envelopeOver (set, 0.f), set);
+    EXPECT_EQ (envelopeOver (set, 1.f, 0.f), set);
 
-  // At the top it is the top, whatever was set.
-  for (float set : { 0.f, 0.3f, 1.f })
-    EXPECT_FLOAT_EQ (envelopeOver (set, 1.f), 1.f);
+  // At the top it is the ceiling, which is the point of having one: how far
+  // the accent throws is a thing you set, not a thing you discover.
+  for (float set : { 0.f, 0.3f })
+    for (float max : { 0.5f, 0.75f, 1.f })
+      EXPECT_FLOAT_EQ (envelopeOver (set, max, 1.f), max);
+}
+
+// A ceiling under the floor is a setting somebody will make by accident, and
+// it must not send the value *down* — the floor is the floor.
+TEST (Envelope, ACeilingBelowTheFloorStillLeavesTheFloorAlone)
+{
+  for (int i = 0; i <= 20; ++i)
+    {
+      auto const level = static_cast<float> (i) / 20.f;
+      auto const out = envelopeOver (0.8f, 0.3f, level);
+
+      EXPECT_FLOAT_EQ (out, 0.8f) << "level " << level;
+    }
 }

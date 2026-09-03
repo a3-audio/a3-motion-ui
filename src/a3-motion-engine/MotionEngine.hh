@@ -98,6 +98,11 @@ private:
    */
   void advanceAccents ();
 
+  /** The accent has finished falling: the clip does what its end action says.
+   *  Stop and Pause end the pass; the ones that mean "keep going" keep going,
+   *  or the accent would be a stop button that only some settings noticed. */
+  void applyEndActionAfterAccent (index_t channel);
+
 public:
 
   enum class RecordingMode

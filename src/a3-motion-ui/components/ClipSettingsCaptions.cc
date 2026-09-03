@@ -142,7 +142,7 @@ clipSettingsPreferredHeight (float headerSize, float bodySize,
   // fit inside whatever the other two asked for, back when it had one row of
   // knobs; with the spin, the swell and the accent it can be the tallest of
   // the three, and a bar sized without it squeezes its rows.
-  auto const motionRows = 3 * controlBoxHeightForFont (bodySize, knobDiameter);
+  auto const motionRows = 4 * controlBoxHeightForFont (bodySize, knobDiameter);
   auto const motion = titleRow + motionRows + buttonRow;
 
   auto const sections = std::max (elevation, std::max (global, motion));

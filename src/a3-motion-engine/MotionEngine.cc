@@ -204,7 +204,12 @@ MotionEngine::getChannelPot3Effective (index_t channel)
   if (channel >= _accentEnvelope.size ())
     return getChannelPot3 (channel);
 
-  return envelopeOver (_channels[channel]->getPot3 (),
+  // The ceiling belongs to the clip whose accent is running; with none, the
+  // whole range, which is what it did before there was a ceiling at all.
+  auto const &pattern = _accentPattern[channel];
+  auto const max = pattern ? pattern->getEnvelopeMax () : 1.f;
+
+  return envelopeOver (_channels[channel]->getPot3 (), max,
                        _accentEnvelope[channel].level);
 }
 
@@ -231,15 +236,57 @@ MotionEngine::advanceAccents ()
           = pattern ? pattern->getEnvelopeAttack () : 2;
       auto const decay = pattern ? pattern->getEnvelopeDecay () : 3;
 
+      auto const before = _accentEnvelope[index].stage;
       _accentEnvelope[index]
           = advanceEnvelope (_accentEnvelope[index], _accentHeld[index] != 0,
                              attack, decay, ticksPerBar);
+
+      // The decay running out is the end of the gesture, so the clip does
+      // whatever its end action says — the accent is a one-shot you played,
+      // and what happens after a one-shot is a setting the clip already
+      // carries. Only on the edge: once, as it lands on Idle.
+      if (before == EnvelopeStage::Decay
+          && _accentEnvelope[index].stage == EnvelopeStage::Idle)
+        applyEndActionAfterAccent (index);
 
       // Let go of the clip once the accent is over, so a slot that was
       // replaced meanwhile is not kept alive by a finished gesture.
       if (_accentEnvelope[index].stage == EnvelopeStage::Idle
           && _accentHeld[index] == 0)
         _accentPattern[index] = nullptr;
+    }
+}
+
+void
+MotionEngine::applyEndActionAfterAccent (index_t channel)
+{
+  auto &playing = _channels[channel]->_patternPlaying;
+  if (!playing)
+    return;
+
+  switch (playing->getEndAction ())
+    {
+    case EndAction::Stop:
+      // Back to the beginning and out of playback, which is what a stop is —
+      // the next start is visibly a start.
+      playing->setPlayPosition (0.f);
+      playing->setStatus (Pattern::Status::Idle);
+      _channels[channel]->_patternPlaying = nullptr;
+      break;
+
+    case EndAction::Pause:
+      // Standing still where it got to, and starting again from there.
+      playing->setStatus (Pattern::Status::Idle);
+      _channels[channel]->_patternPlaying = nullptr;
+      break;
+
+    case EndAction::Loop:
+    case EndAction::Bounce:
+    case EndAction::Random:
+      // These say what to do at the *take's* end, not at the accent's, and
+      // what they say is "keep going". Ending the clip here would make the
+      // accent a stop button that only some settings noticed.
+      break;
     }
 }
 

@@ -53,6 +53,7 @@ endActionToName (EndAction action)
     {
     case EndAction::Loop: return "loop";
     case EndAction::Stop: return "stop";
+    case EndAction::Pause: return "pause";
     case EndAction::Bounce: return "bounce";
     case EndAction::Random: return "random";
     }
@@ -64,6 +65,8 @@ endActionFromName (juce::String const &name)
 {
   if (name == "stop")
     return EndAction::Stop;
+  if (name == "pause")
+    return EndAction::Pause;
   if (name == "bounce")
     return EndAction::Bounce;
   if (name == "random")
@@ -91,7 +94,13 @@ advancePlayhead (Playhead current, float delta, EndAction endAction,
       return { wrapIntoPass (next), sign, false };
 
     case EndAction::Stop:
-      // Where it stood, not where it would have gone: the clip stops here and
+      // Back to the beginning of the take, whichever way it was running: the
+      // next start is a start. "Back to the start" is about the take, not
+      // about the direction it happened to be going.
+      return { 0.f, sign, true };
+
+    case EndAction::Pause:
+      // Where it stood, not where it would have gone: the clip holds here and
       // the channel keeps the position it last had.
       return { current.position, sign, true };
 

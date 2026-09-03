@@ -188,6 +188,13 @@ public:
    *  held, how long it falls once let go. */
   void setMotionEnvelope (int attackStep, int decayStep);
 
+  /** How far the accent throws, 0..1 — the 3d it rises to. */
+  void setMotionEnvelopeMax (float value);
+
+  /** ACT went down or came up on the bar. Held, like the pad: the accent
+   *  stays up for as long as it does. */
+  std::function<void (bool held)> onAccentHeld;
+
   /** The length the next take will have, already worded ("2", "1/4"), and
    *  which of the shape section's two elements is armed. */
   void setRecordLength (juce::String const &label);
@@ -198,7 +205,12 @@ public:
    *  the third one ("3d"), all unipolar (0..1). These belong to the channel,
    *  not to the clip the bar happens to show, which is why they sit in the
    *  global section rather than in a section of the clip's. */
-  void setChannelValues (int channel, float freq, float q, float threeD);
+  /** A channel's three grid values. 3d comes twice: what was set, which the
+   *  pointer stands on, and what is going out, which is the set value with
+   *  the accent laid over it. The arc between the two is the accent, drawn
+   *  where you can watch it move. */
+  void setChannelValues (int channel, float freq, float q, float threeD,
+                         float threeDEffective);
 
   /** Which section (0..numParameters-1) is currently selected/highlighted. */
   void setSelectedParameterIndex (int index);
@@ -324,8 +336,11 @@ private:
   /** Freq / Q (knobs), single row. */
   /** The global section's 4x3 grid, each column in its channel's colour. */
   void paintChannelGrid (juce::Graphics &g);
+  /** A grid knob. `value` is where the pointer stands; `reach` is how far a
+   *  modulation has carried it, and the arc from one to the other is filled
+   *  — pass `reach` equal to `value` for a knob nothing is modulating. */
   void paintGridKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
-                      ControlMetrics metrics, float value,
+                      ControlMetrics metrics, float value, float reach,
                       juce::Colour colour);
   /** Small, deliberately unobtrusive section title (see class doc) — most
    *  of a section's height goes to its controls, not this label. */
@@ -418,12 +433,15 @@ private:
   int _motionSwell = 0;
   int _motionAttack = 0;
   int _motionDecay = 0;
+  float _motionEnvelopeMax = 1.f;
+  bool _accentHeld = false;
   BarPage _page = BarPage::Clip;
   int _trajectorySubIndex = 0;
   juce::String _recordLengthLabel { "1" };
   std::array<float, numChannelColumns> _channelFreq{};
   std::array<float, numChannelColumns> _channelQ{};
   std::array<float, numChannelColumns> _channelThreeD{};
+  std::array<float, numChannelColumns> _channelThreeDReach{};
 
   /** Which list is open, by section and sub-element; -1 for none. While one
    *  is open it takes over its section's controls — a list cannot open
@@ -473,6 +491,7 @@ private:
   std::unique_ptr<TouchControl> _recTouch;
   std::unique_ptr<TouchControl> _tapTouch;
   std::unique_ptr<TouchControl> _shiftTouch;
+  std::unique_ptr<TouchControl> _accentTouch;
   bool _shiftHeld = false;
   bool _recording = false;
   int _clockMode = 0;

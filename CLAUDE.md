@@ -147,13 +147,25 @@ generator and the test runner:
   know was coming. Its two times are `atk` and `dec`, in bars off the tempo clock like everything
   else, but on a shorter table (1/16 of a bar to 4) since it is a gesture rather than a cycle.
 
-  What it drives is the channel's **3d**, and only upwards: `envelopeOver (set, level)` returns the
-  set value at rest — exactly, not nearly, or the pot would drift every time an accent finished —
-  and raises it towards 1 as the envelope climbs. The hardware pot and the grid keep meaning what
+  What it drives is the channel's **3d**, and only upwards, between two ends it does not choose:
+  `envelopeOver (set, max, level)` returns the set value at rest — exactly, not nearly, or the pot
+  would drift every time an accent finished — and raises it towards the clip's `max` as the envelope
+  climbs. A ceiling set *under* the floor leaves the floor alone: it is a setting somebody will make
+  by accident, and an accent that pushed the value down would surprise in the one direction nothing
+  else here moves. The hardware pot and the grid keep meaning what
   they always meant; what they mean *is* now the bottom of the swing. `MotionEngine::advanceAccents()`
   runs it on the tempo-clock thread beside playback, and `getChannelPot3Effective()` is what both the
   OSC sender and the grid read, so the knob on screen moves with the accent instead of leaving you to
   take it on trust.
+
+  The grid draws it where you can watch it: the 3d knob's **pointer stays on the set value** and the
+  arc from there to the effective value is filled in the notice colour, so the knob shows the floor
+  and the movement at once. That is why `setChannelValues()` takes 3d twice — a knob whose pointer
+  moved with the modulation would have nothing left to say where the hand had put it.
+
+  **When the decay runs out the clip does what its end action says** (`applyEndActionAfterAccent`),
+  and only on that edge, once. Stop and Pause end the pass; Loop, Bounce and Random mean "keep
+  going" and are left alone, or the accent would be a stop button that only some settings noticed.
 
   It fires on ACT **whatever the clip is doing** — an accent is not a start, and behind the
   start's "is this idle" check it fired only on a clip that happened to be standing still, which is
@@ -500,6 +512,13 @@ The status bar shows **the tempo and nothing else** — `BPM 60.0`, in the clock
 it is comes from the clock key, on the screen and under the hand; a third place saying it was a third
 place to keep in step. That readout also had three writers, one of which set the text without the
 colour, so what you got depended on which arrived last. One writer now.
+
+**`Stop` and `Pause` are two different end actions**, and used to be one under the wrong name. What
+was called Stop stood still wherever the playhead happened to land — that is a pause, and calling it
+a stop left no way to ask for the other one. `Stop` now returns to the beginning of the take,
+whichever way it was running, so the next start is visibly a start; `Paus` is the old behaviour,
+correctly named. The end-action list's length lives in one place (`numEndActions`) because it was
+written as a literal `4` in three.
 
 **When a pad takes effect** is a set, not four separate decisions:
 
