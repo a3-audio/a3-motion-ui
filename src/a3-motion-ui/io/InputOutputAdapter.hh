@@ -24,30 +24,13 @@
 
 #include <a3-motion-engine/util/Types.hh>
 
+// PadFunction and the two pad-index tables live here, so that the
+// touchscreen's controller page can be laid out from the same tables
+// the panel is read with.
+#include <a3-motion-ui/io/PadFunctions.hh>
+
 namespace a3
 {
-
-enum class PadFunction
-{
-  PlayPause,
-  Stop,
-  Action,
-  Settings,
-};
-
-// Fixed per-channel pad-index -> function mapping (same for all channels).
-constexpr std::array<PadFunction, 8> padFunctionByPadIndex{
-  PadFunction::PlayPause, PadFunction::Action,
-  PadFunction::PlayPause, PadFunction::Action,
-  PadFunction::Stop,      PadFunction::Settings,
-  PadFunction::Stop,      PadFunction::Settings,
-};
-
-// Fixed per-channel pad-index -> clip-slot mapping (same for all channels).
-// Slot 0 = upper quadrant {0,1,4,5}, slot 1 = lower quadrant {2,3,6,7}.
-constexpr std::array<index_t, 8> slotForPadIndex{
-  0, 0, 1, 1, 0, 0, 1, 1,
-};
 
 class InputOutputAdapter : public juce::Thread,
                            public juce::Timer,
@@ -100,7 +83,6 @@ public:
 
 protected:
   static auto constexpr numChannels = 4u;
-  static auto constexpr numPadsPerChannel = 8u;
   static auto constexpr numPotsPerChannel = 2u;
   static auto constexpr numEncodersPerChannel = 2u;
   static auto constexpr numButtons = 5u;

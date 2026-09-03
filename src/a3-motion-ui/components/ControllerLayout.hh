@@ -1,0 +1,81 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2023 Patric Schmitz
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#pragma once
+
+#include <JuceHeader.h>
+
+#include <a3-motion-ui/components/ClipSettingsLayout.hh>
+#include <a3-motion-ui/io/PadFunctions.hh>
+
+namespace a3
+{
+
+/** The controller page: the panel's pads, on the screen.
+ *
+ *  The device cannot be played without pads, and a plain build has no panel
+ *  (`HARDWARE_INTERFACE_ENABLED` is off by default), so without these the
+ *  standard build cannot start a single clip. See
+ *  issues/a3-motion-ui-pads-not-reachable-from-the-gui.md.
+ *
+ *  Laid out as a **box per clip**: channels across, slots down, and where the
+ *  two meet sits one clip with its four pads. The pads inside a box keep the
+ *  panel's own arrangement — play and action above, stop and settings below —
+ *  and their identity comes from `padFunctionByPadIndex` / `slotForPadIndex`,
+ *  the same tables the hardware is read with, so the screen cannot quietly
+ *  come to mean something else.
+ */
+struct ControllerLayout
+{
+  /** The box a clip's four pads share. [channel][slot]. */
+  std::array<std::array<juce::Rectangle<int>, numPadSlots>, numChannelColumns>
+      clipBoxes;
+
+  /** Where each pad is drawn, indexed the way the hardware indexes it:
+   *  `pads[channel][pad]`, `pad` running 0..numPadsPerChannel-1. */
+  std::array<std::array<juce::Rectangle<int>, numPadsPerChannel>,
+             numChannelColumns>
+      pads;
+
+  /** Held, not latched — Shift+Action is a hold, and a latch has no release.
+   *  On the bar's floor, which is the screen's floor, where a thumb is. */
+  juce::Rectangle<int> shiftButton;
+  juce::Rectangle<int> recordButton;
+};
+
+/** No pad narrower or shorter than this. It is the control that is hit most
+ *  often and in the most hurry, in the dark, by a hand that is also doing
+ *  something else — the one place in this interface where a target smaller
+ *  than a fingertip is not a compromise but a fault. */
+constexpr int padMinSize = 34;
+
+/** The height at which the pads first reach `padMinSize`.
+ *
+ *  The bar is one area and both pages share it, so its height has to satisfy
+ *  the hungrier of the two — see clipSettingsPreferredHeight(), which is the
+ *  same idea for the clip settings. */
+int controllerPreferredHeight (float headerSize, int buttonHeight);
+
+/** Every rectangle of the controller page, from one calculation — the same
+ *  rule the clip settings bar follows, for the same reason. */
+ControllerLayout layOutController (juce::Rectangle<int> clipArea,
+                                   float headerSize, int buttonHeight);
+
+}

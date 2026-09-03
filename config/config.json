@@ -32,7 +32,7 @@
   },
   "ui": {
     "pauseRenderingInMenu": false,
-    "skin": "custom"
+    "skin": "custom-2"
   },
   "buttonLeds": {
     "idle": {
