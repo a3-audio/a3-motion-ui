@@ -1,0 +1,78 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2023 Patric Schmitz
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#pragma once
+
+#include <a3-motion-engine/Playhead.hh>
+
+namespace a3
+{
+
+class Pattern;
+
+/** Everything the clip settings menu holds, as plain values.
+ *
+ *  Separate from both the Pattern that owns them at runtime and the file they
+ *  are written to: ClipFile serialises this, PatternLibrary applies it, and the
+ *  migration builds one out of an old combined file. Three users, one list of
+ *  fields — and the list of fields is exactly what drifts apart when each user
+ *  keeps its own copy of it.
+ *
+ *  The defaults are a fresh Pattern's defaults, so a clip file that leaves a
+ *  field out loads as "not set" rather than as something else. That is what
+ *  lets a new setting be added without invalidating every file already
+ *  written, and a test holds the two lists of defaults together.
+ *
+ *  What is deliberately *not* here: the running phases (spinPhase,
+ *  reachLfoPhase) and the play position. Where a movement happens to be at the
+ *  moment of saving is not a setting, it is where the clip got to — restoring
+ *  it would make a saved clip start mid-turn.
+ */
+struct ClipSettings
+{
+  int speedLog2 = 0;
+  float rotate = 0.f;
+
+  float reach = 0.5f;
+  float clipTop = 0.f;
+  float clipBottom = 0.f;
+  bool mirrorSouth = false;
+  bool flat = false;
+  float flatElevation = 0.5f;
+
+  int spin = 0;
+  int reachLfo = 0;
+  int envelopeAttack = 2;
+  int envelopeDecay = 3;
+  float envelopeMax = 1.f;
+  ActMode actMode = ActMode::OneShot;
+
+  PlayDirection direction = PlayDirection::Forward;
+  EndAction endAction = EndAction::Loop;
+
+  /** In sixteenths of a beat, as the panel offers it — not in ticks, which
+   *  would tie the file to the PPQN it was written with. */
+  int fadeSixteenths = 4;
+};
+
+ClipSettings clipSettingsFrom (Pattern const &pattern);
+void applyClipSettings (Pattern &pattern, ClipSettings const &settings);
+
+}
