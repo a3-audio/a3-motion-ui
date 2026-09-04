@@ -43,12 +43,14 @@ target_sources("a3-motion-engine" PRIVATE
     Measure.cc
     Measure.hh
     ClipFile.cc
+    ClipMigration.cc
     ClipSettings.cc
     Pattern.cc
     RecordingSpans.cc
     RecordingSeam.cc
     PlaybackRate.cc
     ClipFile.hh
+    ClipMigration.hh
     ClipSettings.hh
     Pattern.hh
     PatternGenerator.cc
