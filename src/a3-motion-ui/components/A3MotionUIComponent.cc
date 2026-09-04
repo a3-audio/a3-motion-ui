@@ -1688,6 +1688,21 @@ A3MotionUIComponent::assignBrowserEntry (int index)
       refreshPatternDisplayFromTicks (filled);
     }
 
+  // And it plays, so you hear what you just chose. Building a set is
+  // listening to clips one after another; having to reach for the transport
+  // between each two would make the browser a filing cabinet rather than
+  // something you audition with.
+  //
+  // On the next beat, the same as PLAY everywhere else on the device. A set is
+  // usually built against a clock that is already running, and a clip that
+  // dropped in out of time would have to be restarted to be judged.
+  if (auto const &playing = _patterns[channel][slot])
+    {
+      playing->setPlaybackLength (getPlaybackLength (channel, slot));
+      _engine.playPattern (
+          playing, TempoClock::nextBeat (_now, _engine.getBeatsPerBar ()));
+    }
+
   refreshBrowser ();
   refreshAllPadRowLabels ();
   if (channel == _clipSettingsChannel && slot == _clipSettingsSlot)
