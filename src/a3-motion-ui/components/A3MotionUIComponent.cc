@@ -490,6 +490,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     _browserField = { static_cast<int> (channel), static_cast<int> (slot) };
     _browser->setSelectedField (_browserField.first, _browserField.second);
   };
+  _browser->onSavePressed = [this] {
+    saveSlotClip (static_cast<index_t> (_browserField.first),
+                  static_cast<index_t> (_browserField.second));
+  };
   _browser->onEntryChosen = [this] (int index) {
     _browser->setSelectedEntry (index);
     assignBrowserEntry (index);
@@ -1622,6 +1626,78 @@ A3MotionUIComponent::slotHasDrifted (index_t channel, index_t slot) const
     return false;
 
   return clipHasDrifted (*pattern, _slotClipFile[channel][slot]);
+}
+
+void
+A3MotionUIComponent::saveSlotClip (index_t channel, index_t slot)
+{
+  if (channel >= _patterns.size () || slot >= _patterns[channel].size ())
+    return;
+
+  auto const &pattern = _patterns[channel][slot];
+  auto const &clipFile = _slotClipFile[channel][slot];
+
+  if (!pattern || !clipFile.existsAsFile ())
+    {
+      updateControlReadout ("-- NOTHING TO SAVE");
+      return;
+    }
+
+  auto const clip = ClipFile::load (clipFile);
+  if (!clip)
+    {
+      updateControlReadout ("-- CLIP UNREADABLE");
+      return;
+    }
+
+  // Nothing to write. Without this, Save on an untouched factory clip made a
+  // copy of it anyway -- press it twice out of habit and the library grows a
+  // clip you never asked for and cannot tell from the original.
+  if (!clipHasDrifted (*pattern, clipFile))
+    {
+      updateControlReadout ("-- NOTHING CHANGED");
+      return;
+    }
+
+  auto const index = _patternLibrary->indexForName (pattern->getName ());
+  auto const factory = index > 0 && _patternLibrary->isFactory (index);
+
+  if (!factory)
+    {
+      if (saveClipSettings (*pattern, clipFile))
+        updateControlReadout ("-- SAVED");
+      else
+        updateControlReadout ("-- SAVE FAILED");
+
+      refreshBrowser ();
+      updateClipSettingsDisplay ();
+      return;
+    }
+
+  // A factory clip is the instrument's, not the performer's, so saving one
+  // makes a copy and points this slot at it. Silently rather than with a
+  // refusal: you asked for your changes to be kept, and they are.
+  Clip copy = *clip;
+  copy.aka.clear ();
+  copy.name = freeClipName (_patternLibrary->getClipDir (),
+                            juce::String (clip->name))
+                  .toStdString ();
+  copy.settings = clipSettingsFrom (*pattern);
+
+  auto const target = _patternLibrary->getClipDir ().getChildFile (
+      juce::String (copy.name) + ".json");
+
+  if (!ClipFile::save (copy, target))
+    {
+      updateControlReadout ("-- SAVE FAILED");
+      return;
+    }
+
+  _slotClipFile[channel][slot] = target;
+  updateControlReadout ("-- SAVED AS " + juce::String (copy.name).toUpperCase ());
+
+  refreshBrowser ();
+  updateClipSettingsDisplay ();
 }
 
 void

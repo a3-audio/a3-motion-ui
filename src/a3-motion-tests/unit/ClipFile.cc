@@ -292,3 +292,36 @@ TEST (ClipFile, SavingIntoNothingFails)
   EXPECT_FALSE (
       saveClipSettings (pattern, tempClip ("a3-save-absent.json")));
 }
+
+// ── Finding a name nobody is using ───────────────────────────────────────
+
+TEST (ClipFile, AFreeNameIsTheOneAskedForWhenNobodyHasIt)
+{
+  auto const dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                       .getChildFile ("a3-free-name-empty");
+  dir.deleteRecursively ();
+  dir.createDirectory ();
+
+  EXPECT_EQ (freeClipName (dir, "Wave"), "Wave");
+
+  dir.deleteRecursively ();
+}
+
+TEST (ClipFile, AFreeNameCountsUpPastWhatIsTaken)
+{
+  auto const dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                       .getChildFile ("a3-free-name-taken");
+  dir.deleteRecursively ();
+  dir.createDirectory ();
+
+  dir.getChildFile ("Wave.json").replaceWithText ("{}");
+  EXPECT_EQ (freeClipName (dir, "Wave"), "Wave 2");
+
+  dir.getChildFile ("Wave 2.json").replaceWithText ("{}");
+  EXPECT_EQ (freeClipName (dir, "Wave"), "Wave 3");
+
+  // ... and a different base is untouched by any of it.
+  EXPECT_EQ (freeClipName (dir, "Circle"), "Circle");
+
+  dir.deleteRecursively ();
+}

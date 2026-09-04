@@ -89,4 +89,12 @@ bool clipHasDrifted (Pattern const &pattern, juce::File const &clipFile);
  */
 bool saveClipSettings (Pattern const &pattern, juce::File const &clipFile);
 
+/** A name nobody is using yet: `base`, else `base 2`, `base 3`, ...
+ *
+ *  Names are the identity here, so two clips may not share one -- and the
+ *  browser shows a single list, where two rows called the same thing could not
+ *  be told apart. */
+juce::String freeClipName (juce::File const &clipDir,
+                           juce::String const &base);
+
 }

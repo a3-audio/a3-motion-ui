@@ -137,6 +137,16 @@ PatternLibrary::indexForName (std::string const &name) const
   return 0;
 }
 
+bool
+PatternLibrary::isFactory (int index) const
+{
+  if (index <= 0 || static_cast<size_t> (index - 1) >= _entries.size ())
+    return false;
+
+  return _entries[static_cast<size_t> (index - 1)].category
+         == Category::System;
+}
+
 std::shared_ptr<Pattern>
 PatternLibrary::loadPattern (int index) const
 {

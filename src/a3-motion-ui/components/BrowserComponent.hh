@@ -76,6 +76,9 @@ public:
   std::function<void (index_t channel, index_t slot)> onFieldChosen;
   std::function<void (int index)> onEntryChosen;
   std::function<void ()> onRenamePressed;
+  /** Write the chosen field's clip back. Sessions get their own pair of keys
+   *  when sessions exist -- see the plan's step 3. */
+  std::function<void ()> onSavePressed;
   std::function<void ()> onSaveSessionPressed;
   std::function<void ()> onLoadSessionPressed;
   std::function<void (int delta)> onScrolled;

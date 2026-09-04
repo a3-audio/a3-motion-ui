@@ -94,7 +94,7 @@ BrowserComponent::BrowserComponent ()
 
   makeButton (_sessionTouch, &BrowserComponent::onSessionPressed);
   makeButton (_renameTouch, &BrowserComponent::onRenamePressed);
-  makeButton (_saveTouch, &BrowserComponent::onSaveSessionPressed);
+  makeButton (_saveTouch, &BrowserComponent::onSavePressed);
   makeButton (_loadTouch, &BrowserComponent::onLoadSessionPressed);
 }
 
@@ -270,7 +270,7 @@ BrowserComponent::paint (juce::Graphics &g)
     paintRow (g, row);
 
   paintButton (g, _layout.renameButton, "Rename", _selectedEntry >= 0);
-  paintButton (g, _layout.saveSessionButton, "Save Set", true);
+  paintButton (g, _layout.saveSessionButton, "Save", true);
   paintButton (g, _layout.loadSessionButton, "Load Set", true);
 }
 

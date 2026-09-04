@@ -163,6 +163,24 @@ ClipFile::load (juce::File const &file)
   return clip;
 }
 
+juce::String
+freeClipName (juce::File const &clipDir, juce::String const &base)
+{
+  if (!clipDir.getChildFile (base + ".json").existsAsFile ())
+    return base;
+
+  // Counting rather than a timestamp or a random tail: "Wave 2" is a name
+  // somebody can say out loud and find again in a list.
+  for (int n = 2; n < 1000; ++n)
+    {
+      auto const candidate = base + " " + juce::String (n);
+      if (!clipDir.getChildFile (candidate + ".json").existsAsFile ())
+        return candidate;
+    }
+
+  return base + " " + juce::String (juce::Time::currentTimeMillis ());
+}
+
 bool
 saveClipSettings (Pattern const &pattern, juce::File const &clipFile)
 {

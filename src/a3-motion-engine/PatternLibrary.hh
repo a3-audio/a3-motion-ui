@@ -93,6 +93,10 @@ public:
   /** Find the index for a pattern name.  Returns 0 if not found. */
   int indexForName (std::string const &name) const;
 
+  /** Whether this entry is the instrument's rather than the performer's.
+   *  Factory clips are never written to -- saving one makes a copy instead. */
+  bool isFactory (int index) const;
+
   /** Load a full Pattern object for the given index. */
   std::shared_ptr<Pattern> loadPattern (int index) const;
 

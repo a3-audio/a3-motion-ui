@@ -203,6 +203,13 @@ private:
    *  not remembered -- see clipHasDrifted(). */
   bool slotHasDrifted (index_t channel, index_t slot) const;
 
+  /** Write this slot's settings back into its clip.
+   *
+   *  On a factory clip it makes a copy instead and points the slot at it. Not
+   *  an error and not a disabled key: a locked control that explains why it is
+   *  locked has already cost you the reach. */
+  void saveSlotClip (index_t channel, index_t slot);
+
   void refreshBrowser ();
   void assignBrowserEntry (int index);
 
