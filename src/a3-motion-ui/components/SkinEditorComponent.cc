@@ -20,6 +20,8 @@
 
 #include "SkinEditorComponent.hh"
 
+#include <a3-motion-ui/components/ListScroll.hh>
+
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
 namespace a3
@@ -67,6 +69,12 @@ SkinEditorComponent::browseRow (int index)
   // it must never wait around for a press meant for something else.
   _deleteAsked = false;
   _saved = false;
+
+  // Bring it into view if it is not, and no further — before laying out, so
+  // the rows' hit areas are placed against the window that will be drawn.
+  // The list does not rearrange itself around a selection any more.
+  _scrollTop = scrollToShow (_scrollTop, _index, visibleRows (), totalRows ());
+
   resized ();
   repaint ();
 }
@@ -74,12 +82,23 @@ SkinEditorComponent::browseRow (int index)
 int
 SkinEditorComponent::firstVisibleRow () const
 {
-  auto const rows = visibleRows ();
+  // Where the window is, not where the selection is. It used to be
+  // `_index - rows / 2`: the window went wherever the selection went, so a
+  // row you touched slid to the middle and left your finger behind. The
+  // window follows the selection only when it has to — see scrollToShow().
+  return scrollBy (_scrollTop, 0, visibleRows (), totalRows ());
+}
 
-  // The list scrolls around the browsed row rather than paging, so the row
-  // being edited stays put while its value changes.
-  return juce::jlimit (0, juce::jmax (0, totalRows () - rows),
-                       _index - rows / 2);
+void
+SkinEditorComponent::scrollList (int steps)
+{
+  auto const moved = scrollBy (_scrollTop, steps, visibleRows (), totalRows ());
+  if (moved == _scrollTop)
+    return;
+
+  _scrollTop = moved;
+  resized (); // the rows' hit areas move with what is under them
+  repaint ();
 }
 
 juce::Rectangle<int>
@@ -149,10 +168,13 @@ void
 SkinEditorComponent::createTouchControls ()
 {
   // Behind everything: a drag anywhere on the list that is not on a value
-  // field moves the selection. Added first so the rows sit in front of it.
+  // field scrolls it. Added first so the rows sit in front of it.
   _listScroll = std::make_unique<TouchControl> ();
   _listScroll->onDragIncrement = [this] (int, int, int increment) {
-    navigate (increment);
+    // The page under the finger, like the strips beside it. It used to call
+    // navigate(), which turns the *armed row's value* — a drag on empty space
+    // in a list quietly editing whatever happened to be selected.
+    scrollList (increment);
   };
   addAndMakeVisible (*_listScroll);
 
@@ -176,10 +198,12 @@ SkinEditorComponent::createTouchControls ()
       // between them, which is to say hardly at all. Left half rolls, right
       // half changes the value — the two halves of a row, two jobs.
       touch.name->onDragIncrement = [this] (int, int, int increment) {
-        // Rolls, never edits. navigate() would have changed the armed row's
+        // Scrolls, never edits. navigate() would have changed the armed row's
         // value instead, because that is its second level — but this column
-        // is the list, not a value.
-        browseRow (browsedRowIndex () + increment);
+        // is the list, not a value. And it scrolls rather than walking the
+        // selection, so a drag over the names moves the page the same way a
+        // drag beside it does.
+        scrollList (increment);
       };
 
       touch.value = std::make_unique<TouchControl> ();

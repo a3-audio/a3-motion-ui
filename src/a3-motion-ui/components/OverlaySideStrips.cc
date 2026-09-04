@@ -32,9 +32,15 @@ OverlaySideStrips::OverlaySideStrips ()
 
   _browseZone = std::make_unique<TouchControl> ();
   _browseZone->onDragIncrement = [this] (int, int, int increment) {
-    // TouchControl counts up as more; here "more" is further down the list.
+    // The page follows the finger, the way it does on a phone: dragging
+    // upwards carries the page up, which brings later rows into view.
+    //
+    // It was negated here, so the list ran *against* the hand — the one
+    // convention every hand in the room already has, and the one it did not
+    // follow. TouchControl counts upwards as more, and further down the list
+    // is what more means.
     if (onBrowse)
-      onBrowse (-increment);
+      onBrowse (increment);
   };
   addAndMakeVisible (*_browseZone);
 

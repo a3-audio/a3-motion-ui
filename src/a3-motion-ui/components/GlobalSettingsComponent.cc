@@ -124,8 +124,11 @@ GlobalSettingsComponent::rebuildRowTouch ()
       // better place for it, though: a hand on the rows covers the ones it
       // is moving through.
       touch.name->onDragIncrement = [this] (int, int, int increment) {
+        // Same direction as the strips beside the panel: the page follows the
+        // finger. Two gestures for one movement that disagreed about which
+        // way it went would be worse than either.
         if (onBrowseDragged)
-          onBrowseDragged (-increment);
+          onBrowseDragged (increment);
       };
 
       touch.value = std::make_unique<TouchControl> ();

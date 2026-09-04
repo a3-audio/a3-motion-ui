@@ -255,6 +255,16 @@ private:
   std::vector<DisplayRow> _rows;
   void rebuildRows ();
 
+public:
+  /** Move the window by a drag, without touching what is selected. The two
+   *  used to be one: the window was placed around the selected row, so
+   *  touching a row you could see slid it into the middle. */
+  void scrollList (int steps);
+
+private:
+  /** The first row in view. Its own thing, not derived from `_index`. */
+  int _scrollTop = 0;
+
   /** The browsed row's parameter, or nullptr on an action or a heading. */
   SkinParameter const *browsedParameter () const;
   /** The nearest browsable row at or after `index`, stepping over headings.

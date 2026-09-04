@@ -52,6 +52,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/OverlaySideStrips.hh
     components/ClipSettingsLayout.cc
     components/ControllerLayout.cc
+    components/ListScroll.cc
+    components/ListScroll.hh
     components/ControllerLayout.hh
     components/ControllerComponent.cc
     components/ControllerComponent.hh

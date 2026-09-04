@@ -162,7 +162,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     if (_colourPickerOpen)
       _colourPicker->navigate (delta);
     else if (_skinEditorOpen)
-      _skinEditor->browseRow (_skinEditor->browsedRowIndex () + delta);
+      // Scrolls the page, and does not move the selection: a row is chosen by
+      // touching it, which is the one convention every hand in the room
+      // already has. The strip used to walk the selection and the list
+      // re-centred itself around it, so the row you were reaching for slid
+      // away as you reached.
+      _skinEditor->scrollList (delta);
     else if (_globalSettingsOpen)
       {
         _globalSettingsValueFieldSelected = false;

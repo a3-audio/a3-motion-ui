@@ -466,6 +466,14 @@ any more: with an overlay open there is nothing on the sphere worth grabbing. Th
 narrower for them — `globalSettingsSideZoneWidth` reserves a fifth of the width on each side,
 because a 32px margin is narrower than a fingertip and cannot be landed on without looking.
 
+**The list scrolls; it does not walk a selection.** A drag — in the left strip, over the row names,
+anywhere on the list that is not a value — moves the page in the finger's direction, the way it does
+on a phone, and a row is chosen by touching it. Both halves of that were wrong before: the drag ran
+*against* the hand, and the window was placed around the selected row (`_index - rows / 2`), so
+touching a row you could plainly see slid it into the middle and left your finger behind. The window
+is its own value now (`_scrollTop`) and `ListScroll.hh` holds the two rules — move by a drag, and
+move as little as possible to bring a selection into view.
+
 The right strip **arms on the first increment** rather than asking for a tap first: dragging there
 already means "change this". A row that leads somewhere (`opensSubmenu`) is skipped, since it has
 no value to turn, and the skin editor latches the row it started on (`_dragRow`) so a list that
