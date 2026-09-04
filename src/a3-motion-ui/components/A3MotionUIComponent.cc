@@ -489,6 +489,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _browser = std::make_unique<BrowserComponent> ();
   _browser->onFieldChosen = [this] (index_t channel, index_t slot) {
     _browserField = { static_cast<int> (channel), static_cast<int> (slot) };
+
+    // The rest of the device follows the field. Choosing where a clip goes is
+    // saying "this one" as plainly as pressing its pad is, and the bar, the
+    // readout and the pads page all describe one slot at a time -- leaving
+    // them pointed somewhere else means reading one clip's values while
+    // filling another.
+    selectClip (channel, slot);
     // Through refreshBrowser(), not setSelectedField() alone: what can be done
     // to the chosen field depends on which field it is, so the strip has to be
     // worked out again. Setting only the highlight left Save greyed on a slot
@@ -1771,6 +1778,10 @@ A3MotionUIComponent::assignBrowserEntry (int index)
       _motionComponent->unsetPreviewPattern (pattern);
       _motionComponent->removePatternDisplayData (pattern);
     }
+
+  // And the slot it landed in is the one the device is on: the clip you just
+  // chose is the clip you are looking at.
+  selectClip (channel, slot);
 
   fillSlotFromLibrary (channel, slot, index);
 
