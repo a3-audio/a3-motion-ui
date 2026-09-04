@@ -428,10 +428,17 @@ it in place — the wobble. Sixteen of the thirty-nine system patterns were off 
 their radius, the triangle by 35%. The furthest point from the origin becomes 1; nothing moves.
 `smoke-test/scripts/pattern-centre.py` measures it.
 
-Some shapes are legitimately off-centre and must stay that way: `Arc` and `Petal` are one-sided by
-construction, `Orbit` is a Kepler ellipse with the listener at a *focus*, `Random` is random. The
-one unintended residual is `Figure 8`, which the generator nudges by 0.05 to dodge the azimuth
-singularity at the origin.
+Some shapes are legitimately off-centre and must stay that way, and
+`SystemPatternIcons.EveryShippedShapeSitsWhereItShould` names them rather than leaving them to be
+"fixed" later: `Arc` and `Petal` are one-sided by construction, `Orbit` is a Kepler ellipse with the
+listener at a *focus* — the sound comes close and goes far — and `Random` is random. Everything else
+is held under 7% of its own radius.
+
+`Figure 8` used to be nudged 0.05 sideways "to avoid the azimuth singularity". There is nothing to
+avoid: `Infinity`, `Clover` and `Rose 4-Petal` all pass exactly through the origin and always have.
+Azimuth is undefined at r = 0, but so is the direction of a sound directly overhead —
+`HeightMapSphere::mapTo3D()` takes r → 0 to the north pole continuously, so the crossing rises over
+the listener and comes down the other side.
 
 **"Slot 1" is two keys, not a heading.** A heading saying which clip you are looking at and a
 control changing which clip you are looking at want the same place — reading "Slot 1" left you no

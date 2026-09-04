@@ -225,3 +225,90 @@ TEST (TrajectoryIcon, AnIconNeverClaimsToHaveWhatItCannotDraw)
             << "written = " << written;
     }
 }
+
+// ── Where the shipped shapes sit ─────────────────────────────────────────
+
+namespace
+{
+/** The middle of a shape, weighted by how much of it is where -- so a stretch
+ *  that happens to be sampled densely does not drag the answer towards
+ *  itself. */
+juce::Point<float>
+pathCentroid (std::vector<Pos> const &ticks)
+{
+  double sx = 0.0, sy = 0.0, total = 0.0;
+
+  for (size_t i = 0; i < ticks.size (); ++i)
+    {
+      auto const &a = ticks[i];
+      auto const &b = ticks[(i + 1) % ticks.size ()];
+      if (!a.isValid () || !b.isValid ())
+        continue;
+
+      auto const w = std::hypot (b.x () - a.x (), b.y () - a.y ());
+      sx += (a.x () + b.x ()) * 0.5 * w;
+      sy += (a.y () + b.y ()) * 0.5 * w;
+      total += w;
+    }
+
+  if (total <= 0.0)
+    return {};
+
+  return { static_cast<float> (sx / total), static_cast<float> (sy / total) };
+}
+
+/** Shapes that are meant to sit to one side, and why. Not a list of things to
+ *  fix later -- a list of things that would be wrong if they were centred. */
+bool
+isDeliberatelyOffCentre (juce::String const &name)
+{
+  // Arc and Petal are one-sided by construction: a stroke across part of the
+  // room, not a figure around it. Orbit is a Kepler ellipse with the listener
+  // at a focus rather than the middle, which is the whole idea -- the sound
+  // comes close and goes far. Random is random.
+  return name.contains ("Arc") || name.contains ("Petal")
+         || name.contains ("Orbit") || name.contains ("Random");
+}
+}
+
+TEST (SystemPatternIcons, EveryShippedShapeSitsWhereItShould)
+{
+  // Rotation turns about the origin, because the origin is the middle of the
+  // room. A shape whose own middle is somewhere else swings round instead of
+  // turning in place -- it wobbles. This was true of sixteen of these files,
+  // because saving them recentred them on their bounding box.
+  auto const files = systemPatternDir ().findChildFiles (
+      juce::File::findFiles, false, "*.svg");
+  ASSERT_FALSE (files.isEmpty ());
+
+  for (auto const &file : files)
+    {
+      auto const pattern = PatternFile::load (file);
+      ASSERT_NE (pattern, nullptr) << file.getFileName ();
+
+      auto const ticks = pattern->getTicks ().positions;
+      auto const centre = pathCentroid (ticks);
+
+      float meanRadius = 0.f;
+      int n = 0;
+      for (auto const &p : ticks)
+        {
+          if (!p.isValid ())
+            continue;
+          meanRadius += std::hypot (p.x () - centre.x, p.y () - centre.y);
+          ++n;
+        }
+      ASSERT_GT (n, 0) << file.getFileName ();
+      meanRadius /= static_cast<float> (n);
+      ASSERT_GT (meanRadius, 0.f) << file.getFileName ();
+
+      auto const offset = std::hypot (centre.x, centre.y) / meanRadius;
+
+      if (isDeliberatelyOffCentre (file.getFileName ()))
+        continue;
+
+      EXPECT_LT (offset, 0.07f)
+          << file.getFileName () << " sits " << (offset * 100.f)
+          << "% of its own radius off the middle of the room";
+    }
+}
