@@ -150,6 +150,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // The fingertip floor still holds, which is what actually matters for a
   // control switched mid-set.
   auto const tabW = juce::jmax (fingertipSize, headerArea.getWidth () / 6);
+
+  // The folder closes the row, and is square: it is a mark, not a word, and it
+  // goes somewhere the three tabs beside it do not.
+  auto const browserW = juce::jmax (fingertipSize, headerArea.getHeight ());
+  out.tabBrowser = headerArea.removeFromRight (browserW);
+  headerArea.removeFromRight (juce::jmax (2, browserW / 6));
+
   out.tabController = headerArea.removeFromRight (tabW);
   out.tabRecord = headerArea.removeFromRight (tabW);
   out.tabClip = headerArea.removeFromRight (tabW);
@@ -163,7 +170,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // between them when there is none.
   auto const transportW = headerArea.getHeight ();
   auto const transportGap = juce::jmax (2, transportW / 12);
-  if (page != BarPage::Controller)
+  if (page != BarPage::Controller && page != BarPage::Browser)
     {
       for (int i = 0; i < numTransportKeys; ++i)
         {
@@ -183,6 +190,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       // Whatever the row has left, shared between them -- rather than a
       // fraction of it with the remainder left lying there, which is what kept
       // them narrow however high the cap was raised.
+      // Set apart from the tabs by more than the keys are set apart from each
+      // other: the slots say *which clip*, the tabs say *which view of it*.
+      // Two different questions, so a visible gap between them.
+      headerArea.removeFromRight (transportGap * 6);
+
       auto const slotW = juce::jmin (
           (headerArea.getWidth ()
            - transportGap * static_cast<int> (numPadSlots))

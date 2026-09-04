@@ -41,6 +41,7 @@
 #include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/components/OverlaySideStrips.hh>
 #include <a3-motion-ui/SetFile.hh>
+#include <a3-motion-ui/components/BrowserComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
@@ -187,6 +188,11 @@ private:
   void showBarPage (BarPage page);
   /** Record's page gesture: to the take's face, or back off it. */
   void toggleRecordPage ();
+
+  /** The browser page: what the eight fields hold, and what dropping a
+   *  library row on the chosen one does. */
+  void refreshBrowser ();
+  void assignBrowserEntry (int index);
 
   void handlePadPress (index_t channel, index_t pad);
   /** The other half of a pad gesture. Shift+Action previews for as long as it
@@ -426,6 +432,9 @@ private:
    *  hand is on. Record needs no twin: the global strip's REC button already
    *  records into the shown clip. */
   std::unique_ptr<ControllerComponent> _controller;
+  std::unique_ptr<BrowserComponent> _browser;
+  /** Which field the next chosen clip lands in. */
+  std::pair<int, int> _browserField{ 0, 0 };
   /** Counts up on every scheduled save so a later one supersedes an earlier:
    *  a drag on the grid is dozens of changes and one arrangement. */
   int _setSaveGeneration = 0;

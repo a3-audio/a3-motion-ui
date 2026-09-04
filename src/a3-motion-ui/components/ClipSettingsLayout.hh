@@ -113,6 +113,10 @@ enum class BarPage
    *  — you are still looking at the elevation and the motion it will get. */
   Record,
   Controller,
+  /** Somewhere else entirely: what is stored, rather than what is loaded. The
+   *  eight clips of the device down one side and the library down the other,
+   *  so a clip is put where it goes rather than dialled to. */
+  Browser,
 };
 
 /** The area inside a section's card that its controls are laid out in —
@@ -205,6 +209,9 @@ struct ClipSettingsLayout
   juce::Rectangle<int> tabClip;
   juce::Rectangle<int> tabRecord;
   juce::Rectangle<int> tabController;
+  /** The way to the browser. A folder rather than a fourth word: the three
+   *  tabs are views of the clip you are on, and this leaves it. */
+  juce::Rectangle<int> tabBrowser;
   /** The last-operated control, at the top of the **global strip** — the one
    *  part of the bar that stands on both pages. */
   juce::Rectangle<int> readout;

@@ -537,6 +537,7 @@ private:
   bool _menuOpen = false;
   std::array<std::unique_ptr<TouchControl>, numPadSlots> _slotTouch;
   std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;
+  std::unique_ptr<TouchControl> _tabBrowserTouch;
   std::unique_ptr<TouchControl> _tabClipTouch;
   std::unique_ptr<TouchControl> _tabRecordTouch;
   std::unique_ptr<TouchControl> _tabControllerTouch;

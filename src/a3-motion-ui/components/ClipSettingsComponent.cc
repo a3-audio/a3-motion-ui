@@ -144,6 +144,7 @@ ClipSettingsComponent::createTouchControls ()
   makeTab (_tabClipTouch, BarPage::Clip);
   makeTab (_tabRecordTouch, BarPage::Record);
   makeTab (_tabControllerTouch, BarPage::Controller);
+  makeTab (_tabBrowserTouch, BarPage::Browser);
 
   // In front of the cards, so it swallows what would otherwise reach the
   // Elevation card. No callbacks: a picture is not a control.
@@ -355,6 +356,7 @@ ClipSettingsComponent::resized ()
   _tabClipTouch->setBounds (_layout.tabClip);
   _tabRecordTouch->setBounds (_layout.tabRecord);
   _tabControllerTouch->setBounds (_layout.tabController);
+  _tabBrowserTouch->setBounds (_layout.tabBrowser);
 
   for (int col = 0; col < numChannelColumns; ++col)
     for (int row = 0; row < numChannelRows; ++row)
@@ -669,12 +671,13 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   g.setColour (toColour (theme ().textPrimary, 0.25f));
   g.drawRect (_layout.globalBounds, frameThickness);
 
-  // Not on the controller page, which shows every slot at once: choosing one
-  // of them there says something untrue about what you are looking at. Both of
+  // Not on the pages that show every slot at once -- the pads page and the
+  // browser -- where choosing one of them says something untrue about what you
+  // are looking at. Both of
   // the clip's faces describe a single slot, and the record face -- the take
   // about to be written -- is the one where being sure which slot it is
   // matters most.
-  if (_page != BarPage::Controller)
+  if (_page != BarPage::Controller && _page != BarPage::Browser)
     for (index_t slot = 0; slot < numPadSlots; ++slot)
       {
         auto const bounds = _layout.slotButtons[slot];
@@ -718,8 +721,8 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // are firing clips is exactly the wrong moment to lose them.
   paintGlobalSection (g, _selectedIndex == globalIndex);
 
-  if (_page == BarPage::Controller)
-    return; // ControllerComponent draws the rest
+  if (_page == BarPage::Controller || _page == BarPage::Browser)
+    return; // ControllerComponent / BrowserComponent draws the rest
 
   paintTrajectorySection (g, _selectedIndex == trajectoryIndex);
   paintElevationSection (g, _selectedIndex == elevationIndex);
@@ -796,6 +799,38 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
   paintTab (_layout.tabRecord, "REC", _page == BarPage::Record);
   paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
+
+  // A folder rather than a fourth word: the three tabs are views of the clip
+  // you are on and this one leaves it, so it is not one of them to look at
+  // either.
+  {
+    auto const bounds = _layout.tabBrowser;
+    auto const active = _page == BarPage::Browser;
+
+    g.setColour (active ? _channelColour.withAlpha (0.35f)
+                        : toColour (theme ().textPrimary, 0.06f));
+    g.fillRoundedRectangle (bounds.toFloat (), 3.f);
+    g.setColour (toColour (theme ().textPrimary, active ? 0.35f : 0.15f));
+    g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+
+    // A tab with a raised corner: the shape a folder has had since before any
+    // of this, and the one people look for when they want what is stored.
+    auto const face = bounds.toFloat ().reduced (bounds.getWidth () * 0.26f);
+    auto const lip = face.getHeight () * 0.26f;
+
+    juce::Path folder;
+    folder.startNewSubPath (face.getX (), face.getBottom ());
+    folder.lineTo (face.getX (), face.getY () + lip);
+    folder.lineTo (face.getX () + face.getWidth () * 0.42f,
+                   face.getY () + lip);
+    folder.lineTo (face.getX () + face.getWidth () * 0.52f, face.getY ());
+    folder.lineTo (face.getRight (), face.getY ());
+    folder.lineTo (face.getRight (), face.getBottom ());
+    folder.closeSubPath ();
+
+    g.setColour (toColour (theme ().textPrimary, active ? 1.f : 0.55f));
+    g.strokePath (folder, juce::PathStrokeType (1.4f));
+  }
 }
 
 juce::Rectangle<int>
@@ -817,8 +852,10 @@ ClipSettingsComponent::setPage (BarPage page)
   // controller page, and a hit area with nothing under it is how a finger
   // changes a value it cannot see.
   // The record page is the clip page with one section turned over, so every
-  // control stays reachable on it; only the pads page takes them away.
-  auto const showsClip = _page != BarPage::Controller;
+  // control stays reachable on it; the pads page and the browser take them
+  // away, because neither draws them.
+  auto const showsClip
+      = _page != BarPage::Controller && _page != BarPage::Browser;
 
   for (int section = 0; section < numParameters; ++section)
     for (auto &control : _controlTouch[static_cast<size_t> (section)])

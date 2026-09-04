@@ -470,6 +470,19 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     handlePadRelease (channel, pad);
   };
 
+  // The browser: the eight clips of the device and the library beside them.
+  // What a field or a row means is decided here rather than there, the same
+  // way the pads page knows nothing about what a pad does.
+  _browser = std::make_unique<BrowserComponent> ();
+  _browser->onFieldChosen = [this] (index_t channel, index_t slot) {
+    _browserField = { static_cast<int> (channel), static_cast<int> (slot) };
+    _browser->setSelectedField (_browserField.first, _browserField.second);
+  };
+  _browser->onEntryChosen = [this] (int index) {
+    _browser->setSelectedEntry (index);
+    assignBrowserEntry (index);
+  };
+
   addChildComponent (*_clipSettings);
   _clipSettings->setVisible (true);
 
@@ -479,6 +492,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // showing which clip is running, showing it in the dark. A child is painted
   // after its parent by construction, and no z-order call can undo that.
   _clipSettings->addChildComponent (*_controller);
+  _clipSettings->addChildComponent (*_browser);
   selectClip (0, 0); // sensible default before any button has been pressed
 
   // Clockmode is all that is left to restore. Pot Size and the two font sizes
@@ -942,6 +956,8 @@ A3MotionUIComponent::resized ()
   // stays visible and its tabs stay reachable.
   if (_controller && _clipSettings)
     _controller->setBounds (_clipSettings->clipContentBounds ());
+  if (_browser && _clipSettings)
+    _browser->setBounds (_clipSettings->clipContentBounds ());
 
   // The menu covers the sphere and nothing else. It used to take the clip
   // settings' space as well — the bar gave up its bounds and the menu had the
@@ -1552,6 +1568,81 @@ A3MotionUIComponent::showBarPage (BarPage page)
   _barPage = page;
   _clipSettings->setPage (page);
   _controller->setVisible (page == BarPage::Controller);
+  if (_browser)
+    {
+      _browser->setVisible (page == BarPage::Browser);
+      if (page == BarPage::Browser)
+        refreshBrowser ();
+    }
+}
+
+void
+A3MotionUIComponent::refreshBrowser ()
+{
+  if (!_browser)
+    return;
+
+  for (index_t channel = 0; channel < _engine.getNumChannels (); ++channel)
+    for (index_t slot = 0; slot < numPadSlots; ++slot)
+      {
+        auto const &pattern = _patterns[channel][slot];
+        _browser->setField (channel, slot,
+                            pattern ? juce::String (pattern->getName ())
+                                    : juce::String (),
+                            _channelUIStates[channel]->colour);
+      }
+
+  // Entry 0 is "no pattern" in the library's own numbering, and a row saying
+  // nothing is a row that empties the field it is dropped on -- which is worth
+  // having, so it is listed rather than skipped.
+  juce::StringArray names;
+  for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
+    names.add (juce::String (_patternLibrary->getEntry (i).name));
+
+  _browser->setEntries (names);
+  _browser->setSelectedField (_browserField.first, _browserField.second);
+}
+
+void
+A3MotionUIComponent::assignBrowserEntry (int index)
+{
+  auto const channel = static_cast<index_t> (_browserField.first);
+  auto const slot = static_cast<index_t> (_browserField.second);
+
+  if (channel >= _engine.getNumChannels () || slot >= numPadSlots)
+    return;
+  if (index < 0 || index >= _patternLibrary->getNumEntries ())
+    return;
+
+  auto &pattern = _patterns[channel][slot];
+
+  // Whatever was there stops first. Dropping a clip onto a slot that is
+  // playing would otherwise leave the engine running a pattern the slot no
+  // longer holds.
+  if (pattern)
+    {
+      auto const status = pattern->getStatus ();
+      if (status == Pattern::Status::Playing
+          || status == Pattern::Status::Recording
+          || status == Pattern::Status::ScheduledForPlaying)
+        _engine.stopPattern (pattern, _now);
+      _motionComponent->unsetPreviewPattern (pattern);
+      _motionComponent->removePatternDisplayData (pattern);
+    }
+
+  pattern = index == 0 ? nullptr : _patternLibrary->loadPattern (index);
+
+  if (pattern)
+    {
+      pattern->setChannel (channel);
+      applyMotionMode (channel, slot);
+      refreshPatternDisplayFromTicks (pattern);
+    }
+
+  refreshBrowser ();
+  refreshAllPadRowLabels ();
+  if (channel == _clipSettingsChannel && slot == _clipSettingsSlot)
+    updateClipSettingsDisplay ();
 }
 
 void
