@@ -98,6 +98,14 @@ public:
   /** Find the index for a pattern name.  Returns 0 if not found. */
   int indexForName (std::string const &name) const;
 
+  /** Find the index of the entry a clip file belongs to. Returns 0 for an
+   *  empty file or one no entry names.
+   *
+   *  This, not the name, is what says which row a slot came from: a settings
+   *  preset leaves the shape alone, so the shape's name would point back at
+   *  the shape's row however many presets were applied on top of it. */
+  int indexForClipFile (juce::File const &file) const;
+
   /** Whether this entry is the instrument's rather than the performer's.
    *  Factory clips are never written to -- saving one makes a copy instead. */
   bool isFactory (int index) const;

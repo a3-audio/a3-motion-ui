@@ -177,3 +177,36 @@ TEST (PatternLibraryClips, AClipWithAShapeIsListedOnce)
 
   EXPECT_EQ (found, 1);
 }
+
+// The highlight in the browser says which of a hundred rows a slot came from.
+// It cannot be worked out from the shape's name once settings presets exist: a
+// preset leaves the shape alone, so every slot would point back at the shape
+// row instead of the preset just chosen -- and the list would scroll away from
+// the presets after every pick. The slot's clip file is what actually says it.
+TEST (PatternLibraryClips, AClipFileSaysWhichRowItCameFrom)
+{
+  auto const root = aRootHolding ("a3-library-rows", "16_Wave.svg");
+
+  Clip shaped;
+  shaped.name = "Wave";
+  shaped.svg = "16_Wave";
+  ASSERT_TRUE (ClipFile::save (shaped, root.getChildFile ("clips/Wave.json")));
+
+  Clip preset;
+  preset.name = "Breathe";
+  ASSERT_TRUE (
+      ClipFile::save (preset, root.getChildFile ("clips/Breathe.json")));
+
+  PatternLibrary library (root);
+  library.refresh ();
+
+  EXPECT_EQ (library.indexForClipFile (root.getChildFile ("clips/Wave.json")),
+             library.indexForName ("Wave"));
+  EXPECT_EQ (
+      library.indexForClipFile (root.getChildFile ("clips/Breathe.json")),
+      library.indexForName ("Breathe"));
+  EXPECT_EQ (library.indexForClipFile (juce::File{}), 0)
+      << "a slot that came from no clip points at no row";
+  EXPECT_EQ (library.indexForClipFile (root.getChildFile ("clips/Gone.json")),
+             0);
+}

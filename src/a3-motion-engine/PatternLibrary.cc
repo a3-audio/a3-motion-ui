@@ -183,6 +183,19 @@ PatternLibrary::indexForName (std::string const &name) const
   return 0;
 }
 
+int
+PatternLibrary::indexForClipFile (juce::File const &file) const
+{
+  if (file == juce::File{})
+    return 0;
+
+  for (size_t i = 0; i < _entries.size (); ++i)
+    if (_entries[i].clipFile == file)
+      return static_cast<int> (i) + 1;
+
+  return 0;
+}
+
 bool
 PatternLibrary::isFactory (int index) const
 {

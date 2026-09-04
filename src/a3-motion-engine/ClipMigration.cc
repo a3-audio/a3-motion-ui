@@ -39,6 +39,16 @@ migrateCombinedPatterns (juce::File const &root)
 
   auto const clips = root.getChildFile ("clips");
 
+  // What has already been dealt with, one shape file name per line. Without
+  // it the only guard is "is there a clip?", which cannot tell a take that was
+  // never migrated from one whose clip the user deleted -- so a restart would
+  // put back everything they threw away.
+  auto const ledger = clips.getChildFile (".migrated");
+  juce::StringArray done;
+  if (ledger.existsAsFile ())
+    done.addLines (ledger.loadFileAsString ());
+  done.removeEmptyStrings ();
+
   int migrated = 0;
 
   for (auto const &file :
@@ -53,10 +63,17 @@ migrateCombinedPatterns (juce::File const &root)
       auto const name = shape.fromFirstOccurrenceOf ("_", false, false);
       auto const clipFile = clips.getChildFile (name + ".json");
 
+      // Handled once, never again -- whatever became of the clip since.
+      if (done.contains (shape))
+        continue;
+
       // What somebody set beats what a file once held: an existing clip is
       // never overwritten by a migration that happens to run afterwards.
       if (clipFile.existsAsFile ())
-        continue;
+        {
+          done.add (shape);
+          continue;
+        }
 
       auto const pattern = PatternFile::load (file);
       if (pattern == nullptr)
@@ -75,11 +92,19 @@ migrateCombinedPatterns (juce::File const &root)
       clip.settings.fadeSixteenths = 0;
 
       if (ClipFile::save (clip, clipFile))
-        ++migrated;
+        {
+          done.add (shape);
+          ++migrated;
+        }
       else
         std::cerr << "ClipMigration: cannot write "
                   << clipFile.getFullPathName () << std::endl;
     }
+
+  // Written even when nothing was migrated: the run that finds every take
+  // already handled is exactly the one whose record must survive.
+  clips.createDirectory ();
+  ledger.replaceWithText (done.joinIntoString ("\n"));
 
   if (migrated > 0)
     std::cout << "ClipMigration: " << migrated

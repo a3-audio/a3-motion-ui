@@ -1854,8 +1854,18 @@ A3MotionUIComponent::refreshBrowser ()
                              ? _patterns[ch][sl]
                              : nullptr;
 
+      // Through the clip, not the shape's name: a settings preset leaves the
+      // shape alone, so the name would point back at the shape's row however
+      // many presets were applied on top of it -- and setSelectedEntry()
+      // scrolls the chosen row into view, so the list would jump away from
+      // the presets after every pick. A shape with no clip beside it still
+      // has only its name to go on.
+      auto const fromClip
+          = _patternLibrary->indexForClipFile (_slotClipFile[ch][sl]);
       _browser->setSelectedEntry (
-          held ? _patternLibrary->indexForName (held->getName ()) : 0);
+          fromClip > 0
+              ? fromClip
+              : (held ? _patternLibrary->indexForName (held->getName ()) : 0));
     }
   _browser->setSelectedField (_browserField.first, _browserField.second);
 

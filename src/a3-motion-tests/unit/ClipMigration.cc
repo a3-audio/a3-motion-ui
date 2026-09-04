@@ -155,3 +155,41 @@ TEST (ClipMigration, AFolderWithNoTakesIsNotAnError)
 
   root.deleteRecursively ();
 }
+
+// Deleting a clip is a decision, and a restart must not undo it. Guarding on
+// "is the clip file there?" alone cannot tell a clip that was never made from
+// one that was thrown away -- so the migration writes down what it has already
+// handled and never touches those takes again.
+TEST (ClipMigration, ADeletedClipStaysDeleted)
+{
+  auto const root = aRootWithAnOldTake ("a3-migration-deleted");
+
+  ASSERT_EQ (migrateCombinedPatterns (root), 1);
+
+  auto const clip = root.getChildFile ("clips/Rec_120613.json");
+  ASSERT_TRUE (clip.deleteFile ());
+
+  EXPECT_EQ (migrateCombinedPatterns (root), 0);
+  EXPECT_FALSE (clip.existsAsFile ())
+      << "the migration put back a clip the user deleted";
+}
+
+// A take that arrives later -- a stick plugged in, a backup copied over -- is
+// not covered by what was written down, so it still gets its clip.
+TEST (ClipMigration, ATakeThatArrivesLaterIsStillMigrated)
+{
+  auto const root = aRootWithAnOldTake ("a3-migration-later");
+
+  ASSERT_EQ (migrateCombinedPatterns (root), 1);
+
+  root.getChildFile ("user/08_Rec_991122.svg")
+      .replaceWithText (
+          "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+          "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-1 -1 2 2\""
+          " data-name=\"Rec_991122\" data-beats=\"8\" data-ppqn=\"128\">"
+          "<path d=\"M -0.5 0 L 0.5 0\"/></svg>");
+
+  EXPECT_EQ (migrateCombinedPatterns (root), 1);
+  EXPECT_TRUE (
+      root.getChildFile ("clips/Rec_991122.json").existsAsFile ());
+}
