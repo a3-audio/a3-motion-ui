@@ -67,6 +67,14 @@ public:
     std::vector<std::pair<float,float>> jumpDots; ///< normalised dot positions
     std::vector<Pos> ticks;    ///< cached tick data for playback / fallback
     int lengthBeats{ 0 };      ///< pattern length in beats (from SVG metadata)
+    /** The clip that reaches this shape, if one is beside it. A shape with no
+     *  clip still loads -- somebody dropping an SVG into the folder by hand is
+     *  a reasonable thing to do -- and gets the defaults.
+     *
+     *  Last on purpose: Entry is filled by aggregate initialisation in at
+     *  least one place, so a field inserted in the middle silently renumbers
+     *  every value after it. */
+    juce::File clipFile;
   };
 
   /** Initialise with root directory containing system/ and user/ subdirs. */
@@ -102,6 +110,9 @@ public:
   juce::File const &getRootDir () const { return _rootDir; }
   juce::File getSystemDir () const { return _rootDir.getChildFile ("system"); }
   juce::File getUserDir () const { return _rootDir.getChildFile ("user"); }
+  /** Where the clips live: beside the shapes, not inside them. A shape says
+   *  where the sound goes and a clip says how it is played. */
+  juce::File getClipDir () const { return _rootDir.getChildFile ("clips"); }
 
   /** Return a fingerprint (hash) of all SVG files in system/ and user/.
    *  Changes whenever files are added, removed, or modified. */

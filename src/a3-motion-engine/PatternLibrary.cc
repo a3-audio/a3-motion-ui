@@ -20,6 +20,9 @@
 
 #include "PatternLibrary.hh"
 
+#include <a3-motion-engine/ClipFile.hh>
+#include <a3-motion-engine/ClipSettings.hh>
+
 #include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 
@@ -92,6 +95,16 @@ PatternLibrary::scanDirectory (juce::File const &dir, Category category)
           continue;
         }
 
+      // The clip that reaches this shape, named after the shape without its
+      // beat-count prefix -- 16_Wave.svg is reached by Wave.json. Left empty
+      // when there is none, which is not an error.
+      auto const clipName
+          = file.getFileNameWithoutExtension ().fromFirstOccurrenceOf (
+              "_", false, false);
+      auto const clip = getClipDir ().getChildFile (clipName + ".json");
+      if (clip.existsAsFile ())
+        entry.clipFile = clip;
+
       _entries.push_back (std::move (entry));
     }
 }
@@ -137,6 +150,14 @@ PatternLibrary::loadPattern (int index) const
   // The HeightMap (elevation coverage) is applied at playback time
   // by MotionEngine::performPlayback(), not at load time.
   // This allows dynamic coverage changes without reloading patterns.
+
+  // The shape says where the sound goes; the clip beside it says how it is
+  // played. Applied after the shape is read, so a clip's settings win over
+  // whatever the shape file still happens to carry -- which matters while both
+  // formats are in use, and stops mattering once the shape holds none.
+  if (pattern != nullptr && entry.clipFile.existsAsFile ())
+    if (auto const clip = ClipFile::load (entry.clipFile))
+      applyClipSettings (*pattern, clip->settings);
 
   return pattern;
 }

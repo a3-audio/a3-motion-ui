@@ -56,6 +56,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingSpans.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternWrittenTicks.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipFile.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternLibraryClips.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettings.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternSpeedAndFade.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternPlayback.cc"
