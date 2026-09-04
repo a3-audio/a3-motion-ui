@@ -183,12 +183,14 @@ BrowserComponent::setSelectedField (int channel, int slot)
 }
 
 void
-BrowserComponent::setEntries (juce::StringArray const &names)
+BrowserComponent::setEntries (juce::StringArray const &names,
+                              std::vector<bool> const &settingsOnly)
 {
-  if (names == _names)
+  if (names == _names && settingsOnly == _settingsOnly)
     return;
 
   _names = names;
+  _settingsOnly = settingsOnly;
   _scrollOffset = juce::jlimit (
       0, juce::jmax (0, _names.size () - _layout.visibleRows), _scrollOffset);
   resized ();
@@ -362,6 +364,18 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
   g.setColour (toColour (theme ().textPrimary, chosen ? 1.f : 0.7f));
   g.drawFittedText (_names[entry], bounds.reduced (bounds.getHeight () / 3, 0),
                     juce::Justification::centredLeft, 1);
+
+  // A settings preset carries a dot on the right. A mark rather than a colour
+  // because the selection already owns the accent, and a mark rather than a
+  // word because the row is read at a glance or not at all.
+  auto const index = static_cast<size_t> (entry);
+  if (index < _settingsOnly.size () && _settingsOnly[index])
+    {
+      auto const dot = bounds.getHeight () / 5.f;
+      g.setColour (toColour (theme ().accent, chosen ? 1.f : 0.75f));
+      g.fillEllipse (bounds.getRight () - dot * 2.5f,
+                     bounds.getCentreY () - dot / 2.f, dot, dot);
+    }
 }
 
 void

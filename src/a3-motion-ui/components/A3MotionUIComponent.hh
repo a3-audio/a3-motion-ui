@@ -198,6 +198,12 @@ private:
    *  forgot would leave a slot that could never be saved and never showed as
    *  drifted -- silently, because nothing about it would look wrong. */
   void fillSlotFromLibrary (index_t channel, index_t slot, int libIndex);
+  /** Apply a clip that names no shape: the values change, the movement in the
+   *  slot stays. Does nothing on an empty slot -- see the definition. */
+  void applySettingsPreset (index_t channel, index_t slot, int index);
+  /** Read direction and end action back out of the pattern into the strip.
+   *  Both live in two places, and the pattern is the one a clip writes. */
+  void syncClipUIParamsFromPattern (index_t channel, index_t slot);
 
   /** Whether this slot has drifted from the clip it was filled from. Asked,
    *  not remembered -- see clipHasDrifted(). */

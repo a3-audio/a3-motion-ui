@@ -1638,6 +1638,11 @@ A3MotionUIComponent::fillSlotFromLibrary (index_t channel, index_t slot,
   _slotClipFile[channel][slot]
       = libIndex > 0 ? _patternLibrary->getEntry (libIndex).clipFile
                      : juce::File{};
+
+  // The clip's direction and end action have to reach the strip, or the next
+  // applyMotionMode() writes the strip's stale ones back over them and the
+  // two settings a clip carries are the two it cannot keep.
+  syncClipUIParamsFromPattern (channel, slot);
 }
 
 bool
@@ -1814,6 +1819,7 @@ A3MotionUIComponent::refreshBrowser ()
   // nothing is a row that empties the field it is dropped on -- which is worth
   // having, so it is listed rather than skipped.
   juce::StringArray names;
+  std::vector<bool> settingsRows;
 
   if (_browserList == BrowserList::Sessions)
     {
@@ -1825,10 +1831,15 @@ A3MotionUIComponent::refreshBrowser ()
   else
     {
       for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
-        names.add (juce::String (_patternLibrary->getEntry (i).name));
+        {
+          auto const &entry = _patternLibrary->getEntry (i);
+          names.add (juce::String (entry.name));
+          settingsRows.push_back (entry.category
+                                  == PatternLibrary::Category::Settings);
+        }
     }
 
-  _browser->setEntries (names);
+  _browser->setEntries (names, settingsRows);
   _browser->setSessionName (_sessionName);
 
   // The list points at what the chosen field is already holding. Without this
@@ -1874,6 +1885,18 @@ A3MotionUIComponent::assignBrowserEntry (int index)
     return;
   if (index < 0 || index >= _patternLibrary->getNumEntries ())
     return;
+
+  // A settings preset says how a slot is played, not what it plays: whatever
+  // trajectory is in the slot stays, and only the values change. It gets its
+  // own way in rather than a branch further down, because almost nothing
+  // below applies to it -- there is no shape to stop, load or draw.
+  if (index > 0
+      && _patternLibrary->getEntry (index).category
+             == PatternLibrary::Category::Settings)
+    {
+      applySettingsPreset (channel, slot, index);
+      return;
+    }
 
   auto &pattern = _patterns[channel][slot];
 
@@ -1922,6 +1945,74 @@ A3MotionUIComponent::assignBrowserEntry (int index)
   refreshAllPadRowLabels ();
   if (channel == _clipSettingsChannel && slot == _clipSettingsSlot)
     updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::applySettingsPreset (index_t channel, index_t slot,
+                                          int index)
+{
+  auto const &pattern = _patterns[channel][slot];
+
+  // The values belong to a movement, and an empty slot has none. Choosing a
+  // shape is the way in; nothing is changed here so that the field stays
+  // plainly empty rather than holding settings nothing can play.
+  if (!pattern)
+    return;
+
+  auto const clip = ClipFile::load (_patternLibrary->getEntry (index).clipFile);
+  if (!clip.has_value ())
+    return;
+
+  applyClipSettings (*pattern, clip->settings);
+  _slotClipFile[channel][slot] = _patternLibrary->getEntry (index).clipFile;
+
+  // The bar follows what was just changed, the same as choosing a shape does.
+  selectClip (channel, slot);
+
+  // Read back OUT of the pattern, not pushed into it: applyMotionMode() would
+  // write the strip's own direction and end action over the ones the preset
+  // just brought.
+  syncClipUIParamsFromPattern (channel, slot);
+
+  // It keeps running if it was running. You tap a preset to hear it on the
+  // clip that is playing; restarting would drop you back at the top of a
+  // movement you were listening into. A stopped slot starts, so choosing is
+  // still hearing.
+  auto const status = pattern->getStatus ();
+  if (status != Pattern::Status::Playing
+      && status != Pattern::Status::ScheduledForPlaying
+      && status != Pattern::Status::Recording)
+    {
+      pattern->setPlaybackLength (getPlaybackLength (channel, slot));
+      _engine.playPattern (
+          pattern, TempoClock::nextBeat (_now, _engine.getBeatsPerBar ()));
+    }
+
+  refreshBrowser ();
+  refreshAllPadRowLabels ();
+  if (channel == _clipSettingsChannel && slot == _clipSettingsSlot)
+    updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::syncClipUIParamsFromPattern (index_t channel,
+                                                  index_t slot)
+{
+  auto const &pattern = _patterns[channel][slot];
+  if (!pattern)
+    return;
+
+  auto &params = _clipUIParams[channel][slot];
+  params.direction
+      = pattern->getPlayDirection () == PlayDirection::Reverse ? 1 : 0;
+
+  // Same order as applyMotionMode(): the bar's order is the engine's order.
+  auto const actions = { EndAction::Loop, EndAction::Stop, EndAction::Pause,
+                         EndAction::Bounce, EndAction::Random };
+  auto const found
+      = std::find (actions.begin (), actions.end (), pattern->getEndAction ());
+  if (found != actions.end ())
+    params.endAction = static_cast<int> (found - actions.begin ());
 }
 
 void

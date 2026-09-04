@@ -124,3 +124,56 @@ TEST (PatternLibraryClips, AClipPointingAtNothingReachesNothing)
 
   root.deleteRecursively ();
 }
+
+// A clip with no shape is a settings preset: it says how a slot is played and
+// leaves what it plays alone. The library is otherwise shape-first -- one
+// entry per SVG file -- so without this pass a settings preset is a file
+// nothing enumerates, which is exactly how twenty generated presets ended up
+// invisible in the browser.
+TEST (PatternLibraryClips, ASettingsPresetIsListedWithoutAShape)
+{
+  auto const root = aRootHolding ("a3-library-settings", "16_Wave.svg");
+
+  Clip preset;
+  preset.name = "Breathe";
+  preset.settings.reachLfo = 4;
+  preset.settings.envelopeAttack = 6;
+  ASSERT_TRUE (
+      ClipFile::save (preset, root.getChildFile ("clips/Breathe.json")));
+
+  PatternLibrary library (root);
+  library.refresh ();
+
+  auto const index = library.indexForName ("Breathe");
+  ASSERT_GT (index, 0) << "a clip without a shape never reaches the list";
+
+  auto const &entry = library.getEntry (index);
+  EXPECT_EQ (entry.category, PatternLibrary::Category::Settings);
+  EXPECT_TRUE (entry.svgPathData.empty ())
+      << "a settings preset has no shape to draw";
+  EXPECT_TRUE (entry.clipFile.existsAsFile ())
+      << "the entry has to say which file its values come from";
+}
+
+// The two passes must not overlap: a clip that names a shape is already in the
+// list through that shape, and listing it again would put the same clip in the
+// browser twice under one name.
+TEST (PatternLibraryClips, AClipWithAShapeIsListedOnce)
+{
+  auto const root = aRootHolding ("a3-library-once", "16_Wave.svg");
+
+  Clip clip;
+  clip.name = "Wave";
+  clip.svg = "16_Wave";
+  ASSERT_TRUE (ClipFile::save (clip, root.getChildFile ("clips/Wave.json")));
+
+  PatternLibrary library (root);
+  library.refresh ();
+
+  int found = 0;
+  for (int i = 1; i < library.getNumEntries (); ++i)
+    if (library.getEntry (i).name == "Wave")
+      ++found;
+
+  EXPECT_EQ (found, 1);
+}

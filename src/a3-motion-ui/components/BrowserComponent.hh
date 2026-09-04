@@ -59,7 +59,17 @@ public:
   void setFieldDrifted (index_t channel, index_t slot, bool drifted);
 
   /** The library, and where the window onto it starts. */
-  void setEntries (juce::StringArray const &names);
+  /** The rows of the library list.
+   *
+   *  @param settingsOnly  Parallel to @p names: a row that changes how a slot
+   *                       is played without touching what it plays. Marked,
+   *                       because such a row does something different from
+   *                       the one above it and a list you have to read to
+   *                       tell them apart is a list you cannot use in the
+   *                       dark. Empty means no row is one.
+   */
+  void setEntries (juce::StringArray const &names,
+                   std::vector<bool> const &settingsOnly = {});
   void setScrollOffset (int firstRow);
   int getScrollOffset () const { return _scrollOffset; }
   int getVisibleRows () const { return _layout.visibleRows; }
@@ -120,6 +130,7 @@ private:
   juce::StringArray _names;
   int _scrollOffset = 0;
   int _selectedEntry = -1;
+  std::vector<bool> _settingsOnly;
 
   std::array<std::array<std::unique_ptr<TouchControl>, numPadSlots>,
              numChannelColumns>

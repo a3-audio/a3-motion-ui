@@ -56,9 +56,55 @@ PatternLibrary::refresh ()
   _numUserPatterns
       = static_cast<int> (_entries.size ()) - _numSystemPatterns;
 
+  auto const beforePresets = static_cast<int> (_entries.size ());
+  scanSettingsPresets ();
+  _numSettingsPresets = static_cast<int> (_entries.size ()) - beforePresets;
+
   std::cout << "PatternLibrary: " << _numSystemPatterns << " system, "
-            << _numUserPatterns << " user patterns loaded from "
-            << _rootDir.getFullPathName () << std::endl;
+            << _numUserPatterns << " user patterns, " << _numSettingsPresets
+            << " settings presets loaded from " << _rootDir.getFullPathName ()
+            << std::endl;
+}
+
+void
+PatternLibrary::scanSettingsPresets ()
+{
+  auto const dir = getClipDir ();
+  if (!dir.isDirectory ())
+    return;
+
+  auto files = dir.findChildFiles (juce::File::findFiles, false, "*.json");
+
+  std::sort (files.begin (), files.end (),
+             [] (juce::File const &a, juce::File const &b) {
+               return a.getFileName ().compareNatural (b.getFileName ()) < 0;
+             });
+
+  for (auto const &file : files)
+    {
+      auto const clip = ClipFile::load (file);
+      if (!clip.has_value ())
+        {
+          std::cerr << "PatternLibrary: skipping unreadable clip: "
+                    << file.getFullPathName () << std::endl;
+          continue;
+        }
+
+      // A clip that names a shape is already listed through that shape.
+      // Listing it again would put one clip in the browser twice.
+      if (!clip->svg.empty ())
+        continue;
+
+      if (clip->name.empty ())
+        continue;
+
+      Entry entry;
+      entry.name = clip->name;
+      entry.category = Category::Settings;
+      entry.clipFile = file;
+
+      _entries.push_back (std::move (entry));
+    }
 }
 
 void
@@ -278,6 +324,12 @@ int
 PatternLibrary::getNumUserPatterns () const
 {
   return _numUserPatterns;
+}
+
+int
+PatternLibrary::getNumSettingsPresets () const
+{
+  return _numSettingsPresets;
 }
 
 }

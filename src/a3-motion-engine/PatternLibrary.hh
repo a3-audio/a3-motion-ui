@@ -54,7 +54,12 @@ public:
   enum class Category
   {
     System,
-    User
+    User,
+    /** A clip with no shape: it says how a slot is played and leaves what it
+     *  plays alone. Listed from clips/ rather than from an SVG, so such an
+     *  entry has no file, no path data and no ticks -- only a name and the
+     *  clip its values come from. */
+    Settings
   };
 
   struct Entry
@@ -111,6 +116,9 @@ public:
   /** Number of user patterns. */
   int getNumUserPatterns () const;
 
+  /** Number of clips listed without a shape. */
+  int getNumSettingsPresets () const;
+
   juce::File const &getRootDir () const { return _rootDir; }
   juce::File getSystemDir () const { return _rootDir.getChildFile ("system"); }
   juce::File getUserDir () const { return _rootDir.getChildFile ("user"); }
@@ -124,11 +132,15 @@ public:
 
 private:
   void scanDirectory (juce::File const &dir, Category category);
+  /** Clips that name no shape, listed as settings presets. Runs after
+   *  the shape passes so a clip that *does* name one is already in. */
+  void scanSettingsPresets ();
 
   juce::File _rootDir;
   std::vector<Entry> _entries;  ///< index 0 unused (Empty), 1..N = patterns
   int _numSystemPatterns = 0;
   int _numUserPatterns = 0;
+  int _numSettingsPresets = 0;
 };
 
 }
