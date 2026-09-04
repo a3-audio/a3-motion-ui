@@ -72,6 +72,46 @@ struct ClipSettings
   int fadeSixteenths = 4;
 };
 
+/** Two settings are the same when every field is.
+ *
+ *  This is what "unsaved" is worked out with: a pattern is compared against
+ *  its clip file rather than a flag being set when something is touched. The
+ *  difference shows when a control is turned and turned back -- a flag would
+ *  still say unsaved, and comparing says what is true.
+ *
+ *  The floats are compared exactly on purpose. They are carried from one place
+ *  to another and never computed, so a value that has been through a file and
+ *  back is bit-for-bit what went in; a tolerance here would hide a field that
+ *  is quietly rounding.
+ */
+inline bool
+operator== (ClipSettings const &a, ClipSettings const &b)
+{
+  return a.speedLog2 == b.speedLog2                //
+         && a.rotate == b.rotate                   //
+         && a.reach == b.reach                     //
+         && a.clipTop == b.clipTop                 //
+         && a.clipBottom == b.clipBottom           //
+         && a.mirrorSouth == b.mirrorSouth         //
+         && a.flat == b.flat                       //
+         && a.flatElevation == b.flatElevation     //
+         && a.spin == b.spin                       //
+         && a.reachLfo == b.reachLfo               //
+         && a.envelopeAttack == b.envelopeAttack   //
+         && a.envelopeDecay == b.envelopeDecay     //
+         && a.envelopeMax == b.envelopeMax         //
+         && a.actMode == b.actMode                 //
+         && a.direction == b.direction             //
+         && a.endAction == b.endAction             //
+         && a.fadeSixteenths == b.fadeSixteenths;
+}
+
+inline bool
+operator!= (ClipSettings const &a, ClipSettings const &b)
+{
+  return !(a == b);
+}
+
 ClipSettings clipSettingsFrom (Pattern const &pattern);
 void applyClipSettings (Pattern &pattern, ClipSettings const &settings);
 

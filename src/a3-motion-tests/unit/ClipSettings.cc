@@ -25,6 +25,10 @@
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Pattern.hh>
 
+#include <functional>
+#include <utility>
+#include <vector>
+
 using namespace a3;
 
 // Every value the clip settings menu shows has to survive the round trip
@@ -119,4 +123,73 @@ TEST (ClipSettings, RunningPhasesAreNotSettings)
   EXPECT_EQ (target.getSpin (), 2) << "the movement is a setting";
   EXPECT_FLOAT_EQ (target.getSpinPhase (), 0.f) << "where it got to is not";
   EXPECT_FLOAT_EQ (target.getReachLfoPhase (), 0.f);
+}
+
+// ── Comparing two of them ────────────────────────────────────────────────
+
+// "Modified" is worked out by comparing a pattern against its clip file, so a
+// field left out of the comparison is a control whose changes never show up as
+// unsaved -- and are then quietly lost. Every field is walked one at a time
+// rather than trusting one composite case.
+TEST (ClipSettings, EveryFieldTakesPartInTheComparison)
+{
+  using Mutate = std::function<void (ClipSettings &)>;
+
+  std::vector<std::pair<char const *, Mutate> > const fields{
+    { "speedLog2", [] (ClipSettings &s) { s.speedLog2 = -3; } },
+    { "rotate", [] (ClipSettings &s) { s.rotate = 0.3f; } },
+    { "reach", [] (ClipSettings &s) { s.reach = 0.9f; } },
+    { "clipTop", [] (ClipSettings &s) { s.clipTop = 0.2f; } },
+    { "clipBottom", [] (ClipSettings &s) { s.clipBottom = 0.3f; } },
+    { "mirrorSouth", [] (ClipSettings &s) { s.mirrorSouth = true; } },
+    { "flat", [] (ClipSettings &s) { s.flat = true; } },
+    { "flatElevation", [] (ClipSettings &s) { s.flatElevation = 0.8f; } },
+    { "spin", [] (ClipSettings &s) { s.spin = 5; } },
+    { "reachLfo", [] (ClipSettings &s) { s.reachLfo = -4; } },
+    { "envelopeAttack", [] (ClipSettings &s) { s.envelopeAttack = 6; } },
+    { "envelopeDecay", [] (ClipSettings &s) { s.envelopeDecay = 6; } },
+    { "envelopeMax", [] (ClipSettings &s) { s.envelopeMax = 0.1f; } },
+    { "actMode", [] (ClipSettings &s) { s.actMode = ActMode::Hold; } },
+    { "direction",
+      [] (ClipSettings &s) { s.direction = PlayDirection::Reverse; } },
+    { "endAction",
+      [] (ClipSettings &s) { s.endAction = EndAction::Bounce; } },
+    { "fadeSixteenths", [] (ClipSettings &s) { s.fadeSixteenths = 15; } },
+  };
+
+  for (auto const &[name, mutate] : fields)
+    {
+      ClipSettings changed;
+      mutate (changed);
+
+      EXPECT_NE (changed, ClipSettings{})
+          << name << " is not part of the comparison, so turning it would "
+                     "never show up as unsaved";
+    }
+}
+
+TEST (ClipSettings, TwoOfTheSameAreTheSame)
+{
+  Pattern pattern;
+  pattern.setSpin (3);
+  pattern.setReach (0.4f);
+  pattern.setEndAction (EndAction::Bounce);
+
+  EXPECT_EQ (clipSettingsFrom (pattern), clipSettingsFrom (pattern));
+  EXPECT_EQ (ClipSettings{}, ClipSettings{});
+}
+
+// Turning a control and turning it back leaves nothing behind. That is the
+// difference between comparing and setting a flag: a flag would still say
+// "unsaved" after the value came home.
+TEST (ClipSettings, TurningSomethingBackLeavesNoTrace)
+{
+  Pattern pattern;
+  auto const before = clipSettingsFrom (pattern);
+
+  pattern.setSpin (4);
+  EXPECT_NE (clipSettingsFrom (pattern), before);
+
+  pattern.setSpin (0);
+  EXPECT_EQ (clipSettingsFrom (pattern), before);
 }
