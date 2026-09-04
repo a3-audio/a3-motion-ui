@@ -236,3 +236,59 @@ TEST (ClipFile, WithNoClipThereIsNoDrift)
 
   EXPECT_FALSE (clipHasDrifted (pattern, tempClip ("a3-drift-absent.json")));
 }
+
+// ── Writing settings back ────────────────────────────────────────────────
+
+TEST (ClipFile, SavingWritesTheSettingsBack)
+{
+  Pattern pattern;
+  auto const file = aClipOnDisk ("a3-save-back", clipSettingsFrom (pattern));
+
+  pattern.setSpin (5);
+  pattern.setEndAction (EndAction::Bounce);
+  ASSERT_TRUE (saveClipSettings (pattern, file));
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_EQ (read->settings.spin, 5);
+  EXPECT_EQ (read->settings.endAction, EndAction::Bounce);
+  EXPECT_FALSE (clipHasDrifted (pattern, file)) << "still shows as unsaved";
+
+  file.deleteFile ();
+}
+
+// The trap a rewrite-from-scratch would fall into: a clip's former names are
+// how a session on another stick still finds it. Dropping them on every save
+// would break those sessions weeks later, somewhere else, with nothing to
+// point at the cause.
+TEST (ClipFile, SavingKeepsWhatIsNotASetting)
+{
+  Clip clip;
+  clip.name = "Wave slow";
+  clip.aka = { "Wave 2", "Wave" };
+  clip.svg = "16_Wave";
+
+  auto const file = tempClip ("a3-save-identity.json");
+  ASSERT_TRUE (ClipFile::save (clip, file));
+
+  Pattern pattern;
+  pattern.setSpin (2);
+  ASSERT_TRUE (saveClipSettings (pattern, file));
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_EQ (read->name, "Wave slow");
+  EXPECT_EQ (read->svg, "16_Wave");
+  ASSERT_EQ (read->aka.size (), 2u) << "the former names were dropped";
+  EXPECT_EQ (read->aka[0], "Wave 2");
+  EXPECT_EQ (read->settings.spin, 2);
+
+  file.deleteFile ();
+}
+
+TEST (ClipFile, SavingIntoNothingFails)
+{
+  Pattern pattern;
+  EXPECT_FALSE (
+      saveClipSettings (pattern, tempClip ("a3-save-absent.json")));
+}

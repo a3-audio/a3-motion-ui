@@ -164,6 +164,20 @@ ClipFile::load (juce::File const &file)
 }
 
 bool
+saveClipSettings (Pattern const &pattern, juce::File const &clipFile)
+{
+  auto clip = ClipFile::load (clipFile);
+  if (!clip)
+    return false;
+
+  // Only the settings. The name, the shape and the former names are the
+  // clip's identity, not its values -- see the header.
+  clip->settings = clipSettingsFrom (pattern);
+
+  return ClipFile::save (*clip, clipFile);
+}
+
+bool
 clipHasDrifted (Pattern const &pattern, juce::File const &clipFile)
 {
   auto const clip = ClipFile::load (clipFile);

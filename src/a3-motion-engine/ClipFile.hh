@@ -77,4 +77,16 @@ std::optional<Clip> load (juce::File const &file);
  */
 bool clipHasDrifted (Pattern const &pattern, juce::File const &clipFile);
 
+/** Write a pattern's settings back into the clip it came from.
+ *
+ *  Keeps everything about the clip that is not a setting: its name, the shape
+ *  it points at, and the names it used to have. Rewriting the file from
+ *  scratch would drop the former names, and with them every session elsewhere
+ *  that still refers to the clip by one of them -- a loss that would show up
+ *  weeks later on somebody else's stick.
+ *
+ *  @returns false if the clip cannot be read or cannot be written.
+ */
+bool saveClipSettings (Pattern const &pattern, juce::File const &clipFile);
+
 }
