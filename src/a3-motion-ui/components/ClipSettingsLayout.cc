@@ -204,9 +204,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // Half again over a knob, and never under 34px. At knobDiam the buttons
   // came out 24 high at the shipped sizes, which is under a fingertip — the
   // maintainer could not hit TAP reliably.
+  // Half again over a knob was too tall once the Shape section had a picture
+  // worth looking at -- every row the buttons took came off it. The 34px floor
+  // stays: below it TAP could not be hit reliably, and that finding is about
+  // fingers, not about how much room the picture would like.
   out.buttonHeight = juce::jlimit (
-      34, juce::jmax (34, out.clipBounds.getHeight () / 5),
-      static_cast<int> (metrics.knobDiam * 1.6f));
+      34, juce::jmax (34, out.clipBounds.getHeight () / 6),
+      static_cast<int> (metrics.knobDiam * 1.35f));
 
   for (int i = 0; i < numClipSettingsSections - 1; ++i)
     out.sectionCards[static_cast<size_t> (i)]
@@ -246,32 +250,31 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         buttonRows * out.buttonHeight + (buttonRows - 1) * gap);
     content.removeFromBottom (gap);
 
-    // The name and the knob share one row, the knob on the right: which way
-    // the shape faces on the front, how the take's join is closed on the back.
-    // Side by side rather than stacked because it gives the row above them
-    // back to the picture, and the picture is the thing you are actually
-    // reading -- a recorded take in a strip thirty pixels tall is a smudge.
-    //
-    // The name used to sit inside the pictogram to keep it off the buttons
-    // below. With the knob beside it the row is a row of two things and no
-    // longer reads as a caption for whatever follows it.
-    auto nameRow = content.removeFromBottom (juce::jmin (
-        content.getHeight (),
-        controlBoxHeightForFont (bodySize, metrics.knobDiam)));
-    content.removeFromBottom (gap);
+    // The picture and the knob stand on the button grid rather than beside it:
+    // three columns for the trajectory, one for the knob, on the same column
+    // width the buttons use. A row that nearly lines up with the grid under it
+    // reads as a mistake; one that lines up exactly reads as structure.
+    auto const perRow = 4;
+    auto const colGap = juce::jmax (2, buttons.getWidth () / 60);
+    auto const colW = (buttons.getWidth () - (perRow - 1) * colGap) / perRow;
 
-    auto const knobRow = nameRow.removeFromRight (
-        juce::jmin (nameRow.getWidth () / 2,
-                    juce::jmax (metrics.knobDiam + 2 * gap,
-                                nameRow.getWidth () / 3)));
-    out.trajectoryName = nameRow;
+    // Measured from the left, exactly as place() steps the buttons across.
+    // Taken from the right instead it was three pixels out: colW is an integer
+    // division, so the remainder sits against the right edge and everything
+    // referenced to that edge is off by it.
+    auto const knobColumn
+        = content.withX (content.getX () + 3 * (colW + colGap))
+              .withWidth (colW);
+    content = content.withWidth (3 * colW + 2 * colGap);
+
+    // The name lies over the picture rather than under it. As a caption it
+    // cost the picture a whole row and told you something you mostly already
+    // know -- you chose the trajectory. Over it, it is there when you look for
+    // it and out of the way when you are reading the shape.
     out.trajectoryIcon = content;
+    out.trajectoryName = content;
 
     {
-      auto const perRow = 4;
-      auto const colGap = juce::jmax (2, buttons.getWidth () / 60);
-      auto const colW = (buttons.getWidth () - (perRow - 1) * colGap) / perRow;
-
       std::array<juce::Rectangle<int>, 3> rows;
       for (int r = 0; r < buttonRows; ++r)
         {
@@ -298,8 +301,16 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // The picture, and the knob beside whichever face is showing. The lengths
     // and the speeds are buttons of their own — they are not values a finger
     // turns, so they are not sub-elements of the section.
+    //
+    // The knob keeps its own height inside its column and sits in the middle
+    // of it: stretched to the column it would be a knob the size of the
+    // picture, and pinned to one end it would leave a hole at the other.
+    auto const knobBox = knobColumn.withSizeKeepingCentre (
+        knobColumn.getWidth (),
+        juce::jmin (knobColumn.getHeight (),
+                    controlBoxHeightForFont (bodySize, metrics.knobDiam)));
     out.controls[0] = { out.trajectoryIcon,
-                        textCell (knobRow, metrics.knobDiam) };
+                        textCell (knobBox, metrics.knobDiam) };
   }
 
   // ── Elevation ────────────────────────────────────────────────────────

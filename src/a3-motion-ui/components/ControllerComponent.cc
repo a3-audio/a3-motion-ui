@@ -168,26 +168,26 @@ ControllerComponent::paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
   // find your deck by.
   auto const function = padFunctionByPadIndex[pad];
 
+  // A third of the pad rather than nearer half: the mark is what the pad is
+  // for, but the pad's colour is which channel it belongs to, and a mark that
+  // fills it leaves less of that colour to find the deck by.
+  auto const glyph = bounds.toFloat ().withSizeKeepingCentre (
+      bounds.getHeight () * 0.32f, bounds.getHeight () * 0.32f);
+
   if (!hasTransportGlyph (function))
     {
-      // Settings opens a menu and has no shape that would say that, so it
-      // keeps its word, in whichever of black or white the pad leaves
-      // readable.
+      // Settings opens a menu, and a menu's mark is three bars. Drawn in
+      // whichever of black or white the pad leaves readable, because unlike
+      // the other three it stands for no state and so has no colour of its
+      // own.
       g.setColour (colour.contrasting (0.7f));
-      g.setFont (juce::Font (
-          juce::jmin (theme ().fontSize (FontRole::Body),
-                      static_cast<float> (bounds.getHeight ()) * 0.5f),
-          juce::Font::plain));
-      g.drawFittedText (padName (pad), bounds, juce::Justification::centred, 1);
+      drawMenuGlyph (g, glyph);
       return;
     }
 
-  auto const key = transportKeyForPad (function);
-  auto const glyph = bounds.toFloat ().withSizeKeepingCentre (
-      bounds.getHeight () * 0.42f, bounds.getHeight () * 0.42f);
-
   g.setColour (padFunctionColour (function));
-  drawTransportGlyph (g, glyph, key, _padPlaying[channel][pad]);
+  drawTransportGlyph (g, glyph, transportKeyForPad (function),
+                      _padPlaying[channel][pad]);
 }
 
 

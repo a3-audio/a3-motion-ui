@@ -370,10 +370,15 @@ face a hole where the third row would have been. What holds on both is the order
 Both faces' button rows share the same room, so `setPage()` decides which set may be touched —
 hit areas left behind by the hidden face would answer for buttons nobody can see.
 
-**The name left the picture.** It used to be drawn inside the pictogram to keep it off the buttons
-below; it now shares a row with the knob, name left and knob right, which hands the row above back
-to the picture. That was the point: a recorded take drawn into the thirty pixels left over after the
-name was a smudge, and showing you what the clip looks like is the section's whole job.
+**The Shape section stands on its own button grid.** The picture takes three of the four columns the
+buttons use and the knob takes the fourth, measured from the left exactly as the buttons are stepped
+across — taken from the right it came out three pixels off, because `colW` is an integer division and
+the remainder sits against the right edge. A row that nearly lines up with the grid under it reads
+as a mistake; one that lines up exactly reads as structure.
+
+**The name lies over the picture**, not under it. As a caption it cost the picture a whole row to
+say something you mostly already know — you chose the trajectory. `trajectoryName` and
+`trajectoryIcon` are deliberately the same rectangle.
 
 **`rot` is a closed ring**, the only control in the bar that is. A rotation comes round to itself, so
 its scale has to: on the usual 270-degree sweep the two ends are the same angle with a dead zone
@@ -393,12 +398,19 @@ what it means will differ eventually, and the difference shows up mid-set.
 `toggleRecordPage()`. A key that only ever goes one way leaves you reaching for a different control
 to undo what it did.
 
-**`TransportColours.hh` is the one rule for what the four clip actions look like**: red for record
+**`TransportLook.hh` is the one rule for what the four clip actions look like**: red for record
 and stop, green or red for play/pause depending on whether the clip is running, yellow (`highlight`,
 a skin value like every other colour) for the accent. The bar's header keys, the pads page, the
-global strip's REC and the ACT beside the envelope all read it. On the pads page the word is laid
-over a dark plate of itself first, because the pad underneath is the channel's colour and a red word
-on a red pad is not a word.
+global strip's REC and the ACT beside the envelope all read it, and `drawTransportGlyph()` draws the
+marks — circle, square, triangle, bars — for both the header keys and the pads. Words needed a dark
+plate behind them to survive a channel-coloured pad; a shape does not, which is why they are shapes.
+Settings is the one pad that is not a transport action: it gets three bars from `drawMenuGlyph()`,
+in whichever of black or white its pad leaves readable, because it stands for no state and so has no
+colour of its own.
+
+Play is green whether or not it is running. The colour says which key it is, not what it is doing —
+a key that changes colour with its state has to be looked at twice, once to find it and once to read
+it, and finding it is the job that matters mid-set.
 
 **The bar only refreshes itself while something is moving**, and the condition in `timerCallback()`
 is the list of what counts. It said "while recording", so a playing clip got a transport key that

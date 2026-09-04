@@ -74,6 +74,21 @@ hasTransportGlyph (PadFunction function)
 }
 
 void
+drawMenuGlyph (juce::Graphics &g, juce::Rectangle<float> area)
+{
+  // Three bars and two gaps of the same height, so the mark reads as evenly
+  // striped at any size rather than as three bars that happen to be near each
+  // other.
+  auto const unit = area.getHeight () / 5.f;
+  auto const thickness = juce::jmax (1.f, unit);
+
+  for (int i = 0; i < 3; ++i)
+    g.fillRoundedRectangle (
+        area.withHeight (thickness).withY (area.getY () + unit * 2.f * i),
+        thickness * 0.35f);
+}
+
+void
 drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
                     TransportKey key, bool playing)
 {

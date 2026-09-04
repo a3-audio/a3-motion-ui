@@ -859,36 +859,51 @@ TEST (ClipSettingsLayout, TransportKeysNeverPushTheTabsOffTheRow)
 
 // ── Shape: the name beside the knob, the picture given the room ──────────
 
-TEST (ClipSettingsLayout, TheTrajectoryNameSitsBesideTheKnobNotUnderIt)
+TEST (ClipSettingsLayout, TheTrajectoryNameLiesOverThePictureNotUnderIt)
 {
+  // As a caption the name cost the picture a whole row to say something you
+  // mostly already know -- you chose the trajectory. Over the picture it is
+  // there when looked for and out of the way when the shape is being read.
+  for (auto const page : { BarPage::Clip, BarPage::Record })
+    {
+      auto const layout
+          = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
+
+      ASSERT_FALSE (layout.trajectoryIcon.isEmpty ());
+      EXPECT_EQ (layout.trajectoryName, layout.trajectoryIcon);
+    }
+}
+
+TEST (ClipSettingsLayout, ThePictureAndTheKnobStandOnTheButtonGrid)
+{
+  // Three columns for the picture, one for the knob, on the column width the
+  // buttons use. A row that nearly lines up with the grid below it reads as a
+  // mistake; one that lines up exactly reads as structure.
   for (auto const page : { BarPage::Clip, BarPage::Record })
     {
       auto const layout
           = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
       auto const &knob = layout.controls[0][1];
+      auto const &firstButton = page == BarPage::Record
+                                    ? layout.lengthButtons[0]
+                                    : layout.speedButtons[0];
+      auto const &fourthButton = page == BarPage::Record
+                                     ? layout.lengthButtons[3]
+                                     : layout.speedButtons[3];
+      auto const face = page == BarPage::Clip ? "clip face" : "record face";
 
-      ASSERT_FALSE (layout.trajectoryName.isEmpty ());
-      ASSERT_FALSE (knob.isEmpty ());
+      // The picture starts where the first button starts ...
+      EXPECT_EQ (layout.trajectoryIcon.getX (), firstButton.getX ()) << face;
+      // ... and the knob's column is the last button's column.
+      EXPECT_EQ (knob.getX (), fourthButton.getX ()) << face;
+      EXPECT_EQ (knob.getWidth (), fourthButton.getWidth ()) << face;
 
-      EXPECT_LE (layout.trajectoryName.getRight (), knob.getX ())
-          << "name and knob share a row, name on the left";
-      EXPECT_TRUE (layout.trajectoryName.getY () < knob.getBottom ()
-                   && knob.getY () < layout.trajectoryName.getBottom ())
-          << "they are on the same row";
+      // The picture is the other three columns, so it is wider than it is
+      // in any single one of them.
+      EXPECT_GT (layout.trajectoryIcon.getWidth (), fourthButton.getWidth () * 2)
+          << face;
+      EXPECT_LE (layout.trajectoryIcon.getRight (), knob.getX ()) << face;
     }
-}
-
-TEST (ClipSettingsLayout, ThePictureNoLongerSharesItsBoxWithTheName)
-{
-  // The point of the move: a recorded take was drawn into whatever was left
-  // after the name, which on the clip face was a strip too short to read.
-  auto const layout = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f);
-
-  EXPECT_FALSE (layout.trajectoryIcon.intersects (layout.trajectoryName))
-      << "the name has left the picture";
-  EXPECT_GT (layout.trajectoryIcon.getHeight (),
-             layout.trajectoryName.getHeight ())
-      << "and the picture is the taller of the two";
 }
 
 TEST (ClipSettingsLayout, ThePictureIsTheBiggestThingInTheSection)
@@ -905,9 +920,6 @@ TEST (ClipSettingsLayout, ThePictureIsTheBiggestThingInTheSection)
           = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
       auto const face = page == BarPage::Clip ? "clip face" : "record face";
 
-      EXPECT_GT (layout.trajectoryIcon.getHeight (),
-                 layout.trajectoryName.getHeight ())
-          << face;
       EXPECT_GT (layout.trajectoryIcon.getHeight (), layout.buttonHeight)
           << face;
       EXPECT_GT (layout.trajectoryIcon.getHeight (),

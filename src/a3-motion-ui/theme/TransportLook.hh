@@ -59,8 +59,14 @@ juce::Colour transportColour (TransportKey key);
 void drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
                          TransportKey key, bool playing);
 
-/** The glyph for a pad, or nothing for Settings, which opens a menu and has no
- *  shape that would mean that. */
+/** Three stacked bars: the mark a menu has had since phones grew one, and by
+ *  now the one shape people look for when they want the rest of the options.
+ *  Settings has no transport meaning, so it is drawn on its own rather than
+ *  through the four above. */
+void drawMenuGlyph (juce::Graphics &g, juce::Rectangle<float> area);
+
+/** Whether this pad's mark is one of the four transport shapes. Settings is
+ *  the one that is not -- it opens a menu, and drawMenuGlyph() draws it. */
 bool hasTransportGlyph (PadFunction function);
 TransportKey transportKeyForPad (PadFunction function);
 
