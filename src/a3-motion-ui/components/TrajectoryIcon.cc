@@ -90,19 +90,19 @@ trajectoryIconFromTicks (std::vector<Pos> const &ticks)
   if (validCount < 2)
     return data;
 
-  // Normalise to [-1, 1] range with aspect ratio preserved
-  auto rangeX = maxX - minX;
-  auto rangeY = maxY - minY;
-  auto range = std::max (rangeX, rangeY);
-  if (range < 1e-6f)
-    range = 1.f;
+  // Scaled to fit, but not moved: the origin is the middle of the room and the
+  // picture is of where the sound goes, so a shape that sits to one side has
+  // to be drawn sitting to one side. Recentring on the bounding box made every
+  // shape look like it was around you and, now that the picture turns with
+  // rotate, made a one-sided shape wobble as it turned -- the same fault
+  // PatternFile had, for the same reason.
+  auto scale = std::max ({ std::abs (minX), std::abs (maxX), std::abs (minY),
+                           std::abs (maxY) });
+  if (scale < 1e-6f)
+    scale = 1.f;
 
-  auto centreX = (minX + maxX) * 0.5f;
-  auto centreY = (minY + maxY) * 0.5f;
-
-  auto const normalise = [centreX, centreY, range] (Pos const &pos) {
-    return juce::Point<float>{ (pos.x () - centreX) / (range * 0.5f),
-                               (pos.y () - centreY) / (range * 0.5f) };
+  auto const normalise = [scale] (Pos const &pos) {
+    return juce::Point<float>{ pos.x () / scale, pos.y () / scale };
   };
 
   // Tapped or drawn is a question about the shape of the data, not about how

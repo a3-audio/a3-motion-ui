@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 2 2" data-name="Bounce"
-     data-beats="8" data-ppqn="128">
-  <circle cx="0.8660" cy="0.0000" r="0.05"/>
-  <circle cx="-0.8660" cy="1.0000" r="0.05"/>
-  <circle cx="-0.8660" cy="-1.0000" r="0.05"/>
+     data-beats="8" data-direction="fwd" data-end-action="loop" data-act-mode="one-shot"
+     data-rotate="0.0" data-spin="0" data-reach-lfo="0" data-env-attack="2"
+     data-env-decay="3" data-env-max="1.0" data-reach="0.5" data-mirror-south="0"
+     data-clip-top="0.0" data-clip-bottom="0.0" data-flat="0" data-flat-elevation="0.5"
+     data-playback-bar="0" data-playback-beat="0" data-playback-tick="0"
+     data-ppqn="128">
+  <circle cx="1.0000" cy="0.0000" r="0.05"/>
+  <circle cx="-0.5000" cy="0.8660" r="0.05"/>
+  <circle cx="-0.5000" cy="-0.8660" r="0.05"/>
 </svg>

@@ -255,3 +255,63 @@ TEST (MotionModePersistence, ATakeWrittenBeforeTheModeExistedIsAShot)
 
   file.deleteFile ();
 }
+
+// ── Where a shape sits is part of what it is ─────────────────────────────
+
+TEST (MotionModePersistence, ASavedShapeDoesNotMoveTowardsTheMiddle)
+{
+  // A triangle with a corner up: its bounding box is not symmetric about the
+  // origin, and the file used to be normalised on that box -- which slid the
+  // whole shape until the box was centred. The origin is the middle of the
+  // room, so that moved the sound; and since rotation turns about the origin,
+  // a shape sitting off it swung round instead of spinning in place.
+  auto pattern = std::make_shared<Pattern> ();
+  pattern->resize (512);
+  for (index_t tick = 0; tick < 512; ++tick)
+    {
+      auto const t = static_cast<float> (tick) / 512.f;
+      auto const seg = static_cast<int> (t * 3.f) % 3;
+      auto const frac = t * 3.f - std::floor (t * 3.f);
+
+      auto const corner = [] (int i) {
+        auto const a = juce::MathConstants<float>::twoPi * i / 3.f
+                       - juce::MathConstants<float>::halfPi;
+        return juce::Point<float> (0.8f * std::cos (a), 0.8f * std::sin (a));
+      };
+      auto const from = corner (seg);
+      auto const to = corner ((seg + 1) % 3);
+      pattern->setTick (tick, Pos::fromCartesian (
+                                  from.x + (to.x - from.x) * frac,
+                                  from.y + (to.y - from.y) * frac, 0.f));
+    }
+
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-motion-centre.svg");
+  file.deleteFile ();
+  ASSERT_TRUE (PatternFile::save (pattern, file));
+
+  auto const reloaded = PatternFile::load (file);
+  ASSERT_NE (reloaded, nullptr);
+
+  // The mean of the corners is the origin, and it still is after the trip.
+  auto const ticks = reloaded->getTicks ().positions;
+  ASSERT_FALSE (ticks.empty ());
+
+  float sx = 0.f, sy = 0.f;
+  int n = 0;
+  for (auto const &p : ticks)
+    {
+      if (!p.isValid ())
+        continue;
+      sx += p.x ();
+      sy += p.y ();
+      ++n;
+    }
+  ASSERT_GT (n, 0);
+
+  EXPECT_NEAR (sx / n, 0.f, 0.03f);
+  EXPECT_NEAR (sy / n, 0.f, 0.03f) << "the shape slid to centre its box";
+
+  file.deleteFile ();
+}

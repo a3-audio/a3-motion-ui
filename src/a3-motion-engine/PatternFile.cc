@@ -111,8 +111,20 @@ buildSvgPathData (std::vector<Pos> const &ticks,
   if (range < 1e-6f)
     range = 1.f;
 
-  auto centreX = (minX + maxX) * 0.5f;
-  auto centreY = (minY + maxY) * 0.5f;
+  // The origin is the middle of the room, and where a trajectory sits in the
+  // room is part of what it is -- so only the scale is normalised and the
+  // origin stays put. This used to recentre on the bounding box, which moved
+  // every shape whose box is not symmetric about the origin: the triangle came
+  // back sitting below the listener, and since spinPosition() turns about the
+  // origin, rotating it swung it round instead of spinning it in place. That
+  // is the wobble; it was written into the file and read back out again.
+  //
+  // The furthest point from the origin becomes 1, so a pattern still arrives
+  // at a known size whatever it was drawn at.
+  auto scale = std::max ({ std::abs (minX), std::abs (maxX), std::abs (minY),
+                           std::abs (maxY) });
+  if (scale < 1e-6f)
+    scale = 1.f;
 
   // ── Downsample to max 128 points ──
   auto const maxPts = 128;
@@ -132,8 +144,7 @@ buildSvgPathData (std::vector<Pos> const &ticks,
 
       std::vector<Vec2> pts;
       for (size_t i = 0; i < run.size (); i += runStep)
-        pts.push_back ({ (run[i].x () - centreX) / (range * 0.5f),
-                         (run[i].y () - centreY) / (range * 0.5f) });
+        pts.push_back ({ run[i].x () / scale, run[i].y () / scale });
 
       if (!pts.empty ())
         segments.push_back (std::move (pts));
@@ -170,8 +181,8 @@ buildSvgPathData (std::vector<Pos> const &ticks,
     {
       for (auto const &held : trajectoryPlateaus (ticks))
         {
-          float const nx = (held.x () - centreX) / (range * 0.5f);
-          float const ny = (held.y () - centreY) / (range * 0.5f);
+          float const nx = held.x () / scale;
+          float const ny = held.y () / scale;
 
           bool duplicate = false;
           for (auto const &d : outJumpDots)

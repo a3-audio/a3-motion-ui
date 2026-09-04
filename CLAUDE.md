@@ -420,6 +420,19 @@ renames already (`sub == 1 ? direction : endAction`) and nothing noticed, becaus
 applied as the *difference* to the current index — a wrong current index lands on the wrong entry
 rather than failing.
 
+**A pattern file normalises its scale, never its position.** `PatternFile` used to recentre on the
+bounding box, and `trajectoryIconFromTicks()` still did the same for the picture. The origin is the
+middle of the room, so recentring moved the sound: a triangle came back sitting below the listener,
+and because `spinPosition()` turns about the origin, rotating it swung it round instead of spinning
+it in place — the wobble. Sixteen of the thirty-nine system patterns were off by more than 3% of
+their radius, the triangle by 35%. The furthest point from the origin becomes 1; nothing moves.
+`smoke-test/scripts/pattern-centre.py` measures it.
+
+Some shapes are legitimately off-centre and must stay that way: `Arc` and `Petal` are one-sided by
+construction, `Orbit` is a Kepler ellipse with the listener at a *focus*, `Random` is random. The
+one unintended residual is `Figure 8`, which the generator nudges by 0.05 to dodge the azimuth
+singularity at the origin.
+
 **"Slot 1" is two keys, not a heading.** A heading saying which clip you are looking at and a
 control changing which clip you are looking at want the same place — reading "Slot 1" left you no
 way to reach slot 2 without going to the pads page. They light like the tabs beside them, because
