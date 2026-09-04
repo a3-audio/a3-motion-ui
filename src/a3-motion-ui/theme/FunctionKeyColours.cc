@@ -26,6 +26,24 @@ namespace a3
 {
 
 juce::Colour
+recModeColour (int recMode)
+{
+  // Read as "how much of what is already there will this pass destroy".
+  // Touch mends a corner and leaves the rest; Latch holds on after the finger
+  // goes; Write clears the whole pass whether you touched it or not. That is
+  // a scale, so it is said on the scale the rest of the device already uses.
+  switch (recMode)
+    {
+    case 1:
+      return toColour (theme ().warning);
+    case 2:
+      return toColour (theme ().danger);
+    default:
+      return toColour (theme ().accent);
+    }
+}
+
+juce::Colour
 functionKeyColour (FunctionKey key, FunctionKeyLook const &look)
 {
   switch (key)
@@ -33,6 +51,9 @@ functionKeyColour (FunctionKey key, FunctionKeyLook const &look)
     case FunctionKey::ClockMode:
       // Always coloured: which clock is running is never "nothing".
       return Colours::clockMode (look.clockMode);
+
+    case FunctionKey::RecMode:
+      return recModeColour (look.recMode);
 
     case FunctionKey::Record:
       // Red, always. Recording writes over what you cannot get back, and the
@@ -51,10 +72,9 @@ functionKeyColour (FunctionKey key, FunctionKeyLook const &look)
                                                : juce::Colour{};
 
     case FunctionKey::Menu:
-    case FunctionKey::RecMode:
-      // These say what they do with a word. A colour on them would be one
-      // that means nothing, and every colour that means nothing makes the
-      // ones that mean something harder to read.
+      // Says what it does with a word. A colour on it would be one that means
+      // nothing, and every colour that means nothing makes the ones that mean
+      // something harder to read.
       return {};
     }
 

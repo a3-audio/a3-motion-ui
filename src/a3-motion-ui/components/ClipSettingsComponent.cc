@@ -753,8 +753,10 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // a wash that comes and goes says the same thing a second time, in grey,
   // and reads as a button that is somehow half-pressed. REC and TAP still
   // light, because what they show is momentary and has no label of its own.
+  // The mode in its own colour: how much of an old take this pass will
+  // destroy, on the same scale the rest of the device uses.
   paintBarButton (g, _layout.recModeButton, recModeName (_recMode), "recmode",
-                  false, false);
+                  false, false, false, colourFor (FunctionKey::RecMode));
   // The clock's own colour, from the same rule as the rest — which for this
   // key is Colours::clockMode, so the status bar reads it the same way: whose
   // tempo this is has one answer, in one colour, wherever it is written.
@@ -801,10 +803,13 @@ ClipSettingsComponent::paintActionButton (juce::Graphics &g,
       return;
     }
 
-  // A tinted key says what it is by its colour, so it says it quietly: a wash
-  // for the face and the tint itself for the word. Lit, the wash comes up —
-  // the same colour louder, not a second colour.
-  g.setColour (tint.withAlpha (isActive ? highlightWash * 2.f : cardWash));
+  // A tinted key says what it is with its *word*, and keeps the bar's own grey
+  // face until something is actually happening. REC is red lettering on grey
+  // while it waits and a red face while it runs, so the colour says what the
+  // key is and the ground says what it is doing — two questions, two places,
+  // rather than one colour asked to answer both.
+  g.setColour (isActive ? tint.withAlpha (highlightWash * 2.f)
+                        : toColour (theme ().textPrimary, cardWash));
   g.fillRoundedRectangle (bounds.toFloat (), 4.f);
   g.setColour (tint.withAlpha (trackWash));
   g.drawRoundedRectangle (bounds.toFloat (), 4.f, 1.f);
@@ -940,6 +945,7 @@ ClipSettingsComponent::functionKeyLook () const
   look.shiftHeld = _shiftHeld;
   look.tapPressed = _tapLit;
   look.tapBeat = _tapBeat;
+  look.recMode = static_cast<int> (_recMode);
 
   return look;
 }

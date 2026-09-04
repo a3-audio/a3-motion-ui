@@ -96,7 +96,7 @@ TEST (FunctionKeyColours, TapIsColouredOnABeatAndUnderAFinger)
 // The two that say what they do with a word. A colour on them would be a
 // colour that means nothing, and every colour that means nothing makes the
 // ones that mean something harder to read.
-TEST (FunctionKeyColours, MenuAndRecModeCarryNoColour)
+TEST (FunctionKeyColours, MenuCarriesNoColour)
 {
   FunctionKeyLook look;
   look.recording = true;
@@ -104,5 +104,24 @@ TEST (FunctionKeyColours, MenuAndRecModeCarryNoColour)
   look.tapBeat = true;
 
   EXPECT_TRUE (functionKeyColour (FunctionKey::Menu, look).isTransparent ());
-  EXPECT_TRUE (functionKeyColour (FunctionKey::RecMode, look).isTransparent ());
+}
+
+
+// The rec mode says how much of an old take a pass will destroy, so it says it
+// on the scale the rest of the device uses: the accent for the one that mends,
+// the warning for the one that holds on, danger for the one that clears.
+TEST (FunctionKeyColours, TheRecModeIsColouredByHowMuchItDestroys)
+{
+  EXPECT_EQ (recModeColour (0), toColour (theme ().accent));
+  EXPECT_EQ (recModeColour (1), toColour (theme ().warning));
+  EXPECT_EQ (recModeColour (2), toColour (theme ().danger));
+
+  // Out of range is the safe one, not an absent colour: this arrives from a
+  // settings file that can be older than the list.
+  EXPECT_EQ (recModeColour (7), toColour (theme ().accent));
+
+  FunctionKeyLook look;
+  look.recMode = 2;
+  EXPECT_EQ (functionKeyColour (FunctionKey::RecMode, look),
+             recModeColour (2));
 }

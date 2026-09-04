@@ -32,6 +32,8 @@ namespace a3
 struct FunctionKeyLook
 {
   int clockMode = 0;
+  /** 0 Touch, 1 Latch, 2 Write — see RecMode. */
+  int recMode = 0;
   bool recording = false;
   bool shiftHeld = false;
   /** A finger is on TAP, or a beat just went by. */
@@ -53,5 +55,12 @@ struct FunctionKeyLook
  *  blink removed once already.
  */
 juce::Colour functionKeyColour (FunctionKey key, FunctionKeyLook const &look);
+
+/** What a rec mode looks like. How much of an old take a pass will destroy,
+ *  said as a colour: Touch mends, Latch holds, Write clears. Its own function
+ *  because the mode is shown on a key *and* as a value, and a mode meaning one
+ *  thing in one place and another elsewhere is the fault this repeatedly
+ *  fixes. */
+juce::Colour recModeColour (int recMode);
 
 }

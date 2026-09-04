@@ -356,9 +356,10 @@ is a *layout* change and A3MotionUIComponent is what hands the bar its bounds �
 Shape section's floor. It was a dropdown over the whole `speedLog2Min..Max` range — twelve entries
 nobody wanted to scroll past. The one in force reads as active.
 
-The rec mode and clock buttons in the global section deliberately **never light**. They carry a
-value and the value is written on them; a wash that comes and goes says the same thing again, in
-grey, and reads as a button stuck half-pressed. REC and TAP still light, because what they show is
+The rec mode and clock buttons in the global section deliberately **never light**: they carry a
+value, the value is written on them, and a wash that comes and goes says the same thing again in
+grey and reads as a button stuck half-pressed. What they do carry is the value's *colour* — see
+`recModeColour` and `Colours::clockMode`. REC and TAP still light, because what they show is
 momentary and has no label of its own.
 
 The bar has one button face, `paintBarButton` — a wash and a thin edge, never a filled slab, so a
@@ -541,7 +542,8 @@ going to the panel to a floor, keeping hue and brightness: `accent` at rgb(144, 
 a light green on a dark bar, and on an LED — which has no surround, because it *is* the light — the
 same value arrives as white with a tint. A colour with no hue is left alone, so a key meant to be
 white stays white.
-the strip washes the colour into a button face, the panel lights the key outright. What differs is
+
+The strip washes the colour into a button face, the panel lights the key outright. What differs is
 not *which* colour but how loudly it is said, because an LED in a dark booth is about as loud at full
 as a wash is on a lit screen. Button LEDs therefore carry a **colour** now, the way pad LEDs always
 did; `outputButtonLED` used to look one up by the key's *name* out of the user config, which meant
@@ -553,8 +555,15 @@ Three keys carry a colour rather than a word for their state:
 - **`clock`** writes its mode in that mode's colour, through `Colours::clockMode()` — the same rule
   the status bar reads it by, because whose tempo this is has one answer and it should not be
   written in two colours.
-- **`REC`** is orange armed and red running. It is the one key coloured while nothing is happening:
-  recording writes over something you cannot get back, so you should never have to check.
+- **`REC`** is red, always — red lettering on the bar's own grey while it waits, and a red face
+  while it runs. The colour says what the key *is* and the ground says what it is *doing*: two
+  questions, two places, rather than one colour asked to answer both. It is the one key coloured
+  while nothing is happening, because recording writes over something you cannot get back and you
+  should never have to check.
+- **`recmode`** carries how much of an old take a pass will destroy (`recModeColour`): the accent
+  for Touch, which mends a corner and leaves the rest; the warning for Latch, which holds on after
+  the finger goes; danger for Write, which clears the pass whether you touched it or not. That is a
+  scale, so it is said on the scale the rest of the device already uses.
 - **`TAP`** breathes with the beat, on the screen and on the panel, from the tempo clock's Beat
   handler — and this is the one place the two media are deliberately unequal: the panel gets the
   key's colour at full, the screen a *colourless* wash, because a coloured flash on a lit screen at
