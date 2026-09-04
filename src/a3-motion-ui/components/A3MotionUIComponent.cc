@@ -2060,7 +2060,7 @@ void
 A3MotionUIComponent::applySet ()
 {
   auto const numChannels = static_cast<int> (_patterns.size ());
-  auto const set = loadSet (setFilePath (), numChannels,
+  auto const set = loadSession (setFilePath (), numChannels,
                             static_cast<int> (numClipSlots));
 
   for (int ch = 0; ch < numChannels; ++ch)
@@ -2119,7 +2119,7 @@ A3MotionUIComponent::scheduleSetSave ()
 void
 A3MotionUIComponent::writeSet ()
 {
-  SetFile set;
+  Session set;
   set.channels.resize (_patterns.size ());
 
   for (size_t ch = 0; ch < _patterns.size (); ++ch)
@@ -2145,7 +2145,7 @@ A3MotionUIComponent::writeSet ()
         }
     }
 
-  saveSet (setFilePath (), set);
+  saveSession (setFilePath (), set);
 }
 
 void

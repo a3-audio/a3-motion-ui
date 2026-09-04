@@ -40,7 +40,7 @@
 #include <a3-motion-ui/components/ColourPickerComponent.hh>
 #include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/components/OverlaySideStrips.hh>
-#include <a3-motion-ui/SetFile.hh>
+#include <a3-motion-ui/SessionFile.hh>
 #include <a3-motion-ui/components/BrowserComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>

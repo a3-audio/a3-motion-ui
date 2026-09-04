@@ -23,7 +23,7 @@
 
 #include <JuceHeader.h>
 
-#include <a3-motion-ui/SetFile.hh>
+#include <a3-motion-ui/SessionFile.hh>
 
 using namespace a3;
 
@@ -39,10 +39,10 @@ tempSet (juce::String const &name)
       .getChildFile (name);
 }
 
-SetFile
+Session
 aSet ()
 {
-  SetFile set;
+  Session set;
   set.channels.resize (numChannels);
 
   for (int ch = 0; ch < numChannels; ++ch)
@@ -74,8 +74,8 @@ TEST (SetFileTest, ASetSurvivesARoundTrip)
   auto const file = tempSet ("a3-set-roundtrip.json");
   auto const written = aSet ();
 
-  ASSERT_TRUE (saveSet (file, written));
-  auto const read = loadSet (file, numChannels, numSlots);
+  ASSERT_TRUE (saveSession (file, written));
+  auto const read = loadSession (file, numChannels, numSlots);
 
   ASSERT_EQ (read.channels.size (), written.channels.size ());
   for (size_t ch = 0; ch < read.channels.size (); ++ch)
@@ -106,7 +106,7 @@ TEST (SetFileTest, AMissingSetIsAnEmptySet)
   auto const file = tempSet ("a3-set-does-not-exist.json");
   file.deleteFile ();
 
-  auto const read = loadSet (file, numChannels, numSlots);
+  auto const read = loadSession (file, numChannels, numSlots);
 
   ASSERT_EQ (read.channels.size (), static_cast<size_t> (numChannels));
   for (auto const &channel : read.channels)
@@ -124,7 +124,7 @@ TEST (SetFileTest, RubbishInTheFileIsAnEmptySetToo)
   auto const file = tempSet ("a3-set-rubbish.json");
   file.replaceWithText ("this is not json {{{");
 
-  auto const read = loadSet (file, numChannels, numSlots);
+  auto const read = loadSession (file, numChannels, numSlots);
 
   ASSERT_EQ (read.channels.size (), static_cast<size_t> (numChannels));
   for (auto const &channel : read.channels)
@@ -140,16 +140,16 @@ TEST (SetFileTest, ASmallerSetFillsOutToTheDevicesShape)
 {
   auto const file = tempSet ("a3-set-smaller.json");
 
-  SetFile small;
+  Session small;
   small.channels.resize (2);
   for (auto &channel : small.channels)
     {
       channel.slots.resize (1);
       channel.slots[0].patternName = "Only.svg";
     }
-  ASSERT_TRUE (saveSet (file, small));
+  ASSERT_TRUE (saveSession (file, small));
 
-  auto const read = loadSet (file, numChannels, numSlots);
+  auto const read = loadSession (file, numChannels, numSlots);
 
   ASSERT_EQ (read.channels.size (), static_cast<size_t> (numChannels));
   for (auto const &channel : read.channels)
@@ -158,6 +158,121 @@ TEST (SetFileTest, ASmallerSetFillsOutToTheDevicesShape)
   EXPECT_EQ (read.channels[0].slots[0].patternName, "Only.svg");
   EXPECT_TRUE (read.channels[0].slots[1].patternName.empty ());
   EXPECT_TRUE (read.channels[3].slots[0].patternName.empty ());
+
+  file.deleteFile ();
+}
+
+// ── A name, and what each slot has been turned to ────────────────────────
+
+namespace
+{
+juce::File
+tempSession (juce::String const &name)
+{
+  auto const file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile (name);
+  file.deleteFile ();
+  return file;
+}
+}
+
+TEST (SessionFile, ASessionKeepsItsName)
+{
+  Session set;
+  set.name = "live-set-a";
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+
+  auto const file = tempSession ("a3-session-name.json");
+  ASSERT_TRUE (saveSession (file, set));
+
+  EXPECT_EQ (loadSession (file, 1, 1).name, "live-set-a");
+
+  file.deleteFile ();
+}
+
+// A session refers to clips rather than copying them, so two slots can hold
+// the same clip -- and turning a control on one must not change the other.
+// The difference lives in the session until somebody saves it into the clip.
+TEST (SessionFile, WhatASlotHasBeenTurnedToSurvivesTheRoundTrip)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+  set.channels[0].slots[0].patternName = "Wave";
+
+  ClipSettings turned;
+  turned.spin = 4;
+  turned.rotate = 0.5f;
+  turned.endAction = EndAction::Bounce;
+  set.channels[0].slots[0].overrides = turned;
+
+  auto const file = tempSession ("a3-session-overrides.json");
+  ASSERT_TRUE (saveSession (file, set));
+
+  auto const read = loadSession (file, 1, 1);
+  ASSERT_TRUE (read.channels[0].slots[0].overrides.has_value ());
+  EXPECT_EQ (read.channels[0].slots[0].overrides->spin, 4);
+  EXPECT_FLOAT_EQ (read.channels[0].slots[0].overrides->rotate, 0.5f);
+  EXPECT_EQ (read.channels[0].slots[0].overrides->endAction,
+             EndAction::Bounce);
+
+  file.deleteFile ();
+}
+
+// Only the fields that differ are written. A session carrying a whole second
+// copy of every clip would drift away from the clips themselves without
+// anyone noticing.
+TEST (SessionFile, OnlyWhatDiffersIsWritten)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+
+  ClipSettings turned;
+  turned.spin = 4;
+  set.channels[0].slots[0].overrides = turned;
+
+  auto const file = tempSession ("a3-session-sparse.json");
+  ASSERT_TRUE (saveSession (file, set));
+
+  auto const text = file.loadFileAsString ();
+  EXPECT_TRUE (text.contains ("spin"));
+  EXPECT_FALSE (text.contains ("reach"))
+      << "an untouched field was written out anyway";
+  EXPECT_FALSE (text.contains ("envAttack"));
+
+  file.deleteFile ();
+}
+
+TEST (SessionFile, ASlotWithoutOverridesHasNone)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+  set.channels[0].slots[0].patternName = "Wave";
+
+  auto const file = tempSession ("a3-session-plain.json");
+  ASSERT_TRUE (saveSession (file, set));
+
+  auto const read = loadSession (file, 1, 1);
+  EXPECT_FALSE (read.channels[0].slots[0].overrides.has_value ());
+
+  file.deleteFile ();
+}
+
+// A session written before overrides existed loads as having none, rather
+// than as having a set of defaults -- the two mean different things.
+TEST (SessionFile, AnOlderSessionHasNoOverrides)
+{
+  auto const file = tempSession ("a3-session-old.json");
+  file.replaceWithText (
+      R"({"channels":[{"threeD":0.5,"freq":0.0,"q":0.0,)"
+      R"("slots":[{"pattern":"Wave","recordLengthLog2":0}]}]})");
+
+  auto const read = loadSession (file, 1, 1);
+  EXPECT_EQ (read.channels[0].slots[0].patternName, "Wave");
+  EXPECT_FALSE (read.channels[0].slots[0].overrides.has_value ());
 
   file.deleteFile ();
 }

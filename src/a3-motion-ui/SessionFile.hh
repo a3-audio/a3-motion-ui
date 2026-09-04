@@ -20,6 +20,10 @@
 
 #pragma once
 
+#include <a3-motion-engine/ClipSettings.hh>
+
+#include <optional>
+
 #include <JuceHeader.h>
 
 #include <string>
@@ -46,7 +50,7 @@ namespace a3
  *  be a surprise at the one moment nobody wants one. They stay device
  *  settings.
  */
-struct SetFile
+struct Session
 {
   struct Slot
   {
@@ -62,6 +66,18 @@ struct SetFile
     std::string patternName;
     /** log2 of the length the next take into this slot will have, in bars. */
     int recordLengthLog2 = 0;
+
+    /** What this slot has been turned to since the clip was put in it, if
+     *  anything.
+     *
+     *  A session refers to clips rather than copying them, so two slots can
+     *  hold the same clip -- and turning a control on one must not change the
+     *  other. The difference lives here until somebody saves it into the clip.
+     *
+     *  Only the fields that differ are written. A session that carried a whole
+     *  second copy of every clip would drift away from the clips themselves
+     *  without anyone noticing. */
+    std::optional<ClipSettings> overrides;
   };
 
   struct Channel
@@ -72,13 +88,17 @@ struct SetFile
     std::vector<Slot> slots;
   };
 
+  /** What this session is called. Empty for the automatic one, which has no
+   *  name because nobody chose it. */
+  std::string name;
+
   std::vector<Channel> channels;
 };
 
 /** Reads a set. A missing or unreadable file is an empty set, not an error:
  *  a device with no set is a device somebody has not brought one to. */
-SetFile loadSet (juce::File const &file, int numChannels, int numSlots);
+Session loadSession (juce::File const &file, int numChannels, int numSlots);
 
-bool saveSet (juce::File const &file, SetFile const &set);
+bool saveSession (juce::File const &file, Session const &set);
 
 }

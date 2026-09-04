@@ -113,8 +113,8 @@ target_sources("a3-motion-ui" PRIVATE
     ConfigFileWatcher.cc
     ConfigFileWatcher.hh
     SettingsPersistence.cc
-    SetFile.cc
-    SetFile.hh
+    SessionFile.cc
+    SessionFile.hh
     SettingsPersistence.hh
     tests/TempoEstimatorTest.cc
     tests/TempoEstimatorTest.hh
