@@ -415,7 +415,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
     auto const channel = _clipSettingsChannel;
     auto const slot = _clipSettingsSlot;
-    _clipUIParams[channel][slot].speedLog2 = speedButtonLog2[index];
+    if (auto &chosen = _patterns[channel][slot])
+      chosen->setSpeedLog2 (speedButtonLog2[index]);
 
     if (auto &pattern = _patterns[channel][slot])
       pattern->setPlaybackLength (getPlaybackLength (channel, slot));
@@ -690,8 +691,9 @@ A3MotionUIComponent::getLengthBeats (index_t channel, index_t slot) const
   // The pattern's own length, taken at this clip's rate. Speed used to *be*
   // the length and the pattern's own was ignored, so turning the knob
   // redefined how long a take had been after the fact.
+  auto const &pattern = _patterns[channel][slot];
   return playbackLengthBeats (getPatternLengthBeats (channel, slot),
-                              _clipUIParams[channel][slot].speedLog2);
+                              pattern ? pattern->getSpeedLog2 () : 0);
 }
 
 void
@@ -2426,18 +2428,18 @@ A3MotionUIComponent::endRecording ()
           auto const natural
               = naturalFadeTicks (pattern->getTicks ().positions, *stopTick);
           if (natural > 0)
-            _clipUIParams[channel][slot].fadeSixteenths = std::clamp (
+            pattern->setFadeSixteenths (std::clamp (
                 static_cast<int> (std::lround (
                     static_cast<double> (natural)
                     / ticksPerFadeStep (TempoClock::getTicksPerBeat ()))),
-                1, 16);
+                1, 16));
         }
 
       // Before stopping, because the save happens on the Stopped message and
       // has to carry the filled stretches with it.
       closeRecordingSeams (
           *pattern,
-          fadeTicksFor (_clipUIParams[channel][slot].fadeSixteenths),
+          fadeTicksFor (pattern->getFadeSixteenths ()),
           stopTick);
     }
 
@@ -3441,10 +3443,11 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         return;
       if (_barPage == BarPage::Record)
         {
-          params.fadeSixteenths = 8;
+          pattern->setFadeSixteenths (8);
           if (pattern)
             {
-              applyFade (*pattern, fadeTicksFor (params.fadeSixteenths));
+              applyFade (*pattern,
+                         fadeTicksFor (pattern->getFadeSixteenths ()));
               refreshPatternDisplayFromTicks (pattern);
             }
         }
@@ -3528,12 +3531,14 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                 // it takes effect on whatever is in the slot at once, and is
                 // recomputed from the take as played, so it can be turned
                 // down again as freely as up.
-                params.fadeSixteenths
-                    = std::clamp (params.fadeSixteenths + increment, 0, 16);
+                if (pattern)
+                  pattern->setFadeSixteenths (std::clamp (
+                      pattern->getFadeSixteenths () + increment, 0, 16));
 
                 if (pattern)
                   {
-                    applyFade (*pattern, fadeTicksFor (params.fadeSixteenths));
+                    applyFade (*pattern,
+                               fadeTicksFor (pattern->getFadeSixteenths ()));
                     refreshPatternDisplayFromTicks (pattern);
                   }
               }
@@ -3820,18 +3825,19 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   // so ClipSettingsComponent doesn't need to know speedLog2Min/Max.
   // Inverted against the raw range: far left (frac 0) = speedLog2Max
   // ("16", slowest), far right (frac 1) = speedLog2Min ("1/128", fastest).
+  auto const clipSpeedLog2 = pattern ? pattern->getSpeedLog2 () : 0;
   auto const speedRange
       = static_cast<float> (speedLog2Max - speedLog2Min);
   auto const speedFrac
       = speedRange > 0.f
-            ? (speedLog2Max - params.speedLog2) / speedRange
+            ? (speedLog2Max - clipSpeedLog2) / speedRange
             : 0.f;
   auto const speedLabel
-      = params.speedLog2 >= 0
-            ? juce::String (static_cast<int> (std::exp2 (params.speedLog2)))
+      = clipSpeedLog2 >= 0
+            ? juce::String (static_cast<int> (std::exp2 (clipSpeedLog2)))
             : "1/"
                   + juce::String (
-                      static_cast<int> (std::exp2 (-params.speedLog2)));
+                      static_cast<int> (std::exp2 (-clipSpeedLog2)));
   _clipSettings->setMotionSpeed (speedFrac, speedLabel);
   // Read back off the pattern rather than from this table. The pattern is
   // where the engine looks and what the file carries, so a clip that came from
@@ -3855,7 +3861,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
 
   _clipSettings->setMotionDirection (_clipUIParams[channel][slot].direction);
   _clipSettings->setMotionEndAction (_clipUIParams[channel][slot].endAction);
-  _clipSettings->setMotionFade (params.fadeSixteenths);
+  _clipSettings->setMotionFade (pattern ? pattern->getFadeSixteenths () : 0);
   _clipSettings->setMotionSpin (pattern ? pattern->getSpin () : 0);
   _clipSettings->setMotionSwell (pattern ? pattern->getReachLfo () : 0);
   _clipSettings->setMotionEnvelope (
@@ -3865,7 +3871,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
                                                : 1.f);
   _clipSettings->setMotionActMode (
       pattern && pattern->getActMode () == ActMode::Hold ? 1 : 0);
-  _clipSettings->setShapeSpeed (params.speedLog2);
+  _clipSettings->setShapeSpeed (clipSpeedLog2);
   // The rotation the hand set, and where the spin has carried it: the knob
   // shows both, the way the channel grid shows the accent over 3d.
   auto const rotate = pattern ? pattern->getRotate () : 0.f;

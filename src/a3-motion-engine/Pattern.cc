@@ -237,6 +237,30 @@ Pattern::setActMode (ActMode mode)
   _actMode.store (mode);
 }
 
+int
+Pattern::getSpeedLog2 () const
+{
+  return _speedLog2.load ();
+}
+
+void
+Pattern::setSpeedLog2 (int speedLog2)
+{
+  _speedLog2.store (speedLog2);
+}
+
+int
+Pattern::getFadeSixteenths () const
+{
+  return _fadeSixteenths.load ();
+}
+
+void
+Pattern::setFadeSixteenths (int sixteenths)
+{
+  _fadeSixteenths.store (sixteenths);
+}
+
 float
 Pattern::getPlaySign () const
 {

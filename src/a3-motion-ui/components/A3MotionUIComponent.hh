@@ -511,19 +511,15 @@ private:
   int numSubElementsForSection (int menuIndex) const;
   void updateClipSettingsDisplay ();
 
+  /** What is left of the per-slot table. Speed and fade moved to the Pattern:
+   *  the engine reads them and they have to survive being saved, which a table
+   *  living only in the screen cannot do. */
   struct ClipUIParams
   {
-    // log2 of the pattern's playback length in bars — see speedLog2Min/Max.
-    // 0 = 1 bar (native tempo), negative = faster (note-value fraction of
-    // a bar), positive = slower (multiple bars per cycle).
-    int speedLog2 = 0;
     int direction = 0;   // 0=Forward, 1=Reverse
     int endAction = 0;   // 0=Loop, 1=Stop, 2=Bounce, 3=Random
     // 0=Glide, 1=Hard — what happens to the stretches a recording never
     // wrote, including the one across the loop point. See closeRecordingSeams.
-    /** How long the take's closing move lasts, in sixteenths of a beat.
-     *  Zero holds and jumps instead of travelling back. */
-    int fadeSixteenths = 4;
     // log2 of the length the NEXT take will have, in bars. A setting, not a
     // property of what is in the slot: an existing pattern's length is its
     // tick count, and changing that would throw its data away.

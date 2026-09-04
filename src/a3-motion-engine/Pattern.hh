@@ -146,6 +146,24 @@ public:
   ActMode getActMode () const;
   void setActMode (ActMode mode);
 
+  /** How long one cycle takes, as a power of two of a bar. 0 is one bar,
+   *  negative is faster, positive is slower -- see speedLog2Min/Max.
+   *
+   *  On the Pattern rather than in the UI's per-slot table, where it used to
+   *  live: the engine reads it and it has to survive being saved. A clip's
+   *  tempo is the clip's, not the screen's. */
+  int getSpeedLog2 () const;
+  void setSpeedLog2 (int speedLog2);
+
+  /** How long the take's closing move lasts, in sixteenths of a beat. Zero
+   *  holds and jumps instead of travelling back.
+   *
+   *  Sixteenths rather than ticks, which is what getFade() reports: ticks come
+   *  out of the PPQN the take was written with, so the same number means
+   *  something else on a device set up differently. */
+  int getFadeSixteenths () const;
+  void setFadeSixteenths (int sixteenths);
+
   /** Which way the playhead is travelling right now. Set from the direction
    *  when playback starts; only Bounce ever turns it round. */
   float getPlaySign () const;
@@ -292,6 +310,8 @@ private:
   std::atomic<PlayDirection> _playDirection{ PlayDirection::Forward };
   std::atomic<EndAction> _endAction{ EndAction::Loop };
   std::atomic<ActMode> _actMode{ ActMode::OneShot };
+  std::atomic<int> _speedLog2{ 0 };
+  std::atomic<int> _fadeSixteenths{ 4 };
   std::atomic<float> _playSign{ 1.f };
   std::atomic<float> _rotate{ 0.f };
   std::atomic<int> _spin{ 0 };
