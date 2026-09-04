@@ -11,6 +11,7 @@ find_package(JUCE CONFIG REQUIRED)
 add_subdirectory("src/a3-motion-engine")
 add_subdirectory("src/a3-motion-ui")
 add_subdirectory("src/a3-motion-pattern-gen")
+add_subdirectory("src/a3-motion-clip-gen")
 
 set(TESTS_ENABLED TRUE CACHE BOOL "enable unit testing with GoogleTest")
 if(TESTS_ENABLED)

@@ -129,13 +129,35 @@ TEST (ClipFile, RubbishDoesNotLoad)
   file.deleteFile ();
 }
 
-// A clip that names no shape plays nothing, so it is not a clip.
-TEST (ClipFile, AClipWithoutAShapeDoesNotLoad)
+// A clip may name no shape: that is a settings preset. Applying it leaves the
+// slot's shape alone and changes only how it is played -- which is what makes
+// a browser of settings possible instead of a browser of seventy shapes that
+// all carry the same defaults.
+TEST (ClipFile, AClipWithoutAShapeIsASettingsPreset)
 {
   auto const file = tempClip ("a3-clip-shapeless.json");
-  file.replaceWithText (R"({ "name": "Nowhere", "speed": -1 })");
+  file.replaceWithText (R"({ "name": "Fast Wide", "speed": -1, "reach": 0.9 })");
 
-  EXPECT_FALSE (ClipFile::load (file).has_value ());
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_TRUE (read->svg.empty ());
+  EXPECT_EQ (read->settings.speedLog2, -1);
+  EXPECT_FLOAT_EQ (read->settings.reach, 0.9f);
+
+  file.deleteFile ();
+}
+
+// ... and a preset writes no empty "svg", so the file says what it is.
+TEST (ClipFile, APresetWritesNoShape)
+{
+  Clip clip;
+  clip.name = "Preset";
+  clip.settings.spin = 2;
+
+  auto const file = tempClip ("a3-clip-preset.json");
+  ASSERT_TRUE (ClipFile::save (clip, file));
+
+  EXPECT_FALSE (file.loadFileAsString ().contains ("\"svg\""));
 
   file.deleteFile ();
 }

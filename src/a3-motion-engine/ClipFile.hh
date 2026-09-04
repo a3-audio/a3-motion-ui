@@ -48,7 +48,12 @@ struct Clip
    *  a session it could not see — on another stick, in a backup — finds the
    *  clip again through these. */
   std::vector<std::string> aka;
-  /** The shape's file name, without extension. */
+  /** The shape's file name, without extension — or empty.
+   *
+   *  Empty means a settings preset: applying it leaves the slot's shape where
+   *  it is and changes only how it is played. The shape is chosen in the Shape
+   *  section's own list, so a browser full of clips that differ only in their
+   *  shape says nothing about the settings, which is what the browser is for. */
   std::string svg;
 
   ClipSettings settings;

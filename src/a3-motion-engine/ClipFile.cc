@@ -67,7 +67,8 @@ ClipFile::save (Clip const &clip, juce::File const &file)
   auto *object = new juce::DynamicObject ();
 
   object->setProperty ("name", juce::String (clip.name));
-  object->setProperty ("svg", juce::String (clip.svg));
+  if (!clip.svg.empty ())
+    object->setProperty ("svg", juce::String (clip.svg));
 
   if (!clip.aka.empty ())
     {
@@ -116,10 +117,12 @@ ClipFile::load (juce::File const &file)
   if (!parsed.isObject ())
     return {};
 
-  // A clip that names no shape plays nothing. Better to say the file is not a
-  // clip than to hand back one that points nowhere.
+  // A clip may name no shape: that is a settings preset, and applying it
+  // leaves the slot's shape alone. What a file must have is a name -- without
+  // one there is nothing to call it in a list.
   auto const svg = readString (parsed, "svg", {});
-  if (svg.isEmpty ())
+  if (readString (parsed, "name", {}).isEmpty ()
+      && file.getFileNameWithoutExtension ().isEmpty ())
     return {};
 
   Clip clip;

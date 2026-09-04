@@ -22,7 +22,10 @@ pattern/sessions/
 # into a fixed factory tree and a movable user one -- see
 # .claude/notes/2026-09-04-clip-und-session-dateien.md, step 4 -- after which
 # this pattern-match can go.
-pattern/clips/Rec_*.json
+# The presets a performer generates and keeps. Default.json is the instrument's
+# and is tracked; the rest come out of a3-clip-gen and are somebody's taste.
+pattern/clips/*.json
+!pattern/clips/Default.json
 
 # IDE
 .idea/

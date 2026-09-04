@@ -1,6 +1,5 @@
 {
-  "name": "Circle",
-  "svg": "16_Circle",
+  "name": "Default",
   "speed": 0,
   "rotate": 0.0,
   "reach": 0.5,
