@@ -21,6 +21,7 @@
 
 #include "ClipSettingsLayout.hh"
 
+#include <array>
 #include <tuple>
 
 #include "ControllerLayout.hh"
@@ -63,11 +64,11 @@ numControlsInSection (int sectionIndex)
   switch (sectionIndex)
     {
     case 0:
-      return 1; // the shape in the slot; the lengths are buttons of their own
+      return 2; // the shape in the slot, and the knob its face carries
     case 1:
       return 6; // reach, clip-top, clip-bottom, mirror-south, flat, flat-elev
     case 2:
-      return 9; // speed, dir, end, seam, spin, swell, atk, dec, max
+      return 7; // spin, swell, atk, dec, max, dir, end
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -79,7 +80,7 @@ bool
 tapAdvancesValue (int sectionIndex, int subIndex)
 {
   if (sectionIndex == 2)
-    return subIndex == 1 || subIndex == 2; // direction, end-action
+    return subIndex == 5 || subIndex == 6; // direction, end-action
   if (sectionIndex == 3)
     return subIndex == 0; // rec mode
 
@@ -124,7 +125,7 @@ textRowHeight (juce::Rectangle<int> content, float size)
 
 ClipSettingsLayout
 layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
-                    float bodySize, float potSizeScale)
+                    float bodySize, float potSizeScale, BarPage page)
 {
   ClipSettingsLayout out;
 
@@ -142,8 +143,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // The two pages close the row, where the readout used to sit. Sized to be
   // hit rather than to fit their words — they are switched mid-set, with one
   // hand, without looking down.
-  auto const tabW = juce::jmax (fingertipSize, headerArea.getWidth () / 4);
+  // Three, so a third of what the row can spare each rather than a quarter.
+  auto const tabW = juce::jmax (fingertipSize, headerArea.getWidth () / 5);
   out.tabController = headerArea.removeFromRight (tabW);
+  out.tabRecord = headerArea.removeFromRight (tabW);
   out.tabClip = headerArea.removeFromRight (tabW);
   out.slotLabel = headerArea;
 
@@ -195,15 +198,37 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   out.readout = globalArea.removeFromTop (headerH);
   out.sectionCards[3] = globalArea.reduced (gap / 2, 0);
 
-  // ── Shape ────────────────────────────────────────────────────────────
+  // ── Shape, and its other side ────────────────────────────────────────
+  //
+  // One card, two faces. The front is the clip as it plays — what shape, how
+  // fast, which way round. The back, which REC turns to, is the take you are
+  // about to make: how long, how its join is closed, and the trajectory
+  // appearing as you play it in. The card does not move between them: it is
+  // one section showing one side or the other.
   {
+    auto const recording = page == BarPage::Record;
+
     auto content = sectionContentBounds (out.sectionCards[0]);
     out.sectionLabels[0]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
-    // Two rows of four length buttons on the section's floor.
     auto const gap = juce::jmax (2, out.buttonHeight / 8);
-    auto buttons = content.removeFromBottom (2 * out.buttonHeight + gap);
+
+    // Twelve speeds want three rows, eight lengths two. The buttons are the
+    // section's floor either way, so the bar still reads as one row of
+    // buttons across its bottom.
+    auto const buttonRows = recording ? 2 : 3;
+    auto buttons = content.removeFromBottom (
+        buttonRows * out.buttonHeight + (buttonRows - 1) * gap);
+    content.removeFromBottom (gap);
+
+    // A knob above them, in the same place on both faces: which way the shape
+    // faces on the front, how the take's join is closed on the back. A
+    // section that grew a hole on one of its sides would say the side was
+    // missing something.
+    auto const knobRow = content.removeFromBottom (juce::jmin (
+        content.getHeight (),
+        controlBoxHeightForFont (bodySize, metrics.knobDiam)));
     content.removeFromBottom (gap);
 
     // The name sits *in* the pictogram, centred, rather than on a strip
@@ -217,22 +242,34 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       auto const colGap = juce::jmax (2, buttons.getWidth () / 60);
       auto const colW = (buttons.getWidth () - (perRow - 1) * colGap) / perRow;
 
-      auto top = buttons.removeFromTop (out.buttonHeight);
-      buttons.removeFromTop (gap);
-      auto bottom = buttons;
-
-      for (int i = 0; i < numRecordLengths; ++i)
+      std::array<juce::Rectangle<int>, 3> rows;
+      for (int r = 0; r < buttonRows; ++r)
         {
-          auto &row = i < perRow ? top : bottom;
-          out.lengthButtons[static_cast<size_t> (i)]
-              = row.removeFromLeft (colW);
-          row.removeFromLeft (colGap);
+          rows[static_cast<size_t> (r)]
+              = buttons.removeFromTop (out.buttonHeight);
+          if (r + 1 < buttonRows)
+            buttons.removeFromTop (gap);
         }
+
+      auto const place = [&] (int index, juce::Rectangle<int> &into) {
+        auto &row = rows[static_cast<size_t> (index / perRow)];
+        into = row.removeFromLeft (colW);
+        row.removeFromLeft (colGap);
+      };
+
+      if (recording)
+        for (int i = 0; i < numRecordLengths; ++i)
+          place (i, out.lengthButtons[static_cast<size_t> (i)]);
+      else
+        for (int i = 0; i < numSpeedButtons; ++i)
+          place (i, out.speedButtons[static_cast<size_t> (i)]);
     }
 
-    // Only the pictogram is a control of the clip's; the lengths are a
-    // setting for the next take and have their own buttons.
-    out.controls[0] = { out.trajectoryIcon };
+    // The picture, and the knob beside whichever face is showing. The lengths
+    // and the speeds are buttons of their own — they are not values a finger
+    // turns, so they are not sub-elements of the section.
+    out.controls[0] = { out.trajectoryIcon,
+                        textCell (knobRow, metrics.knobDiam) };
   }
 
   // ── Elevation ────────────────────────────────────────────────────────
@@ -326,7 +363,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // itself row by row leaves the whole shortfall on the row at the top —
     // which came out a sliver while the three below it were untouched. Short
     // of room, all three give up the same.
-    constexpr int motionKnobRows = 4;
+    constexpr int motionKnobRows = 3;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
@@ -341,15 +378,18 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
     // Taken from the bottom, so the last one out is the topmost. Reading down:
     // the accent's two times, then how far it throws and the key that throws
-    // it, then the two that turn on their own, then the pair that do not.
-    auto topRow = knobRow (false);
+    // it, then the two that turn on their own.
+    //
+    // speed and fade have left: speed is now twelve buttons on the Shape
+    // section's front, where the clip's own tempo belongs beside its shape,
+    // and fade is on that section's back, with the take whose join it closes.
     auto lfoRow = knobRow (false);
     auto accentRow = knobRow (false);
     auto envRow = knobRow (true);
 
     // The two values you dial on top, the two you pick from below: speed
     // and fade are continuous-ish, direction and end-action are lists.
-    auto const colW = (topRow.getWidth () - gapH) / 2;
+    auto const colW = (lfoRow.getWidth () - gapH) / 2;
     auto const spinArea = lfoRow.removeFromLeft (colW);
     lfoRow.removeFromLeft (gapH);
     auto const swellArea = lfoRow;
@@ -362,10 +402,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     accentRow.removeFromLeft (gapH);
     out.accentButton = accentRow.removeFromLeft (colW);
 
-    auto const speedArea = topRow.removeFromLeft (colW);
-    topRow.removeFromLeft (gapH);
-    auto const seamArea = topRow;
-
     auto const directionArea = bottomRow.removeFromLeft (colW);
     bottomRow.removeFromLeft (gapH);
     auto const endActionArea = bottomRow;
@@ -373,18 +409,17 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // The bottom row is already the button height; the cell is the button.
     auto const buttonCell = [] (juce::Rectangle<int> cell) { return cell; };
 
-    // Appended, not inserted: the four before it are what a finger has
-    // already learned to find.
+    // Renumbered, which appending had avoided until now: two of them left,
+    // and an index kept for a control that is gone is worse than a finger
+    // relearning where three things are. Reading order, top to bottom.
     out.controls[2] = {
-      textCell (speedArea, metrics.knobDiam),
-      buttonCell (directionArea),
-      buttonCell (endActionArea),
-      textCell (seamArea, metrics.knobDiam),
       textCell (spinArea, metrics.knobDiam),
       textCell (swellArea, metrics.knobDiam),
       textCell (attackArea, metrics.knobDiam),
       textCell (decayArea, metrics.knobDiam),
       textCell (envelopeMaxArea, metrics.knobDiam),
+      buttonCell (directionArea),
+      buttonCell (endActionArea),
     };
   }
 

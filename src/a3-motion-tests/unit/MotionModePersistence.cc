@@ -130,6 +130,7 @@ TEST (MotionModePersistence, EveryClipSettingSurvivesARoundTrip)
   pattern->setFlat (true);
   pattern->setFlatElevation (0.71f);
 
+  pattern->setRotate (0.3f);
   pattern->setSpin (-4);
   pattern->setReachLfo (5);
   pattern->setEnvelopeAttack (1);
@@ -155,6 +156,7 @@ TEST (MotionModePersistence, EveryClipSettingSurvivesARoundTrip)
   EXPECT_TRUE (reloaded->getFlat ());
   EXPECT_FLOAT_EQ (reloaded->getFlatElevation (), 0.71f);
 
+  EXPECT_FLOAT_EQ (reloaded->getRotate (), 0.3f);
   EXPECT_EQ (reloaded->getSpin (), -4);
   EXPECT_EQ (reloaded->getReachLfo (), 5);
   EXPECT_EQ (reloaded->getEnvelopeAttack (), 1);

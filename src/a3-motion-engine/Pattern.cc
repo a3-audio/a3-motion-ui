@@ -23,6 +23,7 @@
 #include "TrajectoryShape.hh"
 
 #include <algorithm>
+#include <cmath>
 
 namespace a3
 {
@@ -234,6 +235,24 @@ void
 Pattern::setPlaySign (float sign)
 {
   _playSign.store (sign, std::memory_order_relaxed);
+}
+
+float
+Pattern::getRotate () const
+{
+  return _rotate.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setRotate (float revolutions)
+{
+  // Wrapped rather than clamped: a turn has no ends, and a control that
+  // stopped at one would be a control you could get stuck against.
+  auto wrapped = std::fmod (revolutions, 1.f);
+  if (wrapped < 0.f)
+    wrapped += 1.f;
+
+  _rotate.store (wrapped, std::memory_order_relaxed);
 }
 
 int

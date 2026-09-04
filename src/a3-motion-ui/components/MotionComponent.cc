@@ -1725,7 +1725,7 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
         {
           auto pos3D = heightMap.mapTo3D (
               spinPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
-                            pattern.getSpinPhase ()),
+                            pattern.getRotate () + pattern.getSpinPhase ()),
               params);
           auto posJuce = cartesian2DHOA2JUCE (pos3D);
           g.setColour (colour);
@@ -1737,7 +1737,7 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
 
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
-                    false, params, heightMap, g, pattern.getSpinPhase ());
+                    false, params, heightMap, g, pattern.getRotate () + pattern.getSpinPhase ());
 }
 
 void
@@ -1768,7 +1768,7 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
         {
           auto pos3D = heightMap.mapTo3D (
               spinPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
-                            pattern.getSpinPhase ()),
+                            pattern.getRotate () + pattern.getSpinPhase ()),
               params);
           auto posJuce = cartesian2DHOA2JUCE (pos3D);
           float fade = (pos3D.z () < 0.f)
@@ -1784,7 +1784,7 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
 
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
-                    true, params, heightMap, g, pattern.getSpinPhase ());
+                    true, params, heightMap, g, pattern.getRotate () + pattern.getSpinPhase ());
 }
 
 juce::Point<float>

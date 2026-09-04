@@ -425,6 +425,12 @@ private:
    *  a drag on the grid is dozens of changes and one arrangement. */
   int _setSaveGeneration = 0;
 
+  /** Which page the bar is on. Kept here as well as in the bar because a
+   *  value's *meaning* can depend on it — Shape's knob is the rotation on one
+   *  face and the take's fade on the other — and the handler that changes
+   *  values lives here. */
+  BarPage _barPage = BarPage::Clip;
+
   bool _screenShiftHeld = false;
 
   // Clip Settings: permanent bottom panel showing the last-selected clip's

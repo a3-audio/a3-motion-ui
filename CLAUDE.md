@@ -351,10 +351,24 @@ like `potSize`, so it is dialled in the Skin Editor rather than compiled in. Not
 is a *layout* change and A3MotionUIComponent is what hands the bar its bounds — that is why its
 `applyTheme()` ends in `resized()`. Telling the bar alone changes nothing.
 
-**The take's length is seven buttons**, not a list: `recordLengthLog2` /
-`recordLengthNames` in `ClipSettingsLayout.hh` hold 1/4 .. 16 bars, laid out four then three on the
-Shape section's floor. It was a dropdown over the whole `speedLog2Min..Max` range — twelve entries
-nobody wanted to scroll past. The one in force reads as active.
+**The Shape section has two faces**, and `BarPage::Record` is the one that turns the card over. The
+front is the clip as it plays — its shape, twelve speed buttons covering the whole of
+`speedLog2Min..Max`, and `rot`, the standing angle the spin then adds to. The back is the take you
+are about to make: eight length buttons, the `fade` that closes its join, and the trajectory
+appearing as you play it in, redrawn on the pad-LED tick. Only that one section changes — you are
+still looking at the elevation and the motion the take will get.
+
+`speed` and `fade` left Motion for it: a clip's tempo belongs beside its shape, and a fade belongs
+with the take whose join it closes. That forced the first **renumbering** of a section's sub-indices
+rather than the appending everything else has used — an index kept for a control that is gone is
+worse than a finger relearning where three things are.
+
+A knob sits between the picture and the buttons on both faces, but not at the same height: the front
+has three rows of buttons and the back two, and a knob pinned to one height would leave the shorter
+face a hole where the third row would have been. What holds on both is the order.
+
+Both faces' button rows share the same room, so `setPage()` decides which set may be touched —
+hit areas left behind by the hidden face would answer for buttons nobody can see.
 
 The rec mode and clock buttons in the global section deliberately **never light**: they carry a
 value, the value is written on them, and a wash that comes and goes says the same thing again in

@@ -1054,8 +1054,11 @@ MotionEngine::performPlayback ()
                   // the radius is the elevation and the angle is the azimuth,
                   // so this turns the trajectory around the pole and leaves
                   // every point at the height it was played in at.
-                  position2D
-                      = spinPosition (position2D, playing.getSpinPhase ());
+                  // The standing angle and the running one, summed: they
+                  // are one rotation asked for in two ways, and turning twice
+                  // would be two chances to disagree about the direction.
+                  position2D = spinPosition (
+                      position2D, playing.getRotate () + playing.getSpinPhase ());
 
                   // Apply this clip's own elevation mapping (sphere
                   // projection) at playback time — elevation parameters

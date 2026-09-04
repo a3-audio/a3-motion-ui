@@ -375,12 +375,35 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     _clipSettings->setClockMode (_clockMode);
   };
   _clipSettings->onMenuPressed = [this] { toggleGlobalSettings (); };
-  _clipSettings->onRecordPressed = [this] { toggleRecordingOnShownClip (); };
+  _clipSettings->onRecordPressed = [this] {
+    // The card turns over as the take is armed, so what you are recording is
+    // drawn where what you are playing usually is.
+    showBarPage (BarPage::Record);
+    toggleRecordingOnShownClip ();
+  };
   _clipSettings->onTapPressed = [this] { handleScreenTap (); };
   // Held, not tapped: Shift+Action previews for as long as it is down. In the
   // global strip it stands on both pages, so it can be held while the other
   // hand works the pads.
   // The bar's ACT plays the shown clip's accent, exactly as its pad does.
+  // A speed button is the clip's playback length said plainly. Tapping one
+  // sets it outright rather than stepping towards it — that is the point of
+  // there being twelve.
+  _clipSettings->onSpeedChosen = [this] (int index) {
+    if (index < 0 || index >= numSpeedButtons)
+      return;
+
+    auto const channel = _clipSettingsChannel;
+    auto const slot = _clipSettingsSlot;
+    _clipUIParams[channel][slot].speedLog2 = speedButtonLog2[index];
+
+    if (auto &pattern = _patterns[channel][slot])
+      pattern->setPlaybackLength (getPlaybackLength (channel, slot));
+
+    updateClipSettingsDisplay ();
+    scheduleSetSave ();
+  };
+
   _clipSettings->onAccentHeld = [this] (bool held) {
     auto const channel = _clipSettingsChannel;
     _engine.setChannelAccentHeld (
@@ -1483,6 +1506,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 void
 A3MotionUIComponent::showBarPage (BarPage page)
 {
+  _barPage = page;
   _clipSettings->setPage (page);
   _controller->setVisible (page == BarPage::Controller);
 
@@ -1629,6 +1653,16 @@ A3MotionUIComponent::tickCallback (Measure measure)
       if (measure.tick () % divisor == 0)
         {
           padLEDCallback (_stepsLED++);
+
+          // The take as it is played in. The Shape section's back is about
+          // the recording, so while one is running the picture there is the
+          // recording — redrawn on this tick rather than every one, because a
+          // trajectory appearing is a thing you watch, not a thing you count.
+          if (_barPage == BarPage::Record && _recordingSlot.has_value ())
+            if (auto const &pattern
+                = _patterns[_recordingSlot->first][_recordingSlot->second])
+              _clipSettings->setTrajectoryIcon (
+                  trajectoryIconFromTicks (pattern->getTicks ().positions));
 
           // The 3d row follows the accent while it runs. On the same tick as
           // the pad LEDs because it is the same kind of thing — what is shown
@@ -2190,6 +2224,11 @@ A3MotionUIComponent::endRecording ()
   if (_clipSettings)
     _clipSettings->setRecording (false);
     updateFunctionKeyLEDs ();
+
+    // And back to the clip's own face: the take is made, so what there is to
+    // look at is what it plays.
+    if (_barPage == BarPage::Record)
+      showBarPage (BarPage::Clip);
 
   auto pattern = _engine.getRecordingPattern ();
   if (!pattern || !_recordingSlot.has_value ())
@@ -3184,9 +3223,9 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::elevationIndex)
     return 6;
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 9; // speed, dir, end, seam, spin, swell, atk, dec, max
+    return 7; // spin, swell, atk, dec, max, dir, end
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
-    return 2; // the shape itself, and the length of the next take
+    return 2; // the shape itself, and the knob its face carries
   return 1;
 }
 
@@ -3217,10 +3256,39 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
   switch (section)
     {
-    case 0: // Trajectory Shape — the shape in the slot. The length of the
-            // next take has its own buttons; see onRecordLengthChosen.
+    case 0: // Shape — the shape in the slot (0), and the knob the section's
+            // showing face carries (1): which way it faces on the front, how
+            // the take's join is closed on the back. The speeds and the
+            // lengths have their own buttons.
       {
         auto &pattern = _patterns[channel][slot];
+
+        if (sub == 1)
+          {
+            if (_barPage == BarPage::Record)
+              {
+                // How long the take's closing move lasts. A playback setting:
+                // it takes effect on whatever is in the slot at once, and is
+                // recomputed from the take as played, so it can be turned
+                // down again as freely as up.
+                params.fadeSixteenths
+                    = std::clamp (params.fadeSixteenths + increment, 0, 16);
+
+                if (pattern)
+                  {
+                    applyFade (*pattern, fadeTicksFor (params.fadeSixteenths));
+                    refreshPatternDisplayFromTicks (pattern);
+                  }
+              }
+            else if (pattern)
+              {
+                // Which way the shape faces. A standing angle, where the spin
+                // is the movement over it — both are summed at the one place
+                // that turns anything.
+                pattern->setRotate (pattern->getRotate () + increment * 0.02f);
+              }
+            break;
+          }
 
         int currentIndex = 0;
         if (pattern)
@@ -3304,62 +3372,11 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           }
         break;
       }
-    case 2: // Motion — speed (0), direction (1), end-action (2), fade (3),
-            // spin (4)
+    case 2: // Motion — spin (0), swell (1), atk (2), dec (3), max (4),
+            // direction (5), end-action (6)
       switch (sub)
         {
         case 0:
-          {
-            // Turning right (increment > 0) should move the knob right,
-            // i.e. toward speedLog2Min (the fast/1-128th end) — subtract,
-            // not add, since speedLog2 runs the opposite way from the
-            // knob's visual left-to-right sweep (see speedLog2Min/Max).
-            params.speedLog2 = std::clamp (params.speedLog2 - increment,
-                                           speedLog2Min, speedLog2Max);
-            // Playback length IS speed here — a full pattern cycle spans
-            // this many beats, so halving/doubling it halves/doubles how
-            // fast the ball moves, quantized to musical note values.
-            auto &pattern = _patterns[channel][slot];
-            if (pattern)
-              {
-                pattern->setPlaybackLength (
-                    getPlaybackLength (channel, slot));
-              }
-            break;
-          }
-        case 1:
-          params.direction = (params.direction + increment % 2 + 2) % 2;
-          applyMotionMode (channel, slot);
-          break;
-        case 2:
-          params.endAction
-              = (params.endAction + increment % value::numEndActions
-                 + value::numEndActions)
-                % value::numEndActions;
-          applyMotionMode (channel, slot);
-          break;
-        case 3:
-          {
-            // How long the take's closing move lasts. A playback setting: it
-            // takes effect on whatever is in the slot, at once, and is
-            // recomputed from the take as played, so it can be turned down
-            // again as freely as up.
-            params.fadeSixteenths
-                = std::clamp (params.fadeSixteenths + increment, 0, 16);
-
-            auto &pattern = _patterns[channel][slot];
-            if (pattern)
-              {
-                applyFade (*pattern, fadeTicksFor (params.fadeSixteenths));
-
-                // The drawn line comes from the library's file, which still
-                // shows the ending the clip had before the fade touched it.
-                refreshPatternDisplayFromTicks (pattern);
-
-              }
-            break;
-          }
-        case 4:
           {
             // How fast the whole trajectory turns under the blob. On the
             // Pattern rather than in _clipUIParams because the engine reads
@@ -3370,7 +3387,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                                             -lfoMaxStep, lfoMaxStep));
             break;
           }
-        case 5:
+        case 1:
           {
             // How fast reach sweeps out of where it was set. Same table as
             // the spin, and on the Pattern for the same reasons.
@@ -3381,21 +3398,22 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                   lfoMaxStep));
             break;
           }
-        case 6:
-        case 7:
-        default:
+        case 2:
+        case 3:
+        case 4:
           {
-            // The accent's rise, fall and depth. The two times get a gesture's
-            // worth of lengths, so their own shorter table — see Envelope.
+            // The accent's rise, fall and depth. The two times get a
+            // gesture's worth of lengths, so their own shorter table — see
+            // Envelope.
             auto &pattern = _patterns[channel][slot];
             if (!pattern)
               break;
 
-            if (sub == 6)
+            if (sub == 2)
               pattern->setEnvelopeAttack (
                   std::clamp (pattern->getEnvelopeAttack () + increment, 0,
                               envelopeMaxStep));
-            else if (sub == 7)
+            else if (sub == 3)
               pattern->setEnvelopeDecay (
                   std::clamp (pattern->getEnvelopeDecay () + increment, 0,
                               envelopeMaxStep));
@@ -3404,8 +3422,20 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                                        + increment * 0.05f);
             break;
           }
+        case 5:
+          params.direction = (params.direction + increment % 2 + 2) % 2;
+          applyMotionMode (channel, slot);
+          break;
+        default:
+          params.endAction
+              = (params.endAction + increment % value::numEndActions
+                 + value::numEndActions)
+                % value::numEndActions;
+          applyMotionMode (channel, slot);
+          break;
         }
       break;
+
     case ClipSettingsComponent::globalIndex:
       {
         // Nothing in _clipUIParams changes here: the strip holds one setting
@@ -3552,6 +3582,12 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       pattern ? pattern->getEnvelopeDecay () : 0);
   _clipSettings->setMotionEnvelopeMax (pattern ? pattern->getEnvelopeMax ()
                                                : 1.f);
+  _clipSettings->setShapeSpeed (params.speedLog2);
+  // The rotation the hand set, and where the spin has carried it: the knob
+  // shows both, the way the channel grid shows the accent over 3d.
+  auto const rotate = pattern ? pattern->getRotate () : 0.f;
+  auto const spun = pattern ? pattern->getSpinPhase () : 0.f;
+  _clipSettings->setShapeRotate (rotate, std::fmod (rotate + spun, 1.f));
 
   // Worded like Speed is, because it is the same kind of number: bars as a
   // power of two, "2" for two bars, "1/4" for a quarter of one.

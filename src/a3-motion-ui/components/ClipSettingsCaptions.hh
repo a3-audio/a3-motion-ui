@@ -67,6 +67,9 @@ constexpr char const *decay = "dec";
 /** How far the accent throws: the 3d it rises to. The channel's own 3d is the
  *  floor, this the ceiling. */
 constexpr char const *envelopeMax = "max";
+/** Which way the clip's shape faces — a standing angle, where spin is the
+ *  movement over it. */
+constexpr char const *rotate = "rot";
 /** What a recording pass writes where the finger is not. The one control in
  *  the bar that is not the shown clip's — it is the same for every channel. */
 constexpr char const *recMode = "recmode";
@@ -129,7 +132,7 @@ constexpr TextEntry captionTable[] = {
   { caption::endAction, 4 },   { caption::fade, 4 },
   { caption::spin, 4 },        { caption::swell, 4 },
   { caption::attack, 4 },      { caption::decay, 4 },
-  { caption::envelopeMax, 4 },
+  { caption::envelopeMax, 4 },   { caption::rotate, 4 },
   { caption::frequency, 2 },   { caption::q, 2 },
   { caption::recordLength, 1 },
 };

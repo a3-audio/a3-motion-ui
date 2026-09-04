@@ -73,9 +73,9 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_EQ (l.controls[0].size (), 1u); // Shape: the pattern in the slot
+  EXPECT_EQ (l.controls[0].size (), 2u); // Shape: the pattern, and rotate
   EXPECT_EQ (l.controls[1].size (), 6u); // Elevation
-  EXPECT_EQ (l.controls[2].size (), 9u); // Motion: + spin, swell, atk, dec, max
+  EXPECT_EQ (l.controls[2].size (), 7u); // Motion: speed and fade have left
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 
@@ -205,12 +205,12 @@ TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
   EXPECT_FALSE (tapAdvancesValue (1, 2));
   EXPECT_FALSE (tapAdvancesValue (1, 5));
 
-  // Motion: direction (1) and end-action (2) have three states each;
-  // speed (0) and seam (3) are lists worth dragging.
-  EXPECT_TRUE (tapAdvancesValue (2, 1));
-  EXPECT_TRUE (tapAdvancesValue (2, 2));
-  EXPECT_FALSE (tapAdvancesValue (2, 0));
-  EXPECT_FALSE (tapAdvancesValue (2, 3));
+  // Motion: direction (5) and end-action (6) have a handful of states each;
+  // the five knobs before them are dragged, not tapped.
+  EXPECT_TRUE (tapAdvancesValue (2, 5));
+  EXPECT_TRUE (tapAdvancesValue (2, 6));
+  for (int sub = 0; sub < 5; ++sub)
+    EXPECT_FALSE (tapAdvancesValue (2, sub)) << "sub " << sub;
 
   // Shape: the pattern library, too long to tap through.
   EXPECT_FALSE (tapAdvancesValue (0, 0));
@@ -398,8 +398,8 @@ TEST (ClipSettingsLayout, MotionsControlsStayBigEnoughToHit)
 // one row small and the rest not is a bug.
 TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
 {
-  // Subs 1 and 2 are the two dropdowns and a different shape by design.
-  int const knobSubs[] = { 0, 3, 4, 5, 6, 7, 8 };
+  // Subs 5 and 6 are the two dropdowns and a different shape by design.
+  int const knobSubs[] = { 0, 1, 2, 3, 4 };
 
   for (float bodySize : { 9.f, defaultBodySize, 24.f })
     for (float potSize : { 0.6f, defaultPotSize, 1.4f })
@@ -418,6 +418,87 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
                 << "sub " << sub << ", body " << bodySize << " pot " << potSize
                 << " scale " << scale;
         }
+}
+
+// The Shape section has two faces. The front is the clip as it plays -- what
+// shape, how fast, which way round -- and the back is the take you are about
+// to make: how long, how its join is closed, and the trajectory appearing as
+// you play it in. Pressing REC turns the card over, so what you are recording
+// is drawn where what you are playing usually is.
+TEST (ClipSettingsLayout, ShapesTwoFacesUseTheSameRoom)
+{
+  auto const front = defaultLayout ();
+  auto const back = layOutClipSettings (
+      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
+
+  // The section itself does not move: it is one card showing one side or the
+  // other, not two cards.
+  EXPECT_EQ (front.sectionCards[0], back.sectionCards[0]);
+
+  // Everything else in the bar is untouched -- the record page swaps this one
+  // section and nothing more.
+  for (int section = 1; section < numClipSettingsSections; ++section)
+    EXPECT_EQ (front.sectionCards[static_cast<size_t> (section)],
+               back.sectionCards[static_cast<size_t> (section)]);
+}
+
+// Twelve, because speed runs from a 128th of a bar to sixteen bars and eight
+// buttons cannot say twelve things. They are the section's floor either way,
+// so the bar still reads as one row of buttons across its bottom.
+TEST (ClipSettingsLayout, TheFrontHasTwelveSpeedsAndTheBackEightLengths)
+{
+  auto const front = defaultLayout ();
+  auto const back = layOutClipSettings (
+      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
+
+  EXPECT_EQ (numSpeedButtons, 12);
+  EXPECT_EQ (numRecordLengths, 8);
+
+  auto const used = [] (auto const &buttons, int count) {
+    for (int i = 0; i < count; ++i)
+      {
+        EXPECT_FALSE (buttons[static_cast<size_t> (i)].isEmpty ()) << i;
+        for (int j = i + 1; j < count; ++j)
+          EXPECT_FALSE (buttons[static_cast<size_t> (i)].intersects (
+              buttons[static_cast<size_t> (j)]))
+              << i << " overlaps " << j;
+      }
+  };
+
+  used (front.speedButtons, numSpeedButtons);
+  used (back.lengthButtons, numRecordLengths);
+}
+
+// Both faces carry a knob, and it is a different knob: which way the shape
+// faces on the front, how the take's join is closed on the back. Not in the
+// same place — the front has three rows of buttons and the back two, so a knob
+// pinned to one height would leave the shorter face a hole where the third row
+// would have been. What holds on both is the order: the picture, then the
+// knob, then the buttons on the floor.
+TEST (ClipSettingsLayout, BothFacesCarryAKnobBetweenThePictureAndTheButtons)
+{
+  auto const front = defaultLayout ();
+  auto const back = layOutClipSettings (
+      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
+
+  ASSERT_EQ (front.controls[0].size (), 2u); // the shape, and rotate
+  ASSERT_EQ (back.controls[0].size (), 2u);  // the take, and fade
+
+  auto const ordered = [] (ClipSettingsLayout const &l,
+                           juce::Rectangle<int> firstButton) {
+    auto const picture = l.controls[0][0];
+    auto const knob = l.controls[0][1];
+
+    EXPECT_FALSE (knob.isEmpty ());
+    EXPECT_GE (knob.getY (), picture.getY ());
+    EXPECT_LE (knob.getBottom (), firstButton.getY ());
+  };
+
+  ordered (front, front.speedButtons[0]);
+  ordered (back, back.lengthButtons[0]);
 }
 
 // Menu, Rec and Tap sit in the global strip beside the clip's sections. They
@@ -648,7 +729,11 @@ TEST (ClipSettingsLayout, TheGridGetsItsFullKnobAtShippedSizes)
 // whole range from 1/128 to 16 bars.
 TEST (ClipSettingsLayout, TheLengthButtonsSitInTwoRowsInOrder)
 {
-  auto const l = defaultLayout ();
+  // On the Shape section's back, which is where the take is described. The
+  // front carries the speeds now.
+  auto const l = layOutClipSettings (
+      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
   auto const card = l.sectionCards[0];
 
   for (int i = 0; i < numRecordLengths; ++i)
@@ -689,7 +774,9 @@ TEST (ClipSettingsLayout, NoTwoLengthButtonsOverlap)
 // The pictogram keeps the room above them, and they do not run into it.
 TEST (ClipSettingsLayout, TheLengthButtonsClearThePictogram)
 {
-  auto const l = defaultLayout ();
+  auto const l = layOutClipSettings (
+      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
 
   for (auto const &b : l.lengthButtons)
     {

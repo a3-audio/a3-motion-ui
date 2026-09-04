@@ -62,6 +62,17 @@ constexpr int numChannelRows = 3;
  *  anybody reaches for. This table is the authority on what a take's length
  *  may be — it reaches 32 bars, one step past the speed control's range. */
 constexpr int numRecordLengths = 8;
+
+/** The speeds a clip can play at, as powers of two of a bar — the whole of
+ *  speedLog2Min..Max, which is why there are twelve of them and not eight. A
+ *  set of buttons that could not say every value would leave some of them
+ *  unreachable, and the range is the range. */
+constexpr int numSpeedButtons = 12;
+constexpr int speedButtonLog2[numSpeedButtons]
+    = { -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4 };
+constexpr char const *speedButtonNames[numSpeedButtons]
+    = { "1/128", "1/64", "1/32", "1/16", "1/8", "1/4",
+        "1/2",   "1",    "2",    "4",    "8",   "16" };
 constexpr int recordLengthLog2[numRecordLengths] = { -2, -1, 0, 1, 2, 3, 4, 5 };
 constexpr char const *recordLengthNames[numRecordLengths]
     = { "1/4", "1/2", "1", "2", "4", "8", "16", "32" };
@@ -77,6 +88,10 @@ constexpr int channelRowQ = 2;
 enum class BarPage
 {
   Clip,
+  /** The clip page with the Shape section turned over: the take you are about
+   *  to make rather than the clip as it plays. Only that one section changes
+   *  — you are still looking at the elevation and the motion it will get. */
+  Record,
   Controller,
 };
 
@@ -159,11 +174,15 @@ struct ClipSettingsLayout
   /** The Shape section's pictogram and the name under it. */
   juce::Rectangle<int> trajectoryIcon;
   juce::Rectangle<int> trajectoryName;
-  /** The length buttons under the pictogram, in recordLengthLog2 order. */
+  /** The take's length, on the Shape section's back — in recordLengthLog2
+   *  order. */
   std::array<juce::Rectangle<int>, numRecordLengths> lengthButtons;
+  /** How fast the clip plays, on its front — in speedButtonLog2 order. */
+  std::array<juce::Rectangle<int>, numSpeedButtons> speedButtons;
   /** The bar's own header row: "Slot N" first, the two page tabs closing it. */
   juce::Rectangle<int> slotLabel;
   juce::Rectangle<int> tabClip;
+  juce::Rectangle<int> tabRecord;
   juce::Rectangle<int> tabController;
   /** The last-operated control, at the top of the **global strip** — the one
    *  part of the bar that stands on both pages. */
@@ -200,7 +219,8 @@ struct ClipSettingsLayout
  *  in yet. */
 ClipSettingsLayout layOutClipSettings (juce::Rectangle<int> bounds,
                                        float headerSize, float bodySize,
-                                       float potSizeScale);
+                                       float potSizeScale,
+                                       BarPage page = BarPage::Clip);
 
 /** A control's box: as tall as the knob box, but the cell's full width —
  *  the knob is drawn at its own diameter inside it while caption and value

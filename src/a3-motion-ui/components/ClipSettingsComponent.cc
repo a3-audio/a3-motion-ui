@@ -117,6 +117,7 @@ ClipSettingsComponent::createTouchControls ()
   addAndMakeVisible (*_accentTouch);
 
   makeTab (_tabClipTouch, BarPage::Clip);
+  makeTab (_tabRecordTouch, BarPage::Record);
   makeTab (_tabControllerTouch, BarPage::Controller);
 
   // In front of the cards, so it swallows what would otherwise reach the
@@ -196,6 +197,20 @@ ClipSettingsComponent::createTouchControls ()
       };
       addAndMakeVisible (*button);
       _lengthTouch[static_cast<size_t> (i)] = std::move (button);
+    }
+
+  // The speeds sit in the same room as the lengths, on the section's other
+  // face — see setPage(), which is what decides who may be touched.
+  for (int i = 0; i < numSpeedButtons; ++i)
+    {
+      auto button = std::make_unique<TouchControl> ();
+      button->setIdentity (i);
+      button->onTap = [this] (int index, int) {
+        if (onSpeedChosen)
+          onSpeedChosen (index);
+      };
+      addAndMakeVisible (*button);
+      _speedTouch[static_cast<size_t> (i)] = std::move (button);
     }
 
   makeButton (_recModeTouch, &ClipSettingsComponent::onRecModePressed);
@@ -294,6 +309,7 @@ ClipSettingsComponent::resized ()
   _accentTouch->setBounds (_layout.accentButton);
 
   _tabClipTouch->setBounds (_layout.tabClip);
+  _tabRecordTouch->setBounds (_layout.tabRecord);
   _tabControllerTouch->setBounds (_layout.tabController);
 
   for (int col = 0; col < numChannelColumns; ++col)
@@ -318,6 +334,10 @@ ClipSettingsComponent::resized ()
   for (int i = 0; i < numRecordLengths; ++i)
     _lengthTouch[static_cast<size_t> (i)]->setBounds (
         _layout.lengthButtons[static_cast<size_t> (i)]);
+
+  for (int i = 0; i < numSpeedButtons; ++i)
+    _speedTouch[static_cast<size_t> (i)]->setBounds (
+        _layout.speedButtons[static_cast<size_t> (i)]);
 
   _recModeTouch->setBounds (_layout.recModeButton);
   _clockModeTouch->setBounds (_layout.clockModeButton);
@@ -473,6 +493,28 @@ ClipSettingsComponent::setMotionEnvelopeMax (float value)
     return;
 
   _motionEnvelopeMax = clamped;
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setShapeSpeed (int speedLog2)
+{
+  if (speedLog2 == _speedLog2)
+    return;
+
+  _speedLog2 = speedLog2;
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setShapeRotate (float rotate, float reach)
+{
+  if (juce::approximatelyEqual (rotate, _shapeRotate)
+      && juce::approximatelyEqual (reach, _shapeRotateReach))
+    return;
+
+  _shapeRotate = rotate;
+  _shapeRotateReach = reach;
   repaint ();
 }
 
@@ -639,6 +681,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   };
 
   paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
+  paintTab (_layout.tabRecord, "REC", _page == BarPage::Record);
   paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
 }
 
@@ -660,17 +703,27 @@ ClipSettingsComponent::setPage (BarPage page)
   // The clip's own controls stop taking touches: they are not drawn on the
   // controller page, and a hit area with nothing under it is how a finger
   // changes a value it cannot see.
+  // The record page is the clip page with one section turned over, so every
+  // control stays reachable on it; only the pads page takes them away.
+  auto const showsClip = _page != BarPage::Controller;
+
   for (int section = 0; section < numParameters; ++section)
     for (auto &control : _controlTouch[static_cast<size_t> (section)])
-      control->setVisible (_page == BarPage::Clip);
+      control->setVisible (showsClip);
 
   for (int section = 0; section < numClipSections; ++section)
-    _sectionTouch[static_cast<size_t> (section)]->setVisible (_page
-                                                              == BarPage::Clip);
+    _sectionTouch[static_cast<size_t> (section)]->setVisible (showsClip);
 
-  _elevationGraphicTouch->setVisible (_page == BarPage::Clip);
-  _accentTouch->setVisible (_page == BarPage::Clip);
+  _elevationGraphicTouch->setVisible (showsClip);
+  _accentTouch->setVisible (showsClip);
+
+  // The two faces' button rows sit in the same room, so only one may take
+  // touches: hit areas left behind by the hidden face would answer for
+  // buttons nobody can see.
   for (auto &button : _lengthTouch)
+    if (button)
+      button->setVisible (_page == BarPage::Record);
+  for (auto &button : _speedTouch)
     if (button)
       button->setVisible (_page == BarPage::Clip);
 
@@ -700,7 +753,7 @@ ClipSettingsComponent::updateLayout ()
   _layout = layOutClipSettings (getLocalBounds (),
                                 theme ().fontSize (FontRole::Header),
                                 theme ().fontSize (FontRole::Body),
-                                theme ().potSize);
+                                theme ().potSize, _page);
 }
 
 void
@@ -1077,14 +1130,41 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   paintSectionCard (g, trajectoryIndex, isSelected);
 
   auto const &metrics = _layout.metrics;
+  auto const &cells = _layout.controls[trajectoryIndex];
+  auto const recording = _page == BarPage::Record;
 
-  // The length the next take will have. Not what is in the slot — that is what
-  // the pictogram above shows.
-  // Seven lengths, each its own button. The one in force reads as active.
-  for (int i = 0; i < numRecordLengths; ++i)
-    paintBarButton (g, _layout.lengthButtons[static_cast<size_t> (i)],
-                    recordLengthNames[i], {},
-                    _recordLengthLabel == recordLengthNames[i], isSelected);
+  if (recording)
+    {
+      // The take's length, on the face that is about the take. Not what is in
+      // the slot — that is the picture above, which on this side is the take
+      // appearing as you play it in.
+      for (int i = 0; i < numRecordLengths; ++i)
+        paintBarButton (g, _layout.lengthButtons[static_cast<size_t> (i)],
+                        recordLengthNames[i], {},
+                        _recordLengthLabel == recordLengthNames[i], isSelected);
+
+      // How much of the take's end is spent travelling back to where it began
+      // rather than jumping. It belongs to the recording, so it belongs here
+      // rather than among the movements in Motion.
+      paintMiniKnob (g, cells[1], metrics, caption::fade,
+                     (_motionFade / 16.f) * 2.f - 1.f, false,
+                     _trajectorySubIndex == 1, isSelected);
+    }
+  else
+    {
+      // Twelve speeds, the whole range, each its own button: a set that could
+      // not say every value would leave some of them unreachable.
+      for (int i = 0; i < numSpeedButtons; ++i)
+        paintBarButton (g, _layout.speedButtons[static_cast<size_t> (i)],
+                        speedButtonNames[i], {},
+                        _speedLog2 == speedButtonLog2[i], isSelected);
+
+      // Which way the shape faces, and where the spin has carried it: the
+      // pointer is the hand's value, the arc is the movement over it.
+      paintMiniKnob (g, cells[1], metrics, caption::rotate,
+                     _shapeRotate * 2.f - 1.f, false, _trajectorySubIndex == 1,
+                     isSelected, _shapeRotateReach * 2.f - 1.f);
+    }
 
   // Pictogram, centred in whatever square area is left above the name.
   auto const iconSize = static_cast<float> (
@@ -1283,7 +1363,8 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
                                       ControlMetrics metrics,
                                       juce::String const &label,
                                       float angleFrac, bool fillFromZero,
-                                      bool isActive, bool isSelected)
+                                      bool isActive, bool isSelected,
+                                      float reachFrac)
 {
   bool const highlight = isActive && isSelected;
   if (highlight)
@@ -1327,6 +1408,36 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
                           true);
   g.setColour (knobColour);
   g.strokePath (valueArc, juce::PathStrokeType (juce::jmax (1.5f, r * 0.16f)));
+
+  // Where a modulation has carried the knob past what was set. The pointer
+  // stays put and the arc between the two fills, exactly as the channel grid
+  // shows the accent over 3d — one idea, said the same way in both places, so
+  // a blue arc always means "something is moving this".
+  if (reachFrac > -2.f)
+    {
+      auto const thickness = juce::jmax (1.5f, r * 0.16f);
+      auto const reachAngle = std::clamp (reachFrac, -1.f, 1.f) * sweep;
+
+      auto const arc = [&] (float from, float to) {
+        if (to <= from)
+          return;
+        juce::Path piece;
+        piece.addCentredArc (centre.x, centre.y, r, r, 0.f, from, to, true);
+        g.setColour (toColour (theme ().notice));
+        g.strokePath (piece, juce::PathStrokeType (thickness));
+      };
+
+      if (reachAngle >= angleValue)
+        arc (angleValue, reachAngle);
+      else
+        {
+          // Gone round. Drawn as the two pieces it is rather than as nothing:
+          // a rotation that passes the end of the sweep has not stopped, and
+          // an arc that vanished at the top would say it had.
+          arc (angleValue, sweep);
+          arc (-sweep, reachAngle);
+        }
+    }
 
   auto const tip = centre.getPointOnCircumference (r, angleValue);
   g.drawLine (centre.x, centre.y, tip.x, tip.y, juce::jmax (1.5f, r * 0.12f));
@@ -1395,52 +1506,40 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   auto const &metrics = _layout.metrics;
   auto const &cells = _layout.controls[motionIndex];
 
-  // Knobs, not readouts: the exact note value matters less than seeing at a
-  // glance where in its range each sits, and a row of numbers made the
-  // section read as a table.
-  paintMiniKnob (g, cells[0], metrics, caption::speed,
-                 _motionSpeedFrac * 2.f - 1.f, false, _motionSubIndex == 0,
-                 isSelected);
-  // Lists, not values you nudge: a button that opens one.
-  paintBarButton (g, cells[1], value::directionNames[_motionDirection],
-                  caption::direction, _motionSubIndex == 1 && isSelected,
-                  isSelected, true);
-  paintBarButton (g, cells[2], value::endActionNames[_motionEndAction],
-                  caption::endAction, _motionSubIndex == 2 && isSelected,
-                  isSelected, true);
-  // How much time at the take's end is spent travelling back to where it
-  // began, rather than jumping there. 0..16 sixteenths.
-  paintMiniKnob (g, cells[3], metrics, caption::fade,
-                 (_motionFade / 16.f) * 2.f - 1.f, false, _motionSubIndex == 3,
-                 isSelected);
-  // The one bipolar control in the bar, so the one that fills from the
-  // centre: standing still is the middle, and which side of it you are on is
-  // which way the trajectory turns.
-  paintMiniKnob (g, cells[4], metrics, caption::spin,
+  // The two bipolar knobs first, because they are the pair the section is
+  // mostly about: standing still is the middle, and which side of it you are
+  // on is which way the thing turns or breathes.
+  paintMiniKnob (g, cells[0], metrics, caption::spin,
                  static_cast<float> (_motionSpin)
                      / static_cast<float> (lfoMaxStep),
-                 true, _motionSubIndex == 4, isSelected);
-  // The section's second slow movement, and the second bipolar knob: this one
-  // opens and closes how far down the sphere the trajectory reaches.
-  paintMiniKnob (g, cells[5], metrics, caption::swell,
+                 true, _motionSubIndex == 0, isSelected);
+  paintMiniKnob (g, cells[1], metrics, caption::swell,
                  static_cast<float> (_motionSwell)
                      / static_cast<float> (lfoMaxStep),
-                 true, _motionSubIndex == 5, isSelected);
+                 true, _motionSubIndex == 1, isSelected);
 
-  // The accent's two. One-sided, not bipolar: a length has no other
-  // direction, so they sweep from the left like speed and fade do.
+  // The accent's two times. One-sided, not bipolar: a length has no other
+  // direction, so they sweep from the left.
   auto const envFrac = [] (int step) {
     return (static_cast<float> (step) / static_cast<float> (envelopeMaxStep))
                * 2.f
            - 1.f;
   };
-  paintMiniKnob (g, cells[6], metrics, caption::attack, envFrac (_motionAttack),
-                 false, _motionSubIndex == 6, isSelected);
-  paintMiniKnob (g, cells[7], metrics, caption::decay, envFrac (_motionDecay),
-                 false, _motionSubIndex == 7, isSelected);
-  paintMiniKnob (g, cells[8], metrics, caption::envelopeMax,
-                 _motionEnvelopeMax * 2.f - 1.f, false, _motionSubIndex == 8,
+  paintMiniKnob (g, cells[2], metrics, caption::attack, envFrac (_motionAttack),
+                 false, _motionSubIndex == 2, isSelected);
+  paintMiniKnob (g, cells[3], metrics, caption::decay, envFrac (_motionDecay),
+                 false, _motionSubIndex == 3, isSelected);
+  paintMiniKnob (g, cells[4], metrics, caption::envelopeMax,
+                 _motionEnvelopeMax * 2.f - 1.f, false, _motionSubIndex == 4,
                  isSelected);
+
+  // Lists, not values you nudge: a button that opens one.
+  paintBarButton (g, cells[5], value::directionNames[_motionDirection],
+                  caption::direction, _motionSubIndex == 5 && isSelected,
+                  isSelected, true);
+  paintBarButton (g, cells[6], value::endActionNames[_motionEndAction],
+                  caption::endAction, _motionSubIndex == 6 && isSelected,
+                  isSelected, true);
 
   // The key that plays what the two knobs above it shape. Lit while it is
   // down, in the notice colour the grid draws the accent's reach in — the
@@ -1454,16 +1553,16 @@ bool
 ClipSettingsComponent::opensList (int section, int sub)
 {
   if (section == motionIndex)
-    return sub == 1 || sub == 2; // direction, end-action
+    return sub == 5 || sub == 6; // direction, end-action
   return false;
 }
 
 juce::StringArray
 ClipSettingsComponent::dropdownValues (int section, int sub) const
 {
-  if (section == motionIndex && sub == 1)
+  if (section == motionIndex && sub == 5)
     return { value::directionNames[0], value::directionNames[1] };
-  if (section == motionIndex && sub == 2)
+  if (section == motionIndex && sub == 6)
     {
       juce::StringArray names;
       for (int i = 0; i < value::numEndActions; ++i)

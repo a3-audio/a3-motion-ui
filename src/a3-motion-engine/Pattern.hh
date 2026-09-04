@@ -146,6 +146,18 @@ public:
   float getPlaySign () const;
   void setPlaySign (float sign);
 
+  /** How far the whole trajectory is turned around the vertical axis, in
+   *  revolutions [0, 1). A standing angle, not a movement: where the shape
+   *  faces.
+   *
+   *  Beside the spin because they are the same operation — the spin adds a
+   *  turn that keeps growing, this one adds a turn that stays — and they are
+   *  summed at the one place that turns anything (spinPosition). Two ways to
+   *  rotate a trajectory would be two chances to disagree about which way
+   *  round that is. */
+  float getRotate () const;
+  void setRotate (float revolutions);
+
   /** How fast the whole trajectory turns around the vertical axis while the
    *  blob runs along it, as the signed power-of-two step TrajectorySpin
    *  describes. Zero stands still.
@@ -275,6 +287,7 @@ private:
   std::atomic<PlayDirection> _playDirection{ PlayDirection::Forward };
   std::atomic<EndAction> _endAction{ EndAction::Loop };
   std::atomic<float> _playSign{ 1.f };
+  std::atomic<float> _rotate{ 0.f };
   std::atomic<int> _spin{ 0 };
   std::atomic<float> _spinPhase{ 0.f };
   std::atomic<int> _reachLfo{ 0 };

@@ -191,6 +191,15 @@ public:
   /** How far the accent throws, 0..1 — the 3d it rises to. */
   void setMotionEnvelopeMax (float value);
 
+  /** Which way the clip's shape faces, in revolutions, and where the spin has
+   *  carried it. The pointer sits on the first and the arc runs to the second
+   *  — the spin remote-controls the rotation, so the knob shows the hand's
+   *  value and the movement over it at once. */
+  void setShapeRotate (float rotate, float reach);
+
+  /** Which speed button reads as in force, as a speedLog2. */
+  void setShapeSpeed (int speedLog2);
+
   /** ACT went down or came up on the bar. Held, like the pad: the accent
    *  stays up for as long as it does. */
   std::function<void (bool held)> onAccentHeld;
@@ -258,6 +267,9 @@ public:
   /** One of the seven length buttons was pressed, by its index in
    *  recordLengthLog2. */
   std::function<void (int index)> onRecordLengthChosen;
+  /** One of the twelve speed buttons was tapped, as an index into
+   *  speedButtonLog2. */
+  std::function<void (int index)> onSpeedChosen;
   /** The clock mode steps on: INT, EXT, PIO. */
   std::function<void ()> onClockModePressed;
   std::function<void ()> onMenuPressed;
@@ -395,10 +407,16 @@ private:
    *  paintMiniToggle(). The caption's size comes from the bar, not from
    *  this box; the knob's own position and size are unaffected by Font
    *  Size. */
+  /** `reachFrac`, when it is not the value itself, is where a modulation has
+   *  carried the knob: the pointer stays on what was set and the arc between
+   *  the two is filled, the same way the channel grid shows the accent. A
+   *  reach that has wrapped past the end of the sweep is drawn in two pieces,
+   *  because a rotation that goes round is a rotation, not an error. */
   void paintMiniKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
                       ControlMetrics metrics,
                       juce::String const &label, float angleFrac,
-                      bool fillFromZero, bool isActive, bool isSelected);
+                      bool fillFromZero, bool isActive, bool isSelected,
+                      float reachFrac = -2.f);
   /** Small labelled value display (mirror-south, flat, direction,
    *  end-action, speed), styled to match paintMiniKnob: the current state
    *  or value as centred text instead of an arc, with the caption below
@@ -434,9 +452,13 @@ private:
   int _motionAttack = 0;
   int _motionDecay = 0;
   float _motionEnvelopeMax = 1.f;
+  float _shapeRotate = 0.f;
+  float _shapeRotateReach = 0.f;
   bool _accentHeld = false;
   BarPage _page = BarPage::Clip;
   int _trajectorySubIndex = 0;
+  /** Which of the twelve speed buttons is in force, as a speedLog2. */
+  int _speedLog2 = 0;
   juce::String _recordLengthLabel { "1" };
   std::array<float, numChannelColumns> _channelFreq{};
   std::array<float, numChannelColumns> _channelQ{};
@@ -479,12 +501,14 @@ private:
    *  nothing. Without it the card underneath would answer. */
   std::unique_ptr<TouchControl> _elevationGraphicTouch;
   std::unique_ptr<TouchControl> _tabClipTouch;
+  std::unique_ptr<TouchControl> _tabRecordTouch;
   std::unique_ptr<TouchControl> _tabControllerTouch;
   /** One hit area per grid cell, [channel][row]. */
   std::array<std::array<std::unique_ptr<TouchControl>, numChannelRows>,
              numChannelColumns>
       _gridTouch;
   std::array<std::unique_ptr<TouchControl>, numRecordLengths> _lengthTouch;
+  std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
   std::unique_ptr<TouchControl> _recModeTouch;
   std::unique_ptr<TouchControl> _clockModeTouch;
   std::unique_ptr<TouchControl> _menuTouch;

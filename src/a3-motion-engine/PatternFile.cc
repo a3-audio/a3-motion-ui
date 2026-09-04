@@ -609,6 +609,7 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
                          : "fwd");
   svg->setAttribute ("data-end-action",
                      endActionToName (pattern->getEndAction ()));
+  svg->setAttribute ("data-rotate", pattern->getRotate ());
   svg->setAttribute ("data-spin", pattern->getSpin ());
   svg->setAttribute ("data-reach-lfo", pattern->getReachLfo ());
   svg->setAttribute ("data-env-attack", pattern->getEnvelopeAttack ());
@@ -724,6 +725,8 @@ PatternFile::load (juce::File const &file)
     pattern->setPlayDirection (PlayDirection::Reverse);
   pattern->setEndAction (
       endActionFromName (xml->getStringAttribute ("data-end-action")));
+  pattern->setRotate (static_cast<float> (
+      xml->getDoubleAttribute ("data-rotate", pattern->getRotate ())));
   pattern->setSpin (xml->getIntAttribute ("data-spin", 0));
   pattern->setReachLfo (xml->getIntAttribute ("data-reach-lfo", 0));
   pattern->setEnvelopeAttack (
