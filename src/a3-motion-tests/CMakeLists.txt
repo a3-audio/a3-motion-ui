@@ -64,6 +64,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternPlayback.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingSeam.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PlaybackRate.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/BouncePlayback.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PlayheadAdvance.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MotionModePersistence.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternProgressBar.cc"

@@ -198,3 +198,42 @@ TEST (PlayheadAdvance, PauseHoldsWhereItGotTo)
   EXPECT_TRUE (stepped.stopped);
   EXPECT_FLOAT_EQ (stepped.position, 0.99f);
 }
+
+// A step that lands exactly on the end is the ordinary case, not a corner one:
+// the delta is one tick's share of the pass, so a clip whose playback length
+// matches its take arrives on 1.0 dead on. Reflecting it gave 1.0, and wrapping
+// that into the pass turned the turn into a teleport back to the take's first
+// tick -- travelling the whole shape in one tick, at the same spot every time.
+TEST (PlayheadAdvance, BounceTurningExactlyOnTheEndStaysAtTheEnd)
+{
+  Playhead const atTheEdge{ 0.9f, 1.f, false };
+  auto const turned = advancePlayhead (atTheEdge, 0.1f, EndAction::Bounce, 0.f);
+
+  EXPECT_FLOAT_EQ (turned.position, 1.f);
+  EXPECT_FLOAT_EQ (turned.sign, -1.f);
+  EXPECT_FALSE (turned.stopped);
+
+  // And away from it on the next tick, rather than sticking there.
+  auto const away = advancePlayhead (turned, 0.1f, EndAction::Bounce, 0.f);
+  EXPECT_FLOAT_EQ (away.position, 0.9f);
+  EXPECT_FLOAT_EQ (away.sign, -1.f);
+}
+
+// The other end turns one tick later, and that is correct rather than
+// asymmetric: zero is a position the take has, so a step landing on it stands
+// on the take's first tick and turns from there. Both ends are visited exactly
+// once per pass -- 0.9, 1.0, 0.9 at one end and 0.1, 0.0, 0.1 at the other --
+// which is what a turn should look like.
+TEST (PlayheadAdvance, BounceStandsOnTheStartBeforeTurning)
+{
+  Playhead const arriving{ 0.1f, -1.f, false };
+  auto const onIt = advancePlayhead (arriving, 0.1f, EndAction::Bounce, 0.f);
+
+  EXPECT_FLOAT_EQ (onIt.position, 0.f);
+  EXPECT_FLOAT_EQ (onIt.sign, -1.f) << "not turned yet: it is standing on it";
+
+  auto const away = advancePlayhead (onIt, 0.1f, EndAction::Bounce, 0.f);
+  EXPECT_FLOAT_EQ (away.position, 0.1f);
+  EXPECT_FLOAT_EQ (away.sign, 1.f);
+  EXPECT_GE (away.position, 0.f) << "it must never fall through the start";
+}

@@ -1030,10 +1030,12 @@ MotionEngine::performPlayback ()
 
               auto const playPosition = stepped.position;
 
-              // Use interpolated playback for smooth motion between keyframes
-              // The interpolation function handles wrapping at pattern boundaries
-              auto const fractionalTick
-                  = static_cast<double> (ticksPatternLength) * playPosition;
+              // Use interpolated playback for smooth motion between keyframes.
+              // Which ticks the pass spans depends on the end action: a loop
+              // includes the seam back to the first tick, a bounce turns round
+              // at the last one instead of running into it.
+              auto const fractionalTick = fractionalTickForPlayback (
+                  playPosition, ticksPatternLength, playing.getEndAction ());
               auto position2D = channel->_patternPlaying->getInterpolatedTick (fractionalTick);
 
               // The whole shape turns under the blob. One tick's worth here,

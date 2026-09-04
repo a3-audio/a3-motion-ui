@@ -22,6 +22,8 @@
 
 #include <juce_core/juce_core.h>
 
+#include <a3-motion-engine/util/Types.hh>
+
 namespace a3
 {
 
@@ -113,5 +115,18 @@ EndAction endActionFromName (juce::String const &name);
  *  is only read when the pass actually ends under EndAction::Random. */
 Playhead advancePlayhead (Playhead current, float delta, EndAction endAction,
                           float randomPhase);
+
+/** Where in the take a play position lands, as a fractional tick index.
+ *
+ *  Loop spans the full tick count: its last tick is joined to its first, that
+ *  seam is part of the loop, and the fade exists to smooth it.
+ *
+ *  Bounce spans the ticks themselves -- 0 to numTicks-1 -- because it turns
+ *  round at the take's own end. Sampled over the full count, the seam would
+ *  sit inside the playable range and a bouncing clip would run a little way
+ *  along the join back to the beginning before turning: on an open path, a
+ *  dart across the sphere and back, always at the same spot. */
+double fractionalTickForPlayback (float position, index_t numTicks,
+                                  EndAction endAction);
 
 }

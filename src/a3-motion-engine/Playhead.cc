@@ -109,8 +109,15 @@ advancePlayhead (Playhead current, float delta, EndAction endAction,
         // Reflected at the end it ran into, so it comes away at the rate it
         // arrived rather than with a stumble.
         auto const overshoot = sign > 0.f ? next - 1.f : -next;
-        return { wrapIntoPass (sign > 0.f ? 1.f - overshoot : overshoot),
-                 -sign, false };
+        auto const reflected = sign > 0.f ? 1.f - overshoot : overshoot;
+
+        // Held inside the pass, not wrapped into it. A step landing exactly on
+        // the end reflects to the end itself, and wrapping that put the
+        // playhead back on the take's first tick with the sign already turned
+        // -- the whole shape crossed in one tick. Not a corner case either:
+        // the delta is one tick's share of the pass, so a clip playing at its
+        // own length arrives on 1.0 dead on, every pass.
+        return { juce::jlimit (0.f, 1.f, reflected), -sign, false };
       }
 
     case EndAction::Random:
@@ -118,6 +125,20 @@ advancePlayhead (Playhead current, float delta, EndAction endAction,
     }
 
   return { wrapIntoPass (next), sign, false };
+}
+
+double
+fractionalTickForPlayback (float position, index_t numTicks,
+                           EndAction endAction)
+{
+  if (numTicks <= 1)
+    return 0.;
+
+  auto const span = endAction == EndAction::Bounce
+                        ? static_cast<double> (numTicks - 1)
+                        : static_cast<double> (numTicks);
+
+  return span * static_cast<double> (position);
 }
 
 juce::String
