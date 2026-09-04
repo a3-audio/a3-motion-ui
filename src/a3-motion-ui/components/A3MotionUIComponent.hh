@@ -185,6 +185,8 @@ private:
   void blankLEDs ();
   /** Show one of the bar's two pages, and put the screen's modifiers down. */
   void showBarPage (BarPage page);
+  /** Record's page gesture: to the take's face, or back off it. */
+  void toggleRecordPage ();
 
   void handlePadPress (index_t channel, index_t pad);
   /** The other half of a pad gesture. Shift+Action previews for as long as it

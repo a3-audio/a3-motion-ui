@@ -26,6 +26,10 @@
 #include <cmath>
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
+#include <a3-motion-ui/io/PadFunctions.hh>
+
+#include <set>
+
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
 
@@ -798,5 +802,159 @@ TEST (ClipSettingsLayout, TheLengthNamesMatchTheirPowersOfTwo)
                             static_cast<int> (std::exp2 (-log2)));
 
       EXPECT_EQ (juce::String (recordLengthNames[i]), expected);
+    }
+}
+
+// ── The header's transport keys ──────────────────────────────────────────
+
+TEST (ClipSettingsLayout, TheHeaderCarriesFourTransportKeysBeforeTheSlotLabel)
+{
+  auto const layout = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f);
+
+  int previousRight = 0;
+  for (int i = 0; i < numTransportKeys; ++i)
+    {
+      auto const &key = layout.transportButtons[static_cast<size_t> (i)];
+      ASSERT_FALSE (key.isEmpty ()) << "key " << i;
+      EXPECT_GE (key.getX (), previousRight) << "key " << i << " overlaps its neighbour";
+      previousRight = key.getRight ();
+    }
+
+  EXPECT_GE (layout.slotLabel.getX (), previousRight)
+      << "the slot label sits after the keys, not under them";
+  EXPECT_GE (layout.tabClip.getX (), layout.slotLabel.getRight ())
+      << "the tabs still close the row";
+}
+
+TEST (ClipSettingsLayout, TransportKeysAreSquareAndAllTheSameSize)
+{
+  auto const layout = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f);
+
+  auto const &first = layout.transportButtons[0];
+  for (auto const &key : layout.transportButtons)
+    {
+      EXPECT_EQ (key.getWidth (), key.getHeight ());
+      EXPECT_EQ (key.getWidth (), first.getWidth ());
+      EXPECT_EQ (key.getHeight (), first.getHeight ());
+    }
+}
+
+TEST (ClipSettingsLayout, TransportKeysNeverPushTheTabsOffTheRow)
+{
+  // The tabs are how you change page and are hit mid-set; the transport keys
+  // are a convenience. At any width the tabs keep their room.
+  for (int width : { 480, 640, 768, 1024, 1280 })
+    {
+      auto const layout
+          = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
+
+      EXPECT_FALSE (layout.tabClip.isEmpty ()) << "width " << width;
+      EXPECT_FALSE (layout.tabRecord.isEmpty ()) << "width " << width;
+      EXPECT_FALSE (layout.tabController.isEmpty ()) << "width " << width;
+      EXPECT_LE (layout.transportButtons[numTransportKeys - 1].getRight (),
+                 layout.tabClip.getX ())
+          << "width " << width;
+    }
+}
+
+// ── Shape: the name beside the knob, the picture given the room ──────────
+
+TEST (ClipSettingsLayout, TheTrajectoryNameSitsBesideTheKnobNotUnderIt)
+{
+  for (auto const page : { BarPage::Clip, BarPage::Record })
+    {
+      auto const layout
+          = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
+      auto const &knob = layout.controls[0][1];
+
+      ASSERT_FALSE (layout.trajectoryName.isEmpty ());
+      ASSERT_FALSE (knob.isEmpty ());
+
+      EXPECT_LE (layout.trajectoryName.getRight (), knob.getX ())
+          << "name and knob share a row, name on the left";
+      EXPECT_TRUE (layout.trajectoryName.getY () < knob.getBottom ()
+                   && knob.getY () < layout.trajectoryName.getBottom ())
+          << "they are on the same row";
+    }
+}
+
+TEST (ClipSettingsLayout, ThePictureNoLongerSharesItsBoxWithTheName)
+{
+  // The point of the move: a recorded take was drawn into whatever was left
+  // after the name, which on the clip face was a strip too short to read.
+  auto const layout = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f);
+
+  EXPECT_FALSE (layout.trajectoryIcon.intersects (layout.trajectoryName))
+      << "the name has left the picture";
+  EXPECT_GT (layout.trajectoryIcon.getHeight (),
+             layout.trajectoryName.getHeight ())
+      << "and the picture is the taller of the two";
+}
+
+TEST (ClipSettingsLayout, ThePictureIsTheBiggestThingInTheSection)
+{
+  // Guards the reason for the change rather than its mechanics. Not stated as
+  // a fraction of the card: twelve speed buttons in three rows leave the clip
+  // face less than a third, and a test demanding one would be demanding the
+  // buttons go away. What has to hold is that the picture outranks every
+  // single thing around it -- which is exactly what failed when it was a strip
+  // sharing its box with the name.
+  for (auto const page : { BarPage::Clip, BarPage::Record })
+    {
+      auto const layout
+          = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
+      auto const face = page == BarPage::Clip ? "clip face" : "record face";
+
+      EXPECT_GT (layout.trajectoryIcon.getHeight (),
+                 layout.trajectoryName.getHeight ())
+          << face;
+      EXPECT_GT (layout.trajectoryIcon.getHeight (), layout.buttonHeight)
+          << face;
+      EXPECT_GT (layout.trajectoryIcon.getHeight (),
+                 layout.controls[0][1].getHeight ())
+          << face;
+    }
+}
+
+// ── The header keys are the pads, reached another way ────────────────────
+
+TEST (ClipSettingsLayout, EveryTransportKeyNamesTheRightPad)
+{
+  // The bar's four keys go through the pad handler, so this lookup decides
+  // what each of them does. Action and Stop were swapped on the pads page once
+  // by deriving the order rather than reading it off the tables; this reads it
+  // off the tables and checks it round-trips.
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    for (auto const function : { PadFunction::PlayPause, PadFunction::Stop,
+                                 PadFunction::Action, PadFunction::Settings })
+      {
+        auto const pad = padIndexFor (function, slot);
+
+        EXPECT_EQ (padFunctionByPadIndex[pad], function)
+            << "slot " << slot << ", pad " << pad;
+        EXPECT_EQ (slotForPadIndex[pad], slot)
+            << "slot " << slot << ", pad " << pad;
+      }
+}
+
+TEST (ClipSettingsLayout, TheFourTransportKeysAreFourDifferentPads)
+{
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    {
+      std::set<index_t> pads;
+      for (auto const key : transportKeyOrder)
+        {
+          auto const function = key == TransportKey::Record
+                                    ? PadFunction::PlayPause
+                                    : key == TransportKey::Stop
+                                          ? PadFunction::Stop
+                                          : key == TransportKey::PlayPause
+                                                ? PadFunction::PlayPause
+                                                : PadFunction::Action;
+          pads.insert (padIndexFor (function, slot));
+        }
+      // Record and PlayPause deliberately name the same pad -- recording is
+      // armed by Play|Pause with Record held -- so three distinct pads.
+      EXPECT_EQ (pads.size (), 3u) << "slot " << slot;
     }
 }

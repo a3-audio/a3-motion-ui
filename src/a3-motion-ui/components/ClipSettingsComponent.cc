@@ -116,6 +116,35 @@ ClipSettingsComponent::createTouchControls ()
   };
   addAndMakeVisible (*_accentTouch);
 
+  for (int i = 0; i < numTransportKeys; ++i)
+    {
+      auto const key = transportKeyOrder[i];
+      auto &touch = _transportTouch[static_cast<size_t> (i)];
+      touch = std::make_unique<TouchControl> ();
+
+      if (key == TransportKey::Action)
+        {
+          // Held, like the pad it stands for: the accent lasts as long as the
+          // finger does.
+          touch->onPress = [this] (int, int) {
+            if (onTransportActionHeld)
+              onTransportActionHeld (true);
+          };
+          touch->onRelease = [this] (int, int) {
+            if (onTransportActionHeld)
+              onTransportActionHeld (false);
+          };
+        }
+      else
+        {
+          touch->onTap = [this, key] (int, int) {
+            if (onTransportTapped)
+              onTransportTapped (key);
+          };
+        }
+      addAndMakeVisible (*touch);
+    }
+
   makeTab (_tabClipTouch, BarPage::Clip);
   makeTab (_tabRecordTouch, BarPage::Record);
   makeTab (_tabControllerTouch, BarPage::Controller);
@@ -307,6 +336,10 @@ ClipSettingsComponent::resized ()
 
   _shiftTouch->setBounds (_layout.shiftButton);
   _accentTouch->setBounds (_layout.accentButton);
+
+  for (int i = 0; i < numTransportKeys; ++i)
+    _transportTouch[static_cast<size_t> (i)]->setBounds (
+        _layout.transportButtons[static_cast<size_t> (i)]);
 
   _tabClipTouch->setBounds (_layout.tabClip);
   _tabRecordTouch->setBounds (_layout.tabRecord);
@@ -614,10 +647,12 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   g.setColour (toColour (theme ().textPrimary, 0.25f));
   g.drawRect (_layout.globalBounds, frameThickness);
 
-  // Only on the clip page. The controller page shows every slot at once, so
-  // naming one of them there says something untrue about what you are looking
-  // at.
-  if (_page == BarPage::Clip)
+  // Not on the controller page, which shows every slot at once: naming one of
+  // them there says something untrue about what you are looking at. Both of
+  // the clip's faces describe a single slot, and the record face -- the take
+  // about to be written -- is the one where being sure which slot it is
+  // matters most.
+  if (_page != BarPage::Controller)
     {
       auto const slotName = "Slot " + juce::String (_slot + 1);
       g.setFont (juce::Font (
@@ -658,6 +693,17 @@ ClipSettingsComponent::paint (juce::Graphics &g)
 }
 
 void
+ClipSettingsComponent::setTransportState (bool playing, bool recording)
+{
+  if (playing == _transportPlaying && recording == _transportRecording)
+    return;
+
+  _transportPlaying = playing;
+  _transportRecording = recording;
+  repaint ();
+}
+
+void
 ClipSettingsComponent::paintTabs (juce::Graphics &g)
 {
   auto const paintTab = [&] (juce::Rectangle<int> bounds,
@@ -679,6 +725,58 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
     g.setColour (toColour (theme ().textPrimary, active ? 1.f : 0.55f));
     g.drawFittedText (label, bounds, juce::Justification::centred, 1);
   };
+
+  // The four transport keys. Coloured only while they are doing something,
+  // the same rule the global strip's keys follow -- a colour that means
+  // nothing makes the ones that mean something harder to read. Record is the
+  // exception it is there too: it says what it is in its lettering whether or
+  // not it is running.
+  for (int i = 0; i < numTransportKeys; ++i)
+    {
+      auto const bounds = _layout.transportButtons[static_cast<size_t> (i)];
+      if (bounds.isEmpty ())
+        continue;
+
+      auto const key = transportKeyOrder[i];
+      juce::Colour ground{};
+      auto text = toColour (theme ().textPrimary, 0.75f);
+      juce::String label;
+
+      switch (key)
+        {
+        case TransportKey::Record:
+          label = "REC";
+          text = toColour (theme ().danger);
+          if (_transportRecording)
+            ground = toColour (theme ().danger);
+          break;
+        case TransportKey::Stop:
+          label = "STOP";
+          break;
+        case TransportKey::PlayPause:
+          // One key, two words, because it is one key on the pad too. What it
+          // says is what pressing it will do.
+          label = _transportPlaying ? "II" : ">";
+          if (_transportPlaying)
+            ground = toColour (theme ().accent);
+          break;
+        case TransportKey::Action:
+          label = "ACT";
+          break;
+        }
+
+      g.setColour (ground.isTransparent ()
+                       ? toColour (theme ().textPrimary, 0.06f)
+                       : ground.withAlpha (0.35f));
+      g.fillRoundedRectangle (bounds.toFloat (), 3.f);
+      g.setColour (toColour (theme ().textPrimary, 0.15f));
+      g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+
+      g.setFont (juce::Font (fontFor (FontRole::Body, bounds, label),
+                             juce::Font::plain));
+      g.setColour (text);
+      g.drawFittedText (label, bounds, juce::Justification::centred, 1);
+    }
 
   paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
   paintTab (_layout.tabRecord, "REC", _page == BarPage::Record);
@@ -1161,9 +1259,17 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
 
       // Which way the shape faces, and where the spin has carried it: the
       // pointer is the hand's value, the arc is the movement over it.
+      // A closed ring: rotation comes round to itself, so its scale has to as
+      // well. The pointer is where the hand left it; the blue runs from there
+      // to where the spin is holding the shape right now -- the position it is
+      // being driven to, not how hard it is being driven.
+      // A turn, not a bipolar value: 0 is straight up and the scale runs once
+      // round clockwise. (frac * 2 is a whole turn once the ring folds it back
+      // into the [-1, 1] the knob speaks; frac * 2 - 1 would put no rotation
+      // at six o'clock.)
       paintMiniKnob (g, cells[1], metrics, caption::rotate,
-                     _shapeRotate * 2.f - 1.f, false, _trajectorySubIndex == 1,
-                     isSelected, _shapeRotateReach * 2.f - 1.f);
+                     _shapeRotate * 2.f, false, _trajectorySubIndex == 1,
+                     isSelected, _shapeRotateReach * 2.f, true);
     }
 
   // Pictogram, centred in whatever square area is left above the name.
@@ -1180,6 +1286,10 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   // by going white made a tapped take read as somebody else's.
   drawTrajectoryIcon (g, iconArea, _trajectoryIcon, _channelColour);
 
+  // The name, now on its own to the left of the knob rather than lying across
+  // the picture. It is the field you tap to choose a trajectory, so it reads
+  // as a field: the picture above is what the choice looks like.
+  //
   // The pattern's name is a value like any other in the bar, and is drawn at
   // the size they share rather than filling whatever room this section has.
   //
@@ -1364,7 +1474,7 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
                                       juce::String const &label,
                                       float angleFrac, bool fillFromZero,
                                       bool isActive, bool isSelected,
-                                      float reachFrac)
+                                      float reachFrac, bool wraps)
 {
   bool const highlight = isActive && isSelected;
   if (highlight)
@@ -1390,24 +1500,45 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
   // Rotary knob, Ableton/Bitwig-style: angleFrac in [-1, 1], 0 points
   // straight up, -1/+1 sit at -135deg/+135deg. Angles here follow JUCE's
   // addCentredArc convention (0 = 12 o'clock, increasing clockwise).
-  auto constexpr sweep = juce::MathConstants<float>::pi * 0.75f; // 135deg
-  auto const angleValue = std::clamp (angleFrac, -1.0f, 1.0f) * sweep;
+  // A closed control has no ends, so its scale is the whole turn and its
+  // value is taken modulo that rather than clamped: clamping is what a stop
+  // does, and there is no stop here.
+  auto const sweep = wraps ? juce::MathConstants<float>::pi
+                           : juce::MathConstants<float>::pi * 0.75f; // 135deg
+  auto const wrapped = [] (float frac) {
+    frac = std::fmod (frac + 1.f, 2.f);
+    return (frac < 0.f ? frac + 2.f : frac) - 1.f;
+  };
+  auto const angleValue
+      = (wraps ? wrapped (angleFrac) : std::clamp (angleFrac, -1.0f, 1.0f))
+        * sweep;
 
   juce::Path track;
-  track.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, sweep, true);
+  if (wraps)
+    track.addEllipse (juce::Rectangle<float> (r * 2.f, r * 2.f)
+                          .withCentre (centre));
+  else
+    track.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, sweep, true);
   g.setColour (toColour (theme ().textPrimary, trackWash));
   g.strokePath (track, juce::PathStrokeType (juce::jmax (1.f, r * 0.16f)));
 
   // Bipolar params (e.g. wrap) fill from the centre out to the value;
   // unipolar params (e.g. clip-top/clip-bottom) fill from the sweep's
   // start, like a standard volume-style knob.
-  juce::Path valueArc;
-  auto const fromAngle = fillFromZero ? std::min (0.f, angleValue) : -sweep;
-  auto const toAngle = fillFromZero ? std::max (0.f, angleValue) : angleValue;
-  valueArc.addCentredArc (centre.x, centre.y, r, r, 0.f, fromAngle, toAngle,
-                          true);
-  g.setColour (knobColour);
-  g.strokePath (valueArc, juce::PathStrokeType (juce::jmax (1.5f, r * 0.16f)));
+  // A ring has no start to fill from -- filling one would draw a quantity
+  // where the reading is an angle. The pointer says it, and the space is left
+  // for what the modulation is doing to it.
+  if (!wraps)
+    {
+      juce::Path valueArc;
+      auto const fromAngle = fillFromZero ? std::min (0.f, angleValue) : -sweep;
+      auto const toAngle = fillFromZero ? std::max (0.f, angleValue) : angleValue;
+      valueArc.addCentredArc (centre.x, centre.y, r, r, 0.f, fromAngle, toAngle,
+                              true);
+      g.setColour (knobColour);
+      g.strokePath (valueArc,
+                    juce::PathStrokeType (juce::jmax (1.5f, r * 0.16f)));
+    }
 
   // Where a modulation has carried the knob past what was set. The pointer
   // stays put and the arc between the two fills, exactly as the channel grid
@@ -1416,7 +1547,9 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
   if (reachFrac > -2.f)
     {
       auto const thickness = juce::jmax (1.5f, r * 0.16f);
-      auto const reachAngle = std::clamp (reachFrac, -1.f, 1.f) * sweep;
+      auto const reachAngle
+          = (wraps ? wrapped (reachFrac) : std::clamp (reachFrac, -1.f, 1.f))
+            * sweep;
 
       auto const arc = [&] (float from, float to) {
         if (to <= from)
@@ -1432,13 +1565,19 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
       else
         {
           // Gone round. Drawn as the two pieces it is rather than as nothing:
-          // a rotation that passes the end of the sweep has not stopped, and
-          // an arc that vanished at the top would say it had.
+          // a rotation that passes the end of the scale has not stopped, and
+          // an arc that vanished at the top would say it had. On a ring the
+          // two pieces meet, so what you see is one arc crossing the top --
+          // which is what actually happened.
           arc (angleValue, sweep);
           arc (-sweep, reachAngle);
         }
     }
 
+  // Said outright rather than inherited: the pointer used to be drawn in
+  // whatever colour the value arc had left set, so a ring -- which has no
+  // value arc -- drew its pointer in the modulation's blue.
+  g.setColour (knobColour);
   auto const tip = centre.getPointOnCircumference (r, angleValue);
   g.drawLine (centre.x, centre.y, tip.x, tip.y, juce::jmax (1.5f, r * 0.12f));
 

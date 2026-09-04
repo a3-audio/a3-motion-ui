@@ -76,6 +76,24 @@ constexpr char const *speedButtonNames[numSpeedButtons]
 constexpr int recordLengthLog2[numRecordLengths] = { -2, -1, 0, 1, 2, 3, 4, 5 };
 constexpr char const *recordLengthNames[numRecordLengths]
     = { "1/4", "1/2", "1", "2", "4", "8", "16", "32" };
+/** The four things you do to a clip, as small keys in the bar's header.
+ *
+ *  The pads page has these already; the header carries them so the clip you
+ *  are editing can be started and stopped without leaving the settings you
+ *  came to change. Same order as they are read: arm it, stop it, run it, hit
+ *  it. */
+enum class TransportKey
+{
+  Record,
+  Stop,
+  PlayPause,
+  Action,
+};
+constexpr int numTransportKeys = 4;
+constexpr TransportKey transportKeyOrder[numTransportKeys]
+    = { TransportKey::Record, TransportKey::Stop, TransportKey::PlayPause,
+        TransportKey::Action };
+
 constexpr int channelRowThreeD = 0;
 constexpr int channelRowFreq = 1;
 constexpr int channelRowQ = 2;
@@ -179,7 +197,9 @@ struct ClipSettingsLayout
   std::array<juce::Rectangle<int>, numRecordLengths> lengthButtons;
   /** How fast the clip plays, on its front — in speedButtonLog2 order. */
   std::array<juce::Rectangle<int>, numSpeedButtons> speedButtons;
-  /** The bar's own header row: "Slot N" first, the two page tabs closing it. */
+  /** The bar's own header row: the four transport keys, then "Slot N", then
+   *  the page tabs closing it. */
+  std::array<juce::Rectangle<int>, numTransportKeys> transportButtons;
   juce::Rectangle<int> slotLabel;
   juce::Rectangle<int> tabClip;
   juce::Rectangle<int> tabRecord;

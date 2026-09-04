@@ -243,6 +243,15 @@ public:
   juce::Rectangle<int> clipContentBounds () const;
   /** A tab was tapped. */
   std::function<void (BarPage page)> onPageSelected;
+  /** Tapped, except Action, which is held for as long as the finger is down --
+   *  the same distinction the pads make, because these are the same four
+   *  things and two ways to do one thing must not behave differently. */
+  std::function<void (TransportKey key)> onTransportTapped;
+  std::function<void (bool held)> onTransportActionHeld;
+
+  /** What the transport keys show: whether this clip is running, and whether a
+   *  take is being recorded into it. */
+  void setTransportState (bool playing, bool recording);
 
   /** A control was tapped: select its section and sub-element in one go —
    *  what the encoders reach by scrolling and pressing. */
@@ -412,11 +421,16 @@ private:
    *  the two is filled, the same way the channel grid shows the accent. A
    *  reach that has wrapped past the end of the sweep is drawn in two pieces,
    *  because a rotation that goes round is a rotation, not an error. */
+  /** `wraps` makes it a closed ring: the whole turn, no gap at the bottom and
+   *  no end to run into. A value that comes round to itself needs a scale that
+   *  does too -- on the usual 270-degree sweep a rotation reads as an amount
+   *  rather than as a position, because the two ends of the scale are the same
+   *  angle with a dead zone between them. */
   void paintMiniKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
                       ControlMetrics metrics,
                       juce::String const &label, float angleFrac,
                       bool fillFromZero, bool isActive, bool isSelected,
-                      float reachFrac = -2.f);
+                      float reachFrac = -2.f, bool wraps = false);
   /** Small labelled value display (mirror-south, flat, direction,
    *  end-action, speed), styled to match paintMiniKnob: the current state
    *  or value as centred text instead of an arc, with the caption below
@@ -426,6 +440,9 @@ private:
                         juce::String const &label,
                         juce::String const &stateText,
                         bool isActive, bool isSelected);
+
+  bool _transportPlaying = false;
+  bool _transportRecording = false;
 
   int _channel = 0;
   int _slot = 0;
@@ -500,6 +517,10 @@ private:
    *  what the controls below it do, and touching a picture should do
    *  nothing. Without it the card underneath would answer. */
   std::unique_ptr<TouchControl> _elevationGraphicTouch;
+  /** The four transport keys in the header. Their look follows the same rule
+   *  as the global strip's function keys: a key that is doing something is
+   *  coloured, and one that is not is not. */
+  std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;
   std::unique_ptr<TouchControl> _tabClipTouch;
   std::unique_ptr<TouchControl> _tabRecordTouch;
   std::unique_ptr<TouchControl> _tabControllerTouch;

@@ -378,9 +378,41 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _clipSettings->onRecordPressed = [this] {
     // The card turns over as the take is armed, so what you are recording is
     // drawn where what you are playing usually is.
-    showBarPage (BarPage::Record);
+    toggleRecordPage ();
     toggleRecordingOnShownClip ();
   };
+  // The bar's four transport keys are the shown clip's pads, reached through
+  // the pad handler rather than reimplemented: the timing rules live there
+  // (play on the next beat, stop now, the accent while the finger is down)
+  // and two routes to one function must not each keep their own copy.
+  _clipSettings->onTransportTapped = [this] (TransportKey key) {
+    switch (key)
+      {
+      case TransportKey::Record:
+        toggleRecordPage ();
+        toggleRecordingOnShownClip ();
+        return;
+      case TransportKey::Stop:
+        handlePadPress (_clipSettingsChannel,
+                        padIndexFor (PadFunction::Stop, _clipSettingsSlot));
+        return;
+      case TransportKey::PlayPause:
+        handlePadPress (
+            _clipSettingsChannel,
+            padIndexFor (PadFunction::PlayPause, _clipSettingsSlot));
+        return;
+      case TransportKey::Action:
+        return;
+      }
+  };
+  _clipSettings->onTransportActionHeld = [this] (bool held) {
+    auto const pad = padIndexFor (PadFunction::Action, _clipSettingsSlot);
+    if (held)
+      handlePadPress (_clipSettingsChannel, pad);
+    else
+      handlePadRelease (_clipSettingsChannel, pad);
+  };
+
   _clipSettings->onTapPressed = [this] { handleScreenTap (); };
   // Held, not tapped: Shift+Action previews for as long as it is down. In the
   // global strip it stands on both pages, so it can be held while the other
@@ -1003,7 +1035,18 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       // bounds a recording — that is what makes a jump recordable — so
       // something else has to, and Record is the button that started it.
       if (static_cast<bool> (value.getValue ()) && _engine.isRecording ())
-        endRecording ();
+        {
+          endRecording ();
+        }
+      else if (static_cast<bool> (value.getValue ()))
+        {
+          // The panel's key shows the take's settings, the same as the bar's
+          // key and the REC tab do. It arms nothing on its own -- recording
+          // starts when a slot's Play|Pause pad is pressed while this is held
+          // -- but what you are about to set up is on the other face, so that
+          // is the face it turns to.
+          toggleRecordPage ();
+        }
 
       // Recording itself is armed when a slot's Play|Pause pad is pressed
       // while this button is held — see handlePadPress().
@@ -1509,8 +1552,15 @@ A3MotionUIComponent::showBarPage (BarPage page)
   _barPage = page;
   _clipSettings->setPage (page);
   _controller->setVisible (page == BarPage::Controller);
+}
 
-
+void
+A3MotionUIComponent::toggleRecordPage ()
+{
+  // Record turns the card over and turns it back, wherever it is pressed --
+  // the panel's key, the bar's key, the tab. A key that only ever goes one way
+  // leaves you tapping a different control to undo what it did.
+  showBarPage (_barPage == BarPage::Record ? BarPage::Clip : BarPage::Record);
 }
 
 void
@@ -2381,9 +2431,14 @@ A3MotionUIComponent::refreshAllPadRowLabels ()
 void
 A3MotionUIComponent::timerCallback ()
 {
-  // While a take runs, the bar under the pictogram fills and its write head
-  // moves. Only then — the rest of the time nothing here changes on its own.
-  if (_engine.isRecording ())
+  // While a take runs its write head moves, and while a clip plays its
+  // playhead does. Both fill the tick indicator, so both have to be followed
+  // -- watching only the recording is what left a playing clip with a
+  // transport key that never turned green and an indicator that stayed empty.
+  // The rest of the time nothing here changes on its own.
+  auto const &shown = _patterns[_clipSettingsChannel][_clipSettingsSlot];
+  if (_engine.isRecording ()
+      || (shown && shown->getStatus () == Pattern::Status::Playing))
     updateClipSettingsDisplay ();
 
   // Every fortieth tick, which is the two seconds this used to run at.
@@ -3587,18 +3642,35 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
           : "1/"
                 + juce::String (static_cast<int> (
                     std::exp2 (-params.recordLengthLog2))));
-  // How far the running take has got, as a line under the tick indicator in
-  // this channel's own colour — over the sphere, where the eye already is.
+  // How far the clip has got, as a line under the tick indicator — over the
+  // sphere, where the eye already is. Recording fills in the channel's own
+  // colour, playing in the skin's green: the same indicator answers "how far
+  // in am I" for both, and the colour answers which of the two it is without
+  // a second glance anywhere else.
   {
     auto const &pattern = _patterns[channel][slot];
     auto const recording = _engine.getRecordingPattern ();
     auto const isRecordingThis = recording != nullptr && recording == pattern
                                  && _engine.isRecording ();
+    auto const isPlayingThis
+        = pattern != nullptr
+          && pattern->getStatus () == Pattern::Status::Playing;
 
     if (_statusBar)
-      _statusBar->setRecordingProgress (
-          isRecordingThis ? _engine.getRecordingProgress () : -1.f,
-          _channelUIStates[channel]->colour);
+      {
+        if (isRecordingThis)
+          _statusBar->setRecordingProgress (_engine.getRecordingProgress (),
+                                            _channelUIStates[channel]->colour);
+        else if (isPlayingThis)
+          _statusBar->setRecordingProgress (pattern->getPlayPosition (),
+                                            toColour (theme ().accent));
+        else
+          _statusBar->setRecordingProgress (-1.f,
+                                            _channelUIStates[channel]->colour);
+      }
+
+    if (_clipSettings)
+      _clipSettings->setTransportState (isPlayingThis, isRecordingThis);
   }
 
   _clipSettings->setTrajectorySubIndex (

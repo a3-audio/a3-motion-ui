@@ -64,4 +64,20 @@ constexpr std::array<index_t, numPadsPerChannel> slotForPadIndex{
 /** How many clips a channel's pads reach. */
 constexpr index_t numPadSlots = 2;
 
+/** The pad that is this function on this slot -- the tables above, read the
+ *  other way round.
+ *
+ *  Anything that is one of these four things without being a pad (the bar's
+ *  transport keys) goes through the pad handler rather than repeating what it
+ *  does. Two routes to one function that each decide for themselves what it
+ *  means will differ eventually, and the difference will show up mid-set. */
+constexpr index_t
+padIndexFor (PadFunction function, index_t slot)
+{
+  for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
+    if (padFunctionByPadIndex[pad] == function && slotForPadIndex[pad] == slot)
+      return pad;
+  return 0;
+}
+
 }

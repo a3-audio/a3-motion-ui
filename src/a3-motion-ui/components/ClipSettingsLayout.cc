@@ -148,6 +148,22 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   out.tabController = headerArea.removeFromRight (tabW);
   out.tabRecord = headerArea.removeFromRight (tabW);
   out.tabClip = headerArea.removeFromRight (tabW);
+
+  // Square, one header row high: as large as the row has to give, which is
+  // what "small" means here. They are not the primary way to start a clip --
+  // the pads are -- so they do not take room from the tabs, which are.
+  auto const transportW = headerArea.getHeight ();
+  auto const transportGap = juce::jmax (2, transportW / 12);
+  for (int i = 0; i < numTransportKeys; ++i)
+    {
+      out.transportButtons[static_cast<size_t> (i)]
+          = headerArea.removeFromLeft (transportW);
+      headerArea.removeFromLeft (transportGap);
+    }
+
+  // The label is not one of the keys, so it does not sit as close to the last
+  // of them as they sit to each other.
+  headerArea.removeFromLeft (transportGap * 3);
   out.slotLabel = headerArea;
 
   area.removeFromTop (juce::jmax (4, out.clipBounds.getHeight () / 50));
@@ -222,20 +238,26 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         buttonRows * out.buttonHeight + (buttonRows - 1) * gap);
     content.removeFromBottom (gap);
 
-    // A knob above them, in the same place on both faces: which way the shape
-    // faces on the front, how the take's join is closed on the back. A
-    // section that grew a hole on one of its sides would say the side was
-    // missing something.
-    auto const knobRow = content.removeFromBottom (juce::jmin (
+    // The name and the knob share one row, the knob on the right: which way
+    // the shape faces on the front, how the take's join is closed on the back.
+    // Side by side rather than stacked because it gives the row above them
+    // back to the picture, and the picture is the thing you are actually
+    // reading -- a recorded take in a strip thirty pixels tall is a smudge.
+    //
+    // The name used to sit inside the pictogram to keep it off the buttons
+    // below. With the knob beside it the row is a row of two things and no
+    // longer reads as a caption for whatever follows it.
+    auto nameRow = content.removeFromBottom (juce::jmin (
         content.getHeight (),
         controlBoxHeightForFont (bodySize, metrics.knobDiam)));
     content.removeFromBottom (gap);
 
-    // The name sits *in* the pictogram, centred, rather than on a strip
-    // beneath it. On its own row it ended up pressed against the button
-    // below, reading as that button's second caption.
+    auto const knobRow = nameRow.removeFromRight (
+        juce::jmin (nameRow.getWidth () / 2,
+                    juce::jmax (metrics.knobDiam + 2 * gap,
+                                nameRow.getWidth () / 3)));
+    out.trajectoryName = nameRow;
     out.trajectoryIcon = content;
-    out.trajectoryName = content;
 
     {
       auto const perRow = 4;
