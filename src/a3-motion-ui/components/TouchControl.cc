@@ -75,6 +75,29 @@ TouchControl::mouseUp (juce::MouseEvent const &)
 
   if (_drag.emittedSteps () == 0)
     {
+      // A finger is not a mouse: the second tap of a pair lands a few pixels
+      // from the first, so the window is in time and in distance rather than
+      // in JUCE's mouse-sized tolerance.
+      constexpr int doubleTapMs = 400;
+      constexpr int doubleTapSlopPx = 24;
+
+      auto const now = juce::Time::currentTimeMillis ();
+      auto const here = getMouseXYRelative ();
+      auto const quick = now - _lastTapMs < doubleTapMs;
+      auto const near = here.getDistanceFrom (_lastTapPos) < doubleTapSlopPx;
+
+      if (_lastTapMs != 0 && quick && near && onDoubleTap)
+        {
+          // Instead of the second tap, not as well as it: a double tap that
+          // also stepped the value would undo half of what it was asked for.
+          _lastTapMs = 0;
+          onDoubleTap (_primary, _secondary);
+          return;
+        }
+
+      _lastTapMs = now;
+      _lastTapPos = here;
+
       if (onTap)
         onTap (_primary, _secondary);
       return;

@@ -412,6 +412,20 @@ Play is green whether or not it is running. The colour says which key it is, not
 a key that changes colour with its state has to be looked at twice, once to find it and once to read
 it, and finding it is the job that matters mid-set.
 
+**A section's lists are keyed by sub-index in three places** — `tapAdvancesValue()`,
+`dropdownValues()` and `dropdownCurrentIndex()` — and renumbering Motion without renumbering all
+three broke every one of its lists at once: `act` offered the direction's words, `dir` offered the
+end action's, and `end` offered none. `dropdownCurrentIndex()` had in fact been wrong for two
+renames already (`sub == 1 ? direction : endAction`) and nothing noticed, because a tap in a list is
+applied as the *difference* to the current index — a wrong current index lands on the wrong entry
+rather than failing.
+
+**A double tap on a knob puts it back to the middle of its range** (`onControlReset` →
+`handleClipSettingsReset()`). Only knobs: a list has no middle, and `TouchControl::onDoubleTap`
+fires *instead of* the second tap, so a control that stepped on tap would otherwise step and reset
+in one gesture. The double tap is timed and distance-limited rather than taken from JUCE's
+double-click, because on a touchscreen the second tap lands a few pixels from the first.
+
 **The bar only refreshes itself while something is moving**, and the condition in `timerCallback()`
 is the list of what counts. It said "while recording", so a playing clip got a transport key that
 never turned green and a tick indicator that stayed empty. Anything new that animates has to be

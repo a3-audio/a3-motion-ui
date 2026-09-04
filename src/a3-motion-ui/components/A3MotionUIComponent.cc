@@ -451,6 +451,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     handleClipSettingsToggle (_clipSettingsChannel, section, sub);
   };
 
+  _clipSettings->onControlReset = [this] (int section, int sub) {
+    handleClipSettingsReset (_clipSettingsChannel, section, sub);
+  };
+
   _clipSettings->onPageSelected
       = [this] (BarPage page) { showBarPage (page); };
 
@@ -3303,6 +3307,83 @@ A3MotionUIComponent::handleClipSettingsSubElementCycle (index_t channel)
 }
 
 void
+A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
+                                              int sub)
+{
+  if (channel != _clipSettingsChannel)
+    return;
+
+  // Twelve o'clock, everywhere: the middle of whatever range the control has.
+  // Not yet a per-control table of remembered defaults -- for a knob you have
+  // just pushed somewhere unhelpful mid-set, "back to the middle" is the thing
+  // you actually want, and it is the same answer for all of them.
+  auto const slot = _clipSettingsSlot;
+  auto &pattern = _patterns[channel][slot];
+  auto &params = _clipUIParams[channel][slot];
+
+  switch (section)
+    {
+    case 0: // Shape: rotate on the front, fade on the back
+      if (sub != 1)
+        return;
+      if (_barPage == BarPage::Record)
+        {
+          params.fadeSixteenths = 8;
+          if (pattern)
+            {
+              applyFade (*pattern, fadeTicksFor (params.fadeSixteenths));
+              refreshPatternDisplayFromTicks (pattern);
+            }
+        }
+      else if (pattern)
+        {
+          // No turn at all is this knob's middle: the ring's twelve o'clock
+          // and the shape as it was drawn are the same thing.
+          pattern->setRotate (0.f);
+        }
+      break;
+
+    case 1: // Elevation
+      if (!pattern)
+        return;
+      if (sub == 0)
+        pattern->setReach (0.5f);
+      else if (sub == 1)
+        pattern->setClipTop (0.f);
+      else if (sub == 2)
+        pattern->setClipBottom (0.f);
+      else if (sub == 5)
+        pattern->setFlatElevation (0.5f);
+      else
+        return;
+      break;
+
+    case 2: // Motion
+      if (!pattern)
+        return;
+      if (sub == 0)
+        pattern->setSpin (0);
+      else if (sub == 1)
+        pattern->setReachLfo (0);
+      else if (sub == 2)
+        pattern->setEnvelopeAttack (envelopeMaxStep / 2);
+      else if (sub == 3)
+        pattern->setEnvelopeDecay (envelopeMaxStep / 2);
+      else if (sub == 4)
+        pattern->setEnvelopeMax (0.5f);
+      else
+        return;
+      break;
+
+    default:
+      return;
+    }
+
+  updateControlReadout ("-- DEFAULT");
+  updateClipSettingsDisplay ();
+}
+
+void
 A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                                                     int section, int sub,
                                                     int increment)
@@ -3491,10 +3572,16 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             // rather than in _clipUIParams: the pad handler reads it at the
             // moment the key goes down, and it has to survive being saved.
             auto &pattern = _patterns[channel][slot];
-            if (pattern)
-              pattern->setActMode (pattern->getActMode () == ActMode::Hold
-                                       ? ActMode::OneShot
-                                       : ActMode::Hold);
+            if (!pattern)
+              break;
+
+            // Modulo, like direction beside it, rather than a toggle: a tap in
+            // the open list arrives as the difference to the entry tapped, and
+            // a toggle only happens to land right while the list has two
+            // entries in it.
+            auto const now = pattern->getActMode () == ActMode::Hold ? 1 : 0;
+            auto const next = (now + increment % 2 + 2) % 2;
+            pattern->setActMode (next == 1 ? ActMode::Hold : ActMode::OneShot);
             break;
           }
         case 6:

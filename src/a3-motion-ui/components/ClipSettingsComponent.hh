@@ -268,6 +268,9 @@ public:
    *  callback rather than an increment, because "the other one" is not a
    *  direction — see tapTogglesValue(). */
   std::function<void (int section, int sub)> onControlToggled;
+  /** Two taps on a knob put it back to its default. Separate from a toggle:
+   *  the value it lands on is decided by whoever owns the value, not here. */
+  std::function<void (int section, int sub)> onControlReset;
 
   /** A cell of the per-channel grid was dragged. `row` is in channelRow*
    *  order. */

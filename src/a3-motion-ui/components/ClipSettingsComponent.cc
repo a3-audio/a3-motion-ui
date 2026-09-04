@@ -289,6 +289,19 @@ ClipSettingsComponent::createTouchControls ()
               onControlDragged (tappedSection, tappedSub, 1);
           };
 
+          // Two taps put a knob back where it started. Only the ones you turn:
+          // a list has no middle to go back to, and a double tap in one would
+          // just be two taps opening and closing it.
+          control->onDoubleTap = [this] (int tappedSection, int tappedSub) {
+            if (opensList (tappedSection, tappedSub)
+                || tapTogglesValue (tappedSection, tappedSub)
+                || tapAdvancesValue (tappedSection, tappedSub))
+              return;
+
+            if (onControlReset)
+              onControlReset (tappedSection, tappedSub);
+          };
+
           control->onDragIncrement
               = [this] (int draggedSection, int draggedSub, int increment) {
                   if (onControlDragged)
@@ -1680,23 +1693,44 @@ ClipSettingsComponent::opensList (int section, int sub)
 juce::StringArray
 ClipSettingsComponent::dropdownValues (int section, int sub) const
 {
-  if (section == motionIndex && sub == 5)
-    return { value::directionNames[0], value::directionNames[1] };
-  if (section == motionIndex && sub == 6)
-    {
-      juce::StringArray names;
-      for (int i = 0; i < value::numEndActions; ++i)
-        names.add (value::endActionNames[i]);
-      return names;
-    }
+  if (section != motionIndex)
+    return {};
 
-  return {};
+  switch (sub)
+    {
+    case 5:
+      return { value::actModeNames[0], value::actModeNames[1] };
+    case 6:
+      return { value::directionNames[0], value::directionNames[1] };
+    case 7:
+      {
+        juce::StringArray names;
+        for (int i = 0; i < value::numEndActions; ++i)
+          names.add (value::endActionNames[i]);
+        return names;
+      }
+    default:
+      return {};
+    }
 }
 
 int
 ClipSettingsComponent::dropdownCurrentIndex (int section, int sub) const
 {
-  return sub == 1 ? _motionDirection : _motionEndAction;
+  // Every list keyed by the sub-index it belongs to. This used to read
+  // `sub == 1 ? direction : endAction` -- a leftover from a numbering two
+  // renames ago, which meant a tap in a list was measured against whatever
+  // value the ternary happened to pick and landed on the wrong entry.
+  if (section != motionIndex)
+    return 0;
+
+  switch (sub)
+    {
+    case 5: return _motionActMode;
+    case 6: return _motionDirection;
+    case 7: return _motionEndAction;
+    default: return 0;
+    }
 }
 
 void

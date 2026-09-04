@@ -490,6 +490,8 @@ private:
    *  explicitly rather than read off the current selection, so two fingers
    *  on two controls change two values instead of both driving the one that
    *  was selected last. The encoder path passes the selection it drives. */
+  /** Two taps on a knob: back to the middle of its range. */
+  void handleClipSettingsReset (index_t channel, int section, int sub);
   void handleClipSettingsValueChange (index_t channel, int section, int sub,
                                       int increment);
 

@@ -64,6 +64,14 @@ public:
   std::function<void (int primary, int secondary)> onPress;
   /** A touch that emitted no step. */
   std::function<void (int primary, int secondary)> onTap;
+  /** Two taps in quick succession without the finger travelling. Fired instead
+   *  of the second onTap, not as well as it: a double tap that also selected
+   *  and stepped the control would undo half of what it was asked to do.
+   *
+   *  Timed rather than taken from JUCE's own double-click, because on a
+   *  touchscreen the two taps land a few pixels apart and JUCE's tolerance is
+   *  a mouse's. */
+  std::function<void (int primary, int secondary)> onDoubleTap;
   /** Once per threshold crossed, with +1 or -1. */
   std::function<void (int primary, int secondary, int increment)>
       onDragIncrement;
@@ -79,6 +87,10 @@ public:
    *  hear the release even though nothing was dragged, and onDragEnd is
    *  silent in exactly that case. */
   std::function<void (int primary, int secondary)> onRelease;
+
+  /** When and where the last tap landed, for spotting the second one. */
+  juce::int64 _lastTapMs = 0;
+  juce::Point<int> _lastTapPos;
 
   void mouseDown (juce::MouseEvent const &event) override;
   void mouseDrag (juce::MouseEvent const &event) override;

@@ -998,3 +998,31 @@ TEST (ClipSettingsLayout, TheClipFacesStillHaveTheirTransportKeys)
             << (page == BarPage::Clip ? "clip face" : "record face");
     }
 }
+
+// ── Which control each of Motion's lists belongs to ──────────────────────
+
+TEST (ClipSettingsLayout, MotionsThreeListsAreTheLastThreeSubIndices)
+{
+  // act-mode, direction and end-action. Renumbering the section without
+  // renumbering the lists is exactly what happened once: the act control
+  // offered the direction's words, direction offered the end action's, and
+  // end action offered none at all -- three controls broken by one stale
+  // pair of case labels.
+  EXPECT_TRUE (tapAdvancesValue (2, 5));
+  EXPECT_TRUE (tapAdvancesValue (2, 6));
+  EXPECT_TRUE (tapAdvancesValue (2, 7));
+
+  // ... and the knobs above them are not lists.
+  for (int sub = 0; sub < 5; ++sub)
+    EXPECT_FALSE (tapAdvancesValue (2, sub)) << "sub " << sub;
+}
+
+TEST (ClipSettingsLayout, EveryMotionControlIsEitherAKnobOrAList)
+{
+  // What the double tap keys off: a knob has a middle to go back to, a list
+  // does not. Nothing may be both, or a double tap would step a list and
+  // reset it at once.
+  for (int sub = 0; sub < numControlsInSection (2); ++sub)
+    EXPECT_FALSE (tapAdvancesValue (2, sub) && tapTogglesValue (2, sub))
+        << "sub " << sub;
+}
