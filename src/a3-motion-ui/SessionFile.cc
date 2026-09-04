@@ -22,6 +22,8 @@
 
 #include <a3-motion-engine/Playhead.hh>
 
+#include <iostream>
+
 namespace a3
 {
 
@@ -220,6 +222,28 @@ saveSession (juce::File const &file, Session const &set)
     return false;
 
   return file.replaceWithText (juce::JSON::toString (juce::var (root)));
+}
+
+
+bool
+migrateSetToCurrent (juce::File const &root)
+{
+  auto const old = root.getChildFile ("set.json");
+  auto const current = root.getChildFile ("current.json");
+
+  if (!old.existsAsFile () || current.existsAsFile ())
+    return false;
+
+  if (!old.copyFileTo (current))
+    {
+      std::cerr << "SessionFile: cannot write " << current.getFullPathName ()
+                << std::endl;
+      return false;
+    }
+
+  std::cout << "SessionFile: the automatic set is now current.json"
+            << std::endl;
+  return true;
 }
 
 }

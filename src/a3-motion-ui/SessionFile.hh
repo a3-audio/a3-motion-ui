@@ -101,4 +101,14 @@ Session loadSession (juce::File const &file, int numChannels, int numSlots);
 
 bool saveSession (juce::File const &file, Session const &set);
 
+/** Move a `set.json` written before sessions had names to `current.json`.
+ *
+ *  The old file is left where it is: a migration that deletes nothing can be
+ *  run again when it goes wrong, and this one runs on every start. It does
+ *  nothing once `current.json` exists, so a later `set.json` -- somebody's
+ *  backup, dropped back in -- does not silently overwrite the session in use.
+ *
+ *  @returns true if it moved something. */
+bool migrateSetToCurrent (juce::File const &root);
+
 }

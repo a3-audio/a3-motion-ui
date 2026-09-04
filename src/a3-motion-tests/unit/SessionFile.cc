@@ -276,3 +276,65 @@ TEST (SessionFile, AnOlderSessionHasNoOverrides)
 
   file.deleteFile ();
 }
+
+// ── The automatic set becomes a session like any other ───────────────────
+
+TEST (SessionFile, TheOldAutomaticSetBecomesCurrent)
+{
+  auto const root = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("a3-session-migrate");
+  root.deleteRecursively ();
+  root.createDirectory ();
+
+  auto const old = root.getChildFile ("set.json");
+  old.replaceWithText (
+      R"({"channels":[{"threeD":0.5,"freq":0.0,"q":0.0,)"
+      R"("slots":[{"pattern":"Wave","recordLengthLog2":0}]}]})");
+
+  EXPECT_TRUE (migrateSetToCurrent (root));
+
+  auto const current = loadSession (root.getChildFile ("current.json"), 1, 1);
+  EXPECT_EQ (current.channels[0].slots[0].patternName, "Wave");
+
+  // Nothing deleted: a migration that leaves the old file can be run again.
+  EXPECT_TRUE (old.existsAsFile ());
+
+  root.deleteRecursively ();
+}
+
+// It runs on every start, so a second run must do nothing -- and a set.json
+// dropped back in later, from somebody's backup, must not overwrite the
+// session actually in use.
+TEST (SessionFile, MigratingAgainLeavesTheSessionInUseAlone)
+{
+  auto const root = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("a3-session-migrate-twice");
+  root.deleteRecursively ();
+  root.createDirectory ();
+
+  root.getChildFile ("set.json").replaceWithText (R"({"channels":[]})");
+  ASSERT_TRUE (migrateSetToCurrent (root));
+
+  root.getChildFile ("current.json")
+      .replaceWithText (
+          R"({"name":"mine","channels":[{"threeD":0.9,"freq":0.0,"q":0.0,)"
+          R"("slots":[]}]})");
+
+  EXPECT_FALSE (migrateSetToCurrent (root));
+  EXPECT_EQ (loadSession (root.getChildFile ("current.json"), 1, 1).name,
+             "mine");
+
+  root.deleteRecursively ();
+}
+
+TEST (SessionFile, NothingToMigrateIsNotAnError)
+{
+  auto const root = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("a3-session-migrate-empty");
+  root.deleteRecursively ();
+  root.createDirectory ();
+
+  EXPECT_FALSE (migrateSetToCurrent (root));
+
+  root.deleteRecursively ();
+}

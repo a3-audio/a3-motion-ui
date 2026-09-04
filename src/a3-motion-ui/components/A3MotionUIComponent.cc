@@ -116,6 +116,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // Non-destructive and idempotent: it runs on every start and does nothing
   // once every take has a clip.
   migrateCombinedPatterns (patternsDir);
+  migrateSetToCurrent (patternsDir);
 
   _patternLibrary = std::make_unique<PatternLibrary> (patternsDir);
   _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
@@ -2053,7 +2054,11 @@ A3MotionUIComponent::setFilePath () const
 
   // Beside the takes by default, so the two travel together without anyone
   // having to configure that they do.
-  return _patternLibrary->getRootDir ().getChildFile ("set.json");
+  //
+  // "current" rather than "set": it is the session the device comes back to,
+  // and it is an ordinary session like the named ones beside it -- the only
+  // difference is that nobody chose its name.
+  return _patternLibrary->getRootDir ().getChildFile ("current.json");
 }
 
 void
