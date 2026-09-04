@@ -38,6 +38,8 @@
 
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternGenerator.hh>
+#include <a3-motion-engine/ClipFile.hh>
+#include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
@@ -198,6 +200,30 @@ main (int argc, char *argv[])
 
   // Ensure output directory exists
   juce::File outDir (outputDir);
+
+  // The clips sit beside the shapes, not inside them: a shape says where the
+  // sound goes and a clip says how it is played, and the browser lists the
+  // clips. A shape without one would be a pattern nobody can reach.
+  auto const clipDir = outDir.getParentDirectory ().getChildFile ("clips");
+
+  // Writes the clip that reaches a shape. The clip's name is the shape's
+  // without the beat-count prefix -- "16_Wave.svg" is reached by "Wave" --
+  // because the prefix says how long the take is, which is the shape's
+  // business and not something to read off a list of clips.
+  auto const saveFactoryClip
+      = [&clipDir] (Pattern const &pattern, juce::File const &shape) {
+          Clip clip;
+          clip.svg
+              = shape.getFileNameWithoutExtension ().toStdString ();
+          clip.name = shape.getFileNameWithoutExtension ()
+                          .fromFirstOccurrenceOf ("_", false, false)
+                          .toStdString ();
+          clip.settings = clipSettingsFrom (pattern);
+
+          if (!ClipFile::save (clip, clipDir.getChildFile (
+                                         juce::String (clip.name) + ".json")))
+            std::cerr << "  FAILED (clip): " << clip.name << std::endl;
+        };
   outDir.createDirectory ();
 
   int generated = 0;
@@ -269,9 +295,13 @@ main (int argc, char *argv[])
                           + safeFilename (name.toStdString ()) + ".svg";
           auto file = outDir.getChildFile (filename);
 
-          if (PatternFile::save (
-                  std::shared_ptr<Pattern> (std::move (pattern)), file))
+          // Kept alive past the save: the clip is written from the same
+          // pattern, so the settings in the file and the settings in the clip
+          // cannot come from two different objects.
+          auto const saved = std::shared_ptr<Pattern> (std::move (pattern));
+          if (PatternFile::save (saved, file))
             {
+              saveFactoryClip (*saved, file);
               std::cout << "  " << file.getFullPathName () << std::endl;
               ++generated;
             }
@@ -324,9 +354,10 @@ main (int argc, char *argv[])
                       + safeFilename (def.name) + ".svg";
       auto file = outDir.getChildFile (filename);
 
-      if (PatternFile::save (std::shared_ptr<Pattern> (std::move (pattern)),
-                             file))
+      auto const saved = std::shared_ptr<Pattern> (std::move (pattern));
+      if (PatternFile::save (saved, file))
         {
+          saveFactoryClip (*saved, file);
           std::cout << "  " << file.getFullPathName () << std::endl;
           ++generated;
         }

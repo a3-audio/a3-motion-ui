@@ -22,11 +22,13 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-ui/Helpers.hh>
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
 
 #include <cmath>
+#include <set>
 
 using namespace a3;
 
@@ -310,5 +312,59 @@ TEST (SystemPatternIcons, EveryShippedShapeSitsWhereItShould)
       EXPECT_LT (offset, 0.07f)
           << file.getFileName () << " sits " << (offset * 100.f)
           << "% of its own radius off the middle of the room";
+    }
+}
+
+// ── Every shape is reachable by a clip ───────────────────────────────────
+
+TEST (SystemPatternIcons, EveryShippedShapeHasAFactoryClip)
+{
+  // The browser lists clips, not shapes. A shape without a clip would be a
+  // pattern nobody can reach.
+  auto const shapes = systemPatternDir ().findChildFiles (
+      juce::File::findFiles, false, "*.svg");
+  ASSERT_FALSE (shapes.isEmpty ());
+
+  auto const clipDir
+      = systemPatternDir ().getParentDirectory ().getChildFile ("clips");
+  ASSERT_TRUE (clipDir.isDirectory ())
+      << "expected " << clipDir.getFullPathName ();
+
+  for (auto const &shape : shapes)
+    {
+      // "16_Wave.svg" is the shape; the clip that reaches it is "Wave".
+      auto const name
+          = shape.getFileNameWithoutExtension ().fromFirstOccurrenceOf (
+              "_", false, false);
+
+      auto const clipFile = clipDir.getChildFile (name + ".json");
+      ASSERT_TRUE (clipFile.existsAsFile ())
+          << shape.getFileName () << " has no clip";
+
+      auto const clip = ClipFile::load (clipFile);
+      ASSERT_TRUE (clip.has_value ()) << clipFile.getFileName ();
+      EXPECT_EQ (clip->svg,
+                 shape.getFileNameWithoutExtension ().toStdString ())
+          << clipFile.getFileName () << " points at the wrong shape";
+      EXPECT_EQ (clip->name, name.toStdString ());
+    }
+}
+
+TEST (SystemPatternIcons, NoTwoFactoryClipsShareAName)
+{
+  // Names are the identity, and the browser shows one list. Two clips called
+  // the same thing would be two rows nobody can tell apart.
+  auto const clipDir
+      = systemPatternDir ().getParentDirectory ().getChildFile ("clips");
+  ASSERT_TRUE (clipDir.isDirectory ());
+
+  std::set<std::string> seen;
+  for (auto const &file :
+       clipDir.findChildFiles (juce::File::findFiles, false, "*.json"))
+    {
+      auto const clip = ClipFile::load (file);
+      ASSERT_TRUE (clip.has_value ()) << file.getFileName ();
+      EXPECT_TRUE (seen.insert (clip->name).second)
+          << clip->name << " is used twice";
     }
 }
