@@ -93,6 +93,16 @@ float initialSign (PlayDirection direction);
  *  written before the setting existed, or edited by hand: it loops, which is
  *  what every clip did before there was a choice. */
 juce::String endActionToName (EndAction action);
+
+/** The other two enums a clip carries, in the one place that spells them.
+ *
+ *  PatternFile wrote them as inline ternaries and ClipFile would have needed
+ *  its own -- two tables for one enum, which agree until the day somebody adds
+ *  a value to one of them. */
+juce::String playDirectionToName (PlayDirection direction);
+PlayDirection playDirectionFromName (juce::String const &name);
+juce::String actModeToName (ActMode mode);
+ActMode actModeFromName (juce::String const &name);
 EndAction endActionFromName (juce::String const &name);
 
 /** The playhead one tick on.

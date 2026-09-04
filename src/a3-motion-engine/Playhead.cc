@@ -120,4 +120,30 @@ advancePlayhead (Playhead current, float delta, EndAction endAction,
   return { wrapIntoPass (next), sign, false };
 }
 
+juce::String
+playDirectionToName (PlayDirection direction)
+{
+  return direction == PlayDirection::Reverse ? "rev" : "fwd";
+}
+
+PlayDirection
+playDirectionFromName (juce::String const &name)
+{
+  return name == "rev" ? PlayDirection::Reverse : PlayDirection::Forward;
+}
+
+juce::String
+actModeToName (ActMode mode)
+{
+  return mode == ActMode::Hold ? "hold" : "one-shot";
+}
+
+ActMode
+actModeFromName (juce::String const &name)
+{
+  // Anything unrecognised is a shot, which is what every take written before
+  // the mode existed did.
+  return name == "hold" ? ActMode::Hold : ActMode::OneShot;
+}
+
 }
