@@ -51,7 +51,11 @@ public:
 
   /** What this pad looks like right now — empty, idle, armed, running. Pushed
    *  from padLEDCallback(), which computes it once for both displays. */
-  void setPadColour (index_t channel, index_t pad, juce::Colour colour);
+  /** `playing` because Play|Pause is written in green while a clip runs and
+   *  red while it does not, and the pad's own colour is the channel's, which
+   *  cannot answer that. */
+  void setPadColour (index_t channel, index_t pad, juce::Colour colour,
+                     bool playing = false);
 
   /** A pad went down or came up. Both matter: Shift+Action runs a preview for
    *  as long as it is held, so a press without its release would leave the
@@ -67,6 +71,8 @@ private:
 
   std::array<std::array<juce::Colour, numPadsPerChannel>, numChannelColumns>
       _padColours;
+  std::array<std::array<bool, numPadsPerChannel>, numChannelColumns>
+      _padPlaying{};
 
   std::array<std::array<std::unique_ptr<TouchControl>, numPadsPerChannel>,
              numChannelColumns>

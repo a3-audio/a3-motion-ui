@@ -370,6 +370,41 @@ face a hole where the third row would have been. What holds on both is the order
 Both faces' button rows share the same room, so `setPage()` decides which set may be touched —
 hit areas left behind by the hidden face would answer for buttons nobody can see.
 
+**The name left the picture.** It used to be drawn inside the pictogram to keep it off the buttons
+below; it now shares a row with the knob, name left and knob right, which hands the row above back
+to the picture. That was the point: a recorded take drawn into the thirty pixels left over after the
+name was a smudge, and showing you what the clip looks like is the section's whole job.
+
+**`rot` is a closed ring**, the only control in the bar that is. A rotation comes round to itself, so
+its scale has to: on the usual 270-degree sweep the two ends are the same angle with a dead zone
+between them, and a value that wraps then reads as an amount rather than as a position. A ring has
+no start to fill from either, so it has no value arc — the pointer says where the hand left it and
+the blue says where the spin is holding it now. Watch for the trap that caught this: the pointer's
+colour used to be inherited from whatever the value arc had set, so removing the arc drew the
+pointer in the modulation's blue. It sets its own colour now.
+
+**The header's four transport keys are the shown clip's pads**, routed through `handlePadPress()`
+rather than reimplemented. The timing rules — play on the next beat, stop now, the accent for as
+long as the finger is down — live there, and `padIndexFor()` in `PadFunctions.hh` reads the pad
+tables backwards to find the right pad. Two routes to one function that each keep their own copy of
+what it means will differ eventually, and the difference shows up mid-set.
+
+**Record is a toggle wherever it is pressed** — the panel key, the bar's key, the tab — via
+`toggleRecordPage()`. A key that only ever goes one way leaves you reaching for a different control
+to undo what it did.
+
+**`TransportColours.hh` is the one rule for what the four clip actions look like**: red for record
+and stop, green or red for play/pause depending on whether the clip is running, yellow (`highlight`,
+a skin value like every other colour) for the accent. The bar's header keys, the pads page, the
+global strip's REC and the ACT beside the envelope all read it. On the pads page the word is laid
+over a dark plate of itself first, because the pad underneath is the channel's colour and a red word
+on a red pad is not a word.
+
+**The bar only refreshes itself while something is moving**, and the condition in `timerCallback()`
+is the list of what counts. It said "while recording", so a playing clip got a transport key that
+never turned green and a tick indicator that stayed empty. Anything new that animates has to be
+added there; nothing in the bar repaints on its own.
+
 The rec mode and clock buttons in the global section deliberately **never light**: they carry a
 value, the value is written on them, and a wash that comes and goes says the same thing again in
 grey and reads as a button stuck half-pressed. What they do carry is the value's *colour* — see

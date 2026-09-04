@@ -80,6 +80,10 @@ struct Theme
    *  clock, say. accent was blue in an older skin and is green in this one,
    *  which is why PIO stopped standing out from INT. */
   ThemeColour notice{ 70, 130, 250 };
+  /** A momentary emphasis: the accent key, which is not a state you are in but
+   *  something you do for as long as you hold it. Neither the green of
+   *  "running" nor the red of "this writes over something". */
+  ThemeColour highlight{ 255, 214, 10 };
   float alphaDisabled = 0.35f;
   float alphaInactive = 0.6f;
 

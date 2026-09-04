@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-ui/theme/FunctionKeyColours.hh>
+#include <a3-motion-ui/theme/TransportColours.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
 using namespace a3;
@@ -124,4 +125,81 @@ TEST (FunctionKeyColours, TheRecModeIsColouredByHowMuchItDestroys)
   look.recMode = 2;
   EXPECT_EQ (functionKeyColour (FunctionKey::RecMode, look),
              recModeColour (2));
+}
+
+// ── One colour per clip action, wherever it is drawn ─────────────────────
+
+TEST (TransportColours, TheFourActionsEachKeepOneColour)
+{
+  // The point of the rule: REC in the header, REC on the panel and REC on a
+  // pad are the same function, and a function that changes colour between
+  // corners of the screen is one you have to read rather than recognise.
+  EXPECT_EQ (transportColour (TransportKey::Record),
+             toColour (theme ().danger));
+  EXPECT_EQ (transportColour (TransportKey::Stop), toColour (theme ().danger));
+  EXPECT_EQ (transportColour (TransportKey::Action),
+             toColour (theme ().highlight));
+}
+
+TEST (TransportColours, PlayPauseAnswersTheOnlyQuestionAskedOfIt)
+{
+  EXPECT_EQ (transportColour (TransportKey::PlayPause, true),
+             toColour (theme ().accent));
+  EXPECT_EQ (transportColour (TransportKey::PlayPause, false),
+             toColour (theme ().danger));
+}
+
+TEST (TransportColours, APadReachesTheSameRuleAsTheHeaderKey)
+{
+  EXPECT_EQ (padFunctionColour (PadFunction::PlayPause, true),
+             transportColour (TransportKey::PlayPause, true));
+  EXPECT_EQ (padFunctionColour (PadFunction::Stop),
+             transportColour (TransportKey::Stop));
+  EXPECT_EQ (padFunctionColour (PadFunction::Action),
+             transportColour (TransportKey::Action));
+}
+
+TEST (TransportColours, SettingsHasNoColourOfItsOwn)
+{
+  // It opens a menu. A colour that means nothing makes the ones that mean
+  // something harder to read.
+  EXPECT_TRUE (padFunctionColour (PadFunction::Settings).isTransparent ());
+}
+
+TEST (TransportColours, TheRecordFunctionKeyIsTheSameRedAsTheTransportKey)
+{
+  FunctionKeyLook look{};
+  EXPECT_EQ (functionKeyColour (FunctionKey::Record, look),
+             transportColour (TransportKey::Record));
+}
+
+TEST (TransportColours, EveryActionReadsOnTheDarkPlateItIsDrawnOn)
+{
+  // The pads page draws each word on a plate of theme().surface rather than
+  // straight onto the channel-coloured pad, so this is the ground the four
+  // colours actually have to clear -- and unlike a pad's colour it is one the
+  // skin does choose, so it can be held to a floor.
+  auto const plate = toColour (theme ().surface);
+
+  for (auto const key : { TransportKey::Record, TransportKey::Stop,
+                          TransportKey::Action })
+    EXPECT_GE (contrastRatio (transportColour (key), plate), 3.f)
+        << transportColour (key).toString ();
+
+  EXPECT_GE (contrastRatio (transportColour (TransportKey::PlayPause, true),
+                            plate),
+             3.f);
+  EXPECT_GE (contrastRatio (transportColour (TransportKey::PlayPause, false),
+                            plate),
+             3.f);
+}
+
+TEST (TransportColours, ContrastRatioIsSymmetricAndBounded)
+{
+  EXPECT_NEAR (contrastRatio (juce::Colours::white, juce::Colours::black),
+               21.f, 0.1f);
+  EXPECT_NEAR (contrastRatio (juce::Colours::black, juce::Colours::white),
+               21.f, 0.1f);
+  EXPECT_NEAR (contrastRatio (juce::Colours::red, juce::Colours::red), 1.f,
+               0.001f);
 }

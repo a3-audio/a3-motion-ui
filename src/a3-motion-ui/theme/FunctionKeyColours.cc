@@ -21,6 +21,7 @@
 #include "FunctionKeyColours.hh"
 
 #include <a3-motion-ui/theme/ThemeColours.hh>
+#include <a3-motion-ui/theme/TransportColours.hh>
 
 namespace a3
 {
@@ -61,8 +62,13 @@ functionKeyColour (FunctionKey key, FunctionKeyLook const &look)
       // — it was orange until it ran, which made the standing state a colour
       // you had to know the meaning of. Running is the same red, brighter, so
       // the difference is loudness rather than a second thing to learn.
-      return look.recording ? toColour (theme ().danger).brighter (0.45f)
-                            : toColour (theme ().danger);
+      //
+      // Taken from the transport rule rather than restated: the panel key and
+      // the bar's little circle are the same function, and a function has one
+      // colour.
+      return look.recording
+                 ? transportColour (TransportKey::Record).brighter (0.45f)
+                 : transportColour (TransportKey::Record);
 
     case FunctionKey::Shift:
       return look.shiftHeld ? toColour (theme ().accent) : juce::Colour{};

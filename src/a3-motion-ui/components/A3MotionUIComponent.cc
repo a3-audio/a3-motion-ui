@@ -1987,7 +1987,8 @@ A3MotionUIComponent::padLEDCallback (int step)
           // The same colour to the screen. One place works out what empty,
           // idle, armed and running look like; two places show it.
           if (_controller)
-            _controller->setPadColour (channel, pad, colour);
+            _controller->setPadColour (channel, pad, colour,
+                                       isPlayingOnPlayPause);
         }
     }
 }

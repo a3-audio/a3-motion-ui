@@ -58,9 +58,11 @@ target_sources("a3-motion-ui" PRIVATE
     components/ControllerComponent.cc
     components/ControllerComponent.hh
     theme/FunctionKeyColours.cc
+    theme/TransportColours.cc
     theme/SkinGroups.cc
     theme/SkinGroups.hh
     theme/FunctionKeyColours.hh
+    theme/TransportColours.hh
     components/ClipSettingsLayout.hh
     components/TouchGrabs.cc
     components/TouchGrabs.hh

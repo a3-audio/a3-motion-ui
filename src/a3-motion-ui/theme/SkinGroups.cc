@@ -53,7 +53,8 @@ struct Group
 constexpr Group groups[] = {
   { "Surfaces", { "surface", "surfaceRaised", "background" } },
   { "Text", { "textPrimary", "textMuted", "textOnAccent" } },
-  { "States", { "accent", "warning", "danger", "notice", "alphaDisabled",
+  { "States", { "accent", "warning", "danger", "notice", "highlight",
+                "alphaDisabled",
                 "alphaInactive" } },
   { "Channels", { "channels.*" } },
   { "Sphere", { "sphereSurface", "sphereRim", "sphereEnvironment",

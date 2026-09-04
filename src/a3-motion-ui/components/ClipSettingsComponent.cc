@@ -29,6 +29,7 @@
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 
 #include <a3-motion-ui/theme/Theme.hh>
+#include <a3-motion-ui/theme/TransportColours.hh>
 
 #include <cmath>
 
@@ -738,44 +739,58 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
         continue;
 
       auto const key = transportKeyOrder[i];
-      juce::Colour ground{};
-      auto text = toColour (theme ().textPrimary, 0.75f);
-      juce::String label;
+      auto const mark = transportColour (key, _transportPlaying);
+      auto const lit = (key == TransportKey::Record && _transportRecording)
+                       || (key == TransportKey::PlayPause && _transportPlaying);
 
-      switch (key)
-        {
-        case TransportKey::Record:
-          label = "REC";
-          text = toColour (theme ().danger);
-          if (_transportRecording)
-            ground = toColour (theme ().danger);
-          break;
-        case TransportKey::Stop:
-          label = "STOP";
-          break;
-        case TransportKey::PlayPause:
-          // One key, two words, because it is one key on the pad too. What it
-          // says is what pressing it will do.
-          label = _transportPlaying ? "II" : ">";
-          if (_transportPlaying)
-            ground = toColour (theme ().accent);
-          break;
-        case TransportKey::Action:
-          label = "ACT";
-          break;
-        }
-
-      g.setColour (ground.isTransparent ()
-                       ? toColour (theme ().textPrimary, 0.06f)
-                       : ground.withAlpha (0.35f));
+      g.setColour (lit ? mark.withAlpha (0.35f)
+                       : toColour (theme ().textPrimary, 0.06f));
       g.fillRoundedRectangle (bounds.toFloat (), 3.f);
       g.setColour (toColour (theme ().textPrimary, 0.15f));
       g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
 
-      g.setFont (juce::Font (fontFor (FontRole::Body, bounds, label),
-                             juce::Font::plain));
-      g.setColour (text);
-      g.drawFittedText (label, bounds, juce::Justification::centred, 1);
+      // Shapes, not words. These four are the ones you reach for without
+      // reading, and the shapes are the ones every deck and every transport
+      // has used for fifty years -- a circle records, a square stops, a
+      // triangle plays, two bars hold. ACT has no such shape, so it gets its
+      // initial rather than a symbol nobody would recognise.
+      auto const face = bounds.toFloat ().reduced (bounds.getWidth () * 0.28f);
+      g.setColour (mark);
+
+      switch (key)
+        {
+        case TransportKey::Record:
+          g.fillEllipse (face);
+          break;
+
+        case TransportKey::Stop:
+          g.fillRect (face);
+          break;
+
+        case TransportKey::PlayPause:
+          if (_transportPlaying)
+            {
+              // Two bars: what pressing it will do is hold.
+              auto const barW = face.getWidth () * 0.34f;
+              g.fillRect (face.withWidth (barW));
+              g.fillRect (face.withWidth (barW).withRightX (face.getRight ()));
+            }
+          else
+            {
+              juce::Path play;
+              play.addTriangle (face.getX (), face.getY (), face.getX (),
+                                face.getBottom (), face.getRight (),
+                                face.getCentreY ());
+              g.fillPath (play);
+            }
+          break;
+
+        case TransportKey::Action:
+          g.setFont (juce::Font (fontFor (FontRole::Body, bounds, "A"),
+                                 juce::Font::bold));
+          g.drawFittedText ("A", bounds, juce::Justification::centred, 1);
+          break;
+        }
     }
 
   paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
@@ -1680,12 +1695,12 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
                   caption::endAction, _motionSubIndex == 6 && isSelected,
                   isSelected, true);
 
-  // The key that plays what the two knobs above it shape. Lit while it is
-  // down, in the notice colour the grid draws the accent's reach in — the
-  // same colour saying the same thing in two places.
+  // The key that plays what the two knobs above it shape. Yellow, like every
+  // other ACT on the device -- the four clip actions each keep one colour
+  // wherever they appear, so a word does not mean one thing in this corner of
+  // the screen and something else in the next.
   paintActionButton (g, _layout.accentButton, "ACT", _accentHeld,
-                     _accentHeld ? toColour (theme ().notice)
-                                 : juce::Colour{});
+                     transportColour (TransportKey::Action));
 }
 
 bool
