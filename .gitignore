@@ -8,6 +8,13 @@ src/a3-motion-ui/Config.hh
 microsoft.gpg
 config/ui_state.json
 
+# What the performer brings, not what the repo ships. The recordings are
+# somebody's takes and set.json is their arrangement -- live pot positions
+# included, so it would churn on every single commit. The system patterns in
+# pattern/system/ stay tracked: those are the instrument.
+pattern/user/
+pattern/set.json
+
 # IDE
 .idea/
 *.swp
