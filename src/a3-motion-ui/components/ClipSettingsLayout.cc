@@ -145,7 +145,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // hit rather than to fit their words — they are switched mid-set, with one
   // hand, without looking down.
   // Three, so a third of what the row can spare each rather than a quarter.
-  auto const tabW = juce::jmax (fingertipSize, headerArea.getWidth () / 5);
+  // A sixth each rather than a fifth: three tabs at a fifth took most of the
+  // row and left the slot keys beside them too narrow to read their own words.
+  // The fingertip floor still holds, which is what actually matters for a
+  // control switched mid-set.
+  auto const tabW = juce::jmax (fingertipSize, headerArea.getWidth () / 6);
   out.tabController = headerArea.removeFromRight (tabW);
   out.tabRecord = headerArea.removeFromRight (tabW);
   out.tabClip = headerArea.removeFromRight (tabW);
@@ -172,11 +176,18 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       // them as those sit to each other.
       headerArea.removeFromLeft (transportGap * 3);
 
-      // Wide enough for "Slot 1" rather than square: they are read as well as
-      // pressed, which the four marks beside them are not.
-      auto const slotW
-          = juce::jmin (headerArea.getWidth () / static_cast<int> (numPadSlots + 1),
-                        transportW * 5 / 2);
+      // Wide enough for "Slot 1" with room around it rather than square: these
+      // are read as well as pressed, which the four marks beside them are not,
+      // and a word pressed against its own border reads as cramped however
+      // legible it is. Still capped against the row, so the tabs keep theirs.
+      // Whatever the row has left, shared between them -- rather than a
+      // fraction of it with the remainder left lying there, which is what kept
+      // them narrow however high the cap was raised.
+      auto const slotW = juce::jmin (
+          (headerArea.getWidth ()
+           - transportGap * static_cast<int> (numPadSlots))
+              / static_cast<int> (numPadSlots),
+          transportW * 4);
       for (index_t slot = 0; slot < numPadSlots; ++slot)
         {
           out.slotButtons[slot] = headerArea.removeFromLeft (slotW);
