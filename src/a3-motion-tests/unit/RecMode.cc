@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <set>
+
 #include <a3-motion-engine/RecMode.hh>
 
 using namespace a3;
@@ -110,4 +112,36 @@ TEST (RecMode, NothingIsShownWithoutATakeOrWithoutAnythingUnderneath)
       << "the slot was empty, so there is nothing to show";
 }
 
+}
+
+// ── Cycling through the modes ────────────────────────────────────────────
+
+TEST (RecMode, CyclingVisitsEveryModeAndComesBack)
+{
+  // The panel key and the bar's key both step by one and wrap. If the index
+  // lookup ever failed to find the current mode it would return 0 and every
+  // press would land on the first mode -- a key that looks stuck rather than
+  // one that errors.
+  auto const count = static_cast<int> (recMenuModes.size ());
+  ASSERT_GT (count, 1);
+
+  std::set<RecMode> seen;
+  auto mode = recMenuModes[0];
+
+  for (int step = 0; step < count; ++step)
+    {
+      seen.insert (mode);
+      mode = recMenuModes[static_cast<size_t> ((recMenuIndex (mode) + 1)
+                                               % count)];
+    }
+
+  EXPECT_EQ (static_cast<int> (seen.size ()), count)
+      << "every mode is reachable by pressing the key";
+  EXPECT_EQ (mode, recMenuModes[0]) << "and it comes back round";
+}
+
+TEST (RecMode, EveryModeKnowsItsOwnPlaceInTheMenu)
+{
+  for (size_t i = 0; i < recMenuModes.size (); ++i)
+    EXPECT_EQ (recMenuIndex (recMenuModes[i]), static_cast<int> (i));
 }

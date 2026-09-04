@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <array>
+
 #include <juce_core/juce_core.h>
 
 namespace a3
@@ -47,6 +49,31 @@ enum class RecMode
    *  out of the way rather than adding to it. */
   Write
 };
+
+/** The modes the Automation row and both rec-mode keys offer, in the order
+ *  they offer them.
+ *
+ *  Beside the enum rather than inside whoever draws the row: the panel's key,
+ *  the bar's key and the menu all step through this list, and a list that
+ *  lived in one of them would be a list the other two had to guess at. Read is
+ *  absent on purpose -- see where the row is built. */
+constexpr std::array<RecMode, 3> recMenuModes{
+  RecMode::Touch, RecMode::Latch, RecMode::Write
+};
+
+/** Where a mode sits in that list. Falls back to the first rather than to -1:
+ *  a mode the list does not contain is a bug in the list, and a key that lands
+ *  somewhere valid is easier to notice than one that steps to index zero
+ *  forever. */
+constexpr int
+recMenuIndex (RecMode mode)
+{
+  for (int i = 0; i < static_cast<int> (recMenuModes.size ()); ++i)
+    if (recMenuModes[static_cast<std::size_t> (i)] == mode)
+      return i;
+
+  return 0;
+}
 
 /** Whether this tick is written.
  *

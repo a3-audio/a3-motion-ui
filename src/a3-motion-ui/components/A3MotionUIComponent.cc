@@ -75,13 +75,6 @@ namespace a3
 
 namespace
 {
-/** The modes the Automation row offers, in the order it offers them. The row
- *  hands back an index, so this list is what an index means; Read is absent on
- *  purpose — see where the row is built. */
-constexpr std::array<RecMode, 3> recMenuModes{
-  RecMode::Touch, RecMode::Latch, RecMode::Write
-};
-
 /** The fade in ticks. Sixteenths of a beat are what the panel offers, because
  *  that is a length a musician can hear; ticks are what the pattern counts. */
 index_t
@@ -91,15 +84,6 @@ fadeTicksFor (int sixteenths)
          * ticksPerFadeStep (TempoClock::getTicksPerBeat ());
 }
 
-int
-recMenuIndex (RecMode mode)
-{
-  auto const found = std::find (recMenuModes.begin (),
-                                recMenuModes.end (), mode);
-  return found == recMenuModes.end ()
-             ? 0
-             : static_cast<int> (found - recMenuModes.begin ());
-}
 }
 
 
@@ -2698,6 +2682,18 @@ A3MotionUIComponent::applyRecMode (int index)
 
   _recMode = recMenuModes[static_cast<size_t> (index)];
   _engine.setRecMode (_recMode);
+
+  // Shown here rather than by whoever called, exactly as applyClockMode() has
+  // always done. The screen's key refreshed itself and the panel's did not, so
+  // pressing the panel key cycled the mode and left both the screen and the
+  // key's own LED saying the old one -- which is indistinguishable from a key
+  // that does nothing, and was reported as exactly that. On the panel the LED
+  // is the only answer there is, so leaving it stale is the whole bug.
+  if (_clipSettings)
+    _clipSettings->setRecMode (_recMode);
+
+  if (runsOnHardware ())
+    updateFunctionKeyLEDs ();
 
   saveSettings (getPersistedSettingsFile (),
                 AppSettings{ _clockMode, _recMode });
