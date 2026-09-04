@@ -489,6 +489,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _browser = std::make_unique<BrowserComponent> ();
   _browser->onFieldChosen = [this] (index_t channel, index_t slot) {
     _browserField = { static_cast<int> (channel), static_cast<int> (slot) };
+    _browserList = BrowserList::Clips;
 
     // The rest of the device follows the field. Choosing where a clip goes is
     // saying "this one" as plainly as pressing its pad is, and the bar, the
@@ -503,12 +504,24 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     refreshBrowser ();
   };
   _browser->onSavePressed = [this] {
-    saveSlotClip (static_cast<index_t> (_browserField.first),
-                  static_cast<index_t> (_browserField.second));
+    if (_browserList == BrowserList::Sessions)
+      saveCurrentSession ();
+    else
+      saveSlotClip (static_cast<index_t> (_browserField.first),
+                    static_cast<index_t> (_browserField.second));
+  };
+  _browser->onSessionPressed = [this] {
+    _browserList = BrowserList::Sessions;
+    _browser->setSelectedEntry (-1);
+    refreshBrowser ();
   };
   _browser->onEntryChosen = [this] (int index) {
     _browser->setSelectedEntry (index);
-    assignBrowserEntry (index);
+
+    if (_browserList == BrowserList::Sessions)
+      loadSessionNamed (_browser->entryName (index));
+    else
+      assignBrowserEntry (index);
   };
 
   addChildComponent (*_clipSettings);
@@ -1712,6 +1725,73 @@ A3MotionUIComponent::saveSlotClip (index_t channel, index_t slot)
   updateClipSettingsDisplay ();
 }
 
+juce::File
+A3MotionUIComponent::sessionsDir () const
+{
+  return _patternLibrary->getRootDir ().getChildFile ("sessions");
+}
+
+void
+A3MotionUIComponent::saveCurrentSession ()
+{
+  auto set = buildSession ();
+
+  // A name that is not taken yet. Naming one by hand comes with the naming
+  // row; until then a set is "Set", "Set 2", "Set 3" -- countable, sayable,
+  // and findable in a list, which is what a name is for.
+  auto const dir = sessionsDir ();
+  auto name = juce::String ("Set");
+  for (int n = 2; dir.getChildFile (name + ".json").existsAsFile (); ++n)
+    name = "Set " + juce::String (n);
+
+  set.name = name.toStdString ();
+
+  if (saveSession (dir.getChildFile (name + ".json"), set))
+    updateControlReadout ("-- SAVED " + name.toUpperCase ());
+  else
+    updateControlReadout ("-- SAVE FAILED");
+
+  refreshBrowser ();
+}
+
+void
+A3MotionUIComponent::loadSessionNamed (juce::String const &name)
+{
+  auto const file = sessionsDir ().getChildFile (name + ".json");
+  if (!file.existsAsFile ())
+    {
+      updateControlReadout ("-- NO SUCH SET");
+      return;
+    }
+
+  // What is running now, written down before it is replaced. Not asked about
+  // -- written. The previous arrangement is then never gone, even if nobody
+  // thought to save it.
+  writeSet ();
+
+  // Everything stops. All eight slots are about to hold something else, and a
+  // clip still running while its slot holds a different one is exactly the
+  // state that dropping a single clip already avoids.
+  for (index_t channel = 0; channel < _patterns.size (); ++channel)
+    for (index_t slot = 0; slot < _patterns[channel].size (); ++slot)
+      if (auto const &pattern = _patterns[channel][slot])
+        {
+          auto const status = pattern->getStatus ();
+          if (status == Pattern::Status::Playing
+              || status == Pattern::Status::Recording
+              || status == Pattern::Status::ScheduledForPlaying)
+            _engine.stopPattern (pattern, _now);
+        }
+
+  _sessionName = name;
+  applySet (file);
+
+  updateControlReadout ("-- LOADED " + name.toUpperCase ());
+  refreshBrowser ();
+  refreshAllPadRowLabels ();
+  updateClipSettingsDisplay ();
+}
+
 void
 A3MotionUIComponent::refreshBrowser ()
 {
@@ -1734,10 +1814,38 @@ A3MotionUIComponent::refreshBrowser ()
   // nothing is a row that empties the field it is dropped on -- which is worth
   // having, so it is listed rather than skipped.
   juce::StringArray names;
-  for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
-    names.add (juce::String (_patternLibrary->getEntry (i).name));
+
+  if (_browserList == BrowserList::Sessions)
+    {
+      for (auto const &file : sessionsDir ().findChildFiles (
+               juce::File::findFiles, false, "*.json"))
+        names.add (file.getFileNameWithoutExtension ());
+      names.sort (true);
+    }
+  else
+    {
+      for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
+        names.add (juce::String (_patternLibrary->getEntry (i).name));
+    }
 
   _browser->setEntries (names);
+  _browser->setSessionName (_sessionName);
+
+  // The list points at what the chosen field is already holding. Without this
+  // you have to remember what is in a slot in order to see it highlighted --
+  // and the highlight is the only thing saying which of seventy rows you are
+  // looking at.
+  if (_browserList == BrowserList::Clips)
+    {
+      auto const ch = static_cast<index_t> (_browserField.first);
+      auto const sl = static_cast<index_t> (_browserField.second);
+      auto const &held = ch < _patterns.size () && sl < _patterns[ch].size ()
+                             ? _patterns[ch][sl]
+                             : nullptr;
+
+      _browser->setSelectedEntry (
+          held ? _patternLibrary->indexForName (held->getName ()) : 0);
+    }
   _browser->setSelectedField (_browserField.first, _browserField.second);
 
   // What can actually be done to what is chosen. Save lights only when there
@@ -1749,7 +1857,11 @@ A3MotionUIComponent::refreshBrowser ()
   auto const drifted
       = slotHasDrifted (static_cast<index_t> (_browserField.first),
                         static_cast<index_t> (_browserField.second));
-  _browser->setActions ({ "", "Save", "" }, { false, drifted, false });
+  if (_browserList == BrowserList::Sessions)
+    // A set can always be put away; there is always an arrangement to keep.
+    _browser->setActions ({ "", "Save Set", "" }, { false, true, false });
+  else
+    _browser->setActions ({ "", "Save", "" }, { false, drifted, false });
 }
 
 void
@@ -2075,8 +2187,14 @@ A3MotionUIComponent::setFilePath () const
 void
 A3MotionUIComponent::applySet ()
 {
+  applySet (setFilePath ());
+}
+
+void
+A3MotionUIComponent::applySet (juce::File const &file)
+{
   auto const numChannels = static_cast<int> (_patterns.size ());
-  auto const set = loadSession (setFilePath (), numChannels,
+  auto const set = loadSession (file, numChannels,
                             static_cast<int> (numClipSlots));
 
   for (int ch = 0; ch < numChannels; ++ch)
@@ -2135,6 +2253,12 @@ A3MotionUIComponent::scheduleSetSave ()
 void
 A3MotionUIComponent::writeSet ()
 {
+  saveSession (setFilePath (), buildSession ());
+}
+
+Session
+A3MotionUIComponent::buildSession ()
+{
   Session set;
   set.channels.resize (_patterns.size ());
 
@@ -2157,11 +2281,20 @@ A3MotionUIComponent::writeSet ()
               = _clipUIParams[index][slot].recordLengthLog2;
 
           if (auto const &pattern = _patterns[index][slot])
-            saved.patternName = pattern->getName ();
+            {
+              saved.patternName = pattern->getName ();
+
+              // What this slot has been turned to since the clip was put in
+              // it. Written only when it differs, so a session that has been
+              // saved into its clips carries nothing extra.
+              auto const &clipFile = _slotClipFile[index][slot];
+              if (clipHasDrifted (*pattern, clipFile))
+                saved.overrides = clipSettingsFrom (*pattern);
+            }
         }
     }
 
-  saveSession (setFilePath (), set);
+  return set;
 }
 
 void

@@ -210,6 +210,24 @@ private:
    *  locked has already cost you the reach. */
   void saveSlotClip (index_t channel, index_t slot);
 
+  /** The device's eight slots and four channels, as a session. */
+  Session buildSession ();
+
+  /** Where the named sessions live, beside the takes they refer to. */
+  juce::File sessionsDir () const;
+
+  /** Put the current arrangement away under a free name, and fetch one back.
+   *
+   *  Loading stops everything: all eight slots get new contents, and a clip
+   *  still running while its slot holds something else is exactly the state
+   *  that dropping a clip already avoids. A set is changed between sets.
+   *
+   *  The running arrangement is written to current.json first -- not asked
+   *  about, written -- so the previous state is never gone even if nobody
+   *  thought to save it. */
+  void saveCurrentSession ();
+  void loadSessionNamed (juce::String const &name);
+
   void refreshBrowser ();
   void assignBrowserEntry (int index);
 
@@ -229,6 +247,7 @@ private:
   /** Put a loaded set in force: which take sits where, the length the next
    *  take into each slot gets, and where the channels are parked. */
   void applySet ();
+  void applySet (juce::File const &file);
   /** Write the set out shortly. Debounced: a drag on the grid is dozens of
    *  changes and one arrangement. */
   void scheduleSetSave ();
@@ -458,6 +477,16 @@ private:
   std::unique_ptr<BrowserComponent> _browser;
   /** Which field the next chosen clip lands in. */
   std::pair<int, int> _browserField{ 0, 0 };
+  /** What the browser's list is showing: the clips you can put in a slot, or
+   *  the sessions you can put in all eight. */
+  enum class BrowserList
+  {
+    Clips,
+    Sessions,
+  };
+  BrowserList _browserList = BrowserList::Clips;
+  /** The session that was loaded, shown over the eight slots it filled. */
+  juce::String _sessionName;
   /** Counts up on every scheduled save so a later one supersedes an earlier:
    *  a drag on the grid is dozens of changes and one arrangement. */
   int _setSaveGeneration = 0;

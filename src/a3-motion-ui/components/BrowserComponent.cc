@@ -215,6 +215,18 @@ BrowserComponent::setSelectedEntry (int index)
     return;
 
   _selectedEntry = index;
+
+  // Brought into view if it is not already there. Only then: a tap on a row
+  // you can see must not jerk the list, and scrolling to something already in
+  // front of you is movement that says nothing.
+  if (index >= 0 && _layout.visibleRows > 0)
+    {
+      if (index < _scrollOffset)
+        setScrollOffset (index);
+      else if (index >= _scrollOffset + _layout.visibleRows)
+        setScrollOffset (index - _layout.visibleRows + 1);
+    }
+
   repaint ();
 }
 

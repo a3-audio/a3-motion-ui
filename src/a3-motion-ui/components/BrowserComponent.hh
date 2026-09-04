@@ -64,6 +64,12 @@ public:
   int getScrollOffset () const { return _scrollOffset; }
   int getVisibleRows () const { return _layout.visibleRows; }
   int getNumEntries () const { return _names.size (); }
+  /** The name in a row, or empty for a row that is not there. */
+  juce::String entryName (int index) const
+  {
+    return juce::isPositiveAndBelow (index, _names.size ()) ? _names[index]
+                                                           : juce::String{};
+  }
 
   /** Which library row is highlighted -- what rename acts on. */
   void setSelectedEntry (int index);
