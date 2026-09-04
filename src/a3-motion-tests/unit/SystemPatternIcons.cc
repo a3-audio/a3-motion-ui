@@ -317,42 +317,36 @@ TEST (SystemPatternIcons, EveryShippedShapeSitsWhereItShould)
 
 // ── Every shape is reachable by a clip ───────────────────────────────────
 
-TEST (SystemPatternIcons, EveryShippedShapeHasAFactoryClip)
+// This used to require a clip beside every shape, back when the browser listed
+// clips and a shape without one was unreachable. The browser lists settings
+// presets now and the shape has its own list in the Shape section, so the
+// pairing is gone -- and with it the seventy-eight near-identical clip files
+// that made the settings invisible.
+//
+// What is left to hold: there is always a Default to fall back to. Something
+// has to be the thing you return to when a preset turns out wrong for the
+// take, and it must exist whether or not anybody has generated anything.
+TEST (SystemPatternIcons, ThereIsAlwaysADefaultToFallBackTo)
 {
-  // The browser lists clips, not shapes. A shape without a clip would be a
-  // pattern nobody can reach.
-  auto const shapes = systemPatternDir ().findChildFiles (
-      juce::File::findFiles, false, "*.svg");
-  ASSERT_FALSE (shapes.isEmpty ());
+  auto const clip
+      = systemPatternDir ().getParentDirectory ().getChildFile (
+          "clips/Default.json");
 
-  auto const clipDir
-      = systemPatternDir ().getParentDirectory ().getChildFile ("clips");
-  ASSERT_TRUE (clipDir.isDirectory ())
-      << "expected " << clipDir.getFullPathName ();
+  ASSERT_TRUE (clip.existsAsFile ())
+      << "expected " << clip.getFullPathName ();
 
-  for (auto const &shape : shapes)
-    {
-      // "16_Wave.svg" is the shape; the clip that reaches it is "Wave".
-      auto const name
-          = shape.getFileNameWithoutExtension ().fromFirstOccurrenceOf (
-              "_", false, false);
-
-      auto const clipFile = clipDir.getChildFile (name + ".json");
-      ASSERT_TRUE (clipFile.existsAsFile ())
-          << shape.getFileName () << " has no clip";
-
-      auto const clip = ClipFile::load (clipFile);
-      ASSERT_TRUE (clip.has_value ()) << clipFile.getFileName ();
-      EXPECT_EQ (clip->svg,
-                 shape.getFileNameWithoutExtension ().toStdString ())
-          << clipFile.getFileName () << " points at the wrong shape";
-      EXPECT_EQ (clip->name, name.toStdString ());
-    }
+  auto const read = ClipFile::load (clip);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_EQ (read->name, "Default");
+  EXPECT_TRUE (read->svg.empty ())
+      << "the fallback binds itself to a shape";
+  EXPECT_EQ (read->settings, ClipSettings{})
+      << "the fallback is not the defaults";
 }
 
-TEST (SystemPatternIcons, NoTwoFactoryClipsShareAName)
+TEST (SystemPatternIcons, NoTwoShippedClipsShareAName)
 {
-  // Names are the identity, and the browser shows one list. Two clips called
+  // Names are the identity, and the browser shows one list. Two presets called
   // the same thing would be two rows nobody can tell apart.
   auto const clipDir
       = systemPatternDir ().getParentDirectory ().getChildFile ("clips");
