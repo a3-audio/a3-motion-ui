@@ -210,3 +210,29 @@ TEST (PatternLibraryClips, AClipFileSaysWhichRowItCameFrom)
   EXPECT_EQ (library.indexForClipFile (root.getChildFile ("clips/Gone.json")),
              0);
 }
+
+// The app polls this fingerprint and reloads the library when it changes, so
+// a file dropped into the folder shows up without a restart. Clips have to be
+// in it or settings presets are the one kind of entry you cannot add while the
+// device is running -- which is exactly the kind you make most of.
+TEST (PatternLibraryClips, TheFingerprintNoticesAClip)
+{
+  auto const root = aRootHolding ("a3-library-fingerprint", "16_Wave.svg");
+
+  PatternLibrary library (root);
+  library.refresh ();
+
+  auto const before = library.getDirectoryFingerprint ();
+
+  Clip preset;
+  preset.name = "Breathe";
+  ASSERT_TRUE (
+      ClipFile::save (preset, root.getChildFile ("clips/Breathe.json")));
+
+  auto const added = library.getDirectoryFingerprint ();
+  EXPECT_NE (added, before) << "a new preset went unnoticed";
+
+  ASSERT_TRUE (root.getChildFile ("clips/Breathe.json").deleteFile ());
+  EXPECT_NE (library.getDirectoryFingerprint (), added)
+      << "a deleted preset went unnoticed";
+}

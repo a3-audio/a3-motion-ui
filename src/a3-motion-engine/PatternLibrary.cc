@@ -308,10 +308,10 @@ juce::int64
 PatternLibrary::getDirectoryFingerprint () const
 {
   juce::int64 hash = 0;
-  auto hashDir = [&hash] (juce::File const &dir) {
+  auto hashDir = [&hash] (juce::File const &dir, juce::String const &pattern) {
     if (!dir.isDirectory ())
       return;
-    auto files = dir.findChildFiles (juce::File::findFiles, false, "*.svg");
+    auto files = dir.findChildFiles (juce::File::findFiles, false, pattern);
     for (auto const &f : files)
       {
         // Mix filename and modification time into hash
@@ -322,8 +322,11 @@ PatternLibrary::getDirectoryFingerprint () const
     // Also mix file count so deletions are detected
     hash ^= static_cast<juce::int64> (files.size ()) * 2654435761LL;
   };
-  hashDir (getSystemDir ());
-  hashDir (getUserDir ());
+  hashDir (getSystemDir (), "*.svg");
+  hashDir (getUserDir (), "*.svg");
+  // Clips too: a settings preset has no shape, so a folder watched for SVGs
+  // alone would never notice one being added or thrown away.
+  hashDir (getClipDir (), "*.json");
   return hash;
 }
 

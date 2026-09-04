@@ -2959,6 +2959,11 @@ A3MotionUIComponent::timerCallback ()
                 << std::endl;
       _patternLibrary->refresh ();
       refreshAllPadRowLabels ();
+      // The browser holds a copy of the list. Refreshing the library behind an
+      // open browser and leaving its rows alone is how a file that is plainly
+      // in the folder stays missing from the only list that shows it.
+      if (_barPage == BarPage::Browser)
+        refreshBrowser ();
     }
 }
 
