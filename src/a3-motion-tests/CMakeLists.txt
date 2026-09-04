@@ -78,7 +78,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ClipSettingsLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ControllerLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/FunctionKeyColours.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/TransportColours.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/TransportLook.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/SkinGroups.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ListScroll.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/GlobalSettingsComponent.cc"

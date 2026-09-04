@@ -958,3 +958,31 @@ TEST (ClipSettingsLayout, TheFourTransportKeysAreFourDifferentPads)
       EXPECT_EQ (pads.size (), 3u) << "slot " << slot;
     }
 }
+
+TEST (ClipSettingsLayout, ThePadsPageHasNoTransportKeysOfItsOwn)
+{
+  // The page *is* those four controls, thirty-two of them. A second, smaller
+  // set above says there is a difference between them when there is none.
+  auto const layout = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f,
+                                          BarPage::Controller);
+
+  for (auto const &key : layout.transportButtons)
+    EXPECT_TRUE (key.isEmpty ());
+
+  // ... and the tabs are still reachable, which is the only way back.
+  EXPECT_FALSE (layout.tabClip.isEmpty ());
+  EXPECT_FALSE (layout.tabController.isEmpty ());
+}
+
+TEST (ClipSettingsLayout, TheClipFacesStillHaveTheirTransportKeys)
+{
+  for (auto const page : { BarPage::Clip, BarPage::Record })
+    {
+      auto const layout
+          = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
+
+      for (auto const &key : layout.transportButtons)
+        EXPECT_FALSE (key.isEmpty ())
+            << (page == BarPage::Clip ? "clip face" : "record face");
+    }
+}

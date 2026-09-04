@@ -42,7 +42,27 @@ namespace a3
  *  question you ask a transport at a glance. Yellow for the accent: not a
  *  state you are in but a thing you do while you hold it.
  */
-juce::Colour transportColour (TransportKey key, bool playing = false);
+juce::Colour transportColour (TransportKey key);
+
+/** And what each of them is drawn as, wherever it is drawn.
+ *
+ *  A circle records, a square stops, a triangle plays and two bars hold. These
+ *  are the shapes every deck and every transport has used for fifty years, and
+ *  they are read without being read -- which is the whole reason for using
+ *  them on the four controls you reach for while looking somewhere else. ACT
+ *  has no such shape and gets its initial instead; a symbol invented for it
+ *  would have to be learned, and a shape that has to be learned is a word.
+ *
+ *  `playing` chooses between the triangle and the bars: what a transport key
+ *  shows is what pressing it will do. It does not change any colour -- play is
+ *  green whether or not it is running, because green is which key this is. */
+void drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
+                         TransportKey key, bool playing);
+
+/** The glyph for a pad, or nothing for Settings, which opens a menu and has no
+ *  shape that would mean that. */
+bool hasTransportGlyph (PadFunction function);
+TransportKey transportKeyForPad (PadFunction function);
 
 /** Relative luminance and contrast ratio, per WCAG 2.1.
  *
@@ -60,6 +80,6 @@ float contrastRatio (juce::Colour a, juce::Colour b);
 /** The same rule reached from a pad. Settings has no colour of its own -- it
  *  opens a menu, and a colour that means nothing makes the ones that mean
  *  something harder to read. */
-juce::Colour padFunctionColour (PadFunction function, bool playing = false);
+juce::Colour padFunctionColour (PadFunction function);
 
 }

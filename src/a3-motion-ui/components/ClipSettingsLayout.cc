@@ -152,18 +152,26 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // Square, one header row high: as large as the row has to give, which is
   // what "small" means here. They are not the primary way to start a clip --
   // the pads are -- so they do not take room from the tabs, which are.
+  //
+  // Not on the pads page, which is the pads: a second, smaller set of the same
+  // four controls sitting above thirty-two of them says there is a difference
+  // between them when there is none.
   auto const transportW = headerArea.getHeight ();
   auto const transportGap = juce::jmax (2, transportW / 12);
-  for (int i = 0; i < numTransportKeys; ++i)
+  if (page != BarPage::Controller)
     {
-      out.transportButtons[static_cast<size_t> (i)]
-          = headerArea.removeFromLeft (transportW);
-      headerArea.removeFromLeft (transportGap);
+      for (int i = 0; i < numTransportKeys; ++i)
+        {
+          out.transportButtons[static_cast<size_t> (i)]
+              = headerArea.removeFromLeft (transportW);
+          headerArea.removeFromLeft (transportGap);
+        }
+
+      // The label is not one of the keys, so it does not sit as close to the
+      // last of them as they sit to each other.
+      headerArea.removeFromLeft (transportGap * 3);
     }
 
-  // The label is not one of the keys, so it does not sit as close to the last
-  // of them as they sit to each other.
-  headerArea.removeFromLeft (transportGap * 3);
   out.slotLabel = headerArea;
 
   area.removeFromTop (juce::jmax (4, out.clipBounds.getHeight () / 50));

@@ -29,7 +29,7 @@
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 
 #include <a3-motion-ui/theme/Theme.hh>
-#include <a3-motion-ui/theme/TransportColours.hh>
+#include <a3-motion-ui/theme/TransportLook.hh>
 
 #include <cmath>
 
@@ -727,11 +727,11 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
     g.drawFittedText (label, bounds, juce::Justification::centred, 1);
   };
 
-  // The four transport keys. Coloured only while they are doing something,
-  // the same rule the global strip's keys follow -- a colour that means
-  // nothing makes the ones that mean something harder to read. Record is the
-  // exception it is there too: it says what it is in its lettering whether or
-  // not it is running.
+  // The four transport keys. The mark always carries the action's own colour;
+  // the key's ground lights only while it is doing something, so the row reads
+  // as four labelled controls with one or two of them active rather than as
+  // four colours competing. Empty on the pads page, which is these four
+  // controls already.
   for (int i = 0; i < numTransportKeys; ++i)
     {
       auto const bounds = _layout.transportButtons[static_cast<size_t> (i)];
@@ -739,7 +739,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
         continue;
 
       auto const key = transportKeyOrder[i];
-      auto const mark = transportColour (key, _transportPlaying);
+      auto const mark = transportColour (key);
       auto const lit = (key == TransportKey::Record && _transportRecording)
                        || (key == TransportKey::PlayPause && _transportPlaying);
 
@@ -749,48 +749,12 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
       g.setColour (toColour (theme ().textPrimary, 0.15f));
       g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
 
-      // Shapes, not words. These four are the ones you reach for without
-      // reading, and the shapes are the ones every deck and every transport
-      // has used for fifty years -- a circle records, a square stops, a
-      // triangle plays, two bars hold. ACT has no such shape, so it gets its
-      // initial rather than a symbol nobody would recognise.
-      auto const face = bounds.toFloat ().reduced (bounds.getWidth () * 0.28f);
+      // Shapes, not words -- see drawTransportGlyph(), which the pads page
+      // draws from as well so the same action is the same mark in both places.
       g.setColour (mark);
-
-      switch (key)
-        {
-        case TransportKey::Record:
-          g.fillEllipse (face);
-          break;
-
-        case TransportKey::Stop:
-          g.fillRect (face);
-          break;
-
-        case TransportKey::PlayPause:
-          if (_transportPlaying)
-            {
-              // Two bars: what pressing it will do is hold.
-              auto const barW = face.getWidth () * 0.34f;
-              g.fillRect (face.withWidth (barW));
-              g.fillRect (face.withWidth (barW).withRightX (face.getRight ()));
-            }
-          else
-            {
-              juce::Path play;
-              play.addTriangle (face.getX (), face.getY (), face.getX (),
-                                face.getBottom (), face.getRight (),
-                                face.getCentreY ());
-              g.fillPath (play);
-            }
-          break;
-
-        case TransportKey::Action:
-          g.setFont (juce::Font (fontFor (FontRole::Body, bounds, "A"),
-                                 juce::Font::bold));
-          g.drawFittedText ("A", bounds, juce::Justification::centred, 1);
-          break;
-        }
+      drawTransportGlyph (g,
+                          bounds.toFloat ().reduced (bounds.getWidth () * 0.28f),
+                          key, _transportPlaying);
     }
 
   paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
