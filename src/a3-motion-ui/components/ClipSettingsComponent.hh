@@ -142,7 +142,11 @@ public:
   /** Elevation section values, shown as six small controls, always visible
    *  together. reach/clipTop/clipBottom/flatElevation are unipolar
    *  (0..1); mirrorSouth/flat are booleans. */
-  void setElevationReach (float reach);
+  /** `swept` is where the swell has carried the coverage: the pointer stays on
+   *  what the hand set and the arc between them fills, the same rule spin
+   *  follows on rotate and the accent follows on 3d. One idea, said the same
+   *  way everywhere, so a blue arc always means "something is moving this". */
+  void setElevationReach (float reach, float swept = -1.f);
   void setElevationMirrorSouth (bool mirrorSouth);
   void setElevationClipTop (float clipTop);
   void setElevationClipBottom (float clipBottom);
@@ -165,6 +169,7 @@ public:
   void setMotionSpeed (float normalizedFrac, juce::String const &label);
   void setMotionDirection (int direction);
   void setMotionEndAction (int endAction);
+  void setMotionActMode (int mode);
 
   /** Which of the Motion section's 3 controls (0 = speed, 1 = direction,
    *  2 = end-action) the Pot-Encoder currently edits, cycled by pressing
@@ -441,6 +446,7 @@ private:
                         juce::String const &stateText,
                         bool isActive, bool isSelected);
 
+  float _elevationReachSwept = -1.f;
   bool _transportPlaying = false;
   bool _transportRecording = false;
 
@@ -461,6 +467,7 @@ private:
   float _motionSpeedFrac = 0.5f;
   juce::String _motionSpeedLabel{ "1" };
   int _motionDirection = 0;
+  int _motionActMode = 0;
   int _motionEndAction = 0;
   int _motionSubIndex = 0;
   int _motionFade = 0;

@@ -141,6 +141,11 @@ public:
   EndAction getEndAction () const;
   void setEndAction (EndAction action);
 
+  /** Whether the Action key fires this clip or holds it. Per clip, like the
+   *  end action beside it: one slot can be a stab and its neighbour a cue. */
+  ActMode getActMode () const;
+  void setActMode (ActMode mode);
+
   /** Which way the playhead is travelling right now. Set from the direction
    *  when playback starts; only Bounce ever turns it round. */
   float getPlaySign () const;
@@ -286,6 +291,7 @@ private:
   float _jumpThreshold = 0.f;
   std::atomic<PlayDirection> _playDirection{ PlayDirection::Forward };
   std::atomic<EndAction> _endAction{ EndAction::Loop };
+  std::atomic<ActMode> _actMode{ ActMode::OneShot };
   std::atomic<float> _playSign{ 1.f };
   std::atomic<float> _rotate{ 0.f };
   std::atomic<int> _spin{ 0 };

@@ -100,22 +100,6 @@ ClipSettingsComponent::createTouchControls ()
     };
     addAndMakeVisible (*into);
   };
-  // Held, not tapped — the accent lasts as long as the finger does, so this
-  // needs onRelease rather than onTap. Same as the pad it stands for.
-  _accentTouch = std::make_unique<TouchControl> ();
-  _accentTouch->onPress = [this] (int, int) {
-    _accentHeld = true;
-    if (onAccentHeld)
-      onAccentHeld (true);
-    repaint (_layout.accentButton);
-  };
-  _accentTouch->onRelease = [this] (int, int) {
-    _accentHeld = false;
-    if (onAccentHeld)
-      onAccentHeld (false);
-    repaint (_layout.accentButton);
-  };
-  addAndMakeVisible (*_accentTouch);
 
   for (int i = 0; i < numTransportKeys; ++i)
     {
@@ -336,7 +320,6 @@ ClipSettingsComponent::resized ()
   _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
 
   _shiftTouch->setBounds (_layout.shiftButton);
-  _accentTouch->setBounds (_layout.accentButton);
 
   for (int i = 0; i < numTransportKeys; ++i)
     _transportTouch[static_cast<size_t> (i)]->setBounds (
@@ -425,9 +408,10 @@ ClipSettingsComponent::setTrajectoryName (juce::String const &name)
 }
 
 void
-ClipSettingsComponent::setElevationReach (float reach)
+ClipSettingsComponent::setElevationReach (float reach, float swept)
 {
   _elevationReach = std::clamp (reach, 0.05f, 1.0f);
+  _elevationReachSwept = swept < 0.f ? -1.f : std::clamp (swept, 0.05f, 1.0f);
   repaint ();
 }
 
@@ -493,6 +477,16 @@ void
 ClipSettingsComponent::setMotionEndAction (int endAction)
 {
   _motionEndAction = juce::jlimit (0, 3, endAction);
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setMotionActMode (int mode)
+{
+  if (mode == _motionActMode)
+    return;
+
+  _motionActMode = mode;
   repaint ();
 }
 
@@ -792,7 +786,6 @@ ClipSettingsComponent::setPage (BarPage page)
     _sectionTouch[static_cast<size_t> (section)]->setVisible (showsClip);
 
   _elevationGraphicTouch->setVisible (showsClip);
-  _accentTouch->setVisible (showsClip);
 
   // The two faces' button rows sit in the same room, so only one may take
   // touches: hit areas left behind by the hidden face would answer for
@@ -1263,7 +1256,11 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   // is drawn on the sphere. Which section is selected is already said by the
   // card behind it, so the icon does not have to say it again -- and saying it
   // by going white made a tapped take read as somebody else's.
-  drawTrajectoryIcon (g, iconArea, _trajectoryIcon, _channelColour);
+  // Turned by what the hand set, not by what the spin is doing: the picture is
+  // of this clip, and the spin's movement belongs on the sphere and on the
+  // rotate knob's arc, not on a second thing to watch.
+  drawTrajectoryIcon (g, iconArea, _trajectoryIcon, _channelColour,
+                      _shapeRotate);
 
   // The name, now on its own to the left of the knob rather than lying across
   // the picture. It is the field you tap to choose a trajectory, so it reads
@@ -1304,9 +1301,13 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
   // under it do. Selection is the card's job, and the card already shows it.
   paintElevationGraphic (g, _layout.elevationGraphic, isSelected);
 
+  // Where the swell has carried the coverage, if it is sweeping.
   paintMiniKnob (g, cells[0], metrics, caption::reach,
                  _elevationReach * 2.f - 1.f, false, _elevationSubIndex == 0,
-                 isSelected);
+                 isSelected,
+                 _elevationReachSwept < 0.f
+                     ? -2.f
+                     : _elevationReachSwept * 2.f - 1.f);
   paintMiniKnob (g, cells[1], metrics, caption::clipTop,
                  _elevationClipTop * 2.f - 1.f, false, _elevationSubIndex == 1,
                  isSelected);
@@ -1652,26 +1653,27 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
                  isSelected);
 
   // Lists, not values you nudge: a button that opens one.
-  paintBarButton (g, cells[5], value::directionNames[_motionDirection],
-                  caption::direction, _motionSubIndex == 5 && isSelected,
+  paintBarButton (g, cells[6], value::directionNames[_motionDirection],
+                  caption::direction, _motionSubIndex == 6 && isSelected,
                   isSelected, true);
-  paintBarButton (g, cells[6], value::endActionNames[_motionEndAction],
-                  caption::endAction, _motionSubIndex == 6 && isSelected,
+  paintBarButton (g, cells[7], value::endActionNames[_motionEndAction],
+                  caption::endAction, _motionSubIndex == 7 && isSelected,
                   isSelected, true);
 
-  // The key that plays what the two knobs above it shape. Yellow, like every
-  // other ACT on the device -- the four clip actions each keep one colour
-  // wherever they appear, so a word does not mean one thing in this corner of
-  // the screen and something else in the next.
-  paintActionButton (g, _layout.accentButton, "ACT", _accentHeld,
-                     transportColour (TransportKey::Action));
+  // What the Action key does to this clip, in the section where the shape of
+  // what it does is set. The key itself moved to the bar's header with the
+  // other three things you do to a clip -- a section full of settings had no
+  // business also carrying one of the four controls you hit mid-set.
+  paintBarButton (g, cells[5], value::actModeNames[_motionActMode],
+                  caption::actMode, _motionSubIndex == 5 && isSelected,
+                  isSelected, true);
 }
 
 bool
 ClipSettingsComponent::opensList (int section, int sub)
 {
   if (section == motionIndex)
-    return sub == 5 || sub == 6; // direction, end-action
+    return sub == 5 || sub == 6 || sub == 7; // act-mode, direction, end-action
   return false;
 }
 

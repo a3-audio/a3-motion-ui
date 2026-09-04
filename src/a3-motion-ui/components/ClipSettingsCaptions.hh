@@ -46,6 +46,12 @@ constexpr char const *flatElevation = "flat-elv";
 constexpr char const *speed = "speed";
 constexpr char const *direction = "dir";
 constexpr char const *endAction = "end";
+/** What the Action key does to this clip. Three letters, like the "dir" and
+ *  "end" it stands in a row with -- and "actmode" was the longest caption in
+ *  the bar's tightest columns, which pulled the shared caption size down for
+ *  every section at once. Naming it after the key is safe now that the key
+ *  itself has left this section for the header. */
+constexpr char const *actMode = "act";
 /** The filter's cutoff. The engine still calls it sweep (see
  *  Pattern/setFilterSweep); on screen it is what it does. */
 constexpr char const *frequency = "freq";
@@ -94,6 +100,13 @@ constexpr char const *off = "Off";
 /** Where a clip sets off. "Ping" used to sit here and meant the same thing as
  *  the Bounce end action -- two controls for one behaviour. */
 constexpr char const *directionNames[] = { "Fwd", "Rev" };
+/** Two words for what the Action key does. Short enough for a button a third
+ *  of a narrow section wide -- "1shot" rather than "one-shot", which fitted
+ *  nowhere. */
+constexpr char const *actModeNames[] = { "1shot", "Hold" };
+constexpr int numActModes
+    = static_cast<int> (sizeof (actModeNames) / sizeof (*actModeNames));
+
 constexpr char const *endActionNames[] = { "Loop", "Stop", "Paus", "Bnce",
                                            "Rnd" };
 constexpr int numEndActions
@@ -133,6 +146,7 @@ constexpr TextEntry captionTable[] = {
   { caption::spin, 4 },        { caption::swell, 4 },
   { caption::attack, 4 },      { caption::decay, 4 },
   { caption::envelopeMax, 4 },   { caption::rotate, 4 },
+  { caption::actMode, 4 },
   { caption::frequency, 2 },   { caption::q, 2 },
   { caption::recordLength, 1 },
 };
@@ -144,6 +158,8 @@ constexpr TextEntry valueTable[] = {
   { value::off, 2 },
   { value::directionNames[0], 4 },
   { value::directionNames[1], 4 },
+  { value::actModeNames[0], 4 },
+  { value::actModeNames[1], 4 },
   { value::endActionNames[0], 4 },
   { value::endActionNames[1], 4 },
   { value::endActionNames[2], 4 },

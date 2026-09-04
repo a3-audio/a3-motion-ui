@@ -225,6 +225,18 @@ Pattern::setEndAction (EndAction action)
   _endAction.store (action, std::memory_order_relaxed);
 }
 
+ActMode
+Pattern::getActMode () const
+{
+  return _actMode.load ();
+}
+
+void
+Pattern::setActMode (ActMode mode)
+{
+  _actMode.store (mode);
+}
+
 float
 Pattern::getPlaySign () const
 {

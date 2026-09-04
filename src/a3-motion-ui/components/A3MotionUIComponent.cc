@@ -1520,6 +1520,14 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         // the clip is thrown and the sound opens up on the same finger.
         pattern->setPlaybackLength (getPlaybackLength (channel, slot));
         _engine.playPattern (pattern, _now);
+
+        // In Hold the clip belongs to the finger for as long as it is down.
+        // Remembered here rather than worked out on release: the mode can be
+        // changed mid-press, and a gesture that ends under a different rule
+        // than it began under is one that sometimes leaves a clip running
+        // with nothing holding it.
+        if (pattern->getActMode () == ActMode::Hold)
+          _actHeldSlot[channel] = static_cast<int> (slot);
         break;
       }
     case PadFunction::Settings:
@@ -1566,6 +1574,21 @@ A3MotionUIComponent::handlePadRelease (index_t channel, index_t pad)
   // preview and without it an instant start, but either way the finger has
   // left and the envelope has to hear that or it holds forever.
   _engine.setChannelAccentHeld (channel, false, nullptr);
+
+  // And in Hold the clip falls with it, now rather than on a beat. Hold is a
+  // stab: the whole point is that it lasts exactly as long as the finger, so
+  // quantising the end would be quantising away the gesture.
+  if (_actHeldSlot[channel] == static_cast<int> (slot))
+    {
+      _actHeldSlot[channel] = -1;
+      if (auto const &held = _patterns[channel][slot])
+        {
+          auto const status = held->getStatus ();
+          if (status == Pattern::Status::Playing
+              || status == Pattern::Status::ScheduledForPlaying)
+            _engine.stopPattern (held, _now);
+        }
+    }
 
   if (_previewHeldPad[channel] != static_cast<int> (slot))
     return;
@@ -1908,9 +1931,7 @@ A3MotionUIComponent::updateFunctionKeyLEDs ()
   auto const look = _clipSettings->functionKeyLook ();
 
   for (auto const key : functionKeyOrder)
-    _ioAdapter->getButtonLED (key)
-        = juce::VariantConverter<juce::Colour>::toVar (
-            functionKeyColour (key, look));
+    _ioAdapter->setButtonLED (key, functionKeyColour (key, look));
 }
 
 void
@@ -3265,7 +3286,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::elevationIndex)
     return 6;
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 7; // spin, swell, atk, dec, max, dir, end
+    return 8; // spin, swell, atk, dec, max, actmode, dir, end
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
     return 2; // the shape itself, and the knob its face carries
   return 1;
@@ -3415,7 +3436,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         break;
       }
     case 2: // Motion — spin (0), swell (1), atk (2), dec (3), max (4),
-            // direction (5), end-action (6)
+            // act-mode (5), direction (6), end-action (7)
       switch (sub)
         {
         case 0:
@@ -3465,6 +3486,18 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             break;
           }
         case 5:
+          {
+            // What holding the Action key does to this clip. On the Pattern
+            // rather than in _clipUIParams: the pad handler reads it at the
+            // moment the key goes down, and it has to survive being saved.
+            auto &pattern = _patterns[channel][slot];
+            if (pattern)
+              pattern->setActMode (pattern->getActMode () == ActMode::Hold
+                                       ? ActMode::OneShot
+                                       : ActMode::Hold);
+            break;
+          }
+        case 6:
           params.direction = (params.direction + increment % 2 + 2) % 2;
           applyMotionMode (channel, slot);
           break;
@@ -3561,7 +3594,13 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
 
   _clipSettings->setRecMode (_recMode);
   _clipSettings->setElevationSubIndex (_clipSettingsSubIndex);
-  _clipSettings->setElevationReach (pattern ? pattern->getReach () : 0.5f);
+  // The coverage the hand set, and where the swell is holding it now.
+  _clipSettings->setElevationReach (
+      pattern ? pattern->getReach () : 0.5f,
+      pattern && pattern->getReachLfo () != 0
+          ? lfoSweep (pattern->getReach (), pattern->getReachLfo (),
+                      pattern->getReachLfoPhase ())
+          : -1.f);
   _clipSettings->setElevationMirrorSouth (pattern
                                           && pattern->getMirrorSouth ());
   _clipSettings->setElevationClipTop (pattern ? pattern->getClipTop ()
@@ -3624,6 +3663,8 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       pattern ? pattern->getEnvelopeDecay () : 0);
   _clipSettings->setMotionEnvelopeMax (pattern ? pattern->getEnvelopeMax ()
                                                : 1.f);
+  _clipSettings->setMotionActMode (
+      pattern && pattern->getActMode () == ActMode::Hold ? 1 : 0);
   _clipSettings->setShapeSpeed (params.speedLog2);
   // The rotation the hand set, and where the spin has carried it: the knob
   // shows both, the way the channel grid shows the accent over 3d.

@@ -417,6 +417,9 @@ private:
   // it in preview mode (OSC output silenced); releasing Action exits preview
   // (pattern keeps playing). -1 means no preview active on that channel.
   std::vector<int> _previewHeldPad; // holds the SLOT index, or -1
+  /** Which slot, if any, the Action key is currently holding on each channel
+   *  -- the clip that has to stop the moment the finger lifts. -1 for none. */
+  std::array<int, numChannelsInitial> _actHeldSlot{ -1, -1, -1, -1 };
 
   /** Shift held on the screen rather than on the panel, folded into
    *  isButtonPressed() so nothing downstream has to know which of the two a

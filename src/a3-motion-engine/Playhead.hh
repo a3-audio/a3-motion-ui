@@ -36,6 +36,21 @@ enum class PlayDirection
 };
 
 /** What a clip does when it reaches the end of its pass. */
+/** What holding the Action key does.
+ *
+ *  The accent was always a shot: press it and the envelope runs its attack,
+ *  holds while the finger is down and decays when it lifts. Hold makes the
+ *  clip itself follow the finger too -- the trajectory runs only while the key
+ *  is down and stops the instant it is released, which is a stab rather than a
+ *  cue. One-shot is the behaviour that was there before. */
+enum class ActMode
+{
+  /** Fire it and let it run to whatever the end action says. */
+  OneShot,
+  /** Runs while held, stops the moment it is let go. */
+  Hold,
+};
+
 enum class EndAction
 {
   /** Round again, the way it was going. */

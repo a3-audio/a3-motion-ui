@@ -79,7 +79,7 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 
   EXPECT_EQ (l.controls[0].size (), 2u); // Shape: the pattern, and rotate
   EXPECT_EQ (l.controls[1].size (), 6u); // Elevation
-  EXPECT_EQ (l.controls[2].size (), 7u); // Motion: speed and fade have left
+  EXPECT_EQ (l.controls[2].size (), 8u); // Motion: the ACT key became a mode
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 

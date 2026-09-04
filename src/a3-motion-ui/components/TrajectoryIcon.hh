@@ -57,7 +57,13 @@ TrajectoryIconData trajectoryIconFromTicks (std::vector<Pos> const &ticks);
 
 /** Draw previously built icon data into `area`, stroked/filled in `colour`.
  *  No-op if `data.hasIcon` is false. */
+/** `turns` is the standing rotation the clip is set to, in turns clockwise --
+ *  the picture is of this clip, and this clip is turned. The spin is
+ *  deliberately not added: it is a movement, and a picture that moved would be
+ *  a second thing to watch beside the sphere, which is where movement belongs.
+ *  The spin says what it is doing on the rotate knob's blue arc instead. */
 void drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
-                        TrajectoryIconData const &data, juce::Colour colour);
+                         TrajectoryIconData const &data, juce::Colour colour,
+                         float turns = 0.f);
 
 }

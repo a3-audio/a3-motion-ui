@@ -68,7 +68,7 @@ numControlsInSection (int sectionIndex)
     case 1:
       return 6; // reach, clip-top, clip-bottom, mirror-south, flat, flat-elev
     case 2:
-      return 7; // spin, swell, atk, dec, max, dir, end
+      return 8; // spin, swell, atk, dec, max, actmode, dir, end
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -80,7 +80,8 @@ bool
 tapAdvancesValue (int sectionIndex, int subIndex)
 {
   if (sectionIndex == 2)
-    return subIndex == 5 || subIndex == 6; // direction, end-action
+    // act-mode, direction, end-action
+    return subIndex == 5 || subIndex == 6 || subIndex == 7;
   if (sectionIndex == 3)
     return subIndex == 0; // rec mode
 
@@ -441,7 +442,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
     auto const envelopeMaxArea = accentRow.removeFromLeft (colW);
     accentRow.removeFromLeft (gapH);
-    out.accentButton = accentRow.removeFromLeft (colW);
+    // Where the ACT key used to be. The key itself is in the bar's header
+    // now, with the other three things you do to a clip; what stands here is
+    // the setting that says what pressing it means, which is the kind of thing
+    // this section is for.
+    auto const actModeArea = accentRow.removeFromLeft (colW);
 
     auto const directionArea = bottomRow.removeFromLeft (colW);
     bottomRow.removeFromLeft (gapH);
@@ -459,6 +464,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       textCell (attackArea, metrics.knobDiam),
       textCell (decayArea, metrics.knobDiam),
       textCell (envelopeMaxArea, metrics.knobDiam),
+      buttonCell (actModeArea),
       buttonCell (directionArea),
       buttonCell (endActionArea),
     };

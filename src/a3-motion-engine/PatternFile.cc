@@ -609,6 +609,9 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
                          : "fwd");
   svg->setAttribute ("data-end-action",
                      endActionToName (pattern->getEndAction ()));
+  svg->setAttribute ("data-act-mode",
+                     pattern->getActMode () == ActMode::Hold ? "hold"
+                                                             : "one-shot");
   svg->setAttribute ("data-rotate", pattern->getRotate ());
   svg->setAttribute ("data-spin", pattern->getSpin ());
   svg->setAttribute ("data-reach-lfo", pattern->getReachLfo ());
@@ -725,6 +728,11 @@ PatternFile::load (juce::File const &file)
     pattern->setPlayDirection (PlayDirection::Reverse);
   pattern->setEndAction (
       endActionFromName (xml->getStringAttribute ("data-end-action")));
+  // Absent in every take written before the mode existed, and those were all
+  // shots -- so the fallback is the behaviour they had rather than the new one.
+  pattern->setActMode (
+      xml->getStringAttribute ("data-act-mode") == "hold" ? ActMode::Hold
+                                                          : ActMode::OneShot);
   pattern->setRotate (static_cast<float> (
       xml->getDoubleAttribute ("data-rotate", pattern->getRotate ())));
   pattern->setSpin (xml->getIntAttribute ("data-spin", 0));

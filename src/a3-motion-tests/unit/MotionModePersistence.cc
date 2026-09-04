@@ -206,3 +206,52 @@ TEST (MotionModePersistence, AFileWithoutTheNewSettingsLoadsWithTheirDefaults)
 
   file.deleteFile ();
 }
+
+// ── The Action key's mode ────────────────────────────────────────────────
+
+TEST (MotionModePersistence, ActModeSurvivesARoundTrip)
+{
+  auto pattern = aCircle ("Stab");
+  pattern->setActMode (ActMode::Hold);
+
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-motion-actmode.svg");
+  file.deleteFile ();
+  ASSERT_TRUE (PatternFile::save (pattern, file));
+
+  auto const reloaded = PatternFile::load (file);
+  ASSERT_NE (reloaded, nullptr);
+  EXPECT_EQ (reloaded->getActMode (), ActMode::Hold);
+
+  file.deleteFile ();
+}
+
+TEST (MotionModePersistence, ATakeWrittenBeforeTheModeExistedIsAShot)
+{
+  // Every take on anybody's stick predates this setting, and every one of them
+  // was a shot. Defaulting to Hold would change what those clips do the first
+  // time they are opened, which is the one thing a new setting must not do.
+  EXPECT_EQ (aCircle ("Fresh")->getActMode (), ActMode::OneShot);
+
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-motion-actmode-old.svg");
+  file.deleteFile ();
+  ASSERT_TRUE (PatternFile::save (aCircle ("Old"), file));
+
+  // Strip the attribute, leaving the file an older build would have written.
+  auto text = file.loadFileAsString ();
+  auto const at = text.indexOf ("data-act-mode");
+  ASSERT_GE (at, 0);
+  auto const openQuote = text.indexOf (at, "\"");
+  auto const closeQuote = text.indexOf (openQuote + 1, "\"");
+  file.replaceWithText (text.substring (0, at)
+                        + text.substring (closeQuote + 1));
+
+  auto const reloaded = PatternFile::load (file);
+  ASSERT_NE (reloaded, nullptr);
+  EXPECT_EQ (reloaded->getActMode (), ActMode::OneShot);
+
+  file.deleteFile ();
+}

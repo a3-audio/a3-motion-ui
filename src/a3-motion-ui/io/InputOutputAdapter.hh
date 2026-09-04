@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/util/Types.hh>
@@ -48,6 +50,19 @@ public:
 
   juce::Value &getButton (Button button);
   juce::Value &getButtonLED (Button button);
+
+  /** Light a key now rather than on the next message loop.
+   *
+   *  Assigning getButtonLED() works, but a juce::Value notifies its listeners
+   *  asynchronously, so the key lit a loop after the press -- a lag you can
+   *  see on a key you are watching while you press it. This puts the write
+   *  straight into the output FIFO and keeps the Value in step behind it. */
+  void setButtonLED (Button button, juce::Colour colour);
+
+private:
+  void sendButtonLED (Button button, juce::Colour colour);
+
+public:
   juce::Value &getPad (index_t channel, index_t pad);
   juce::Value &getPadLED (index_t channel, index_t pad);
   juce::Value &getEncoderPress (index_t channel, index_t encoderIndex = 0);
@@ -263,6 +278,10 @@ private:
   std::map<Button, bool> _lastButtonValues;
   std::array<juce::Value, numButtons> _valueButtons;
   std::array<juce::Value, numButtons> _valueButtonLEDs;
+  /** What was last sent for each key, so the Value's own async notification
+   *  does not send it a second time. The serial link is shared with the input
+   *  frames and has no room for writes that change nothing. */
+  std::array<std::optional<juce::Colour>, numButtons> _lastButtonLEDsSent;
 
   std::map<int, bool> _lastEncoderPressValues;
   std::array<std::array<juce::Value, numEncodersPerChannel>, numChannels>

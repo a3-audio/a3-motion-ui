@@ -186,9 +186,23 @@ trajectoryIconFromTicks (std::vector<Pos> const &ticks)
   return data;
 }
 
+namespace
+{
+/** A clip's rotation is stated in turns and applied to HOA coordinates, which
+ *  the screen mirrors -- so what turns one way in the room turns the other way
+ *  in the picture. Negated here for the same reason spinPosition() negates it,
+ *  and in the one place the picture is drawn so the two cannot drift. */
+float
+turnsToScreenRadians (float turns)
+{
+  return -turns * juce::MathConstants<float>::twoPi;
+}
+}
+
 void
 drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
-                    TrajectoryIconData const &data, juce::Colour colour)
+                    TrajectoryIconData const &data, juce::Colour colour,
+                    float turns)
 {
   if (!data.hasIcon)
     return;
@@ -210,10 +224,13 @@ drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
       // cluster: at 0.22 of the icon's radius they crowded the field.
       auto const dotR = r * 0.12f;
       auto const dotOutR = dotR + 1.0f;
+      auto const spun = juce::AffineTransform::rotation (
+          turnsToScreenRadians (turns), cx, cy);
       for (auto const &p : data.jumpDots)
         {
-          auto const x = cx - p.second * r;
-          auto const y = cy - p.first * r;
+          auto x = cx - p.second * r;
+          auto y = cy - p.first * r;
+          spun.transformPoint (x, y);
           g.setColour (outlineColour);
           g.fillEllipse (x - dotOutR, y - dotOutR, dotOutR * 2.f, dotOutR * 2.f);
           g.setColour (colour);
@@ -224,9 +241,11 @@ drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
     {
       // The path is in HOA normalised [-1,1] space. Convert to JUCE screen
       // coords: JUCE x = -HOA_y, JUCE y = -HOA_x, then scale to the icon area.
-      auto transform = juce::AffineTransform (
-           0.f, -r, cx,   // JUCE x = -HOA_y * r + cx
-          -r,  0.f, cy);  // JUCE y = -HOA_x * r + cy
+      auto transform
+          = juce::AffineTransform (
+                0.f, -r, cx,  // JUCE x = -HOA_y * r + cx
+                -r, 0.f, cy)  // JUCE y = -HOA_x * r + cy
+                .rotated (turnsToScreenRadians (turns), cx, cy);
       g.setColour (outlineColour);
       g.strokePath (data.path, juce::PathStrokeType (outlineThickness), transform);
       g.setColour (colour);
