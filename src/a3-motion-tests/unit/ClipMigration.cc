@@ -37,7 +37,7 @@ aRootWithAnOldTake (juce::String const &dirName)
   root.deleteRecursively ();
   root.getChildFile ("user").createDirectory ();
 
-  root.getChildFile ("user/Rec_120613.svg")
+  root.getChildFile ("user/04_Rec_120613.svg")
       .replaceWithText (
           "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
           "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-1 -1 2 2\""
@@ -62,7 +62,11 @@ TEST (ClipMigration, AnOldTakeGetsAClipOfItsOwn)
       = ClipFile::load (root.getChildFile ("clips/Rec_120613.json"));
   ASSERT_TRUE (clip.has_value ());
   EXPECT_EQ (clip->name, "Rec_120613");
-  EXPECT_EQ (clip->svg, "Rec_120613");
+  // The clip is named without the beat-count prefix and points at the file
+  // with it -- the same rule the factory clips and saveUserPattern() follow,
+  // and the one PatternLibrary looks the clip up by. Getting this wrong makes
+  // every migrated take invisible, which is exactly what happened.
+  EXPECT_EQ (clip->svg, "04_Rec_120613");
   EXPECT_EQ (clip->settings.spin, 3);
   EXPECT_EQ (clip->settings.endAction, EndAction::Bounce);
   EXPECT_EQ (clip->settings.actMode, ActMode::Hold);
@@ -94,7 +98,7 @@ TEST (ClipMigration, AMigratedTakeClaimsNoFade)
 TEST (ClipMigration, TheOldFileIsLeftExactlyWhereItWas)
 {
   auto const root = aRootWithAnOldTake ("a3-migration-keep");
-  auto const old = root.getChildFile ("user/Rec_120613.svg");
+  auto const old = root.getChildFile ("user/04_Rec_120613.svg");
   auto const before = old.loadFileAsString ();
 
   ASSERT_EQ (migrateCombinedPatterns (root), 1);
@@ -125,7 +129,7 @@ TEST (ClipMigration, AnExistingClipIsLeftAlone)
 
   Clip mine;
   mine.name = "Rec_120613";
-  mine.svg = "Rec_120613";
+  mine.svg = "04_Rec_120613";
   mine.settings.spin = -5;
   ASSERT_TRUE (
       ClipFile::save (mine, root.getChildFile ("clips/Rec_120613.json")));

@@ -608,45 +608,16 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
   // other run of ticks -- and the fade is a playback setting, so without this
   // turning it after a restart would have nothing to take hold of.
   if (auto const join = pattern->getSeamJoin ())
-    {
-      svg->setAttribute ("data-seam-join", static_cast<int> (*join));
-      svg->setAttribute ("data-fade", static_cast<int> (pattern->getFade ()));
-    }
-  // Clip settings like the fade: without them a clip comes back playing
-  // forwards and looping, whatever it was set to.
-  svg->setAttribute ("data-direction",
-                     pattern->getPlayDirection () == PlayDirection::Reverse
-                         ? "rev"
-                         : "fwd");
-  svg->setAttribute ("data-end-action",
-                     endActionToName (pattern->getEndAction ()));
-  svg->setAttribute ("data-act-mode",
-                     pattern->getActMode () == ActMode::Hold ? "hold"
-                                                             : "one-shot");
-  svg->setAttribute ("data-rotate", pattern->getRotate ());
-  svg->setAttribute ("data-spin", pattern->getSpin ());
-  svg->setAttribute ("data-reach-lfo", pattern->getReachLfo ());
-  svg->setAttribute ("data-env-attack", pattern->getEnvelopeAttack ());
-  svg->setAttribute ("data-env-decay", pattern->getEnvelopeDecay ());
-  svg->setAttribute ("data-env-max", pattern->getEnvelopeMax ());
+    svg->setAttribute ("data-seam-join", static_cast<int> (*join));
 
-  // The elevation, which is what makes a recorded circle a cap around the
-  // pole or a sweep across the whole dome. Pattern.hh has always said each
-  // pattern remembers its own; it did, right up until it was saved.
-  svg->setAttribute ("data-reach", pattern->getReach ());
-  svg->setAttribute ("data-mirror-south", pattern->getMirrorSouth () ? 1 : 0);
-  svg->setAttribute ("data-clip-top", pattern->getClipTop ());
-  svg->setAttribute ("data-clip-bottom", pattern->getClipBottom ());
-  svg->setAttribute ("data-flat", pattern->getFlat () ? 1 : 0);
-  svg->setAttribute ("data-flat-elevation", pattern->getFlatElevation ());
-
-  // How long a pass takes, which is not the same as how long the take is:
-  // data-beats above is the recording's own length in beats, and this is the
-  // speed it is played back at.
-  auto const playback = pattern->getPlaybackLength ();
-  svg->setAttribute ("data-playback-bar", playback.bar ());
-  svg->setAttribute ("data-playback-beat", playback.beat ());
-  svg->setAttribute ("data-playback-tick", playback.tick ());
+  // Only the geometry, from here to the end. Everything that used to follow --
+  // the fade, the direction, the end action, the act mode, the rotation, the
+  // spin, the swell, the envelope, the whole elevation block and the playback
+  // length -- says how the shape is *played*, and that is a clip's business.
+  // A shape file answers one question: where does the sound go.
+  //
+  // The reader below still understands every one of them. It has to: the
+  // migration reads takes written the old way, and it runs on every start.
 
   svg->setAttribute ("data-ppqn", TempoClock::getTicksPerBeat ());
 

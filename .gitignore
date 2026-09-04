@@ -14,6 +14,13 @@ config/ui_state.json
 # pattern/system/ stay tracked: those are the instrument.
 pattern/user/
 pattern/set.json
+# The clips that reach the performer's own takes. The factory clips beside them
+# are the instrument and stay tracked; these are somebody's evening on it, like
+# the takes themselves. They share a folder only until the folders are split
+# into a fixed factory tree and a movable user one -- see
+# .claude/notes/2026-09-04-clip-und-session-dateien.md, step 4 -- after which
+# this pattern-match can go.
+pattern/clips/Rec_*.json
 
 # IDE
 .idea/

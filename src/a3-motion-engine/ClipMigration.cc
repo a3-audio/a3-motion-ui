@@ -44,7 +44,13 @@ migrateCombinedPatterns (juce::File const &root)
   for (auto const &file :
        takes.findChildFiles (juce::File::findFiles, false, "*.svg"))
     {
-      auto const name = file.getFileNameWithoutExtension ();
+      // The clip is named after the shape *without* its beat-count prefix --
+      // 04_Rec_120613.svg is reached by Rec_120613.json -- because that is the
+      // name PatternLibrary looks a clip up by, and the one the factory clips
+      // and saveUserPattern() already use. Named with the prefix, every
+      // migrated take would be invisible.
+      auto const shape = file.getFileNameWithoutExtension ();
+      auto const name = shape.fromFirstOccurrenceOf ("_", false, false);
       auto const clipFile = clips.getChildFile (name + ".json");
 
       // What somebody set beats what a file once held: an existing clip is
@@ -62,7 +68,7 @@ migrateCombinedPatterns (juce::File const &root)
 
       Clip clip;
       clip.name = name.toStdString ();
-      clip.svg = name.toStdString ();
+      clip.svg = shape.toStdString ();
       clip.settings = clipSettingsFrom (*pattern);
 
       // The fade is already in the geometry -- see the header.

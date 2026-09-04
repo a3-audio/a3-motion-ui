@@ -23,6 +23,8 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/ClipFile.hh>
+#include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-engine/Playhead.hh>
 
@@ -44,29 +46,6 @@ aCircle (juce::String const &name)
                                                   std::sin (a) * 0.6f, 0.f));
     }
   return pattern;
-}
-
-// Direction and end action are clip settings like the fade, so they have to
-// come back with the clip. They used to live only in the UI's own table, where
-// the engine could not see them and nothing outlived a restart.
-TEST (MotionModePersistence, DirectionAndEndActionSurviveARoundTrip)
-{
-  auto pattern = aCircle ("Reversed");
-  pattern->setPlayDirection (PlayDirection::Reverse);
-  pattern->setEndAction (EndAction::Bounce);
-
-  auto const file
-      = juce::File::getSpecialLocation (juce::File::tempDirectory)
-            .getChildFile ("a3-motion-mode.svg");
-  file.deleteFile ();
-  ASSERT_TRUE (PatternFile::save (pattern, file));
-
-  auto const reloaded = PatternFile::load (file);
-  ASSERT_NE (reloaded, nullptr);
-  EXPECT_EQ (reloaded->getPlayDirection (), PlayDirection::Reverse);
-  EXPECT_EQ (reloaded->getEndAction (), EndAction::Bounce);
-
-  file.deleteFile ();
 }
 
 // Every value has to survive, not just the one that was tried first.
@@ -100,70 +79,6 @@ TEST (MotionModePersistence, AFileWithoutThemLoopsForwards)
   file.deleteFile ();
 }
 
-}
-
-
-// Every clip setting, in one place, because the ones that were forgotten were
-// forgotten quietly: the whole Elevation section and the playback length were
-// never written, while Pattern.hh said in so many words that each pattern
-// remembers its own elevation. It did — until it was saved.
-//
-// This test enumerates, and there is no way around that in C++: nothing can
-// ask a class what settings it has. So it carries a duty instead — **a new
-// clip setting is added here at the same time it is added to Pattern**, and if
-// that feels like busywork, remember that skipping it is what made a clip come
-// back as a different sound.
-TEST (MotionModePersistence, EveryClipSettingSurvivesARoundTrip)
-{
-  auto pattern = aCircle ("Everything");
-
-  // All deliberately away from their defaults, so a field that is not written
-  // comes back visibly wrong rather than accidentally right.
-  pattern->setPlayDirection (PlayDirection::Reverse);
-  pattern->setEndAction (EndAction::Pause);
-  pattern->setPlaybackLength ({ 3, 2, 0 });
-
-  pattern->setReach (0.37f);
-  pattern->setMirrorSouth (true);
-  pattern->setClipTop (0.21f);
-  pattern->setClipBottom (0.13f);
-  pattern->setFlat (true);
-  pattern->setFlatElevation (0.71f);
-
-  pattern->setRotate (0.3f);
-  pattern->setSpin (-4);
-  pattern->setReachLfo (5);
-  pattern->setEnvelopeAttack (1);
-  pattern->setEnvelopeDecay (5);
-  pattern->setEnvelopeMax (0.42f);
-
-  auto const file
-      = juce::File::getSpecialLocation (juce::File::tempDirectory)
-            .getChildFile ("a3-motion-every-setting.svg");
-  ASSERT_TRUE (PatternFile::save (pattern, file));
-
-  auto const reloaded = PatternFile::load (file);
-  ASSERT_NE (reloaded, nullptr);
-
-  EXPECT_EQ (reloaded->getPlayDirection (), PlayDirection::Reverse);
-  EXPECT_EQ (reloaded->getEndAction (), EndAction::Pause);
-  EXPECT_EQ (reloaded->getPlaybackLength (), Measure (3, 2, 0));
-
-  EXPECT_FLOAT_EQ (reloaded->getReach (), 0.37f);
-  EXPECT_TRUE (reloaded->getMirrorSouth ());
-  EXPECT_FLOAT_EQ (reloaded->getClipTop (), 0.21f);
-  EXPECT_FLOAT_EQ (reloaded->getClipBottom (), 0.13f);
-  EXPECT_TRUE (reloaded->getFlat ());
-  EXPECT_FLOAT_EQ (reloaded->getFlatElevation (), 0.71f);
-
-  EXPECT_FLOAT_EQ (reloaded->getRotate (), 0.3f);
-  EXPECT_EQ (reloaded->getSpin (), -4);
-  EXPECT_EQ (reloaded->getReachLfo (), 5);
-  EXPECT_EQ (reloaded->getEnvelopeAttack (), 1);
-  EXPECT_EQ (reloaded->getEnvelopeDecay (), 5);
-  EXPECT_FLOAT_EQ (reloaded->getEnvelopeMax (), 0.42f);
-
-  file.deleteFile ();
 }
 
 // A file written before a setting existed has to keep loading, and come back
@@ -203,55 +118,6 @@ TEST (MotionModePersistence, AFileWithoutTheNewSettingsLoadsWithTheirDefaults)
   EXPECT_FLOAT_EQ (reloaded->getClipBottom (), fresh.getClipBottom ());
   EXPECT_EQ (reloaded->getFlat (), fresh.getFlat ());
   EXPECT_FLOAT_EQ (reloaded->getFlatElevation (), fresh.getFlatElevation ());
-
-  file.deleteFile ();
-}
-
-// ── The Action key's mode ────────────────────────────────────────────────
-
-TEST (MotionModePersistence, ActModeSurvivesARoundTrip)
-{
-  auto pattern = aCircle ("Stab");
-  pattern->setActMode (ActMode::Hold);
-
-  auto const file
-      = juce::File::getSpecialLocation (juce::File::tempDirectory)
-            .getChildFile ("a3-motion-actmode.svg");
-  file.deleteFile ();
-  ASSERT_TRUE (PatternFile::save (pattern, file));
-
-  auto const reloaded = PatternFile::load (file);
-  ASSERT_NE (reloaded, nullptr);
-  EXPECT_EQ (reloaded->getActMode (), ActMode::Hold);
-
-  file.deleteFile ();
-}
-
-TEST (MotionModePersistence, ATakeWrittenBeforeTheModeExistedIsAShot)
-{
-  // Every take on anybody's stick predates this setting, and every one of them
-  // was a shot. Defaulting to Hold would change what those clips do the first
-  // time they are opened, which is the one thing a new setting must not do.
-  EXPECT_EQ (aCircle ("Fresh")->getActMode (), ActMode::OneShot);
-
-  auto const file
-      = juce::File::getSpecialLocation (juce::File::tempDirectory)
-            .getChildFile ("a3-motion-actmode-old.svg");
-  file.deleteFile ();
-  ASSERT_TRUE (PatternFile::save (aCircle ("Old"), file));
-
-  // Strip the attribute, leaving the file an older build would have written.
-  auto text = file.loadFileAsString ();
-  auto const at = text.indexOf ("data-act-mode");
-  ASSERT_GE (at, 0);
-  auto const openQuote = text.indexOf (at, "\"");
-  auto const closeQuote = text.indexOf (openQuote + 1, "\"");
-  file.replaceWithText (text.substring (0, at)
-                        + text.substring (closeQuote + 1));
-
-  auto const reloaded = PatternFile::load (file);
-  ASSERT_NE (reloaded, nullptr);
-  EXPECT_EQ (reloaded->getActMode (), ActMode::OneShot);
 
   file.deleteFile ();
 }
@@ -314,4 +180,84 @@ TEST (MotionModePersistence, ASavedShapeDoesNotMoveTowardsTheMiddle)
   EXPECT_NEAR (sy / n, 0.f, 0.03f) << "the shape slid to centre its box";
 
   file.deleteFile ();
+}
+
+// ── The shape and its clip, together ─────────────────────────────────────
+
+// Four tests used to live here, each asserting that some setting survived a
+// PatternFile round trip. They were right about the guarantee and wrong about
+// where it lives: settings are a clip's business now, so the journey they were
+// protecting is this one -- write the shape, write the clip, read both back,
+// and the clip is what it was.
+//
+// Stated end to end rather than per file, because that is the promise the
+// device makes. Either file alone tells only half of it.
+TEST (MotionModePersistence, AShapeAndItsClipTogetherRestoreTheWholeClip)
+{
+  auto pattern = aCircle ("Everything");
+
+  // All deliberately away from their defaults, so a field that is not written
+  // comes back visibly wrong rather than accidentally right.
+  pattern->setPlayDirection (PlayDirection::Reverse);
+  pattern->setEndAction (EndAction::Pause);
+  pattern->setActMode (ActMode::Hold);
+  pattern->setSpeedLog2 (-2);
+  pattern->setFadeSixteenths (9);
+  pattern->setRotate (0.375f);
+  pattern->setSpin (4);
+  pattern->setReachLfo (-2);
+  pattern->setEnvelopeAttack (5);
+  pattern->setEnvelopeDecay (1);
+  pattern->setEnvelopeMax (0.6f);
+  pattern->setReach (0.42f);
+  pattern->setMirrorSouth (true);
+  pattern->setClipTop (0.15f);
+  pattern->setClipBottom (0.25f);
+  pattern->setFlat (true);
+  pattern->setFlatElevation (0.35f);
+
+  auto const dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                       .getChildFile ("a3-shape-and-clip");
+  dir.deleteRecursively ();
+  dir.createDirectory ();
+
+  auto const shapeFile = dir.getChildFile ("16_Everything.svg");
+  ASSERT_TRUE (PatternFile::save (pattern, shapeFile));
+
+  Clip clip;
+  clip.name = "Everything";
+  clip.svg = "16_Everything";
+  clip.settings = clipSettingsFrom (*pattern);
+  auto const clipFile = dir.getChildFile ("Everything.json");
+  ASSERT_TRUE (ClipFile::save (clip, clipFile));
+
+  auto const reloaded = PatternFile::load (shapeFile);
+  ASSERT_NE (reloaded, nullptr);
+
+  auto const readClip = ClipFile::load (clipFile);
+  ASSERT_TRUE (readClip.has_value ());
+  applyClipSettings (*reloaded, readClip->settings);
+
+  EXPECT_EQ (reloaded->getPlayDirection (), PlayDirection::Reverse);
+  EXPECT_EQ (reloaded->getEndAction (), EndAction::Pause);
+  EXPECT_EQ (reloaded->getActMode (), ActMode::Hold);
+  EXPECT_EQ (reloaded->getSpeedLog2 (), -2);
+  EXPECT_EQ (reloaded->getFadeSixteenths (), 9);
+  EXPECT_FLOAT_EQ (reloaded->getRotate (), 0.375f);
+  EXPECT_EQ (reloaded->getSpin (), 4);
+  EXPECT_EQ (reloaded->getReachLfo (), -2);
+  EXPECT_EQ (reloaded->getEnvelopeAttack (), 5);
+  EXPECT_EQ (reloaded->getEnvelopeDecay (), 1);
+  EXPECT_FLOAT_EQ (reloaded->getEnvelopeMax (), 0.6f);
+  EXPECT_FLOAT_EQ (reloaded->getReach (), 0.42f);
+  EXPECT_TRUE (reloaded->getMirrorSouth ());
+  EXPECT_FLOAT_EQ (reloaded->getClipTop (), 0.15f);
+  EXPECT_FLOAT_EQ (reloaded->getClipBottom (), 0.25f);
+  EXPECT_TRUE (reloaded->getFlat ());
+  EXPECT_FLOAT_EQ (reloaded->getFlatElevation (), 0.35f);
+
+  // ... and the geometry came back too, which is the half the shape file owns.
+  EXPECT_EQ (reloaded->getNumTicks (), pattern->getNumTicks ());
+
+  dir.deleteRecursively ();
 }

@@ -37,6 +37,7 @@
 #include <a3-motion-ui/components/PatternProgressBar.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternFile.hh>
+#include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -106,6 +107,15 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   auto patternsDir = userConfig.hasProperty ("patternDir")
       ? juce::File (userConfig["patternDir"].toString ())
       : juce::File ("/home/aaa/a3-motion-ui/pattern");
+  // Before the library exists, not after: PatternLibrary scans in its own
+  // constructor, so a migration that ran afterwards would leave the first
+  // start of the day looking at shapes whose clips it had not seen. It showed
+  // up in the log as "patterns loaded" printing before "ClipMigration".
+  //
+  // Non-destructive and idempotent: it runs on every start and does nothing
+  // once every take has a clip.
+  migrateCombinedPatterns (patternsDir);
+
   _patternLibrary = std::make_unique<PatternLibrary> (patternsDir);
   _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
 

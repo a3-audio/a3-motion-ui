@@ -205,6 +205,28 @@ PatternLibrary::saveUserPattern (std::shared_ptr<Pattern> const &pattern)
       return 0;
     }
 
+  // The take's settings, in a clip of its own beside the shape. A new clip
+  // every time, never the slot's existing one: the slot's clip may be in other
+  // slots and in other sessions, and pointing it at a fresh recording would
+  // overwrite every one of them without a word.
+  //
+  // Named after the shape without its beat-count prefix, the same rule the
+  // factory clips follow, so the library finds it beside its shape.
+  {
+    Clip clip;
+    clip.svg = file.getFileNameWithoutExtension ().toStdString ();
+    clip.name = file.getFileNameWithoutExtension ()
+                    .fromFirstOccurrenceOf ("_", false, false)
+                    .toStdString ();
+    clip.settings = clipSettingsFrom (*pattern);
+
+    auto const clipFile
+        = getClipDir ().getChildFile (juce::String (clip.name) + ".json");
+    if (!ClipFile::save (clip, clipFile))
+      std::cerr << "PatternLibrary: failed to save the clip for "
+                << file.getFullPathName () << std::endl;
+  }
+
   std::cout << "PatternLibrary: saved user pattern '"
             << name << "' to " << file.getFullPathName () << std::endl;
 
