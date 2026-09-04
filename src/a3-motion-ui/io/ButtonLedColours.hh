@@ -59,6 +59,23 @@ LedColour buttonLedColour (juce::var const &buttonLedsConfig,
  *  the config's `idle` entry says otherwise. */
 LedColour buttonLedIdleColour (juce::var const &buttonLedsConfig);
 
+/** The same colour, as an LED has to say it.
+ *
+ *  A screen colour is read against the surface around it: `accent` at
+ *  rgb(144, 238, 144) is plainly a light green next to a dark bar. An LED has
+ *  no surround — it *is* the light — so the same value arrives as white with a
+ *  tint, and the maintainer reported exactly that: "the green of the hardware
+ *  keys does not look green, it looks white."
+ *
+ *  So the hue is kept and the saturation is brought up to a floor. Brightness
+ *  is left alone, because how bright a key is means something (see TAP on a
+ *  beat) and this must not say it a second way. A colour with no hue at all is
+ *  returned untouched: a key meant to be white should be white. */
+juce::Colour ledColour (juce::Colour colour);
+
+/** Below this an LED reads as white with a tint rather than as a colour. */
+constexpr float ledMinSaturation = 0.8f;
+
 /** An LED colour as juce states one. */
 juce::Colour toColour (LedColour const &colour);
 

@@ -504,10 +504,10 @@ InputOutputAdapterV3::outputButtonLED (Button button, juce::Colour colour)
   // A transparent colour is a key with nothing to report: it takes the resting
   // light, which is not darkness — a key that has a function should say so
   // while nobody is touching it.
-  auto const lit
-      = colour.isTransparent ()
-            ? toColour (buttonLedIdleColour (userConfig["buttonLeds"]))
-            : colour;
+  auto const lit = ledColour (
+      colour.isTransparent ()
+          ? toColour (buttonLedIdleColour (userConfig["buttonLeds"]))
+          : colour);
 
   // Both sides of the key light: they are one key with two places to press
   // it, and a lit left with a dark right would say they were two.

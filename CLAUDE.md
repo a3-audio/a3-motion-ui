@@ -530,7 +530,17 @@ this: **clock** and **recmode**, in rows that had been spare. Both cycle on pres
 their screen twins run, because the panel and the screen are two places to reach one function. All six are one size: a button sized differently
 from its neighbours reads as a different kind of thing, and these are all the same kind.
 
-**What a key looks like is one rule** — `theme/FunctionKeyColours.hh` — and it drives both displays:
+**What a key looks like is one rule** — `theme/FunctionKeyColours.hh` — and it drives both displays,
+which only works if both of them read it. The bar carried its own copy for REC (`recording ? danger
+: warning`) and went on saying orange long after the rule said red always; nothing was wrong
+anywhere, the screen simply was not asking. Every key in the strip is painted from
+`functionKeyColour()` now.
+
+A colour is not said the same way in both media. `ledColour()` raises the saturation of anything
+going to the panel to a floor, keeping hue and brightness: `accent` at rgb(144, 238, 144) is plainly
+a light green on a dark bar, and on an LED — which has no surround, because it *is* the light — the
+same value arrives as white with a tint. A colour with no hue is left alone, so a key meant to be
+white stays white.
 the strip washes the colour into a button face, the panel lights the key outright. What differs is
 not *which* colour but how loudly it is said, because an LED in a dark booth is about as loud at full
 as a wash is on a lit screen. Button LEDs therefore carry a **colour** now, the way pad LEDs always

@@ -61,4 +61,19 @@ buttonLedIdleColour (juce::var const &buttonLedsConfig)
   return buttonLedColour (buttonLedsConfig, "idle");
 }
 
+
+juce::Colour
+ledColour (juce::Colour colour)
+{
+  // No hue, nothing to bring out: white stays white, and a grey that was
+  // meant as a grey is not turned into a colour it never had.
+  if (colour.getSaturation () <= 0.f)
+    return colour;
+
+  if (colour.getSaturation () >= ledMinSaturation)
+    return colour;
+
+  return colour.withSaturation (ledMinSaturation);
+}
+
 }

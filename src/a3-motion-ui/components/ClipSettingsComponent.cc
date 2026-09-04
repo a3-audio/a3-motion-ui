@@ -733,6 +733,17 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // sat pinned to the bottom edge, a finger's width away from what it names.
   paintChannelGrid (g);
 
+  // Every key's colour from the one rule (theme/FunctionKeyColours.hh), which
+  // is what makes it one rule. Each of these used to carry its own copy —
+  // REC's said "orange armed, red running" long after the rule had been
+  // changed to say red always, and nothing was wrong anywhere: the screen
+  // simply was not asking. Two displays reading one rule only works if both
+  // of them read it.
+  auto const look = functionKeyLook ();
+  auto const colourFor = [&look] (FunctionKey key) {
+    return functionKeyColour (key, look);
+  };
+
   // Both carry a value, so both name it: two lines, like every other button
   // in the bar that stands for something rather than doing something.
   static char const *clockNames[] = { "INT", "EXT", "PIO" };
@@ -744,27 +755,25 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // light, because what they show is momentary and has no label of its own.
   paintBarButton (g, _layout.recModeButton, recModeName (_recMode), "recmode",
                   false, false);
-  // The clock's own colour, the same rule the status bar reads it by
-  // (Colours::clockMode): whose tempo this is has one answer, in one colour,
-  // wherever it is written.
+  // The clock's own colour, from the same rule as the rest — which for this
+  // key is Colours::clockMode, so the status bar reads it the same way: whose
+  // tempo this is has one answer, in one colour, wherever it is written.
   paintBarButton (g, _layout.clockModeButton, clockNames[clock], "clock",
-                  false, false, false, Colours::clockMode (clock));
+                  false, false, false,
+                  colourFor (FunctionKey::ClockMode));
 
-  paintActionButton (g, _layout.menuButton, "MENU", false);
-
-  // Orange armed, red running. Recording is the one thing here that writes
-  // over something you cannot get back, so it is the one key that is coloured
-  // even when nothing is happening — you should never have to check.
+  paintActionButton (g, _layout.menuButton, "MENU", false,
+                     colourFor (FunctionKey::Menu));
   paintActionButton (g, _layout.recButton, "REC", _recording,
-                     _recording ? toColour (theme ().danger)
-                                : toColour (theme ().warning));
+                     colourFor (FunctionKey::Record));
 
   // TAP lights under a finger, and breathes with the beat — but not through
   // the same door. Routed through the button's own "active" look the beat
   // more than doubled the key's brightness, which is a blink you watch
   // instead of one you catch out of the corner of an eye. It is a wash laid
   // over the finished button instead, a fraction of the press's.
-  paintActionButton (g, _layout.tapButton, "TAP", _tapLit);
+  paintActionButton (g, _layout.tapButton, "TAP", _tapLit,
+                     _tapLit ? colourFor (FunctionKey::Tap) : juce::Colour{});
   if (_tapBeat && !_tapLit)
     {
       g.setColour (toColour (theme ().textPrimary, beatWash));
@@ -774,7 +783,8 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // Lit in the accent while it is down. A modifier you cannot see at a glance
   // is a modifier you will get wrong, and this one decides what the next pad
   // press means.
-  paintActionButton (g, _layout.shiftButton, "SHIFT", _shiftHeld);
+  paintActionButton (g, _layout.shiftButton, "SHIFT", _shiftHeld,
+                     colourFor (FunctionKey::Shift));
 }
 
 void
