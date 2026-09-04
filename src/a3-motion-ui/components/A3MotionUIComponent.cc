@@ -1643,6 +1643,12 @@ A3MotionUIComponent::fillSlotFromLibrary (index_t channel, index_t slot,
   // applyMotionMode() writes the strip's stale ones back over them and the
   // two settings a clip carries are the two it cannot keep.
   syncClipUIParamsFromPattern (channel, slot);
+
+  // And the line to draw it by. This is the one place a slot is filled from
+  // the library, so it is the one place that has to say so -- two of the three
+  // callers used to do it themselves and the third (restoring a session) did
+  // not, which left every slot it filled playing an invisible trajectory.
+  registerPatternDisplayData (_patterns[channel][slot]);
 }
 
 bool
@@ -1930,11 +1936,11 @@ A3MotionUIComponent::assignBrowserEntry (int index)
 
   fillSlotFromLibrary (channel, slot, index);
 
-  if (auto const &filled = _patterns[channel][slot])
-    {
-      applyMotionMode (channel, slot);
-      refreshPatternDisplayFromTicks (filled);
-    }
+  // Registered by fillSlotFromLibrary() now -- and by way of
+  // registerPatternDisplayData(), which knows about shapes made of dots.
+  // Going straight to the ticks here drew those with no dots at all.
+  if (_patterns[channel][slot])
+    applyMotionMode (channel, slot);
 
   // And it plays, so you hear what you just chose. Building a set is
   // listening to clips one after another; having to reach for the transport
@@ -2719,7 +2725,11 @@ void
 A3MotionUIComponent::registerPatternDisplayData (
     std::shared_ptr<Pattern> const &pattern)
 {
-  if (!pattern)
+  // Called from fillSlotFromLibrary(), which also runs while the interface is
+  // still being built: at startup the slots are filled before there is
+  // anything to draw them on, and the initial pass registers them again once
+  // there is.
+  if (!pattern || !_motionComponent)
     return;
 
   auto const &name = pattern->getName ();
