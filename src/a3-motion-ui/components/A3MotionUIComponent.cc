@@ -488,7 +488,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _browser = std::make_unique<BrowserComponent> ();
   _browser->onFieldChosen = [this] (index_t channel, index_t slot) {
     _browserField = { static_cast<int> (channel), static_cast<int> (slot) };
-    _browser->setSelectedField (_browserField.first, _browserField.second);
+    // Through refreshBrowser(), not setSelectedField() alone: what can be done
+    // to the chosen field depends on which field it is, so the strip has to be
+    // worked out again. Setting only the highlight left Save greyed on a slot
+    // that plainly had something to save.
+    refreshBrowser ();
   };
   _browser->onSavePressed = [this] {
     saveSlotClip (static_cast<index_t> (_browserField.first),
@@ -1727,6 +1731,17 @@ A3MotionUIComponent::refreshBrowser ()
 
   _browser->setEntries (names);
   _browser->setSelectedField (_browserField.first, _browserField.second);
+
+  // What can actually be done to what is chosen. Save lights only when there
+  // is something to write -- pressing it otherwise did nothing, and a key that
+  // does nothing teaches you to stop trusting it.
+  //
+  // Rename and the session keys come with step 3; until then they say nothing
+  // rather than being drawn as though they worked.
+  auto const drifted
+      = slotHasDrifted (static_cast<index_t> (_browserField.first),
+                        static_cast<index_t> (_browserField.second));
+  _browser->setActions ({ "", "Save", "" }, { false, drifted, false });
 }
 
 void

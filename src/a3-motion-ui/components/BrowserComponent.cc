@@ -269,9 +269,11 @@ BrowserComponent::paint (juce::Graphics &g)
   for (int row = 0; row < static_cast<int> (_layout.rows.size ()); ++row)
     paintRow (g, row);
 
-  paintButton (g, _layout.renameButton, "Rename", _selectedEntry >= 0);
-  paintButton (g, _layout.saveSessionButton, "Save", true);
-  paintButton (g, _layout.loadSessionButton, "Load Set", true);
+  paintButton (g, _layout.renameButton, _actionLabels[0], _actionEnabled[0]);
+  paintButton (g, _layout.saveSessionButton, _actionLabels[1],
+               _actionEnabled[1]);
+  paintButton (g, _layout.loadSessionButton, _actionLabels[2],
+               _actionEnabled[2]);
 }
 
 void
@@ -351,10 +353,24 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
 }
 
 void
+BrowserComponent::setActions (juce::StringArray const &labels,
+                              std::array<bool, 3> const &enabled)
+{
+  if (labels == _actionLabels && enabled == _actionEnabled)
+    return;
+
+  _actionLabels = labels;
+  _actionEnabled = enabled;
+  repaint ();
+}
+
+void
 BrowserComponent::paintButton (juce::Graphics &g, juce::Rectangle<int> bounds,
                                juce::String const &label, bool enabled)
 {
-  if (bounds.isEmpty ())
+  // An empty label is a key that does not exist yet -- nothing is drawn at
+  // all, rather than an outline with nothing in it, which reads as a fault.
+  if (bounds.isEmpty () || label.isEmpty ())
     return;
 
   g.setColour (toColour (theme ().textPrimary, 0.06f));

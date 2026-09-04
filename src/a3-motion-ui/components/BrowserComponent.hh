@@ -75,6 +75,14 @@ public:
   std::function<void ()> onSessionPressed;
   std::function<void (index_t channel, index_t slot)> onFieldChosen;
   std::function<void (int index)> onEntryChosen;
+  /** What the three keys under the list say, and which of them can be
+   *  pressed. Driven from outside rather than fixed here: a key that is drawn
+   *  as though it worked and does nothing is worse than one that is plainly
+   *  not available, and the set of things you can do changes with what is
+   *  chosen. An empty label draws no key at all. */
+  void setActions (juce::StringArray const &labels,
+                   std::array<bool, 3> const &enabled);
+
   std::function<void ()> onRenamePressed;
   /** Write the chosen field's clip back. Sessions get their own pair of keys
    *  when sessions exist -- see the plan's step 3. */
@@ -100,6 +108,8 @@ private:
   int _selectedChannel = 0;
   int _selectedSlot = 0;
 
+  juce::StringArray _actionLabels{ "Rename", "Save", "" };
+  std::array<bool, 3> _actionEnabled{ false, false, false };
   juce::String _sessionName;
   juce::StringArray _names;
   int _scrollOffset = 0;
