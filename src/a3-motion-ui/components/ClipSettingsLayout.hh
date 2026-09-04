@@ -25,6 +25,8 @@
 
 #include <a3-motion-engine/Config.hh>
 
+#include <a3-motion-ui/io/PadFunctions.hh>
+
 #include <array>
 #include <vector>
 
@@ -194,7 +196,12 @@ struct ClipSettingsLayout
   /** The bar's own header row: the four transport keys, then "Slot N", then
    *  the page tabs closing it. */
   std::array<juce::Rectangle<int>, numTransportKeys> transportButtons;
-  juce::Rectangle<int> slotLabel;
+  /** One key per slot, where the slot's name used to be written. A heading
+   *  that says which clip you are looking at and a control that changes which
+   *  clip you are looking at want to be in the same place -- and reading
+   *  "Slot 1" gave you no way to get to slot 2 without leaving for the pads
+   *  page. */
+  std::array<juce::Rectangle<int>, numPadSlots> slotButtons;
   juce::Rectangle<int> tabClip;
   juce::Rectangle<int> tabRecord;
   juce::Rectangle<int> tabController;

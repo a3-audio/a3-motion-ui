@@ -135,6 +135,8 @@ public:
   /** The recording mode, shown in the global strip. Not a clip setting: it is
    *  the same for every channel, which is why it sits apart from them. */
   void setRecMode (RecMode mode);
+  /** Whether the main menu is showing, so its key can say so. */
+  void setMenuOpen (bool open);
 
   void setTrajectoryIcon (TrajectoryIconData const &icon);
   void setTrajectoryName (juce::String const &name);
@@ -251,6 +253,8 @@ public:
   /** Tapped, except Action, which is held for as long as the finger is down --
    *  the same distinction the pads make, because these are the same four
    *  things and two ways to do one thing must not behave differently. */
+  /** Which of the channel's two clips the bar describes. */
+  std::function<void (index_t slot)> onSlotSelected;
   std::function<void (TransportKey key)> onTransportTapped;
   std::function<void (bool held)> onTransportActionHeld;
 
@@ -530,6 +534,8 @@ private:
   /** The four transport keys in the header. Their look follows the same rule
    *  as the global strip's function keys: a key that is doing something is
    *  coloured, and one that is not is not. */
+  bool _menuOpen = false;
+  std::array<std::unique_ptr<TouchControl>, numPadSlots> _slotTouch;
   std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;
   std::unique_ptr<TouchControl> _tabClipTouch;
   std::unique_ptr<TouchControl> _tabRecordTouch;

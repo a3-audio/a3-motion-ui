@@ -301,14 +301,15 @@ TEST (ClipSettingsLayout, TheTabsCloseTheHeaderRow)
   EXPECT_FALSE (l.tabClip.isEmpty ());
   EXPECT_FALSE (l.tabController.isEmpty ());
 
-  // Side by side, in reading order, after the slot they belong to.
-  EXPECT_LE (l.slotLabel.getRight (), l.tabClip.getX ());
+  // Side by side, in reading order, after the slots they belong to.
+  auto const &lastSlot = l.slotButtons[numPadSlots - 1];
+  EXPECT_LE (lastSlot.getRight (), l.tabClip.getX ());
   EXPECT_LE (l.tabClip.getRight (), l.tabController.getX ());
 
   // On the header's own line, not above or below it.
-  EXPECT_EQ (l.tabClip.getY (), l.slotLabel.getY ());
-  EXPECT_EQ (l.tabClip.getHeight (), l.slotLabel.getHeight ());
-  EXPECT_EQ (l.tabController.getY (), l.slotLabel.getY ());
+  EXPECT_EQ (l.tabClip.getY (), lastSlot.getY ());
+  EXPECT_EQ (l.tabClip.getHeight (), lastSlot.getHeight ());
+  EXPECT_EQ (l.tabController.getY (), lastSlot.getY ());
 }
 
 // The readout says what was last moved, and what moves comes from either page
@@ -326,9 +327,9 @@ TEST (ClipSettingsLayout, TheReadoutSitsOverTheGlobalStripOnTheHeaderLine)
   // Clear of the card, not inside it.
   EXPECT_LE (l.readout.getBottom (), l.sectionCards[3].getY ());
 
-  // On the same line as the slot label and the tabs.
-  EXPECT_EQ (l.readout.getY (), l.slotLabel.getY ());
-  EXPECT_EQ (l.readout.getHeight (), l.slotLabel.getHeight ());
+  // On the same line as the slot keys and the tabs.
+  EXPECT_EQ (l.readout.getY (), l.slotButtons[0].getY ());
+  EXPECT_EQ (l.readout.getHeight (), l.slotButtons[0].getHeight ());
 
   // ... and the strip keeps its own title.
   EXPECT_FALSE (l.sectionLabels[3].isEmpty ());
@@ -356,7 +357,7 @@ TEST (ClipSettingsLayout, TheClipContentStartsBelowTheHeaderRow)
   EXPECT_FALSE (l.clipContent.isEmpty ());
   EXPECT_TRUE (l.clipBounds.contains (l.clipContent));
 
-  EXPECT_GE (l.clipContent.getY (), l.slotLabel.getBottom ());
+  EXPECT_GE (l.clipContent.getY (), l.slotButtons[0].getBottom ());
   EXPECT_GE (l.clipContent.getY (), l.tabClip.getBottom ());
   EXPECT_GE (l.clipContent.getY (), l.tabController.getBottom ());
 
@@ -820,9 +821,10 @@ TEST (ClipSettingsLayout, TheHeaderCarriesFourTransportKeysBeforeTheSlotLabel)
       previousRight = key.getRight ();
     }
 
-  EXPECT_GE (layout.slotLabel.getX (), previousRight)
-      << "the slot label sits after the keys, not under them";
-  EXPECT_GE (layout.tabClip.getX (), layout.slotLabel.getRight ())
+  EXPECT_GE (layout.slotButtons[0].getX (), previousRight)
+      << "the slot keys sit after the transport keys, not under them";
+  EXPECT_GE (layout.tabClip.getX (),
+             layout.slotButtons[numPadSlots - 1].getRight ())
       << "the tabs still close the row";
 }
 
@@ -1025,4 +1027,38 @@ TEST (ClipSettingsLayout, EveryMotionControlIsEitherAKnobOrAList)
   for (int sub = 0; sub < numControlsInSection (2); ++sub)
     EXPECT_FALSE (tapAdvancesValue (2, sub) && tapTogglesValue (2, sub))
         << "sub " << sub;
+}
+
+TEST (ClipSettingsLayout, BothSlotsGetAKeyOnTheClipFaces)
+{
+  for (auto const page : { BarPage::Clip, BarPage::Record })
+    {
+      auto const l
+          = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
+
+      int previousRight = 0;
+      for (index_t slot = 0; slot < numPadSlots; ++slot)
+        {
+          auto const &key = l.slotButtons[slot];
+          ASSERT_FALSE (key.isEmpty ()) << "slot " << slot;
+          EXPECT_GE (key.getX (), previousRight) << "slot " << slot;
+          previousRight = key.getRight ();
+        }
+
+      // After the transport keys, before the tabs.
+      EXPECT_GE (l.slotButtons[0].getX (),
+                 l.transportButtons[numTransportKeys - 1].getRight ());
+      EXPECT_LE (previousRight, l.tabClip.getX ());
+    }
+}
+
+TEST (ClipSettingsLayout, ThePadsPageHasNoSlotKeysEither)
+{
+  // It shows every slot at once, so choosing one of them there would say
+  // something untrue about what you are looking at.
+  auto const l = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f,
+                                     BarPage::Controller);
+
+  for (auto const &key : l.slotButtons)
+    EXPECT_TRUE (key.isEmpty ());
 }

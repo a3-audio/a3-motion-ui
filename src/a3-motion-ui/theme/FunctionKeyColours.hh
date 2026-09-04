@@ -36,6 +36,10 @@ struct FunctionKeyLook
   int recMode = 0;
   bool recording = false;
   bool shiftHeld = false;
+  /** The main menu is open. Menu is the one key here that stands for a place
+   *  you are rather than a thing you did, so it stays lit for as long as you
+   *  are in it -- the same way Shift stays lit while it is held. */
+  bool menuOpen = false;
   /** A finger is on TAP, or a beat just went by. */
   bool tapPressed = false;
   bool tapBeat = false;

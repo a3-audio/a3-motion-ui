@@ -78,10 +78,15 @@ functionKeyColour (FunctionKey key, FunctionKeyLook const &look)
                                                : juce::Colour{};
 
     case FunctionKey::Menu:
-      // Says what it does with a word. A colour on it would be one that means
-      // nothing, and every colour that means nothing makes the ones that mean
-      // something harder to read.
-      return {};
+      // Blue -- notice, the colour this device already uses for "worth seeing,
+      // neither good news nor bad". The word says what it does; the colour
+      // says where the key belongs, which is what you are looking for when you
+      // are scanning the strip rather than reading it.
+      //
+      // Lit while the menu is open, like Shift while it is held: both are
+      // states you are *in*, and a key you are inside of that looked the same
+      // as one you are not is how you end up pressing it twice.
+      return toColour (theme ().notice);
     }
 
   return {};

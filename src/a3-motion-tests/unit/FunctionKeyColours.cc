@@ -97,14 +97,22 @@ TEST (FunctionKeyColours, TapIsColouredOnABeatAndUnderAFinger)
 // The two that say what they do with a word. A colour on them would be a
 // colour that means nothing, and every colour that means nothing makes the
 // ones that mean something harder to read.
-TEST (FunctionKeyColours, MenuCarriesNoColour)
+TEST (FunctionKeyColours, MenuAnswersToNothingButItself)
 {
-  FunctionKeyLook look;
-  look.recording = true;
-  look.shiftHeld = true;
-  look.tapBeat = true;
+  // It used to carry no colour at all, on the argument that a colour meaning
+  // nothing makes the ones that mean something harder to read. It is blue now
+  // -- a key you want to find rather than read. What still holds is the part
+  // that mattered: nothing happening elsewhere on the device changes it.
+  FunctionKeyLook quiet;
+  FunctionKeyLook busy;
+  busy.recording = true;
+  busy.shiftHeld = true;
+  busy.tapBeat = true;
+  busy.clockMode = 2;
+  busy.recMode = 2;
 
-  EXPECT_TRUE (functionKeyColour (FunctionKey::Menu, look).isTransparent ());
+  EXPECT_EQ (functionKeyColour (FunctionKey::Menu, quiet),
+             functionKeyColour (FunctionKey::Menu, busy));
 }
 
 
@@ -206,4 +214,32 @@ TEST (TransportLook, ContrastRatioIsSymmetricAndBounded)
                21.f, 0.1f);
   EXPECT_NEAR (contrastRatio (juce::Colours::red, juce::Colours::red), 1.f,
                0.001f);
+}
+
+TEST (FunctionKeyColours, MenuIsBlueWhetherOrNotItIsOpen)
+{
+  // The colour says which key this is; being inside the menu is said by the
+  // key lighting up, the same way Shift says it is held. A key that only had
+  // a colour while you were in it would be a key you could not find your way
+  // to.
+  FunctionKeyLook closed;
+  FunctionKeyLook open;
+  open.menuOpen = true;
+
+  EXPECT_EQ (functionKeyColour (FunctionKey::Menu, closed),
+             toColour (theme ().notice));
+  EXPECT_EQ (functionKeyColour (FunctionKey::Menu, open),
+             toColour (theme ().notice));
+}
+
+TEST (FunctionKeyColours, MenuIsNotTheSameColourAsAnyStateKey)
+{
+  // Blue has to stay distinguishable from the three that mean something is
+  // happening: recording, running, and the accent.
+  FunctionKeyLook look;
+  auto const menu = functionKeyColour (FunctionKey::Menu, look);
+
+  EXPECT_NE (menu, transportColour (TransportKey::Record));
+  EXPECT_NE (menu, transportColour (TransportKey::PlayPause));
+  EXPECT_NE (menu, transportColour (TransportKey::Action));
 }

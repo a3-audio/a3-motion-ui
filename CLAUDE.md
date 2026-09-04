@@ -420,6 +420,15 @@ renames already (`sub == 1 ? direction : endAction`) and nothing noticed, becaus
 applied as the *difference* to the current index — a wrong current index lands on the wrong entry
 rather than failing.
 
+**"Slot 1" is two keys, not a heading.** A heading saying which clip you are looking at and a
+control changing which clip you are looking at want the same place — reading "Slot 1" left you no
+way to reach slot 2 without going to the pads page. They light like the tabs beside them, because
+they answer the same kind of question. Not on the pads page, which shows every slot at once.
+
+**Escape no longer quits.** On a desk that shortcut is a convenience; on a device standing in a
+booth with a keyboard plugged into it, it is one stray key from ending the set, with no dialogue in
+between because there is nothing here that could ask.
+
 **A double tap on a knob puts it back to the middle of its range** (`onControlReset` →
 `handleClipSettingsReset()`). Only knobs: a list has no middle, and `TouchControl::onDoubleTap`
 fires *instead of* the second tap, so a control that stepped on tap would otherwise step and reset

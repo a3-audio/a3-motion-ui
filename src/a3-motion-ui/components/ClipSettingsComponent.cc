@@ -101,6 +101,17 @@ ClipSettingsComponent::createTouchControls ()
     addAndMakeVisible (*into);
   };
 
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    {
+      auto &touch = _slotTouch[slot];
+      touch = std::make_unique<TouchControl> ();
+      touch->onTap = [this, slot] (int, int) {
+        if (onSlotSelected)
+          onSlotSelected (slot);
+      };
+      addAndMakeVisible (*touch);
+    }
+
   for (int i = 0; i < numTransportKeys; ++i)
     {
       auto const key = transportKeyOrder[i];
@@ -333,6 +344,9 @@ ClipSettingsComponent::resized ()
   _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
 
   _shiftTouch->setBounds (_layout.shiftButton);
+
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    _slotTouch[slot]->setBounds (_layout.slotButtons[slot]);
 
   for (int i = 0; i < numTransportKeys; ++i)
     _transportTouch[static_cast<size_t> (i)]->setBounds (
@@ -655,21 +669,36 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   g.setColour (toColour (theme ().textPrimary, 0.25f));
   g.drawRect (_layout.globalBounds, frameThickness);
 
-  // Not on the controller page, which shows every slot at once: naming one of
-  // them there says something untrue about what you are looking at. Both of
+  // Not on the controller page, which shows every slot at once: choosing one
+  // of them there says something untrue about what you are looking at. Both of
   // the clip's faces describe a single slot, and the record face -- the take
   // about to be written -- is the one where being sure which slot it is
   // matters most.
   if (_page != BarPage::Controller)
-    {
-      auto const slotName = "Slot " + juce::String (_slot + 1);
-      g.setFont (juce::Font (
-          fontFor (FontRole::Header, _layout.slotLabel, slotName),
-          juce::Font::bold));
-      g.setColour (_channelColour);
-      g.drawText (slotName, _layout.slotLabel,
-                  juce::Justification::centredLeft, true);
-    }
+    for (index_t slot = 0; slot < numPadSlots; ++slot)
+      {
+        auto const bounds = _layout.slotButtons[slot];
+        if (bounds.isEmpty ())
+          continue;
+
+        // The one you are looking at is filled in the channel's colour, the
+        // other outlined -- the same way the page tabs beside them say which
+        // page you are on, because they answer the same kind of question.
+        auto const here = slot == static_cast<index_t> (_slot);
+
+        g.setColour (here ? _channelColour.withAlpha (0.35f)
+                          : toColour (theme ().textPrimary, 0.06f));
+        g.fillRoundedRectangle (bounds.toFloat (), 3.f);
+        g.setColour (toColour (theme ().textPrimary, here ? 0.35f : 0.15f));
+        g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+
+        auto const name = "Slot " + juce::String (slot + 1);
+        g.setFont (juce::Font (fontFor (FontRole::Header, bounds, name),
+                               here ? juce::Font::bold : juce::Font::plain));
+        g.setColour (here ? _channelColour
+                          : toColour (theme ().textPrimary, 0.55f));
+        g.drawFittedText (name, bounds, juce::Justification::centred, 1);
+      }
 
   paintTabs (g);
 
@@ -823,6 +852,16 @@ ClipSettingsComponent::setRecMode (RecMode mode)
 }
 
 void
+ClipSettingsComponent::setMenuOpen (bool open)
+{
+  if (open == _menuOpen)
+    return;
+
+  _menuOpen = open;
+  repaint (_layout.menuButton);
+}
+
+void
 ClipSettingsComponent::applyTheme ()
 {
   resized ();
@@ -900,7 +939,7 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
                   false, false, false,
                   colourFor (FunctionKey::ClockMode));
 
-  paintActionButton (g, _layout.menuButton, "MENU", false,
+  paintActionButton (g, _layout.menuButton, "MENU", _menuOpen,
                      colourFor (FunctionKey::Menu));
   paintActionButton (g, _layout.recButton, "REC", _recording,
                      colourFor (FunctionKey::Record));
@@ -1079,6 +1118,7 @@ ClipSettingsComponent::functionKeyLook () const
   look.clockMode = _clockMode;
   look.recording = _recording;
   look.shiftHeld = _shiftHeld;
+  look.menuOpen = _menuOpen;
   look.tapPressed = _tapLit;
   look.tapBeat = _tapBeat;
   look.recMode = static_cast<int> (_recMode);

@@ -168,12 +168,21 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
           headerArea.removeFromLeft (transportGap);
         }
 
-      // The label is not one of the keys, so it does not sit as close to the
-      // last of them as they sit to each other.
+      // The slot keys are not transport keys, so they do not sit as close to
+      // them as those sit to each other.
       headerArea.removeFromLeft (transportGap * 3);
-    }
 
-  out.slotLabel = headerArea;
+      // Wide enough for "Slot 1" rather than square: they are read as well as
+      // pressed, which the four marks beside them are not.
+      auto const slotW
+          = juce::jmin (headerArea.getWidth () / static_cast<int> (numPadSlots + 1),
+                        transportW * 5 / 2);
+      for (index_t slot = 0; slot < numPadSlots; ++slot)
+        {
+          out.slotButtons[slot] = headerArea.removeFromLeft (slotW);
+          headerArea.removeFromLeft (transportGap);
+        }
+    }
 
   area.removeFromTop (juce::jmax (4, out.clipBounds.getHeight () / 50));
 

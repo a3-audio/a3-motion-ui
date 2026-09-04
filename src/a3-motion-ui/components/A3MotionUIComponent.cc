@@ -369,6 +369,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // the pad handler rather than reimplemented: the timing rules live there
   // (play on the next beat, stop now, the accent while the finger is down)
   // and two routes to one function must not each keep their own copy.
+  _clipSettings->onSlotSelected = [this] (index_t slot) {
+    selectClip (_clipSettingsChannel, slot);
+  };
+
   _clipSettings->onTransportTapped = [this] (TransportKey key) {
     switch (key)
       {
@@ -2531,6 +2535,15 @@ A3MotionUIComponent::onExternalBeatSync (int beat, int beatsPerBar)
 void
 A3MotionUIComponent::openGlobalSettings ()
 {
+  // The key says where you are. Told here rather than by whoever
+  // opened it: there are three ways in (the panel's key, the strip's,
+  // the encoder) and a key that only lit for some of them would be
+  // worse than one that never lit at all.
+  if (_clipSettings)
+    _clipSettings->setMenuOpen (true);
+  if (runsOnHardware ())
+    updateFunctionKeyLEDs ();
+
   if (_globalSettingsOpen)
     return;
 
@@ -2604,6 +2617,15 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
 void
 A3MotionUIComponent::closeGlobalSettings ()
 {
+  // The key says where you are. Told here rather than by whoever
+  // opened it: there are three ways in (the panel's key, the strip's,
+  // the encoder) and a key that only lit for some of them would be
+  // worse than one that never lit at all.
+  if (_clipSettings)
+    _clipSettings->setMenuOpen (false);
+  if (runsOnHardware ())
+    updateFunctionKeyLEDs ();
+
   if (!_globalSettingsOpen)
     return;
 
