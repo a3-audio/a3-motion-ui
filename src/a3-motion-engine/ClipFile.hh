@@ -32,6 +32,8 @@
 namespace a3
 {
 
+class Pattern;
+
 /** A clip: how a shape is played, and which shape that is.
  *
  *  The shape itself lives in its own file and is named here rather than
@@ -63,5 +65,16 @@ bool save (Clip const &clip, juce::File const &file);
 std::optional<Clip> load (juce::File const &file);
 
 }
+
+/** Whether a pattern has drifted from the clip it was filled from.
+ *
+ *  Worked out by comparing, not by watching: turning a control and turning it
+ *  back leaves nothing behind, which a flag set on every touch could not
+ *  manage. That is the whole reason this is a question rather than a state.
+ *
+ *  A pattern with no clip behind it -- an empty slot, or one filled from a
+ *  shape that has none -- has nothing to have drifted from, so it has not.
+ */
+bool clipHasDrifted (Pattern const &pattern, juce::File const &clipFile);
 
 }

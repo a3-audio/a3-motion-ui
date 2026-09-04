@@ -191,6 +191,18 @@ private:
 
   /** The browser page: what the eight fields hold, and what dropping a
    *  library row on the chosen one does. */
+  /** Fill a slot from the library, or empty it with index 0.
+   *
+   *  The one door: three places used to assign _patterns[c][s] directly, and
+   *  each of them would have had to remember the clip file too. One that
+   *  forgot would leave a slot that could never be saved and never showed as
+   *  drifted -- silently, because nothing about it would look wrong. */
+  void fillSlotFromLibrary (index_t channel, index_t slot, int libIndex);
+
+  /** Whether this slot has drifted from the clip it was filled from. Asked,
+   *  not remembered -- see clipHasDrifted(). */
+  bool slotHasDrifted (index_t channel, index_t slot) const;
+
   void refreshBrowser ();
   void assignBrowserEntry (int index);
 
@@ -432,6 +444,10 @@ private:
    *  hand is on. Record needs no twin: the global strip's REC button already
    *  records into the shown clip. */
   std::unique_ptr<ControllerComponent> _controller;
+  /** Which clip each slot was filled from, [channel][slot]. Empty for a slot
+   *  holding nothing, or one holding a shape that has no clip. */
+  std::vector<std::vector<juce::File> > _slotClipFile;
+
   std::unique_ptr<BrowserComponent> _browser;
   /** Which field the next chosen clip lands in. */
   std::pair<int, int> _browserField{ 0, 0 };

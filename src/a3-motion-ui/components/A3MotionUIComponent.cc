@@ -37,6 +37,7 @@
 #include <a3-motion-ui/components/PatternProgressBar.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternFile.hh>
+#include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/UserConfig.hh>
@@ -866,11 +867,16 @@ A3MotionUIComponent::initializePatterns ()
                                : _engine.getNumChannels ();
   _patterns.resize (numChannels);
   _clipUIParams.resize (numChannels);
+  _slotClipFile.resize (numChannels);
 
   for (auto &channelPatterns : _patterns)
     channelPatterns.resize (numClipSlots);
   for (auto &channelParams : _clipUIParams)
     channelParams.resize (numClipSlots);
+  // Sized alongside _patterns, always: fillSlotFromLibrary() indexes both, so
+  // one shorter than the other is a slot that cannot say where it came from.
+  for (auto &channelClips : _slotClipFile)
+    channelClips.resize (numClipSlots);
 
   // Load patterns from the library, one per clip slot; channels share the
   // same library slot but each gets its own Pattern instance. Default
@@ -885,12 +891,7 @@ A3MotionUIComponent::initializePatterns ()
           auto const libIndex = defaultLibIndex + static_cast<int> (slot);
           if (libIndex > 0 && libIndex < numLibEntries)
             {
-              auto p = _patternLibrary->loadPattern (libIndex);
-              if (p)
-                {
-                  p->setChannel (channel);
-                  _patterns[channel][slot] = std::move (p);
-                }
+              fillSlotFromLibrary (channel, slot, libIndex);
             }
         }
     }
@@ -1589,6 +1590,41 @@ A3MotionUIComponent::showBarPage (BarPage page)
 }
 
 void
+A3MotionUIComponent::fillSlotFromLibrary (index_t channel, index_t slot,
+                                          int libIndex)
+{
+  if (channel >= _patterns.size () || slot >= _patterns[channel].size ())
+    return;
+
+  auto pattern = libIndex > 0 ? _patternLibrary->loadPattern (libIndex)
+                              : nullptr;
+
+  if (pattern)
+    pattern->setChannel (channel);
+
+  _patterns[channel][slot] = std::move (pattern);
+
+  // The clip travels with the pattern, always through here, so a slot can
+  // always answer both "what am I holding" and "where did it come from".
+  _slotClipFile[channel][slot]
+      = libIndex > 0 ? _patternLibrary->getEntry (libIndex).clipFile
+                     : juce::File{};
+}
+
+bool
+A3MotionUIComponent::slotHasDrifted (index_t channel, index_t slot) const
+{
+  if (channel >= _patterns.size () || slot >= _patterns[channel].size ())
+    return false;
+
+  auto const &pattern = _patterns[channel][slot];
+  if (!pattern)
+    return false;
+
+  return clipHasDrifted (*pattern, _slotClipFile[channel][slot]);
+}
+
+void
 A3MotionUIComponent::refreshBrowser ()
 {
   if (!_browser)
@@ -1642,13 +1678,12 @@ A3MotionUIComponent::assignBrowserEntry (int index)
       _motionComponent->removePatternDisplayData (pattern);
     }
 
-  pattern = index == 0 ? nullptr : _patternLibrary->loadPattern (index);
+  fillSlotFromLibrary (channel, slot, index);
 
-  if (pattern)
+  if (auto const &filled = _patterns[channel][slot])
     {
-      pattern->setChannel (channel);
       applyMotionMode (channel, slot);
-      refreshPatternDisplayFromTicks (pattern);
+      refreshPatternDisplayFromTicks (filled);
     }
 
   refreshBrowser ();
@@ -1948,12 +1983,7 @@ A3MotionUIComponent::applySet ()
           if (libIndex <= 0)
             continue;
 
-          auto loaded = _patternLibrary->loadPattern (libIndex);
-          if (!loaded)
-            continue;
-
-          loaded->setChannel (index);
-          _patterns[index][slot] = std::move (loaded);
+          fillSlotFromLibrary (index, slot, libIndex);
         }
     }
 }

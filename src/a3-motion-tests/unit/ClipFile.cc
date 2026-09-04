@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/ClipFile.hh>
+#include <a3-motion-engine/Pattern.hh>
 
 using namespace a3;
 
@@ -167,4 +168,71 @@ TEST (ClipFile, TheFileNamesItsValuesInWords)
   EXPECT_TRUE (text.contains ("hold"));
 
   file.deleteFile ();
+}
+
+// ── Has it drifted from the clip it came from? ───────────────────────────
+
+namespace
+{
+juce::File
+aClipOnDisk (juce::String const &name, ClipSettings const &settings)
+{
+  Clip clip;
+  clip.name = name.toStdString ();
+  clip.svg = "16_Wave";
+  clip.settings = settings;
+
+  auto const file = tempClip (name + ".json");
+  ClipFile::save (clip, file);
+  return file;
+}
+}
+
+TEST (ClipFile, AFreshlyFilledSlotHasNotDrifted)
+{
+  Pattern pattern;
+  pattern.setSpin (3);
+  pattern.setReach (0.4f);
+
+  auto const file = aClipOnDisk ("a3-drift-fresh", clipSettingsFrom (pattern));
+
+  EXPECT_FALSE (clipHasDrifted (pattern, file));
+
+  file.deleteFile ();
+}
+
+TEST (ClipFile, TurningSomethingIsDrift)
+{
+  Pattern pattern;
+  auto const file = aClipOnDisk ("a3-drift-turned", clipSettingsFrom (pattern));
+
+  pattern.setSpin (4);
+  EXPECT_TRUE (clipHasDrifted (pattern, file));
+
+  file.deleteFile ();
+}
+
+// The point of comparing rather than flagging: turning it back is not drift.
+TEST (ClipFile, TurningItBackIsNotDrift)
+{
+  Pattern pattern;
+  auto const file = aClipOnDisk ("a3-drift-back", clipSettingsFrom (pattern));
+
+  pattern.setSpin (4);
+  ASSERT_TRUE (clipHasDrifted (pattern, file));
+
+  pattern.setSpin (0);
+  EXPECT_FALSE (clipHasDrifted (pattern, file));
+
+  file.deleteFile ();
+}
+
+// A slot with no clip behind it has nothing to have drifted from. It must not
+// come up marked unsaved, or the mark would mean nothing.
+TEST (ClipFile, WithNoClipThereIsNoDrift)
+{
+  Pattern pattern;
+  pattern.setSpin (7);
+
+  EXPECT_FALSE (clipHasDrifted (pattern, tempClip ("a3-drift-absent.json")));
 }

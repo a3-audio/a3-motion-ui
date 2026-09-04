@@ -20,6 +20,7 @@
 
 #include "ClipFile.hh"
 
+#include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/Playhead.hh>
 
 namespace a3
@@ -160,6 +161,16 @@ ClipFile::load (juce::File const &file)
   s.fadeSixteenths = readInt (parsed, "fade", defaults.fadeSixteenths);
 
   return clip;
+}
+
+bool
+clipHasDrifted (Pattern const &pattern, juce::File const &clipFile)
+{
+  auto const clip = ClipFile::load (clipFile);
+  if (!clip)
+    return false;
+
+  return clipSettingsFrom (pattern) != clip->settings;
 }
 
 }
