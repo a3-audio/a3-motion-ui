@@ -1654,16 +1654,6 @@ A3MotionUIComponent::tickCallback (Measure measure)
         {
           padLEDCallback (_stepsLED++);
 
-          // The take as it is played in. The Shape section's back is about
-          // the recording, so while one is running the picture there is the
-          // recording — redrawn on this tick rather than every one, because a
-          // trajectory appearing is a thing you watch, not a thing you count.
-          if (_barPage == BarPage::Record && _recordingSlot.has_value ())
-            if (auto const &pattern
-                = _patterns[_recordingSlot->first][_recordingSlot->second])
-              _clipSettings->setTrajectoryIcon (
-                  trajectoryIconFromTicks (pattern->getTicks ().positions));
-
           // The 3d row follows the accent while it runs. On the same tick as
           // the pad LEDs because it is the same kind of thing — what is shown
           // catching up with what the engine is doing — and often enough to

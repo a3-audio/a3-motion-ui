@@ -50,7 +50,12 @@ trajectoryIconFromPath (juce::Path const &path,
       data.path = path;
     }
 
-  data.hasIcon = true;
+  // Only if there is in fact something to draw. It used to say so on reaching
+  // the end, which meant a take classified as tapped but yielding no dots
+  // claimed an icon and drew nothing -- a blank box where the section had
+  // promised a picture, with no way to tell it from a take that had not
+  // started.
+  data.hasIcon = !data.path.isEmpty () || !data.jumpDots.empty ();
   return data;
 }
 

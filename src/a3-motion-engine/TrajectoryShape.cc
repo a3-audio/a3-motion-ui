@@ -44,6 +44,19 @@ constexpr float holdDistance = 1e-4f;
  *  not a handful of taps. */
 constexpr size_t maxTappedPositions = 16;
 
+/** How long the hand has to stay put for a position to count as a place it
+ *  rested at, as a fraction of the take.
+ *
+ *  Without it a "plateau" was any position differing from the last one, which
+ *  for a drawn line is every single tick -- so a take that was still being
+ *  played in, with only a handful of ticks written and a motionless remainder,
+ *  came out as a handful of places and was read as a tap take. A take with
+ *  sixteen taps in it -- the most that still counts as one -- rests a
+ *  sixteenth of the ring at each; a sixty-fourth is well under that and well
+ *  over anything a moving hand passes through. */
+constexpr float plateauMinFraction = 1.f / 64.f;
+constexpr size_t plateauMinTicks = 2;
+
 float
 distance (Pos const &a, Pos const &b)
 {
@@ -168,9 +181,36 @@ isTappedTrajectory (std::vector<Pos> const &ticks)
     return false;
 
   // Standing still most of the time is not enough on its own: a drawn
-  // trajectory with a long pause in it does that too, and drawing it as dots
-  // would throw away the line the user actually drew. What separates a tap
-  // take is that all that standing still happens at a handful of places.
+  // trajectory with a long pause in it does that too, and so does a take that
+  // is still being played in, whose unwritten remainder does not move because
+  // it does not exist yet. Drawing either as dots throws away the line the
+  // user actually drew.
+  //
+  // What separates a tap take is not how much of it is still but how it got
+  // from one place to the next: a tap teleports, a hand travels. So compare
+  // the ground covered rather than counting ticks -- a take that spent most of
+  // its distance jumping was tapped, and one that spent it moving was drawn,
+  // whatever fraction of the ring either of them sat out.
+  auto const threshold = jumpThreshold (steps);
+  float jumped = 0.f;
+  float travelled = 0.f;
+  for (auto const step : steps)
+    {
+      if (step < holdDistance)
+        continue;
+      (step > threshold ? jumped : travelled) += step;
+    }
+
+  // A take that never went anywhere is a held position, and a held position is
+  // a dot. There is no line to throw away, so the question above does not
+  // arise -- and asking it anyway said "drawn" and drew nothing.
+  if (jumped == 0.f && travelled == 0.f)
+    return true;
+
+  if (jumped <= travelled)
+    return false;
+
+  // And it rests at a handful of places rather than a great many.
   auto const places = trajectoryPlateaus (ticks).size ();
   return places >= 1 && places <= maxTappedPositions;
 }
@@ -180,13 +220,46 @@ trajectoryPlateaus (std::vector<Pos> const &ticks)
 {
   std::vector<Pos> plateaus;
 
-  for (auto const &tick : ticks)
+  auto const minRun = std::max (
+      plateauMinTicks,
+      static_cast<size_t> (static_cast<float> (ticks.size ())
+                           * plateauMinFraction));
+
+  // A run of consecutive ticks that never leaves the spot it started on. Only
+  // a run long enough to be a rest is a place; the rest of the ticks are the
+  // hand on its way somewhere.
+  size_t runStart = 0;
+  bool inRun = false;
+
+  auto const closeRun = [&] (size_t runEnd) {
+    if (!inRun || runEnd - runStart < minRun)
+      return;
+    plateaus.push_back (ticks[runStart]);
+  };
+
+  for (size_t i = 0; i < ticks.size (); ++i)
     {
-      if (!tick.isValid ())
-        continue;
-      if (plateaus.empty () || distance (plateaus.back (), tick) >= holdDistance)
-        plateaus.push_back (tick);
+      if (!ticks[i].isValid ())
+        {
+          closeRun (i);
+          inRun = false;
+          continue;
+        }
+
+      if (!inRun)
+        {
+          runStart = i;
+          inRun = true;
+          continue;
+        }
+
+      if (distance (ticks[runStart], ticks[i]) >= holdDistance)
+        {
+          closeRun (i);
+          runStart = i;
+        }
     }
+  closeRun (ticks.size ());
 
   // The loop's last held position and its first are one and the same when the
   // take was still sitting on its opening tap as it came round.

@@ -136,3 +136,92 @@ TEST (SystemPatternIcons, NoShippedShapeGrowsAStrayLineFromItsTicks)
 }
 
 }
+
+// A take that is still being played in, as the Shape section's back sees it:
+// the ring is already the full length, the hand has drawn part of the way
+// round, and every tick past the write head holds the last position it was
+// given. That tail is the whole difficulty — it is valid data, so nothing
+// upstream marks it as missing, and it is motionless, so the icon has to
+// decide what a mostly-motionless ring means.
+namespace
+{
+std::vector<Pos>
+takeInProgress (size_t numTicks, size_t written)
+{
+  std::vector<Pos> ticks;
+  ticks.reserve (numTicks);
+
+  for (size_t i = 0; i < written; ++i)
+    {
+      auto const a = juce::MathConstants<float>::twoPi
+                     * static_cast<float> (i) / static_cast<float> (numTicks);
+      ticks.push_back (Pos::fromCartesian (std::cos (a) * 0.6f,
+                                           std::sin (a) * 0.6f, 0.5f));
+    }
+
+  // The write head has not come round yet; the rest holds where it left off.
+  while (ticks.size () < numTicks)
+    ticks.push_back (ticks.back ());
+
+  return ticks;
+}
+}
+
+TEST (TrajectoryIcon, ATakeStillBeingPlayedInHasAnIcon)
+{
+  // Three quarters round of a 512-tick ring: what you are looking at a couple
+  // of seconds into a take. If this has no icon the Shape section shows an
+  // empty box for the whole recording, which is the one moment it is meant to
+  // be showing something.
+  auto const data = trajectoryIconFromTicks (takeInProgress (512, 400));
+
+  EXPECT_TRUE (data.hasIcon);
+  EXPECT_FALSE (data.path.isEmpty ());
+}
+
+/** What the icon actually has to show. hasIcon on its own says only that the
+ *  builder thought it had something, and the whole of this bug was that it
+ *  thought so while holding neither a line nor a dot. */
+bool
+hasSomethingToDraw (TrajectoryIconData const &data)
+{
+  return !data.path.isEmpty () || !data.jumpDots.empty ();
+}
+
+TEST (TrajectoryIcon, ATakeJustStartedIsDrawnAsTheLineItIs)
+{
+  // A few ticks in: what the Shape section shows for the first second of every
+  // take. The unwritten remainder is motionless, so counting held ticks says
+  // "tapped" by a landslide -- and a tap take with one plateau yields no dots
+  // worth keeping, so the icon came out claiming to have something and having
+  // nothing at all.
+  auto const data = trajectoryIconFromTicks (takeInProgress (512, 8));
+
+  EXPECT_TRUE (data.hasIcon);
+  EXPECT_TRUE (hasSomethingToDraw (data));
+  EXPECT_FALSE (data.hasJumpDots)
+      << "the hand is drawing, not tapping -- the tail is simply not recorded yet";
+}
+
+TEST (TrajectoryIcon, ATakePartWayInIsDrawnAsTheLineItIs)
+{
+  auto const data = trajectoryIconFromTicks (takeInProgress (512, 120));
+
+  EXPECT_TRUE (hasSomethingToDraw (data));
+  EXPECT_FALSE (data.hasJumpDots);
+}
+
+TEST (TrajectoryIcon, AnIconNeverClaimsToHaveWhatItCannotDraw)
+{
+  // The invariant the section relies on: if hasIcon is true something appears.
+  // Checked across the whole of a take rather than at one stage, because the
+  // stage it failed at was simply the one nobody had looked at.
+  for (size_t written : { size_t{ 2 }, size_t{ 8 }, size_t{ 40 },
+                          size_t{ 120 }, size_t{ 300 }, size_t{ 512 } })
+    {
+      auto const data = trajectoryIconFromTicks (takeInProgress (512, written));
+      if (data.hasIcon)
+        EXPECT_TRUE (hasSomethingToDraw (data))
+            << "written = " << written;
+    }
+}
