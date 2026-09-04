@@ -49,6 +49,12 @@ constexpr int numBrowserFields = numChannelColumns * numPadSlots;
  */
 struct BrowserLayout
 {
+  /** Which set is loaded, above the fields it filled. A session is the eight
+   *  of them together, so it belongs over the eight rather than beside the
+   *  library -- what you are choosing there is one clip, and here it is all of
+   *  them at once. */
+  juce::Rectangle<int> sessionField;
+
   /** The eight destinations, indexed [channel][slot] so this page and the
    *  pads page cannot come to disagree about which box is which clip. */
   std::array<std::array<juce::Rectangle<int>, numPadSlots>, numChannelColumns>

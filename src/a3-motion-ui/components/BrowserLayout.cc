@@ -41,6 +41,19 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
   area.removeFromLeft (gap * 2);
   out.listArea = area;
 
+  // The session over the eight it holds.
+  out.sessionField = fieldArea.removeFromTop (
+      juce::jmin (fieldArea.getHeight () / 4, buttonHeight));
+  fieldArea.removeFromTop (gap * 2);
+
+  // Smaller than the pads page draws them: these are read and tapped once
+  // while a set is put together, not hit mid-set, so they do not need a pad's
+  // room -- and the space is worth more to the library beside them. Kept up
+  // under the session they belong to rather than centred in what is left,
+  // which floated them in the middle of a gap.
+  fieldArea = fieldArea.removeFromTop (
+      juce::jmin (fieldArea.getHeight (), buttonHeight * 3));
+
   // Channels across, slots down -- the pads page's arrangement, because these
   // are the same eight clips.
   {

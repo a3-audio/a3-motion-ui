@@ -294,22 +294,77 @@ TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
 // strip that switches them closes the header row, where the readout used to
 // be. The readout moved into the global strip, which is the one part of the
 // bar that stands on both pages.
-TEST (ClipSettingsLayout, TheTabsCloseTheHeaderRow)
+TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
 {
+  // Folder, the three views of the clip, the two slots, the four things you
+  // do to it. The browser leads because it is where a set begins; the
+  // transport closes because it is what you touch once everything else is
+  // decided.
   auto const l = defaultLayout ();
 
-  EXPECT_FALSE (l.tabClip.isEmpty ());
-  EXPECT_FALSE (l.tabController.isEmpty ());
+  std::vector<juce::Rectangle<int> > row{ l.tabBrowser, l.tabClip,
+                                          l.tabRecord, l.tabController };
+  for (auto const &slot : l.slotButtons)
+    row.push_back (slot);
+  for (auto const &key : l.transportButtons)
+    row.push_back (key);
 
-  // Side by side, in reading order, after the slots they belong to.
-  auto const &lastSlot = l.slotButtons[numPadSlots - 1];
-  EXPECT_LE (lastSlot.getRight (), l.tabClip.getX ());
-  EXPECT_LE (l.tabClip.getRight (), l.tabController.getX ());
+  int previousRight = 0;
+  for (size_t i = 0; i < row.size (); ++i)
+    {
+      ASSERT_FALSE (row[i].isEmpty ()) << "item " << i;
+      EXPECT_GE (row[i].getX (), previousRight) << "item " << i;
+      previousRight = row[i].getRight ();
 
-  // On the header's own line, not above or below it.
-  EXPECT_EQ (l.tabClip.getY (), lastSlot.getY ());
-  EXPECT_EQ (l.tabClip.getHeight (), lastSlot.getHeight ());
-  EXPECT_EQ (l.tabController.getY (), lastSlot.getY ());
+      // On the header's own line, not above or below it.
+      EXPECT_EQ (row[i].getY (), l.tabClip.getY ()) << "item " << i;
+      EXPECT_EQ (row[i].getHeight (), l.tabClip.getHeight ()) << "item " << i;
+    }
+}
+
+TEST (ClipSettingsLayout, TheMarksAreSquareAndTheWordsAreWider)
+{
+  // The folder, the two slots and the four transport marks are marks: square,
+  // one header row each. The three views are words and need the room words
+  // need.
+  auto const l = defaultLayout ();
+
+  std::vector<juce::Rectangle<int> > marks{ l.tabBrowser };
+  for (auto const &slot : l.slotButtons)
+    marks.push_back (slot);
+  for (auto const &key : l.transportButtons)
+    marks.push_back (key);
+
+  for (size_t i = 0; i < marks.size (); ++i)
+    EXPECT_EQ (marks[i].getWidth (), marks[i].getHeight ()) << "mark " << i;
+
+  EXPECT_GT (l.tabClip.getWidth (), l.tabBrowser.getWidth ());
+}
+
+TEST (ClipSettingsLayout, TheHeaderIsTallEnoughToHitAtTheSizeItShipsAt)
+{
+  // The whole row is pressed mid-set by a hand that is also doing something
+  // else. It used to be a twelfth of the bar, which left it under a fingertip.
+  for (int height : { 250, 314, 400 })
+    {
+      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
+      EXPECT_GE (l.tabClip.getHeight (), fingertipSize) << "height " << height;
+    }
+}
+
+TEST (ClipSettingsLayout, TheHeaderNeverEatsTheBarItSitsOn)
+{
+  // A skin can cut the bar down (clipSettingsHeightScale). A row that insisted
+  // on a fingertip there would take it out of the controls underneath, which
+  // is where the values actually are -- so below a certain size the row gives
+  // way rather than the section it heads.
+  for (int height : { 120, 160, 200, 250, 314, 400 })
+    {
+      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
+      EXPECT_LE (l.headerHeight, juce::jmax (18, height / 6))
+          << "height " << height;
+      EXPECT_FALSE (l.clipContent.isEmpty ()) << "height " << height;
+    }
 }
 
 // The readout says what was last moved, and what moves comes from either page
@@ -808,24 +863,25 @@ TEST (ClipSettingsLayout, TheLengthNamesMatchTheirPowersOfTwo)
 
 // ── The header's transport keys ──────────────────────────────────────────
 
-TEST (ClipSettingsLayout, TheHeaderCarriesFourTransportKeysBeforeTheSlotLabel)
+TEST (ClipSettingsLayout, TheTransportKeysCloseTheHeaderRow)
 {
+  // They used to lead it. They close it now: the transport is what you touch
+  // once which clip and which view of it are already decided, so it sits at
+  // the end of the reach rather than at the start of it.
   auto const layout = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f);
 
-  int previousRight = 0;
+  int previousRight = layout.slotButtons[numPadSlots - 1].getRight ();
   for (int i = 0; i < numTransportKeys; ++i)
     {
       auto const &key = layout.transportButtons[static_cast<size_t> (i)];
       ASSERT_FALSE (key.isEmpty ()) << "key " << i;
-      EXPECT_GE (key.getX (), previousRight) << "key " << i << " overlaps its neighbour";
+      EXPECT_GE (key.getX (), previousRight)
+          << "key " << i << " overlaps its neighbour";
       previousRight = key.getRight ();
     }
 
-  EXPECT_GE (layout.slotButtons[0].getX (), previousRight)
-      << "the slot keys sit after the transport keys, not under them";
-  EXPECT_GE (layout.tabClip.getX (),
-             layout.slotButtons[numPadSlots - 1].getRight ())
-      << "the tabs still close the row";
+  EXPECT_LE (previousRight, layout.clipBounds.getRight ())
+      << "the row still fits the bar";
 }
 
 TEST (ClipSettingsLayout, TransportKeysAreSquareAndAllTheSameSize)
@@ -853,8 +909,14 @@ TEST (ClipSettingsLayout, TransportKeysNeverPushTheTabsOffTheRow)
       EXPECT_FALSE (layout.tabClip.isEmpty ()) << "width " << width;
       EXPECT_FALSE (layout.tabRecord.isEmpty ()) << "width " << width;
       EXPECT_FALSE (layout.tabController.isEmpty ()) << "width " << width;
+      // The tabs come first now, and the row still has to end inside the bar
+      // -- the marks after them are fixed-width, so a narrow bar squeezes the
+      // words rather than pushing the marks off the end.
+      EXPECT_GE (layout.transportButtons[0].getX (),
+                 layout.tabController.getRight ())
+          << "width " << width;
       EXPECT_LE (layout.transportButtons[numTransportKeys - 1].getRight (),
-                 layout.tabClip.getX ())
+                 layout.clipBounds.getRight ())
           << "width " << width;
     }
 }
@@ -1045,10 +1107,9 @@ TEST (ClipSettingsLayout, BothSlotsGetAKeyOnTheClipFaces)
           previousRight = key.getRight ();
         }
 
-      // After the transport keys, before the tabs.
-      EXPECT_GE (l.slotButtons[0].getX (),
-                 l.transportButtons[numTransportKeys - 1].getRight ());
-      EXPECT_LE (previousRight, l.tabClip.getX ());
+      // After the tabs, before the transport keys.
+      EXPECT_GE (l.slotButtons[0].getX (), l.tabController.getRight ());
+      EXPECT_LE (previousRight, l.transportButtons[0].getX ());
     }
 }
 

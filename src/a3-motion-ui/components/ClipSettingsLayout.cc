@@ -135,77 +135,74 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   out.clipBounds = bounds;
 
   auto const paddingV = juce::jmax (4, out.clipBounds.getHeight () / 40);
-  auto const headerH = juce::jmax (18, out.clipBounds.getHeight () / 12);
+  // Tall enough to hit. Every control in this row is pressed mid-set by a hand
+  // that is also doing something else, and a twelfth of the bar left them
+  // under a fingertip -- the same floor the pads and tabs already keep.
+  auto const headerH
+      = juce::jmin (juce::jmax (fingertipSize, out.clipBounds.getHeight () / 9),
+                    juce::jmax (18, out.clipBounds.getHeight () / 6));
   out.headerHeight = headerH;
 
   auto area = out.clipBounds.reduced (paddingH, paddingV);
 
   auto headerArea = area.removeFromTop (headerH);
-  // The two pages close the row, where the readout used to sit. Sized to be
-  // hit rather than to fit their words — they are switched mid-set, with one
-  // hand, without looking down.
-  // Three, so a third of what the row can spare each rather than a quarter.
-  // A sixth each rather than a fifth: three tabs at a fifth took most of the
-  // row and left the slot keys beside them too narrow to read their own words.
-  // The fingertip floor still holds, which is what actually matters for a
-  // control switched mid-set.
-  auto const tabW = juce::jmax (fingertipSize, headerArea.getWidth () / 6);
 
-  // The folder closes the row, and is square: it is a mark, not a word, and it
-  // goes somewhere the three tabs beside it do not.
-  auto const browserW = juce::jmax (fingertipSize, headerArea.getHeight ());
-  out.tabBrowser = headerArea.removeFromRight (browserW);
-  headerArea.removeFromRight (juce::jmax (2, browserW / 6));
+  // Left to right, in the order they are reached for: the folder, the three
+  // views of the clip, the two slots, then the four things you do to it. The
+  // browser leads because it is where a set begins; the transport closes
+  // because it is what you touch while everything else is already decided.
+  auto const headerGap = juce::jmax (2, headerH / 12);
 
-  out.tabController = headerArea.removeFromRight (tabW);
-  out.tabRecord = headerArea.removeFromRight (tabW);
-  out.tabClip = headerArea.removeFromRight (tabW);
+  // Square keys for everything that is a mark rather than a word: the folder,
+  // the two slots, the four transport marks. A slot is "1" and "2" now -- the
+  // word "Slot" was three quarters of a key spent saying what the two keys
+  // being side by side already says.
+  auto const keyW = headerH;
+  auto const takeKey = [&headerArea, keyW, headerGap] () {
+    auto const key = headerArea.removeFromLeft (keyW);
+    headerArea.removeFromLeft (headerGap);
+    return key;
+  };
 
-  // Square, one header row high: as large as the row has to give, which is
-  // what "small" means here. They are not the primary way to start a clip --
-  // the pads are -- so they do not take room from the tabs, which are.
-  //
-  // Not on the pads page, which is the pads: a second, smaller set of the same
-  // four controls sitting above thirty-two of them says there is a difference
-  // between them when there is none.
-  auto const transportW = headerArea.getHeight ();
-  auto const transportGap = juce::jmax (2, transportW / 12);
+  out.tabBrowser = takeKey ();
+  headerArea.removeFromLeft (headerGap * 3);
+
+  // The three views keep words, and words need room. What is left after the
+  // marks, shared between them.
+  // Counted, not estimated: six square keys, and fourteen gaps -- two between
+  // the tabs, two separators of three, and one after each key. Two short of
+  // that and the last transport key comes out narrower than the rest, which
+  // is how a row of equal marks stops looking like a row of equal marks.
+  auto const keysAfter = static_cast<int> (numPadSlots + numTransportKeys);
+  auto const gapsAfter = 2 + 3 + static_cast<int> (numPadSlots) + 3
+                         + static_cast<int> (numTransportKeys);
+  auto const marksAfter = keyW * keysAfter + headerGap * gapsAfter;
+  auto const tabW = juce::jmax (
+      fingertipSize, (headerArea.getWidth () - marksAfter) / 3);
+
+  out.tabClip = headerArea.removeFromLeft (tabW);
+  headerArea.removeFromLeft (headerGap);
+  out.tabRecord = headerArea.removeFromLeft (tabW);
+  headerArea.removeFromLeft (headerGap);
+  out.tabController = headerArea.removeFromLeft (tabW);
+
+  // Set apart from the tabs: "which clip" and "which view of it" are
+  // different questions.
+  headerArea.removeFromLeft (headerGap * 3);
+
   if (page != BarPage::Controller && page != BarPage::Browser)
-    {
-      for (int i = 0; i < numTransportKeys; ++i)
-        {
-          out.transportButtons[static_cast<size_t> (i)]
-              = headerArea.removeFromLeft (transportW);
-          headerArea.removeFromLeft (transportGap);
-        }
+    for (index_t slot = 0; slot < numPadSlots; ++slot)
+      out.slotButtons[slot] = takeKey ();
+  else
+    for (index_t slot = 0; slot < numPadSlots; ++slot)
+      headerArea.removeFromLeft (keyW + headerGap);
 
-      // The slot keys are not transport keys, so they do not sit as close to
-      // them as those sit to each other.
-      headerArea.removeFromLeft (transportGap * 3);
+  headerArea.removeFromLeft (headerGap * 3);
 
-      // Wide enough for "Slot 1" with room around it rather than square: these
-      // are read as well as pressed, which the four marks beside them are not,
-      // and a word pressed against its own border reads as cramped however
-      // legible it is. Still capped against the row, so the tabs keep theirs.
-      // Whatever the row has left, shared between them -- rather than a
-      // fraction of it with the remainder left lying there, which is what kept
-      // them narrow however high the cap was raised.
-      // Set apart from the tabs by more than the keys are set apart from each
-      // other: the slots say *which clip*, the tabs say *which view of it*.
-      // Two different questions, so a visible gap between them.
-      headerArea.removeFromRight (transportGap * 6);
-
-      auto const slotW = juce::jmin (
-          (headerArea.getWidth ()
-           - transportGap * static_cast<int> (numPadSlots))
-              / static_cast<int> (numPadSlots),
-          transportW * 4);
-      for (index_t slot = 0; slot < numPadSlots; ++slot)
-        {
-          out.slotButtons[slot] = headerArea.removeFromLeft (slotW);
-          headerArea.removeFromLeft (transportGap);
-        }
-    }
+  // Not on the pads page, which is these four controls already.
+  if (page != BarPage::Controller)
+    for (int i = 0; i < numTransportKeys; ++i)
+      out.transportButtons[static_cast<size_t> (i)] = takeKey ();
 
   area.removeFromTop (juce::jmax (4, out.clipBounds.getHeight () / 50));
 

@@ -66,6 +66,10 @@ public:
   void setSelectedEntry (int index);
   int getSelectedEntry () const { return _selectedEntry; }
 
+  /** The set that is loaded, shown over the eight clips it filled. */
+  void setSessionName (juce::String const &name);
+
+  std::function<void ()> onSessionPressed;
   std::function<void (index_t channel, index_t slot)> onFieldChosen;
   std::function<void (int index)> onEntryChosen;
   std::function<void ()> onRenamePressed;
@@ -89,6 +93,7 @@ private:
   int _selectedChannel = 0;
   int _selectedSlot = 0;
 
+  juce::String _sessionName;
   juce::StringArray _names;
   int _scrollOffset = 0;
   int _selectedEntry = -1;
@@ -97,6 +102,7 @@ private:
              numChannelColumns>
       _fieldTouch;
   std::vector<std::unique_ptr<TouchControl>> _rowTouch;
+  std::unique_ptr<TouchControl> _sessionTouch;
   std::unique_ptr<TouchControl> _renameTouch;
   std::unique_ptr<TouchControl> _saveTouch;
   std::unique_ptr<TouchControl> _loadTouch;

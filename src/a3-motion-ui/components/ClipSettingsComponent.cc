@@ -695,7 +695,9 @@ ClipSettingsComponent::paint (juce::Graphics &g)
         g.setColour (toColour (theme ().textPrimary, here ? 0.35f : 0.15f));
         g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
 
-        auto const name = "Slot " + juce::String (slot + 1);
+        // The number alone. "Slot" was three quarters of a key spent saying
+        // what two keys side by side already say.
+        auto const name = juce::String (slot + 1);
         g.setFont (juce::Font (fontFor (FontRole::Header, bounds, name),
                                here ? juce::Font::bold : juce::Font::plain));
         g.setColour (here ? _channelColour

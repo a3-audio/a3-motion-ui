@@ -20,6 +20,8 @@
 
 #include "ClipSettingsCaptions.hh"
 
+#include <a3-motion-ui/components/ControllerLayout.hh>
+
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 
 #include <algorithm>
@@ -148,13 +150,27 @@ clipSettingsPreferredHeight (float headerSize, float bodySize,
   auto const sections = std::max (elevation, std::max (global, motion));
 
   // What comes back is a height for the whole bar, but everything above is
-  // what a *section* needs. The bar spends roughly a sixth of itself on its
-  // own chrome before the sections see any of it — the "Slot N" header
-  // (height/12), the vertical padding twice (height/40) and the gap under
-  // the header (height/50). Solving for the total is where the fifth comes
-  // from; without it the sections were handed six sixths of what they asked
-  // for and the global grid's knobs came out a few pixels tall.
-  return sections + sections / 5;
+  // what a *section* needs. The bar spends its own chrome first: the header
+  // row, the vertical padding twice (height/40) and the gap under the header
+  // (height/50). Without allowing for it the sections were handed what they
+  // asked for minus the chrome, and the global grid's knobs came out a few
+  // pixels tall.
+  //
+  // The header is a ninth of the bar but never shorter than a fingertip, so
+  // there are two answers rather than one fraction: at the sizes the device
+  // ships with the ninth decides, and at the smallest font and pot the
+  // fingertip does -- it is a fixed thirty-four pixels there, not a share, and
+  // solving as though it were a share is what left the grid at six pixels.
+  constexpr float otherChrome = 2.f / 40.f + 1.f / 50.f;
+
+  auto const asAShare = static_cast<int> (
+      std::ceil (static_cast<float> (sections)
+                 / (1.f - 1.f / 9.f - otherChrome)));
+  auto const asAFingertip = static_cast<int> (
+      std::ceil (static_cast<float> (sections + fingertipSize)
+                 / (1.f - otherChrome)));
+
+  return std::max (asAShare, asAFingertip);
 }
 
 int

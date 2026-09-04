@@ -92,6 +92,7 @@ BrowserComponent::BrowserComponent ()
           addAndMakeVisible (*into);
         };
 
+  makeButton (_sessionTouch, &BrowserComponent::onSessionPressed);
   makeButton (_renameTouch, &BrowserComponent::onRenamePressed);
   makeButton (_saveTouch, &BrowserComponent::onSaveSessionPressed);
   makeButton (_loadTouch, &BrowserComponent::onLoadSessionPressed);
@@ -126,6 +127,7 @@ BrowserComponent::resized ()
         _rowTouch[i]->setBounds (_layout.rows[i]);
     }
 
+  _sessionTouch->setBounds (_layout.sessionField);
   _renameTouch->setBounds (_layout.renameButton);
   _saveTouch->setBounds (_layout.saveSessionButton);
   _loadTouch->setBounds (_layout.loadSessionButton);
@@ -144,6 +146,16 @@ BrowserComponent::setField (index_t channel, index_t slot,
   _fieldNames[channel][slot] = name;
   _fieldColours[channel][slot] = colour;
   repaint (_layout.fields[channel][slot]);
+}
+
+void
+BrowserComponent::setSessionName (juce::String const &name)
+{
+  if (name == _sessionName)
+    return;
+
+  _sessionName = name;
+  repaint (_layout.sessionField);
 }
 
 void
@@ -211,6 +223,29 @@ BrowserComponent::mouseWheelMove (juce::MouseEvent const &,
 void
 BrowserComponent::paint (juce::Graphics &g)
 {
+  // The set, over the eight clips it filled.
+  {
+    auto const bounds = _layout.sessionField;
+    if (!bounds.isEmpty ())
+      {
+        g.setColour (toColour (theme ().textPrimary, 0.06f));
+        g.fillRoundedRectangle (bounds.toFloat (), 3.f);
+        g.setColour (toColour (theme ().notice, 0.4f));
+        g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+
+        g.setFont (juce::Font (
+            juce::jmin (theme ().fontSize (FontRole::Body),
+                        bounds.getHeight () * 0.5f),
+            juce::Font::plain));
+        g.setColour (toColour (theme ().notice));
+        g.drawFittedText (_sessionName.isEmpty ()
+                              ? juce::String ("Set: none")
+                              : "Set: " + _sessionName,
+                          bounds.reduced (bounds.getHeight () / 3, 0),
+                          juce::Justification::centredLeft, 1);
+      }
+  }
+
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
     for (index_t slot = 0; slot < numPadSlots; ++slot)
       paintField (g, channel, slot);

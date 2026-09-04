@@ -440,6 +440,20 @@ Azimuth is undefined at r = 0, but so is the direction of a sound directly overh
 `HeightMapSphere::mapTo3D()` takes r → 0 to the north pole continuously, so the crossing rises over
 the listener and comes down the other side.
 
+**A clip file is the SVG.** There is no separate settings file: `PatternFile` writes the trajectory
+*and* every value the clip settings menu holds — speed, rotate, spin, swell, the envelope, the whole
+elevation block, direction, end action, act mode, fade. One file is one clip with its settings,
+which is why the browser's library list *is* the list of clips. A **set** (`SetFile`) is the layer
+above: which clip sits in which of the eight slots, plus what belongs to the device rather than to a
+clip — record length and per-channel 3d/freq/Q.
+
+**The header row reads left to right in the order it is reached for**: folder, the three views of
+the clip, the two slots, the four things you do to it. Marks are square and one row high; the three
+words get what is left, shared. The row is a fingertip tall at the sizes the device ships with and
+gives way below that — `clipSettingsPreferredHeight()` solves for it twice, once as a share of the
+bar and once as a fixed thirty-four pixels, because at the smallest font and pot the fingertip is
+not a share and solving as though it were left the global grid six pixels tall.
+
 **"Slot 1" is two keys, not a heading.** A heading saying which clip you are looking at and a
 control changing which clip you are looking at want the same place — reading "Slot 1" left you no
 way to reach slot 2 without going to the pads page. They light like the tabs beside them, because
