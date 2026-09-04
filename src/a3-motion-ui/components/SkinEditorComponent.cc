@@ -351,17 +351,20 @@ SkinEditorComponent::rebuildRows ()
       _rows.push_back ({ kind, -1, {} });
     }
 
-  // A heading wherever the group changes. The group is the parameter's path
-  // without its last segment — `oscAddresses.out` for
-  // `oscAddresses.out.channelAzimuth` — so the shape of the file is what
-  // groups the list, and a block added there shows up under its own name
-  // without anyone registering it.
+  // A heading wherever the group changes, and the group comes with the
+  // parameter (SkinGroups.hh) rather than being read off its path. The path
+  // was the file's own nesting, which grouped a skin the way it happens to be
+  // written rather than the way it is read: eighty-five keys in alphabetical
+  // order, the twenty-one that design a skin scattered among the blocks that
+  // tune a shader.
+  //
+  // The network page is untouched: its keys match none of the skin's groups
+  // and fall back to their own parent path, which is exactly what grouped
+  // them before.
   juce::String group;
   for (size_t i = 0; i < _parameters.size (); ++i)
     {
-      auto const &path = _parameters[i].path;
-      auto const dot = path.lastIndexOfChar ('.');
-      auto const here = dot > 0 ? path.substring (0, dot) : juce::String{};
+      auto const here = _parameters[i].group;
 
       if (here != group)
         {

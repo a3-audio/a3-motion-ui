@@ -40,11 +40,21 @@ struct SkinParameter
   /** An object carrying r, g and b: one row, and a picker behind it. The
    *  path names the object, so its channels are path + ".r" and so on. */
   bool isColour = false;
+  /** The heading this sits under — see SkinGroups.hh. Carried on the
+   *  parameter rather than worked out again by the editor: the order and the
+   *  headings are the same decision, and two places deciding it is how a list
+   *  ends up sorted one way and titled another. */
+  juce::String group;
 };
 
-/** Every editable leaf, by path, sorted so the list does not reshuffle
- *  between sessions. Numbers and text; anything else is structure, and
- *  there is no control on this panel that could edit structure. */
+/** Every editable leaf, **grouped by what it is** and in the order
+ *  SkinGroups.hh gives, so what is read together is edited together. Within a
+ *  group, by path, so the list does not reshuffle between sessions.
+ *
+ *  It used to be plain alphabetical, which put `background` and `surface`
+ *  forty rows apart with the speaker light's thirty-four in between. Numbers
+ *  and text; anything else is structure, and there is no control on this panel
+ *  that could edit structure. */
 std::vector<SkinParameter> skinParameters (juce::var const &skin);
 
 /** The number at `path`, or 0 when there is none. */

@@ -47,11 +47,39 @@ TEST (SkinParameters, EveryLeafIsListedByItsPath)
   })"));
 
   ASSERT_EQ (params.size (), 3u);
-  EXPECT_EQ (params[0].path, "corona.sizeMax") << "sorted, so the list does "
-                                                  "not reshuffle between "
-                                                  "sessions";
-  EXPECT_EQ (params[1].path, "corona.sizeMin");
-  EXPECT_EQ (params[2].path, "sphereScale");
+
+  // Grouped first and by path within a group, not plain alphabetical: the
+  // sphere's own value comes before a block nothing claims, and the block
+  // keeps its own order so the list does not reshuffle between sessions.
+  EXPECT_EQ (params[0].path, "sphereScale");
+  EXPECT_EQ (params[1].path, "corona.sizeMax");
+  EXPECT_EQ (params[2].path, "corona.sizeMin");
+}
+
+// What the grouping is *for*, in one assertion: values that are read together
+// are listed together. Sorted by their spelling, `background` and `surface`
+// sat forty rows apart with the speaker light's thirty-four in between.
+TEST (SkinParameters, WhatIsReadTogetherIsListedTogether)
+{
+  auto const params = skinParameters (parse (R"({
+    "surface": { "r": 1, "g": 1, "b": 1 },
+    "background": { "r": 2, "g": 2, "b": 2 },
+    "speakerLight": { "boltWidth": 0.45, "boltCount": 7 },
+    "surfaceRaised": { "r": 3, "g": 3, "b": 3 }
+  })"));
+
+  ASSERT_EQ (params.size (), 5u);
+
+  // The three surfaces, then the two that shape a bolt.
+  EXPECT_EQ (params[0].group, params[1].group);
+  EXPECT_EQ (params[1].group, params[2].group);
+  EXPECT_NE (params[2].group, params[3].group);
+  EXPECT_EQ (params[3].group, params[4].group);
+
+  for (int i = 0; i < 3; ++i)
+    EXPECT_TRUE (params[static_cast<size_t> (i)].path.startsWith ("surface")
+                 || params[static_cast<size_t> (i)].path == "background")
+        << params[static_cast<size_t> (i)].path;
 }
 
 TEST (SkinParameters, ArraysAreListedByIndex)

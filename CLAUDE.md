@@ -421,9 +421,19 @@ does not rewrite itself.
 Editing happens on the Menu's **Network** page, which slices `oscSender`,
 `oscReceiver` and `oscAddresses` out of `config.json` and derives its rows from
 the JSON — a key added to the block shows up there without anyone registering
-it. `SkinEditorComponent` draws a **heading** wherever a row's parent path
-changes, so the file's shape is what groups the list; row labels then show only
-their last segment, since the heading has already said the rest. Headings are
+it. `SkinEditorComponent` draws a **heading** wherever a row's group changes, and the group comes from
+`theme/SkinGroups.hh` rather than from the path; row labels then show only their last segment, since
+the heading has already said the rest.
+
+It used to be the parent path, which meant the file's own nesting grouped the list. That works for
+the Network page, whose keys *are* shaped like what they mean, and badly for a skin: eighty-five
+keys in alphabetical order put `background` and `surface` forty rows apart with the speaker light's
+thirty-four in between, and scattered the twenty-one values that design a skin among the blocks that
+tune a shader. Grouped by what a value *is* now — surfaces, text, states, channels, sphere, type,
+touch, then the effects, each split small enough that a heading still means something. A path that
+matches nothing keeps the old behaviour and is grouped by its parent, which is why the Network page
+is untouched; the search walks *up* the path, so a group stated once for `accent` also holds for
+`accent.r`. Headings are
 rows in the display list (`_rows`) but not landing places: `browseRow()` and
 `navigate()` step over them and they carry no hit areas. That display list is
 also why `_index` is no longer `_actionRows + parameter`: headings belong to
