@@ -1638,6 +1638,8 @@ A3MotionUIComponent::refreshBrowser ()
                             pattern ? juce::String (pattern->getName ())
                                     : juce::String (),
                             _channelUIStates[channel]->colour);
+        _browser->setFieldDrifted (channel, slot,
+                                   slotHasDrifted (channel, slot));
       }
 
   // Entry 0 is "no pattern" in the library's own numbering, and a row saying
@@ -3836,6 +3838,11 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       _clipSettings->setTrajectoryIcon (TrajectoryIconData{});
       _clipSettings->setTrajectoryName ("Empty");
     }
+
+  // Both slots, not only the one on show: the keys sit side by side, and a
+  // mark on one is only readable next to the absence of one on the other.
+  for (index_t s = 0; s < numPadSlots; ++s)
+    _clipSettings->setSlotDrifted (s, slotHasDrifted (channel, s));
 
   _clipSettings->setRecMode (_recMode);
   _clipSettings->setElevationSubIndex (_clipSettingsSubIndex);

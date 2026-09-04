@@ -98,6 +98,21 @@ tapTogglesValue (int sectionIndex, int subIndex)
 }
 
 juce::Rectangle<int>
+driftMark (juce::Rectangle<int> bounds)
+{
+  if (bounds.isEmpty ())
+    return {};
+
+  auto const size = juce::jmax (
+      3, juce::jmin (bounds.getWidth (), bounds.getHeight ()) / 5);
+  auto const inset = juce::jmax (2, size / 2);
+
+  return juce::Rectangle<int> (size, size)
+      .withPosition (bounds.getRight () - size - inset,
+                     bounds.getY () + inset);
+}
+
+juce::Rectangle<int>
 textCell (juce::Rectangle<int> cell, int knobDiam)
 {
   auto const boxH = juce::jmin (

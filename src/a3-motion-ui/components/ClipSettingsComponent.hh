@@ -138,6 +138,11 @@ public:
   /** Whether the main menu is showing, so its key can say so. */
   void setMenuOpen (bool open);
 
+  /** Whether a slot has drifted from the clip it was filled from. Shown as a
+   *  small mark on its key: without it you would never know whether Save is
+   *  about to do anything. */
+  void setSlotDrifted (index_t slot, bool drifted);
+
   void setTrajectoryIcon (TrajectoryIconData const &icon);
   void setTrajectoryName (juce::String const &name);
 
@@ -535,6 +540,7 @@ private:
    *  as the global strip's function keys: a key that is doing something is
    *  coloured, and one that is not is not. */
   bool _menuOpen = false;
+  std::array<bool, numPadSlots> _slotDrifted{};
   std::array<std::unique_ptr<TouchControl>, numPadSlots> _slotTouch;
   std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;
   std::unique_ptr<TouchControl> _tabBrowserTouch;

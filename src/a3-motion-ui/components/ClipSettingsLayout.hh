@@ -250,6 +250,19 @@ ClipSettingsLayout layOutClipSettings (juce::Rectangle<int> bounds,
                                        float potSizeScale,
                                        BarPage page = BarPage::Clip);
 
+/** Where the "not saved" mark sits inside a key or a field.
+ *
+ *  One rule for both places. The slot key in the header and the field on the
+ *  browser page mean the same thing by it, and a mark that sat differently in
+ *  the two would read as two different marks -- which is worse than no mark,
+ *  because you would look for the difference.
+ *
+ *  Top right, and small: it is a footnote on the control, not part of what the
+ *  control says. Never smaller than three pixels, or on a shrunken bar it
+ *  would be a stray pixel rather than a dot.
+ */
+juce::Rectangle<int> driftMark (juce::Rectangle<int> bounds);
+
 /** A control's box: as tall as the knob box, but the cell's full width —
  *  the knob is drawn at its own diameter inside it while caption and value
  *  get the room the grid gives them. Never taller than the cell, or a

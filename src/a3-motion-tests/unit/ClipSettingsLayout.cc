@@ -1123,3 +1123,53 @@ TEST (ClipSettingsLayout, ThePadsPageHasNoSlotKeysEither)
   for (auto const &key : l.slotButtons)
     EXPECT_TRUE (key.isEmpty ());
 }
+
+// ── The "not saved" mark ─────────────────────────────────────────────────
+
+TEST (ClipSettingsLayout, TheDriftMarkSitsInsideWhateverItMarks)
+{
+  // One rule for the slot key and the browser field: they mean the same thing
+  // by it, and a mark sitting differently in the two would read as two
+  // different marks.
+  for (auto const &bounds :
+       { juce::Rectangle<int>{ 0, 0, 34, 34 },
+         juce::Rectangle<int>{ 10, 20, 120, 60 },
+         juce::Rectangle<int>{ 0, 0, 200, 18 } })
+    {
+      auto const mark = driftMark (bounds);
+
+      ASSERT_FALSE (mark.isEmpty ()) << bounds.toString ();
+      EXPECT_TRUE (bounds.contains (mark))
+          << mark.toString () << " is not inside " << bounds.toString ();
+      EXPECT_EQ (mark.getWidth (), mark.getHeight ()) << "it is a dot";
+    }
+}
+
+TEST (ClipSettingsLayout, TheDriftMarkStaysVisibleOnASmallControl)
+{
+  // A skin can shrink the bar. Below a few pixels the mark stops being a dot
+  // and becomes a stray pixel, which reads as a rendering fault rather than as
+  // information.
+  for (int size : { 12, 18, 24, 34, 60 })
+    EXPECT_GE (driftMark ({ 0, 0, size, size }).getWidth (), 3)
+        << "control " << size << "px";
+}
+
+TEST (ClipSettingsLayout, TheDriftMarkIsAFootnoteNotTheContent)
+{
+  // Top right and small: it comments on the control rather than taking it
+  // over, so the value underneath stays readable while it is showing.
+  juce::Rectangle<int> const bounds{ 0, 0, 120, 60 };
+  auto const mark = driftMark (bounds);
+
+  EXPECT_GT (mark.getX (), bounds.getCentreX ()) << "right half";
+  EXPECT_LT (mark.getBottom (), bounds.getCentreY ()) << "top half";
+  EXPECT_LT (mark.getWidth () * mark.getHeight (),
+             bounds.getWidth () * bounds.getHeight () / 20)
+      << "it has taken over the control";
+}
+
+TEST (ClipSettingsLayout, NothingToMarkMeansNoMark)
+{
+  EXPECT_TRUE (driftMark ({}).isEmpty ());
+}

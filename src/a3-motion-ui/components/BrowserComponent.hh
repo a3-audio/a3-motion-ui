@@ -54,6 +54,9 @@ public:
                  juce::Colour colour);
   /** Which field a chosen clip would land in, or -1 for none. */
   void setSelectedField (int channel, int slot);
+  /** Whether this field's slot has drifted from its clip -- the same mark the
+   *  slot keys in the header carry, meaning the same thing. */
+  void setFieldDrifted (index_t channel, index_t slot, bool drifted);
 
   /** The library, and where the window onto it starts. */
   void setEntries (juce::StringArray const &names);
@@ -90,6 +93,7 @@ private:
 
   std::array<std::array<juce::String, numPadSlots>, numChannelColumns> _fieldNames;
   std::array<std::array<juce::Colour, numPadSlots>, numChannelColumns> _fieldColours;
+  std::array<std::array<bool, numPadSlots>, numChannelColumns> _fieldDrifted{};
   int _selectedChannel = 0;
   int _selectedSlot = 0;
 

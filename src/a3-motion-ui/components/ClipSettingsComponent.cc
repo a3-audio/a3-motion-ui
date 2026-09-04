@@ -703,6 +703,14 @@ ClipSettingsComponent::paint (juce::Graphics &g)
         g.setColour (here ? _channelColour
                           : toColour (theme ().textPrimary, 0.55f));
         g.drawFittedText (name, bounds, juce::Justification::centred, 1);
+
+        // Unsaved. In the warning colour rather than the danger one: nothing
+        // is lost yet, something is merely waiting to be written.
+        if (_slotDrifted[slot])
+          {
+            g.setColour (toColour (theme ().warning));
+            g.fillEllipse (driftMark (bounds).toFloat ());
+          }
       }
 
   paintTabs (g);
@@ -888,6 +896,16 @@ ClipSettingsComponent::setRecMode (RecMode mode)
     return;
   _recMode = mode;
   repaint ();
+}
+
+void
+ClipSettingsComponent::setSlotDrifted (index_t slot, bool drifted)
+{
+  if (slot >= numPadSlots || drifted == _slotDrifted[slot])
+    return;
+
+  _slotDrifted[slot] = drifted;
+  repaint (_layout.slotButtons[slot]);
 }
 
 void

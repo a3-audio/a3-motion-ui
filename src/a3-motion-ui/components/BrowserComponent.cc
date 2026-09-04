@@ -159,6 +159,19 @@ BrowserComponent::setSessionName (juce::String const &name)
 }
 
 void
+BrowserComponent::setFieldDrifted (index_t channel, index_t slot,
+                                   bool drifted)
+{
+  if (channel >= numChannelColumns || slot >= numPadSlots)
+    return;
+  if (drifted == _fieldDrifted[channel][slot])
+    return;
+
+  _fieldDrifted[channel][slot] = drifted;
+  repaint (_layout.fields[channel][slot]);
+}
+
+void
 BrowserComponent::setSelectedField (int channel, int slot)
 {
   if (channel == _selectedChannel && slot == _selectedSlot)
@@ -305,6 +318,12 @@ BrowserComponent::paintField (juce::Graphics &g, index_t channel,
                         ? juce::String ("empty")
                         : _fieldNames[channel][slot],
                     text, juce::Justification::centredLeft, 1);
+
+  if (_fieldDrifted[channel][slot])
+    {
+      g.setColour (toColour (theme ().warning));
+      g.fillEllipse (driftMark (bounds).toFloat ());
+    }
 }
 
 void
