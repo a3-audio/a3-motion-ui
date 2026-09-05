@@ -59,25 +59,29 @@ envelopeHolds (ActMode mode, bool fingerDown)
 }
 
 EnvelopeState
-advanceEnvelope (EnvelopeState state, bool held, int attackStep,
-                 int decayStep, float ticksPerBar)
+fireEnvelope (EnvelopeState state)
+{
+  // From wherever it stands, not from nothing: two accents close together
+  // should not punch a hole between them.
+  state.stage = EnvelopeStage::Attack;
+
+  return state;
+}
+
+EnvelopeState
+advanceEnvelope (EnvelopeState state, ActMode mode, bool fingerDown,
+                 int attackStep, int decayStep, float ticksPerBar)
 {
   if (ticksPerBar <= 0.f)
     return state;
 
-  // The finger decides which way it is going, always — a press caught during
-  // the fall turns it around from where it is rather than starting again at
-  // nothing, so two accents close together do not punch a hole between them.
-  if (held)
-    {
-      if (state.stage != EnvelopeStage::Hold)
-        state.stage = EnvelopeStage::Attack;
-    }
-  else if (state.stage == EnvelopeStage::Attack
-           || state.stage == EnvelopeStage::Hold)
-    {
-      state.stage = EnvelopeStage::Decay;
-    }
+  // A hold belongs to the finger and turns round the moment it lifts, from
+  // wherever it got to. A one-shot does not: the press is the whole gesture,
+  // so its attack finishes whatever the hand does afterwards.
+  if (mode == ActMode::Hold && !fingerDown
+      && (state.stage == EnvelopeStage::Attack
+          || state.stage == EnvelopeStage::Hold))
+    state.stage = EnvelopeStage::Decay;
 
   switch (state.stage)
     {
@@ -86,7 +90,10 @@ advanceEnvelope (EnvelopeState state, bool held, int attackStep,
       if (state.level >= 1.f)
         {
           state.level = 1.f;
-          state.stage = EnvelopeStage::Hold;
+          // The top is where the two modes part company: one stays there for
+          // as long as the finger does, the other turns straight round.
+          state.stage = envelopeHolds (mode, fingerDown) ? EnvelopeStage::Hold
+                                                         : EnvelopeStage::Decay;
         }
       break;
 

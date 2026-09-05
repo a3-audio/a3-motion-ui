@@ -99,7 +99,10 @@ MotionEngine::createChannels (index_t const numChannels)
   _lastSentPot3s.resize (numChannels);
   _accentHeld.assign (numChannels, 0);
   _accentEnvelope.resize (numChannels);
+  _filterEnvelope.resize (numChannels);
   _accentPattern.resize (numChannels);
+  _channelAction.resize (numChannels);
+  _accentRestore.resize (numChannels);
   _previewMode = std::vector<std::atomic<bool>> (numChannels);
 
   auto constexpr spread = 120.f;
@@ -213,6 +216,35 @@ MotionEngine::getChannelPot3Effective (index_t channel)
                        _accentEnvelope[channel].level);
 }
 
+float
+MotionEngine::getChannelPot1Effective (index_t channel)
+{
+  if (channel >= _filterEnvelope.size ())
+    return getChannelPot1 (channel);
+
+  auto const &pattern = _accentPattern[channel];
+  auto const max = pattern ? pattern->getFilterMax () : 0.f;
+
+  return envelopeOver (_channels[channel]->getPot1 (), max,
+                       _filterEnvelope[channel].level);
+}
+
+float
+MotionEngine::getChannelPot2Effective (index_t channel)
+{
+  if (channel >= _filterEnvelope.size ())
+    return getChannelPot2 (channel);
+
+  // The same ceiling as freq, on purpose: one set of three numbers for one
+  // gesture. With no clip firing there is nothing to sweep towards, and zero
+  // is below every set value, so envelopeOver() leaves the pot alone.
+  auto const &pattern = _accentPattern[channel];
+  auto const max = pattern ? pattern->getFilterMax () : 0.f;
+
+  return envelopeOver (_channels[channel]->getPot2 (), max,
+                       _filterEnvelope[channel].level);
+}
+
 void
 MotionEngine::setChannelPot3 (index_t channel, float pot3)
 {
@@ -242,10 +274,19 @@ MotionEngine::advanceAccents ()
       // name on it.
       auto const mode = pattern ? pattern->getActMode () : ActMode::OneShot;
 
+      auto const fingerDown = _accentHeld[index] != 0;
+
       auto const before = _accentEnvelope[index].stage;
       _accentEnvelope[index] = advanceEnvelope (
-          _accentEnvelope[index], envelopeHolds (mode, _accentHeld[index] != 0),
-          attack, decay, ticksPerBar);
+          _accentEnvelope[index], mode, fingerDown, attack, decay,
+          ticksPerBar);
+
+      // The filter's envelope rides the same finger with its own two times,
+      // so a slow sweep can sit under a short stab and the other way round.
+      _filterEnvelope[index] = advanceEnvelope (
+          _filterEnvelope[index], mode, fingerDown,
+          pattern ? pattern->getFilterAttack () : 2,
+          pattern ? pattern->getFilterDecay () : 3, ticksPerBar);
 
       // The decay running out is the end of the gesture, so the clip does
       // whatever its end action says — the accent is a one-shot you played,
@@ -253,7 +294,15 @@ MotionEngine::advanceAccents ()
       // carries. Only on the edge: once, as it lands on Idle.
       if (before == EnvelopeStage::Decay
           && _accentEnvelope[index].stage == EnvelopeStage::Idle)
-        applyEndActionAfterAccent (index);
+        {
+          // The end action first, and the fall back after it. An action
+          // carries an end action like it carries everything else, and this
+          // edge is the only moment one can act -- putting the clip back
+          // first would hand that moment to the clip's own setting, so an
+          // action that said "stop" would have said nothing at all.
+          applyEndActionAfterAccent (index);
+          restoreAfterAction (index);
+        }
 
       // Let go of the clip once the accent is over, so a slot that was
       // replaced meanwhile is not kept alive by a finished gesture.
@@ -305,11 +354,66 @@ MotionEngine::setChannelAccentHeld (index_t channel, bool held,
 
   _accentHeld[channel] = held ? 1 : 0;
 
+  // The press is what starts both envelopes -- in either mode. Asking the
+  // tick "is it held" starts nothing for a one-shot, because a one-shot is
+  // never held; that is what left every one-shot silent.
+  if (held)
+    {
+      _accentEnvelope[channel] = fireEnvelope (_accentEnvelope[channel]);
+      _filterEnvelope[channel] = fireEnvelope (_filterEnvelope[channel]);
+    }
+
   // The shape is the firing clip's, taken at the press and kept until the
   // envelope has finished — swapping clips mid-accent would change how long
   // the fall lasts while it is falling.
   if (held && pattern)
-    _accentPattern[channel] = std::move (pattern);
+    {
+      // Fired once, on the way down, and only onto a clip that is not already
+      // wearing an action: a second press during the fall must not take the
+      // action's own settings down as the thing to fall back to.
+      if (_channelAction[channel] && !_accentRestore[channel])
+        {
+          _accentRestore[channel] = clipSettingsFrom (*pattern);
+          applyClipSettings (
+              *pattern,
+              actionOver (*_accentRestore[channel], *_channelAction[channel]));
+        }
+
+      _accentPattern[channel] = std::move (pattern);
+    }
+}
+
+void
+MotionEngine::setChannelAction (index_t channel,
+                                std::optional<ClipSettings> action)
+{
+  if (channel >= _channelAction.size ())
+    return;
+
+  _channelAction[channel] = std::move (action);
+}
+
+bool
+MotionEngine::isChannelAccentActive (index_t channel) const
+{
+  if (channel >= _accentEnvelope.size ())
+    return false;
+
+  return _accentEnvelope[channel].stage != EnvelopeStage::Idle
+         || _filterEnvelope[channel].stage != EnvelopeStage::Idle
+         || _accentRestore[channel].has_value ();
+}
+
+void
+MotionEngine::restoreAfterAction (index_t channel)
+{
+  if (!_accentRestore[channel])
+    return;
+
+  if (auto const &pattern = _accentPattern[channel])
+    applyClipSettings (*pattern, *_accentRestore[channel]);
+
+  _accentRestore[channel].reset ();
 }
 
 std::shared_ptr<Pattern>
@@ -533,14 +637,17 @@ MotionEngine::tickCallback ()
           _lastSentPositions[index] = position;
         }
 
-      auto const pot1 = _channels[index]->getPot1 ();
+      // Both filter values carry the second envelope the same way pot3
+      // carries the first: at rest they are exactly what the encoder set, so
+      // a channel with no accent running sends what it always sent.
+      auto const pot1 = getChannelPot1Effective (index);
       if (!juce::approximatelyEqual (_lastSentPot1s[index], pot1))
         {
           _commandQueue.sendPot1 (index, pot1);
           _lastSentPot1s[index] = pot1;
         }
 
-      auto const pot2 = _channels[index]->getPot2 ();
+      auto const pot2 = getChannelPot2Effective (index);
       if (!juce::approximatelyEqual (_lastSentPot2s[index], pot2))
         {
           _commandQueue.sendPot2 (index, pot2);

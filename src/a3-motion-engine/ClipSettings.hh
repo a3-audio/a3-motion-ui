@@ -135,6 +135,23 @@ operator!= (ClipSettings const &a, ClipSettings const &b)
   return !(a == b);
 }
 
+/** What a fired action puts on the clip it is fired at.
+ *
+ *  An action is a whole ClipSettings, saved off a clip that was dialled the
+ *  way ACT should make it sound. But it says *where* the clip is thrown, not
+ *  *how*: the two envelopes' times and ceilings, and whether ACT is a stab or
+ *  a hold, stay the slot's and are taken from `current`.
+ *
+ *  Two reasons for the seam being there. The ACTION page shows exactly those
+ *  seven numbers per slot, and a page showing an attack that the running
+ *  action had quietly replaced would be a page that lies. And `actMode` in
+ *  particular is read once, when ACT goes down, to decide whether the clip
+ *  belongs to the finger -- a mode that changed mid-gesture would leave a held
+ *  clip running with nothing holding it.
+ */
+ClipSettings actionOver (ClipSettings const &current,
+                         ClipSettings const &action);
+
 ClipSettings clipSettingsFrom (Pattern const &pattern);
 void applyClipSettings (Pattern &pattern, ClipSettings const &settings);
 

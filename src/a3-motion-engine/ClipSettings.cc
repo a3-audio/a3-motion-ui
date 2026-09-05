@@ -89,4 +89,22 @@ applyClipSettings (Pattern &pattern, ClipSettings const &settings)
   pattern.setBridgeBias (settings.bridgeBias);
 }
 
+ClipSettings
+actionOver (ClipSettings const &current, ClipSettings const &action)
+{
+  auto fired = action;
+
+  // Named one by one rather than copied as a block: this is the list the
+  // ACTION page owns, and a field that joins it has to be added here too.
+  fired.envelopeAttack = current.envelopeAttack;
+  fired.envelopeDecay = current.envelopeDecay;
+  fired.envelopeMax = current.envelopeMax;
+  fired.filterAttack = current.filterAttack;
+  fired.filterDecay = current.filterDecay;
+  fired.filterMax = current.filterMax;
+  fired.actMode = current.actMode;
+
+  return fired;
+}
+
 }

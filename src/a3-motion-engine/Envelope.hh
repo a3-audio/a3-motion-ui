@@ -72,9 +72,27 @@ struct EnvelopeState
  */
 bool envelopeHolds (ActMode mode, bool fingerDown);
 
-/** One tick on, given whether the pad is down. */
-EnvelopeState advanceEnvelope (EnvelopeState state, bool held, int attackStep,
-                               int decayStep, float ticksPerBar);
+/** ACT went down: the envelope starts rising, in either mode.
+ *
+ *  Separate from advanceEnvelope() because a press is an edge and running is
+ *  a level, and conflating the two is what kept a one-shot silent: asking
+ *  only "is it held" gets "no" for a one-shot even with a finger on the pad,
+ *  so nothing ever left Idle.
+ *
+ *  The level is left where it is, so a second press during the fall turns the
+ *  envelope round from there rather than dropping it to nothing first.
+ */
+EnvelopeState fireEnvelope (EnvelopeState state);
+
+/** One tick on, given the mode and whether the pad is still down.
+ *
+ *  The finger only ever *ends* things here; starting is fireEnvelope()'s job.
+ *  And it ends only a hold: a one-shot's attack runs to the top whatever the
+ *  finger does, because an attack that a quick release could cut short would
+ *  be a hold that nobody had named. */
+EnvelopeState advanceEnvelope (EnvelopeState state, ActMode mode,
+                               bool fingerDown, int attackStep, int decayStep,
+                               float ticksPerBar);
 
 /** What goes out: the value that was set, raised towards `maxValue` by the
  *  envelope.

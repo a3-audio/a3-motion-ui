@@ -25,6 +25,8 @@
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Pattern.hh>
 
+#include "ClipSettingsFields.hh"
+
 #include <functional>
 #include <utility>
 #include <vector>
@@ -136,32 +138,7 @@ TEST (ClipSettings, RunningPhasesAreNotSettings)
 // rather than trusting one composite case.
 TEST (ClipSettings, EveryFieldTakesPartInTheComparison)
 {
-  using Mutate = std::function<void (ClipSettings &)>;
-
-  std::vector<std::pair<char const *, Mutate> > const fields{
-    { "speedLog2", [] (ClipSettings &s) { s.speedLog2 = -3; } },
-    { "rotate", [] (ClipSettings &s) { s.rotate = 0.3f; } },
-    { "reach", [] (ClipSettings &s) { s.reach = 0.9f; } },
-    { "clipTop", [] (ClipSettings &s) { s.clipTop = 0.2f; } },
-    { "clipBottom", [] (ClipSettings &s) { s.clipBottom = 0.3f; } },
-    { "mirrorSouth", [] (ClipSettings &s) { s.mirrorSouth = true; } },
-    { "flat", [] (ClipSettings &s) { s.flat = true; } },
-    { "flatElevation", [] (ClipSettings &s) { s.flatElevation = 0.8f; } },
-    { "spin", [] (ClipSettings &s) { s.spin = 5; } },
-    { "reachLfo", [] (ClipSettings &s) { s.reachLfo = -4; } },
-    { "envelopeAttack", [] (ClipSettings &s) { s.envelopeAttack = 6; } },
-    { "envelopeDecay", [] (ClipSettings &s) { s.envelopeDecay = 6; } },
-    { "envelopeMax", [] (ClipSettings &s) { s.envelopeMax = 0.1f; } },
-    { "actMode", [] (ClipSettings &s) { s.actMode = ActMode::Hold; } },
-    { "direction",
-      [] (ClipSettings &s) { s.direction = PlayDirection::Reverse; } },
-    { "endAction",
-      [] (ClipSettings &s) { s.endAction = EndAction::Bounce; } },
-    { "fadeReach", [] (ClipSettings &s) { s.fadeReach = 0.9f; } },
-    { "bridgeBias", [] (ClipSettings &s) { s.bridgeBias = 3; } },
-  };
-
-  for (auto const &[name, mutate] : fields)
+  for (auto const &[name, mutate] : clipSettingsFields ())
     {
       ClipSettings changed;
       mutate (changed);

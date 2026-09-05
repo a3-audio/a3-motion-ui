@@ -20,11 +20,14 @@
 
 #pragma once
 
+#include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/AsyncCommandQueue.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Helpers.hh>
+
+#include <optional>
 
 namespace a3
 {
@@ -85,12 +88,45 @@ public:
    *  you have to take on trust. */
   float getChannelPot3Effective (index_t channel);
 
+  /** The same for the filter pair, off the clip's second envelope: freq and Q
+   *  swept together towards one ceiling, because a resonant sweep is one
+   *  gesture and two ceilings would make it two.
+   *
+   *  Q sits at the top of its range by default and envelopeOver() only ever
+   *  raises, so until Q is turned down the second envelope is audible on freq
+   *  alone. That is the same rule as pot3's, not an exception to it. */
+  float getChannelPot1Effective (index_t channel);
+  float getChannelPot2Effective (index_t channel);
+
   /** ACT went down or came up on this channel. The accent rises while it is
    *  down and falls when it is let go; its shape comes from the clip that was
    *  fired, and it can only ever raise the channel's 3d above what the pot
    *  and the grid set — see envelopeOver(). */
   void setChannelAccentHeld (index_t channel, bool held,
                              std::shared_ptr<Pattern> pattern);
+
+  /** What ACT throws this channel's clip *to*, for the length of the accent.
+   *
+   *  Set just before the press, or cleared with an empty optional when the
+   *  slot has no action on it. The clip's settings as they stand are taken
+   *  down first and put back when the envelope has finished falling — not
+   *  when the finger lifts, which for a hold is the middle of an audible
+   *  decay and the worst moment to snap a trajectory back.
+   *
+   *  Comes in ready to use rather than as a file: the settings are read off
+   *  disk when the action is assigned, because the thread that fires this is
+   *  the one that must never touch a disk. */
+  void setChannelAction (index_t channel,
+                         std::optional<ClipSettings> action);
+
+  /** Whether anything about this channel is still moving on its own: the
+   *  accent's level, or a clip still wearing the action fired at it.
+   *
+   *  The screen asks so that it keeps redrawing while neither the transport
+   *  nor a hand is doing anything. Without it, a clip an action stopped would
+   *  keep showing the action's settings for good -- the values came home and
+   *  nothing was left running to notice. */
+  bool isChannelAccentActive (index_t channel) const;
 
 private:
   /** One tick of every channel's accent. Runs on the tempo-clock thread with
@@ -102,6 +138,11 @@ private:
    *  Stop and Pause end the pass; the ones that mean "keep going" keep going,
    *  or the accent would be a stop button that only some settings noticed. */
   void applyEndActionAfterAccent (index_t channel);
+
+  /** The accent has finished falling: the clip goes back to what it was
+   *  before the action was fired at it. After the end action, which the
+   *  action is entitled to have brought with it. */
+  void restoreAfterAction (index_t channel);
 
 public:
 
@@ -319,7 +360,14 @@ private:
    *  gesture is not a thing to reload at startup. */
   std::vector<char> _accentHeld;
   std::vector<EnvelopeState> _accentEnvelope;
+  std::vector<EnvelopeState> _filterEnvelope;
   std::vector<std::shared_ptr<Pattern> > _accentPattern;
+
+  /** The action waiting on each channel, and the clip's own settings taken
+   *  down at the moment one was fired. The second is what "empty" means here:
+   *  no snapshot, nothing to fall back to, so nothing is written back. */
+  std::vector<std::optional<ClipSettings> > _channelAction;
+  std::vector<std::optional<ClipSettings> > _accentRestore;
 
 
   // Per-channel preview mode: when true, suppress OSC output
