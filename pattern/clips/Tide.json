@@ -21,7 +21,7 @@
   "qDecay": 3,
   "qMax": 0.0,
   "reach": 0.5,
-  "rotate": 0.0,
+  "rotate": 0.5,
   "speed": 0,
   "spin": 1,
   "swell": 4

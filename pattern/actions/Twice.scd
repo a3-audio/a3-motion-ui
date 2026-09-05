@@ -1,8 +1,8 @@
 // Twice -- Half read the other way: more of whatever the clip is doing.
 //
-// Reach, spin and fade all doubled from where they stand. Held rather than
-// one-shot, because "more" is something you want to be able to back out of
-// by letting go.
+// Reach, spin, swell and fade all doubled from where they stand. Held rather
+// than one-shot, because "more" is something you want to be able to back out
+// of by letting go.
 
 ~reach = ~reach * 2;
 ~spin = ~spin * 2;

@@ -1,7 +1,7 @@
 {
   "actMode": "one-shot",
   "bridgeBias": 0,
-  "clipBottom": 0.0,
+  "clipBottom": 0.15,
   "clipTop": 0.0,
   "direction": "fwd",
   "elevationBase": 0.12,

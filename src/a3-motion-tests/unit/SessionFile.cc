@@ -23,6 +23,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-ui/SessionFile.hh>
 
 using namespace a3;
@@ -337,4 +338,43 @@ TEST (SessionFile, NothingToMigrateIsNotAnError)
   EXPECT_FALSE (migrateSetToCurrent (root));
 
   root.deleteRecursively ();
+}
+
+/** A set names its takes rather than carrying them, so a shipped set is only
+ *  as good as the names in it: rename a shape and every set pointing at it
+ *  loads as an empty slot, silently, because a missing name is not an error
+ *  here -- it is a slot nobody has filled. This is the one place that would
+ *  notice. */
+TEST (SessionFile, EveryShippedSetNamesShapesThatExist)
+{
+  juce::File const dir (A3_PATTERN_SESSIONS_DIR);
+  ASSERT_TRUE (dir.isDirectory ()) << dir.getFullPathName ();
+
+  juce::File const shapes (A3_PATTERN_SYSTEM_DIR);
+  juce::StringArray known;
+  for (auto const &file :
+       shapes.findChildFiles (juce::File::findFiles, false, "*.svg"))
+    known.add (PatternFile::peek (file).name);
+  ASSERT_FALSE (known.isEmpty ());
+
+  auto const files
+      = dir.findChildFiles (juce::File::findFiles, false, "*.json");
+  EXPECT_FALSE (files.isEmpty ()) << "no sets ship at all";
+
+  for (auto const &file : files)
+    {
+      auto const set = loadSession (file, 4, 2);
+      EXPECT_EQ (juce::String (set.name), file.getFileNameWithoutExtension ())
+          << "a set's name is what the browser lists it under";
+      ASSERT_EQ (set.channels.size (), 4u) << file.getFileName ();
+
+      for (auto const &channel : set.channels)
+        {
+          ASSERT_EQ (channel.slots.size (), 2u) << file.getFileName ();
+          for (auto const &slot : channel.slots)
+            EXPECT_TRUE (known.contains (juce::String (slot.patternName)))
+                << file.getFileName () << ": no shape called "
+                << slot.patternName;
+        }
+    }
 }

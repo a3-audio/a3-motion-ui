@@ -15,7 +15,21 @@ config/ui_state.json
 pattern/user/
 pattern/set.json
 pattern/current.json
-pattern/sessions/
+pattern/sessions/*
+# Ten factory sets -- one per place in an evening, each naming eight shapes
+# and carrying a preset per slot. The performer's own sets land in the same
+# folder, and current.json is the one actually in use, so these are named
+# one by one the way the factory clips are.
+!pattern/sessions/Opening.json
+!pattern/sessions/Ascent.json
+!pattern/sessions/Peak.json
+!pattern/sessions/Breakdown.json
+!pattern/sessions/Drop.json
+!pattern/sessions/Rollers.json
+!pattern/sessions/Dub.json
+!pattern/sessions/Techno.json
+!pattern/sessions/Ambient.json
+!pattern/sessions/Dice.json
 # The clips that reach the performer's own takes. The factory clips beside them
 # are the instrument and stay tracked; these are somebody's evening on it, like
 # the takes themselves. They share a folder only until the folders are split
@@ -47,7 +61,7 @@ pattern/clips/*.json
 !pattern/clips/Surge.json
 !pattern/clips/Half Time.json
 !pattern/clips/Double Time.json
-!pattern/clips/Pendulum.json
+!pattern/clips/Seesaw.json
 !pattern/clips/Backspin.json
 !pattern/clips/Dice.json
 

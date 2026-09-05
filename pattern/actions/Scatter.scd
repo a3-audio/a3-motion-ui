@@ -8,6 +8,7 @@
 ~swell = [-4, 0, 4].choose;
 ~reach = rrand(0.3, 1.0);
 ~rotate = rrand(0.0, 1.0);
+~dir = [\forward, \reverse].choose;
 ~end = \random;
 
 ~attack = [0, 1, 2].choose;
