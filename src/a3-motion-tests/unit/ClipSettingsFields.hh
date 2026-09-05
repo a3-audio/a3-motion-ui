@@ -50,6 +50,8 @@ clipSettingsFields ()
         { "clipTop", [] (ClipSettings &s) { s.clipTop = 0.2f; } },
         { "clipBottom", [] (ClipSettings &s) { s.clipBottom = 0.3f; } },
         { "mirrorSouth", [] (ClipSettings &s) { s.mirrorSouth = true; } },
+        { "elevationBase",
+          [] (ClipSettings &s) { s.elevationBase = 0.75f; } },
         { "flat", [] (ClipSettings &s) { s.flat = true; } },
         { "flatElevation", [] (ClipSettings &s) { s.flatElevation = 0.8f; } },
         { "spin", [] (ClipSettings &s) { s.spin = 5; } },

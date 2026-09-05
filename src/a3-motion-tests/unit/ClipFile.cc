@@ -163,6 +163,47 @@ TEST (ClipFile, TheNewNamesWinOverTheOldOnes)
   file.deleteFile ();
 }
 
+// A clip written before the elevation base carries mirrorSouth instead, and
+// what that meant was "the middle of the trajectory sits at the south pole".
+// That is a base of 1, so it loads as one and the take sounds as it did.
+TEST (ClipFile, AClipFromBeforeTheBaseKeepsItsPole)
+{
+  auto const south = tempClip ("a3-clip-mirror-south.json");
+  south.replaceWithText (R"({ "name": "Old", "svg": "16_Circle",
+                              "mirrorSouth": true })");
+
+  auto const read = ClipFile::load (south);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_FLOAT_EQ (read->settings.elevationBase, 1.f);
+
+  // A northern one is a base of zero, which is also the default -- so a clip
+  // that never said anything about it is unaffected.
+  auto const north = tempClip ("a3-clip-mirror-north.json");
+  north.replaceWithText (R"({ "name": "Old", "svg": "16_Circle" })");
+
+  auto const plain = ClipFile::load (north);
+  ASSERT_TRUE (plain.has_value ());
+  EXPECT_FLOAT_EQ (plain->settings.elevationBase, 0.f);
+
+  south.deleteFile ();
+  north.deleteFile ();
+}
+
+// A file that names the base itself wins over the old flag -- that is what a
+// clip written by this version looks like once it has been saved again.
+TEST (ClipFile, TheBaseWinsOverTheOldFlag)
+{
+  auto const file = tempClip ("a3-clip-base-and-flag.json");
+  file.replaceWithText (R"({ "name": "Both", "svg": "16_Circle",
+                             "mirrorSouth": true, "elevationBase": 0.25 })");
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_FLOAT_EQ (read->settings.elevationBase, 0.25f);
+
+  file.deleteFile ();
+}
+
 TEST (ClipFile, RubbishDoesNotLoad)
 {
   auto const file = tempClip ("a3-clip-rubbish.json");

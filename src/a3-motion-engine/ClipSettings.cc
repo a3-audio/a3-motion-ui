@@ -36,6 +36,7 @@ clipSettingsFrom (Pattern const &pattern)
   settings.reach = pattern.getReach ();
   settings.clipTop = pattern.getClipTop ();
   settings.clipBottom = pattern.getClipBottom ();
+  settings.elevationBase = pattern.getElevationBase ();
   settings.mirrorSouth = pattern.getMirrorSouth ();
   settings.flat = pattern.getFlat ();
   settings.flatElevation = pattern.getFlatElevation ();
@@ -71,6 +72,7 @@ applyClipSettings (Pattern &pattern, ClipSettings const &settings)
   pattern.setReach (settings.reach);
   pattern.setClipTop (settings.clipTop);
   pattern.setClipBottom (settings.clipBottom);
+  pattern.setElevationBase (settings.elevationBase);
   pattern.setMirrorSouth (settings.mirrorSouth);
   pattern.setFlat (settings.flat);
   pattern.setFlatElevation (settings.flatElevation);

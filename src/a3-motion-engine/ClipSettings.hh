@@ -53,6 +53,15 @@ struct ClipSettings
   float reach = 0.5f;
   float clipTop = 0.f;
   float clipBottom = 0.f;
+  /** Where the middle of the trajectory sits, 0 at the north pole and 1 at
+   *  the south. The line in the elevation graphic is this value, and the
+   *  reach cone grows from it towards whichever pole is further away.
+   *
+   *  It replaces what `mirrorSouth` decided, which could only ever be one
+   *  pole or the other. That flag is still carried so files written before
+   *  this parse, and a clip that had it set loads as a base of 1 -- see
+   *  ClipFile::load(). Nothing reads it. */
+  float elevationBase = 0.f;
   bool mirrorSouth = false;
   bool flat = false;
   float flatElevation = 0.5f;
@@ -116,6 +125,7 @@ operator== (ClipSettings const &a, ClipSettings const &b)
          && a.reach == b.reach                     //
          && a.clipTop == b.clipTop                 //
          && a.clipBottom == b.clipBottom           //
+         && a.elevationBase == b.elevationBase     //
          && a.mirrorSouth == b.mirrorSouth         //
          && a.flat == b.flat                       //
          && a.flatElevation == b.flatElevation     //

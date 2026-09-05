@@ -281,6 +281,11 @@ fields ()
       [] (ClipSettings &s, Value const &v) {
         s.clipBottom = clampUnit (v.number);
       } },
+    { "base",
+      [] (ClipSettings const &s) { return numberValue (s.elevationBase, false); },
+      [] (ClipSettings &s, Value const &v) {
+        s.elevationBase = clampUnit (v.number);
+      } },
     { "mirrorSouth",
       [] (ClipSettings const &s) { return boolValue (s.mirrorSouth); },
       [] (ClipSettings &s, Value const &v) { s.mirrorSouth = truth (v); } },

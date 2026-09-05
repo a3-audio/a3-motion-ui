@@ -85,6 +85,7 @@ ClipFile::save (Clip const &clip, juce::File const &file)
   object->setProperty ("reach", s.reach);
   object->setProperty ("clipTop", s.clipTop);
   object->setProperty ("clipBottom", s.clipBottom);
+  object->setProperty ("elevationBase", s.elevationBase);
   object->setProperty ("mirrorSouth", s.mirrorSouth);
   object->setProperty ("flat", s.flat);
   object->setProperty ("flatElevation", s.flatElevation);
@@ -151,6 +152,13 @@ ClipFile::load (juce::File const &file)
   s.clipTop = readFloat (parsed, "clipTop", defaults.clipTop);
   s.clipBottom = readFloat (parsed, "clipBottom", defaults.clipBottom);
   s.mirrorSouth = readBool (parsed, "mirrorSouth", defaults.mirrorSouth);
+
+  // Where the middle of the trajectory sits. A clip written before it says
+  // only mirrorSouth, and what that meant was "the middle sits at the south
+  // pole" -- which is a base of 1. Migrated rather than defaulted, or every
+  // southern take would quietly come back northern.
+  s.elevationBase = readFloat (parsed, "elevationBase",
+                               s.mirrorSouth ? 1.f : defaults.elevationBase);
   s.flat = readBool (parsed, "flat", defaults.flat);
   s.flatElevation
       = readFloat (parsed, "flatElevation", defaults.flatElevation);

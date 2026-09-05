@@ -293,6 +293,11 @@ public:
   float getReach () const;
   void setReach (float reach); // clamped to [0.05, 1.0]
 
+  /** Where the middle of the trajectory sits, 0 north and 1 south. See
+   *  ClipSettings::elevationBase. */
+  float getElevationBase () const;
+  void setElevationBase (float base);
+
   bool getMirrorSouth () const;
   void setMirrorSouth (bool mirrorSouth);
 
@@ -368,6 +373,7 @@ private:
   std::atomic<Measure> _playbackLength;
 
   std::atomic<float> _reach{ 0.5f };
+  std::atomic<float> _elevationBase{ 0.f };
   std::atomic<bool> _mirrorSouth{ false };
   std::atomic<float> _clipTop{ 0.0f };
   std::atomic<float> _clipBottom{ 0.0f };

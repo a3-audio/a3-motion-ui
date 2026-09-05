@@ -176,11 +176,17 @@ HeightMapSphere::mapTo3D (Pos const &pos2D, ElevationParams const &params) const
     {
       auto const r = std::sqrt (x * x + y * y);
       auto const rNorm = r / kPatternCoordinateMaxRadius;
-      auto theta
+      auto const theta
           = std::min (thetaShapeFromR (rNorm, params.reach), pi<float> ());
-      if (params.mirrorSouth)
-        theta = pi<float> () - theta;
-      frac = theta / pi<float> ();
+
+      // r=0 lands on the base and the cone grows from there towards
+      // whichever pole is further away, so reach always has somewhere to go.
+      // Exactly on the equator it grows south, which is the direction it grew
+      // in when the base was always a pole.
+      auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
+      auto const towardsSouth = base <= 0.5f;
+      frac = towardsSouth ? base + theta / pi<float> ()
+                          : base - theta / pi<float> ();
     }
 
   // clipTop/clipBottom are a plain, final, absolute clamp — [bandLow,
@@ -276,9 +282,17 @@ HeightMapSphere::mapTo2D (Pos const &pos3D, ElevationParams const &params) const
     }
 
   auto const rXY = std::sqrt (x * x + y * y);
-  auto theta = std::atan2 (rXY, z);
-  if (params.mirrorSouth)
-    theta = pi<float> () - theta;
+  auto const frac = std::atan2 (rXY, z) / pi<float> ();
+
+  // The exact inverse of the forward step: undo the base and the direction it
+  // grew in, and what is left is the theta the shape was built from. Getting
+  // this wrong does not show as an error -- a recording is written through
+  // here and played back through mapTo3D, so the take would simply sit
+  // somewhere else the moment its base was touched.
+  auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
+  auto const towardsSouth = base <= 0.5f;
+  auto const theta
+      = std::abs (towardsSouth ? frac - base : base - frac) * pi<float> ();
 
   auto const r
       = rFromThetaShape (theta, params.reach) * kPatternCoordinateMaxRadius;

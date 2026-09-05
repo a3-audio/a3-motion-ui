@@ -69,6 +69,8 @@ writeOverrides (a3::ClipSettings const &settings)
     put ("clipBottom", settings.clipBottom);
   if (settings.mirrorSouth != defaults.mirrorSouth)
     put ("mirrorSouth", settings.mirrorSouth);
+  if (settings.elevationBase != defaults.elevationBase)
+    put ("elevationBase", settings.elevationBase);
   if (settings.flat != defaults.flat)
     put ("flat", settings.flat);
   if (settings.flatElevation != defaults.flatElevation)
@@ -127,6 +129,11 @@ readOverrides (juce::var const &value)
   settings.clipTop = read ("clipTop", settings.clipTop);
   settings.clipBottom = read ("clipBottom", settings.clipBottom);
   settings.mirrorSouth = read ("mirrorSouth", settings.mirrorSouth);
+  // Same migration as ClipFile::load(): a set written before the base says
+  // only which pole, and south meant a base of 1.
+  settings.elevationBase
+      = read ("elevationBase",
+              settings.mirrorSouth ? 1.f : settings.elevationBase);
   settings.flat = read ("flat", settings.flat);
   settings.flatElevation = read ("flatElevation", settings.flatElevation);
   settings.spin = read ("spin", settings.spin);

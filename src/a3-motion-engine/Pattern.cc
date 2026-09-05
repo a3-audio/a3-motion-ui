@@ -645,6 +645,19 @@ Pattern::setReach (float reach)
   _reach = std::clamp (reach, 0.05f, 1.0f);
 }
 
+float
+Pattern::getElevationBase () const
+{
+  return _elevationBase.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setElevationBase (float base)
+{
+  _elevationBase.store (juce::jlimit (0.f, 1.f, base),
+                        std::memory_order_relaxed);
+}
+
 bool
 Pattern::getMirrorSouth () const
 {
@@ -710,6 +723,7 @@ Pattern::getElevationParams () const
 {
   ElevationParams params;
   params.reach = _reach;
+  params.elevationBase = _elevationBase.load (std::memory_order_relaxed);
   params.mirrorSouth = _mirrorSouth;
   params.clipTop = _clipTop;
   params.clipBottom = _clipBottom;
