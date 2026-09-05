@@ -93,6 +93,8 @@ BrowserComponent::BrowserComponent ()
         };
 
   makeButton (_sessionTouch, &BrowserComponent::onSessionPressed);
+  makeButton (_clipsTabTouch, &BrowserComponent::onClipsChosen);
+  makeButton (_actionsTabTouch, &BrowserComponent::onActionsChosen);
   makeButton (_renameTouch, &BrowserComponent::onRenamePressed);
   makeButton (_saveTouch, &BrowserComponent::onSavePressed);
   makeButton (_loadTouch, &BrowserComponent::onLoadSessionPressed);
@@ -128,6 +130,8 @@ BrowserComponent::resized ()
     }
 
   _sessionTouch->setBounds (_layout.sessionField);
+  _clipsTabTouch->setBounds (_layout.clipsTab);
+  _actionsTabTouch->setBounds (_layout.actionsTab);
   _renameTouch->setBounds (_layout.renameButton);
   _saveTouch->setBounds (_layout.saveSessionButton);
   _loadTouch->setBounds (_layout.loadSessionButton);
@@ -248,8 +252,42 @@ BrowserComponent::mouseWheelMove (juce::MouseEvent const &,
 }
 
 void
+BrowserComponent::setShowingActions (bool actions)
+{
+  if (actions == _showingActions)
+    return;
+
+  _showingActions = actions;
+  repaint ();
+}
+
+void
 BrowserComponent::paint (juce::Graphics &g)
 {
+  // Two words over the list: what a slot holds, and what ACT does to it. Both
+  // are chosen the same way, in the same place, so neither is a mode you have
+  // to remember being in.
+  auto const paintListTab = [&g] (juce::Rectangle<int> bounds,
+                                  juce::String const &label, bool active) {
+    if (bounds.isEmpty ())
+      return;
+
+    g.setColour (active ? toColour (theme ().accent, 0.35f)
+                        : toColour (theme ().textPrimary, 0.06f));
+    g.fillRoundedRectangle (bounds.toFloat (), 3.f);
+    g.setColour (toColour (theme ().textPrimary, active ? 0.35f : 0.15f));
+    g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+
+    g.setFont (juce::Font (juce::jmin (theme ().fontSize (FontRole::Body),
+                                       bounds.getHeight () * 0.5f),
+                           active ? juce::Font::bold : juce::Font::plain));
+    g.setColour (toColour (theme ().textPrimary, active ? 1.f : 0.55f));
+    g.drawFittedText (label, bounds, juce::Justification::centred, 1);
+  };
+
+  paintListTab (_layout.clipsTab, "CLIPS", !_showingActions);
+  paintListTab (_layout.actionsTab, "ACTION", _showingActions);
+
   // The set, over the eight clips it filled.
   {
     auto const bounds = _layout.sessionField;

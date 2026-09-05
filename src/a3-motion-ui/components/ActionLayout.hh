@@ -31,15 +31,16 @@ namespace a3
 
 /** Where the ACTION page puts things.
  *
- *  A whole page rather than a section, so the envelope gets drawn as the shape
- *  it is instead of being read off three numbers. The controls sit under it,
- *  four across, at whatever size the page can afford -- which is a lot, since
- *  nothing else is competing for the room.
+ *  A whole page rather than a section, so the controls sit at whatever size it
+ *  can afford -- which is a lot, since nothing else is competing for the room.
+ *  Above them, which action clip this slot fires.
  */
 struct ActionLayout
 {
-  /** The envelope, drawn: attack up, hold at max, decay down. */
-  juce::Rectangle<int> envelopeGraphic;
+  /** Which action clip the ACT key fires on this slot, named. Chosen in the
+   *  file menu beside the clips, so what stands here is a reading rather than
+   *  a control. */
+  juce::Rectangle<int> actionField;
 
   /** attack, decay, max, act-mode -- in that reading order, which is also the
    *  order the sub-index handler expects. */

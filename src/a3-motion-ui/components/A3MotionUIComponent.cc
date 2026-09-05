@@ -500,7 +500,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _browser = std::make_unique<BrowserComponent> ();
   _browser->onFieldChosen = [this] (index_t channel, index_t slot) {
     _browserField = { static_cast<int> (channel), static_cast<int> (slot) };
-    _browserList = BrowserList::Clips;
+    // Out of the sessions list, but not out of the actions one: choosing a
+    // field while looking at actions means "this slot", not "never mind".
+    if (_browserList == BrowserList::Sessions)
+      _browserList = BrowserList::Clips;
 
     // The rest of the device follows the field. Choosing where a clip goes is
     // saying "this one" as plainly as pressing its pad is, and the bar, the
@@ -517,9 +520,21 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _browser->onSavePressed = [this] {
     if (_browserList == BrowserList::Sessions)
       saveCurrentSession ();
+    else if (_browserList == BrowserList::Actions)
+      saveSlotAsAction ();
     else
       saveSlotClip (static_cast<index_t> (_browserField.first),
                     static_cast<index_t> (_browserField.second));
+  };
+  _browser->onClipsChosen = [this] {
+    _browserList = BrowserList::Clips;
+    _browser->setSelectedEntry (-1);
+    refreshBrowser ();
+  };
+  _browser->onActionsChosen = [this] {
+    _browserList = BrowserList::Actions;
+    _browser->setSelectedEntry (-1);
+    refreshBrowser ();
   };
   _browser->onSessionPressed = [this] {
     _browserList = BrowserList::Sessions;
@@ -531,6 +546,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
     if (_browserList == BrowserList::Sessions)
       loadSessionNamed (_browser->entryName (index));
+    else if (_browserList == BrowserList::Actions)
+      assignActionEntry (_browser->entryName (index));
     else
       assignBrowserEntry (index);
   };
@@ -918,6 +935,10 @@ A3MotionUIComponent::initializePatterns ()
   // one shorter than the other is a slot that cannot say where it came from.
   for (auto &channelClips : _slotClipFile)
     channelClips.resize (numClipSlots);
+
+  _slotActionFile.resize (numChannels);
+  for (auto &channelActions : _slotActionFile)
+    channelActions.resize (numClipSlots);
 
   // Load patterns from the library, one per clip slot; channels share the
   // same library slot but each gets its own Pattern instance. Default
@@ -1762,6 +1783,12 @@ A3MotionUIComponent::sessionsDir () const
   return _patternLibrary->getRootDir ().getChildFile ("sessions");
 }
 
+juce::File
+A3MotionUIComponent::actionsDir () const
+{
+  return _patternLibrary->getRootDir ().getChildFile ("actions");
+}
+
 void
 A3MotionUIComponent::saveCurrentSession ()
 {
@@ -1854,6 +1881,16 @@ A3MotionUIComponent::refreshBrowser ()
         names.add (file.getFileNameWithoutExtension ());
       names.sort (true);
     }
+  else if (_browserList == BrowserList::Actions)
+    {
+      // Entry 0 is "no action", the same way entry 0 of the library is "no
+      // clip": a slot has to be able to go back to firing nothing.
+      names.add ("");
+      for (auto const &file : actionsDir ().findChildFiles (
+               juce::File::findFiles, false, "*.json"))
+        names.add (file.getFileNameWithoutExtension ());
+      names.sort (true);
+    }
   else
     {
       for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
@@ -1866,13 +1903,24 @@ A3MotionUIComponent::refreshBrowser ()
     }
 
   _browser->setEntries (names, settingsRows);
+  _browser->setShowingActions (_browserList == BrowserList::Actions);
   _browser->setSessionName (_sessionName);
 
   // The list points at what the chosen field is already holding. Without this
   // you have to remember what is in a slot in order to see it highlighted --
   // and the highlight is the only thing saying which of seventy rows you are
   // looking at.
-  if (_browserList == BrowserList::Clips)
+  if (_browserList == BrowserList::Actions)
+    {
+      auto const ch = static_cast<index_t> (_browserField.first);
+      auto const sl = static_cast<index_t> (_browserField.second);
+      auto const &action = _slotActionFile[ch][sl];
+      _browser->setSelectedEntry (
+          action.existsAsFile ()
+              ? names.indexOf (action.getFileNameWithoutExtension ())
+              : 0);
+    }
+  else if (_browserList == BrowserList::Clips)
     {
       auto const ch = static_cast<index_t> (_browserField.first);
       auto const sl = static_cast<index_t> (_browserField.second);
@@ -1907,6 +1955,17 @@ A3MotionUIComponent::refreshBrowser ()
   if (_browserList == BrowserList::Sessions)
     // A set can always be put away; there is always an arrangement to keep.
     _browser->setActions ({ "", "Save Set", "" }, { false, true, false });
+  else if (_browserList == BrowserList::Actions)
+    {
+      // An action is made by dialling a clip the way you want ACT to make it
+      // sound and keeping that. There is nothing to keep from an empty slot.
+      auto const ch = static_cast<index_t> (_browserField.first);
+      auto const sl = static_cast<index_t> (_browserField.second);
+      auto const holds = ch < _patterns.size () && sl < _patterns[ch].size ()
+                         && _patterns[ch][sl] != nullptr;
+      _browser->setActions ({ "", "Save Action", "" },
+                            { false, holds, false });
+    }
   else
     _browser->setActions ({ "", "Save", "" }, { false, drifted, false });
 }
@@ -2052,6 +2111,60 @@ A3MotionUIComponent::syncClipUIParamsFromPattern (index_t channel,
 }
 
 void
+A3MotionUIComponent::assignActionEntry (juce::String const &name)
+{
+  auto const channel = static_cast<index_t> (_browserField.first);
+  auto const slot = static_cast<index_t> (_browserField.second);
+
+  if (channel >= _engine.getNumChannels () || slot >= numPadSlots)
+    return;
+
+  // The empty row clears it: a slot has to be able to go back to firing
+  // nothing, the same way it can go back to holding no clip.
+  _slotActionFile[channel][slot]
+      = name.isEmpty () ? juce::File{}
+                        : actionsDir ().getChildFile (name + ".json");
+
+  selectClip (channel, slot);
+  refreshBrowser ();
+}
+
+void
+A3MotionUIComponent::saveSlotAsAction ()
+{
+  auto const channel = static_cast<index_t> (_browserField.first);
+  auto const slot = static_cast<index_t> (_browserField.second);
+
+  if (channel >= _patterns.size () || slot >= _patterns[channel].size ())
+    return;
+
+  auto const &pattern = _patterns[channel][slot];
+  if (!pattern)
+    return;
+
+  // An action is the clip as it stands: dial it the way you want ACT to make
+  // it sound, and keep that. No second vocabulary to learn, and no way for the
+  // two to drift apart.
+  actionsDir ().createDirectory ();
+
+  Clip action;
+  action.name = freeClipName (actionsDir (), "Action").toStdString ();
+  action.settings = clipSettingsFrom (*pattern);
+
+  auto const file
+      = actionsDir ().getChildFile (juce::String (action.name) + ".json");
+  if (!ClipFile::save (action, file))
+    {
+      std::cerr << "could not write action " << file.getFullPathName ()
+                << std::endl;
+      return;
+    }
+
+  _slotActionFile[channel][slot] = file;
+  refreshBrowser ();
+}
+
+void
 A3MotionUIComponent::updateActionPage ()
 {
   if (!_action)
@@ -2076,6 +2189,11 @@ A3MotionUIComponent::updateActionPage ()
       (pattern ? pattern->getActMode () : defaults.actMode) == ActMode::Hold
           ? 1
           : 0);
+
+  auto const &action = _slotActionFile[channel][slot];
+  _action->setActionName (action.existsAsFile ()
+                              ? action.getFileNameWithoutExtension ()
+                              : juce::String{});
 }
 
 void

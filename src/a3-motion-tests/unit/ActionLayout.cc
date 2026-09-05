@@ -65,17 +65,16 @@ TEST (ActionLayout, TheControlsReadLeftToRight)
   EXPECT_LE (l.controls.back ().getRight (), 768);
 }
 
-// The picture is above the controls and clear of them: a curve with a knob
-// drawn over it is a curve you cannot read.
-TEST (ActionLayout, ThePictureSitsClearAboveTheControls)
+// What the slot fires is named above the controls and clear of them.
+TEST (ActionLayout, TheActionFieldSitsClearAboveTheControls)
 {
   auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f);
 
-  ASSERT_FALSE (l.envelopeGraphic.isEmpty ());
+  ASSERT_FALSE (l.actionField.isEmpty ());
   for (auto const &control : l.controls)
     {
-      EXPECT_LE (l.envelopeGraphic.getBottom (), control.getY ());
-      EXPECT_FALSE (l.envelopeGraphic.intersects (control));
+      EXPECT_LE (l.actionField.getBottom (), control.getY ());
+      EXPECT_FALSE (l.actionField.intersects (control));
     }
 }
 
@@ -85,7 +84,7 @@ TEST (ActionLayout, NothingEscapesThePage)
   auto const page = juce::Rectangle<int>{ 0, 0, 640, 200 };
   auto const l = layOutActionPage (page, headerSize, 14.f, 1.f);
 
-  EXPECT_TRUE (page.contains (l.envelopeGraphic));
+  EXPECT_TRUE (page.contains (l.actionField));
   for (auto const &control : l.controls)
     EXPECT_TRUE (page.contains (control));
 }

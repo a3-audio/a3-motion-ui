@@ -88,7 +88,13 @@ public:
   /** The set that is loaded, shown over the eight clips it filled. */
   void setSessionName (juce::String const &name);
 
+  /** Light the word that matches what setEntries() was just handed. */
+  void setShowingActions (bool actions);
+
   std::function<void ()> onSessionPressed;
+  /** The list beside the fields should show clips, or actions. */
+  std::function<void ()> onClipsChosen;
+  std::function<void ()> onActionsChosen;
   std::function<void (index_t channel, index_t slot)> onFieldChosen;
   std::function<void (int index)> onEntryChosen;
   /** What the three keys under the list say, and which of them can be
@@ -131,12 +137,16 @@ private:
   int _scrollOffset = 0;
   int _selectedEntry = -1;
   std::vector<bool> _settingsOnly;
+  /** Which of the two words over the list is lit. */
+  bool _showingActions = false;
 
   std::array<std::array<std::unique_ptr<TouchControl>, numPadSlots>,
              numChannelColumns>
       _fieldTouch;
   std::vector<std::unique_ptr<TouchControl>> _rowTouch;
   std::unique_ptr<TouchControl> _sessionTouch;
+  std::unique_ptr<TouchControl> _clipsTabTouch;
+  std::unique_ptr<TouchControl> _actionsTabTouch;
   std::unique_ptr<TouchControl> _renameTouch;
   std::unique_ptr<TouchControl> _saveTouch;
   std::unique_ptr<TouchControl> _loadTouch;

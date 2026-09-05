@@ -69,6 +69,12 @@ struct BrowserLayout
   int visibleRows = 0;
   int rowHeight = 0;
 
+  /** What the list beside them is showing. Two words over the list rather
+   *  than a mode you have to remember: clips are what a slot holds, actions
+   *  are what ACT does to it, and both are chosen the same way. */
+  juce::Rectangle<int> clipsTab;
+  juce::Rectangle<int> actionsTab;
+
   /** The strip along the bottom of the list: what can be done to what is
    *  selected. */
   juce::Rectangle<int> renameButton;

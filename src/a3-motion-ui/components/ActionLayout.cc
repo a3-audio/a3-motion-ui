@@ -59,10 +59,9 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
         row.removeFromLeft (gap);
     }
 
-  // Clear of the row, not touching it: a curve with a knob drawn over it is a
-  // curve you cannot read.
+  // Clear of the row, not touching it.
   content.removeFromBottom (gap);
-  out.envelopeGraphic = content;
+  out.actionField = content;
 
   // Generous, because the page is: the knob takes the room a whole page can
   // give it rather than the sliver a third of a bar can.

@@ -39,6 +39,17 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
   auto area = bounds;
   auto fieldArea = area.removeFromLeft (area.getWidth () * 9 / 20);
   area.removeFromLeft (gap * 2);
+
+  // Two words over the list, on the same line the session field sits on, so
+  // the page reads across at one height.
+  auto tabRow = area.removeFromTop (
+      juce::jmin (area.getHeight () / 4, buttonHeight));
+  auto const tabW = (tabRow.getWidth () - gap) / 2;
+  out.clipsTab = tabRow.removeFromLeft (tabW);
+  tabRow.removeFromLeft (gap);
+  out.actionsTab = tabRow.removeFromLeft (tabW);
+
+  area.removeFromTop (gap * 2);
   out.listArea = area;
 
   // The session over the eight it holds.

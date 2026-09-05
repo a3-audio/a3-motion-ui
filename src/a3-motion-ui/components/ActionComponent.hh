@@ -31,10 +31,9 @@ namespace a3
 
 /** What the ACT key does, on a page of its own.
  *
- *  The envelope is a shape, so it is drawn as one, and the three values under
- *  it move the curve as they are turned. Reading a rise and a fall off two
- *  knob positions was always a translation the performer had to do in their
- *  head.
+ *  Which action clip the slot fires, and the envelope that fires it. The
+ *  action itself is chosen in the file menu beside the clips -- one place
+ *  where things are picked, rather than a second one here.
  *
  *  It decides nothing. A turn goes out as (control, increment) and lands in
  *  the same handler the clip bar's own controls reach.
@@ -69,12 +68,15 @@ public:
   /** 0 = one-shot, 1 = hold. */
   void setActMode (int mode);
 
+  /** Which action clip this slot fires; empty for none. */
+  void setActionName (juce::String const &name);
+
   std::function<void (int control, int increment)> onControlDragged;
   std::function<void (int control)> onControlDoubleTapped;
   std::function<void (int control)> onControlTapped;
 
 private:
-  void paintEnvelope (juce::Graphics &g);
+  void paintActionField (juce::Graphics &g);
 
   ActionLayout _layout;
 
@@ -86,6 +88,7 @@ private:
   int _decay = 3;
   float _max = 1.f;
   int _actMode = 0;
+  juce::String _actionName;
 
   std::array<std::unique_ptr<TouchControl>, numControls> _touch;
 };

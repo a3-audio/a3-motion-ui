@@ -190,6 +190,10 @@ private:
   /** Record's page gesture: to the take's face, or back off it. */
   void toggleRecordPage ();
   /** Push the shown clip's envelope and act mode to the ACTION page. */
+  /** Give the chosen field's slot an action, or take its action away. */
+  void assignActionEntry (juce::String const &name);
+  /** Keep the chosen slot's settings as a new action clip. */
+  void saveSlotAsAction ();
   void updateActionPage ();
   void applyActionControl (int control, int increment);
   void resetActionControl (int control);
@@ -228,6 +232,8 @@ private:
 
   /** Where the named sessions live, beside the takes they refer to. */
   juce::File sessionsDir () const;
+  /** Where action clips live, beside the clips and the sessions. */
+  juce::File actionsDir () const;
 
   /** Put the current arrangement away under a free name, and fetch one back.
    *
@@ -487,15 +493,23 @@ private:
   /** Which clip each slot was filled from, [channel][slot]. Empty for a slot
    *  holding nothing, or one holding a shape that has no clip. */
   std::vector<std::vector<juce::File> > _slotClipFile;
+  /** The action clip the ACT key fires on this slot, if any. Per slot,
+   *  not per clip: two slots on one clip can act differently. */
+  std::vector<std::vector<juce::File> > _slotActionFile;
 
   std::unique_ptr<BrowserComponent> _browser;
   /** Which field the next chosen clip lands in. */
   std::pair<int, int> _browserField{ 0, 0 };
-  /** What the browser's list is showing: the clips you can put in a slot, or
-   *  the sessions you can put in all eight. */
+  /** What the browser's list is showing: the clips you can put in a slot, the
+   *  actions the ACT key can fire on one, or the sessions you can put in all
+   *  eight. */
   enum class BrowserList
   {
     Clips,
+    /** Action clips -- what ACT does to a slot. Structurally a clip with no
+     *  shape: a set of settings, kept in actions/ rather than clips/ because
+     *  what it is for is different even though what it holds is the same. */
+    Actions,
     Sessions,
   };
   BrowserList _browserList = BrowserList::Clips;

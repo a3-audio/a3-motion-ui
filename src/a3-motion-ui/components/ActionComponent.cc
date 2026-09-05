@@ -110,6 +110,16 @@ ActionComponent::setEnvelope (int attackStep, int decayStep, float max)
 }
 
 void
+ActionComponent::setActionName (juce::String const &name)
+{
+  if (name == _actionName)
+    return;
+
+  _actionName = name;
+  repaint ();
+}
+
+void
 ActionComponent::setActMode (int mode)
 {
   if (mode == _actMode)
@@ -120,73 +130,43 @@ ActionComponent::setActMode (int mode)
 }
 
 void
-ActionComponent::paintEnvelope (juce::Graphics &g)
+ActionComponent::paintActionField (juce::Graphics &g)
 {
-  auto const area = _layout.envelopeGraphic.toFloat ();
-  if (area.isEmpty ())
+  auto const bounds = _layout.actionField;
+  if (bounds.isEmpty ())
     return;
 
-  // The two times share the drawing in the proportion they will actually run
-  // in, so a long attack against a short decay looks like one. A third of the
-  // width is left for the hold between them -- the accent does not fall the
-  // instant it has risen, and a curve that showed it doing so would be a lie
-  // about a one-shot.
-  auto const attackBars = envelopeBarsForStep (_attack);
-  auto const decayBars = envelopeBarsForStep (_decay);
-  auto const total = attackBars + decayBars;
-  auto const holdShare = 0.2f;
-  auto const rampShare = 1.f - holdShare;
+  g.setColour (toColour (theme ().textPrimary, 0.06f));
+  g.fillRoundedRectangle (bounds.toFloat (), 3.f);
+  g.setColour (toColour (theme ().textPrimary, 0.15f));
+  g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
 
-  auto const attackShare
-      = total > 0.f ? rampShare * attackBars / total : rampShare * 0.5f;
-  auto const decayShare = rampShare - attackShare;
+  auto const named = _actionName.isNotEmpty ();
 
-  auto const floorY = area.getBottom ();
-  auto const peakY = area.getBottom () - area.getHeight () * _max;
+  g.setColour (named ? _channelColour : toColour (theme ().textMuted, 0.5f));
+  g.setFont (juce::Font (juce::FontOptions (
+      juce::jmin (28.f, bounds.getHeight () / 3.f))));
+  // Not a control: it says what is loaded, and the loading happens in the file
+  // menu beside the clips, where everything else is chosen.
+  g.drawText (named ? _actionName : juce::String ("no action"), bounds,
+              juce::Justification::centred);
 
-  auto const startX = area.getX ();
-  auto const peakX = startX + area.getWidth () * attackShare;
-  auto const holdX = peakX + area.getWidth () * holdShare;
-  auto const endX = holdX + area.getWidth () * decayShare;
-
-  // The ground the curve stands on, so an envelope at zero still reads as an
-  // envelope rather than as an empty panel.
-  g.setColour (toColour (theme ().textMuted, 0.2f));
-  g.drawLine (startX, floorY, area.getRight (), floorY, 1.f);
-
-  juce::Path curve;
-  curve.startNewSubPath (startX, floorY);
-  curve.lineTo (peakX, peakY);
-  curve.lineTo (holdX, peakY);
-  curve.lineTo (endX, floorY);
-
-  // Filled under the line as well as drawn: what the accent does is an amount
-  // over time, and an area says amount where a line says only shape.
-  auto filled = curve;
-  filled.lineTo (startX, floorY);
-  filled.closeSubPath ();
-  g.setColour (_channelColour.withAlpha (0.18f));
-  g.fillPath (filled);
-
-  g.setColour (_channelColour);
-  g.strokePath (curve, juce::PathStrokeType (2.f));
-
-  // Where the peak stands, written where the peak is: the max knob says the
-  // same number, and the two have to agree at a glance.
   g.setColour (toColour (theme ().textMuted, 0.7f));
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (14.f, area.getHeight () / 6.f))));
-  g.drawText (juce::String (juce::roundToInt (_max * 100.f)) + "%",
-              juce::Rectangle<float> (peakX, peakY - area.getHeight () / 6.f,
-                                      area.getWidth () * holdShare,
-                                      area.getHeight () / 6.f),
+      juce::jmin (12.f, bounds.getHeight () / 6.f))));
+  g.drawText ("action", bounds.withTrimmedBottom (bounds.getHeight () * 3 / 4),
               juce::Justification::centred);
 }
 
 void
 ActionComponent::paint (juce::Graphics &g)
 {
-  paintEnvelope (g);
+  // Solid, because this covers the clip bar's sections rather than sitting
+  // beside them: a page that does not fill every pixel shows them through its
+  // own gaps.
+  g.fillAll (toColour (theme ().background));
+
+  paintActionField (g);
 
   auto const &metrics = _layout.metrics;
 
