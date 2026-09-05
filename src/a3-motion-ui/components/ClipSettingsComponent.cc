@@ -170,30 +170,44 @@ ClipSettingsComponent::createTouchControls ()
       onControlTapped (elevationIndex, -1);
   };
 
-  // The graphic is a control: a finger on it says where the middle of the
-  // trajectory should sit. Absolute, because it is a picture of where things
-  // are -- touching a height means that height, not "a bit further". A drag
-  // keeps setting it, so it can be dialled in without lifting.
-  auto const setBaseFrom = [this] (juce::Point<int> at) {
-    if (!onElevationBaseSet)
-      return;
-
-    // The point arrives relative to the control, which stands on the graphic
-    // cell, so the cell's own origin is what it has to be measured against.
-    // Inside what the clips have left: the axis may not stand where the
-    // sound cannot go.
+  // The graphic is a control, and the two gestures do different jobs. A tap
+  // says roughly where: it jumps the axis to the height under the finger,
+  // because the graphic is a picture of where things are. A drag arrives: it
+  // moves in small steps from wherever the axis already is, since at a tap's
+  // resolution -- one pixel of a small circle -- there is no arriving, only
+  // jumping.
+  auto const band = [this] {
     auto const low = std::clamp (_elevationClipTop, 0.f, 1.f);
     auto const high = 1.f - std::clamp (_elevationClipBottom, 0.f, 1.f);
-
-    onElevationBaseSet (elevationBaseAt (
-        _layout.elevationGraphic.withZeroOrigin (), at.y, low, high));
+    return std::pair<float, float>{ juce::jmin (low, high),
+                                    juce::jmax (low, high) };
   };
 
   _elevationGraphicTouch->onTapAt
-      = [setBaseFrom] (int, int, juce::Point<int> at) { setBaseFrom (at); };
+      = [this, band] (int, int, juce::Point<int> at) {
+          if (!onElevationBaseSet)
+            return;
+
+          auto const bounds = band ();
+          onElevationBaseSet (snapElevationBase (elevationBaseAt (
+              _layout.elevationGraphic.withZeroOrigin (), at.y, bounds.first,
+              bounds.second)));
+        };
+
   _elevationGraphicTouch->onDragIncrement
-      = [this, setBaseFrom] (int, int, int) {
-          setBaseFrom (_elevationGraphicTouch->getMouseXYRelative ());
+      = [this, band] (int, int, int increment) {
+          if (!onElevationBaseSet)
+            return;
+
+          // Up is up: a drag counts upwards as positive, and up the circle is
+          // towards the north pole, which is the smaller fraction.
+          auto const bounds = band ();
+          auto const moved
+              = _elevationBase
+                - static_cast<float> (increment) * elevationBaseDragStep ();
+
+          onElevationBaseSet (snapElevationBase (
+              juce::jlimit (bounds.first, bounds.second, moved)));
         };
   addAndMakeVisible (*_elevationGraphicTouch);
 

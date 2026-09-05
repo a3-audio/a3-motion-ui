@@ -162,6 +162,22 @@ juce::Rectangle<int> elevationCircleBounds (juce::Rectangle<int> cell);
 float elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow = 0.f,
                        float bandHigh = 1.f);
 
+/** Pull a base that is nearly at ear height exactly onto it.
+ *
+ *  The equator is where a sound is level with the listener, and it is the one
+ *  place in the circle worth hitting exactly -- in a circle a few dozen
+ *  pixels tall it is otherwise a single row, which is not a target. The pull
+ *  lets go a little further out, or the equator would become a hole you
+ *  cannot set a value beside. */
+float snapElevationBase (float base);
+
+/** How far one drag step moves the axis.
+ *
+ *  A drag is finer than a tap on purpose: tapping says roughly where,
+ *  dragging is how you arrive. At a tap's resolution -- one pixel of a small
+ *  circle -- there is no arriving, only jumping. */
+float elevationBaseDragStep ();
+
 /** Whether a tap on this control flips it. True for the two-state ones —
  *  pole and flat. They used to be stepped like the rest, but stepping is
  *  tied to a direction (an encoder turned right meant South) and a tap has

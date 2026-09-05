@@ -21,6 +21,8 @@
 
 #include "ClipSettingsLayout.hh"
 
+#include <cmath>
+
 #include <array>
 #include <tuple>
 
@@ -125,6 +127,25 @@ elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow,
   auto const high = juce::jmax (bandLow, bandHigh);
 
   return juce::jlimit (low, high, juce::jlimit (0.f, 1.f, frac));
+}
+
+float
+snapElevationBase (float base)
+{
+  // Wide enough to land on with a finger, narrow enough that a value just
+  // above or below the ears can still be set.
+  constexpr float earHeight = 0.5f;
+  constexpr float pull = 0.02f;
+
+  return std::abs (base - earHeight) <= pull ? earHeight : base;
+}
+
+float
+elevationBaseDragStep ()
+{
+  // A little over two hundred steps across the sphere: a full sweep is a real
+  // gesture rather than a flick, and one step is under a degree of elevation.
+  return 0.0045f;
 }
 
 bool

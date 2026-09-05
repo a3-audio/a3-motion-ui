@@ -1302,3 +1302,36 @@ TEST (ClipSettingsLayout, CrossedClipsPinTheAxis)
   EXPECT_FLOAT_EQ (
       elevationBaseAt (bounds, circle.getBottom (), 0.6f, 0.6f), 0.6f);
 }
+
+// Ear height is where a sound is level with the listener, and it is the one
+// place in the circle worth being able to hit exactly. In a circle a few
+// dozen pixels tall it is a single row otherwise, which is not a target.
+TEST (ClipSettingsLayout, TheAxisSnapsToEarHeight)
+{
+  EXPECT_FLOAT_EQ (snapElevationBase (0.5f), 0.5f);
+  EXPECT_FLOAT_EQ (snapElevationBase (0.49f), 0.5f);
+  EXPECT_FLOAT_EQ (snapElevationBase (0.515f), 0.5f);
+
+  // And lets go again a little further out, or the equator would be a hole
+  // you cannot set a value next to.
+  EXPECT_FLOAT_EQ (snapElevationBase (0.42f), 0.42f);
+  EXPECT_FLOAT_EQ (snapElevationBase (0.6f), 0.6f);
+
+  // The poles are exact already -- they are what the clamp lands on.
+  EXPECT_FLOAT_EQ (snapElevationBase (0.f), 0.f);
+  EXPECT_FLOAT_EQ (snapElevationBase (1.f), 1.f);
+}
+
+// A drag is finer than a tap. Tapping says roughly where; dragging is how you
+// arrive, and at the tap's resolution -- one pixel of a small circle -- there
+// is no arriving, only jumping.
+TEST (ClipSettingsLayout, DraggingTheAxisIsFinerThanTapping)
+{
+  auto const step = elevationBaseDragStep ();
+
+  EXPECT_GT (step, 0.f);
+  EXPECT_LT (step, 0.02f) << "a drag step this large is a jump, not a nudge";
+
+  // Fine enough that the full range takes a real gesture rather than a flick.
+  EXPECT_GT (1.f / step, 100.f);
+}
