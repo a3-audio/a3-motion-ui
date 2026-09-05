@@ -425,6 +425,10 @@ private:
                        juce::Colour valueColour = {});
 
   void paintChannelFaces (juce::Graphics &g);
+  /** A block of controls set off from the card it stands on -- the strip's
+   *  knobs, its transport, the header's four faces. One painter rather than
+   *  three, so a group anywhere in the bar reads as the same kind of group. */
+  void paintSetOffFrame (juce::Graphics &g, juce::Rectangle<int> bounds);
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
                           juce::String const &text, bool isSelected);
 

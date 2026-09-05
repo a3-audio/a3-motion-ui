@@ -214,57 +214,60 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   auto headerArea = area.removeFromTop (headerH);
 
-  // Left to right, in the order they are reached for: the folder, the three
-  // views of the clip, the two slots, then the four things you do to it. The
-  // browser leads because it is where a set begins; the transport closes
-  // because it is what you touch while everything else is already decided.
+  // Left to right, in the order they are reached for: whose clip -- the four
+  // faces, framed together -- then the five views of it, the folder closing
+  // the row because it is the way out of the clip you are on.
   auto const headerGap = juce::jmax (2, headerH / 12);
 
-  // Square keys for everything that is a mark rather than a word: the folder,
-  // the two slots, the four transport marks. A slot is "1" and "2" now -- the
-  // word "Slot" was three quarters of a key spent saying what the two keys
-  // being side by side already says.
-  auto const keyW = headerH;
-  auto const takeKey = [&headerArea, keyW, headerGap] () {
-    auto const key = headerArea.removeFromLeft (keyW);
-    headerArea.removeFromLeft (headerGap);
-    return key;
-  };
+  // Two kinds of key, each one size. The five views switch what the settings
+  // area shows; the four faces switch which clip it is showing. They share a
+  // height because a hand goes along the row in one sweep, and the faces are
+  // narrower and framed because a group that reads as a group can afford to
+  // be -- see channelFacesFrame.
+  constexpr int numViews = 5;
+  constexpr int numFaces = static_cast<int> (numChannelColumns);
 
-  // Eight keys, all one size: four channel faces, three views and the folder.
-  // A hand goes to all of them in the same row, and keys that are not the
-  // same size read as several rows that happen to be next to each other.
-  //
-  // The faces replaced CLIP and the two shared slot keys. CLIP meant "show
-  // me the clip" and you had to remember whose; a face says whose and which
-  // slot, with all four in front of you.
-  constexpr int headerKeys = static_cast<int> (numChannelColumns) + 4;
-  auto const keySpan
-      = juce::jmax (fingertipSize,
-                    (headerArea.getWidth () - headerGap * (headerKeys - 1))
-                        / headerKeys);
+  // Measured in view-widths so the two sizes stay in proportion at every
+  // screen: a face is three quarters of a view. Ten gaps -- the frame's two
+  // edges, three between the faces, one before the views, four between them.
+  auto const viewSpan = juce::jmax (
+      fingertipSize,
+      (headerArea.getWidth () - headerGap * 10) * 4
+          / (numFaces * 3 + numViews * 4));
+  auto const faceSpan = juce::jmax (fingertipSize, viewSpan * 3 / 4);
 
-  auto const takeHeaderKey = [&headerArea, keySpan, headerGap] {
-    auto const key = headerArea.removeFromLeft (keySpan);
-    headerArea.removeFromLeft (headerGap);
-    return key;
-  };
+  auto facesFrame = headerArea.removeFromLeft (
+      faceSpan * numFaces + headerGap * (numFaces + 1));
+  out.channelFacesFrame = facesFrame;
+  headerArea.removeFromLeft (headerGap);
 
+  facesFrame.removeFromLeft (headerGap);
   for (size_t channel = 0; channel < numChannelColumns; ++channel)
-    out.channelFaces[channel] = takeHeaderKey ();
+    {
+      out.channelFaces[channel] = facesFrame.removeFromLeft (faceSpan);
+      facesFrame.removeFromLeft (headerGap);
+    }
 
-  out.tabRecord = takeHeaderKey ();
+  auto const takeView = [&headerArea, viewSpan, headerGap] {
+    auto const key = headerArea.removeFromLeft (viewSpan);
+    headerArea.removeFromLeft (headerGap);
+    return key;
+  };
+
+  // The clip's own view leads the row: it is the one the other two are
+  // variations on, and the faces beside it have just said whose clip.
+  out.tabClip = takeView ();
+  out.tabRecord = takeView ();
   // Between REC and PADS: ACTION is another way of looking at the clip, and
   // PADS is the view that is about something else.
-  out.tabAction = takeHeaderKey ();
-  out.tabController = takeHeaderKey ();
+  out.tabAction = takeView ();
+  out.tabController = takeView ();
 
   // The folder closes the row. It is the way *out* of the clip you are on,
   // so it ends the row rather than leading it -- and it stands where the slot
   // keys used to, which is where a hand already goes for "something else".
-  out.tabBrowser = takeHeaderKey ();
+  out.tabBrowser = takeView ();
 
-  out.tabClip = {};
   for (index_t slot = 0; slot < numPadSlots; ++slot)
     out.slotButtons[slot] = {};
 

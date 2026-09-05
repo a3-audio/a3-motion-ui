@@ -241,6 +241,7 @@ TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
     {
       row.push_back (l.channelFaces[ch]);
     }
+  row.push_back (l.tabClip);
   row.push_back (l.tabRecord);
   row.push_back (l.tabAction);
   row.push_back (l.tabController);
@@ -770,7 +771,7 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
       auto const layout
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
-      for (auto const &tab : { layout.tabRecord,
+      for (auto const &tab : { layout.tabClip, layout.tabRecord,
                                layout.tabAction, layout.tabController })
         {
           EXPECT_GE (tab.getWidth (), fingertipSize) << "width " << width;
@@ -778,7 +779,8 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
         }
 
       // In reading order, none of them overlapping.
-      EXPECT_LE (layout.channelFaces[0].getRight (), layout.tabRecord.getX ());
+      EXPECT_LE (layout.channelFaces[0].getRight (), layout.tabClip.getX ());
+      EXPECT_LE (layout.tabClip.getRight (), layout.tabRecord.getX ());
       EXPECT_LE (layout.tabRecord.getRight (), layout.tabAction.getX ());
       EXPECT_LE (layout.tabAction.getRight (), layout.tabController.getX ());
     }
@@ -1256,14 +1258,58 @@ TEST (ClipSettingsLayout, TheHeaderCarriesAFaceForEveryChannel)
         << "channel " << ch << " is out of order";
 }
 
-// CLIP is gone -- a face says the same thing and says whose.
-TEST (ClipSettingsLayout, ThereIsNoClipTabAnyMore)
+// CLIP is back, and the faces mean something else than they did.
+//
+// They were built as the clip tab's replacement -- "show me this channel's
+// clip" -- which only made sense while the clip view was the only thing they
+// could lead to. They are the selector for the whole settings area now: which
+// clip REC, ACTION and CLIP are all describing. That leaves the clip view
+// itself without a way back to it from the pads or the browser, so it has its
+// own key again, standing where the row of views begins.
+TEST (ClipSettingsLayout, TheClipTabStandsAtTheHeadOfTheViews)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_TRUE (l.tabClip.isEmpty ());
+  ASSERT_FALSE (l.tabClip.isEmpty ());
+  EXPECT_GT (l.tabClip.getX (), l.channelFaces[numChannelColumns - 1].getRight ());
+  EXPECT_LT (l.tabClip.getRight (), l.tabRecord.getX () + 1);
+
+  EXPECT_GE (l.tabClip.getWidth (), fingertipSize);
+  EXPECT_EQ (l.tabClip.getWidth (), l.tabRecord.getWidth ());
+  EXPECT_EQ (l.tabClip.getY (), l.tabRecord.getY ());
+  EXPECT_EQ (l.tabClip.getHeight (), l.tabRecord.getHeight ());
+
   EXPECT_TRUE (l.slotButtons[0].isEmpty ())
       << "the shared slot keys moved into the channel faces";
+}
+
+// The four faces stand together in a frame of their own, the way the global
+// strip's two blocks do.
+//
+// Without it, nine keys in a row read as nine of the same thing -- and they
+// are not: five of them choose what you are looking at, four choose what it
+// is you are looking at. The frame is what says so, and it is what lets the
+// faces be narrower without reading as keys that came out wrong.
+TEST (ClipSettingsLayout, TheFacesStandTogetherInAFrameOfTheirOwn)
+{
+  for (int width : { 768, 1024, 1280 })
+    {
+      auto const l
+          = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
+
+      ASSERT_FALSE (l.channelFacesFrame.isEmpty ()) << "width " << width;
+
+      for (size_t ch = 0; ch < numChannelColumns; ++ch)
+        EXPECT_TRUE (l.channelFacesFrame.contains (l.channelFaces[ch]))
+            << "face " << ch << " at width " << width;
+
+      // Clear of the views: a frame that ran under the CLIP key would say the
+      // key belonged to the group.
+      EXPECT_LE (l.channelFacesFrame.getRight (), l.tabClip.getX ())
+          << "width " << width;
+      EXPECT_TRUE (l.clipBounds.contains (l.channelFacesFrame))
+          << "width " << width;
+    }
 }
 
 // The folder goes to the far right, where the slot keys were. It is the way
@@ -1289,7 +1335,8 @@ TEST (ClipSettingsLayout, TheThreeViewsStandBetweenThem)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_GT (l.tabRecord.getX (), l.channelFaces[numChannelColumns - 1].getX ());
+  EXPECT_GT (l.tabClip.getX (), l.channelFaces[numChannelColumns - 1].getX ());
+  EXPECT_GT (l.tabRecord.getX (), l.tabClip.getX ());
   EXPECT_GT (l.tabAction.getX (), l.tabRecord.getX ());
   EXPECT_GT (l.tabController.getX (), l.tabAction.getX ());
 }
@@ -1316,36 +1363,47 @@ TEST (ClipSettingsLayout, EveryChannelHasAFaceOnEveryPage)
         }
 
       // Before the views, which are before the folder.
-      EXPECT_LE (previousRight, l.tabRecord.getX ());
+      EXPECT_LE (previousRight, l.tabClip.getX ());
     }
 }
 
-// Every key in the header row is the same size. Four faces, three words and
-// the folder are eight things a hand goes to in the same row, and a row of
-// keys that are not the same size reads as several rows that happen to be
-// next to each other.
-TEST (ClipSettingsLayout, TheHeaderKeysAreAllOneSize)
+// Two kinds of key in the row, and each kind is one size.
+//
+// It was one size for all eight, which was right while they were all the same
+// kind of thing. They are not any more: the five views switch what the area
+// shows, the four faces switch which clip it shows. Same height, because they
+// share a row and a hand goes along it in one sweep; the faces narrower and
+// framed, because a group that reads as a group can afford to.
+TEST (ClipSettingsLayout, TheHeaderHasTwoKindsOfKeyAndEachIsOneSize)
 {
   for (int width : { 768, 1024, 1280 })
     {
       auto const l
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
-      std::vector<juce::Rectangle<int> > keys;
-      for (auto const &face : l.channelFaces)
-        keys.push_back (face);
-      keys.push_back (l.tabRecord);
-      keys.push_back (l.tabAction);
-      keys.push_back (l.tabController);
-      keys.push_back (l.tabBrowser);
+      std::vector<juce::Rectangle<int> > views{ l.tabClip, l.tabRecord,
+                                                l.tabAction, l.tabController,
+                                                l.tabBrowser };
 
-      for (size_t i = 1; i < keys.size (); ++i)
-        {
-          EXPECT_EQ (keys[i].getWidth (), keys[0].getWidth ())
-              << "key " << i << " at width " << width;
-          EXPECT_EQ (keys[i].getHeight (), keys[0].getHeight ())
-              << "key " << i << " at width " << width;
-        }
+      for (size_t i = 1; i < views.size (); ++i)
+        EXPECT_EQ (views[i].getWidth (), views[0].getWidth ())
+            << "view " << i << " at width " << width;
+
+      for (size_t ch = 1; ch < numChannelColumns; ++ch)
+        EXPECT_EQ (l.channelFaces[ch].getWidth (),
+                   l.channelFaces[0].getWidth ())
+            << "face " << ch << " at width " << width;
+
+      // Narrower than a view, and still a fingertip: the row is hit mid-set.
+      EXPECT_LT (l.channelFaces[0].getWidth (), views[0].getWidth ())
+          << "width " << width;
+      EXPECT_GE (l.channelFaces[0].getWidth (), fingertipSize)
+          << "width " << width;
+
+      // One height throughout -- that part does not change.
+      for (auto const &key : views)
+        EXPECT_EQ (key.getHeight (), l.channelFaces[0].getHeight ())
+            << "width " << width;
     }
 }
 

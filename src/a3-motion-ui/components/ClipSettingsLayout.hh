@@ -263,8 +263,23 @@ struct ClipSettingsLayout
    *  already on turns it over. */
   std::array<juce::Rectangle<int>, numChannelColumns> channelFaces;
 
-  /** Empty. CLIP is gone -- see channelFaces. Kept as a field so nothing
-   *  that reads the layout has to special-case its absence. */
+  /** The frame the four faces stand in, the way the global strip's knobs and
+   *  transport each stand in one.
+   *
+   *  Nine keys in a row read as nine of the same thing, and they are not:
+   *  five choose what the settings area shows, four choose *which clip* it is
+   *  showing. The frame is what says so -- and it is what lets the faces be
+   *  narrower than a view without reading as keys that came out wrong. */
+  juce::Rectangle<int> channelFacesFrame;
+
+  /** The clip's plainest view, and the head of the row of views.
+   *
+   *  It was removed when the faces arrived, on the reasoning that a face said
+   *  "show me this channel's clip" and said whose. That held only while the
+   *  clip view was the one thing a face could lead to. A face now selects the
+   *  clip that REC, ACTION and CLIP alike describe, so it no longer answers
+   *  "which view" at all -- and without this key there would be no way back
+   *  to the clip's own page from the pads or the browser. */
   juce::Rectangle<int> tabClip;
   juce::Rectangle<int> tabRecord;
   /** The clip's fourth view: what ACT does, and the envelope behind it. */

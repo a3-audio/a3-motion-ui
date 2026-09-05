@@ -813,7 +813,13 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
                           key, _transportPlaying);
     }
 
+  // The faces stand in a frame of their own: the five keys beside them choose
+  // what the settings area shows, these four choose which clip it is showing,
+  // and nine keys in an unbroken row would read as one kind of thing.
+  paintSetOffFrame (g, _layout.channelFacesFrame);
   paintChannelFaces (g);
+
+  paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
   paintTab (_layout.tabRecord, "REC", _page == BarPage::Record);
   paintTab (_layout.tabAction, "ACTION", _page == BarPage::Action);
   paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
@@ -965,6 +971,19 @@ ClipSettingsComponent::setChannelFaces (
 }
 
 void
+ClipSettingsComponent::paintSetOffFrame (juce::Graphics &g,
+                                         juce::Rectangle<int> bounds)
+{
+  if (bounds.isEmpty ())
+    return;
+
+  g.setColour (toColour (theme ().textPrimary, 0.04f));
+  g.fillRoundedRectangle (bounds.toFloat (), 4.f);
+  g.setColour (toColour (theme ().textPrimary, 0.12f));
+  g.drawRoundedRectangle (bounds.toFloat (), 4.f, 1.f);
+}
+
+void
 ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
 {
   for (size_t channel = 0; channel < numChannelColumns; ++channel)
@@ -1012,18 +1031,8 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // Two blocks, each in a frame of its own: the values above, the things you
   // do below. Set off from the card rather than boxed in it -- a heavier edge
   // would make the strip read as two panels that happen to touch.
-  auto const frame = [&g, this] (juce::Rectangle<int> bounds) {
-    if (bounds.isEmpty ())
-      return;
-
-    g.setColour (toColour (theme ().textPrimary, 0.04f));
-    g.fillRoundedRectangle (bounds.toFloat (), 4.f);
-    g.setColour (toColour (theme ().textPrimary, 0.12f));
-    g.drawRoundedRectangle (bounds.toFloat (), 4.f, 1.f);
-  };
-
-  frame (_layout.channelGridFrame);
-  frame (_layout.transportFrame);
+  paintSetOffFrame (g, _layout.channelGridFrame);
+  paintSetOffFrame (g, _layout.transportFrame);
 
   // Through textCell like every other control in the bar: handed the whole
   // remaining column instead, the value floated in the middle and its caption

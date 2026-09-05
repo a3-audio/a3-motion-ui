@@ -390,19 +390,26 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // two channels in one move each. The two keys used to be shared, and
   // choosing slot 2 chose it for whichever channel you happened to be on.
   _clipSettings->onChannelFaceTapped = [this] (index_t channel) {
-    auto const alreadyShown = channel == _clipSettingsChannel
-                              && _barPage != BarPage::Controller
-                              && _barPage != BarPage::Browser;
+    // The faces select the clip the settings area is describing, whichever
+    // view is open -- CLIP, REC and ACTION are three ways of looking at one
+    // clip, and which clip that is is a question they share. A face used to
+    // drag ACTION back to CLIP, which meant the one page where you most often
+    // want to hear another channel's clip was the one page you could not stay
+    // on while choosing it.
+    auto const describesAClip = _barPage == BarPage::Clip
+                                || _barPage == BarPage::Record
+                                || _barPage == BarPage::Action;
 
-    if (alreadyShown)
+    if (describesAClip && channel == _clipSettingsChannel)
       _channelSlot[channel]
           = static_cast<index_t> ((_channelSlot[channel] + 1) % numPadSlots);
 
     selectClip (channel, _channelSlot[channel]);
 
-    // From the pads page, the browser or ACTION, reaching for a channel is
-    // reaching for its clip -- so the face brings that page back too.
-    if (_barPage != BarPage::Clip && _barPage != BarPage::Record)
+    // From the pads page or the browser there is no clip on show to select
+    // into, so reaching for a channel is reaching for its clip: the face
+    // brings that view back with it.
+    if (!describesAClip)
       showBarPage (BarPage::Clip);
   };
 
