@@ -83,6 +83,14 @@ public:
   /** Once per threshold crossed, with +1 or -1. */
   std::function<void (int primary, int secondary, int increment)>
       onDragIncrement;
+  /** Every movement, with where the finger is now.
+   *
+   *  For a control the finger *carries* rather than nudges -- the elevation
+   *  axis is the one so far. Increments cannot do that job: they arrive once
+   *  per threshold, so the thing being dragged lurches a step at a time and
+   *  never sits under the finger that is dragging it. */
+  std::function<void (int primary, int secondary, juce::Point<int> at)>
+      onDragTo;
   /** Coming off after a drag that emitted steps — where there is something
    *  to confirm. */
   /** The drag ended. Only after one: a press that never moved reports as

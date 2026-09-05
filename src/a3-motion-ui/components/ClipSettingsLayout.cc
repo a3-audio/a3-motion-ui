@@ -140,14 +140,6 @@ snapElevationBase (float base)
   return std::abs (base - earHeight) <= pull ? earHeight : base;
 }
 
-float
-elevationBaseDragStep ()
-{
-  // A little over two hundred steps across the sphere: a full sweep is a real
-  // gesture rather than a flick, and one step is under a degree of elevation.
-  return 0.0045f;
-}
-
 bool
 tapTogglesValue (int sectionIndex, int subIndex)
 {

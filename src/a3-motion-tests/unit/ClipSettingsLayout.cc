@@ -1322,16 +1322,9 @@ TEST (ClipSettingsLayout, TheAxisSnapsToEarHeight)
   EXPECT_FLOAT_EQ (snapElevationBase (1.f), 1.f);
 }
 
-// A drag is finer than a tap. Tapping says roughly where; dragging is how you
-// arrive, and at the tap's resolution -- one pixel of a small circle -- there
-// is no arriving, only jumping.
-TEST (ClipSettingsLayout, DraggingTheAxisIsFinerThanTapping)
-{
-  auto const step = elevationBaseDragStep ();
-
-  EXPECT_GT (step, 0.f);
-  EXPECT_LT (step, 0.02f) << "a drag step this large is a jump, not a nudge";
-
-  // Fine enough that the full range takes a real gesture rather than a flick.
-  EXPECT_GT (1.f / step, 100.f);
-}
+// The axis follows the finger rather than stepping. It was increments for a
+// moment, and those arrive once per drag threshold -- twelve pixels apart --
+// so the line lurched a step at a time and never sat where the finger was.
+// What replaced them is TouchControl::onDragTo, and what it hands over is a
+// position, so the maths is elevationBaseAt() either way. The cases above
+// cover it.
