@@ -184,7 +184,8 @@ public:
   void setMotionSubIndex (int subIndex);
 
   /** Which stretch-filling a take will use — 0 glide, 1 hard. */
-  void setMotionFade (int sixteenths);
+  /** How far a gap may be for the fade to draw through it, 0..1. */
+  void setMotionFadeReach (float reach);
 
   /** How fast the trajectory turns under the blob, as TrajectorySpin's
    *  signed step: 0 stands still, the sign is the direction. */
@@ -482,7 +483,7 @@ private:
   int _motionActMode = 0;
   int _motionEndAction = 0;
   int _motionSubIndex = 0;
-  int _motionFade = 0;
+  float _motionFadeReach = 0.25f;
   int _motionSpin = 0;
   int _motionSwell = 0;
   int _motionAttack = 0;

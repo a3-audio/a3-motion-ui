@@ -45,7 +45,8 @@ aCircleWithSettings ()
     }
 
   pattern->setSpin (3);
-  pattern->setFadeSixteenths (8);
+  pattern->setFadeReach (0.8f);
+  pattern->setBridgeBias (-2);
   pattern->setSpeedLog2 (-2);
   pattern->setRotate (0.25f);
   pattern->setReach (0.4f);

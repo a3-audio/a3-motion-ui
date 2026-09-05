@@ -39,12 +39,32 @@ TEST (PatternSpeedAndFade, APatternKnowsHowFastItPlays)
   EXPECT_EQ (pattern.getSpeedLog2 (), -2);
 }
 
-// In sixteenths of a beat, as the panel offers it -- not in ticks. Ticks come
-// out of the PPQN the take was written with, so a value in ticks means
-// something else on a device set up differently.
-TEST (PatternSpeedAndFade, APatternKnowsHowItsLoopCloses)
+// A distance, not a time. Sixteenths of a beat said how long a recording spent
+// closing its seam; the fade now says how far a gap may be for it to be drawn
+// through, which is a property of the movement rather than of the tempo -- and
+// means the same thing on a device set up differently.
+TEST (PatternSpeedAndFade, APatternKnowsHowFarItsFadeReaches)
 {
   Pattern pattern;
-  pattern.setFadeSixteenths (12);
-  EXPECT_EQ (pattern.getFadeSixteenths (), 12);
+  pattern.setFadeReach (0.75f);
+  EXPECT_FLOAT_EQ (pattern.getFadeReach (), 0.75f);
+
+  // Held inside the dial: a pot cannot ask for more than the whole sphere.
+  pattern.setFadeReach (1.5f);
+  EXPECT_FLOAT_EQ (pattern.getFadeReach (), 1.f);
+  pattern.setFadeReach (-0.5f);
+  EXPECT_FLOAT_EQ (pattern.getFadeReach (), 0.f);
+}
+
+// Bipolar like spin and swell, and held to the range the pot can reach.
+TEST (PatternSpeedAndFade, APatternKnowsWhereItsBridgesLead)
+{
+  Pattern pattern;
+  pattern.setBridgeBias (-3);
+  EXPECT_EQ (pattern.getBridgeBias (), -3);
+
+  pattern.setBridgeBias (9);
+  EXPECT_EQ (pattern.getBridgeBias (), 4);
+  pattern.setBridgeBias (-9);
+  EXPECT_EQ (pattern.getBridgeBias (), -4);
 }

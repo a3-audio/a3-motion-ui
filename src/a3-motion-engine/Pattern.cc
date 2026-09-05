@@ -163,40 +163,10 @@ Pattern::isTickWritten (index_t tick) const
   return tick < _written.size () && _written[tick];
 }
 
-UnwrittenSpan
-Pattern::getSeamSpan () const
-{
-  std::lock_guard<std::mutex> guard (_ticksMutex);
-  return _seamSpan;
-}
 
-void
-Pattern::setFadeBaseline (std::vector<Pos> positions)
-{
-  std::lock_guard<std::mutex> guard (_ticksMutex);
-  _fadeBaseline = std::move (positions);
-}
 
-std::vector<Pos>
-Pattern::getFadeBaseline () const
-{
-  std::lock_guard<std::mutex> guard (_ticksMutex);
-  return _fadeBaseline;
-}
 
-index_t
-Pattern::getFade () const
-{
-  std::lock_guard<std::mutex> guard (_ticksMutex);
-  return _fade;
-}
 
-void
-Pattern::setFade (index_t ticks)
-{
-  std::lock_guard<std::mutex> guard (_ticksMutex);
-  _fade = ticks;
-}
 
 PlayDirection
 Pattern::getPlayDirection () const
@@ -306,17 +276,7 @@ Pattern::setSpeedLog2 (int speedLog2)
   _speedLog2.store (speedLog2);
 }
 
-int
-Pattern::getFadeSixteenths () const
-{
-  return _fadeSixteenths.load ();
-}
 
-void
-Pattern::setFadeSixteenths (int sixteenths)
-{
-  _fadeSixteenths.store (sixteenths);
-}
 
 float
 Pattern::getPlaySign () const
@@ -432,26 +392,8 @@ Pattern::setEnvelopeMax (float value)
   _envelopeMax.store (std::clamp (value, 0.f, 1.f), std::memory_order_relaxed);
 }
 
-void
-Pattern::setSeamJoin (std::optional<index_t> tick)
-{
-  std::lock_guard<std::mutex> guard (_ticksMutex);
-  _seamJoin = tick;
-}
 
-std::optional<index_t>
-Pattern::getSeamJoin () const
-{
-  std::lock_guard<std::mutex> guard (_ticksMutex);
-  return _seamJoin;
-}
 
-void
-Pattern::setSeamSpan (UnwrittenSpan span)
-{
-  std::lock_guard<std::mutex> guard (_ticksMutex);
-  _seamSpan = span;
-}
 
 void
 Pattern::markComplete ()

@@ -522,9 +522,9 @@ ClipSettingsComponent::setMotionActMode (int mode)
 
 
 void
-ClipSettingsComponent::setMotionFade (int sixteenths)
+ClipSettingsComponent::setMotionFadeReach (float reach)
 {
-  _motionFade = juce::jlimit (0, 16, sixteenths);
+  _motionFadeReach = juce::jlimit (0.f, 1.f, reach);
   repaint ();
 }
 
@@ -1323,11 +1323,12 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
                         recordLengthNames[i], {},
                         _recordLengthLabel == recordLengthNames[i], isSelected);
 
-      // How much of the take's end is spent travelling back to where it began
-      // rather than jumping. It belongs to the recording, so it belongs here
-      // rather than among the movements in Motion.
+      // How far a gap may be for the fade to draw through it. Still drawn on
+      // the record page for now; it moves to the clip page with its bias, and
+      // the reason it used to sit here -- "it belongs to the recording" -- is
+      // exactly what stopped being true.
       paintMiniKnob (g, cells[1], metrics, caption::fade,
-                     (_motionFade / 16.f) * 2.f - 1.f, false,
+                     _motionFadeReach * 2.f - 1.f, false,
                      _trajectorySubIndex == 1, isSelected);
     }
   else

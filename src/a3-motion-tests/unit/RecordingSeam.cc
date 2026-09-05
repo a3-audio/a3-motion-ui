@@ -49,7 +49,7 @@ TEST (RecordingSeam, AMiddleSpanIsHeldEvenWhenGliding)
   pattern.setTick (0, at (0.f));
   pattern.setTick (4, at (1.f));
 
-  closeRecordingSeams (pattern, index_t{ 64 });
+  closeRecordingSeams (pattern);
 
   EXPECT_NEAR (pattern.getTick (2).x (), 0.f, 0.001f)
       << "the finger lifted here on purpose - that is a jump somebody played";
@@ -62,7 +62,7 @@ TEST (RecordingSeam, AMiddleSpanIsHeldWhenHard)
   pattern.setTick (0, at (0.f));
   pattern.setTick (4, at (1.f));
 
-  closeRecordingSeams (pattern, index_t{ 0 });
+  closeRecordingSeams (pattern);
 
   EXPECT_NEAR (pattern.getTick (2).x (), 0.f, 0.001f);
 }
@@ -77,27 +77,12 @@ TEST (RecordingSeam, TappedPositionsAreHeldNotToured)
   pattern.setTick (4, at (1.f));
   pattern.setTick (8, at (2.f));
 
-  closeRecordingSeams (pattern, index_t{ 64 });
+  closeRecordingSeams (pattern);
 
   EXPECT_NEAR (pattern.getTick (3).x (), 0.f, 0.001f);
   EXPECT_NEAR (pattern.getTick (7).x (), 1.f, 0.001f);
 }
 
-// The one span the setting decides: the take's own seam.
-TEST (RecordingSeam, TheSpanAcrossTheLoopPointGlides)
-{
-  Pattern pattern;
-  pattern.resize (16);
-  pattern.setTick (4, at (0.f));
-  pattern.setTick (8, at (4.f));
-
-  closeRecordingSeams (pattern, index_t{ 64 });
-
-  // From tick 8 round to tick 4: twelve ticks, so tick 14 is halfway-ish and
-  // must be somewhere between the two, not sitting on either.
-  EXPECT_GT (pattern.getTick (14).x (), 0.2f);
-  EXPECT_LT (pattern.getTick (14).x (), 3.8f);
-}
 
 TEST (RecordingSeam, TheSpanAcrossTheLoopPointHoldsWithoutAFade)
 {
@@ -106,7 +91,7 @@ TEST (RecordingSeam, TheSpanAcrossTheLoopPointHoldsWithoutAFade)
   pattern.setTick (4, at (0.f));
   pattern.setTick (8, at (4.f));
 
-  closeRecordingSeams (pattern, index_t{ 0 });
+  closeRecordingSeams (pattern);
 
   EXPECT_NEAR (pattern.getTick (14).x (), 4.f, 0.001f)
       << "held at the last thing played, then a jump at the loop point";
@@ -124,7 +109,7 @@ TEST (RecordingSeam, GlideLeavesNoTickUnfilledAcrossTheLoopPoint)
   for (index_t tick = 0; tick + 2 < numTicks; ++tick)
     pattern.setTick (tick, at (static_cast<float> (tick) / numTicks));
 
-  closeRecordingSeams (pattern, index_t{ 64 });
+  closeRecordingSeams (pattern);
 
   for (index_t tick = 0; tick < numTicks; ++tick)
     EXPECT_TRUE (pattern.getTick (tick).isValid ()) << "tick " << tick;
@@ -137,7 +122,7 @@ TEST (RecordingSeam, AFullyWrittenPatternIsLeftAlone)
   for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
     pattern.setTick (tick, at (0.25f));
 
-  closeRecordingSeams (pattern, index_t{ 64 });
+  closeRecordingSeams (pattern);
 
   for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
     EXPECT_NEAR (pattern.getTick (tick).x (), 0.25f, 0.001f);
@@ -148,7 +133,7 @@ TEST (RecordingSeam, APatternThatWroteNothingIsLeftAlone)
   Pattern pattern;
   pattern.resize (16);
 
-  closeRecordingSeams (pattern, index_t{ 64 });
+  closeRecordingSeams (pattern);
 
   EXPECT_FALSE (pattern.getTick (0).isValid ())
       << "nothing to interpolate between, so nothing invented";
@@ -162,7 +147,7 @@ TEST (RecordingSeam, ASingleWrittenTickFillsTheWholePattern)
   pattern.resize (16);
   pattern.setTick (3, at (0.7f));
 
-  closeRecordingSeams (pattern, index_t{ 64 });
+  closeRecordingSeams (pattern);
 
   for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
     EXPECT_NEAR (pattern.getTick (tick).x (), 0.7f, 0.001f) << "tick " << tick;
@@ -181,7 +166,7 @@ TEST (RecordingSeam, AFilledPatternReportsItsFullLength)
   pattern.setTick (2, Pos::fromCartesian (0.f, 0.f, 0.f));
   pattern.setTick (9, Pos::fromCartesian (1.f, 0.f, 0.f));
 
-  closeRecordingSeams (pattern, index_t{ 64 });
+  closeRecordingSeams (pattern);
 
   EXPECT_EQ (pattern.getLastUpdatedTick (), pattern.getNumTicks () - 1)
       << "otherwise playback squeezes the whole take into a fraction of it";
@@ -192,109 +177,24 @@ TEST (RecordingSeam, APatternThatWroteNothingKeepsItsLength)
   Pattern pattern;
   pattern.resize (16);
 
-  closeRecordingSeams (pattern, index_t{ 64 });
+  closeRecordingSeams (pattern);
 
   EXPECT_EQ (pattern.getLastUpdatedTick (), 0u) << "nothing was filled";
 }
 
-// ── the seam is a playback setting, not a recording one ─────────────────
+// ── the seam is a gap like any other ────────────────────────────────────
 //
-// Baking it in at the end of a take means it can never be changed again. The
-// pattern therefore remembers where its seam is, and the two positions at
-// either end of it are real ticks somebody played — so it can be filled
-// either way, at any time, as often as you like.
+// It used to be filled with a computed closing move, written straight into the
+// ticks. That made the fade a one-way door -- the take was changed, and the
+// only way back was a second copy of it kept beside the first. The seam is now
+// held like every other hole, and whether it is drawn through is read from the
+// clip at playback. Nothing writes over a take any more.
 
-TEST (SeamMode, APatternRemembersWhereItsSeamIs)
-{
-  Pattern pattern;
-  pattern.resize (16);
-  pattern.setTick (4, at (0.f));
-  pattern.setTick (8, at (4.f));
 
-  closeRecordingSeams (pattern, index_t{ 0 });
 
-  EXPECT_EQ (pattern.getSeamSpan ().begin, 9u);
-  EXPECT_EQ (pattern.getSeamSpan ().length, 11u) << "9..15 and 0..3";
-}
 
-TEST (SeamMode, SwitchingToGlideAfterwardsSmoothsTheSeam)
-{
-  Pattern pattern;
-  pattern.resize (16);
-  pattern.setTick (4, at (0.f));
-  pattern.setTick (8, at (4.f));
-  closeRecordingSeams (pattern, index_t{ 0 });
 
-  applyFade (pattern, index_t{ 64 });
 
-  EXPECT_GT (pattern.getTick (14).x (), 0.2f);
-  EXPECT_LT (pattern.getTick (14).x (), 3.8f);
-}
-
-TEST (SeamMode, SwitchingBackToHardRestoresTheJump)
-{
-  Pattern pattern;
-  pattern.resize (16);
-  pattern.setTick (4, at (0.f));
-  pattern.setTick (8, at (4.f));
-  closeRecordingSeams (pattern, index_t{ 64 });
-
-  applyFade (pattern, index_t{ 0 });
-
-  EXPECT_NEAR (pattern.getTick (14).x (), 4.f, 0.001f);
-}
-
-// Switching back and forth must not drift: each fill starts from the two
-// played positions, never from the last fill.
-TEST (SeamMode, SwitchingBackAndForthIsStable)
-{
-  Pattern pattern;
-  pattern.resize (16);
-  pattern.setTick (4, at (0.f));
-  pattern.setTick (8, at (4.f));
-  closeRecordingSeams (pattern, index_t{ 0 });
-
-  for (int round = 0; round < 5; ++round)
-    {
-      applyFade (pattern, index_t{ 64 });
-      applyFade (pattern, index_t{ 0 });
-    }
-
-  EXPECT_NEAR (pattern.getTick (14).x (), 4.f, 0.001f);
-  EXPECT_NEAR (pattern.getTick (4).x (), 0.f, 0.001f) << "played ticks untouched";
-  EXPECT_NEAR (pattern.getTick (8).x (), 4.f, 0.001f);
-}
-
-// The stretches somebody played a jump into are not the seam and must stay put
-// however often the setting is turned.
-TEST (SeamMode, MiddleSpansAreNeverTouchedAgain)
-{
-  Pattern pattern;
-  pattern.resize (16);
-  pattern.setTick (0, at (0.f));
-  pattern.setTick (4, at (1.f));
-  pattern.setTick (8, at (2.f));
-  closeRecordingSeams (pattern, index_t{ 0 });
-
-  applyFade (pattern, index_t{ 64 });
-
-  EXPECT_NEAR (pattern.getTick (2).x (), 0.f, 0.001f);
-  EXPECT_NEAR (pattern.getTick (6).x (), 1.f, 0.001f);
-}
-
-TEST (SeamMode, APatternWithoutASeamIsLeftAlone)
-{
-  Pattern pattern;
-  pattern.resize (16);
-  for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
-    pattern.setTick (tick, at (0.25f));
-  closeRecordingSeams (pattern, index_t{ 0 });
-
-  applyFade (pattern, index_t{ 64 });   // darf nicht abstuerzen
-
-  EXPECT_EQ (pattern.getSeamSpan ().length, 0u);
-  EXPECT_NEAR (pattern.getTick (8).x (), 0.25f, 0.001f);
-}
 
 // ── the seam has to survive a restart ───────────────────────────────────
 //
@@ -303,55 +203,7 @@ TEST (SeamMode, APatternWithoutASeamIsLeftAlone)
 // If it is not written down, a restart leaves whatever fill was last applied
 // and no way back.
 
-TEST (SeamMode, TheSeamSurvivesASaveAndLoad)
-{
-  auto const file
-      = juce::File::getSpecialLocation (juce::File::tempDirectory)
-            .getChildFile ("a3-motion-test-seam.svg");
-  file.deleteFile ();
 
-  // 128 ticks to the beat, so a pattern shorter than that saves as zero beats
-  // and will not load again.
-  auto written = std::make_shared<Pattern> ();
-  written->resize (512);
-  written->setTick (100, at (0.f));
-  written->setTick (200, at (4.f));
-  closeRecordingSeams (*written, index_t{ 0 });
-  auto const expected = written->getSeamSpan ();
-  ASSERT_GT (expected.length, 0u);
-
-  ASSERT_TRUE (PatternFile::save (written, file));
-  auto const loaded = PatternFile::load (file);
-  ASSERT_NE (loaded, nullptr);
-
-  EXPECT_EQ (loaded->getSeamSpan ().begin, expected.begin);
-  EXPECT_EQ (loaded->getSeamSpan ().length, expected.length);
-
-  file.deleteFile ();
-}
-
-// A pattern that never had a seam — a shipped shape, or a take that filled its
-// whole loop — must not acquire one from a file that does not mention it.
-TEST (SeamMode, AFileWithoutASeamLoadsWithoutOne)
-{
-  auto const file
-      = juce::File::getSpecialLocation (juce::File::tempDirectory)
-            .getChildFile ("a3-motion-test-noseam.svg");
-  file.deleteFile ();
-
-  auto written = std::make_shared<Pattern> ();
-  written->resize (512);
-  for (index_t tick = 0; tick < written->getNumTicks (); ++tick)
-    written->setTick (tick, at (0.25f));
-
-  ASSERT_TRUE (PatternFile::save (written, file));
-  auto const loaded = PatternFile::load (file);
-  ASSERT_NE (loaded, nullptr);
-
-  EXPECT_EQ (loaded->getSeamSpan ().length, 0u);
-
-  file.deleteFile ();
-}
 
 // Recording in Loop runs several passes, so the loop point gets written from
 // two different ones: the last tick carries an early pass and the first a late
@@ -395,108 +247,10 @@ float gapAtLoopPoint (Pattern const &pattern)
 }
 }
 
-TEST (RecordingSeam, TheLoopPointIsClosedEvenWhenBothSidesWereWritten)
-{
-  auto const ticks = circleWithAGapAtTheLoopPoint ();
-  Pattern pattern;
-  writeThrough (pattern, ticks);
-  auto const before = gapAtLoopPoint (pattern);
 
-  closeRecordingSeams (pattern, index_t{ 64 });
 
-  auto const step = typicalTrajectoryStep (ticks);
-  EXPECT_GT (before, trajectoryJumpThreshold (step))
-      << "the fixture has to start with a jump or this proves nothing";
-  EXPECT_LT (gapAtLoopPoint (pattern), trajectoryJumpThreshold (step));
-}
 
-// And it takes as long as the motion itself would: the closing arc moves at
-// the trajectory's own speed, so it does not read as a dash across the sphere.
-TEST (RecordingSeam, TheClosingGlideMovesAtTheTrajectorysOwnSpeed)
-{
-  auto const ticks = circleWithAGapAtTheLoopPoint ();
-  Pattern pattern;
-  writeThrough (pattern, ticks);
 
-  closeRecordingSeams (pattern, index_t{ 64 });
-
-  auto const step = typicalTrajectoryStep (ticks);
-  auto const threshold = trajectoryJumpThreshold (step);
-  for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
-    {
-      auto const here = pattern.getTick (tick);
-      auto const next = pattern.getTick ((tick + 1) % pattern.getNumTicks ());
-      auto const hop = std::sqrt (std::pow (here.x () - next.x (), 2.f)
-                                  + std::pow (here.y () - next.y (), 2.f));
-      EXPECT_LT (hop, threshold) << "tick " << tick;
-    }
-}
-
-TEST (RecordingSeam, AFadeOfZeroLeavesTheJoinAsItWasPlayed)
-{
-  auto const ticks = circleWithAGapAtTheLoopPoint ();
-  Pattern pattern;
-  writeThrough (pattern, ticks);
-  auto const before = gapAtLoopPoint (pattern);
-
-  closeRecordingSeams (pattern, index_t{ 0 });
-
-  EXPECT_NEAR (gapAtLoopPoint (pattern), before, 0.001f);
-}
-
-// A pass that already comes round to where it started is not touched -- there
-// is nothing to close, and overwriting its tail would be vandalism.
-TEST (RecordingSeam, AnAlreadyClosedLoopKeepsItsTail)
-{
-  std::vector<Pos> ticks;
-  for (int i = 0; i < 64; ++i)
-    {
-      auto const a = juce::MathConstants<float>::twoPi * i / 64.f;
-      ticks.push_back (
-          Pos::fromCartesian (std::cos (a) * 0.6f, std::sin (a) * 0.6f, 0.f));
-    }
-  Pattern pattern;
-  writeThrough (pattern, ticks);
-
-  closeRecordingSeams (pattern, index_t{ 64 });
-
-  for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
-    EXPECT_NEAR (pattern.getTick (tick).x (), ticks[tick].x (), 0.0001f)
-        << "tick " << tick;
-}
-
-// What the device actually records. Ticks run at about 277 Hz and a finger
-// reports at 60 to 120, so most ticks repeat the position of the one before
-// them. More than half of all steps are therefore exactly zero, and their
-// median -- the trajectory's "typical step" -- is zero too. True, and useless
-// as a speed: measured against it the closing glide could not be sized, and
-// the loop point was left open on every real take.
-TEST (RecordingSeam, ALoopPointClosesEvenWhenMostTicksRepeat)
-{
-  std::vector<Pos> ticks;
-  for (int i = 0; i < 256; ++i)
-    {
-      // Three quarters of a circle, but each position held for four ticks.
-      auto const a = juce::MathConstants<float>::twoPi * 0.75f
-                     * static_cast<float> (i / 4) / 64.f;
-      ticks.push_back (
-          Pos::fromCartesian (std::cos (a) * 0.6f, std::sin (a) * 0.6f, 0.f));
-    }
-
-  ASSERT_FLOAT_EQ (typicalTrajectoryStep (ticks), 0.f)
-      << "the fixture has to have a zero median or it proves nothing";
-  ASSERT_GT (typicalTrajectorySpeed (ticks), 0.f);
-
-  Pattern pattern;
-  writeThrough (pattern, ticks);
-  auto const before = gapAtLoopPoint (pattern);
-
-  closeRecordingSeams (pattern, index_t{ 64 });
-
-  EXPECT_GT (before, 0.5f);
-  EXPECT_LT (gapAtLoopPoint (pattern), 0.2f)
-      << "the loop point was left open because the median step is zero";
-}
 
 // The speed only counts the ticks that moved.
 TEST (RecordingSeam, SpeedIgnoresHeldTicks)
@@ -509,48 +263,6 @@ TEST (RecordingSeam, SpeedIgnoresHeldTicks)
   EXPECT_NEAR (typicalTrajectorySpeed (ticks), 0.1f, 0.001f);
 }
 
-// Recording in Loop runs several passes over the same ticks, so where it stops
-// is an edge: the ticks up to it carry the freshest pass and the ones after it
-// still carry the one before. Nothing is missing there -- 512 of 512 ticks
-// written, no gaps at all on a real take -- so filling holes never reached it,
-// and the seam sat at the loop point where there was nothing wrong.
-//
-// Measured on a real take: one step of 2.01 between two written neighbours,
-// against a 90th percentile of 0.105.
-TEST (RecordingSeam, TheSeamSitsWhereTheTakeStopped)
-{
-  // A full circle, then a second pass over the first quarter that ends
-  // somewhere else entirely: the edge is at tick 63, not at the loop point.
-  std::vector<Pos> ticks;
-  for (int i = 0; i < 256; ++i)
-    {
-      auto const a = juce::MathConstants<float>::twoPi * i / 256.f;
-      ticks.push_back (
-          Pos::fromCartesian (std::cos (a) * 0.6f, std::sin (a) * 0.6f, 0.f));
-    }
-  for (int i = 0; i < 64; ++i)
-    {
-      auto const a = juce::MathConstants<float>::twoPi * i / 256.f;
-      ticks[static_cast<size_t> (i)] = Pos::fromCartesian (
-          std::cos (a) * 0.6f - 1.2f, std::sin (a) * 0.6f, 0.f);
-    }
-
-  auto const edge = [] (Pattern const &p) {
-    auto const a = p.getTick (63);
-    auto const b = p.getTick (64);
-    return std::sqrt (std::pow (a.x () - b.x (), 2.f)
-                      + std::pow (a.y () - b.y (), 2.f));
-  };
-
-  Pattern pattern;
-  writeThrough (pattern, ticks);
-  ASSERT_GT (edge (pattern), 1.f) << "the fixture needs the edge it is about";
-
-  closeRecordingSeams (pattern, index_t{ 64 }, index_t{ 63 });
-
-  EXPECT_LT (edge (pattern), 0.3f)
-      << "the seam was put at the loop point, where nothing was wrong";
-}
 
 // And the fresh pass is what survives: the glide is written over the stale
 // material after the edge, never back into what was just played.
@@ -564,295 +276,90 @@ TEST (RecordingSeam, TheFreshPassIsNotOverwritten)
 
   Pattern pattern;
   writeThrough (pattern, ticks);
-  closeRecordingSeams (pattern, index_t{ 64 }, index_t{ 199 });
+  closeRecordingSeams (pattern, index_t{ 199 });
 
   for (index_t tick = 0; tick <= 199; ++tick)
     EXPECT_NEAR (pattern.getTick (tick).x (), ticks[tick].x (), 0.0001f)
         << "tick " << tick << " is inside the pass that was just played";
 }
 
-// A take is closed when it is recorded, and the file it is written to does not
-// keep it that way. The SVG stores a shape, not a recording: the writer cuts
-// it into segments at its jumps and drops the tick timing, and the reader
-// walks the segments end to end at a constant rate. The path then begins where
-// the first segment begins and ends where the last one begins -- two different
-// places, while the ticks they came from were the same one.
-//
-// Measured on a real take: nothing between tick 511 and tick 0 before saving,
-// 0.945 after loading it back. The reloaded pattern is what goes into the slot
-// and plays, so closing the take is not enough -- what comes back has to be
-// closed too.
-TEST (RecordingSeam, AReloadedTakeHasItsLoopPointClosedAgain)
-{
-  auto const ticks = circleWithAGapAtTheLoopPoint (256);
+// ── what replaces all of that ───────────────────────────────────────────
 
-  Pattern pattern;
-  writeThrough (pattern, ticks);
-  closeRecordingSeams (pattern, index_t{ 64 });
-  ASSERT_LT (gapAtLoopPoint (pattern), 0.2f) << "the take itself must close";
-
-  auto shared = std::make_shared<Pattern> ();
-  writeThrough (*shared, pattern.getTicks ().positions);
-  shared->setName ("Reloaded");
-  shared->resize (512); // a length PatternFile can express in whole beats
-  for (index_t tick = 0; tick < 512; ++tick)
-    shared->setTick (tick, pattern.getTick (tick % pattern.getNumTicks ()));
-
-  auto const file
-      = juce::File::getSpecialLocation (juce::File::tempDirectory)
-            .getChildFile ("a3-reloaded-take.svg");
-  file.deleteFile ();
-  ASSERT_TRUE (PatternFile::save (shared, file));
-
-  auto reloaded = PatternFile::load (file);
-  ASSERT_NE (reloaded, nullptr);
-
-  closeRecordingSeams (*reloaded, index_t{ 64 });
-  EXPECT_LT (gapAtLoopPoint (*reloaded), 0.3f)
-      << "what came back from the file is what plays, and it was left open";
-
-  file.deleteFile ();
-}
-
-// The fade is a playback setting, so it has to still take hold after a
-// restart. Where the take stopped cannot be worked out from the file again --
-// once the closing move is written, that stretch looks like any other run of
-// ticks -- so it travels with it.
-TEST (SeamMode, TheJoinSurvivesARestart)
-{
-  auto pattern = std::make_shared<Pattern> ();
-  pattern->setName ("Joined");
-  pattern->resize (512);
-  for (index_t tick = 0; tick < 512; ++tick)
-    {
-      auto const a = juce::MathConstants<float>::twoPi * tick / 512.f;
-      pattern->setTick (tick, Pos::fromCartesian (std::cos (a) * 0.6f,
-                                                  std::sin (a) * 0.6f, 0.f));
-    }
-  pattern->setSeamJoin (index_t{ 271 });
-
-  auto const file
-      = juce::File::getSpecialLocation (juce::File::tempDirectory)
-            .getChildFile ("a3-seam-join.svg");
-  file.deleteFile ();
-  ASSERT_TRUE (PatternFile::save (pattern, file));
-
-  auto const reloaded = PatternFile::load (file);
-  ASSERT_NE (reloaded, nullptr);
-  ASSERT_TRUE (reloaded->getSeamJoin ().has_value ());
-  EXPECT_EQ (*reloaded->getSeamJoin (), 271u);
-
-  file.deleteFile ();
-}
-
-// The fade used to be written straight into the ticks, which made it a one-way
-// door: lengthening read its far end from material nobody had touched and
-// worked, shortening read from the previous fill -- a point already on the old
-// closing move -- and changed nothing anyone could see.
-TEST (SeamMode, ShorteningTheFadeWorksAsWellAsLengtheningIt)
+// The strongest claim the new model can make, and the one the old machinery
+// needed a whole second copy of the take to approximate: turning the fade does
+// not touch the take at all. There is no drift to test for because there is
+// nothing to drift.
+TEST (SeamIsAGapLikeAnyOther, TurningTheFadeNeverChangesATick)
 {
   auto const ticks = circleWithAGapAtTheLoopPoint (256);
   Pattern pattern;
   writeThrough (pattern, ticks);
-  closeRecordingSeams (pattern, index_t{ 64 }, index_t{ 200 });
+  closeRecordingSeams (pattern, index_t{ 200 });
 
-  auto const spanOf = [&pattern] (index_t fade) {
-    applyFade (pattern, fade);
-    // How far from the take as played the pattern now reads: a longer closing
-    // move touches more ticks, a shorter one fewer.
-    int touched = 0;
-    auto const baseline = pattern.getFadeBaseline ();
-    for (index_t tick = 0; tick < pattern.getNumTicks (); ++tick)
-      if (std::abs (pattern.getTick (tick).x () - baseline[tick].x ()) > 1e-5f
-          || std::abs (pattern.getTick (tick).y () - baseline[tick].y ()) > 1e-5f)
-        ++touched;
-    return touched;
-  };
+  auto const asPlayed = pattern.getTicks ().positions;
 
-  auto const wide = spanOf (48);
-  auto const narrow = spanOf (16);
-  auto const none = spanOf (0);
+  for (int round = 0; round < 5; ++round)
+    {
+      pattern.setFadeReach (1.f);
+      pattern.setFadeReach (0.f);
+      pattern.setFadeReach (0.5f);
+    }
 
-  EXPECT_GT (wide, narrow) << "shortening the fade did not shorten anything";
-  EXPECT_GT (narrow, none);
-  EXPECT_EQ (none, 0) << "turning it off must give the take back as played";
-
-  // And going back up gets there again -- no drift from having been turned.
-  EXPECT_EQ (spanOf (48), wide);
+  auto const afterwards = pattern.getTicks ().positions;
+  ASSERT_EQ (asPlayed.size (), afterwards.size ());
+  for (size_t tick = 0; tick < asPlayed.size (); ++tick)
+    {
+      EXPECT_FLOAT_EQ (asPlayed[tick].x (), afterwards[tick].x ())
+          << "tick " << tick << " moved";
+      EXPECT_FLOAT_EQ (asPlayed[tick].y (), afterwards[tick].y ());
+    }
 }
 
-// The closing move continues the motion rather than cutting across it: laid
-// out as a straight line it was visibly two chords over a take that has none.
-TEST (SeamMode, TheClosingMoveIsACurveNotAChord)
+// The take's own join is held, exactly as played -- no travel is written into
+// it. What used to be the "hard" setting is now the only thing recording does.
+TEST (SeamIsAGapLikeAnyOther, TheJoinIsHeldAsPlayed)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setTick (4, at (0.f));
+  pattern.setTick (8, at (4.f));
+
+  closeRecordingSeams (pattern);
+
+  // 9..15 were never written; they hold what tick 8 played rather than
+  // travelling back towards tick 4.
+  EXPECT_NEAR (pattern.getTick (14).x (), 4.f, 0.001f);
+}
+
+// And the reach is what decides whether it is played as a movement or a jump,
+// from the same plan the drawn line is cut by.
+TEST (SeamIsAGapLikeAnyOther, TheReachDecidesWhetherTheJoinIsDrawnThrough)
 {
   auto const ticks = circleWithAGapAtTheLoopPoint (256);
   Pattern pattern;
   writeThrough (pattern, ticks);
-  closeRecordingSeams (pattern, index_t{ 48 }, index_t{ 200 });
+  closeRecordingSeams (pattern, index_t{ 200 });
 
-  // Three points across the closing move: a straight line puts the middle one
-  // exactly halfway between its neighbours.
-  auto const a = pattern.getTick (205);
-  auto const b = pattern.getTick (215);
-  auto const c = pattern.getTick (225);
-  auto const midX = (a.x () + c.x ()) * 0.5f;
-  auto const midY = (a.y () + c.y ()) * 0.5f;
+  pattern.setFadeReach (0.f);
+  EXPECT_TRUE (pattern.getBridgePlan ().bridges.empty ())
+      << "at no reach at all, nothing is drawn through";
 
-  EXPECT_GT (std::hypot (b.x () - midX, b.y () - midY), 0.01f)
-      << "the closing move is a straight line";
+  pattern.setFadeReach (1.f);
+  EXPECT_FALSE (pattern.getBridgePlan ().bridges.empty ())
+      << "at full reach the take has no jumps left";
 }
 
-// The curve was a curve on paper and a straight line on the device. Its
-// tangents were measured over one tick, and ticks run far faster than a finger
-// reports, so the tick before the join repeats the one before it: both
-// tangents came out zero, and a cubic with two zero tangents is a straight
-// line between its ends -- exactly what it was meant to replace.
-TEST (SeamMode, TheCurveSurvivesTicksThatRepeat)
+// A middle hole is a finger that lifted on purpose. It is held like the join,
+// and it is subject to the same reach -- one rule, not two.
+TEST (SeamIsAGapLikeAnyOther, AMiddleHoleFollowsTheSameRule)
 {
-  // Every position held for four ticks, as a real take writes them.
-  std::vector<Pos> ticks;
-  for (int i = 0; i < 256; ++i)
-    {
-      auto const a = juce::MathConstants<float>::twoPi * (i / 4) / 64.f;
-      ticks.push_back (
-          Pos::fromCartesian (std::cos (a) * 0.6f, std::sin (a) * 0.6f, 0.f));
-    }
-  for (int i = 200; i < 256; ++i)
-    ticks[static_cast<size_t> (i)]
-        = Pos::fromCartesian (-0.8f, -0.4f + 0.004f * (i - 200), 0.f);
-
   Pattern pattern;
-  writeThrough (pattern, ticks);
-  closeRecordingSeams (pattern, index_t{ 48 }, index_t{ 199 });
+  pattern.resize (16);
+  pattern.setTick (0, at (0.f));
+  pattern.setTick (4, at (1.f));
+  pattern.setTick (8, at (2.f));
+  closeRecordingSeams (pattern);
 
-  // How far the closing move ever strays from the straight line between its
-  // ends. Three hand-picked ticks used to stand in for this, and they moved
-  // when the ticks were laid along the curve by distance instead of by
-  // parameter -- the property never changed, only where it was sampled.
-  auto const from = pattern.getTick (199);
-  auto const to = pattern.getTick (199 + 48 + 1);
-  auto const chordX = to.x () - from.x ();
-  auto const chordY = to.y () - from.y ();
-  auto const chord = std::hypot (chordX, chordY);
-  ASSERT_GT (chord, 0.1f);
-
-  float worst = 0.f;
-  for (index_t step = 1; step <= 48; ++step)
-    {
-      auto const here = pattern.getTick (199 + step);
-      auto const offX = here.x () - from.x ();
-      auto const offY = here.y () - from.y ();
-      // Distance from the line, as the cross product over the chord length.
-      worst = std::max (worst, std::abs (offX * chordY - offY * chordX) / chord);
-    }
-
-  EXPECT_GT (worst, 0.02f)
-      << "two zero tangents made the closing move a straight line again";
-}
-
-// The curve leaves along the motion, but only so far. Scaled by the take's
-// speed across the span the tangent came out many times longer than the gap it
-// had to cross, so the closing move shot away from its target and turned back
-// in a hairpin -- a spike, not a join.
-TEST (SeamMode, TheClosingMoveDoesNotOvershootItsTarget)
-{
-  // 512 ticks, so the whole closing move fits behind the join: with fewer, it
-  // is trimmed to the stale pass and the arithmetic below runs off the end.
-  auto const ticks = circleWithAGapAtTheLoopPoint (512);
-  Pattern pattern;
-  writeThrough (pattern, ticks);
-  closeRecordingSeams (pattern, index_t{ 64 }, index_t{ 199 });
-
-  auto const from = pattern.getTick (199);
-  auto const to = pattern.getTick (199 + 64 + 1);
-  auto const chord = std::hypot (to.x () - from.x (), to.y () - from.y ());
-
-  // Nothing along the closing move may stray much further from the straight
-  // line between its ends than the ends are apart.
-  for (index_t step = 1; step <= 64; ++step)
-    {
-      auto const here = pattern.getTick (199 + step);
-      auto const reach = std::max (std::hypot (here.x () - from.x (),
-                                               here.y () - from.y ()),
-                                   std::hypot (here.x () - to.x (),
-                                               here.y () - to.y ()));
-      EXPECT_LT (reach, chord * 1.6f)
-          << "tick " << step << " of the closing move overshoots";
-    }
-}
-
-// A cubic does not run at a constant rate over its parameter: equal steps in t
-// are unequal steps in space, much longer in the middle than at the ends. Laid
-// out that way the blob crawled out of the join, shot through the middle
-// faster than it had ever moved, and crawled in again. Every tick of the
-// closing move has to cover the same distance as the one before it.
-TEST (SeamMode, TheClosingMoveTravelsAtAnEvenSpeed)
-{
-  auto const ticks = circleWithAGapAtTheLoopPoint (512);
-  Pattern pattern;
-  writeThrough (pattern, ticks);
-  closeRecordingSeams (pattern, index_t{ 64 }, index_t{ 199 });
-
-  float shortest = 1e9f;
-  float longest = 0.f;
-  for (index_t step = 0; step < 64; ++step)
-    {
-      auto const a = pattern.getTick (200 + step);
-      auto const b = pattern.getTick (201 + step);
-      auto const hop = std::hypot (b.x () - a.x (), b.y () - a.y ());
-      shortest = std::min (shortest, hop);
-      longest = std::max (longest, hop);
-    }
-
-  ASSERT_GT (shortest, 0.f);
-  EXPECT_LT (longest / shortest, 1.6f)
-      << "the closing move races through its middle: longest hop " << longest
-      << " against shortest " << shortest;
-}
-
-// Left to a fixed setting, the closing move is as likely to crawl as to race:
-// how long it needs depends on how far it has to go and how fast the take was
-// moving, and both come out of the take. That number is the value the fade
-// starts at.
-TEST (SeamMode, TheNaturalFadeMovesAtTheTakesOwnSpeed)
-{
-  auto const ticks = circleWithAGapAtTheLoopPoint (512);
-  Pattern pattern;
-  writeThrough (pattern, ticks);
-
-  auto const speed = typicalTrajectorySpeed (ticks);
-  auto const natural = naturalFadeTicks (ticks, index_t{ 199 });
-  ASSERT_GT (natural, 0u);
-
-  closeRecordingSeams (pattern, natural, index_t{ 199 });
-
-  float longest = 0.f;
-  for (index_t step = 0; step < natural; ++step)
-    {
-      auto const a = pattern.getTick (200 + step);
-      auto const b = pattern.getTick (201 + step);
-      longest = std::max (longest,
-                          std::hypot (b.x () - a.x (), b.y () - a.y ()));
-    }
-
-  EXPECT_LT (longest, speed * 1.5f)
-      << "the closing move covers " << longest
-      << " a tick where the take covers " << speed;
-  EXPECT_GT (longest, speed * 0.5f) << "and it must not crawl either";
-}
-
-// Twice as fast a take needs half the time to close the same distance.
-TEST (SeamMode, AFasterTakeNeedsAShorterFade)
-{
-  auto const slow = circleWithAGapAtTheLoopPoint (512);
-
-  // The same shape walked in half as many ticks: every other position.
-  std::vector<Pos> fast;
-  for (size_t i = 0; i < slow.size (); ++i)
-    fast.push_back (slow[(i * 2) % slow.size ()]);
-
-  auto const slowFade = naturalFadeTicks (slow, index_t{ 199 });
-  auto const fastFade = naturalFadeTicks (fast, index_t{ 199 });
-
-  EXPECT_LT (fastFade, slowFade);
+  EXPECT_NEAR (pattern.getTick (2).x (), 0.f, 0.001f);
+  EXPECT_NEAR (pattern.getTick (6).x (), 1.f, 0.001f);
 }

@@ -96,13 +96,6 @@ namespace
  *  join is the loop point, and closing it means trimming the beginning
  *  instead. That is allowed, but sparingly -- an eighth of the loop -- because
  *  what sits there was played too. */
-index_t
-closingLength (index_t fadeTicks, index_t numTicks, index_t seamAt)
-{
-  auto const stale = numTicks - 1 - seamAt;
-  auto const room = stale > 0 ? std::min (stale, numTicks / 2) : numTicks / 8;
-  return std::min (fadeTicks, room);
-}
 
 /** Close the take's own join: the tick where it stopped.
  *
@@ -244,160 +237,13 @@ sampleClosingMove (std::vector<Pos> const &baseline, UnwrittenSpan span)
   return curve;
 }
 
-void
-writeClosingMove (Pattern &pattern, std::vector<Pos> const &baseline,
-                  UnwrittenSpan span)
-{
-  auto const n = static_cast<index_t> (baseline.size ());
-  auto const curve = sampleClosingMove (baseline, span);
-  if (curve.point.empty ())
-    return;
 
-  auto const &sample = curve.point;
-  auto const &arcLength = curve.arcLength;
-  auto const numSamples = static_cast<int> (sample.size ()) - 1;
-
-  auto const total = arcLength.back ();
-  if (total < 1e-6f)
-    return;
-
-  int walked = 0;
-  for (index_t step = 0; step < span.length; ++step)
-    {
-      auto const target = total * static_cast<float> (step + 1)
-                          / static_cast<float> (span.length + 1);
-      while (walked < numSamples
-             && arcLength[static_cast<size_t> (walked + 1)] < target)
-        ++walked;
-
-      pattern.setTick ((span.begin + step) % n,
-                       sample[static_cast<size_t> (walked)]);
-    }
 }
+
+
 
 void
-closeLoopPoint (Pattern &pattern, index_t fadeTicks, index_t seamAt)
-{
-  auto const numTicks = pattern.getNumTicks ();
-  if (numTicks < 4)
-    return;
-
-  auto const positions = pattern.getTicks ().positions;
-  // The edge to close: from the last tick of the freshest pass to whatever
-  // follows it round the ring.
-  auto const last = pattern.getTick (seamAt % numTicks);
-  auto const first = pattern.getTick ((seamAt + 1) % numTicks);
-
-  if (!last.isValid () || !first.isValid ())
-    return;
-
-  // Where the take stopped travels with the pattern whatever the fade is, so
-  // the length can be turned later without recording again.
-  pattern.setSeamJoin (seamAt % numTicks);
-  pattern.setFade (fadeTicks);
-
-  if (fadeTicks == 0)
-    return; // held and jumped: the take keeps its ending exactly as played
-
-  // The join is only worth closing if it breaks: a take that already comes
-  // round to where it started must keep its ending.
-  auto const speed = typicalTrajectorySpeed (positions);
-  auto const gap = std::sqrt (std::pow (last.x () - first.x (), 2.f)
-                              + std::pow (last.y () - first.y (), 2.f)
-                              + std::pow (last.z () - first.z (), 2.f));
-  if (speed > 0.f && gap <= trajectoryJumpThreshold (speed))
-    return;
-
-  // The closing move may only spend the stale pass behind the join. The ticks
-  // up to it are the freshest pass -- what was just played -- and a fade long
-  // enough to wrap round into them would close the join by deleting the take.
-  // Not a matter of taste like the length itself: a guard.
-  auto const length = closingLength (fadeTicks, numTicks, seamAt % numTicks);
-  if (length == 0)
-    return;
-
-  // Written over the stale pass that follows the join, never over the fresh
-  // one before it: the pass just played is the one worth keeping.
-  writeClosingMove (pattern, positions,
-                    { (seamAt + 1) % numTicks, length });
-}
-}
-
-index_t
-naturalFadeTicks (std::vector<Pos> const &ticks, index_t join)
-{
-  auto const n = static_cast<index_t> (ticks.size ());
-  if (n < 4)
-    return 0;
-
-  auto const speed = typicalTrajectorySpeed (ticks);
-  if (speed <= 0.f)
-    return 0;
-
-  // The curve's shape barely depends on how long it lasts -- its reach comes
-  // from the distance it has to cover, not from the time given to it -- so a
-  // provisional span is enough to measure. Its length only steers the window
-  // the directions are read over.
-  auto const provisional = closingLength (n / 4, n, join % n);
-  if (provisional == 0)
-    return 0;
-
-  auto const curve
-      = sampleClosingMove (ticks, { (join + 1) % n, provisional });
-  if (curve.arcLength.empty ())
-    return 0;
-
-  // Distance over speed is time: how many ticks the move takes if every one of
-  // them covers as much ground as the take's own ticks do.
-  return static_cast<index_t> (std::ceil (curve.arcLength.back () / speed));
-}
-
-void
-applyFade (Pattern &pattern, index_t fadeTicks)
-{
-  auto const numTicks = pattern.getNumTicks ();
-  if (numTicks == 0)
-    return;
-
-  // A take's join: recomputed from what was played every time, so the length
-  // is free to grow, shrink, or go back to nothing.
-  if (auto const join = pattern.getSeamJoin ())
-    {
-      auto const baseline = pattern.getFadeBaseline ();
-      if (baseline.size () != numTicks)
-        return;
-
-      for (index_t tick = 0; tick < numTicks; ++tick)
-        pattern.setTick (tick, baseline[tick]);
-
-      auto const seamAt = *join % numTicks;
-      pattern.setFade (fadeTicks);
-      auto const length = closingLength (fadeTicks, numTicks, seamAt);
-      if (length > 0)
-        writeClosingMove (pattern, baseline,
-                          { (seamAt + 1) % numTicks, length });
-
-      pattern.markComplete ();
-      return;
-    }
-
-  // A hole across the loop point: its length is the hole's, and the fade says
-  // how much of it is spent travelling rather than standing still.
-  auto const span = pattern.getSeamSpan ();
-  if (span.length == 0)
-    return;
-
-  // From the two played positions at either end, never from the last fill --
-  // otherwise turning it repeatedly would walk the seam somewhere else.
-  auto const before = pattern.getTick ((span.begin + numTicks - 1) % numTicks);
-  auto const after = pattern.getTick ((span.begin + span.length) % numTicks);
-
-  fillSpan (pattern, span, before, after, fadeTicks);
-  pattern.markComplete ();
-}
-
-void
-closeRecordingSeams (Pattern &pattern, index_t fadeTicks,
+closeRecordingSeams (Pattern &pattern,
                      std::optional<index_t> stopTick)
 {
   auto const numTicks = pattern.getNumTicks ();
@@ -421,32 +267,14 @@ closeRecordingSeams (Pattern &pattern, index_t fadeTicks,
       auto const after
           = pattern.getTick ((span.begin + span.length) % numTicks);
 
-      // Only the stretch across the loop point is the take's own seam — the
-      // place where it happens to have started and stopped. Everything else is
-      // a finger that lifted on purpose, and smoothing that would erase a jump
-      // somebody played.
-      auto const isSeam = span.begin + span.length > numTicks;
-      if (isSeam)
-        pattern.setSeamSpan (span);
-
-      // Only the stretch across the loop point spends the fade; a hole in
-      // the middle is a jump somebody played and is always held.
-      fillSpan (pattern, span, before, after, isSeam ? fadeTicks : index_t{ 0 });
+      // Every span is held, the take's own seam included. It used to travel
+      // back to the start over a computed length; the seam is a gap like any
+      // other now, and whether it is drawn through is the fade's business at
+      // playback -- a reading of the movement rather than a change to it.
+      fillSpan (pattern, span, before, after, index_t{ 0 });
     }
 
-  // What was played, kept before anything is laid over it, so the closing
-  // move can be recomputed at any length later on.
-  pattern.setFadeBaseline (pattern.getTicks ().positions);
 
-  // A take that wrote across the loop point leaves no hole there, so the loop
-  // above never saw it. That edge is a seam too.
-  if (pattern.getSeamSpan ().length == 0)
-    // A pattern that came back from a file already knows where its take
-    // stopped; only a fresh one has to be told, and only it may overwrite it.
-    closeLoopPoint (pattern, fadeTicks,
-                    stopTick.value_or (
-                        pattern.getSeamJoin ().value_or (numTicks - 1))
-                        % numTicks);
 
   // Every tick holds something now, and playback has to be told: it reads the
   // last written tick as the pattern's length, and the span filled last is the

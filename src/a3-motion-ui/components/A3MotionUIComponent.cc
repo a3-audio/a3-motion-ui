@@ -79,12 +79,6 @@ namespace
 {
 /** The fade in ticks. Sixteenths of a beat are what the panel offers, because
  *  that is a length a musician can hear; ticks are what the pattern counts. */
-index_t
-fadeTicksFor (int sixteenths)
-{
-  return static_cast<index_t> (std::max (0, sixteenths))
-         * ticksPerFadeStep (TempoClock::getTicksPerBeat ());
-}
 
 }
 
@@ -2828,29 +2822,11 @@ A3MotionUIComponent::endRecording ()
 
   if (anyWritten)
     {
-      // How long the closing move wants to be, so that it travels at the
-      // speed the take was played at. Written into the bar as the value the
-      // fade starts from: a fixed setting is as likely to crawl as to race,
-      // because how long the move needs comes out of the take rather than out
-      // of a preference.
-      if (stopTick)
-        {
-          auto const natural
-              = naturalFadeTicks (pattern->getTicks ().positions, *stopTick);
-          if (natural > 0)
-            pattern->setFadeSixteenths (std::clamp (
-                static_cast<int> (std::lround (
-                    static_cast<double> (natural)
-                    / ticksPerFadeStep (TempoClock::getTicksPerBeat ()))),
-                1, 16));
-        }
-
       // Before stopping, because the save happens on the Stopped message and
-      // has to carry the filled stretches with it.
-      closeRecordingSeams (
-          *pattern,
-          fadeTicksFor (pattern->getFadeSixteenths ()),
-          stopTick);
+      // has to carry the filled stretches with it. No fade length goes in any
+      // more: every stretch is held, and whether the take's own join is drawn
+      // through is read from the clip at playback.
+      closeRecordingSeams (*pattern, stopTick);
     }
 
   _engine.stopPattern (pattern, _now);
@@ -3858,13 +3834,9 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         return;
       if (_barPage == BarPage::Record)
         {
-          pattern->setFadeSixteenths (8);
-          if (pattern)
-            {
-              applyFade (*pattern,
-                         fadeTicksFor (pattern->getFadeSixteenths ()));
-              refreshPatternDisplayFromTicks (pattern);
-            }
+          // The fade is a reading of the movement now, not a change to it:
+          // there is nothing to write into the ticks and nothing to redraw.
+          pattern->setFadeReach (ClipSettings{}.fadeReach);
         }
       else if (pattern)
         {
@@ -3942,18 +3914,15 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           {
             if (_barPage == BarPage::Record)
               {
-                // How long the take's closing move lasts. A playback setting:
-                // it takes effect on whatever is in the slot at once, and is
-                // recomputed from the take as played, so it can be turned
-                // down again as freely as up.
-                if (pattern)
-                  pattern->setFadeSixteenths (std::clamp (
-                      pattern->getFadeSixteenths () + increment, 0, 16));
-
+                // How far a gap may be for the fade to draw through it. A
+                // reading of the movement, not a change to it: nothing is
+                // written into the ticks, so it can be turned down again as
+                // freely as up, and the line follows because it is cut from
+                // the same plan.
                 if (pattern)
                   {
-                    applyFade (*pattern,
-                               fadeTicksFor (pattern->getFadeSixteenths ()));
+                    pattern->setFadeReach (pattern->getFadeReach ()
+                                           + 0.02f * static_cast<float> (increment));
                     refreshPatternDisplayFromTicks (pattern);
                   }
               }
@@ -4281,7 +4250,8 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
 
   _clipSettings->setMotionDirection (_clipUIParams[channel][slot].direction);
   _clipSettings->setMotionEndAction (_clipUIParams[channel][slot].endAction);
-  _clipSettings->setMotionFade (pattern ? pattern->getFadeSixteenths () : 0);
+  _clipSettings->setMotionFadeReach (
+      pattern ? pattern->getFadeReach () : ClipSettings{}.fadeReach);
   _clipSettings->setMotionSpin (pattern ? pattern->getSpin () : 0);
   _clipSettings->setMotionSwell (pattern ? pattern->getReachLfo () : 0);
   _clipSettings->setMotionEnvelope (

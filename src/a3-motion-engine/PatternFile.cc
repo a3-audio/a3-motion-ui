@@ -573,13 +573,9 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
 
   auto ticks = pattern->getTicks ();
 
-  // The take as it was played, not as it currently reads with a closing move
-  // laid over it. The fade is a setting, so what goes on disk has to be the
-  // thing the setting applies to -- otherwise reopening the clip bakes the
-  // last length in and it can never be shortened again.
-  auto const baseline = pattern->getFadeBaseline ();
-  if (baseline.size () == ticks.positions.size () && !baseline.empty ())
-    ticks.positions = baseline;
+  // What goes on disk is the take as it was played. Nothing is laid over it
+  // any more: the fade is read at playback, so the file needs no second copy
+  // of the take to get back to.
 
   auto const numTicks = ticks.positions.size ();
   auto const lengthBeats
@@ -595,23 +591,9 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
   svg->setAttribute ("viewBox", "-1 -1 2 2");
   svg->setAttribute ("data-name", juce::String (pattern->getName ()));
   svg->setAttribute ("data-beats", lengthBeats);
-  // Where the take's seam lies. Not something that can be worked out again
-  // from the file — once filled, the stretch looks like any other run of
-  // ticks — and how it is filled is a playback setting, so it has to survive
-  // a restart or there is no way back from the last fill.
-  auto const seam = pattern->getSeamSpan ();
-  if (seam.length > 0)
-    {
-      svg->setAttribute ("data-seam-begin", static_cast<int> (seam.begin));
-      svg->setAttribute ("data-seam-length", static_cast<int> (seam.length));
-    }
-
-  // Where the take stopped. Not something that can be worked out again from
-  // the file -- once the closing move is written, that stretch looks like any
-  // other run of ticks -- and the fade is a playback setting, so without this
-  // turning it after a restart would have nothing to take hold of.
-  if (auto const join = pattern->getSeamJoin ())
-    svg->setAttribute ("data-seam-join", static_cast<int> (*join));
+  // No seam metadata. It existed so a destructive closing move could be
+  // recomputed at another length; nothing is written over the take now, so the
+  // ticks say everything there is to say about where it joins.
 
   // Only the geometry, from here to the end. Everything that used to follow --
   // the fade, the direction, the end action, the act mode, the rotation, the
@@ -689,17 +671,9 @@ PatternFile::load (juce::File const &file)
   pattern->setName (name);
   pattern->resize (static_cast<index_t> (lengthBeats * ppqn));
 
-  // A file that does not mention a seam has none — a shipped shape, or a take
-  // that filled its whole loop.
-  auto const seamLength = xml->getIntAttribute ("data-seam-length", 0);
-  if (xml->hasAttribute ("data-seam-join"))
-    pattern->setSeamJoin (static_cast<index_t> (
-        xml->getIntAttribute ("data-seam-join", 0)));
-
-  if (seamLength > 0)
-    pattern->setSeamSpan (
-        { static_cast<index_t> (xml->getIntAttribute ("data-seam-begin", 0)),
-          static_cast<index_t> (seamLength) });
+  // data-seam-* is read by nothing now. A file that still carries it is a
+  // file written before the fade stopped rewriting takes, and its ticks are
+  // already what was played.
 
   auto const numTicks = pattern->getNumTicks ();
 
@@ -754,12 +728,9 @@ PatternFile::load (juce::File const &file)
         xml->getIntAttribute ("data-playback-beat", playback.beat ()),
         xml->getIntAttribute ("data-playback-tick", playback.tick ()) });
 
-  // What came out of the file is the take as played; the closing move is laid
-  // over it here, from the length the file carries.
-  pattern->setFadeBaseline (pattern->getTicks ().positions);
-  if (pattern->getSeamJoin ())
-    applyFade (*pattern, static_cast<index_t> (
-                             xml->getIntAttribute ("data-fade", 0)));
+  // What came out of the file is the take as played, and it stays that way.
+  // data-fade is not read: the fade is a distance now, it lives in the clip,
+  // and nothing is laid over the geometry at load time.
 
   pattern->setStatus (Pattern::Status::Idle);
   return pattern;

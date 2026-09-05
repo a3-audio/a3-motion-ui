@@ -104,8 +104,7 @@ public:
    *  playback setting and not a property of the take: the positions at either
    *  end are real ticks, so it can be filled either way at any time. A length
    *  of zero means the take has no seam. */
-  UnwrittenSpan getSeamSpan () const;
-  void setSeamSpan (UnwrittenSpan span);
+
 
   /** Where the take stopped, when it stopped anywhere: the last tick its
    *  freshest pass wrote, with the previous pass still sitting after it.
@@ -116,8 +115,7 @@ public:
    *  at any time. Sharing one field made turning it move the join, because the
    *  far end of a shortened span landed in the previous fill instead of on
    *  something somebody played. */
-  std::optional<index_t> getSeamJoin () const;
-  void setSeamJoin (std::optional<index_t> tick);
+
 
   /** The take as it was played, before any closing move was laid over it.
    *
@@ -126,12 +124,10 @@ public:
    *  touched yet and worked, shortening it read from the previous fill and
    *  changed nothing. Keeping what was played means the closing move can be
    *  recomputed at any length, including back to none at all. */
-  std::vector<Pos> getFadeBaseline () const;
-  void setFadeBaseline (std::vector<Pos> positions);
+
 
   /** How long the closing move currently laid over the take is, in ticks. */
-  index_t getFade () const;
-  void setFade (index_t ticks);
+
 
   /** Which way the clip sets off, and what it does when it gets to the end.
    *
@@ -163,8 +159,7 @@ public:
    *  Sixteenths rather than ticks, which is what getFade() reports: ticks come
    *  out of the PPQN the take was written with, so the same number means
    *  something else on a device set up differently. */
-  int getFadeSixteenths () const;
-  void setFadeSixteenths (int sixteenths);
+
 
   /** How far a gap may be for the fade to draw through it, 0..1 of the
    *  sphere's diameter. See ClipSettings::fadeReach. */
@@ -316,10 +311,6 @@ private:
   index_t _lastUpdatedTick{ 0 };
   std::vector<Pos> _ticks;
   std::vector<bool> _written;
-  UnwrittenSpan _seamSpan{ 0u, 0u };
-  std::optional<index_t> _seamJoin;
-  std::vector<Pos> _fadeBaseline;
-  index_t _fade = 0;
 
   /** Past which step from one tick to the next the motion is a jump rather
    *  than a movement. Worked out once when the ticks are finished, because
@@ -338,7 +329,6 @@ private:
   std::atomic<EndAction> _endAction{ EndAction::Loop };
   std::atomic<ActMode> _actMode{ ActMode::OneShot };
   std::atomic<int> _speedLog2{ 0 };
-  std::atomic<int> _fadeSixteenths{ 4 };
   std::atomic<float> _playSign{ 1.f };
   std::atomic<float> _rotate{ 0.f };
   std::atomic<int> _spin{ 0 };
