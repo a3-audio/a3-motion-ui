@@ -231,30 +231,23 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     return key;
   };
 
-  // Four channel faces lead the row, each with the toggle that says which of
-  // that channel's two slots it means. They replaced CLIP and the two shared
+  // Four channel faces lead the row. They replaced CLIP and the two shared
   // slot keys: CLIP meant "show me the clip" and you had to remember whose,
-  // while a face says whose and puts all four in front of you.
-  auto const toggleW = juce::jmax (fingertipSize / 2, keyW * 2 / 3);
-  auto const faceGap = juce::jmax (2, headerGap / 2);
-
+  // while a face says whose and which slot, with all four in front of you.
+  //
   // What is left after the three words, the folder and the gaps between
   // everything, shared out over the four channels.
   auto const viewsW = juce::jmax (fingertipSize * 3,
                                   headerArea.getWidth () * 3 / 10);
   auto const roomForChannels
       = headerArea.getWidth () - viewsW - keyW
-        - headerGap * (2 * static_cast<int> (numChannelColumns) + 5);
+        - headerGap * (static_cast<int> (numChannelColumns) + 5);
   auto const faceW = juce::jmax (
-      fingertipSize,
-      roomForChannels / static_cast<int> (numChannelColumns) - toggleW
-          - faceGap);
+      fingertipSize, roomForChannels / static_cast<int> (numChannelColumns));
 
   for (size_t channel = 0; channel < numChannelColumns; ++channel)
     {
       out.channelFaces[channel] = headerArea.removeFromLeft (faceW);
-      headerArea.removeFromLeft (faceGap);
-      out.channelSlotToggles[channel] = headerArea.removeFromLeft (toggleW);
       headerArea.removeFromLeft (headerGap);
     }
 

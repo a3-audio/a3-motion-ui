@@ -245,15 +245,15 @@ struct ClipSettingsLayout
    *  "Slot 1" gave you no way to get to slot 2 without leaving for the pads
    *  page. */
   std::array<juce::Rectangle<int>, numPadSlots> slotButtons;
-  /** One face per channel, in its own colour, with a 1/2 toggle beside it.
+  /** One face per channel, in its own colour, carrying that channel's slot
+   *  number.
    *
    *  These replaced CLIP and the two shared slot keys. CLIP meant "show me
-   *  the clip", and you had to remember which channel that was; a face says
-   *  the same thing and says whose, with all four on screen at once. The
-   *  toggle picks which of that channel's two slots the face refers to, so
-   *  each channel keeps its own choice rather than sharing one. */
+   *  the clip" and you had to remember whose; a face says the same thing,
+   *  says whose, and says which of its two slots -- with all four on screen
+   *  at once. The number in it *is* the slot, and touching the face you are
+   *  already on turns it over. */
   std::array<juce::Rectangle<int>, numChannelColumns> channelFaces;
-  std::array<juce::Rectangle<int>, numChannelColumns> channelSlotToggles;
 
   /** Empty. CLIP is gone -- see channelFaces. Kept as a field so nothing
    *  that reads the layout has to special-case its absence. */

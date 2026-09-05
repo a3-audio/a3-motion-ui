@@ -240,7 +240,6 @@ TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
   for (size_t ch = 0; ch < numChannelColumns; ++ch)
     {
       row.push_back (l.channelFaces[ch]);
-      row.push_back (l.channelSlotToggles[ch]);
     }
   row.push_back (l.tabRecord);
   row.push_back (l.tabAction);
@@ -1312,16 +1311,13 @@ TEST (ClipSettingsLayout, TheHeaderCarriesAFaceForEveryChannel)
   for (size_t ch = 0; ch < numChannelColumns; ++ch)
     {
       ASSERT_FALSE (l.channelFaces[ch].isEmpty ()) << "face " << ch;
-      ASSERT_FALSE (l.channelSlotToggles[ch].isEmpty ()) << "toggle " << ch;
 
-      // The toggle stands beside its face, not over it.
-      EXPECT_FALSE (l.channelFaces[ch].intersects (l.channelSlotToggles[ch]))
-          << "channel " << ch;
-      EXPECT_GE (l.channelSlotToggles[ch].getX (), l.channelFaces[ch].getX ());
-
-      // Both a fingertip: these are hit mid-set, one-handed.
-      EXPECT_GE (l.channelFaces[ch].getHeight (), fingertipSize);
-      EXPECT_GE (l.channelSlotToggles[ch].getWidth (), fingertipSize / 2);
+      // A fingertip in both directions: hit mid-set, one-handed, and the
+      // number in it has to be readable at a glance.
+      EXPECT_GE (l.channelFaces[ch].getHeight (), fingertipSize)
+          << "face " << ch;
+      EXPECT_GE (l.channelFaces[ch].getWidth (), fingertipSize)
+          << "face " << ch;
     }
 
   // Left to right, in channel order.
@@ -1367,10 +1363,10 @@ TEST (ClipSettingsLayout, TheThreeViewsStandBetweenThem)
   EXPECT_GT (l.tabController.getX (), l.tabAction.getX ());
 }
 
-// Every channel picks its own slot. The two keys used to be shared, so
-// choosing slot 2 chose it for whichever channel you happened to be on and
-// you had to move twice to compare the same slot across two channels.
-TEST (ClipSettingsLayout, EveryChannelPicksItsOwnSlot)
+// Every channel has a face of its own, on every page, and they read left to
+// right before the views. The face carries the slot number, so which slot a
+// channel is on is answered without leaving where you are.
+TEST (ClipSettingsLayout, EveryChannelHasAFaceOnEveryPage)
 {
   for (auto const page : { BarPage::Clip, BarPage::Record,
                            BarPage::Controller })
@@ -1382,12 +1378,10 @@ TEST (ClipSettingsLayout, EveryChannelPicksItsOwnSlot)
       for (size_t ch = 0; ch < numChannelColumns; ++ch)
         {
           ASSERT_FALSE (l.channelFaces[ch].isEmpty ()) << "channel " << ch;
-          ASSERT_FALSE (l.channelSlotToggles[ch].isEmpty ())
-              << "channel " << ch;
 
           EXPECT_GE (l.channelFaces[ch].getX (), previousRight)
               << "channel " << ch;
-          previousRight = l.channelSlotToggles[ch].getRight ();
+          previousRight = l.channelFaces[ch].getRight ();
         }
 
       // Before the views, which are before the folder.

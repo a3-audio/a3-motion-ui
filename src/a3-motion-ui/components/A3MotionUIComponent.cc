@@ -380,30 +380,30 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     selectClip (_clipSettingsChannel, slot);
   };
 
-  // A channel's face means "show me this channel's clip". It does what CLIP
-  // did and says whose, so it also brings the clip page back from wherever
-  // you were -- reaching for a channel is reaching for its clip.
+  // A channel's face means "show me this channel's clip", and touched again
+  // on the channel already shown it turns that channel's slot over. Two jobs
+  // on one target because they are the same reach: you go to a channel to
+  // see it, and once you are there the only other thing to say is which of
+  // its two slots.
+  //
+  // Each channel keeps its own slot, so the same slot can be compared across
+  // two channels in one move each. The two keys used to be shared, and
+  // choosing slot 2 chose it for whichever channel you happened to be on.
   _clipSettings->onChannelFaceTapped = [this] (index_t channel) {
+    auto const alreadyShown = channel == _clipSettingsChannel
+                              && _barPage != BarPage::Controller
+                              && _barPage != BarPage::Browser;
+
+    if (alreadyShown)
+      _channelSlot[channel]
+          = static_cast<index_t> ((_channelSlot[channel] + 1) % numPadSlots);
+
     selectClip (channel, _channelSlot[channel]);
 
     // From the pads page, the browser or ACTION, reaching for a channel is
     // reaching for its clip -- so the face brings that page back too.
     if (_barPage != BarPage::Clip && _barPage != BarPage::Record)
       showBarPage (BarPage::Clip);
-  };
-
-  // Each channel keeps its own slot, so two channels can be compared on the
-  // same slot without moving twice. Toggling the shown channel's follows it
-  // straight to the bar; toggling another one's only changes what its face
-  // stands for, until the face itself is touched.
-  _clipSettings->onChannelSlotToggled = [this] (index_t channel) {
-    _channelSlot[channel]
-        = static_cast<index_t> ((_channelSlot[channel] + 1) % numPadSlots);
-
-    if (channel == _clipSettingsChannel)
-      selectClip (channel, _channelSlot[channel]);
-    else
-      updateClipSettingsDisplay ();
   };
 
   _clipSettings->onTransportTapped = [this] (TransportKey key) {
