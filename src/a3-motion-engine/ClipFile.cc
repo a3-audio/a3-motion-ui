@@ -99,9 +99,12 @@ ClipFile::save (Clip const &clip, juce::File const &file)
   object->setProperty ("direction", playDirectionToName (s.direction));
   object->setProperty ("endAction", endActionToName (s.endAction));
 
-  object->setProperty ("filterAttack", s.filterAttack);
-  object->setProperty ("filterDecay", s.filterDecay);
-  object->setProperty ("filterMax", s.filterMax);
+  object->setProperty ("freqAttack", s.freqAttack);
+  object->setProperty ("freqDecay", s.freqDecay);
+  object->setProperty ("freqMax", s.freqMax);
+  object->setProperty ("qAttack", s.qAttack);
+  object->setProperty ("qDecay", s.qDecay);
+  object->setProperty ("qMax", s.qMax);
   object->setProperty ("fadeReach", s.fadeReach);
   object->setProperty ("bridgeBias", s.bridgeBias);
 
@@ -165,9 +168,20 @@ ClipFile::load (juce::File const &file)
   s.endAction = endActionFromName (
       readString (parsed, "endAction", endActionToName (defaults.endAction)));
 
-  s.filterAttack = readInt (parsed, "filterAttack", defaults.filterAttack);
-  s.filterDecay = readInt (parsed, "filterDecay", defaults.filterDecay);
-  s.filterMax = readFloat (parsed, "filterMax", defaults.filterMax);
+  // The cutoff's envelope was written as "filter*" while there was only one
+  // of them, so those names are what a clip saved before the split carries.
+  // Read as the cutoff's, which is what they were: the resonance had no
+  // envelope of its own to lose.
+  s.freqAttack = readInt (parsed, "freqAttack",
+                          readInt (parsed, "filterAttack",
+                                   defaults.freqAttack));
+  s.freqDecay = readInt (parsed, "freqDecay",
+                         readInt (parsed, "filterDecay", defaults.freqDecay));
+  s.freqMax = readFloat (parsed, "freqMax",
+                         readFloat (parsed, "filterMax", defaults.freqMax));
+  s.qAttack = readInt (parsed, "qAttack", defaults.qAttack);
+  s.qDecay = readInt (parsed, "qDecay", defaults.qDecay);
+  s.qMax = readFloat (parsed, "qMax", defaults.qMax);
   s.fadeReach = readFloat (parsed, "fadeReach", defaults.fadeReach);
   s.bridgeBias = readInt (parsed, "bridgeBias", defaults.bridgeBias);
 

@@ -40,63 +40,57 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   // is worth nothing at all.
   auto const gap = juce::jmax (4, content.getWidth () / 60);
 
-  // Three columns for the envelope's three values, and a fourth for the mode
-  // on the second row. Even columns across both rows, so atk sits over atk.
+  // Three columns for an envelope's three values, and a fourth that carries
+  // the row's name. Even columns across every row, so atk sits over atk.
   constexpr int columns = 4;
   auto const cellW = (content.getWidth () - (columns - 1) * gap) / columns;
 
   auto const wantedH = static_cast<int> (headerSize * 4.f);
-  auto const roomForTwo = juce::jmax (fingertipSize, content.getHeight () / 3);
-  auto const rowH = juce::jlimit (fingertipSize, roomForTwo, wantedH);
+  auto const roomForRows
+      = juce::jmax (fingertipSize, content.getHeight () / (ActionLayout::numRows + 1));
+  auto const rowH = juce::jlimit (fingertipSize, roomForRows, wantedH);
 
-  auto const takeRow = [&content, rowH, gap] (bool last) {
-    auto row = content.removeFromBottom (juce::jmin (rowH, content.getHeight ()));
-    if (!last)
-      content.removeFromBottom (gap);
-    return row;
-  };
+  // Taken from the bottom, so the last one out is the topmost.
+  for (int row = ActionLayout::numRows - 1; row >= 0; --row)
+    {
+      out.rows[static_cast<size_t> (row)] = content.removeFromBottom (
+          juce::jmin (rowH, content.getHeight ()));
+      if (row > 0)
+        content.removeFromBottom (gap);
+    }
 
-  // Taken from the bottom, so the last one out is the topmost: the accent is
-  // read first because it is what ACT has always done.
-  out.filterRow = takeRow (false);
-  out.controlRow = takeRow (true);
+  for (int row = 0; row < ActionLayout::numRows; ++row)
+    {
+      auto band = out.rows[static_cast<size_t> (row)];
+      for (int i = 0; i < 3; ++i)
+        {
+          out.controls[static_cast<size_t> (row * 3 + i)]
+              = band.removeFromLeft (cellW);
+          band.removeFromLeft (gap);
+        }
 
-  auto const fill = [cellW, gap] (juce::Rectangle<int> row, int count,
-                                  juce::Rectangle<int> *into) {
-    for (int i = 0; i < count; ++i)
-      {
-        into[i] = row.removeFromLeft (cellW);
-        if (i + 1 < count)
-          row.removeFromLeft (gap);
-      }
-  };
-
-  fill (out.controlRow, 3, out.controls.data ());
-  fill (out.filterRow, 4, out.controls.data () + 3);
-
-  // Which envelope each row is, over the row's fourth column -- the accent's
-  // is free, and the filter's shares its row with the mode, so it goes above.
-  out.accentLabel = { out.controlRow.getX () + 3 * (cellW + gap),
-                      out.controlRow.getY (), cellW,
-                      out.controlRow.getHeight () / 3 };
-  out.filterLabel = { out.controlRow.getX (),
-                      out.controlRow.getY () - out.controlRow.getHeight () / 3,
-                      cellW, out.controlRow.getHeight () / 3 };
+      // Whatever is left of the row is its fourth column, which names it.
+      out.rowLabels[static_cast<size_t> (row)] = band;
+    }
 
   content.removeFromBottom (gap);
+
+  // The mode takes the name field's last column, so the two readings a glance
+  // needs -- what fires and how -- sit on one line.
   out.actionField = content;
+  out.actModeField = out.actionField.removeFromRight (cellW);
+  out.actionField.removeFromRight (gap);
 
   // Generous, because the page is: the knob takes the room a whole page can
   // give it rather than the sliver a third of a bar can.
   auto const knobDiam = juce::jmin (
       knobDiameterForFont (bodySize, potSizeScale) * 2,
-      juce::jmax (1, juce::jmin (cellW, out.controlRow.getHeight ()) * 2 / 3));
+      juce::jmax (1, juce::jmin (cellW, out.rows[0].getHeight ()) * 2 / 3));
 
   auto const columnGap = juce::jmax (2, cellW / 20);
   out.metrics = ControlMetrics{
     knobDiam,
-    sharedCaptionSize (bodySize, cellW, columnGap,
-                       out.controlRow.getHeight ()),
+    sharedCaptionSize (bodySize, cellW, columnGap, out.rows[0].getHeight ()),
     bodySize,
   };
 

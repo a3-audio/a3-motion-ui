@@ -2221,10 +2221,13 @@ A3MotionUIComponent::updateActionPage ()
           ? 1
           : 0);
 
-  _action->setFilterEnvelope (
-      pattern ? pattern->getFilterAttack () : defaults.filterAttack,
-      pattern ? pattern->getFilterDecay () : defaults.filterDecay,
-      pattern ? pattern->getFilterMax () : defaults.filterMax);
+  _action->setFreqEnvelope (
+      pattern ? pattern->getFreqAttack () : defaults.freqAttack,
+      pattern ? pattern->getFreqDecay () : defaults.freqDecay,
+      pattern ? pattern->getFreqMax () : defaults.freqMax);
+  _action->setQEnvelope (pattern ? pattern->getQAttack () : defaults.qAttack,
+                         pattern ? pattern->getQDecay () : defaults.qDecay,
+                         pattern ? pattern->getQMax () : defaults.qMax);
 
   auto const &action = _slotAction[channel][slot].file;
   _action->setActionName (action.existsAsFile ()
@@ -2254,14 +2257,23 @@ A3MotionUIComponent::applyActionControl (int control, int increment)
     case ActionComponent::EnvelopeMax:
       pattern->setEnvelopeMax (pattern->getEnvelopeMax () + increment * 0.05f);
       break;
-    case ActionComponent::FilterAttack:
-      pattern->setFilterAttack (pattern->getFilterAttack () + increment);
+    case ActionComponent::FreqAttack:
+      pattern->setFreqAttack (pattern->getFreqAttack () + increment);
       break;
-    case ActionComponent::FilterDecay:
-      pattern->setFilterDecay (pattern->getFilterDecay () + increment);
+    case ActionComponent::FreqDecay:
+      pattern->setFreqDecay (pattern->getFreqDecay () + increment);
       break;
-    case ActionComponent::FilterMax:
-      pattern->setFilterMax (pattern->getFilterMax () + increment * 0.05f);
+    case ActionComponent::FreqMax:
+      pattern->setFreqMax (pattern->getFreqMax () + increment * 0.05f);
+      break;
+    case ActionComponent::QAttack:
+      pattern->setQAttack (pattern->getQAttack () + increment);
+      break;
+    case ActionComponent::QDecay:
+      pattern->setQDecay (pattern->getQDecay () + increment);
+      break;
+    case ActionComponent::QMax:
+      pattern->setQMax (pattern->getQMax () + increment * 0.05f);
       break;
     case ActionComponent::ActMode:
       // Modulo rather than a toggle: a tap in an open list arrives as the
@@ -2304,16 +2316,25 @@ A3MotionUIComponent::resetActionControl (int control)
     case ActionComponent::EnvelopeMax:
       pattern->setEnvelopeMax (0.5f);
       break;
-    case ActionComponent::FilterAttack:
-      pattern->setFilterAttack (envelopeMaxStep / 2);
+    case ActionComponent::FreqAttack:
+      pattern->setFreqAttack (envelopeMaxStep / 2);
       break;
-    case ActionComponent::FilterDecay:
-      pattern->setFilterDecay (envelopeMaxStep / 2);
+    case ActionComponent::FreqDecay:
+      pattern->setFreqDecay (envelopeMaxStep / 2);
       break;
-    case ActionComponent::FilterMax:
+    case ActionComponent::QAttack:
+      pattern->setQAttack (envelopeMaxStep / 2);
+      break;
+    case ActionComponent::QDecay:
+      pattern->setQDecay (envelopeMaxStep / 2);
+      break;
+    case ActionComponent::FreqMax:
       // Off, not half way: a filter sweep nobody asked for is a filter sweep
       // in the middle of a set.
-      pattern->setFilterMax (0.f);
+      pattern->setFreqMax (0.f);
+      break;
+    case ActionComponent::QMax:
+      pattern->setQMax (0.f);
       break;
     default:
       return;
@@ -2337,15 +2358,21 @@ A3MotionUIComponent::actionReadoutFor (int control, Pattern const &pattern)
              + juce::String (juce::roundToInt (pattern.getEnvelopeMax ()
                                                * 100.f))
              + "%";
-    case ActionComponent::FilterAttack:
-      return "freq atk "
-             + value::envelopeBarsName (pattern.getFilterAttack ());
-    case ActionComponent::FilterDecay:
-      return "freq dec "
-             + value::envelopeBarsName (pattern.getFilterDecay ());
-    case ActionComponent::FilterMax:
+    case ActionComponent::FreqAttack:
+      return "freq atk " + value::envelopeBarsName (pattern.getFreqAttack ());
+    case ActionComponent::FreqDecay:
+      return "freq dec " + value::envelopeBarsName (pattern.getFreqDecay ());
+    case ActionComponent::FreqMax:
       return "freq max "
-             + juce::String (juce::roundToInt (pattern.getFilterMax () * 100.f))
+             + juce::String (juce::roundToInt (pattern.getFreqMax () * 100.f))
+             + "%";
+    case ActionComponent::QAttack:
+      return "q atk " + value::envelopeBarsName (pattern.getQAttack ());
+    case ActionComponent::QDecay:
+      return "q dec " + value::envelopeBarsName (pattern.getQDecay ());
+    case ActionComponent::QMax:
+      return "q max "
+             + juce::String (juce::roundToInt (pattern.getQMax () * 100.f))
              + "%";
     default:
       return juce::String ("act ")

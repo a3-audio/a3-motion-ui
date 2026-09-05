@@ -88,13 +88,14 @@ public:
    *  you have to take on trust. */
   float getChannelPot3Effective (index_t channel);
 
-  /** The same for the filter pair, off the clip's second envelope: freq and Q
-   *  swept together towards one ceiling, because a resonant sweep is one
-   *  gesture and two ceilings would make it two.
+  /** The same for the two filter values, each off an envelope of its own:
+   *  pot1 is the cutoff, pot2 the resonance, and they have separate times and
+   *  separate ceilings because a sweep whose resonance had to arrive exactly
+   *  when its cutoff does only has one shape.
    *
-   *  Q sits at the top of its range by default and envelopeOver() only ever
-   *  raises, so until Q is turned down the second envelope is audible on freq
-   *  alone. That is the same rule as pot3's, not an exception to it. */
+   *  Both only ever raise, like pot3 -- so a ceiling under where the encoder
+   *  already stands leaves it alone. Q sits at the top of its range by
+   *  default, which is why its envelope is silent until Q is turned down. */
   float getChannelPot1Effective (index_t channel);
   float getChannelPot2Effective (index_t channel);
 
@@ -360,7 +361,8 @@ private:
    *  gesture is not a thing to reload at startup. */
   std::vector<char> _accentHeld;
   std::vector<EnvelopeState> _accentEnvelope;
-  std::vector<EnvelopeState> _filterEnvelope;
+  std::vector<EnvelopeState> _freqEnvelope;
+  std::vector<EnvelopeState> _qEnvelope;
   std::vector<std::shared_ptr<Pattern> > _accentPattern;
 
   /** The action waiting on each channel, and the clip's own settings taken

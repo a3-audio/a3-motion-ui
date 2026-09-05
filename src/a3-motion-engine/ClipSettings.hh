@@ -63,15 +63,20 @@ struct ClipSettings
   int envelopeDecay = 3;
   float envelopeMax = 1.f;
 
-  /** A second envelope, on the filter: the same three values driving freq and
-   *  Q together rather than where the sound is.
+  /** Two more envelopes, on the filter: one for the cutoff, one for the
+   *  resonance, each with its own times and its own ceiling.
    *
-   *  One set for both, because a resonant sweep is one gesture -- the two
-   *  moving apart would be two gestures and would need two pairs of times to
-   *  say so. `filterMax` is how far the sweep goes. */
-  int filterAttack = 2;
-  int filterDecay = 3;
-  float filterMax = 0.f;
+   *  They were one set at first, on the reasoning that a resonant sweep is a
+   *  single gesture. Heard on the device it is not: the resonance wants to
+   *  arrive somewhere other than where the cutoff does, and one pair of times
+   *  gives every sweep the same shape. `*Max` is how far each one goes, and
+   *  zero -- the default -- is off. */
+  int freqAttack = 2;
+  int freqDecay = 3;
+  float freqMax = 0.f;
+  int qAttack = 2;
+  int qDecay = 3;
+  float qMax = 0.f;
   ActMode actMode = ActMode::OneShot;
 
   PlayDirection direction = PlayDirection::Forward;
@@ -119,9 +124,12 @@ operator== (ClipSettings const &a, ClipSettings const &b)
          && a.envelopeAttack == b.envelopeAttack   //
          && a.envelopeDecay == b.envelopeDecay     //
          && a.envelopeMax == b.envelopeMax         //
-         && a.filterAttack == b.filterAttack       //
-         && a.filterDecay == b.filterDecay         //
-         && a.filterMax == b.filterMax             //
+         && a.freqAttack == b.freqAttack           //
+         && a.freqDecay == b.freqDecay             //
+         && a.freqMax == b.freqMax                 //
+         && a.qAttack == b.qAttack                 //
+         && a.qDecay == b.qDecay                   //
+         && a.qMax == b.qMax                       //
          && a.actMode == b.actMode                 //
          && a.direction == b.direction             //
          && a.endAction == b.endAction             //

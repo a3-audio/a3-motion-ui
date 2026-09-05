@@ -121,6 +121,48 @@ TEST (ClipFile, AFileWithOnlyANameAndAShapeLoadsWithDefaults)
 
 // Rubbish must not come back as a clip full of noise in the middle of a set:
 // it fails to load, and the slot stays empty and says so.
+// The cutoff and the resonance shared one envelope for a day, written as
+// "filter*". Clips saved in that day carry those names and no others, and
+// what they meant was the cutoff -- the resonance had no envelope of its own
+// to lose. A file that quietly loaded them as defaults would be a clip whose
+// sweep went missing without saying so.
+TEST (ClipFile, AClipFromBeforeTheSplitKeepsItsCutoffEnvelope)
+{
+  auto const file = tempClip ("a3-clip-legacy-filter.json");
+  file.replaceWithText (R"({ "name": "Old", "svg": "16_Circle",
+                             "filterAttack": 5, "filterDecay": 1,
+                             "filterMax": 0.75 })");
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+
+  EXPECT_EQ (read->settings.freqAttack, 5);
+  EXPECT_EQ (read->settings.freqDecay, 1);
+  EXPECT_FLOAT_EQ (read->settings.freqMax, 0.75f);
+
+  ClipSettings const defaults;
+  EXPECT_EQ (read->settings.qAttack, defaults.qAttack);
+  EXPECT_FLOAT_EQ (read->settings.qMax, defaults.qMax)
+      << "the resonance had no envelope back then and must not inherit one";
+
+  file.deleteFile ();
+}
+
+// And the new names win where a file carries both, which is what a file
+// written by this version and then edited by hand would look like.
+TEST (ClipFile, TheNewNamesWinOverTheOldOnes)
+{
+  auto const file = tempClip ("a3-clip-both-names.json");
+  file.replaceWithText (R"({ "name": "Both", "svg": "16_Circle",
+                             "filterAttack": 5, "freqAttack": 2 })");
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_EQ (read->settings.freqAttack, 2);
+
+  file.deleteFile ();
+}
+
 TEST (ClipFile, RubbishDoesNotLoad)
 {
   auto const file = tempClip ("a3-clip-rubbish.json");

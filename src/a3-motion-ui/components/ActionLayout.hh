@@ -42,21 +42,24 @@ struct ActionLayout
    *  a control. */
   juce::Rectangle<int> actionField;
 
-  /** Two envelopes and the mode that fires them, in reading order -- which is
-   *  also the order the handler expects.
+  /** The mode, up beside the name rather than at the end of a row.
    *
-   *  Row one is the accent: where the sound goes. Row two is the filter: freq
-   *  and Q swept together. The mode closes the second row, because it says
-   *  what pressing the key does to both of them. */
-  std::array<juce::Rectangle<int>, 7> controls;
+   *  It says what a press does to all three envelopes, so it belongs to none
+   *  of them -- and it is a state you want to find without reading, which the
+   *  tail of the bottom row is not. */
+  juce::Rectangle<int> actModeField;
 
-  /** The two bands the controls stand on. */
-  juce::Rectangle<int> controlRow;
-  juce::Rectangle<int> filterRow;
+  /** Three envelopes' worth of attack, decay and ceiling, in reading order --
+   *  which is also the order the handler expects. Accent first, because it is
+   *  what ACT has always done, then the cutoff, then the resonance. */
+  static constexpr int numRows = 3;
+  std::array<juce::Rectangle<int>, numRows * 3> controls;
 
-  /** Which envelope each row is, named beside it. */
-  juce::Rectangle<int> accentLabel;
-  juce::Rectangle<int> filterLabel;
+  /** The bands the controls stand on, top to bottom. */
+  std::array<juce::Rectangle<int>, numRows> rows;
+
+  /** Which envelope each row is, named in the column beside it. */
+  std::array<juce::Rectangle<int>, numRows> rowLabels;
 
   /** Knob size and text sizes, worked out for these cells -- the same
    *  numbers the clip bar hands its own knobs, so the two pages draw one

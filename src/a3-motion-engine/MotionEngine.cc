@@ -99,7 +99,8 @@ MotionEngine::createChannels (index_t const numChannels)
   _lastSentPot3s.resize (numChannels);
   _accentHeld.assign (numChannels, 0);
   _accentEnvelope.resize (numChannels);
-  _filterEnvelope.resize (numChannels);
+  _freqEnvelope.resize (numChannels);
+  _qEnvelope.resize (numChannels);
   _accentPattern.resize (numChannels);
   _channelAction.resize (numChannels);
   _accentRestore.resize (numChannels);
@@ -219,30 +220,29 @@ MotionEngine::getChannelPot3Effective (index_t channel)
 float
 MotionEngine::getChannelPot1Effective (index_t channel)
 {
-  if (channel >= _filterEnvelope.size ())
+  if (channel >= _freqEnvelope.size ())
     return getChannelPot1 (channel);
 
+  // With no clip firing there is nothing to sweep towards, and zero is below
+  // every set value, so envelopeOver() leaves the encoder alone.
   auto const &pattern = _accentPattern[channel];
-  auto const max = pattern ? pattern->getFilterMax () : 0.f;
+  auto const max = pattern ? pattern->getFreqMax () : 0.f;
 
   return envelopeOver (_channels[channel]->getPot1 (), max,
-                       _filterEnvelope[channel].level);
+                       _freqEnvelope[channel].level);
 }
 
 float
 MotionEngine::getChannelPot2Effective (index_t channel)
 {
-  if (channel >= _filterEnvelope.size ())
+  if (channel >= _qEnvelope.size ())
     return getChannelPot2 (channel);
 
-  // The same ceiling as freq, on purpose: one set of three numbers for one
-  // gesture. With no clip firing there is nothing to sweep towards, and zero
-  // is below every set value, so envelopeOver() leaves the pot alone.
   auto const &pattern = _accentPattern[channel];
-  auto const max = pattern ? pattern->getFilterMax () : 0.f;
+  auto const max = pattern ? pattern->getQMax () : 0.f;
 
   return envelopeOver (_channels[channel]->getPot2 (), max,
-                       _filterEnvelope[channel].level);
+                       _qEnvelope[channel].level);
 }
 
 void
@@ -281,12 +281,17 @@ MotionEngine::advanceAccents ()
           _accentEnvelope[index], mode, fingerDown, attack, decay,
           ticksPerBar);
 
-      // The filter's envelope rides the same finger with its own two times,
-      // so a slow sweep can sit under a short stab and the other way round.
-      _filterEnvelope[index] = advanceEnvelope (
-          _filterEnvelope[index], mode, fingerDown,
-          pattern ? pattern->getFilterAttack () : 2,
-          pattern ? pattern->getFilterDecay () : 3, ticksPerBar);
+      // Cutoff and resonance ride the same finger, each in its own time: a
+      // slow sweep can sit under a short stab, and the resonance can arrive
+      // long after the cutoff has or well before it.
+      _freqEnvelope[index] = advanceEnvelope (
+          _freqEnvelope[index], mode, fingerDown,
+          pattern ? pattern->getFreqAttack () : 2,
+          pattern ? pattern->getFreqDecay () : 3, ticksPerBar);
+      _qEnvelope[index] = advanceEnvelope (
+          _qEnvelope[index], mode, fingerDown,
+          pattern ? pattern->getQAttack () : 2,
+          pattern ? pattern->getQDecay () : 3, ticksPerBar);
 
       // The decay running out is the end of the gesture, so the clip does
       // whatever its end action says — the accent is a one-shot you played,
@@ -360,7 +365,8 @@ MotionEngine::setChannelAccentHeld (index_t channel, bool held,
   if (held)
     {
       _accentEnvelope[channel] = fireEnvelope (_accentEnvelope[channel]);
-      _filterEnvelope[channel] = fireEnvelope (_filterEnvelope[channel]);
+      _freqEnvelope[channel] = fireEnvelope (_freqEnvelope[channel]);
+      _qEnvelope[channel] = fireEnvelope (_qEnvelope[channel]);
     }
 
   // The shape is the firing clip's, taken at the press and kept until the
@@ -400,7 +406,8 @@ MotionEngine::isChannelAccentActive (index_t channel) const
     return false;
 
   return _accentEnvelope[channel].stage != EnvelopeStage::Idle
-         || _filterEnvelope[channel].stage != EnvelopeStage::Idle
+         || _freqEnvelope[channel].stage != EnvelopeStage::Idle
+         || _qEnvelope[channel].stage != EnvelopeStage::Idle
          || _accentRestore[channel].has_value ();
 }
 

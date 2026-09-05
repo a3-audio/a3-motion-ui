@@ -83,9 +83,12 @@ ActionComponent::resized ()
                               theme ().fontSize (FontRole::Body),
                               theme ().potSize);
 
-  for (int i = 0; i < numControls; ++i)
+  // Every knob comes out of the rows; the mode does not stand in one.
+  for (int i = 0; i < ActMode; ++i)
     _touch[static_cast<size_t> (i)]->setBounds (
         _layout.controls[static_cast<size_t> (i)]);
+
+  _touch[ActMode]->setBounds (_layout.actModeField);
 }
 
 void
@@ -110,15 +113,26 @@ ActionComponent::setEnvelope (int attackStep, int decayStep, float max)
 }
 
 void
-ActionComponent::setFilterEnvelope (int attackStep, int decayStep, float max)
+ActionComponent::setFreqEnvelope (int attackStep, int decayStep, float max)
 {
-  if (attackStep == _filterAttack && decayStep == _filterDecay
-      && max == _filterMax)
+  if (attackStep == _freqAttack && decayStep == _freqDecay && max == _freqMax)
     return;
 
-  _filterAttack = attackStep;
-  _filterDecay = decayStep;
-  _filterMax = max;
+  _freqAttack = attackStep;
+  _freqDecay = decayStep;
+  _freqMax = max;
+  repaint ();
+}
+
+void
+ActionComponent::setQEnvelope (int attackStep, int decayStep, float max)
+{
+  if (attackStep == _qAttack && decayStep == _qDecay && max == _qMax)
+    return;
+
+  _qAttack = attackStep;
+  _qDecay = decayStep;
+  _qMax = max;
   repaint ();
 }
 
@@ -183,34 +197,41 @@ ActionComponent::paint (juce::Graphics &g)
 
   auto const &metrics = _layout.metrics;
 
-  paintBarKnob (g, _layout.controls[Attack], metrics, _channelColour,
-                caption::attack, envFrac (_attack), false, false, true);
-  paintBarKnob (g, _layout.controls[Decay], metrics, _channelColour,
-                caption::decay, envFrac (_decay), false, false, true);
-  paintBarKnob (g, _layout.controls[EnvelopeMax], metrics, _channelColour,
-                caption::envelopeMax, _max * 2.f - 1.f, false, false, true);
+  // Three envelopes, one row each, all the same shape: atk over atk over atk.
+  // The accent is read first because it is what ACT has always done, then the
+  // cutoff, then the resonance.
+  int const steps[]
+      = { _attack, _decay, 0, _freqAttack, _freqDecay, 0, _qAttack, _qDecay, 0 };
+  float const ceilings[] = { _max, _freqMax, _qMax };
 
-  // The second envelope, on the filter. Same three values, same knobs: freq
-  // and Q sweep together because a resonant sweep is one gesture, and two
-  // pairs of times would be saying it is two.
-  paintBarKnob (g, _layout.controls[FilterAttack], metrics, _channelColour,
-                caption::attack, envFrac (_filterAttack), false, false, true);
-  paintBarKnob (g, _layout.controls[FilterDecay], metrics, _channelColour,
-                caption::decay, envFrac (_filterDecay), false, false, true);
-  paintBarKnob (g, _layout.controls[FilterMax], metrics, _channelColour,
-                caption::envelopeMax, _filterMax * 2.f - 1.f, false, false,
-                true);
+  for (int row = 0; row < ActionLayout::numRows; ++row)
+    {
+      auto const base = row * 3;
+      paintBarKnob (g, _layout.controls[static_cast<size_t> (base)], metrics,
+                    _channelColour, caption::attack,
+                    envFrac (steps[base]), false, false, true);
+      paintBarKnob (g, _layout.controls[static_cast<size_t> (base + 1)],
+                    metrics, _channelColour, caption::decay,
+                    envFrac (steps[base + 1]), false, false, true);
+      paintBarKnob (g, _layout.controls[static_cast<size_t> (base + 2)],
+                    metrics, _channelColour, caption::envelopeMax,
+                    ceilings[row] * 2.f - 1.f, false, false, true);
+    }
 
   // Which row is which, said once each rather than on every knob.
+  char const *const rowNames[] = { "accent", caption::frequency, "q" };
   g.setColour (toColour (theme ().textMuted, 0.8f));
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (14.f, _layout.accentLabel.getHeight () * 0.8f))));
-  g.drawText ("accent", _layout.accentLabel, juce::Justification::centred);
-  g.drawText ("freq / Q", _layout.filterLabel, juce::Justification::centred);
+      juce::jmin (14.f, _layout.rowLabels[0].getHeight () * 0.4f))));
+  for (int row = 0; row < ActionLayout::numRows; ++row)
+    g.drawText (rowNames[row], _layout.rowLabels[static_cast<size_t> (row)],
+                juce::Justification::centred);
 
   // Not a knob: it is one of two words, and a knob that can only be at one of
-  // two places is a knob that lies about what it can do.
-  auto const modeBounds = _layout.controls[ActMode];
+  // two places is a knob that lies about what it can do. It stands beside the
+  // action's name because it says what a press does to all three envelopes,
+  // so it belongs to none of their rows.
+  auto const modeBounds = _layout.actModeField;
   g.setColour (toColour (theme ().textPrimary, 0.06f));
   g.fillRoundedRectangle (modeBounds.toFloat (), 3.f);
   g.setColour (toColour (theme ().textPrimary, 0.15f));

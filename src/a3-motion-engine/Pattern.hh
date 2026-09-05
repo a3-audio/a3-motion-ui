@@ -161,14 +161,21 @@ public:
    *  something else on a device set up differently. */
 
 
-  /** The filter envelope: freq and Q swept together. See
-   *  ClipSettings::filterAttack. */
-  int getFilterAttack () const;
-  void setFilterAttack (int step);
-  int getFilterDecay () const;
-  void setFilterDecay (int step);
-  float getFilterMax () const;
-  void setFilterMax (float max);
+  /** The filter envelopes, one for the cutoff and one for the resonance --
+   *  each with its own times and ceiling. See ClipSettings::freqAttack. */
+  int getFreqAttack () const;
+  void setFreqAttack (int step);
+  int getFreqDecay () const;
+  void setFreqDecay (int step);
+  float getFreqMax () const;
+  void setFreqMax (float max);
+
+  int getQAttack () const;
+  void setQAttack (int step);
+  int getQDecay () const;
+  void setQDecay (int step);
+  float getQMax () const;
+  void setQMax (float max);
 
   /** How far a gap may be for the fade to draw through it, 0..1 of the
    *  sphere's diameter. See ClipSettings::fadeReach. */
@@ -332,9 +339,12 @@ private:
   void ensureBridgePlanLocked () const;
   void markBridgePlanStale ();
 
-  std::atomic<int> _filterAttack{ 2 };
-  std::atomic<int> _filterDecay{ 3 };
-  std::atomic<float> _filterMax{ 0.f };
+  std::atomic<int> _freqAttack{ 2 };
+  std::atomic<int> _freqDecay{ 3 };
+  std::atomic<float> _freqMax{ 0.f };
+  std::atomic<int> _qAttack{ 2 };
+  std::atomic<int> _qDecay{ 3 };
+  std::atomic<float> _qMax{ 0.f };
   std::atomic<float> _fadeReach{ 0.25f };
   std::atomic<int> _bridgeBias{ 0 };
   std::atomic<PlayDirection> _playDirection{ PlayDirection::Forward };

@@ -45,9 +45,12 @@ clipSettingsFrom (Pattern const &pattern)
   settings.envelopeAttack = pattern.getEnvelopeAttack ();
   settings.envelopeDecay = pattern.getEnvelopeDecay ();
   settings.envelopeMax = pattern.getEnvelopeMax ();
-  settings.filterAttack = pattern.getFilterAttack ();
-  settings.filterDecay = pattern.getFilterDecay ();
-  settings.filterMax = pattern.getFilterMax ();
+  settings.freqAttack = pattern.getFreqAttack ();
+  settings.freqDecay = pattern.getFreqDecay ();
+  settings.freqMax = pattern.getFreqMax ();
+  settings.qAttack = pattern.getQAttack ();
+  settings.qDecay = pattern.getQDecay ();
+  settings.qMax = pattern.getQMax ();
   settings.actMode = pattern.getActMode ();
 
   settings.direction = pattern.getPlayDirection ();
@@ -77,9 +80,12 @@ applyClipSettings (Pattern &pattern, ClipSettings const &settings)
   pattern.setEnvelopeAttack (settings.envelopeAttack);
   pattern.setEnvelopeDecay (settings.envelopeDecay);
   pattern.setEnvelopeMax (settings.envelopeMax);
-  pattern.setFilterAttack (settings.filterAttack);
-  pattern.setFilterDecay (settings.filterDecay);
-  pattern.setFilterMax (settings.filterMax);
+  pattern.setFreqAttack (settings.freqAttack);
+  pattern.setFreqDecay (settings.freqDecay);
+  pattern.setFreqMax (settings.freqMax);
+  pattern.setQAttack (settings.qAttack);
+  pattern.setQDecay (settings.qDecay);
+  pattern.setQMax (settings.qMax);
   pattern.setActMode (settings.actMode);
 
   pattern.setPlayDirection (settings.direction);
@@ -99,9 +105,12 @@ actionOver (ClipSettings const &current, ClipSettings const &action)
   fired.envelopeAttack = current.envelopeAttack;
   fired.envelopeDecay = current.envelopeDecay;
   fired.envelopeMax = current.envelopeMax;
-  fired.filterAttack = current.filterAttack;
-  fired.filterDecay = current.filterDecay;
-  fired.filterMax = current.filterMax;
+  fired.freqAttack = current.freqAttack;
+  fired.freqDecay = current.freqDecay;
+  fired.freqMax = current.freqMax;
+  fired.qAttack = current.qAttack;
+  fired.qDecay = current.qDecay;
+  fired.qMax = current.qMax;
   fired.actMode = current.actMode;
 
   return fired;

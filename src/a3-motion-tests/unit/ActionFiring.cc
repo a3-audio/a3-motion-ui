@@ -41,8 +41,9 @@ namespace
  *  ceilings and whether ACT is a stab or a hold. They belong to the slot
  *  because that is what the ACTION page shows and edits. */
 std::vector<std::string> const slotOwned{
-  "envelopeAttack", "envelopeDecay", "envelopeMax", "filterAttack",
-  "filterDecay",    "filterMax",     "actMode",
+  "envelopeAttack", "envelopeDecay", "envelopeMax", "freqAttack",
+  "freqDecay",      "freqMax",       "qAttack",     "qDecay",
+  "qMax",           "actMode",
 };
 
 bool
@@ -88,18 +89,24 @@ TEST (ActionFiring, HowTheAccentIsPlayedStaysWithTheSlot)
   current.envelopeAttack = 0;
   current.envelopeDecay = 5;
   current.envelopeMax = 0.4f;
-  current.filterAttack = 1;
-  current.filterDecay = 6;
-  current.filterMax = 0.7f;
+  current.freqAttack = 1;
+  current.freqDecay = 6;
+  current.freqMax = 0.7f;
+  current.qAttack = 5;
+  current.qDecay = 1;
+  current.qMax = 0.3f;
   current.actMode = ActMode::Hold;
 
   ClipSettings action;
   action.envelopeAttack = 6;
   action.envelopeDecay = 0;
   action.envelopeMax = 1.f;
-  action.filterAttack = 6;
-  action.filterDecay = 0;
-  action.filterMax = 0.f;
+  action.freqAttack = 6;
+  action.freqDecay = 0;
+  action.freqMax = 0.f;
+  action.qAttack = 0;
+  action.qDecay = 6;
+  action.qMax = 1.f;
   action.actMode = ActMode::OneShot;
 
   auto const fired = actionOver (current, action);
@@ -107,9 +114,12 @@ TEST (ActionFiring, HowTheAccentIsPlayedStaysWithTheSlot)
   EXPECT_EQ (fired.envelopeAttack, 0);
   EXPECT_EQ (fired.envelopeDecay, 5);
   EXPECT_FLOAT_EQ (fired.envelopeMax, 0.4f);
-  EXPECT_EQ (fired.filterAttack, 1);
-  EXPECT_EQ (fired.filterDecay, 6);
-  EXPECT_FLOAT_EQ (fired.filterMax, 0.7f);
+  EXPECT_EQ (fired.freqAttack, 1);
+  EXPECT_EQ (fired.freqDecay, 6);
+  EXPECT_FLOAT_EQ (fired.freqMax, 0.7f);
+  EXPECT_EQ (fired.qAttack, 5);
+  EXPECT_EQ (fired.qDecay, 1);
+  EXPECT_FLOAT_EQ (fired.qMax, 0.3f);
   EXPECT_EQ (fired.actMode, ActMode::Hold)
       << "the mode was read when ACT went down; changing it mid-gesture "
          "leaves a held clip with nothing holding it";
@@ -294,4 +304,35 @@ TEST (ActionFiring, AnActionsEndActionIsWhatEndsTheAccent)
       << "the action said stop and the clip kept going";
   EXPECT_EQ (pattern->getEndAction (), EndAction::Loop)
       << "and afterwards the clip is its looping self again";
+}
+
+// One envelope for both was the first guess and it does not survive being
+// heard: freq and Q are two gestures, not one, and a sweep that has to reach
+// its resonance at exactly the speed it reaches its cutoff is a sweep with one
+// shape. Two sets of three, and this is what says they are actually separate.
+TEST (ActionFiring, FreqAndQSweepOnEnvelopesOfTheirOwn)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  engine.setPreviewMode (0, true);
+  engine.setTempoBPM (240.f);
+
+  auto pattern = clipWithAShortAccent (ActMode::Hold);
+  pattern->setFreqAttack (envelopeMaxStep); // four bars: barely moving
+  pattern->setQAttack (0);                  // a sixteenth: there at once
+  pattern->setFreqMax (1.f);
+  pattern->setQMax (1.f);
+
+  // Both floors at nothing, so what is read back is the envelope alone.
+  engine.setChannelPot1 (0, 0.f);
+  engine.setChannelPot2 (0, 0.f);
+
+  engine.setChannelAccentHeld (0, true, pattern);
+  juce::Thread::sleep (300);
+
+  EXPECT_GT (engine.getChannelPot2Effective (0),
+             engine.getChannelPot1Effective (0))
+      << "q could not outrun freq -- they are still riding one envelope";
+
+  engine.setChannelAccentHeld (0, false, nullptr);
 }

@@ -89,12 +89,18 @@ writeOverrides (a3::ClipSettings const &settings)
     put ("direction", a3::playDirectionToName (settings.direction));
   if (settings.endAction != defaults.endAction)
     put ("endAction", a3::endActionToName (settings.endAction));
-  if (settings.filterAttack != defaults.filterAttack)
-    put ("filterAttack", settings.filterAttack);
-  if (settings.filterDecay != defaults.filterDecay)
-    put ("filterDecay", settings.filterDecay);
-  if (settings.filterMax != defaults.filterMax)
-    put ("filterMax", settings.filterMax);
+  if (settings.freqAttack != defaults.freqAttack)
+    put ("freqAttack", settings.freqAttack);
+  if (settings.freqDecay != defaults.freqDecay)
+    put ("freqDecay", settings.freqDecay);
+  if (settings.freqMax != defaults.freqMax)
+    put ("freqMax", settings.freqMax);
+  if (settings.qAttack != defaults.qAttack)
+    put ("qAttack", settings.qAttack);
+  if (settings.qDecay != defaults.qDecay)
+    put ("qDecay", settings.qDecay);
+  if (settings.qMax != defaults.qMax)
+    put ("qMax", settings.qMax);
   if (settings.fadeReach != defaults.fadeReach)
     put ("fadeReach", settings.fadeReach);
   if (settings.bridgeBias != defaults.bridgeBias)
@@ -128,9 +134,16 @@ readOverrides (juce::var const &value)
   settings.envelopeAttack = read ("envAttack", settings.envelopeAttack);
   settings.envelopeDecay = read ("envDecay", settings.envelopeDecay);
   settings.envelopeMax = read ("envMax", settings.envelopeMax);
-  settings.filterAttack = read ("filterAttack", settings.filterAttack);
-  settings.filterDecay = read ("filterDecay", settings.filterDecay);
-  settings.filterMax = read ("filterMax", settings.filterMax);
+  // "filter*" is what a set written before the split calls the cutoff's
+  // envelope; the resonance had none to lose. See ClipFile::load().
+  settings.freqAttack
+      = read ("freqAttack", read ("filterAttack", settings.freqAttack));
+  settings.freqDecay
+      = read ("freqDecay", read ("filterDecay", settings.freqDecay));
+  settings.freqMax = read ("freqMax", read ("filterMax", settings.freqMax));
+  settings.qAttack = read ("qAttack", settings.qAttack);
+  settings.qDecay = read ("qDecay", settings.qDecay);
+  settings.qMax = read ("qMax", settings.qMax);
   settings.fadeReach = read ("fadeReach", settings.fadeReach);
   settings.bridgeBias = read ("bridgeBias", settings.bridgeBias);
 

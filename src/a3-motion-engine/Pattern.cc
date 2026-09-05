@@ -188,41 +188,79 @@ Pattern::setPlayDirection (PlayDirection direction)
 }
 
 int
-Pattern::getFilterAttack () const
+Pattern::getFreqAttack () const
 {
-  return _filterAttack.load (std::memory_order_relaxed);
+  return _freqAttack.load (std::memory_order_relaxed);
 }
 
 void
-Pattern::setFilterAttack (int step)
+Pattern::setFreqAttack (int step)
 {
-  _filterAttack.store (juce::jlimit (0, envelopeMaxStep, step),
-                       std::memory_order_relaxed);
+  _freqAttack.store (juce::jlimit (0, envelopeMaxStep, step),
+                     std::memory_order_relaxed);
 }
 
 int
-Pattern::getFilterDecay () const
+Pattern::getFreqDecay () const
 {
-  return _filterDecay.load (std::memory_order_relaxed);
+  return _freqDecay.load (std::memory_order_relaxed);
 }
 
 void
-Pattern::setFilterDecay (int step)
+Pattern::setFreqDecay (int step)
 {
-  _filterDecay.store (juce::jlimit (0, envelopeMaxStep, step),
-                      std::memory_order_relaxed);
+  _freqDecay.store (juce::jlimit (0, envelopeMaxStep, step),
+                    std::memory_order_relaxed);
 }
 
 float
-Pattern::getFilterMax () const
+Pattern::getFreqMax () const
 {
-  return _filterMax.load (std::memory_order_relaxed);
+  return _freqMax.load (std::memory_order_relaxed);
 }
 
 void
-Pattern::setFilterMax (float max)
+Pattern::setFreqMax (float max)
 {
-  _filterMax.store (juce::jlimit (0.f, 1.f, max), std::memory_order_relaxed);
+  _freqMax.store (juce::jlimit (0.f, 1.f, max), std::memory_order_relaxed);
+}
+
+int
+Pattern::getQAttack () const
+{
+  return _qAttack.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setQAttack (int step)
+{
+  _qAttack.store (juce::jlimit (0, envelopeMaxStep, step),
+                  std::memory_order_relaxed);
+}
+
+int
+Pattern::getQDecay () const
+{
+  return _qDecay.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setQDecay (int step)
+{
+  _qDecay.store (juce::jlimit (0, envelopeMaxStep, step),
+                 std::memory_order_relaxed);
+}
+
+float
+Pattern::getQMax () const
+{
+  return _qMax.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setQMax (float max)
+{
+  _qMax.store (juce::jlimit (0.f, 1.f, max), std::memory_order_relaxed);
 }
 
 float

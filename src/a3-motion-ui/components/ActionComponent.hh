@@ -47,9 +47,13 @@ public:
     Attack = 0,
     Decay,
     EnvelopeMax,
-    FilterAttack,
-    FilterDecay,
-    FilterMax,
+    FreqAttack,
+    FreqDecay,
+    FreqMax,
+    QAttack,
+    QDecay,
+    QMax,
+    /** Not a knob and not in a row -- it stands beside the action's name. */
     ActMode,
     numControls
   };
@@ -68,8 +72,9 @@ public:
 
   /** Steps 0..envelopeMaxStep, as the engine counts them. */
   void setEnvelope (int attackStep, int decayStep, float max);
-  /** The second envelope: freq and Q swept together. */
-  void setFilterEnvelope (int attackStep, int decayStep, float max);
+  /** The two filter envelopes: the cutoff's, then the resonance's. */
+  void setFreqEnvelope (int attackStep, int decayStep, float max);
+  void setQEnvelope (int attackStep, int decayStep, float max);
   /** 0 = one-shot, 1 = hold. */
   void setActMode (int mode);
 
@@ -92,9 +97,12 @@ private:
   int _attack = 2;
   int _decay = 3;
   float _max = 1.f;
-  int _filterAttack = 2;
-  int _filterDecay = 3;
-  float _filterMax = 0.f;
+  int _freqAttack = 2;
+  int _freqDecay = 3;
+  float _freqMax = 0.f;
+  int _qAttack = 2;
+  int _qDecay = 3;
+  float _qMax = 0.f;
   int _actMode = 0;
   juce::String _actionName;
 
