@@ -818,37 +818,13 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   paintTab (_layout.tabAction, "ACTION", _page == BarPage::Action);
   paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
 
-  // A folder rather than a fourth word: the three tabs are views of the clip
-  // you are on and this one leaves it, so it is not one of them to look at
-  // either.
-  {
-    auto const bounds = _layout.tabBrowser;
-    auto const active = _page == BarPage::Browser;
+  // A word like the three beside it. It was a folder mark, on the reasoning
+  // that the tabs are views of the clip and this one leaves it -- but once
+  // every key in the row became one size, a drawing among words was the odd
+  // one out rather than the distinct one, and at this size it read as a
+  // smudge.
+  paintTab (_layout.tabBrowser, "FILES", _page == BarPage::Browser);
 
-    g.setColour (active ? _channelColour.withAlpha (0.35f)
-                        : toColour (theme ().textPrimary, 0.06f));
-    g.fillRoundedRectangle (bounds.toFloat (), 3.f);
-    g.setColour (toColour (theme ().textPrimary, active ? 0.35f : 0.15f));
-    g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
-
-    // A tab with a raised corner: the shape a folder has had since before any
-    // of this, and the one people look for when they want what is stored.
-    auto const face = bounds.toFloat ().reduced (bounds.getWidth () * 0.26f);
-    auto const lip = face.getHeight () * 0.26f;
-
-    juce::Path folder;
-    folder.startNewSubPath (face.getX (), face.getBottom ());
-    folder.lineTo (face.getX (), face.getY () + lip);
-    folder.lineTo (face.getX () + face.getWidth () * 0.42f,
-                   face.getY () + lip);
-    folder.lineTo (face.getX () + face.getWidth () * 0.52f, face.getY ());
-    folder.lineTo (face.getRight (), face.getY ());
-    folder.lineTo (face.getRight (), face.getBottom ());
-    folder.closeSubPath ();
-
-    g.setColour (toColour (theme ().textPrimary, active ? 1.f : 0.55f));
-    g.strokePath (folder, juce::PathStrokeType (1.4f));
-  }
 }
 
 juce::Rectangle<int>
