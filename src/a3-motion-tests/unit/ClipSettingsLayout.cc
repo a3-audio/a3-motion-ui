@@ -262,24 +262,11 @@ TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
     }
 }
 
-TEST (ClipSettingsLayout, TheMarksAreSquareAndTheWordsAreWider)
-{
-  // The folder, the two slots and the four transport marks are marks: square,
-  // one header row each. The three views are words and need the room words
-  // need.
-  auto const l = defaultLayout ();
-
-  std::vector<juce::Rectangle<int> > marks{ l.tabBrowser };
-  for (auto const &slot : l.slotButtons)
-    marks.push_back (slot);
-  for (auto const &key : l.transportButtons)
-    marks.push_back (key);
-
-  for (size_t i = 0; i < marks.size (); ++i)
-    EXPECT_EQ (marks[i].getWidth (), marks[i].getHeight ()) << "mark " << i;
-
-  EXPECT_GT (l.tabRecord.getWidth (), l.tabBrowser.getWidth ());
-}
+// The row used to mix square marks with wider words, on the reasoning that a
+// mark needs no room and a word does. With the channel faces in it that
+// stopped being true: a face is a mark *and* a value, there are eight things
+// in the row, and eight keys of two sizes read as two rows side by side. One
+// size for all of them now -- see TheHeaderKeysAreAllOneSize.
 
 TEST (ClipSettingsLayout, TheHeaderIsTallEnoughToHitAtTheSizeItShipsAt)
 {
@@ -1347,9 +1334,10 @@ TEST (ClipSettingsLayout, TheFolderClosesTheRow)
   EXPECT_GT (l.tabBrowser.getX (), l.tabController.getX ());
   EXPECT_GT (l.tabBrowser.getX (), l.channelFaces[numChannelColumns - 1].getX ());
 
-  // Still inside the clip part, and still square.
+  // Still inside the clip part, and the same key as every other in the row
+  // -- see TheHeaderKeysAreAllOneSize.
   EXPECT_TRUE (l.clipBounds.contains (l.tabBrowser));
-  EXPECT_EQ (l.tabBrowser.getWidth (), l.tabBrowser.getHeight ());
+  EXPECT_EQ (l.tabBrowser.getWidth (), l.tabRecord.getWidth ());
 }
 
 // And the three remaining views keep their place between the faces and the
@@ -1386,5 +1374,34 @@ TEST (ClipSettingsLayout, EveryChannelHasAFaceOnEveryPage)
 
       // Before the views, which are before the folder.
       EXPECT_LE (previousRight, l.tabRecord.getX ());
+    }
+}
+
+// Every key in the header row is the same size. Four faces, three words and
+// the folder are eight things a hand goes to in the same row, and a row of
+// keys that are not the same size reads as several rows that happen to be
+// next to each other.
+TEST (ClipSettingsLayout, TheHeaderKeysAreAllOneSize)
+{
+  for (int width : { 768, 1024, 1280 })
+    {
+      auto const l
+          = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
+
+      std::vector<juce::Rectangle<int> > keys;
+      for (auto const &face : l.channelFaces)
+        keys.push_back (face);
+      keys.push_back (l.tabRecord);
+      keys.push_back (l.tabAction);
+      keys.push_back (l.tabController);
+      keys.push_back (l.tabBrowser);
+
+      for (size_t i = 1; i < keys.size (); ++i)
+        {
+          EXPECT_EQ (keys[i].getWidth (), keys[0].getWidth ())
+              << "key " << i << " at width " << width;
+          EXPECT_EQ (keys[i].getHeight (), keys[0].getHeight ())
+              << "key " << i << " at width " << width;
+        }
     }
 }
