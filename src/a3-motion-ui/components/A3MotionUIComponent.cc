@@ -498,6 +498,33 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       applyActionControl (control, 1);
   };
 
+  _action->onActionChosen = [this] (juce::String const &name) {
+    setSlotAction (_clipSettingsChannel, _clipSettingsSlot,
+                   name.isEmpty () ? juce::File{}
+                                   : actionsDir ().getChildFile (name + ".scd"));
+    refreshBrowser ();
+  };
+
+  // The keyboard is the system's own, and it types into whatever has the
+  // focus -- so opening the editor is what shows it and losing the editor is
+  // what takes it away.
+  _action->onScriptEditingChanged = [this] (bool editing) {
+    showKeyboard (editing);
+
+    // Closing the editor is what makes the script live again. Not on every
+    // keystroke: half a line is not a script, and applying one would have a
+    // value set from something nobody has finished typing.
+    if (!editing)
+      {
+        _action->markScriptSaved ();
+        setSlotAction (_clipSettingsChannel, _clipSettingsSlot,
+                       _slotAction[_clipSettingsChannel][_clipSettingsSlot]
+                           .file);
+      }
+  };
+
+  _action->onScriptChanged = [this] { writeSlotActionScript (); };
+
   // The browser: the eight clips of the device and the library beside them.
   // What a field or a row means is decided here rather than there, the same
   // way the pads page knows nothing about what a pad does.
@@ -1666,6 +1693,10 @@ A3MotionUIComponent::showBarPage (BarPage page)
       _action->setVisible (page == BarPage::Action);
       if (page == BarPage::Action)
         updateActionPage ();
+      else
+        // Leaving the page ends the edit, which is also what puts the
+        // keyboard away and makes the script live again.
+        _action->stopEditingScript ();
     }
   if (_browser)
     {
@@ -2147,6 +2178,37 @@ A3MotionUIComponent::assignActionEntry (juce::String const &name)
 }
 
 void
+A3MotionUIComponent::writeSlotActionScript ()
+{
+  if (!_action)
+    return;
+
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto &action = _slotAction[channel][slot];
+
+  if (!action.file.existsAsFile ())
+    return;
+
+  action.source = _action->script ();
+
+  // Written on every keystroke rather than on the way out. A device in a
+  // booth loses power without warning, the file is a few hundred bytes, and
+  // an editor whose work only survives if you remember to leave it properly
+  // is one nobody trusts. The mark on the field says it has been touched
+  // since it last *ran*, which is the thing worth knowing.
+  if (!action.file.replaceWithText (action.source))
+    {
+      std::cerr << "could not write action " << action.file.getFullPathName ()
+                << std::endl;
+      return;
+    }
+
+  // Not re-run here: a script is applied when it is chosen, and re-applying
+  // it on every character would have half-typed lines setting values.
+}
+
+void
 A3MotionUIComponent::setSlotAction (index_t channel, index_t slot,
                                     juce::File const &file)
 {
@@ -2275,12 +2337,18 @@ A3MotionUIComponent::updateActionPage ()
   auto const &slotAction = _slotAction[channel][slot];
   auto const &action = slotAction.file;
 
-  // The errors first if there are any: a script that did not read is the one
-  // thing you need to see before anything it half-did.
-  _action->setScript (slotAction.errors.isEmpty ()
-                          ? slotAction.source
-                          : slotAction.errors.joinIntoString ("\n") + "\n\n"
-                                + slotAction.source);
+  // What the field's list offers: the empty row first, so a slot can go back
+  // to firing nothing the same way it can go back to holding no clip.
+  juce::StringArray choices;
+  choices.add ("");
+  for (auto const &file : actionsDir ().findChildFiles (juce::File::findFiles,
+                                                        false, "*.scd"))
+    choices.add (file.getFileNameWithoutExtension ());
+  choices.sort (true);
+  _action->setActionChoices (choices);
+
+  _action->setScript (slotAction.source);
+  _action->setScriptErrors (slotAction.errors);
 
   _action->setActionName (action.existsAsFile ()
                               ? action.getFileNameWithoutExtension ()

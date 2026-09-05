@@ -53,6 +53,15 @@ struct ActionLayout
    *  card leaves. */
   juce::Rectangle<int> scriptField;
 
+  /** Where the action field's list opens: over the script, which is what it
+   *  replaces for a moment. It cannot open outside the bar -- the sphere's GL
+   *  context composites above anything drawn over it -- and it must not open
+   *  over the knobs, which are what you are about to set. */
+  juce::Rectangle<int> actionListArea;
+  /** A row of that list. A fingertip, whatever the page's size: picking a
+   *  script mid-set is a tap, and a row you have to aim at is one you miss. */
+  int actionListRowHeight = 0;
+
   /** The knobs stand on a card at the right, the way every other block of
    *  controls in the bar does. */
   juce::Rectangle<int> card;

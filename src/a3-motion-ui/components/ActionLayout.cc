@@ -113,6 +113,10 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   content.removeFromTop (gap);
   out.scriptField = content;
 
+  out.actionListRowHeight
+      = juce::jmax (fingertipSize, out.scriptField.getHeight () / 7);
+  out.actionListArea = out.scriptField;
+
   auto const columnGap = juce::jmax (2, colW / 20);
   out.metrics = ControlMetrics{
     knobDiam,

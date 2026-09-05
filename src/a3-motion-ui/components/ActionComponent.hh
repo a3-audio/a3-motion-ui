@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/ActionLayout.hh>
+#include <a3-motion-ui/components/ScriptBuffer.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
@@ -81,8 +82,28 @@ public:
   /** Which action clip this slot fires; empty for none. */
   void setActionName (juce::String const &name);
 
-  /** The script that action carries, shown under its name. Empty for none. */
+  /** The script that action carries, shown under its name. Empty for none.
+   *  Loading, not editing: whatever was being typed is replaced. */
   void setScript (juce::String const &script);
+  /** What is in the editor now, for whoever writes the file. */
+  juce::String script () const { return _buffer.text (); }
+  bool scriptIsEdited () const { return _buffer.isEdited (); }
+  void markScriptSaved () { _buffer.markSaved (); repaint (); }
+
+  /** What the script got wrong when it last ran, shown along the bottom of
+   *  the editor. Kept apart from the text: an error is about the script, not
+   *  part of it, and a message that had to be deleted before typing could go
+   *  on would be a message in the way. */
+  void setScriptErrors (juce::StringArray const &errors);
+
+  /** What the action field's list offers. The empty string is "no action",
+   *  the way entry 0 of the library is "no clip". */
+  void setActionChoices (juce::StringArray const &names);
+
+  /** Whether the page is taking keys. Told rather than worked out, because
+   *  what shows the keyboard is the page above this one. */
+  bool isEditingScript () const { return _editing; }
+  void stopEditingScript ();
 
   /** Where the global strip's three channel rows stand, in the bar's own
    *  coordinates. The page puts its own rows on those so the two blocks of
@@ -94,9 +115,38 @@ public:
   std::function<void (int control)> onControlDoubleTapped;
   std::function<void (int control)> onControlTapped;
 
+  /** A name was picked out of the action list; empty means "fire nothing". */
+  std::function<void (juce::String const &name)> onActionChosen;
+  /** The editor was opened or closed — the page above shows and hides the
+   *  system keyboard on it. */
+  std::function<void (bool editing)> onScriptEditingChanged;
+  /** The script was edited and wants writing. */
+  std::function<void ()> onScriptChanged;
+
 private:
   void paintActionField (juce::Graphics &g);
   void paintScriptField (juce::Graphics &g);
+  void paintScriptErrors (juce::Graphics &g);
+  void paintActionList (juce::Graphics &g);
+
+  bool keyPressed (juce::KeyPress const &key) override;
+  void focusLost (FocusChangeType cause) override;
+
+  /** One font for the script, and the three measurements everything else
+   *  reads off it. Drawing and hit-testing take the same numbers from the
+   *  same place, or a tap lands on a different line than the one under it. */
+  juce::Font scriptFont () const;
+  juce::Rectangle<int> scriptTextArea () const;
+  int scriptLineHeight () const;
+  float scriptCharacterWidth () const;
+
+  /** How many lines the script area can show at the current size. */
+  int visibleScriptLines () const;
+  /** Where a tap in the script area lands, as a line and a column. */
+  void caretFromPoint (juce::Point<int> point);
+
+  void openActionList ();
+  void chooseFromActionList (juce::Point<int> point);
 
   ActionLayout _layout;
 
@@ -115,10 +165,18 @@ private:
   float _qMax = 0.f;
   int _actMode = 0;
   juce::String _actionName;
-  juce::String _script;
+  ScriptBuffer _buffer;
+  juce::StringArray _choices;
+  juce::StringArray _scriptErrors;
+  bool _listOpen = false;
+  bool _editing = false;
   juce::Rectangle<int> _gridReference;
 
   std::array<std::unique_ptr<TouchControl>, numControls> _touch;
+  /** The name field, which opens the list, and the script, which takes the
+   *  caret. Neither is a knob, so neither is in `controls`. */
+  std::unique_ptr<TouchControl> _actionTouch;
+  std::unique_ptr<TouchControl> _scriptTouch;
 };
 
 }

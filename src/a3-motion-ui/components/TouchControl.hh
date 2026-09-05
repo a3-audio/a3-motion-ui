@@ -64,6 +64,14 @@ public:
   std::function<void (int primary, int secondary)> onPress;
   /** A touch that emitted no step. */
   std::function<void (int primary, int secondary)> onTap;
+  /** The same tap, with where in the control it landed.
+   *
+   *  Fired alongside onTap, for the one thing a control's own bounds cannot
+   *  answer: which line and column of a text a finger came down on. Every
+   *  other control here is one cell of one value, so where inside it the
+   *  finger landed means nothing — a script is the exception. */
+  std::function<void (int primary, int secondary, juce::Point<int> at)>
+      onTapAt;
   /** Two taps in quick succession without the finger travelling. Fired instead
    *  of the second onTap, not as well as it: a double tap that also selected
    *  and stepped the control would undo half of what it was asked to do.

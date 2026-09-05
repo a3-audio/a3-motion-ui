@@ -196,6 +196,9 @@ private:
   /** Point a slot's ACT key at an action file, reading it in. An empty file,
    *  or one that will not read, leaves the slot firing the accent alone. */
   void setSlotAction (index_t channel, index_t slot, juce::File const &file);
+
+  /** Put what is in the editor back into the slot's script file. */
+  void writeSlotActionScript ();
   /** Keep the chosen slot's settings as a new action clip. */
   void saveSlotAsAction ();
   void updateActionPage ();

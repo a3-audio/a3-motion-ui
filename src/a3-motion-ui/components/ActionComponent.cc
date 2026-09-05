@@ -64,6 +64,69 @@ ActionComponent::ActionComponent ()
       addAndMakeVisible (*touch);
       _touch[static_cast<size_t> (i)] = std::move (touch);
     }
+
+  // The keys have to land here rather than in the void: Onboard types into
+  // whatever has the focus, and a page that never asked for it gets nothing.
+  setWantsKeyboardFocus (true);
+
+  _actionTouch = std::make_unique<TouchControl> ();
+  _actionTouch->onTap = [this] (int, int) {
+    // Reaching for the list is leaving the editor, so the keyboard goes with
+    // it -- otherwise it stays up over the list it is covering.
+    stopEditingScript ();
+
+    // Tapping the name is how the list opens and how it closes again -- a
+    // control that only ever goes one way leaves you tapping elsewhere to
+    // undo what it did.
+    if (_listOpen)
+      _listOpen = false;
+    else
+      openActionList ();
+
+    repaint ();
+  };
+  addAndMakeVisible (*_actionTouch);
+
+  _scriptTouch = std::make_unique<TouchControl> ();
+  _scriptTouch->onTapAt = [this] (int, int, juce::Point<int> at) {
+    if (_listOpen)
+      {
+        chooseFromActionList (at);
+        return;
+      }
+
+    // With no action on the slot there is nothing to type into and nowhere to
+    // put it, so the tap opens the list instead -- which is what you would be
+    // reaching for next anyway.
+    if (_actionName.isEmpty ())
+      {
+        openActionList ();
+        repaint ();
+        return;
+      }
+
+    caretFromPoint (at);
+
+    if (!_editing)
+      {
+        _editing = true;
+        grabKeyboardFocus ();
+        if (onScriptEditingChanged)
+          onScriptEditingChanged (true);
+      }
+
+    repaint ();
+  };
+  _scriptTouch->onDragIncrement = [this] (int, int, int increment) {
+    if (_listOpen)
+      return;
+
+    // A drag scrolls the text in the finger's direction, the way it does on a
+    // phone -- the same rule the menu's list follows.
+    _buffer.scrollBy (-increment, visibleScriptLines ());
+    repaint ();
+  };
+  addAndMakeVisible (*_scriptTouch);
 }
 
 ActionComponent::~ActionComponent () = default;
@@ -94,6 +157,13 @@ ActionComponent::resized ()
         _layout.controls[static_cast<size_t> (i)]);
 
   _touch[ActMode]->setBounds (_layout.actModeField);
+
+  if (_actionTouch)
+    _actionTouch->setBounds (_layout.actionField);
+  if (_scriptTouch)
+    _scriptTouch->setBounds (_layout.scriptField);
+
+  _buffer.bringCaretIntoView (visibleScriptLines ());
 }
 
 void
@@ -144,11 +214,170 @@ ActionComponent::setQEnvelope (int attackStep, int decayStep, float max)
 void
 ActionComponent::setScript (juce::String const &script)
 {
-  if (script == _script)
+  // Never while it is being typed into, and otherwise only when it is
+  // actually different: the page refreshes on a timer, and either would throw
+  // away what is being written and put the caret back at the top.
+  if (_editing || script == _buffer.text ())
     return;
 
-  _script = script;
+  _buffer.setText (script);
+  _buffer.bringCaretIntoView (visibleScriptLines ());
   repaint ();
+}
+
+void
+ActionComponent::setScriptErrors (juce::StringArray const &errors)
+{
+  if (errors == _scriptErrors)
+    return;
+
+  _scriptErrors = errors;
+  repaint ();
+}
+
+void
+ActionComponent::setActionChoices (juce::StringArray const &names)
+{
+  if (names == _choices)
+    return;
+
+  _choices = names;
+  repaint ();
+}
+
+void
+ActionComponent::stopEditingScript ()
+{
+  if (!_editing)
+    return;
+
+  _editing = false;
+  if (onScriptEditingChanged)
+    onScriptEditingChanged (false);
+
+  repaint ();
+}
+
+void
+ActionComponent::focusLost (FocusChangeType)
+{
+  // The keyboard follows the focus, so losing it is the end of the edit
+  // whatever took it away.
+  stopEditingScript ();
+}
+
+int
+ActionComponent::visibleScriptLines () const
+{
+  auto const lineH = scriptLineHeight ();
+  if (lineH <= 0)
+    return 1;
+
+  return juce::jmax (1, scriptTextArea ().getHeight () / lineH);
+}
+
+void
+ActionComponent::caretFromPoint (juce::Point<int> point)
+{
+  auto const text = scriptTextArea ();
+  auto const lineH = scriptLineHeight ();
+  if (lineH <= 0)
+    return;
+
+  // The point comes in relative to the script's own control, which stands on
+  // scriptField -- so the inset between the two has to come off before it
+  // means a line.
+  auto const inX = point.x - (text.getX () - _layout.scriptField.getX ());
+  auto const inY = point.y - (text.getY () - _layout.scriptField.getY ());
+
+  auto const line = _buffer.firstVisibleLine () + inY / lineH;
+  auto const column = static_cast<int> (
+      std::lround (inX / juce::jmax (1.f, scriptCharacterWidth ())));
+
+  _buffer.placeCaret (line, column);
+  _buffer.bringCaretIntoView (visibleScriptLines ());
+}
+
+void
+ActionComponent::openActionList ()
+{
+  _listOpen = true;
+}
+
+void
+ActionComponent::chooseFromActionList (juce::Point<int> point)
+{
+  _listOpen = false;
+
+  auto const rowH = juce::jmax (1, _layout.actionListRowHeight);
+  auto const inY = point.y
+                   - (_layout.actionListArea.getY ()
+                      - _layout.scriptField.getY ());
+
+  auto const row = inY / rowH;
+  if (juce::isPositiveAndBelow (row, _choices.size ()) && onActionChosen)
+    onActionChosen (_choices[row]);
+
+  repaint ();
+}
+
+bool
+ActionComponent::keyPressed (juce::KeyPress const &key)
+{
+  if (!_editing)
+    return false;
+
+  auto const changed = [this] {
+    _buffer.bringCaretIntoView (visibleScriptLines ());
+    repaint ();
+    if (onScriptChanged)
+      onScriptChanged ();
+  };
+
+  if (key == juce::KeyPress::escapeKey)
+    {
+      stopEditingScript ();
+      return true;
+    }
+
+  if (key == juce::KeyPress::backspaceKey)
+    {
+      _buffer.backspace ();
+      changed ();
+      return true;
+    }
+
+  if (key == juce::KeyPress::returnKey)
+    {
+      _buffer.type ('\n');
+      changed ();
+      return true;
+    }
+
+  // Moving is not an edit, so it does not go through changed().
+  auto const move = [this] (int lines, int columns) {
+    _buffer.moveCaret (lines, columns);
+    _buffer.bringCaretIntoView (visibleScriptLines ());
+    repaint ();
+    return true;
+  };
+
+  if (key == juce::KeyPress::leftKey)
+    return move (0, -1);
+  if (key == juce::KeyPress::rightKey)
+    return move (0, 1);
+  if (key == juce::KeyPress::upKey)
+    return move (-1, 0);
+  if (key == juce::KeyPress::downKey)
+    return move (1, 0);
+
+  auto const character = key.getTextCharacter ();
+  if (character == 0)
+    return false;
+
+  _buffer.type (character);
+  changed ();
+  return true;
 }
 
 void
@@ -211,6 +440,49 @@ ActionComponent::paintActionField (juce::Graphics &g)
               juce::Justification::centredRight);
 }
 
+juce::Font
+ActionComponent::scriptFont () const
+{
+  // Monospaced, because a script is read by column as much as by line: what
+  // lines up under what is half of how you find your way in one.
+  auto const size = juce::jlimit (
+      9.f, 15.f, theme ().fontSize (FontRole::Body) * 0.8f);
+
+  return juce::Font (juce::FontOptions (
+      juce::Font::getDefaultMonospacedFontName (), size, juce::Font::plain));
+}
+
+juce::Rectangle<int>
+ActionComponent::scriptTextArea () const
+{
+  auto area = _layout.scriptField.reduced (
+      juce::jmax (6, _layout.scriptField.getHeight () / 40));
+
+  // The errors take their room off the text rather than being drawn over it:
+  // a message on top of the line it is about hides the line it is about.
+  if (!_scriptErrors.isEmpty ())
+    area.removeFromBottom (
+        juce::jmin (area.getHeight () / 2,
+                    _scriptErrors.size () * scriptLineHeight ()));
+
+  return area;
+}
+
+int
+ActionComponent::scriptLineHeight () const
+{
+  return juce::jmax (1, juce::roundToInt (scriptFont ().getHeight () * 1.25f));
+}
+
+float
+ActionComponent::scriptCharacterWidth () const
+{
+  // Every character is the same width in a monospaced face, so one of them
+  // measures all of them.
+  return juce::jmax (1.f, juce::GlyphArrangement::getStringWidth (
+                              scriptFont (), "M"));
+}
+
 void
 ActionComponent::paintScriptField (juce::Graphics &g)
 {
@@ -222,34 +494,126 @@ ActionComponent::paintScriptField (juce::Graphics &g)
   // reads as one: a script is text you scan line by line, not a control.
   g.setColour (toColour (theme ().background).darker (0.4f));
   g.fillRect (bounds);
-  g.setColour (toColour (theme ().textPrimary, 0.15f));
-  g.drawRect (bounds, 1);
 
-  auto const inset = bounds.reduced (juce::jmax (6, bounds.getHeight () / 40));
-  auto const lineH
-      = juce::jmax (11.f, juce::jmin (16.f, inset.getHeight () / 14.f));
+  // The edge says whether it is being typed into and whether what is in it
+  // has been written -- three states, one line, no words spent on any of it.
+  g.setColour (_buffer.isEdited () ? toColour (theme ().warning)
+               : _editing         ? _channelColour
+                                  : toColour (theme ().textPrimary, 0.15f));
+  g.drawRect (bounds, _editing || _buffer.isEdited () ? 2 : 1);
 
-  g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName (),
-                                            lineH * 0.85f,
-                                            juce::Font::plain)));
+  auto const text = scriptTextArea ();
+  auto const lineH = scriptLineHeight ();
+  auto const charW = scriptCharacterWidth ();
 
-  if (_script.isEmpty ())
+  g.setFont (scriptFont ());
+
+  if (_buffer.numLines () == 1 && _buffer.line (0).isEmpty () && !_editing)
     {
       g.setColour (toColour (theme ().textMuted, 0.5f));
-      g.drawText ("-- no script --", inset, juce::Justification::topLeft);
+      g.drawText ("-- no script --", text, juce::Justification::topLeft);
       return;
     }
 
-  g.setColour (toColour (theme ().textPrimary, 0.8f));
+  auto const first = _buffer.firstVisibleLine ();
+  auto const rows = visibleScriptLines ();
 
-  auto line = inset.withHeight (static_cast<int> (lineH));
-  for (auto const &text : juce::StringArray::fromLines (_script))
+  for (int row = 0; row < rows; ++row)
     {
-      if (line.getBottom () > inset.getBottom ())
+      auto const index = first + row;
+      if (index >= _buffer.numLines ())
         break;
 
-      g.drawText (text, line, juce::Justification::centredLeft);
-      line.translate (0, static_cast<int> (lineH));
+      auto const line = _buffer.line (index);
+      auto const at = text.withY (text.getY () + row * lineH)
+                          .withHeight (lineH);
+
+      // Comments in the muted colour, the one thing worth colouring: it is
+      // what tells a written-out script from one somebody explained.
+      g.setColour (line.trimStart ().startsWith ("//")
+                       ? toColour (theme ().textMuted, 0.6f)
+                       : toColour (theme ().textPrimary, 0.85f));
+      g.drawText (line, at, juce::Justification::centredLeft);
+    }
+
+  if (!_editing)
+    return;
+
+  // The caret, where the next character goes.
+  auto const caretRow = _buffer.caretLine () - first;
+  if (!juce::isPositiveAndBelow (caretRow, rows))
+    return;
+
+  auto const x = text.getX ()
+                 + juce::roundToInt (_buffer.caretColumn () * charW);
+
+  g.setColour (_channelColour);
+  g.fillRect (x, text.getY () + caretRow * lineH, 2, lineH);
+}
+
+void
+ActionComponent::paintScriptErrors (juce::Graphics &g)
+{
+  if (_scriptErrors.isEmpty ())
+    return;
+
+  auto const lineH = scriptLineHeight ();
+  auto at = _layout.scriptField
+                .reduced (juce::jmax (6, _layout.scriptField.getHeight () / 40))
+                .removeFromBottom (_scriptErrors.size () * lineH);
+
+  g.setFont (scriptFont ());
+  g.setColour (toColour (theme ().danger));
+
+  for (auto const &error : _scriptErrors)
+    {
+      g.drawText (error, at.removeFromTop (lineH),
+                  juce::Justification::centredLeft);
+      if (at.isEmpty ())
+        break;
+    }
+}
+
+void
+ActionComponent::paintActionList (juce::Graphics &g)
+{
+  if (!_listOpen)
+    return;
+
+  auto const area = _layout.actionListArea;
+  auto const rowH = _layout.actionListRowHeight;
+
+  // Opaque before the wash: the card colour is translucent by design, and on
+  // its own the list and the script under it were drawn through each other.
+  g.setColour (toColour (theme ().background));
+  g.fillRect (area);
+  g.setColour (toColour (theme ().textPrimary, 0.08f));
+  g.fillRect (area);
+  g.setColour (_channelColour);
+  g.drawRect (area, 1);
+
+  g.setFont (juce::Font (juce::FontOptions (
+      juce::jmin (18.f, rowH * 0.45f))));
+
+  for (int row = 0; row * rowH < area.getHeight (); ++row)
+    {
+      if (row >= _choices.size ())
+        break;
+
+      auto const at = area.withY (area.getY () + row * rowH).withHeight (rowH);
+      auto const name = _choices[row];
+      auto const chosen = name == _actionName;
+
+      if (chosen)
+        {
+          g.setColour (_channelColour.withAlpha (theme ().alphaDisabled));
+          g.fillRect (at.reduced (2, 1));
+        }
+
+      g.setColour (chosen ? _channelColour
+                          : toColour (theme ().textPrimary, 0.85f));
+      g.drawText (name.isEmpty () ? juce::String ("no action") : name,
+                  at.reduced (rowH / 3, 0), juce::Justification::centredLeft);
     }
 }
 
@@ -269,6 +633,7 @@ ActionComponent::paint (juce::Graphics &g)
 
   paintActionField (g);
   paintScriptField (g);
+  paintScriptErrors (g);
 
   auto const &metrics = _layout.metrics;
 
@@ -329,6 +694,9 @@ ActionComponent::paint (juce::Graphics &g)
   g.drawText (caption::actMode,
               modeBounds.withTrimmedTop (modeBounds.getHeight () * 2 / 3),
               juce::Justification::centred);
+
+  // Last, so it covers what it opens over.
+  paintActionList (g);
 }
 
 }

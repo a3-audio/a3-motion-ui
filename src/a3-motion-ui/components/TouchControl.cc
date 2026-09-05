@@ -100,6 +100,8 @@ TouchControl::mouseUp (juce::MouseEvent const &)
 
       if (onTap)
         onTap (_primary, _secondary);
+      if (onTapAt)
+        onTapAt (_primary, _secondary, here);
       return;
     }
 

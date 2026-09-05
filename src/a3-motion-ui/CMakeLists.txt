@@ -44,6 +44,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/CoronaScaling.cc
     components/DragAccumulator.cc
     components/DragAccumulator.hh
+    components/ScriptBuffer.cc
+    components/ScriptBuffer.hh
     components/TouchControl.cc
     components/TouchControl.hh
     components/OverlayButtons.cc

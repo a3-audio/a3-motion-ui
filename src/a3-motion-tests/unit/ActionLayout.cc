@@ -241,3 +241,35 @@ TEST (ActionLayout, ARowTooShortToHitIsIgnoredToo)
     EXPECT_GE (control.getHeight (), fingertipSize)
         << "the page lined up with a row no finger could land on";
 }
+
+// ── The list the action field opens ──────────────────────────────────────
+
+// A dropdown opens over the script, not over the knobs: the script is what it
+// replaces for a moment, and a list drawn across the controls would cover the
+// thing you are about to set with them.
+TEST (ActionLayout, TheActionListOpensOverTheScript)
+{
+  auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f, {});
+
+  ASSERT_FALSE (l.actionListArea.isEmpty ());
+  EXPECT_TRUE (l.scriptField.contains (l.actionListArea))
+      << "the list reaches outside the script area";
+
+  for (auto const &control : l.controls)
+    EXPECT_FALSE (l.actionListArea.intersects (control))
+        << "the open list covers a knob";
+}
+
+// Every row of it is a fingertip, whatever the page's size -- picking a
+// script mid-set is a tap, and a row you have to aim at is a row you miss.
+TEST (ActionLayout, EveryListRowIsAFingertip)
+{
+  for (int height : { 200, 300, 400 })
+    {
+      auto const l
+          = layOutActionPage ({ 0, 0, 768, height }, headerSize, 14.f, 1.f, {});
+
+      EXPECT_GE (l.actionListRowHeight, fingertipSize)
+          << "at height " << height;
+    }
+}
