@@ -57,6 +57,7 @@ target_sources("a3-motion-engine" PRIVATE
     PatternGenerator.hh
     Playhead.cc
     PatternFile.cc
+    TrajectoryBridges.cc
     TrajectoryShape.cc
     TrajectorySpin.cc
     TempoLfo.cc
