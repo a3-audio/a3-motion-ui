@@ -1316,49 +1316,51 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   auto const &metrics = _layout.metrics;
   auto const &cells = _layout.controls[motionIndex];
 
-  // The two bipolar knobs first, because they are the pair the section is
-  // mostly about: standing still is the middle, and which side of it you are
-  // on is which way the thing turns or breathes.
-  paintMiniKnob (g, cells[0], metrics, caption::spin,
+  // Each standing value with the movement that works on it, left and right.
+  //
+  // rot is a closed ring: rotation comes round to itself, so its scale has to
+  // as well. The pointer is where the hand left it; the blue runs from there
+  // to where the spin is holding the shape right now -- the position it is
+  // being driven to, not how hard it is being driven.
+  paintMiniKnob (g, cells[0], metrics, caption::rotate, _shapeRotate * 2.f,
+                 false, _motionSubIndex == 0, isSelected,
+                 _shapeRotateReach * 2.f, true);
+  paintMiniKnob (g, cells[1], metrics, caption::spin,
                  static_cast<float> (_motionSpin)
-                     / static_cast<float> (lfoMaxStep),
-                 true, _motionSubIndex == 0, isSelected);
-  paintMiniKnob (g, cells[1], metrics, caption::swell,
-                 static_cast<float> (_motionSwell)
                      / static_cast<float> (lfoMaxStep),
                  true, _motionSubIndex == 1, isSelected);
 
-  // A closed ring: rotation comes round to itself, so its scale has to as
-  // well. The pointer is where the hand left it; the blue runs from there to
-  // where the spin is holding the shape right now -- the position it is being
-  // driven to, not how hard it is being driven.
-  paintMiniKnob (g, cells[2], metrics, caption::rotate, _shapeRotate * 2.f,
-                 false, _motionSubIndex == 2, isSelected,
-                 _shapeRotateReach * 2.f, true);
+  // reach and the swell that sweeps it. The second arc is where the sweep has
+  // carried the coverage, if it is moving.
+  paintMiniKnob (g, cells[2], metrics, caption::reach,
+                 _elevationReach * 2.f - 1.f, false, _motionSubIndex == 2,
+                 isSelected,
+                 _elevationReachSwept < 0.f
+                     ? -2.f
+                     : _elevationReachSwept * 2.f - 1.f);
+  paintMiniKnob (g, cells[3], metrics, caption::swell,
+                 static_cast<float> (_motionSwell)
+                     / static_cast<float> (lfoMaxStep),
+                 true, _motionSubIndex == 3, isSelected);
 
   // How far a gap may be for the fade to draw through it, and where a
   // drawn-through gap leads. Both read the take's holes rather than changing
-  // them, which is why they stand among the movements rather than beside the
-  // picture.
-  paintMiniKnob (g, cells[3], metrics, caption::fade,
-                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 3,
+  // them.
+  paintMiniKnob (g, cells[4], metrics, caption::fade,
+                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 4,
                  isSelected);
-
-  // Bipolar, like spin and swell: the middle is the next point in time, and
-  // which side of it you are on is whether a bridged gap looks for the
-  // nearest way out or a random one.
-  paintMiniKnob (g, cells[4], metrics, caption::bias,
+  paintMiniKnob (g, cells[5], metrics, caption::bias,
                  static_cast<float> (_motionBridgeBias) / 4.f, true,
-                 _motionSubIndex == 4, isSelected);
+                 _motionSubIndex == 5, isSelected);
 
   // The two lists close the section along its floor, where every other
   // section's buttons are. They step on a tap -- no chevron, because nothing
   // opens any more.
-  paintBarButton (g, cells[5], value::directionNames[_motionDirection],
-                  caption::direction, _motionSubIndex == 5 && isSelected,
+  paintBarButton (g, cells[6], value::directionNames[_motionDirection],
+                  caption::direction, _motionSubIndex == 6 && isSelected,
                   false);
-  paintBarButton (g, cells[6], value::endActionNames[_motionEndAction],
-                  caption::endAction, _motionSubIndex == 6 && isSelected,
+  paintBarButton (g, cells[7], value::endActionNames[_motionEndAction],
+                  caption::endAction, _motionSubIndex == 7 && isSelected,
                   false);
 }
 
@@ -1371,10 +1373,10 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
   auto const &metrics = _layout.metrics;
   auto const &cells = _layout.controls[elevationIndex];
 
-  // Graphic on top, then all six controls below it in a 2x3 grid:
-  // reach/mirror-south on the first row, clip-top/clip-bottom on the
-  // second, flat/flat-elevation on the third. The cells are ordered by
-  // sub-index, not by row.
+  // Graphic on top, then five controls below it: the two clips on the first
+  // row, flat-elevation on the second, and the two switches along the floor.
+  // The cells are ordered by sub-index, not by row. reach went to Motion, to
+  // stand beside the swell that sweeps it.
   //
   // The graphic never lights up on its own. It used to, whenever the
   // selected control was one it draws, and that read as "there is something
@@ -1382,29 +1384,22 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
   // under it do. Selection is the card's job, and the card already shows it.
   paintElevationGraphic (g, _layout.elevationGraphic, isSelected);
 
-  // Where the swell has carried the coverage, if it is sweeping.
-  paintMiniKnob (g, cells[0], metrics, caption::reach,
-                 _elevationReach * 2.f - 1.f, false, _elevationSubIndex == 0,
-                 isSelected,
-                 _elevationReachSwept < 0.f
-                     ? -2.f
-                     : _elevationReachSwept * 2.f - 1.f);
-  paintMiniKnob (g, cells[1], metrics, caption::clipTop,
-                 _elevationClipTop * 2.f - 1.f, false, _elevationSubIndex == 1,
+  paintMiniKnob (g, cells[0], metrics, caption::clipTop,
+                 _elevationClipTop * 2.f - 1.f, false, _elevationSubIndex == 0,
                  isSelected);
-  paintMiniKnob (g, cells[2], metrics, caption::clipBottom,
+  paintMiniKnob (g, cells[1], metrics, caption::clipBottom,
                  _elevationClipBottom * 2.f - 1.f, false,
-                 _elevationSubIndex == 2, isSelected);
-  paintBarButton (g, cells[3],
+                 _elevationSubIndex == 1, isSelected);
+  paintBarButton (g, cells[2],
                   _elevationMirrorSouth ? value::south : value::north,
-                  caption::pole, _elevationSubIndex == 3 && isSelected,
+                  caption::pole, _elevationSubIndex == 2 && isSelected,
                   isSelected);
-  paintBarButton (g, cells[4], _elevationFlat ? value::on : value::off,
-                  caption::flat, _elevationSubIndex == 4 && isSelected,
+  paintBarButton (g, cells[3], _elevationFlat ? value::on : value::off,
+                  caption::flat, _elevationSubIndex == 3 && isSelected,
                   isSelected);
-  paintMiniKnob (g, cells[5], metrics, caption::flatElevation,
+  paintMiniKnob (g, cells[4], metrics, caption::flatElevation,
                  _elevationFlatElevation * 2.f - 1.f, false,
-                 _elevationSubIndex == 5, isSelected);
+                 _elevationSubIndex == 4, isSelected);
 }
 
 void

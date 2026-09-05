@@ -4343,12 +4343,10 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
       if (!pattern)
         return;
       if (sub == 0)
-        pattern->setReach (0.5f);
-      else if (sub == 1)
         pattern->setClipTop (0.f);
-      else if (sub == 2)
+      else if (sub == 1)
         pattern->setClipBottom (0.f);
-      else if (sub == 5)
+      else if (sub == 4)
         pattern->setFlatElevation (0.5f);
       else
         return;
@@ -4361,11 +4359,12 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
       // are lists, and a list has no default a double tap could mean.
       switch (sub)
         {
-        case 0: pattern->setSpin (0); break;
-        case 1: pattern->setReachLfo (0); break;
-        case 2: pattern->setRotate (0.f); break;
-        case 3: pattern->setFadeReach (ClipSettings{}.fadeReach); break;
-        case 4:
+        case 0: pattern->setRotate (0.f); break;
+        case 1: pattern->setSpin (0); break;
+        case 2: pattern->setReach (ClipSettings{}.reach); break;
+        case 3: pattern->setReachLfo (0); break;
+        case 4: pattern->setFadeReach (ClipSettings{}.fadeReach); break;
+        case 5:
           pattern->setBridgeBias (0);
           refreshPatternDisplayFromTicks (pattern);
           break;
@@ -4456,8 +4455,9 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         updatePadRowLabel (channel, slot);
         break;
       }
-    case 1: // Elevation — reach (0), clip-top (1), clip-bottom (2),
-            // mirror-south (3), flat (4), or flat-elevation (5)
+    case 1: // Elevation — clip-top (0), clip-bottom (1), mirror-south (2),
+            // flat (3), flat-elevation (4). reach went to Motion, to stand
+            // beside the swell that sweeps it.
       {
         auto &pattern = _patterns[channel][slot];
         if (!pattern)
@@ -4466,22 +4466,19 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         switch (sub)
           {
           case 0:
-            pattern->setReach (pattern->getReach () + increment * 0.05f);
-            break;
-          case 1:
             pattern->setClipTop (pattern->getClipTop () + increment * 0.05f);
             break;
-          case 2:
+          case 1:
             pattern->setClipBottom (pattern->getClipBottom ()
                                     + increment * 0.05f);
             break;
-          case 3:
+          case 2:
             // Toggle: turning right selects South, left selects North —
             // tied to physical direction rather than pulse-counting, so
             // it can't desync/flicker from missed encoder ticks.
             pattern->setMirrorSouth (increment > 0);
             break;
-          case 4:
+          case 3:
             pattern->setFlat (increment > 0);
             break;
           default:
@@ -4491,16 +4488,23 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           }
         break;
       }
-    case 2: // Motion — spin (0), swell (1), rot (2), fade (3), bias (4),
-            // direction (5), end-action (6). Everything that shapes a
-            // movement over time; the envelope and the act mode belong to the
-            // ACTION page and have their own handler.
+    case 2: // Motion — rot (0), spin (1), reach (2), swell (3), fade (4),
+            // bias (5), direction (6), end-action (7). Each standing value
+            // beside the movement that works on it; the envelope and the act
+            // mode belong to the ACTION page and have their own handler.
       {
         auto &pattern = _patterns[channel][slot];
 
         switch (sub)
           {
           case 0:
+            // The standing angle the spin adds to -- both are summed at the
+            // one place that turns anything.
+            if (pattern)
+              pattern->setRotate (pattern->getRotate () + increment * 0.02f);
+            break;
+
+          case 1:
             // How fast the whole trajectory turns under the blob. On the
             // Pattern rather than in _clipUIParams because the engine reads it
             // every tick and it has to survive being saved.
@@ -4509,7 +4513,15 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                                             -lfoMaxStep, lfoMaxStep));
             break;
 
-          case 1:
+          case 2:
+            // How far down the sphere the trajectory's outer edge lands. It
+            // came over from Elevation to stand beside the swell that sweeps
+            // it -- the two were two sections apart.
+            if (pattern)
+              pattern->setReach (pattern->getReach () + increment * 0.02f);
+            break;
+
+          case 3:
             // How fast reach sweeps out of where it was set. Same table as
             // the spin, and on the Pattern for the same reasons.
             if (pattern)
@@ -4518,14 +4530,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                               lfoMaxStep));
             break;
 
-          case 2:
-            // The standing angle the spin adds to -- both are summed at the
-            // one place that turns anything.
-            if (pattern)
-              pattern->setRotate (pattern->getRotate () + increment * 0.02f);
-            break;
-
-          case 3:
+          case 4:
             // How far a gap may be for the fade to draw through it. A reading
             // of the movement, not a change to it: nothing is written into
             // the ticks, so it can be turned down as freely as up, and the
@@ -4539,7 +4544,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
               }
             break;
 
-          case 4:
+          case 5:
             // Where a drawn-through gap leads. Whole steps, like spin and
             // swell: nine positions, and a finger should feel each one rather
             // than slide past them.
@@ -4550,7 +4555,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
               }
             break;
 
-          case 5:
+          case 6:
             params.direction = (params.direction + increment % 2 + 2) % 2;
             applyMotionMode (channel, slot);
             break;
@@ -4593,13 +4598,14 @@ A3MotionUIComponent::handleClipSettingsToggle (index_t channel, int section,
     return;
 
   // Only Elevation has two-state controls; tapTogglesValue() is the
-  // authority on which, and it says pole (3) and flat (4).
+  // authority on which, and it says pole (2) and flat (3) -- both moved down
+  // a place when reach left for Motion.
   if (section != 1)
     return;
 
-  if (sub == 3)
+  if (sub == 2)
     pattern->setMirrorSouth (!pattern->getMirrorSouth ());
-  else if (sub == 4)
+  else if (sub == 3)
     pattern->setFlat (!pattern->getFlat ());
   else
     return;

@@ -78,8 +78,8 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
   auto const l = defaultLayout ();
 
   EXPECT_EQ (l.controls[0].size (), 1u); // Shape: the picture, rot, fade, bridge
-  EXPECT_EQ (l.controls[1].size (), 6u); // Elevation
-  EXPECT_EQ (l.controls[2].size (), 7u); // Motion: the envelope went to ACTION
+  EXPECT_EQ (l.controls[1].size (), 5u); // Elevation
+  EXPECT_EQ (l.controls[2].size (), 8u); // Motion: the envelope went to ACTION
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 
@@ -169,12 +169,11 @@ TEST (ClipSettingsLayout, ElevationControlsAreOrderedBySubIndexNotByScreen)
   auto const l = defaultLayout ();
   auto const &e = l.controls[1];
 
-  auto const reach = e[0];
-  auto const clipTop = e[1];
-  auto const clipBottom = e[2];
-  auto const pole = e[3];
-  auto const flat = e[4];
-  auto const flatElevation = e[5];
+  auto const clipTop = e[0];
+  auto const clipBottom = e[1];
+  auto const pole = e[2];
+  auto const flat = e[3];
+  auto const flatElevation = e[4];
 
   // Three rows, top to bottom.
   EXPECT_LT (clipTop.getY (), flatElevation.getY ());
@@ -184,36 +183,31 @@ TEST (ClipSettingsLayout, ElevationControlsAreOrderedBySubIndexNotByScreen)
   EXPECT_EQ (clipTop.getY (), clipBottom.getY ());
   EXPECT_LT (clipTop.getX (), clipBottom.getX ());
 
-  EXPECT_EQ (flatElevation.getY (), reach.getY ());
-  EXPECT_LT (flatElevation.getX (), reach.getX ());
-
   EXPECT_EQ (flat.getY (), pole.getY ());
   EXPECT_LT (flat.getX (), pole.getX ());
 
   // What the maintainer asked for in so many words: the two buttons at the
-  // bottom, flat-elevation directly above flat, reach in the middle on the
-  // right.
+  // bottom, flat-elevation directly above flat. reach used to share that
+  // middle row and has gone to Motion, to stand beside its swell.
   EXPECT_EQ (flat.getX (), flatElevation.getX ());
-  EXPECT_GT (reach.getX (), flatElevation.getX ());
 }
 
 TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
 {
-  // Elevation: mirror-south (3) and flat (4) are yes/no, and a yes/no is
+  // Elevation: mirror-south (2) and flat (3) are yes/no, and a yes/no is
   // toggled rather than stepped — see TwoStateControlsToggleRatherThanStep.
+  EXPECT_FALSE (tapAdvancesValue (1, 2));
   EXPECT_FALSE (tapAdvancesValue (1, 3));
-  EXPECT_FALSE (tapAdvancesValue (1, 4));
-  // reach, clip-top, clip-bottom, flat-elevation are continuous.
+  // clip-top, clip-bottom, flat-elevation are continuous.
   EXPECT_FALSE (tapAdvancesValue (1, 0));
   EXPECT_FALSE (tapAdvancesValue (1, 1));
-  EXPECT_FALSE (tapAdvancesValue (1, 2));
-  EXPECT_FALSE (tapAdvancesValue (1, 5));
+  EXPECT_FALSE (tapAdvancesValue (1, 4));
 
-  // Motion: direction (5) and end-action (6) have a handful of states each;
-  // the five knobs before them are dragged, not tapped.
-  EXPECT_TRUE (tapAdvancesValue (2, 5));
+  // Motion: direction (6) and end-action (7) have a handful of states each;
+  // the six knobs before them are dragged, not tapped.
   EXPECT_TRUE (tapAdvancesValue (2, 6));
-  for (int sub = 0; sub < 5; ++sub)
+  EXPECT_TRUE (tapAdvancesValue (2, 7));
+  for (int sub = 0; sub < 6; ++sub)
     EXPECT_FALSE (tapAdvancesValue (2, sub)) << "sub " << sub;
 
   // Shape: the pattern library, too long to tap through.
@@ -231,11 +225,11 @@ TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
 // keep stepping — they wrap, so a tap always gets somewhere new.
 TEST (ClipSettingsLayout, TwoStateControlsToggleRatherThanStep)
 {
-  EXPECT_TRUE (tapTogglesValue (1, 3));  // pole: north / south
-  EXPECT_TRUE (tapTogglesValue (1, 4));  // flat: on / off
+  EXPECT_TRUE (tapTogglesValue (1, 2));  // pole: north / south
+  EXPECT_TRUE (tapTogglesValue (1, 3));  // flat: on / off
 
-  EXPECT_FALSE (tapTogglesValue (1, 0)); // reach is continuous
-  EXPECT_FALSE (tapTogglesValue (1, 5)); // flat-elevation is continuous
+  EXPECT_FALSE (tapTogglesValue (1, 0)); // clip-top is continuous
+  EXPECT_FALSE (tapTogglesValue (1, 4)); // flat-elevation is continuous
   EXPECT_FALSE (tapTogglesValue (2, 1)); // direction has three states
   EXPECT_FALSE (tapTogglesValue (2, 2)); // end-action has more
   EXPECT_FALSE (tapTogglesValue (3, 0)); // rec mode has three
@@ -461,19 +455,21 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
     {
       auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
       auto const &motion = l.controls[2];
-      ASSERT_EQ (motion.size (), 7u) << "height " << height;
+      ASSERT_EQ (motion.size (), 8u) << "height " << height;
 
-      // Each knob row shares a height, and so do the two buttons.
-      EXPECT_EQ (motion[0].getHeight (), motion[1].getHeight ())
-          << "spin/swell at " << height;
-      EXPECT_EQ (motion[2].getHeight (), motion[3].getHeight ())
-          << "rot/fade at " << height;
-      EXPECT_EQ (motion[5].getHeight (), motion[6].getHeight ())
-          << "dir/end at " << height;
+      // Each pair shares a height: rot/spin, reach/swell, fade/bias, dir/end.
+      for (int row = 0; row < 4; ++row)
+        {
+          auto const left = static_cast<size_t> (row * 2);
+          EXPECT_EQ (motion[left].getHeight (), motion[left + 1].getHeight ())
+              << "row " << row << " at height " << height;
+        }
 
-      // bias sits alone on the third row and keeps that row's height.
-      EXPECT_EQ (motion[4].getHeight (), motion[2].getHeight ())
-          << "bias at " << height;
+      // And the three knob rows share theirs with each other.
+      EXPECT_EQ (motion[0].getHeight (), motion[2].getHeight ())
+          << "height " << height;
+      EXPECT_EQ (motion[2].getHeight (), motion[4].getHeight ())
+          << "height " << height;
     }
 }
 
@@ -1158,46 +1154,6 @@ TEST (ClipSettingsLayout, MotionStandsBeforeElevation)
   for (size_t i = 0; i < 3; ++i)
     ASSERT_FALSE (l.sectionCards[i].isEmpty ()) << "card " << i;
 }
-
-// Shape keeps only the shape itself -- rot, fade and bias moved to Motion,
-// where the things that shape a movement over time belong.
-TEST (ClipSettingsLayout, ShapeIsJustTheShapeNow)
-{
-  EXPECT_EQ (numControlsInSection (0), 1);
-  auto const l = defaultLayout ();
-  ASSERT_EQ (l.controls[0].size (), 1u);
-  EXPECT_FALSE (l.controls[0][0].isEmpty ());
-}
-
-// And Motion carries seven: spin, swell, rot, fade, bias, then the two lists
-// along its floor.
-TEST (ClipSettingsLayout, MotionCarriesSeven)
-{
-  EXPECT_EQ (numControlsInSection (2), 7);
-
-  auto const l = defaultLayout ();
-  ASSERT_EQ (l.controls[2].size (), 7u);
-  for (size_t i = 0; i < 7; ++i)
-    EXPECT_FALSE (l.controls[2][i].isEmpty ()) << "motion control " << i;
-
-  // dir and end sit on the section's floor with the other sections' buttons.
-  EXPECT_GE (l.controls[2][5].getY (), l.controls[2][0].getBottom ());
-  EXPECT_EQ (l.controls[2][5].getY (), l.controls[2][6].getY ());
-}
-
-// Direction and end action step on a tap now instead of opening a list. Both
-// are short lists a finger can walk, and an open list covered the controls
-// underneath it.
-TEST (ClipSettingsLayout, DirectionAndEndStepOnATap)
-{
-  EXPECT_TRUE (tapAdvancesValue (2, 5)) << "direction";
-  EXPECT_TRUE (tapAdvancesValue (2, 6)) << "end action";
-
-  // The knobs are turned, not tapped.
-  for (int sub = 0; sub < 5; ++sub)
-    EXPECT_FALSE (tapAdvancesValue (2, sub)) << "motion knob " << sub;
-}
-
 // ── What the reshuffle replaced ──────────────────────────────────────────
 //
 // Five cases held the old arrangement: Shape's knob column, its knob between
@@ -1228,24 +1184,6 @@ TEST (ClipSettingsLayout, ThePictureStandsOnTheButtonGrid)
           << "the picture runs into the buttons";
     }
 }
-
-// Motion's two lists are its last two sub-indices, and they are what steps on
-// a tap rather than being turned.
-TEST (ClipSettingsLayout, MotionsTwoListsAreItsLastTwoSubIndices)
-{
-  EXPECT_EQ (numControlsInSection (2), 7);
-  EXPECT_TRUE (tapAdvancesValue (2, 5));
-  EXPECT_TRUE (tapAdvancesValue (2, 6));
-
-  auto const l = defaultLayout ();
-  ASSERT_EQ (l.controls[2].size (), 7u);
-
-  // Side by side on the section's floor, below every knob.
-  for (size_t knob = 0; knob < 5; ++knob)
-    EXPECT_LE (l.controls[2][knob].getBottom (), l.controls[2][5].getY () + 1)
-        << "knob " << knob << " hangs below the buttons";
-}
-
 // The fade is a Motion value now. It reads a take's gaps and decides which are
 // drawn through -- something a movement does over time, not something the
 // picture is.
@@ -1253,10 +1191,110 @@ TEST (ClipSettingsLayout, TheFadeIsAMotionValueNow)
 {
   auto const l = defaultLayout ();
 
-  ASSERT_EQ (l.controls[2].size (), 7u);
+  ASSERT_EQ (l.controls[2].size (), 8u);
   ASSERT_EQ (l.controls[0].size (), 1u);
 
-  EXPECT_FALSE (l.controls[2][3].isEmpty ());
-  EXPECT_TRUE (l.sectionCards[2].contains (l.controls[2][3]));
-  EXPECT_FALSE (l.sectionCards[0].contains (l.controls[2][3]));
+  EXPECT_FALSE (l.controls[2][4].isEmpty ());
+  EXPECT_TRUE (l.sectionCards[2].contains (l.controls[2][4]));
+  EXPECT_FALSE (l.sectionCards[0].contains (l.controls[2][4]));
+}
+
+// ── Shape after the tidy-up ──────────────────────────────────────────────
+
+// The picture takes the whole width now. It had three of the four button
+// columns and left the fourth to a knob column that no longer exists, so a
+// quarter of the section was empty air beside the one thing worth looking at.
+TEST (ClipSettingsLayout, ThePictureTakesTheWholeWidth)
+{
+  for (auto const page : { BarPage::Clip, BarPage::Record })
+    {
+      auto const l = layOutClipSettings (
+          grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+          defaultHeaderSize, defaultBodySize, defaultPotSize, page);
+
+      auto const &last = page == BarPage::Record
+                             ? l.lengthButtons[numRecordLengths - 1]
+                             : l.speedButtons[numSpeedButtons - 1];
+
+      // Out to the right edge of the button grid, not three columns of four.
+      EXPECT_GE (l.trajectoryIcon.getRight (), last.getRight ())
+          << "the picture stops short of the grid";
+    }
+}
+
+// Every button row is the same height, whatever the section has room for. A
+// row that gives up its height while the others keep theirs reads as a
+// mistake, and at small bar heights that is what the last row did.
+TEST (ClipSettingsLayout, EveryButtonRowIsTheSameHeight)
+{
+  for (int height : { 160, 200, 250, 314, 400 })
+    for (auto const page : { BarPage::Clip, BarPage::Record })
+      {
+        auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f,
+                                           1.f, page);
+
+        auto const count
+            = page == BarPage::Record ? numRecordLengths : numSpeedButtons;
+        auto const &buttons0 = page == BarPage::Record ? l.lengthButtons[0]
+                                                       : l.speedButtons[0];
+
+        for (int i = 1; i < count; ++i)
+          {
+            auto const &b = page == BarPage::Record
+                                ? l.lengthButtons[static_cast<size_t> (i)]
+                                : l.speedButtons[static_cast<size_t> (i)];
+            EXPECT_EQ (b.getHeight (), buttons0.getHeight ())
+                << "button " << i << " at height " << height;
+          }
+      }
+}
+
+// ── Motion after the tidy-up ─────────────────────────────────────────────
+
+// Each standing value with the movement that works on it, side by side:
+// rot with the spin that turns it, reach with the swell that breathes it.
+// reach came over from Elevation for exactly that reason -- it was sitting
+// two sections away from the control that modulates it.
+TEST (ClipSettingsLayout, MotionPairsEachValueWithItsMovement)
+{
+  EXPECT_EQ (numControlsInSection (2), 8);
+
+  auto const l = defaultLayout ();
+  ASSERT_EQ (l.controls[2].size (), 8u);
+
+  // rot | spin, reach | swell, fade | bias -- three rows of two.
+  for (int row = 0; row < 3; ++row)
+    {
+      auto const left = static_cast<size_t> (row * 2);
+      auto const right = left + 1;
+
+      EXPECT_EQ (l.controls[2][left].getY (), l.controls[2][right].getY ())
+          << "row " << row << " is not level";
+      EXPECT_LT (l.controls[2][left].getX (), l.controls[2][right].getX ())
+          << "row " << row << " is not left to right";
+    }
+
+  // And the rows read downwards.
+  EXPECT_LT (l.controls[2][0].getY (), l.controls[2][2].getY ());
+  EXPECT_LT (l.controls[2][2].getY (), l.controls[2][4].getY ());
+
+  // dir and end close the section along its floor.
+  EXPECT_GT (l.controls[2][6].getY (), l.controls[2][4].getY ());
+  EXPECT_EQ (l.controls[2][6].getY (), l.controls[2][7].getY ());
+  EXPECT_TRUE (tapAdvancesValue (2, 6));
+  EXPECT_TRUE (tapAdvancesValue (2, 7));
+}
+
+// Elevation gave reach away and is five now: clip-top, clip-bottom, pole,
+// flat, flat-elevation. Its two switches moved down a place with it.
+TEST (ClipSettingsLayout, ElevationIsFiveWithoutReach)
+{
+  EXPECT_EQ (numControlsInSection (1), 5);
+
+  auto const l = defaultLayout ();
+  EXPECT_EQ (l.controls[1].size (), 5u);
+
+  EXPECT_TRUE (tapTogglesValue (1, 2)) << "pole";
+  EXPECT_TRUE (tapTogglesValue (1, 3)) << "flat";
+  EXPECT_FALSE (tapTogglesValue (1, 4)) << "flat elevation is turned";
 }
