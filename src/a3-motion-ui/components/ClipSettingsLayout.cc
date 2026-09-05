@@ -667,20 +667,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     }
   }
 
-  // An open list takes over a section's controls, and only those: the title
-  // stays put so the section is still named while you pick.
-  for (int i = 0; i < numClipSettingsSections - 1; ++i)
-    {
-      auto const c = static_cast<size_t> (i);
-      out.dropdownArea[c] = sectionContentBounds (out.sectionCards[c])
-                                .withTrimmedTop (
-                                    out.sectionLabels[c].getHeight ());
-    }
-
-  // The strip is measured differently -- its card reaches up over the
-  // transport band, which nothing may open across.
-  out.dropdownArea[3] = out.globalContent;
-
   return out;
 }
 

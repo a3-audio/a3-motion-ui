@@ -96,10 +96,6 @@ ClipSettingsComponent::createTouchControls ()
       // control. Saying 0 made touching the Elevation graphic arm reach.
       card->setIdentity (section, -1);
       card->onPress = [this] (int tappedSection, int) {
-        // Touching anywhere else puts an open list away — the same way
-        // tapping beside a menu closes it.
-        closeDropdown ();
-
         if (onControlTapped)
           onControlTapped (tappedSection, -1);
       };
@@ -170,7 +166,6 @@ ClipSettingsComponent::createTouchControls ()
   // no control — but it is inside the section, and touching a section
   // should select it. -1 says "the section, not one of its controls".
   _elevationGraphicTouch->onPress = [this] (int, int) {
-    closeDropdown ();
     if (onControlTapped)
       onControlTapped (elevationIndex, -1);
   };
@@ -202,33 +197,6 @@ ClipSettingsComponent::createTouchControls ()
         _gridTouch[static_cast<size_t> (col)][static_cast<size_t> (row)]
             = std::move (cell);
       }
-
-  // As many entries as the longest list has. Which list they belong to and
-  // where they sit is set when one opens; they are hidden otherwise.
-  // The record length is the longest list: 2^-7 .. 2^4 bars.
-  for (int i = 0; i < 12; ++i)
-    {
-      auto entry = std::make_unique<TouchControl> ();
-      entry->setIdentity (i);
-      entry->onTap = [this] (int index, int) {
-        if (_openDropdown < 0)
-          return;
-
-        auto const section = _openDropdownSection;
-        auto const sub = _openDropdown;
-        auto const delta = index - dropdownCurrentIndex (section, sub);
-        closeDropdown ();
-
-        // Motion's two wrap modulo their value count and the record length
-        // clamps, so a difference lands exactly on the entry tapped either
-        // way — even a negative one.
-        if (delta != 0 && onControlDragged)
-          onControlDragged (section, sub, delta);
-      };
-      entry->setVisible (false);
-      addChildComponent (*entry);
-      _dropdownTouch.push_back (std::move (entry));
-    }
 
   for (int i = 0; i < numRecordLengths; ++i)
     {
@@ -296,18 +264,6 @@ ClipSettingsComponent::createTouchControls ()
           };
 
           control->onTap = [this] (int tappedSection, int tappedSub) {
-            // A list control opens its list rather than stepping blindly
-            // through it.
-            if (opensList (tappedSection, tappedSub))
-              {
-                if (_openDropdownSection == tappedSection
-                    && _openDropdown == tappedSub)
-                  closeDropdown ();
-                else
-                  openDropdown (tappedSection, tappedSub);
-                return;
-              }
-
             // A control with few states changes right away: tapping your
             // way to a yes/no and then having to drag it as well would be
             // one move too many. Continuous values are dragged, not tapped.
@@ -318,12 +274,10 @@ ClipSettingsComponent::createTouchControls ()
               onControlDragged (tappedSection, tappedSub, 1);
           };
 
-          // Two taps put a knob back where it started. Only the ones you turn:
-          // a list has no middle to go back to, and a double tap in one would
-          // just be two taps opening and closing it.
+          // Two taps put a knob back where it started. Only the ones you
+          // turn: a control that steps on a tap has no middle to go back to.
           control->onDoubleTap = [this] (int tappedSection, int tappedSub) {
-            if (opensList (tappedSection, tappedSub)
-                || tapTogglesValue (tappedSection, tappedSub)
+            if (tapTogglesValue (tappedSection, tappedSub)
                 || tapAdvancesValue (tappedSection, tappedSub))
               return;
 
@@ -383,18 +337,6 @@ ClipSettingsComponent::resized ()
         auto const r = static_cast<size_t> (row);
         _gridTouch[c][r]->setBounds (_layout.channelGrid[c][r]);
       }
-  layOutDropdown ();
-  for (size_t i = 0; i < _dropdownTouch.size (); ++i)
-    {
-      auto const shown = i < _dropdownEntries.size ();
-      _dropdownTouch[i]->setVisible (shown);
-      if (shown)
-        {
-          _dropdownTouch[i]->toFront (false);
-          _dropdownTouch[i]->setBounds (_dropdownEntries[i]);
-        }
-    }
-
   for (int i = 0; i < numRecordLengths; ++i)
     _lengthTouch[static_cast<size_t> (i)]->setBounds (
         _layout.lengthButtons[static_cast<size_t> (i)]);
@@ -760,7 +702,6 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   paintMotionSection (g, _selectedIndex == motionIndex);
 
   // Last, so it covers whichever section it belongs to.
-  paintDropdown (g);
 }
 
 void
@@ -890,7 +831,6 @@ ClipSettingsComponent::setPage (BarPage page)
     return;
 
   _page = page;
-  closeDropdown ();
 
   // The clip's own controls stop taking touches: they are not drawn on the
   // controller page, and a hit area with nothing under it is how a finger
@@ -1022,13 +962,12 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // The mode in its own colour: how much of an old take this pass will
   // destroy, on the same scale the rest of the device uses.
   paintBarButton (g, _layout.recModeButton, recModeName (_recMode), "recmode",
-                  false, false, false, colourFor (FunctionKey::RecMode));
+                  false, false, colourFor (FunctionKey::RecMode));
   // The clock's own colour, from the same rule as the rest — which for this
   // key is Colours::clockMode, so the status bar reads it the same way: whose
   // tempo this is has one answer, in one colour, wherever it is written.
   paintBarButton (g, _layout.clockModeButton, clockNames[clock], "clock",
-                  false, false, false,
-                  colourFor (FunctionKey::ClockMode));
+                  false, false, colourFor (FunctionKey::ClockMode));
 
   paintActionButton (g, _layout.menuButton, "MENU", _menuOpen,
                      colourFor (FunctionKey::Menu));
@@ -1065,7 +1004,7 @@ ClipSettingsComponent::paintActionButton (juce::Graphics &g,
   // shown clip's colour — the same reason the global panel's frame is grey.
   if (tint.isTransparent ())
     {
-      paintBarButton (g, bounds, label, {}, isActive, false, false);
+      paintBarButton (g, bounds, label, {}, isActive, false);
       return;
     }
 
@@ -1096,7 +1035,6 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
                                        juce::String const &label,
                                        juce::String const &caption,
                                        bool isActive, bool isSelected,
-                                       bool opensList,
                                        juce::Colour valueColour)
 {
   // An active button lights in the shown clip's colour, except in the global
@@ -1140,45 +1078,7 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
   g.setColour (valueColour.isTransparent () ? controlColour (isSelected)
                                             : valueColour);
 
-  if (!opensList)
-    {
-      g.drawFittedText (label, box, juce::Justification::centred, 1);
-      return;
-    }
-
-  // The chevron sits directly beside the value rather than out at the box's
-  // edge, where it read as belonging to the button next to it.
-  auto const font = g.getCurrentFont ();
-  auto const textW
-      = juce::jmin (static_cast<float> (box.getWidth ()) * 0.7f,
-                    juce::GlyphArrangement::getStringWidth (font, label));
-  auto const gap = juce::jmax (3.f, valueSize * 0.35f);
-  auto const markerW = juce::jmax (5.f, valueSize * 0.4f);
-
-  auto const centre = box.toFloat ().getCentre ();
-  auto const textCentre = centre.x - (gap + markerW) * 0.5f;
-
-  g.drawFittedText (
-      label,
-      juce::Rectangle<int> (juce::roundToInt (textCentre - textW * 0.5f),
-                            box.getY (), juce::roundToInt (textW),
-                            box.getHeight ()),
-      juce::Justification::centred, 1);
-
-  auto const mx = textCentre + textW * 0.5f + gap + markerW * 0.5f;
-  auto const my = centre.y;
-  auto const w = markerW * 0.5f;
-
-  juce::Path chevron;
-  chevron.startNewSubPath (mx - w, my - w * 0.55f);
-  chevron.lineTo (mx, my + w * 0.55f);
-  chevron.lineTo (mx + w, my - w * 0.55f);
-
-  g.setColour (captionColour (isSelected));
-  g.strokePath (chevron,
-                juce::PathStrokeType (juce::jmax (1.f, w * 0.35f),
-                                      juce::PathStrokeType::curved,
-                                      juce::PathStrokeType::rounded));
+  g.drawFittedText (label, box, juce::Justification::centred, 1);
 }
 
 void
@@ -1408,6 +1308,61 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
 }
 
 void
+ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
+                                           bool isSelected)
+{
+  paintSectionCard (g, motionIndex, isSelected);
+
+  auto const &metrics = _layout.metrics;
+  auto const &cells = _layout.controls[motionIndex];
+
+  // The two bipolar knobs first, because they are the pair the section is
+  // mostly about: standing still is the middle, and which side of it you are
+  // on is which way the thing turns or breathes.
+  paintMiniKnob (g, cells[0], metrics, caption::spin,
+                 static_cast<float> (_motionSpin)
+                     / static_cast<float> (lfoMaxStep),
+                 true, _motionSubIndex == 0, isSelected);
+  paintMiniKnob (g, cells[1], metrics, caption::swell,
+                 static_cast<float> (_motionSwell)
+                     / static_cast<float> (lfoMaxStep),
+                 true, _motionSubIndex == 1, isSelected);
+
+  // A closed ring: rotation comes round to itself, so its scale has to as
+  // well. The pointer is where the hand left it; the blue runs from there to
+  // where the spin is holding the shape right now -- the position it is being
+  // driven to, not how hard it is being driven.
+  paintMiniKnob (g, cells[2], metrics, caption::rotate, _shapeRotate * 2.f,
+                 false, _motionSubIndex == 2, isSelected,
+                 _shapeRotateReach * 2.f, true);
+
+  // How far a gap may be for the fade to draw through it, and where a
+  // drawn-through gap leads. Both read the take's holes rather than changing
+  // them, which is why they stand among the movements rather than beside the
+  // picture.
+  paintMiniKnob (g, cells[3], metrics, caption::fade,
+                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 3,
+                 isSelected);
+
+  // Bipolar, like spin and swell: the middle is the next point in time, and
+  // which side of it you are on is whether a bridged gap looks for the
+  // nearest way out or a random one.
+  paintMiniKnob (g, cells[4], metrics, caption::bias,
+                 static_cast<float> (_motionBridgeBias) / 4.f, true,
+                 _motionSubIndex == 4, isSelected);
+
+  // The two lists close the section along its floor, where every other
+  // section's buttons are. They step on a tap -- no chevron, because nothing
+  // opens any more.
+  paintBarButton (g, cells[5], value::directionNames[_motionDirection],
+                  caption::direction, _motionSubIndex == 5 && isSelected,
+                  false);
+  paintBarButton (g, cells[6], value::endActionNames[_motionEndAction],
+                  caption::endAction, _motionSubIndex == 6 && isSelected,
+                  false);
+}
+
+void
 ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
                                               bool isSelected)
 {
@@ -1627,183 +1582,6 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   g.setColour (captionColour (isSelected));
   g.drawFittedText (label, labelArea,
                     juce::Justification::centred, 1);
-}
-
-void
-ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
-                                           bool isSelected)
-{
-  paintSectionCard (g, motionIndex, isSelected);
-
-  auto const &metrics = _layout.metrics;
-  auto const &cells = _layout.controls[motionIndex];
-
-  // The two bipolar knobs first, because they are the pair the section is
-  // mostly about: standing still is the middle, and which side of it you are
-  // on is which way the thing turns or breathes.
-  paintMiniKnob (g, cells[0], metrics, caption::spin,
-                 static_cast<float> (_motionSpin)
-                     / static_cast<float> (lfoMaxStep),
-                 true, _motionSubIndex == 0, isSelected);
-  paintMiniKnob (g, cells[1], metrics, caption::swell,
-                 static_cast<float> (_motionSwell)
-                     / static_cast<float> (lfoMaxStep),
-                 true, _motionSubIndex == 1, isSelected);
-
-  // A closed ring: rotation comes round to itself, so its scale has to as
-  // well. The pointer is where the hand left it; the blue runs from there to
-  // where the spin is holding the shape right now -- the position it is being
-  // driven to, not how hard it is being driven.
-  paintMiniKnob (g, cells[2], metrics, caption::rotate, _shapeRotate * 2.f,
-                 false, _motionSubIndex == 2, isSelected,
-                 _shapeRotateReach * 2.f, true);
-
-  // How far a gap may be for the fade to draw through it, and where a
-  // drawn-through gap leads. Both read the take's holes rather than changing
-  // them, which is why they stand among the movements rather than beside the
-  // picture.
-  paintMiniKnob (g, cells[3], metrics, caption::fade,
-                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 3,
-                 isSelected);
-
-  // Bipolar, like spin and swell: the middle is the next point in time, and
-  // which side of it you are on is whether a bridged gap looks for the
-  // nearest way out or a random one.
-  paintMiniKnob (g, cells[4], metrics, caption::bias,
-                 static_cast<float> (_motionBridgeBias) / 4.f, true,
-                 _motionSubIndex == 4, isSelected);
-
-  paintBarButton (g, cells[5], value::directionNames[_motionDirection],
-                  caption::direction, _motionSubIndex == 5 && isSelected,
-                  false, isSelected);
-  paintBarButton (g, cells[6], value::endActionNames[_motionEndAction],
-                  caption::endAction, _motionSubIndex == 6 && isSelected,
-                  false, isSelected);
-}
-
-bool
-ClipSettingsComponent::opensList (int section, int sub)
-{
-  // Nothing opens a list any more. Direction and end action were the last
-  // two, and both are short enough for a finger to walk on a tap -- one move
-  // instead of two, and it does not cover the controls underneath.
-  juce::ignoreUnused (section, sub);
-  return false;
-}
-
-juce::StringArray
-ClipSettingsComponent::dropdownValues (int section, int sub) const
-{
-  if (section != motionIndex)
-    return {};
-
-  switch (sub)
-    {
-    case 5:
-      return { value::actModeNames[0], value::actModeNames[1] };
-    case 6:
-      return { value::directionNames[0], value::directionNames[1] };
-    case 7:
-      {
-        juce::StringArray names;
-        for (int i = 0; i < value::numEndActions; ++i)
-          names.add (value::endActionNames[i]);
-        return names;
-      }
-    default:
-      return {};
-    }
-}
-
-int
-ClipSettingsComponent::dropdownCurrentIndex (int section, int sub) const
-{
-  // Every list keyed by the sub-index it belongs to. This used to read
-  // `sub == 1 ? direction : endAction` -- a leftover from a numbering two
-  // renames ago, which meant a tap in a list was measured against whatever
-  // value the ternary happened to pick and landed on the wrong entry.
-  if (section != motionIndex)
-    return 0;
-
-  switch (sub)
-    {
-    case 5: return _motionActMode;
-    case 6: return _motionDirection;
-    case 7: return _motionEndAction;
-    default: return 0;
-    }
-}
-
-void
-ClipSettingsComponent::layOutDropdown ()
-{
-  _dropdownEntries.clear ();
-  if (_openDropdown < 0)
-    return;
-
-  auto const count
-      = dropdownValues (_openDropdownSection, _openDropdown).size ();
-  if (count == 0)
-    return;
-
-  auto area
-      = _layout.dropdownArea[static_cast<size_t> (_openDropdownSection)];
-  auto const gap = juce::jmax (1, area.getHeight () / 40);
-  auto const rowH = (area.getHeight () - (count - 1) * gap) / count;
-
-  for (int i = 0; i < count; ++i)
-    {
-      _dropdownEntries.push_back (area.removeFromTop (rowH));
-      area.removeFromTop (gap);
-    }
-}
-
-void
-ClipSettingsComponent::openDropdown (int section, int sub)
-{
-  _openDropdownSection = section;
-  _openDropdown = sub;
-  layOutDropdown ();
-  resized ();
-  repaint ();
-}
-
-void
-ClipSettingsComponent::closeDropdown ()
-{
-  if (_openDropdown < 0)
-    return;
-
-  _openDropdown = -1;
-  _openDropdownSection = -1;
-  _dropdownEntries.clear ();
-  resized ();
-  repaint ();
-}
-
-void
-ClipSettingsComponent::paintDropdown (juce::Graphics &g)
-{
-  if (_openDropdown < 0 || _dropdownEntries.empty ())
-    return;
-
-  // Opaque, then the card wash on top. cardColour() alone is translucent by
-  // design — over the section's own controls that left the list and the
-  // controls it covers drawn on top of each other.
-  auto const area
-      = _layout.dropdownArea[static_cast<size_t> (_openDropdownSection)];
-
-  g.setColour (toColour (theme ().surface));
-  g.fillRoundedRectangle (area.toFloat (), 6.f);
-  g.setColour (cardColour (true));
-  g.fillRoundedRectangle (area.toFloat (), 6.f);
-
-  auto const values = dropdownValues (_openDropdownSection, _openDropdown);
-  auto const current = dropdownCurrentIndex (_openDropdownSection, _openDropdown);
-
-  for (int i = 0; i < values.size (); ++i)
-    paintBarButton (g, _dropdownEntries[static_cast<size_t> (i)], values[i],
-                    {}, i == current, true);
 }
 
 void

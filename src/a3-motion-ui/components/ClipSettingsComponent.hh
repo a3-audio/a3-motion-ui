@@ -405,7 +405,6 @@ private:
   void paintBarButton (juce::Graphics &g, juce::Rectangle<int> bounds,
                        juce::String const &label, juce::String const &caption,
                        bool isActive, bool isSelected,
-                       bool opensList = false,
                        juce::Colour valueColour = {});
 
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
@@ -509,27 +508,6 @@ private:
   std::array<float, numChannelColumns> _channelQ{};
   std::array<float, numChannelColumns> _channelThreeD{};
   std::array<float, numChannelColumns> _channelThreeDReach{};
-
-  /** Which list is open, by section and sub-element; -1 for none. While one
-   *  is open it takes over its section's controls — a list cannot open
-   *  outside the bar, because MotionComponent's GL context composites above
-   *  anything over it. */
-  int _openDropdownSection = -1;
-  int _openDropdown = -1;
-  /** How many entries the open list has, and where they sit. Rebuilt when a
-   *  list opens, so paint() and the hit areas read the same rectangles. */
-  std::vector<juce::Rectangle<int>> _dropdownEntries;
-  std::vector<std::unique_ptr<TouchControl>> _dropdownTouch;
-
-  void openDropdown (int section, int sub);
-  /** Whether this control is a list rather than something to turn. */
-  static bool opensList (int section, int sub);
-  void closeDropdown ();
-  void layOutDropdown ();
-  void paintDropdown (juce::Graphics &g);
-  /** The values the given Motion sub-element can take. */
-  juce::StringArray dropdownValues (int section, int sub) const;
-  int dropdownCurrentIndex (int section, int sub) const;
   int _selectedIndex = 0;
 
   /** Every rectangle in the bar, recomputed by updateLayout(). */
