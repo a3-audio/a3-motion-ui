@@ -1454,17 +1454,16 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                                  : juce::jmin (rangeLow, rangeHigh);
   auto const bandHigh = collapsed ? bandLow : juce::jmax (rangeLow, rangeHigh);
 
-  // The same model HeightMapSphere::mapTo3D() uses, in fractional (0..1)
-  // form because this view only ever gets the plain elevation values, not a
-  // HeightMap: the trajectory's centre (r=0) sits on the base, and its outer
-  // edge (r=1) sits reach away from it, towards whichever pole is further.
-  auto const baseRaw = std::clamp (_elevationBase, 0.f, 1.f);
-  auto const edgeFracRaw = baseRaw <= 0.5f ? baseRaw + _elevationReach
-                                           : baseRaw - _elevationReach;
-  auto const baseFrac = std::clamp (baseRaw, bandLow, bandHigh);
-  auto const edgeFrac = std::clamp (edgeFracRaw, bandLow, bandHigh);
-  auto const sweepLow = juce::jmin (baseFrac, edgeFrac);
-  auto const sweepHigh = juce::jmax (baseFrac, edgeFrac);
+  // One value is drawn in here and one only: where the middle of the
+  // trajectory sits. The band the clips leave is a fixed frame around it --
+  // it does not move, the line does.
+  //
+  // reach used to be drawn too, as a second chord with the sweep between
+  // them shaded in. That read as "elevation is a band that moves with the
+  // clips", which is not what any of it does: reach is how far the
+  // trajectory spreads from the line, and it has its own knob to say so.
+  auto const baseFrac = std::clamp (std::clamp (_elevationBase, 0.f, 1.f),
+                                    bandLow, bandHigh);
 
   auto const fracToY
       = [&] (float frac) { return (centre.y - r) + frac * (r * 2.f); };
@@ -1491,12 +1490,6 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   g.fillRect (juce::Rectangle<float> (
       centre.x - r, fracToY (bandHigh), r * 2.f,
       (centre.y + r) - fracToY (bandHigh)));
-
-  // What the trajectory actually sweeps, from the axis out to reach.
-  g.setColour (iconColour.withAlpha (0.3f));
-  g.fillRect (juce::Rectangle<float> (
-      centre.x - r, fracToY (sweepLow), r * 2.f,
-      juce::jmax (1.f, fracToY (sweepHigh) - fracToY (sweepLow))));
 
   g.restoreState ();
 
@@ -1581,10 +1574,6 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
           g.drawLine (centre.x - halfWidth, markerY, centre.x + halfWidth,
                      markerY, thinWidth);
         };
-
-  // The reach marker: where the pattern's outer edge (r=1) lands. Drawn
-  // first, so the base line lies over it where the two meet.
-  drawMarkerChord (edgeFrac, 2.f, 3.f, iconColour);
 
   // The base: where the middle of the trajectory sits, and the one line in
   // here a finger sets. Drawn boldest and in the channel's colour because it
