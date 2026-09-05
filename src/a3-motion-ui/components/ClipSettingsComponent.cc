@@ -1009,6 +1009,22 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
 {
   paintSectionCard (g, globalIndex, isSelected);
 
+  // Two blocks, each in a frame of its own: the values above, the things you
+  // do below. Set off from the card rather than boxed in it -- a heavier edge
+  // would make the strip read as two panels that happen to touch.
+  auto const frame = [&g, this] (juce::Rectangle<int> bounds) {
+    if (bounds.isEmpty ())
+      return;
+
+    g.setColour (toColour (theme ().textPrimary, 0.04f));
+    g.fillRoundedRectangle (bounds.toFloat (), 4.f);
+    g.setColour (toColour (theme ().textPrimary, 0.12f));
+    g.drawRoundedRectangle (bounds.toFloat (), 4.f, 1.f);
+  };
+
+  frame (_layout.channelGridFrame);
+  frame (_layout.transportFrame);
+
   // Through textCell like every other control in the bar: handed the whole
   // remaining column instead, the value floated in the middle and its caption
   // sat pinned to the bottom edge, a finger's width away from what it names.
@@ -1728,12 +1744,9 @@ ClipSettingsComponent::paintChannelGrid (juce::Graphics &g)
       auto const c = static_cast<size_t> (col);
       auto const colour = toColour (theme ().channel[c]);
 
-      // The channel's own colour says which column is whose; a number over
-      // it would only repeat what the colour already tells the eye.
-      g.setFont (juce::Font (metrics.captionSize, juce::Font::bold));
-      g.setColour (colour);
-      g.drawFittedText (juce::String (col + 1), _layout.channelLabels[c],
-                        juce::Justification::centred, 1);
+      // No number over the column: the channel's own colour says which is
+      // whose, and it says it without being read. The row it took is a row
+      // the twelve knobs wanted.
 
       // In channelRow* order — 3d on top, then freq, then Q. Only 3d has
       // anything carrying it past where it was set.

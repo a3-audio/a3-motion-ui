@@ -245,8 +245,6 @@ TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
   row.push_back (l.tabAction);
   row.push_back (l.tabController);
   row.push_back (l.tabBrowser);
-  for (auto const &key : l.transportButtons)
-    row.push_back (key);
 
   int previousRight = 0;
   for (size_t i = 0; i < row.size (); ++i)
@@ -294,31 +292,6 @@ TEST (ClipSettingsLayout, TheHeaderNeverEatsTheBarItSitsOn)
       EXPECT_FALSE (l.clipContent.isEmpty ()) << "height " << height;
     }
 }
-
-// The band over the global strip carries the transport now. The readout that
-// used to stand there is in the status bar, beside the tempo and the beat --
-// what was last turned is a reading, and readings belong on the row the device
-// reports from.
-TEST (ClipSettingsLayout, TheTransportStandsOverTheGlobalStrip)
-{
-  auto const l = defaultLayout ();
-
-  for (size_t i = 0; i < l.transportButtons.size (); ++i)
-    {
-      auto const &key = l.transportButtons[i];
-      ASSERT_FALSE (key.isEmpty ()) << "key " << i;
-      EXPECT_TRUE (l.globalBounds.contains (key)) << "key " << i;
-
-      // On the same line as the slot keys and the tabs, so the bar reads
-      // across at one height.
-      EXPECT_EQ (key.getY (), l.channelFaces[0].getY ()) << "key " << i;
-    }
-
-  // The keys used to have to stay clear of the card below them and the strip
-  // used to be titled. Both went the other way: see
-  // TheGlobalCardReachesOverTheTransportKeys and TheGlobalCardIsNotTitled.
-}
-
 // A tab is switched mid-set, with one hand, without looking away from the
 // deck. The header row is thin, so width is the only room there is to give.
 TEST (ClipSettingsLayout, ATabIsWideEnoughToHit)
@@ -781,20 +754,6 @@ TEST (ClipSettingsLayout, TheTransportReadsLeftToRightOverTheStrip)
   for (auto const &key : layout.transportButtons)
     EXPECT_FALSE (layout.tabAction.intersects (key));
 }
-
-TEST (ClipSettingsLayout, TransportKeysAreSquareAndAllTheSameSize)
-{
-  auto const layout = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f);
-
-  auto const &first = layout.transportButtons[0];
-  for (auto const &key : layout.transportButtons)
-    {
-      EXPECT_EQ (key.getWidth (), key.getHeight ());
-      EXPECT_EQ (key.getWidth (), first.getWidth ());
-      EXPECT_EQ (key.getHeight (), first.getHeight ());
-    }
-}
-
 // Three views share the row with four channel faces, their toggles and the
 // folder. The tabs are how you change page and are hit mid-set, so each keeps
 // a fingertip.
@@ -905,22 +864,6 @@ TEST (ClipSettingsLayout, TheFourTransportKeysAreFourDifferentPads)
       EXPECT_EQ (pads.size (), 3u) << "slot " << slot;
     }
 }
-
-TEST (ClipSettingsLayout, ThePadsPageHasNoTransportKeysOfItsOwn)
-{
-  // The page *is* those four controls, thirty-two of them. A second, smaller
-  // set above says there is a difference between them when there is none.
-  auto const layout = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f,
-                                          BarPage::Controller);
-
-  for (auto const &key : layout.transportButtons)
-    EXPECT_TRUE (key.isEmpty ());
-
-  // ... and the tabs are still reachable, which is the only way back.
-  EXPECT_FALSE (layout.tabRecord.isEmpty ());
-  EXPECT_FALSE (layout.tabController.isEmpty ());
-}
-
 TEST (ClipSettingsLayout, TheClipFacesStillHaveTheirTransportKeys)
 {
   for (auto const page : { BarPage::Clip, BarPage::Record })
@@ -1403,5 +1346,110 @@ TEST (ClipSettingsLayout, TheHeaderKeysAreAllOneSize)
           EXPECT_EQ (keys[i].getHeight (), keys[0].getHeight ())
               << "key " << i << " at width " << width;
         }
+    }
+}
+
+// ── The global strip, rearranged ─────────────────────────────────────────
+
+// The transport moved down into the strip, under the knobs it belongs with.
+// It stood in the band above, at the header's height, which made it the one
+// row of keys in the bar that was a different size from every other.
+TEST (ClipSettingsLayout, TheTransportStandsUnderTheKnobs)
+{
+  auto const l = defaultLayout ();
+
+  for (size_t i = 0; i < l.transportButtons.size (); ++i)
+    {
+      ASSERT_FALSE (l.transportButtons[i].isEmpty ()) << "key " << i;
+
+      // Inside the strip's card, below every knob in the grid.
+      EXPECT_TRUE (l.sectionCards[3].contains (l.transportButtons[i]))
+          << "key " << i;
+      for (auto const &column : l.channelGrid)
+        EXPECT_GE (l.transportButtons[i].getY (), column.back ().getBottom ())
+            << "key " << i;
+    }
+
+  // Level with each other, left to right, and all one size.
+  for (size_t i = 1; i < l.transportButtons.size (); ++i)
+    {
+      EXPECT_EQ (l.transportButtons[i].getY (), l.transportButtons[0].getY ());
+      EXPECT_EQ (l.transportButtons[i].getHeight (),
+                 l.transportButtons[0].getHeight ());
+      EXPECT_GT (l.transportButtons[i].getX (),
+                 l.transportButtons[i - 1].getX ());
+    }
+}
+
+// As tall as the strip's other keys. It used to be the header's height, which
+// is a different size from everything it now stands among.
+TEST (ClipSettingsLayout, TheTransportIsAsTallAsTheOtherKeys)
+{
+  auto const l = defaultLayout ();
+
+  EXPECT_EQ (l.transportButtons[0].getHeight (), l.buttonHeight);
+  EXPECT_EQ (l.tapButton.getHeight (), l.buttonHeight);
+}
+
+// The channel numbers over the grid are gone. Each column already wears its
+// channel's colour, and a colour is read without being read -- the numbers
+// were a row of the strip spent saying what four colours already say.
+TEST (ClipSettingsLayout, TheGridHasNoChannelNumbers)
+{
+  auto const l = defaultLayout ();
+
+  for (auto const &label : l.channelLabels)
+    EXPECT_TRUE (label.isEmpty ());
+}
+
+// The two blocks stand apart: the grid in one frame, the transport in
+// another, so the strip reads as what it is -- values above, actions below.
+TEST (ClipSettingsLayout, TheGridAndTheTransportHaveTheirOwnFrames)
+{
+  auto const l = defaultLayout ();
+
+  ASSERT_FALSE (l.channelGridFrame.isEmpty ());
+  ASSERT_FALSE (l.transportFrame.isEmpty ());
+
+  EXPECT_FALSE (l.channelGridFrame.intersects (l.transportFrame));
+  EXPECT_LT (l.channelGridFrame.getY (), l.transportFrame.getY ());
+
+  // Each frame holds what it is a frame for.
+  for (auto const &column : l.channelGrid)
+    for (auto const &cell : column)
+      EXPECT_TRUE (l.channelGridFrame.contains (cell));
+  for (auto const &key : l.transportButtons)
+    EXPECT_TRUE (l.transportFrame.contains (key));
+}
+
+// The transport used to stand in the band over the strip, at the header's
+// height, and it was square there because a mark needs no width. Three cases
+// held that shape. It is inside the strip now, under the knobs, sized like
+// every other key there -- see TheTransportStandsUnderTheKnobs and
+// TheTransportIsAsTallAsTheOtherKeys.
+//
+// What those three protected and this keeps: the keys are all one size, they
+// are on every page, and the band above the strip is empty.
+TEST (ClipSettingsLayout, TheTransportIsOneRowOfEqualKeysOnEveryPage)
+{
+  for (auto const page : { BarPage::Clip, BarPage::Record,
+                           BarPage::Controller, BarPage::Browser })
+    {
+      auto const l
+          = layOutClipSettings ({ 0, 0, 768, 400 }, 14.f, 12.f, 1.f, page);
+
+      for (size_t i = 0; i < l.transportButtons.size (); ++i)
+        {
+          ASSERT_FALSE (l.transportButtons[i].isEmpty ()) << "key " << i;
+          EXPECT_EQ (l.transportButtons[i].getWidth (),
+                     l.transportButtons[0].getWidth ())
+              << "key " << i;
+          EXPECT_EQ (l.transportButtons[i].getHeight (),
+                     l.transportButtons[0].getHeight ())
+              << "key " << i;
+        }
+
+      // Nothing is left in the band the header row stands on.
+      EXPECT_TRUE (l.readout.isEmpty ());
     }
 }

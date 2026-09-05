@@ -120,13 +120,16 @@ clipSettingsPreferredHeight (float headerSize, float bodySize,
   auto const graphic = static_cast<int> (std::ceil (boxes * 0.34f / 0.66f));
   auto const elevation = titleRow + graphic + boxes;
 
-  // The global section: a title row, a row of channel numbers, then three
-  // rows of knobs. It used to fit in whatever Elevation asked for, back when
-  // it held one value — with the per-channel grid it can be the taller of
-  // the two, and then the bar has to grow for it or the knobs get squeezed
-  // to a few pixels.
-  auto const labelRow = static_cast<int> (
-      std::ceil (bodySize * rowHeightFactor));
+  // The global section: three rows of knobs, the transport under them, then
+  // three rows of buttons. It used to fit in whatever Elevation asked for,
+  // back when it held one value — with the per-channel grid it can be the
+  // taller of the two, and then the bar has to grow for it or the knobs get
+  // squeezed to a few pixels.
+  //
+  // No title row and no row of channel numbers: the strip is not named any
+  // more, and each grid column wears its channel's colour instead of being
+  // numbered.
+  //
   // The grid draws a fifth over the standard diameter and gives each row a
   // little more again — see layOutClipSettings().
   auto const gridRows
@@ -138,7 +141,12 @@ clipSettingsPreferredHeight (float headerSize, float bodySize,
       = std::max (34, static_cast<int> (std::ceil (knobDiameter * 1.6f)));
   auto const buttons = 3 * buttonRow + 2 * std::max (2, buttonRow / 8);
 
-  auto const global = titleRow + labelRow + gridRows + buttons;
+  // The transport came down into the strip, in a frame of its own with a gap
+  // above it. Asked for as its own block, or it takes the grid's room --
+  // which is exactly what it did on the first try.
+  auto const transport = buttonRow + 4 * std::max (2, buttonRow / 8);
+
+  auto const global = gridRows + transport + buttons;
 
   // Motion: a title row, three rows of knobs and one of buttons. It used to
   // fit inside whatever the other two asked for, back when it had one row of

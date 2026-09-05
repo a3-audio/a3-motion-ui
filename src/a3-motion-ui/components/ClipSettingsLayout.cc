@@ -329,43 +329,15 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // The band the readout used to stand in. The readout is in the status bar
   // now -- a reading among readings -- and the four things you do to a clip
   // stand here instead, over the strip that also carries MENU, REC and TAP.
-  // The card starts here, above the transport rather than under it: the four
-  // things you do to a clip and the six device keys are one block, and a row
-  // of keys floating over the panel they belong to read as an afterthought.
+  // The whole strip, band included. The band held the transport and then the
+  // readout before it; both have gone, so the card takes the height rather
+  // than leaving an empty row above itself -- and the strip needs it: twelve
+  // knobs, the transport and six keys is the tallest thing in the bar.
   auto const globalCard = globalArea;
-  auto transportBand = globalArea.removeFromTop (headerH);
   out.readout = {};
 
-  // Not on the pads page, which is these four controls already.
-  if (page != BarPage::Controller)
-    {
-      // Square, like every other mark on the bar -- a finger knows what a
-      // square key is. Held to what the band can carry, and the row centred
-      // in it so a narrow strip loses room evenly at both ends.
-      auto const transportGap = juce::jmax (2, headerH / 12);
-      auto const keySide = juce::jmin (
-          transportBand.getHeight (),
-          (transportBand.getWidth () - (numTransportKeys - 1) * transportGap)
-              / numTransportKeys);
-      auto const rowW
-          = keySide * numTransportKeys + transportGap * (numTransportKeys - 1);
-
-      auto row = transportBand.withSizeKeepingCentre (
-          rowW, juce::jmin (transportBand.getHeight (), keySide));
-
-      for (int i = 0; i < numTransportKeys; ++i)
-        {
-          out.transportButtons[static_cast<size_t> (i)]
-              = row.removeFromLeft (keySide);
-          if (i + 1 < numTransportKeys)
-            row.removeFromLeft (transportGap);
-        }
-    }
-
   out.sectionCards[3] = globalCard.reduced (gap / 2, 0);
-  // What the strip lays out in: the card less the band the transport took.
-  out.globalContent
-      = sectionContentBounds (out.sectionCards[3]).withTrimmedTop (headerH);
+  out.globalContent = sectionContentBounds (out.sectionCards[3]);
 
   // ── Shape, and its other side ────────────────────────────────────────
   //
@@ -576,30 +548,54 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         = content.removeFromBottom (3 * buttonRowH + 2 * buttonGap);
     content.removeFromBottom (juce::jmax (2, buttonRowH / 4));
 
-    // ── the 4 x 3 grid ────────────────────────────────────────────────
+    // ── the 4 x 3 grid, and the transport under it ────────────────────
     {
       auto const labelH = textRowHeight (content, metrics.captionSize);
 
-      // As tall as a knob and its breathing room, not a third of whatever
-      // is left: stretched to fill, the twelve knobs floated in cells
-      // several times their size and the grid read as scattered dots.
-      // A touch larger than the bar's standard knob: at knobDiam these
-      // twelve read smaller than the ones in the clip's sections, because
-      // they carry no caption of their own to give them presence.
+      // As tall as a knob and its breathing room, not a third of whatever is
+      // left: stretched to fill, the twelve knobs floated in cells several
+      // times their size and the grid read as scattered dots. A touch larger
+      // than the bar's standard knob, since these carry no caption of their
+      // own to give them presence.
       auto const gridKnob = static_cast<int> (metrics.knobDiam * 1.2f);
 
+      // The transport takes its row off the bottom first, at the same height
+      // as every other key in the strip, with a gap that sets the two blocks
+      // apart.
+      auto const frameInset = juce::jmax (2, content.getWidth () / 40);
+      auto const blockGap = juce::jmax (4, buttonGap * 2);
+
+      // The transport takes what it needs, but never at the grid's expense:
+      // twelve knobs squeezed to nothing are twelve controls gone, while a
+      // slightly shorter transport is still four keys you can hit. Below the
+      // fingertip neither is any use, and that is the floor both share.
+      auto const gridFloor = numChannelRows * fingertipSize;
+      auto const transportH = juce::jlimit (
+          fingertipSize,
+          juce::jmax (fingertipSize,
+                      content.getHeight () - gridFloor - blockGap),
+          out.buttonHeight + 2 * frameInset);
+
+      auto transportArea = content.removeFromBottom (
+          juce::jmin (content.getHeight (), transportH));
+      content.removeFromBottom (
+          juce::jmin (content.getHeight (), blockGap));
+
       auto const rowH = juce::jmin (
-          (content.getHeight () - labelH) / numChannelRows,
+          content.getHeight () / numChannelRows,
           juce::jmax (labelH, juce::jmax (gridKnob + 2,
                                           static_cast<int> (
                                               gridKnob * 1.15f))));
 
-      // Straight under the section's title. Centred, the block drifted down
-      // as the bar grew and left the channel numbers a long way from the
-      // heading that names the section they belong to.
-      auto const blockH = labelH + numChannelRows * rowH;
-      auto grid = content.removeFromTop (blockH);
-      auto headerRow = grid.removeFromTop (labelH);
+      // No label row: each column wears its channel's colour, and a colour is
+      // read without being read. The numbers were a row of the strip spent
+      // saying what four colours already say.
+      auto const blockH = numChannelRows * rowH;
+      auto grid = content.removeFromTop (
+          juce::jmin (content.getHeight (), blockH + 2 * frameInset));
+
+      out.channelGridFrame = grid;
+      grid = grid.reduced (frameInset);
 
       // Columns no wider than a knob needs: spread across the whole section
       // the four channels sat so far apart that reading a row meant
@@ -611,18 +607,15 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                                           static_cast<int> (
                                               gridKnob * 1.35f))));
 
-      // Captions and knobs are centred together, as one block. Indenting
-      // only the columns left "freq / Q / 3d" stranded at the far edge with
-      // the knobs they name half a section away.
+      // Captions and knobs centred together, as one block. Indenting only the
+      // columns left "freq / Q / 3d" stranded at the far edge with the knobs
+      // they name half a section away.
       auto const blockW = gutterW + colW * numChannelColumns;
-      auto const indent = (grid.getWidth () - blockW) / 2;
+      auto const indent = juce::jmax (0, (grid.getWidth () - blockW) / 2);
       grid.removeFromLeft (indent);
-      headerRow.removeFromLeft (indent);
 
       auto gutter = grid.removeFromLeft (gutterW);
       auto columns = grid;
-      auto headerColumns = headerRow;
-      headerColumns.removeFromLeft (gutterW);
 
       for (int row = 0; row < numChannelRows; ++row)
         out.channelRowLabels[static_cast<size_t> (row)]
@@ -631,12 +624,31 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       for (int col = 0; col < numChannelColumns; ++col)
         {
           auto const c = static_cast<size_t> (col);
-          out.channelLabels[c] = headerColumns.removeFromLeft (colW);
+          out.channelLabels[c] = {};
 
           auto column = columns.removeFromLeft (colW);
           for (int row = 0; row < numChannelRows; ++row)
             out.channelGrid[c][static_cast<size_t> (row)]
                 = column.removeFromTop (rowH).reduced (1);
+        }
+
+      // The four things you do to a clip, in their own frame under the
+      // values: the strip reads as what it is, values above and actions
+      // below.
+      out.transportFrame = transportArea;
+      auto keys = transportArea.reduced (frameInset);
+
+      auto const keyGap = juce::jmax (2, keys.getWidth () / 60);
+      auto const keyW
+          = (keys.getWidth () - (numTransportKeys - 1) * keyGap)
+            / numTransportKeys;
+
+      for (int i = 0; i < numTransportKeys; ++i)
+        {
+          out.transportButtons[static_cast<size_t> (i)]
+              = keys.removeFromLeft (keyW);
+          if (i + 1 < numTransportKeys)
+            keys.removeFromLeft (keyGap);
         }
     }
 

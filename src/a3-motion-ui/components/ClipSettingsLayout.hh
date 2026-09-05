@@ -221,8 +221,16 @@ struct ClipSettingsLayout
   std::array<std::array<juce::Rectangle<int>, numChannelRows>,
              numChannelColumns>
       channelGrid;
-  /** The label above each channel column. */
+  /** Empty. The channel numbers over the grid are gone: each column already
+   *  wears its channel's colour, and a colour is read without being read.
+   *  Kept as a field so nothing has to special-case its absence. */
   std::array<juce::Rectangle<int>, numChannelColumns> channelLabels;
+
+  /** The two blocks of the strip, each in a frame of its own: the knobs
+   *  above, the transport below. Drawn slightly set off from the card so the
+   *  strip reads as what it is -- values, then the things you do. */
+  juce::Rectangle<int> channelGridFrame;
+  juce::Rectangle<int> transportFrame;
   /** The row captions down the side: freq, Q, 3d. */
   std::array<juce::Rectangle<int>, numChannelRows> channelRowLabels;
 
