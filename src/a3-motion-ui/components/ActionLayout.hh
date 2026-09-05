@@ -95,6 +95,15 @@ struct ActionLayout
   ControlMetrics metrics{ 0, 0.f, 0.f };
 };
 
+/** How many rows of the action list are on screen at once.
+ *
+ *  A fingertip-high row in a field a few rows tall shows far fewer entries
+ *  than there are scripts, so the list has to be scrollable -- and what it
+ *  scrolls by is this. Its own function because the component may not
+ *  guess it: a list drawn from row zero with a window it has not measured is
+ *  a list whose last entries cannot be reached at all. */
+int actionListVisibleRows (ActionLayout const &layout);
+
 /** @param headerSize the theme's header size, which the control row is
  *                    measured against.
  *  @param bodySize   the theme's body size, which sets the knob and its

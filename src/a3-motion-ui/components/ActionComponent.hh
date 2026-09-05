@@ -174,6 +174,11 @@ private:
   juce::StringArray _choices;
   juce::StringArray _scriptErrors;
   bool _listOpen = false;
+  /** The list's window, kept apart from which script is chosen -- see
+   *  ListScroll. Twenty scripts do not fit in a field a few fingertips tall,
+   *  and a list drawn from row zero with no window is one whose last entries
+   *  cannot be reached at all. */
+  int _listTop = 0;
   bool _editing = false;
   juce::Rectangle<int> _gridReference;
 

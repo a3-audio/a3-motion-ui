@@ -24,6 +24,7 @@
 
 #include <a3-motion-ui/components/BarKnob.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
+#include <a3-motion-ui/components/ListScroll.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
@@ -119,12 +120,17 @@ ActionComponent::ActionComponent ()
     repaint ();
   };
   _scriptTouch->onDragIncrement = [this] (int, int, int increment) {
-    if (_listOpen)
-      return;
-
     // A drag scrolls the text in the finger's direction, the way it does on a
-    // phone -- the same rule the menu's list follows.
-    _buffer.scrollBy (-increment, visibleScriptLines ());
+    // phone -- the same rule the menu's list follows. The open list is a list
+    // like any other and follows it too: it used to return here, which left
+    // every script past the sixth unreachable.
+    if (_listOpen)
+      _listTop = a3::scrollBy (_listTop, -increment,
+                               actionListVisibleRows (_layout),
+                               _choices.size ());
+    else
+      _buffer.scrollBy (-increment, visibleScriptLines ());
+
     repaint ();
   };
   addAndMakeVisible (*_scriptTouch);
@@ -331,6 +337,13 @@ void
 ActionComponent::openActionList ()
 {
   _listOpen = true;
+
+  // Opened onto whatever is already chosen, moved as little as possible: a
+  // list that always opens at the top makes you scroll back to where you were
+  // every single time.
+  _listTop = a3::scrollToShow (_listTop, _choices.indexOf (_actionName),
+                               actionListVisibleRows (_layout),
+                               _choices.size ());
 }
 
 void
@@ -343,7 +356,7 @@ ActionComponent::chooseFromActionList (juce::Point<int> point)
                    - (_layout.actionListArea.getY ()
                       - _layout.scriptField.getY ());
 
-  auto const row = inY / rowH;
+  auto const row = _listTop + inY / rowH;
   if (juce::isPositiveAndBelow (row, _choices.size ()) && onActionChosen)
     onActionChosen (_choices[row]);
 
@@ -664,11 +677,12 @@ ActionComponent::paintActionList (juce::Graphics &g)
 
   for (int row = 0; row * rowH < area.getHeight (); ++row)
     {
-      if (row >= _choices.size ())
+      auto const index = _listTop + row;
+      if (index >= _choices.size ())
         break;
 
       auto const at = area.withY (area.getY () + row * rowH).withHeight (rowH);
-      auto const name = _choices[row];
+      auto const name = _choices[index];
       auto const chosen = name == _actionName;
 
       if (chosen)

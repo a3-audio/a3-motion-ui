@@ -146,4 +146,11 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   return out;
 }
 
+int
+actionListVisibleRows (ActionLayout const &layout)
+{
+  auto const rowH = juce::jmax (1, layout.actionListRowHeight);
+  return juce::jmax (1, layout.actionListArea.getHeight () / rowH);
+}
+
 }

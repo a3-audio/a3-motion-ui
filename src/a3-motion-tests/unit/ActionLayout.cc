@@ -314,3 +314,20 @@ TEST (ActionLayout, TheKeysDoNotCoverTheText)
   EXPECT_FALSE (l.scriptTextField.intersects (l.cancelButton));
   EXPECT_TRUE (l.scriptField.contains (l.scriptTextField));
 }
+
+/** The list opens over the script field, its rows are a fingertip tall, and
+ *  there are twenty-one things to choose from once the folder is full. Those
+ *  three facts together mean it does not fit, which is the whole reason it
+ *  has to scroll -- so the arithmetic that says how much of it is on screen
+ *  is worth pinning down. */
+TEST (ActionLayout, TheActionListShowsFewerRowsThanThereAreScripts)
+{
+  auto const layout = layOutActionPage ({ 0, 0, 768, 256 }, 14.f, 12.f, 40, {});
+
+  auto const rows = actionListVisibleRows (layout);
+  EXPECT_GE (rows, 1);
+  EXPECT_LT (rows, 21) << "twenty scripts and 'no action' cannot all fit";
+  EXPECT_LE (rows * layout.actionListRowHeight,
+             layout.actionListArea.getHeight ())
+      << "a row counted as visible must actually be inside the field";
+}
