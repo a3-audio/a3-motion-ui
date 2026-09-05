@@ -81,12 +81,22 @@ public:
   /** Which action clip this slot fires; empty for none. */
   void setActionName (juce::String const &name);
 
+  /** The script that action carries, shown under its name. Empty for none. */
+  void setScript (juce::String const &script);
+
+  /** Where the global strip's three channel rows stand, in the bar's own
+   *  coordinates. The page puts its own rows on those so the two blocks of
+   *  knobs read across at one height; an empty rectangle means lay out
+   *  freely. */
+  void setGridReference (juce::Rectangle<int> barCoordinates);
+
   std::function<void (int control, int increment)> onControlDragged;
   std::function<void (int control)> onControlDoubleTapped;
   std::function<void (int control)> onControlTapped;
 
 private:
   void paintActionField (juce::Graphics &g);
+  void paintScriptField (juce::Graphics &g);
 
   ActionLayout _layout;
 
@@ -105,6 +115,8 @@ private:
   float _qMax = 0.f;
   int _actMode = 0;
   juce::String _actionName;
+  juce::String _script;
+  juce::Rectangle<int> _gridReference;
 
   std::array<std::unique_ptr<TouchControl>, numControls> _touch;
 };

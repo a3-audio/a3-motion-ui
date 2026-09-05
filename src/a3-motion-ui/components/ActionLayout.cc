@@ -28,69 +28,95 @@ namespace a3
 
 ActionLayout
 layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
-                  float bodySize, float potSizeScale)
+                  float bodySize, float potSizeScale,
+                  juce::Rectangle<int> gridReference)
 {
   ActionLayout out;
 
   auto const padding = juce::jmax (4, bounds.getHeight () / 40);
   auto content = bounds.reduced (padding);
 
-  // The rows first, from the bottom, so what is left over goes to the field
-  // that names the action. A name can be shrunk; a control below a fingertip
-  // is worth nothing at all.
   auto const gap = juce::jmax (4, content.getWidth () / 60);
 
-  // Three columns for an envelope's three values, and a fourth that carries
-  // the row's name. Even columns across every row, so atk sits over atk.
-  constexpr int columns = 4;
-  auto const cellW = (content.getWidth () - (columns - 1) * gap) / columns;
+  // Generous, because the page is: the knob takes the room a whole page can
+  // give it rather than the sliver a third of a bar can. Worked out first --
+  // the card is sized to hold the grid, not the other way round.
+  auto const knobDiam = knobDiameterForFont (bodySize, potSizeScale);
+  auto const gridKnob = static_cast<int> (knobDiam * 1.2f);
 
-  auto const wantedH = static_cast<int> (headerSize * 4.f);
-  auto const roomForRows
-      = juce::jmax (fingertipSize, content.getHeight () / (ActionLayout::numRows + 1));
-  auto const rowH = juce::jlimit (fingertipSize, roomForRows, wantedH);
+  // A cell gives a pixel back on each side so the knobs do not touch, so the
+  // floor a cell is measured against is two over the fingertip's.
+  auto const cellFloor = fingertipSize + 2;
 
-  // Taken from the bottom, so the last one out is the topmost.
-  for (int row = ActionLayout::numRows - 1; row >= 0; --row)
-    {
-      out.rows[static_cast<size_t> (row)] = content.removeFromBottom (
-          juce::jmin (rowH, content.getHeight ()));
-      if (row > 0)
-        content.removeFromBottom (gap);
-    }
+  // Rows come from the global strip when it offers them, so the two blocks
+  // read across at one height. Only when they fit and only when they carry a
+  // target: lining up is worth having, and worth losing to a knob a finger
+  // can actually land on.
+  auto const referenceFits
+      = !gridReference.isEmpty ()
+        && gridReference.getY () >= content.getY ()
+        && gridReference.getBottom () <= content.getBottom ()
+        && gridReference.getHeight () / ActionLayout::numRows >= cellFloor;
+
+  auto const rowH
+      = referenceFits
+            ? gridReference.getHeight () / ActionLayout::numRows
+            : juce::jmax (cellFloor,
+                          juce::jmin (content.getHeight () / 4,
+                                      static_cast<int> (gridKnob * 1.35f)));
+
+  // The card at the right, wide enough for a gutter and three knob columns.
+  auto const labelW = juce::jmax (fingertipSize, rowH);
+  auto const colW = juce::jmax (cellFloor,
+                                juce::jmax (gridKnob + 2,
+                                            static_cast<int> (gridKnob * 1.35f)));
+  auto const gridW = labelW + 3 * colW;
+  auto const cardW = juce::jmin (content.getWidth () * 2 / 3,
+                                 gridW + 2 * juce::jmax (2, gridW / 40) + 6);
+
+  out.card = content.removeFromRight (cardW);
+  content.removeFromRight (gap);
+
+  auto grid = sectionContentBounds (out.card);
+
+  // Where the rows begin: on the strip's if it gave us any, otherwise centred
+  // in what the card has.
+  auto const blockH = ActionLayout::numRows * rowH;
+  auto const top = referenceFits
+                       ? gridReference.getY ()
+                       : grid.getY () + (grid.getHeight () - blockH) / 2;
+
+  auto const indent = juce::jmax (0, (grid.getWidth () - gridW) / 2);
 
   for (int row = 0; row < ActionLayout::numRows; ++row)
     {
-      auto band = out.rows[static_cast<size_t> (row)];
-      for (int i = 0; i < 3; ++i)
-        {
-          out.controls[static_cast<size_t> (row * 3 + i)]
-              = band.removeFromLeft (cellW);
-          band.removeFromLeft (gap);
-        }
+      auto band = juce::Rectangle<int>{ grid.getX () + indent,
+                                        top + row * rowH, gridW, rowH };
+      out.rows[static_cast<size_t> (row)] = band;
 
-      // Whatever is left of the row is its fourth column, which names it.
-      out.rowLabels[static_cast<size_t> (row)] = band;
+      out.rowLabels[static_cast<size_t> (row)] = band.removeFromLeft (labelW);
+      for (int i = 0; i < 3; ++i)
+        out.controls[static_cast<size_t> (row * 3 + i)]
+            = band.removeFromLeft (colW).reduced (1);
     }
 
-  content.removeFromBottom (gap);
+  // What is left is the action's: its name and mode on one line, the script
+  // it carries under them.
+  auto const nameH = juce::jmax (fingertipSize,
+                                 static_cast<int> (headerSize * 2.f));
+  auto nameRow = content.removeFromTop (juce::jmin (nameH, content.getHeight ()));
+  out.actModeField = nameRow.removeFromRight (
+      juce::jmin (labelW + colW, nameRow.getWidth () / 3));
+  nameRow.removeFromRight (gap);
+  out.actionField = nameRow;
 
-  // The mode takes the name field's last column, so the two readings a glance
-  // needs -- what fires and how -- sit on one line.
-  out.actionField = content;
-  out.actModeField = out.actionField.removeFromRight (cellW);
-  out.actionField.removeFromRight (gap);
+  content.removeFromTop (gap);
+  out.scriptField = content;
 
-  // Generous, because the page is: the knob takes the room a whole page can
-  // give it rather than the sliver a third of a bar can.
-  auto const knobDiam = juce::jmin (
-      knobDiameterForFont (bodySize, potSizeScale) * 2,
-      juce::jmax (1, juce::jmin (cellW, out.rows[0].getHeight ()) * 2 / 3));
-
-  auto const columnGap = juce::jmax (2, cellW / 20);
+  auto const columnGap = juce::jmax (2, colW / 20);
   out.metrics = ControlMetrics{
     knobDiam,
-    sharedCaptionSize (bodySize, cellW, columnGap, out.rows[0].getHeight ()),
+    sharedCaptionSize (bodySize, colW, columnGap, rowH),
     bodySize,
   };
 

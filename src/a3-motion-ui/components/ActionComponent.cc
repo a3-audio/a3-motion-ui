@@ -78,10 +78,15 @@ ActionComponent::applyTheme ()
 void
 ActionComponent::resized ()
 {
-  _layout = layOutActionPage (getLocalBounds (),
-                              theme ().fontSize (FontRole::Header),
-                              theme ().fontSize (FontRole::Body),
-                              theme ().potSize);
+  _layout = layOutActionPage (
+      getLocalBounds (), theme ().fontSize (FontRole::Header),
+      theme ().fontSize (FontRole::Body), theme ().potSize,
+      // The strip's rows arrive in the bar's coordinates; this page is a
+      // child of the bar placed at clipContent, so they have to come back to
+      // its own origin before they mean anything here.
+      _gridReference.isEmpty ()
+          ? _gridReference
+          : _gridReference - getBounds ().getPosition ());
 
   // Every knob comes out of the rows; the mode does not stand in one.
   for (int i = 0; i < ActMode; ++i)
@@ -137,6 +142,28 @@ ActionComponent::setQEnvelope (int attackStep, int decayStep, float max)
 }
 
 void
+ActionComponent::setScript (juce::String const &script)
+{
+  if (script == _script)
+    return;
+
+  _script = script;
+  repaint ();
+}
+
+void
+ActionComponent::setGridReference (juce::Rectangle<int> barCoordinates)
+{
+  if (barCoordinates == _gridReference)
+    return;
+
+  // Geometry, so a re-layout rather than a repaint.
+  _gridReference = barCoordinates;
+  resized ();
+  repaint ();
+}
+
+void
 ActionComponent::setActionName (juce::String const &name)
 {
   if (name == _actionName)
@@ -172,17 +199,58 @@ ActionComponent::paintActionField (juce::Graphics &g)
 
   g.setColour (named ? _channelColour : toColour (theme ().textMuted, 0.5f));
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (28.f, bounds.getHeight () / 3.f))));
-  // Not a control: it says what is loaded, and the loading happens in the file
-  // menu beside the clips, where everything else is chosen.
-  g.drawText (named ? _actionName : juce::String ("no action"), bounds,
-              juce::Justification::centred);
+      juce::jmin (24.f, bounds.getHeight () * 0.45f))));
+  g.drawText (named ? _actionName : juce::String ("no action"),
+              bounds.reduced (bounds.getHeight () / 3, 0),
+              juce::Justification::centredLeft);
 
   g.setColour (toColour (theme ().textMuted, 0.7f));
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (12.f, bounds.getHeight () / 6.f))));
-  g.drawText ("action", bounds.withTrimmedBottom (bounds.getHeight () * 3 / 4),
-              juce::Justification::centred);
+      juce::jmin (12.f, bounds.getHeight () / 4.f))));
+  g.drawText ("action", bounds.reduced (bounds.getHeight () / 3, 0),
+              juce::Justification::centredRight);
+}
+
+void
+ActionComponent::paintScriptField (juce::Graphics &g)
+{
+  auto const bounds = _layout.scriptField;
+  if (bounds.isEmpty ())
+    return;
+
+  // Darker than the page and squared off, because this is a terminal and
+  // reads as one: a script is text you scan line by line, not a control.
+  g.setColour (toColour (theme ().background).darker (0.4f));
+  g.fillRect (bounds);
+  g.setColour (toColour (theme ().textPrimary, 0.15f));
+  g.drawRect (bounds, 1);
+
+  auto const inset = bounds.reduced (juce::jmax (6, bounds.getHeight () / 40));
+  auto const lineH
+      = juce::jmax (11.f, juce::jmin (16.f, inset.getHeight () / 14.f));
+
+  g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName (),
+                                            lineH * 0.85f,
+                                            juce::Font::plain)));
+
+  if (_script.isEmpty ())
+    {
+      g.setColour (toColour (theme ().textMuted, 0.5f));
+      g.drawText ("-- no script --", inset, juce::Justification::topLeft);
+      return;
+    }
+
+  g.setColour (toColour (theme ().textPrimary, 0.8f));
+
+  auto line = inset.withHeight (static_cast<int> (lineH));
+  for (auto const &text : juce::StringArray::fromLines (_script))
+    {
+      if (line.getBottom () > inset.getBottom ())
+        break;
+
+      g.drawText (text, line, juce::Justification::centredLeft);
+      line.translate (0, static_cast<int> (lineH));
+    }
 }
 
 void
@@ -193,7 +261,14 @@ ActionComponent::paint (juce::Graphics &g)
   // own gaps.
   g.fillAll (toColour (theme ().background));
 
+  // The knobs stand on a card like every other block of controls in the bar.
+  // Its colour is the bar's own resting card wash, so the page reads as part
+  // of the same furniture rather than as a panel of its own.
+  g.setColour (toColour (theme ().textPrimary, 0.04f));
+  g.fillRoundedRectangle (_layout.card.toFloat (), 8.f);
+
   paintActionField (g);
+  paintScriptField (g);
 
   auto const &metrics = _layout.metrics;
 
@@ -219,13 +294,17 @@ ActionComponent::paint (juce::Graphics &g)
     }
 
   // Which row is which, said once each rather than on every knob.
-  char const *const rowNames[] = { "accent", caption::frequency, "q" };
+  // "3d", not "accent": what the row drives is the channel's 3d, and naming
+  // it after the thing it moves puts it in the same words as the global
+  // strip's rows -- which is where the eye has already learned them.
+  char const *const rowNames[] = { "3d", caption::frequency, "q" };
   g.setColour (toColour (theme ().textMuted, 0.8f));
   g.setFont (juce::Font (juce::FontOptions (
       juce::jmin (14.f, _layout.rowLabels[0].getHeight () * 0.4f))));
   for (int row = 0; row < ActionLayout::numRows; ++row)
-    g.drawText (rowNames[row], _layout.rowLabels[static_cast<size_t> (row)],
-                juce::Justification::centred);
+    g.drawText (rowNames[row], _layout.rowLabels[static_cast<size_t> (row)]
+                                   .withTrimmedRight (4),
+                juce::Justification::centredRight);
 
   // Not a knob: it is one of two words, and a knob that can only be at one of
   // two places is a knob that lies about what it can do. It stands beside the

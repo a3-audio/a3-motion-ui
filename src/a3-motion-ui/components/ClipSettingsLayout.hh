@@ -167,6 +167,11 @@ struct ClipSettingsLayout
    *  tabs that switch to it. */
   juce::Rectangle<int> clipContent;
   juce::Rectangle<int> globalBounds;
+  /** What the global strip lays its contents out in: its card less the band
+   *  the transport keys stand in. The card reaches up over them so the strip
+   *  reads as one block, which is why the card and the content area are no
+   *  longer the same rectangle minus a title. */
+  juce::Rectangle<int> globalContent;
 
   /** The card per section, indexed like ClipSettingsComponent::*Index. */
   std::array<juce::Rectangle<int>, numClipSettingsSections> sectionCards;

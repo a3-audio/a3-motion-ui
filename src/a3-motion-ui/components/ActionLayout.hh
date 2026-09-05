@@ -31,34 +31,44 @@ namespace a3
 
 /** Where the ACTION page puts things.
  *
- *  A whole page rather than a section, so the controls sit at whatever size it
- *  can afford -- which is a lot, since nothing else is competing for the room.
- *  Above them, which action clip this slot fires.
+ *  Two halves. On the right, a card of nine knobs -- three envelopes by
+ *  attack, decay and ceiling -- laid out and positioned to read straight
+ *  across into the global strip's channel grid beside it. On the left, which
+ *  action this slot fires and the script that action carries.
  */
 struct ActionLayout
 {
-  /** Which action clip the ACT key fires on this slot, named. Chosen in the
-   *  file menu beside the clips, so what stands here is a reading rather than
-   *  a control. */
+  /** Which action clip the ACT key fires on this slot, named. Chosen from the
+   *  list it opens, so what stands here is a reading as much as a control. */
   juce::Rectangle<int> actionField;
 
-  /** The mode, up beside the name rather than at the end of a row.
+  /** The mode, beside the name rather than at the end of a row.
    *
    *  It says what a press does to all three envelopes, so it belongs to none
    *  of them -- and it is a state you want to find without reading, which the
-   *  tail of the bottom row is not. */
+   *  tail of a row is not. */
   juce::Rectangle<int> actModeField;
 
+  /** The script the action carries, under its name and taking whatever the
+   *  card leaves. */
+  juce::Rectangle<int> scriptField;
+
+  /** The knobs stand on a card at the right, the way every other block of
+   *  controls in the bar does. */
+  juce::Rectangle<int> card;
+
   /** Three envelopes' worth of attack, decay and ceiling, in reading order --
-   *  which is also the order the handler expects. Accent first, because it is
-   *  what ACT has always done, then the cutoff, then the resonance. */
+   *  which is also the order the handler expects. The 3d accent first,
+   *  because it is what ACT has always done, then the cutoff, then the
+   *  resonance. */
   static constexpr int numRows = 3;
   std::array<juce::Rectangle<int>, numRows * 3> controls;
 
   /** The bands the controls stand on, top to bottom. */
   std::array<juce::Rectangle<int>, numRows> rows;
 
-  /** Which envelope each row is, named in the column beside it. */
+  /** Which envelope each row is, in a gutter down the left of the grid --
+   *  the same arrangement the global strip names its channel rows with. */
   std::array<juce::Rectangle<int>, numRows> rowLabels;
 
   /** Knob size and text sizes, worked out for these cells -- the same
@@ -71,8 +81,16 @@ struct ActionLayout
  *                    measured against.
  *  @param bodySize   the theme's body size, which sets the knob and its
  *                    captions. */
+/** @param gridReference where the global strip's three channel rows stand, in
+ *                       this page's own coordinates -- the page puts its own
+ *                       rows on exactly those, so 3d, freq and q read
+ *                       straight across the bar. Empty, or too tall to fit,
+ *                       and the page lays itself out instead: lining up is
+ *                       worth having and worth losing, and a knob drawn past
+ *                       the bottom edge is worth neither. */
 ActionLayout layOutActionPage (juce::Rectangle<int> bounds,
                                float headerSize, float bodySize,
-                               float potSizeScale);
+                               float potSizeScale,
+                               juce::Rectangle<int> gridReference);
 
 }

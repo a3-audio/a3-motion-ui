@@ -381,16 +381,14 @@ TEST (ClipSettingsLayout, TheTransportStandsOverTheGlobalStrip)
       ASSERT_FALSE (key.isEmpty ()) << "key " << i;
       EXPECT_TRUE (l.globalBounds.contains (key)) << "key " << i;
 
-      // Clear of the card, not inside it.
-      EXPECT_LE (key.getBottom (), l.sectionCards[3].getY ()) << "key " << i;
-
       // On the same line as the slot keys and the tabs, so the bar reads
       // across at one height.
       EXPECT_EQ (key.getY (), l.slotButtons[0].getY ()) << "key " << i;
     }
 
-  // ... and the strip keeps its own title.
-  EXPECT_FALSE (l.sectionLabels[3].isEmpty ());
+  // The keys used to have to stay clear of the card below them and the strip
+  // used to be titled. Both went the other way: see
+  // TheGlobalCardReachesOverTheTransportKeys and TheGlobalCardIsNotTitled.
 }
 
 // A tab is switched mid-set, with one hand, without looking away from the
@@ -1217,4 +1215,52 @@ TEST (ClipSettingsLayout, MotionHasRoomAgainAndTheFadeStaysWhereItIs)
 
   // And the fade is still in the shape column, with rot and bias.
   EXPECT_EQ (l.controls[0].size (), 4u);
+}
+
+// ── The global strip's card ──────────────────────────────────────────────
+
+// The four transport keys stand in the band over the strip, and the card used
+// to begin under them -- which left them floating above a panel they plainly
+// belong to. The card reaches up over them now, so the strip reads as one
+// block: what you do to a clip, and the device functions under it.
+TEST (ClipSettingsLayout, TheGlobalCardReachesOverTheTransportKeys)
+{
+  auto const l = layOutClipSettings ({ 0, 0, 1280, 300 }, 18.f, 14.f, 1.f);
+
+  for (auto const &key : l.transportButtons)
+    {
+      ASSERT_FALSE (key.isEmpty ());
+      EXPECT_TRUE (l.sectionCards[3].contains (key))
+          << "a transport key stands outside the card under it";
+    }
+}
+
+// And the card has no title any more. "global" named a panel whose contents
+// name themselves -- twelve knobs with their rows written beside them and six
+// keys with words on them -- and the row it took is a row the grid wanted.
+TEST (ClipSettingsLayout, TheGlobalCardIsNotTitled)
+{
+  auto const l = layOutClipSettings ({ 0, 0, 1280, 300 }, 18.f, 14.f, 1.f);
+
+  EXPECT_TRUE (l.sectionLabels[3].isEmpty ())
+      << "the global strip still spends a row saying what it is";
+
+  // The three clip sections keep theirs: those do need naming.
+  for (size_t i = 0; i < 3; ++i)
+    EXPECT_FALSE (l.sectionLabels[i].isEmpty ()) << "section " << i;
+}
+
+// The grid still clears the keys above it, whatever the card does.
+TEST (ClipSettingsLayout, TheChannelGridStaysClearOfTheTransportKeys)
+{
+  for (int height : { 200, 300, 400 })
+    {
+      auto const l = layOutClipSettings ({ 0, 0, 1280, height }, 18.f, 14.f, 1.f);
+
+      for (auto const &column : l.channelGrid)
+        for (auto const &cell : column)
+          for (auto const &key : l.transportButtons)
+            EXPECT_FALSE (cell.intersects (key))
+                << "a grid cell runs into a transport key at height " << height;
+    }
 }

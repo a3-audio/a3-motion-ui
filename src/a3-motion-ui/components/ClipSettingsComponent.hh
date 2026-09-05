@@ -257,6 +257,10 @@ public:
    *  controller page covers when it is showing. Under the header row, which
    *  belongs to the bar on both pages. */
   juce::Rectangle<int> clipContentBounds () const;
+  /** Where the global strip's three channel rows stand, in the bar's own
+   *  coordinates — one rectangle over all three. The ACTION page lines its
+   *  own rows up with these so 3d, freq and q read straight across the bar. */
+  juce::Rectangle<int> globalGridRowsBounds () const;
   /** A tab was tapped. */
   std::function<void (BarPage page)> onPageSelected;
   /** Tapped, except Action, which is held for as long as the finger is down --

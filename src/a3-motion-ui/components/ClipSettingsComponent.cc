@@ -871,6 +871,18 @@ ClipSettingsComponent::clipContentBounds () const
   return _layout.clipContent;
 }
 
+juce::Rectangle<int>
+ClipSettingsComponent::globalGridRowsBounds () const
+{
+  // The row captions rather than the cells: the cells give a pixel back on
+  // each side, so a page lining up with them would sit one pixel out.
+  auto bounds = _layout.channelRowLabels.front ();
+  for (auto const &label : _layout.channelRowLabels)
+    bounds = bounds.getUnion (label);
+
+  return bounds;
+}
+
 void
 ClipSettingsComponent::setPage (BarPage page)
 {

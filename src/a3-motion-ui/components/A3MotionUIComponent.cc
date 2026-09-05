@@ -1035,7 +1035,13 @@ A3MotionUIComponent::resized ()
   if (_controller && _clipSettings)
     _controller->setBounds (_clipSettings->clipContentBounds ());
   if (_action)
-    _action->setBounds (_clipSettings->clipContentBounds ());
+    {
+      _action->setBounds (_clipSettings->clipContentBounds ());
+      // After the bounds, not before: the page subtracts its own origin from
+      // this to bring the strip's rows into its own coordinates, so it has to
+      // know where it is standing first.
+      _action->setGridReference (_clipSettings->globalGridRowsBounds ());
+    }
   if (_browser && _clipSettings)
     _browser->setBounds (_clipSettings->clipContentBounds ());
 

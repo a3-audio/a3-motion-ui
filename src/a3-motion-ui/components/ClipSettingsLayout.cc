@@ -275,6 +275,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // The band the readout used to stand in. The readout is in the status bar
   // now -- a reading among readings -- and the four things you do to a clip
   // stand here instead, over the strip that also carries MENU, REC and TAP.
+  // The card starts here, above the transport rather than under it: the four
+  // things you do to a clip and the six device keys are one block, and a row
+  // of keys floating over the panel they belong to read as an afterthought.
+  auto const globalCard = globalArea;
   auto transportBand = globalArea.removeFromTop (headerH);
   out.readout = {};
 
@@ -304,7 +308,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         }
     }
 
-  out.sectionCards[3] = globalArea.reduced (gap / 2, 0);
+  out.sectionCards[3] = globalCard.reduced (gap / 2, 0);
+  // What the strip lays out in: the card less the band the transport took.
+  out.globalContent
+      = sectionContentBounds (out.sectionCards[3]).withTrimmedTop (headerH);
 
   // ── Shape, and its other side ────────────────────────────────────────
   //
@@ -556,10 +563,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   // ── Global section ───────────────────────────────────────────────────
   {
-    auto content = sectionContentBounds (out.sectionCards[3]);
-
-    out.sectionLabels[3]
-        = content.removeFromTop (titleRowHeight (content, headerSize));
+    // No title: "global" named a panel whose contents name themselves -- the
+    // rows are written beside the knobs and the keys carry words -- and the
+    // row it took is a row the twelve knobs wanted.
+    auto content = out.globalContent;
+    out.sectionLabels[3] = {};
 
     // The grid across the whole section, the four buttons in one row under
     // it. Beside each other the grid was cramped into two thirds of the
@@ -673,13 +681,17 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   // An open list takes over a section's controls, and only those: the title
   // stays put so the section is still named while you pick.
-  for (int i = 0; i < numClipSettingsSections; ++i)
+  for (int i = 0; i < numClipSettingsSections - 1; ++i)
     {
       auto const c = static_cast<size_t> (i);
       out.dropdownArea[c] = sectionContentBounds (out.sectionCards[c])
                                 .withTrimmedTop (
                                     out.sectionLabels[c].getHeight ());
     }
+
+  // The strip is measured differently -- its card reaches up over the
+  // transport band, which nothing may open across.
+  out.dropdownArea[3] = out.globalContent;
 
   return out;
 }
