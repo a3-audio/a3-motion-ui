@@ -77,7 +77,7 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_EQ (l.controls[0].size (), 2u); // Shape: the pattern, and rotate
+  EXPECT_EQ (l.controls[0].size (), 4u); // Shape: the picture, rot, fade, bridge
   EXPECT_EQ (l.controls[1].size (), 6u); // Elevation
   EXPECT_EQ (l.controls[2].size (), 8u); // Motion: the ACT key became a mode
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
@@ -544,8 +544,8 @@ TEST (ClipSettingsLayout, BothFacesCarryAKnobBetweenThePictureAndTheButtons)
       grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
       defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
 
-  ASSERT_EQ (front.controls[0].size (), 2u); // the shape, and rotate
-  ASSERT_EQ (back.controls[0].size (), 2u);  // the take, and fade
+  ASSERT_EQ (front.controls[0].size (), 4u); // the picture and its three knobs
+  ASSERT_EQ (back.controls[0].size (), 4u);  // the same column on the back
 
   auto const ordered = [] (ClipSettingsLayout const &l,
                            juce::Rectangle<int> firstButton) {
@@ -1172,4 +1172,59 @@ TEST (ClipSettingsLayout, TheDriftMarkIsAFootnoteNotTheContent)
 TEST (ClipSettingsLayout, NothingToMarkMeansNoMark)
 {
   EXPECT_TRUE (driftMark ({}).isEmpty ());
+}
+
+
+// Where the fade actually went, and the measurement that sent it there: the
+// shape's knob column carries three knobs at every size a skin can ask for,
+// where a fourth row in Motion carries none.
+TEST (ClipSettingsLayout, TheShapeColumnCarriesItsThreeKnobs)
+{
+  for (int height : { 200, 250, 314, 400 })
+    {
+      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
+      auto const &shape = l.controls[0];
+      ASSERT_EQ (shape.size (), 4u) << "height " << height;
+
+      for (size_t knob = 1; knob < shape.size (); ++knob)
+        {
+          EXPECT_FALSE (shape[knob].isEmpty ())
+              << "knob " << knob << " at height " << height;
+          EXPECT_TRUE (l.sectionCards[0].contains (shape[knob]))
+              << "knob " << knob << " escapes the card at height " << height;
+        }
+
+      for (size_t knob = 2; knob < shape.size (); ++knob)
+        EXPECT_GE (shape[knob].getY (), shape[knob - 1].getBottom ())
+            << "the knobs overlap at height " << height;
+    }
+}
+
+// Why the fade is in Shape and not in Motion, kept as a measurement rather
+// than as a sentence in a commit message.
+//
+// Motion lays its knobs out in rows of two, so two more knobs is a fourth row
+// and every row loses a quarter of its height. On a bar a skin has cut down
+// that leaves 26 px, under the 34 px a fingertip needs -- and in a booth a
+// control under a fingertip is a control you miss.
+//
+// This test is expected to START FAILING when the ACTION tab takes the
+// envelope and the act mode out of Motion. That is the point: when the
+// constraint changes, something should say so rather than nothing.
+TEST (ClipSettingsLayout, MotionIsTooFullForAFourthKnobRow)
+{
+  auto const l = layOutClipSettings ({ 0, 0, 768, 200 }, 14.f, 12.f, 1.f);
+  auto const &motion = l.controls[2];
+  ASSERT_EQ (motion.size (), 8u)
+      << "Motion has been emptied out -- re-measure, it may have room now";
+
+  auto const rowHeight = motion[0].getHeight ();
+  auto const card = l.sectionCards[2];
+  auto const gaps = card.getHeight () - 4 * rowHeight;
+  auto const withFourRows = (card.getHeight () - gaps) / 4;
+
+  EXPECT_LT (withFourRows, fingertipSize)
+      << "Motion now has room for a fourth knob row (" << withFourRows
+      << " px). The fade could live there after all -- decide deliberately"
+      << " rather than leaving it in Shape by inertia.";
 }

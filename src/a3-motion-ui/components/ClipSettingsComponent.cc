@@ -522,6 +522,16 @@ ClipSettingsComponent::setMotionActMode (int mode)
 
 
 void
+ClipSettingsComponent::setMotionBridgeBias (int bias)
+{
+  auto const held = juce::jlimit (-4, 4, bias);
+  if (held == _motionBridgeBias)
+    return;
+  _motionBridgeBias = held;
+  repaint ();
+}
+
+void
 ClipSettingsComponent::setMotionFadeReach (float reach)
 {
   _motionFadeReach = juce::jlimit (0.f, 1.f, reach);
@@ -1323,13 +1333,6 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
                         recordLengthNames[i], {},
                         _recordLengthLabel == recordLengthNames[i], isSelected);
 
-      // How far a gap may be for the fade to draw through it. Still drawn on
-      // the record page for now; it moves to the clip page with its bias, and
-      // the reason it used to sit here -- "it belongs to the recording" -- is
-      // exactly what stopped being true.
-      paintMiniKnob (g, cells[1], metrics, caption::fade,
-                     _motionFadeReach * 2.f - 1.f, false,
-                     _trajectorySubIndex == 1, isSelected);
     }
   else
     {
@@ -1353,6 +1356,22 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
       paintMiniKnob (g, cells[1], metrics, caption::rotate,
                      _shapeRotate * 2.f, false, _trajectorySubIndex == 1,
                      isSelected, _shapeRotateReach * 2.f, true);
+
+      // How far a gap may be for the fade to draw through it, and where a
+      // drawn-through gap leads. Both are about the picture above them --
+      // which of the shape's holes are a line and which a jump -- so they
+      // stand under the knob that turns the same shape, not among the
+      // movements in Motion.
+      paintMiniKnob (g, cells[2], metrics, caption::fade,
+                     _motionFadeReach * 2.f - 1.f, false,
+                     _trajectorySubIndex == 2, isSelected);
+
+      // Bipolar, like spin and swell: the middle is the next point in time,
+      // and which side of it you are on is whether it looks for the nearest
+      // way out or a random one.
+      paintMiniKnob (g, cells[3], metrics, caption::bias,
+                     static_cast<float> (_motionBridgeBias) / 4.f, true,
+                     _trajectorySubIndex == 3, isSelected);
     }
 
   // Pictogram, centred in whatever square area is left above the name.

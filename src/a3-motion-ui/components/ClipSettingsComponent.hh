@@ -187,6 +187,9 @@ public:
   /** How far a gap may be for the fade to draw through it, 0..1. */
   void setMotionFadeReach (float reach);
 
+  /** Where a drawn-through gap leads, -4..+4. */
+  void setMotionBridgeBias (int bias);
+
   /** How fast the trajectory turns under the blob, as TrajectorySpin's
    *  signed step: 0 stands still, the sign is the direction. */
   void setMotionSpin (int step);
@@ -484,6 +487,7 @@ private:
   int _motionEndAction = 0;
   int _motionSubIndex = 0;
   float _motionFadeReach = 0.25f;
+  int _motionBridgeBias = 0;
   int _motionSpin = 0;
   int _motionSwell = 0;
   int _motionAttack = 0;

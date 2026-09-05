@@ -3798,7 +3798,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::motionIndex)
     return 8; // spin, swell, atk, dec, max, actmode, dir, end
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
-    return 2; // the shape itself, and the knob its face carries
+    return 4; // the shape, then rot, fade and bridge down its column
   return 1;
 }
 
@@ -3910,31 +3910,39 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
       {
         auto &pattern = _patterns[channel][slot];
 
-        if (sub == 1)
+        if (sub == 1 && pattern)
           {
-            if (_barPage == BarPage::Record)
-              {
-                // How far a gap may be for the fade to draw through it. A
-                // reading of the movement, not a change to it: nothing is
-                // written into the ticks, so it can be turned down again as
-                // freely as up, and the line follows because it is cut from
-                // the same plan.
-                if (pattern)
-                  {
-                    pattern->setFadeReach (pattern->getFadeReach ()
-                                           + 0.02f * static_cast<float> (increment));
-                    refreshPatternDisplayFromTicks (pattern);
-                  }
-              }
-            else if (pattern)
-              {
-                // Which way the shape faces. A standing angle, where the spin
-                // is the movement over it — both are summed at the one place
-                // that turns anything.
-                pattern->setRotate (pattern->getRotate () + increment * 0.02f);
-              }
+            // Which way the shape faces. A standing angle, where the spin is
+            // the movement over it — both are summed at the one place that
+            // turns anything.
+            pattern->setRotate (pattern->getRotate () + increment * 0.02f);
             break;
           }
+
+        if (sub == 2 && pattern)
+          {
+            // How far a gap may be for the fade to draw through it. A reading
+            // of the movement, not a change to it: nothing is written into the
+            // ticks, so it can be turned down again as freely as up, and the
+            // drawn line follows because it is cut from the same plan.
+            pattern->setFadeReach (pattern->getFadeReach ()
+                                   + 0.02f * static_cast<float> (increment));
+            refreshPatternDisplayFromTicks (pattern);
+            break;
+          }
+
+        if (sub == 3 && pattern)
+          {
+            // Where a drawn-through gap leads. Whole steps, like spin and
+            // swell: there are nine positions and a finger should feel each
+            // one, not slide past them.
+            pattern->setBridgeBias (pattern->getBridgeBias () + increment);
+            refreshPatternDisplayFromTicks (pattern);
+            break;
+          }
+
+        if (sub != 0)
+          break;
 
         int currentIndex = 0;
         if (pattern)
@@ -4252,6 +4260,8 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setMotionEndAction (_clipUIParams[channel][slot].endAction);
   _clipSettings->setMotionFadeReach (
       pattern ? pattern->getFadeReach () : ClipSettings{}.fadeReach);
+  _clipSettings->setMotionBridgeBias (
+      pattern ? pattern->getBridgeBias () : ClipSettings{}.bridgeBias);
   _clipSettings->setMotionSpin (pattern ? pattern->getSpin () : 0);
   _clipSettings->setMotionSwell (pattern ? pattern->getReachLfo () : 0);
   _clipSettings->setMotionEnvelope (

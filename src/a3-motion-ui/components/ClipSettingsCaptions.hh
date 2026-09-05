@@ -58,6 +58,14 @@ constexpr char const *frequency = "freq";
 constexpr char const *recordLength = "len";
 /** The time taken out of the take's end to close its join. */
 constexpr char const *fade = "fade";
+
+/** Where a gap the fade draws through leads: the next point in time in the
+ *  middle, the nearest way out to one side, a random one to the other.
+ *
+ *  "bias" rather than "bridge" because it has to fit the shape column, which
+ *  is a quarter of the section -- and because it is what the setting is called
+ *  in the file. */
+constexpr char const *bias = "bias";
 /** How fast the whole trajectory turns under the blob, in bars per
  *  revolution either way round. */
 constexpr char const *spin = "spin";
@@ -144,6 +152,7 @@ constexpr TextEntry captionTable[] = {
   { caption::speed, 4 },       { caption::direction, 4 },
   { caption::endAction, 4 },   { caption::fade, 4 },
   { caption::spin, 4 },        { caption::swell, 4 },
+  { caption::bias, 4 },
   { caption::attack, 4 },      { caption::decay, 4 },
   { caption::envelopeMax, 4 },   { caption::rotate, 4 },
   { caption::actMode, 4 },

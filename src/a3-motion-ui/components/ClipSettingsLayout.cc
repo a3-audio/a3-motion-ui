@@ -64,7 +64,7 @@ numControlsInSection (int sectionIndex)
   switch (sectionIndex)
     {
     case 0:
-      return 2; // the shape in the slot, and the knob its face carries
+      return 4; // the shape, and the three knobs that say how it is read
     case 1:
       return 6; // reach, clip-top, clip-bottom, mirror-south, flat, flat-elev
     case 2:
@@ -347,15 +347,41 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // and the speeds are buttons of their own — they are not values a finger
     // turns, so they are not sub-elements of the section.
     //
-    // The knob keeps its own height inside its column and sits in the middle
-    // of it: stretched to the column it would be a knob the size of the
-    // picture, and pinned to one end it would leave a hole at the other.
-    auto const knobBox = knobColumn.withSizeKeepingCentre (
-        knobColumn.getWidth (),
-        juce::jmin (knobColumn.getHeight (),
-                    controlBoxHeightForFont (bodySize, metrics.knobDiam)));
+    // Three knobs down the column, sharing it evenly: how the shape stands
+    // (rot) and how it is read (fade, bridge -- which of its gaps are a line
+    // and which a jump). All three are about the picture beside them, which is
+    // why they are here rather than in Motion, where things move over time.
+    //
+    // Shared out rather than each taking its own height from the top: a skin
+    // can cut the bar down, and a column that helps itself leaves the whole
+    // shortfall on the last knob.
+    constexpr int shapeKnobs = 3;
+    auto const knobGap = juce::jmax (2, knobColumn.getHeight () / 40);
+    auto const knobH
+        = juce::jmax (1, (knobColumn.getHeight () - (shapeKnobs - 1) * knobGap)
+                             / shapeKnobs);
+    auto const wantedH = controlBoxHeightForFont (bodySize, metrics.knobDiam);
+
+    auto knobsLeft = knobColumn;
+    auto const nextKnob = [&knobsLeft, knobH, knobGap, wantedH] (bool last) {
+      auto slot = knobsLeft.removeFromTop (knobH);
+      if (!last)
+        knobsLeft.removeFromTop (knobGap);
+      // Its own height inside its slot and centred in it: stretched, a knob
+      // would be as tall as its share of the column; pinned to one end it
+      // would leave a hole at the other.
+      return slot.withSizeKeepingCentre (
+          slot.getWidth (), juce::jmin (slot.getHeight (), wantedH));
+    };
+
+    auto const rotateBox = nextKnob (false);
+    auto const fadeBox = nextKnob (false);
+    auto const bridgeBox = nextKnob (true);
+
     out.controls[0] = { out.trajectoryIcon,
-                        textCell (knobBox, metrics.knobDiam) };
+                        textCell (rotateBox, metrics.knobDiam),
+                        textCell (fadeBox, metrics.knobDiam),
+                        textCell (bridgeBox, metrics.knobDiam) };
   }
 
   // ── Elevation ────────────────────────────────────────────────────────
