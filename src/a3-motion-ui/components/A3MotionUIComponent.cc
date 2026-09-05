@@ -4341,8 +4341,11 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
 void
 A3MotionUIComponent::updateControlReadout (juce::String const &text)
 {
-  if (_clipSettings)
-    _clipSettings->setLastControlReadout (text);
+  // To the status bar, not to the clip bar: what was last turned is a reading
+  // like the tempo and the beat, and the band it used to stand in over the
+  // global strip is the transport's now.
+  if (_statusBar)
+    _statusBar->setControlReadout (text);
 }
 
 }

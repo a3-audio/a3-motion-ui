@@ -367,24 +367,27 @@ TEST (ClipSettingsLayout, TheHeaderNeverEatsTheBarItSitsOn)
     }
 }
 
-// The readout says what was last moved, and what moves comes from either page
-// — so it sits over the global strip, which stands on both, rather than over
-// the half that gets swapped out from under it. Above the strip's card, on the
-// header row's own line: the bar reads across at one height, and a readout
-// dropped into the card would take a row the channel grid needs.
-TEST (ClipSettingsLayout, TheReadoutSitsOverTheGlobalStripOnTheHeaderLine)
+// The band over the global strip carries the transport now. The readout that
+// used to stand there is in the status bar, beside the tempo and the beat --
+// what was last turned is a reading, and readings belong on the row the device
+// reports from.
+TEST (ClipSettingsLayout, TheTransportStandsOverTheGlobalStrip)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_FALSE (l.readout.isEmpty ());
-  EXPECT_TRUE (l.globalBounds.contains (l.readout));
+  for (size_t i = 0; i < l.transportButtons.size (); ++i)
+    {
+      auto const &key = l.transportButtons[i];
+      ASSERT_FALSE (key.isEmpty ()) << "key " << i;
+      EXPECT_TRUE (l.globalBounds.contains (key)) << "key " << i;
 
-  // Clear of the card, not inside it.
-  EXPECT_LE (l.readout.getBottom (), l.sectionCards[3].getY ());
+      // Clear of the card, not inside it.
+      EXPECT_LE (key.getBottom (), l.sectionCards[3].getY ()) << "key " << i;
 
-  // On the same line as the slot keys and the tabs.
-  EXPECT_EQ (l.readout.getY (), l.slotButtons[0].getY ());
-  EXPECT_EQ (l.readout.getHeight (), l.slotButtons[0].getHeight ());
+      // On the same line as the slot keys and the tabs, so the bar reads
+      // across at one height.
+      EXPECT_EQ (key.getY (), l.slotButtons[0].getY ()) << "key " << i;
+    }
 
   // ... and the strip keeps its own title.
   EXPECT_FALSE (l.sectionLabels[3].isEmpty ());
@@ -863,14 +866,14 @@ TEST (ClipSettingsLayout, TheLengthNamesMatchTheirPowersOfTwo)
 
 // ── The header's transport keys ──────────────────────────────────────────
 
-TEST (ClipSettingsLayout, TheTransportKeysCloseTheHeaderRow)
+// They led the header row once, then closed it, and now they have left it
+// altogether -- which is what makes room for a fourth view of the clip. In
+// reading order over the global strip, rec first and act last.
+TEST (ClipSettingsLayout, TheTransportReadsLeftToRightOverTheStrip)
 {
-  // They used to lead it. They close it now: the transport is what you touch
-  // once which clip and which view of it are already decided, so it sits at
-  // the end of the reach rather than at the start of it.
   auto const layout = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f);
 
-  int previousRight = layout.slotButtons[numPadSlots - 1].getRight ();
+  int previousRight = layout.globalBounds.getX ();
   for (int i = 0; i < numTransportKeys; ++i)
     {
       auto const &key = layout.transportButtons[static_cast<size_t> (i)];
@@ -880,8 +883,12 @@ TEST (ClipSettingsLayout, TheTransportKeysCloseTheHeaderRow)
       previousRight = key.getRight ();
     }
 
-  EXPECT_LE (previousRight, layout.clipBounds.getRight ())
-      << "the row still fits the bar";
+  EXPECT_LE (previousRight, layout.globalBounds.getRight ())
+      << "the row still fits the strip";
+
+  // And nothing of them is left in the clip header, where the tabs now are.
+  for (auto const &key : layout.transportButtons)
+    EXPECT_FALSE (layout.tabAction.intersects (key));
 }
 
 TEST (ClipSettingsLayout, TransportKeysAreSquareAndAllTheSameSize)
@@ -897,27 +904,27 @@ TEST (ClipSettingsLayout, TransportKeysAreSquareAndAllTheSameSize)
     }
 }
 
-TEST (ClipSettingsLayout, TransportKeysNeverPushTheTabsOffTheRow)
+// Four views share the row now, and they fit because the transport left it.
+// The tabs are how you change page and are hit mid-set: at any width each of
+// them keeps a fingertip.
+TEST (ClipSettingsLayout, TheFourTabsKeepTheirRoomAtEveryWidth)
 {
-  // The tabs are how you change page and are hit mid-set; the transport keys
-  // are a convenience. At any width the tabs keep their room.
   for (int width : { 480, 640, 768, 1024, 1280 })
     {
       auto const layout
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
-      EXPECT_FALSE (layout.tabClip.isEmpty ()) << "width " << width;
-      EXPECT_FALSE (layout.tabRecord.isEmpty ()) << "width " << width;
-      EXPECT_FALSE (layout.tabController.isEmpty ()) << "width " << width;
-      // The tabs come first now, and the row still has to end inside the bar
-      // -- the marks after them are fixed-width, so a narrow bar squeezes the
-      // words rather than pushing the marks off the end.
-      EXPECT_GE (layout.transportButtons[0].getX (),
-                 layout.tabController.getRight ())
-          << "width " << width;
-      EXPECT_LE (layout.transportButtons[numTransportKeys - 1].getRight (),
-                 layout.clipBounds.getRight ())
-          << "width " << width;
+      for (auto const &tab : { layout.tabClip, layout.tabRecord,
+                               layout.tabAction, layout.tabController })
+        {
+          EXPECT_GE (tab.getWidth (), fingertipSize) << "width " << width;
+          EXPECT_FALSE (tab.isEmpty ()) << "width " << width;
+        }
+
+      // In reading order, none of them overlapping.
+      EXPECT_LE (layout.tabClip.getRight (), layout.tabRecord.getX ());
+      EXPECT_LE (layout.tabRecord.getRight (), layout.tabAction.getX ());
+      EXPECT_LE (layout.tabAction.getRight (), layout.tabController.getX ());
     }
 }
 

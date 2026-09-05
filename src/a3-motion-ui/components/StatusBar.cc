@@ -44,6 +44,12 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   _labelBPM.setVisible (true);
   _labelBPM.setJustificationType (juce::Justification::centredLeft);
   _labelBPM.setText ("BPM 60.0", juce::dontSendNotification);
+
+  // Right-aligned, so it grows leftwards into the gap rather than towards the
+  // keyboard icon a thumb is reaching for.
+  addChildComponent (_labelReadout);
+  _labelReadout.setVisible (true);
+  _labelReadout.setJustificationType (juce::Justification::centredRight);
   
   // Register for BPM value changes
   _valueBPM.addListener (this);
@@ -140,7 +146,7 @@ StatusBar::refreshFonts ()
   // came out larger than the headings below it.
   auto const font = juce::Font (juce::FontOptions (headerFontSize ()));
 
-  for (auto *label : { &_labelBPM })
+  for (auto *label : { &_labelBPM, &_labelReadout })
     label->setFont (font);
 }
 
@@ -181,6 +187,13 @@ StatusBar::resized ()
   auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 2);
   _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
 
+  // What is left between the beat display and the keyboard icon. The tick
+  // indicator is centred on the whole bar, so it reaches to three quarters --
+  // the readout starts where it stops.
+  _labelReadout.setBounds (
+      bounds.withTrimmedLeft (bounds.getWidth () / 2)
+          .withTrimmedRight (LayoutHints::padding));
+
   // Centred on the bar, not on whatever space the labels left over: it is
   // the one thing here that is looked at rather than read, and an off-centre
   // beat display reads as a mistake. Kept inside the gap between the labels
@@ -191,6 +204,17 @@ StatusBar::resized ()
       juce::Rectangle<int> (tickWidth,
                             static_cast<int> (bounds.getHeight () * 0.6f))
           .withCentre ({ getWidth () / 2, bounds.getCentreY () }));
+}
+
+void
+StatusBar::setControlReadout (juce::String const &text)
+{
+  if (text == _labelReadout.getText ())
+    return;
+
+  _labelReadout.setText (text, juce::dontSendNotification);
+  _labelReadout.setColour (juce::Label::textColourId,
+                           toColour (theme ().textMuted));
 }
 
 void

@@ -111,6 +111,13 @@ public:
   // Clock mode status: 0 = INT, 1 = EXT, 2 = PIO
   void setClockMode (int mode);
 
+  /** What was last turned, and to what -- "reach 0.42", "fade 0.25".
+   *
+   *  It used to sit in the band above the global strip, which is the band the
+   *  transport keys now stand in. Here it is beside the readings it belongs
+   *  with: the bar is where the device says what it is doing. */
+  void setControlReadout (juce::String const &text);
+
   static constexpr int
   getMinimumHeight ()
   {
@@ -125,6 +132,7 @@ private:
   juce::Colour _recordingColour;
 
   juce::Label _labelBPM;
+  juce::Label _labelReadout;
   juce::Value &_valueBPM;
   
   std::atomic<float> _externalBPM{ 0.f };

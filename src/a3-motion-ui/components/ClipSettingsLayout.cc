@@ -188,16 +188,23 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // the tabs, two separators of three, and one after each key. Two short of
   // that and the last transport key comes out narrower than the rest, which
   // is how a row of equal marks stops looking like a row of equal marks.
-  auto const keysAfter = static_cast<int> (numPadSlots + numTransportKeys);
-  auto const gapsAfter = 2 + 3 + static_cast<int> (numPadSlots) + 3
-                         + static_cast<int> (numTransportKeys);
+  auto const keysAfter = static_cast<int> (numPadSlots);
+  auto const gapsAfter = 2 + 3 + static_cast<int> (numPadSlots);
   auto const marksAfter = keyW * keysAfter + headerGap * gapsAfter;
+
+  // Four views now, not three -- and they fit because the four transport keys
+  // left this row for the band over the global strip. That is the whole trade:
+  // what the transport gave up, ACTION took.
   auto const tabW = juce::jmax (
-      fingertipSize, (headerArea.getWidth () - marksAfter) / 3);
+      fingertipSize, (headerArea.getWidth () - marksAfter) / 4);
 
   out.tabClip = headerArea.removeFromLeft (tabW);
   headerArea.removeFromLeft (headerGap);
   out.tabRecord = headerArea.removeFromLeft (tabW);
+  headerArea.removeFromLeft (headerGap);
+  // Between REC and PADS: ACTION is another way of looking at the clip, and
+  // PADS is the view that is about something else.
+  out.tabAction = headerArea.removeFromLeft (tabW);
   headerArea.removeFromLeft (headerGap);
   out.tabController = headerArea.removeFromLeft (tabW);
 
@@ -212,12 +219,9 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     for (index_t slot = 0; slot < numPadSlots; ++slot)
       headerArea.removeFromLeft (keyW + headerGap);
 
-  headerArea.removeFromLeft (headerGap * 3);
-
-  // Not on the pads page, which is these four controls already.
-  if (page != BarPage::Controller)
-    for (int i = 0; i < numTransportKeys; ++i)
-      out.transportButtons[static_cast<size_t> (i)] = takeKey ();
+  // The transport has left this row. It stands over the global strip now --
+  // rec, stop, play and act belong to the device the way MENU and TAP do, and
+  // taking them out of here is what leaves room for a fourth view of the clip.
 
   area.removeFromTop (juce::jmax (4, out.clipBounds.getHeight () / 50));
 
@@ -268,7 +272,38 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // Over the *global* strip because what it reports comes from either page,
   // and dropped into the card instead it would take a row the channel grid
   // needs: at the smallest skin sizes that collapsed its cells to five pixels.
-  out.readout = globalArea.removeFromTop (headerH);
+  // The band the readout used to stand in. The readout is in the status bar
+  // now -- a reading among readings -- and the four things you do to a clip
+  // stand here instead, over the strip that also carries MENU, REC and TAP.
+  auto transportBand = globalArea.removeFromTop (headerH);
+  out.readout = {};
+
+  // Not on the pads page, which is these four controls already.
+  if (page != BarPage::Controller)
+    {
+      // Square, like every other mark on the bar -- a finger knows what a
+      // square key is. Held to what the band can carry, and the row centred
+      // in it so a narrow strip loses room evenly at both ends.
+      auto const transportGap = juce::jmax (2, headerH / 12);
+      auto const keySide = juce::jmin (
+          transportBand.getHeight (),
+          (transportBand.getWidth () - (numTransportKeys - 1) * transportGap)
+              / numTransportKeys);
+      auto const rowW
+          = keySide * numTransportKeys + transportGap * (numTransportKeys - 1);
+
+      auto row = transportBand.withSizeKeepingCentre (
+          rowW, juce::jmin (transportBand.getHeight (), keySide));
+
+      for (int i = 0; i < numTransportKeys; ++i)
+        {
+          out.transportButtons[static_cast<size_t> (i)]
+              = row.removeFromLeft (keySide);
+          if (i + 1 < numTransportKeys)
+            row.removeFromLeft (transportGap);
+        }
+    }
+
   out.sectionCards[3] = globalArea.reduced (gap / 2, 0);
 
   // ── Shape, and its other side ────────────────────────────────────────

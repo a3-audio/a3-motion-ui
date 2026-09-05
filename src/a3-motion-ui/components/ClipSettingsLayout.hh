@@ -208,6 +208,8 @@ struct ClipSettingsLayout
   std::array<juce::Rectangle<int>, numPadSlots> slotButtons;
   juce::Rectangle<int> tabClip;
   juce::Rectangle<int> tabRecord;
+  /** The clip's fourth view: what ACT does, and the envelope behind it. */
+  juce::Rectangle<int> tabAction;
   juce::Rectangle<int> tabController;
   /** The way to the browser. A folder rather than a fourth word: the three
    *  tabs are views of the clip you are on, and this leaves it. */

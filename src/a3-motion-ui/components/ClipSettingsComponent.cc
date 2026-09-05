@@ -725,16 +725,9 @@ ClipSettingsComponent::paint (juce::Graphics &g)
 
   paintTabs (g);
 
-  // Over the global strip, on the header row's line: what it reports comes
-  // from either page, so it belongs beside the part of the bar that stands on
-  // both rather than inside the half that gets swapped out.
-  g.setFont (juce::Font (juce::Font::getDefaultMonospacedFontName (),
-                         fontFor (FontRole::Header, _layout.readout,
-                                  _lastControlText),
-                         juce::Font::plain));
-  g.setColour (toColour (theme ().accent, panelOpacity));
-  g.drawText (_lastControlText, _layout.readout,
-              juce::Justification::centredRight, true);
+  // The readout has left this band. It is in the status bar now, beside the
+  // tempo and the beat -- the row the device says what it is doing on -- and
+  // the band it stood in is where the transport keys go.
 
   // The global strip stands on both pages: recmode, clock, MENU, REC and TAP
   // belong to the device rather than to the clip, and losing them while you
