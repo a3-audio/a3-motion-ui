@@ -115,3 +115,34 @@ TEST (SerialReconnect, AClockThatGoesBackwardsDoesNotLockItOut)
   ASSERT_TRUE (reconnect.shouldRetryOpening (1000000));
   EXPECT_TRUE (reconnect.shouldRetryOpening (5));
 }
+
+// ── Telling the controller from whatever else is on the bus ──────────────
+
+// serialInit() walks /dev/ttyACM0..2 and ttyUSB0..2 and used to take the
+// first one that would open. On this device that was the CH343 bridge sitting
+// beside the controller, which opens perfectly and answers nothing -- so the
+// adapter clamped onto the wrong port and read into the void for the whole
+// session, with the actual controller (native USB CDC, a different node
+// entirely) never looked at again.
+//
+// A port is the controller when it answers PING with PING. That is one byte
+// each way and the firmware has always had it; nothing was asking.
+TEST (SerialReconnect, ThePingReplyIsTheOwnCommandBack)
+{
+  uint8_t const good[] = { 0x01 };
+  EXPECT_TRUE (isControllerPingReply (good, 1));
+}
+
+TEST (SerialReconnect, AnythingElseIsSomebodyElsesPort)
+{
+  // Nothing at all: the shape of a bridge with no controller behind it.
+  EXPECT_FALSE (isControllerPingReply (nullptr, 0));
+
+  // A byte, but not ours -- noise on the line, or another protocol.
+  for (uint8_t byte : { 0x00, 0x02, 0x04, 0xff })
+    {
+      uint8_t const reply[] = { byte };
+      EXPECT_FALSE (isControllerPingReply (reply, 1))
+          << "accepted 0x" << juce::String::toHexString (byte);
+    }
+}

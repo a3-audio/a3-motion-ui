@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <cstddef>
+
 namespace a3
 {
 
@@ -47,6 +49,21 @@ namespace a3
  *  (`stat -c %z /dev/ttyACM0`, the ctime, not the mtime: the mtime moves on
  *  every write *we* make).
  */
+/** Whether a reply to PING came from the controller.
+ *
+ *  serialInit() walks /dev/ttyACM0..2 and ttyUSB0..2 and used to take the
+ *  first one that would open. On this device that is the CH343 bridge sitting
+ *  beside the controller: it opens perfectly and answers nothing, so the
+ *  adapter clamped onto it and read into the void for a whole session while
+ *  the real controller -- native USB CDC on the ESP32-S3, a different node
+ *  entirely -- was never looked at again.
+ *
+ *  PING (0x01) is answered with 0x01. One byte each way, in the firmware
+ *  since the protocol existed (firmware/src/protocol.cpp); nothing was asking
+ *  it. A port that will not say this is somebody else's port.
+ */
+bool isControllerPingReply (juce::uint8 const *reply, std::size_t length);
+
 class SerialReconnect
 {
 public:

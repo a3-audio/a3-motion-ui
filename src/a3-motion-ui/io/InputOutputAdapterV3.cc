@@ -83,6 +83,22 @@ InputOutputAdapterV3::serialInit ()
           // opened to be back and talking. It was 100ms, a tenth of an
           // ESP32's boot, so a first poll could go out into one.
           juce::Thread::sleep (600);
+
+          // Opening is not finding. Every candidate that exists will open --
+          // the CH343 bridge beside the controller opens perfectly and
+          // answers nothing -- so a port has to say who it is before it is
+          // believed. Without this the adapter clamped onto the first node in
+          // the list and read into the void for a whole session while the
+          // controller sat on another one, never looked at again.
+          if (!pingAnswers ())
+            {
+              juce::Logger::writeToLog (
+                  "InputOutputAdapterV3: " + serialDevice
+                  + " opened but did not answer PING -- not the controller");
+              _serialPort.Close ();
+              continue;
+            }
+
           _hardwareAvailable = true;
           juce::Logger::writeToLog (
               "InputOutputAdapterV3: serial port opened: " + serialDevice);
@@ -100,6 +116,32 @@ InputOutputAdapterV3::serialInit ()
   juce::Logger::writeToLog (
       "InputOutputAdapterV3: no usable serial port found "
       "(/dev/ttyACM0..2, /dev/ttyUSB0..2)");
+}
+
+bool
+InputOutputAdapterV3::pingAnswers ()
+{
+  try
+    {
+      // Whatever the last owner of this port left behind is not an answer to
+      // a question nobody had asked yet.
+      _serialPort.FlushInputBuffer ();
+
+      char const ping = 0x01;
+      _serialPort.Write (std::string (&ping, 1));
+
+      char reply = 0;
+      _serialPort.ReadByte (reply, serialTimeoutMs);
+
+      auto const byte = static_cast<juce::uint8> (reply);
+      return isControllerPingReply (&byte, 1);
+    }
+  catch (std::exception const &)
+    {
+      // A timeout is the common case, and it means what a wrong byte means:
+      // whatever is on this port, it is not the controller.
+      return false;
+    }
 }
 
 bool

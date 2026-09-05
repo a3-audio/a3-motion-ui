@@ -24,6 +24,16 @@ namespace a3
 {
 
 bool
+isControllerPingReply (juce::uint8 const *reply, std::size_t length)
+{
+  // The command comes back as its own answer, so there is exactly one right
+  // byte and everything else -- including silence -- is a wrong port.
+  constexpr juce::uint8 ping = 0x01;
+
+  return reply != nullptr && length == 1 && reply[0] == ping;
+}
+
+bool
 SerialReconnect::noteQuietPoll ()
 {
   if (++_quietPolls < quietPollsBeforeReopen)

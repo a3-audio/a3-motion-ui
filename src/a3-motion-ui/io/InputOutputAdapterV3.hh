@@ -84,6 +84,8 @@ private:
    *  thread: the port may not be closed by anyone who is not the one reading
    *  from it. */
   void serialReopen ();
+  /** Ask the port who it is. See isControllerPingReply(). */
+  bool pingAnswers ();
   bool readExact (uint8_t *buf, std::size_t n);
   bool resolveFrameOffsets (const uint8_t *raw, bool withPots,
                             int &buttonOffset, int &encoderOffset,
