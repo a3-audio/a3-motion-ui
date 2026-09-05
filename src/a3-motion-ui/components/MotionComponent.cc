@@ -1627,7 +1627,7 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
   // straight on through, drawing the jump as a line.
   juce::Path path;
 
-  for (auto const &segment : trajectorySegments (ticks.positions))
+  for (auto const &segment : trajectorySegments (ticks.positions, BridgePlan{}))
     {
       path.startNewSubPath (segment.front ().x (), segment.front ().y ());
       for (size_t i = 1; i < segment.size (); ++i)
@@ -1664,7 +1664,7 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
   auto const lineThickness = _underlayLineThickness;
 
   juce::Path path;
-  for (auto const &segment : trajectorySegments (ticks.positions))
+  for (auto const &segment : trajectorySegments (ticks.positions, BridgePlan{}))
     {
       path.startNewSubPath (segment.front ().x (), segment.front ().y ());
       for (size_t i = 1; i < segment.size (); ++i)

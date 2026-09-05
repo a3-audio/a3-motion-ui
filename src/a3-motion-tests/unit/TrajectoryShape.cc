@@ -98,7 +98,7 @@ TEST (TrajectoryShape, EachHeldPositionBecomesOneDot)
 
 TEST (TrajectoryShape, ADrawnTrajectoryStaysOneSegment)
 {
-  auto const segments = trajectorySegments (drawnCircle ());
+  auto const segments = trajectorySegments (drawnCircle (), BridgePlan{});
   ASSERT_EQ (segments.size (), 1u);
   EXPECT_EQ (segments[0].size (), 64u);
 }
@@ -112,7 +112,7 @@ TEST (TrajectoryShape, ADrawnTrajectoryIsCutAtItsJump)
     ticks[static_cast<size_t> (i)]
         += Pos::fromCartesian (0.9f, 0.9f, 0.f);
 
-  auto const segments = trajectorySegments (ticks);
+  auto const segments = trajectorySegments (ticks, BridgePlan{});
   EXPECT_EQ (segments.size (), 2u);
   EXPECT_FALSE (isTappedTrajectory (ticks))
       << "one jump in an otherwise drawn line does not make it a tap pattern";
@@ -126,7 +126,7 @@ TEST (TrajectoryShape, MissingTicksStillCutTheLine)
   ticks[10] = Pos::invalid;
   ticks[11] = Pos::invalid;
 
-  auto const segments = trajectorySegments (ticks);
+  auto const segments = trajectorySegments (ticks, BridgePlan{});
   EXPECT_EQ (segments.size (), 2u);
 }
 
@@ -155,7 +155,7 @@ TEST (TrajectoryShape, ASingleHeldPositionIsOneDot)
 
 TEST (TrajectoryShape, AnEmptyPatternHasNothingToShow)
 {
-  EXPECT_TRUE (trajectorySegments ({}).empty ());
+  EXPECT_TRUE (trajectorySegments ({}, BridgePlan{}).empty ());
   EXPECT_TRUE (trajectoryJumps ({}).empty ());
   EXPECT_TRUE (trajectoryPlateaus ({}).empty ());
   EXPECT_FALSE (isTappedTrajectory ({}));

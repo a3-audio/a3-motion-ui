@@ -135,7 +135,10 @@ trajectoryIconFromTicks (std::vector<Pos> const &ticks)
       // detail the eye can find at this size.
       auto const maxIconPoints = 128;
 
-      for (auto const &segment : trajectorySegments (ticks))
+      // The icon shows the SHAPE, not a clip playing it: it is what you
+      // pick a trajectory by, and two clips on one shape must not get two
+      // different pictures of it.
+      for (auto const &segment : trajectorySegments (ticks, BridgePlan{}))
         {
           auto const step = std::max (
               size_t{ 1 }, segment.size () / static_cast<size_t> (maxIconPoints));

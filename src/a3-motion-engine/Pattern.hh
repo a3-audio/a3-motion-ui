@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <a3-motion-engine/TrajectoryBridges.hh>
+
 #include <string>
 
 #include <a3-motion-engine/elevation/HeightMap.hh>
@@ -173,6 +175,14 @@ public:
   int getBridgeBias () const;
   void setBridgeBias (int bias);
 
+  /** Which of this take's gaps are drawn through, and where each one leads.
+   *
+   *  Playback and drawing both read this rather than each working out what a
+   *  gap is: two independent answers drift apart, and then the sphere shows a
+   *  line the blob does not run on. Recomputed when the ticks or either
+   *  setting change, never per tick. */
+  BridgePlan getBridgePlan () const;
+
   /** Which way the playhead is travelling right now. Set from the direction
    *  when playback starts; only Bounce ever turns it round. */
   float getPlaySign () const;
@@ -316,6 +326,12 @@ private:
    *  playback asks on every tick and must not walk the whole pattern to find
    *  out. Zero means nothing is treated as a jump. */
   float _jumpThreshold = 0.f;
+  /** Guarded by _ticksMutex; ensureBridgePlanLocked() expects it held. */
+  mutable BridgePlan _bridgePlan;
+  mutable bool _bridgePlanStale = true;
+  void ensureBridgePlanLocked () const;
+  void markBridgePlanStale ();
+
   std::atomic<float> _fadeReach{ 0.25f };
   std::atomic<int> _bridgeBias{ 0 };
   std::atomic<PlayDirection> _playDirection{ PlayDirection::Forward };

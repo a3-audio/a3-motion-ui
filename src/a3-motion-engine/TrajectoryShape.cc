@@ -271,7 +271,7 @@ trajectoryPlateaus (std::vector<Pos> const &ticks)
 }
 
 std::vector<std::vector<Pos> >
-trajectorySegments (std::vector<Pos> const &ticks)
+trajectorySegments (std::vector<Pos> const &ticks, BridgePlan const &plan)
 {
   std::vector<std::vector<Pos> > segments;
   if (ticks.empty ())
@@ -295,7 +295,12 @@ trajectorySegments (std::vector<Pos> const &ticks)
 
       // Cut after this tick, so the teleport itself is never a drawn edge.
       // The wrapping step is not a cut: it is not drawn either way.
-      if (i + 1 < ticks.size () && steps[i] > threshold)
+      //
+      // A gap the fade draws through is a line, not a break -- and it is the
+      // same plan the movement is played from, so the line cannot be cut where
+      // the blob runs on.
+      if (i + 1 < ticks.size () && steps[i] > threshold
+          && !plan.bridged (static_cast<index_t> (i)))
         {
           segments.push_back (std::move (current));
           current.clear ();

@@ -2709,9 +2709,11 @@ A3MotionUIComponent::refreshPatternDisplayFromTicks (
 
   // Cut at teleports as well as at gaps, the same way the take's own trail is
   // drawn, so a jump the clip still has is not bridged by a line.
+  // The one place that follows the clip's own plan: this is the line the blob
+  // runs on, so it has to break exactly where the movement jumps.
   juce::Path path;
-  for (auto const &segment :
-       trajectorySegments (pattern->getTicks ().positions))
+  for (auto const &segment : trajectorySegments (
+           pattern->getTicks ().positions, pattern->getBridgePlan ()))
     {
       path.startNewSubPath (segment.front ().x (), segment.front ().y ());
       for (size_t i = 1; i < segment.size (); ++i)

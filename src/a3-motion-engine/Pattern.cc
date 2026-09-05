@@ -44,6 +44,7 @@ Pattern::resize (index_t lengthTicks)
 {
   std::lock_guard<std::mutex> guard (_ticksMutex);
   _ticks.resize (lengthTicks, Pos::invalid);
+  _bridgePlanStale = true;
   // Started over rather than grown: the mask describes the recording that is
   // running, and a resize means a different one.
   _written.assign (lengthTicks, false);
@@ -135,6 +136,7 @@ Pattern::setTick (index_t tick, Pos position)
     return;
 
   _ticks[tick] = position;
+  _bridgePlanStale = true;
   if (tick < _written.size ())
     _written[tick] = true;
   _lastUpdatedTick = tick;
@@ -223,6 +225,7 @@ void
 Pattern::setFadeReach (float reach)
 {
   _fadeReach.store (juce::jlimit (0.f, 1.f, reach), std::memory_order_relaxed);
+  markBridgePlanStale ();
 }
 
 int
@@ -235,6 +238,36 @@ void
 Pattern::setBridgeBias (int bias)
 {
   _bridgeBias.store (juce::jlimit (-4, 4, bias), std::memory_order_relaxed);
+  markBridgePlanStale ();
+}
+
+void
+Pattern::markBridgePlanStale ()
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  _bridgePlanStale = true;
+}
+
+void
+Pattern::ensureBridgePlanLocked () const
+{
+  // The caller holds _ticksMutex. Taking it again here -- which calling
+  // getBridgePlan() from getInterpolatedTick() would do -- deadlocks the
+  // audio thread against itself.
+  if (!_bridgePlanStale)
+    return;
+
+  _bridgePlan = planBridges (_ticks, _fadeReach.load (), _bridgeBias.load (),
+                             seedForTicks (_ticks));
+  _bridgePlanStale = false;
+}
+
+BridgePlan
+Pattern::getBridgePlan () const
+{
+  std::lock_guard<std::mutex> guard (_ticksMutex);
+  ensureBridgePlanLocked ();
+  return _bridgePlan;
 }
 
 EndAction
@@ -494,7 +527,15 @@ Pattern::getInterpolatedTick (double fractionalTick) const
   // nobody played -- so a tapped take slid between its taps instead of
   // standing at them, and a tap held only briefly was crossed without ever
   // being reached.
-  if (_jumpThreshold > 0.f)
+  //
+  // Which jumps are stood on and which are drawn through is the fade's
+  // business, and it is decided from the same plan the drawn line is cut by --
+  // two independent answers drift apart, and then the sphere shows a line the
+  // blob does not run on.
+  ensureBridgePlanLocked ();
+  auto const bridge = _bridgePlan.via (tickFloor);
+
+  if (!bridge.has_value () && _jumpThreshold > 0.f)
     {
       auto const step = std::sqrt (
           std::pow (posCeil.x () - posFloor.x (), 2.f)
@@ -502,6 +543,24 @@ Pattern::getInterpolatedTick (double fractionalTick) const
           + std::pow (posCeil.z () - posFloor.z (), 2.f));
       if (step > _jumpThreshold)
         return posFloor;
+    }
+
+  // A bridge that leads somewhere other than the next tick is a detour: out to
+  // the chosen point over the first half of the gap and back to the timeline
+  // over the second, so the take keeps its length, its bar and its order and
+  // only its holes take another way.
+  if (bridge.has_value () && *bridge != tickCeil)
+    {
+      auto const &posVia = _ticks[*bridge];
+      auto const legFraction = fraction < 0.5f ? fraction * 2.f
+                                               : (fraction - 0.5f) * 2.f;
+      auto const &from = fraction < 0.5f ? posFloor : posVia;
+      auto const &to = fraction < 0.5f ? posVia : posCeil;
+
+      return Pos::fromCartesian (
+          from.x () + (to.x () - from.x ()) * legFraction,
+          from.y () + (to.y () - from.y ()) * legFraction,
+          from.z () + (to.z () - from.z ()) * legFraction);
     }
 
   // Interpolate in Cartesian space for smooth, robust interpolation

@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <a3-motion-engine/TrajectoryBridges.hh>
+
 #include <a3-motion-engine/util/Types.hh>
 
 #include <vector>
@@ -74,6 +76,6 @@ std::vector<Pos> trajectoryPlateaus (std::vector<Pos> const &ticks);
  *  jump. Cut linearly, not around the loop: the icon is a stroke, and the
  *  step that wraps is simply never drawn. */
 std::vector<std::vector<Pos> >
-trajectorySegments (std::vector<Pos> const &ticks);
+trajectorySegments (std::vector<Pos> const &ticks, BridgePlan const &plan);
 
 }

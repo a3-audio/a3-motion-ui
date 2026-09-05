@@ -137,7 +137,10 @@ buildSvgPathData (std::vector<Pos> const &ticks,
   // every jump — and stayed that way, because this is what goes to disk.
   std::vector<std::vector<Vec2>> segments;
 
-  for (auto const &run : trajectorySegments (ticks))
+  // No bridge plan: the file records where the movement actually jumped.
+  // Which of those jumps get drawn through is the fade's business, and the
+  // fade lives in the clip beside the shape, not in the shape.
+  for (auto const &run : trajectorySegments (ticks, BridgePlan{}))
     {
       auto const runStep = std::max (
           size_t{ 1 }, run.size () / static_cast<size_t> (maxPts));
