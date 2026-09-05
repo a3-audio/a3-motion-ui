@@ -202,7 +202,8 @@ TEST (MotionModePersistence, AShapeAndItsClipTogetherRestoreTheWholeClip)
   pattern->setEndAction (EndAction::Pause);
   pattern->setActMode (ActMode::Hold);
   pattern->setSpeedLog2 (-2);
-  pattern->setFadeSixteenths (9);
+  pattern->setFadeReach (0.9f);
+  pattern->setBridgeBias (-2);
   pattern->setRotate (0.375f);
   pattern->setSpin (4);
   pattern->setReachLfo (-2);
@@ -242,7 +243,8 @@ TEST (MotionModePersistence, AShapeAndItsClipTogetherRestoreTheWholeClip)
   EXPECT_EQ (reloaded->getEndAction (), EndAction::Pause);
   EXPECT_EQ (reloaded->getActMode (), ActMode::Hold);
   EXPECT_EQ (reloaded->getSpeedLog2 (), -2);
-  EXPECT_EQ (reloaded->getFadeSixteenths (), 9);
+  EXPECT_FLOAT_EQ (reloaded->getFadeReach (), 0.9f);
+  EXPECT_EQ (reloaded->getBridgeBias (), -2);
   EXPECT_FLOAT_EQ (reloaded->getRotate (), 0.375f);
   EXPECT_EQ (reloaded->getSpin (), 4);
   EXPECT_EQ (reloaded->getReachLfo (), -2);

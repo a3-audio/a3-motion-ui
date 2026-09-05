@@ -67,9 +67,18 @@ struct ClipSettings
   PlayDirection direction = PlayDirection::Forward;
   EndAction endAction = EndAction::Loop;
 
-  /** In sixteenths of a beat, as the panel offers it — not in ticks, which
-   *  would tie the file to the PPQN it was written with. */
-  int fadeSixteenths = 4;
+  /** How far a gap in the movement may be for the fade to draw through it,
+   *  0..1 of the sphere's diameter. Zero plays every jump as a jump; one
+   *  closes every gap.
+   *
+   *  A distance, not a time: the fade is no longer something done to a
+   *  recording's seam but a reading of the movement's holes. */
+  float fadeReach = 0.25f;
+
+  /** Where a bridged gap leads. Zero is the next tick in time; negative goes
+   *  to the nearest other run, positive to a random one. Bipolar like spin and
+   *  swell, and the magnitude mixes rather than switches. */
+  int bridgeBias = 0;
 };
 
 /** Two settings are the same when every field is.
@@ -103,7 +112,8 @@ operator== (ClipSettings const &a, ClipSettings const &b)
          && a.actMode == b.actMode                 //
          && a.direction == b.direction             //
          && a.endAction == b.endAction             //
-         && a.fadeSixteenths == b.fadeSixteenths;
+         && a.fadeReach == b.fadeReach             //
+         && a.bridgeBias == b.bridgeBias;
 }
 
 inline bool

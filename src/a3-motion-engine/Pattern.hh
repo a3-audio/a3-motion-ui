@@ -164,6 +164,15 @@ public:
   int getFadeSixteenths () const;
   void setFadeSixteenths (int sixteenths);
 
+  /** How far a gap may be for the fade to draw through it, 0..1 of the
+   *  sphere's diameter. See ClipSettings::fadeReach. */
+  float getFadeReach () const;
+  void setFadeReach (float reach);
+
+  /** Where a bridged gap leads, -4..+4. See ClipSettings::bridgeBias. */
+  int getBridgeBias () const;
+  void setBridgeBias (int bias);
+
   /** Which way the playhead is travelling right now. Set from the direction
    *  when playback starts; only Bounce ever turns it round. */
   float getPlaySign () const;
@@ -307,6 +316,8 @@ private:
    *  playback asks on every tick and must not walk the whole pattern to find
    *  out. Zero means nothing is treated as a jump. */
   float _jumpThreshold = 0.f;
+  std::atomic<float> _fadeReach{ 0.25f };
+  std::atomic<int> _bridgeBias{ 0 };
   std::atomic<PlayDirection> _playDirection{ PlayDirection::Forward };
   std::atomic<EndAction> _endAction{ EndAction::Loop };
   std::atomic<ActMode> _actMode{ ActMode::OneShot };

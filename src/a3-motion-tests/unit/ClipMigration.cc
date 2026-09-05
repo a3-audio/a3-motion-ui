@@ -87,7 +87,7 @@ TEST (ClipMigration, AMigratedTakeClaimsNoFade)
   auto const clip
       = ClipFile::load (root.getChildFile ("clips/Rec_120613.json"));
   ASSERT_TRUE (clip.has_value ());
-  EXPECT_EQ (clip->settings.fadeSixteenths, 0);
+  EXPECT_FLOAT_EQ (clip->settings.fadeReach, 0.f);
 
   root.deleteRecursively ();
 }

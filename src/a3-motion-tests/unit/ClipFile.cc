@@ -61,7 +61,8 @@ TEST (ClipFile, AClipSurvivesARoundTrip)
   clip.settings.actMode = ActMode::Hold;
   clip.settings.direction = PlayDirection::Reverse;
   clip.settings.endAction = EndAction::Bounce;
-  clip.settings.fadeSixteenths = 8;
+  clip.settings.fadeReach = 0.8f;
+  clip.settings.bridgeBias = 2;
 
   auto const file = tempClip ("a3-clip-roundtrip.json");
   ASSERT_TRUE (ClipFile::save (clip, file));
@@ -89,7 +90,8 @@ TEST (ClipFile, AClipSurvivesARoundTrip)
   EXPECT_EQ (read->settings.actMode, ActMode::Hold);
   EXPECT_EQ (read->settings.direction, PlayDirection::Reverse);
   EXPECT_EQ (read->settings.endAction, EndAction::Bounce);
-  EXPECT_EQ (read->settings.fadeSixteenths, 8);
+  EXPECT_FLOAT_EQ (read->settings.fadeReach, 0.8f);
+  EXPECT_EQ (read->settings.bridgeBias, 2);
 
   file.deleteFile ();
 }
@@ -111,7 +113,7 @@ TEST (ClipFile, AFileWithOnlyANameAndAShapeLoadsWithDefaults)
   EXPECT_EQ (read->settings.speedLog2, defaults.speedLog2);
   EXPECT_EQ (read->settings.endAction, defaults.endAction);
   EXPECT_EQ (read->settings.actMode, defaults.actMode);
-  EXPECT_EQ (read->settings.fadeSixteenths, defaults.fadeSixteenths);
+  EXPECT_FLOAT_EQ (read->settings.fadeReach, defaults.fadeReach);
   EXPECT_FLOAT_EQ (read->settings.reach, defaults.reach);
 
   file.deleteFile ();
@@ -346,4 +348,42 @@ TEST (ClipFile, AFreeNameCountsUpPastWhatIsTaken)
   EXPECT_EQ (freeClipName (dir, "Circle"), "Circle");
 
   dir.deleteRecursively ();
+}
+
+// The fade changed its unit -- from sixteenths of a beat to a distance -- so
+// old values cannot be carried over. A file still holding one is read without
+// complaint and gets the new defaults; there is nothing to translate, because
+// the seam machinery those values belonged to is gone.
+TEST (ClipFileFade, TheNewFieldsSurviveARoundTrip)
+{
+  auto const file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("a3-clipfile-fade/Bridged.json");
+  file.getParentDirectory ().deleteRecursively ();
+
+  Clip written;
+  written.name = "Bridged";
+  written.settings.fadeReach = 0.75f;
+  written.settings.bridgeBias = -3;
+  ASSERT_TRUE (ClipFile::save (written, file));
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_FLOAT_EQ (read->settings.fadeReach, 0.75f);
+  EXPECT_EQ (read->settings.bridgeBias, -3);
+}
+
+TEST (ClipFileFade, AnOldFadeValueIsIgnoredRatherThanTranslated)
+{
+  auto const file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("a3-clipfile-oldfade/Legacy.json");
+  file.getParentDirectory ().deleteRecursively ();
+  file.getParentDirectory ().createDirectory ();
+  file.replaceWithText (R"({"name":"Legacy","fade":12})");
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+
+  ClipSettings const defaults;
+  EXPECT_FLOAT_EQ (read->settings.fadeReach, defaults.fadeReach);
+  EXPECT_EQ (read->settings.bridgeBias, defaults.bridgeBias);
 }

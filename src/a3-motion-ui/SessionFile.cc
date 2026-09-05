@@ -89,8 +89,10 @@ writeOverrides (a3::ClipSettings const &settings)
     put ("direction", a3::playDirectionToName (settings.direction));
   if (settings.endAction != defaults.endAction)
     put ("endAction", a3::endActionToName (settings.endAction));
-  if (settings.fadeSixteenths != defaults.fadeSixteenths)
-    put ("fade", settings.fadeSixteenths);
+  if (settings.fadeReach != defaults.fadeReach)
+    put ("fadeReach", settings.fadeReach);
+  if (settings.bridgeBias != defaults.bridgeBias)
+    put ("bridgeBias", settings.bridgeBias);
 
   return juce::var (object);
 }
@@ -120,7 +122,8 @@ readOverrides (juce::var const &value)
   settings.envelopeAttack = read ("envAttack", settings.envelopeAttack);
   settings.envelopeDecay = read ("envDecay", settings.envelopeDecay);
   settings.envelopeMax = read ("envMax", settings.envelopeMax);
-  settings.fadeSixteenths = read ("fade", settings.fadeSixteenths);
+  settings.fadeReach = read ("fadeReach", settings.fadeReach);
+  settings.bridgeBias = read ("bridgeBias", settings.bridgeBias);
 
   auto const named = [&value] (char const *key) {
     auto const v = value.getProperty (key, juce::var ());

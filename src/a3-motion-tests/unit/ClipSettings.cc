@@ -38,7 +38,8 @@ TEST (ClipSettings, EveryValueSurvivesLeavingAPatternAndComingBack)
 {
   Pattern source;
   source.setSpeedLog2 (-1);
-  source.setFadeSixteenths (12);
+  source.setFadeReach (0.75f);
+  source.setBridgeBias (-3);
   source.setRotate (0.25f);
   source.setReach (0.4f);
   source.setClipTop (0.1f);
@@ -59,7 +60,8 @@ TEST (ClipSettings, EveryValueSurvivesLeavingAPatternAndComingBack)
   applyClipSettings (target, clipSettingsFrom (source));
 
   EXPECT_EQ (target.getSpeedLog2 (), -1);
-  EXPECT_EQ (target.getFadeSixteenths (), 12);
+  EXPECT_FLOAT_EQ (target.getFadeReach (), 0.75f);
+  EXPECT_EQ (target.getBridgeBias (), -3);
   EXPECT_FLOAT_EQ (target.getRotate (), 0.25f);
   EXPECT_FLOAT_EQ (target.getReach (), 0.4f);
   EXPECT_FLOAT_EQ (target.getClipTop (), 0.1f);
@@ -88,7 +90,8 @@ TEST (ClipSettings, DefaultsMatchAFreshPattern)
   applyClipSettings (applied, ClipSettings{});
 
   EXPECT_EQ (applied.getSpeedLog2 (), fresh.getSpeedLog2 ());
-  EXPECT_EQ (applied.getFadeSixteenths (), fresh.getFadeSixteenths ());
+  EXPECT_FLOAT_EQ (applied.getFadeReach (), fresh.getFadeReach ());
+  EXPECT_EQ (applied.getBridgeBias (), fresh.getBridgeBias ());
   EXPECT_FLOAT_EQ (applied.getRotate (), fresh.getRotate ());
   EXPECT_FLOAT_EQ (applied.getReach (), fresh.getReach ());
   EXPECT_FLOAT_EQ (applied.getClipTop (), fresh.getClipTop ());
@@ -154,7 +157,8 @@ TEST (ClipSettings, EveryFieldTakesPartInTheComparison)
       [] (ClipSettings &s) { s.direction = PlayDirection::Reverse; } },
     { "endAction",
       [] (ClipSettings &s) { s.endAction = EndAction::Bounce; } },
-    { "fadeSixteenths", [] (ClipSettings &s) { s.fadeSixteenths = 15; } },
+    { "fadeReach", [] (ClipSettings &s) { s.fadeReach = 0.9f; } },
+    { "bridgeBias", [] (ClipSettings &s) { s.bridgeBias = 3; } },
   };
 
   for (auto const &[name, mutate] : fields)
@@ -192,4 +196,20 @@ TEST (ClipSettings, TurningSomethingBackLeavesNoTrace)
 
   pattern.setSpin (0);
   EXPECT_EQ (clipSettingsFrom (pattern), before);
+}
+
+// Drift is worked out by comparing, not by a flag, so a field the comparison
+// does not know about is a change that never lights Save.
+TEST (ClipSettingsFade, BothNewFieldsCountAsADifference)
+{
+  ClipSettings a;
+  ClipSettings b;
+  ASSERT_EQ (a, b);
+
+  b.fadeReach = a.fadeReach + 0.1f;
+  EXPECT_NE (a, b);
+
+  b = a;
+  b.bridgeBias = 2;
+  EXPECT_NE (a, b);
 }

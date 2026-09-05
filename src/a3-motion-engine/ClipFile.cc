@@ -99,7 +99,8 @@ ClipFile::save (Clip const &clip, juce::File const &file)
   object->setProperty ("direction", playDirectionToName (s.direction));
   object->setProperty ("endAction", endActionToName (s.endAction));
 
-  object->setProperty ("fade", s.fadeSixteenths);
+  object->setProperty ("fadeReach", s.fadeReach);
+  object->setProperty ("bridgeBias", s.bridgeBias);
 
   if (!file.getParentDirectory ().createDirectory ())
     return false;
@@ -161,7 +162,8 @@ ClipFile::load (juce::File const &file)
   s.endAction = endActionFromName (
       readString (parsed, "endAction", endActionToName (defaults.endAction)));
 
-  s.fadeSixteenths = readInt (parsed, "fade", defaults.fadeSixteenths);
+  s.fadeReach = readFloat (parsed, "fadeReach", defaults.fadeReach);
+  s.bridgeBias = readInt (parsed, "bridgeBias", defaults.bridgeBias);
 
   return clip;
 }

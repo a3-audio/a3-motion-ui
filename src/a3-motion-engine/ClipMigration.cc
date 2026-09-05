@@ -89,7 +89,7 @@ migrateCombinedPatterns (juce::File const &root)
       clip.settings = clipSettingsFrom (*pattern);
 
       // The fade is already in the geometry -- see the header.
-      clip.settings.fadeSixteenths = 0;
+      clip.settings.fadeReach = 0.f;
 
       if (ClipFile::save (clip, clipFile))
         {

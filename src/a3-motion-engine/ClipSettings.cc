@@ -50,7 +50,8 @@ clipSettingsFrom (Pattern const &pattern)
   settings.direction = pattern.getPlayDirection ();
   settings.endAction = pattern.getEndAction ();
 
-  settings.fadeSixteenths = pattern.getFadeSixteenths ();
+  settings.fadeReach = pattern.getFadeReach ();
+  settings.bridgeBias = pattern.getBridgeBias ();
 
   return settings;
 }
@@ -78,7 +79,8 @@ applyClipSettings (Pattern &pattern, ClipSettings const &settings)
   pattern.setPlayDirection (settings.direction);
   pattern.setEndAction (settings.endAction);
 
-  pattern.setFadeSixteenths (settings.fadeSixteenths);
+  pattern.setFadeReach (settings.fadeReach);
+  pattern.setBridgeBias (settings.bridgeBias);
 }
 
 }

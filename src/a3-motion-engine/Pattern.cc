@@ -213,6 +213,30 @@ Pattern::setPlayDirection (PlayDirection direction)
   _playSign.store (initialSign (direction), std::memory_order_relaxed);
 }
 
+float
+Pattern::getFadeReach () const
+{
+  return _fadeReach.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setFadeReach (float reach)
+{
+  _fadeReach.store (juce::jlimit (0.f, 1.f, reach), std::memory_order_relaxed);
+}
+
+int
+Pattern::getBridgeBias () const
+{
+  return _bridgeBias.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setBridgeBias (int bias)
+{
+  _bridgeBias.store (juce::jlimit (-4, 4, bias), std::memory_order_relaxed);
+}
+
 EndAction
 Pattern::getEndAction () const
 {

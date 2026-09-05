@@ -167,7 +167,8 @@ aPreset ()
   s.envelopeDecay = between (0, envelopeMaxStep);
   s.envelopeMax = step (between (0.4f, 1.f));
 
-  s.fadeSixteenths = between (0, 8);
+  s.fadeReach = static_cast<float> (between (0, 10)) / 10.f;
+  s.bridgeBias = between (-4, 4);
 
   couple (s);
   return s;
