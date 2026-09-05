@@ -20,6 +20,8 @@
 
 #include "ClipSettingsComponent.hh"
 
+#include <a3-motion-ui/components/BarKnob.hh>
+
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 
@@ -143,6 +145,7 @@ ClipSettingsComponent::createTouchControls ()
 
   makeTab (_tabClipTouch, BarPage::Clip);
   makeTab (_tabRecordTouch, BarPage::Record);
+  makeTab (_tabActionTouch, BarPage::Action);
   makeTab (_tabControllerTouch, BarPage::Controller);
   makeTab (_tabBrowserTouch, BarPage::Browser);
 
@@ -355,6 +358,7 @@ ClipSettingsComponent::resized ()
 
   _tabClipTouch->setBounds (_layout.tabClip);
   _tabRecordTouch->setBounds (_layout.tabRecord);
+  _tabActionTouch->setBounds (_layout.tabAction);
   _tabControllerTouch->setBounds (_layout.tabController);
   _tabBrowserTouch->setBounds (_layout.tabBrowser);
 
@@ -811,6 +815,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
 
   paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
   paintTab (_layout.tabRecord, "REC", _page == BarPage::Record);
+  paintTab (_layout.tabAction, "ACTION", _page == BarPage::Action);
   paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
 
   // A folder rather than a fourth word: the three tabs are views of the clip
@@ -1579,124 +1584,11 @@ ClipSettingsComponent::paintMiniKnob (juce::Graphics &g,
                                       bool isActive, bool isSelected,
                                       float reachFrac, bool wraps)
 {
-  bool const highlight = isActive && isSelected;
-  if (highlight)
-    {
-      g.setColour (_channelColour.withAlpha (highlightWash));
-      g.fillRoundedRectangle (bounds.toFloat (), 4.f);
-    }
-
-  auto content = bounds.reduced (2);
-
-  auto labelArea
-      = content.removeFromBottom (textRowHeight (content, metrics.captionSize));
-
-  auto const knobColour = controlColour (isSelected);
-  // The knob keeps its diameter; the captions get the whole cell. Confining
-  // both to knobDiam is what truncated "Forward" and "end-action" to "...".
-  auto const knobSize = static_cast<float> (
-      juce::jmin (metrics.knobDiam, juce::jmin (content.getWidth (),
-                                                content.getHeight ())));
-  auto const centre = content.toFloat ().getCentre ();
-  auto const r = knobSize * 0.5f * 0.82f;
-
-  // Rotary knob, Ableton/Bitwig-style: angleFrac in [-1, 1], 0 points
-  // straight up, -1/+1 sit at -135deg/+135deg. Angles here follow JUCE's
-  // addCentredArc convention (0 = 12 o'clock, increasing clockwise).
-  // A closed control has no ends, so its scale is the whole turn and its
-  // value is taken modulo that rather than clamped: clamping is what a stop
-  // does, and there is no stop here.
-  auto const sweep = wraps ? juce::MathConstants<float>::pi
-                           : juce::MathConstants<float>::pi * 0.75f; // 135deg
-  auto const wrapped = [] (float frac) {
-    frac = std::fmod (frac + 1.f, 2.f);
-    return (frac < 0.f ? frac + 2.f : frac) - 1.f;
-  };
-  auto const angleValue
-      = (wraps ? wrapped (angleFrac) : std::clamp (angleFrac, -1.0f, 1.0f))
-        * sweep;
-
-  juce::Path track;
-  if (wraps)
-    track.addEllipse (juce::Rectangle<float> (r * 2.f, r * 2.f)
-                          .withCentre (centre));
-  else
-    track.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, sweep, true);
-  g.setColour (toColour (theme ().textPrimary, trackWash));
-  g.strokePath (track, juce::PathStrokeType (juce::jmax (1.f, r * 0.16f)));
-
-  // Bipolar params (e.g. wrap) fill from the centre out to the value;
-  // unipolar params (e.g. clip-top/clip-bottom) fill from the sweep's
-  // start, like a standard volume-style knob.
-  // A ring has no start to fill from -- filling one would draw a quantity
-  // where the reading is an angle. The pointer says it, and the space is left
-  // for what the modulation is doing to it.
-  if (!wraps)
-    {
-      juce::Path valueArc;
-      auto const fromAngle = fillFromZero ? std::min (0.f, angleValue) : -sweep;
-      auto const toAngle = fillFromZero ? std::max (0.f, angleValue) : angleValue;
-      valueArc.addCentredArc (centre.x, centre.y, r, r, 0.f, fromAngle, toAngle,
-                              true);
-      g.setColour (knobColour);
-      g.strokePath (valueArc,
-                    juce::PathStrokeType (juce::jmax (1.5f, r * 0.16f)));
-    }
-
-  // Where a modulation has carried the knob past what was set. The pointer
-  // stays put and the arc between the two fills, exactly as the channel grid
-  // shows the accent over 3d — one idea, said the same way in both places, so
-  // a blue arc always means "something is moving this".
-  if (reachFrac > -2.f)
-    {
-      auto const thickness = juce::jmax (1.5f, r * 0.16f);
-      auto const reachAngle
-          = (wraps ? wrapped (reachFrac) : std::clamp (reachFrac, -1.f, 1.f))
-            * sweep;
-
-      auto const arc = [&] (float from, float to) {
-        if (to <= from)
-          return;
-        juce::Path piece;
-        piece.addCentredArc (centre.x, centre.y, r, r, 0.f, from, to, true);
-        g.setColour (toColour (theme ().notice));
-        g.strokePath (piece, juce::PathStrokeType (thickness));
-      };
-
-      if (reachAngle >= angleValue)
-        arc (angleValue, reachAngle);
-      else
-        {
-          // Gone round. Drawn as the two pieces it is rather than as nothing:
-          // a rotation that passes the end of the scale has not stopped, and
-          // an arc that vanished at the top would say it had. On a ring the
-          // two pieces meet, so what you see is one arc crossing the top --
-          // which is what actually happened.
-          arc (angleValue, sweep);
-          arc (-sweep, reachAngle);
-        }
-    }
-
-  // Said outright rather than inherited: the pointer used to be drawn in
-  // whatever colour the value arc had left set, so a ring -- which has no
-  // value arc -- drew its pointer in the modulation's blue.
-  g.setColour (knobColour);
-  auto const tip = centre.getPointOnCircumference (r, angleValue);
-  g.drawLine (centre.x, centre.y, tip.x, tip.y, juce::jmax (1.5f, r * 0.12f));
-
-  auto const dotR = r * 0.22f;
-  g.fillEllipse (juce::Rectangle<float> (dotR, dotR).withCentre (centre));
-
-  // The shared size, not this caption's own fit. Its box is only consulted as
-  // a floor: a control box too short for the shared size would otherwise have
-  // drawFittedText spill the caption over the row beneath it.
-  g.setFont (juce::Font (juce::jmin (metrics.captionSize,
-                                     static_cast<float> (labelArea.getHeight ())
-                                         * 0.85f),
-                         juce::Font::plain));
-  g.setColour (captionColour (isSelected));
-  g.drawFittedText (label, labelArea,
-                    juce::Justification::centred, 1);
+  // The drawing lives in BarKnob so the ACTION page can use the same one. Two
+  // knobs that are nearly the same knob is how a bar stops looking like one
+  // instrument.
+  paintBarKnob (g, bounds, metrics, _channelColour, label, angleFrac,
+                fillFromZero, isActive, isSelected, reachFrac, wraps);
 }
 
 void
@@ -1760,36 +1652,12 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
                      / static_cast<float> (lfoMaxStep),
                  true, _motionSubIndex == 1, isSelected);
 
-  // The accent's two times. One-sided, not bipolar: a length has no other
-  // direction, so they sweep from the left.
-  auto const envFrac = [] (int step) {
-    return (static_cast<float> (step) / static_cast<float> (envelopeMaxStep))
-               * 2.f
-           - 1.f;
-  };
-  paintMiniKnob (g, cells[2], metrics, caption::attack, envFrac (_motionAttack),
-                 false, _motionSubIndex == 2, isSelected);
-  paintMiniKnob (g, cells[3], metrics, caption::decay, envFrac (_motionDecay),
-                 false, _motionSubIndex == 3, isSelected);
-  paintMiniKnob (g, cells[4], metrics, caption::envelopeMax,
-                 _motionEnvelopeMax * 2.f - 1.f, false, _motionSubIndex == 4,
-                 isSelected);
-
-  // Lists, not values you nudge: a button that opens one.
-  paintBarButton (g, cells[6], value::directionNames[_motionDirection],
-                  caption::direction, _motionSubIndex == 6 && isSelected,
-                  isSelected, true);
-  paintBarButton (g, cells[7], value::endActionNames[_motionEndAction],
-                  caption::endAction, _motionSubIndex == 7 && isSelected,
-                  isSelected, true);
-
-  // What the Action key does to this clip, in the section where the shape of
-  // what it does is set. The key itself moved to the bar's header with the
-  // other three things you do to a clip -- a section full of settings had no
-  // business also carrying one of the four controls you hit mid-set.
-  paintBarButton (g, cells[5], value::actModeNames[_motionActMode],
-                  caption::actMode, _motionSubIndex == 5 && isSelected,
-                  isSelected, true);
+  paintBarButton (g, cells[2], value::directionNames[_motionDirection],
+                  caption::direction, _motionSubIndex == 2 && isSelected,
+                  false, isSelected);
+  paintBarButton (g, cells[3], value::endActionNames[_motionEndAction],
+                  caption::endAction, _motionSubIndex == 3 && isSelected,
+                  false, isSelected);
 }
 
 bool

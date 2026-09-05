@@ -79,7 +79,7 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 
   EXPECT_EQ (l.controls[0].size (), 4u); // Shape: the picture, rot, fade, bridge
   EXPECT_EQ (l.controls[1].size (), 6u); // Elevation
-  EXPECT_EQ (l.controls[2].size (), 8u); // Motion: the ACT key became a mode
+  EXPECT_EQ (l.controls[2].size (), 4u); // Motion: the envelope went to ACTION
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 
@@ -454,33 +454,23 @@ TEST (ClipSettingsLayout, MotionsControlsStayBigEnoughToHit)
       }
 }
 
-// However little room there is, the knob rows get the same of it. A section
-// that helps itself row by row from the bottom leaves the whole shortfall on
-// the row at the top — which came out a sliver at the skin's own scale while
-// the rows below it were untouched. Small is a choice the maintainer makes;
-// one row small and the rest not is a bug.
+// Two rows now, not three. Short of room they give up the same amount: a
+// section that helps itself row by row leaves the whole shortfall on one row,
+// which came out a sliver while the others were untouched.
 TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
 {
-  // Subs 5 and 6 are the two dropdowns and a different shape by design.
-  int const knobSubs[] = { 0, 1, 2, 3, 4 };
+  for (int height : { 160, 200, 250, 314, 400 })
+    {
+      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
+      auto const &motion = l.controls[2];
+      ASSERT_EQ (motion.size (), 4u) << "height " << height;
 
-  for (float bodySize : { 9.f, defaultBodySize, 24.f })
-    for (float potSize : { 0.6f, defaultPotSize, 1.4f })
-      for (float scale : { 1.f, 0.81f, 0.6f, 0.5f })
-        {
-          auto bar = grownBar (defaultHeaderSize, bodySize, potSize);
-          bar.setHeight (juce::roundToInt (bar.getHeight () * scale));
-
-          auto const l = layOutClipSettings (bar, defaultHeaderSize, bodySize,
-                                             potSize);
-
-          auto const height = l.controls[2][0].getHeight ();
-          for (auto const sub : knobSubs)
-            EXPECT_NEAR (l.controls[2][static_cast<size_t> (sub)].getHeight (),
-                         height, 2)
-                << "sub " << sub << ", body " << bodySize << " pot " << potSize
-                << " scale " << scale;
-        }
+      // The two knobs are one row and share a height; so do the two buttons.
+      EXPECT_EQ (motion[0].getHeight (), motion[1].getHeight ())
+          << "height " << height;
+      EXPECT_EQ (motion[2].getHeight (), motion[3].getHeight ())
+          << "height " << height;
+    }
 }
 
 // The Shape section has two faces. The front is the clip as it plays -- what
@@ -1207,31 +1197,24 @@ TEST (ClipSettingsLayout, TheShapeColumnCarriesItsThreeKnobs)
     }
 }
 
-// Why the fade is in Shape and not in Motion, kept as a measurement rather
-// than as a sentence in a commit message.
+// Motion had eight things in it and no room for a ninth; the envelope and the
+// act mode have gone to the ACTION page and it has room to spare. This test
+// was written to start failing exactly here, and saying so is its job -- the
+// constraint that sent the fade to the shape column no longer holds.
 //
-// Motion lays its knobs out in rows of two, so two more knobs is a fourth row
-// and every row loses a quarter of its height. On a bar a skin has cut down
-// that leaves 26 px, under the 34 px a fingertip needs -- and in a booth a
-// control under a fingertip is a control you miss.
-//
-// This test is expected to START FAILING when the ACTION tab takes the
-// envelope and the act mode out of Motion. That is the point: when the
-// constraint changes, something should say so rather than nothing.
-TEST (ClipSettingsLayout, MotionIsTooFullForAFourthKnobRow)
+// The fade stays in Shape anyway, and deliberately: rot, fade and bias are all
+// about the picture beside them -- how the shape stands and how it is read.
+// Motion is what moves over time. It was the right home for a bad reason and
+// it is still the right home for a good one.
+TEST (ClipSettingsLayout, MotionHasRoomAgainAndTheFadeStaysWhereItIs)
 {
   auto const l = layOutClipSettings ({ 0, 0, 768, 200 }, 14.f, 12.f, 1.f);
-  auto const &motion = l.controls[2];
-  ASSERT_EQ (motion.size (), 8u)
-      << "Motion has been emptied out -- re-measure, it may have room now";
 
-  auto const rowHeight = motion[0].getHeight ();
-  auto const card = l.sectionCards[2];
-  auto const gaps = card.getHeight () - 4 * rowHeight;
-  auto const withFourRows = (card.getHeight () - gaps) / 4;
+  ASSERT_EQ (l.controls[2].size (), 4u);
+  for (auto const &control : l.controls[2])
+    EXPECT_GE (control.getHeight (), fingertipSize)
+        << "Motion is emptier and its controls should have grown";
 
-  EXPECT_LT (withFourRows, fingertipSize)
-      << "Motion now has room for a fourth knob row (" << withFourRows
-      << " px). The fade could live there after all -- decide deliberately"
-      << " rather than leaving it in Shape by inertia.";
+  // And the fade is still in the shape column, with rot and bias.
+  EXPECT_EQ (l.controls[0].size (), 4u);
 }

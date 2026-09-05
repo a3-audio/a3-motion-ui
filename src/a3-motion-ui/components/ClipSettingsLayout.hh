@@ -112,6 +112,11 @@ enum class BarPage
    *  to make rather than the clip as it plays. Only that one section changes
    *  — you are still looking at the elevation and the motion it will get. */
   Record,
+  /** What ACT does: the envelope it fires and the mode it fires in. Its own
+   *  page rather than a section, because the clip page's three columns are
+   *  already as narrow as a fingertip allows -- a fourth would take the shape
+   *  its picture. */
+  Action,
   Controller,
   /** Somewhere else entirely: what is stored, rather than what is loaded. The
    *  eight clips of the device down one side and the library down the other,

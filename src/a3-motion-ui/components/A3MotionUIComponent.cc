@@ -3796,7 +3796,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::elevationIndex)
     return 6;
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 8; // spin, swell, atk, dec, max, actmode, dir, end
+    return 4; // spin, swell, dir, end -- the envelope went to the ACTION page
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
     return 4; // the shape, then rot, fade and bridge down its column
   return 1;
@@ -3864,16 +3864,12 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
     case 2: // Motion
       if (!pattern)
         return;
+      // Only the two knobs have a middle to go back to; direction and end
+      // action are lists, and a list has no default a double tap could mean.
       if (sub == 0)
         pattern->setSpin (0);
       else if (sub == 1)
         pattern->setReachLfo (0);
-      else if (sub == 2)
-        pattern->setEnvelopeAttack (envelopeMaxStep / 2);
-      else if (sub == 3)
-        pattern->setEnvelopeDecay (envelopeMaxStep / 2);
-      else if (sub == 4)
-        pattern->setEnvelopeMax (0.5f);
       else
         return;
       break;
@@ -4026,15 +4022,16 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           }
         break;
       }
-    case 2: // Motion — spin (0), swell (1), atk (2), dec (3), max (4),
-            // act-mode (5), direction (6), end-action (7)
+    case 2: // Motion — spin (0), swell (1), direction (2), end-action (3).
+            // The envelope and the act mode moved to the ACTION page, which
+            // drives them from its own handler.
       switch (sub)
         {
         case 0:
           {
             // How fast the whole trajectory turns under the blob. On the
-            // Pattern rather than in _clipUIParams because the engine reads
-            // it every tick and it has to survive being saved.
+            // Pattern rather than in _clipUIParams because the engine reads it
+            // every tick and it has to survive being saved.
             auto &pattern = _patterns[channel][slot];
             if (pattern)
               pattern->setSpin (std::clamp (pattern->getSpin () + increment,
@@ -4043,58 +4040,16 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           }
         case 1:
           {
-            // How fast reach sweeps out of where it was set. Same table as
-            // the spin, and on the Pattern for the same reasons.
+            // How fast reach sweeps out of where it was set. Same table as the
+            // spin, and on the Pattern for the same reasons.
             auto &pattern = _patterns[channel][slot];
             if (pattern)
-              pattern->setReachLfo (std::clamp (
-                  pattern->getReachLfo () + increment, -lfoMaxStep,
-                  lfoMaxStep));
+              pattern->setReachLfo (
+                  std::clamp (pattern->getReachLfo () + increment, -lfoMaxStep,
+                              lfoMaxStep));
             break;
           }
         case 2:
-        case 3:
-        case 4:
-          {
-            // The accent's rise, fall and depth. The two times get a
-            // gesture's worth of lengths, so their own shorter table — see
-            // Envelope.
-            auto &pattern = _patterns[channel][slot];
-            if (!pattern)
-              break;
-
-            if (sub == 2)
-              pattern->setEnvelopeAttack (
-                  std::clamp (pattern->getEnvelopeAttack () + increment, 0,
-                              envelopeMaxStep));
-            else if (sub == 3)
-              pattern->setEnvelopeDecay (
-                  std::clamp (pattern->getEnvelopeDecay () + increment, 0,
-                              envelopeMaxStep));
-            else
-              pattern->setEnvelopeMax (pattern->getEnvelopeMax ()
-                                       + increment * 0.05f);
-            break;
-          }
-        case 5:
-          {
-            // What holding the Action key does to this clip. On the Pattern
-            // rather than in _clipUIParams: the pad handler reads it at the
-            // moment the key goes down, and it has to survive being saved.
-            auto &pattern = _patterns[channel][slot];
-            if (!pattern)
-              break;
-
-            // Modulo, like direction beside it, rather than a toggle: a tap in
-            // the open list arrives as the difference to the entry tapped, and
-            // a toggle only happens to land right while the list has two
-            // entries in it.
-            auto const now = pattern->getActMode () == ActMode::Hold ? 1 : 0;
-            auto const next = (now + increment % 2 + 2) % 2;
-            pattern->setActMode (next == 1 ? ActMode::Hold : ActMode::OneShot);
-            break;
-          }
-        case 6:
           params.direction = (params.direction + increment % 2 + 2) % 2;
           applyMotionMode (channel, slot);
           break;
@@ -4107,7 +4062,6 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           break;
         }
       break;
-
     case ClipSettingsComponent::globalIndex:
       {
         // Nothing in _clipUIParams changes here: the strip holds one setting

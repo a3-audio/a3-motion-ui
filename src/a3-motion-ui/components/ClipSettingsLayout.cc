@@ -68,7 +68,7 @@ numControlsInSection (int sectionIndex)
     case 1:
       return 6; // reach, clip-top, clip-bottom, mirror-south, flat, flat-elev
     case 2:
-      return 8; // spin, swell, atk, dec, max, actmode, dir, end
+      return 4; // spin, swell, dir, end -- the envelope went to ACTION
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -499,18 +499,14 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         juce::jmin (content.getHeight (), out.buttonHeight));
     content.removeFromBottom (gapV);
 
-    // Three rows of what moves on its own, stacked above the pair that does
-    // not. spin turns the shape under the blob and swell opens and closes how
-    // far down the sphere it reaches — same table, same bipolar knob, same
-    // standstill in the middle. Above them the accent's two, which are a
-    // gesture rather than a cycle and so have a table of their own.
+    // Two rows of two. Three knob rows and a button row was the old shape,
+    // back when eight things lived here; the envelope and the act mode have
+    // gone to the ACTION page and what is left breathes.
     //
     // Shared out rather than taken one after another from the bottom. A skin
     // can cut the bar down (clipSettingsHeightScale), and a section that helps
-    // itself row by row leaves the whole shortfall on the row at the top —
-    // which came out a sliver while the three below it were untouched. Short
-    // of room, all three give up the same.
-    constexpr int motionKnobRows = 3;
+    // itself row by row leaves the whole shortfall on the row at the top.
+    constexpr int motionKnobRows = 2;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
@@ -523,56 +519,39 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       return row;
     };
 
-    // Taken from the bottom, so the last one out is the topmost. Reading down:
-    // the accent's two times, then how far it throws and the key that throws
-    // it, then the two that turn on their own.
-    //
-    // speed and fade have left: speed is now twelve buttons on the Shape
-    // section's front, where the clip's own tempo belongs beside its shape,
-    // and fade is on that section's back, with the take whose join it closes.
-    auto lfoRow = knobRow (false);
-    auto accentRow = knobRow (false);
-    auto envRow = knobRow (true);
+    auto lowerRow = knobRow (false);
+    auto upperRow = knobRow (true);
 
-    // The two values you dial on top, the two you pick from below: speed
-    // and fade are continuous-ish, direction and end-action are lists.
-    auto const colW = (lfoRow.getWidth () - gapH) / 2;
-    auto const spinArea = lfoRow.removeFromLeft (colW);
-    lfoRow.removeFromLeft (gapH);
-    auto const swellArea = lfoRow;
+    auto const colW = (lowerRow.getWidth () - gapH) / 2;
+    auto const split = [colW, gapH] (juce::Rectangle<int> &row) {
+      auto const left = row.removeFromLeft (colW);
+      row.removeFromLeft (gapH);
+      return std::pair<juce::Rectangle<int>, juce::Rectangle<int> >{ left,
+                                                                     row };
+    };
 
-    auto const attackArea = envRow.removeFromLeft (colW);
-    envRow.removeFromLeft (gapH);
-    auto const decayArea = envRow;
-
-    auto const envelopeMaxArea = accentRow.removeFromLeft (colW);
-    accentRow.removeFromLeft (gapH);
-    // Where the ACT key used to be. The key itself is in the bar's header
-    // now, with the other three things you do to a clip; what stands here is
-    // the setting that says what pressing it means, which is the kind of thing
-    // this section is for.
-    auto const actModeArea = accentRow.removeFromLeft (colW);
-
-    auto const directionArea = bottomRow.removeFromLeft (colW);
-    bottomRow.removeFromLeft (gapH);
-    auto const endActionArea = bottomRow;
+    auto const [upperLeft, upperRight] = split (upperRow);
+    auto const [lowerLeft, lowerRight] = split (lowerRow);
+    auto const [bottomLeft, bottomRight] = split (bottomRow);
 
     // The bottom row is already the button height; the cell is the button.
     auto const buttonCell = [] (juce::Rectangle<int> cell) { return cell; };
 
-    // Renumbered, which appending had avoided until now: two of them left,
-    // and an index kept for a control that is gone is worse than a finger
-    // relearning where three things are. Reading order, top to bottom.
+    // What moves on its own, and what happens when it gets to the end. spin
+    // turns the shape under the blob and swell opens and closes how far down
+    // the sphere it reaches -- same table, same bipolar knob, same standstill
+    // in the middle.
+    //
+    // The envelope and the act mode have left for the ACTION page, which is a
+    // page of its own like PADS rather than another face of this card.
+    juce::ignoreUnused (lowerLeft, lowerRight, bottomRight);
     out.controls[2] = {
-      textCell (spinArea, metrics.knobDiam),
-      textCell (swellArea, metrics.knobDiam),
-      textCell (attackArea, metrics.knobDiam),
-      textCell (decayArea, metrics.knobDiam),
-      textCell (envelopeMaxArea, metrics.knobDiam),
-      buttonCell (actModeArea),
-      buttonCell (directionArea),
-      buttonCell (endActionArea),
+      textCell (upperLeft, metrics.knobDiam),   // spin
+      textCell (upperRight, metrics.knobDiam),  // swell
+      buttonCell (bottomLeft),                  // direction
+      buttonCell (bottomRight),                 // end action
     };
+
   }
 
   // ── Global section ───────────────────────────────────────────────────

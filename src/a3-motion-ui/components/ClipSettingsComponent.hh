@@ -551,6 +551,7 @@ private:
   std::unique_ptr<TouchControl> _tabBrowserTouch;
   std::unique_ptr<TouchControl> _tabClipTouch;
   std::unique_ptr<TouchControl> _tabRecordTouch;
+  std::unique_ptr<TouchControl> _tabActionTouch;
   std::unique_ptr<TouchControl> _tabControllerTouch;
   /** One hit area per grid cell, [channel][row]. */
   std::array<std::array<std::unique_ptr<TouchControl>, numChannelRows>,
