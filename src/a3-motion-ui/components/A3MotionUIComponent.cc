@@ -433,8 +433,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   _clipSettings->onAccentHeld = [this] (bool held) {
     auto const channel = _clipSettingsChannel;
-    _engine.setChannelAccentHeld (
-        channel, held, held ? _patterns[channel][_clipSettingsSlot] : nullptr);
+    auto const slot = _clipSettingsSlot;
+    if (held)
+      _engine.setChannelAction (channel, _slotAction[channel][slot].settings);
+    _engine.setChannelAccentHeld (channel, held,
+                                  held ? _patterns[channel][slot] : nullptr);
     updateControlReadout (juce::String ("CH") + juce::String (channel + 1)
                           + " ACTION");
   };
@@ -936,8 +939,8 @@ A3MotionUIComponent::initializePatterns ()
   for (auto &channelClips : _slotClipFile)
     channelClips.resize (numClipSlots);
 
-  _slotActionFile.resize (numChannels);
-  for (auto &channelActions : _slotActionFile)
+  _slotAction.resize (numChannels);
+  for (auto &channelActions : _slotAction)
     channelActions.resize (numClipSlots);
 
   // Load patterns from the library, one per clip slot; channels share the
@@ -1597,6 +1600,12 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         // Behind the check below it fired only on a clip that happened to be
         // standing still, so hitting ACT on something already running — which
         // is most of when you would reach for it — did nothing at all.
+        //
+        // And what it throws the clip to, before the press rather than with
+        // it: the engine takes the clip's settings down at the moment the
+        // accent starts, and it can only do that if it already knows there is
+        // something to put in their place.
+        _engine.setChannelAction (channel, _slotAction[channel][slot].settings);
         _engine.setChannelAccentHeld (channel, true, pattern);
 
         if (!pattern || pattern->getStatus () != Pattern::Status::Idle)
@@ -1914,7 +1923,7 @@ A3MotionUIComponent::refreshBrowser ()
     {
       auto const ch = static_cast<index_t> (_browserField.first);
       auto const sl = static_cast<index_t> (_browserField.second);
-      auto const &action = _slotActionFile[ch][sl];
+      auto const &action = _slotAction[ch][sl].file;
       _browser->setSelectedEntry (
           action.existsAsFile ()
               ? names.indexOf (action.getFileNameWithoutExtension ())
@@ -2121,12 +2130,34 @@ A3MotionUIComponent::assignActionEntry (juce::String const &name)
 
   // The empty row clears it: a slot has to be able to go back to firing
   // nothing, the same way it can go back to holding no clip.
-  _slotActionFile[channel][slot]
-      = name.isEmpty () ? juce::File{}
-                        : actionsDir ().getChildFile (name + ".json");
+  setSlotAction (channel, slot,
+                 name.isEmpty ()
+                     ? juce::File{}
+                     : actionsDir ().getChildFile (name + ".json"));
 
   selectClip (channel, slot);
   refreshBrowser ();
+}
+
+void
+A3MotionUIComponent::setSlotAction (index_t channel, index_t slot,
+                                    juce::File const &file)
+{
+  if (channel >= _slotAction.size () || slot >= _slotAction[channel].size ())
+    return;
+
+  auto &action = _slotAction[channel][slot];
+  action.file = file;
+  action.settings.reset ();
+
+  if (!file.existsAsFile ())
+    return;
+
+  if (auto const clip = ClipFile::load (file))
+    action.settings = clip->settings;
+  else
+    std::cerr << "could not read action " << file.getFullPathName ()
+              << std::endl;
 }
 
 void
@@ -2160,7 +2191,7 @@ A3MotionUIComponent::saveSlotAsAction ()
       return;
     }
 
-  _slotActionFile[channel][slot] = file;
+  setSlotAction (channel, slot, file);
   refreshBrowser ();
 }
 
@@ -2195,7 +2226,7 @@ A3MotionUIComponent::updateActionPage ()
       pattern ? pattern->getFilterDecay () : defaults.filterDecay,
       pattern ? pattern->getFilterMax () : defaults.filterMax);
 
-  auto const &action = _slotActionFile[channel][slot];
+  auto const &action = _slotAction[channel][slot].file;
   _action->setActionName (action.existsAsFile ()
                               ? action.getFileNameWithoutExtension ()
                               : juce::String{});
@@ -3228,9 +3259,17 @@ A3MotionUIComponent::timerCallback ()
   // transport key that never turned green and an indicator that stayed empty.
   // The rest of the time nothing here changes on its own.
   auto const &shown = _patterns[_clipSettingsChannel][_clipSettingsSlot];
-  if (_engine.isRecording ()
+
+  // One tick past the accent as well as during it. An action puts its
+  // settings on the clip and takes them off again, and the taking off is the
+  // last thing that happens -- a screen that stopped following one tick
+  // earlier would show the action's values for as long as the page stayed
+  // open.
+  auto const accent = _engine.isChannelAccentActive (_clipSettingsChannel);
+  if (_engine.isRecording () || accent || _accentWasActive
       || (shown && shown->getStatus () == Pattern::Status::Playing))
     updateClipSettingsDisplay ();
+  _accentWasActive = accent;
 
   // Every fortieth tick, which is the two seconds this used to run at.
   if (++_timerTick % 40 != 0)

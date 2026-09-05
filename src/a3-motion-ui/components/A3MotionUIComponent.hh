@@ -192,6 +192,10 @@ private:
   /** Push the shown clip's envelope and act mode to the ACTION page. */
   /** Give the chosen field's slot an action, or take its action away. */
   void assignActionEntry (juce::String const &name);
+
+  /** Point a slot's ACT key at an action file, reading it in. An empty file,
+   *  or one that will not read, leaves the slot firing the accent alone. */
+  void setSlotAction (index_t channel, index_t slot, juce::File const &file);
   /** Keep the chosen slot's settings as a new action clip. */
   void saveSlotAsAction ();
   void updateActionPage ();
@@ -494,8 +498,22 @@ private:
    *  holding nothing, or one holding a shape that has no clip. */
   std::vector<std::vector<juce::File> > _slotClipFile;
   /** The action clip the ACT key fires on this slot, if any. Per slot,
-   *  not per clip: two slots on one clip can act differently. */
-  std::vector<std::vector<juce::File> > _slotActionFile;
+   *  not per clip: two slots on one clip can act differently.
+   *
+   *  The file and its contents together, in one struct rather than two
+   *  vectors, because they have to agree: the file is what the browser
+   *  highlights and the ACTION page names, and the settings are what ACT
+   *  actually fires. Read once, when the action is assigned -- a press has to
+   *  land on the beat, and a press that opened a file would not. */
+  struct SlotAction
+  {
+    juce::File file;
+    std::optional<ClipSettings> settings;
+  };
+  std::vector<std::vector<SlotAction> > _slotAction;
+  /** Whether the shown channel's accent was running at the last timer tick,
+   *  so that the one after it still redraws. See timerCallback(). */
+  bool _accentWasActive = false;
 
   std::unique_ptr<BrowserComponent> _browser;
   /** Which field the next chosen clip lands in. */
