@@ -20,6 +20,8 @@
 
 #include "TrajectoryBridges.hh"
 
+#include <a3-motion-engine/util/SeedSpread.hh>
+
 #include <a3-motion-engine/TrajectoryShape.hh>
 
 #include <algorithm>
@@ -134,7 +136,12 @@ planBridges (std::vector<Pos> const &ticks, float fadeReach, int bridgeBias,
           // One fixed draw per gap, so turning the pot up adds departures
           // instead of redealing the ones already there. A pot that reshuffled
           // on every degree could not be dialled in.
-          juce::Random perGap (seed + static_cast<juce::int64> (at));
+          // Spread, not merely offset: juce::Random's first draw off two
+          // neighbouring seeds is the same draw, so `seed + at` decided every
+          // gap the same way and the pot was a switch wearing a knob's
+          // clothes. See spreadSeed().
+          juce::Random perGap (
+              spreadSeed (seed + static_cast<juce::int64> (at)));
           auto const strayAt = std::abs (bridgeBias) / 4.f;
 
           if (perGap.nextFloat () < strayAt)

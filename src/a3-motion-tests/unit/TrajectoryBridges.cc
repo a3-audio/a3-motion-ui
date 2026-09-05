@@ -203,3 +203,46 @@ TEST (TrajectoryBridges, WithNoAlternativeInRangeTheBaseRuleHolds)
   ASSERT_TRUE (plan.via (gapAt).has_value ());
   EXPECT_EQ (*plan.via (gapAt), gapAt + 1);
 }
+
+// Each gap draws for itself, and neighbouring gaps must draw differently.
+//
+// They did not: the draw was seeded `seed + at`, and juce::Random's first
+// value off two neighbouring seeds is the same value -- so at a middling bias
+// either every gap strayed or none did, and the pot was a switch wearing a
+// knob's clothes. Many gaps, one bias in the middle: some must stray and some
+// must not.
+TEST (TrajectoryBridges, AMiddlingBiasStraysOnSomeGapsAndNotOthers)
+{
+  // Twelve short runs, each thrown to the far side of the sphere from the
+  // last, so every join between them is unmistakably a jump. Strung out along
+  // one line they were not: the threshold is eight times the median step or
+  // 0.15, whichever is larger, and evenly spaced runs never clear it.
+  std::vector<Pos> ticks;
+  for (int run = 0; run < 12; ++run)
+    {
+      auto const x = run % 2 == 0 ? -0.6f : 0.6f;
+      auto const y = -0.6f + 0.1f * static_cast<float> (run);
+
+      for (int i = 0; i < 10; ++i)
+        ticks.push_back (Pos::fromCartesian (
+            x + 0.002f * static_cast<float> (i), y, 0.f));
+    }
+
+  auto const seed = seedForTicks (ticks);
+  auto const plan = planBridges (ticks, 1.f, 2, seed);
+
+  auto strayed = 0;
+  auto stayed = 0;
+  for (auto const &bridge : plan.bridges)
+    {
+      if (bridge.viaTick == (bridge.fromTick + 1) % ticks.size ())
+        ++stayed;
+      else
+        ++strayed;
+    }
+
+  ASSERT_GT (plan.bridges.size (), 8u) << "the fixture has too few gaps to say";
+  EXPECT_GT (strayed, 0) << "no gap strayed at all";
+  EXPECT_GT (stayed, 0)
+      << "every gap strayed -- the draws are not independent of each other";
+}
