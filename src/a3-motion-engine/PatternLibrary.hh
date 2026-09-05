@@ -143,6 +143,9 @@ private:
   /** Clips that name no shape, listed as settings presets. Runs after
    *  the shape passes so a clip that *does* name one is already in. */
   void scanSettingsPresets ();
+  /** Sort the entries from @p firstOfCategory to the end by the name that
+   *  is shown. Called once per scan, so the categories stay grouped. */
+  void sortCategoryByName (size_t firstOfCategory);
 
   juce::File _rootDir;
   std::vector<Entry> _entries;  ///< index 0 unused (Empty), 1..N = patterns

@@ -75,10 +75,10 @@ PatternLibrary::scanSettingsPresets ()
 
   auto files = dir.findChildFiles (juce::File::findFiles, false, "*.json");
 
-  std::sort (files.begin (), files.end (),
-             [] (juce::File const &a, juce::File const &b) {
-               return a.getFileName ().compareNatural (b.getFileName ()) < 0;
-             });
+  // Same rule as the shapes: by the name that is read, within this category
+  // only. A clip's name and its file name usually agree -- a renamed one is
+  // exactly when they do not.
+  auto const firstOfThisCategory = _entries.size ();
 
   for (auto const &file : files)
     {
@@ -105,6 +105,8 @@ PatternLibrary::scanSettingsPresets ()
 
       _entries.push_back (std::move (entry));
     }
+
+  sortCategoryByName (firstOfThisCategory);
 }
 
 void
@@ -115,11 +117,11 @@ PatternLibrary::scanDirectory (juce::File const &dir, Category category)
 
   auto files = dir.findChildFiles (juce::File::findFiles, false, "*.svg");
 
-  // Sort alphabetically for deterministic order
-  std::sort (files.begin (), files.end (),
-             [] (juce::File const &a, juce::File const &b) {
-               return a.getFileName ().compareNatural (b.getFileName ()) < 0;
-             });
+  // Sorted after the names are read, not by file name: a shape's file name
+  // carries its beat count, so 04_Zigzag sorted before 16_Arc -- which looks
+  // like no order at all to anyone who cannot see the prefix. Within this
+  // category only, so the grouping the browser's dot makes visible survives.
+  auto const firstOfThisCategory = _entries.size ();
 
   for (auto const &file : files)
     {
@@ -153,6 +155,19 @@ PatternLibrary::scanDirectory (juce::File const &dir, Category category)
 
       _entries.push_back (std::move (entry));
     }
+
+  sortCategoryByName (firstOfThisCategory);
+}
+
+void
+PatternLibrary::sortCategoryByName (size_t firstOfCategory)
+{
+  std::sort (_entries.begin () + static_cast<long> (firstOfCategory),
+             _entries.end (), [] (Entry const &a, Entry const &b) {
+               return juce::String (a.name).compareNatural (
+                          juce::String (b.name))
+                      < 0;
+             });
 }
 
 int

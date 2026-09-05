@@ -236,3 +236,54 @@ TEST (PatternLibraryClips, TheFingerprintNoticesAClip)
   EXPECT_NE (library.getDirectoryFingerprint (), added)
       << "a deleted preset went unnoticed";
 }
+
+// The list is read, so it has to be sorted by what is read. Shapes were sorted
+// by file name, and a shape's file name carries its beat count -- 04_Zigzag
+// stood before 16_Arc, which looks like no order at all to anyone who cannot
+// see the prefix. Sorted within each category, so the grouping the row's dot
+// makes visible survives.
+TEST (PatternLibraryClips, EachCategoryIsSortedByTheNameThatIsShown)
+{
+  auto const root = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("a3-library-sorted");
+  root.deleteRecursively ();
+  root.getChildFile ("system").createDirectory ();
+
+  auto const shape = [&root] (juce::String const &fileName,
+                              juce::String const &name) {
+    root.getChildFile ("system").getChildFile (fileName).replaceWithText (
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-1 -1 2 2\""
+        " data-name=\""
+        + name
+        + "\" data-beats=\"16\" data-ppqn=\"128\">"
+          "<path d=\"M -0.5 0 L 0.5 0\"/></svg>");
+  };
+
+  shape ("04_Zigzag.svg", "Zigzag");
+  shape ("16_Arc.svg", "Arc");
+  shape ("08_Muster.svg", "Muster");
+
+  Clip preset;
+  preset.name = "Breathe";
+  ASSERT_TRUE (
+      ClipFile::save (preset, root.getChildFile ("clips/Breathe.json")));
+  preset.name = "Anvil";
+  ASSERT_TRUE (ClipFile::save (preset, root.getChildFile ("clips/Anvil.json")));
+
+  PatternLibrary library (root);
+  library.refresh ();
+
+  std::vector<std::string> shown;
+  for (int i = 1; i < library.getNumEntries (); ++i)
+    shown.push_back (library.getEntry (i).name);
+
+  ASSERT_EQ (shown.size (), 5u);
+
+  // Shapes first, in the order they read; the presets after them, likewise.
+  EXPECT_EQ (shown[0], "Arc");
+  EXPECT_EQ (shown[1], "Muster");
+  EXPECT_EQ (shown[2], "Zigzag");
+  EXPECT_EQ (shown[3], "Anvil");
+  EXPECT_EQ (shown[4], "Breathe");
+}
