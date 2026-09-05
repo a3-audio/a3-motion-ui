@@ -1349,7 +1349,17 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   auto const &metrics = _layout.metrics;
   auto const &cells = _layout.controls[motionIndex];
 
-  // Each standing value with the movement that works on it, left and right.
+  // A painter that outlives a renumbering reads past the end of the vector,
+  // and what that looks like on screen is white rectangles flickering in and
+  // out -- not a crash, and nothing that says where it came from. Checked
+  // rather than trusted: the sections have been renumbered three times.
+  if (cells.size ()
+      < static_cast<size_t> (numControlsInSection (motionIndex)))
+    return;
+
+  // rot with the spin that turns it, the fade with the bias that says where a
+  // drawn-through gap leads, and the two lists along the floor. reach and its
+  // swell live in Elevation, where the sphere is.
   //
   // rot is a closed ring: rotation comes round to itself, so its scale has to
   // as well. The pointer is where the hand left it; the blue runs from there
@@ -1363,37 +1373,22 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
                      / static_cast<float> (lfoMaxStep),
                  true, _motionSubIndex == 1, isSelected);
 
-  // reach and the swell that sweeps it. The second arc is where the sweep has
-  // carried the coverage, if it is moving.
-  paintMiniKnob (g, cells[2], metrics, caption::reach,
-                 _elevationReach * 2.f - 1.f, false, _motionSubIndex == 2,
-                 isSelected,
-                 _elevationReachSwept < 0.f
-                     ? -2.f
-                     : _elevationReachSwept * 2.f - 1.f);
-  paintMiniKnob (g, cells[3], metrics, caption::swell,
-                 static_cast<float> (_motionSwell)
-                     / static_cast<float> (lfoMaxStep),
-                 true, _motionSubIndex == 3, isSelected);
-
   // How far a gap may be for the fade to draw through it, and where a
   // drawn-through gap leads. Both read the take's holes rather than changing
   // them.
-  paintMiniKnob (g, cells[4], metrics, caption::fade,
-                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 4,
+  paintMiniKnob (g, cells[2], metrics, caption::fade,
+                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 2,
                  isSelected);
-  paintMiniKnob (g, cells[5], metrics, caption::bias,
+  paintMiniKnob (g, cells[3], metrics, caption::bias,
                  static_cast<float> (_motionBridgeBias) / 4.f, true,
-                 _motionSubIndex == 5, isSelected);
+                 _motionSubIndex == 3, isSelected);
 
-  // The two lists close the section along its floor, where every other
-  // section's buttons are. They step on a tap -- no chevron, because nothing
-  // opens any more.
-  paintBarButton (g, cells[6], value::directionNames[_motionDirection],
-                  caption::direction, _motionSubIndex == 6 && isSelected,
+  // They step on a tap -- no chevron, because nothing opens any more.
+  paintBarButton (g, cells[4], value::directionNames[_motionDirection],
+                  caption::direction, _motionSubIndex == 4 && isSelected,
                   false);
-  paintBarButton (g, cells[7], value::endActionNames[_motionEndAction],
-                  caption::endAction, _motionSubIndex == 7 && isSelected,
+  paintBarButton (g, cells[5], value::endActionNames[_motionEndAction],
+                  caption::endAction, _motionSubIndex == 5 && isSelected,
                   false);
 }
 
@@ -1405,6 +1400,12 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
 
   auto const &metrics = _layout.metrics;
   auto const &cells = _layout.controls[elevationIndex];
+
+  // See paintMotionSection(): a painter left behind by a renumbering reads
+  // past the end and draws garbage rather than failing.
+  if (cells.size ()
+      < static_cast<size_t> (numControlsInSection (elevationIndex)))
+    return;
 
   // The graphic on top, which is a control now: a finger on it sets where the
   // middle of the trajectory sits, and the line it draws is that value. Under
