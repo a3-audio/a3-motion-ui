@@ -260,3 +260,27 @@ TEST (ActionScript, WhatIsWrittenCanBeReadBack)
 
   EXPECT_EQ (back, settings) << "round trip through:\n" << source;
 }
+
+// The scripts that ship with the app have to read. They are the first thing
+// anybody opens to find out what the format is, so a broken one teaches the
+// wrong syntax before it fails to do anything.
+TEST (ActionScript, EveryShippedActionReads)
+{
+  auto const dir = juce::File::getCurrentWorkingDirectory ()
+                       .getChildFile ("../pattern/actions");
+  if (!dir.isDirectory ())
+    GTEST_SKIP () << "not run from the build directory";
+
+  auto const files
+      = dir.findChildFiles (juce::File::findFiles, false, "*.scd");
+  EXPECT_FALSE (files.isEmpty ()) << "no actions ship at all";
+
+  for (auto const &file : files)
+    {
+      auto const result
+          = runActionScript (file.loadFileAsString (), ClipSettings{}, 7);
+
+      EXPECT_TRUE (result.errors.isEmpty ())
+          << file.getFileName () << ": " << result.errors.joinIntoString ("; ");
+    }
+}

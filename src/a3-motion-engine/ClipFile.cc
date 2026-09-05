@@ -189,9 +189,10 @@ ClipFile::load (juce::File const &file)
 }
 
 juce::String
-freeClipName (juce::File const &clipDir, juce::String const &base)
+freeClipName (juce::File const &clipDir, juce::String const &base,
+              juce::String const &extension)
 {
-  if (!clipDir.getChildFile (base + ".json").existsAsFile ())
+  if (!clipDir.getChildFile (base + extension).existsAsFile ())
     return base;
 
   // Counting rather than a timestamp or a random tail: "Wave 2" is a name
@@ -199,7 +200,7 @@ freeClipName (juce::File const &clipDir, juce::String const &base)
   for (int n = 2; n < 1000; ++n)
     {
       auto const candidate = base + " " + juce::String (n);
-      if (!clipDir.getChildFile (candidate + ".json").existsAsFile ())
+      if (!clipDir.getChildFile (candidate + extension).existsAsFile ())
         return candidate;
     }
 

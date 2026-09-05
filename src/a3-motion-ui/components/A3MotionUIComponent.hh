@@ -508,7 +508,14 @@ private:
   struct SlotAction
   {
     juce::File file;
+    /** The script as written, for the page to show and later to edit. */
+    juce::String source;
+    /** What it worked out to when it was chosen. Empty when the slot fires
+     *  nothing, or when the file would not read. */
     std::optional<ClipSettings> settings;
+    /** What the script got wrong, line by line. Shown rather than swallowed:
+     *  the only compiler here is the one that just ran. */
+    juce::StringArray errors;
   };
   std::vector<std::vector<SlotAction> > _slotAction;
   /** Whether the shown channel's accent was running at the last timer tick,

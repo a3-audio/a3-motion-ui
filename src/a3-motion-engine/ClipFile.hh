@@ -98,8 +98,10 @@ bool saveClipSettings (Pattern const &pattern, juce::File const &clipFile);
  *
  *  Names are the identity here, so two clips may not share one -- and the
  *  browser shows a single list, where two rows called the same thing could not
- *  be told apart. */
+ *  be told apart. The extension is a parameter because actions are counted
+ *  the same way and are not clips: one rule for naming, two kinds of file. */
 juce::String freeClipName (juce::File const &clipDir,
-                           juce::String const &base);
+                           juce::String const &base,
+                           juce::String const &extension = ".json");
 
 }

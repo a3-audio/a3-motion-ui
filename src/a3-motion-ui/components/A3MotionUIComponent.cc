@@ -39,6 +39,7 @@
 #include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/ClipMigration.hh>
+#include <a3-motion-engine/ActionScript.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -1902,7 +1903,7 @@ A3MotionUIComponent::refreshBrowser ()
       // clip": a slot has to be able to go back to firing nothing.
       names.add ("");
       for (auto const &file : actionsDir ().findChildFiles (
-               juce::File::findFiles, false, "*.json"))
+               juce::File::findFiles, false, "*.scd"))
         names.add (file.getFileNameWithoutExtension ());
       names.sort (true);
     }
@@ -2139,7 +2140,7 @@ A3MotionUIComponent::assignActionEntry (juce::String const &name)
   setSlotAction (channel, slot,
                  name.isEmpty ()
                      ? juce::File{}
-                     : actionsDir ().getChildFile (name + ".json"));
+                     : actionsDir ().getChildFile (name + ".scd"));
 
   selectClip (channel, slot);
   refreshBrowser ();
@@ -2155,15 +2156,54 @@ A3MotionUIComponent::setSlotAction (index_t channel, index_t slot,
   auto &action = _slotAction[channel][slot];
   action.file = file;
   action.settings.reset ();
+  action.source = {};
+  action.errors = {};
 
   if (!file.existsAsFile ())
-    return;
+    {
+      updateActionPage ();
+      return;
+    }
 
-  if (auto const clip = ClipFile::load (file))
-    action.settings = clip->settings;
-  else
-    std::cerr << "could not read action " << file.getFullPathName ()
-              << std::endl;
+  action.source = file.loadFileAsString ();
+
+  auto const &pattern = _patterns[channel][slot];
+  auto const current = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
+
+  // A seed that is new every time a script is chosen, so a script with dice
+  // in it throws them again on being picked -- picking it is the gesture that
+  // says "give me another one of these".
+  auto const result
+      = runActionScript (action.source, current,
+                         juce::Time::getHighResolutionTicks ());
+
+  action.settings = result.settings;
+  action.errors = result.errors;
+
+  // What the ACTION page shows is the slot's, and choosing a script is how
+  // those get set: the nine envelope values and the mode go onto the clip
+  // right away, so the page reads what the script says. The movement and the
+  // shape stay in the action and are put on only while ACT is down -- see
+  // actionOver().
+  if (pattern)
+    {
+      pattern->setEnvelopeAttack (result.settings.envelopeAttack);
+      pattern->setEnvelopeDecay (result.settings.envelopeDecay);
+      pattern->setEnvelopeMax (result.settings.envelopeMax);
+      pattern->setFreqAttack (result.settings.freqAttack);
+      pattern->setFreqDecay (result.settings.freqDecay);
+      pattern->setFreqMax (result.settings.freqMax);
+      pattern->setQAttack (result.settings.qAttack);
+      pattern->setQDecay (result.settings.qDecay);
+      pattern->setQMax (result.settings.qMax);
+      pattern->setActMode (result.settings.actMode);
+    }
+
+  if (!result.errors.isEmpty ())
+    updateControlReadout (result.errors[0]);
+
+  updateActionPage ();
+  updateClipSettingsDisplay ();
 }
 
 void
@@ -2179,18 +2219,15 @@ A3MotionUIComponent::saveSlotAsAction ()
   if (!pattern)
     return;
 
-  // An action is the clip as it stands: dial it the way you want ACT to make
-  // it sound, and keep that. No second vocabulary to learn, and no way for the
-  // two to drift apart.
+  // An action is the clip as it stands, written out as a script: dial it the
+  // way you want ACT to make it sound, and keep that. No second vocabulary to
+  // learn, and what is written is what can be read back and edited.
   actionsDir ().createDirectory ();
 
-  Clip action;
-  action.name = freeClipName (actionsDir (), "Action").toStdString ();
-  action.settings = clipSettingsFrom (*pattern);
+  auto const name = freeClipName (actionsDir (), "Action", ".scd");
+  auto const file = actionsDir ().getChildFile (name + ".scd");
 
-  auto const file
-      = actionsDir ().getChildFile (juce::String (action.name) + ".json");
-  if (!ClipFile::save (action, file))
+  if (!file.replaceWithText (actionScriptFor (clipSettingsFrom (*pattern))))
     {
       std::cerr << "could not write action " << file.getFullPathName ()
                 << std::endl;
@@ -2235,7 +2272,16 @@ A3MotionUIComponent::updateActionPage ()
                          pattern ? pattern->getQDecay () : defaults.qDecay,
                          pattern ? pattern->getQMax () : defaults.qMax);
 
-  auto const &action = _slotAction[channel][slot].file;
+  auto const &slotAction = _slotAction[channel][slot];
+  auto const &action = slotAction.file;
+
+  // The errors first if there are any: a script that did not read is the one
+  // thing you need to see before anything it half-did.
+  _action->setScript (slotAction.errors.isEmpty ()
+                          ? slotAction.source
+                          : slotAction.errors.joinIntoString ("\n") + "\n\n"
+                                + slotAction.source);
+
   _action->setActionName (action.existsAsFile ()
                               ? action.getFileNameWithoutExtension ()
                               : juce::String{});
