@@ -23,7 +23,9 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/ClipFile.hh>
+#include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/TempoLfo.hh>
 
 using namespace a3;
 
@@ -469,4 +471,39 @@ TEST (ClipFileFade, AnOldFadeValueIsIgnoredRatherThanTranslated)
   ClipSettings const defaults;
   EXPECT_FLOAT_EQ (read->settings.fadeReach, defaults.fadeReach);
   EXPECT_EQ (read->settings.bridgeBias, defaults.bridgeBias);
+}
+
+/** The factory presets are content, and content rots quietly: a key renamed
+ *  in ClipSettings leaves the old files parsing fine and meaning nothing.
+ *  Reading every one of them and insisting the values survive is the only
+ *  place that would notice. */
+TEST (ClipFile, EveryShippedClipReads)
+{
+  juce::File const dir (A3_PATTERN_CLIPS_DIR);
+  ASSERT_TRUE (dir.isDirectory ()) << dir.getFullPathName ();
+
+  auto const files
+      = dir.findChildFiles (juce::File::findFiles, false, "*.json");
+  EXPECT_FALSE (files.isEmpty ()) << "no clips ship at all";
+
+  for (auto const &file : files)
+    {
+      auto const clip = ClipFile::load (file);
+      ASSERT_TRUE (clip.has_value ()) << file.getFileName ();
+
+      EXPECT_EQ (juce::String (clip->name), file.getFileNameWithoutExtension ())
+          << "a preset's name is what the browser lists it under";
+
+      auto const &s = clip->settings;
+      EXPECT_GE (s.reach, 0.f) << file.getFileName ();
+      EXPECT_LE (s.reach, 1.f) << file.getFileName ();
+      EXPECT_GE (s.elevationBase, 0.f) << file.getFileName ();
+      EXPECT_LE (s.elevationBase, 1.f) << file.getFileName ();
+      EXPECT_LE (std::abs (s.spin), lfoMaxStep) << file.getFileName ();
+      EXPECT_LE (std::abs (s.reachLfo), lfoMaxStep) << file.getFileName ();
+      EXPECT_GE (s.envelopeAttack, 0) << file.getFileName ();
+      EXPECT_LE (s.envelopeAttack, envelopeMaxStep) << file.getFileName ();
+      EXPECT_GE (s.envelopeDecay, 0) << file.getFileName ();
+      EXPECT_LE (s.envelopeDecay, envelopeMaxStep) << file.getFileName ();
+    }
 }

@@ -266,10 +266,12 @@ TEST (ActionScript, WhatIsWrittenCanBeReadBack)
 // wrong syntax before it fails to do anything.
 TEST (ActionScript, EveryShippedActionReads)
 {
-  auto const dir = juce::File::getCurrentWorkingDirectory ()
-                       .getChildFile ("../pattern/actions");
-  if (!dir.isDirectory ())
-    GTEST_SKIP () << "not run from the build directory";
+  // The source tree's own folder, handed in at configure time. Worked out
+  // from the working directory it silently skipped under ctest, which runs
+  // tests from the artefact directory -- so the one test guarding every
+  // shipped script never actually ran.
+  juce::File const dir (A3_PATTERN_ACTIONS_DIR);
+  ASSERT_TRUE (dir.isDirectory ()) << dir.getFullPathName ();
 
   auto const files
       = dir.findChildFiles (juce::File::findFiles, false, "*.scd");

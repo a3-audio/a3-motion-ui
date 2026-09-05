@@ -25,7 +25,31 @@ pattern/sessions/
 # The presets a performer generates and keeps. Default.json is the instrument's
 # and is tracked; the rest come out of a3-clip-gen and are somebody's taste.
 pattern/clips/*.json
+# The factory bank: twenty presets picked by hand, in four groups of five --
+# where a clip sits, how fast it turns, how it breathes, how it runs. Named
+# one by one rather than matched, because the folder they live in is also
+# where a3-clip-gen throws its dice and where the performer keeps their own.
 !pattern/clips/Default.json
+!pattern/clips/Halo.json
+!pattern/clips/Equator.json
+!pattern/clips/Cellar.json
+!pattern/clips/Dome.json
+!pattern/clips/Pinpoint.json
+!pattern/clips/Slow Turn.json
+!pattern/clips/Carousel.json
+!pattern/clips/Whirlwind.json
+!pattern/clips/Counter.json
+!pattern/clips/Standstill.json
+!pattern/clips/Breath.json
+!pattern/clips/Tide.json
+!pattern/clips/Flutter.json
+!pattern/clips/Ebb.json
+!pattern/clips/Surge.json
+!pattern/clips/Half Time.json
+!pattern/clips/Double Time.json
+!pattern/clips/Pendulum.json
+!pattern/clips/Backspin.json
+!pattern/clips/Dice.json
 
 # IDE
 .idea/

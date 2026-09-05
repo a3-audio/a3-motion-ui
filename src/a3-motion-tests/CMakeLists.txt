@@ -118,7 +118,9 @@ target_compile_definitions(a3-motion-tests PRIVATE
     A3_UI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui"
     A3_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../resources"
     A3_PATTERN_SYSTEM_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/system"
-    A3_PATTERN_USER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/user")
+    A3_PATTERN_USER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/user"
+    A3_PATTERN_ACTIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/actions"
+    A3_PATTERN_CLIPS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/clips")
 
 target_include_directories("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}")
