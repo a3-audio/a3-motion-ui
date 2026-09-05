@@ -380,6 +380,32 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     selectClip (_clipSettingsChannel, slot);
   };
 
+  // A channel's face means "show me this channel's clip". It does what CLIP
+  // did and says whose, so it also brings the clip page back from wherever
+  // you were -- reaching for a channel is reaching for its clip.
+  _clipSettings->onChannelFaceTapped = [this] (index_t channel) {
+    selectClip (channel, _channelSlot[channel]);
+
+    // From the pads page, the browser or ACTION, reaching for a channel is
+    // reaching for its clip -- so the face brings that page back too.
+    if (_barPage != BarPage::Clip && _barPage != BarPage::Record)
+      showBarPage (BarPage::Clip);
+  };
+
+  // Each channel keeps its own slot, so two channels can be compared on the
+  // same slot without moving twice. Toggling the shown channel's follows it
+  // straight to the bar; toggling another one's only changes what its face
+  // stands for, until the face itself is touched.
+  _clipSettings->onChannelSlotToggled = [this] (index_t channel) {
+    _channelSlot[channel]
+        = static_cast<index_t> ((_channelSlot[channel] + 1) % numPadSlots);
+
+    if (channel == _clipSettingsChannel)
+      selectClip (channel, _channelSlot[channel]);
+    else
+      updateClipSettingsDisplay ();
+  };
+
   _clipSettings->onTransportTapped = [this] (TransportKey key) {
     switch (key)
       {
@@ -4248,6 +4274,13 @@ A3MotionUIComponent::getPersistedSettingsFile () const
 void
 A3MotionUIComponent::selectClip (index_t channel, index_t slot)
 {
+  // The face shows what the bar shows. Kept here rather than only where a
+  // toggle is touched, because a clip is also selected by a pad, by the
+  // browser and by the transport -- and a face saying 1 over a bar showing 2
+  // would be worse than no face at all.
+  if (channel < _channelSlot.size ())
+    _channelSlot[channel] = slot;
+
   _clipSettingsChannel = channel;
   _clipSettingsSlot = slot;
   _clipSettingsMenuIndex = 0;
@@ -4638,6 +4671,26 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
 
   _clipSettings->setRecMode (_recMode);
   _clipSettings->setElevationSubIndex (_clipSettingsSubIndex);
+
+  // The four faces: each channel's own colour and its own slot, and which of
+  // them the bar is describing.
+  {
+    std::array<juce::Colour, numChannelColumns> colours;
+    std::array<int, numChannelColumns> slots;
+    for (size_t ch = 0; ch < numChannelColumns; ++ch)
+      {
+        // From the theme where a channel has no state of its own: a literal
+        // here is a colour the skin cannot reach, which is what
+        // NoColourLiterals exists to stop.
+        colours[ch] = ch < _channelUIStates.size ()
+                          ? _channelUIStates[ch]->colour
+                          : toColour (theme ().textMuted);
+        slots[ch] = static_cast<int> (_channelSlot[ch]);
+      }
+
+    _clipSettings->setChannelFaces (colours, slots,
+                                    static_cast<int> (_clipSettingsChannel));
+  }
   // The coverage the hand set, and where the swell is holding it now.
   _clipSettings->setElevationReach (
       pattern ? pattern->getReach () : 0.5f,

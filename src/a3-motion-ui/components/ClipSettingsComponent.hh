@@ -181,6 +181,12 @@ public:
   void setMotionEndAction (int endAction);
   void setMotionActMode (int mode);
 
+  /** The four faces: what colour each channel is, which slot it is showing,
+   *  and which of them is the one the bar describes. */
+  void setChannelFaces (std::array<juce::Colour, numChannelColumns> colours,
+                        std::array<int, numChannelColumns> slots,
+                        int shownChannel);
+
   /** Which of the Motion section's 3 controls (0 = speed, 1 = direction,
    *  2 = end-action) the Pot-Encoder currently edits, cycled by pressing
    *  it. All three are always shown; this only controls highlighting. */
@@ -270,6 +276,13 @@ public:
    *  the same distinction the pads make, because these are the same four
    *  things and two ways to do one thing must not behave differently. */
   /** Which of the channel's two clips the bar describes. */
+  /** A channel face was touched: show that channel's clip. Replaces both
+   *  CLIP and the shared slot keys -- it says "show me the clip" and says
+   *  whose in one move. */
+  std::function<void (index_t channel)> onChannelFaceTapped;
+  /** A channel's 1/2 toggle was touched. Per channel, so each keeps its own
+   *  choice rather than sharing one. */
+  std::function<void (index_t channel)> onChannelSlotToggled;
   std::function<void (index_t slot)> onSlotSelected;
   std::function<void (TransportKey key)> onTransportTapped;
   std::function<void (bool held)> onTransportActionHeld;
@@ -414,6 +427,7 @@ private:
                        bool isActive, bool isSelected,
                        juce::Colour valueColour = {});
 
+  void paintChannelFaces (juce::Graphics &g);
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
                           juce::String const &text, bool isSelected);
 
@@ -537,6 +551,16 @@ private:
   bool _menuOpen = false;
   std::array<bool, numPadSlots> _slotDrifted{};
   std::array<std::unique_ptr<TouchControl>, numPadSlots> _slotTouch;
+  std::array<std::unique_ptr<TouchControl>, numChannelColumns> _faceTouch;
+  std::array<std::unique_ptr<TouchControl>, numChannelColumns>
+      _faceToggleTouch;
+
+  /** Which channel each face stands for, which slot its toggle shows, and
+   *  the colour it wears. Fed from the bar's owner, which is the one place
+   *  that knows all four. */
+  std::array<juce::Colour, numChannelColumns> _channelFaceColours;
+  std::array<int, numChannelColumns> _channelFaceSlots{};
+  int _shownChannel = 0;
   std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;
   std::unique_ptr<TouchControl> _tabBrowserTouch;
   std::unique_ptr<TouchControl> _tabClipTouch;

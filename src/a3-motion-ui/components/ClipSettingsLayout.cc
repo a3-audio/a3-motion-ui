@@ -231,27 +231,41 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     return key;
   };
 
-  out.tabBrowser = takeKey ();
-  headerArea.removeFromLeft (headerGap * 3);
+  // Four channel faces lead the row, each with the toggle that says which of
+  // that channel's two slots it means. They replaced CLIP and the two shared
+  // slot keys: CLIP meant "show me the clip" and you had to remember whose,
+  // while a face says whose and puts all four in front of you.
+  auto const toggleW = juce::jmax (fingertipSize / 2, keyW * 2 / 3);
+  auto const faceGap = juce::jmax (2, headerGap / 2);
 
-  // The three views keep words, and words need room. What is left after the
-  // marks, shared between them.
-  // Counted, not estimated: six square keys, and fourteen gaps -- two between
-  // the tabs, two separators of three, and one after each key. Two short of
-  // that and the last transport key comes out narrower than the rest, which
-  // is how a row of equal marks stops looking like a row of equal marks.
-  auto const keysAfter = static_cast<int> (numPadSlots);
-  auto const gapsAfter = 2 + 3 + static_cast<int> (numPadSlots);
-  auto const marksAfter = keyW * keysAfter + headerGap * gapsAfter;
+  // What is left after the three words, the folder and the gaps between
+  // everything, shared out over the four channels.
+  auto const viewsW = juce::jmax (fingertipSize * 3,
+                                  headerArea.getWidth () * 3 / 10);
+  auto const roomForChannels
+      = headerArea.getWidth () - viewsW - keyW
+        - headerGap * (2 * static_cast<int> (numChannelColumns) + 5);
+  auto const faceW = juce::jmax (
+      fingertipSize,
+      roomForChannels / static_cast<int> (numChannelColumns) - toggleW
+          - faceGap);
 
-  // Four views now, not three -- and they fit because the four transport keys
-  // left this row for the band over the global strip. That is the whole trade:
-  // what the transport gave up, ACTION took.
+  for (size_t channel = 0; channel < numChannelColumns; ++channel)
+    {
+      out.channelFaces[channel] = headerArea.removeFromLeft (faceW);
+      headerArea.removeFromLeft (faceGap);
+      out.channelSlotToggles[channel] = headerArea.removeFromLeft (toggleW);
+      headerArea.removeFromLeft (headerGap);
+    }
+
+  // Set apart: "which clip" and "which view of it" are different questions.
+  headerArea.removeFromLeft (headerGap * 2);
+
+  // Three views now, not four: CLIP has no tab because the faces are it.
   auto const tabW = juce::jmax (
-      fingertipSize, (headerArea.getWidth () - marksAfter) / 4);
+      fingertipSize,
+      (headerArea.getWidth () - keyW - headerGap * 5) / 3);
 
-  out.tabClip = headerArea.removeFromLeft (tabW);
-  headerArea.removeFromLeft (headerGap);
   out.tabRecord = headerArea.removeFromLeft (tabW);
   headerArea.removeFromLeft (headerGap);
   // Between REC and PADS: ACTION is another way of looking at the clip, and
@@ -260,16 +274,17 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   headerArea.removeFromLeft (headerGap);
   out.tabController = headerArea.removeFromLeft (tabW);
 
-  // Set apart from the tabs: "which clip" and "which view of it" are
-  // different questions.
-  headerArea.removeFromLeft (headerGap * 3);
+  // The folder closes the row. It is the way *out* of the clip you are on,
+  // so it ends the row rather than leading it -- and it stands where the
+  // slot keys used to, which is where a hand already goes for "something
+  // else".
+  headerArea.removeFromLeft (headerGap * 2);
+  out.tabBrowser
+      = headerArea.removeFromRight (juce::jmin (keyW, headerArea.getWidth ()));
 
-  if (page != BarPage::Controller && page != BarPage::Browser)
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      out.slotButtons[slot] = takeKey ();
-  else
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      headerArea.removeFromLeft (keyW + headerGap);
+  out.tabClip = {};
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    out.slotButtons[slot] = {};
 
   // The transport has left this row. It stands over the global strip now --
   // rec, stop, play and act belong to the device the way MENU and TAP do, and

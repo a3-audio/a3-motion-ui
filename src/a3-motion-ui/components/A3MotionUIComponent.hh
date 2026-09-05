@@ -521,6 +521,12 @@ private:
     juce::StringArray errors;
   };
   std::vector<std::vector<SlotAction> > _slotAction;
+
+  /** Which slot each channel's face stands for. Per channel rather than one
+   *  shared setting: the two slot keys used to be shared, so choosing slot 2
+   *  chose it for whichever channel you happened to be on, and comparing the
+   *  same slot across two channels took two moves instead of one. */
+  std::array<index_t, numChannelColumns> _channelSlot{};
   /** Whether the shown channel's accent was running at the last timer tick,
    *  so that the one after it still redraws. See timerCallback(). */
   bool _accentWasActive = false;

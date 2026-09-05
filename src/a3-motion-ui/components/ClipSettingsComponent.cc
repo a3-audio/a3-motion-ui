@@ -124,6 +124,25 @@ ClipSettingsComponent::createTouchControls ()
       addAndMakeVisible (*touch);
     }
 
+  for (size_t channel = 0; channel < numChannelColumns; ++channel)
+    {
+      auto &face = _faceTouch[channel];
+      face = std::make_unique<TouchControl> ();
+      face->onTap = [this, channel] (int, int) {
+        if (onChannelFaceTapped)
+          onChannelFaceTapped (static_cast<index_t> (channel));
+      };
+      addAndMakeVisible (*face);
+
+      auto &toggle = _faceToggleTouch[channel];
+      toggle = std::make_unique<TouchControl> ();
+      toggle->onTap = [this, channel] (int, int) {
+        if (onChannelSlotToggled)
+          onChannelSlotToggled (static_cast<index_t> (channel));
+      };
+      addAndMakeVisible (*toggle);
+    }
+
   for (int i = 0; i < numTransportKeys; ++i)
     {
       auto const key = transportKeyOrder[i];
@@ -349,6 +368,12 @@ ClipSettingsComponent::resized ()
         _layout.transportButtons[static_cast<size_t> (i)]);
 
   _tabClipTouch->setBounds (_layout.tabClip);
+  for (size_t channel = 0; channel < numChannelColumns; ++channel)
+    {
+      _faceTouch[channel]->setBounds (_layout.channelFaces[channel]);
+      _faceToggleTouch[channel]->setBounds (
+          _layout.channelSlotToggles[channel]);
+    }
   _tabRecordTouch->setBounds (_layout.tabRecord);
   _tabActionTouch->setBounds (_layout.tabAction);
   _tabControllerTouch->setBounds (_layout.tabController);
@@ -799,7 +824,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
                           key, _transportPlaying);
     }
 
-  paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
+  paintChannelFaces (g);
   paintTab (_layout.tabRecord, "REC", _page == BarPage::Record);
   paintTab (_layout.tabAction, "ACTION", _page == BarPage::Action);
   paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
@@ -957,6 +982,73 @@ ClipSettingsComponent::paintSectionCard (juce::Graphics &g, int sectionIndex,
   paintSectionLabel (
       g, _layout.sectionLabels[static_cast<size_t> (sectionIndex)],
       parameterNames[sectionIndex], isSelected);
+}
+
+void
+ClipSettingsComponent::setChannelFaces (
+    std::array<juce::Colour, numChannelColumns> colours,
+    std::array<int, numChannelColumns> slots, int shownChannel)
+{
+  if (colours == _channelFaceColours && slots == _channelFaceSlots
+      && shownChannel == _shownChannel)
+    return;
+
+  _channelFaceColours = colours;
+  _channelFaceSlots = slots;
+  _shownChannel = shownChannel;
+  repaint ();
+}
+
+void
+ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
+{
+  for (size_t channel = 0; channel < numChannelColumns; ++channel)
+    {
+      auto const face = _layout.channelFaces[channel];
+      auto const toggle = _layout.channelSlotToggles[channel];
+      if (face.isEmpty ())
+        continue;
+
+      auto const shown = static_cast<int> (channel) == _shownChannel
+                         && !isFullPage (_page);
+      auto const colour = _channelFaceColours[channel];
+
+      // The face carries its channel's colour always, filled when it is the
+      // one the bar describes and washed when it is not. A colour that came
+      // and went would make finding a channel a matter of remembering which
+      // one you were on -- which is exactly what the single CLIP tab made you
+      // do.
+      g.setColour (shown ? colour.withAlpha (0.55f) : colour.withAlpha (0.16f));
+      g.fillRoundedRectangle (face.toFloat (), 3.f);
+      g.setColour (shown ? colour : colour.withAlpha (0.4f));
+      g.drawRoundedRectangle (face.toFloat (), 3.f, shown ? 2.f : 1.f);
+
+      auto const name = juce::String (channel + 1);
+      g.setFont (juce::Font (fontFor (FontRole::Header, face, name),
+                             shown ? juce::Font::bold : juce::Font::plain));
+      g.setColour (readableInk (colour, toColour (theme ().background),
+                                toColour (theme ().textPrimary)));
+      g.drawText (name, face, juce::Justification::centred);
+
+      if (toggle.isEmpty ())
+        continue;
+
+      // The slot beside it, per channel: each keeps its own choice, so two
+      // channels can be compared on the same slot without moving twice.
+      auto const slotName
+          = juce::String (juce::jlimit (0, static_cast<int> (numPadSlots) - 1,
+                                        _channelFaceSlots[channel])
+                          + 1);
+
+      g.setColour (toColour (theme ().textPrimary, 0.06f));
+      g.fillRoundedRectangle (toggle.toFloat (), 3.f);
+      g.setColour (toColour (theme ().textPrimary, shown ? 0.35f : 0.15f));
+      g.drawRoundedRectangle (toggle.toFloat (), 3.f, 1.f);
+
+      g.setFont (juce::Font (fontFor (FontRole::Body, toggle, slotName)));
+      g.setColour (toColour (theme ().textPrimary, shown ? 0.85f : 0.5f));
+      g.drawText (slotName, toggle, juce::Justification::centred);
+    }
 }
 
 void

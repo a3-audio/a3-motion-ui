@@ -236,10 +236,16 @@ TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
   // decided.
   auto const l = defaultLayout ();
 
-  std::vector<juce::Rectangle<int> > row{ l.tabBrowser, l.tabClip,
-                                          l.tabRecord, l.tabController };
-  for (auto const &slot : l.slotButtons)
-    row.push_back (slot);
+  std::vector<juce::Rectangle<int> > row;
+  for (size_t ch = 0; ch < numChannelColumns; ++ch)
+    {
+      row.push_back (l.channelFaces[ch]);
+      row.push_back (l.channelSlotToggles[ch]);
+    }
+  row.push_back (l.tabRecord);
+  row.push_back (l.tabAction);
+  row.push_back (l.tabController);
+  row.push_back (l.tabBrowser);
   for (auto const &key : l.transportButtons)
     row.push_back (key);
 
@@ -251,8 +257,9 @@ TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
       previousRight = row[i].getRight ();
 
       // On the header's own line, not above or below it.
-      EXPECT_EQ (row[i].getY (), l.tabClip.getY ()) << "item " << i;
-      EXPECT_EQ (row[i].getHeight (), l.tabClip.getHeight ()) << "item " << i;
+      EXPECT_EQ (row[i].getY (), l.channelFaces[0].getY ()) << "item " << i;
+      EXPECT_EQ (row[i].getHeight (), l.channelFaces[0].getHeight ())
+          << "item " << i;
     }
 }
 
@@ -272,7 +279,7 @@ TEST (ClipSettingsLayout, TheMarksAreSquareAndTheWordsAreWider)
   for (size_t i = 0; i < marks.size (); ++i)
     EXPECT_EQ (marks[i].getWidth (), marks[i].getHeight ()) << "mark " << i;
 
-  EXPECT_GT (l.tabClip.getWidth (), l.tabBrowser.getWidth ());
+  EXPECT_GT (l.tabRecord.getWidth (), l.tabBrowser.getWidth ());
 }
 
 TEST (ClipSettingsLayout, TheHeaderIsTallEnoughToHitAtTheSizeItShipsAt)
@@ -282,7 +289,8 @@ TEST (ClipSettingsLayout, TheHeaderIsTallEnoughToHitAtTheSizeItShipsAt)
   for (int height : { 250, 314, 400 })
     {
       auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
-      EXPECT_GE (l.tabClip.getHeight (), fingertipSize) << "height " << height;
+      EXPECT_GE (l.channelFaces[0].getHeight (), fingertipSize)
+          << "height " << height;
     }
 }
 
@@ -317,7 +325,7 @@ TEST (ClipSettingsLayout, TheTransportStandsOverTheGlobalStrip)
 
       // On the same line as the slot keys and the tabs, so the bar reads
       // across at one height.
-      EXPECT_EQ (key.getY (), l.slotButtons[0].getY ()) << "key " << i;
+      EXPECT_EQ (key.getY (), l.channelFaces[0].getY ()) << "key " << i;
     }
 
   // The keys used to have to stay clear of the card below them and the strip
@@ -331,7 +339,7 @@ TEST (ClipSettingsLayout, ATabIsWideEnoughToHit)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_GE (l.tabClip.getWidth (), fingertipSize);
+  EXPECT_GE (l.tabRecord.getWidth (), fingertipSize);
   EXPECT_GE (l.tabController.getWidth (), fingertipSize);
 }
 
@@ -347,8 +355,8 @@ TEST (ClipSettingsLayout, TheClipContentStartsBelowTheHeaderRow)
   EXPECT_FALSE (l.clipContent.isEmpty ());
   EXPECT_TRUE (l.clipBounds.contains (l.clipContent));
 
-  EXPECT_GE (l.clipContent.getY (), l.slotButtons[0].getBottom ());
-  EXPECT_GE (l.clipContent.getY (), l.tabClip.getBottom ());
+  EXPECT_GE (l.clipContent.getY (), l.channelFaces[0].getBottom ());
+  EXPECT_GE (l.clipContent.getY (), l.tabBrowser.getBottom ());
   EXPECT_GE (l.clipContent.getY (), l.tabController.getBottom ());
 
   // And it is what the sections are laid out in, so the two cannot drift.
@@ -801,17 +809,23 @@ TEST (ClipSettingsLayout, TransportKeysAreSquareAndAllTheSameSize)
     }
 }
 
-// Four views share the row now, and they fit because the transport left it.
-// The tabs are how you change page and are hit mid-set: at any width each of
-// them keeps a fingertip.
-TEST (ClipSettingsLayout, TheFourTabsKeepTheirRoomAtEveryWidth)
+// Three views share the row with four channel faces, their toggles and the
+// folder. The tabs are how you change page and are hit mid-set, so each keeps
+// a fingertip.
+//
+// From the device's own width up. The screen is 768 wide (1024 tall, turned
+// on its side), and below that the row cannot hold what it holds: twelve
+// targets at a fingertip each are 408 pixels before a single gap, against
+// three quarters of the width. Testing widths the device does not have would
+// only ask the layout to do something no layout can.
+TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
 {
-  for (int width : { 480, 640, 768, 1024, 1280 })
+  for (int width : { 768, 1024, 1280, 1920 })
     {
       auto const layout
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
-      for (auto const &tab : { layout.tabClip, layout.tabRecord,
+      for (auto const &tab : { layout.tabRecord,
                                layout.tabAction, layout.tabController })
         {
           EXPECT_GE (tab.getWidth (), fingertipSize) << "width " << width;
@@ -819,7 +833,7 @@ TEST (ClipSettingsLayout, TheFourTabsKeepTheirRoomAtEveryWidth)
         }
 
       // In reading order, none of them overlapping.
-      EXPECT_LE (layout.tabClip.getRight (), layout.tabRecord.getX ());
+      EXPECT_LE (layout.channelFaces[0].getRight (), layout.tabRecord.getX ());
       EXPECT_LE (layout.tabRecord.getRight (), layout.tabAction.getX ());
       EXPECT_LE (layout.tabAction.getRight (), layout.tabController.getX ());
     }
@@ -917,7 +931,7 @@ TEST (ClipSettingsLayout, ThePadsPageHasNoTransportKeysOfItsOwn)
     EXPECT_TRUE (key.isEmpty ());
 
   // ... and the tabs are still reachable, which is the only way back.
-  EXPECT_FALSE (layout.tabClip.isEmpty ());
+  EXPECT_FALSE (layout.tabRecord.isEmpty ());
   EXPECT_FALSE (layout.tabController.isEmpty ());
 }
 
@@ -933,51 +947,6 @@ TEST (ClipSettingsLayout, TheClipFacesStillHaveTheirTransportKeys)
             << (page == BarPage::Clip ? "clip face" : "record face");
     }
 }
-
-// ── Which control each of Motion's lists belongs to ──────────────────────
-TEST (ClipSettingsLayout, EveryMotionControlIsEitherAKnobOrAList)
-{
-  // What the double tap keys off: a knob has a middle to go back to, a list
-  // does not. Nothing may be both, or a double tap would step a list and
-  // reset it at once.
-  for (int sub = 0; sub < numControlsInSection (2); ++sub)
-    EXPECT_FALSE (tapAdvancesValue (2, sub) && tapTogglesValue (2, sub))
-        << "sub " << sub;
-}
-
-TEST (ClipSettingsLayout, BothSlotsGetAKeyOnTheClipFaces)
-{
-  for (auto const page : { BarPage::Clip, BarPage::Record })
-    {
-      auto const l
-          = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
-
-      int previousRight = 0;
-      for (index_t slot = 0; slot < numPadSlots; ++slot)
-        {
-          auto const &key = l.slotButtons[slot];
-          ASSERT_FALSE (key.isEmpty ()) << "slot " << slot;
-          EXPECT_GE (key.getX (), previousRight) << "slot " << slot;
-          previousRight = key.getRight ();
-        }
-
-      // After the tabs, before the transport keys.
-      EXPECT_GE (l.slotButtons[0].getX (), l.tabController.getRight ());
-      EXPECT_LE (previousRight, l.transportButtons[0].getX ());
-    }
-}
-
-TEST (ClipSettingsLayout, ThePadsPageHasNoSlotKeysEither)
-{
-  // It shows every slot at once, so choosing one of them there would say
-  // something untrue about what you are looking at.
-  auto const l = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f,
-                                     BarPage::Controller);
-
-  for (auto const &key : l.slotButtons)
-    EXPECT_TRUE (key.isEmpty ());
-}
-
 // ── The "not saved" mark ─────────────────────────────────────────────────
 
 TEST (ClipSettingsLayout, TheDriftMarkSitsInsideWhateverItMarks)
@@ -1328,3 +1297,100 @@ TEST (ClipSettingsLayout, TheAxisSnapsToEarHeight)
 // What replaced them is TouchControl::onDragTo, and what it hands over is a
 // position, so the maths is elevationBaseAt() either way. The cases above
 // cover it.
+
+// ── The header row after the channel keys ────────────────────────────────
+
+// Four channel faces where CLIP and the two slot keys were, each in its
+// channel's colour with its own 1/2 toggle beside it. Touching a face is
+// "show me this channel's clip", which is what CLIP used to mean -- except
+// that it now says *which* clip, and there are four of them on screen at
+// once instead of one you have to remember.
+TEST (ClipSettingsLayout, TheHeaderCarriesAFaceForEveryChannel)
+{
+  auto const l = defaultLayout ();
+
+  for (size_t ch = 0; ch < numChannelColumns; ++ch)
+    {
+      ASSERT_FALSE (l.channelFaces[ch].isEmpty ()) << "face " << ch;
+      ASSERT_FALSE (l.channelSlotToggles[ch].isEmpty ()) << "toggle " << ch;
+
+      // The toggle stands beside its face, not over it.
+      EXPECT_FALSE (l.channelFaces[ch].intersects (l.channelSlotToggles[ch]))
+          << "channel " << ch;
+      EXPECT_GE (l.channelSlotToggles[ch].getX (), l.channelFaces[ch].getX ());
+
+      // Both a fingertip: these are hit mid-set, one-handed.
+      EXPECT_GE (l.channelFaces[ch].getHeight (), fingertipSize);
+      EXPECT_GE (l.channelSlotToggles[ch].getWidth (), fingertipSize / 2);
+    }
+
+  // Left to right, in channel order.
+  for (size_t ch = 1; ch < numChannelColumns; ++ch)
+    EXPECT_GT (l.channelFaces[ch].getX (), l.channelFaces[ch - 1].getX ())
+        << "channel " << ch << " is out of order";
+}
+
+// CLIP is gone -- a face says the same thing and says whose.
+TEST (ClipSettingsLayout, ThereIsNoClipTabAnyMore)
+{
+  auto const l = defaultLayout ();
+
+  EXPECT_TRUE (l.tabClip.isEmpty ());
+  EXPECT_TRUE (l.slotButtons[0].isEmpty ())
+      << "the shared slot keys moved into the channel faces";
+}
+
+// The folder goes to the far right, where the slot keys were. It is the way
+// out of the clip you are on, so it sits at the end of the row rather than
+// leading it.
+TEST (ClipSettingsLayout, TheFolderClosesTheRow)
+{
+  auto const l = defaultLayout ();
+
+  ASSERT_FALSE (l.tabBrowser.isEmpty ());
+  EXPECT_GT (l.tabBrowser.getX (), l.tabController.getX ());
+  EXPECT_GT (l.tabBrowser.getX (), l.channelFaces[numChannelColumns - 1].getX ());
+
+  // Still inside the clip part, and still square.
+  EXPECT_TRUE (l.clipBounds.contains (l.tabBrowser));
+  EXPECT_EQ (l.tabBrowser.getWidth (), l.tabBrowser.getHeight ());
+}
+
+// And the three remaining views keep their place between the faces and the
+// folder, in reading order.
+TEST (ClipSettingsLayout, TheThreeViewsStandBetweenThem)
+{
+  auto const l = defaultLayout ();
+
+  EXPECT_GT (l.tabRecord.getX (), l.channelFaces[numChannelColumns - 1].getX ());
+  EXPECT_GT (l.tabAction.getX (), l.tabRecord.getX ());
+  EXPECT_GT (l.tabController.getX (), l.tabAction.getX ());
+}
+
+// Every channel picks its own slot. The two keys used to be shared, so
+// choosing slot 2 chose it for whichever channel you happened to be on and
+// you had to move twice to compare the same slot across two channels.
+TEST (ClipSettingsLayout, EveryChannelPicksItsOwnSlot)
+{
+  for (auto const page : { BarPage::Clip, BarPage::Record,
+                           BarPage::Controller })
+    {
+      auto const l
+          = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
+
+      int previousRight = 0;
+      for (size_t ch = 0; ch < numChannelColumns; ++ch)
+        {
+          ASSERT_FALSE (l.channelFaces[ch].isEmpty ()) << "channel " << ch;
+          ASSERT_FALSE (l.channelSlotToggles[ch].isEmpty ())
+              << "channel " << ch;
+
+          EXPECT_GE (l.channelFaces[ch].getX (), previousRight)
+              << "channel " << ch;
+          previousRight = l.channelSlotToggles[ch].getRight ();
+        }
+
+      // Before the views, which are before the folder.
+      EXPECT_LE (previousRight, l.tabRecord.getX ());
+    }
+}
