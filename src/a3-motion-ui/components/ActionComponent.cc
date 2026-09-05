@@ -120,16 +120,21 @@ ActionComponent::ActionComponent ()
     repaint ();
   };
   _scriptTouch->onDragIncrement = [this] (int, int, int increment) {
-    // A drag scrolls the text in the finger's direction, the way it does on a
-    // phone -- the same rule the menu's list follows. The open list is a list
-    // like any other and follows it too: it used to return here, which left
-    // every script past the sixth unreachable.
+    // The page follows the finger, the way it does on a phone: upwards
+    // carries the text up and brings later lines into view. The increment
+    // goes in as it arrives -- it was negated here, which ran the editor
+    // against the hand, the same way the overlay strips once did. See
+    // ScriptBuffer::scrollByDrag(), which is where that sign is tested.
+    //
+    // The open list is a list like any other and follows the same rule: it
+    // used to return here, which left every script past the sixth
+    // unreachable.
     if (_listOpen)
-      _listTop = a3::scrollBy (_listTop, -increment,
+      _listTop = a3::scrollBy (_listTop, increment,
                                actionListVisibleRows (_layout),
                                _choices.size ());
     else
-      _buffer.scrollBy (-increment, visibleScriptLines ());
+      _buffer.scrollByDrag (increment, visibleScriptLines ());
 
     repaint ();
   };

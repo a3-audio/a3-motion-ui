@@ -150,6 +150,12 @@ ScriptBuffer::bringCaretIntoView (int visibleLines)
 }
 
 void
+ScriptBuffer::scrollByDrag (int dragIncrement, int visibleLines)
+{
+  scrollBy (dragIncrement, visibleLines);
+}
+
+void
 ScriptBuffer::scrollBy (int lines, int visibleLines)
 {
   juce::ignoreUnused (visibleLines);

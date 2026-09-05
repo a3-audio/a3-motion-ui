@@ -248,3 +248,30 @@ TEST (ScriptBuffer, LoadingNewTextIsNotAnEdit)
   EXPECT_EQ (buffer.text (), "~reach = 0.5;");
   EXPECT_EQ (buffer.caretLine (), 0);
 }
+
+/** The page follows the finger, the way it does on a phone.
+ *
+ *  This sign has now been wrong in three places -- the overlay strips, the
+ *  script editor and the action list -- because it is written at the call site
+ *  where nothing compiles it into a test. Dragging *up* carries the text up,
+ *  which brings later lines into view: TouchControl counts upwards as more,
+ *  and further down the script is what more means. */
+TEST (ScriptBuffer, ADragCarriesTheTextInTheFingersDirection)
+{
+  ScriptBuffer buffer;
+  buffer.setText ("a\nb\nc\nd\ne\nf\ng\nh");
+
+  ASSERT_EQ (buffer.firstVisibleLine (), 0);
+
+  // Upwards is more: later lines come into view.
+  buffer.scrollByDrag (3, 4);
+  EXPECT_EQ (buffer.firstVisibleLine (), 3);
+
+  // Downwards goes back the way it came.
+  buffer.scrollByDrag (-2, 4);
+  EXPECT_EQ (buffer.firstVisibleLine (), 1);
+
+  // And never off either end.
+  buffer.scrollByDrag (-99, 4);
+  EXPECT_EQ (buffer.firstVisibleLine (), 0);
+}

@@ -77,6 +77,16 @@ public:
   /** A drag, in lines. */
   void scrollBy (int lines, int visibleLines);
 
+  /** Scroll by one drag's worth of increments, in the finger's direction.
+   *
+   *  Its own function because the sign is what keeps going wrong. TouchControl
+   *  counts upwards as more and further down the text is what more means, so
+   *  the increment goes in as it arrives -- negating it makes the page run
+   *  against the hand, which is the one convention every hand in the room
+   *  already has. OverlaySideStrips carries the same rule in a comment and had
+   *  the same bug; here it is under test instead. */
+  void scrollByDrag (int dragIncrement, int visibleLines);
+
   /** Whether anything has been typed since the last markSaved(). */
   bool isEdited () const { return _edited; }
   void markSaved () { _edited = false; }
