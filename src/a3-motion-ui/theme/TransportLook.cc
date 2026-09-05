@@ -156,6 +156,12 @@ contrastRatio (juce::Colour a, juce::Colour b)
 }
 
 juce::Colour
+readableInk (juce::Colour ink, juce::Colour ground, juce::Colour fallback)
+{
+  return contrastRatio (ink, ground) >= minimumInkContrast ? ink : fallback;
+}
+
+juce::Colour
 padFunctionColour (PadFunction function)
 {
   if (!hasTransportGlyph (function))

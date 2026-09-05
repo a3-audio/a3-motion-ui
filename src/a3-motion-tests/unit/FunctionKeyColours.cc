@@ -243,3 +243,38 @@ TEST (FunctionKeyColours, MenuIsNotTheSameColourAsAnyStateKey)
   EXPECT_NE (menu, transportColour (TransportKey::PlayPause));
   EXPECT_NE (menu, transportColour (TransportKey::Action));
 }
+
+// ── Ink that has to survive a colour it did not choose ───────────────────
+
+// The action's name is written in the slot's channel colour on the bar's own
+// dark ground. Channel colours are picked to tell four channels apart, not to
+// read as text -- the maintainer could not make out the name on the blue one.
+//
+// Same lesson as the pads above: bending the ink does not work. So the rule is
+// to keep the colour where it reads and step aside where it does not.
+TEST (FunctionKeyColours, InkStepsAsideWhenItCannotBeRead)
+{
+  auto const ground = juce::Colour (0xff1a1a1a);
+  auto const fallback = juce::Colours::white;
+
+  // A dark blue on a dark ground: nowhere near readable.
+  auto const blue = juce::Colour (0xff2030c0);
+  ASSERT_LT (contrastRatio (blue, ground), minimumInkContrast);
+  EXPECT_EQ (readableInk (blue, ground, fallback), fallback);
+
+  // A bright channel colour reads fine and must keep its identity.
+  auto const amber = juce::Colour (0xffffc040);
+  ASSERT_GE (contrastRatio (amber, ground), minimumInkContrast);
+  EXPECT_EQ (readableInk (amber, ground, fallback), amber);
+}
+
+// The fallback is used as given, not bent either -- a caller that hands in the
+// theme's text colour gets the theme's text colour.
+TEST (FunctionKeyColours, TheFallbackIsWhateverTheCallerChose)
+{
+  auto const ground = juce::Colours::black;
+  auto const unreadable = juce::Colour (0xff101010);
+  auto const chosen = juce::Colour (0xffcccccc);
+
+  EXPECT_EQ (readableInk (unreadable, ground, chosen), chosen);
+}

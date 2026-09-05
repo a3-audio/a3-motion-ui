@@ -511,19 +511,24 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _action->onScriptEditingChanged = [this] (bool editing) {
     showKeyboard (editing);
 
-    // Closing the editor is what makes the script live again. Not on every
-    // keystroke: half a line is not a script, and applying one would have a
-    // value set from something nobody has finished typing.
-    if (!editing)
-      {
-        _action->markScriptSaved ();
-        setSlotAction (_clipSettingsChannel, _clipSettingsSlot,
-                       _slotAction[_clipSettingsChannel][_clipSettingsSlot]
-                           .file);
-      }
+    // Leaving the editor no longer applies anything -- Save does that, and
+    // Cancel puts the text back. Walking away is neither, so what was typed
+    // stays in the editor with the edge still marked.
   };
 
-  _action->onScriptChanged = [this] { writeSlotActionScript (); };
+  // Written only on Save, and running the script is the same gesture: half a
+  // line is not a script, and a file written from one is worse than no file.
+  _action->onScriptSaved = [this] {
+    writeSlotActionScript ();
+    setSlotAction (_clipSettingsChannel, _clipSettingsSlot,
+                   _slotAction[_clipSettingsChannel][_clipSettingsSlot].file);
+  };
+
+  // Cancel puts the file's own text back, which is what the slot still holds.
+  _action->onScriptCancelled = [this] {
+    _action->setScript (
+        _slotAction[_clipSettingsChannel][_clipSettingsSlot].source);
+  };
 
   // The browser: the eight clips of the device and the library beside them.
   // What a field or a row means is decided here rather than there, the same

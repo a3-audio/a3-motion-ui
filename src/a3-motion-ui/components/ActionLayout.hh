@@ -53,6 +53,15 @@ struct ActionLayout
    *  card leaves. */
   juce::Rectangle<int> scriptField;
 
+  /** The text of the script, which is the editor less the two keys at its
+   *  foot. Kept apart so a line is never drawn under a key. */
+  juce::Rectangle<int> scriptTextField;
+  /** Keep what was typed, or throw it away. Typing used to write on every
+   *  keystroke -- fine for a file, wrong for a person, who needs to be able
+   *  to try a line and take it back. */
+  juce::Rectangle<int> saveButton;
+  juce::Rectangle<int> cancelButton;
+
   /** Where the action field's list opens: over the script, which is what it
    *  replaces for a moment. It cannot open outside the bar -- the sphere's GL
    *  context composites above anything drawn over it -- and it must not open

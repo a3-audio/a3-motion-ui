@@ -273,3 +273,44 @@ TEST (ActionLayout, EveryListRowIsAFingertip)
           << "at height " << height;
     }
 }
+
+// ── Save and cancel ──────────────────────────────────────────────────────
+
+// Typing used to write on every keystroke. That is fine for a file and wrong
+// for a person: there was no way to try a line and take it back. Two keys at
+// the foot of the editor, both a fingertip, side by side and inside it.
+TEST (ActionLayout, TheEditorHasSaveAndCancelAtItsFoot)
+{
+  for (int height : { 200, 300, 400 })
+    {
+      auto const l
+          = layOutActionPage ({ 0, 0, 768, height }, headerSize, 14.f, 1.f, {});
+
+      ASSERT_FALSE (l.saveButton.isEmpty ()) << "at " << height;
+      ASSERT_FALSE (l.cancelButton.isEmpty ()) << "at " << height;
+
+      EXPECT_TRUE (l.scriptField.contains (l.saveButton));
+      EXPECT_TRUE (l.scriptField.contains (l.cancelButton));
+      EXPECT_FALSE (l.saveButton.intersects (l.cancelButton));
+
+      EXPECT_GE (l.saveButton.getHeight (), fingertipSize) << "at " << height;
+      EXPECT_GE (l.cancelButton.getHeight (), fingertipSize) << "at " << height;
+      EXPECT_GE (l.saveButton.getWidth (), fingertipSize) << "at " << height;
+      EXPECT_GE (l.cancelButton.getWidth (), fingertipSize) << "at " << height;
+
+      // At the foot, so the text above them is never written over.
+      EXPECT_GE (l.saveButton.getY (), l.scriptField.getCentreY ());
+    }
+}
+
+// And the text keeps its own room: the keys take theirs off the bottom rather
+// than being drawn across the last lines.
+TEST (ActionLayout, TheKeysDoNotCoverTheText)
+{
+  auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f, {});
+
+  ASSERT_FALSE (l.scriptTextField.isEmpty ());
+  EXPECT_FALSE (l.scriptTextField.intersects (l.saveButton));
+  EXPECT_FALSE (l.scriptTextField.intersects (l.cancelButton));
+  EXPECT_TRUE (l.scriptField.contains (l.scriptTextField));
+}

@@ -120,13 +120,18 @@ public:
   /** The editor was opened or closed — the page above shows and hides the
    *  system keyboard on it. */
   std::function<void (bool editing)> onScriptEditingChanged;
-  /** The script was edited and wants writing. */
-  std::function<void ()> onScriptChanged;
+  /** Keep what is in the editor. Only then is anything written -- typing
+   *  used to save on every keystroke, which left no way to try a line and
+   *  take it back. */
+  std::function<void ()> onScriptSaved;
+  /** Throw the edit away and put the file's text back. */
+  std::function<void ()> onScriptCancelled;
 
 private:
   void paintActionField (juce::Graphics &g);
   void paintScriptField (juce::Graphics &g);
   void paintScriptErrors (juce::Graphics &g);
+  void paintScriptKeys (juce::Graphics &g);
   void paintActionList (juce::Graphics &g);
 
   bool keyPressed (juce::KeyPress const &key) override;
@@ -177,6 +182,8 @@ private:
    *  caret. Neither is a knob, so neither is in `controls`. */
   std::unique_ptr<TouchControl> _actionTouch;
   std::unique_ptr<TouchControl> _scriptTouch;
+  std::unique_ptr<TouchControl> _saveTouch;
+  std::unique_ptr<TouchControl> _cancelTouch;
 };
 
 }

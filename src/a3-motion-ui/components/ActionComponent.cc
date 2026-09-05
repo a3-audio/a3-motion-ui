@@ -24,6 +24,7 @@
 
 #include <a3-motion-ui/components/BarKnob.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
+#include <a3-motion-ui/theme/TransportLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -127,6 +128,30 @@ ActionComponent::ActionComponent ()
     repaint ();
   };
   addAndMakeVisible (*_scriptTouch);
+
+  _saveTouch = std::make_unique<TouchControl> ();
+  _saveTouch->onTap = [this] (int, int) {
+    if (!_buffer.isEdited ())
+      return;
+
+    _buffer.markSaved ();
+    stopEditingScript ();
+    if (onScriptSaved)
+      onScriptSaved ();
+
+    repaint ();
+  };
+  addAndMakeVisible (*_saveTouch);
+
+  _cancelTouch = std::make_unique<TouchControl> ();
+  _cancelTouch->onTap = [this] (int, int) {
+    stopEditingScript ();
+    if (onScriptCancelled)
+      onScriptCancelled ();
+
+    repaint ();
+  };
+  addAndMakeVisible (*_cancelTouch);
 }
 
 ActionComponent::~ActionComponent () = default;
@@ -161,7 +186,11 @@ ActionComponent::resized ()
   if (_actionTouch)
     _actionTouch->setBounds (_layout.actionField);
   if (_scriptTouch)
-    _scriptTouch->setBounds (_layout.scriptField);
+    _scriptTouch->setBounds (_layout.scriptTextField);
+  if (_saveTouch)
+    _saveTouch->setBounds (_layout.saveButton);
+  if (_cancelTouch)
+    _cancelTouch->setBounds (_layout.cancelButton);
 
   _buffer.bringCaretIntoView (visibleScriptLines ());
 }
@@ -327,11 +356,11 @@ ActionComponent::keyPressed (juce::KeyPress const &key)
   if (!_editing)
     return false;
 
+  // Only a repaint: writing happens on Save. The editor's edge says there is
+  // something unsaved, which is what the two keys are for.
   auto const changed = [this] {
     _buffer.bringCaretIntoView (visibleScriptLines ());
     repaint ();
-    if (onScriptChanged)
-      onScriptChanged ();
   };
 
   if (key == juce::KeyPress::escapeKey)
@@ -426,7 +455,13 @@ ActionComponent::paintActionField (juce::Graphics &g)
 
   auto const named = _actionName.isNotEmpty ();
 
-  g.setColour (named ? _channelColour : toColour (theme ().textMuted, 0.5f));
+  // The channel's colour where it can be read on this ground, the theme's
+  // text where it cannot -- channel four's blue vanished into the bar. See
+  // readableInk().
+  auto const ground = toColour (theme ().background);
+  g.setColour (named ? readableInk (_channelColour, ground,
+                                    toColour (theme ().textPrimary))
+                     : toColour (theme ().textMuted, 0.5f));
   g.setFont (juce::Font (juce::FontOptions (
       juce::jmin (24.f, bounds.getHeight () * 0.45f))));
   g.drawText (named ? _actionName : juce::String ("no action"),
@@ -455,7 +490,7 @@ ActionComponent::scriptFont () const
 juce::Rectangle<int>
 ActionComponent::scriptTextArea () const
 {
-  auto area = _layout.scriptField.reduced (
+  auto area = _layout.scriptTextField.reduced (
       juce::jmax (6, _layout.scriptField.getHeight () / 40));
 
   // The errors take their room off the text rather than being drawn over it:
@@ -558,7 +593,7 @@ ActionComponent::paintScriptErrors (juce::Graphics &g)
     return;
 
   auto const lineH = scriptLineHeight ();
-  auto at = _layout.scriptField
+  auto at = _layout.scriptTextField
                 .reduced (juce::jmax (6, _layout.scriptField.getHeight () / 40))
                 .removeFromBottom (_scriptErrors.size () * lineH);
 
@@ -572,6 +607,38 @@ ActionComponent::paintScriptErrors (juce::Graphics &g)
       if (at.isEmpty ())
         break;
     }
+}
+
+void
+ActionComponent::paintScriptKeys (juce::Graphics &g)
+{
+  if (_layout.saveButton.isEmpty ())
+    return;
+
+  auto const edited = _buffer.isEdited ();
+
+  auto const key = [&g, this] (juce::Rectangle<int> at, char const *word,
+                               juce::Colour ink) {
+    g.setColour (toColour (theme ().textPrimary, 0.08f));
+    g.fillRoundedRectangle (at.toFloat (), 3.f);
+    g.setColour (toColour (theme ().textPrimary, 0.15f));
+    g.drawRoundedRectangle (at.toFloat (), 3.f, 1.f);
+
+    g.setColour (ink);
+    g.setFont (juce::Font (juce::FontOptions (
+        juce::jmin (16.f, at.getHeight () * 0.4f))));
+    g.drawText (word, at, juce::Justification::centred);
+  };
+
+  // Lit only while there is something to keep or to lose: a key offering to
+  // save nothing is a key you have to stop and think about.
+  key (_layout.saveButton, "save",
+       edited ? readableInk (_channelColour, toColour (theme ().background),
+                             toColour (theme ().textPrimary))
+              : toColour (theme ().textMuted, 0.4f));
+  key (_layout.cancelButton, "cancel",
+       edited ? toColour (theme ().textPrimary, 0.85f)
+              : toColour (theme ().textMuted, 0.4f));
 }
 
 void
@@ -634,6 +701,7 @@ ActionComponent::paint (juce::Graphics &g)
   paintActionField (g);
   paintScriptField (g);
   paintScriptErrors (g);
+  paintScriptKeys (g);
 
   auto const &metrics = _layout.metrics;
 
@@ -681,7 +749,8 @@ ActionComponent::paint (juce::Graphics &g)
   g.setColour (toColour (theme ().textPrimary, 0.15f));
   g.drawRoundedRectangle (modeBounds.toFloat (), 3.f, 1.f);
 
-  g.setColour (_channelColour);
+  g.setColour (readableInk (_channelColour, toColour (theme ().background),
+                            toColour (theme ().textPrimary)));
   g.setFont (juce::Font (juce::FontOptions (
       juce::jmin (20.f, modeBounds.getHeight () / 3.f))));
   g.drawText (value::actModeNames[juce::jlimit (0, value::numActModes - 1,

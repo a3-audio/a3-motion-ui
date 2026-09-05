@@ -113,6 +113,25 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   content.removeFromTop (gap);
   out.scriptField = content;
 
+  // Two keys at the foot, taken off the text rather than drawn across it.
+  {
+    auto keys = out.scriptField;
+    auto const keyH = juce::jmax (
+        fingertipSize, juce::jmin (keys.getHeight () / 4,
+                                   static_cast<int> (headerSize * 2.f)));
+
+    auto row = keys.removeFromBottom (juce::jmin (keyH, keys.getHeight ()));
+    out.scriptTextField = keys.withTrimmedBottom (gap / 2);
+
+    auto const keyGap = juce::jmax (2, row.getWidth () / 40);
+    auto const keyW = juce::jmax (fingertipSize, (row.getWidth () - keyGap) / 2);
+
+    out.cancelButton = row.removeFromRight (keyW);
+    row.removeFromRight (keyGap);
+    out.saveButton = row.removeFromRight (
+        juce::jmin (keyW, juce::jmax (fingertipSize, row.getWidth ())));
+  }
+
   out.actionListRowHeight
       = juce::jmax (fingertipSize, out.scriptField.getHeight () / 7);
   out.actionListArea = out.scriptField;

@@ -83,6 +83,26 @@ TransportKey transportKeyForPad (PadFunction function);
 float relativeLuminance (juce::Colour colour);
 float contrastRatio (juce::Colour a, juce::Colour b);
 
+/** What a colour has to manage against its ground to be read as text.
+ *
+ *  WCAG's floor for large text. These are short words at a size a booth is
+ *  read at, not body copy, so the stricter 4.5:1 would turn away colours that
+ *  are perfectly legible here. */
+constexpr float minimumInkContrast = 3.f;
+
+/** `ink` where it can be read on `ground`, `fallback` where it cannot.
+ *
+ *  Channel colours are chosen to tell four channels apart at a glance, not to
+ *  be read as letters -- and the ACTION page writes the action's name in the
+ *  slot's colour on the bar's own dark ground, where the blue one disappeared.
+ *
+ *  Stepping aside rather than lightening, for the reason the pads already
+ *  learned: a colour pushed far enough to clear a dark ground is no longer the
+ *  colour that identified anything. Better to lose the identity in the one
+ *  place it cannot be carried than to lose it everywhere by degrees. */
+juce::Colour readableInk (juce::Colour ink, juce::Colour ground,
+                          juce::Colour fallback);
+
 /** The same rule reached from a pad. Settings has no colour of its own -- it
  *  opens a menu, and a colour that means nothing makes the ones that mean
  *  something harder to read. */
