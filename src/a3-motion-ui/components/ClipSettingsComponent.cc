@@ -1516,6 +1516,48 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   drawCut (bandLow);
   drawCut (bandHigh);
 
+  // ── The instrument ────────────────────────────────────────────────────
+  //
+  // The circle reads like a horizon seen from the middle of the room, so it
+  // is given the marks that make one readable. They are not decoration: what
+  // a performer wants to know at a glance is whether the sound is above or
+  // below the ears, and by roughly how much.
+
+  // Ear height. The equator is where a sound is level with the listener, and
+  // it is the one line worth having whatever else is set -- dashed, so it
+  // never competes with the axis a finger put somewhere.
+  {
+    auto const y = fracToY (0.5f);
+    g.setColour (toColour (theme ().textPrimary, 0.22f));
+
+    auto const dash = juce::jmax (2.f, r / 12.f);
+    for (auto x = centre.x - r; x < centre.x + r; x += dash * 2.f)
+      g.drawLine (x, y, juce::jmin (x + dash, centre.x + r), y, 1.f);
+  }
+
+  // Elevation marks every thirty degrees up the left edge, longer at the
+  // poles and the equator. No numbers: the circle is small, and the pattern
+  // of ticks says how far up or down something is without any reading.
+  {
+    g.setColour (toColour (theme ().textPrimary, 0.35f));
+
+    for (int degrees = 0; degrees <= 180; degrees += 30)
+      {
+        auto const frac = static_cast<float> (degrees) / 180.f;
+        auto const y = fracToY (frac);
+        auto const dy = y - centre.y;
+        if (std::abs (dy) > r)
+          continue;
+
+        auto const halfWidth = std::sqrt (r * r - dy * dy);
+        auto const major = degrees % 90 == 0;
+        auto const len = r * (major ? 0.22f : 0.12f);
+
+        g.drawLine (centre.x - halfWidth, y, centre.x - halfWidth + len, y,
+                    major ? 1.5f : 1.f);
+      }
+  }
+
   g.setColour (toColour (theme ().surface, outlineOpacity));
   g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, 2.f);
   g.setColour (iconColour);
@@ -1545,10 +1587,28 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   drawMarkerChord (edgeFrac, 2.f, 3.f, iconColour);
 
   // The base: where the middle of the trajectory sits, and the one line in
-  // here a finger sets. It is drawn boldest and in the channel's colour
-  // because it is the control -- the reach chord is a reading of what
-  // follows from it.
+  // here a finger sets. Drawn boldest and in the channel's colour because it
+  // is the control -- the reach chord is a reading of what follows from it.
   drawMarkerChord (baseFrac, 2.5f, 4.f, iconColour);
+
+  // With the end caps a horizon bar has. They turn a chord into something
+  // aimed at rather than merely drawn, which is the whole difference between
+  // a picture and an instrument.
+  {
+    auto const y = fracToY (baseFrac);
+    auto const dy = y - centre.y;
+    if (std::abs (dy) <= r)
+      {
+        auto const halfWidth = std::sqrt (r * r - dy * dy);
+        auto const cap = juce::jmax (2.f, r * 0.12f);
+
+        g.setColour (iconColour);
+        g.drawLine (centre.x - halfWidth, y, centre.x - halfWidth, y + cap,
+                    2.f);
+        g.drawLine (centre.x + halfWidth, y, centre.x + halfWidth, y + cap,
+                    2.f);
+      }
+  }
 
   // Head: a small dot at the centre (the listener, always at the sphere's
   // literal centre regardless of elevation settings).
