@@ -78,8 +78,8 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
   auto const l = defaultLayout ();
 
   EXPECT_EQ (l.controls[0].size (), 1u); // Shape: the picture, rot, fade, bridge
-  EXPECT_EQ (l.controls[1].size (), 5u); // Elevation
-  EXPECT_EQ (l.controls[2].size (), 8u); // Motion: the envelope went to ACTION
+  EXPECT_EQ (l.controls[1].size (), 4u); // Elevation
+  EXPECT_EQ (l.controls[2].size (), 6u); // Motion: the envelope went to ACTION
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 
@@ -154,60 +154,18 @@ TEST (ClipSettingsLayout, ClipAndGlobalPanelsSplitTheBarWithoutOverlap)
   EXPECT_EQ (l.clipBounds.getWidth () + l.globalBounds.getWidth (),
              panelWidth);
 }
-
-// The Elevation section is indexed by sub-element but arranged by eye:
-//
-//   clip-top      clip-bottom
-//   flat-elev     reach
-//   flat          pole
-//
-// Sub-indices run reach(0), clip-top(1), clip-bottom(2), pole(3), flat(4),
-// flat-elevation(5) — nothing like the reading order. Get the mapping wrong
-// and a tap on one control lands on another.
-TEST (ClipSettingsLayout, ElevationControlsAreOrderedBySubIndexNotByScreen)
-{
-  auto const l = defaultLayout ();
-  auto const &e = l.controls[1];
-
-  auto const clipTop = e[0];
-  auto const clipBottom = e[1];
-  auto const pole = e[2];
-  auto const flat = e[3];
-  auto const flatElevation = e[4];
-
-  // Three rows, top to bottom.
-  EXPECT_LT (clipTop.getY (), flatElevation.getY ());
-  EXPECT_LT (flatElevation.getY (), flat.getY ());
-
-  // Left column above left column, right beside right.
-  EXPECT_EQ (clipTop.getY (), clipBottom.getY ());
-  EXPECT_LT (clipTop.getX (), clipBottom.getX ());
-
-  EXPECT_EQ (flat.getY (), pole.getY ());
-  EXPECT_LT (flat.getX (), pole.getX ());
-
-  // What the maintainer asked for in so many words: the two buttons at the
-  // bottom, flat-elevation directly above flat. reach used to share that
-  // middle row and has gone to Motion, to stand beside its swell.
-  EXPECT_EQ (flat.getX (), flatElevation.getX ());
-}
-
 TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
 {
-  // Elevation: mirror-south (2) and flat (3) are yes/no, and a yes/no is
-  // toggled rather than stepped — see TwoStateControlsToggleRatherThanStep.
-  EXPECT_FALSE (tapAdvancesValue (1, 2));
-  EXPECT_FALSE (tapAdvancesValue (1, 3));
-  // clip-top, clip-bottom, flat-elevation are continuous.
-  EXPECT_FALSE (tapAdvancesValue (1, 0));
-  EXPECT_FALSE (tapAdvancesValue (1, 1));
-  EXPECT_FALSE (tapAdvancesValue (1, 4));
+  // Elevation is four continuous values now -- the two clips, reach and the
+  // swell. Nothing in it steps or toggles.
+  for (int sub = 0; sub < 4; ++sub)
+    EXPECT_FALSE (tapAdvancesValue (1, sub)) << "elevation " << sub;
 
-  // Motion: direction (6) and end-action (7) have a handful of states each;
-  // the six knobs before them are dragged, not tapped.
-  EXPECT_TRUE (tapAdvancesValue (2, 6));
-  EXPECT_TRUE (tapAdvancesValue (2, 7));
-  for (int sub = 0; sub < 6; ++sub)
+  // Motion: direction (4) and end-action (5) have a handful of states each;
+  // the four knobs before them are dragged, not tapped.
+  EXPECT_TRUE (tapAdvancesValue (2, 4));
+  EXPECT_TRUE (tapAdvancesValue (2, 5));
+  for (int sub = 0; sub < 4; ++sub)
     EXPECT_FALSE (tapAdvancesValue (2, sub)) << "sub " << sub;
 
   // Shape: the pattern library, too long to tap through.
@@ -215,24 +173,6 @@ TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
 
   // Global: the rec mode has few states.
   EXPECT_TRUE (tapAdvancesValue (3, 0));
-}
-
-
-// A control with exactly two states is toggled by a tap, not stepped by one.
-// Stepping is what the encoders did, and it was tied to which way they were
-// turned so a missed tick could not desync the value; a tap has no direction,
-// so a stepped boolean could only ever be switched on. Three-state controls
-// keep stepping — they wrap, so a tap always gets somewhere new.
-TEST (ClipSettingsLayout, TwoStateControlsToggleRatherThanStep)
-{
-  EXPECT_TRUE (tapTogglesValue (1, 2));  // pole: north / south
-  EXPECT_TRUE (tapTogglesValue (1, 3));  // flat: on / off
-
-  EXPECT_FALSE (tapTogglesValue (1, 0)); // clip-top is continuous
-  EXPECT_FALSE (tapTogglesValue (1, 4)); // flat-elevation is continuous
-  EXPECT_FALSE (tapTogglesValue (2, 1)); // direction has three states
-  EXPECT_FALSE (tapTogglesValue (2, 2)); // end-action has more
-  EXPECT_FALSE (tapTogglesValue (3, 0)); // rec mode has three
 }
 
 // The two are alternatives, not layers: a tap either steps a value on or
@@ -455,20 +395,18 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
     {
       auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
       auto const &motion = l.controls[2];
-      ASSERT_EQ (motion.size (), 8u) << "height " << height;
+      ASSERT_EQ (motion.size (), 6u) << "height " << height;
 
-      // Each pair shares a height: rot/spin, reach/swell, fade/bias, dir/end.
-      for (int row = 0; row < 4; ++row)
+      // Each pair shares a height: rot/spin, fade/bias, dir/end.
+      for (int row = 0; row < 3; ++row)
         {
           auto const left = static_cast<size_t> (row * 2);
           EXPECT_EQ (motion[left].getHeight (), motion[left + 1].getHeight ())
               << "row " << row << " at height " << height;
         }
 
-      // And the three knob rows share theirs with each other.
+      // And the two knob rows share theirs with each other.
       EXPECT_EQ (motion[0].getHeight (), motion[2].getHeight ())
-          << "height " << height;
-      EXPECT_EQ (motion[2].getHeight (), motion[4].getHeight ())
           << "height " << height;
     }
 }
@@ -1191,12 +1129,12 @@ TEST (ClipSettingsLayout, TheFadeIsAMotionValueNow)
 {
   auto const l = defaultLayout ();
 
-  ASSERT_EQ (l.controls[2].size (), 8u);
+  ASSERT_EQ (l.controls[2].size (), 6u);
   ASSERT_EQ (l.controls[0].size (), 1u);
 
-  EXPECT_FALSE (l.controls[2][4].isEmpty ());
-  EXPECT_TRUE (l.sectionCards[2].contains (l.controls[2][4]));
-  EXPECT_FALSE (l.sectionCards[0].contains (l.controls[2][4]));
+  EXPECT_FALSE (l.controls[2][2].isEmpty ());
+  EXPECT_TRUE (l.sectionCards[2].contains (l.controls[2][2]));
+  EXPECT_FALSE (l.sectionCards[0].contains (l.controls[2][2]));
 }
 
 // ── Shape after the tidy-up ──────────────────────────────────────────────
@@ -1249,52 +1187,80 @@ TEST (ClipSettingsLayout, EveryButtonRowIsTheSameHeight)
       }
 }
 
-// ── Motion after the tidy-up ─────────────────────────────────────────────
+// ── Motion after the tidy-up ─────────────────────────────────────────────// ── The elevation graphic, which is a control now ────────────────────────
 
-// Each standing value with the movement that works on it, side by side:
-// rot with the spin that turns it, reach with the swell that breathes it.
-// reach came over from Elevation for exactly that reason -- it was sitting
-// two sections away from the control that modulates it.
-TEST (ClipSettingsLayout, MotionPairsEachValueWithItsMovement)
+// The circle is the sphere seen from the side, north at the top. A finger on
+// it says where the middle of the trajectory should sit, so the y it lands on
+// has to come back as that fraction -- and the two ends have to be exactly 0
+// and 1, or the poles would be unreachable by a hair.
+TEST (ClipSettingsLayout, TheGraphicReadsAHeightOutOfAPoint)
 {
-  EXPECT_EQ (numControlsInSection (2), 8);
+  juce::Rectangle<int> const bounds{ 20, 40, 100, 100 };
+  auto const circle = elevationCircleBounds (bounds);
 
-  auto const l = defaultLayout ();
-  ASSERT_EQ (l.controls[2].size (), 8u);
+  ASSERT_FALSE (circle.isEmpty ());
 
-  // rot | spin, reach | swell, fade | bias -- three rows of two.
-  for (int row = 0; row < 3; ++row)
-    {
-      auto const left = static_cast<size_t> (row * 2);
-      auto const right = left + 1;
-
-      EXPECT_EQ (l.controls[2][left].getY (), l.controls[2][right].getY ())
-          << "row " << row << " is not level";
-      EXPECT_LT (l.controls[2][left].getX (), l.controls[2][right].getX ())
-          << "row " << row << " is not left to right";
-    }
-
-  // And the rows read downwards.
-  EXPECT_LT (l.controls[2][0].getY (), l.controls[2][2].getY ());
-  EXPECT_LT (l.controls[2][2].getY (), l.controls[2][4].getY ());
-
-  // dir and end close the section along its floor.
-  EXPECT_GT (l.controls[2][6].getY (), l.controls[2][4].getY ());
-  EXPECT_EQ (l.controls[2][6].getY (), l.controls[2][7].getY ());
-  EXPECT_TRUE (tapAdvancesValue (2, 6));
-  EXPECT_TRUE (tapAdvancesValue (2, 7));
+  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, circle.getY ()), 0.f);
+  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, circle.getBottom ()), 1.f);
+  EXPECT_NEAR (elevationBaseAt (bounds, circle.getCentreY ()), 0.5f, 0.02f);
 }
 
-// Elevation gave reach away and is five now: clip-top, clip-bottom, pole,
-// flat, flat-elevation. Its two switches moved down a place with it.
-TEST (ClipSettingsLayout, ElevationIsFiveWithoutReach)
+// Above and below the circle it holds at the poles rather than running past
+// them. A finger that slides off the top must not wrap round to the bottom.
+TEST (ClipSettingsLayout, AFingerPastTheCircleHoldsAtThePole)
 {
-  EXPECT_EQ (numControlsInSection (1), 5);
+  juce::Rectangle<int> const bounds{ 0, 0, 80, 80 };
+
+  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, -500), 0.f);
+  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, 500), 1.f);
+}
+
+// It reads the same circle the graphic draws, whatever shape the cell is --
+// otherwise the line would sit where the finger did not.
+TEST (ClipSettingsLayout, TheCircleIsSquareInsideWhateverCellItGets)
+{
+  for (auto const bounds : { juce::Rectangle<int>{ 0, 0, 200, 60 },
+                             juce::Rectangle<int>{ 0, 0, 60, 200 },
+                             juce::Rectangle<int>{ 5, 7, 90, 90 } })
+    {
+      auto const circle = elevationCircleBounds (bounds);
+
+      EXPECT_EQ (circle.getWidth (), circle.getHeight ())
+          << "the circle is not round";
+      EXPECT_TRUE (bounds.contains (circle)) << "the circle leaves its cell";
+      EXPECT_EQ (circle.getCentreX (), bounds.getCentreX ());
+      EXPECT_EQ (circle.getCentreY (), bounds.getCentreY ());
+    }
+}
+
+// ── The sections after reach and swell went home ─────────────────────────
+
+// Elevation is four: the two clips, then reach with the swell that sweeps it.
+// flat, flat-elevation and pole are gone -- the base the graphic sets says
+// what they said, and says it in one place you can see.
+TEST (ClipSettingsLayout, ElevationIsTheClipsAndTheReachPair)
+{
+  EXPECT_EQ (numControlsInSection (1), 4);
 
   auto const l = defaultLayout ();
-  EXPECT_EQ (l.controls[1].size (), 5u);
+  ASSERT_EQ (l.controls[1].size (), 4u);
 
-  EXPECT_TRUE (tapTogglesValue (1, 2)) << "pole";
-  EXPECT_TRUE (tapTogglesValue (1, 3)) << "flat";
-  EXPECT_FALSE (tapTogglesValue (1, 4)) << "flat elevation is turned";
+  // Nothing in it toggles any more.
+  for (int sub = 0; sub < 4; ++sub)
+    EXPECT_FALSE (tapTogglesValue (1, sub)) << "sub " << sub;
+}
+
+// And Motion keeps what shapes the movement in the plane: the standing angle
+// with its spin, the fade with its bias, and the two lists.
+TEST (ClipSettingsLayout, MotionIsSixWithoutTheReachPair)
+{
+  EXPECT_EQ (numControlsInSection (2), 6);
+
+  auto const l = defaultLayout ();
+  ASSERT_EQ (l.controls[2].size (), 6u);
+
+  EXPECT_TRUE (tapAdvancesValue (2, 4));
+  EXPECT_TRUE (tapAdvancesValue (2, 5));
+  for (int sub = 0; sub < 4; ++sub)
+    EXPECT_FALSE (tapAdvancesValue (2, sub)) << "knob " << sub;
 }

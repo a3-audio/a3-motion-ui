@@ -154,6 +154,9 @@ public:
    *  follows on rotate and the accent follows on 3d. One idea, said the same
    *  way everywhere, so a blue arc always means "something is moving this". */
   void setElevationReach (float reach, float swept = -1.f);
+  /** Where the middle of the trajectory sits, 0 north and 1 south -- the one
+   *  line in the graphic a finger sets. */
+  void setElevationBase (float base);
   void setElevationMirrorSouth (bool mirrorSouth);
   void setElevationClipTop (float clipTop);
   void setElevationClipBottom (float clipBottom);
@@ -285,6 +288,10 @@ public:
    *  callback rather than an increment, because "the other one" is not a
    *  direction — see tapTogglesValue(). */
   std::function<void (int section, int sub)> onControlToggled;
+  /** A finger landed in the elevation graphic at this height, 0 north to 1
+   *  south. Absolute rather than an increment: the graphic is a picture of
+   *  where things are, so touching it means "there", not "a bit further". */
+  std::function<void (float base)> onElevationBaseSet;
   /** Two taps on a knob put it back to its default. Separate from a toggle:
    *  the value it lands on is decided by whoever owns the value, not here. */
   std::function<void (int section, int sub)> onControlReset;
@@ -477,6 +484,7 @@ private:
   RecMode _recMode = RecMode::Touch;
   juce::String _trajectoryName{ "Empty" };
   float _elevationReach = 0.5f;
+  float _elevationBase = 0.f;
   bool _elevationMirrorSouth = false;
   float _elevationClipTop = 0.0f;
   float _elevationClipBottom = 0.0f;

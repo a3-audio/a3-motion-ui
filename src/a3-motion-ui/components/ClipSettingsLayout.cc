@@ -66,13 +66,14 @@ numControlsInSection (int sectionIndex)
     case 0:
       return 1; // just the shape now -- rot, fade and bias went to Motion
     case 1:
-      // clip-top, clip-bottom, mirror-south, flat, flat-elev. reach went to
-      // Motion, to stand beside the swell that breathes it.
-      return 5;
+      // clip-top, clip-bottom, then reach with the swell that sweeps it.
+      // flat, flat-elevation and pole are gone: the base the graphic sets
+      // says what they said, in one place you can see.
+      return 4;
     case 2:
-      // rot, spin, reach, swell, fade, bias, then dir and end along the
-      // floor: each standing value beside the movement that works on it.
-      return 8;
+      // rot, spin, fade, bias, then dir and end along the floor -- what
+      // shapes the movement in the plane.
+      return 6;
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -87,20 +88,45 @@ tapAdvancesValue (int sectionIndex, int subIndex)
     // direction and end action, along Motion's floor. They used to open a
     // list; a list covered the controls under it, and both are short enough
     // that a finger can simply walk them.
-    return subIndex == 6 || subIndex == 7;
+    return subIndex == 4 || subIndex == 5;
   if (sectionIndex == 3)
     return subIndex == 0; // rec mode
 
   return false;
 }
 
+juce::Rectangle<int>
+elevationCircleBounds (juce::Rectangle<int> cell)
+{
+  // The same 0.42 of the shorter side the graphic has always drawn at,
+  // centred in the cell.
+  auto const r = static_cast<int> (
+      static_cast<float> (juce::jmin (cell.getWidth (), cell.getHeight ()))
+      * 0.42f);
+
+  return juce::Rectangle<int> (cell.getCentreX () - r, cell.getCentreY () - r,
+                               r * 2, r * 2);
+}
+
+float
+elevationBaseAt (juce::Rectangle<int> cell, int y)
+{
+  auto const circle = elevationCircleBounds (cell);
+  if (circle.getHeight () <= 0)
+    return 0.f;
+
+  auto const frac = static_cast<float> (y - circle.getY ())
+                    / static_cast<float> (circle.getHeight ());
+
+  return juce::jlimit (0.f, 1.f, frac);
+}
+
 bool
 tapTogglesValue (int sectionIndex, int subIndex)
 {
-  if (sectionIndex == 1)
-    // pole and flat. Both moved down a place when reach left for Motion.
-    return subIndex == 2 || subIndex == 3;
-
+  // Nothing toggles any more: pole and flat were the last two, and the
+  // elevation base replaced what they decided.
+  juce::ignoreUnused (sectionIndex, subIndex);
   return false;
 }
 
@@ -405,55 +431,38 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     out.sectionLabels[1]
         = content.removeFromTop (titleRowHeight (content, headerSize));
 
+    // The graphic takes a bigger share now: it is the control that sets where
+    // the middle of the trajectory sits, so it has to be big enough to put a
+    // finger on and read a line off.
     auto const gapV0 = juce::jmax (2, content.getHeight () / 20);
     out.elevationGraphic = content.removeFromTop (
-        static_cast<int> (content.getHeight () * 0.34f));
+        static_cast<int> (content.getHeight () * 0.5f));
     content.removeFromTop (gapV0);
 
     auto const gapV = juce::jmax (2, content.getHeight () / 30);
-    auto const rowH = (content.getHeight () - 2 * gapV) / 3;
+    auto const rowH = (content.getHeight () - gapV) / 2;
     auto row1 = content.removeFromTop (rowH);
     content.removeFromTop (gapV);
     auto row2 = content.removeFromTop (rowH);
-    content.removeFromTop (gapV);
-    auto row3 = content;
 
     auto const gapH = juce::jmax (2, content.getWidth () / 20);
-
-    // Top row the two clips, middle row flat-elevation, bottom row the two
-    // buttons. reach went to Motion to stand beside the swell that breathes
-    // it, which leaves the middle row to the one value the flat switch turns
-    // on -- directly above the button that turns it.
-    auto const clipTopArea
-        = row1.removeFromLeft (row1.getWidth () / 2 - gapH / 2);
-    row1.removeFromLeft (gapH);
-    auto const clipBottomArea = row1;
-
-    auto const flatElevationArea
-        = row2.removeFromLeft (row2.getWidth () / 2 - gapH / 2);
-    juce::ignoreUnused (row2);
-
-    auto const flatArea = row3.removeFromLeft (row3.getWidth () / 2 - gapH / 2);
-    row3.removeFromLeft (gapH);
-    auto const mirrorArea = row3;
-
-    // By sub-index, not by row: mirror-south is 2 but sits on the last row.
-    // The two buttons take the bar's shared button height and sit at the
-    // bottom of their cell — they are the floor of the section, and centred
-    // they floated above it. The caption lives inside the button now, so no
-    // row is reserved under it.
-    auto const buttonCell = [&] (juce::Rectangle<int> cell) {
-      auto const h = juce::jmin (cell.getHeight (), out.buttonHeight);
-      return juce::Rectangle<int> (cell.getX (), cell.getBottom () - h,
-                                   cell.getWidth (), h);
+    auto const split = [gapH] (juce::Rectangle<int> &row) {
+      auto const left = row.removeFromLeft (row.getWidth () / 2 - gapH / 2);
+      row.removeFromLeft (gapH);
+      return std::pair<juce::Rectangle<int>, juce::Rectangle<int> >{ left,
+                                                                     row };
     };
+
+    // The two clips above, then reach with the swell that sweeps it -- the
+    // same pairing Motion uses, a standing value beside its movement.
+    auto const [clipTopArea, clipBottomArea] = split (row1);
+    auto const [reachArea, swellArea] = split (row2);
 
     out.controls[1] = {
       textCell (clipTopArea, metrics.knobDiam),
       textCell (clipBottomArea, metrics.knobDiam),
-      buttonCell (mirrorArea),
-      buttonCell (flatArea),
-      textCell (flatElevationArea, metrics.knobDiam),
+      textCell (reachArea, metrics.knobDiam),
+      textCell (swellArea, metrics.knobDiam),
     };
   }
 
@@ -484,11 +493,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // Shared out rather than taken one after another from the bottom. A skin
     // can cut the bar down (clipSettingsHeightScale), and a section that helps
     // itself row by row leaves the whole shortfall on the row at the top.
-    // Three rows of two, each a standing value beside the movement that works
-    // on it: rot with the spin that turns it, reach with the swell that
-    // breathes it, and the fade with the bias that says where a drawn-through
-    // gap leads.
-    constexpr int motionKnobRows = 3;
+    // Two rows of two: rot with the spin that turns it, and the fade with the
+    // bias that says where a drawn-through gap leads. reach and swell went
+    // home to Elevation, where the sphere is.
+    constexpr int motionKnobRows = 2;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
@@ -502,7 +510,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     };
 
     auto lowerRow = knobRow (false);
-    auto middleRow = knobRow (false);
     auto upperRow = knobRow (true);
 
     auto const colW = (lowerRow.getWidth () - gapH) / 2;
@@ -514,7 +521,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     };
 
     auto const [upperLeft, upperRight] = split (upperRow);
-    auto const [middleLeft, middleRight] = split (middleRow);
     auto const [lowerLeft, lowerRight] = split (lowerRow);
     auto const [bottomLeft, bottomRight] = split (bottomRow);
 
@@ -522,18 +528,15 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const buttonCell = [] (juce::Rectangle<int> cell) { return cell; };
 
     // Each standing value with the movement that works on it, left and right.
-    // reach came over from Elevation for exactly that: it was two sections
-    // away from the swell that modulates it. The two lists close the section
-    // along its floor, where every other section's buttons are.
+    // The two lists close the section along its floor, where every other
+    // section's buttons are.
     out.controls[2] = {
-      textCell (upperLeft, metrics.knobDiam),   // rot
-      textCell (upperRight, metrics.knobDiam),  // spin
-      textCell (middleLeft, metrics.knobDiam),  // reach
-      textCell (middleRight, metrics.knobDiam), // swell
-      textCell (lowerLeft, metrics.knobDiam),   // fade
-      textCell (lowerRight, metrics.knobDiam),  // bias
-      buttonCell (bottomLeft),                  // direction
-      buttonCell (bottomRight),                 // end action
+      textCell (upperLeft, metrics.knobDiam),  // rot
+      textCell (upperRight, metrics.knobDiam), // spin
+      textCell (lowerLeft, metrics.knobDiam),  // fade
+      textCell (lowerRight, metrics.knobDiam), // bias
+      buttonCell (bottomLeft),                 // direction
+      buttonCell (bottomRight),                // end action
     };
 
   }

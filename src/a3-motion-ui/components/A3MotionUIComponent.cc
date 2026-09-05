@@ -466,6 +466,20 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     handleClipSettingsToggle (_clipSettingsChannel, section, sub);
   };
 
+  // The elevation graphic sets where the middle of the trajectory sits. An
+  // absolute height, not an increment: the graphic shows where things are,
+  // so a finger on it means that height.
+  _clipSettings->onElevationBaseSet = [this] (float base) {
+    auto &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
+    if (!pattern)
+      return;
+
+    pattern->setElevationBase (base);
+    refreshPatternDisplayFromTicks (pattern);
+    updateClipSettingsDisplay ();
+    scheduleSetSave ();
+  };
+
   _clipSettings->onControlReset = [this] (int section, int sub) {
     handleClipSettingsReset (_clipSettingsChannel, section, sub);
   };
@@ -4318,7 +4332,6 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
   // you actually want, and it is the same answer for all of them.
   auto const slot = _clipSettingsSlot;
   auto &pattern = _patterns[channel][slot];
-  auto &params = _clipUIParams[channel][slot];
 
   switch (section)
     {
@@ -4346,8 +4359,10 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         pattern->setClipTop (0.f);
       else if (sub == 1)
         pattern->setClipBottom (0.f);
-      else if (sub == 4)
-        pattern->setFlatElevation (0.5f);
+      else if (sub == 2)
+        pattern->setReach (ClipSettings{}.reach);
+      else if (sub == 3)
+        pattern->setReachLfo (0);
       else
         return;
       break;
@@ -4361,10 +4376,8 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         {
         case 0: pattern->setRotate (0.f); break;
         case 1: pattern->setSpin (0); break;
-        case 2: pattern->setReach (ClipSettings{}.reach); break;
-        case 3: pattern->setReachLfo (0); break;
-        case 4: pattern->setFadeReach (ClipSettings{}.fadeReach); break;
-        case 5:
+        case 2: pattern->setFadeReach (ClipSettings{}.fadeReach); break;
+        case 3:
           pattern->setBridgeBias (0);
           refreshPatternDisplayFromTicks (pattern);
           break;
@@ -4455,9 +4468,9 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         updatePadRowLabel (channel, slot);
         break;
       }
-    case 1: // Elevation — clip-top (0), clip-bottom (1), mirror-south (2),
-            // flat (3), flat-elevation (4). reach went to Motion, to stand
-            // beside the swell that sweeps it.
+    case 1: // Elevation — clip-top (0), clip-bottom (1), reach (2),
+            // swell (3). Where the middle of the trajectory sits is set in
+            // the graphic above them, not by a knob.
       {
         auto &pattern = _patterns[channel][slot];
         if (!pattern)
@@ -4473,25 +4486,22 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                                     + increment * 0.05f);
             break;
           case 2:
-            // Toggle: turning right selects South, left selects North —
-            // tied to physical direction rather than pulse-counting, so
-            // it can't desync/flicker from missed encoder ticks.
-            pattern->setMirrorSouth (increment > 0);
-            break;
-          case 3:
-            pattern->setFlat (increment > 0);
+            // How far the trajectory's outer edge lands from the base the
+            // graphic sets.
+            pattern->setReach (pattern->getReach () + increment * 0.05f);
             break;
           default:
-            pattern->setFlatElevation (pattern->getFlatElevation ()
-                                       + increment * 0.05f);
+            // How fast reach sweeps out of where it was set.
+            pattern->setReachLfo (
+                std::clamp (pattern->getReachLfo () + increment, -lfoMaxStep,
+                            lfoMaxStep));
             break;
           }
         break;
       }
-    case 2: // Motion — rot (0), spin (1), reach (2), swell (3), fade (4),
-            // bias (5), direction (6), end-action (7). Each standing value
-            // beside the movement that works on it; the envelope and the act
-            // mode belong to the ACTION page and have their own handler.
+    case 2: // Motion — rot (0), spin (1), fade (2), bias (3), direction (4),
+            // end-action (5). What shapes the movement in the plane; reach
+            // and its swell went home to Elevation, where the sphere is.
       {
         auto &pattern = _patterns[channel][slot];
 
@@ -4514,23 +4524,6 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             break;
 
           case 2:
-            // How far down the sphere the trajectory's outer edge lands. It
-            // came over from Elevation to stand beside the swell that sweeps
-            // it -- the two were two sections apart.
-            if (pattern)
-              pattern->setReach (pattern->getReach () + increment * 0.02f);
-            break;
-
-          case 3:
-            // How fast reach sweeps out of where it was set. Same table as
-            // the spin, and on the Pattern for the same reasons.
-            if (pattern)
-              pattern->setReachLfo (
-                  std::clamp (pattern->getReachLfo () + increment, -lfoMaxStep,
-                              lfoMaxStep));
-            break;
-
-          case 4:
             // How far a gap may be for the fade to draw through it. A reading
             // of the movement, not a change to it: nothing is written into
             // the ticks, so it can be turned down as freely as up, and the
@@ -4544,7 +4537,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
               }
             break;
 
-          case 5:
+          case 3:
             // Where a drawn-through gap leads. Whole steps, like spin and
             // swell: nine positions, and a finger should feel each one rather
             // than slide past them.
@@ -4555,7 +4548,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
               }
             break;
 
-          case 6:
+          case 4:
             params.direction = (params.direction + increment % 2 + 2) % 2;
             applyMotionMode (channel, slot);
             break;
@@ -4593,24 +4586,10 @@ A3MotionUIComponent::handleClipSettingsToggle (index_t channel, int section,
   if (channel != _clipSettingsChannel)
     return;
 
-  auto &pattern = _patterns[channel][_clipSettingsSlot];
-  if (!pattern)
-    return;
-
-  // Only Elevation has two-state controls; tapTogglesValue() is the
-  // authority on which, and it says pole (2) and flat (3) -- both moved down
-  // a place when reach left for Motion.
-  if (section != 1)
-    return;
-
-  if (sub == 2)
-    pattern->setMirrorSouth (!pattern->getMirrorSouth ());
-  else if (sub == 3)
-    pattern->setFlat (!pattern->getFlat ());
-  else
-    return;
-
-  updateClipSettingsDisplay ();
+  // Nothing toggles any more. pole and flat were the last two, and the
+  // elevation base the graphic sets says what they said -- see
+  // tapTogglesValue(), which now answers no to everything.
+  juce::ignoreUnused (section, sub);
 }
 
 void
@@ -4666,15 +4645,12 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
           ? lfoSweep (pattern->getReach (), pattern->getReachLfo (),
                       pattern->getReachLfoPhase ())
           : -1.f);
-  _clipSettings->setElevationMirrorSouth (pattern
-                                          && pattern->getMirrorSouth ());
+  _clipSettings->setElevationBase (pattern ? pattern->getElevationBase ()
+                                          : 0.f);
   _clipSettings->setElevationClipTop (pattern ? pattern->getClipTop ()
                                               : 0.0f);
   _clipSettings->setElevationClipBottom (
       pattern ? pattern->getClipBottom () : 0.0f);
-  _clipSettings->setElevationFlat (pattern && pattern->getFlat ());
-  _clipSettings->setElevationFlatElevation (
-      pattern ? pattern->getFlatElevation () : 0.5f);
 
   // Motion/Filter: all sub-controls visible in parallel, like Elevation —
   // _clipSettingsSubIndex only picks which one is highlighted, and only

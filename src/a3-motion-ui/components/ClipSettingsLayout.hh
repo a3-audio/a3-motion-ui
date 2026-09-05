@@ -143,6 +143,19 @@ int numControlsInSection (int sectionIndex);
  *  into tapping and tapping. */
 bool tapAdvancesValue (int sectionIndex, int subIndex);
 
+/** The circle the elevation graphic draws, inside whatever cell it is given.
+ *
+ *  Its own function because the graphic is a control now: a finger on it sets
+ *  where the middle of the trajectory sits, and the circle drawing and the
+ *  circle being touched have to be the same circle or the line lands where
+ *  the finger did not. */
+juce::Rectangle<int> elevationCircleBounds (juce::Rectangle<int> cell);
+
+/** The elevation a point in that cell stands for: 0 at the top of the circle
+ *  (north pole), 1 at the bottom (south). Past either end it holds at the
+ *  pole -- a finger sliding off the top must not wrap round to the bottom. */
+float elevationBaseAt (juce::Rectangle<int> cell, int y);
+
 /** Whether a tap on this control flips it. True for the two-state ones —
  *  pole and flat. They used to be stepped like the rest, but stepping is
  *  tied to a direction (an encoder turned right meant South) and a tap has

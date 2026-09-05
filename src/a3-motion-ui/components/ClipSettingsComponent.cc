@@ -169,6 +169,27 @@ ClipSettingsComponent::createTouchControls ()
     if (onControlTapped)
       onControlTapped (elevationIndex, -1);
   };
+
+  // The graphic is a control: a finger on it says where the middle of the
+  // trajectory should sit. Absolute, because it is a picture of where things
+  // are -- touching a height means that height, not "a bit further". A drag
+  // keeps setting it, so it can be dialled in without lifting.
+  auto const setBaseFrom = [this] (juce::Point<int> at) {
+    if (!onElevationBaseSet)
+      return;
+
+    // The point arrives relative to the control, which stands on the graphic
+    // cell, so the cell's own origin is what it has to be measured against.
+    onElevationBaseSet (elevationBaseAt (
+        _layout.elevationGraphic.withZeroOrigin (), at.y));
+  };
+
+  _elevationGraphicTouch->onTapAt
+      = [setBaseFrom] (int, int, juce::Point<int> at) { setBaseFrom (at); };
+  _elevationGraphicTouch->onDragIncrement
+      = [this, setBaseFrom] (int, int, int) {
+          setBaseFrom (_elevationGraphicTouch->getMouseXYRelative ());
+        };
   addAndMakeVisible (*_elevationGraphicTouch);
 
   auto const makeButton
@@ -401,6 +422,13 @@ ClipSettingsComponent::setElevationReach (float reach, float swept)
 {
   _elevationReach = std::clamp (reach, 0.05f, 1.0f);
   _elevationReachSwept = swept < 0.f ? -1.f : std::clamp (swept, 0.05f, 1.0f);
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setElevationBase (float base)
+{
+  _elevationBase = std::clamp (base, 0.f, 1.f);
   repaint ();
 }
 
@@ -1373,15 +1401,9 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
   auto const &metrics = _layout.metrics;
   auto const &cells = _layout.controls[elevationIndex];
 
-  // Graphic on top, then five controls below it: the two clips on the first
-  // row, flat-elevation on the second, and the two switches along the floor.
-  // The cells are ordered by sub-index, not by row. reach went to Motion, to
-  // stand beside the swell that sweeps it.
-  //
-  // The graphic never lights up on its own. It used to, whenever the
-  // selected control was one it draws, and that read as "there is something
-  // to grab in here" — there is not; it is a picture of what the controls
-  // under it do. Selection is the card's job, and the card already shows it.
+  // The graphic on top, which is a control now: a finger on it sets where the
+  // middle of the trajectory sits, and the line it draws is that value. Under
+  // it the two clips, then reach with the swell that sweeps it.
   paintElevationGraphic (g, _layout.elevationGraphic, isSelected);
 
   paintMiniKnob (g, cells[0], metrics, caption::clipTop,
@@ -1390,16 +1412,18 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
   paintMiniKnob (g, cells[1], metrics, caption::clipBottom,
                  _elevationClipBottom * 2.f - 1.f, false,
                  _elevationSubIndex == 1, isSelected);
-  paintBarButton (g, cells[2],
-                  _elevationMirrorSouth ? value::south : value::north,
-                  caption::pole, _elevationSubIndex == 2 && isSelected,
-                  isSelected);
-  paintBarButton (g, cells[3], _elevationFlat ? value::on : value::off,
-                  caption::flat, _elevationSubIndex == 3 && isSelected,
-                  isSelected);
-  paintMiniKnob (g, cells[4], metrics, caption::flatElevation,
-                 _elevationFlatElevation * 2.f - 1.f, false,
-                 _elevationSubIndex == 4, isSelected);
+
+  // Where the sweep has carried the coverage, if it is moving.
+  paintMiniKnob (g, cells[2], metrics, caption::reach,
+                 _elevationReach * 2.f - 1.f, false, _elevationSubIndex == 2,
+                 isSelected,
+                 _elevationReachSwept < 0.f
+                     ? -2.f
+                     : _elevationReachSwept * 2.f - 1.f);
+  paintMiniKnob (g, cells[3], metrics, caption::swell,
+                 static_cast<float> (_motionSwell)
+                     / static_cast<float> (lfoMaxStep),
+                 true, _elevationSubIndex == 3, isSelected);
 }
 
 void
@@ -1425,21 +1449,17 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                                  : juce::jmin (rangeLow, rangeHigh);
   auto const bandHigh = collapsed ? bandLow : juce::jmax (rangeLow, rangeHigh);
 
-  // Strictly monotonic model (no base-point interaction): the trajectory's
-  // centre (r=0) always maps to one pole (poleFrac), its outer edge (r=1)
-  // always maps to reach's point (edgeFrac) — mirror-south flips which
-  // pole. Reproduced here in fractional (0..1) form since this view only
-  // ever gets the plain elevation values, not a HeightMap.
-  auto const poleFracRaw = _elevationMirrorSouth ? 1.f : 0.f;
-  auto const edgeFracRaw = _elevationMirrorSouth
-                               ? 1.f - _elevationReach
-                               : _elevationReach;
-  auto const poleFrac = std::clamp (poleFracRaw, bandLow, bandHigh);
+  // The same model HeightMapSphere::mapTo3D() uses, in fractional (0..1)
+  // form because this view only ever gets the plain elevation values, not a
+  // HeightMap: the trajectory's centre (r=0) sits on the base, and its outer
+  // edge (r=1) sits reach away from it, towards whichever pole is further.
+  auto const baseRaw = std::clamp (_elevationBase, 0.f, 1.f);
+  auto const edgeFracRaw = baseRaw <= 0.5f ? baseRaw + _elevationReach
+                                           : baseRaw - _elevationReach;
+  auto const baseFrac = std::clamp (baseRaw, bandLow, bandHigh);
   auto const edgeFrac = std::clamp (edgeFracRaw, bandLow, bandHigh);
-  auto const sweepLow = juce::jmin (poleFrac, edgeFrac);
-  auto const sweepHigh = juce::jmax (poleFrac, edgeFrac);
-  auto const flatFrac
-      = std::clamp (_elevationFlatElevation, bandLow, bandHigh);
+  auto const sweepLow = juce::jmin (baseFrac, edgeFrac);
+  auto const sweepHigh = juce::jmax (baseFrac, edgeFrac);
 
   auto const fracToY
       = [&] (float frac) { return (centre.y - r) + frac * (r * 2.f); };
@@ -1459,13 +1479,10 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
       centre.x - r, fracToY (bandHigh), r * 2.f,
       (centre.y + r) - fracToY (bandHigh)));
 
-  if (!_elevationFlat)
-    {
-      g.setColour (iconColour.withAlpha (0.3f));
-      g.fillRect (juce::Rectangle<float> (
-          centre.x - r, fracToY (sweepLow), r * 2.f,
-          juce::jmax (1.f, fracToY (sweepHigh) - fracToY (sweepLow))));
-    }
+  g.setColour (iconColour.withAlpha (0.3f));
+  g.fillRect (juce::Rectangle<float> (
+      centre.x - r, fracToY (sweepLow), r * 2.f,
+      juce::jmax (1.f, fracToY (sweepHigh) - fracToY (sweepLow))));
 
   g.restoreState ();
 
@@ -1493,25 +1510,15 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                      markerY, thinWidth);
         };
 
-  if (_elevationFlat)
-    {
-      // flat marker: a single solid chord at the fixed elevation every
-      // point of the trajectory sits at — no pole/reach cone to show.
-      drawMarkerChord (flatFrac, 2.f, 3.f, iconColour);
-    }
-  else
-    {
-      // pole marker: a thin, neutral-coloured chord where the trajectory's
-      // centre (r=0) sits — distinct from reach's bolder, channel-coloured
-      // marker, so the two are visually separable at a glance.
-      drawMarkerChord (poleFrac, 1.5f, 0.f,
-                       toColour (theme ().textPrimary, outlineOpacity));
+  // The reach marker: where the pattern's outer edge (r=1) lands. Drawn
+  // first, so the base line lies over it where the two meet.
+  drawMarkerChord (edgeFrac, 2.f, 3.f, iconColour);
 
-      // reach marker: a solid chord line at the pattern's outer-edge
-      // position (r=1) — this line's position IS reach's value (mirrored
-      // if mirror-south is on); turning reach moves it.
-      drawMarkerChord (edgeFrac, 2.f, 3.f, iconColour);
-    }
+  // The base: where the middle of the trajectory sits, and the one line in
+  // here a finger sets. It is drawn boldest and in the channel's colour
+  // because it is the control -- the reach chord is a reading of what
+  // follows from it.
+  drawMarkerChord (baseFrac, 2.5f, 4.f, iconColour);
 
   // Head: a small dot at the centre (the listener, always at the sphere's
   // literal centre regardless of elevation settings).
