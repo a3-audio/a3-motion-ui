@@ -42,6 +42,7 @@
 #include <a3-motion-ui/components/OverlaySideStrips.hh>
 #include <a3-motion-ui/SessionFile.hh>
 #include <a3-motion-ui/components/BrowserComponent.hh>
+#include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
@@ -188,6 +189,12 @@ private:
   void showBarPage (BarPage page);
   /** Record's page gesture: to the take's face, or back off it. */
   void toggleRecordPage ();
+  /** Push the shown clip's envelope and act mode to the ACTION page. */
+  void updateActionPage ();
+  void applyActionControl (int control, int increment);
+  void resetActionControl (int control);
+  static juce::String actionReadoutFor (int control,
+                                        Pattern const &pattern);
 
   /** The browser page: what the eight fields hold, and what dropping a
    *  library row on the chosen one does. */
@@ -476,6 +483,7 @@ private:
    *  hand is on. Record needs no twin: the global strip's REC button already
    *  records into the shown clip. */
   std::unique_ptr<ControllerComponent> _controller;
+  std::unique_ptr<ActionComponent> _action;
   /** Which clip each slot was filled from, [channel][slot]. Empty for a slot
    *  holding nothing, or one holding a shape that has no clip. */
   std::vector<std::vector<juce::File> > _slotClipFile;

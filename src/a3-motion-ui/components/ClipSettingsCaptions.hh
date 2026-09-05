@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <a3-motion-engine/Envelope.hh>
+
 #include <JuceHeader.h>
 
 namespace a3
@@ -122,6 +124,19 @@ constexpr int numEndActions
 // What happens to what a take never wrote — glide across it, or hold and jump.
 /** How long the take's closing move lasts, in sixteenths of a beat. "off" is
  *  a hard join: the take holds and jumps rather than travelling back. */
+/** An envelope stage as the panel says it: bars, not steps. Step 0 is a
+ *  sixteenth of a bar and every step doubles it, so the number a performer
+ *  cares about is a length, not an index into a table. */
+inline juce::String
+envelopeBarsName (int step)
+{
+  auto const bars = envelopeBarsForStep (step);
+  if (bars >= 1.f)
+    return juce::String (juce::roundToInt (bars));
+
+  return "1/" + juce::String (juce::roundToInt (1.f / bars));
+}
+
 inline juce::String fadeName (int sixteenths)
 {
   if (sixteenths <= 0)

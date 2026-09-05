@@ -108,6 +108,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/ClipSettingsCaptions.cc
     components/PatternProgressBar.cc
     components/PatternProgressBar.hh
+    components/ActionComponent.cc
+    components/ActionLayout.cc
     components/BarKnob.cc
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh

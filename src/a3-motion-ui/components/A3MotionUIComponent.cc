@@ -477,6 +477,23 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     handlePadRelease (channel, pad);
   };
 
+  // The ACTION page: what the ACT key does to the clip the bar is showing.
+  // Like the pads page, it decides nothing -- a turn arrives here as (control,
+  // increment) and is applied to the same Pattern the bar's own knobs write.
+  _action = std::make_unique<ActionComponent> ();
+  _action->onControlDragged = [this] (int control, int increment) {
+    applyActionControl (control, increment);
+  };
+  _action->onControlDoubleTapped = [this] (int control) {
+    resetActionControl (control);
+  };
+  _action->onControlTapped = [this] (int control) {
+    // Only the mode is a tap: the three knobs are turned, and a tap on one
+    // would otherwise step it by nothing at all.
+    if (control == ActionComponent::ActMode)
+      applyActionControl (control, 1);
+  };
+
   // The browser: the eight clips of the device and the library beside them.
   // What a field or a row means is decided here rather than there, the same
   // way the pads page knows nothing about what a pad does.
@@ -527,6 +544,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // showing which clip is running, showing it in the dark. A child is painted
   // after its parent by construction, and no z-order call can undo that.
   _clipSettings->addChildComponent (*_controller);
+  _clipSettings->addChildComponent (*_action);
   _clipSettings->addChildComponent (*_browser);
   selectClip (0, 0); // sensible default before any button has been pressed
 
@@ -992,6 +1010,8 @@ A3MotionUIComponent::resized ()
   // stays visible and its tabs stay reachable.
   if (_controller && _clipSettings)
     _controller->setBounds (_clipSettings->clipContentBounds ());
+  if (_action)
+    _action->setBounds (_clipSettings->clipContentBounds ());
   if (_browser && _clipSettings)
     _browser->setBounds (_clipSettings->clipContentBounds ());
 
@@ -1604,6 +1624,12 @@ A3MotionUIComponent::showBarPage (BarPage page)
   _barPage = page;
   _clipSettings->setPage (page);
   _controller->setVisible (page == BarPage::Controller);
+  if (_action)
+    {
+      _action->setVisible (page == BarPage::Action);
+      if (page == BarPage::Action)
+        updateActionPage ();
+    }
   if (_browser)
     {
       _browser->setVisible (page == BarPage::Browser);
@@ -2023,6 +2049,125 @@ A3MotionUIComponent::syncClipUIParamsFromPattern (index_t channel,
       = std::find (actions.begin (), actions.end (), pattern->getEndAction ());
   if (found != actions.end ())
     params.endAction = static_cast<int> (found - actions.begin ());
+}
+
+void
+A3MotionUIComponent::updateActionPage ()
+{
+  if (!_action)
+    return;
+
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto const &pattern = _patterns[channel][slot];
+
+  _action->setTarget (static_cast<int> (channel), static_cast<int> (slot),
+                      _channelUIStates[channel]->colour);
+
+  // The defaults when the slot is empty, so the page reads as a page rather
+  // than as a blank: there is nothing to fire, but what firing would do is
+  // still worth seeing.
+  ClipSettings const defaults;
+  _action->setEnvelope (
+      pattern ? pattern->getEnvelopeAttack () : defaults.envelopeAttack,
+      pattern ? pattern->getEnvelopeDecay () : defaults.envelopeDecay,
+      pattern ? pattern->getEnvelopeMax () : defaults.envelopeMax);
+  _action->setActMode (
+      (pattern ? pattern->getActMode () : defaults.actMode) == ActMode::Hold
+          ? 1
+          : 0);
+}
+
+void
+A3MotionUIComponent::applyActionControl (int control, int increment)
+{
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto &pattern = _patterns[channel][slot];
+  if (!pattern)
+    return;
+
+  switch (control)
+    {
+    case ActionComponent::Attack:
+      pattern->setEnvelopeAttack (std::clamp (
+          pattern->getEnvelopeAttack () + increment, 0, envelopeMaxStep));
+      break;
+    case ActionComponent::Decay:
+      pattern->setEnvelopeDecay (std::clamp (
+          pattern->getEnvelopeDecay () + increment, 0, envelopeMaxStep));
+      break;
+    case ActionComponent::EnvelopeMax:
+      pattern->setEnvelopeMax (pattern->getEnvelopeMax () + increment * 0.05f);
+      break;
+    case ActionComponent::ActMode:
+      // Modulo rather than a toggle: a tap in an open list arrives as the
+      // difference to the entry tapped, and a toggle only happens to land
+      // right while the list has two entries in it.
+      {
+        auto const now = pattern->getActMode () == ActMode::Hold ? 1 : 0;
+        auto const next = (now + increment % value::numActModes
+                           + value::numActModes)
+                          % value::numActModes;
+        pattern->setActMode (next == 1 ? ActMode::Hold : ActMode::OneShot);
+      }
+      break;
+    default:
+      return;
+    }
+
+  updateActionPage ();
+  updateControlReadout (actionReadoutFor (control, *pattern));
+}
+
+void
+A3MotionUIComponent::resetActionControl (int control)
+{
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto &pattern = _patterns[channel][slot];
+  if (!pattern)
+    return;
+
+  // The mode is a list and has no middle to come back to.
+  switch (control)
+    {
+    case ActionComponent::Attack:
+      pattern->setEnvelopeAttack (envelopeMaxStep / 2);
+      break;
+    case ActionComponent::Decay:
+      pattern->setEnvelopeDecay (envelopeMaxStep / 2);
+      break;
+    case ActionComponent::EnvelopeMax:
+      pattern->setEnvelopeMax (0.5f);
+      break;
+    default:
+      return;
+    }
+
+  updateActionPage ();
+  updateControlReadout (actionReadoutFor (control, *pattern));
+}
+
+juce::String
+A3MotionUIComponent::actionReadoutFor (int control, Pattern const &pattern)
+{
+  switch (control)
+    {
+    case ActionComponent::Attack:
+      return "atk " + value::envelopeBarsName (pattern.getEnvelopeAttack ());
+    case ActionComponent::Decay:
+      return "dec " + value::envelopeBarsName (pattern.getEnvelopeDecay ());
+    case ActionComponent::EnvelopeMax:
+      return "max "
+             + juce::String (juce::roundToInt (pattern.getEnvelopeMax ()
+                                               * 100.f))
+             + "%";
+    default:
+      return juce::String ("act ")
+             + value::actModeNames[pattern.getActMode () == ActMode::Hold ? 1
+                                                                          : 0];
+    }
 }
 
 void
@@ -3753,6 +3898,10 @@ A3MotionUIComponent::selectClip (index_t channel, index_t slot)
                                    static_cast<int> (slot),
                                    _channelUIStates[channel]->colour);
   updateClipSettingsDisplay ();
+
+  // The ACTION page shows the same slot the bar does; choosing a clip has to
+  // move both or the page describes a clip nobody is looking at.
+  updateActionPage ();
 }
 
 void

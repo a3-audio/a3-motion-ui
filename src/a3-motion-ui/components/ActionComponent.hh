@@ -1,0 +1,93 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2023 Patric Schmitz
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#pragma once
+
+#include <JuceHeader.h>
+
+#include <a3-motion-ui/components/ActionLayout.hh>
+#include <a3-motion-ui/components/TouchControl.hh>
+#include <a3-motion-ui/theme/ThemedComponent.hh>
+
+namespace a3
+{
+
+/** What the ACT key does, on a page of its own.
+ *
+ *  The envelope is a shape, so it is drawn as one, and the three values under
+ *  it move the curve as they are turned. Reading a rise and a fall off two
+ *  knob positions was always a translation the performer had to do in their
+ *  head.
+ *
+ *  It decides nothing. A turn goes out as (control, increment) and lands in
+ *  the same handler the clip bar's own controls reach.
+ */
+class ActionComponent : public juce::Component, public ThemedComponent
+{
+public:
+  /** In the order they are laid out, which is the order the handler expects. */
+  enum Control
+  {
+    Attack = 0,
+    Decay,
+    EnvelopeMax,
+    ActMode,
+    numControls
+  };
+
+  ActionComponent ();
+  ~ActionComponent () override;
+
+  void paint (juce::Graphics &g) override;
+  void resized () override;
+  /** The page's geometry comes from the theme's header size, so a skin change
+   *  has to re-lay it out rather than only repaint it. */
+  void applyTheme () override;
+
+  /** Which clip this page is showing, and the colour it wears. */
+  void setTarget (int channel, int slot, juce::Colour channelColour);
+
+  /** Steps 0..envelopeMaxStep, as the engine counts them. */
+  void setEnvelope (int attackStep, int decayStep, float max);
+  /** 0 = one-shot, 1 = hold. */
+  void setActMode (int mode);
+
+  std::function<void (int control, int increment)> onControlDragged;
+  std::function<void (int control)> onControlDoubleTapped;
+  std::function<void (int control)> onControlTapped;
+
+private:
+  void paintEnvelope (juce::Graphics &g);
+
+  ActionLayout _layout;
+
+  int _channel = 0;
+  int _slot = 0;
+  juce::Colour _channelColour;
+
+  int _attack = 2;
+  int _decay = 3;
+  float _max = 1.f;
+  int _actMode = 0;
+
+  std::array<std::unique_ptr<TouchControl>, numControls> _touch;
+};
+
+}
