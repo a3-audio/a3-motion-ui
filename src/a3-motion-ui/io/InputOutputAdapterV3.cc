@@ -71,8 +71,18 @@ InputOutputAdapterV3::serialInit ()
           _serialPort.SetParity (Parity::PARITY_NONE);
           _serialPort.SetStopBits (StopBits::STOP_BITS_1);
 
-          // Give the device a moment to settle
-          juce::Thread::sleep (100);
+          // Drop the modem lines. On this board they run to the ESP32's
+          // auto-reset circuit through the CH343 bridge: RTS asserted holds
+          // EN low, and DTR asserted brings it up into the download stub.
+          // Deasserted is "run normally", which is the state a port that is
+          // only being talked through should leave them in.
+          _serialPort.SetDTR (false);
+          _serialPort.SetRTS (false);
+
+          // Long enough for a board that did reset while the port was being
+          // opened to be back and talking. It was 100ms, a tenth of an
+          // ESP32's boot, so a first poll could go out into one.
+          juce::Thread::sleep (600);
           _hardwareAvailable = true;
           juce::Logger::writeToLog (
               "InputOutputAdapterV3: serial port opened: " + serialDevice);
@@ -158,10 +168,40 @@ InputOutputAdapterV3::resolveFrameOffsets (const uint8_t *raw, bool withPots,
 // ── Main poll loop ────────────────────────────────────────────────────────────
 
 void
+InputOutputAdapterV3::serialReopen ()
+{
+  if (_hardwareAvailable)
+    {
+      try
+        {
+          _serialPort.Close ();
+        }
+      catch (std::exception const &e)
+        {
+          juce::Logger::writeToLog (
+              juce::String ("InputOutputAdapterV3: closing failed: ")
+              + e.what ());
+        }
+
+      _hardwareAvailable = false;
+    }
+
+  serialInit ();
+}
+
+void
 InputOutputAdapterV3::processInput ()
 {
   if (!_hardwareAvailable)
-    return;
+    {
+      // A controller plugged in after the app started, or one that went away
+      // and came back. Neither used to be found: serialInit() ran once, in
+      // the constructor, and nothing ever asked again.
+      if (_reconnect.shouldRetryOpening (juce::Time::currentTimeMillis ()))
+        serialInit ();
+
+      return;
+    }
 
   refreshIdleButtonLeds ();
 
@@ -178,6 +218,9 @@ InputOutputAdapterV3::processInput ()
       if (!readExact (raw, sizeof (raw)))
         {
           _cycle = 0;
+          if (_reconnect.noteQuietPoll ())
+            serialReopen ();
+
           return;
         }
 
@@ -190,6 +233,10 @@ InputOutputAdapterV3::processInput ()
           _cycle = 0;
           return;
         }
+
+      // Bytes arrived and made sense: whatever is on the other end is alive,
+      // so the silence count starts over.
+      _reconnect.noteFrameReceived ();
 
       parseButtons (raw, buttonOffset);
       parseEncoders (raw, encoderOffset);
@@ -205,6 +252,9 @@ InputOutputAdapterV3::processInput ()
       if (!readExact (raw, sizeof (raw)))
         {
           _cycle = 0;
+          if (_reconnect.noteQuietPoll ())
+            serialReopen ();
+
           return;
         }
 
@@ -217,6 +267,8 @@ InputOutputAdapterV3::processInput ()
           _cycle = 0;
           return;
         }
+
+      _reconnect.noteFrameReceived ();
 
       parseButtons (raw, buttonOffset);
       parseEncoders (raw, encoderOffset);

@@ -27,6 +27,8 @@ target_sources("a3-motion-ui" PRIVATE
     StandaloneApp.hh
     MainWindow.cc
     MainWindow.hh
+    io/SerialReconnect.cc
+    io/SerialReconnect.hh
     io/InputOutputAdapter.cc
     io/InputOutputAdapter.hh
     osc/OscMessageHandler.cc

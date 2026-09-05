@@ -25,6 +25,8 @@
 
 #include <libserial/SerialPort.h>
 
+#include <a3-motion-ui/io/SerialReconnect.hh>
+
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/io/ButtonLedColours.hh>
@@ -78,6 +80,10 @@ public:
 private:
   // ── Serial ────────────────────────────────────────────────────────────────
   void serialInit ();
+  /** Close whatever is open and go looking again. Only ever from the polling
+   *  thread: the port may not be closed by anyone who is not the one reading
+   *  from it. */
+  void serialReopen ();
   bool readExact (uint8_t *buf, std::size_t n);
   bool resolveFrameOffsets (const uint8_t *raw, bool withPots,
                             int &buttonOffset, int &encoderOffset,
@@ -85,6 +91,9 @@ private:
 
   LibSerial::SerialPort _serialPort;
   bool _hardwareAvailable = false;
+  /** When to stop believing an open port, and how often to look for one that
+   *  is not there yet. See SerialReconnect. */
+  SerialReconnect _reconnect;
 
   /** Light every function button in the resting colour, and keep it in step
    *  with the config. A key that does something says so without being
