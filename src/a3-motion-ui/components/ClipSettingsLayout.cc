@@ -64,11 +64,13 @@ numControlsInSection (int sectionIndex)
   switch (sectionIndex)
     {
     case 0:
-      return 4; // the shape, and the three knobs that say how it is read
+      return 1; // just the shape now -- rot, fade and bias went to Motion
     case 1:
       return 6; // reach, clip-top, clip-bottom, mirror-south, flat, flat-elev
     case 2:
-      return 4; // spin, swell, dir, end -- the envelope went to ACTION
+      // spin, swell, rot, fade, bias, then dir and end along the floor.
+      // Everything that shapes a movement over time lives here.
+      return 7;
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -80,8 +82,10 @@ bool
 tapAdvancesValue (int sectionIndex, int subIndex)
 {
   if (sectionIndex == 2)
-    // act-mode, direction, end-action
-    return subIndex == 5 || subIndex == 6 || subIndex == 7;
+    // direction and end action, along Motion's floor. They used to open a
+    // list; a list covered the controls under it, and both are short enough
+    // that a finger can simply walk them.
+    return subIndex == 5 || subIndex == 6;
   if (sectionIndex == 3)
     return subIndex == 0; // rec mode
 
@@ -261,8 +265,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       34, juce::jmax (34, out.clipBounds.getHeight () / 6),
       static_cast<int> (metrics.knobDiam * 1.35f));
 
-  for (int i = 0; i < numClipSettingsSections - 1; ++i)
-    out.sectionCards[static_cast<size_t> (i)]
+  // Shape, then Motion, then Elevation. What a clip is and how it moves are
+  // what a hand reaches for while playing; where it sits on the sphere is set
+  // once and left alone, so it goes to the far end. The indices stay as they
+  // were -- only the places change, which keeps every sub-index list intact.
+  constexpr int sectionOrder[] = { 0, 2, 1 };
+  for (auto const index : sectionOrder)
+    out.sectionCards[static_cast<size_t> (index)]
         = area.removeFromLeft (sectionW).reduced (gap / 2, 0);
 
   auto globalArea = out.globalBounds.reduced (paddingH, paddingV);
@@ -385,45 +394,16 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
           place (i, out.speedButtons[static_cast<size_t> (i)]);
     }
 
-    // The picture, and the knob beside whichever face is showing. The lengths
-    // and the speeds are buttons of their own — they are not values a finger
-    // turns, so they are not sub-elements of the section.
+    // The picture, and nothing else. The lengths and the speeds are buttons of
+    // their own -- they are not values a finger turns, so they are not
+    // sub-elements of the section.
     //
-    // Three knobs down the column, sharing it evenly: how the shape stands
-    // (rot) and how it is read (fade, bridge -- which of its gaps are a line
-    // and which a jump). All three are about the picture beside them, which is
-    // why they are here rather than in Motion, where things move over time.
-    //
-    // Shared out rather than each taking its own height from the top: a skin
-    // can cut the bar down, and a column that helps itself leaves the whole
-    // shortfall on the last knob.
-    constexpr int shapeKnobs = 3;
-    auto const knobGap = juce::jmax (2, knobColumn.getHeight () / 40);
-    auto const knobH
-        = juce::jmax (1, (knobColumn.getHeight () - (shapeKnobs - 1) * knobGap)
-                             / shapeKnobs);
-    auto const wantedH = controlBoxHeightForFont (bodySize, metrics.knobDiam);
+    // The knob column went with rot, fade and bias to Motion, where the things
+    // that shape a movement over time belong. What is left is the picture and
+    // the buttons under it.
+    juce::ignoreUnused (knobColumn);
 
-    auto knobsLeft = knobColumn;
-    auto const nextKnob = [&knobsLeft, knobH, knobGap, wantedH] (bool last) {
-      auto slot = knobsLeft.removeFromTop (knobH);
-      if (!last)
-        knobsLeft.removeFromTop (knobGap);
-      // Its own height inside its slot and centred in it: stretched, a knob
-      // would be as tall as its share of the column; pinned to one end it
-      // would leave a hole at the other.
-      return slot.withSizeKeepingCentre (
-          slot.getWidth (), juce::jmin (slot.getHeight (), wantedH));
-    };
-
-    auto const rotateBox = nextKnob (false);
-    auto const fadeBox = nextKnob (false);
-    auto const bridgeBox = nextKnob (true);
-
-    out.controls[0] = { out.trajectoryIcon,
-                        textCell (rotateBox, metrics.knobDiam),
-                        textCell (fadeBox, metrics.knobDiam),
-                        textCell (bridgeBox, metrics.knobDiam) };
+    out.controls[0] = { out.trajectoryIcon };
   }
 
   // ── Elevation ────────────────────────────────────────────────────────
@@ -513,7 +493,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // Shared out rather than taken one after another from the bottom. A skin
     // can cut the bar down (clipSettingsHeightScale), and a section that helps
     // itself row by row leaves the whole shortfall on the row at the top.
-    constexpr int motionKnobRows = 2;
+    // Three now, not two: rot, fade and bias arrived from Shape and joined
+    // spin and swell. Five knobs over three rows of two, with the last cell
+    // left empty rather than squeezing everything into two rows -- a knob
+    // under a fingertip is worth more than a tidy grid.
+    constexpr int motionKnobRows = 3;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
@@ -527,6 +511,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     };
 
     auto lowerRow = knobRow (false);
+    auto middleRow = knobRow (false);
     auto upperRow = knobRow (true);
 
     auto const colW = (lowerRow.getWidth () - gapH) / 2;
@@ -538,23 +523,26 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     };
 
     auto const [upperLeft, upperRight] = split (upperRow);
+    auto const [middleLeft, middleRight] = split (middleRow);
     auto const [lowerLeft, lowerRight] = split (lowerRow);
     auto const [bottomLeft, bottomRight] = split (bottomRow);
 
     // The bottom row is already the button height; the cell is the button.
     auto const buttonCell = [] (juce::Rectangle<int> cell) { return cell; };
 
-    // What moves on its own, and what happens when it gets to the end. spin
-    // turns the shape under the blob and swell opens and closes how far down
-    // the sphere it reaches -- same table, same bipolar knob, same standstill
-    // in the middle.
-    //
-    // The envelope and the act mode have left for the ACTION page, which is a
-    // page of its own like PADS rather than another face of this card.
-    juce::ignoreUnused (lowerLeft, lowerRight, bottomRight);
+    // Everything that shapes a movement over time. spin turns the shape under
+    // the blob and swell opens and closes how far down the sphere it reaches;
+    // rot is the standing angle the spin adds to, and fade and bias say which
+    // of the take's gaps are drawn through and where they lead. The two lists
+    // close the section along its floor, where every other section's buttons
+    // are.
+    juce::ignoreUnused (lowerRight);
     out.controls[2] = {
       textCell (upperLeft, metrics.knobDiam),   // spin
       textCell (upperRight, metrics.knobDiam),  // swell
+      textCell (middleLeft, metrics.knobDiam),  // rot
+      textCell (middleRight, metrics.knobDiam), // fade
+      textCell (lowerLeft, metrics.knobDiam),   // bias
       buttonCell (bottomLeft),                  // direction
       buttonCell (bottomRight),                 // end action
     };

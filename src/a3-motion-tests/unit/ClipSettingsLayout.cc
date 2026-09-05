@@ -77,9 +77,9 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_EQ (l.controls[0].size (), 4u); // Shape: the picture, rot, fade, bridge
+  EXPECT_EQ (l.controls[0].size (), 1u); // Shape: the picture, rot, fade, bridge
   EXPECT_EQ (l.controls[1].size (), 6u); // Elevation
-  EXPECT_EQ (l.controls[2].size (), 4u); // Motion: the envelope went to ACTION
+  EXPECT_EQ (l.controls[2].size (), 7u); // Motion: the envelope went to ACTION
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 
@@ -452,22 +452,28 @@ TEST (ClipSettingsLayout, MotionsControlsStayBigEnoughToHit)
       }
 }
 
-// Two rows now, not three. Short of room they give up the same amount: a
-// section that helps itself row by row leaves the whole shortfall on one row,
-// which came out a sliver while the others were untouched.
+// Three knob rows and a button floor. Short of room they give up the same
+// amount: a section that helps itself row by row leaves the whole shortfall
+// on one row, which came out a sliver while the others were untouched.
 TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
 {
   for (int height : { 160, 200, 250, 314, 400 })
     {
       auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
       auto const &motion = l.controls[2];
-      ASSERT_EQ (motion.size (), 4u) << "height " << height;
+      ASSERT_EQ (motion.size (), 7u) << "height " << height;
 
-      // The two knobs are one row and share a height; so do the two buttons.
+      // Each knob row shares a height, and so do the two buttons.
       EXPECT_EQ (motion[0].getHeight (), motion[1].getHeight ())
-          << "height " << height;
+          << "spin/swell at " << height;
       EXPECT_EQ (motion[2].getHeight (), motion[3].getHeight ())
-          << "height " << height;
+          << "rot/fade at " << height;
+      EXPECT_EQ (motion[5].getHeight (), motion[6].getHeight ())
+          << "dir/end at " << height;
+
+      // bias sits alone on the third row and keeps that row's height.
+      EXPECT_EQ (motion[4].getHeight (), motion[2].getHeight ())
+          << "bias at " << height;
     }
 }
 
@@ -521,37 +527,6 @@ TEST (ClipSettingsLayout, TheFrontHasTwelveSpeedsAndTheBackEightLengths)
   used (front.speedButtons, numSpeedButtons);
   used (back.lengthButtons, numRecordLengths);
 }
-
-// Both faces carry a knob, and it is a different knob: which way the shape
-// faces on the front, how the take's join is closed on the back. Not in the
-// same place — the front has three rows of buttons and the back two, so a knob
-// pinned to one height would leave the shorter face a hole where the third row
-// would have been. What holds on both is the order: the picture, then the
-// knob, then the buttons on the floor.
-TEST (ClipSettingsLayout, BothFacesCarryAKnobBetweenThePictureAndTheButtons)
-{
-  auto const front = defaultLayout ();
-  auto const back = layOutClipSettings (
-      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
-      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
-
-  ASSERT_EQ (front.controls[0].size (), 4u); // the picture and its three knobs
-  ASSERT_EQ (back.controls[0].size (), 4u);  // the same column on the back
-
-  auto const ordered = [] (ClipSettingsLayout const &l,
-                           juce::Rectangle<int> firstButton) {
-    auto const picture = l.controls[0][0];
-    auto const knob = l.controls[0][1];
-
-    EXPECT_FALSE (knob.isEmpty ());
-    EXPECT_GE (knob.getY (), picture.getY ());
-    EXPECT_LE (knob.getBottom (), firstButton.getY ());
-  };
-
-  ordered (front, front.speedButtons[0]);
-  ordered (back, back.lengthButtons[0]);
-}
-
 // Menu, Rec and Tap sit in the global strip beside the clip's sections. They
 // are not sub-elements of it — no encoder reaches them, only a finger — so
 // they live beside `controls`, not in it.
@@ -932,39 +907,6 @@ TEST (ClipSettingsLayout, TheTrajectoryNameLiesOverThePictureNotUnderIt)
       EXPECT_EQ (layout.trajectoryName, layout.trajectoryIcon);
     }
 }
-
-TEST (ClipSettingsLayout, ThePictureAndTheKnobStandOnTheButtonGrid)
-{
-  // Three columns for the picture, one for the knob, on the column width the
-  // buttons use. A row that nearly lines up with the grid below it reads as a
-  // mistake; one that lines up exactly reads as structure.
-  for (auto const page : { BarPage::Clip, BarPage::Record })
-    {
-      auto const layout
-          = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
-      auto const &knob = layout.controls[0][1];
-      auto const &firstButton = page == BarPage::Record
-                                    ? layout.lengthButtons[0]
-                                    : layout.speedButtons[0];
-      auto const &fourthButton = page == BarPage::Record
-                                     ? layout.lengthButtons[3]
-                                     : layout.speedButtons[3];
-      auto const face = page == BarPage::Clip ? "clip face" : "record face";
-
-      // The picture starts where the first button starts ...
-      EXPECT_EQ (layout.trajectoryIcon.getX (), firstButton.getX ()) << face;
-      // ... and the knob's column is the last button's column.
-      EXPECT_EQ (knob.getX (), fourthButton.getX ()) << face;
-      EXPECT_EQ (knob.getWidth (), fourthButton.getWidth ()) << face;
-
-      // The picture is the other three columns, so it is wider than it is
-      // in any single one of them.
-      EXPECT_GT (layout.trajectoryIcon.getWidth (), fourthButton.getWidth () * 2)
-          << face;
-      EXPECT_LE (layout.trajectoryIcon.getRight (), knob.getX ()) << face;
-    }
-}
-
 TEST (ClipSettingsLayout, ThePictureIsTheBiggestThingInTheSection)
 {
   // Guards the reason for the change rather than its mechanics. Not stated as
@@ -1059,23 +1001,6 @@ TEST (ClipSettingsLayout, TheClipFacesStillHaveTheirTransportKeys)
 }
 
 // ── Which control each of Motion's lists belongs to ──────────────────────
-
-TEST (ClipSettingsLayout, MotionsThreeListsAreTheLastThreeSubIndices)
-{
-  // act-mode, direction and end-action. Renumbering the section without
-  // renumbering the lists is exactly what happened once: the act control
-  // offered the direction's words, direction offered the end action's, and
-  // end action offered none at all -- three controls broken by one stale
-  // pair of case labels.
-  EXPECT_TRUE (tapAdvancesValue (2, 5));
-  EXPECT_TRUE (tapAdvancesValue (2, 6));
-  EXPECT_TRUE (tapAdvancesValue (2, 7));
-
-  // ... and the knobs above them are not lists.
-  for (int sub = 0; sub < 5; ++sub)
-    EXPECT_FALSE (tapAdvancesValue (2, sub)) << "sub " << sub;
-}
-
 TEST (ClipSettingsLayout, EveryMotionControlIsEitherAKnobOrAList)
 {
   // What the double tap keys off: a knob has a middle to go back to, a list
@@ -1168,55 +1093,6 @@ TEST (ClipSettingsLayout, NothingToMarkMeansNoMark)
 {
   EXPECT_TRUE (driftMark ({}).isEmpty ());
 }
-
-
-// Where the fade actually went, and the measurement that sent it there: the
-// shape's knob column carries three knobs at every size a skin can ask for,
-// where a fourth row in Motion carries none.
-TEST (ClipSettingsLayout, TheShapeColumnCarriesItsThreeKnobs)
-{
-  for (int height : { 200, 250, 314, 400 })
-    {
-      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
-      auto const &shape = l.controls[0];
-      ASSERT_EQ (shape.size (), 4u) << "height " << height;
-
-      for (size_t knob = 1; knob < shape.size (); ++knob)
-        {
-          EXPECT_FALSE (shape[knob].isEmpty ())
-              << "knob " << knob << " at height " << height;
-          EXPECT_TRUE (l.sectionCards[0].contains (shape[knob]))
-              << "knob " << knob << " escapes the card at height " << height;
-        }
-
-      for (size_t knob = 2; knob < shape.size (); ++knob)
-        EXPECT_GE (shape[knob].getY (), shape[knob - 1].getBottom ())
-            << "the knobs overlap at height " << height;
-    }
-}
-
-// Motion had eight things in it and no room for a ninth; the envelope and the
-// act mode have gone to the ACTION page and it has room to spare. This test
-// was written to start failing exactly here, and saying so is its job -- the
-// constraint that sent the fade to the shape column no longer holds.
-//
-// The fade stays in Shape anyway, and deliberately: rot, fade and bias are all
-// about the picture beside them -- how the shape stands and how it is read.
-// Motion is what moves over time. It was the right home for a bad reason and
-// it is still the right home for a good one.
-TEST (ClipSettingsLayout, MotionHasRoomAgainAndTheFadeStaysWhereItIs)
-{
-  auto const l = layOutClipSettings ({ 0, 0, 768, 200 }, 14.f, 12.f, 1.f);
-
-  ASSERT_EQ (l.controls[2].size (), 4u);
-  for (auto const &control : l.controls[2])
-    EXPECT_GE (control.getHeight (), fingertipSize)
-        << "Motion is emptier and its controls should have grown";
-
-  // And the fade is still in the shape column, with rot and bias.
-  EXPECT_EQ (l.controls[0].size (), 4u);
-}
-
 // ── The global strip's card ──────────────────────────────────────────────
 
 // The four transport keys stand in the band over the strip, and the card used
@@ -1263,4 +1139,124 @@ TEST (ClipSettingsLayout, TheChannelGridStaysClearOfTheTransportKeys)
             EXPECT_FALSE (cell.intersects (key))
                 << "a grid cell runs into a transport key at height " << height;
     }
+}
+
+// ── The sections after the reshuffle ─────────────────────────────────────
+
+// Motion comes before Elevation now. What a clip *is* and how it *moves* are
+// the two things reached for while playing; where it sits on the sphere is
+// set once and left alone, so it goes to the far end.
+TEST (ClipSettingsLayout, MotionStandsBeforeElevation)
+{
+  auto const l = defaultLayout ();
+
+  EXPECT_LT (l.sectionCards[0].getX (), l.sectionCards[2].getX ())
+      << "Shape must still come first";
+  EXPECT_LT (l.sectionCards[2].getX (), l.sectionCards[1].getX ())
+      << "Motion must stand before Elevation";
+
+  for (size_t i = 0; i < 3; ++i)
+    ASSERT_FALSE (l.sectionCards[i].isEmpty ()) << "card " << i;
+}
+
+// Shape keeps only the shape itself -- rot, fade and bias moved to Motion,
+// where the things that shape a movement over time belong.
+TEST (ClipSettingsLayout, ShapeIsJustTheShapeNow)
+{
+  EXPECT_EQ (numControlsInSection (0), 1);
+  auto const l = defaultLayout ();
+  ASSERT_EQ (l.controls[0].size (), 1u);
+  EXPECT_FALSE (l.controls[0][0].isEmpty ());
+}
+
+// And Motion carries seven: spin, swell, rot, fade, bias, then the two lists
+// along its floor.
+TEST (ClipSettingsLayout, MotionCarriesSeven)
+{
+  EXPECT_EQ (numControlsInSection (2), 7);
+
+  auto const l = defaultLayout ();
+  ASSERT_EQ (l.controls[2].size (), 7u);
+  for (size_t i = 0; i < 7; ++i)
+    EXPECT_FALSE (l.controls[2][i].isEmpty ()) << "motion control " << i;
+
+  // dir and end sit on the section's floor with the other sections' buttons.
+  EXPECT_GE (l.controls[2][5].getY (), l.controls[2][0].getBottom ());
+  EXPECT_EQ (l.controls[2][5].getY (), l.controls[2][6].getY ());
+}
+
+// Direction and end action step on a tap now instead of opening a list. Both
+// are short lists a finger can walk, and an open list covered the controls
+// underneath it.
+TEST (ClipSettingsLayout, DirectionAndEndStepOnATap)
+{
+  EXPECT_TRUE (tapAdvancesValue (2, 5)) << "direction";
+  EXPECT_TRUE (tapAdvancesValue (2, 6)) << "end action";
+
+  // The knobs are turned, not tapped.
+  for (int sub = 0; sub < 5; ++sub)
+    EXPECT_FALSE (tapAdvancesValue (2, sub)) << "motion knob " << sub;
+}
+
+// ── What the reshuffle replaced ──────────────────────────────────────────
+//
+// Five cases held the old arrangement: Shape's knob column, its knob between
+// the picture and the buttons, Motion's three lists, and where the fade sat.
+// rot, fade and bias are Motion's now and Shape carries only the picture, so
+// those cases described a bar that no longer exists. What they were
+// protecting is kept here in the shape it has.
+
+// The picture takes the room the knob column had, and still stands on the
+// button grid beneath it -- a row that nearly lines up reads as a mistake, one
+// that lines up exactly reads as structure.
+TEST (ClipSettingsLayout, ThePictureStandsOnTheButtonGrid)
+{
+  for (auto const page : { BarPage::Clip, BarPage::Record })
+    {
+      auto const l = layOutClipSettings (
+          grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+          defaultHeaderSize, defaultBodySize, defaultPotSize, page);
+
+      auto const &button = page == BarPage::Record ? l.lengthButtons[0]
+                                                   : l.speedButtons[0];
+      ASSERT_FALSE (l.trajectoryIcon.isEmpty ());
+      ASSERT_FALSE (button.isEmpty ());
+
+      EXPECT_EQ (l.trajectoryIcon.getX (), button.getX ())
+          << "the picture does not start on the button grid";
+      EXPECT_LE (l.trajectoryIcon.getBottom (), button.getY ())
+          << "the picture runs into the buttons";
+    }
+}
+
+// Motion's two lists are its last two sub-indices, and they are what steps on
+// a tap rather than being turned.
+TEST (ClipSettingsLayout, MotionsTwoListsAreItsLastTwoSubIndices)
+{
+  EXPECT_EQ (numControlsInSection (2), 7);
+  EXPECT_TRUE (tapAdvancesValue (2, 5));
+  EXPECT_TRUE (tapAdvancesValue (2, 6));
+
+  auto const l = defaultLayout ();
+  ASSERT_EQ (l.controls[2].size (), 7u);
+
+  // Side by side on the section's floor, below every knob.
+  for (size_t knob = 0; knob < 5; ++knob)
+    EXPECT_LE (l.controls[2][knob].getBottom (), l.controls[2][5].getY () + 1)
+        << "knob " << knob << " hangs below the buttons";
+}
+
+// The fade is a Motion value now. It reads a take's gaps and decides which are
+// drawn through -- something a movement does over time, not something the
+// picture is.
+TEST (ClipSettingsLayout, TheFadeIsAMotionValueNow)
+{
+  auto const l = defaultLayout ();
+
+  ASSERT_EQ (l.controls[2].size (), 7u);
+  ASSERT_EQ (l.controls[0].size (), 1u);
+
+  EXPECT_FALSE (l.controls[2][3].isEmpty ());
+  EXPECT_TRUE (l.sectionCards[2].contains (l.controls[2][3]));
+  EXPECT_FALSE (l.sectionCards[0].contains (l.controls[2][3]));
 }

@@ -1344,7 +1344,6 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   paintSectionCard (g, trajectoryIndex, isSelected);
 
   auto const &metrics = _layout.metrics;
-  auto const &cells = _layout.controls[trajectoryIndex];
   auto const recording = _page == BarPage::Record;
 
   if (recording)
@@ -1367,35 +1366,8 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
                         speedButtonNames[i], {},
                         _speedLog2 == speedButtonLog2[i], isSelected);
 
-      // Which way the shape faces, and where the spin has carried it: the
-      // pointer is the hand's value, the arc is the movement over it.
-      // A closed ring: rotation comes round to itself, so its scale has to as
-      // well. The pointer is where the hand left it; the blue runs from there
-      // to where the spin is holding the shape right now -- the position it is
-      // being driven to, not how hard it is being driven.
-      // A turn, not a bipolar value: 0 is straight up and the scale runs once
-      // round clockwise. (frac * 2 is a whole turn once the ring folds it back
-      // into the [-1, 1] the knob speaks; frac * 2 - 1 would put no rotation
-      // at six o'clock.)
-      paintMiniKnob (g, cells[1], metrics, caption::rotate,
-                     _shapeRotate * 2.f, false, _trajectorySubIndex == 1,
-                     isSelected, _shapeRotateReach * 2.f, true);
-
-      // How far a gap may be for the fade to draw through it, and where a
-      // drawn-through gap leads. Both are about the picture above them --
-      // which of the shape's holes are a line and which a jump -- so they
-      // stand under the knob that turns the same shape, not among the
-      // movements in Motion.
-      paintMiniKnob (g, cells[2], metrics, caption::fade,
-                     _motionFadeReach * 2.f - 1.f, false,
-                     _trajectorySubIndex == 2, isSelected);
-
-      // Bipolar, like spin and swell: the middle is the next point in time,
-      // and which side of it you are on is whether it looks for the nearest
-      // way out or a random one.
-      paintMiniKnob (g, cells[3], metrics, caption::bias,
-                     static_cast<float> (_motionBridgeBias) / 4.f, true,
-                     _trajectorySubIndex == 3, isSelected);
+      // rot, fade and bias left for Motion. What is left of this section is
+      // the picture and the buttons under it.
     }
 
   // Pictogram, centred in whatever square area is left above the name.
@@ -1678,19 +1650,44 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
                      / static_cast<float> (lfoMaxStep),
                  true, _motionSubIndex == 1, isSelected);
 
-  paintBarButton (g, cells[2], value::directionNames[_motionDirection],
-                  caption::direction, _motionSubIndex == 2 && isSelected,
+  // A closed ring: rotation comes round to itself, so its scale has to as
+  // well. The pointer is where the hand left it; the blue runs from there to
+  // where the spin is holding the shape right now -- the position it is being
+  // driven to, not how hard it is being driven.
+  paintMiniKnob (g, cells[2], metrics, caption::rotate, _shapeRotate * 2.f,
+                 false, _motionSubIndex == 2, isSelected,
+                 _shapeRotateReach * 2.f, true);
+
+  // How far a gap may be for the fade to draw through it, and where a
+  // drawn-through gap leads. Both read the take's holes rather than changing
+  // them, which is why they stand among the movements rather than beside the
+  // picture.
+  paintMiniKnob (g, cells[3], metrics, caption::fade,
+                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 3,
+                 isSelected);
+
+  // Bipolar, like spin and swell: the middle is the next point in time, and
+  // which side of it you are on is whether a bridged gap looks for the
+  // nearest way out or a random one.
+  paintMiniKnob (g, cells[4], metrics, caption::bias,
+                 static_cast<float> (_motionBridgeBias) / 4.f, true,
+                 _motionSubIndex == 4, isSelected);
+
+  paintBarButton (g, cells[5], value::directionNames[_motionDirection],
+                  caption::direction, _motionSubIndex == 5 && isSelected,
                   false, isSelected);
-  paintBarButton (g, cells[3], value::endActionNames[_motionEndAction],
-                  caption::endAction, _motionSubIndex == 3 && isSelected,
+  paintBarButton (g, cells[6], value::endActionNames[_motionEndAction],
+                  caption::endAction, _motionSubIndex == 6 && isSelected,
                   false, isSelected);
 }
 
 bool
 ClipSettingsComponent::opensList (int section, int sub)
 {
-  if (section == motionIndex)
-    return sub == 5 || sub == 6 || sub == 7; // act-mode, direction, end-action
+  // Nothing opens a list any more. Direction and end action were the last
+  // two, and both are short enough for a finger to walk on a tap -- one move
+  // instead of two, and it does not cover the controls underneath.
+  juce::ignoreUnused (section, sub);
   return false;
 }
 

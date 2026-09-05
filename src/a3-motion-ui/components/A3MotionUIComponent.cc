@@ -4357,14 +4357,20 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
     case 2: // Motion
       if (!pattern)
         return;
-      // Only the two knobs have a middle to go back to; direction and end
-      // action are lists, and a list has no default a double tap could mean.
-      if (sub == 0)
-        pattern->setSpin (0);
-      else if (sub == 1)
-        pattern->setReachLfo (0);
-      else
-        return;
+      // Only the knobs have a middle to go back to; direction and end action
+      // are lists, and a list has no default a double tap could mean.
+      switch (sub)
+        {
+        case 0: pattern->setSpin (0); break;
+        case 1: pattern->setReachLfo (0); break;
+        case 2: pattern->setRotate (0.f); break;
+        case 3: pattern->setFadeReach (ClipSettings{}.fadeReach); break;
+        case 4:
+          pattern->setBridgeBias (0);
+          refreshPatternDisplayFromTicks (pattern);
+          break;
+        default: return;
+        }
       break;
 
     default:
@@ -4392,44 +4398,14 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
   switch (section)
     {
-    case 0: // Shape — the shape in the slot (0), and the knob the section's
-            // showing face carries (1): which way it faces on the front, how
-            // the take's join is closed on the back. The speeds and the
-            // lengths have their own buttons.
+    case 0: // Shape — the shape in the slot, and nothing else. The speeds and
+            // the lengths have their own buttons; rot, fade and bias went to
+            // Motion, where what shapes a movement over time belongs.
       {
         auto &pattern = _patterns[channel][slot];
 
-        if (sub == 1 && pattern)
-          {
-            // Which way the shape faces. A standing angle, where the spin is
-            // the movement over it — both are summed at the one place that
-            // turns anything.
-            pattern->setRotate (pattern->getRotate () + increment * 0.02f);
-            break;
-          }
-
-        if (sub == 2 && pattern)
-          {
-            // How far a gap may be for the fade to draw through it. A reading
-            // of the movement, not a change to it: nothing is written into the
-            // ticks, so it can be turned down again as freely as up, and the
-            // drawn line follows because it is cut from the same plan.
-            pattern->setFadeReach (pattern->getFadeReach ()
-                                   + 0.02f * static_cast<float> (increment));
-            refreshPatternDisplayFromTicks (pattern);
-            break;
-          }
-
-        if (sub == 3 && pattern)
-          {
-            // Where a drawn-through gap leads. Whole steps, like spin and
-            // swell: there are nine positions and a finger should feel each
-            // one, not slide past them.
-            pattern->setBridgeBias (pattern->getBridgeBias () + increment);
-            refreshPatternDisplayFromTicks (pattern);
-            break;
-          }
-
+        // rot, fade and bias moved to Motion; the shape is all this section
+        // turns now.
         if (sub != 0)
           break;
 
@@ -4515,45 +4491,79 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           }
         break;
       }
-    case 2: // Motion — spin (0), swell (1), direction (2), end-action (3).
-            // The envelope and the act mode moved to the ACTION page, which
-            // drives them from its own handler.
-      switch (sub)
-        {
-        case 0:
+    case 2: // Motion — spin (0), swell (1), rot (2), fade (3), bias (4),
+            // direction (5), end-action (6). Everything that shapes a
+            // movement over time; the envelope and the act mode belong to the
+            // ACTION page and have their own handler.
+      {
+        auto &pattern = _patterns[channel][slot];
+
+        switch (sub)
           {
+          case 0:
             // How fast the whole trajectory turns under the blob. On the
             // Pattern rather than in _clipUIParams because the engine reads it
             // every tick and it has to survive being saved.
-            auto &pattern = _patterns[channel][slot];
             if (pattern)
               pattern->setSpin (std::clamp (pattern->getSpin () + increment,
                                             -lfoMaxStep, lfoMaxStep));
             break;
-          }
-        case 1:
-          {
-            // How fast reach sweeps out of where it was set. Same table as the
-            // spin, and on the Pattern for the same reasons.
-            auto &pattern = _patterns[channel][slot];
+
+          case 1:
+            // How fast reach sweeps out of where it was set. Same table as
+            // the spin, and on the Pattern for the same reasons.
             if (pattern)
               pattern->setReachLfo (
                   std::clamp (pattern->getReachLfo () + increment, -lfoMaxStep,
                               lfoMaxStep));
             break;
+
+          case 2:
+            // The standing angle the spin adds to -- both are summed at the
+            // one place that turns anything.
+            if (pattern)
+              pattern->setRotate (pattern->getRotate () + increment * 0.02f);
+            break;
+
+          case 3:
+            // How far a gap may be for the fade to draw through it. A reading
+            // of the movement, not a change to it: nothing is written into
+            // the ticks, so it can be turned down as freely as up, and the
+            // drawn line follows because it is cut from the same plan.
+            if (pattern)
+              {
+                pattern->setFadeReach (
+                    pattern->getFadeReach ()
+                    + 0.02f * static_cast<float> (increment));
+                refreshPatternDisplayFromTicks (pattern);
+              }
+            break;
+
+          case 4:
+            // Where a drawn-through gap leads. Whole steps, like spin and
+            // swell: nine positions, and a finger should feel each one rather
+            // than slide past them.
+            if (pattern)
+              {
+                pattern->setBridgeBias (pattern->getBridgeBias () + increment);
+                refreshPatternDisplayFromTicks (pattern);
+              }
+            break;
+
+          case 5:
+            params.direction = (params.direction + increment % 2 + 2) % 2;
+            applyMotionMode (channel, slot);
+            break;
+
+          default:
+            params.endAction
+                = (params.endAction + increment % value::numEndActions
+                   + value::numEndActions)
+                  % value::numEndActions;
+            applyMotionMode (channel, slot);
+            break;
           }
-        case 2:
-          params.direction = (params.direction + increment % 2 + 2) % 2;
-          applyMotionMode (channel, slot);
-          break;
-        default:
-          params.endAction
-              = (params.endAction + increment % value::numEndActions
-                 + value::numEndActions)
-                % value::numEndActions;
-          applyMotionMode (channel, slot);
-          break;
-        }
+      }
       break;
     case ClipSettingsComponent::globalIndex:
       {
