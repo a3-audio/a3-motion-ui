@@ -109,7 +109,8 @@ elevationCircleBounds (juce::Rectangle<int> cell)
 }
 
 float
-elevationBaseAt (juce::Rectangle<int> cell, int y)
+elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow,
+                 float bandHigh)
 {
   auto const circle = elevationCircleBounds (cell);
   if (circle.getHeight () <= 0)
@@ -118,7 +119,12 @@ elevationBaseAt (juce::Rectangle<int> cell, int y)
   auto const frac = static_cast<float> (y - circle.getY ())
                     / static_cast<float> (circle.getHeight ());
 
-  return juce::jlimit (0.f, 1.f, frac);
+  // Ordered before clamping, so clips pushed past each other pin the axis to
+  // where they crossed rather than inverting the range.
+  auto const low = juce::jmin (bandLow, bandHigh);
+  auto const high = juce::jmax (bandLow, bandHigh);
+
+  return juce::jlimit (low, high, juce::jlimit (0.f, 1.f, frac));
 }
 
 bool

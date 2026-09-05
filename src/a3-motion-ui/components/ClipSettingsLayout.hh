@@ -153,8 +153,14 @@ juce::Rectangle<int> elevationCircleBounds (juce::Rectangle<int> cell);
 
 /** The elevation a point in that cell stands for: 0 at the top of the circle
  *  (north pole), 1 at the bottom (south). Past either end it holds at the
- *  pole -- a finger sliding off the top must not wrap round to the bottom. */
-float elevationBaseAt (juce::Rectangle<int> cell, int y);
+ *  pole -- a finger sliding off the top must not wrap round to the bottom.
+ *
+ *  `bandLow`/`bandHigh` are what clip-top and clip-bottom have left of the
+ *  sphere, and the axis stays inside them: a base outside the band would be a
+ *  line you can see and the sound cannot reach. Crossed clips leave a band of
+ *  nothing, and then the axis has exactly one place to be. */
+float elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow = 0.f,
+                       float bandHigh = 1.f);
 
 /** Whether a tap on this control flips it. True for the two-state ones —
  *  pole and flat. They used to be stepped like the rest, but stepping is

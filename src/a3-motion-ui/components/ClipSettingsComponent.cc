@@ -180,8 +180,13 @@ ClipSettingsComponent::createTouchControls ()
 
     // The point arrives relative to the control, which stands on the graphic
     // cell, so the cell's own origin is what it has to be measured against.
+    // Inside what the clips have left: the axis may not stand where the
+    // sound cannot go.
+    auto const low = std::clamp (_elevationClipTop, 0.f, 1.f);
+    auto const high = 1.f - std::clamp (_elevationClipBottom, 0.f, 1.f);
+
     onElevationBaseSet (elevationBaseAt (
-        _layout.elevationGraphic.withZeroOrigin (), at.y));
+        _layout.elevationGraphic.withZeroOrigin (), at.y, low, high));
   };
 
   _elevationGraphicTouch->onTapAt
@@ -1470,8 +1475,16 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   g.saveState ();
   g.reduceClipRegion (circlePath);
 
-  // Excluded (clipped) zones — zero-height rects when bandLow/bandHigh
-  // don't actually clip anything, so no explicit if-guard is needed.
+  // The band the clips leave is the sphere the sound can still use, so it is
+  // the lit part; everything they take is cut away to the bar's own surface.
+  // The eye should find the reachable band without reading a number, and a
+  // wash close to the ground did not say which was which. Zero-height rects
+  // where nothing is clipped, so no guard is needed.
+  g.setColour (toColour (theme ().textPrimary, 0.05f));
+  g.fillRect (juce::Rectangle<float> (
+      centre.x - r, fracToY (bandLow), r * 2.f,
+      juce::jmax (0.f, fracToY (bandHigh) - fracToY (bandLow))));
+
   g.setColour (toColour (theme ().surface, clippedZoneOpacity));
   g.fillRect (juce::Rectangle<float> (centre.x - r, centre.y - r, r * 2.f,
                                       fracToY (bandLow) - (centre.y - r)));
@@ -1479,12 +1492,29 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
       centre.x - r, fracToY (bandHigh), r * 2.f,
       (centre.y + r) - fracToY (bandHigh)));
 
+  // What the trajectory actually sweeps, from the axis out to reach.
   g.setColour (iconColour.withAlpha (0.3f));
   g.fillRect (juce::Rectangle<float> (
       centre.x - r, fracToY (sweepLow), r * 2.f,
       juce::jmax (1.f, fracToY (sweepHigh) - fracToY (sweepLow))));
 
   g.restoreState ();
+
+  // The two cuts as edges, not only as a change of shade: a boundary you can
+  // see is a boundary you can aim a finger at.
+  auto const drawCut = [&] (float frac) {
+    auto const y = fracToY (frac);
+    auto const dy = y - centre.y;
+    if (std::abs (dy) > r)
+      return;
+
+    auto const halfWidth = std::sqrt (r * r - dy * dy);
+    g.setColour (toColour (theme ().textPrimary, 0.25f));
+    g.drawLine (centre.x - halfWidth, y, centre.x + halfWidth, y, 1.f);
+  };
+
+  drawCut (bandLow);
+  drawCut (bandHigh);
 
   g.setColour (toColour (theme ().surface, outlineOpacity));
   g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, 2.f);

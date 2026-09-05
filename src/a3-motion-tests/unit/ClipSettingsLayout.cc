@@ -1264,3 +1264,41 @@ TEST (ClipSettingsLayout, MotionIsSixWithoutTheReachPair)
   for (int sub = 0; sub < 4; ++sub)
     EXPECT_FALSE (tapAdvancesValue (2, sub)) << "knob " << sub;
 }
+
+// The axis moves inside the clips, not through them. clip-top and
+// clip-bottom cut the sphere down from each end, and the middle of the
+// trajectory has to stay in what is left -- a base outside the band would be
+// a line you can see but the sound cannot reach.
+TEST (ClipSettingsLayout, TheBaseStaysInsideTheClips)
+{
+  juce::Rectangle<int> const bounds{ 0, 0, 100, 100 };
+  auto const circle = elevationCircleBounds (bounds);
+
+  // A third clipped off the top, a quarter off the bottom.
+  auto constexpr low = 0.33f;
+  auto constexpr high = 0.75f;
+
+  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, circle.getY (), low, high), low)
+      << "a finger at the north pole must stop at the top clip";
+  EXPECT_FLOAT_EQ (
+      elevationBaseAt (bounds, circle.getBottom (), low, high), high)
+      << "a finger at the south pole must stop at the bottom clip";
+
+  // Inside the band it is untouched.
+  auto const middle = elevationBaseAt (bounds, circle.getCentreY (), low, high);
+  EXPECT_GE (middle, low);
+  EXPECT_LE (middle, high);
+  EXPECT_NEAR (middle, 0.5f, 0.02f);
+}
+
+// Clips that have been pushed past each other leave no band at all, and the
+// axis then has exactly one place to be: where they crossed.
+TEST (ClipSettingsLayout, CrossedClipsPinTheAxis)
+{
+  juce::Rectangle<int> const bounds{ 0, 0, 100, 100 };
+  auto const circle = elevationCircleBounds (bounds);
+
+  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, circle.getY (), 0.6f, 0.6f), 0.6f);
+  EXPECT_FLOAT_EQ (
+      elevationBaseAt (bounds, circle.getBottom (), 0.6f, 0.6f), 0.6f);
+}
