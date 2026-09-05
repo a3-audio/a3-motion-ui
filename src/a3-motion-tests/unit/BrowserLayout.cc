@@ -35,46 +35,21 @@ defaultBrowser ()
 }
 }
 
-TEST (BrowserLayout, EveryClipOnTheDeviceGetsAField)
+// The eight destination fields are gone.
+//
+// They laid the device's clips out the way the pads page does, and you chose
+// one before choosing what to put in it. The four channel faces in the header
+// do that now, for every view of the settings area at once -- so the browser
+// keeping a second idea of which clip you were filling meant two selections
+// that could point at different slots, and the bar telling you about one while
+// the list filled the other. It fills whatever the faces have chosen.
+TEST (BrowserLayout, ThereAreNoDestinationFieldsAnyMore)
 {
   auto const l = defaultBrowser ();
 
-  int count = 0;
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      {
-        EXPECT_FALSE (l.fields[channel][slot].isEmpty ())
-            << "channel " << channel << " slot " << slot;
-        ++count;
-      }
-
-  EXPECT_EQ (count, numBrowserFields);
-}
-
-TEST (BrowserLayout, TheFieldsAreLaidOutTheWayThePadsAre)
-{
-  // Channels across, slots down. If these two pages ever disagreed about which
-  // box is which clip, a finger would put a clip somewhere it did not mean to.
-  auto const l = defaultBrowser ();
-
-  for (index_t channel = 0; channel + 1 < numChannelColumns; ++channel)
-    EXPECT_LT (l.fields[channel][0].getX (), l.fields[channel + 1][0].getX ())
-        << "channel " << channel;
-
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t slot = 0; slot + 1 < numPadSlots; ++slot)
-      EXPECT_LT (l.fields[channel][slot].getY (),
-                 l.fields[channel][slot + 1].getY ());
-}
-
-TEST (BrowserLayout, TheFieldsAndTheListDoNotOverlap)
-{
-  auto const l = defaultBrowser ();
-
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      EXPECT_FALSE (l.fields[channel][slot].intersects (l.listArea))
-          << "channel " << channel << " slot " << slot;
+  // The list gets the room they used to take: it is what the page is for.
+  EXPECT_GE (l.listArea.getWidth (), defaultBrowser ().listArea.getWidth ());
+  EXPECT_EQ (l.listArea.getX (), 0);
 }
 
 TEST (BrowserLayout, EveryListRowIsBigEnoughToHit)
@@ -127,37 +102,50 @@ TEST (BrowserLayout, AnEmptyAreaProducesNothingRatherThanNonsense)
 
   EXPECT_TRUE (l.rows.empty ());
   EXPECT_TRUE (l.listArea.isEmpty ());
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      EXPECT_TRUE (l.fields[channel][slot].isEmpty ());
+  EXPECT_TRUE (l.clipsTab.isEmpty ());
+  EXPECT_TRUE (l.setsTab.isEmpty ());
 }
 
-// Scripts are their own files, so they are chosen where files are chosen: two
-// words over the library say whether it is listing what a slot holds or what
-// ACT does to it. Both have to be there and both have to be hittable, or the
-// actions are a folder nobody can reach.
-TEST (BrowserLayout, TheListSaysWhetherItShowsClipsOrActions)
+// Three kinds of file, three words over the one list: what a slot holds, what
+// ACT does to it, and the arrangement of all eight together. A set used to be
+// reached by touching the strip that said which set was loaded -- a control
+// that looked like a label, in a corner of the page that has now gone. It is a
+// tab like the other two, because it is the same question asked of a third
+// folder.
+TEST (BrowserLayout, TheListSaysWhichOfTheThreeFoldersItShows)
 {
   for (int width : { 480, 640, 768, 1024 })
     for (int height : { 160, 250, 400 })
       {
         auto const l = layOutBrowser ({ 0, 0, width, height }, 34, 14.f);
 
-        EXPECT_FALSE (l.clipsTab.isEmpty ())
-            << width << "x" << height;
-        EXPECT_FALSE (l.actionsTab.isEmpty ())
-            << width << "x" << height;
+        ASSERT_FALSE (l.clipsTab.isEmpty ()) << width << "x" << height;
+        ASSERT_FALSE (l.actionsTab.isEmpty ()) << width << "x" << height;
+        ASSERT_FALSE (l.setsTab.isEmpty ()) << width << "x" << height;
 
-        // Side by side, not overlapping, and clear of the list they head.
+        // Side by side, in reading order, none of them overlapping.
         EXPECT_LE (l.clipsTab.getRight (), l.actionsTab.getX ())
             << width << "x" << height;
-        EXPECT_LE (l.clipsTab.getBottom (), l.listArea.getY ())
-            << width << "x" << height;
-        EXPECT_LE (l.actionsTab.getBottom (), l.listArea.getY ())
+        EXPECT_LE (l.actionsTab.getRight (), l.setsTab.getX ())
             << width << "x" << height;
 
-        // Over the library, not over the fields it is beside.
-        EXPECT_GE (l.clipsTab.getX (), l.fields[0][0].getRight ())
+        // Clear of the list they head.
+        for (auto const &tab : { l.clipsTab, l.actionsTab, l.setsTab })
+          {
+            EXPECT_LE (tab.getBottom (), l.listArea.getY ())
+                << width << "x" << height;
+            EXPECT_GE (tab.getHeight (), 1) << width << "x" << height;
+          }
+
+        // One row of three, all the same width: they ask one question of
+        // three folders, so no one of them may look like the main one.
+        EXPECT_EQ (l.actionsTab.getWidth (), l.clipsTab.getWidth ())
+            << width << "x" << height;
+        EXPECT_EQ (l.setsTab.getWidth (), l.clipsTab.getWidth ())
+            << width << "x" << height;
+        EXPECT_EQ (l.actionsTab.getY (), l.clipsTab.getY ())
+            << width << "x" << height;
+        EXPECT_EQ (l.setsTab.getY (), l.clipsTab.getY ())
             << width << "x" << height;
       }
 }

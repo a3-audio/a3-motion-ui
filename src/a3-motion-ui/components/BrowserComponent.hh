@@ -31,8 +31,23 @@
 namespace a3
 {
 
-/** The browser page: the device's eight clips down one side, the library down
- *  the other.
+/** Which of the three folders the browser is listing.
+ *
+ *  It lived inside A3MotionUIComponent, which is what *decides* the list; this
+ *  is what shows it, and a page that draws three tabs cannot be handed a bool
+ *  saying which of two it is on. */
+enum class BrowserList
+{
+  Clips,
+  /** Action clips -- what ACT does to a slot. Structurally a clip with no
+   *  shape: a set of settings, kept in actions/ rather than clips/ because
+   *  what it is for is different even though what it holds is the same. */
+  Actions,
+  /** The arrangement of all eight clips at once. */
+  Sessions,
+};
+
+/** The browser page: the library, filling whatever clip the bar is showing.
  *
  *  Knows nothing about where patterns come from -- it is handed a list of
  *  names and hands back which row was chosen. What that means is the
@@ -49,16 +64,6 @@ public:
   void resized () override;
   void applyTheme () override;
 
-  /** What each field holds, and the colour of the channel it belongs to. */
-  void setField (index_t channel, index_t slot, juce::String const &name,
-                 juce::Colour colour);
-  /** Which field a chosen clip would land in, or -1 for none. */
-  void setSelectedField (int channel, int slot);
-  /** Whether this field's slot has drifted from its clip -- the same mark the
-   *  slot keys in the header carry, meaning the same thing. */
-  void setFieldDrifted (index_t channel, index_t slot, bool drifted);
-
-  /** The library, and where the window onto it starts. */
   /** The rows of the library list.
    *
    *  @param settingsOnly  Parallel to @p names: a row that changes how a slot
@@ -85,17 +90,15 @@ public:
   void setSelectedEntry (int index);
   int getSelectedEntry () const { return _selectedEntry; }
 
-  /** The set that is loaded, shown over the eight clips it filled. */
-  void setSessionName (juce::String const &name);
+  /** Which folder the tabs and the list are showing. */
+  void setShowingList (BrowserList list);
 
-  /** Light the word that matches what setEntries() was just handed. */
-  void setShowingActions (bool actions);
-
-  std::function<void ()> onSessionPressed;
-  /** The list beside the fields should show clips, or actions. */
+  /** Which folder the list should show. One callback per tab rather than one
+   *  carrying the choice: the tabs are three separate things a finger lands
+   *  on, and the page that decides what each means is the one that owns them. */
   std::function<void ()> onClipsChosen;
   std::function<void ()> onActionsChosen;
-  std::function<void (index_t channel, index_t slot)> onFieldChosen;
+  std::function<void ()> onSetsChosen;
   std::function<void (int index)> onEntryChosen;
   /** What the three keys under the list say, and which of them can be
    *  pressed. Driven from outside rather than fixed here: a key that is drawn
@@ -106,15 +109,14 @@ public:
                    std::array<bool, 3> const &enabled);
 
   std::function<void ()> onRenamePressed;
-  /** Write the chosen field's clip back. Sessions get their own pair of keys
-   *  when sessions exist -- see the plan's step 3. */
+  /** Write the clip on show back to its file, or keep the current action or
+   *  set -- what it means follows the folder the list is on. */
   std::function<void ()> onSavePressed;
   std::function<void ()> onSaveSessionPressed;
   std::function<void ()> onLoadSessionPressed;
   std::function<void (int delta)> onScrolled;
 
 private:
-  void paintField (juce::Graphics &g, index_t channel, index_t slot);
   void paintRow (juce::Graphics &g, int row);
   void paintButton (juce::Graphics &g, juce::Rectangle<int> bounds,
                     juce::String const &label, bool enabled);
@@ -124,29 +126,19 @@ private:
 
   BrowserLayout _layout;
 
-  std::array<std::array<juce::String, numPadSlots>, numChannelColumns> _fieldNames;
-  std::array<std::array<juce::Colour, numPadSlots>, numChannelColumns> _fieldColours;
-  std::array<std::array<bool, numPadSlots>, numChannelColumns> _fieldDrifted{};
-  int _selectedChannel = 0;
-  int _selectedSlot = 0;
-
   juce::StringArray _actionLabels{ "Rename", "Save", "" };
   std::array<bool, 3> _actionEnabled{ false, false, false };
-  juce::String _sessionName;
   juce::StringArray _names;
   int _scrollOffset = 0;
   int _selectedEntry = -1;
   std::vector<bool> _settingsOnly;
-  /** Which of the two words over the list is lit. */
-  bool _showingActions = false;
+  /** Which of the three words over the list is lit. */
+  BrowserList _list = BrowserList::Clips;
 
-  std::array<std::array<std::unique_ptr<TouchControl>, numPadSlots>,
-             numChannelColumns>
-      _fieldTouch;
   std::vector<std::unique_ptr<TouchControl>> _rowTouch;
-  std::unique_ptr<TouchControl> _sessionTouch;
   std::unique_ptr<TouchControl> _clipsTabTouch;
   std::unique_ptr<TouchControl> _actionsTabTouch;
+  std::unique_ptr<TouchControl> _setsTabTouch;
   std::unique_ptr<TouchControl> _renameTouch;
   std::unique_ptr<TouchControl> _saveTouch;
   std::unique_ptr<TouchControl> _loadTouch;

@@ -532,20 +532,9 @@ private:
   bool _accentWasActive = false;
 
   std::unique_ptr<BrowserComponent> _browser;
-  /** Which field the next chosen clip lands in. */
-  std::pair<int, int> _browserField{ 0, 0 };
   /** What the browser's list is showing: the clips you can put in a slot, the
    *  actions the ACT key can fire on one, or the sessions you can put in all
    *  eight. */
-  enum class BrowserList
-  {
-    Clips,
-    /** Action clips -- what ACT does to a slot. Structurally a clip with no
-     *  shape: a set of settings, kept in actions/ rather than clips/ because
-     *  what it is for is different even though what it holds is the same. */
-    Actions,
-    Sessions,
-  };
   BrowserList _browserList = BrowserList::Clips;
   /** The session that was loaded, shown over the eight slots it filled. */
   juce::String _sessionName;

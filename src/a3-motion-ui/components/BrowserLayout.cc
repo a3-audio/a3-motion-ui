@@ -33,62 +33,26 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
 
   auto const gap = juce::jmax (2, bounds.getHeight () / 40);
 
-  // Just under half to the destinations. The list needs the wider half: a
-  // pattern's name is a word and a field's is a word plus a channel, but the
-  // list is the thing being read rather than glanced at.
+  // The whole area is the library. The eight destinations that used to take
+  // the left of it are the header's channel faces now -- see BrowserLayout's
+  // own note -- and what is being read here is a list of names, which is the
+  // one thing on this page that gets better with width.
   auto area = bounds;
-  auto fieldArea = area.removeFromLeft (area.getWidth () * 9 / 20);
-  area.removeFromLeft (gap * 2);
 
-  // Two words over the list, on the same line the session field sits on, so
-  // the page reads across at one height.
+  // Three words over the list: one question -- which folder -- asked of three
+  // folders, so all three are the same size. Any one of them drawn larger
+  // would read as the list's real subject with the others as afterthoughts.
   auto tabRow = area.removeFromTop (
       juce::jmin (area.getHeight () / 4, buttonHeight));
-  auto const tabW = (tabRow.getWidth () - gap) / 2;
+  auto const tabW = (tabRow.getWidth () - gap * 2) / 3;
   out.clipsTab = tabRow.removeFromLeft (tabW);
   tabRow.removeFromLeft (gap);
   out.actionsTab = tabRow.removeFromLeft (tabW);
+  tabRow.removeFromLeft (gap);
+  out.setsTab = tabRow.removeFromLeft (tabW);
 
   area.removeFromTop (gap * 2);
   out.listArea = area;
-
-  // The session over the eight it holds.
-  out.sessionField = fieldArea.removeFromTop (
-      juce::jmin (fieldArea.getHeight () / 4, buttonHeight));
-  fieldArea.removeFromTop (gap * 2);
-
-  // Smaller than the pads page draws them: these are read and tapped once
-  // while a set is put together, not hit mid-set, so they do not need a pad's
-  // room -- and the space is worth more to the library beside them. Kept up
-  // under the session they belong to rather than centred in what is left,
-  // which floated them in the middle of a gap.
-  fieldArea = fieldArea.removeFromTop (
-      juce::jmin (fieldArea.getHeight (), buttonHeight * 3));
-
-  // Channels across, slots down -- the pads page's arrangement, because these
-  // are the same eight clips.
-  {
-    auto const colGap = juce::jmax (2, fieldArea.getWidth () / 60);
-    auto const colW
-        = (fieldArea.getWidth () - (numChannelColumns - 1) * colGap)
-          / numChannelColumns;
-    auto const rowH
-        = (fieldArea.getHeight () - (numPadSlots - 1) * gap) / numPadSlots;
-
-    for (index_t channel = 0; channel < numChannelColumns; ++channel)
-      {
-        auto column = fieldArea.removeFromLeft (colW);
-        if (channel + 1 < numChannelColumns)
-          fieldArea.removeFromLeft (colGap);
-
-        for (index_t slot = 0; slot < numPadSlots; ++slot)
-          {
-            out.fields[channel][slot] = column.removeFromTop (rowH);
-            if (slot + 1 < numPadSlots)
-              column.removeFromTop (gap);
-          }
-      }
-  }
 
   // The strip along the bottom first, so the list is whatever is left rather
   // than the list deciding how much room the buttons get.

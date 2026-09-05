@@ -581,33 +581,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // What a field or a row means is decided here rather than there, the same
   // way the pads page knows nothing about what a pad does.
   _browser = std::make_unique<BrowserComponent> ();
-  _browser->onFieldChosen = [this] (index_t channel, index_t slot) {
-    _browserField = { static_cast<int> (channel), static_cast<int> (slot) };
-    // Out of the sessions list, but not out of the actions one: choosing a
-    // field while looking at actions means "this slot", not "never mind".
-    if (_browserList == BrowserList::Sessions)
-      _browserList = BrowserList::Clips;
-
-    // The rest of the device follows the field. Choosing where a clip goes is
-    // saying "this one" as plainly as pressing its pad is, and the bar, the
-    // readout and the pads page all describe one slot at a time -- leaving
-    // them pointed somewhere else means reading one clip's values while
-    // filling another.
-    selectClip (channel, slot);
-    // Through refreshBrowser(), not setSelectedField() alone: what can be done
-    // to the chosen field depends on which field it is, so the strip has to be
-    // worked out again. Setting only the highlight left Save greyed on a slot
-    // that plainly had something to save.
-    refreshBrowser ();
-  };
   _browser->onSavePressed = [this] {
     if (_browserList == BrowserList::Sessions)
       saveCurrentSession ();
     else if (_browserList == BrowserList::Actions)
       saveSlotAsAction ();
     else
-      saveSlotClip (static_cast<index_t> (_browserField.first),
-                    static_cast<index_t> (_browserField.second));
+      saveSlotClip (_clipSettingsChannel, _clipSettingsSlot);
   };
   _browser->onClipsChosen = [this] {
     _browserList = BrowserList::Clips;
@@ -619,7 +599,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     _browser->setSelectedEntry (-1);
     refreshBrowser ();
   };
-  _browser->onSessionPressed = [this] {
+  _browser->onSetsChosen = [this] {
     _browserList = BrowserList::Sessions;
     _browser->setSelectedEntry (-1);
     refreshBrowser ();
@@ -1955,18 +1935,6 @@ A3MotionUIComponent::refreshBrowser ()
   if (!_browser)
     return;
 
-  for (index_t channel = 0; channel < _engine.getNumChannels (); ++channel)
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      {
-        auto const &pattern = _patterns[channel][slot];
-        _browser->setField (channel, slot,
-                            pattern ? juce::String (pattern->getName ())
-                                    : juce::String (),
-                            _channelUIStates[channel]->colour);
-        _browser->setFieldDrifted (channel, slot,
-                                   slotHasDrifted (channel, slot));
-      }
-
   // Entry 0 is "no pattern" in the library's own numbering, and a row saying
   // nothing is a row that empties the field it is dropped on -- which is worth
   // having, so it is listed rather than skipped.
@@ -2002,8 +1970,7 @@ A3MotionUIComponent::refreshBrowser ()
     }
 
   _browser->setEntries (names, settingsRows);
-  _browser->setShowingActions (_browserList == BrowserList::Actions);
-  _browser->setSessionName (_sessionName);
+  _browser->setShowingList (_browserList);
 
   // The list points at what the chosen field is already holding. Without this
   // you have to remember what is in a slot in order to see it highlighted --
@@ -2011,8 +1978,8 @@ A3MotionUIComponent::refreshBrowser ()
   // looking at.
   if (_browserList == BrowserList::Actions)
     {
-      auto const ch = static_cast<index_t> (_browserField.first);
-      auto const sl = static_cast<index_t> (_browserField.second);
+      auto const ch = _clipSettingsChannel;
+      auto const sl = _clipSettingsSlot;
       auto const &action = _slotAction[ch][sl].file;
       _browser->setSelectedEntry (
           action.existsAsFile ()
@@ -2021,8 +1988,8 @@ A3MotionUIComponent::refreshBrowser ()
     }
   else if (_browserList == BrowserList::Clips)
     {
-      auto const ch = static_cast<index_t> (_browserField.first);
-      auto const sl = static_cast<index_t> (_browserField.second);
+      auto const ch = _clipSettingsChannel;
+      auto const sl = _clipSettingsSlot;
       auto const &held = ch < _patterns.size () && sl < _patterns[ch].size ()
                              ? _patterns[ch][sl]
                              : nullptr;
@@ -2040,7 +2007,6 @@ A3MotionUIComponent::refreshBrowser ()
               ? fromClip
               : (held ? _patternLibrary->indexForName (held->getName ()) : 0));
     }
-  _browser->setSelectedField (_browserField.first, _browserField.second);
 
   // What can actually be done to what is chosen. Save lights only when there
   // is something to write -- pressing it otherwise did nothing, and a key that
@@ -2049,8 +2015,8 @@ A3MotionUIComponent::refreshBrowser ()
   // Rename and the session keys come with step 3; until then they say nothing
   // rather than being drawn as though they worked.
   auto const drifted
-      = slotHasDrifted (static_cast<index_t> (_browserField.first),
-                        static_cast<index_t> (_browserField.second));
+      = slotHasDrifted (_clipSettingsChannel,
+                        _clipSettingsSlot);
   if (_browserList == BrowserList::Sessions)
     // A set can always be put away; there is always an arrangement to keep.
     _browser->setActions ({ "", "Save Set", "" }, { false, true, false });
@@ -2058,8 +2024,8 @@ A3MotionUIComponent::refreshBrowser ()
     {
       // An action is made by dialling a clip the way you want ACT to make it
       // sound and keeping that. There is nothing to keep from an empty slot.
-      auto const ch = static_cast<index_t> (_browserField.first);
-      auto const sl = static_cast<index_t> (_browserField.second);
+      auto const ch = _clipSettingsChannel;
+      auto const sl = _clipSettingsSlot;
       auto const holds = ch < _patterns.size () && sl < _patterns[ch].size ()
                          && _patterns[ch][sl] != nullptr;
       _browser->setActions ({ "", "Save Action", "" },
@@ -2072,8 +2038,8 @@ A3MotionUIComponent::refreshBrowser ()
 void
 A3MotionUIComponent::assignBrowserEntry (int index)
 {
-  auto const channel = static_cast<index_t> (_browserField.first);
-  auto const slot = static_cast<index_t> (_browserField.second);
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
 
   if (channel >= _engine.getNumChannels () || slot >= numPadSlots)
     return;
@@ -2212,8 +2178,8 @@ A3MotionUIComponent::syncClipUIParamsFromPattern (index_t channel,
 void
 A3MotionUIComponent::assignActionEntry (juce::String const &name)
 {
-  auto const channel = static_cast<index_t> (_browserField.first);
-  auto const slot = static_cast<index_t> (_browserField.second);
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
 
   if (channel >= _engine.getNumChannels () || slot >= numPadSlots)
     return;
@@ -2323,8 +2289,8 @@ A3MotionUIComponent::setSlotAction (index_t channel, index_t slot,
 void
 A3MotionUIComponent::saveSlotAsAction ()
 {
-  auto const channel = static_cast<index_t> (_browserField.first);
-  auto const slot = static_cast<index_t> (_browserField.second);
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
 
   if (channel >= _patterns.size () || slot >= _patterns[channel].size ())
     return;

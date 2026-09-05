@@ -35,21 +35,6 @@ constexpr int maxVisibleRowTouches = 24;
 
 BrowserComponent::BrowserComponent ()
 {
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      {
-        auto touch = std::make_unique<TouchControl> ();
-        touch->setIdentity (static_cast<int> (channel),
-                            static_cast<int> (slot));
-        touch->onTap = [this] (int tappedChannel, int tappedSlot) {
-          if (onFieldChosen)
-            onFieldChosen (static_cast<index_t> (tappedChannel),
-                           static_cast<index_t> (tappedSlot));
-        };
-        addAndMakeVisible (*touch);
-        _fieldTouch[channel][slot] = std::move (touch);
-      }
-
   // Built once and given bounds when the layout says how many there are, the
   // same way the dropdown's entries are: a control created per repaint is a
   // control that loses the finger that is already on it.
@@ -92,9 +77,9 @@ BrowserComponent::BrowserComponent ()
           addAndMakeVisible (*into);
         };
 
-  makeButton (_sessionTouch, &BrowserComponent::onSessionPressed);
   makeButton (_clipsTabTouch, &BrowserComponent::onClipsChosen);
   makeButton (_actionsTabTouch, &BrowserComponent::onActionsChosen);
+  makeButton (_setsTabTouch, &BrowserComponent::onSetsChosen);
   makeButton (_renameTouch, &BrowserComponent::onRenamePressed);
   makeButton (_saveTouch, &BrowserComponent::onSavePressed);
   makeButton (_loadTouch, &BrowserComponent::onLoadSessionPressed);
@@ -115,10 +100,6 @@ BrowserComponent::resized ()
   _layout = layOutBrowser (getLocalBounds (), fingertipSize,
                            theme ().fontSize (FontRole::Body));
 
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      _fieldTouch[channel][slot]->setBounds (_layout.fields[channel][slot]);
-
   for (size_t i = 0; i < _rowTouch.size (); ++i)
     {
       auto const shown = i < _layout.rows.size ()
@@ -129,61 +110,12 @@ BrowserComponent::resized ()
         _rowTouch[i]->setBounds (_layout.rows[i]);
     }
 
-  _sessionTouch->setBounds (_layout.sessionField);
   _clipsTabTouch->setBounds (_layout.clipsTab);
   _actionsTabTouch->setBounds (_layout.actionsTab);
+  _setsTabTouch->setBounds (_layout.setsTab);
   _renameTouch->setBounds (_layout.renameButton);
   _saveTouch->setBounds (_layout.saveSessionButton);
   _loadTouch->setBounds (_layout.loadSessionButton);
-}
-
-void
-BrowserComponent::setField (index_t channel, index_t slot,
-                            juce::String const &name, juce::Colour colour)
-{
-  if (channel >= numChannelColumns || slot >= numPadSlots)
-    return;
-  if (_fieldNames[channel][slot] == name
-      && _fieldColours[channel][slot] == colour)
-    return;
-
-  _fieldNames[channel][slot] = name;
-  _fieldColours[channel][slot] = colour;
-  repaint (_layout.fields[channel][slot]);
-}
-
-void
-BrowserComponent::setSessionName (juce::String const &name)
-{
-  if (name == _sessionName)
-    return;
-
-  _sessionName = name;
-  repaint (_layout.sessionField);
-}
-
-void
-BrowserComponent::setFieldDrifted (index_t channel, index_t slot,
-                                   bool drifted)
-{
-  if (channel >= numChannelColumns || slot >= numPadSlots)
-    return;
-  if (drifted == _fieldDrifted[channel][slot])
-    return;
-
-  _fieldDrifted[channel][slot] = drifted;
-  repaint (_layout.fields[channel][slot]);
-}
-
-void
-BrowserComponent::setSelectedField (int channel, int slot)
-{
-  if (channel == _selectedChannel && slot == _selectedSlot)
-    return;
-
-  _selectedChannel = channel;
-  _selectedSlot = slot;
-  repaint ();
 }
 
 void
@@ -252,21 +184,21 @@ BrowserComponent::mouseWheelMove (juce::MouseEvent const &,
 }
 
 void
-BrowserComponent::setShowingActions (bool actions)
+BrowserComponent::setShowingList (BrowserList list)
 {
-  if (actions == _showingActions)
+  if (list == _list)
     return;
 
-  _showingActions = actions;
+  _list = list;
   repaint ();
 }
 
 void
 BrowserComponent::paint (juce::Graphics &g)
 {
-  // Two words over the list: what a slot holds, and what ACT does to it. Both
-  // are chosen the same way, in the same place, so neither is a mode you have
-  // to remember being in.
+  // Three words over the list: what a slot holds, what ACT does to it, and the
+  // arrangement of all eight at once. All three are chosen the same way, in
+  // the same place, so none of them is a mode you have to remember being in.
   auto const paintListTab = [&g] (juce::Rectangle<int> bounds,
                                   juce::String const &label, bool active) {
     if (bounds.isEmpty ())
@@ -285,35 +217,9 @@ BrowserComponent::paint (juce::Graphics &g)
     g.drawFittedText (label, bounds, juce::Justification::centred, 1);
   };
 
-  paintListTab (_layout.clipsTab, "CLIPS", !_showingActions);
-  paintListTab (_layout.actionsTab, "ACTION", _showingActions);
-
-  // The set, over the eight clips it filled.
-  {
-    auto const bounds = _layout.sessionField;
-    if (!bounds.isEmpty ())
-      {
-        g.setColour (toColour (theme ().textPrimary, 0.06f));
-        g.fillRoundedRectangle (bounds.toFloat (), 3.f);
-        g.setColour (toColour (theme ().notice, 0.4f));
-        g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
-
-        g.setFont (juce::Font (
-            juce::jmin (theme ().fontSize (FontRole::Body),
-                        bounds.getHeight () * 0.5f),
-            juce::Font::plain));
-        g.setColour (toColour (theme ().notice));
-        g.drawFittedText (_sessionName.isEmpty ()
-                              ? juce::String ("Set: none")
-                              : "Set: " + _sessionName,
-                          bounds.reduced (bounds.getHeight () / 3, 0),
-                          juce::Justification::centredLeft, 1);
-      }
-  }
-
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      paintField (g, channel, slot);
+  paintListTab (_layout.clipsTab, "CLIPS", _list == BrowserList::Clips);
+  paintListTab (_layout.actionsTab, "ACTION", _list == BrowserList::Actions);
+  paintListTab (_layout.setsTab, "SET", _list == BrowserList::Sessions);
 
   g.setColour (toColour (theme ().surface, 0.5f));
   g.fillRoundedRectangle (_layout.listArea.toFloat (), 3.f);
@@ -326,58 +232,6 @@ BrowserComponent::paint (juce::Graphics &g)
                _actionEnabled[1]);
   paintButton (g, _layout.loadSessionButton, _actionLabels[2],
                _actionEnabled[2]);
-}
-
-void
-BrowserComponent::paintField (juce::Graphics &g, index_t channel,
-                              index_t slot)
-{
-  auto const bounds = _layout.fields[channel][slot];
-  if (bounds.isEmpty ())
-    return;
-
-  auto const chosen = static_cast<int> (channel) == _selectedChannel
-                      && static_cast<int> (slot) == _selectedSlot;
-
-  // Until the page is opened nobody has said which channel this is, and a
-  // colour invented here would be one the skin cannot reach.
-  auto const stored = _fieldColours[channel][slot];
-  auto const colour = stored.isTransparent () ? toColour (theme ().textMuted)
-                                              : stored;
-
-  // The chosen one is filled: it is where the next clip you touch will go, and
-  // that has to be answerable at a glance rather than by remembering what you
-  // last pressed.
-  g.setColour (chosen ? colour.withAlpha (0.45f) : colour.withAlpha (0.12f));
-  g.fillRoundedRectangle (bounds.toFloat (), 3.f);
-  g.setColour (chosen ? colour : toColour (theme ().textPrimary, 0.15f));
-  g.drawRoundedRectangle (bounds.toFloat (), 3.f, chosen ? 2.f : 1.f);
-
-  auto text = bounds.reduced (bounds.getWidth () / 12, 2);
-  auto const heading = text.removeFromTop (text.getHeight () / 3);
-
-  g.setFont (juce::Font (juce::jmin (theme ().fontSize (FontRole::Body),
-                                     heading.getHeight () * 0.9f),
-                         juce::Font::plain));
-  g.setColour (colour);
-  g.drawFittedText (juce::String (channel + 1) + "." + juce::String (slot + 1),
-                    heading, juce::Justification::centredLeft, 1);
-
-  g.setFont (juce::Font (juce::jmin (theme ().fontSize (FontRole::Body),
-                                     text.getHeight () * 0.6f),
-                         juce::Font::plain));
-  g.setColour (toColour (theme ().textPrimary,
-                         _fieldNames[channel][slot].isEmpty () ? 0.3f : 0.9f));
-  g.drawFittedText (_fieldNames[channel][slot].isEmpty ()
-                        ? juce::String ("empty")
-                        : _fieldNames[channel][slot],
-                    text, juce::Justification::centredLeft, 1);
-
-  if (_fieldDrifted[channel][slot])
-    {
-      g.setColour (toColour (theme ().warning));
-      g.fillEllipse (driftMark (bounds).toFloat ());
-    }
 }
 
 void

@@ -23,8 +23,8 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
+// fingertipSize: the floor for anything hit in a hurry, and a library row is.
 #include <a3-motion-ui/components/ControllerLayout.hh>
-#include <a3-motion-ui/io/PadFunctions.hh>
 
 #include <array>
 #include <vector>
@@ -32,34 +32,18 @@
 namespace a3
 {
 
-/** How many of the device's clips there are: every channel's every slot. */
-constexpr int numBrowserFields = numChannelColumns * numPadSlots;
-
-/** The browser page: where a clip is put, and what there is to put in it.
+/** The browser page: what there is to put in the clip on show.
  *
- *  The eight fields down the left are the device's own clips, laid out the way
- *  the pads page lays them out -- channels across, slots down -- so the two
- *  pages describe the same eight things in the same arrangement. The list down
- *  the right is the library.
- *
- *  A field is chosen first and a clip second. That is the order the hand
- *  already knows: mid-set you know which deck you are filling before you know
- *  what you are filling it with, and choosing the clip first would leave it
- *  hanging with nowhere to go.
+ *  It used to carry the device's eight clips down the left, laid out the way
+ *  the pads page lays them out, and you chose one before choosing what to put
+ *  in it. The four channel faces in the bar's header do that now, for every
+ *  view of the settings area at once -- so a second set of destinations here
+ *  meant two selections that could point at different slots, with the bar
+ *  describing one while the list filled the other. The page is the library,
+ *  and the library fills whatever the faces have chosen.
  */
 struct BrowserLayout
 {
-  /** Which set is loaded, above the fields it filled. A session is the eight
-   *  of them together, so it belongs over the eight rather than beside the
-   *  library -- what you are choosing there is one clip, and here it is all of
-   *  them at once. */
-  juce::Rectangle<int> sessionField;
-
-  /** The eight destinations, indexed [channel][slot] so this page and the
-   *  pads page cannot come to disagree about which box is which clip. */
-  std::array<std::array<juce::Rectangle<int>, numPadSlots>, numChannelColumns>
-      fields;
-
   /** The library's own area, and the rows currently drawn in it. The rows are
    *  a window onto the library rather than all of it -- there are forty and
    *  more, and a row too short to hit is no use in a booth. */
@@ -69,11 +53,18 @@ struct BrowserLayout
   int visibleRows = 0;
   int rowHeight = 0;
 
-  /** What the list beside them is showing. Two words over the list rather
-   *  than a mode you have to remember: clips are what a slot holds, actions
-   *  are what ACT does to it, and both are chosen the same way. */
+  /** Which of the three folders the list is showing. Words over the list
+   *  rather than a mode you have to remember: clips are what a slot holds,
+   *  actions are what ACT does to it, and a set is the arrangement of all
+   *  eight at once. All three are chosen the same way, so all three are tabs.
+   *
+   *  A set used to be reached by touching the strip that named the loaded one
+   *  -- a control that looked like a label, in a corner of the page that has
+   *  gone with the destination fields. Which set is loaded is now the
+   *  highlighted row of the set list, which is where you would look for it. */
   juce::Rectangle<int> clipsTab;
   juce::Rectangle<int> actionsTab;
+  juce::Rectangle<int> setsTab;
 
   /** The strip along the bottom of the list: what can be done to what is
    *  selected. */
