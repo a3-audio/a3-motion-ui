@@ -131,3 +131,33 @@ TEST (BrowserLayout, AnEmptyAreaProducesNothingRatherThanNonsense)
     for (index_t slot = 0; slot < numPadSlots; ++slot)
       EXPECT_TRUE (l.fields[channel][slot].isEmpty ());
 }
+
+// Scripts are their own files, so they are chosen where files are chosen: two
+// words over the library say whether it is listing what a slot holds or what
+// ACT does to it. Both have to be there and both have to be hittable, or the
+// actions are a folder nobody can reach.
+TEST (BrowserLayout, TheListSaysWhetherItShowsClipsOrActions)
+{
+  for (int width : { 480, 640, 768, 1024 })
+    for (int height : { 160, 250, 400 })
+      {
+        auto const l = layOutBrowser ({ 0, 0, width, height }, 34, 14.f);
+
+        EXPECT_FALSE (l.clipsTab.isEmpty ())
+            << width << "x" << height;
+        EXPECT_FALSE (l.actionsTab.isEmpty ())
+            << width << "x" << height;
+
+        // Side by side, not overlapping, and clear of the list they head.
+        EXPECT_LE (l.clipsTab.getRight (), l.actionsTab.getX ())
+            << width << "x" << height;
+        EXPECT_LE (l.clipsTab.getBottom (), l.listArea.getY ())
+            << width << "x" << height;
+        EXPECT_LE (l.actionsTab.getBottom (), l.listArea.getY ())
+            << width << "x" << height;
+
+        // Over the library, not over the fields it is beside.
+        EXPECT_GE (l.clipsTab.getX (), l.fields[0][0].getRight ())
+            << width << "x" << height;
+      }
+}
