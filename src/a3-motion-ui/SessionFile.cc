@@ -89,6 +89,12 @@ writeOverrides (a3::ClipSettings const &settings)
     put ("direction", a3::playDirectionToName (settings.direction));
   if (settings.endAction != defaults.endAction)
     put ("endAction", a3::endActionToName (settings.endAction));
+  if (settings.filterAttack != defaults.filterAttack)
+    put ("filterAttack", settings.filterAttack);
+  if (settings.filterDecay != defaults.filterDecay)
+    put ("filterDecay", settings.filterDecay);
+  if (settings.filterMax != defaults.filterMax)
+    put ("filterMax", settings.filterMax);
   if (settings.fadeReach != defaults.fadeReach)
     put ("fadeReach", settings.fadeReach);
   if (settings.bridgeBias != defaults.bridgeBias)
@@ -122,6 +128,9 @@ readOverrides (juce::var const &value)
   settings.envelopeAttack = read ("envAttack", settings.envelopeAttack);
   settings.envelopeDecay = read ("envDecay", settings.envelopeDecay);
   settings.envelopeMax = read ("envMax", settings.envelopeMax);
+  settings.filterAttack = read ("filterAttack", settings.filterAttack);
+  settings.filterDecay = read ("filterDecay", settings.filterDecay);
+  settings.filterMax = read ("filterMax", settings.filterMax);
   settings.fadeReach = read ("fadeReach", settings.fadeReach);
   settings.bridgeBias = read ("bridgeBias", settings.bridgeBias);
 

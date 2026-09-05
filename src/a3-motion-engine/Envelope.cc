@@ -52,6 +52,12 @@ envelopeBarsForStep (int step)
   return std::pow (2.f, static_cast<float> (shortestExponent + clamped));
 }
 
+bool
+envelopeHolds (ActMode mode, bool fingerDown)
+{
+  return mode == ActMode::Hold && fingerDown;
+}
+
 EnvelopeState
 advanceEnvelope (EnvelopeState state, bool held, int attackStep,
                  int decayStep, float ticksPerBar)

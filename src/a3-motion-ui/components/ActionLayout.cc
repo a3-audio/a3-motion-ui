@@ -35,31 +35,54 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   auto const padding = juce::jmax (4, bounds.getHeight () / 40);
   auto content = bounds.reduced (padding);
 
-  // The controls first, from the bottom, so that what is left over goes to the
-  // picture. A picture is worth having and worth shrinking; a control that has
-  // shrunk below a fingertip is worth nothing at all.
+  // The rows first, from the bottom, so what is left over goes to the field
+  // that names the action. A name can be shrunk; a control below a fingertip
+  // is worth nothing at all.
   auto const gap = juce::jmax (4, content.getWidth () / 60);
-  auto const columns = static_cast<int> (out.controls.size ());
+
+  // Three columns for the envelope's three values, and a fourth for the mode
+  // on the second row. Even columns across both rows, so atk sits over atk.
+  constexpr int columns = 4;
   auto const cellW = (content.getWidth () - (columns - 1) * gap) / columns;
 
-  // Tall enough to carry a knob and its caption, and never taller than half
-  // the page -- past that the picture stops being one.
-  auto const wantedH = static_cast<int> (headerSize * 5.f);
-  auto const rowH = juce::jlimit (fingertipSize, juce::jmax (fingertipSize,
-                                                             content.getHeight () / 2),
-                                  wantedH);
+  auto const wantedH = static_cast<int> (headerSize * 4.f);
+  auto const roomForTwo = juce::jmax (fingertipSize, content.getHeight () / 3);
+  auto const rowH = juce::jlimit (fingertipSize, roomForTwo, wantedH);
 
-  out.controlRow = content.removeFromBottom (juce::jmin (rowH, content.getHeight ()));
+  auto const takeRow = [&content, rowH, gap] (bool last) {
+    auto row = content.removeFromBottom (juce::jmin (rowH, content.getHeight ()));
+    if (!last)
+      content.removeFromBottom (gap);
+    return row;
+  };
 
-  auto row = out.controlRow;
-  for (int i = 0; i < columns; ++i)
-    {
-      out.controls[static_cast<size_t> (i)] = row.removeFromLeft (cellW);
-      if (i + 1 < columns)
-        row.removeFromLeft (gap);
-    }
+  // Taken from the bottom, so the last one out is the topmost: the accent is
+  // read first because it is what ACT has always done.
+  out.filterRow = takeRow (false);
+  out.controlRow = takeRow (true);
 
-  // Clear of the row, not touching it.
+  auto const fill = [cellW, gap] (juce::Rectangle<int> row, int count,
+                                  juce::Rectangle<int> *into) {
+    for (int i = 0; i < count; ++i)
+      {
+        into[i] = row.removeFromLeft (cellW);
+        if (i + 1 < count)
+          row.removeFromLeft (gap);
+      }
+  };
+
+  fill (out.controlRow, 3, out.controls.data ());
+  fill (out.filterRow, 4, out.controls.data () + 3);
+
+  // Which envelope each row is, over the row's fourth column -- the accent's
+  // is free, and the filter's shares its row with the mode, so it goes above.
+  out.accentLabel = { out.controlRow.getX () + 3 * (cellW + gap),
+                      out.controlRow.getY (), cellW,
+                      out.controlRow.getHeight () / 3 };
+  out.filterLabel = { out.controlRow.getX (),
+                      out.controlRow.getY () - out.controlRow.getHeight () / 3,
+                      cellW, out.controlRow.getHeight () / 3 };
+
   content.removeFromBottom (gap);
   out.actionField = content;
 

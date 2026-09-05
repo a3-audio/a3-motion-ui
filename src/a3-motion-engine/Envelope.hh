@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <a3-motion-engine/Playhead.hh>
+
 #include <JuceHeader.h>
 
 namespace a3
@@ -60,6 +62,15 @@ struct EnvelopeState
   /** Where the envelope stands, 0 at rest and 1 at the top. */
   float level = 0.f;
 };
+
+/** Whether the envelope should stay at the top, given the mode and the finger.
+ *
+ *  One-shot fires and falls, however long the pad is held: the gesture is the
+ *  press, not the press's length. Hold is the finger, which is what the two
+ *  words have always meant -- and what the engine did not read, so a one-shot
+ *  sustained like a hold with another name on it.
+ */
+bool envelopeHolds (ActMode mode, bool fingerDown);
 
 /** One tick on, given whether the pad is down. */
 EnvelopeState advanceEnvelope (EnvelopeState state, bool held, int attackStep,

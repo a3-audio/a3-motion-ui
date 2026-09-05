@@ -236,10 +236,16 @@ MotionEngine::advanceAccents ()
           = pattern ? pattern->getEnvelopeAttack () : 2;
       auto const decay = pattern ? pattern->getEnvelopeDecay () : 3;
 
+      // The mode decides whether the finger holds the top: one-shot fires and
+      // falls however long the pad is down, hold is the finger. This passed
+      // the finger straight through, which made a one-shot a hold with another
+      // name on it.
+      auto const mode = pattern ? pattern->getActMode () : ActMode::OneShot;
+
       auto const before = _accentEnvelope[index].stage;
-      _accentEnvelope[index]
-          = advanceEnvelope (_accentEnvelope[index], _accentHeld[index] != 0,
-                             attack, decay, ticksPerBar);
+      _accentEnvelope[index] = advanceEnvelope (
+          _accentEnvelope[index], envelopeHolds (mode, _accentHeld[index] != 0),
+          attack, decay, ticksPerBar);
 
       // The decay running out is the end of the gesture, so the clip does
       // whatever its end action says — the accent is a one-shot you played,

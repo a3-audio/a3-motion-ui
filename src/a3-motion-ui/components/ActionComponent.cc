@@ -110,6 +110,19 @@ ActionComponent::setEnvelope (int attackStep, int decayStep, float max)
 }
 
 void
+ActionComponent::setFilterEnvelope (int attackStep, int decayStep, float max)
+{
+  if (attackStep == _filterAttack && decayStep == _filterDecay
+      && max == _filterMax)
+    return;
+
+  _filterAttack = attackStep;
+  _filterDecay = decayStep;
+  _filterMax = max;
+  repaint ();
+}
+
+void
 ActionComponent::setActionName (juce::String const &name)
 {
   if (name == _actionName)
@@ -176,6 +189,24 @@ ActionComponent::paint (juce::Graphics &g)
                 caption::decay, envFrac (_decay), false, false, true);
   paintBarKnob (g, _layout.controls[EnvelopeMax], metrics, _channelColour,
                 caption::envelopeMax, _max * 2.f - 1.f, false, false, true);
+
+  // The second envelope, on the filter. Same three values, same knobs: freq
+  // and Q sweep together because a resonant sweep is one gesture, and two
+  // pairs of times would be saying it is two.
+  paintBarKnob (g, _layout.controls[FilterAttack], metrics, _channelColour,
+                caption::attack, envFrac (_filterAttack), false, false, true);
+  paintBarKnob (g, _layout.controls[FilterDecay], metrics, _channelColour,
+                caption::decay, envFrac (_filterDecay), false, false, true);
+  paintBarKnob (g, _layout.controls[FilterMax], metrics, _channelColour,
+                caption::envelopeMax, _filterMax * 2.f - 1.f, false, false,
+                true);
+
+  // Which row is which, said once each rather than on every knob.
+  g.setColour (toColour (theme ().textMuted, 0.8f));
+  g.setFont (juce::Font (juce::FontOptions (
+      juce::jmin (14.f, _layout.accentLabel.getHeight () * 0.8f))));
+  g.drawText ("accent", _layout.accentLabel, juce::Justification::centred);
+  g.drawText ("freq / Q", _layout.filterLabel, juce::Justification::centred);
 
   // Not a knob: it is one of two words, and a knob that can only be at one of
   // two places is a knob that lies about what it can do.

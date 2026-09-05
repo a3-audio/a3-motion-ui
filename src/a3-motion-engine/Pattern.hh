@@ -161,6 +161,15 @@ public:
    *  something else on a device set up differently. */
 
 
+  /** The filter envelope: freq and Q swept together. See
+   *  ClipSettings::filterAttack. */
+  int getFilterAttack () const;
+  void setFilterAttack (int step);
+  int getFilterDecay () const;
+  void setFilterDecay (int step);
+  float getFilterMax () const;
+  void setFilterMax (float max);
+
   /** How far a gap may be for the fade to draw through it, 0..1 of the
    *  sphere's diameter. See ClipSettings::fadeReach. */
   float getFadeReach () const;
@@ -323,6 +332,9 @@ private:
   void ensureBridgePlanLocked () const;
   void markBridgePlanStale ();
 
+  std::atomic<int> _filterAttack{ 2 };
+  std::atomic<int> _filterDecay{ 3 };
+  std::atomic<float> _filterMax{ 0.f };
   std::atomic<float> _fadeReach{ 0.25f };
   std::atomic<int> _bridgeBias{ 0 };
   std::atomic<PlayDirection> _playDirection{ PlayDirection::Forward };

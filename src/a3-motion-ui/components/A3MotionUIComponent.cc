@@ -2190,6 +2190,11 @@ A3MotionUIComponent::updateActionPage ()
           ? 1
           : 0);
 
+  _action->setFilterEnvelope (
+      pattern ? pattern->getFilterAttack () : defaults.filterAttack,
+      pattern ? pattern->getFilterDecay () : defaults.filterDecay,
+      pattern ? pattern->getFilterMax () : defaults.filterMax);
+
   auto const &action = _slotActionFile[channel][slot];
   _action->setActionName (action.existsAsFile ()
                               ? action.getFileNameWithoutExtension ()
@@ -2217,6 +2222,15 @@ A3MotionUIComponent::applyActionControl (int control, int increment)
       break;
     case ActionComponent::EnvelopeMax:
       pattern->setEnvelopeMax (pattern->getEnvelopeMax () + increment * 0.05f);
+      break;
+    case ActionComponent::FilterAttack:
+      pattern->setFilterAttack (pattern->getFilterAttack () + increment);
+      break;
+    case ActionComponent::FilterDecay:
+      pattern->setFilterDecay (pattern->getFilterDecay () + increment);
+      break;
+    case ActionComponent::FilterMax:
+      pattern->setFilterMax (pattern->getFilterMax () + increment * 0.05f);
       break;
     case ActionComponent::ActMode:
       // Modulo rather than a toggle: a tap in an open list arrives as the
@@ -2259,6 +2273,17 @@ A3MotionUIComponent::resetActionControl (int control)
     case ActionComponent::EnvelopeMax:
       pattern->setEnvelopeMax (0.5f);
       break;
+    case ActionComponent::FilterAttack:
+      pattern->setFilterAttack (envelopeMaxStep / 2);
+      break;
+    case ActionComponent::FilterDecay:
+      pattern->setFilterDecay (envelopeMaxStep / 2);
+      break;
+    case ActionComponent::FilterMax:
+      // Off, not half way: a filter sweep nobody asked for is a filter sweep
+      // in the middle of a set.
+      pattern->setFilterMax (0.f);
+      break;
     default:
       return;
     }
@@ -2280,6 +2305,16 @@ A3MotionUIComponent::actionReadoutFor (int control, Pattern const &pattern)
       return "max "
              + juce::String (juce::roundToInt (pattern.getEnvelopeMax ()
                                                * 100.f))
+             + "%";
+    case ActionComponent::FilterAttack:
+      return "freq atk "
+             + value::envelopeBarsName (pattern.getFilterAttack ());
+    case ActionComponent::FilterDecay:
+      return "freq dec "
+             + value::envelopeBarsName (pattern.getFilterDecay ());
+    case ActionComponent::FilterMax:
+      return "freq max "
+             + juce::String (juce::roundToInt (pattern.getFilterMax () * 100.f))
              + "%";
     default:
       return juce::String ("act ")

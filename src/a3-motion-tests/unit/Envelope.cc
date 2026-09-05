@@ -179,3 +179,50 @@ TEST (Envelope, ACeilingBelowTheFloorStillLeavesTheFloorAlone)
       EXPECT_FLOAT_EQ (out, 0.8f) << "level " << level;
     }
 }
+
+// One-shot fires the envelope and hold holds it: that is what the two words
+// mean, and until now the engine did not read them at all. It passed the
+// finger straight through, so a one-shot sustained for as long as the pad was
+// down -- which is a hold with another name on it.
+TEST (EnvelopeHold, OneShotDoesNotSustainHoweverLongTheFingerStays)
+{
+  EXPECT_FALSE (envelopeHolds (ActMode::OneShot, true));
+  EXPECT_FALSE (envelopeHolds (ActMode::OneShot, false));
+}
+
+TEST (EnvelopeHold, HoldIsTheFinger)
+{
+  EXPECT_TRUE (envelopeHolds (ActMode::Hold, true));
+  EXPECT_FALSE (envelopeHolds (ActMode::Hold, false));
+}
+
+// And the difference is visible in what the envelope does: held at the top for
+// one, on its way down for the other, with the same finger still on the pad.
+TEST (EnvelopeHold, TheTwoModesPartCompanyAtTheTopOfTheAttack)
+{
+  auto constexpr ticksPerBar = 512.f;
+  auto constexpr attack = 0; // a sixteenth of a bar -- 32 ticks
+  auto constexpr decay = 4;  // one bar, long enough to still be falling
+
+  EnvelopeState oneShot{ EnvelopeStage::Attack, 0.f };
+  EnvelopeState holding{ EnvelopeStage::Attack, 0.f };
+
+  // Well past the end of the attack, finger down the whole time.
+  for (int tick = 0; tick < 64; ++tick)
+    {
+      oneShot = advanceEnvelope (
+          oneShot, envelopeHolds (ActMode::OneShot, true), attack, decay,
+          ticksPerBar);
+      holding = advanceEnvelope (
+          holding, envelopeHolds (ActMode::Hold, true), attack, decay,
+          ticksPerBar);
+    }
+
+  EXPECT_EQ (holding.stage, EnvelopeStage::Hold)
+      << "hold let go of the top while the pad was still down";
+  EXPECT_FLOAT_EQ (holding.level, 1.f);
+
+  EXPECT_NE (oneShot.stage, EnvelopeStage::Hold)
+      << "a one-shot sustained -- that is a hold with another name on it";
+  EXPECT_LT (oneShot.level, 1.f);
+}

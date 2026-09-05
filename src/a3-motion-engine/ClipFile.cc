@@ -99,6 +99,9 @@ ClipFile::save (Clip const &clip, juce::File const &file)
   object->setProperty ("direction", playDirectionToName (s.direction));
   object->setProperty ("endAction", endActionToName (s.endAction));
 
+  object->setProperty ("filterAttack", s.filterAttack);
+  object->setProperty ("filterDecay", s.filterDecay);
+  object->setProperty ("filterMax", s.filterMax);
   object->setProperty ("fadeReach", s.fadeReach);
   object->setProperty ("bridgeBias", s.bridgeBias);
 
@@ -162,6 +165,9 @@ ClipFile::load (juce::File const &file)
   s.endAction = endActionFromName (
       readString (parsed, "endAction", endActionToName (defaults.endAction)));
 
+  s.filterAttack = readInt (parsed, "filterAttack", defaults.filterAttack);
+  s.filterDecay = readInt (parsed, "filterDecay", defaults.filterDecay);
+  s.filterMax = readFloat (parsed, "filterMax", defaults.filterMax);
   s.fadeReach = readFloat (parsed, "fadeReach", defaults.fadeReach);
   s.bridgeBias = readInt (parsed, "bridgeBias", defaults.bridgeBias);
 

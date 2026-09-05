@@ -42,12 +42,21 @@ struct ActionLayout
    *  a control. */
   juce::Rectangle<int> actionField;
 
-  /** attack, decay, max, act-mode -- in that reading order, which is also the
-   *  order the sub-index handler expects. */
-  std::array<juce::Rectangle<int>, 4> controls;
+  /** Two envelopes and the mode that fires them, in reading order -- which is
+   *  also the order the handler expects.
+   *
+   *  Row one is the accent: where the sound goes. Row two is the filter: freq
+   *  and Q swept together. The mode closes the second row, because it says
+   *  what pressing the key does to both of them. */
+  std::array<juce::Rectangle<int>, 7> controls;
 
-  /** The band the controls stand on, for the page to draw a floor under. */
+  /** The two bands the controls stand on. */
   juce::Rectangle<int> controlRow;
+  juce::Rectangle<int> filterRow;
+
+  /** Which envelope each row is, named beside it. */
+  juce::Rectangle<int> accentLabel;
+  juce::Rectangle<int> filterLabel;
 
   /** Knob size and text sizes, worked out for these cells -- the same
    *  numbers the clip bar hands its own knobs, so the two pages draw one

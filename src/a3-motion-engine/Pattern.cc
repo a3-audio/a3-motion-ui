@@ -20,6 +20,8 @@
 
 #include "Pattern.hh"
 
+#include <a3-motion-engine/Envelope.hh>
+
 #include "TrajectoryShape.hh"
 
 #include <algorithm>
@@ -183,6 +185,44 @@ Pattern::setPlayDirection (PlayDirection direction)
   // clip that is already playing rather than waiting for the next start. Only
   // Bounce moves the two apart, and it does that as it goes.
   _playSign.store (initialSign (direction), std::memory_order_relaxed);
+}
+
+int
+Pattern::getFilterAttack () const
+{
+  return _filterAttack.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setFilterAttack (int step)
+{
+  _filterAttack.store (juce::jlimit (0, envelopeMaxStep, step),
+                       std::memory_order_relaxed);
+}
+
+int
+Pattern::getFilterDecay () const
+{
+  return _filterDecay.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setFilterDecay (int step)
+{
+  _filterDecay.store (juce::jlimit (0, envelopeMaxStep, step),
+                      std::memory_order_relaxed);
+}
+
+float
+Pattern::getFilterMax () const
+{
+  return _filterMax.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setFilterMax (float max)
+{
+  _filterMax.store (juce::jlimit (0.f, 1.f, max), std::memory_order_relaxed);
 }
 
 float

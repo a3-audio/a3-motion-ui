@@ -45,6 +45,9 @@ clipSettingsFrom (Pattern const &pattern)
   settings.envelopeAttack = pattern.getEnvelopeAttack ();
   settings.envelopeDecay = pattern.getEnvelopeDecay ();
   settings.envelopeMax = pattern.getEnvelopeMax ();
+  settings.filterAttack = pattern.getFilterAttack ();
+  settings.filterDecay = pattern.getFilterDecay ();
+  settings.filterMax = pattern.getFilterMax ();
   settings.actMode = pattern.getActMode ();
 
   settings.direction = pattern.getPlayDirection ();
@@ -74,6 +77,9 @@ applyClipSettings (Pattern &pattern, ClipSettings const &settings)
   pattern.setEnvelopeAttack (settings.envelopeAttack);
   pattern.setEnvelopeDecay (settings.envelopeDecay);
   pattern.setEnvelopeMax (settings.envelopeMax);
+  pattern.setFilterAttack (settings.filterAttack);
+  pattern.setFilterDecay (settings.filterDecay);
+  pattern.setFilterMax (settings.filterMax);
   pattern.setActMode (settings.actMode);
 
   pattern.setPlayDirection (settings.direction);

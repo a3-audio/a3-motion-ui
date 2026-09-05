@@ -53,14 +53,28 @@ TEST (ActionLayout, EveryControlIsWellOverAFingertip)
       }
 }
 
-// Reading order, left to right, nothing overlapping.
-TEST (ActionLayout, TheControlsReadLeftToRight)
+// Two rows now, not one: the accent above, the filter below with the mode
+// closing it. Left to right within each row, and the columns line up so atk
+// sits over atk.
+TEST (ActionLayout, EachRowReadsLeftToRight)
 {
   auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f);
 
-  for (size_t i = 1; i < l.controls.size (); ++i)
+  for (size_t i = 1; i < 3; ++i)
     EXPECT_GE (l.controls[i].getX (), l.controls[i - 1].getRight ())
-        << "control " << i << " overlaps its neighbour";
+        << "accent control " << i << " overlaps its neighbour";
+
+  for (size_t i = 4; i < l.controls.size (); ++i)
+    EXPECT_GE (l.controls[i].getX (), l.controls[i - 1].getRight ())
+        << "filter control " << i << " overlaps its neighbour";
+
+  // The accent is above the filter, and neither runs into the other.
+  EXPECT_LE (l.controls[0].getBottom (), l.controls[3].getY ());
+
+  // Same columns on both rows: atk over atk, dec over dec, max over max.
+  for (size_t i = 0; i < 3; ++i)
+    EXPECT_EQ (l.controls[i].getX (), l.controls[i + 3].getX ())
+        << "column " << i << " does not line up";
 
   EXPECT_LE (l.controls.back ().getRight (), 768);
 }

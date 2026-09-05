@@ -62,6 +62,16 @@ struct ClipSettings
   int envelopeAttack = 2;
   int envelopeDecay = 3;
   float envelopeMax = 1.f;
+
+  /** A second envelope, on the filter: the same three values driving freq and
+   *  Q together rather than where the sound is.
+   *
+   *  One set for both, because a resonant sweep is one gesture -- the two
+   *  moving apart would be two gestures and would need two pairs of times to
+   *  say so. `filterMax` is how far the sweep goes. */
+  int filterAttack = 2;
+  int filterDecay = 3;
+  float filterMax = 0.f;
   ActMode actMode = ActMode::OneShot;
 
   PlayDirection direction = PlayDirection::Forward;
@@ -109,6 +119,9 @@ operator== (ClipSettings const &a, ClipSettings const &b)
          && a.envelopeAttack == b.envelopeAttack   //
          && a.envelopeDecay == b.envelopeDecay     //
          && a.envelopeMax == b.envelopeMax         //
+         && a.filterAttack == b.filterAttack       //
+         && a.filterDecay == b.filterDecay         //
+         && a.filterMax == b.filterMax             //
          && a.actMode == b.actMode                 //
          && a.direction == b.direction             //
          && a.endAction == b.endAction             //
