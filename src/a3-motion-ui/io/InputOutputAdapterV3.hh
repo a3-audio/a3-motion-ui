@@ -86,6 +86,8 @@ private:
   void serialReopen ();
   /** Ask the port who it is. See isControllerPingReply(). */
   bool pingAnswers ();
+  /** Throw away a slipped stream so the next poll starts on a frame boundary. */
+  void resynchronise ();
   bool readExact (uint8_t *buf, std::size_t n);
   bool resolveFrameOffsets (const uint8_t *raw, bool withPots,
                             int &buttonOffset, int &encoderOffset,
@@ -120,6 +122,12 @@ private:
 
   static constexpr int potDivider      = 5;   // read pots every Nth cycle
   static constexpr unsigned int serialTimeoutMs = 250;
+  /** How often to ask a freshly opened port who it is, and how long to wait
+   *  between tries. Opening resets the board, so the first questions land
+   *  inside its boot -- about three seconds all told, comfortably more than
+   *  an ESP32-S3 needs to reach its first line. */
+  static constexpr int pingAttempts = 6;
+  static constexpr int pingRetryMs = 400;
 
   // ── Button mapping ────────────────────────────────────────────────────────
   enum class ButtonRole : uint8_t

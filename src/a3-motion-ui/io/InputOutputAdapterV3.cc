@@ -121,26 +121,61 @@ InputOutputAdapterV3::serialInit ()
 bool
 InputOutputAdapterV3::pingAnswers ()
 {
+  // Asked more than once, over a couple of seconds. Opening the port resets
+  // the board -- DTR and RTS run to its auto-reset circuit -- so the first
+  // question lands in the middle of a boot, and what comes back is the first
+  // byte of the ROM's own chatter ("ESP-ROM:esp32s3-..."), not an answer. A
+  // single ping therefore turned away a controller that was plainly there
+  // and about to say "a3-motion ready".
+  for (int attempt = 0; attempt < pingAttempts; ++attempt)
+    {
+      try
+        {
+          // What the boot left behind goes first: chatter is not an answer
+          // to a question nobody had asked yet.
+          _serialPort.FlushInputBuffer ();
+
+          char const ping = 0x01;
+          _serialPort.Write (std::string (&ping, 1));
+
+          char reply = 0;
+          _serialPort.ReadByte (reply, serialTimeoutMs);
+
+          auto const byte = static_cast<juce::uint8> (reply);
+          if (isControllerPingReply (&byte, 1))
+            {
+              // Once more, so the first poll frame starts on a boundary: a
+              // byte left over here shifts every frame after it by one, and
+              // the poll loop has no way back from that.
+              _serialPort.FlushInputBuffer ();
+              return true;
+            }
+        }
+      catch (std::exception const &)
+        {
+          // A timeout is the common case while it is still booting.
+        }
+
+      juce::Thread::sleep (pingRetryMs);
+    }
+
+  return false;
+}
+
+void
+InputOutputAdapterV3::resynchronise ()
+{
+  // Markers in the wrong place mean the stream has slipped -- a byte too many
+  // or too few somewhere behind us. Reading on repeats the same slip on every
+  // frame, so the only way out is to drop what is buffered and let the next
+  // poll start clean.
   try
     {
-      // Whatever the last owner of this port left behind is not an answer to
-      // a question nobody had asked yet.
       _serialPort.FlushInputBuffer ();
-
-      char const ping = 0x01;
-      _serialPort.Write (std::string (&ping, 1));
-
-      char reply = 0;
-      _serialPort.ReadByte (reply, serialTimeoutMs);
-
-      auto const byte = static_cast<juce::uint8> (reply);
-      return isControllerPingReply (&byte, 1);
     }
   catch (std::exception const &)
     {
-      // A timeout is the common case, and it means what a wrong byte means:
-      // whatever is on this port, it is not the controller.
-      return false;
+      // Nothing to do here; the reconnect watch notices a port that has gone.
     }
 }
 
@@ -273,6 +308,7 @@ InputOutputAdapterV3::processInput ()
                                 potOffset))
         {
           _cycle = 0;
+          resynchronise ();
           return;
         }
 
@@ -307,6 +343,7 @@ InputOutputAdapterV3::processInput ()
                                 potOffset))
         {
           _cycle = 0;
+          resynchronise ();
           return;
         }
 
