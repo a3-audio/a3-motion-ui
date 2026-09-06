@@ -518,11 +518,28 @@ control changing which clip you are looking at want the same place — reading "
 way to reach slot 2 without going to the pads page. They light like the tabs beside them, because
 they answer the same kind of question. Not on the pads page, which shows every slot at once.
 
-**The library's three keys are Rename, Save and Delete**, and what each means follows the tab the
-list is on. On **ACTIONS** all three work: Save writes the shown clip out as a script, Rename opens
-the chosen row for typing, and Delete throws its file away. On CLIPS and SETS the outer two stay
-dark — a clip's name is what every set points at, so renaming one silently empties the slots that
-named it, and that needs the sets rewritten with it.
+**The library's three keys are Rename, Save and Delete.** The outer two say the same words on every
+tab and work wherever a row has a file behind it; only the middle one's meaning follows the folder
+(Save / Save Action / Save Set).
+
+What a rename has to carry differs sharply by tab, which is most of the work:
+
+| Tab | What moves |
+|---|---|
+| ACTIONS | the `.scd` file, and every slot firing it |
+| SETS | the set written out under the new name — it carries its own name *inside* it, so a file merely moved would show its old name in the list it was renamed in — plus `_sessionName` if that is the loaded one |
+| CLIPS | the name inside the SVG, the SVG's file name (keeping its beat-count prefix), the clip file beside it, every slot holding it, **and every set that names it** |
+
+`PatternFile::setName()` writes that one attribute rather than re-saving: a re-save re-derives the
+path from the ticks and hands back a file that is nearly, but not quite, the one that was read — and
+a rename is the one operation that must not change the shape.
+
+**Deleting deliberately does less.** A set's file goes and what is loaded stays loaded; a clip's
+files go and the sets that named it are left alone, because rewriting somebody's arrangement because
+a shape went would be a delete key editing files it was not pointed at — and a name a set cannot
+resolve already loads as an empty slot, which is what the set now honestly holds. How many sets that
+is, the arm step says *before* the second press (`chosenEntryCost()`). Everything playing goes on
+playing: the pattern is in memory, and a file going is not a reason to stop the room.
 
 **A rename is typed into the row itself**, not into a field somewhere else: what you are renaming is
 a row of a list, and a name typed anywhere but where the name is makes you check two places. The row
