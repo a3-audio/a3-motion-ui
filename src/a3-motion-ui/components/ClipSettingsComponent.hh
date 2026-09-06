@@ -209,11 +209,11 @@ public:
    *  figure turns under the blob, how fast reach opens and closes, how fast
    *  the elevation base travels. Zero is off for all three.
    *
-   *  They live in Motion together rather than each beside the value it works
-   *  on: what a clip does on its own while nobody is touching it is one thing
-   *  to reach for, and the hand looking for it should find all three at
-   *  once. */
-  void setMotionSweeps (int spin, int swell, int sway);
+   *  One setter, two sections. Each sweep is drawn beside the value it works
+   *  on -- spin under rot, swell beside reach, sway under the graphic whose
+   *  line it travels -- because a sweep says what it does only when it stands
+   *  next to what it does it to. */
+  void setSweeps (int spin, int swell, int sway);
 
   /** The accent's shape, as Envelope steps: how long it rises while ACT is
    *  held, how long it falls once let go. */
@@ -534,7 +534,7 @@ private:
   float _motionSqueezeY = 0.f;
   int _motionSpin = 0;
   int _motionSwell = 0;
-  int _motionSway = 0;
+  int _elevationSway = 0;
   int _motionAttack = 0;
   int _motionDecay = 0;
   float _motionEnvelopeMax = 1.f;

@@ -232,9 +232,11 @@ generator and the test runner:
   outer edge lands — out of where it was set and back, positive opening the coverage towards the
   far pole and negative closing it towards the near one. Same two places have to agree: the engine
   sweeps `params.reach` before projecting, the renderer sweeps it before drawing the line, both
-  from the phase on the `Pattern`. It moves an Elevation value but its control lives in **Motion**,
-  beside spin: what it is is a slow movement of the clip, not a shape of it, and the two bipolar
-  knobs read as the pair they are.
+  from the phase on the `Pattern`. Its control lives in **Motion**, beside the `reach` it sweeps —
+  every row of that section is a standing value next to the movement that works on it, the way `rot`
+  stands next to `spin`. `sway`, which does the same to the elevation base, sits in **Elevation**
+  under the graphic whose line it travels, for the same reason: a sweep says what it does only when
+  it stands next to what it does it to.
 
 ### UI (`src/a3-motion-ui`)
 

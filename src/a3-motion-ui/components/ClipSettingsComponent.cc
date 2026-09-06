@@ -570,18 +570,18 @@ ClipSettingsComponent::setMotionSqueeze (float squeezeX, float squeezeY)
 }
 
 void
-ClipSettingsComponent::setMotionSweeps (int spin, int swell, int sway)
+ClipSettingsComponent::setSweeps (int spin, int swell, int sway)
 {
   auto const heldSpin = juce::jlimit (-lfoMaxStep, lfoMaxStep, spin);
   auto const heldSwell = juce::jlimit (-lfoMaxStep, lfoMaxStep, swell);
   auto const heldSway = juce::jlimit (-lfoMaxStep, lfoMaxStep, sway);
   if (heldSpin == _motionSpin && heldSwell == _motionSwell
-      && heldSway == _motionSway)
+      && heldSway == _elevationSway)
     return;
 
   _motionSpin = heldSpin;
   _motionSwell = heldSwell;
-  _motionSway = heldSway;
+  _elevationSway = heldSway;
   repaint ();
 }
 
@@ -1524,10 +1524,10 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   paintMiniKnob (g, cells[6], metrics, caption::squeezeY, _motionSqueezeY,
                  true, _motionSubIndex == 6, isSelected);
 
-  // The three slow sweeps. spin sits beside the rot it drives; swell and sway
-  // stand together on their own row, because what they move -- reach and the
-  // elevation base -- is a section away, and a lone knob under rot would read
-  // as belonging to whatever it happened to sit beside.
+  // Each standing value beside the movement that works on it: spin turns the
+  // rot above it, swell sweeps the reach beside it. The sway that moves the
+  // elevation's own line went to Elevation for the same reason -- a sweep
+  // reads as what it does only when it stands next to what it does it to.
   auto const sweepRing = [] (int step) {
     return static_cast<float> (step) / static_cast<float> (lfoMaxStep);
   };
@@ -1537,8 +1537,16 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   paintMiniKnob (g, cells[8], metrics, caption::swell,
                  sweepRing (_motionSwell), true, _motionSubIndex == 8,
                  isSelected);
-  paintMiniKnob (g, cells[9], metrics, caption::sway, sweepRing (_motionSway),
-                 true, _motionSubIndex == 9, isSelected);
+
+  // ... and where the swell has carried the coverage, if it is moving: the
+  // pointer stays on what the hand set and the arc runs to where the sweep is
+  // holding it, the way rot's does under the spin.
+  paintMiniKnob (g, cells[9], metrics, caption::reach,
+                 _elevationReach * 2.f - 1.f, false, _motionSubIndex == 9,
+                 isSelected,
+                 _elevationReachSwept < 0.f
+                     ? -2.f
+                     : _elevationReachSwept * 2.f - 1.f);
 
   // They step on a tap -- no chevron, because nothing opens any more.
   paintBarButton (g, cells[3], value::directionNames[_motionDirection],
@@ -1566,8 +1574,8 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
 
   // The graphic on top, which is a control now: a finger on it sets where the
   // middle of the trajectory sits, and the line it draws is that value. Under
-  // it the two clips, then reach on its own -- the swell that sweeps it is on
-  // the ACTION page now, with the other two slow sweeps.
+  // it the two clips that bound the band, then the sway that travels the line
+  // itself. reach went to Motion to stand beside the swell that sweeps it.
   paintElevationGraphic (g, _layout.elevationGraphic, isSelected);
 
   paintMiniKnob (g, cells[0], metrics, caption::clipTop,
@@ -1577,13 +1585,12 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
                  _elevationClipBottom * 2.f - 1.f, false,
                  _elevationSubIndex == 1, isSelected);
 
-  // Where the sweep has carried the coverage, if it is moving.
-  paintMiniKnob (g, cells[2], metrics, caption::reach,
-                 _elevationReach * 2.f - 1.f, false, _elevationSubIndex == 2,
-                 isSelected,
-                 _elevationReachSwept < 0.f
-                     ? -2.f
-                     : _elevationReachSwept * 2.f - 1.f);
+  // The graphic's own slow movement: how fast the line it draws travels, and
+  // towards which pole. Bipolar, like the two sweeps it is a sibling of.
+  paintMiniKnob (g, cells[2], metrics, caption::sway,
+                 static_cast<float> (_elevationSway)
+                     / static_cast<float> (lfoMaxStep),
+                 true, _elevationSubIndex == 2, isSelected);
 }
 
 void

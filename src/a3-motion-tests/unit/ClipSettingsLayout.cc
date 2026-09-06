@@ -372,7 +372,7 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
       // Every row is a pair, and both halves of a pair are the same height.
       for (auto const &pair : { std::pair<int, int>{ 0, 7 },
                                 { 5, 6 },
-                                { 8, 9 },
+                                { 9, 8 },
                                 { 1, 2 },
                                 { 3, 4 } })
         EXPECT_EQ (motion[static_cast<size_t> (pair.first)].getHeight (),
@@ -381,7 +381,7 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
             << height;
 
       // And every knob row is the same height as every other.
-      for (int sub : { 5, 8, 1 })
+      for (int sub : { 5, 9, 1 })
         EXPECT_EQ (motion[0].getHeight (),
                    motion[static_cast<size_t> (sub)].getHeight ())
             << "sub " << sub << " at height " << height;
@@ -402,18 +402,21 @@ TEST (ClipSettingsLayout, MotionReadsAsPairsDownTheSection)
 
       // Top to bottom, by the left-hand knob of each row.
       for (auto const &above : { std::pair<int, int>{ 0, 5 },
-                                 { 5, 8 },
-                                 { 8, 1 },
+                                 { 5, 9 },
+                                 { 9, 1 },
                                  { 1, 3 } })
         EXPECT_LE (motion[static_cast<size_t> (above.first)].getBottom (),
                    motion[static_cast<size_t> (above.second)].getY () + 1)
             << "row " << above.first << " above " << above.second
             << " at height " << height;
 
-      // Each pair side by side on one row, left one first.
+      // Each pair side by side on one row, left one first. reach at nine
+      // sits left of the swell at eight -- the vector is ordered by
+      // sub-index, not by seat, and these two were appended at different
+      // times.
       for (auto const &pair : { std::pair<int, int>{ 0, 7 },
                                 { 5, 6 },
-                                { 8, 9 },
+                                { 9, 8 },
                                 { 1, 2 } })
         {
           auto const &left = motion[static_cast<size_t> (pair.first)];
@@ -429,7 +432,7 @@ TEST (ClipSettingsLayout, MotionReadsAsPairsDownTheSection)
       // The rows share two columns, so every left-hand knob starts where the
       // others do. A row that nearly lines up with the one above it reads as
       // a mistake; one that lines up reads as structure.
-      for (int sub : { 5, 8, 1 })
+      for (int sub : { 5, 9, 1 })
         EXPECT_EQ (motion[0].getX (),
                    motion[static_cast<size_t> (sub)].getX ())
             << "sub " << sub << " at height " << height;
@@ -1260,7 +1263,7 @@ TEST (ClipSettingsLayout, TheCircleIsSquareInsideWhateverCellItGets)
 // Elevation is four: the two clips, then reach with the swell that sweeps it.
 // flat, flat-elevation and pole are gone -- the base the graphic sets says
 // what they said, and says it in one place you can see.
-TEST (ClipSettingsLayout, ElevationIsTheTwoClipsAndReach)
+TEST (ClipSettingsLayout, ElevationIsTheTwoClipsAndTheSway)
 {
   EXPECT_EQ (numControlsInSection (1), 3);
 
@@ -1272,9 +1275,9 @@ TEST (ClipSettingsLayout, ElevationIsTheTwoClipsAndReach)
     EXPECT_FALSE (tapTogglesValue (1, sub)) << "sub " << sub;
 }
 
-// And Motion holds everything that shapes the movement in the plane: the
-// standing angle with its spin, the two squeezes, the two sweeps that move
-// the elevation, the fade with its bias, and the two lists.
+// And Motion holds each standing value beside the movement that works on it:
+// the angle with its spin, the two squeezes, the reach with its swell, the
+// fade with its bias, and the two lists.
 TEST (ClipSettingsLayout, MotionIsTheMovementAndEverythingThatMovesIt)
 {
   EXPECT_EQ (numControlsInSection (2), 10);

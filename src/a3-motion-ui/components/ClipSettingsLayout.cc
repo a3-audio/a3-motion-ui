@@ -84,14 +84,16 @@ numControlsInSection (int sectionIndex)
     case 0:
       return 1; // just the shape now -- rot, fade and bias went to Motion
     case 1:
-      // clip-top, clip-bottom, then reach. The swell that sweeps it has gone
-      // to the ACTION page, beside the other two things that move on their
-      // own -- what is left here is the shape of the elevation, not its
-      // movement.
+      // clip-top, clip-bottom, then the sway. reach went to Motion to stand
+      // beside the swell that sweeps it -- the two of them are one control
+      // with a movement over it, the way rot is with spin -- and the sway
+      // came here in its place, because where the middle of the trajectory
+      // sits is what the graphic above draws.
       return 3;
     case 2:
       // rot, fade, bias, then dir and end along the floor, then the two
-      // squeezes, then the three slow sweeps. Ten, and everything past four
+      // squeezes, then spin, swell and the reach they stand beside. Ten, and
+      // everything past four
       // is in the order it arrived rather than the order it is read in:
       // `controls` is ordered by sub-index, not by seat, and appending leaves
       // dir and end at three and four, where tapAdvancesValue(), the value
@@ -487,18 +489,19 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                                                                      row };
     };
 
-    // The two clips above, reach on its own below. It had the swell beside it
-    // -- a standing value next to its movement -- and the swell has gone to
-    // the ACTION page; centred rather than left where it stood, or the row
-    // would read as a pair with something missing from it.
+    // The two clips above, the sway on its own below. reach went to Motion to
+    // stand beside the swell that sweeps it; what is left here is the band the
+    // trajectory is allowed into and the slow travel of its middle. Centred
+    // rather than left in a half, or the row would read as a pair with
+    // something missing from it.
     auto const [clipTopArea, clipBottomArea] = split (row1);
-    auto const reachArea = row2.withSizeKeepingCentre (
+    auto const swayArea = row2.withSizeKeepingCentre (
         juce::jmin (row2.getWidth (), row2.getWidth () / 2), row2.getHeight ());
 
     out.controls[1] = {
       textCell (clipTopArea, metrics.knobDiam),
       textCell (clipBottomArea, metrics.knobDiam),
-      textCell (reachArea, metrics.knobDiam),
+      textCell (swayArea, metrics.knobDiam),
     };
   }
 
@@ -523,14 +526,14 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     content.removeFromBottom (gapV);
 
     // Four rows of knobs and a row of buttons, in pairs down the section:
-    // rot with the spin that turns it, the two squeezes, the swell with the
-    // sway, then the fade with the bias.
+    // rot with the spin that turns it, the two squeezes, reach with the swell
+    // that sweeps it, then the fade with the bias.
     //
-    // Each row is a pair that belongs together, and the section reads top to
-    // bottom as what is done to the recorded figure, then what moves it while
-    // nobody is touching it, then what is read out of its holes. Grouping by
-    // what a control does is what lets a hand find the right knob without
-    // reading the words under them.
+    // Each row is a standing value beside the movement that works on it, and
+    // the section reads top to bottom as what is done to the recorded figure,
+    // then what moves it while nobody is touching it, then what is read out
+    // of its holes. Grouping by what a control does is what lets a hand find
+    // the right knob without reading the words under them.
     //
     // Shared out rather than taken one after another from the bottom. A skin
     // can cut the bar down (clipSettingsHeightScale), and a section that helps
@@ -582,8 +585,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       textCell (middleLeft, metrics.knobDiam),  // sqzX
       textCell (middleRight, metrics.knobDiam), // sqzY
       textCell (upperRight, metrics.knobDiam),  // spin
-      textCell (sweepLeft, metrics.knobDiam),   // swell
-      textCell (sweepRight, metrics.knobDiam),  // sway
+      textCell (sweepRight, metrics.knobDiam),  // swell
+      textCell (sweepLeft, metrics.knobDiam),   // reach
     };
 
   }

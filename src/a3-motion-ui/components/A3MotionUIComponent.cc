@@ -4349,9 +4349,9 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   // by the same sub-index an encoder would. They had drifted: elevation said
   // six and motion four long after either was true.
   if (menuIndex == ClipSettingsComponent::elevationIndex)
-    return 3; // clip-top, clip-bottom, reach
+    return 3; // clip-top, clip-bottom, sway
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 10; // rot, fade, bias, dir, end, the two squeezes, the three sweeps
+    return 10; // rot, fade, bias, dir, end, two squeezes, spin, swell, reach
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
     return 4; // the shape, then rot, fade and bridge down its column
   return 1;
@@ -4408,14 +4408,16 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
       else if (sub == 1)
         pattern->setClipBottom (0.f);
       else if (sub == 2)
-        pattern->setReach (ClipSettings{}.reach);
+        // Off. The middle of a bipolar sweep is no sweep at all.
+        pattern->setElevationLfo (0);
       else
         return;
       break;
 
-    case 2: // Motion — rot (0), fade (1), bias (2), then the two squeezes at
-            // five and six. Appended rather than inserted where they sit, so
-            // nothing else here had to move.
+    case 2: // Motion — rot (0), fade (1), bias (2), the two squeezes at five
+            // and six, spin, swell and reach at seven, eight and nine.
+            // Appended rather than inserted where they sit, so nothing else
+            // here had to move.
       if (!pattern)
         return;
       // Only the knobs have a middle to go back to; direction and end action
@@ -4437,7 +4439,7 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         // also what a hand is reaching for when it double taps one.
         case 7: pattern->setSpin (0); break;
         case 8: pattern->setReachLfo (0); break;
-        case 9: pattern->setElevationLfo (0); break;
+        case 9: pattern->setReach (ClipSettings{}.reach); break;
         default: return;
         }
       break;
@@ -4525,9 +4527,10 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         updatePadRowLabel (channel, slot);
         break;
       }
-    case 1: // Elevation — clip-top (0), clip-bottom (1), reach (2). Where the
+    case 1: // Elevation — clip-top (0), clip-bottom (1), sway (2). Where the
             // middle of the trajectory sits is set in the graphic above them,
-            // not by a knob; the swell that sweeps reach has gone to ACTION.
+            // not by a knob, and sway is how fast that line travels. reach
+            // went to Motion, beside the swell that sweeps it.
       {
         auto &pattern = _patterns[channel][slot];
         if (!pattern)
@@ -4543,18 +4546,23 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                                     + increment * 0.05f);
             break;
           default:
-            // How far the trajectory's outer edge lands from the base the
-            // graphic sets.
-            pattern->setReach (pattern->getReach () + increment * 0.05f);
+            // How fast the line the graphic draws travels, and towards which
+            // pole. It moved here from Motion to stand under the thing it
+            // moves; reach went the other way, to stand beside its own sweep.
+            pattern->setElevationLfo (std::clamp (
+                pattern->getElevationLfo () + increment, -lfoMaxStep,
+                lfoMaxStep));
+            updateControlReadout (
+                "sway " + sweepReadout (pattern->getElevationLfo ()));
             break;
           }
         break;
       }
     case 2: // Motion — rot (0), fade (1), bias (2), direction (3),
             // end-action (4), sqzX (5), sqzY (6), spin (7), swell (8),
-            // sway (9). What the movement *is* in the plane, and the three
-            // slow sweeps that move it. Renumbering a section means moving
-            // the layout,
+            // reach (9). What the movement *is* in the plane, each standing
+            // value beside the movement that works on it. Renumbering a
+            // section means moving the layout,
             // tapAdvancesValue, this handler, the reset handler and the
             // painter together -- see CLAUDE.md -- which is exactly why the
             // squeezes were appended at the end rather than given the seats
@@ -4619,8 +4627,8 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
           case 7:
           case 8:
-          case 9:
-            // The clip's three slow sweeps. Whole steps, all three: a TempoLfo
+            // Two of the clip's three slow sweeps -- the third, sway, is in
+            // Elevation under the line it travels. Whole steps: a TempoLfo
             // step is a signed power of two in bars per cycle, so a finger
             // should feel each one rather than slide past them.
             //
@@ -4635,24 +4643,25 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
                 if (sub == 7)
                   pattern->setSpin (stepped (pattern->getSpin ()));
-                else if (sub == 8)
-                  pattern->setReachLfo (stepped (pattern->getReachLfo ()));
                 else
-                  pattern->setElevationLfo (
-                      stepped (pattern->getElevationLfo ()));
+                  pattern->setReachLfo (stepped (pattern->getReachLfo ()));
 
                 // A step is an index into a table of powers of two and means
                 // nothing to read, so the readout says the cycle it stands
-                // for. It is the one thing these three had on the ACTION page
-                // that a ring alone does not say.
+                // for -- the one thing a ring alone does not say.
                 updateControlReadout (
-                    juce::String (sub == 7   ? "spin "
-                                  : sub == 8 ? "swell "
-                                             : "sway ")
-                    + sweepReadout (sub == 7   ? pattern->getSpin ()
-                                    : sub == 8 ? pattern->getReachLfo ()
-                                               : pattern->getElevationLfo ()));
+                    juce::String (sub == 7 ? "spin " : "swell ")
+                    + sweepReadout (sub == 7 ? pattern->getSpin ()
+                                             : pattern->getReachLfo ()));
               }
+            break;
+
+          case 9:
+            // How far the trajectory's outer edge lands from the base the
+            // elevation graphic sets. It stands beside the swell that sweeps
+            // it, the way rot stands beside its spin.
+            if (pattern)
+              pattern->setReach (pattern->getReach () + increment * 0.05f);
             break;
 
           default:
@@ -4826,7 +4835,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setMotionSqueeze (
       pattern ? pattern->getSqueezeX () : ClipSettings{}.squeezeX,
       pattern ? pattern->getSqueezeY () : ClipSettings{}.squeezeY);
-  _clipSettings->setMotionSweeps (
+  _clipSettings->setSweeps (
       pattern ? pattern->getSpin () : ClipSettings{}.spin,
       pattern ? pattern->getReachLfo () : ClipSettings{}.reachLfo,
       pattern ? pattern->getElevationLfo () : ClipSettings{}.elevationLfo);
