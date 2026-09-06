@@ -4776,8 +4776,15 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
           ? lfoSweep (pattern->getReach (), pattern->getReachLfo (),
                       pattern->getReachLfoPhase ())
           : -1.f);
-  _clipSettings->setElevationBase (pattern ? pattern->getElevationBase ()
-                                          : 0.f);
+  // The line the hand set, and where the sway is holding it now -- the same
+  // pair the reach above is given, and drawn the same way.
+  _clipSettings->setElevationBase (
+      pattern ? pattern->getElevationBase () : 0.f,
+      pattern && pattern->getElevationLfo () != 0
+          ? lfoSweep (pattern->getElevationBase (),
+                      pattern->getElevationLfo (),
+                      pattern->getElevationLfoPhase ())
+          : -1.f);
   _clipSettings->setElevationClipTop (pattern ? pattern->getClipTop ()
                                               : 0.0f);
   _clipSettings->setElevationClipBottom (

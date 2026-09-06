@@ -539,6 +539,14 @@ grey and reads as a button stuck half-pressed. What they do carry is the value's
 `recModeColour` and `Colours::clockMode`. REC and TAP still light, because what they show is
 momentary and has no label of its own.
 
+**The elevation graphic draws the sway.** The chord a finger sets stays where it was put and the
+stretch between it and where the sweep is holding it now is filled in `notice`, with a thin chord of
+its own at the far edge — the same thing the knobs' blue arcs say, in the same colour, because it is
+the same question. Filled rather than drawn as a second line: what a sway does is cover a stretch of
+elevation, and a stretch reads as an area. Both are clamped into the band the clips leave, or the
+fill would promise elevation the sound never reaches. `setElevationBase()` takes the pair the way
+`setElevationReach()` does, and a `swept` below zero means "standing still, draw the line alone".
+
 **No section wears the selection.** The selected card used to be filled with the channel's colour —
 a coloured field a third of the bar wide, laid over the controls you are reading, that moved every
 time a finger landed somewhere else. It said which *section* was armed and shouted it, and what

@@ -455,9 +455,10 @@ ClipSettingsComponent::setElevationReach (float reach, float swept)
 }
 
 void
-ClipSettingsComponent::setElevationBase (float base)
+ClipSettingsComponent::setElevationBase (float base, float swept)
 {
   _elevationBase = std::clamp (base, 0.f, 1.f);
+  _elevationBaseSwept = swept < 0.f ? -1.f : std::clamp (swept, 0.f, 1.f);
   repaint ();
 }
 
@@ -1620,6 +1621,16 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   auto const baseFrac = std::clamp (std::clamp (_elevationBase, 0.f, 1.f),
                                     bandLow, bandHigh);
 
+  // Where the sway has carried that line, if it is moving. Clamped into the
+  // same band the line is: the clips bound where the sound can go, and a
+  // modulation drawn past them would promise elevation the sound never
+  // reaches.
+  auto const sweptFrac
+      = _elevationBaseSwept < 0.f
+            ? -1.f
+            : std::clamp (std::clamp (_elevationBaseSwept, 0.f, 1.f), bandLow,
+                          bandHigh);
+
   auto const fracToY
       = [&] (float frac) { return (centre.y - r) + frac * (r * 2.f); };
 
@@ -1645,6 +1656,24 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   g.fillRect (juce::Rectangle<float> (
       centre.x - r, fracToY (bandHigh), r * 2.f,
       (centre.y + r) - fracToY (bandHigh)));
+
+  // What the sway is doing, filled between where the hand left the line and
+  // where the sweep is holding it now. The same thing the knobs' blue arcs
+  // say and in the same colour, because it is the same question: the pointer
+  // stays where it was put, and the notice colour runs from there to where
+  // the movement has taken it. Filled rather than drawn as a second line --
+  // what a sway does is cover a stretch of elevation, and a stretch reads as
+  // an area.
+  if (sweptFrac >= 0.f)
+    {
+      auto const from = juce::jmin (baseFrac, sweptFrac);
+      auto const to = juce::jmax (baseFrac, sweptFrac);
+
+      g.setColour (toColour (theme ().notice, 0.35f));
+      g.fillRect (juce::Rectangle<float> (
+          centre.x - r, fracToY (from), r * 2.f,
+          juce::jmax (0.f, fracToY (to) - fracToY (from))));
+    }
 
   g.restoreState ();
 
@@ -1730,9 +1759,16 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                      markerY, thinWidth);
         };
 
+  // Where the sway has carried the line, as a thin chord at the far edge of
+  // the filled stretch. The fill says how far it reaches, this says exactly
+  // where the middle of the trajectory is right now -- which is the number
+  // the sound is actually using.
+  if (sweptFrac >= 0.f)
+    drawMarkerChord (sweptFrac, 1.5f, 0.f, toColour (theme ().notice));
+
   // The base: where the middle of the trajectory sits, and the one line in
   // here a finger sets. Drawn boldest and in the channel's colour because it
-  // is the control -- the reach chord is a reading of what follows from it.
+  // is the control, and drawn last so the sway's own mark never covers it.
   drawMarkerChord (baseFrac, 2.5f, 4.f, iconColour);
 
   // With the end caps a horizon bar has. They turn a chord into something

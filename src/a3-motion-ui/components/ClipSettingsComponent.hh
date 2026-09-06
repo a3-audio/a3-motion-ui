@@ -157,7 +157,10 @@ public:
   void setElevationReach (float reach, float swept = -1.f);
   /** Where the middle of the trajectory sits, 0 north and 1 south -- the one
    *  line in the graphic a finger sets. */
-  void setElevationBase (float base);
+  /** Where the middle of the trajectory sits, and where the sway is holding
+   *  it right now. A `swept` below zero means it is standing still: the
+   *  graphic then draws the line alone, with nothing filled beside it. */
+  void setElevationBase (float base, float swept = -1.f);
   void setElevationMirrorSouth (bool mirrorSouth);
   void setElevationClipTop (float clipTop);
   void setElevationClipBottom (float clipBottom);
@@ -513,6 +516,7 @@ private:
   juce::String _trajectoryName{ "Empty" };
   float _elevationReach = 0.5f;
   float _elevationBase = 0.f;
+  float _elevationBaseSwept = -1.f;
   bool _elevationMirrorSouth = false;
   float _elevationClipTop = 0.0f;
   float _elevationClipBottom = 0.0f;
