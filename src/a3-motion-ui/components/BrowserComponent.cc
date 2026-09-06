@@ -85,6 +85,7 @@ BrowserComponent::BrowserComponent ()
   makeButton (_filterTouch, &BrowserComponent::onFilterPressed);
   makeButton (_renameTouch, &BrowserComponent::onRenamePressed);
   makeButton (_saveTouch, &BrowserComponent::onSavePressed);
+  makeButton (_saveAsTouch, &BrowserComponent::onSaveAsPressed);
   makeButton (_deleteTouch, &BrowserComponent::onDeletePressed);
 
   // The rename types into the row, so the row's own component has to be the
@@ -123,6 +124,7 @@ BrowserComponent::resized ()
   _filterTouch->setBounds (_layout.filterButton);
   _renameTouch->setBounds (_layout.renameButton);
   _saveTouch->setBounds (_layout.saveButton);
+  _saveAsTouch->setBounds (_layout.saveAsButton);
   _deleteTouch->setBounds (_layout.deleteButton);
 }
 
@@ -239,7 +241,8 @@ BrowserComponent::paint (juce::Graphics &g)
   paintButton (g, _layout.filterButton, _actionLabels[0], _actionEnabled[0]);
   paintButton (g, _layout.renameButton, _actionLabels[1], _actionEnabled[1]);
   paintButton (g, _layout.saveButton, _actionLabels[2], _actionEnabled[2]);
-  paintButton (g, _layout.deleteButton, _actionLabels[3], _actionEnabled[3]);
+  paintButton (g, _layout.saveAsButton, _actionLabels[3], _actionEnabled[3]);
+  paintButton (g, _layout.deleteButton, _actionLabels[4], _actionEnabled[4]);
 }
 
 void
@@ -310,7 +313,7 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
 
 void
 BrowserComponent::setActions (juce::StringArray const &labels,
-                              std::array<bool, 4> const &enabled)
+                              std::array<bool, 5> const &enabled)
 {
   if (labels == _actionLabels && enabled == _actionEnabled)
     return;

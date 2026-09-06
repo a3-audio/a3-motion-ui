@@ -106,7 +106,7 @@ public:
    *  not available, and the set of things you can do changes with what is
    *  chosen. An empty label draws no key at all. */
   void setActions (juce::StringArray const &labels,
-                   std::array<bool, 4> const &enabled);
+                   std::array<bool, 5> const &enabled);
 
   /** Narrow what the list shows. What the states are and what they are
    *  called is the page's, not this component's -- it draws the word it is
@@ -116,6 +116,9 @@ public:
   /** Write the clip on show back to its file, or keep the current action or
    *  set -- what it means follows the folder the list is on. */
   std::function<void ()> onSavePressed;
+  /** Write what is on show to a new file rather than over the one it came
+   *  from. What "on show" means is the page's to decide. */
+  std::function<void ()> onSaveAsPressed;
   /** Throw the chosen row's file away. What that takes is the page's to
    *  decide, and so is asking twice: this fires on every press, armed or
    *  not. */
@@ -156,8 +159,8 @@ private:
 
   BrowserLayout _layout;
 
-  juce::StringArray _actionLabels{ "", "Rename", "Save", "" };
-  std::array<bool, 4> _actionEnabled{ false, false, false, false };
+  juce::StringArray _actionLabels{ "", "Rename", "Save", "", "" };
+  std::array<bool, 5> _actionEnabled{ false, false, false, false, false };
   juce::StringArray _names;
   int _scrollOffset = 0;
   int _selectedEntry = -1;
@@ -172,6 +175,7 @@ private:
   std::unique_ptr<TouchControl> _filterTouch;
   std::unique_ptr<TouchControl> _renameTouch;
   std::unique_ptr<TouchControl> _saveTouch;
+  std::unique_ptr<TouchControl> _saveAsTouch;
   std::unique_ptr<TouchControl> _deleteTouch;
 
   bool _renaming = false;

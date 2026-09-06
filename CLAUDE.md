@@ -518,8 +518,16 @@ control changing which clip you are looking at want the same place — reading "
 way to reach slot 2 without going to the pads page. They light like the tabs beside them, because
 they answer the same kind of question. Not on the pads page, which shows every slot at once.
 
-**The library's four keys are Filter, Rename, Save and Delete**, and all four say the same words on
-every tab. The filter stands first because it changes *what is listed* and the other three act on a
+**The library's five keys are Filter, Rename, Save, Save as and Delete**, and all five say the same
+words on every tab.
+
+**Save writes what is on show back over the file it came from; Save as writes it to a new one.** Two
+keys rather than one and a modifier — which of the two you meant is the whole question, and a
+modifier makes it something you find out afterwards. Per tab, "where it came from" is the slot's own
+clip file, the slot's own action file, or the set that is loaded; Save lights only when there is such
+a file *and* something to write to it (for a clip, that means drift), Save as only needs something to
+write. Before this, Save on ACTIONS and SETS always made a new file — so an action could never be
+corrected without collecting "Action 4" beside "Action 3", and a set could never be updated at all. The filter stands first because it changes *what is listed* and the other three act on a
 row of it: narrow the list, then do something to a row. It steps `All → User → System` on a tap and
 wears the state it is in, not the one the next press would bring — a key naming what you would get
 rather than what you have is a key you press to find out where you are.

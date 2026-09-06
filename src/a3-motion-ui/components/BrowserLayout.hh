@@ -73,6 +73,10 @@ struct BrowserLayout
   juce::Rectangle<int> filterButton;
   juce::Rectangle<int> renameButton;
   juce::Rectangle<int> saveButton;
+  /** Beside Save, not instead of it: one writes what is on show back where it
+   *  came from, the other writes it somewhere new, and which of the two you
+   *  meant is not a thing to work out from a modifier. */
+  juce::Rectangle<int> saveAsButton;
   juce::Rectangle<int> deleteButton;
 };
 

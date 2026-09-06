@@ -587,14 +587,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // What a field or a row means is decided here rather than there, the same
   // way the pads page knows nothing about what a pad does.
   _browser = std::make_unique<BrowserComponent> ();
-  _browser->onSavePressed = [this] {
-    if (_browserList == BrowserList::Sessions)
-      saveCurrentSession ();
-    else if (_browserList == BrowserList::Actions)
-      saveSlotAsAction ();
-    else
-      saveSlotClip (_clipSettingsChannel, _clipSettingsSlot);
-  };
+  // Save writes what is on show back over the file it came from; Save as
+  // writes it to a new one. Two keys rather than one and a modifier: which of
+  // the two you meant is the whole question, and a modifier makes it something
+  // you find out afterwards.
+  _browser->onSavePressed = [this] { saveChosen (); };
+  _browser->onSaveAsPressed = [this] { saveAsChosen (); };
   _browser->onRenamePressed = [this] {
     // The same key finishes what it started: it says "Keep" while a row is
     // open, so a name can be settled without reaching for a keyboard that is
@@ -1901,11 +1899,41 @@ A3MotionUIComponent::saveSlotClip (index_t channel, index_t slot)
 
   // A factory clip is the instrument's, not the performer's, so saving one
   // makes a copy and points this slot at it. Silently rather than with a
-  // refusal: you asked for your changes to be kept, and they are.
-  Clip copy = *clip;
+  // refusal: you asked for your changes to be kept, and they are. It is the
+  // same thing Save as does outright.
+  saveSlotClipAsCopy ();
+}
+
+void
+A3MotionUIComponent::saveSlotClipAsCopy ()
+{
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+
+  if (channel >= _patterns.size () || slot >= _patterns[channel].size ())
+    return;
+
+  auto const &pattern = _patterns[channel][slot];
+  if (!pattern)
+    {
+      updateControlReadout ("-- NOTHING TO SAVE");
+      return;
+    }
+
+  // Whatever the slot came from, if it came from anything: a slot holding a
+  // shape with no clip beside it still has a name and a set of values, and
+  // those are what a copy is made of.
+  auto const from = ClipFile::load (_slotClipFile[channel][slot]);
+
+  Clip copy;
+  if (from.has_value ())
+    copy = *from;
+  else
+    copy.svg = pattern->getName ();
+
   copy.aka.clear ();
   copy.name = freeClipName (_patternLibrary->getClipDir (),
-                            juce::String (clip->name))
+                            juce::String (pattern->getName ()))
                   .toStdString ();
   copy.settings = clipSettingsFrom (*pattern);
 
@@ -1919,8 +1947,10 @@ A3MotionUIComponent::saveSlotClip (index_t channel, index_t slot)
     }
 
   _slotClipFile[channel][slot] = target;
-  updateControlReadout ("-- SAVED AS " + juce::String (copy.name).toUpperCase ());
+  updateControlReadout ("-- SAVED AS "
+                        + juce::String (copy.name).toUpperCase ());
 
+  _patternLibrary->refresh ();
   refreshBrowser ();
   updateClipSettingsDisplay ();
 }
@@ -2099,21 +2129,15 @@ A3MotionUIComponent::refreshBrowser ()
       _browser->setSelectedEntry (browserRowForLibrary (entry));
     }
 
-  // What can actually be done to what is chosen. Save lights only when there
-  // is something to write -- pressing it otherwise did nothing, and a key that
-  // does nothing teaches you to stop trusting it.
+  // What can actually be done. A key lights only when pressing it would do
+  // something -- one that does nothing teaches you to stop trusting the
+  // others.
   //
-  // Rename and the session keys come with step 3; until then they say nothing
-  // rather than being drawn as though they worked.
-  auto const drifted
-      = slotHasDrifted (_clipSettingsChannel,
-                        _clipSettingsSlot);
-  // What the three keys say, and which of them can be pressed. All three say
-  // the same words on every tab -- what they act on is the row you chose in
-  // the list you are looking at, and the tab above the list has already said
-  // which list that is. "Save Action" on the actions tab spent a word saying
-  // it again, and three keys that change their wording between tabs are three
-  // keys you read instead of aim at.
+  // What the five keys say, and which of them can be pressed. All five say the
+  // same words on every tab -- what they act on is the list you are looking
+  // at, and the lit tab above it has already said which list that is. "Save
+  // Action" spent a word saying it again, and keys that reword themselves
+  // between tabs are keys you read instead of aim at.
   auto const chosen = chosenEntryHasAFile ();
   auto const rename = _browser->isRenaming () ? "Keep" : "Rename";
 
@@ -2125,30 +2149,27 @@ A3MotionUIComponent::refreshBrowser ()
   auto const filter = _clipFilter == ClipFilter::All      ? "All"
                       : _clipFilter == ClipFilter::User ? "User"
                                                         : "System";
+
+  // Save wants somewhere to write back to; Save as only wants something to
+  // write. A slot with nothing in it has neither.
+  auto const inPlace = canSaveInPlace ();
+  auto const holds = _clipSettingsChannel < _patterns.size ()
+                     && _clipSettingsSlot
+                            < _patterns[_clipSettingsChannel].size ()
+                     && _patterns[_clipSettingsChannel][_clipSettingsSlot]
+                            != nullptr;
   // The delete key says what the next press will do. Armed it wears the word
   // rather than a colour, because a key that only changed colour would be a
   // key you have to have been watching.
   auto const remove = _deleteArmed ? "Sure?" : "Delete";
 
-  if (_browserList == BrowserList::Sessions)
-    // A set can always be put away; there is always an arrangement to keep.
-    _browser->setActions ({ filter, rename, "Save", remove },
-                          { filtering, chosen, true, chosen });
-  else if (_browserList == BrowserList::Actions)
-    {
-      // An action is made by dialling a clip the way you want ACT to make it
-      // sound and keeping that. There is nothing to keep from an empty slot.
-      auto const ch = _clipSettingsChannel;
-      auto const sl = _clipSettingsSlot;
-      auto const holds = ch < _patterns.size () && sl < _patterns[ch].size ()
-                         && _patterns[ch][sl] != nullptr;
+  // A set can always be put away -- there is always an arrangement to keep --
+  // where a clip and an action are made out of what a slot holds, and an
+  // empty slot holds nothing to write.
+  auto const canCopy = _browserList == BrowserList::Sessions ? true : holds;
 
-      _browser->setActions ({ filter, rename, "Save", remove },
-                            { filtering, chosen, holds, chosen });
-    }
-  else
-    _browser->setActions ({ filter, rename, "Save", remove },
-                          { filtering, chosen, drifted, chosen });
+  _browser->setActions ({ filter, rename, "Save", "Save as", remove },
+                        { filtering, chosen, inPlace, canCopy, chosen });
 }
 
 void
@@ -2911,6 +2932,111 @@ A3MotionUIComponent::deleteChosenClip ()
 
   _browser->setSelectedEntry (0);
   refreshBrowser ();
+}
+
+void
+A3MotionUIComponent::saveSlotActionInPlace ()
+{
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+
+  auto const &file = _slotAction[channel][slot].file;
+  auto const &pattern = _patterns[channel][slot];
+
+  if (!file.existsAsFile () || !pattern)
+    {
+      updateControlReadout ("-- NOTHING TO SAVE");
+      return;
+    }
+
+  // The clip as it stands, over the action this slot already fires. Save as
+  // is what makes a second one; this is what lets an action be corrected
+  // without collecting "Action 4" beside "Action 3".
+  if (!file.replaceWithText (actionScriptFor (clipSettingsFrom (*pattern))))
+    {
+      updateControlReadout ("-- SAVE FAILED");
+      return;
+    }
+
+  setSlotAction (channel, slot, file);
+  updateControlReadout ("-- SAVED "
+                        + file.getFileNameWithoutExtension ().toUpperCase ());
+  refreshBrowser ();
+}
+
+void
+A3MotionUIComponent::saveSessionInPlace ()
+{
+  auto const file = sessionsDir ().getChildFile (_sessionName + ".json");
+  if (_sessionName.isEmpty () || !file.existsAsFile ())
+    {
+      updateControlReadout ("-- NOTHING TO SAVE");
+      return;
+    }
+
+  auto set = buildSession ();
+  set.name = _sessionName.toStdString ();
+
+  if (!saveSession (file, set))
+    {
+      updateControlReadout ("-- SAVE FAILED");
+      return;
+    }
+
+  updateControlReadout ("-- SAVED " + _sessionName.toUpperCase ());
+  refreshBrowser ();
+}
+
+bool
+A3MotionUIComponent::canSaveInPlace () const
+{
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto const holds = channel < _patterns.size ()
+                     && slot < _patterns[channel].size ()
+                     && _patterns[channel][slot] != nullptr;
+
+  switch (_browserList)
+    {
+    case BrowserList::Clips:
+      // Only when there is something to write. Save on an untouched clip made
+      // a copy of it anyway once -- press it twice out of habit and the
+      // library grows a clip you cannot tell from the original.
+      return slotHasDrifted (channel, slot);
+    case BrowserList::Actions:
+      return holds && _slotAction[channel][slot].file.existsAsFile ();
+    case BrowserList::Sessions:
+      return _sessionName.isNotEmpty ()
+             && sessionsDir ()
+                    .getChildFile (_sessionName + ".json")
+                    .existsAsFile ();
+    }
+
+  return false;
+}
+
+void
+A3MotionUIComponent::saveChosen ()
+{
+  switch (_browserList)
+    {
+    case BrowserList::Clips:
+      saveSlotClip (_clipSettingsChannel, _clipSettingsSlot);
+      break;
+    case BrowserList::Actions: saveSlotActionInPlace (); break;
+    case BrowserList::Sessions: saveSessionInPlace (); break;
+    }
+}
+
+void
+A3MotionUIComponent::saveAsChosen ()
+{
+  switch (_browserList)
+    {
+    case BrowserList::Clips: saveSlotClipAsCopy (); break;
+    case BrowserList::Actions: saveSlotAsAction (); break;
+    case BrowserList::Sessions: saveCurrentSession (); break;
+    }
 }
 
 void

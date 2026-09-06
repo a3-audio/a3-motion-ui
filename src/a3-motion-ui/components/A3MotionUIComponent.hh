@@ -201,6 +201,21 @@ private:
   void writeSlotActionScript ();
   /** Keep the chosen slot's settings as a new action clip. */
   void saveSlotAsAction ();
+  /** Write what is on show back over the file it came from. Per tab: the
+   *  slot's own clip, the slot's own action, the set that is loaded. */
+  void saveChosen ();
+  /** Write it to a new file instead, leaving the one it came from alone. */
+  void saveAsChosen ();
+  /** Whether there is a file to write back over -- what lights Save, as
+   *  against Save as, which only needs something to write. */
+  bool canSaveInPlace () const;
+  /** The shown clip copied to a clip file of its own, the slot pointed at the
+   *  copy. The same thing Save does to a factory clip, asked for outright. */
+  void saveSlotClipAsCopy ();
+  /** The shown clip's settings written over the slot's own action file. */
+  void saveSlotActionInPlace ();
+  /** The arrangement written over the set it was loaded from. */
+  void saveSessionInPlace ();
   /** Give the chosen row another name, and carry across everything that named
    *  the old one. What that means follows the folder the list is on -- see
    *  renameChosenAction/Set/Clip. */
