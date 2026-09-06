@@ -605,22 +605,17 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         return;
       }
 
-    // Only the actions folder, and only a row with a file behind it. A clip's
-    // name is what every set points at, so renaming one silently empties the
-    // slots that named it -- that needs the sets to be rewritten with it, and
-    // until they are the key stays dark on those two tabs.
-    auto const file = chosenActionFile ();
-    if (!file.existsAsFile ())
+    if (!chosenEntryHasAFile ())
       return;
 
     _deleteArmed = false;
-    _browser->beginRename (file.getFileNameWithoutExtension ());
+    _browser->beginRename (
+        _browser->entryName (_browser->getSelectedEntry ()));
     refreshBrowser ();
   };
 
-  _browser->onRenamed = [this] (juce::String const &name) {
-    renameChosenAction (name);
-  };
+  _browser->onRenamed
+      = [this] (juce::String const &name) { renameChosenEntry (name); };
 
   // The keyboard is the system's own and types into whatever holds the focus,
   // so opening the row is what shows it -- the same arrangement the script
@@ -630,7 +625,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     refreshBrowser ();
   };
 
-  _browser->onDeletePressed = [this] { deleteChosenAction (); };
+  _browser->onDeletePressed = [this] { deleteChosenEntry (); };
 
   _browser->onClipsChosen = [this] {
     _browserList = BrowserList::Clips;
@@ -2070,9 +2065,20 @@ A3MotionUIComponent::refreshBrowser ()
   auto const drifted
       = slotHasDrifted (_clipSettingsChannel,
                         _clipSettingsSlot);
+  // What the three keys say, and which of them can be pressed. Rename and
+  // Delete want a row with a file behind it, and say the same words on every
+  // tab: the middle key is the only one whose meaning follows the folder.
+  auto const chosen = chosenEntryHasAFile ();
+  auto const rename = _browser->isRenaming () ? "Keep" : "Rename";
+  // The delete key says what the next press will do. Armed it wears the word
+  // rather than a colour, because a key that only changed colour would be a
+  // key you have to have been watching.
+  auto const remove = _deleteArmed ? "Sure?" : "Delete";
+
   if (_browserList == BrowserList::Sessions)
     // A set can always be put away; there is always an arrangement to keep.
-    _browser->setActions ({ "", "Save Set", "" }, { false, true, false });
+    _browser->setActions ({ rename, "Save Set", remove },
+                          { chosen, true, chosen });
   else if (_browserList == BrowserList::Actions)
     {
       // An action is made by dialling a clip the way you want ACT to make it
@@ -2082,20 +2088,12 @@ A3MotionUIComponent::refreshBrowser ()
       auto const holds = ch < _patterns.size () && sl < _patterns[ch].size ()
                          && _patterns[ch][sl] != nullptr;
 
-      // Rename and Delete want a row with a file behind it; row zero is "no
-      // action" and there is nothing there to name or throw away.
-      auto const chosen = chosenActionFile ().existsAsFile ();
-
-      // The delete key says what the next press will do. Armed it wears the
-      // word rather than a colour, because a key that only changed colour
-      // would be a key you have to have been watching.
-      _browser->setActions (
-          { _browser->isRenaming () ? "Keep" : "Rename", "Save Action",
-            _deleteArmed ? "Sure?" : "Delete" },
-          { chosen, holds, chosen });
+      _browser->setActions ({ rename, "Save Action", remove },
+                            { chosen, holds, chosen });
     }
   else
-    _browser->setActions ({ "", "Save", "" }, { false, drifted, false });
+    _browser->setActions ({ rename, "Save", remove },
+                          { chosen, drifted, chosen });
 }
 
 void
@@ -2398,6 +2396,182 @@ A3MotionUIComponent::chosenActionFile () const
   return actionsDir ().getChildFile (name + ".scd");
 }
 
+juce::File
+A3MotionUIComponent::chosenSetFile () const
+{
+  if (_browserList != BrowserList::Sessions || !_browser)
+    return {};
+
+  auto const index = _browser->getSelectedEntry ();
+  if (index < 0)
+    return {};
+
+  auto const name = _browser->entryName (index);
+  if (name.isEmpty ())
+    return {};
+
+  return sessionsDir ().getChildFile (name + ".json");
+}
+
+int
+A3MotionUIComponent::chosenLibraryIndex () const
+{
+  if (_browserList != BrowserList::Clips || !_browser)
+    return -1;
+
+  auto const index = _browser->getSelectedEntry ();
+  // Row zero is the library's "Empty": a shape nobody has chosen, with no
+  // file of its own to name or throw away.
+  if (index <= 0 || index >= _patternLibrary->getNumEntries ())
+    return -1;
+
+  return index;
+}
+
+bool
+A3MotionUIComponent::chosenEntryHasAFile () const
+{
+  switch (_browserList)
+    {
+    case BrowserList::Actions:
+      return chosenActionFile ().existsAsFile ();
+    case BrowserList::Sessions:
+      return chosenSetFile ().existsAsFile ();
+    case BrowserList::Clips:
+      {
+        auto const index = chosenLibraryIndex ();
+        if (index < 0)
+          return false;
+
+        // A shape is its SVG; a settings preset is its clip and has no shape.
+        // Either is something to name; an entry with neither is a row the
+        // library made up, and there is nothing to do to it.
+        auto const &entry = _patternLibrary->getEntry (index);
+        return entry.file.existsAsFile () || entry.clipFile.existsAsFile ();
+      }
+    }
+
+  return false;
+}
+
+int
+A3MotionUIComponent::setsNaming (juce::String const &patternName) const
+{
+  if (patternName.isEmpty ())
+    return 0;
+
+  auto count = 0;
+  for (auto const &file : sessionsDir ().findChildFiles (juce::File::findFiles,
+                                                         false, "*.json"))
+    {
+      auto const set
+          = loadSession (file, static_cast<int> (numChannelColumns),
+                         static_cast<int> (numPadSlots));
+      auto found = false;
+      for (auto const &channel : set.channels)
+        for (auto const &slot : channel.slots)
+          if (juce::String (slot.patternName) == patternName)
+            found = true;
+
+      if (found)
+        ++count;
+    }
+
+  return count;
+}
+
+int
+A3MotionUIComponent::renameInSets (juce::String const &from,
+                                   juce::String const &to)
+{
+  if (from.isEmpty () || to.isEmpty () || from == to)
+    return 0;
+
+  auto rewritten = 0;
+  for (auto const &file : sessionsDir ().findChildFiles (juce::File::findFiles,
+                                                         false, "*.json"))
+    {
+      auto set = loadSession (file, static_cast<int> (numChannelColumns),
+                              static_cast<int> (numPadSlots));
+
+      auto touched = false;
+      for (auto &channel : set.channels)
+        for (auto &slot : channel.slots)
+          if (juce::String (slot.patternName) == from)
+            {
+              slot.patternName = to.toStdString ();
+              touched = true;
+            }
+
+      if (!touched)
+        continue;
+
+      if (saveSession (file, set))
+        ++rewritten;
+      else
+        std::cerr << "could not rewrite set " << file.getFullPathName ()
+                  << std::endl;
+    }
+
+  return rewritten;
+}
+
+juce::String
+A3MotionUIComponent::chosenEntryCost () const
+{
+  if (_browserList != BrowserList::Clips)
+    return {};
+
+  auto const index = chosenLibraryIndex ();
+  if (index < 0)
+    return {};
+
+  auto const in
+      = setsNaming (juce::String (_patternLibrary->getEntry (index).name));
+
+  return in > 0 ? " IN " + juce::String (in) + (in == 1 ? " SET" : " SETS")
+                : juce::String{};
+}
+
+void
+A3MotionUIComponent::renameChosenEntry (juce::String const &name)
+{
+  switch (_browserList)
+    {
+    case BrowserList::Actions: renameChosenAction (name); break;
+    case BrowserList::Sessions: renameChosenSet (name); break;
+    case BrowserList::Clips: renameChosenClip (name); break;
+    }
+}
+
+void
+A3MotionUIComponent::deleteChosenEntry ()
+{
+  // Asked twice, whatever the folder. A file thrown away in front of a room
+  // does not come back, and the second press is the only thing standing
+  // between a fat finger and somebody's work. Not a dialogue: there is nothing
+  // here that could put one up without covering the list it is asking about.
+  if (!chosenEntryHasAFile ())
+    return;
+
+  if (!_deleteArmed)
+    {
+      _deleteArmed = true;
+      updateControlReadout ("-- DELETE?" + chosenEntryCost ());
+      refreshBrowser ();
+      return;
+    }
+
+  _deleteArmed = false;
+
+  switch (_browserList)
+    {
+    case BrowserList::Actions: deleteChosenAction (); break;
+    case BrowserList::Sessions: deleteChosenSet (); break;
+    case BrowserList::Clips: deleteChosenClip (); break;
+    }
+}
+
 void
 A3MotionUIComponent::renameChosenAction (juce::String const &name)
 {
@@ -2443,20 +2617,6 @@ A3MotionUIComponent::deleteChosenAction ()
   if (!file.existsAsFile ())
     return;
 
-  // Asked twice. A file thrown away in front of a room does not come back, and
-  // the second press is the only thing standing between a fat finger and an
-  // action somebody wrote. Not a dialogue: there is nothing here that could
-  // put one up without covering the list it is asking about.
-  if (!_deleteArmed)
-    {
-      _deleteArmed = true;
-      updateControlReadout ("-- DELETE? PRESS AGAIN");
-      refreshBrowser ();
-      return;
-    }
-
-  _deleteArmed = false;
-
   if (!file.deleteFile ())
     {
       updateControlReadout ("-- COULD NOT DELETE");
@@ -2473,6 +2633,202 @@ A3MotionUIComponent::deleteChosenAction ()
 
   updateControlReadout (
       "-- DELETED " + file.getFileNameWithoutExtension ().toUpperCase ());
+
+  _browser->setSelectedEntry (0);
+  refreshBrowser ();
+}
+
+void
+A3MotionUIComponent::renameChosenSet (juce::String const &name)
+{
+  auto const from = chosenSetFile ();
+  if (!from.existsAsFile ())
+    return;
+
+  auto const to = sessionsDir ().getChildFile (name + ".json");
+  if (to == from)
+    return;
+
+  if (to.exists ())
+    {
+      updateControlReadout ("-- NAME TAKEN");
+      return;
+    }
+
+  // Written out under the new name rather than moved: a set carries its own
+  // name inside it, and the browser lists it by that. A file renamed without
+  // it would show its old name in the list it was renamed in.
+  auto set = loadSession (from, static_cast<int> (numChannelColumns),
+                          static_cast<int> (numPadSlots));
+  auto const was = juce::String (set.name);
+  set.name = name.toStdString ();
+
+  if (!saveSession (to, set))
+    {
+      updateControlReadout ("-- COULD NOT RENAME");
+      return;
+    }
+
+  from.deleteFile ();
+
+  // The set on the device is still the set on the device; only what it is
+  // called has changed.
+  if (_sessionName == was)
+    _sessionName = name;
+
+  updateControlReadout ("-- RENAMED " + name.toUpperCase ());
+  refreshBrowser ();
+}
+
+void
+A3MotionUIComponent::deleteChosenSet ()
+{
+  auto const file = chosenSetFile ();
+  if (!file.existsAsFile ())
+    return;
+
+  if (!file.deleteFile ())
+    {
+      updateControlReadout ("-- COULD NOT DELETE");
+      refreshBrowser ();
+      return;
+    }
+
+  // What is loaded stays loaded. Throwing away the file a set was written to
+  // is not the same as undoing the arrangement in front of you, and clearing
+  // the device because a file went would be a delete key that stopped the
+  // music.
+  updateControlReadout (
+      "-- DELETED " + file.getFileNameWithoutExtension ().toUpperCase ());
+
+  _browser->setSelectedEntry (-1);
+  refreshBrowser ();
+}
+
+void
+A3MotionUIComponent::renameChosenClip (juce::String const &name)
+{
+  auto const index = chosenLibraryIndex ();
+  if (index < 0)
+    return;
+
+  auto const entry = _patternLibrary->getEntry (index);
+  auto const was = juce::String (entry.name);
+  if (was == name)
+    return;
+
+  if (_patternLibrary->indexForName (name.toStdString ()) > 0)
+    {
+      updateControlReadout ("-- NAME TAKEN");
+      return;
+    }
+
+  // A shape's file name carries its beat count -- 16_Wave.svg -- and the clip
+  // beside it is found by the rest of it. Both move together or the clip stops
+  // reaching the shape and turns up in the browser as a preset of its own.
+  if (entry.file.existsAsFile ())
+    {
+      auto const prefix
+          = entry.file.getFileNameWithoutExtension ().upToFirstOccurrenceOf (
+              "_", true, false);
+      auto const to = entry.file.getSiblingFile (prefix + name + ".svg");
+
+      if (to.exists () || !PatternFile::setName (entry.file, name)
+          || !entry.file.moveFileTo (to))
+        {
+          updateControlReadout ("-- COULD NOT RENAME");
+          return;
+        }
+    }
+
+  if (entry.clipFile.existsAsFile ())
+    {
+      auto clip = ClipFile::load (entry.clipFile);
+      if (clip.has_value ())
+        {
+          clip->name = name.toStdString ();
+
+          auto const to
+              = _patternLibrary->getClipDir ().getChildFile (name + ".json");
+          if (ClipFile::save (*clip, to))
+            {
+              if (to != entry.clipFile)
+                entry.clipFile.deleteFile ();
+
+              // Every slot that came from the old file still points at it.
+              for (index_t channel = 0; channel < _slotClipFile.size ();
+                   ++channel)
+                for (index_t slot = 0;
+                     slot < _slotClipFile[channel].size (); ++slot)
+                  if (_slotClipFile[channel][slot] == entry.clipFile)
+                    _slotClipFile[channel][slot] = to;
+            }
+        }
+    }
+
+  // Every set that named it comes with it. A set names its shapes rather than
+  // carrying them, so one left behind holds a name nothing resolves -- and
+  // that is not an error there, it is a slot that loads empty.
+  auto const sets = renameInSets (was, name);
+
+  // The patterns already in slots carry the old name in memory.
+  for (auto &channel : _patterns)
+    for (auto &pattern : channel)
+      if (pattern && juce::String (pattern->getName ()) == was)
+        pattern->setName (name.toStdString ());
+
+  _patternLibrary->refresh ();
+  refreshAllPadRowLabels ();
+  updateClipSettingsDisplay ();
+
+  updateControlReadout ("-- RENAMED " + name.toUpperCase ()
+                        + (sets > 0 ? " +" + juce::String (sets) + " SETS"
+                                    : juce::String{}));
+  refreshBrowser ();
+}
+
+void
+A3MotionUIComponent::deleteChosenClip ()
+{
+  auto const index = chosenLibraryIndex ();
+  if (index < 0)
+    return;
+
+  auto const entry = _patternLibrary->getEntry (index);
+  auto const was = juce::String (entry.name);
+
+  auto gone = false;
+  if (entry.file.existsAsFile ())
+    gone = entry.file.deleteFile () || gone;
+  if (entry.clipFile.existsAsFile ())
+    gone = entry.clipFile.deleteFile () || gone;
+
+  if (!gone)
+    {
+      updateControlReadout ("-- COULD NOT DELETE");
+      refreshBrowser ();
+      return;
+    }
+
+  // The sets that named it are left alone. Rewriting somebody's arrangement
+  // because a shape went would be a delete key that edits files it was not
+  // pointed at; a name a set cannot resolve loads as an empty slot, which is
+  // what the set now honestly holds. How many that is was said before the
+  // second press -- see chosenEntryCost().
+  //
+  // What is playing goes on playing: the pattern is in memory, and stopping
+  // the room because a file went is not what the key was pressed for.
+  for (index_t channel = 0; channel < _slotClipFile.size (); ++channel)
+    for (index_t slot = 0; slot < _slotClipFile[channel].size (); ++slot)
+      if (_slotClipFile[channel][slot] == entry.clipFile
+          && entry.clipFile != juce::File{})
+        _slotClipFile[channel][slot] = juce::File{};
+
+  _patternLibrary->refresh ();
+  refreshAllPadRowLabels ();
+  updateClipSettingsDisplay ();
+
+  updateControlReadout ("-- DELETED " + was.toUpperCase ());
 
   _browser->setSelectedEntry (0);
   refreshBrowser ();

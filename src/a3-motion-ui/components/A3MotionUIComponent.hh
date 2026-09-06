@@ -201,15 +201,43 @@ private:
   void writeSlotActionScript ();
   /** Keep the chosen slot's settings as a new action clip. */
   void saveSlotAsAction ();
-  /** Give the chosen action file another name, carrying every slot that fires
-   *  it across to the new one. */
+  /** Give the chosen row another name, and carry across everything that named
+   *  the old one. What that means follows the folder the list is on -- see
+   *  renameChosenAction/Set/Clip. */
+  void renameChosenEntry (juce::String const &name);
+  /** Throw the chosen row's file away. Asked twice -- see `_deleteArmed`. */
+  void deleteChosenEntry ();
+  /** Whether the chosen row is one that can be renamed or thrown away: it has
+   *  to stand for a file, and row zero of the clips and actions lists stands
+   *  for "nothing chosen". */
+  bool chosenEntryHasAFile () const;
+  /** What the arm step of a delete says beyond the word: how much else goes
+   *  with the file, in sets that name it. Empty when nothing does. */
+  juce::String chosenEntryCost () const;
+
   void renameChosenAction (juce::String const &name);
-  /** Throw the chosen action file away, and stop every slot that fires it
-   *  from firing anything. Asked twice -- see `_deleteArmed`. */
   void deleteChosenAction ();
+  void renameChosenSet (juce::String const &name);
+  void deleteChosenSet ();
+  void renameChosenClip (juce::String const &name);
+  void deleteChosenClip ();
+
   /** The action file the browser's chosen row stands for, or nothing: row
    *  zero is "no action" and has no file behind it. */
   juce::File chosenActionFile () const;
+  /** The set file the browser's chosen row stands for, or nothing. */
+  juce::File chosenSetFile () const;
+  /** The library entry the browser's chosen row stands for, or -1. */
+  int chosenLibraryIndex () const;
+
+  /** How many saved sets name `patternName` in one of their slots. */
+  int setsNaming (juce::String const &patternName) const;
+  /** Write `to` wherever the sets say `from`, and answer how many sets were
+   *  rewritten. A set names its shapes rather than carrying them, so a shape
+   *  renamed without this leaves every set that used it holding empty slots --
+   *  silently, because a name a set cannot resolve is not an error there, it
+   *  is a slot nobody filled. */
+  int renameInSets (juce::String const &from, juce::String const &to);
   void updateActionPage ();
   void applyActionControl (int control, int increment);
   void resetActionControl (int control);

@@ -774,4 +774,20 @@ PatternFile::peek (juce::File const &file)
   return result;
 }
 
+
+bool
+PatternFile::setName (juce::File const &file, juce::String const &name)
+{
+  if (!file.existsAsFile () || name.isEmpty ())
+    return false;
+
+  auto xml = juce::XmlDocument::parse (file);
+  if (!xml || xml->getTagName () != "svg")
+    return false;
+
+  xml->setAttribute ("data-name", name);
+
+  return xml->writeTo (file, {});
+}
+
 }
