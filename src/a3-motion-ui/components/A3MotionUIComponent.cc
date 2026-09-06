@@ -23,6 +23,7 @@
 
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/TempoLfo.hh>
+#include <a3-motion-engine/TrajectoryShaping.hh>
 #include <a3-motion-engine/TrajectorySpin.hh>
 
 #include <chrono>
@@ -4867,9 +4868,13 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setShapeSpeed (clipSpeedLog2);
   // The rotation the hand set, and where the spin has carried it: the knob
   // shows both, the way the channel grid shows the accent over 3d.
+  //
+  // The second number comes from turnsOf(), which is what the engine and the
+  // renderer turn by. Summed here by hand it kept counting a stopped spin's
+  // leftover phase, so the arc stayed off the pointer after the spin was
+  // turned off and there was no way to bring it back.
   auto const rotate = pattern ? pattern->getRotate () : 0.f;
-  auto const spun = pattern ? pattern->getSpinPhase () : 0.f;
-  _clipSettings->setShapeRotate (rotate, std::fmod (rotate + spun, 1.f));
+  _clipSettings->setShapeRotate (rotate, pattern ? turnsOf (*pattern) : 0.f);
 
   // Worded like Speed is, because it is the same kind of number: bars as a
   // power of two, "2" for two bars, "1/4" for a quarter of one.

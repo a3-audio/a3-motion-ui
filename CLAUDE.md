@@ -148,6 +148,13 @@ generator and the test runner:
   azimuth (`HeightMap::mapTo3D()`), which is why turning the disc turns the trajectory around the
   pole and leaves every point at the height it was played in at.
 
+  **A spin that is not running turns nothing.** The engine advances the phase and nothing rewinds
+  it, so a spin turned off stands still at whatever angle it stopped at; counting that angle left
+  `rot` saying one thing and the trajectory doing another, with no way back but a double tap on rot.
+  `turnsOf()` is where that is decided, and it is the rule `lfoSweep()` has always had for the other
+  two sweeps — the spin was the one of the three that added its phase whatever its step said. Three
+  readers take the answer from there: the engine, the renderer, and the blue arc on the rot knob.
+
   How fast it turns is a `TempoLfo` step. The sign is the direction, and `spinPosition()` is the
   single place that decides which way that looks: the screen mirrors these coordinates
   (`cartesian2DHOA2JUCE` maps HOA to `{ -y, -x }`), so a mathematically positive turn reads as

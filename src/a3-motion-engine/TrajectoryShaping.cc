@@ -35,12 +35,26 @@ squeezeFactor (float amount)
   return std::pow (2.f, std::clamp (amount, -1.f, 1.f));
 }
 
+float
+turnsOf (Pattern const &pattern)
+{
+  auto const spun
+      = pattern.getSpin () == 0 ? 0.f : pattern.getSpinPhase ();
+
+  // Wrapped, so a reader has a position rather than a running total.
+  auto wrapped = std::fmod (pattern.getRotate () + spun, 1.f);
+  if (wrapped < 0.f)
+    wrapped += 1.f;
+
+  return wrapped;
+}
+
 PlaneShaping
 shapingOf (Pattern const &pattern)
 {
   PlaneShaping shaping;
 
-  shaping.turns = pattern.getRotate () + pattern.getSpinPhase ();
+  shaping.turns = turnsOf (pattern);
   shaping.squeezeX = pattern.getSqueezeX ();
   shaping.squeezeY = pattern.getSqueezeY ();
 

@@ -132,19 +132,62 @@ TEST (TrajectoryShaping, WithoutASqueezeItIsExactlyTheSpin)
 }
 
 // The standing angle and the running one are one rotation asked for in two
-// ways. Summed here, in the one place the engine and the renderer both read,
-// so neither can turn a shape the other does not.
+// ways. Summed here, in the one place the engine, the renderer and the knob's
+// arc all read, so none of them can turn a shape another does not.
 TEST (TrajectoryShaping, ThePatternsTurnIsItsRotatePlusItsSpinPhase)
 {
   Pattern pattern;
   pattern.setRotate (0.2f);
+  pattern.setSpin (4);
   pattern.setSpinPhase (0.05f);
   pattern.setSqueezeX (0.5f);
   pattern.setSqueezeY (-0.25f);
+
+  EXPECT_NEAR (turnsOf (pattern), 0.25f, 1e-5f);
 
   auto const shaping = shapingOf (pattern);
 
   EXPECT_NEAR (shaping.turns, 0.25f, 1e-5f);
   EXPECT_NEAR (shaping.squeezeX, 0.5f, 1e-5f);
   EXPECT_NEAR (shaping.squeezeY, -0.25f, 1e-5f);
+}
+
+// A spin turned off leaves nothing behind. The phase stands still where the
+// spin stopped -- there is nothing to reset and nothing that could reset it,
+// since the engine only advances it -- so a spin that is not running must not
+// be allowed to contribute the angle it happened to stop at.
+//
+// This is the rule the two sweeps have always had: lfoSweep() gives the value
+// back untouched at a step of zero. The spin was the one of the three that
+// added its phase whatever the step said, which left `rot` saying one thing
+// and the shape doing another with no way back but a double tap.
+TEST (TrajectoryShaping, ASpinThatIsNotRunningTurnsNothing)
+{
+  Pattern pattern;
+  pattern.setRotate (0.2f);
+  pattern.setSpinPhase (0.4f);
+
+  pattern.setSpin (0);
+  EXPECT_NEAR (turnsOf (pattern), 0.2f, 1e-5f)
+      << "a stopped spin still turned the shape by where it stopped";
+  EXPECT_NEAR (shapingOf (pattern).turns, 0.2f, 1e-5f);
+
+  // ... and it counts again the moment the spin does.
+  pattern.setSpin (-3);
+  EXPECT_NEAR (turnsOf (pattern), 0.6f, 1e-5f);
+}
+
+// It comes back on the circle, so the arc that draws it has somewhere to
+// start: past a full revolution a raw sum keeps climbing, and a knob asked to
+// point at 1.4 turns points nowhere.
+TEST (TrajectoryShaping, TheTurnComesBackWrappedIntoOneRevolution)
+{
+  Pattern pattern;
+  pattern.setRotate (0.8f);
+  pattern.setSpin (2);
+  pattern.setSpinPhase (0.9f);
+
+  EXPECT_NEAR (turnsOf (pattern), 0.7f, 1e-5f);
+  EXPECT_GE (turnsOf (pattern), 0.f);
+  EXPECT_LT (turnsOf (pattern), 1.f);
 }

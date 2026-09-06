@@ -58,6 +58,22 @@ struct PlaneShaping
  *  a script, a file, an encoder -- should be able to send it there. */
 float squeezeFactor (float amount);
 
+/** How far `pattern` is turned right now, in revolutions [0, 1): the standing
+ *  angle it was left at, plus however far its spin has carried it.
+ *
+ *  The phase counts only while the spin is running. The engine advances it
+ *  and nothing rewinds it, so a spin turned off stands still at whatever
+ *  angle it stopped at -- and letting that keep turning the shape left `rot`
+ *  saying one thing and the trajectory doing another, with no way back but a
+ *  double tap. lfoSweep() has always had this rule for the other two sweeps;
+ *  the spin was the one that added its phase whatever its step said.
+ *
+ *  One function because three readers have to agree: the engine before it
+ *  projects, the renderer before it draws, and the arc on the rot knob that
+ *  says where the spin is holding the shape. An arc drawn from a different
+ *  sum than the one the blob runs on is an arc that lies. */
+float turnsOf (Pattern const &pattern);
+
 /** How `pattern` is shaping its take right now. */
 PlaneShaping shapingOf (Pattern const &pattern);
 
