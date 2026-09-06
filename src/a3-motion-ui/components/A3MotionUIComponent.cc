@@ -653,6 +653,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     _browser->setSelectedEntry (-1);
     refreshBrowser ();
   };
+  _browser->onShapesChosen = [this] {
+    _browserList = BrowserList::Shapes;
+    _deleteArmed = false;
+    _browser->cancelRename ();
+    _browser->setSelectedEntry (-1);
+    refreshBrowser ();
+  };
   _browser->onActionsChosen = [this] {
     _browserList = BrowserList::Actions;
     _deleteArmed = false;
@@ -2083,28 +2090,40 @@ A3MotionUIComponent::refreshBrowser ()
     }
   else
     {
+      // Two lists out of one library, and which one is the tab's to say: a
+      // clip fills a slot with a figure and every value it is played with, a
+      // shape swaps only the figure. They shared a list once, with a coloured
+      // dot saying which kind a row was -- which made what a tap did depend
+      // on a dot.
+      auto const wantClips = _browserList == BrowserList::Clips;
       _browserRowToLibrary.clear ();
 
       for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
         {
           auto const &entry = _patternLibrary->getEntry (i);
+          auto const isClip
+              = entry.category == PatternLibrary::Category::Clip;
 
-          // Row zero is the library's "Empty" and belongs to no category: it
-          // is how a slot is given nothing, which is a thing you want however
-          // the list is narrowed.
-          auto const shown
-              = i == 0 || _clipFilter == ClipFilter::All
-                || (_clipFilter == ClipFilter::System
-                    && entry.category == PatternLibrary::Category::System)
-                || (_clipFilter == ClipFilter::User
-                    && entry.category != PatternLibrary::Category::System);
-
-          if (!shown)
+          // Row zero is the library's "Empty": how a slot is given nothing.
+          // It belongs to the shapes, which is where a figure is chosen.
+          if (i != 0 && isClip != wantClips)
+            continue;
+          if (i == 0 && wantClips)
             continue;
 
+          // The filter narrows the figures, which is the list that has forty
+          // rows and a split the library knows: the instrument's own, and
+          // everything recorded or dropped in.
+          if (!wantClips && i != 0)
+            {
+              auto const system
+                  = entry.category == PatternLibrary::Category::System;
+              if ((_clipFilter == ClipFilter::System && !system)
+                  || (_clipFilter == ClipFilter::User && system))
+                continue;
+            }
+
           names.add (juce::String (entry.name));
-          settingsRows.push_back (entry.category
-                                  == PatternLibrary::Category::Settings);
           _browserRowToLibrary.push_back (i);
         }
     }
@@ -2126,7 +2145,8 @@ A3MotionUIComponent::refreshBrowser ()
               ? names.indexOf (action.getFileNameWithoutExtension ())
               : 0);
     }
-  else if (_browserList == BrowserList::Clips)
+  else if (_browserList == BrowserList::Clips
+           || _browserList == BrowserList::Shapes)
     {
       auto const ch = _clipSettingsChannel;
       auto const sl = _clipSettingsSlot;
@@ -2140,12 +2160,14 @@ A3MotionUIComponent::refreshBrowser ()
       // scrolls the chosen row into view, so the list would jump away from
       // the presets after every pick. A shape with no clip beside it still
       // has only its name to go on.
-      auto const fromClip
-          = _patternLibrary->indexForClipFile (_slotClipFile[ch][sl]);
+      // On the clips tab, the clip the slot's values came from; on the
+      // shapes tab, the figure it is playing. Two lists, two questions, and
+      // the highlight answers whichever one is being asked.
       auto const entry
-          = fromClip > 0
-                ? fromClip
-                : (held ? _patternLibrary->indexForName (held->getName ()) : 0);
+          = _browserList == BrowserList::Clips
+                ? _patternLibrary->indexForClipFile (_slotClipFile[ch][sl])
+                : (held ? _patternLibrary->indexForName (held->getName ())
+                        : 0);
 
       // Back through the map: with the list narrowed, the entry the slot
       // holds may not be on it at all, and a row number taken from the
@@ -2213,13 +2235,20 @@ A3MotionUIComponent::assignBrowserEntry (int index)
   // below applies to it -- there is no shape to stop, load or draw.
   if (index > 0
       && _patternLibrary->getEntry (index).category
-             == PatternLibrary::Category::Settings)
+             == PatternLibrary::Category::Clip)
     {
-      applySettingsPreset (channel, slot, index);
+      applyClip (channel, slot, index);
       return;
     }
 
   auto &pattern = _patterns[channel][slot];
+
+  // A figure, from the shapes tab. What the slot is played with stays where
+  // the hand put it -- the same rule the picture on the CLIP page follows,
+  // because it is the same gesture reached from the other side. Choosing a
+  // whole clip is what replaces the values, and that has its own tab.
+  auto const held = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
+  auto const hadOne = pattern != nullptr;
 
   // Whatever was there stops first. Dropping a clip onto a slot that is
   // playing would otherwise leave the engine running a pattern the slot no
@@ -2239,7 +2268,18 @@ A3MotionUIComponent::assignBrowserEntry (int index)
   // chose is the clip you are looking at.
   selectClip (channel, slot);
 
+  auto const wasFrom = _slotClipFile[channel][slot];
   fillSlotFromLibrary (channel, slot, index);
+
+  if (hadOne)
+    if (auto const &filled = _patterns[channel][slot])
+      {
+        applyClipSettings (*filled, held);
+        // And the clip those values came from is still where they came from:
+        // the figure changed, not what it is played with.
+        _slotClipFile[channel][slot] = wasFrom;
+        syncClipUIParamsFromPattern (channel, slot);
+      }
 
   // Registered by fillSlotFromLibrary() now -- and by way of
   // registerPatternDisplayData(), which knows about shapes made of dots.
@@ -2269,23 +2309,56 @@ A3MotionUIComponent::assignBrowserEntry (int index)
 }
 
 void
-A3MotionUIComponent::applySettingsPreset (index_t channel, index_t slot,
-                                          int index)
+A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
 {
-  auto const &pattern = _patterns[channel][slot];
+  auto const entry = _patternLibrary->getEntry (index);
 
-  // The values belong to a movement, and an empty slot has none. Choosing a
-  // shape is the way in; nothing is changed here so that the field stays
-  // plainly empty rather than holding settings nothing can play.
-  if (!pattern)
-    return;
-
-  auto const clip = ClipFile::load (_patternLibrary->getEntry (index).clipFile);
+  auto const clip = ClipFile::load (entry.clipFile);
   if (!clip.has_value ())
     return;
 
+  // The figure it names, if it names one. A clip is the whole playable thing
+  // -- a figure and every value it is played with -- so choosing one fills
+  // the slot with both. A clip written before that says no figure, and then
+  // the slot keeps the one it has and only the values land, which is what
+  // every clip used to do.
+  auto const shape = clip->svg.empty ()
+                         ? 0
+                         : _patternLibrary->indexForName (clip->svg);
+
+  if (shape > 0 && (!_patterns[channel][slot]
+                    || _patterns[channel][slot]->getName () != clip->svg))
+    {
+      // Whatever was there stops first, the same way choosing a shape on the
+      // CLIP page does: a pattern the slot no longer holds must not be left
+      // running in the engine.
+      if (auto const &was = _patterns[channel][slot])
+        {
+          auto const status = was->getStatus ();
+          if (status == Pattern::Status::Playing
+              || status == Pattern::Status::Recording)
+            _engine.stopPattern (was, _now);
+          _motionComponent->unsetPreviewPattern (was);
+          _motionComponent->removePatternDisplayData (was);
+        }
+
+      fillSlotFromLibrary (channel, slot, shape);
+    }
+
+  auto const &pattern = _patterns[channel][slot];
+
+  // The values belong to a movement, and an empty slot has none. A clip with
+  // no figure dropped on an empty slot leaves it plainly empty rather than
+  // holding settings nothing can play.
+  if (!pattern)
+    return;
+
   applyClipSettings (*pattern, clip->settings);
-  _slotClipFile[channel][slot] = _patternLibrary->getEntry (index).clipFile;
+
+  // Set after filling: fillSlotFromLibrary() points the slot at the shape's
+  // own clip, and a shape has none any more -- the clip names the shape, not
+  // the other way round.
+  _slotClipFile[channel][slot] = entry.clipFile;
 
   // The bar follows what was just changed, the same as choosing a shape does.
   selectClip (channel, slot);
@@ -2534,7 +2607,7 @@ A3MotionUIComponent::stepThroughLibrary (int from, int increment,
   for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
     {
       auto const isPreset = _patternLibrary->getEntry (i).category
-                            == PatternLibrary::Category::Settings;
+                            == PatternLibrary::Category::Clip;
       if (isPreset == settings)
         kind.push_back (i);
     }
@@ -5349,15 +5422,14 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
         if (sub == 1)
           {
-            // The clip field: the settings presets, applied onto whatever
-            // shape is in the slot. applySettingsPreset() is the same way in
-            // the browser uses, so a preset means one thing however it is
-            // reached.
+            // The clip field: the clips, each bringing the figure it names
+            // and every value it carries. applyClip() is the same way in the
+            // browser uses, so a clip means one thing however it is reached.
             auto const held
                 = _patternLibrary->indexForClipFile (_slotClipFile[channel][slot]);
             auto const next = stepThroughLibrary (held, increment, true);
             if (next > 0)
-              applySettingsPreset (channel, slot, next);
+              applyClip (channel, slot, next);
             break;
           }
 

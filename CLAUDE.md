@@ -514,6 +514,25 @@ at one bearing and leaves at the opposite one — so no amount of cutting helps 
 the pen instead, the way it does at a take's gaps. Both only became visible when `sway` started
 moving the base off the pole as a matter of course.
 
+**A clip names its shape; a shape knows nothing about clips.** A clip is the playable thing — a
+figure and every value it is played with — and `Clip::svg` names that figure by the name the library
+resolves (`indexForName`), not by file name, which carries a beat-count prefix. The relation runs one
+way and by name, so a shape renamed is rewritten the same way a set is.
+
+It used to run the other way and by convention: `32_Helix.svg` went looking for `clips/Helix.json`.
+That is what let a clip and a shape wear one name, which `indexForName()` cannot tell apart — and it
+is how a **Save new** ended up renaming the instrument's own shape. Names are unique across the whole
+library now, enforced where a copy is made.
+
+The two are **two lists on two tabs**, CLIPS and SVG. They shared one list with a coloured dot saying
+which kind a row was, which made what a tap did depend on a dot: choosing a clip fills the slot with
+a figure *and* its values, choosing a shape swaps only the figure and leaves the values where the
+hand put them — the same thing the picture on the CLIP page does, because it is the same gesture
+reached from the other side.
+
+`Default.json` is the exception that stays shapeless: it is the fallback a slot with no clip gets,
+and a fallback naming a figure would put one into every empty slot.
+
 **A clip file is the SVG.** There is no separate settings file: `PatternFile` writes the trajectory
 *and* every value the clip settings menu holds — speed, rotate, spin, swell, the envelope, the whole
 elevation block, direction, end action, act mode, fade. One file is one clip with its settings,

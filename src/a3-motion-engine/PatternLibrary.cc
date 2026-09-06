@@ -90,18 +90,18 @@ PatternLibrary::scanSettingsPresets ()
           continue;
         }
 
-      // A clip that names a shape is already listed through that shape.
-      // Listing it again would put one clip in the browser twice.
-      if (!clip->svg.empty ())
-        continue;
-
       if (clip->name.empty ())
         continue;
 
+      // Every clip, whether or not it names a shape. They were skipped when
+      // they did, on the grounds that the shape listed them -- which put the
+      // two kinds in one list and made a row's meaning depend on which row it
+      // was.
       Entry entry;
       entry.name = clip->name;
-      entry.category = Category::Settings;
+      entry.category = Category::Clip;
       entry.clipFile = file;
+      entry.svg = clip->svg;
 
       _entries.push_back (std::move (entry));
     }
@@ -143,15 +143,10 @@ PatternLibrary::scanDirectory (juce::File const &dir, Category category)
           continue;
         }
 
-      // The clip that reaches this shape, named after the shape without its
-      // beat-count prefix -- 16_Wave.svg is reached by Wave.json. Left empty
-      // when there is none, which is not an error.
-      auto const clipName
-          = file.getFileNameWithoutExtension ().fromFirstOccurrenceOf (
-              "_", false, false);
-      auto const clip = getClipDir ().getChildFile (clipName + ".json");
-      if (clip.existsAsFile ())
-        entry.clipFile = clip;
+      // No clip is looked for beside a shape any more. A clip names the shape
+      // it is played on, outright, so the two are related in one direction
+      // and by name -- the file-name convention that guessed it the other way
+      // round is what let a preset and a shape wear the same name.
 
       _entries.push_back (std::move (entry));
     }
@@ -294,11 +289,11 @@ PatternLibrary::saveUserPattern (std::shared_ptr<Pattern> const &pattern)
   // slots and in other sessions, and pointing it at a fresh recording would
   // overwrite every one of them without a word.
   //
-  // Named after the shape without its beat-count prefix, the same rule the
-  // factory clips follow, so the library finds it beside its shape.
+  // Naming the shape it was recorded on, which is how every clip says what it
+  // is played on.
   {
     Clip clip;
-    clip.svg = file.getFileNameWithoutExtension ().toStdString ();
+    clip.svg = pattern->getName ();
     clip.name = file.getFileNameWithoutExtension ()
                     .fromFirstOccurrenceOf ("_", false, false)
                     .toStdString ();

@@ -48,12 +48,19 @@ struct Clip
    *  a session it could not see — on another stick, in a backup — finds the
    *  clip again through these. */
   std::vector<std::string> aka;
-  /** The shape's file name, without extension — or empty.
+  /** The shape this clip is played on, by the name the library resolves
+   *  (`indexForName`) -- not by file name, which carries a beat-count prefix
+   *  and changes when a take's length does. A set names its shapes the same
+   *  way, so a shape renamed is rewritten in one manner everywhere.
    *
-   *  Empty means a settings preset: applying it leaves the slot's shape where
-   *  it is and changes only how it is played. The shape is chosen in the Shape
-   *  section's own list, so a browser full of clips that differ only in their
-   *  shape says nothing about the settings, which is what the browser is for. */
+   *  Every clip has one. A clip is the playable thing: a figure and all the
+   *  values it is played with. Shapes on their own are a different kind of
+   *  thing and live on their own tab -- a list mixing the two was a list where
+   *  choosing a row did one of two different things depending on which row it
+   *  was, and told you which by a coloured dot.
+   *
+   *  Empty is what a clip written before that says, and it still loads: the
+   *  slot keeps whatever figure it has and only the values are applied. */
   std::string svg;
 
   ClipSettings settings;

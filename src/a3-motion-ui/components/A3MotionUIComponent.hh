@@ -294,7 +294,10 @@ private:
   void fillSlotFromLibrary (index_t channel, index_t slot, int libIndex);
   /** Apply a clip that names no shape: the values change, the movement in the
    *  slot stays. Does nothing on an empty slot -- see the definition. */
-  void applySettingsPreset (index_t channel, index_t slot, int index);
+  /** Put a whole clip into a slot: the figure it names and every value it
+   *  carries. A clip written before a clip had to name a figure leaves the
+   *  slot's own alone and lands only its values. */
+  void applyClip (index_t channel, index_t slot, int index);
   /** Read direction and end action back out of the pattern into the strip.
    *  Both live in two places, and the pattern is the one a clip writes. */
   void syncClipUIParamsFromPattern (index_t channel, index_t slot);

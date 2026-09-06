@@ -63,6 +63,11 @@ struct BrowserLayout
    *  gone with the destination fields. Which set is loaded is now the
    *  highlighted row of the set list, which is where you would look for it. */
   juce::Rectangle<int> clipsTab;
+  /** The figures themselves, beside the clips that name them. Their own tab
+   *  because they are their own kind of thing: a clip fills a slot with a
+   *  figure and every value it is played with, a shape swaps only the figure
+   *  and leaves the values where the hand put them. */
+  juce::Rectangle<int> shapesTab;
   juce::Rectangle<int> actionsTab;
   juce::Rectangle<int> setsTab;
 

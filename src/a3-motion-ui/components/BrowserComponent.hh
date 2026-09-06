@@ -39,6 +39,10 @@ namespace a3
 enum class BrowserList
 {
   Clips,
+  /** The figures the clips name. Choosing one swaps the slot's figure and
+   *  leaves its values alone -- the same thing the picture on the CLIP page
+   *  does, which is the other place a shape is chosen. */
+  Shapes,
   /** Action clips -- what ACT does to a slot. Structurally a clip with no
    *  shape: a set of settings, kept in actions/ rather than clips/ because
    *  what it is for is different even though what it holds is the same. */
@@ -97,6 +101,7 @@ public:
    *  carrying the choice: the tabs are three separate things a finger lands
    *  on, and the page that decides what each means is the one that owns them. */
   std::function<void ()> onClipsChosen;
+  std::function<void ()> onShapesChosen;
   std::function<void ()> onActionsChosen;
   std::function<void ()> onSetsChosen;
   std::function<void (int index)> onEntryChosen;
@@ -171,6 +176,7 @@ private:
 
   std::vector<std::unique_ptr<TouchControl>> _rowTouch;
   std::unique_ptr<TouchControl> _clipsTabTouch;
+  std::unique_ptr<TouchControl> _shapesTabTouch;
   std::unique_ptr<TouchControl> _actionsTabTouch;
   std::unique_ptr<TouchControl> _setsTabTouch;
   std::unique_ptr<TouchControl> _filterTouch;

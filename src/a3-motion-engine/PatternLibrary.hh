@@ -55,11 +55,14 @@ public:
   {
     System,
     User,
-    /** A clip with no shape: it says how a slot is played and leaves what it
-     *  plays alone. Listed from clips/ rather than from an SVG, so such an
-     *  entry has no file, no path data and no ticks -- only a name and the
-     *  clip its values come from. */
-    Settings
+    /** A clip: a figure to play and every value it is played with. Listed
+     *  from clips/ rather than from an SVG, so such an entry has no file, no
+     *  path data and no ticks of its own -- it names its shape, and the shape
+     *  entry beside it carries those.
+     *
+     *  System and User are the shapes themselves, which are their own kind of
+     *  thing and have their own tab in the browser. */
+    Clip
   };
 
   struct Entry
@@ -80,6 +83,9 @@ public:
      *  least one place, so a field inserted in the middle silently renumbers
      *  every value after it. */
     juce::File clipFile;
+    /** For a clip, the shape it is played on, by name. Empty on a shape
+     *  entry, and on a clip written before a clip had to name one. */
+    std::string svg;
   };
 
   /** Initialise with root directory containing system/ and user/ subdirs. */

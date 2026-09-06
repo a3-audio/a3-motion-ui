@@ -80,6 +80,7 @@ BrowserComponent::BrowserComponent ()
         };
 
   makeButton (_clipsTabTouch, &BrowserComponent::onClipsChosen);
+  makeButton (_shapesTabTouch, &BrowserComponent::onShapesChosen);
   makeButton (_actionsTabTouch, &BrowserComponent::onActionsChosen);
   makeButton (_setsTabTouch, &BrowserComponent::onSetsChosen);
   makeButton (_filterTouch, &BrowserComponent::onFilterPressed);
@@ -119,6 +120,7 @@ BrowserComponent::resized ()
     }
 
   _clipsTabTouch->setBounds (_layout.clipsTab);
+  _shapesTabTouch->setBounds (_layout.shapesTab);
   _actionsTabTouch->setBounds (_layout.actionsTab);
   _setsTabTouch->setBounds (_layout.setsTab);
   _filterTouch->setBounds (_layout.filterButton);
@@ -206,9 +208,10 @@ BrowserComponent::setShowingList (BrowserList list)
 void
 BrowserComponent::paint (juce::Graphics &g)
 {
-  // Three words over the list: what a slot holds, what ACT does to it, and the
-  // arrangement of all eight at once. All three are chosen the same way, in
-  // the same place, so none of them is a mode you have to remember being in.
+  // Four words over the list: what a slot holds, the figures those are played
+  // on, what ACT does to a slot, and the arrangement of all eight at once. All
+  // four are chosen the same way, in the same place, so none of them is a mode
+  // you have to remember being in.
   auto const paintListTab = [&g] (juce::Rectangle<int> bounds,
                                   juce::String const &label, bool active) {
     if (bounds.isEmpty ())
@@ -228,6 +231,7 @@ BrowserComponent::paint (juce::Graphics &g)
   };
 
   paintListTab (_layout.clipsTab, "CLIPS", _list == BrowserList::Clips);
+  paintListTab (_layout.shapesTab, "SVG", _list == BrowserList::Shapes);
   paintListTab (_layout.actionsTab, "ACTIONS",
                 _list == BrowserList::Actions);
   paintListTab (_layout.setsTab, "SETS", _list == BrowserList::Sessions);

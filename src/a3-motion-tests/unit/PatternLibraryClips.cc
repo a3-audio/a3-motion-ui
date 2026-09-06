@@ -56,31 +56,43 @@ aRootHolding (juce::String const &dirName, juce::String const &shapeFileName)
 }
 
 // The point of the split: the shape says where the sound goes, the clip says
-// how it is played, and loading has to bring both. Without this the settings
-// would live in a file nobody reads.
-TEST (PatternLibraryClips, LoadingAClipBringsItsSettingsWithIt)
+// how it is played *and* which shape that is. Both halves are reachable from
+// the clip's own row -- the values off its file, the figure by the name it
+// carries -- which is what lets one tap fill a slot with the whole thing.
+TEST (PatternLibraryClips, AClipCarriesItsValuesAndNamesItsShape)
 {
   auto const root = aRootHolding ("a3-library-clips", "16_Wave.svg");
 
   Clip clip;
-  clip.name = "Wave";
-  clip.svg = "16_Wave";
+  clip.name = "Wave slow";
+  clip.svg = "Wave";
   clip.settings.spin = 3;
   clip.settings.speedLog2 = -2;
   clip.settings.endAction = EndAction::Bounce;
-  ASSERT_TRUE (ClipFile::save (clip, root.getChildFile ("clips/Wave.json")));
+  ASSERT_TRUE (
+      ClipFile::save (clip, root.getChildFile ("clips/Wave slow.json")));
 
   PatternLibrary library (root);
   library.refresh ();
 
-  auto const index = library.indexForName ("Wave");
-  ASSERT_GT (index, 0) << "the clip's shape is not in the library";
+  auto const index = library.indexForName ("Wave slow");
+  ASSERT_GT (index, 0) << "the clip is not in the library";
 
-  auto const pattern = library.loadPattern (index);
-  ASSERT_NE (pattern, nullptr);
-  EXPECT_EQ (pattern->getSpin (), 3);
-  EXPECT_EQ (pattern->getSpeedLog2 (), -2);
-  EXPECT_EQ (pattern->getEndAction (), EndAction::Bounce);
+  auto const &entry = library.getEntry (index);
+  EXPECT_EQ (entry.category, PatternLibrary::Category::Clip);
+  EXPECT_EQ (entry.svg, "Wave");
+
+  // The values, off the file the entry points at.
+  auto const read = ClipFile::load (entry.clipFile);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_EQ (read->settings.spin, 3);
+  EXPECT_EQ (read->settings.speedLog2, -2);
+  EXPECT_EQ (read->settings.endAction, EndAction::Bounce);
+
+  // The figure, by the name it carries.
+  auto const shape = library.indexForName (entry.svg);
+  ASSERT_GT (shape, 0) << "the shape the clip names is not reachable";
+  EXPECT_NE (library.loadPattern (shape), nullptr);
 
   root.deleteRecursively ();
 }
@@ -105,22 +117,28 @@ TEST (PatternLibraryClips, AShapeWithoutAClipStillLoads)
   root.deleteRecursively ();
 }
 
-// A clip naming a shape that is not there must not invent one. The slot stays
-// empty and the library says nothing is reachable under that name.
-TEST (PatternLibraryClips, AClipPointingAtNothingReachesNothing)
+// A clip naming a shape that is not there is still a file somebody has, so it
+// is still a row. Hiding it would be a file that vanished because one of the
+// names in it went -- and it is the browser's job to show what is there. What
+// it must not do is invent a figure: the name it carries resolves to nothing,
+// and applying it leaves the slot's own figure alone.
+TEST (PatternLibraryClips, AClipPointingAtNothingIsStillListed)
 {
   auto const root = aRootHolding ("a3-library-dangling", "16_Wave.svg");
 
   Clip clip;
   clip.name = "Ghost";
-  clip.svg = "16_NotHere";
+  clip.svg = "NotHere";
   ASSERT_TRUE (ClipFile::save (clip, root.getChildFile ("clips/Ghost.json")));
 
   PatternLibrary library (root);
   library.refresh ();
 
-  EXPECT_LE (library.indexForName ("Ghost"), 0)
-      << "a clip whose shape is missing must not appear playable";
+  auto const index = library.indexForName ("Ghost");
+  ASSERT_GT (index, 0) << "a clip is a file somebody has, and rows show those";
+  EXPECT_EQ (library.getEntry (index).svg, "NotHere");
+  EXPECT_LE (library.indexForName ("NotHere"), 0)
+      << "the missing shape must not be invented";
 
   root.deleteRecursively ();
 }
@@ -148,34 +166,54 @@ TEST (PatternLibraryClips, ASettingsPresetIsListedWithoutAShape)
   ASSERT_GT (index, 0) << "a clip without a shape never reaches the list";
 
   auto const &entry = library.getEntry (index);
-  EXPECT_EQ (entry.category, PatternLibrary::Category::Settings);
+  EXPECT_EQ (entry.category, PatternLibrary::Category::Clip);
   EXPECT_TRUE (entry.svgPathData.empty ())
       << "a settings preset has no shape to draw";
   EXPECT_TRUE (entry.clipFile.existsAsFile ())
       << "the entry has to say which file its values come from";
 }
 
-// The two passes must not overlap: a clip that names a shape is already in the
-// list through that shape, and listing it again would put the same clip in the
-// browser twice under one name.
-TEST (PatternLibraryClips, AClipWithAShapeIsListedOnce)
+// A clip and the shape it names are two entries, on two lists: the browser
+// shows them under two tabs, and choosing one does a different thing from
+// choosing the other. The clip used to be swallowed by the shape, which made
+// what a row did depend on which row it was.
+TEST (PatternLibraryClips, AClipAndTheShapeItNamesAreBothListed)
 {
-  auto const root = aRootHolding ("a3-library-once", "16_Wave.svg");
+  auto const root = aRootHolding ("a3-library-both", "16_Wave.svg");
 
   Clip clip;
-  clip.name = "Wave";
-  clip.svg = "16_Wave";
-  ASSERT_TRUE (ClipFile::save (clip, root.getChildFile ("clips/Wave.json")));
+  clip.name = "Wave slow";
+  clip.svg = "Wave";
+  ASSERT_TRUE (
+      ClipFile::save (clip, root.getChildFile ("clips/Wave slow.json")));
 
   PatternLibrary library (root);
   library.refresh ();
 
-  int found = 0;
-  for (int i = 1; i < library.getNumEntries (); ++i)
-    if (library.getEntry (i).name == "Wave")
-      ++found;
+  auto const shape = library.indexForName ("Wave");
+  auto const asClip = library.indexForName ("Wave slow");
+  ASSERT_GT (shape, 0);
+  ASSERT_GT (asClip, 0);
+  EXPECT_NE (shape, asClip);
 
-  EXPECT_EQ (found, 1);
+  EXPECT_EQ (library.getEntry (shape).category,
+             PatternLibrary::Category::System);
+  EXPECT_EQ (library.getEntry (asClip).category,
+             PatternLibrary::Category::Clip);
+
+  // The clip says which figure it is played on, by the name the library
+  // resolves -- the shape is not asked to know about the clip.
+  EXPECT_EQ (library.getEntry (asClip).svg, "Wave");
+  EXPECT_TRUE (library.getEntry (shape).clipFile == juce::File{})
+      << "a shape no longer goes looking for a clip named after its file";
+
+  // Each file once.
+  int rows = 0;
+  for (int i = 1; i < library.getNumEntries (); ++i)
+    if (library.getEntry (i).name == "Wave"
+        || library.getEntry (i).name == "Wave slow")
+      ++rows;
+  EXPECT_EQ (rows, 2);
 }
 
 // The highlight in the browser says which of a hundred rows a slot came from.
@@ -188,9 +226,10 @@ TEST (PatternLibraryClips, AClipFileSaysWhichRowItCameFrom)
   auto const root = aRootHolding ("a3-library-rows", "16_Wave.svg");
 
   Clip shaped;
-  shaped.name = "Wave";
-  shaped.svg = "16_Wave";
-  ASSERT_TRUE (ClipFile::save (shaped, root.getChildFile ("clips/Wave.json")));
+  shaped.name = "Wave slow";
+  shaped.svg = "Wave";
+  ASSERT_TRUE (
+      ClipFile::save (shaped, root.getChildFile ("clips/Wave slow.json")));
 
   Clip preset;
   preset.name = "Breathe";
@@ -200,8 +239,9 @@ TEST (PatternLibraryClips, AClipFileSaysWhichRowItCameFrom)
   PatternLibrary library (root);
   library.refresh ();
 
-  EXPECT_EQ (library.indexForClipFile (root.getChildFile ("clips/Wave.json")),
-             library.indexForName ("Wave"));
+  EXPECT_EQ (
+      library.indexForClipFile (root.getChildFile ("clips/Wave slow.json")),
+      library.indexForName ("Wave slow"));
   EXPECT_EQ (
       library.indexForClipFile (root.getChildFile ("clips/Breathe.json")),
       library.indexForName ("Breathe"));

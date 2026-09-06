@@ -24,5 +24,6 @@
   "rotate": 0.38,
   "speed": -2,
   "spin": 1,
+  "svg": "Triangle",
   "swell": 0
 }

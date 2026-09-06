@@ -24,5 +24,6 @@
   "rotate": 0.5,
   "speed": 0,
   "spin": -2,
+  "svg": "Orbit",
   "swell": 0
 }
