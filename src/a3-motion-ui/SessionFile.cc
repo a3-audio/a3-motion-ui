@@ -73,7 +73,14 @@ writeOverrides (a3::ClipSettings const &settings)
     put ("clipBottom", settings.clipBottom);
   if (settings.mirrorSouth != defaults.mirrorSouth)
     put ("mirrorSouth", settings.mirrorSouth);
-  if (settings.elevationBase != defaults.elevationBase)
+  // The base goes with it whenever the old flag is written, even at its
+  // default. Loading migrates a set that says only mirrorSouth -- south meant
+  // a base of 1 -- and a set that says both is a set the migration must not
+  // touch. Without this the one state "mirrored, base at the north pole" came
+  // back as "base at the south pole", and the slot then read as drifted for
+  // ever after.
+  if (settings.elevationBase != defaults.elevationBase
+      || settings.mirrorSouth != defaults.mirrorSouth)
     put ("elevationBase", settings.elevationBase);
   if (settings.flat != defaults.flat)
     put ("flat", settings.flat);

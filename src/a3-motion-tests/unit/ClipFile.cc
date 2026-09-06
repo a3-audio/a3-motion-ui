@@ -23,6 +23,8 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/ClipFile.hh>
+
+#include "ClipSettingsFields.hh"
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/TempoLfo.hh>
@@ -98,6 +100,33 @@ TEST (ClipFile, AClipSurvivesARoundTrip)
   EXPECT_EQ (read->settings.endAction, EndAction::Bounce);
   EXPECT_FLOAT_EQ (read->settings.fadeReach, 0.8f);
   EXPECT_EQ (read->settings.bridgeBias, 2);
+
+  file.deleteFile ();
+}
+
+// Every field a clip carries has to survive being written and read, or a clip
+// quietly loses whatever the file forgot to name. Walked off the shared list
+// rather than spelled out, because the way this goes wrong is somebody adding
+// a field and not thinking of the file -- and a hand-written test only checks
+// the fields whoever wrote it thought of. See ClipSettingsFields.hh.
+TEST (ClipFile, EveryFieldASettingHasSurvivesTheFile)
+{
+  auto const file = tempClip ("a3-clip-every-field.json");
+
+  for (auto const &[name, mutate] : clipSettingsFields ())
+    {
+      Clip clip;
+      clip.name = "Every field";
+      clip.svg = "16_Wave";
+      mutate (clip.settings);
+
+      ASSERT_TRUE (ClipFile::save (clip, file)) << name;
+
+      auto const read = ClipFile::load (file);
+      ASSERT_TRUE (read.has_value ()) << name;
+      EXPECT_EQ (read->settings, clip.settings)
+          << name << " did not survive the file";
+    }
 
   file.deleteFile ();
 }
@@ -505,9 +534,29 @@ TEST (ClipFile, EveryShippedClipReads)
       EXPECT_LE (s.elevationBase, 1.f) << file.getFileName ();
       EXPECT_LE (std::abs (s.spin), lfoMaxStep) << file.getFileName ();
       EXPECT_LE (std::abs (s.reachLfo), lfoMaxStep) << file.getFileName ();
-      EXPECT_GE (s.envelopeAttack, 0) << file.getFileName ();
-      EXPECT_LE (s.envelopeAttack, envelopeMaxStep) << file.getFileName ();
-      EXPECT_GE (s.envelopeDecay, 0) << file.getFileName ();
-      EXPECT_LE (s.envelopeDecay, envelopeMaxStep) << file.getFileName ();
+      EXPECT_LE (std::abs (s.elevationLfo), lfoMaxStep) << file.getFileName ();
+      EXPECT_LE (std::abs (s.squeezeX), 1.f) << file.getFileName ();
+      EXPECT_LE (std::abs (s.squeezeY), 1.f) << file.getFileName ();
+      EXPECT_LE (std::abs (s.bridgeBias), 4) << file.getFileName ();
+      EXPECT_GE (s.clipTop, 0.f) << file.getFileName ();
+      EXPECT_LE (s.clipTop, 1.f) << file.getFileName ();
+      EXPECT_GE (s.clipBottom, 0.f) << file.getFileName ();
+      EXPECT_LE (s.clipBottom, 1.f) << file.getFileName ();
+      EXPECT_GE (s.fadeReach, 0.f) << file.getFileName ();
+      EXPECT_LE (s.fadeReach, 1.f) << file.getFileName ();
+
+      for (auto const step : { s.envelopeAttack, s.envelopeDecay,
+                               s.freqAttack, s.freqDecay, s.qAttack,
+                               s.qDecay })
+        {
+          EXPECT_GE (step, 0) << file.getFileName ();
+          EXPECT_LE (step, envelopeMaxStep) << file.getFileName ();
+        }
+
+      for (auto const ceiling : { s.envelopeMax, s.freqMax, s.qMax })
+        {
+          EXPECT_GE (ceiling, 0.f) << file.getFileName ();
+          EXPECT_LE (ceiling, 1.f) << file.getFileName ();
+        }
     }
 }

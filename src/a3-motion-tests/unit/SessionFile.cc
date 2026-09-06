@@ -24,6 +24,8 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/PatternFile.hh>
+
+#include "ClipSettingsFields.hh"
 #include <a3-motion-ui/SessionFile.hh>
 
 using namespace a3;
@@ -221,6 +223,36 @@ TEST (SessionFile, WhatASlotHasBeenTurnedToSurvivesTheRoundTrip)
   EXPECT_FLOAT_EQ (read.channels[0].slots[0].overrides->squeezeY, 0.25f);
   EXPECT_EQ (read.channels[0].slots[0].overrides->endAction,
              EndAction::Bounce);
+
+  file.deleteFile ();
+}
+
+// Every field a clip carries has to survive being written into a set as an
+// override, or a set quietly loses whatever it forgot to name -- and a set is
+// where a clip's deviations live. Walked off the shared list for the same
+// reason the clip file's test is. See ClipSettingsFields.hh.
+TEST (SessionFile, EveryFieldASettingHasSurvivesAnOverride)
+{
+  auto const file = tempSession ("a3-session-every-field.json");
+
+  for (auto const &[name, mutate] : clipSettingsFields ())
+    {
+      Session set;
+      set.channels.resize (1);
+      set.channels[0].slots.resize (1);
+      set.channels[0].slots[0].patternName = "Wave";
+
+      ClipSettings turned;
+      mutate (turned);
+      set.channels[0].slots[0].overrides = turned;
+
+      ASSERT_TRUE (saveSession (file, set)) << name;
+
+      auto const read = loadSession (file, 1, 1);
+      ASSERT_TRUE (read.channels[0].slots[0].overrides.has_value ()) << name;
+      EXPECT_EQ (*read.channels[0].slots[0].overrides, turned)
+          << name << " did not survive the set";
+    }
 
   file.deleteFile ();
 }

@@ -25,6 +25,8 @@
 #include <a3-motion-engine/ActionScript.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 
+#include "ClipSettingsFields.hh"
+
 #include <set>
 
 using namespace a3;
@@ -265,6 +267,64 @@ TEST (ActionScript, WhatIsWrittenCanBeReadBack)
   auto const back = run (source);
 
   EXPECT_EQ (back, settings) << "round trip through:\n" << source;
+}
+
+// Every field a clip carries has to survive being written out and read back,
+// or a saved action quietly drops whatever the language forgot to name.
+//
+// Walked off the shared list rather than spelled out here, because the way
+// this goes wrong is that somebody adds a field to ClipSettings and does not
+// think of the script -- and a hand-written test only checks the fields
+// whoever wrote it happened to think of. See ClipSettingsFields.hh.
+TEST (ActionScript, EveryFieldASettingHasCanBeWrittenAndReadBack)
+{
+  for (auto const &[name, mutate] : clipSettingsFields ())
+    {
+      ClipSettings settings;
+      mutate (settings);
+
+      auto const source = actionScriptFor (settings);
+      EXPECT_TRUE (source.contains ("~"))
+          << "nothing written at all for " << name;
+
+      auto const back = run (source);
+      EXPECT_EQ (back, settings)
+          << name << " did not survive the round trip through:\n"
+          << source;
+    }
+}
+
+// ... and all of them together, which is what an action saved off a clip
+// somebody has really dialled actually looks like.
+TEST (ActionScript, AClipWithEverythingTurnedSurvivesToo)
+{
+  ClipSettings settings;
+  for (auto const &[name, mutate] : clipSettingsFields ())
+    {
+      juce::ignoreUnused (name);
+      mutate (settings);
+    }
+
+  auto const source = actionScriptFor (settings);
+  EXPECT_EQ (run (source), settings) << "round trip through:\n" << source;
+}
+
+// The README beside the scripts is the one place the language is written down
+// for whoever opens the editor, so a name it does not mention is a name
+// nobody finds. Checked against the reader's own list rather than a copy of
+// it: the way this rots is a field being added and the prose not following.
+TEST (ActionScript, TheReadmeNamesEveryField)
+{
+  juce::File const dir (A3_PATTERN_ACTIONS_DIR);
+  ASSERT_TRUE (dir.isDirectory ()) << dir.getFullPathName ();
+
+  auto const readme = dir.getChildFile ("README.scd");
+  ASSERT_TRUE (readme.existsAsFile ()) << readme.getFullPathName ();
+
+  auto const text = readme.loadFileAsString ();
+  for (auto const &name : actionScriptNames ())
+    EXPECT_TRUE (text.contains ("~" + name))
+        << name << " is not written down in README.scd";
 }
 
 // The scripts that ship with the app have to read. They are the first thing
