@@ -202,6 +202,16 @@ ClipFile::load (juce::File const &file)
   return clip;
 }
 
+bool
+nameCharacterIsAllowed (juce::juce_wchar character)
+{
+  if (character < ' ' || character == 127)
+    return false;
+
+  return !juce::String::charToString (character)
+              .containsAnyOf ("/\\:*?\"<>|");
+}
+
 juce::String
 freeClipName (juce::File const &clipDir, juce::String const &base,
               juce::String const &extension)

@@ -20,6 +20,8 @@
 
 #include "BrowserComponent.hh"
 
+#include <a3-motion-engine/ClipFile.hh>
+
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -82,7 +84,11 @@ BrowserComponent::BrowserComponent ()
   makeButton (_setsTabTouch, &BrowserComponent::onSetsChosen);
   makeButton (_renameTouch, &BrowserComponent::onRenamePressed);
   makeButton (_saveTouch, &BrowserComponent::onSavePressed);
-  makeButton (_loadTouch, &BrowserComponent::onLoadSessionPressed);
+  makeButton (_deleteTouch, &BrowserComponent::onDeletePressed);
+
+  // The rename types into the row, so the row's own component has to be the
+  // one holding the keys.
+  setWantsKeyboardFocus (true);
 }
 
 BrowserComponent::~BrowserComponent () = default;
@@ -114,8 +120,8 @@ BrowserComponent::resized ()
   _actionsTabTouch->setBounds (_layout.actionsTab);
   _setsTabTouch->setBounds (_layout.setsTab);
   _renameTouch->setBounds (_layout.renameButton);
-  _saveTouch->setBounds (_layout.saveSessionButton);
-  _loadTouch->setBounds (_layout.loadSessionButton);
+  _saveTouch->setBounds (_layout.saveButton);
+  _deleteTouch->setBounds (_layout.deleteButton);
 }
 
 void
@@ -218,7 +224,8 @@ BrowserComponent::paint (juce::Graphics &g)
   };
 
   paintListTab (_layout.clipsTab, "CLIPS", _list == BrowserList::Clips);
-  paintListTab (_layout.actionsTab, "ACTION", _list == BrowserList::Actions);
+  paintListTab (_layout.actionsTab, "ACTIONS",
+                _list == BrowserList::Actions);
   paintListTab (_layout.setsTab, "SET", _list == BrowserList::Sessions);
 
   g.setColour (toColour (theme ().surface, 0.5f));
@@ -228,9 +235,9 @@ BrowserComponent::paint (juce::Graphics &g)
     paintRow (g, row);
 
   paintButton (g, _layout.renameButton, _actionLabels[0], _actionEnabled[0]);
-  paintButton (g, _layout.saveSessionButton, _actionLabels[1],
+  paintButton (g, _layout.saveButton, _actionLabels[1],
                _actionEnabled[1]);
-  paintButton (g, _layout.loadSessionButton, _actionLabels[2],
+  paintButton (g, _layout.deleteButton, _actionLabels[2],
                _actionEnabled[2]);
 }
 
@@ -243,6 +250,7 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
 
   auto const bounds = _layout.rows[static_cast<size_t> (row)];
   auto const chosen = entry == _selectedEntry;
+  auto const editing = chosen && _renaming;
 
   if (chosen)
     {
@@ -250,12 +258,41 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
       g.fillRoundedRectangle (bounds.toFloat ().reduced (1.f), 3.f);
     }
 
-  g.setFont (juce::Font (juce::jmin (theme ().fontSize (FontRole::Body),
-                                     bounds.getHeight () * 0.55f),
-                         juce::Font::plain));
+  // Being typed into is a state of the row, so the row says so: an edge round
+  // it, in the colour the rest of the bar uses for something unsaved.
+  if (editing)
+    {
+      g.setColour (toColour (theme ().warning));
+      g.drawRoundedRectangle (bounds.toFloat ().reduced (1.f), 3.f, 2.f);
+    }
+
+  auto const text = bounds.reduced (bounds.getHeight () / 3, 0);
+  auto const font = juce::Font (juce::jmin (theme ().fontSize (FontRole::Body),
+                                            bounds.getHeight () * 0.55f),
+                                juce::Font::plain);
+  g.setFont (font);
   g.setColour (toColour (theme ().textPrimary, chosen ? 1.f : 0.7f));
-  g.drawFittedText (_names[entry], bounds.reduced (bounds.getHeight () / 3, 0),
+  g.drawFittedText (editing ? _renameText : _names[entry], text,
                     juce::Justification::centredLeft, 1);
+
+  // The caret, where the next character goes. At the end of the text and
+  // nowhere else: a name is short enough to retype, and a caret you can move
+  // is a caret you have to be able to see moving.
+  if (editing)
+    {
+      auto const width
+          = juce::GlyphArrangement::getStringWidth (font, _renameText);
+      auto const x = juce::jmin (text.getRight () - 1.f,
+                                 text.getX () + width + 1.f);
+
+      g.setColour (toColour (theme ().warning));
+      g.fillRect (x, static_cast<float> (text.getY () + text.getHeight () / 6),
+                  1.5f, static_cast<float> (text.getHeight () * 2 / 3));
+
+      // Nothing else belongs on a row being typed into -- the preset dot is
+      // about the file, and while it is being renamed it is about the name.
+      return;
+    }
 
   // A settings preset carries a dot on the right. A mark rather than a colour
   // because the selection already owns the accent, and a mark rather than a
@@ -301,6 +338,104 @@ BrowserComponent::paintButton (juce::Graphics &g, juce::Rectangle<int> bounds,
                          juce::Font::plain));
   g.setColour (toColour (theme ().textPrimary, enabled ? 0.9f : 0.3f));
   g.drawFittedText (label, bounds, juce::Justification::centred, 1);
+}
+
+
+void
+BrowserComponent::beginRename (juce::String const &name)
+{
+  _renaming = true;
+  _renameText = name;
+  _renameWas = name;
+
+  grabKeyboardFocus ();
+  if (onRenameEditingChanged)
+    onRenameEditingChanged (true);
+
+  repaint ();
+}
+
+void
+BrowserComponent::cancelRename ()
+{
+  endRename (false);
+}
+
+void
+BrowserComponent::commitRename ()
+{
+  endRename (true);
+}
+
+void
+BrowserComponent::endRename (bool keep)
+{
+  if (!_renaming)
+    return;
+
+  _renaming = false;
+
+  // Read before the callback runs: whatever it does may come back through
+  // here, and a name half torn down is a name that arrives empty.
+  auto const wanted = _renameText.trim ();
+  auto const changed = keep && wanted.isNotEmpty () && wanted != _renameWas;
+
+  _renameText = {};
+  _renameWas = {};
+
+  if (onRenameEditingChanged)
+    onRenameEditingChanged (false);
+
+  if (changed && onRenamed)
+    onRenamed (wanted);
+
+  repaint ();
+}
+
+bool
+BrowserComponent::keyPressed (juce::KeyPress const &key)
+{
+  if (!_renaming)
+    return false;
+
+  if (key == juce::KeyPress::escapeKey)
+    {
+      endRename (false);
+      return true;
+    }
+
+  if (key == juce::KeyPress::returnKey)
+    {
+      endRename (true);
+      return true;
+    }
+
+  if (key == juce::KeyPress::backspaceKey)
+    {
+      _renameText = _renameText.dropLastCharacters (1);
+      repaint ();
+      return true;
+    }
+
+  // What a name may carry is the engine's rule, not this component's -- see
+  // nameCharacterIsAllowed(), where it is written down once and tested.
+  auto const character = key.getTextCharacter ();
+  if (!nameCharacterIsAllowed (character)
+      || _renameText.length () >= maxTypedNameLength)
+    return true;
+
+  _renameText += juce::String::charToString (character);
+  repaint ();
+  return true;
+}
+
+void
+BrowserComponent::focusLost (FocusChangeType)
+{
+  // The keyboard follows the focus, so losing it ends the edit whatever took
+  // it away -- and ends it by keeping nothing, because walking away from a
+  // half-typed name is not a way of asking for it.
+  endRename (false);
 }
 
 }

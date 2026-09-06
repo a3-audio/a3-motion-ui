@@ -64,9 +64,9 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
     auto const buttonW = (strip.getWidth () - 2 * gap) / 3;
     out.renameButton = strip.removeFromLeft (buttonW);
     strip.removeFromLeft (gap);
-    out.saveSessionButton = strip.removeFromLeft (buttonW);
+    out.saveButton = strip.removeFromLeft (buttonW);
     strip.removeFromLeft (gap);
-    out.loadSessionButton = strip;
+    out.deleteButton = strip;
   }
 
   // A row is hit with a finger, so it is a fingertip tall whatever the font

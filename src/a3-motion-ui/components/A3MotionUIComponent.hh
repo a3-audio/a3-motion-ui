@@ -201,6 +201,15 @@ private:
   void writeSlotActionScript ();
   /** Keep the chosen slot's settings as a new action clip. */
   void saveSlotAsAction ();
+  /** Give the chosen action file another name, carrying every slot that fires
+   *  it across to the new one. */
+  void renameChosenAction (juce::String const &name);
+  /** Throw the chosen action file away, and stop every slot that fires it
+   *  from firing anything. Asked twice -- see `_deleteArmed`. */
+  void deleteChosenAction ();
+  /** The action file the browser's chosen row stands for, or nothing: row
+   *  zero is "no action" and has no file behind it. */
+  juce::File chosenActionFile () const;
   void updateActionPage ();
   void applyActionControl (int control, int increment);
   void resetActionControl (int control);
@@ -521,6 +530,11 @@ private:
     juce::StringArray errors;
   };
   std::vector<std::vector<SlotAction> > _slotAction;
+  /** Whether the browser's delete key has been pressed once already. A file
+   *  thrown away in front of a room does not come back, so it takes two
+   *  presses -- and anything else that happens disarms it, because an armed
+   *  key you have forgotten about is worse than no key. */
+  bool _deleteArmed = false;
 
   /** Which slot each channel's face stands for. Per channel rather than one
    *  shared setting: the two slot keys used to be shared, so choosing slot 2

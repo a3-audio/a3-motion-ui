@@ -85,15 +85,15 @@ TEST (BrowserLayout, TheActionStripSitsUnderTheListAndNotInIt)
   auto const l = defaultBrowser ();
 
   ASSERT_FALSE (l.renameButton.isEmpty ());
-  ASSERT_FALSE (l.saveSessionButton.isEmpty ());
-  ASSERT_FALSE (l.loadSessionButton.isEmpty ());
+  ASSERT_FALSE (l.saveButton.isEmpty ());
+  ASSERT_FALSE (l.deleteButton.isEmpty ());
 
   EXPECT_FALSE (l.renameButton.intersects (l.listArea));
   EXPECT_GE (l.renameButton.getY (), l.listArea.getBottom ());
 
   // Side by side, in reading order.
-  EXPECT_LE (l.renameButton.getRight (), l.saveSessionButton.getX ());
-  EXPECT_LE (l.saveSessionButton.getRight (), l.loadSessionButton.getX ());
+  EXPECT_LE (l.renameButton.getRight (), l.saveButton.getX ());
+  EXPECT_LE (l.saveButton.getRight (), l.deleteButton.getX ());
 }
 
 TEST (BrowserLayout, AnEmptyAreaProducesNothingRatherThanNonsense)

@@ -69,8 +69,8 @@ struct BrowserLayout
   /** The strip along the bottom of the list: what can be done to what is
    *  selected. */
   juce::Rectangle<int> renameButton;
-  juce::Rectangle<int> saveSessionButton;
-  juce::Rectangle<int> loadSessionButton;
+  juce::Rectangle<int> saveButton;
+  juce::Rectangle<int> deleteButton;
 };
 
 /** Lays the browser out inside the bar's content area. Reads no theme, so it

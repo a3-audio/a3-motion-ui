@@ -131,6 +131,30 @@ TEST (ClipFile, EveryFieldASettingHasSurvivesTheFile)
   file.deleteFile ();
 }
 
+// What a name typed on the device may carry. The rule is applied as the key
+// arrives rather than when the file is written, so a name that cannot be a
+// file is a name that cannot be typed -- the alternative is a rename that
+// fails after the row has already stopped showing the old name.
+TEST (ClipFile, ANameTakesWhatAFilesystemWillTake)
+{
+  for (auto const c : { 'A', 'z', '0', ' ', '-', '_', '.', '(', ')', '&' })
+    EXPECT_TRUE (nameCharacterIsAllowed (c)) << "refused '" << c << "'";
+
+  // The ones no common filesystem accepts, and the separator above all.
+  for (auto const c : { '/', '\\', ':', '*', '?', '"', '<', '>', '|' })
+    EXPECT_FALSE (nameCharacterIsAllowed (c)) << "accepted '" << c << "'";
+
+  // A tab reads as a space and is a different file; a newline is not a name.
+  for (auto const c : { '\t', '\n', '\r' })
+    EXPECT_FALSE (nameCharacterIsAllowed (c));
+
+  EXPECT_FALSE (nameCharacterIsAllowed (juce::juce_wchar (127)));
+
+  // Long enough for anything typed with one thumb, short enough for a row.
+  EXPECT_GE (maxTypedNameLength, 24);
+  EXPECT_LE (maxTypedNameLength, 64);
+}
+
 // A file naming only what identifies it must load, with everything else at its
 // default. That is what makes a hand-written clip file possible, and what
 // stops a new setting from invalidating every file already on a stick.

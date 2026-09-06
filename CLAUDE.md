@@ -518,6 +518,26 @@ control changing which clip you are looking at want the same place — reading "
 way to reach slot 2 without going to the pads page. They light like the tabs beside them, because
 they answer the same kind of question. Not on the pads page, which shows every slot at once.
 
+**The library's three keys are Rename, Save and Delete**, and what each means follows the tab the
+list is on. On **ACTIONS** all three work: Save writes the shown clip out as a script, Rename opens
+the chosen row for typing, and Delete throws its file away. On CLIPS and SETS the outer two stay
+dark — a clip's name is what every set points at, so renaming one silently empties the slots that
+named it, and that needs the sets rewritten with it.
+
+**A rename is typed into the row itself**, not into a field somewhere else: what you are renaming is
+a row of a list, and a name typed anywhere but where the name is makes you check two places. The row
+wears the warning edge and a caret, Enter or the "Keep" key settles it, Escape or losing focus drops
+it. `nameCharacterIsAllowed()` (in `ClipFile`, where a test can reach it) decides what may be typed,
+as the key arrives rather than when the file is written — otherwise a name that cannot be a file
+fails after the row has already stopped showing the old one. A name already taken is refused rather
+than overwritten, and the row stays open so another one can be typed.
+
+**Delete asks twice.** The key says "Delete", then "Sure?", and anything else you do — choosing a
+row, changing tab, starting a rename — puts it back to sleep. Not a dialogue: there is nothing here
+that could put one up without covering the list it is asking about. Renaming carries every slot that
+fires the file across to the new name; deleting stops every slot that fired it from firing anything,
+rather than leaving them pointing at a name with nothing behind it.
+
 **Escape no longer quits.** On a desk that shortcut is a convenience; on a device standing in a
 booth with a keyboard plugged into it, it is one stray key from ending the set, with no dialogue in
 between because there is nothing here that could ask.

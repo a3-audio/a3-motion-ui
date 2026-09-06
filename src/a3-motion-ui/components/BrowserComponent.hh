@@ -112,9 +112,30 @@ public:
   /** Write the clip on show back to its file, or keep the current action or
    *  set -- what it means follows the folder the list is on. */
   std::function<void ()> onSavePressed;
-  std::function<void ()> onSaveSessionPressed;
-  std::function<void ()> onLoadSessionPressed;
+  /** Throw the chosen row's file away. What that takes is the page's to
+   *  decide, and so is asking twice: this fires on every press, armed or
+   *  not. */
+  std::function<void ()> onDeletePressed;
   std::function<void (int delta)> onScrolled;
+
+  /** Type a new name over the chosen row.
+   *
+   *  In the row rather than in a field somewhere else: what you are renaming
+   *  is a row of a list, and a name typed anywhere but where the name is
+   *  makes you look in two places to see whether you got it right. */
+  void beginRename (juce::String const &name);
+  void cancelRename ();
+  /** Keep what has been typed, as Enter does. The key under the list says
+   *  "Keep" while a row is open, so there are two ways to finish and neither
+   *  is a keyboard nobody can see. */
+  void commitRename ();
+  bool isRenaming () const { return _renaming; }
+  /** Enter was pressed on a name that is not the one it started as. */
+  std::function<void (juce::String const &name)> onRenamed;
+  /** The row was opened or closed for typing -- the page above shows and
+   *  hides the system keyboard on it, the way it does for the script
+   *  editor. */
+  std::function<void (bool editing)> onRenameEditingChanged;
 
 private:
   void paintRow (juce::Graphics &g, int row);
@@ -123,6 +144,11 @@ private:
 
   void mouseWheelMove (juce::MouseEvent const &event,
                        juce::MouseWheelDetails const &wheel) override;
+
+  bool keyPressed (juce::KeyPress const &key) override;
+  void focusLost (FocusChangeType cause) override;
+
+  void endRename (bool keep);
 
   BrowserLayout _layout;
 
@@ -141,7 +167,11 @@ private:
   std::unique_ptr<TouchControl> _setsTabTouch;
   std::unique_ptr<TouchControl> _renameTouch;
   std::unique_ptr<TouchControl> _saveTouch;
-  std::unique_ptr<TouchControl> _loadTouch;
+  std::unique_ptr<TouchControl> _deleteTouch;
+
+  bool _renaming = false;
+  juce::String _renameText;
+  juce::String _renameWas;
 };
 
 }

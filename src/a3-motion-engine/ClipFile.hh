@@ -100,6 +100,20 @@ bool saveClipSettings (Pattern const &pattern, juce::File const &clipFile);
  *  browser shows a single list, where two rows called the same thing could not
  *  be told apart. The extension is a parameter because actions are counted
  *  the same way and are not clips: one rule for naming, two kinds of file. */
+/** What a name typed on the device may carry.
+ *
+ *  A name typed here becomes a file, and one that may be carried to another
+ *  machine on a stick -- so the characters no common filesystem accepts are
+ *  refused as they are typed rather than at the moment of writing, where the
+ *  rename would simply fail with the name already gone from the row. Control
+ *  characters go too: a name with a tab in it reads as a name with a space in
+ *  it and is a different file. */
+bool nameCharacterIsAllowed (juce::juce_wchar character);
+
+/** As long as a name typed on the device may be. Long enough for anything
+ *  anybody types with one thumb, short enough to stay inside a row. */
+constexpr int maxTypedNameLength = 48;
+
 juce::String freeClipName (juce::File const &clipDir,
                            juce::String const &base,
                            juce::String const &extension = ".json");

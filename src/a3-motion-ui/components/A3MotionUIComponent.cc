@@ -595,22 +595,69 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     else
       saveSlotClip (_clipSettingsChannel, _clipSettingsSlot);
   };
+  _browser->onRenamePressed = [this] {
+    // The same key finishes what it started: it says "Keep" while a row is
+    // open, so a name can be settled without reaching for a keyboard that is
+    // covering half the screen.
+    if (_browser->isRenaming ())
+      {
+        _browser->commitRename ();
+        return;
+      }
+
+    // Only the actions folder, and only a row with a file behind it. A clip's
+    // name is what every set points at, so renaming one silently empties the
+    // slots that named it -- that needs the sets to be rewritten with it, and
+    // until they are the key stays dark on those two tabs.
+    auto const file = chosenActionFile ();
+    if (!file.existsAsFile ())
+      return;
+
+    _deleteArmed = false;
+    _browser->beginRename (file.getFileNameWithoutExtension ());
+    refreshBrowser ();
+  };
+
+  _browser->onRenamed = [this] (juce::String const &name) {
+    renameChosenAction (name);
+  };
+
+  // The keyboard is the system's own and types into whatever holds the focus,
+  // so opening the row is what shows it -- the same arrangement the script
+  // editor has.
+  _browser->onRenameEditingChanged = [this] (bool editing) {
+    showKeyboard (editing);
+    refreshBrowser ();
+  };
+
+  _browser->onDeletePressed = [this] { deleteChosenAction (); };
+
   _browser->onClipsChosen = [this] {
     _browserList = BrowserList::Clips;
+    _deleteArmed = false;
+    _browser->cancelRename ();
     _browser->setSelectedEntry (-1);
     refreshBrowser ();
   };
   _browser->onActionsChosen = [this] {
     _browserList = BrowserList::Actions;
+    _deleteArmed = false;
+    _browser->cancelRename ();
     _browser->setSelectedEntry (-1);
     refreshBrowser ();
   };
   _browser->onSetsChosen = [this] {
     _browserList = BrowserList::Sessions;
+    _deleteArmed = false;
+    _browser->cancelRename ();
     _browser->setSelectedEntry (-1);
     refreshBrowser ();
   };
   _browser->onEntryChosen = [this] (int index) {
+    // Anything else you do puts the delete key back to sleep. An armed key
+    // you have forgotten about is worse than no key at all.
+    _deleteArmed = false;
+    _browser->cancelRename ();
     _browser->setSelectedEntry (index);
 
     if (_browserList == BrowserList::Sessions)
@@ -2034,8 +2081,18 @@ A3MotionUIComponent::refreshBrowser ()
       auto const sl = _clipSettingsSlot;
       auto const holds = ch < _patterns.size () && sl < _patterns[ch].size ()
                          && _patterns[ch][sl] != nullptr;
-      _browser->setActions ({ "", "Save Action", "" },
-                            { false, holds, false });
+
+      // Rename and Delete want a row with a file behind it; row zero is "no
+      // action" and there is nothing there to name or throw away.
+      auto const chosen = chosenActionFile ().existsAsFile ();
+
+      // The delete key says what the next press will do. Armed it wears the
+      // word rather than a colour, because a key that only changed colour
+      // would be a key you have to have been watching.
+      _browser->setActions (
+          { _browser->isRenaming () ? "Keep" : "Rename", "Save Action",
+            _deleteArmed ? "Sure?" : "Delete" },
+          { chosen, holds, chosen });
     }
   else
     _browser->setActions ({ "", "Save", "" }, { false, drifted, false });
@@ -2321,6 +2378,103 @@ A3MotionUIComponent::saveSlotAsAction ()
     }
 
   setSlotAction (channel, slot, file);
+  refreshBrowser ();
+}
+
+juce::File
+A3MotionUIComponent::chosenActionFile () const
+{
+  if (_browserList != BrowserList::Actions || !_browser)
+    return {};
+
+  auto const index = _browser->getSelectedEntry ();
+  if (index <= 0)
+    return {}; // row zero is "no action", and has no file behind it
+
+  auto const name = _browser->entryName (index);
+  if (name.isEmpty ())
+    return {};
+
+  return actionsDir ().getChildFile (name + ".scd");
+}
+
+void
+A3MotionUIComponent::renameChosenAction (juce::String const &name)
+{
+  auto const from = chosenActionFile ();
+  if (!from.existsAsFile ())
+    return;
+
+  auto const to = actionsDir ().getChildFile (name + ".scd");
+  if (to == from)
+    return;
+
+  // Nothing is overwritten. Two actions with one name is the state where the
+  // next rename is a file quietly gone, and the way back is to type another
+  // name -- which the row is still open for.
+  if (to.exists ())
+    {
+      updateControlReadout ("-- NAME TAKEN");
+      return;
+    }
+
+  if (!from.moveFileTo (to))
+    {
+      updateControlReadout ("-- COULD NOT RENAME");
+      return;
+    }
+
+  // Every slot firing it comes across. A slot pointing at a file that is no
+  // longer there fires nothing, silently, and the ACTION page would show an
+  // empty field where a script was a moment ago.
+  for (index_t channel = 0; channel < _slotAction.size (); ++channel)
+    for (index_t slot = 0; slot < _slotAction[channel].size (); ++slot)
+      if (_slotAction[channel][slot].file == from)
+        setSlotAction (channel, slot, to);
+
+  updateControlReadout ("-- RENAMED " + name.toUpperCase ());
+  refreshBrowser ();
+}
+
+void
+A3MotionUIComponent::deleteChosenAction ()
+{
+  auto const file = chosenActionFile ();
+  if (!file.existsAsFile ())
+    return;
+
+  // Asked twice. A file thrown away in front of a room does not come back, and
+  // the second press is the only thing standing between a fat finger and an
+  // action somebody wrote. Not a dialogue: there is nothing here that could
+  // put one up without covering the list it is asking about.
+  if (!_deleteArmed)
+    {
+      _deleteArmed = true;
+      updateControlReadout ("-- DELETE? PRESS AGAIN");
+      refreshBrowser ();
+      return;
+    }
+
+  _deleteArmed = false;
+
+  if (!file.deleteFile ())
+    {
+      updateControlReadout ("-- COULD NOT DELETE");
+      refreshBrowser ();
+      return;
+    }
+
+  // Every slot that fired it stops firing anything, rather than being left
+  // pointing at a name with nothing behind it.
+  for (index_t channel = 0; channel < _slotAction.size (); ++channel)
+    for (index_t slot = 0; slot < _slotAction[channel].size (); ++slot)
+      if (_slotAction[channel][slot].file == file)
+        setSlotAction (channel, slot, juce::File{});
+
+  updateControlReadout (
+      "-- DELETED " + file.getFileNameWithoutExtension ().toUpperCase ());
+
+  _browser->setSelectedEntry (0);
   refreshBrowser ();
 }
 
