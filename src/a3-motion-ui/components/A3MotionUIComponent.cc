@@ -2065,9 +2065,12 @@ A3MotionUIComponent::refreshBrowser ()
   auto const drifted
       = slotHasDrifted (_clipSettingsChannel,
                         _clipSettingsSlot);
-  // What the three keys say, and which of them can be pressed. Rename and
-  // Delete want a row with a file behind it, and say the same words on every
-  // tab: the middle key is the only one whose meaning follows the folder.
+  // What the three keys say, and which of them can be pressed. All three say
+  // the same words on every tab -- what they act on is the row you chose in
+  // the list you are looking at, and the tab above the list has already said
+  // which list that is. "Save Action" on the actions tab spent a word saying
+  // it again, and three keys that change their wording between tabs are three
+  // keys you read instead of aim at.
   auto const chosen = chosenEntryHasAFile ();
   auto const rename = _browser->isRenaming () ? "Keep" : "Rename";
   // The delete key says what the next press will do. Armed it wears the word
@@ -2077,7 +2080,7 @@ A3MotionUIComponent::refreshBrowser ()
 
   if (_browserList == BrowserList::Sessions)
     // A set can always be put away; there is always an arrangement to keep.
-    _browser->setActions ({ rename, "Save Set", remove },
+    _browser->setActions ({ rename, "Save", remove },
                           { chosen, true, chosen });
   else if (_browserList == BrowserList::Actions)
     {
@@ -2088,7 +2091,7 @@ A3MotionUIComponent::refreshBrowser ()
       auto const holds = ch < _patterns.size () && sl < _patterns[ch].size ()
                          && _patterns[ch][sl] != nullptr;
 
-      _browser->setActions ({ rename, "Save Action", remove },
+      _browser->setActions ({ rename, "Save", remove },
                             { chosen, holds, chosen });
     }
   else

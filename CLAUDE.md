@@ -518,9 +518,11 @@ control changing which clip you are looking at want the same place — reading "
 way to reach slot 2 without going to the pads page. They light like the tabs beside them, because
 they answer the same kind of question. Not on the pads page, which shows every slot at once.
 
-**The library's three keys are Rename, Save and Delete.** The outer two say the same words on every
-tab and work wherever a row has a file behind it; only the middle one's meaning follows the folder
-(Save / Save Action / Save Set).
+**The library's three keys are Rename, Save and Delete**, and all three say the same words on every
+tab. What they act on is the row you chose in the list you are looking at, and the tab above the
+list has already said which list that is — "Save Action" spent a word saying it again, and keys that
+reword themselves between tabs are keys you read instead of aim at. The outer two work wherever a
+row has a file behind it.
 
 What a rename has to carry differs sharply by tab, which is most of the work:
 

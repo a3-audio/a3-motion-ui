@@ -226,7 +226,7 @@ BrowserComponent::paint (juce::Graphics &g)
   paintListTab (_layout.clipsTab, "CLIPS", _list == BrowserList::Clips);
   paintListTab (_layout.actionsTab, "ACTIONS",
                 _list == BrowserList::Actions);
-  paintListTab (_layout.setsTab, "SET", _list == BrowserList::Sessions);
+  paintListTab (_layout.setsTab, "SETS", _list == BrowserList::Sessions);
 
   g.setColour (toColour (theme ().surface, 0.5f));
   g.fillRoundedRectangle (_layout.listArea.toFloat (), 3.f);
