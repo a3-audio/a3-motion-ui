@@ -105,7 +105,8 @@ public:
    *  The bar's readout is at the top of a thousand pixels and the keys are at
    *  the bottom: a word up there is a word nobody standing over the keys
    *  reads. This shows over the foot of the list, a finger's width from the
-   *  key that was pressed, and takes itself away again. */
+   *  key that was pressed, and stays until the next thing happens -- a
+   *  message on a timer is one you miss by looking down a second too late. */
   void showMessage (juce::String const &text);
 
   /** What the three keys under the list say, and which of them can be
@@ -188,10 +189,6 @@ private:
   std::unique_ptr<TouchControl> _deleteTouch;
 
   juce::String _message;
-  /** Long enough to read a short word without looking away from the keys,
-   *  short enough not to still be there next time you glance down. */
-  static constexpr int messageMillis = 1600;
-  int _messageGeneration = 0;
 
   bool _renaming = false;
   juce::String _renameText;

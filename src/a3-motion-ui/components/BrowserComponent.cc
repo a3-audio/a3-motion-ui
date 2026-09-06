@@ -448,27 +448,14 @@ BrowserComponent::focusLost (FocusChangeType)
 void
 BrowserComponent::showMessage (juce::String const &text)
 {
-  _message = text;
-  repaint ();
-
-  if (_message.isEmpty ())
+  if (text == _message)
     return;
 
-  // Cleared by whichever message is the last one said, not by whichever timer
-  // happens to come back first: two messages in quick succession would
-  // otherwise have the first one's timer take the second one away early.
-  auto const generation = ++_messageGeneration;
-
-  juce::Timer::callAfterDelay (
-      messageMillis,
-      [safeThis = juce::Component::SafePointer<BrowserComponent> (this),
-       generation] {
-        if (safeThis == nullptr || safeThis->_messageGeneration != generation)
-          return;
-
-        safeThis->_message = {};
-        safeThis->repaint ();
-      });
+  // It stays until the next thing happens, the way the status bar's readout
+  // does. A message on a timer is one you can miss by looking down a second
+  // too late, and looking down a second too late is what a booth is.
+  _message = text;
+  repaint ();
 }
 
 void
@@ -477,8 +464,12 @@ BrowserComponent::paintMessage (juce::Graphics &g)
   if (_message.isEmpty () || _layout.listArea.isEmpty ())
     return;
 
-  auto const band = _layout.listArea.removeFromBottom (
-      juce::jmin (_layout.listArea.getHeight (),
+  // On a copy. removeFromBottom() takes the room out of the rectangle it is
+  // called on, and _layout is a member: called on it directly, every repaint
+  // shrank the list by another row and the band walked up the page.
+  auto listArea = _layout.listArea;
+  auto const band = listArea.removeFromBottom (
+      juce::jmin (listArea.getHeight (),
                   juce::jmax (fingertipSize, _layout.rowHeight)));
 
   // Opaque, over the rows rather than beside them: there is no room in this
