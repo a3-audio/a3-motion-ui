@@ -67,16 +67,36 @@ struct Session
     /** log2 of the length the next take into this slot will have, in bars. */
     int recordLengthLog2 = 0;
 
-    /** What this slot has been turned to since the clip was put in it, if
-     *  anything.
+    /** The clip file this slot came from, by name and without its extension.
      *
-     *  A session refers to clips rather than copying them, so two slots can
-     *  hold the same clip -- and turning a control on one must not change the
-     *  other. The difference lives here until somebody saves it into the clip.
+     *  Beside the shape rather than instead of it: a settings preset carries
+     *  no shape, and a shape can be in a slot with no clip beside it, so the
+     *  two questions -- what is it playing, and where did its values come
+     *  from -- have two answers. By name so a set can travel: a path would
+     *  name a folder that is not there on the next stick.
      *
-     *  Only the fields that differ are written. A session that carried a whole
-     *  second copy of every clip would drift away from the clips themselves
-     *  without anyone noticing. */
+     *  Empty is not an error. A slot filled straight from a shape has no clip
+     *  file, and says so. */
+    std::string clipFile;
+
+    /** The action this slot fires, by name and without its extension. Same
+     *  reasoning as `clipFile`, and empty means ACT does the plain accent. */
+    std::string action;
+
+    /** Everything this slot's clip is set to.
+     *
+     *  Written whenever there is a clip in the slot, not only when it differs
+     *  from the clip's own file. A set is the whole state of an arrangement:
+     *  it refers to clips rather than copying them, so two slots can hold the
+     *  same clip and turning a control on one must not change the other --
+     *  and a slot filled straight from a shape has no clip file to differ
+     *  from at all, which is how its settings used to be dropped on the floor.
+     *
+     *  Still optional, and this is the one thing it says: a set written before
+     *  this has none, and that must go on meaning "leave the clip's own
+     *  settings alone" rather than "reset it to the defaults". Only the fields
+     *  that differ from the *defaults* are written, so a file stays short and
+     *  readable without anything being lost. */
     std::optional<ClipSettings> overrides;
   };
 

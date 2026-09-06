@@ -1983,7 +1983,13 @@ A3MotionUIComponent::saveCurrentSession ()
   set.name = name.toStdString ();
 
   if (saveSession (dir.getChildFile (name + ".json"), set))
-    updateControlReadout ("-- SAVED " + name.toUpperCase ());
+    {
+      // The set that is loaded is now this one. Without this, Save stayed
+      // dark after a Save as: the device had a file to write back to and no
+      // idea that it did.
+      _sessionName = name;
+      updateControlReadout ("-- SAVED " + name.toUpperCase ());
+    }
   else
     updateControlReadout ("-- SAVE FAILED");
 
@@ -3552,6 +3558,13 @@ A3MotionUIComponent::applySet (juce::File const &file)
           _clipUIParams[index][slot].recordLengthLog2
               = saved.recordLengthLog2;
 
+          // The action first, so a slot that fires one gets it whether or not
+          // it also holds a clip.
+          if (!saved.action.empty ())
+            setSlotAction (index, slot,
+                           actionsDir ().getChildFile (
+                               juce::String (saved.action) + ".scd"));
+
           if (saved.patternName.empty ())
             continue;
 
@@ -3564,6 +3577,29 @@ A3MotionUIComponent::applySet (juce::File const &file)
             continue;
 
           fillSlotFromLibrary (index, slot, libIndex);
+
+          // Which clip file the slot came from. fillSlotFromLibrary() sets it
+          // from the shape's own clip, which is right for a slot filled from
+          // the library and wrong for one a settings preset was dropped on --
+          // the preset is where its values came from, and Save has to write
+          // back there.
+          if (!saved.clipFile.empty ())
+            {
+              auto const clip = _patternLibrary->getClipDir ().getChildFile (
+                  juce::String (saved.clipFile) + ".json");
+              if (clip.existsAsFile ())
+                _slotClipFile[index][slot] = clip;
+            }
+
+          // And what the slot was turned to. A set written before this has
+          // none, and then the clip's own settings are what the slot keeps --
+          // applying the defaults there would reset every clip in it.
+          if (saved.overrides.has_value ())
+            if (auto const &pattern = _patterns[index][slot])
+              {
+                applyClipSettings (*pattern, *saved.overrides);
+                syncClipUIParamsFromPattern (index, slot);
+              }
         }
     }
 }
@@ -3618,16 +3654,25 @@ A3MotionUIComponent::buildSession ()
           saved.recordLengthLog2
               = _clipUIParams[index][slot].recordLengthLog2;
 
+          // The action goes with the slot whether or not there is a clip in
+          // it: a slot can be given one and filled afterwards.
+          saved.action = _slotAction[index][slot]
+                             .file.getFileNameWithoutExtension ()
+                             .toStdString ();
+
           if (auto const &pattern = _patterns[index][slot])
             {
               saved.patternName = pattern->getName ();
+              saved.clipFile = _slotClipFile[index][slot]
+                                   .getFileNameWithoutExtension ()
+                                   .toStdString ();
 
-              // What this slot has been turned to since the clip was put in
-              // it. Written only when it differs, so a session that has been
-              // saved into its clips carries nothing extra.
-              auto const &clipFile = _slotClipFile[index][slot];
-              if (clipHasDrifted (*pattern, clipFile))
-                saved.overrides = clipSettingsFrom (*pattern);
+              // Everything, not only what differs from the clip's own file.
+              // The difference was worked out with clipHasDrifted(), which
+              // answers false for a slot with no clip file at all -- so every
+              // slot filled straight from a shape wrote nothing, and came
+              // back as the bare shape with its settings gone.
+              saved.overrides = clipSettingsFrom (*pattern);
             }
         }
     }

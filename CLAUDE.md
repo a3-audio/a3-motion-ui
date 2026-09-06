@@ -119,6 +119,14 @@ generator and the test runner:
   plugged into the switch at the venue and the rec mode is a working habit; a set that changed
   either out from under you on load would be a surprise at the one moment nobody wants one.
 
+  **A slot carries the two files it came from** — `clip` and `action`, by name and without a path, so
+  a set travels — and its whole `ClipSettings`, not only what differs from the clip's own file. The
+  difference was worked out with `clipHasDrifted()`, which answers false for a slot with *no* clip
+  file at all, so every slot filled straight from a shape wrote nothing and came back as a bare shape
+  with its settings gone. `overrides` stays a `std::optional` for one reason only: a set written
+  before this has none, and that has to go on meaning "leave the clip's own settings alone" rather
+  than "reset it to the defaults".
+
   A set names its takes the way the library resolves them (`indexForName`) rather than by index: a
   library's order depends on what is in the folder, so a set meaning "the third file" would mean
   something else on the next stick. A missing or unreadable set is an empty set, and a set written

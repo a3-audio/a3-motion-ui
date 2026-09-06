@@ -216,6 +216,8 @@ loadSession (juce::File const &file, int numChannels, int numSlots)
                     = slotEntry["pattern"].toString ().toStdString ();
                 slot.recordLengthLog2
                     = static_cast<int> (slotEntry["recordLengthLog2"]);
+                slot.clipFile = slotEntry["clip"].toString ().toStdString ();
+                slot.action = slotEntry["action"].toString ().toStdString ();
                 slot.overrides = readOverrides (slotEntry["overrides"]);
                 channel.slots.push_back (slot);
               }
@@ -250,6 +252,15 @@ saveSession (juce::File const &file, Session const &set)
           slotEntry->setProperty ("pattern",
                                   juce::String (slot.patternName));
           slotEntry->setProperty ("recordLengthLog2", slot.recordLengthLog2);
+
+          // Names, not paths: a set is carried between machines, and a path
+          // would name a folder that is not there on the next one. Written
+          // only when there is one, so a slot filled straight from a shape
+          // does not carry two empty strings.
+          if (!slot.clipFile.empty ())
+            slotEntry->setProperty ("clip", juce::String (slot.clipFile));
+          if (!slot.action.empty ())
+            slotEntry->setProperty ("action", juce::String (slot.action));
 
           if (slot.overrides)
             slotEntry->setProperty ("overrides",

@@ -227,6 +227,58 @@ TEST (SessionFile, WhatASlotHasBeenTurnedToSurvivesTheRoundTrip)
   file.deleteFile ();
 }
 
+// A slot names the two files it came from -- the clip its values are from and
+// the action ACT fires -- so a set brings back what was in front of you rather
+// than a shape with the settings guessed at. By name and without a path: a set
+// is carried between machines, and a path names a folder that is not there on
+// the next one.
+TEST (SessionFile, ASlotCarriesItsClipAndItsAction)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+  set.channels[0].slots[0].patternName = "Wave";
+  set.channels[0].slots[0].clipFile = "Slow Turn";
+  set.channels[0].slots[0].action = "Slam";
+
+  auto const file = tempSession ("a3-session-references.json");
+  ASSERT_TRUE (saveSession (file, set));
+
+  auto const text = file.loadFileAsString ();
+  EXPECT_FALSE (text.contains ("/"))
+      << "a path would name a folder the next stick does not have";
+
+  auto const read = loadSession (file, 1, 1);
+  EXPECT_EQ (read.channels[0].slots[0].clipFile, "Slow Turn");
+  EXPECT_EQ (read.channels[0].slots[0].action, "Slam");
+
+  file.deleteFile ();
+}
+
+// A slot with neither writes neither. A slot filled straight from a shape has
+// no clip file and fires no action, and a file full of empty strings says that
+// twice as loudly as leaving them out.
+TEST (SessionFile, ASlotWithNoFilesBehindItSaysNothingAboutThem)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+  set.channels[0].slots[0].patternName = "Wave";
+
+  auto const file = tempSession ("a3-session-no-references.json");
+  ASSERT_TRUE (saveSession (file, set));
+
+  auto const text = file.loadFileAsString ();
+  EXPECT_FALSE (text.contains ("\"clip\""));
+  EXPECT_FALSE (text.contains ("\"action\""));
+
+  auto const read = loadSession (file, 1, 1);
+  EXPECT_TRUE (read.channels[0].slots[0].clipFile.empty ());
+  EXPECT_TRUE (read.channels[0].slots[0].action.empty ());
+
+  file.deleteFile ();
+}
+
 // Every field a clip carries has to survive being written into a set as an
 // override, or a set quietly loses whatever it forgot to name -- and a set is
 // where a clip's deviations live. Walked off the shared list for the same
