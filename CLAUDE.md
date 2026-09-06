@@ -423,19 +423,20 @@ across — taken from the right it came out three pixels off, because `colW` is 
 the remainder sits against the right edge. A row that nearly lines up with the grid under it reads
 as a mistake; one that lines up exactly reads as structure.
 
-**The name is the clip field's value on the front face**, and lies over the picture on the back one.
-As a caption it cost the picture a whole row to say something you mostly already know — but the row
-is being spent on a control either way now, and a control that names what it changes beats a caption
-that only names it. So `trajectoryName` equals `clipField` on the front and `trajectoryIcon` on the
-back, where there is no field: which clip is in the slot is not a question the take you are
-recording asks.
+**The Shape section has two controls, and they are two questions**: the picture is which figure the
+sound traces, the field under it is which values it is played with. Each is scrolled with a thumb —
+the field was briefly a dropdown like ACTION's, which covered the picture you are choosing by.
 
-**The field is scrolled, not opened.** It carries the shape control's own identity — section 0,
-sub 0 — so a thumb pushed across the name sends exactly the increment the encoder sends, to exactly
-the handler the encoder reaches. Two hit areas, one control, one place that stops the old pattern,
-builds the new one and restarts it if it was running. It was briefly a dropdown like ACTION's, which
-covered the picture you are choosing by; a name you can push where the name is written needs no room
-of its own and hides nothing.
+They walk two different lists, and `stepThroughLibrary()` is what keeps them apart: the picture steps
+through the shapes, the field through the settings presets. One scroller over both walked them in a
+single list, so pushing the picture could quietly apply somebody's preset. **Swapping the figure
+keeps the values** — the settings are read off the old pattern and put back on the new one, because
+the one thing the picture must not change is how the slot is played.
+
+Two names, for the same reason: the shape's lies over the picture, the clip's is the field's value,
+and an empty field (`--`) is a slot playing a figure with no clip behind it. The field also carries
+the **drift dot** — warning-coloured, the same mark the slot keys used to have, saying the values
+have been turned since they were loaded and something is waiting to be written.
 
 **The header's channel faces keep the page on FILES too.** A face selects the clip the settings area
 describes, and FILES has one in mind — the slot a picked file is put into. Being thrown back to CLIP

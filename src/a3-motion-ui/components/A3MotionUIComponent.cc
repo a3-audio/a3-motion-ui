@@ -2514,6 +2514,38 @@ A3MotionUIComponent::libraryForBrowserRow (int row) const
   return _browserRowToLibrary[static_cast<size_t> (row)];
 }
 
+int
+A3MotionUIComponent::stepThroughLibrary (int from, int increment,
+                                         bool settings) const
+{
+  // Two lists in one library, walked one at a time. Which one an entry is on
+  // is its category: a settings preset says how a slot is played, everything
+  // else is a figure to play it on.
+  std::vector<int> kind;
+  for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
+    {
+      auto const isPreset = _patternLibrary->getEntry (i).category
+                            == PatternLibrary::Category::Settings;
+      if (isPreset == settings)
+        kind.push_back (i);
+    }
+
+  if (kind.empty () || increment == 0)
+    return -1;
+
+  auto const at = std::find (kind.begin (), kind.end (), from);
+  if (at == kind.end ())
+    // Not on this list at all -- a slot with no preset on it, say. The first
+    // step lands on an end of it rather than nowhere.
+    return increment > 0 ? kind.front () : kind.back ();
+
+  auto const size = static_cast<int> (kind.size ());
+  auto position = static_cast<int> (at - kind.begin ()) + increment;
+  position = ((position % size) + size) % size;
+
+  return kind[static_cast<size_t> (position)];
+}
+
 juce::File
 A3MotionUIComponent::chosenSetFile () const
 {
@@ -5170,7 +5202,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::motionIndex)
     return 10; // rot, fade, bias, dir, end, two squeezes, spin, swell, reach
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
-    return 4; // the shape, then rot, fade and bridge down its column
+    return 2; // the picture, and the clip field under it
   return 1;
 }
 
@@ -5286,14 +5318,28 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
   switch (section)
     {
-    case 0: // Shape — the shape in the slot, and nothing else. The speeds and
-            // the lengths have their own buttons; rot, fade and bias went to
-            // Motion, where what shapes a movement over time belongs.
+    case 0: // Shape — the picture (0) and the clip field under it (1). Two
+            // controls because they are two questions: which figure the sound
+            // traces, and which set of values it is played with. One scroller
+            // over both walked shapes and presets in one list, so scrolling
+            // the picture could quietly apply somebody's preset.
       {
         auto &pattern = _patterns[channel][slot];
 
-        // rot, fade and bias moved to Motion; the shape is all this section
-        // turns now.
+        if (sub == 1)
+          {
+            // The clip field: the settings presets, applied onto whatever
+            // shape is in the slot. applySettingsPreset() is the same way in
+            // the browser uses, so a preset means one thing however it is
+            // reached.
+            auto const held
+                = _patternLibrary->indexForClipFile (_slotClipFile[channel][slot]);
+            auto const next = stepThroughLibrary (held, increment, true);
+            if (next > 0)
+              applySettingsPreset (channel, slot, next);
+            break;
+          }
+
         if (sub != 0)
           break;
 
@@ -5301,12 +5347,20 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         if (pattern)
           currentIndex = trajectoryNameToIndex (pattern->getName ());
 
-        auto const numLibEntries = _patternLibrary->getNumEntries ();
-        int newIndex = currentIndex + increment;
+        // Shapes only. The settings the slot is playing with are not the
+        // shape's, and swapping the figure must not throw them away -- that
+        // is what the field under the picture is for.
+        auto const newIndex = stepThroughLibrary (currentIndex, increment,
+                                                  false);
         if (newIndex < 0)
-          newIndex = numLibEntries - 1;
-        else if (newIndex >= numLibEntries)
-          newIndex = 0;
+          break;
+
+        // Kept across the swap and put back on the new figure. Without this,
+        // reaching for another shape reset everything that had been dialled
+        // into the slot -- and the one thing the picture must not change is
+        // how the slot is played.
+        auto const held
+            = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
 
         bool const wasPlaying
             = pattern
@@ -5331,6 +5385,8 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         else
           {
             pattern = createPatternForIndex (newIndex, channel);
+            if (pattern)
+              applyClipSettings (*pattern, held);
             registerPatternDisplayData (pattern);
 
             if (wasPlaying && pattern)
@@ -5558,6 +5614,13 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       _clipSettings->setTrajectoryIcon (TrajectoryIconData{});
       _clipSettings->setTrajectoryName ("Empty");
     }
+
+  // What the slot is played with, and whether it has been turned since. The
+  // clip's file name rather than the shape's: they are two different things
+  // and the field beside the picture is the one that changes this one.
+  _clipSettings->setClipName (
+      _slotClipFile[channel][slot].getFileNameWithoutExtension (),
+      slotHasDrifted (channel, slot));
 
   // Both slots, not only the one on show: the keys sit side by side, and a
   // mark on one is only readable next to the absence of one on the other.

@@ -260,23 +260,6 @@ ClipSettingsComponent::createTouchControls ()
       _speedTouch[static_cast<size_t> (i)] = std::move (button);
     }
 
-  // The clip field: the picture's own control with a second place to reach
-  // it. Pushing the name scrolls the library, which is the same increment the
-  // encoder sends and goes to the same handler -- a list that covered the
-  // picture would have hidden the thing you are choosing by.
-  _clipFieldTouch = std::make_unique<TouchControl> ();
-  _clipFieldTouch->setIdentity (trajectoryIndex, 0);
-  _clipFieldTouch->onPress = [this] (int section, int sub) {
-    if (onControlTapped)
-      onControlTapped (section, sub);
-  };
-  _clipFieldTouch->onDragIncrement = [this] (int section, int sub,
-                                             int increment) {
-    if (onControlDragged)
-      onControlDragged (section, sub, increment);
-  };
-  addAndMakeVisible (*_clipFieldTouch);
-
   makeButton (_recModeTouch, &ClipSettingsComponent::onRecModePressed);
   makeButton (_clockModeTouch, &ClipSettingsComponent::onClockModePressed);
   makeButton (_menuTouch, &ClipSettingsComponent::onMenuPressed);
@@ -400,8 +383,6 @@ ClipSettingsComponent::resized ()
     _speedTouch[static_cast<size_t> (i)]->setBounds (
         _layout.speedButtons[static_cast<size_t> (i)]);
 
-  _clipFieldTouch->setBounds (_layout.clipField);
-
   _recModeTouch->setBounds (_layout.recModeButton);
   _clockModeTouch->setBounds (_layout.clockModeButton);
   _menuTouch->setBounds (_layout.menuButton);
@@ -436,6 +417,17 @@ void
 ClipSettingsComponent::setTrajectoryIcon (TrajectoryIconData const &icon)
 {
   _trajectoryIcon = icon;
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setClipName (juce::String const &name, bool drifted)
+{
+  if (name == _clipName && drifted == _clipDrifted)
+    return;
+
+  _clipName = name;
+  _clipDrifted = drifted;
   repaint ();
 }
 
@@ -931,9 +923,6 @@ ClipSettingsComponent::setPage (BarPage page)
     if (button)
       button->setVisible (_page == BarPage::Clip);
 
-  // The clip field lives on the front face only -- the back face has the
-  // lengths in that room.
-  _clipFieldTouch->setVisible (_page == BarPage::Clip);
 
   repaint ();
 }
@@ -1417,12 +1406,23 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
                         speedButtonNames[i], {},
                         _speedLog2 == speedButtonLog2[i], isSelected);
 
-      // The clip field: what is in the slot, and a place to push it with a
-      // thumb. Drawn as a value rather than as a lit button -- nothing opens,
-      // so there is no open state to show. The name is the field's value; see
-      // the layout for why it came down off the picture.
-      paintBarButton (g, _layout.clipField, _trajectoryName, caption::clip,
-                      false, isSelected);
+      // The clip field: which settings the slot is played with, and a place to
+      // push through them with a thumb. Not the shape's name -- that is over
+      // the picture, beside the control that changes it.
+      paintBarButton (g, _layout.clipField,
+                      _clipName.isEmpty () ? juce::String ("--") : _clipName,
+                      caption::clip, false,
+                      isSelected && _trajectorySubIndex == 1);
+
+      // Turned since it was loaded. The warning colour rather than the danger
+      // one: nothing is lost yet, something is merely waiting to be written --
+      // and it is the same dot the slot keys used to carry, in the same
+      // colour, because it answers the same question.
+      if (_clipDrifted && !_layout.clipField.isEmpty ())
+        {
+          g.setColour (toColour (theme ().warning));
+          g.fillEllipse (driftMark (_layout.clipField).toFloat ());
+        }
     }
 
   // Pictogram, centred in whatever square area is left above the name.
@@ -1452,20 +1452,14 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   //
   // Plain, not bold: a value already stands out against its caption by being
   // larger and brighter, and bold on top of that reads as shouting.
-  //
-  // Only on the back face. On the front the clip field above has already
-  // written it, and a name in two places is a name you have to check.
-  if (recording)
-    {
-      g.setFont (juce::Font (
-          juce::jmin (metrics.valueSize,
-                      static_cast<float> (_layout.trajectoryName.getHeight ())
-                          * 0.85f),
-          juce::Font::plain));
-      g.setColour (controlColour (isSelected));
-      g.drawFittedText (_trajectoryName, _layout.trajectoryName,
-                        juce::Justification::centred, 1);
-    }
+  g.setFont (juce::Font (
+      juce::jmin (metrics.valueSize,
+                  static_cast<float> (_layout.trajectoryName.getHeight ())
+                      * 0.85f),
+      juce::Font::plain));
+  g.setColour (controlColour (isSelected && _trajectorySubIndex == 0));
+  g.drawFittedText (_trajectoryName, _layout.trajectoryName,
+                    juce::Justification::centred, 1);
 }
 
 void

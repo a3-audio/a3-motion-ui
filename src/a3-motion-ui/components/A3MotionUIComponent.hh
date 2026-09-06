@@ -242,6 +242,12 @@ private:
   juce::File chosenActionFile () const;
   /** The set file the browser's chosen row stands for, or nothing. */
   juce::File chosenSetFile () const;
+  /** The next library entry of the same kind as `from`, wrapping. The Shape
+   *  section's two controls walk one kind each: the picture the figures, the
+   *  field under it the settings presets. -1 when there are none of that
+   *  kind. */
+  int stepThroughLibrary (int from, int increment, bool settings) const;
+
   /** The library entry the browser's chosen row stands for, or -1. */
   int chosenLibraryIndex () const;
   /** The two directions of `_browserRowToLibrary`. Minus one either way for

@@ -77,7 +77,8 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_EQ (l.controls[0].size (), 1u); // Shape: just the picture
+  // Shape: the picture, and the clip field under it
+  EXPECT_EQ (l.controls[0].size (), 2u);
   EXPECT_EQ (l.controls[1].size (), 3u); // Elevation: the clips and reach
   // Motion: rot, fade, bias, dir, end, the two squeezes, the three sweeps
   EXPECT_EQ (l.controls[2].size (), 10u);
@@ -881,12 +882,12 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
 
 // ── Shape: the name beside the knob, the picture given the room ──────────
 
-// On the front face the name is the clip field's value: the row is being
-// spent on a control either way, and a control that names what it changes
-// beats a caption that only names it. On the back face there is no field --
-// which clip is in the slot is not a question the take you are recording
-// asks -- so the name keeps its old place over the picture.
-TEST (ClipSettingsLayout, TheNameIsTheClipFieldOnTheFrontAndACaptionOnTheBack)
+// The picture keeps its own name and the field names the clip. Two names
+// because they are two things -- which figure the sound traces, and which
+// values it is played with -- and the two controls here change one each. A
+// field naming the shape would have been a second copy of what is written
+// over the picture, and nothing at all saying which clip you are on.
+TEST (ClipSettingsLayout, ThePictureNamesTheShapeAndTheFieldNamesTheClip)
 {
   auto const front
       = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, BarPage::Clip);
@@ -895,13 +896,24 @@ TEST (ClipSettingsLayout, TheNameIsTheClipFieldOnTheFrontAndACaptionOnTheBack)
 
   ASSERT_FALSE (front.trajectoryIcon.isEmpty ());
   ASSERT_FALSE (front.clipField.isEmpty ());
-  EXPECT_EQ (front.trajectoryName, front.clipField);
+  EXPECT_EQ (front.trajectoryName, front.trajectoryIcon)
+      << "the shape's name lies over its picture";
   EXPECT_FALSE (front.clipField.intersects (front.trajectoryIcon))
       << "the field would be drawn over the picture it stands under";
 
+  // The two are the section's two controls, in reading order.
+  ASSERT_EQ (front.controls[0].size (), 2u);
+  EXPECT_EQ (front.controls[0][0], front.trajectoryIcon);
+  EXPECT_EQ (front.controls[0][1], front.clipField);
+
+  // On the back face there is no field -- which clip is in the slot is not a
+  // question the take you are about to record asks -- and an empty cell is
+  // one nothing can land on.
   ASSERT_FALSE (back.trajectoryIcon.isEmpty ());
   EXPECT_TRUE (back.clipField.isEmpty ());
   EXPECT_EQ (back.trajectoryName, back.trajectoryIcon);
+  ASSERT_EQ (back.controls[0].size (), 2u);
+  EXPECT_TRUE (back.controls[0][1].isEmpty ());
 }
 
 // The field is a fingertip tall wherever the bar is, and stands between the
@@ -1154,7 +1166,7 @@ TEST (ClipSettingsLayout, TheFadeIsAMotionValueNow)
   auto const l = defaultLayout ();
 
   ASSERT_EQ (l.controls[2].size (), 10u);
-  ASSERT_EQ (l.controls[0].size (), 1u);
+  ASSERT_EQ (l.controls[0].size (), 2u);
 
   // Index one since the spin left -- see OnlyFewValuedControlsAdvanceOnTap.
   EXPECT_FALSE (l.controls[2][1].isEmpty ());

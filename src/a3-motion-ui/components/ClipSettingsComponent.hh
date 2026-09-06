@@ -146,6 +146,14 @@ public:
   void setTrajectoryIcon (TrajectoryIconData const &icon);
   void setTrajectoryName (juce::String const &name);
 
+  /** What the clip field says: the name of the settings the slot is played
+   *  with, and whether they have been turned since they were loaded.
+   *
+   *  Not the shape's name -- that is over the picture, where the control that
+   *  changes it is. An empty name is a slot playing a figure with no clip
+   *  behind it, which is a thing you can be in and worth being able to see. */
+  void setClipName (juce::String const &name, bool drifted);
+
 
   /** Elevation section values, shown as six small controls, always visible
    *  together. reach/clipTop/clipBottom/flatElevation are unipolar
@@ -514,6 +522,8 @@ private:
   TrajectoryIconData _trajectoryIcon;
   RecMode _recMode = RecMode::Touch;
   juce::String _trajectoryName{ "Empty" };
+  juce::String _clipName;
+  bool _clipDrifted = false;
   float _elevationReach = 0.5f;
   float _elevationBase = 0.f;
   float _elevationBaseSwept = -1.f;
@@ -594,11 +604,7 @@ private:
       _gridTouch;
   std::array<std::unique_ptr<TouchControl>, numRecordLengths> _lengthTouch;
   std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
-  /** The clip field. A second hit area on the shape control the picture
-   *  already is -- pushing the name scrolls the library, the same increments
-   *  from the same handler -- so it carries that control's identity rather
-   *  than being one of `controls` itself. */
-  std::unique_ptr<TouchControl> _clipFieldTouch;
+
   std::unique_ptr<TouchControl> _recModeTouch;
   std::unique_ptr<TouchControl> _clockModeTouch;
   std::unique_ptr<TouchControl> _menuTouch;

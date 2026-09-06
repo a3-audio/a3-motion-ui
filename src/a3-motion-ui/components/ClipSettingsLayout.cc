@@ -75,7 +75,8 @@ numControlsInSection (int sectionIndex)
   switch (sectionIndex)
     {
     case 0:
-      return 1; // just the shape now -- rot, fade and bias went to Motion
+      // The picture and the clip field: which figure, and which values.
+      return 2;
     case 1:
       // clip-top, clip-bottom, then the sway. reach went to Motion to stand
       // beside the swell that sweeps it -- the two of them are one control
@@ -402,11 +403,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // face only: the back face is the take you are about to make, and which
     // clip is in the slot is not a question it asks.
     //
-    // The name moves into it. It used to lie over the picture, on the
-    // reasoning that a caption cost a whole row to say something you already
-    // knew -- but the row is being spent either way now, and spent on a
-    // place to push the name with a thumb it buys more than a caption did.
-    // One name, in the one place that also changes it.
+    // The field names the *clip* -- the settings the slot is played with --
+    // and the picture keeps its own name over it. Two names because they are
+    // two things, and the two controls under a finger here change one each:
+    // the picture swaps the figure, the field swaps the values.
     if (!recording)
       {
         auto const fieldH = juce::jmin (content.getHeight (),
@@ -414,15 +414,14 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                                                     out.buttonHeight));
         out.clipField = content.removeFromBottom (fieldH);
         content.removeFromBottom (gap);
-        out.trajectoryName = out.clipField;
-      }
-    else
-      {
-        // On the back face the name keeps its old place over the picture.
-        out.trajectoryName = content;
       }
 
+    // The name lies over the picture rather than under it. As a caption it
+    // cost the picture a whole row and told you something you mostly already
+    // know -- you chose the trajectory. Over it, it is there when you look for
+    // it and out of the way when you are reading the shape.
     out.trajectoryIcon = content;
+    out.trajectoryName = content;
 
     {
       std::array<juce::Rectangle<int>, 3> rows;
@@ -447,11 +446,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
           place (i, out.speedButtons[static_cast<size_t> (i)]);
     }
 
-    // The picture, and nothing else. The lengths and the speeds are not values
-    // a finger turns, so they are not sub-elements of the section; the clip
-    // field is one, but it is a second hit area on this same control rather
-    // than a control of its own.
-    out.controls[0] = { out.trajectoryIcon };
+    // Two: the picture, and the clip field under it. The lengths and the
+    // speeds are not values a finger turns, so they are not sub-elements of
+    // the section. On the record face the field is empty, and an empty cell
+    // is one nothing can land on.
+    out.controls[0] = { out.trajectoryIcon, out.clipField };
   }
 
   // ── Elevation ────────────────────────────────────────────────────────
