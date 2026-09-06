@@ -537,6 +537,20 @@ ClipSettingsComponent::setMotionBridgeBias (int bias)
 }
 
 void
+ClipSettingsComponent::setMotionSqueeze (float squeezeX, float squeezeY)
+{
+  auto const heldX = juce::jlimit (-1.f, 1.f, squeezeX);
+  auto const heldY = juce::jlimit (-1.f, 1.f, squeezeY);
+  if (juce::approximatelyEqual (heldX, _motionSqueezeX)
+      && juce::approximatelyEqual (heldY, _motionSqueezeY))
+    return;
+
+  _motionSqueezeX = heldX;
+  _motionSqueezeY = heldY;
+  repaint ();
+}
+
+void
 ClipSettingsComponent::setMotionFadeReach (float reach)
 {
   _motionFadeReach = juce::jlimit (0.f, 1.f, reach);
@@ -1426,9 +1440,11 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
       < static_cast<size_t> (numControlsInSection (motionIndex)))
     return;
 
-  // rot above, the fade with the bias that says where a drawn-through gap
-  // leads below, and the two lists along the floor. The spin that turns the
-  // shape has gone to ACTION, beside the other two slow sweeps.
+  // rot above, the two squeezes under it, the fade with the bias that says
+  // where a drawn-through gap leads below them, and the two lists along the
+  // floor. rot and the squeezes are one group -- what is done to the recorded
+  // figure in its own plane -- and the spin that drives rot has gone to
+  // ACTION, beside the other two slow sweeps.
   //
   // rot is a closed ring: rotation comes round to itself, so its scale has to
   // as well. The pointer is where the hand left it; the blue runs from there
@@ -1448,6 +1464,16 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   paintMiniKnob (g, cells[2], metrics, caption::bias,
                  static_cast<float> (_motionBridgeBias) / 4.f, true,
                  _motionSubIndex == 2, isSelected);
+
+  // The two squeezes, between rot and the fade: bipolar, so the ring runs
+  // from twelve o'clock either way and the middle of the travel is the take
+  // as it was recorded. The pot's own value is drawn, not the factor it comes
+  // to -- half and double are the same distance from the middle by feel, and a
+  // ring drawn on the factor would put unity a third of the way round.
+  paintMiniKnob (g, cells[5], metrics, caption::squeezeX, _motionSqueezeX,
+                 true, _motionSubIndex == 5, isSelected);
+  paintMiniKnob (g, cells[6], metrics, caption::squeezeY, _motionSqueezeY,
+                 true, _motionSubIndex == 6, isSelected);
 
   // They step on a tap -- no chevron, because nothing opens any more.
   paintBarButton (g, cells[3], value::directionNames[_motionDirection],

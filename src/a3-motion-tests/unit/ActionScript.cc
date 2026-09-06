@@ -219,11 +219,15 @@ TEST (ActionScript, ABadLineIsReportedAndTheRestStillRuns)
 
 TEST (ActionScript, AValueOutsideItsRangeIsBroughtBackIn)
 {
-  auto const out = run ("~reach = 4;\n~envelopeMax = -1;\n~spin = 99;\n");
+  auto const out = run ("~reach = 4;\n~envelopeMax = -1;\n~spin = 99;\n"
+                       "~sqzX = 9;\n~sqzY = -9;\n");
 
   EXPECT_LE (out.reach, 1.f);
   EXPECT_GE (out.envelopeMax, 0.f);
   EXPECT_LE (out.spin, lfoMaxStep);
+  // Bipolar, so it is held at both ends rather than at zero and one.
+  EXPECT_FLOAT_EQ (out.squeezeX, 1.f);
+  EXPECT_FLOAT_EQ (out.squeezeY, -1.f);
 }
 
 TEST (ActionScript, RubbishIsReportedRatherThanGuessedAt)
@@ -254,6 +258,8 @@ TEST (ActionScript, WhatIsWrittenCanBeReadBack)
   settings.actMode = ActMode::Hold;
   settings.qMax = 0.75f;
   settings.bridgeBias = 2;
+  settings.squeezeX = 0.5f;
+  settings.squeezeY = -0.25f;
 
   auto const source = actionScriptFor (settings);
   auto const back = run (source);

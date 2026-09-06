@@ -199,6 +199,11 @@ public:
   /** Where a drawn-through gap leads, -4..+4. */
   void setMotionBridgeBias (int bias);
 
+  /** How far the figure is squeezed along each horizontal axis, bipolar with
+   *  the middle at zero. X is front-back (the screen's vertical), Y
+   *  left-right -- see PlaneShaping. */
+  void setMotionSqueeze (float squeezeX, float squeezeY);
+
   /** The accent's shape, as Envelope steps: how long it rises while ACT is
    *  held, how long it falls once let go. */
   void setMotionEnvelope (int attackStep, int decayStep);
@@ -514,6 +519,8 @@ private:
   int _motionSubIndex = 0;
   float _motionFadeReach = 0.25f;
   int _motionBridgeBias = 0;
+  float _motionSqueezeX = 0.f;
+  float _motionSqueezeY = 0.f;
   int _motionAttack = 0;
   int _motionDecay = 0;
   float _motionEnvelopeMax = 1.f;

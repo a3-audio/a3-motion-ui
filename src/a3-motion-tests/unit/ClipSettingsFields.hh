@@ -46,6 +46,8 @@ clipSettingsFields ()
       fields{
         { "speedLog2", [] (ClipSettings &s) { s.speedLog2 = -3; } },
         { "rotate", [] (ClipSettings &s) { s.rotate = 0.3f; } },
+        { "squeezeX", [] (ClipSettings &s) { s.squeezeX = 0.4f; } },
+        { "squeezeY", [] (ClipSettings &s) { s.squeezeY = -0.6f; } },
         { "reach", [] (ClipSettings &s) { s.reach = 0.9f; } },
         { "clipTop", [] (ClipSettings &s) { s.clipTop = 0.2f; } },
         { "clipBottom", [] (ClipSettings &s) { s.clipBottom = 0.3f; } },
@@ -56,6 +58,7 @@ clipSettingsFields ()
         { "flatElevation", [] (ClipSettings &s) { s.flatElevation = 0.8f; } },
         { "spin", [] (ClipSettings &s) { s.spin = 5; } },
         { "reachLfo", [] (ClipSettings &s) { s.reachLfo = -4; } },
+        { "elevationLfo", [] (ClipSettings &s) { s.elevationLfo = 3; } },
         { "envelopeAttack", [] (ClipSettings &s) { s.envelopeAttack = 6; } },
         { "envelopeDecay", [] (ClipSettings &s) { s.envelopeDecay = 6; } },
         { "envelopeMax", [] (ClipSettings &s) { s.envelopeMax = 0.1f; } },

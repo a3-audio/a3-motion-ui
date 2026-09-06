@@ -23,7 +23,7 @@
 #include <a3-motion-engine/ClipSettings.hh>
 
 #include <a3-motion-engine/TempoLfo.hh>
-#include <a3-motion-engine/TrajectorySpin.hh>
+#include <a3-motion-engine/TrajectoryShaping.hh>
 
 #include <a3-motion-engine/TrajectoryShape.hh>
 
@@ -1453,7 +1453,7 @@ drawPathOnSphere (juce::Path const &displayPath,
                   ElevationParams const &elevationParams,
                   HeightMap const &heightMap,
                   juce::Graphics &g,
-                  float spinPhase)
+                  PlaneShaping const &shaping)
 {
   if (displayPath.isEmpty ())
     return;
@@ -1491,14 +1491,14 @@ drawPathOnSphere (juce::Path const &displayPath,
   };
 
   // Project a 2D HOA point onto the sphere and return screen pos + z.
-  // Every point of the line comes through here, which is why the spin is
-  // applied here and not by transforming the path: turning the path would
+  // Every point of the line comes through here, which is why the shaping is
+  // applied here and not by transforming the path: transforming the path would
   // mean copying it every frame, and the sub-sampling below would then be
-  // measuring distances on the turned copy.
+  // measuring distances on the transformed copy.
   auto projectPoint = [&] (float x, float y)
       -> std::pair<juce::Point<float>, float> {
     auto pos3D = heightMap.mapTo3D (
-        spinPosition (Pos::fromCartesian (x, y, 0.f), spinPhase),
+        shapedPosition (Pos::fromCartesian (x, y, 0.f), shaping),
         elevationParams);
     return { cartesian2DHOA2JUCE (pos3D), pos3D.z () };
   };
@@ -1637,11 +1637,12 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
     }
 
   auto constexpr lineThickness = 0.03f;
-  // 0.f: a take is recorded in the frame it was played in. Turning the trail
-  // under the finger would draw the take somewhere the finger never was.
+  // Unshaped: a take is recorded in the frame it was played in. Turning or
+  // squeezing the trail under the finger would draw the take somewhere the
+  // finger never was.
   drawPathOnSphere (path, lineThickness, 0.9f, _uiStates[ch]->colour, true,
                     pattern.getElevationParams (), _engine.getHeightMap (), g,
-                    0.f);
+                    PlaneShaping{});
 }
 
 void
@@ -1674,7 +1675,7 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
     }
 
   drawPathOnSphere (path, lineThickness, underlayOpacity, colour, true, params,
-                    _engine.getHeightMap (), g, 0.f);
+                    _engine.getHeightMap (), g, PlaneShaping{});
 
   // And where it would be right now. The write head's own position is the
   // phase into the loop -- the old pattern is not playing, so there is nothing
@@ -1713,6 +1714,9 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
   // The same sweep the engine applies before it projects (performPlayback):
   // the drawn coverage has to be the coverage the blob is running in.
   auto const params = sweptElevation (pattern.getElevationParams (), pattern);
+  // The same turn and the same squeeze the engine puts the blob through
+  // (performPlayback): the drawn line has to be the line it is running on.
+  auto const shaping = shapingOf (pattern);
   auto const &heightMap = _engine.getHeightMap ();
 
   // ── Handle jump-dot patterns ──
@@ -1724,8 +1728,8 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
-              spinPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
-                            pattern.getRotate () + pattern.getSpinPhase ()),
+              shapedPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
+                              shaping),
               params);
           auto posJuce = cartesian2DHOA2JUCE (pos3D);
           g.setColour (colour);
@@ -1737,7 +1741,7 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
 
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
-                    false, params, heightMap, g, pattern.getRotate () + pattern.getSpinPhase ());
+                    false, params, heightMap, g, shaping);
 }
 
 void
@@ -1756,6 +1760,9 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   // The same sweep the engine applies before it projects (performPlayback):
   // the drawn coverage has to be the coverage the blob is running in.
   auto const params = sweptElevation (pattern.getElevationParams (), pattern);
+  // The same turn and the same squeeze the engine puts the blob through
+  // (performPlayback): the drawn line has to be the line it is running on.
+  auto const shaping = shapingOf (pattern);
   auto const &heightMap = _engine.getHeightMap ();
 
   // ── Handle jump-dot patterns ──
@@ -1765,8 +1772,8 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
-              spinPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
-                            pattern.getRotate () + pattern.getSpinPhase ()),
+              shapedPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
+                              shaping),
               params);
           auto posJuce = cartesian2DHOA2JUCE (pos3D);
           float fade = (pos3D.z () < 0.f)
@@ -1782,7 +1789,7 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
 
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
-                    true, params, heightMap, g, pattern.getRotate () + pattern.getSpinPhase ());
+                    true, params, heightMap, g, shaping);
 }
 
 juce::Point<float>

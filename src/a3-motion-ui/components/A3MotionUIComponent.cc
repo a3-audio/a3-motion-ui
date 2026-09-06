@@ -4380,7 +4380,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::elevationIndex)
     return 3; // clip-top, clip-bottom, reach
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 5; // rot, fade, bias, dir, end
+    return 7; // rot, fade, bias, dir, end, then the two squeezes
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
     return 4; // the shape, then rot, fade and bridge down its column
   return 1;
@@ -4442,8 +4442,9 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         return;
       break;
 
-    case 2: // Motion — rot (0), fade (1), bias (2). Renumbered with the
-            // handler above when spin left for the ACTION page.
+    case 2: // Motion — rot (0), fade (1), bias (2), then the two squeezes at
+            // five and six. Appended rather than inserted where they sit, so
+            // nothing else here had to move.
       if (!pattern)
         return;
       // Only the knobs have a middle to go back to; direction and end action
@@ -4456,6 +4457,11 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
           pattern->setBridgeBias (0);
           refreshPatternDisplayFromTicks (pattern);
           break;
+        // The figure as it was recorded. Worth a double tap of its own: a
+        // squeeze is easy to push somewhere unrecognisable, and finding the
+        // exact middle of a knob by hand mid-set is not a thing anyone does.
+        case 5: pattern->setSqueezeX (0.f); break;
+        case 6: pattern->setSqueezeY (0.f); break;
         default: return;
         }
       break;
@@ -4569,11 +4575,12 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         break;
       }
     case 2: // Motion — rot (0), fade (1), bias (2), direction (3),
-            // end-action (4). What the movement *is* in the plane; the spin
-            // that turns it went to ACTION with the other two slow sweeps,
-            // and everything after it moved up one. Renumbering a section
-            // means moving the layout, tapAdvancesValue, this handler, the
-            // reset handler and the painter together -- see CLAUDE.md.
+            // end-action (4), sqzX (5), sqzY (6). What the movement *is* in
+            // the plane. Renumbering a section means moving the layout,
+            // tapAdvancesValue, this handler, the reset handler and the
+            // painter together -- see CLAUDE.md -- which is exactly why the
+            // squeezes were appended at the end rather than given the seats
+            // they occupy on screen.
       {
         auto &pattern = _patterns[channel][slot];
 
@@ -4614,6 +4621,22 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           case 3:
             params.direction = (params.direction + increment % 2 + 2) % 2;
             applyMotionMode (channel, slot);
+            break;
+
+          case 5:
+          case 6:
+            // The two squeezes. A twentieth of the travel per step, like the
+            // fade beside them: the whole range is one full turn of an
+            // encoder rather than a flick, because half and double are a long
+            // way apart on a moving figure.
+            if (pattern)
+              {
+                auto const amount = 0.02f * static_cast<float> (increment);
+                if (sub == 5)
+                  pattern->setSqueezeX (pattern->getSqueezeX () + amount);
+                else
+                  pattern->setSqueezeY (pattern->getSqueezeY () + amount);
+              }
             break;
 
           default:
@@ -4784,6 +4807,9 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       pattern ? pattern->getFadeReach () : ClipSettings{}.fadeReach);
   _clipSettings->setMotionBridgeBias (
       pattern ? pattern->getBridgeBias () : ClipSettings{}.bridgeBias);
+  _clipSettings->setMotionSqueeze (
+      pattern ? pattern->getSqueezeX () : ClipSettings{}.squeezeX,
+      pattern ? pattern->getSqueezeY () : ClipSettings{}.squeezeY);
   _clipSettings->setMotionEnvelope (
       pattern ? pattern->getEnvelopeAttack () : 0,
       pattern ? pattern->getEnvelopeDecay () : 0);

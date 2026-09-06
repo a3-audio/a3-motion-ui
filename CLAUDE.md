@@ -161,6 +161,27 @@ generator and the test runner:
   `playPosition` and resets when playback starts, so a clip fired again begins where it was
   recorded.
 
+- `TrajectoryShaping` — **everything done to a recorded 2D position before it is projected**, in
+  one bundle (`PlaneShaping`: the turn, and a squeeze per horizontal axis) and one function
+  (`shapedPosition()`). Neither the engine nor the renderer composes transforms of its own any
+  more; both build a `PlaneShaping` with `shapingOf(pattern)` and hand it over. That is the same
+  reasoning behind `sweptElevation()`: five places each composing their own transforms is five
+  chances for the drawn line and the running blob to disagree, and the disagreement is only
+  visible as a blob floating beside its own path.
+
+  The two squeezes (`sqzX`, `sqzY` in the Motion section, the clip file, a set and a script) are
+  bipolar with their middle at zero and multiply their axis by `2^value` — half at one end, double
+  at the other, so a squeeze undoes the stretch the same distance the other way and the middle of
+  the travel is the take as recorded. **X is front-back, Y is left-right**, and since the screen
+  mirrors these coordinates (`{ -y, -x }`) `sqzX` is what a viewer reads as the sphere's
+  *vertical*. Unlike the spin there is no sign to arrange: a mirror leaves a scaling about the
+  origin alone.
+
+  **The squeeze happens before the turn.** The ellipse belongs to the figure and travels with it,
+  which is what "I flattened my orbit and set it spinning" means. Turning first would leave the
+  ellipse standing in the room, and a spinning circle — the commonest take there is — would look
+  as though the spin had stopped working.
+
   **The clip's third modulation is not a movement at all.** `Envelope` is the accent: it rises while
   the **ACT pad is held**, stays up for as long as it is held, and falls when it is let go. The hold
   is the finger, which is why there is no sustain control — on a pad, how long a thing lasts is a

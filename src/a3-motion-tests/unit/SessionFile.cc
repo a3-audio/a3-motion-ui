@@ -205,6 +205,8 @@ TEST (SessionFile, WhatASlotHasBeenTurnedToSurvivesTheRoundTrip)
   ClipSettings turned;
   turned.spin = 4;
   turned.rotate = 0.5f;
+  turned.squeezeX = -0.5f;
+  turned.squeezeY = 0.25f;
   turned.endAction = EndAction::Bounce;
   set.channels[0].slots[0].overrides = turned;
 
@@ -215,6 +217,8 @@ TEST (SessionFile, WhatASlotHasBeenTurnedToSurvivesTheRoundTrip)
   ASSERT_TRUE (read.channels[0].slots[0].overrides.has_value ());
   EXPECT_EQ (read.channels[0].slots[0].overrides->spin, 4);
   EXPECT_FLOAT_EQ (read.channels[0].slots[0].overrides->rotate, 0.5f);
+  EXPECT_FLOAT_EQ (read.channels[0].slots[0].overrides->squeezeX, -0.5f);
+  EXPECT_FLOAT_EQ (read.channels[0].slots[0].overrides->squeezeY, 0.25f);
   EXPECT_EQ (read.channels[0].slots[0].overrides->endAction,
              EndAction::Bounce);
 

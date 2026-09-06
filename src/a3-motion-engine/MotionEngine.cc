@@ -23,7 +23,7 @@
 #include <a3-motion-engine/util/Slew.hh>
 
 #include <a3-motion-engine/TempoLfo.hh>
-#include <a3-motion-engine/TrajectorySpin.hh>
+#include <a3-motion-engine/TrajectoryShaping.hh>
 
 #include <cstddef>
 
@@ -1211,15 +1211,17 @@ MotionEngine::performPlayback ()
 
               if (position2D.isValid ())
                 {
-                  // Turned before it is projected: in the recorded 2D disc
+                  // Shaped before it is projected: in the recorded 2D disc
                   // the radius is the elevation and the angle is the azimuth,
-                  // so this turns the trajectory around the pole and leaves
-                  // every point at the height it was played in at.
-                  // The standing angle and the running one, summed: they
-                  // are one rotation asked for in two ways, and turning twice
-                  // would be two chances to disagree about the direction.
-                  position2D = spinPosition (
-                      position2D, playing.getRotate () + playing.getSpinPhase ());
+                  // so turning the disc turns the trajectory around the pole
+                  // and leaves every point at the height it was played in at,
+                  // while squeezing an axis of it presses the figure flat
+                  // without moving where it sits.
+                  //
+                  // One call, and the renderer makes the same one -- see
+                  // shapedPosition(), which also fixes the order the two
+                  // happen in.
+                  position2D = shapedPosition (position2D, shapingOf (playing));
 
                   // Apply this clip's own elevation mapping (sphere
                   // projection) at playback time — elevation parameters

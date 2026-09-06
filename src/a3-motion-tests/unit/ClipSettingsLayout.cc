@@ -79,7 +79,8 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 
   EXPECT_EQ (l.controls[0].size (), 1u); // Shape: just the picture
   EXPECT_EQ (l.controls[1].size (), 3u); // Elevation: the clips and reach
-  EXPECT_EQ (l.controls[2].size (), 5u); // Motion: rot, fade, bias, dir, end
+  // Motion: rot, fade, bias, dir, end, then the two squeezes appended
+  EXPECT_EQ (l.controls[2].size (), 7u);
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 
@@ -366,10 +367,13 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
     {
       auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
       auto const &motion = l.controls[2];
-      ASSERT_EQ (motion.size (), 5u) << "height " << height;
+      ASSERT_EQ (motion.size (), 7u) << "height " << height;
 
-      // fade beside bias, and the two lists beside each other.
+      // fade beside bias, the two squeezes beside each other, and the two
+      // lists beside each other.
       EXPECT_EQ (motion[1].getHeight (), motion[2].getHeight ())
+          << "height " << height;
+      EXPECT_EQ (motion[5].getHeight (), motion[6].getHeight ())
           << "height " << height;
       EXPECT_EQ (motion[3].getHeight (), motion[4].getHeight ())
           << "height " << height;
@@ -377,8 +381,42 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
       // rot stands alone above them and shares the knob rows' height.
       EXPECT_EQ (motion[0].getHeight (), motion[1].getHeight ())
           << "height " << height;
-      EXPECT_LT (motion[0].getBottom (), motion[1].getBottom ())
+      EXPECT_EQ (motion[0].getHeight (), motion[5].getHeight ())
           << "height " << height;
+    }
+}
+
+// Which knob sits where. The three that transform the recorded figure -- rot
+// and the two squeezes -- stand together at the top, the fade and the bias
+// that read the take's holes under them, the two lists along the floor. A
+// hand reaches for a group, not for a word.
+TEST (ClipSettingsLayout, TheSqueezesStandUnderRotAndAboveTheFade)
+{
+  for (int height : { 200, 314, 460 })
+    {
+      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
+      auto const &motion = l.controls[2];
+      ASSERT_EQ (motion.size (), 7u) << "height " << height;
+
+      // rot above both squeezes, both squeezes above the fade and the bias.
+      EXPECT_LE (motion[0].getBottom (), motion[5].getY () + 1)
+          << "height " << height;
+      EXPECT_LE (motion[0].getBottom (), motion[6].getY () + 1)
+          << "height " << height;
+      EXPECT_LE (motion[5].getBottom (), motion[1].getY () + 1)
+          << "height " << height;
+      EXPECT_LE (motion[6].getBottom (), motion[2].getY () + 1)
+          << "height " << height;
+
+      // Side by side on one row, in the order they are named.
+      EXPECT_EQ (motion[5].getY (), motion[6].getY ()) << "height " << height;
+      EXPECT_LT (motion[5].getRight (), motion[6].getX () + 1)
+          << "height " << height;
+
+      // And they are laid out like the pair below them, not squeezed in
+      // beside it: same columns, same width.
+      EXPECT_EQ (motion[5].getX (), motion[1].getX ()) << "height " << height;
+      EXPECT_EQ (motion[6].getX (), motion[2].getX ()) << "height " << height;
     }
 }
 
@@ -1032,7 +1070,7 @@ TEST (ClipSettingsLayout, TheFadeIsAMotionValueNow)
 {
   auto const l = defaultLayout ();
 
-  ASSERT_EQ (l.controls[2].size (), 5u);
+  ASSERT_EQ (l.controls[2].size (), 7u);
   ASSERT_EQ (l.controls[0].size (), 1u);
 
   // Index one since the spin left -- see OnlyFewValuedControlsAdvanceOnTap.
@@ -1154,18 +1192,20 @@ TEST (ClipSettingsLayout, ElevationIsTheTwoClipsAndReach)
     EXPECT_FALSE (tapTogglesValue (1, sub)) << "sub " << sub;
 }
 
-// And Motion keeps what shapes the movement in the plane: the standing angle
-// with its spin, the fade with its bias, and the two lists.
+// And Motion keeps what shapes the movement in the plane: the standing angle,
+// the two squeezes, the fade with its bias, and the two lists.
 TEST (ClipSettingsLayout, MotionIsWhatTheMovementIsWithoutItsSweeps)
 {
-  EXPECT_EQ (numControlsInSection (2), 5);
+  EXPECT_EQ (numControlsInSection (2), 7);
 
   auto const l = defaultLayout ();
-  ASSERT_EQ (l.controls[2].size (), 5u);
+  ASSERT_EQ (l.controls[2].size (), 7u);
 
+  // The squeezes were appended rather than inserted where they sit, so the
+  // two lists keep the sub-indices every other place already gives them.
   EXPECT_TRUE (tapAdvancesValue (2, 3));
   EXPECT_TRUE (tapAdvancesValue (2, 4));
-  for (int sub = 0; sub < 3; ++sub)
+  for (int sub : { 0, 1, 2, 5, 6 })
     EXPECT_FALSE (tapAdvancesValue (2, sub)) << "knob " << sub;
 }
 

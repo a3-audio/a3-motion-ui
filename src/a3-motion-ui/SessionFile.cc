@@ -61,6 +61,10 @@ writeOverrides (a3::ClipSettings const &settings)
     put ("speed", settings.speedLog2);
   if (settings.rotate != defaults.rotate)
     put ("rotate", settings.rotate);
+  if (settings.squeezeX != defaults.squeezeX)
+    put ("sqzX", settings.squeezeX);
+  if (settings.squeezeY != defaults.squeezeY)
+    put ("sqzY", settings.squeezeY);
   if (settings.reach != defaults.reach)
     put ("reach", settings.reach);
   if (settings.clipTop != defaults.clipTop)
@@ -127,6 +131,8 @@ readOverrides (juce::var const &value)
 
   settings.speedLog2 = read ("speed", settings.speedLog2);
   settings.rotate = read ("rotate", settings.rotate);
+  settings.squeezeX = read ("sqzX", settings.squeezeX);
+  settings.squeezeY = read ("sqzY", settings.squeezeY);
   settings.reach = read ("reach", settings.reach);
   settings.clipTop = read ("clipTop", settings.clipTop);
   settings.clipBottom = read ("clipBottom", settings.clipBottom);

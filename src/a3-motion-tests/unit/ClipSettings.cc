@@ -256,3 +256,47 @@ TEST (ClipSettings, TheSweepsAreAppliedInOnePlaceForEverybody)
   EXPECT_GE (swept, 0.f);
   EXPECT_LE (swept, 1.f);
 }
+
+// ── squeeze: the figure pressed flat in its own plane ────────────────────
+
+TEST (ClipSettings, TheSqueezesGoToAndFromThePattern)
+{
+  Pattern pattern;
+
+  ClipSettings settings;
+  settings.squeezeX = 0.4f;
+  settings.squeezeY = -0.75f;
+  applyClipSettings (pattern, settings);
+  EXPECT_FLOAT_EQ (pattern.getSqueezeX (), 0.4f);
+  EXPECT_FLOAT_EQ (pattern.getSqueezeY (), -0.75f);
+
+  EXPECT_FLOAT_EQ (clipSettingsFrom (pattern).squeezeX, 0.4f);
+  EXPECT_FLOAT_EQ (clipSettingsFrom (pattern).squeezeY, -0.75f);
+}
+
+TEST (ClipSettings, TheSqueezesArePartOfWhatMakesTwoSettingsDifferent)
+{
+  ClipSettings a;
+  ClipSettings b;
+  ASSERT_EQ (a, b);
+
+  b.squeezeX = 0.3f;
+  EXPECT_NE (a, b);
+
+  b = a;
+  b.squeezeY = -0.3f;
+  EXPECT_NE (a, b);
+}
+
+// The ends of the travel are the ends of the travel wherever the value comes
+// from -- a script, a file, or an encoder that has been turned a long way.
+TEST (ClipSettings, APatternHoldsASqueezeToItsTravel)
+{
+  Pattern pattern;
+
+  pattern.setSqueezeX (7.f);
+  EXPECT_FLOAT_EQ (pattern.getSqueezeX (), 1.f);
+
+  pattern.setSqueezeY (-7.f);
+  EXPECT_FLOAT_EQ (pattern.getSqueezeY (), -1.f);
+}

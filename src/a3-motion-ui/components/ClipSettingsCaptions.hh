@@ -90,6 +90,13 @@ constexpr char const *envelopeMax = "max";
 /** Which way the clip's shape faces — a standing angle, where spin is the
  *  movement over it. */
 constexpr char const *rotate = "rot";
+/** How far the figure is pressed flat or pulled out along each of the two
+ *  horizontal axes. Named after the coordinates rather than after the
+ *  picture, because the picture mirrors them: X is front-back, which is what
+ *  a viewer sees as the *vertical* of the sphere, and Y is left-right.
+ *  Anyone reading a clip file, a set or a script meets the same two names. */
+constexpr char const *squeezeX = "sqzX";
+constexpr char const *squeezeY = "sqzY";
 /** What a recording pass writes where the finger is not. The one control in
  *  the bar that is not the shown clip's — it is the same for every channel. */
 constexpr char const *recMode = "recmode";
@@ -175,6 +182,7 @@ constexpr TextEntry captionTable[] = {
   { caption::bias, 4 },
   { caption::attack, 4 },      { caption::decay, 4 },
   { caption::envelopeMax, 4 },   { caption::rotate, 4 },
+  { caption::squeezeX, 4 },    { caption::squeezeY, 4 },
   { caption::actMode, 4 },
   { caption::frequency, 2 },   { caption::q, 2 },
   { caption::recordLength, 1 },

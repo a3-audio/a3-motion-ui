@@ -49,6 +49,8 @@ TEST (ClipFile, AClipSurvivesARoundTrip)
   clip.svg = "16_Wave";
   clip.settings.speedLog2 = -1;
   clip.settings.rotate = 0.25f;
+  clip.settings.squeezeX = 0.5f;
+  clip.settings.squeezeY = -0.25f;
   clip.settings.reach = 0.4f;
   clip.settings.clipTop = 0.1f;
   clip.settings.clipBottom = 0.2f;
@@ -78,6 +80,8 @@ TEST (ClipFile, AClipSurvivesARoundTrip)
 
   EXPECT_EQ (read->settings.speedLog2, -1);
   EXPECT_FLOAT_EQ (read->settings.rotate, 0.25f);
+  EXPECT_FLOAT_EQ (read->settings.squeezeX, 0.5f);
+  EXPECT_FLOAT_EQ (read->settings.squeezeY, -0.25f);
   EXPECT_FLOAT_EQ (read->settings.reach, 0.4f);
   EXPECT_FLOAT_EQ (read->settings.clipTop, 0.1f);
   EXPECT_FLOAT_EQ (read->settings.clipBottom, 0.2f);

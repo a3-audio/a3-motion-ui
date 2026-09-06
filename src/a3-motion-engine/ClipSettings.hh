@@ -50,6 +50,16 @@ struct ClipSettings
 {
   int speedLog2 = 0;
   float rotate = 0.f;
+  /** How far the figure is squeezed or stretched along each horizontal axis,
+   *  bipolar with the middle at zero -- see PlaneShaping in
+   *  TrajectoryShaping.hh, which is where the two are read and what they do
+   *  to a position. X is front-back, Y left-right.
+   *
+   *  Beside the rotate rather than in the elevation block: all three are
+   *  transforms of the recorded figure in its own plane, applied on the way
+   *  out and never written into the take. */
+  float squeezeX = 0.f;
+  float squeezeY = 0.f;
 
   float reach = 0.5f;
   float clipTop = 0.f;
@@ -132,6 +142,8 @@ operator== (ClipSettings const &a, ClipSettings const &b)
 {
   return a.speedLog2 == b.speedLog2                //
          && a.rotate == b.rotate                   //
+         && a.squeezeX == b.squeezeX               //
+         && a.squeezeY == b.squeezeY               //
          && a.reach == b.reach                     //
          && a.clipTop == b.clipTop                 //
          && a.clipBottom == b.clipBottom           //

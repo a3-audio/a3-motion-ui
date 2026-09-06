@@ -90,10 +90,13 @@ numControlsInSection (int sectionIndex)
       // movement.
       return 3;
     case 2:
-      // rot, fade, bias, then dir and end along the floor. spin went to the
-      // ACTION page with swell: this section is what the movement *is*, and
-      // the two slow sweeps are things done to it.
-      return 5;
+      // rot, fade, bias, then dir and end along the floor, then the two
+      // squeezes. Seven, and the last two are last because `controls` is
+      // ordered by sub-index rather than by seat: appending them leaves dir
+      // and end at three and four, where tapAdvancesValue(), the value
+      // handler, the reset handler and the painter already expect them.
+      // Inserting them where they sit on screen would have moved all four.
+      return 7;
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -498,18 +501,21 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         juce::jmin (content.getHeight (), out.buttonHeight));
     content.removeFromBottom (gapV);
 
-    // Two rows of two. Three knob rows and a button row was the old shape,
-    // back when eight things lived here; the envelope and the act mode have
-    // gone to the ACTION page and what is left breathes.
+    // Three rows of knobs and a row of buttons. rot alone at the top, the two
+    // squeezes under it, then the fade and the bias.
+    //
+    // The squeezes go directly under rot because the three of them are one
+    // kind of thing -- what is done to the recorded figure in its own plane --
+    // while the fade and the bias read the take's holes. Grouping by what a
+    // control does is what lets a hand find the right knob without reading the
+    // words under them.
     //
     // Shared out rather than taken one after another from the bottom. A skin
     // can cut the bar down (clipSettingsHeightScale), and a section that helps
     // itself row by row leaves the whole shortfall on the row at the top.
-    // rot on its own above, the fade and the bias that belong together below.
-    // rot had the spin beside it and the spin has gone to the ACTION page;
-    // centred rather than left in its old half, or the row would read as a
+    // rot is centred rather than left in a half, or the row would read as a
     // pair with one of them missing.
-    constexpr int motionKnobRows = 2;
+    constexpr int motionKnobRows = 3;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
@@ -523,6 +529,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     };
 
     auto lowerRow = knobRow (false);
+    auto middleRow = knobRow (false);
     auto upperRow = knobRow (true);
 
     auto const colW = (lowerRow.getWidth () - gapH) / 2;
@@ -537,6 +544,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         juce::jmin (upperRow.getWidth (), upperRow.getWidth () / 2),
         upperRow.getHeight ());
     auto const [lowerLeft, lowerRight] = split (lowerRow);
+    auto const [middleLeft, middleRight] = split (middleRow);
     auto const [bottomLeft, bottomRight] = split (bottomRow);
 
     // The bottom row is already the button height; the cell is the button.
@@ -546,11 +554,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // The two lists close the section along its floor, where every other
     // section's buttons are.
     out.controls[2] = {
-      textCell (rotArea, metrics.knobDiam),   // rot
-      textCell (lowerLeft, metrics.knobDiam), // fade
-      textCell (lowerRight, metrics.knobDiam),// bias
-      buttonCell (bottomLeft),                // direction
-      buttonCell (bottomRight),               // end action
+      textCell (rotArea, metrics.knobDiam),     // rot
+      textCell (lowerLeft, metrics.knobDiam),   // fade
+      textCell (lowerRight, metrics.knobDiam),  // bias
+      buttonCell (bottomLeft),                  // direction
+      buttonCell (bottomRight),                 // end action
+      textCell (middleLeft, metrics.knobDiam),  // sqzX
+      textCell (middleRight, metrics.knobDiam), // sqzY
     };
 
   }

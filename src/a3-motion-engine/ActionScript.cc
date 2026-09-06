@@ -200,6 +200,14 @@ clampUnit (double v)
   return juce::jlimit (0.f, 1.f, static_cast<float> (v));
 }
 
+/** A control whose middle is zero and whose ends are the same distance
+ *  either side of it -- the two squeezes. */
+float
+clampBipolar (double v)
+{
+  return juce::jlimit (-1.f, 1.f, static_cast<float> (v));
+}
+
 /** A symbol expected out of a fixed list, or a clear complaint naming the
  *  list -- "\sideways is not one of \loop \stop \pause \bounce \random" tells
  *  a person what to type next, which "bad value" does not. */
@@ -267,6 +275,19 @@ fields ()
         // 1.2 is a fifth of a turn past the top, not "as far as it goes".
         auto const turns = static_cast<float> (v.number);
         s.rotate = turns - std::floor (turns);
+      } },
+    // How the figure is squeezed in its own plane. X is front-back, Y
+    // left-right; the screen mirrors both, so sqzX is what you see as the
+    // vertical -- see PlaneShaping.
+    { "sqzX",
+      [] (ClipSettings const &s) { return numberValue (s.squeezeX, false); },
+      [] (ClipSettings &s, Value const &v) {
+        s.squeezeX = clampBipolar (v.number);
+      } },
+    { "sqzY",
+      [] (ClipSettings const &s) { return numberValue (s.squeezeY, false); },
+      [] (ClipSettings &s, Value const &v) {
+        s.squeezeY = clampBipolar (v.number);
       } },
     { "reach",
       [] (ClipSettings const &s) { return numberValue (s.reach, false); },

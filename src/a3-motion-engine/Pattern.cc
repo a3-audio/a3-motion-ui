@@ -386,6 +386,33 @@ Pattern::setRotate (float revolutions)
   _rotate.store (wrapped, std::memory_order_relaxed);
 }
 
+float
+Pattern::getSqueezeX () const
+{
+  return _squeezeX.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setSqueezeX (float amount)
+{
+  _squeezeX.store (std::clamp (amount, -1.f, 1.f), std::memory_order_relaxed);
+}
+
+float
+Pattern::getSqueezeY () const
+{
+  return _squeezeY.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setSqueezeY (float amount)
+{
+  // Clamped where the value is stored, not where it is used: a script, a file
+  // and a finger all reach this setter, and the ends of the travel should be
+  // the ends of the travel for all three.
+  _squeezeY.store (std::clamp (amount, -1.f, 1.f), std::memory_order_relaxed);
+}
+
 int
 Pattern::getSpin () const
 {

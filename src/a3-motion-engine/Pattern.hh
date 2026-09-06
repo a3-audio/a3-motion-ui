@@ -211,6 +211,21 @@ public:
   float getRotate () const;
   void setRotate (float revolutions);
 
+  /** How the recorded figure is scaled along each of the two horizontal
+   *  axes, as a bipolar amount whose middle is zero: -1 halves that axis and
+   *  +1 doubles it (see squeezeFactor()). X is the front-back axis, Y the
+   *  left-right one -- the screen mirrors both, so sqzX is what a viewer sees
+   *  as the vertical.
+   *
+   *  Beside the rotate for the same reason it sits beside the spin: both are
+   *  transforms of the recorded shape applied at playback time and never
+   *  written into the take, and both are applied at the one place that
+   *  transforms anything (shapedPosition). */
+  float getSqueezeX () const;
+  void setSqueezeX (float amount);
+  float getSqueezeY () const;
+  void setSqueezeY (float amount);
+
   /** How fast the whole trajectory turns around the vertical axis while the
    *  blob runs along it, as the signed power-of-two step TrajectorySpin
    *  describes. Zero stands still.
@@ -365,6 +380,8 @@ private:
   std::atomic<int> _speedLog2{ 0 };
   std::atomic<float> _playSign{ 1.f };
   std::atomic<float> _rotate{ 0.f };
+  std::atomic<float> _squeezeX{ 0.f };
+  std::atomic<float> _squeezeY{ 0.f };
   std::atomic<int> _spin{ 0 };
   std::atomic<float> _spinPhase{ 0.f };
   std::atomic<int> _reachLfo{ 0 };
