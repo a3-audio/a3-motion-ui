@@ -45,6 +45,10 @@ BrowserComponent::BrowserComponent ()
       auto row = std::make_unique<TouchControl> ();
       row->setIdentity (i);
       row->onTap = [this] (int index, int) {
+        // Reaching for the list is done reading the last message, and the
+        // band it stands in is a row of the list.
+        showMessage ({});
+
         auto const entry = _scrollOffset + index;
         if (entry >= 0 && entry < _names.size () && onEntryChosen)
           onEntryChosen (entry);
@@ -59,6 +63,7 @@ BrowserComponent::BrowserComponent ()
       // pushing it up brings what is below into view, so a finger travelling
       // up (a positive increment) moves the window further down the library.
       row->onDragIncrement = [this] (int, int, int increment) {
+        showMessage ({});
         setScrollOffset (_scrollOffset + increment);
         if (onScrolled)
           onScrolled (increment);
@@ -73,6 +78,11 @@ BrowserComponent::BrowserComponent ()
                 std::function<void ()> BrowserComponent::*callback) {
           into = std::make_unique<TouchControl> ();
           into->onTap = [this, callback] (int, int) {
+            // Cleared before the key runs, not after: whatever it says next
+            // is the answer to this press, and the one before it has been
+            // read or has not.
+            showMessage ({});
+
             if (this->*callback)
               (this->*callback) ();
           };
