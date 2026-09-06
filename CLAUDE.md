@@ -482,10 +482,20 @@ listener at a *focus* — the sound comes close and goes far — and `Random` is
 is held under 7% of its own radius.
 
 `Figure 8` used to be nudged 0.05 sideways "to avoid the azimuth singularity". There is nothing to
-avoid: `Infinity`, `Clover` and `Rose 4-Petal` all pass exactly through the origin and always have.
-Azimuth is undefined at r = 0, but so is the direction of a sound directly overhead —
-`HeightMapSphere::mapTo3D()` takes r → 0 to the north pole continuously, so the crossing rises over
-the listener and comes down the other side.
+avoid *while the elevation base is on the pole*: `Infinity`, `Clover` and `Rose 4-Petal` all pass
+exactly through the origin and always have. Azimuth is undefined at r = 0, but so is the direction
+of a sound directly overhead — `HeightMapSphere::mapTo3D()` takes r → 0 to the north pole
+continuously, so the crossing rises over the listener and comes down the other side.
+
+**Off the pole it is a real singularity, and the drawing has to know.** With a base of 0.5 the
+disc's origin is drawn out at the rim, not in the middle, so a path passing *near* it swings the
+azimuth through most of a revolution in almost no 2D distance — and `drawPathOnSphere()` decided how
+finely to cut a step by its length in the disc alone, so it drew that arc as one straight line clean
+across the sphere. `discStepPieces()` (SphereProjection, and testable) weighs the swing as well as
+the length. A path passing *exactly* through the origin is not fast but discontinuous — it arrives
+at one bearing and leaves at the opposite one — so no amount of cutting helps and `addPoint()` lifts
+the pen instead, the way it does at a take's gaps. Both only became visible when `sway` started
+moving the base off the pole as a matter of course.
 
 **A clip file is the SVG.** There is no separate settings file: `PatternFile` writes the trajectory
 *and* every value the clip settings menu holds — speed, rotate, spin, swell, the envelope, the whole

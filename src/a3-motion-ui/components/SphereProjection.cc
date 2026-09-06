@@ -20,6 +20,8 @@
 
 #include "SphereProjection.hh"
 
+#include <JuceHeader.h>
+
 #include <algorithm>
 #include <cmath>
 
@@ -47,6 +49,28 @@ Pos
 directionToDisc (Pos const &direction)
 {
   return Pos::fromCartesian (direction.x (), direction.y (), 0.f);
+}
+
+
+int
+discStepPieces (float x1, float y1, float x2, float y2, float maxStep,
+                float maxSwing, int maxPieces)
+{
+  auto const dx = x2 - x1;
+  auto const dy = y2 - y1;
+  auto const length = std::sqrt (dx * dx + dy * dy);
+
+  auto swing = std::abs (std::atan2 (y2, x2) - std::atan2 (y1, x1));
+  if (swing > juce::MathConstants<float>::pi)
+    swing = juce::MathConstants<float>::twoPi - swing;
+
+  auto const byLength
+      = maxStep > 0.f ? static_cast<int> (std::ceil (length / maxStep)) : 1;
+  auto const bySwing
+      = maxSwing > 0.f ? static_cast<int> (std::ceil (swing / maxSwing)) : 1;
+
+  return juce::jlimit (1, juce::jmax (1, maxPieces),
+                       juce::jmax (byLength, bySwing));
 }
 
 }

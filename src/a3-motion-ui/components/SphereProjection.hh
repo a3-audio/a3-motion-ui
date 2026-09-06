@@ -49,4 +49,27 @@ Pos discToDirection (Pos const &flat);
  *  orthographic projection comes to. */
 Pos directionToDisc (Pos const &direction);
 
+/** How many pieces a straight step across the *recorded* disc has to be cut
+ *  into before each piece is projected onto the sphere and joined up.
+ *
+ *  Two measures, and the larger wins. The obvious one is how long the step is:
+ *  a long step bends on a sphere and needs pieces to bend with. The one that
+ *  is easy to miss is how far it swings the azimuth -- the disc's angle *is*
+ *  the azimuth, so a step passing close to the disc's origin turns through up
+ *  to half a revolution in almost no distance at all.
+ *
+ *  While the elevation base sits on the pole that costs nothing: the origin is
+ *  drawn at the pole, in the middle of the sphere, where every azimuth is the
+ *  same point. Move the base off the pole -- which is what sway does, every
+ *  cycle -- and the origin is drawn out towards the rim, so the same swing
+ *  becomes an arc most of the way round the sphere. Cut only by length, that
+ *  arc was one straight line drawn clean across the picture.
+ *
+ *  `maxStep` is the longest piece wanted in the disc's own units; `maxSwing`
+ *  the widest turn wanted in radians. Never fewer than one and never more than
+ *  `maxPieces`, so a step that asks for the impossible is drawn coarsely
+ *  rather than costing a frame. */
+int discStepPieces (float x1, float y1, float x2, float y2, float maxStep,
+                    float maxSwing, int maxPieces);
+
 }

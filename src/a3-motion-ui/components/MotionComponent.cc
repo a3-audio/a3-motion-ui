@@ -1508,6 +1508,27 @@ drawPathOnSphere (juce::Path const &displayPath,
   // sphere curvature at all, so coarse sampling is fine there.
   float const maxStep = elevationParams.flat ? 0.06f : 0.03f;
 
+  // ... and how wide a turn is wanted out of one piece. Flat mode has no
+  // azimuth swing worth splitting for either -- there is no pole to be near.
+  // See discStepPieces(), which is where both measures are weighed and why
+  // the second one exists at all.
+  float const maxSwing = elevationParams.flat
+                             ? juce::MathConstants<float>::pi
+                             : 0.02f;
+  // Half a revolution at 0.02 radians a piece is 158 of them.
+  auto constexpr maxPieces = 256;
+
+  // ... and what no amount of cutting can fix. At the disc's exact origin the
+  // azimuth is not merely fast, it is undefined: the path arrives at one
+  // bearing and leaves at the opposite one, so every sample on one side is
+  // half a revolution from every sample on the other. With the base on the
+  // pole that costs nothing -- both bearings are the same point up there --
+  // and off the pole it is a real jump, which several of the shipped shapes
+  // make (Clover, Infinity and Rose 4-Petal all pass exactly through the
+  // origin). Drawn, it is a chord straight across the sphere that is in none
+  // of the data. The pen goes up instead, the way it does at a take's gaps.
+  auto constexpr maxJump = 0.3f;
+
   // Collect all projected points (with sub-sampling for long segments), and
   // remember where one subpath ends and the next begins.
   //
@@ -1522,9 +1543,20 @@ drawPathOnSphere (juce::Path const &displayPath,
   projected.reserve (512);
   startsRun.reserve (512);
 
-  auto const addPoint = [&projected, &startsRun] (
+  auto const addPoint = [&projected, &startsRun, maxJump] (
                             std::pair<juce::Point<float>, float> point,
                             bool starts) {
+    if (!starts && !projected.empty ())
+      {
+        auto const &was = projected.back ();
+        auto const dx = point.first.x - was.first.x;
+        auto const dy = point.first.y - was.first.y;
+        auto const dz = point.second - was.second;
+
+        if (dx * dx + dy * dy + dz * dz > maxJump * maxJump)
+          starts = true;
+      }
+
     projected.push_back (point);
     startsRun.push_back (starts);
   };
@@ -1552,12 +1584,15 @@ drawPathOnSphere (juce::Path const &displayPath,
 
       float dx = iter.x2 - prevX;
       float dy = iter.y2 - prevY;
-      float dist = std::sqrt (dx * dx + dy * dy);
 
-      if (dist > maxStep)
+      // Cut along the 2D line either way: the pieces are not spread evenly
+      // along the arc that comes out, but they land close enough together
+      // that the line reads as one.
+      auto const nSub = discStepPieces (prevX, prevY, iter.x2, iter.y2,
+                                        maxStep, maxSwing, maxPieces);
+
+      if (nSub > 1)
         {
-          // Insert intermediate sub-samples along the 2D line
-          int nSub = static_cast<int> (std::ceil (dist / maxStep));
           for (int s = 1; s < nSub; ++s)
             {
               float t = static_cast<float> (s)
