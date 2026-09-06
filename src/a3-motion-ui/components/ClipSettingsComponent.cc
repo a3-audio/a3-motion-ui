@@ -737,7 +737,8 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // The global strip stands on both pages: recmode, clock, MENU, REC and TAP
   // belong to the device rather than to the clip, and losing them while you
   // are firing clips is exactly the wrong moment to lose them.
-  paintGlobalSection (g, _selectedIndex == globalIndex);
+  paintGlobalSection (g, sectionCarriesSelection (globalIndex)
+                             && _selectedIndex == globalIndex);
 
   if (isFullPage (_page))
     return; // ControllerComponent / BrowserComponent draws the rest

@@ -60,6 +60,13 @@ sectionContentBounds (juce::Rectangle<int> card)
   return card.reduced (juce::jmax (2, card.getWidth () / 80), 3);
 }
 
+bool
+sectionCarriesSelection (int sectionIndex)
+{
+  // Everything but the rightmost card, which is the global strip.
+  return sectionIndex >= 0 && sectionIndex < numClipSettingsSections - 1;
+}
+
 int
 numControlsInSection (int sectionIndex)
 {
