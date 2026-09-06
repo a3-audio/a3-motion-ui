@@ -626,26 +626,41 @@ ClipSettingsComponent::setMotionSubIndex (int subIndex)
 }
 
 void
-ClipSettingsComponent::setChannelValues (int channel, float freq, float q,
-                                         float threeD, float threeDEffective)
+ClipSettingsComponent::setChannelValues (int channel, float freq,
+                                         float freqEffective, float q,
+                                         float qEffective, float threeD,
+                                         float threeDEffective)
 {
   if (channel < 0 || channel >= numChannelColumns)
     return;
 
   auto const c = static_cast<size_t> (channel);
-  auto const set = std::clamp (threeD, 0.f, 1.f);
-  auto const reach = std::clamp (threeDEffective, set, 1.f);
 
-  if (juce::approximatelyEqual (_channelFreq[c], std::clamp (freq, 0.f, 1.f))
-      && juce::approximatelyEqual (_channelQ[c], std::clamp (q, 0.f, 1.f))
-      && juce::approximatelyEqual (_channelThreeD[c], set)
-      && juce::approximatelyEqual (_channelThreeDReach[c], reach))
+  // Through gridKnobReach() for all three, so no row can quietly be given its
+  // own value as its reach again -- which is how freq and Q came to be drawn
+  // standing still while the engine was sending them moving.
+  auto const set = std::array<float, 3>{ std::clamp (freq, 0.f, 1.f),
+                                         std::clamp (q, 0.f, 1.f),
+                                         std::clamp (threeD, 0.f, 1.f) };
+  auto const reach = std::array<float, 3>{
+    gridKnobReach (freq, freqEffective), gridKnobReach (q, qEffective),
+    gridKnobReach (threeD, threeDEffective)
+  };
+
+  if (juce::approximatelyEqual (_channelFreq[c], set[0])
+      && juce::approximatelyEqual (_channelQ[c], set[1])
+      && juce::approximatelyEqual (_channelThreeD[c], set[2])
+      && juce::approximatelyEqual (_channelFreqReach[c], reach[0])
+      && juce::approximatelyEqual (_channelQReach[c], reach[1])
+      && juce::approximatelyEqual (_channelThreeDReach[c], reach[2]))
     return; // nothing moved; this runs on every LED tick
 
-  _channelFreq[c] = std::clamp (freq, 0.f, 1.f);
-  _channelQ[c] = std::clamp (q, 0.f, 1.f);
-  _channelThreeD[c] = set;
-  _channelThreeDReach[c] = reach;
+  _channelFreq[c] = set[0];
+  _channelQ[c] = set[1];
+  _channelThreeD[c] = set[2];
+  _channelFreqReach[c] = reach[0];
+  _channelQReach[c] = reach[1];
+  _channelThreeDReach[c] = reach[2];
   repaint ();
 }
 
@@ -1758,12 +1773,14 @@ ClipSettingsComponent::paintChannelGrid (juce::Graphics &g)
       // whose, and it says it without being read. The row it took is a row
       // the twelve knobs wanted.
 
-      // In channelRow* order — 3d on top, then freq, then Q. Only 3d has
-      // anything carrying it past where it was set.
+      // In channelRow* order — 3d on top, then freq, then Q. All three have
+      // something carrying them past where they were set: the accent, and the
+      // cutoff's and resonance's own envelopes.
       float const values[numChannelRows]
           = { _channelThreeD[c], _channelFreq[c], _channelQ[c] };
       float const reaches[numChannelRows]
-          = { _channelThreeDReach[c], _channelFreq[c], _channelQ[c] };
+          = { _channelThreeDReach[c], _channelFreqReach[c],
+              _channelQReach[c] };
 
       for (int row = 0; row < numChannelRows; ++row)
         paintGridKnob (g, _layout.channelGrid[c][static_cast<size_t> (row)],

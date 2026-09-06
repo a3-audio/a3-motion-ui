@@ -21,6 +21,8 @@
 
 #include "ClipSettingsLayout.hh"
 
+#include <algorithm>
+
 #include <cmath>
 
 #include <array>
@@ -58,6 +60,13 @@ sectionContentBounds (juce::Rectangle<int> card)
   // at the device's sixth-of-the-bar sections took width from rows that hold
   // four values.
   return card.reduced (juce::jmax (2, card.getWidth () / 80), 3);
+}
+
+float
+gridKnobReach (float set, float effective)
+{
+  auto const floor = std::clamp (set, 0.f, 1.f);
+  return std::clamp (effective, floor, 1.f);
 }
 
 bool

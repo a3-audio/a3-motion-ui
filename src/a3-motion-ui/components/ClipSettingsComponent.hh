@@ -239,11 +239,21 @@ public:
    *  the third one ("3d"), all unipolar (0..1). These belong to the channel,
    *  not to the clip the bar happens to show, which is why they sit in the
    *  global section rather than in a section of the clip's. */
-  /** A channel's three grid values. 3d comes twice: what was set, which the
-   *  pointer stands on, and what is going out, which is the set value with
-   *  the accent laid over it. The arc between the two is the accent, drawn
-   *  where you can watch it move. */
-  void setChannelValues (int channel, float freq, float q, float threeD,
+  /** A channel's three grid values, each with what is carrying it.
+   *
+   *  Every one comes twice: what was set, which the pointer stands on, and
+   *  what is going out, which is the set value with its envelope laid over
+   *  it. The arc between the two is the modulation, drawn where you can watch
+   *  it move -- a knob whose pointer moved with the modulation would have
+   *  nothing left to say where the hand had put it.
+   *
+   *  Only 3d used to come in pairs, because only 3d had an envelope. freq and
+   *  Q have had their own since the filter's two were split, and the engine
+   *  has been sending all three moving; the grid was still drawing two of
+   *  them still. Paired in the signature so the next value to gain one cannot
+   *  be added without its partner. */
+  void setChannelValues (int channel, float freq, float freqEffective,
+                         float q, float qEffective, float threeD,
                          float threeDEffective);
 
   /** Which section (0..numParameters-1) is currently selected/highlighted. */
@@ -528,7 +538,9 @@ private:
   int _speedLog2 = 0;
   juce::String _recordLengthLabel { "1" };
   std::array<float, numChannelColumns> _channelFreq{};
+  std::array<float, numChannelColumns> _channelFreqReach{};
   std::array<float, numChannelColumns> _channelQ{};
+  std::array<float, numChannelColumns> _channelQReach{};
   std::array<float, numChannelColumns> _channelThreeD{};
   std::array<float, numChannelColumns> _channelThreeDReach{};
   int _selectedIndex = 0;

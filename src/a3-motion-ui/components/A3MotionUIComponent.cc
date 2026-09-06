@@ -2684,10 +2684,12 @@ A3MotionUIComponent::tickCallback (Measure measure)
         {
           padLEDCallback (_stepsLED++);
 
-          // The 3d row follows the accent while it runs. On the same tick as
-          // the pad LEDs because it is the same kind of thing — what is shown
-          // catching up with what the engine is doing — and often enough to
-          // read as movement without repainting the bar every tick.
+          // All three rows follow their envelopes while they run. On the
+          // same tick as the pad LEDs because it is the same kind of thing —
+          // what is shown catching up with what the engine is doing — and
+          // often enough to read as movement without repainting the bar every
+          // tick. setChannelValues() repaints only when something moved, so a
+          // still grid costs nothing here.
           refreshChannelValues ();
         }
 
@@ -2899,14 +2901,18 @@ A3MotionUIComponent::refreshChannelValues ()
     return;
 
   // Every channel's three, not only the shown one's: the grid belongs to the
-  // channels rather than to the clip on display. The 3d is the *effective*
-  // value — the setting with the accent laid over it — because a modulation
-  // that moves nothing on screen is one you have to take on trust.
+  // channels rather than to the clip on display. Each goes in with its
+  // *effective* value beside it — the setting with its envelope laid over it —
+  // because a modulation that moves nothing on screen is one you have to take
+  // on trust. Only 3d used to; freq and Q were sent moving and drawn still.
   for (int ch = 0; ch < numChannelColumns; ++ch)
     {
       auto const index = static_cast<index_t> (ch);
       _clipSettings->setChannelValues (
-          ch, _engine.getChannelPot1 (index), _engine.getChannelPot2 (index),
+          ch, _engine.getChannelPot1 (index),
+          _engine.getChannelPot1Effective (index),
+          _engine.getChannelPot2 (index),
+          _engine.getChannelPot2Effective (index),
           _engine.getChannelPot3 (index),
           _engine.getChannelPot3Effective (index));
     }
@@ -4791,13 +4797,6 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
           ? _clipSettingsSubIndex
           : 0);
 
-  // Every channel's three values, not only the shown one's: the grid in the
-  // global section belongs to the channels, not to the clip on display.
-  for (int ch = 0; ch < numChannelColumns; ++ch)
-    {
-      auto const index = static_cast<index_t> (ch);
-      juce::ignoreUnused (index);
-    }
   refreshChannelValues ();
 
   _clipSettings->setSelectedParameterIndex (_clipSettingsMenuIndex);

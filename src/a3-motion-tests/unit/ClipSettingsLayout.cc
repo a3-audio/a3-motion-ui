@@ -1532,3 +1532,28 @@ TEST (ClipSettingsLayout, TheGlobalStripDoesNotWearTheClipsSelection)
   EXPECT_FALSE (sectionCarriesSelection (-1));
   EXPECT_FALSE (sectionCarriesSelection (numClipSettingsSections));
 }
+
+// Every knob in the global grid shows what is carrying it.
+//
+// The engine has always sent all three moving -- 3d on the accent, freq and Q
+// on envelopes of their own -- but the grid handed freq and Q their own value
+// as their reach, which is an arc of zero length. Two thirds of what the
+// device was doing had to be taken on trust.
+TEST (ClipSettingsLayout, AGridKnobsArcReachesWhereTheModulationCarriedIt)
+{
+  EXPECT_FLOAT_EQ (gridKnobReach (0.3f, 0.8f), 0.8f);
+
+  // At rest the arc has no length: the effective value is the set one exactly,
+  // or the knob would drift every time an envelope finished.
+  EXPECT_FLOAT_EQ (gridKnobReach (0.3f, 0.3f), 0.3f);
+
+  // Never backwards. envelopeOver() only ever raises, and a ceiling dialled
+  // under the floor leaves the floor alone -- an arc running back from the
+  // pointer would draw a modulation that cannot happen.
+  EXPECT_FLOAT_EQ (gridKnobReach (0.6f, 0.1f), 0.6f);
+
+  // And never off either end, whatever it is handed.
+  EXPECT_FLOAT_EQ (gridKnobReach (-1.f, 2.f), 1.f);
+  EXPECT_FLOAT_EQ (gridKnobReach (2.f, 2.f), 1.f);
+  EXPECT_FLOAT_EQ (gridKnobReach (-1.f, -1.f), 0.f);
+}

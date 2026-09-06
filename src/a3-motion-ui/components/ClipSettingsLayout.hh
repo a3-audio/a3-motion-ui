@@ -135,6 +135,20 @@ juce::Rectangle<int> sectionContentBounds (juce::Rectangle<int> card);
  *  control by the same sub-index the encoder does. */
 int numControlsInSection (int sectionIndex);
 
+/** How far a grid knob's modulation arc reaches, given where the knob was set
+ *  and where a modulation has carried it.
+ *
+ *  All three rows have one: 3d rides the accent, freq and Q ride their own
+ *  envelopes, and the engine has always sent all three moving. Only 3d was
+ *  drawn moving -- the other two were handed their own value as their reach,
+ *  which is an arc of zero length, so two thirds of what the device was doing
+ *  had to be taken on trust.
+ *
+ *  Never below where the knob was set: envelopeOver() only ever raises, and a
+ *  ceiling dialled under the floor leaves the floor alone. An arc that ran
+ *  backwards from the pointer would draw a modulation that cannot happen. */
+float gridKnobReach (float set, float effective);
+
 /** Whether a section shows that it is the selected one.
  *
  *  The three clip sections do: they are three views of one clip, and which of
