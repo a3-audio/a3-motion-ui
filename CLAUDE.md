@@ -535,13 +535,26 @@ they answer the same kind of question. Not on the pads page, which shows every s
 **The library's five keys are Filter, Rename, Save, Save as and Delete**, and all five say the same
 words on every tab.
 
-**Save writes what is on show back over the file it came from; Save as writes it to a new one.** Two
+**Save writes what is on show back over the file it came from; Save new writes it to a new one.** Two
 keys rather than one and a modifier — which of the two you meant is the whole question, and a
 modifier makes it something you find out afterwards. Per tab, "where it came from" is the slot's own
 clip file, the slot's own action file, or the set that is loaded; Save lights only when there is such
 a file *and* something to write to it (for a clip, that means drift), Save as only needs something to
 write. Before this, Save on ACTIONS and SETS always made a new file — so an action could never be
-corrected without collecting "Action 4" beside "Action 3", and a set could never be updated at all. The filter stands first because it changes *what is listed* and the other three act on a
+corrected without collecting "Action 4" beside "Action 3", and a set could never be updated at all.
+
+**Save new opens the new row for typing**, keyboard and all. The name it gets is a counted one that
+says nothing, and naming a thing is part of making it — a second key press to get there is one
+somebody skips and then cannot find what they saved. On CLIPS what it writes is always a settings
+preset, whatever it was copied from: what is being kept is how the slot is played, the shape is
+already in the library under its own name, and a copy that named a shape would be listed nowhere at
+all (the settings scan skips a clip that names one, and a shape finds its clip by file name).
+
+**What just happened is said in the list, not only in the status bar.** That bar is at the top of a
+thousand pixels and these keys are at the bottom: a word up there is a word nobody standing over the
+keys reads. Every `updateControlReadout()` also reaches `BrowserComponent::showMessage()` while the
+library is open, which shows it over the foot of the list for a second and a half and takes it away
+again. The filter stands first because it changes *what is listed* and the other three act on a
 row of it: narrow the list, then do something to a row. It steps `All → User → System` on a tap and
 wears the state it is in, not the one the next press would bring — a key naming what you would get
 rather than what you have is a key you press to find out where you are.

@@ -200,7 +200,7 @@ private:
   /** Put what is in the editor back into the slot's script file. */
   void writeSlotActionScript ();
   /** Keep the chosen slot's settings as a new action clip. */
-  void saveSlotAsAction ();
+  juce::String saveSlotAsAction ();
   /** Write what is on show back over the file it came from. Per tab: the
    *  slot's own clip, the slot's own action, the set that is loaded. */
   void saveChosen ();
@@ -211,7 +211,7 @@ private:
   bool canSaveInPlace () const;
   /** The shown clip copied to a clip file of its own, the slot pointed at the
    *  copy. The same thing Save does to a factory clip, asked for outright. */
-  void saveSlotClipAsCopy ();
+  juce::String saveSlotClipAsCopy ();
   /** The shown clip's settings written over the slot's own action file. */
   void saveSlotActionInPlace ();
   /** The arrangement written over the set it was loaded from. */
@@ -321,7 +321,7 @@ private:
    *  The running arrangement is written to current.json first -- not asked
    *  about, written -- so the previous state is never gone even if nobody
    *  thought to save it. */
-  void saveCurrentSession ();
+  juce::String saveCurrentSession ();
   void loadSessionNamed (juce::String const &name);
 
   void refreshBrowser ();

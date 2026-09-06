@@ -100,6 +100,14 @@ public:
   std::function<void ()> onActionsChosen;
   std::function<void ()> onSetsChosen;
   std::function<void (int index)> onEntryChosen;
+  /** Say what just happened, in the list rather than in the status bar.
+   *
+   *  The bar's readout is at the top of a thousand pixels and the keys are at
+   *  the bottom: a word up there is a word nobody standing over the keys
+   *  reads. This shows over the foot of the list, a finger's width from the
+   *  key that was pressed, and takes itself away again. */
+  void showMessage (juce::String const &text);
+
   /** What the three keys under the list say, and which of them can be
    *  pressed. Driven from outside rather than fixed here: a key that is drawn
    *  as though it worked and does nothing is worse than one that is plainly
@@ -146,6 +154,7 @@ public:
 
 private:
   void paintRow (juce::Graphics &g, int row);
+  void paintMessage (juce::Graphics &g);
   void paintButton (juce::Graphics &g, juce::Rectangle<int> bounds,
                     juce::String const &label, bool enabled);
 
@@ -177,6 +186,12 @@ private:
   std::unique_ptr<TouchControl> _saveTouch;
   std::unique_ptr<TouchControl> _saveAsTouch;
   std::unique_ptr<TouchControl> _deleteTouch;
+
+  juce::String _message;
+  /** Long enough to read a short word without looking away from the keys,
+   *  short enough not to still be there next time you glance down. */
+  static constexpr int messageMillis = 1600;
+  int _messageGeneration = 0;
 
   bool _renaming = false;
   juce::String _renameText;

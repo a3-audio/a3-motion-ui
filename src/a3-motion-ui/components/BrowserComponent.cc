@@ -238,6 +238,8 @@ BrowserComponent::paint (juce::Graphics &g)
   for (int row = 0; row < static_cast<int> (_layout.rows.size ()); ++row)
     paintRow (g, row);
 
+  paintMessage (g);
+
   paintButton (g, _layout.filterButton, _actionLabels[0], _actionEnabled[0]);
   paintButton (g, _layout.renameButton, _actionLabels[1], _actionEnabled[1]);
   paintButton (g, _layout.saveButton, _actionLabels[2], _actionEnabled[2]);
@@ -440,6 +442,59 @@ BrowserComponent::focusLost (FocusChangeType)
   // it away -- and ends it by keeping nothing, because walking away from a
   // half-typed name is not a way of asking for it.
   endRename (false);
+}
+
+
+void
+BrowserComponent::showMessage (juce::String const &text)
+{
+  _message = text;
+  repaint ();
+
+  if (_message.isEmpty ())
+    return;
+
+  // Cleared by whichever message is the last one said, not by whichever timer
+  // happens to come back first: two messages in quick succession would
+  // otherwise have the first one's timer take the second one away early.
+  auto const generation = ++_messageGeneration;
+
+  juce::Timer::callAfterDelay (
+      messageMillis,
+      [safeThis = juce::Component::SafePointer<BrowserComponent> (this),
+       generation] {
+        if (safeThis == nullptr || safeThis->_messageGeneration != generation)
+          return;
+
+        safeThis->_message = {};
+        safeThis->repaint ();
+      });
+}
+
+void
+BrowserComponent::paintMessage (juce::Graphics &g)
+{
+  if (_message.isEmpty () || _layout.listArea.isEmpty ())
+    return;
+
+  auto const band = _layout.listArea.removeFromBottom (
+      juce::jmin (_layout.listArea.getHeight (),
+                  juce::jmax (fingertipSize, _layout.rowHeight)));
+
+  // Opaque, over the rows rather than beside them: there is no room in this
+  // page that is not already something, and a word drawn through a list of
+  // names is a word nobody reads. It goes away on its own.
+  g.setColour (toColour (theme ().background));
+  g.fillRect (band);
+  g.setColour (toColour (theme ().accent, 0.2f));
+  g.fillRect (band);
+
+  g.setFont (juce::Font (juce::jmin (theme ().fontSize (FontRole::Body),
+                                     band.getHeight () * 0.5f),
+                         juce::Font::plain));
+  g.setColour (toColour (theme ().textPrimary));
+  g.drawFittedText (_message, band.reduced (band.getHeight () / 3, 0),
+                    juce::Justification::centredLeft, 1);
 }
 
 }

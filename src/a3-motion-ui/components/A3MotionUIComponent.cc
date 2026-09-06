@@ -1904,20 +1904,20 @@ A3MotionUIComponent::saveSlotClip (index_t channel, index_t slot)
   saveSlotClipAsCopy ();
 }
 
-void
+juce::String
 A3MotionUIComponent::saveSlotClipAsCopy ()
 {
   auto const channel = _clipSettingsChannel;
   auto const slot = _clipSettingsSlot;
 
   if (channel >= _patterns.size () || slot >= _patterns[channel].size ())
-    return;
+    return {};
 
   auto const &pattern = _patterns[channel][slot];
   if (!pattern)
     {
       updateControlReadout ("-- NOTHING TO SAVE");
-      return;
+      return {};
     }
 
   // Whatever the slot came from, if it came from anything: a slot holding a
@@ -1928,9 +1928,13 @@ A3MotionUIComponent::saveSlotClipAsCopy ()
   Clip copy;
   if (from.has_value ())
     copy = *from;
-  else
-    copy.svg = pattern->getName ();
 
+  // A settings preset, whatever it was copied from: what is being kept is how
+  // the slot is played, and the shape it is played on is already in the
+  // library under its own name. A copy that named a shape would be listed
+  // nowhere at all -- the settings scan skips a clip that names one, on the
+  // grounds that the shape lists it, and a shape finds its clip by file name.
+  copy.svg.clear ();
   copy.aka.clear ();
   copy.name = freeClipName (_patternLibrary->getClipDir (),
                             juce::String (pattern->getName ()))
@@ -1943,16 +1947,17 @@ A3MotionUIComponent::saveSlotClipAsCopy ()
   if (!ClipFile::save (copy, target))
     {
       updateControlReadout ("-- SAVE FAILED");
-      return;
+      return {};
     }
 
   _slotClipFile[channel][slot] = target;
-  updateControlReadout ("-- SAVED AS "
+  updateControlReadout ("-- SAVED "
                         + juce::String (copy.name).toUpperCase ());
 
   _patternLibrary->refresh ();
   refreshBrowser ();
   updateClipSettingsDisplay ();
+  return juce::String (copy.name);
 }
 
 juce::File
@@ -1967,7 +1972,7 @@ A3MotionUIComponent::actionsDir () const
   return _patternLibrary->getRootDir ().getChildFile ("actions");
 }
 
-void
+juce::String
 A3MotionUIComponent::saveCurrentSession ()
 {
   auto set = buildSession ();
@@ -1991,9 +1996,13 @@ A3MotionUIComponent::saveCurrentSession ()
       updateControlReadout ("-- SAVED " + name.toUpperCase ());
     }
   else
-    updateControlReadout ("-- SAVE FAILED");
+    {
+      updateControlReadout ("-- SAVE FAILED");
+      name = {};
+    }
 
   refreshBrowser ();
+  return name;
 }
 
 void
@@ -2174,7 +2183,7 @@ A3MotionUIComponent::refreshBrowser ()
   // empty slot holds nothing to write.
   auto const canCopy = _browserList == BrowserList::Sessions ? true : holds;
 
-  _browser->setActions ({ filter, rename, "Save", "Save as", remove },
+  _browser->setActions ({ filter, rename, "Save", "Save new", remove },
                         { filtering, chosen, inPlace, canCopy, chosen });
 }
 
@@ -2429,18 +2438,21 @@ A3MotionUIComponent::setSlotAction (index_t channel, index_t slot,
   updateClipSettingsDisplay ();
 }
 
-void
+juce::String
 A3MotionUIComponent::saveSlotAsAction ()
 {
   auto const channel = _clipSettingsChannel;
   auto const slot = _clipSettingsSlot;
 
   if (channel >= _patterns.size () || slot >= _patterns[channel].size ())
-    return;
+    return {};
 
   auto const &pattern = _patterns[channel][slot];
   if (!pattern)
-    return;
+    {
+      updateControlReadout ("-- NOTHING TO SAVE");
+      return {};
+    }
 
   // An action is the clip as it stands, written out as a script: dial it the
   // way you want ACT to make it sound, and keep that. No second vocabulary to
@@ -2454,11 +2466,14 @@ A3MotionUIComponent::saveSlotAsAction ()
     {
       std::cerr << "could not write action " << file.getFullPathName ()
                 << std::endl;
-      return;
+      updateControlReadout ("-- SAVE FAILED");
+      return {};
     }
 
   setSlotAction (channel, slot, file);
+  updateControlReadout ("-- SAVED " + name.toUpperCase ());
   refreshBrowser ();
+  return name;
 }
 
 juce::File
@@ -3037,12 +3052,30 @@ A3MotionUIComponent::saveChosen ()
 void
 A3MotionUIComponent::saveAsChosen ()
 {
+  juce::String name;
   switch (_browserList)
     {
-    case BrowserList::Clips: saveSlotClipAsCopy (); break;
-    case BrowserList::Actions: saveSlotAsAction (); break;
-    case BrowserList::Sessions: saveCurrentSession (); break;
+    case BrowserList::Clips: name = saveSlotClipAsCopy (); break;
+    case BrowserList::Actions: name = saveSlotAsAction (); break;
+    case BrowserList::Sessions: name = saveCurrentSession (); break;
     }
+
+  if (name.isEmpty ())
+    return;
+
+  // The name it got is a counted one -- "Action 4" -- which is findable and
+  // says nothing. So the new row opens for typing straight away, keyboard and
+  // all: naming a thing is part of making it, and a second key press to get
+  // there is a key press somebody skips and then cannot find what they saved.
+  for (int row = 0; row < _browser->getNumEntries (); ++row)
+    if (_browser->entryName (row) == name)
+      {
+        _deleteArmed = false;
+        _browser->setSelectedEntry (row);
+        _browser->beginRename (name);
+        refreshBrowser ();
+        return;
+      }
 }
 
 void
@@ -5709,6 +5742,13 @@ A3MotionUIComponent::updateControlReadout (juce::String const &text)
   // global strip is the transport's now.
   if (_statusBar)
     _statusBar->setControlReadout (text);
+
+  // ... and to the library while it is open, which is the one page whose
+  // controls are a thousand pixels from that bar. Pressing Save and reading
+  // the answer at the top of the screen is reading it somewhere you are not
+  // looking; the same words appear over the foot of the list as well.
+  if (_browser && _browser->isVisible ())
+    _browser->showMessage (text);
 }
 
 }
