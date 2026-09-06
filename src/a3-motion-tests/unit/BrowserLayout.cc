@@ -84,6 +84,7 @@ TEST (BrowserLayout, TheActionStripSitsUnderTheListAndNotInIt)
 {
   auto const l = defaultBrowser ();
 
+  ASSERT_FALSE (l.filterButton.isEmpty ());
   ASSERT_FALSE (l.renameButton.isEmpty ());
   ASSERT_FALSE (l.saveButton.isEmpty ());
   ASSERT_FALSE (l.deleteButton.isEmpty ());
@@ -92,8 +93,18 @@ TEST (BrowserLayout, TheActionStripSitsUnderTheListAndNotInIt)
   EXPECT_GE (l.renameButton.getY (), l.listArea.getBottom ());
 
   // Side by side, in reading order.
+  // The filter first -- it changes what is listed, the other three act on a
+  // row of it -- then left to right in the order they are reached for.
+  EXPECT_LE (l.filterButton.getRight (), l.renameButton.getX ());
   EXPECT_LE (l.renameButton.getRight (), l.saveButton.getX ());
   EXPECT_LE (l.saveButton.getRight (), l.deleteButton.getX ());
+
+  // Four keys of one width. One narrower than its neighbours reads as a
+  // different kind of thing, and these are all keys.
+  EXPECT_EQ (l.filterButton.getWidth (), l.renameButton.getWidth ());
+  EXPECT_EQ (l.renameButton.getWidth (), l.saveButton.getWidth ());
+
+  EXPECT_FALSE (l.filterButton.intersects (l.listArea));
 }
 
 TEST (BrowserLayout, AnEmptyAreaProducesNothingRatherThanNonsense)

@@ -627,6 +627,27 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   _browser->onDeletePressed = [this] { deleteChosenEntry (); };
 
+  // Steps through the three on a tap, like every other few-valued control in
+  // the bar. The word on the key is the state it is in, not the one the next
+  // press would bring -- a key that names what you would get rather than what
+  // you have is a key you have to press to find out where you are.
+  _browser->onFilterPressed = [this] {
+    if (_browserList != BrowserList::Clips)
+      return;
+
+    _deleteArmed = false;
+    _browser->cancelRename ();
+
+    switch (_clipFilter)
+      {
+      case ClipFilter::All: _clipFilter = ClipFilter::User; break;
+      case ClipFilter::User: _clipFilter = ClipFilter::System; break;
+      case ClipFilter::System: _clipFilter = ClipFilter::All; break;
+      }
+
+    refreshBrowser ();
+  };
+
   _browser->onClipsChosen = [this] {
     _browserList = BrowserList::Clips;
     _deleteArmed = false;
@@ -660,7 +681,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     else if (_browserList == BrowserList::Actions)
       assignActionEntry (_browser->entryName (index));
     else
-      assignBrowserEntry (index);
+      assignBrowserEntry (libraryForBrowserRow (index));
   };
 
   addChildComponent (*_clipSettings);
@@ -2008,12 +2029,29 @@ A3MotionUIComponent::refreshBrowser ()
     }
   else
     {
+      _browserRowToLibrary.clear ();
+
       for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
         {
           auto const &entry = _patternLibrary->getEntry (i);
+
+          // Row zero is the library's "Empty" and belongs to no category: it
+          // is how a slot is given nothing, which is a thing you want however
+          // the list is narrowed.
+          auto const shown
+              = i == 0 || _clipFilter == ClipFilter::All
+                || (_clipFilter == ClipFilter::System
+                    && entry.category == PatternLibrary::Category::System)
+                || (_clipFilter == ClipFilter::User
+                    && entry.category != PatternLibrary::Category::System);
+
+          if (!shown)
+            continue;
+
           names.add (juce::String (entry.name));
           settingsRows.push_back (entry.category
                                   == PatternLibrary::Category::Settings);
+          _browserRowToLibrary.push_back (i);
         }
     }
 
@@ -2050,10 +2088,15 @@ A3MotionUIComponent::refreshBrowser ()
       // has only its name to go on.
       auto const fromClip
           = _patternLibrary->indexForClipFile (_slotClipFile[ch][sl]);
-      _browser->setSelectedEntry (
-          fromClip > 0
-              ? fromClip
-              : (held ? _patternLibrary->indexForName (held->getName ()) : 0));
+      auto const entry
+          = fromClip > 0
+                ? fromClip
+                : (held ? _patternLibrary->indexForName (held->getName ()) : 0);
+
+      // Back through the map: with the list narrowed, the entry the slot
+      // holds may not be on it at all, and a row number taken from the
+      // library would then point at whatever happens to be there.
+      _browser->setSelectedEntry (browserRowForLibrary (entry));
     }
 
   // What can actually be done to what is chosen. Save lights only when there
@@ -2073,6 +2116,15 @@ A3MotionUIComponent::refreshBrowser ()
   // keys you read instead of aim at.
   auto const chosen = chosenEntryHasAFile ();
   auto const rename = _browser->isRenaming () ? "Keep" : "Rename";
+
+  // The filter narrows the library, and only the library: the actions and the
+  // sets land shipped and hand-written in one folder each with nothing marking
+  // which is which, so there is no split to offer there. The key goes dark
+  // rather than showing a word that would do nothing.
+  auto const filtering = _browserList == BrowserList::Clips;
+  auto const filter = _clipFilter == ClipFilter::All      ? "All"
+                      : _clipFilter == ClipFilter::User ? "User"
+                                                        : "System";
   // The delete key says what the next press will do. Armed it wears the word
   // rather than a colour, because a key that only changed colour would be a
   // key you have to have been watching.
@@ -2080,8 +2132,8 @@ A3MotionUIComponent::refreshBrowser ()
 
   if (_browserList == BrowserList::Sessions)
     // A set can always be put away; there is always an arrangement to keep.
-    _browser->setActions ({ rename, "Save", remove },
-                          { chosen, true, chosen });
+    _browser->setActions ({ filter, rename, "Save", remove },
+                          { filtering, chosen, true, chosen });
   else if (_browserList == BrowserList::Actions)
     {
       // An action is made by dialling a clip the way you want ACT to make it
@@ -2091,12 +2143,12 @@ A3MotionUIComponent::refreshBrowser ()
       auto const holds = ch < _patterns.size () && sl < _patterns[ch].size ()
                          && _patterns[ch][sl] != nullptr;
 
-      _browser->setActions ({ rename, "Save", remove },
-                            { chosen, holds, chosen });
+      _browser->setActions ({ filter, rename, "Save", remove },
+                            { filtering, chosen, holds, chosen });
     }
   else
-    _browser->setActions ({ rename, "Save", remove },
-                          { chosen, drifted, chosen });
+    _browser->setActions ({ filter, rename, "Save", remove },
+                          { filtering, chosen, drifted, chosen });
 }
 
 void
@@ -2399,6 +2451,27 @@ A3MotionUIComponent::chosenActionFile () const
   return actionsDir ().getChildFile (name + ".scd");
 }
 
+int
+A3MotionUIComponent::browserRowForLibrary (int entry) const
+{
+  for (size_t row = 0; row < _browserRowToLibrary.size (); ++row)
+    if (_browserRowToLibrary[row] == entry)
+      return static_cast<int> (row);
+
+  // Not on the list as it is narrowed. Nothing is highlighted rather than
+  // something else being: a highlight on the wrong row is worse than none.
+  return -1;
+}
+
+int
+A3MotionUIComponent::libraryForBrowserRow (int row) const
+{
+  if (row < 0 || row >= static_cast<int> (_browserRowToLibrary.size ()))
+    return -1;
+
+  return _browserRowToLibrary[static_cast<size_t> (row)];
+}
+
 juce::File
 A3MotionUIComponent::chosenSetFile () const
 {
@@ -2422,8 +2495,11 @@ A3MotionUIComponent::chosenLibraryIndex () const
   if (_browserList != BrowserList::Clips || !_browser)
     return -1;
 
-  auto const index = _browser->getSelectedEntry ();
-  // Row zero is the library's "Empty": a shape nobody has chosen, with no
+  // Through the map: a row is a row of what is listed, and what is listed is
+  // the library narrowed by the filter.
+  auto const index = libraryForBrowserRow (_browser->getSelectedEntry ());
+
+  // Entry zero is the library's "Empty": a shape nobody has chosen, with no
   // file of its own to name or throw away.
   if (index <= 0 || index >= _patternLibrary->getNumEntries ())
     return -1;

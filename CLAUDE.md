@@ -518,8 +518,21 @@ control changing which clip you are looking at want the same place — reading "
 way to reach slot 2 without going to the pads page. They light like the tabs beside them, because
 they answer the same kind of question. Not on the pads page, which shows every slot at once.
 
-**The library's three keys are Rename, Save and Delete**, and all three say the same words on every
-tab. What they act on is the row you chose in the list you are looking at, and the tab above the
+**The library's four keys are Filter, Rename, Save and Delete**, and all four say the same words on
+every tab. The filter stands first because it changes *what is listed* and the other three act on a
+row of it: narrow the list, then do something to a row. It steps `All → User → System` on a tap and
+wears the state it is in, not the one the next press would bring — a key naming what you would get
+rather than what you have is a key you press to find out where you are.
+
+It narrows the library and only the library: `Category::System` is the instrument's own shapes and
+everything else is the performer's, which is a split the library already knows. The actions and the
+sets land shipped and hand-written in one folder each with nothing marking which is which, so the
+key goes dark on those two tabs rather than offering a choice it cannot make.
+
+Once the list can be narrowed, **a row's number and a library entry's number are two different
+things** — `_browserRowToLibrary` is the map, and everything acting on a chosen row goes through it.
+Row zero stays on the list whatever the filter says: it is the library's "Empty", which is how a
+slot is given nothing, and that is wanted however narrow the list is. What they act on is the row you chose in the list you are looking at, and the tab above the
 list has already said which list that is — "Save Action" spent a word saying it again, and keys that
 reword themselves between tabs are keys you read instead of aim at. The outer two work wherever a
 row has a file behind it.

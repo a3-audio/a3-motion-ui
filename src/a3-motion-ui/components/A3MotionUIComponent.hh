@@ -229,6 +229,24 @@ private:
   juce::File chosenSetFile () const;
   /** The library entry the browser's chosen row stands for, or -1. */
   int chosenLibraryIndex () const;
+  /** The two directions of `_browserRowToLibrary`. Minus one either way for
+   *  "not on the list as it is narrowed". */
+  int browserRowForLibrary (int entry) const;
+  int libraryForBrowserRow (int row) const;
+
+  /** What the clips list is narrowed to.
+   *
+   *  The three the library can actually tell apart: the instrument's own
+   *  shapes, everything the performer recorded or dialled, and both. There is
+   *  no such split in the actions or the sets -- shipped and hand-written land
+   *  in one folder there with nothing marking which is which -- so the key is
+   *  dark on those two tabs rather than offering a choice it cannot make. */
+  enum class ClipFilter
+  {
+    All,
+    User,
+    System
+  };
 
   /** How many saved sets name `patternName` in one of their slots. */
   int setsNaming (juce::String const &patternName) const;
@@ -558,6 +576,13 @@ private:
     juce::StringArray errors;
   };
   std::vector<std::vector<SlotAction> > _slotAction;
+  ClipFilter _clipFilter = ClipFilter::All;
+  /** Which library entry each row of the browser stands for. The list is a
+   *  window onto the library once it can be narrowed, so a row's number and an
+   *  entry's number are no longer the same thing -- and everything that acts
+   *  on a chosen row goes through here. */
+  std::vector<int> _browserRowToLibrary;
+
   /** Whether the browser's delete key has been pressed once already. A file
    *  thrown away in front of a room does not come back, so it takes two
    *  presses -- and anything else that happens disarms it, because an armed

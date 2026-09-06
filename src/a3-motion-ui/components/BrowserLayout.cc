@@ -61,7 +61,9 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
         juce::jmin (out.listArea.getHeight () / 3, buttonHeight));
     out.listArea.removeFromBottom (gap);
 
-    auto const buttonW = (strip.getWidth () - 2 * gap) / 3;
+    auto const buttonW = (strip.getWidth () - 3 * gap) / 4;
+    out.filterButton = strip.removeFromLeft (buttonW);
+    strip.removeFromLeft (gap);
     out.renameButton = strip.removeFromLeft (buttonW);
     strip.removeFromLeft (gap);
     out.saveButton = strip.removeFromLeft (buttonW);

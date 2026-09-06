@@ -66,8 +66,11 @@ struct BrowserLayout
   juce::Rectangle<int> actionsTab;
   juce::Rectangle<int> setsTab;
 
-  /** The strip along the bottom of the list: what can be done to what is
-   *  selected. */
+  /** The strip along the bottom of the list. The first key changes *what is
+   *  listed*, the other three act on the row that is chosen in it -- which is
+   *  why it stands first, at the end the reading starts from: narrow the
+   *  list, then do something to a row of it. */
+  juce::Rectangle<int> filterButton;
   juce::Rectangle<int> renameButton;
   juce::Rectangle<int> saveButton;
   juce::Rectangle<int> deleteButton;
