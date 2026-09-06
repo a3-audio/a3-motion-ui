@@ -1936,9 +1936,18 @@ A3MotionUIComponent::saveSlotClipAsCopy ()
   // grounds that the shape lists it, and a shape finds its clip by file name.
   copy.svg.clear ();
   copy.aka.clear ();
-  copy.name = freeClipName (_patternLibrary->getClipDir (),
-                            juce::String (pattern->getName ()))
-                  .toStdString ();
+
+  // A name the whole library is free of, not merely the clips folder.
+  // freeClipName() looks at the folder alone, so a copy of a slot playing
+  // "Helix" was itself called "Helix" -- a preset wearing a shape's name,
+  // which indexForName() cannot tell apart and which made the row this was
+  // about to open for renaming the *shape's* row.
+  auto base = juce::String (pattern->getName ());
+  for (int n = 2; _patternLibrary->indexForName (base.toStdString ()) > 0; ++n)
+    base = juce::String (pattern->getName ()) + " " + juce::String (n);
+
+  copy.name
+      = freeClipName (_patternLibrary->getClipDir (), base).toStdString ();
   copy.settings = clipSettingsFrom (*pattern);
 
   auto const target = _patternLibrary->getClipDir ().getChildFile (
@@ -3095,19 +3104,31 @@ A3MotionUIComponent::saveAsChosen ()
   if (name.isEmpty ())
     return;
 
+  // Which row that is, by what it is rather than by what it is called. Found
+  // by name, a new clip landed on the *shape's* row whenever the two shared a
+  // name -- and the rename that followed renamed the instrument's shape and
+  // every set that pointed at it. A clip knows its file; the other two lists
+  // are one folder each, where a name is an identity.
+  auto row = -1;
+  if (_browserList == BrowserList::Clips)
+    row = browserRowForLibrary (_patternLibrary->indexForClipFile (
+        _slotClipFile[_clipSettingsChannel][_clipSettingsSlot]));
+  else
+    for (int i = 0; i < _browser->getNumEntries () && row < 0; ++i)
+      if (_browser->entryName (i) == name)
+        row = i;
+
+  if (row < 0)
+    return;
+
   // The name it got is a counted one -- "Action 4" -- which is findable and
   // says nothing. So the new row opens for typing straight away, keyboard and
   // all: naming a thing is part of making it, and a second key press to get
   // there is a key press somebody skips and then cannot find what they saved.
-  for (int row = 0; row < _browser->getNumEntries (); ++row)
-    if (_browser->entryName (row) == name)
-      {
-        _deleteArmed = false;
-        _browser->setSelectedEntry (row);
-        _browser->beginRename (name);
-        refreshBrowser ();
-        return;
-      }
+  _deleteArmed = false;
+  _browser->setSelectedEntry (row);
+  _browser->beginRename (name);
+  refreshBrowser ();
 }
 
 void
@@ -5806,12 +5827,6 @@ A3MotionUIComponent::updateControlReadout (juce::String const &text)
   if (_statusBar)
     _statusBar->setControlReadout (text);
 
-  // ... and to the library while it is open, which is the one page whose
-  // controls are a thousand pixels from that bar. Pressing Save and reading
-  // the answer at the top of the screen is reading it somewhere you are not
-  // looking; the same words appear over the foot of the list as well.
-  if (_browser && _browser->isVisible ())
-    _browser->showMessage (text);
 }
 
 }

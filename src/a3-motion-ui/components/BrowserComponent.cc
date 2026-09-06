@@ -45,10 +45,6 @@ BrowserComponent::BrowserComponent ()
       auto row = std::make_unique<TouchControl> ();
       row->setIdentity (i);
       row->onTap = [this] (int index, int) {
-        // Reaching for the list is done reading the last message, and the
-        // band it stands in is a row of the list.
-        showMessage ({});
-
         auto const entry = _scrollOffset + index;
         if (entry >= 0 && entry < _names.size () && onEntryChosen)
           onEntryChosen (entry);
@@ -63,7 +59,6 @@ BrowserComponent::BrowserComponent ()
       // pushing it up brings what is below into view, so a finger travelling
       // up (a positive increment) moves the window further down the library.
       row->onDragIncrement = [this] (int, int, int increment) {
-        showMessage ({});
         setScrollOffset (_scrollOffset + increment);
         if (onScrolled)
           onScrolled (increment);
@@ -78,11 +73,6 @@ BrowserComponent::BrowserComponent ()
                 std::function<void ()> BrowserComponent::*callback) {
           into = std::make_unique<TouchControl> ();
           into->onTap = [this, callback] (int, int) {
-            // Cleared before the key runs, not after: whatever it says next
-            // is the answer to this press, and the one before it has been
-            // read or has not.
-            showMessage ({});
-
             if (this->*callback)
               (this->*callback) ();
           };
@@ -247,8 +237,6 @@ BrowserComponent::paint (juce::Graphics &g)
 
   for (int row = 0; row < static_cast<int> (_layout.rows.size ()); ++row)
     paintRow (g, row);
-
-  paintMessage (g);
 
   paintButton (g, _layout.filterButton, _actionLabels[0], _actionEnabled[0]);
   paintButton (g, _layout.renameButton, _actionLabels[1], _actionEnabled[1]);
@@ -455,47 +443,5 @@ BrowserComponent::focusLost (FocusChangeType)
 }
 
 
-void
-BrowserComponent::showMessage (juce::String const &text)
-{
-  if (text == _message)
-    return;
-
-  // It stays until the next thing happens, the way the status bar's readout
-  // does. A message on a timer is one you can miss by looking down a second
-  // too late, and looking down a second too late is what a booth is.
-  _message = text;
-  repaint ();
-}
-
-void
-BrowserComponent::paintMessage (juce::Graphics &g)
-{
-  if (_message.isEmpty () || _layout.listArea.isEmpty ())
-    return;
-
-  // On a copy. removeFromBottom() takes the room out of the rectangle it is
-  // called on, and _layout is a member: called on it directly, every repaint
-  // shrank the list by another row and the band walked up the page.
-  auto listArea = _layout.listArea;
-  auto const band = listArea.removeFromBottom (
-      juce::jmin (listArea.getHeight (),
-                  juce::jmax (fingertipSize, _layout.rowHeight)));
-
-  // Opaque, over the rows rather than beside them: there is no room in this
-  // page that is not already something, and a word drawn through a list of
-  // names is a word nobody reads. It goes away on its own.
-  g.setColour (toColour (theme ().background));
-  g.fillRect (band);
-  g.setColour (toColour (theme ().accent, 0.2f));
-  g.fillRect (band);
-
-  g.setFont (juce::Font (juce::jmin (theme ().fontSize (FontRole::Body),
-                                     band.getHeight () * 0.5f),
-                         juce::Font::plain));
-  g.setColour (toColour (theme ().textPrimary));
-  g.drawFittedText (_message, band.reduced (band.getHeight () / 3, 0),
-                    juce::Justification::centredLeft, 1);
-}
 
 }
