@@ -410,13 +410,6 @@ ClipSettingsComponent::resized ()
 }
 
 juce::Colour
-ClipSettingsComponent::cardColour (bool isSelected) const
-{
-  return isSelected ? _channelColour.withAlpha (theme ().alphaDisabled)
-                    : toColour (theme ().textPrimary, cardWash);
-}
-
-juce::Colour
 ClipSettingsComponent::controlColour (bool isSelected) const
 {
   return isSelected ? _channelColour : toColour (theme ().textMuted);
@@ -787,8 +780,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // The global strip stands on both pages: recmode, clock, MENU, REC and TAP
   // belong to the device rather than to the clip, and losing them while you
   // are firing clips is exactly the wrong moment to lose them.
-  paintGlobalSection (g, sectionCarriesSelection (globalIndex)
-                             && _selectedIndex == globalIndex);
+  paintGlobalSection (g, _selectedIndex == globalIndex);
 
   if (isFullPage (_page))
     return; // ControllerComponent / BrowserComponent draws the rest
@@ -997,13 +989,14 @@ ClipSettingsComponent::paintSectionCard (juce::Graphics &g, int sectionIndex,
 {
   auto const card = _layout.sectionCards[static_cast<size_t> (sectionIndex)];
 
-  g.setColour (cardColour (isSelected));
+  // One wash for every card, whichever section was last touched. The selected
+  // one used to be filled with the channel's colour -- a coloured field the
+  // size of a third of the bar, laid over the controls you are reading, that
+  // moved every time a finger landed somewhere else. It said which section
+  // was armed and shouted it, and what actually needs saying is which
+  // *control* is, which the pointer and the control's own colour already do.
+  g.setColour (toColour (theme ().textPrimary, cardWash));
   g.fillRoundedRectangle (card.toFloat (), 8.f);
-  // A hairline like every other edge in the bar. At 2px the selected card
-  // read as a heavier object than the others rather than the same object
-  // lit up, and it is the fill that says "selected" anyway.
-  if (isSelected)
-    g.drawRoundedRectangle (card.toFloat (), 8.f, 1.f);
 
   paintSectionLabel (
       g, _layout.sectionLabels[static_cast<size_t> (sectionIndex)],

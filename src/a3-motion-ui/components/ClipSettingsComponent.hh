@@ -449,9 +449,6 @@ private:
                           juce::String const &text, bool isSelected);
 
 
-  /** A section card's fill: the channel's colour while the section is
-   *  selected, a barely-there wash otherwise. */
-  juce::Colour cardColour (bool isSelected) const;
   /** What a control is drawn in — its arc, its icon, its value. Takes the
    *  channel's colour in the selected section so that the section the
    *  encoders act on is the one that carries the colour. */

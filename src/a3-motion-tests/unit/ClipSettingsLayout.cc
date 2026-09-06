@@ -1640,26 +1640,6 @@ TEST (ClipSettingsLayout, TheTransportIsOneRowOfEqualKeysOnEveryPage)
     }
 }
 
-// The global strip never draws as selected.
-//
-// Selection is a clip idea: the three clip sections are three views of one
-// clip, and which of them a knob is about to move has to be visible. The strip
-// belongs to the device, so a wash in the shown clip's colour says it belongs
-// to that clip -- and it is the widest card in the bar, so that wash reads as
-// a panel having opened rather than as a card having lit up. Its four buttons
-// have always passed isSelected = false; the card they stand on had not.
-TEST (ClipSettingsLayout, TheGlobalStripDoesNotWearTheClipsSelection)
-{
-  for (int section = 0; section < numClipSettingsSections - 1; ++section)
-    EXPECT_TRUE (sectionCarriesSelection (section)) << "section " << section;
-
-  EXPECT_FALSE (sectionCarriesSelection (numClipSettingsSections - 1))
-      << "the global strip is not one of the clip's sections";
-
-  // An index from nowhere is not a selected section either.
-  EXPECT_FALSE (sectionCarriesSelection (-1));
-  EXPECT_FALSE (sectionCarriesSelection (numClipSettingsSections));
-}
 
 // Every knob in the global grid shows what is carrying it.
 //

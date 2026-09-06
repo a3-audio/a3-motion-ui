@@ -157,19 +157,6 @@ int numControlsInSection (int sectionIndex);
  *  backwards from the pointer would draw a modulation that cannot happen. */
 float gridKnobReach (float set, float effective);
 
-/** Whether a section shows that it is the selected one.
- *
- *  The three clip sections do: they are three views of one clip, and which of
- *  them a knob is about to move is a thing you have to be able to see. The
- *  global strip does not. It belongs to the device rather than to any clip, so
- *  washing it in the shown clip's colour says it belongs to that clip -- and
- *  it is the one card on screen wide enough for that wash to read as a panel
- *  having opened rather than as a card having lit up. Its four buttons have
- *  always passed isSelected = false for exactly this reason; the card they
- *  stand on had not caught up.
- */
-bool sectionCarriesSelection (int sectionIndex);
-
 /** Whether a tap on this control already steps its value on, rather than
  *  only selecting it. True for the few-valued ones — direction, end-action
  *  and the global strip's rec mode — which wrap, so every tap arrives

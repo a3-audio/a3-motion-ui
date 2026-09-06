@@ -539,6 +539,13 @@ grey and reads as a button stuck half-pressed. What they do carry is the value's
 `recModeColour` and `Colours::clockMode`. REC and TAP still light, because what they show is
 momentary and has no label of its own.
 
+**No section wears the selection.** The selected card used to be filled with the channel's colour —
+a coloured field a third of the bar wide, laid over the controls you are reading, that moved every
+time a finger landed somewhere else. It said which *section* was armed and shouted it, and what
+needs saying is which *control* is, which the pointer and the control's own colour already do. Every
+card carries the same wash now; `isSelected` still reaches the controls inside it and the section's
+title, which is a change of brightness rather than a panel.
+
 The bar has one button face, `paintBarButton` — a wash and a thin edge, never a filled slab, so a
 button reads as part of the bar rather than pasted on it. Elevation's pole and flat use it, so do
 Motion's two lists and the global section's four. Only an active one carries colour; the global

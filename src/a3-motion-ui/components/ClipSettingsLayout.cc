@@ -69,13 +69,6 @@ gridKnobReach (float set, float effective)
   return std::clamp (effective, floor, 1.f);
 }
 
-bool
-sectionCarriesSelection (int sectionIndex)
-{
-  // Everything but the rightmost card, which is the global strip.
-  return sectionIndex >= 0 && sectionIndex < numClipSettingsSections - 1;
-}
-
 int
 numControlsInSection (int sectionIndex)
 {
