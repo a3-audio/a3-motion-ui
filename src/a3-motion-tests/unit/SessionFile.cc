@@ -255,10 +255,51 @@ TEST (SessionFile, ASlotCarriesItsClipAndItsAction)
   file.deleteFile ();
 }
 
+// Whether a slot was running comes back with it, so loading a set means the
+// room sounds the way it did rather than silent until eight pads are pressed.
+TEST (SessionFile, ASlotRemembersWhetherItWasRunning)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (2);
+  set.channels[0].slots[0].patternName = "Wave";
+  set.channels[0].slots[0].playing = true;
+  set.channels[0].slots[1].patternName = "Circle";
+
+  auto const file = tempSession ("a3-session-playing.json");
+  ASSERT_TRUE (saveSession (file, set));
+
+  auto const read = loadSession (file, 1, 2);
+  EXPECT_TRUE (read.channels[0].slots[0].playing);
+  EXPECT_FALSE (read.channels[0].slots[1].playing);
+
+  file.deleteFile ();
+}
+
+// Whether, and nothing more. Where it had got to is not in the format at all:
+// a set coming back mid-figure would start somewhere nobody chose.
+TEST (SessionFile, WhereAClipHadGotToIsNotInTheSet)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+  set.channels[0].slots[0].patternName = "Wave";
+  set.channels[0].slots[0].playing = true;
+
+  auto const file = tempSession ("a3-session-no-position.json");
+  ASSERT_TRUE (saveSession (file, set));
+
+  auto const text = file.loadFileAsString ().toLowerCase ();
+  EXPECT_FALSE (text.contains ("position"));
+  EXPECT_FALSE (text.contains ("phase"));
+
+  file.deleteFile ();
+}
+
 // A slot with neither writes neither. A slot filled straight from a shape has
 // no clip file and fires no action, and a file full of empty strings says that
 // twice as loudly as leaving them out.
-TEST (SessionFile, ASlotWithNoFilesBehindItSaysNothingAboutThem)
+TEST (SessionFile, ASlotWithNothingBehindItSaysNothingAboutIt)
 {
   Session set;
   set.channels.resize (1);
@@ -271,6 +312,7 @@ TEST (SessionFile, ASlotWithNoFilesBehindItSaysNothingAboutThem)
   auto const text = file.loadFileAsString ();
   EXPECT_FALSE (text.contains ("\"clip\""));
   EXPECT_FALSE (text.contains ("\"action\""));
+  EXPECT_FALSE (text.contains ("\"playing\""));
 
   auto const read = loadSession (file, 1, 1);
   EXPECT_TRUE (read.channels[0].slots[0].clipFile.empty ());

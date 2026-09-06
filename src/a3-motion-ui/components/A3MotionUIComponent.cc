@@ -3600,6 +3600,22 @@ A3MotionUIComponent::applySet (juce::File const &file)
                 applyClipSettings (*pattern, *saved.overrides);
                 syncClipUIParamsFromPattern (index, slot);
               }
+
+          // And what was running runs again -- from the top, on the next
+          // downbeat. Not from where it was: coming back mid-figure would put
+          // the set down somewhere other than the beginning of its own
+          // movement, and where it happened to be when Save was pressed is
+          // not a thing anybody chose. The downbeat rather than the next beat
+          // because this is several clips starting together, and together is
+          // the whole point of a set -- a pad press is one clip and gets the
+          // nearer quantisation.
+          if (saved.playing)
+            if (auto const &pattern = _patterns[index][slot])
+              {
+                pattern->setPlaybackLength (getPlaybackLength (index, slot));
+                _engine.playPattern (pattern,
+                                     TempoClock::nextDownBeat (_now));
+              }
         }
     }
 }
@@ -3666,6 +3682,14 @@ A3MotionUIComponent::buildSession ()
               saved.clipFile = _slotClipFile[index][slot]
                                    .getFileNameWithoutExtension ()
                                    .toStdString ();
+
+              // Running counts as running: a clip waiting for the next beat
+              // is one somebody has already started, and a set saved in that
+              // half-second should not come back silent.
+              auto const status = pattern->getStatus ();
+              saved.playing
+                  = status == Pattern::Status::Playing
+                    || status == Pattern::Status::ScheduledForPlaying;
 
               // Everything, not only what differs from the clip's own file.
               // The difference was worked out with clipHasDrifted(), which

@@ -83,6 +83,15 @@ struct Session
      *  reasoning as `clipFile`, and empty means ACT does the plain accent. */
     std::string action;
 
+    /** Whether this slot was running when the set was written.
+     *
+     *  Whether, and nothing more: not how far through. Coming back mid-figure
+     *  would put a set down somewhere other than the beginning of its own
+     *  movement, and where it happened to be when somebody pressed Save is not
+     *  a thing anybody chose. A slot that was running starts again from the
+     *  top, on the next downbeat -- see applySet(). */
+    bool playing = false;
+
     /** Everything this slot's clip is set to.
      *
      *  Written whenever there is a clip in the slot, not only when it differs

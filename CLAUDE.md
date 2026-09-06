@@ -127,6 +127,12 @@ generator and the test runner:
   before this has none, and that has to go on meaning "leave the clip's own settings alone" rather
   than "reset it to the defaults".
 
+  **What was running runs again** — from the top, on the next *downbeat*. Whether, and nothing more:
+  where a clip had got to is not in the format, because a set coming back mid-figure would start
+  somewhere nobody chose. The downbeat rather than the next beat because this is eight clips starting
+  together and together is the whole point of a set; a pad press is one clip and gets the nearer
+  quantisation.
+
   A set names its takes the way the library resolves them (`indexForName`) rather than by index: a
   library's order depends on what is in the folder, so a set meaning "the third file" would mean
   something else on the next stick. A missing or unreadable set is an empty set, and a set written
