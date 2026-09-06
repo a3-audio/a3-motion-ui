@@ -2352,12 +2352,6 @@ A3MotionUIComponent::updateActionPage ()
                          pattern ? pattern->getQDecay () : defaults.qDecay,
                          pattern ? pattern->getQMax () : defaults.qMax);
 
-  // The clip's three slow sweeps, which came here from Motion and Elevation.
-  _action->setSweeps (
-      pattern ? pattern->getSpin () : defaults.spin,
-      pattern ? pattern->getReachLfo () : defaults.reachLfo,
-      pattern ? pattern->getElevationLfo () : defaults.elevationLfo);
-
   auto const &slotAction = _slotAction[channel][slot];
   auto const &action = slotAction.file;
 
@@ -2431,22 +2425,6 @@ A3MotionUIComponent::applyActionControl (int control, int increment)
         pattern->setActMode (next == 1 ? ActMode::Hold : ActMode::OneShot);
       }
       break;
-    // The clip's three slow sweeps. Whole steps, all three: a TempoLfo step
-    // is a signed power of two in bars per cycle, so a finger should feel
-    // each one rather than slide past them.
-    case ActionComponent::Spin:
-      pattern->setSpin (std::clamp (pattern->getSpin () + increment,
-                                    -lfoMaxStep, lfoMaxStep));
-      break;
-    case ActionComponent::Swell:
-      pattern->setReachLfo (std::clamp (pattern->getReachLfo () + increment,
-                                        -lfoMaxStep, lfoMaxStep));
-      break;
-    case ActionComponent::Sway:
-      pattern->setElevationLfo (
-          std::clamp (pattern->getElevationLfo () + increment, -lfoMaxStep,
-                      lfoMaxStep));
-      break;
     default:
       return;
     }
@@ -2495,17 +2473,6 @@ A3MotionUIComponent::resetActionControl (int control)
       break;
     case ActionComponent::QMax:
       pattern->setQMax (0.f);
-      break;
-    // Off, like the ceilings: the middle of a bipolar sweep is no sweep, and
-    // that is also the value you are reaching for when you double tap one.
-    case ActionComponent::Spin:
-      pattern->setSpin (0);
-      break;
-    case ActionComponent::Swell:
-      pattern->setReachLfo (0);
-      break;
-    case ActionComponent::Sway:
-      pattern->setElevationLfo (0);
       break;
     default:
       return;
@@ -2565,15 +2532,6 @@ A3MotionUIComponent::actionReadoutFor (int control, Pattern const &pattern)
       return "q max "
              + juce::String (juce::roundToInt (pattern.getQMax () * 100.f))
              + "%";
-    // A step is a signed power of two in bars per cycle, so the readout says
-    // the cycle rather than the step: "spin 4" is a turn every four bars,
-    // which is the number a hand is actually counting.
-    case ActionComponent::Spin:
-      return "spin " + sweepReadout (pattern.getSpin ());
-    case ActionComponent::Swell:
-      return "swell " + sweepReadout (pattern.getReachLfo ());
-    case ActionComponent::Sway:
-      return "sway " + sweepReadout (pattern.getElevationLfo ());
     default:
       return juce::String ("act ")
              + value::actModeNames[pattern.getActMode () == ActMode::Hold ? 1
@@ -4380,7 +4338,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::elevationIndex)
     return 3; // clip-top, clip-bottom, reach
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 7; // rot, fade, bias, dir, end, then the two squeezes
+    return 10; // rot, fade, bias, dir, end, the two squeezes, the three sweeps
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
     return 4; // the shape, then rot, fade and bridge down its column
   return 1;
@@ -4462,6 +4420,11 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         // exact middle of a knob by hand mid-set is not a thing anyone does.
         case 5: pattern->setSqueezeX (0.f); break;
         case 6: pattern->setSqueezeY (0.f); break;
+        // Off. The middle of a bipolar sweep is no sweep at all, which is
+        // also what a hand is reaching for when it double taps one.
+        case 7: pattern->setSpin (0); break;
+        case 8: pattern->setReachLfo (0); break;
+        case 9: pattern->setElevationLfo (0); break;
         default: return;
         }
       break;
@@ -4575,8 +4538,10 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         break;
       }
     case 2: // Motion — rot (0), fade (1), bias (2), direction (3),
-            // end-action (4), sqzX (5), sqzY (6). What the movement *is* in
-            // the plane. Renumbering a section means moving the layout,
+            // end-action (4), sqzX (5), sqzY (6), spin (7), swell (8),
+            // sway (9). What the movement *is* in the plane, and the three
+            // slow sweeps that move it. Renumbering a section means moving
+            // the layout,
             // tapAdvancesValue, this handler, the reset handler and the
             // painter together -- see CLAUDE.md -- which is exactly why the
             // squeezes were appended at the end rather than given the seats
@@ -4625,17 +4590,55 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
           case 5:
           case 6:
-            // The two squeezes. A twentieth of the travel per step, like the
-            // fade beside them: the whole range is one full turn of an
-            // encoder rather than a flick, because half and double are a long
-            // way apart on a moving figure.
+            // The two squeezes. A tenth per step, which is a twentieth of
+            // their ring: these run -1..1 where reach and the clips run 0..1,
+            // so the same number here would move half as far under the same
+            // finger. Twenty steps end to end, like the elevation knobs.
             if (pattern)
               {
-                auto const amount = 0.02f * static_cast<float> (increment);
+                auto const amount = 0.1f * static_cast<float> (increment);
                 if (sub == 5)
                   pattern->setSqueezeX (pattern->getSqueezeX () + amount);
                 else
                   pattern->setSqueezeY (pattern->getSqueezeY () + amount);
+              }
+            break;
+
+          case 7:
+          case 8:
+          case 9:
+            // The clip's three slow sweeps. Whole steps, all three: a TempoLfo
+            // step is a signed power of two in bars per cycle, so a finger
+            // should feel each one rather than slide past them.
+            //
+            // On the Pattern rather than in _clipUIParams because the engine
+            // reads them every tick and they have to survive being saved.
+            if (pattern)
+              {
+                auto const stepped = [increment] (int step) {
+                  return std::clamp (step + increment, -lfoMaxStep,
+                                     lfoMaxStep);
+                };
+
+                if (sub == 7)
+                  pattern->setSpin (stepped (pattern->getSpin ()));
+                else if (sub == 8)
+                  pattern->setReachLfo (stepped (pattern->getReachLfo ()));
+                else
+                  pattern->setElevationLfo (
+                      stepped (pattern->getElevationLfo ()));
+
+                // A step is an index into a table of powers of two and means
+                // nothing to read, so the readout says the cycle it stands
+                // for. It is the one thing these three had on the ACTION page
+                // that a ring alone does not say.
+                updateControlReadout (
+                    juce::String (sub == 7   ? "spin "
+                                  : sub == 8 ? "swell "
+                                             : "sway ")
+                    + sweepReadout (sub == 7   ? pattern->getSpin ()
+                                    : sub == 8 ? pattern->getReachLfo ()
+                                               : pattern->getElevationLfo ()));
               }
             break;
 
@@ -4810,6 +4813,10 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setMotionSqueeze (
       pattern ? pattern->getSqueezeX () : ClipSettings{}.squeezeX,
       pattern ? pattern->getSqueezeY () : ClipSettings{}.squeezeY);
+  _clipSettings->setMotionSweeps (
+      pattern ? pattern->getSpin () : ClipSettings{}.spin,
+      pattern ? pattern->getReachLfo () : ClipSettings{}.reachLfo,
+      pattern ? pattern->getElevationLfo () : ClipSettings{}.elevationLfo);
   _clipSettings->setMotionEnvelope (
       pattern ? pattern->getEnvelopeAttack () : 0,
       pattern ? pattern->getEnvelopeDecay () : 0);

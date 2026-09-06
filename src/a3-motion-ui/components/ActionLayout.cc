@@ -52,25 +52,17 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   // read across at one height. Only when they fit and only when they carry a
   // target: lining up is worth having, and worth losing to a knob a finger
   // can actually land on.
-  // The sweeps take a row of their own under the grid, so lining up with the
-  // strip is only worth taking if that row still fits under it afterwards --
-  // three rows that read across beside three controls nobody can reach would
-  // be the wrong trade.
-  auto const referenceRowH
-      = gridReference.isEmpty ()
-            ? 0
-            : gridReference.getHeight () / ActionLayout::numRows;
   auto const referenceFits
-      = !gridReference.isEmpty () && gridReference.getY () >= content.getY ()
-        && referenceRowH >= cellFloor
-        && gridReference.getBottom () + gap + referenceRowH
-               <= content.getBottom ();
+      = !gridReference.isEmpty ()
+        && gridReference.getY () >= content.getY ()
+        && gridReference.getBottom () <= content.getBottom ()
+        && gridReference.getHeight () / ActionLayout::numRows >= cellFloor;
 
   auto const rowH
       = referenceFits
-            ? referenceRowH
+            ? gridReference.getHeight () / ActionLayout::numRows
             : juce::jmax (cellFloor,
-                          juce::jmin (content.getHeight () / 5,
+                          juce::jmin (content.getHeight () / 4,
                                       static_cast<int> (gridKnob * 1.35f)));
 
   // The card at the right, wide enough for a gutter and three knob columns.
@@ -89,8 +81,7 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
 
   // Where the rows begin: on the strip's if it gave us any, otherwise centred
   // in what the card has.
-  // Four bands, not three: the grid, then the sweeps under it.
-  auto const blockH = ActionLayout::numRows * rowH + gap + rowH;
+  auto const blockH = ActionLayout::numRows * rowH;
   auto const top = referenceFits
                        ? gridReference.getY ()
                        : grid.getY () + (grid.getHeight () - blockH) / 2;
@@ -108,20 +99,6 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
         out.controls[static_cast<size_t> (row * 3 + i)]
             = band.removeFromLeft (colW).reduced (1);
     }
-
-  // The sweeps, in the grid's own columns so the block reads as structure
-  // rather than as a row that nearly lines up. The gutter stays empty: each
-  // of the three carries its own caption, unlike the grid's rows.
-  {
-    auto const frameTop = top + ActionLayout::numRows * rowH + gap;
-    out.modulationFrame = juce::Rectangle<int>{ grid.getX () + indent,
-                                                frameTop, gridW, rowH };
-
-    auto band = out.modulationFrame.withTrimmedLeft (labelW);
-    for (int i = 0; i < ActionLayout::numModulations; ++i)
-      out.modulation[static_cast<size_t> (i)]
-          = band.removeFromLeft (colW).reduced (1);
-  }
 
   // What is left is the action's: its name and mode on one line, the script
   // it carries under them.

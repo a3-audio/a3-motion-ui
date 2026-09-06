@@ -75,27 +75,11 @@ struct ActionLayout
    *  controls in the bar does. */
   juce::Rectangle<int> card;
 
-  /** The clip's three slow sweeps -- spin, swell and sway -- in a frame of
-   *  their own under the envelope grid.
-   *
-   *  They came from Motion and Elevation, where each stood beside the value it
-   *  works on. Together they are the one thing this page is about: what the
-   *  clip does on its own while nobody is touching it. A frame rather than a
-   *  fourth row of the grid, because the grid's columns are attack, decay and
-   *  ceiling and these three are none of those -- and because the grid's rows
-   *  are lined up with the global strip's channel grid beside it, which has
-   *  three rows and will go on having three. */
-  juce::Rectangle<int> modulationFrame;
-  /** spin, swell, sway -- in the order the handler expects. */
-  std::array<juce::Rectangle<int>, 3> modulation;
-
   /** Three envelopes' worth of attack, decay and ceiling, in reading order --
    *  which is also the order the handler expects. The 3d accent first,
    *  because it is what ACT has always done, then the cutoff, then the
    *  resonance. */
   static constexpr int numRows = 3;
-  /** How many sweeps stand under the grid. */
-  static constexpr int numModulations = 3;
   std::array<juce::Rectangle<int>, numRows * 3> controls;
 
   /** The bands the controls stand on, top to bottom. */

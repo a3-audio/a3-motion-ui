@@ -204,6 +204,16 @@ public:
    *  left-right -- see PlaneShaping. */
   void setMotionSqueeze (float squeezeX, float squeezeY);
 
+  /** The clip's three slow sweeps, as signed TempoLfo steps: how fast the
+   *  figure turns under the blob, how fast reach opens and closes, how fast
+   *  the elevation base travels. Zero is off for all three.
+   *
+   *  They live in Motion together rather than each beside the value it works
+   *  on: what a clip does on its own while nobody is touching it is one thing
+   *  to reach for, and the hand looking for it should find all three at
+   *  once. */
+  void setMotionSweeps (int spin, int swell, int sway);
+
   /** The accent's shape, as Envelope steps: how long it rises while ACT is
    *  held, how long it falls once let go. */
   void setMotionEnvelope (int attackStep, int decayStep);
@@ -521,6 +531,9 @@ private:
   int _motionBridgeBias = 0;
   float _motionSqueezeX = 0.f;
   float _motionSqueezeY = 0.f;
+  int _motionSpin = 0;
+  int _motionSwell = 0;
+  int _motionSway = 0;
   int _motionAttack = 0;
   int _motionDecay = 0;
   float _motionEnvelopeMax = 1.f;

@@ -21,7 +21,6 @@
 #include "ActionComponent.hh"
 
 #include <a3-motion-engine/Envelope.hh>
-#include <a3-motion-engine/TempoLfo.hh>
 
 #include <a3-motion-ui/components/BarKnob.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
@@ -188,17 +187,12 @@ ActionComponent::resized ()
           ? _gridReference
           : _gridReference - getBounds ().getPosition ());
 
-  // The grid's nine come out of the rows; the mode and the three sweeps
-  // stand elsewhere.
+  // Every knob comes out of the rows; the mode does not stand in one.
   for (int i = 0; i < ActMode; ++i)
     _touch[static_cast<size_t> (i)]->setBounds (
         _layout.controls[static_cast<size_t> (i)]);
 
   _touch[ActMode]->setBounds (_layout.actModeField);
-
-  for (int i = 0; i < ActionLayout::numModulations; ++i)
-    _touch[static_cast<size_t> (Spin + i)]->setBounds (
-        _layout.modulation[static_cast<size_t> (i)]);
 
   if (_actionTouch)
     _actionTouch->setBounds (_layout.actionField);
@@ -452,18 +446,6 @@ ActionComponent::setActionName (juce::String const &name)
     return;
 
   _actionName = name;
-  repaint ();
-}
-
-void
-ActionComponent::setSweeps (int spin, int swell, int sway)
-{
-  if (spin == _spin && swell == _swell && sway == _sway)
-    return;
-
-  _spin = spin;
-  _swell = swell;
-  _sway = sway;
   repaint ();
 }
 
@@ -761,33 +743,6 @@ ActionComponent::paint (juce::Graphics &g)
       paintBarKnob (g, _layout.controls[static_cast<size_t> (base + 2)],
                     metrics, _channelColour, caption::envelopeMax,
                     ceilings[row] * 2.f - 1.f, false, false, true);
-    }
-
-  // The clip's three slow sweeps, under the grid in a frame of their own --
-  // the same set-off frame the bar's other blocks of controls stand in.
-  //
-  // What they have in common is that they move without being touched, which
-  // is what this page is about; what they have in common with the grid above
-  // is nothing, which is why they are not a fourth row of it.
-  if (!_layout.modulationFrame.isEmpty ())
-    {
-      g.setColour (toColour (theme ().textPrimary, 0.04f));
-      g.fillRoundedRectangle (_layout.modulationFrame.toFloat (), 4.f);
-      g.setColour (toColour (theme ().textPrimary, 0.12f));
-      g.drawRoundedRectangle (_layout.modulationFrame.toFloat (), 4.f, 1.f);
-
-      // Bipolar, all three: the sign is a direction and the magnitude is a
-      // speed, which is what a TempoLfo step is everywhere else in the bar.
-      char const *const names[]
-          = { caption::spin, caption::swell, caption::sway };
-      int const steps[] = { _spin, _swell, _sway };
-
-      for (int i = 0; i < ActionLayout::numModulations; ++i)
-        paintBarKnob (g, _layout.modulation[static_cast<size_t> (i)], metrics,
-                      _channelColour, names[i],
-                      static_cast<float> (steps[i])
-                          / static_cast<float> (lfoMaxStep),
-                      true, false, true);
     }
 
   // Which row is which, said once each rather than on every knob.

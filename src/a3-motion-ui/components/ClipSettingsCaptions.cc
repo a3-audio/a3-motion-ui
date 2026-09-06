@@ -148,9 +148,9 @@ clipSettingsPreferredHeight (float headerSize, float bodySize,
 
   auto const global = gridRows + transport + buttons;
 
-  // Motion: a title row, three rows of knobs and one of buttons. It used to
+  // Motion: a title row, four rows of knobs and one of buttons. It used to
   // fit inside whatever the other two asked for, back when it had one row of
-  // knobs; with the spin, the swell and the accent it can be the tallest of
+  // knobs; with the sweeps and the squeezes in it it can be the tallest of
   // the three, and a bar sized without it squeezes its rows.
   auto const motionRows = 4 * controlBoxHeightForFont (bodySize, knobDiameter);
   auto const motion = titleRow + motionRows + buttonRow;

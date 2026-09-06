@@ -91,12 +91,14 @@ numControlsInSection (int sectionIndex)
       return 3;
     case 2:
       // rot, fade, bias, then dir and end along the floor, then the two
-      // squeezes. Seven, and the last two are last because `controls` is
-      // ordered by sub-index rather than by seat: appending them leaves dir
-      // and end at three and four, where tapAdvancesValue(), the value
+      // squeezes, then the three slow sweeps. Ten, and everything past four
+      // is in the order it arrived rather than the order it is read in:
+      // `controls` is ordered by sub-index, not by seat, and appending leaves
+      // dir and end at three and four, where tapAdvancesValue(), the value
       // handler, the reset handler and the painter already expect them.
-      // Inserting them where they sit on screen would have moved all four.
-      return 7;
+      // Inserting each new pair where it sits would have renumbered the
+      // section twice over.
+      return 10;
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -501,21 +503,20 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         juce::jmin (content.getHeight (), out.buttonHeight));
     content.removeFromBottom (gapV);
 
-    // Three rows of knobs and a row of buttons. rot alone at the top, the two
-    // squeezes under it, then the fade and the bias.
+    // Four rows of knobs and a row of buttons, in pairs down the section:
+    // rot with the spin that turns it, the two squeezes, the swell with the
+    // sway, then the fade with the bias.
     //
-    // The squeezes go directly under rot because the three of them are one
-    // kind of thing -- what is done to the recorded figure in its own plane --
-    // while the fade and the bias read the take's holes. Grouping by what a
-    // control does is what lets a hand find the right knob without reading the
-    // words under them.
+    // Each row is a pair that belongs together, and the section reads top to
+    // bottom as what is done to the recorded figure, then what moves it while
+    // nobody is touching it, then what is read out of its holes. Grouping by
+    // what a control does is what lets a hand find the right knob without
+    // reading the words under them.
     //
     // Shared out rather than taken one after another from the bottom. A skin
     // can cut the bar down (clipSettingsHeightScale), and a section that helps
     // itself row by row leaves the whole shortfall on the row at the top.
-    // rot is centred rather than left in a half, or the row would read as a
-    // pair with one of them missing.
-    constexpr int motionKnobRows = 3;
+    constexpr int motionKnobRows = 4;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
@@ -529,6 +530,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     };
 
     auto lowerRow = knobRow (false);
+    auto sweepRow = knobRow (false);
     auto middleRow = knobRow (false);
     auto upperRow = knobRow (true);
 
@@ -540,27 +542,29 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                                                                      row };
     };
 
-    auto const rotArea = upperRow.withSizeKeepingCentre (
-        juce::jmin (upperRow.getWidth (), upperRow.getWidth () / 2),
-        upperRow.getHeight ());
-    auto const [lowerLeft, lowerRight] = split (lowerRow);
+    auto const [upperLeft, upperRight] = split (upperRow);
     auto const [middleLeft, middleRight] = split (middleRow);
+    auto const [sweepLeft, sweepRight] = split (sweepRow);
+    auto const [lowerLeft, lowerRight] = split (lowerRow);
     auto const [bottomLeft, bottomRight] = split (bottomRow);
 
     // The bottom row is already the button height; the cell is the button.
     auto const buttonCell = [] (juce::Rectangle<int> cell) { return cell; };
 
-    // Each standing value with the movement that works on it, left and right.
-    // The two lists close the section along its floor, where every other
+    // Ordered by sub-index, not by seat -- see numControlsInSection(). The
+    // two lists close the section along its floor, where every other
     // section's buttons are.
     out.controls[2] = {
-      textCell (rotArea, metrics.knobDiam),     // rot
+      textCell (upperLeft, metrics.knobDiam),   // rot
       textCell (lowerLeft, metrics.knobDiam),   // fade
       textCell (lowerRight, metrics.knobDiam),  // bias
       buttonCell (bottomLeft),                  // direction
       buttonCell (bottomRight),                 // end action
       textCell (middleLeft, metrics.knobDiam),  // sqzX
       textCell (middleRight, metrics.knobDiam), // sqzY
+      textCell (upperRight, metrics.knobDiam),  // spin
+      textCell (sweepLeft, metrics.knobDiam),   // swell
+      textCell (sweepRight, metrics.knobDiam),  // sway
     };
 
   }
