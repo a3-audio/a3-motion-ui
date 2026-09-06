@@ -146,13 +146,6 @@ public:
   void setTrajectoryIcon (TrajectoryIconData const &icon);
   void setTrajectoryName (juce::String const &name);
 
-  /** What the clip field's list offers, in library order -- entry zero is
-   *  "no clip", the way the action list's empty row is "no action". */
-  void setClipChoices (juce::StringArray const &names);
-  /** Whether the clip list is open. The page above asks, because a tap
-   *  anywhere while a list is open belongs to the list. */
-  bool isClipListOpen () const { return _clipListOpen; }
-  void closeClipList ();
 
   /** Elevation section values, shown as six small controls, always visible
    *  together. reach/clipTop/clipBottom/flatElevation are unipolar
@@ -344,10 +337,6 @@ public:
   /** One of the twelve speed buttons was tapped, as an index into
    *  speedButtonLog2. */
   std::function<void (int index)> onSpeedChosen;
-  /** A clip was picked out of the field's list, by its index in the library
-   *  -- zero being "no clip". Its index rather than its name, because that is
-   *  what the library resolves and what the shape control already speaks. */
-  std::function<void (int index)> onClipChosen;
   /** The clock mode steps on: INT, EXT, PIO. */
   std::function<void ()> onClockModePressed;
   std::function<void ()> onMenuPressed;
@@ -410,9 +399,6 @@ private:
   void updateLayout ();
 
   void paintTrajectorySection (juce::Graphics &g, bool isSelected);
-  void paintClipList (juce::Graphics &g);
-  void openClipList ();
-  void chooseFromClipList (juce::Point<int> point);
   void paintElevationSection (juce::Graphics &g, bool isSelected);
   /** Side-view sphere graphic for the Elevation section: circle + head dot
    *  at the pole (mirror-south picks which one), grey clip-top/clip-bottom
@@ -528,13 +514,6 @@ private:
   TrajectoryIconData _trajectoryIcon;
   RecMode _recMode = RecMode::Touch;
   juce::String _trajectoryName{ "Empty" };
-  juce::StringArray _clipChoices;
-  bool _clipListOpen = false;
-  /** The list's window, kept apart from which clip is chosen -- see
-   *  ListScroll. Forty shapes do not fit in a section a few fingertips tall,
-   *  and a list drawn from row zero with no window is one whose last entries
-   *  cannot be reached at all. */
-  int _clipListTop = 0;
   float _elevationReach = 0.5f;
   float _elevationBase = 0.f;
   bool _elevationMirrorSouth = false;
@@ -614,12 +593,11 @@ private:
       _gridTouch;
   std::array<std::unique_ptr<TouchControl>, numRecordLengths> _lengthTouch;
   std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
-  /** The clip field, which opens the library, and the open list itself. The
-   *  field is not a knob, so it is not one of `controls`; the list gets its
-   *  own so that a tap while it is open belongs to it and not to the picture
-   *  underneath. Shown only while the list is open. */
+  /** The clip field. A second hit area on the shape control the picture
+   *  already is -- pushing the name scrolls the library, the same increments
+   *  from the same handler -- so it carries that control's identity rather
+   *  than being one of `controls` itself. */
   std::unique_ptr<TouchControl> _clipFieldTouch;
-  std::unique_ptr<TouchControl> _clipListTouch;
   std::unique_ptr<TouchControl> _recModeTouch;
   std::unique_ptr<TouchControl> _clockModeTouch;
   std::unique_ptr<TouchControl> _menuTouch;

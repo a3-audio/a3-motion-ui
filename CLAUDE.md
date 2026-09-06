@@ -381,7 +381,7 @@ is a *layout* change and A3MotionUIComponent is what hands the bar its bounds �
 
 **The Shape section has two faces**, and `BarPage::Record` is the one that turns the card over. The
 front is the clip as it plays — its picture, the **clip field** naming what is in the slot, and four
-speed buttons: as recorded, and three steps of fast. Twelve buttons covering the whole of
+speed buttons reading from as recorded outwards: `1`, `1/8`, `1/16`, `1/64`. Twelve buttons covering the whole of
 `speedLog2Min..Max` took three rows to say every value the range holds; the two rows they gave back
 are what the field stands in, and a speed the four do not name is still reachable from a clip file
 or a script (`~speedLog2`) and simply lights no button. The back is the take you
@@ -414,13 +414,12 @@ that only names it. So `trajectoryName` equals `clipField` on the front and `tra
 back, where there is no field: which clip is in the slot is not a question the take you are
 recording asks.
 
-The field opens the library over the section, exactly the way ACTION's action field opens its list
-of scripts, and for the same reason — stepping forty shapes one encoder click at a time is fine when
-you know where you are going and hopeless when you do not. Picking a row sends the *difference* to
-`handleClipSettingsValueChange(channel, 0, 0, …)`, the shape control the encoder already reaches, so
-stopping the old pattern, building the new one and restarting it if it was running lives in one
-place. The list gets a `TouchControl` of its own, shown only while it is open and brought to front,
-or the picture's hit area would answer for the rows drawn over it.
+**The field is scrolled, not opened.** It carries the shape control's own identity — section 0,
+sub 0 — so a thumb pushed across the name sends exactly the increment the encoder sends, to exactly
+the handler the encoder reaches. Two hit areas, one control, one place that stops the old pattern,
+builds the new one and restarts it if it was running. It was briefly a dropdown like ACTION's, which
+covered the picture you are choosing by; a name you can push where the name is written needs no room
+of its own and hides nothing.
 
 **The header's channel faces keep the page on FILES too.** A face selects the clip the settings area
 describes, and FILES has one in mind — the slot a picked file is put into. Being thrown back to CLIP

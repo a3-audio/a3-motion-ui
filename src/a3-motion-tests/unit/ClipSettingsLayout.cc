@@ -774,6 +774,37 @@ TEST (ClipSettingsLayout, TheLengthButtonsClearThePictogram)
 
 // The wording and the powers of two have to agree: the button says what the
 // take will be, and log2 is what the setting holds.
+// The speeds read from "as recorded" outwards, and each name is the power of
+// two it stands for. Two things one test, because a row of numbers that
+// claims a scale and does not keep one is worse than no scale at all.
+TEST (ClipSettingsLayout, TheSpeedsRunFromAsRecordedIntoTheFastEnd)
+{
+  ASSERT_GT (numSpeedButtons, 0);
+  EXPECT_EQ (speedButtonLog2[0], 0) << "the row has to start where a hand does";
+
+  for (int i = 0; i < numSpeedButtons; ++i)
+    {
+      auto const log2 = speedButtonLog2[i];
+      auto const expected
+          = log2 >= 0 ? juce::String (static_cast<int> (std::exp2 (log2)))
+                      : "1/" + juce::String (
+                            static_cast<int> (std::exp2 (-log2)));
+
+      EXPECT_EQ (juce::String (speedButtonNames[i]), expected) << "button " << i;
+
+      if (i > 0)
+        EXPECT_LT (log2, speedButtonLog2[i - 1])
+            << "button " << i << " does not carry on away from 1";
+    }
+
+  // And they are laid out in that order, left to right.
+  auto const l = defaultLayout ();
+  for (int i = 1; i < numSpeedButtons; ++i)
+    EXPECT_LT (l.speedButtons[static_cast<size_t> (i - 1)].getX (),
+               l.speedButtons[static_cast<size_t> (i)].getX ())
+        << "button " << i;
+}
+
 TEST (ClipSettingsLayout, TheLengthNamesMatchTheirPowersOfTwo)
 {
   for (int i = 0; i < numRecordLengths; ++i)
@@ -892,30 +923,6 @@ TEST (ClipSettingsLayout, TheClipFieldStandsBetweenThePictureAndTheSpeeds)
     }
 }
 
-// The list opens over the section it belongs to and nowhere else: the
-// sphere's GL context composites above anything drawn outside the bar, so a
-// list that reached past its own card would be a list nobody can see.
-TEST (ClipSettingsLayout, TheClipListCoversItsOwnSectionAndCountsItsRows)
-{
-  for (int height : { 200, 314, 460 })
-    {
-      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
-
-      ASSERT_FALSE (l.clipListArea.isEmpty ()) << "height " << height;
-      EXPECT_TRUE (l.sectionCards[0].contains (l.clipListArea))
-          << "height " << height;
-      EXPECT_TRUE (l.clipListArea.contains (l.clipField))
-          << "the list has to cover the field it opens from, at height "
-          << height;
-
-      // A row is a fingertip, and a row counted as visible has to fit.
-      EXPECT_GE (l.clipListRowHeight, fingertipSize) << "height " << height;
-      EXPECT_GE (clipListVisibleRows (l), 1) << "height " << height;
-      EXPECT_LE (clipListVisibleRows (l) * l.clipListRowHeight,
-                 l.clipListArea.getHeight ())
-          << "height " << height;
-    }
-}
 TEST (ClipSettingsLayout, ThePictureIsTheBiggestThingInTheSection)
 {
   // Guards the reason for the change rather than its mechanics. Not stated as

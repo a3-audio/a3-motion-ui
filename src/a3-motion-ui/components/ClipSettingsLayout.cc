@@ -62,13 +62,6 @@ sectionContentBounds (juce::Rectangle<int> card)
   return card.reduced (juce::jmax (2, card.getWidth () / 80), 3);
 }
 
-int
-clipListVisibleRows (ClipSettingsLayout const &layout)
-{
-  auto const rowH = juce::jmax (1, layout.clipListRowHeight);
-  return juce::jmax (1, layout.clipListArea.getHeight () / rowH);
-}
-
 float
 gridKnobReach (float set, float effective)
 {
@@ -417,8 +410,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // The name moves into it. It used to lie over the picture, on the
     // reasoning that a caption cost a whole row to say something you already
     // knew -- but the row is being spent either way now, and spent on a
-    // control it buys more than a caption did. One name, in the one place
-    // that also changes it.
+    // place to push the name with a thumb it buys more than a caption did.
+    // One name, in the one place that also changes it.
     if (!recording)
       {
         auto const fieldH = juce::jmin (content.getHeight (),
@@ -459,19 +452,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
           place (i, out.speedButtons[static_cast<size_t> (i)]);
     }
 
-    // The picture, and nothing else. The lengths, the speeds and the clip
-    // field are not values a finger turns, so they are not sub-elements of
-    // the section.
+    // The picture, and nothing else. The lengths and the speeds are not values
+    // a finger turns, so they are not sub-elements of the section; the clip
+    // field is one, but it is a second hit area on this same control rather
+    // than a control of its own.
     out.controls[0] = { out.trajectoryIcon };
-
-    // The list covers the whole of the section under its title -- the picture
-    // and the field it opens from. Sized like the other lists in the bar: a
-    // fingertip a row, because picking a clip mid-set is a tap.
-    out.clipListRowHeight = juce::jmax (
-        fingertipSize, out.sectionCards[0].getHeight () / 6);
-    out.clipListArea
-        = sectionContentBounds (out.sectionCards[0])
-              .withTrimmedTop (out.sectionLabels[0].getHeight ());
   }
 
   // ── Elevation ────────────────────────────────────────────────────────

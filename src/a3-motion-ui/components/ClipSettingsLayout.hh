@@ -77,13 +77,12 @@ constexpr int numRecordLengths = 8;
  *  (`~speedLog2`), and a clip carrying one plays at it -- no button lights,
  *  which is the honest answer to "which of these is it".
  *
- *  Ordered as a scale rather than in the order they were asked for, slowest
- *  first, because a row of numbers that does not climb reads as a list of
- *  options rather than as one control. */
+ *  Read from as recorded outwards: `1` is where a hand starts, and the row
+ *  runs away from it into the fast end. */
 constexpr int numSpeedButtons = 4;
-constexpr int speedButtonLog2[numSpeedButtons] = { -6, -4, -3, 0 };
+constexpr int speedButtonLog2[numSpeedButtons] = { 0, -3, -4, -6 };
 constexpr char const *speedButtonNames[numSpeedButtons]
-    = { "1/64", "1/16", "1/8", "1" };
+    = { "1", "1/8", "1/16", "1/64" };
 constexpr int recordLengthLog2[numRecordLengths] = { -2, -1, 0, 1, 2, 3, 4, 5 };
 constexpr char const *recordLengthNames[numRecordLengths]
     = { "1/4", "1/2", "1", "2", "4", "8", "16", "32" };
@@ -281,20 +280,15 @@ struct ClipSettingsLayout
   /** How fast the clip plays, on its front — in speedButtonLog2 order. */
   std::array<juce::Rectangle<int>, numSpeedButtons> speedButtons;
 
-  /** The clip field: which clip is in the slot, and the list of them.
+  /** The clip field: which clip is in the slot, and a place to scroll through
+   *  them with a finger.
    *
-   *  A field like the ACTION page's, and for the same reason. Stepping the
-   *  library one entry at a time with an encoder is fine when you know where
-   *  you are going and hopeless when you do not -- forty shapes is forty
-   *  turns, and mid-set nobody counts. Empty on the Record face, which is
-   *  about the take you are making rather than the clip you are holding. */
+   *  A second hit area on the shape control the picture above already is, not
+   *  a control of its own -- a name you can push with your thumb where the
+   *  name is written, rather than a list that covers the picture you are
+   *  choosing by. Empty on the Record face, which is about the take you are
+   *  making rather than the clip you are holding. */
   juce::Rectangle<int> clipField;
-  /** Where that list opens: over the Shape section's own content. It cannot
-   *  open outside the bar -- the sphere's GL context composites above
-   *  anything drawn over it -- so it covers the picture it is replacing. */
-  juce::Rectangle<int> clipListArea;
-  /** A row of that list. A fingertip, whatever the bar's size. */
-  int clipListRowHeight = 0;
   /** The bar's own header row: the four transport keys, then "Slot N", then
    *  the page tabs closing it. */
   std::array<juce::Rectangle<int>, numTransportKeys> transportButtons;
@@ -371,9 +365,6 @@ ClipSettingsLayout layOutClipSettings (juce::Rectangle<int> bounds,
                                        float headerSize, float bodySize,
                                        float potSizeScale,
                                        BarPage page = BarPage::Clip);
-
-/** How many rows of the clip list fit in the area it opens over. */
-int clipListVisibleRows (ClipSettingsLayout const &layout);
 
 /** Where the "not saved" mark sits inside a key or a field.
  *

@@ -419,22 +419,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       showBarPage (BarPage::Clip);
   };
 
-  _clipSettings->onClipChosen = [this] (int index) {
-    // Sent as the difference to the shape control, the way the direction and
-    // end-action lists send theirs: one place loads a clip into a slot, and
-    // it is the one the encoder already reaches. A second copy of stopping
-    // the old pattern, building the new one and restarting it if it was
-    // running is a second copy that will be wrong eventually.
-    auto const channel = _clipSettingsChannel;
-    auto const slot = _clipSettingsSlot;
-    auto const &pattern = _patterns[channel][slot];
-    auto const current
-        = pattern ? trajectoryNameToIndex (pattern->getName ()) : 0;
-
-    if (index != current)
-      handleClipSettingsValueChange (channel, 0, 0, index - current);
-  };
-
   _clipSettings->onTransportTapped = [this] (TransportKey key) {
     switch (key)
       {
@@ -4748,18 +4732,6 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       _clipSettings->setTrajectoryIcon (TrajectoryIconData{});
       _clipSettings->setTrajectoryName ("Empty");
     }
-
-  // What the clip field's list offers -- the library, in its own order, entry
-  // zero being "Empty". Rebuilt on every refresh rather than watched for
-  // changes: the folder is rescanned on a timer, and setClipChoices() throws
-  // away a list that has not changed.
-  {
-    juce::StringArray choices;
-    for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
-      choices.add (juce::String (_patternLibrary->getEntry (i).name));
-
-    _clipSettings->setClipChoices (choices);
-  }
 
   // Both slots, not only the one on show: the keys sit side by side, and a
   // mark on one is only readable next to the absence of one on the other.

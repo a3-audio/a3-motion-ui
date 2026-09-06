@@ -29,7 +29,6 @@
 #include <a3-motion-engine/TrajectorySpin.hh>
 
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
-#include <a3-motion-ui/components/ListScroll.hh>
 
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
@@ -261,30 +260,22 @@ ClipSettingsComponent::createTouchControls ()
       _speedTouch[static_cast<size_t> (i)] = std::move (button);
     }
 
-  // The clip field, and the list it opens over the picture.
+  // The clip field: the picture's own control with a second place to reach
+  // it. Pushing the name scrolls the library, which is the same increment the
+  // encoder sends and goes to the same handler -- a list that covered the
+  // picture would have hidden the thing you are choosing by.
   _clipFieldTouch = std::make_unique<TouchControl> ();
-  _clipFieldTouch->onTap = [this] (int, int) {
-    if (_clipListOpen)
-      closeClipList ();
-    else
-      openClipList ();
-    repaint ();
+  _clipFieldTouch->setIdentity (trajectoryIndex, 0);
+  _clipFieldTouch->onPress = [this] (int section, int sub) {
+    if (onControlTapped)
+      onControlTapped (section, sub);
+  };
+  _clipFieldTouch->onDragIncrement = [this] (int section, int sub,
+                                             int increment) {
+    if (onControlDragged)
+      onControlDragged (section, sub, increment);
   };
   addAndMakeVisible (*_clipFieldTouch);
-
-  _clipListTouch = std::make_unique<TouchControl> ();
-  _clipListTouch->onTapAt
-      = [this] (int, int, juce::Point<int> at) { chooseFromClipList (at); };
-  _clipListTouch->onDragIncrement = [this] (int, int, int increment) {
-    // The list follows the finger, the way every other list in the bar does.
-    // The increment goes in un-negated -- see ListScroll.hh, which is where
-    // that sign is decided and tested.
-    _clipListTop = a3::scrollBy (_clipListTop, increment,
-                                 clipListVisibleRows (_layout),
-                                 _clipChoices.size ());
-    repaint ();
-  };
-  addChildComponent (*_clipListTouch);
 
   makeButton (_recModeTouch, &ClipSettingsComponent::onRecModePressed);
   makeButton (_clockModeTouch, &ClipSettingsComponent::onClockModePressed);
@@ -410,7 +401,6 @@ ClipSettingsComponent::resized ()
         _layout.speedButtons[static_cast<size_t> (i)]);
 
   _clipFieldTouch->setBounds (_layout.clipField);
-  _clipListTouch->setBounds (_layout.clipListArea);
 
   _recModeTouch->setBounds (_layout.recModeButton);
   _clockModeTouch->setBounds (_layout.clockModeButton);
@@ -454,108 +444,6 @@ ClipSettingsComponent::setTrajectoryIcon (TrajectoryIconData const &icon)
 {
   _trajectoryIcon = icon;
   repaint ();
-}
-
-void
-ClipSettingsComponent::setClipChoices (juce::StringArray const &names)
-{
-  if (names == _clipChoices)
-    return;
-
-  _clipChoices = names;
-  repaint ();
-}
-
-void
-ClipSettingsComponent::closeClipList ()
-{
-  if (!_clipListOpen)
-    return;
-
-  _clipListOpen = false;
-  _clipListTouch->setVisible (false);
-  repaint ();
-}
-
-void
-ClipSettingsComponent::openClipList ()
-{
-  _clipListOpen = true;
-
-  // Opened onto whatever is already in the slot, moved as little as possible:
-  // a list that always opens at the top makes you scroll back to where you
-  // were every single time.
-  _clipListTop = a3::scrollToShow (_clipListTop,
-                                   _clipChoices.indexOf (_trajectoryName),
-                                   clipListVisibleRows (_layout),
-                                   _clipChoices.size ());
-
-  // In front of the picture it covers, or the picture's own hit area would
-  // answer for the rows drawn over it.
-  _clipListTouch->setVisible (true);
-  _clipListTouch->toFront (false);
-}
-
-void
-ClipSettingsComponent::chooseFromClipList (juce::Point<int> point)
-{
-  _clipListOpen = false;
-  _clipListTouch->setVisible (false);
-
-  auto const rowH = juce::jmax (1, _layout.clipListRowHeight);
-  auto const row = _clipListTop + point.y / rowH;
-
-  if (juce::isPositiveAndBelow (row, _clipChoices.size ()) && onClipChosen)
-    onClipChosen (row);
-
-  repaint ();
-}
-
-void
-ClipSettingsComponent::paintClipList (juce::Graphics &g)
-{
-  if (!_clipListOpen)
-    return;
-
-  auto const area = _layout.clipListArea;
-  auto const rowH = _layout.clipListRowHeight;
-  if (area.isEmpty () || rowH <= 0)
-    return;
-
-  // Opaque before the wash: the card colour is translucent by design, and on
-  // its own the list and the picture under it were drawn through each other.
-  g.setColour (toColour (theme ().background));
-  g.fillRect (area);
-  g.setColour (toColour (theme ().textPrimary, 0.08f));
-  g.fillRect (area);
-  g.setColour (_channelColour);
-  g.drawRect (area, 1);
-
-  g.setFont (juce::Font (juce::jmin (_layout.metrics.valueSize,
-                                     static_cast<float> (rowH) * 0.5f),
-                         juce::Font::plain));
-
-  for (int row = 0; row * rowH < area.getHeight (); ++row)
-    {
-      auto const index = _clipListTop + row;
-      if (index >= _clipChoices.size ())
-        break;
-
-      auto const at = area.withY (area.getY () + row * rowH).withHeight (rowH);
-      auto const name = _clipChoices[index];
-      auto const chosen = name == _trajectoryName;
-
-      if (chosen)
-        {
-          g.setColour (_channelColour.withAlpha (theme ().alphaDisabled));
-          g.fillRect (at.reduced (2, 1));
-        }
-
-      g.setColour (chosen ? _channelColour
-                          : toColour (theme ().textPrimary, 0.85f));
-      g.drawText (name, at.reduced (rowH / 3, 0),
-                  juce::Justification::centredLeft);
-    }
 }
 
 void
@@ -910,7 +798,6 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   paintMotionSection (g, _selectedIndex == motionIndex);
 
   // Last, so it covers whichever section it belongs to.
-  paintClipList (g);
 }
 
 void
@@ -1051,10 +938,9 @@ ClipSettingsComponent::setPage (BarPage page)
     if (button)
       button->setVisible (_page == BarPage::Clip);
 
-  // The clip field lives on the front face only, and a list left open behind
-  // a page change would be a list covering a section nobody is looking at.
+  // The clip field lives on the front face only -- the back face has the
+  // lengths in that room.
   _clipFieldTouch->setVisible (_page == BarPage::Clip);
-  closeClipList ();
 
   repaint ();
 }
@@ -1537,12 +1423,12 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
                         speedButtonNames[i], {},
                         _speedLog2 == speedButtonLog2[i], isSelected);
 
-      // The clip field: what is in the slot, and the way to change it. Lit
-      // while its list is open, like every other button in the bar that is
-      // doing something. The name is the field's value -- see the layout for
-      // why it came down off the picture.
+      // The clip field: what is in the slot, and a place to push it with a
+      // thumb. Drawn as a value rather than as a lit button -- nothing opens,
+      // so there is no open state to show. The name is the field's value; see
+      // the layout for why it came down off the picture.
       paintBarButton (g, _layout.clipField, _trajectoryName, caption::clip,
-                      _clipListOpen, isSelected);
+                      false, isSelected);
     }
 
   // Pictogram, centred in whatever square area is left above the name.
