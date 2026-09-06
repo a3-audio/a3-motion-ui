@@ -77,9 +77,9 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_EQ (l.controls[0].size (), 1u); // Shape: the picture, rot, fade, bridge
-  EXPECT_EQ (l.controls[1].size (), 4u); // Elevation
-  EXPECT_EQ (l.controls[2].size (), 6u); // Motion: the envelope went to ACTION
+  EXPECT_EQ (l.controls[0].size (), 1u); // Shape: just the picture
+  EXPECT_EQ (l.controls[1].size (), 3u); // Elevation: the clips and reach
+  EXPECT_EQ (l.controls[2].size (), 5u); // Motion: rot, fade, bias, dir, end
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 
@@ -156,17 +156,20 @@ TEST (ClipSettingsLayout, ClipAndGlobalPanelsSplitTheBarWithoutOverlap)
 }
 TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
 {
-  // Elevation is four continuous values now -- the two clips, reach and the
-  // swell. Nothing in it steps or toggles.
-  for (int sub = 0; sub < 4; ++sub)
+  // Elevation is three continuous values -- the two clips and reach. The
+  // swell that swept reach has gone to the ACTION page. Nothing here steps.
+  for (int sub = 0; sub < 3; ++sub)
     EXPECT_FALSE (tapAdvancesValue (1, sub)) << "elevation " << sub;
 
-  // Motion: direction (4) and end-action (5) have a handful of states each;
-  // the four knobs before them are dragged, not tapped.
+  // Motion: direction (3) and end-action (4) have a handful of states each;
+  // the three knobs before them are dragged, not tapped. They were four and
+  // five until the spin left -- a renumbering that misses this reads the
+  // direction's words off the end-action's list and vice versa.
+  EXPECT_TRUE (tapAdvancesValue (2, 3));
   EXPECT_TRUE (tapAdvancesValue (2, 4));
-  EXPECT_TRUE (tapAdvancesValue (2, 5));
-  for (int sub = 0; sub < 4; ++sub)
+  for (int sub = 0; sub < 3; ++sub)
     EXPECT_FALSE (tapAdvancesValue (2, sub)) << "sub " << sub;
+  EXPECT_FALSE (tapAdvancesValue (2, 5)) << "there is no sixth control";
 
   // Shape: the pattern library, too long to tap through.
   EXPECT_FALSE (tapAdvancesValue (0, 0));
@@ -363,18 +366,18 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
     {
       auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
       auto const &motion = l.controls[2];
-      ASSERT_EQ (motion.size (), 6u) << "height " << height;
+      ASSERT_EQ (motion.size (), 5u) << "height " << height;
 
-      // Each pair shares a height: rot/spin, fade/bias, dir/end.
-      for (int row = 0; row < 3; ++row)
-        {
-          auto const left = static_cast<size_t> (row * 2);
-          EXPECT_EQ (motion[left].getHeight (), motion[left + 1].getHeight ())
-              << "row " << row << " at height " << height;
-        }
+      // fade beside bias, and the two lists beside each other.
+      EXPECT_EQ (motion[1].getHeight (), motion[2].getHeight ())
+          << "height " << height;
+      EXPECT_EQ (motion[3].getHeight (), motion[4].getHeight ())
+          << "height " << height;
 
-      // And the two knob rows share theirs with each other.
-      EXPECT_EQ (motion[0].getHeight (), motion[2].getHeight ())
+      // rot stands alone above them and shares the knob rows' height.
+      EXPECT_EQ (motion[0].getHeight (), motion[1].getHeight ())
+          << "height " << height;
+      EXPECT_LT (motion[0].getBottom (), motion[1].getBottom ())
           << "height " << height;
     }
 }
@@ -1029,12 +1032,13 @@ TEST (ClipSettingsLayout, TheFadeIsAMotionValueNow)
 {
   auto const l = defaultLayout ();
 
-  ASSERT_EQ (l.controls[2].size (), 6u);
+  ASSERT_EQ (l.controls[2].size (), 5u);
   ASSERT_EQ (l.controls[0].size (), 1u);
 
-  EXPECT_FALSE (l.controls[2][2].isEmpty ());
-  EXPECT_TRUE (l.sectionCards[2].contains (l.controls[2][2]));
-  EXPECT_FALSE (l.sectionCards[0].contains (l.controls[2][2]));
+  // Index one since the spin left -- see OnlyFewValuedControlsAdvanceOnTap.
+  EXPECT_FALSE (l.controls[2][1].isEmpty ());
+  EXPECT_TRUE (l.sectionCards[2].contains (l.controls[2][1]));
+  EXPECT_FALSE (l.sectionCards[0].contains (l.controls[2][1]));
 }
 
 // ── Shape after the tidy-up ──────────────────────────────────────────────
@@ -1138,30 +1142,30 @@ TEST (ClipSettingsLayout, TheCircleIsSquareInsideWhateverCellItGets)
 // Elevation is four: the two clips, then reach with the swell that sweeps it.
 // flat, flat-elevation and pole are gone -- the base the graphic sets says
 // what they said, and says it in one place you can see.
-TEST (ClipSettingsLayout, ElevationIsTheClipsAndTheReachPair)
+TEST (ClipSettingsLayout, ElevationIsTheTwoClipsAndReach)
 {
-  EXPECT_EQ (numControlsInSection (1), 4);
+  EXPECT_EQ (numControlsInSection (1), 3);
 
   auto const l = defaultLayout ();
-  ASSERT_EQ (l.controls[1].size (), 4u);
+  ASSERT_EQ (l.controls[1].size (), 3u);
 
   // Nothing in it toggles any more.
-  for (int sub = 0; sub < 4; ++sub)
+  for (int sub = 0; sub < 3; ++sub)
     EXPECT_FALSE (tapTogglesValue (1, sub)) << "sub " << sub;
 }
 
 // And Motion keeps what shapes the movement in the plane: the standing angle
 // with its spin, the fade with its bias, and the two lists.
-TEST (ClipSettingsLayout, MotionIsSixWithoutTheReachPair)
+TEST (ClipSettingsLayout, MotionIsWhatTheMovementIsWithoutItsSweeps)
 {
-  EXPECT_EQ (numControlsInSection (2), 6);
+  EXPECT_EQ (numControlsInSection (2), 5);
 
   auto const l = defaultLayout ();
-  ASSERT_EQ (l.controls[2].size (), 6u);
+  ASSERT_EQ (l.controls[2].size (), 5u);
 
+  EXPECT_TRUE (tapAdvancesValue (2, 3));
   EXPECT_TRUE (tapAdvancesValue (2, 4));
-  EXPECT_TRUE (tapAdvancesValue (2, 5));
-  for (int sub = 0; sub < 4; ++sub)
+  for (int sub = 0; sub < 3; ++sub)
     EXPECT_FALSE (tapAdvancesValue (2, sub)) << "knob " << sub;
 }
 

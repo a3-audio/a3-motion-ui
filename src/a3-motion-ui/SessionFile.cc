@@ -79,6 +79,8 @@ writeOverrides (a3::ClipSettings const &settings)
     put ("spin", settings.spin);
   if (settings.reachLfo != defaults.reachLfo)
     put ("swell", settings.reachLfo);
+  if (settings.elevationLfo != defaults.elevationLfo)
+    put ("sway", settings.elevationLfo);
   if (settings.envelopeAttack != defaults.envelopeAttack)
     put ("envAttack", settings.envelopeAttack);
   if (settings.envelopeDecay != defaults.envelopeDecay)
@@ -138,6 +140,7 @@ readOverrides (juce::var const &value)
   settings.flatElevation = read ("flatElevation", settings.flatElevation);
   settings.spin = read ("spin", settings.spin);
   settings.reachLfo = read ("swell", settings.reachLfo);
+  settings.elevationLfo = read ("sway", settings.elevationLfo);
   settings.envelopeAttack = read ("envAttack", settings.envelopeAttack);
   settings.envelopeDecay = read ("envDecay", settings.envelopeDecay);
   settings.envelopeMax = read ("envMax", settings.envelopeMax);

@@ -190,3 +190,69 @@ TEST (ClipSettingsFade, BothNewFieldsCountAsADifference)
   b.bridgeBias = 2;
   EXPECT_NE (a, b);
 }
+
+// ── sway: the elevation's own slow sweep ─────────────────────────────────
+
+TEST (ClipSettings, SwayGoesToAndFromThePattern)
+{
+  Pattern pattern;
+
+  ClipSettings settings;
+  settings.elevationLfo = -5;
+  applyClipSettings (pattern, settings);
+  EXPECT_EQ (pattern.getElevationLfo (), -5);
+
+  EXPECT_EQ (clipSettingsFrom (pattern).elevationLfo, -5);
+}
+
+TEST (ClipSettings, SwayIsPartOfWhatMakesTwoSettingsDifferent)
+{
+  // Everything a clip carries is compared, or "unsaved" would stop meaning
+  // anything for whichever field was forgotten.
+  ClipSettings a;
+  ClipSettings b;
+  ASSERT_EQ (a, b);
+
+  b.elevationLfo = 3;
+  EXPECT_NE (a, b);
+}
+
+/** Both of the clip's slow sweeps in one place.
+ *
+ *  They were applied by hand in three: the engine before it projects, and the
+ *  renderer in each of its two paths -- and all three had to agree or the line
+ *  would be drawn where the blob is not running. Adding sway would have made
+ *  it six. */
+TEST (ClipSettings, TheSweepsAreAppliedInOnePlaceForEverybody)
+{
+  Pattern pattern;
+  pattern.setReach (0.5f);
+  pattern.setElevationBase (0.5f);
+
+  ElevationParams const set{ pattern.getElevationParams () };
+
+  // Nothing sweeping: exactly what was set, which is what a clip with no
+  // modulation has always sent.
+  EXPECT_FLOAT_EQ (sweptElevation (set, pattern).reach, set.reach);
+  EXPECT_FLOAT_EQ (sweptElevation (set, pattern).elevationBase,
+                   set.elevationBase);
+
+  // Each sweep moves its own value and leaves the other alone.
+  pattern.setReachLfo (4);
+  pattern.setReachLfoPhase (0.25f);
+  EXPECT_NE (sweptElevation (set, pattern).reach, set.reach);
+  EXPECT_FLOAT_EQ (sweptElevation (set, pattern).elevationBase,
+                   set.elevationBase);
+
+  pattern.setReachLfo (0);
+  pattern.setElevationLfo (4);
+  pattern.setElevationLfoPhase (0.25f);
+  EXPECT_FLOAT_EQ (sweptElevation (set, pattern).reach, set.reach);
+  EXPECT_NE (sweptElevation (set, pattern).elevationBase, set.elevationBase);
+
+  // And the swept base stays somewhere the sphere can be asked about.
+  pattern.setElevationLfoPhase (0.75f);
+  auto const swept = sweptElevation (set, pattern).elevationBase;
+  EXPECT_GE (swept, 0.f);
+  EXPECT_LE (swept, 1.f);
+}

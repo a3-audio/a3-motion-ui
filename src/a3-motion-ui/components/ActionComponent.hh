@@ -56,6 +56,15 @@ public:
     QMax,
     /** Not a knob and not in a row -- it stands beside the action's name. */
     ActMode,
+    /** The clip's three slow sweeps, in their own frame under the grid.
+     *
+     *  Appended after ActMode rather than slotted in beside the knobs they
+     *  look like: a section renumbered is a section whose layout, tap rules,
+     *  handlers and painters all have to move together, and appending costs
+     *  nothing but an order that is not quite reading order. */
+    Spin,
+    Swell,
+    Sway,
     numControls
   };
 
@@ -78,6 +87,9 @@ public:
   void setQEnvelope (int attackStep, int decayStep, float max);
   /** 0 = one-shot, 1 = hold. */
   void setActMode (int mode);
+
+  /** The clip's three slow sweeps, as signed TempoLfo steps. */
+  void setSweeps (int spin, int swell, int sway);
 
   /** Which action clip this slot fires; empty for none. */
   void setActionName (juce::String const &name);
@@ -169,6 +181,9 @@ private:
   int _qDecay = 3;
   float _qMax = 0.f;
   int _actMode = 0;
+  int _spin = 0;
+  int _swell = 0;
+  int _sway = 0;
   juce::String _actionName;
   ScriptBuffer _buffer;
   juce::StringArray _choices;

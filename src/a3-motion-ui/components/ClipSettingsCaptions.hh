@@ -76,6 +76,10 @@ constexpr char const *spin = "spin";
  *  because every caption in the bar is drawn at one shared size and the
  *  widest of them sets it — "breath" would have shrunk the lot. */
 constexpr char const *swell = "swell";
+/** The same sweep, on where the trajectory's middle sits: the base travels
+ *  out of where the elevation graphic's line was left, towards the pole the
+ *  sign points at, and back. What swell is to reach. */
+constexpr char const *sway = "sway";
 /** The accent's rise and fall, played with ACT rather than set: how long it
  *  takes to come up while the pad is down, and to fall once it is let go. */
 constexpr char const *attack = "atk";
@@ -167,6 +171,7 @@ constexpr TextEntry captionTable[] = {
   { caption::speed, 4 },       { caption::direction, 4 },
   { caption::endAction, 4 },   { caption::fade, 4 },
   { caption::spin, 4 },        { caption::swell, 4 },
+  { caption::sway, 4 },
   { caption::bias, 4 },
   { caption::attack, 4 },      { caption::decay, 4 },
   { caption::envelopeMax, 4 },   { caption::rotate, 4 },

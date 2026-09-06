@@ -84,14 +84,16 @@ numControlsInSection (int sectionIndex)
     case 0:
       return 1; // just the shape now -- rot, fade and bias went to Motion
     case 1:
-      // clip-top, clip-bottom, then reach with the swell that sweeps it.
-      // flat, flat-elevation and pole are gone: the base the graphic sets
-      // says what they said, in one place you can see.
-      return 4;
+      // clip-top, clip-bottom, then reach. The swell that sweeps it has gone
+      // to the ACTION page, beside the other two things that move on their
+      // own -- what is left here is the shape of the elevation, not its
+      // movement.
+      return 3;
     case 2:
-      // rot, spin, fade, bias, then dir and end along the floor -- what
-      // shapes the movement in the plane.
-      return 6;
+      // rot, fade, bias, then dir and end along the floor. spin went to the
+      // ACTION page with swell: this section is what the movement *is*, and
+      // the two slow sweeps are things done to it.
+      return 5;
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -105,8 +107,9 @@ tapAdvancesValue (int sectionIndex, int subIndex)
   if (sectionIndex == 2)
     // direction and end action, along Motion's floor. They used to open a
     // list; a list covered the controls under it, and both are short enough
-    // that a finger can simply walk them.
-    return subIndex == 4 || subIndex == 5;
+    // that a finger can simply walk them. Three and four since spin left --
+    // renumbering a section means moving every one of these together.
+    return subIndex == 3 || subIndex == 4;
   if (sectionIndex == 3)
     return subIndex == 0; // rec mode
 
@@ -460,16 +463,18 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                                                                      row };
     };
 
-    // The two clips above, then reach with the swell that sweeps it -- the
-    // same pairing Motion uses, a standing value beside its movement.
+    // The two clips above, reach on its own below. It had the swell beside it
+    // -- a standing value next to its movement -- and the swell has gone to
+    // the ACTION page; centred rather than left where it stood, or the row
+    // would read as a pair with something missing from it.
     auto const [clipTopArea, clipBottomArea] = split (row1);
-    auto const [reachArea, swellArea] = split (row2);
+    auto const reachArea = row2.withSizeKeepingCentre (
+        juce::jmin (row2.getWidth (), row2.getWidth () / 2), row2.getHeight ());
 
     out.controls[1] = {
       textCell (clipTopArea, metrics.knobDiam),
       textCell (clipBottomArea, metrics.knobDiam),
       textCell (reachArea, metrics.knobDiam),
-      textCell (swellArea, metrics.knobDiam),
     };
   }
 
@@ -500,9 +505,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // Shared out rather than taken one after another from the bottom. A skin
     // can cut the bar down (clipSettingsHeightScale), and a section that helps
     // itself row by row leaves the whole shortfall on the row at the top.
-    // Two rows of two: rot with the spin that turns it, and the fade with the
-    // bias that says where a drawn-through gap leads. reach and swell went
-    // home to Elevation, where the sphere is.
+    // rot on its own above, the fade and the bias that belong together below.
+    // rot had the spin beside it and the spin has gone to the ACTION page;
+    // centred rather than left in its old half, or the row would read as a
+    // pair with one of them missing.
     constexpr int motionKnobRows = 2;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
@@ -527,7 +533,9 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                                                                      row };
     };
 
-    auto const [upperLeft, upperRight] = split (upperRow);
+    auto const rotArea = upperRow.withSizeKeepingCentre (
+        juce::jmin (upperRow.getWidth (), upperRow.getWidth () / 2),
+        upperRow.getHeight ());
     auto const [lowerLeft, lowerRight] = split (lowerRow);
     auto const [bottomLeft, bottomRight] = split (bottomRow);
 
@@ -538,12 +546,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // The two lists close the section along its floor, where every other
     // section's buttons are.
     out.controls[2] = {
-      textCell (upperLeft, metrics.knobDiam),  // rot
-      textCell (upperRight, metrics.knobDiam), // spin
-      textCell (lowerLeft, metrics.knobDiam),  // fade
-      textCell (lowerRight, metrics.knobDiam), // bias
-      buttonCell (bottomLeft),                 // direction
-      buttonCell (bottomRight),                // end action
+      textCell (rotArea, metrics.knobDiam),   // rot
+      textCell (lowerLeft, metrics.knobDiam), // fade
+      textCell (lowerRight, metrics.knobDiam),// bias
+      buttonCell (bottomLeft),                // direction
+      buttonCell (bottomRight),               // end action
     };
 
   }

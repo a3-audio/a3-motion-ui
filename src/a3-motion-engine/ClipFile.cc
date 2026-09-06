@@ -92,6 +92,7 @@ ClipFile::save (Clip const &clip, juce::File const &file)
 
   object->setProperty ("spin", s.spin);
   object->setProperty ("swell", s.reachLfo);
+  object->setProperty ("sway", s.elevationLfo);
   object->setProperty ("envAttack", s.envelopeAttack);
   object->setProperty ("envDecay", s.envelopeDecay);
   object->setProperty ("envMax", s.envelopeMax);
@@ -165,6 +166,7 @@ ClipFile::load (juce::File const &file)
 
   s.spin = readInt (parsed, "spin", defaults.spin);
   s.reachLfo = readInt (parsed, "swell", defaults.reachLfo);
+  s.elevationLfo = readInt (parsed, "sway", defaults.elevationLfo);
   s.envelopeAttack = readInt (parsed, "envAttack", defaults.envelopeAttack);
   s.envelopeDecay = readInt (parsed, "envDecay", defaults.envelopeDecay);
   s.envelopeMax = readFloat (parsed, "envMax", defaults.envelopeMax);

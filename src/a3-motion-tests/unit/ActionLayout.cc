@@ -331,3 +331,56 @@ TEST (ActionLayout, TheActionListShowsFewerRowsThanThereAreScripts)
              layout.actionListArea.getHeight ())
       << "a row counted as visible must actually be inside the field";
 }
+
+/** The clip's three slow sweeps stand under the envelope grid, in a frame of
+ *  their own.
+ *
+ *  They came from Motion and Elevation, where each sat beside the value it
+ *  works on. Together they are what this page is about: what a clip does on
+ *  its own while nobody is touching it. Not a fourth row of the grid -- its
+ *  columns are attack, decay and ceiling, and these are none of those. */
+TEST (ActionLayout, TheThreeSweepsStandUnderTheGridInTheirOwnFrame)
+{
+  for (int height : { 200, 250, 314, 400 })
+    {
+      auto const l
+          = layOutActionPage ({ 0, 0, 768, height }, 14.f, 12.f, 40, {});
+
+      ASSERT_FALSE (l.modulationFrame.isEmpty ()) << "height " << height;
+
+      // Under the last envelope row, not across it, and still on the card.
+      EXPECT_GE (l.modulationFrame.getY (), l.rows[2].getBottom ())
+          << "height " << height;
+      EXPECT_LE (l.modulationFrame.getBottom (), l.card.getBottom ())
+          << "height " << height;
+
+      // Flush with the rows above rather than merely near them: the block is
+      // a fourth band of the same grid, and reads as one only if it lines up.
+      EXPECT_EQ (l.modulationFrame.getX (), l.rows[0].getX ())
+          << "height " << height;
+      EXPECT_EQ (l.modulationFrame.getWidth (), l.rows[0].getWidth ())
+          << "height " << height;
+
+      for (size_t i = 0; i < l.modulation.size (); ++i)
+        {
+          EXPECT_FALSE (l.modulation[i].isEmpty ())
+              << "sweep " << i << " at height " << height;
+          EXPECT_TRUE (l.modulationFrame.contains (l.modulation[i]))
+              << "sweep " << i << " at height " << height;
+        }
+
+      // Left to right, none of them overlapping.
+      EXPECT_LT (l.modulation[0].getRight (), l.modulation[1].getX () + 1)
+          << "height " << height;
+      EXPECT_LT (l.modulation[1].getRight (), l.modulation[2].getX () + 1)
+          << "height " << height;
+
+      // In the grid's own columns: a row that nearly lines up with the one
+      // above it reads as a mistake, one that lines up reads as structure.
+      EXPECT_EQ (l.modulation[0].getX (), l.controls[0].getX ())
+          << "height " << height;
+      EXPECT_EQ (l.modulation[2].getX (), l.controls[2].getX ())
+          << "height " << height;
+    }
+}
+

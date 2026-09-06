@@ -238,6 +238,11 @@ public:
    *  which the two controls conspire to do nothing. */
   int getReachLfo () const;
   void setReachLfo (int step);
+  /** The elevation base's own sweep -- what swell is to reach, sway is to
+   *  where the trajectory's middle sits. Same shape of value: a signed
+   *  TempoLfo step, the sign saying which pole it sweeps towards. */
+  int getElevationLfo () const;
+  void setElevationLfo (int step);
 
   /** How far through that sweep it is, in cycles [0, 1). Advanced by the
    *  engine while the clip plays and read by the renderer, which has to draw
@@ -245,6 +250,8 @@ public:
    *  phase when playback starts. */
   float getReachLfoPhase () const;
   void setReachLfoPhase (float phase);
+  float getElevationLfoPhase () const;
+  void setElevationLfoPhase (float phase);
 
   /** The accent's shape: how long it takes to rise while ACT is held, and how
    *  long to fall once it is let go, as Envelope steps.
@@ -362,6 +369,8 @@ private:
   std::atomic<float> _spinPhase{ 0.f };
   std::atomic<int> _reachLfo{ 0 };
   std::atomic<float> _reachLfoPhase{ 0.f };
+  std::atomic<int> _elevationLfo{ 0 };
+  std::atomic<float> _elevationLfoPhase{ 0.f };
   std::atomic<int> _envelopeAttack{ 2 };
   std::atomic<int> _envelopeDecay{ 3 };
   std::atomic<float> _envelopeMax{ 1.f };

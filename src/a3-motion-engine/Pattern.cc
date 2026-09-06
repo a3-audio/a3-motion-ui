@@ -435,6 +435,30 @@ Pattern::setReachLfoPhase (float phase)
 }
 
 int
+Pattern::getElevationLfo () const
+{
+  return _elevationLfo.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setElevationLfo (int step)
+{
+  _elevationLfo.store (step, std::memory_order_relaxed);
+}
+
+float
+Pattern::getElevationLfoPhase () const
+{
+  return _elevationLfoPhase.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setElevationLfoPhase (float phase)
+{
+  _elevationLfoPhase.store (phase, std::memory_order_relaxed);
+}
+
+int
 Pattern::getEnvelopeAttack () const
 {
   return _envelopeAttack.load (std::memory_order_relaxed);

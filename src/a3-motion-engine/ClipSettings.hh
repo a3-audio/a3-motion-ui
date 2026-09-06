@@ -21,6 +21,7 @@
 #pragma once
 
 #include <a3-motion-engine/Playhead.hh>
+#include <a3-motion-engine/elevation/HeightMap.hh>
 
 namespace a3
 {
@@ -68,6 +69,15 @@ struct ClipSettings
 
   int spin = 0;
   int reachLfo = 0;
+  /** The elevation base's own sweep. What swell is to reach: a signed
+   *  TempoLfo step in bars per cycle, sweeping where the trajectory's middle
+   *  sits out of where it was set and back, towards whichever pole the sign
+   *  points at.
+   *
+   *  It lives beside swell rather than in the elevation block because what it
+   *  is, is a slow movement of the clip rather than a shape of it -- the same
+   *  reason swell's own control sits with spin rather than with reach. */
+  int elevationLfo = 0;
   int envelopeAttack = 2;
   int envelopeDecay = 3;
   float envelopeMax = 1.f;
@@ -131,6 +141,7 @@ operator== (ClipSettings const &a, ClipSettings const &b)
          && a.flatElevation == b.flatElevation     //
          && a.spin == b.spin                       //
          && a.reachLfo == b.reachLfo               //
+         && a.elevationLfo == b.elevationLfo       //
          && a.envelopeAttack == b.envelopeAttack   //
          && a.envelopeDecay == b.envelopeDecay     //
          && a.envelopeMax == b.envelopeMax         //
@@ -172,5 +183,18 @@ ClipSettings actionOver (ClipSettings const &current,
 
 ClipSettings clipSettingsFrom (Pattern const &pattern);
 void applyClipSettings (Pattern &pattern, ClipSettings const &settings);
+
+/** The elevation parameters a clip is actually projecting through right now:
+ *  what it was set to, with its two slow sweeps laid over it.
+ *
+ *  One function because three places have to agree about this and could not
+ *  be made to by hand. The engine sweeps before it projects; the renderer
+ *  sweeps before it draws, in each of its two paths -- and a line drawn at a
+ *  coverage the blob is not running at is a line that is simply wrong. Three
+ *  copies of two lines each was already one too many when there was only
+ *  swell; with sway beside it there would have been six.
+ */
+ElevationParams sweptElevation (ElevationParams params,
+                                Pattern const &pattern);
 
 }

@@ -2352,6 +2352,12 @@ A3MotionUIComponent::updateActionPage ()
                          pattern ? pattern->getQDecay () : defaults.qDecay,
                          pattern ? pattern->getQMax () : defaults.qMax);
 
+  // The clip's three slow sweeps, which came here from Motion and Elevation.
+  _action->setSweeps (
+      pattern ? pattern->getSpin () : defaults.spin,
+      pattern ? pattern->getReachLfo () : defaults.reachLfo,
+      pattern ? pattern->getElevationLfo () : defaults.elevationLfo);
+
   auto const &slotAction = _slotAction[channel][slot];
   auto const &action = slotAction.file;
 
@@ -2425,6 +2431,22 @@ A3MotionUIComponent::applyActionControl (int control, int increment)
         pattern->setActMode (next == 1 ? ActMode::Hold : ActMode::OneShot);
       }
       break;
+    // The clip's three slow sweeps. Whole steps, all three: a TempoLfo step
+    // is a signed power of two in bars per cycle, so a finger should feel
+    // each one rather than slide past them.
+    case ActionComponent::Spin:
+      pattern->setSpin (std::clamp (pattern->getSpin () + increment,
+                                    -lfoMaxStep, lfoMaxStep));
+      break;
+    case ActionComponent::Swell:
+      pattern->setReachLfo (std::clamp (pattern->getReachLfo () + increment,
+                                        -lfoMaxStep, lfoMaxStep));
+      break;
+    case ActionComponent::Sway:
+      pattern->setElevationLfo (
+          std::clamp (pattern->getElevationLfo () + increment, -lfoMaxStep,
+                      lfoMaxStep));
+      break;
     default:
       return;
     }
@@ -2474,12 +2496,43 @@ A3MotionUIComponent::resetActionControl (int control)
     case ActionComponent::QMax:
       pattern->setQMax (0.f);
       break;
+    // Off, like the ceilings: the middle of a bipolar sweep is no sweep, and
+    // that is also the value you are reaching for when you double tap one.
+    case ActionComponent::Spin:
+      pattern->setSpin (0);
+      break;
+    case ActionComponent::Swell:
+      pattern->setReachLfo (0);
+      break;
+    case ActionComponent::Sway:
+      pattern->setElevationLfo (0);
+      break;
     default:
       return;
     }
 
   updateActionPage ();
   updateControlReadout (actionReadoutFor (control, *pattern));
+}
+
+namespace
+{
+/** A TempoLfo step written the way a hand counts it: off, or the number of
+ *  bars one cycle takes with the direction on the front. The step itself is
+ *  an index into a table of powers of two and means nothing to read. */
+juce::String
+sweepReadout (int step)
+{
+  if (step == 0)
+    return "off";
+
+  auto const bars = lfoBarsPerCycle (std::abs (step));
+  auto const number = bars >= 1.f
+                          ? juce::String (juce::roundToInt (bars))
+                          : "1/" + juce::String (juce::roundToInt (1.f / bars));
+
+  return (step < 0 ? "-" : "") + number;
+}
 }
 
 juce::String
@@ -2512,6 +2565,15 @@ A3MotionUIComponent::actionReadoutFor (int control, Pattern const &pattern)
       return "q max "
              + juce::String (juce::roundToInt (pattern.getQMax () * 100.f))
              + "%";
+    // A step is a signed power of two in bars per cycle, so the readout says
+    // the cycle rather than the step: "spin 4" is a turn every four bars,
+    // which is the number a hand is actually counting.
+    case ActionComponent::Spin:
+      return "spin " + sweepReadout (pattern.getSpin ());
+    case ActionComponent::Swell:
+      return "swell " + sweepReadout (pattern.getReachLfo ());
+    case ActionComponent::Sway:
+      return "sway " + sweepReadout (pattern.getElevationLfo ());
     default:
       return juce::String ("act ")
              + value::actModeNames[pattern.getActMode () == ActMode::Hold ? 1
@@ -4312,10 +4374,13 @@ A3MotionUIComponent::selectClipSettingsSubElement (int index)
 int
 A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
 {
+  // These must agree with numControlsInSection() -- a tap addresses a control
+  // by the same sub-index an encoder would. They had drifted: elevation said
+  // six and motion four long after either was true.
   if (menuIndex == ClipSettingsComponent::elevationIndex)
-    return 6;
+    return 3; // clip-top, clip-bottom, reach
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 4; // spin, swell, dir, end -- the envelope went to the ACTION page
+    return 5; // rot, fade, bias, dir, end
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
     return 4; // the shape, then rot, fade and bridge down its column
   return 1;
@@ -4373,13 +4438,12 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         pattern->setClipBottom (0.f);
       else if (sub == 2)
         pattern->setReach (ClipSettings{}.reach);
-      else if (sub == 3)
-        pattern->setReachLfo (0);
       else
         return;
       break;
 
-    case 2: // Motion
+    case 2: // Motion — rot (0), fade (1), bias (2). Renumbered with the
+            // handler above when spin left for the ACTION page.
       if (!pattern)
         return;
       // Only the knobs have a middle to go back to; direction and end action
@@ -4387,9 +4451,8 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
       switch (sub)
         {
         case 0: pattern->setRotate (0.f); break;
-        case 1: pattern->setSpin (0); break;
-        case 2: pattern->setFadeReach (ClipSettings{}.fadeReach); break;
-        case 3:
+        case 1: pattern->setFadeReach (ClipSettings{}.fadeReach); break;
+        case 2:
           pattern->setBridgeBias (0);
           refreshPatternDisplayFromTicks (pattern);
           break;
@@ -4480,9 +4543,9 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         updatePadRowLabel (channel, slot);
         break;
       }
-    case 1: // Elevation — clip-top (0), clip-bottom (1), reach (2),
-            // swell (3). Where the middle of the trajectory sits is set in
-            // the graphic above them, not by a knob.
+    case 1: // Elevation — clip-top (0), clip-bottom (1), reach (2). Where the
+            // middle of the trajectory sits is set in the graphic above them,
+            // not by a knob; the swell that sweeps reach has gone to ACTION.
       {
         auto &pattern = _patterns[channel][slot];
         if (!pattern)
@@ -4497,23 +4560,20 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             pattern->setClipBottom (pattern->getClipBottom ()
                                     + increment * 0.05f);
             break;
-          case 2:
+          default:
             // How far the trajectory's outer edge lands from the base the
             // graphic sets.
             pattern->setReach (pattern->getReach () + increment * 0.05f);
             break;
-          default:
-            // How fast reach sweeps out of where it was set.
-            pattern->setReachLfo (
-                std::clamp (pattern->getReachLfo () + increment, -lfoMaxStep,
-                            lfoMaxStep));
-            break;
           }
         break;
       }
-    case 2: // Motion — rot (0), spin (1), fade (2), bias (3), direction (4),
-            // end-action (5). What shapes the movement in the plane; reach
-            // and its swell went home to Elevation, where the sphere is.
+    case 2: // Motion — rot (0), fade (1), bias (2), direction (3),
+            // end-action (4). What the movement *is* in the plane; the spin
+            // that turns it went to ACTION with the other two slow sweeps,
+            // and everything after it moved up one. Renumbering a section
+            // means moving the layout, tapAdvancesValue, this handler, the
+            // reset handler and the painter together -- see CLAUDE.md.
       {
         auto &pattern = _patterns[channel][slot];
 
@@ -4527,15 +4587,6 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             break;
 
           case 1:
-            // How fast the whole trajectory turns under the blob. On the
-            // Pattern rather than in _clipUIParams because the engine reads it
-            // every tick and it has to survive being saved.
-            if (pattern)
-              pattern->setSpin (std::clamp (pattern->getSpin () + increment,
-                                            -lfoMaxStep, lfoMaxStep));
-            break;
-
-          case 2:
             // How far a gap may be for the fade to draw through it. A reading
             // of the movement, not a change to it: nothing is written into
             // the ticks, so it can be turned down as freely as up, and the
@@ -4549,7 +4600,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
               }
             break;
 
-          case 3:
+          case 2:
             // Where a drawn-through gap leads. Whole steps, like spin and
             // swell: nine positions, and a finger should feel each one rather
             // than slide past them.
@@ -4560,7 +4611,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
               }
             break;
 
-          case 4:
+          case 3:
             params.direction = (params.direction + increment % 2 + 2) % 2;
             applyMotionMode (channel, slot);
             break;
@@ -4733,8 +4784,6 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       pattern ? pattern->getFadeReach () : ClipSettings{}.fadeReach);
   _clipSettings->setMotionBridgeBias (
       pattern ? pattern->getBridgeBias () : ClipSettings{}.bridgeBias);
-  _clipSettings->setMotionSpin (pattern ? pattern->getSpin () : 0);
-  _clipSettings->setMotionSwell (pattern ? pattern->getReachLfo () : 0);
   _clipSettings->setMotionEnvelope (
       pattern ? pattern->getEnvelopeAttack () : 0,
       pattern ? pattern->getEnvelopeDecay () : 0);

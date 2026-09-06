@@ -307,6 +307,14 @@ fields ()
       [] (ClipSettings &s, Value const &v) {
         s.reachLfo = clampStep (v.number, -lfoMaxStep, lfoMaxStep);
       } },
+    // What swell is to reach: the elevation base's own slow sweep.
+    { "sway",
+      [] (ClipSettings const &s) {
+        return numberValue (s.elevationLfo, true);
+      },
+      [] (ClipSettings &s, Value const &v) {
+        s.elevationLfo = clampStep (v.number, -lfoMaxStep, lfoMaxStep);
+      } },
     { "attack",
       [] (ClipSettings const &s) {
         return numberValue (s.envelopeAttack, true);

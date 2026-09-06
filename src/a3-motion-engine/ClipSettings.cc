@@ -21,6 +21,7 @@
 #include "ClipSettings.hh"
 
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/TempoLfo.hh>
 
 namespace a3
 {
@@ -43,6 +44,7 @@ clipSettingsFrom (Pattern const &pattern)
 
   settings.spin = pattern.getSpin ();
   settings.reachLfo = pattern.getReachLfo ();
+  settings.elevationLfo = pattern.getElevationLfo ();
   settings.envelopeAttack = pattern.getEnvelopeAttack ();
   settings.envelopeDecay = pattern.getEnvelopeDecay ();
   settings.envelopeMax = pattern.getEnvelopeMax ();
@@ -79,6 +81,7 @@ applyClipSettings (Pattern &pattern, ClipSettings const &settings)
 
   pattern.setSpin (settings.spin);
   pattern.setReachLfo (settings.reachLfo);
+  pattern.setElevationLfo (settings.elevationLfo);
   pattern.setEnvelopeAttack (settings.envelopeAttack);
   pattern.setEnvelopeDecay (settings.envelopeDecay);
   pattern.setEnvelopeMax (settings.envelopeMax);
@@ -95,6 +98,22 @@ applyClipSettings (Pattern &pattern, ClipSettings const &settings)
 
   pattern.setFadeReach (settings.fadeReach);
   pattern.setBridgeBias (settings.bridgeBias);
+}
+
+ElevationParams
+sweptElevation (ElevationParams params, Pattern const &pattern)
+{
+  // Out of where each was set and back, towards the end its sign points at.
+  // At a step of zero lfoSweep() gives the value back untouched, so a clip
+  // with no modulation projects through exactly what it was set to.
+  params.reach
+      = lfoSweep (params.reach, pattern.getReachLfo (),
+                  pattern.getReachLfoPhase ());
+  params.elevationBase
+      = lfoSweep (params.elevationBase, pattern.getElevationLfo (),
+                  pattern.getElevationLfoPhase ());
+
+  return params;
 }
 
 ClipSettings

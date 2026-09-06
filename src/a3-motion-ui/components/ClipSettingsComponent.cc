@@ -544,20 +544,6 @@ ClipSettingsComponent::setMotionFadeReach (float reach)
 }
 
 void
-ClipSettingsComponent::setMotionSpin (int step)
-{
-  _motionSpin = juce::jlimit (-lfoMaxStep, lfoMaxStep, step);
-  repaint ();
-}
-
-void
-ClipSettingsComponent::setMotionSwell (int step)
-{
-  _motionSwell = juce::jlimit (-lfoMaxStep, lfoMaxStep, step);
-  repaint ();
-}
-
-void
 ClipSettingsComponent::setMotionEnvelopeMax (float value)
 {
   auto const clamped = juce::jlimit (0.f, 1.f, value);
@@ -1440,38 +1426,35 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
       < static_cast<size_t> (numControlsInSection (motionIndex)))
     return;
 
-  // rot with the spin that turns it, the fade with the bias that says where a
-  // drawn-through gap leads, and the two lists along the floor. reach and its
-  // swell live in Elevation, where the sphere is.
+  // rot above, the fade with the bias that says where a drawn-through gap
+  // leads below, and the two lists along the floor. The spin that turns the
+  // shape has gone to ACTION, beside the other two slow sweeps.
   //
   // rot is a closed ring: rotation comes round to itself, so its scale has to
   // as well. The pointer is where the hand left it; the blue runs from there
   // to where the spin is holding the shape right now -- the position it is
-  // being driven to, not how hard it is being driven.
+  // being driven to, not how hard it is being driven. The spin's *control*
+  // moved; what it does to this knob did not.
   paintMiniKnob (g, cells[0], metrics, caption::rotate, _shapeRotate * 2.f,
                  false, _motionSubIndex == 0, isSelected,
                  _shapeRotateReach * 2.f, true);
-  paintMiniKnob (g, cells[1], metrics, caption::spin,
-                 static_cast<float> (_motionSpin)
-                     / static_cast<float> (lfoMaxStep),
-                 true, _motionSubIndex == 1, isSelected);
 
   // How far a gap may be for the fade to draw through it, and where a
   // drawn-through gap leads. Both read the take's holes rather than changing
   // them.
-  paintMiniKnob (g, cells[2], metrics, caption::fade,
-                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 2,
+  paintMiniKnob (g, cells[1], metrics, caption::fade,
+                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 1,
                  isSelected);
-  paintMiniKnob (g, cells[3], metrics, caption::bias,
+  paintMiniKnob (g, cells[2], metrics, caption::bias,
                  static_cast<float> (_motionBridgeBias) / 4.f, true,
-                 _motionSubIndex == 3, isSelected);
+                 _motionSubIndex == 2, isSelected);
 
   // They step on a tap -- no chevron, because nothing opens any more.
-  paintBarButton (g, cells[4], value::directionNames[_motionDirection],
-                  caption::direction, _motionSubIndex == 4 && isSelected,
+  paintBarButton (g, cells[3], value::directionNames[_motionDirection],
+                  caption::direction, _motionSubIndex == 3 && isSelected,
                   false);
-  paintBarButton (g, cells[5], value::endActionNames[_motionEndAction],
-                  caption::endAction, _motionSubIndex == 5 && isSelected,
+  paintBarButton (g, cells[4], value::endActionNames[_motionEndAction],
+                  caption::endAction, _motionSubIndex == 4 && isSelected,
                   false);
 }
 
@@ -1492,7 +1475,8 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
 
   // The graphic on top, which is a control now: a finger on it sets where the
   // middle of the trajectory sits, and the line it draws is that value. Under
-  // it the two clips, then reach with the swell that sweeps it.
+  // it the two clips, then reach on its own -- the swell that sweeps it is on
+  // the ACTION page now, with the other two slow sweeps.
   paintElevationGraphic (g, _layout.elevationGraphic, isSelected);
 
   paintMiniKnob (g, cells[0], metrics, caption::clipTop,
@@ -1509,10 +1493,6 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
                  _elevationReachSwept < 0.f
                      ? -2.f
                      : _elevationReachSwept * 2.f - 1.f);
-  paintMiniKnob (g, cells[3], metrics, caption::swell,
-                 static_cast<float> (_motionSwell)
-                     / static_cast<float> (lfoMaxStep),
-                 true, _elevationSubIndex == 3, isSelected);
 }
 
 void

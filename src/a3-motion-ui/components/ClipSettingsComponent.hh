@@ -199,16 +199,6 @@ public:
   /** Where a drawn-through gap leads, -4..+4. */
   void setMotionBridgeBias (int bias);
 
-  /** How fast the trajectory turns under the blob, as TrajectorySpin's
-   *  signed step: 0 stands still, the sign is the direction. */
-  void setMotionSpin (int step);
-
-  /** How fast reach sweeps out of where it was set, as a TempoLfo step: 0
-   *  holds it still, positive opens the coverage, negative closes it. It
-   *  moves an Elevation value but lives beside spin, because what it is is a
-   *  slow movement of the clip, not a shape of it. */
-  void setMotionSwell (int step);
-
   /** The accent's shape, as Envelope steps: how long it rises while ACT is
    *  held, how long it falls once let go. */
   void setMotionEnvelope (int attackStep, int decayStep);
@@ -524,8 +514,6 @@ private:
   int _motionSubIndex = 0;
   float _motionFadeReach = 0.25f;
   int _motionBridgeBias = 0;
-  int _motionSpin = 0;
-  int _motionSwell = 0;
   int _motionAttack = 0;
   int _motionDecay = 0;
   float _motionEnvelopeMax = 1.f;

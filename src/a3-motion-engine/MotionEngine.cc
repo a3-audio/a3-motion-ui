@@ -1010,6 +1010,7 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   // is not something you can aim at.
   pattern->setSpinPhase (0.f);
   pattern->setReachLfoPhase (0.f);
+  pattern->setElevationLfoPhase (0.f);
 
   // Reverse starts at the end and walks back, so the first tick has somewhere
   // to come from.
@@ -1204,6 +1205,9 @@ MotionEngine::performPlayback ()
               playing.setReachLfoPhase (
                   advanceLfoPhase (playing.getReachLfoPhase (),
                                    playing.getReachLfo (), ticksPerBar));
+              playing.setElevationLfoPhase (
+                  advanceLfoPhase (playing.getElevationLfoPhase (),
+                                   playing.getElevationLfo (), ticksPerBar));
 
               if (position2D.isValid ())
                 {
@@ -1222,12 +1226,11 @@ MotionEngine::performPlayback ()
                   // live on the Pattern itself, not the channel.
                   auto params
                       = channel->_patternPlaying->getElevationParams ();
-                  // ... with the coverage swept out of where it was set, if
-                  // it is sweeping. The renderer does the same, from the same
-                  // phase, or the line would be drawn at a width the blob is
-                  // not running at.
-                  params.reach = lfoSweep (params.reach, playing.getReachLfo (),
-                                           playing.getReachLfoPhase ());
+                  // ... with both slow sweeps laid over it, if they are
+                  // sweeping. The renderer calls the same function from the
+                  // same phases -- see sweptElevation() -- or the line would
+                  // be drawn somewhere the blob is not running.
+                  params = sweptElevation (params, playing);
                   auto position = _heightMap.mapTo3D (position2D, params);
                   channel->setPosition (position);
                 }
