@@ -228,6 +228,10 @@ struct ClipSettingsLayout
   std::array<juce::Rectangle<int>, numClipSettingsSections> sectionCards;
   /** The title row per section. */
   std::array<juce::Rectangle<int>, numClipSettingsSections> sectionLabels;
+  /** The lock, at the right end of that title row: a square the size of the
+   *  row, so it is hit without aiming while the other hand is busy. Empty for
+   *  the global strip, which is the device's and holds no clip. */
+  std::array<juce::Rectangle<int>, numClipSettingsSections> sectionLocks;
 
   /** Per section its controls' cells, ordered **by sub-index**, not by
    *  where they sit. Elevation draws reach, mirror-south, clip-top, ...

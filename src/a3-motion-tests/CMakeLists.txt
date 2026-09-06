@@ -65,6 +65,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipMigration.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternFileGeometryOnly.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternLibraryClips.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipLocks.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettings.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionFiring.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionScript.cc"

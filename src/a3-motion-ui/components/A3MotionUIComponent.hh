@@ -32,6 +32,7 @@
 
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/MotionEngine.hh>
+#include <a3-motion-engine/ClipLocks.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 
@@ -600,6 +601,11 @@ private:
     juce::StringArray errors;
   };
   std::vector<std::vector<SlotAction> > _slotAction;
+  /** Which of the bar's three sections is being held. The device's, not a
+   *  clip's: a stance taken while playing and dropped again, so it is in
+   *  neither the clip file nor the set. See ClipLocks. */
+  ClipLocks _clipLocks;
+
   ClipFilter _clipFilter = ClipFilter::All;
   /** Which library entry each row of the browser stands for. The list is a
    *  window onto the library once it can be narrowed, so a row's number and an

@@ -215,6 +215,41 @@ TEST (ClipSettingsLayout, ControlsStayInsideTheirSectionContent)
 // A frame that eats more than a tenth of a section's width is a border zone
 // again. At the device's width the three clip sections are a sixth each, and
 // what they lose to their own inset they lose from four-value rows.
+// Each of the three sections carries a lock at the right end of its title
+// row: a square the size of the row, so it is hit without aiming while the
+// other hand is busy, and inside its own card so it belongs to the section it
+// holds rather than floating between two.
+TEST (ClipSettingsLayout, EachSectionCarriesALockOnItsTitleRow)
+{
+  for (int height : { 200, 314, 460 })
+    {
+      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
+
+      for (int section = 0; section < 3; ++section)
+        {
+          auto const s = static_cast<size_t> (section);
+          auto const lock = l.sectionLocks[s];
+
+          ASSERT_FALSE (lock.isEmpty ()) << "section " << section;
+          EXPECT_TRUE (l.sectionCards[s].contains (lock))
+              << "section " << section;
+
+          // Square, and out of the title row -- not out of the controls.
+          EXPECT_EQ (lock.getWidth (), lock.getHeight ()) << section;
+          EXPECT_FALSE (lock.intersects (l.sectionLabels[s]))
+              << "the lock and the word would be drawn over each other, "
+              << "section " << section;
+
+          for (auto const &cell : l.controls[s])
+            EXPECT_FALSE (lock.intersects (cell))
+                << "the lock covers a control of section " << section;
+        }
+
+      // The global strip is the device's and holds no clip, so it has none.
+      EXPECT_TRUE (l.sectionLocks[3].isEmpty ());
+    }
+}
+
 TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
 {
   auto const l = defaultLayout ();

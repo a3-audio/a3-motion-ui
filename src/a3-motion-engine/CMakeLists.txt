@@ -61,6 +61,7 @@ target_sources("a3-motion-engine" PRIVATE
     PatternFile.cc
     TrajectoryBridges.cc
     TrajectoryShape.cc
+    ClipLocks.cc
     TrajectoryShaping.cc
     TrajectorySpin.cc
     TempoLfo.cc

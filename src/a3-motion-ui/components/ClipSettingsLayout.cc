@@ -373,8 +373,14 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const recording = page == BarPage::Record;
 
     auto content = sectionContentBounds (out.sectionCards[0]);
-    out.sectionLabels[0]
-        = content.removeFromTop (titleRowHeight (content, headerSize));
+    {
+      auto title = content.removeFromTop (titleRowHeight (content, headerSize));
+      // The lock takes the right end of the title row. A square, so it
+      // reads as a mark rather than a word, and the row's own height, so
+      // it is as big as anything else that is pressed in a hurry.
+      out.sectionLocks[0] = title.removeFromRight (title.getHeight ());
+      out.sectionLabels[0] = title;
+    }
 
     auto const gap = juce::jmax (2, out.buttonHeight / 8);
 
@@ -456,8 +462,14 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // ── Elevation ────────────────────────────────────────────────────────
   {
     auto content = sectionContentBounds (out.sectionCards[1]);
-    out.sectionLabels[1]
-        = content.removeFromTop (titleRowHeight (content, headerSize));
+    {
+      auto title = content.removeFromTop (titleRowHeight (content, headerSize));
+      // The lock takes the right end of the title row. A square, so it
+      // reads as a mark rather than a word, and the row's own height, so
+      // it is as big as anything else that is pressed in a hurry.
+      out.sectionLocks[1] = title.removeFromRight (title.getHeight ());
+      out.sectionLabels[1] = title;
+    }
 
     // The graphic takes a bigger share now: it is the control that sets where
     // the middle of the trajectory sits, so it has to be big enough to put a
@@ -500,8 +512,14 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // ── Motion ───────────────────────────────────────────────────────────
   {
     auto content = sectionContentBounds (out.sectionCards[2]);
-    out.sectionLabels[2]
-        = content.removeFromTop (titleRowHeight (content, headerSize));
+    {
+      auto title = content.removeFromTop (titleRowHeight (content, headerSize));
+      // The lock takes the right end of the title row. A square, so it
+      // reads as a mark rather than a word, and the row's own height, so
+      // it is as big as anything else that is pressed in a hurry.
+      out.sectionLocks[2] = title.removeFromRight (title.getHeight ());
+      out.sectionLabels[2] = title;
+    }
 
     // Two by two, not four in a row: the section is a sixth of the bar wide
     // now, and four columns in it left each control a sliver.

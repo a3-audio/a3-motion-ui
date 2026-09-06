@@ -154,6 +154,10 @@ public:
    *  behind it, which is a thing you can be in and worth being able to see. */
   void setClipName (juce::String const &name, bool drifted);
 
+  /** Which of the three sections is being held. A held section is one nothing
+   *  writes over -- see ClipLocks, where what that means per field lives. */
+  void setLocks (bool shape, bool elevation, bool motion);
+
 
   /** Elevation section values, shown as six small controls, always visible
    *  together. reach/clipTop/clipBottom/flatElevation are unipolar
@@ -317,6 +321,8 @@ public:
 
   /** A control was tapped: select its section and sub-element in one go —
    *  what the encoders reach by scrolling and pressing. */
+  /** The lock above a section was pressed. */
+  std::function<void (int section)> onLockToggled;
   std::function<void (int section, int sub)> onControlTapped;
   /** A control was dragged, by one increment. Same increment the
    *  Pot-Encoder produces, so both go through one handler. */
@@ -458,6 +464,9 @@ private:
   void paintSetOffFrame (juce::Graphics &g, juce::Rectangle<int> bounds);
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
                           juce::String const &text, bool isSelected);
+  /** The padlock over a section: shut when the section is held, open and
+   *  quiet when it is not. */
+  void paintSectionLock (juce::Graphics &g, int sectionIndex);
 
 
   /** What a control is drawn in — its arc, its icon, its value. Takes the
@@ -524,6 +533,7 @@ private:
   juce::String _trajectoryName{ "Empty" };
   juce::String _clipName;
   bool _clipDrifted = false;
+  std::array<bool, numClipSections> _locked{ false, false, false };
   float _elevationReach = 0.5f;
   float _elevationBase = 0.f;
   float _elevationBaseSwept = -1.f;
@@ -578,6 +588,7 @@ private:
    *  what the controls below it do, and touching a picture should do
    *  nothing. Without it the card underneath would answer. */
   std::unique_ptr<TouchControl> _elevationGraphicTouch;
+  std::array<std::unique_ptr<TouchControl>, numClipSections> _lockTouch;
   /** The four transport keys in the header. Their look follows the same rule
    *  as the global strip's function keys: a key that is doing something is
    *  coloured, and one that is not is not. */
