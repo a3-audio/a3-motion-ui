@@ -352,9 +352,19 @@ private:
   // communication.
   AsyncCommandQueue _commandQueue;
   std::vector<Pos> _lastSentPositions;
+  /** The last value each channel value went out at -- which is what the far
+   *  end actually has, and so what a ramp has to start from. See util/Slew.hh
+   *  and the send loop in tickCallback(). */
   std::vector<float> _lastSentPot1s;
   std::vector<float> _lastSentPot2s;
   std::vector<float> _lastSentPot3s;
+  /** When the last send ran, on the wall clock. A tick is two to eight
+   *  milliseconds depending on tempo, and a fade meant to be inaudible cannot
+   *  be a different length at 180 BPM than at 60. */
+  double _lastSendMillis = 0.;
+  /** Whether the channel values have gone out once. Until they have there is
+   *  nothing to ramp *from*: see the send loop in tickCallback(). */
+  bool _potsPrimed = false;
 
   /** The accent per channel: whether ACT is down, where the envelope stands,
    *  and whose shape it is running. Live only — an accent is a gesture, and a

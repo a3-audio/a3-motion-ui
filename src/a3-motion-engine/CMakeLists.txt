@@ -93,6 +93,8 @@ target_sources("a3-motion-engine" PRIVATE
     util/Geometry.hh
     util/Helpers.hh
     util/SeedSpread.hh
+    util/Slew.cc
+    util/Slew.hh
     util/Helpers.cc
 )
 

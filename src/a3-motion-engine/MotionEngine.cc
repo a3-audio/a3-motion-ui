@@ -20,6 +20,8 @@
 
 #include "MotionEngine.hh"
 
+#include <a3-motion-engine/util/Slew.hh>
+
 #include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectorySpin.hh>
 
@@ -630,6 +632,14 @@ MotionEngine::tickCallback ()
   performPlayback ();
   advanceAccents ();
 
+  // Wall clock rather than ticks: a tick is two to eight milliseconds
+  // depending on tempo, and a fade meant to be inaudible cannot be a
+  // different length at 180 BPM than at 60.
+  auto const nowMillis = juce::Time::getMillisecondCounterHiRes ();
+  auto const elapsedMillis
+      = _lastSendMillis > 0. ? nowMillis - _lastSendMillis : 0.;
+  _lastSendMillis = nowMillis;
+
   // compare with last enqueued values and enqueue on change
   for (auto index = 0u; index < _channels.size (); ++index)
     {
@@ -644,33 +654,58 @@ MotionEngine::tickCallback ()
           _lastSentPositions[index] = position;
         }
 
-      // Both filter values carry the second envelope the same way pot3
-      // carries the first: at rest they are exactly what the encoder set, so
-      // a channel with no accent running sends what it always sent.
-      auto const pot1 = getChannelPot1Effective (index);
-      if (!juce::approximatelyEqual (_lastSentPot1s[index], pot1))
-        {
-          _commandQueue.sendPot1 (index, pot1);
-          _lastSentPot1s[index] = pot1;
-        }
+      // All three go out on a ramp rather than straight from the value they
+      // have reached. A3 Core hands what it receives to a REAPER parameter
+      // with no interpolation, so every message is a step and a step big
+      // enough is a click in the room -- and the steps here are not small:
+      // an accent's ceiling changes the instant its clip stops being the one
+      // firing, a hardware pot arrives in its own increments, and at start-up
+      // the very first value is a jump from wherever Core was left.
+      //
+      // It limits a rate, so anything already moving slower passes through
+      // untouched: the shortest attack the envelope has is an eighth of a
+      // second and never touches this. See util/Slew.hh.
+      //
+      // The ramp runs from the last value *sent*, which is what the far end
+      // actually has -- ramping from the target would smooth nothing.
+      // The very first value goes out whole. A ramp starts from what the far
+      // end has, and at start-up nothing here knows what that is -- Core is
+      // sitting wherever the last session left it. Ramping from this side's
+      // zero would send Core *to* zero on the first message and climb back
+      // up, which is a bigger jump than the one being smoothed, in the wrong
+      // direction first. Until there is a total recall to restore Core from,
+      // one honest jump beats a fade from a fiction. See
+      // issues/a3-motion-ui-total-recall-at-startup.md.
+      auto const primed = _potsPrimed;
 
-      auto const pot2 = getChannelPot2Effective (index);
-      if (!juce::approximatelyEqual (_lastSentPot2s[index], pot2))
-        {
-          _commandQueue.sendPot2 (index, pot2);
-          _lastSentPot2s[index] = pot2;
-        }
+      auto const sendSlewed
+          = [this, index, elapsedMillis, primed] (auto &lastSent, float target,
+                                                  auto send) {
+              auto const next
+                  = primed ? slewTowards (lastSent[index], target,
+                                          elapsedMillis, potSlewMillis)
+                           : target;
+              if (primed && juce::approximatelyEqual (lastSent[index], next))
+                return;
 
+              (_commandQueue.*send) (index, next);
+              lastSent[index] = next;
+            };
+
+      // At rest all three are exactly what the hand set -- slewTowards()
+      // lands on its target rather than approaching it, which is the whole
+      // reason it is a ramp and not the one-pole this would usually be.
+      sendSlewed (_lastSentPot1s, getChannelPot1Effective (index),
+                  &AsyncCommandQueue::sendPot1);
+      sendSlewed (_lastSentPot2s, getChannelPot2Effective (index),
+                  &AsyncCommandQueue::sendPot2);
       // What the pot and the grid set is the floor; the accent raises it and
-      // lets it back down to exactly there. At rest this is the set value
-      // unchanged, which is why nothing had to move for the ones not using it.
-      auto const pot3 = getChannelPot3Effective (index);
-      if (!juce::approximatelyEqual (_lastSentPot3s[index], pot3))
-        {
-          _commandQueue.sendPot3 (index, pot3);
-          _lastSentPot3s[index] = pot3;
-        }
+      // lets it back down to exactly there.
+      sendSlewed (_lastSentPot3s, getChannelPot3Effective (index),
+                  &AsyncCommandQueue::sendPot3);
     }
+
+  _potsPrimed = true;
 }
 
 void
