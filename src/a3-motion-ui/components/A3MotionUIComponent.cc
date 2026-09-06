@@ -396,9 +396,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     // drag ACTION back to CLIP, which meant the one page where you most often
     // want to hear another channel's clip was the one page you could not stay
     // on while choosing it.
-    auto const describesAClip = _barPage == BarPage::Clip
-                                || _barPage == BarPage::Record
-                                || _barPage == BarPage::Action;
+    //
+    // FILES is here for the same reason. It has a clip in mind too -- the one
+    // a picked file is put into -- so choosing the slot and then choosing the
+    // file is one errand, and being thrown back to CLIP halfway through it
+    // meant tabbing back and losing the list you were reading.
+    auto const describesAClip
+        = _barPage == BarPage::Clip || _barPage == BarPage::Record
+          || _barPage == BarPage::Action || _barPage == BarPage::Browser;
 
     if (describesAClip && channel == _clipSettingsChannel)
       _channelSlot[channel]
@@ -406,11 +411,27 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
     selectClip (channel, _channelSlot[channel]);
 
-    // From the pads page or the browser there is no clip on show to select
-    // into, so reaching for a channel is reaching for its clip: the face
-    // brings that view back with it.
+    // From the pads page there is no one clip on show to select into -- it
+    // shows every slot at once -- so reaching for a channel there is reaching
+    // for its clip, and the face brings that view back with it.
     if (!describesAClip)
       showBarPage (BarPage::Clip);
+  };
+
+  _clipSettings->onClipChosen = [this] (int index) {
+    // Sent as the difference to the shape control, the way the direction and
+    // end-action lists send theirs: one place loads a clip into a slot, and
+    // it is the one the encoder already reaches. A second copy of stopping
+    // the old pattern, building the new one and restarting it if it was
+    // running is a second copy that will be wrong eventually.
+    auto const channel = _clipSettingsChannel;
+    auto const slot = _clipSettingsSlot;
+    auto const &pattern = _patterns[channel][slot];
+    auto const current
+        = pattern ? trajectoryNameToIndex (pattern->getName ()) : 0;
+
+    if (index != current)
+      handleClipSettingsValueChange (channel, 0, 0, index - current);
   };
 
   _clipSettings->onTransportTapped = [this] (TransportKey key) {
@@ -4292,6 +4313,13 @@ A3MotionUIComponent::selectClip (index_t channel, index_t slot)
   // The ACTION page shows the same slot the bar does; choosing a clip has to
   // move both or the page describes a clip nobody is looking at.
   updateActionPage ();
+
+  // So does the library: its highlighted row is the one thing saying which of
+  // seventy rows the chosen slot is holding, and a face tapped on FILES has
+  // just changed which slot that is. Only while it is on screen -- refreshing
+  // it walks the pattern folder, and a pad press should not go to disk.
+  if (_barPage == BarPage::Browser)
+    refreshBrowser ();
 }
 
 void
@@ -4719,6 +4747,18 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       _clipSettings->setTrajectoryIcon (TrajectoryIconData{});
       _clipSettings->setTrajectoryName ("Empty");
     }
+
+  // What the clip field's list offers -- the library, in its own order, entry
+  // zero being "Empty". Rebuilt on every refresh rather than watched for
+  // changes: the folder is rescanned on a timer, and setClipChoices() throws
+  // away a list that has not changed.
+  {
+    juce::StringArray choices;
+    for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
+      choices.add (juce::String (_patternLibrary->getEntry (i).name));
+
+    _clipSettings->setClipChoices (choices);
+  }
 
   // Both slots, not only the one on show: the keys sit side by side, and a
   // mark on one is only readable next to the absence of one on the other.

@@ -373,8 +373,11 @@ is a *layout* change and A3MotionUIComponent is what hands the bar its bounds �
 `applyTheme()` ends in `resized()`. Telling the bar alone changes nothing.
 
 **The Shape section has two faces**, and `BarPage::Record` is the one that turns the card over. The
-front is the clip as it plays — its shape, twelve speed buttons covering the whole of
-`speedLog2Min..Max`, and `rot`, the standing angle the spin then adds to. The back is the take you
+front is the clip as it plays — its picture, the **clip field** naming what is in the slot, and four
+speed buttons: as recorded, and three steps of fast. Twelve buttons covering the whole of
+`speedLog2Min..Max` took three rows to say every value the range holds; the two rows they gave back
+are what the field stands in, and a speed the four do not name is still reachable from a clip file
+or a script (`~speedLog2`) and simply lights no button. The back is the take you
 are about to make: eight length buttons, the `fade` that closes its join, and the trajectory
 appearing as you play it in, redrawn on the pad-LED tick. Only that one section changes — you are
 still looking at the elevation and the motion the take will get.
@@ -397,9 +400,26 @@ across — taken from the right it came out three pixels off, because `colW` is 
 the remainder sits against the right edge. A row that nearly lines up with the grid under it reads
 as a mistake; one that lines up exactly reads as structure.
 
-**The name lies over the picture**, not under it. As a caption it cost the picture a whole row to
-say something you mostly already know — you chose the trajectory. `trajectoryName` and
-`trajectoryIcon` are deliberately the same rectangle.
+**The name is the clip field's value on the front face**, and lies over the picture on the back one.
+As a caption it cost the picture a whole row to say something you mostly already know — but the row
+is being spent on a control either way now, and a control that names what it changes beats a caption
+that only names it. So `trajectoryName` equals `clipField` on the front and `trajectoryIcon` on the
+back, where there is no field: which clip is in the slot is not a question the take you are
+recording asks.
+
+The field opens the library over the section, exactly the way ACTION's action field opens its list
+of scripts, and for the same reason — stepping forty shapes one encoder click at a time is fine when
+you know where you are going and hopeless when you do not. Picking a row sends the *difference* to
+`handleClipSettingsValueChange(channel, 0, 0, …)`, the shape control the encoder already reaches, so
+stopping the old pattern, building the new one and restarting it if it was running lives in one
+place. The list gets a `TouchControl` of its own, shown only while it is open and brought to front,
+or the picture's hit area would answer for the rows drawn over it.
+
+**The header's channel faces keep the page on FILES too.** A face selects the clip the settings area
+describes, and FILES has one in mind — the slot a picked file is put into. Being thrown back to CLIP
+halfway through "choose the slot, then choose the file" meant tabbing back and losing the list you
+were reading. `selectClip()` refreshes the browser while that page is on screen so the highlighted
+row follows the slot; only while it is on screen, because refreshing walks the pattern folder.
 
 **`rot` is a closed ring**, the only control in the bar that is. A rotation comes round to itself, so
 its scale has to: on the usual 270-degree sweep the two ends are the same angle with a dead zone

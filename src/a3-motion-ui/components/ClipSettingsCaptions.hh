@@ -90,6 +90,9 @@ constexpr char const *envelopeMax = "max";
 /** Which way the clip's shape faces — a standing angle, where spin is the
  *  movement over it. */
 constexpr char const *rotate = "rot";
+/** What is in the slot. The caption on the field that names the clip and
+ *  opens the library, on the Shape section's front face. */
+constexpr char const *clip = "clip";
 /** How far the figure is pressed flat or pulled out along each of the two
  *  horizontal axes. Named after the coordinates rather than after the
  *  picture, because the picture mirrors them: X is front-back, which is what
@@ -183,6 +186,9 @@ constexpr TextEntry captionTable[] = {
   { caption::attack, 4 },      { caption::decay, 4 },
   { caption::envelopeMax, 4 },   { caption::rotate, 4 },
   { caption::squeezeX, 4 },    { caption::squeezeY, 4 },
+  // The clip field spans the Shape section, so it is measured against one
+  // column rather than against Motion's two.
+  { caption::clip, 1 },
   { caption::actMode, 4 },
   { caption::frequency, 2 },   { caption::q, 2 },
   { caption::recordLength, 1 },

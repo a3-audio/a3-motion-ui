@@ -62,6 +62,13 @@ sectionContentBounds (juce::Rectangle<int> card)
   return card.reduced (juce::jmax (2, card.getWidth () / 80), 3);
 }
 
+int
+clipListVisibleRows (ClipSettingsLayout const &layout)
+{
+  auto const rowH = juce::jmax (1, layout.clipListRowHeight);
+  return juce::jmax (1, layout.clipListArea.getHeight () / rowH);
+}
+
 float
 gridKnobReach (float set, float effective)
 {
@@ -382,10 +389,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
     auto const gap = juce::jmax (2, out.buttonHeight / 8);
 
-    // Twelve speeds want three rows, eight lengths two. The buttons are the
+    // Four speeds want one row, eight lengths two. The buttons are the
     // section's floor either way, so the bar still reads as one row of
     // buttons across its bottom.
-    auto const buttonRows = recording ? 2 : 3;
+    auto const buttonRows = recording ? 2 : 1;
     auto const bandH = juce::jmin (
         content.getHeight (),
         buttonRows * out.buttonHeight + (buttonRows - 1) * gap);
@@ -403,12 +410,31 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const colGap = juce::jmax (2, buttons.getWidth () / 60);
     auto const colW = (buttons.getWidth () - (perRow - 1) * colGap) / perRow;
 
-    // The name lies over the picture rather than under it. As a caption it
-    // cost the picture a whole row and told you something you mostly already
-    // know -- you chose the trajectory. Over it, it is there when you look for
-    // it and out of the way when you are reading the shape.
+    // The clip field stands between the picture and the speeds, on the front
+    // face only: the back face is the take you are about to make, and which
+    // clip is in the slot is not a question it asks.
+    //
+    // The name moves into it. It used to lie over the picture, on the
+    // reasoning that a caption cost a whole row to say something you already
+    // knew -- but the row is being spent either way now, and spent on a
+    // control it buys more than a caption did. One name, in the one place
+    // that also changes it.
+    if (!recording)
+      {
+        auto const fieldH = juce::jmin (content.getHeight (),
+                                        juce::jmax (fingertipSize,
+                                                    out.buttonHeight));
+        out.clipField = content.removeFromBottom (fieldH);
+        content.removeFromBottom (gap);
+        out.trajectoryName = out.clipField;
+      }
+    else
+      {
+        // On the back face the name keeps its old place over the picture.
+        out.trajectoryName = content;
+      }
+
     out.trajectoryIcon = content;
-    out.trajectoryName = content;
 
     {
       std::array<juce::Rectangle<int>, 3> rows;
@@ -433,11 +459,19 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
           place (i, out.speedButtons[static_cast<size_t> (i)]);
     }
 
-    // The picture, and nothing else. The lengths and the speeds are buttons of
-    // their own -- they are not values a finger turns, so they are not
-    // sub-elements of the section.
-    //
+    // The picture, and nothing else. The lengths, the speeds and the clip
+    // field are not values a finger turns, so they are not sub-elements of
+    // the section.
     out.controls[0] = { out.trajectoryIcon };
+
+    // The list covers the whole of the section under its title -- the picture
+    // and the field it opens from. Sized like the other lists in the bar: a
+    // fingertip a row, because picking a clip mid-set is a tap.
+    out.clipListRowHeight = juce::jmax (
+        fingertipSize, out.sectionCards[0].getHeight () / 6);
+    out.clipListArea
+        = sectionContentBounds (out.sectionCards[0])
+              .withTrimmedTop (out.sectionLabels[0].getHeight ());
   }
 
   // ── Elevation ────────────────────────────────────────────────────────

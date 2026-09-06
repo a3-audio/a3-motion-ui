@@ -462,14 +462,16 @@ TEST (ClipSettingsLayout, ShapesTwoFacesUseTheSameRoom)
 // Twelve, because speed runs from a 128th of a bar to sixteen bars and eight
 // buttons cannot say twelve things. They are the section's floor either way,
 // so the bar still reads as one row of buttons across its bottom.
-TEST (ClipSettingsLayout, TheFrontHasTwelveSpeedsAndTheBackEightLengths)
+TEST (ClipSettingsLayout, TheFrontHasFourSpeedsAndTheBackEightLengths)
 {
   auto const front = defaultLayout ();
   auto const back = layOutClipSettings (
       grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
       defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
 
-  EXPECT_EQ (numSpeedButtons, 12);
+  // Four, not the whole range. The eight rows that went are what the clip
+  // field stands in -- see speedButtonLog2.
+  EXPECT_EQ (numSpeedButtons, 4);
   EXPECT_EQ (numRecordLengths, 8);
 
   auto const used = [] (auto const &buttons, int count) {
@@ -845,18 +847,73 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
 
 // ── Shape: the name beside the knob, the picture given the room ──────────
 
-TEST (ClipSettingsLayout, TheTrajectoryNameLiesOverThePictureNotUnderIt)
+// On the front face the name is the clip field's value: the row is being
+// spent on a control either way, and a control that names what it changes
+// beats a caption that only names it. On the back face there is no field --
+// which clip is in the slot is not a question the take you are recording
+// asks -- so the name keeps its old place over the picture.
+TEST (ClipSettingsLayout, TheNameIsTheClipFieldOnTheFrontAndACaptionOnTheBack)
 {
-  // As a caption the name cost the picture a whole row to say something you
-  // mostly already know -- you chose the trajectory. Over the picture it is
-  // there when looked for and out of the way when the shape is being read.
-  for (auto const page : { BarPage::Clip, BarPage::Record })
-    {
-      auto const layout
-          = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
+  auto const front
+      = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, BarPage::Clip);
+  auto const back = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f,
+                                        BarPage::Record);
 
-      ASSERT_FALSE (layout.trajectoryIcon.isEmpty ());
-      EXPECT_EQ (layout.trajectoryName, layout.trajectoryIcon);
+  ASSERT_FALSE (front.trajectoryIcon.isEmpty ());
+  ASSERT_FALSE (front.clipField.isEmpty ());
+  EXPECT_EQ (front.trajectoryName, front.clipField);
+  EXPECT_FALSE (front.clipField.intersects (front.trajectoryIcon))
+      << "the field would be drawn over the picture it stands under";
+
+  ASSERT_FALSE (back.trajectoryIcon.isEmpty ());
+  EXPECT_TRUE (back.clipField.isEmpty ());
+  EXPECT_EQ (back.trajectoryName, back.trajectoryIcon);
+}
+
+// The field is a fingertip tall wherever the bar is, and stands between the
+// picture and the speeds -- a control reached for mid-set, in the order it is
+// reached for: see what is in the slot, change it, then set how fast it runs.
+TEST (ClipSettingsLayout, TheClipFieldStandsBetweenThePictureAndTheSpeeds)
+{
+  for (int height : { 200, 250, 314, 460 })
+    {
+      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
+
+      ASSERT_FALSE (l.clipField.isEmpty ()) << "height " << height;
+      EXPECT_GE (l.clipField.getHeight (), fingertipSize)
+          << "height " << height;
+
+      EXPECT_LE (l.trajectoryIcon.getBottom (), l.clipField.getY ())
+          << "height " << height;
+      EXPECT_LE (l.clipField.getBottom (), l.speedButtons[0].getY ())
+          << "height " << height;
+      EXPECT_TRUE (l.sectionCards[0].contains (l.clipField))
+          << "height " << height;
+    }
+}
+
+// The list opens over the section it belongs to and nowhere else: the
+// sphere's GL context composites above anything drawn outside the bar, so a
+// list that reached past its own card would be a list nobody can see.
+TEST (ClipSettingsLayout, TheClipListCoversItsOwnSectionAndCountsItsRows)
+{
+  for (int height : { 200, 314, 460 })
+    {
+      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
+
+      ASSERT_FALSE (l.clipListArea.isEmpty ()) << "height " << height;
+      EXPECT_TRUE (l.sectionCards[0].contains (l.clipListArea))
+          << "height " << height;
+      EXPECT_TRUE (l.clipListArea.contains (l.clipField))
+          << "the list has to cover the field it opens from, at height "
+          << height;
+
+      // A row is a fingertip, and a row counted as visible has to fit.
+      EXPECT_GE (l.clipListRowHeight, fingertipSize) << "height " << height;
+      EXPECT_GE (clipListVisibleRows (l), 1) << "height " << height;
+      EXPECT_LE (clipListVisibleRows (l) * l.clipListRowHeight,
+                 l.clipListArea.getHeight ())
+          << "height " << height;
     }
 }
 TEST (ClipSettingsLayout, ThePictureIsTheBiggestThingInTheSection)

@@ -65,16 +65,25 @@ constexpr int numChannelRows = 3;
  *  may be — it reaches 32 bars, one step past the speed control's range. */
 constexpr int numRecordLengths = 8;
 
-/** The speeds a clip can play at, as powers of two of a bar — the whole of
- *  speedLog2Min..Max, which is why there are twelve of them and not eight. A
- *  set of buttons that could not say every value would leave some of them
- *  unreachable, and the range is the range. */
-constexpr int numSpeedButtons = 12;
-constexpr int speedButtonLog2[numSpeedButtons]
-    = { -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4 };
+/** The speeds a clip can play at, as powers of two of a bar.
+ *
+ *  Four, not the whole of speedLog2Min..Max. Twelve buttons said every value
+ *  the range holds and took three rows of the section to do it; these are the
+ *  four anybody reaches for -- as recorded, and three steps of fast -- and the
+ *  two rows they give back are what the clip field stands in.
+ *
+ *  What that costs: a speed this table does not name is no longer reachable
+ *  from the bar. It is still reachable from a clip file and from a script
+ *  (`~speedLog2`), and a clip carrying one plays at it -- no button lights,
+ *  which is the honest answer to "which of these is it".
+ *
+ *  Ordered as a scale rather than in the order they were asked for, slowest
+ *  first, because a row of numbers that does not climb reads as a list of
+ *  options rather than as one control. */
+constexpr int numSpeedButtons = 4;
+constexpr int speedButtonLog2[numSpeedButtons] = { -6, -4, -3, 0 };
 constexpr char const *speedButtonNames[numSpeedButtons]
-    = { "1/128", "1/64", "1/32", "1/16", "1/8", "1/4",
-        "1/2",   "1",    "2",    "4",    "8",   "16" };
+    = { "1/64", "1/16", "1/8", "1" };
 constexpr int recordLengthLog2[numRecordLengths] = { -2, -1, 0, 1, 2, 3, 4, 5 };
 constexpr char const *recordLengthNames[numRecordLengths]
     = { "1/4", "1/2", "1", "2", "4", "8", "16", "32" };
@@ -271,6 +280,21 @@ struct ClipSettingsLayout
   std::array<juce::Rectangle<int>, numRecordLengths> lengthButtons;
   /** How fast the clip plays, on its front — in speedButtonLog2 order. */
   std::array<juce::Rectangle<int>, numSpeedButtons> speedButtons;
+
+  /** The clip field: which clip is in the slot, and the list of them.
+   *
+   *  A field like the ACTION page's, and for the same reason. Stepping the
+   *  library one entry at a time with an encoder is fine when you know where
+   *  you are going and hopeless when you do not -- forty shapes is forty
+   *  turns, and mid-set nobody counts. Empty on the Record face, which is
+   *  about the take you are making rather than the clip you are holding. */
+  juce::Rectangle<int> clipField;
+  /** Where that list opens: over the Shape section's own content. It cannot
+   *  open outside the bar -- the sphere's GL context composites above
+   *  anything drawn over it -- so it covers the picture it is replacing. */
+  juce::Rectangle<int> clipListArea;
+  /** A row of that list. A fingertip, whatever the bar's size. */
+  int clipListRowHeight = 0;
   /** The bar's own header row: the four transport keys, then "Slot N", then
    *  the page tabs closing it. */
   std::array<juce::Rectangle<int>, numTransportKeys> transportButtons;
@@ -347,6 +371,9 @@ ClipSettingsLayout layOutClipSettings (juce::Rectangle<int> bounds,
                                        float headerSize, float bodySize,
                                        float potSizeScale,
                                        BarPage page = BarPage::Clip);
+
+/** How many rows of the clip list fit in the area it opens over. */
+int clipListVisibleRows (ClipSettingsLayout const &layout);
 
 /** Where the "not saved" mark sits inside a key or a field.
  *
