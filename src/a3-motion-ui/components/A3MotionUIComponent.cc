@@ -5600,6 +5600,14 @@ A3MotionUIComponent::handleClipSettingsToggle (index_t channel, int section,
 void
 A3MotionUIComponent::updateClipSettingsDisplay ()
 {
+  // The bar does not exist yet while the set is being restored -- applySet()
+  // runs before createMainUI(), so that the slots are already filled when the
+  // UI is built. Everything else this reaches from there has this guard
+  // (updateActionPage, updateControlReadout, refreshChannelValues); this one
+  // did not, and the first set carrying an action segfaulted on startup.
+  if (!_clipSettings)
+    return;
+
   auto const channel = _clipSettingsChannel;
   auto const slot = _clipSettingsSlot;
   auto const &params = _clipUIParams[channel][slot];
