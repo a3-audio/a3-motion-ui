@@ -181,10 +181,15 @@ Theme loadTheme (juce::var const &skin);
  *  does not name is a key nobody can reach. Merging this in gives the editor
  *  the full vocabulary whatever the file happens to carry.
  *
- *  Limited to what the theme itself owns. The effect parameters
- *  (`speakerLight.*`, `energy.*`, `blob.*` beyond `scale`) are read straight
- *  out of the skin var by MotionComponent and CoronaScaling, past the theme,
- *  and a default for them would have to be stated twice. */
+ *  Excluded: `speakerLight`, `energy`, `blob` (all of it, including
+ *  `scale`), `channels`, and `backgroundGlow`. Every one of these is a
+ *  compound object in the skin files, not a plain colour or a plain number,
+ *  and every shipped skin already states it in full. `backgroundGlow` in
+ *  particular still has a Theme field and a loadTheme() line, but
+ *  MotionComponent reads the group straight off the skin var with its own
+ *  defaults rather than through that field -- restating only its colour half
+ *  here would put a default in the editor that disagrees with the one the
+ *  effect actually uses. */
 juce::var themeDefaultsVar ();
 
 /** Where a named skin lives: `<configDir>/skins/<name>.json`. An empty name

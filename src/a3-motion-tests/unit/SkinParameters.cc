@@ -534,14 +534,30 @@ TEST (SkinParameters, AKeyMissingFromTheFileIsStillOffered)
   EXPECT_TRUE (holds ("radiusCard"));
   EXPECT_TRUE (holds ("padding"));
   EXPECT_TRUE (holds ("alphaFill"));
-  EXPECT_TRUE (holds ("surface"));  // one row per colour, not three
+  EXPECT_TRUE (holds ("surface")); // one row per colour, not three
 }
 
+// The direction is observable through isWholeNumber: themeDefaultsVar()
+// stores its numbers as floats, but a file's plain "12" parses as an int. A
+// merge that let the default win instead of the file -- or one that was never
+// wired up at all -- would mark this row non-whole; only the file's own value
+// coming through does. Reading skinValue() back on the raw var, as the
+// earlier version of this test did, cannot tell that apart: it would pass
+// exactly the same if the merge were reversed, if the "stated" list were
+// built wrongly, or if the whole feature were deleted.
 TEST (SkinParameters, TheFilesOwnValueStillWins)
 {
-  auto const skin = juce::JSON::parse (R"({"radiusCard": 12})");
+  auto const found
+      = skinParameters (juce::JSON::parse (R"({"radiusCard": 12})"));
 
-  EXPECT_DOUBLE_EQ (skinValue (skin, "radiusCard"), 12.0);
+  auto const row = std::find_if (
+      found.begin (), found.end (),
+      [] (SkinParameter const &parameter) {
+        return parameter.path == "radiusCard";
+      });
+
+  ASSERT_NE (row, found.end ());
+  EXPECT_TRUE (row->isWholeNumber) << "the file's int, not the theme's float";
 }
 
 // The defaults are the theme's, not a second copy of them.
@@ -554,4 +570,37 @@ TEST (SkinParameters, TheOfferedDefaultIsTheThemesOwn)
                     static_cast<double> (theme.radiusCard));
   EXPECT_DOUBLE_EQ (skinValue (defaults, "alphaFill"),
                     static_cast<double> (theme.alphaFill));
+}
+
+// Writing a value whose parent object the file has never named must not
+// silently do nothing. No shipped skin names "highlight" -- every one of
+// them would otherwise show a colour row that draws, opens a picker, and
+// discards whatever is picked.
+TEST (SkinParameters, WritingCreatesAMissingParentObject)
+{
+  auto skin = juce::JSON::parse (R"({"fontBody": 15})");
+  ASSERT_FALSE (skin.hasProperty ("highlight"));
+
+  setSkinValue (skin, "highlight.r", 200.0, true);
+
+  EXPECT_DOUBLE_EQ (skinValue (skin, "highlight.r"), 200.0);
+}
+
+// A parameter for a path the file omits carries the value the app is
+// actually drawing with -- the theme's default -- rather than reading as
+// zero. radiusCard is named by 0 of 19 shipped skins; the app draws with 8.
+TEST (SkinParameters, AnOmittedPathCarriesTheThemesDefaultNotZero)
+{
+  auto const found = skinParameters (juce::JSON::parse ("{}"));
+
+  auto const row = std::find_if (
+      found.begin (), found.end (),
+      [] (SkinParameter const &parameter) {
+        return parameter.path == "radiusCard";
+      });
+
+  ASSERT_NE (row, found.end ());
+  ASSERT_TRUE (row->hasDefault);
+  EXPECT_DOUBLE_EQ (static_cast<double> (row->defaultValue),
+                    static_cast<double> (loadTheme (juce::var{}).radiusCard));
 }

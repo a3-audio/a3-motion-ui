@@ -87,9 +87,17 @@ public:
   };
 
   /** Any other document — a slice of config.json, say. Same list, same two
-   *  encoder levels, no skin actions. */
+   *  encoder levels, no skin actions.
+   *
+   *  `isSkinDocument` decides two things at once: whether the five skin
+   *  actions sit above the list, and whether the theme's defaults are merged
+   *  in (see skinParameters()). Both are true for an actual skin and false
+   *  for a config-page slice today, so one flag rather than two that would
+   *  have to be kept agreeing — a future caller wanting only one of the two
+   *  (a read-only skin preview, say) is a reason to split this then, not a
+   *  reason to guess at a second flag now. */
   void setDocument (juce::var document, juce::String const &title,
-                    bool withSkinActions, Numbers numbers);
+                    bool isSkinDocument, Numbers numbers);
   juce::var const &getSkin () const { return _skin; }
   juce::String const &getSkinName () const { return _name; }
 
@@ -267,6 +275,21 @@ private:
 
   /** The browsed row's parameter, or nullptr on an action or a heading. */
   SkinParameter const *browsedParameter () const;
+
+  /** `parameter`'s current value: what the file states, or -- while it does
+   *  not state `parameter.path` at all -- the theme default carried on it
+   *  (`SkinParameter::defaultValue`). Without this a role merged in by
+   *  skinParameters() (see themeDefaultsVar()) but never written showed and
+   *  stepped from 0, not the value the app was actually drawing with. Colour
+   *  rows never reach this; a colour channel goes through
+   *  colourChannelValue() instead, since the default for a whole colour is
+   *  one var covering all three. */
+  double parameterValue (SkinParameter const &parameter) const;
+
+  /** One channel ('r', 'g' or 'b') of a colour row's current value, with the
+   *  same file-or-default fallback as parameterValue(). */
+  double colourChannelValue (SkinParameter const &parameter,
+                             char const *channel) const;
   /** The nearest browsable row at or after `index`, stepping over headings.
    *  `delta` says which way to step when `index` lands on one. */
   int skipHeadings (int index, int delta) const;

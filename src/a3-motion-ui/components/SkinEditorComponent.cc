@@ -337,9 +337,9 @@ SkinEditorComponent::setSkin (juce::var skin, juce::String const &name)
 
 void
 SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
-                                  bool withSkinActions, Numbers numbers)
+                                  bool isSkinDocument, Numbers numbers)
 {
-  _actionRows = withSkinActions ? 5 : 0;
+  _actionRows = isSkinDocument ? 5 : 0;
   _numbers = numbers;
   _skin = std::move (document);
   _name = title;
@@ -347,7 +347,7 @@ SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
   // skinParameters()) -- a config-page slice like the Network page shares
   // this component but is not one, and would otherwise show every theme
   // colour and metric ahead of its own two or three fields.
-  _parameters = skinParameters (_skin, withSkinActions);
+  _parameters = skinParameters (_skin, isSkinDocument);
   rebuildRows ();
   // Every page opens at its top: carrying a row number over from another
   // document lands on whatever happens to sit at that number.
@@ -435,6 +435,39 @@ SkinEditorComponent::browsedParameter () const
     return nullptr;
 
   return &_parameters[(size_t)row.parameter];
+}
+
+double
+SkinEditorComponent::parameterValue (SkinParameter const &parameter) const
+{
+  if (skinHasValue (_skin, parameter.path))
+    return skinValue (_skin, parameter.path);
+
+  // Absent from the file: fall back to the theme's own default rather than
+  // the 0 skinValue() would otherwise answer with, so a role merged in by
+  // skinParameters() reads as the value the app is actually drawing with.
+  // Once an edit writes the path, skinHasValue() above starts saying true
+  // and this is never consulted again.
+  return parameter.hasDefault ? static_cast<double> (parameter.defaultValue)
+                              : 0.0;
+}
+
+double
+SkinEditorComponent::colourChannelValue (SkinParameter const &parameter,
+                                         char const *channel) const
+{
+  auto const path = parameter.path + "." + channel;
+  if (skinHasValue (_skin, path))
+    return skinValue (_skin, path);
+
+  // Same fallback as parameterValue(), but the default for a whole colour is
+  // one var covering r, g and b together (see themeDefaultsVar()), so the
+  // channel is pulled out of it here instead of being a value of its own.
+  auto const identifier = juce::Identifier (channel);
+  return parameter.hasDefault
+             ? static_cast<double> (
+                 parameter.defaultValue.getProperty (identifier, 0))
+             : 0.0;
 }
 
 SkinEditorComponent::Row
@@ -534,7 +567,7 @@ SkinEditorComponent::navigate (int delta)
     return; // typed or picked, not turned
 
   auto const stepped
-      = stepSkinValue (skinValue (_skin, parameter.path), delta,
+      = stepSkinValue (parameterValue (parameter), delta,
                        parameter.isWholeNumber,
                        isColourChannelPath (parameter.path));
 
@@ -815,7 +848,7 @@ SkinEditorComponent::rowValue (int index) const
   if (parameter.isText)
     return skinText (_skin, parameter.path);
 
-  auto const value = skinValue (_skin, parameter.path);
+  auto const value = parameterValue (parameter);
 
   return parameter.isWholeNumber ? juce::String ((int)std::lround (value))
                                  : juce::String (value, 3);
@@ -969,16 +1002,16 @@ SkinEditorComponent::paint (juce::Graphics &g)
       if (kind == Row::Parameter
           && _parameters[(size_t)_rows[(size_t)index].parameter].isColour)
         {
-          auto const group
-              = _parameters[(size_t)_rows[(size_t)index].parameter].path;
+          auto const &colourParameter
+              = _parameters[(size_t)_rows[(size_t)index].parameter];
           auto swatch = valueArea.reduced (valueArea.getWidth () / 4, 5);
           g.setColour (juce::Colour (
-              (juce::uint8)juce::jlimit (0, 255,
-                                         (int)skinValue (_skin, group + ".r")),
-              (juce::uint8)juce::jlimit (0, 255,
-                                         (int)skinValue (_skin, group + ".g")),
-              (juce::uint8)juce::jlimit (0, 255,
-                                         (int)skinValue (_skin, group + ".b"))));
+              (juce::uint8)juce::jlimit (
+                  0, 255, (int)colourChannelValue (colourParameter, "r")),
+              (juce::uint8)juce::jlimit (
+                  0, 255, (int)colourChannelValue (colourParameter, "g")),
+              (juce::uint8)juce::jlimit (
+                  0, 255, (int)colourChannelValue (colourParameter, "b"))));
           g.fillRoundedRectangle (swatch.toFloat (), 3.f);
         }
 
