@@ -31,6 +31,23 @@ using namespace a3;
 
 namespace
 {
+/** Three runs in a line with wide gaps between them, long enough that there
+ *  is something for a join to take over. */
+std::vector<Pos>
+threeRunsInALine ()
+{
+  std::vector<Pos> ticks;
+  auto run = [&ticks] (float x, float y) {
+    for (int i = 0; i < 20; ++i)
+      ticks.push_back (
+          Pos::fromCartesian (x + 0.005f * static_cast<float> (i), y, 0.f));
+  };
+  run (-0.7f, 0.0f);
+  run (0.4f, 0.35f);
+  run (-0.2f, -0.4f);
+  return ticks;
+}
+
 /** A short crawl along the left edge and then one jump clean across.
  *
  *  Ten small steps rather than two: the jump threshold is eight times the
@@ -54,20 +71,40 @@ aRunWithOneWideGap ()
 }
 }
 
-// The rule the whole feature is: a gap shorter than the reach is drawn
-// through, a longer one stays a jump.
-TEST (TrajectoryBridges, ReachDecidesWhichGapsAreClosed)
+/** The rule the whole feature is: the fade says how much of the take the
+ *  crossings take over.
+ *
+ *  It used to say which gaps were closed -- a gap wider than the reach stayed
+ *  a jump -- and that made most of the pot's travel do nothing at all and then
+ *  switch. What a fade should do is fill in: turn it up and the joins grow,
+ *  taking more of the trajectory's own length as they go.
+ */
+TEST (TrajectoryBridges, TheFadeSaysHowMuchOfTheTakeTheJoinsTakeOver)
+{
+  auto const ticks = threeRunsInALine ();
+
+  index_t previous = 0;
+  for (float fade : { 0.2f, 0.4f, 0.6f, 0.8f, 1.f })
+    {
+      auto const plan = planBridges (ticks, fade, 0, 1);
+      ASSERT_FALSE (plan.bridges.empty ()) << "at fade " << fade;
+
+      auto const window = plan.bridges.front ().windowTicks;
+      EXPECT_GT (window, previous)
+          << "at fade " << fade << " the join stopped growing";
+      previous = window;
+    }
+}
+
+/** And a gap's width does not decide whether it is joined. It used to: the
+ *  wide gap below is 1.62 across, which did not fit inside half a diameter, so
+ *  half a pot of travel did nothing to it. */
+TEST (TrajectoryBridges, AWideGapIsJoinedLikeAnyOther)
 {
   auto const ticks = aRunWithOneWideGap ();
 
-  // The gap is 1.62 across; half the diameter is 1.0, so it does not fit.
-  auto const tooShort = planBridges (ticks, 0.5f, 0, 1);
-  EXPECT_FALSE (tooShort.bridged (gapAt))
-      << "a 1.62 gap fitted into a 1.0 reach";
-
-  // Nine tenths of the diameter is 1.8, and it does.
-  auto const longEnough = planBridges (ticks, 0.9f, 0, 1);
-  EXPECT_TRUE (longEnough.bridged (gapAt));
+  EXPECT_TRUE (planBridges (ticks, 0.5f, 0, 1).bridged (gapAt))
+      << "a gap was left open for being wide, which is the fault this fixes";
 }
 
 // The two ends of the dial, which is what the pot's travel has to mean.

@@ -108,11 +108,17 @@ juce::int64 seedForTicks (std::vector<Pos> const &ticks);
  *                     reserve: at nothing, none, and the crossing is the
  *                     single-tick jump it always was; wide open, half of each
  *                     of the runs it joins.
+ *  @param joinsTheWrap  whether the step from the take's last tick to its
+ *                     first is a gap at all. It is one only when the clip
+ *                     loops: a clip that bounces or stops never travels it,
+ *                     and joining it spent the last run's ticks gliding
+ *                     towards a start the blob does not reach.
  *  @param bridgeBias  -4..+4. Zero leads to the next tick in time; negative
  *                     to the spatially nearest reachable tick, positive to a
  *                     random one. The magnitude mixes rather than switches.
  */
 BridgePlan planBridges (std::vector<Pos> const &ticks, float fadeReach,
-                        int bridgeBias, juce::int64 seed);
+                        int bridgeBias, juce::int64 seed,
+                        bool joinsTheWrap = true);
 
 }

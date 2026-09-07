@@ -40,9 +40,6 @@ distanceBetween (Pos const &a, Pos const &b)
                     + std::pow (b.z () - a.z (), 2.f));
 }
 
-/** Normalised coordinates run -1 to 1, so the widest gap there can be is 2. */
-constexpr float sphereDiameter = 2.f;
-
 /** Where a bridge may land: the first tick of every run, which is where the
  *  movement can pick up coherently. Landing in the middle of a run would drop
  *  the blob into a stretch it is about to leave. The run the gap starts in is
@@ -160,14 +157,25 @@ seedForTicks (std::vector<Pos> const &ticks)
 
 BridgePlan
 planBridges (std::vector<Pos> const &ticks, float fadeReach, int bridgeBias,
-             juce::int64 seed)
+             juce::int64 seed, bool joinsTheWrap)
 {
   BridgePlan plan;
   if (ticks.size () < 2)
     return plan;
 
-  auto const reach = juce::jlimit (0.f, 1.f, fadeReach) * sphereDiameter;
-  if (reach <= 0.f)
+  // How much of the two ends a join may take over. This is the whole of what
+  // the fade says now.
+  //
+  // It used to say which gaps were closed instead -- a gap wider than
+  // `fade * the sphere's diameter` stayed a jump -- and that made most of the
+  // pot's travel do nothing at all and then switch. A fade should fill in:
+  // turned up, the joins grow and take more of the trajectory's own length as
+  // they go, and how wide a gap happens to be is not the performer's problem.
+  //
+  // Half at the top rather than all, so a tap is still a tap: the blob has to
+  // stand somewhere before it sets off.
+  auto const share = juce::jlimit (0.f, 1.f, fadeReach) * 0.5f;
+  if (share <= 0.f)
     return plan;
 
   auto const jumps = trajectoryJumps (ticks);
@@ -175,10 +183,16 @@ planBridges (std::vector<Pos> const &ticks, float fadeReach, int bridgeBias,
 
   for (auto const at : jumps)
     {
-      auto const next = (at + 1) % ticks.size ();
-      if (distanceBetween (ticks[at], ticks[next]) > reach)
+      // The step from the last tick to the first is a gap only when the clip
+      // loops. A clip that bounces or stops never travels it, and joining it
+      // spent the last run's ticks gliding towards a start the blob does not
+      // reach -- a bouncing clip was seen setting off for its beginning and
+      // coming back.
+      auto const wraps = at + 1 >= ticks.size ();
+      if (wraps && !joinsTheWrap)
         continue;
 
+      auto const next = wraps ? size_t{ 0 } : at + 1;
       auto via = next;
 
       if (bridgeBias != 0)
@@ -198,14 +212,14 @@ planBridges (std::vector<Pos> const &ticks, float fadeReach, int bridgeBias,
             {
               auto const own = runOf (starts, at);
 
+              // Every other run is a candidate. There is no distance limit
+              // any more: how far a join reaches is the bias's business --
+              // "the nearest" or "any of them" -- and the fade's business is
+              // how long it takes. One knob, one job.
               std::vector<size_t> reachable;
               for (size_t run = 0; run < starts.size (); ++run)
-                {
-                  if (run == own)
-                    continue;
-                  if (distanceBetween (ticks[at], ticks[starts[run]]) <= reach)
-                    reachable.push_back (starts[run]);
-                }
+                if (run != own)
+                  reachable.push_back (starts[run]);
 
               if (!reachable.empty ())
                 {
@@ -223,17 +237,19 @@ planBridges (std::vector<Pos> const &ticks, float fadeReach, int bridgeBias,
             }
         }
 
-      // How much of the two ends the crossing may take. The fade says it: at
-      // nothing there is no crossing at all, wide open it is half of each of
-      // the runs it joins. Half rather than all, so a tap is still a tap --
-      // the blob has to stand somewhere before it sets off.
-      auto const share = juce::jlimit (0.f, 1.f, fadeReach) * 0.5f;
-
+      // Rounded down, and never more than half of an end: two joins on the
+      // same run take from its two ends, and they have to meet at worst --
+      // overlapping windows are two crossings claiming the same blob.
       auto const before = static_cast<size_t> (
           std::floor (static_cast<float> (ticksBefore (starts, at)) * share));
       auto const after = static_cast<size_t> (std::floor (
           static_cast<float> (ticksAfter (starts, via, ticks.size ()))
           * share));
+
+      // Nothing reserved is nothing joined: a crossing squeezed into the
+      // gap's own single tick is the jump this was built to stop being.
+      if (before + after == 0)
+        continue;
 
       plan.bridges.push_back (
           { static_cast<index_t> (at), static_cast<index_t> (via),

@@ -64,6 +64,11 @@ TEST (PatternPlayback, ATappedTakeIsPlayedAsTapsNotAsASlide)
   Pattern pattern;
   tapFourCorners (pattern);
 
+  // With the fade shut, which is what "as taps" means. Open it and the joins
+  // are supposed to take over -- that is the fade's whole job, and it has its
+  // own tests in BridgeAgreement.
+  pattern.setFadeReach (0.f);
+
   std::vector<Pos> const corners
       = { Pos::fromCartesian (0.6f, 0.6f, 0.f),
           Pos::fromCartesian (-0.6f, 0.6f, 0.f),
@@ -95,6 +100,11 @@ TEST (PatternPlayback, TheLastTapIsHeldUntilTheLoopPoint)
 {
   Pattern pattern;
   tapFourCorners (pattern);
+
+  // Shut, for the same reason as above: held is what the fade turned down
+  // means. Turned up it is the last tap that pays for the glide into the
+  // first, which is the point of a fade at a loop point.
+  pattern.setFadeReach (0.f);
 
   auto const last = pattern.getTick (500);
   for (double at = 384.0; at < 511.9; at += 0.5)

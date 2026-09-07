@@ -305,8 +305,11 @@ Pattern::ensureBridgePlanLocked () const
   if (!_bridgePlanStale)
     return;
 
+  // Only a looping clip travels the step from its last tick to its first, so
+  // only a looping clip has a gap there to join.
   _bridgePlan = planBridges (_ticks, _fadeReach.load (), _bridgeBias.load (),
-                             seedForTicks (_ticks));
+                             seedForTicks (_ticks),
+                             _endAction.load () == EndAction::Loop);
   _bridgePlanStale = false;
 }
 
@@ -328,6 +331,10 @@ void
 Pattern::setEndAction (EndAction action)
 {
   _endAction.store (action, std::memory_order_relaxed);
+
+  // Whether the wrap is a gap depends on this -- only a looping clip travels
+  // it. See ensureBridgePlanLocked().
+  markBridgePlanStale ();
 }
 
 ActMode

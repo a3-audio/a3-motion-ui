@@ -5668,11 +5668,16 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             break;
 
           case 8:
-            // How far a gap may be for the fade to draw through it. A reading
-            // of the movement, not a change to it: nothing is written into
-            // the ticks, so it can be turned down as freely as up.
+            // How much of the take the joins take over. A twentieth per step,
+            // the same as reach and the clips: it runs 0..1 like they do, and
+            // a knob that needs two and a half times the finger for the same
+            // travel reads as a different kind of control.
+            //
+            // A reading of the movement, not a change to it: nothing is
+            // written into the ticks, so it can be turned down as freely as
+            // up.
             pattern->setFadeReach (pattern->getFadeReach ()
-                                   + 0.02f * static_cast<float> (increment));
+                                   + 0.05f * static_cast<float> (increment));
             refreshPatternDisplayFromTicks (pattern);
             break;
 

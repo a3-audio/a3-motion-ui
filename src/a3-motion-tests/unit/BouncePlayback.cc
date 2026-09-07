@@ -71,6 +71,11 @@ TEST (BouncePlayback, TheTurnDoesNotRunIntoTheSeam)
   Pattern pattern;
   aStraightRun (pattern);
 
+  // The clip bounces, and the pattern has to know: whether the step from its
+  // last tick to its first is a gap the fade joins depends on whether it is
+  // ever travelled, and a bouncing clip turns round before it gets there.
+  pattern.setEndAction (EndAction::Bounce);
+
   auto const interior = 1.6f / static_cast<float> (numTicks - 1);
 
   Playhead head{ 0.5f, 1.f, false };
