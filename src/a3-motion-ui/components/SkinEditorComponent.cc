@@ -39,17 +39,6 @@ constexpr float overlayOpacity = 0.55f;
 constexpr float rowWash = 0.063f;
 constexpr float browsedRowWash = 0.086f;
 constexpr float armedRowWash = 0.133f;
-
-// Sits between paddingSmall (4) and padding (8), further from either than
-// the tolerance a snap allows -- this is the vertical margin that keeps a
-// colour-parameter row's swatch clear of the row's own top and bottom edge,
-// not a corner radius. It numerically equals radiusRow's default, but that
-// is coincidence: reusing a radius role for a spacing purpose would be wrong
-// in a way that only shows up later, the same reasoning that kept a stray
-// `1` out of strokeThin elsewhere. Left as its own literal pending a
-// decision. Listed in issues/a3-motion-ui-metric-role-deviations.md
-// (Task 16).
-constexpr int colourSwatchVerticalInset = 5;
 }
 
 SkinEditorComponent::SkinEditorComponent ()
@@ -1030,8 +1019,9 @@ SkinEditorComponent::paint (juce::Graphics &g)
         {
           auto const &colourParameter
               = _parameters[(size_t)_rows[(size_t)index].parameter];
-          auto swatch = valueArea.reduced (valueArea.getWidth () / 4,
-                                           colourSwatchVerticalInset);
+          auto swatch = valueArea.reduced (
+              valueArea.getWidth () / 4,
+              juce::roundToInt (theme ().paddingSmall));
           g.setColour (juce::Colour (
               (juce::uint8)juce::jlimit (
                   0, 255, (int)colourChannelValue (colourParameter, "r")),
