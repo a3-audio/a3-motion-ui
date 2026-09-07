@@ -1,8 +1,7 @@
 {
-  "name": "Dice",
   "channels": [
     {
-      "threeD": 0.32,
+      "threeD": 0.319999992847443,
       "freq": 0.5,
       "q": 0.25,
       "slots": [
@@ -10,68 +9,33 @@
           "pattern": "Circle",
           "recordLengthLog2": 2,
           "overrides": {
-            "speed": 0,
-            "rotate": 0.12,
-            "reach": 0.6,
-            "clipTop": 0.0,
-            "clipBottom": 0.0,
-            "elevationBase": 0.0,
-            "mirrorSouth": false,
-            "flat": false,
-            "flatElevation": 0.5,
-            "spin": 0,
+            "rotate": 0.119999997317791,
+            "reach": 0.600000023841858,
             "swell": 2,
             "envAttack": 5,
             "envDecay": 5,
-            "envMax": 0.7,
-            "freqAttack": 2,
-            "freqDecay": 3,
-            "freqMax": 0.0,
-            "qAttack": 2,
-            "qDecay": 3,
-            "qMax": 0.0,
-            "fadeReach": 0.25,
-            "bridgeBias": 0,
-            "actMode": "one-shot",
-            "direction": "fwd",
-            "endAction": "loop"
+            "envMax": 0.699999988079071
           }
         },
         {
           "pattern": "Corner",
           "recordLengthLog2": 0,
           "overrides": {
-            "speed": 0,
             "rotate": 0.5,
-            "reach": 0.35,
-            "clipTop": 0.15,
-            "clipBottom": 0.0,
-            "elevationBase": 0.92,
-            "mirrorSouth": false,
-            "flat": false,
-            "flatElevation": 0.5,
+            "reach": 0.349999994039536,
+            "clipTop": 0.150000005960464,
+            "elevationBase": 0.920000016689301,
             "spin": -2,
-            "swell": 0,
             "envAttack": 4,
             "envDecay": 5,
-            "envMax": 0.7,
-            "freqAttack": 2,
-            "freqDecay": 3,
-            "freqMax": 0.25,
-            "qAttack": 2,
-            "qDecay": 3,
-            "qMax": 0.0,
-            "fadeReach": 0.25,
-            "bridgeBias": 0,
-            "actMode": "one-shot",
-            "direction": "fwd",
-            "endAction": "loop"
+            "envMax": 0.699999988079071,
+            "freqMax": 0.25
           }
         }
       ]
     },
     {
-      "threeD": 0.44,
+      "threeD": 0.439999997615814,
       "freq": 0.5,
       "q": 0.25,
       "slots": [
@@ -79,68 +43,29 @@
           "pattern": "Epicycloid 5-2",
           "recordLengthLog2": 3,
           "overrides": {
-            "speed": 0,
             "rotate": 0.25,
-            "reach": 0.55,
-            "clipTop": 0.2,
-            "clipBottom": 0.2,
+            "reach": 0.550000011920929,
+            "clipTop": 0.200000002980232,
+            "clipBottom": 0.200000002980232,
             "elevationBase": 0.5,
-            "mirrorSouth": false,
-            "flat": false,
-            "flatElevation": 0.5,
             "spin": 3,
-            "swell": 0,
-            "envAttack": 2,
-            "envDecay": 3,
-            "envMax": 0.8,
-            "freqAttack": 2,
-            "freqDecay": 3,
-            "freqMax": 0.0,
-            "qAttack": 2,
-            "qDecay": 3,
-            "qMax": 0.0,
-            "fadeReach": 0.25,
-            "bridgeBias": 0,
-            "actMode": "one-shot",
-            "direction": "fwd",
-            "endAction": "loop"
+            "envMax": 0.800000011920929
           }
         },
         {
           "pattern": "Arc",
           "recordLengthLog2": 1,
           "overrides": {
-            "speed": 0,
-            "rotate": 0.38,
-            "reach": 0.7,
-            "clipTop": 0.0,
-            "clipBottom": 0.0,
-            "elevationBase": 0.0,
-            "mirrorSouth": false,
-            "flat": false,
-            "flatElevation": 0.5,
+            "rotate": 0.379999995231628,
+            "reach": 0.699999988079071,
             "spin": 5,
-            "swell": 0,
-            "envAttack": 2,
-            "envDecay": 3,
-            "envMax": 0.85,
-            "freqAttack": 2,
-            "freqDecay": 3,
-            "freqMax": 0.0,
-            "qAttack": 2,
-            "qDecay": 3,
-            "qMax": 0.0,
-            "fadeReach": 0.25,
-            "bridgeBias": 0,
-            "actMode": "one-shot",
-            "direction": "fwd",
-            "endAction": "loop"
+            "envMax": 0.850000023841858
           }
         }
       ]
     },
     {
-      "threeD": 0.56,
+      "threeD": 0.560000002384186,
       "freq": 0.5,
       "q": 0.25,
       "slots": [
@@ -148,68 +73,31 @@
           "pattern": "Helix",
           "recordLengthLog2": 3,
           "overrides": {
-            "speed": 0,
             "rotate": 0.75,
-            "reach": 0.95,
-            "clipTop": 0.0,
-            "clipBottom": 0.0,
-            "elevationBase": 0.0,
-            "mirrorSouth": false,
-            "flat": false,
-            "flatElevation": 0.5,
+            "reach": 0.949999988079071,
             "spin": 1,
-            "swell": 0,
             "envAttack": 5,
             "envDecay": 5,
-            "envMax": 0.9,
-            "freqAttack": 2,
-            "freqDecay": 3,
-            "freqMax": 0.6,
-            "qAttack": 2,
-            "qDecay": 3,
-            "qMax": 0.0,
-            "fadeReach": 0.25,
-            "bridgeBias": 0,
-            "actMode": "one-shot",
-            "direction": "fwd",
-            "endAction": "loop"
+            "envMax": 0.899999976158142,
+            "freqMax": 0.600000023841858
           }
         },
         {
           "pattern": "Wave",
           "recordLengthLog2": 2,
           "overrides": {
-            "speed": 0,
-            "rotate": 0.0,
-            "reach": 0.85,
-            "clipTop": 0.0,
-            "clipBottom": 0.0,
-            "elevationBase": 0.0,
-            "mirrorSouth": false,
-            "flat": false,
-            "flatElevation": 0.5,
+            "reach": 0.850000023841858,
             "spin": 8,
-            "swell": 0,
             "envAttack": 0,
             "envDecay": 2,
-            "envMax": 1.0,
-            "freqAttack": 2,
-            "freqDecay": 3,
-            "freqMax": 0.7,
-            "qAttack": 2,
-            "qDecay": 3,
-            "qMax": 0.0,
-            "fadeReach": 0.25,
-            "bridgeBias": 0,
-            "actMode": "one-shot",
-            "direction": "fwd",
-            "endAction": "bounce"
+            "endAction": "bounce",
+            "freqMax": 0.699999988079071
           }
         }
       ]
     },
     {
-      "threeD": 0.68,
+      "threeD": 0.680000007152557,
       "freq": 0.5,
       "q": 0.25,
       "slots": [
@@ -217,65 +105,30 @@
           "pattern": "Zigzag",
           "recordLengthLog2": 1,
           "overrides": {
-            "speed": 0,
             "rotate": 0.25,
-            "reach": 0.8,
-            "clipTop": 0.0,
-            "clipBottom": 0.0,
-            "elevationBase": 0.0,
-            "mirrorSouth": false,
-            "flat": false,
-            "flatElevation": 0.5,
+            "reach": 0.800000011920929,
             "spin": -1,
             "swell": -3,
             "envAttack": 5,
             "envDecay": 6,
-            "envMax": 0.65,
-            "freqAttack": 2,
-            "freqDecay": 3,
-            "freqMax": 0.3,
-            "qAttack": 2,
-            "qDecay": 3,
-            "qMax": 0.0,
-            "fadeReach": 0.25,
-            "bridgeBias": 0,
-            "actMode": "one-shot",
-            "direction": "fwd",
-            "endAction": "loop"
+            "envMax": 0.649999976158142,
+            "freqMax": 0.300000011920929
           }
         },
         {
           "pattern": "Figure 8",
           "recordLengthLog2": 2,
           "overrides": {
-            "speed": 0,
-            "rotate": 0.88,
-            "reach": 0.45,
-            "clipTop": 0.0,
-            "clipBottom": 0.0,
-            "elevationBase": 0.0,
-            "mirrorSouth": false,
-            "flat": false,
-            "flatElevation": 0.5,
-            "spin": 0,
-            "swell": 0,
+            "rotate": 0.879999995231628,
+            "reach": 0.449999988079071,
             "envAttack": 1,
             "envDecay": 2,
-            "envMax": 0.6,
-            "freqAttack": 2,
-            "freqDecay": 3,
-            "freqMax": 0.0,
-            "qAttack": 2,
-            "qDecay": 3,
-            "qMax": 0.0,
-            "fadeReach": 0.0,
-            "bridgeBias": 0,
-            "actMode": "one-shot",
-            "direction": "fwd",
-            "endAction": "loop"
+            "envMax": 0.600000023841858,
+            "fadeReach": 0.0
           }
         }
       ]
     }
-  ]
+  ],
+  "name": "Dice"
 }
