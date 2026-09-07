@@ -202,6 +202,28 @@ turnsToScreenRadians (float turns)
 }
 }
 
+float
+trajectoryIconRadius (juce::Rectangle<float> area,
+                      juce::Rectangle<float> drawn)
+{
+  if (area.isEmpty () || drawn.isEmpty ())
+    return 0.f;
+
+  // The room the box has, on its short side as well as its long one.
+  auto const room
+      = juce::jmin (area.getWidth (), area.getHeight ()) * 0.45f;
+
+  // And what the figure actually covers, in the normalised [-1,1] the data is
+  // in, once it has been turned. Measured from the centre outwards on each
+  // side, so a figure sitting off to one side is not shrunk for the empty half
+  // of its box.
+  auto const reach = juce::jmax (
+      juce::jmax (std::abs (drawn.getX ()), std::abs (drawn.getRight ())),
+      juce::jmax (std::abs (drawn.getY ()), std::abs (drawn.getBottom ())));
+
+  return reach > 0.f ? room / reach : 0.f;
+}
+
 void
 drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
                     TrajectoryIconData const &data, juce::Colour colour,
@@ -212,7 +234,33 @@ drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
 
   auto const cx = area.getCentreX ();
   auto const cy = area.getCentreY ();
-  auto const r = area.getWidth () * 0.45f;
+
+  // What the figure covers once it is turned, which is what decides how big it
+  // may be drawn. A dotted figure has no path to measure, so its own dots are
+  // measured instead.
+  auto const spin = juce::AffineTransform::rotation (
+      turnsToScreenRadians (turns));
+  auto const drawn = [&] {
+    if (!data.hasJumpDots)
+      return data.path.getBoundsTransformed (spin);
+
+    juce::Rectangle<float> box;
+    bool first = true;
+    for (auto const &p : data.jumpDots)
+      {
+        auto x = -p.second;
+        auto y = -p.first;
+        spin.transformPoint (x, y);
+        auto const at = juce::Rectangle<float> (x, y, 0.f, 0.f);
+        box = first ? at : box.getUnion (at);
+        first = false;
+      }
+    return box;
+  }();
+
+  auto const r = trajectoryIconRadius (area, drawn);
+  if (r <= 0.f)
+    return;
   auto const strokeThickness = 1.5f;
   auto const outlineThickness = strokeThickness + 2.0f;
   // A dark outline behind the stroke, so the icon stays readable on a
