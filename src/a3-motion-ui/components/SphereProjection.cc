@@ -203,4 +203,21 @@ cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
   return moving;
 }
 
+SphereCamera
+cameraSettled (SphereCamera camera)
+{
+  // Eight degrees: wide enough that a finger lands in it without aiming,
+  // narrow enough that a view deliberately set between two bearings stays
+  // where it was put.
+  constexpr float detent = 0.14f;
+
+  auto const quarter = juce::MathConstants<float>::halfPi;
+  auto const nearest = std::round (camera.turn / quarter) * quarter;
+
+  if (std::abs (camera.turn - nearest) < detent)
+    camera.turn = nearest;
+
+  return camera;
+}
+
 }

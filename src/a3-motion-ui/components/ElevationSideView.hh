@@ -70,13 +70,21 @@ struct ElevationSidePoint
  *  (cartesian2DHOA2JUCE). The side view keeps that horizontal axis and trades
  *  the vertical one for height, so the viewer stands at the bottom of the
  *  overhead picture and looks into it -- turn your head up from the sphere to
- *  this circle and the room has not moved. */
-ElevationSidePoint elevationSideView (Pos const &direction);
+ *  this circle and the room has not moved.
+ *
+ *  `turn` is how far the sphere above has been walked round, so that stays
+ *  true once it has been: turn the room and this picture turns with it, or the
+ *  two say different things about where the sound is and the smaller one is
+ *  the one that gets believed. The lean is not applied -- this picture is a
+ *  side view by construction, and leaning it would make it a second overhead
+ *  view rather than the one thing on the page that answers "how high". */
+ElevationSidePoint elevationSideView (Pos const &direction, float turn = 0.f);
 
 /** The whole figure, sampled down to at most `maxPoints` -- the circle is a
  *  couple of centimetres across, and a thousand ticks in it is ink, not
  *  information. Invalid ticks are dropped rather than drawn at the origin. */
 std::vector<ElevationSidePoint>
-elevationSideView (std::vector<Pos> const &directions, std::size_t maxPoints);
+elevationSideView (std::vector<Pos> const &directions, std::size_t maxPoints,
+                   float turn = 0.f);
 
 }

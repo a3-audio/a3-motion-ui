@@ -693,9 +693,8 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
       // Up and down leans the eye over the room, left and right walks it
       // round -- see cameraFromBallDrag(), which is where the feel of it is
       // decided and where it can be tested.
-      setCamera (cameraFromBallDrag (_cameraAtGrab,
-                                     posPixel - _cameraGrabbedAt,
-                                     cameraBall ()));
+      setCamera (cameraSettled (cameraFromBallDrag (
+          _cameraAtGrab, posPixel - _cameraGrabbedAt, cameraBall ())));
       return;
     }
 

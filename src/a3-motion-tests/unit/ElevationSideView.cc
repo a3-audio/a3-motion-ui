@@ -235,3 +235,37 @@ TEST (ElevationSideView, ACloverTearsFourTimesAndTheStrokesAreLifted)
 
   EXPECT_EQ (breaks, 0);
 }
+
+/** Turn the sphere above and this picture turns with it. Two pictures of one
+ *  room that disagree about which way it is facing are worse than one picture,
+ *  and the small one is the one that gets believed. */
+TEST (ElevationSideView, ItFollowsTheSphereRoundTheRoom)
+{
+  auto const front = Pos::fromCartesian (1.f, 0.f, 0.f);
+
+  // Straight ahead is straight ahead: dead centre, and behind the listener.
+  EXPECT_NEAR (elevationSideView (front).across, 0.f, epsilon);
+
+  // Walked a quarter turn round the room, the front of it is off to one side.
+  auto const quarter = elevationSideView (
+      front, juce::MathConstants<float>::halfPi);
+  EXPECT_NEAR (std::abs (quarter.across), 1.f, epsilon);
+
+  // And half a turn puts it dead centre again, on the near side this time.
+  auto const half
+      = elevationSideView (front, juce::MathConstants<float>::pi);
+  EXPECT_NEAR (half.across, 0.f, 1e-3f);
+  EXPECT_NE (half.behind, elevationSideView (front).behind);
+}
+
+/** The height is the height whichever way the room is turned -- walking round
+ *  a sound does not raise it. */
+TEST (ElevationSideView, TurningTheRoomDoesNotChangeAHeight)
+{
+  auto const up = Pos::fromCartesian (0.6f, 0.3f, 0.74f);
+
+  for (float turn : { 0.f, 1.f, 2.5f, -2.f })
+    EXPECT_NEAR (elevationSideView (up, turn).frac,
+                 elevationSideView (up).frac, epsilon)
+        << "turn " << turn;
+}

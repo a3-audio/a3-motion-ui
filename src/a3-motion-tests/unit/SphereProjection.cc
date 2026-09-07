@@ -303,3 +303,37 @@ TEST (SphereProjection, ADragCarriesOnFromWhereTheEyeWas)
   EXPECT_NEAR (moved.turn,
                leant.turn - juce::MathConstants<float>::twoPi / 4.f, 1e-4f);
 }
+
+/** The view settles onto the four bearings the ring is marked with. A view a
+ *  few degrees off square is one whose four numbers all sit slightly wrong,
+ *  and squaring it up by hand on a ball this size is finer work than a finger
+ *  can do. */
+TEST (SphereProjection, TheViewSettlesOntoTheMarkedBearings)
+{
+  auto const quarter = juce::MathConstants<float>::halfPi;
+
+  for (int step = -4; step <= 4; ++step)
+    {
+      auto const square = static_cast<float> (step) * quarter;
+
+      EXPECT_NEAR (cameraSettled ({ 0.f, square + 0.05f }).turn, square, 1e-5f)
+          << "step " << step;
+      EXPECT_NEAR (cameraSettled ({ 0.f, square - 0.05f }).turn, square, 1e-5f)
+          << "step " << step;
+    }
+}
+
+/** And a view deliberately set between two of them stays where it was put. */
+TEST (SphereProjection, AViewSetBetweenBearingsIsLeftThere)
+{
+  auto const between = juce::MathConstants<float>::halfPi / 2.f;
+
+  EXPECT_NEAR (cameraSettled ({ 0.f, between }).turn, between, 1e-5f);
+}
+
+/** The lean is not settled: the overhead view is one end of its range and the
+ *  horizon the other, and both are reached by running out of ball. */
+TEST (SphereProjection, TheLeanIsLeftAlone)
+{
+  EXPECT_NEAR (cameraSettled ({ 0.3f, 0.f }).pitch, 0.3f, 1e-5f);
+}

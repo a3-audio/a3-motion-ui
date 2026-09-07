@@ -5911,8 +5911,13 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
                 ? heightMap.mapTo3D (shapedPosition (tick, shaping), params)
                 : Pos::invalid);
 
+      // Turned with the sphere above. Two pictures of one room that disagree
+      // about which way it is facing are worse than one picture.
+      auto const turn
+          = _motionComponent ? _motionComponent->getCamera ().turn : 0.f;
+
       _clipSettings->setElevationFigure (
-          elevationSideView (onSphere, elevationFigureSamples));
+          elevationSideView (onSphere, elevationFigureSamples, turn));
     }
   else
     {
@@ -5929,7 +5934,13 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
     auto const valid = onAir && position.isValid ();
 
     _clipSettings->setElevationHead (
-        valid ? elevationSideView (position) : ElevationSidePoint{}, valid);
+        valid ? elevationSideView (position, _motionComponent
+                                                  ? _motionComponent
+                                                        ->getCamera ()
+                                                        .turn
+                                                  : 0.f)
+              : ElevationSidePoint{},
+        valid);
   }
 
   // Motion/Filter: all sub-controls visible in parallel, like Elevation —

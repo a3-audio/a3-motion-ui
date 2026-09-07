@@ -108,6 +108,21 @@ juce::Rectangle<int> cameraBallBounds (juce::Rectangle<int> view);
 SphereCamera cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
                                  juce::Rectangle<int> ball);
 
+/** The quarter turns the view settles into: the four bearings the ring is
+ *  marked with.
+ *
+ *  A view a few degrees off square is a view whose four numbers all sit
+ *  slightly wrong, and getting back to square by hand on a ball this size is
+ *  finer work than a finger can do. Near one, it takes it -- so letting go
+ *  anywhere close to the front of the room leaves you facing the front of the
+ *  room.
+ *
+ *  The detent is on the turn only. There is no such thing as being a few
+ *  degrees off square in the lean: the overhead view is one end of its range
+ *  and the horizon the other, and both are easy to reach by running out of
+ *  ball. */
+SphereCamera cameraSettled (SphereCamera camera);
+
 /** A point of the way from one direction to another, walked *along* the
  *  sphere rather than straight across it.
  *

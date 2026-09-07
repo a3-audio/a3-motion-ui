@@ -27,10 +27,17 @@ namespace a3
 {
 
 ElevationSidePoint
-elevationSideView (Pos const &direction)
+elevationSideView (Pos const &direction, float turn)
 {
-  auto const x = direction.x ();
-  auto const y = direction.y ();
+  // Walked round by as much as the sphere above has been. The lean is not
+  // applied: this picture is a side view by construction, and leaning it would
+  // make it a second overhead view rather than the one thing on the page that
+  // answers "how high".
+  auto const c = std::cos (turn);
+  auto const s = std::sin (turn);
+
+  auto const x = direction.x () * c - direction.y () * s;
+  auto const y = direction.x () * s + direction.y () * c;
   auto const z = direction.z ();
 
   auto const rXY = std::sqrt (x * x + y * y);
@@ -49,7 +56,8 @@ elevationSideView (Pos const &direction)
 }
 
 std::vector<ElevationSidePoint>
-elevationSideView (std::vector<Pos> const &directions, std::size_t maxPoints)
+elevationSideView (std::vector<Pos> const &directions, std::size_t maxPoints,
+                   float turn)
 {
   std::vector<ElevationSidePoint> drawn;
 
@@ -83,7 +91,7 @@ elevationSideView (std::vector<Pos> const &directions, std::size_t maxPoints)
           continue;
         }
 
-      drawn.push_back (elevationSideView (directions[i]));
+      drawn.push_back (elevationSideView (directions[i], turn));
       auto const step = directions[i] - previous;
       steps.push_back (havePrevious
                            ? std::sqrt (step.x () * step.x ()
