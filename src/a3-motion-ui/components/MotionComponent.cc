@@ -1462,22 +1462,50 @@ MotionComponent::drawBearings (juce::Graphics &g)
       auto const at = Pos::fromSpherical (mark.degrees, 0.f, 1.f);
       auto const seen = asSeenFrom (at, camera);
 
-      // On the far side of a tilted room the mark is behind the sphere: shown
-      // faintly rather than hidden, because a ring with one of its four
-      // numbers missing reads as a ring you have lost your place on.
+      // On the far side of a tilted room the mark is behind the sphere. Shown
+      // anyway, and legibly: a ring with one of its four numbers missing is a
+      // ring you have lost your place on, and a number faint enough to need
+      // looking for is missing at a glance. Dimmer, not hidden, and written
+      // over a dark outline so it survives whatever it is standing on.
       auto const behind = seen.z () < 0.f;
       auto const on = cartesian2DHOA2JUCE (seen);
 
-      // Written just outside the ring, along the line from the middle, so it
-      // sits where the direction points rather than at a fixed corner.
+      // Written just outside the ring, along the line from the middle.
       auto const out = on * 1.11f;
       auto const box = juce::Rectangle<float> (0.5f, 0.12f).withCentre (out);
 
-      g.setColour (toColour (theme ().textPrimary, behind ? 0.25f : 0.55f));
+      // And turned to run along that line rather than across it, the way the
+      // meridian it belongs to runs. Flipped where it would come out upside
+      // down: a number you have to tilt your head for is a number you read
+      // twice.
+      auto angle = std::atan2 (on.y, on.x);
+      if (std::cos (angle) < 0.f)
+        angle += juce::MathConstants<float>::pi;
+
+      g.saveState ();
+      g.addTransform (juce::AffineTransform::rotation (angle, out.x, out.y));
+
+      auto const ink = toColour (theme ().textPrimary, behind ? 0.45f : 0.8f);
+      auto const outline = toColour (theme ().background, 0.85f);
+
+      for (int dx = -1; dx <= 1; ++dx)
+        for (int dy = -1; dy <= 1; ++dy)
+          if (dx != 0 || dy != 0)
+            {
+              g.setColour (outline);
+              g.drawText (mark.label,
+                          box.translated (static_cast<float> (dx) * 0.005f,
+                                          static_cast<float> (dy) * 0.005f),
+                          juce::Justification::centred, false);
+            }
+
+      g.setColour (ink);
       g.drawText (mark.label, box, juce::Justification::centred, false);
+      g.restoreState ();
 
       // And a tick on the ring itself, so the number has something to point
       // at when the room is turned and it lands between two speakers.
+      g.setColour (ink);
       g.drawLine (on.x * 0.97f, on.y * 0.97f, on.x * 1.03f, on.y * 1.03f,
                   0.008f);
     }
