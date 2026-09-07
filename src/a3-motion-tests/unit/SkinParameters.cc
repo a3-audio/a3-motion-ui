@@ -452,3 +452,50 @@ TEST (SkinClamp, AnUnlistedValueIsLeftAlone)
   EXPECT_NEAR (clampSkinValue (skin, "corona.sizeMin", 42.0), 42.0, 0.001);
   EXPECT_NEAR (clampSkinValue (skin, "corona.sizeMin", -5.0), -5.0, 0.001);
 }
+
+// A metric with no range is a metric the editor can set to zero, live, while
+// the layout it holds up is on screen. Roughly half up to about 1.75x, the
+// same proportions the font sizes already use.
+TEST (SkinParameters, EveryMetricRoleHasARange)
+{
+  auto const skin = juce::JSON::parse ("{}");
+
+  struct Expected
+  {
+    char const *path;
+    double min, max;
+  };
+
+  Expected const ranges[] = {
+    { "radiusTick", 1.0, 3.5 },     { "radiusControl", 1.5, 5.25 },
+    { "radiusRow", 2.5, 8.75 },     { "radiusCard", 4.0, 14.0 },
+    { "radiusPanel", 5.0, 17.5 },   { "paddingTight", 1.0, 3.5 },
+    { "paddingSmall", 2.0, 7.0 },   { "padding", 4.0, 14.0 },
+  };
+
+  for (auto const &range : ranges)
+    {
+      EXPECT_DOUBLE_EQ (clampSkinValue (skin, range.path, -5.0), range.min)
+          << range.path << " must not be settable below its floor";
+      EXPECT_DOUBLE_EQ (clampSkinValue (skin, range.path, 500.0), range.max)
+          << range.path << " must not be settable above its ceiling";
+      EXPECT_DOUBLE_EQ (clampSkinValue (skin, range.path, range.min), range.min)
+          << range.path << " must still accept its own floor";
+    }
+}
+
+TEST (SkinParameters, NoEmphasisRungLeavesTheZeroToOneRange)
+{
+  auto const skin = juce::JSON::parse ("{}");
+
+  // The two that were here before the ladder are clamped too: an alpha
+  // outside 0..1 is not a dimmer setting, and juce would clamp it silently
+  // later anyway. No shipped skin stores one outside the range.
+  for (auto const *path : { "alphaFill", "alphaOutline", "alphaFillEmphasis",
+                            "alphaMuted", "alphaTextStrong", "alphaDisabled",
+                            "alphaInactive" })
+    {
+      EXPECT_DOUBLE_EQ (clampSkinValue (skin, path, -1.0), 0.0) << path;
+      EXPECT_DOUBLE_EQ (clampSkinValue (skin, path, 2.0), 1.0) << path;
+    }
+}

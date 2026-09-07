@@ -345,6 +345,35 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
       return capped;
     }
 
+  // Derived from each role's own default, like the font sizes above: roughly
+  // half up to about 1.75x. A table rather than a chain of ifs because the
+  // roles are a scale — reading them in one block is how a wrong ceiling
+  // shows itself.
+  struct Range
+  {
+    char const *path;
+    double min, max;
+  };
+
+  static constexpr Range metricRanges[] = {
+    { "radiusTick", 1.0, 3.5 },   { "radiusControl", 1.5, 5.25 },
+    { "radiusRow", 2.5, 8.75 },   { "radiusCard", 4.0, 14.0 },
+    { "radiusPanel", 5.0, 17.5 }, { "paddingTight", 1.0, 3.5 },
+    { "paddingSmall", 2.0, 7.0 }, { "padding", 4.0, 14.0 },
+  };
+
+  for (auto const &range : metricRanges)
+    if (path == range.path)
+      return juce::jlimit (range.min, range.max, value);
+
+  // An alpha outside 0..1 is not a dimmer setting, it is a value juce will
+  // clamp silently later — better to say so at the knob.
+  for (auto const *alpha :
+       { "alphaFill", "alphaOutline", "alphaFillEmphasis", "alphaMuted",
+         "alphaTextStrong", "alphaDisabled", "alphaInactive" })
+    if (path == alpha)
+      return juce::jlimit (0.0, 1.0, value);
+
   return value;
 }
 
