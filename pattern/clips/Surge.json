@@ -20,7 +20,7 @@
   "qAttack": 2,
   "qDecay": 3,
   "qMax": 0.4,
-  "reach": 0.9,
+  "reach": 0.82,
   "rotate": 0.62,
   "speed": 0,
   "spin": 4,

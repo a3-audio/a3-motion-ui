@@ -333,3 +333,85 @@ TEST (ClipSettings, TheSwaySweepsTheBaseFromEndToEnd)
 }
 
 
+
+// ── The swell stays in the room ─────────────────────────────────────────
+
+/** A reach of one puts the figure's outer edge a whole half-turn from the
+ *  base, so it only fits when the base is at the pole it is growing away
+ *  from. The swell used to sweep there regardless: a clip based a third of
+ *  the way down with the swell up ran past the floor and wrapped back over
+ *  it, which is the figure filling the room below itself and coming back up
+ *  the far side.
+ *
+ *  It was safe while the cone chose a pole for itself -- it always grew
+ *  towards the further one, so there was always room. Once it grew the way it
+ *  was told, the room stopped being guaranteed and nothing was watching.
+ */
+TEST (ClipSettings, TheSwellStaysInTheRoomTheBaseLeaves)
+{
+  Pattern pattern;
+  pattern.setReachLfo (2);          // swelling towards a full reach
+  pattern.setReachLfoPhase (0.5f);  // and standing at the far end of it
+
+  ElevationParams params;
+  params.reach = 0.6f;
+  params.elevationBase = 0.35f;
+
+  auto const swept = sweptElevation (params, pattern);
+
+  EXPECT_GT (swept.reach, params.reach) << "the swell has to move something";
+  EXPECT_LE (swept.reach, 1.f - params.elevationBase + 1e-5f)
+      << "it swept the figure past the floor";
+}
+
+/** And upwards, where the room is the base itself. */
+TEST (ClipSettings, TheSwellStaysInTheRoomAboveToo)
+{
+  Pattern pattern;
+  pattern.setReachLfo (2);
+  pattern.setReachLfoPhase (0.5f);
+
+  ElevationParams params;
+  params.reach = -0.3f;
+  params.elevationBase = 0.4f;
+
+  auto const swept = sweptElevation (params, pattern);
+
+  EXPECT_LT (swept.reach, 0.f) << "the swell must not turn the figure over";
+  EXPECT_GE (swept.reach, -params.elevationBase - 1e-5f)
+      << "it swept the figure past the ceiling";
+}
+
+/** A hand-set reach with no swell on it is left where it was put -- the room
+ *  is a bound on the sweep, not a second opinion about the knob. */
+TEST (ClipSettings, WithoutASwellTheReachIsWhatWasSet)
+{
+  Pattern pattern;
+
+  ElevationParams params;
+  params.reach = 0.9f;
+  params.elevationBase = 0.5f;
+
+  EXPECT_FLOAT_EQ (sweptElevation (params, pattern).reach, 0.9f);
+}
+
+/** And the clips bound it too. They are a hard clamp -- a point pushed past
+ *  one keeps its bearing and gives up its height -- so a swell that sweeps
+ *  into one is not opening the figure out, it is piling it onto the cut. */
+TEST (ClipSettings, TheSwellStaysInsideTheClips)
+{
+  Pattern pattern;
+  pattern.setReachLfo (2);
+  pattern.setReachLfoPhase (0.5f);
+
+  ElevationParams params;
+  params.reach = 0.3f;
+  params.elevationBase = 0.1f;
+  params.clipBottom = 0.4f; // nothing below 0.6
+
+  auto const swept = sweptElevation (params, pattern);
+
+  EXPECT_LE (swept.reach, 0.6f - params.elevationBase + 1e-5f)
+      << "it swept the figure onto the cut";
+  EXPECT_GT (swept.reach, params.reach) << "and it still has room to move";
+}

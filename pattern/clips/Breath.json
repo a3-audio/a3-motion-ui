@@ -1,10 +1,10 @@
 {
   "actMode": "one-shot",
   "bridgeBias": 0,
-  "clipBottom": 0.0,
+  "clipBottom": 0.15,
   "clipTop": 0.0,
   "direction": "fwd",
-  "elevationBase": 0.35,
+  "elevationBase": 0.3,
   "endAction": "loop",
   "envAttack": 5,
   "envDecay": 5,

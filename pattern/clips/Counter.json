@@ -4,7 +4,7 @@
   "clipBottom": 0.0,
   "clipTop": 0.0,
   "direction": "fwd",
-  "elevationBase": 0.14,
+  "elevationBase": 0.1,
   "endAction": "loop",
   "envAttack": 2,
   "envDecay": 3,

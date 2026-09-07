@@ -20,6 +20,8 @@
 
 #include "ClipSettings.hh"
 
+#include <algorithm>
+
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 
@@ -118,13 +120,38 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
   // swept and the sign is left alone. Swept signed, a reach set upwards would
   // pass through nothing and come out spreading downwards, which is the
   // figure turning inside out rather than breathing.
-  {
-    auto const towards = params.reach < 0.f ? -1.f : 1.f;
-    params.reach = towards
-                   * lfoSweep (std::abs (params.reach),
-                               pattern.getReachLfo (),
-                               pattern.getReachLfoPhase ());
-  }
+  //
+  // And it stays in the room the base leaves it. A reach of one puts the
+  // outer edge a whole half-turn from the base, which only fits when the base
+  // is at the pole it is growing away from -- so a clip based a third of the
+  // way down, swelling, ran past the floor and wrapped back over it. That was
+  // safe while the cone chose a pole for itself, because it always grew
+  // towards the further one and there was always room; once it grew the way
+  // it was told, the room stopped being guaranteed and nothing was watching.
+  //
+  // A bound on the sweep, not a second opinion about the knob: with no swell
+  // on it the reach is left exactly where the hand put it.
+  if (pattern.getReachLfo () != 0)
+    {
+      auto const towards = params.reach < 0.f ? -1.f : 1.f;
+      auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
+
+      // The clips bound it as well as the poles do. They are a hard clamp --
+      // a point pushed past one keeps its bearing and gives up its height --
+      // so a swell that sweeps into one is not opening the figure out, it is
+      // piling it onto the cut.
+      auto const floor = 1.f - std::clamp (params.clipBottom, 0.f, 1.f);
+      auto const ceiling = std::clamp (params.clipTop, 0.f, 1.f);
+      auto const room = std::max (
+          0.f, towards > 0.f ? std::min (1.f, floor) - base
+                             : base - std::max (0.f, ceiling));
+
+      auto const swept = lfoSweep (std::abs (params.reach),
+                                   pattern.getReachLfo (),
+                                   pattern.getReachLfoPhase ());
+
+      params.reach = towards * std::min (swept, room);
+    }
   // The base travels the whole way, pole to pole.
   params.elevationBase
       = lfoSweep (params.elevationBase, pattern.getElevationLfo (),

@@ -1945,6 +1945,15 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   g.setColour (iconColour);
   g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, 1.f);
 
+  // Everything from here on is kept inside the circle. A chord is drawn at the
+  // width the circle has at its height, which is right to the pixel and then
+  // strokes two and a half of them wide with a four-wide outline under it and
+  // a cap hanging off each end -- so it stood a few pixels proud of the ring
+  // at both sides. Small, and the sort of small that reads as a line escaping
+  // its picture.
+  g.saveState ();
+  g.reduceClipRegion (circlePath);
+
   auto const drawMarkerChord
       = [&] (float frac, float thinWidth, float boldWidth,
             juce::Colour colour) {
@@ -1994,6 +2003,8 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                     2.f);
       }
   }
+
+  g.restoreState ();
 
   // Head: a small dot at the centre (the listener, always at the sphere's
   // literal centre regardless of elevation settings).
