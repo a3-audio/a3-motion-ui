@@ -117,9 +117,29 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
   params.reach
       = lfoSweep (params.reach, pattern.getReachLfo (),
                   pattern.getReachLfoPhase ());
-  params.elevationBase
-      = lfoSweep (params.elevationBase, pattern.getElevationLfo (),
-                  pattern.getElevationLfoPhase ());
+  // Which way the cone grows is decided before the base moves, and then held.
+  // Deciding it from the swept base -- which is what mapTo3D does on its own
+  // -- turned the figure inside out every time the sweep crossed the equator.
+  params.coneDirection = params.elevationBase <= 0.5f
+                             ? ElevationParams::ConeDirection::South
+                             : ElevationParams::ConeDirection::North;
+
+  // ... and the base sweeps only as far as the cone still fits, not to the
+  // pole. At the pole the cone has no room at all: every point of the figure
+  // clamps onto it, the shape collapses to one direction and is drawn as a
+  // line pressed against the rim. Holding the direction without this would
+  // have made that the normal end of every sway.
+  //
+  // The swept reach, not the set one: when the swell opens the coverage the
+  // base has to pull in to make room for it.
+  auto const room = std::clamp (params.reach, 0.f, 1.f);
+  auto const towardsSouth
+      = params.coneDirection == ElevationParams::ConeDirection::South;
+
+  params.elevationBase = lfoSweepBetween (
+      params.elevationBase, pattern.getElevationLfo (),
+      pattern.getElevationLfoPhase (), towardsSouth ? 0.f : room,
+      towardsSouth ? 1.f - room : 1.f);
 
   return params;
 }

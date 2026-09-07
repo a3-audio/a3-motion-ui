@@ -227,7 +227,10 @@ TEST (ClipSettings, TheSweepsAreAppliedInOnePlaceForEverybody)
 {
   Pattern pattern;
   pattern.setReach (0.5f);
-  pattern.setElevationBase (0.5f);
+  // Not 0.5: with a reach of a half that is exactly where the cone runs out
+  // of room, and a sway there has nowhere to travel -- which is its own test
+  // below, not this one's subject.
+  pattern.setElevationBase (0.2f);
 
   ElevationParams const set{ pattern.getElevationParams () };
 
@@ -299,4 +302,85 @@ TEST (ClipSettings, APatternHoldsASqueezeToItsTravel)
 
   pattern.setSqueezeY (-7.f);
   EXPECT_FLOAT_EQ (pattern.getSqueezeY (), -1.f);
+}
+
+// ── The sway keeps the figure somewhere it fits ──────────────────────────
+
+/** A sweep that ran the base to the pole would leave the reach cone no room
+ *  at all: every point of the figure clamps onto that one direction, the
+ *  movement stops being a movement, and it is drawn as a line pressed against
+ *  the rim. So the base travels only as far as the cone still fits. */
+TEST (ClipSettings, TheSwaySweepsWithinTheRoomTheConeNeeds)
+{
+  Pattern pattern;
+  pattern.setReach (0.5f);
+  pattern.setElevationBase (0.2f);
+  pattern.setElevationLfo (4); // towards the far end
+
+  ElevationParams const set{ pattern.getElevationParams () };
+
+  auto worstBase = 0.f;
+  for (int i = 0; i <= 32; ++i)
+    {
+      pattern.setElevationLfoPhase (static_cast<float> (i) / 32.f);
+      auto const swept = sweptElevation (set, pattern);
+
+      worstBase = std::max (worstBase, swept.elevationBase);
+
+      // The cone always has somewhere to go: base plus reach stays on the
+      // sphere, which is what "the room it needs" means.
+      EXPECT_LE (swept.elevationBase + swept.reach, 1.001f)
+          << "phase " << i / 32.f;
+    }
+
+  // It does travel -- a sweep that stayed put would satisfy the bound above
+  // by doing nothing at all.
+  EXPECT_GT (worstBase, 0.4f) << "the sway never actually moved the base";
+}
+
+/** And the direction is decided before the base moves, so a sweep crossing
+ *  the equator does not turn the figure inside out halfway through. */
+TEST (ClipSettings, TheSwayHoldsTheConesDirectionAcrossItsWholeTravel)
+{
+  Pattern pattern;
+  pattern.setReach (0.4f);
+  pattern.setElevationBase (0.45f); // just below the flip point
+  pattern.setElevationLfo (4);
+
+  ElevationParams const set{ pattern.getElevationParams () };
+
+  for (int i = 0; i <= 32; ++i)
+    {
+      pattern.setElevationLfoPhase (static_cast<float> (i) / 32.f);
+      EXPECT_EQ (sweptElevation (set, pattern).coneDirection,
+                 ElevationParams::ConeDirection::South)
+          << "phase " << i / 32.f << ": the cone changed direction mid-sweep";
+    }
+}
+
+/** The base already as far as the cone will let it go: the sway then has
+ *  nowhere to travel, and stands still rather than pushing the figure onto a
+ *  pole and collapsing it. Stated here so it reads as the decision it is --
+ *  a sweep whose room has run out does nothing, and does nothing quietly. */
+TEST (ClipSettings, ASwayWithNoRoomLeftStandsStill)
+{
+  Pattern pattern;
+  pattern.setReach (0.5f);
+  pattern.setElevationBase (0.5f); // base + reach is the whole hemisphere
+  pattern.setElevationLfo (4);
+
+  ElevationParams const set{ pattern.getElevationParams () };
+
+  for (int i = 0; i <= 8; ++i)
+    {
+      pattern.setElevationLfoPhase (static_cast<float> (i) / 8.f);
+      EXPECT_FLOAT_EQ (sweptElevation (set, pattern).elevationBase,
+                       set.elevationBase)
+          << "phase " << i / 8.f;
+    }
+
+  // Turned the other way there is room, and it uses it.
+  pattern.setElevationLfo (-4);
+  pattern.setElevationLfoPhase (0.5f);
+  EXPECT_LT (sweptElevation (set, pattern).elevationBase, set.elevationBase);
 }

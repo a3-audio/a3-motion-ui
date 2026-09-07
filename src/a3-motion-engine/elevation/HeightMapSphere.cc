@@ -184,7 +184,14 @@ HeightMapSphere::mapTo3D (Pos const &pos2D, ElevationParams const &params) const
       // Exactly on the equator it grows south, which is the direction it grew
       // in when the base was always a pole.
       auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
-      auto const towardsSouth = base <= 0.5f;
+      // Told, when a sweep is moving the base: deciding it from the base as
+      // it stands turns the figure inside out every time the sweep crosses
+      // the equator. See ElevationParams::ConeDirection.
+      auto const towardsSouth
+          = params.coneDirection == ElevationParams::ConeDirection::FromBase
+                ? base <= 0.5f
+                : params.coneDirection
+                      == ElevationParams::ConeDirection::South;
       frac = towardsSouth ? base + theta / pi<float> ()
                           : base - theta / pi<float> ();
     }

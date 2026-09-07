@@ -182,6 +182,21 @@ generator and the test runner:
   `playPosition` and resets when playback starts, so a clip fired again begins where it was
   recorded.
 
+  **A sweep decides which way the cone grows before it moves the base, and holds it.** The plain rule
+  — towards whichever pole is further away — is discontinuous at a base of exactly 0.5, and `sway`
+  sweeps straight through that point: measured, a point of the figure jumped 1.36 on the unit sphere
+  there, seventeen times the step either side, in the sound as well as in the picture.
+  `ElevationParams::ConeDirection` carries the decision; `FromBase` is the old rule and is what
+  everything that builds params by hand still gets. And the swept base stays inside the room the cone
+  needs (`lfoSweepBetween`), because at a pole the cone has none: every point clamps onto the one
+  direction and the figure is drawn as a line pressed against the rim.
+
+  What that does **not** fix is the top view. Screen radius is `sin(frac · π)`, which rises to 1 at
+  the equator and falls again — so a north–south travel is invisible from directly above, and at a
+  base of 0.25 with a reach of 0.5 a Clover's centre and its petal tips are drawn at 0.707 and 0.709,
+  which is a ring. The sound is right and the projection is honest; the picture cannot show it from
+  that angle. See `issues/a3-motion-ui-elevation-base-flips-at-the-equator.md`.
+
 - `TrajectoryShaping` — **everything done to a recorded 2D position before it is projected**, in
   one bundle (`PlaneShaping`: the turn, and a squeeze per horizontal axis) and one function
   (`shapedPosition()`). Neither the engine nor the renderer composes transforms of its own any

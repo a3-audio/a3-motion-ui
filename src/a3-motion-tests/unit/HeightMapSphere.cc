@@ -241,3 +241,70 @@ TEST (HeightMapSphere, TheInverseStillComesBackWithABase)
             << "base " << base << " at " << x;
       }
 }
+
+// ── The cone's direction, held across a sweep ────────────────────────────
+
+// The rule mapTo3D uses on its own -- the cone grows towards whichever pole
+// is further away -- is discontinuous at a base of exactly 0.5. Walking the
+// base through it, a point of the figure jumped 1.36 on the unit sphere:
+// seventeen times the step either side of it, and a jump in the sound, not
+// only in the picture. sway sweeps the base straight through that point.
+TEST (HeightMapSphere, TellingTheConeWhichWayToGrowMakesTheBaseContinuous)
+{
+  HeightMapSphere heightMap;
+
+  auto const point = Pos::fromCartesian (1.f, 0.f, 0.f);
+  auto const walk = [&] (ElevationParams::ConeDirection direction) {
+    ElevationParams params;
+    params.reach = 0.5f;
+    params.coneDirection = direction;
+
+    auto worst = 0.f;
+    auto previous = Pos{};
+    for (int i = 0; i <= 40; ++i)
+      {
+        params.elevationBase = static_cast<float> (i) / 40.f;
+        auto const at = heightMap.mapTo3D (point, params);
+
+        if (i > 0)
+          worst = std::max (
+              worst, std::sqrt (std::pow (at.x () - previous.x (), 2.f)
+                                + std::pow (at.y () - previous.y (), 2.f)
+                                + std::pow (at.z () - previous.z (), 2.f)));
+        previous = at;
+      }
+
+    return worst;
+  };
+
+  // Left to work it out for itself, it turns the figure inside out halfway.
+  EXPECT_GT (walk (ElevationParams::ConeDirection::FromBase), 1.f)
+      << "the rule this replaces was continuous after all";
+
+  // Told once, it is a smooth travel from one end to the other. A fortieth of
+  // the range is a step of about 0.08; anything past a quarter is a jump.
+  EXPECT_LT (walk (ElevationParams::ConeDirection::South), 0.25f);
+  EXPECT_LT (walk (ElevationParams::ConeDirection::North), 0.25f);
+}
+
+// And what the direction actually means, so "South" cannot quietly become the
+// other one: growing south puts the figure's outer edge below its base.
+TEST (HeightMapSphere, TheConeGrowsTheWayItIsTold)
+{
+  HeightMapSphere heightMap;
+
+  ElevationParams params;
+  params.reach = 0.5f;
+  params.elevationBase = 0.5f;
+
+  auto const edge = Pos::fromCartesian (1.41421356f, 0.f, 0.f);
+
+  params.coneDirection = ElevationParams::ConeDirection::South;
+  auto const south = heightMap.mapTo3D (edge, params);
+
+  params.coneDirection = ElevationParams::ConeDirection::North;
+  auto const north = heightMap.mapTo3D (edge, params);
+
+  // z counts upwards, so further south is lower.
+  EXPECT_LT (south.z (), north.z ());
+}

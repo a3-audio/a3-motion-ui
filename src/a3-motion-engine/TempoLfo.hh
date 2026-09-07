@@ -87,4 +87,13 @@ float lfoSweep (float from, int step, float phase);
  *  the two directions, and a sweep has to be able to ask for either. */
 float lfoSweepBipolar (float from, int step, float phase);
 
+/** The same sweep between two ends the caller names.
+ *
+ *  For a value whose useful range is not the whole of 0..1 -- the elevation
+ *  base, whose reach cone needs room to grow into, so sweeping it all the way
+ *  to a pole would leave the figure with nowhere to be and collapse it onto
+ *  the one direction. `lfoSweep` is this with 0 and 1. */
+float lfoSweepBetween (float from, int step, float phase, float low,
+                       float high);
+
 }

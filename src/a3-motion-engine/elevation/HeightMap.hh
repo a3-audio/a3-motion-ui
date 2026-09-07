@@ -56,6 +56,25 @@ struct ElevationParams
   // can still name it. Nothing reads it any more -- see the migration in
   // ClipFile::load().
   bool mirrorSouth = false;
+  /** Which way the reach cone grows out of the base.
+   *
+   *  `FromBase` is the plain rule: towards whichever pole is further away, so
+   *  reach always has room. That rule is discontinuous at a base of exactly
+   *  0.5, and `sway` sweeps the base straight through it -- measured, a point
+   *  of the figure jumped 1.36 on the unit sphere there, seventeen times the
+   *  step either side of it, in the sound as well as in the picture.
+   *
+   *  So a sweep decides the direction once, from the base the hand set, and
+   *  holds it: see sweptElevation(), which also keeps the swept base inside
+   *  the room the cone needs. Everything that builds these params by hand
+   *  leaves it at FromBase and behaves as it always did. */
+  enum class ConeDirection
+  {
+    FromBase,
+    South,
+    North
+  };
+  ConeDirection coneDirection = ConeDirection::FromBase;
   // 0..1: absolute hard bound excluding this fraction of the range from
   // the north pole side. A plain final clamp — does not interact with
   // reach/mirrorSouth's shape.
