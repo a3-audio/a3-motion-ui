@@ -1154,6 +1154,20 @@ A3MotionUIComponent::initializePatterns ()
   for (auto &channelActions : _slotAction)
     channelActions.resize (numClipSlots);
 
+  // Every slot starts holding Bloom. A slot that fires nothing has an ACT key
+  // that does nothing, which is a key you have to be told about rather than
+  // one you find; and Bloom is the one script that is obviously an effect the
+  // first time it is held -- the clip opens out to the whole room and closes
+  // again when you let go. A set that carries its own choice overwrites this
+  // the moment it loads.
+  {
+    auto const bloom = actionsDir ().getChildFile ("Bloom.scd");
+    if (bloom.existsAsFile ())
+      for (auto channel = 0u; channel < numChannels; ++channel)
+        for (auto slot = 0u; slot < numClipSlots; ++slot)
+          setSlotAction (channel, slot, bloom);
+  }
+
   // Load patterns from the library, one per clip slot; channels share the
   // same library slot but each gets its own Pattern instance. Default
   // shape is "Square" (name lookup rather than a raw library index, so it

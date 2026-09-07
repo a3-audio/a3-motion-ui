@@ -1,10 +1,10 @@
 {
   "actMode": "one-shot",
   "bridgeBias": 0,
-  "clipBottom": 0.0,
+  "clipBottom": 0.2,
   "clipTop": 0.0,
   "direction": "fwd",
-  "elevationBase": 0.0,
+  "elevationBase": 0.25,
   "endAction": "loop",
   "envAttack": 2,
   "envDecay": 3,
@@ -24,11 +24,11 @@
   "rotate": 0.38,
   "speed": 0,
   "spin": 5,
-  "sqzX": 0.0,
+  "sqzX": 0.2,
   "sqzY": 0.0,
   "strX": 0,
   "strY": 0,
   "svg": "Rose 8-Petal",
-  "sway": 0,
+  "sway": 4,
   "swell": 0
 }

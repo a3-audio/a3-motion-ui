@@ -552,8 +552,9 @@ TEST (ClipFile, EveryShippedClipReads)
           << "a preset's name is what the browser lists it under";
 
       auto const &s = clip->settings;
-      EXPECT_GE (s.reach, 0.f) << file.getFileName ();
-      EXPECT_LE (s.reach, 1.f) << file.getFileName ();
+      // Signed since reach learnt which way to grow: the size is how far the
+      // figure spreads from the base and the sign is down or up.
+      EXPECT_LE (std::abs (s.reach), 1.f) << file.getFileName ();
       EXPECT_GE (s.elevationBase, 0.f) << file.getFileName ();
       EXPECT_LE (s.elevationBase, 1.f) << file.getFileName ();
       EXPECT_LE (std::abs (s.spin), lfoMaxStep) << file.getFileName ();

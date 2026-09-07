@@ -4,7 +4,7 @@
   "clipBottom": 0.0,
   "clipTop": 0.0,
   "direction": "fwd",
-  "elevationBase": 0.0,
+  "elevationBase": 0.35,
   "endAction": "loop",
   "envAttack": 5,
   "envDecay": 5,
@@ -26,9 +26,9 @@
   "spin": 0,
   "sqzX": 0.0,
   "sqzY": 0.0,
-  "strX": 0,
-  "strY": 0,
+  "strX": 2,
+  "strY": 2,
   "svg": "Lissajous 1-2",
-  "sway": 0,
+  "sway": 3,
   "swell": 2
 }

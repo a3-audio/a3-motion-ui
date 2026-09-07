@@ -1,7 +1,7 @@
 {
   "actMode": "one-shot",
   "bridgeBias": 0,
-  "clipBottom": 0.0,
+  "clipBottom": 0.4,
   "clipTop": 0.0,
   "direction": "fwd",
   "elevationBase": 0.0,
@@ -20,15 +20,15 @@
   "qAttack": 2,
   "qDecay": 3,
   "qMax": 0.25,
-  "reach": 0.95,
+  "reach": 0.55,
   "rotate": 0.75,
   "speed": 0,
   "spin": 1,
-  "sqzX": 0.0,
-  "sqzY": 0.0,
+  "sqzX": 0.15,
+  "sqzY": 0.15,
   "strX": 0,
   "strY": 0,
   "svg": "Epicycloid 7-3",
   "sway": 0,
-  "swell": 0
+  "swell": 5
 }

@@ -4,7 +4,7 @@
   "clipBottom": 0.0,
   "clipTop": 0.0,
   "direction": "fwd",
-  "elevationBase": 0.0,
+  "elevationBase": 0.4,
   "endAction": "random",
   "envAttack": 1,
   "envDecay": 3,
@@ -27,8 +27,8 @@
   "sqzX": 0.0,
   "sqzY": 0.0,
   "strX": 0,
-  "strY": 0,
+  "strY": 6,
   "svg": "Orbit",
-  "sway": 0,
+  "sway": 5,
   "swell": 0
 }

@@ -4,7 +4,7 @@
   "clipBottom": 0.0,
   "clipTop": 0.0,
   "direction": "rev",
-  "elevationBase": 0.0,
+  "elevationBase": 0.3,
   "endAction": "bounce",
   "envAttack": 0,
   "envDecay": 2,
@@ -25,10 +25,10 @@
   "speed": 1,
   "spin": -6,
   "sqzX": 0.0,
-  "sqzY": 0.0,
-  "strX": 0,
+  "sqzY": -0.35,
+  "strX": -5,
   "strY": 0,
   "svg": "Lissajous 5-4",
-  "sway": 0,
+  "sway": 4,
   "swell": 0
 }

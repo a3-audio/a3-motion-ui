@@ -2,9 +2,9 @@
   "actMode": "one-shot",
   "bridgeBias": 0,
   "clipBottom": 0.0,
-  "clipTop": 0.0,
+  "clipTop": 0.3,
   "direction": "fwd",
-  "elevationBase": 0.0,
+  "elevationBase": 0.6,
   "endAction": "loop",
   "envAttack": 4,
   "envDecay": 5,
@@ -26,9 +26,9 @@
   "spin": 1,
   "sqzX": 0.0,
   "sqzY": 0.0,
-  "strX": 0,
+  "strX": 2,
   "strY": 0,
   "svg": "Triangle",
-  "sway": 0,
+  "sway": 2,
   "swell": 4
 }

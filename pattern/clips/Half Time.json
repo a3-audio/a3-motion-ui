@@ -22,13 +22,13 @@
   "qMax": 0.2,
   "reach": 0.55,
   "rotate": 0.38,
-  "speed": -2,
+  "speed": 2,
   "spin": 1,
   "sqzX": 0.0,
   "sqzY": 0.0,
-  "strX": 0,
+  "strX": 2,
   "strY": 0,
   "svg": "Triangle",
-  "sway": 0,
+  "sway": 2,
   "swell": 0
 }

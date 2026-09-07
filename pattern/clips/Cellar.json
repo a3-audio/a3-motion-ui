@@ -2,7 +2,7 @@
   "actMode": "one-shot",
   "bridgeBias": 0,
   "clipBottom": 0.0,
-  "clipTop": 0.15,
+  "clipTop": 0.5,
   "direction": "fwd",
   "elevationBase": 0.92,
   "endAction": "loop",
@@ -20,15 +20,15 @@
   "qAttack": 2,
   "qDecay": 3,
   "qMax": 0.45,
-  "reach": 0.35,
+  "reach": -0.4,
   "rotate": 0.5,
   "speed": 0,
   "spin": -2,
   "sqzX": 0.0,
-  "sqzY": 0.0,
+  "sqzY": -0.2,
   "strX": 0,
   "strY": 0,
   "svg": "Orbit",
   "sway": 0,
-  "swell": 0
+  "swell": -4
 }

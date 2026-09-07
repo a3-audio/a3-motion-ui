@@ -24,11 +24,11 @@
   "rotate": 0.0,
   "speed": 0,
   "spin": 2,
-  "sqzX": 0.0,
-  "sqzY": 0.0,
+  "sqzX": 0.25,
+  "sqzY": 0.25,
   "strX": 0,
   "strY": 0,
   "svg": "Clover",
-  "sway": 0,
-  "swell": 0
+  "sway": 1,
+  "swell": 3
 }

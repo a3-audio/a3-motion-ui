@@ -4,7 +4,7 @@
   "clipBottom": 0.0,
   "clipTop": 0.0,
   "direction": "fwd",
-  "elevationBase": 0.0,
+  "elevationBase": 0.15,
   "endAction": "loop",
   "envAttack": 6,
   "envDecay": 0,
@@ -25,10 +25,10 @@
   "speed": 0,
   "spin": 4,
   "sqzX": 0.0,
-  "sqzY": 0.0,
+  "sqzY": 0.3,
   "strX": 0,
-  "strY": 0,
+  "strY": 5,
   "svg": "Pendulum",
-  "sway": 0,
+  "sway": 6,
   "swell": 3
 }
