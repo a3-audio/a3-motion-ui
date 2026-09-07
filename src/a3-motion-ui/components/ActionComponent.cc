@@ -50,6 +50,15 @@ envFrac (int step)
 // issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending a decision
 // on whether it becomes a rung of its own.
 constexpr float fieldCaptionOpacity = 0.7f;
+
+// A one-pixel inset on a fillRect highlight, not a stroke -- there is no
+// stroke here to keep inside its bounds. No rung of the spacing scale carries
+// a bare 1 (paddingTight is 2), and binding it to strokeThin would be wrong
+// in a way that only shows up later: a skin that thickens the device's lines
+// would silently grow this highlight's vertical inset too, for no reason
+// anyone could name. Left as its own literal pending a decision. Listed in
+// issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+constexpr int actionListHighlightVerticalInset = 1;
 }
 
 ActionComponent::ActionComponent ()
@@ -731,7 +740,7 @@ ActionComponent::paintActionList (juce::Graphics &g)
         {
           g.setColour (_channelColour.withAlpha (theme ().alphaDisabled));
           g.fillRect (at.reduced (juce::roundToInt (theme ().paddingTight),
-                                  juce::roundToInt (theme ().strokeThin)));
+                                  actionListHighlightVerticalInset));
         }
 
       g.setColour (chosen ? _channelColour
