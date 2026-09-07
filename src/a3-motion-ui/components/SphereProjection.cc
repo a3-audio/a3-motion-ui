@@ -182,9 +182,12 @@ cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
       0.f, juce::MathConstants<float>::halfPi,
       atGrab.pitch + moved.y / down * juce::MathConstants<float>::halfPi);
 
-  // And across walks it round, which has no end to stop at.
+  // And across walks it round, which has no end to stop at. Negated, so the
+  // room follows the finger: a ball dragged to the right turns its front to
+  // the right, the way a globe under a hand does. Added rather than
+  // subtracted, the room went one way while the hand went the other.
   moving.turn
-      = atGrab.turn + moved.x / across * juce::MathConstants<float>::twoPi;
+      = atGrab.turn - moved.x / across * juce::MathConstants<float>::twoPi;
 
   return moving;
 }

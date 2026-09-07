@@ -244,14 +244,18 @@ TEST (SphereProjection, AViewTooSmallForTheBallGetsNone)
 }
 
 /** Its own width is a whole turn and its own height a right angle, so one
- *  sweep across it has been all the way round the room. */
+ *  sweep across it has been all the way round the room.
+ *
+ *  And the room follows the finger: dragged right, the ball turns its front to
+ *  the right, the way a globe under a hand does. Turned the other way it looks
+ *  like the room is being pushed away rather than rolled. */
 TEST (SphereProjection, ASweepAcrossTheBallIsAWholeTurn)
 {
   juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
   SphereCamera const overhead;
 
   auto const round = cameraFromBallDrag (overhead, { 60.f, 0.f }, ball);
-  EXPECT_NEAR (round.turn, juce::MathConstants<float>::twoPi, 1e-4f);
+  EXPECT_NEAR (round.turn, -juce::MathConstants<float>::twoPi, 1e-4f);
   EXPECT_NEAR (round.pitch, 0.f, 1e-4f);
 
   auto const over = cameraFromBallDrag (overhead, { 0.f, 60.f }, ball);
@@ -281,5 +285,5 @@ TEST (SphereProjection, ADragCarriesOnFromWhereTheEyeWas)
 
   EXPECT_NEAR (moved.pitch, leant.pitch, 1e-4f);
   EXPECT_NEAR (moved.turn,
-               leant.turn + juce::MathConstants<float>::twoPi / 4.f, 1e-4f);
+               leant.turn - juce::MathConstants<float>::twoPi / 4.f, 1e-4f);
 }
