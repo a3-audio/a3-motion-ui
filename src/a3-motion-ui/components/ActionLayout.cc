@@ -111,17 +111,20 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
             = band.removeFromLeft (colW).reduced (1);
     }
 
-  // And the key that fires it, in what the knobs left. Fat: it is the one
-  // thing on this page that happens now.
+  // And the key that fires it, in everything the knobs left -- all the way to
+  // the foot of the card. It is the one thing on this page that happens now,
+  // pressed mid-set with one hand while the other is on the crossfader, so
+  // the room it is given is the room there is. A key sized to a knob would be
+  // a knob's worth of target for the only thing here that cannot be aimed at
+  // twice.
   {
     auto below = grid.withTop (top + blockH + gap);
     if (below.getHeight () >= fingertipSize)
-      out.fireButton
-          = below.removeFromTop (
-                juce::jmin (below.getHeight (), rowH * 3 / 2))
-                .withSizeKeepingCentre (
-                    juce::jmin (gridW, below.getWidth ()),
-                    juce::jmin (below.getHeight (), rowH * 3 / 2));
+      out.fireButton = below.withWidth (juce::jmin (gridW, below.getWidth ()))
+                           .withX (below.getX ()
+                                   + (below.getWidth ()
+                                      - juce::jmin (gridW, below.getWidth ()))
+                                         / 2);
   }
 
   // What is left is the action's: its name and mode on one line, the script

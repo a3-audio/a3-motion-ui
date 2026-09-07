@@ -251,6 +251,12 @@ TEST (ActionLayout, TheKnobsAreAtTheTopAndTheKeyIsUnderThem)
   EXPECT_GE (l.fireButton.getHeight (), fingertipSize)
       << "the one key on this page that happens now is not a fingertip";
   EXPECT_LE (l.fireButton.getBottom (), l.card.getBottom ());
+
+  // And it takes everything the knobs left, down to the foot of the card. A
+  // key sized to a knob is a knob's worth of target for the only thing on
+  // this page that cannot be aimed at twice.
+  EXPECT_GE (l.fireButton.getHeight (), l.controls.front ().getHeight ())
+      << "the key is no bigger than one of the knobs above it";
 }
 
 // A reference that would push the rows off the page is ignored rather than
