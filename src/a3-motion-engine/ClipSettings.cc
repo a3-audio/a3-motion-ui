@@ -129,33 +129,43 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
   // towards the further one and there was always room; once it grew the way
   // it was told, the room stopped being guaranteed and nothing was watching.
   //
-  // A bound on the sweep, not a second opinion about the knob: with no swell
-  // on it the reach is left exactly where the hand put it.
+  auto const towards = params.reach < 0.f ? -1.f : 1.f;
+
+  auto reach = std::abs (params.reach);
   if (pattern.getReachLfo () != 0)
-    {
-      auto const towards = params.reach < 0.f ? -1.f : 1.f;
-      auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
+    reach = lfoSweep (reach, pattern.getReachLfo (),
+                      pattern.getReachLfoPhase ());
 
-      // The clips bound it as well as the poles do. They are a hard clamp --
-      // a point pushed past one keeps its bearing and gives up its height --
-      // so a swell that sweeps into one is not opening the figure out, it is
-      // piling it onto the cut.
-      auto const floor = 1.f - std::clamp (params.clipBottom, 0.f, 1.f);
-      auto const ceiling = std::clamp (params.clipTop, 0.f, 1.f);
-      auto const room = std::max (
-          0.f, towards > 0.f ? std::min (1.f, floor) - base
-                             : base - std::max (0.f, ceiling));
-
-      auto const swept = lfoSweep (std::abs (params.reach),
-                                   pattern.getReachLfo (),
-                                   pattern.getReachLfoPhase ());
-
-      params.reach = towards * std::min (swept, room);
-    }
   // The base travels the whole way, pole to pole.
   params.elevationBase
       = lfoSweep (params.elevationBase, pattern.getElevationLfo (),
                   pattern.getElevationLfoPhase ());
+
+  // And the reach is held to the room the base leaves it -- afterwards,
+  // because the sway is what moves the room. The base travelling towards a
+  // pole shrinks what is in front of it, and a reach that stayed where it was
+  // put ran out of sphere and wrapped back over the pole: on the sphere that
+  // is the figure turning inside out around its own middle, drawn as two arms
+  // running at nothing with a hole between them.
+  //
+  // The clips bound it as well as the poles do. They are a hard clamp -- a
+  // point pushed past one keeps its bearing and gives up its height -- so a
+  // reach that runs into one is not a bigger figure, it is a figure piled onto
+  // the cut.
+  //
+  // A fact about where the base is, not a second opinion about the knob: a
+  // reach that fits is left exactly where the hand put it.
+  {
+    auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
+    auto const floor = 1.f - std::clamp (params.clipBottom, 0.f, 1.f);
+    auto const ceiling = std::clamp (params.clipTop, 0.f, 1.f);
+
+    auto const room
+        = std::max (0.f, towards > 0.f ? std::min (1.f, floor) - base
+                                       : base - std::max (0.f, ceiling));
+
+    params.reach = towards * std::min (reach, room);
+  }
 
   return params;
 }

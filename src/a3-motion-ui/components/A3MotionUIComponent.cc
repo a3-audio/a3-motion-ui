@@ -5870,11 +5870,16 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
                                     static_cast<int> (_clipSettingsChannel));
   }
   // The coverage the hand set, and where the swell is holding it now.
+  // The swept value comes from sweptElevation rather than from lfoSweep on
+  // its own: the room the base leaves is part of what the sound is using, and
+  // an arc drawn off the raw sweep would promise a reach the engine is not
+  // playing. Shown while the base is sweeping too, because that is when the
+  // two differ.
   _clipSettings->setElevationReach (
       pattern ? pattern->getReach () : 0.5f,
-      pattern && pattern->getReachLfo () != 0
-          ? lfoSweep (pattern->getReach (), pattern->getReachLfo (),
-                      pattern->getReachLfoPhase ())
+      pattern && (pattern->getReachLfo () != 0
+                  || pattern->getElevationLfo () != 0)
+          ? sweptElevation (pattern->getElevationParams (), *pattern).reach
           : -2.f);
   // The line the hand set, and where the sway is holding it now -- the same
   // pair the reach above is given, and drawn the same way.

@@ -250,8 +250,17 @@ TEST (ClipSettings, TheSweepsAreAppliedInOnePlaceForEverybody)
   pattern.setReachLfo (0);
   pattern.setElevationLfo (4);
   pattern.setElevationLfoPhase (0.25f);
-  EXPECT_FLOAT_EQ (sweptElevation (set, pattern).reach, set.reach);
   EXPECT_NE (sweptElevation (set, pattern).elevationBase, set.elevationBase);
+
+  // The sway does move the reach, and it is the one coupling here on purpose:
+  // the room in front of the base shrinks as the base travels towards a pole,
+  // and a reach that stayed where it was put would run out of sphere. It is
+  // held to what is there, never pushed beyond what was set.
+  {
+    auto const swept = sweptElevation (set, pattern);
+    EXPECT_LE (swept.reach, set.reach);
+    EXPECT_LE (swept.reach, 1.f - swept.elevationBase + 1e-5f);
+  }
 
   // And the swept base stays somewhere the sphere can be asked about.
   pattern.setElevationLfoPhase (0.75f);
@@ -382,17 +391,44 @@ TEST (ClipSettings, TheSwellStaysInTheRoomAboveToo)
       << "it swept the figure past the ceiling";
 }
 
-/** A hand-set reach with no swell on it is left where it was put -- the room
- *  is a bound on the sweep, not a second opinion about the knob. */
-TEST (ClipSettings, WithoutASwellTheReachIsWhatWasSet)
+/** A hand-set reach stands as long as it fits. */
+TEST (ClipSettings, AReachThatFitsIsLeftWhereItWasPut)
 {
   Pattern pattern;
 
   ElevationParams params;
-  params.reach = 0.9f;
+  params.reach = 0.4f;
   params.elevationBase = 0.5f;
 
-  EXPECT_FLOAT_EQ (sweptElevation (params, pattern).reach, 0.9f);
+  EXPECT_FLOAT_EQ (sweptElevation (params, pattern).reach, 0.4f);
+}
+
+/** And is held to the room when the base has moved into a smaller one.
+ *
+ *  The sway carries the base towards a pole and the room in front of it
+ *  shrinks as it goes. A reach that stayed where it was put ran out of sphere
+ *  and wrapped back over the pole: on the sphere that is the figure turning
+ *  inside out around its own middle, drawn as two arms running at nothing with
+ *  a hole between them.
+ *
+ *  The room is a fact about where the base is, not an opinion about the knob.
+ */
+TEST (ClipSettings, ASwayingBaseTakesTheReachWithIt)
+{
+  Pattern pattern;
+  pattern.setElevationLfo (1);      // swaying towards the floor
+  pattern.setElevationLfoPhase (0.4f); // most of the way there, not at it
+
+  ElevationParams params;
+  params.reach = 0.28f;
+  params.elevationBase = 0.5f;
+
+  auto const swept = sweptElevation (params, pattern);
+
+  ASSERT_GT (swept.elevationBase, 0.8f) << "the sway has to have moved it";
+  EXPECT_LE (swept.reach, 1.f - swept.elevationBase + 1e-5f)
+      << "the figure runs past the floor the base has been swept to";
+  EXPECT_GT (swept.reach, 0.f) << "and it is still a figure";
 }
 
 /** And the clips bound it too. They are a hard clamp -- a point pushed past
