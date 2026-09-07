@@ -212,30 +212,21 @@ ClipSettingsComponent::createTouchControls ()
     auto const low = std::clamp (_elevationClipTop, 0.f, 1.f);
     auto const high = 1.f - std::clamp (_elevationClipBottom, 0.f, 1.f);
 
-    // Un-projected rather than read off a ruler. The circle is a view of the
-    // room now, not a scale up its side, so what a finger is pointing at is a
-    // direction -- and the height that direction is at is the base it asks
-    // for. Off the rim it is held at the horizon, so sliding off the edge
-    // keeps setting a value instead of stopping dead.
-    auto const circle
-        = elevationCircleBounds (_layout.elevationGraphic.withZeroOrigin ());
-    if (circle.isEmpty ())
-      return;
-
-    auto const half = static_cast<float> (circle.getWidth ()) / 2.f;
-    auto const across
-        = (static_cast<float> (at.x) - circle.getCentreX ()) / half;
-    auto const down
-        = (static_cast<float> (at.y) - circle.getCentreY ()) / half;
-
-    auto const pointed
-        = elevationSideDirection (across, down, _sphereCamera);
-    auto const frac
-        = std::acos (std::clamp (pointed.z (), -1.f, 1.f))
-          / juce::MathConstants<float>::pi;
-
-    onElevationBaseSet (snapElevationBase (
-        juce::jlimit (juce::jmin (low, high), juce::jmax (low, high), frac)));
+    // Up is higher, at every tilt. Not un-projected onto whatever the circle
+    // is currently a view of, which is what this did and which cost the
+    // control both its ends: tip the sphere far enough and the circle becomes
+    // an overhead view, where straight up is the *middle* of it and the whole
+    // lower half of the room is round the back. A finger pushed to the top of
+    // the picture then asked for the equator, and neither pole could be
+    // reached at all -- so a figure could not be put back on the pole, which
+    // is the one place its middle does not tear.
+    //
+    // The picture is a view and follows the room. This is a control and
+    // follows the hand: the same travel means the same thing whatever is
+    // being looked at, which is what a control is for.
+    onElevationBaseSet (snapElevationBase (elevationBaseAt (
+        _layout.elevationGraphic.withZeroOrigin (), at.y,
+        juce::jmin (low, high), juce::jmax (low, high))));
   };
 
   _elevationGraphicTouch->onTapAt

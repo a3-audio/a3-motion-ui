@@ -152,11 +152,21 @@ float
 snapElevationBase (float base)
 {
   // Wide enough to land on with a finger, narrow enough that a value just
-  // above or below the ears can still be set.
-  constexpr float earHeight = 0.5f;
+  // above or below one of them can still be set.
   constexpr float pull = 0.02f;
 
-  return std::abs (base - earHeight) <= pull ? earHeight : base;
+  // Ear height, and the two poles.
+  //
+  // The poles matter for a reason the ears do not: a figure whose middle
+  // crosses the middle of the pad is torn there at every base but a pole, and
+  // "but a pole" means exactly nought or exactly one. A finger cannot land on
+  // exactly a float, so without this the one setting that closes the hole was
+  // the one setting a hand could not ask for.
+  for (auto const at : { 0.f, 0.5f, 1.f })
+    if (std::abs (base - at) <= pull)
+      return at;
+
+  return base;
 }
 
 bool

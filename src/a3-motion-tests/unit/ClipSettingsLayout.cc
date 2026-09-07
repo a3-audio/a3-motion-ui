@@ -1701,3 +1701,20 @@ TEST (ClipSettingsLayout, AGridKnobsArcReachesWhereTheModulationCarriedIt)
   EXPECT_FLOAT_EQ (gridKnobReach (2.f, 2.f), 1.f);
   EXPECT_FLOAT_EQ (gridKnobReach (-1.f, -1.f), 0.f);
 }
+
+/** The base snaps to the poles as well as to ear height, and for a reason the
+ *  ears do not have: a figure whose middle crosses the middle of the pad is
+ *  torn there at every base but a pole, and "but a pole" means exactly nought
+ *  or exactly one. A finger cannot land on exactly a float, so without this
+ *  the one setting that closes the hole is the one setting a hand cannot ask
+ *  for. */
+TEST (ClipSettingsLayout, TheBaseSnapsToThePolesAsWellAsToEarHeight)
+{
+  EXPECT_FLOAT_EQ (snapElevationBase (0.012f), 0.f);
+  EXPECT_FLOAT_EQ (snapElevationBase (0.988f), 1.f);
+  EXPECT_FLOAT_EQ (snapElevationBase (0.495f), 0.5f);
+
+  // And a value deliberately set just off one of them stays there.
+  EXPECT_FLOAT_EQ (snapElevationBase (0.06f), 0.06f);
+  EXPECT_FLOAT_EQ (snapElevationBase (0.94f), 0.94f);
+}
