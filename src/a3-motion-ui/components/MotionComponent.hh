@@ -167,6 +167,7 @@ private:
   juce::Rectangle<int> cameraBall () const;
   void drawCameraBall (juce::Graphics &g);
   void drawBearings (juce::Graphics &g);
+  void drawListener (juce::Graphics &g);
 
   std::optional<int> _cameraGrab;
   /** For the double tap that puts the view back overhead. A finger is not a

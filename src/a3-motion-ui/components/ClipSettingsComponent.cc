@@ -30,6 +30,7 @@
 #include <a3-motion-engine/TrajectorySpin.hh>
 
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
+#include <a3-motion-ui/components/Listener.hh>
 
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
@@ -1979,13 +1980,25 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   g.setColour (iconColour);
   g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, 1.f);
 
-  // No mark in the middle any more. It stood for the listener, which was worth
-  // saying while this was a side view of the room with them sitting in it --
-  // the middle of that picture is where they are. It is a view of the sphere
-  // now, and the middle of it is whichever part of the sphere happens to be
-  // nearest, which is nobody. The one moving mark in here is the sound, and a
-  // second dot beside it that never moves is a thing the eye has to rule out
-  // every time it looks.
+  // The listener, in the middle of the room they are listening to, and the
+  // same figure the sphere above and the little ball in its corner carry -- so
+  // all three pictures say which way they are facing in the same words.
+  //
+  // A dot used to stand here and was taken out for saying nothing: a mark that
+  // never moves is a thing the eye has to rule out every time it looks. This
+  // one moves. It turns with the view, which is the one thing in this circle
+  // that says which of the room's two directions you are looking from.
+  {
+    auto figure
+        = listenerSilhouette (elevationSideCamera (_sphereCamera), r * 0.55f);
+    figure.applyTransform (
+        juce::AffineTransform::translation (centre.x, centre.y));
+
+    g.setColour (toColour (theme ().textPrimary, 0.5f));
+    g.fillPath (figure);
+    g.setColour (toColour (theme ().surface, outlineOpacity));
+    g.strokePath (figure, juce::PathStrokeType (1.f));
+  }
 
   // And the sound itself, running along the figure it was drawn from. Last of
   // everything, and outlined, because in a picture this small it is the only

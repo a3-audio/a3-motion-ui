@@ -37,6 +37,7 @@
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
+#include <a3-motion-ui/components/Listener.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
@@ -1232,6 +1233,7 @@ MotionComponent::renderOpenGL ()
             drawCircle (gFBO);
 
           drawBearings (gFBO);
+          drawListener (gFBO);
 
           // Channel blobs + corona
           drawChannelBlobs (gFBO);
@@ -1446,6 +1448,46 @@ MotionComponent::cameraBall () const
 void
 MotionComponent::drawBearings (juce::Graphics &g)
 {
+  // A graduated ring round the outside of the sphere, which is how a chart, a
+  // compass and every globe worth reading does it -- rather than four numbers
+  // floating on the ball itself, which is what this was and which put a
+  // rotated glyph over whatever happened to be under it.
+  //
+  // The ring is a bezel: it takes the turn and ignores the lean, so it stays a
+  // compass however far the room is tipped. Tipping the room does not change
+  // which way north is, and a compass that leant over with the view would be
+  // one more thing to read rather than the thing you read everything else off.
+  auto const camera = _sphereShader.getCamera ();
+  auto const turn = camera.turn;
+
+  auto const on = [turn] (float degrees, float radius) {
+    auto const a = degrees * pi<float> () / 180.f - turn;
+    // The overhead convention: the room's front up the screen, its left to the
+    // left. Written out rather than projected, because a bezel is flat.
+    return juce::Point<float> (-std::sin (a) * radius, -std::cos (a) * radius);
+  };
+
+  // Ticks: every ten degrees a short one, every thirty a longer one, and a
+  // long one at each of the four the numbers name. Enough to read a bearing
+  // off between the numbers without counting.
+  for (int degrees = 0; degrees < 360; degrees += 10)
+    {
+      auto const major = degrees % 90 == 0;
+      auto const medium = degrees % 30 == 0;
+
+      auto const from = on (static_cast<float> (degrees), 1.035f);
+      auto const to = on (static_cast<float> (degrees),
+                          major ? 1.105f : medium ? 1.085f : 1.065f);
+
+      g.setColour (toColour (theme ().textPrimary,
+                             major ? 0.5f : medium ? 0.3f : 0.16f));
+      g.drawLine (from.x, from.y, to.x, to.y, major ? 0.01f : 0.006f);
+    }
+
+  // And the four numbers outside the ticks, upright: a compass card is read
+  // at a glance and a glance does not tilt its head. Nought is the front of
+  // the room, which is where the OSC sends a channel at azimuth nought -- the
+  // numbers on the ring are the numbers on the wire.
   struct
   {
     float degrees;
@@ -1453,67 +1495,39 @@ MotionComponent::drawBearings (juce::Graphics &g)
   } const marks[]{ { 0.f, "0" }, { 90.f, "90" }, { -90.f, "-90" },
                    { 180.f, "180" } };
 
-  auto const camera = _sphereShader.getCamera ();
-
-  g.setFont (juce::Font (0.075f, juce::Font::plain));
+  g.setFont (juce::Font (0.072f, juce::Font::plain));
 
   for (auto const &mark : marks)
     {
-      auto const at = Pos::fromSpherical (mark.degrees, 0.f, 1.f);
-      auto const seen = asSeenFrom (at, camera);
+      auto const out = on (mark.degrees, 1.165f);
+      auto const box = juce::Rectangle<float> (0.36f, 0.1f).withCentre (out);
 
-      // On the far side of a tilted room the mark is behind the sphere. Shown
-      // anyway, and legibly: a ring with one of its four numbers missing is a
-      // ring you have lost your place on, and a number faint enough to need
-      // looking for is missing at a glance. Dimmer, not hidden, and written
-      // over a dark outline so it survives whatever it is standing on.
-      auto const behind = seen.z () < 0.f;
-      auto const on = cartesian2DHOA2JUCE (seen);
-
-      // Written just outside the ring, along the line from the middle.
-      auto const out = on * 1.11f;
-      auto const box = juce::Rectangle<float> (0.5f, 0.12f).withCentre (out);
-
-      // And turned to run along that line rather than across it, the way the
-      // meridian it belongs to runs. Flipped where it would come out upside
-      // down: a number you have to tilt your head for is a number you read
-      // twice.
-      auto angle = std::atan2 (on.y, on.x);
-      if (std::cos (angle) < 0.f)
-        angle += juce::MathConstants<float>::pi;
-
-      g.saveState ();
-      g.addTransform (juce::AffineTransform::rotation (angle, out.x, out.y));
-
-      // Behind the sphere it is written *dark*, not merely faint. A dim light
-      // number on a lit sphere is still a light number and still reads as
-      // near; a dark one reads as being under the glass, which is where it is.
-      auto const ink = behind ? toColour (theme ().background, 0.9f)
-                              : toColour (theme ().textPrimary, 0.8f);
-      auto const outline = behind ? toColour (theme ().textPrimary, 0.35f)
-                                  : toColour (theme ().background, 0.85f);
-
-      for (int dx = -1; dx <= 1; ++dx)
-        for (int dy = -1; dy <= 1; ++dy)
-          if (dx != 0 || dy != 0)
-            {
-              g.setColour (outline);
-              g.drawText (mark.label,
-                          box.translated (static_cast<float> (dx) * 0.005f,
-                                          static_cast<float> (dy) * 0.005f),
-                          juce::Justification::centred, false);
-            }
-
-      g.setColour (ink);
+      g.setColour (toColour (theme ().textPrimary, 0.65f));
       g.drawText (mark.label, box, juce::Justification::centred, false);
-      g.restoreState ();
-
-      // And a tick on the ring itself, so the number has something to point
-      // at when the room is turned and it lands between two speakers.
-      g.setColour (ink);
-      g.drawLine (on.x * 0.97f, on.y * 0.97f, on.x * 1.03f, on.y * 1.03f,
-                  0.008f);
     }
+}
+
+/** The listener, in the middle of the room they are listening to.
+ *
+ *  The same figure the little sphere in the corner carries, so the two say the
+ *  same thing in the same words: which way the room is turned is which way
+ *  they face, and how far it is tipped is how much of them you can see. */
+void
+MotionComponent::drawListener (juce::Graphics &g)
+{
+  // Big enough to read as a person from a metre away, small enough that the
+  // room is still the subject: the trajectories run round them, not over them.
+  auto const figure
+      = listenerSilhouette (_sphereShader.getCamera (), 0.30f);
+  if (figure.isEmpty ())
+    return;
+
+  // Lit rather than dark: the room is dark, so a dark figure in the middle of
+  // it is a hole. Soft enough that the trajectories running past keep the eye.
+  g.setColour (toColour (theme ().textPrimary, 0.16f));
+  g.fillPath (figure);
+  g.setColour (toColour (theme ().textPrimary, 0.5f));
+  g.strokePath (figure, juce::PathStrokeType (0.005f));
 }
 
 /** The little sphere in the corner: what turns the room, and what says which
@@ -1599,37 +1613,14 @@ MotionComponent::drawCameraBall (juce::Graphics &g)
   // head, from the horizon you are looking them in the eye. Axis balls with
   // letters on them would say the same thing and have to be read.
   {
-    auto const line = [&] (Pos const &from, Pos const &to, float weight) {
-      auto const [a, da] = at (from);
-      auto const [b, db] = at (to);
-      g.setColour (ink (juce::jmin (da, db), held ? 1.f : 0.8f, 0.3f));
-      g.drawLine (a.x, a.y, b.x, b.y, r * weight);
-    };
+    auto figure = listenerSilhouette (camera, r * 1.15f);
+    figure.applyTransform (
+        juce::AffineTransform::translation (centre.x, centre.y));
 
-    constexpr float headTop = 0.34f;
-    constexpr float shoulder = 0.02f;
-    constexpr float foot = -0.5f;
-
-    // Body and shoulders. Narrow, because at this size a person is a posture
-    // rather than a picture.
-    line (Pos::fromCartesian (0.f, 0.f, shoulder),
-          Pos::fromCartesian (0.f, 0.f, foot), 0.06f);
-    line (Pos::fromCartesian (0.f, -0.3f, shoulder),
-          Pos::fromCartesian (0.f, 0.3f, shoulder), 0.06f);
-
-    // Which way they are facing, which is the front of the room.
-    line (Pos::fromCartesian (0.f, 0.f, headTop * 0.55f),
-          Pos::fromCartesian (0.42f, 0.f, headTop * 0.55f), 0.05f);
-
-    // The head last, over the neck.
-    auto const [head, depth] = at (Pos::fromCartesian (0.f, 0.f, headTop));
-    auto const headR = r * 0.13f;
-
-    g.setColour (toColour (theme ().background, 0.9f));
-    g.fillEllipse (head.x - headR - r * 0.02f, head.y - headR - r * 0.02f,
-                   (headR + r * 0.02f) * 2.f, (headR + r * 0.02f) * 2.f);
-    g.setColour (ink (depth, held ? 1.f : 0.85f, 0.35f));
-    g.fillEllipse (head.x - headR, head.y - headR, headR * 2.f, headR * 2.f);
+    g.setColour (toColour (theme ().textPrimary, held ? 0.95f : 0.75f));
+    g.fillPath (figure);
+    g.setColour (toColour (theme ().background, 0.8f));
+    g.strokePath (figure, juce::PathStrokeType (r * 0.02f));
   }
 }
 
