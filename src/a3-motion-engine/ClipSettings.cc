@@ -136,6 +136,25 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
     reach = lfoSweep (reach, pattern.getReachLfo (),
                       pattern.getReachLfoPhase ());
 
+  // The base is held inside the clips before anything else is asked of it.
+  //
+  // The control that sets it keeps it in the band, but the clips move
+  // afterwards: turn the ceiling down past where the base already stands and
+  // the base is outside the room it is supposed to be in. Every point of the
+  // figure then clamps onto the cut, and a whole trajectory piled onto one
+  // height is a straight line drawn across the picture.
+  {
+    auto const floor = 1.f - std::clamp (params.clipBottom, 0.f, 1.f);
+    auto const ceiling = std::clamp (params.clipTop, 0.f, 1.f);
+
+    // Ordered before clamping, so clips pushed past each other pin the base to
+    // where they crossed rather than inverting the range -- the same rule the
+    // graphic draws its band by.
+    params.elevationBase
+        = std::clamp (params.elevationBase, std::min (ceiling, floor),
+                      std::max (ceiling, floor));
+  }
+
   // The base travels to the cut and turns back there, not at the pole.
   //
   // The clips are a hard clamp on where the sound may go, so a sway that swept

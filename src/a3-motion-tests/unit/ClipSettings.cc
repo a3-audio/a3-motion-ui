@@ -508,3 +508,53 @@ TEST (ClipSettings, WithoutClipsTheSwayStillReachesThePole)
 
   EXPECT_NEAR (sweptElevation (params, pattern).elevationBase, 1.f, 1e-4f);
 }
+
+/** The base is held inside the clips, not merely bounded by them.
+ *
+ *  The control that sets it keeps it in the band, but the clips move
+ *  afterwards: turn the ceiling down past where the base already stands and
+ *  the base is outside the room it is supposed to be in. Every point of the
+ *  figure then clamps onto the cut, and a whole trajectory piled onto one
+ *  height is a straight line drawn across the picture -- which is what it
+ *  looked like, and what it was.
+ */
+TEST (ClipSettings, TheBaseIsHeldInsideTheClips)
+{
+  Pattern pattern;
+
+  ElevationParams params;
+  params.reach = 0.2f;
+  params.elevationBase = 0.f;   // set while there was no ceiling
+  params.clipTop = 0.3f;        // and then the ceiling came down past it
+
+  auto const swept = sweptElevation (params, pattern);
+
+  EXPECT_GE (swept.elevationBase, params.clipTop - 1e-5f)
+      << "the base is outside the room the clips leave";
+  EXPECT_LE (swept.elevationBase, 1.f - params.clipBottom + 1e-5f);
+}
+
+/** And from the other end. */
+TEST (ClipSettings, TheBaseIsHeldOffTheFloorToo)
+{
+  Pattern pattern;
+
+  ElevationParams params;
+  params.elevationBase = 1.f;
+  params.clipBottom = 0.25f;
+
+  EXPECT_LE (sweptElevation (params, pattern).elevationBase, 0.75f + 1e-5f);
+}
+
+/** A base already inside the band is left exactly where it was put. */
+TEST (ClipSettings, ABaseInsideTheClipsIsNotMoved)
+{
+  Pattern pattern;
+
+  ElevationParams params;
+  params.elevationBase = 0.4f;
+  params.clipTop = 0.2f;
+  params.clipBottom = 0.2f;
+
+  EXPECT_FLOAT_EQ (sweptElevation (params, pattern).elevationBase, 0.4f);
+}
