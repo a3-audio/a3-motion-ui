@@ -3859,15 +3859,29 @@ A3MotionUIComponent::applySet (juce::File const &file)
                 _slotClipFile[index][slot] = clip;
             }
 
-          // And what the slot was turned to. A set written before this has
-          // none, and then the clip's own settings are what the slot keeps --
-          // applying the defaults there would reset every clip in it.
-          if (saved.overrides.has_value ())
-            if (auto const &pattern = _patterns[index][slot])
-              {
-                applyClipSettings (*pattern, *saved.overrides);
-                syncClipUIParamsFromPattern (index, slot);
-              }
+          // And what the slot was turned to.
+          //
+          // A set with none is a set that never turned this slot away from
+          // its clip, so the clip's own settings are what it wants -- and
+          // they have to be read, not assumed. fillSlotFromLibrary() above
+          // gives the slot the *shape's* clip, which is a different file from
+          // the one the set names: a slot that named Breath and carried no
+          // overrides came up holding Lissajous 1-2's settings and flagged
+          // itself as drifted from Breath, which is exactly what it was.
+          if (auto const &pattern = _patterns[index][slot])
+            {
+              if (saved.overrides.has_value ())
+                {
+                  applyClipSettings (*pattern, *saved.overrides);
+                  syncClipUIParamsFromPattern (index, slot);
+                }
+              else if (auto const clip
+                       = ClipFile::load (_slotClipFile[index][slot]))
+                {
+                  applyClipSettings (*pattern, clip->settings);
+                  syncClipUIParamsFromPattern (index, slot);
+                }
+            }
 
           // And what was running runs again -- from the top, on the next
           // downbeat. Not from where it was: coming back mid-figure would put
