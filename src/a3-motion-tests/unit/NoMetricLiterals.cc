@@ -42,7 +42,6 @@ std::vector<char const *> const filesStillHoldingMetrics = {
   "components/A3MotionUIComponent.cc",
   "components/ActionLayout.cc",
   "components/BarKnob.cc",
-  "components/BrowserComponent.cc",
   "components/ClipSettingsLayout.cc",
   "components/ColourPickerComponent.cc",
   "components/ControllerComponent.cc",

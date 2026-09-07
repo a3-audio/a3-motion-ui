@@ -33,6 +33,24 @@ namespace
 /** The library is longer than any list of rows, so the rows are a window onto
  *  it -- as many as fit, hit-sized, rather than all of them squeezed in. */
 constexpr int maxVisibleRowTouches = 24;
+
+// Sits between alphaInactive (0.6) and alphaTextStrong (0.85), further from
+// either than the 0.05 a snap would tolerate. This is a row's name when it is
+// not the chosen one -- muted, but less so than alphaInactive and more than
+// alphaTextStrong would read. Listed in
+// issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending a decision
+// on whether it becomes a rung of its own.
+constexpr float unselectedRowNameOpacity = 0.7f;
+
+// A one-pixel inset on the chosen row's fillRoundedRectangle highlight, not a
+// stroke -- there is no stroke here to keep inside its bounds. No rung of the
+// spacing scale carries a bare 1 (paddingTight is 2), and binding it to
+// strokeThin would be wrong in a way that only shows up later: a skin that
+// thickens the device's lines would silently grow this highlight's inset too,
+// for no reason anyone could name. Left as its own literal pending a
+// decision. Listed in issues/a3-motion-ui-metric-role-deviations.md
+// (Task 16).
+constexpr float selectedRowHighlightInset = 1.f;
 }
 
 BrowserComponent::BrowserComponent ()
@@ -219,16 +237,27 @@ BrowserComponent::paint (juce::Graphics &g)
     if (bounds.isEmpty ())
       return;
 
-    g.setColour (active ? _channelColour.withAlpha (0.55f)
-                        : toColour (theme ().textPrimary, 0.06f));
-    g.fillRoundedRectangle (bounds.toFloat (), 3.f);
-    g.setColour (toColour (theme ().textPrimary, active ? 0.35f : 0.15f));
-    g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+    g.setColour (active ? _channelColour.withAlpha (theme ().alphaInactive)
+                        : toColour (theme ().textPrimary,
+                                   theme ().alphaFill));
+    g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
+    g.setColour (toColour (theme ().textPrimary,
+                          active ? theme ().alphaDisabled
+                                 : theme ().alphaOutline));
+    g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
+                            theme ().strokeThin);
 
     g.setFont (juce::Font (juce::jmin (theme ().fontSize (FontRole::Body),
                                        bounds.getHeight () * 0.5f),
                            active ? juce::Font::bold : juce::Font::plain));
-    g.setColour (toColour (theme ().textPrimary, active ? 1.f : 0.55f));
+    // Full opacity for the active tab rather than an alpha rung: "active" has
+    // always meant no dimming at all, which the alpha-less overload already
+    // says. This used to be `active ? 1.f : 0.55f`; 1.f fits no rung, and the
+    // maintainer still owes a call on whether full opacity deserves one of
+    // its own. See issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+    g.setColour (active ? toColour (theme ().textPrimary)
+                        : toColour (theme ().textPrimary,
+                                   theme ().alphaInactive));
     g.drawFittedText (label, bounds, juce::Justification::centred, 1);
   };
 
@@ -241,8 +270,8 @@ BrowserComponent::paint (juce::Graphics &g)
   paintListTab (_layout.actionsTab, "ACTIONS",
                 _list == BrowserList::Actions);
 
-  g.setColour (toColour (theme ().surface, 0.5f));
-  g.fillRoundedRectangle (_layout.listArea.toFloat (), 3.f);
+  g.setColour (toColour (theme ().surface, theme ().alphaMuted));
+  g.fillRoundedRectangle (_layout.listArea.toFloat (), theme ().radiusControl);
 
   for (int row = 0; row < static_cast<int> (_layout.rows.size ()); ++row)
     paintRow (g, row);
@@ -267,8 +296,10 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
 
   if (chosen)
     {
-      g.setColour (_channelColour.withAlpha (0.3f));
-      g.fillRoundedRectangle (bounds.toFloat ().reduced (1.f), 3.f);
+      g.setColour (_channelColour.withAlpha (theme ().alphaFillEmphasis));
+      g.fillRoundedRectangle (
+          bounds.toFloat ().reduced (selectedRowHighlightInset),
+          theme ().radiusControl);
     }
 
   // Being typed into is a state of the row, so the row says so: an edge round
@@ -276,7 +307,8 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
   if (editing)
     {
       g.setColour (toColour (theme ().warning));
-      g.drawRoundedRectangle (bounds.toFloat ().reduced (1.f), 3.f, 2.f);
+      g.drawRoundedRectangle (bounds.toFloat ().reduced (theme ().strokeThin),
+                              theme ().radiusControl, theme ().strokeThick);
     }
 
   auto const text = bounds.reduced (bounds.getHeight () / 3, 0);
@@ -284,7 +316,15 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
                                             bounds.getHeight () * 0.55f),
                                 juce::Font::plain);
   g.setFont (font);
-  g.setColour (toColour (theme ().textPrimary, chosen ? 1.f : 0.7f));
+  // Full opacity for the chosen row rather than an alpha rung, the same
+  // restructuring as paintListTab() above; this used to be
+  // `chosen ? 1.f : 0.7f`. 0.7f itself fits no rung either -- 0.10 from
+  // alphaInactive, 0.15 from alphaTextStrong, too far from both -- so it
+  // keeps its own name (unselectedRowNameOpacity) rather than snapping. See
+  // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+  g.setColour (chosen ? toColour (theme ().textPrimary)
+                      : toColour (theme ().textPrimary,
+                                 unselectedRowNameOpacity));
   g.drawFittedText (editing ? _renameText : _names[entry], text,
                     juce::Justification::centredLeft, 1);
 
@@ -314,7 +354,11 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
   if (index < _settingsOnly.size () && _settingsOnly[index])
     {
       auto const dot = bounds.getHeight () / 5.f;
-      g.setColour (toColour (theme ().accent, chosen ? 1.f : 0.75f));
+      // Same restructuring as above for the chosen case; 0.75f maps cleanly
+      // to alphaTextStrong.
+      g.setColour (chosen ? toColour (theme ().accent)
+                          : toColour (theme ().accent,
+                                     theme ().alphaTextStrong));
       g.fillEllipse (bounds.getRight () - dot * 2.5f,
                      bounds.getCentreY () - dot / 2.f, dot, dot);
     }
@@ -341,15 +385,19 @@ BrowserComponent::paintButton (juce::Graphics &g, juce::Rectangle<int> bounds,
   if (bounds.isEmpty () || label.isEmpty ())
     return;
 
-  g.setColour (toColour (theme ().textPrimary, 0.06f));
-  g.fillRoundedRectangle (bounds.toFloat (), 3.f);
-  g.setColour (toColour (theme ().textPrimary, 0.15f));
-  g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
+  g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
+                          theme ().strokeThin);
 
   g.setFont (juce::Font (juce::jmin (theme ().fontSize (FontRole::Body),
                                      bounds.getHeight () * 0.5f),
                          juce::Font::plain));
-  g.setColour (toColour (theme ().textPrimary, enabled ? 0.9f : 0.3f));
+  g.setColour (enabled ? toColour (theme ().textPrimary,
+                                   theme ().alphaTextStrong)
+                       : toColour (theme ().textPrimary,
+                                  theme ().alphaFillEmphasis));
   g.drawFittedText (label, bounds, juce::Justification::centred, 1);
 }
 
