@@ -315,6 +315,17 @@ loadTheme (juce::var const &skin)
   theme.strokeThin = themeFloat (skin, "strokeThin", theme.strokeThin);
   theme.strokeThick = themeFloat (skin, "strokeThick", theme.strokeThick);
 
+  theme.radiusTick = themeFloat (skin, "radiusTick", theme.radiusTick);
+  theme.radiusControl
+      = themeFloat (skin, "radiusControl", theme.radiusControl);
+  theme.radiusRow = themeFloat (skin, "radiusRow", theme.radiusRow);
+  theme.radiusCard = themeFloat (skin, "radiusCard", theme.radiusCard);
+  theme.radiusPanel = themeFloat (skin, "radiusPanel", theme.radiusPanel);
+
+  theme.paddingTight = themeFloat (skin, "paddingTight", theme.paddingTight);
+  theme.paddingSmall = themeFloat (skin, "paddingSmall", theme.paddingSmall);
+  theme.padding = themeFloat (skin, "padding", theme.padding);
+
   theme.fontHeader = themeFloat (skin, "fontHeader", theme.fontHeader);
   theme.fontBody = themeFloat (skin, "fontBody", theme.fontBody);
   theme.potSize = themeFloat (skin, "potSize", theme.potSize);

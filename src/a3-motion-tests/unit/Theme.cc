@@ -323,3 +323,38 @@ TEST (Theme, ClipSettingsHeightScaleComesFromTheSkin)
       = juce::JSON::parse (R"({"clipSettingsHeightScale": 0.75})");
   EXPECT_NEAR (loadTheme (parsed).clipSettingsHeightScale, 0.75f, 0.001f);
 }
+
+// Five roles, taken from where a rounded rectangle is drawn rather than from
+// how round it happens to be. A chip inside a card is not the card, and the
+// card is not the panel it sits in — so the scale has to stay ordered even
+// after a skin has been at it.
+TEST (Theme, TheRadiusRolesAreAScale)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_LT (theme.radiusTick, theme.radiusControl);
+  EXPECT_LT (theme.radiusControl, theme.radiusRow);
+  EXPECT_LT (theme.radiusRow, theme.radiusCard);
+  EXPECT_LT (theme.radiusCard, theme.radiusPanel);
+}
+
+TEST (Theme, TheSpacingRolesAreAScale)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_LT (theme.paddingTight, theme.paddingSmall);
+  EXPECT_LT (theme.paddingSmall, theme.padding);
+}
+
+TEST (Theme, ASkinSetsOneMetricAndLeavesTheRest)
+{
+  auto const parsed
+      = juce::JSON::parse (R"({"radiusCard": 12, "padding": 6})");
+  auto const theme = loadTheme (parsed);
+  auto const defaults = loadTheme (juce::var{});
+
+  EXPECT_FLOAT_EQ (theme.radiusCard, 12.f);
+  EXPECT_FLOAT_EQ (theme.padding, 6.f);
+  EXPECT_FLOAT_EQ (theme.radiusPanel, defaults.radiusPanel);
+  EXPECT_FLOAT_EQ (theme.paddingTight, defaults.paddingTight);
+}

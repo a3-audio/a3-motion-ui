@@ -106,6 +106,21 @@ struct Theme
   float strokeThin = 1.f;
   float strokeThick = 2.f;
 
+  // Corner radii, in pixels. Named after where the rounded rectangle is
+  // drawn, not after how round it is: the same 3px is a chip in the clip bar
+  // and a chip in the action card, and both should follow one skin value.
+  float radiusTick = 2.f;
+  float radiusControl = 3.f;
+  float radiusRow = 5.f;
+  float radiusCard = 8.f;
+  float radiusPanel = 10.f;
+
+  // Insets, in pixels. Three steps were enough to hold every inset the UI
+  // used; a fourth would have been a name for a single call site.
+  float paddingTight = 2.f;
+  float paddingSmall = 4.f;
+  float padding = 8.f;
+
   // Font sizes, absolute and straight out of the skin. They used to be base
   // sizes with a percentage from the menu on top — two sources for one size,
   // where switching skin moved one and left the other.
