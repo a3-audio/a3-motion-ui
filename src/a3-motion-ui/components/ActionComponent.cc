@@ -60,7 +60,7 @@ constexpr float fieldCaptionOpacity = 0.7f;
 // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
 constexpr int actionListHighlightVerticalInset = 1;
 
-// 0.15 from alphaTextStrong (0.85) and 0.15 from alphaInactive (0.6), too far
+// 0.10 from alphaTextStrong (0.85) and 0.15 from alphaInactive (0.6), too far
 // from both to snap to either. This is the fire button's face while it is not
 // firing. Listed in issues/a3-motion-ui-metric-role-deviations.md (Task 16)
 // pending a decision on whether it becomes a rung of its own.

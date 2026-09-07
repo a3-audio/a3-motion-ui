@@ -52,7 +52,7 @@ constexpr float unselectedRowNameOpacity = 0.7f;
 // (Task 16).
 constexpr float selectedRowHighlightInset = 1.f;
 
-// 0.15 from alphaTextStrong (0.85) and 0.15 from alphaInactive (0.6), too far
+// 0.10 from alphaTextStrong (0.85) and 0.15 from alphaInactive (0.6), too far
 // from both to snap to either. This is the settings-preset dot on a row that
 // is not the chosen one. Listed in
 // issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending a decision
