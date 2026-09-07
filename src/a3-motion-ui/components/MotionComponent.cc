@@ -550,7 +550,7 @@ MotionComponent::disoccludeBlobs ()
 
                   _engine.setChannel3DPosition (
                       channel,
-                      discToDirection (localToNormalized2DPosition (posPixel)));
+                      pixelToDirection (posPixel));
             }
         }
     }
@@ -562,6 +562,19 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
   // No blanket reset any more: a finger going down must not let go of what
   // another finger is already holding.
   auto const source = event.source.getIndex ();
+
+  // SHIFT and a finger on the sphere moves the eye rather than a blob. A
+  // modifier rather than two sliders beside the picture: the sliders would
+  // stand there taking room and asking to be read at every glance, where the
+  // view is a thing you set once in a while and then leave. And SHIFT is
+  // already the device's "this gesture means something else" key.
+  if (isShiftHeld && isShiftHeld ())
+    {
+      _cameraGrab = source;
+      _cameraGrabbedAt = event.getPosition ().toFloat ();
+      _cameraAtGrab = getCamera ();
+      return;
+    }
 
   if (_engine.isRecordingOrScheduled ())
     {
@@ -579,7 +592,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           // the same mistake disoccludeBlobs once made.
           auto const posPixel = event.getPosition ().toFloat ();
           _engine.setRecording3DPosition (
-              discToDirection (localToNormalized2DPosition (posPixel)));
+              pixelToDirection (posPixel));
         }
     }
   else
@@ -616,7 +629,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           // the finger when grabbed" means when grabbed, and a touch that
           // presses without moving would otherwise leave it where it was.
           _engine.setChannel3DPosition (
-              index, discToDirection (localToNormalized2DPosition (
+              index, pixelToDirection ((
                          event.getPosition ().toFloat ())));
 
           // disocclusion: save anchor position for all channels
@@ -637,6 +650,12 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
   // Exactly the channel this finger held, and no other. Clearing them all was
   // right while there could only be one grab; with several it handed every
   // other blob back to playback mid-drag.
+  if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
+    {
+      _cameraGrab.reset ();
+      return;
+    }
+
   auto const released = _grabs.up (event.source.getIndex ());
   if (released.has_value ())
     {
@@ -655,12 +674,36 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
 {
   auto const posPixel = event.getPosition ().toFloat ();
 
+  if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
+    {
+      // Up and down leans the eye over the room, left and right walks it
+      // round. A whole screen's width is a whole turn, and a whole screen's
+      // height a right angle -- the two are the room's own ranges, so the
+      // finger has the same feel in both.
+      auto const moved = posPixel - _cameraGrabbedAt;
+      auto const across = juce::jmax (1, getWidth ());
+      auto const down = juce::jmax (1, getHeight ());
+
+      SphereCamera moving;
+      moving.pitch = juce::jlimit (
+          0.f, juce::MathConstants<float>::halfPi,
+          _cameraAtGrab.pitch
+              + moved.y / static_cast<float> (down)
+                    * juce::MathConstants<float>::halfPi);
+      moving.turn = _cameraAtGrab.turn
+                    + moved.x / static_cast<float> (across)
+                          * juce::MathConstants<float>::twoPi;
+
+      setCamera (moving);
+      return;
+    }
+
   if (_engine.isRecordingOrScheduled ())
     {
       // Only the finger that started it; the others are along for the ride.
       if (_grabs.firstSource () == std::optional<int>{ event.source.getIndex () })
         _engine.setRecording3DPosition (
-            discToDirection (localToNormalized2DPosition (posPixel)));
+            pixelToDirection (posPixel));
     }
   else if (auto const grabbed = _grabs.channelFor (event.source.getIndex ()))
     {
@@ -675,7 +718,7 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
       // finger's radius as a pattern radius, where 1.0 is 45 degrees off the
       // zenith rather than the horizon — the blob came up short by 1/sqrt(2).
       auto const direction
-          = discToDirection (localToNormalized2DPosition (posPixelOffsetted));
+          = pixelToDirection (posPixelOffsetted);
       _engine.setChannel3DPosition (channel, direction);
     }
 }
@@ -1111,7 +1154,7 @@ MotionComponent::renderOpenGL ()
         auto const position = _engine.getChannelPosition (ch);
         if (position.isValid ())
           {
-            auto posJuce = cartesian2DHOA2JUCE (position);
+            auto posJuce = projectToScreen (position);
             // JUCE 2D: Y down. Shader: Y up. Flip Y.
             bd.x = posJuce.getX ();
             bd.y = -posJuce.getY ();
@@ -1290,6 +1333,50 @@ MotionComponent::renderBoundsChanged ()
       false, juce::OpenGLImageType ());
 }
 
+SphereCamera
+MotionComponent::getCamera () const
+{
+  return _sphereShader.getCamera ();
+}
+
+void
+MotionComponent::setCamera (SphereCamera const &camera)
+{
+  // The shader holds it, because the ball and its graticule have to turn with
+  // the trajectories drawn over them and the shader is what draws the ball.
+  // One copy, one truth.
+  _sphereShader.setCamera (camera);
+  repaint ();
+}
+
+/** And back: where a pixel of the view points, in the room's own terms.
+ *
+ *  The disc gives the direction *as seen*; the room is what the engine is
+ *  told about, so it has to be handed back. Without this a blob dragged on a
+ *  tilted view goes where the finger is on the screen and not where it is in
+ *  the room -- which is the one thing a drag has to get right. */
+Pos
+MotionComponent::pixelToDirection (juce::Point<float> const &posPixel) const
+{
+  return asSeenFromInverse (
+      discToDirection (localToNormalized2DPosition (posPixel)),
+      _sphereShader.getCamera ());
+}
+
+/** Where a direction in the room lands on the screen, from where the room is
+ *  being looked at.
+ *
+ *  Every projection in this file goes through here. Seven of them applied
+ *  cartesian2DHOA2JUCE by hand, and a camera applied at six of the seven is a
+ *  picture whose halves disagree about the view -- which is worse than one
+ *  that cannot turn at all. */
+juce::Point<float>
+MotionComponent::projectToScreen (Pos const &direction) const
+{
+  return cartesian2DHOA2JUCE (
+      asSeenFrom (direction, _sphereShader.getCamera ()));
+}
+
 void
 MotionComponent::drawCircle (juce::Graphics &g)
 {
@@ -1359,7 +1446,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
           blobSize *= (0.5f + 0.5f * backFade);
         }
 
-      auto posNormalized = cartesian2DHOA2JUCE (position);
+      auto posNormalized = projectToScreen (position);
 
       auto colour = _uiStates[channel]->colour;
       if (backFade < 1.0f)
@@ -1453,7 +1540,8 @@ drawPathOnSphere (juce::Path const &displayPath,
                   ElevationParams const &elevationParams,
                   HeightMap const &heightMap,
                   juce::Graphics &g,
-                  PlaneShaping const &shaping)
+                  PlaneShaping const &shaping,
+                  SphereCamera const &camera)
 {
   if (displayPath.isEmpty ())
     return;
@@ -1500,7 +1588,11 @@ drawPathOnSphere (juce::Path const &displayPath,
     auto pos3D = heightMap.mapTo3D (
         shapedPosition (Pos::fromCartesian (x, y, 0.f), shaping),
         elevationParams);
-    return { cartesian2DHOA2JUCE (pos3D), pos3D.z () };
+    // The depth that comes back is the *seen* one: what is drawn nearer the
+    // eye has to fade less, and which of two points that is depends on where
+    // the eye is standing.
+    auto const seen = asSeenFrom (pos3D, camera);
+    return { cartesian2DHOA2JUCE (seen), seen.z () };
   };
 
   // Maximum 2D step size before we insert intermediate samples.
@@ -1669,7 +1761,7 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
   // finger never was.
   drawPathOnSphere (path, lineThickness, 0.9f, _uiStates[ch]->colour, true,
                     pattern.getElevationParams (), _engine.getHeightMap (), g,
-                    PlaneShaping{});
+                    PlaneShaping{}, _sphereShader.getCamera ());
 }
 
 void
@@ -1702,7 +1794,8 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
     }
 
   drawPathOnSphere (path, lineThickness, underlayOpacity, colour, true, params,
-                    _engine.getHeightMap (), g, PlaneShaping{});
+                    _engine.getHeightMap (), g, PlaneShaping{},
+                    _sphereShader.getCamera ());
 
   // And where it would be right now. The write head's own position is the
   // phase into the loop -- the old pattern is not playing, so there is nothing
@@ -1723,7 +1816,7 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
     return;
 
   auto const diameter = 2 * _blobScale * _underlayBlobScale;
-  auto const centre = cartesian2DHOA2JUCE (position);
+  auto const centre = projectToScreen (position);
   g.setColour (colour.withAlpha (underlayOpacity));
   g.fillEllipse (juce::Rectangle<float> (0.f, 0.f, diameter, diameter)
                      .withCentre (centre));
@@ -1758,7 +1851,8 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
               shapedPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
                               shaping),
               params);
-          auto posJuce = cartesian2DHOA2JUCE (pos3D);
+          auto posJuce = projectToScreen (pos3D);
+          pos3D = asSeenFrom (pos3D, _sphereShader.getCamera ());
           g.setColour (colour);
           g.fillEllipse (juce::Rectangle<float> (dotSize, dotSize)
                              .withCentre (posJuce));
@@ -1768,7 +1862,8 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
 
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
-                    false, params, heightMap, g, shaping);
+                    false, params, heightMap, g, shaping,
+                    _sphereShader.getCamera ());
 }
 
 void
@@ -1802,7 +1897,8 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
               shapedPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
                               shaping),
               params);
-          auto posJuce = cartesian2DHOA2JUCE (pos3D);
+          auto posJuce = projectToScreen (pos3D);
+          pos3D = asSeenFrom (pos3D, _sphereShader.getCamera ());
           float fade = (pos3D.z () < 0.f)
               ? 0.3f + 0.7f * std::clamp (pos3D.z () + 1.f, 0.f, 1.f)
               : 1.0f;
@@ -1816,13 +1912,14 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
 
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
-                    true, params, heightMap, g, shaping);
+                    true, params, heightMap, g, shaping,
+                    _sphereShader.getCamera ());
 }
 
 juce::Point<float>
 MotionComponent::normalizedToLocal2DPosition (Pos const &posNorm) const
 {
-  return cartesian2DHOA2JUCE (posNorm).transformedBy (
+  return projectToScreen (posNorm).transformedBy (
       _transformNormalizedToLocal);
 }
 

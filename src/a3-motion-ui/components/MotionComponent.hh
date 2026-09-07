@@ -21,6 +21,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <a3-motion-ui/components/SphereProjection.hh>
 
 #include <functional>
 
@@ -50,6 +51,16 @@ class MotionComponent : public juce::Component,
                         public juce::Timer
 {
 public:
+  /** Whether SHIFT is down. Asked rather than tracked: the key is the
+   *  device's -- the panel's or the strip's -- and this component has no
+   *  business keeping a second copy of a state that has two sources. */
+  std::function<bool ()> isShiftHeld;
+
+  /** Where the room is being looked at from. The overhead view is the
+   *  default, and SHIFT with a finger on the sphere is what moves it. */
+  SphereCamera getCamera () const;
+  void setCamera (SphereCamera const &camera);
+
   /** Called on the message thread right after config.json was re-read and
    *  the global userConfig replaced. The watcher lives here, but things
    *  outside this component are configured by that file too. */
@@ -146,6 +157,17 @@ private:
   float getActiveDistanceInPixel () const;
 
   juce::Point<float> normalizedToLocal2DPosition (Pos const &posNorm) const;
+
+  /** Where a direction in the room lands on the screen, and back again, from
+   *  where the room is being looked at. */
+  juce::Point<float> projectToScreen (Pos const &direction) const;
+  Pos pixelToDirection (juce::Point<float> const &posPixel) const;
+
+  /** The finger that is moving the eye, and where it was last seen. Its own
+   *  grab, not one of `_grabs`: it is holding the view, not a blob. */
+  std::optional<int> _cameraGrab;
+  juce::Point<float> _cameraGrabbedAt;
+  SphereCamera _cameraAtGrab;
   Pos localToNormalized2DPosition (juce::Point<float> const &posLocal) const;
 
   std::optional<index_t>

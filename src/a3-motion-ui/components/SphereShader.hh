@@ -21,6 +21,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <a3-motion-ui/components/SphereProjection.hh>
 
 namespace a3
 {
@@ -40,6 +41,13 @@ public:
 
   SphereShader ();
   ~SphereShader ();
+
+  /** Where the room is looked at from. Handed to the shader so the ball, its
+   *  graticule and the energy it carries turn with the trajectories drawn
+   *  over them -- a picture whose halves disagree about the view is worse
+   *  than one that cannot turn at all. */
+  void setCamera (SphereCamera const &camera) { _camera = camera; }
+  SphereCamera getCamera () const { return _camera; }
 
   /** Call from newOpenGLContextCreated().  Returns true on success. */
   bool initialise (juce::OpenGLContext &context);
@@ -231,9 +239,14 @@ private:
   GLint _uBoltBranch = -1;
   GLint _uMouthOffset = -1;
 
+  /** Where the room is being looked at from. The overhead view is the
+   *  default and costs nothing -- the shader short-circuits on it. */
+  SphereCamera _camera;
+
   GLint _uEnergyMap = -1;
   GLint _uEnergyColour = -1;
   GLint _uEnergyIntensity = -1;
+  GLint _uCamera = -1;
   GLint _uNetIntensity = -1;
   GLint _uNetScale = -1;
   GLint _uNetSharpness = -1;

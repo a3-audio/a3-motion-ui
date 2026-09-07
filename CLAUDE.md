@@ -456,6 +456,26 @@ across — taken from the right it came out three pixels off, because `colW` is 
 the remainder sits against the right edge. A row that nearly lines up with the grid under it reads
 as a mistake; one that lines up exactly reads as structure.
 
+**The sphere can be looked at from somewhere else.** `SphereCamera` is two angles — how far the eye
+has come down from straight above, and how far round it has walked — and **both being zero is the
+view the device has always had**, short-circuited to the identity so a device nobody has tilted
+computes exactly what it computed before, to the bit. **SHIFT with a finger on the sphere** moves it:
+a modifier rather than two sliders beside the picture, because sliders would stand there taking room
+and asking to be read at every glance, where the view is set once in a while and then left.
+
+Everything that projects goes through `MotionComponent::projectToScreen()` and everything that reads
+a finger goes through `pixelToDirection()`. There were seven hand-written projections, and a camera
+applied at six of the seven is a picture whose halves disagree about the view. The shader gets the
+same two angles as a uniform, so the ball turns with the trajectories drawn over it.
+
+**The sphere's graticule is the room's, not the screen's.** It was a Cartesian net on the *screen*
+normal — planes of constant N.x, N.y, N.z — which draws the same picture whichever way the room is
+looked at, and that picture happens to read as a globe seen edge-on. It is circles of equal height
+and lines of equal bearing now, so looking straight down reads as rings around the zenith and spokes
+out of it, and a tilted view reads as a globe. The meridians' width is weighted by `cos(lat)` or they
+crowd into a blot at the pole, which is the middle of the picture in the view this device is usually
+in.
+
 **The Shape section has two controls, and they are two questions**: the picture is which figure the
 sound traces, the field under it is which values it is played with. Each is scrolled with a thumb —
 the field was briefly a dropdown like ACTION's, which covered the picture you are choosing by.
