@@ -278,16 +278,24 @@ TEST (SphereProjection, TheBallTipsBothWays)
   EXPECT_NEAR (one, -other, 1e-4f) << "the same finger, the same lean";
 }
 
-/** And stops at the horizon in each. Past a right angle the eye is under the
- *  floor looking up at it, which is not a view anybody is standing in. */
-TEST (SphereProjection, TheBallWillNotTipPastTheHorizon)
+/** And it does not stop at the horizon. It used to, on the grounds that past a
+ *  right angle the eye is under the floor looking up at it -- but that is a
+ *  view of the room, and a room you cannot look at from underneath is one
+ *  whose floor you have to take on trust. A ball has no stops in it. */
+TEST (SphereProjection, TheBallRollsPastTheHorizon)
 {
   juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
+  auto const halfPi = juce::MathConstants<float>::halfPi;
 
-  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, 300.f }, ball).pitch,
-               -juce::MathConstants<float>::halfPi, 1e-4f);
-  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, -300.f }, ball).pitch,
-               juce::MathConstants<float>::halfPi, 1e-4f);
+  // A drag of one and a half ball-heights is a lean of three right angles,
+  // which is past straight down and out the other side.
+  auto const under = cameraFromBallDrag ({}, { 0.f, 90.f }, ball).pitch;
+  EXPECT_LT (under, -halfPi - 1e-4f) << "it held at the horizon";
+
+  // And rolled far enough it comes back to where it started.
+  auto const round
+      = cameraFromBallDrag ({}, { 0.f, -4.f * 60.f }, ball).pitch;
+  EXPECT_NEAR (round, 0.f, 1e-3f) << "four right angles is a whole turn";
 }
 
 /** A drag carries on from where the eye already was, so picking the ball up

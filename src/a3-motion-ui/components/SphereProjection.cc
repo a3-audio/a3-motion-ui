@@ -179,19 +179,16 @@ cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
   // here too: dragged down, the near side of the ball rolls towards you and
   // the eye comes up over the far side.
   //
-  // Both ways, and the horizon is the limit in each: a right angle either side
-  // of straight down. Only one way meant that leaving the overhead view was a
-  // decision about which of two halves of the room you were going to be able
-  // to look into, taken before you knew which one you wanted -- and the way
-  // back was to walk the long way round rather than to rock back through the
-  // view you started in.
-  //
-  // Past a right angle the eye is under the floor looking up at it, which is a
-  // view of the room nobody is standing in.
-  moving.pitch = juce::jlimit (
-      -juce::MathConstants<float>::halfPi,
-      juce::MathConstants<float>::halfPi,
-      atGrab.pitch - moved.y / down * juce::MathConstants<float>::halfPi);
+  // And it keeps going: a ball has no stops in it. It used to hold at the
+  // horizon, on the grounds that past a right angle the eye is under the floor
+  // looking up at it -- but that is a view of the room, and a room you cannot
+  // look at from underneath is one whose floor you have to take on trust.
+  // Rolled far enough it comes back to where it started, the way rolling a
+  // ball does.
+  auto const pitch
+      = atGrab.pitch - moved.y / down * juce::MathConstants<float>::halfPi;
+
+  moving.pitch = std::remainder (pitch, juce::MathConstants<float>::twoPi);
 
   // And across walks it round, which has no end to stop at. Negated, so the
   // room follows the finger: a ball dragged to the right turns its front to
