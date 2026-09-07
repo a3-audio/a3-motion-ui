@@ -207,6 +207,12 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
 }
 
 float
+defaultReach (float current)
+{
+  return current < 0.f ? -ClipSettings{}.reach : ClipSettings{}.reach;
+}
+
+float
 defaultElevationBase (float clipTop, float clipBottom)
 {
   auto const ceiling = std::clamp (clipTop, 0.f, 1.f);

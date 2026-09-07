@@ -227,6 +227,17 @@ void applyClipSettings (Pattern &pattern, ClipSettings const &settings);
 ElevationParams sweptElevation (ElevationParams params,
                                 Pattern const &pattern);
 
+/** Where a double tap puts the reach: back to the size it starts at, still
+ *  pointing the way it points.
+ *
+ *  The reach is a signed size -- the sign is which way the figure spreads
+ *  from the base, the magnitude is how far. Writing the bare default over it
+ *  turned a figure growing upwards into one growing downwards, so the whole
+ *  trajectory flipped through the base on the one gesture whose job is to be
+ *  the safe thing to press.
+ */
+float defaultReach (float current);
+
 /** Where a double tap puts the elevation line: the middle of the range the
  *  control actually has.
  *

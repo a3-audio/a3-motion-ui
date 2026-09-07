@@ -5500,7 +5500,9 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         // Off. The middle of a bipolar sweep is no sweep at all, which is
         // also what a hand is reaching for when it double taps one.
         case 1: pattern->setSpin (0); break;
-        case 2: pattern->setReach (ClipSettings{}.reach); break;
+        // Its own direction kept: the reach is a signed size, and a reset
+        // that flipped the sign turned the figure upside down.
+        case 2: pattern->setReach (defaultReach (pattern->getReach ())); break;
         case 3: pattern->setReachLfo (0); break;
         // The figure as it was recorded.
         case 4: pattern->setSqueezeX (0.f); break;

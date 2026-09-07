@@ -388,6 +388,28 @@ TEST (ClipSettings, TheSwellBreathesPastTheCeilingToo)
   EXPECT_GE (swept.reach, -1.f);
 }
 
+// ── Where a double tap puts the reach ───────────────────────────────────
+
+/** Back to the size it starts at, pointing the way it already points.
+ *
+ *  The reach is a signed size: the sign says which way the figure spreads
+ *  from the base and the magnitude says how far. A double tap that wrote the
+ *  bare default over it turned a figure growing upwards into one growing
+ *  downwards -- the whole trajectory flipped through the base, from a reset
+ *  whose entire job is to be the safe thing to press.
+ */
+TEST (ClipSettings, TwoTapsOnTheReachKeepTheDirectionAndRestoreTheSize)
+{
+  EXPECT_FLOAT_EQ (defaultReach (0.9f), ClipSettings{}.reach);
+  EXPECT_FLOAT_EQ (defaultReach (0.1f), ClipSettings{}.reach);
+  EXPECT_FLOAT_EQ (defaultReach (-0.9f), -ClipSettings{}.reach);
+  EXPECT_FLOAT_EQ (defaultReach (-0.1f), -ClipSettings{}.reach);
+
+  // A figure with no spread at all has no direction to keep, and down is the
+  // way the cone has always grown.
+  EXPECT_FLOAT_EQ (defaultReach (0.f), ClipSettings{}.reach);
+}
+
 // ── Where a double tap puts the elevation line ──────────────────────────
 
 /** The middle of the range the control actually has.
