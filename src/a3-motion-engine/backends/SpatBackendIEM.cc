@@ -25,10 +25,21 @@
 namespace a3
 {
 
-SpatBackendIEM::SpatBackendIEM (juce::String address, int basePort)
+SpatBackendIEM::SpatBackendIEM (juce::String address, int basePort,
+                                OscAddresses const &addresses)
     : _address (address), _basePort (basePort)
 {
   _sender.connect (address, basePort);
+
+  // Not through setAddresses(): nothing else exists yet to race with.
+  addressesChanged (addresses);
+}
+
+void
+SpatBackendIEM::addressesChanged (OscAddresses const &addresses)
+{
+  _azimuthAddress = addresses.iemAzimuth;
+  _elevationAddress = addresses.iemElevation;
 }
 
 void
@@ -36,10 +47,10 @@ SpatBackendIEM::sendPosition (index_t channel, Pos const &pos)
 {
   juce::OSCBundle bundle;
 
-  auto message = juce::OSCMessage ("/StereoEncoder/azimuth", pos.azimuth ());
+  auto message = juce::OSCMessage (_azimuthAddress, pos.azimuth ());
   bundle.addElement ({ message });
 
-  message = juce::OSCMessage ("/StereoEncoder/elevation", pos.elevation ());
+  message = juce::OSCMessage (_elevationAddress, pos.elevation ());
   bundle.addElement ({ message });
 
   jassert (channel <= std::numeric_limits<int>::max ());
@@ -62,6 +73,15 @@ SpatBackendIEM::sendPot2 (index_t channel, float pot2)
   juce::ignoreUnused (pot2);
   throw std::runtime_error (
       "SpatBackendIEM::sendPot2: implement me!");
+}
+
+void
+SpatBackendIEM::sendPot3 (index_t channel, float pot3)
+{
+  juce::ignoreUnused (channel);
+  juce::ignoreUnused (pot3);
+  throw std::runtime_error (
+      "SpatBackendIEM::sendPot3: implement me!");
 }
 
 }

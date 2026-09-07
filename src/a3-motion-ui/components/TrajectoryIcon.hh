@@ -57,7 +57,26 @@ TrajectoryIconData trajectoryIconFromTicks (std::vector<Pos> const &ticks);
 
 /** Draw previously built icon data into `area`, stroked/filled in `colour`.
  *  No-op if `data.hasIcon` is false. */
+/** `turns` is the standing rotation the clip is set to, in turns clockwise --
+ *  the picture is of this clip, and this clip is turned. The spin is
+ *  deliberately not added: it is a movement, and a picture that moved would be
+ *  a second thing to watch beside the sphere, which is where movement belongs.
+ *  The spin says what it is doing on the rotate knob's blue arc instead. */
 void drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
-                        TrajectoryIconData const &data, juce::Colour colour);
+                         TrajectoryIconData const &data, juce::Colour colour,
+                         float turns = 0.f);
+
+/** How big the icon may be drawn in `area`, as a radius.
+ *
+ *  `drawn` is what the shape's own extent comes to once it is turned, in the
+ *  normalised [-1,1] the icon data is in: a square turned an eighth of a
+ *  revolution reaches sqrt(2), not 1.
+ *
+ *  It used to be four and a half tenths of the *width* and nothing else, so a
+ *  picture in a box wider than it is tall ran out of the top and bottom of it
+ *  -- over the word naming the section and into the field under it -- and a
+ *  turned one ran out of a square box as well. */
+float trajectoryIconRadius (juce::Rectangle<float> area,
+                            juce::Rectangle<float> drawn);
 
 }

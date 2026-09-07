@@ -11,9 +11,28 @@
     "vuPort": 7772,
     "energyPort": 7777
   },
+  "oscAddresses": {
+    "out": {
+      "channelAzimuth": "/channel/{ch}/azimuth",
+      "channelElevation": "/channel/{ch}/elevation",
+      "channelPot1": "/channel/{ch}/pot_1",
+      "channelPot2": "/channel/{ch}/pot_2",
+      "channelThreeD": "/channel/{ch}/3d",
+      "iemAzimuth": "/StereoEncoder/azimuth",
+      "iemElevation": "/StereoEncoder/elevation",
+      "beat": "/beat",
+      "tap": "/tap",
+      "clockMode": "/clockmode"
+    },
+    "in": {
+      "vuPrefix": "/vu/",
+      "energyRms": "/EnergyVisualizer/RMS",
+      "beat": "/beat"
+    }
+  },
   "ui": {
     "pauseRenderingInMenu": false,
-    "skin": "default"
+    "skin": "custom-2"
   },
   "buttonLeds": {
     "idle": {

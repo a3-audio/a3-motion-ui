@@ -73,6 +73,15 @@ public:
   /** Read metadata from an SVG file without creating a full Pattern.
    *  Returns empty name on failure. */
   static PeekResult peek (juce::File const &file);
+
+  /** Write a new name into an existing pattern file, leaving everything else
+   *  in it exactly as it was.
+   *
+   *  One attribute, not a re-save. Renaming by loading and saving again would
+   *  re-derive the path from the ticks and hand back a file that is nearly,
+   *  but not quite, the one that was read -- and a rename is the one operation
+   *  that must not change the shape. */
+  static bool setName (juce::File const &file, juce::String const &name);
 };
 
 }

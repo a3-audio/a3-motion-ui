@@ -20,6 +20,8 @@
 
 #include "SkinParameters.hh"
 
+#include <a3-motion-ui/theme/SkinGroups.hh>
+
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
 #include <algorithm>
@@ -134,8 +136,16 @@ skinParameters (juce::var const &skin)
   std::vector<SkinParameter> found;
   collect (skin, {}, found);
 
-  std::sort (found.begin (), found.end (),
-             [] (auto const &a, auto const &b) { return a.path < b.path; });
+  for (auto &parameter : found)
+    parameter.group = skinGroupFor (parameter.path);
+
+  std::sort (found.begin (), found.end (), [] (auto const &a, auto const &b) {
+    auto const ga = skinGroupOrder (a.group);
+    auto const gb = skinGroupOrder (b.group);
+    if (ga != gb)
+      return ga < gb;
+    return a.path < b.path;
+  });
 
   return found;
 }

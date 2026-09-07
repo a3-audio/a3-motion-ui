@@ -76,6 +76,14 @@ struct Theme
   ThemeColour accent{ 144, 238, 144 }; // was Colours::lightgreen
   ThemeColour warning{ 255, 165, 0 };
   ThemeColour danger{ 255, 0, 0 };
+  /** A state worth noticing that is neither good news nor bad — the Pioneer
+   *  clock, say. accent was blue in an older skin and is green in this one,
+   *  which is why PIO stopped standing out from INT. */
+  ThemeColour notice{ 70, 130, 250 };
+  /** A momentary emphasis: the accent key, which is not a state you are in but
+   *  something you do for as long as you hold it. Neither the green of
+   *  "running" nor the red of "this writes over something". */
+  ThemeColour highlight{ 255, 214, 10 };
   float alphaDisabled = 0.35f;
   float alphaInactive = 0.6f;
 
@@ -88,7 +96,7 @@ struct Theme
   ThemeColour sphereRim{ 128, 140, 166 };       // was vec3 (0.5, 0.55, 0.65)
   ThemeColour sphereEnvironment{ 5, 6, 8 };     // was vec3 (0.02, 0.025, 0.03)
   ThemeColour boltCore{ 255, 255, 255 };
-  ThemeColour sphereGlow{ 70, 130, 250 };
+  ThemeColour backgroundGlow{ 70, 130, 250 };
   ThemeColour speakerLight{ 70, 130, 250 };
   ThemeColour energy{ 150, 220, 255 };
 
@@ -107,6 +115,17 @@ struct Theme
   /** Knob and toggle size in the clip settings bar, relative to the built-in
    *  size. Part of the look, so it lives with the rest of it. */
   float potSize = 1.f;
+
+  /** How far a finger has to travel before a control steps once. Here and
+   *  not a compile-time constant because what feels right is decided at
+   *  the panel — the same reason potSize and the font sizes live here. */
+  int touchDragPixelsPerStep = 12;
+
+  /** How tall the clip settings bar is, as a multiple of what its contents
+   *  ask for. 1.0 is what they ask for; below that the bar is squeezed and
+   *  gives the sphere the room back, above it gets more air. A skin value
+   *  like potSize, so it is dialled on the device rather than compiled in. */
+  float clipSettingsHeightScale = 1.f;
 
   float fontSize (FontRole role) const;
 
@@ -167,6 +186,34 @@ juce::StringArray availableSkins (juce::File const &configDir);
 
 /** Which skin the config file names, "default" when it names none. */
 juce::String activeSkinName (juce::File const &configFile);
+
+/** The name of the skin that edits to `edited` are written to.
+ *
+ *  The shipped default is never written. It is what "reset" restores from and
+ *  what a device that has been dialled into a corner is brought back to, and
+ *  neither works if it can be overwritten. Editing it therefore branches off:
+ *  the changes land in a skin of their own, which then becomes the active one.
+ *
+ *  Every other name is its own. */
+juce::String skinNameToWriteTo (juce::String const &edited);
+
+/** `skin` with the groups under the names they have now.
+ *
+ *  The names grew with the code and stopped saying what the things are: the
+ *  corona is the blob's halo, and the "sphere glow" is the field behind
+ *  everything rather than something the sphere does. blobScale sat at the top
+ *  level while the rest of the blob had a group of its own.
+ *
+ *  Applied on every load rather than once over the files, because a skin can
+ *  arrive from anywhere -- an older device, a copy somebody kept. Running it
+ *  on an already-current skin changes nothing, and where a file carries both
+ *  spellings the current one wins: that file was half-edited, and the new name
+ *  is the one somebody meant. */
+juce::var migrateSkinNames (juce::var const &skin);
+
+/** The skin that must never be written, and the one a branch lands in. */
+constexpr char const *protectedSkinName = "default";
+constexpr char const *branchedSkinName = "custom";
 
 /** Point the config file at another skin, and nothing else.
  *

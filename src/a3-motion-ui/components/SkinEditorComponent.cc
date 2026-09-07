@@ -20,6 +20,8 @@
 
 #include "SkinEditorComponent.hh"
 
+#include <a3-motion-ui/components/ListScroll.hh>
+
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
 namespace a3
@@ -41,8 +43,247 @@ constexpr float armedRowWash = 0.133f;
 
 SkinEditorComponent::SkinEditorComponent ()
 {
-  setInterceptsMouseClicks (false, false);
+  // Not for itself, but for its children: the dimmed area beside the panel
+  // stays transparent to touch, the rows on it do not.
+  setInterceptsMouseClicks (false, true);
   setWantsKeyboardFocus (true);
+
+  createTouchControls ();
+}
+
+void
+SkinEditorComponent::browseRow (int index)
+{
+  if (index < 0 || index >= totalRows ())
+    return;
+
+  // Step over a heading in the direction the browse was going. Always
+  // stepping down meant a drag upwards that landed on one was pushed back
+  // where it came from — the list could not be scrolled past the first
+  // group, and the action rows above it were unreachable.
+  _index = skipHeadings (index, index < _index ? -1 : 1);
+  // Letting the armed row go, exactly as turning to another row does:
+  // otherwise the next drag would edit a row nobody is looking at.
+  _editing = false;
+  // And calling off a pending delete, for the same reason turning away does:
+  // it must never wait around for a press meant for something else.
+  _deleteAsked = false;
+  _saved = false;
+
+  // Bring it into view if it is not, and no further — before laying out, so
+  // the rows' hit areas are placed against the window that will be drawn.
+  // The list does not rearrange itself around a selection any more.
+  _scrollTop = scrollToShow (_scrollTop, _index, visibleRows (), totalRows ());
+
+  resized ();
+  repaint ();
+}
+
+int
+SkinEditorComponent::firstVisibleRow () const
+{
+  // Where the window is, not where the selection is. It used to be
+  // `_index - rows / 2`: the window went wherever the selection went, so a
+  // row you touched slid to the middle and left your finger behind. The
+  // window follows the selection only when it has to — see scrollToShow().
+  return scrollBy (_scrollTop, 0, visibleRows (), totalRows ());
+}
+
+void
+SkinEditorComponent::scrollList (int steps)
+{
+  auto const moved = scrollBy (_scrollTop, steps, visibleRows (), totalRows ());
+  if (moved == _scrollTop)
+    return;
+
+  _scrollTop = moved;
+  resized (); // the rows' hit areas move with what is under them
+  repaint ();
+}
+
+juce::Rectangle<int>
+SkinEditorComponent::listPanelBounds () const
+{
+  auto const rows = visibleRows ();
+  auto const itemH
+      = static_cast<int> (theme ().fontSize (FontRole::Body) * 1.9f);
+  auto const headerH
+      = static_cast<int> (theme ().fontSize (FontRole::Header) * 2.2f);
+
+  auto const panelW = juce::jmin (maxPanelW, getWidth () - 2 * paddingH);
+  auto const panelH
+      = paddingV * 2 + headerH + rows * itemH + (rows - 1) * rowGap;
+
+  return juce::Rectangle<int> ((getWidth () - panelW) / 2,
+                               (getHeight () - panelH) / 2, panelW, panelH);
+}
+
+juce::Rectangle<int>
+SkinEditorComponent::listContentBounds () const
+{
+  auto const headerH
+      = static_cast<int> (theme ().fontSize (FontRole::Header) * 2.2f);
+
+  auto content = listPanelBounds ().reduced (paddingH, paddingV);
+  content.removeFromTop (headerH);
+  return content;
+}
+
+juce::Rectangle<int>
+SkinEditorComponent::visibleRowBounds (int slot) const
+{
+  auto const itemH
+      = static_cast<int> (theme ().fontSize (FontRole::Body) * 1.9f);
+  auto const content = listContentBounds ();
+
+  return juce::Rectangle<int> (content.getX (),
+                               content.getY () + slot * (itemH + rowGap),
+                               content.getWidth (), itemH);
+}
+
+juce::Rectangle<int>
+SkinEditorComponent::rowValueArea (juce::Rectangle<int> row,
+                                   int absoluteIndex) const
+{
+  bool const isAction = absoluteIndex < _actionRows;
+  auto const valueShare
+      = (!isAction && rowValue (absoluteIndex).length () > 8) ? 2 : 3;
+
+  return row.removeFromRight (row.getWidth () / valueShare).reduced (8, 0);
+}
+
+juce::Rectangle<int>
+SkinEditorComponent::rowNameArea (juce::Rectangle<int> row,
+                                  int absoluteIndex) const
+{
+  bool const isAction = absoluteIndex < _actionRows;
+  auto const valueShare
+      = (!isAction && rowValue (absoluteIndex).length () > 8) ? 2 : 3;
+
+  row.removeFromRight (row.getWidth () / valueShare);
+  return row.reduced (8, 0);
+}
+
+void
+SkinEditorComponent::createTouchControls ()
+{
+  // Behind everything: a drag anywhere on the list that is not on a value
+  // field scrolls it. Added first so the rows sit in front of it.
+  _listScroll = std::make_unique<TouchControl> ();
+  _listScroll->onDragIncrement = [this] (int, int, int increment) {
+    // The page under the finger, like the strips beside it. It used to call
+    // navigate(), which turns the *armed row's value* — a drag on empty space
+    // in a list quietly editing whatever happened to be selected.
+    scrollList (increment);
+  };
+  addAndMakeVisible (*_listScroll);
+
+  // As many pairs as the panel can ever draw. Which absolute row each shows
+  // changes as the list scrolls, so resized() re-labels them.
+  for (int slot = 0; slot < 24; ++slot)
+    {
+      RowTouch touch;
+
+      touch.name = std::make_unique<TouchControl> ();
+      touch.name->onTap = [this] (int absoluteRow, int) {
+        browseRow (absoluteRow);
+
+        // What the encoder press on this row would do — an action row acts,
+        // a colour row opens the picker, a typed number calls the keyboard.
+        // toggleEditing() already knows all of those cases.
+        toggleEditing ();
+      };
+      // The name column is where the list is rolled. Leaving that to a
+      // strip behind the rows meant it could only be grabbed in the gaps
+      // between them, which is to say hardly at all. Left half rolls, right
+      // half changes the value — the two halves of a row, two jobs.
+      touch.name->onDragIncrement = [this] (int, int, int increment) {
+        // Scrolls, never edits. navigate() would have changed the armed row's
+        // value instead, because that is its second level — but this column
+        // is the list, not a value. And it scrolls rather than walking the
+        // selection, so a drag over the names moves the page the same way a
+        // drag beside it does.
+        scrollList (increment);
+      };
+
+      touch.value = std::make_unique<TouchControl> ();
+
+      // The row is latched when the finger lands and held for the whole
+      // drag — see _dragRow.
+      touch.value->onPress = [this] (int absoluteRow, int) {
+        _dragRow = absoluteRow;
+        if (browsedRowIndex () != absoluteRow)
+          browseRow (absoluteRow);
+      };
+      touch.value->onTap = [this] (int, int) {
+        _dragRow = -1;
+        toggleEditing ();
+      };
+      touch.value->onDragEnd = [this] (int, int) { _dragRow = -1; };
+      touch.value->onDragIncrement = [this] (int, int, int increment) {
+        if (_dragRow < 0 || _dragRow != browsedRowIndex ())
+          return;
+
+        // Only a number a drag can turn. Arming an action, a colour or a
+        // text row here would fire it — which is exactly what dragging past
+        // a colour used to do.
+        if (!isEditing ())
+          {
+            if (!canTurnBrowsedRow ())
+              return;
+            toggleEditing ();
+          }
+
+        navigate (increment);
+      };
+
+      addAndMakeVisible (*touch.name);
+      addAndMakeVisible (*touch.value);
+      _rowTouch.push_back (std::move (touch));
+    }
+}
+
+void
+SkinEditorComponent::resized ()
+{
+  // While a name is being typed the list steps aside, so nothing on it can
+  // be aimed at.
+  auto const listShown = totalRows () > 0 && !_naming;
+
+  _listScroll->setVisible (listShown);
+  if (listShown)
+    _listScroll->setBounds (listContentBounds ());
+
+  auto const rows = listShown ? visibleRows () : 0;
+  auto const first = firstVisibleRow ();
+
+  for (size_t slot = 0; slot < _rowTouch.size (); ++slot)
+    {
+      auto const index = first + static_cast<int> (slot);
+      auto const shown = listShown && static_cast<int> (slot) < rows
+                         && index < totalRows ();
+
+      auto &touch = _rowTouch[slot];
+      touch.name->setVisible (shown);
+      touch.value->setVisible (shown);
+      if (!shown)
+        continue;
+
+      // A heading holds nothing, so nothing on it is worth touching. The
+      // list is still rolled by dragging over it — that is the scroll strip
+      // behind the rows, not these.
+      auto const isHeading = _rows[(size_t)index].kind == Row::Heading;
+      touch.name->setVisible (!isHeading);
+      touch.value->setVisible (!isHeading);
+      if (isHeading)
+        continue;
+
+      auto const row = visibleRowBounds (static_cast<int> (slot));
+      touch.name->setIdentity (index);
+      touch.value->setIdentity (index);
+      touch.name->setBounds (rowNameArea (row, index));
+      touch.value->setBounds (rowValueArea (row, index));
+    }
 }
 
 bool
@@ -98,42 +339,107 @@ void
 SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
                                   bool withSkinActions, Numbers numbers)
 {
-  _actionRows = withSkinActions ? 4 : 0;
+  _actionRows = withSkinActions ? 5 : 0;
   _numbers = numbers;
   _skin = std::move (document);
   _name = title;
   _parameters = skinParameters (_skin);
+  rebuildRows ();
   // Every page opens at its top: carrying a row number over from another
   // document lands on whatever happens to sit at that number.
   _index = 0;
   _editing = false;
   _naming = false;
+  resized (); // the list steps aside while typing; its hit areas follow
   _deleteAsked = false;
   _textPath = {};
   repaint ();
 }
 
+void
+SkinEditorComponent::rebuildRows ()
+{
+  _rows.clear ();
+
+  for (int i = 0; i < _actionRows; ++i)
+    {
+      Row kind = Row::Save;
+      switch (i)
+        {
+        case 0: kind = Row::Save; break;
+        case 1: kind = Row::SaveAsNew; break;
+        case 2: kind = Row::Rename; break;
+        case 3: kind = Row::Delete; break;
+        default: kind = Row::Reset; break;
+        }
+      _rows.push_back ({ kind, -1, {} });
+    }
+
+  // A heading wherever the group changes, and the group comes with the
+  // parameter (SkinGroups.hh) rather than being read off its path. The path
+  // was the file's own nesting, which grouped a skin the way it happens to be
+  // written rather than the way it is read: eighty-five keys in alphabetical
+  // order, the twenty-one that design a skin scattered among the blocks that
+  // tune a shader.
+  //
+  // The network page is untouched: its keys match none of the skin's groups
+  // and fall back to their own parent path, which is exactly what grouped
+  // them before.
+  juce::String group;
+  for (size_t i = 0; i < _parameters.size (); ++i)
+    {
+      auto const here = _parameters[i].group;
+
+      if (here != group)
+        {
+          group = here;
+          if (here.isNotEmpty ())
+            _rows.push_back ({ Row::Heading, -1, here });
+        }
+
+      _rows.push_back ({ Row::Parameter, (int)i, {} });
+    }
+}
+
 int
 SkinEditorComponent::totalRows () const
 {
-  return _actionRows + (int)_parameters.size ();
+  return (int)_rows.size ();
+}
+
+int
+SkinEditorComponent::skipHeadings (int index, int delta) const
+{
+  auto const step = delta >= 0 ? 1 : -1;
+
+  while (index >= 0 && index < totalRows ()
+         && _rows[(size_t)index].kind == Row::Heading)
+    index += step;
+
+  return juce::jlimit (0, juce::jmax (0, totalRows () - 1), index);
+}
+
+SkinParameter const *
+SkinEditorComponent::browsedParameter () const
+{
+  if (_index < 0 || _index >= totalRows ())
+    return nullptr;
+
+  auto const &row = _rows[(size_t)_index];
+  if (row.kind != Row::Parameter || row.parameter < 0
+      || row.parameter >= (int)_parameters.size ())
+    return nullptr;
+
+  return &_parameters[(size_t)row.parameter];
 }
 
 SkinEditorComponent::Row
 SkinEditorComponent::browsedRow () const
 {
-  // Keyed on how many action rows this document has, not on the index alone:
-  // a page without them starts at its first parameter.
-  if (_index >= _actionRows)
+  if (_index < 0 || _index >= totalRows ())
     return Row::Parameter;
 
-  switch (_index)
-    {
-    case 0: return Row::Save;
-    case 1: return Row::SaveAsNew;
-    case 2: return Row::Rename;
-    default: return Row::Delete;
-    }
+  return _rows[(size_t)_index].kind;
 }
 
 void
@@ -145,6 +451,7 @@ SkinEditorComponent::finishNaming ()
   auto const typed = _nameEntry.name ();
   auto const path = _textPath;
   _naming = false;
+  resized (); // the list steps aside while typing; its hit areas follow
   _editing = false;
   _textPath = {};
   repaint ();
@@ -159,7 +466,10 @@ SkinEditorComponent::finishNaming ()
         {
           // The same range the encoder is held to. Typing is the other way in,
           // and a bound only one of them respects is not a bound.
-          auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+          auto const *browsed = browsedParameter ();
+          if (browsed == nullptr)
+            return;
+          auto const &parameter = *browsed;
           setSkinValue (
               _skin, path,
               clampSkinValue (_skin, path, typed.getDoubleValue ()),
@@ -199,7 +509,8 @@ SkinEditorComponent::navigate (int delta)
 
   if (!_editing)
     {
-      _index = juce::jlimit (0, totalRows () - 1, _index + delta);
+      _index = skipHeadings (
+          juce::jlimit (0, totalRows () - 1, _index + delta), delta);
       // Turning away is how a delete is called off — it never waits around
       // for a press that was meant for something else.
       _deleteAsked = false;
@@ -211,7 +522,10 @@ SkinEditorComponent::navigate (int delta)
   if (browsedRow () != Row::Parameter)
     return;
 
-  auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+  auto const *browsed = browsedParameter ();
+  if (browsed == nullptr)
+    return;
+  auto const &parameter = *browsed;
   if (parameter.isText || parameter.isColour)
     return; // typed or picked, not turned
 
@@ -259,6 +573,7 @@ SkinEditorComponent::toggleEditing ()
     case Row::Rename:
       _nameEntry = TextInput{ _name };
       _naming = true;
+      resized (); // the list steps aside while typing; its hit areas follow
       _editing = false;
       repaint ();
       grabKeyboardFocus (); // the keys have to land here, not in the void
@@ -280,12 +595,23 @@ SkinEditorComponent::toggleEditing ()
         onDelete ();
       return;
 
+    case Row::Reset:
+      // Not asked twice, unlike Delete: this destroys nothing that cannot be
+      // dialled back in, and it is the way out of a skin nobody can read any
+      // more.
+      if (onReset)
+        onReset ();
+      return;
+
     case Row::Parameter:
       {
         if (_parameters.empty ())
           return;
 
-        auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+        auto const *browsed = browsedParameter ();
+  if (browsed == nullptr)
+    return;
+  auto const &parameter = *browsed;
         if (parameter.isColour)
           {
             if (onColourPicked)
@@ -305,6 +631,7 @@ SkinEditorComponent::toggleEditing ()
             _nameEntry
                 = TextInput{ skinText (_skin, parameter.path), alphabet };
             _naming = true;
+            resized (); // the list steps aside while typing; its hit areas follow
             _editing = false;
             repaint ();
             if (onNamingChanged)
@@ -347,7 +674,8 @@ SkinEditorComponent::browsedPath () const
   if (browsedRow () != Row::Parameter || _parameters.empty ())
     return {};
 
-  return _parameters[(size_t)(_index - _actionRows)].path;
+  auto const *browsed = browsedParameter ();
+  return browsed != nullptr ? browsed->path : juce::String{};
 }
 
 bool
@@ -358,6 +686,23 @@ SkinEditorComponent::canTypeBrowsedRow () const
 
   return browsedRow () == Row::Rename
          || (browsedRow () == Row::Parameter && !_parameters.empty ());
+}
+
+bool
+SkinEditorComponent::canTurnBrowsedRow () const
+{
+  if (_naming || browsedRow () != Row::Parameter || _parameters.empty ())
+    return false;
+
+  auto const *browsed = browsedParameter ();
+  if (browsed == nullptr)
+    return false;
+
+  auto const &parameter = *browsed;
+
+  // A config number is typed, not turned — see Numbers.
+  return !parameter.isColour && !parameter.isText
+         && _numbers == Numbers::Turned;
 }
 
 bool
@@ -372,7 +717,10 @@ SkinEditorComponent::beginTypingBrowsedRow ()
       return true;
     }
 
-  auto const &parameter = _parameters[(size_t)(_index - _actionRows)];
+  auto const *browsed = browsedParameter ();
+  if (browsed == nullptr)
+    return false;
+  auto const &parameter = *browsed;
   if (parameter.isColour)
     return false; // a colour is picked, not typed
 
@@ -386,6 +734,7 @@ SkinEditorComponent::beginTypingBrowsedRow ()
                           parameter.isText ? TextInput::pathAlphabet
                                            : TextInput::numberAlphabet };
   _naming = true;
+  resized (); // the list steps aside while typing; its hit areas follow
   _editing = false;
   repaint ();
 
@@ -418,29 +767,45 @@ SkinEditorComponent::backspaceName ()
 juce::String
 SkinEditorComponent::rowLabel (int index) const
 {
-  if (index >= _actionRows)
-    return _parameters[(size_t)(index - _actionRows)].path;
+  if (index < 0 || index >= totalRows ())
+    return {};
 
-  switch (index)
+  auto const &row = _rows[(size_t)index];
+
+  switch (row.kind)
     {
-    case 0: return juce::String::fromUTF8 ("\xc2\xbb Save");
-    case 1: return juce::String::fromUTF8 ("\xc2\xbb Save as new");
-    case 2: return juce::String::fromUTF8 ("\xc2\xbb Rename");
-    default: return juce::String::fromUTF8 ("\xc2\xbb Delete");
+    case Row::Heading: return row.heading;
+    case Row::Parameter:
+      {
+        // Under its heading the group is already said; the row only has to
+        // add what it is called within it.
+        auto const &path = _parameters[(size_t)row.parameter].path;
+        auto const dot = path.lastIndexOfChar ('.');
+        return dot > 0 ? path.substring (dot + 1) : path;
+      }
+    case Row::Save: return juce::String::fromUTF8 ("\xc2\xbb Save");
+    case Row::SaveAsNew: return juce::String::fromUTF8 ("\xc2\xbb Save as new");
+    case Row::Rename: return juce::String::fromUTF8 ("\xc2\xbb Rename");
+    case Row::Delete: return juce::String::fromUTF8 ("\xc2\xbb Delete");
+    case Row::Reset: return juce::String::fromUTF8 ("\xc2\xbb Reset");
     }
+
+  return {};
 }
 
 juce::String
 SkinEditorComponent::rowValue (int index) const
 {
-  if (index < _actionRows)
+  if (index < 0 || index >= totalRows ()
+      || _rows[(size_t)index].kind != Row::Parameter)
     {
       if (index == 3 && _deleteAsked)
         return "sure?";
       return (index == 0 && _saved) ? "saved" : "";
     }
 
-  auto const &parameter = _parameters[(size_t)(index - _actionRows)];
+  auto const &parameter
+      = _parameters[(size_t)_rows[(size_t)index].parameter];
   if (parameter.isColour)
     return {};
   if (parameter.isText)
@@ -476,12 +841,7 @@ SkinEditorComponent::paint (juce::Graphics &g)
   auto const itemH = static_cast<int> (theme ().fontSize (FontRole::Body) * 1.9f);
   auto const headerH = static_cast<int> (theme ().fontSize (FontRole::Header) * 2.2f);
 
-  auto const panelW = juce::jmin (maxPanelW, getWidth () - 2 * paddingH);
-  auto const panelH
-      = paddingV * 2 + headerH + rows * itemH + (rows - 1) * rowGap;
-  auto panelBounds
-      = juce::Rectangle<int> ((getWidth () - panelW) / 2,
-                              (getHeight () - panelH) / 2, panelW, panelH);
+  auto const panelBounds = listPanelBounds ();
 
   g.setColour (toColour (theme ().textPrimary, rowWash));
   g.fillRoundedRectangle (panelBounds.toFloat (), 10.f);
@@ -548,8 +908,7 @@ SkinEditorComponent::paint (juce::Graphics &g)
       return;
     }
 
-  auto const first = juce::jlimit (
-      0, juce::jmax (0, totalRows () - rows), _index - rows / 2);
+  auto const first = firstVisibleRow ();
 
   for (int i = 0; i < rows; ++i)
     {
@@ -557,13 +916,28 @@ SkinEditorComponent::paint (juce::Graphics &g)
       if (index >= totalRows ())
         break;
 
-      auto row = content.removeFromTop (itemH);
-      if (i < rows - 1)
-        content.removeFromTop (rowGap);
+      auto const row = visibleRowBounds (i);
 
-      bool const isAction = index < _actionRows;
+      auto const kind = _rows[(size_t)index].kind;
+      bool const isAction
+          = kind != Row::Parameter && kind != Row::Heading;
+      bool const isHeading = kind == Row::Heading;
       bool const isBrowsed = index == _index;
       bool const isArmed = isBrowsed && _editing;
+
+      if (isHeading)
+        {
+          // No wash and no value: a heading names what follows, it is not
+          // one of the things you can land on. Drawn small and in the
+          // accent so the eye finds the boundaries between groups without
+          // reading them.
+          g.setFont (juce::Font (theme ().fontSize (FontRole::Body) * 0.85f,
+                                 juce::Font::bold));
+          g.setColour (toColour (theme ().accent, theme ().alphaInactive));
+          g.drawText (rowLabel (index), row.reduced (8, 0),
+                      juce::Justification::centredLeft, true);
+          continue;
+        }
 
       g.setColour (toColour (theme ().textPrimary,
                              isArmed     ? armedRowWash
@@ -571,11 +945,8 @@ SkinEditorComponent::paint (juce::Graphics &g)
                                          : rowWash));
       g.fillRoundedRectangle (row.toFloat (), 6.f);
 
-      auto const valueShare
-          = (!isAction && rowValue (index).length () > 8) ? 2 : 3;
-      auto valueArea
-          = row.removeFromRight (row.getWidth () / valueShare).reduced (8, 0);
-      auto nameArea = row.reduced (8, 0);
+      auto const valueArea = rowValueArea (row, index);
+      auto const nameArea = rowNameArea (row, index);
 
       g.setFont (
           juce::Font (theme ().fontSize (FontRole::Body), juce::Font::plain));
@@ -591,9 +962,11 @@ SkinEditorComponent::paint (juce::Graphics &g)
 
       // A colour channel shows the colour it is part of, so a number can be
       // judged without leaving the row it sits in.
-      if (!isAction && _parameters[(size_t)(index - _actionRows)].isColour)
+      if (kind == Row::Parameter
+          && _parameters[(size_t)_rows[(size_t)index].parameter].isColour)
         {
-          auto const group = _parameters[(size_t)(index - _actionRows)].path;
+          auto const group
+              = _parameters[(size_t)_rows[(size_t)index].parameter].path;
           auto swatch = valueArea.reduced (valueArea.getWidth () / 4, 5);
           g.setColour (juce::Colour (
               (juce::uint8)juce::jlimit (0, 255,

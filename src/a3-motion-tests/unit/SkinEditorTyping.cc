@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <ShippedSkin.hh>
+
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 
 using namespace a3;
@@ -212,4 +214,184 @@ TEST (SkinEditorTyping, ATypedPortReachesTheDocument)
   editor.finishNaming ();
 
   EXPECT_EQ ((int)editor.getSkin ()["oscReceiver"]["port"], 9001);
+}
+
+
+// A tap names the row it wants outright, where the encoder has to turn past
+// every row in between.
+TEST (SkinEditorTouch, TappingARowBrowsesIt)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
+
+  // Row 0 is the "oscReceiver" heading; its two parameters follow.
+  editor.browseRow (2);
+  EXPECT_EQ (editor.browsedRowIndex (), 2);
+
+  editor.browseRow (1);
+  EXPECT_EQ (editor.browsedRowIndex (), 1);
+}
+
+// A heading names a group and holds nothing, so browsing to one lands on the
+// row after it rather than sitting on a label.
+TEST (SkinEditorTouch, BrowsingAHeadingStepsOverIt)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
+
+  editor.browseRow (0);
+  EXPECT_EQ (editor.browsedRowIndex (), 1);
+  EXPECT_EQ (editor.browsedPath (), "oscReceiver.host");
+}
+
+// Turning steps over one too, in whichever direction it is going.
+TEST (SkinEditorTouch, TurningStepsOverAHeading)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (juce::JSON::parse (R"({"a": {"x": 1}, "b": {"y": 2}})"),
+                  "probe");
+
+  ASSERT_TRUE (browseTo (editor, "a.x"));
+
+  editor.navigate (1); // over b's heading, onto b.y
+  EXPECT_EQ (editor.browsedPath (), "b.y");
+
+  editor.navigate (-1); // back over it, onto a.x
+  EXPECT_EQ (editor.browsedPath (), "a.x");
+}
+
+TEST (SkinEditorTouch, BrowsingOutsideTheListIsIgnored)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
+
+  editor.browseRow (1);
+
+  editor.browseRow (-1);
+  EXPECT_EQ (editor.browsedRowIndex (), 1);
+
+  editor.browseRow (1000000);
+  EXPECT_EQ (editor.browsedRowIndex (), 1);
+}
+
+// Browsing lets an armed row go, the same way turning to another row does —
+// otherwise the next drag would edit a row nobody is looking at.
+TEST (SkinEditorTouch, BrowsingAnotherRowDisarmsTheOldOne)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Turned);
+
+  editor.browseRow (2);
+  editor.toggleEditing ();
+  ASSERT_TRUE (editor.isEditing ());
+
+  editor.browseRow (1);
+  EXPECT_FALSE (editor.isEditing ());
+}
+
+// The window of drawn rows has to keep the browsed row in it, or a tap lands
+// on a row the finger cannot see.
+TEST (SkinEditorTouch, TheDrawnWindowAlwaysHoldsTheBrowsedRow)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (juce::JSON::parse (R"({"a": 1, "b": 2, "c": 3, "d": 4,
+                                         "e": 5, "f": 6, "g": 7, "h": 8,
+                                         "i": 9, "j": 10, "k": 11, "l": 12})"),
+                  "probe");
+  editor.setBounds (0, 0, 768, 400);
+
+  for (int row = 0; row < 12; ++row)
+    {
+      editor.browseRow (row);
+
+      auto const first = editor.firstVisibleRow ();
+      EXPECT_LE (first, row);
+      EXPECT_LT (row, first + editor.visibleRowCount ());
+    }
+}
+
+
+// Dragging a value must only ever turn a number. Arming any other kind of
+// row fires it — and on a colour row that opens the picker, which is what
+// dragging the skin's height scale upwards used to do: the window scrolled,
+// the hit area came to stand for the colour row above, and the drag armed it.
+TEST (SkinEditorTouch, OnlyATurnableNumberCanBeDragged)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (shippedSkin (), "default");
+
+  bool sawColourPicker = false;
+  editor.onColourPicked = [&] (juce::String const &) { sawColourPicker = true; };
+
+  // Every row in the shipped skin, including its colours and its three
+  // action rows: none of them may be turnable except plain numbers.
+  for (int row = 0; row < 64; ++row)
+    {
+      editor.browseRow (row);
+      if (editor.browsedRowIndex () != row)
+        break; // ran off the end of the list
+
+      if (!editor.canTurnBrowsedRow ())
+        continue;
+
+      // A row that says it can be turned must survive being turned without
+      // asking anyone for a colour.
+      editor.toggleEditing ();
+      editor.navigate (1);
+      EXPECT_FALSE (sawColourPicker) << "row " << row;
+      if (editor.isEditing ())
+        editor.toggleEditing ();
+    }
+}
+
+TEST (SkinEditorTouch, ActionRowsAreNotTurnable)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (shippedSkin (), "default");
+
+  // Save, Save As New, Rename — the rows above the parameters.
+  for (int row = 0; row < 3; ++row)
+    {
+      editor.browseRow (row);
+      EXPECT_FALSE (editor.canTurnBrowsedRow ()) << "action row " << row;
+    }
+}
+
+// A config page types its numbers rather than turning them, so a drag must
+// not arm one there either.
+TEST (SkinEditorTouch, TypedNumbersAreNotTurnable)
+{
+  SkinEditorComponent editor;
+  editor.setDocument (networkSlice (), "Network", false,
+                      SkinEditorComponent::Numbers::Typed);
+
+  ASSERT_TRUE (browseTo (editor, "oscReceiver.port"));
+  EXPECT_FALSE (editor.canTurnBrowsedRow ());
+}
+
+
+// Scrolling back to the top has to get past the first group's heading. It
+// did not: browseRow stepped over a heading downwards whatever direction it
+// was going, so a drag upwards onto one was pushed straight back down and
+// the action rows above the first group could not be reached at all.
+TEST (SkinEditorTouch, TheListScrollsBackPastTheFirstHeading)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (shippedSkin (), "default");
+
+  // Somewhere in the middle, then climb one row at a time the way a drag on
+  // the name column does.
+  editor.browseRow (12);
+  ASSERT_EQ (editor.browsedRowIndex (), 12);
+
+  for (int i = 0; i < 32; ++i)
+    editor.browseRow (editor.browsedRowIndex () - 1);
+
+  EXPECT_EQ (editor.browsedRowIndex (), 0)
+      << "stuck at " << editor.browsedRowIndex ();
+  EXPECT_EQ (editor.browsedRow (), SkinEditorComponent::Row::Save);
 }

@@ -27,6 +27,8 @@ target_sources("a3-motion-ui" PRIVATE
     StandaloneApp.hh
     MainWindow.cc
     MainWindow.hh
+    io/SerialReconnect.cc
+    io/SerialReconnect.hh
     io/InputOutputAdapter.cc
     io/InputOutputAdapter.hh
     osc/OscMessageHandler.cc
@@ -42,11 +44,41 @@ target_sources("a3-motion-ui" PRIVATE
     components/ChannelStrip.cc
     components/ChannelStrip.hh
     components/CoronaScaling.cc
+    components/DragAccumulator.cc
+    components/DragAccumulator.hh
+    components/ScriptBuffer.cc
+    components/ScriptBuffer.hh
+    components/TouchControl.cc
+    components/TouchControl.hh
+    components/OverlayButtons.cc
+    components/OverlayButtons.hh
+    components/OverlaySideStrips.cc
+    components/OverlaySideStrips.hh
+    components/ClipSettingsLayout.cc
+    components/BrowserComponent.cc
+    components/BrowserLayout.cc
+    components/ControllerLayout.cc
+    components/ListScroll.cc
+    components/ListScroll.hh
+    components/BrowserComponent.hh
+    components/BrowserLayout.hh
+    components/ControllerLayout.hh
+    components/ControllerComponent.cc
+    components/ControllerComponent.hh
+    theme/FunctionKeyColours.cc
+    theme/TransportLook.cc
+    theme/SkinGroups.cc
+    theme/SkinGroups.hh
+    theme/FunctionKeyColours.hh
+    theme/TransportLook.hh
+    components/ClipSettingsLayout.hh
     components/TouchGrabs.cc
     components/TouchGrabs.hh
     components/SpeakerLightScaling.cc
     components/EnergyMap.cc
     components/SphereProjection.cc
+    components/ElevationSideView.cc
+    components/Listener.cc
     io/ButtonLedColours.cc
     io/OnScreenKeyboard.cc
     io/OnScreenKeyboard.hh
@@ -80,11 +112,18 @@ target_sources("a3-motion-ui" PRIVATE
     components/SkinEditorComponent.hh
     components/GlobalSettingsComponent.hh
     components/ClipSettingsCaptions.cc
+    components/PatternProgressBar.cc
+    components/PatternProgressBar.hh
+    components/ActionComponent.cc
+    components/ActionLayout.cc
+    components/BarKnob.cc
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh
     ConfigFileWatcher.cc
     ConfigFileWatcher.hh
     SettingsPersistence.cc
+    SessionFile.cc
+    SessionFile.hh
     SettingsPersistence.hh
     tests/TempoEstimatorTest.cc
     tests/TempoEstimatorTest.hh

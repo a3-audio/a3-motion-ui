@@ -21,6 +21,9 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <a3-motion-ui/components/SphereProjection.hh>
+
+#include <functional>
 
 #include <array>
 #include <map>
@@ -48,6 +51,19 @@ class MotionComponent : public juce::Component,
                         public juce::Timer
 {
 public:
+  /** Where the room is being looked at from. The overhead view is the
+   *  default, and the little sphere in the corner is what moves it -- see
+   *  cameraBallBounds(). It used to be SHIFT with a finger anywhere on the
+   *  big sphere, which asked the performer to know that a modifier existed
+   *  and gave them nothing to aim at. */
+  SphereCamera getCamera () const;
+  void setCamera (SphereCamera const &camera);
+
+  /** Called on the message thread right after config.json was re-read and
+   *  the global userConfig replaced. The watcher lives here, but things
+   *  outside this component are configured by that file too. */
+  std::function<void (juce::var const &)> onAppConfigReloaded;
+
   MotionComponent (MotionEngine &engine,
                    std::vector<std::unique_ptr<ChannelUIState> > &);
   ~MotionComponent ();
@@ -104,11 +120,28 @@ private:
   void drawCircle (juce::Graphics &g);
   void drawChannelBlobs (juce::Graphics &g);
 
+public:
+  /** What the running take is being recorded over, or nullptr for none. */
+  void setRecordingUnderlay (std::shared_ptr<Pattern> pattern);
+
+private:
+
   struct PatternDisplayData
   {
     juce::Path displayPath;
     std::vector<std::pair<float,float>> jumpDots;
   };
+  /** The take as it stands while it is being played in, drawn from its own
+   *  ticks — a fresh recording has no display path. Stretches nobody has
+   *  played yet are absent rather than faint. */
+  void drawRecordingTrail (Pattern const &pattern, juce::Graphics &g);
+
+  /** What was in the slot before the take began, drawn faintly underneath it
+   *  with a dim blob where it would be playing right now. Touch and Latch
+   *  leave parts of it standing, so you have to see what you are writing over
+   *  and where the old motion is at this point in the loop. */
+  void drawRecordingUnderlay (Pattern const &pattern, juce::Graphics &g);
+
 
   void drawPatternPreview (Pattern const &pattern,
                           PatternDisplayData const &displayData,
@@ -122,6 +155,26 @@ private:
   float getActiveDistanceInPixel () const;
 
   juce::Point<float> normalizedToLocal2DPosition (Pos const &posNorm) const;
+
+  /** Where a direction in the room lands on the screen, and back again, from
+   *  where the room is being looked at. */
+  juce::Point<float> projectToScreen (Pos const &direction) const;
+  Pos pixelToDirection (juce::Point<float> const &posPixel) const;
+
+  /** The finger that is moving the eye, and where it was last seen. Its own
+   *  grab, not one of `_grabs`: it is holding the view, not a blob. */
+  /** Where the little sphere is, in the component's own pixels. */
+  juce::Rectangle<int> cameraBall () const;
+  void drawCameraBall (juce::Graphics &g);
+  void drawBearings (juce::Graphics &g);
+  void drawListener (juce::Graphics &g);
+
+  std::optional<int> _cameraGrab;
+  /** For the double tap that puts the view back overhead. A finger is not a
+   *  mouse: the second tap lands a few pixels from the first. */
+  juce::int64 _ballTapMs = 0;
+  juce::Point<float> _cameraGrabbedAt;
+  SphereCamera _cameraAtGrab;
   Pos localToNormalized2DPosition (juce::Point<float> const &posLocal) const;
 
   std::optional<index_t>
@@ -144,6 +197,11 @@ private:
 
   std::map<std::shared_ptr<Pattern>, PatternDisplayData> _patternsPreview;
   std::mutex _mutexPreview;
+
+  /** The slot's pattern from before the running take. Read on the GL thread,
+   *  set from the message thread when a take starts and ends. */
+  std::shared_ptr<Pattern> _recordingUnderlay;
+  std::mutex _mutexUnderlay;
 
   // Display data for all loaded patterns — used to draw faint trajectory
   // lines for currently playing patterns (separate from explicit previews).
@@ -212,6 +270,14 @@ private:
   std::atomic<float> _sphereScale{ 0.62f };
   float _blobScale = 0.05f;
 
+  /** How the take's underlay is drawn: how far it fades back behind the trail
+   *  over it, how big its blob is next to a real one, and how thick its line
+   *  is. All three are judged by eye against a running take, which is exactly
+   *  what the skin is for. */
+  float _underlayOpacity = 0.28f;
+  float _underlayBlobScale = 0.55f;
+  float _underlayLineThickness = 0.02f;
+
   // Envelope time constants for the speaker beams, in seconds
   float _spotAttack = 0.08f, _spotDecay = 0.4f;
 
@@ -235,7 +301,13 @@ private:
 
   void uploadEnergyMap ();
 
+public:
+  /** Take a skin's visual values as they stand — the same door the file
+   *  watcher comes through, so the editor can show a change while it is being
+   *  made rather than after the file is written. */
   void applyVisualConfig (juce::var const &config);
+
+private:
   void applyTheme (juce::var const &skin);
   void reloadVisualConfigIfChanged ();
 

@@ -32,6 +32,8 @@ juce_generate_juce_header("a3-motion-engine")
 target_sources("a3-motion-engine" PRIVATE
     UserConfig.cc
     UserConfig.hh
+    OscAddresses.cc
+    OscAddresses.hh
     MotionEngine.cc
     MotionEngine.hh
     AsyncCommandQueue.cc
@@ -40,11 +42,31 @@ target_sources("a3-motion-engine" PRIVATE
     Channel.hh
     Measure.cc
     Measure.hh
+    ActionScript.cc
+    ClipFile.cc
+    ClipMigration.cc
+    ClipSettings.cc
     Pattern.cc
+    RecordingSpans.cc
+    RecordingSeam.cc
+    PlaybackRate.cc
+    ActionScript.hh
+    ClipFile.hh
+    ClipMigration.hh
+    ClipSettings.hh
     Pattern.hh
     PatternGenerator.cc
     PatternGenerator.hh
+    Playhead.cc
     PatternFile.cc
+    TrajectoryBridges.cc
+    TrajectoryShape.cc
+    ClipLocks.cc
+    TrajectoryShaping.cc
+    TrajectorySpin.cc
+    TempoLfo.cc
+    Envelope.cc
+    RecMode.cc
     PatternFile.hh
     PatternLibrary.cc
     PatternLibrary.hh
@@ -72,6 +94,9 @@ target_sources("a3-motion-engine" PRIVATE
     util/Timing.hh
     util/Geometry.hh
     util/Helpers.hh
+    util/SeedSpread.hh
+    util/Slew.cc
+    util/Slew.hh
     util/Helpers.cc
 )
 

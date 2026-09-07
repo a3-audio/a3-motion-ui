@@ -38,6 +38,10 @@ loadSettings (juce::File const &file)
   if (parsed.hasProperty ("clockMode"))
     settings.clockMode = static_cast<int> (parsed["clockMode"]);
 
+  if (parsed.hasProperty ("recMode"))
+    settings.recMode = recModeFromName (
+        parsed["recMode"].toString ());
+
   return settings;
 }
 
@@ -46,6 +50,8 @@ saveSettings (juce::File const &file, AppSettings const &settings)
 {
   auto *obj = new juce::DynamicObject ();
   obj->setProperty ("clockMode", settings.clockMode);
+  obj->setProperty ("recMode",
+                    recModeName (settings.recMode));
   juce::var const state (obj);
 
   file.getParentDirectory ().createDirectory ();

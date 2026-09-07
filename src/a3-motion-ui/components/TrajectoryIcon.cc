@@ -20,6 +20,8 @@
 
 #include "TrajectoryIcon.hh"
 
+#include <a3-motion-engine/TrajectoryShape.hh>
+
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
 #include <algorithm>
@@ -48,7 +50,12 @@ trajectoryIconFromPath (juce::Path const &path,
       data.path = path;
     }
 
-  data.hasIcon = true;
+  // Only if there is in fact something to draw. It used to say so on reaching
+  // the end, which meant a take classified as tapped but yielding no dots
+  // claimed an icon and drew nothing -- a blank box where the section had
+  // promised a picture, with no way to tell it from a take that had not
+  // started.
+  data.hasIcon = !data.path.isEmpty () || !data.jumpDots.empty ();
   return data;
 }
 
@@ -83,87 +90,74 @@ trajectoryIconFromTicks (std::vector<Pos> const &ticks)
   if (validCount < 2)
     return data;
 
-  // Normalise to [-1, 1] range with aspect ratio preserved
-  auto rangeX = maxX - minX;
-  auto rangeY = maxY - minY;
-  auto range = std::max (rangeX, rangeY);
-  if (range < 1e-6f)
-    range = 1.f;
+  // Scaled to fit, but not moved: the origin is the middle of the room and the
+  // picture is of where the sound goes, so a shape that sits to one side has
+  // to be drawn sitting to one side. Recentring on the bounding box made every
+  // shape look like it was around you and, now that the picture turns with
+  // rotate, made a one-sided shape wobble as it turned -- the same fault
+  // PatternFile had, for the same reason.
+  auto scale = std::max ({ std::abs (minX), std::abs (maxX), std::abs (minY),
+                           std::abs (maxY) });
+  if (scale < 1e-6f)
+    scale = 1.f;
 
-  auto centreX = (minX + maxX) * 0.5f;
-  auto centreY = (minY + maxY) * 0.5f;
+  auto const normalise = [scale] (Pos const &pos) {
+    return juce::Point<float>{ pos.x () / scale, pos.y () / scale };
+  };
 
-  // Downsample: take at most 128 points for the icon path
-  auto const maxIconPoints = 128;
-  auto const step = std::max (1, static_cast<int> (ticks.size ()) / maxIconPoints);
-
-  // Check if this is a jump-only pattern (majority of ticks are invalid)
-  int invalidCount = static_cast<int> (ticks.size ()) - validCount;
-  bool jumpPattern = invalidCount > validCount / 2;
-
-  if (jumpPattern)
+  // Tapped or drawn is a question about the shape of the data, not about how
+  // much of it is missing. Counting invalid ticks only worked while a take was
+  // still being played in; once its seams are closed every tick is valid, and
+  // a tap take then went down the drawn branch and got a straight line put
+  // across every one of its jumps.
+  if (isTappedTrajectory (ticks))
     {
-      // For jump patterns, collect the distinct valid positions as dots
       data.hasJumpDots = true;
-      for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
+      for (auto const &held : trajectoryPlateaus (ticks))
         {
-          if (!ticks[i].isValid ())
-            continue;
-          float nx = (ticks[i].x () - centreX) / (range * 0.5f);
-          float ny = (ticks[i].y () - centreY) / (range * 0.5f);
+          auto const point = normalise (held);
 
-          // Check if this point is already close to an existing one
-          bool duplicate = false;
-          for (auto const &p : data.jumpDots)
-            {
-              if (std::abs (p.first - nx) < 0.05f
-                  && std::abs (p.second - ny) < 0.05f)
-                {
-                  duplicate = true;
-                  break;
-                }
-            }
-          if (!duplicate)
-            data.jumpDots.push_back ({ nx, ny });
+          // Two taps a hair apart are one dot: the icon is a few millimetres
+          // across and cannot show the difference anyway.
+          auto const isDuplicate = std::any_of (
+              data.jumpDots.begin (), data.jumpDots.end (),
+              [&point] (auto const &p) {
+                return std::abs (p.first - point.x) < 0.05f
+                       && std::abs (p.second - point.y) < 0.05f;
+              });
+          if (!isDuplicate)
+            data.jumpDots.push_back ({ point.x, point.y });
         }
     }
   else
     {
-      // Collect downsampled normalised points, splitting at invalid ticks
-      std::vector<std::vector<juce::Point<float>>> segments;
-      segments.emplace_back ();
+      // At most this many points per stroke; beyond it the icon gains no
+      // detail the eye can find at this size.
+      auto const maxIconPoints = 128;
 
-      for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
+      // The icon shows the SHAPE, not a clip playing it: it is what you
+      // pick a trajectory by, and two clips on one shape must not get two
+      // different pictures of it.
+      for (auto const &segment : trajectorySegments (ticks, BridgePlan{}))
         {
-          if (!ticks[i].isValid ())
-            {
-              // Start a new segment after a gap
-              if (!segments.back ().empty ())
-                segments.emplace_back ();
-              continue;
-            }
-          float nx = (ticks[i].x () - centreX) / (range * 0.5f);
-          float ny = (ticks[i].y () - centreY) / (range * 0.5f);
-          segments.back ().push_back ({ nx, ny });
-        }
+          auto const step = std::max (
+              size_t{ 1 }, segment.size () / static_cast<size_t> (maxIconPoints));
 
-      // Build Catmull-Rom cubic Bézier path for each segment
-      for (auto const &pts : segments)
-        {
+          std::vector<juce::Point<float> > pts;
+          for (size_t i = 0; i < segment.size (); i += step)
+            pts.push_back (normalise (segment[i]));
+
           if (pts.size () < 2)
             continue;
 
           data.path.startNewSubPath (pts[0]);
 
-          // Check if the segment forms a closed loop
           auto const dist = pts.front ().getDistanceFrom (pts.back ());
-          bool closed = dist < 0.1f && pts.size () > 4;
+          bool const closed = dist < 0.1f && pts.size () > 4;
 
           auto const n = static_cast<int> (pts.size ());
           for (int i = 0; i < n - 1; ++i)
             {
-              // Catmull-Rom: P0, P1, P2, P3
-              // For endpoints, mirror or wrap
               juce::Point<float> p0, p1, p2, p3;
               p1 = pts[static_cast<size_t> (i)];
               p2 = pts[static_cast<size_t> (i + 1)];
@@ -181,29 +175,92 @@ trajectoryIconFromTicks (std::vector<Pos> const &ticks)
                                    : p2 + (p2 - p1);
                 }
 
-              // Convert Catmull-Rom to cubic Bézier control points
               auto cp1 = p1 + (p2 - p0) / 6.f;
               auto cp2 = p2 - (p3 - p1) / 6.f;
-
               data.path.cubicTo (cp1, cp2, p2);
             }
         }
+
+      if (data.path.isEmpty ())
+        return data;
     }
 
   data.hasIcon = true;
   return data;
 }
 
+namespace
+{
+/** A clip's rotation is stated in turns and applied to HOA coordinates, which
+ *  the screen mirrors -- so what turns one way in the room turns the other way
+ *  in the picture. Negated here for the same reason spinPosition() negates it,
+ *  and in the one place the picture is drawn so the two cannot drift. */
+float
+turnsToScreenRadians (float turns)
+{
+  return -turns * juce::MathConstants<float>::twoPi;
+}
+}
+
+float
+trajectoryIconRadius (juce::Rectangle<float> area,
+                      juce::Rectangle<float> drawn)
+{
+  if (area.isEmpty () || drawn.isEmpty ())
+    return 0.f;
+
+  // The room the box has, on its short side as well as its long one.
+  auto const room
+      = juce::jmin (area.getWidth (), area.getHeight ()) * 0.45f;
+
+  // And what the figure actually covers, in the normalised [-1,1] the data is
+  // in, once it has been turned. Measured from the centre outwards on each
+  // side, so a figure sitting off to one side is not shrunk for the empty half
+  // of its box.
+  auto const reach = juce::jmax (
+      juce::jmax (std::abs (drawn.getX ()), std::abs (drawn.getRight ())),
+      juce::jmax (std::abs (drawn.getY ()), std::abs (drawn.getBottom ())));
+
+  return reach > 0.f ? room / reach : 0.f;
+}
+
 void
 drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
-                    TrajectoryIconData const &data, juce::Colour colour)
+                    TrajectoryIconData const &data, juce::Colour colour,
+                    float turns)
 {
   if (!data.hasIcon)
     return;
 
   auto const cx = area.getCentreX ();
   auto const cy = area.getCentreY ();
-  auto const r = area.getWidth () * 0.45f;
+
+  // What the figure covers once it is turned, which is what decides how big it
+  // may be drawn. A dotted figure has no path to measure, so its own dots are
+  // measured instead.
+  auto const spin = juce::AffineTransform::rotation (
+      turnsToScreenRadians (turns));
+  auto const drawn = [&] {
+    if (!data.hasJumpDots)
+      return data.path.getBoundsTransformed (spin);
+
+    juce::Rectangle<float> box;
+    bool first = true;
+    for (auto const &p : data.jumpDots)
+      {
+        auto x = -p.second;
+        auto y = -p.first;
+        spin.transformPoint (x, y);
+        auto const at = juce::Rectangle<float> (x, y, 0.f, 0.f);
+        box = first ? at : box.getUnion (at);
+        first = false;
+      }
+    return box;
+  }();
+
+  auto const r = trajectoryIconRadius (area, drawn);
+  if (r <= 0.f)
+    return;
   auto const strokeThickness = 1.5f;
   auto const outlineThickness = strokeThickness + 2.0f;
   // A dark outline behind the stroke, so the icon stays readable on a
@@ -214,12 +271,17 @@ drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
   if (data.hasJumpDots)
     {
       // HOA→JUCE: screen x = -HOA_y, screen y = -HOA_x
-      auto const dotR = r * 0.22f;
+      // Small enough that four of them read as four marks rather than as one
+      // cluster: at 0.22 of the icon's radius they crowded the field.
+      auto const dotR = r * 0.12f;
       auto const dotOutR = dotR + 1.0f;
+      auto const spun = juce::AffineTransform::rotation (
+          turnsToScreenRadians (turns), cx, cy);
       for (auto const &p : data.jumpDots)
         {
-          auto const x = cx - p.second * r;
-          auto const y = cy - p.first * r;
+          auto x = cx - p.second * r;
+          auto y = cy - p.first * r;
+          spun.transformPoint (x, y);
           g.setColour (outlineColour);
           g.fillEllipse (x - dotOutR, y - dotOutR, dotOutR * 2.f, dotOutR * 2.f);
           g.setColour (colour);
@@ -230,9 +292,11 @@ drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
     {
       // The path is in HOA normalised [-1,1] space. Convert to JUCE screen
       // coords: JUCE x = -HOA_y, JUCE y = -HOA_x, then scale to the icon area.
-      auto transform = juce::AffineTransform (
-           0.f, -r, cx,   // JUCE x = -HOA_y * r + cx
-          -r,  0.f, cy);  // JUCE y = -HOA_x * r + cy
+      auto transform
+          = juce::AffineTransform (
+                0.f, -r, cx,  // JUCE x = -HOA_y * r + cx
+                -r, 0.f, cy)  // JUCE y = -HOA_x * r + cy
+                .rotated (turnsToScreenRadians (turns), cx, cy);
       g.setColour (outlineColour);
       g.strokePath (data.path, juce::PathStrokeType (outlineThickness), transform);
       g.setColour (colour);

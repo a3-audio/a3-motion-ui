@@ -106,7 +106,6 @@ uniform float uSpotLevel3;
 uniform vec3  uSpotColour;
 uniform float uSpeakerRadius;
 uniform float uBeamEdge;       // fraction of the half-width that stays flat
-uniform float uBeamFalloff;
 uniform float uBeamIntensity;
 uniform float uApertureAngle;  // half-angle of the band where it leaves the horn
 uniform float uWrapAngle;      // and where it meets the sphere — 45 closes the circle
@@ -132,15 +131,17 @@ uniform float uBoltReach;      // how far an escaping one carries
 uniform float uBoltEscape;     // how many of them escape
 uniform float uBoltBranches;   // branches per bolt
 uniform float uBoltBranch;     // how hard a branch leaves its trunk
-uniform float uApertureHalf;   // half-width of the horn's mouth
 uniform float uMouthOffset;    // mouth position ahead of the speaker centre
-uniform float uBeamReach;      // how far past the mouth the stub carries
 
 // Energy arriving from each direction, folded into an equirectangular map by
 // EnergyMap.cc from the IEM EnergyVisualizer's 426 points
 uniform sampler2D uEnergyMap;
 uniform vec3  uEnergyColour;
 uniform float uEnergyIntensity;
+// Where the room is being looked at from: how far the eye has come down from
+// straight above, and how far round it has walked. Both zero is the overhead
+// view the device has always had, and then this costs nothing.
+uniform vec2  uCamera;
 uniform float uNetIntensity;
 uniform float uNetScale;
 uniform float uNetSharpness;
@@ -234,7 +235,29 @@ vec3 screenToDirection (vec2 uv, float dist)
     float r = min (dist, 1.0);
     float up = sqrt (max (0.0, 1.0 - r * r));
 
-    return vec3 (uv.y, -uv.x, up);
+    // What the pixel stands for as the eye sees it. The screen's horizontal
+    // is the room's y and its vertical the room's x -- cartesian2DHOA2JUCE
+    // puts a position at { -y, -x } -- which is where this shuffle comes from.
+    vec3 seen = vec3 (uv.y, -uv.x, up);
+
+    if (uCamera.x == 0.0 && uCamera.y == 0.0)
+        return seen;
+
+    // Back into the room's own terms: undo the lean, then the walk. The last
+    // thing done is the first thing undone, or the room comes back tipped the
+    // wrong way. Mirrors asSeenFromInverse() in SphereProjection.
+    float cp = cos (-uCamera.x);
+    float sp = sin (-uCamera.x);
+    vec3 unpitched = vec3 (seen.x * cp + seen.z * sp,
+                           seen.y,
+                          -seen.x * sp + seen.z * cp);
+
+    float ct = cos (uCamera.y);
+    float st = sin (uCamera.y);
+
+    return vec3 (unpitched.x * ct - unpitched.y * st,
+                 unpitched.x * st + unpitched.y * ct,
+                 unpitched.z);
 }
 
 vec2 energyUV (vec3 dir)
@@ -585,17 +608,31 @@ void main ()
             colSurf += bcol * sp * att * inten * 0.5;
         }
 
-        // Wireframe
-        float gf = 8.0;
-        float gl1 = abs (fract (N.x * gf + 0.5) - 0.5);
-        float gl2 = abs (fract (N.y * gf + 0.5) - 0.5);
-        float gl3 = abs (fract (N.z * gf + 0.5) - 0.5);
-        float wf = 1.0 - smoothstep (0.01, 0.04, min (gl1, min (gl2, gl3)));
+        // The direction this pixel stands for, in the room's own terms.
+        vec3 dir = screenToDirection (uvScene, dist);
+
+        // The graticule: circles of equal height and lines of equal bearing,
+        // every thirty degrees. It used to be a net on the *screen* normal --
+        // planes of constant N.x, N.y and N.z -- which draws the same picture
+        // whichever way the room is being looked at, and that picture happens
+        // to read as a globe seen edge-on. Looking straight down at a room,
+        // what says so is rings around the zenith and spokes out of it.
+        float lat = asin (clamp (dir.z, -1.0, 1.0));
+        float lon = atan (dir.y, dir.x);
+
+        float step30 = 0.52359878;                    // thirty degrees
+        float latD = abs (fract (lat / step30 + 0.5) - 0.5) * step30;
+        // Weighted by how far round the sphere is at this height: without it
+        // the spokes crowd into a blot at the pole, which is the middle of
+        // the picture in the view this device is usually in.
+        float lonD = abs (fract (lon / step30 + 0.5) - 0.5) * step30
+                   * max (cos (lat), 0.02);
+
+        float wf = 1.0 - smoothstep (0.004, 0.014, min (latD, lonD));
         colSurf += vec3 (wf * 0.08 * (1.0 - fresnel * 0.8));
 
         // Energy arriving from the direction this pixel stands for. This is
         // the whole field, not four loudspeakers, so it carries height as well.
-        vec3 dir = screenToDirection (uvScene, dist);
         float energy = energyAt (dir);
 
         colSurf += uEnergyColour * energy * uEnergyIntensity;
@@ -688,7 +725,6 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uSpotColour    = glGetUniformLocation (pid, "uSpotColour");
   _uSpeakerRadius = glGetUniformLocation (pid, "uSpeakerRadius");
   _uBeamEdge      = glGetUniformLocation (pid, "uBeamEdge");
-  _uBeamFalloff   = glGetUniformLocation (pid, "uBeamFalloff");
   _uBeamIntensity = glGetUniformLocation (pid, "uBeamIntensity");
   _uApertureAngle = glGetUniformLocation (pid, "uApertureAngle");
   _uWrapAngle = glGetUniformLocation (pid, "uWrapAngle");
@@ -714,12 +750,11 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBoltBranch = glGetUniformLocation (pid, "uBoltBranch");
   _uBeamBleed = glGetUniformLocation (pid, "uBeamBleed");
   _uBeamFloor = glGetUniformLocation (pid, "uBeamFloor");
-  _uApertureHalf  = glGetUniformLocation (pid, "uApertureHalf");
   _uMouthOffset   = glGetUniformLocation (pid, "uMouthOffset");
-  _uBeamReach     = glGetUniformLocation (pid, "uBeamReach");
   _uEnergyMap       = glGetUniformLocation (pid, "uEnergyMap");
   _uEnergyColour    = glGetUniformLocation (pid, "uEnergyColour");
   _uEnergyIntensity = glGetUniformLocation (pid, "uEnergyIntensity");
+  _uCamera          = glGetUniformLocation (pid, "uCamera");
   _uNetIntensity    = glGetUniformLocation (pid, "uNetIntensity");
   _uNetScale        = glGetUniformLocation (pid, "uNetScale");
   _uNetSharpness    = glGetUniformLocation (pid, "uNetSharpness");
@@ -843,8 +878,6 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform1f (_uSpeakerRadius, _spotCfg.speakerRadius);
   if (_uBeamEdge >= 0)
     glUniform1f (_uBeamEdge, _spotCfg.edgeSoftness);
-  if (_uBeamFalloff >= 0)
-    glUniform1f (_uBeamFalloff, _spotCfg.beamFalloff);
   if (_uBeamIntensity >= 0)
     glUniform1f (_uBeamIntensity, _spotCfg.beamIntensity);
   if (_uApertureAngle >= 0) glUniform1f (_uApertureAngle, _spotCfg.apertureAngle);
@@ -871,18 +904,16 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uBoltEscape >= 0) glUniform1f (_uBoltEscape, _spotCfg.boltEscape);
   if (_uBoltBranches >= 0) glUniform1f (_uBoltBranches, _spotCfg.boltBranches);
   if (_uBoltBranch >= 0) glUniform1f (_uBoltBranch, _spotCfg.boltBranch);
-  if (_uApertureHalf >= 0)
-    glUniform1f (_uApertureHalf, speakerApertureHalfWidth);
   if (_uMouthOffset >= 0)
     glUniform1f (_uMouthOffset, speakerMouthOffset);
-  if (_uBeamReach >= 0)
-    glUniform1f (_uBeamReach, _spotCfg.reach);
 
   // Energy map and net
   if (_uEnergyColour >= 0)
     glUniform3f (_uEnergyColour, _energyCfg.r, _energyCfg.g, _energyCfg.b);
   if (_uEnergyIntensity >= 0)
     glUniform1f (_uEnergyIntensity, _energyCfg.intensity);
+  if (_uCamera >= 0)
+    glUniform2f (_uCamera, _camera.pitch, _camera.turn);
   if (_uNetIntensity >= 0)
     glUniform1f (_uNetIntensity, _energyCfg.netIntensity);
   if (_uNetScale >= 0)

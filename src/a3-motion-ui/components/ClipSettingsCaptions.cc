@@ -20,6 +20,12 @@
 
 #include "ClipSettingsCaptions.hh"
 
+#include <a3-motion-ui/components/ControllerLayout.hh>
+
+#include <a3-motion-ui/components/ClipSettingsLayout.hh>
+
+#include <algorithm>
+
 #include <cmath>
 
 namespace a3
@@ -104,17 +110,75 @@ int
 clipSettingsPreferredHeight (float headerSize, float bodySize,
                              int knobDiameter)
 {
-  // The elevation section is the tallest: its own title row, a graphic, then
-  // a 2x3 grid of controls. Everything else fits in less, so this is what the
-  // bar has to be able to show.
   auto const titleRow = static_cast<int> (
       std::ceil (headerSize * rowHeightFactor));
-  auto const boxes = 3 * controlBoxHeightForFont (bodySize, knobDiameter);
 
+  // The elevation section: its own title row, a graphic, then a 2x3 grid of
+  // controls.
+  auto const boxes = 3 * controlBoxHeightForFont (bodySize, knobDiameter);
   // The graphic takes the same share of the remainder it always did.
   auto const graphic = static_cast<int> (std::ceil (boxes * 0.34f / 0.66f));
+  auto const elevation = titleRow + graphic + boxes;
 
-  return titleRow + graphic + boxes;
+  // The global section: three rows of knobs, the transport under them, then
+  // three rows of buttons. It used to fit in whatever Elevation asked for,
+  // back when it held one value — with the per-channel grid it can be the
+  // taller of the two, and then the bar has to grow for it or the knobs get
+  // squeezed to a few pixels.
+  //
+  // No title row and no row of channel numbers: the strip is not named any
+  // more, and each grid column wears its channel's colour instead of being
+  // numbered.
+  //
+  // The grid draws a fifth over the standard diameter and gives each row a
+  // little more again — see layOutClipSettings().
+  auto const gridRows
+      = numChannelRows * static_cast<int> (std::ceil (knobDiameter * 1.4f));
+  // Three rows of buttons plus the gaps between them — rec mode and clock
+  // mode, menu and rec, then TAP across the width. Asking for one row's
+  // worth is what collapsed the grid above them to a few pixels.
+  auto const buttonRow
+      = std::max (34, static_cast<int> (std::ceil (knobDiameter * 1.6f)));
+  auto const buttons = 3 * buttonRow + 2 * std::max (2, buttonRow / 8);
+
+  // The transport came down into the strip, in a frame of its own with a gap
+  // above it. Asked for as its own block, or it takes the grid's room --
+  // which is exactly what it did on the first try.
+  auto const transport = buttonRow + 4 * std::max (2, buttonRow / 8);
+
+  auto const global = gridRows + transport + buttons;
+
+  // Motion: a title row, four rows of knobs and one of buttons. It used to
+  // fit inside whatever the other two asked for, back when it had one row of
+  // knobs; with the sweeps and the squeezes in it it can be the tallest of
+  // the three, and a bar sized without it squeezes its rows.
+  auto const motionRows = 4 * controlBoxHeightForFont (bodySize, knobDiameter);
+  auto const motion = titleRow + motionRows + buttonRow;
+
+  auto const sections = std::max (elevation, std::max (global, motion));
+
+  // What comes back is a height for the whole bar, but everything above is
+  // what a *section* needs. The bar spends its own chrome first: the header
+  // row, the vertical padding twice (height/40) and the gap under the header
+  // (height/50). Without allowing for it the sections were handed what they
+  // asked for minus the chrome, and the global grid's knobs came out a few
+  // pixels tall.
+  //
+  // The header is a ninth of the bar but never shorter than a fingertip, so
+  // there are two answers rather than one fraction: at the sizes the device
+  // ships with the ninth decides, and at the smallest font and pot the
+  // fingertip does -- it is a fixed thirty-four pixels there, not a share, and
+  // solving as though it were a share is what left the grid at six pixels.
+  constexpr float otherChrome = 2.f / 40.f + 1.f / 50.f;
+
+  auto const asAShare = static_cast<int> (
+      std::ceil (static_cast<float> (sections)
+                 / (1.f - 1.f / 9.f - otherChrome)));
+  auto const asAFingertip = static_cast<int> (
+      std::ceil (static_cast<float> (sections + fingertipSize)
+                 / (1.f - otherChrome)));
+
+  return std::max (asAShare, asAFingertip);
 }
 
 int

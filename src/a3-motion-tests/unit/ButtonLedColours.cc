@@ -135,3 +135,42 @@ TEST (ButtonLedColours, IdleIsNotAButton)
 }
 
 }
+
+
+// The maintainer's report, as a test: the accent green looked white on the
+// panel. It is rgb(144, 238, 144) -- a pastel, which a screen reads as green
+// because the bar around it is dark, and an LED cannot, because an LED has no
+// around.
+TEST (ButtonLedColours, APastelIsSaturatedBeforeItReachesAnLed)
+{
+  auto const pastel = juce::Colour (144, 238, 144);
+  auto const lit = ledColour (pastel);
+
+  // Within a hair of the floor rather than at or above it: a colour is three
+  // bytes, and a saturation of exactly 0.8 is not one of the values three
+  // bytes can hold.
+  EXPECT_GE (lit.getSaturation (), ledMinSaturation - 0.01f);
+  EXPECT_NEAR (lit.getHue (), pastel.getHue (), 0.01f)
+      << "the hue is what the key means";
+  EXPECT_NEAR (lit.getBrightness (), pastel.getBrightness (), 0.01f)
+      << "how bright a key is already means something else";
+}
+
+// A colour that is already a colour is left alone. Pushing everything to full
+// would flatten the difference between a warning and a danger.
+TEST (ButtonLedColours, AnAlreadySaturatedColourIsUnchanged)
+{
+  for (auto const colour : { juce::Colour (255, 0, 0),
+                             juce::Colour (0, 200, 148),
+                             juce::Colour (230, 159, 0) })
+    EXPECT_EQ (ledColour (colour), colour);
+}
+
+// White is white. A key meant to be white -- carbon's accent, say -- must not
+// be given a hue it never had, and a grey has no hue to keep.
+TEST (ButtonLedColours, SomethingWithNoHueStaysAsItIs)
+{
+  for (auto const colour : { juce::Colours::white, juce::Colours::black,
+                             juce::Colour (128, 128, 128) })
+    EXPECT_EQ (ledColour (colour), colour);
+}

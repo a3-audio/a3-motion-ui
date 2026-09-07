@@ -1,0 +1,127 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2023 Patric Schmitz
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+
+#include "TouchControl.hh"
+
+#include <a3-motion-ui/theme/Theme.hh>
+
+#include <cstdlib>
+
+namespace a3
+{
+
+TouchControl::TouchControl ()
+{
+  setInterceptsMouseClicks (true, false);
+}
+
+void
+TouchControl::setIdentity (int primary, int secondary)
+{
+  _primary = primary;
+  _secondary = secondary;
+}
+
+void
+TouchControl::mouseDown (juce::MouseEvent const &)
+{
+  // Read here rather than in the constructor: the skin can change while
+  // the app runs, and a drag should count with the value in force now.
+  _drag = DragAccumulator{ theme ().touchDragPixelsPerStep };
+
+  // A drag that ran out of screen and was picked straight back up is one
+  // drag. Without this the second half was a fresh gesture, and on a key that
+  // also taps -- the speed keys -- that tap threw away the value the first
+  // half had just reached.
+  constexpr int resumeMs = 700;
+  if (_lastDragEndedMs != 0
+      && juce::Time::currentTimeMillis () - _lastDragEndedMs < resumeMs)
+    _drag.resume ();
+
+  if (onPress)
+    onPress (_primary, _secondary);
+}
+
+void
+TouchControl::mouseDrag (juce::MouseEvent const &event)
+{
+  if (onDragTo)
+    onDragTo (_primary, _secondary, event.getPosition ());
+
+  // JUCE's y grows downwards; a finger going up means more.
+  auto const pending = _drag.stepsFor (-event.getDistanceFromDragStartY ());
+
+  if (pending == 0 || !onDragIncrement)
+    return;
+
+  auto const direction = pending > 0 ? 1 : -1;
+  for (int i = 0; i < std::abs (pending); ++i)
+    onDragIncrement (_primary, _secondary, direction);
+}
+
+void
+TouchControl::mouseUp (juce::MouseEvent const &)
+{
+  // First and unconditionally: whoever is holding something needs to hear
+  // that the finger left, and the branch below returns early on a tap.
+  if (onRelease)
+    onRelease (_primary, _secondary);
+
+  if (_drag.hasMoved ())
+    _lastDragEndedMs = juce::Time::currentTimeMillis ();
+
+  if (!_drag.hasMoved ())
+    {
+      // A finger is not a mouse: the second tap of a pair lands a few pixels
+      // from the first, so the window is in time and in distance rather than
+      // in JUCE's mouse-sized tolerance.
+      constexpr int doubleTapMs = 400;
+      constexpr int doubleTapSlopPx = 24;
+
+      auto const now = juce::Time::currentTimeMillis ();
+      auto const here = getMouseXYRelative ();
+      auto const quick = now - _lastTapMs < doubleTapMs;
+      auto const near = here.getDistanceFrom (_lastTapPos) < doubleTapSlopPx;
+
+      if (_lastTapMs != 0 && quick && near && onDoubleTap)
+        {
+          // Instead of the second tap, not as well as it: a double tap that
+          // also stepped the value would undo half of what it was asked for.
+          _lastTapMs = 0;
+          onDoubleTap (_primary, _secondary);
+          return;
+        }
+
+      _lastTapMs = now;
+      _lastTapPos = here;
+
+      if (onTap)
+        onTap (_primary, _secondary);
+      if (onTapAt)
+        onTapAt (_primary, _secondary, here);
+      return;
+    }
+
+  if (onDragEnd)
+    onDragEnd (_primary, _secondary);
+}
+
+}

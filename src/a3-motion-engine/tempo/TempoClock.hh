@@ -116,6 +116,14 @@ public:
 
   static Measure nextDownBeat (Measure const &measure);
 
+  /** The next beat, or this one if it is already exactly on a beat.
+   *
+   *  What a pad press is quantised to. The bar is the take's unit — a
+   *  recording is a whole number of bars — but a bar is up to a metre's worth
+   *  of beats away, and a clip that starts that long after the finger reads
+   *  as a button that did not work. */
+  static Measure nextBeat (Measure const &measure, int beatsPerBar);
+
 private:
   static constexpr int timerIntervalMs = 1;
   // ticksPerBeat equal PPQN (pulses per quarter note). MIDI uses 24,

@@ -91,9 +91,19 @@ PatternGenerator::createFigureOfEight (index_t lengthBeats, float radius,
     {
       auto phase = float (tick) / numTicks;
 
-      auto constexpr offsetX = 0.05; // avoid azimuth singularity
+      // Through the middle, twice, as a figure of eight does. It used to be
+      // nudged 0.05 sideways "to avoid the azimuth singularity", which moved
+      // the whole shape off the room's centre -- and a shape off the centre
+      // swings round instead of turning in place, because rotation is about
+      // the origin.
+      //
+      // There is nothing to avoid. Azimuth is undefined at r = 0, but so is
+      // the direction of a sound that is directly overhead: HeightMapSphere
+      // takes r to the north pole continuously, so the crossing rises over the
+      // listener and comes down the other side. The azimuth flips there, and
+      // at the pole a flipped azimuth points at the same place.
       auto y = radius * std::sin (phase * 2.f * pi<float> ());
-      auto x = radius * std::sin (phase * 4.f * pi<float> ()) + offsetX;
+      auto x = radius * std::sin (phase * 4.f * pi<float> ());
 
       auto position = Pos::fromCartesian (x, y, 0);
       position.setZ (heightMap.computeHeight (position));

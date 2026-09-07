@@ -20,6 +20,13 @@
 
 #include "MotionComponent.hh"
 
+#include <a3-motion-engine/ClipSettings.hh>
+
+#include <a3-motion-engine/TempoLfo.hh>
+#include <a3-motion-engine/TrajectoryShaping.hh>
+
+#include <a3-motion-engine/TrajectoryShape.hh>
+
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/UserConfig.hh>
@@ -30,6 +37,7 @@
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
+#include <a3-motion-ui/components/Listener.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
@@ -312,6 +320,13 @@ MotionComponent::setPreviewPattern (std::shared_ptr<Pattern> pattern,
 }
 
 void
+MotionComponent::setRecordingUnderlay (std::shared_ptr<Pattern> pattern)
+{
+  std::lock_guard<std::mutex> guard (_mutexUnderlay);
+  _recordingUnderlay = std::move (pattern);
+}
+
+void
 MotionComponent::unsetPreviewPattern (std::shared_ptr<Pattern> pattern)
 {
   jassert (pattern != nullptr);
@@ -536,7 +551,7 @@ MotionComponent::disoccludeBlobs ()
 
                   _engine.setChannel3DPosition (
                       channel,
-                      discToDirection (localToNormalized2DPosition (posPixel)));
+                      pixelToDirection (posPixel));
             }
         }
     }
@@ -549,7 +564,34 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
   // another finger is already holding.
   auto const source = event.source.getIndex ();
 
-  if (_engine.isRecording ())
+  // The little sphere in the corner is what turns the room. A thing you take
+  // hold of rather than a chord you have to remember: it used to be SHIFT and
+  // a finger anywhere on the big sphere, which asked the performer to know
+  // that the modifier existed and gave them nothing to aim at.
+  //
+  // Two taps on it put the view back overhead, which is the one view the
+  // device is designed around and the one you want back in a hurry.
+  auto const ball = cameraBall ();
+  if (!ball.isEmpty () && ball.contains (event.getPosition ()))
+    {
+      auto const now = juce::Time::currentTimeMillis ();
+      constexpr int doubleTapMs = 400;
+
+      if (_ballTapMs != 0 && now - _ballTapMs < doubleTapMs)
+        {
+          _ballTapMs = 0;
+          setCamera ({});
+          return;
+        }
+
+      _ballTapMs = now;
+      _cameraGrab = source;
+      _cameraGrabbedAt = event.getPosition ().toFloat ();
+      _cameraAtGrab = getCamera ();
+      return;
+    }
+
+  if (_engine.isRecordingOrScheduled ())
     {
       // A recording follows one finger and has to keep following the same
       // one. Every finger writing the position would make the trajectory
@@ -559,9 +601,13 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
 
       if (wasEmpty)
         {
+          // The same projection the drag path uses. Handing the finger's
+          // disc position over as a pattern coordinate read its radius in the
+          // wrong space and put the blob short of the finger by 1/sqrt(2) —
+          // the same mistake disoccludeBlobs once made.
           auto const posPixel = event.getPosition ().toFloat ();
-          _engine.setRecording2DPosition (
-              localToNormalized2DPosition (posPixel));
+          _engine.setRecording3DPosition (
+              pixelToDirection (posPixel));
         }
     }
   else
@@ -598,7 +644,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           // the finger when grabbed" means when grabbed, and a touch that
           // presses without moving would otherwise leave it where it was.
           _engine.setChannel3DPosition (
-              index, discToDirection (localToNormalized2DPosition (
+              index, pixelToDirection ((
                          event.getPosition ().toFloat ())));
 
           // disocclusion: save anchor position for all channels
@@ -619,6 +665,12 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
   // Exactly the channel this finger held, and no other. Clearing them all was
   // right while there could only be one grab; with several it handed every
   // other blob back to playback mid-drag.
+  if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
+    {
+      _cameraGrab.reset ();
+      return;
+    }
+
   auto const released = _grabs.up (event.source.getIndex ());
   if (released.has_value ())
     {
@@ -637,11 +689,22 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
 {
   auto const posPixel = event.getPosition ().toFloat ();
 
-  if (_engine.isRecording ())
+  if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
+    {
+      // Up and down leans the eye over the room, left and right walks it
+      // round -- see cameraFromBallDrag(), which is where the feel of it is
+      // decided and where it can be tested.
+      setCamera (cameraSettled (cameraFromBallDrag (
+          _cameraAtGrab, posPixel - _cameraGrabbedAt, cameraBall ())));
+      return;
+    }
+
+  if (_engine.isRecordingOrScheduled ())
     {
       // Only the finger that started it; the others are along for the ride.
       if (_grabs.firstSource () == std::optional<int>{ event.source.getIndex () })
-        _engine.setRecording2DPosition (localToNormalized2DPosition (posPixel));
+        _engine.setRecording3DPosition (
+            pixelToDirection (posPixel));
     }
   else if (auto const grabbed = _grabs.channelFor (event.source.getIndex ()))
     {
@@ -656,7 +719,7 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
       // finger's radius as a pattern radius, where 1.0 is 45 degrees off the
       // zenith rather than the horizon — the blob came up short by 1/sqrt(2).
       auto const direction
-          = discToDirection (localToNormalized2DPosition (posPixelOffsetted));
+          = pixelToDirection (posPixelOffsetted);
       _engine.setChannel3DPosition (channel, direction);
     }
 }
@@ -819,7 +882,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     };
 
     SphereShader::GlowConfig gc;
-    auto const &sg = config["sphereGlow"];
+    auto const &sg = config["backgroundGlow"];
     gc.r = cfgF (sg, "r", 230.f) / 255.f;
     gc.g = cfgF (sg, "g", 26.f) / 255.f;
     gc.b = cfgF (sg, "b", 13.f) / 255.f;
@@ -853,7 +916,6 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.speakerRadius = cfgF (sl, "speakerRadius", 1.55f);
     sc.edgeSoftness = cfgF (sl, "edgeSoftness", 0.7f);
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
-    sc.reach = cfgF (sl, "reach", 0.25f);
     sc.apertureAngle = cfgF (sl, "apertureAngle", 6.f);
     sc.wrapAngle = cfgF (sl, "wrapAngle", 45.f);
     sc.wander = cfgF (sl, "wander", 14.f);
@@ -908,7 +970,12 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     // silently kept their built-in defaults. Nobody noticed because the
     // shipped skin says exactly what those defaults are.
     _sphereScale = cfgF (config, "sphereScale", reduceFactorCircleDefault);
-    _blobScale = cfgF (config, "blobScale", reduceFactorBlobsDefault);
+    _blobScale = cfgF (config["blob"], "scale", reduceFactorBlobsDefault);
+
+    auto const underlay = config["recordingUnderlay"];
+    _underlayOpacity = cfgF (underlay, "opacity", 0.28f);
+    _underlayBlobScale = cfgF (underlay, "blobScale", 0.55f);
+    _underlayLineThickness = cfgF (underlay, "lineThickness", 0.02f);
 
     _spotAttack = cfgF (sl, "attack", 0.08f);
     _spotDecay = cfgF (sl, "decay", 0.4f);
@@ -958,8 +1025,15 @@ MotionComponent::reloadVisualConfigIfChanged ()
           // changed the file and nothing else.
           //
           // Handed over on the message thread, which is where it is read.
-          juce::MessageManager::callAsync (
-              [config] { userConfig = config; });
+          juce::Component::SafePointer<MotionComponent> safeThis{ this };
+          juce::MessageManager::callAsync ([safeThis, config] {
+            userConfig = config;
+
+            // Everything that was read out of the file at startup has to be
+            // told, not only the visuals this component owns.
+            if (safeThis != nullptr && safeThis->onAppConfigReloaded)
+              safeThis->onAppConfigReloaded (config);
+          });
 
           auto const named = skinFile (configFile ().getParentDirectory (),
                                        config["ui"]["skin"].toString ());
@@ -981,8 +1055,13 @@ MotionComponent::reloadVisualConfigIfChanged ()
   if (juce::JSON::parse (_activeSkinFile.loadFileAsString (), parsed).failed ())
     return; // half-written save — the next check picks up the finished file
 
-  applyVisualConfig (parsed);
-  applyTheme (parsed);
+  // Through the rename like every other read. Skipped here, a file still
+  // carrying the old spellings loses its groups entirely and the sphere falls
+  // back to built-in defaults — which looks like a working skin, only wrong.
+  auto const skin = migrateSkinNames (parsed);
+
+  applyVisualConfig (skin);
+  applyTheme (skin);
   juce::Logger::writeToLog ("reloaded " + _activeSkinFile.getFileName ());
 }
 
@@ -1076,7 +1155,7 @@ MotionComponent::renderOpenGL ()
         auto const position = _engine.getChannelPosition (ch);
         if (position.isValid ())
           {
-            auto posJuce = cartesian2DHOA2JUCE (position);
+            auto posJuce = projectToScreen (position);
             // JUCE 2D: Y down. Shader: Y up. Flip Y.
             bd.x = posJuce.getX ();
             bd.y = -posJuce.getY ();
@@ -1153,8 +1232,28 @@ MotionComponent::renderOpenGL ()
           if (_drawableSpeaker != nullptr)
             drawCircle (gFBO);
 
+          drawBearings (gFBO);
+          drawListener (gFBO);
+
           // Channel blobs + corona
           drawChannelBlobs (gFBO);
+
+          // The take as it stands, while it is being played in. A fresh
+          // recording has no display path — those come from the library — so
+          // it is drawn from its own ticks.
+          std::shared_ptr<Pattern> underlay;
+          {
+            std::lock_guard<std::mutex> guard (_mutexUnderlay);
+            underlay = _recordingUnderlay;
+          }
+          if (showsRecordingUnderlay (_engine.getRecMode (),
+                                      _engine.isRecording (),
+                                      underlay != nullptr))
+            drawRecordingUnderlay (*underlay, gFBO);
+
+          if (auto const recording = _engine.getRecordingPattern ())
+            if (_engine.isRecording ())
+              drawRecordingTrail (*recording, gFBO);
 
           // Pattern preview paths
           for (auto &[pattern, displayData] : patternsPreview)
@@ -1170,6 +1269,11 @@ MotionComponent::renderOpenGL ()
                   || pattern->getStatus () == Pattern::Status::Recording)
                 drawPlayingTrajectory (*pattern, displayData, gFBO);
             }
+
+          // Last, over everything: it is the one thing here that is a control
+          // rather than a reading, and a control drawn under a trajectory is
+          // one you cannot see to aim at.
+          drawCameraBall (gFBO);
         }
 
         // Composite the FBO over the shader output using native GL blitting.
@@ -1238,6 +1342,50 @@ MotionComponent::renderBoundsChanged ()
       false, juce::OpenGLImageType ());
 }
 
+SphereCamera
+MotionComponent::getCamera () const
+{
+  return _sphereShader.getCamera ();
+}
+
+void
+MotionComponent::setCamera (SphereCamera const &camera)
+{
+  // The shader holds it, because the ball and its graticule have to turn with
+  // the trajectories drawn over them and the shader is what draws the ball.
+  // One copy, one truth.
+  _sphereShader.setCamera (camera);
+  repaint ();
+}
+
+/** And back: where a pixel of the view points, in the room's own terms.
+ *
+ *  The disc gives the direction *as seen*; the room is what the engine is
+ *  told about, so it has to be handed back. Without this a blob dragged on a
+ *  tilted view goes where the finger is on the screen and not where it is in
+ *  the room -- which is the one thing a drag has to get right. */
+Pos
+MotionComponent::pixelToDirection (juce::Point<float> const &posPixel) const
+{
+  return asSeenFromInverse (
+      discToDirection (localToNormalized2DPosition (posPixel)),
+      _sphereShader.getCamera ());
+}
+
+/** Where a direction in the room lands on the screen, from where the room is
+ *  being looked at.
+ *
+ *  Every projection in this file goes through here. Seven of them applied
+ *  cartesian2DHOA2JUCE by hand, and a camera applied at six of the seven is a
+ *  picture whose halves disagree about the view -- which is worse than one
+ *  that cannot turn at all. */
+juce::Point<float>
+MotionComponent::projectToScreen (Pos const &direction) const
+{
+  return cartesian2DHOA2JUCE (
+      asSeenFrom (direction, _sphereShader.getCamera ()));
+}
+
 void
 MotionComponent::drawCircle (juce::Graphics &g)
 {
@@ -1283,6 +1431,199 @@ MotionComponent::drawCircle (juce::Graphics &g)
   g.setOpacity (1.f);
 }
 
+juce::Rectangle<int>
+MotionComponent::cameraBall () const
+{
+  return cameraBallBounds (getLocalBounds ());
+}
+
+/** The four bearings, written round the rim.
+ *
+ *  A room seen from above has no up in it, and once the view can be turned it
+ *  has no fixed up either: the only way to know which way you are looking is
+ *  to be told. Nought is the front of the room, which is where the OSC sends
+ *  a channel at azimuth nought -- the numbers on the ring are the numbers on
+ *  the wire.
+ */
+void
+MotionComponent::drawBearings (juce::Graphics &g)
+{
+  // A graduated ring round the outside of the sphere, which is how a chart, a
+  // compass and every globe worth reading does it -- rather than four numbers
+  // floating on the ball itself, which is what this was and which put a
+  // rotated glyph over whatever happened to be under it.
+  //
+  // The ring is a bezel: it takes the turn and ignores the lean, so it stays a
+  // compass however far the room is tipped. Tipping the room does not change
+  // which way north is, and a compass that leant over with the view would be
+  // one more thing to read rather than the thing you read everything else off.
+  auto const camera = _sphereShader.getCamera ();
+  auto const turn = camera.turn;
+
+  auto const on = [turn] (float degrees, float radius) {
+    auto const a = degrees * pi<float> () / 180.f - turn;
+    // The overhead convention: the room's front up the screen, its left to the
+    // left. Written out rather than projected, because a bezel is flat.
+    return juce::Point<float> (-std::sin (a) * radius, -std::cos (a) * radius);
+  };
+
+  // Ticks: every ten degrees a short one, every thirty a longer one, and a
+  // long one at each of the four the numbers name. Enough to read a bearing
+  // off between the numbers without counting.
+  for (int degrees = 0; degrees < 360; degrees += 10)
+    {
+      auto const major = degrees % 90 == 0;
+      auto const medium = degrees % 30 == 0;
+
+      auto const from = on (static_cast<float> (degrees), 1.035f);
+      auto const to = on (static_cast<float> (degrees),
+                          major ? 1.105f : medium ? 1.085f : 1.065f);
+
+      g.setColour (toColour (theme ().textPrimary,
+                             major ? 0.5f : medium ? 0.3f : 0.16f));
+      g.drawLine (from.x, from.y, to.x, to.y, major ? 0.01f : 0.006f);
+    }
+
+  // And the four numbers outside the ticks, upright: a compass card is read
+  // at a glance and a glance does not tilt its head. Nought is the front of
+  // the room, which is where the OSC sends a channel at azimuth nought -- the
+  // numbers on the ring are the numbers on the wire.
+  struct
+  {
+    float degrees;
+    char const *label;
+  } const marks[]{ { 0.f, "0" }, { 90.f, "90" }, { -90.f, "-90" },
+                   { 180.f, "180" } };
+
+  g.setFont (juce::Font (0.072f, juce::Font::plain));
+
+  for (auto const &mark : marks)
+    {
+      auto const out = on (mark.degrees, 1.165f);
+      auto const box = juce::Rectangle<float> (0.36f, 0.1f).withCentre (out);
+
+      g.setColour (toColour (theme ().textPrimary, 0.65f));
+      g.drawText (mark.label, box, juce::Justification::centred, false);
+    }
+}
+
+/** The listener, in the middle of the room they are listening to.
+ *
+ *  The same figure the little sphere in the corner carries, so the two say the
+ *  same thing in the same words: which way the room is turned is which way
+ *  they face, and how far it is tipped is how much of them you can see. */
+void
+MotionComponent::drawListener (juce::Graphics &g)
+{
+  // Big enough to read as a person from a metre away, small enough that the
+  // room is still the subject: the trajectories run round them, not over them.
+  auto const figure
+      = listenerSilhouette (_sphereShader.getCamera (), 0.30f);
+  if (figure.isEmpty ())
+    return;
+
+  // Lit rather than dark: the room is dark, so a dark figure in the middle of
+  // it is a hole. Soft enough that the trajectories running past keep the eye.
+  g.setColour (toColour (theme ().textPrimary, 0.16f));
+  g.fillPath (figure);
+  g.setColour (toColour (theme ().textPrimary, 0.5f));
+  g.strokePath (figure, juce::PathStrokeType (0.005f));
+}
+
+/** The little sphere in the corner: what turns the room, and what says which
+ *  way it is turned.
+ *
+ *  Drawn as the room is drawn -- the same graticule seen from the same eye --
+ *  because the thing it is standing for is the view, and a control that does
+ *  not look like what it controls is a control you have to learn.
+ */
+void
+MotionComponent::drawCameraBall (juce::Graphics &g)
+{
+  auto const ball = cameraBall ();
+  if (ball.isEmpty ())
+    return;
+
+  // Into the space the rest of this pass draws in. Straight through the
+  // transform, not through localToNormalized2DPosition -- that one hands back
+  // a position in the *room's* axes, and the room's x is the screen's y.
+  auto const intoDrawn = _transformNormalizedToLocal.inverted ();
+  auto const centre = ball.getCentre ().toFloat ().transformedBy (intoDrawn);
+  auto const edge
+      = juce::Point<float> (static_cast<float> (ball.getRight ()),
+                            static_cast<float> (ball.getCentreY ()))
+            .transformedBy (intoDrawn);
+
+  auto const r = std::abs (edge.x - centre.x) * 0.9f;
+  if (r <= 0.f)
+    return;
+
+  auto const camera = _sphereShader.getCamera ();
+  auto const held = _cameraGrab.has_value ();
+
+  // Where a point of the room lands in the ball.
+  auto const at = [&] (Pos const &in) {
+    auto const seen = asSeenFrom (in, camera);
+    auto const on = cartesian2DHOA2JUCE (seen);
+    return std::pair<juce::Point<float>, float>{
+      { centre.x + on.x * r, centre.y + on.y * r }, seen.z ()
+    };
+  };
+
+  auto const ink = [&] (float depth, float near, float far) {
+    return toColour (theme ().textPrimary, depth < 0.f ? far : near);
+  };
+
+  // The ball itself, so it reads as a thing with a front and a back rather
+  // than as a circle with a drawing in it.
+  g.setColour (toColour (theme ().background, 0.72f));
+  g.fillEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f);
+  g.setColour (toColour (theme ().textPrimary, held ? 0.65f : 0.28f));
+  g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, r * 0.045f);
+
+  // The room's own horizon, drawn round the ball: the one line that says how
+  // far it has been tipped. Split near from far, which is the convention every
+  // orientation gizmo uses -- an axis coming towards you is drawn solid and
+  // one going away from you is not.
+  {
+    juce::Point<float> previous;
+    float wasDepth = 0.f;
+
+    for (int step = 0; step <= 64; ++step)
+      {
+        auto const degrees = 360.f * static_cast<float> (step) / 64.f;
+        auto const [on, depth] = at (Pos::fromSpherical (degrees, 0.f, 1.f));
+
+        if (step > 0)
+          {
+            g.setColour (ink (juce::jmin (depth, wasDepth), 0.5f, 0.14f));
+            g.drawLine (previous.x, previous.y, on.x, on.y, r * 0.035f);
+          }
+
+        previous = on;
+        wasDepth = depth;
+      }
+  }
+
+  // And a listener in the middle of it, facing the front of the room.
+  //
+  // A person says both things at once and needs no key: which way the room is
+  // turned is which way they face, and how far it is tipped is how much of
+  // them you can see -- from straight down you are looking at the top of a
+  // head, from the horizon you are looking them in the eye. Axis balls with
+  // letters on them would say the same thing and have to be read.
+  {
+    auto figure = listenerSilhouette (camera, r * 1.15f);
+    figure.applyTransform (
+        juce::AffineTransform::translation (centre.x, centre.y));
+
+    g.setColour (toColour (theme ().textPrimary, held ? 0.95f : 0.75f));
+    g.fillPath (figure);
+    g.setColour (toColour (theme ().background, 0.8f));
+    g.strokePath (figure, juce::PathStrokeType (r * 0.02f));
+  }
+}
+
 void
 MotionComponent::drawChannelBlobs (juce::Graphics &g)
 {
@@ -1307,7 +1648,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
           blobSize *= (0.5f + 0.5f * backFade);
         }
 
-      auto posNormalized = cartesian2DHOA2JUCE (position);
+      auto posNormalized = projectToScreen (position);
 
       auto colour = _uiStates[channel]->colour;
       if (backFade < 1.0f)
@@ -1400,7 +1741,9 @@ drawPathOnSphere (juce::Path const &displayPath,
                   bool fadeByDepth,
                   ElevationParams const &elevationParams,
                   HeightMap const &heightMap,
-                  juce::Graphics &g)
+                  juce::Graphics &g,
+                  PlaneShaping const &shaping,
+                  SphereCamera const &camera)
 {
   if (displayPath.isEmpty ())
     return;
@@ -1438,11 +1781,20 @@ drawPathOnSphere (juce::Path const &displayPath,
   };
 
   // Project a 2D HOA point onto the sphere and return screen pos + z.
-  auto projectPoint = [&] (float x, float y)
-      -> std::pair<juce::Point<float>, float> {
-    auto pos3D = heightMap.mapTo3D (Pos::fromCartesian (x, y, 0.f),
-                                    elevationParams);
-    return { cartesian2DHOA2JUCE (pos3D), pos3D.z () };
+  // Every point of the line comes through here, which is why the shaping is
+  // applied here and not by transforming the path: transforming the path would
+  // mean copying it every frame, and the sub-sampling below would then be
+  // measuring distances on the transformed copy.
+  auto projectPoint = [&] (float x, float y) -> Pos {
+    auto pos3D = heightMap.mapTo3D (
+        shapedPosition (Pos::fromCartesian (x, y, 0.f), shaping),
+        elevationParams);
+    // The direction that comes back is the *seen* one: what is drawn nearer
+    // the eye has to fade less, and which of two points that is depends on
+    // where the eye is standing. Kept as a direction rather than flattened to
+    // screen here, because a step too long to be a straight line has to be
+    // walked along the sphere, and that walk is a walk between directions.
+    return asSeenFrom (pos3D, camera);
   };
 
   // Maximum 2D step size before we insert intermediate samples.
@@ -1450,9 +1802,90 @@ drawPathOnSphere (juce::Path const &displayPath,
   // sphere curvature at all, so coarse sampling is fine there.
   float const maxStep = elevationParams.flat ? 0.06f : 0.03f;
 
-  // Collect all projected points (with sub-sampling for long segments).
+  // ... and how wide a turn is wanted out of one piece. Flat mode has no
+  // azimuth swing worth splitting for either -- there is no pole to be near.
+  // See discStepPieces(), which is where both measures are weighed and why
+  // the second one exists at all.
+  DiscSampling sampling;
+  sampling.maxStep = maxStep;
+  // Flat mode has no pole to be near, so nothing to swing around.
+  sampling.maxSwing = elevationParams.flat
+                          ? juce::MathConstants<float>::pi
+                          : 0.02f;
+
+  // ... and what no amount of cutting can fix. At the disc's exact origin the
+  // azimuth is not merely fast, it is undefined: the path arrives at one
+  // bearing and leaves at the opposite one, so every sample on one side is
+  // half a revolution from every sample on the other. With the base on the
+  // pole that costs nothing -- both bearings are the same point up there --
+  // and off the pole it is a real jump, which several of the shipped shapes
+  // make (Clover, Infinity and Rose 4-Petal all pass exactly through the
+  // origin). Drawn, it is a chord straight across the sphere that is in none
+  // of the data. The pen goes up instead, the way it does at a take's gaps.
+  auto constexpr maxJump = 0.3f;
+
+  // Collect all projected points (with sub-sampling for long segments), and
+  // remember where one subpath ends and the next begins.
+  //
+  // A path with several subpaths is several strokes: a take cut at its jumps,
+  // a shape drawn in pieces. Only the very first point used to start a run, so
+  // every later subpath was joined to the one before it by a line from where
+  // that ended to where this begins -- a chord straight across the sphere that
+  // is in none of the data. The Shape section never showed it because
+  // strokePath knows about subpaths; this walks them by hand.
   std::vector<std::pair<juce::Point<float>, float>> projected;
+  std::vector<bool> startsRun;
   projected.reserve (512);
+  startsRun.reserve (512);
+
+  Pos previousSeen;
+  bool haveSeen = false;
+
+  auto const keep = [&projected, &startsRun] (Pos const &seen, bool starts) {
+    projected.push_back ({ cartesian2DHOA2JUCE (seen), seen.z () });
+    startsRun.push_back (starts);
+  };
+
+  auto const apart = [] (Pos const &a, Pos const &b) {
+    auto const dx = a.x () - b.x ();
+    auto const dy = a.y () - b.y ();
+    auto const dz = a.z () - b.z ();
+    return std::sqrt (dx * dx + dy * dy + dz * dz);
+  };
+
+  auto const addPoint = [&] (Pos const &seen, bool starts) {
+    if (!starts && haveSeen)
+      {
+        auto const chord = apart (previousSeen, seen);
+
+        if (chord > maxJump)
+          {
+            starts = true;
+          }
+        else if (chord > sampling.maxDrawn)
+          {
+            // Too long to be a straight line, so it is walked along the
+            // sphere instead of ruled across it. This is the pad's origin:
+            // the projection moves there without the disc moving, so no
+            // amount of cutting the *step* brings these two any closer -- a
+            // Clover's junction is nineteen degrees of one latitude, and the
+            // chord between them passes through the inside of the sphere,
+            // where the sound never is.
+            auto const pieces = static_cast<int> (
+                std::ceil (chord / sampling.maxDrawn));
+
+            for (int i = 1; i < pieces; ++i)
+              keep (slerpDirection (previousSeen, seen,
+                                    static_cast<float> (i)
+                                        / static_cast<float> (pieces)),
+                    false);
+          }
+      }
+
+    keep (seen, starts);
+    previousSeen = seen;
+    haveSeen = true;
+  };
 
   juce::PathFlatteningIterator iter (displayPath, {}, 0.005f);
 
@@ -1461,34 +1894,39 @@ drawPathOnSphere (juce::Path const &displayPath,
 
   while (iter.next ())
     {
-      if (firstPoint)
+      // A stroke breaks where the segments stop meeting -- this one does not
+      // start where the last one ended.
+      //
+      // Not iter.subPathIndex, whatever its name says: JUCE increments it on
+      // every line marker (juce_PathIterator.cpp), so on a path built out of
+      // lineTo -- which is every trajectory built from ticks -- every single
+      // segment claimed to be a new sub-path. The line was drawn as a couple
+      // of thousand two-point strokes, and wherever two ticks land far apart
+      // in the picture, which is the pad's origin, it simply stopped and
+      // started again. That is the gap at each of a Clover's junctions.
+      auto const beginsSubPath
+          = firstPoint || std::abs (iter.x1 - prevX) > 1e-6f
+            || std::abs (iter.y1 - prevY) > 1e-6f;
+
+      if (beginsSubPath)
         {
-          // The very first point of a sub-path
-          projected.push_back (projectPoint (iter.x1, iter.y1));
+          // The first point of this subpath. Nothing joins it to what came
+          // before -- that is what makes it a subpath.
+          addPoint (projectPoint (iter.x1, iter.y1), true);
           prevX = iter.x1;
           prevY = iter.y1;
           firstPoint = false;
         }
 
-      float dx = iter.x2 - prevX;
-      float dy = iter.y2 - prevY;
-      float dist = std::sqrt (dx * dx + dy * dy);
 
-      if (dist > maxStep)
-        {
-          // Insert intermediate sub-samples along the 2D line
-          int nSub = static_cast<int> (std::ceil (dist / maxStep));
-          for (int s = 1; s < nSub; ++s)
-            {
-              float t = static_cast<float> (s)
-                        / static_cast<float> (nSub);
-              float mx = prevX + dx * t;
-              float my = prevY + dy * t;
-              projected.push_back (projectPoint (mx, my));
-            }
-        }
-
-      projected.push_back (projectPoint (iter.x2, iter.y2));
+      // Cut where the projection moves, not evenly along the step -- see
+      // sampleDiscStep(), which halves a piece while its two ends land too
+      // far apart. Spread evenly, the pieces are spent out where nothing is
+      // happening and the closest approach to the disc's origin is starved.
+      sampleDiscStep (prevX, prevY, iter.x2, iter.y2, sampling, projectPoint,
+                      apart, [&addPoint] (Pos const &point, bool joined) {
+                        addPoint (point, !joined);
+                      });
       prevX = iter.x2;
       prevY = iter.y2;
     }
@@ -1504,6 +1942,17 @@ drawPathOnSphere (juce::Path const &displayPath,
   for (std::size_t i = 1; i < projected.size (); ++i)
     {
       int band = depthBand (projected[i].second);
+
+      if (startsRun[i])
+        {
+          // A new stroke: lift the pen rather than reaching across to it.
+          flushPath (currentPath, currentBand);
+          currentPath.clear ();
+          currentPath.startNewSubPath (projected[i].first);
+          currentBand = band;
+          continue;
+        }
+
       if (band != currentBand)
         {
           flushPath (currentPath, currentBand);
@@ -1517,6 +1966,102 @@ drawPathOnSphere (juce::Path const &displayPath,
 }
 
 void
+MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
+{
+  auto const ticks = pattern.getTicks ();
+  if (ticks.positions.empty ())
+    return;
+
+  auto const ch = pattern.getChannel ();
+  if (ch >= _uiStates.size ())
+    return;
+
+  // One subpath per run of ticks that is actually travelled through. What has
+  // not been played is simply absent — plainer than a faint line, and it is
+  // the thing you are looking for while recording: where the gaps still are.
+  // The blob is the write head; it needs no mark of its own.
+  //
+  // Cut at teleports as well as at gaps. Tapping quickly leaves no gap to cut
+  // at: the write head advances a tick or two between two taps, so the last
+  // tick of one and the first of the next are neighbours and the run carried
+  // straight on through, drawing the jump as a line.
+  juce::Path path;
+
+  for (auto const &segment : trajectorySegments (ticks.positions, BridgePlan{}))
+    {
+      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
+      for (size_t i = 1; i < segment.size (); ++i)
+        path.lineTo (segment[i].x (), segment[i].y ());
+    }
+
+  auto constexpr lineThickness = 0.03f;
+  // Unshaped: a take is recorded in the frame it was played in. Turning or
+  // squeezing the trail under the finger would draw the take somewhere the
+  // finger never was.
+  drawPathOnSphere (path, lineThickness, 0.9f, _uiStates[ch]->colour, true,
+                    pattern.getElevationParams (), _engine.getHeightMap (), g,
+                    PlaneShaping{}, _sphereShader.getCamera ());
+}
+
+void
+MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
+                                        juce::Graphics &g)
+{
+  auto const ticks = pattern.getTicks ();
+  if (ticks.positions.empty ())
+    return;
+
+  auto const ch = pattern.getChannel ();
+  if (ch >= _uiStates.size ())
+    return;
+
+  auto const params = pattern.getElevationParams ();
+  auto const colour = _uiStates[ch]->colour;
+
+  // Well below the take's own trail, which is drawn straight over this: it has
+  // to be readable as ground, not competing with what is being played in. How
+  // far below is a judgement made by eye, so it lives in the skin.
+  auto const underlayOpacity = _underlayOpacity;
+  auto const lineThickness = _underlayLineThickness;
+
+  juce::Path path;
+  for (auto const &segment : trajectorySegments (ticks.positions, BridgePlan{}))
+    {
+      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
+      for (size_t i = 1; i < segment.size (); ++i)
+        path.lineTo (segment[i].x (), segment[i].y ());
+    }
+
+  drawPathOnSphere (path, lineThickness, underlayOpacity, colour, true, params,
+                    _engine.getHeightMap (), g, PlaneShaping{},
+                    _sphereShader.getCamera ());
+
+  // And where it would be right now. The write head's own position is the
+  // phase into the loop -- the old pattern is not playing, so there is nothing
+  // else to ask.
+  auto const progress = _engine.getRecordingProgress ();
+  if (progress < 0.f)
+    return;
+
+  auto const count = ticks.positions.size ();
+  auto const index = std::min (
+      count - 1, static_cast<std::size_t> (progress * static_cast<float> (count)));
+  auto const position2D = ticks.positions[index];
+  if (!position2D.isValid ())
+    return;
+
+  auto const position = _engine.getHeightMap ().mapTo3D (position2D, params);
+  if (!position.isValid ())
+    return;
+
+  auto const diameter = 2 * _blobScale * _underlayBlobScale;
+  auto const centre = projectToScreen (position);
+  g.setColour (colour.withAlpha (underlayOpacity));
+  g.fillEllipse (juce::Rectangle<float> (0.f, 0.f, diameter, diameter)
+                     .withCentre (centre));
+}
+
+void
 MotionComponent::drawPatternPreview (Pattern const &pattern,
                                     PatternDisplayData const &displayData,
                                     juce::Graphics &g)
@@ -1525,7 +2070,12 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
 
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
-  auto const params = pattern.getElevationParams ();
+  // The same sweep the engine applies before it projects (performPlayback):
+  // the drawn coverage has to be the coverage the blob is running in.
+  auto const params = sweptElevation (pattern.getElevationParams (), pattern);
+  // The same turn and the same squeeze the engine puts the blob through
+  // (performPlayback): the drawn line has to be the line it is running on.
+  auto const shaping = shapingOf (pattern);
   auto const &heightMap = _engine.getHeightMap ();
 
   // ── Handle jump-dot patterns ──
@@ -1537,8 +2087,11 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
-              Pos::fromCartesian (dot.first, dot.second, 0.f), params);
-          auto posJuce = cartesian2DHOA2JUCE (pos3D);
+              shapedPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
+                              shaping),
+              params);
+          auto posJuce = projectToScreen (pos3D);
+          pos3D = asSeenFrom (pos3D, _sphereShader.getCamera ());
           g.setColour (colour);
           g.fillEllipse (juce::Rectangle<float> (dotSize, dotSize)
                              .withCentre (posJuce));
@@ -1548,7 +2101,8 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
 
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
-                    false, params, heightMap, g);
+                    false, params, heightMap, g, shaping,
+                    _sphereShader.getCamera ());
 }
 
 void
@@ -1564,7 +2118,12 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
 
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
-  auto const params = pattern.getElevationParams ();
+  // The same sweep the engine applies before it projects (performPlayback):
+  // the drawn coverage has to be the coverage the blob is running in.
+  auto const params = sweptElevation (pattern.getElevationParams (), pattern);
+  // The same turn and the same squeeze the engine puts the blob through
+  // (performPlayback): the drawn line has to be the line it is running on.
+  auto const shaping = shapingOf (pattern);
   auto const &heightMap = _engine.getHeightMap ();
 
   // ── Handle jump-dot patterns ──
@@ -1574,8 +2133,11 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
-              Pos::fromCartesian (dot.first, dot.second, 0.f), params);
-          auto posJuce = cartesian2DHOA2JUCE (pos3D);
+              shapedPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
+                              shaping),
+              params);
+          auto posJuce = projectToScreen (pos3D);
+          pos3D = asSeenFrom (pos3D, _sphereShader.getCamera ());
           float fade = (pos3D.z () < 0.f)
               ? 0.3f + 0.7f * std::clamp (pos3D.z () + 1.f, 0.f, 1.f)
               : 1.0f;
@@ -1589,13 +2151,14 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
 
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
-                    true, params, heightMap, g);
+                    true, params, heightMap, g, shaping,
+                    _sphereShader.getCamera ());
 }
 
 juce::Point<float>
 MotionComponent::normalizedToLocal2DPosition (Pos const &posNorm) const
 {
-  return cartesian2DHOA2JUCE (posNorm).transformedBy (
+  return projectToScreen (posNorm).transformedBy (
       _transformNormalizedToLocal);
 }
 

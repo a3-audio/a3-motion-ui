@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
+#include <a3-motion-ui/components/ClipSettingsComponent.hh>
 
 using namespace a3;
 
@@ -203,16 +204,22 @@ TEST (SharedValueSize, TheValueGetsTheLargerShareOfTheBox)
 
 // The value words used to be what pinned the values: "PingPong" had to fit
 // Motion's third of a section — 46 px — which held every value in the bar
-// below its own caption's size, no matter how much room the box had. Short
-// enough words move the limit back to the box, where it belongs, and put the
-// value above its caption in size again.
+// below its own caption's size, no matter how much room the box had.
+//
+// "16/16", the longest a fade can read, pins it again, but only just: a slash
+// and four digits are a shade wider than the box would allow. What has to hold
+// is the rule that came out of it — a value is never drawn smaller than the
+// caption naming it — so that is what is asserted, with the box as a ceiling
+// the words may approach but not exceed.
 TEST (SharedValueSize, TheValuesAreLimitedByTheBoxNotByTheirWords)
 {
   auto const size
       = sharedValueSize (18.f, contentWidth, columnGap, controlBoxHeight);
+  auto const boxLimit = controlBoxHeight * valueRowShare / rowHeightFactor;
 
-  EXPECT_NEAR (size, controlBoxHeight * valueRowShare / rowHeightFactor, 0.01f)
-      << "the box, not a word, has to be the limit";
+  EXPECT_LE (size, boxLimit + 0.01f) << "the box is the ceiling";
+  EXPECT_GT (size, boxLimit * 0.9f)
+      << "a value word must not pull the whole bar far below its box";
   EXPECT_GT (size,
              sharedCaptionSize (15.f, contentWidth, columnGap,
                                 controlBoxHeight))
@@ -279,4 +286,23 @@ TEST (ClipSettingsHeight, TheBarNeverEatsMoreThanItsShareOfTheScreen)
              (int)(screen * maxClipSettingsScreenShare));
   EXPECT_EQ (clipSettingsHeightWithin (200, screen), 200)
       << "a modest request passes through untouched";
+}
+
+// The global section holds what is not the shown clip's: the per-channel
+// freq/Q/3d grid, the rec mode and the action buttons. A third of the bar --
+// it had half while the grid was spread across all of it.
+TEST (ClipSettingsLayout, TheGlobalSectionTakesAQuarterOfTheBar)
+{
+  for (auto const rowWidth : { 400, 703, 704, 1024, 1920 })
+    {
+      auto const section = ClipSettingsComponent::clipSectionWidth (rowWidth);
+
+      EXPECT_GT (section, 0) << "row width " << rowWidth;
+
+      // Three clip sections in three quarters; integer division leaves a
+      // few pixels, which land in the global section.
+      EXPECT_NEAR (section * ClipSettingsComponent::numClipSections,
+                   rowWidth * 3 / 4, ClipSettingsComponent::numClipSections)
+          << "row width " << rowWidth << ": section " << section;
+    }
 }

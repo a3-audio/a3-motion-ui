@@ -21,6 +21,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <a3-motion-ui/components/SphereProjection.hh>
 
 namespace a3
 {
@@ -40,6 +41,13 @@ public:
 
   SphereShader ();
   ~SphereShader ();
+
+  /** Where the room is looked at from. Handed to the shader so the ball, its
+   *  graticule and the energy it carries turn with the trajectories drawn
+   *  over them -- a picture whose halves disagree about the view is worse
+   *  than one that cannot turn at all. */
+  void setCamera (SphereCamera const &camera) { _camera = camera; }
+  SphereCamera getCamera () const { return _camera; }
 
   /** Call from newOpenGLContextCreated().  Returns true on success. */
   bool initialise (juce::OpenGLContext &context);
@@ -111,9 +119,7 @@ public:
     float curve = 0.4f;
     float speakerRadius = 1.55f;
     float edgeSoftness = 0.7f;
-    float beamFalloff = 0.6f;
     float beamIntensity = 0.8f;
-    float reach = 0.25f; // how far past the mouth the stub carries
     float apertureAngle = 6.f; // half-angle where the band leaves the horn
     float wrapAngle = 45.f;    // and where it meets the sphere
     float wander = 14.f;       // degrees the centre line wanders
@@ -202,7 +208,6 @@ private:
   GLint _uSpotColour = -1;
   GLint _uSpeakerRadius = -1;
   GLint _uBeamEdge = -1;
-  GLint _uBeamFalloff = -1;
   GLint _uBeamIntensity = -1;
   GLint _uApertureAngle = -1;
   GLint _uWrapAngle = -1;
@@ -232,13 +237,16 @@ private:
   GLint _uBoltEscape = -1;
   GLint _uBoltBranches = -1;
   GLint _uBoltBranch = -1;
-  GLint _uApertureHalf = -1;
   GLint _uMouthOffset = -1;
-  GLint _uBeamReach = -1;
+
+  /** Where the room is being looked at from. The overhead view is the
+   *  default and costs nothing -- the shader short-circuits on it. */
+  SphereCamera _camera;
 
   GLint _uEnergyMap = -1;
   GLint _uEnergyColour = -1;
   GLint _uEnergyIntensity = -1;
+  GLint _uCamera = -1;
   GLint _uNetIntensity = -1;
   GLint _uNetScale = -1;
   GLint _uNetSharpness = -1;

@@ -565,4 +565,24 @@ TempoClock::nextDownBeat (Measure const &measure)
   return downbeat;
 }
 
+Measure
+TempoClock::nextBeat (Measure const &measure, int beatsPerBar)
+{
+  auto beat = measure;
+
+  if (beat.tick () == 0)
+    return beat;
+
+  beat.tick () = 0;
+  ++beat.beat ();
+
+  if (beatsPerBar > 0 && beat.beat () >= beatsPerBar)
+    {
+      beat.beat () = 0;
+      ++beat.bar ();
+    }
+
+  return beat;
+}
+
 }

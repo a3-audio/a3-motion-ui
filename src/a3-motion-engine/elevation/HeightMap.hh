@@ -42,8 +42,19 @@ struct ElevationParams
   // exceed r=1, e.g. a Square's corners at r=sqrt(2)) scale proportionally
   // instead of overshooting past reach's edge.
   float reach = 0.5f;
-  // false: the reach cone grows from the north pole (default). true: grows
-  // from the south pole instead (mirrors the cone through the equator).
+  // Where the middle of the trajectory (r=0) lands, 0 at the north pole and
+  // 1 at the south. The cone then grows towards whichever pole is further
+  // away, so reach always has room; exactly on the equator it grows south,
+  // which is the direction it has always grown in.
+  //
+  // This is what the elevation graphic's line sets, and it is why
+  // mirrorSouth is no longer read: a base of 0 is what "north" meant and a
+  // base of 1 is what "south" meant, with everything in between newly
+  // reachable. Clips written before it are migrated on load.
+  float elevationBase = 0.f;
+  // Kept so files written before elevationBase still parse, and so a script
+  // can still name it. Nothing reads it any more -- see the migration in
+  // ClipFile::load().
   bool mirrorSouth = false;
   // 0..1: absolute hard bound excluding this fraction of the range from
   // the north pole side. A plain final clamp — does not interact with

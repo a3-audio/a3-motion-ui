@@ -8,6 +8,63 @@ src/a3-motion-ui/Config.hh
 microsoft.gpg
 config/ui_state.json
 
+# What the performer brings, not what the repo ships. The recordings are
+# somebody's takes and set.json is their arrangement -- live pot positions
+# included, so it would churn on every single commit. The system patterns in
+# pattern/system/ stay tracked: those are the instrument.
+pattern/user/
+pattern/set.json
+pattern/current.json
+pattern/sessions/*
+# Ten factory sets -- one per place in an evening, each naming eight shapes
+# and carrying a preset per slot. The performer's own sets land in the same
+# folder, and current.json is the one actually in use, so these are named
+# one by one the way the factory clips are.
+!pattern/sessions/Opening.json
+!pattern/sessions/Ascent.json
+!pattern/sessions/Peak.json
+!pattern/sessions/Breakdown.json
+!pattern/sessions/Drop.json
+!pattern/sessions/Rollers.json
+!pattern/sessions/Dub.json
+!pattern/sessions/Techno.json
+!pattern/sessions/Ambient.json
+!pattern/sessions/Dice.json
+# The clips that reach the performer's own takes. The factory clips beside them
+# are the instrument and stay tracked; these are somebody's evening on it, like
+# the takes themselves. They share a folder only until the folders are split
+# into a fixed factory tree and a movable user one -- see
+# .claude/notes/2026-09-04-clip-und-session-dateien.md, step 4 -- after which
+# this pattern-match can go.
+# The presets a performer generates and keeps. Default.json is the instrument's
+# and is tracked; the rest come out of a3-clip-gen and are somebody's taste.
+pattern/clips/*.json
+# The factory bank: twenty presets picked by hand, in four groups of five --
+# where a clip sits, how fast it turns, how it breathes, how it runs. Named
+# one by one rather than matched, because the folder they live in is also
+# where a3-clip-gen throws its dice and where the performer keeps their own.
+!pattern/clips/Default.json
+!pattern/clips/Halo.json
+!pattern/clips/Equator.json
+!pattern/clips/Cellar.json
+!pattern/clips/Dome.json
+!pattern/clips/Pinpoint.json
+!pattern/clips/Slow Turn.json
+!pattern/clips/Carousel.json
+!pattern/clips/Whirlwind.json
+!pattern/clips/Counter.json
+!pattern/clips/Standstill.json
+!pattern/clips/Breath.json
+!pattern/clips/Tide.json
+!pattern/clips/Flutter.json
+!pattern/clips/Ebb.json
+!pattern/clips/Surge.json
+!pattern/clips/Half Time.json
+!pattern/clips/Double Time.json
+!pattern/clips/Seesaw.json
+!pattern/clips/Backspin.json
+!pattern/clips/Dice.json
+
 # IDE
 .idea/
 *.swp

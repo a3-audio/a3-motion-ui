@@ -24,6 +24,9 @@
 
 #include <a3-motion-ui/theme/TextInput.hh>
 #include <a3-motion-ui/theme/SkinParameters.hh>
+#include <a3-motion-ui/components/TouchControl.hh>
+
+#include <memory>
 
 #include <functional>
 #include <vector>
@@ -98,11 +101,28 @@ public:
     SaveAsNew,
     Rename,
     Delete,
+    /** Put every value back to what the shipped default holds, keeping the
+     *  skin's own name. The way out of a skin dialled into a corner. */
+    Reset,
     Parameter,
+    /** A group's name, drawn between its rows and the ones before it. Not
+     *  something you can browse to — turning and tapping step over it. */
+    Heading,
   };
 
   /** Turn the encoder: browse the list, or change what the armed row holds. */
   void navigate (int delta);
+
+  /** Name a row outright, which is what a tap does — the encoder has to turn
+   *  past everything in between. Lets an armed row go, like browsing with the
+   *  encoder does. An index outside the list is ignored. */
+  void browseRow (int index);
+  int browsedRowIndex () const { return _index; }
+
+  /** The window of rows currently drawn. The list is far longer than the
+   *  panel, so only these carry hit areas. */
+  int firstVisibleRow () const;
+  int visibleRowCount () const { return visibleRows (); }
 
   /** Press the encoder: arm the browsed row, or let it go again. On an
    *  action row this is what asks for it — the caller decides whether it
@@ -117,6 +137,7 @@ public:
   std::function<void ()> onSave;
   std::function<void ()> onSaveAsNew;
   std::function<void ()> onDelete;
+  std::function<void ()> onReset;
 
   /** Asked when a rename is finished, with the typed name. */
   std::function<void (juce::String const &)> onRename;
@@ -147,6 +168,12 @@ public:
   /** The path of the browsed parameter row, empty on an action row. */
   juce::String browsedPath () const;
 
+  /** Whether the browsed row is one a drag can turn — a plain number in a
+   *  document whose numbers are turned. An action row acts, a colour row
+   *  opens a picker and a text row opens the keyboard; none of those may be
+   *  set off by a finger that is only dragging past them. */
+  bool canTurnBrowsedRow () const;
+
   /** What is currently in the typing field. */
   juce::String typedText () const { return _nameEntry.buffer (); }
 
@@ -159,9 +186,49 @@ public:
    *  one — the app draws no keyboard of its own any more. */
   bool keyPressed (juce::KeyPress const &key) override;
 
+  /** Where the list's panel sits, so the side strips can be put beside it. */
+  juce::Rectangle<int> panelBounds () const { return listPanelBounds (); }
+
   void paint (juce::Graphics &g) override;
+  void resized () override;
+
+  juce::Rectangle<int> listPanelBounds () const;
 
 private:
+  /** A row inside the panel by its slot in the drawn window. One calculation
+   *  for the picture and for the hit areas. */
+  juce::Rectangle<int> listContentBounds () const;
+  juce::Rectangle<int> visibleRowBounds (int slot) const;
+  /** A row's two halves. The split follows the value's length, so it needs
+   *  the row's index and cannot be a free function. */
+  juce::Rectangle<int> rowValueArea (juce::Rectangle<int> row,
+                                     int absoluteIndex) const;
+  juce::Rectangle<int> rowNameArea (juce::Rectangle<int> row,
+                                    int absoluteIndex) const;
+
+  /** One pair of hit areas per drawn row, plus one behind the whole list
+   *  that a drag scrolls with. Created once; resized() re-places them and
+   *  re-labels them with the absolute row they currently show. */
+  struct RowTouch
+  {
+    std::unique_ptr<TouchControl> name;
+    std::unique_ptr<TouchControl> value;
+  };
+  std::vector<RowTouch> _rowTouch;
+
+  /** The absolute row a drag started on, or -1.
+   *
+   *  A drag has to stay on the row it began on. browseRow() moves the window
+   *  of drawn rows, resized() then re-labels the hit areas with their new
+   *  absolute rows — and the area under the finger comes to stand for a
+   *  different row mid-drag. Following it turned "drag the value up" into
+   *  "arm whatever scrolled under your finger", which on a colour row opened
+   *  the picker. */
+  int _dragRow = -1;
+  std::unique_ptr<TouchControl> _listScroll;
+
+  void createTouchControls ();
+
   /** How many rows fit, given the height this page was handed. */
   int visibleRows () const;
 
@@ -170,6 +237,39 @@ private:
   int _actionRows = 3;
 
   int totalRows () const;
+
+  /** What the list shows, in the order it shows it: the action rows, then
+   *  the parameters with a heading wherever their group changes.
+   *
+   *  The list used to be the actions followed by _parameters, addressed by
+   *  subtracting _actionRows. Headings sit between them and belong to
+   *  neither, so the offset stopped being enough. */
+  struct DisplayRow
+  {
+    Row kind;
+    /** Into _parameters, for Row::Parameter. -1 otherwise. */
+    int parameter = -1;
+    /** The group's name, for Row::Heading. */
+    juce::String heading;
+  };
+  std::vector<DisplayRow> _rows;
+  void rebuildRows ();
+
+public:
+  /** Move the window by a drag, without touching what is selected. The two
+   *  used to be one: the window was placed around the selected row, so
+   *  touching a row you could see slid it into the middle. */
+  void scrollList (int steps);
+
+private:
+  /** The first row in view. Its own thing, not derived from `_index`. */
+  int _scrollTop = 0;
+
+  /** The browsed row's parameter, or nullptr on an action or a heading. */
+  SkinParameter const *browsedParameter () const;
+  /** The nearest browsable row at or after `index`, stepping over headings.
+   *  `delta` says which way to step when `index` lands on one. */
+  int skipHeadings (int index, int delta) const;
   juce::String rowLabel (int index) const;
   juce::String rowValue (int index) const;
 

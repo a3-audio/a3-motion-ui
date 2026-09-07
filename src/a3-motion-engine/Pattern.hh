@@ -20,11 +20,17 @@
 
 #pragma once
 
+#include <a3-motion-engine/TrajectoryBridges.hh>
+
 #include <string>
 
 #include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Types.hh>
+#include <a3-motion-engine/Playhead.hh>
+#include <a3-motion-engine/RecordingSpans.hh>
+
+#include <optional>
 
 namespace a3
 {
@@ -46,7 +52,10 @@ public:
   Pattern ();
 
   void clear ();
-  void resize (index_t lengthBeats);
+  /** Length in **ticks**, not beats — callers pass lengthBeats * ppqn. The
+   *  parameter was named lengthBeats here and lengthTicks in the definition,
+   *  which is a name that lies in the place people read first. */
+  void resize (index_t lengthTicks);
 
   void setStatus (Status status);
   Status getStatus () const;
@@ -68,6 +77,224 @@ public:
   Pos getTick (index_t tick) const;
   void setTick (index_t tick, Pos position);
   index_t getLastUpdatedTick () const;
+
+  /** Which ticks this session's recording has written.
+   *
+   *  Punch-out needs to tell "never touched" from "touched, and holding a
+   *  position that happens to look like nothing". Only setTick() marks; a
+   *  resize starts the mask over, because it is about the recording in
+   *  progress and not about what a file once held. */
+  std::vector<bool> writtenTicks () const;
+  bool isTickWritten (index_t tick) const;
+  void clearWrittenTicks ();
+
+  /** Say that every tick now holds something.
+   *
+   *  Playback reads getLastUpdatedTick() + 1 as the pattern's effective
+   *  length — a leftover from when a take only ever filled a prefix and the
+   *  rest was empty. Once the spans are filled that is no longer true, and a
+   *  pattern that does not say so is played inside whatever fraction of
+   *  itself was written last. */
+  void markComplete ();
+
+  /** Where this take's seam is — the stretch between the last thing played and
+   *  the first, which nobody played.
+   *
+   *  Remembered rather than only filled, because how it is filled is a
+   *  playback setting and not a property of the take: the positions at either
+   *  end are real ticks, so it can be filled either way at any time. A length
+   *  of zero means the take has no seam. */
+
+
+  /** Where the take stopped, when it stopped anywhere: the last tick its
+   *  freshest pass wrote, with the previous pass still sitting after it.
+   *
+   *  Kept apart from the seam span on purpose. A span is a hole with a played
+   *  tick at each end, and its length is what it is; this is a single edge, and
+   *  how long the closing move across it lasts is a setting that can be turned
+   *  at any time. Sharing one field made turning it move the join, because the
+   *  far end of a shortened span landed in the previous fill instead of on
+   *  something somebody played. */
+
+
+  /** The take as it was played, before any closing move was laid over it.
+   *
+   *  The fade used to be written straight into the ticks, which made it a
+   *  one-way door: lengthening it read its far end from material nobody had
+   *  touched yet and worked, shortening it read from the previous fill and
+   *  changed nothing. Keeping what was played means the closing move can be
+   *  recomputed at any length, including back to none at all. */
+
+
+  /** How long the closing move currently laid over the take is, in ticks. */
+
+
+  /** Which way the clip sets off, and what it does when it gets to the end.
+   *
+   *  Clip settings like the playback length and the fade, so they live here
+   *  rather than in the UI's own table -- otherwise the engine cannot see them
+   *  and they survive nothing. */
+  PlayDirection getPlayDirection () const;
+  void setPlayDirection (PlayDirection direction);
+  EndAction getEndAction () const;
+  void setEndAction (EndAction action);
+
+  /** Whether the Action key fires this clip or holds it. Per clip, like the
+   *  end action beside it: one slot can be a stab and its neighbour a cue. */
+  ActMode getActMode () const;
+  void setActMode (ActMode mode);
+
+  /** How long one cycle takes, as a power of two of a bar. 0 is one bar,
+   *  negative is faster, positive is slower -- see speedLog2Min/Max.
+   *
+   *  On the Pattern rather than in the UI's per-slot table, where it used to
+   *  live: the engine reads it and it has to survive being saved. A clip's
+   *  tempo is the clip's, not the screen's. */
+  int getSpeedLog2 () const;
+  void setSpeedLog2 (int speedLog2);
+
+  /** How long the take's closing move lasts, in sixteenths of a beat. Zero
+   *  holds and jumps instead of travelling back.
+   *
+   *  Sixteenths rather than ticks, which is what getFade() reports: ticks come
+   *  out of the PPQN the take was written with, so the same number means
+   *  something else on a device set up differently. */
+
+
+  /** The filter envelopes, one for the cutoff and one for the resonance --
+   *  each with its own times and ceiling. See ClipSettings::freqAttack. */
+  int getFreqAttack () const;
+  void setFreqAttack (int step);
+  int getFreqDecay () const;
+  void setFreqDecay (int step);
+  float getFreqMax () const;
+  void setFreqMax (float max);
+
+  int getQAttack () const;
+  void setQAttack (int step);
+  int getQDecay () const;
+  void setQDecay (int step);
+  float getQMax () const;
+  void setQMax (float max);
+
+  /** How much of the take the joins over its gaps take over, 0..1. See
+   *  ClipSettings::fadeReach. */
+  float getFadeReach () const;
+  void setFadeReach (float reach);
+
+  /** Where a bridged gap leads, -4..+4. See ClipSettings::bridgeBias. */
+  int getBridgeBias () const;
+  void setBridgeBias (int bias);
+
+  /** Which of this take's gaps are drawn through, and where each one leads.
+   *
+   *  Playback and drawing both read this rather than each working out what a
+   *  gap is: two independent answers drift apart, and then the sphere shows a
+   *  line the blob does not run on. Recomputed when the ticks or either
+   *  setting change, never per tick. */
+  BridgePlan getBridgePlan () const;
+
+  /** Which way the playhead is travelling right now. Set from the direction
+   *  when playback starts; only Bounce ever turns it round. */
+  float getPlaySign () const;
+  void setPlaySign (float sign);
+
+  /** How far the whole trajectory is turned around the vertical axis, in
+   *  revolutions [0, 1). A standing angle, not a movement: where the shape
+   *  faces.
+   *
+   *  Beside the spin because they are the same operation — the spin adds a
+   *  turn that keeps growing, this one adds a turn that stays — and they are
+   *  summed at the one place that turns anything (spinPosition). Two ways to
+   *  rotate a trajectory would be two chances to disagree about which way
+   *  round that is. */
+  float getRotate () const;
+  void setRotate (float revolutions);
+
+  /** How the recorded figure is scaled along each of the two horizontal
+   *  axes, as a bipolar amount whose middle is zero: -1 halves that axis and
+   *  +1 doubles it (see squeezeFactor()). X is the front-back axis, Y the
+   *  left-right one -- the screen mirrors both, so sqzX is what a viewer sees
+   *  as the vertical.
+   *
+   *  Beside the rotate for the same reason it sits beside the spin: both are
+   *  transforms of the recorded shape applied at playback time and never
+   *  written into the take, and both are applied at the one place that
+   *  transforms anything (shapedPosition). */
+  float getSqueezeX () const;
+  void setSqueezeX (float amount);
+  float getSqueezeY () const;
+  void setSqueezeY (float amount);
+
+  /** Each squeeze's own sweep, as a TempoLfo step, with the phase it has got
+   *  to. What swell and its phase are to reach. */
+  int getSqueezeXLfo () const;
+  void setSqueezeXLfo (int step);
+  int getSqueezeYLfo () const;
+  void setSqueezeYLfo (int step);
+  float getSqueezeXLfoPhase () const;
+  void setSqueezeXLfoPhase (float phase);
+  float getSqueezeYLfoPhase () const;
+  void setSqueezeYLfoPhase (float phase);
+
+  /** How fast the whole trajectory turns around the vertical axis while the
+   *  blob runs along it, as the signed power-of-two step TrajectorySpin
+   *  describes. Zero stands still.
+   *
+   *  A clip setting like the fade and the end action, and here for the same
+   *  reason: the engine has to see it, and it has to survive being saved. */
+  int getSpin () const;
+  void setSpin (int step);
+
+  /** How far round it has turned, in revolutions [0, 1). Advanced by the
+   *  engine while the clip plays and read by the renderer, which has to draw
+   *  the line in the same place the blob is running.
+   *
+   *  Reset when playback starts, so a clip fired again begins where it was
+   *  recorded rather than wherever the last pass happened to leave it. */
+  float getSpinPhase () const;
+  void setSpinPhase (float phase);
+
+  /** How fast `reach` sweeps out of where it was set and back, as a TempoLfo
+   *  step. Zero holds it still.
+   *
+   *  The sign is which way out: positive opens the coverage towards the far
+   *  pole, negative closes it towards the near one. The distance is whatever
+   *  is left between the set reach and that end, so there is no setting at
+   *  which the two controls conspire to do nothing. */
+  int getReachLfo () const;
+  void setReachLfo (int step);
+  /** The elevation base's own sweep -- what swell is to reach, sway is to
+   *  where the trajectory's middle sits. Same shape of value: a signed
+   *  TempoLfo step, the sign saying which pole it sweeps towards. */
+  int getElevationLfo () const;
+  void setElevationLfo (int step);
+
+  /** How far through that sweep it is, in cycles [0, 1). Advanced by the
+   *  engine while the clip plays and read by the renderer, which has to draw
+   *  the coverage the blob is actually running in. Reset with the spin's
+   *  phase when playback starts. */
+  float getReachLfoPhase () const;
+  void setReachLfoPhase (float phase);
+  float getElevationLfoPhase () const;
+  void setElevationLfoPhase (float phase);
+
+  /** The accent's shape: how long it takes to rise while ACT is held, and how
+   *  long to fall once it is let go, as Envelope steps.
+   *
+   *  Per clip, like the spin and the swell, because the clip you fire brings
+   *  its own accent. What it *drives* is the channel's 3d, whose set value it
+   *  can only raise — see envelopeOver(). */
+  int getEnvelopeAttack () const;
+  void setEnvelopeAttack (int step);
+  int getEnvelopeDecay () const;
+  void setEnvelopeDecay (int step);
+
+  /** How far the accent throws: the 3d it rises to while ACT is held. The
+   *  channel's own 3d is the floor and this is the ceiling, so a clip carries
+   *  how big its accent is rather than every accent going all the way up. */
+  float getEnvelopeMax () const;
+  void setEnvelopeMax (float value);
 
   // Interpolated playback: returns position with linear interpolation between keyframes
   // This provides smooth motion even with sparse keyframes during slow playback
@@ -98,6 +325,11 @@ public:
   // semantics, and ElevationParams itself for field-by-field docs.
   float getReach () const;
   void setReach (float reach); // clamped to [0.05, 1.0]
+
+  /** Where the middle of the trajectory sits, 0 north and 1 south. See
+   *  ClipSettings::elevationBase. */
+  float getElevationBase () const;
+  void setElevationBase (float base);
 
   bool getMirrorSouth () const;
   void setMirrorSouth (bool mirrorSouth);
@@ -132,6 +364,51 @@ private:
 
   index_t _lastUpdatedTick{ 0 };
   std::vector<Pos> _ticks;
+  std::vector<bool> _written;
+
+  /** Past which step from one tick to the next the motion is a jump rather
+   *  than a movement. Worked out once when the ticks are finished, because
+   *  playback asks on every tick and must not walk the whole pattern to find
+   *  out. Zero means nothing is treated as a jump. */
+  float _jumpThreshold = 0.f;
+  /** Guarded by _ticksMutex; ensureBridgePlanLocked() expects it held. */
+  mutable BridgePlan _bridgePlan;
+  mutable bool _bridgePlanStale = true;
+  void ensureBridgePlanLocked () const;
+  void markBridgePlanStale ();
+
+  std::atomic<int> _freqAttack{ 2 };
+  std::atomic<int> _freqDecay{ 3 };
+  std::atomic<float> _freqMax{ 0.f };
+  std::atomic<int> _qAttack{ 2 };
+  std::atomic<int> _qDecay{ 3 };
+  std::atomic<float> _qMax{ 0.f };
+  /** Nothing by default -- a clip plays what was recorded. Kept in step with
+   *  ClipSettings::fadeReach, which ClipSettings.DefaultsMatchAFreshPattern
+   *  is there to notice. */
+  std::atomic<float> _fadeReach{ 0.f };
+  std::atomic<int> _bridgeBias{ 0 };
+  std::atomic<PlayDirection> _playDirection{ PlayDirection::Forward };
+  std::atomic<EndAction> _endAction{ EndAction::Loop };
+  std::atomic<ActMode> _actMode{ ActMode::OneShot };
+  std::atomic<int> _speedLog2{ 0 };
+  std::atomic<float> _playSign{ 1.f };
+  std::atomic<float> _rotate{ 0.f };
+  std::atomic<float> _squeezeX{ 0.f };
+  std::atomic<float> _squeezeY{ 0.f };
+  std::atomic<int> _squeezeXLfo{ 0 };
+  std::atomic<int> _squeezeYLfo{ 0 };
+  std::atomic<float> _squeezeXLfoPhase{ 0.f };
+  std::atomic<float> _squeezeYLfoPhase{ 0.f };
+  std::atomic<int> _spin{ 0 };
+  std::atomic<float> _spinPhase{ 0.f };
+  std::atomic<int> _reachLfo{ 0 };
+  std::atomic<float> _reachLfoPhase{ 0.f };
+  std::atomic<int> _elevationLfo{ 0 };
+  std::atomic<float> _elevationLfoPhase{ 0.f };
+  std::atomic<int> _envelopeAttack{ 2 };
+  std::atomic<int> _envelopeDecay{ 3 };
+  std::atomic<float> _envelopeMax{ 1.f };
   mutable std::mutex _ticksMutex;
 
   // TODO is float precision sufficient here? do the math!
@@ -140,6 +417,7 @@ private:
   std::atomic<Measure> _playbackLength;
 
   std::atomic<float> _reach{ 0.5f };
+  std::atomic<float> _elevationBase{ 0.f };
   std::atomic<bool> _mirrorSouth{ false };
   std::atomic<float> _clipTop{ 0.0f };
   std::atomic<float> _clipBottom{ 0.0f };

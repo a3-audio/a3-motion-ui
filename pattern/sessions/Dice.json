@@ -1,0 +1,134 @@
+{
+  "channels": [
+    {
+      "threeD": 0.319999992847443,
+      "freq": 0.5,
+      "q": 0.25,
+      "slots": [
+        {
+          "pattern": "Circle",
+          "recordLengthLog2": 2,
+          "overrides": {
+            "rotate": 0.119999997317791,
+            "reach": 0.600000023841858,
+            "swell": 2,
+            "envAttack": 5,
+            "envDecay": 5,
+            "envMax": 0.699999988079071
+          }
+        },
+        {
+          "pattern": "Corner",
+          "recordLengthLog2": 0,
+          "overrides": {
+            "rotate": 0.5,
+            "reach": 0.349999994039536,
+            "clipTop": 0.150000005960464,
+            "elevationBase": 0.920000016689301,
+            "spin": -2,
+            "envAttack": 4,
+            "envDecay": 5,
+            "envMax": 0.699999988079071,
+            "freqMax": 0.25
+          }
+        }
+      ]
+    },
+    {
+      "threeD": 0.439999997615814,
+      "freq": 0.5,
+      "q": 0.25,
+      "slots": [
+        {
+          "pattern": "Epicycloid 5-2",
+          "recordLengthLog2": 3,
+          "overrides": {
+            "rotate": 0.25,
+            "reach": 0.550000011920929,
+            "clipTop": 0.200000002980232,
+            "clipBottom": 0.200000002980232,
+            "elevationBase": 0.5,
+            "spin": 3,
+            "envMax": 0.800000011920929
+          }
+        },
+        {
+          "pattern": "Arc",
+          "recordLengthLog2": 1,
+          "overrides": {
+            "rotate": 0.379999995231628,
+            "reach": 0.699999988079071,
+            "spin": 5,
+            "envMax": 0.850000023841858
+          }
+        }
+      ]
+    },
+    {
+      "threeD": 0.560000002384186,
+      "freq": 0.5,
+      "q": 0.25,
+      "slots": [
+        {
+          "pattern": "Helix",
+          "recordLengthLog2": 3,
+          "overrides": {
+            "rotate": 0.75,
+            "reach": 0.949999988079071,
+            "spin": 1,
+            "envAttack": 5,
+            "envDecay": 5,
+            "envMax": 0.899999976158142,
+            "freqMax": 0.600000023841858
+          }
+        },
+        {
+          "pattern": "Wave",
+          "recordLengthLog2": 2,
+          "overrides": {
+            "reach": 0.850000023841858,
+            "spin": 8,
+            "envAttack": 0,
+            "envDecay": 2,
+            "endAction": "bounce",
+            "freqMax": 0.699999988079071
+          }
+        }
+      ]
+    },
+    {
+      "threeD": 0.680000007152557,
+      "freq": 0.5,
+      "q": 0.25,
+      "slots": [
+        {
+          "pattern": "Zigzag",
+          "recordLengthLog2": 1,
+          "overrides": {
+            "rotate": 0.25,
+            "reach": 0.800000011920929,
+            "spin": -1,
+            "swell": -3,
+            "envAttack": 5,
+            "envDecay": 6,
+            "envMax": 0.649999976158142,
+            "freqMax": 0.300000011920929
+          }
+        },
+        {
+          "pattern": "Figure 8",
+          "recordLengthLog2": 2,
+          "overrides": {
+            "rotate": 0.879999995231628,
+            "reach": 0.449999988079071,
+            "envAttack": 1,
+            "envDecay": 2,
+            "envMax": 0.600000023841858,
+            "fadeReach": 0.0
+          }
+        }
+      ]
+    }
+  ],
+  "name": "Dice"
+}

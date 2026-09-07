@@ -52,6 +52,18 @@ public:
    *  size change has to be pushed rather than repainted. */
   void applyTheme () override;
 
+private:
+  /** What the two clock readouts are drawn in — one answer for both, so
+   *  they cannot end up different colours. EXT is a warning: the tempo is
+   *  somebody else's. */
+  juce::Colour clockReadoutColour () const;
+  /** Composes the one reading — "EXT BPM 123.0" — and colours it. Every
+   *  writer goes through here, so mode and tempo cannot end up saying
+   *  different things or wearing different colours. */
+  void refreshClockReadout ();
+
+public:
+
   /** Just the font half of applyTheme(), for a size change. */
   void refreshFonts ();
 
@@ -71,6 +83,19 @@ public:
 
   void setKeyboardState (KeyboardState state);
 
+  /** How far the running take has got, as a thin line under the tick
+   *  indicator, in the recording channel's own colour. A negative fraction
+   *  means no take is running and nothing is drawn.
+   *
+   *  Laid over the indicator, translucent, so the beats stay readable through
+   *  it: the indicator is the widest thing on this bar and sits over the
+   *  sphere, where the eye already is while recording. */
+  void setRecordingProgress (float fraction, juce::Colour colour);
+
+  /** The take's progress is laid over the tick indicator, which is a child —
+   *  so it has to be drawn after the children rather than in paint(). */
+  void paintOverChildren (juce::Graphics &g) override;
+
   void mouseUp (juce::MouseEvent const &event) override;
 
   /** The header size this bar can actually show — the theme's, unless the
@@ -86,6 +111,13 @@ public:
   // Clock mode status: 0 = INT, 1 = EXT, 2 = PIO
   void setClockMode (int mode);
 
+  /** What was last turned, and to what -- "reach 0.42", "fade 0.25".
+   *
+   *  It used to sit in the band above the global strip, which is the band the
+   *  transport keys now stand in. Here it is beside the readings it belongs
+   *  with: the bar is where the device says what it is doing. */
+  void setControlReadout (juce::String const &text);
+
   static constexpr int
   getMinimumHeight ()
   {
@@ -96,11 +128,13 @@ private:
   juce::Rectangle<int> _keyboardIconArea;
   KeyboardState _keyboardState = KeyboardState::Unavailable;
   TickIndicator _tickIndicator;
+  float _recordingProgress = -1.f;
+  juce::Colour _recordingColour;
 
   juce::Label _labelBPM;
+  juce::Label _labelReadout;
   juce::Value &_valueBPM;
   
-  juce::Label _labelClockMode;
   std::atomic<float> _externalBPM{ 0.f };
   std::atomic<int> _beatClockBeat{ 0 };
   std::atomic<int> _beatClockBar{ 0 };

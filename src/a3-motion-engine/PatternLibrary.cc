@@ -20,6 +20,9 @@
 
 #include "PatternLibrary.hh"
 
+#include <a3-motion-engine/ClipFile.hh>
+#include <a3-motion-engine/ClipSettings.hh>
+
 #include <a3-motion-engine/PatternFile.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 
@@ -53,9 +56,57 @@ PatternLibrary::refresh ()
   _numUserPatterns
       = static_cast<int> (_entries.size ()) - _numSystemPatterns;
 
+  auto const beforePresets = static_cast<int> (_entries.size ());
+  scanSettingsPresets ();
+  _numSettingsPresets = static_cast<int> (_entries.size ()) - beforePresets;
+
   std::cout << "PatternLibrary: " << _numSystemPatterns << " system, "
-            << _numUserPatterns << " user patterns loaded from "
-            << _rootDir.getFullPathName () << std::endl;
+            << _numUserPatterns << " user patterns, " << _numSettingsPresets
+            << " settings presets loaded from " << _rootDir.getFullPathName ()
+            << std::endl;
+}
+
+void
+PatternLibrary::scanSettingsPresets ()
+{
+  auto const dir = getClipDir ();
+  if (!dir.isDirectory ())
+    return;
+
+  auto files = dir.findChildFiles (juce::File::findFiles, false, "*.json");
+
+  // Same rule as the shapes: by the name that is read, within this category
+  // only. A clip's name and its file name usually agree -- a renamed one is
+  // exactly when they do not.
+  auto const firstOfThisCategory = _entries.size ();
+
+  for (auto const &file : files)
+    {
+      auto const clip = ClipFile::load (file);
+      if (!clip.has_value ())
+        {
+          std::cerr << "PatternLibrary: skipping unreadable clip: "
+                    << file.getFullPathName () << std::endl;
+          continue;
+        }
+
+      if (clip->name.empty ())
+        continue;
+
+      // Every clip, whether or not it names a shape. They were skipped when
+      // they did, on the grounds that the shape listed them -- which put the
+      // two kinds in one list and made a row's meaning depend on which row it
+      // was.
+      Entry entry;
+      entry.name = clip->name;
+      entry.category = Category::Clip;
+      entry.clipFile = file;
+      entry.svg = clip->svg;
+
+      _entries.push_back (std::move (entry));
+    }
+
+  sortCategoryByName (firstOfThisCategory);
 }
 
 void
@@ -66,11 +117,11 @@ PatternLibrary::scanDirectory (juce::File const &dir, Category category)
 
   auto files = dir.findChildFiles (juce::File::findFiles, false, "*.svg");
 
-  // Sort alphabetically for deterministic order
-  std::sort (files.begin (), files.end (),
-             [] (juce::File const &a, juce::File const &b) {
-               return a.getFileName ().compareNatural (b.getFileName ()) < 0;
-             });
+  // Sorted after the names are read, not by file name: a shape's file name
+  // carries its beat count, so 04_Zigzag sorted before 16_Arc -- which looks
+  // like no order at all to anyone who cannot see the prefix. Within this
+  // category only, so the grouping the browser's dot makes visible survives.
+  auto const firstOfThisCategory = _entries.size ();
 
   for (auto const &file : files)
     {
@@ -92,8 +143,26 @@ PatternLibrary::scanDirectory (juce::File const &dir, Category category)
           continue;
         }
 
+      // No clip is looked for beside a shape any more. A clip names the shape
+      // it is played on, outright, so the two are related in one direction
+      // and by name -- the file-name convention that guessed it the other way
+      // round is what let a preset and a shape wear the same name.
+
       _entries.push_back (std::move (entry));
     }
+
+  sortCategoryByName (firstOfThisCategory);
+}
+
+void
+PatternLibrary::sortCategoryByName (size_t firstOfCategory)
+{
+  std::sort (_entries.begin () + static_cast<long> (firstOfCategory),
+             _entries.end (), [] (Entry const &a, Entry const &b) {
+               return juce::String (a.name).compareNatural (
+                          juce::String (b.name))
+                      < 0;
+             });
 }
 
 int
@@ -124,6 +193,29 @@ PatternLibrary::indexForName (std::string const &name) const
   return 0;
 }
 
+int
+PatternLibrary::indexForClipFile (juce::File const &file) const
+{
+  if (file == juce::File{})
+    return 0;
+
+  for (size_t i = 0; i < _entries.size (); ++i)
+    if (_entries[i].clipFile == file)
+      return static_cast<int> (i) + 1;
+
+  return 0;
+}
+
+bool
+PatternLibrary::isFactory (int index) const
+{
+  if (index <= 0 || static_cast<size_t> (index - 1) >= _entries.size ())
+    return false;
+
+  return _entries[static_cast<size_t> (index - 1)].category
+         == Category::System;
+}
+
 std::shared_ptr<Pattern>
 PatternLibrary::loadPattern (int index) const
 {
@@ -137,6 +229,14 @@ PatternLibrary::loadPattern (int index) const
   // The HeightMap (elevation coverage) is applied at playback time
   // by MotionEngine::performPlayback(), not at load time.
   // This allows dynamic coverage changes without reloading patterns.
+
+  // The shape says where the sound goes; the clip beside it says how it is
+  // played. Applied after the shape is read, so a clip's settings win over
+  // whatever the shape file still happens to carry -- which matters while both
+  // formats are in use, and stops mattering once the shape holds none.
+  if (pattern != nullptr && entry.clipFile.existsAsFile ())
+    if (auto const clip = ClipFile::load (entry.clipFile))
+      applyClipSettings (*pattern, clip->settings);
 
   return pattern;
 }
@@ -184,6 +284,28 @@ PatternLibrary::saveUserPattern (std::shared_ptr<Pattern> const &pattern)
       return 0;
     }
 
+  // The take's settings, in a clip of its own beside the shape. A new clip
+  // every time, never the slot's existing one: the slot's clip may be in other
+  // slots and in other sessions, and pointing it at a fresh recording would
+  // overwrite every one of them without a word.
+  //
+  // Naming the shape it was recorded on, which is how every clip says what it
+  // is played on.
+  {
+    Clip clip;
+    clip.svg = pattern->getName ();
+    clip.name = file.getFileNameWithoutExtension ()
+                    .fromFirstOccurrenceOf ("_", false, false)
+                    .toStdString ();
+    clip.settings = clipSettingsFrom (*pattern);
+
+    auto const clipFile
+        = getClipDir ().getChildFile (juce::String (clip.name) + ".json");
+    if (!ClipFile::save (clip, clipFile))
+      std::cerr << "PatternLibrary: failed to save the clip for "
+                << file.getFullPathName () << std::endl;
+  }
+
   std::cout << "PatternLibrary: saved user pattern '"
             << name << "' to " << file.getFullPathName () << std::endl;
 
@@ -196,10 +318,10 @@ juce::int64
 PatternLibrary::getDirectoryFingerprint () const
 {
   juce::int64 hash = 0;
-  auto hashDir = [&hash] (juce::File const &dir) {
+  auto hashDir = [&hash] (juce::File const &dir, juce::String const &pattern) {
     if (!dir.isDirectory ())
       return;
-    auto files = dir.findChildFiles (juce::File::findFiles, false, "*.svg");
+    auto files = dir.findChildFiles (juce::File::findFiles, false, pattern);
     for (auto const &f : files)
       {
         // Mix filename and modification time into hash
@@ -210,8 +332,11 @@ PatternLibrary::getDirectoryFingerprint () const
     // Also mix file count so deletions are detected
     hash ^= static_cast<juce::int64> (files.size ()) * 2654435761LL;
   };
-  hashDir (getSystemDir ());
-  hashDir (getUserDir ());
+  hashDir (getSystemDir (), "*.svg");
+  hashDir (getUserDir (), "*.svg");
+  // Clips too: a settings preset has no shape, so a folder watched for SVGs
+  // alone would never notice one being added or thrown away.
+  hashDir (getClipDir (), "*.json");
   return hash;
 }
 
@@ -225,6 +350,12 @@ int
 PatternLibrary::getNumUserPatterns () const
 {
   return _numUserPatterns;
+}
+
+int
+PatternLibrary::getNumSettingsPresets () const
+{
+  return _numSettingsPresets;
 }
 
 }

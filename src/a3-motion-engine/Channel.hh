@@ -45,6 +45,11 @@ public:
   float getPot2 () const;
   void setPot2 (float pot2);
 
+  /** The third value, driven by the channel's pot. What it means is Core's
+   *  business; here it is a number between 0 and 1 like the other two. */
+  float getPot3 () const;
+  void setPot3 (float pot3);
+
 private:
   // TODO reconsider: we want to keep the public API for users of the
   // MotionEngine so that internal state can not be messed with. Can
@@ -58,6 +63,7 @@ private:
   Pos _position;
   std::atomic<float> _pot1 = 0.25f;
   std::atomic<float> _pot2 = 1.f;
+  std::atomic<float> _pot3 = 0.f;
 
   // SeqLock for lock-free position access.
   // Writer (RT timer thread) never blocks.

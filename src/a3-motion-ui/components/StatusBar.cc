@@ -43,16 +43,19 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   addChildComponent (_labelBPM);
   _labelBPM.setVisible (true);
   _labelBPM.setJustificationType (juce::Justification::centredLeft);
-  _labelBPM.setText ("BPM 60.0", juce::dontSendNotification);  // Default tempo
+  _labelBPM.setText ("BPM 60.0", juce::dontSendNotification);
+
+  // Right-aligned, so it grows leftwards into the gap rather than towards the
+  // keyboard icon a thumb is reaching for.
+  addChildComponent (_labelReadout);
+  _labelReadout.setVisible (true);
+  _labelReadout.setJustificationType (juce::Justification::centredRight);
   
   // Register for BPM value changes
   _valueBPM.addListener (this);
   
   
-  addChildComponent (_labelClockMode);
-  _labelClockMode.setVisible (true);
-  _labelClockMode.setJustificationType (juce::Justification::centredRight);
-  _labelClockMode.setText ("INT", juce::dontSendNotification);
+
 
   applyTheme ();
 }
@@ -92,14 +95,46 @@ StatusBar::preferredHeight () const
 }
 
 void
+StatusBar::refreshClockReadout ()
+{
+  auto const mode = juce::jlimit (0, 2, _clockMode.load ());
+
+  auto const bpm = mode == 0
+                       ? (_valueBPM.getValue ().isDouble ()
+                              ? static_cast<float> (_valueBPM.getValue ())
+                              : 0.f)
+                       : _externalBPM.load ();
+
+  // The number only. Which clock it comes from is written on the clock key
+  // itself now, in that mode's colour, on the screen and under the hand —
+  // saying it a third time up here was three places to keep in step and one
+  // more thing to read.
+  //
+  // The colour stays: the reading is still somebody else's tempo or ours, and
+  // that is worth knowing at a glance about the number itself.
+  juce::String text;
+  if (bpm > 0.f)
+    text << "BPM " << juce::String (bpm, 1);
+
+  _labelBPM.setText (text, juce::dontSendNotification);
+  _labelBPM.setColour (juce::Label::textColourId, clockReadoutColour ());
+}
+
+juce::Colour
+StatusBar::clockReadoutColour () const
+{
+  return Colours::clockMode (_clockMode);
+}
+
+void
 StatusBar::applyTheme ()
 {
-  // The clock readouts are accent; the orientation is a quieter aside beside
-  // them. Set here rather than in the constructor: a skin loaded afterwards
-  // has to reach them, and a Label keeps whatever colour it was given.
-  for (auto *label : { &_labelBPM, &_labelClockMode })
-    label->setColour (juce::Label::textColourId, toColour (theme ().accent));
-
+  // Set here rather than in the constructor: a skin loaded afterwards has to
+  // reach them, and a Label keeps whatever colour it was given. Through the
+  // one colour, not plain accent — resetting both to accent here is what
+  // left the mode reading green while the BPM beside it went orange on the
+  // next external beat, which only recoloured the BPM.
+  refreshClockReadout ();
   refreshFonts ();
 }
 
@@ -111,7 +146,7 @@ StatusBar::refreshFonts ()
   // came out larger than the headings below it.
   auto const font = juce::Font (juce::FontOptions (headerFontSize ()));
 
-  for (auto *label : { &_labelBPM, &_labelClockMode })
+  for (auto *label : { &_labelBPM, &_labelReadout })
     label->setFont (font);
 }
 
@@ -137,20 +172,27 @@ StatusBar::resized ()
   bounds.removeFromTop (verticalPadding);
   bounds.removeFromBottom (verticalPadding);
 
-  auto const glyphWidth = headerFontSize () * 0.62f;
-  auto const modeWidth = juce::jmax (
-      50, static_cast<int> (glyphWidth * 3.f + LayoutHints::padding));
-
   // The keyboard toggle sits at the very edge, right of everything else, so
-  // it is reachable with a thumb without covering a reading.
-  _keyboardIconArea = bounds.removeFromRight (bounds.getHeight ());
+  // it is reachable with a thumb without covering a reading. Half again as
+  // wide as it is tall: the face inside is inset on all four sides, and at a
+  // square it came out small enough to have to aim at.
+  _keyboardIconArea = bounds.removeFromRight (
+      static_cast<int> (bounds.getHeight () * 1.5f));
 
-  auto clockModeArea = bounds.removeFromRight (modeWidth);
-  _labelClockMode.setBounds (
-      clockModeArea.withTrimmedRight (LayoutHints::padding));
-
-  auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 3);
+  // Clock mode and tempo are one reading in one label — "EXT BPM 123" — so
+  // there is one space between them and one colour over both. Two labels
+  // meant a gap whose width was a guess, and a colour that had to be kept in
+  // step in three places. The tick indicator is centred on the bar itself
+  // (below), not on what this leaves over.
+  auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 2);
   _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
+
+  // What is left between the beat display and the keyboard icon. The tick
+  // indicator is centred on the whole bar, so it reaches to three quarters --
+  // the readout starts where it stops.
+  _labelReadout.setBounds (
+      bounds.withTrimmedLeft (bounds.getWidth () / 2)
+          .withTrimmedRight (LayoutHints::padding));
 
   // Centred on the bar, not on whatever space the labels left over: it is
   // the one thing here that is looked at rather than read, and an off-centre
@@ -162,6 +204,48 @@ StatusBar::resized ()
       juce::Rectangle<int> (tickWidth,
                             static_cast<int> (bounds.getHeight () * 0.6f))
           .withCentre ({ getWidth () / 2, bounds.getCentreY () }));
+}
+
+void
+StatusBar::setControlReadout (juce::String const &text)
+{
+  if (text == _labelReadout.getText ())
+    return;
+
+  _labelReadout.setText (text, juce::dontSendNotification);
+  _labelReadout.setColour (juce::Label::textColourId,
+                           toColour (theme ().textMuted));
+}
+
+void
+StatusBar::paintOverChildren (juce::Graphics &g)
+{
+  if (_recordingProgress < 0.f)
+    return;
+
+  // How far the running take has got, laid over the tick indicator itself
+  // rather than beside it: the beat display is the widest thing on this bar
+  // and sits over the sphere, where the eye already is while recording. Kept
+  // translucent so the beats stay readable through it, and drawn over the
+  // children because the indicator is one of them.
+  auto const tick = _tickIndicator.getBounds ().toFloat ();
+
+  g.setColour (_recordingColour.withAlpha (0.45f));
+  g.fillRoundedRectangle (tick.withWidth (tick.getWidth ()
+                                          * _recordingProgress),
+                          2.f);
+}
+
+void
+StatusBar::setRecordingProgress (float fraction, juce::Colour colour)
+{
+  if (juce::approximatelyEqual (fraction, _recordingProgress)
+      && colour == _recordingColour)
+    return;
+
+  _recordingProgress = fraction;
+  _recordingColour = colour;
+  repaint ();
 }
 
 void
@@ -227,12 +311,11 @@ StatusBar::valueChanged (juce::Value &value)
         
       jassert (value.getValue ().isDouble ());
 
-      auto const bpm = static_cast<float> (value.getValue ());
-      auto stringStream = std::stringstream ();
-      stringStream.precision (1);
-      stringStream << "BPM " << std::fixed << bpm;
-
-      _labelBPM.setText (stringStream.str (), juce::dontSendNotification);
+      // Through the one writer. Written here directly it came out without the
+      // clock's colour, so the reading told you the tempo but not whose it
+      // was — and only sometimes, depending which of three writers got there
+      // last.
+      refreshClockReadout ();
     }
 }
 
@@ -263,10 +346,7 @@ StatusBar::setExternalBPM (float bpm)
     if (safeThis == nullptr) return;
     if (safeThis->_clockMode == 0)
       return;
-    auto colour = safeThis->_clockMode == 2 ? toColour (theme ().accent)
-                                            : toColour (theme ().warning);
-    safeThis->_labelBPM.setText (str, juce::dontSendNotification);
-    safeThis->_labelBPM.setColour (juce::Label::textColourId, colour);
+    safeThis->refreshClockReadout ();
   });
 }
 
@@ -302,24 +382,8 @@ StatusBar::setClockMode (int mode)
     auto *self = safeThis.getComponent ();
     if (mode != 0)
       {
-        // EXT (1) = orange, PIO (2) = cyan
-        auto colour = mode == 2 ? toColour (theme ().accent)
-                                            : toColour (theme ().warning);
-        auto label  = mode == 2 ? "PIO" : "EXT";
-        
-        self->_labelClockMode.setText (label, juce::dontSendNotification);
-        self->_labelClockMode.setColour (juce::Label::textColourId, colour);
-        self->_labelBPM.setColour (juce::Label::textColourId, colour);
-        
-        // Show external BPM if available
-        float extBpm = self->_externalBPM.load ();
-        if (extBpm > 0.f)
-          {
-            auto stringStream = std::stringstream ();
-            stringStream.precision (1);
-            stringStream << std::fixed << extBpm << " BPM";
-            self->_labelBPM.setText (stringStream.str (), juce::dontSendNotification);
-          }
+        self->refreshClockReadout ();
+
         
         // Show external beat clock if available
         int beat = self->_beatClockBeat.load ();
@@ -331,23 +395,7 @@ StatusBar::setClockMode (int mode)
       }
     else
       {
-        self->_labelClockMode.setText ("INT", juce::dontSendNotification);
-        self->_labelClockMode.setColour (juce::Label::textColourId, toColour (theme ().accent));
-        self->_labelBPM.setColour (juce::Label::textColourId, toColour (theme ().accent));
-        
-        // Show internal BPM
-        if (self->_valueBPM.getValue ().isDouble ())
-          {
-            auto const bpm = static_cast<float> (self->_valueBPM.getValue ());
-            auto stringStream = std::stringstream ();
-            stringStream.precision (1);
-            stringStream << "BPM " << std::fixed << bpm;
-            self->_labelBPM.setText (stringStream.str (), juce::dontSendNotification);
-          }
-        
-        // Reset tick indicator and beat counter to show internal state
-        // (will be updated on next internal beat via beatCallback)
-        self->_tickIndicator.setCurrentTick (0);
+        self->refreshClockReadout ();
       }
   });
 }

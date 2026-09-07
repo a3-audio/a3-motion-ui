@@ -113,7 +113,7 @@ TEST (Theme, EveryRoleIsActuallyRead)
     "surface",     "surfaceRaised", "background",        "textPrimary",
     "textMuted",   "textOnAccent",  "accent",            "warning",
     "danger",      "sphereSurface", "sphereRim",         "sphereEnvironment",
-    "boltCore",    "sphereGlow",    "speakerLight",      "energy",
+    "boltCore",    "backgroundGlow", "speakerLight",     "energy",
   };
 
   juce::DynamicObject::Ptr skin{ new juce::DynamicObject{} };
@@ -145,11 +145,33 @@ TEST (Theme, EveryRoleIsActuallyRead)
   EXPECT_TRUE (wasRead (theme.sphereRim)) << "sphereRim";
   EXPECT_TRUE (wasRead (theme.sphereEnvironment)) << "sphereEnvironment";
   EXPECT_TRUE (wasRead (theme.boltCore)) << "boltCore";
-  EXPECT_TRUE (wasRead (theme.sphereGlow)) << "sphereGlow";
+  EXPECT_TRUE (wasRead (theme.backgroundGlow)) << "backgroundGlow";
   EXPECT_TRUE (wasRead (theme.speakerLight)) << "speakerLight";
   EXPECT_TRUE (wasRead (theme.energy)) << "energy";
 }
 
+
+// EveryRoleIsActuallyRead gives every role the same colour, so it cannot see
+// two roles reading one key. That is exactly what happened: the glow was
+// renamed onto `background`, the colour the whole screen sits on, and the
+// screen turned the glow's blue. Here the two carry different colours.
+TEST (Theme, TheBackgroundColourAndTheGlowAreTwoThings)
+{
+  auto const skin = juce::JSON::parse (R"({
+    "background":     { "r": 26, "g": 28,  "b": 32  },
+    "backgroundGlow": { "r": 70, "g": 130, "b": 250 }
+  })");
+
+  auto const theme = loadTheme (skin);
+
+  EXPECT_EQ (theme.background.r, 26);
+  EXPECT_EQ (theme.background.g, 28);
+  EXPECT_EQ (theme.background.b, 32);
+
+  EXPECT_EQ (theme.backgroundGlow.r, 70);
+  EXPECT_EQ (theme.backgroundGlow.g, 130);
+  EXPECT_EQ (theme.backgroundGlow.b, 250);
+}
 
 // ── the active skin on disk ─────────────────────────────────────────────
 
@@ -265,4 +287,39 @@ TEST (SkinSizes, SwitchingSkinMovesSizesWithIt)
 
   EXPECT_LT (small.fontSize (FontRole::Body), large.fontSize (FontRole::Body));
   EXPECT_LT (small.potSize, large.potSize);
+}
+
+
+// The touchscreen's drag sensitivity: how far a finger travels before a
+// control steps once. A skin value like potSize and the font sizes, because
+// what feels right is decided at the panel, not at compile time.
+TEST (Theme, TouchDragPixelsPerStepDefaultsToTwelve)
+{
+  auto const theme = loadTheme (juce::var{});
+  EXPECT_EQ (theme.touchDragPixelsPerStep, 12);
+}
+
+TEST (Theme, TouchDragPixelsPerStepComesFromTheSkin)
+{
+  auto const parsed = juce::JSON::parse (R"({"touchDragPixelsPerStep": 20})");
+  auto const theme = loadTheme (parsed);
+
+  EXPECT_EQ (theme.touchDragPixelsPerStep, 20);
+}
+
+
+// How tall the clip settings bar may be, as a multiple of what its contents
+// ask for. A skin value like potSize: the bar takes its room from the sphere,
+// and where that line sits is a matter of taste, not of legibility.
+TEST (Theme, ClipSettingsHeightScaleDefaultsToOne)
+{
+  auto const theme = loadTheme (juce::var{});
+  EXPECT_NEAR (theme.clipSettingsHeightScale, 1.f, 0.001f);
+}
+
+TEST (Theme, ClipSettingsHeightScaleComesFromTheSkin)
+{
+  auto const parsed
+      = juce::JSON::parse (R"({"clipSettingsHeightScale": 0.75})");
+  EXPECT_NEAR (loadTheme (parsed).clipSettingsHeightScale, 0.75f, 0.001f);
 }

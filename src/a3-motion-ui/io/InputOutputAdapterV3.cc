@@ -71,8 +71,34 @@ InputOutputAdapterV3::serialInit ()
           _serialPort.SetParity (Parity::PARITY_NONE);
           _serialPort.SetStopBits (StopBits::STOP_BITS_1);
 
-          // Give the device a moment to settle
-          juce::Thread::sleep (100);
+          // Drop the modem lines. On this board they run to the ESP32's
+          // auto-reset circuit through the CH343 bridge: RTS asserted holds
+          // EN low, and DTR asserted brings it up into the download stub.
+          // Deasserted is "run normally", which is the state a port that is
+          // only being talked through should leave them in.
+          _serialPort.SetDTR (false);
+          _serialPort.SetRTS (false);
+
+          // Long enough for a board that did reset while the port was being
+          // opened to be back and talking. It was 100ms, a tenth of an
+          // ESP32's boot, so a first poll could go out into one.
+          juce::Thread::sleep (600);
+
+          // Opening is not finding. Every candidate that exists will open --
+          // the CH343 bridge beside the controller opens perfectly and
+          // answers nothing -- so a port has to say who it is before it is
+          // believed. Without this the adapter clamped onto the first node in
+          // the list and read into the void for a whole session while the
+          // controller sat on another one, never looked at again.
+          if (!pingAnswers ())
+            {
+              juce::Logger::writeToLog (
+                  "InputOutputAdapterV3: " + serialDevice
+                  + " opened but did not answer PING -- not the controller");
+              _serialPort.Close ();
+              continue;
+            }
+
           _hardwareAvailable = true;
           juce::Logger::writeToLog (
               "InputOutputAdapterV3: serial port opened: " + serialDevice);
@@ -90,6 +116,67 @@ InputOutputAdapterV3::serialInit ()
   juce::Logger::writeToLog (
       "InputOutputAdapterV3: no usable serial port found "
       "(/dev/ttyACM0..2, /dev/ttyUSB0..2)");
+}
+
+bool
+InputOutputAdapterV3::pingAnswers ()
+{
+  // Asked more than once, over a couple of seconds. Opening the port resets
+  // the board -- DTR and RTS run to its auto-reset circuit -- so the first
+  // question lands in the middle of a boot, and what comes back is the first
+  // byte of the ROM's own chatter ("ESP-ROM:esp32s3-..."), not an answer. A
+  // single ping therefore turned away a controller that was plainly there
+  // and about to say "a3-motion ready".
+  for (int attempt = 0; attempt < pingAttempts; ++attempt)
+    {
+      try
+        {
+          // What the boot left behind goes first: chatter is not an answer
+          // to a question nobody had asked yet.
+          _serialPort.FlushInputBuffer ();
+
+          char const ping = 0x01;
+          _serialPort.Write (std::string (&ping, 1));
+
+          char reply = 0;
+          _serialPort.ReadByte (reply, serialTimeoutMs);
+
+          auto const byte = static_cast<juce::uint8> (reply);
+          if (isControllerPingReply (&byte, 1))
+            {
+              // Once more, so the first poll frame starts on a boundary: a
+              // byte left over here shifts every frame after it by one, and
+              // the poll loop has no way back from that.
+              _serialPort.FlushInputBuffer ();
+              return true;
+            }
+        }
+      catch (std::exception const &)
+        {
+          // A timeout is the common case while it is still booting.
+        }
+
+      juce::Thread::sleep (pingRetryMs);
+    }
+
+  return false;
+}
+
+void
+InputOutputAdapterV3::resynchronise ()
+{
+  // Markers in the wrong place mean the stream has slipped -- a byte too many
+  // or too few somewhere behind us. Reading on repeats the same slip on every
+  // frame, so the only way out is to drop what is buffered and let the next
+  // poll start clean.
+  try
+    {
+      _serialPort.FlushInputBuffer ();
+    }
+  catch (std::exception const &)
+    {
+      // Nothing to do here; the reconnect watch notices a port that has gone.
+    }
 }
 
 bool
@@ -158,10 +245,40 @@ InputOutputAdapterV3::resolveFrameOffsets (const uint8_t *raw, bool withPots,
 // ── Main poll loop ────────────────────────────────────────────────────────────
 
 void
+InputOutputAdapterV3::serialReopen ()
+{
+  if (_hardwareAvailable)
+    {
+      try
+        {
+          _serialPort.Close ();
+        }
+      catch (std::exception const &e)
+        {
+          juce::Logger::writeToLog (
+              juce::String ("InputOutputAdapterV3: closing failed: ")
+              + e.what ());
+        }
+
+      _hardwareAvailable = false;
+    }
+
+  serialInit ();
+}
+
+void
 InputOutputAdapterV3::processInput ()
 {
   if (!_hardwareAvailable)
-    return;
+    {
+      // A controller plugged in after the app started, or one that went away
+      // and came back. Neither used to be found: serialInit() ran once, in
+      // the constructor, and nothing ever asked again.
+      if (_reconnect.shouldRetryOpening (juce::Time::currentTimeMillis ()))
+        serialInit ();
+
+      return;
+    }
 
   refreshIdleButtonLeds ();
 
@@ -178,6 +295,9 @@ InputOutputAdapterV3::processInput ()
       if (!readExact (raw, sizeof (raw)))
         {
           _cycle = 0;
+          if (_reconnect.noteQuietPoll ())
+            serialReopen ();
+
           return;
         }
 
@@ -188,8 +308,13 @@ InputOutputAdapterV3::processInput ()
                                 potOffset))
         {
           _cycle = 0;
+          resynchronise ();
           return;
         }
+
+      // Bytes arrived and made sense: whatever is on the other end is alive,
+      // so the silence count starts over.
+      _reconnect.noteFrameReceived ();
 
       parseButtons (raw, buttonOffset);
       parseEncoders (raw, encoderOffset);
@@ -205,6 +330,9 @@ InputOutputAdapterV3::processInput ()
       if (!readExact (raw, sizeof (raw)))
         {
           _cycle = 0;
+          if (_reconnect.noteQuietPoll ())
+            serialReopen ();
+
           return;
         }
 
@@ -215,8 +343,11 @@ InputOutputAdapterV3::processInput ()
                                 potOffset))
         {
           _cycle = 0;
+          resynchronise ();
           return;
         }
+
+      _reconnect.noteFrameReceived ();
 
       parseButtons (raw, buttonOffset);
       parseEncoders (raw, encoderOffset);
@@ -281,10 +412,18 @@ namespace
 // ClockMode was a V2-only physical button with no LED on V3 hardware, so it
 // has no entry — and therefore stays dark, which is what a key with no
 // function should do.
-constexpr int recordHwIndices[] = { 41, 43 };
-constexpr int tapHwIndices[] = { 2, 36 };
-constexpr int menuHwIndices[] = { 3, 37 };
-constexpr int shiftHwIndices[] = { 40, 42 };
+/** The two firmware indices of each function-key row, left column then
+ *  right, top row first. Read off the panel's RC labels: col0 is
+ *  "00","10","20","30","40","50" and col9 is "09","19","29","39","49","59".
+ *  What each row *does* is not here — it is functionKeyOrder. */
+constexpr int functionRowHwIndices[numFunctionKeys][2] = {
+  { 40, 42 }, // row 0
+  { 41, 43 }, // row 1
+  {  2, 36 }, // row 2
+  {  1, 38 }, // row 3
+  {  0, 39 }, // row 4
+  {  3, 37 }, // row 5
+};
 }
 
 void
@@ -299,10 +438,28 @@ InputOutputAdapterV3::refreshIdleButtonLeds ()
   _idleLedWritten = idle;
 
   auto const colour = toColour (idle);
-  for (auto const *pair : { recordHwIndices, tapHwIndices, menuHwIndices,
-                            shiftHwIndices })
-    for (int i = 0; i < 2; ++i)
-      writeSetLed (hwIndexToLedId[pair[i]], colour);
+  for (auto const &pair : functionRowHwIndices)
+    for (auto const idx : pair)
+      writeSetLed (hwIndexToLedId[idx], colour);
+}
+
+bool
+InputOutputAdapterV3::isRightHandColumn (int hwIndex)
+{
+  // col9's function keys, by firmware index: "09", "19", "29", "39", "49",
+  // "59". Everything else in the end columns is col0.
+  switch (hwIndex)
+    {
+    case 42:
+    case 43:
+    case 36:
+    case 38:
+    case 39:
+    case 37:
+      return true;
+    default:
+      return false;
+    }
 }
 
 void
@@ -312,45 +469,42 @@ InputOutputAdapterV3::dispatchButtonEvent (int idx, bool pressed)
 
   switch (m.role)
     {
-    case ButtonRole::MenuToggle:
+    case ButtonRole::Function:
       {
-        // Two physical buttons (50 at idx 3, 59 at idx 37), either of which
-        // is the Menu button. They used to have to be pressed together — a
-        // chord to reach the menu, which is a lot of ceremony for the one
-        // key somebody presses to get out of somewhere.
-        //
-        // Tracked separately so that holding one and pressing the other
-        // does not read as a release: Menu is down while either is down.
-        int const slot = (idx == 3) ? 0 : 1;
-        bool const wasAnyPressed
-            = _menuButtonState[0] || _menuButtonState[1];
-        _menuButtonState[slot] = pressed;
-        bool const isAnyPressed = _menuButtonState[0] || _menuButtonState[1];
+        // Which row this is comes from the panel; what the row *does* comes
+        // from functionKeyOrder — the same list the global strip is laid out
+        // from, so the hand learns one arrangement and not two.
+        auto const row = static_cast<std::size_t> (m.functionRow);
+        if (row >= functionKeyOrder.size ())
+          break;
 
-        if (isAnyPressed != wasAnyPressed)
-          inputButtonValue (Button::Menu, isAnyPressed);
+        auto const key = functionKeyOrder[row];
+
+        // The two end columns are two places to press one key. Tracked apart
+        // so that holding one side and pressing the other is not a release —
+        // which is the whole point of their being mirrored.
+        auto const side = isRightHandColumn (idx) ? 1u : 0u;
+        auto &state = _functionKeyState[row];
+
+        bool const wasDown = state[0] || state[1];
+        state[side] = pressed;
+        bool const isDown = state[0] || state[1];
+
+        if (isDown == wasDown)
+          break;
+
+        inputButtonValue (key, isDown);
+
+        if (key == FunctionKey::Tap && isDown)
+          {
+            auto ticks = juce::Time::getHighResolutionTicks ();
+            auto freq = juce::Time::getHighResolutionTicksPerSecond ();
+            auto timeMicros = static_cast<juce::int64> (
+                static_cast<double> (ticks) / static_cast<double> (freq)
+                * 1'000'000.0);
+            inputTapTime (timeMicros);
+          }
       }
-      break;
-
-    case ButtonRole::Record:
-      inputButtonValue (Button::Record, pressed);
-      break;
-
-    case ButtonRole::Shift:
-      inputButtonValue (Button::Shift, pressed);
-      break;
-
-    case ButtonRole::Tap:
-      inputButtonValue (Button::Tap, pressed);
-      if (pressed)
-        {
-          auto ticks = juce::Time::getHighResolutionTicks ();
-          auto freq  = juce::Time::getHighResolutionTicksPerSecond ();
-          auto timeMicros = static_cast<juce::int64> (
-              static_cast<double> (ticks) / static_cast<double> (freq)
-              * 1'000'000.0);
-          inputTapTime (timeMicros);
-        }
       break;
 
     case ButtonRole::Pad:
@@ -471,59 +625,29 @@ InputOutputAdapterV3::writeSetLed (uint8_t ledId, juce::Colour colour)
 }
 
 void
-InputOutputAdapterV3::outputButtonLED (Button button, bool value)
+InputOutputAdapterV3::outputButtonLED (Button button, juce::Colour colour)
 {
-  // Record/Tap/Menu/Shift are each wired to a mirrored pair of physical
-  // buttons (left + right hand side); both share one logical Button and
-  // light up together. ClockMode was a V2-only physical button with no LED
-  // on V3 hardware (kept for backward compat), so there's nothing to send
-  // for it.
-  // The lists live at file scope: the resting light writes the same LEDs,
-  // and two hand-kept copies of a wiring map is one too many.
+  // What a key looks like is decided once, in theme/FunctionKeyColours.hh,
+  // and arrives here already decided — this used to look the colour up by the
+  // key's *name* out of the user config, which meant the panel and the screen
+  // could disagree about what a key was doing and nothing would say so.
+  //
+  // A transparent colour is a key with nothing to report: it takes the resting
+  // light, which is not darkness — a key that has a function should say so
+  // while nobody is touching it.
+  auto const lit = ledColour (
+      colour.isTransparent ()
+          ? toColour (buttonLedIdleColour (userConfig["buttonLeds"]))
+          : colour);
 
-  // Each function button lights in its own colour, so the panel says which key
-  // does what without reading the legend. Unconfigured ones stay white, which
-  // is what all of them used to be.
-  auto const named = [&] () -> juce::String {
-    switch (button)
-      {
-      case Button::Record: return "record";
-      case Button::Tap: return "tap";
-      case Button::Menu: return "menu";
-      case Button::Shift: return "shift";
-      case Button::ClockMode: break;
-      }
-    return {};
-  }();
+  // Both sides of the key light: they are one key with two places to press
+  // it, and a lit left with a dark right would say they were two.
+  auto const row = functionKeyPosition (button);
+  if (row < 0)
+    return;
 
-  // Pressed: the button's own colour, which is what says which key does what.
-  // Let go: the resting colour, not darkness — a key that has a function
-  // should say so while nobody is touching it.
-  auto const &buttonLeds = userConfig["buttonLeds"];
-  auto const colour = toColour (value ? buttonLedColour (buttonLeds, named)
-                                      : buttonLedIdleColour (buttonLeds));
-
-  switch (button)
-    {
-    case Button::Record:
-      for (auto idx : recordHwIndices)
-        writeSetLed (hwIndexToLedId[idx], colour);
-      break;
-    case Button::Tap:
-      for (auto idx : tapHwIndices)
-        writeSetLed (hwIndexToLedId[idx], colour);
-      break;
-    case Button::Menu:
-      for (auto idx : menuHwIndices)
-        writeSetLed (hwIndexToLedId[idx], colour);
-      break;
-    case Button::Shift:
-      for (auto idx : shiftHwIndices)
-        writeSetLed (hwIndexToLedId[idx], colour);
-      break;
-    case Button::ClockMode:
-      break;
-    }
+  for (auto const idx : functionRowHwIndices[row])
+    writeSetLed (hwIndexToLedId[idx], lit);
 }
 
 void

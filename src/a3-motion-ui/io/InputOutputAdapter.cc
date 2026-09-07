@@ -100,6 +100,13 @@ InputOutputAdapter::getPot (index_t channel, index_t pot)
 }
 
 juce::Value &
+InputOutputAdapter::getGlobalPot (index_t potIndex)
+{
+  juce::ignoreUnused (potIndex);
+  return _noGlobalPot;
+}
+
+juce::Value &
 InputOutputAdapter::getTapTimeMicros ()
 {
   return _valueTapTimeMicros;
@@ -399,10 +406,9 @@ InputOutputAdapter::valueChanged (juce::Value &value)
     {
       if (value.refersToSameSourceAs (_valueButtonLEDs[index]))
         {
-          auto message = std::make_unique<OutputMessageButtonLED> ();
-          message->button = static_cast<Button> (index);
-          message->value = value.getValue ();
-          submitOutputMessage (std::move (message));
+          sendButtonLED (
+              static_cast<Button> (index),
+              juce::VariantConverter<juce::Colour>::fromVar (value.getValue ()));
           return;
         }
     }
@@ -422,6 +428,33 @@ InputOutputAdapter::valueChanged (juce::Value &value)
             }
         }
     }
+}
+
+void
+InputOutputAdapter::setButtonLED (Button button, juce::Colour colour)
+{
+  // Sent first, so the key is lit by the time this returns. The assignment
+  // below still happens -- the Value is what anything else reads -- and its
+  // async notification lands on sendButtonLED() too, which drops it as a
+  // repeat.
+  sendButtonLED (button, colour);
+  _valueButtonLEDs[static_cast<std::size_t> (button)]
+      = juce::VariantConverter<juce::Colour>::toVar (colour);
+}
+
+void
+InputOutputAdapter::sendButtonLED (Button button, juce::Colour colour)
+{
+  auto const index = static_cast<std::size_t> (button);
+  if (_lastButtonLEDsSent[index] == colour)
+    return;
+
+  _lastButtonLEDsSent[index] = colour;
+
+  auto message = std::make_unique<OutputMessageButtonLED> ();
+  message->button = button;
+  message->colour = colour;
+  submitOutputMessage (std::move (message));
 }
 
 void
@@ -481,7 +514,7 @@ InputOutputAdapter::handleOutputMessage (
         auto messageButtonLED
             = dynamic_cast<OutputMessageButtonLED *> (message.get ());
         jassert (messageButtonLED != nullptr);
-        outputButtonLED (messageButtonLED->button, messageButtonLED->value);
+        outputButtonLED (messageButtonLED->button, messageButtonLED->colour);
         break;
       }
     case OutputMessage::Type::PadLED:

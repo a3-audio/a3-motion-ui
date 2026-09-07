@@ -20,6 +20,10 @@
 
 #include "PatternFile.hh"
 
+#include "RecordingSeam.hh"
+#include "SvgPathTokens.hh"
+#include "TrajectoryShape.hh"
+
 #include <a3-motion-engine/tempo/TempoClock.hh>
 
 #include <cmath>
@@ -107,44 +111,46 @@ buildSvgPathData (std::vector<Pos> const &ticks,
   if (range < 1e-6f)
     range = 1.f;
 
-  auto centreX = (minX + maxX) * 0.5f;
-  auto centreY = (minY + maxY) * 0.5f;
+  // The origin is the middle of the room, and where a trajectory sits in the
+  // room is part of what it is -- so only the scale is normalised and the
+  // origin stays put. This used to recentre on the bounding box, which moved
+  // every shape whose box is not symmetric about the origin: the triangle came
+  // back sitting below the listener, and since spinPosition() turns about the
+  // origin, rotating it swung it round instead of spinning it in place. That
+  // is the wobble; it was written into the file and read back out again.
+  //
+  // The furthest point from the origin becomes 1, so a pattern still arrives
+  // at a known size whatever it was drawn at.
+  auto scale = std::max ({ std::abs (minX), std::abs (maxX), std::abs (minY),
+                           std::abs (maxY) });
+  if (scale < 1e-6f)
+    scale = 1.f;
 
   // ── Downsample to max 128 points ──
   auto const maxPts = 128;
   auto const step = std::max (1, static_cast<int> (ticks.size ()) / maxPts);
 
-  // Split at invalid ticks into segments of normalised points.
-  // Even when step > 1 we must detect invalid ticks *between* sampled
-  // indices so that jump-boundaries are never silently skipped.
+  // Split into segments wherever the trajectory stops travelling: a gap in
+  // the data, or a teleport. Splitting on gaps alone was enough only while a
+  // take was sparse; a finished one has its seams closed and no gaps left, so
+  // a tapped take came out as one path with a straight line drawn across
+  // every jump — and stayed that way, because this is what goes to disk.
   std::vector<std::vector<Vec2>> segments;
-  segments.emplace_back ();
 
-  for (size_t i = 0; i < ticks.size (); i += static_cast<size_t> (step))
+  // No bridge plan: the file records where the movement actually jumped.
+  // Which of those jumps get drawn through is the fade's business, and the
+  // fade lives in the clip beside the shape, not in the shape.
+  for (auto const &run : trajectorySegments (ticks, BridgePlan{}))
     {
-      // Check whether any tick in [i, i+step) is invalid (segment break).
-      bool hasInvalid = false;
-      for (size_t j = i;
-           j < std::min (i + static_cast<size_t> (step), ticks.size ());
-           ++j)
-        {
-          if (!ticks[j].isValid ())
-            {
-              hasInvalid = true;
-              break;
-            }
-        }
+      auto const runStep = std::max (
+          size_t{ 1 }, run.size () / static_cast<size_t> (maxPts));
 
-      if (hasInvalid)
-        {
-          if (!segments.back ().empty ())
-            segments.emplace_back ();
-          continue;
-        }
+      std::vector<Vec2> pts;
+      for (size_t i = 0; i < run.size (); i += runStep)
+        pts.push_back ({ run[i].x () / scale, run[i].y () / scale });
 
-      float nx = (ticks[i].x () - centreX) / (range * 0.5f);
-      float ny = (ticks[i].y () - centreY) / (range * 0.5f);
-      segments.back ().push_back ({ nx, ny });
+      if (!pts.empty ())
+        segments.push_back (std::move (pts));
     }
 
   // Remove trailing empty segment
@@ -170,53 +176,31 @@ buildSvgPathData (std::vector<Pos> const &ticks,
                          && segments[0].size () > 4;
     }
 
-  // ── Check for jump-only pattern ──
-  // A jump pattern consists of segments where each segment is a cluster
-  // of (near-)identical points, i.e. the source has no real movement
-  // within each segment — it just sits at a position and then jumps.
-  if (segments.size () >= 2)
+  // ── Tapped rather than drawn ──
+  // Decided on the shape of the tick data, not on how many ticks are missing
+  // from it. The old test needed at least two segments, which only ever
+  // happened while gaps were still in the data.
+  if (isTappedTrajectory (ticks))
     {
-      bool allDegenerate = true;
-      for (auto const &seg : segments)
+      for (auto const &held : trajectoryPlateaus (ticks))
         {
-          if (seg.size () < 2)
-            continue;
-          for (size_t i = 1; i < seg.size (); ++i)
+          float const nx = held.x () / scale;
+          float const ny = held.y () / scale;
+
+          bool duplicate = false;
+          for (auto const &d : outJumpDots)
             {
-              if (seg[i].distTo (seg[0]) > 0.05f)
+              if (std::abs (d.first - nx) < 0.05f
+                  && std::abs (d.second - ny) < 0.05f)
                 {
-                  allDegenerate = false;
+                  duplicate = true;
                   break;
                 }
             }
-          if (!allDegenerate)
-            break;
+          if (!duplicate)
+            outJumpDots.push_back ({ nx, ny });
         }
-
-      if (allDegenerate)
-        {
-          for (auto const &seg : segments)
-            {
-              if (seg.empty ())
-                continue;
-              // Use the first point of each segment as the jump dot
-              float nx = seg[0].x;
-              float ny = seg[0].y;
-              bool duplicate = false;
-              for (auto const &d : outJumpDots)
-                {
-                  if (std::abs (d.first - nx) < 0.05f
-                      && std::abs (d.second - ny) < 0.05f)
-                    {
-                      duplicate = true;
-                      break;
-                    }
-                }
-              if (!duplicate)
-                outJumpDots.push_back ({ nx, ny });
-            }
-          return {};
-        }
+      return {};
     }
 
   // ── Palindrome: for non-closed segments, append reversed ──
@@ -244,6 +228,13 @@ buildSvgPathData (std::vector<Pos> const &ticks,
     {
       if (pts.size () < 2)
         continue;
+
+      // The separator matters: a closed subpath ends in Z, and writing the
+      // next subpath's M straight after it produced "ZM", which is not a
+      // command any more. The reader dropped it, the two runs became one, and
+      // a straight line was drawn across the gap between them.
+      if (out.tellp () > 0)
+        out << ' ';
 
       out << "M " << fts (pts[0].x) << ' ' << fts (pts[0].y);
 
@@ -436,9 +427,14 @@ sampleSvgPathToTicks (std::string const &pathData,
 
   std::vector<Vec2> polyline;
 
-  auto tokens = juce::StringArray::fromTokens (juce::String (pathData),
-                                                " ,\t\n\r", "");
-  tokens.removeEmptyStrings ();
+  // Where each subpath begins. The polyline is flat, so without these the
+  // stretch from the end of one subpath to the start of the next is just
+  // another segment and gets walked like any other -- the blob crossing a gap
+  // the finger left, in a straight line, which is what it looked like at the
+  // end of a trajectory.
+  std::vector<std::size_t> subPathStarts;
+
+  auto tokens = svgPathTokens (juce::String (pathData));
 
   int idx = 0;
   auto nextF = [&]() -> float {
@@ -458,6 +454,7 @@ sampleSvgPathToTicks (std::string const &pathData,
           ++idx;
           cur = { nextF (), nextF () };
           subPathStart = cur;
+          subPathStarts.push_back (polyline.size ());
           polyline.push_back (cur);
         }
       else if (cmd == "L" || cmd == "l")
@@ -545,6 +542,18 @@ sampleSvgPathToTicks (std::string const &pathData,
                 ? (targetDist - arcLen[seg]) / segLen
                 : 0.f;
 
+      // A segment that ends on a subpath's first point is not part of any
+      // shape: it is the gap between two of them. Nothing was played there,
+      // and nothing is written.
+      auto const isBridge
+          = std::find (subPathStarts.begin (), subPathStarts.end (), seg + 1)
+            != subPathStarts.end ();
+      if (isBridge)
+        {
+          outTicks.push_back (Pos::invalid);
+          continue;
+        }
+
       auto const px = polyline[seg].x + (polyline[seg + 1].x - polyline[seg].x) * frac;
       auto const py = polyline[seg].y + (polyline[seg + 1].y - polyline[seg].y) * frac;
       outTicks.push_back (Pos::fromCartesian (px, py, 0.f));
@@ -564,6 +573,10 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
 
   auto ticks = pattern->getTicks ();
 
+  // What goes on disk is the take as it was played. Nothing is laid over it
+  // any more: the fade is read at playback, so the file needs no second copy
+  // of the take to get back to.
+
   auto const numTicks = ticks.positions.size ();
   auto const lengthBeats
       = static_cast<int> (numTicks) / TempoClock::getTicksPerBeat ();
@@ -578,6 +591,19 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
   svg->setAttribute ("viewBox", "-1 -1 2 2");
   svg->setAttribute ("data-name", juce::String (pattern->getName ()));
   svg->setAttribute ("data-beats", lengthBeats);
+  // No seam metadata. It existed so a destructive closing move could be
+  // recomputed at another length; nothing is written over the take now, so the
+  // ticks say everything there is to say about where it joins.
+
+  // Only the geometry, from here to the end. Everything that used to follow --
+  // the fade, the direction, the end action, the act mode, the rotation, the
+  // spin, the swell, the envelope, the whole elevation block and the playback
+  // length -- says how the shape is *played*, and that is a clip's business.
+  // A shape file answers one question: where does the sound go.
+  //
+  // The reader below still understands every one of them. It has to: the
+  // migration reads takes written the old way, and it runs on every start.
+
   svg->setAttribute ("data-ppqn", TempoClock::getTicksPerBeat ());
 
   if (!pathData.empty ())
@@ -645,6 +671,10 @@ PatternFile::load (juce::File const &file)
   pattern->setName (name);
   pattern->resize (static_cast<index_t> (lengthBeats * ppqn));
 
+  // data-seam-* is read by nothing now. A file that still carries it is a
+  // file written before the fade stopped rewriting takes, and its ticks are
+  // already what was played.
+
   auto const numTicks = pattern->getNumTicks ();
 
   std::vector<Pos> sampled;
@@ -652,6 +682,55 @@ PatternFile::load (juce::File const &file)
 
   for (index_t t = 0; t < numTicks && t < sampled.size (); ++t)
     pattern->setTick (t, sampled[t]);
+
+  if (xml->getStringAttribute ("data-direction") == "rev")
+    pattern->setPlayDirection (PlayDirection::Reverse);
+  pattern->setEndAction (
+      endActionFromName (xml->getStringAttribute ("data-end-action")));
+  // Absent in every take written before the mode existed, and those were all
+  // shots -- so the fallback is the behaviour they had rather than the new one.
+  pattern->setActMode (
+      xml->getStringAttribute ("data-act-mode") == "hold" ? ActMode::Hold
+                                                          : ActMode::OneShot);
+  pattern->setRotate (static_cast<float> (
+      xml->getDoubleAttribute ("data-rotate", pattern->getRotate ())));
+  pattern->setSpin (xml->getIntAttribute ("data-spin", 0));
+  pattern->setReachLfo (xml->getIntAttribute ("data-reach-lfo", 0));
+  pattern->setEnvelopeAttack (
+      xml->getIntAttribute ("data-env-attack", pattern->getEnvelopeAttack ()));
+  pattern->setEnvelopeDecay (
+      xml->getIntAttribute ("data-env-decay", pattern->getEnvelopeDecay ()));
+  pattern->setEnvelopeMax (static_cast<float> (
+      xml->getDoubleAttribute ("data-env-max", pattern->getEnvelopeMax ())));
+
+  // Each falls back to what a fresh pattern has, so a file written before the
+  // setting existed comes back behaving as it always did.
+  auto const attributeFloat = [&xml] (char const *name, float fallback) {
+    return static_cast<float> (
+        xml->getDoubleAttribute (name, static_cast<double> (fallback)));
+  };
+
+  pattern->setReach (attributeFloat ("data-reach", pattern->getReach ()));
+  pattern->setMirrorSouth (
+      xml->getIntAttribute ("data-mirror-south", pattern->getMirrorSouth ())
+      != 0);
+  pattern->setClipTop (attributeFloat ("data-clip-top", pattern->getClipTop ()));
+  pattern->setClipBottom (
+      attributeFloat ("data-clip-bottom", pattern->getClipBottom ()));
+  pattern->setFlat (xml->getIntAttribute ("data-flat", pattern->getFlat ())
+                    != 0);
+  pattern->setFlatElevation (
+      attributeFloat ("data-flat-elevation", pattern->getFlatElevation ()));
+
+  auto const playback = pattern->getPlaybackLength ();
+  pattern->setPlaybackLength (
+      { xml->getIntAttribute ("data-playback-bar", playback.bar ()),
+        xml->getIntAttribute ("data-playback-beat", playback.beat ()),
+        xml->getIntAttribute ("data-playback-tick", playback.tick ()) });
+
+  // What came out of the file is the take as played, and it stays that way.
+  // data-fade is not read: the fade is a distance now, it lives in the clip,
+  // and nothing is laid over the geometry at load time.
 
   pattern->setStatus (Pattern::Status::Idle);
   return pattern;
@@ -693,6 +772,22 @@ PatternFile::peek (juce::File const &file)
     }
 
   return result;
+}
+
+
+bool
+PatternFile::setName (juce::File const &file, juce::String const &name)
+{
+  if (!file.existsAsFile () || name.isEmpty ())
+    return false;
+
+  auto xml = juce::XmlDocument::parse (file);
+  if (!xml || xml->getTagName () != "svg")
+    return false;
+
+  xml->setAttribute ("data-name", name);
+
+  return xml->writeTo (file, {});
 }
 
 }

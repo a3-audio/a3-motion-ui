@@ -42,7 +42,7 @@ perceptual (float normalized)
 CoronaConfig
 loadCoronaConfig (juce::var const &config)
 {
-  auto const &corona = config["corona"];
+  auto const &corona = config["blob"];
 
   auto const value = [&corona] (char const *key, float fallback) {
     return corona.hasProperty (key) ? static_cast<float> (corona[key])

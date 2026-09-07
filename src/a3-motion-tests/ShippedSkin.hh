@@ -27,16 +27,26 @@
 namespace a3
 {
 
-/** Contents of the skin that actually ships — the one `ui.skin` names, not a
- *  hardcoded path, so these tests keep checking the file the app will load
- *  even after someone switches skins. */
+/** Contents of the skin that ships.
+ *
+ *  This used to load whatever `ui.skin` named, so that the guards below kept
+ *  checking the file the app would actually load. That was right while the
+ *  named skin *was* the shipped one. It is not any more: the default is
+ *  protected now and editing it branches into a skin of the user's own, so
+ *  following the name meant these tests measured somebody's working file and
+ *  failed the suite the moment they dialled a value outside a guard band —
+ *  which is a thing they are allowed to do.
+ *
+ *  The default is the right reference precisely because it cannot be written:
+ *  what it holds is what every device starts from and what Reset returns to. */
 inline juce::var
 shippedSkin ()
 {
   auto const configFile = juce::File (A3_CONFIG_JSON_PATH);
-  auto const config = juce::JSON::parse (configFile.loadFileAsString ());
+  auto const skin = skinFile (configFile.getParentDirectory (),
+                              protectedSkinName);
 
-  return loadActiveSkinVar (configFile, config);
+  return juce::JSON::parse (skin.loadFileAsString ());
 }
 
 }

@@ -1,0 +1,65 @@
+{
+  "channels": [
+    {
+      "threeD": 0.119999997317791,
+      "freq": 0.449999988079071,
+      "q": 0.100000001490116,
+      "slots": [
+        {
+          "pattern": "Spiral",
+          "recordLengthLog2": 3
+        },
+        {
+          "pattern": "Helix",
+          "recordLengthLog2": 3
+        }
+      ]
+    },
+    {
+      "threeD": 0.239999994635582,
+      "freq": 0.449999988079071,
+      "q": 0.100000001490116,
+      "slots": [
+        {
+          "pattern": "Epicycloid 5-2",
+          "recordLengthLog2": 3
+        },
+        {
+          "pattern": "Hypo 8-3",
+          "recordLengthLog2": 3
+        }
+      ]
+    },
+    {
+      "threeD": 0.360000014305115,
+      "freq": 0.449999988079071,
+      "q": 0.100000001490116,
+      "slots": [
+        {
+          "pattern": "Hypo 7-2",
+          "recordLengthLog2": 3
+        },
+        {
+          "pattern": "Orbit",
+          "recordLengthLog2": 3
+        }
+      ]
+    },
+    {
+      "threeD": 0.479999989271164,
+      "freq": 0.449999988079071,
+      "q": 0.100000001490116,
+      "slots": [
+        {
+          "pattern": "Hypo",
+          "recordLengthLog2": 3
+        },
+        {
+          "pattern": "Epicycloid 7-3",
+          "recordLengthLog2": 3
+        }
+      ]
+    }
+  ],
+  "name": "Ambient"
+}

@@ -25,11 +25,71 @@ constexpr float browsedRowWash = 0.086f;
 constexpr float armedRowWash = 0.133f;
 constexpr float armedFrameWash = 0.18f;
 constexpr float rowFrameWash = 0.08f;
+
+// The panel's proportions. One copy, read by the drawing and by the hit
+// areas alike.
+constexpr int maxPanelW = 760;
+constexpr int itemH = 52;
+constexpr int rowGap = 6;
+constexpr int paddingV = 24;
+constexpr int paddingH = 32;
+}
+
+int
+globalSettingsSideZoneWidth (juce::Rectangle<int> bounds)
+{
+  // A fifth of the width on each side, and never less than the padding the
+  // panel used to have. These are drag zones, not margins — a finger has to
+  // land in one, and 32px is narrower than a fingertip.
+  return juce::jmax (paddingH, bounds.getWidth () / 5);
+}
+
+juce::Rectangle<int>
+globalSettingsPanelBounds (juce::Rectangle<int> bounds, int numOptions)
+{
+  auto const panelW
+      = juce::jmin (maxPanelW,
+                    bounds.getWidth () - 2 * globalSettingsSideZoneWidth (bounds));
+  auto const panelH
+      = paddingV * 2 + numOptions * itemH + (numOptions - 1) * rowGap;
+
+  return juce::Rectangle<int> ((bounds.getWidth () - panelW) / 2,
+                               (bounds.getHeight () - panelH) / 2, panelW,
+                               panelH);
+}
+
+juce::Rectangle<int>
+globalSettingsRowBounds (juce::Rectangle<int> panel, int numOptions, int index)
+{
+  juce::ignoreUnused (numOptions);
+
+  auto const rows = panel.reduced (paddingH, paddingV);
+
+  return juce::Rectangle<int> (rows.getX (),
+                               rows.getY () + index * (itemH + rowGap),
+                               rows.getWidth (), itemH);
+}
+
+juce::Rectangle<int>
+globalSettingsNameArea (juce::Rectangle<int> row)
+{
+  return row.removeFromLeft (row.getWidth () * 3 / 5).reduced (8, 0);
+}
+
+juce::Rectangle<int>
+globalSettingsValueArea (juce::Rectangle<int> row)
+{
+  row.removeFromLeft (row.getWidth () * 3 / 5);
+  return row.reduced (8, 8);
 }
 
 GlobalSettingsComponent::GlobalSettingsComponent ()
 {
-  setInterceptsMouseClicks (false, false);
+  // Not for itself, but for its children: the dimmed area beside the panel
+  // goes on letting touches through to the sphere, while the panel's rows
+  // catch them.
+  setInterceptsMouseClicks (false, true);
+
 }
 
 void
@@ -38,7 +98,88 @@ GlobalSettingsComponent::setOptions (std::vector<Option> options)
   _options = std::move (options);
   _optionIndex = juce::jlimit (0, (int) _options.size () - 1, _optionIndex);
   _selectedValueIndex = 0;
+  rebuildRowTouch ();
   repaint ();
+}
+
+void
+GlobalSettingsComponent::rebuildRowTouch ()
+{
+  _rowTouch.clear ();
+
+  for (size_t i = 0; i < _options.size (); ++i)
+    {
+      auto const option = static_cast<int> (i);
+
+      RowTouch touch;
+
+      touch.name = std::make_unique<TouchControl> ();
+      touch.name->setIdentity (option);
+      touch.name->onTap = [this] (int tapped, int) {
+        if (onRowTapped)
+          onRowTapped (tapped);
+      };
+      // Dragging over the names walks the rows too, so the gesture is the
+      // same wherever the finger lands. The strips beside the panel stay the
+      // better place for it, though: a hand on the rows covers the ones it
+      // is moving through.
+      touch.name->onDragIncrement = [this] (int, int, int increment) {
+        // Same direction as the strips beside the panel: the page follows the
+        // finger. Two gestures for one movement that disagreed about which
+        // way it went would be worse than either.
+        if (onBrowseDragged)
+          onBrowseDragged (increment);
+      };
+
+      touch.value = std::make_unique<TouchControl> ();
+      touch.value->setIdentity (option);
+      touch.value->onTap = [this] (int tapped, int) {
+        if (onValueArmed)
+          onValueArmed (tapped);
+      };
+      touch.value->onDragIncrement
+          = [this] (int dragged, int, int increment) {
+              if (onValueDragged)
+                onValueDragged (dragged, increment);
+            };
+      // Coming off the value field is what the second encoder press does:
+      // it applies what the drag landed on.
+      touch.value->onDragEnd = [this] (int released, int) {
+        if (onValueReleased)
+          onValueReleased (released);
+      };
+
+      addAndMakeVisible (*touch.name);
+      addAndMakeVisible (*touch.value);
+      _rowTouch.push_back (std::move (touch));
+    }
+
+  resized ();
+}
+
+juce::Rectangle<int>
+GlobalSettingsComponent::panelBounds () const
+{
+  return globalSettingsPanelBounds (getLocalBounds (),
+                                    juce::jmax (1, (int) _options.size ()));
+}
+
+void
+GlobalSettingsComponent::resized ()
+{
+  auto const numOptions = static_cast<int> (_rowTouch.size ());
+  if (numOptions == 0)
+    return;
+
+  auto const panel = globalSettingsPanelBounds (getLocalBounds (), numOptions);
+
+  for (int i = 0; i < numOptions; ++i)
+    {
+      auto const row = globalSettingsRowBounds (panel, numOptions, i);
+      auto &touch = _rowTouch[static_cast<size_t> (i)];
+      touch.name->setBounds (globalSettingsNameArea (row));
+      touch.value->setBounds (globalSettingsValueArea (row));
+    }
 }
 
 void
@@ -102,25 +243,17 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
     return;
 
   int const numOptions = static_cast<int> (_options.size ());
-  int const panelW = juce::jmin (maxPanelW, getWidth () - 2 * paddingH);
-  int const panelH = paddingV * 2 + numOptions * itemH + (numOptions - 1) * rowGap;
-  auto panelBounds = juce::Rectangle<int> (
-      (getWidth () - panelW) / 2,
-      (getHeight () - panelH) / 2,
-      panelW, panelH);
+  auto const panelBounds
+      = globalSettingsPanelBounds (getLocalBounds (), numOptions);
 
   // ── panel background ──────────────────────────────────────────────────────
   g.setColour (toColour (theme ().textPrimary, rowWash)); // a barely visible edge
   g.fillRoundedRectangle (panelBounds.toFloat (), 10.f);
 
   // ── one row per Option ───────────────────────────────────────────────────
-  auto rows = panelBounds.reduced (paddingH, paddingV);
-
   for (int i = 0; i < numOptions; ++i)
     {
-      auto row = rows.removeFromTop (itemH);
-      if (i < numOptions - 1)
-        rows.removeFromTop (rowGap);
+      auto const row = globalSettingsRowBounds (panelBounds, numOptions, i);
 
       auto const &option = _options[static_cast<size_t> (i)];
       if (option.values.empty ())
@@ -137,8 +270,8 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
                                             : rowWash));
       g.fillRoundedRectangle (row.toFloat (), 6.f);
 
-      auto labelArea = row.removeFromLeft (row.getWidth () * 3 / 5).reduced (8, 0);
-      auto valueArea = row.reduced (8, 8);
+      auto const labelArea = globalSettingsNameArea (row);
+      auto const valueArea = globalSettingsValueArea (row);
 
       g.setFont (juce::Font (theme ().fontSize (FontRole::Body),
                              juce::Font::plain));

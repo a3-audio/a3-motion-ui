@@ -61,7 +61,7 @@ TEST (CoronaScaling, PeakLevelSaturatesAtVuMax)
 
 TEST (CoronaScaling, ConfigOverridesReplaceDefaults)
 {
-  auto const parsed = juce::JSON::parse (R"({"corona": {"sizeMin": 1.3}})");
+  auto const parsed = juce::JSON::parse (R"({"blob": {"sizeMin": 1.3}})");
 
   auto const cfg = loadCoronaConfig (parsed);
 
