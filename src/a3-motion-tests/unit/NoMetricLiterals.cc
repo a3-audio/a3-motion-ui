@@ -44,7 +44,6 @@ std::vector<char const *> const filesStillHoldingMetrics = {
   "components/ActionLayout.cc",
   "components/BarKnob.cc",
   "components/BrowserComponent.cc",
-  "components/ClipSettingsComponent.cc",
   "components/ClipSettingsLayout.cc",
   "components/ColourPickerComponent.cc",
   "components/ControllerComponent.cc",
