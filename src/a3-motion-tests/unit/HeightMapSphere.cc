@@ -196,7 +196,11 @@ TEST (HeightMapSphere, ABaseOfOneMirrorsABaseOfZero)
 TEST (HeightMapSphere, ItAlwaysGrowsDownwards)
 {
   HeightMapSphere heightMap;
-  auto const near = Pos::fromCartesian (0.3f, 0.f, 0.f);
+
+  // Outside the run from the pad's middle, which goes the other way by
+  // definition -- towards a pole rather than away from the base. See
+  // TheLongerTheRunTheMoreOfThePadItIsGiven for how much pad that takes.
+  auto const near = Pos::fromCartesian (0.75f, 0.f, 0.f);
 
   for (float base : { 0.f, 0.2f, 0.49f, 0.5f, 0.51f, 0.8f })
     EXPECT_GT (fracOf (heightMap.mapTo3D (near, baseParams (base))), base)
@@ -248,8 +252,10 @@ TEST (HeightMapSphere, TheInverseStillComesBackWithABase)
 {
   HeightMapSphere heightMap;
 
+  // Out on the band, which is where it is exact -- see the note in mapTo2D
+  // about the run from the pad's middle covering the same latitudes twice.
   for (float base : { 0.f, 0.3f, 0.5f, 1.f })
-    for (float x : { 0.1f, 0.4f })
+    for (float x : { 0.5f, 0.8f })
       {
         auto const params = baseParams (base);
         auto const there = Pos::fromCartesian (x, 0.2f, 0.f);
@@ -433,6 +439,45 @@ TEST (HeightMapSphere, TheRunFromTheMiddleTakesTheNearerPole)
     }
 }
 
+/** The longer the run, the more of the pad it is given.
+ *
+ *  The run from the pad's middle to a pole is as long as the base is far from
+ *  that pole -- half the sphere with the base at ear height -- and it used to
+ *  be crammed into a tenth of the pad however long it was. Drawn, that is a
+ *  straight needle across the room; and a pass that missed the middle by a
+ *  hair turned back halfway along it, ending in open air.
+ *
+ *  So the tenth is a floor, not the figure. A long run is spread over up to a
+ *  third of the pad, which is the same gradient the figure itself has to
+ *  within a factor of three rather than ten, and a near miss then turns back
+ *  close enough to the pole that it reads as the middle of a figure rather
+ *  than as a broken line.
+ *
+ *  The price, and it is the reason this is capped: a third of the pad's radius
+ *  is a third of every figure's middle, funnelled towards a pole instead of
+ *  standing on the base's latitude. Most visible with little reach, where
+ *  there is not much figure for it to be a third of.
+ */
+TEST (HeightMapSphere, TheLongerTheRunTheMoreOfThePadItIsGiven)
+{
+  HeightMapSphere heightMap;
+
+  auto const fracAt = [&] (float rNorm, ElevationParams const &params) {
+    return fracOf (heightMap.mapTo3D (
+        Pos::fromCartesian (rNorm * 1.41421356f, 0.f, 0.f), params));
+  };
+
+  // Ear height: the longest run there is, and a fifth of the pad is still
+  // inside it -- on the way to the pole rather than standing near the base.
+  EXPECT_GT (fracAt (0.2f, baseParams (0.5f)), 0.7f)
+      << "the run is still crammed into a tenth of the pad";
+
+  // Near the ceiling there is barely any run, and the pad is the band it
+  // always was by a fifth out.
+  EXPECT_LT (fracAt (0.2f, baseParams (0.05f)), 0.15f)
+      << "a short run took more of the pad than it needs";
+}
+
 /** The run is over by a tenth of the pad. Outside it the map is the band it
  *  always was, so elevation still moves a figure's height and not the figure,
  *  which is the reason the band was chosen over a cap in the first place. */
@@ -559,7 +604,7 @@ TEST (HeightMapSphere, TheInverseFollowsTheSignOfReach)
   HeightMapSphere heightMap;
 
   for (float reach : { 0.5f, -0.5f })
-    for (float x : { 0.1f, 0.4f })
+    for (float x : { 0.5f, 0.8f })
       {
         auto const params = baseParams (0.5f, reach);
         auto const there = Pos::fromCartesian (x, 0.2f, 0.f);
@@ -582,7 +627,7 @@ TEST (HeightMapSphere, TheInverseTakesTheNearSideOfTheBase)
   HeightMapSphere heightMap;
 
   for (float reach : { 0.6f, -0.6f })
-    for (float x : { 0.3f, 0.9f })
+    for (float x : { 0.6f, 0.9f })
       {
         auto const params = baseParams (0.5f, reach);
         auto const there = Pos::fromCartesian (x, 0.1f, 0.f);

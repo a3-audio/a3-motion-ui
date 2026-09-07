@@ -49,10 +49,27 @@ constexpr float kPatternCoordinateMaxRadius = 1.41421356f; // sqrt(2)
 
 // How much of the pad, measured from its middle outwards in the normalised
 // radius the shape formula works in, runs to the pole instead of standing on
-// the base's own latitude. A tenth: small enough that a figure keeps its
-// shape, large enough that the run is spread over enough ticks to be a
-// movement rather than a jump.
-constexpr float kOriginFold = 0.10f;
+// the base's own latitude.
+//
+// It used to be a tenth whatever the run was, and the run is as long as the
+// base is far from the pole -- half the sphere at ear height. A tenth of the
+// pad crossing half the sphere is not a movement, it is a needle: drawn, four
+// straight arms across the room that are in no shape, and a pass that missed
+// the middle by a hair turned back halfway along one of them and ended in
+// open air. That dangling end is what reads as a hole in the trajectory.
+//
+// So the tenth is the floor and a third is the ceiling, and in between the
+// run gets pad in proportion to how far it has to go. Twice the run, because
+// that is what brings the gradient within a factor of about three of the
+// figure's own instead of ten, and because a near miss then turns back close
+// enough to the pole to read as a figure's middle rather than as a cut line.
+//
+// The third is a real price and is why it is capped: a third of the pad's
+// radius is a third of every figure's middle, funnelled towards a pole
+// instead of standing on the base's latitude. It shows most with little
+// reach, where there is not much figure for it to be a third of.
+constexpr float kOriginFoldMin = 0.10f;
+constexpr float kOriginFoldMax = 1.f / 3.f;
 
 // Shared piecewise theta(r) shape used by both the plain coverage mapping
 // and the per-clip reach mapping below — see the coverage overload's
@@ -88,6 +105,34 @@ rFromThetaShape (float theta, float reach)
 
   auto const rEquator = halfPi / thetaMax;
   return (theta <= halfPi) ? std::sin (theta) * rEquator : theta / thetaMax;
+}
+
+// Where the pad's middle runs to, and how much pad it is given to run in.
+//
+// One function because the forward map and its inverse both have to know, and
+// a recording is written through the inverse and played back through the
+// forward one -- two answers that drift apart do not fail, they quietly move
+// every take.
+struct OriginFold
+{
+  float radius; ///< normalised pad radius the run occupies
+  float edge;   ///< the latitude it starts from, at that radius
+  float pole;   ///< and the one it ends on, 0 north or 1 south
+};
+
+OriginFold
+originFold (float base, float reach)
+{
+  auto const run = std::min (base, 1.f - base);
+  auto const radius = std::clamp (2.f * run, kOriginFoldMin, kOriginFoldMax);
+
+  auto const towards = reach < 0.f ? -1.f : 1.f;
+  auto const theta
+      = std::min (thetaShapeFromR (radius, std::abs (reach)), pi<float> ());
+  auto const past = base + towards * theta / pi<float> ();
+  auto const edge = past > 1.f ? 2.f - past : (past < 0.f ? -past : past);
+
+  return { radius, edge, edge <= 0.5f ? 0.f : 1.f };
 }
 
 }
@@ -240,29 +285,14 @@ HeightMapSphere::mapTo3D (Pos const &pos2D, ElevationParams const &params) const
     // than a jump across the room, and every point of it is a place the sound
     // actually goes.
     //
-    // Towards the ceiling for a figure that grows downwards and the floor for
-    // one that grows up -- away from the rest of itself, so the run is into
-    // room the figure is not already using.
-    if (rNorm < kOriginFold)
-      {
-        auto const edge = heightAt (std::min (
-            thetaShapeFromR (kOriginFold, std::abs (params.reach)),
-            pi<float> ()));
-        // The nearer of the two poles, measured from where the fold's own rim
-        // stands. Which one is picked is the whole difference between a fold
-        // and a catapult: it used to be the pole on the far side of the
-        // figure, so that the run went into room the figure was not already
-        // using, and that is a fine thing to want until the base is near a
-        // wall. Based a tenth off the floor, the far pole is the ceiling, and
-        // then the innermost tenth of the pad spans nine tenths of the sphere
-        // -- every pass near the middle of a figure flung to the ceiling and
-        // back, drawn as four straight arms across the room that are in no
-        // shape, and a pass that misses the middle by a hair left ending in
-        // open air. The nearer pole is never the longer run, is usually very
-        // much shorter, and is room the figure is standing next to anyway.
-        auto const pole = edge <= 0.5f ? 0.f : 1.f;
+    // To the nearer of the two poles, and over as much pad as the run needs
+    // -- see originFold(), which is where both of those are decided and why.
+    auto const fold = originFold (base, params.reach);
 
-        return pole + (edge - pole) * (rNorm / kOriginFold);
+    if (rNorm < fold.radius)
+      {
+        return fold.pole
+               + (fold.edge - fold.pole) * (rNorm / fold.radius);
       }
 
     return heightAt (theta);
@@ -395,6 +425,13 @@ HeightMapSphere::mapTo2D (Pos const &pos3D, ElevationParams const &params) const
 
   auto const theta = away * pi<float> ();
 
+  // Not exact inside the run from the pad's middle, and it never was: that run
+  // covers the same latitudes the band does -- it goes to the *nearer* pole,
+  // which is the one the figure is heading for anyway -- so a direction there
+  // is reached twice, once on the way out through the middle and once out on
+  // the band. The band is the answer given, because it is the outer two thirds
+  // of the pad and the outer pad is where a finger records. Same rule as the
+  // wrap past a pole, above, and for the same reason.
   auto const r = rFromThetaShape (theta, std::abs (params.reach))
                  * kPatternCoordinateMaxRadius;
 
