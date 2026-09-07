@@ -1839,6 +1839,49 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                                centre.y + point.down * r);
   };
 
+  auto const ringPoints = [&] (float frac) {
+    std::vector<juce::Point<float> > points;
+    points.reserve (65);
+
+    auto const theta = std::clamp (frac, 0.f, 1.f)
+                       * juce::MathConstants<float>::pi;
+    auto const sinT = std::sin (theta);
+    auto const cosT = std::cos (theta);
+
+    for (int step = 0; step <= 64; ++step)
+      {
+        auto const phi = juce::MathConstants<float>::twoPi
+                         * static_cast<float> (step) / 64.f;
+        points.push_back (place (elevationSideView (
+            Pos::fromCartesian (sinT * std::cos (phi), sinT * std::sin (phi),
+                                cosT),
+            _sphereCamera)));
+      }
+
+    return points;
+  };
+
+  // The stretch of room between two heights, as a shape rather than as a pile
+  // of thick rings. Stacked strokes were what drew a flat bar across the top
+  // of the picture: near a pole a ring is a few pixels across and a stroke
+  // wide enough to close the gap to the next one overshoots it by its own
+  // width in every direction.
+  auto const bandBetween = [&] (float from, float to) {
+    juce::Path shape;
+
+    auto const outer = ringPoints (juce::jmax (from, to));
+    auto const inner = ringPoints (juce::jmin (from, to));
+
+    shape.startNewSubPath (outer.front ());
+    for (size_t i = 1; i < outer.size (); ++i)
+      shape.lineTo (outer[i]);
+    for (auto i = inner.size (); i-- > 0;)
+      shape.lineTo (inner[i]);
+    shape.closeSubPath ();
+
+    return shape;
+  };
+
   auto const latitude = [&] (float frac) {
     juce::Path ring;
     auto const theta = std::clamp (frac, 0.f, 1.f)
@@ -1874,19 +1917,11 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   // should find the reachable part without reading a number. Rings rather than
   // rectangles, because a height is a ring here.
   {
-    auto const shade = [&] (float from, float to) {
-      if (to - from < 1e-3f)
-        return;
-      constexpr int rings = 10;
-      for (int i = 0; i <= rings; ++i)
-        g.strokePath (
-            latitude (from + (to - from) * static_cast<float> (i) / rings),
-            juce::PathStrokeType (r * 0.16f));
-    };
-
     g.setColour (toColour (theme ().surface, clippedZoneOpacity));
-    shade (0.f, bandLow);
-    shade (bandHigh, 1.f);
+    if (bandLow > 1e-3f)
+      g.fillPath (bandBetween (0.f, bandLow));
+    if (bandHigh < 1.f - 1e-3f)
+      g.fillPath (bandBetween (bandHigh, 1.f));
   }
 
   // What the sway is doing, between where the hand left the line and where the
@@ -1897,13 +1932,8 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
       auto const from = juce::jmin (baseFrac, sweptFrac);
       auto const to = juce::jmax (baseFrac, sweptFrac);
 
-      constexpr int rings = 8;
-      g.setColour (toColour (theme ().notice, 0.22f));
-      for (int i = 0; i <= rings; ++i)
-        {
-          auto const at = from + (to - from) * static_cast<float> (i) / rings;
-          g.strokePath (latitude (at), juce::PathStrokeType (r * 0.1f));
-        }
+      g.setColour (toColour (theme ().notice, 0.3f));
+      g.fillPath (bandBetween (from, to));
     }
 
   // ── The figure ────────────────────────────────────────────────────────
