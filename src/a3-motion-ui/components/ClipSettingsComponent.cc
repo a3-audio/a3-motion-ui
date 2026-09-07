@@ -1763,12 +1763,16 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
   // itself. reach went to Motion to stand beside the swell that sweeps it.
   paintElevationGraphic (g, _layout.elevationGraphic, isSelected);
 
-  paintMiniKnob (g, cells[0], metrics, caption::clipTop,
-                 _elevationClipTop * 2.f - 1.f, false, _elevationSubIndex == 0,
-                 isSelected);
-  paintMiniKnob (g, cells[1], metrics, caption::clipBottom,
+  // Bottom then top, left to right. They were the other way round, which is
+  // the one order that has nothing to say for it: the graphic above them is a
+  // room seen from the side, and in a room seen from the side the floor is not
+  // on the right of the ceiling.
+  paintMiniKnob (g, cells[0], metrics, caption::clipBottom,
                  _elevationClipBottom * 2.f - 1.f, false,
-                 _elevationSubIndex == 1, isSelected);
+                 _elevationSubIndex == 0, isSelected);
+  paintMiniKnob (g, cells[1], metrics, caption::clipTop,
+                 _elevationClipTop * 2.f - 1.f, false, _elevationSubIndex == 1,
+                 isSelected);
 
   // The graphic's own slow movement: how fast the line it draws travels, and
   // towards which pole. Bipolar, like the two sweeps it is a sibling of.

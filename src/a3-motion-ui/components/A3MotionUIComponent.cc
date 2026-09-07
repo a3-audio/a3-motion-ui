@@ -5466,9 +5466,9 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
       if (!pattern)
         return;
       if (sub == 0)
-        pattern->setClipTop (0.f);
-      else if (sub == 1)
         pattern->setClipBottom (0.f);
+      else if (sub == 1)
+        pattern->setClipTop (0.f);
       else if (sub == 2)
         // Off. The middle of a bipolar sweep is no sweep at all.
         pattern->setElevationLfo (0);
@@ -5627,10 +5627,13 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         updatePadRowLabel (channel, slot);
         break;
       }
-    case 1: // Elevation — clip-top (0), clip-bottom (1), sway (2). Where the
-            // middle of the trajectory sits is set in the graphic above them,
-            // not by a knob, and sway is how fast that line travels. reach
-            // went to Motion, beside the swell that sweeps it.
+    case 1: // Elevation — clip-bottom (0), clip-top (1), sway (2). In that
+            // order because that is the order they stand in, and they stand
+            // in it because the floor is on the left of a room drawn from the
+            // side. Where the middle of the trajectory sits is set in the
+            // graphic above them, not by a knob, and sway is how fast that
+            // line travels. reach went to Motion, beside the swell that
+            // sweeps it.
       {
         auto &pattern = _patterns[channel][slot];
         if (!pattern)
@@ -5639,11 +5642,11 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         switch (sub)
           {
           case 0:
-            pattern->setClipTop (pattern->getClipTop () + increment * 0.05f);
-            break;
-          case 1:
             pattern->setClipBottom (pattern->getClipBottom ()
                                     + increment * 0.05f);
+            break;
+          case 1:
+            pattern->setClipTop (pattern->getClipTop () + increment * 0.05f);
             break;
           default:
             // How fast the line the graphic draws travels, and towards which

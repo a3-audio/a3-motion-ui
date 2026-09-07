@@ -41,23 +41,44 @@ struct Lump
 /** Head, shoulders, chest, and a nose so that a head seen from straight above
  *  still says which way it is facing. Proportions of a standing person, taken
  *  as fractions of their height. */
-/** Two groups, hulled separately: a head and a body.
+/** Four groups, each hulled on its own: a head, a torso, and an arm either
+ *  side.
  *
- *  One hull over everything bridges the neck and comes out as a bullet; a hull
- *  per lump shows every lump's own outline and comes out as a stack of eggs.
- *  Two is what a person looks like -- and the head keeps the nose, so a head
- *  seen from straight above still says which way it is facing. */
+ *  One hull over the whole body bridges the neck and the arms and comes out as
+ *  a bullet; one hull per lump shows every lump's own outline and comes out as
+ *  a stack of eggs. Grouping by limb is what a person looks like: the arms
+ *  give the shoulders somewhere to go and stop the torso reading as a cone,
+ *  and from straight above they are most of what says this is a person at all.
+ *
+ *  Proportions are the ordinary ones -- a head about a seventh of the height,
+ *  shoulders about a quarter of it across -- taken as fractions of the
+ *  standing height, with the feet at nought. */
 constexpr Lump head[]{
-  { 0.052f, 0.052f, 0.062f, 0.f, 0.f, 0.925f },   // head
-  { 0.026f, 0.026f, 0.026f, 0.075f, 0.f, 0.930f } // nose
+  { 0.044f, 0.046f, 0.055f, 0.f, 0.f, 0.930f },    // skull
+  { 0.048f, 0.030f, 0.036f, 0.020f, 0.f, 0.918f }, // face
+  { 0.020f, 0.018f, 0.018f, 0.070f, 0.f, 0.922f }  // nose
 };
 
-constexpr Lump body[]{
-  { 0.038f, 0.038f, 0.045f, 0.f, 0.f, 0.855f },  // neck
-  { 0.055f, 0.105f, 0.075f, 0.f, 0.f, 0.790f },  // shoulders
-  { 0.052f, 0.078f, 0.120f, 0.f, 0.f, 0.650f },  // chest
-  { 0.046f, 0.062f, 0.110f, 0.f, 0.f, 0.470f },  // hips
-  { 0.040f, 0.052f, 0.230f, 0.f, 0.f, 0.230f },  // legs
+constexpr Lump torso[]{
+  { 0.034f, 0.034f, 0.038f, 0.f, 0.f, 0.868f },  // neck
+  { 0.050f, 0.098f, 0.055f, 0.f, 0.f, 0.815f },  // shoulders
+  { 0.052f, 0.086f, 0.105f, 0.f, 0.f, 0.700f },  // chest
+  { 0.044f, 0.068f, 0.085f, 0.f, 0.f, 0.545f },  // waist
+  { 0.046f, 0.074f, 0.060f, 0.f, 0.f, 0.470f },  // hips
+  { 0.040f, 0.070f, 0.150f, 0.f, 0.f, 0.330f },  // thighs
+  { 0.032f, 0.062f, 0.170f, 0.f, 0.f, 0.100f }   // shins
+};
+
+constexpr Lump leftArm[]{
+  { 0.032f, 0.032f, 0.036f, 0.f, 0.108f, 0.815f },  // shoulder
+  { 0.028f, 0.028f, 0.090f, 0.f, 0.112f, 0.700f },  // upper
+  { 0.024f, 0.024f, 0.090f, 0.010f, 0.108f, 0.545f } // fore
+};
+
+constexpr Lump rightArm[]{
+  { 0.032f, 0.032f, 0.036f, 0.f, -0.108f, 0.815f },
+  { 0.028f, 0.028f, 0.090f, 0.f, -0.112f, 0.700f },
+  { 0.024f, 0.024f, 0.090f, 0.010f, -0.108f, 0.545f }
 };
 
 float
@@ -156,7 +177,9 @@ listenerSilhouette (SphereCamera camera, float height)
     path.closeSubPath ();
   };
 
-  hull (body, std::size (body));
+  hull (torso, std::size (torso));
+  hull (leftArm, std::size (leftArm));
+  hull (rightArm, std::size (rightArm));
   hull (head, std::size (head));
 
   // Non-zero, so the lumps read as one body rather than as a pile of outlines
