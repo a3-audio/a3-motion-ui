@@ -541,7 +541,8 @@ ClipSettingsComponent::setElevationFigure (
                      [] (auto const &a, auto const &b) {
                        return std::abs (a.frac - b.frac) < 1e-4f
                               && std::abs (a.across - b.across) < 1e-4f
-                              && a.behind == b.behind;
+                              && a.behind == b.behind
+                              && a.startsStroke == b.startsStroke;
                      }))
     return;
 
@@ -1841,17 +1842,16 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
       auto const near = _channelColour.withAlpha (0.85f);
       auto const far = _channelColour.withAlpha (0.3f);
 
-      // The tear the mapping has at the pad's centre once the base is off the
-      // pole (see HeightMapSphere::mapTo3D): the pen lifts there rather than
-      // drawing a line across the picture, same as on the sphere.
-      auto const maxJump = r * 0.9f;
-
       auto previous = sidePoint (_elevationFigure.front ());
       for (size_t i = 1; i < _elevationFigure.size (); ++i)
         {
           auto const point = sidePoint (_elevationFigure[i]);
 
-          if (previous.getDistanceFrom (point) < maxJump)
+          // The pen lift is decided in the room, not here -- see
+          // ElevationSidePoint::startsStroke. Judged by drawn distance it
+          // would miss the one case it is for: near the ceiling the circle is
+          // narrow, so a jump clear across the room is a few pixels wide.
+          if (!_elevationFigure[i].startsStroke)
             {
               g.setColour (_elevationFigure[i].behind ? far : near);
               g.drawLine (previous.x, previous.y, point.x, point.y, 1.5f);

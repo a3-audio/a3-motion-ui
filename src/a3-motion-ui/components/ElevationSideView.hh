@@ -52,6 +52,16 @@ struct ElevationSidePoint
    *  way the sphere dims what is behind it -- without that, a figure that
    *  goes round the listener reads as a flat squiggle. */
   bool behind;
+
+  /** Nothing joins this point to the one before it: the pen lifts here.
+   *
+   *  It is decided in the room and not in the picture, because the picture
+   *  hides the one case it matters for. Where the mapping tears at the pad's
+   *  centre the sound jumps clear across the room, but near the ceiling the
+   *  circle is narrow, so both ends of that jump land a few pixels apart and a
+   *  pen watching only the drawn distance keeps writing -- which is a straight
+   *  line through the elevation circle that no sound ever made. */
+  bool startsStroke;
 };
 
 /** Put a direction on the sphere into the side-on picture.

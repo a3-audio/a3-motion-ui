@@ -43,6 +43,7 @@ elevationSideView (Pos const &direction)
   // flicks to an edge as a figure passes the pole.
   point.across = rXY < 1e-6f ? 0.f : -y / rXY;
   point.behind = x > 0.f;
+  point.startsStroke = false;
 
   return point;
 }
@@ -64,9 +65,59 @@ elevationSideView (std::vector<Pos> const &directions, std::size_t maxPoints)
 
   drawn.reserve (directions.size () / stride + 1);
 
+  // Kept alongside the drawn points: how far the sound moved in the room to
+  // get to each of them. The picture cannot answer that -- see startsStroke.
+  std::vector<float> steps;
+  steps.reserve (drawn.capacity ());
+
+  Pos previous;
+  bool havePrevious = false;
+
   for (std::size_t i = 0; i < directions.size (); i += stride)
-    if (directions[i].isValid ())
+    {
+      if (!directions[i].isValid ())
+        {
+          // A hole in the take. What follows it is a new stroke, whatever the
+          // distance says.
+          havePrevious = false;
+          continue;
+        }
+
       drawn.push_back (elevationSideView (directions[i]));
+      auto const step = directions[i] - previous;
+      steps.push_back (havePrevious
+                           ? std::sqrt (step.x () * step.x ()
+                                        + step.y () * step.y ()
+                                        + step.z () * step.z ())
+                           : -1.f);
+
+      previous = directions[i];
+      havePrevious = true;
+    }
+
+  // The typical step of this figure, taken as the middle one so that the seam
+  // itself does not drag the measure it is judged against. A seam is many
+  // times the typical step; a fast stretch of an ordinary figure is not.
+  auto ordered = steps;
+  ordered.erase (std::remove_if (ordered.begin (), ordered.end (),
+                                 [] (float step) { return step < 0.f; }),
+                 ordered.end ());
+
+  auto typical = 0.f;
+  if (!ordered.empty ())
+    {
+      auto const middle = ordered.begin () + ordered.size () / 2;
+      std::nth_element (ordered.begin (), middle, ordered.end ());
+      typical = *middle;
+    }
+
+  // The floor keeps a figure that barely moves -- a near-still clip, or one
+  // sampled so finely its steps are noise -- from having every wobble read as
+  // a seam. A tear is always a fair fraction of the room across.
+  auto const seam = std::max (6.f * typical, 0.25f);
+
+  for (std::size_t i = 0; i < drawn.size (); ++i)
+    drawn[i].startsStroke = steps[i] < 0.f || steps[i] > seam;
 
   return drawn;
 }
