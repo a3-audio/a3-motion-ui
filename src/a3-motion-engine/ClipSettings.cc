@@ -121,14 +121,6 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
   // pass through nothing and come out spreading downwards, which is the
   // figure turning inside out rather than breathing.
   //
-  // And it stays in the room the base leaves it. A reach of one puts the
-  // outer edge a whole half-turn from the base, which only fits when the base
-  // is at the pole it is growing away from -- so a clip based a third of the
-  // way down, swelling, ran past the floor and wrapped back over it. That was
-  // safe while the cone chose a pole for itself, because it always grew
-  // towards the further one and there was always room; once it grew the way
-  // it was told, the room stopped being guaranteed and nothing was watching.
-  //
   auto const towards = params.reach < 0.f ? -1.f : 1.f;
 
   auto reach = std::abs (params.reach);
@@ -176,30 +168,39 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
             + (to - from) * lfoTravel (pattern.getElevationLfoPhase ());
     }
 
-  // And the reach is held to the room the base leaves it -- afterwards,
-  // because the sway is what moves the room. The base travelling towards a
-  // pole shrinks what is in front of it, and a reach that stayed where it was
-  // put ran out of sphere and wrapped back over the pole: on the sphere that
-  // is the figure turning inside out around its own middle, drawn as two arms
-  // running at nothing with a hole between them.
+  // A cut bounds the reach -- afterwards, because the sway is what moves the
+  // base it is measured from. The clips are a hard clamp on where the sound
+  // may go: a point pushed past one keeps its bearing and gives up its
+  // height, so a reach that runs into a cut is not a bigger figure, it is a
+  // figure piled onto the cut, drawn as a straight bar across the picture.
   //
-  // The clips bound it as well as the poles do. They are a hard clamp -- a
-  // point pushed past one keeps its bearing and gives up its height -- so a
-  // reach that runs into one is not a bigger figure, it is a figure piled onto
-  // the cut.
+  // A pole is not a cut, and this used to treat it as one -- the reach was
+  // held to `1 - base` whether or not anything had been cut away. That
+  // forbade the one thing the band model is for: a figure that runs *over the
+  // outer wall*, carrying on past a pole rather than stopping at it. The
+  // price was paid where elevation is most often left. Based a tenth off the
+  // floor, a reach of 0.65 came out as 0.108: the figure shrank to a splinter
+  // while the run from the pad's middle to the pole kept its full length, and
+  // that run was then the whole picture -- four straight arms across the room
+  // that are in no shape.
   //
-  // A fact about where the base is, not a second opinion about the knob: a
-  // reach that fits is left exactly where the hand put it.
+  // So: a reach the hand set is left exactly where the hand set it, unless a
+  // clip is actually in the way.
   {
     auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
-    auto const floor = 1.f - std::clamp (params.clipBottom, 0.f, 1.f);
-    auto const ceiling = std::clamp (params.clipTop, 0.f, 1.f);
+    auto const cut = towards > 0.f ? std::clamp (params.clipBottom, 0.f, 1.f)
+                                   : std::clamp (params.clipTop, 0.f, 1.f);
 
-    auto const room
-        = std::max (0.f, towards > 0.f ? std::min (1.f, floor) - base
-                                       : base - std::max (0.f, ceiling));
+    if (cut > 0.f)
+      {
+        auto const wall = towards > 0.f ? 1.f - cut : cut;
+        auto const room = std::max (
+            0.f, towards > 0.f ? wall - base : base - wall);
 
-    params.reach = towards * std::min (reach, room);
+        reach = std::min (reach, room);
+      }
+
+    params.reach = towards * reach;
   }
 
   return params;
