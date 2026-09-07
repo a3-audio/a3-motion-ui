@@ -54,14 +54,15 @@ constexpr Group groups[] = {
   { "Surfaces", { "surface", "surfaceRaised", "background" } },
   { "Text", { "textPrimary", "textMuted", "textOnAccent" } },
   { "States", { "accent", "warning", "danger", "notice", "highlight",
-                "alphaDisabled",
-                "alphaInactive" } },
+                "alphaDisabled", "alphaInactive", "alphaFill", "alphaOutline",
+                "alphaFillEmphasis", "alphaMuted", "alphaTextStrong" } },
   { "Channels", { "channels.*" } },
   { "Sphere", { "sphereSurface", "sphereRim", "sphereEnvironment",
                 "sphereScale", "boltCore", "backgroundGlow" } },
   { "Type and size", { "fontHeader", "fontBody", "potSize",
                        "clipSettingsHeightScale", "strokeThin",
                        "strokeThick" } },
+  { "Metrics", { "radius*", "padding*" } },
   { "Touch", { "touchDragPixelsPerStep" } },
 
   // The colours of the two effects sit here, with the other colours, rather
