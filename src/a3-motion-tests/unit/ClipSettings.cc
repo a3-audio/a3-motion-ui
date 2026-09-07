@@ -388,6 +388,33 @@ TEST (ClipSettings, TheSwellBreathesPastTheCeilingToo)
   EXPECT_GE (swept.reach, -1.f);
 }
 
+// ── Where a double tap puts the elevation line ──────────────────────────
+
+/** The middle of the range the control actually has.
+ *
+ *  That is the rule the rest of the bar's knobs already follow, and for the
+ *  elevation line the range is the circle it is drawn in: its middle is the
+ *  equator, ear height, which is also the one height a hand reaching for
+ *  "neutral" mid-set means. Not the clip default of zero -- that is straight
+ *  overhead, which is a place to put a sound, not a place to come back to.
+ */
+TEST (ClipSettings, TheElevationLineGoesBackToEarHeight)
+{
+  EXPECT_FLOAT_EQ (defaultElevationBase (0.f, 0.f), 0.5f);
+}
+
+/** And to the middle of what the clips have left of it, so a double tap never
+ *  puts the line somewhere the sound may not go. */
+TEST (ClipSettings, TheElevationLineGoesBackInsideTheClips)
+{
+  // Ceiling a third down, floor a fifth up: the middle of what is left.
+  EXPECT_FLOAT_EQ (defaultElevationBase (0.3f, 0.2f), 0.55f);
+
+  // Clips pushed past each other pin it to where they crossed, the same rule
+  // sweptElevation() holds the base by.
+  EXPECT_FLOAT_EQ (defaultElevationBase (0.8f, 0.6f), 0.6f);
+}
+
 /** A hand-set reach stands as long as it fits. */
 TEST (ClipSettings, AReachThatFitsIsLeftWhereItWasPut)
 {

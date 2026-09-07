@@ -23,6 +23,7 @@
 
 #include <a3-motion-ui/components/BarKnob.hh>
 
+#include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 
@@ -233,6 +234,15 @@ ClipSettingsComponent::createTouchControls ()
       = [setBaseAt] (int, int, juce::Point<int> at) { setBaseAt (at); };
   _elevationGraphicTouch->onDragTo
       = [setBaseAt] (int, int, juce::Point<int> at) { setBaseAt (at); };
+
+  // ... and two taps put it back to the middle of the circle, the way two taps
+  // on a knob put it back to the middle of its ring. The graphic is a control
+  // like any other here; it was the one that had no way back.
+  _elevationGraphicTouch->onDoubleTap = [this] (int, int) {
+    if (onElevationBaseReset)
+      onElevationBaseReset (
+          defaultElevationBase (_elevationClipTop, _elevationClipBottom));
+  };
   addAndMakeVisible (*_elevationGraphicTouch);
 
   auto const makeButton

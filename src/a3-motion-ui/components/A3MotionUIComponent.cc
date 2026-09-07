@@ -580,6 +580,18 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     scheduleSetSave ();
   };
 
+  _clipSettings->onElevationBaseReset = [this] (float base) {
+    auto &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
+    if (!pattern)
+      return;
+
+    pattern->setElevationBase (base);
+    refreshPatternDisplayFromTicks (pattern);
+    updateControlReadout ("-- DEFAULT");
+    updateClipSettingsDisplay ();
+    scheduleSetSave ();
+  };
+
   _clipSettings->onControlReset = [this] (int section, int sub) {
     handleClipSettingsReset (_clipSettingsChannel, section, sub);
   };
@@ -5510,6 +5522,10 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
 
   updateControlReadout ("-- DEFAULT");
   updateClipSettingsDisplay ();
+  // A reset is a value change like any other, and one that is not written is
+  // one the next reload undoes -- which reads as the double tap not having
+  // worked at all.
+  scheduleSetSave ();
 }
 
 void

@@ -360,6 +360,11 @@ public:
    *  south. Absolute rather than an increment: the graphic is a picture of
    *  where things are, so touching it means "there", not "a bit further". */
   std::function<void (float base)> onElevationBaseSet;
+  /** Two taps on the graphic put the line back in the middle of the range the
+   *  clips have left it -- the same "back to the middle" every knob in the bar
+   *  answers a double tap with. Separate from onElevationBaseSet so the reset
+   *  can say so in the readout, which is what tells a hand it landed. */
+  std::function<void (float base)> onElevationBaseReset;
   /** Two taps on a knob put it back to its default. Separate from a toggle:
    *  the value it lands on is decided by whoever owns the value, not here. */
   std::function<void (int section, int sub)> onControlReset;

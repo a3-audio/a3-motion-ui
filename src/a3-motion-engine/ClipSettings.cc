@@ -206,6 +206,15 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
   return params;
 }
 
+float
+defaultElevationBase (float clipTop, float clipBottom)
+{
+  auto const ceiling = std::clamp (clipTop, 0.f, 1.f);
+  auto const floor = 1.f - std::clamp (clipBottom, 0.f, 1.f);
+
+  return (std::min (ceiling, floor) + std::max (ceiling, floor)) * 0.5f;
+}
+
 ClipSettings
 actionOver (ClipSettings const &current, ClipSettings const &action)
 {
