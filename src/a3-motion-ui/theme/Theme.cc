@@ -309,6 +309,14 @@ loadTheme (juce::var const &skin)
   theme.alphaDisabled = themeFloat (skin, "alphaDisabled", theme.alphaDisabled);
   theme.alphaInactive = themeFloat (skin, "alphaInactive", theme.alphaInactive);
 
+  theme.alphaFill = themeFloat (skin, "alphaFill", theme.alphaFill);
+  theme.alphaOutline = themeFloat (skin, "alphaOutline", theme.alphaOutline);
+  theme.alphaFillEmphasis
+      = themeFloat (skin, "alphaFillEmphasis", theme.alphaFillEmphasis);
+  theme.alphaMuted = themeFloat (skin, "alphaMuted", theme.alphaMuted);
+  theme.alphaTextStrong
+      = themeFloat (skin, "alphaTextStrong", theme.alphaTextStrong);
+
   theme.sphereScale = themeFloat (skin, "sphereScale", theme.sphereScale);
   theme.blobScale
       = themeFloat (skin["blob"], "scale", theme.blobScale);

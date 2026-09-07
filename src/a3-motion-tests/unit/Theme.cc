@@ -358,3 +358,41 @@ TEST (Theme, ASkinSetsOneMetricAndLeavesTheRest)
   EXPECT_FLOAT_EQ (theme.radiusPanel, defaults.radiusPanel);
   EXPECT_FLOAT_EQ (theme.paddingTight, defaults.paddingTight);
 }
+
+// One ladder, not two. alphaDisabled and alphaInactive were here first; the
+// new rungs slot between and around them, so a skin that dims the device dims
+// it consistently instead of moving five values against two.
+TEST (Theme, TheEmphasisRungsAreOrdered)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_LT (theme.alphaFill, theme.alphaOutline);
+  EXPECT_LT (theme.alphaOutline, theme.alphaFillEmphasis);
+  EXPECT_LT (theme.alphaFillEmphasis, theme.alphaDisabled);
+  EXPECT_LT (theme.alphaDisabled, theme.alphaMuted);
+  EXPECT_LT (theme.alphaMuted, theme.alphaInactive);
+  EXPECT_LT (theme.alphaInactive, theme.alphaTextStrong);
+}
+
+TEST (Theme, EveryEmphasisRungIsAnAlpha)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  for (auto const alpha :
+       { theme.alphaFill, theme.alphaOutline, theme.alphaFillEmphasis,
+         theme.alphaMuted, theme.alphaTextStrong })
+    {
+      EXPECT_GT (alpha, 0.f);
+      EXPECT_LE (alpha, 1.f);
+    }
+}
+
+TEST (Theme, ASkinSetsOneRungAndLeavesTheRest)
+{
+  auto const parsed = juce::JSON::parse (R"({"alphaFill": 0.2})");
+  auto const theme = loadTheme (parsed);
+  auto const defaults = loadTheme (juce::var{});
+
+  EXPECT_FLOAT_EQ (theme.alphaFill, 0.2f);
+  EXPECT_FLOAT_EQ (theme.alphaOutline, defaults.alphaOutline);
+}

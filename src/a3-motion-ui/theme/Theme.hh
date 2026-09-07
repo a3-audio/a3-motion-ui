@@ -87,6 +87,19 @@ struct Theme
   float alphaDisabled = 0.35f;
   float alphaInactive = 0.6f;
 
+  /** How loud a thing is drawn, as a share of its role's colour.
+   *
+   *  Derived from what the code already did, sorted by what is being drawn:
+   *  filled areas sat around 0.06, hairlines around 0.15, text between 0.5
+   *  and 0.85. alphaDisabled and alphaInactive above are the two rungs that
+   *  already had names — these fill the ladder in rather than starting a
+   *  second one beside it. */
+  float alphaFill = 0.06f;
+  float alphaOutline = 0.15f;
+  float alphaFillEmphasis = 0.28f;
+  float alphaMuted = 0.5f;
+  float alphaTextStrong = 0.85f;
+
   // Channels
   ThemeColour channel[numThemeChannels]
       = { { 216, 17, 89 }, { 69, 78, 158 }, { 247, 208, 2 }, { 33, 131, 128 } };
