@@ -248,12 +248,19 @@ HeightMapSphere::mapTo3D (Pos const &pos2D, ElevationParams const &params) const
         auto const edge = heightAt (std::min (
             thetaShapeFromR (kOriginFold, std::abs (params.reach)),
             pi<float> ()));
-        // The pole on the far side from where the rest of the figure goes, so
-        // the run is into room the figure is not already using. Read off where
-        // the figure actually is rather than off the sign of the reach: with
-        // the base at a pole the figure has wrapped, and then a reach that
-        // says "down" is going up.
-        auto const pole = edge >= base ? 0.f : 1.f;
+        // The nearer of the two poles, measured from where the fold's own rim
+        // stands. Which one is picked is the whole difference between a fold
+        // and a catapult: it used to be the pole on the far side of the
+        // figure, so that the run went into room the figure was not already
+        // using, and that is a fine thing to want until the base is near a
+        // wall. Based a tenth off the floor, the far pole is the ceiling, and
+        // then the innermost tenth of the pad spans nine tenths of the sphere
+        // -- every pass near the middle of a figure flung to the ceiling and
+        // back, drawn as four straight arms across the room that are in no
+        // shape, and a pass that misses the middle by a hair left ending in
+        // open air. The nearer pole is never the longer run, is usually very
+        // much shorter, and is room the figure is standing next to anyway.
+        auto const pole = edge <= 0.5f ? 0.f : 1.f;
 
         return pole + (edge - pole) * (rNorm / kOriginFold);
       }

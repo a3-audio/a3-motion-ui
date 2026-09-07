@@ -365,25 +365,72 @@ TEST (HeightMapSphere, AFigureThroughTheDiscsCentreDoesNotJump)
            "which is the sound jumping";
 }
 
-/** The middle of the pad is the pole, whatever the base. That is the whole of
- *  why it no longer tears: a point maps to a point. */
+/** The middle of the pad is *a* pole, whatever the base. That is the whole of
+ *  why it no longer tears: a point maps to a point. Which of the two it is is
+ *  TheRunFromTheMiddleTakesTheNearerPole's business. */
 TEST (HeightMapSphere, TheMiddleOfThePadIsThePole)
 {
   HeightMapSphere heightMap;
 
   for (float base : { 0.f, 0.25f, 0.5f, 0.9f })
+    for (float reach : { 0.5f, -0.5f })
+      {
+        auto const at = heightMap.mapTo3D (Pos::fromCartesian (0.f, 0.f, 0.f),
+                                           baseParams (base, reach));
+        auto const frac = fracOf (at);
+
+        EXPECT_TRUE (std::abs (frac) < epsilon
+                     || std::abs (frac - 1.f) < epsilon)
+            << "base " << base << " reach " << reach << ": frac " << frac;
+      }
+}
+
+/** And it runs to the *nearer* pole.
+ *
+ *  The pad's middle has to be a pole -- that is the topology, see
+ *  AFigureThroughTheDiscsCentreDoesNotJump -- but there are two of them, and
+ *  which one is picked is the difference between a fold and a catapult. It
+ *  used to be the one on the far side of the figure, on the reasoning that the
+ *  run should go into room the figure was not already using. The price was
+ *  paid at exactly the settings elevation is most often left at: with the base
+ *  near the floor the innermost tenth of the pad spanned nine tenths of the
+ *  sphere, so every pass near the middle of a figure was flung to the ceiling
+ *  and back, and a pass that missed the middle by a hair stopped dead in open
+ *  room -- the hole in the line that this test is here to keep shut.
+ *
+ *  The nearer pole is never the longer run and is usually far shorter, and it
+ *  is room the figure is standing next to anyway.
+ */
+TEST (HeightMapSphere, TheRunFromTheMiddleTakesTheNearerPole)
+{
+  HeightMapSphere heightMap;
+
+  // The fold's outer rim: where the middle's run has to start from, a tenth of
+  // the way out.
+  auto const rimFrac = [&] (ElevationParams const &params) {
+    return fracOf (heightMap.mapTo3D (
+        Pos::fromCartesian (0.1f * 1.41421356f, 0.f, 0.f), params));
+  };
+
+  for (auto const &params :
+       { baseParams (0.892f, 0.108f), baseParams (0.75f, 0.25f),
+         baseParams (0.6f, 0.4f), baseParams (0.28f, 0.65f),
+         baseParams (0.1f, 0.5f), baseParams (0.4f, -0.35f) })
     {
-      auto const at = heightMap.mapTo3D (Pos::fromCartesian (0.f, 0.f, 0.f),
-                                         baseParams (base));
+      auto const rim = rimFrac (params);
+      auto const middle = fracOf (
+          heightMap.mapTo3D (Pos::fromCartesian (0.f, 0.f, 0.f), params));
 
-      EXPECT_NEAR (fracOf (at), 0.f, epsilon) << "base " << base;
+      auto const nearer = rim <= 0.5f ? 0.f : 1.f;
+      EXPECT_NEAR (middle, nearer, epsilon)
+          << "base " << params.elevationBase << " reach " << params.reach
+          << ": the run goes to the pole further from the figure";
+
+      EXPECT_LE (std::abs (rim - middle), 0.5f + epsilon)
+          << "base " << params.elevationBase << " reach " << params.reach
+          << ": the middle of the pad is more than half the sphere from the "
+             "rest of the figure";
     }
-
-  // And the floor instead, for a figure that grows upwards -- away from the
-  // rest of itself, so the run is into room the figure is not already using.
-  auto const up = heightMap.mapTo3D (Pos::fromCartesian (0.f, 0.f, 0.f),
-                                     baseParams (0.6f, -0.5f));
-  EXPECT_NEAR (fracOf (up), 1.f, epsilon);
 }
 
 /** The run is over by a tenth of the pad. Outside it the map is the band it
