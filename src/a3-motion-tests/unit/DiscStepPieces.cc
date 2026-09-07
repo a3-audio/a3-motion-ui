@@ -177,14 +177,26 @@ TEST (DiscStepPieces, APathThatOnlyJustMissesTheOriginIsStillACurve)
         << c.miss;
 }
 
-// And straight through it is a curve too, now that the pad is wrapped around
-// the base rather than sheared towards it. It was a genuine discontinuity
-// before -- the path arrived at one bearing and left at the opposite one --
-// and the pen was lifted at it. Nothing lifts it any more; this is the test
-// that says so, and it fails the moment the mapping goes back to shearing.
-TEST (DiscStepPieces, StraightThroughTheOriginIsACurveTooNow)
+// Straight *through* it is the one case sampling cannot rescue, and it is
+// worth being precise about why: with the figure held on the room's vertical
+// axis, the pad's origin is a single point standing for a whole latitude
+// circle whenever the base is off the pole. A path arrives at one bearing and
+// leaves at the opposite one, and no number of pieces makes that shorter --
+// halving the step halves nothing, because the two ends are on opposite sides
+// of the room whatever the step.
+//
+// Overhead the origin is the pole and there is nothing to tear. Elsewhere the
+// renderer lifts the pen at it (maxJump in drawPathOnSphere) rather than
+// drawing a line across the sphere, so it shows as a break in the figure and
+// not as a stray straight line.
+TEST (DiscStepPieces, StraightThroughTheOriginTearsOnceTheBaseLeavesThePole)
 {
-  for (float base : { 0.f, 0.25f, 0.5f, 0.75f, 1.f })
+  for (float base : { 0.f, 1.f })
     EXPECT_LT (worstDrawn (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), 0.1f)
-        << "base " << base << ": the path through the pad's centre is torn";
+        << "base " << base << ": at a pole the crossing must stay whole";
+
+  for (float base : { 0.25f, 0.5f, 0.75f })
+    EXPECT_GT (worstDrawn (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), 0.5f)
+        << "base " << base
+        << ": pinned so a change of mapping shows up here, not in the booth";
 }

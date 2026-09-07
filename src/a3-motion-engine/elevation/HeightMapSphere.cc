@@ -164,52 +164,53 @@ HeightMapSphere::mapTo3D (Pos const &pos2D, ElevationParams const &params) const
   auto const y = pos2D.y ();
   auto const phi = std::atan2 (y, x);
 
-  // The pad is *wrapped around* the base, not sheared towards it.
+  // The pad is a band: the disc's angle is the room's azimuth and its radius
+  // is how far *down* from the base the point sits. So raising the base slides
+  // the whole figure down and what reaches the equator carries on over it onto
+  // the far side -- the figure wraps over the outer wall rather than moving
+  // sideways, which is what an elevation control should do.
   //
-  // It used to take the disc's angle as the room's azimuth and the disc's
-  // radius as a change in colatitude. That is a proper wrapping only while
-  // the base is a pole: anywhere else the pad's centre stands for "this
-  // colatitude, any azimuth" -- a whole circle of directions -- so two
-  // neighbouring ticks either side of the centre landed on opposite sides of
-  // it. Measured on a Clover: at a base of 0 the largest step between two
-  // ticks was the average one; at 0.25 it was 117 times it. The sound
-  // teleported four times a lap, and the drawn line was torn where it did.
+  // The cost, and it is a real one: the pad's centre has no azimuth of its own
+  // in this model, so it stands for a whole circle of directions once the base
+  // is off the pole, and a path crossing the centre is torn there. That is
+  // topology, not a bug to find -- a map that keeps the figure centred on the
+  // room's axis while its middle sits off the pole cannot be continuous at
+  // that middle. Shapes that cross the pad's centre exactly: Clover, Infinity,
+  // Rose 4-Petal, and any take driven through the middle of the pad.
   //
-  // So: the radius is the angular distance from the base *direction*, and the
-  // disc's angle is the bearing around it. At a base of 0 that is the same
-  // arithmetic as before, which is why every clip sitting at the pole sounds
-  // exactly as it did.
-  auto const direction = [&] {
+  // What was tried and rejected: wrapping the pad around the base direction as
+  // a cap. That is continuous everywhere, and it moves the figure's centre
+  // across the room, which reads as the view tilting and is not what elevation
+  // means here.
+  //
+  // The cone always grows the same way -- south, down and over the wall. It
+  // used to grow towards whichever pole was further away, which is a rule with
+  // a jump in it at a base of exactly one half, right where sway spends its
+  // time.
+  //
+  auto const frac = [&] {
     if (params.flat)
-      {
-        // Flat has no radius to travel: every point sits at one colatitude,
-        // and the disc's angle is the azimuth outright.
-        auto const flat = std::clamp (params.flatElevation, 0.f, 1.f)
-                          * pi<float> ();
-        return Pos::fromCartesian (std::sin (flat) * std::cos (phi),
-                                   std::sin (flat) * std::sin (phi),
-                                   std::cos (flat));
-      }
+      return std::clamp (params.flatElevation, 0.f, 1.f);
 
     auto const r = std::sqrt (x * x + y * y);
     auto const rNorm = r / kPatternCoordinateMaxRadius;
     auto const theta
         = std::min (thetaShapeFromR (rNorm, params.reach), pi<float> ());
 
-    // The base direction, and the two tangents at it: south along the
-    // meridian, and east. A point of the pad is theta away from the base,
-    // on the bearing the pad's own angle names.
-    auto const b = std::clamp (params.elevationBase, 0.f, 1.f) * pi<float> ();
-    auto const sinB = std::sin (b);
-    auto const cosB = std::cos (b);
+    auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
 
-    auto const c = std::cos (theta);
-    auto const s = std::sin (theta);
-    auto const towardsSouth = s * std::cos (phi);
-    auto const towardsEast = s * std::sin (phi);
+    // Down from the base and over the wall. Wrapped rather than clamped at
+    // the far pole: a figure pushed past it comes up the other side, which is
+    // what the sphere does and what "wrap" says.
+    auto const past = base + theta / pi<float> ();
 
-    return Pos::fromCartesian (c * sinB + towardsSouth * cosB, towardsEast,
-                               c * cosB - towardsSouth * sinB);
+    return past <= 1.f ? past : 2.f - past;
+  }();
+
+  auto const direction = [&] {
+    auto const t = frac * pi<float> ();
+    return Pos::fromCartesian (std::sin (t) * std::cos (phi),
+                               std::sin (t) * std::sin (phi), std::cos (t));
   }();
 
   // clipTop/clipBottom are a plain, final, absolute clamp — [bandLow,
@@ -224,10 +225,6 @@ HeightMapSphere::mapTo3D (Pos const &pos2D, ElevationParams const &params) const
                                  : std::min (rangeLow, rangeHigh);
   auto const bandHigh = collapsed ? bandLow : std::max (rangeLow, rangeHigh);
 
-  auto const frac = std::atan2 (std::sqrt (direction.x () * direction.x ()
-                                           + direction.y () * direction.y ()),
-                                direction.z ())
-                    / pi<float> ();
   auto const held = std::clamp (frac, bandLow, bandHigh);
 
   if (std::abs (held - frac) < 1e-6f)
@@ -313,31 +310,24 @@ HeightMapSphere::mapTo2D (Pos const &pos3D, ElevationParams const &params) const
                                  0.f);
     }
 
-  // The exact inverse of the forward step: how far this direction is from the
-  // base, and on what bearing around it. Getting this wrong does not show as
-  // an error -- a recording is written through here and played back through
+  // The exact inverse of the forward step: undo the base, and what is left is
+  // the theta the shape was built from. Getting this wrong does not show as an
+  // error -- a recording is written through here and played back through
   // mapTo3D, so the take would simply sit somewhere else.
-  auto const b = std::clamp (params.elevationBase, 0.f, 1.f) * pi<float> ();
-  auto const sinB = std::sin (b);
-  auto const cosB = std::cos (b);
+  auto const rXY = std::sqrt (x * x + y * y);
+  auto const frac = std::atan2 (rXY, z) / pi<float> ();
 
-  // Into the base's own frame: how far along the meridian, how far east, and
-  // how much of the way towards the base itself.
-  auto const towardsBase = x * sinB + z * cosB;
-  auto const towardsSouth = x * cosB - z * sinB;
-  auto const towardsEast = y;
+  auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
 
+  // Above the base is only reachable by having gone the long way round the
+  // far pole, so that is the branch to undo.
   auto const theta
-      = std::atan2 (std::sqrt (towardsSouth * towardsSouth
-                               + towardsEast * towardsEast),
-                    towardsBase);
-  auto const bearing = std::atan2 (towardsEast, towardsSouth);
+      = (frac >= base ? frac - base : 2.f - base - frac) * pi<float> ();
 
   auto const r
       = rFromThetaShape (theta, params.reach) * kPatternCoordinateMaxRadius;
 
-  return Pos::fromCartesian (r * std::cos (bearing), r * std::sin (bearing),
-                             0.f);
+  return Pos::fromCartesian (r * std::cos (phi), r * std::sin (phi), 0.f);
 }
 
 void

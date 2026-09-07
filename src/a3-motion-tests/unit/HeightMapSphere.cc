@@ -196,38 +196,67 @@ TEST (HeightMapSphere, ABaseOfOneMirrorsABaseOfZero)
     }
 }
 
-// The trajectory grows towards whichever pole is further away, so reach
-// always has room. Above the equator that is downwards, below it upwards.
-TEST (HeightMapSphere, ItGrowsTowardsTheFurtherPole)
+// The cone grows one way and one way only: down, from the base towards the
+// floor. It used to grow towards whichever pole was further away, which is a
+// rule with a jump in it at a base of exactly one half -- right where sway
+// spends most of its time.
+TEST (HeightMapSphere, ItAlwaysGrowsDownwards)
 {
   HeightMapSphere heightMap;
-  auto const edge = Pos::fromCartesian (1.41f, 0.f, 0.f);
+  auto const near = Pos::fromCartesian (0.3f, 0.f, 0.f);
 
-  EXPECT_GT (fracOf (heightMap.mapTo3D (edge, baseParams (0.2f))), 0.2f)
-      << "a base near the north pole must reach down";
-  EXPECT_LT (fracOf (heightMap.mapTo3D (edge, baseParams (0.8f))), 0.8f)
-      << "a base near the south pole must reach up";
+  for (float base : { 0.f, 0.2f, 0.49f, 0.5f, 0.51f, 0.8f })
+    EXPECT_GT (fracOf (heightMap.mapTo3D (near, baseParams (base))), base)
+        << "base " << base;
 }
 
-// Right on the equator it has to pick one, and it picks the same one every
-// time: south, which is the direction reach has always grown in.
-TEST (HeightMapSphere, OnTheEquatorItPicksSouth)
+// And what runs out of sphere at the bottom comes up the other side rather
+// than piling onto the pole -- the figure wraps over the wall.
+TEST (HeightMapSphere, PastTheFloorItWrapsBackUp)
 {
   HeightMapSphere heightMap;
   auto const edge = Pos::fromCartesian (1.41f, 0.f, 0.f);
 
-  EXPECT_GT (fracOf (heightMap.mapTo3D (edge, baseParams (0.5f))), 0.5f);
+  // At this base and reach the edge of the pad is a quarter turn past the
+  // south pole, so it comes back up to the same colatitude on the far side.
+  auto const params = baseParams (0.8f);
+  auto const theta = fracOf (heightMap.mapTo3D (edge, params));
+
+  EXPECT_NEAR (theta, 2.f - 0.8f - 0.4756f, 1e-2f);
+  EXPECT_LT (theta, 1.f) << "it must stay on the sphere, not run off it";
+}
+
+// Stepping the base across the equator moves the figure by as much as the
+// step itself. The old "towards the further pole" rule reversed the whole
+// cone there: a base of 0.499 and one of 0.501 put a point a third of the
+// sphere apart, which is a sweep through the middle audibly jumping.
+TEST (HeightMapSphere, NothingHappensAtTheEquator)
+{
+  HeightMapSphere heightMap;
+  auto const at = Pos::fromCartesian (0.7f, 0.f, 0.f);
+
+  auto const below = fracOf (heightMap.mapTo3D (at, baseParams (0.499f)));
+  auto const above = fracOf (heightMap.mapTo3D (at, baseParams (0.501f)));
+
+  EXPECT_NEAR (above - below, 0.002f, 1e-3f);
 }
 
 // mapTo2D is the exact inverse, and has to stay so with a base in play: a
 // recording is written through it and played back through mapTo3D, so a
 // mismatch would move every take the moment its base was touched.
+//
+// It is exact everywhere the figure is still on its way down, and at both
+// poles. The one place it cannot be is where the figure has gone over the
+// floor and come back up: a direction there is reached twice, once on the way
+// down and once on the way back, and the point alone does not say which. The
+// inverse picks the way down. The values below stay on the single-valued
+// side, which is where a recording is actually made.
 TEST (HeightMapSphere, TheInverseStillComesBackWithABase)
 {
   HeightMapSphere heightMap;
 
-  for (float base : { 0.f, 0.3f, 0.5f, 0.9f, 1.f })
-    for (float x : { 0.1f, 0.4f, 0.9f })
+  for (float base : { 0.f, 0.3f, 0.5f, 1.f })
+    for (float x : { 0.1f, 0.4f })
       {
         auto const params = baseParams (base);
         auto const there = Pos::fromCartesian (x, 0.2f, 0.f);
@@ -242,15 +271,9 @@ TEST (HeightMapSphere, TheInverseStillComesBackWithABase)
       }
 }
 
-// ── The pad is wrapped around the base ───────────────────────────────────
+// ── The pad is a band around the room's axis ─────────────────────────────
 
-/** Where the base is, the middle of the pad is -- and the pad grows out of it
- *  in every direction, which is what makes it a cap rather than a cone with a
- *  side it has to pick.
- *
- *  The rule this replaces grew the figure towards whichever pole was further
- *  away, and had to be told which way that was once a sweep started moving
- *  the base through the middle. There is nothing to tell any more. */
+/** Where the base is, the middle of the pad is. */
 TEST (HeightMapSphere, TheMiddleOfThePadLandsOnTheBase)
 {
   HeightMapSphere heightMap;
@@ -275,29 +298,24 @@ TEST (HeightMapSphere, TheMiddleOfThePadLandsOnTheBase)
     }
 }
 
-/** And the pad reaches out of it evenly: two points the same distance from
- *  the pad's centre are the same distance from the base, whichever bearing
- *  they are on. A shear could not say that -- it stretched one way and
- *  squashed the other. */
-TEST (HeightMapSphere, ThePadReachesOutOfTheBaseEvenly)
+/** The pad's radius is height and nothing else: two points the same distance
+ *  from the pad's centre come out at the same height, whichever bearing they
+ *  are on, and the figure stays centred on the room's vertical axis however
+ *  the base is moved.
+ *
+ *  That is what an elevation control has to mean. The alternative -- wrapping
+ *  the pad around the base as a cap -- is continuous everywhere but carries
+ *  the figure's own centre sideways across the room as the base moves, which
+ *  reads on the sphere as the whole view tilting. */
+TEST (HeightMapSphere, ThePadsRadiusIsHeightWhateverTheBearing)
 {
   HeightMapSphere heightMap;
 
-  ElevationParams params;
-  params.reach = 0.5f;
-  params.elevationBase = 0.35f;
-
-  auto const centre
-      = heightMap.mapTo3D (Pos::fromCartesian (0.f, 0.f, 0.f), params);
-  auto const angleFromCentre = [&] (Pos const &at) {
-    auto const dot = at.x () * centre.x () + at.y () * centre.y ()
-                     + at.z () * centre.z ();
-    return std::acos (std::clamp (dot, -1.f, 1.f));
-  };
-
+  auto const params = baseParams (0.35f);
   auto const r = 0.6f;
-  auto const first = angleFromCentre (
-      heightMap.mapTo3D (Pos::fromCartesian (r, 0.f, 0.f), params));
+
+  auto const first
+      = fracOf (heightMap.mapTo3D (Pos::fromCartesian (r, 0.f, 0.f), params));
 
   for (int i = 1; i < 8; ++i)
     {
@@ -308,37 +326,38 @@ TEST (HeightMapSphere, ThePadReachesOutOfTheBaseEvenly)
                               0.f),
           params);
 
-      EXPECT_NEAR (angleFromCentre (at), first, 1e-4f)
-          << "bearing " << bearing;
+      EXPECT_NEAR (fracOf (at), first, 1e-4f) << "bearing " << bearing;
+
+      // ... and it is the bearing it was given, so the figure keeps its shape
+      // in plan rather than being turned by its own height.
+      auto const drawn = std::atan2 (at.y (), at.x ());
+      auto const apart = std::abs (
+          std::remainder (drawn - bearing, juce::MathConstants<float>::twoPi));
+      EXPECT_NEAR (apart, 0.f, 1e-4f) << "bearing " << bearing;
     }
 }
 
-// ── The disc is wrapped around the base, not sheared towards it ──────────
-
-/** A movement that is smooth on the pad has to be smooth in the room.
+/** And the price of it, written down so nobody has to rediscover it.
  *
- *  It was not, once the base left the pole. The map took the disc's angle as
- *  the *global* azimuth and its radius as a change in colatitude, which is a
- *  proper wrapping of the pad only when the base is a pole: anywhere else the
- *  disc's origin stands for "this colatitude, any azimuth" -- a whole circle
- *  of directions -- and two neighbouring ticks either side of the pad's centre
- *  land on opposite sides of it.
+ *  With the figure held on the room's axis, the pad's centre stands for a
+ *  whole latitude circle once the base is off the pole -- one point of the
+ *  pad, every azimuth of the room -- so a path crossing the centre comes out
+ *  torn there. This is not a defect to hunt: a map that keeps a figure
+ *  rotationally centred while its middle sits away from the pole cannot be
+ *  continuous at that middle. It is topology, and the only escape from it is
+ *  the cap, which was tried and moves the figure instead.
  *
- *  Measured on a Clover's 2048 ticks with a reach of a half: at a base of 0
- *  the largest step between two ticks was the average one, at 0.25 it was 117
- *  times it, at 0.5 it was 164 times. That is the sound teleporting, four
- *  times a lap, not a line drawn badly.
- */
-TEST (HeightMapSphere, AFigureThroughTheDiscsCentreStaysInOnePiece)
+ *  Measured across the pad's centre with a reach of a half: at a base of 0
+ *  the worst step between neighbouring ticks is the average one; at 0.25 it
+ *  is around 117 times it, at 0.5 around 164 times. Shapes that go through
+ *  the middle -- Clover, Infinity, Rose 4-Petal -- jump there. Shapes that
+ *  circle the middle never touch it and are unaffected. */
+TEST (HeightMapSphere, AtThePoleThePadsCentreIsAPointAndNowhereElseIs)
 {
   HeightMapSphere heightMap;
 
-  // A path straight across the disc and through its origin, sampled evenly --
-  // the way a take's ticks cross the middle of the pad.
   auto const worstAgainstAverage = [&] (float base) {
-    ElevationParams params;
-    params.reach = 0.5f;
-    params.elevationBase = base;
+    auto const params = baseParams (base);
 
     auto worst = 0.f;
     auto total = 0.f;
@@ -368,11 +387,13 @@ TEST (HeightMapSphere, AFigureThroughTheDiscsCentreStaysInOnePiece)
     return worst / std::max (1e-6f, total / static_cast<float> (counted));
   };
 
-  for (float base : { 0.f, 0.25f, 0.5f, 0.75f, 1.f })
-    EXPECT_LT (worstAgainstAverage (base), 2.f)
-        << "base " << base
-        << ": one step across the pad's centre is many times every other, "
-           "which is the sound jumping";
+  // Overhead, the pad's centre is the pole and the crossing is smooth.
+  EXPECT_LT (worstAgainstAverage (0.f), 2.f);
+
+  // Anywhere else it is not, and by a lot. Pinned so that a change of model
+  // shows up here as a failure rather than as a surprise in the booth.
+  EXPECT_GT (worstAgainstAverage (0.25f), 20.f);
+  EXPECT_GT (worstAgainstAverage (0.5f), 20.f);
 }
 
 /** A figure that runs into the ceiling travels *along* it.
