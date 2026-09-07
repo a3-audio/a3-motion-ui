@@ -51,6 +51,13 @@ constexpr float unselectedRowNameOpacity = 0.7f;
 // decision. Listed in issues/a3-motion-ui-metric-role-deviations.md
 // (Task 16).
 constexpr float selectedRowHighlightInset = 1.f;
+
+// 0.15 from alphaTextStrong (0.85) and 0.15 from alphaInactive (0.6), too far
+// from both to snap to either. This is the settings-preset dot on a row that
+// is not the chosen one. Listed in
+// issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending a decision
+// on whether it becomes a rung of its own.
+constexpr float unselectedPresetDotOpacity = 0.75f;
 }
 
 BrowserComponent::BrowserComponent ()
@@ -354,11 +361,11 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
   if (index < _settingsOnly.size () && _settingsOnly[index])
     {
       auto const dot = bounds.getHeight () / 5.f;
-      // Same restructuring as above for the chosen case; 0.75f maps cleanly
-      // to alphaTextStrong.
+      // Same restructuring as above for the chosen case. The unselected
+      // branch does not snap to a rung: see unselectedPresetDotOpacity above.
       g.setColour (chosen ? toColour (theme ().accent)
                           : toColour (theme ().accent,
-                                     theme ().alphaTextStrong));
+                                     unselectedPresetDotOpacity));
       g.fillEllipse (bounds.getRight () - dot * 2.5f,
                      bounds.getCentreY () - dot / 2.f, dot, dot);
     }

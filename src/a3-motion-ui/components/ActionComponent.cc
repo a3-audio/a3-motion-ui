@@ -59,6 +59,12 @@ constexpr float fieldCaptionOpacity = 0.7f;
 // anyone could name. Left as its own literal pending a decision. Listed in
 // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
 constexpr int actionListHighlightVerticalInset = 1;
+
+// 0.15 from alphaTextStrong (0.85) and 0.15 from alphaInactive (0.6), too far
+// from both to snap to either. This is the fire button's face while it is not
+// firing. Listed in issues/a3-motion-ui-metric-role-deviations.md (Task 16)
+// pending a decision on whether it becomes a rung of its own.
+constexpr float fireButtonRestingOpacity = 0.75f;
 }
 
 ActionComponent::ActionComponent ()
@@ -857,10 +863,11 @@ ActionComponent::paint (juce::Graphics &g)
       // says. This used to be `_firing ? 1.f : 0.75f`; 1.f fits no rung, and
       // the maintainer still owes a call on whether full opacity deserves
       // one of its own. See issues/a3-motion-ui-metric-role-deviations.md
-      // (Task 16).
+      // (Task 16). The resting branch is a second, separate deviation: 0.75f
+      // itself fits no rung either -- see fireButtonRestingOpacity above.
       g.setColour (_firing ? _channelColour
                            : _channelColour.withAlpha (
-                                 theme ().alphaTextStrong));
+                                 fireButtonRestingOpacity));
       g.fillRoundedRectangle (at, theme ().radiusControl);
       g.setColour (_channelColour);
       g.drawRoundedRectangle (at, theme ().radiusControl,
