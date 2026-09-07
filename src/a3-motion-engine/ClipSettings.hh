@@ -66,6 +66,11 @@ struct ClipSettings
   int squeezeXLfo = 0;
   int squeezeYLfo = 0;
 
+  /** How far the trajectory spreads from the elevation base, and which way.
+   *  The size is the extent, -1..1; the sign says down or up. It ran 0.05..1
+   *  while the reach cone chose a pole for itself -- now that it always grows
+   *  the way it is told, saying so is the only way to put a figure above its
+   *  base. Old files carry positive values and mean what they always did. */
   float reach = 0.5f;
   float clipTop = 0.f;
   float clipBottom = 0.f;

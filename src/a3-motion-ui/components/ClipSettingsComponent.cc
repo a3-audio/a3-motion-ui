@@ -496,8 +496,12 @@ ClipSettingsComponent::setTrajectoryName (juce::String const &name)
 void
 ClipSettingsComponent::setElevationReach (float reach, float swept)
 {
-  _elevationReach = std::clamp (reach, 0.05f, 1.0f);
-  _elevationReachSwept = swept < 0.f ? -1.f : std::clamp (swept, 0.05f, 1.0f);
+  // Signed now, so "not sweeping" cannot be said with a negative number any
+  // more: -2 is outside the knob's range and is what the squeezes already use
+  // for the same job.
+  _elevationReach = std::clamp (reach, -1.0f, 1.0f);
+  _elevationReachSwept
+      = swept <= -2.f ? -2.f : std::clamp (swept, -1.0f, 1.0f);
   repaint ();
 }
 
@@ -1671,12 +1675,10 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   // Where the swell has carried the coverage, if it is moving: the pointer
   // stays on what the hand set and the arc runs to where the sweep is holding
   // it, the way rot's does under the spin.
-  paintMiniKnob (g, cells[2], metrics, caption::reach,
-                 _elevationReach * 2.f - 1.f, false, _motionSubIndex == 2,
-                 isSelected,
-                 _elevationReachSwept < 0.f
-                     ? -2.f
-                     : _elevationReachSwept * 2.f - 1.f);
+  // Bipolar, and filled from the middle: nothing is a flat figure sitting on
+  // the base, one way spreads it down and the other up.
+  paintMiniKnob (g, cells[2], metrics, caption::reach, _elevationReach, true,
+                 _motionSubIndex == 2, isSelected, _elevationReachSwept);
   paintMiniKnob (g, cells[3], metrics, caption::swell,
                  sweepRing (_motionSwell), true, _motionSubIndex == 3,
                  isSelected);

@@ -114,13 +114,18 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
   // Out of where each was set and back, towards the end its sign points at.
   // At a step of zero lfoSweep() gives the value back untouched, so a clip
   // with no modulation projects through exactly what it was set to.
-  params.reach
-      = lfoSweep (params.reach, pattern.getReachLfo (),
-                  pattern.getReachLfoPhase ());
-  // The base travels the whole way, pole to pole: the pad is wrapped around
-  // it as a cap now, so there is no direction for a cone to grow in and no
-  // end for it to run out of room at. Both of those were answers to the
-  // shear this replaced.
+  // The swell moves how far the figure spreads, not which way: the size is
+  // swept and the sign is left alone. Swept signed, a reach set upwards would
+  // pass through nothing and come out spreading downwards, which is the
+  // figure turning inside out rather than breathing.
+  {
+    auto const towards = params.reach < 0.f ? -1.f : 1.f;
+    params.reach = towards
+                   * lfoSweep (std::abs (params.reach),
+                               pattern.getReachLfo (),
+                               pattern.getReachLfoPhase ());
+  }
+  // The base travels the whole way, pole to pole.
   params.elevationBase
       = lfoSweep (params.elevationBase, pattern.getElevationLfo (),
                   pattern.getElevationLfoPhase ());

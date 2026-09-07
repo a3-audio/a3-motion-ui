@@ -783,7 +783,12 @@ Pattern::getReach () const
 void
 Pattern::setReach (float reach)
 {
-  _reach = std::clamp (reach, 0.05f, 1.0f);
+  // Signed: the size is how far the figure spreads from the base and the sign
+  // is which way, down or up. It ran 0.05..1 while the cone chose a pole for
+  // itself; now that it always grows the way it is told, the only way to put a
+  // figure above its base is to say so. A value from a file that only knows
+  // the old range means what it always did.
+  _reach = std::clamp (reach, -1.0f, 1.0f);
 }
 
 float

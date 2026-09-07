@@ -445,3 +445,90 @@ TEST (HeightMapSphere, WhatIsCutOffAtTheCeilingRunsAlongIt)
           << "was flattened onto the ceiling instead of running along it";
     }
 }
+
+// ── Reach runs both ways ────────────────────────────────────────────────
+
+/** The cone grows down from the base, and with a negative reach it grows up.
+ *
+ *  It grew one way only once the "towards the further pole" rule went, which
+ *  left a figure sitting at the ceiling with nowhere to be put: base at the
+ *  top and reach is the only thing that decides where the rest of it goes.
+ *  The sign is the direction and the size is the extent, which is how spin,
+ *  swell and the squeezes already read.
+ */
+TEST (HeightMapSphere, ANegativeReachGrowsUpwards)
+{
+  HeightMapSphere heightMap;
+  auto const at = Pos::fromCartesian (0.7f, 0.f, 0.f);
+
+  auto const base = 0.6f;
+  auto const down = fracOf (heightMap.mapTo3D (at, baseParams (base, 0.5f)));
+  auto const up = fracOf (heightMap.mapTo3D (at, baseParams (base, -0.5f)));
+
+  EXPECT_GT (down, base) << "a positive reach must still grow down";
+  EXPECT_LT (up, base) << "a negative reach must grow up";
+
+  // Mirror images of one another about the base: the same figure, upside
+  // down, not a different one.
+  EXPECT_NEAR (down - base, base - up, epsilon);
+}
+
+// And what runs off the ceiling wraps over it, the way the floor already
+// does: a figure pushed past the top comes down the other side rather than
+// piling onto the pole.
+TEST (HeightMapSphere, PastTheCeilingItWrapsBackDown)
+{
+  HeightMapSphere heightMap;
+  auto const edge = Pos::fromCartesian (1.41f, 0.f, 0.f);
+
+  auto const frac = fracOf (heightMap.mapTo3D (edge, baseParams (0.2f, -0.5f)));
+
+  EXPECT_GT (frac, 0.f) << "it must stay on the sphere, not run off it";
+  EXPECT_NEAR (frac, 0.4756f - 0.2f, 1e-2f);
+}
+
+// The inverse follows the sign too -- a take is written through it and played
+// back through mapTo3D, so a mismatch moves every recording the moment reach
+// is turned past nothing.
+TEST (HeightMapSphere, TheInverseFollowsTheSignOfReach)
+{
+  HeightMapSphere heightMap;
+
+  for (float reach : { 0.5f, -0.5f })
+    for (float x : { 0.1f, 0.4f })
+      {
+        auto const params = baseParams (0.5f, reach);
+        auto const there = Pos::fromCartesian (x, 0.2f, 0.f);
+
+        auto const round
+            = heightMap.mapTo2D (heightMap.mapTo3D (there, params), params);
+
+        EXPECT_NEAR (round.x (), there.x (), 1e-3f) << "reach " << reach;
+        EXPECT_NEAR (round.y (), there.y (), 1e-3f) << "reach " << reach;
+      }
+}
+
+/** Past a pole the map folds -- a direction there is reached twice, once on
+ *  the way out and once on the way back -- so the inverse cannot be exact
+ *  there and picks the way out. What it must not do is pick the wrong branch
+ *  on the *near* side, which is the whole of where recording happens: with a
+ *  negative reach that side is above the base, not below it. */
+TEST (HeightMapSphere, TheInverseTakesTheNearSideOfTheBase)
+{
+  HeightMapSphere heightMap;
+
+  for (float reach : { 0.6f, -0.6f })
+    for (float x : { 0.3f, 0.9f })
+      {
+        auto const params = baseParams (0.5f, reach);
+        auto const there = Pos::fromCartesian (x, 0.1f, 0.f);
+
+        auto const round
+            = heightMap.mapTo2D (heightMap.mapTo3D (there, params), params);
+
+        EXPECT_NEAR (round.x (), there.x (), 1e-3f)
+            << "reach " << reach << " at " << x;
+        EXPECT_NEAR (round.y (), there.y (), 1e-3f)
+            << "reach " << reach << " at " << x;
+      }
+}

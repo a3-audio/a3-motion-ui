@@ -62,8 +62,11 @@
 //   ~base            0..1    where the middle of the trajectory sits.
 //                            0 is the north pole, 1 the south, 0.5 the
 //                            equator. This is the line the graphic draws.
-//   ~reach           0..1    how far the trajectory spreads from that line,
-//                            towards whichever pole is further away.
+//   ~reach          -1..1    how far the trajectory spreads from that line,
+//                            and which way: positive spreads it down towards
+//                            the floor, negative up towards the ceiling.
+//                            What runs past a pole comes back on the far
+//                            side. The swell moves the size, never the sign.
 //   ~clipTop         0..1    a hard bound, cutting this much off the north
 //                            pole side whatever the reach says.
 //   ~clipBottom      0..1    the same from the south pole side.

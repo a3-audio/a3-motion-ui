@@ -194,17 +194,26 @@ HeightMapSphere::mapTo3D (Pos const &pos2D, ElevationParams const &params) const
 
     auto const r = std::sqrt (x * x + y * y);
     auto const rNorm = r / kPatternCoordinateMaxRadius;
-    auto const theta
-        = std::min (thetaShapeFromR (rNorm, params.reach), pi<float> ());
+    auto const theta = std::min (
+        thetaShapeFromR (rNorm, std::abs (params.reach)), pi<float> ());
 
     auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
 
-    // Down from the base and over the wall. Wrapped rather than clamped at
-    // the far pole: a figure pushed past it comes up the other side, which is
-    // what the sphere does and what "wrap" says.
-    auto const past = base + theta / pi<float> ();
+    // The size of the reach is how far the figure spreads and its sign is
+    // which way. Down was the only way once the cone stopped choosing a pole
+    // for itself, which left a figure sitting at the ceiling with nowhere to
+    // be put -- the base is at the top and reach is the only thing that says
+    // where the rest of it goes.
+    auto const towards = params.reach < 0.f ? -1.f : 1.f;
+    auto const past = base + towards * theta / pi<float> ();
 
-    return past <= 1.f ? past : 2.f - past;
+    // Over the wall at whichever end it reaches: what runs past a pole comes
+    // back on the far side rather than piling onto it.
+    if (past > 1.f)
+      return 2.f - past;
+    if (past < 0.f)
+      return -past;
+    return past;
   }();
 
   auto const direction = [&] {
@@ -319,13 +328,23 @@ HeightMapSphere::mapTo2D (Pos const &pos3D, ElevationParams const &params) const
 
   auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
 
-  // Above the base is only reachable by having gone the long way round the
-  // far pole, so that is the branch to undo.
-  auto const theta
-      = (frac >= base ? frac - base : 2.f - base - frac) * pi<float> ();
+  // Undone the way it was done: down from the base, or up from it, and what
+  // went past a pole came back on the far side, so that is the branch to
+  // recognise. Written out rather than folded into one expression -- a
+  // recording is written through here and played back through mapTo3D, and a
+  // clever inverse that is wrong moves every take instead of failing.
+  auto const away = [&] {
+    if (params.reach < 0.f)
+      return frac <= base ? base - frac  // straight up from the base
+                          : base + frac; // over the ceiling and back down
+    return frac >= base ? frac - base    // straight down from it
+                        : 2.f - base - frac; // over the floor and back up
+  }();
 
-  auto const r
-      = rFromThetaShape (theta, params.reach) * kPatternCoordinateMaxRadius;
+  auto const theta = away * pi<float> ();
+
+  auto const r = rFromThetaShape (theta, std::abs (params.reach))
+                 * kPatternCoordinateMaxRadius;
 
   return Pos::fromCartesian (r * std::cos (phi), r * std::sin (phi), 0.f);
 }
