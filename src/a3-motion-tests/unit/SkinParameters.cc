@@ -481,6 +481,11 @@ TEST (SkinParameters, EveryMetricRoleHasARange)
           << range.path << " must not be settable above its ceiling";
       EXPECT_DOUBLE_EQ (clampSkinValue (skin, range.path, range.min), range.min)
           << range.path << " must still accept its own floor";
+      // An interior value must pass through unchanged, or a clamp that only
+      // rejects the extremes has not proved it passes anything through.
+      auto const interior = (range.min + range.max) / 2.0;
+      EXPECT_DOUBLE_EQ (clampSkinValue (skin, range.path, interior), interior)
+          << range.path;
     }
 }
 
@@ -497,5 +502,8 @@ TEST (SkinParameters, NoEmphasisRungLeavesTheZeroToOneRange)
     {
       EXPECT_DOUBLE_EQ (clampSkinValue (skin, path, -1.0), 0.0) << path;
       EXPECT_DOUBLE_EQ (clampSkinValue (skin, path, 2.0), 1.0) << path;
+      // An interior value must pass through unchanged, or a clamp that only
+      // rejects the extremes has not proved it passes anything through.
+      EXPECT_DOUBLE_EQ (clampSkinValue (skin, path, 0.42), 0.42) << path;
     }
 }
