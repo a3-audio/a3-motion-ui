@@ -23,6 +23,8 @@
 #include <a3-motion-engine/util/Geometry.hh>
 #include <a3-motion-engine/util/Types.hh>
 
+#include <vector>
+
 namespace a3
 {
 
@@ -71,5 +73,92 @@ Pos directionToDisc (Pos const &direction);
  *  rather than costing a frame. */
 int discStepPieces (float x1, float y1, float x2, float y2, float maxStep,
                     float maxSwing, int maxPieces);
+
+/** How finely a step of the disc is cut, and how far a drawn one may reach. */
+struct DiscSampling
+{
+  /** The longest piece wanted in the disc's own units. */
+  float maxStep = 0.03f;
+  /** The widest turn wanted out of one piece, in radians. */
+  float maxSwing = 0.02f;
+  /** The most pieces one step may be cut into by those two measures. */
+  int maxPieces = 256;
+  /** How far apart two *drawn* points may be on the unit sphere before the
+   *  piece between them is halved again. */
+  float maxDrawn = 0.06f;
+  /** How many times a piece may be halved. Eight is 256 more of them, and
+   *  only where they are needed. */
+  int maxDepth = 8;
+};
+
+/** Cut a straight step of the recorded disc into pieces and hand each one's
+ *  far end to `emit`, in order. `project` maps a disc point to wherever it is
+ *  drawn; `distance` says how far apart two of those are.
+ *
+ *  Cut where the projection actually moves rather than evenly along the step.
+ *  The azimuth swing near the disc's origin is concentrated at the closest
+ *  approach: spread evenly, most of the pieces are spent out where nothing is
+ *  happening and the one place that needs them is starved -- measured, a path
+ *  missing the origin by two thousandths still drew a third of the sphere in
+ *  one straight line after 154 even pieces.
+ *
+ *  A template so the rule can be tested without a screen: the painter hands
+ *  it its own projector, a test hands it the height map. */
+template <typename Project, typename Distance, typename Emit>
+void
+sampleDiscStep (float x1, float y1, float x2, float y2,
+                DiscSampling const &how, Project project, Distance distance,
+                Emit emit)
+{
+  auto const at = [&] (float t) {
+    return project (x1 + (x2 - x1) * t, y1 + (y2 - y1) * t);
+  };
+
+  auto const coarse = discStepPieces (x1, y1, x2, y2, how.maxStep,
+                                      how.maxSwing, how.maxPieces);
+
+  // Halve a piece while its two ends are drawn too far apart. Iterative with
+  // an explicit stack, and pushed right before left so what comes out is in
+  // order -- a path drawn out of order is a path drawn as a scribble.
+  struct Piece
+  {
+    float t0, t1;
+    decltype (at (0.f)) p0, p1;
+    int depth;
+  };
+
+  auto previousT = 0.f;
+  auto previous = at (0.f);
+
+  for (int piece = 1; piece <= coarse; ++piece)
+    {
+      auto const t1
+          = static_cast<float> (piece) / static_cast<float> (coarse);
+
+      std::vector<Piece> stack;
+      stack.push_back ({ previousT, t1, previous, at (t1), 0 });
+
+      while (!stack.empty ())
+        {
+          auto const here = stack.back ();
+          stack.pop_back ();
+
+          if (here.depth < how.maxDepth
+              && distance (here.p0, here.p1) > how.maxDrawn)
+            {
+              auto const tm = (here.t0 + here.t1) * 0.5f;
+              auto const pm = at (tm);
+              stack.push_back ({ tm, here.t1, pm, here.p1, here.depth + 1 });
+              stack.push_back ({ here.t0, tm, here.p0, pm, here.depth + 1 });
+              continue;
+            }
+
+          emit (here.p1);
+        }
+
+      previousT = t1;
+      previous = at (t1);
+    }
+}
 
 }

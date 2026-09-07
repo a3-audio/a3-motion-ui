@@ -1512,11 +1512,12 @@ drawPathOnSphere (juce::Path const &displayPath,
   // azimuth swing worth splitting for either -- there is no pole to be near.
   // See discStepPieces(), which is where both measures are weighed and why
   // the second one exists at all.
-  float const maxSwing = elevationParams.flat
-                             ? juce::MathConstants<float>::pi
-                             : 0.02f;
-  // Half a revolution at 0.02 radians a piece is 158 of them.
-  auto constexpr maxPieces = 256;
+  DiscSampling sampling;
+  sampling.maxStep = maxStep;
+  // Flat mode has no pole to be near, so nothing to swing around.
+  sampling.maxSwing = elevationParams.flat
+                          ? juce::MathConstants<float>::pi
+                          : 0.02f;
 
   // ... and what no amount of cutting can fix. At the disc's exact origin the
   // azimuth is not merely fast, it is undefined: the path arrives at one
@@ -1582,28 +1583,19 @@ drawPathOnSphere (juce::Path const &displayPath,
           firstPoint = false;
         }
 
-      float dx = iter.x2 - prevX;
-      float dy = iter.y2 - prevY;
 
-      // Cut along the 2D line either way: the pieces are not spread evenly
-      // along the arc that comes out, but they land close enough together
-      // that the line reads as one.
-      auto const nSub = discStepPieces (prevX, prevY, iter.x2, iter.y2,
-                                        maxStep, maxSwing, maxPieces);
-
-      if (nSub > 1)
-        {
-          for (int s = 1; s < nSub; ++s)
-            {
-              float t = static_cast<float> (s)
-                        / static_cast<float> (nSub);
-              float mx = prevX + dx * t;
-              float my = prevY + dy * t;
-              addPoint (projectPoint (mx, my), false);
-            }
-        }
-
-      addPoint (projectPoint (iter.x2, iter.y2), false);
+      // Cut where the projection moves, not evenly along the step -- see
+      // sampleDiscStep(), which halves a piece while its two ends land too
+      // far apart. Spread evenly, the pieces are spent out where nothing is
+      // happening and the closest approach to the disc's origin is starved.
+      sampleDiscStep (
+          prevX, prevY, iter.x2, iter.y2, sampling, projectPoint,
+          [] (auto const &a, auto const &b) {
+            auto const d = a.first - b.first;
+            auto const dz = a.second - b.second;
+            return std::sqrt (d.x * d.x + d.y * d.y + dz * dz);
+          },
+          [&addPoint] (auto const &point) { addPoint (point, false); });
       prevX = iter.x2;
       prevY = iter.y2;
     }

@@ -114,31 +114,76 @@ worstDrawnStep (float x1, float y1, float x2, float y2, float base)
 }
 }
 
-// What it is for, measured where it shows: the drawn step. With the base on
-// the pole the disc's origin is drawn in the middle of the sphere and nothing
-// near it costs anything; move the base off the pole -- which is what sway
-// does -- and it is drawn out towards the rim.
-TEST (DiscStepPieces, APathPastTheOriginIsDrawnAsACurveNotAChord)
+
+
+// ── What is actually drawn, once the pieces are cut adaptively ───────────
+
+namespace
 {
-  // A tenth of the sphere's radius. Longer than that and the eye reads a
-  // straight line rather than part of a curve.
-  for (float base : { 0.f, 0.25f, 0.5f, 0.75f })
-    EXPECT_LT (worstDrawnStep (-0.02f, 0.005f, 0.02f, 0.005f, base), 0.1f)
-        << "base " << base;
+/** The longest step the drawn line takes across one disc step, sampled the
+ *  way the renderer samples it. */
+float
+worstDrawn (float x1, float y1, float x2, float y2, float reach, float base)
+{
+  HeightMapSphere heightMap;
+
+  ElevationParams params;
+  params.reach = reach;
+  params.elevationBase = base;
+
+  auto const project = [&] (float x, float y) {
+    return heightMap.mapTo3D (Pos::fromCartesian (x, y, 0.f), params);
+  };
+  auto const apart = [] (Pos const &a, Pos const &b) {
+    return std::sqrt (std::pow (a.x () - b.x (), 2.f)
+                      + std::pow (a.y () - b.y (), 2.f)
+                      + std::pow (a.z () - b.z (), 2.f));
+  };
+
+  auto previous = project (x1, y1);
+  auto worst = 0.f;
+
+  sampleDiscStep (x1, y1, x2, y2, DiscSampling{}, project, apart,
+                  [&] (Pos const &point) {
+                    worst = std::max (worst, apart (previous, point));
+                    previous = point;
+                  });
+
+  return worst;
+}
 }
 
-// And the case no amount of cutting can reach. Straight through the origin
-// the azimuth is not fast, it is undefined: the path arrives at one bearing
-// and leaves at the opposite one, so every sample on one side is half a
-// revolution from every sample on the other. Several shipped shapes do this
-// -- Clover, Infinity, Rose 4-Petal. It is a discontinuity, and the renderer
-// lifts the pen at it rather than drawing the chord; this test is here so
-// that nobody tries to fix it by cutting more finely.
-TEST (DiscStepPieces, StraightThroughTheOriginStaysAJumpHoweverFinelyItIsCut)
+// Cutting evenly could not do this. Measured before the change: a path
+// missing the disc's origin by two thousandths, with a long reach and the
+// base off the pole, still drew a third of the sphere in one straight line
+// after a hundred and fifty even pieces -- the swing is concentrated at the
+// closest approach, and even pieces spend themselves out where nothing is
+// happening.
+TEST (DiscStepPieces, APathThatOnlyJustMissesTheOriginIsStillACurve)
 {
-  EXPECT_LT (worstDrawnStep (-0.02f, 0.f, 0.02f, 0.f, 0.f), 0.1f)
-      << "on the pole both bearings are the same point, so there is no jump";
+  struct
+  {
+    float reach, base, miss;
+  } const cases[]{
+    { 0.5f, 0.f, 0.005f },  { 0.5f, 0.25f, 0.005f },
+    { 0.9f, 0.6f, 0.02f },  { 0.9f, 0.6f, 0.002f },
+    { 1.0f, 0.5f, 0.01f },  { 0.9f, 0.6f, 0.0005f },
+  };
 
-  EXPECT_GT (worstDrawnStep (-0.02f, 0.f, 0.02f, 0.f, 0.5f), 1.f)
-      << "off the pole this is a jump, and cutting cannot make it not one";
+  for (auto const &c : cases)
+    EXPECT_LT (worstDrawn (-0.06f, c.miss, 0.06f, c.miss, c.reach, c.base),
+               0.1f)
+        << "reach " << c.reach << ", base " << c.base << ", missing by "
+        << c.miss;
+}
+
+// And straight through it is still a jump, however finely it is cut: there
+// the azimuth is not fast but undefined. The renderer lifts the pen at one
+// this size rather than drawing the chord.
+TEST (DiscStepPieces, StraightThroughTheOriginIsStillAJump)
+{
+  EXPECT_LT (worstDrawn (-0.06f, 0.f, 0.06f, 0.f, 0.5f, 0.f), 0.1f)
+      << "on the pole both bearings are the same point";
+
+  EXPECT_GT (worstDrawn (-0.06f, 0.f, 0.06f, 0.f, 0.5f, 0.5f), 1.f);
 }
