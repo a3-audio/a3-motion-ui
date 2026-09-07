@@ -248,7 +248,11 @@ generator and the test runner:
   sweeps `params.reach` before projecting, the renderer sweeps it before drawing the line, both
   from the phase on the `Pattern`. Its control lives in **Motion**, beside the `reach` it sweeps —
   every row of that section is a standing value next to the movement that works on it, the way `rot`
-  stands next to `spin`. `sway`, which does the same to the elevation base, sits in **Elevation**
+  stands next to `spin` and each squeeze stands next to its own `str`. Motion is five such rows and
+  nothing else — `rot|spin`, `reach|swell`, `sqzX|strX`, `sqzY|strY`, `fade|bias` — numbered in
+  reading order, which is the first time its sub-indices and its layout have agreed.
+
+  `sway`, which does the same to the elevation base, sits in **Elevation**
   under the graphic whose line it travels, for the same reason: a sweep says what it does only when
   it stands next to what it does it to.
 
@@ -396,8 +400,14 @@ is a *layout* change and A3MotionUIComponent is what hands the bar its bounds �
 `applyTheme()` ends in `resized()`. Telling the bar alone changes nothing.
 
 **The Shape section has two faces**, and `BarPage::Record` is the one that turns the card over. The
-front is the clip as it plays — its picture, the **clip field** naming what is in the slot, and four
-speed buttons reading from as recorded outwards: `1`, `1/8`, `1/16`, `1/64`. Twelve buttons covering the whole of
+front is the clip as it plays — its picture, the **clip field** naming what is in the slot, four
+speed buttons reading from as recorded outwards (`1`, `1/8`, `1/16`, `1/64`), and the **direction and
+end action** under them. Those two came from Motion: what a pass does when it runs out is a property
+of the take, and the take is what this section is about.
+
+**The speed keys are tapped and dragged.** Four keys are the four anybody reaches for; a drag across
+any of them walks the whole of `speedLog2Min..Max`, which is how the other eight steps are reached —
+before this they were reachable from a clip file and from nowhere on the device. Twelve buttons covering the whole of
 `speedLog2Min..Max` took three rows to say every value the range holds; the two rows they gave back
 are what the field stands in, and a speed the four do not name is still reachable from a clip file
 or a script (`~speedLog2`) and simply lights no button. The back is the take you
@@ -524,6 +534,10 @@ kind of file you happened to save.
 again, so it is in neither the clip file nor the set; one that travelled with a clip would be a clip
 refusing to be what it says it is on the next machine. By section rather than by control, because
 three marks are three things a hand finds without reading.
+
+The lock's hit area is twice as wide as its mark: the padlock stays a square at the right end of the
+row, but a square the height of a title row is a target you have to aim at, and this is pressed with
+the other hand busy.
 
 `ClipLocks::heldOver()` is the one place that says which field belongs to which lock — grouped the
 way the *bar* is, not the way `ClipSettings` is, since a lock is pressed above a column of knobs.
