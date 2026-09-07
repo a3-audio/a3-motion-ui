@@ -100,42 +100,88 @@ argumentsOf (juce::String const &text, juce::String const &call)
 /** A number written out, rather than a name or an expression.
  *
  *  Zero is not a size: `.reduced (x, 0)` says "not in this axis", which no
- *  skin value should be able to change. */
+ *  skin value should be able to change — `-0.f` is the same "not in this
+ *  axis" and stays excluded too. A leading `-` is still a number written
+ *  out: `-4.f` is exactly as fixed as `4.f`, only on the other side of
+ *  zero. */
 bool
 isWrittenOutNumber (juce::String const &token)
 {
-  if (token.isEmpty () || !juce::CharacterFunctions::isDigit (token[0]))
+  auto const unsigned_ = token.startsWith ("-") ? token.substring (1) : token;
+
+  if (unsigned_.isEmpty () || !juce::CharacterFunctions::isDigit (unsigned_[0]))
     return false;
 
   auto const value = token.getFloatValue ();
   return value != 0.f;
 }
 
+/** A number written out, or a ternary that chooses between two of them.
+ *
+ *  `active ? 0.35f : 0.15f` is two bare alphas wearing a condition, not an
+ *  expression the skin could ever resolve to a name — so either branch
+ *  counts on its own, the same way a bare literal would. Split at depth 0
+ *  the way `argumentsOf` splits commas, so a condition or branch that is
+ *  itself a call does not confuse the split. */
+bool
+isOrChoosesAWrittenOutNumber (juce::String const &argument)
+{
+  if (isWrittenOutNumber (argument))
+    return true;
+
+  int depth = 0;
+  int questionAt = -1;
+  int colonAt = -1;
+
+  for (int i = 0; i < argument.length (); ++i)
+    {
+      auto const character = argument[i];
+      if (character == '(')
+        ++depth;
+      else if (character == ')')
+        --depth;
+      else if (depth == 0 && character == '?' && questionAt < 0)
+        questionAt = i;
+      else if (depth == 0 && character == ':' && questionAt >= 0
+               && colonAt < 0)
+        colonAt = i;
+    }
+
+  if (questionAt < 0 || colonAt < 0)
+    return false;
+
+  auto const thenBranch = argument.substring (questionAt + 1, colonAt).trim ();
+  auto const elseBranch = argument.substring (colonAt + 1).trim ();
+
+  return isWrittenOutNumber (thenBranch) || isWrittenOutNumber (elseBranch);
+}
+
 bool
 windowHoldsAMetricLiteral (juce::String const &window)
 {
   auto const fill = argumentsOf (window, "fillRoundedRectangle");
-  if (fill.size () >= 2 && isWrittenOutNumber (fill[fill.size () - 1]))
+  if (fill.size () >= 2
+      && isOrChoosesAWrittenOutNumber (fill[fill.size () - 1]))
     return true;
 
   auto const stroke = argumentsOf (window, "drawRoundedRectangle");
   if (stroke.size () >= 3)
     for (auto const &argument : { stroke[stroke.size () - 1],
                                   stroke[stroke.size () - 2] })
-      if (isWrittenOutNumber (argument))
+      if (isOrChoosesAWrittenOutNumber (argument))
         return true;
 
   auto const alpha = argumentsOf (window, "withAlpha");
-  if (alpha.size () == 1 && isWrittenOutNumber (alpha[0]))
+  if (alpha.size () == 1 && isOrChoosesAWrittenOutNumber (alpha[0]))
     return true;
 
   auto const tinted = argumentsOf (window, "toColour");
-  if (tinted.size () == 2 && isWrittenOutNumber (tinted[1]))
+  if (tinted.size () == 2 && isOrChoosesAWrittenOutNumber (tinted[1]))
     return true;
 
   for (auto const *inset : { "reduced", "expanded" })
     for (auto const &argument : argumentsOf (window, inset))
-      if (isWrittenOutNumber (argument))
+      if (isOrChoosesAWrittenOutNumber (argument))
         return true;
 
   return false;
@@ -154,7 +200,7 @@ filesWithMetrics ()
   auto const root = uiSourceDir ();
 
   for (auto const &entry : juce::RangedDirectoryIterator (
-           root, true, "*.cc", juce::File::findFiles))
+           root, true, "*.cc;*.hh", juce::File::findFiles))
     {
       auto const path
           = entry.getFile ().getRelativePathFrom (root).replace ("\\", "/");
@@ -214,14 +260,23 @@ TEST (NoMetricLiterals, TheListHasNoStaleEntries)
 
 // Without this the two tests above could both pass over an empty tree — a
 // wrong A3_UI_SOURCE_DIR, a renamed folder — and report the migration
-// finished.
+// finished. Counts files scanned, not files found holding a literal: the
+// latter is migration progress and is meant to fall to zero, which would
+// make this test fail on a correct setup once the ratchet has done its job.
 TEST (NoMetricLiterals, TheSourcesAreActuallyBeingRead)
 {
   ASSERT_TRUE (uiSourceDir ().isDirectory ())
       << uiSourceDir ().getFullPathName ();
 
-  EXPECT_GT (static_cast<int> (filesWithMetrics ().size ()), 5)
-      << "far too few files found to trust the result";
+  int count = 0;
+  for (auto const &entry : juce::RangedDirectoryIterator (
+           uiSourceDir (), true, "*.cc;*.hh", juce::File::findFiles))
+    {
+      juce::ignoreUnused (entry);
+      ++count;
+    }
+
+  EXPECT_GT (count, 20) << "far too few sources scanned to trust the result";
 }
 
 }
