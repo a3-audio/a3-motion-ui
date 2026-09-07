@@ -1485,8 +1485,13 @@ MotionComponent::drawBearings (juce::Graphics &g)
       g.saveState ();
       g.addTransform (juce::AffineTransform::rotation (angle, out.x, out.y));
 
-      auto const ink = toColour (theme ().textPrimary, behind ? 0.45f : 0.8f);
-      auto const outline = toColour (theme ().background, 0.85f);
+      // Behind the sphere it is written *dark*, not merely faint. A dim light
+      // number on a lit sphere is still a light number and still reads as
+      // near; a dark one reads as being under the glass, which is where it is.
+      auto const ink = behind ? toColour (theme ().background, 0.9f)
+                              : toColour (theme ().textPrimary, 0.8f);
+      auto const outline = behind ? toColour (theme ().textPrimary, 0.35f)
+                                  : toColour (theme ().background, 0.85f);
 
       for (int dx = -1; dx <= 1; ++dx)
         for (int dy = -1; dy <= 1; ++dy)
@@ -1542,34 +1547,90 @@ MotionComponent::drawCameraBall (juce::Graphics &g)
   auto const camera = _sphereShader.getCamera ();
   auto const held = _cameraGrab.has_value ();
 
-  g.setColour (toColour (theme ().background, 0.7f));
-  g.fillEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f);
-  g.setColour (toColour (theme ().textPrimary, held ? 0.7f : 0.3f));
-  g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, r * 0.05f);
-
-  // A latitude and the meridians, seen from wherever the eye is. Enough of a
-  // net to read a turn off and not so much that a thing this size fills in.
-  auto const dot = [&] (Pos const &at, float size, float alpha) {
-    auto const seen = asSeenFrom (at, camera);
-    if (seen.z () < -0.05f)
-      return; // round the back
+  // Where a point of the room lands in the ball.
+  auto const at = [&] (Pos const &in) {
+    auto const seen = asSeenFrom (in, camera);
     auto const on = cartesian2DHOA2JUCE (seen);
-    g.setColour (toColour (theme ().textPrimary, alpha));
-    g.fillEllipse (centre.x + on.x * r - size, centre.y + on.y * r - size,
-                   size * 2.f, size * 2.f);
+    return std::pair<juce::Point<float>, float>{
+      { centre.x + on.x * r, centre.y + on.y * r }, seen.z ()
+    };
   };
 
-  for (int step = 0; step < 48; ++step)
-    {
-      auto const degrees = 360.f * static_cast<float> (step) / 48.f;
-      dot (Pos::fromSpherical (degrees, 0.f, 1.f), r * 0.045f, 0.35f);
-      dot (Pos::fromSpherical (degrees, 45.f, 1.f), r * 0.03f, 0.18f);
-    }
+  auto const ink = [&] (float depth, float near, float far) {
+    return toColour (theme ().textPrimary, depth < 0.f ? far : near);
+  };
 
-  // And the front of the room, so the ball says which way round it is rather
-  // than only that it has been turned.
-  dot (Pos::fromSpherical (0.f, 0.f, 1.f), r * 0.11f,
-       held ? 1.f : 0.75f);
+  // The ball itself, so it reads as a thing with a front and a back rather
+  // than as a circle with a drawing in it.
+  g.setColour (toColour (theme ().background, 0.72f));
+  g.fillEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f);
+  g.setColour (toColour (theme ().textPrimary, held ? 0.65f : 0.28f));
+  g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, r * 0.045f);
+
+  // The room's own horizon, drawn round the ball: the one line that says how
+  // far it has been tipped. Split near from far, which is the convention every
+  // orientation gizmo uses -- an axis coming towards you is drawn solid and
+  // one going away from you is not.
+  {
+    juce::Point<float> previous;
+    float wasDepth = 0.f;
+
+    for (int step = 0; step <= 64; ++step)
+      {
+        auto const degrees = 360.f * static_cast<float> (step) / 64.f;
+        auto const [on, depth] = at (Pos::fromSpherical (degrees, 0.f, 1.f));
+
+        if (step > 0)
+          {
+            g.setColour (ink (juce::jmin (depth, wasDepth), 0.5f, 0.14f));
+            g.drawLine (previous.x, previous.y, on.x, on.y, r * 0.035f);
+          }
+
+        previous = on;
+        wasDepth = depth;
+      }
+  }
+
+  // And a listener in the middle of it, facing the front of the room.
+  //
+  // A person says both things at once and needs no key: which way the room is
+  // turned is which way they face, and how far it is tipped is how much of
+  // them you can see -- from straight down you are looking at the top of a
+  // head, from the horizon you are looking them in the eye. Axis balls with
+  // letters on them would say the same thing and have to be read.
+  {
+    auto const line = [&] (Pos const &from, Pos const &to, float weight) {
+      auto const [a, da] = at (from);
+      auto const [b, db] = at (to);
+      g.setColour (ink (juce::jmin (da, db), held ? 1.f : 0.8f, 0.3f));
+      g.drawLine (a.x, a.y, b.x, b.y, r * weight);
+    };
+
+    constexpr float headTop = 0.34f;
+    constexpr float shoulder = 0.02f;
+    constexpr float foot = -0.5f;
+
+    // Body and shoulders. Narrow, because at this size a person is a posture
+    // rather than a picture.
+    line (Pos::fromCartesian (0.f, 0.f, shoulder),
+          Pos::fromCartesian (0.f, 0.f, foot), 0.06f);
+    line (Pos::fromCartesian (0.f, -0.3f, shoulder),
+          Pos::fromCartesian (0.f, 0.3f, shoulder), 0.06f);
+
+    // Which way they are facing, which is the front of the room.
+    line (Pos::fromCartesian (0.f, 0.f, headTop * 0.55f),
+          Pos::fromCartesian (0.42f, 0.f, headTop * 0.55f), 0.05f);
+
+    // The head last, over the neck.
+    auto const [head, depth] = at (Pos::fromCartesian (0.f, 0.f, headTop));
+    auto const headR = r * 0.13f;
+
+    g.setColour (toColour (theme ().background, 0.9f));
+    g.fillEllipse (head.x - headR - r * 0.02f, head.y - headR - r * 0.02f,
+                   (headR + r * 0.02f) * 2.f, (headR + r * 0.02f) * 2.f);
+    g.setColour (ink (depth, held ? 1.f : 0.85f, 0.35f));
+    g.fillEllipse (head.x - headR, head.y - headR, headR * 2.f, headR * 2.f);
+  }
 }
 
 void
