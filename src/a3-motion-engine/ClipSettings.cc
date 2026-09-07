@@ -136,10 +136,26 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
     reach = lfoSweep (reach, pattern.getReachLfo (),
                       pattern.getReachLfoPhase ());
 
-  // The base travels the whole way, pole to pole.
-  params.elevationBase
-      = lfoSweep (params.elevationBase, pattern.getElevationLfo (),
-                  pattern.getElevationLfoPhase ());
+  // The base travels to the cut and turns back there, not at the pole.
+  //
+  // The clips are a hard clamp on where the sound may go, so a sway that swept
+  // past one spent part of every cycle standing on the cut while the number
+  // behind it carried on: the movement stopped and the reading did not, which
+  // reads as the sway travelling through the part of the room that was taken
+  // away. Where there is no cut there is no bound and it still goes pole to
+  // pole -- the bound is the cut, not a second opinion about the sweep.
+  if (pattern.getElevationLfo () != 0)
+    {
+      auto const to = pattern.getElevationLfo () > 0
+                          ? 1.f - std::clamp (params.clipBottom, 0.f, 1.f)
+                          : std::clamp (params.clipTop, 0.f, 1.f);
+
+      auto const from = std::clamp (params.elevationBase, 0.f, 1.f);
+
+      params.elevationBase
+          = from
+            + (to - from) * lfoTravel (pattern.getElevationLfoPhase ());
+    }
 
   // And the reach is held to the room the base leaves it -- afterwards,
   // because the sway is what moves the room. The base travelling towards a

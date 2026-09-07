@@ -451,3 +451,60 @@ TEST (ClipSettings, TheSwellStaysInsideTheClips)
       << "it swept the figure onto the cut";
   EXPECT_GT (swept.reach, params.reach) << "and it still has room to move";
 }
+
+/** The sway turns back at the clip, not at the pole.
+ *
+ *  The clips are a hard clamp on where the sound may go, so a sway that swept
+ *  past one spent part of every cycle standing on the cut while the number
+ *  behind it carried on -- the movement stopped and the reading did not, which
+ *  reads as the sway travelling through the part of the room that was taken
+ *  away.
+ */
+TEST (ClipSettings, TheSwayTurnsBackAtTheClipNotAtThePole)
+{
+  Pattern pattern;
+  pattern.setElevationLfo (2);      // swaying towards the floor
+  pattern.setElevationLfoPhase (0.5f); // and standing at the far end of it
+
+  ElevationParams params;
+  params.reach = 0.1f;
+  params.elevationBase = 0.4f;
+  params.clipBottom = 0.35f;        // nothing below 0.65
+
+  auto const swept = sweptElevation (params, pattern);
+
+  EXPECT_GT (swept.elevationBase, params.elevationBase)
+      << "the sway has to move it";
+  EXPECT_LE (swept.elevationBase, 0.65f + 1e-5f)
+      << "it swayed into the part of the room the clip took away";
+  EXPECT_NEAR (swept.elevationBase, 0.65f, 1e-4f)
+      << "and it should reach the cut, not stop short of it";
+}
+
+/** The other way round the same. */
+TEST (ClipSettings, TheSwayTurnsBackAtTheCeilingToo)
+{
+  Pattern pattern;
+  pattern.setElevationLfo (-2);
+  pattern.setElevationLfoPhase (0.5f);
+
+  ElevationParams params;
+  params.elevationBase = 0.6f;
+  params.clipTop = 0.3f;
+
+  EXPECT_NEAR (sweptElevation (params, pattern).elevationBase, 0.3f, 1e-4f);
+}
+
+/** With no clips it still travels the whole way, pole to pole: the bound is
+ *  the cut, and where there is no cut there is no bound. */
+TEST (ClipSettings, WithoutClipsTheSwayStillReachesThePole)
+{
+  Pattern pattern;
+  pattern.setElevationLfo (2);
+  pattern.setElevationLfoPhase (0.5f);
+
+  ElevationParams params;
+  params.elevationBase = 0.4f;
+
+  EXPECT_NEAR (sweptElevation (params, pattern).elevationBase, 1.f, 1e-4f);
+}

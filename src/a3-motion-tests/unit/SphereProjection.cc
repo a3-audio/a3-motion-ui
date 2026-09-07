@@ -259,19 +259,35 @@ TEST (SphereProjection, ASweepAcrossTheBallIsAWholeTurn)
   EXPECT_NEAR (round.pitch, 0.f, 1e-4f);
 
   auto const over = cameraFromBallDrag (overhead, { 0.f, 60.f }, ball);
-  EXPECT_NEAR (over.pitch, juce::MathConstants<float>::halfPi, 1e-4f);
+  EXPECT_NEAR (over.pitch, -juce::MathConstants<float>::halfPi, 1e-4f);
 }
 
-/** And it stops at the horizon. Past a right angle the eye is under the room
- *  looking up at the floor, which is not a view anybody is standing in. */
+/** It tips both ways. One way meant that leaving the overhead view was a
+ *  decision about which half of the room you would be able to look into, taken
+ *  before you knew which one you wanted -- and the way back was to walk the
+ *  long way round rather than to rock back through the view you started in. */
+TEST (SphereProjection, TheBallTipsBothWays)
+{
+  juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
+
+  auto const one = cameraFromBallDrag ({}, { 0.f, 20.f }, ball).pitch;
+  auto const other = cameraFromBallDrag ({}, { 0.f, -20.f }, ball).pitch;
+
+  EXPECT_LT (one, 0.f);
+  EXPECT_GT (other, 0.f);
+  EXPECT_NEAR (one, -other, 1e-4f) << "the same finger, the same lean";
+}
+
+/** And stops at the horizon in each. Past a right angle the eye is under the
+ *  floor looking up at it, which is not a view anybody is standing in. */
 TEST (SphereProjection, TheBallWillNotTipPastTheHorizon)
 {
   juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
 
   EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, 300.f }, ball).pitch,
+               -juce::MathConstants<float>::halfPi, 1e-4f);
+  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, -300.f }, ball).pitch,
                juce::MathConstants<float>::halfPi, 1e-4f);
-  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, -300.f }, ball).pitch, 0.f,
-               1e-4f);
 }
 
 /** A drag carries on from where the eye already was, so picking the ball up
