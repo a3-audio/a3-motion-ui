@@ -33,6 +33,7 @@
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
+#include <a3-motion-ui/components/ElevationSideView.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
@@ -178,6 +179,22 @@ public:
   void setElevationClipBottom (float clipBottom);
   void setElevationFlat (bool flat);
   void setElevationFlatElevation (float flatElevation);
+
+  /** The clip's figure, as the side-on circle draws it: where the sound
+   *  actually goes, height by height, with the reach and the sway already in
+   *  it. The sphere above says where in the room the figure is; this says how
+   *  high it runs, which is the one thing the overhead view cannot show.
+   *
+   *  Pushed already mapped rather than as a shape to be mapped here: the
+   *  engine's own mapping is the only one that can be right, and there is
+   *  exactly one of it. */
+  void setElevationFigure (std::vector<ElevationSidePoint> figure);
+
+  /** And where on that figure the sound is at this moment. `valid` is false
+   *  when the slot is not playing, and then no ball is drawn -- an empty
+   *  circle says "nothing is running" better than a ball parked somewhere
+   *  does. */
+  void setElevationHead (ElevationSidePoint head, bool valid);
 
   /** Which of the Elevation section's 6 controls (0 = reach, 1 = clip-top,
    *  2 = clip-bottom, 3 = mirror-south, 4 = flat, 5 = flat-elevation) the
@@ -544,6 +561,9 @@ private:
   float _elevationReach = 0.5f;
   float _elevationBase = 0.f;
   float _elevationBaseSwept = -1.f;
+  std::vector<ElevationSidePoint> _elevationFigure;
+  ElevationSidePoint _elevationHead{};
+  bool _elevationHeadValid = false;
   bool _elevationMirrorSouth = false;
   float _elevationClipTop = 0.0f;
   float _elevationClipBottom = 0.0f;

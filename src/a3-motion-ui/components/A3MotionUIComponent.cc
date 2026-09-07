@@ -55,6 +55,7 @@
 #include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/LoopLengthDisplay.hh>
 #include <a3-motion-ui/components/ElevationDisplay.hh>
+#include <a3-motion-ui/components/ElevationSideView.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
@@ -81,6 +82,11 @@ namespace
 {
 /** The fade in ticks. Sixteenths of a beat are what the panel offers, because
  *  that is a length a musician can hear; ticks are what the pattern counts. */
+
+/** How many points of a take the elevation circle is drawn from. It is a
+ *  couple of centimetres across: past this the extra ticks land on pixels
+ *  that are already lit, and every one of them is work done on the timer. */
+constexpr std::size_t elevationFigureSamples = 96;
 
 }
 
@@ -5811,6 +5817,49 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
                                               : 0.0f);
   _clipSettings->setElevationClipBottom (
       pattern ? pattern->getClipBottom () : 0.0f);
+
+  // The figure itself in the side-on circle, and the sound running along it.
+  //
+  // Mapped here rather than in the bar, and through exactly the calls the
+  // engine plays it through (performPlayback): the same shaping, the same
+  // swept elevation, the same height map. A picture drawn through a second
+  // mapping is a picture that is right until one of them is touched.
+  if (pattern)
+    {
+      auto const shaping = shapingOf (*pattern);
+      auto const params
+          = sweptElevation (pattern->getElevationParams (), *pattern);
+      auto const &heightMap = _engine.getHeightMap ();
+
+      auto const ticks = pattern->getTicks ().positions;
+      std::vector<Pos> onSphere;
+      onSphere.reserve (ticks.size ());
+      for (auto const &tick : ticks)
+        onSphere.push_back (
+            tick.isValid ()
+                ? heightMap.mapTo3D (shapedPosition (tick, shaping), params)
+                : Pos::invalid);
+
+      _clipSettings->setElevationFigure (
+          elevationSideView (onSphere, elevationFigureSamples));
+    }
+  else
+    {
+      _clipSettings->setElevationFigure ({});
+    }
+
+  {
+    // Only while the slot on show is the one being heard. A ball parked on a
+    // figure nobody is playing says "this is where the sound is", which would
+    // be a lie the moment it mattered.
+    auto const onAir = pattern
+                       && pattern->getStatus () == Pattern::Status::Playing;
+    auto const position = _engine.getChannelPosition (channel);
+    auto const valid = onAir && position.isValid ();
+
+    _clipSettings->setElevationHead (
+        valid ? elevationSideView (position) : ElevationSidePoint{}, valid);
+  }
 
   // Motion/Filter: all sub-controls visible in parallel, like Elevation —
   // _clipSettingsSubIndex only picks which one is highlighted, and only

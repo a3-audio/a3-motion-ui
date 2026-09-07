@@ -19,6 +19,7 @@
 */
 
 #include "ClipSettingsComponent.hh"
+#include <algorithm>
 
 #include <a3-motion-ui/components/BarKnob.hh>
 
@@ -525,6 +526,40 @@ void
 ClipSettingsComponent::setElevationFlatElevation (float flatElevation)
 {
   _elevationFlatElevation = std::clamp (flatElevation, 0.0f, 1.0f);
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setElevationFigure (
+    std::vector<ElevationSidePoint> figure)
+{
+  // Compared before storing: this arrives on every timer tick while a clip
+  // plays, and a repaint of the whole bar for a figure that has not moved is
+  // a repaint the sphere could have had.
+  if (figure.size () == _elevationFigure.size ()
+      && std::equal (figure.begin (), figure.end (), _elevationFigure.begin (),
+                     [] (auto const &a, auto const &b) {
+                       return std::abs (a.frac - b.frac) < 1e-4f
+                              && std::abs (a.across - b.across) < 1e-4f
+                              && a.behind == b.behind;
+                     }))
+    return;
+
+  _elevationFigure = std::move (figure);
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setElevationHead (ElevationSidePoint head, bool valid)
+{
+  if (valid == _elevationHeadValid
+      && (!valid
+          || (std::abs (head.frac - _elevationHead.frac) < 1e-4f
+              && std::abs (head.across - _elevationHead.across) < 1e-4f)))
+    return;
+
+  _elevationHead = head;
+  _elevationHeadValid = valid;
   repaint ();
 }
 
@@ -1782,6 +1817,50 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
           juce::jmax (0.f, fracToY (to) - fracToY (from))));
     }
 
+  // ── The figure ────────────────────────────────────────────────────────
+  //
+  // Where the sound actually goes, height by height. The sphere above says
+  // where in the room the figure is and this says how high it runs, which is
+  // the one question the overhead view cannot answer -- a figure lying along
+  // the ceiling and one lying along the floor are the same ring up there.
+  //
+  // Drawn inside the clip region so a figure that runs past a cut is cut with
+  // it, which is exactly what the sound does.
+  auto const sidePoint = [&] (ElevationSidePoint const &point) {
+    auto const y = fracToY (std::clamp (point.frac, 0.f, 1.f));
+    auto const dy = y - centre.y;
+    auto const halfWidth = std::sqrt (juce::jmax (0.f, r * r - dy * dy));
+    return juce::Point<float> (centre.x + point.across * halfWidth, y);
+  };
+
+  if (_elevationFigure.size () > 1)
+    {
+      // The far half dimmer than the near half, the way the sphere fades what
+      // is behind it. Without that a figure that circles the listener reads as
+      // a flat squiggle rather than as a lap of the room.
+      auto const near = _channelColour.withAlpha (0.85f);
+      auto const far = _channelColour.withAlpha (0.3f);
+
+      // The tear the mapping has at the pad's centre once the base is off the
+      // pole (see HeightMapSphere::mapTo3D): the pen lifts there rather than
+      // drawing a line across the picture, same as on the sphere.
+      auto const maxJump = r * 0.9f;
+
+      auto previous = sidePoint (_elevationFigure.front ());
+      for (size_t i = 1; i < _elevationFigure.size (); ++i)
+        {
+          auto const point = sidePoint (_elevationFigure[i]);
+
+          if (previous.getDistanceFrom (point) < maxJump)
+            {
+              g.setColour (_elevationFigure[i].behind ? far : near);
+              g.drawLine (previous.x, previous.y, point.x, point.y, 1.5f);
+            }
+
+          previous = point;
+        }
+    }
+
   g.restoreState ();
 
   // The two cuts as edges, not only as a change of shade: a boundary you can
@@ -1905,6 +1984,23 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                 headR * 2.f + 1.f, headR * 2.f + 1.f);
   g.setColour (iconColour);
   g.fillEllipse (centre.x - headR, centre.y - headR, headR * 2.f, headR * 2.f);
+
+  // And the sound itself, running along the figure it was drawn from. Last of
+  // everything, and outlined, because in a picture this small it is the only
+  // mark that moves and it has to be findable at a glance -- the whole reason
+  // to look here mid-set is "how high is it right now".
+  if (_elevationHeadValid)
+    {
+      auto const at = sidePoint (_elevationHead);
+      auto const ballR = juce::jmax (2.f, r * 0.11f);
+
+      g.setColour (toColour (theme ().surface, outlineOpacity));
+      g.fillEllipse (at.x - ballR - 1.f, at.y - ballR - 1.f,
+                     (ballR + 1.f) * 2.f, (ballR + 1.f) * 2.f);
+      g.setColour (_elevationHead.behind ? _channelColour.withAlpha (0.55f)
+                                         : _channelColour);
+      g.fillEllipse (at.x - ballR, at.y - ballR, ballR * 2.f, ballR * 2.f);
+    }
 }
 
 void
