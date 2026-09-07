@@ -40,7 +40,6 @@ namespace
 
 std::vector<char const *> const filesStillHoldingMetrics = {
   "components/A3MotionUIComponent.cc",
-  "components/ActionComponent.cc",
   "components/ActionLayout.cc",
   "components/BarKnob.cc",
   "components/BrowserComponent.cc",
