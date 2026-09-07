@@ -144,19 +144,12 @@ baseParams (float base, float reach = 0.5f)
 }
 }
 
-// r = 0 -- the middle of the trajectory -- lands on the base, wherever it is
-// put. That is the whole of what the line in the graphic sets.
-TEST (HeightMapSphere, TheCentreLandsOnTheBase)
-{
-  HeightMapSphere heightMap;
-  auto const centre = Pos::fromCartesian (0.f, 0.f, 0.f);
 
-  for (float base : { 0.f, 0.25f, 0.5f, 0.75f, 1.f })
-    EXPECT_NEAR (fracOf (heightMap.mapTo3D (centre, baseParams (base))), base,
-                 epsilon)
-        << "base " << base;
-}
-
+// The middle of a figure used to land on the base, and that is what tore it:
+// one point of the pad standing for a whole latitude of the room. It lands on
+// a pole now -- see AFigureThroughTheDiscsCentreDoesNotJump and
+// TheMiddleOfThePadIsThePole, which are what that was replaced by.
+//
 // A base of zero is exactly what the mapping did before there was one: the
 // centre at the north pole and the reach cone growing downwards.
 TEST (HeightMapSphere, ABaseOfZeroIsTheOldNorthPoleBehaviour)
@@ -271,32 +264,6 @@ TEST (HeightMapSphere, TheInverseStillComesBackWithABase)
       }
 }
 
-// ── The pad is a band around the room's axis ─────────────────────────────
-
-/** Where the base is, the middle of the pad is. */
-TEST (HeightMapSphere, TheMiddleOfThePadLandsOnTheBase)
-{
-  HeightMapSphere heightMap;
-
-  for (float base : { 0.f, 0.25f, 0.5f, 0.75f, 1.f })
-    {
-      ElevationParams params;
-      params.reach = 0.5f;
-      params.elevationBase = base;
-
-      auto const centre
-          = heightMap.mapTo3D (Pos::fromCartesian (0.f, 0.f, 0.f), params);
-
-      // Colatitude counted from the north pole, as a fraction, is the base.
-      auto const frac
-          = std::atan2 (std::sqrt (centre.x () * centre.x ()
-                                   + centre.y () * centre.y ()),
-                        centre.z ())
-            / juce::MathConstants<float>::pi;
-
-      EXPECT_NEAR (frac, base, 1e-4f) << "base " << base;
-    }
-}
 
 /** The pad's radius is height and nothing else: two points the same distance
  *  from the pad's centre come out at the same height, whichever bearing they
@@ -337,22 +304,22 @@ TEST (HeightMapSphere, ThePadsRadiusIsHeightWhateverTheBearing)
     }
 }
 
-/** And the price of it, written down so nobody has to rediscover it.
+/** And it no longer jumps.
  *
- *  With the figure held on the room's axis, the pad's centre stands for a
- *  whole latitude circle once the base is off the pole -- one point of the
- *  pad, every azimuth of the room -- so a path crossing the centre comes out
- *  torn there. This is not a defect to hunt: a map that keeps a figure
- *  rotationally centred while its middle sits away from the pole cannot be
- *  continuous at that middle. It is topology, and the only escape from it is
- *  the cap, which was tried and moves the figure instead.
+ *  One point of the pad standing for a whole circle of the room is what tore a
+ *  figure crossing the middle: two neighbouring ticks either side of it landed
+ *  on opposite sides of a latitude. Measured across the pad's centre with a
+ *  reach of a half, the worst step between neighbouring ticks was the average
+ *  one at a base of nought, a hundred and seventeen times it at a quarter and
+ *  a hundred and sixty-four times at the equator.
  *
- *  Measured across the pad's centre with a reach of a half: at a base of 0
- *  the worst step between neighbouring ticks is the average one; at 0.25 it
- *  is around 117 times it, at 0.5 around 164 times. Shapes that go through
- *  the middle -- Clover, Infinity, Rose 4-Petal -- jump there. Shapes that
- *  circle the middle never touch it and are unaffected. */
-TEST (HeightMapSphere, AtThePoleThePadsCentreIsAPointAndNowhereElseIs)
+ *  A circle can only be closed up continuously by filling what it bounds, and
+ *  the one thing a latitude bounds is a cap -- so the innermost tenth of the
+ *  pad is that cap. Crossing the middle is a run to the ceiling and back
+ *  rather than a jump across the room, and every point of it is a place the
+ *  sound actually goes.
+ */
+TEST (HeightMapSphere, AFigureThroughTheDiscsCentreDoesNotJump)
 {
   HeightMapSphere heightMap;
 
@@ -364,9 +331,9 @@ TEST (HeightMapSphere, AtThePoleThePadsCentreIsAPointAndNowhereElseIs)
     auto counted = 0;
     Pos previous;
 
-    for (int i = 0; i <= 400; ++i)
+    for (int i = 0; i <= 2000; ++i)
       {
-        auto const x = -0.8f + 1.6f * static_cast<float> (i) / 400.f;
+        auto const x = -0.8f + 1.6f * static_cast<float> (i) / 2000.f;
         auto const at
             = heightMap.mapTo3D (Pos::fromCartesian (x, 0.f, 0.f), params);
 
@@ -387,13 +354,63 @@ TEST (HeightMapSphere, AtThePoleThePadsCentreIsAPointAndNowhereElseIs)
     return worst / std::max (1e-6f, total / static_cast<float> (counted));
   };
 
-  // Overhead, the pad's centre is the pole and the crossing is smooth.
-  EXPECT_LT (worstAgainstAverage (0.f), 2.f);
+  // Under six, where it was over a hundred. The run is quicker than the rest
+  // of the figure and that is the point of it -- a tenth of the pad's width
+  // covers a quarter of the way to the pole, so the sound swoops there and
+  // back. Quick is a movement; a hundred times is not.
+  for (float base : { 0.f, 0.25f, 0.5f, 0.75f, 1.f })
+    EXPECT_LT (worstAgainstAverage (base), 6.f)
+        << "base " << base
+        << ": a step across the pad's centre is many times every other, "
+           "which is the sound jumping";
+}
 
-  // Anywhere else it is not, and by a lot. Pinned so that a change of model
-  // shows up here as a failure rather than as a surprise in the booth.
-  EXPECT_GT (worstAgainstAverage (0.25f), 20.f);
-  EXPECT_GT (worstAgainstAverage (0.5f), 20.f);
+/** The middle of the pad is the pole, whatever the base. That is the whole of
+ *  why it no longer tears: a point maps to a point. */
+TEST (HeightMapSphere, TheMiddleOfThePadIsThePole)
+{
+  HeightMapSphere heightMap;
+
+  for (float base : { 0.f, 0.25f, 0.5f, 0.9f })
+    {
+      auto const at = heightMap.mapTo3D (Pos::fromCartesian (0.f, 0.f, 0.f),
+                                         baseParams (base));
+
+      EXPECT_NEAR (fracOf (at), 0.f, epsilon) << "base " << base;
+    }
+
+  // And the floor instead, for a figure that grows upwards -- away from the
+  // rest of itself, so the run is into room the figure is not already using.
+  auto const up = heightMap.mapTo3D (Pos::fromCartesian (0.f, 0.f, 0.f),
+                                     baseParams (0.6f, -0.5f));
+  EXPECT_NEAR (fracOf (up), 1.f, epsilon);
+}
+
+/** The run is over by a tenth of the pad. Outside it the map is the band it
+ *  always was, so elevation still moves a figure's height and not the figure,
+ *  which is the reason the band was chosen over a cap in the first place. */
+TEST (HeightMapSphere, TheRunToThePoleIsOverByATenthOfThePad)
+{
+  HeightMapSphere heightMap;
+
+  auto const params = baseParams (0.35f);
+
+  for (float r : { 0.25f, 0.6f, 1.f, 1.41f })
+    for (int i = 0; i < 8; ++i)
+      {
+        auto const bearing
+            = juce::MathConstants<float>::twoPi * static_cast<float> (i) / 8.f;
+        auto const at = heightMap.mapTo3D (
+            Pos::fromCartesian (r * std::cos (bearing), r * std::sin (bearing),
+                                0.f),
+            params);
+
+        auto const drawn = std::atan2 (at.y (), at.x ());
+        EXPECT_NEAR (std::abs (std::remainder (
+                         drawn - bearing, juce::MathConstants<float>::twoPi)),
+                     0.f, 1e-4f)
+            << "r " << r << " bearing " << bearing;
+      }
 }
 
 /** A figure that runs into the ceiling travels *along* it.

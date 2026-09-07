@@ -251,22 +251,21 @@ TEST (DiscStepPieces, APathThatOnlyJustMissesTheOriginIsStillACurve)
 //
 // Overhead the origin is the pole and there is nothing to tear. Elsewhere the
 // renderer lifts the pen at it (maxJump in drawPathOnSphere) rather than
-// drawing a line across the sphere, so it shows as a break in the figure and
-// not as a stray straight line.
-TEST (DiscStepPieces, StraightThroughTheOriginTearsOnceTheBaseLeavesThePole)
+// And straight through it is a curve too, now that the middle of the pad is
+// the pole rather than a whole circle of the room. It was a genuine
+// discontinuity -- the path arrived at one bearing and left at the opposite
+// one -- and the pen was lifted at it. Nothing lifts it any more; this is the
+// test that says so, and it fails the moment the mapping goes back to fanning
+// the middle across a latitude.
+TEST (DiscStepPieces, StraightThroughTheOriginIsACurveToo)
 {
-  for (float base : { 0.f, 1.f })
+  for (float base : { 0.f, 0.25f, 0.5f, 0.75f, 1.f })
     {
       EXPECT_LT (worstDrawn (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), 0.1f)
-          << "base " << base << ": at a pole the crossing must stay whole";
+          << "base " << base << ": the path through the pad's centre is torn";
       EXPECT_EQ (liftsAcross (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), 0)
-          << "base " << base << ": nothing to lift the pen for at a pole";
+          << "base " << base << ": the pen lifted where nothing is torn";
     }
-
-  for (float base : { 0.25f, 0.5f, 0.75f })
-    EXPECT_GT (liftsAcross (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), 0)
-        << "base " << base
-        << ": pinned so a change of mapping shows up here, not in the booth";
 }
 
 /** Halving a piece has a floor, and at the disc's origin the swing does not.
@@ -290,16 +289,14 @@ TEST (DiscStepPieces, APieceItCouldNotResolveIsNotDrawn)
 
 /** The disc's origin has no bearing of its own, and a projection asked for one
  *  there answers with a fixed direction -- atan2(0, 0) is zero, which is one
- *  particular corner of the room. Every shape with a vertex at the middle of
- *  the pad therefore shot off to that corner and came back: a Clover swings
- *  only five and a half degrees across each of its four junctions, and was
- *  drawn swinging forty-two degrees to zero and back.
+ *  particular corner of the room. That used to send every shape with a vertex
+ *  at the middle of the pad off to that corner and back.
  *
- *  The segment does have a direction even where the point does not, so that is
- *  what is used. A hair along the segment is far below a pixel and is the only
- *  honest answer available at a point that has none.
+ *  It cannot any more: the middle of the pad is the pole, and at a pole every
+ *  bearing is the same point, so there is nothing for atan2 to be wrong about.
+ *  Kept as the test that says so.
  */
-TEST (DiscStepPieces, TheOriginIsNotDrawnAtWhateverAtan2SaysAboutNothing)
+TEST (DiscStepPieces, TheOriginHasNoBearingLeftToGetWrong)
 {
   HeightMapSphere heightMap;
 
@@ -307,29 +304,23 @@ TEST (DiscStepPieces, TheOriginIsNotDrawnAtWhateverAtan2SaysAboutNothing)
   params.reach = 0.5f;
   params.elevationBase = 0.13f;
 
-  auto const project = [&] (float x, float y) {
+  auto const at = [&] (float x, float y) {
     return heightMap.mapTo3D (Pos::fromCartesian (x, y, 0.f), params);
   };
-  auto const apart = [] (Pos const &a, Pos const &b) {
-    return std::sqrt (std::pow (a.x () - b.x (), 2.f)
-                      + std::pow (a.y () - b.y (), 2.f)
-                      + std::pow (a.z () - b.z (), 2.f));
-  };
 
-  // A step ending exactly at the pad's origin, arriving on a bearing of forty
-  // five degrees -- one arm of a Clover's junction.
-  auto const bearing = juce::MathConstants<float>::pi / 4.f;
-  auto const from = 0.4f;
+  auto const middle = at (0.f, 0.f);
 
-  sampleDiscStep (from * std::cos (bearing), from * std::sin (bearing), 0.f,
-                  0.f, DiscSampling{}, project, apart,
-                  [&] (Pos const &point, bool) {
-                    auto const drawn = std::atan2 (point.y (), point.x ());
-                    auto const off = std::abs (std::remainder (
-                        drawn - bearing, juce::MathConstants<float>::twoPi));
+  // The pole, whatever bearing it is approached on -- so every way in lands on
+  // the same point and none of them can disagree.
+  EXPECT_NEAR (middle.z (), 1.f, 1e-4f);
 
-                    EXPECT_LT (off, 0.05f)
-                        << "a point of this arm was drawn on a bearing the arm "
-                           "never had";
-                  });
+  for (int i = 0; i < 8; ++i)
+    {
+      auto const bearing
+          = juce::MathConstants<float>::twoPi * static_cast<float> (i) / 8.f;
+      auto const near = at (0.001f * std::cos (bearing),
+                            0.001f * std::sin (bearing));
+
+      EXPECT_NEAR (near.z (), 1.f, 1e-3f) << "bearing " << bearing;
+    }
 }

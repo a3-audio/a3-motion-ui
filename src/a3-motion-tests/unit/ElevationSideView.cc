@@ -217,17 +217,18 @@ TEST (ElevationSideView, AFigureWithoutASeamIsDrawnInOnePiece)
 }
 
 // The case this was found on, end to end: a Clover, whose four petals all
-// start and end at the pad's centre, with the base off the pole. It tears four
-// times a lap, and the pen has to lift at each one.
-TEST (ElevationSideView, ACloverTearsFourTimesAndTheStrokesAreLifted)
+// start and end at the pad's centre, with the base off the pole. It tore four
+// times a lap and the pen had to lift at each one. It does not any more --
+// the middle of the pad is the pole now, so a petal's ends run up to the
+// ceiling and back rather than jumping across the room.
+TEST (ElevationSideView, ACloverIsDrawnInOnePieceNow)
 {
   HeightMapSphere heightMap;
 
   ElevationParams params;
   params.reach = 0.5f;
-  params.elevationBase = 0.13f;
 
-  auto const clover = [&] (float base) {
+  auto const breaksAt = [&] (float base) {
     params.elevationBase = base;
     std::vector<Pos> onSphere;
     for (int i = 0; i < 1024; ++i)
@@ -249,6 +250,6 @@ TEST (ElevationSideView, ACloverTearsFourTimesAndTheStrokesAreLifted)
     return breaks;
   };
 
-  EXPECT_EQ (clover (0.13f), 4) << "one per petal, and each one a lifted pen";
-  EXPECT_EQ (clover (0.f), 0) << "at the pole there is nothing to lift for";
+  EXPECT_EQ (breaksAt (0.13f), 0) << "the figure is still being cut";
+  EXPECT_EQ (breaksAt (0.f), 0);
 }

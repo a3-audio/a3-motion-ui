@@ -47,6 +47,13 @@ namespace
 // correctly stop exactly at thetaMax.
 constexpr float kPatternCoordinateMaxRadius = 1.41421356f; // sqrt(2)
 
+// How much of the pad, measured from its middle outwards in the normalised
+// radius the shape formula works in, runs to the pole instead of standing on
+// the base's own latitude. A tenth: small enough that a figure keeps its
+// shape, large enough that the run is spread over enough ticks to be a
+// movement rather than a jump.
+constexpr float kOriginFold = 0.10f;
+
 // Shared piecewise theta(r) shape used by both the plain coverage mapping
 // and the per-clip reach mapping below — see the coverage overload's
 // comment (further down) for why it's piecewise rather than a plain
@@ -205,15 +212,53 @@ HeightMapSphere::mapTo3D (Pos const &pos2D, ElevationParams const &params) const
     // be put -- the base is at the top and reach is the only thing that says
     // where the rest of it goes.
     auto const towards = params.reach < 0.f ? -1.f : 1.f;
-    auto const past = base + towards * theta / pi<float> ();
 
-    // Over the wall at whichever end it reaches: what runs past a pole comes
-    // back on the far side rather than piling onto it.
-    if (past > 1.f)
-      return 2.f - past;
-    if (past < 0.f)
-      return -past;
-    return past;
+    auto const heightAt = [&] (float t) {
+      auto const past = base + towards * t / pi<float> ();
+
+      // Over the wall at whichever end it reaches: what runs past a pole comes
+      // back on the far side rather than piling onto it.
+      if (past > 1.f)
+        return 2.f - past;
+      if (past < 0.f)
+        return -past;
+      return past;
+    };
+
+    // The middle of the pad runs to the pole rather than standing on the
+    // base's own latitude.
+    //
+    // One point of the pad standing for a whole circle of the room is what
+    // tore a figure crossing the middle: two neighbouring ticks either side of
+    // it landed on opposite sides of a latitude, and the sound jumped -- a
+    // hundred and seventeen times the ordinary step at a base of a quarter.
+    // A circle can only be closed up continuously by filling what it bounds,
+    // and the one thing a latitude bounds is a cap. So the innermost tenth of
+    // the pad *is* that cap: the pole at the very middle, the latitude the
+    // rest of the figure stands on at the tenth, and every height between them
+    // on the way. Crossing the middle is a run to the ceiling and back rather
+    // than a jump across the room, and every point of it is a place the sound
+    // actually goes.
+    //
+    // Towards the ceiling for a figure that grows downwards and the floor for
+    // one that grows up -- away from the rest of itself, so the run is into
+    // room the figure is not already using.
+    if (rNorm < kOriginFold)
+      {
+        auto const edge = heightAt (std::min (
+            thetaShapeFromR (kOriginFold, std::abs (params.reach)),
+            pi<float> ()));
+        // The pole on the far side from where the rest of the figure goes, so
+        // the run is into room the figure is not already using. Read off where
+        // the figure actually is rather than off the sign of the reach: with
+        // the base at a pole the figure has wrapped, and then a reach that
+        // says "down" is going up.
+        auto const pole = edge >= base ? 0.f : 1.f;
+
+        return pole + (edge - pole) * (rNorm / kOriginFold);
+      }
+
+    return heightAt (theta);
   }();
 
   auto const direction = [&] {

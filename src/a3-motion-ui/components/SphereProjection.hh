@@ -176,23 +176,7 @@ struct DiscSampling
   /** How many times a piece may be halved. Eight is 256 more of them, and
    *  only where they are needed. */
   int maxDepth = 8;
-  /** The hole in the middle of the disc: how close to its origin the drawing
-   *  may go, in the disc's own units.
-   *
-   *  Inside it the picture is not merely difficult, it does not exist. The
-   *  radius there stands for a whole latitude circle, so the bearing a sample
-   *  comes back with is whatever the last few thousandths of the shape happen
-   *  to point at -- measured on a Clover at a base of a fifth, the two arms of
-   *  a junction come out nineteen degrees apart when the path is flattened at
-   *  five thousandths and a hundred and thirteen degrees at two ten
-   *  thousandths. A picture that changes that much with how finely it is
-   *  sampled is not a picture of anything.
-   *
-   *  So the drawing stops at the edge of the hole, where the shape's own
-   *  bearings are still its own, and the two arms are joined across it. Two
-   *  hundredths of the disc is a couple of pixels of the shape and the last
-   *  place the shape still means something. */
-  float originHole = 0.03f;
+
 };
 
 /** Cut a straight step of the recorded disc into pieces and hand each one's
@@ -233,31 +217,13 @@ sampleDiscStep (float x1, float y1, float x2, float y2,
   auto const stepY = y2 - y1;
   auto const stepLength = std::sqrt (stepX * stepX + stepY * stepY);
 
-  // Inside the hole there is nothing to draw -- see DiscSampling::originHole.
-  auto const inHole = [&] (float t) {
-    auto const x = x1 + stepX * t;
-    auto const y = y1 + stepY * t;
-    return x * x + y * y < how.originHole * how.originHole;
-  };
-
+  // Straight through, middle included. There used to be a hole here that the
+  // drawing was not allowed into, because the middle of the pad stood for a
+  // whole circle of the room and the projection answered with whatever atan2
+  // makes of two zeroes. It stands for the pole now (HeightMapSphere), where
+  // every bearing is the same point and there is nothing to be wrong about.
   auto const at = [&] (float t) {
-    auto x = x1 + stepX * t;
-    auto y = y1 + stepY * t;
-
-    // A point inside the hole is still measured -- the halving needs
-    // somewhere to put it -- but it is measured at the hole's edge, not at
-    // the middle, where the projection would answer with whatever atan2 makes
-    // of two zeroes: a bearing of zero, one fixed corner of the room. Held on
-    // its own bearing rather than moved to another one, so nothing is
-    // invented; and it is never emitted, so nothing of it is drawn.
-    auto const radius = std::sqrt (x * x + y * y);
-    if (radius > 0.f && radius < how.originHole)
-      {
-        x *= how.originHole / radius;
-        y *= how.originHole / radius;
-      }
-
-    return project (x, y);
+    return project (x1 + stepX * t, y1 + stepY * t);
   };
 
   auto const coarse = discStepPieces (x1, y1, x2, y2, how.maxStep,
@@ -309,11 +275,8 @@ sampleDiscStep (float x1, float y1, float x2, float y2,
 
           juce::ignoreUnused (reach);
 
-          if (!inHole (here.t1))
-            {
-              emit (here.p1, distance (lastEmitted, here.p1) <= how.maxDrawn);
-              lastEmitted = here.p1;
-            }
+          emit (here.p1, distance (lastEmitted, here.p1) <= how.maxDrawn);
+          lastEmitted = here.p1;
         }
 
       previousT = t1;
