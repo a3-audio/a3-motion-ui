@@ -230,10 +230,11 @@ StatusBar::paintOverChildren (juce::Graphics &g)
   // children because the indicator is one of them.
   auto const tick = _tickIndicator.getBounds ().toFloat ();
 
-  g.setColour (_recordingColour.withAlpha (0.45f));
+  // 0.45 is 0.05 from alphaMuted (0.5), inside the snapping tolerance.
+  g.setColour (_recordingColour.withAlpha (theme ().alphaMuted));
   g.fillRoundedRectangle (tick.withWidth (tick.getWidth ()
                                           * _recordingProgress),
-                          2.f);
+                          theme ().radiusTick);
 }
 
 void
@@ -286,7 +287,8 @@ StatusBar::paint (juce::Graphics &g)
                : _keyboardState == KeyboardState::Available
                    ? toColour (theme ().textMuted)
                    : toColour (theme ().textMuted, theme ().alphaDisabled));
-  g.drawRoundedRectangle (face.toFloat (), 2.f, 1.f);
+  g.drawRoundedRectangle (face.toFloat (), theme ().radiusTick,
+                          theme ().strokeThin);
 
   auto const keyW = face.getWidth () / 5.f;
   auto const keyH = face.getHeight () / 4.f;

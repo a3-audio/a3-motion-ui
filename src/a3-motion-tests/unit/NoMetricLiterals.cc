@@ -41,16 +41,11 @@ namespace
 std::vector<char const *> const filesStillHoldingMetrics = {
   "components/A3MotionUIComponent.cc",
   "components/ActionLayout.cc",
-  "components/BarKnob.cc",
   "components/ClipSettingsLayout.cc",
-  "components/ControllerComponent.cc",
   "components/ElevationDisplay.cc",
   "components/FilterDisplay.cc",
-  "components/GlobalSettingsComponent.cc",
   "components/LoopLengthDisplay.cc",
   "components/MotionComponent.cc",
-  "components/OverlayButtons.cc",
-  "components/StatusBar.cc",
 };
 
 /** The arguments of `call` in `text`, split at the commas that belong to it.

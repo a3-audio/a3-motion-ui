@@ -73,14 +73,15 @@ globalSettingsRowBounds (juce::Rectangle<int> panel, int numOptions, int index)
 juce::Rectangle<int>
 globalSettingsNameArea (juce::Rectangle<int> row)
 {
-  return row.removeFromLeft (row.getWidth () * 3 / 5).reduced (8, 0);
+  return row.removeFromLeft (row.getWidth () * 3 / 5)
+      .reduced (juce::roundToInt (theme ().padding), 0);
 }
 
 juce::Rectangle<int>
 globalSettingsValueArea (juce::Rectangle<int> row)
 {
   row.removeFromLeft (row.getWidth () * 3 / 5);
-  return row.reduced (8, 8);
+  return row.reduced (juce::roundToInt (theme ().padding));
 }
 
 GlobalSettingsComponent::GlobalSettingsComponent ()
@@ -248,7 +249,7 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
 
   // ── panel background ──────────────────────────────────────────────────────
   g.setColour (toColour (theme ().textPrimary, rowWash)); // a barely visible edge
-  g.fillRoundedRectangle (panelBounds.toFloat (), 10.f);
+  g.fillRoundedRectangle (panelBounds.toFloat (), theme ().radiusPanel);
 
   // ── one row per Option ───────────────────────────────────────────────────
   for (int i = 0; i < numOptions; ++i)
@@ -268,21 +269,29 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
                              isArmedRow     ? armedRowWash
                              : isBrowsedRow ? browsedRowWash
                                             : rowWash));
-      g.fillRoundedRectangle (row.toFloat (), 6.f);
+      g.fillRoundedRectangle (row.toFloat (), theme ().radiusRow);
 
       auto const labelArea = globalSettingsNameArea (row);
       auto const valueArea = globalSettingsValueArea (row);
 
       g.setFont (juce::Font (theme ().fontSize (FontRole::Body),
                              juce::Font::plain));
-      g.setColour (toColour (theme ().textPrimary,
-                         isBrowsedRow ? 1.f : theme ().alphaInactive));
+      // Full opacity rather than an alpha rung: the browsed row's name has
+      // always meant no dimming at all, which the alpha-less overload already
+      // says. This used to be `isBrowsedRow ? 1.f : theme ().alphaInactive`;
+      // 1.f fits no rung, and the maintainer still owes a call on whether
+      // full opacity deserves one of its own. See
+      // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+      g.setColour (isBrowsedRow
+                       ? toColour (theme ().textPrimary)
+                       : toColour (theme ().textPrimary,
+                                   theme ().alphaInactive));
       g.drawText (option.name, labelArea, juce::Justification::centredLeft, true);
 
       g.setColour (isArmedRow
                        ? toColour (theme ().textPrimary, armedFrameWash)
                        : toColour (theme ().textPrimary, rowFrameWash));
-      g.fillRoundedRectangle (valueArea.toFloat (), 5.f);
+      g.fillRoundedRectangle (valueArea.toFloat (), theme ().radiusRow);
 
       g.setFont (juce::Font (theme ().fontSize (FontRole::Body),
                              juce::Font::bold));
