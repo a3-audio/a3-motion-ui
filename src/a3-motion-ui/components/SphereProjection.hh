@@ -51,6 +51,40 @@ Pos discToDirection (Pos const &flat);
  *  orthographic projection comes to. */
 Pos directionToDisc (Pos const &direction);
 
+/** Where the room is being looked at from.
+ *
+ *  The display has always been one view: straight down on the room, the
+ *  listener's zenith in the middle and the horizon at the rim. That is the
+ *  right *default* -- it is the view a plan of a room is drawn in, nothing is
+ *  hidden behind anything, and every azimuth is equally readable. It is also
+ *  the one view in which a north-south travel is invisible, which is why
+ *  there is a second one.
+ *
+ *  `pitch` is how far the eye has come down from straight above: 0 is the
+ *  view the device has always had, a right angle is looking in from the
+ *  horizon. `turn` is which way round it has walked. Both are radians, and
+ *  both being zero is the identity -- so a device nobody has tilted computes
+ *  exactly what it computed before, to the bit.
+ */
+struct SphereCamera
+{
+  float pitch = 0.f;
+  float turn = 0.f;
+
+  bool isOverhead () const { return pitch == 0.f && turn == 0.f; }
+};
+
+/** A direction in the room, seen from where the camera stands.
+ *
+ *  Turn first, then pitch: walking round the room and then leaning over it is
+ *  what a person does, and the other order tips the room sideways instead. */
+Pos asSeenFrom (Pos const &direction, SphereCamera const &camera);
+
+/** And back: a direction in the view, in the room's own terms. The exact
+ *  inverse of asSeenFrom -- a finger lands on the view and has to be given to
+ *  the room, or the blob does not come out under it. */
+Pos asSeenFromInverse (Pos const &viewed, SphereCamera const &camera);
+
 /** How many pieces a straight step across the *recorded* disc has to be cut
  *  into before each piece is projected onto the sphere and joined up.
  *

@@ -73,4 +73,54 @@ discStepPieces (float x1, float y1, float x2, float y2, float maxStep,
                        juce::jmax (byLength, bySwing));
 }
 
+
+namespace
+{
+/** The room turned about its vertical axis, then tipped about the screen's
+ *  horizontal one.
+ *
+ *  The screen's horizontal is the room's y and its vertical is the room's x
+ *  -- cartesian2DHOA2JUCE puts a position at { -y, -x } -- so leaning the eye
+ *  over the room is a rotation about y, which brings what was overhead down
+ *  towards the top of the picture.
+ */
+Pos
+rotated (Pos const &p, float turn, float pitch)
+{
+  auto const ct = std::cos (turn);
+  auto const st = std::sin (turn);
+
+  auto const x1 = p.x () * ct - p.y () * st;
+  auto const y1 = p.x () * st + p.y () * ct;
+  auto const z1 = p.z ();
+
+  auto const cp = std::cos (pitch);
+  auto const sp = std::sin (pitch);
+
+  return Pos::fromCartesian (x1 * cp + z1 * sp, y1, -x1 * sp + z1 * cp);
+}
+}
+
+Pos
+asSeenFrom (Pos const &direction, SphereCamera const &camera)
+{
+  if (camera.isOverhead ())
+    return direction;
+
+  return rotated (direction, -camera.turn, camera.pitch);
+}
+
+Pos
+asSeenFromInverse (Pos const &viewed, SphereCamera const &camera)
+{
+  if (camera.isOverhead ())
+    return viewed;
+
+  // Undone in the opposite order, or the room comes back tipped the wrong
+  // way: the last thing done is the first thing undone.
+  auto const unpitched = rotated (viewed, 0.f, -camera.pitch);
+
+  return rotated (unpitched, camera.turn, 0.f);
+}
+
 }

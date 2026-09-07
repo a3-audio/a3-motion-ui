@@ -20,6 +20,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ConfigFileWatcher.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/EnergyMap.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/DiscStepPieces.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SphereCamera.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SphereProjection.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ButtonLedColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Theme.cc"
