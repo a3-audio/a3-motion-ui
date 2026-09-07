@@ -196,6 +196,11 @@ public:
    *  does. */
   void setElevationHead (ElevationSidePoint head, bool valid);
 
+  /** Where the sphere above is being looked at from. The circle is a second
+   *  view of the same room, kept a quarter turn from it, so it has to be told
+   *  when that one moves. */
+  void setSphereCamera (SphereCamera camera);
+
   /** Which of the Elevation section's 6 controls (0 = reach, 1 = clip-top,
    *  2 = clip-bottom, 3 = mirror-south, 4 = flat, 5 = flat-elevation) the
    *  Pot-Encoder currently edits, cycled by pressing it. All six are always
@@ -567,6 +572,7 @@ private:
   float _elevationBaseSwept = -1.f;
   std::vector<ElevationSidePoint> _elevationFigure;
   ElevationSidePoint _elevationHead{};
+  SphereCamera _sphereCamera{};
   bool _elevationHeadValid = false;
   bool _elevationMirrorSouth = false;
   float _elevationClipTop = 0.0f;

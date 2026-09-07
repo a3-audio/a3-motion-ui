@@ -32,49 +32,86 @@ namespace
 constexpr float epsilon = 1e-4f;
 }
 
-// Height is the whole reason this picture exists, and it is measured the same
-// way the base line and the clip cuts are: 0 at the ceiling, 1 at the floor.
-// A point drawn at any other scale would not sit on the line it belongs to.
-TEST (ElevationSideView, HeightIsTheSameFractionTheLinesAreDrawnAt)
+// With the sphere above overhead, this is the side view it has always been:
+// the ceiling at the top of the circle, the floor at the bottom, ear height
+// across the middle.
+TEST (ElevationSideView, OverheadItIsTheSideView)
 {
-  EXPECT_NEAR (elevationSideView (Pos::fromCartesian (0.f, 0.f, 1.f)).frac, 0.f,
-               epsilon);
-  EXPECT_NEAR (elevationSideView (Pos::fromCartesian (1.f, 0.f, 0.f)).frac,
-               0.5f, epsilon);
-  EXPECT_NEAR (elevationSideView (Pos::fromCartesian (0.f, 0.f, -1.f)).frac,
-               1.f, epsilon);
-}
-
-// And left is left. The sphere above puts the room's +y to the left of the
-// screen; turning your head down to this circle must not turn the room with
-// it, or a sound heard on the left would be drawn on the right.
-TEST (ElevationSideView, LeftAndRightAgreeWithTheSphereAbove)
-{
-  EXPECT_NEAR (elevationSideView (Pos::fromCartesian (0.f, 1.f, 0.f)).across,
+  EXPECT_NEAR (elevationSideView (Pos::fromCartesian (0.f, 0.f, 1.f)).down,
                -1.f, epsilon);
-  EXPECT_NEAR (elevationSideView (Pos::fromCartesian (0.f, -1.f, 0.f)).across,
+  EXPECT_NEAR (elevationSideView (Pos::fromCartesian (0.f, 0.f, -1.f)).down,
                1.f, epsilon);
-}
-
-// The viewer stands at the near edge of the overhead picture and looks into
-// it, so the room's +x -- the top of that picture -- is the far side.
-TEST (ElevationSideView, TheFarSideOfTheRoomIsBehind)
-{
-  EXPECT_TRUE (elevationSideView (Pos::fromCartesian (1.f, 0.f, 0.f)).behind);
-  EXPECT_FALSE (
-      elevationSideView (Pos::fromCartesian (-1.f, 0.f, 0.f)).behind);
-}
-
-// Straight up and straight down have no bearing at all. They must not come
-// back as a jump to one edge -- a figure that ends at the ceiling would flick
-// sideways on its last point.
-TEST (ElevationSideView, APoleHasNoBearingAndIsDrawnInTheMiddle)
-{
-  EXPECT_NEAR (elevationSideView (Pos::fromCartesian (0.f, 0.f, 1.f)).across,
-               0.f, epsilon);
-  EXPECT_NEAR (elevationSideView (Pos::fromCartesian (0.f, 0.f, -1.f)).across,
+  EXPECT_NEAR (elevationSideView (Pos::fromCartesian (1.f, 0.f, 0.f)).down,
                0.f, epsilon);
 }
+
+// And lean the sphere to the horizon and this comes up to overhead: the
+// picture that loses the height is never the only one you have.
+TEST (ElevationSideView, WithTheSphereOnItsSideThisIsTheOverheadView)
+{
+  SphereCamera const onItsSide{ juce::MathConstants<float>::halfPi, 0.f };
+
+  // Straight up is now the middle of the circle rather than the top of it,
+  // which is what looking down on a room from above does with the ceiling.
+  auto const zenith
+      = elevationSideView (Pos::fromCartesian (0.f, 0.f, 1.f), onItsSide);
+  EXPECT_NEAR (zenith.across, 0.f, epsilon);
+  EXPECT_NEAR (zenith.down, 0.f, epsilon);
+
+  // And the front of the room is at the top of it.
+  auto const front
+      = elevationSideView (Pos::fromCartesian (1.f, 0.f, 0.f), onItsSide);
+  EXPECT_NEAR (front.down, -1.f, epsilon);
+}
+
+// A finger in the circle points at something, and it is the same something
+// the projection would have put under it -- a recording is set by dragging in
+// here, so a mismatch moves the value away from the finger.
+TEST (ElevationSideView, TheProjectionAndItsInverseAgree)
+{
+  for (auto const &camera : { SphereCamera{}, SphereCamera{ 0.7f, 1.2f },
+                              SphereCamera{ -1.1f, -0.4f } })
+    for (auto const &rough : { Pos::fromCartesian (0.f, 0.f, 1.f),
+                               Pos::fromCartesian (0.6f, -0.5f, 0.62f),
+                               Pos::fromCartesian (-0.3f, 0.8f, 0.52f) })
+      {
+        // Unit length, because that is what a direction is and what comes
+        // back: the inverse hands over a point on the sphere, so a fixture
+        // half a thousandth off it would be measuring the fixture.
+        auto const length = std::sqrt (rough.x () * rough.x ()
+                                       + rough.y () * rough.y ()
+                                       + rough.z () * rough.z ());
+        auto const at = Pos::fromCartesian (rough.x () / length,
+                                            rough.y () / length,
+                                            rough.z () / length);
+
+        auto const drawn = elevationSideView (at, camera);
+        if (drawn.behind)
+          continue; // the far half is not what a finger can point at
+
+        auto const back
+            = elevationSideDirection (drawn.across, drawn.down, camera);
+
+        EXPECT_NEAR (back.x (), at.x (), 1e-4f);
+        EXPECT_NEAR (back.y (), at.y (), 1e-4f);
+        EXPECT_NEAR (back.z (), at.z (), 1e-4f);
+      }
+}
+
+// A finger past the rim is held at the rim rather than dropped: sliding off
+// the edge should keep setting a value, not stop dead.
+TEST (ElevationSideView, AFingerPastTheRimIsHeldAtIt)
+{
+  auto const out = elevationSideDirection (3.f, 0.f);
+
+  EXPECT_NEAR (std::sqrt (out.x () * out.x () + out.y () * out.y ()
+                          + out.z () * out.z ()),
+               1.f, 1e-4f);
+  EXPECT_NEAR (out.z (), 0.f, 1e-4f) << "held on the rim, which is the horizon";
+}
+
+
+
 
 // A take is a couple of thousand ticks and the circle is a couple of
 // centimetres. Sampled down, and evenly, so the shape survives rather than
@@ -94,8 +131,8 @@ TEST (ElevationSideView, ALongTakeIsSampledDownAcrossItsWholeLength)
 
   EXPECT_LE (drawn.size (), 96u);
   EXPECT_GT (drawn.size (), 48u) << "sampled so thin the figure is gone";
-  EXPECT_NEAR (drawn.front ().frac, 0.f, 0.01f);
-  EXPECT_GT (drawn.back ().frac, 0.9f) << "it stopped short of the end";
+  EXPECT_NEAR (drawn.front ().down, -1.f, 0.01f);
+  EXPECT_GT (drawn.back ().down, 0.9f) << "it stopped short of the end";
 }
 
 // An invalid tick is a hole in the take, not a point at the origin. Drawing
@@ -181,91 +218,37 @@ TEST (ElevationSideView, AFigureWithoutASeamIsDrawnInOnePiece)
 
 // The case this was found on, end to end: a Clover, whose four petals all
 // start and end at the pad's centre, with the base off the pole. It tears four
-// times a lap -- and each tear is short in this picture, because near the
-// ceiling the circle is only a few pixels wide, which is exactly why judging
-// the break by drawn distance failed and drew a line across the circle.
+// times a lap, and the pen has to lift at each one.
 TEST (ElevationSideView, ACloverTearsFourTimesAndTheStrokesAreLifted)
 {
   HeightMapSphere heightMap;
 
   ElevationParams params;
   params.reach = 0.5f;
-  params.elevationBase = 0.13f; // where sway had left it when this was seen
+  params.elevationBase = 0.13f;
 
-  std::vector<Pos> onSphere;
-  for (int i = 0; i < 1024; ++i)
-    {
-      auto const phi
-          = juce::MathConstants<float>::twoPi * static_cast<float> (i) / 1024.f;
-      auto const radius = std::cos (2.f * phi); // through the origin, 4x a lap
-      onSphere.push_back (heightMap.mapTo3D (
-          Pos::fromCartesian (radius * std::cos (phi), radius * std::sin (phi),
-                              0.f),
-          params));
-    }
+  auto const clover = [&] (float base) {
+    params.elevationBase = base;
+    std::vector<Pos> onSphere;
+    for (int i = 0; i < 1024; ++i)
+      {
+        auto const phi = juce::MathConstants<float>::twoPi
+                         * static_cast<float> (i) / 1024.f;
+        auto const radius = std::cos (2.f * phi);
+        onSphere.push_back (heightMap.mapTo3D (
+            Pos::fromCartesian (radius * std::cos (phi),
+                                radius * std::sin (phi), 0.f),
+            params));
+      }
 
-  auto const drawn = elevationSideView (onSphere, 96);
+    auto const drawn = elevationSideView (onSphere, 96);
+    int breaks = 0;
+    for (size_t i = 1; i < drawn.size (); ++i)
+      if (drawn[i].startsStroke)
+        ++breaks;
+    return breaks;
+  };
 
-  int breaks = 0;
-  for (size_t i = 1; i < drawn.size (); ++i)
-    if (drawn[i].startsStroke)
-      ++breaks;
-
-  EXPECT_EQ (breaks, 4) << "one per petal, and each one a lifted pen";
-
-  // And at the pole there is nothing to lift: the same figure overhead is a
-  // single unbroken stroke.
-  params.elevationBase = 0.f;
-  for (int i = 0; i < 1024; ++i)
-    {
-      auto const phi
-          = juce::MathConstants<float>::twoPi * static_cast<float> (i) / 1024.f;
-      auto const radius = std::cos (2.f * phi);
-      onSphere[static_cast<size_t> (i)] = heightMap.mapTo3D (
-          Pos::fromCartesian (radius * std::cos (phi), radius * std::sin (phi),
-                              0.f),
-          params);
-    }
-
-  auto const overhead = elevationSideView (onSphere, 96);
-  breaks = 0;
-  for (size_t i = 1; i < overhead.size (); ++i)
-    if (overhead[i].startsStroke)
-      ++breaks;
-
-  EXPECT_EQ (breaks, 0);
-}
-
-/** Turn the sphere above and this picture turns with it. Two pictures of one
- *  room that disagree about which way it is facing are worse than one picture,
- *  and the small one is the one that gets believed. */
-TEST (ElevationSideView, ItFollowsTheSphereRoundTheRoom)
-{
-  auto const front = Pos::fromCartesian (1.f, 0.f, 0.f);
-
-  // Straight ahead is straight ahead: dead centre, and behind the listener.
-  EXPECT_NEAR (elevationSideView (front).across, 0.f, epsilon);
-
-  // Walked a quarter turn round the room, the front of it is off to one side.
-  auto const quarter = elevationSideView (
-      front, juce::MathConstants<float>::halfPi);
-  EXPECT_NEAR (std::abs (quarter.across), 1.f, epsilon);
-
-  // And half a turn puts it dead centre again, on the near side this time.
-  auto const half
-      = elevationSideView (front, juce::MathConstants<float>::pi);
-  EXPECT_NEAR (half.across, 0.f, 1e-3f);
-  EXPECT_NE (half.behind, elevationSideView (front).behind);
-}
-
-/** The height is the height whichever way the room is turned -- walking round
- *  a sound does not raise it. */
-TEST (ElevationSideView, TurningTheRoomDoesNotChangeAHeight)
-{
-  auto const up = Pos::fromCartesian (0.6f, 0.3f, 0.74f);
-
-  for (float turn : { 0.f, 1.f, 2.5f, -2.f })
-    EXPECT_NEAR (elevationSideView (up, turn).frac,
-                 elevationSideView (up).frac, epsilon)
-        << "turn " << turn;
+  EXPECT_EQ (clover (0.13f), 4) << "one per petal, and each one a lifted pen";
+  EXPECT_EQ (clover (0.f), 0) << "at the pole there is nothing to lift for";
 }

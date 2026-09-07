@@ -26,38 +26,60 @@
 namespace a3
 {
 
-ElevationSidePoint
-elevationSideView (Pos const &direction, float turn)
+SphereCamera
+elevationSideCamera (SphereCamera sphere)
 {
-  // Walked round by as much as the sphere above has been. The lean is not
-  // applied: this picture is a side view by construction, and leaning it would
-  // make it a second overhead view rather than the one thing on the page that
-  // answers "how high".
-  auto const c = std::cos (turn);
-  auto const s = std::sin (turn);
+  // A quarter turn from the sphere above, and counted the other way round, so
+  // that overhead up there is a side view down here with the ceiling at the
+  // top of it -- and a side view up there is an overhead down here rather than
+  // a view from under the floor.
+  sphere.pitch = pi<float> () / 2.f - sphere.pitch;
+  return sphere;
+}
 
-  auto const x = direction.x () * c - direction.y () * s;
-  auto const y = direction.x () * s + direction.y () * c;
-  auto const z = direction.z ();
+ElevationSidePoint
+elevationSideView (Pos const &direction, SphereCamera sphere)
+{
+  auto const seen = asSeenFrom (direction, elevationSideCamera (sphere));
 
-  auto const rXY = std::sqrt (x * x + y * y);
-
+  // The same screen convention the sphere above uses: the room's +x up the
+  // picture and its +y to the left. Turn your head from one to the other and
+  // the room has not moved.
   ElevationSidePoint point;
-  point.frac = std::atan2 (rXY, z) / pi<float> ();
-
-  // Straight up or straight down: no bearing to speak of, so the middle. The
-  // alternative is whatever atan2 makes of two zeroes, which is a point that
-  // flicks to an edge as a figure passes the pole.
-  point.across = rXY < 1e-6f ? 0.f : -y / rXY;
-  point.behind = x > 0.f;
+  point.across = -seen.y ();
+  point.down = -seen.x ();
+  point.behind = seen.z () < 0.f;
   point.startsStroke = false;
 
   return point;
 }
 
+Pos
+elevationSideDirection (float across, float down, SphereCamera sphere)
+{
+  // Back through the same convention, on the near side -- the half a finger
+  // can see.
+  auto x = -down;
+  auto y = -across;
+
+  // A finger past the rim is held at the rim rather than dropped: sliding off
+  // the edge should keep setting a value, not stop dead.
+  auto const r = std::sqrt (x * x + y * y);
+  if (r > 1.f)
+    {
+      x /= r;
+      y /= r;
+    }
+
+  auto const z = std::sqrt (std::max (0.f, 1.f - x * x - y * y));
+
+  return asSeenFromInverse (Pos::fromCartesian (x, y, z),
+                            elevationSideCamera (sphere));
+}
+
 std::vector<ElevationSidePoint>
 elevationSideView (std::vector<Pos> const &directions, std::size_t maxPoints,
-                   float turn)
+                   SphereCamera sphere)
 {
   std::vector<ElevationSidePoint> drawn;
 
@@ -91,7 +113,7 @@ elevationSideView (std::vector<Pos> const &directions, std::size_t maxPoints,
           continue;
         }
 
-      drawn.push_back (elevationSideView (directions[i], turn));
+      drawn.push_back (elevationSideView (directions[i], sphere));
       auto const step = directions[i] - previous;
       steps.push_back (havePrevious
                            ? std::sqrt (step.x () * step.x ()

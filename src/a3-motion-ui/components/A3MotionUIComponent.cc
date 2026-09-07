@@ -5780,6 +5780,12 @@ A3MotionUIComponent::handleClipSettingsToggle (index_t channel, int section,
   juce::ignoreUnused (section, sub);
 }
 
+SphereCamera
+A3MotionUIComponent::sphereCamera () const
+{
+  return _motionComponent ? _motionComponent->getCamera () : SphereCamera{};
+}
+
 void
 A3MotionUIComponent::updateClipSettingsDisplay ()
 {
@@ -5911,13 +5917,11 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
                 ? heightMap.mapTo3D (shapedPosition (tick, shaping), params)
                 : Pos::invalid);
 
-      // Turned with the sphere above. Two pictures of one room that disagree
-      // about which way it is facing are worse than one picture.
-      auto const turn
-          = _motionComponent ? _motionComponent->getCamera ().turn : 0.f;
-
-      _clipSettings->setElevationFigure (
-          elevationSideView (onSphere, elevationFigureSamples, turn));
+      // Projected from where the sphere above is being looked at, a quarter
+      // turn behind it. Two pictures of one room that disagree about which way
+      // it is facing are worse than one picture.
+      _clipSettings->setElevationFigure (elevationSideView (
+          onSphere, elevationFigureSamples, sphereCamera ()));
     }
   else
     {
@@ -5934,13 +5938,11 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
     auto const valid = onAir && position.isValid ();
 
     _clipSettings->setElevationHead (
-        valid ? elevationSideView (position, _motionComponent
-                                                  ? _motionComponent
-                                                        ->getCamera ()
-                                                        .turn
-                                                  : 0.f)
+        valid ? elevationSideView (position, sphereCamera ())
               : ElevationSidePoint{},
         valid);
+
+    _clipSettings->setSphereCamera (sphereCamera ());
   }
 
   // Motion/Filter: all sub-controls visible in parallel, like Elevation —

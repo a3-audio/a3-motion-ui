@@ -212,9 +212,30 @@ ClipSettingsComponent::createTouchControls ()
     auto const low = std::clamp (_elevationClipTop, 0.f, 1.f);
     auto const high = 1.f - std::clamp (_elevationClipBottom, 0.f, 1.f);
 
-    onElevationBaseSet (snapElevationBase (elevationBaseAt (
-        _layout.elevationGraphic.withZeroOrigin (), at.y,
-        juce::jmin (low, high), juce::jmax (low, high))));
+    // Un-projected rather than read off a ruler. The circle is a view of the
+    // room now, not a scale up its side, so what a finger is pointing at is a
+    // direction -- and the height that direction is at is the base it asks
+    // for. Off the rim it is held at the horizon, so sliding off the edge
+    // keeps setting a value instead of stopping dead.
+    auto const circle
+        = elevationCircleBounds (_layout.elevationGraphic.withZeroOrigin ());
+    if (circle.isEmpty ())
+      return;
+
+    auto const half = static_cast<float> (circle.getWidth ()) / 2.f;
+    auto const across
+        = (static_cast<float> (at.x) - circle.getCentreX ()) / half;
+    auto const down
+        = (static_cast<float> (at.y) - circle.getCentreY ()) / half;
+
+    auto const pointed
+        = elevationSideDirection (across, down, _sphereCamera);
+    auto const frac
+        = std::acos (std::clamp (pointed.z (), -1.f, 1.f))
+          / juce::MathConstants<float>::pi;
+
+    onElevationBaseSet (snapElevationBase (
+        juce::jlimit (juce::jmin (low, high), juce::jmax (low, high), frac)));
   };
 
   _elevationGraphicTouch->onTapAt
@@ -558,7 +579,7 @@ ClipSettingsComponent::setElevationFigure (
   if (figure.size () == _elevationFigure.size ()
       && std::equal (figure.begin (), figure.end (), _elevationFigure.begin (),
                      [] (auto const &a, auto const &b) {
-                       return std::abs (a.frac - b.frac) < 1e-4f
+                       return std::abs (a.down - b.down) < 1e-4f
                               && std::abs (a.across - b.across) < 1e-4f
                               && a.behind == b.behind
                               && a.startsStroke == b.startsStroke;
@@ -570,11 +591,21 @@ ClipSettingsComponent::setElevationFigure (
 }
 
 void
+ClipSettingsComponent::setSphereCamera (SphereCamera camera)
+{
+  if (camera.pitch == _sphereCamera.pitch && camera.turn == _sphereCamera.turn)
+    return;
+
+  _sphereCamera = camera;
+  repaint ();
+}
+
+void
 ClipSettingsComponent::setElevationHead (ElevationSidePoint head, bool valid)
 {
   if (valid == _elevationHeadValid
       && (!valid
-          || (std::abs (head.frac - _elevationHead.frac) < 1e-4f
+          || (std::abs (head.down - _elevationHead.down) < 1e-4f
               && std::abs (head.across - _elevationHead.across) < 1e-4f)))
     return;
 
@@ -1793,8 +1824,45 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
             : std::clamp (std::clamp (_elevationBaseSwept, 0.f, 1.f), bandLow,
                           bandHigh);
 
-  auto const fracToY
-      = [&] (float frac) { return (centre.y - r) + frac * (r * 2.f); };
+  // Everything in here is projected, not ruled. The circle is a second view
+  // of the room, kept a quarter turn from the sphere above: overhead up there
+  // is a side view down here, and a side view up there is an overhead down
+  // here, so the pair of them always shows the room from two directions at
+  // once and what one loses the other has.
+  //
+  // Which means a height is no longer a horizontal line. The set of points at
+  // one height is a circle of latitude, and a circle of latitude seen from
+  // anywhere but its own plane is an ellipse -- so the base and the two cuts
+  // are drawn as the rings they are.
+  auto const place = [&] (ElevationSidePoint const &point) {
+    return juce::Point<float> (centre.x + point.across * r,
+                               centre.y + point.down * r);
+  };
+
+  auto const latitude = [&] (float frac) {
+    juce::Path ring;
+    auto const theta = std::clamp (frac, 0.f, 1.f)
+                       * juce::MathConstants<float>::pi;
+    auto const sinT = std::sin (theta);
+    auto const cosT = std::cos (theta);
+
+    for (int step = 0; step <= 64; ++step)
+      {
+        auto const phi = juce::MathConstants<float>::twoPi
+                         * static_cast<float> (step) / 64.f;
+        auto const at = place (elevationSideView (
+            Pos::fromCartesian (sinT * std::cos (phi), sinT * std::sin (phi),
+                                cosT),
+            _sphereCamera));
+
+        if (step == 0)
+          ring.startNewSubPath (at);
+        else
+          ring.lineTo (at);
+      }
+
+    return ring;
+  };
 
   juce::Path circlePath;
   circlePath.addEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f);
@@ -1802,74 +1870,59 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   g.saveState ();
   g.reduceClipRegion (circlePath);
 
-  // The band the clips leave is the sphere the sound can still use, so it is
-  // the lit part; everything they take is cut away to the bar's own surface.
-  // The eye should find the reachable band without reading a number, and a
-  // wash close to the ground did not say which was which. Zero-height rects
-  // where nothing is clipped, so no guard is needed.
-  g.setColour (toColour (theme ().textPrimary, 0.05f));
-  g.fillRect (juce::Rectangle<float> (
-      centre.x - r, fracToY (bandLow), r * 2.f,
-      juce::jmax (0.f, fracToY (bandHigh) - fracToY (bandLow))));
+  // What the clips have taken away, shaded rather than merely edged: the eye
+  // should find the reachable part without reading a number. Rings rather than
+  // rectangles, because a height is a ring here.
+  {
+    auto const shade = [&] (float from, float to) {
+      if (to - from < 1e-3f)
+        return;
+      constexpr int rings = 10;
+      for (int i = 0; i <= rings; ++i)
+        g.strokePath (
+            latitude (from + (to - from) * static_cast<float> (i) / rings),
+            juce::PathStrokeType (r * 0.16f));
+    };
 
-  g.setColour (toColour (theme ().surface, clippedZoneOpacity));
-  g.fillRect (juce::Rectangle<float> (centre.x - r, centre.y - r, r * 2.f,
-                                      fracToY (bandLow) - (centre.y - r)));
-  g.fillRect (juce::Rectangle<float> (
-      centre.x - r, fracToY (bandHigh), r * 2.f,
-      (centre.y + r) - fracToY (bandHigh)));
+    g.setColour (toColour (theme ().surface, clippedZoneOpacity));
+    shade (0.f, bandLow);
+    shade (bandHigh, 1.f);
+  }
 
-  // What the sway is doing, filled between where the hand left the line and
-  // where the sweep is holding it now. The same thing the knobs' blue arcs
-  // say and in the same colour, because it is the same question: the pointer
-  // stays where it was put, and the notice colour runs from there to where
-  // the movement has taken it. Filled rather than drawn as a second line --
-  // what a sway does is cover a stretch of elevation, and a stretch reads as
-  // an area.
+  // What the sway is doing, between where the hand left the line and where the
+  // sweep is holding it now -- the same stretch of the room, drawn the same
+  // way.
   if (sweptFrac >= 0.f)
     {
       auto const from = juce::jmin (baseFrac, sweptFrac);
       auto const to = juce::jmax (baseFrac, sweptFrac);
 
-      g.setColour (toColour (theme ().notice, 0.35f));
-      g.fillRect (juce::Rectangle<float> (
-          centre.x - r, fracToY (from), r * 2.f,
-          juce::jmax (0.f, fracToY (to) - fracToY (from))));
+      constexpr int rings = 8;
+      g.setColour (toColour (theme ().notice, 0.22f));
+      for (int i = 0; i <= rings; ++i)
+        {
+          auto const at = from + (to - from) * static_cast<float> (i) / rings;
+          g.strokePath (latitude (at), juce::PathStrokeType (r * 0.1f));
+        }
     }
 
   // ── The figure ────────────────────────────────────────────────────────
   //
-  // Where the sound actually goes, height by height. The sphere above says
-  // where in the room the figure is and this says how high it runs, which is
-  // the one question the overhead view cannot answer -- a figure lying along
-  // the ceiling and one lying along the floor are the same ring up there.
-  //
-  // Drawn inside the clip region so a figure that runs past a cut is cut with
-  // it, which is exactly what the sound does.
-  auto const sidePoint = [&] (ElevationSidePoint const &point) {
-    auto const y = fracToY (std::clamp (point.frac, 0.f, 1.f));
-    auto const dy = y - centre.y;
-    auto const halfWidth = std::sqrt (juce::jmax (0.f, r * r - dy * dy));
-    return juce::Point<float> (centre.x + point.across * halfWidth, y);
-  };
-
+  // Where the sound actually goes. The sphere above says where in the room the
+  // figure is and this says what the sphere above has lost, whichever way it
+  // is turned.
   if (_elevationFigure.size () > 1)
     {
-      // The far half dimmer than the near half, the way the sphere fades what
-      // is behind it. Without that a figure that circles the listener reads as
-      // a flat squiggle rather than as a lap of the room.
       auto const near = _channelColour.withAlpha (0.85f);
       auto const far = _channelColour.withAlpha (0.3f);
 
-      auto previous = sidePoint (_elevationFigure.front ());
+      auto previous = place (_elevationFigure.front ());
       for (size_t i = 1; i < _elevationFigure.size (); ++i)
         {
-          auto const point = sidePoint (_elevationFigure[i]);
+          auto const point = place (_elevationFigure[i]);
 
           // The pen lift is decided in the room, not here -- see
-          // ElevationSidePoint::startsStroke. Judged by drawn distance it
-          // would miss the one case it is for: near the ceiling the circle is
-          // narrow, so a jump clear across the room is a few pixels wide.
+          // ElevationSidePoint::startsStroke.
           if (!_elevationFigure[i].startsStroke)
             {
               g.setColour (_elevationFigure[i].behind ? far : near);
@@ -1880,131 +1933,47 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
         }
     }
 
+  // The two cuts, as the rings they are: a boundary you can see is a boundary
+  // you can aim a finger at.
+  g.setColour (toColour (theme ().textPrimary, 0.25f));
+  g.strokePath (latitude (bandLow), juce::PathStrokeType (1.f));
+  g.strokePath (latitude (bandHigh), juce::PathStrokeType (1.f));
+
+  // Ear height, the one ring worth having whatever else is set.
+  g.setColour (toColour (theme ().textPrimary, 0.22f));
+  g.strokePath (latitude (0.5f), juce::PathStrokeType (1.f));
+
+  // And a graticule every thirty degrees, so the picture says how far it has
+  // been turned as well as how high things are: rings that are straight lines
+  // in the side view and circles in the overhead one, which is the whole
+  // difference between the two views said without a word.
+  g.setColour (toColour (theme ().textPrimary, 0.09f));
+  for (int degrees = 30; degrees < 180; degrees += 30)
+    if (degrees != 90)
+      g.strokePath (latitude (static_cast<float> (degrees) / 180.f),
+                    juce::PathStrokeType (1.f));
+
+  // Where the sway has carried the line.
+  if (sweptFrac >= 0.f)
+    {
+      g.setColour (toColour (theme ().notice));
+      g.strokePath (latitude (sweptFrac), juce::PathStrokeType (1.5f));
+    }
+
+  // The base: where the middle of the trajectory sits, and the one ring in
+  // here a finger sets. Drawn boldest and last, so the sway's own mark never
+  // covers it.
+  g.setColour (toColour (theme ().surface, outlineOpacity));
+  g.strokePath (latitude (baseFrac), juce::PathStrokeType (4.f));
+  g.setColour (iconColour);
+  g.strokePath (latitude (baseFrac), juce::PathStrokeType (2.5f));
+
   g.restoreState ();
-
-  // The two cuts as edges, not only as a change of shade: a boundary you can
-  // see is a boundary you can aim a finger at.
-  auto const drawCut = [&] (float frac) {
-    auto const y = fracToY (frac);
-    auto const dy = y - centre.y;
-    if (std::abs (dy) > r)
-      return;
-
-    auto const halfWidth = std::sqrt (r * r - dy * dy);
-    g.setColour (toColour (theme ().textPrimary, 0.25f));
-    g.drawLine (centre.x - halfWidth, y, centre.x + halfWidth, y, 1.f);
-  };
-
-  drawCut (bandLow);
-  drawCut (bandHigh);
-
-  // ── The instrument ────────────────────────────────────────────────────
-  //
-  // The circle reads like a horizon seen from the middle of the room, so it
-  // is given the marks that make one readable. They are not decoration: what
-  // a performer wants to know at a glance is whether the sound is above or
-  // below the ears, and by roughly how much.
-
-  // Ear height. The equator is where a sound is level with the listener, and
-  // it is the one line worth having whatever else is set -- dashed, so it
-  // never competes with the axis a finger put somewhere.
-  {
-    auto const y = fracToY (0.5f);
-    g.setColour (toColour (theme ().textPrimary, 0.22f));
-
-    auto const dash = juce::jmax (2.f, r / 12.f);
-    for (auto x = centre.x - r; x < centre.x + r; x += dash * 2.f)
-      g.drawLine (x, y, juce::jmin (x + dash, centre.x + r), y, 1.f);
-  }
-
-  // Elevation marks every thirty degrees up the left edge, longer at the
-  // poles and the equator. No numbers: the circle is small, and the pattern
-  // of ticks says how far up or down something is without any reading.
-  {
-    g.setColour (toColour (theme ().textPrimary, 0.35f));
-
-    for (int degrees = 0; degrees <= 180; degrees += 30)
-      {
-        auto const frac = static_cast<float> (degrees) / 180.f;
-        auto const y = fracToY (frac);
-        auto const dy = y - centre.y;
-        if (std::abs (dy) > r)
-          continue;
-
-        auto const halfWidth = std::sqrt (r * r - dy * dy);
-        auto const major = degrees % 90 == 0;
-        auto const len = r * (major ? 0.22f : 0.12f);
-
-        g.drawLine (centre.x - halfWidth, y, centre.x - halfWidth + len, y,
-                    major ? 1.5f : 1.f);
-      }
-  }
 
   g.setColour (toColour (theme ().surface, outlineOpacity));
   g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, 2.f);
   g.setColour (iconColour);
   g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, 1.f);
-
-  // Everything from here on is kept inside the circle. A chord is drawn at the
-  // width the circle has at its height, which is right to the pixel and then
-  // strokes two and a half of them wide with a four-wide outline under it and
-  // a cap hanging off each end -- so it stood a few pixels proud of the ring
-  // at both sides. Small, and the sort of small that reads as a line escaping
-  // its picture.
-  g.saveState ();
-  g.reduceClipRegion (circlePath);
-
-  auto const drawMarkerChord
-      = [&] (float frac, float thinWidth, float boldWidth,
-            juce::Colour colour) {
-          auto const markerY = fracToY (frac);
-          auto const dy = markerY - centre.y;
-          if (std::abs (dy) > r)
-            return;
-          auto const halfWidth = std::sqrt (r * r - dy * dy);
-          if (boldWidth > 0.f)
-            {
-              g.setColour (toColour (theme ().surface, outlineOpacity));
-              g.drawLine (centre.x - halfWidth, markerY + 1.f,
-                         centre.x + halfWidth, markerY + 1.f, boldWidth);
-            }
-          g.setColour (colour);
-          g.drawLine (centre.x - halfWidth, markerY, centre.x + halfWidth,
-                     markerY, thinWidth);
-        };
-
-  // Where the sway has carried the line, as a thin chord at the far edge of
-  // the filled stretch. The fill says how far it reaches, this says exactly
-  // where the middle of the trajectory is right now -- which is the number
-  // the sound is actually using.
-  if (sweptFrac >= 0.f)
-    drawMarkerChord (sweptFrac, 1.5f, 0.f, toColour (theme ().notice));
-
-  // The base: where the middle of the trajectory sits, and the one line in
-  // here a finger sets. Drawn boldest and in the channel's colour because it
-  // is the control, and drawn last so the sway's own mark never covers it.
-  drawMarkerChord (baseFrac, 2.5f, 4.f, iconColour);
-
-  // With the end caps a horizon bar has. They turn a chord into something
-  // aimed at rather than merely drawn, which is the whole difference between
-  // a picture and an instrument.
-  {
-    auto const y = fracToY (baseFrac);
-    auto const dy = y - centre.y;
-    if (std::abs (dy) <= r)
-      {
-        auto const halfWidth = std::sqrt (r * r - dy * dy);
-        auto const cap = juce::jmax (2.f, r * 0.12f);
-
-        g.setColour (iconColour);
-        g.drawLine (centre.x - halfWidth, y, centre.x - halfWidth, y + cap,
-                    2.f);
-        g.drawLine (centre.x + halfWidth, y, centre.x + halfWidth, y + cap,
-                    2.f);
-      }
-  }
-
-  g.restoreState ();
 
   // Head: a small dot at the centre (the listener, always at the sphere's
   // literal centre regardless of elevation settings).
@@ -2021,7 +1990,7 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   // to look here mid-set is "how high is it right now".
   if (_elevationHeadValid)
     {
-      auto const at = sidePoint (_elevationHead);
+      auto const at = place (_elevationHead);
       auto const ballR = juce::jmax (2.f, r * 0.11f);
 
       g.setColour (toColour (theme ().surface, outlineOpacity));

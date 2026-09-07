@@ -35,6 +35,7 @@
 #include <a3-motion-engine/ClipLocks.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
+#include <a3-motion-ui/components/SphereProjection.hh>
 
 #include <a3-motion-ui/SettingsPersistence.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
@@ -710,6 +711,9 @@ private:
   void handleClipSettingsSubElementCycle (index_t channel);
   int numSubElementsForSection (int menuIndex) const;
   void updateClipSettingsDisplay ();
+  /** Where the sphere is being looked at from, or straight down if there is
+   *  no sphere yet -- this runs while the interface is still being built. */
+  SphereCamera sphereCamera () const;
 
   /** What is left of the per-slot table. Speed and fade moved to the Pattern:
    *  the engine reads them and they have to survive being saved, which a table

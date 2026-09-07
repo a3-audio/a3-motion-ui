@@ -25,6 +25,8 @@
 #include <a3-motion-engine/util/Geometry.hh>
 #include <a3-motion-engine/util/Types.hh>
 
+#include <a3-motion-ui/components/SphereProjection.hh>
+
 namespace a3
 {
 
@@ -38,15 +40,15 @@ namespace a3
  *  says plainly. */
 struct ElevationSidePoint
 {
-  /** Colatitude as a fraction: 0 at the ceiling, 1 at the floor. This is the
-   *  same number the base line and the clip cuts are drawn at, so a point and
-   *  the line it belongs to always meet. */
-  float frac;
-
-  /** Where the point sits across the picture, -1 at the left edge of the
-   *  circle and +1 at the right. It is a bearing, not a distance: the width
-   *  available at this height is the circle's own chord there. */
+  /** Where the point sits in the circle, -1 to 1 each way from its middle.
+   *
+   *  A projection, not a ruler. The circle is a second view of the room, kept
+   *  a quarter turn from the one above it: overhead up there is a side view
+   *  down here, and a side view up there is an overhead down here -- so the
+   *  pair of them always shows the room from two directions at once, and what
+   *  one loses the other has. */
   float across;
+  float down;
 
   /** On the far side of the room, i.e. behind the middle. Drawn dimmer, the
    *  way the sphere dims what is behind it -- without that, a figure that
@@ -64,27 +66,32 @@ struct ElevationSidePoint
   bool startsStroke;
 };
 
-/** Put a direction on the sphere into the side-on picture.
+/** Where the circle is looking from, given where the sphere above is.
  *
- *  The overhead view puts the room's +x up the screen and its +y to the left
- *  (cartesian2DHOA2JUCE). The side view keeps that horizontal axis and trades
- *  the vertical one for height, so the viewer stands at the bottom of the
- *  overhead picture and looks into it -- turn your head up from the sphere to
- *  this circle and the room has not moved.
+ *  A quarter turn behind it, always. With the sphere overhead this is the side
+ *  view the circle has always been; lean the sphere to the horizon and this
+ *  comes up to overhead, so the picture that loses the height is never the
+ *  only one you have. */
+SphereCamera elevationSideCamera (SphereCamera sphere);
+
+/** Put a direction on the sphere into the circle, as seen from there. */
+ElevationSidePoint elevationSideView (Pos const &direction,
+                                      SphereCamera sphere = {});
+
+/** And back: what direction a finger in the circle is pointing at.
  *
- *  `turn` is how far the sphere above has been walked round, so that stays
- *  true once it has been: turn the room and this picture turns with it, or the
- *  two say different things about where the sound is and the smaller one is
- *  the one that gets believed. The lean is not applied -- this picture is a
- *  side view by construction, and leaning it would make it a second overhead
- *  view rather than the one thing on the page that answers "how high". */
-ElevationSidePoint elevationSideView (Pos const &direction, float turn = 0.f);
+ *  The near side of it, which is the half the finger can see. `across` and
+ *  `down` run -1 to 1 from the middle of the circle; outside it the nearest
+ *  direction on the rim is given rather than nothing, so a finger that slides
+ *  off the edge keeps setting a value instead of stopping dead. */
+Pos elevationSideDirection (float across, float down,
+                            SphereCamera sphere = {});
 
 /** The whole figure, sampled down to at most `maxPoints` -- the circle is a
  *  couple of centimetres across, and a thousand ticks in it is ink, not
  *  information. Invalid ticks are dropped rather than drawn at the origin. */
 std::vector<ElevationSidePoint>
 elevationSideView (std::vector<Pos> const &directions, std::size_t maxPoints,
-                   float turn = 0.f);
+                   SphereCamera sphere = {});
 
 }
