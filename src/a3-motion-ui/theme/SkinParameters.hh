@@ -54,8 +54,18 @@ struct SkinParameter
  *  It used to be plain alphabetical, which put `background` and `surface`
  *  forty rows apart with the speaker light's thirty-four in between. Numbers
  *  and text; anything else is structure, and there is no control on this panel
- *  that could edit structure. */
-std::vector<SkinParameter> skinParameters (juce::var const &skin);
+ *  that could edit structure.
+ *
+ *  `includeThemeDefaults` merges in every role `loadTheme` reads (see
+ *  `themeDefaultsVar()`) behind whatever `skin` already states, so a role no
+ *  shipped skin names is still offered rather than hidden. On by default: the
+ *  usual caller is looking at an actual skin. A page that instead edits a
+ *  slice of config.json -- the Network page, say -- shares this same
+ *  walk-and-group machinery but passes false, because "host" and "port" are
+ *  not theme roles, and merging thirty-eight of them in ahead of the page's
+ *  own two fields would bury what the page is for. */
+std::vector<SkinParameter> skinParameters (juce::var const &skin,
+                                           bool includeThemeDefaults = true);
 
 /** The number at `path`, or 0 when there is none. */
 double skinValue (juce::var const &skin, juce::String const &path);

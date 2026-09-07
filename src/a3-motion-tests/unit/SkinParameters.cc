@@ -23,7 +23,10 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/theme/SkinParameters.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
+
+#include <algorithm>
 
 using namespace a3;
 
@@ -41,10 +44,13 @@ parse (juce::String const &text)
 
 TEST (SkinParameters, EveryLeafIsListedByItsPath)
 {
+  // Tests the walk-and-group logic in isolation: the theme's own defaults
+  // (see AKeyMissingFromTheFileIsStillOffered below) have their own tests and
+  // would otherwise swamp this file's two leaves with three dozen more.
   auto const params = skinParameters (parse (R"({
     "corona": { "sizeMin": 0.95, "sizeMax": 1.8 },
     "sphereScale": 0.62
-  })"));
+  })"), false);
 
   ASSERT_EQ (params.size (), 3u);
 
@@ -61,12 +67,14 @@ TEST (SkinParameters, EveryLeafIsListedByItsPath)
 // sat forty rows apart with the speaker light's thirty-four in between.
 TEST (SkinParameters, WhatIsReadTogetherIsListedTogether)
 {
+  // False for the same reason as EveryLeafIsListedByItsPath above: this is
+  // about the grouping, not about which defaults get merged in.
   auto const params = skinParameters (parse (R"({
     "surface": { "r": 1, "g": 1, "b": 1 },
     "background": { "r": 2, "g": 2, "b": 2 },
     "speakerLight": { "boltWidth": 0.45, "boltCount": 7 },
     "surfaceRaised": { "r": 3, "g": 3, "b": 3 }
-  })"));
+  })"), false);
 
   ASSERT_EQ (params.size (), 5u);
 
@@ -86,7 +94,7 @@ TEST (SkinParameters, ArraysAreListedByIndex)
 {
   auto const params = skinParameters (parse (R"({
     "channels": [ { "r": 9 }, { "r": 8 } ]
-  })"));
+  })"), false); // isolating the array-walk from the theme-defaults merge
   // Only "r", so these are not colours — see TwoChannelsAreNotAColour.
 
   ASSERT_EQ (params.size (), 2u);
@@ -102,7 +110,7 @@ TEST (SkinParameters, TextIsListedAndMarkedAsText)
   auto const params = skinParameters (parse (R"({
     "host": "127.0.0.1",
     "port": 9000
-  })"));
+  })"), false); // isolating text-vs-number marking from the defaults merge
 
   ASSERT_EQ (params.size (), 2u);
   EXPECT_EQ (params[0].path, "host");
@@ -129,7 +137,7 @@ TEST (SkinParameters, StructureItselfIsNotAParameter)
   auto const params = skinParameters (parse (R"({
     "osc": { "host": "a" },
     "flag": true
-  })"));
+  })"), false); // isolating structure-skipping from the defaults merge
 
   ASSERT_EQ (params.size (), 1u);
   EXPECT_EQ (params[0].path, "osc.host");
@@ -140,7 +148,7 @@ TEST (SkinParameters, AWholeNumberIsRememberedAsOne)
   auto const params = skinParameters (parse (R"({
     "accent": { "r": 128 },
     "sphereScale": 0.62
-  })"));
+  })"), false); // isolating whole-number tracking from the defaults merge
 
   ASSERT_EQ (params.size (), 2u);
   EXPECT_TRUE (params[0].isWholeNumber) << params[0].path.toStdString ();
@@ -179,7 +187,7 @@ TEST (SkinParameters, AWholeNumberIsWrittenBackWhole)
   setSkinValue (skin, "accent.r", 128.0, true);
   setSkinValue (skin, "sphereScale", 1.0, false);
 
-  auto const reread = skinParameters (skin);
+  auto const reread = skinParameters (skin, false); // same isolation as above
   ASSERT_EQ (reread.size (), 2u);
   EXPECT_TRUE (reread[0].isWholeNumber) << reread[0].path.toStdString ();
   EXPECT_FALSE (reread[1].isWholeNumber) << reread[1].path.toStdString ();
@@ -242,7 +250,7 @@ TEST (SkinParameters, ThreeChannelsBecomeOneColour)
 {
   auto const params = skinParameters (parse (R"({
     "accent": { "r": 1, "g": 2, "b": 3 }
-  })"));
+  })"), false); // isolating colour-grouping from the defaults merge
 
   ASSERT_EQ (params.size (), 1u);
   EXPECT_EQ (params[0].path, "accent");
@@ -253,7 +261,7 @@ TEST (SkinParameters, AColourInAnArrayIsGroupedToo)
 {
   auto const params = skinParameters (parse (R"({
     "channels": [ { "r": 1, "g": 2, "b": 3 } ]
-  })"));
+  })"), false); // isolating colour-in-array grouping from the defaults merge
 
   ASSERT_EQ (params.size (), 1u);
   EXPECT_EQ (params[0].path, "channels.0");
@@ -266,7 +274,7 @@ TEST (SkinParameters, TheColourGroupsAndItsNeighboursStay)
 {
   auto const params = skinParameters (parse (R"({
     "sphereGlow": { "r": 1, "g": 2, "b": 3, "netScale": 7, "netGain": 0.5 }
-  })"));
+  })"), false); // isolating the split from the defaults merge
 
   ASSERT_EQ (params.size (), 3u);
   EXPECT_EQ (params[0].path, "sphereGlow");
@@ -281,7 +289,7 @@ TEST (SkinParameters, TwoChannelsAreNotAColour)
 {
   auto const params = skinParameters (parse (R"({
     "half": { "r": 1, "g": 2 }
-  })"));
+  })"), false); // isolating the two-of-three check from the defaults merge
 
   ASSERT_EQ (params.size (), 2u);
   EXPECT_FALSE (params[0].isColour);
@@ -506,4 +514,44 @@ TEST (SkinParameters, NoEmphasisRungLeavesTheZeroToOneRange)
       // rejects the extremes has not proved it passes anything through.
       EXPECT_DOUBLE_EQ (clampSkinValue (skin, path, 0.42), 0.42) << path;
     }
+}
+
+// The list the editor shows is derived from the file. A skin that does not
+// name a key therefore hid it — which would have hidden every new role, since
+// no shipped skin names them.
+TEST (SkinParameters, AKeyMissingFromTheFileIsStillOffered)
+{
+  auto const sparse = juce::JSON::parse (R"({"fontBody": 15})");
+  auto const found = skinParameters (sparse);
+
+  auto const holds = [&found] (juce::String const &path) {
+    return std::any_of (found.begin (), found.end (),
+                        [&path] (SkinParameter const &parameter) {
+                          return parameter.path == path;
+                        });
+  };
+
+  EXPECT_TRUE (holds ("radiusCard"));
+  EXPECT_TRUE (holds ("padding"));
+  EXPECT_TRUE (holds ("alphaFill"));
+  EXPECT_TRUE (holds ("surface"));  // one row per colour, not three
+}
+
+TEST (SkinParameters, TheFilesOwnValueStillWins)
+{
+  auto const skin = juce::JSON::parse (R"({"radiusCard": 12})");
+
+  EXPECT_DOUBLE_EQ (skinValue (skin, "radiusCard"), 12.0);
+}
+
+// The defaults are the theme's, not a second copy of them.
+TEST (SkinParameters, TheOfferedDefaultIsTheThemesOwn)
+{
+  auto const defaults = themeDefaultsVar ();
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_DOUBLE_EQ (skinValue (defaults, "radiusCard"),
+                    static_cast<double> (theme.radiusCard));
+  EXPECT_DOUBLE_EQ (skinValue (defaults, "alphaFill"),
+                    static_cast<double> (theme.alphaFill));
 }

@@ -343,7 +343,11 @@ SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
   _numbers = numbers;
   _skin = std::move (document);
   _name = title;
-  _parameters = skinParameters (_skin);
+  // Only an actual skin gets the theme's defaults merged in (see
+  // skinParameters()) -- a config-page slice like the Network page shares
+  // this component but is not one, and would otherwise show every theme
+  // colour and metric ahead of its own two or three fields.
+  _parameters = skinParameters (_skin, withSkinActions);
   rebuildRows ();
   // Every page opens at its top: carrying a row number over from another
   // document lands on whatever happens to sit at that number.

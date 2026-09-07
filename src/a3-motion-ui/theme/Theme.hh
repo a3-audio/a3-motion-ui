@@ -175,6 +175,18 @@ ThemeColour themeColour (juce::var const &skin, juce::String const &name,
  *  built-in defaults. */
 Theme loadTheme (juce::var const &skin);
 
+/** Every role loadTheme reads, with the built-in value it would fall back to.
+ *
+ *  The skin editor derives its list from the file it loaded, so a key a file
+ *  does not name is a key nobody can reach. Merging this in gives the editor
+ *  the full vocabulary whatever the file happens to carry.
+ *
+ *  Limited to what the theme itself owns. The effect parameters
+ *  (`speakerLight.*`, `energy.*`, `blob.*` beyond `scale`) are read straight
+ *  out of the skin var by MotionComponent and CoronaScaling, past the theme,
+ *  and a default for them would have to be stated twice. */
+juce::var themeDefaultsVar ();
+
 /** Where a named skin lives: `<configDir>/skins/<name>.json`. An empty name
  *  gives the default skin rather than a path that cannot exist. */
 juce::File skinFile (juce::File const &configDir, juce::String const &name);

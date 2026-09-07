@@ -21,6 +21,7 @@
 #include "SkinParameters.hh"
 
 #include <a3-motion-ui/theme/SkinGroups.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
@@ -131,10 +132,31 @@ locate (juce::var &skin, juce::String const &path, juce::String &leaf)
 }
 
 std::vector<SkinParameter>
-skinParameters (juce::var const &skin)
+skinParameters (juce::var const &skin, bool includeThemeDefaults)
 {
+  // The file first, the theme's defaults behind it: a value the file states
+  // is the file's, a role it leaves out is still offered rather than hidden.
+  //
+  // withKeysReplaced replaces exactly the keys it is given, so the file's own
+  // top-level names are what it is given -- that is the list of "the file has
+  // an opinion here". A caller editing a slice of config.json rather than an
+  // actual skin (the Network page, Button LEDs) opts out: those keys are not
+  // theme roles, and the merge would bury the page's own few fields under
+  // every colour and metric the theme owns.
+  auto const complete = [&skin, includeThemeDefaults] () -> juce::var {
+    if (!includeThemeDefaults)
+      return skin;
+
+    juce::StringArray stated;
+    if (auto const *object = skin.getDynamicObject ())
+      for (auto const &property : object->getProperties ())
+        stated.add (property.name.toString ());
+
+    return withKeysReplaced (themeDefaultsVar (), skin, stated);
+  }();
+
   std::vector<SkinParameter> found;
-  collect (skin, {}, found);
+  collect (complete, {}, found);
 
   for (auto &parameter : found)
     parameter.group = skinGroupFor (parameter.path);
