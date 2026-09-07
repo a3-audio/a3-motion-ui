@@ -116,6 +116,14 @@ private:
   int _primary = 0;
   int _secondary = -1;
   DragAccumulator _drag{ 12 };
+
+  /** When the last drag on this control let go, and whether it had moved
+   *  anything. A screen has an edge, and the controls near it are the ones
+   *  with the least room: run a finger off the bottom of the panel and the
+   *  touch ends. Put it back within this window and the gesture carries on
+   *  rather than counting as a tap -- on a key that also taps, a tap threw
+   *  away the value the drag had just reached. */
+  juce::int64 _lastDragEndedMs = 0;
 };
 
 }

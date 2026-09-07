@@ -88,3 +88,46 @@ TEST (DragAccumulator, ZeroPixelsPerStepIsClampedNotDividedBy)
   DragAccumulator acc{ 0 };
   EXPECT_EQ (acc.stepsFor (1), 1);
 }
+
+// ── Picking a drag back up ───────────────────────────────────────────────
+
+/** A screen has an edge, and the controls near it are the ones with the least
+ *  room to drag. Run a finger off the bottom of the panel and the touch ends;
+ *  put it back and, as it stood, the next press was a fresh gesture -- which
+ *  on a key that also taps meant the value you had just dragged to was thrown
+ *  away and replaced by whatever the key under your finger says.
+ *
+ *  So a press that lands soon after a drag on the same control carries on
+ *  from it: no tap, and the steps already emitted are remembered so the
+ *  release knows a drag is what this was.
+ */
+TEST (DragAccumulator, ADragPickedBackUpCarriesOnFromWhereItStopped)
+{
+  DragAccumulator drag{ 12 };
+
+  EXPECT_EQ (drag.stepsFor (-36), -3);
+  EXPECT_EQ (drag.emittedSteps (), -3);
+
+  // The finger left at the screen's edge and came back. The new gesture is
+  // told it carries one on, so the release that follows knows this was a drag
+  // and not a tap -- but the pixels count from where the finger went down.
+  DragAccumulator resumed{ 12 };
+  resumed.resume ();
+
+  EXPECT_TRUE (resumed.hasMoved ()) << "picked back up, it is still a drag";
+  EXPECT_EQ (resumed.stepsFor (-12), -1)
+      << "the second half of the drag counts from where the finger went down";
+  EXPECT_TRUE (resumed.hasMoved ());
+}
+
+// And a gesture that was not picked up from anything is a tap until it moves.
+TEST (DragAccumulator, AFreshGestureHasNotMovedUntilItDoes)
+{
+  DragAccumulator drag{ 12 };
+
+  EXPECT_FALSE (drag.hasMoved ());
+  drag.stepsFor (-4);
+  EXPECT_FALSE (drag.hasMoved ()) << "four pixels is a finger resting";
+  drag.stepsFor (-24);
+  EXPECT_TRUE (drag.hasMoved ());
+}

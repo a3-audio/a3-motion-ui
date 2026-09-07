@@ -347,6 +347,27 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                                     increment);
         };
 
+#if !HARDWARE_INTERFACE_ENABLED
+  // Two taps put one of the three back where it rests: the accent and the
+  // cutoff at twelve o'clock, the resonance off. Only without the panel --
+  // with it attached these are physical pots, and a value that jumped away
+  // from where the pot is standing would be telling the truth about neither.
+  _clipSettings->onChannelValueReset = [this] (int channel, int row) {
+    auto const at = static_cast<index_t> (channel);
+
+    switch (row)
+      {
+      case channelRowThreeD: _engine.setChannelPot3 (at, 0.5f); break;
+      case channelRowFreq: _engine.setChannelPot1 (at, 0.5f); break;
+      case channelRowQ: _engine.setChannelPot2 (at, 0.f); break;
+      default: return;
+      }
+
+    updateClipSettingsDisplay ();
+    scheduleSetSave ();
+  };
+#endif
+
   _clipSettings->onRecordLengthChosen = [this] (int index) {
     if (index < 0 || index >= numRecordLengths)
       return;

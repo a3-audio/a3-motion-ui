@@ -245,6 +245,14 @@ ClipSettingsComponent::createTouchControls ()
                 if (onChannelValueDragged)
                   onChannelValueDragged (channel, gridRow, increment);
               };
+        // Two taps put a knob back where it started. Only worth having when
+        // the screen is the only way in: with the panel attached these three
+        // are physical pots, and a knob that jumped away from where the pot
+        // is standing would be telling the truth about neither.
+        cell->onDoubleTap = [this] (int channel, int gridRow) {
+          if (onChannelValueReset)
+            onChannelValueReset (channel, gridRow);
+        };
         addAndMakeVisible (*cell);
         _gridTouch[static_cast<size_t> (col)][static_cast<size_t> (row)]
             = std::move (cell);
@@ -422,7 +430,14 @@ ClipSettingsComponent::resized ()
 juce::Colour
 ClipSettingsComponent::controlColour (bool isSelected) const
 {
-  return isSelected ? _channelColour : toColour (theme ().textMuted);
+  // Grey, always. A value used to be written in the channel's colour once its
+  // section was picked, which put a red or a white word next to a grey one
+  // and made the difference between them look like it meant something about
+  // the setting rather than about which section a finger last touched. What
+  // says whose section this is, is the ground behind it -- the colour belongs
+  // to the highlight, not to the reading.
+  return toColour (theme ().textMuted,
+                   isSelected ? 1.f : theme ().alphaInactive);
 }
 
 juce::Colour
@@ -1735,7 +1750,9 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                                               juce::Rectangle<int> bounds,
                                               bool isSelected)
 {
-  auto const iconColour = controlColour (isSelected);
+  // The instrument keeps the channel's colour -- it is a picture of where the
+  // sound is, not a word about a setting.
+  auto const iconColour = _channelColour;
   auto const r = static_cast<float> (
                      juce::jmin (bounds.getWidth (), bounds.getHeight ()))
                  * 0.42f;

@@ -47,6 +47,15 @@ TouchControl::mouseDown (juce::MouseEvent const &)
   // the app runs, and a drag should count with the value in force now.
   _drag = DragAccumulator{ theme ().touchDragPixelsPerStep };
 
+  // A drag that ran out of screen and was picked straight back up is one
+  // drag. Without this the second half was a fresh gesture, and on a key that
+  // also taps -- the speed keys -- that tap threw away the value the first
+  // half had just reached.
+  constexpr int resumeMs = 700;
+  if (_lastDragEndedMs != 0
+      && juce::Time::currentTimeMillis () - _lastDragEndedMs < resumeMs)
+    _drag.resume ();
+
   if (onPress)
     onPress (_primary, _secondary);
 }
@@ -76,7 +85,10 @@ TouchControl::mouseUp (juce::MouseEvent const &)
   if (onRelease)
     onRelease (_primary, _secondary);
 
-  if (_drag.emittedSteps () == 0)
+  if (_drag.hasMoved ())
+    _lastDragEndedMs = juce::Time::currentTimeMillis ();
+
+  if (!_drag.hasMoved ())
     {
       // A finger is not a mouse: the second tap of a pair lands a few pixels
       // from the first, so the window is in time and in distance rather than

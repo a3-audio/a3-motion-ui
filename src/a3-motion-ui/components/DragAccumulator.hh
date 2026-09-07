@@ -48,9 +48,23 @@ public:
 
   int emittedSteps () const { return _emittedSteps; }
 
+  /** Say that this gesture carries on a drag that ended because the finger
+   *  ran out of screen.
+   *
+   *  Only the fact is taken over, not the distance: the finger has gone down
+   *  somewhere new, so the pixels count from there. What the fact is for is
+   *  the release -- a gesture that carries on a drag is a drag, and a drag
+   *  must not end as a tap. */
+  void resume () { _resumed = true; }
+
+  /** Whether anything has moved under this gesture, counting a drag it was
+   *  picked up from. */
+  bool hasMoved () const { return _resumed || _emittedSteps != 0; }
+
 private:
   int _pixelsPerStep;
   int _emittedSteps = 0;
+  bool _resumed = false;
 };
 
 }

@@ -364,6 +364,10 @@ public:
   std::function<void (int channel, int row, int increment)>
       onChannelValueDragged;
 
+  /** Two taps on one of the three channel knobs: put it back to its rest.
+   *  Not wired when the hardware panel is attached -- see where it is set. */
+  std::function<void (int channel, int row)> onChannelValueReset;
+
   /** The global strip's action buttons. Device-wide functions the hardware
    *  has its own keys for — this is the way to them with a finger. */
   /** The rec mode steps on — what its encoder used to do. */
