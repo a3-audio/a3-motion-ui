@@ -85,6 +85,21 @@ Pos asSeenFrom (Pos const &direction, SphereCamera const &camera);
  *  the room, or the blob does not come out under it. */
 Pos asSeenFromInverse (Pos const &viewed, SphereCamera const &camera);
 
+/** A point of the way from one direction to another, walked *along* the
+ *  sphere rather than straight across it.
+ *
+ *  Every drawn step is a straight line between two projected points, which is
+ *  fine while the steps are short. Near the pad's origin they are not: the
+ *  projection moves there without the disc moving, so two neighbouring samples
+ *  sit a fair way apart on the same latitude -- a Clover's junction is
+ *  nineteen degrees wide. A straight line between those two is a chord through
+ *  the *inside* of the sphere, the one place the sound never is, and it reads
+ *  as a line ruled across the picture.
+ *
+ *  Both ends are assumed to be on the unit sphere, which is what a projected
+ *  direction is. `t` runs 0 at `from` to 1 at `to`. */
+Pos slerpDirection (Pos const &from, Pos const &to, float t);
+
 /** How many pieces a straight step across the *recorded* disc has to be cut
  *  into before each piece is projected onto the sphere and joined up.
  *
@@ -123,11 +138,43 @@ struct DiscSampling
   /** How many times a piece may be halved. Eight is 256 more of them, and
    *  only where they are needed. */
   int maxDepth = 8;
+  /** The hole in the middle of the disc: how close to its origin the drawing
+   *  may go, in the disc's own units.
+   *
+   *  Inside it the picture is not merely difficult, it does not exist. The
+   *  radius there stands for a whole latitude circle, so the bearing a sample
+   *  comes back with is whatever the last few thousandths of the shape happen
+   *  to point at -- measured on a Clover at a base of a fifth, the two arms of
+   *  a junction come out nineteen degrees apart when the path is flattened at
+   *  five thousandths and a hundred and thirteen degrees at two ten
+   *  thousandths. A picture that changes that much with how finely it is
+   *  sampled is not a picture of anything.
+   *
+   *  So the drawing stops at the edge of the hole, where the shape's own
+   *  bearings are still its own, and the two arms are joined across it. Two
+   *  hundredths of the disc is a couple of pixels of the shape and the last
+   *  place the shape still means something. */
+  float originHole = 0.03f;
 };
 
 /** Cut a straight step of the recorded disc into pieces and hand each one's
- *  far end to `emit`, in order. `project` maps a disc point to wherever it is
- *  drawn; `distance` says how far apart two of those are.
+ *  far end to `emit`, in order, along with whether the caller may join it to
+ *  the point before it.
+ *
+ *  It may not always. Halving a piece has a floor -- maxDepth -- and at the
+ *  disc's origin the azimuth swing does not: however fine the cut, the two
+ *  ends of the last piece are still most of a latitude circle apart. What the
+ *  sampler hands over there is not a piece of the path, it is the two banks of
+ *  a gap, and a line between them is a chord across the sphere that is in none
+ *  of the data. Short enough to slip under the drawer's own pen lift, long
+ *  enough to see: it was the little straight hook at the end of each of a
+ *  Clover's petals.
+ *
+ *  So the sampler says what it knows. `joined` is false for a piece it could
+ *  not resolve, and the pen goes up.
+ *
+ *  `project` maps a disc point to wherever it is drawn; `distance` says how
+ *  far apart two of those are.
  *
  *  Cut where the projection actually moves rather than evenly along the step.
  *  The azimuth swing near the disc's origin is concentrated at the closest
@@ -144,8 +191,35 @@ sampleDiscStep (float x1, float y1, float x2, float y2,
                 DiscSampling const &how, Project project, Distance distance,
                 Emit emit)
 {
+  auto const stepX = x2 - x1;
+  auto const stepY = y2 - y1;
+  auto const stepLength = std::sqrt (stepX * stepX + stepY * stepY);
+
+  // Inside the hole there is nothing to draw -- see DiscSampling::originHole.
+  auto const inHole = [&] (float t) {
+    auto const x = x1 + stepX * t;
+    auto const y = y1 + stepY * t;
+    return x * x + y * y < how.originHole * how.originHole;
+  };
+
   auto const at = [&] (float t) {
-    return project (x1 + (x2 - x1) * t, y1 + (y2 - y1) * t);
+    auto x = x1 + stepX * t;
+    auto y = y1 + stepY * t;
+
+    // A point inside the hole is still measured -- the halving needs
+    // somewhere to put it -- but it is measured at the hole's edge, not at
+    // the middle, where the projection would answer with whatever atan2 makes
+    // of two zeroes: a bearing of zero, one fixed corner of the room. Held on
+    // its own bearing rather than moved to another one, so nothing is
+    // invented; and it is never emitted, so nothing of it is drawn.
+    auto const radius = std::sqrt (x * x + y * y);
+    if (radius > 0.f && radius < how.originHole)
+      {
+        x *= how.originHole / radius;
+        y *= how.originHole / radius;
+      }
+
+    return project (x, y);
   };
 
   auto const coarse = discStepPieces (x1, y1, x2, y2, how.maxStep,
@@ -164,6 +238,13 @@ sampleDiscStep (float x1, float y1, float x2, float y2,
   auto previousT = 0.f;
   auto previous = at (0.f);
 
+  // What the caller's pen is on. The step starts where the last one ended, so
+  // this is the right thing to measure the first piece against -- and it is
+  // the only way to notice the hole: the pieces either side of it are each
+  // small, and it is the distance *across* it that says whether the two banks
+  // belong to one line.
+  auto lastEmitted = previous;
+
   for (int piece = 1; piece <= coarse; ++piece)
     {
       auto const t1
@@ -177,8 +258,9 @@ sampleDiscStep (float x1, float y1, float x2, float y2,
           auto const here = stack.back ();
           stack.pop_back ();
 
-          if (here.depth < how.maxDepth
-              && distance (here.p0, here.p1) > how.maxDrawn)
+          auto const reach = distance (here.p0, here.p1);
+
+          if (here.depth < how.maxDepth && reach > how.maxDrawn)
             {
               auto const tm = (here.t0 + here.t1) * 0.5f;
               auto const pm = at (tm);
@@ -187,7 +269,13 @@ sampleDiscStep (float x1, float y1, float x2, float y2,
               continue;
             }
 
-          emit (here.p1);
+          juce::ignoreUnused (reach);
+
+          if (!inHole (here.t1))
+            {
+              emit (here.p1, distance (lastEmitted, here.p1) <= how.maxDrawn);
+              lastEmitted = here.p1;
+            }
         }
 
       previousT = t1;

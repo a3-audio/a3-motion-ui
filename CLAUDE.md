@@ -1058,6 +1058,17 @@ polling the firmware directly over serial and printing decoded input events; use
 whether hardware issues are in the firmware, the serial link, or the C++ adapter. The firmware
 itself lives in a separate repository (see `team.md` §5.3 for the link).
 
+### JUCE traps
+
+**`juce::PathFlatteningIterator::subPathIndex` counts line segments, not sub-paths.**
+`juce_PathIterator.cpp` increments it on every line marker, so on a path built out of `lineTo` --
+which is every trajectory built from ticks (`refreshPatternDisplayFromTicks`) -- each segment claims
+to begin a new sub-path. Reading it as its name suggests drew every trajectory as a couple of
+thousand disconnected two-point strokes; wherever two ticks landed far apart in the picture, the
+line silently stopped and started again. Find a stroke break the only way that is true of a path:
+this segment starts where the last one ended, or it does not. Pinned by
+`SphereProjection.JucesSubPathIndexCountsSegmentsNotSubPaths`.
+
 ### Known documentation-vs-code drift
 
 `team.md` §8 explicitly notes: some in-code comments reference outdated button labels/indices, and

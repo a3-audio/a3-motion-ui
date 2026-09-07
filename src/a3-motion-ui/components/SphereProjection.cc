@@ -123,4 +123,26 @@ asSeenFromInverse (Pos const &viewed, SphereCamera const &camera)
   return rotated (unpitched, camera.turn, 0.f);
 }
 
+Pos
+slerpDirection (Pos const &from, Pos const &to, float t)
+{
+  auto const dot = std::clamp (from.x () * to.x () + from.y () * to.y ()
+                                   + from.z () * to.z (),
+                               -1.f, 1.f);
+  auto const angle = std::acos (dot);
+  auto const sine = std::sin (angle);
+
+  // Nothing between them, or nothing that can be divided by: two directions
+  // this close have no arc worth walking, and one is as good as the other.
+  if (sine < 1e-5f)
+    return to;
+
+  auto const a = std::sin ((1.f - t) * angle) / sine;
+  auto const b = std::sin (t * angle) / sine;
+
+  return Pos::fromCartesian (a * from.x () + b * to.x (),
+                             a * from.y () + b * to.y (),
+                             a * from.z () + b * to.z ());
+}
+
 }

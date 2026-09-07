@@ -1583,16 +1583,16 @@ drawPathOnSphere (juce::Path const &displayPath,
   // applied here and not by transforming the path: transforming the path would
   // mean copying it every frame, and the sub-sampling below would then be
   // measuring distances on the transformed copy.
-  auto projectPoint = [&] (float x, float y)
-      -> std::pair<juce::Point<float>, float> {
+  auto projectPoint = [&] (float x, float y) -> Pos {
     auto pos3D = heightMap.mapTo3D (
         shapedPosition (Pos::fromCartesian (x, y, 0.f), shaping),
         elevationParams);
-    // The depth that comes back is the *seen* one: what is drawn nearer the
-    // eye has to fade less, and which of two points that is depends on where
-    // the eye is standing.
-    auto const seen = asSeenFrom (pos3D, camera);
-    return { cartesian2DHOA2JUCE (seen), seen.z () };
+    // The direction that comes back is the *seen* one: what is drawn nearer
+    // the eye has to fade less, and which of two points that is depends on
+    // where the eye is standing. Kept as a direction rather than flattened to
+    // screen here, because a step too long to be a straight line has to be
+    // walked along the sphere, and that walk is a walk between directions.
+    return asSeenFrom (pos3D, camera);
   };
 
   // Maximum 2D step size before we insert intermediate samples.
@@ -1636,36 +1636,77 @@ drawPathOnSphere (juce::Path const &displayPath,
   projected.reserve (512);
   startsRun.reserve (512);
 
-  auto const addPoint = [&projected, &startsRun, maxJump] (
-                            std::pair<juce::Point<float>, float> point,
-                            bool starts) {
-    if (!starts && !projected.empty ())
-      {
-        auto const &was = projected.back ();
-        auto const dx = point.first.x - was.first.x;
-        auto const dy = point.first.y - was.first.y;
-        auto const dz = point.second - was.second;
+  Pos previousSeen;
+  bool haveSeen = false;
 
-        if (dx * dx + dy * dy + dz * dz > maxJump * maxJump)
-          starts = true;
+  auto const keep = [&projected, &startsRun] (Pos const &seen, bool starts) {
+    projected.push_back ({ cartesian2DHOA2JUCE (seen), seen.z () });
+    startsRun.push_back (starts);
+  };
+
+  auto const apart = [] (Pos const &a, Pos const &b) {
+    auto const dx = a.x () - b.x ();
+    auto const dy = a.y () - b.y ();
+    auto const dz = a.z () - b.z ();
+    return std::sqrt (dx * dx + dy * dy + dz * dz);
+  };
+
+  auto const addPoint = [&] (Pos const &seen, bool starts) {
+    if (!starts && haveSeen)
+      {
+        auto const chord = apart (previousSeen, seen);
+
+        if (chord > maxJump)
+          {
+            starts = true;
+          }
+        else if (chord > sampling.maxDrawn)
+          {
+            // Too long to be a straight line, so it is walked along the
+            // sphere instead of ruled across it. This is the pad's origin:
+            // the projection moves there without the disc moving, so no
+            // amount of cutting the *step* brings these two any closer -- a
+            // Clover's junction is nineteen degrees of one latitude, and the
+            // chord between them passes through the inside of the sphere,
+            // where the sound never is.
+            auto const pieces = static_cast<int> (
+                std::ceil (chord / sampling.maxDrawn));
+
+            for (int i = 1; i < pieces; ++i)
+              keep (slerpDirection (previousSeen, seen,
+                                    static_cast<float> (i)
+                                        / static_cast<float> (pieces)),
+                    false);
+          }
       }
 
-    projected.push_back (point);
-    startsRun.push_back (starts);
+    keep (seen, starts);
+    previousSeen = seen;
+    haveSeen = true;
   };
 
   juce::PathFlatteningIterator iter (displayPath, {}, 0.005f);
 
   bool firstPoint = true;
-  int currentSubPath = -1;
   float prevX = 0.f, prevY = 0.f;
 
   while (iter.next ())
     {
-      auto const beginsSubPath = iter.subPathIndex != currentSubPath;
-      currentSubPath = iter.subPathIndex;
+      // A stroke breaks where the segments stop meeting -- this one does not
+      // start where the last one ended.
+      //
+      // Not iter.subPathIndex, whatever its name says: JUCE increments it on
+      // every line marker (juce_PathIterator.cpp), so on a path built out of
+      // lineTo -- which is every trajectory built from ticks -- every single
+      // segment claimed to be a new sub-path. The line was drawn as a couple
+      // of thousand two-point strokes, and wherever two ticks land far apart
+      // in the picture, which is the pad's origin, it simply stopped and
+      // started again. That is the gap at each of a Clover's junctions.
+      auto const beginsSubPath
+          = firstPoint || std::abs (iter.x1 - prevX) > 1e-6f
+            || std::abs (iter.y1 - prevY) > 1e-6f;
 
-      if (firstPoint || beginsSubPath)
+      if (beginsSubPath)
         {
           // The first point of this subpath. Nothing joins it to what came
           // before -- that is what makes it a subpath.
@@ -1680,14 +1721,10 @@ drawPathOnSphere (juce::Path const &displayPath,
       // sampleDiscStep(), which halves a piece while its two ends land too
       // far apart. Spread evenly, the pieces are spent out where nothing is
       // happening and the closest approach to the disc's origin is starved.
-      sampleDiscStep (
-          prevX, prevY, iter.x2, iter.y2, sampling, projectPoint,
-          [] (auto const &a, auto const &b) {
-            auto const d = a.first - b.first;
-            auto const dz = a.second - b.second;
-            return std::sqrt (d.x * d.x + d.y * d.y + dz * dz);
-          },
-          [&addPoint] (auto const &point) { addPoint (point, false); });
+      sampleDiscStep (prevX, prevY, iter.x2, iter.y2, sampling, projectPoint,
+                      apart, [&addPoint] (Pos const &point, bool joined) {
+                        addPoint (point, !joined);
+                      });
       prevX = iter.x2;
       prevY = iter.y2;
     }

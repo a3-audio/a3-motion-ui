@@ -144,8 +144,72 @@ worstDrawn (float x1, float y1, float x2, float y2, float reach, float base)
   auto worst = 0.f;
 
   sampleDiscStep (x1, y1, x2, y2, DiscSampling{}, project, apart,
-                  [&] (Pos const &point) {
-                    worst = std::max (worst, apart (previous, point));
+                  [&] (Pos const &point, bool joined) {
+                    if (joined)
+                      worst = std::max (worst, apart (previous, point));
+                    previous = point;
+                  });
+
+  return worst;
+}
+
+/** How many times the sampler tells the drawer to lift the pen across this
+ *  step: how many pieces it could not resolve. */
+int
+liftsAcross (float x1, float y1, float x2, float y2, float reach, float base)
+{
+  HeightMapSphere heightMap;
+
+  ElevationParams params;
+  params.reach = reach;
+  params.elevationBase = base;
+
+  auto const project = [&] (float x, float y) {
+    return heightMap.mapTo3D (Pos::fromCartesian (x, y, 0.f), params);
+  };
+  auto const apart = [] (Pos const &a, Pos const &b) {
+    return std::sqrt (std::pow (a.x () - b.x (), 2.f)
+                      + std::pow (a.y () - b.y (), 2.f)
+                      + std::pow (a.z () - b.z (), 2.f));
+  };
+
+  auto lifts = 0;
+  sampleDiscStep (x1, y1, x2, y2, DiscSampling{}, project, apart,
+                  [&lifts] (Pos const &, bool joined) {
+                    if (!joined)
+                      ++lifts;
+                  });
+
+  return lifts;
+}
+
+/** The longest piece the drawer is told it may *join*. Anything longer is a
+ *  line across the sphere that is in none of the data. */
+float
+worstJoined (float x1, float y1, float x2, float y2, float reach, float base)
+{
+  HeightMapSphere heightMap;
+
+  ElevationParams params;
+  params.reach = reach;
+  params.elevationBase = base;
+
+  auto const project = [&] (float x, float y) {
+    return heightMap.mapTo3D (Pos::fromCartesian (x, y, 0.f), params);
+  };
+  auto const apart = [] (Pos const &a, Pos const &b) {
+    return std::sqrt (std::pow (a.x () - b.x (), 2.f)
+                      + std::pow (a.y () - b.y (), 2.f)
+                      + std::pow (a.z () - b.z (), 2.f));
+  };
+
+  auto previous = project (x1, y1);
+  auto worst = 0.f;
+
+  sampleDiscStep (x1, y1, x2, y2, DiscSampling{}, project, apart,
+                  [&] (Pos const &point, bool joined) {
+                    if (joined)
+                      worst = std::max (worst, apart (previous, point));
                     previous = point;
                   });
 
@@ -192,11 +256,80 @@ TEST (DiscStepPieces, APathThatOnlyJustMissesTheOriginIsStillACurve)
 TEST (DiscStepPieces, StraightThroughTheOriginTearsOnceTheBaseLeavesThePole)
 {
   for (float base : { 0.f, 1.f })
-    EXPECT_LT (worstDrawn (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), 0.1f)
-        << "base " << base << ": at a pole the crossing must stay whole";
+    {
+      EXPECT_LT (worstDrawn (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), 0.1f)
+          << "base " << base << ": at a pole the crossing must stay whole";
+      EXPECT_EQ (liftsAcross (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), 0)
+          << "base " << base << ": nothing to lift the pen for at a pole";
+    }
 
   for (float base : { 0.25f, 0.5f, 0.75f })
-    EXPECT_GT (worstDrawn (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), 0.5f)
+    EXPECT_GT (liftsAcross (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), 0)
         << "base " << base
         << ": pinned so a change of mapping shows up here, not in the booth";
+}
+
+/** Halving a piece has a floor, and at the disc's origin the swing does not.
+ *  So the sampler runs out of depth with its two ends still far apart, and
+ *  what it hands over is a chord across the sphere -- short enough to slip
+ *  under the pen lift, long enough to see. That is the little straight hook at
+ *  the end of each of a Clover's petals.
+ *
+ *  A piece it could not resolve is not a piece: the sampler has to say so, and
+ *  the pen goes up rather than joining two points it knows nothing between.
+ */
+TEST (DiscStepPieces, APieceItCouldNotResolveIsNotDrawn)
+{
+  DiscSampling const how;
+
+  for (float base : { 0.13f, 0.25f, 0.5f })
+    EXPECT_LE (worstJoined (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), how.maxDrawn)
+        << "base " << base
+        << ": a line was joined across a piece the sampler gave up on";
+}
+
+/** The disc's origin has no bearing of its own, and a projection asked for one
+ *  there answers with a fixed direction -- atan2(0, 0) is zero, which is one
+ *  particular corner of the room. Every shape with a vertex at the middle of
+ *  the pad therefore shot off to that corner and came back: a Clover swings
+ *  only five and a half degrees across each of its four junctions, and was
+ *  drawn swinging forty-two degrees to zero and back.
+ *
+ *  The segment does have a direction even where the point does not, so that is
+ *  what is used. A hair along the segment is far below a pixel and is the only
+ *  honest answer available at a point that has none.
+ */
+TEST (DiscStepPieces, TheOriginIsNotDrawnAtWhateverAtan2SaysAboutNothing)
+{
+  HeightMapSphere heightMap;
+
+  ElevationParams params;
+  params.reach = 0.5f;
+  params.elevationBase = 0.13f;
+
+  auto const project = [&] (float x, float y) {
+    return heightMap.mapTo3D (Pos::fromCartesian (x, y, 0.f), params);
+  };
+  auto const apart = [] (Pos const &a, Pos const &b) {
+    return std::sqrt (std::pow (a.x () - b.x (), 2.f)
+                      + std::pow (a.y () - b.y (), 2.f)
+                      + std::pow (a.z () - b.z (), 2.f));
+  };
+
+  // A step ending exactly at the pad's origin, arriving on a bearing of forty
+  // five degrees -- one arm of a Clover's junction.
+  auto const bearing = juce::MathConstants<float>::pi / 4.f;
+  auto const from = 0.4f;
+
+  sampleDiscStep (from * std::cos (bearing), from * std::sin (bearing), 0.f,
+                  0.f, DiscSampling{}, project, apart,
+                  [&] (Pos const &point, bool) {
+                    auto const drawn = std::atan2 (point.y (), point.x ());
+                    auto const off = std::abs (std::remainder (
+                        drawn - bearing, juce::MathConstants<float>::twoPi));
+
+                    EXPECT_LT (off, 0.05f)
+                        << "a point of this arm was drawn on a bearing the arm "
+                           "never had";
+                  });
 }

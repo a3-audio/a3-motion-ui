@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <set>
+
 #include <a3-motion-ui/components/SphereProjection.hh>
 
 #include <cmath>
@@ -94,4 +96,115 @@ TEST (SphereProjection, BeyondTheRimIsHeldAtTheHorizon)
   EXPECT_NEAR (std::hypot (direction.x (), direction.y ()), 1.f, 0.001f);
 }
 
+}
+
+// ── Drawn on the sphere, not through it ─────────────────────────────────
+
+/** A step too long to be a straight line is drawn as the arc it is.
+ *
+ *  Near the pad's origin the projection moves without the disc moving, so two
+ *  neighbouring samples can sit a fair way apart on the same latitude -- the
+ *  two arms of a Clover's junction are nineteen degrees apart there. Joined by
+ *  a straight line, that is a chord through the *inside* of the sphere, which
+ *  is the one place the sound never is; drawn short, it reads as a line ruled
+ *  across the picture. Walked along the sphere it is the small elbow it
+ *  actually is.
+ */
+TEST (SphereProjection, AStepIsWalkedAlongTheSphereNotAcrossIt)
+{
+  auto const at = [] (float bearingDeg, float z) {
+    auto const rad = bearingDeg * juce::MathConstants<float>::pi / 180.f;
+    auto const rXY = std::sqrt (1.f - z * z);
+    return Pos::fromCartesian (rXY * std::cos (rad), rXY * std::sin (rad), z);
+  };
+
+  auto const from = at (35.5f, 0.9177f);
+  auto const to = at (54.5f, 0.9177f);
+
+  for (int i = 0; i <= 8; ++i)
+    {
+      auto const t = static_cast<float> (i) / 8.f;
+      auto const on = slerpDirection (from, to, t);
+
+      EXPECT_NEAR (std::sqrt (on.x () * on.x () + on.y () * on.y ()
+                              + on.z () * on.z ()),
+                   1.f, 1e-4f)
+          << "t " << t << ": the walk left the sphere";
+      EXPECT_NEAR (on.z (), 0.9177f, 2e-3f)
+          << "t " << t << ": it should stay at the height it started at";
+    }
+
+  // The ends are the ends, exactly: a walk that does not arrive is a gap.
+  auto const start = slerpDirection (from, to, 0.f);
+  auto const end = slerpDirection (from, to, 1.f);
+  EXPECT_NEAR (start.x (), from.x (), 1e-5f);
+  EXPECT_NEAR (end.y (), to.y (), 1e-5f);
+}
+
+// Two points that are already the same point have no arc between them, and
+// asking for one must not divide by the sine of nothing.
+TEST (SphereProjection, AWalkToWhereYouAlreadyAreIsNotANaN)
+{
+  auto const here = Pos::fromCartesian (0.f, 0.f, 1.f);
+  auto const on = slerpDirection (here, here, 0.5f);
+
+  EXPECT_NEAR (on.z (), 1.f, 1e-5f);
+}
+
+/** juce::PathFlatteningIterator::subPathIndex counts *line segments*, not
+ *  sub-paths -- juce_PathIterator.cpp increments it on every line marker. The
+ *  name says otherwise, and reading it as a sub-path index is what drew every
+ *  tick-built trajectory as a few thousand two-point strokes instead of one
+ *  line: a stroke that starts afresh at every tick is not joined to the one
+ *  before it, so wherever two ticks land far apart -- the pad's origin -- the
+ *  line simply stopped and started again.
+ *
+ *  Pinned here because the fix depends on the trap being real: if a later JUCE
+ *  makes the member mean what it says, this fails and the workaround can go.
+ */
+TEST (SphereProjection, JucesSubPathIndexCountsSegmentsNotSubPaths)
+{
+  juce::Path path;
+  path.startNewSubPath (0.f, 0.f);
+  for (int i = 1; i <= 5; ++i)
+    path.lineTo (static_cast<float> (i), 0.f);
+
+  std::set<int> reported;
+  juce::PathFlatteningIterator iter (path, {}, 0.005f);
+  while (iter.next ())
+    reported.insert (iter.subPathIndex);
+
+  EXPECT_GT (reported.size (), 1u)
+      << "subPathIndex now names sub-paths; the workaround can be removed";
+}
+
+/** So a new stroke is found the only way that is actually true of a path:
+ *  this segment starts where the last one ended, or it does not. */
+TEST (SphereProjection, AStrokeBreaksWhereTheSegmentsStopMeeting)
+{
+  juce::Path path;
+  path.startNewSubPath (0.f, 0.f);
+  path.lineTo (1.f, 0.f);
+  path.lineTo (1.f, 1.f);
+  path.startNewSubPath (5.f, 5.f);
+  path.lineTo (6.f, 5.f);
+
+  int breaks = 0;
+  bool firstSegment = true;
+  float prevX = 0.f, prevY = 0.f;
+
+  juce::PathFlatteningIterator iter (path, {}, 0.005f);
+  while (iter.next ())
+    {
+      if (firstSegment
+          || std::abs (iter.x1 - prevX) > 1e-6f
+          || std::abs (iter.y1 - prevY) > 1e-6f)
+        ++breaks;
+
+      firstSegment = false;
+      prevX = iter.x2;
+      prevY = iter.y2;
+    }
+
+  EXPECT_EQ (breaks, 2) << "one for the start, one for the second sub-path";
 }
