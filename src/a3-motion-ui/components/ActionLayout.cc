@@ -79,12 +79,23 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
 
   auto grid = sectionContentBounds (out.card);
 
-  // Where the rows begin: on the strip's if it gave us any, otherwise centred
-  // in what the card has.
+  // The card is named before anything stands on it.
+  out.cardCaption = grid.removeFromTop (
+      juce::jmin (grid.getHeight () / 5, static_cast<int> (headerSize * 1.4f)));
+  grid.removeFromTop (gap / 2);
+
+  // Where the rows begin: at the top of what the card has left, so the knobs
+  // are the first thing under the name and the room below them is free for
+  // the key that fires the thing. They used to be centred, which put them
+  // halfway down a card with nothing under them.
+  //
+  // The global strip's rows still win when it offers a set that fits, so the
+  // two blocks read across at one height -- but never lower than the top,
+  // which is what "centred" was really costing.
   auto const blockH = ActionLayout::numRows * rowH;
   auto const top = referenceFits
-                       ? gridReference.getY ()
-                       : grid.getY () + (grid.getHeight () - blockH) / 2;
+                       ? juce::jmax (grid.getY (), gridReference.getY ())
+                       : grid.getY ();
 
   auto const indent = juce::jmax (0, (grid.getWidth () - gridW) / 2);
 
@@ -99,6 +110,19 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
         out.controls[static_cast<size_t> (row * 3 + i)]
             = band.removeFromLeft (colW).reduced (1);
     }
+
+  // And the key that fires it, in what the knobs left. Fat: it is the one
+  // thing on this page that happens now.
+  {
+    auto below = grid.withTop (top + blockH + gap);
+    if (below.getHeight () >= fingertipSize)
+      out.fireButton
+          = below.removeFromTop (
+                juce::jmin (below.getHeight (), rowH * 3 / 2))
+                .withSizeKeepingCentre (
+                    juce::jmin (gridW, below.getWidth ()),
+                    juce::jmin (below.getHeight (), rowH * 3 / 2));
+  }
 
   // What is left is the action's: its name and mode on one line, the script
   // it carries under them.

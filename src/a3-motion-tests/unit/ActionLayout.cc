@@ -113,22 +113,25 @@ TEST (ActionLayout, TheModeStandsBesideTheActionsName)
   EXPECT_FALSE (l.actModeField.intersects (l.actionField));
   EXPECT_GE (l.actModeField.getX (), l.actionField.getRight ());
 
+  // Clear of the knobs left and right rather than above them: the knobs sit
+  // at the top of their own card now, so the two blocks stand side by side
+  // and it is the column that has to be kept, not the row.
   for (auto const &control : l.controls)
-    EXPECT_LE (l.actModeField.getBottom (), control.getY ());
+    EXPECT_LE (l.actModeField.getRight (), control.getX ());
 
   EXPECT_GE (l.actModeField.getWidth (), fingertipSize);
   EXPECT_GE (l.actModeField.getHeight (), fingertipSize);
 }
 
-// What the slot fires is named above the controls and clear of them.
-TEST (ActionLayout, TheActionFieldSitsClearAboveTheControls)
+// What the slot fires is named beside the controls and clear of them.
+TEST (ActionLayout, TheActionFieldSitsClearOfTheControls)
 {
   auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f, {});
 
   ASSERT_FALSE (l.actionField.isEmpty ());
   for (auto const &control : l.controls)
     {
-      EXPECT_LE (l.actionField.getBottom (), control.getY ());
+      EXPECT_LE (l.actionField.getRight (), control.getX ());
       EXPECT_FALSE (l.actionField.intersects (control));
     }
 }
@@ -202,7 +205,7 @@ TEST (ActionLayout, TheKnobsAreAGridOfThreeByThree)
 // strip's channels. Without a reference it lays itself out and says nothing.
 TEST (ActionLayout, GivenTheGlobalRowsItSitsOnThem)
 {
-  juce::Rectangle<int> const reference{ 0, 40, 10, 120 }; // three rows of 40
+  juce::Rectangle<int> const reference{ 0, 80, 10, 120 }; // three rows of 40
 
   auto const l
       = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f, reference);
@@ -210,9 +213,44 @@ TEST (ActionLayout, GivenTheGlobalRowsItSitsOnThem)
   for (int row = 0; row < ActionLayout::numRows; ++row)
     {
       auto const &band = l.rows[static_cast<size_t> (row)];
-      EXPECT_EQ (band.getY (), 40 + row * 40) << "row " << row;
+      EXPECT_EQ (band.getY (), 80 + row * 40) << "row " << row;
       EXPECT_EQ (band.getHeight (), 40) << "row " << row;
     }
+}
+
+// But never above the card's own name. Lining up with the strip is worth
+// having; a knob drawn over the word that says what the knobs are is not.
+TEST (ActionLayout, ItWillNotLineUpOverTheCardsName)
+{
+  juce::Rectangle<int> const wayUp{ 0, 0, 10, 120 };
+
+  auto const l
+      = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f, wayUp);
+
+  ASSERT_FALSE (l.cardCaption.isEmpty ());
+  for (auto const &control : l.controls)
+    EXPECT_GE (control.getY (), l.cardCaption.getBottom ());
+}
+
+// The knobs are the first thing under that name, and what they leave under
+// them is the key that fires the action. They used to be centred, which put
+// them halfway down a card with nothing beneath them.
+TEST (ActionLayout, TheKnobsAreAtTheTopAndTheKeyIsUnderThem)
+{
+  auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f,
+                                   {});
+
+  ASSERT_FALSE (l.fireButton.isEmpty ());
+
+  for (auto const &control : l.controls)
+    {
+      EXPECT_GE (control.getY (), l.cardCaption.getBottom ());
+      EXPECT_LE (control.getBottom (), l.fireButton.getY ());
+    }
+
+  EXPECT_GE (l.fireButton.getHeight (), fingertipSize)
+      << "the one key on this page that happens now is not a fingertip";
+  EXPECT_LE (l.fireButton.getBottom (), l.card.getBottom ());
 }
 
 // A reference that would push the rows off the page is ignored rather than

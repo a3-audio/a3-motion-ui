@@ -137,10 +137,14 @@ TEST (BrowserLayout, TheListSaysWhichOfTheThreeFoldersItShows)
         ASSERT_FALSE (l.actionsTab.isEmpty ()) << width << "x" << height;
         ASSERT_FALSE (l.setsTab.isEmpty ()) << width << "x" << height;
 
-        // Side by side, in reading order, none of them overlapping.
-        EXPECT_LE (l.clipsTab.getRight (), l.actionsTab.getX ())
+        // Side by side, none of them overlapping, and in the order the work
+        // is done in: a set holds clips, a clip holds a shape, and an action
+        // is what you reach for once all three are standing.
+        EXPECT_LE (l.setsTab.getRight (), l.clipsTab.getX ())
             << width << "x" << height;
-        EXPECT_LE (l.actionsTab.getRight (), l.setsTab.getX ())
+        EXPECT_LE (l.clipsTab.getRight (), l.shapesTab.getX ())
+            << width << "x" << height;
+        EXPECT_LE (l.shapesTab.getRight (), l.actionsTab.getX ())
             << width << "x" << height;
 
         // Clear of the list they head.

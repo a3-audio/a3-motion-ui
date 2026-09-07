@@ -95,6 +95,14 @@ public:
   int getSelectedEntry () const { return _selectedEntry; }
 
   /** Which folder the tabs and the list are showing. */
+  /** The colour of the channel this page is being used for.
+   *
+   *  The four folder tabs and the row a finger has picked light up in it, the
+   *  way everything else on the device says which channel it belongs to. A
+   *  browser that highlighted in one house colour whatever channel was
+   *  selected left the performer to remember which deck they were loading. */
+  void setChannelColour (juce::Colour colour);
+
   void setShowingList (BrowserList list);
 
   /** Which folder the list should show. One callback per tab rather than one
@@ -151,6 +159,9 @@ public:
   std::function<void (bool editing)> onRenameEditingChanged;
 
 private:
+  /** Read from the skin at construction and replaced the moment the page is
+   *  filled, which is where it learns whose channel it is showing. */
+  juce::Colour _channelColour;
   void paintRow (juce::Graphics &g, int row);
   void paintButton (juce::Graphics &g, juce::Rectangle<int> bounds,
                     juce::String const &label, bool enabled);

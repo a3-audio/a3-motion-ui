@@ -123,6 +123,11 @@ public:
   /** Keep what is in the editor. Only then is anything written -- typing
    *  used to save on every keystroke, which left no way to try a line and
    *  take it back. */
+  /** The fat key under the knobs: fires this slot's action for as long as it
+   *  is held, the way the ACT pad does. Held rather than tapped, because that
+   *  is what the pad it stands for does. */
+  std::function<void (bool held)> onFireHeld;
+
   std::function<void ()> onScriptSaved;
   /** Throw the edit away and put the file's text back. */
   std::function<void ()> onScriptCancelled;
@@ -187,6 +192,8 @@ private:
    *  caret. Neither is a knob, so neither is in `controls`. */
   std::unique_ptr<TouchControl> _actionTouch;
   std::unique_ptr<TouchControl> _scriptTouch;
+  std::unique_ptr<TouchControl> _fireTouch;
+  bool _firing = false;
   std::unique_ptr<TouchControl> _saveTouch;
   std::unique_ptr<TouchControl> _cancelTouch;
 };

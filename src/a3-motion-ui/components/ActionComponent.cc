@@ -140,6 +140,22 @@ ActionComponent::ActionComponent ()
   };
   addAndMakeVisible (*_scriptTouch);
 
+  // Held, not tapped: it stands for the ACT pad, and that pad is held.
+  _fireTouch = std::make_unique<TouchControl> ();
+  _fireTouch->onPress = [this] (int, int) {
+    _firing = true;
+    if (onFireHeld)
+      onFireHeld (true);
+    repaint ();
+  };
+  _fireTouch->onRelease = [this] (int, int) {
+    _firing = false;
+    if (onFireHeld)
+      onFireHeld (false);
+    repaint ();
+  };
+  addAndMakeVisible (*_fireTouch);
+
   _saveTouch = std::make_unique<TouchControl> ();
   _saveTouch->onTap = [this] (int, int) {
     if (!_buffer.isEdited ())
@@ -198,6 +214,8 @@ ActionComponent::resized ()
     _actionTouch->setBounds (_layout.actionField);
   if (_scriptTouch)
     _scriptTouch->setBounds (_layout.scriptTextField);
+  if (_fireTouch)
+    _fireTouch->setBounds (_layout.fireButton);
   if (_saveTouch)
     _saveTouch->setBounds (_layout.saveButton);
   if (_cancelTouch)
@@ -466,12 +484,18 @@ ActionComponent::paintActionField (juce::Graphics &g)
   if (bounds.isEmpty ())
     return;
 
-  g.setColour (toColour (theme ().textPrimary, 0.06f));
-  g.fillRoundedRectangle (bounds.toFloat (), 3.f);
-  g.setColour (toColour (theme ().textPrimary, 0.15f));
-  g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
-
   auto const named = _actionName.isNotEmpty ();
+
+  // A field that carries something stands in the channel's colour, the way
+  // everything else on the device says whose it is. It was one grey for every
+  // channel, which reads as furniture rather than as a thing that belongs to
+  // the deck you are on.
+  g.setColour (named ? _channelColour.withAlpha (0.28f)
+                     : toColour (theme ().textPrimary, 0.06f));
+  g.fillRoundedRectangle (bounds.toFloat (), 3.f);
+  g.setColour (named ? _channelColour.withAlpha (0.6f)
+                     : toColour (theme ().textPrimary, 0.15f));
+  g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
 
   // The channel's colour where it can be read on this ground, the theme's
   // text where it cannot -- channel four's blue vanished into the bar. See
@@ -763,9 +787,9 @@ ActionComponent::paint (juce::Graphics &g)
   // action's name because it says what a press does to all three envelopes,
   // so it belongs to none of their rows.
   auto const modeBounds = _layout.actModeField;
-  g.setColour (toColour (theme ().textPrimary, 0.06f));
+  g.setColour (_channelColour.withAlpha (0.28f));
   g.fillRoundedRectangle (modeBounds.toFloat (), 3.f);
-  g.setColour (toColour (theme ().textPrimary, 0.15f));
+  g.setColour (_channelColour.withAlpha (0.6f));
   g.drawRoundedRectangle (modeBounds.toFloat (), 3.f, 1.f);
 
   g.setColour (readableInk (_channelColour, toColour (theme ().background),
@@ -782,6 +806,38 @@ ActionComponent::paint (juce::Graphics &g)
   g.drawText (caption::actMode,
               modeBounds.withTrimmedTop (modeBounds.getHeight () * 2 / 3),
               juce::Justification::centred);
+
+  // What the card of knobs is: the accent and the two filters, which is the
+  // channel's audio. Nine unnamed knobs beside a script is a card you have to
+  // work out.
+  if (!_layout.cardCaption.isEmpty ())
+    {
+      g.setColour (toColour (theme ().textMuted, 0.8f));
+      g.setFont (juce::Font (juce::FontOptions (juce::jmin (
+          16.f, _layout.cardCaption.getHeight () * 0.7f))));
+      g.drawText ("Audio", _layout.cardCaption,
+                  juce::Justification::centred);
+    }
+
+  // And the key that fires it, under the knobs it sets. Filled rather than
+  // outlined: it is the one thing on this page that happens now, and it is
+  // pressed with one hand while the other is on the crossfader.
+  if (!_layout.fireButton.isEmpty ())
+    {
+      auto const at = _layout.fireButton.toFloat ();
+
+      g.setColour (_channelColour.withAlpha (_firing ? 1.f : 0.75f));
+      g.fillRoundedRectangle (at, 4.f);
+      g.setColour (_channelColour);
+      g.drawRoundedRectangle (at, 4.f, 2.f);
+
+      g.setColour (readableInk (toColour (theme ().textPrimary),
+                                _channelColour,
+                                toColour (theme ().background)));
+      g.setFont (juce::Font (juce::FontOptions (
+          juce::jmin (26.f, at.getHeight () * 0.5f), juce::Font::bold)));
+      g.drawText ("ACT", _layout.fireButton, juce::Justification::centred);
+    }
 
   // Last, so it covers what it opens over.
   paintActionList (g);

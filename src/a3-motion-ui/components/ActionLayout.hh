@@ -75,6 +75,18 @@ struct ActionLayout
    *  controls in the bar does. */
   juce::Rectangle<int> card;
 
+  /** What the card is called. "Audio", because that is what the nine knobs
+   *  do -- the accent and the two filters -- and a card of nine unnamed knobs
+   *  beside a script is a card you have to work out. */
+  juce::Rectangle<int> cardCaption;
+
+  /** Fires the action on the shown slot, under the knobs it sets.
+   *
+   *  Fat on purpose: it is the one thing on this page that happens *now*,
+   *  and it is pressed mid-set with one hand while the other is on the
+   *  crossfader. Everything else here is preparation. */
+  juce::Rectangle<int> fireButton;
+
   /** Three envelopes' worth of attack, decay and ceiling, in reading order --
    *  which is also the order the handler expects. The 3d accent first,
    *  because it is what ACT has always done, then the cutoff, then the

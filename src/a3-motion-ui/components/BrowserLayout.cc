@@ -45,13 +45,15 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
   auto tabRow = area.removeFromTop (
       juce::jmin (area.getHeight () / 4, buttonHeight));
   auto const tabW = (tabRow.getWidth () - gap * 3) / 4;
+  // In the order the work is done in: a set holds clips, a clip holds a
+  // shape, and an action is what you reach for once all three are standing.
+  out.setsTab = tabRow.removeFromLeft (tabW);
+  tabRow.removeFromLeft (gap);
   out.clipsTab = tabRow.removeFromLeft (tabW);
   tabRow.removeFromLeft (gap);
   out.shapesTab = tabRow.removeFromLeft (tabW);
   tabRow.removeFromLeft (gap);
   out.actionsTab = tabRow.removeFromLeft (tabW);
-  tabRow.removeFromLeft (gap);
-  out.setsTab = tabRow.removeFromLeft (tabW);
 
   area.removeFromTop (gap * 2);
   out.listArea = area;

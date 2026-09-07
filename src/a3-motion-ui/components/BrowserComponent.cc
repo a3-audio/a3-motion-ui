@@ -36,6 +36,7 @@ constexpr int maxVisibleRowTouches = 24;
 }
 
 BrowserComponent::BrowserComponent ()
+    : _channelColour (toColour (theme ().accent))
 {
   // Built once and given bounds when the layout says how many there are, the
   // same way the dropdown's entries are: a control created per repaint is a
@@ -212,12 +213,13 @@ BrowserComponent::paint (juce::Graphics &g)
   // on, what ACT does to a slot, and the arrangement of all eight at once. All
   // four are chosen the same way, in the same place, so none of them is a mode
   // you have to remember being in.
-  auto const paintListTab = [&g] (juce::Rectangle<int> bounds,
-                                  juce::String const &label, bool active) {
+  auto const paintListTab = [&g, this] (juce::Rectangle<int> bounds,
+                                       juce::String const &label,
+                                       bool active) {
     if (bounds.isEmpty ())
       return;
 
-    g.setColour (active ? toColour (theme ().accent, 0.35f)
+    g.setColour (active ? _channelColour.withAlpha (0.55f)
                         : toColour (theme ().textPrimary, 0.06f));
     g.fillRoundedRectangle (bounds.toFloat (), 3.f);
     g.setColour (toColour (theme ().textPrimary, active ? 0.35f : 0.15f));
@@ -230,11 +232,14 @@ BrowserComponent::paint (juce::Graphics &g)
     g.drawFittedText (label, bounds, juce::Justification::centred, 1);
   };
 
+  // Left to right in the order the work is done in: a set holds clips, a clip
+  // holds a shape, and an action is what you reach for once all three are
+  // standing.
+  paintListTab (_layout.setsTab, "SETS", _list == BrowserList::Sessions);
   paintListTab (_layout.clipsTab, "CLIPS", _list == BrowserList::Clips);
   paintListTab (_layout.shapesTab, "SVG", _list == BrowserList::Shapes);
   paintListTab (_layout.actionsTab, "ACTIONS",
                 _list == BrowserList::Actions);
-  paintListTab (_layout.setsTab, "SETS", _list == BrowserList::Sessions);
 
   g.setColour (toColour (theme ().surface, 0.5f));
   g.fillRoundedRectangle (_layout.listArea.toFloat (), 3.f);
@@ -262,7 +267,7 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
 
   if (chosen)
     {
-      g.setColour (toColour (theme ().accent, 0.25f));
+      g.setColour (_channelColour.withAlpha (0.3f));
       g.fillRoundedRectangle (bounds.toFloat ().reduced (1.f), 3.f);
     }
 
@@ -447,5 +452,15 @@ BrowserComponent::focusLost (FocusChangeType)
 }
 
 
+
+void
+BrowserComponent::setChannelColour (juce::Colour colour)
+{
+  if (colour == _channelColour)
+    return;
+
+  _channelColour = colour;
+  repaint ();
+}
 
 }

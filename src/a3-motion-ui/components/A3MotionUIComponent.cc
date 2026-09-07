@@ -617,6 +617,16 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   // Written only on Save, and running the script is the same gesture: half a
   // line is not a script, and a file written from one is worse than no file.
+  // The fat key under the knobs, which is the ACT pad in another place: same
+  // handler, so the two cannot come to mean different things.
+  _action->onFireHeld = [this] (bool held) {
+    auto const pad = padIndexFor (PadFunction::Action, _clipSettingsSlot);
+    if (held)
+      handlePadPress (_clipSettingsChannel, pad);
+    else
+      handlePadRelease (_clipSettingsChannel, pad);
+  };
+
   _action->onScriptSaved = [this] {
     writeSlotActionScript ();
     setSlotAction (_clipSettingsChannel, _clipSettingsSlot,
@@ -2176,6 +2186,14 @@ A3MotionUIComponent::refreshBrowser ()
 
   _browser->setEntries (names, settingsRows);
   _browser->setShowingList (_browserList);
+
+  // Which channel the page is being used for. Everything else on the device
+  // says it in colour; a browser that lit up in one house colour left the
+  // performer to remember which deck they were loading.
+  _browser->setChannelColour (
+      _clipSettingsChannel < _channelUIStates.size ()
+          ? _channelUIStates[_clipSettingsChannel]->colour
+          : toColour (theme ().accent));
 
   // The list points at what the chosen field is already holding. Without this
   // you have to remember what is in a slot in order to see it highlighted --
