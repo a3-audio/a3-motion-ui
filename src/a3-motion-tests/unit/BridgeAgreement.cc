@@ -27,6 +27,8 @@
 #include <a3-motion-engine/TrajectoryShape.hh>
 
 #include <algorithm>
+#include <cmath>
+#include <vector>
 
 using namespace a3;
 
@@ -149,4 +151,120 @@ TEST (BridgeAgreement, AtFullReachTheSameTakeIsDrawnThrough)
   pattern->setFadeReach (1.f);
 
   EXPECT_NEAR (pattern->getInterpolatedTick (halfWayAcross).x (), 0.f, 1e-5);
+}
+
+// ── The crossing takes time, and the time comes from the ends ────────────
+
+namespace
+{
+/** The longest a single tick moves the blob, over one lap of the take. */
+float
+worstTickStep (Pattern const &pattern, index_t ticks)
+{
+  auto worst = 0.f;
+  auto previous = pattern.getInterpolatedTick (0.0);
+
+  for (index_t tick = 1; tick <= ticks; ++tick)
+    {
+      auto const at = pattern.getInterpolatedTick (static_cast<double> (tick));
+      worst = std::max (worst, std::hypot (at.x () - previous.x (),
+                                           at.y () - previous.y ()));
+      previous = at;
+    }
+
+  return worst;
+}
+}
+
+/** A bridge used to be crossed in exactly one tick, however far it reached.
+ *
+ *  That is the blob shooting across the room: on a take of a few thousand
+ *  ticks a normal step is a thousandth or two, and a bridge over half the
+ *  sphere in the same tick is hundreds of times that. The line was right and
+ *  the movement along it was not.
+ *
+ *  So the crossing is given time, and the time is taken out of the two ends it
+ *  joins -- which is where it can come from, because a take has a fixed length
+ *  and a fixed bar. On a tapped take that costs nothing at all: the ends are
+ *  standing still, and standing still a little less is not something anyone
+ *  can hear.
+ */
+TEST (BridgeAgreement, ACrossingIsWalkedNotJumped)
+{
+  auto const pattern = twoTapsHeld ();
+  pattern->setFadeReach (1.f);
+
+  auto const gap = 1.6f; // -0.8 to 0.8
+  auto const worst = worstTickStep (*pattern, 2 * tapTicks);
+
+  EXPECT_LT (worst, gap / 10.f)
+      << "the crossing is still being taken in one stride";
+}
+
+/** And it is walked evenly. A crossing that starts slowly and then bolts is
+ *  the same fault wearing a ramp. */
+TEST (BridgeAgreement, TheCrossingIsWalkedAtOneSpeed)
+{
+  auto const pattern = twoTapsHeld ();
+  pattern->setFadeReach (1.f);
+
+  std::vector<float> steps;
+  auto previous = pattern->getInterpolatedTick (0.0);
+  for (index_t tick = 1; tick <= 2 * tapTicks; ++tick)
+    {
+      auto const at = pattern->getInterpolatedTick (static_cast<double> (tick));
+      auto const step = std::hypot (at.x () - previous.x (),
+                                    at.y () - previous.y ());
+      if (step > 1e-5f)
+        steps.push_back (step);
+      previous = at;
+    }
+
+  ASSERT_FALSE (steps.empty ());
+  auto const smallest = *std::min_element (steps.begin (), steps.end ());
+  auto const largest = *std::max_element (steps.begin (), steps.end ());
+
+  EXPECT_NEAR (largest, smallest, largest * 0.05f);
+}
+
+/** How much of the ends is given up is what the fade says. Turned down, the
+ *  crossing is quicker and the taps are held longer; turned up, the blob
+ *  leaves earlier and glides. */
+TEST (BridgeAgreement, TheFadeSaysHowMuchOfTheEndsIsGivenUp)
+{
+  auto const pattern = twoTapsHeld ();
+
+  pattern->setFadeReach (1.f);
+  auto const wideOpen = worstTickStep (*pattern, 2 * tapTicks);
+
+  pattern->setFadeReach (0.55f);
+  auto const halfWay = worstTickStep (*pattern, 2 * tapTicks);
+
+  EXPECT_GT (halfWay, wideOpen)
+      << "less reserved has to mean a quicker crossing, or the knob does "
+         "nothing";
+}
+
+/** The drawn line is the path the blob runs on -- that is what this whole
+ *  file is for -- so the line has to give up the same ends. */
+TEST (BridgeAgreement, TheLineGivesUpTheSameEndsTheMovementDoes)
+{
+  std::vector<Pos> ticks;
+  for (index_t i = 0; i < tapTicks; ++i)
+    ticks.push_back (Pos::fromCartesian (-0.8f, 0.f, 0.f));
+  for (index_t i = 0; i < tapTicks; ++i)
+    ticks.push_back (Pos::fromCartesian (0.8f, 0.f, 0.f));
+
+  auto const pattern = aPatternOf (ticks);
+  pattern->setFadeReach (1.f);
+
+  auto const drawn = trajectorySegments (ticks, pattern->getBridgePlan ());
+
+  // One unbroken line: the gap is bridged, so nothing is cut.
+  ASSERT_EQ (drawn.size (), 1u);
+
+  // And it is shorter than the take by exactly what the crossing reserved --
+  // those ticks are not on the line, because the blob is not on them.
+  EXPECT_LT (drawn.front ().size (), ticks.size ())
+      << "the line still draws the ends the movement has left";
 }

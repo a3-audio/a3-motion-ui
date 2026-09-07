@@ -291,6 +291,14 @@ trajectorySegments (std::vector<Pos> const &ticks, BridgePlan const &plan)
           continue;
         }
 
+      // A tick the blob never stands on is not on the line either: during a
+      // crossing it is somewhere between the two ends, and the ends it gave up
+      // are not visited. Asked of the same plan the movement reads, so the two
+      // cannot drift apart.
+      if (plan.skipsTick (static_cast<index_t> (i),
+                          static_cast<index_t> (ticks.size ())))
+        continue;
+
       current.push_back (ticks[i]);
 
       // Cut after this tick, so the teleport itself is never a drawn edge.

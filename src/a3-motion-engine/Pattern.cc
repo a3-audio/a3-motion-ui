@@ -652,9 +652,9 @@ Pattern::getInterpolatedTick (double fractionalTick) const
   // two independent answers drift apart, and then the sphere shows a line the
   // blob does not run on.
   ensureBridgePlanLocked ();
-  auto const bridge = _bridgePlan.via (tickFloor);
+  auto const *crossing = _bridgePlan.crossingAt (tickFloor, effLen);
 
-  if (!bridge.has_value () && _jumpThreshold > 0.f)
+  if (crossing == nullptr && _jumpThreshold > 0.f)
     {
       auto const step = std::sqrt (
           std::pow (posCeil.x () - posFloor.x (), 2.f)
@@ -664,22 +664,57 @@ Pattern::getInterpolatedTick (double fractionalTick) const
         return posFloor;
     }
 
-  // A bridge that leads somewhere other than the next tick is a detour: out to
-  // the chosen point over the first half of the gap and back to the timeline
-  // over the second, so the take keeps its length, its bar and its order and
-  // only its holes take another way.
-  if (bridge.has_value () && *bridge != tickCeil)
+  // A crossing is walked, not jumped.
+  //
+  // It used to be taken in the single tick the gap sits in, however far it
+  // reached -- which is the blob shooting across the room, hundreds of times
+  // the speed of every other tick of the take. Now it is given a window, out
+  // of the two ends it joins, and it is walked across that window at one
+  // speed: out to the point it lands on, then on to where it rejoins the
+  // timeline. The take keeps its length, its bar and its order; what it gives
+  // up is the tail of the run before and the head of the run after, which on
+  // a tapped take is time spent standing still.
+  if (crossing != nullptr)
     {
-      auto const &posVia = _ticks[*bridge];
-      auto const legFraction = fraction < 0.5f ? fraction * 2.f
-                                               : (fraction - 0.5f) * 2.f;
-      auto const &from = fraction < 0.5f ? posFloor : posVia;
-      auto const &to = fraction < 0.5f ? posVia : posCeil;
+      auto const rejoin
+          = static_cast<index_t> ((crossing->leaveTick + crossing->windowTicks)
+                                  % effLen);
 
-      return Pos::fromCartesian (
-          from.x () + (to.x () - from.x ()) * legFraction,
-          from.y () + (to.y () - from.y ()) * legFraction,
-          from.z () + (to.z () - from.z ()) * legFraction);
+      auto const &posLeave = _ticks[crossing->leaveTick];
+      auto const &posVia = _ticks[crossing->viaTick];
+      auto const &posRejoin = _ticks[rejoin];
+
+      auto const span = [] (Pos const &a, Pos const &b) {
+        return std::sqrt (std::pow (b.x () - a.x (), 2.f)
+                          + std::pow (b.y () - a.y (), 2.f)
+                          + std::pow (b.z () - a.z (), 2.f));
+      };
+
+      auto const outward = span (posLeave, posVia);
+      auto const onward = span (posVia, posRejoin);
+
+      auto since = normalizedTick - static_cast<double> (crossing->leaveTick);
+      if (since < 0.0)
+        since += effectiveLength;
+
+      auto const travelled
+          = static_cast<float> (since / crossing->windowTicks)
+            * (outward + onward);
+
+      auto const walk = [] (Pos const &from, Pos const &to, float part) {
+        return Pos::fromCartesian (
+            from.x () + (to.x () - from.x ()) * part,
+            from.y () + (to.y () - from.y ()) * part,
+            from.z () + (to.z () - from.z ()) * part);
+      };
+
+      if (travelled <= outward)
+        return outward > 0.f ? walk (posLeave, posVia, travelled / outward)
+                             : posVia;
+
+      return onward > 0.f
+                 ? walk (posVia, posRejoin, (travelled - outward) / onward)
+                 : posRejoin;
     }
 
   // Interpolate in Cartesian space for smooth, robust interpolation

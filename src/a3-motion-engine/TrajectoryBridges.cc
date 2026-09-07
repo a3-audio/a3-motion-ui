@@ -68,6 +68,56 @@ runOf (std::vector<size_t> const &starts, size_t tick)
       run = i;
   return run;
 }
+
+/** How many ticks the run containing `tick` has before it, and after it. The
+ *  crossing may only eat into these -- never past the end of a run, or it
+ *  would swallow a whole tap. */
+size_t
+ticksBefore (std::vector<size_t> const &starts, size_t tick)
+{
+  return tick - starts[runOf (starts, tick)];
+}
+
+size_t
+ticksAfter (std::vector<size_t> const &starts, size_t tick, size_t numTicks)
+{
+  auto const run = runOf (starts, tick);
+  auto const end = run + 1 < starts.size () ? starts[run + 1] : numTicks;
+  return end - 1 - tick;
+}
+}
+
+Bridge const *
+BridgePlan::crossingAt (index_t tick, index_t numTicks) const
+{
+  if (numTicks == 0)
+    return nullptr;
+
+  for (auto const &bridge : bridges)
+    {
+      // Counted forward from where the blob left, so a crossing that runs off
+      // the end of the take and back round to its start is one window, not
+      // two.
+      auto const since = (tick + numTicks - bridge.leaveTick) % numTicks;
+      if (since < bridge.windowTicks)
+        return &bridge;
+    }
+
+  return nullptr;
+}
+
+bool
+BridgePlan::skipsTick (index_t tick, index_t numTicks) const
+{
+  auto const *crossing = crossingAt (tick, numTicks);
+  if (crossing == nullptr || numTicks == 0)
+    return false;
+
+  auto const since = (tick + numTicks - crossing->leaveTick) % numTicks;
+
+  return since != 0                              // where it leaves
+         && since != crossing->windowTicks - 1u  // where it rejoins
+         && tick != crossing->viaTick;           // and where it lands
 }
 
 bool
@@ -173,8 +223,22 @@ planBridges (std::vector<Pos> const &ticks, float fadeReach, int bridgeBias,
             }
         }
 
+      // How much of the two ends the crossing may take. The fade says it: at
+      // nothing there is no crossing at all, wide open it is half of each of
+      // the runs it joins. Half rather than all, so a tap is still a tap --
+      // the blob has to stand somewhere before it sets off.
+      auto const share = juce::jlimit (0.f, 1.f, fadeReach) * 0.5f;
+
+      auto const before = static_cast<size_t> (
+          std::floor (static_cast<float> (ticksBefore (starts, at)) * share));
+      auto const after = static_cast<size_t> (std::floor (
+          static_cast<float> (ticksAfter (starts, via, ticks.size ()))
+          * share));
+
       plan.bridges.push_back (
-          { static_cast<index_t> (at), static_cast<index_t> (via) });
+          { static_cast<index_t> (at), static_cast<index_t> (via),
+            static_cast<index_t> (at - before),
+            static_cast<index_t> (before + 1 + after) });
     }
 
   return plan;
