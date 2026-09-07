@@ -177,13 +177,14 @@ TEST (DiscStepPieces, APathThatOnlyJustMissesTheOriginIsStillACurve)
         << c.miss;
 }
 
-// And straight through it is still a jump, however finely it is cut: there
-// the azimuth is not fast but undefined. The renderer lifts the pen at one
-// this size rather than drawing the chord.
-TEST (DiscStepPieces, StraightThroughTheOriginIsStillAJump)
+// And straight through it is a curve too, now that the pad is wrapped around
+// the base rather than sheared towards it. It was a genuine discontinuity
+// before -- the path arrived at one bearing and left at the opposite one --
+// and the pen was lifted at it. Nothing lifts it any more; this is the test
+// that says so, and it fails the moment the mapping goes back to shearing.
+TEST (DiscStepPieces, StraightThroughTheOriginIsACurveTooNow)
 {
-  EXPECT_LT (worstDrawn (-0.06f, 0.f, 0.06f, 0.f, 0.5f, 0.f), 0.1f)
-      << "on the pole both bearings are the same point";
-
-  EXPECT_GT (worstDrawn (-0.06f, 0.f, 0.06f, 0.f, 0.5f, 0.5f), 1.f);
+  for (float base : { 0.f, 0.25f, 0.5f, 0.75f, 1.f })
+    EXPECT_LT (worstDrawn (-0.06f, 0.f, 0.06f, 0.f, 0.5f, base), 0.1f)
+        << "base " << base << ": the path through the pad's centre is torn";
 }

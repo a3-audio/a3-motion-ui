@@ -182,20 +182,28 @@ generator and the test runner:
   `playPosition` and resets when playback starts, so a clip fired again begins where it was
   recorded.
 
-  **A sweep decides which way the cone grows before it moves the base, and holds it.** The plain rule
-  — towards whichever pole is further away — is discontinuous at a base of exactly 0.5, and `sway`
-  sweeps straight through that point: measured, a point of the figure jumped 1.36 on the unit sphere
-  there, seventeen times the step either side, in the sound as well as in the picture.
-  `ElevationParams::ConeDirection` carries the decision; `FromBase` is the old rule and is what
-  everything that builds params by hand still gets. And the swept base stays inside the room the cone
-  needs (`lfoSweepBetween`), because at a pole the cone has none: every point clamps onto the one
-  direction and the figure is drawn as a line pressed against the rim.
+  **The pad is wrapped around the base, not sheared towards it.** The radius is the angular distance
+  from the base *direction* and the disc's angle is the bearing around it — so the figure is a cap
+  centred on the base, and it grows out of it in every direction rather than towards a pole it has to
+  pick. At a base of 0 that is the same arithmetic as before, which is why every clip sitting at the
+  pole sounds exactly as it did.
 
-  What that does **not** fix is the top view. Screen radius is `sin(frac · π)`, which rises to 1 at
-  the equator and falls again — so a north–south travel is invisible from directly above, and at a
-  base of 0.25 with a reach of 0.5 a Clover's centre and its petal tips are drawn at 0.707 and 0.709,
-  which is a ring. The sound is right and the projection is honest; the picture cannot show it from
-  that angle. See `issues/a3-motion-ui-elevation-base-flips-at-the-equator.md`.
+  It used to take the disc's angle as the room's azimuth and its radius as a change in colatitude,
+  which is a proper wrapping only while the base is a pole. Anywhere else the pad's centre stood for
+  "this colatitude, *any* azimuth" — a whole circle of directions — so two neighbouring ticks either
+  side of the pad's centre landed on opposite sides of it. Measured on a Clover's 2048 ticks: at a
+  base of 0 the largest step between two ticks was the average one, at 0.25 it was **117 times** it,
+  at 0.5 **164 times**. That was the sound teleporting four times a lap, and the torn line was the
+  drawing being honest about it. `Clover`, `Infinity` and `Rose 4-Petal` pass exactly through the
+  origin; so does any take driven through the middle of the pad.
+
+  Two things fell out with the shear: the cone had a *direction* to pick, which was discontinuous at
+  a base of exactly 0.5 and needed holding across a sweep, and it could run out of *room* at a pole.
+  A cap has neither. Both were answers to the shear and both are gone.
+
+  **What the clips cut off runs along the cut.** A point pushed past `clipTop` or `clipBottom` keeps
+  its bearing and gives up only its height, so a figure that reaches into the ceiling comes out as a
+  figure travelling around the ceiling rather than a heap of points on one spot.
 
 - `TrajectoryShaping` — **everything done to a recorded 2D position before it is projected**, in
   one bundle (`PlaneShaping`: the turn, and a squeeze per horizontal axis) and one function

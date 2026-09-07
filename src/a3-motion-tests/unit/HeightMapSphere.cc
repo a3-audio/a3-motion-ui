@@ -242,69 +242,185 @@ TEST (HeightMapSphere, TheInverseStillComesBackWithABase)
       }
 }
 
-// ── The cone's direction, held across a sweep ────────────────────────────
+// ── The pad is wrapped around the base ───────────────────────────────────
 
-// The rule mapTo3D uses on its own -- the cone grows towards whichever pole
-// is further away -- is discontinuous at a base of exactly 0.5. Walking the
-// base through it, a point of the figure jumped 1.36 on the unit sphere:
-// seventeen times the step either side of it, and a jump in the sound, not
-// only in the picture. sway sweeps the base straight through that point.
-TEST (HeightMapSphere, TellingTheConeWhichWayToGrowMakesTheBaseContinuous)
+/** Where the base is, the middle of the pad is -- and the pad grows out of it
+ *  in every direction, which is what makes it a cap rather than a cone with a
+ *  side it has to pick.
+ *
+ *  The rule this replaces grew the figure towards whichever pole was further
+ *  away, and had to be told which way that was once a sweep started moving
+ *  the base through the middle. There is nothing to tell any more. */
+TEST (HeightMapSphere, TheMiddleOfThePadLandsOnTheBase)
 {
   HeightMapSphere heightMap;
 
-  auto const point = Pos::fromCartesian (1.f, 0.f, 0.f);
-  auto const walk = [&] (ElevationParams::ConeDirection direction) {
-    ElevationParams params;
-    params.reach = 0.5f;
-    params.coneDirection = direction;
+  for (float base : { 0.f, 0.25f, 0.5f, 0.75f, 1.f })
+    {
+      ElevationParams params;
+      params.reach = 0.5f;
+      params.elevationBase = base;
 
-    auto worst = 0.f;
-    auto previous = Pos{};
-    for (int i = 0; i <= 40; ++i)
-      {
-        params.elevationBase = static_cast<float> (i) / 40.f;
-        auto const at = heightMap.mapTo3D (point, params);
+      auto const centre
+          = heightMap.mapTo3D (Pos::fromCartesian (0.f, 0.f, 0.f), params);
 
-        if (i > 0)
-          worst = std::max (
-              worst, std::sqrt (std::pow (at.x () - previous.x (), 2.f)
-                                + std::pow (at.y () - previous.y (), 2.f)
-                                + std::pow (at.z () - previous.z (), 2.f)));
-        previous = at;
-      }
+      // Colatitude counted from the north pole, as a fraction, is the base.
+      auto const frac
+          = std::atan2 (std::sqrt (centre.x () * centre.x ()
+                                   + centre.y () * centre.y ()),
+                        centre.z ())
+            / juce::MathConstants<float>::pi;
 
-    return worst;
-  };
-
-  // Left to work it out for itself, it turns the figure inside out halfway.
-  EXPECT_GT (walk (ElevationParams::ConeDirection::FromBase), 1.f)
-      << "the rule this replaces was continuous after all";
-
-  // Told once, it is a smooth travel from one end to the other. A fortieth of
-  // the range is a step of about 0.08; anything past a quarter is a jump.
-  EXPECT_LT (walk (ElevationParams::ConeDirection::South), 0.25f);
-  EXPECT_LT (walk (ElevationParams::ConeDirection::North), 0.25f);
+      EXPECT_NEAR (frac, base, 1e-4f) << "base " << base;
+    }
 }
 
-// And what the direction actually means, so "South" cannot quietly become the
-// other one: growing south puts the figure's outer edge below its base.
-TEST (HeightMapSphere, TheConeGrowsTheWayItIsTold)
+/** And the pad reaches out of it evenly: two points the same distance from
+ *  the pad's centre are the same distance from the base, whichever bearing
+ *  they are on. A shear could not say that -- it stretched one way and
+ *  squashed the other. */
+TEST (HeightMapSphere, ThePadReachesOutOfTheBaseEvenly)
 {
   HeightMapSphere heightMap;
 
   ElevationParams params;
   params.reach = 0.5f;
-  params.elevationBase = 0.5f;
+  params.elevationBase = 0.35f;
 
-  auto const edge = Pos::fromCartesian (1.41421356f, 0.f, 0.f);
+  auto const centre
+      = heightMap.mapTo3D (Pos::fromCartesian (0.f, 0.f, 0.f), params);
+  auto const angleFromCentre = [&] (Pos const &at) {
+    auto const dot = at.x () * centre.x () + at.y () * centre.y ()
+                     + at.z () * centre.z ();
+    return std::acos (std::clamp (dot, -1.f, 1.f));
+  };
 
-  params.coneDirection = ElevationParams::ConeDirection::South;
-  auto const south = heightMap.mapTo3D (edge, params);
+  auto const r = 0.6f;
+  auto const first = angleFromCentre (
+      heightMap.mapTo3D (Pos::fromCartesian (r, 0.f, 0.f), params));
 
-  params.coneDirection = ElevationParams::ConeDirection::North;
-  auto const north = heightMap.mapTo3D (edge, params);
+  for (int i = 1; i < 8; ++i)
+    {
+      auto const bearing
+          = juce::MathConstants<float>::twoPi * static_cast<float> (i) / 8.f;
+      auto const at = heightMap.mapTo3D (
+          Pos::fromCartesian (r * std::cos (bearing), r * std::sin (bearing),
+                              0.f),
+          params);
 
-  // z counts upwards, so further south is lower.
-  EXPECT_LT (south.z (), north.z ());
+      EXPECT_NEAR (angleFromCentre (at), first, 1e-4f)
+          << "bearing " << bearing;
+    }
+}
+
+// ── The disc is wrapped around the base, not sheared towards it ──────────
+
+/** A movement that is smooth on the pad has to be smooth in the room.
+ *
+ *  It was not, once the base left the pole. The map took the disc's angle as
+ *  the *global* azimuth and its radius as a change in colatitude, which is a
+ *  proper wrapping of the pad only when the base is a pole: anywhere else the
+ *  disc's origin stands for "this colatitude, any azimuth" -- a whole circle
+ *  of directions -- and two neighbouring ticks either side of the pad's centre
+ *  land on opposite sides of it.
+ *
+ *  Measured on a Clover's 2048 ticks with a reach of a half: at a base of 0
+ *  the largest step between two ticks was the average one, at 0.25 it was 117
+ *  times it, at 0.5 it was 164 times. That is the sound teleporting, four
+ *  times a lap, not a line drawn badly.
+ */
+TEST (HeightMapSphere, AFigureThroughTheDiscsCentreStaysInOnePiece)
+{
+  HeightMapSphere heightMap;
+
+  // A path straight across the disc and through its origin, sampled evenly --
+  // the way a take's ticks cross the middle of the pad.
+  auto const worstAgainstAverage = [&] (float base) {
+    ElevationParams params;
+    params.reach = 0.5f;
+    params.elevationBase = base;
+
+    auto worst = 0.f;
+    auto total = 0.f;
+    auto counted = 0;
+    Pos previous;
+
+    for (int i = 0; i <= 400; ++i)
+      {
+        auto const x = -0.8f + 1.6f * static_cast<float> (i) / 400.f;
+        auto const at
+            = heightMap.mapTo3D (Pos::fromCartesian (x, 0.f, 0.f), params);
+
+        if (i > 0)
+          {
+            auto const step
+                = std::sqrt (std::pow (at.x () - previous.x (), 2.f)
+                             + std::pow (at.y () - previous.y (), 2.f)
+                             + std::pow (at.z () - previous.z (), 2.f));
+            worst = std::max (worst, step);
+            total += step;
+            ++counted;
+          }
+
+        previous = at;
+      }
+
+    return worst / std::max (1e-6f, total / static_cast<float> (counted));
+  };
+
+  for (float base : { 0.f, 0.25f, 0.5f, 0.75f, 1.f })
+    EXPECT_LT (worstAgainstAverage (base), 2.f)
+        << "base " << base
+        << ": one step across the pad's centre is many times every other, "
+           "which is the sound jumping";
+}
+
+/** A figure that runs into the ceiling travels *along* it.
+ *
+ *  clipTop and clipBottom bound where the sound may go, and a point pushed
+ *  past one of them keeps its bearing and gives up only its height. So a run
+ *  that would have gone over the top comes out as a run around the ceiling,
+ *  still moving, rather than as a pile of points on one spot.
+ */
+TEST (HeightMapSphere, WhatIsCutOffAtTheCeilingRunsAlongIt)
+{
+  HeightMapSphere heightMap;
+
+  ElevationParams params;
+  params.reach = 1.f;          // reaches well past the cut
+  params.elevationBase = 0.f;  // centred overhead
+  params.clipTop = 0.3f;       // and the top three tenths are cut away
+
+  // A ring of the pad well inside the cut region: every one of these would
+  // have been above the ceiling.
+  std::vector<Pos> ring;
+  for (int i = 0; i < 16; ++i)
+    {
+      auto const bearing
+          = juce::MathConstants<float>::twoPi * static_cast<float> (i) / 16.f;
+      ring.push_back (heightMap.mapTo3D (
+          Pos::fromCartesian (0.1f * std::cos (bearing),
+                              0.1f * std::sin (bearing), 0.f),
+          params));
+    }
+
+  // All of them sit on the ceiling itself...
+  auto const ceiling = std::cos (params.clipTop
+                                 * juce::MathConstants<float>::pi);
+  for (auto const &at : ring)
+    EXPECT_NEAR (at.z (), ceiling, 1e-4f);
+
+  // ... and they are spread around it rather than heaped on one point. Each
+  // keeps the bearing it arrived on, so the ring stays a ring.
+  for (size_t i = 0; i < ring.size (); ++i)
+    {
+      auto const &a = ring[i];
+      auto const &b = ring[(i + 1) % ring.size ()];
+      auto const apart = std::sqrt (std::pow (a.x () - b.x (), 2.f)
+                                    + std::pow (a.y () - b.y (), 2.f));
+
+      EXPECT_GT (apart, 0.01f)
+          << "point " << i << " landed on top of its neighbour: the figure "
+          << "was flattened onto the ceiling instead of running along it";
+    }
 }

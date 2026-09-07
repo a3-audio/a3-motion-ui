@@ -111,15 +111,5 @@ lfoSweepBipolar (float from, int step, float phase)
 }
 
 
-float
-lfoSweepBetween (float from, int step, float phase, float low, float high)
-{
-  if (clampedStep (step) == 0)
-    return from;
-
-  auto const to = clampedStep (step) > 0 ? high : low;
-
-  return from + (to - from) * lfoTravel (phase);
-}
 
 }
