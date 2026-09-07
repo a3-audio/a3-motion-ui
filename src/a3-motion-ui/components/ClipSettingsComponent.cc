@@ -69,7 +69,6 @@ constexpr float trackWash = 0.18f;
 constexpr float beatWash = 0.035f;
 constexpr float clippedZoneOpacity = 0.55f;
 constexpr float outlineOpacity = 0.5f;
-constexpr float headOpacity = 0.6f;
 }
 
 ClipSettingsComponent::ClipSettingsComponent ()
@@ -1783,6 +1782,12 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                                               juce::Rectangle<int> bounds,
                                               bool isSelected)
 {
+  // Nothing in here reads differently for being the selected section: it is a
+  // picture of where the sound is, and where the sound is does not depend on
+  // which card a finger last touched. Kept in the signature because every
+  // painter in this bar takes it.
+  juce::ignoreUnused (isSelected);
+
   // The instrument keeps the channel's colour -- it is a picture of where the
   // sound is, not a word about a setting.
   auto const iconColour = _channelColour;
@@ -1791,10 +1796,9 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                  * 0.42f;
   auto const centre = bounds.toFloat ().getCentre ();
 
-  // Circle = side-on view of the sphere, north pole at the top, south pole
-  // at the bottom (fraction 0..1 of its height maps linearly to that
-  // range). clip-top/clip-bottom clamp that range in from each end (see
-  // HeightMap::mapTo3D()); the remaining reachable band is [rangeLow,
+  // A view of the sphere, kept a quarter turn from the one above it -- see
+  // elevationSideCamera(). clip-top/clip-bottom clamp the reachable range in
+  // from each end (see HeightMap::mapTo3D()); what is left is [rangeLow,
   // rangeHigh].
   auto const rangeLow = std::clamp (_elevationClipTop, 0.f, 1.f);
   auto const rangeHigh = 1.f - std::clamp (_elevationClipBottom, 0.f, 1.f);
@@ -1975,14 +1979,13 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   g.setColour (iconColour);
   g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, 1.f);
 
-  // Head: a small dot at the centre (the listener, always at the sphere's
-  // literal centre regardless of elevation settings).
-  auto const headR = r * 0.16f;
-  g.setColour (toColour (theme ().surface, headOpacity));
-  g.fillEllipse (centre.x - headR - 0.5f, centre.y - headR - 0.5f,
-                headR * 2.f + 1.f, headR * 2.f + 1.f);
-  g.setColour (iconColour);
-  g.fillEllipse (centre.x - headR, centre.y - headR, headR * 2.f, headR * 2.f);
+  // No mark in the middle any more. It stood for the listener, which was worth
+  // saying while this was a side view of the room with them sitting in it --
+  // the middle of that picture is where they are. It is a view of the sphere
+  // now, and the middle of it is whichever part of the sphere happens to be
+  // nearest, which is nobody. The one moving mark in here is the sound, and a
+  // second dot beside it that never moves is a thing the eye has to rule out
+  // every time it looks.
 
   // And the sound itself, running along the figure it was drawn from. Last of
   // everything, and outlined, because in a picture this small it is the only
