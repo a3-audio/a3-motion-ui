@@ -24,6 +24,7 @@
 
 #include <set>
 
+#include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
 
 #include <cmath>
@@ -207,4 +208,78 @@ TEST (SphereProjection, AStrokeBreaksWhereTheSegmentsStopMeeting)
     }
 
   EXPECT_EQ (breaks, 2) << "one for the start, one for the second sub-path";
+}
+
+// ── The little sphere ───────────────────────────────────────────────────
+
+/** It sits in the top right of the view, clear of it, and is big enough to
+ *  take hold of. Turning the room is a thing you do with a finger, so a mark
+ *  too small to land on is a mark that cannot do its job. */
+TEST (SphereProjection, TheCameraBallSitsInTheTopRightAndCanBeGrabbed)
+{
+  for (int width : { 480, 768, 1024 })
+    for (int height : { 400, 700, 900 })
+      {
+        juce::Rectangle<int> const view{ 0, 0, width, height };
+        auto const ball = cameraBallBounds (view);
+
+        ASSERT_FALSE (ball.isEmpty ()) << width << "x" << height;
+        EXPECT_TRUE (view.contains (ball)) << width << "x" << height;
+        EXPECT_GE (ball.getWidth (), fingertipSize) << width << "x" << height;
+        EXPECT_EQ (ball.getWidth (), ball.getHeight ());
+
+        // In the corner: nearer the top than the bottom, nearer the right
+        // than the left.
+        EXPECT_LT (ball.getCentreY (), view.getCentreY ());
+        EXPECT_GT (ball.getCentreX (), view.getCentreX ());
+      }
+}
+
+/** A view too small to hold one gets none rather than a ball drawn over the
+ *  sphere it is meant to sit beside. */
+TEST (SphereProjection, AViewTooSmallForTheBallGetsNone)
+{
+  EXPECT_TRUE (cameraBallBounds ({ 0, 0, 20, 20 }).isEmpty ());
+  EXPECT_TRUE (cameraBallBounds ({}).isEmpty ());
+}
+
+/** Its own width is a whole turn and its own height a right angle, so one
+ *  sweep across it has been all the way round the room. */
+TEST (SphereProjection, ASweepAcrossTheBallIsAWholeTurn)
+{
+  juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
+  SphereCamera const overhead;
+
+  auto const round = cameraFromBallDrag (overhead, { 60.f, 0.f }, ball);
+  EXPECT_NEAR (round.turn, juce::MathConstants<float>::twoPi, 1e-4f);
+  EXPECT_NEAR (round.pitch, 0.f, 1e-4f);
+
+  auto const over = cameraFromBallDrag (overhead, { 0.f, 60.f }, ball);
+  EXPECT_NEAR (over.pitch, juce::MathConstants<float>::halfPi, 1e-4f);
+}
+
+/** And it stops at the horizon. Past a right angle the eye is under the room
+ *  looking up at the floor, which is not a view anybody is standing in. */
+TEST (SphereProjection, TheBallWillNotTipPastTheHorizon)
+{
+  juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
+
+  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, 300.f }, ball).pitch,
+               juce::MathConstants<float>::halfPi, 1e-4f);
+  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, -300.f }, ball).pitch, 0.f,
+               1e-4f);
+}
+
+/** A drag carries on from where the eye already was, so picking the ball up
+ *  again does not throw away the view you had set. */
+TEST (SphereProjection, ADragCarriesOnFromWhereTheEyeWas)
+{
+  juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
+  SphereCamera const leant{ 0.4f, 1.2f };
+
+  auto const moved = cameraFromBallDrag (leant, { 15.f, 0.f }, ball);
+
+  EXPECT_NEAR (moved.pitch, leant.pitch, 1e-4f);
+  EXPECT_NEAR (moved.turn,
+               leant.turn + juce::MathConstants<float>::twoPi / 4.f, 1e-4f);
 }

@@ -20,6 +20,8 @@
 
 #include "SphereProjection.hh"
 
+#include <a3-motion-ui/components/ControllerLayout.hh>
+
 #include <JuceHeader.h>
 
 #include <algorithm>
@@ -143,6 +145,48 @@ slerpDirection (Pos const &from, Pos const &to, float t)
   return Pos::fromCartesian (a * from.x () + b * to.x (),
                              a * from.y () + b * to.y (),
                              a * from.z () + b * to.z ());
+}
+
+juce::Rectangle<int>
+cameraBallBounds (juce::Rectangle<int> view)
+{
+  if (view.isEmpty ())
+    return {};
+
+  auto const side = juce::jmax (
+      fingertipSize,
+      juce::jmin (view.getWidth (), view.getHeight ()) / 6);
+
+  if (side > view.getWidth () || side > view.getHeight ())
+    return {};
+
+  auto const margin = juce::jmax (4, side / 4);
+
+  return juce::Rectangle<int> (view.getRight () - side - margin,
+                               view.getY () + margin, side, side);
+}
+
+SphereCamera
+cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
+                    juce::Rectangle<int> ball)
+{
+  auto const across = static_cast<float> (juce::jmax (1, ball.getWidth ()));
+  auto const down = static_cast<float> (juce::jmax (1, ball.getHeight ()));
+
+  SphereCamera moving;
+
+  // Down leans the eye over the room and stops at the horizon: past a right
+  // angle it would be looking up at the floor from underneath, which is a view
+  // of the room nobody is standing in.
+  moving.pitch = juce::jlimit (
+      0.f, juce::MathConstants<float>::halfPi,
+      atGrab.pitch + moved.y / down * juce::MathConstants<float>::halfPi);
+
+  // And across walks it round, which has no end to stop at.
+  moving.turn
+      = atGrab.turn + moved.x / across * juce::MathConstants<float>::twoPi;
+
+  return moving;
 }
 
 }

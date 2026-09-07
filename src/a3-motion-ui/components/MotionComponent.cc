@@ -563,13 +563,27 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
   // another finger is already holding.
   auto const source = event.source.getIndex ();
 
-  // SHIFT and a finger on the sphere moves the eye rather than a blob. A
-  // modifier rather than two sliders beside the picture: the sliders would
-  // stand there taking room and asking to be read at every glance, where the
-  // view is a thing you set once in a while and then leave. And SHIFT is
-  // already the device's "this gesture means something else" key.
-  if (isShiftHeld && isShiftHeld ())
+  // The little sphere in the corner is what turns the room. A thing you take
+  // hold of rather than a chord you have to remember: it used to be SHIFT and
+  // a finger anywhere on the big sphere, which asked the performer to know
+  // that the modifier existed and gave them nothing to aim at.
+  //
+  // Two taps on it put the view back overhead, which is the one view the
+  // device is designed around and the one you want back in a hurry.
+  auto const ball = cameraBall ();
+  if (!ball.isEmpty () && ball.contains (event.getPosition ()))
     {
+      auto const now = juce::Time::currentTimeMillis ();
+      constexpr int doubleTapMs = 400;
+
+      if (_ballTapMs != 0 && now - _ballTapMs < doubleTapMs)
+        {
+          _ballTapMs = 0;
+          setCamera ({});
+          return;
+        }
+
+      _ballTapMs = now;
       _cameraGrab = source;
       _cameraGrabbedAt = event.getPosition ().toFloat ();
       _cameraAtGrab = getCamera ();
@@ -677,24 +691,11 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
   if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
     {
       // Up and down leans the eye over the room, left and right walks it
-      // round. A whole screen's width is a whole turn, and a whole screen's
-      // height a right angle -- the two are the room's own ranges, so the
-      // finger has the same feel in both.
-      auto const moved = posPixel - _cameraGrabbedAt;
-      auto const across = juce::jmax (1, getWidth ());
-      auto const down = juce::jmax (1, getHeight ());
-
-      SphereCamera moving;
-      moving.pitch = juce::jlimit (
-          0.f, juce::MathConstants<float>::halfPi,
-          _cameraAtGrab.pitch
-              + moved.y / static_cast<float> (down)
-                    * juce::MathConstants<float>::halfPi);
-      moving.turn = _cameraAtGrab.turn
-                    + moved.x / static_cast<float> (across)
-                          * juce::MathConstants<float>::twoPi;
-
-      setCamera (moving);
+      // round -- see cameraFromBallDrag(), which is where the feel of it is
+      // decided and where it can be tested.
+      setCamera (cameraFromBallDrag (_cameraAtGrab,
+                                     posPixel - _cameraGrabbedAt,
+                                     cameraBall ()));
       return;
     }
 
@@ -1231,6 +1232,8 @@ MotionComponent::renderOpenGL ()
           if (_drawableSpeaker != nullptr)
             drawCircle (gFBO);
 
+          drawBearings (gFBO);
+
           // Channel blobs + corona
           drawChannelBlobs (gFBO);
 
@@ -1265,6 +1268,11 @@ MotionComponent::renderOpenGL ()
                   || pattern->getStatus () == Pattern::Status::Recording)
                 drawPlayingTrajectory (*pattern, displayData, gFBO);
             }
+
+          // Last, over everything: it is the one thing here that is a control
+          // rather than a reading, and a control drawn under a trajectory is
+          // one you cannot see to aim at.
+          drawCameraBall (gFBO);
         }
 
         // Composite the FBO over the shader output using native GL blitting.
@@ -1420,6 +1428,121 @@ MotionComponent::drawCircle (juce::Graphics &g)
     }
 
   g.setOpacity (1.f);
+}
+
+juce::Rectangle<int>
+MotionComponent::cameraBall () const
+{
+  return cameraBallBounds (getLocalBounds ());
+}
+
+/** The four bearings, written round the rim.
+ *
+ *  A room seen from above has no up in it, and once the view can be turned it
+ *  has no fixed up either: the only way to know which way you are looking is
+ *  to be told. Nought is the front of the room, which is where the OSC sends
+ *  a channel at azimuth nought -- the numbers on the ring are the numbers on
+ *  the wire.
+ */
+void
+MotionComponent::drawBearings (juce::Graphics &g)
+{
+  struct
+  {
+    float degrees;
+    char const *label;
+  } const marks[]{ { 0.f, "0" }, { 90.f, "90" }, { -90.f, "-90" },
+                   { 180.f, "180" } };
+
+  auto const camera = _sphereShader.getCamera ();
+
+  g.setFont (juce::Font (0.075f, juce::Font::plain));
+
+  for (auto const &mark : marks)
+    {
+      auto const at = Pos::fromSpherical (mark.degrees, 0.f, 1.f);
+      auto const seen = asSeenFrom (at, camera);
+
+      // On the far side of a tilted room the mark is behind the sphere: shown
+      // faintly rather than hidden, because a ring with one of its four
+      // numbers missing reads as a ring you have lost your place on.
+      auto const behind = seen.z () < 0.f;
+      auto const on = cartesian2DHOA2JUCE (seen);
+
+      // Written just outside the ring, along the line from the middle, so it
+      // sits where the direction points rather than at a fixed corner.
+      auto const out = on * 1.11f;
+      auto const box = juce::Rectangle<float> (0.5f, 0.12f).withCentre (out);
+
+      g.setColour (toColour (theme ().textPrimary, behind ? 0.25f : 0.55f));
+      g.drawText (mark.label, box, juce::Justification::centred, false);
+
+      // And a tick on the ring itself, so the number has something to point
+      // at when the room is turned and it lands between two speakers.
+      g.drawLine (on.x * 0.97f, on.y * 0.97f, on.x * 1.03f, on.y * 1.03f,
+                  0.008f);
+    }
+}
+
+/** The little sphere in the corner: what turns the room, and what says which
+ *  way it is turned.
+ *
+ *  Drawn as the room is drawn -- the same graticule seen from the same eye --
+ *  because the thing it is standing for is the view, and a control that does
+ *  not look like what it controls is a control you have to learn.
+ */
+void
+MotionComponent::drawCameraBall (juce::Graphics &g)
+{
+  auto const ball = cameraBall ();
+  if (ball.isEmpty ())
+    return;
+
+  // Into the space the rest of this pass draws in. Straight through the
+  // transform, not through localToNormalized2DPosition -- that one hands back
+  // a position in the *room's* axes, and the room's x is the screen's y.
+  auto const intoDrawn = _transformNormalizedToLocal.inverted ();
+  auto const centre = ball.getCentre ().toFloat ().transformedBy (intoDrawn);
+  auto const edge
+      = juce::Point<float> (static_cast<float> (ball.getRight ()),
+                            static_cast<float> (ball.getCentreY ()))
+            .transformedBy (intoDrawn);
+
+  auto const r = std::abs (edge.x - centre.x) * 0.9f;
+  if (r <= 0.f)
+    return;
+
+  auto const camera = _sphereShader.getCamera ();
+  auto const held = _cameraGrab.has_value ();
+
+  g.setColour (toColour (theme ().background, 0.7f));
+  g.fillEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f);
+  g.setColour (toColour (theme ().textPrimary, held ? 0.7f : 0.3f));
+  g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, r * 0.05f);
+
+  // A latitude and the meridians, seen from wherever the eye is. Enough of a
+  // net to read a turn off and not so much that a thing this size fills in.
+  auto const dot = [&] (Pos const &at, float size, float alpha) {
+    auto const seen = asSeenFrom (at, camera);
+    if (seen.z () < -0.05f)
+      return; // round the back
+    auto const on = cartesian2DHOA2JUCE (seen);
+    g.setColour (toColour (theme ().textPrimary, alpha));
+    g.fillEllipse (centre.x + on.x * r - size, centre.y + on.y * r - size,
+                   size * 2.f, size * 2.f);
+  };
+
+  for (int step = 0; step < 48; ++step)
+    {
+      auto const degrees = 360.f * static_cast<float> (step) / 48.f;
+      dot (Pos::fromSpherical (degrees, 0.f, 1.f), r * 0.045f, 0.35f);
+      dot (Pos::fromSpherical (degrees, 45.f, 1.f), r * 0.03f, 0.18f);
+    }
+
+  // And the front of the room, so the ball says which way round it is rather
+  // than only that it has been turned.
+  dot (Pos::fromSpherical (0.f, 0.f, 1.f), r * 0.11f,
+       held ? 1.f : 0.75f);
 }
 
 void

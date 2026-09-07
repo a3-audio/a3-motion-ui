@@ -462,12 +462,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     scheduleSetSave ();
   };
 
-  // SHIFT and a finger on the sphere moves the eye. The key is the device's --
-  // the panel's or the strip's -- and the sphere asks rather than keeping a
-  // second copy of a state that has two sources.
-  _motionComponent->isShiftHeld
-      = [this] { return isButtonPressed (Button::Shift); };
-
   _clipSettings->onLockToggled = [this] (int section) {
     switch (section)
       {

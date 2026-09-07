@@ -85,6 +85,29 @@ Pos asSeenFrom (Pos const &direction, SphereCamera const &camera);
  *  the room, or the blob does not come out under it. */
 Pos asSeenFromInverse (Pos const &viewed, SphereCamera const &camera);
 
+/** Where the little sphere sits: a square in the top right corner of the view.
+ *
+ *  Top right because that is the one corner of the sphere's own picture with
+ *  nothing in it -- the blobs live on the ring and the trajectories in the
+ *  middle -- and because a thing you set once in a while belongs out of the
+ *  way of the thing you are watching.
+ *
+ *  A sixth of the shorter side, never smaller than a fingertip: it is grabbed
+ *  and turned, so it has to be big enough to grab. */
+juce::Rectangle<int> cameraBallBounds (juce::Rectangle<int> view);
+
+/** Where a drag on the little sphere leaves the eye.
+ *
+ *  Its own width is a whole turn and its own height a right angle, so the ball
+ *  answers a finger the way a trackball does: one sweep across it and you have
+ *  been all the way round the room. Dragging on the big sphere used to do this
+ *  with a modifier held, which asked the performer to remember a chord for a
+ *  thing they can now simply take hold of.
+ *
+ *  `moved` is how far the finger has come since it went down, in pixels. */
+SphereCamera cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
+                                 juce::Rectangle<int> ball);
+
 /** A point of the way from one direction to another, walked *along* the
  *  sphere rather than straight across it.
  *

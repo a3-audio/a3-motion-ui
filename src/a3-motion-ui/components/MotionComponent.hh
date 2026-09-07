@@ -51,13 +51,11 @@ class MotionComponent : public juce::Component,
                         public juce::Timer
 {
 public:
-  /** Whether SHIFT is down. Asked rather than tracked: the key is the
-   *  device's -- the panel's or the strip's -- and this component has no
-   *  business keeping a second copy of a state that has two sources. */
-  std::function<bool ()> isShiftHeld;
-
   /** Where the room is being looked at from. The overhead view is the
-   *  default, and SHIFT with a finger on the sphere is what moves it. */
+   *  default, and the little sphere in the corner is what moves it -- see
+   *  cameraBallBounds(). It used to be SHIFT with a finger anywhere on the
+   *  big sphere, which asked the performer to know that a modifier existed
+   *  and gave them nothing to aim at. */
   SphereCamera getCamera () const;
   void setCamera (SphereCamera const &camera);
 
@@ -165,7 +163,15 @@ private:
 
   /** The finger that is moving the eye, and where it was last seen. Its own
    *  grab, not one of `_grabs`: it is holding the view, not a blob. */
+  /** Where the little sphere is, in the component's own pixels. */
+  juce::Rectangle<int> cameraBall () const;
+  void drawCameraBall (juce::Graphics &g);
+  void drawBearings (juce::Graphics &g);
+
   std::optional<int> _cameraGrab;
+  /** For the double tap that puts the view back overhead. A finger is not a
+   *  mouse: the second tap lands a few pixels from the first. */
+  juce::int64 _ballTapMs = 0;
   juce::Point<float> _cameraGrabbedAt;
   SphereCamera _cameraAtGrab;
   Pos localToNormalized2DPosition (juce::Point<float> const &posLocal) const;
