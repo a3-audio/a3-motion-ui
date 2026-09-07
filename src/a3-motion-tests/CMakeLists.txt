@@ -30,6 +30,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ThemeColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LookAndFeelTheme.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/NoColourLiterals.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/NoMetricLiterals.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FontScale.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsCaptions.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsLayout.cc"
