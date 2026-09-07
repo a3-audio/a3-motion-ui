@@ -19,11 +19,16 @@
   "name": "Whirlwind",
   "qAttack": 2,
   "qDecay": 3,
-  "qMax": 0.0,
+  "qMax": 0.35,
   "reach": 0.85,
   "rotate": 0.0,
   "speed": 0,
   "spin": 8,
+  "sqzX": 0.0,
+  "sqzY": 0.0,
+  "strX": 0,
+  "strY": 0,
   "svg": "Epicycloid 3-1",
+  "sway": 0,
   "swell": 0
 }

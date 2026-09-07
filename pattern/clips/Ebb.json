@@ -19,11 +19,16 @@
   "name": "Ebb",
   "qAttack": 2,
   "qDecay": 3,
-  "qMax": 0.0,
+  "qMax": 0.3,
   "reach": 0.8,
   "rotate": 0.25,
   "speed": 0,
   "spin": -1,
+  "sqzX": 0.0,
+  "sqzY": 0.0,
+  "strX": 0,
+  "strY": 0,
   "svg": "Spiral",
+  "sway": 0,
   "swell": -3
 }

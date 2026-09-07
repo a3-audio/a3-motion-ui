@@ -24,6 +24,11 @@
   "rotate": 0.62,
   "speed": 0,
   "spin": 4,
+  "sqzX": 0.0,
+  "sqzY": 0.0,
+  "strX": 0,
+  "strY": 0,
   "svg": "Pendulum",
+  "sway": 0,
   "swell": 3
 }

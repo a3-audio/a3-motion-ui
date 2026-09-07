@@ -14,7 +14,7 @@
   "flatElevation": 0.5,
   "freqAttack": 2,
   "freqDecay": 3,
-  "freqMax": 0.0,
+  "freqMax": 0.8,
   "mirrorSouth": false,
   "name": "Pinpoint",
   "qAttack": 2,
@@ -23,7 +23,12 @@
   "reach": 0.12,
   "rotate": 0.12,
   "speed": 0,
-  "spin": 0,
+  "spin": 6,
+  "sqzX": 0.0,
+  "sqzY": 0.0,
+  "strX": 0,
+  "strY": 0,
   "svg": "Heart",
+  "sway": 0,
   "swell": 0
 }

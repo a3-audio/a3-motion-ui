@@ -19,11 +19,16 @@
   "name": "Backspin",
   "qAttack": 2,
   "qDecay": 3,
-  "qMax": 0.0,
+  "qMax": 0.35,
   "reach": 0.65,
   "rotate": 0.0,
   "speed": 1,
   "spin": -6,
+  "sqzX": 0.0,
+  "sqzY": 0.0,
+  "strX": 0,
+  "strY": 0,
   "svg": "Lissajous 5-4",
+  "sway": 0,
   "swell": 0
 }
