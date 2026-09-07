@@ -177,8 +177,8 @@ public:
   float getQMax () const;
   void setQMax (float max);
 
-  /** How far a gap may be for the fade to draw through it, 0..1 of the
-   *  sphere's diameter. See ClipSettings::fadeReach. */
+  /** How much of the take the joins over its gaps take over, 0..1. See
+   *  ClipSettings::fadeReach. */
   float getFadeReach () const;
   void setFadeReach (float reach);
 
@@ -383,7 +383,10 @@ private:
   std::atomic<int> _qAttack{ 2 };
   std::atomic<int> _qDecay{ 3 };
   std::atomic<float> _qMax{ 0.f };
-  std::atomic<float> _fadeReach{ 0.25f };
+  /** Nothing by default -- a clip plays what was recorded. Kept in step with
+   *  ClipSettings::fadeReach, which ClipSettings.DefaultsMatchAFreshPattern
+   *  is there to notice. */
+  std::atomic<float> _fadeReach{ 0.f };
   std::atomic<int> _bridgeBias{ 0 };
   std::atomic<PlayDirection> _playDirection{ PlayDirection::Forward };
   std::atomic<EndAction> _endAction{ EndAction::Loop };

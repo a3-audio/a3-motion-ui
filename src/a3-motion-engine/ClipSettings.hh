@@ -116,13 +116,19 @@ struct ClipSettings
   PlayDirection direction = PlayDirection::Forward;
   EndAction endAction = EndAction::Loop;
 
-  /** How far a gap in the movement may be for the fade to draw through it,
-   *  0..1 of the sphere's diameter. Zero plays every jump as a jump; one
-   *  closes every gap.
+  /** How much of the take the joins over its gaps take over, 0..1. Zero plays
+   *  every jump as a jump; one gives half of each end to the join that leaves
+   *  it and half to the one that arrives, so the movement is a continuous
+   *  glide with only a moment's stand at each hole.
    *
-   *  A distance, not a time: the fade is no longer something done to a
-   *  recording's seam but a reading of the movement's holes. */
-  float fadeReach = 0.25f;
+   *  Nothing by default: a clip plays what was recorded until someone asks
+   *  for otherwise. It was a quarter, from when this said which gaps were
+   *  closed rather than how long crossing them takes -- a value that came out
+   *  of a different question and answered this one by accident.
+   *
+   *  A reading of the movement, not a change to it: nothing is written into
+   *  the ticks, so it can be turned down as freely as up. */
+  float fadeReach = 0.f;
 
   /** Where a bridged gap leads. Zero is the next tick in time; negative goes
    *  to the nearest other run, positive to a random one. Bipolar like spin and

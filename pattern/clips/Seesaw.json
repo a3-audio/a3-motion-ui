@@ -9,7 +9,7 @@
   "envAttack": 3,
   "envDecay": 4,
   "envMax": 0.8,
-  "fadeReach": 0.25,
+  "fadeReach": 0.0,
   "flat": false,
   "flatElevation": 0.5,
   "freqAttack": 2,

@@ -97,10 +97,13 @@
 //                            towards the far pole, negative closes it.
 //   ~sway           -8..8    the same, sweeping ~base towards the pole the
 //                            sign points at. What swell is to reach.
-//   ~fade            0..1    how wide a gap in the movement may be for the
-//                            line to be drawn through it, as a fraction of
-//                            the sphere's diameter. 0 plays every jump as a
-//                            jump, 1 closes every gap.
+//   ~fade            0..1    how much of the take the joins over its gaps
+//                            take over. 0 plays every jump as a jump; 1
+//                            gives half of each end to the join beside it,
+//                            so the movement glides and only pauses at each
+//                            hole. The crossing is walked at one speed --
+//                            the wider the gap, the more of the ends it
+//                            spends getting across.
 //   ~bias           -4..4    where a drawn-through gap leads. 0 is the next
 //                            point in time, negative the nearest other run,
 //                            positive a random one; the magnitude mixes.
