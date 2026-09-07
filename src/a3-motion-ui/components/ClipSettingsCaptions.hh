@@ -100,6 +100,10 @@ constexpr char const *clip = "clip";
  *  Anyone reading a clip file, a set or a script meets the same two names. */
 constexpr char const *squeezeX = "sqzX";
 constexpr char const *squeezeY = "sqzY";
+/** Each squeeze's own sweep -- what swell is to reach. "str" for stretch,
+ *  which is the direction a positive one travels in. */
+constexpr char const *stretchX = "strX";
+constexpr char const *stretchY = "strY";
 /** What a recording pass writes where the finger is not. The one control in
  *  the bar that is not the shown clip's — it is the same for every channel. */
 constexpr char const *recMode = "recmode";
@@ -186,6 +190,7 @@ constexpr TextEntry captionTable[] = {
   { caption::attack, 4 },      { caption::decay, 4 },
   { caption::envelopeMax, 4 },   { caption::rotate, 4 },
   { caption::squeezeX, 4 },    { caption::squeezeY, 4 },
+  { caption::stretchX, 4 },    { caption::stretchY, 4 },
   // The clip field spans the Shape section, so it is measured against one
   // column rather than against Motion's two.
   { caption::clip, 1 },

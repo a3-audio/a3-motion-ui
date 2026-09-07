@@ -83,6 +83,11 @@
 //                            +1 double. The screen mirrors the coordinates,
 //                            so this is what you see as the vertical.
 //   ~sqzY           -1..1    the same along left-right -- the horizontal.
+//   ~strX           -8..8    ~sqzX's own sweep: the axis travels out of where
+//                            it was set and back, on the same bars-per-cycle
+//                            table as spin. Positive pulls it out, negative
+//                            presses it flat. What swell is to reach.
+//   ~strY           -8..8    the same for ~sqzY.
 //   ~spin           -8..8    how fast the whole figure turns under the blob,
 //                            as bars per revolution: |1| is 32 bars, then
 //                            16, 8, 4, 2, 1, 1/2, and |8| is a quarter bar.

@@ -419,6 +419,22 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       showBarPage (BarPage::Clip);
   };
 
+  // A drag over the speed keys walks the whole of speedLog2, not only the
+  // four the keys name -- see onSpeedDragged in the bar.
+  _clipSettings->onSpeedDragged = [this] (int increment) {
+    auto const channel = _clipSettingsChannel;
+    auto const slot = _clipSettingsSlot;
+    auto const &pattern = _patterns[channel][slot];
+    if (!pattern || increment == 0)
+      return;
+
+    pattern->setSpeedLog2 (std::clamp (pattern->getSpeedLog2 () + increment,
+                                       speedLog2Min, speedLog2Max));
+    applyMotionMode (channel, slot);
+    updateClipSettingsDisplay ();
+    scheduleSetSave ();
+  };
+
   _clipSettings->onLockToggled = [this] (int section) {
     switch (section)
       {
@@ -5322,9 +5338,11 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   if (menuIndex == ClipSettingsComponent::elevationIndex)
     return 3; // clip-top, clip-bottom, sway
   if (menuIndex == ClipSettingsComponent::motionIndex)
-    return 10; // rot, fade, bias, dir, end, two squeezes, spin, swell, reach
+    // In reading order: rot, spin, reach, swell, sqzX, strX, sqzY, strY,
+    // fade, bias. The two lists went to Shape.
+    return 10;
   if (menuIndex == ClipSettingsComponent::trajectoryIndex)
-    return 2; // the picture, and the clip field under it
+    return 4; // the picture, the clip field, then direction and end action
   return 1;
 }
 
@@ -5385,32 +5403,30 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         return;
       break;
 
-    case 2: // Motion — rot (0), fade (1), bias (2), the two squeezes at five
-            // and six, spin, swell and reach at seven, eight and nine.
-            // Appended rather than inserted where they sit, so nothing else
-            // here had to move.
+    case 2: // Motion — in reading order, the same numbering the value handler
+            // and the painter use.
       if (!pattern)
         return;
-      // Only the knobs have a middle to go back to; direction and end action
-      // are lists, and a list has no default a double tap could mean.
       switch (sub)
         {
+        // No turn at all is this knob's middle: the ring's twelve o'clock and
+        // the shape as it was drawn are the same thing.
         case 0: pattern->setRotate (0.f); break;
-        case 1: pattern->setFadeReach (ClipSettings{}.fadeReach); break;
-        case 2:
+        // Off. The middle of a bipolar sweep is no sweep at all, which is
+        // also what a hand is reaching for when it double taps one.
+        case 1: pattern->setSpin (0); break;
+        case 2: pattern->setReach (ClipSettings{}.reach); break;
+        case 3: pattern->setReachLfo (0); break;
+        // The figure as it was recorded.
+        case 4: pattern->setSqueezeX (0.f); break;
+        case 5: pattern->setSqueezeXLfo (0); break;
+        case 6: pattern->setSqueezeY (0.f); break;
+        case 7: pattern->setSqueezeYLfo (0); break;
+        case 8: pattern->setFadeReach (ClipSettings{}.fadeReach); break;
+        case 9:
           pattern->setBridgeBias (0);
           refreshPatternDisplayFromTicks (pattern);
           break;
-        // The figure as it was recorded. Worth a double tap of its own: a
-        // squeeze is easy to push somewhere unrecognisable, and finding the
-        // exact middle of a knob by hand mid-set is not a thing anyone does.
-        case 5: pattern->setSqueezeX (0.f); break;
-        case 6: pattern->setSqueezeY (0.f); break;
-        // Off. The middle of a bipolar sweep is no sweep at all, which is
-        // also what a hand is reaching for when it double taps one.
-        case 7: pattern->setSpin (0); break;
-        case 8: pattern->setReachLfo (0); break;
-        case 9: pattern->setReach (ClipSettings{}.reach); break;
         default: return;
         }
       break;
@@ -5458,6 +5474,23 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             auto const next = stepThroughLibrary (held, increment, true);
             if (next > 0)
               applyClip (channel, slot, next);
+            break;
+          }
+
+        if (sub == 2)
+          {
+            params.direction = (params.direction + increment % 2 + 2) % 2;
+            applyMotionMode (channel, slot);
+            break;
+          }
+
+        if (sub == 3)
+          {
+            params.endAction
+                = (params.endAction + increment % value::numEndActions
+                   + value::numEndActions)
+                  % value::numEndActions;
+            applyMotionMode (channel, slot);
             break;
           }
 
@@ -5552,118 +5585,90 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           }
         break;
       }
-    case 2: // Motion — rot (0), fade (1), bias (2), direction (3),
-            // end-action (4), sqzX (5), sqzY (6), spin (7), swell (8),
-            // reach (9). What the movement *is* in the plane, each standing
-            // value beside the movement that works on it. Renumbering a
-            // section means moving the layout,
-            // tapAdvancesValue, this handler, the reset handler and the
-            // painter together -- see CLAUDE.md -- which is exactly why the
-            // squeezes were appended at the end rather than given the seats
-            // they occupy on screen.
+    case 2: // Motion — in reading order: rot (0), spin (1), reach (2),
+            // swell (3), sqzX (4), strX (5), sqzY (6), strY (7), fade (8),
+            // bias (9). Renumbered when the two lists left for Shape:
+            // renumbering a section means moving the layout, this handler,
+            // the reset handler and the painter together -- see CLAUDE.md --
+            // and everything here had to move anyway.
       {
         auto &pattern = _patterns[channel][slot];
+        if (!pattern)
+          break;
+
+        auto const stepped = [increment] (int step) {
+          return std::clamp (step + increment, -lfoMaxStep, lfoMaxStep);
+        };
+        auto const sweepSaid = [this] (char const *what, int step) {
+          // A step is an index into a table of powers of two and says nothing
+          // to read, so the readout says the cycle it stands for.
+          updateControlReadout (juce::String (what) + " "
+                                + sweepReadout (step));
+        };
 
         switch (sub)
           {
           case 0:
             // The standing angle the spin adds to -- both are summed at the
             // one place that turns anything.
-            if (pattern)
-              pattern->setRotate (pattern->getRotate () + increment * 0.02f);
+            pattern->setRotate (pattern->getRotate () + increment * 0.02f);
             break;
 
           case 1:
-            // How far a gap may be for the fade to draw through it. A reading
-            // of the movement, not a change to it: nothing is written into
-            // the ticks, so it can be turned down as freely as up, and the
-            // drawn line follows because it is cut from the same plan.
-            if (pattern)
-              {
-                pattern->setFadeReach (
-                    pattern->getFadeReach ()
-                    + 0.02f * static_cast<float> (increment));
-                refreshPatternDisplayFromTicks (pattern);
-              }
+            pattern->setSpin (stepped (pattern->getSpin ()));
+            sweepSaid ("spin", pattern->getSpin ());
             break;
 
           case 2:
-            // Where a drawn-through gap leads. Whole steps, like spin and
-            // swell: nine positions, and a finger should feel each one rather
-            // than slide past them.
-            if (pattern)
-              {
-                pattern->setBridgeBias (pattern->getBridgeBias () + increment);
-                refreshPatternDisplayFromTicks (pattern);
-              }
+            // How far the trajectory's outer edge lands from the base the
+            // elevation graphic sets.
+            pattern->setReach (pattern->getReach () + increment * 0.05f);
             break;
 
           case 3:
-            params.direction = (params.direction + increment % 2 + 2) % 2;
-            applyMotionMode (channel, slot);
+            pattern->setReachLfo (stepped (pattern->getReachLfo ()));
+            sweepSaid ("swell", pattern->getReachLfo ());
+            break;
+
+          case 4:
+          case 6:
+            {
+              // The two squeezes. A tenth per step, which is a twentieth of
+              // their ring: these run -1..1 where reach and the clips run
+              // 0..1, so the same number would move half as far under the
+              // same finger.
+              auto const amount = 0.1f * static_cast<float> (increment);
+              if (sub == 4)
+                pattern->setSqueezeX (pattern->getSqueezeX () + amount);
+              else
+                pattern->setSqueezeY (pattern->getSqueezeY () + amount);
+            }
             break;
 
           case 5:
-          case 6:
-            // The two squeezes. A tenth per step, which is a twentieth of
-            // their ring: these run -1..1 where reach and the clips run 0..1,
-            // so the same number here would move half as far under the same
-            // finger. Twenty steps end to end, like the elevation knobs.
-            if (pattern)
-              {
-                auto const amount = 0.1f * static_cast<float> (increment);
-                if (sub == 5)
-                  pattern->setSqueezeX (pattern->getSqueezeX () + amount);
-                else
-                  pattern->setSqueezeY (pattern->getSqueezeY () + amount);
-              }
+            pattern->setSqueezeXLfo (stepped (pattern->getSqueezeXLfo ()));
+            sweepSaid ("strX", pattern->getSqueezeXLfo ());
             break;
 
           case 7:
-          case 8:
-            // Two of the clip's three slow sweeps -- the third, sway, is in
-            // Elevation under the line it travels. Whole steps: a TempoLfo
-            // step is a signed power of two in bars per cycle, so a finger
-            // should feel each one rather than slide past them.
-            //
-            // On the Pattern rather than in _clipUIParams because the engine
-            // reads them every tick and they have to survive being saved.
-            if (pattern)
-              {
-                auto const stepped = [increment] (int step) {
-                  return std::clamp (step + increment, -lfoMaxStep,
-                                     lfoMaxStep);
-                };
-
-                if (sub == 7)
-                  pattern->setSpin (stepped (pattern->getSpin ()));
-                else
-                  pattern->setReachLfo (stepped (pattern->getReachLfo ()));
-
-                // A step is an index into a table of powers of two and means
-                // nothing to read, so the readout says the cycle it stands
-                // for -- the one thing a ring alone does not say.
-                updateControlReadout (
-                    juce::String (sub == 7 ? "spin " : "swell ")
-                    + sweepReadout (sub == 7 ? pattern->getSpin ()
-                                             : pattern->getReachLfo ()));
-              }
+            pattern->setSqueezeYLfo (stepped (pattern->getSqueezeYLfo ()));
+            sweepSaid ("strY", pattern->getSqueezeYLfo ());
             break;
 
-          case 9:
-            // How far the trajectory's outer edge lands from the base the
-            // elevation graphic sets. It stands beside the swell that sweeps
-            // it, the way rot stands beside its spin.
-            if (pattern)
-              pattern->setReach (pattern->getReach () + increment * 0.05f);
+          case 8:
+            // How far a gap may be for the fade to draw through it. A reading
+            // of the movement, not a change to it: nothing is written into
+            // the ticks, so it can be turned down as freely as up.
+            pattern->setFadeReach (pattern->getFadeReach ()
+                                   + 0.02f * static_cast<float> (increment));
+            refreshPatternDisplayFromTicks (pattern);
             break;
 
           default:
-            params.endAction
-                = (params.endAction + increment % value::numEndActions
-                   + value::numEndActions)
-                  % value::numEndActions;
-            applyMotionMode (channel, slot);
+            // Where a drawn-through gap leads. Whole steps: nine positions,
+            // and a finger should feel each one rather than slide past them.
+            pattern->setBridgeBias (pattern->getBridgeBias () + increment);
+            refreshPatternDisplayFromTicks (pattern);
             break;
           }
       }
@@ -5850,9 +5855,24 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       pattern ? pattern->getFadeReach () : ClipSettings{}.fadeReach);
   _clipSettings->setMotionBridgeBias (
       pattern ? pattern->getBridgeBias () : ClipSettings{}.bridgeBias);
+  // Each squeeze, and where its own stretch is holding it now -- the same
+  // pair reach is given, drawn the same way.
   _clipSettings->setMotionSqueeze (
       pattern ? pattern->getSqueezeX () : ClipSettings{}.squeezeX,
-      pattern ? pattern->getSqueezeY () : ClipSettings{}.squeezeY);
+      pattern ? pattern->getSqueezeY () : ClipSettings{}.squeezeY,
+      pattern && pattern->getSqueezeXLfo () != 0
+          ? lfoSweepBipolar (pattern->getSqueezeX (),
+                             pattern->getSqueezeXLfo (),
+                             pattern->getSqueezeXLfoPhase ())
+          : -2.f,
+      pattern && pattern->getSqueezeYLfo () != 0
+          ? lfoSweepBipolar (pattern->getSqueezeY (),
+                             pattern->getSqueezeYLfo (),
+                             pattern->getSqueezeYLfoPhase ())
+          : -2.f);
+  _clipSettings->setMotionStretch (
+      pattern ? pattern->getSqueezeXLfo () : ClipSettings{}.squeezeXLfo,
+      pattern ? pattern->getSqueezeYLfo () : ClipSettings{}.squeezeYLfo);
   _clipSettings->setSweeps (
       pattern ? pattern->getSpin () : ClipSettings{}.spin,
       pattern ? pattern->getReachLfo () : ClipSettings{}.reachLfo,

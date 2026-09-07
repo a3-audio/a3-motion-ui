@@ -1011,6 +1011,8 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   pattern->setSpinPhase (0.f);
   pattern->setReachLfoPhase (0.f);
   pattern->setElevationLfoPhase (0.f);
+  pattern->setSqueezeXLfoPhase (0.f);
+  pattern->setSqueezeYLfoPhase (0.f);
 
   // Reverse starts at the end and walks back, so the first tick has somewhere
   // to come from.
@@ -1208,6 +1210,12 @@ MotionEngine::performPlayback ()
               playing.setElevationLfoPhase (
                   advanceLfoPhase (playing.getElevationLfoPhase (),
                                    playing.getElevationLfo (), ticksPerBar));
+              playing.setSqueezeXLfoPhase (
+                  advanceLfoPhase (playing.getSqueezeXLfoPhase (),
+                                   playing.getSqueezeXLfo (), ticksPerBar));
+              playing.setSqueezeYLfoPhase (
+                  advanceLfoPhase (playing.getSqueezeYLfoPhase (),
+                                   playing.getSqueezeYLfo (), ticksPerBar));
 
               if (position2D.isValid ())
                 {

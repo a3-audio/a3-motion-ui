@@ -24,6 +24,7 @@
 #include <cmath>
 
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectorySpin.hh>
 
 namespace a3
@@ -55,8 +56,17 @@ shapingOf (Pattern const &pattern)
   PlaneShaping shaping;
 
   shaping.turns = turnsOf (pattern);
-  shaping.squeezeX = pattern.getSqueezeX ();
-  shaping.squeezeY = pattern.getSqueezeY ();
+
+  // Each squeeze, swept out of where it was set and back if its own sweep is
+  // running. Bipolar, so the sign names one of the two ends rather than one
+  // of zero and one -- pressing an axis flat and pulling it out are the two
+  // directions, and a sweep has to be able to ask for either.
+  shaping.squeezeX
+      = lfoSweepBipolar (pattern.getSqueezeX (), pattern.getSqueezeXLfo (),
+                         pattern.getSqueezeXLfoPhase ());
+  shaping.squeezeY
+      = lfoSweepBipolar (pattern.getSqueezeY (), pattern.getSqueezeYLfo (),
+                         pattern.getSqueezeYLfoPhase ());
 
   return shaping;
 }

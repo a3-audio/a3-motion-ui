@@ -98,4 +98,16 @@ lfoSweep (float from, int step, float phase)
   return from + (to - from) * lfoTravel (phase);
 }
 
+
+float
+lfoSweepBipolar (float from, int step, float phase)
+{
+  if (clampedStep (step) == 0)
+    return from;
+
+  auto const to = clampedStep (step) > 0 ? 1.f : -1.f;
+
+  return from + (to - from) * lfoTravel (phase);
+}
+
 }

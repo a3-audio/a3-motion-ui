@@ -271,6 +271,13 @@ struct ClipSettingsLayout
   /** How fast the clip plays, on its front — in speedButtonLog2 order. */
   std::array<juce::Rectangle<int>, numSpeedButtons> speedButtons;
 
+  /** Which way a pass runs and what it does when it runs out. Under the
+   *  speeds, on the front face only: they came from Motion, because what a
+   *  take does when it ends is a property of the take rather than of the
+   *  movement it traces. */
+  juce::Rectangle<int> directionButton;
+  juce::Rectangle<int> endActionButton;
+
   /** The clip field: which clip is in the slot, and a place to scroll through
    *  them with a finger.
    *

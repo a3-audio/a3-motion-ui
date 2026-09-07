@@ -77,8 +77,8 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 {
   auto const l = defaultLayout ();
 
-  // Shape: the picture, and the clip field under it
-  EXPECT_EQ (l.controls[0].size (), 2u);
+  // Shape: the picture, the clip field, then the direction and end action
+  EXPECT_EQ (l.controls[0].size (), 4u);
   EXPECT_EQ (l.controls[1].size (), 3u); // Elevation: the clips and reach
   // Motion: rot, fade, bias, dir, end, the two squeezes, the three sweeps
   EXPECT_EQ (l.controls[2].size (), 10u);
@@ -163,18 +163,19 @@ TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
   for (int sub = 0; sub < 3; ++sub)
     EXPECT_FALSE (tapAdvancesValue (1, sub)) << "elevation " << sub;
 
-  // Motion: direction (3) and end-action (4) have a handful of states each;
-  // the three knobs before them are dragged, not tapped. They were four and
-  // five until the spin left -- a renumbering that misses this reads the
-  // direction's words off the end-action's list and vice versa.
-  EXPECT_TRUE (tapAdvancesValue (2, 3));
-  EXPECT_TRUE (tapAdvancesValue (2, 4));
-  for (int sub = 0; sub < 3; ++sub)
+  // Motion is ten knobs and no lists at all now: everything in it is dragged.
+  for (int sub = 0; sub < 10; ++sub)
     EXPECT_FALSE (tapAdvancesValue (2, sub)) << "sub " << sub;
-  EXPECT_FALSE (tapAdvancesValue (2, 5)) << "there is no sixth control";
 
-  // Shape: the pattern library, too long to tap through.
+  // Shape: the library and the clips are too long to tap through; the
+  // direction (2) and the end action (3) have a handful of states each and
+  // came here from Motion. A renumbering that misses this reads the
+  // direction's words off the end action's list and vice versa.
   EXPECT_FALSE (tapAdvancesValue (0, 0));
+  EXPECT_FALSE (tapAdvancesValue (0, 1));
+  EXPECT_TRUE (tapAdvancesValue (0, 2));
+  EXPECT_TRUE (tapAdvancesValue (0, 3));
+  EXPECT_FALSE (tapAdvancesValue (0, 4)) << "there is no fifth control";
 
   // Global: the rec mode has few states.
   EXPECT_TRUE (tapAdvancesValue (3, 0));
@@ -424,10 +425,10 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
     }
 }
 
-// Which knob sits where. The section reads top to bottom as what is done to
-// the recorded figure (rot with its spin, then the two squeezes), then what
-// sweeps the elevation, then what is read out of the take's holes, then the
-// two lists along the floor. A hand reaches for a group, not for a word.
+// Which knob sits where. Five rows of two, each a standing value beside the
+// movement that works on it: rot with its spin, reach with its swell, each
+// squeeze with its own stretch, the fade with the bias. Sub-index order is
+// reading order, which it had not been since the section started growing.
 TEST (ClipSettingsLayout, MotionReadsAsPairsDownTheSection)
 {
   for (int height : { 200, 314, 460 })
@@ -436,42 +437,27 @@ TEST (ClipSettingsLayout, MotionReadsAsPairsDownTheSection)
       auto const &motion = l.controls[2];
       ASSERT_EQ (motion.size (), 10u) << "height " << height;
 
-      // Top to bottom, by the left-hand knob of each row.
-      for (auto const &above : { std::pair<int, int>{ 0, 5 },
-                                 { 5, 9 },
-                                 { 9, 1 },
-                                 { 1, 3 } })
-        EXPECT_LE (motion[static_cast<size_t> (above.first)].getBottom (),
-                   motion[static_cast<size_t> (above.second)].getY () + 1)
-            << "row " << above.first << " above " << above.second
-            << " at height " << height;
-
-      // Each pair side by side on one row, left one first. reach at nine
-      // sits left of the swell at eight -- the vector is ordered by
-      // sub-index, not by seat, and these two were appended at different
-      // times.
-      for (auto const &pair : { std::pair<int, int>{ 0, 7 },
-                                { 5, 6 },
-                                { 9, 8 },
-                                { 1, 2 } })
+      for (size_t row = 0; row + 1 < motion.size (); row += 2)
         {
-          auto const &left = motion[static_cast<size_t> (pair.first)];
-          auto const &right = motion[static_cast<size_t> (pair.second)];
-          EXPECT_EQ (left.getY (), right.getY ())
-              << "pair " << pair.first << "/" << pair.second << " at height "
-              << height;
-          EXPECT_LT (left.getRight (), right.getX () + 1)
-              << "pair " << pair.first << "/" << pair.second << " at height "
-              << height;
-        }
+          auto const &left = motion[row];
+          auto const &right = motion[row + 1];
 
-      // The rows share two columns, so every left-hand knob starts where the
-      // others do. A row that nearly lines up with the one above it reads as
-      // a mistake; one that lines up reads as structure.
-      for (int sub : { 5, 9, 1 })
-        EXPECT_EQ (motion[0].getX (),
-                   motion[static_cast<size_t> (sub)].getX ())
-            << "sub " << sub << " at height " << height;
+          EXPECT_EQ (left.getY (), right.getY ()) << "row " << row / 2;
+          EXPECT_LT (left.getRight (), right.getX () + 1) << "row " << row / 2;
+          EXPECT_EQ (left.getHeight (), right.getHeight ())
+              << "row " << row / 2;
+
+          // Under the row before it, and in the same two columns.
+          if (row >= 2)
+            {
+              EXPECT_LE (motion[row - 2].getBottom (), left.getY () + 1)
+                  << "row " << row / 2 << " at height " << height;
+              EXPECT_EQ (motion[row - 2].getX (), left.getX ())
+                  << "row " << row / 2;
+              EXPECT_EQ (motion[row - 1].getX (), right.getX ())
+                  << "row " << row / 2;
+            }
+        }
     }
 }
 
@@ -936,10 +922,12 @@ TEST (ClipSettingsLayout, ThePictureNamesTheShapeAndTheFieldNamesTheClip)
   EXPECT_FALSE (front.clipField.intersects (front.trajectoryIcon))
       << "the field would be drawn over the picture it stands under";
 
-  // The two are the section's two controls, in reading order.
-  ASSERT_EQ (front.controls[0].size (), 2u);
+  // In reading order: the picture, the field, then the two lists.
+  ASSERT_EQ (front.controls[0].size (), 4u);
   EXPECT_EQ (front.controls[0][0], front.trajectoryIcon);
   EXPECT_EQ (front.controls[0][1], front.clipField);
+  EXPECT_EQ (front.controls[0][2], front.directionButton);
+  EXPECT_EQ (front.controls[0][3], front.endActionButton);
 
   // On the back face there is no field -- which clip is in the slot is not a
   // question the take you are about to record asks -- and an empty cell is
@@ -947,8 +935,11 @@ TEST (ClipSettingsLayout, ThePictureNamesTheShapeAndTheFieldNamesTheClip)
   ASSERT_FALSE (back.trajectoryIcon.isEmpty ());
   EXPECT_TRUE (back.clipField.isEmpty ());
   EXPECT_EQ (back.trajectoryName, back.trajectoryIcon);
-  ASSERT_EQ (back.controls[0].size (), 2u);
+  ASSERT_EQ (back.controls[0].size (), 4u);
   EXPECT_TRUE (back.controls[0][1].isEmpty ());
+  EXPECT_TRUE (back.controls[0][2].isEmpty ())
+      << "the take being recorded has no direction key of its own";
+  EXPECT_TRUE (back.controls[0][3].isEmpty ());
 }
 
 // The field is a fingertip tall wherever the bar is, and stands between the
@@ -1201,7 +1192,7 @@ TEST (ClipSettingsLayout, TheFadeIsAMotionValueNow)
   auto const l = defaultLayout ();
 
   ASSERT_EQ (l.controls[2].size (), 10u);
-  ASSERT_EQ (l.controls[0].size (), 2u);
+  ASSERT_EQ (l.controls[0].size (), 4u);
 
   // Index one since the spin left -- see OnlyFewValuedControlsAdvanceOnTap.
   EXPECT_FALSE (l.controls[2][1].isEmpty ());
@@ -1332,11 +1323,9 @@ TEST (ClipSettingsLayout, MotionIsTheMovementAndEverythingThatMovesIt)
   auto const l = defaultLayout ();
   ASSERT_EQ (l.controls[2].size (), 10u);
 
-  // Everything after the lists was appended rather than inserted where it
-  // sits, so the two lists keep the sub-indices every other place gives them.
-  EXPECT_TRUE (tapAdvancesValue (2, 3));
-  EXPECT_TRUE (tapAdvancesValue (2, 4));
-  for (int sub : { 0, 1, 2, 5, 6, 7, 8, 9 })
+  // Ten knobs and nothing that steps: the two lists went to Shape, where what
+  // a pass does when it runs out belongs with the take.
+  for (int sub = 0; sub < 10; ++sub)
     EXPECT_FALSE (tapAdvancesValue (2, sub)) << "knob " << sub;
 }
 

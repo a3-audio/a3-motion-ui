@@ -65,6 +65,10 @@ writeOverrides (a3::ClipSettings const &settings)
     put ("sqzX", settings.squeezeX);
   if (settings.squeezeY != defaults.squeezeY)
     put ("sqzY", settings.squeezeY);
+  if (settings.squeezeXLfo != defaults.squeezeXLfo)
+    put ("strX", settings.squeezeXLfo);
+  if (settings.squeezeYLfo != defaults.squeezeYLfo)
+    put ("strY", settings.squeezeYLfo);
   if (settings.reach != defaults.reach)
     put ("reach", settings.reach);
   if (settings.clipTop != defaults.clipTop)
@@ -140,6 +144,8 @@ readOverrides (juce::var const &value)
   settings.rotate = read ("rotate", settings.rotate);
   settings.squeezeX = read ("sqzX", settings.squeezeX);
   settings.squeezeY = read ("sqzY", settings.squeezeY);
+  settings.squeezeXLfo = read ("strX", settings.squeezeXLfo);
+  settings.squeezeYLfo = read ("strY", settings.squeezeYLfo);
   settings.reach = read ("reach", settings.reach);
   settings.clipTop = read ("clipTop", settings.clipTop);
   settings.clipBottom = read ("clipBottom", settings.clipBottom);

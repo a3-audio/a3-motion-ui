@@ -83,6 +83,8 @@ ClipFile::save (Clip const &clip, juce::File const &file)
   object->setProperty ("rotate", s.rotate);
   object->setProperty ("sqzX", s.squeezeX);
   object->setProperty ("sqzY", s.squeezeY);
+  object->setProperty ("strX", s.squeezeXLfo);
+  object->setProperty ("strY", s.squeezeYLfo);
 
   object->setProperty ("reach", s.reach);
   object->setProperty ("clipTop", s.clipTop);
@@ -152,6 +154,8 @@ ClipFile::load (juce::File const &file)
   s.rotate = readFloat (parsed, "rotate", defaults.rotate);
   s.squeezeX = readFloat (parsed, "sqzX", defaults.squeezeX);
   s.squeezeY = readFloat (parsed, "sqzY", defaults.squeezeY);
+  s.squeezeXLfo = readInt (parsed, "strX", defaults.squeezeXLfo);
+  s.squeezeYLfo = readInt (parsed, "strY", defaults.squeezeYLfo);
 
   s.reach = readFloat (parsed, "reach", defaults.reach);
   s.clipTop = readFloat (parsed, "clipTop", defaults.clipTop);

@@ -53,6 +53,8 @@ heldOver (ClipSettings const &current, ClipSettings incoming,
       incoming.rotate = current.rotate;
       incoming.squeezeX = current.squeezeX;
       incoming.squeezeY = current.squeezeY;
+      incoming.squeezeXLfo = current.squeezeXLfo;
+      incoming.squeezeYLfo = current.squeezeYLfo;
       incoming.reach = current.reach;
       incoming.reachLfo = current.reachLfo;
       incoming.spin = current.spin;

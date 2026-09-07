@@ -78,4 +78,13 @@ float lfoTravel (float phase);
  *  there is no setting at which the two conspire to do nothing. */
 float lfoSweep (float from, int step, float phase);
 
+/** The same sweep for a control whose middle is zero and whose ends are -1 and
+ *  +1: the sign says which of the two it travels to.
+ *
+ *  A separate function rather than a range on the first: `lfoSweep`'s whole
+ *  point is that the sign names an *end*, and for a bipolar control the ends
+ *  are not 0 and 1. Squeezing a figure towards flat and stretching it out are
+ *  the two directions, and a sweep has to be able to ask for either. */
+float lfoSweepBipolar (float from, int step, float phase);
+
 }

@@ -289,6 +289,21 @@ fields ()
       [] (ClipSettings &s, Value const &v) {
         s.squeezeY = clampBipolar (v.number);
       } },
+    // Each squeeze's own sweep, the way swell is reach's.
+    { "strX",
+      [] (ClipSettings const &s) {
+        return numberValue (s.squeezeXLfo, true);
+      },
+      [] (ClipSettings &s, Value const &v) {
+        s.squeezeXLfo = clampStep (v.number, -lfoMaxStep, lfoMaxStep);
+      } },
+    { "strY",
+      [] (ClipSettings const &s) {
+        return numberValue (s.squeezeYLfo, true);
+      },
+      [] (ClipSettings &s, Value const &v) {
+        s.squeezeYLfo = clampStep (v.number, -lfoMaxStep, lfoMaxStep);
+      } },
     { "reach",
       [] (ClipSettings const &s) { return numberValue (s.reach, false); },
       [] (ClipSettings &s, Value const &v) { s.reach = clampUnit (v.number); } },

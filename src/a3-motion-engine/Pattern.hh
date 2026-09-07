@@ -226,6 +226,17 @@ public:
   float getSqueezeY () const;
   void setSqueezeY (float amount);
 
+  /** Each squeeze's own sweep, as a TempoLfo step, with the phase it has got
+   *  to. What swell and its phase are to reach. */
+  int getSqueezeXLfo () const;
+  void setSqueezeXLfo (int step);
+  int getSqueezeYLfo () const;
+  void setSqueezeYLfo (int step);
+  float getSqueezeXLfoPhase () const;
+  void setSqueezeXLfoPhase (float phase);
+  float getSqueezeYLfoPhase () const;
+  void setSqueezeYLfoPhase (float phase);
+
   /** How fast the whole trajectory turns around the vertical axis while the
    *  blob runs along it, as the signed power-of-two step TrajectorySpin
    *  describes. Zero stands still.
@@ -382,6 +393,10 @@ private:
   std::atomic<float> _rotate{ 0.f };
   std::atomic<float> _squeezeX{ 0.f };
   std::atomic<float> _squeezeY{ 0.f };
+  std::atomic<int> _squeezeXLfo{ 0 };
+  std::atomic<int> _squeezeYLfo{ 0 };
+  std::atomic<float> _squeezeXLfoPhase{ 0.f };
+  std::atomic<float> _squeezeYLfoPhase{ 0.f };
   std::atomic<int> _spin{ 0 };
   std::atomic<float> _spinPhase{ 0.f };
   std::atomic<int> _reachLfo{ 0 };

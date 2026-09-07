@@ -75,8 +75,11 @@ numControlsInSection (int sectionIndex)
   switch (sectionIndex)
     {
     case 0:
-      // The picture and the clip field: which figure, and which values.
-      return 2;
+      // The picture, the clip field, then the direction and the end action.
+      // Those two came from Motion: what a pass does when it runs out is a
+      // property of the take, and the take is what this section is about --
+      // Motion is what the movement *is*, not how it is played through.
+      return 4;
     case 1:
       // clip-top, clip-bottom, then the sway. reach went to Motion to stand
       // beside the swell that sweeps it -- the two of them are one control
@@ -85,15 +88,11 @@ numControlsInSection (int sectionIndex)
       // sits is what the graphic above draws.
       return 3;
     case 2:
-      // rot, fade, bias, then dir and end along the floor, then the two
-      // squeezes, then spin, swell and the reach they stand beside. Ten, and
-      // everything past four
-      // is in the order it arrived rather than the order it is read in:
-      // `controls` is ordered by sub-index, not by seat, and appending leaves
-      // dir and end at three and four, where tapAdvancesValue(), the value
-      // handler, the reset handler and the painter already expect them.
-      // Inserting each new pair where it sits would have renumbered the
-      // section twice over.
+      // Ten knobs in five rows, and no buttons: the two lists went to Shape.
+      // Numbered in reading order for the first time -- rot, spin, reach,
+      // swell, sqzX, strX, sqzY, strY, fade, bias -- because everything in
+      // the section had to move anyway when the lists left, and an order that
+      // is the order things are read in is one nobody has to look up.
       return 10;
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
@@ -105,12 +104,12 @@ numControlsInSection (int sectionIndex)
 bool
 tapAdvancesValue (int sectionIndex, int subIndex)
 {
-  if (sectionIndex == 2)
-    // direction and end action, along Motion's floor. They used to open a
-    // list; a list covered the controls under it, and both are short enough
-    // that a finger can simply walk them. Three and four since spin left --
-    // renumbering a section means moving every one of these together.
-    return subIndex == 3 || subIndex == 4;
+  if (sectionIndex == 0)
+    // direction and end action, under Shape's speeds. They step on a tap:
+    // both are short enough that a finger can walk them, and a list would
+    // cover the picture they belong to. They came from Motion with the rest
+    // of what a take does when it runs out.
+    return subIndex == 2 || subIndex == 3;
   if (sectionIndex == 3)
     return subIndex == 0; // rec mode
 
@@ -384,10 +383,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
     auto const gap = juce::jmax (2, out.buttonHeight / 8);
 
-    // Four speeds want one row, eight lengths two. The buttons are the
+    // The front face: one row of speeds and one of the two lists that came
+    // from Motion. The back face: two rows of lengths. The buttons are the
     // section's floor either way, so the bar still reads as one row of
     // buttons across its bottom.
-    auto const buttonRows = recording ? 2 : 1;
+    auto const buttonRows = 2;
     auto const bandH = juce::jmin (
         content.getHeight (),
         buttonRows * out.buttonHeight + (buttonRows - 1) * gap);
@@ -448,15 +448,29 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         for (int i = 0; i < numRecordLengths; ++i)
           place (i, out.lengthButtons[static_cast<size_t> (i)]);
       else
-        for (int i = 0; i < numSpeedButtons; ++i)
-          place (i, out.speedButtons[static_cast<size_t> (i)]);
+        {
+          for (int i = 0; i < numSpeedButtons; ++i)
+            place (i, out.speedButtons[static_cast<size_t> (i)]);
+
+          // The direction and the end action, under the speeds. What a pass
+          // does when it runs out is a property of the take -- which way it
+          // is played and what happens at the end -- so it belongs with the
+          // take rather than in Motion, which is what the movement *is*.
+          // Half the row each, since they are two of four columns' worth.
+          auto &row = rows[1];
+          auto const wide = colW * 2 + colGap;
+          out.directionButton = row.removeFromLeft (wide);
+          row.removeFromLeft (colGap);
+          out.endActionButton = row.removeFromLeft (wide);
+        }
     }
 
     // Two: the picture, and the clip field under it. The lengths and the
     // speeds are not values a finger turns, so they are not sub-elements of
     // the section. On the record face the field is empty, and an empty cell
     // is one nothing can land on.
-    out.controls[0] = { out.trajectoryIcon, out.clipField };
+    out.controls[0] = { out.trajectoryIcon, out.clipField,
+                        out.directionButton, out.endActionButton };
   }
 
   // ── Elevation ────────────────────────────────────────────────────────
@@ -521,34 +535,21 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       out.sectionLabels[2] = title;
     }
 
-    // Two by two, not four in a row: the section is a sixth of the bar wide
-    // now, and four columns in it left each control a sliver.
+    // Five rows of two, and no buttons: the two lists went to Shape, where
+    // what a pass does when it runs out belongs with the take.
     //
-    // The two buttons go to the section's floor, where Elevation's are —
-    // the bar reads as one row of buttons across its bottom rather than
-    // three sections each arranging their own. The knobs then sit centred
-    // in what is left above them.
-    auto const gapH = juce::jmax (2, content.getWidth () / 20);
-    auto const gapV = juce::jmax (2, content.getHeight () / 20);
-
-    auto bottomRow = content.removeFromBottom (
-        juce::jmin (content.getHeight (), out.buttonHeight));
-    content.removeFromBottom (gapV);
-
-    // Four rows of knobs and a row of buttons, in pairs down the section:
-    // rot with the spin that turns it, the two squeezes, reach with the swell
-    // that sweeps it, then the fade with the bias.
-    //
-    // Each row is a standing value beside the movement that works on it, and
-    // the section reads top to bottom as what is done to the recorded figure,
-    // then what moves it while nobody is touching it, then what is read out
-    // of its holes. Grouping by what a control does is what lets a hand find
-    // the right knob without reading the words under them.
+    // Each row is a standing value beside the movement that works on it --
+    // rot with its spin, reach with its swell, each squeeze with its own
+    // stretch, the fade with the bias. Grouping by what a control does is
+    // what lets a hand find the right knob without reading the words.
     //
     // Shared out rather than taken one after another from the bottom. A skin
     // can cut the bar down (clipSettingsHeightScale), and a section that helps
     // itself row by row leaves the whole shortfall on the row at the top.
-    constexpr int motionKnobRows = 4;
+    auto const gapH = juce::jmax (2, content.getWidth () / 20);
+    auto const gapV = juce::jmax (2, content.getHeight () / 20);
+
+    constexpr int motionKnobRows = 5;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
@@ -561,12 +562,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       return row;
     };
 
-    auto lowerRow = knobRow (false);
-    auto sweepRow = knobRow (false);
-    auto middleRow = knobRow (false);
-    auto upperRow = knobRow (true);
+    auto biasRow = knobRow (false);
+    auto sqzYRow = knobRow (false);
+    auto sqzXRow = knobRow (false);
+    auto reachRow = knobRow (false);
+    auto rotRow = knobRow (true);
 
-    auto const colW = (lowerRow.getWidth () - gapH) / 2;
+    auto const colW = (biasRow.getWidth () - gapH) / 2;
     auto const split = [colW, gapH] (juce::Rectangle<int> &row) {
       auto const left = row.removeFromLeft (colW);
       row.removeFromLeft (gapH);
@@ -574,31 +576,25 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                                                                      row };
     };
 
-    auto const [upperLeft, upperRight] = split (upperRow);
-    auto const [middleLeft, middleRight] = split (middleRow);
-    auto const [sweepLeft, sweepRight] = split (sweepRow);
-    auto const [lowerLeft, lowerRight] = split (lowerRow);
-    auto const [bottomLeft, bottomRight] = split (bottomRow);
+    auto const [rotArea, spinArea] = split (rotRow);
+    auto const [reachArea, swellArea] = split (reachRow);
+    auto const [sqzXArea, strXArea] = split (sqzXRow);
+    auto const [sqzYArea, strYArea] = split (sqzYRow);
+    auto const [fadeArea, biasArea] = split (biasRow);
 
-    // The bottom row is already the button height; the cell is the button.
-    auto const buttonCell = [] (juce::Rectangle<int> cell) { return cell; };
-
-    // Ordered by sub-index, not by seat -- see numControlsInSection(). The
-    // two lists close the section along its floor, where every other
-    // section's buttons are.
+    // In reading order, which is also sub-index order for the first time.
     out.controls[2] = {
-      textCell (upperLeft, metrics.knobDiam),   // rot
-      textCell (lowerLeft, metrics.knobDiam),   // fade
-      textCell (lowerRight, metrics.knobDiam),  // bias
-      buttonCell (bottomLeft),                  // direction
-      buttonCell (bottomRight),                 // end action
-      textCell (middleLeft, metrics.knobDiam),  // sqzX
-      textCell (middleRight, metrics.knobDiam), // sqzY
-      textCell (upperRight, metrics.knobDiam),  // spin
-      textCell (sweepRight, metrics.knobDiam),  // swell
-      textCell (sweepLeft, metrics.knobDiam),   // reach
+      textCell (rotArea, metrics.knobDiam),   // 0 rot
+      textCell (spinArea, metrics.knobDiam),  // 1 spin
+      textCell (reachArea, metrics.knobDiam), // 2 reach
+      textCell (swellArea, metrics.knobDiam), // 3 swell
+      textCell (sqzXArea, metrics.knobDiam),  // 4 sqzX
+      textCell (strXArea, metrics.knobDiam),  // 5 strX
+      textCell (sqzYArea, metrics.knobDiam),  // 6 sqzY
+      textCell (strYArea, metrics.knobDiam),  // 7 strY
+      textCell (fadeArea, metrics.knobDiam),  // 8 fade
+      textCell (biasArea, metrics.knobDiam),  // 9 bias
     };
-
   }
 
   // ── Global section ───────────────────────────────────────────────────

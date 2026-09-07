@@ -48,6 +48,8 @@ clipSettingsFields ()
         { "rotate", [] (ClipSettings &s) { s.rotate = 0.3f; } },
         { "squeezeX", [] (ClipSettings &s) { s.squeezeX = 0.4f; } },
         { "squeezeY", [] (ClipSettings &s) { s.squeezeY = -0.6f; } },
+        { "squeezeXLfo", [] (ClipSettings &s) { s.squeezeXLfo = 4; } },
+        { "squeezeYLfo", [] (ClipSettings &s) { s.squeezeYLfo = -6; } },
         { "reach", [] (ClipSettings &s) { s.reach = 0.9f; } },
         { "clipTop", [] (ClipSettings &s) { s.clipTop = 0.2f; } },
         { "clipBottom", [] (ClipSettings &s) { s.clipBottom = 0.3f; } },

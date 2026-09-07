@@ -60,6 +60,11 @@ struct ClipSettings
    *  out and never written into the take. */
   float squeezeX = 0.f;
   float squeezeY = 0.f;
+  /** Each squeeze's own sweep -- what swell is to reach. A signed TempoLfo
+   *  step, the sign saying which way it travels: positive stretches the axis
+   *  out and back, negative presses it flat and back. */
+  int squeezeXLfo = 0;
+  int squeezeYLfo = 0;
 
   float reach = 0.5f;
   float clipTop = 0.f;
@@ -144,6 +149,8 @@ operator== (ClipSettings const &a, ClipSettings const &b)
          && a.rotate == b.rotate                   //
          && a.squeezeX == b.squeezeX               //
          && a.squeezeY == b.squeezeY               //
+         && a.squeezeXLfo == b.squeezeXLfo         //
+         && a.squeezeYLfo == b.squeezeYLfo         //
          && a.reach == b.reach                     //
          && a.clipTop == b.clipTop                 //
          && a.clipBottom == b.clipBottom           //

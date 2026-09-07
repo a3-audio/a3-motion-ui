@@ -271,6 +271,15 @@ ClipSettingsComponent::createTouchControls ()
         if (onSpeedChosen)
           onSpeedChosen (index);
       };
+      // And a drag over them walks the whole range, not only the four they
+      // name. Four buttons are the four anybody reaches for; the eight steps
+      // between and beyond them were reachable from a file and from nowhere
+      // on the device. Now the same keys are both: tap for the one you want,
+      // push for the one that has no key.
+      button->onDragIncrement = [this] (int, int, int increment) {
+        if (onSpeedDragged)
+          onSpeedDragged (increment);
+      };
       addAndMakeVisible (*button);
       _speedTouch[static_cast<size_t> (i)] = std::move (button);
     }
@@ -572,16 +581,28 @@ ClipSettingsComponent::setMotionBridgeBias (int bias)
 }
 
 void
-ClipSettingsComponent::setMotionSqueeze (float squeezeX, float squeezeY)
+ClipSettingsComponent::setMotionSqueeze (float squeezeX, float squeezeY,
+                                         float sweptX, float sweptY)
 {
-  auto const heldX = juce::jlimit (-1.f, 1.f, squeezeX);
-  auto const heldY = juce::jlimit (-1.f, 1.f, squeezeY);
-  if (juce::approximatelyEqual (heldX, _motionSqueezeX)
-      && juce::approximatelyEqual (heldY, _motionSqueezeY))
+  _motionSqueezeX = juce::jlimit (-1.f, 1.f, squeezeX);
+  _motionSqueezeY = juce::jlimit (-1.f, 1.f, squeezeY);
+  _motionSqueezeXSwept
+      = sweptX < -1.5f ? -2.f : juce::jlimit (-1.f, 1.f, sweptX);
+  _motionSqueezeYSwept
+      = sweptY < -1.5f ? -2.f : juce::jlimit (-1.f, 1.f, sweptY);
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setMotionStretch (int x, int y)
+{
+  auto const heldX = juce::jlimit (-lfoMaxStep, lfoMaxStep, x);
+  auto const heldY = juce::jlimit (-lfoMaxStep, lfoMaxStep, y);
+  if (heldX == _motionSqueezeXLfo && heldY == _motionSqueezeYLfo)
     return;
 
-  _motionSqueezeX = heldX;
-  _motionSqueezeY = heldY;
+  _motionSqueezeXLfo = heldX;
+  _motionSqueezeYLfo = heldY;
   repaint ();
 }
 
@@ -1031,8 +1052,7 @@ ClipSettingsComponent::paintSectionLock (juce::Graphics &g, int sectionIndex)
   if (sectionIndex < 0 || sectionIndex >= numClipSections)
     return;
 
-  auto const bounds
-      = _layout.sectionLocks[static_cast<size_t> (sectionIndex)];
+  auto bounds = _layout.sectionLocks[static_cast<size_t> (sectionIndex)];
   if (bounds.isEmpty ())
     return;
 
@@ -1046,14 +1066,19 @@ ClipSettingsComponent::paintSectionLock (juce::Graphics &g, int sectionIndex)
   auto const ink = held ? toColour (theme ().warning)
                         : toColour (theme ().textPrimary, 0.3f);
 
-  auto const square = bounds.toFloat ().reduced (bounds.getWidth () * 0.28f);
+  // The hit area is twice as wide as it is tall so it can be found without
+  // aiming; the mark inside it stays a square, drawn at the right end where
+  // the eye ends up after reading the word.
+  auto const mark
+      = bounds.removeFromRight (bounds.getHeight ()).toFloat ();
+  auto const square = mark.reduced (mark.getWidth () * 0.28f);
   auto const body = square.withTrimmedTop (square.getHeight () * 0.42f);
   auto const thickness = juce::jmax (1.f, square.getWidth () * 0.12f);
 
   if (held)
     {
       g.setColour (ink.withAlpha (0.25f));
-      g.fillRoundedRectangle (bounds.toFloat (), 3.f);
+      g.fillRoundedRectangle (mark, 3.f);
     }
 
   g.setColour (ink);
@@ -1490,6 +1515,17 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
                         speedButtonNames[i], {},
                         _speedLog2 == speedButtonLog2[i], isSelected);
 
+      // Which way a pass runs and what it does when it runs out. They step on
+      // a tap -- no chevron, because nothing opens.
+      paintBarButton (g, _layout.directionButton,
+                      value::directionNames[_motionDirection],
+                      caption::direction,
+                      _trajectorySubIndex == 2 && isSelected, false);
+      paintBarButton (g, _layout.endActionButton,
+                      value::endActionNames[_motionEndAction],
+                      caption::endAction,
+                      _trajectorySubIndex == 3 && isSelected, false);
+
       // The clip field: which settings the slot is played with, and a place to
       // push through them with a thumb. Not the shape's name -- that is over
       // the picture, beside the control that changes it.
@@ -1563,70 +1599,63 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
       < static_cast<size_t> (numControlsInSection (motionIndex)))
     return;
 
-  // rot with the spin that turns it, the two squeezes under them, the swell
-  // and the sway that sweep the elevation, then the fade with the bias that
-  // says where a drawn-through gap leads, and the two lists along the floor.
+  // In reading order, which is also sub-index order: rot with its spin, reach
+  // with its swell, each squeeze with its own stretch, the fade with the bias.
+  // Every row a standing value beside the movement that works on it.
   //
   // rot is a closed ring: rotation comes round to itself, so its scale has to
   // as well. The pointer is where the hand left it; the blue runs from there
-  // to where the spin is holding the shape right now -- the position it is
-  // being driven to, not how hard it is being driven. The spin's *control*
-  // moved; what it does to this knob did not.
+  // to where the spin is holding the shape right now.
   paintMiniKnob (g, cells[0], metrics, caption::rotate, _shapeRotate * 2.f,
                  false, _motionSubIndex == 0, isSelected,
                  _shapeRotateReach * 2.f, true);
 
-  // How far a gap may be for the fade to draw through it, and where a
-  // drawn-through gap leads. Both read the take's holes rather than changing
-  // them.
-  paintMiniKnob (g, cells[1], metrics, caption::fade,
-                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 1,
-                 isSelected);
-  paintMiniKnob (g, cells[2], metrics, caption::bias,
-                 static_cast<float> (_motionBridgeBias) / 4.f, true,
-                 _motionSubIndex == 2, isSelected);
-
-  // The two squeezes, under rot: bipolar, so the ring runs from twelve
-  // o'clock either way and the middle of the travel is the take as it was
-  // recorded. The pot's own value is drawn, not the factor it comes to --
-  // half and double are the same distance from the middle by feel, and a ring
-  // drawn on the factor would put unity a third of the way round.
-  paintMiniKnob (g, cells[5], metrics, caption::squeezeX, _motionSqueezeX,
-                 true, _motionSubIndex == 5, isSelected);
-  paintMiniKnob (g, cells[6], metrics, caption::squeezeY, _motionSqueezeY,
-                 true, _motionSubIndex == 6, isSelected);
-
-  // Each standing value beside the movement that works on it: spin turns the
-  // rot above it, swell sweeps the reach beside it. The sway that moves the
-  // elevation's own line went to Elevation for the same reason -- a sweep
-  // reads as what it does only when it stands next to what it does it to.
   auto const sweepRing = [] (int step) {
     return static_cast<float> (step) / static_cast<float> (lfoMaxStep);
   };
 
-  paintMiniKnob (g, cells[7], metrics, caption::spin, sweepRing (_motionSpin),
-                 true, _motionSubIndex == 7, isSelected);
-  paintMiniKnob (g, cells[8], metrics, caption::swell,
-                 sweepRing (_motionSwell), true, _motionSubIndex == 8,
-                 isSelected);
+  paintMiniKnob (g, cells[1], metrics, caption::spin, sweepRing (_motionSpin),
+                 true, _motionSubIndex == 1, isSelected);
 
-  // ... and where the swell has carried the coverage, if it is moving: the
-  // pointer stays on what the hand set and the arc runs to where the sweep is
-  // holding it, the way rot's does under the spin.
-  paintMiniKnob (g, cells[9], metrics, caption::reach,
-                 _elevationReach * 2.f - 1.f, false, _motionSubIndex == 9,
+  // Where the swell has carried the coverage, if it is moving: the pointer
+  // stays on what the hand set and the arc runs to where the sweep is holding
+  // it, the way rot's does under the spin.
+  paintMiniKnob (g, cells[2], metrics, caption::reach,
+                 _elevationReach * 2.f - 1.f, false, _motionSubIndex == 2,
                  isSelected,
                  _elevationReachSwept < 0.f
                      ? -2.f
                      : _elevationReachSwept * 2.f - 1.f);
+  paintMiniKnob (g, cells[3], metrics, caption::swell,
+                 sweepRing (_motionSwell), true, _motionSubIndex == 3,
+                 isSelected);
 
-  // They step on a tap -- no chevron, because nothing opens any more.
-  paintBarButton (g, cells[3], value::directionNames[_motionDirection],
-                  caption::direction, _motionSubIndex == 3 && isSelected,
-                  false);
-  paintBarButton (g, cells[4], value::endActionNames[_motionEndAction],
-                  caption::endAction, _motionSubIndex == 4 && isSelected,
-                  false);
+  // The two squeezes, each with the stretch that sweeps it. Bipolar, so the
+  // ring runs from twelve o'clock either way and the middle of the travel is
+  // the take as it was recorded -- and the arc says where the stretch is
+  // holding it now, exactly as reach's does.
+  paintMiniKnob (g, cells[4], metrics, caption::squeezeX, _motionSqueezeX,
+                 true, _motionSubIndex == 4, isSelected,
+                 _motionSqueezeXSwept < -1.5f ? -2.f : _motionSqueezeXSwept);
+  paintMiniKnob (g, cells[5], metrics, caption::stretchX,
+                 sweepRing (_motionSqueezeXLfo), true, _motionSubIndex == 5,
+                 isSelected);
+  paintMiniKnob (g, cells[6], metrics, caption::squeezeY, _motionSqueezeY,
+                 true, _motionSubIndex == 6, isSelected,
+                 _motionSqueezeYSwept < -1.5f ? -2.f : _motionSqueezeYSwept);
+  paintMiniKnob (g, cells[7], metrics, caption::stretchY,
+                 sweepRing (_motionSqueezeYLfo), true, _motionSubIndex == 7,
+                 isSelected);
+
+  // How far a gap may be for the fade to draw through it, and where a
+  // drawn-through gap leads. Both read the take's holes rather than changing
+  // them.
+  paintMiniKnob (g, cells[8], metrics, caption::fade,
+                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 8,
+                 isSelected);
+  paintMiniKnob (g, cells[9], metrics, caption::bias,
+                 static_cast<float> (_motionBridgeBias) / 4.f, true,
+                 _motionSubIndex == 9, isSelected);
 }
 
 void

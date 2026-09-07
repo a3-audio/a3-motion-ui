@@ -218,7 +218,10 @@ public:
   /** How far the figure is squeezed along each horizontal axis, bipolar with
    *  the middle at zero. X is front-back (the screen's vertical), Y
    *  left-right -- see PlaneShaping. */
-  void setMotionSqueeze (float squeezeX, float squeezeY);
+  void setMotionSqueeze (float squeezeX, float squeezeY, float sweptX = -2.f,
+                         float sweptY = -2.f);
+  /** Each squeeze's own sweep, as signed TempoLfo steps. */
+  void setMotionStretch (int x, int y);
 
   /** The clip's three slow sweeps, as signed TempoLfo steps: how fast the
    *  figure turns under the blob, how fast reach opens and closes, how fast
@@ -354,6 +357,10 @@ public:
   /** One of the twelve speed buttons was tapped, as an index into
    *  speedButtonLog2. */
   std::function<void (int index)> onSpeedChosen;
+  /** A drag across the speed keys, in whole steps of speedLog2. The keys name
+   *  four speeds; the range holds twelve, and this is how the other eight are
+   *  reached. */
+  std::function<void (int increment)> onSpeedDragged;
   /** The clock mode steps on: INT, EXT, PIO. */
   std::function<void ()> onClockModePressed;
   std::function<void ()> onMenuPressed;
@@ -555,6 +562,13 @@ private:
   float _motionSqueezeY = 0.f;
   int _motionSpin = 0;
   int _motionSwell = 0;
+  int _motionSqueezeXLfo = 0;
+  int _motionSqueezeYLfo = 0;
+  /** Where each stretch has carried its squeeze right now, or below -1.5 when
+   *  it is standing still. Bipolar, so "not sweeping" cannot be a negative
+   *  number the way reach's is. */
+  float _motionSqueezeXSwept = -2.f;
+  float _motionSqueezeYSwept = -2.f;
   int _elevationSway = 0;
   int _motionAttack = 0;
   int _motionDecay = 0;

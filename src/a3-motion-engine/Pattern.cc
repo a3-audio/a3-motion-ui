@@ -414,6 +414,54 @@ Pattern::setSqueezeY (float amount)
 }
 
 int
+Pattern::getSqueezeXLfo () const
+{
+  return _squeezeXLfo.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setSqueezeXLfo (int step)
+{
+  _squeezeXLfo.store (step, std::memory_order_relaxed);
+}
+
+int
+Pattern::getSqueezeYLfo () const
+{
+  return _squeezeYLfo.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setSqueezeYLfo (int step)
+{
+  _squeezeYLfo.store (step, std::memory_order_relaxed);
+}
+
+float
+Pattern::getSqueezeXLfoPhase () const
+{
+  return _squeezeXLfoPhase.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setSqueezeXLfoPhase (float phase)
+{
+  _squeezeXLfoPhase.store (phase, std::memory_order_relaxed);
+}
+
+float
+Pattern::getSqueezeYLfoPhase () const
+{
+  return _squeezeYLfoPhase.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setSqueezeYLfoPhase (float phase)
+{
+  _squeezeYLfoPhase.store (phase, std::memory_order_relaxed);
+}
+
+int
 Pattern::getSpin () const
 {
   return _spin.load (std::memory_order_relaxed);
