@@ -39,6 +39,17 @@ constexpr float overlayOpacity = 0.55f;
 constexpr float rowWash = 0.063f;
 constexpr float browsedRowWash = 0.086f;
 constexpr float armedRowWash = 0.133f;
+
+// Sits between paddingSmall (4) and padding (8), further from either than
+// the tolerance a snap allows -- this is the vertical margin that keeps a
+// colour-parameter row's swatch clear of the row's own top and bottom edge,
+// not a corner radius. It numerically equals radiusRow's default, but that
+// is coincidence: reusing a radius role for a spacing purpose would be wrong
+// in a way that only shows up later, the same reasoning that kept a stray
+// `1` out of strokeThin elsewhere. Left as its own literal pending a
+// decision. Listed in issues/a3-motion-ui-metric-role-deviations.md
+// (Task 16).
+constexpr int colourSwatchVerticalInset = 5;
 }
 
 SkinEditorComponent::SkinEditorComponent ()
@@ -149,7 +160,8 @@ SkinEditorComponent::rowValueArea (juce::Rectangle<int> row,
   auto const valueShare
       = (!isAction && rowValue (absoluteIndex).length () > 8) ? 2 : 3;
 
-  return row.removeFromRight (row.getWidth () / valueShare).reduced (8, 0);
+  return row.removeFromRight (row.getWidth () / valueShare)
+      .reduced (juce::roundToInt (theme ().padding), 0);
 }
 
 juce::Rectangle<int>
@@ -161,7 +173,7 @@ SkinEditorComponent::rowNameArea (juce::Rectangle<int> row,
       = (!isAction && rowValue (absoluteIndex).length () > 8) ? 2 : 3;
 
   row.removeFromRight (row.getWidth () / valueShare);
-  return row.reduced (8, 0);
+  return row.reduced (juce::roundToInt (theme ().padding), 0);
 }
 
 void
@@ -881,7 +893,7 @@ SkinEditorComponent::paint (juce::Graphics &g)
   auto const panelBounds = listPanelBounds ();
 
   g.setColour (toColour (theme ().textPrimary, rowWash));
-  g.fillRoundedRectangle (panelBounds.toFloat (), 10.f);
+  g.fillRoundedRectangle (panelBounds.toFloat (), theme ().radiusPanel);
 
   auto content = panelBounds.reduced (paddingH, paddingV);
 
@@ -913,11 +925,12 @@ SkinEditorComponent::paint (juce::Graphics &g)
       auto nameRow = content.removeFromTop (typingFieldHeight (
           theme ().fontSize (FontRole::Header), itemH));
       g.setColour (toColour (theme ().textPrimary, browsedRowWash));
-      g.fillRoundedRectangle (nameRow.toFloat (), 6.f);
+      g.fillRoundedRectangle (nameRow.toFloat (), theme ().radiusRow);
 
       g.setFont (font);
 
-      auto const textArea = nameRow.reduced (10, 0);
+      auto const textArea
+          = nameRow.reduced (juce::roundToInt (theme ().padding), 0);
       auto const typed = _nameEntry.buffer ().trimEnd ();
 
       g.setColour (toColour (theme ().textPrimary));
@@ -929,8 +942,15 @@ SkinEditorComponent::paint (juce::Graphics &g)
       auto const caretW = juce::jmax (
           2.f, juce::GlyphArrangement::getStringWidth (font, "n"));
 
-      g.setColour (toColour (theme ().accent,
-                             _editing ? 1.f : theme ().alphaInactive));
+      // Full opacity while editing rather than an alpha rung: "editing" has
+      // always meant no dimming at all, which the alpha-less overload
+      // already says. This used to be `_editing ? 1.f : theme
+      // ().alphaInactive`; 1.f fits no rung, and the maintainer still owes a
+      // call on whether full opacity deserves one of its own. See
+      // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+      g.setColour (_editing ? toColour (theme ().accent)
+                            : toColour (theme ().accent,
+                                       theme ().alphaInactive));
       g.fillRect (static_cast<float> (textArea.getX ()) + before,
                   typingCaretY (textArea, font), caretW, 2.f);
 
@@ -971,7 +991,8 @@ SkinEditorComponent::paint (juce::Graphics &g)
           g.setFont (juce::Font (theme ().fontSize (FontRole::Body) * 0.85f,
                                  juce::Font::bold));
           g.setColour (toColour (theme ().accent, theme ().alphaInactive));
-          g.drawText (rowLabel (index), row.reduced (8, 0),
+          g.drawText (rowLabel (index),
+                      row.reduced (juce::roundToInt (theme ().padding), 0),
                       juce::Justification::centredLeft, true);
           continue;
         }
@@ -980,18 +1001,23 @@ SkinEditorComponent::paint (juce::Graphics &g)
                              isArmed     ? armedRowWash
                              : isBrowsed ? browsedRowWash
                                          : rowWash));
-      g.fillRoundedRectangle (row.toFloat (), 6.f);
+      g.fillRoundedRectangle (row.toFloat (), theme ().radiusRow);
 
       auto const valueArea = rowValueArea (row, index);
       auto const nameArea = rowNameArea (row, index);
 
       g.setFont (
           juce::Font (theme ().fontSize (FontRole::Body), juce::Font::plain));
+      // Same restructuring as the caret above: full opacity for the browsed
+      // row's name rather than an alpha rung. Was `isBrowsed ? 1.f : theme
+      // ().alphaInactive`. See issues/a3-motion-ui-metric-role-deviations.md
+      // (Task 16).
       g.setColour (isAction && isBrowsed
                        ? toColour (theme ().accent)
-                       : toColour (theme ().textPrimary,
-                                   isBrowsed ? 1.f
-                                             : theme ().alphaInactive));
+                       : (isBrowsed
+                              ? toColour (theme ().textPrimary)
+                              : toColour (theme ().textPrimary,
+                                         theme ().alphaInactive)));
       g.drawText (rowLabel (index), nameArea, juce::Justification::centredLeft,
                   true);
 
@@ -1004,7 +1030,8 @@ SkinEditorComponent::paint (juce::Graphics &g)
         {
           auto const &colourParameter
               = _parameters[(size_t)_rows[(size_t)index].parameter];
-          auto swatch = valueArea.reduced (valueArea.getWidth () / 4, 5);
+          auto swatch = valueArea.reduced (valueArea.getWidth () / 4,
+                                           colourSwatchVerticalInset);
           g.setColour (juce::Colour (
               (juce::uint8)juce::jlimit (
                   0, 255, (int)colourChannelValue (colourParameter, "r")),
@@ -1012,15 +1039,19 @@ SkinEditorComponent::paint (juce::Graphics &g)
                   0, 255, (int)colourChannelValue (colourParameter, "g")),
               (juce::uint8)juce::jlimit (
                   0, 255, (int)colourChannelValue (colourParameter, "b"))));
-          g.fillRoundedRectangle (swatch.toFloat (), 3.f);
+          g.fillRoundedRectangle (swatch.toFloat (), theme ().radiusControl);
         }
 
       g.setFont (
           juce::Font (theme ().fontSize (FontRole::Body), juce::Font::bold));
+      // Same restructuring again for the browsed row's value. Was
+      // `isBrowsed ? 1.f : theme ().alphaInactive`. See
+      // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
       g.setColour (isArmed ? toColour (theme ().accent)
-                           : toColour (theme ().textPrimary,
-                                       isBrowsed ? 1.f
-                                                 : theme ().alphaInactive));
+                          : (isBrowsed
+                                 ? toColour (theme ().textPrimary)
+                                 : toColour (theme ().textPrimary,
+                                            theme ().alphaInactive)));
       g.drawText (shown, valueArea, juce::Justification::centredRight, true);
     }
 }
