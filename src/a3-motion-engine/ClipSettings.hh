@@ -227,14 +227,20 @@ void applyClipSettings (Pattern &pattern, ClipSettings const &settings);
 ElevationParams sweptElevation (ElevationParams params,
                                 Pattern const &pattern);
 
-/** Where a double tap puts the reach: back to the size it starts at, still
- *  pointing the way it points.
+/** Where a double tap puts the reach: twelve o'clock, like every other
+ *  bipolar knob in the bar.
  *
- *  The reach is a signed size -- the sign is which way the figure spreads
- *  from the base, the magnitude is how far. Writing the bare default over it
- *  turned a figure growing upwards into one growing downwards, so the whole
- *  trajectory flipped through the base on the one gesture whose job is to be
- *  the safe thing to press.
+ *  The knob is filled from its middle, so twelve o'clock is where the eye
+ *  reads "home"; a reset landing anywhere else reads as not having worked,
+ *  whatever number is behind it. The price is real and was chosen knowingly:
+ *  at a reach of nothing the figure lies flat on one latitude, so the safe
+ *  thing to press is also the thing that flattens the trajectory. The knob
+ *  has said that all along -- it is not the reset's place to disagree.
+ *
+ *  Takes what it is replacing so the rule reads as a rule rather than a
+ *  constant, and so an argument about the sign has one place to happen.
+ *
+ *  Distinct from ClipSettings{}.reach, which is what a *fresh clip* carries.
  */
 float defaultReach (float current);
 

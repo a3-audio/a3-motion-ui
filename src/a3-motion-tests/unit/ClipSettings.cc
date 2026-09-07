@@ -390,24 +390,25 @@ TEST (ClipSettings, TheSwellBreathesPastTheCeilingToo)
 
 // ── Where a double tap puts the reach ───────────────────────────────────
 
-/** Back to the size it starts at, pointing the way it already points.
+/** Twelve o'clock, like every other bipolar knob in the bar.
  *
- *  The reach is a signed size: the sign says which way the figure spreads
- *  from the base and the magnitude says how far. A double tap that wrote the
- *  bare default over it turned a figure growing upwards into one growing
- *  downwards -- the whole trajectory flipped through the base, from a reset
- *  whose entire job is to be the safe thing to press.
+ *  The knob is filled from its middle, so twelve o'clock is where the eye
+ *  reads "home" -- and a reset that landed anywhere else read as not having
+ *  worked, whatever number was behind it. It cost a choice to say so: at a
+ *  reach of nothing the figure lies flat on one latitude, so the safe thing
+ *  to press is also the thing that flattens the trajectory. That is what the
+ *  knob has said all along; it is not the reset's place to disagree with it.
+ *
+ *  Not the file default of 0.5 either, which is what a *fresh clip* carries
+ *  -- a different question from where a knob goes back to.
  */
-TEST (ClipSettings, TwoTapsOnTheReachKeepTheDirectionAndRestoreTheSize)
+TEST (ClipSettings, TwoTapsOnTheReachGoToTwelveOClock)
 {
-  EXPECT_FLOAT_EQ (defaultReach (0.9f), ClipSettings{}.reach);
-  EXPECT_FLOAT_EQ (defaultReach (0.1f), ClipSettings{}.reach);
-  EXPECT_FLOAT_EQ (defaultReach (-0.9f), -ClipSettings{}.reach);
-  EXPECT_FLOAT_EQ (defaultReach (-0.1f), -ClipSettings{}.reach);
+  for (float from : { 0.9f, 0.1f, 0.f, -0.1f, -0.9f })
+    EXPECT_FLOAT_EQ (defaultReach (from), 0.f) << "from " << from;
 
-  // A figure with no spread at all has no direction to keep, and down is the
-  // way the cone has always grown.
-  EXPECT_FLOAT_EQ (defaultReach (0.f), ClipSettings{}.reach);
+  // And a fresh clip still spreads: the two are not the same number.
+  EXPECT_GT (ClipSettings{}.reach, 0.f);
 }
 
 // ── Where a double tap puts the elevation line ──────────────────────────

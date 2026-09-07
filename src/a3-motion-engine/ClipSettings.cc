@@ -209,7 +209,8 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
 float
 defaultReach (float current)
 {
-  return current < 0.f ? -ClipSettings{}.reach : ClipSettings{}.reach;
+  juce::ignoreUnused (current);
+  return 0.f;
 }
 
 float
