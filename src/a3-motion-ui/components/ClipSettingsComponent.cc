@@ -468,7 +468,10 @@ ClipSettingsComponent::controlColour (bool isSelected) const
   // to the highlight, not to the reading.
   //
   // Full opacity rather than an alpha rung: "selected" has always meant no
-  // dimming at all, which the alpha-less overload already says.
+  // dimming at all, which the alpha-less overload already says. This used to
+  // be `isSelected ? 1.f : theme ().alphaInactive` -- 1.f fits no rung, and
+  // the maintainer still owes a call on whether full opacity deserves one of
+  // its own. See issues/a3-motion-ui-metric-role-deviations.md (Task 16).
   return isSelected ? toColour (theme ().textMuted)
                     : toColour (theme ().textMuted, theme ().alphaInactive);
 }
@@ -476,6 +479,7 @@ ClipSettingsComponent::controlColour (bool isSelected) const
 juce::Colour
 ClipSettingsComponent::captionColour (bool isSelected) const
 {
+  // Same restructuring as controlColour() above, and the same open question.
   return isSelected ? toColour (theme ().textMuted)
                     : toColour (theme ().textMuted, theme ().alphaInactive);
 }
@@ -973,7 +977,10 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
     g.setFont (juce::Font (fontFor (FontRole::Header, bounds, label),
                            active ? juce::Font::bold : juce::Font::plain));
     // Full opacity rather than an alpha rung -- the active tab's label has
-    // always meant no dimming at all.
+    // always meant no dimming at all. This used to be
+    // `active ? 1.f : 0.55f`; 1.f fits no rung, and the maintainer still owes
+    // a call on whether full opacity deserves one of its own. See
+    // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
     g.setColour (active ? toColour (theme ().textPrimary)
                         : toColour (theme ().textPrimary,
                                    theme ().alphaInactive));
@@ -1419,8 +1426,8 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
   // The caption used to sit below the button, which made a button a
   // different height from the box it looked like and left the name floating
   // between two of them.
-  auto box = bounds.reduced (static_cast<int> (theme ().paddingSmall),
-                             static_cast<int> (theme ().paddingTight));
+  auto box = bounds.reduced (juce::roundToInt (theme ().paddingSmall),
+                             juce::roundToInt (theme ().paddingTight));
   auto const captionArea
       = caption.isEmpty ()
             ? juce::Rectangle<int>{}
@@ -2118,7 +2125,7 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
       g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
     }
 
-  auto content = bounds.reduced (static_cast<int> (theme ().paddingTight));
+  auto content = bounds.reduced (juce::roundToInt (theme ().paddingTight));
   auto labelArea
       = content.removeFromBottom (textRowHeight (content, metrics.captionSize));
 
