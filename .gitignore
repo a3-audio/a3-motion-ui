@@ -69,3 +69,13 @@ pattern/clips/*.json
 .idea/
 *.swp
 *~
+
+# The performer's own work, not the project's. Recordings, clips, actions and
+# sets made on a device belong to that device: a tracked one would be laid
+# down on every other checkout, and a deletion on one machine would show up as
+# a change to be committed. The instrument's own live in the system/ halves
+# beside these and are tracked.
+pattern/user/
+pattern/clips/user/
+pattern/actions/user/
+pattern/sessions/user/

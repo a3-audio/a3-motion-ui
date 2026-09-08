@@ -51,13 +51,13 @@ TEST (LibraryKeys, EveryTabIsDecided)
     }
 }
 
-// The filter splits the instrument's own from the performer's, and three
-// lists now have that split: the shapes always did, and the actions and the
-// sets were given one -- two directories each, the same shape.
-TEST (LibraryKeys, EveryListWithTwoHalvesCanBeFiltered)
+// Every list is split into what the instrument ships with and what the
+// performer made, and every one of them can be narrowed by it. The clips were
+// last, and only because a clip's origin had nowhere to live.
+TEST (LibraryKeys, EveryListCanBeFiltered)
 {
-  for (auto const list : { BrowserList::Shapes, BrowserList::Actions,
-                           BrowserList::Sessions })
+  for (auto const list : { BrowserList::Clips, BrowserList::Shapes,
+                           BrowserList::Actions, BrowserList::Sessions })
     EXPECT_TRUE (libraryKeysFor (list, plenty ()).filter)
         << "tab " << static_cast<int> (list);
 }
@@ -69,19 +69,10 @@ TEST (LibraryKeys, NothingShippedCanBeWrittenOver)
   auto facts = plenty ();
   facts.chosenIsSystem = true;
 
-  for (auto const list : { BrowserList::Shapes, BrowserList::Actions,
-                           BrowserList::Sessions })
+  for (auto const list : { BrowserList::Clips, BrowserList::Shapes,
+                           BrowserList::Actions, BrowserList::Sessions })
     EXPECT_FALSE (libraryKeysFor (list, facts).save)
         << "tab " << static_cast<int> (list);
-}
-
-// Not the clips: a clip carries Category::Clip and is neither system nor
-// user, so narrowing them by System would empty the list rather than shorten
-// it. The key used to light here, where it does nothing, and stay dark on the
-// shapes, where the narrowing actually runs.
-TEST (LibraryKeys, TheClipsOfferNoFilter)
-{
-  EXPECT_FALSE (libraryKeysFor (BrowserList::Clips, plenty ()).filter);
 }
 
 

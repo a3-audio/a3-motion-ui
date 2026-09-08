@@ -134,6 +134,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // its own into system/ -- so it is moved once and then left alone.
   splitLooseFilesIn (patternsDir.getChildFile ("actions"), ".scd");
   splitLooseFilesIn (patternsDir.getChildFile ("sessions"), ".json");
+  splitLooseFilesIn (patternsDir.getChildFile ("clips"), ".json");
 
   _patternLibrary = std::make_unique<PatternLibrary> (patternsDir);
   _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
@@ -2094,11 +2095,12 @@ A3MotionUIComponent::saveSlotClipAsCopy ()
     base = juce::String (pattern->getName ()) + " " + juce::String (n);
 
   copy.name
-      = freeClipName (_patternLibrary->getClipDir (), base).toStdString ();
+      = freeNameIn (_patternLibrary->getClipDir (), base, ".json")
+            .toStdString ();
   copy.settings = clipSettingsFrom (*pattern);
 
-  auto const target = _patternLibrary->getClipDir ().getChildFile (
-      juce::String (copy.name) + ".json");
+  auto const target = newFileIn (_patternLibrary->getClipDir (),
+                                 juce::String (copy.name), ".json");
 
   if (!ClipFile::save (copy, target))
     {
@@ -2257,24 +2259,26 @@ A3MotionUIComponent::refreshBrowser ()
           auto const isClip
               = entry.category == PatternLibrary::Category::Clip;
 
-          // Row zero is the library's "Empty": how a slot is given nothing.
-          // It belongs to the shapes, which is where a figure is chosen.
-          if (i != 0 && isClip != wantClips)
+          // Row zero is the library's "Empty". It is not listed on either
+          // library tab: a figure is always replaced by another figure, so a
+          // row offering none is a row nobody reaches for, and it sat at the
+          // top of the list every time you went looking for a shape. The
+          // actions keep theirs -- an action is something you want to be able
+          // to call off.
+          if (i == 0)
             continue;
-          if (i == 0 && wantClips)
+          if (isClip != wantClips)
             continue;
 
-          // The filter narrows the figures, which is the list that has forty
-          // rows and a split the library knows: the instrument's own, and
-          // everything recorded or dropped in.
-          if (!wantClips && i != 0)
-            {
-              auto const system
-                  = entry.category == PatternLibrary::Category::System;
-              if ((_clipFilter == ClipFilter::System && !system)
-                  || (_clipFilter == ClipFilter::User && system))
-                continue;
-            }
+          // Both library lists narrow the same way now. A clip's origin lives
+          // in its own field rather than in the category, which is what let
+          // this list be filtered at last.
+          auto const shipped = wantClips ? entry.isShipped
+                                         : entry.category
+                                               == PatternLibrary::Category::System;
+          if ((_clipFilter == ClipFilter::System && !shipped)
+              || (_clipFilter == ClipFilter::User && shipped))
+            continue;
 
           names.add (juce::String (entry.name));
           _browserRowToLibrary.push_back (i);
@@ -2896,8 +2900,14 @@ A3MotionUIComponent::chosenEntryIsShipped () const
     case BrowserList::Sessions:
       return chosenSetFile ().getParentDirectory ().getFileName () == "system";
 
+    // Clips have two halves too now, and the entry carries which -- the
+    // library could not say it through `category`, whose slot is taken saying
+    // that it is a clip at all.
     case BrowserList::Clips:
-      return false;
+      {
+        auto const index = chosenLibraryIndex ();
+        return index >= 0 && _patternLibrary->getEntry (index).isShipped;
+      }
     }
 
   return false;
@@ -3313,7 +3323,7 @@ A3MotionUIComponent::renameChosenClip (juce::String const &name)
           clip->name = name.toStdString ();
 
           auto const to
-              = _patternLibrary->getClipDir ().getChildFile (name + ".json");
+              = newFileIn (_patternLibrary->getClipDir (), name, ".json");
           if (ClipFile::save (*clip, to))
             {
               if (to != entry.clipFile)
@@ -4078,8 +4088,9 @@ A3MotionUIComponent::applySet (juce::File const &file)
           // back there.
           if (!saved.clipFile.empty ())
             {
-              auto const clip = _patternLibrary->getClipDir ().getChildFile (
-                  juce::String (saved.clipFile) + ".json");
+              auto const clip
+                  = namedFileIn (_patternLibrary->getClipDir (),
+                                 juce::String (saved.clipFile), ".json");
               if (clip.existsAsFile ())
                 _slotClipFile[index][slot] = clip;
             }

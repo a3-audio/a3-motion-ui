@@ -37,6 +37,9 @@ aRootHolding (juce::String const &dirName, juce::String const &shapeFileName)
                         .getChildFile (dirName);
   root.deleteRecursively ();
   root.getChildFile ("system").createDirectory ();
+  // The clips are split into shipped and hand-made like every other
+  // list; a fixture writing them flat writes them where nothing looks.
+  root.getChildFile ("clips/user").createDirectory ();
 
   // data-name is what the library keys an entry on -- a file without one is
   // skipped as invalid, which is worth knowing when writing fixtures.
@@ -70,7 +73,7 @@ TEST (PatternLibraryClips, AClipCarriesItsValuesAndNamesItsShape)
   clip.settings.speedLog2 = -2;
   clip.settings.endAction = EndAction::Bounce;
   ASSERT_TRUE (
-      ClipFile::save (clip, root.getChildFile ("clips/Wave slow.json")));
+      ClipFile::save (clip, root.getChildFile ("clips/user/Wave slow.json")));
 
   PatternLibrary library (root);
   library.refresh ();
@@ -129,7 +132,7 @@ TEST (PatternLibraryClips, AClipPointingAtNothingIsStillListed)
   Clip clip;
   clip.name = "Ghost";
   clip.svg = "NotHere";
-  ASSERT_TRUE (ClipFile::save (clip, root.getChildFile ("clips/Ghost.json")));
+  ASSERT_TRUE (ClipFile::save (clip, root.getChildFile ("clips/user/Ghost.json")));
 
   PatternLibrary library (root);
   library.refresh ();
@@ -157,7 +160,7 @@ TEST (PatternLibraryClips, ASettingsPresetIsListedWithoutAShape)
   preset.settings.reachLfo = 4;
   preset.settings.envelopeAttack = 6;
   ASSERT_TRUE (
-      ClipFile::save (preset, root.getChildFile ("clips/Breathe.json")));
+      ClipFile::save (preset, root.getChildFile ("clips/user/Breathe.json")));
 
   PatternLibrary library (root);
   library.refresh ();
@@ -185,7 +188,7 @@ TEST (PatternLibraryClips, AClipAndTheShapeItNamesAreBothListed)
   clip.name = "Wave slow";
   clip.svg = "Wave";
   ASSERT_TRUE (
-      ClipFile::save (clip, root.getChildFile ("clips/Wave slow.json")));
+      ClipFile::save (clip, root.getChildFile ("clips/user/Wave slow.json")));
 
   PatternLibrary library (root);
   library.refresh ();
@@ -229,25 +232,25 @@ TEST (PatternLibraryClips, AClipFileSaysWhichRowItCameFrom)
   shaped.name = "Wave slow";
   shaped.svg = "Wave";
   ASSERT_TRUE (
-      ClipFile::save (shaped, root.getChildFile ("clips/Wave slow.json")));
+      ClipFile::save (shaped, root.getChildFile ("clips/user/Wave slow.json")));
 
   Clip preset;
   preset.name = "Breathe";
   ASSERT_TRUE (
-      ClipFile::save (preset, root.getChildFile ("clips/Breathe.json")));
+      ClipFile::save (preset, root.getChildFile ("clips/user/Breathe.json")));
 
   PatternLibrary library (root);
   library.refresh ();
 
   EXPECT_EQ (
-      library.indexForClipFile (root.getChildFile ("clips/Wave slow.json")),
+      library.indexForClipFile (root.getChildFile ("clips/user/Wave slow.json")),
       library.indexForName ("Wave slow"));
   EXPECT_EQ (
-      library.indexForClipFile (root.getChildFile ("clips/Breathe.json")),
+      library.indexForClipFile (root.getChildFile ("clips/user/Breathe.json")),
       library.indexForName ("Breathe"));
   EXPECT_EQ (library.indexForClipFile (juce::File{}), 0)
       << "a slot that came from no clip points at no row";
-  EXPECT_EQ (library.indexForClipFile (root.getChildFile ("clips/Gone.json")),
+  EXPECT_EQ (library.indexForClipFile (root.getChildFile ("clips/user/Gone.json")),
              0);
 }
 
@@ -267,12 +270,12 @@ TEST (PatternLibraryClips, TheFingerprintNoticesAClip)
   Clip preset;
   preset.name = "Breathe";
   ASSERT_TRUE (
-      ClipFile::save (preset, root.getChildFile ("clips/Breathe.json")));
+      ClipFile::save (preset, root.getChildFile ("clips/user/Breathe.json")));
 
   auto const added = library.getDirectoryFingerprint ();
   EXPECT_NE (added, before) << "a new preset went unnoticed";
 
-  ASSERT_TRUE (root.getChildFile ("clips/Breathe.json").deleteFile ());
+  ASSERT_TRUE (root.getChildFile ("clips/user/Breathe.json").deleteFile ());
   EXPECT_NE (library.getDirectoryFingerprint (), added)
       << "a deleted preset went unnoticed";
 }
@@ -307,9 +310,9 @@ TEST (PatternLibraryClips, EachCategoryIsSortedByTheNameThatIsShown)
   Clip preset;
   preset.name = "Breathe";
   ASSERT_TRUE (
-      ClipFile::save (preset, root.getChildFile ("clips/Breathe.json")));
+      ClipFile::save (preset, root.getChildFile ("clips/user/Breathe.json")));
   preset.name = "Anvil";
-  ASSERT_TRUE (ClipFile::save (preset, root.getChildFile ("clips/Anvil.json")));
+  ASSERT_TRUE (ClipFile::save (preset, root.getChildFile ("clips/user/Anvil.json")));
 
   PatternLibrary library (root);
   library.refresh ();
