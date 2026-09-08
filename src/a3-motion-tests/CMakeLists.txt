@@ -51,6 +51,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BrowserLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ControllerLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FunctionKeys.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerControls.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FunctionKeyColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinGroups.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinEditorScroll.cc"
