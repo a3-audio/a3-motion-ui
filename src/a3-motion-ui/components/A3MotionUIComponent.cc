@@ -61,6 +61,7 @@
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
 #include <a3-motion-ui/components/ChannelValueReset.hh>
+#include <a3-motion-engine/RecordingName.hh>
 #include <a3-motion-ui/components/RecordingIndicator.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
@@ -4448,9 +4449,18 @@ A3MotionUIComponent::saveRecordedPattern (
   if (!pattern || pattern->getNumTicks () == 0)
     return;
 
-  // Name the recording with a timestamp
-  auto now = juce::Time::getCurrentTime ();
-  auto name = "Rec_" + now.formatted ("%H%M%S").toStdString ();
+  // The day it was made, plus a running number. The number is part of the
+  // *name*, not only of the file: saveUserPattern already avoids overwriting
+  // a file, but a set names its takes rather than pointing at a path, so two
+  // takes of one day carrying one name is a set that cannot say which it
+  // meant. See a3-motion-engine/RecordingName.hh.
+  auto const base = recordingBaseName (juce::Time::getCurrentTime ());
+  auto const name
+      = freeRecordingName (base, [this] (juce::String const &candidate) {
+          // Zero is "no such name" here, not minus one: the index is
+          // 1-based because 0 is the library's own "Empty" row.
+          return _patternLibrary->indexForName (candidate.toStdString ()) > 0;
+        }).toStdString ();
   pattern->setName (name);
 
   // Save to user directory
