@@ -191,7 +191,7 @@ private:
   void toggleRecordPage ();
   /** Push the shown clip's envelope and act mode to the ACTION page. */
   /** Give the chosen field's slot an action, or take its action away. */
-  void assignActionEntry (juce::String const &name);
+  void assignActionEntry (int row);
 
   /** Point a slot's ACT key at an action file, reading it in. An empty file,
    *  or one that will not read, leaves the slot firing the accent alone. */
@@ -226,6 +226,9 @@ private:
    *  to stand for a file, and row zero of the clips and actions lists stands
    *  for "nothing chosen". */
   bool chosenEntryHasAFile () const;
+  bool chosenEntryIsASystemShape () const;
+  void saveSlotShapeInPlace ();
+  juce::String saveSlotShapeAsCopy ();
   /** What the arm step of a delete says beyond the word: how much else goes
    *  with the file, in sets that name it. Empty when nothing does. */
   juce::String chosenEntryCost () const;

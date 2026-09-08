@@ -61,7 +61,9 @@
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
 #include <a3-motion-ui/components/ChannelValueReset.hh>
+#include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-engine/RecordingName.hh>
+#include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-ui/components/RecordingIndicator.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
@@ -125,6 +127,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // once every take has a clip.
   migrateCombinedPatterns (patternsDir);
   migrateSetToCurrent (patternsDir);
+
+  // The actions and the sets are split into what the instrument ships with
+  // and what the performer made, the way the shapes already were. Whatever a
+  // device is still holding flat is the performer's -- the repository puts
+  // its own into system/ -- so it is moved once and then left alone.
+  splitLooseFilesIn (patternsDir.getChildFile ("actions"), ".scd");
+  splitLooseFilesIn (patternsDir.getChildFile ("sessions"), ".json");
 
   _patternLibrary = std::make_unique<PatternLibrary> (patternsDir);
   _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
@@ -647,8 +656,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   _action->onActionChosen = [this] (juce::String const &name) {
     setSlotAction (_clipSettingsChannel, _clipSettingsSlot,
-                   name.isEmpty () ? juce::File{}
-                                   : actionsDir ().getChildFile (name + ".scd"));
+                   name.isEmpty ()
+                       ? juce::File{}
+                       : namedFileIn (actionsDir (), name, ".scd"));
     refreshBrowser ();
   };
 
@@ -734,7 +744,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // press would bring -- a key that names what you would get rather than what
   // you have is a key you have to press to find out where you are.
   _browser->onFilterPressed = [this] {
-    if (_browserList != BrowserList::Clips)
+    // The shapes and nowhere else, which is where refreshBrowser() narrows.
+    // It used to allow the clips too: the word on the key stepped All -> User
+    // -> System and the list underneath did not move, so a dark key looked
+    // like a working one. A key that is dark must also be inert, or "dark"
+    // stops meaning anything.
+    if (_browserList != BrowserList::Shapes)
       return;
 
     _deleteArmed = false;
@@ -788,7 +803,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     if (_browserList == BrowserList::Sessions)
       loadSessionNamed (_browser->entryName (index));
     else if (_browserList == BrowserList::Actions)
-      assignActionEntry (_browser->entryName (index));
+      assignActionEntry (index);
     else
       assignBrowserEntry (libraryForBrowserRow (index));
   };
@@ -1194,7 +1209,7 @@ A3MotionUIComponent::initializePatterns ()
   // again when you let go. A set that carries its own choice overwrites this
   // the moment it loads.
   {
-    auto const bloom = actionsDir ().getChildFile ("Bloom.scd");
+    auto const bloom = namedFileIn (actionsDir (), "Bloom", ".scd");
     if (bloom.existsAsFile ())
       for (auto channel = 0u; channel < numChannels; ++channel)
         for (auto slot = 0u; slot < numClipSlots; ++slot)
@@ -2149,7 +2164,7 @@ A3MotionUIComponent::saveCurrentSession ()
 void
 A3MotionUIComponent::loadSessionNamed (juce::String const &name)
 {
-  auto const file = sessionsDir ().getChildFile (name + ".json");
+  auto const file = namedFileIn (sessionsDir (), name, ".json");
   if (!file.existsAsFile ())
     {
       updateControlReadout ("-- NO SUCH SET");
@@ -2196,22 +2211,35 @@ A3MotionUIComponent::refreshBrowser ()
   juce::StringArray names;
   std::vector<bool> settingsRows;
 
+  // Both folders are split into what the instrument ships with and what the
+  // performer made, so both can be narrowed the way the shapes are -- and
+  // listFilesIn() already sorts, and already lists a covered name once.
+  auto const keepsUnderFilter = [this] (bool isSystem) {
+    return !((_clipFilter == ClipFilter::System && !isSystem)
+             || (_clipFilter == ClipFilter::User && isSystem));
+  };
+
   if (_browserList == BrowserList::Sessions)
     {
-      for (auto const &file : sessionsDir ().findChildFiles (
-               juce::File::findFiles, false, "*.json"))
-        names.add (file.getFileNameWithoutExtension ());
-      names.sort (true);
+      for (auto const &entry : listFilesIn (sessionsDir (), ".json"))
+        if (keepsUnderFilter (entry.isSystem))
+          names.add (entry.name);
     }
   else if (_browserList == BrowserList::Actions)
     {
-      // Entry 0 is "no action", the same way entry 0 of the library is "no
-      // clip": a slot has to be able to go back to firing nothing.
-      names.add ("");
-      for (auto const &file : actionsDir ().findChildFiles (
-               juce::File::findFiles, false, "*.scd"))
-        names.add (file.getFileNameWithoutExtension ());
-      names.sort (true);
+      for (auto const &entry : listFilesIn (actionsDir (), ".scd"))
+        if (keepsUnderFilter (entry.isSystem))
+          names.add (entry.name);
+
+      // Row zero is "no action", the same way entry zero of the library is
+      // "no clip": a slot has to be able to go back to firing nothing.
+      //
+      // It says so now, in the library's own word for it -- a blank row reads
+      // as something that failed to draw rather than as the choice it is.
+      // Put in after the sort and taken by position, not by name: sorted in,
+      // the word would land among the E's, and an action somebody names
+      // "Empty" must not become a second way to clear a slot.
+      names.insert (0, "Empty");
     }
   else
     {
@@ -2319,12 +2347,12 @@ A3MotionUIComponent::refreshBrowser ()
   // between tabs are keys you read instead of aim at.
   auto const chosen = chosenEntryHasAFile ();
   auto const rename = _browser->isRenaming () ? "Keep" : "Rename";
+  auto const chosenIsSystem = chosenEntryIsASystemShape ();
 
   // The filter narrows the library, and only the library: the actions and the
   // sets land shipped and hand-written in one folder each with nothing marking
   // which is which, so there is no split to offer there. The key goes dark
   // rather than showing a word that would do nothing.
-  auto const filtering = _browserList == BrowserList::Clips;
   auto const filter = _clipFilter == ClipFilter::All      ? "All"
                       : _clipFilter == ClipFilter::User ? "User"
                                                         : "System";
@@ -2345,10 +2373,14 @@ A3MotionUIComponent::refreshBrowser ()
   // A set can always be put away -- there is always an arrangement to keep --
   // where a clip and an action are made out of what a slot holds, and an
   // empty slot holds nothing to write.
-  auto const canCopy = _browserList == BrowserList::Sessions ? true : holds;
+  // One rule for all four tabs. It used to be six switches and three loose
+  // conditions, and the SVG tab had been added to none of them.
+  auto const keys = libraryKeysFor (
+      _browserList, { chosen, chosenIsSystem, holds, inPlace });
 
-  _browser->setActions ({ filter, rename, "Save", "Save new", remove },
-                        { filtering, chosen, inPlace, canCopy, chosen });
+  _browser->setActions ({ filter, rename, "Save", "Save as", remove },
+                        { keys.filter, keys.rename, keys.save, keys.saveAs,
+                          keys.remove });
 }
 
 void
@@ -2553,7 +2585,7 @@ A3MotionUIComponent::syncClipUIParamsFromPattern (index_t channel,
 }
 
 void
-A3MotionUIComponent::assignActionEntry (juce::String const &name)
+A3MotionUIComponent::assignActionEntry (int row)
 {
   auto const channel = _clipSettingsChannel;
   auto const slot = _clipSettingsSlot;
@@ -2561,12 +2593,14 @@ A3MotionUIComponent::assignActionEntry (juce::String const &name)
   if (channel >= _engine.getNumChannels () || slot >= numPadSlots)
     return;
 
-  // The empty row clears it: a slot has to be able to go back to firing
-  // nothing, the same way it can go back to holding no clip.
+  // Row zero clears it: a slot has to be able to go back to firing nothing,
+  // the same way it can go back to holding no clip. By row rather than by the
+  // word on it -- the row is what the list put there, and an action named
+  // "Empty" would otherwise be a second, silent way to clear a slot.
+  auto const name = _browser->entryName (row);
   setSlotAction (channel, slot,
-                 name.isEmpty ()
-                     ? juce::File{}
-                     : actionsDir ().getChildFile (name + ".scd"));
+                 row == 0 ? juce::File{}
+                          : namedFileIn (actionsDir (), name, ".scd"));
 
   selectClip (channel, slot);
   refreshBrowser ();
@@ -2684,8 +2718,11 @@ A3MotionUIComponent::saveSlotAsAction ()
   // learn, and what is written is what can be read back and edited.
   actionsDir ().createDirectory ();
 
-  auto const name = freeClipName (actionsDir (), "Action", ".scd");
-  auto const file = actionsDir ().getChildFile (name + ".scd");
+  // A new one is the performer's, and its name has to be free in both
+  // halves -- counting only against your own would hand back a name a
+  // shipped file already has.
+  auto const name = freeNameIn (actionsDir (), "Action", ".scd");
+  auto const file = newFileIn (actionsDir (), name, ".scd");
 
   if (!file.replaceWithText (actionScriptFor (clipSettingsFrom (*pattern))))
     {
@@ -2715,7 +2752,7 @@ A3MotionUIComponent::chosenActionFile () const
   if (name.isEmpty ())
     return {};
 
-  return actionsDir ().getChildFile (name + ".scd");
+  return namedFileIn (actionsDir (), name, ".scd");
 }
 
 int
@@ -2785,13 +2822,21 @@ A3MotionUIComponent::chosenSetFile () const
   if (name.isEmpty ())
     return {};
 
-  return sessionsDir ().getChildFile (name + ".json");
+  return namedFileIn (sessionsDir (), name, ".json");
 }
 
 int
 A3MotionUIComponent::chosenLibraryIndex () const
 {
-  if (_browserList != BrowserList::Clips || !_browser)
+  // Both library tabs, not just one. Everything that acts on a chosen row --
+  // rename, delete, save, the system-shape check -- comes through here, so a
+  // tab left out of this one line is a tab where all of it silently does
+  // nothing. That is what kept the SVG tab's keys inert after the six
+  // switches had already been taught about it: they were right, and every
+  // one of them ran into this.
+  auto const isLibrary = _browserList == BrowserList::Clips
+                         || _browserList == BrowserList::Shapes;
+  if (!isLibrary || !_browser)
     return -1;
 
   // Through the map: a row is a row of what is listed, and what is listed is
@@ -2806,6 +2851,96 @@ A3MotionUIComponent::chosenLibraryIndex () const
   return index;
 }
 
+/** Whether the chosen row is one of the instrument's own shapes.
+ *
+ *  Only the two library tabs can answer it -- it is the two directories the
+ *  entries are scanned from -- and only the shapes tab acts on it. */
+bool
+A3MotionUIComponent::chosenEntryIsASystemShape () const
+{
+  if (_browserList != BrowserList::Shapes)
+    return false;
+
+  auto const index = chosenLibraryIndex ();
+  if (index < 0)
+    return false;
+
+  return _patternLibrary->getEntry (index).category
+         == PatternLibrary::Category::System;
+}
+
+/** The shown slot's figure, written over the shape it is standing on.
+ *
+ *  Only ever a shape of the performer's: writing over one of the
+ *  instrument's would change what every clip naming it plays, on a device
+ *  where the shape is the thing that ships. libraryKeysFor() is what stops
+ *  the key lighting; this is the second lock, because a save that depends on
+ *  a key having been dark is a save that happens the first time something
+ *  else lights it.
+ */
+void
+A3MotionUIComponent::saveSlotShapeInPlace ()
+{
+  if (chosenEntryIsASystemShape ())
+    {
+      updateControlReadout ("-- SYSTEM SHAPE");
+      return;
+    }
+
+  auto const index = chosenLibraryIndex ();
+  if (index < 0)
+    return;
+
+  auto const &entry = _patternLibrary->getEntry (index);
+  auto const &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
+  if (!pattern || !entry.file.existsAsFile ())
+    return;
+
+  if (!PatternFile::save (pattern, entry.file))
+    {
+      updateControlReadout ("-- COULD NOT SAVE");
+      return;
+    }
+
+  updateControlReadout ("-- SHAPE SAVED");
+  _patternLibrary->refresh ();
+}
+
+/** The shown slot's figure, kept as a new shape of its own.
+ *
+ *  There was no way to do this before: a figure reached the library only by
+ *  being recorded. Named the way a recording is, so a shape kept by hand and
+ *  one played in sit together in the list. */
+juce::String
+A3MotionUIComponent::saveSlotShapeAsCopy ()
+{
+  auto const &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
+  if (!pattern)
+    return {};
+
+  auto const base = recordingBaseName (juce::Time::getCurrentTime ());
+  auto const name
+      = freeRecordingName (base, [this] (juce::String const &candidate) {
+          return _patternLibrary->indexForName (candidate.toStdString ()) > 0;
+        });
+
+  // Built fresh from the ticks rather than copied: Pattern holds atomics for
+  // the values the clock thread writes and so cannot be copied at all. That
+  // is also the safer shape here -- the slot keeps its own identity, and what
+  // goes into the library is the figure, which is all a shape is.
+  auto const copy = std::make_shared<Pattern> ();
+  auto const ticks = pattern->getNumTicks ();
+  copy->resize (ticks);
+  for (index_t tick = 0; tick < ticks; ++tick)
+    copy->setTick (tick, pattern->getTick (tick));
+  copy->markComplete ();
+  copy->setName (name.toStdString ());
+
+  _patternLibrary->saveUserPattern (copy);
+
+  return name;
+}
+
 bool
 A3MotionUIComponent::chosenEntryHasAFile () const
 {
@@ -2815,7 +2950,11 @@ A3MotionUIComponent::chosenEntryHasAFile () const
       return chosenActionFile ().existsAsFile ();
     case BrowserList::Sessions:
       return chosenSetFile ().existsAsFile ();
+    // One list read two ways: a shape row and a clip row are both library
+    // entries, and "is there a file behind this" has the same answer for
+    // both.
     case BrowserList::Clips:
+    case BrowserList::Shapes:
       {
         auto const index = chosenLibraryIndex ();
         if (index < 0)
@@ -2839,9 +2978,11 @@ A3MotionUIComponent::setsNaming (juce::String const &patternName) const
     return 0;
 
   auto count = 0;
-  for (auto const &file : sessionsDir ().findChildFiles (juce::File::findFiles,
-                                                         false, "*.json"))
+  // Both halves: a shipped set names takes too, and a rename that skipped
+  // them would leave them pointing at a name that is gone.
+  for (auto const &listed : listFilesIn (sessionsDir (), ".json"))
     {
+      auto const &file = listed.file;
       auto const set
           = loadSession (file, static_cast<int> (numChannelColumns),
                          static_cast<int> (numPadSlots));
@@ -2866,9 +3007,11 @@ A3MotionUIComponent::renameInSets (juce::String const &from,
     return 0;
 
   auto rewritten = 0;
-  for (auto const &file : sessionsDir ().findChildFiles (juce::File::findFiles,
-                                                         false, "*.json"))
+  // Both halves: a shipped set names takes too, and a rename that skipped
+  // them would leave them pointing at a name that is gone.
+  for (auto const &listed : listFilesIn (sessionsDir (), ".json"))
     {
+      auto const &file = listed.file;
       auto set = loadSession (file, static_cast<int> (numChannelColumns),
                               static_cast<int> (numPadSlots));
 
@@ -2897,7 +3040,8 @@ A3MotionUIComponent::renameInSets (juce::String const &from,
 juce::String
 A3MotionUIComponent::chosenEntryCost () const
 {
-  if (_browserList != BrowserList::Clips)
+  if (_browserList != BrowserList::Clips
+      && _browserList != BrowserList::Shapes)
     return {};
 
   auto const index = chosenLibraryIndex ();
@@ -2918,7 +3062,12 @@ A3MotionUIComponent::renameChosenEntry (juce::String const &name)
     {
     case BrowserList::Actions: renameChosenAction (name); break;
     case BrowserList::Sessions: renameChosenSet (name); break;
-    case BrowserList::Clips: renameChosenClip (name); break;
+    // Renaming a shape is renaming its library entry: the name inside the
+    // SVG, the file (keeping its beat prefix), the clip beside it, and every
+    // slot and set that names it. renameChosenClip already does all of that
+    // from the entry, so the two tabs are one job.
+    case BrowserList::Clips:
+    case BrowserList::Shapes: renameChosenClip (name); break;
     }
 }
 
@@ -2946,7 +3095,8 @@ A3MotionUIComponent::deleteChosenEntry ()
     {
     case BrowserList::Actions: deleteChosenAction (); break;
     case BrowserList::Sessions: deleteChosenSet (); break;
-    case BrowserList::Clips: deleteChosenClip (); break;
+    case BrowserList::Clips:
+    case BrowserList::Shapes: deleteChosenClip (); break;
     }
 }
 
@@ -2957,7 +3107,9 @@ A3MotionUIComponent::renameChosenAction (juce::String const &name)
   if (!from.existsAsFile ())
     return;
 
-  auto const to = actionsDir ().getChildFile (name + ".scd");
+  // Renaming only ever reaches one of the performer's -- the key is dark
+  // on a shipped one -- so the new name lands beside the old.
+  auto const to = newFileIn (actionsDir (), name, ".scd");
   if (to == from)
     return;
 
@@ -3023,7 +3175,7 @@ A3MotionUIComponent::renameChosenSet (juce::String const &name)
   if (!from.existsAsFile ())
     return;
 
-  auto const to = sessionsDir ().getChildFile (name + ".json");
+  auto const to = newFileIn (sessionsDir (), name, ".json");
   if (to == from)
     return;
 
@@ -3245,7 +3397,7 @@ A3MotionUIComponent::saveSlotActionInPlace ()
 void
 A3MotionUIComponent::saveSessionInPlace ()
 {
-  auto const file = sessionsDir ().getChildFile (_sessionName + ".json");
+  auto const file = namedFileIn (sessionsDir (), _sessionName, ".json");
   if (_sessionName.isEmpty () || !file.existsAsFile ())
     {
       updateControlReadout ("-- NOTHING TO SAVE");
@@ -3281,6 +3433,11 @@ A3MotionUIComponent::canSaveInPlace () const
       // a copy of it anyway once -- press it twice out of habit and the
       // library grows a clip you cannot tell from the original.
       return slotHasDrifted (channel, slot);
+    // A shape's answer is libraryKeysFor()'s, which knows whether the row is
+    // one of the instrument's own -- that is the question here, and it is not
+    // one this function can see. It only has to not fall through.
+    case BrowserList::Shapes:
+      return false;
     case BrowserList::Actions:
       return holds && _slotAction[channel][slot].file.existsAsFile ();
     case BrowserList::Sessions:
@@ -3301,6 +3458,7 @@ A3MotionUIComponent::saveChosen ()
     case BrowserList::Clips:
       saveSlotClip (_clipSettingsChannel, _clipSettingsSlot);
       break;
+    case BrowserList::Shapes: saveSlotShapeInPlace (); break;
     case BrowserList::Actions: saveSlotActionInPlace (); break;
     case BrowserList::Sessions: saveSessionInPlace (); break;
     }
@@ -3313,6 +3471,7 @@ A3MotionUIComponent::saveAsChosen ()
   switch (_browserList)
     {
     case BrowserList::Clips: name = saveSlotClipAsCopy (); break;
+    case BrowserList::Shapes: name = saveSlotShapeAsCopy (); break;
     case BrowserList::Actions: name = saveSlotAsAction (); break;
     case BrowserList::Sessions: name = saveCurrentSession (); break;
     }
@@ -3388,10 +3547,8 @@ A3MotionUIComponent::updateActionPage ()
   // to firing nothing the same way it can go back to holding no clip.
   juce::StringArray choices;
   choices.add ("");
-  for (auto const &file : actionsDir ().findChildFiles (juce::File::findFiles,
-                                                        false, "*.scd"))
-    choices.add (file.getFileNameWithoutExtension ());
-  choices.sort (true);
+  for (auto const &entry : listFilesIn (actionsDir (), ".scd"))
+    choices.add (entry.name);
   _action->setActionChoices (choices);
 
   _action->setScript (slotAction.source);
@@ -3864,8 +4021,8 @@ A3MotionUIComponent::applySet (juce::File const &file)
           // it also holds a clip.
           if (!saved.action.empty ())
             setSlotAction (index, slot,
-                           actionsDir ().getChildFile (
-                               juce::String (saved.action) + ".scd"));
+                           namedFileIn (actionsDir (),
+                                        juce::String (saved.action), ".scd"));
 
           if (saved.patternName.empty ())
             continue;

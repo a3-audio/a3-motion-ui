@@ -37,6 +37,8 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/CrossingWindow.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingIndicator.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingName.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/LibraryKeys.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SplitFolder.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FontScale.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsCaptions.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsLayout.cc"
@@ -119,6 +121,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/PadStatusColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ChannelValueReset.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/RecordingIndicator.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/LibraryKeys.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/SkinGroups.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ListScroll.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/GlobalSettingsComponent.cc"
@@ -142,7 +145,10 @@ target_compile_definitions(a3-motion-tests PRIVATE
     A3_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../resources"
     A3_PATTERN_SYSTEM_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/system"
     A3_PATTERN_USER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/user"
-    A3_PATTERN_ACTIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/actions"
+    # The instrument's own, which now live in the system half of a folder split
+    # into shipped and hand-made. The performer's are in user/ beside them and
+    # are nobody's to guarantee.
+    A3_PATTERN_ACTIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/actions/system"
     A3_PATTERN_CLIPS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/clips"
     A3_PATTERN_SESSIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/sessions")
 
