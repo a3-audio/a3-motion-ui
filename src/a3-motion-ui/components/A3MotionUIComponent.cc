@@ -51,8 +51,8 @@
 #include <a3-motion-ui/Helpers.hh>
 #include <a3-motion-ui/components/ChannelStrip.hh>
 #include <a3-motion-ui/components/ChannelUIState.hh>
+#include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/FilterDisplay.hh>
-#include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/LoopLengthDisplay.hh>
 #include <a3-motion-ui/components/ElevationDisplay.hh>
 #include <a3-motion-ui/components/ElevationSideView.hh>
@@ -1306,13 +1306,13 @@ A3MotionUIComponent::resized ()
 float
 A3MotionUIComponent::getMinimumWidth () const
 {
-  return _channelStrips.size () * LayoutHints::Channels::widthMin;
+  return _channelStrips.size () * minimumChannelWidth;
 }
 
 float
 A3MotionUIComponent::getMinimumHeight () const
 {
-  auto minimumHeight = LayoutHints::MotionComponent::heightMin;
+  auto minimumHeight = minimumMotionHeight;
   return minimumHeight;
 }
 

@@ -37,8 +37,6 @@ target_sources("a3-motion-ui" PRIVATE
     components/A3MotionUIComponent.hh
     components/LookAndFeel.cc
     components/LookAndFeel.hh
-    components/LayoutHints.cc
-    components/LayoutHints.hh
     components/StatusBar.cc
     components/StatusBar.hh
     components/ChannelStrip.cc

@@ -185,14 +185,15 @@ StatusBar::resized ()
   // step in three places. The tick indicator is centred on the bar itself
   // (below), not on what this leaves over.
   auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 2);
-  _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
+  _labelBPM.setBounds (
+      leftArea.withTrimmedLeft (juce::roundToInt (theme ().paddingSmall)));
 
   // What is left between the beat display and the keyboard icon. The tick
   // indicator is centred on the whole bar, so it reaches to three quarters --
   // the readout starts where it stops.
   _labelReadout.setBounds (
       bounds.withTrimmedLeft (bounds.getWidth () / 2)
-          .withTrimmedRight (LayoutHints::padding));
+          .withTrimmedRight (juce::roundToInt (theme ().paddingSmall)));
 
   // Centred on the bar, not on whatever space the labels left over: it is
   // the one thing here that is looked at rather than read, and an off-centre

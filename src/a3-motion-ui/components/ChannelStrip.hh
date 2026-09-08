@@ -23,7 +23,6 @@
 #include <JuceHeader.h>
 
 #include "a3-motion-ui/components/DirectivityComponent.hh"
-#include "a3-motion-ui/components/LayoutHints.hh"
 
 namespace a3
 {
