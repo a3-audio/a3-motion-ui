@@ -39,13 +39,8 @@ namespace
 // its reason.
 
 std::vector<char const *> const filesStillHoldingMetrics = {
-  "components/A3MotionUIComponent.cc",
   "components/ActionLayout.cc",
   "components/ClipSettingsLayout.cc",
-  "components/ElevationDisplay.cc",
-  "components/FilterDisplay.cc",
-  "components/LoopLengthDisplay.cc",
-  "components/MotionComponent.cc",
 };
 
 /** The arguments of `call` in `text`, split at the commas that belong to it.

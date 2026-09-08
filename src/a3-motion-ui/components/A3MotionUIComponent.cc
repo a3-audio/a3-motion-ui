@@ -3728,7 +3728,7 @@ A3MotionUIComponent::tickCallback (Measure measure)
     {
       auto const channel = recordingPattern->getChannel ();
       _motionComponent->setBackgroundColour (
-          _channelUIStates[channel]->colour.withAlpha (0.2f));
+          _channelUIStates[channel]->colour.withAlpha (theme ().alphaOutline));
 
       auto const progress
           = recordingPattern->getLastUpdatedTick ()
