@@ -240,11 +240,30 @@ planBridges (std::vector<Pos> const &ticks, float fadeReach, int bridgeBias,
       // Rounded down, and never more than half of an end: two joins on the
       // same run take from its two ends, and they have to meet at worst --
       // overlapping windows are two crossings claiming the same blob.
-      auto const before = static_cast<size_t> (
-          std::floor (static_cast<float> (ticksBefore (starts, at)) * share));
+      //
+      // That rule counts two crossings sharing a run. It says nothing about
+      // *one* crossing whose own two ends are the same run, which is exactly
+      // what the seam of a continuously recorded take is -- and there half
+      // from each end is the whole of it. Measured at a fade reach of 1 on a
+      // 48-tick take: 23 + 1 + 23, forty-seven ticks inside one crossing,
+      // the recorded figure replaced by two straight lines and the blob
+      // arriving at the landing point travelling almost exactly backwards.
+      // That was the loop point hopping the wrong way.
+      //
+      // So when both ends are the same run, the two of them share that run's
+      // half rather than taking one each. The crossing still gets a window --
+      // shrinking it to nothing would bring back the jump this exists to
+      // stop -- and a take made of separate taps, which is what bridges were
+      // built for, is untouched.
+      auto const endsShareARun
+          = runOf (starts, at) == runOf (starts, via);
+      auto const endShare = endsShareARun ? share * 0.5f : share;
+
+      auto const before = static_cast<size_t> (std::floor (
+          static_cast<float> (ticksBefore (starts, at)) * endShare));
       auto const after = static_cast<size_t> (std::floor (
           static_cast<float> (ticksAfter (starts, via, ticks.size ()))
-          * share));
+          * endShare));
 
       // Nothing reserved is nothing joined: a crossing squeezed into the
       // gap's own single tick is the jump this was built to stop being.
