@@ -229,9 +229,6 @@ juce::File skinFile (juce::File const &configDir, juce::String const &name);
 constexpr int numFontScales = 5;
 float fontScaleForIndex (int index);
 
-/** Set only one menu factor, leaving the skin's own values — and the other
- *  factor — untouched. Skin and settings arrive from different files at
-
 /** The theme in force. Written only while loading, on the message thread; the
  *  GL thread copies what it needs per frame, as it already does with the
  *  config. Follows the `extern juce::var userConfig` pattern this repo
