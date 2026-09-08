@@ -97,9 +97,9 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
   auto const colour = cell.colour;
 
   // Background: fill with channel colour, intensity depends on state
-  auto bgAlpha = cell.cellSelected ? 0.85f
-                 : cell.rowHighlighted ? 0.55f
-                                       : 0.25f;
+  auto bgAlpha = cell.cellSelected ? theme ().alphaTextStrong
+                 : cell.rowHighlighted ? theme ().alphaInactive
+                                       : theme ().alphaFillEmphasis;
   g.setColour (colour.withAlpha (bgAlpha));
   g.fillRect (bounds);
 
