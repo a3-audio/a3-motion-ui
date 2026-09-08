@@ -860,8 +860,10 @@ ActionComponent::paint (juce::Graphics &g)
   if (!_layout.cardCaption.isEmpty ())
     {
       g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
-      g.setFont (juce::Font (juce::FontOptions (juce::jmin (
-          16.f, _layout.cardCaption.getHeight () * 0.7f))));
+      // What the "Audio" caption over the knob card may cost.
+      constexpr float audioCaptionCap = 16.f;
+      g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
+          _layout.cardCaption.getHeight () * 0.7f, audioCaptionCap))));
       g.drawText ("Audio", _layout.cardCaption,
                   juce::Justification::centred);
     }
