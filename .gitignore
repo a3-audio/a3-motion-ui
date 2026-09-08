@@ -70,6 +70,15 @@ pattern/clips/*.json
 *.swp
 *~
 
+# What a device has already done, not what the project contains. The clip
+# migration keeps a ledger of the takes it has already given a clip to, so it
+# does not recreate one that was deleted -- ClipMigration.ADeletedClipStaysDeleted
+# stands on it. It is written on every start and appended to on every
+# recording, so a tracked one dirties the working tree constantly and blocks
+# branch switches; and a pushed one would tell another machine that its takes
+# had been migrated when they had not.
+pattern/clips/.migrated
+
 # The performer's own work, not the project's. Recordings, clips, actions and
 # sets made on a device belong to that device: a tracked one would be laid
 # down on every other checkout, and a deletion on one machine would show up as
