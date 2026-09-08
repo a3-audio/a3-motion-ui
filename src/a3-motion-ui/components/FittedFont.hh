@@ -25,7 +25,7 @@ namespace a3
 
 /** A font height that fits: at most `cap`, and never below 1.
  *
- *  Eight call sites wrote this pairing out with their own two numbers. The
+ *  Nine call sites wrote this pairing out with their own two numbers. The
  *  numbers stay theirs -- what a label may cost is a property of that label --
  *  but the arithmetic around them is one thing and now says so.
  *
