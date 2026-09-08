@@ -21,6 +21,8 @@
 #include <a3-motion-ui/io/OnScreenKeyboard.hh>
 #include "A3MotionUIComponent.hh"
 
+#include <a3-motion-ui/components/TickPlayheads.hh>
+
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectoryShaping.hh>
@@ -4536,7 +4538,26 @@ A3MotionUIComponent::timerCallback ()
   // earlier would show the action's values for as long as the page stayed
   // open.
   auto const accent = _engine.isChannelAccentActive (_clipSettingsChannel);
-  if (_engine.isRecording () || accent || _accentWasActive
+
+  // Any channel, not just the shown one. The tick indicator now carries a
+  // mark per channel, so a clip running on a channel nobody is looking at
+  // still moves something on screen -- watching only the shown clip left
+  // those marks standing still.
+  auto anyPlaying = false;
+  for (index_t channel = 0; channel < _patterns.size () && !anyPlaying;
+       ++channel)
+    for (index_t slot = 0; slot < _patterns[channel].size (); ++slot)
+      {
+        auto const &pattern = _patterns[channel][slot];
+        if (pattern != nullptr
+            && pattern->getStatus () == Pattern::Status::Playing)
+          {
+            anyPlaying = true;
+            break;
+          }
+      }
+
+  if (_engine.isRecording () || accent || _accentWasActive || anyPlaying
       || (shown && shown->getStatus () == Pattern::Status::Playing))
     updateClipSettingsDisplay ();
   _accentWasActive = accent;
@@ -5806,6 +5827,48 @@ A3MotionUIComponent::sphereCamera () const
   return _motionComponent ? _motionComponent->getCamera () : SphereCamera{};
 }
 
+/** Every channel's playhead, gathered fresh.
+ *
+ *  Walked rather than remembered: a channel's clip can be stopped by an end
+ *  action, by another slot being fired, or by the engine reaching the end of
+ *  a one-shot, and none of those routes passes through here. Reading the
+ *  patterns each time is what keeps a mark from being left behind on a
+ *  channel that has already finished. */
+void
+A3MotionUIComponent::updateStatusBarPlayheads ()
+{
+  if (!_statusBar)
+    return;
+
+  std::array<float, numChannelsInitial> positions;
+  std::array<juce::Colour, numChannelsInitial> colours;
+  positions.fill (-1.f);
+
+  for (index_t channel = 0;
+       channel < _patterns.size ()
+       && channel < (index_t)numChannelsInitial;
+       ++channel)
+    {
+      colours[(size_t)channel] = _channelUIStates[(size_t)channel]->colour;
+
+      for (index_t slot = 0; slot < _patterns[channel].size (); ++slot)
+        {
+          auto const &pattern = _patterns[channel][slot];
+          if (pattern != nullptr
+              && pattern->getStatus () == Pattern::Status::Playing)
+            {
+              // Mirrored while the clip runs backwards, so the mark always
+              // sweeps left to right -- see leftToRightPosition().
+              positions[(size_t)channel] = leftToRightPosition (
+                  pattern->getPlayPosition (), pattern->getPlaySign ());
+              break;
+            }
+        }
+    }
+
+  _statusBar->setChannelPlayheads (positions, colours);
+}
+
 void
 A3MotionUIComponent::updateClipSettingsDisplay ()
 {
@@ -6078,15 +6141,15 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
 
     if (_statusBar)
       {
-        if (isRecordingThis)
-          _statusBar->setRecordingProgress (_engine.getRecordingProgress (),
-                                            _channelUIStates[channel]->colour);
-        else if (isPlayingThis)
-          _statusBar->setRecordingProgress (pattern->getPlayPosition (),
-                                            toColour (theme ().accent));
-        else
-          _statusBar->setRecordingProgress (-1.f,
-                                            _channelUIStates[channel]->colour);
+        // The fill is the take and only the take: one recording runs at a
+        // time and it writes over something that does not come back, so it
+        // keeps a shape of its own rather than becoming a fifth mark to
+        // count in the dark.
+        _statusBar->setRecordingProgress (
+            isRecordingThis ? _engine.getRecordingProgress () : -1.f,
+            _channelUIStates[channel]->colour);
+
+        updateStatusBarPlayheads ();
       }
 
     if (_clipSettings)
