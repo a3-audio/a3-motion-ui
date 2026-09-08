@@ -39,4 +39,13 @@ playheadBounds (juce::Rectangle<float> tick, float fraction, float width)
            tick.getY (), width, tick.getHeight () };
 }
 
+float
+leftToRightPosition (float position, float sign)
+{
+  if (position < 0.f)
+    return position;
+
+  return sign < 0.f ? 1.f - position : position;
+}
+
 }

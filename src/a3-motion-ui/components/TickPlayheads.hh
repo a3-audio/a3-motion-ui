@@ -44,4 +44,22 @@ namespace a3
 juce::Rectangle<float> playheadBounds (juce::Rectangle<float> tick,
                                        float fraction, float width);
 
+/** The position as the indicator shows it: always sweeping left to right.
+ *
+ *  The engine plays a clip backwards by counting its position down — `dir`
+ *  sets a sign of -1, and a bounce flips it at the ends. Followed literally
+ *  the mark would travel right to left, and a bounce would turn it round
+ *  mid-run.
+ *
+ *  Mirroring the position while the sign is negative keeps every pass going
+ *  the same way; a bounce then leaves the right edge and comes back in at the
+ *  left, which is the picture a loop already makes. What that gives up is
+ *  telling forward from backward — the indicator answers how far, not which
+ *  way, and a mark that sometimes runs backwards has to be read rather than
+ *  caught out of the corner of an eye.
+ *
+ *  A negative position is the not-playing sentinel and passes through
+ *  untouched, or a stopped channel would come out at the right-hand edge. */
+float leftToRightPosition (float position, float sign);
+
 }

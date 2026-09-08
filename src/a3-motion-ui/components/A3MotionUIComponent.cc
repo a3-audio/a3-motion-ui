@@ -21,6 +21,8 @@
 #include <a3-motion-ui/io/OnScreenKeyboard.hh>
 #include "A3MotionUIComponent.hh"
 
+#include <a3-motion-ui/components/TickPlayheads.hh>
+
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectoryShaping.hh>
@@ -5855,7 +5857,10 @@ A3MotionUIComponent::updateStatusBarPlayheads ()
           if (pattern != nullptr
               && pattern->getStatus () == Pattern::Status::Playing)
             {
-              positions[(size_t)channel] = pattern->getPlayPosition ();
+              // Mirrored while the clip runs backwards, so the mark always
+              // sweeps left to right -- see leftToRightPosition().
+              positions[(size_t)channel] = leftToRightPosition (
+                  pattern->getPlayPosition (), pattern->getPlaySign ());
               break;
             }
         }

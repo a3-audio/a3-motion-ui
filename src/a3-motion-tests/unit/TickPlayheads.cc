@@ -87,4 +87,44 @@ TEST (TickPlayheads, APositionPastTheEndIsClampedRatherThanDropped)
   EXPECT_FLOAT_EQ (head.getRight (), tick.getRight ());
 }
 
+
+// The engine plays a clip backwards by counting its position down: `dir` sets
+// a sign of -1 and a bounce flips it at the ends. Followed literally, the mark
+// then travels right to left, and at a bounce it turns round mid-run.
+//
+// It always sweeps left to right instead. The indicator says how far, not
+// which way -- a mark that sometimes runs backwards has to be read rather
+// than caught out of the corner of an eye, which is the one thing it is for.
+TEST (TickPlayheads, ForwardPlaybackIsShownAsItIs)
+{
+  EXPECT_FLOAT_EQ (leftToRightPosition (0.25f, 1.f), 0.25f);
+}
+
+TEST (TickPlayheads, BackwardPlaybackIsMirroredSoItStillSweepsRight)
+{
+  EXPECT_FLOAT_EQ (leftToRightPosition (0.75f, -1.f), 0.25f);
+  EXPECT_FLOAT_EQ (leftToRightPosition (1.f, -1.f), 0.f);
+}
+
+// A bounce turns round at the end of the take. Mirrored, the mark leaves the
+// right edge and comes back in at the left -- the same picture a loop makes,
+// which is what "always left to right" has to mean for a clip that reverses.
+TEST (TickPlayheads, ABounceReadsAsALoopRatherThanAReversal)
+{
+  auto const beforeTurn = leftToRightPosition (0.99f, 1.f);
+  auto const afterTurn = leftToRightPosition (0.99f, -1.f);
+
+  EXPECT_GT (beforeTurn, 0.9f);
+  EXPECT_LT (afterTurn, 0.1f);
+}
+
+// Not playing stays not playing: the sentinel has to survive the mirroring,
+// or a stopped channel would come out at the right-hand edge instead of
+// drawing nothing.
+TEST (TickPlayheads, TheNotPlayingSentinelSurvivesMirroring)
+{
+  EXPECT_LT (leftToRightPosition (-1.f, -1.f), 0.f);
+  EXPECT_LT (leftToRightPosition (-1.f, 1.f), 0.f);
+}
+
 }
