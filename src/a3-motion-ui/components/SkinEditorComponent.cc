@@ -944,11 +944,11 @@ SkinEditorComponent::paint (juce::Graphics &g)
           2.f, juce::GlyphArrangement::getStringWidth (font, "n"));
 
       // Full opacity while editing rather than an alpha rung: "editing" has
-      // always meant no dimming at all, which the alpha-less overload
-      // already says. This used to be `_editing ? 1.f : theme
-      // ().alphaInactive`; 1.f fits no rung, and the maintainer still owes a
-      // call on whether full opacity deserves one of its own. See
-      // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+      // always meant no dimming at all, which the alpha-less overload already
+      // says. This used to be `_editing ? 1.f : theme ().alphaInactive`; 1.f
+      // fits no rung, and full opacity is the absence of an emphasis decision
+      // rather than one of its rungs, so it deliberately gets no role of its
+      // own. See issues/a3-motion-ui-metric-role-deviations.md (Task 16).
       g.setColour (_editing ? toColour (theme ().accent)
                             : toColour (theme ().accent,
                                        theme ().alphaInactive));

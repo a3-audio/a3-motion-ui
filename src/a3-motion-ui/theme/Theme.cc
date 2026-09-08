@@ -314,8 +314,12 @@ loadTheme (juce::var const &skin)
   theme.alphaFillEmphasis
       = themeFloat (skin, "alphaFillEmphasis", theme.alphaFillEmphasis);
   theme.alphaMuted = themeFloat (skin, "alphaMuted", theme.alphaMuted);
+  theme.alphaGuide = themeFloat (skin, "alphaGuide", theme.alphaGuide);
+  theme.alphaSecondary
+      = themeFloat (skin, "alphaSecondary", theme.alphaSecondary);
   theme.alphaTextStrong
       = themeFloat (skin, "alphaTextStrong", theme.alphaTextStrong);
+  theme.alphaActive = themeFloat (skin, "alphaActive", theme.alphaActive);
 
   theme.sphereScale = themeFloat (skin, "sphereScale", theme.sphereScale);
   theme.blobScale
@@ -330,6 +334,7 @@ loadTheme (juce::var const &skin)
   theme.radiusCard = themeFloat (skin, "radiusCard", theme.radiusCard);
   theme.radiusPanel = themeFloat (skin, "radiusPanel", theme.radiusPanel);
 
+  theme.paddingHair = themeFloat (skin, "paddingHair", theme.paddingHair);
   theme.paddingTight = themeFloat (skin, "paddingTight", theme.paddingTight);
   theme.paddingSmall = themeFloat (skin, "paddingSmall", theme.paddingSmall);
   theme.padding = themeFloat (skin, "padding", theme.padding);
@@ -386,7 +391,10 @@ themeDefaultsVar ()
   number ("alphaOutline", defaults.alphaOutline);
   number ("alphaFillEmphasis", defaults.alphaFillEmphasis);
   number ("alphaMuted", defaults.alphaMuted);
+  number ("alphaGuide", defaults.alphaGuide);
+  number ("alphaSecondary", defaults.alphaSecondary);
   number ("alphaTextStrong", defaults.alphaTextStrong);
+  number ("alphaActive", defaults.alphaActive);
 
   number ("radiusTick", defaults.radiusTick);
   number ("radiusControl", defaults.radiusControl);
@@ -394,6 +402,7 @@ themeDefaultsVar ()
   number ("radiusCard", defaults.radiusCard);
   number ("radiusPanel", defaults.radiusPanel);
 
+  number ("paddingHair", defaults.paddingHair);
   number ("paddingTight", defaults.paddingTight);
   number ("paddingSmall", defaults.paddingSmall);
   number ("padding", defaults.padding);

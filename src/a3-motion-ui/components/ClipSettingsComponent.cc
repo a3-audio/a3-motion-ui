@@ -71,14 +71,6 @@ constexpr float trackWash = 0.18f;
 constexpr float beatWash = 0.035f;
 constexpr float clippedZoneOpacity = 0.55f;
 constexpr float outlineOpacity = 0.5f;
-
-// Sits between alphaOutline (0.15) and alphaFillEmphasis (0.28), further than
-// either by more than the 0.05 a snap would tolerate -- rounding it onto
-// either rung would visibly change how strongly the ear-height ring reads
-// against the two clip cuts either side of it, which use alphaFillEmphasis.
-// Listed in issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending
-// a decision on whether it becomes a rung of its own.
-constexpr float earHeightRingOpacity = 0.22f;
 }
 
 ClipSettingsComponent::ClipSettingsComponent ()
@@ -465,13 +457,13 @@ ClipSettingsComponent::controlColour (bool isSelected) const
   // and made the difference between them look like it meant something about
   // the setting rather than about which section a finger last touched. What
   // says whose section this is, is the ground behind it -- the colour belongs
-  // to the highlight, not to the reading.
-  //
-  // Full opacity rather than an alpha rung: "selected" has always meant no
-  // dimming at all, which the alpha-less overload already says. This used to
-  // be `isSelected ? 1.f : theme ().alphaInactive` -- 1.f fits no rung, and
-  // the maintainer still owes a call on whether full opacity deserves one of
-  // its own. See issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+  // to the highlight, not to the reading. Full opacity rather than an alpha
+  // rung: "selected" has always meant no dimming at all, which the alpha-less
+  // overload already says. This used to be `isSelected ? 1.f : theme
+  // ().alphaInactive` -- 1.f fits no rung, and full opacity is the absence of
+  // an emphasis decision rather than one of its rungs, so it deliberately
+  // gets no role of its own. See
+  // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
   return isSelected ? toColour (theme ().textMuted)
                     : toColour (theme ().textMuted, theme ().alphaInactive);
 }
@@ -977,10 +969,11 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
     g.setFont (juce::Font (fontFor (FontRole::Header, bounds, label),
                            active ? juce::Font::bold : juce::Font::plain));
     // Full opacity rather than an alpha rung -- the active tab's label has
-    // always meant no dimming at all. This used to be
-    // `active ? 1.f : 0.55f`; 1.f fits no rung, and the maintainer still owes
-    // a call on whether full opacity deserves one of its own. See
-    // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+    // always meant no dimming at all. This used to be `active ? 1.f : 0.55f`;
+    // 1.f fits no rung, and full opacity is the absence of an emphasis
+    // decision rather than one of its rungs, so it deliberately gets no role
+    // of its own. See issues/a3-motion-ui-metric-role-deviations.md (Task
+    // 16).
     g.setColour (active ? toColour (theme ().textPrimary)
                         : toColour (theme ().textPrimary,
                                    theme ().alphaInactive));
@@ -2020,7 +2013,7 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   g.strokePath (latitude (bandHigh), juce::PathStrokeType (1.f));
 
   // Ear height, the one ring worth having whatever else is set.
-  g.setColour (toColour (theme ().textPrimary, earHeightRingOpacity));
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaGuide));
   g.strokePath (latitude (0.5f), juce::PathStrokeType (1.f));
 
   // And a graticule every thirty degrees, so the picture says how far it has

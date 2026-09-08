@@ -51,22 +51,6 @@ paddingH ()
   return juce::roundToInt (theme ().padding);
 }
 
-// card.reduced()'s second argument, the card's vertical inset. 3 sits
-// exactly one pixel from paddingTight (2) and one from paddingSmall (4),
-// with nothing in the code saying which way it leans -- snapping it would be
-// a coin toss dressed as a decision. Listed in
-// issues/a3-motion-ui-metric-role-deviations.md (Task 16).
-constexpr int cardVerticalInset = 3;
-
-// The one-pixel gutter between two adjacent cells of the global section's
-// per-channel grid, not a stroke width -- there is no stroke here to keep
-// inside its bounds. No rung of the spacing scale carries a bare 1
-// (paddingTight is 2), and binding it to strokeThin would tie a layout gap
-// to a paint-time role for no reason anyone could name. Left as its own
-// literal pending a decision. Listed in
-// issues/a3-motion-ui-metric-role-deviations.md (Task 16).
-constexpr int channelGridCellGutter = 1;
-
 // The global section takes a quarter of the bar and the clip's three
 // sections share the rest. It had half while its grid was spread across the
 // whole width; capped to what the knobs need, the grid fits in a quarter and
@@ -86,7 +70,7 @@ sectionContentBounds (juce::Rectangle<int> card)
   // at the device's sixth-of-the-bar sections took width from rows that hold
   // four values.
   return card.reduced (juce::jmax (2, card.getWidth () / 80),
-                       cardVerticalInset);
+                       juce::roundToInt (theme ().paddingTight));
 }
 
 float
@@ -741,7 +725,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
           auto column = columns.removeFromLeft (colW);
           for (int row = 0; row < numChannelRows; ++row)
             out.channelGrid[c][static_cast<size_t> (row)]
-                = column.removeFromTop (rowH).reduced (channelGridCellGutter);
+                = column.removeFromTop (rowH).reduced (juce::roundToInt (theme ().paddingHair));
         }
 
       // The four things you do to a clip, in their own frame under the

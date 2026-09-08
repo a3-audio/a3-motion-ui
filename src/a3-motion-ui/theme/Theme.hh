@@ -89,7 +89,7 @@ struct Theme
 
   /** How loud a thing is drawn, as a share of its role's colour.
    *
-   *  Seven rungs of one emphasis ladder, ordered by loudness alone — not by
+   *  Ten rungs of one emphasis ladder, ordered by loudness alone — not by
    *  what shape the drawing takes. They were derived from what the code
    *  already did, and at that point most fills did sit low and most text
    *  did sit high, which is where alphaFill, alphaOutline and alphaDisabled
@@ -108,9 +108,20 @@ struct Theme
    *  open work and deliberately not done here — see the deviations file. */
   float alphaFill = 0.06f;
   float alphaOutline = 0.15f;
+  /** A mark you should be able to find without it competing with what it
+   *  marks — the ear-height ring in the elevation graphic is the one that
+   *  asked for it. Louder than a hairline, quieter than an emphasised fill. */
+  float alphaGuide = 0.22f;
   float alphaFillEmphasis = 0.28f;
   float alphaMuted = 0.5f;
+  /** Legible, but not the thing you are looking at: captions, resting
+   *  states, the rows you did not select. Seven sites sat between 0.70 and
+   *  0.75 and meant this; they are one rung now. */
+  float alphaSecondary = 0.7f;
   float alphaTextStrong = 0.85f;
+  /** The one thing you have hold of right now — brighter than anything
+   *  merely legible. Drawn while the camera ball is being dragged. */
+  float alphaActive = 0.95f;
 
   // Channels
   ThemeColour channel[numThemeChannels]
@@ -140,8 +151,9 @@ struct Theme
   float radiusCard = 8.f;
   float radiusPanel = 10.f;
 
-  // Insets, in pixels. Three steps were enough to hold every inset the UI
-  // used; a fourth would have been a name for a single call site.
+  // Insets, in pixels. A doubling scale: the hair is the gap between two
+  // cells that must not touch, and every step above it is twice the last.
+  float paddingHair = 1.f;
   float paddingTight = 2.f;
   float paddingSmall = 4.f;
   float padding = 8.f;
