@@ -37,67 +37,20 @@ parse (juce::String const &json)
   return juce::JSON::parse (json);
 }
 
-TEST (ButtonLedColours, AConfiguredButtonGetsItsColour)
-{
-  auto const config = parse (R"({"record": {"r": 220, "g": 30, "b": 40}})");
-  auto const colour = buttonLedColour (config, "record");
 
-  EXPECT_EQ (colour.r, 220);
-  EXPECT_EQ (colour.g, 30);
-  EXPECT_EQ (colour.b, 40);
-}
 
-// A button nobody configured has to stay visible: one that lights wrongly is
-// still usable, one that stays dark looks broken.
-TEST (ButtonLedColours, AnUnconfiguredButtonStaysWhite)
-{
-  EXPECT_EQ (buttonLedColour (parse (R"({"tap": {"r": 1, "g": 2, "b": 3}})"),
-                              "record"),
-             ledColourUnassigned);
-}
 
-TEST (ButtonLedColours, NoConfigAtAllStaysWhite)
-{
-  EXPECT_EQ (buttonLedColour (juce::var{}, "record"), ledColourUnassigned);
-}
 
-TEST (ButtonLedColours, APartialEntryFallsBackRatherThanGoingDark)
-{
-  // Missing a channel would otherwise read as 0 and quietly darken the button.
-  EXPECT_EQ (buttonLedColour (parse (R"({"record": {"r": 220, "g": 30}})"),
-                              "record"),
-             ledColourUnassigned);
-}
-
-// The whole point is telling them apart, so the shipped set must not repeat a
-// colour.
-TEST (ButtonLedColours, ShippedConfigGivesEachButtonItsOwn)
-{
-  auto const file = juce::File (A3_CONFIG_JSON_PATH);
-  ASSERT_TRUE (file.existsAsFile ());
-
-  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
-  auto const &buttonLeds = parsed["buttonLeds"];
-
-  std::set<juce::uint32> seen;
-  for (auto const *name : { "record", "tap", "menu", "shift" })
-    {
-      auto const colour = buttonLedColour (buttonLeds, name);
-
-      EXPECT_FALSE (colour == ledColourUnassigned)
-          << name << " has no colour of its own";
-      auto const packed = static_cast<juce::uint32> (
-          (colour.r << 16) | (colour.g << 8) | colour.b);
-      EXPECT_TRUE (seen.insert (packed).second)
-          << name << " repeats a colour another button already uses";
-    }
-}
 
 
 // A key that does something should say so while nobody is touching it. The
 // LEDs used to light only under a finger, which tells you what you already
 // know and nothing about the panel you are looking at.
 
+// `idle` is the only entry of the buttonLeds block anybody reads now, so the
+// three tests below are what is left of the per-key ones: missing, half
+// written, and set. The lookup they exercised is still there, file-local,
+// and this is the one door left into it.
 TEST (ButtonLedColours, TheIdleColourIsWhiteUnlessTheConfigSaysOtherwise)
 {
   EXPECT_EQ (buttonLedIdleColour (juce::var{}), ledColourUnassigned);
@@ -123,16 +76,6 @@ TEST (ButtonLedColours, AHalfWrittenIdleColourFallsBackToWhite)
              ledColourUnassigned);
 }
 
-// "idle" sits beside the buttons in the same block, so it must not be mistaken
-// for one of them.
-TEST (ButtonLedColours, IdleIsNotAButton)
-{
-  auto const config = parse (R"({"idle": {"r": 1, "g": 2, "b": 3},
-                                 "record": {"r": 9, "g": 9, "b": 9}})");
-
-  EXPECT_EQ (buttonLedColour (config, "record").r, 9);
-  EXPECT_EQ (buttonLedIdleColour (config).r, 1);
-}
 
 }
 

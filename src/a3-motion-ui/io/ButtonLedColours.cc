@@ -23,6 +23,20 @@
 namespace a3
 {
 
+namespace
+{
+/** One entry of the `buttonLeds` block, by name.
+ *
+ *  File-local now. It used to be the whole point of the block: each function
+ *  key looked its colour up here, by name, out of the user's config. A key's
+ *  colour comes from theme/FunctionKeyColours.hh since -- one rule read by
+ *  the panel and the screen alike, so the two cannot disagree about what a
+ *  key is doing -- and the four per-key entries in the config were read by
+ *  nobody while still being offered for editing on the Button LEDs page.
+ *
+ *  `idle` is the one entry that is still asked for, and it is asked for
+ *  through this.
+ */
 LedColour
 buttonLedColour (juce::var const &buttonLedsConfig, juce::String const &name)
 {
@@ -43,6 +57,7 @@ buttonLedColour (juce::var const &buttonLedsConfig, juce::String const &name)
   };
 
   return LedColour{ channel ("r"), channel ("g"), channel ("b") };
+}
 }
 
 

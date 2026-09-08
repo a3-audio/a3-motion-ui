@@ -98,8 +98,6 @@ target_sources("a3-motion-ui" PRIVATE
     components/TickPlayheads.cc
     components/TickPlayheads.hh
     components/TickIndicator.hh
-    components/FilterDisplay.cc
-    components/FilterDisplay.hh
     components/LoopLengthDisplay.cc
     components/LoopLengthDisplay.hh
     components/PadRowDisplay.cc
