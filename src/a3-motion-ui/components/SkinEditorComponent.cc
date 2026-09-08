@@ -652,8 +652,20 @@ SkinEditorComponent::toggleEditing ()
   auto const &parameter = *browsed;
         if (parameter.isColour)
           {
+            // Resolved the same way the list row is drawn, not re-read from
+            // the raw document: a role the file leaves unstated is 0 in the
+            // document but the theme's default here, which is what stopped
+            // the picker opening on black for every colour a skin omits.
             if (onColourPicked)
-              onColourPicked (parameter.path);
+              onColourPicked (
+                  parameter.path,
+                  juce::Colour (
+                      (juce::uint8)juce::jlimit (
+                          0, 255, (int)colourChannelValue (parameter, "r")),
+                      (juce::uint8)juce::jlimit (
+                          0, 255, (int)colourChannelValue (parameter, "g")),
+                      (juce::uint8)juce::jlimit (
+                          0, 255, (int)colourChannelValue (parameter, "b"))));
             return;
           }
 

@@ -152,7 +152,11 @@ public:
 
   /** Asked when a colour row is pressed, with its path — the caller owns
    *  the picker page. */
-  std::function<void (juce::String const &)> onColourPicked;
+  /** The path is what the picker writes back to; the colour is what it
+   *  should open showing -- resolved through colourChannelValue() so a role
+   *  the file never names opens on the theme's default rather than on
+   *  black, which is what re-reading the raw document would answer. */
+  std::function<void (juce::String const &, juce::Colour)> onColourPicked;
 
   /** Asked when a name opens or closes, so the keyboard can come up by
    *  itself — nobody starts typing a name and then goes looking for it. */

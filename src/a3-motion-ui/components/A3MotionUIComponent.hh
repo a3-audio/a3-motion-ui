@@ -490,8 +490,11 @@ private:
   /** Put every value of the skin being edited back to the shipped default,
    *  keeping its name. */
   void  resetEditedSkinToDefault ();
-  /** The picker behind a colour row: HSL to reach it, r/g/b in the file. */
-  void  openColourPicker (juce::String const &path);
+  /** The picker behind a colour row: HSL to reach it, r/g/b in the file.
+   *  `colour` is resolved (file value or theme default) by the caller, so
+   *  the picker never re-reads the raw document and opens on black for a
+   *  role the skin does not name. */
+  void  openColourPicker (juce::String const &path, juce::Colour colour);
   void  closeColourPicker ();
   void  applyPickedColour ();
   /** Re-read what this component caches from the theme: the channel
