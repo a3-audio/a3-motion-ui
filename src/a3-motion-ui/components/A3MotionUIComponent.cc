@@ -54,7 +54,6 @@
 #include <a3-motion-ui/components/ChannelStrip.hh>
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
-#include <a3-motion-ui/components/FilterDisplay.hh>
 #include <a3-motion-ui/components/LoopLengthDisplay.hh>
 #include <a3-motion-ui/components/ElevationDisplay.hh>
 #include <a3-motion-ui/components/ElevationSideView.hh>
@@ -1093,15 +1092,8 @@ A3MotionUIComponent::createMainUI ()
   addChildComponent (*_motionComponent);
   _motionComponent->setVisible (true);
 
-  // Hidden: no longer part of the visible layout (see resized()), but keeps
-  // receiving its normal update calls underneath.
-  _filterDisplay = std::make_unique<FilterDisplay> ();
-  addChildComponent (*_filterDisplay);
-  _filterDisplay->setVisible (false);
-  for (auto ch = 0u; ch < _channelUIStates.size () && ch < FilterDisplay::numChannels; ++ch)
-    _filterDisplay->setChannelColour (static_cast<int> (ch), _channelUIStates[ch]->colour);
-
-  // Hidden: see comment on _filterDisplay above.
+  // Hidden: no longer part of the visible layout (see resized()), but these
+  // keep receiving their normal update calls underneath.
   _loopLengthDisplay = std::make_unique<LoopLengthDisplay> ();
   addChildComponent (*_loopLengthDisplay);
   _loopLengthDisplay->setVisible (false);
@@ -1114,7 +1106,6 @@ A3MotionUIComponent::createMainUI ()
                                               getLengthBeats (ch, 0));
     }
 
-  // Hidden: see comment on _filterDisplay above.
   _elevationDisplay = std::make_unique<ElevationDisplay> ();
   addChildComponent (*_elevationDisplay);
   _elevationDisplay->setVisible (false);
@@ -5013,12 +5004,6 @@ A3MotionUIComponent::openGlobalSettings ()
   _globalSettingsOptionIndex = 0;
 
   rebuildGlobalSettingsOptions ();
-
-  // Reuse the Clip Settings panel's safe zone (real screen space carved out
-  // of MotionComponent's bounds in resized(), not overlapping its OpenGL
-  // context) so the menu has room to show its option rows properly.
-  if (_clipSettings)
-    _globalSettings->setBounds (_clipSettings->getBounds ());
 
   _globalSettings->setVisible (true);
   _globalSettings->toFront (true);

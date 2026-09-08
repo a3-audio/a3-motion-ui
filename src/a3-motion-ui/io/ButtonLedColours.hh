@@ -49,9 +49,6 @@ struct LedColour
 /** White, which is what every function button used to light in. */
 constexpr LedColour ledColourUnassigned{ 255, 255, 255 };
 
-LedColour buttonLedColour (juce::var const &buttonLedsConfig,
-                           juce::String const &name);
-
 /** What a function button lights in while nobody is touching it.
  *
  *  A key that does something should say so at rest; the LEDs used to light

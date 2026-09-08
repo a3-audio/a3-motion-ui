@@ -61,7 +61,6 @@ class TempoEstimatorTest;
 
 class MotionComponent;
 
-class FilterDisplay;
 class LoopLengthDisplay;
 class ElevationDisplay;
 class PadRowDisplay;
@@ -179,7 +178,6 @@ private:
   std::unique_ptr<MotionComponent> _motionComponent;
   std::unique_ptr<StatusBar> _statusBar;
   TempoClock::PointerT _statusBarCallbackHandle;
-  std::unique_ptr<FilterDisplay> _filterDisplay;
   std::unique_ptr<LoopLengthDisplay> _loopLengthDisplay;
   std::unique_ptr<ElevationDisplay> _elevationDisplay;
 
