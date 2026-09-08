@@ -279,9 +279,10 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
       // Full opacity rather than an alpha rung: the browsed row's name has
       // always meant no dimming at all, which the alpha-less overload already
       // says. This used to be `isBrowsedRow ? 1.f : theme ().alphaInactive`;
-      // 1.f fits no rung, and the maintainer still owes a call on whether
-      // full opacity deserves one of its own. See
-      // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+      // 1.f fits no rung, and full opacity is the absence of an emphasis
+      // decision rather than one of its rungs, so it deliberately gets no
+      // role of its own. See issues/a3-motion-ui-metric-role-deviations.md
+      // (Task 16).
       g.setColour (isBrowsedRow
                        ? toColour (theme ().textPrimary)
                        : toColour (theme ().textPrimary,

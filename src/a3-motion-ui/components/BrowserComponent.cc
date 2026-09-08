@@ -33,31 +33,6 @@ namespace
 /** The library is longer than any list of rows, so the rows are a window onto
  *  it -- as many as fit, hit-sized, rather than all of them squeezed in. */
 constexpr int maxVisibleRowTouches = 24;
-
-// Sits between alphaInactive (0.6) and alphaTextStrong (0.85), further from
-// either than the 0.05 a snap would tolerate. This is a row's name when it is
-// not the chosen one -- muted, but less so than alphaInactive and more than
-// alphaTextStrong would read. Listed in
-// issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending a decision
-// on whether it becomes a rung of its own.
-constexpr float unselectedRowNameOpacity = 0.7f;
-
-// A one-pixel inset on the chosen row's fillRoundedRectangle highlight, not a
-// stroke -- there is no stroke here to keep inside its bounds. No rung of the
-// spacing scale carries a bare 1 (paddingTight is 2), and binding it to
-// strokeThin would be wrong in a way that only shows up later: a skin that
-// thickens the device's lines would silently grow this highlight's inset too,
-// for no reason anyone could name. Left as its own literal pending a
-// decision. Listed in issues/a3-motion-ui-metric-role-deviations.md
-// (Task 16).
-constexpr float selectedRowHighlightInset = 1.f;
-
-// 0.10 from alphaTextStrong (0.85) and 0.15 from alphaInactive (0.6), too far
-// from both to snap to either. This is the settings-preset dot on a row that
-// is not the chosen one. Listed in
-// issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending a decision
-// on whether it becomes a rung of its own.
-constexpr float unselectedPresetDotOpacity = 0.75f;
 }
 
 BrowserComponent::BrowserComponent ()
@@ -259,9 +234,10 @@ BrowserComponent::paint (juce::Graphics &g)
                            active ? juce::Font::bold : juce::Font::plain));
     // Full opacity for the active tab rather than an alpha rung: "active" has
     // always meant no dimming at all, which the alpha-less overload already
-    // says. This used to be `active ? 1.f : 0.55f`; 1.f fits no rung, and the
-    // maintainer still owes a call on whether full opacity deserves one of
-    // its own. See issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+    // says. This used to be `active ? 1.f : 0.55f`; 1.f fits no rung, and
+    // full opacity is the absence of an emphasis decision rather than one of
+    // its rungs, so it deliberately gets no role of its own. See
+    // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
     g.setColour (active ? toColour (theme ().textPrimary)
                         : toColour (theme ().textPrimary,
                                    theme ().alphaInactive));
@@ -305,7 +281,7 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
     {
       g.setColour (_channelColour.withAlpha (theme ().alphaFillEmphasis));
       g.fillRoundedRectangle (
-          bounds.toFloat ().reduced (selectedRowHighlightInset),
+          bounds.toFloat ().reduced (theme ().paddingHair),
           theme ().radiusControl);
     }
 
@@ -327,11 +303,11 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
   // restructuring as paintListTab() above; this used to be
   // `chosen ? 1.f : 0.7f`. 0.7f itself fits no rung either -- 0.10 from
   // alphaInactive, 0.15 from alphaTextStrong, too far from both -- so it
-  // keeps its own name (unselectedRowNameOpacity) rather than snapping. See
+  // keeps its own name (theme ().alphaSecondary) rather than snapping. See
   // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
   g.setColour (chosen ? toColour (theme ().textPrimary)
                       : toColour (theme ().textPrimary,
-                                 unselectedRowNameOpacity));
+                                 theme ().alphaSecondary));
   g.drawFittedText (editing ? _renameText : _names[entry], text,
                     juce::Justification::centredLeft, 1);
 
@@ -362,10 +338,10 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
     {
       auto const dot = bounds.getHeight () / 5.f;
       // Same restructuring as above for the chosen case. The unselected
-      // branch does not snap to a rung: see unselectedPresetDotOpacity above.
+      // branch does not snap to a rung: see theme ().alphaSecondary above.
       g.setColour (chosen ? toColour (theme ().accent)
                           : toColour (theme ().accent,
-                                     unselectedPresetDotOpacity));
+                                     theme ().alphaSecondary));
       g.fillEllipse (bounds.getRight () - dot * 2.5f,
                      bounds.getCentreY () - dot / 2.f, dot, dot);
     }

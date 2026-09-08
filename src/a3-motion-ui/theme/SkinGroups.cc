@@ -47,7 +47,7 @@ struct Group
    *  `background` swallowing `backgroundGlow`, which is a different thing in
    *  a different part of the picture; saying which patterns are prefixes is
    *  the difference between a rule and a coincidence of spelling. */
-  std::array<char const *, 14> paths;
+  std::array<char const *, 16> paths;
 };
 
 constexpr Group groups[] = {
@@ -55,7 +55,8 @@ constexpr Group groups[] = {
   { "Text", { "textPrimary", "textMuted", "textOnAccent" } },
   { "States", { "accent", "warning", "danger", "notice", "highlight",
                 "alphaDisabled", "alphaInactive", "alphaFill", "alphaOutline",
-                "alphaFillEmphasis", "alphaMuted", "alphaTextStrong" } },
+                "alphaGuide", "alphaFillEmphasis", "alphaMuted",
+                "alphaSecondary", "alphaTextStrong", "alphaActive" } },
   { "Channels", { "channels.*" } },
   { "Sphere", { "sphereSurface", "sphereRim", "sphereEnvironment",
                 "sphereScale", "boltCore", "backgroundGlow" } },

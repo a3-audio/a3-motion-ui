@@ -477,7 +477,8 @@ TEST (SkinParameters, EveryMetricRoleHasARange)
   Expected const ranges[] = {
     { "radiusTick", 1.0, 3.5 },     { "radiusControl", 1.5, 5.25 },
     { "radiusRow", 2.5, 8.75 },     { "radiusCard", 4.0, 14.0 },
-    { "radiusPanel", 5.0, 17.5 },   { "paddingTight", 1.0, 3.5 },
+    { "radiusPanel", 5.0, 17.5 },   { "paddingHair", 0.5, 1.75 },
+    { "paddingTight", 1.0, 3.5 },
     { "paddingSmall", 2.0, 7.0 },   { "padding", 4.0, 14.0 },
   };
 
@@ -505,7 +506,8 @@ TEST (SkinParameters, NoEmphasisRungLeavesTheZeroToOneRange)
   // outside 0..1 is not a dimmer setting, and juce would clamp it silently
   // later anyway. No shipped skin stores one outside the range.
   for (auto const *path : { "alphaFill", "alphaOutline", "alphaFillEmphasis",
-                            "alphaMuted", "alphaTextStrong", "alphaDisabled",
+                            "alphaMuted", "alphaGuide", "alphaSecondary",
+                            "alphaActive", "alphaTextStrong", "alphaDisabled",
                             "alphaInactive" })
     {
       EXPECT_DOUBLE_EQ (clampSkinValue (skin, path, -1.0), 0.0) << path;

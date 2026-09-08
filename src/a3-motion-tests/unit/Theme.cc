@@ -342,6 +342,7 @@ TEST (Theme, TheSpacingRolesAreAScale)
 {
   auto const theme = loadTheme (juce::var{});
 
+  EXPECT_LT (theme.paddingHair, theme.paddingTight);
   EXPECT_LT (theme.paddingTight, theme.paddingSmall);
   EXPECT_LT (theme.paddingSmall, theme.padding);
 }
@@ -367,11 +368,14 @@ TEST (Theme, TheEmphasisRungsAreOrdered)
   auto const theme = loadTheme (juce::var{});
 
   EXPECT_LT (theme.alphaFill, theme.alphaOutline);
-  EXPECT_LT (theme.alphaOutline, theme.alphaFillEmphasis);
+  EXPECT_LT (theme.alphaOutline, theme.alphaGuide);
+  EXPECT_LT (theme.alphaGuide, theme.alphaFillEmphasis);
   EXPECT_LT (theme.alphaFillEmphasis, theme.alphaDisabled);
   EXPECT_LT (theme.alphaDisabled, theme.alphaMuted);
   EXPECT_LT (theme.alphaMuted, theme.alphaInactive);
-  EXPECT_LT (theme.alphaInactive, theme.alphaTextStrong);
+  EXPECT_LT (theme.alphaInactive, theme.alphaSecondary);
+  EXPECT_LT (theme.alphaSecondary, theme.alphaTextStrong);
+  EXPECT_LT (theme.alphaTextStrong, theme.alphaActive);
 }
 
 TEST (Theme, EveryEmphasisRungIsAnAlpha)
@@ -379,8 +383,9 @@ TEST (Theme, EveryEmphasisRungIsAnAlpha)
   auto const theme = loadTheme (juce::var{});
 
   for (auto const alpha :
-       { theme.alphaFill, theme.alphaOutline, theme.alphaFillEmphasis,
-         theme.alphaMuted, theme.alphaTextStrong })
+       { theme.alphaFill, theme.alphaOutline, theme.alphaGuide,
+         theme.alphaFillEmphasis, theme.alphaMuted, theme.alphaSecondary,
+         theme.alphaTextStrong, theme.alphaActive })
     {
       EXPECT_GT (alpha, 0.f);
       EXPECT_LE (alpha, 1.f);

@@ -42,30 +42,6 @@ envFrac (int step)
   return static_cast<float> (step) / static_cast<float> (envelopeMaxStep) * 2.f
          - 1.f;
 }
-
-// Sits between alphaInactive (0.6) and alphaTextStrong (0.85), further from
-// either than the 0.05 a snap would tolerate. Both sites are a small caption
-// drawn under a bigger value ("action" under the action field, the act-mode
-// caption under its field) -- muted, but less so than alphaInactive and more
-// than alphaTextStrong would read. Listed in
-// issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending a decision
-// on whether it becomes a rung of its own.
-constexpr float fieldCaptionOpacity = 0.7f;
-
-// A one-pixel inset on a fillRect highlight, not a stroke -- there is no
-// stroke here to keep inside its bounds. No rung of the spacing scale carries
-// a bare 1 (paddingTight is 2), and binding it to strokeThin would be wrong
-// in a way that only shows up later: a skin that thickens the device's lines
-// would silently grow this highlight's vertical inset too, for no reason
-// anyone could name. Left as its own literal pending a decision. Listed in
-// issues/a3-motion-ui-metric-role-deviations.md (Task 16).
-constexpr int actionListHighlightVerticalInset = 1;
-
-// 0.10 from alphaTextStrong (0.85) and 0.15 from alphaInactive (0.6), too far
-// from both to snap to either. This is the fire button's face while it is not
-// firing. Listed in issues/a3-motion-ui-metric-role-deviations.md (Task 16)
-// pending a decision on whether it becomes a rung of its own.
-constexpr float fireButtonRestingOpacity = 0.75f;
 }
 
 ActionComponent::ActionComponent ()
@@ -538,7 +514,7 @@ ActionComponent::paintActionField (juce::Graphics &g)
               bounds.reduced (bounds.getHeight () / 3, 0),
               juce::Justification::centredLeft);
 
-  g.setColour (toColour (theme ().textMuted, fieldCaptionOpacity));
+  g.setColour (toColour (theme ().textMuted, theme ().alphaSecondary));
   // What the "action" caption beside it may cost.
   constexpr float actionCaptionCap = 12.f;
   g.setFont (juce::Font (juce::FontOptions (
@@ -755,7 +731,7 @@ ActionComponent::paintActionList (juce::Graphics &g)
         {
           g.setColour (_channelColour.withAlpha (theme ().alphaDisabled));
           g.fillRect (at.reduced (juce::roundToInt (theme ().paddingTight),
-                                  actionListHighlightVerticalInset));
+                                  juce::roundToInt (theme ().paddingHair)));
         }
 
       g.setColour (chosen ? _channelColour
@@ -845,7 +821,7 @@ ActionComponent::paint (juce::Graphics &g)
                                                 _actMode)],
               modeBounds, juce::Justification::centred);
 
-  g.setColour (toColour (theme ().textMuted, fieldCaptionOpacity));
+  g.setColour (toColour (theme ().textMuted, theme ().alphaSecondary));
   // What the act-mode caption beneath it may cost.
   constexpr float actModeCaptionCap = 12.f;
   g.setFont (juce::Font (juce::FontOptions (
@@ -878,13 +854,14 @@ ActionComponent::paint (juce::Graphics &g)
       // Full opacity while firing rather than an alpha rung: firing has
       // always meant no dimming at all, which the alpha-less colour already
       // says. This used to be `_firing ? 1.f : 0.75f`; 1.f fits no rung, and
-      // the maintainer still owes a call on whether full opacity deserves
-      // one of its own. See issues/a3-motion-ui-metric-role-deviations.md
-      // (Task 16). The resting branch is a second, separate deviation: 0.75f
-      // itself fits no rung either -- see fireButtonRestingOpacity above.
+      // full opacity is the absence of an emphasis decision rather than one
+      // of its rungs, so it deliberately gets no role of its own. See
+      // issues/a3-motion-ui-metric-role-deviations.md (Task 16). The resting
+      // branch is a second, separate deviation: 0.75f itself fits no rung
+      // either -- see theme ().alphaSecondary above.
       g.setColour (_firing ? _channelColour
                            : _channelColour.withAlpha (
-                                 fireButtonRestingOpacity));
+                                 theme ().alphaSecondary));
       g.fillRoundedRectangle (at, theme ().radiusControl);
       g.setColour (_channelColour);
       g.drawRoundedRectangle (at, theme ().radiusControl,

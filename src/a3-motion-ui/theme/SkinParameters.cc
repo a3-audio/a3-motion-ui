@@ -451,8 +451,9 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
   static constexpr Range metricRanges[] = {
     { "radiusTick", 1.0, 3.5 },   { "radiusControl", 1.5, 5.25 },
     { "radiusRow", 2.5, 8.75 },   { "radiusCard", 4.0, 14.0 },
-    { "radiusPanel", 5.0, 17.5 }, { "paddingTight", 1.0, 3.5 },
-    { "paddingSmall", 2.0, 7.0 }, { "padding", 4.0, 14.0 },
+    { "radiusPanel", 5.0, 17.5 }, { "paddingHair", 0.5, 1.75 },
+    { "paddingTight", 1.0, 3.5 },  { "paddingSmall", 2.0, 7.0 },
+    { "padding", 4.0, 14.0 },
   };
 
   for (auto const &range : metricRanges)
@@ -462,8 +463,9 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
   // An alpha outside 0..1 is not a dimmer setting, it is a value juce will
   // clamp silently later — better to say so at the knob.
   for (auto const *alpha :
-       { "alphaFill", "alphaOutline", "alphaFillEmphasis", "alphaMuted",
-         "alphaTextStrong", "alphaDisabled", "alphaInactive" })
+       { "alphaFill", "alphaOutline", "alphaGuide", "alphaFillEmphasis",
+         "alphaMuted", "alphaSecondary", "alphaTextStrong", "alphaActive",
+         "alphaDisabled", "alphaInactive" })
     if (path == alpha)
       return juce::jlimit (0.0, 1.0, value);
 

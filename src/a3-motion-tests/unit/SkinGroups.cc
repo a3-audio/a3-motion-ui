@@ -131,7 +131,8 @@ TEST (SkinGroups, TheMetricRolesShareAHeading)
   EXPECT_NE (expected, skinUngroupedHeading ());
 
   for (auto const *path : { "radiusTick", "radiusRow", "radiusCard",
-                            "radiusPanel", "paddingTight", "paddingSmall",
+                            "radiusPanel", "paddingHair", "paddingTight",
+                            "paddingSmall",
                             "padding" })
     EXPECT_EQ (skinGroupFor (path), expected) << path;
 }
@@ -143,7 +144,8 @@ TEST (SkinGroups, TheEmphasisRungsSitWithTheOnesThatCameFirst)
   auto const expected = skinGroupFor ("alphaDisabled");
 
   for (auto const *path : { "alphaFill", "alphaOutline", "alphaFillEmphasis",
-                            "alphaMuted", "alphaTextStrong" })
+                            "alphaMuted", "alphaGuide", "alphaSecondary",
+                            "alphaActive", "alphaTextStrong" })
     EXPECT_EQ (skinGroupFor (path), expected) << path;
 }
 

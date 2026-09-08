@@ -48,11 +48,12 @@ juce::Colour
 captionColour (bool isSelected)
 {
   // Full opacity rather than an alpha rung: a selected caption has always
-  // meant no dimming at all, which the alpha-less overload already says.
-  // This used to be `isSelected ? 1.f : 0.55f`; 1.f fits no rung, and the
-  // maintainer still owes a call on whether full opacity deserves one of its
-  // own. 0.55 is 0.05 from alphaInactive (0.6), inside the snapping
-  // tolerance. See issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+  // meant no dimming at all, which the alpha-less overload already says. This
+  // used to be `isSelected ? 1.f : 0.55f`; 1.f fits no rung, and full opacity
+  // is the absence of an emphasis decision rather than one of its rungs, so
+  // it deliberately gets no role of its own. 0.55 is 0.05 from alphaInactive
+  // (0.6), inside the snapping tolerance. See
+  // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
   return isSelected ? toColour (theme ().textMuted)
                     : toColour (theme ().textMuted, theme ().alphaInactive);
 }

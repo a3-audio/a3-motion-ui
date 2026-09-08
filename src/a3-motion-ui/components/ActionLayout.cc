@@ -22,19 +22,13 @@
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 
 namespace a3
 {
 
 namespace
 {
-// The one-pixel gutter between two adjacent knob cells in a grid row, not a
-// stroke width -- there is no stroke here to keep inside its bounds. No rung
-// of the spacing scale carries a bare 1 (paddingTight is 2), and binding it
-// to strokeThin would tie a layout gap to a paint-time role for no reason
-// anyone could name. Left as its own literal pending a decision. Listed in
-// issues/a3-motion-ui-metric-role-deviations.md (Task 16).
-constexpr int cellGutter = 1;
 }
 
 ActionLayout
@@ -119,7 +113,7 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
       out.rowLabels[static_cast<size_t> (row)] = band.removeFromLeft (labelW);
       for (int i = 0; i < 3; ++i)
         out.controls[static_cast<size_t> (row * 3 + i)]
-            = band.removeFromLeft (colW).reduced (cellGutter);
+            = band.removeFromLeft (colW).reduced (juce::roundToInt (theme ().paddingHair));
     }
 
   // And the key that fires it, in everything the knobs left -- all the way to
