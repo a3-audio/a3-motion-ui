@@ -453,7 +453,10 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
     { "radiusRow", 2.5, 8.75 },   { "radiusCard", 4.0, 14.0 },
     { "radiusPanel", 5.0, 17.5 }, { "paddingHair", 0.5, 1.75 },
     { "paddingTight", 1.0, 3.5 },  { "paddingSmall", 2.0, 7.0 },
-    { "padding", 4.0, 14.0 },   { "strokeThin", 0.5, 1.75 },
+    { "padding", 4.0, 14.0 },   { "padShadeEmpty", 0.0, 1.0 },
+  { "padShadeIdle", 0.0, 1.0 },
+  { "padShadeBlink", 0.0, 1.0 },
+  { "strokeThin", 0.5, 1.75 },
     { "strokeMedium", 0.75, 2.6 }, { "strokeThick", 1.0, 3.5 },
   };
 

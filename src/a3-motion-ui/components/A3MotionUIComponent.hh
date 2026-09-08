@@ -129,8 +129,6 @@ private:
                                           Pattern::Status status,
                                           Pattern::Status statusLast,
                                           int step);
-  juce::Colour scheduledForIdleLEDColour (juce::Colour base, int step,
-                                          Pattern::Status statusLast);
 
   Measure _now;
   juce::Value _valueBPM;

@@ -139,6 +139,13 @@ struct Theme
   // Sizes, as a share of the component's shorter side
   float sphereScale = 0.62f;
   float blobScale = 0.05f;
+  /** How far a pad is dimmed from its channel's colour for what the slot is
+   *  doing. Subtractions from full, so a bigger number is a darker pad; see
+   *  theme/PadStatusColours.hh for which state wears which. */
+  float padShadeEmpty = 0.85f;
+  float padShadeIdle = 0.3f;
+  float padShadeBlink = 0.6f;
+
   float strokeThin = 1.f;
   /** Between the two: half a pixel from either, so it is a doubling rather
    *  than something that could snap. The response curve in the clip bar and

@@ -166,3 +166,16 @@ TEST (SkinGroups, TheStrokeWidthsShareAHeadingWithTheOtherMetrics)
   for (auto const *path : { "strokeThin", "strokeMedium", "strokeThick" })
     EXPECT_EQ (skinGroupFor (path), expected) << path;
 }
+
+// The pads' three shades are one rule and get one heading, rather than being
+// scattered among the states -- which are colours, where these are amounts a
+// colour is dimmed by.
+TEST (SkinGroups, ThePadShadesShareAHeading)
+{
+  auto const expected = skinGroupFor ("padShadeEmpty");
+
+  for (auto const *path : { "padShadeIdle", "padShadeBlink" })
+    EXPECT_EQ (skinGroupFor (path), expected) << path;
+
+  EXPECT_NE (expected, skinGroupFor ("accent"));
+}
