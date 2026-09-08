@@ -60,6 +60,7 @@
 #include <a3-motion-ui/components/ElevationSideView.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
+#include <a3-motion-ui/components/ChannelValueReset.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
 #include <a3-motion-ui/components/ClipSettingsComponent.hh>
@@ -351,26 +352,40 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                                     increment);
         };
 
-#if !HARDWARE_INTERFACE_ENABLED
-  // Two taps put one of the three back where it rests: the accent and the
-  // cutoff at twelve o'clock, the resonance off. Only without the panel --
-  // with it attached these are physical pots, and a value that jumped away
-  // from where the pot is standing would be telling the truth about neither.
+  // Two taps put one of the three back to twelve o'clock. Only while no panel
+  // is answering -- with one on the wire these are physical controls, and the
+  // 3d pot is absolute, so a value the screen moved would be snatched back by
+  // the next hair of pot movement. The rule and the rest positions live in
+  // components/ChannelValueReset.hh, where a test can reach them without a
+  // panel; the condition is exactly the one that had no other way of being
+  // checked.
+  //
+  // Registered unconditionally and decided at runtime. It used to hang on
+  // #if !HARDWARE_INTERFACE_ENABLED, which build.sh always sets, so the whole
+  // thing was compiled out of every build this device has ever run -- for a
+  // machine that is regularly used with no panel plugged in.
   _clipSettings->onChannelValueReset = [this] (int channel, int row) {
+    if (!channelValueResetIsAllowed (_ioAdapter
+                                     && _ioAdapter->hardwareIsAvailable ()))
+      return;
+
+    auto const rest = channelValueRestPosition (row);
+    if (!rest.has_value ())
+      return;
+
     auto const at = static_cast<index_t> (channel);
 
     switch (row)
       {
-      case channelRowThreeD: _engine.setChannelPot3 (at, 0.5f); break;
-      case channelRowFreq: _engine.setChannelPot1 (at, 0.5f); break;
-      case channelRowQ: _engine.setChannelPot2 (at, 0.f); break;
+      case channelRowThreeD: _engine.setChannelPot3 (at, *rest); break;
+      case channelRowFreq: _engine.setChannelPot1 (at, *rest); break;
+      case channelRowQ: _engine.setChannelPot2 (at, *rest); break;
       default: return;
       }
 
     updateClipSettingsDisplay ();
     scheduleSetSave ();
   };
-#endif
 
   _clipSettings->onRecordLengthChosen = [this] (int index) {
     if (index < 0 || index >= numRecordLengths)

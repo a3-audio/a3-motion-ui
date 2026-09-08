@@ -48,6 +48,10 @@ InputOutputAdapterV2::serialInit ()
   _serialPort.SetParity (Parity::PARITY_NONE);
   _serialPort.SetStopBits (StopBits::STOP_BITS_1);
 
+  // Open () throws if there is nothing there, so reaching this line is
+  // this adapter's whole notion of a panel being present.
+  _hardwareAvailable = true;
+
   juce::Logger::writeToLog ("initialized libserial");
 }
 

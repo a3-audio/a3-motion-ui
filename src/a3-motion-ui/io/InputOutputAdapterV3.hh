@@ -94,7 +94,6 @@ private:
                             int &potOffset);
 
   LibSerial::SerialPort _serialPort;
-  bool _hardwareAvailable = false;
   /** When to stop believing an open port, and how often to look for one that
    *  is not there yet. See SerialReconnect. */
   SerialReconnect _reconnect;
