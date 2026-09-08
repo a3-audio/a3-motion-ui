@@ -150,7 +150,9 @@ target_compile_definitions(a3-motion-tests PRIVATE
     # are nobody's to guarantee.
     A3_PATTERN_ACTIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/actions/system"
     A3_PATTERN_CLIPS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/clips"
-    A3_PATTERN_SESSIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/sessions")
+    # The shipped half, like the actions above. The performer's sit in user/
+    # beside them and are nobody's to guarantee.
+    A3_PATTERN_SESSIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/sessions/system")
 
 target_include_directories("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}")

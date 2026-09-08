@@ -44,6 +44,7 @@
 #include <a3-motion-ui/components/OverlaySideStrips.hh>
 #include <a3-motion-ui/SessionFile.hh>
 #include <a3-motion-ui/components/BrowserComponent.hh>
+#include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
@@ -226,7 +227,8 @@ private:
    *  to stand for a file, and row zero of the clips and actions lists stands
    *  for "nothing chosen". */
   bool chosenEntryHasAFile () const;
-  bool chosenEntryIsASystemShape () const;
+  bool chosenEntryIsShipped () const;
+  LibraryKeyStates currentLibraryKeys () const;
   void saveSlotShapeInPlace ();
   juce::String saveSlotShapeAsCopy ();
   /** What the arm step of a delete says beyond the word: how much else goes

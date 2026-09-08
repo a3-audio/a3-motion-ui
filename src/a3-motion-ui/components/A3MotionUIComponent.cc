@@ -744,12 +744,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // press would bring -- a key that names what you would get rather than what
   // you have is a key you have to press to find out where you are.
   _browser->onFilterPressed = [this] {
-    // The shapes and nowhere else, which is where refreshBrowser() narrows.
-    // It used to allow the clips too: the word on the key stepped All -> User
-    // -> System and the list underneath did not move, so a dark key looked
-    // like a working one. A key that is dark must also be inert, or "dark"
-    // stops meaning anything.
-    if (_browserList != BrowserList::Shapes)
+    // Asks the rule the key is lit by, rather than carrying a second copy of
+    // it. Twice now the two have been changed one at a time and the key has
+    // spent a round lit and inert, or dark and working -- which teaches you
+    // that dark means nothing in particular. One condition cannot disagree
+    // with itself.
+    if (!currentLibraryKeys ().filter)
       return;
 
     _deleteArmed = false;
@@ -2347,12 +2347,10 @@ A3MotionUIComponent::refreshBrowser ()
   // between tabs are keys you read instead of aim at.
   auto const chosen = chosenEntryHasAFile ();
   auto const rename = _browser->isRenaming () ? "Keep" : "Rename";
-  auto const chosenIsSystem = chosenEntryIsASystemShape ();
 
-  // The filter narrows the library, and only the library: the actions and the
-  // sets land shipped and hand-written in one folder each with nothing marking
-  // which is which, so there is no split to offer there. The key goes dark
-  // rather than showing a word that would do nothing.
+  // The word on the key is the state it is in, not the one the next press
+  // would bring -- a key naming what you would get rather than what you have
+  // is a key you press to find out where you are.
   auto const filter = _clipFilter == ClipFilter::All      ? "All"
                       : _clipFilter == ClipFilter::User ? "User"
                                                         : "System";
@@ -2373,10 +2371,7 @@ A3MotionUIComponent::refreshBrowser ()
   // A set can always be put away -- there is always an arrangement to keep --
   // where a clip and an action are made out of what a slot holds, and an
   // empty slot holds nothing to write.
-  // One rule for all four tabs. It used to be six switches and three loose
-  // conditions, and the SVG tab had been added to none of them.
-  auto const keys = libraryKeysFor (
-      _browserList, { chosen, chosenIsSystem, holds, inPlace });
+  auto const keys = currentLibraryKeys ();
 
   _browser->setActions ({ filter, rename, "Save", "Save as", remove },
                         { keys.filter, keys.rename, keys.save, keys.saveAs,
@@ -2851,22 +2846,61 @@ A3MotionUIComponent::chosenLibraryIndex () const
   return index;
 }
 
-/** Whether the chosen row is one of the instrument's own shapes.
+/** What the five library keys may do, right now.
  *
- *  Only the two library tabs can answer it -- it is the two directories the
- *  entries are scanned from -- and only the shapes tab acts on it. */
-bool
-A3MotionUIComponent::chosenEntryIsASystemShape () const
+ *  One rule for all four tabs, and one place that gathers what it needs. It
+ *  used to be six switches and three loose conditions, and a tab could be
+ *  added to some of them and not others -- which is how the SVG tab spent as
+ *  long as it has existed with five dark keys, and how the filter then spent
+ *  a round lit and inert. Everything that wants to know asks here.
+ */
+LibraryKeyStates
+A3MotionUIComponent::currentLibraryKeys () const
 {
-  if (_browserList != BrowserList::Shapes)
-    return false;
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto const holds = channel < _patterns.size () && slot < _patterns[channel].size ()
+                     && _patterns[channel][slot] != nullptr;
 
-  auto const index = chosenLibraryIndex ();
-  if (index < 0)
-    return false;
+  return libraryKeysFor (_browserList,
+                         { chosenEntryHasAFile (), chosenEntryIsShipped (),
+                           holds, canSaveInPlace () });
+}
 
-  return _patternLibrary->getEntry (index).category
-         == PatternLibrary::Category::System;
+/** Whether the chosen row is one of the instrument's own.
+ *
+ *  Three lists can answer it and each knows in its own way: a shape carries
+ *  the category the library scanned it with, and an action or a set is
+ *  shipped if its file sits in the system half. Clips are neither -- they
+ *  carry Category::Clip -- so they say no, which is also what stops Save
+ *  being darkened on the one list where drift is the question instead.
+ */
+bool
+A3MotionUIComponent::chosenEntryIsShipped () const
+{
+  switch (_browserList)
+    {
+    case BrowserList::Shapes:
+      {
+        auto const index = chosenLibraryIndex ();
+        return index >= 0
+               && _patternLibrary->getEntry (index).category
+                      == PatternLibrary::Category::System;
+      }
+
+    // By where the file sits rather than by anything inside it: the split is
+    // the directory, and the directory is what the repository decided.
+    case BrowserList::Actions:
+      return chosenActionFile ().getParentDirectory ().getFileName ()
+             == "system";
+    case BrowserList::Sessions:
+      return chosenSetFile ().getParentDirectory ().getFileName () == "system";
+
+    case BrowserList::Clips:
+      return false;
+    }
+
+  return false;
 }
 
 /** The shown slot's figure, written over the shape it is standing on.
@@ -2881,7 +2915,7 @@ A3MotionUIComponent::chosenEntryIsASystemShape () const
 void
 A3MotionUIComponent::saveSlotShapeInPlace ()
 {
-  if (chosenEntryIsASystemShape ())
+  if (chosenEntryIsShipped ())
     {
       updateControlReadout ("-- SYSTEM SHAPE");
       return;
