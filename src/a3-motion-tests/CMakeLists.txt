@@ -122,6 +122,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ChannelValueReset.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/RecordingIndicator.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/LibraryKeys.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/LibraryList.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/SkinGroups.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ListScroll.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/GlobalSettingsComponent.cc"
@@ -143,13 +144,18 @@ target_compile_definitions(a3-motion-tests PRIVATE
     A3_CONFIG_JSON_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../config/config.json"
     A3_UI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui"
     A3_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../resources"
+    # The four folders the shipped material lives in. Three of them are the
+    # system half of a folder split into shipped and hand-made; pattern/system
+    # is the shapes' half and predates the split. Written out together so the
+    # next folder to be split is one line here, not a test found broken later
+    # -- this list has been chased three times already.
     A3_PATTERN_SYSTEM_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/system"
     A3_PATTERN_USER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/user"
     # The instrument's own, which now live in the system half of a folder split
     # into shipped and hand-made. The performer's are in user/ beside them and
     # are nobody's to guarantee.
     A3_PATTERN_ACTIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/actions/system"
-    A3_PATTERN_CLIPS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/clips"
+    A3_PATTERN_CLIPS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/clips/system"
     # The shipped half, like the actions above. The performer's sit in user/
     # beside them and are nobody's to guarantee.
     A3_PATTERN_SESSIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../pattern/sessions/system")

@@ -125,6 +125,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   //
   // Non-destructive and idempotent: it runs on every start and does nothing
   // once every take has a clip.
+  createBrowserLists ();
+
   migrateCombinedPatterns (patternsDir);
   migrateSetToCurrent (patternsDir);
 
@@ -2210,80 +2212,14 @@ A3MotionUIComponent::refreshBrowser ()
   // Entry 0 is "no pattern" in the library's own numbering, and a row saying
   // nothing is a row that empties the field it is dropped on -- which is worth
   // having, so it is listed rather than skipped.
+  // One list asked once. It used to be four branches here and a row-to-entry
+  // map built beside them, which is two things that had to agree and twice
+  // did not.
   juce::StringArray names;
   std::vector<bool> settingsRows;
 
-  // Both folders are split into what the instrument ships with and what the
-  // performer made, so both can be narrowed the way the shapes are -- and
-  // listFilesIn() already sorts, and already lists a covered name once.
-  auto const keepsUnderFilter = [this] (bool isSystem) {
-    return !((_clipFilter == ClipFilter::System && !isSystem)
-             || (_clipFilter == ClipFilter::User && isSystem));
-  };
-
-  if (_browserList == BrowserList::Sessions)
-    {
-      for (auto const &entry : listFilesIn (sessionsDir (), ".json"))
-        if (keepsUnderFilter (entry.isSystem))
-          names.add (entry.name);
-    }
-  else if (_browserList == BrowserList::Actions)
-    {
-      for (auto const &entry : listFilesIn (actionsDir (), ".scd"))
-        if (keepsUnderFilter (entry.isSystem))
-          names.add (entry.name);
-
-      // Row zero is "no action", the same way entry zero of the library is
-      // "no clip": a slot has to be able to go back to firing nothing.
-      //
-      // It says so now, in the library's own word for it -- a blank row reads
-      // as something that failed to draw rather than as the choice it is.
-      // Put in after the sort and taken by position, not by name: sorted in,
-      // the word would land among the E's, and an action somebody names
-      // "Empty" must not become a second way to clear a slot.
-      names.insert (0, "Empty");
-    }
-  else
-    {
-      // Two lists out of one library, and which one is the tab's to say: a
-      // clip fills a slot with a figure and every value it is played with, a
-      // shape swaps only the figure. They shared a list once, with a coloured
-      // dot saying which kind a row was -- which made what a tap did depend
-      // on a dot.
-      auto const wantClips = _browserList == BrowserList::Clips;
-      _browserRowToLibrary.clear ();
-
-      for (int i = 0; i < _patternLibrary->getNumEntries (); ++i)
-        {
-          auto const &entry = _patternLibrary->getEntry (i);
-          auto const isClip
-              = entry.category == PatternLibrary::Category::Clip;
-
-          // Row zero is the library's "Empty". It is not listed on either
-          // library tab: a figure is always replaced by another figure, so a
-          // row offering none is a row nobody reaches for, and it sat at the
-          // top of the list every time you went looking for a shape. The
-          // actions keep theirs -- an action is something you want to be able
-          // to call off.
-          if (i == 0)
-            continue;
-          if (isClip != wantClips)
-            continue;
-
-          // Both library lists narrow the same way now. A clip's origin lives
-          // in its own field rather than in the category, which is what let
-          // this list be filtered at last.
-          auto const shipped = wantClips ? entry.isShipped
-                                         : entry.category
-                                               == PatternLibrary::Category::System;
-          if ((_clipFilter == ClipFilter::System && !shipped)
-              || (_clipFilter == ClipFilter::User && shipped))
-            continue;
-
-          names.add (juce::String (entry.name));
-          _browserRowToLibrary.push_back (i);
-        }
-    }
+  for (auto const &row : currentList ().rows (_clipFilter))
+    names.add (row.name);
 
   _browser->setEntries (names, settingsRows);
   _browser->setShowingList (_browserList);
@@ -2757,8 +2693,15 @@ A3MotionUIComponent::chosenActionFile () const
 int
 A3MotionUIComponent::browserRowForLibrary (int entry) const
 {
-  for (size_t row = 0; row < _browserRowToLibrary.size (); ++row)
-    if (_browserRowToLibrary[row] == entry)
+  // Asked of the list that built the mapping, in the same pass that built the
+  // rows. It used to be a vector on the component, filled in one place and
+  // read in three, which is how a row number could outlive the list it was a
+  // row of.
+  if (entry < 0)
+    return -1;
+
+  for (int row = 0; row < _browser->getNumEntries (); ++row)
+    if (currentList ().libraryEntryAt (row) == entry)
       return static_cast<int> (row);
 
   // Not on the list as it is narrowed. Nothing is highlighted rather than
@@ -2769,10 +2712,7 @@ A3MotionUIComponent::browserRowForLibrary (int entry) const
 int
 A3MotionUIComponent::libraryForBrowserRow (int row) const
 {
-  if (row < 0 || row >= static_cast<int> (_browserRowToLibrary.size ()))
-    return -1;
-
-  return _browserRowToLibrary[static_cast<size_t> (row)];
+  return currentList ().libraryEntryAt (row);
 }
 
 int
@@ -2882,35 +2822,8 @@ A3MotionUIComponent::currentLibraryKeys () const
 bool
 A3MotionUIComponent::chosenEntryIsShipped () const
 {
-  switch (_browserList)
-    {
-    case BrowserList::Shapes:
-      {
-        auto const index = chosenLibraryIndex ();
-        return index >= 0
-               && _patternLibrary->getEntry (index).category
-                      == PatternLibrary::Category::System;
-      }
-
-    // By where the file sits rather than by anything inside it: the split is
-    // the directory, and the directory is what the repository decided.
-    case BrowserList::Actions:
-      return chosenActionFile ().getParentDirectory ().getFileName ()
-             == "system";
-    case BrowserList::Sessions:
-      return chosenSetFile ().getParentDirectory ().getFileName () == "system";
-
-    // Clips have two halves too now, and the entry carries which -- the
-    // library could not say it through `category`, whose slot is taken saying
-    // that it is a clip at all.
-    case BrowserList::Clips:
-      {
-        auto const index = chosenLibraryIndex ();
-        return index >= 0 && _patternLibrary->getEntry (index).isShipped;
-      }
-    }
-
-  return false;
+  return _browser != nullptr
+         && currentList ().isShippedAt (_browser->getSelectedEntry ());
 }
 
 /** The shown slot's figure, written over the shape it is standing on.
@@ -2985,34 +2898,326 @@ A3MotionUIComponent::saveSlotShapeAsCopy ()
   return name;
 }
 
+LibraryList &
+A3MotionUIComponent::currentList () const
+{
+  return *_lists[static_cast<size_t> (_browserList)];
+}
+
+// ── The four lists, as four objects ─────────────────────────────────────
+//
+// Each knows only what makes it different: where its files are, what it calls
+// them, and what "put this on a slot" means. Everything else is one piece of
+// code now that does not know which tab it is on.
+//
+// They delegate -- renameChosenClip(), saveSlotAsAction() and the rest stay
+// where they were. What moved is the *branching*: eight places that each had
+// to learn about a new list, and on 2026-09-08 each learned about one at a
+// different time. See components/LibraryList.hh.
+
+namespace
+{
+/** The rows a filter leaves, out of a folder split into shipped and made. */
+std::vector<LibraryRow>
+rowsOfSplitFolder (juce::File const &root, juce::String const &extension,
+                   ClipFilter filter)
+{
+  std::vector<LibraryRow> rows;
+  for (auto const &entry : listFilesIn (root, extension))
+    {
+      if ((filter == ClipFilter::System && !entry.isSystem)
+          || (filter == ClipFilter::User && entry.isSystem))
+        continue;
+
+      rows.push_back ({ entry.name, entry.isSystem });
+    }
+  return rows;
+}
+
+bool
+sitsInTheShippedHalf (juce::File const &file)
+{
+  return file.getParentDirectory ().getFileName () == "system";
+}
+}
+
+class A3MotionUIComponent::ActionsList : public LibraryList
+{
+public:
+  explicit ActionsList (A3MotionUIComponent &owner) : _owner (owner) {}
+
+  std::vector<LibraryRow>
+  rows (ClipFilter filter) const override
+  {
+    // Row zero clears the slot: an action is a thing you want to be able to
+    // call off. The two library lists lost theirs -- a figure is always
+    // replaced by another figure -- and this one keeps it.
+    std::vector<LibraryRow> rows{ { "Empty", false } };
+    for (auto const &row :
+         rowsOfSplitFolder (_owner.actionsDir (), ".scd", filter))
+      rows.push_back (row);
+    return rows;
+  }
+
+  bool
+  hasFileAt (int) const override
+  {
+    return _owner.chosenActionFile ().existsAsFile ();
+  }
+
+  bool
+  isShippedAt (int) const override
+  {
+    return sitsInTheShippedHalf (_owner.chosenActionFile ());
+  }
+
+  bool
+  canSaveInPlace () const override
+  {
+    auto const ch = _owner._clipSettingsChannel;
+    auto const sl = _owner._clipSettingsSlot;
+    return ch < _owner._patterns.size () && sl < _owner._patterns[ch].size ()
+           && _owner._patterns[ch][sl] != nullptr
+           && _owner._slotAction[ch][sl].file.existsAsFile ();
+  }
+
+  void assign (int row) override { _owner.assignActionEntry (row); }
+  void
+  rename (int, juce::String const &name) override
+  {
+    _owner.renameChosenAction (name);
+  }
+  void remove (int) override { _owner.deleteChosenAction (); }
+  void saveInPlace () override { _owner.saveSlotActionInPlace (); }
+  juce::String saveAsCopy () override { return _owner.saveSlotAsAction (); }
+
+private:
+  A3MotionUIComponent &_owner;
+};
+
+class A3MotionUIComponent::SetsList : public LibraryList
+{
+public:
+  explicit SetsList (A3MotionUIComponent &owner) : _owner (owner) {}
+
+  std::vector<LibraryRow>
+  rows (ClipFilter filter) const override
+  {
+    return rowsOfSplitFolder (_owner.sessionsDir (), ".json", filter);
+  }
+
+  bool
+  hasFileAt (int) const override
+  {
+    return _owner.chosenSetFile ().existsAsFile ();
+  }
+
+  bool
+  isShippedAt (int) const override
+  {
+    return sitsInTheShippedHalf (_owner.chosenSetFile ());
+  }
+
+  bool
+  canSaveInPlace () const override
+  {
+    return _owner._sessionName.isNotEmpty ()
+           && namedFileIn (_owner.sessionsDir (), _owner._sessionName, ".json")
+                  .existsAsFile ();
+  }
+
+  void
+  assign (int row) override
+  {
+    _owner.loadSessionNamed (_owner._browser->entryName (row));
+  }
+  void
+  rename (int, juce::String const &name) override
+  {
+    _owner.renameChosenSet (name);
+  }
+  void remove (int) override { _owner.deleteChosenSet (); }
+  void saveInPlace () override { _owner.saveSessionInPlace (); }
+  juce::String saveAsCopy () override { return _owner.saveCurrentSession (); }
+
+private:
+  A3MotionUIComponent &_owner;
+};
+
+/** The two the PatternLibrary feeds: the figures, and the clips naming them.
+ *
+ *  They differ in one line -- which kind of entry they keep -- so they share
+ *  a base and say only that.
+ *
+ *  The row-to-entry map lives here rather than on the component, built by the
+ *  same pass that builds the rows, so the two cannot fall out of step. A row
+ *  number read against the whole library while the list was narrowed used to
+ *  point at whatever happened to be there.
+ */
+class A3MotionUIComponent::LibraryBackedList : public LibraryList
+{
+public:
+  explicit LibraryBackedList (A3MotionUIComponent &owner) : _owner (owner) {}
+
+  std::vector<LibraryRow>
+  rows (ClipFilter filter) const override
+  {
+    _rowToEntry.clear ();
+    std::vector<LibraryRow> rows;
+
+    for (int i = 0; i < _owner._patternLibrary->getNumEntries (); ++i)
+      {
+        // Entry zero is the library's "Empty", and neither library list
+        // offers it: a figure is always replaced by another figure, so a row
+        // offering none is one nobody reaches for.
+        if (i == 0)
+          continue;
+
+        auto const &entry = _owner._patternLibrary->getEntry (i);
+        auto const isClip = entry.category == PatternLibrary::Category::Clip;
+        if (isClip != wantsClips ())
+          continue;
+
+        auto const shipped = entry.isShipped;
+        if ((filter == ClipFilter::System && !shipped)
+            || (filter == ClipFilter::User && shipped))
+          continue;
+
+        rows.push_back ({ juce::String (entry.name), shipped });
+        _rowToEntry.push_back (i);
+      }
+
+    return rows;
+  }
+
+  bool
+  hasFileAt (int row) const override
+  {
+    auto const index = libraryEntryAt (row);
+    if (index < 0)
+      return false;
+
+    // A shape is its SVG; a settings preset is its clip and has no shape.
+    // Either is something to name; an entry with neither is a row the library
+    // made up, and there is nothing to do to it.
+    auto const &entry = _owner._patternLibrary->getEntry (index);
+    return entry.file.existsAsFile () || entry.clipFile.existsAsFile ();
+  }
+
+  bool
+  isShippedAt (int row) const override
+  {
+    auto const index = libraryEntryAt (row);
+    return index >= 0 && _owner._patternLibrary->getEntry (index).isShipped;
+  }
+
+  void assign (int row) override { _owner.assignBrowserEntry (libraryEntryAt (row)); }
+  void
+  rename (int, juce::String const &name) override
+  {
+    _owner.renameChosenClip (name);
+  }
+  void remove (int) override { _owner.deleteChosenClip (); }
+
+  juce::String
+  costOfRemoving (int row) const override
+  {
+    return _owner.costOfRemovingLibraryEntry (libraryEntryAt (row));
+  }
+
+  int
+  libraryEntryAt (int row) const override
+  {
+    if (row < 0 || row >= static_cast<int> (_rowToEntry.size ()))
+      return -1;
+    return _rowToEntry[static_cast<size_t> (row)];
+  }
+
+protected:
+  virtual bool wantsClips () const = 0;
+  A3MotionUIComponent &_owner;
+
+private:
+  mutable std::vector<int> _rowToEntry;
+};
+
+class A3MotionUIComponent::ClipsList : public LibraryBackedList
+{
+public:
+  using LibraryBackedList::LibraryBackedList;
+
+  bool
+  canSaveInPlace () const override
+  {
+    // Only when there is something to write. Save on an untouched clip made a
+    // copy of it anyway once -- press it twice out of habit and the library
+    // grows a clip you cannot tell from the original.
+    return _owner.slotHasDrifted (_owner._clipSettingsChannel,
+                                  _owner._clipSettingsSlot);
+  }
+
+  void
+  saveInPlace () override
+  {
+    _owner.saveSlotClip (_owner._clipSettingsChannel,
+                         _owner._clipSettingsSlot);
+  }
+
+  juce::String saveAsCopy () override { return _owner.saveSlotClipAsCopy (); }
+
+protected:
+  bool wantsClips () const override { return true; }
+};
+
+class A3MotionUIComponent::ShapesList : public LibraryBackedList
+{
+public:
+  using LibraryBackedList::LibraryBackedList;
+
+  // Writing over one of the instrument's own would change what every clip
+  // naming it plays. libraryKeysFor() darkens the key; saveSlotShapeInPlace()
+  // refuses again on its own, because a save that depends on a key having
+  // been dark is a save that happens the first time something else lights it.
+  bool
+  canSaveInPlace () const override
+  {
+    auto const ch = _owner._clipSettingsChannel;
+    auto const sl = _owner._clipSettingsSlot;
+    return ch < _owner._patterns.size () && sl < _owner._patterns[ch].size ()
+           && _owner._patterns[ch][sl] != nullptr;
+  }
+
+  void saveInPlace () override { _owner.saveSlotShapeInPlace (); }
+  juce::String saveAsCopy () override { return _owner.saveSlotShapeAsCopy (); }
+
+protected:
+  bool wantsClips () const override { return false; }
+};
+
+/** The four, in the order BrowserList names them so the tab indexes straight
+ *  into the array.
+ *
+ *  Defined below the classes rather than in the constructor because a
+ *  unique_ptr to a derived type needs that type to be complete before it can
+ *  become a unique_ptr to the base. */
+void
+A3MotionUIComponent::createBrowserLists ()
+{
+  _lists[static_cast<size_t> (BrowserList::Clips)]
+      = std::make_unique<ClipsList> (*this);
+  _lists[static_cast<size_t> (BrowserList::Shapes)]
+      = std::make_unique<ShapesList> (*this);
+  _lists[static_cast<size_t> (BrowserList::Actions)]
+      = std::make_unique<ActionsList> (*this);
+  _lists[static_cast<size_t> (BrowserList::Sessions)]
+      = std::make_unique<SetsList> (*this);
+}
+
 bool
 A3MotionUIComponent::chosenEntryHasAFile () const
 {
-  switch (_browserList)
-    {
-    case BrowserList::Actions:
-      return chosenActionFile ().existsAsFile ();
-    case BrowserList::Sessions:
-      return chosenSetFile ().existsAsFile ();
-    // One list read two ways: a shape row and a clip row are both library
-    // entries, and "is there a file behind this" has the same answer for
-    // both.
-    case BrowserList::Clips:
-    case BrowserList::Shapes:
-      {
-        auto const index = chosenLibraryIndex ();
-        if (index < 0)
-          return false;
-
-        // A shape is its SVG; a settings preset is its clip and has no shape.
-        // Either is something to name; an entry with neither is a row the
-        // library made up, and there is nothing to do to it.
-        auto const &entry = _patternLibrary->getEntry (index);
-        return entry.file.existsAsFile () || entry.clipFile.existsAsFile ();
-      }
-    }
-
-  return false;
+  return _browser != nullptr
+         && currentList ().hasFileAt (_browser->getSelectedEntry ());
 }
 
 int
@@ -3081,14 +3286,13 @@ A3MotionUIComponent::renameInSets (juce::String const &from,
   return rewritten;
 }
 
+/** How many sets name the library entry at `index`, said as words for the
+ *  arming press to show before the second one lands. It asked the tab which
+ *  list it was on and then asked the browser which row; the list object knows
+ *  both, so it hands the entry straight in. */
 juce::String
-A3MotionUIComponent::chosenEntryCost () const
+A3MotionUIComponent::costOfRemovingLibraryEntry (int index) const
 {
-  if (_browserList != BrowserList::Clips
-      && _browserList != BrowserList::Shapes)
-    return {};
-
-  auto const index = chosenLibraryIndex ();
   if (index < 0)
     return {};
 
@@ -3102,17 +3306,8 @@ A3MotionUIComponent::chosenEntryCost () const
 void
 A3MotionUIComponent::renameChosenEntry (juce::String const &name)
 {
-  switch (_browserList)
-    {
-    case BrowserList::Actions: renameChosenAction (name); break;
-    case BrowserList::Sessions: renameChosenSet (name); break;
-    // Renaming a shape is renaming its library entry: the name inside the
-    // SVG, the file (keeping its beat prefix), the clip beside it, and every
-    // slot and set that names it. renameChosenClip already does all of that
-    // from the entry, so the two tabs are one job.
-    case BrowserList::Clips:
-    case BrowserList::Shapes: renameChosenClip (name); break;
-    }
+  if (_browser)
+    currentList ().rename (_browser->getSelectedEntry (), name);
 }
 
 void
@@ -3128,20 +3323,16 @@ A3MotionUIComponent::deleteChosenEntry ()
   if (!_deleteArmed)
     {
       _deleteArmed = true;
-      updateControlReadout ("-- DELETE?" + chosenEntryCost ());
+      updateControlReadout (
+          "-- DELETE?"
+          + currentList ().costOfRemoving (_browser->getSelectedEntry ()));
       refreshBrowser ();
       return;
     }
 
   _deleteArmed = false;
 
-  switch (_browserList)
-    {
-    case BrowserList::Actions: deleteChosenAction (); break;
-    case BrowserList::Sessions: deleteChosenSet (); break;
-    case BrowserList::Clips:
-    case BrowserList::Shapes: deleteChosenClip (); break;
-    }
+  currentList ().remove (_browser->getSelectedEntry ());
 }
 
 void
@@ -3464,61 +3655,20 @@ A3MotionUIComponent::saveSessionInPlace ()
 bool
 A3MotionUIComponent::canSaveInPlace () const
 {
-  auto const channel = _clipSettingsChannel;
-  auto const slot = _clipSettingsSlot;
-  auto const holds = channel < _patterns.size ()
-                     && slot < _patterns[channel].size ()
-                     && _patterns[channel][slot] != nullptr;
-
-  switch (_browserList)
-    {
-    case BrowserList::Clips:
-      // Only when there is something to write. Save on an untouched clip made
-      // a copy of it anyway once -- press it twice out of habit and the
-      // library grows a clip you cannot tell from the original.
-      return slotHasDrifted (channel, slot);
-    // A shape's answer is libraryKeysFor()'s, which knows whether the row is
-    // one of the instrument's own -- that is the question here, and it is not
-    // one this function can see. It only has to not fall through.
-    case BrowserList::Shapes:
-      return false;
-    case BrowserList::Actions:
-      return holds && _slotAction[channel][slot].file.existsAsFile ();
-    case BrowserList::Sessions:
-      return _sessionName.isNotEmpty ()
-             && sessionsDir ()
-                    .getChildFile (_sessionName + ".json")
-                    .existsAsFile ();
-    }
-
-  return false;
+  return currentList ().canSaveInPlace ();
 }
 
 void
 A3MotionUIComponent::saveChosen ()
 {
-  switch (_browserList)
-    {
-    case BrowserList::Clips:
-      saveSlotClip (_clipSettingsChannel, _clipSettingsSlot);
-      break;
-    case BrowserList::Shapes: saveSlotShapeInPlace (); break;
-    case BrowserList::Actions: saveSlotActionInPlace (); break;
-    case BrowserList::Sessions: saveSessionInPlace (); break;
-    }
+  currentList ().saveInPlace ();
 }
 
 void
 A3MotionUIComponent::saveAsChosen ()
 {
   juce::String name;
-  switch (_browserList)
-    {
-    case BrowserList::Clips: name = saveSlotClipAsCopy (); break;
-    case BrowserList::Shapes: name = saveSlotShapeAsCopy (); break;
-    case BrowserList::Actions: name = saveSlotAsAction (); break;
-    case BrowserList::Sessions: name = saveCurrentSession (); break;
-    }
+  name = currentList ().saveAsCopy ();
 
   if (name.isEmpty ())
     return;
