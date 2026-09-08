@@ -94,7 +94,24 @@ JUCE_IN_USE="$(grep -m1 "^JUCE_DIR:PATH=" "$BUILD_DIR/CMakeCache.txt" 2>/dev/nul
 echo "=== JUCE: $JUCE_IN_USE ==="
 
 echo "=== Building a3-motion-ui ($BUILD_TYPE) ==="
-cmake --build "$BUILD_DIR" --target a3-motion-ui_Standalone -j4
+
+# Kept so the end of this script can say what the compiler said. A full build
+# writes hundreds of lines and the warnings scroll past between them -- which
+# is how six "enumeration value 'Shapes' not handled in switch" went unread
+# for as long as the SVG tab has existed. The compiler was never quiet; nobody
+# was listening.
+BUILD_LOG="$(mktemp -t a3-build-XXXXXX.log)"
+trap 'rm -f "$BUILD_LOG"' EXIT
+
+cmake --build "$BUILD_DIR" --target a3-motion-ui_Standalone -j4 2>&1 \
+    | tee "$BUILD_LOG"
+BUILD_STATUS=${PIPESTATUS[0]}
+
+if [ "$BUILD_STATUS" -ne 0 ]; then
+    echo ""
+    echo "=== Build FAILED (exit $BUILD_STATUS) ==="
+    exit "$BUILD_STATUS"
+fi
 
 BINARY="$BUILD_DIR/src/a3-motion-ui/a3-motion-ui_artefacts/$BUILD_TYPE/Standalone/a3-motion-ui"
 BINARY_DIR="$BUILD_DIR/src/a3-motion-ui/a3-motion-ui_artefacts/$BUILD_TYPE/Standalone"
@@ -107,6 +124,30 @@ fi
 if [ ! -e "$BINARY_DIR/config" ]; then
     echo "=== Creating config symlink ==="
     ln -s "$SRC_DIR/config" "$BINARY_DIR/config"
+fi
+
+# What the compiler said, and only about our own code -- JUCE's modules warn
+# plentifully and none of it is ours to fix. Counted by kind, because the
+# useful question is "is there a new kind here", not "is the number bigger".
+OURS="$(grep "warning:" "$BUILD_LOG" | grep -F "$SRC_DIR/src/" || true)"
+NUM_WARNINGS="$(printf '%s' "$OURS" | grep -c . || true)"
+
+if [ "$NUM_WARNINGS" -gt 0 ]; then
+    echo ""
+    echo "=== $NUM_WARNINGS warnings in our own sources ==="
+    printf '%s\n' "$OURS" \
+        | grep -o '\[-W[a-z-]*\]' | sort | uniq -c | sort -rn \
+        | sed 's/^/    /'
+
+    # An unhandled enum case is a branch that silently does nothing, and it is
+    # the one kind here that has already cost a working feature. Named rather
+    # than left to be counted among the rest.
+    SWITCHES="$(printf '%s\n' "$OURS" | grep -- "-Wswitch" || true)"
+    if [ -n "$SWITCHES" ]; then
+        echo ""
+        echo "    Unhandled enum cases -- read these:"
+        printf '%s\n' "$SWITCHES" | sed "s|$SRC_DIR/src/||" | sed 's/^/      /'
+    fi
 fi
 
 echo ""
