@@ -324,6 +324,10 @@ loadTheme (juce::var const &skin)
   theme.sphereScale = themeFloat (skin, "sphereScale", theme.sphereScale);
   theme.blobScale
       = themeFloat (skin["blob"], "scale", theme.blobScale);
+  theme.padShadeEmpty = themeFloat (skin, "padShadeEmpty", theme.padShadeEmpty);
+  theme.padShadeIdle = themeFloat (skin, "padShadeIdle", theme.padShadeIdle);
+  theme.padShadeBlink = themeFloat (skin, "padShadeBlink", theme.padShadeBlink);
+
   theme.strokeThin = themeFloat (skin, "strokeThin", theme.strokeThin);
   theme.strokeMedium
       = themeFloat (skin, "strokeMedium", theme.strokeMedium);
@@ -409,6 +413,9 @@ themeDefaultsVar ()
   number ("paddingSmall", defaults.paddingSmall);
   number ("padding", defaults.padding);
 
+  number ("padShadeEmpty", defaults.padShadeEmpty);
+  number ("padShadeIdle", defaults.padShadeIdle);
+  number ("padShadeBlink", defaults.padShadeBlink);
   number ("strokeThin", defaults.strokeThin);
   number ("strokeMedium", defaults.strokeMedium);
   number ("strokeThick", defaults.strokeThick);

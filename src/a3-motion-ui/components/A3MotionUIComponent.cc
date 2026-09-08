@@ -60,6 +60,7 @@
 #include <a3-motion-ui/components/ElevationSideView.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
+#include <a3-motion-ui/theme/PadStatusColours.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
 #include <a3-motion-ui/components/ClipSettingsComponent.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
@@ -4104,47 +4105,9 @@ A3MotionUIComponent::channelColourForPadStatus (juce::Colour base,
                                                 Pattern::Status statusLast,
                                                 int step)
 {
-  switch (status)
-    {
-    case Pattern::Status::Empty:
-      return base.darker (0.85f);
-    case Pattern::Status::Idle:
-      return base.darker (0.3f);
-    case Pattern::Status::ScheduledForRecording:
-      return step % 2 == 0 ? base : base.darker (0.6f);
-    case Pattern::Status::Recording:
-      return base;
-    case Pattern::Status::ScheduledForPlaying:
-      return step % 2 == 0 ? base : base.darker (0.6f);
-    case Pattern::Status::Playing:
-      return base;
-    case Pattern::Status::ScheduledForIdle:
-      jassert (statusLast != Pattern::Status::ScheduledForRecording
-               && statusLast != Pattern::Status::Idle);
-      return scheduledForIdleLEDColour (base, step, statusLast);
-    }
-  return base.darker (0.85f);
-}
-
-juce::Colour
-A3MotionUIComponent::scheduledForIdleLEDColour (juce::Colour base, int step,
-                                                Pattern::Status statusLast)
-{
-  // one-shot recording: don't blink when scheduled for idle
-  if (_engine.getRecordingMode () == MotionEngine::RecordingMode::OneShot
-      && statusLast == Pattern::Status::Recording)
-    {
-      return base;
-    }
-
-  if (step % 2 == 0)
-    {
-      return base.darker (0.85f);
-    }
-  else
-    {
-      return base.darker (0.6f);
-    }
+  return padStatusColour (base, status, statusLast, step,
+                          _engine.getRecordingMode ()
+                              == MotionEngine::RecordingMode::OneShot);
 }
 
 void

@@ -65,6 +65,7 @@ target_sources("a3-motion-ui" PRIVATE
     components/ControllerComponent.hh
     theme/FunctionKeyColours.cc
     theme/TransportLook.cc
+    theme/PadStatusColours.cc
     theme/SkinGroups.cc
     theme/SkinGroups.hh
     theme/FunctionKeyColours.hh

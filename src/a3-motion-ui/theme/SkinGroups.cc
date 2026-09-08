@@ -63,6 +63,7 @@ constexpr Group groups[] = {
   { "Type and size", { "fontHeader", "fontBody", "potSize",
                        "clipSettingsHeightScale" } },
   { "Metrics", { "radius*", "padding*", "stroke*" } },
+  { "Pads", { "padShade*" } },
   { "Touch", { "touchDragPixelsPerStep" } },
 
   // The colours of the two effects sit here, with the other colours, rather
