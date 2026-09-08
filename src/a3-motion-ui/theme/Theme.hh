@@ -87,6 +87,31 @@ struct Theme
   float alphaDisabled = 0.35f;
   float alphaInactive = 0.6f;
 
+  /** How loud a thing is drawn, as a share of its role's colour.
+   *
+   *  Seven rungs of one emphasis ladder, ordered by loudness alone — not by
+   *  what shape the drawing takes. They were derived from what the code
+   *  already did, and at that point most fills did sit low and most text
+   *  did sit high, which is where alphaFill, alphaOutline and alphaDisabled
+   *  got their names: rungs 1, 2 and 4 of the ladder, named after the
+   *  drawing form that happened to dominate them at the time. The
+   *  migration that put every remaining literal on its nearest rung
+   *  (`.claude/notes/2026-09-07-metrik-rollen-design.md`) broke that
+   *  correlation on purpose wherever a site's actual value disagreed with
+   *  its shape — the value won, not the name — so a fill at 0.15 now reads
+   *  `alphaOutline` and a stroke at 0.35 reads `alphaDisabled`
+   *  (`ClipSettingsComponent.cc`'s channel faces are one example). A
+   *  skinner turning `alphaOutline` down to make hairlines fainter will
+   *  therefore also fade every fill parked on that rung, and there is no
+   *  way to move just one without re-auditing all of them. Renaming the
+   *  three misleading rungs to say only "how loud", not "what shape", is
+   *  open work and deliberately not done here — see the deviations file. */
+  float alphaFill = 0.06f;
+  float alphaOutline = 0.15f;
+  float alphaFillEmphasis = 0.28f;
+  float alphaMuted = 0.5f;
+  float alphaTextStrong = 0.85f;
+
   // Channels
   ThemeColour channel[numThemeChannels]
       = { { 216, 17, 89 }, { 69, 78, 158 }, { 247, 208, 2 }, { 33, 131, 128 } };
@@ -105,6 +130,21 @@ struct Theme
   float blobScale = 0.05f;
   float strokeThin = 1.f;
   float strokeThick = 2.f;
+
+  // Corner radii, in pixels. Named after where the rounded rectangle is
+  // drawn, not after how round it is: the same 3px is a chip in the clip bar
+  // and a chip in the action card, and both should follow one skin value.
+  float radiusTick = 2.f;
+  float radiusControl = 3.f;
+  float radiusRow = 5.f;
+  float radiusCard = 8.f;
+  float radiusPanel = 10.f;
+
+  // Insets, in pixels. Three steps were enough to hold every inset the UI
+  // used; a fourth would have been a name for a single call site.
+  float paddingTight = 2.f;
+  float paddingSmall = 4.f;
+  float padding = 8.f;
 
   // Font sizes, absolute and straight out of the skin. They used to be base
   // sizes with a percentage from the menu on top — two sources for one size,
@@ -146,6 +186,23 @@ ThemeColour themeColour (juce::var const &skin, juce::String const &name,
 /** A theme built from a skin file's contents. Pass a void var for the
  *  built-in defaults. */
 Theme loadTheme (juce::var const &skin);
+
+/** Every role loadTheme reads, with the built-in value it would fall back to.
+ *
+ *  The skin editor derives its list from the file it loaded, so a key a file
+ *  does not name is a key nobody can reach. Merging this in gives the editor
+ *  the full vocabulary whatever the file happens to carry.
+ *
+ *  Excluded: `speakerLight`, `energy`, `blob` (all of it, including
+ *  `scale`), `channels`, and `backgroundGlow`. Every one of these is a
+ *  compound object in the skin files, not a plain colour or a plain number,
+ *  and every shipped skin already states it in full. `backgroundGlow` in
+ *  particular still has a Theme field and a loadTheme() line, but
+ *  MotionComponent reads the group straight off the skin var with its own
+ *  defaults rather than through that field -- restating only its colour half
+ *  here would put a default in the editor that disagrees with the one the
+ *  effect actually uses. */
+juce::var themeDefaultsVar ();
 
 /** Where a named skin lives: `<configDir>/skins/<name>.json`. An empty name
  *  gives the default skin rather than a path that cannot exist. */

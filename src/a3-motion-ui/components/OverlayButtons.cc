@@ -83,9 +83,10 @@ OverlayButtons::paintGlyph (juce::Graphics &g, juce::Rectangle<int> area,
                             bool isClose)
 {
   g.setColour (toColour (theme ().textPrimary, faceWash));
-  g.fillRoundedRectangle (area.toFloat (), 5.f);
+  g.fillRoundedRectangle (area.toFloat (), theme ().radiusRow);
   g.setColour (toColour (theme ().textPrimary, edgeWash));
-  g.drawRoundedRectangle (area.toFloat (), 5.f, 1.f);
+  g.drawRoundedRectangle (area.toFloat (), theme ().radiusRow,
+                          theme ().strokeThin);
 
   auto const centre = area.toFloat ().getCentre ();
   auto const r = static_cast<float> (area.getHeight ()) * 0.22f;

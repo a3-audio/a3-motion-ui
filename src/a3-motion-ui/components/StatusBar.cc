@@ -185,14 +185,15 @@ StatusBar::resized ()
   // step in three places. The tick indicator is centred on the bar itself
   // (below), not on what this leaves over.
   auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 2);
-  _labelBPM.setBounds (leftArea.withTrimmedLeft (LayoutHints::padding));
+  _labelBPM.setBounds (
+      leftArea.withTrimmedLeft (juce::roundToInt (theme ().paddingSmall)));
 
   // What is left between the beat display and the keyboard icon. The tick
   // indicator is centred on the whole bar, so it reaches to three quarters --
   // the readout starts where it stops.
   _labelReadout.setBounds (
       bounds.withTrimmedLeft (bounds.getWidth () / 2)
-          .withTrimmedRight (LayoutHints::padding));
+          .withTrimmedRight (juce::roundToInt (theme ().paddingSmall)));
 
   // Centred on the bar, not on whatever space the labels left over: it is
   // the one thing here that is looked at rather than read, and an off-centre
@@ -230,10 +231,11 @@ StatusBar::paintOverChildren (juce::Graphics &g)
   // children because the indicator is one of them.
   auto const tick = _tickIndicator.getBounds ().toFloat ();
 
-  g.setColour (_recordingColour.withAlpha (0.45f));
+  // 0.45 is 0.05 from alphaMuted (0.5), inside the snapping tolerance.
+  g.setColour (_recordingColour.withAlpha (theme ().alphaMuted));
   g.fillRoundedRectangle (tick.withWidth (tick.getWidth ()
                                           * _recordingProgress),
-                          2.f);
+                          theme ().radiusTick);
 }
 
 void
@@ -286,7 +288,8 @@ StatusBar::paint (juce::Graphics &g)
                : _keyboardState == KeyboardState::Available
                    ? toColour (theme ().textMuted)
                    : toColour (theme ().textMuted, theme ().alphaDisabled));
-  g.drawRoundedRectangle (face.toFloat (), 2.f, 1.f);
+  g.drawRoundedRectangle (face.toFloat (), theme ().radiusTick,
+                          theme ().strokeThin);
 
   auto const keyW = face.getWidth () / 5.f;
   auto const keyH = face.getHeight () / 4.f;

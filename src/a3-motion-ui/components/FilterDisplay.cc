@@ -27,6 +27,16 @@
 namespace a3
 {
 
+namespace
+{
+// 0.10 from alphaInactive (0.6), 0.15 from alphaTextStrong (0.85), too far
+// from both to snap to either. This is the response curve's stroked top
+// edge, drawn brighter than its fill but not as bright as the strong-text
+// rung. Listed in issues/a3-motion-ui-metric-role-deviations.md (Task 16)
+// pending a decision on whether it becomes a rung of its own.
+constexpr float curveStrokeOpacity = 0.7f;
+}
+
 FilterDisplay::FilterDisplay ()
 {
 }
@@ -188,7 +198,7 @@ FilterDisplay::paintChannel (juce::Graphics &g,
   curvePath.closeSubPath ();
 
   // Fill with semi-transparent channel colour
-  g.setColour (colour.withAlpha (0.2f));
+  g.setColour (colour.withAlpha (theme ().alphaOutline));
   g.fillPath (curvePath);
 
   // Stroke the top edge of the curve
@@ -203,11 +213,11 @@ FilterDisplay::paintChannel (juce::Graphics &g,
       else
         strokePath.lineTo (x, y);
     }
-  g.setColour (colour.withAlpha (0.7f));
+  g.setColour (colour.withAlpha (curveStrokeOpacity));
   g.strokePath (strokePath, juce::PathStrokeType (1.5f));
 
   // Thin baseline
-  g.setColour (colour.withAlpha (0.1f));
+  g.setColour (colour.withAlpha (theme ().alphaFill));
   g.drawHorizontalLine (static_cast<int> (drawBottom), leftX, rightX);
 }
 

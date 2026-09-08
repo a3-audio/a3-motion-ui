@@ -28,16 +28,6 @@
 namespace a3
 {
 
-namespace
-{
-// Structural opacities: the marks that divide a bar into loop repetitions,
-// the single mark where a bar ends inside a longer loop, and the frame around
-// the row the encoder is on.
-constexpr float repetitionMarkOpacity = 0.35f;
-constexpr float barMarkOpacity = 0.2f;
-constexpr float highlightOpacity = 0.8f;
-}
-
 LoopLengthDisplay::LoopLengthDisplay ()
 {
   startTimerHz (60);
@@ -143,12 +133,12 @@ LoopLengthDisplay::paintChannel (juce::Graphics &g,
   // Highlight/selection background (same style as PadRowDisplay)
   if (isSelected)
     {
-      g.setColour (colour.withAlpha (0.4f));
+      g.setColour (colour.withAlpha (theme ().alphaDisabled));
       g.fillRect (bounds);
     }
   else if (isHighlighted)
     {
-      g.setColour (colour.withAlpha (0.15f));
+      g.setColour (colour.withAlpha (theme ().alphaOutline));
       g.fillRect (bounds);
     }
 
@@ -167,11 +157,11 @@ LoopLengthDisplay::paintChannel (juce::Graphics &g,
   auto const playheadX = leftX + playhead * drawWidth;
 
   // Solid colour fill from left to playhead
-  g.setColour (colour.withAlpha (0.6f));
+  g.setColour (colour.withAlpha (theme ().alphaInactive));
   g.fillRect (leftX, drawTop, playheadX - leftX, drawHeight);
 
   // Faint fill for the remaining area
-  g.setColour (colour.withAlpha (0.08f));
+  g.setColour (colour.withAlpha (theme ().alphaFill));
   g.fillRect (playheadX, drawTop, rightX - playheadX, drawHeight);
 
   // Loop boundary lines: how many loop repetitions fit in one bar?
@@ -186,7 +176,7 @@ LoopLengthDisplay::paintChannel (juce::Graphics &g,
         {
           auto const lineX = leftX + i * loopFraction * drawWidth;
           g.setColour (toColour (theme ().textPrimary,
-                                 repetitionMarkOpacity));
+                                 theme ().alphaDisabled));
           g.drawVerticalLine (static_cast<int> (lineX), drawTop, drawBottom);
         }
     }
@@ -195,7 +185,7 @@ LoopLengthDisplay::paintChannel (juce::Graphics &g,
       // Long loops: loop longer than 1 bar → show bar boundary within loop
       // One marker showing where the bar ends within the loop
       auto const barEndX = leftX + (1.f / loopFraction) * drawWidth;
-      g.setColour (toColour (theme ().textPrimary, barMarkOpacity));
+      g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
       g.drawVerticalLine (static_cast<int> (barEndX), drawTop, drawBottom);
     }
 
@@ -206,12 +196,12 @@ LoopLengthDisplay::paintChannel (juce::Graphics &g,
   // White border when row is highlighted (hovered by encoder)
   if (isHighlighted)
     {
-      g.setColour (toColour (theme ().textPrimary, highlightOpacity));
+      g.setColour (toColour (theme ().textPrimary, theme ().alphaTextStrong));
       g.drawRect (bounds, 2);
     }
 
   // Thin baseline
-  g.setColour (colour.withAlpha (0.1f));
+  g.setColour (colour.withAlpha (theme ().alphaFill));
   g.drawHorizontalLine (static_cast<int> (drawBottom), leftX, rightX);
 }
 

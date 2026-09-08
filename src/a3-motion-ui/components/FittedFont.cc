@@ -18,12 +18,17 @@
 
 */
 
-#include "LayoutHints.hh"
+#include "FittedFont.hh"
+
+#include <JuceHeader.h>
 
 namespace a3
 {
 
-float const LayoutHints::Channels::widthMin = 100.f;
-float const LayoutHints::MotionComponent::heightMin = 100.f;
+float
+fittedFontHeight (float wanted, float cap)
+{
+  return juce::jmax (1.f, juce::jmin (cap, wanted));
+}
 
 }

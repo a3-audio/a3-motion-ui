@@ -45,6 +45,20 @@ struct SkinParameter
    *  headings are the same decision, and two places deciding it is how a list
    *  ends up sorted one way and titled another. */
   juce::String group;
+
+  /** What this path is worth while the file does not state it — the
+   *  merged-in theme default (see `themeDefaultsVar()`), carried on the
+   *  parameter rather than looked up a second time. For a plain number this
+   *  is that number; for a colour it is the whole `{r,g,b}` object, since
+   *  `collect()` gives a colour one row for all three channels together.
+   *
+   *  `hasDefault` is false, and `defaultValue` void, for a path that came
+   *  from the file itself, and for every path in a document `skinParameters`
+   *  was not asked to merge (a config-page slice). Once the file states the
+   *  path — the first edit writes it — `skinValue`/`skinText` answer on
+   *  their own and nothing here needs consulting any more. */
+  juce::var defaultValue;
+  bool hasDefault = false;
 };
 
 /** Every editable leaf, **grouped by what it is** and in the order
@@ -54,18 +68,47 @@ struct SkinParameter
  *  It used to be plain alphabetical, which put `background` and `surface`
  *  forty rows apart with the speaker light's thirty-four in between. Numbers
  *  and text; anything else is structure, and there is no control on this panel
- *  that could edit structure. */
-std::vector<SkinParameter> skinParameters (juce::var const &skin);
+ *  that could edit structure.
+ *
+ *  `includeThemeDefaults` merges in every role `loadTheme` reads (see
+ *  `themeDefaultsVar()`) behind whatever `skin` already states, so a role no
+ *  shipped skin names is still offered rather than hidden. On by default: the
+ *  usual caller is looking at an actual skin. A page that instead edits a
+ *  slice of config.json -- the Network page, say -- shares this same
+ *  walk-and-group machinery but passes false, because "host" and "port" are
+ *  not theme roles, and merging thirty-eight of them in ahead of the page's
+ *  own two fields would bury what the page is for. */
+std::vector<SkinParameter> skinParameters (juce::var const &skin,
+                                           bool includeThemeDefaults = true);
 
 /** The number at `path`, or 0 when there is none. */
 double skinValue (juce::var const &skin, juce::String const &path);
+
+/** Whether `path` is actually present in `skin`.
+ *
+ *  `skinValue` answers 0 both for "the file says zero" and "the file does
+ *  not say", which is fine as long as every path is guaranteed to be in the
+ *  document. Once a role can be merged in from the theme's defaults rather
+ *  than stated (see `themeDefaultsVar()`), the editor needs to tell those
+ *  two apart to decide whether to show the live value or the carried
+ *  fallback — this is that question, asked directly instead of inferred
+ *  from a value that cannot say it. */
+bool skinHasValue (juce::var const &skin, juce::String const &path);
 
 /** Put `value` at `path`, leaving its neighbours alone.
  *
  *  `asWholeNumber` decides how it is stored, and the caller is the one that
  *  knows: a value the file writes as a float has to stay one even when it
  *  lands exactly on an integer, or the next session reads it as whole and
- *  steps it in ones instead of hundredths. */
+ *  steps it in ones instead of hundredths.
+ *
+ *  Creates whatever object `path` needs on the way to its leaf, unlike
+ *  `skinValue`'s read side. A role merged in from the theme's defaults (see
+ *  `themeDefaultsVar()`) has no parent object in the file at all until its
+ *  first edit — writing a colour picked for `"highlight.r"` into a file that
+ *  has never named `"highlight"` must materialise `"highlight": {r,g,b}`,
+ *  not silently do nothing. Never creates an array element: an index the
+ *  file does not have is a bug to see, not a gap to paper over. */
 void setSkinValue (juce::var &skin, juce::String const &path, double value,
                    bool asWholeNumber = false);
 

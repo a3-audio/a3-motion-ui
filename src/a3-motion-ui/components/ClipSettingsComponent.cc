@@ -71,6 +71,14 @@ constexpr float trackWash = 0.18f;
 constexpr float beatWash = 0.035f;
 constexpr float clippedZoneOpacity = 0.55f;
 constexpr float outlineOpacity = 0.5f;
+
+// Sits between alphaOutline (0.15) and alphaFillEmphasis (0.28), further than
+// either by more than the 0.05 a snap would tolerate -- rounding it onto
+// either rung would visibly change how strongly the ear-height ring reads
+// against the two clip cuts either side of it, which use alphaFillEmphasis.
+// Listed in issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending
+// a decision on whether it becomes a rung of its own.
+constexpr float earHeightRingOpacity = 0.22f;
 }
 
 ClipSettingsComponent::ClipSettingsComponent ()
@@ -458,15 +466,22 @@ ClipSettingsComponent::controlColour (bool isSelected) const
   // the setting rather than about which section a finger last touched. What
   // says whose section this is, is the ground behind it -- the colour belongs
   // to the highlight, not to the reading.
-  return toColour (theme ().textMuted,
-                   isSelected ? 1.f : theme ().alphaInactive);
+  //
+  // Full opacity rather than an alpha rung: "selected" has always meant no
+  // dimming at all, which the alpha-less overload already says. This used to
+  // be `isSelected ? 1.f : theme ().alphaInactive` -- 1.f fits no rung, and
+  // the maintainer still owes a call on whether full opacity deserves one of
+  // its own. See issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+  return isSelected ? toColour (theme ().textMuted)
+                    : toColour (theme ().textMuted, theme ().alphaInactive);
 }
 
 juce::Colour
 ClipSettingsComponent::captionColour (bool isSelected) const
 {
-  return toColour (theme ().textMuted,
-                   isSelected ? 1.f : theme ().alphaInactive);
+  // Same restructuring as controlColour() above, and the same open question.
+  return isSelected ? toColour (theme ().textMuted)
+                    : toColour (theme ().textMuted, theme ().alphaInactive);
 }
 
 void
@@ -857,7 +872,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   g.setColour (_channelColour);
   g.drawRect (_layout.clipBounds, frameThickness);
 
-  g.setColour (toColour (theme ().textPrimary, 0.25f));
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaFillEmphasis));
   g.drawRect (_layout.globalBounds, frameThickness);
 
   // Not on the pages that show every slot at once -- the pads page and the
@@ -878,11 +893,15 @@ ClipSettingsComponent::paint (juce::Graphics &g)
         // page you are on, because they answer the same kind of question.
         auto const here = slot == static_cast<index_t> (_slot);
 
-        g.setColour (here ? _channelColour.withAlpha (0.35f)
-                          : toColour (theme ().textPrimary, 0.06f));
-        g.fillRoundedRectangle (bounds.toFloat (), 3.f);
-        g.setColour (toColour (theme ().textPrimary, here ? 0.35f : 0.15f));
-        g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+        g.setColour (here ? _channelColour.withAlpha (theme ().alphaDisabled)
+                          : toColour (theme ().textPrimary,
+                                     theme ().alphaFill));
+        g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
+        g.setColour (toColour (theme ().textPrimary,
+                               here ? theme ().alphaDisabled
+                                    : theme ().alphaOutline));
+        g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
+                                theme ().strokeThin);
 
         // The number alone. "Slot" was three quarters of a key spent saying
         // what two keys side by side already say.
@@ -890,7 +909,8 @@ ClipSettingsComponent::paint (juce::Graphics &g)
         g.setFont (juce::Font (fontFor (FontRole::Header, bounds, name),
                                here ? juce::Font::bold : juce::Font::plain));
         g.setColour (here ? _channelColour
-                          : toColour (theme ().textPrimary, 0.55f));
+                          : toColour (theme ().textPrimary,
+                                     theme ().alphaInactive));
         g.drawFittedText (name, bounds, juce::Justification::centred, 1);
 
         // Unsaved. In the warning colour rather than the danger one: nothing
@@ -945,15 +965,25 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
     // The active one is filled and the other is outlined: which page you are
     // on has to be answerable with a glance, not by reading two words and
     // working out which is bolder.
-    g.setColour (active ? _channelColour.withAlpha (0.35f)
-                        : toColour (theme ().textPrimary, 0.06f));
-    g.fillRoundedRectangle (bounds.toFloat (), 3.f);
-    g.setColour (toColour (theme ().textPrimary, active ? 0.35f : 0.15f));
-    g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+    g.setColour (active ? _channelColour.withAlpha (theme ().alphaDisabled)
+                        : toColour (theme ().textPrimary, theme ().alphaFill));
+    g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
+    g.setColour (toColour (theme ().textPrimary,
+                           active ? theme ().alphaDisabled
+                                  : theme ().alphaOutline));
+    g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
+                            theme ().strokeThin);
 
     g.setFont (juce::Font (fontFor (FontRole::Header, bounds, label),
                            active ? juce::Font::bold : juce::Font::plain));
-    g.setColour (toColour (theme ().textPrimary, active ? 1.f : 0.55f));
+    // Full opacity rather than an alpha rung -- the active tab's label has
+    // always meant no dimming at all. This used to be
+    // `active ? 1.f : 0.55f`; 1.f fits no rung, and the maintainer still owes
+    // a call on whether full opacity deserves one of its own. See
+    // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+    g.setColour (active ? toColour (theme ().textPrimary)
+                        : toColour (theme ().textPrimary,
+                                   theme ().alphaInactive));
     g.drawFittedText (label, bounds, juce::Justification::centred, 1);
   };
 
@@ -973,11 +1003,12 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
       auto const lit = (key == TransportKey::Record && _transportRecording)
                        || (key == TransportKey::PlayPause && _transportPlaying);
 
-      g.setColour (lit ? mark.withAlpha (0.35f)
-                       : toColour (theme ().textPrimary, 0.06f));
-      g.fillRoundedRectangle (bounds.toFloat (), 3.f);
-      g.setColour (toColour (theme ().textPrimary, 0.15f));
-      g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+      g.setColour (lit ? mark.withAlpha (theme ().alphaDisabled)
+                       : toColour (theme ().textPrimary, theme ().alphaFill));
+      g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
+      g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
+      g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
+                              theme ().strokeThin);
 
       // Shapes, not words -- see drawTransportGlyph(), which the pads page
       // draws from as well so the same action is the same mark in both places.
@@ -1124,7 +1155,7 @@ ClipSettingsComponent::paintSectionCard (juce::Graphics &g, int sectionIndex,
   // was armed and shouted it, and what actually needs saying is which
   // *control* is, which the pointer and the control's own colour already do.
   g.setColour (toColour (theme ().textPrimary, cardWash));
-  g.fillRoundedRectangle (card.toFloat (), 8.f);
+  g.fillRoundedRectangle (card.toFloat (), theme ().radiusCard);
 
   paintSectionLabel (
       g, _layout.sectionLabels[static_cast<size_t> (sectionIndex)],
@@ -1151,7 +1182,8 @@ ClipSettingsComponent::paintSectionLock (juce::Graphics &g, int sectionIndex)
   // otherwise -- three marks that shouted at rest would be three marks you
   // stop seeing.
   auto const ink = held ? toColour (theme ().warning)
-                        : toColour (theme ().textPrimary, 0.3f);
+                        : toColour (theme ().textPrimary,
+                                   theme ().alphaFillEmphasis);
 
   // The hit area is twice as wide as it is tall so it can be found without
   // aiming; the mark inside it stays a square, drawn at the right end where
@@ -1164,8 +1196,8 @@ ClipSettingsComponent::paintSectionLock (juce::Graphics &g, int sectionIndex)
 
   if (held)
     {
-      g.setColour (ink.withAlpha (0.25f));
-      g.fillRoundedRectangle (mark, 3.f);
+      g.setColour (ink.withAlpha (theme ().alphaFillEmphasis));
+      g.fillRoundedRectangle (mark, theme ().radiusControl);
     }
 
   g.setColour (ink);
@@ -1211,10 +1243,11 @@ ClipSettingsComponent::paintSetOffFrame (juce::Graphics &g,
   if (bounds.isEmpty ())
     return;
 
-  g.setColour (toColour (theme ().textPrimary, 0.04f));
-  g.fillRoundedRectangle (bounds.toFloat (), 4.f);
-  g.setColour (toColour (theme ().textPrimary, 0.12f));
-  g.drawRoundedRectangle (bounds.toFloat (), 4.f, 1.f);
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
+  g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
+                          theme ().strokeThin);
 }
 
 void
@@ -1234,10 +1267,13 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
       // one the bar describes and washed when it is not. A colour that came
       // and went would make finding a channel a matter of remembering which
       // one you were on -- exactly what the single CLIP tab made you do.
-      g.setColour (shown ? colour.withAlpha (0.55f) : colour.withAlpha (0.16f));
-      g.fillRoundedRectangle (face.toFloat (), 3.f);
-      g.setColour (shown ? colour : colour.withAlpha (0.4f));
-      g.drawRoundedRectangle (face.toFloat (), 3.f, shown ? 2.f : 1.f);
+      g.setColour (shown ? colour.withAlpha (theme ().alphaInactive)
+                        : colour.withAlpha (theme ().alphaOutline));
+      g.fillRoundedRectangle (face.toFloat (), theme ().radiusControl);
+      g.setColour (shown ? colour : colour.withAlpha (theme ().alphaDisabled));
+      g.drawRoundedRectangle (face.toFloat (), theme ().radiusControl,
+                              shown ? theme ().strokeThick
+                                    : theme ().strokeThin);
 
       // And the number in it is the slot. Not the channel: which channel this
       // is, is what the colour says, and it says it without being read. Which
@@ -1318,7 +1354,8 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   if (_tapBeat && !_tapLit)
     {
       g.setColour (toColour (theme ().textPrimary, beatWash));
-      g.fillRoundedRectangle (_layout.tapButton.toFloat (), 4.f);
+      g.fillRoundedRectangle (_layout.tapButton.toFloat (),
+                              theme ().radiusControl);
     }
 
   // Lit in the accent while it is down. A modifier you cannot see at a glance
@@ -1349,9 +1386,10 @@ ClipSettingsComponent::paintActionButton (juce::Graphics &g,
   // rather than one colour asked to answer both.
   g.setColour (isActive ? tint.withAlpha (highlightWash * 2.f)
                         : toColour (theme ().textPrimary, cardWash));
-  g.fillRoundedRectangle (bounds.toFloat (), 4.f);
+  g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
   g.setColour (tint.withAlpha (trackWash));
-  g.drawRoundedRectangle (bounds.toFloat (), 4.f, 1.f);
+  g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
+                          theme ().strokeThin);
 
   g.setFont (juce::Font (fontFor (FontRole::Body, bounds, label),
                          juce::Font::plain));
@@ -1378,16 +1416,18 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
                                : toColour (theme ().textPrimary,
                                            highlightWash * 2.f))
                         : toColour (theme ().textPrimary, cardWash));
-  g.fillRoundedRectangle (bounds.toFloat (), 4.f);
+  g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
 
   g.setColour (toColour (theme ().textPrimary, trackWash));
-  g.drawRoundedRectangle (bounds.toFloat (), 4.f, 1.f);
+  g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
+                          theme ().strokeThin);
 
   // Two lines, both inside the box: the caption on top, the value under it.
   // The caption used to sit below the button, which made a button a
   // different height from the box it looked like and left the name floating
   // between two of them.
-  auto box = bounds.reduced (4, 2);
+  auto box = bounds.reduced (juce::roundToInt (theme ().paddingSmall),
+                             juce::roundToInt (theme ().paddingTight));
   auto const captionArea
       = caption.isEmpty ()
             ? juce::Rectangle<int>{}
@@ -1942,7 +1982,7 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
       auto const from = juce::jmin (baseFrac, sweptFrac);
       auto const to = juce::jmax (baseFrac, sweptFrac);
 
-      g.setColour (toColour (theme ().notice, 0.3f));
+      g.setColour (toColour (theme ().notice, theme ().alphaFillEmphasis));
       g.fillPath (bandBetween (from, to));
     }
 
@@ -1953,8 +1993,8 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   // is turned.
   if (_elevationFigure.size () > 1)
     {
-      auto const near = _channelColour.withAlpha (0.85f);
-      auto const far = _channelColour.withAlpha (0.3f);
+      auto const near = _channelColour.withAlpha (theme ().alphaTextStrong);
+      auto const far = _channelColour.withAlpha (theme ().alphaFillEmphasis);
 
       auto previous = place (_elevationFigure.front ());
       for (size_t i = 1; i < _elevationFigure.size (); ++i)
@@ -1975,19 +2015,19 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
 
   // The two cuts, as the rings they are: a boundary you can see is a boundary
   // you can aim a finger at.
-  g.setColour (toColour (theme ().textPrimary, 0.25f));
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaFillEmphasis));
   g.strokePath (latitude (bandLow), juce::PathStrokeType (1.f));
   g.strokePath (latitude (bandHigh), juce::PathStrokeType (1.f));
 
   // Ear height, the one ring worth having whatever else is set.
-  g.setColour (toColour (theme ().textPrimary, 0.22f));
+  g.setColour (toColour (theme ().textPrimary, earHeightRingOpacity));
   g.strokePath (latitude (0.5f), juce::PathStrokeType (1.f));
 
   // And a graticule every thirty degrees, so the picture says how far it has
   // been turned as well as how high things are: rings that are straight lines
   // in the side view and circles in the overhead one, which is the whole
   // difference between the two views said without a word.
-  g.setColour (toColour (theme ().textPrimary, 0.09f));
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
   for (int degrees = 30; degrees < 180; degrees += 30)
     if (degrees != 90)
       g.strokePath (latitude (static_cast<float> (degrees) / 180.f),
@@ -2029,7 +2069,7 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
     figure.applyTransform (
         juce::AffineTransform::translation (centre.x, centre.y));
 
-    g.setColour (toColour (theme ().textPrimary, 0.5f));
+    g.setColour (toColour (theme ().textPrimary, theme ().alphaMuted));
     g.fillPath (figure);
     g.setColour (toColour (theme ().surface, outlineOpacity));
     g.strokePath (figure, juce::PathStrokeType (1.f));
@@ -2047,8 +2087,9 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
       g.setColour (toColour (theme ().surface, outlineOpacity));
       g.fillEllipse (at.x - ballR - 1.f, at.y - ballR - 1.f,
                      (ballR + 1.f) * 2.f, (ballR + 1.f) * 2.f);
-      g.setColour (_elevationHead.behind ? _channelColour.withAlpha (0.55f)
-                                         : _channelColour);
+      g.setColour (_elevationHead.behind
+                       ? _channelColour.withAlpha (theme ().alphaInactive)
+                       : _channelColour);
       g.fillEllipse (at.x - ballR, at.y - ballR, ballR * 2.f, ballR * 2.f);
     }
 }
@@ -2081,10 +2122,10 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   if (highlight)
     {
       g.setColour (_channelColour.withAlpha (highlightWash));
-      g.fillRoundedRectangle (bounds.toFloat (), 4.f);
+      g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
     }
 
-  auto content = bounds.reduced (2);
+  auto content = bounds.reduced (juce::roundToInt (theme ().paddingTight));
   auto labelArea
       = content.removeFromBottom (textRowHeight (content, metrics.captionSize));
 

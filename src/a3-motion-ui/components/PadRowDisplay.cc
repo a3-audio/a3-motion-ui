@@ -40,6 +40,14 @@ constexpr float textOutlineOpacity = 0.5f;
 constexpr float iconOutlineOpacity = 0.6f;
 constexpr float cellBorderWash = 0.15f;
 constexpr float highlightOpacity = 0.8f;
+
+// The pad row's label was sized off a since-removed layout constant -- line
+// height minus two paddings, 25. Kept as its own number rather than folded
+// into the skin's fontBody, which is 15: reading one from the other would
+// shrink these labels by a third. Same family as the font caps in
+// ActionComponent.cc, and listed with them in
+// issues/a3-motion-ui-metric-role-deviations.md.
+constexpr float padLabelBaseHeight = 25.f;
 }
 
 PadRowDisplay::PadRowDisplay (int rowIndex) : _rowIndex (rowIndex)
@@ -89,16 +97,17 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
   auto const colour = cell.colour;
 
   // Background: fill with channel colour, intensity depends on state
-  auto bgAlpha = cell.cellSelected ? 0.85f
-                 : cell.rowHighlighted ? 0.55f
-                                       : 0.25f;
+  auto bgAlpha = cell.cellSelected ? theme ().alphaTextStrong
+                 : cell.rowHighlighted ? theme ().alphaInactive
+                                       : theme ().alphaFillEmphasis;
   g.setColour (colour.withAlpha (bgAlpha));
   g.fillRect (bounds);
 
   if (cell.trajectoryType == TrajectoryType::Empty && !cell.icon.hasIcon)
     {
       // "---" label: dark outline + channel colour fill
-      g.setFont (LayoutHints::fontSize * 0.7f * theme ().scaleFor (FontRole::Body));
+      g.setFont (padLabelBaseHeight * 0.7f
+                 * theme ().scaleFor (FontRole::Body));
       auto const outlineColour = toColour (theme ().surface, padOutlineOpacity);
       g.setColour (outlineColour);
       for (int dx = -1; dx <= 1; ++dx)

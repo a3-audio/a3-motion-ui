@@ -21,6 +21,7 @@
 #include "SkinParameters.hh"
 
 #include <a3-motion-ui/theme/SkinGroups.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
@@ -94,9 +95,17 @@ collect (juce::var const &value, juce::String const &prefix,
     into.push_back ({ path, false, true });
 }
 
-/** The var at `path`'s parent, and the last step of the path. */
+/** The var at `path`'s parent, and the last step of the path.
+ *
+ *  `create`, used only by the write path, adds a missing object step instead
+ *  of failing there: a role merged in from the theme's defaults (see
+ *  `themeDefaultsVar()`) has no parent object in the file at all until its
+ *  first edit, and the read side must not invent one just by being asked.
+ *  Never creates an array element either way — an index the file does not
+ *  have is a bug to see, not a gap to paper over. */
 juce::var *
-locate (juce::var &skin, juce::String const &path, juce::String &leaf)
+locate (juce::var &skin, juce::String const &path, juce::String &leaf,
+       bool create = false)
 {
   juce::StringArray steps;
   steps.addTokens (path, ".", "");
@@ -118,8 +127,17 @@ locate (juce::var &skin, juce::String const &path, juce::String &leaf)
         }
 
       auto *object = current->getDynamicObject ();
-      if (object == nullptr || !object->hasProperty (steps[i]))
+      if (object == nullptr)
         return nullptr;
+
+      if (!object->hasProperty (steps[i]))
+        {
+          if (!create)
+            return nullptr;
+          object->setProperty (steps[i],
+                               juce::var (new juce::DynamicObject ()));
+        }
+
       current = object->getProperties ().getVarPointer (steps[i]);
       if (current == nullptr)
         return nullptr;
@@ -131,13 +149,69 @@ locate (juce::var &skin, juce::String const &path, juce::String &leaf)
 }
 
 std::vector<SkinParameter>
-skinParameters (juce::var const &skin)
+skinParameters (juce::var const &skin, bool includeThemeDefaults)
 {
+  // The file first, the theme's defaults behind it: a value the file states
+  // is the file's, a role it leaves out is still offered rather than hidden.
+  //
+  // withKeysReplaced replaces exactly the keys it is given, so the file's own
+  // top-level names are what it is given -- that is the list of "the file has
+  // an opinion here". A caller editing a slice of config.json rather than an
+  // actual skin (the Network page, Button LEDs) opts out: those keys are not
+  // theme roles, and the merge would bury the page's own few fields under
+  // every colour and metric the theme owns.
+  juce::var complete = skin;
+
+  // Every top-level key the merge filled in rather than the file: not just
+  // which rows to offer, but which of them can carry the theme's own default
+  // below -- see the loop after collect(). A key the file states, even
+  // partially (an "accent" with only "r"), is not one of these: the file had
+  // an opinion, so nothing here is fabricated for it.
+  juce::StringArray defaultedTopLevelKeys;
+  juce::var defaults;
+
+  if (includeThemeDefaults)
+    {
+      juce::StringArray stated;
+      if (auto const *object = skin.getDynamicObject ())
+        for (auto const &property : object->getProperties ())
+          stated.add (property.name.toString ());
+
+      defaults = themeDefaultsVar ();
+      complete = withKeysReplaced (defaults, skin, stated);
+
+      if (auto const *defaultsObject = defaults.getDynamicObject ())
+        for (auto const &property : defaultsObject->getProperties ())
+          {
+            auto const name = property.name.toString ();
+            if (!stated.contains (name))
+              defaultedTopLevelKeys.add (name);
+          }
+    }
+
   std::vector<SkinParameter> found;
-  collect (skin, {}, found);
+  collect (complete, {}, found);
 
   for (auto &parameter : found)
-    parameter.group = skinGroupFor (parameter.path);
+    {
+      parameter.group = skinGroupFor (parameter.path);
+
+      // Carry the value this path falls back to while the file does not
+      // state it, so the editor can show and step from the value the app is
+      // actually drawing with, rather than the zero an absent key would
+      // otherwise read as. themeDefaultsVar() only ever nests one level deep
+      // (a colour's r, g and b), so the top-level segment of a defaulted
+      // leaf's path is always the key that decides this, for a plain number
+      // and for a colour's own row alike.
+      auto const topLevel
+          = parameter.path.upToFirstOccurrenceOf (".", false, false);
+      if (defaultedTopLevelKeys.contains (topLevel))
+        {
+          parameter.hasDefault = true;
+          parameter.defaultValue
+              = defaults.getProperty (juce::Identifier (topLevel), {});
+        }
+    }
 
   std::sort (found.begin (), found.end (), [] (auto const &a, auto const &b) {
     auto const ga = skinGroupOrder (a.group);
@@ -173,12 +247,31 @@ skinValue (juce::var const &skin, juce::String const &path)
              : 0.0;
 }
 
+bool
+skinHasValue (juce::var const &skin, juce::String const &path)
+{
+  auto copy = skin; // locate needs a non-const handle; nothing is written
+  juce::String leaf;
+  auto *parent = locate (copy, path, leaf);
+  if (parent == nullptr)
+    return false;
+
+  if (auto *array = parent->getArray ())
+    {
+      auto const index = leaf.getIntValue ();
+      return index >= 0 && index < array->size ();
+    }
+
+  auto *object = parent->getDynamicObject ();
+  return object != nullptr && object->hasProperty (leaf);
+}
+
 void
 setSkinValue (juce::var &skin, juce::String const &path, double value,
               bool asWholeNumber)
 {
   juce::String leaf;
-  auto *parent = locate (skin, path, leaf);
+  auto *parent = locate (skin, path, leaf, true); // create a missing parent
   if (parent == nullptr)
     return;
 
@@ -344,6 +437,35 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
 
       return capped;
     }
+
+  // Derived from each role's own default, like the font sizes above: roughly
+  // half up to about 1.75x. A table rather than a chain of ifs because the
+  // roles are a scale — reading them in one block is how a wrong ceiling
+  // shows itself.
+  struct Range
+  {
+    char const *path;
+    double min, max;
+  };
+
+  static constexpr Range metricRanges[] = {
+    { "radiusTick", 1.0, 3.5 },   { "radiusControl", 1.5, 5.25 },
+    { "radiusRow", 2.5, 8.75 },   { "radiusCard", 4.0, 14.0 },
+    { "radiusPanel", 5.0, 17.5 }, { "paddingTight", 1.0, 3.5 },
+    { "paddingSmall", 2.0, 7.0 }, { "padding", 4.0, 14.0 },
+  };
+
+  for (auto const &range : metricRanges)
+    if (path == range.path)
+      return juce::jlimit (range.min, range.max, value);
+
+  // An alpha outside 0..1 is not a dimmer setting, it is a value juce will
+  // clamp silently later — better to say so at the knob.
+  for (auto const *alpha :
+       { "alphaFill", "alphaOutline", "alphaFillEmphasis", "alphaMuted",
+         "alphaTextStrong", "alphaDisabled", "alphaInactive" })
+    if (path == alpha)
+      return juce::jlimit (0.0, 1.0, value);
 
   return value;
 }

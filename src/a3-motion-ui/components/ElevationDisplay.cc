@@ -27,16 +27,6 @@
 namespace a3
 {
 
-namespace
-{
-// Structural opacities: the hairline between cells, the dark outline that
-// keeps text readable on a channel-coloured ground, the frame around the row
-// the encoder is on.
-constexpr float cellBorderWash = 0.15f;
-constexpr float outlineOpacity = 0.5f;
-constexpr float highlightOpacity = 0.8f;
-}
-
 ElevationDisplay::ElevationDisplay () = default;
 
 void
@@ -72,24 +62,24 @@ ElevationDisplay::paintCell (juce::Graphics &g,
   auto const colour = cell.colour;
 
   // Background: channel colour, intensity depends on state (like PadRowDisplay)
-  auto bgAlpha = cell.cellSelected ? 0.85f
-                 : cell.rowHighlighted ? 0.55f
-                                       : 0.25f;
+  auto bgAlpha = cell.cellSelected ? theme ().alphaTextStrong
+                 : cell.rowHighlighted ? theme ().alphaInactive
+                                       : theme ().alphaFillEmphasis;
   g.setColour (colour.withAlpha (bgAlpha));
   g.fillRect (bounds);
 
   // Border between cells
-  g.setColour (toColour (theme ().surface, cellBorderWash));
+  g.setColour (toColour (theme ().surface, theme ().alphaOutline));
   g.drawVerticalLine (bounds.getRight () - 1, static_cast<float> (bounds.getY ()),
                       static_cast<float> (bounds.getBottom ()));
 
   // Content: "ELV" and coverage value
   // Use dark outline + channel colour text for readability on coloured bg
-  auto boundsF = bounds.toFloat ().reduced (2.f);
+  auto boundsF = bounds.toFloat ().reduced (theme ().paddingTight);
   auto const font = juce::Font (h * 0.55f * theme ().scaleFor (FontRole::Body));
   g.setFont (font);
 
-  auto const outlineColour = toColour (theme ().surface, outlineOpacity);
+  auto const outlineColour = toColour (theme ().surface, theme ().alphaMuted);
 
   // Label "ELV"
   auto labelArea = boundsF.removeFromLeft (boundsF.getWidth () * 0.4f);
@@ -121,7 +111,7 @@ ElevationDisplay::paintCell (juce::Graphics &g,
   g.drawText (valueStr, boundsF, juce::Justification::centredRight, false);
 
   // Draw a mini sphere icon showing coverage (small arc)
-  auto iconArea = bounds.toFloat ().reduced (2.f);
+  auto iconArea = bounds.toFloat ().reduced (theme ().paddingTight);
   auto iconX = iconArea.getCentreX ();
   auto iconY = iconArea.getCentreY ();
   auto iconR = h * 0.25f;
@@ -130,7 +120,7 @@ ElevationDisplay::paintCell (juce::Graphics &g,
   g.setColour (outlineColour);
   g.drawEllipse (iconX - iconR - 0.5f, iconY - iconR - 0.5f,
                  iconR * 2.f + 1.f, iconR * 2.f + 1.f, 2.f);
-  g.setColour (colour.withAlpha (0.5f));
+  g.setColour (colour.withAlpha (theme ().alphaMuted));
   g.drawEllipse (iconX - iconR, iconY - iconR,
                  iconR * 2.f, iconR * 2.f, 1.f);
 
@@ -145,14 +135,14 @@ ElevationDisplay::paintCell (juce::Graphics &g,
                              true);
       arcPath.lineTo (iconX, iconY);
       arcPath.closeSubPath ();
-      g.setColour (colour.withAlpha (0.4f));
+      g.setColour (colour.withAlpha (theme ().alphaDisabled));
       g.fillPath (arcPath);
     }
 
   // White border when row is highlighted (hovered by encoder)
   if (cell.rowHighlighted)
     {
-      g.setColour (toColour (theme ().textPrimary, highlightOpacity));
+      g.setColour (toColour (theme ().textPrimary, theme ().alphaTextStrong));
       g.drawRect (bounds, 2);
     }
 }

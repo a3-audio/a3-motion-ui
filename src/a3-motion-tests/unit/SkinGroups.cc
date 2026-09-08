@@ -120,3 +120,35 @@ TEST (SkinGroups, PathsFromAnotherPageKeepTheirOwnHeadings)
   EXPECT_LT (skinGroupOrder (skinGroupFor ("blob.whiteBlend")),
              skinGroupOrder (skinGroupFor ("oscSender.host")));
 }
+
+// Radii and insets are one subject and belong under one heading — scattered
+// into "Other" they would sit below thirty shader knobs, which is where a
+// value goes to be never found.
+TEST (SkinGroups, TheMetricRolesShareAHeading)
+{
+  auto const expected = skinGroupFor ("radiusControl");
+
+  EXPECT_NE (expected, skinUngroupedHeading ());
+
+  for (auto const *path : { "radiusTick", "radiusRow", "radiusCard",
+                            "radiusPanel", "paddingTight", "paddingSmall",
+                            "padding" })
+    EXPECT_EQ (skinGroupFor (path), expected) << path;
+}
+
+// The emphasis rungs join the two that were already there, rather than
+// opening a heading of their own next to it.
+TEST (SkinGroups, TheEmphasisRungsSitWithTheOnesThatCameFirst)
+{
+  auto const expected = skinGroupFor ("alphaDisabled");
+
+  for (auto const *path : { "alphaFill", "alphaOutline", "alphaFillEmphasis",
+                            "alphaMuted", "alphaTextStrong" })
+    EXPECT_EQ (skinGroupFor (path), expected) << path;
+}
+
+TEST (SkinGroups, MetricsComeBeforeTheShaderKnobs)
+{
+  EXPECT_LT (skinGroupOrder (skinGroupFor ("radiusCard")),
+             skinGroupOrder (skinGroupFor ("speakerLight.boltEscape")));
+}

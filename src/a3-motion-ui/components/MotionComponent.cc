@@ -108,6 +108,24 @@ auto constexpr reduceFactorHead = .35f;
 auto constexpr activeAreaAroundBlobFactor = 3.f;
 auto constexpr blobHighlightFactor = 1.1f;
 
+// 0.13 from alphaTextStrong (0.85), 0.12 from alphaInactive (0.6), too far
+// from both to snap to either. This is the camera ball's own face -- dim
+// enough that the horizon line and the listener silhouette drawn over it
+// still read as the foreground. Listed in
+// issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending a decision
+// on whether it becomes a rung of its own.
+auto constexpr cameraBallFaceOpacity = 0.72f;
+
+// Neither branch of this ternary snaps. Held: 0.10 from alphaTextStrong
+// (0.85), the nearest rung there is -- there is no rung above it to compare
+// against. At rest: 0.10 from alphaTextStrong (0.85), 0.15 from alphaInactive
+// (0.6), too far from both. This is the listener silhouette drawn inside the
+// camera ball, brighter while the ball is being dragged. Listed in
+// issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending a decision
+// on whether either becomes a rung of its own.
+auto constexpr cameraBallListenerOpacityHeld = 0.95f;
+auto constexpr cameraBallListenerOpacityAtRest = 0.75f;
+
 }
 
 namespace a3
@@ -1480,7 +1498,9 @@ MotionComponent::drawBearings (juce::Graphics &g)
                           major ? 1.105f : medium ? 1.085f : 1.065f);
 
       g.setColour (toColour (theme ().textPrimary,
-                             major ? 0.5f : medium ? 0.3f : 0.16f));
+                             major ? theme ().alphaMuted
+                                   : medium ? theme ().alphaFillEmphasis
+                                            : theme ().alphaOutline));
       g.drawLine (from.x, from.y, to.x, to.y, major ? 0.01f : 0.006f);
     }
 
@@ -1502,7 +1522,7 @@ MotionComponent::drawBearings (juce::Graphics &g)
       auto const out = on (mark.degrees, 1.165f);
       auto const box = juce::Rectangle<float> (0.36f, 0.1f).withCentre (out);
 
-      g.setColour (toColour (theme ().textPrimary, 0.65f));
+      g.setColour (toColour (theme ().textPrimary, theme ().alphaInactive));
       g.drawText (mark.label, box, juce::Justification::centred, false);
     }
 }
@@ -1524,9 +1544,9 @@ MotionComponent::drawListener (juce::Graphics &g)
 
   // Lit rather than dark: the room is dark, so a dark figure in the middle of
   // it is a hole. Soft enough that the trajectories running past keep the eye.
-  g.setColour (toColour (theme ().textPrimary, 0.16f));
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
   g.fillPath (figure);
-  g.setColour (toColour (theme ().textPrimary, 0.5f));
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaMuted));
   g.strokePath (figure, juce::PathStrokeType (0.005f));
 }
 
@@ -1576,9 +1596,11 @@ MotionComponent::drawCameraBall (juce::Graphics &g)
 
   // The ball itself, so it reads as a thing with a front and a back rather
   // than as a circle with a drawing in it.
-  g.setColour (toColour (theme ().background, 0.72f));
+  g.setColour (toColour (theme ().background, cameraBallFaceOpacity));
   g.fillEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f);
-  g.setColour (toColour (theme ().textPrimary, held ? 0.65f : 0.28f));
+  g.setColour (toColour (theme ().textPrimary,
+                         held ? theme ().alphaInactive
+                              : theme ().alphaFillEmphasis));
   g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, r * 0.045f);
 
   // The room's own horizon, drawn round the ball: the one line that says how
@@ -1617,9 +1639,11 @@ MotionComponent::drawCameraBall (juce::Graphics &g)
     figure.applyTransform (
         juce::AffineTransform::translation (centre.x, centre.y));
 
-    g.setColour (toColour (theme ().textPrimary, held ? 0.95f : 0.75f));
+    g.setColour (toColour (theme ().textPrimary,
+                           held ? cameraBallListenerOpacityHeld
+                                : cameraBallListenerOpacityAtRest));
     g.fillPath (figure);
-    g.setColour (toColour (theme ().background, 0.8f));
+    g.setColour (toColour (theme ().background, theme ().alphaTextStrong));
     g.strokePath (figure, juce::PathStrokeType (r * 0.02f));
   }
 }
@@ -1708,7 +1732,7 @@ MotionComponent::drawChannelBlobs (juce::Graphics &g)
         {
           auto grabSize = blobSize * activeAreaAroundBlobFactor;
           auto grabRect = juce::Rectangle<float> (0.f, 0.f, grabSize, grabSize);
-          g.setColour (colour.withAlpha (0.4f));
+          g.setColour (colour.withAlpha (theme ().alphaDisabled));
           g.fillEllipse (grabRect.withCentre (posNormalized));
         }
 

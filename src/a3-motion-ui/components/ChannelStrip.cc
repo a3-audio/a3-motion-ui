@@ -23,6 +23,7 @@
 #include <a3-motion-engine/Channel.hh>
 
 #include <a3-motion-ui/components/ChannelUIState.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 
 namespace a3
 {
@@ -48,8 +49,8 @@ ChannelStrip::resized ()
 {
   auto bounds = getLocalBounds ();
 
-  // bounds.removeFromTop (LayoutHints::padding);
-  bounds.removeFromBottom (LayoutHints::padding);
+  // bounds.removeFromTop (juce::roundToInt (theme ().paddingSmall));
+  bounds.removeFromBottom (juce::roundToInt (theme ().paddingSmall));
 
   auto paddingDirectivity = bounds.getWidth () * 0.08f;
   bounds.removeFromTop (paddingDirectivity);

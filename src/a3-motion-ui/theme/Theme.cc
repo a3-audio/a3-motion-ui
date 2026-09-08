@@ -309,11 +309,30 @@ loadTheme (juce::var const &skin)
   theme.alphaDisabled = themeFloat (skin, "alphaDisabled", theme.alphaDisabled);
   theme.alphaInactive = themeFloat (skin, "alphaInactive", theme.alphaInactive);
 
+  theme.alphaFill = themeFloat (skin, "alphaFill", theme.alphaFill);
+  theme.alphaOutline = themeFloat (skin, "alphaOutline", theme.alphaOutline);
+  theme.alphaFillEmphasis
+      = themeFloat (skin, "alphaFillEmphasis", theme.alphaFillEmphasis);
+  theme.alphaMuted = themeFloat (skin, "alphaMuted", theme.alphaMuted);
+  theme.alphaTextStrong
+      = themeFloat (skin, "alphaTextStrong", theme.alphaTextStrong);
+
   theme.sphereScale = themeFloat (skin, "sphereScale", theme.sphereScale);
   theme.blobScale
       = themeFloat (skin["blob"], "scale", theme.blobScale);
   theme.strokeThin = themeFloat (skin, "strokeThin", theme.strokeThin);
   theme.strokeThick = themeFloat (skin, "strokeThick", theme.strokeThick);
+
+  theme.radiusTick = themeFloat (skin, "radiusTick", theme.radiusTick);
+  theme.radiusControl
+      = themeFloat (skin, "radiusControl", theme.radiusControl);
+  theme.radiusRow = themeFloat (skin, "radiusRow", theme.radiusRow);
+  theme.radiusCard = themeFloat (skin, "radiusCard", theme.radiusCard);
+  theme.radiusPanel = themeFloat (skin, "radiusPanel", theme.radiusPanel);
+
+  theme.paddingTight = themeFloat (skin, "paddingTight", theme.paddingTight);
+  theme.paddingSmall = themeFloat (skin, "paddingSmall", theme.paddingSmall);
+  theme.padding = themeFloat (skin, "padding", theme.padding);
 
   theme.fontHeader = themeFloat (skin, "fontHeader", theme.fontHeader);
   theme.fontBody = themeFloat (skin, "fontBody", theme.fontBody);
@@ -325,6 +344,71 @@ loadTheme (juce::var const &skin)
                   static_cast<float> (theme.touchDragPixelsPerStep)));
 
   return theme;
+}
+
+juce::var
+themeDefaultsVar ()
+{
+  Theme const defaults;
+  auto *object = new juce::DynamicObject ();
+
+  auto const colour = [object] (char const *name, ThemeColour const &value) {
+    auto *entry = new juce::DynamicObject ();
+    entry->setProperty ("r", value.r);
+    entry->setProperty ("g", value.g);
+    entry->setProperty ("b", value.b);
+    object->setProperty (name, juce::var (entry));
+  };
+
+  colour ("surface", defaults.surface);
+  colour ("surfaceRaised", defaults.surfaceRaised);
+  colour ("background", defaults.background);
+  colour ("textPrimary", defaults.textPrimary);
+  colour ("textMuted", defaults.textMuted);
+  colour ("textOnAccent", defaults.textOnAccent);
+  colour ("accent", defaults.accent);
+  colour ("warning", defaults.warning);
+  colour ("danger", defaults.danger);
+  colour ("notice", defaults.notice);
+  colour ("highlight", defaults.highlight);
+  colour ("sphereSurface", defaults.sphereSurface);
+  colour ("sphereRim", defaults.sphereRim);
+  colour ("sphereEnvironment", defaults.sphereEnvironment);
+  colour ("boltCore", defaults.boltCore);
+
+  auto const number = [object] (char const *name, float value) {
+    object->setProperty (name, value);
+  };
+
+  number ("alphaDisabled", defaults.alphaDisabled);
+  number ("alphaInactive", defaults.alphaInactive);
+  number ("alphaFill", defaults.alphaFill);
+  number ("alphaOutline", defaults.alphaOutline);
+  number ("alphaFillEmphasis", defaults.alphaFillEmphasis);
+  number ("alphaMuted", defaults.alphaMuted);
+  number ("alphaTextStrong", defaults.alphaTextStrong);
+
+  number ("radiusTick", defaults.radiusTick);
+  number ("radiusControl", defaults.radiusControl);
+  number ("radiusRow", defaults.radiusRow);
+  number ("radiusCard", defaults.radiusCard);
+  number ("radiusPanel", defaults.radiusPanel);
+
+  number ("paddingTight", defaults.paddingTight);
+  number ("paddingSmall", defaults.paddingSmall);
+  number ("padding", defaults.padding);
+
+  number ("strokeThin", defaults.strokeThin);
+  number ("strokeThick", defaults.strokeThick);
+  number ("sphereScale", defaults.sphereScale);
+  number ("fontHeader", defaults.fontHeader);
+  number ("fontBody", defaults.fontBody);
+  number ("potSize", defaults.potSize);
+  number ("clipSettingsHeightScale", defaults.clipSettingsHeightScale);
+  object->setProperty ("touchDragPixelsPerStep",
+                       defaults.touchDragPixelsPerStep);
+
+  return juce::var (object);
 }
 
 juce::String

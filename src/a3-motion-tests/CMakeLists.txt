@@ -30,6 +30,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ThemeColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LookAndFeelTheme.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/NoColourLiterals.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/NoMetricLiterals.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FontScale.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsCaptions.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsLayout.cc"
@@ -119,6 +120,8 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/io/OnScreenKeyboard.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/TouchGrabs.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/TrajectoryIcon.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/FittedFont.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/FittedFont.cc"
     )
 
 # The corona visibility test reads the config that actually ships with the app,

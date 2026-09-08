@@ -24,7 +24,7 @@
 
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
-#include <a3-motion-ui/components/LayoutHints.hh>
+#include <a3-motion-ui/components/ControllerLayout.hh>
 
 #include <array>
 
@@ -56,7 +56,7 @@ public:
   static constexpr int
   getMinimumHeight ()
   {
-    return LayoutHints::lineHeight;
+    return minimumRowHeight;
   }
 
 private:

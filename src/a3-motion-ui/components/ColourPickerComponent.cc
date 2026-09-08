@@ -175,7 +175,7 @@ void
 ColourPickerComponent::paint (juce::Graphics &g)
 {
   g.setColour (toColour (theme ().surface, overlayOpacity));
-  g.fillRoundedRectangle (getLocalBounds ().toFloat (), 10.f);
+  g.fillRoundedRectangle (getLocalBounds ().toFloat (), theme ().radiusPanel);
 
   auto const hue = _colour.getHue ();
   auto const saturation = _colour.getSaturationHSL ();
@@ -189,12 +189,14 @@ ColourPickerComponent::paint (juce::Graphics &g)
   g.setColour (toColour (theme ().accent));
   g.drawText (_title, header, juce::Justification::centredLeft, true);
   g.setColour (_colour);
-  g.fillRoundedRectangle (swatch.reduced (2).toFloat (), 4.f);
+  g.fillRoundedRectangle (
+      swatch.reduced (juce::roundToInt (theme ().paddingTight)).toFloat (),
+      theme ().radiusControl);
 
   // Done, as something to touch. The change is already in force — this is
   // the way back to the list, not a commit.
   g.setColour (toColour (theme ().textPrimary, armedRowWash));
-  g.fillRoundedRectangle (_doneButton.toFloat (), 5.f);
+  g.fillRoundedRectangle (_doneButton.toFloat (), theme ().radiusRow);
   g.setColour (toColour (theme ().accent));
   g.setFont (juce::Font (theme ().fontSize (FontRole::Body), juce::Font::bold));
   g.drawText ("done", _doneButton, juce::Justification::centred, false);
@@ -254,7 +256,8 @@ ColourPickerComponent::paint (juce::Graphics &g)
 
   for (int i = 0; i < 3; ++i)
     {
-      auto row = rows.removeFromTop (rowH).reduced (0, 2);
+      auto row = rows.removeFromTop (rowH).reduced (
+          0, juce::roundToInt (theme ().paddingTight));
       bool const isBrowsed = i == _index;
       bool const isArmed = isBrowsed && _editing;
 
@@ -262,23 +265,33 @@ ColourPickerComponent::paint (juce::Graphics &g)
                              isArmed     ? armedRowWash
                              : isBrowsed ? browsedRowWash
                                          : rowWash));
-      g.fillRoundedRectangle (row.toFloat (), 5.f);
+      g.fillRoundedRectangle (row.toFloat (), theme ().radiusRow);
 
       g.setFont (
           juce::Font (theme ().fontSize (FontRole::Body), juce::Font::plain));
-      g.setColour (toColour (theme ().textPrimary,
-                             isBrowsed ? 1.f : theme ().alphaInactive));
-      g.drawText (names[i], row.reduced (10, 0),
+      // Full opacity for the browsed row's name rather than an alpha rung:
+      // "browsed" has always meant no dimming at all, which the alpha-less
+      // overload already says. This used to be `isBrowsed ? 1.f : theme
+      // ().alphaInactive`; 1.f fits no rung, and the maintainer still owes a
+      // call on whether full opacity deserves one of its own. See
+      // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+      g.setColour (isBrowsed ? toColour (theme ().textPrimary)
+                            : toColour (theme ().textPrimary,
+                                       theme ().alphaInactive));
+      g.drawText (names[i], row.reduced (juce::roundToInt (theme ().padding), 0),
                   juce::Justification::centredLeft, true);
 
       g.setFont (
           juce::Font (theme ().fontSize (FontRole::Body), juce::Font::bold));
+      // Same restructuring as above for the browsed row's value.
       g.setColour (isArmed ? toColour (theme ().accent)
-                           : toColour (theme ().textPrimary,
-                                       isBrowsed ? 1.f
-                                                 : theme ().alphaInactive));
+                          : (isBrowsed
+                                 ? toColour (theme ().textPrimary)
+                                 : toColour (theme ().textPrimary,
+                                            theme ().alphaInactive)));
       g.drawText (juce::String (juce::roundToInt (values[i] * 100)) + "%",
-                  row.reduced (10, 0), juce::Justification::centredRight, true);
+                  row.reduced (juce::roundToInt (theme ().padding), 0),
+                  juce::Justification::centredRight, true);
     }
 }
 

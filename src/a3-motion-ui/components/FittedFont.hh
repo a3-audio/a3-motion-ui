@@ -23,21 +23,14 @@
 namespace a3
 {
 
-struct LayoutHints
-{
-  struct Channels
-  {
-    static float const widthMin;
-  };
-
-  struct MotionComponent
-  {
-    static float const heightMin;
-  };
-
-  static auto constexpr padding = 5.f;
-  static auto constexpr lineHeight = 35.f;
-  static auto constexpr fontSize = lineHeight - 2 * padding;
-};
+/** A font height that fits: at most `cap`, and never below 1.
+ *
+ *  Nine call sites wrote this pairing out with their own two numbers. The
+ *  numbers stay theirs -- what a label may cost is a property of that label --
+ *  but the arithmetic around them is one thing and now says so.
+ *
+ *  The floor is not decoration: juce throws on a font of zero, and a box can be
+ *  empty for a frame while a layout settles. */
+float fittedFontHeight (float wanted, float cap);
 
 }

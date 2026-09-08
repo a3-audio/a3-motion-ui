@@ -24,6 +24,7 @@
 
 #include <a3-motion-ui/components/BarKnob.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
+#include <a3-motion-ui/components/FittedFont.hh>
 #include <a3-motion-ui/components/ListScroll.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -41,6 +42,30 @@ envFrac (int step)
   return static_cast<float> (step) / static_cast<float> (envelopeMaxStep) * 2.f
          - 1.f;
 }
+
+// Sits between alphaInactive (0.6) and alphaTextStrong (0.85), further from
+// either than the 0.05 a snap would tolerate. Both sites are a small caption
+// drawn under a bigger value ("action" under the action field, the act-mode
+// caption under its field) -- muted, but less so than alphaInactive and more
+// than alphaTextStrong would read. Listed in
+// issues/a3-motion-ui-metric-role-deviations.md (Task 16) pending a decision
+// on whether it becomes a rung of its own.
+constexpr float fieldCaptionOpacity = 0.7f;
+
+// A one-pixel inset on a fillRect highlight, not a stroke -- there is no
+// stroke here to keep inside its bounds. No rung of the spacing scale carries
+// a bare 1 (paddingTight is 2), and binding it to strokeThin would be wrong
+// in a way that only shows up later: a skin that thickens the device's lines
+// would silently grow this highlight's vertical inset too, for no reason
+// anyone could name. Left as its own literal pending a decision. Listed in
+// issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+constexpr int actionListHighlightVerticalInset = 1;
+
+// 0.10 from alphaTextStrong (0.85) and 0.15 from alphaInactive (0.6), too far
+// from both to snap to either. This is the fire button's face while it is not
+// firing. Listed in issues/a3-motion-ui-metric-role-deviations.md (Task 16)
+// pending a decision on whether it becomes a rung of its own.
+constexpr float fireButtonRestingOpacity = 0.75f;
 }
 
 ActionComponent::ActionComponent ()
@@ -490,12 +515,13 @@ ActionComponent::paintActionField (juce::Graphics &g)
   // everything else on the device says whose it is. It was one grey for every
   // channel, which reads as furniture rather than as a thing that belongs to
   // the deck you are on.
-  g.setColour (named ? _channelColour.withAlpha (0.28f)
-                     : toColour (theme ().textPrimary, 0.06f));
-  g.fillRoundedRectangle (bounds.toFloat (), 3.f);
-  g.setColour (named ? _channelColour.withAlpha (0.6f)
-                     : toColour (theme ().textPrimary, 0.15f));
-  g.drawRoundedRectangle (bounds.toFloat (), 3.f, 1.f);
+  g.setColour (named ? _channelColour.withAlpha (theme ().alphaFillEmphasis)
+                     : toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
+  g.setColour (named ? _channelColour.withAlpha (theme ().alphaInactive)
+                     : toColour (theme ().textPrimary, theme ().alphaOutline));
+  g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
+                          theme ().strokeThin);
 
   // The channel's colour where it can be read on this ground, the theme's
   // text where it cannot -- channel four's blue vanished into the bar. See
@@ -503,16 +529,20 @@ ActionComponent::paintActionField (juce::Graphics &g)
   auto const ground = toColour (theme ().background);
   g.setColour (named ? readableInk (_channelColour, ground,
                                     toColour (theme ().textPrimary))
-                     : toColour (theme ().textMuted, 0.5f));
+                     : toColour (theme ().textMuted, theme ().alphaMuted));
+  // What the action's own name may cost.
+  constexpr float actionNameCap = 24.f;
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (24.f, bounds.getHeight () * 0.45f))));
+      fittedFontHeight (bounds.getHeight () * 0.45f, actionNameCap))));
   g.drawText (named ? _actionName : juce::String ("no action"),
               bounds.reduced (bounds.getHeight () / 3, 0),
               juce::Justification::centredLeft);
 
-  g.setColour (toColour (theme ().textMuted, 0.7f));
+  g.setColour (toColour (theme ().textMuted, fieldCaptionOpacity));
+  // What the "action" caption beside it may cost.
+  constexpr float actionCaptionCap = 12.f;
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (12.f, bounds.getHeight () / 4.f))));
+      fittedFontHeight (bounds.getHeight () / 4.f, actionCaptionCap))));
   g.drawText ("action", bounds.reduced (bounds.getHeight () / 3, 0),
               juce::Justification::centredRight);
 }
@@ -576,7 +606,8 @@ ActionComponent::paintScriptField (juce::Graphics &g)
   // has been written -- three states, one line, no words spent on any of it.
   g.setColour (_buffer.isEdited () ? toColour (theme ().warning)
                : _editing         ? _channelColour
-                                  : toColour (theme ().textPrimary, 0.15f));
+                                  : toColour (theme ().textPrimary,
+                                             theme ().alphaOutline));
   g.drawRect (bounds, _editing || _buffer.isEdited () ? 2 : 1);
 
   auto const text = scriptTextArea ();
@@ -587,7 +618,7 @@ ActionComponent::paintScriptField (juce::Graphics &g)
 
   if (_buffer.numLines () == 1 && _buffer.line (0).isEmpty () && !_editing)
     {
-      g.setColour (toColour (theme ().textMuted, 0.5f));
+      g.setColour (toColour (theme ().textMuted, theme ().alphaMuted));
       g.drawText ("-- no script --", text, juce::Justification::topLeft);
       return;
     }
@@ -608,8 +639,9 @@ ActionComponent::paintScriptField (juce::Graphics &g)
       // Comments in the muted colour, the one thing worth colouring: it is
       // what tells a written-out script from one somebody explained.
       g.setColour (line.trimStart ().startsWith ("//")
-                       ? toColour (theme ().textMuted, 0.6f)
-                       : toColour (theme ().textPrimary, 0.85f));
+                       ? toColour (theme ().textMuted, theme ().alphaInactive)
+                       : toColour (theme ().textPrimary,
+                                  theme ().alphaTextStrong));
       g.drawText (line, at, juce::Justification::centredLeft);
     }
 
@@ -661,14 +693,17 @@ ActionComponent::paintScriptKeys (juce::Graphics &g)
 
   auto const key = [&g, this] (juce::Rectangle<int> at, char const *word,
                                juce::Colour ink) {
-    g.setColour (toColour (theme ().textPrimary, 0.08f));
-    g.fillRoundedRectangle (at.toFloat (), 3.f);
-    g.setColour (toColour (theme ().textPrimary, 0.15f));
-    g.drawRoundedRectangle (at.toFloat (), 3.f, 1.f);
+    g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
+    g.fillRoundedRectangle (at.toFloat (), theme ().radiusControl);
+    g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
+    g.drawRoundedRectangle (at.toFloat (), theme ().radiusControl,
+                            theme ().strokeThin);
 
     g.setColour (ink);
+    // What "save"/"cancel" may cost.
+    constexpr float scriptKeyCap = 16.f;
     g.setFont (juce::Font (juce::FontOptions (
-        juce::jmin (16.f, at.getHeight () * 0.4f))));
+        fittedFontHeight (at.getHeight () * 0.4f, scriptKeyCap))));
     g.drawText (word, at, juce::Justification::centred);
   };
 
@@ -677,10 +712,10 @@ ActionComponent::paintScriptKeys (juce::Graphics &g)
   key (_layout.saveButton, "save",
        edited ? readableInk (_channelColour, toColour (theme ().background),
                              toColour (theme ().textPrimary))
-              : toColour (theme ().textMuted, 0.4f));
+              : toColour (theme ().textMuted, theme ().alphaDisabled));
   key (_layout.cancelButton, "cancel",
-       edited ? toColour (theme ().textPrimary, 0.85f)
-              : toColour (theme ().textMuted, 0.4f));
+       edited ? toColour (theme ().textPrimary, theme ().alphaTextStrong)
+              : toColour (theme ().textMuted, theme ().alphaDisabled));
 }
 
 void
@@ -696,13 +731,15 @@ ActionComponent::paintActionList (juce::Graphics &g)
   // its own the list and the script under it were drawn through each other.
   g.setColour (toColour (theme ().background));
   g.fillRect (area);
-  g.setColour (toColour (theme ().textPrimary, 0.08f));
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
   g.fillRect (area);
   g.setColour (_channelColour);
   g.drawRect (area, 1);
 
+  // What a row of the action list may cost.
+  constexpr float actionListRowCap = 18.f;
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (18.f, rowH * 0.45f))));
+      fittedFontHeight (rowH * 0.45f, actionListRowCap))));
 
   for (int row = 0; row * rowH < area.getHeight (); ++row)
     {
@@ -717,11 +754,13 @@ ActionComponent::paintActionList (juce::Graphics &g)
       if (chosen)
         {
           g.setColour (_channelColour.withAlpha (theme ().alphaDisabled));
-          g.fillRect (at.reduced (2, 1));
+          g.fillRect (at.reduced (juce::roundToInt (theme ().paddingTight),
+                                  actionListHighlightVerticalInset));
         }
 
       g.setColour (chosen ? _channelColour
-                          : toColour (theme ().textPrimary, 0.85f));
+                          : toColour (theme ().textPrimary,
+                                     theme ().alphaTextStrong));
       g.drawText (name.isEmpty () ? juce::String ("no action") : name,
                   at.reduced (rowH / 3, 0), juce::Justification::centredLeft);
     }
@@ -738,8 +777,8 @@ ActionComponent::paint (juce::Graphics &g)
   // The knobs stand on a card like every other block of controls in the bar.
   // Its colour is the bar's own resting card wash, so the page reads as part
   // of the same furniture rather than as a panel of its own.
-  g.setColour (toColour (theme ().textPrimary, 0.04f));
-  g.fillRoundedRectangle (_layout.card.toFloat (), 8.f);
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (_layout.card.toFloat (), theme ().radiusCard);
 
   paintActionField (g);
   paintScriptField (g);
@@ -774,12 +813,15 @@ ActionComponent::paint (juce::Graphics &g)
   // it after the thing it moves puts it in the same words as the global
   // strip's rows -- which is where the eye has already learned them.
   char const *const rowNames[] = { "3d", caption::frequency, "q" };
-  g.setColour (toColour (theme ().textMuted, 0.8f));
-  g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (14.f, _layout.rowLabels[0].getHeight () * 0.4f))));
+  g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
+  // What a row's name ("3d", "freq", "q") may cost.
+  constexpr float rowNameCap = 14.f;
+  g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
+      _layout.rowLabels[0].getHeight () * 0.4f, rowNameCap))));
   for (int row = 0; row < ActionLayout::numRows; ++row)
-    g.drawText (rowNames[row], _layout.rowLabels[static_cast<size_t> (row)]
-                                   .withTrimmedRight (4),
+    g.drawText (rowNames[row],
+                _layout.rowLabels[static_cast<size_t> (row)].withTrimmedRight (
+                    juce::roundToInt (theme ().paddingSmall)),
                 juce::Justification::centredRight);
 
   // Not a knob: it is one of two words, and a knob that can only be at one of
@@ -787,22 +829,27 @@ ActionComponent::paint (juce::Graphics &g)
   // action's name because it says what a press does to all three envelopes,
   // so it belongs to none of their rows.
   auto const modeBounds = _layout.actModeField;
-  g.setColour (_channelColour.withAlpha (0.28f));
-  g.fillRoundedRectangle (modeBounds.toFloat (), 3.f);
-  g.setColour (_channelColour.withAlpha (0.6f));
-  g.drawRoundedRectangle (modeBounds.toFloat (), 3.f, 1.f);
+  g.setColour (_channelColour.withAlpha (theme ().alphaFillEmphasis));
+  g.fillRoundedRectangle (modeBounds.toFloat (), theme ().radiusControl);
+  g.setColour (_channelColour.withAlpha (theme ().alphaInactive));
+  g.drawRoundedRectangle (modeBounds.toFloat (), theme ().radiusControl,
+                          theme ().strokeThin);
 
   g.setColour (readableInk (_channelColour, toColour (theme ().background),
                             toColour (theme ().textPrimary)));
+  // What the act-mode's own word ("1shot"/"Hold") may cost.
+  constexpr float actModeCap = 20.f;
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (20.f, modeBounds.getHeight () / 3.f))));
+      fittedFontHeight (modeBounds.getHeight () / 3.f, actModeCap))));
   g.drawText (value::actModeNames[juce::jlimit (0, value::numActModes - 1,
                                                 _actMode)],
               modeBounds, juce::Justification::centred);
 
-  g.setColour (toColour (theme ().textMuted, 0.7f));
+  g.setColour (toColour (theme ().textMuted, fieldCaptionOpacity));
+  // What the act-mode caption beneath it may cost.
+  constexpr float actModeCaptionCap = 12.f;
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (12.f, modeBounds.getHeight () / 5.f))));
+      fittedFontHeight (modeBounds.getHeight () / 5.f, actModeCaptionCap))));
   g.drawText (caption::actMode,
               modeBounds.withTrimmedTop (modeBounds.getHeight () * 2 / 3),
               juce::Justification::centred);
@@ -812,9 +859,11 @@ ActionComponent::paint (juce::Graphics &g)
   // work out.
   if (!_layout.cardCaption.isEmpty ())
     {
-      g.setColour (toColour (theme ().textMuted, 0.8f));
-      g.setFont (juce::Font (juce::FontOptions (juce::jmin (
-          16.f, _layout.cardCaption.getHeight () * 0.7f))));
+      g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
+      // What the "Audio" caption over the knob card may cost.
+      constexpr float audioCaptionCap = 16.f;
+      g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
+          _layout.cardCaption.getHeight () * 0.7f, audioCaptionCap))));
       g.drawText ("Audio", _layout.cardCaption,
                   juce::Justification::centred);
     }
@@ -826,16 +875,29 @@ ActionComponent::paint (juce::Graphics &g)
     {
       auto const at = _layout.fireButton.toFloat ();
 
-      g.setColour (_channelColour.withAlpha (_firing ? 1.f : 0.75f));
-      g.fillRoundedRectangle (at, 4.f);
+      // Full opacity while firing rather than an alpha rung: firing has
+      // always meant no dimming at all, which the alpha-less colour already
+      // says. This used to be `_firing ? 1.f : 0.75f`; 1.f fits no rung, and
+      // the maintainer still owes a call on whether full opacity deserves
+      // one of its own. See issues/a3-motion-ui-metric-role-deviations.md
+      // (Task 16). The resting branch is a second, separate deviation: 0.75f
+      // itself fits no rung either -- see fireButtonRestingOpacity above.
+      g.setColour (_firing ? _channelColour
+                           : _channelColour.withAlpha (
+                                 fireButtonRestingOpacity));
+      g.fillRoundedRectangle (at, theme ().radiusControl);
       g.setColour (_channelColour);
-      g.drawRoundedRectangle (at, 4.f, 2.f);
+      g.drawRoundedRectangle (at, theme ().radiusControl,
+                              theme ().strokeThick);
 
       g.setColour (readableInk (toColour (theme ().textPrimary),
                                 _channelColour,
                                 toColour (theme ().background)));
+      // What "ACT" itself may cost -- the loudest label on this page.
+      constexpr float fireButtonLabelCap = 26.f;
       g.setFont (juce::Font (juce::FontOptions (
-          juce::jmin (26.f, at.getHeight () * 0.5f), juce::Font::bold)));
+          fittedFontHeight (at.getHeight () * 0.5f, fireButtonLabelCap),
+          juce::Font::bold)));
       g.drawText ("ACT", _layout.fireButton, juce::Justification::centred);
     }
 

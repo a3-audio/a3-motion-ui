@@ -61,6 +61,17 @@ struct ControllerLayout
  *  not a compromise but a fault. */
 constexpr int fingertipSize = 34;
 
+/** How small a row of text may get before it stops being readable, and how
+ *  little room the channel strips and the sphere may be left with.
+ *
+ *  Not skin values: a skin decides how the device looks, these decide whether
+ *  the window can be laid out at all. They used to live beside the padding --
+ *  a skin value -- in one struct that held three unrelated kinds of thing,
+ *  which is why that struct was dissolved rather than extended. */
+constexpr float minimumRowHeight = 35.f;
+constexpr float minimumChannelWidth = 100.f;
+constexpr float minimumMotionHeight = 100.f;
+
 /** The height at which the pads first reach `fingertipSize`.
  *
  *  The bar is one area and both pages share it, so its height has to satisfy

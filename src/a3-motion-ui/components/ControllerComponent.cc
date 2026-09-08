@@ -132,7 +132,7 @@ ControllerComponent::paint (juce::Graphics &g)
       {
         auto const box = _layout.clipBoxes[channel][slot];
         g.setColour (toColour (theme ().textPrimary, boxWash));
-        g.fillRoundedRectangle (box.toFloat (), 6.f);
+        g.fillRoundedRectangle (box.toFloat (), theme ().radiusRow);
       }
 
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
@@ -157,7 +157,7 @@ ControllerComponent::paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
   g.fillRoundedRectangle (bounds.toFloat (), padCorner);
 
   g.setColour (toColour (theme ().textPrimary, edgeWash));
-  g.drawRoundedRectangle (bounds.toFloat (), padCorner, 1.f);
+  g.drawRoundedRectangle (bounds.toFloat (), padCorner, theme ().strokeThin);
 
   // The same marks the bar's transport keys use -- a circle, a square, a
   // triangle or two bars -- rather than the words they used to be. A shape is

@@ -325,7 +325,8 @@ TEST (SkinEditorTouch, OnlyATurnableNumberCanBeDragged)
   editor.setSkin (shippedSkin (), "default");
 
   bool sawColourPicker = false;
-  editor.onColourPicked = [&] (juce::String const &) { sawColourPicker = true; };
+  editor.onColourPicked
+      = [&] (juce::String const &, juce::Colour) { sawColourPicker = true; };
 
   // Every row in the shipped skin, including its colours and its three
   // action rows: none of them may be turnable except plain numbers.

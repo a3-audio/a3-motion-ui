@@ -51,8 +51,8 @@
 #include <a3-motion-ui/Helpers.hh>
 #include <a3-motion-ui/components/ChannelStrip.hh>
 #include <a3-motion-ui/components/ChannelUIState.hh>
+#include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/FilterDisplay.hh>
-#include <a3-motion-ui/components/LayoutHints.hh>
 #include <a3-motion-ui/components/LoopLengthDisplay.hh>
 #include <a3-motion-ui/components/ElevationDisplay.hh>
 #include <a3-motion-ui/components/ElevationSideView.hh>
@@ -306,8 +306,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // The keyboard is Onboard, the system's own — see io/OnScreenKeyboard.hh.
   // It types into whatever window has the focus, which is this one.
   _skinEditor->onNamingChanged = [this] (bool naming) { showKeyboard (naming); };
-  _skinEditor->onColourPicked
-      = [this] (auto const &path) { openColourPicker (path); };
+  _skinEditor->onColourPicked = [this] (auto const &path, auto colour) {
+    openColourPicker (path, colour);
+  };
 
   _colourPicker = std::make_unique<ColourPickerComponent> ();
   _colourPicker->setAlwaysOnTop (true);
@@ -1306,13 +1307,13 @@ A3MotionUIComponent::resized ()
 float
 A3MotionUIComponent::getMinimumWidth () const
 {
-  return _channelStrips.size () * LayoutHints::Channels::widthMin;
+  return _channelStrips.size () * minimumChannelWidth;
 }
 
 float
 A3MotionUIComponent::getMinimumHeight () const
 {
-  auto minimumHeight = LayoutHints::MotionComponent::heightMin;
+  auto minimumHeight = minimumMotionHeight;
   return minimumHeight;
 }
 
@@ -3728,7 +3729,7 @@ A3MotionUIComponent::tickCallback (Measure measure)
     {
       auto const channel = recordingPattern->getChannel ();
       _motionComponent->setBackgroundColour (
-          _channelUIStates[channel]->colour.withAlpha (0.2f));
+          _channelUIStates[channel]->colour.withAlpha (theme ().alphaOutline));
 
       auto const progress
           = recordingPattern->getLastUpdatedTick ()
@@ -5045,17 +5046,15 @@ A3MotionUIComponent::applyTheme ()
 }
 
 void
-A3MotionUIComponent::openColourPicker (juce::String const &path)
+A3MotionUIComponent::openColourPicker (juce::String const &path,
+                                       juce::Colour colour)
 {
-  auto const document = _skinEditor->getSkin ();
-  auto const channel = [&document, &path] (char const *name) {
-    return (juce::uint8)juce::jlimit (
-        0, 255, (int)skinValue (document, path + "." + name));
-  };
-
+  // colour is already resolved against the theme default for a role the
+  // skin file does not name -- see SkinEditorComponent::onColourPicked.
+  // Re-reading the raw document here (getSkin()) would answer 0 for such a
+  // path and open the picker on black.
   _colourPath = path;
-  _colourPicker->setColour (
-      juce::Colour (channel ("r"), channel ("g"), channel ("b")), path);
+  _colourPicker->setColour (colour, path);
   _colourPickerOpen = true;
   _skinEditor->setVisible (false);
   _colourPicker->setVisible (true);

@@ -47,7 +47,14 @@ controlColour (juce::Colour channelColour, bool isSelected)
 juce::Colour
 captionColour (bool isSelected)
 {
-  return toColour (theme ().textMuted, isSelected ? 1.f : 0.55f);
+  // Full opacity rather than an alpha rung: a selected caption has always
+  // meant no dimming at all, which the alpha-less overload already says.
+  // This used to be `isSelected ? 1.f : 0.55f`; 1.f fits no rung, and the
+  // maintainer still owes a call on whether full opacity deserves one of its
+  // own. 0.55 is 0.05 from alphaInactive (0.6), inside the snapping
+  // tolerance. See issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+  return isSelected ? toColour (theme ().textMuted)
+                    : toColour (theme ().textMuted, theme ().alphaInactive);
 }
 }
 
@@ -61,10 +68,10 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
   if (highlight)
     {
       g.setColour (channelColour.withAlpha (highlightWash));
-      g.fillRoundedRectangle (bounds.toFloat (), 4.f);
+      g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
     }
 
-  auto content = bounds.reduced (2);
+  auto content = bounds.reduced (juce::roundToInt (theme ().paddingTight));
 
   auto labelArea
       = content.removeFromBottom (textRowHeight (content, metrics.captionSize));

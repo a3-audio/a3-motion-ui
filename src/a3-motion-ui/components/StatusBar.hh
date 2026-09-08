@@ -26,7 +26,7 @@
 
 #include <a3-motion-engine/tempo/TempoClock.hh>
 
-#include <a3-motion-ui/components/LayoutHints.hh>
+#include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/TickIndicator.hh>
 
 namespace a3
@@ -121,7 +121,7 @@ public:
   static constexpr int
   getMinimumHeight ()
   {
-    return LayoutHints::lineHeight;
+    return minimumRowHeight;
   }
 
 private:

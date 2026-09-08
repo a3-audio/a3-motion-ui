@@ -149,7 +149,8 @@ SkinEditorComponent::rowValueArea (juce::Rectangle<int> row,
   auto const valueShare
       = (!isAction && rowValue (absoluteIndex).length () > 8) ? 2 : 3;
 
-  return row.removeFromRight (row.getWidth () / valueShare).reduced (8, 0);
+  return row.removeFromRight (row.getWidth () / valueShare)
+      .reduced (juce::roundToInt (theme ().padding), 0);
 }
 
 juce::Rectangle<int>
@@ -161,7 +162,7 @@ SkinEditorComponent::rowNameArea (juce::Rectangle<int> row,
       = (!isAction && rowValue (absoluteIndex).length () > 8) ? 2 : 3;
 
   row.removeFromRight (row.getWidth () / valueShare);
-  return row.reduced (8, 0);
+  return row.reduced (juce::roundToInt (theme ().padding), 0);
 }
 
 void
@@ -337,13 +338,17 @@ SkinEditorComponent::setSkin (juce::var skin, juce::String const &name)
 
 void
 SkinEditorComponent::setDocument (juce::var document, juce::String const &title,
-                                  bool withSkinActions, Numbers numbers)
+                                  bool isSkinDocument, Numbers numbers)
 {
-  _actionRows = withSkinActions ? 5 : 0;
+  _actionRows = isSkinDocument ? 5 : 0;
   _numbers = numbers;
   _skin = std::move (document);
   _name = title;
-  _parameters = skinParameters (_skin);
+  // Only an actual skin gets the theme's defaults merged in (see
+  // skinParameters()) -- a config-page slice like the Network page shares
+  // this component but is not one, and would otherwise show every theme
+  // colour and metric ahead of its own two or three fields.
+  _parameters = skinParameters (_skin, isSkinDocument);
   rebuildRows ();
   // Every page opens at its top: carrying a row number over from another
   // document lands on whatever happens to sit at that number.
@@ -431,6 +436,39 @@ SkinEditorComponent::browsedParameter () const
     return nullptr;
 
   return &_parameters[(size_t)row.parameter];
+}
+
+double
+SkinEditorComponent::parameterValue (SkinParameter const &parameter) const
+{
+  if (skinHasValue (_skin, parameter.path))
+    return skinValue (_skin, parameter.path);
+
+  // Absent from the file: fall back to the theme's own default rather than
+  // the 0 skinValue() would otherwise answer with, so a role merged in by
+  // skinParameters() reads as the value the app is actually drawing with.
+  // Once an edit writes the path, skinHasValue() above starts saying true
+  // and this is never consulted again.
+  return parameter.hasDefault ? static_cast<double> (parameter.defaultValue)
+                              : 0.0;
+}
+
+double
+SkinEditorComponent::colourChannelValue (SkinParameter const &parameter,
+                                         char const *channel) const
+{
+  auto const path = parameter.path + "." + channel;
+  if (skinHasValue (_skin, path))
+    return skinValue (_skin, path);
+
+  // Same fallback as parameterValue(), but the default for a whole colour is
+  // one var covering r, g and b together (see themeDefaultsVar()), so the
+  // channel is pulled out of it here instead of being a value of its own.
+  auto const identifier = juce::Identifier (channel);
+  return parameter.hasDefault
+             ? static_cast<double> (
+                 parameter.defaultValue.getProperty (identifier, 0))
+             : 0.0;
 }
 
 SkinEditorComponent::Row
@@ -530,7 +568,7 @@ SkinEditorComponent::navigate (int delta)
     return; // typed or picked, not turned
 
   auto const stepped
-      = stepSkinValue (skinValue (_skin, parameter.path), delta,
+      = stepSkinValue (parameterValue (parameter), delta,
                        parameter.isWholeNumber,
                        isColourChannelPath (parameter.path));
 
@@ -614,8 +652,20 @@ SkinEditorComponent::toggleEditing ()
   auto const &parameter = *browsed;
         if (parameter.isColour)
           {
+            // Resolved the same way the list row is drawn, not re-read from
+            // the raw document: a role the file leaves unstated is 0 in the
+            // document but the theme's default here, which is what stopped
+            // the picker opening on black for every colour a skin omits.
             if (onColourPicked)
-              onColourPicked (parameter.path);
+              onColourPicked (
+                  parameter.path,
+                  juce::Colour (
+                      (juce::uint8)juce::jlimit (
+                          0, 255, (int)colourChannelValue (parameter, "r")),
+                      (juce::uint8)juce::jlimit (
+                          0, 255, (int)colourChannelValue (parameter, "g")),
+                      (juce::uint8)juce::jlimit (
+                          0, 255, (int)colourChannelValue (parameter, "b"))));
             return;
           }
 
@@ -811,7 +861,7 @@ SkinEditorComponent::rowValue (int index) const
   if (parameter.isText)
     return skinText (_skin, parameter.path);
 
-  auto const value = skinValue (_skin, parameter.path);
+  auto const value = parameterValue (parameter);
 
   return parameter.isWholeNumber ? juce::String ((int)std::lround (value))
                                  : juce::String (value, 3);
@@ -844,7 +894,7 @@ SkinEditorComponent::paint (juce::Graphics &g)
   auto const panelBounds = listPanelBounds ();
 
   g.setColour (toColour (theme ().textPrimary, rowWash));
-  g.fillRoundedRectangle (panelBounds.toFloat (), 10.f);
+  g.fillRoundedRectangle (panelBounds.toFloat (), theme ().radiusPanel);
 
   auto content = panelBounds.reduced (paddingH, paddingV);
 
@@ -876,11 +926,12 @@ SkinEditorComponent::paint (juce::Graphics &g)
       auto nameRow = content.removeFromTop (typingFieldHeight (
           theme ().fontSize (FontRole::Header), itemH));
       g.setColour (toColour (theme ().textPrimary, browsedRowWash));
-      g.fillRoundedRectangle (nameRow.toFloat (), 6.f);
+      g.fillRoundedRectangle (nameRow.toFloat (), theme ().radiusRow);
 
       g.setFont (font);
 
-      auto const textArea = nameRow.reduced (10, 0);
+      auto const textArea
+          = nameRow.reduced (juce::roundToInt (theme ().padding), 0);
       auto const typed = _nameEntry.buffer ().trimEnd ();
 
       g.setColour (toColour (theme ().textPrimary));
@@ -892,8 +943,15 @@ SkinEditorComponent::paint (juce::Graphics &g)
       auto const caretW = juce::jmax (
           2.f, juce::GlyphArrangement::getStringWidth (font, "n"));
 
-      g.setColour (toColour (theme ().accent,
-                             _editing ? 1.f : theme ().alphaInactive));
+      // Full opacity while editing rather than an alpha rung: "editing" has
+      // always meant no dimming at all, which the alpha-less overload
+      // already says. This used to be `_editing ? 1.f : theme
+      // ().alphaInactive`; 1.f fits no rung, and the maintainer still owes a
+      // call on whether full opacity deserves one of its own. See
+      // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+      g.setColour (_editing ? toColour (theme ().accent)
+                            : toColour (theme ().accent,
+                                       theme ().alphaInactive));
       g.fillRect (static_cast<float> (textArea.getX ()) + before,
                   typingCaretY (textArea, font), caretW, 2.f);
 
@@ -934,7 +992,8 @@ SkinEditorComponent::paint (juce::Graphics &g)
           g.setFont (juce::Font (theme ().fontSize (FontRole::Body) * 0.85f,
                                  juce::Font::bold));
           g.setColour (toColour (theme ().accent, theme ().alphaInactive));
-          g.drawText (rowLabel (index), row.reduced (8, 0),
+          g.drawText (rowLabel (index),
+                      row.reduced (juce::roundToInt (theme ().padding), 0),
                       juce::Justification::centredLeft, true);
           continue;
         }
@@ -943,18 +1002,23 @@ SkinEditorComponent::paint (juce::Graphics &g)
                              isArmed     ? armedRowWash
                              : isBrowsed ? browsedRowWash
                                          : rowWash));
-      g.fillRoundedRectangle (row.toFloat (), 6.f);
+      g.fillRoundedRectangle (row.toFloat (), theme ().radiusRow);
 
       auto const valueArea = rowValueArea (row, index);
       auto const nameArea = rowNameArea (row, index);
 
       g.setFont (
           juce::Font (theme ().fontSize (FontRole::Body), juce::Font::plain));
+      // Same restructuring as the caret above: full opacity for the browsed
+      // row's name rather than an alpha rung. Was `isBrowsed ? 1.f : theme
+      // ().alphaInactive`. See issues/a3-motion-ui-metric-role-deviations.md
+      // (Task 16).
       g.setColour (isAction && isBrowsed
                        ? toColour (theme ().accent)
-                       : toColour (theme ().textPrimary,
-                                   isBrowsed ? 1.f
-                                             : theme ().alphaInactive));
+                       : (isBrowsed
+                              ? toColour (theme ().textPrimary)
+                              : toColour (theme ().textPrimary,
+                                         theme ().alphaInactive)));
       g.drawText (rowLabel (index), nameArea, juce::Justification::centredLeft,
                   true);
 
@@ -965,25 +1029,31 @@ SkinEditorComponent::paint (juce::Graphics &g)
       if (kind == Row::Parameter
           && _parameters[(size_t)_rows[(size_t)index].parameter].isColour)
         {
-          auto const group
-              = _parameters[(size_t)_rows[(size_t)index].parameter].path;
-          auto swatch = valueArea.reduced (valueArea.getWidth () / 4, 5);
+          auto const &colourParameter
+              = _parameters[(size_t)_rows[(size_t)index].parameter];
+          auto swatch = valueArea.reduced (
+              valueArea.getWidth () / 4,
+              juce::roundToInt (theme ().paddingSmall));
           g.setColour (juce::Colour (
-              (juce::uint8)juce::jlimit (0, 255,
-                                         (int)skinValue (_skin, group + ".r")),
-              (juce::uint8)juce::jlimit (0, 255,
-                                         (int)skinValue (_skin, group + ".g")),
-              (juce::uint8)juce::jlimit (0, 255,
-                                         (int)skinValue (_skin, group + ".b"))));
-          g.fillRoundedRectangle (swatch.toFloat (), 3.f);
+              (juce::uint8)juce::jlimit (
+                  0, 255, (int)colourChannelValue (colourParameter, "r")),
+              (juce::uint8)juce::jlimit (
+                  0, 255, (int)colourChannelValue (colourParameter, "g")),
+              (juce::uint8)juce::jlimit (
+                  0, 255, (int)colourChannelValue (colourParameter, "b"))));
+          g.fillRoundedRectangle (swatch.toFloat (), theme ().radiusControl);
         }
 
       g.setFont (
           juce::Font (theme ().fontSize (FontRole::Body), juce::Font::bold));
+      // Same restructuring again for the browsed row's value. Was
+      // `isBrowsed ? 1.f : theme ().alphaInactive`. See
+      // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
       g.setColour (isArmed ? toColour (theme ().accent)
-                           : toColour (theme ().textPrimary,
-                                       isBrowsed ? 1.f
-                                                 : theme ().alphaInactive));
+                          : (isBrowsed
+                                 ? toColour (theme ().textPrimary)
+                                 : toColour (theme ().textPrimary,
+                                            theme ().alphaInactive)));
       g.drawText (shown, valueArea, juce::Justification::centredRight, true);
     }
 }
