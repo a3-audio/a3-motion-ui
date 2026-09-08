@@ -46,8 +46,13 @@ TEST (BarPages, EveryPageAnswersBothQuestions)
   for (auto page : barPageOrder)
     {
       // Not an assertion about the answer -- an assertion that asking is
-      // possible for every page. A page added to the enum but not to either
-      // function fails to compile, which is the point.
+      // possible for every page listed in barPageOrder. What actually makes
+      // a forgotten page loud is -Wswitch-enum on the two switches these
+      // functions compile down to: a page missing a case there is a build
+      // warning, not a build failure, and the switch still runs and returns
+      // something for it. This loop only reaches what barPageOrder lists,
+      // which is why the test above checks that list for completeness on
+      // its own.
       (void)pageCoversClipArea (page);
       (void)pageDescribesAClip (page);
     }

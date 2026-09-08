@@ -134,9 +134,12 @@ enum class BarPage
 
 constexpr int numBarPages = 5;
 
-/** Every page, once. The tests walk this, which is how a page added to the
- *  enum is made to answer the questions below rather than quietly defaulting
- *  to whatever `false` happens to mean. */
+/** Every page, once. `BarPages.EveryPageAppearsInTheOrderExactlyOnce` fails
+ *  if a page is missing from here or listed twice -- nothing in the compiler
+ *  checks that on its own, since this is data, not a case of an enum. Kept
+ *  beside pageCoversClipArea and pageDescribesAClip because a page has to be
+ *  added here too, alongside a case in each of them, and a forgotten one
+ *  answers wrong quietly forever if this test does not walk it. */
 constexpr std::array<BarPage, numBarPages> barPageOrder{
   BarPage::Clip,       BarPage::Record, BarPage::Action,
   BarPage::Controller, BarPage::Browser,
@@ -150,12 +153,30 @@ constexpr std::array<BarPage, numBarPages> barPageOrder{
  *
  *  Here rather than in ClipSettingsComponent because it is a property of the
  *  page, and because nothing in C++ warns about a page missing from an `if`
- *  chain. There are 23 such comparisons across three files. */
+ *  chain. There were 23 such comparisons across three files. A `switch` with
+ *  no `default:` is what makes a forgotten page loud instead: `-Wswitch-enum`
+ *  (on for this target, see CMakeLists.txt) names the case a new enumerator
+ *  is missing from. It is a warning, not a compile error -- and it only
+ *  knows about the enum's own cases, which is what `barPageOrder` above is
+ *  for: a page absent from *that* list fails
+ *  `BarPages.EveryPageAppearsInTheOrderExactlyOnce` instead. */
 constexpr bool
 pageCoversClipArea (BarPage page)
 {
-  return page == BarPage::Controller || page == BarPage::Browser
-         || page == BarPage::Action;
+  switch (page)
+    {
+    case BarPage::Clip:
+    case BarPage::Record:
+      return false;
+    case BarPage::Action:
+    case BarPage::Controller:
+    case BarPage::Browser:
+      return true;
+    }
+  // Every case above returns, so this is never reached -- it exists only to
+  // stop -Wreturn-type complaining that the function might fall off the end,
+  // which would otherwise drown out the one warning that matters here.
+  __builtin_unreachable ();
 }
 
 /** Pages that are about one clip, so a tap on a channel face steps that
@@ -166,11 +187,26 @@ pageCoversClipArea (BarPage page)
  *  back with it. FILES has a clip in mind too — the one a picked file is put
  *  into — so choosing the slot and then choosing the file is one errand, and
  *  being thrown back to CLIP halfway through it meant tabbing back and losing
- *  the list you were reading. */
+ *  the list you were reading.
+ *
+ *  A `switch` with no `default:` for the same reason as pageCoversClipArea
+ *  above -- `-Wswitch-enum` is what says a new page forgot to answer. */
 constexpr bool
 pageDescribesAClip (BarPage page)
 {
-  return page != BarPage::Controller;
+  switch (page)
+    {
+    case BarPage::Clip:
+    case BarPage::Record:
+    case BarPage::Action:
+    case BarPage::Browser:
+      return true;
+    case BarPage::Controller:
+      return false;
+    }
+  // Every case above returns, so this is never reached -- see the matching
+  // comment in pageCoversClipArea.
+  __builtin_unreachable ();
 }
 
 /** The area inside a section's card that its controls are laid out in —
