@@ -92,6 +92,18 @@ public:
    *  sphere, where the eye already is while recording. */
   void setRecordingProgress (float fraction, juce::Colour colour);
 
+  /** The take is asked for but has not begun: it starts on the next downbeat.
+   *  Told separately from the progress because until then there is no
+   *  progress to tell -- and because the window has its own job, which is
+   *  counting the hand in. See components/RecordingIndicator.hh. */
+  void setCountingIn (bool countingIn, juce::Colour colour);
+
+  /** One beat of the count-in. Driven from A3MotionUIComponent's beat
+   *  handler rather than from this class's own beatCallback, which returns
+   *  early in every clock mode but internal -- a take armed on an external
+   *  clock would have counted in silence. */
+  void pulseCountInOnBeat ();
+
   /** How far each channel's clip has got through its own loop, as a narrow
    *  mark in that channel's colour. A negative fraction means the channel is
    *  not playing and no mark is drawn.
@@ -153,6 +165,9 @@ private:
   TickIndicator _tickIndicator;
   float _recordingProgress = -1.f;
   juce::Colour _recordingColour;
+
+  bool _countingIn = false;
+  bool _countInLit = false;
   std::array<float, numChannelsInitial> _playheads{ -1.f, -1.f, -1.f, -1.f };
   std::array<juce::Colour, numChannelsInitial> _playheadColours;
 
