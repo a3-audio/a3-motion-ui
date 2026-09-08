@@ -51,17 +51,26 @@ TEST (LibraryKeys, EveryTabIsDecided)
     }
 }
 
-// The filter narrows the library, and the shapes are the library -- the same
-// two directories the clips come from, the same All/User/System split.
-TEST (LibraryKeys, TheShapesCanBeFiltered)
+// The filter splits the instrument's own figures from the performer's, and
+// the shapes are the only list where that split exists: they are scanned out
+// of two directories.
+TEST (LibraryKeys, OnlyTheShapesCanBeFiltered)
 {
   EXPECT_TRUE (libraryKeysFor (BrowserList::Shapes, plenty ()).filter);
-  EXPECT_TRUE (libraryKeysFor (BrowserList::Clips, plenty ()).filter);
 }
 
-// And deliberately cannot be, on the two that are one folder each with
-// nothing marking shipped from hand-written. A key showing a word that would
-// do nothing is worse than a key that is dark.
+// Not the clips: a clip carries Category::Clip and is neither system nor
+// user, so narrowing them by System would empty the list rather than shorten
+// it. The key used to light here, where it does nothing, and stay dark on the
+// shapes, where the narrowing actually runs.
+TEST (LibraryKeys, TheClipsOfferNoFilter)
+{
+  EXPECT_FALSE (libraryKeysFor (BrowserList::Clips, plenty ()).filter);
+}
+
+// Nor the two that are one folder each with nothing marking shipped from
+// hand-written. A key showing a word that would do nothing is worse than a
+// key that is dark.
 TEST (LibraryKeys, ActionsAndSetsOfferNoFilter)
 {
   EXPECT_FALSE (libraryKeysFor (BrowserList::Actions, plenty ()).filter);

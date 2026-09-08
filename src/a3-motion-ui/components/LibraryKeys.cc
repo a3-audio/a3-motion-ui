@@ -26,13 +26,18 @@ namespace a3
 LibraryKeyStates
 libraryKeysFor (BrowserList list, LibraryKeyFacts const &facts)
 {
-  // The filter narrows the library, and only the library. Clips and shapes
-  // are both scanned out of a system directory and a user one, so the split
-  // is there to offer; actions and sets land shipped and hand-written in one
-  // folder each with nothing marking which is which, and a key showing a word
-  // that would do nothing is worse than a key that is dark.
-  auto const isLibrary
-      = list == BrowserList::Clips || list == BrowserList::Shapes;
+  // The filter belongs to the shapes and to nothing else.
+  //
+  // It splits the instrument's own from the performer's, and that split is a
+  // property of a *figure*: shapes are scanned out of a system directory and
+  // a user one. A clip is neither -- it carries Category::Clip -- so
+  // narrowing the clips by System would empty the list rather than shorten
+  // it. Actions and sets are one folder each with nothing marking shipped
+  // from hand-written, so there is no split to offer there either.
+  //
+  // The key used to light on CLIPS, where it does nothing, and stay dark on
+  // SVG, where the narrowing actually runs. Both halves of that were wrong.
+  auto const canFilter = list == BrowserList::Shapes;
 
   // Writing over the instrument's own shape would change what every clip
   // naming it plays. On the clips tab the same question is answered by
@@ -47,7 +52,7 @@ libraryKeysFor (BrowserList list, LibraryKeyFacts const &facts)
   auto const somethingToCopy
       = list == BrowserList::Sessions ? true : facts.slotHolds;
 
-  return { isLibrary, facts.chosenHasFile, mayWriteBack, somethingToCopy,
+  return { canFilter, facts.chosenHasFile, mayWriteBack, somethingToCopy,
            facts.chosenHasFile };
 }
 

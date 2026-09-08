@@ -735,7 +735,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // press would bring -- a key that names what you would get rather than what
   // you have is a key you have to press to find out where you are.
   _browser->onFilterPressed = [this] {
-    if (_browserList != BrowserList::Clips)
+    // The narrowing in refreshBrowser() applies to the shapes, and only to
+    // them -- so this used to refuse on exactly the tab where the filter
+    // works and allow it on the one where it does nothing.
+    if (_browserList != BrowserList::Clips
+        && _browserList != BrowserList::Shapes)
       return;
 
     _deleteArmed = false;
@@ -2796,7 +2800,15 @@ A3MotionUIComponent::chosenSetFile () const
 int
 A3MotionUIComponent::chosenLibraryIndex () const
 {
-  if (_browserList != BrowserList::Clips || !_browser)
+  // Both library tabs, not just one. Everything that acts on a chosen row --
+  // rename, delete, save, the system-shape check -- comes through here, so a
+  // tab left out of this one line is a tab where all of it silently does
+  // nothing. That is what kept the SVG tab's keys inert after the six
+  // switches had already been taught about it: they were right, and every
+  // one of them ran into this.
+  auto const isLibrary = _browserList == BrowserList::Clips
+                         || _browserList == BrowserList::Shapes;
+  if (!isLibrary || !_browser)
     return -1;
 
   // Through the map: a row is a row of what is listed, and what is listed is
@@ -2996,7 +3008,8 @@ A3MotionUIComponent::renameInSets (juce::String const &from,
 juce::String
 A3MotionUIComponent::chosenEntryCost () const
 {
-  if (_browserList != BrowserList::Clips)
+  if (_browserList != BrowserList::Clips
+      && _browserList != BrowserList::Shapes)
     return {};
 
   auto const index = chosenLibraryIndex ();
