@@ -31,6 +31,7 @@
 #include "ControllerLayout.hh"
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 
 namespace a3
 {
@@ -39,7 +40,31 @@ namespace
 {
 // The bar's own margin. The screen edge is already an edge; 16 here put a
 // finger's width of nothing between it and the first section.
-constexpr int paddingH = 8;
+//
+// A function, not a constant: a namespace-scope constant would read the
+// theme during static initialisation -- before the first setTheme -- and
+// would never follow a skin change afterwards.
+int
+paddingH ()
+{
+  return juce::roundToInt (theme ().padding);
+}
+
+// card.reduced()'s second argument, the card's vertical inset. 3 sits
+// exactly one pixel from paddingTight (2) and one from paddingSmall (4),
+// with nothing in the code saying which way it leans -- snapping it would be
+// a coin toss dressed as a decision. Listed in
+// issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+constexpr int cardVerticalInset = 3;
+
+// The one-pixel gutter between two adjacent cells of the global section's
+// per-channel grid, not a stroke width -- there is no stroke here to keep
+// inside its bounds. No rung of the spacing scale carries a bare 1
+// (paddingTight is 2), and binding it to strokeThin would tie a layout gap
+// to a paint-time role for no reason anyone could name. Left as its own
+// literal pending a decision. Listed in
+// issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+constexpr int channelGridCellGutter = 1;
 
 // The global section takes a quarter of the bar and the clip's three
 // sections share the rest. It had half while its grid was spread across the
@@ -59,7 +84,8 @@ sectionContentBounds (juce::Rectangle<int> card)
   // A hairline, not a border zone. It was a fortieth of the card wide, which
   // at the device's sixth-of-the-bar sections took width from rows that hold
   // four values.
-  return card.reduced (juce::jmax (2, card.getWidth () / 80), 3);
+  return card.reduced (juce::jmax (2, card.getWidth () / 80),
+                       cardVerticalInset);
 }
 
 float
@@ -230,7 +256,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   out.globalBounds = bounds.removeFromRight (bounds.getWidth () / 4);
   out.clipBounds = bounds;
 
-  auto const paddingV = juce::jmax (4, out.clipBounds.getHeight () / 40);
+  auto const paddingV = juce::jmax (juce::roundToInt (theme ().paddingSmall),
+                                    out.clipBounds.getHeight () / 40);
   // Tall enough to hit. Every control in this row is pressed mid-set by a hand
   // that is also doing something else, and a twelfth of the bar left them
   // under a fingertip -- the same floor the pads and tabs already keep.
@@ -239,7 +266,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                     juce::jmax (18, out.clipBounds.getHeight () / 6));
   out.headerHeight = headerH;
 
-  auto area = out.clipBounds.reduced (paddingH, paddingV);
+  auto area = out.clipBounds.reduced (paddingH (), paddingV);
 
   auto headerArea = area.removeFromTop (headerH);
 
@@ -351,7 +378,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     out.sectionCards[static_cast<size_t> (index)]
         = area.removeFromLeft (sectionW).reduced (gap / 2, 0);
 
-  auto globalArea = out.globalBounds.reduced (paddingH, paddingV);
+  auto globalArea = out.globalBounds.reduced (paddingH (), paddingV);
 
   // The readout goes in the band above the strip's card — the same band the
   // slot label and the tabs are on, so the bar reads across at one height.
@@ -707,7 +734,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
           auto column = columns.removeFromLeft (colW);
           for (int row = 0; row < numChannelRows; ++row)
             out.channelGrid[c][static_cast<size_t> (row)]
-                = column.removeFromTop (rowH).reduced (1);
+                = column.removeFromTop (rowH).reduced (channelGridCellGutter);
         }
 
       // The four things you do to a clip, in their own frame under the

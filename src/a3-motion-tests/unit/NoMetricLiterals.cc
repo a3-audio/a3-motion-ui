@@ -38,10 +38,7 @@ namespace
 // literal, and a file on it must still hold one, so an entry cannot outlive
 // its reason.
 
-std::vector<char const *> const filesStillHoldingMetrics = {
-  "components/ActionLayout.cc",
-  "components/ClipSettingsLayout.cc",
-};
+std::vector<char const *> const filesStillHoldingMetrics = {};
 
 /** The arguments of `call` in `text`, split at the commas that belong to it.
  *
