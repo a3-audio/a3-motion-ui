@@ -67,6 +67,7 @@ target_sources("a3-motion-ui" PRIVATE
     theme/TransportLook.cc
     theme/PadStatusColours.cc
     components/ChannelValueReset.cc
+    components/RecordingIndicator.cc
     theme/SkinGroups.cc
     theme/SkinGroups.hh
     theme/FunctionKeyColours.hh

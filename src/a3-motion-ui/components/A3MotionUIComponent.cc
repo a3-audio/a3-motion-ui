@@ -61,6 +61,7 @@
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
 #include <a3-motion-ui/components/ChannelValueReset.hh>
+#include <a3-motion-ui/components/RecordingIndicator.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
 #include <a3-motion-ui/components/ClipSettingsComponent.hh>
@@ -1059,6 +1060,12 @@ A3MotionUIComponent::createMainUI ()
             if (_clipSettings)
               _clipSettings->pulseTapOnBeat ();
             pulseTapLED ();
+
+            // Counting the hand in while a take waits for its downbeat. From
+            // here rather than from StatusBar::beatCallback, which returns
+            // early in every clock mode but internal.
+            if (_statusBar)
+              _statusBar->pulseCountInOnBeat ();
           },
           TempoClock::Event::Beat, TempoClock::Execution::JuceMessageThread);
 
@@ -1767,7 +1774,8 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   // running for anyone not looking at the hardware key's LED.
   if (_clipSettings)
     _clipSettings->setRecording (true);
-    updateFunctionKeyLEDs ();
+
+  updateFunctionKeyLEDs ();
 }
 
 void
@@ -4536,6 +4544,7 @@ A3MotionUIComponent::timerCallback ()
       }
 
   if (_engine.isRecording () || accent || _accentWasActive || anyPlaying
+      || _engine.getScheduledForRecordingPattern () != nullptr
       || (shown && shown->getStatus () == Pattern::Status::Playing))
     updateClipSettingsDisplay ();
   _accentWasActive = accent;
@@ -6123,8 +6132,20 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
         // time and it writes over something that does not come back, so it
         // keeps a shape of its own rather than becoming a fifth mark to
         // count in the dark.
+        auto const armed = _engine.getScheduledForRecordingPattern ();
+        auto const isArmedForThis = armed != nullptr && armed == pattern;
+
+        // Three states from one rule, so the bar and any later reader cannot
+        // disagree about which of them is on. See RecordingIndicator.hh.
+        auto const indicator
+            = recordingIndicatorFor (isArmedForThis, isRecordingThis);
+
+        _statusBar->setCountingIn (indicator == RecordingIndicator::CountIn,
+                                   _channelUIStates[channel]->colour);
         _statusBar->setRecordingProgress (
-            isRecordingThis ? _engine.getRecordingProgress () : -1.f,
+            indicator == RecordingIndicator::Running
+                ? _engine.getRecordingProgress ()
+                : -1.f,
             _channelUIStates[channel]->colour);
 
         updateStatusBarPlayheads ();

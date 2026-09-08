@@ -230,6 +230,24 @@ StatusBar::paintOverChildren (juce::Graphics &g)
   // the fill would be missing in exactly the moment both are worth knowing.
   paintPlayheads (g, tick);
 
+  // The count-in: the same mark, in the same place, before there is anything
+  // to fill. A beat blinks it; between beats it is gone, so the bar is not
+  // carrying a light that never changes. Drawn at the left edge because that
+  // is where the fill will start -- the blink becomes the fill rather than
+  // being replaced by it.
+  if (_countingIn)
+    {
+      if (_countInLit)
+        {
+          g.setColour (_recordingColour.withAlpha (theme ().alphaSecondary));
+          g.fillRoundedRectangle (
+              tick.withWidth (juce::jmin (tick.getHeight (),
+                                          tick.getWidth ())),
+              theme ().radiusTick);
+        }
+      return;
+    }
+
   if (_recordingProgress < 0.f)
     return;
 
@@ -243,6 +261,42 @@ StatusBar::paintOverChildren (juce::Graphics &g)
   g.fillRoundedRectangle (tick.withWidth (tick.getWidth ()
                                           * _recordingProgress),
                           theme ().radiusTick);
+}
+
+void
+StatusBar::setCountingIn (bool countingIn, juce::Colour colour)
+{
+  if (countingIn == _countingIn && colour == _recordingColour)
+    return;
+
+  _countingIn = countingIn;
+  _recordingColour = colour;
+
+  // Leaving it lit would carry the last blink into the take.
+  if (!countingIn)
+    _countInLit = false;
+
+  repaint ();
+}
+
+void
+StatusBar::pulseCountInOnBeat ()
+{
+  if (!_countingIn)
+    return;
+
+  _countInLit = true;
+  repaint ();
+
+  // Long enough to catch out of the corner of an eye, short enough that the
+  // bar is dark again before the next beat at any tempo this device runs at.
+  juce::Timer::callAfterDelay (
+      90, [safe = juce::Component::SafePointer<StatusBar> (this)] {
+        if (safe == nullptr)
+          return;
+        safe->_countInLit = false;
+        safe->repaint ();
+      });
 }
 
 void
