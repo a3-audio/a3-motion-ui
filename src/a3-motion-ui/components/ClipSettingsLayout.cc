@@ -38,8 +38,9 @@ namespace a3
 
 namespace
 {
-// The bar's own margin. The screen edge is already an edge; 16 here put a
-// finger's width of nothing between it and the first section.
+// The bar's own margin. The screen edge is already an edge; this puts a
+// finger's width of nothing between it and the first section -- the skin's
+// `padding`, not a fixed number, since it became skinnable.
 //
 // A function, not a constant: a namespace-scope constant would read the
 // theme during static initialisation -- before the first setTheme -- and
@@ -256,6 +257,12 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   out.globalBounds = bounds.removeFromRight (bounds.getWidth () / 4);
   out.clipBounds = bounds;
 
+  // This is the panel's own margin -- the same kind of thing as paddingH()
+  // above it -- which is why it took a role and the many jmax (2, ...) /
+  // jmax (4, ...) gaps between things further down this function did not:
+  // there is no role for a gap, only for a margin around the outside of the
+  // whole panel. A skinned paddingSmall widens this margin and leaves every
+  // inner gap exactly as it was.
   auto const paddingV = juce::jmax (juce::roundToInt (theme ().paddingSmall),
                                     out.clipBounds.getHeight () / 40);
   // Tall enough to hit. Every control in this row is pressed mid-set by a hand

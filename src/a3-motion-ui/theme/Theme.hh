@@ -89,11 +89,23 @@ struct Theme
 
   /** How loud a thing is drawn, as a share of its role's colour.
    *
-   *  Derived from what the code already did, sorted by what is being drawn:
-   *  filled areas sat around 0.06, hairlines around 0.15, text between 0.5
-   *  and 0.85. alphaDisabled and alphaInactive above are the two rungs that
-   *  already had names — these fill the ladder in rather than starting a
-   *  second one beside it. */
+   *  Seven rungs of one emphasis ladder, ordered by loudness alone — not by
+   *  what shape the drawing takes. They were derived from what the code
+   *  already did, and at that point most fills did sit low and most text
+   *  did sit high, which is where alphaFill, alphaOutline and alphaDisabled
+   *  got their names: rungs 1, 2 and 4 of the ladder, named after the
+   *  drawing form that happened to dominate them at the time. The
+   *  migration that put every remaining literal on its nearest rung
+   *  (`.claude/notes/2026-09-07-metrik-rollen-design.md`) broke that
+   *  correlation on purpose wherever a site's actual value disagreed with
+   *  its shape — the value won, not the name — so a fill at 0.15 now reads
+   *  `alphaOutline` and a stroke at 0.35 reads `alphaDisabled`
+   *  (`ClipSettingsComponent.cc`'s channel faces are one example). A
+   *  skinner turning `alphaOutline` down to make hairlines fainter will
+   *  therefore also fade every fill parked on that rung, and there is no
+   *  way to move just one without re-auditing all of them. Renaming the
+   *  three misleading rungs to say only "how loud", not "what shape", is
+   *  open work and deliberately not done here — see the deviations file. */
   float alphaFill = 0.06f;
   float alphaOutline = 0.15f;
   float alphaFillEmphasis = 0.28f;

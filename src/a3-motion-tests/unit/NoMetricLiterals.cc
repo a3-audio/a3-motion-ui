@@ -33,6 +33,14 @@ namespace
 // cover — and one that will not announce itself: the app still builds, still
 // runs, and merely ignores the skin in that one place.
 //
+// This only inspects six call shapes: fillRoundedRectangle,
+// drawRoundedRectangle, withAlpha, toColour, reduced and expanded. It does
+// not look inside fillRect, drawRect, drawEllipse, fillEllipse, drawLine, or
+// colour maths like contrasting — a literal reaching the theme only through
+// one of those passes this ratchet unseen. See
+// issues/a3-motion-ui-metric-ratchet-misses-rect-and-ellipse-calls.md, whose
+// "Nächste Schritte" 3 is what this paragraph fulfils.
+//
 // The list below is what has not been migrated yet. Like the colour ratchet
 // next door it holds in both directions: a file missing from it may hold no
 // literal, and a file on it must still hold one, so an entry cannot outlive
