@@ -117,6 +117,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/ActionComponent.cc
     components/ActionLayout.cc
     components/BarKnob.cc
+    components/FittedFont.cc
+    components/FittedFont.hh
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh
     ConfigFileWatcher.cc

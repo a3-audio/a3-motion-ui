@@ -24,6 +24,7 @@
 
 #include <a3-motion-ui/components/BarKnob.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
+#include <a3-motion-ui/components/FittedFont.hh>
 #include <a3-motion-ui/components/ListScroll.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -529,15 +530,19 @@ ActionComponent::paintActionField (juce::Graphics &g)
   g.setColour (named ? readableInk (_channelColour, ground,
                                     toColour (theme ().textPrimary))
                      : toColour (theme ().textMuted, theme ().alphaMuted));
+  // What the action's own name may cost.
+  constexpr float actionNameCap = 24.f;
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (24.f, bounds.getHeight () * 0.45f))));
+      fittedFontHeight (bounds.getHeight () * 0.45f, actionNameCap))));
   g.drawText (named ? _actionName : juce::String ("no action"),
               bounds.reduced (bounds.getHeight () / 3, 0),
               juce::Justification::centredLeft);
 
   g.setColour (toColour (theme ().textMuted, fieldCaptionOpacity));
+  // What the "action" caption beside it may cost.
+  constexpr float actionCaptionCap = 12.f;
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (12.f, bounds.getHeight () / 4.f))));
+      fittedFontHeight (bounds.getHeight () / 4.f, actionCaptionCap))));
   g.drawText ("action", bounds.reduced (bounds.getHeight () / 3, 0),
               juce::Justification::centredRight);
 }
@@ -695,8 +700,10 @@ ActionComponent::paintScriptKeys (juce::Graphics &g)
                             theme ().strokeThin);
 
     g.setColour (ink);
+    // What "save"/"cancel" may cost.
+    constexpr float scriptKeyCap = 16.f;
     g.setFont (juce::Font (juce::FontOptions (
-        juce::jmin (16.f, at.getHeight () * 0.4f))));
+        fittedFontHeight (at.getHeight () * 0.4f, scriptKeyCap))));
     g.drawText (word, at, juce::Justification::centred);
   };
 
@@ -729,8 +736,10 @@ ActionComponent::paintActionList (juce::Graphics &g)
   g.setColour (_channelColour);
   g.drawRect (area, 1);
 
+  // What a row of the action list may cost.
+  constexpr float actionListRowCap = 18.f;
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (18.f, rowH * 0.45f))));
+      fittedFontHeight (rowH * 0.45f, actionListRowCap))));
 
   for (int row = 0; row * rowH < area.getHeight (); ++row)
     {
@@ -805,8 +814,10 @@ ActionComponent::paint (juce::Graphics &g)
   // strip's rows -- which is where the eye has already learned them.
   char const *const rowNames[] = { "3d", caption::frequency, "q" };
   g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
-  g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (14.f, _layout.rowLabels[0].getHeight () * 0.4f))));
+  // What a row's name ("3d", "freq", "q") may cost.
+  constexpr float rowNameCap = 14.f;
+  g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
+      _layout.rowLabels[0].getHeight () * 0.4f, rowNameCap))));
   for (int row = 0; row < ActionLayout::numRows; ++row)
     g.drawText (rowNames[row],
                 _layout.rowLabels[static_cast<size_t> (row)].withTrimmedRight (
@@ -826,15 +837,19 @@ ActionComponent::paint (juce::Graphics &g)
 
   g.setColour (readableInk (_channelColour, toColour (theme ().background),
                             toColour (theme ().textPrimary)));
+  // What the act-mode's own word ("1shot"/"Hold") may cost.
+  constexpr float actModeCap = 20.f;
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (20.f, modeBounds.getHeight () / 3.f))));
+      fittedFontHeight (modeBounds.getHeight () / 3.f, actModeCap))));
   g.drawText (value::actModeNames[juce::jlimit (0, value::numActModes - 1,
                                                 _actMode)],
               modeBounds, juce::Justification::centred);
 
   g.setColour (toColour (theme ().textMuted, fieldCaptionOpacity));
+  // What the act-mode caption beneath it may cost.
+  constexpr float actModeCaptionCap = 12.f;
   g.setFont (juce::Font (juce::FontOptions (
-      juce::jmin (12.f, modeBounds.getHeight () / 5.f))));
+      fittedFontHeight (modeBounds.getHeight () / 5.f, actModeCaptionCap))));
   g.drawText (caption::actMode,
               modeBounds.withTrimmedTop (modeBounds.getHeight () * 2 / 3),
               juce::Justification::centred);
@@ -876,8 +891,11 @@ ActionComponent::paint (juce::Graphics &g)
       g.setColour (readableInk (toColour (theme ().textPrimary),
                                 _channelColour,
                                 toColour (theme ().background)));
+      // What "ACT" itself may cost -- the loudest label on this page.
+      constexpr float fireButtonLabelCap = 26.f;
       g.setFont (juce::Font (juce::FontOptions (
-          juce::jmin (26.f, at.getHeight () * 0.5f), juce::Font::bold)));
+          fittedFontHeight (at.getHeight () * 0.5f, fireButtonLabelCap),
+          juce::Font::bold)));
       g.drawText ("ACT", _layout.fireButton, juce::Justification::centred);
     }
 
