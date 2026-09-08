@@ -61,6 +61,7 @@
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
 #include <a3-motion-ui/components/ChannelValueReset.hh>
+#include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-engine/RecordingName.hh>
 #include <a3-motion-ui/components/RecordingIndicator.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
@@ -2319,12 +2320,12 @@ A3MotionUIComponent::refreshBrowser ()
   // between tabs are keys you read instead of aim at.
   auto const chosen = chosenEntryHasAFile ();
   auto const rename = _browser->isRenaming () ? "Keep" : "Rename";
+  auto const chosenIsSystem = chosenEntryIsASystemShape ();
 
   // The filter narrows the library, and only the library: the actions and the
   // sets land shipped and hand-written in one folder each with nothing marking
   // which is which, so there is no split to offer there. The key goes dark
   // rather than showing a word that would do nothing.
-  auto const filtering = _browserList == BrowserList::Clips;
   auto const filter = _clipFilter == ClipFilter::All      ? "All"
                       : _clipFilter == ClipFilter::User ? "User"
                                                         : "System";
@@ -2345,10 +2346,14 @@ A3MotionUIComponent::refreshBrowser ()
   // A set can always be put away -- there is always an arrangement to keep --
   // where a clip and an action are made out of what a slot holds, and an
   // empty slot holds nothing to write.
-  auto const canCopy = _browserList == BrowserList::Sessions ? true : holds;
+  // One rule for all four tabs. It used to be six switches and three loose
+  // conditions, and the SVG tab had been added to none of them.
+  auto const keys = libraryKeysFor (
+      _browserList, { chosen, chosenIsSystem, holds, inPlace });
 
-  _browser->setActions ({ filter, rename, "Save", "Save new", remove },
-                        { filtering, chosen, inPlace, canCopy, chosen });
+  _browser->setActions ({ filter, rename, "Save", "Save as", remove },
+                        { keys.filter, keys.rename, keys.save, keys.saveAs,
+                          keys.remove });
 }
 
 void
@@ -2806,6 +2811,96 @@ A3MotionUIComponent::chosenLibraryIndex () const
   return index;
 }
 
+/** Whether the chosen row is one of the instrument's own shapes.
+ *
+ *  Only the two library tabs can answer it -- it is the two directories the
+ *  entries are scanned from -- and only the shapes tab acts on it. */
+bool
+A3MotionUIComponent::chosenEntryIsASystemShape () const
+{
+  if (_browserList != BrowserList::Shapes)
+    return false;
+
+  auto const index = chosenLibraryIndex ();
+  if (index < 0)
+    return false;
+
+  return _patternLibrary->getEntry (index).category
+         == PatternLibrary::Category::System;
+}
+
+/** The shown slot's figure, written over the shape it is standing on.
+ *
+ *  Only ever a shape of the performer's: writing over one of the
+ *  instrument's would change what every clip naming it plays, on a device
+ *  where the shape is the thing that ships. libraryKeysFor() is what stops
+ *  the key lighting; this is the second lock, because a save that depends on
+ *  a key having been dark is a save that happens the first time something
+ *  else lights it.
+ */
+void
+A3MotionUIComponent::saveSlotShapeInPlace ()
+{
+  if (chosenEntryIsASystemShape ())
+    {
+      updateControlReadout ("-- SYSTEM SHAPE");
+      return;
+    }
+
+  auto const index = chosenLibraryIndex ();
+  if (index < 0)
+    return;
+
+  auto const &entry = _patternLibrary->getEntry (index);
+  auto const &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
+  if (!pattern || !entry.file.existsAsFile ())
+    return;
+
+  if (!PatternFile::save (pattern, entry.file))
+    {
+      updateControlReadout ("-- COULD NOT SAVE");
+      return;
+    }
+
+  updateControlReadout ("-- SHAPE SAVED");
+  _patternLibrary->refresh ();
+}
+
+/** The shown slot's figure, kept as a new shape of its own.
+ *
+ *  There was no way to do this before: a figure reached the library only by
+ *  being recorded. Named the way a recording is, so a shape kept by hand and
+ *  one played in sit together in the list. */
+juce::String
+A3MotionUIComponent::saveSlotShapeAsCopy ()
+{
+  auto const &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
+  if (!pattern)
+    return {};
+
+  auto const base = recordingBaseName (juce::Time::getCurrentTime ());
+  auto const name
+      = freeRecordingName (base, [this] (juce::String const &candidate) {
+          return _patternLibrary->indexForName (candidate.toStdString ()) > 0;
+        });
+
+  // Built fresh from the ticks rather than copied: Pattern holds atomics for
+  // the values the clock thread writes and so cannot be copied at all. That
+  // is also the safer shape here -- the slot keeps its own identity, and what
+  // goes into the library is the figure, which is all a shape is.
+  auto const copy = std::make_shared<Pattern> ();
+  auto const ticks = pattern->getNumTicks ();
+  copy->resize (ticks);
+  for (index_t tick = 0; tick < ticks; ++tick)
+    copy->setTick (tick, pattern->getTick (tick));
+  copy->markComplete ();
+  copy->setName (name.toStdString ());
+
+  _patternLibrary->saveUserPattern (copy);
+
+  return name;
+}
+
 bool
 A3MotionUIComponent::chosenEntryHasAFile () const
 {
@@ -2815,7 +2910,11 @@ A3MotionUIComponent::chosenEntryHasAFile () const
       return chosenActionFile ().existsAsFile ();
     case BrowserList::Sessions:
       return chosenSetFile ().existsAsFile ();
+    // One list read two ways: a shape row and a clip row are both library
+    // entries, and "is there a file behind this" has the same answer for
+    // both.
     case BrowserList::Clips:
+    case BrowserList::Shapes:
       {
         auto const index = chosenLibraryIndex ();
         if (index < 0)
@@ -2918,7 +3017,12 @@ A3MotionUIComponent::renameChosenEntry (juce::String const &name)
     {
     case BrowserList::Actions: renameChosenAction (name); break;
     case BrowserList::Sessions: renameChosenSet (name); break;
-    case BrowserList::Clips: renameChosenClip (name); break;
+    // Renaming a shape is renaming its library entry: the name inside the
+    // SVG, the file (keeping its beat prefix), the clip beside it, and every
+    // slot and set that names it. renameChosenClip already does all of that
+    // from the entry, so the two tabs are one job.
+    case BrowserList::Clips:
+    case BrowserList::Shapes: renameChosenClip (name); break;
     }
 }
 
@@ -2946,7 +3050,8 @@ A3MotionUIComponent::deleteChosenEntry ()
     {
     case BrowserList::Actions: deleteChosenAction (); break;
     case BrowserList::Sessions: deleteChosenSet (); break;
-    case BrowserList::Clips: deleteChosenClip (); break;
+    case BrowserList::Clips:
+    case BrowserList::Shapes: deleteChosenClip (); break;
     }
 }
 
@@ -3281,6 +3386,11 @@ A3MotionUIComponent::canSaveInPlace () const
       // a copy of it anyway once -- press it twice out of habit and the
       // library grows a clip you cannot tell from the original.
       return slotHasDrifted (channel, slot);
+    // A shape's answer is libraryKeysFor()'s, which knows whether the row is
+    // one of the instrument's own -- that is the question here, and it is not
+    // one this function can see. It only has to not fall through.
+    case BrowserList::Shapes:
+      return false;
     case BrowserList::Actions:
       return holds && _slotAction[channel][slot].file.existsAsFile ();
     case BrowserList::Sessions:
@@ -3301,6 +3411,7 @@ A3MotionUIComponent::saveChosen ()
     case BrowserList::Clips:
       saveSlotClip (_clipSettingsChannel, _clipSettingsSlot);
       break;
+    case BrowserList::Shapes: saveSlotShapeInPlace (); break;
     case BrowserList::Actions: saveSlotActionInPlace (); break;
     case BrowserList::Sessions: saveSessionInPlace (); break;
     }
@@ -3313,6 +3424,7 @@ A3MotionUIComponent::saveAsChosen ()
   switch (_browserList)
     {
     case BrowserList::Clips: name = saveSlotClipAsCopy (); break;
+    case BrowserList::Shapes: name = saveSlotShapeAsCopy (); break;
     case BrowserList::Actions: name = saveSlotAsAction (); break;
     case BrowserList::Sessions: name = saveCurrentSession (); break;
     }

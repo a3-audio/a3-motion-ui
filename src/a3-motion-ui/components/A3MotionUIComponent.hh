@@ -226,6 +226,9 @@ private:
    *  to stand for a file, and row zero of the clips and actions lists stands
    *  for "nothing chosen". */
   bool chosenEntryHasAFile () const;
+  bool chosenEntryIsASystemShape () const;
+  void saveSlotShapeInPlace ();
+  juce::String saveSlotShapeAsCopy ();
   /** What the arm step of a delete says beyond the word: how much else goes
    *  with the file, in sets that name it. Empty when nothing does. */
   juce::String chosenEntryCost () const;
