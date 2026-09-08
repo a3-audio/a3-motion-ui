@@ -42,6 +42,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FontScale.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsCaptions.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsLayout.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/BarPages.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TrajectoryShaping.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TrajectorySpin.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TempoLfo.cc"

@@ -132,6 +132,47 @@ enum class BarPage
   Browser,
 };
 
+constexpr int numBarPages = 5;
+
+/** Every page, once. The tests walk this, which is how a page added to the
+ *  enum is made to answer the questions below rather than quietly defaulting
+ *  to whatever `false` happens to mean. */
+constexpr std::array<BarPage, numBarPages> barPageOrder{
+  BarPage::Clip,       BarPage::Record, BarPage::Action,
+  BarPage::Controller, BarPage::Browser,
+};
+
+/** Pages that cover the clip area with something of their own.
+ *
+ *  The bar's sections must not be drawn under them — a page that does not
+ *  fill every pixel would otherwise show the clip settings through its own
+ *  gaps, which is what the ACTION page did on its first evening.
+ *
+ *  Here rather than in ClipSettingsComponent because it is a property of the
+ *  page, and because nothing in C++ warns about a page missing from an `if`
+ *  chain. There are 23 such comparisons across three files. */
+constexpr bool
+pageCoversClipArea (BarPage page)
+{
+  return page == BarPage::Controller || page == BarPage::Browser
+         || page == BarPage::Action;
+}
+
+/** Pages that are about one clip, so a tap on a channel face steps that
+ *  channel's slot and leaves the page where it is.
+ *
+ *  PADS is the exception: it shows every slot at once, so reaching for a
+ *  channel there is reaching for its clip, and the face brings the CLIP view
+ *  back with it. FILES has a clip in mind too — the one a picked file is put
+ *  into — so choosing the slot and then choosing the file is one errand, and
+ *  being thrown back to CLIP halfway through it meant tabbing back and losing
+ *  the list you were reading. */
+constexpr bool
+pageDescribesAClip (BarPage page)
+{
+  return page != BarPage::Controller;
+}
+
 /** The area inside a section's card that its controls are laid out in —
  *  the card less its frame. Public because it is also what the shared
  *  caption and value sizes are fitted to: fonts sized against one width and

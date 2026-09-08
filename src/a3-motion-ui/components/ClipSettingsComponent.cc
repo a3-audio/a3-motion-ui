@@ -43,20 +43,6 @@ namespace a3
 
 namespace
 {
-/** Pages that cover the clip area with something of their own. The bar's
- *  sections must not be drawn under them -- a page that does not fill every
- *  pixel would otherwise show the clip settings through its own gaps, which is
- *  what the ACTION page did on its first evening. */
-bool
-isFullPage (BarPage page)
-{
-  return page == BarPage::Controller || page == BarPage::Browser
-         || page == BarPage::Action;
-}
-}
-
-namespace
-{
 // Opacities that describe a structure rather than a state: the panel over the
 // sphere, the shading of the elevation graphic, the unlit part of a knob's
 // track. State — selected, inactive, disabled — comes from the theme's alphas
@@ -873,7 +859,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // the clip's faces describe a single slot, and the record face -- the take
   // about to be written -- is the one where being sure which slot it is
   // matters most.
-  if (!isFullPage (_page))
+  if (!pageCoversClipArea (_page))
     for (index_t slot = 0; slot < numPadSlots; ++slot)
       {
         auto const bounds = _layout.slotButtons[slot];
@@ -925,7 +911,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // are firing clips is exactly the wrong moment to lose them.
   paintGlobalSection (g, _selectedIndex == globalIndex);
 
-  if (isFullPage (_page))
+  if (pageCoversClipArea (_page))
     return; // ControllerComponent / BrowserComponent draws the rest
 
   paintTrajectorySection (g, _selectedIndex == trajectoryIndex);
@@ -1063,8 +1049,7 @@ ClipSettingsComponent::setPage (BarPage page)
   // The record page is the clip page with one section turned over, so every
   // control stays reachable on it; the pads page and the browser take them
   // away, because neither draws them.
-  auto const showsClip
-      = !isFullPage (_page);
+  auto const showsClip = !pageCoversClipArea (_page);
 
   for (int section = 0; section < numParameters; ++section)
     for (auto &control : _controlTouch[static_cast<size_t> (section)])
@@ -1253,7 +1238,7 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
         continue;
 
       auto const shown = static_cast<int> (channel) == _shownChannel
-                         && !isFullPage (_page);
+                         && !pageCoversClipArea (_page);
       auto const colour = _channelFaceColours[channel];
 
       // The face carries its channel's colour always, filled when it is the
