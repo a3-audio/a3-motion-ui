@@ -79,6 +79,14 @@ public:
   virtual juce::Value &getGlobalPot (index_t potIndex);
   virtual index_t getNumGlobalPots () const { return 0; }
 
+  /** Whether a panel is actually answering on the wire.
+   *
+   *  Not the same question as whether the hardware interface was compiled
+   *  in: this device ships with it compiled in and spends whole sessions
+   *  with nothing plugged into it. Anything that has to hand the controls
+   *  back to the screen when there is no panel asks this, at runtime. */
+  bool hardwareIsAvailable () const { return _hardwareAvailable; }
+
   juce::Value &getTapTimeMicros ();
 
   void valueChanged (juce::Value &) override;
@@ -94,6 +102,9 @@ public:
   index_t getNumButtons ();
 
 protected:
+  /** Set by whichever adapter has managed to reach a panel. */
+  bool _hardwareAvailable = false;
+
   static auto constexpr numChannels = 4u;
   static auto constexpr numPotsPerChannel = 2u;
   static auto constexpr numEncodersPerChannel = 2u;
