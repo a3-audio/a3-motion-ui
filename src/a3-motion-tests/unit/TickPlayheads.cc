@@ -127,4 +127,25 @@ TEST (TickPlayheads, TheNotPlayingSentinelSurvivesMirroring)
   EXPECT_LT (leftToRightPosition (-1.f, 1.f), 0.f);
 }
 
+
+// The property the mirroring exists for, stated outright: how far the mark
+// still has to travel is how much of the clip is still to play. That holds in
+// both directions, which is why a backward clip is mirrored rather than drawn
+// as it runs -- the indicator answers "how much longer", and an answer that
+// means two different things depending on `dir` is not an answer.
+TEST (TickPlayheads, TheDistanceToTheRightEdgeIsWhatIsLeftToPlay)
+{
+  // Forward at 0.75: a quarter of the take is left.
+  auto const forward = playheadBounds (tick, leftToRightPosition (0.75f, 1.f),
+                                       width);
+  EXPECT_NEAR ((tick.getRight () - forward.getRight ()) / tick.getWidth (),
+               0.25f, 0.02f);
+
+  // Backward at 0.75: it counts down to zero, so three quarters are left.
+  auto const backward = playheadBounds (tick, leftToRightPosition (0.75f, -1.f),
+                                        width);
+  EXPECT_NEAR ((tick.getRight () - backward.getRight ()) / tick.getWidth (),
+               0.75f, 0.02f);
+}
+
 }
