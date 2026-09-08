@@ -20,6 +20,8 @@
 
 #include "StatusBar.hh"
 
+#include <a3-motion-ui/components/TickPlayheads.hh>
+
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -221,6 +223,13 @@ StatusBar::setControlReadout (juce::String const &text)
 void
 StatusBar::paintOverChildren (juce::Graphics &g)
 {
+  auto const tick = _tickIndicator.getBounds ().toFloat ();
+
+  // The playheads are drawn after the recording fill, not under it: while a
+  // take runs on one channel the others keep playing, and a mark hidden by
+  // the fill would be missing in exactly the moment both are worth knowing.
+  paintPlayheads (g, tick);
+
   if (_recordingProgress < 0.f)
     return;
 
@@ -229,8 +238,6 @@ StatusBar::paintOverChildren (juce::Graphics &g)
   // and sits over the sphere, where the eye already is while recording. Kept
   // translucent so the beats stay readable through it, and drawn over the
   // children because the indicator is one of them.
-  auto const tick = _tickIndicator.getBounds ().toFloat ();
-
   // 0.45 is 0.05 from alphaMuted (0.5), inside the snapping tolerance.
   g.setColour (_recordingColour.withAlpha (theme ().alphaMuted));
   g.fillRoundedRectangle (tick.withWidth (tick.getWidth ()
@@ -248,6 +255,34 @@ StatusBar::setRecordingProgress (float fraction, juce::Colour colour)
   _recordingProgress = fraction;
   _recordingColour = colour;
   repaint ();
+}
+
+void
+StatusBar::setChannelPlayheads (
+    std::array<float, numChannelsInitial> const &positions,
+    std::array<juce::Colour, numChannelsInitial> const &colours)
+{
+  if (positions == _playheads && colours == _playheadColours)
+    return;
+
+  _playheads = positions;
+  _playheadColours = colours;
+  repaint ();
+}
+
+void
+StatusBar::paintPlayheads (juce::Graphics &g, juce::Rectangle<float> tick)
+{
+  for (size_t channel = 0; channel < _playheads.size (); ++channel)
+    {
+      auto const head = playheadBounds (tick, _playheads[channel],
+                                        theme ().strokeThick);
+      if (head.isEmpty ())
+        continue;
+
+      g.setColour (_playheadColours[channel]);
+      g.fillRect (head);
+    }
 }
 
 void

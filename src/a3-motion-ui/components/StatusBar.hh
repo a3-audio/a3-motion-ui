@@ -92,6 +92,23 @@ public:
    *  sphere, where the eye already is while recording. */
   void setRecordingProgress (float fraction, juce::Colour colour);
 
+  /** How far each channel's clip has got through its own loop, as a narrow
+   *  mark in that channel's colour. A negative fraction means the channel is
+   *  not playing and no mark is drawn.
+   *
+   *  One mark per channel rather than one fill for all of them: up to four
+   *  clips run at once, and a single fill could only ever show one of them —
+   *  it showed whichever clip the settings bar happened to be displaying,
+   *  which is not the question anybody is asking mid-set.
+   *
+   *  Recording keeps its fill. Two states that must not be confused are told
+   *  apart by their shape rather than by counting marks: a take writes over
+   *  something that does not come back, and that has to be legible at a
+   *  glance in a dark room. */
+  void setChannelPlayheads (
+      std::array<float, numChannelsInitial> const &positions,
+      std::array<juce::Colour, numChannelsInitial> const &colours);
+
   /** The take's progress is laid over the tick indicator, which is a child —
    *  so it has to be drawn after the children rather than in paint(). */
   void paintOverChildren (juce::Graphics &g) override;
@@ -125,11 +142,19 @@ public:
   }
 
 private:
+  /** The four marks, drawn after the recording fill so neither hides the
+   *  other. Not part of paintOverChildren's body only because that function
+   *  already carries the fill's reasoning and two ideas in one function is
+   *  how the next reader loses both. */
+  void paintPlayheads (juce::Graphics &g, juce::Rectangle<float> tick);
+
   juce::Rectangle<int> _keyboardIconArea;
   KeyboardState _keyboardState = KeyboardState::Unavailable;
   TickIndicator _tickIndicator;
   float _recordingProgress = -1.f;
   juce::Colour _recordingColour;
+  std::array<float, numChannelsInitial> _playheads{ -1.f, -1.f, -1.f, -1.f };
+  std::array<juce::Colour, numChannelsInitial> _playheadColours;
 
   juce::Label _labelBPM;
   juce::Label _labelReadout;

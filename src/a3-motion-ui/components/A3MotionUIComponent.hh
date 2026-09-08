@@ -714,6 +714,7 @@ private:
   void handleClipSettingsSubElementCycle (index_t channel);
   int numSubElementsForSection (int menuIndex) const;
   void updateClipSettingsDisplay ();
+  void updateStatusBarPlayheads ();
   /** Where the sphere is being looked at from, or straight down if there is
    *  no sphere yet -- this runs while the interface is still being built. */
   SphereCamera sphereCamera () const;
