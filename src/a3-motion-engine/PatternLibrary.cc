@@ -20,6 +20,8 @@
 
 #include "PatternLibrary.hh"
 
+#include "SplitFolder.hh"
+
 #include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/ClipSettings.hh>
 
@@ -73,15 +75,19 @@ PatternLibrary::scanSettingsPresets ()
   if (!dir.isDirectory ())
     return;
 
-  auto files = dir.findChildFiles (juce::File::findFiles, false, "*.json");
+  // Both halves, the way every other list here is read. A clip's origin does
+  // not fit in `category` -- that slot says it is a clip -- so it is carried
+  // beside it, which is what lets the clips be filtered at all.
+  auto const listed = listFilesIn (dir, ".json");
 
   // Same rule as the shapes: by the name that is read, within this category
   // only. A clip's name and its file name usually agree -- a renamed one is
   // exactly when they do not.
   auto const firstOfThisCategory = _entries.size ();
 
-  for (auto const &file : files)
+  for (auto const &found : listed)
     {
+      auto const &file = found.file;
       auto const clip = ClipFile::load (file);
       if (!clip.has_value ())
         {
@@ -102,6 +108,7 @@ PatternLibrary::scanSettingsPresets ()
       entry.category = Category::Clip;
       entry.clipFile = file;
       entry.svg = clip->svg;
+      entry.isShipped = found.isSystem;
 
       _entries.push_back (std::move (entry));
     }
@@ -147,6 +154,10 @@ PatternLibrary::scanDirectory (juce::File const &dir, Category category)
       // it is played on, outright, so the two are related in one direction
       // and by name -- the file-name convention that guessed it the other way
       // round is what let a preset and a shape wear the same name.
+
+      // Said in the field as well as in the category, so one question has one
+      // answer wherever it is asked.
+      entry.isShipped = category == Category::System;
 
       _entries.push_back (std::move (entry));
     }
@@ -300,7 +311,7 @@ PatternLibrary::saveUserPattern (std::shared_ptr<Pattern> const &pattern)
     clip.settings = clipSettingsFrom (*pattern);
 
     auto const clipFile
-        = getClipDir ().getChildFile (juce::String (clip.name) + ".json");
+        = newFileIn (getClipDir (), juce::String (clip.name), ".json");
     if (!ClipFile::save (clip, clipFile))
       std::cerr << "PatternLibrary: failed to save the clip for "
                 << file.getFullPathName () << std::endl;
@@ -336,7 +347,8 @@ PatternLibrary::getDirectoryFingerprint () const
   hashDir (getUserDir (), "*.svg");
   // Clips too: a settings preset has no shape, so a folder watched for SVGs
   // alone would never notice one being added or thrown away.
-  hashDir (getClipDir (), "*.json");
+  hashDir (getClipDir ().getChildFile ("system"), "*.json");
+  hashDir (getClipDir ().getChildFile ("user"), "*.json");
   return hash;
 }
 

@@ -36,6 +36,16 @@ namespace a3
  *  It lived inside A3MotionUIComponent, which is what *decides* the list; this
  *  is what shows it, and a page that draws three tabs cannot be handed a bool
  *  saying which of two it is on. */
+/** How far the library list is narrowed: everything, only what the performer
+ *  made, only what the instrument shipped with. Beside BrowserList because it
+ *  is the same kind of thing -- which list, and how much of it. */
+enum class ClipFilter
+{
+  All,
+  User,
+  System
+};
+
 enum class BrowserList
 {
   Clips,

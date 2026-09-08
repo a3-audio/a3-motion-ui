@@ -328,9 +328,10 @@ TEST (SystemPatternIcons, EveryShippedShapeSitsWhereItShould)
 // take, and it must exist whether or not anybody has generated anything.
 TEST (SystemPatternIcons, ThereIsAlwaysADefaultToFallBackTo)
 {
+  // In the shipped half: the fallback every empty slot gets is the
+  // instrument's, not something a performer can delete out from under it.
   auto const clip
-      = systemPatternDir ().getParentDirectory ().getChildFile (
-          "clips/Default.json");
+      = juce::File (A3_PATTERN_CLIPS_DIR).getChildFile ("Default.json");
 
   ASSERT_TRUE (clip.existsAsFile ())
       << "expected " << clip.getFullPathName ();
@@ -348,8 +349,10 @@ TEST (SystemPatternIcons, NoTwoShippedClipsShareAName)
 {
   // Names are the identity, and the browser shows one list. Two presets called
   // the same thing would be two rows nobody can tell apart.
-  auto const clipDir
-      = systemPatternDir ().getParentDirectory ().getChildFile ("clips");
+  // The shipped half. The clips folder is split into what the instrument
+  // ships with and what the performer made, and only the first is ours to
+  // guarantee anything about.
+  auto const clipDir = juce::File (A3_PATTERN_CLIPS_DIR);
   ASSERT_TRUE (clipDir.isDirectory ());
 
   std::set<std::string> seen;

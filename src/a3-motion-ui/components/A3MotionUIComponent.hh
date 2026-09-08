@@ -44,6 +44,8 @@
 #include <a3-motion-ui/components/OverlaySideStrips.hh>
 #include <a3-motion-ui/SessionFile.hh>
 #include <a3-motion-ui/components/BrowserComponent.hh>
+#include <a3-motion-ui/components/LibraryKeys.hh>
+#include <a3-motion-ui/components/LibraryList.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
@@ -226,12 +228,30 @@ private:
    *  to stand for a file, and row zero of the clips and actions lists stands
    *  for "nothing chosen". */
   bool chosenEntryHasAFile () const;
-  bool chosenEntryIsASystemShape () const;
+  bool chosenEntryIsShipped () const;
+  LibraryKeyStates currentLibraryKeys () const;
+
+  /** The browser's four lists as four objects rather than four branches at
+   *  every decision. Nested so they reach what they delegate to without any
+   *  of it being opened up; see components/LibraryList.hh for why they exist
+   *  at all. */
+  class LibraryBackedList;
+  class LibraryBackedList;
+  class ClipsList;
+  class ShapesList;
+  class ActionsList;
+  class SetsList;
+  std::array<std::unique_ptr<LibraryList>, 4> _lists;
+
+  void createBrowserLists ();
+
+  /** The one the tab is showing. */
+  LibraryList &currentList () const;
   void saveSlotShapeInPlace ();
   juce::String saveSlotShapeAsCopy ();
   /** What the arm step of a delete says beyond the word: how much else goes
    *  with the file, in sets that name it. Empty when nothing does. */
-  juce::String chosenEntryCost () const;
+  juce::String costOfRemovingLibraryEntry (int index) const;
 
   void renameChosenAction (juce::String const &name);
   void deleteChosenAction ();
@@ -253,8 +273,11 @@ private:
 
   /** The library entry the browser's chosen row stands for, or -1. */
   int chosenLibraryIndex () const;
-  /** The two directions of `_browserRowToLibrary`. Minus one either way for
-   *  "not on the list as it is narrowed". */
+
+  /** Row numbers and library indexes are two different things once a list can
+   *  be narrowed. Both translators ask the list object, which built the
+   *  mapping in the same pass that built its rows; -1 means "not on the list
+   *  as it is narrowed". */
   int browserRowForLibrary (int entry) const;
   int libraryForBrowserRow (int row) const;
 
@@ -265,12 +288,6 @@ private:
    *  no such split in the actions or the sets -- shipped and hand-written land
    *  in one folder there with nothing marking which is which -- so the key is
    *  dark on those two tabs rather than offering a choice it cannot make. */
-  enum class ClipFilter
-  {
-    All,
-    User,
-    System
-  };
 
   /** How many saved sets name `patternName` in one of their slots. */
   int setsNaming (juce::String const &patternName) const;
@@ -616,7 +633,6 @@ private:
    *  window onto the library once it can be narrowed, so a row's number and an
    *  entry's number are no longer the same thing -- and everything that acts
    *  on a chosen row goes through here. */
-  std::vector<int> _browserRowToLibrary;
 
   /** Whether the browser's delete key has been pressed once already. A file
    *  thrown away in front of a room does not come back, so it takes two

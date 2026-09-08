@@ -31,11 +31,10 @@ libraryKeysFor (BrowserList list, LibraryKeyFacts const &facts)
   // sets were given one -- a system/ and a user/ directory each, the same
   // shape, so a reader learns it once.
   //
-  // Not the clips. A clip carries Category::Clip and is neither system nor
-  // user, so narrowing them by System would empty the list rather than
-  // shorten it. The key used to light there, where it does nothing, and stay
-  // dark on the shapes, where the narrowing runs.
-  auto const canFilter = list != BrowserList::Clips;
+  // All four. The clips were the last holdout, and only because a clip's
+  // origin had nowhere to live: the library's category slot was already spent
+  // saying that it is a clip. It has a field of its own now.
+  auto const canFilter = true;
 
   // Nothing shipped may be written over, wherever it lives: that is what the
   // split buys besides the filter, and it is the half that matters. Before

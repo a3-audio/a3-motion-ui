@@ -86,6 +86,14 @@ public:
     /** For a clip, the shape it is played on, by name. Empty on a shape
      *  entry, and on a clip written before a clip had to name one. */
     std::string svg;
+    /** Whether this came with the instrument.
+     *
+     *  Its own field rather than a reading of `category`, because the two
+     *  answer different questions: category says *what* an entry is -- a
+     *  shape or a clip -- and this says *where it came from*. A clip carries
+     *  Category::Clip and so had nowhere to put its origin, which is why the
+     *  clips could not be filtered while every other list could. */
+    bool isShipped{ false };
   };
 
   /** Initialise with root directory containing system/ and user/ subdirs. */
