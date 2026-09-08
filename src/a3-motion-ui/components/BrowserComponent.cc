@@ -323,7 +323,8 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
 
       g.setColour (toColour (theme ().warning));
       g.fillRect (x, static_cast<float> (text.getY () + text.getHeight () / 6),
-                  1.5f, static_cast<float> (text.getHeight () * 2 / 3));
+                  theme ().strokeMedium,
+                  static_cast<float> (text.getHeight () * 2 / 3));
 
       // Nothing else belongs on a row being typed into -- the preset dot is
       // about the file, and while it is being renamed it is about the name.

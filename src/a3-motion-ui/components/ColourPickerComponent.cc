@@ -204,7 +204,8 @@ ColourPickerComponent::paint (juce::Graphics &g)
   // The field: saturation across, lightness down, at the chosen hue. Drawn
   // in strips rather than as a gradient, because a gradient can only run one
   // way and this runs two.
-  for (int x = 0; x < _field.getWidth (); x += 3)
+  auto constexpr fieldColumnWidth = 3;
+  for (int x = 0; x < _field.getWidth (); x += fieldColumnWidth)
     {
       auto const s = x / static_cast<float> (juce::jmax (1, _field.getWidth ()));
 
@@ -221,7 +222,8 @@ ColourPickerComponent::paint (juce::Graphics &g)
           static_cast<float> (_field.getBottom ()), false);
       gradient.addColour (0.5, juce::Colour::fromHSL (hue, s, 0.5f, 1.f));
       g.setGradientFill (gradient);
-      g.fillRect (_field.getX () + x, _field.getY (), 3, _field.getHeight ());
+      g.fillRect (_field.getX () + x, _field.getY (), fieldColumnWidth,
+                  _field.getHeight ());
     }
 
   // Where the current colour sits in it.
@@ -229,14 +231,17 @@ ColourPickerComponent::paint (juce::Graphics &g)
       _field.getX () + static_cast<int> (saturation * _field.getWidth ()),
       _field.getY () + static_cast<int> ((1.f - lightness) * _field.getHeight ()));
   g.setColour (toColour (theme ().textPrimary));
-  g.drawEllipse (marker.getX () - 7.f, marker.getY () - 7.f, 14.f, 14.f, 2.f);
+  g.drawEllipse (marker.getX () - 7.f, marker.getY () - 7.f, 14.f, 14.f,
+                 theme ().strokeThick);
 
-  for (int y = 0; y < _hueBar.getHeight (); y += 2)
+  auto constexpr hueBarRowHeight = 2;
+  for (int y = 0; y < _hueBar.getHeight (); y += hueBarRowHeight)
     {
       g.setColour (juce::Colour::fromHSL (
           y / static_cast<float> (juce::jmax (1, _hueBar.getHeight ())), 1.f,
           0.5f, 1.f));
-      g.fillRect (_hueBar.getX (), _hueBar.getY () + y, _hueBar.getWidth (), 2);
+      g.fillRect (_hueBar.getX (), _hueBar.getY () + y, _hueBar.getWidth (),
+                  hueBarRowHeight);
     }
 
   g.setColour (toColour (theme ().textPrimary));

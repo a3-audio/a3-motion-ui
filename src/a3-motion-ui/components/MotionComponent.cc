@@ -1483,7 +1483,10 @@ MotionComponent::drawBearings (juce::Graphics &g)
                              major ? theme ().alphaMuted
                                    : medium ? theme ().alphaFillEmphasis
                                             : theme ().alphaOutline));
-      g.drawLine (from.x, from.y, to.x, to.y, major ? 0.01f : 0.006f);
+      auto constexpr tickWidthMajor = 0.01f;
+      auto constexpr tickWidthMinor = 0.006f;
+      g.drawLine (from.x, from.y, to.x, to.y,
+                  major ? tickWidthMajor : tickWidthMinor);
     }
 
   // And the four numbers outside the ticks, upright: a compass card is read

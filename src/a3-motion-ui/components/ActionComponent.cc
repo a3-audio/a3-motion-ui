@@ -584,7 +584,9 @@ ActionComponent::paintScriptField (juce::Graphics &g)
                : _editing         ? _channelColour
                                   : toColour (theme ().textPrimary,
                                              theme ().alphaOutline));
-  g.drawRect (bounds, _editing || _buffer.isEdited () ? 2 : 1);
+  g.drawRect (bounds, juce::roundToInt (_editing || _buffer.isEdited ()
+                                            ? theme ().strokeThick
+                                            : theme ().strokeThin));
 
   auto const text = scriptTextArea ();
   auto const lineH = scriptLineHeight ();
@@ -633,7 +635,8 @@ ActionComponent::paintScriptField (juce::Graphics &g)
                  + juce::roundToInt (_buffer.caretColumn () * charW);
 
   g.setColour (_channelColour);
-  g.fillRect (x, text.getY () + caretRow * lineH, 2, lineH);
+  g.fillRect (x, text.getY () + caretRow * lineH,
+              juce::roundToInt (theme ().strokeThick), lineH);
 }
 
 void
@@ -710,7 +713,7 @@ ActionComponent::paintActionList (juce::Graphics &g)
   g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
   g.fillRect (area);
   g.setColour (_channelColour);
-  g.drawRect (area, 1);
+  g.drawRect (area, juce::roundToInt (theme ().strokeThin));
 
   // What a row of the action list may cost.
   constexpr float actionListRowCap = 18.f;

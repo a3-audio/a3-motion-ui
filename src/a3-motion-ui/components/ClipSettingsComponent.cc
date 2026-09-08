@@ -1999,7 +1999,8 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
           if (!_elevationFigure[i].startsStroke)
             {
               g.setColour (_elevationFigure[i].behind ? far : near);
-              g.drawLine (previous.x, previous.y, point.x, point.y, 1.5f);
+              g.drawLine (previous.x, previous.y, point.x, point.y,
+                          theme ().strokeMedium);
             }
 
           previous = point;
@@ -2044,9 +2045,11 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   g.restoreState ();
 
   g.setColour (toColour (theme ().surface, outlineOpacity));
-  g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, 2.f);
+  g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f,
+                 theme ().strokeThick);
   g.setColour (iconColour);
-  g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, 1.f);
+  g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f,
+                 theme ().strokeThin);
 
   // The listener, in the middle of the room they are listening to, and the
   // same figure the sphere above and the little ball in its corner carry -- so

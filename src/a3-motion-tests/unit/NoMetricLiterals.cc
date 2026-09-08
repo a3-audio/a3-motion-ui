@@ -33,13 +33,23 @@ namespace
 // cover — and one that will not announce itself: the app still builds, still
 // runs, and merely ignores the skin in that one place.
 //
-// This only inspects six call shapes: fillRoundedRectangle,
-// drawRoundedRectangle, withAlpha, toColour, reduced and expanded. It does
-// not look inside fillRect, drawRect, drawEllipse, fillEllipse, drawLine, or
-// colour maths like contrasting — a literal reaching the theme only through
-// one of those passes this ratchet unseen. See
-// issues/a3-motion-ui-metric-ratchet-misses-rect-and-ellipse-calls.md, whose
-// "Nächste Schritte" 3 is what this paragraph fulfils.
+// This inspects nine call shapes: fillRoundedRectangle, drawRoundedRectangle,
+// withAlpha, toColour, reduced, expanded, and the line thickness of drawRect,
+// drawEllipse and drawLine.
+//
+// Two kinds of number stay outside it, both deliberately. fillRect and
+// fillEllipse have no thickness argument at all — every number they take is
+// geometry, and a detector reading their last argument would report
+// coordinates. Colour maths (darker, brighter, contrasting) is a scale of its
+// own that the alpha ladder does not answer; see
+// issues/a3-motion-ui-colour-maths-literals.md.
+//
+// A thickness is not always a pixel, either. MotionComponent's compass bezel
+// is drawn behind _transformNormalizedToLocal, where 1.0 is the sphere's
+// radius, so its ticks are a percent of the ball and a skin's stroke widths
+// would arrive there as bands across it. They are named constants, which is
+// what takes them out of this detector's sight — the same door every genuine
+// exception here goes through.
 //
 // The list below is what has not been migrated yet. Like the colour ratchet
 // next door it holds in both directions: a file missing from it may hold no
@@ -168,6 +178,25 @@ windowHoldsAMetricLiteral (juce::String const &window)
   auto const tinted = argumentsOf (window, "toColour");
   if (tinted.size () == 2 && isOrChoosesAWrittenOutNumber (tinted[1]))
     return true;
+
+  // drawRect, drawEllipse and drawLine each take their line thickness as the
+  // last argument -- but only in the overloads that have one. juce offers
+  // (shape) and (shape, thickness), and (x, y, w, h) and (x, y, w, h,
+  // thickness), so the count is what says whether the last argument is a
+  // thickness or a coordinate. Flagging it by position alone would report
+  // every y2 of a plain drawLine.
+  //
+  // fillRect is deliberately absent: it has no thickness argument at all. Its
+  // numbers are geometry, and the ones that act as a thickness -- a caret's
+  // width, a playhead's -- are only recognisable as such by a reader. Those
+  // sites were migrated by hand and this test cannot hold them.
+  for (auto const *stroked : { "drawRect", "drawEllipse", "drawLine" })
+    {
+      auto const args = argumentsOf (window, stroked);
+      if ((args.size () == 2 || args.size () == 5)
+          && isOrChoosesAWrittenOutNumber (args[args.size () - 1]))
+        return true;
+    }
 
   for (auto const *inset : { "reduced", "expanded" })
     for (auto const &argument : argumentsOf (window, inset))

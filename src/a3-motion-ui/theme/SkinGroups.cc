@@ -61,9 +61,8 @@ constexpr Group groups[] = {
   { "Sphere", { "sphereSurface", "sphereRim", "sphereEnvironment",
                 "sphereScale", "boltCore", "backgroundGlow" } },
   { "Type and size", { "fontHeader", "fontBody", "potSize",
-                       "clipSettingsHeightScale", "strokeThin",
-                       "strokeThick" } },
-  { "Metrics", { "radius*", "padding*" } },
+                       "clipSettingsHeightScale" } },
+  { "Metrics", { "radius*", "padding*", "stroke*" } },
   { "Touch", { "touchDragPixelsPerStep" } },
 
   // The colours of the two effects sit here, with the other colours, rather

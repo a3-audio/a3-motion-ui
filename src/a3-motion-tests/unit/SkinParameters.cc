@@ -480,6 +480,8 @@ TEST (SkinParameters, EveryMetricRoleHasARange)
     { "radiusPanel", 5.0, 17.5 },   { "paddingHair", 0.5, 1.75 },
     { "paddingTight", 1.0, 3.5 },
     { "paddingSmall", 2.0, 7.0 },   { "padding", 4.0, 14.0 },
+    { "strokeThin", 0.5, 1.75 },    { "strokeMedium", 0.75, 2.6 },
+    { "strokeThick", 1.0, 3.5 },
   };
 
   for (auto const &range : ranges)

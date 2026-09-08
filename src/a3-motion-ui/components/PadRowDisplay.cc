@@ -199,7 +199,7 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
   if (cell.rowHighlighted)
     {
       g.setColour (toColour (theme ().textPrimary, highlightOpacity));
-      g.drawRect (bounds, 2);
+      g.drawRect (bounds, juce::roundToInt (theme ().strokeThick));
     }
 
   // Thin baseline
