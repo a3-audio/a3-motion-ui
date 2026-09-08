@@ -735,11 +735,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // press would bring -- a key that names what you would get rather than what
   // you have is a key you have to press to find out where you are.
   _browser->onFilterPressed = [this] {
-    // The narrowing in refreshBrowser() applies to the shapes, and only to
-    // them -- so this used to refuse on exactly the tab where the filter
-    // works and allow it on the one where it does nothing.
-    if (_browserList != BrowserList::Clips
-        && _browserList != BrowserList::Shapes)
+    // The shapes and nowhere else, which is where refreshBrowser() narrows.
+    // It used to allow the clips too: the word on the key stepped All -> User
+    // -> System and the list underneath did not move, so a dark key looked
+    // like a working one. A key that is dark must also be inert, or "dark"
+    // stops meaning anything.
+    if (_browserList != BrowserList::Shapes)
       return;
 
     _deleteArmed = false;
@@ -793,7 +794,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     if (_browserList == BrowserList::Sessions)
       loadSessionNamed (_browser->entryName (index));
     else if (_browserList == BrowserList::Actions)
-      assignActionEntry (_browser->entryName (index));
+      assignActionEntry (index);
     else
       assignBrowserEntry (libraryForBrowserRow (index));
   };
@@ -2210,13 +2211,20 @@ A3MotionUIComponent::refreshBrowser ()
     }
   else if (_browserList == BrowserList::Actions)
     {
-      // Entry 0 is "no action", the same way entry 0 of the library is "no
-      // clip": a slot has to be able to go back to firing nothing.
-      names.add ("");
       for (auto const &file : actionsDir ().findChildFiles (
                juce::File::findFiles, false, "*.scd"))
         names.add (file.getFileNameWithoutExtension ());
       names.sort (true);
+
+      // Row zero is "no action", the same way entry zero of the library is
+      // "no clip": a slot has to be able to go back to firing nothing.
+      //
+      // It says so now, in the library's own word for it -- a blank row reads
+      // as something that failed to draw rather than as the choice it is.
+      // Put in after the sort and taken by position, not by name: sorted in,
+      // the word would land among the E's, and an action somebody names
+      // "Empty" must not become a second way to clear a slot.
+      names.insert (0, "Empty");
     }
   else
     {
@@ -2562,7 +2570,7 @@ A3MotionUIComponent::syncClipUIParamsFromPattern (index_t channel,
 }
 
 void
-A3MotionUIComponent::assignActionEntry (juce::String const &name)
+A3MotionUIComponent::assignActionEntry (int row)
 {
   auto const channel = _clipSettingsChannel;
   auto const slot = _clipSettingsSlot;
@@ -2570,12 +2578,14 @@ A3MotionUIComponent::assignActionEntry (juce::String const &name)
   if (channel >= _engine.getNumChannels () || slot >= numPadSlots)
     return;
 
-  // The empty row clears it: a slot has to be able to go back to firing
-  // nothing, the same way it can go back to holding no clip.
+  // Row zero clears it: a slot has to be able to go back to firing nothing,
+  // the same way it can go back to holding no clip. By row rather than by the
+  // word on it -- the row is what the list put there, and an action named
+  // "Empty" would otherwise be a second, silent way to clear a slot.
+  auto const name = _browser->entryName (row);
   setSlotAction (channel, slot,
-                 name.isEmpty ()
-                     ? juce::File{}
-                     : actionsDir ().getChildFile (name + ".scd"));
+                 row == 0 ? juce::File{}
+                          : actionsDir ().getChildFile (name + ".scd"));
 
   selectClip (channel, slot);
   refreshBrowser ();

@@ -191,7 +191,7 @@ private:
   void toggleRecordPage ();
   /** Push the shown clip's envelope and act mode to the ACTION page. */
   /** Give the chosen field's slot an action, or take its action away. */
-  void assignActionEntry (juce::String const &name);
+  void assignActionEntry (int row);
 
   /** Point a slot's ACT key at an action file, reading it in. An empty file,
    *  or one that will not read, leaves the slot firing the accent alone. */
