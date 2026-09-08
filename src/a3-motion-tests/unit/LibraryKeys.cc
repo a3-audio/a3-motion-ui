@@ -51,12 +51,28 @@ TEST (LibraryKeys, EveryTabIsDecided)
     }
 }
 
-// The filter splits the instrument's own figures from the performer's, and
-// the shapes are the only list where that split exists: they are scanned out
-// of two directories.
-TEST (LibraryKeys, OnlyTheShapesCanBeFiltered)
+// The filter splits the instrument's own from the performer's, and three
+// lists now have that split: the shapes always did, and the actions and the
+// sets were given one -- two directories each, the same shape.
+TEST (LibraryKeys, EveryListWithTwoHalvesCanBeFiltered)
 {
-  EXPECT_TRUE (libraryKeysFor (BrowserList::Shapes, plenty ()).filter);
+  for (auto const list : { BrowserList::Shapes, BrowserList::Actions,
+                           BrowserList::Sessions })
+    EXPECT_TRUE (libraryKeysFor (list, plenty ()).filter)
+        << "tab " << static_cast<int> (list);
+}
+
+// And what the split buys besides the filter: one of the instrument's own
+// cannot be written over, wherever it lives.
+TEST (LibraryKeys, NothingShippedCanBeWrittenOver)
+{
+  auto facts = plenty ();
+  facts.chosenIsSystem = true;
+
+  for (auto const list : { BrowserList::Shapes, BrowserList::Actions,
+                           BrowserList::Sessions })
+    EXPECT_FALSE (libraryKeysFor (list, facts).save)
+        << "tab " << static_cast<int> (list);
 }
 
 // Not the clips: a clip carries Category::Clip and is neither system nor
@@ -68,14 +84,7 @@ TEST (LibraryKeys, TheClipsOfferNoFilter)
   EXPECT_FALSE (libraryKeysFor (BrowserList::Clips, plenty ()).filter);
 }
 
-// Nor the two that are one folder each with nothing marking shipped from
-// hand-written. A key showing a word that would do nothing is worse than a
-// key that is dark.
-TEST (LibraryKeys, ActionsAndSetsOfferNoFilter)
-{
-  EXPECT_FALSE (libraryKeysFor (BrowserList::Actions, plenty ()).filter);
-  EXPECT_FALSE (libraryKeysFor (BrowserList::Sessions, plenty ()).filter);
-}
+
 
 // The instrument's own shapes are not working material. Writing a recorded
 // figure over one would change what every clip naming it plays, on a device

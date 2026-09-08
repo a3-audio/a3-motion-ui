@@ -63,6 +63,7 @@
 #include <a3-motion-ui/components/ChannelValueReset.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-engine/RecordingName.hh>
+#include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-ui/components/RecordingIndicator.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
@@ -126,6 +127,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // once every take has a clip.
   migrateCombinedPatterns (patternsDir);
   migrateSetToCurrent (patternsDir);
+
+  // The actions and the sets are split into what the instrument ships with
+  // and what the performer made, the way the shapes already were. Whatever a
+  // device is still holding flat is the performer's -- the repository puts
+  // its own into system/ -- so it is moved once and then left alone.
+  splitLooseFilesIn (patternsDir.getChildFile ("actions"), ".scd");
+  splitLooseFilesIn (patternsDir.getChildFile ("sessions"), ".json");
 
   _patternLibrary = std::make_unique<PatternLibrary> (patternsDir);
   _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
@@ -648,8 +656,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   _action->onActionChosen = [this] (juce::String const &name) {
     setSlotAction (_clipSettingsChannel, _clipSettingsSlot,
-                   name.isEmpty () ? juce::File{}
-                                   : actionsDir ().getChildFile (name + ".scd"));
+                   name.isEmpty ()
+                       ? juce::File{}
+                       : namedFileIn (actionsDir (), name, ".scd"));
     refreshBrowser ();
   };
 
@@ -1200,7 +1209,7 @@ A3MotionUIComponent::initializePatterns ()
   // again when you let go. A set that carries its own choice overwrites this
   // the moment it loads.
   {
-    auto const bloom = actionsDir ().getChildFile ("Bloom.scd");
+    auto const bloom = namedFileIn (actionsDir (), "Bloom", ".scd");
     if (bloom.existsAsFile ())
       for (auto channel = 0u; channel < numChannels; ++channel)
         for (auto slot = 0u; slot < numClipSlots; ++slot)
@@ -2155,7 +2164,7 @@ A3MotionUIComponent::saveCurrentSession ()
 void
 A3MotionUIComponent::loadSessionNamed (juce::String const &name)
 {
-  auto const file = sessionsDir ().getChildFile (name + ".json");
+  auto const file = namedFileIn (sessionsDir (), name, ".json");
   if (!file.existsAsFile ())
     {
       updateControlReadout ("-- NO SUCH SET");
@@ -2202,19 +2211,25 @@ A3MotionUIComponent::refreshBrowser ()
   juce::StringArray names;
   std::vector<bool> settingsRows;
 
+  // Both folders are split into what the instrument ships with and what the
+  // performer made, so both can be narrowed the way the shapes are -- and
+  // listFilesIn() already sorts, and already lists a covered name once.
+  auto const keepsUnderFilter = [this] (bool isSystem) {
+    return !((_clipFilter == ClipFilter::System && !isSystem)
+             || (_clipFilter == ClipFilter::User && isSystem));
+  };
+
   if (_browserList == BrowserList::Sessions)
     {
-      for (auto const &file : sessionsDir ().findChildFiles (
-               juce::File::findFiles, false, "*.json"))
-        names.add (file.getFileNameWithoutExtension ());
-      names.sort (true);
+      for (auto const &entry : listFilesIn (sessionsDir (), ".json"))
+        if (keepsUnderFilter (entry.isSystem))
+          names.add (entry.name);
     }
   else if (_browserList == BrowserList::Actions)
     {
-      for (auto const &file : actionsDir ().findChildFiles (
-               juce::File::findFiles, false, "*.scd"))
-        names.add (file.getFileNameWithoutExtension ());
-      names.sort (true);
+      for (auto const &entry : listFilesIn (actionsDir (), ".scd"))
+        if (keepsUnderFilter (entry.isSystem))
+          names.add (entry.name);
 
       // Row zero is "no action", the same way entry zero of the library is
       // "no clip": a slot has to be able to go back to firing nothing.
@@ -2585,7 +2600,7 @@ A3MotionUIComponent::assignActionEntry (int row)
   auto const name = _browser->entryName (row);
   setSlotAction (channel, slot,
                  row == 0 ? juce::File{}
-                          : actionsDir ().getChildFile (name + ".scd"));
+                          : namedFileIn (actionsDir (), name, ".scd"));
 
   selectClip (channel, slot);
   refreshBrowser ();
@@ -2703,8 +2718,11 @@ A3MotionUIComponent::saveSlotAsAction ()
   // learn, and what is written is what can be read back and edited.
   actionsDir ().createDirectory ();
 
-  auto const name = freeClipName (actionsDir (), "Action", ".scd");
-  auto const file = actionsDir ().getChildFile (name + ".scd");
+  // A new one is the performer's, and its name has to be free in both
+  // halves -- counting only against your own would hand back a name a
+  // shipped file already has.
+  auto const name = freeNameIn (actionsDir (), "Action", ".scd");
+  auto const file = newFileIn (actionsDir (), name, ".scd");
 
   if (!file.replaceWithText (actionScriptFor (clipSettingsFrom (*pattern))))
     {
@@ -2734,7 +2752,7 @@ A3MotionUIComponent::chosenActionFile () const
   if (name.isEmpty ())
     return {};
 
-  return actionsDir ().getChildFile (name + ".scd");
+  return namedFileIn (actionsDir (), name, ".scd");
 }
 
 int
@@ -2804,7 +2822,7 @@ A3MotionUIComponent::chosenSetFile () const
   if (name.isEmpty ())
     return {};
 
-  return sessionsDir ().getChildFile (name + ".json");
+  return namedFileIn (sessionsDir (), name, ".json");
 }
 
 int
@@ -2960,9 +2978,11 @@ A3MotionUIComponent::setsNaming (juce::String const &patternName) const
     return 0;
 
   auto count = 0;
-  for (auto const &file : sessionsDir ().findChildFiles (juce::File::findFiles,
-                                                         false, "*.json"))
+  // Both halves: a shipped set names takes too, and a rename that skipped
+  // them would leave them pointing at a name that is gone.
+  for (auto const &listed : listFilesIn (sessionsDir (), ".json"))
     {
+      auto const &file = listed.file;
       auto const set
           = loadSession (file, static_cast<int> (numChannelColumns),
                          static_cast<int> (numPadSlots));
@@ -2987,9 +3007,11 @@ A3MotionUIComponent::renameInSets (juce::String const &from,
     return 0;
 
   auto rewritten = 0;
-  for (auto const &file : sessionsDir ().findChildFiles (juce::File::findFiles,
-                                                         false, "*.json"))
+  // Both halves: a shipped set names takes too, and a rename that skipped
+  // them would leave them pointing at a name that is gone.
+  for (auto const &listed : listFilesIn (sessionsDir (), ".json"))
     {
+      auto const &file = listed.file;
       auto set = loadSession (file, static_cast<int> (numChannelColumns),
                               static_cast<int> (numPadSlots));
 
@@ -3085,7 +3107,9 @@ A3MotionUIComponent::renameChosenAction (juce::String const &name)
   if (!from.existsAsFile ())
     return;
 
-  auto const to = actionsDir ().getChildFile (name + ".scd");
+  // Renaming only ever reaches one of the performer's -- the key is dark
+  // on a shipped one -- so the new name lands beside the old.
+  auto const to = newFileIn (actionsDir (), name, ".scd");
   if (to == from)
     return;
 
@@ -3151,7 +3175,7 @@ A3MotionUIComponent::renameChosenSet (juce::String const &name)
   if (!from.existsAsFile ())
     return;
 
-  auto const to = sessionsDir ().getChildFile (name + ".json");
+  auto const to = newFileIn (sessionsDir (), name, ".json");
   if (to == from)
     return;
 
@@ -3373,7 +3397,7 @@ A3MotionUIComponent::saveSlotActionInPlace ()
 void
 A3MotionUIComponent::saveSessionInPlace ()
 {
-  auto const file = sessionsDir ().getChildFile (_sessionName + ".json");
+  auto const file = namedFileIn (sessionsDir (), _sessionName, ".json");
   if (_sessionName.isEmpty () || !file.existsAsFile ())
     {
       updateControlReadout ("-- NOTHING TO SAVE");
@@ -3523,10 +3547,8 @@ A3MotionUIComponent::updateActionPage ()
   // to firing nothing the same way it can go back to holding no clip.
   juce::StringArray choices;
   choices.add ("");
-  for (auto const &file : actionsDir ().findChildFiles (juce::File::findFiles,
-                                                        false, "*.scd"))
-    choices.add (file.getFileNameWithoutExtension ());
-  choices.sort (true);
+  for (auto const &entry : listFilesIn (actionsDir (), ".scd"))
+    choices.add (entry.name);
   _action->setActionChoices (choices);
 
   _action->setScript (slotAction.source);
@@ -3999,8 +4021,8 @@ A3MotionUIComponent::applySet (juce::File const &file)
           // it also holds a clip.
           if (!saved.action.empty ())
             setSlotAction (index, slot,
-                           actionsDir ().getChildFile (
-                               juce::String (saved.action) + ".scd"));
+                           namedFileIn (actionsDir (),
+                                        juce::String (saved.action), ".scd"));
 
           if (saved.patternName.empty ())
             continue;

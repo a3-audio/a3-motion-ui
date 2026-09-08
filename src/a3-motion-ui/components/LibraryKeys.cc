@@ -26,18 +26,25 @@ namespace a3
 LibraryKeyStates
 libraryKeysFor (BrowserList list, LibraryKeyFacts const &facts)
 {
-  // The filter belongs to the shapes and to nothing else.
+  // The filter splits the instrument's own from the performer's, and three
+  // lists have that split: the shapes always did, and the actions and the
+  // sets were given one -- a system/ and a user/ directory each, the same
+  // shape, so a reader learns it once.
   //
-  // It splits the instrument's own from the performer's, and that split is a
-  // property of a *figure*: shapes are scanned out of a system directory and
-  // a user one. A clip is neither -- it carries Category::Clip -- so
-  // narrowing the clips by System would empty the list rather than shorten
-  // it. Actions and sets are one folder each with nothing marking shipped
-  // from hand-written, so there is no split to offer there either.
-  //
-  // The key used to light on CLIPS, where it does nothing, and stay dark on
-  // SVG, where the narrowing actually runs. Both halves of that were wrong.
-  auto const canFilter = list == BrowserList::Shapes;
+  // Not the clips. A clip carries Category::Clip and is neither system nor
+  // user, so narrowing them by System would empty the list rather than
+  // shorten it. The key used to light there, where it does nothing, and stay
+  // dark on the shapes, where the narrowing runs.
+  auto const canFilter = list != BrowserList::Clips;
+
+  // Nothing shipped may be written over, wherever it lives: that is what the
+  // split buys besides the filter, and it is the half that matters. Before
+  // it, every action and every set the device ships with could be overwritten
+  // in silence.
+  if (facts.chosenIsSystem)
+    return { canFilter, facts.chosenHasFile, false,
+             list == BrowserList::Sessions ? true : facts.slotHolds,
+             facts.chosenHasFile };
 
   // Writing over the instrument's own shape would change what every clip
   // naming it plays. On the clips tab the same question is answered by

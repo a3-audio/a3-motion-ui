@@ -47,6 +47,7 @@ target_sources("a3-motion-engine" PRIVATE
     ClipMigration.cc
     ClipSettings.cc
     RecordingName.cc
+    SplitFolder.cc
     Pattern.cc
     RecordingSpans.cc
     RecordingSeam.cc
