@@ -140,6 +140,10 @@ struct Theme
   float sphereScale = 0.62f;
   float blobScale = 0.05f;
   float strokeThin = 1.f;
+  /** Between the two: half a pixel from either, so it is a doubling rather
+   *  than something that could snap. The response curve in the clip bar and
+   *  the caret in the file list are drawn with it. */
+  float strokeMedium = 1.5f;
   float strokeThick = 2.f;
 
   // Corner radii, in pixels. Named after where the rounded rectangle is

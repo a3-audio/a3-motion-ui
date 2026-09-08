@@ -191,13 +191,14 @@ LoopLengthDisplay::paintChannel (juce::Graphics &g,
 
   // Playhead line (drawn last, on top of everything)
   g.setColour (colour);
-  g.fillRect (playheadX - 1.f, drawTop, 2.f, drawHeight);
+  g.fillRect (playheadX - theme ().strokeThick * 0.5f, drawTop,
+              theme ().strokeThick, drawHeight);
 
   // White border when row is highlighted (hovered by encoder)
   if (isHighlighted)
     {
       g.setColour (toColour (theme ().textPrimary, theme ().alphaTextStrong));
-      g.drawRect (bounds, 2);
+      g.drawRect (bounds, juce::roundToInt (theme ().strokeThick));
     }
 
   // Thin baseline

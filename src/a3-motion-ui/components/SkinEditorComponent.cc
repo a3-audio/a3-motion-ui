@@ -953,7 +953,8 @@ SkinEditorComponent::paint (juce::Graphics &g)
                             : toColour (theme ().accent,
                                        theme ().alphaInactive));
       g.fillRect (static_cast<float> (textArea.getX ()) + before,
-                  typingCaretY (textArea, font), caretW, 2.f);
+                  typingCaretY (textArea, font), caretW,
+                  theme ().strokeThick);
 
       content.removeFromTop (rowGap);
       g.setFont (

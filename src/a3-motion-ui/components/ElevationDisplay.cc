@@ -119,10 +119,10 @@ ElevationDisplay::paintCell (juce::Graphics &g,
   // Draw sphere outline
   g.setColour (outlineColour);
   g.drawEllipse (iconX - iconR - 0.5f, iconY - iconR - 0.5f,
-                 iconR * 2.f + 1.f, iconR * 2.f + 1.f, 2.f);
+                 iconR * 2.f + 1.f, iconR * 2.f + 1.f, theme ().strokeThick);
   g.setColour (colour.withAlpha (theme ().alphaMuted));
-  g.drawEllipse (iconX - iconR, iconY - iconR,
-                 iconR * 2.f, iconR * 2.f, 1.f);
+  g.drawEllipse (iconX - iconR, iconY - iconR, iconR * 2.f, iconR * 2.f,
+                 theme ().strokeThin);
 
   // Fill arc to show coverage (from top)
   if (cell.coverage > 0.01f)
@@ -143,7 +143,7 @@ ElevationDisplay::paintCell (juce::Graphics &g,
   if (cell.rowHighlighted)
     {
       g.setColour (toColour (theme ().textPrimary, theme ().alphaTextStrong));
-      g.drawRect (bounds, 2);
+      g.drawRect (bounds, juce::roundToInt (theme ().strokeThick));
     }
 }
 

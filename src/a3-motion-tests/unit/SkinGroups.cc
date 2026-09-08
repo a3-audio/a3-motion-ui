@@ -154,3 +154,15 @@ TEST (SkinGroups, MetricsComeBeforeTheShaderKnobs)
   EXPECT_LT (skinGroupOrder (skinGroupFor ("radiusCard")),
              skinGroupOrder (skinGroupFor ("speakerLight.boltEscape")));
 }
+
+// The three stroke widths are one scale and belong under one heading. Two of
+// them used to sit with the fonts, which is where they landed before there was
+// a Metrics group at all -- and a scale split across two headings is a scale
+// nobody finds the middle of.
+TEST (SkinGroups, TheStrokeWidthsShareAHeadingWithTheOtherMetrics)
+{
+  auto const expected = skinGroupFor ("radiusControl");
+
+  for (auto const *path : { "strokeThin", "strokeMedium", "strokeThick" })
+    EXPECT_EQ (skinGroupFor (path), expected) << path;
+}

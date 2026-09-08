@@ -401,3 +401,26 @@ TEST (Theme, ASkinSetsOneRungAndLeavesTheRest)
   EXPECT_FLOAT_EQ (theme.alphaFill, 0.2f);
   EXPECT_FLOAT_EQ (theme.alphaOutline, defaults.alphaOutline);
 }
+
+// Three stroke widths, not two. 1.5 sits exactly between thin and thick --
+// half a pixel from either, which is a doubling rather than a snap -- and two
+// sites draw with it: the response curve in the clip bar and the caret in the
+// file list.
+TEST (Theme, TheStrokeWidthsAreAScale)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_LT (theme.strokeThin, theme.strokeMedium);
+  EXPECT_LT (theme.strokeMedium, theme.strokeThick);
+}
+
+TEST (Theme, ASkinSetsOneStrokeWidthAndLeavesTheRest)
+{
+  auto const parsed = juce::JSON::parse (R"({"strokeMedium": 1.75})");
+  auto const theme = loadTheme (parsed);
+  auto const defaults = loadTheme (juce::var{});
+
+  EXPECT_FLOAT_EQ (theme.strokeMedium, 1.75f);
+  EXPECT_FLOAT_EQ (theme.strokeThin, defaults.strokeThin);
+  EXPECT_FLOAT_EQ (theme.strokeThick, defaults.strokeThick);
+}

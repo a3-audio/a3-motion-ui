@@ -325,6 +325,8 @@ loadTheme (juce::var const &skin)
   theme.blobScale
       = themeFloat (skin["blob"], "scale", theme.blobScale);
   theme.strokeThin = themeFloat (skin, "strokeThin", theme.strokeThin);
+  theme.strokeMedium
+      = themeFloat (skin, "strokeMedium", theme.strokeMedium);
   theme.strokeThick = themeFloat (skin, "strokeThick", theme.strokeThick);
 
   theme.radiusTick = themeFloat (skin, "radiusTick", theme.radiusTick);
@@ -408,6 +410,7 @@ themeDefaultsVar ()
   number ("padding", defaults.padding);
 
   number ("strokeThin", defaults.strokeThin);
+  number ("strokeMedium", defaults.strokeMedium);
   number ("strokeThick", defaults.strokeThick);
   number ("sphereScale", defaults.sphereScale);
   number ("fontHeader", defaults.fontHeader);
