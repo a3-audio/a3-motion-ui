@@ -46,13 +46,6 @@ constexpr float captionHeightOfBounds = 1.f / 5.f;
 // happens to be, where a share of the width shrinks the travel to nothing as
 // soon as the track gets tall and narrow.
 constexpr float capHeightOfTrackHeight = 0.15f;
-
-// How much clear travel a "real throw" needs, in multiples of the hit area's
-// own height. One hit-area height of travel is already enough for the two
-// ends not to overlap; a second one on top of that is the margin that makes
-// them read as two places a finger can aim at separately, rather than two
-// hit areas that merely stop touching at the extremes.
-constexpr float minTravelInHitAreaHeights = 2.f;
 }
 
 FaderGeometry

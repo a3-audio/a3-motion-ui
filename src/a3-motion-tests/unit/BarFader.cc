@@ -143,3 +143,26 @@ TEST (BarFader, TheHitAreaStaysAtLeastAFingertipEvenAsTheCapFlattens)
   EXPECT_GE (geometry.hitArea.getWidth (), fingertipSize);
   EXPECT_GE (geometry.hitArea.getHeight (), fingertipSize);
 }
+
+// The property minTravelInHitAreaHeights exists to guarantee, pinned here
+// rather than only in MixerLayout.cc's test output -- see the constant's own
+// comment in BarFader.hh for why that coupling exists at all. Whatever
+// height faderHeightForThrow() judges "enough for a real throw", the cap's
+// actual travel at that height has to clear the margin, not merely the bare
+// minimum a hit area needs to avoid overlapping itself -- a future change
+// that loosened the margin without updating the constant would still pass
+// every other test here, since none of them call faderHeightForThrow().
+TEST (BarFader, FaderHeightForThrowGivesAThrowThatClearsItsMargin)
+{
+  auto const width = juce::roundToInt (minimumChannelWidth);
+  auto const maxHeight = juce::roundToInt (minimumMotionHeight * 4);
+  auto const height = faderHeightForThrow (width, maxHeight, metrics);
+  ASSERT_GT (height, 0);
+
+  auto const bounds = juce::Rectangle<int> (width, height);
+  auto const bottom = faderGeometry (bounds, metrics, 0.f);
+  auto const top = faderGeometry (bounds, metrics, 1.f);
+  auto const travel = static_cast<float> (bottom.cap.getY () - top.cap.getY ());
+
+  EXPECT_GE (travel, bottom.hitArea.getHeight () * minTravelInHitAreaHeights);
+}

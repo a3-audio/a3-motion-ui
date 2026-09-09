@@ -40,7 +40,11 @@ struct FaderGeometry
   /** At least `fingertipSize` in both dimensions, centred on `cap`. A flat
    *  cap is a smaller *drawn* target than the old square one, and a smaller
    *  drawn target is not a smaller one to touch -- this is what a
-   *  TouchControl should bind to instead of `cap` itself. */
+   *  TouchControl should bind to instead of `cap` itself, if a fader is ever
+   *  drawn into a cell it shares with other controls. Today no TouchControl
+   *  does: MixerComponent gives the fader the whole per-control layout cell,
+   *  which is already larger than any cap, so `hitArea` is consumed only
+   *  indirectly, through faderHeightForThrow(). */
   juce::Rectangle<int> hitArea;
 
   juce::Rectangle<int> caption;
@@ -48,6 +52,25 @@ struct FaderGeometry
 
 FaderGeometry faderGeometry (juce::Rectangle<int> bounds,
                              ControlMetrics metrics, float fraction);
+
+/** How much clear travel a "real throw" needs, in multiples of the hit
+ *  area's own height. One hit-area height of travel is already enough for
+ *  the two ends not to overlap; a second one on top of that is the margin
+ *  that makes them read as two places a finger can aim at separately,
+ *  rather than two hit areas that merely stop touching at the extremes --
+ *  that part is a judgement call, and would still be defensible at `1`.
+ *
+ *  The number that is not a judgement call: at `1` it measurably breaks
+ *  `MixerLayout.cc`'s own tests, in a file this one does not otherwise
+ *  touch or know about (measured: a volume row of 57px against 99px for
+ *  the rows around it, in `MixerLayout.TheVolumeRowIsTallerThanTheRowsAroundIt`).
+ *  Public rather than file-local so `BarFader.cc`'s own test suite can pin
+ *  the property this guards (see
+ *  `BarFader.FaderHeightForThrowGivesAThrowThatClearsItsMargin`) instead of
+ *  the coupling living only in another file's test output. Anyone changing
+ *  this constant has to re-run `ctest -R MixerLayout` alongside this file's
+ *  own suite. */
+constexpr float minTravelInHitAreaHeights = 2.f;
 
 /** The shortest cell of this width in which the fader actually moves.
  *
