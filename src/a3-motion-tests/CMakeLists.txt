@@ -96,6 +96,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PlayheadAdvance.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MotionModePersistence.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternProgressBar.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/BarFader.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SettingsPersistence.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SessionFile.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/osc/OscMessageHandler.cc"
@@ -142,6 +143,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FittedFont.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/FittedFont.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/MixerState.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/BarFader.cc"
     )
 
 # The corona visibility test reads the config that actually ships with the app,
