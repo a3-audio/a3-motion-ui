@@ -87,6 +87,73 @@ paintMixerChannelControl (juce::Graphics &g, juce::Rectangle<int> bounds,
                 fillsFromTheMiddle (control), false, true);
 }
 
+ControlMetrics
+mixerControlMetrics ()
+{
+  return ControlMetrics{
+    knobDiameterForFont (theme ().fontSize (FontRole::Body),
+                         theme ().potSize),
+    theme ().fontSize (FontRole::Body),
+    theme ().fontSize (FontRole::Body),
+  };
+}
+
+void
+wireMixerChannelTouch (TouchControl &touch, MixerControl control,
+                       std::function<void (MixerControl, int)> dragged,
+                       std::function<void (MixerControl)> tapped)
+{
+  touch.onDragIncrement = [control, dragged] (int, int, int increment) {
+    if (dragged)
+      dragged (control, increment);
+  };
+
+  if (!mixerControlIsAToggle (control))
+    return;
+
+  touch.onTap = [control, tapped] (int, int) {
+    if (tapped)
+      tapped (control);
+  };
+}
+
+void
+runMeterTimerWhileVisible (bool isVisible, juce::Timer &timer)
+{
+  if (isVisible)
+    timer.startTimerHz (vuMeterRefreshHz);
+  else
+    timer.stopTimer ();
+}
+
+void
+repaintMixerMeters (juce::Component &page, MixerLayout const &layout)
+{
+  if (!layout.fits)
+    return;
+
+  auto const redraw = [&page] (juce::Rectangle<int> const &meter) {
+    if (!meter.isEmpty ())
+      page.repaint (meter);
+  };
+
+  for (auto const &meter : layout.channelMeter)
+    redraw (meter);
+  for (auto const &bar : layout.outputMeters)
+    redraw (bar);
+}
+
+void
+paintMixerHasNoRoom (juce::Graphics &g, juce::Rectangle<int> bounds,
+                     juce::String const &what)
+{
+  g.setColour (toColour (theme ().textMuted));
+  g.setFont (
+      juce::Font (juce::FontOptions (theme ().fontSize (FontRole::Body))));
+  g.drawFittedText ("Not enough room for " + what, bounds,
+                    juce::Justification::centred, 1);
+}
+
 MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
     : _state (state), _levels (levels)
 {
@@ -103,30 +170,21 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
       {
         auto touch = std::make_unique<TouchControl> ();
 
-        // The accumulator is TouchControl's own, fed from the skin's
-        // touchDragPixelsPerStep, so how far a finger travels for one step
-        // stays one screw in the skin editor rather than becoming a second
-        // one here.
-        touch->onDragIncrement
-            = [this] (int primary, int secondary, int increment) {
-                if (onChannelDragged)
-                  onChannelDragged (
-                      primary,
-                      mixerControlOrder[static_cast<std::size_t> (secondary)],
-                      increment);
-              };
-
-        // Only the two-valued controls answer a tap. A continuous value is
-        // dragged and never tapped -- a tap has no direction, so there is
-        // nothing for it to say about a level.
-        if (mixerControlIsAToggle (
-                mixerControlOrder[static_cast<std::size_t> (i)]))
-          touch->onTap = [this] (int primary, int secondary) {
-            if (onChannelTapped)
-              onChannelTapped (
-                  primary,
-                  mixerControlOrder[static_cast<std::size_t> (secondary)]);
-          };
+        // The channel is closed over rather than read off the identity: a
+        // strip here is one channel's for the life of the component, where the
+        // bar's tab swaps whose strip it shows under a finger. Both pages hand
+        // wireMixerChannelTouch the same two questions and differ only in how
+        // they answer "whose".
+        wireMixerChannelTouch (
+            *touch, mixerControlOrder[static_cast<std::size_t> (i)],
+            [this, channel] (MixerControl control, int increment) {
+              if (onChannelDragged)
+                onChannelDragged (channel, control, increment);
+            },
+            [this, channel] (MixerControl control) {
+              if (onChannelTapped)
+                onChannelTapped (channel, control);
+            });
 
         hookUp (*touch, channel, i);
         _channelTouch[static_cast<std::size_t> (channel)]
@@ -178,29 +236,13 @@ MixerComponent::~MixerComponent () = default;
 void
 MixerComponent::visibilityChanged ()
 {
-  if (isVisible ())
-    startTimerHz (vuMeterRefreshHz);
-  else
-    stopTimer ();
+  runMeterTimerWhileVisible (isVisible (), *this);
 }
 
 void
 MixerComponent::timerCallback ()
 {
-  // A page too small to lay out draws one line of text and no meters at all,
-  // so there is nothing here to keep up to date. The empty rectangles below
-  // would be no-ops anyway; saying so is what makes that deliberate rather
-  // than lucky.
-  if (!_layout.fits)
-    return;
-
-  // Only the meters are asked to redraw. paint() still runs, but clipped to
-  // these rectangles -- so a refresh costs nine narrow bars rather than a
-  // whole mixer.
-  for (auto const &meter : _layout.channelMeter)
-    repaint (meter);
-  for (auto const &bar : _layout.outputMeters)
-    repaint (bar);
+  repaintMixerMeters (*this, _layout);
 }
 
 juce::Rectangle<int>
@@ -212,19 +254,7 @@ MixerComponent::panelBounds () const
 void
 MixerComponent::applyTheme ()
 {
-  // The knob's diameter is the skin's pot size, and the layout's floor for a
-  // row is that diameter -- so a skin change moves every rectangle here, not
-  // only their colours.
-  _metrics = ControlMetrics{
-    knobDiameterForFont (theme ().fontSize (FontRole::Body),
-                         theme ().potSize),
-    // One size for both the caption and the value. The bar fits these to the
-    // width of a section it shares with two others; a strip here is a column
-    // of its own with a four-character word in it, so the body size the skin
-    // asks for is what it gets.
-    theme ().fontSize (FontRole::Body),
-    theme ().fontSize (FontRole::Body),
-  };
+  _metrics = mixerControlMetrics ();
 
   resized ();
   repaint ();
@@ -290,14 +320,7 @@ MixerComponent::paint (juce::Graphics &g)
 
   if (!_layout.fits)
     {
-      // One line of text rather than targets nobody can hit. A mixer that
-      // cannot be operated is worse than a sentence saying the window is too
-      // small, because the sentence can be acted on.
-      g.setColour (toColour (theme ().textMuted));
-      g.setFont (juce::Font (
-          juce::FontOptions (theme ().fontSize (FontRole::Body))));
-      g.drawFittedText ("Not enough room for the mixer", getLocalBounds (),
-                        juce::Justification::centred, 1);
+      paintMixerHasNoRoom (g, getLocalBounds (), "the mixer");
       return;
     }
 

@@ -49,6 +49,69 @@ void paintMixerChannelControl (juce::Graphics &g, juce::Rectangle<int> bounds,
                                ControlMetrics metrics, juce::Colour colour,
                                MixerControl control, float value, bool isOn);
 
+/** The metrics both mixer pages lay themselves out with.
+ *
+ *  The knob's diameter is the skin's pot size and the layout's floor for a row
+ *  is that diameter, so a skin change moves every rectangle on either page and
+ *  not only its colours. One size for both the caption and the value: the bar
+ *  fits those to a section it shares with two others, where a mixer control
+ *  stands in a cell of its own with a four-character word in it, so the body
+ *  size the skin asks for is what it gets.
+ *
+ *  Shared because a page laid out on other metrics than its sibling is the
+ *  same control at two sizes on one screen. */
+ControlMetrics mixerControlMetrics ();
+
+/** The gestures one channel control answers, wired onto its hit area.
+ *
+ *  The accumulator is TouchControl's own, fed from the skin's
+ *  touchDragPixelsPerStep, so how far a finger travels for one step stays one
+ *  screw in the skin editor rather than becoming a second one per page.
+ *
+ *  Only the two-valued controls answer a tap. A continuous value is dragged
+ *  and never tapped -- a tap has no direction, so there is nothing for it to
+ *  say about a level. That rule is the reason this is shared: it was written
+ *  out on both pages, and a special case changed in one of them would have
+ *  left the *same channel* behaving differently in the overlay and in the MIX
+ *  tab.
+ *
+ *  The control is bound here rather than read out of the hit area's identity,
+ *  because the two pages number their identities differently -- the overlay
+ *  needs a channel in it, the strip's channel is the component's and is read
+ *  at the moment of the gesture. Which channel a gesture belongs to is
+ *  therefore the caller's to close over. */
+void wireMixerChannelTouch (TouchControl &touch, MixerControl control,
+                            std::function<void (MixerControl, int steps)> dragged,
+                            std::function<void (MixerControl)> tapped);
+
+/** The meter timer, which runs only while its page is on screen.
+ *
+ *  A timer behind a closed overlay, or behind a tab that is not the one on
+ *  show, is a repaint of something nobody is looking at on a device whose
+ *  sphere wants the machine. */
+void runMeterTimerWhileVisible (bool isVisible, juce::Timer &timer);
+
+/** Redraws a page's meters and nothing else.
+ *
+ *  paint() still runs, but clipped to these rectangles -- so a refresh costs a
+ *  few narrow bars rather than a whole mixer. A page too small to lay out
+ *  draws one line of text and no meters at all, so it has nothing to keep up
+ *  to date; saying so is what makes that deliberate rather than lucky.
+ *
+ *  Both pages read the same MixerLayout, and the strip simply leaves the
+ *  rectangles it does not use empty -- so one loop serves both rather than
+ *  each naming the meters it happens to have. */
+void repaintMixerMeters (juce::Component &page, MixerLayout const &layout);
+
+/** The one line a page draws where it cannot lay itself out.
+ *
+ *  A sentence rather than targets nobody can hit: a mixer that cannot be
+ *  operated is worse than a sentence saying the room is too small, because
+ *  the sentence can be acted on. `what` names the page -- "the mixer", "the
+ *  strip" -- and is the only part of this the two do not share. */
+void paintMixerHasNoRoom (juce::Graphics &g, juce::Rectangle<int> bounds,
+                          juce::String const &what);
+
 /** The software mixer, over the sphere.
  *
  *  Built the way the controller page is: a pure layout says where everything
