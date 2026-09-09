@@ -1037,6 +1037,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // belongs to A3 Core -- which is where MotionEngine's SpatBackendA3 already
   // sends the spatial position. loadOscEndpoints() is the one place that reads
   // which is which.
+  //
+  // The guard is older than that function and disagrees with it: without an
+  // "oscSender" block none of these three connects, while MotionEngine takes
+  // loadOscEndpoints()'s defaults and still reaches Core. So a config missing
+  // the block gives spatial motion with a dead mixer rather than a dead app,
+  // which is confusing but not what ships -- config.json has the block.
   if (userConfig.hasProperty ("oscSender"))
     {
       auto const endpoints = loadOscEndpoints (userConfig);

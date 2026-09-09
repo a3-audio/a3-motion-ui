@@ -107,9 +107,10 @@ statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding)
   out.outputBlock = juce::Rectangle<int> (out.tick.getRight () + blockGap,
                                           row.getY (), outputWidth, rowHeight);
 
-  // VuMeter's, not a second copy of it: these are the same five outputs the
-  // master column draws, and two steppings of one signal would show it on two
-  // rasters at once.
+  // VuMeter's stepping, not a second copy of it. Both blocks show signals the
+  // mixer already shows -- the four channels its strips meter and the five
+  // outputs its master column meters -- and two steppings of one signal would
+  // put it on two rasters at once.
   stepMeterBarsAcross (out.inputBlock, cell, barGap, out.inputMeters);
   stepMeterBarsAcross (out.outputBlock, cell, barGap, out.outputMeters);
 
