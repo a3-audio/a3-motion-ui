@@ -1773,7 +1773,7 @@ A3MotionUIComponent::updateOverlayButtons ()
   // decides who receives a fifth of the window on each side, and while the
   // mixer stood in front of an open menu the menu was still receiving it.
   auto const openOverlayHasAList = sideStripsHaveAList (
-      _globalSettingsOpen, _skinEditorOpen, _mixerOpen);
+      _globalSettingsOpen, _skinEditorOpen, _colourPickerOpen, _mixerOpen);
 
   // The strips sit beside whichever page is showing, so they follow its
   // panel rather than a fixed width.

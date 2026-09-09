@@ -28,15 +28,14 @@ using namespace a3;
 // the row they are on.
 TEST (OverlayStrips, TheMenuAndTheSkinEditorGetTheStrips)
 {
-  EXPECT_TRUE (sideStripsHaveAList (true, false, false));
-  EXPECT_TRUE (sideStripsHaveAList (false, true, false));
+  EXPECT_TRUE (sideStripsHaveAList (true, false, false, false));
+  EXPECT_TRUE (sideStripsHaveAList (false, true, false, false));
 }
 
-// Nothing open, nothing to walk. The colour picker is not asked about at all:
-// it has navigation of its own, so it is simply not one of the two.
+// Nothing open, nothing to walk.
 TEST (OverlayStrips, WithNoListOpenThereAreNoStrips)
 {
-  EXPECT_FALSE (sideStripsHaveAList (false, false, false));
+  EXPECT_FALSE (sideStripsHaveAList (false, false, false, false));
 }
 
 // The one this exists for. The MIX key is reachable whatever else is up, so
@@ -47,14 +46,36 @@ TEST (OverlayStrips, WithNoListOpenThereAreNoStrips)
 // which changed and was applied on release.
 TEST (OverlayStrips, TheMixerInFrontTakesTheStripsAwayFromTheMenu)
 {
-  EXPECT_FALSE (sideStripsHaveAList (true, false, true));
-  EXPECT_FALSE (sideStripsHaveAList (false, true, true));
-  EXPECT_FALSE (sideStripsHaveAList (true, true, true));
+  EXPECT_FALSE (sideStripsHaveAList (true, false, false, true));
+  EXPECT_FALSE (sideStripsHaveAList (false, true, false, true));
+  EXPECT_FALSE (sideStripsHaveAList (true, true, false, true));
 }
 
 // The mixer is opened from outside the overlay chain, so it can also be the
 // only thing on screen. No list either way.
 TEST (OverlayStrips, TheMixerAloneHasNoListEither)
 {
-  EXPECT_FALSE (sideStripsHaveAList (false, false, true));
+  EXPECT_FALSE (sideStripsHaveAList (false, false, false, true));
+}
+
+// The same fault one level down, and the reason this grew a fourth flag.
+// openColourPicker() hides the skin editor but leaves _skinEditorOpen true --
+// it is still the page underneath -- so a predicate that did not ask about the
+// picker went on answering for the editor. The strips then came to the front
+// over the picker, sized to the hidden editor's panel, and a drag in the outer
+// fifths scrolled a list nobody could see instead of moving hue.
+TEST (OverlayStrips, TheColourPickerInFrontTakesTheStripsFromTheSkinEditor)
+{
+  EXPECT_FALSE (sideStripsHaveAList (true, true, true, false));
+  EXPECT_FALSE (sideStripsHaveAList (false, true, true, false));
+  EXPECT_FALSE (sideStripsHaveAList (true, false, true, false));
+}
+
+// And with both of the two in front, the mixer is the innermost room --
+// toggleGlobalSettings() closes it first for the same reason. Neither of them
+// is a list, so the answer is the same whichever is nearer the eye.
+TEST (OverlayStrips, TheMixerOverTheColourPickerIsStillNoList)
+{
+  EXPECT_FALSE (sideStripsHaveAList (false, true, true, true));
+  EXPECT_FALSE (sideStripsHaveAList (false, false, true, true));
 }

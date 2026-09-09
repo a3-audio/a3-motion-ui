@@ -51,16 +51,32 @@ namespace a3
  *  applied it on release -- the skin, the pattern folder or an OSC address --
  *  with no cue but a mixer control that did not move.
  *
- *  Asked as a question rather than as a list of exceptions: written as
- *  `anyOpen && !colourPicker && !mixer` the mixer would have been the second
- *  negation in a growing chain, and the third is the one that gets
- *  forgotten. The colour picker has navigation of its own and so is simply
- *  not one of the two overlays that do have a list. */
+ *  The colour picker sits in the same place one level down, and cost the
+ *  same thing. openColourPicker() hides the skin editor but leaves
+ *  `_skinEditorOpen` true -- it is still the page underneath, and closing the
+ *  picker returns to it -- so a predicate that did not ask about the picker
+ *  went on answering for the editor, and the strips came to the front over
+ *  the picker sized to a panel nobody could see. A drag in the outer fifths
+ *  scrolled that hidden list instead of moving hue.
+ *
+ *  So the flags are read as a stack rather than as one expression: the two
+ *  that can stand in front are the mixer and the colour picker, in the order
+ *  toggleGlobalSettings() closes them, and neither of them is a list -- the
+ *  mixer is a grid touched control by control, the picker a field and a bar
+ *  with navigation of its own. Only behind those two is the question worth
+ *  asking, and there the answer is the menu or the skin editor.
+ *
+ *  Written this way rather than as `anyOpen && !picker && !mixer` because a
+ *  chain of negations is a chain somebody adds a fourth link to and forgets;
+ *  this one says which overlay is being answered for. */
 constexpr bool
 sideStripsHaveAList (bool globalSettingsOpen, bool skinEditorOpen,
-                     bool mixerOpen)
+                     bool colourPickerOpen, bool mixerOpen)
 {
-  return !mixerOpen && (globalSettingsOpen || skinEditorOpen);
+  if (mixerOpen || colourPickerOpen)
+    return false;
+
+  return globalSettingsOpen || skinEditorOpen;
 }
 
 /**
