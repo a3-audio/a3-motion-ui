@@ -36,7 +36,9 @@ namespace a3
  *  two button faces are two faces a hand sees side by side. The mixer's PFL,
  *  FX and filter MODE keys had grown a private copy of this — the same two
  *  rounded rectangles with the same three alphas written out again — and a
- *  brighter skin would have retuned one of them.
+ *  brighter skin would have retuned one of them. The word on the face went
+ *  the same way and took longer to notice: it is `Colours::barText` now, the
+ *  one that ClipSettingsComponent and BarKnob also read.
  *
  *  Only an active button carries colour, and that is the state talking rather
  *  than the button. `isSelected` says the colour is the channel's: a button

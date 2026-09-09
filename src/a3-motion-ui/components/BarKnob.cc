@@ -37,26 +37,18 @@ constexpr float highlightWash = 0.18f;
 constexpr float trackWash = 0.18f;
 
 /** Selected, the control wears its channel's colour; otherwise the bar's own
- *  muted grey. The bar asked its member for this -- here it is the argument. */
+ *  muted grey. The bar asked its member for this -- here it is the argument.
+ *
+ *  The one of these that is genuinely its own rule: a knob's arc and pointer
+ *  do take the channel's colour when its section is picked. Everything that
+ *  is *read* rather than drawn -- this knob's caption included -- is grey
+ *  either way and goes through Colours::barText. */
 juce::Colour
 controlColour (juce::Colour channelColour, bool isSelected)
 {
   return isSelected ? channelColour : toColour (theme ().textMuted);
 }
 
-juce::Colour
-captionColour (bool isSelected)
-{
-  // Full opacity rather than an alpha rung: a selected caption has always
-  // meant no dimming at all, which the alpha-less overload already says. This
-  // used to be `isSelected ? 1.f : 0.55f`; 1.f fits no rung, and full opacity
-  // is the absence of an emphasis decision rather than one of its rungs, so
-  // it deliberately gets no role of its own. 0.55 is 0.05 from alphaInactive
-  // (0.6), inside the snapping tolerance. See
-  // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
-  return isSelected ? toColour (theme ().textMuted)
-                    : toColour (theme ().textMuted, theme ().alphaInactive);
-}
 }
 
 void
@@ -180,7 +172,7 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
                                      static_cast<float> (labelArea.getHeight ())
                                          * 0.85f),
                          juce::Font::plain));
-  g.setColour (captionColour (isSelected));
+  g.setColour (Colours::barText (isSelected));
   g.drawFittedText (label, labelArea,
                     juce::Justification::centred, 1);
 }

@@ -515,14 +515,6 @@ private:
   void paintSectionLock (juce::Graphics &g, int sectionIndex);
 
 
-  /** What a control is drawn in — its arc, its icon, its value. Takes the
-   *  channel's colour in the selected section so that the section the
-   *  encoders act on is the one that carries the colour. */
-  juce::Colour controlColour (bool isSelected) const;
-  /** The caption naming a control: quieter than the control itself, and
-   *  quieter again outside the selected section. */
-  juce::Colour captionColour (bool isSelected) const;
-
   /** Largest size for `role` at which `text` still fits inside `area`. */
   float fontFor (FontRole role, juce::Rectangle<int> area,
                  juce::String const &text) const;

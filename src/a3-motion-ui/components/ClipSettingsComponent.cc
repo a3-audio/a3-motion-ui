@@ -452,33 +452,6 @@ ClipSettingsComponent::resized ()
   _tapTouch->setBounds (_layout.tapButton);
 }
 
-juce::Colour
-ClipSettingsComponent::controlColour (bool isSelected) const
-{
-  // Grey, always. A value used to be written in the channel's colour once its
-  // section was picked, which put a red or a white word next to a grey one
-  // and made the difference between them look like it meant something about
-  // the setting rather than about which section a finger last touched. What
-  // says whose section this is, is the ground behind it -- the colour belongs
-  // to the highlight, not to the reading. Full opacity rather than an alpha
-  // rung: "selected" has always meant no dimming at all, which the alpha-less
-  // overload already says. This used to be `isSelected ? 1.f : theme
-  // ().alphaInactive` -- 1.f fits no rung, and full opacity is the absence of
-  // an emphasis decision rather than one of its rungs, so it deliberately
-  // gets no role of its own. See
-  // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
-  return isSelected ? toColour (theme ().textMuted)
-                    : toColour (theme ().textMuted, theme ().alphaInactive);
-}
-
-juce::Colour
-ClipSettingsComponent::captionColour (bool isSelected) const
-{
-  // Same restructuring as controlColour() above, and the same open question.
-  return isSelected ? toColour (theme ().textMuted)
-                    : toColour (theme ().textMuted, theme ().alphaInactive);
-}
-
 void
 ClipSettingsComponent::setTarget (int channel, int slot,
                                   juce::Colour channelColour)
@@ -1675,7 +1648,7 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
                   static_cast<float> (_layout.trajectoryName.getHeight ())
                       * 0.85f),
       juce::Font::plain));
-  g.setColour (controlColour (isSelected && _trajectorySubIndex == 0));
+  g.setColour (Colours::barText (isSelected && _trajectorySubIndex == 0));
   g.drawFittedText (_trajectoryName, _layout.trajectoryName,
                     juce::Justification::centred, 1);
 }
@@ -2103,7 +2076,7 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   auto labelArea
       = content.removeFromBottom (textRowHeight (content, metrics.captionSize));
 
-  auto const valueColour = controlColour (isSelected);
+  auto const valueColour = Colours::barText (isSelected);
   g.setFont (juce::Font (juce::jmin (metrics.valueSize,
                                      static_cast<float> (content.getHeight ())
                                          * 0.85f),
@@ -2119,7 +2092,7 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
                                      static_cast<float> (labelArea.getHeight ())
                                          * 0.85f),
                          juce::Font::plain));
-  g.setColour (captionColour (isSelected));
+  g.setColour (Colours::barText (isSelected));
   g.drawFittedText (label, labelArea,
                     juce::Justification::centred, 1);
 }

@@ -34,17 +34,6 @@ constexpr float cardWash = 0.08f;
 constexpr float highlightWash = 0.18f;
 constexpr float trackWash = 0.18f;
 
-/** What is written on the face. Grey either way: what says whose button this
- *  is, is the ground behind it, and a word in the channel's colour beside one
- *  in grey reads as a difference in the setting rather than in which section
- *  a finger last touched. Selected means no dimming at all, which the
- *  alpha-less overload already says. */
-juce::Colour
-faceTextColour (bool isSelected)
-{
-  return isSelected ? toColour (theme ().textMuted)
-                    : toColour (theme ().textMuted, theme ().alphaInactive);
-}
 }
 
 void
@@ -86,7 +75,7 @@ paintBarButton (juce::Graphics &g, juce::Rectangle<int> bounds,
           juce::jmin (metrics.captionSize,
                       static_cast<float> (captionArea.getHeight ()) * 0.95f),
           juce::Font::plain));
-      g.setColour (faceTextColour (isSelected));
+      g.setColour (Colours::barText (isSelected));
       g.drawFittedText (caption, captionArea, juce::Justification::centred, 1);
     }
 
@@ -96,7 +85,7 @@ paintBarButton (juce::Graphics &g, juce::Rectangle<int> bounds,
   g.setFont (juce::Font (valueSize, juce::Font::plain));
   // A value that has a colour of its own — the clock's mode — writes itself
   // in it. Everything else takes the bar's.
-  g.setColour (valueColour.isTransparent () ? faceTextColour (isSelected)
+  g.setColour (valueColour.isTransparent () ? Colours::barText (isSelected)
                                             : valueColour);
 
   g.drawFittedText (label, box, juce::Justification::centred, 1);
