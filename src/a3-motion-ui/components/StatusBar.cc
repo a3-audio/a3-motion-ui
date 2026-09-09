@@ -181,6 +181,14 @@ StatusBar::resized ()
   _keyboardIconArea = bounds.removeFromRight (
       static_cast<int> (bounds.getHeight () * 1.5f));
 
+  // Left of the keyboard icon and the same size, so the two read as a pair of
+  // keys at the end of the bar rather than as two unrelated marks. What it
+  // costs is width off the band the two labels share; the readout absorbs
+  // most of it, being right-aligned and growing leftwards into the gap, and
+  // it is the one thing here that can give width up — text that is read
+  // rather than a target that is hit.
+  _mixIconArea = bounds.removeFromRight (_keyboardIconArea.getWidth ());
+
   // Clock mode and tempo are one reading in one label — "EXT BPM 123" — so
   // there is one space between them and one colour over both. Two labels
   // meant a gap whose width was a guess, and a colour that had to be kept in
@@ -350,11 +358,56 @@ StatusBar::setKeyboardState (KeyboardState state)
 }
 
 void
+StatusBar::setMixOpen (bool open)
+{
+  if (_mixOpen == open)
+    return;
+
+  _mixOpen = open;
+  repaint (_mixIconArea);
+}
+
+void
 StatusBar::mouseUp (juce::MouseEvent const &event)
 {
+  if (_mixIconArea.contains (event.getPosition ()) && onMixIconTapped)
+    {
+      onMixIconTapped ();
+      return;
+    }
+
   if (_keyboardIconArea.contains (event.getPosition ())
       && onKeyboardIconTapped)
     onKeyboardIconTapped ();
+}
+
+void
+StatusBar::paintMixKey (juce::Graphics &g)
+{
+  if (_mixIconArea.isEmpty ())
+    return;
+
+  // The same rule the strip's function keys are drawn by: the colour says
+  // which key this is and the ground says what it is doing. Open, the accent
+  // is washed into a face behind the word the way MENU wears the menu it is
+  // inside of; closed, there is no face at all — this bar is not a card, and
+  // a resting box here would put a permanent frame on a strip that has none.
+  //
+  // Muted while closed rather than tinted, because the key beside it already
+  // says state that way: the keyboard icon is muted when it is merely
+  // available and accented when it is up, and two neighbouring keys reading
+  // by two rules is two rules to learn.
+  if (_mixOpen)
+    {
+      g.setColour (toColour (theme ().accent, theme ().alphaFillEmphasis));
+      g.fillRoundedRectangle (_mixIconArea.toFloat (),
+                              theme ().radiusControl);
+    }
+
+  g.setFont (juce::Font (juce::FontOptions (headerFontSize ())));
+  g.setColour (_mixOpen ? toColour (theme ().accent)
+                        : toColour (theme ().textMuted));
+  g.drawFittedText ("MIX", _mixIconArea, juce::Justification::centred, 1);
 }
 
 void
@@ -364,6 +417,8 @@ StatusBar::paint (juce::Graphics &g)
   // skin can reach — the band under the clock stayed the same grey in every
   // skin. It is painted here instead, from the role that describes it.
   g.fillAll (toColour (theme ().surfaceRaised));
+
+  paintMixKey (g);
 
   // A keyboard, drawn rather than typed: three rows of keys and a space bar,
   // small enough to read as an icon at this size.

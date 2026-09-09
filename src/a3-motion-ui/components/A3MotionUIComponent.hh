@@ -48,6 +48,7 @@
 #include <a3-motion-ui/components/LibraryList.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
+#include <a3-motion-ui/components/MixerComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
@@ -451,6 +452,22 @@ private:
   std::unique_ptr<GlobalSettingsComponent> _globalSettings;
   std::unique_ptr<OverlayButtons> _overlayButtons;
   std::unique_ptr<OverlaySideStrips> _overlayStrips;
+
+  /** The software mixer, over the sphere, reached from the MIX key in the
+   *  status bar rather than from a tab in the settings bar: it has nothing to
+   *  do with the clip that bar describes. */
+  std::unique_ptr<MixerComponent> _mixer;
+  /** The values it shows, and the one place that knows a value has been
+   *  touched and therefore has to go out on the wire. Held by this component
+   *  rather than by the overlay, so what Core is told does not depend on
+   *  whether anybody is looking at it. */
+  MixerState _mixerState;
+  bool _mixerOpen = false;
+  void toggleMixer ();
+  /** Open or close it and tell everything that shows the state -- the key in
+   *  the status bar and the overlay's own buttons. One place, because Back,
+   *  Close and the key itself all reach it. */
+  void showMixer (bool open);
   bool  _globalSettingsOpen        = false;
   bool  _globalSettingsValueFieldSelected = false;
   // 0 = Clockmode, 1 = Pot Size, 2 = Font Size

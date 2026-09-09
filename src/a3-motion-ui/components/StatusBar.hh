@@ -83,6 +83,14 @@ public:
 
   void setKeyboardState (KeyboardState state);
 
+  /** Tapped when the MIX key left of the keyboard icon is touched. The bar
+   *  owns no mixer — it only says the key was hit. */
+  std::function<void ()> onMixIconTapped;
+
+  /** Whether the mixer overlay is open, so the key can wear it. Every other
+   *  key on this device that stands for a state wears it. */
+  void setMixOpen (bool open);
+
   /** How far the running take has got, as a thin line under the tick
    *  indicator, in the recording channel's own colour. A negative fraction
    *  means no take is running and nothing is drawn.
@@ -160,8 +168,15 @@ private:
    *  how the next reader loses both. */
   void paintPlayheads (juce::Graphics &g, juce::Rectangle<float> tick);
 
+  /** The MIX key. Its own function rather than four lines in paint(), which
+   *  already carries the keyboard icon's reasoning — two keys' worth of
+   *  drawing in one body is how the next reader loses both. */
+  void paintMixKey (juce::Graphics &g);
+
   juce::Rectangle<int> _keyboardIconArea;
   KeyboardState _keyboardState = KeyboardState::Unavailable;
+  juce::Rectangle<int> _mixIconArea;
+  bool _mixOpen = false;
   TickIndicator _tickIndicator;
   float _recordingProgress = -1.f;
   juce::Colour _recordingColour;

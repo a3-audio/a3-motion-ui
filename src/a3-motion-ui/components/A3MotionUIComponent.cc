@@ -240,6 +240,80 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   _motionComponent->addChildComponent (*_overlayStrips);
 
+  _mixer = std::make_unique<MixerComponent> (_mixerState);
+  _mixer->setAlwaysOnTop (true);
+  _motionComponent->addChildComponent (*_mixer);
+
+  // The same step the encoders and the bar's channel grid take, so a finger
+  // moves a mixer value at the rate it moves every other value on this
+  // device.
+  auto const mixerStep = [] (int steps) { return steps * 0.02f; };
+
+  _mixer->onChannelDragged
+      = [this, mixerStep] (int channel, MixerControl control, int steps) {
+          // A two-valued control keeps the drag's direction -- up is on, down
+          // is off -- because a drag has one where a tap does not. The same
+          // split tapTogglesValue makes in the bar.
+          auto const next
+              = mixerControlIsAToggle (control)
+                    ? (steps > 0 ? 1.f : 0.f)
+                    : _mixerState.channelValue (channel, control)
+                          + mixerStep (steps);
+          _mixerState.setChannelFromTouch (channel, control, next);
+          _mixer->repaint ();
+        };
+  _mixer->onChannelTapped = [this] (int channel, MixerControl control) {
+    _mixerState.setChannelFromTouch (
+        channel, control, _mixerState.channelToggle (channel, control) ? 0.f
+                                                                      : 1.f);
+    _mixer->repaint ();
+  };
+  _mixer->onMasterDragged = [this, mixerStep] (MasterControl control,
+                                               int steps) {
+    _mixerState.setMasterFromTouch (
+        control, _mixerState.masterValue (control) + mixerStep (steps));
+    _mixer->repaint ();
+  };
+  _mixer->onFilterDragged = [this, mixerStep] (FilterControl control,
+                                               int steps) {
+    auto const next = control == FilterControl::Mode
+                          ? (steps > 0 ? 1.f : 0.f)
+                          : _mixerState.filterValue (control)
+                                + mixerStep (steps);
+    _mixerState.setFilterFromTouch (control, next);
+    _mixer->repaint ();
+  };
+  _mixer->onFilterTapped = [this] (FilterControl control) {
+    _mixerState.setFilterFromTouch (
+        control, _mixerState.filterIsHighPass () ? 0.f : 1.f);
+    _mixer->repaint ();
+  };
+
+  // Where a touched value goes. The state holds values and knows nothing
+  // about a protocol; the addresses are config, and the tables are indexed by
+  // the ui's own control order -- controlSlot() is the one function that says
+  // where a control sits in it, and it is the same one MixerState indexes
+  // with.
+  _mixerState.channelAddress = [this] (int channel, MixerControl control) {
+    return withChannel (
+        _oscAddresses.mixerChannel[static_cast<std::size_t> (
+            controlSlot (control))],
+        channel);
+  };
+  _mixerState.masterAddress = [this] (MasterControl control) {
+    return _oscAddresses
+        .mixerMaster[static_cast<std::size_t> (controlSlot (control))];
+  };
+  _mixerState.filterAddress = [this] (FilterControl control) {
+    return _oscAddresses
+        .mixerFilter[static_cast<std::size_t> (controlSlot (control))];
+  };
+  _mixerState.onSend = [this] (juce::String const &address, float value) {
+    auto message = juce::OSCMessage (address);
+    message.addFloat32 (value);
+    _oscSender.send (message);
+  };
+
   _globalSettings = std::make_unique<GlobalSettingsComponent> ();
   _globalSettings->setAlwaysOnTop (true);
 
@@ -1051,6 +1125,7 @@ A3MotionUIComponent::createMainUI ()
 
   _statusBar = std::make_unique<StatusBar> (_valueBPM);
   _statusBar->onKeyboardIconTapped = [this] { toggleKeyboard (); };
+  _statusBar->onMixIconTapped = [this] { toggleMixer (); };
   addChildComponent (*_statusBar);
   _statusBar->setVisible (true);
   _statusBarCallbackHandle
@@ -1313,6 +1388,8 @@ A3MotionUIComponent::resized ()
 
   if (_globalSettings)
     _globalSettings->setBounds (_motionComponent->getLocalBounds ());
+  if (_mixer)
+    _mixer->setBounds (_motionComponent->getLocalBounds ());
   if (_skinEditor)
     _skinEditor->setBounds (_motionComponent->getLocalBounds ());
   if (_colourPicker)
@@ -1608,6 +1685,8 @@ A3MotionUIComponent::closeAllOverlays ()
     closeSkinEditor ();
   if (_globalSettingsOpen)
     closeGlobalSettings ();
+  if (_mixerOpen)
+    showMixer (false);
 
   updateOverlayButtons ();
 }
@@ -1618,16 +1697,25 @@ A3MotionUIComponent::updateOverlayButtons ()
   if (!_overlayButtons || !_motionComponent)
     return;
 
-  auto const anyOpen
-      = _globalSettingsOpen || _skinEditorOpen || _colourPickerOpen;
+  auto const anyOpen = _globalSettingsOpen || _skinEditorOpen
+                       || _colourPickerOpen || _mixerOpen;
   _overlayButtons->setVisible (anyOpen);
+
+  // The strips walk a list and change the highlighted row's value. An overlay
+  // without a list has nothing for them to do — the colour picker has its own
+  // navigation, the mixer is a grid every control of which is touched
+  // directly. Asked as a question rather than as a list of exceptions: it
+  // read `anyOpen && !_colourPickerOpen`, the mixer would have been the
+  // second exception in a growing chain of negations, and the third is the
+  // one that gets forgotten.
+  auto const openOverlayHasAList = _globalSettingsOpen || _skinEditorOpen;
 
   // The strips sit beside whichever page is showing, so they follow its
   // panel rather than a fixed width.
   if (_overlayStrips)
     {
-      _overlayStrips->setVisible (anyOpen && !_colourPickerOpen);
-      if (anyOpen && !_colourPickerOpen)
+      _overlayStrips->setVisible (openOverlayHasAList);
+      if (openOverlayHasAList)
         {
           _overlayStrips->setBounds (_motionComponent->getLocalBounds ());
           _overlayStrips->setPanel (_skinEditorOpen
@@ -1642,7 +1730,7 @@ A3MotionUIComponent::updateOverlayButtons ()
 
   auto const height = OverlayButtons::preferredHeight ();
   auto const width = height * 2 + juce::jmax (2, height / 8);
-  auto const margin = juce::jmax (4, height / 4);
+  auto const margin = OverlayButtons::preferredMargin ();
 
   auto const area = _motionComponent->getLocalBounds ();
   _overlayButtons->setBounds (area.getRight () - width - margin,
@@ -1655,8 +1743,18 @@ A3MotionUIComponent::toggleGlobalSettings ()
 {
   updateControlReadout ("-- MENU");
 
-  // One level at a time: a name being typed, then the editor, then the menu
-  // itself.
+  // One level at a time: the mixer, then a name being typed, then the editor,
+  // then the menu itself. The mixer is first because it is the only one of
+  // them that is opened from outside this chain — the MIX key in the status
+  // bar is reachable whatever else is up — so it is the innermost room
+  // whenever it is open. Back and Close do the same thing to it, which is no
+  // fault: it has no levels, and two ways out of one room is not one.
+  if (_mixerOpen)
+    {
+      showMixer (false);
+      return;
+    }
+
   if (_colourPickerOpen)
     closeColourPicker ();
   else if (_skinEditorOpen && _skinEditor->isNaming ())
@@ -1667,6 +1765,38 @@ A3MotionUIComponent::toggleGlobalSettings ()
     closeGlobalSettings ();
   else
     openGlobalSettings ();
+}
+
+void
+A3MotionUIComponent::toggleMixer ()
+{
+  updateControlReadout (_mixerOpen ? "-- MIX OFF" : "-- MIX ON");
+  showMixer (!_mixerOpen);
+}
+
+void
+A3MotionUIComponent::showMixer (bool open)
+{
+  if (!_mixer || !_motionComponent)
+    return;
+
+  _mixerOpen = open;
+
+  // Over the sphere, on the bounds MotionComponent actually has: the settings
+  // bar is carved out of those, so an overlay taking them covers the sphere
+  // and nothing else.
+  _mixer->setBounds (_motionComponent->getLocalBounds ());
+  _mixer->setVisible (open);
+  if (open)
+    _mixer->toFront (false);
+
+  // Guarded because the overlay is built with the rest of the sphere's
+  // furniture, well before the status bar exists — and closeAllOverlays()
+  // is reachable from anywhere.
+  if (_statusBar)
+    _statusBar->setMixOpen (open);
+
+  updateOverlayButtons ();
 }
 
 void
