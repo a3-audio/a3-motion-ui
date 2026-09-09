@@ -254,8 +254,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   // Both views of the same seven controls, so both land in one pair of
   // handlers rather than in two that agree today. Whichever was touched, both
-  // are repainted: the tab and the overlay show the same value, and only one
-  // of them is on screen at a time anyway.
+  // are repainted, and that is load-bearing rather than belt and braces: the
+  // overlay takes MotionComponent's bounds and the settings bar is carved out
+  // of the window before those are computed, so the bar -- MIX tab and all --
+  // stays visible and touchable underneath it. Turn a channel's gain in the
+  // overlay and the strip behind it is showing the same value.
   auto const repaintMixers = [this] {
     _mixer->repaint ();
     _mixerStrip->repaint ();

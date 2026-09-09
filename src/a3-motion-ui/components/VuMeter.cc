@@ -70,9 +70,8 @@ constexpr float outputBarGapOfCell = 1.f / 8.f;
  *
  *  A fifth, which is what BarFader gives its own caption -- so the word under
  *  the meters is the same size as the word under every control beside them.
- *  Never less than half a knob, for the same reason the fader's is not: a
- *  caption that shrank with the block would be unreadable before the block
- *  was. */
+ *  Never less than half a knob either; that floor and why it is half a knob
+ *  are stated in BarFader.cc's faderGeometry(), where it is first used. */
 constexpr float outputCaptionOfBlock = 1.f / 5.f;
 
 /** Where the meter stops being loud and starts being a fault. Full scale: a

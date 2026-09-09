@@ -55,6 +55,14 @@ faderGeometry (juce::Rectangle<int> bounds, ControlMetrics metrics,
   if (bounds.isEmpty ())
     return {};
 
+  // Half a knob is the floor under both shares that follow, and it is the
+  // same floor for both reasons: a caption that shrank with the cell would be
+  // unreadable before the cell was too small to draw, and a track that shrank
+  // with it would be too narrow to land on first. Pot Size is the nearest
+  // thing this device has to a statement of how big a thing has to be to be
+  // read and aimed at, so half of it is what a part of a control gets when
+  // its share of the cell comes out smaller. VuMeter.cc floors its output
+  // block's caption the same way, for the first of those two reasons.
   auto area = bounds;
   auto const caption = area.removeFromBottom (juce::jmax (
       metrics.knobDiam / 2,

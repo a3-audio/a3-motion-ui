@@ -160,8 +160,16 @@ constexpr std::array<BarPage, numBarPages> barPageOrder{
  *  page, and because nothing in C++ warns about a page missing from an `if`
  *  chain. There were 23 such comparisons across three files. A `switch` with
  *  no `default:` is what makes a forgotten page loud instead: `-Wswitch-enum`
- *  (on for this target, see CMakeLists.txt) names the case a new enumerator
- *  is missing from. It is a warning, not a compile error -- and it only
+ *  names the case a new enumerator is missing from. Nothing in this project's
+ *  own CMakeLists asks for it: it comes from JUCE's
+ *  `juce::juce_recommended_warning_flags`, linked PUBLIC by the
+ *  `juce_dependencies` target in `src/a3-motion-engine/CMakeLists.txt` and
+ *  inherited from there by every target here (JUCE 9.0.1 defines it in
+ *  `lib/cmake/JUCE-9.0.1/JUCEHelperTargets.cmake`; it is visible in
+ *  `build/.../flags.make`). Said outright because grepping the repository for
+ *  the flag finds nothing, and a reader who concludes it is not on concludes
+ *  this whole guarantee is fictional. It is a warning, not a compile error --
+ *  and it only
  *  knows about the enum's own cases, which is what `barPageOrder` above is
  *  for: a page absent from *that* list fails
  *  `BarPages.EveryPageAppearsInTheOrderExactlyOnce` instead. */
