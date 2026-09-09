@@ -69,8 +69,15 @@ struct StatusBarLayout
    *  is always there and its meters ride A3MotionUIComponent's own timer
    *  (`uiTimerHz`, twenty a second), so a refresh that took the whole bar
    *  would redraw the beat display and two labels twenty times a second for
-   *  the life of the device. Each block covers its own bars and nothing else,
-   *  which is what lets `repaint(block)` be both correct and cheap. */
+   *  the life of the device.
+   *
+   *  A block is its bars' cells, which is their bounding box plus the gap
+   *  trailing the last one — two pixels wider at the size this bar ships at,
+   *  and empty ground either way. It used to say "exactly its own bars'
+   *  bounding box", which was a measurement and was wrong by that gap;
+   *  EachBlockCoversItsOwnBarsAndNothingElse measures it now rather than
+   *  taking either sentence's word for it. What matters for `repaint(block)`
+   *  is not the two pixels but that nothing else is inside them. */
   juce::Rectangle<int> inputBlock;
   juce::Rectangle<int> outputBlock;
 };

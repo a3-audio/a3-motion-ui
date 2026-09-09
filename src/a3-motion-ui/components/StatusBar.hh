@@ -141,8 +141,17 @@ public:
    *  a clock here would be a clock that never stops.
    *
    *  Why they exist at all, given the mixer already draws these: the mixer
-   *  has to be opened. These say that something is arriving while the screen
-   *  is on CLIP, PADS or FILES, which is where it is for most of a set.
+   *  has to be opened. These carry the levels onto CLIP, PADS and FILES,
+   *  which is where the screen is for most of a set.
+   *
+   *  **What they show is the last level that arrived, not that one is
+   *  arriving now.** Nothing here or in VuLevels expires a value: if the
+   *  sender stops — the machine, the analyzer, the network — the held numbers
+   *  stand and the bars stay where they were rather than falling to zero. So
+   *  a lit bar means "this was the level", and silence and a dead sender look
+   *  alike. Giving VuLevels a staleness cutoff would fix that for these nine
+   *  and for the mixer's twelve at once, and is the maintainer's call rather
+   *  than something to slip in behind a comment.
    *
    *  The repaint is clipped to the two blocks, and only when a level has
    *  actually moved — see StatusBarLayout::inputBlock. */

@@ -263,8 +263,9 @@ TEST (MixerLayout, TheMeterRunsTheWholeHeightOfItsStrip)
 }
 
 // And it stands to the left of every one of them. A meter in its own column
-// takes no room out of any control's cell, which is what lets the seven rows
-// stay the one height they have been since the fader went.
+// takes no room out of any control's cell, which is what lets the strip's six
+// rows -- five knobs, then PFL and FX sharing the sixth -- stay the one height
+// they have been since the fader went.
 TEST (MixerLayout, TheMeterStandsLeftOfEveryControlOfItsStrip)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);

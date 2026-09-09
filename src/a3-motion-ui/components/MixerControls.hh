@@ -67,7 +67,7 @@ constexpr std::array<MixerControl, numMixerControls> mixerControlOrder{
   MixerControl::Fx,
 };
 
-/** Whether it is a key rather than something turned or thrown.
+/** Whether it is a key rather than something turned.
  *
  *  The toggles come last in the order, which is what lets a layout take them
  *  off the end without knowing which they are — a test insists on it. */

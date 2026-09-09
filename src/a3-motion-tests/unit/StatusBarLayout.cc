@@ -157,6 +157,19 @@ TEST (StatusBarLayout, EachBlockCoversItsOwnBarsAndNothingElse)
 
   EXPECT_TRUE (l.inputBlock.getIntersection (l.tick).isEmpty ());
   EXPECT_TRUE (l.outputBlock.getIntersection (l.tick).isEmpty ());
+
+  // And by how much a block is bigger than its bars, which the header used to
+  // claim was nothing. A block is whole cells, so it carries the gap trailing
+  // its last bar -- the difference is one gap, not zero and not a bar's worth.
+  auto const step = l.inputMeters[1].getX () - l.inputMeters[0].getX ();
+  auto const gap = step - l.inputMeters[0].getWidth ();
+  ASSERT_GT (gap, 0);
+
+  EXPECT_EQ (l.inputBlock.getRight () - l.inputMeters.back ().getRight (), gap)
+      << "the input block is not its bars' box plus exactly one gap";
+  EXPECT_EQ (l.outputBlock.getRight () - l.outputMeters.back ().getRight (),
+             gap)
+      << "the output block is not its bars' box plus exactly one gap";
 }
 
 // Bars side by side, evenly stepped and never touching: two meters that met
