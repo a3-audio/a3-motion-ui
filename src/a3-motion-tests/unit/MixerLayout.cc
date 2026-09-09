@@ -20,6 +20,7 @@
 
 #include <gtest/gtest.h>
 
+#include <a3-motion-ui/components/BarFader.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/MixerLayout.hh>
 
@@ -107,6 +108,42 @@ TEST (MixerLayout, EveryControlIsAtLeastAFingertip)
         EXPECT_GE (control.getWidth (), fingertipSize);
         EXPECT_GE (control.getHeight (), fingertipSize);
       }
+}
+
+// The channel volume is thrown, and a throw that cannot move is not one.
+// Asserted on the fader's own geometry rather than on the cell's proportions:
+// what matters is not how the cell is shaped but whether the control moves.
+TEST (MixerLayout, TheVolumeCellGivesTheFaderARealThrow)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  auto const slot
+      = static_cast<std::size_t> (controlSlot (MixerControl::Volume));
+
+  for (auto const &strip : layout.controls)
+    {
+      auto const bottom = faderGeometry (strip[slot], metrics, 0.f).cap;
+      auto const top = faderGeometry (strip[slot], metrics, 1.f).cap;
+      EXPECT_GT (bottom.getY (), top.getY ());
+    }
+}
+
+// And the room for it is in the layout, where a reader can see the intent,
+// rather than only in the fader that happens to fit.
+TEST (MixerLayout, TheVolumeRowIsTallerThanTheRowsAroundIt)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  auto const slot
+      = static_cast<std::size_t> (controlSlot (MixerControl::Volume));
+  ASSERT_GT (slot, std::size_t{ 0 });
+  ASSERT_LT (slot + 1, static_cast<std::size_t> (numMixerControls));
+
+  auto const &strip = layout.controls[0];
+  EXPECT_GT (strip[slot].getHeight (), strip[slot - 1].getHeight ());
+  EXPECT_GT (strip[slot].getHeight (), strip[slot + 1].getHeight ());
 }
 
 // Narrow enough and the strips break into two by two rather than four thin

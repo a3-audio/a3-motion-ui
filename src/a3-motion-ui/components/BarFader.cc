@@ -68,6 +68,34 @@ faderGeometry (juce::Rectangle<int> bounds, ControlMetrics metrics,
            caption };
 }
 
+int
+faderHeightForThrow (int width, int maxHeight, ControlMetrics metrics)
+{
+  if (width <= 0)
+    return 0;
+
+  // Both the travel and the cap grow monotonically with the height -- one
+  // extra pixel of cell adds at most one to the caption -- so the first
+  // height that satisfies the test is also the smallest, and the walk can
+  // stop there.
+  for (auto height = 1; height <= maxHeight; ++height)
+    {
+      auto const bounds = juce::Rectangle<int> (width, height);
+      auto const bottom = faderGeometry (bounds, metrics, 0.f).cap;
+      auto const top = faderGeometry (bounds, metrics, 1.f).cap;
+
+      // The cap has to exist before its travel means anything. A cell too
+      // short to hold one at all comes back with a cap of zero height, and
+      // "travelled at least as far as it is tall" is then true of standing
+      // still -- which is how a one-pixel row first claimed to be a fader.
+      if (!bottom.isEmpty ()
+          && bottom.getY () - top.getY () >= bottom.getHeight ())
+        return height;
+    }
+
+  return 0;
+}
+
 void
 paintBarFader (juce::Graphics &g, juce::Rectangle<int> bounds,
                ControlMetrics metrics, juce::Colour channelColour,

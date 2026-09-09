@@ -77,6 +77,29 @@ mixerControlIsAToggle (MixerControl control)
   return control == MixerControl::Pfl || control == MixerControl::Fx;
 }
 
+/** Whether it is thrown rather than turned.
+ *
+ *  The channel volume, and nothing else. On every mixer a hand has ever been
+ *  on, the channel level is a vertical fader and the summing level is a knob:
+ *  the fader is what a channel is brought *in* on, and a throw is the one
+ *  gesture every booth already has. The master is set at the start of the
+ *  night and left alone — it is not a performance control, and a page whose
+ *  most fader-looking thing was the master would teach the wrong reach in the
+ *  one place muscle memory is strongest. So there is deliberately no
+ *  masterControlIsAFader(): nothing in the summing section is one.
+ *
+ *  **A rule, not a measurement.** The overlay stands four strips upright and
+ *  the bar's MIX tab lays one across its width, so the two see very different
+ *  cells; deciding from a cell's proportions would give a hand a control that
+ *  changes shape between pages. A layout that cannot give the fader a throw
+ *  says `fits = false`, the same as one whose controls come out under a
+ *  fingertip — it does not quietly draw a pot instead. */
+constexpr bool
+mixerControlIsAFader (MixerControl control)
+{
+  return control == MixerControl::Volume;
+}
+
 /** What is written under it. At most four characters: the narrowest a strip
  *  may get is minimumChannelWidth, and a longer word is drawn clipped, which
  *  reads as a fault rather than as an abbreviation. */

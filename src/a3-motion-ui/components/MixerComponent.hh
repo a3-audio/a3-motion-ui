@@ -91,12 +91,6 @@ private:
   void paintKey (juce::Graphics &g, juce::Rectangle<int> bounds,
                  juce::Colour tint, juce::String const &caption,
                  juce::String const &value, bool isOn);
-  /** Whether the volume's cell has room for a throw. A fader whose cap fills
-   *  its track is a fader that never moves — on a cell wider than it is tall
-   *  that is exactly what faderGeometry() produces, so the control falls back
-   *  to the pot every other row is drawn with. */
-  bool hasRoomForAThrow (juce::Rectangle<int> bounds) const;
-
   MixerState &_state;
   MixerLayout _layout;
   ControlMetrics _metrics{};

@@ -221,24 +221,6 @@ MixerComponent::resized ()
         _layout.filter[static_cast<std::size_t> (i)]);
 }
 
-bool
-MixerComponent::hasRoomForAThrow (juce::Rectangle<int> bounds) const
-{
-  // Asked of faderGeometry() itself rather than worked out again from the
-  // bounds: the two ends of the throw are where the cap sits at 0 and at 1.
-  // A second copy of that arithmetic here would be a second answer waiting to
-  // disagree with it.
-  auto const bottom = faderGeometry (bounds, _metrics, 0.f).cap;
-  auto const top = faderGeometry (bounds, _metrics, 1.f).cap;
-
-  // The throw has to be at least as long as the cap is tall, not merely
-  // non-zero. On a cell wider than it is tall the track comes out nearly as
-  // wide as it is high, the cap fills it, and what is left is a pixel or two
-  // of travel — a control that looks like a lit block and answers a drag by
-  // not moving. That is worse than the pot, which at least says where it is.
-  return bottom.getY () - top.getY () >= bottom.getHeight ();
-}
-
 void
 MixerComponent::paint (juce::Graphics &g)
 {
@@ -296,10 +278,11 @@ MixerComponent::paintStrip (juce::Graphics &g, int channel)
 
       auto const value = _state.channelValue (channel, control);
 
-      // The volume is a throw where there is room for one: that is the
-      // gesture every hand in a booth already has, and it is the control
-      // reached for most.
-      if (control == MixerControl::Volume && hasRoomForAThrow (bounds))
+      // A throw, because it is the channel's level: mixerControlIsAFader()
+      // says which control that is and nothing here measures the cell to find
+      // out. The layout has already made room for the throw, and said
+      // `fits = false` if it could not.
+      if (mixerControlIsAFader (control))
         {
           paintBarFader (g, bounds, _metrics, colour, label, value, true,
                          true);
@@ -328,13 +311,10 @@ MixerComponent::paintSumming (juce::Graphics &g)
       auto const bounds = _layout.master[i];
       auto const label = juce::String (masterControlLabel (control));
 
-      if (control == MasterControl::Volume && hasRoomForAThrow (bounds))
-        {
-          paintBarFader (g, bounds, _metrics, colour, label, value, true,
-                         true);
-          continue;
-        }
-
+      // Nothing here is a throw, the master volume least of all. It is the
+      // summing level -- set at the start of the night and left -- and a page
+      // whose most fader-looking control was the master would send a hand
+      // reaching for it to bring a channel in.
       paintBarKnob (g, bounds, _metrics, colour, label, angleFor (value),
                     fillsFromTheMiddle (control), false, true);
     }

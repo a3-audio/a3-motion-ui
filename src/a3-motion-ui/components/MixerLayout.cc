@@ -20,6 +20,7 @@
 
 #include "MixerLayout.hh"
 
+#include <a3-motion-ui/components/BarFader.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
 
 namespace a3
@@ -133,18 +134,57 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
         }
 
       auto const strip = cell.reduced (gapIn (cell));
-      auto const rowH = strip.getHeight () / numMixerControls;
+
+      // The volume is the one control in the strip a hand throws rather than
+      // turns -- mixerControlIsAFader() is where that is decided, once, for
+      // this page and the bar's -- so it is given the height a throw needs
+      // and the other six share what is left. Equal rows put the fader in a
+      // cell wider than it was tall, where its cap fills its own track and
+      // the throw comes out a pixel long.
+      //
+      // The room it may take is what is left once the others have their
+      // floor, so a strip can never be so generous to the fader that the
+      // controls above it stop being hittable.
+      auto const others = numMixerControls - 1;
+      auto const volumeRoom = strip.getHeight () - others * floor_;
+      auto const throwHeight
+          = volumeRoom > 0 ? faderHeightForThrow (strip.getWidth (),
+                                                  volumeRoom, metrics)
+                           : 0;
+      if (throwHeight == 0)
+        rowsFit = false;
+
+      // Back to equal rows when the throw cannot be had. `fits` is already
+      // false and the overlay draws a sentence instead of a mixer, but the
+      // rectangles still have to be sane: a caller that paints anyway must
+      // not paint one control over another.
+      auto const volumeH = throwHeight > 0
+                               ? throwHeight
+                               : strip.getHeight () / numMixerControls;
+      auto const rowH
+          = juce::jmax (0, (strip.getHeight () - volumeH) / others);
+
       if (rowH < floor_ || strip.getWidth () < floor_)
         rowsFit = false;
 
       // Down the strip in the table's order, which is what makes
       // MixerControls the authority rather than a list that happens to agree
       // with what is drawn.
+      auto y = strip.getY ();
       for (int i = 0; i < numMixerControls; ++i)
-        out.controls[static_cast<std::size_t> (channel)]
-                    [static_cast<std::size_t> (i)]
-            = juce::Rectangle<int> (strip.getX (), strip.getY () + rowH * i,
-                                    strip.getWidth (), rowH);
+        {
+          auto const height
+              = mixerControlIsAFader (
+                    mixerControlOrder[static_cast<std::size_t> (i)])
+                    ? volumeH
+                    : rowH;
+
+          out.controls[static_cast<std::size_t> (channel)]
+                      [static_cast<std::size_t> (i)]
+              = juce::Rectangle<int> (strip.getX (), y, strip.getWidth (),
+                                      height);
+          y += height;
+        }
     }
 
   out.fits = out.strips.fits && rowsFit;
