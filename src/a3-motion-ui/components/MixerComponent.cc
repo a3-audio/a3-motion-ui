@@ -145,7 +145,8 @@ paintMixerChannelControl (juce::Graphics &g, juce::Rectangle<int> bounds,
                 fillsFromTheMiddle (control), false, true);
 }
 
-MixerComponent::MixerComponent (MixerState &state) : _state (state)
+MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
+    : _state (state), _levels (levels)
 {
   setInterceptsMouseClicks (false, true);
 
@@ -232,6 +233,27 @@ MixerComponent::MixerComponent (MixerState &state) : _state (state)
 
 MixerComponent::~MixerComponent () = default;
 
+void
+MixerComponent::visibilityChanged ()
+{
+  if (isVisible ())
+    startTimerHz (vuMeterRefreshHz);
+  else
+    stopTimer ();
+}
+
+void
+MixerComponent::timerCallback ()
+{
+  // Only the meters are asked to redraw. paint() still runs, but clipped to
+  // these rectangles -- so the twenty-five frames a second cost nine narrow
+  // bars rather than a whole mixer.
+  for (auto const &meter : _layout.channelMeter)
+    repaint (meter);
+  for (auto const &bar : _layout.outputMeters)
+    repaint (bar);
+}
+
 juce::Rectangle<int>
 MixerComponent::panelBounds () const
 {
@@ -313,6 +335,39 @@ MixerComponent::paint (juce::Graphics &g)
 
   paintMasterColumn (g);
   paintFilterRow (g);
+  paintMeters (g);
+}
+
+void
+MixerComponent::paintMeters (juce::Graphics &g)
+{
+  // One reading of the clock for the whole page. Nine meters each asking the
+  // time would draw nine slightly different moments, and a peak mark that
+  // expired between two columns of the same picture is a picture that
+  // contradicts itself.
+  auto const now = vuNowMs ();
+
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    paintVuMeter (g, _layout.channelMeter[static_cast<std::size_t> (channel)],
+                  toColour (theme ().channel[channel]),
+                  _levels.channel (channel, now));
+
+  // The outputs belong to nobody in particular, so they wear the master
+  // column's own colour rather than a channel's -- the same reasoning that
+  // paints the summing controls in the plain text colour.
+  auto const colour = toColour (theme ().textPrimary);
+
+  for (int meter = 0; meter < numOutputMeters; ++meter)
+    paintVuMeter (g, _layout.outputMeters[static_cast<std::size_t> (meter)],
+                  colour, _levels.output (meter, now));
+
+  if (!_layout.outputMeterCaption.isEmpty ())
+    {
+      g.setColour (toColour (theme ().textMuted));
+      g.setFont (juce::Font (juce::FontOptions (_metrics.captionSize)));
+      g.drawFittedText ("OUT", _layout.outputMeterCaption,
+                        juce::Justification::centred, 1);
+    }
 }
 
 void
@@ -352,13 +407,16 @@ MixerComponent::paintMasterColumn (juce::Graphics &g)
   auto const colour = toColour (theme ().textPrimary);
 
   // The same ground the four strips wear, so the master reads as the fifth of
-  // five rather than as a panel that happens to stand beside them. Only as
-  // far as its own controls go: the two rows under its fader are where the
-  // output meters land, and a wash reaching into them would promise something
-  // that is not drawn yet.
+  // five rather than as a panel that happens to stand beside them. Down to
+  // the foot of the output meters, which stand in the two rows under its
+  // fader: the column is one block, and a wash stopping short of its last two
+  // rows would read as the meters having been pasted on underneath it.
   auto ground = _layout.master.front ();
   for (auto const &cell : _layout.master)
     ground = ground.getUnion (cell);
+  for (auto const &bar : _layout.outputMeters)
+    ground = ground.getUnion (bar);
+  ground = ground.getUnion (_layout.outputMeterCaption);
 
   g.setColour (colour.withAlpha (stripWash));
   g.fillRoundedRectangle (ground.toFloat (), theme ().radiusCard);

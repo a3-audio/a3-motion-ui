@@ -29,6 +29,7 @@
 #include <a3-motion-ui/components/MixerLayout.hh>
 #include <a3-motion-ui/components/MixerState.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
+#include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
 namespace a3
@@ -59,10 +60,15 @@ void paintMixerChannelControl (juce::Graphics &g, juce::Rectangle<int> bounds,
  *  keeps the one place that knows a value has been *touched* (and therefore
  *  has to go out on the wire) from being spread across a component.
  */
-class MixerComponent : public juce::Component, public ThemedComponent
+class MixerComponent : public juce::Component,
+                       public ThemedComponent,
+                       private juce::Timer
 {
 public:
-  explicit MixerComponent (MixerState &state);
+  /** `levels` is read, never written: the meters are the one part of this
+   *  page that says something the device was told rather than something a
+   *  finger did. */
+  MixerComponent (MixerState &state, VuLevels const &levels);
   ~MixerComponent () override;
 
   void paint (juce::Graphics &g) override;
@@ -70,6 +76,11 @@ public:
   /** The whole geometry is worked out from the skin's pot size and fonts, so
    *  a skin change has to re-lay this out, not merely repaint it. */
   void applyTheme () override;
+
+  /** The meters' timer runs only while the page is on screen. A timer behind
+   *  a closed overlay is a repaint of something nobody is looking at, on a
+   *  device whose sphere wants the machine. */
+  void visibilityChanged () override;
 
   /** A control was dragged, by whole increments. What one increment is worth
    *  is the caller's to say: it is the same step the encoders and the bar's
@@ -98,12 +109,23 @@ private:
   static constexpr int masterGroup = numChannelsInitial;
   static constexpr int filterGroup = numChannelsInitial + 1;
 
+  /** Redraws the meters and nothing else -- see vuMeterRefreshHz for what
+   *  sets the rate. The knobs and keys around them change when a finger
+   *  changes them, so asking for the whole page here would redraw a mixer
+   *  twenty-five times a second to move nine bars. */
+  void timerCallback () override;
+
   void paintStrip (juce::Graphics &g, int channel);
+  /** The nine meters: each channel's input beside its fader, and the output
+   *  block in the master column. Drawn after the strips, from one reading of
+   *  the clock, so the whole page shows one moment rather than nine. */
+  void paintMeters (juce::Graphics &g);
   /** The fifth column, drawn as a strip like the four beside it. */
   void paintMasterColumn (juce::Graphics &g);
   /** The row across the foot, which belongs to neither. */
   void paintFilterRow (juce::Graphics &g);
   MixerState &_state;
+  VuLevels const &_levels;
   MixerLayout _layout;
   ControlMetrics _metrics{};
 

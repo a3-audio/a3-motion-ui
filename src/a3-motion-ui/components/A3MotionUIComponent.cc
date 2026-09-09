@@ -240,7 +240,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   _motionComponent->addChildComponent (*_overlayStrips);
 
-  _mixer = std::make_unique<MixerComponent> (_mixerState);
+  _mixer = std::make_unique<MixerComponent> (_mixerState, _vuLevels);
   _mixer->setAlwaysOnTop (true);
   _motionComponent->addChildComponent (*_mixer);
 
@@ -249,7 +249,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // device.
   auto const mixerStep = [] (int steps) { return steps * 0.02f; };
 
-  _mixerStrip = std::make_unique<MixerStripComponent> (_mixerState);
+  _mixerStrip
+      = std::make_unique<MixerStripComponent> (_mixerState, _vuLevels);
 
   // Both views of the same seven controls, so both land in one pair of
   // handlers rather than in two that agree today. Whichever was touched, both
@@ -5096,12 +5097,20 @@ A3MotionUIComponent::onChannelVU (int channel, float peak, float rms)
       _channelUIStates[static_cast<size_t> (channel)]->vuPeak = peak;
       _channelUIStates[static_cast<size_t> (channel)]->vuLevel = rms;
     }
+
+  // And into the mixer's own store, beside the two atomics above rather than
+  // instead of them. Those two are what the GL thread reads for the corona
+  // around the blob and they remember nothing about when a value arrived; a
+  // peak mark that stands still for a moment needs that, and it has to be one
+  // memory for the overlay and the bar's tab both.
+  _vuLevels.setChannel (channel, { peak, rms }, vuNowMs ());
 }
 
 void
 A3MotionUIComponent::onSubwooferVU (float peak, float rms)
 {
   _motionComponent->setSphereGlow (peak, rms);
+  _vuLevels.setOutput (subwooferMeterIndex, { peak, rms }, vuNowMs ());
 }
 
 void
@@ -5114,6 +5123,8 @@ void
 A3MotionUIComponent::onSpeakerVU (int speakerIndex, float peak, float rms)
 {
   _motionComponent->setSpeakerLight (speakerIndex, peak, rms);
+  _vuLevels.setOutput (firstSpeakerMeterIndex + speakerIndex, { peak, rms },
+                       vuNowMs ());
 }
 
 void

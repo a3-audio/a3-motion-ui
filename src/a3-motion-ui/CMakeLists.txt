@@ -125,6 +125,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/ColumnBreak.cc
     components/ColumnBreak.hh
     components/MixerControls.hh
+    components/VuMeter.cc
+    components/VuMeter.hh
     components/MixerState.cc
     components/MixerState.hh
     components/MixerLayout.cc

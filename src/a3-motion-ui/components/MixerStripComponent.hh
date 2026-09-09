@@ -29,6 +29,7 @@
 #include <a3-motion-ui/components/MixerLayout.hh>
 #include <a3-motion-ui/components/MixerState.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
+#include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
 namespace a3
@@ -51,10 +52,12 @@ namespace a3
  *  back as a repaint once MixerState has been told — the same route the
  *  overlay's gestures take, into the same handlers.
  */
-class MixerStripComponent : public juce::Component, public ThemedComponent
+class MixerStripComponent : public juce::Component,
+                            public ThemedComponent,
+                            private juce::Timer
 {
 public:
-  explicit MixerStripComponent (MixerState &state);
+  MixerStripComponent (MixerState &state, VuLevels const &levels);
   ~MixerStripComponent () override;
 
   void paint (juce::Graphics &g) override;
@@ -62,6 +65,10 @@ public:
   /** The geometry is worked out from the skin's pot size and fonts, so a skin
    *  change has to re-lay this out, not merely repaint it. */
   void applyTheme () override;
+
+  /** The meter's timer runs only while the tab is the page on show — the bar
+   *  keeps this component alive on every other page. */
+  void visibilityChanged () override;
 
   /** Whose strip is on show: the channel of the clip the bar describes.
    *
@@ -78,7 +85,11 @@ public:
   std::function<void (int channel, MixerControl)> onChannelTapped;
 
 private:
+  /** Redraws the meter and nothing else. See vuMeterRefreshHz. */
+  void timerCallback () override;
+
   MixerState &_state;
+  VuLevels const &_levels;
   MixerLayout _layout;
   ControlMetrics _metrics{};
 

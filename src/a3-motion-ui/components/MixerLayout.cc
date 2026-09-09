@@ -199,6 +199,39 @@ rowForMasterControl (MasterControl control)
   auto const slot = controlSlot (control);
   return slot < controlSlot (MasterControl::Volume) ? slot : slot - 1;
 }
+
+/** The rows of the master's column that no control of its own stands in.
+ *
+ *  Read off rowForMasterControl rather than written down as "the last two":
+ *  which rows are free follows from where the master's five sit, and a pair
+ *  of numbers here would be a second answer to a question that already has
+ *  one -- exactly the drift the static_assert above guards against from the
+ *  other side.
+ *
+ *  Returned as one rectangle because that is what the meters want: five thin
+ *  bars in a single block, the way a multi-channel meter is drawn, rather
+ *  than five widgets sharing out two rows. */
+juce::Rectangle<int>
+rowsNoMasterControlStandsIn (StripRows const &rows)
+{
+  std::array<bool, numMixerControls> claimed{};
+  for (auto const control : masterControlOrder)
+    claimed[static_cast<std::size_t> (rowForMasterControl (control))] = true;
+
+  juce::Rectangle<int> block;
+  for (int i = 0; i < numMixerControls; ++i)
+    if (!claimed[static_cast<std::size_t> (i)])
+      block = block.getUnion (rows.rows[static_cast<std::size_t> (i)]);
+
+  return block;
+}
+
+/** Where the volume row's slot is in the table, as an index into a strip. */
+std::size_t
+volumeSlot ()
+{
+  return static_cast<std::size_t> (controlSlot (MixerControl::Volume));
+}
 }
 
 MixerLayout
@@ -269,6 +302,30 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
       auto const rows = rowsDownStrip (cell.reduced (gap), metrics);
       rowsFit = rowsFit && rows.fits;
       out.controls[static_cast<std::size_t> (channel)] = rows.rows;
+
+      // The meter takes its share off the left of the volume row, and what
+      // is left is the fader's cell -- so the fader's own rectangle shrinks
+      // rather than being drawn across a meter laid under it. Asked here
+      // rather than in rowsDownStrip because the master's column has no
+      // input meter and must keep its full width, and because the two
+      // arrangements have to come out with the same row *heights* for the
+      // five faders to stand on one line.
+      auto const split = splitVolumeRow (
+          rows.rows[volumeSlot ()], metrics);
+      out.controls[static_cast<std::size_t> (channel)][volumeSlot ()]
+          = split.fader;
+      out.channelMeter[static_cast<std::size_t> (channel)] = split.meter;
+
+      // A strip so narrow that the meter leaves the fader nothing is a strip
+      // that cannot be operated, and the page says so rather than drawing a
+      // fader nobody can throw. The width is asked separately because
+      // faderHeightForThrow answers about the travel, which a narrow cell
+      // still has -- a cell under a fingertip is a different fault.
+      if (split.meter.isEmpty () || split.fader.getWidth () < floor_
+          || faderHeightForThrow (split.fader.getWidth (),
+                                  split.fader.getHeight (), metrics)
+                 == 0)
+        rowsFit = false;
     }
 
   // The master stands on the same grid, its column running the full height
@@ -278,6 +335,16 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
   // master keeps the height rather than half of it.
   auto const masterRows = rowsDownStrip (masterColumn.reduced (gap), metrics);
   rowsFit = rowsFit && masterRows.fits;
+
+  // The output meters take the rows the master's own controls leave, which is
+  // what Task 10 kept them for. Not part of `fits`: a block of meters is read
+  // rather than touched, so a page whose meters came out too small to be
+  // useful is still a page that can be operated -- and refusing to draw the
+  // mixer over it would take away the controls as well.
+  auto const meters
+      = outputMeterBlock (rowsNoMasterControlStandsIn (masterRows), metrics);
+  out.outputMeters = meters.bars;
+  out.outputMeterCaption = meters.caption;
 
   for (int i = 0; i < numMasterControls; ++i)
     {
@@ -312,7 +379,23 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
   for (int i = 0; i < numMixerControls; ++i)
     {
       auto const index = static_cast<std::size_t> (i);
-      auto const cell = cellAcross (area, numMixerControls, i);
+      auto cell = cellAcross (area, numMixerControls, i);
+
+      // The tab's strip carries the channel's meter too, in the same place
+      // it stands in the overlay: beside the fader, in the volume cell. A
+      // meter that appeared on one page and not the other would be a hand
+      // learning two mixers, which is the thing mixerControlOrder exists to
+      // prevent.
+      if (mixerControlIsAFader (mixerControlOrder[index]))
+        {
+          auto const split = splitVolumeRow (cell, metrics);
+          out.channelMeter[0] = split.meter;
+          cell = split.fader;
+
+          if (split.meter.isEmpty ())
+            cellsFit = false;
+        }
+
       out.controls[0][index] = cell;
 
       if (cell.getWidth () < floor_ || cell.getHeight () < floor_)

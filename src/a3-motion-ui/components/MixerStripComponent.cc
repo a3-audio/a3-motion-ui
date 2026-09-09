@@ -28,7 +28,9 @@
 namespace a3
 {
 
-MixerStripComponent::MixerStripComponent (MixerState &state) : _state (state)
+MixerStripComponent::MixerStripComponent (MixerState &state,
+                                          VuLevels const &levels)
+    : _state (state), _levels (levels)
 {
   setInterceptsMouseClicks (false, true);
 
@@ -73,6 +75,21 @@ MixerStripComponent::MixerStripComponent (MixerState &state) : _state (state)
 }
 
 MixerStripComponent::~MixerStripComponent () = default;
+
+void
+MixerStripComponent::visibilityChanged ()
+{
+  if (isVisible ())
+    startTimerHz (vuMeterRefreshHz);
+  else
+    stopTimer ();
+}
+
+void
+MixerStripComponent::timerCallback ()
+{
+  repaint (_layout.channelMeter[0]);
+}
 
 void
 MixerStripComponent::setChannel (int channel)
@@ -151,6 +168,12 @@ MixerStripComponent::paint (juce::Graphics &g)
                                 _state.channelValue (_channel, control),
                                 _state.channelToggle (_channel, control));
     }
+
+  // The shown channel's input meter, beside its fader -- the same picture the
+  // overlay draws, from the same store, so the two pages cannot disagree
+  // about how loud a deck is.
+  paintVuMeter (g, _layout.channelMeter[0], colour,
+                _levels.channel (_channel, vuNowMs ()));
 }
 
 }

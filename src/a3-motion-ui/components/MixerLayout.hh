@@ -29,6 +29,7 @@
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 #include <a3-motion-ui/components/ColumnBreak.hh>
 #include <a3-motion-ui/components/MixerControls.hh>
+#include <a3-motion-ui/components/VuMeter.hh>
 
 namespace a3
 {
@@ -56,6 +57,21 @@ struct MixerLayout
       controls;
   std::array<juce::Rectangle<int>, numMasterControls> master;
   std::array<juce::Rectangle<int>, numFilterControls> filter;
+  /** Each channel's input meter, standing in the volume row to the left of
+   *  the fader whose level it belongs to. Not one of `controls`: a meter is
+   *  read, never touched, so it carries no hit area and must not be counted
+   *  among the things one is put on. */
+  std::array<juce::Rectangle<int>,
+             static_cast<std::size_t> (numChannelsInitial)>
+      channelMeter;
+  /** The output block -- the subwoofer and the four speakers -- in the two
+   *  rows the master's five controls leave free. Empty on the bar's tab,
+   *  which carries one channel and no summing section. */
+  std::array<juce::Rectangle<int>, numOutputMeters> outputMeters;
+  /** The word under that block. Its own rectangle rather than a share of the
+   *  block, because the bars are stepped across an integer cell width and a
+   *  caption solved twice is a caption that drifts. */
+  juce::Rectangle<int> outputMeterCaption;
   /** False when a control would come out under a fingertip. The overlay then
    *  says so in one line of text rather than drawing targets nobody can hit —
    *  a mixer that cannot be operated is worse than a sentence saying the

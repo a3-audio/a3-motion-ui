@@ -468,6 +468,16 @@ private:
    *  rather than by the overlay, so what Core is told does not depend on
    *  whether anybody is looking at it. */
   MixerState _mixerState;
+  /** The levels its meters read. Beside _mixerState rather than inside it:
+   *  MixerState is what a finger has set and what therefore goes out on the
+   *  wire, and a meter is the opposite -- what came back, and never sent.
+   *
+   *  Written by all three VU callbacks *in addition to* what they already do:
+   *  the channels keep filling _channelUIStates for the sphere's coronas, the
+   *  subwoofer keeps reaching setSphereGlow and the speakers setSpeakerLight.
+   *  Those three have no other source, so a redirected callback would take
+   *  the sphere its glow and the speaker lights their light. */
+  VuLevels _vuLevels;
   bool _mixerOpen = false;
   void toggleMixer ();
   /** Open or close it and tell everything that shows the state -- the key in
