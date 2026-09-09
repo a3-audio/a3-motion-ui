@@ -54,6 +54,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FunctionKeys.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerControls.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerState.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FunctionKeyColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinGroups.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinEditorScroll.cc"
@@ -143,6 +144,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FittedFont.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/FittedFont.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/MixerState.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/MixerLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/BarFader.cc"
     )
 

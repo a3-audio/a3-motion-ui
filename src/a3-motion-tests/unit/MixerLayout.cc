@@ -1,0 +1,155 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2023 Patric Schmitz
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#include <gtest/gtest.h>
+
+#include <a3-motion-ui/components/ControllerLayout.hh>
+#include <a3-motion-ui/components/MixerLayout.hh>
+
+using namespace a3;
+
+namespace
+{
+constexpr ControlMetrics metrics{ fingertipSize, 12.f, 12.f };
+
+// A portrait area with room for four strips side by side. Expressed in
+// thresholds rather than in the device's pixels: the layout is about
+// proportions, and a test that quoted 768x1024 would have to be rewritten for
+// the next screen.
+juce::Rectangle<int>
+aRoomyOverlay ()
+{
+  // Cast rather than braced: minimumChannelWidth and minimumMotionHeight are
+  // floats, and a float in a braced initialiser narrows whatever its value --
+  // the constant-expression exception runs the other way, from integer to
+  // floating point.
+  return juce::Rectangle<int> (
+      0, 0, static_cast<int> (minimumChannelWidth * 6),
+      static_cast<int> (minimumMotionHeight * 8));
+}
+}
+
+// Every control of every channel has a rectangle, and none of them is empty.
+TEST (MixerLayout, EveryControlOfEveryChannelGetsARectangle)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  for (std::size_t channel = 0;
+       channel < static_cast<std::size_t> (numChannelsInitial); ++channel)
+    for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerControls);
+         ++i)
+      EXPECT_FALSE (layout.controls[channel][i].isEmpty ())
+          << channel << " " << mixerControlLabel (mixerControlOrder[i]);
+}
+
+// The order on screen is the order in the table. This is what makes the table
+// the authority rather than a list that happens to agree.
+TEST (MixerLayout, TheControlsAreInTheTablesOrderDownTheStrip)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  for (std::size_t i = 1; i < static_cast<std::size_t> (numMixerControls);
+       ++i)
+    EXPECT_GE (layout.controls[0][i].getY (),
+               layout.controls[0][i - 1].getBottom ())
+        << mixerControlLabel (mixerControlOrder[i]) << " is out of order";
+}
+
+// Nothing overlaps anything, within a strip or between strips. A control drawn
+// over another is a control that answers for the wrong channel.
+TEST (MixerLayout, NoTwoControlsOverlap)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  std::vector<juce::Rectangle<int> > all;
+  for (auto const &strip : layout.controls)
+    for (auto const &control : strip)
+      all.push_back (control);
+  for (auto const &control : layout.master)
+    all.push_back (control);
+  for (auto const &control : layout.filter)
+    all.push_back (control);
+
+  for (std::size_t i = 0; i < all.size (); ++i)
+    for (std::size_t j = i + 1; j < all.size (); ++j)
+      EXPECT_FALSE (all[i].intersects (all[j])) << i << " over " << j;
+}
+
+// Hit in the dark, mid-set, with one hand.
+TEST (MixerLayout, EveryControlIsAtLeastAFingertip)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  for (auto const &strip : layout.controls)
+    for (auto const &control : strip)
+      {
+        EXPECT_GE (control.getWidth (), fingertipSize);
+        EXPECT_GE (control.getHeight (), fingertipSize);
+      }
+}
+
+// Narrow enough and the strips break into two by two rather than four thin
+// ones -- the whole point of ColumnBreak, exercised through the layout that
+// uses it.
+TEST (MixerLayout, ANarrowOverlayBreaksTheStripsIntoTwoByTwo)
+{
+  auto const narrow
+      = juce::Rectangle<int> (0, 0, minimumChannelWidth * 4 - 1,
+                              minimumMotionHeight * 12);
+  auto const layout = layOutMixerOverlay (narrow, metrics);
+
+  EXPECT_EQ (layout.strips.columns, 2);
+  EXPECT_EQ (layout.strips.rows, 2);
+}
+
+// Everything inside the area it was given.
+TEST (MixerLayout, EverythingStaysInsideTheArea)
+{
+  auto const area = juce::Rectangle<int> (5, 9, minimumChannelWidth * 6,
+                                          minimumMotionHeight * 8);
+  auto const layout = layOutMixerOverlay (area, metrics);
+  ASSERT_TRUE (layout.fits);
+
+  for (auto const &strip : layout.controls)
+    for (auto const &control : strip)
+      EXPECT_TRUE (area.contains (control));
+  for (auto const &control : layout.master)
+    EXPECT_TRUE (area.contains (control));
+}
+
+// An area too small to lay out says so, rather than handing back targets
+// nobody can hit. The caller draws a short line of text instead.
+TEST (MixerLayout, AnAreaTooSmallSaysSo)
+{
+  auto const layout = layOutMixerOverlay (
+      { 0, 0, fingertipSize, fingertipSize }, metrics);
+  EXPECT_FALSE (layout.fits);
+}
+
+// resized() is called with an empty rectangle before the window has a size.
+TEST (MixerLayout, AnEmptyAreaDoesNotDivideByZero)
+{
+  auto const layout = layOutMixerOverlay ({}, metrics);
+  EXPECT_FALSE (layout.fits);
+}
