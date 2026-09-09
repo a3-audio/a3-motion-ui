@@ -853,6 +853,54 @@ TEST (ClipSettingsLayout, ADragWalksASpeedKeyAcrossTheRangeAndStopsAtItsEnds)
     EXPECT_EQ (draggedSpeedLog2 (speedLog2Min, log2 - speedLog2Min), log2);
 }
 
+// A key being dragged is the only one that has anything to say while the
+// finger is down. The value walks through what the other keys carry on its
+// way somewhere, and lighting them as it passes is exactly the picture --
+// four keys taking turns -- that this gesture was changed to be rid of.
+TEST (ClipSettingsLayout, ADraggedSpeedKeyIsTheOnlyOneLitWhileItMoves)
+{
+  std::array<int, numSpeedButtons> const keys{ 0, -3, -4, -6 };
+
+  // Key 1 has been dragged as far as what key 2 carries, and key 2 stays dark.
+  for (int i = 0; i < numSpeedButtons; ++i)
+    EXPECT_EQ (speedKeyIsActive (keys, i, -4, 1), i == 1) << "key " << i;
+
+  // Even where no key at all carries the speed under the finger.
+  for (int i = 0; i < numSpeedButtons; ++i)
+    EXPECT_EQ (speedKeyIsActive (keys, i, -5, 1), i == 1) << "key " << i;
+}
+
+// And when the finger comes up the ordinary rule resumes -- on the key that
+// now carries the clip's speed, so there is no jump on release either.
+TEST (ClipSettingsLayout, WithNoFingerDownTheKeyCarryingTheSpeedIsLit)
+{
+  std::array<int, numSpeedButtons> const keys{ 0, -3, -4, -6 };
+
+  for (int i = 0; i < numSpeedButtons; ++i)
+    EXPECT_EQ (speedKeyIsActive (keys, i, -4, noSpeedKeyDragged), i == 2)
+        << "key " << i;
+
+  // A clip playing at a speed no key carries lights none of them, which is
+  // the honest answer to "which of these is it".
+  for (int i = 0; i < numSpeedButtons; ++i)
+    EXPECT_FALSE (speedKeyIsActive (keys, i, -5, noSpeedKeyDragged))
+        << "key " << i;
+}
+
+// Two keys may be assigned the same speed -- that is the performer's to do,
+// and both lighting is the truth about them rather than something to hide.
+TEST (ClipSettingsLayout, TwoKeysCarryingOneSpeedBothLight)
+{
+  std::array<int, numSpeedButtons> const keys{ 0, -3, -3, -6 };
+
+  EXPECT_TRUE (speedKeyIsActive (keys, 1, -3, noSpeedKeyDragged));
+  EXPECT_TRUE (speedKeyIsActive (keys, 2, -3, noSpeedKeyDragged));
+
+  // ... and a drag on one of them still lights only the one under the finger.
+  EXPECT_TRUE (speedKeyIsActive (keys, 1, -3, 1));
+  EXPECT_FALSE (speedKeyIsActive (keys, 2, -3, 1));
+}
+
 // Left to right, in the order the performer's four sit in.
 TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
 {

@@ -54,6 +54,26 @@ draggedSpeedLog2 (int speedLog2, int increment)
   return std::clamp (speedLog2 + increment, speedLog2Min, speedLog2Max);
 }
 
+bool
+speedKeyIsActive (std::array<int, numSpeedButtons> const &keys, int index,
+                  int clipSpeedLog2, int draggedIndex)
+{
+  if (index < 0 || index >= numSpeedButtons)
+    return false;
+
+  // A key under a finger is the only one that has anything to say. The value
+  // is on its way somewhere and walks through what the other keys carry to
+  // get there; lighting them as it passes is four keys taking turns, which is
+  // the picture this gesture was changed to be rid of. On release the rule
+  // below resumes on the same key, because by then it carries the speed.
+  if (draggedIndex != noSpeedKeyDragged)
+    return index == draggedIndex;
+
+  // Two keys given the same speed both light. That is the truth about them,
+  // and a display that picked one would disagree with the keys themselves.
+  return keys[static_cast<size_t> (index)] == clipSpeedLog2;
+}
+
 namespace
 {
 // The bar's own margin. The screen edge is already an edge; this puts a

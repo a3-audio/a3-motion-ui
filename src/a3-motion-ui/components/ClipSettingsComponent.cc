@@ -296,8 +296,22 @@ ClipSettingsComponent::createTouchControls ()
       // range and left nothing behind, which read as jumping between the
       // keys because only the key matching the value ever lit.
       button->onDragIncrement = [this] (int index, int, int increment) {
+        _speedDragIndex = index;
         if (onSpeedDragged)
           onSpeedDragged (index, increment);
+        repaint ();
+      };
+      // onRelease rather than onDragEnd: it fires whenever the finger comes
+      // up, where onDragEnd is silent unless the control decided a drag had
+      // happened. A key left marked as dragged would go on claiming to be the
+      // clip's speed until the next gesture, so the clearing has to be the
+      // callback that cannot be skipped.
+      button->onRelease = [this] (int, int) {
+        if (_speedDragIndex == noSpeedKeyDragged)
+          return;
+
+        _speedDragIndex = noSpeedKeyDragged;
+        repaint ();
       };
       addAndMakeVisible (*button);
       _speedTouch[static_cast<size_t> (i)] = std::move (button);
@@ -1589,14 +1603,15 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
       // Four speeds, one row, and what each of them is is the performer's:
       // tapped for the speed it carries, dragged to give it another. Their
       // names are computed from their values, so a key retells itself the
-      // moment it is dragged.
+      // moment it is dragged, and which of them wears the colour is
+      // speedKeyIsActive()'s to say rather than a comparison written here.
       for (int i = 0; i < numSpeedButtons; ++i)
-        {
-          auto const log2 = _speedButtonLog2[static_cast<size_t> (i)];
-          paintBarButton (g, _layout.speedButtons[static_cast<size_t> (i)],
-                          speedLog2Name (log2), {}, _speedLog2 == log2,
-                          isSelected);
-        }
+        paintBarButton (
+            g, _layout.speedButtons[static_cast<size_t> (i)],
+            speedLog2Name (_speedButtonLog2[static_cast<size_t> (i)]), {},
+            speedKeyIsActive (_speedButtonLog2, i, _speedLog2,
+                              _speedDragIndex),
+            isSelected);
 
       // Which way a pass runs and what it does when it runs out. They step on
       // a tap -- no chevron, because nothing opens.

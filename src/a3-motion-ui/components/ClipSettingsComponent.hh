@@ -629,6 +629,9 @@ private:
    *  read from the settings rather than written down a second time here. */
   std::array<int, numSpeedButtons> _speedButtonLog2
       = AppSettings{}.speedButtonLog2;
+  /** Which speed key a finger is on, or noSpeedKeyDragged. Only the drag
+   *  needs it — see speedKeyIsActive(), which is where it is read. */
+  int _speedDragIndex = noSpeedKeyDragged;
   juce::String _recordLengthLabel { "1" };
   std::array<float, numChannelColumns> _channelFreq{};
   std::array<float, numChannelColumns> _channelFreqReach{};

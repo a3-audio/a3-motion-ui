@@ -98,6 +98,16 @@ juce::String speedLog2Name (int speedLog2);
  *  wrapped: the ends of the range are ends, and a key that jumped from the
  *  fastest to the slowest under a finger would be a key nobody could aim. */
 int draggedSpeedLog2 (int speedLog2, int increment);
+
+/** No finger is on a speed key — the value speedKeyIsActive() takes when
+ *  nothing is being dragged. */
+constexpr int noSpeedKeyDragged = -1;
+
+/** Whether the speed key at `index` reads as active: which one of the four
+ *  wears the colour. `draggedIndex` is the key currently under a finger, or
+ *  noSpeedKeyDragged. */
+bool speedKeyIsActive (std::array<int, numSpeedButtons> const &keys, int index,
+                       int clipSpeedLog2, int draggedIndex);
 constexpr int recordLengthLog2[numRecordLengths] = { -2, -1, 0, 1, 2, 3, 4, 5 };
 constexpr char const *recordLengthNames[numRecordLengths]
     = { "1/4", "1/2", "1", "2", "4", "8", "16", "32" };

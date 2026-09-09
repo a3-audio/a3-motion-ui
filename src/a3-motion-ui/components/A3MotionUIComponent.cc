@@ -907,10 +907,20 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // four speeds the bar's keys carry. Pot Size and the two font sizes are the
   // skin's now, and the skin brings its own.
   auto const persisted = loadSettings (getPersistedSettingsFile ());
-  applyClockMode (persisted.clockMode);
+
+  // Read out of `persisted` before applyClockMode() runs, because it writes
+  // the settings back out: anything still sitting at its default when it does
+  // is written over what the file said -- silently, since the UI goes on
+  // showing the value that was read and only the next start reveals it. The
+  // rec mode has stood in that position since it was added and survived only
+  // because the mode it wrote back happened to be the default one. The clock
+  // mode itself is not pre-assigned: applyClockMode() returns early on a mode
+  // it is already in, and would then apply none of it.
   _recMode = persisted.recMode;
-  _engine.setRecMode (_recMode);
   _speedButtonLog2 = persisted.speedButtonLog2;
+
+  applyClockMode (persisted.clockMode);
+  _engine.setRecMode (_recMode);
   _clipSettings->setSpeedButtons (_speedButtonLog2);
 
 
