@@ -45,6 +45,17 @@ aRoomyOverlay ()
       0, 0, static_cast<int> (minimumChannelWidth * 6),
       static_cast<int> (minimumMotionHeight * 8));
 }
+
+// The bar's tab: one strip in a landscape band. Wider than the overlay's
+// column and a quarter of its height, which is what turns the strip on its
+// side -- and expressed in the same thresholds, for the same reason.
+juce::Rectangle<int>
+aBarStrip ()
+{
+  return juce::Rectangle<int> (0, 0,
+                               static_cast<int> (minimumChannelWidth * 5),
+                               static_cast<int> (minimumMotionHeight * 2));
+}
 }
 
 // Every control of every channel has a rectangle, and none of them is empty.
@@ -189,4 +200,57 @@ TEST (MixerLayout, AnEmptyAreaDoesNotDivideByZero)
 {
   auto const layout = layOutMixerOverlay ({}, metrics);
   EXPECT_FALSE (layout.fits);
+}
+
+// The bar's tab has one strip and three times the width, so it lays the
+// controls across rather than down. The table's order still holds -- left to
+// right is the reading order there.
+TEST (MixerLayout, TheBarsStripReadsAcrossInTheTablesOrder)
+{
+  auto const layout = layOutMixerStrip (aBarStrip (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  for (std::size_t i = 1; i < static_cast<std::size_t> (numMixerControls);
+       ++i)
+    EXPECT_GE (layout.controls[0][i].getX (),
+               layout.controls[0][i - 1].getRight ())
+        << mixerControlLabel (mixerControlOrder[i]) << " is out of order";
+}
+
+// One channel, so the other three strips are empty rather than laid out
+// somewhere off screen.
+TEST (MixerLayout, TheBarsStripLaysOutOneChannelOnly)
+{
+  auto const layout = layOutMixerStrip (aBarStrip (), metrics);
+
+  EXPECT_EQ (layout.strips.columns, 1);
+  for (std::size_t channel = 1;
+       channel < static_cast<std::size_t> (numChannelsInitial); ++channel)
+    for (auto const &control : layout.controls[channel])
+      EXPECT_TRUE (control.isEmpty ()) << channel;
+}
+
+// The master and the filter are not here: the tab is about one channel, and
+// the whole mixer is one tap away on the MIX key in the status bar.
+TEST (MixerLayout, TheBarsStripCarriesNoMasterAndNoFilter)
+{
+  auto const layout = layOutMixerStrip (aBarStrip (), metrics);
+
+  for (auto const &control : layout.master)
+    EXPECT_TRUE (control.isEmpty ());
+  for (auto const &control : layout.filter)
+    EXPECT_TRUE (control.isEmpty ());
+}
+
+// Still a fingertip, at the bar's height rather than the overlay's.
+TEST (MixerLayout, TheBarsStripKeepsEveryControlAtAFingertip)
+{
+  auto const layout = layOutMixerStrip (aBarStrip (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  for (auto const &control : layout.controls[0])
+    {
+      EXPECT_GE (control.getWidth (), fingertipSize);
+      EXPECT_GE (control.getHeight (), fingertipSize);
+    }
 }

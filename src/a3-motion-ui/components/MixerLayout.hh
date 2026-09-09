@@ -67,4 +67,22 @@ struct MixerLayout
 MixerLayout layOutMixerOverlay (juce::Rectangle<int> area,
                                 ControlMetrics metrics);
 
+/** The same arrangement for the bar's MIX tab: one channel, laid across.
+ *
+ *  The tab has three times the overlay strip's width for a quarter of its
+ *  content, so the seven controls go left to right rather than down — and
+ *  the cells come out tall and narrow, which is the shape the fader wants
+ *  anyway. `mixerControlOrder` still decides the order; left to right is the
+ *  reading order here.
+ *
+ *  `master` and `filter` stay empty. The tab is about one channel, and the
+ *  whole mixer is one tap away on the status bar's MIX key — a summing
+ *  section squeezed into a quarter of the bar would be neither.
+ *
+ *  It returns the same struct as the overlay's so the two components draw
+ *  from one shape. Two structs would be two pictures of the same seven
+ *  controls, and those drift. */
+MixerLayout layOutMixerStrip (juce::Rectangle<int> area,
+                              ControlMetrics metrics);
+
 }

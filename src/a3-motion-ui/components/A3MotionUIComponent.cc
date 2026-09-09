@@ -249,8 +249,20 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // device.
   auto const mixerStep = [] (int steps) { return steps * 0.02f; };
 
-  _mixer->onChannelDragged
-      = [this, mixerStep] (int channel, MixerControl control, int steps) {
+  _mixerStrip = std::make_unique<MixerStripComponent> (_mixerState);
+
+  // Both views of the same seven controls, so both land in one pair of
+  // handlers rather than in two that agree today. Whichever was touched, both
+  // are repainted: the tab and the overlay show the same value, and only one
+  // of them is on screen at a time anyway.
+  auto const repaintMixers = [this] {
+    _mixer->repaint ();
+    _mixerStrip->repaint ();
+  };
+
+  auto const channelDragged
+      = [this, mixerStep, repaintMixers] (int channel, MixerControl control,
+                                          int steps) {
           // A two-valued control keeps the drag's direction -- up is on, down
           // is off -- because a drag has one where a tap does not. The same
           // split tapTogglesValue makes in the bar.
@@ -260,14 +272,20 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                     : _mixerState.channelValue (channel, control)
                           + mixerStep (steps);
           _mixerState.setChannelFromTouch (channel, control, next);
-          _mixer->repaint ();
+          repaintMixers ();
         };
-  _mixer->onChannelTapped = [this] (int channel, MixerControl control) {
-    _mixerState.setChannelFromTouch (
-        channel, control, _mixerState.channelToggle (channel, control) ? 0.f
-                                                                      : 1.f);
-    _mixer->repaint ();
-  };
+  auto const channelTapped
+      = [this, repaintMixers] (int channel, MixerControl control) {
+          _mixerState.setChannelFromTouch (
+              channel, control,
+              _mixerState.channelToggle (channel, control) ? 0.f : 1.f);
+          repaintMixers ();
+        };
+
+  _mixer->onChannelDragged = channelDragged;
+  _mixer->onChannelTapped = channelTapped;
+  _mixerStrip->onChannelDragged = channelDragged;
+  _mixerStrip->onChannelTapped = channelTapped;
   _mixer->onMasterDragged = [this, mixerStep] (MasterControl control,
                                                int steps) {
     _mixerState.setMasterFromTouch (
@@ -882,6 +900,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _clipSettings->addChildComponent (*_controller);
   _clipSettings->addChildComponent (*_action);
   _clipSettings->addChildComponent (*_browser);
+  _clipSettings->addChildComponent (*_mixerStrip);
   selectClip (0, 0); // sensible default before any button has been pressed
 
   // Clockmode is all that is left to restore. Pot Size and the two font sizes
@@ -1373,6 +1392,8 @@ A3MotionUIComponent::resized ()
     }
   if (_browser && _clipSettings)
     _browser->setBounds (_clipSettings->clipContentBounds ());
+  if (_mixerStrip && _clipSettings)
+    _mixerStrip->setBounds (_clipSettings->clipContentBounds ());
 
   // The menu covers the sphere and nothing else. It used to take the clip
   // settings' space as well — the bar gave up its bounds and the menu had the
@@ -2060,6 +2081,15 @@ A3MotionUIComponent::showBarPage (BarPage page)
       _browser->setVisible (page == BarPage::Browser);
       if (page == BarPage::Browser)
         refreshBrowser ();
+    }
+  if (_mixerStrip)
+    {
+      _mixerStrip->setVisible (page == BarPage::Mixer);
+      if (page == BarPage::Mixer)
+        // The strip is the shown clip's channel, so it is set here as well as
+        // in selectClip(): arriving on the page has to show the channel you
+        // are on, not the one that was on show when the page was last left.
+        _mixerStrip->setChannel (static_cast<int> (_clipSettingsChannel));
     }
 }
 
@@ -5848,6 +5878,13 @@ A3MotionUIComponent::selectClip (index_t channel, index_t slot)
   // it walks the pattern folder, and a pad press should not go to disk.
   if (_barPage == BarPage::Browser)
     refreshBrowser ();
+
+  // And so does the MIX page: it is one channel's strip, and which channel is
+  // exactly what has just changed. Unconditionally, unlike the browser --
+  // nothing here goes to disk, and a page told only while it is visible comes
+  // back showing the channel of whoever was on show last.
+  if (_mixerStrip)
+    _mixerStrip->setChannel (static_cast<int> (channel));
 }
 
 void

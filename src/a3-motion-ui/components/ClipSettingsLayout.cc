@@ -271,15 +271,16 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // height because a hand goes along the row in one sweep, and the faces are
   // narrower and framed because a group that reads as a group can afford to
   // be -- see channelFacesFrame.
-  constexpr int numViews = 5;
+  constexpr int numViews = 6;
   constexpr int numFaces = static_cast<int> (numChannelColumns);
 
   // Measured in view-widths so the two sizes stay in proportion at every
-  // screen: a face is three quarters of a view. Ten gaps -- the frame's two
-  // edges, three between the faces, one before the views, four between them.
+  // screen: a face is three quarters of a view. Eleven gaps -- the frame's
+  // two edges, three between the faces, one before the views, five between
+  // the six of them.
   auto const viewSpan = juce::jmax (
       fingertipSize,
-      (headerArea.getWidth () - headerGap * 10) * 4
+      (headerArea.getWidth () - headerGap * 11) * 4
           / (numFaces * 3 + numViews * 4));
   auto const faceSpan = juce::jmax (fingertipSize, viewSpan * 3 / 4);
 
@@ -309,6 +310,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // PADS is the view that is about something else.
   out.tabAction = takeView ();
   out.tabController = takeView ();
+
+  // Between PADS and the folder: MIX is about the channel of the clip on
+  // show, so it belongs beside the views of that clip and before the way out
+  // of it.
+  out.tabMixer = takeView ();
 
   // The folder closes the row. It is the way *out* of the clip you are on,
   // so it ends the row rather than leading it -- and it stands where the slot

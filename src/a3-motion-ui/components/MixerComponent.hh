@@ -34,6 +34,20 @@
 namespace a3
 {
 
+/** One of a channel's seven controls, drawn into `bounds`.
+ *
+ *  A free function beside paintBarKnob and paintBarFader, and for the same
+ *  reason: the overlay stands four of these strips upright and the bar's MIX
+ *  tab lays one across, and the same control has to be the same picture in
+ *  both or a hand learns two mixers. Which shape it takes is
+ *  mixerControlIsAFader()'s to say — nothing here measures the cell.
+ *
+ *  `value` is 0..1 and `isOn` answers for the two-valued controls; the caller
+ *  reads them off MixerState, so this stays a painter and knows no state. */
+void paintMixerChannelControl (juce::Graphics &g, juce::Rectangle<int> bounds,
+                               ControlMetrics metrics, juce::Colour colour,
+                               MixerControl control, float value, bool isOn);
+
 /** The software mixer, over the sphere.
  *
  *  Built the way the controller page is: a pure layout says where everything
@@ -86,11 +100,6 @@ private:
 
   void paintStrip (juce::Graphics &g, int channel);
   void paintSumming (juce::Graphics &g);
-  /** A key rather than a pot: the same face the bar's buttons wear, so a
-   *  two-valued control reads as the same kind of thing wherever it is. */
-  void paintKey (juce::Graphics &g, juce::Rectangle<int> bounds,
-                 juce::Colour tint, juce::String const &caption,
-                 juce::String const &value, bool isOn);
   MixerState &_state;
   MixerLayout _layout;
   ControlMetrics _metrics{};

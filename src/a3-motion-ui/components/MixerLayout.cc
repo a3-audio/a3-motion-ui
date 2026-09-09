@@ -191,4 +191,47 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
   return out;
 }
 
+MixerLayout
+layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
+{
+  MixerLayout out{};
+
+  if (area.isEmpty ())
+    return out;
+
+  // Nothing to break: the tab carries one strip by definition, so the single
+  // column is a statement rather than a result. Written into the same field
+  // the overlay fills so a component can read either arrangement the same
+  // way.
+  out.strips = { 1, 1, true };
+
+  auto const floor_ = rowFloor (metrics);
+  auto cellsFit = true;
+
+  // Across in the table's order, the way the overlay goes down it -- the same
+  // list read the other way rather than a second list that agrees with it.
+  for (int i = 0; i < numMixerControls; ++i)
+    {
+      auto const index = static_cast<std::size_t> (i);
+      auto const cell = cellAcross (area, numMixerControls, i);
+      out.controls[0][index] = cell;
+
+      if (cell.getWidth () < floor_ || cell.getHeight () < floor_)
+        cellsFit = false;
+
+      // Which control is a fader is a rule, not something read off the cell
+      // -- so the layout has to ask whether the cell it is about to hand the
+      // fader can be thrown in at all, and say `fits = false` when it cannot.
+      // The alternative is a component quietly drawing a pot there, which is
+      // the same control changing shape between the two pages.
+      if (mixerControlIsAFader (mixerControlOrder[index])
+          && faderHeightForThrow (cell.getWidth (), cell.getHeight (), metrics)
+                 == 0)
+        cellsFit = false;
+    }
+
+  out.fits = cellsFit;
+  return out;
+}
+
 }

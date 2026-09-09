@@ -172,6 +172,7 @@ ClipSettingsComponent::createTouchControls ()
   makeTab (_tabRecordTouch, BarPage::Record);
   makeTab (_tabActionTouch, BarPage::Action);
   makeTab (_tabControllerTouch, BarPage::Controller);
+  makeTab (_tabMixerTouch, BarPage::Mixer);
   makeTab (_tabBrowserTouch, BarPage::Browser);
 
   // In front of the cards, so it swallows what would otherwise reach the
@@ -411,6 +412,7 @@ ClipSettingsComponent::resized ()
   _tabRecordTouch->setBounds (_layout.tabRecord);
   _tabActionTouch->setBounds (_layout.tabAction);
   _tabControllerTouch->setBounds (_layout.tabController);
+  _tabMixerTouch->setBounds (_layout.tabMixer);
   _tabBrowserTouch->setBounds (_layout.tabBrowser);
 
   for (int col = 0; col < numChannelColumns; ++col)
@@ -1007,6 +1009,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   paintTab (_layout.tabRecord, "REC", _page == BarPage::Record);
   paintTab (_layout.tabAction, "ACTION", _page == BarPage::Action);
   paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
+  paintTab (_layout.tabMixer, "MIX", _page == BarPage::Mixer);
 
   // A word like the three beside it. It was a folder mark, on the reasoning
   // that the tabs are views of the clip and this one leaves it -- but once

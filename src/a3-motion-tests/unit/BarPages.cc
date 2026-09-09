@@ -68,6 +68,7 @@ TEST (BarPages, OnlyThePagesWithSomethingOfTheirOwnCoverTheClipArea)
   EXPECT_FALSE (pageCoversClipArea (BarPage::Record));
   EXPECT_TRUE (pageCoversClipArea (BarPage::Action));
   EXPECT_TRUE (pageCoversClipArea (BarPage::Controller));
+  EXPECT_TRUE (pageCoversClipArea (BarPage::Mixer));
   EXPECT_TRUE (pageCoversClipArea (BarPage::Browser));
 }
 
@@ -80,5 +81,15 @@ TEST (BarPages, PadsIsTheOnlyPageThatDoesNotDescribeOneClip)
   EXPECT_TRUE (pageDescribesAClip (BarPage::Record));
   EXPECT_TRUE (pageDescribesAClip (BarPage::Action));
   EXPECT_FALSE (pageDescribesAClip (BarPage::Controller));
+  EXPECT_TRUE (pageDescribesAClip (BarPage::Mixer));
   EXPECT_TRUE (pageDescribesAClip (BarPage::Browser));
+}
+
+// The MIX tab covers the clip area with one channel's strip, and it is about
+// the channel of the clip the bar describes -- so a tap on a channel face
+// swaps the strip and stays on the page.
+TEST (BarPages, TheMixerCoversTheClipAreaAndDescribesAClip)
+{
+  EXPECT_TRUE (pageCoversClipArea (BarPage::Mixer));
+  EXPECT_TRUE (pageDescribesAClip (BarPage::Mixer));
 }

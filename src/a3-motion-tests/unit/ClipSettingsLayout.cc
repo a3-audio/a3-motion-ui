@@ -286,6 +286,7 @@ TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
   row.push_back (l.tabRecord);
   row.push_back (l.tabAction);
   row.push_back (l.tabController);
+  row.push_back (l.tabMixer);
   row.push_back (l.tabBrowser);
 
   int previousRight = 0;
@@ -887,7 +888,8 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
       for (auto const &tab : { layout.tabClip, layout.tabRecord,
-                               layout.tabAction, layout.tabController })
+                               layout.tabAction, layout.tabController,
+                               layout.tabMixer })
         {
           EXPECT_GE (tab.getWidth (), fingertipSize) << "width " << width;
           EXPECT_FALSE (tab.isEmpty ()) << "width " << width;
@@ -898,6 +900,8 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
       EXPECT_LE (layout.tabClip.getRight (), layout.tabRecord.getX ());
       EXPECT_LE (layout.tabRecord.getRight (), layout.tabAction.getX ());
       EXPECT_LE (layout.tabAction.getRight (), layout.tabController.getX ());
+      EXPECT_LE (layout.tabController.getRight (), layout.tabMixer.getX ());
+      EXPECT_LE (layout.tabMixer.getRight (), layout.tabBrowser.getX ());
     }
 }
 
@@ -1503,6 +1507,7 @@ TEST (ClipSettingsLayout, TheThreeViewsStandBetweenThem)
   EXPECT_GT (l.tabRecord.getX (), l.tabClip.getX ());
   EXPECT_GT (l.tabAction.getX (), l.tabRecord.getX ());
   EXPECT_GT (l.tabController.getX (), l.tabAction.getX ());
+  EXPECT_GT (l.tabMixer.getX (), l.tabController.getX ());
 }
 
 // Every channel has a face of its own, on every page, and they read left to
@@ -1545,9 +1550,10 @@ TEST (ClipSettingsLayout, TheHeaderHasTwoKindsOfKeyAndEachIsOneSize)
       auto const l
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
-      std::vector<juce::Rectangle<int> > views{ l.tabClip, l.tabRecord,
-                                                l.tabAction, l.tabController,
-                                                l.tabBrowser };
+      std::vector<juce::Rectangle<int> > views{
+        l.tabClip,  l.tabRecord, l.tabAction,
+        l.tabController, l.tabMixer, l.tabBrowser
+      };
 
       for (size_t i = 1; i < views.size (); ++i)
         EXPECT_EQ (views[i].getWidth (), views[0].getWidth ())

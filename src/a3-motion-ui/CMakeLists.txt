@@ -131,6 +131,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/MixerLayout.hh
     components/MixerComponent.cc
     components/MixerComponent.hh
+    components/MixerStripComponent.cc
+    components/MixerStripComponent.hh
     components/FittedFont.cc
     components/FittedFont.hh
     components/ClipSettingsComponent.cc

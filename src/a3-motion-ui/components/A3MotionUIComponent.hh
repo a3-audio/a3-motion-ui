@@ -49,6 +49,7 @@
 #include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/components/MixerComponent.hh>
+#include <a3-motion-ui/components/MixerStripComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
@@ -457,6 +458,11 @@ private:
    *  status bar rather than from a tab in the settings bar: it has nothing to
    *  do with the clip that bar describes. */
   std::unique_ptr<MixerComponent> _mixer;
+  /** The same strip for one channel, as the settings bar's MIX page. The
+   *  overlay above is the whole mixer when you want it; this is the reach to
+   *  the channel of the clip the bar is already describing. Both draw from
+   *  the same MixerState and both gestures land in the same two handlers. */
+  std::unique_ptr<MixerStripComponent> _mixerStrip;
   /** The values it shows, and the one place that knows a value has been
    *  touched and therefore has to go out on the wire. Held by this component
    *  rather than by the overlay, so what Core is told does not depend on

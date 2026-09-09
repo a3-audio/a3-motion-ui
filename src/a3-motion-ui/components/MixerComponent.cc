@@ -68,12 +68,80 @@ fillsFromTheMiddle (MasterControl control)
   return control == MasterControl::PhonesMix;
 }
 
+/** A key rather than a pot: the same face the bar's buttons wear, so a
+ *  two-valued control reads as the same kind of thing wherever it is. */
+void
+paintKeyFace (juce::Graphics &g, juce::Rectangle<int> bounds,
+              ControlMetrics metrics, juce::Colour tint,
+              juce::String const &caption, juce::String const &value,
+              bool isOn)
+{
+  if (bounds.isEmpty ())
+    return;
+
+  // The colour says which key this is and the ground says what it is doing --
+  // two questions in two places, rather than one colour asked to answer both.
+  g.setColour (isOn ? tint.withAlpha (keyActiveWash)
+                    : toColour (theme ().textPrimary, keyFaceWash));
+  g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
+
+  g.setColour (toColour (theme ().textPrimary, keyEdgeWash));
+  g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
+                          theme ().strokeThin);
+
+  auto box = bounds.reduced (juce::roundToInt (theme ().paddingTight));
+  g.setFont (juce::Font (juce::FontOptions (metrics.captionSize)));
+
+  if (value.isEmpty ())
+    {
+      g.setColour (isOn ? tint : toColour (theme ().textMuted));
+      g.drawFittedText (caption, box, juce::Justification::centred, 1);
+      return;
+    }
+
+  // Two lines, both inside the box: the name on top and the value under it,
+  // the way every button in the bar that stands for something is drawn.
+  auto const captionArea = box.removeFromTop (box.getHeight () / 2);
+  g.setColour (toColour (theme ().textMuted));
+  g.drawFittedText (caption, captionArea, juce::Justification::centred, 1);
+
+  g.setColour (isOn ? tint : toColour (theme ().textMuted));
+  g.drawFittedText (value, box, juce::Justification::centred, 1);
+}
+
 /** A 0..1 value on paintBarKnob's -1..1 scale. */
 float
 angleFor (float value)
 {
   return value * 2.f - 1.f;
 }
+}
+
+void
+paintMixerChannelControl (juce::Graphics &g, juce::Rectangle<int> bounds,
+                          ControlMetrics metrics, juce::Colour colour,
+                          MixerControl control, float value, bool isOn)
+{
+  auto const label = juce::String (mixerControlLabel (control));
+
+  if (mixerControlIsAToggle (control))
+    {
+      paintKeyFace (g, bounds, metrics, colour, label, {}, isOn);
+      return;
+    }
+
+  // A throw, because it is the channel's level: mixerControlIsAFader() says
+  // which control that is and nothing here measures the cell to find out. The
+  // layout has already made room for the throw, and said `fits = false` if it
+  // could not.
+  if (mixerControlIsAFader (control))
+    {
+      paintBarFader (g, bounds, metrics, colour, label, value, true, true);
+      return;
+    }
+
+  paintBarKnob (g, bounds, metrics, colour, label, angleFor (value),
+                fillsFromTheMiddle (control), false, true);
 }
 
 MixerComponent::MixerComponent (MixerState &state) : _state (state)
@@ -266,31 +334,9 @@ MixerComponent::paintStrip (juce::Graphics &g, int channel)
        ++i)
     {
       auto const control = mixerControlOrder[i];
-      auto const bounds = cells[i];
-      auto const label = juce::String (mixerControlLabel (control));
-
-      if (mixerControlIsAToggle (control))
-        {
-          paintKey (g, bounds, colour, label, {},
-                    _state.channelToggle (channel, control));
-          continue;
-        }
-
-      auto const value = _state.channelValue (channel, control);
-
-      // A throw, because it is the channel's level: mixerControlIsAFader()
-      // says which control that is and nothing here measures the cell to find
-      // out. The layout has already made room for the throw, and said
-      // `fits = false` if it could not.
-      if (mixerControlIsAFader (control))
-        {
-          paintBarFader (g, bounds, _metrics, colour, label, value, true,
-                         true);
-          continue;
-        }
-
-      paintBarKnob (g, bounds, _metrics, colour, label, angleFor (value),
-                    fillsFromTheMiddle (control), false, true);
+      paintMixerChannelControl (g, cells[i], _metrics, colour, control,
+                                _state.channelValue (channel, control),
+                                _state.channelToggle (channel, control));
     }
 }
 
@@ -333,8 +379,8 @@ MixerComponent::paintSumming (juce::Graphics &g)
           // key naming what you would get is one you press to find out where
           // you are.
           auto const highPass = _state.filterIsHighPass ();
-          paintKey (g, bounds, colour, label, highPass ? "HPF" : "LPF",
-                    highPass);
+          paintKeyFace (g, bounds, _metrics, colour, label,
+                        highPass ? "HPF" : "LPF", highPass);
           continue;
         }
 
@@ -342,44 +388,6 @@ MixerComponent::paintSumming (juce::Graphics &g)
                     angleFor (_state.filterValue (control)), false, false,
                     true);
     }
-}
-
-void
-MixerComponent::paintKey (juce::Graphics &g, juce::Rectangle<int> bounds,
-                          juce::Colour tint, juce::String const &caption,
-                          juce::String const &value, bool isOn)
-{
-  if (bounds.isEmpty ())
-    return;
-
-  // The colour says which key this is and the ground says what it is doing --
-  // two questions in two places, rather than one colour asked to answer both.
-  g.setColour (isOn ? tint.withAlpha (keyActiveWash)
-                    : toColour (theme ().textPrimary, keyFaceWash));
-  g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
-
-  g.setColour (toColour (theme ().textPrimary, keyEdgeWash));
-  g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
-                          theme ().strokeThin);
-
-  auto box = bounds.reduced (juce::roundToInt (theme ().paddingTight));
-  g.setFont (juce::Font (juce::FontOptions (_metrics.captionSize)));
-
-  if (value.isEmpty ())
-    {
-      g.setColour (isOn ? tint : toColour (theme ().textMuted));
-      g.drawFittedText (caption, box, juce::Justification::centred, 1);
-      return;
-    }
-
-  // Two lines, both inside the box: the name on top and the value under it,
-  // the way every button in the bar that stands for something is drawn.
-  auto const captionArea = box.removeFromTop (box.getHeight () / 2);
-  g.setColour (toColour (theme ().textMuted));
-  g.drawFittedText (caption, captionArea, juce::Justification::centred, 1);
-
-  g.setColour (isOn ? tint : toColour (theme ().textMuted));
-  g.drawFittedText (value, box, juce::Justification::centred, 1);
 }
 
 }

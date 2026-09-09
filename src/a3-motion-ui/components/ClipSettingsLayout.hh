@@ -126,13 +126,18 @@ enum class BarPage
    *  its picture. */
   Action,
   Controller,
+  /** One channel's mixer strip: the channel of the clip this bar describes.
+   *  The whole mixer is an overlay reached from the status bar -- this is the
+   *  one-handed reach to the channel you are already looking at, without
+   *  laying anything over the sphere. */
+  Mixer,
   /** Somewhere else entirely: what is stored, rather than what is loaded. The
    *  eight clips of the device down one side and the library down the other,
    *  so a clip is put where it goes rather than dialled to. */
   Browser,
 };
 
-constexpr int numBarPages = 5;
+constexpr int numBarPages = 6;
 
 /** Every page, once. `BarPages.EveryPageAppearsInTheOrderExactlyOnce` fails
  *  if a page is missing from here or listed twice -- nothing in the compiler
@@ -142,7 +147,7 @@ constexpr int numBarPages = 5;
  *  answers wrong quietly forever if this test does not walk it. */
 constexpr std::array<BarPage, numBarPages> barPageOrder{
   BarPage::Clip,       BarPage::Record, BarPage::Action,
-  BarPage::Controller, BarPage::Browser,
+  BarPage::Controller, BarPage::Mixer,  BarPage::Browser,
 };
 
 /** Pages that cover the clip area with something of their own.
@@ -170,6 +175,7 @@ pageCoversClipArea (BarPage page)
       return false;
     case BarPage::Action:
     case BarPage::Controller:
+    case BarPage::Mixer:
     case BarPage::Browser:
       return true;
     }
@@ -187,7 +193,9 @@ pageCoversClipArea (BarPage page)
  *  back with it. FILES has a clip in mind too — the one a picked file is put
  *  into — so choosing the slot and then choosing the file is one errand, and
  *  being thrown back to CLIP halfway through it meant tabbing back and losing
- *  the list you were reading.
+ *  the list you were reading. MIX is the same errand from the other side: the
+ *  strip on show is the shown clip's channel, so a face is how you get to the
+ *  next channel's strip and being thrown to CLIP would undo the reach.
  *
  *  A `switch` with no `default:` for the same reason as pageCoversClipArea
  *  above -- `-Wswitch-enum` is what says a new page forgot to answer. */
@@ -199,6 +207,7 @@ pageDescribesAClip (BarPage page)
     case BarPage::Clip:
     case BarPage::Record:
     case BarPage::Action:
+    case BarPage::Mixer:
     case BarPage::Browser:
       return true;
     case BarPage::Controller:
@@ -405,6 +414,10 @@ struct ClipSettingsLayout
   /** The clip's fourth view: what ACT does, and the envelope behind it. */
   juce::Rectangle<int> tabAction;
   juce::Rectangle<int> tabController;
+  /** One channel's mixer strip, between PADS and the folder. It is a view of
+   *  the channel whose clip the bar is describing, so it stands with the
+   *  clip's own views rather than after the way out of them. */
+  juce::Rectangle<int> tabMixer;
   /** The way to the browser. A folder rather than a fourth word: the three
    *  tabs are views of the clip you are on, and this leaves it. */
   juce::Rectangle<int> tabBrowser;
