@@ -20,6 +20,7 @@
 
 #include "BarFader.hh"
 
+#include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -28,12 +29,30 @@ namespace a3
 
 namespace
 {
-// Fractions of the bounds, not measurements. The track is a slot the width of
-// a third of its column; the cap is as tall as the track is wide, which keeps
-// it square-ish at every aspect and therefore hittable without a rule of its
-// own.
+// Fractions of the bounds, not measurements. The track is a slot a third of
+// its column wide -- measured against REAPER's own mixer (a screenshot of
+// REAPER v7.78, one "1-channelbus" strip, 92px wide, read by pixel profile)
+// this is already close to its ~20-28%, so it is left alone: the fault
+// REAPER's picture points at is the cap, not the track.
 constexpr float trackWidthOfBounds = 1.f / 3.f;
 constexpr float captionHeightOfBounds = 1.f / 5.f;
+
+// The same REAPER measurement: the cap's height is 15% of the *track's*
+// height. The old formula (`capH = min(trackW, trackHeight)`) made the cap
+// square on the track's width instead, which is why a 176px throw drew a
+// 59px cap in a 118px track -- it read as a fill level, not a handle. A
+// fader's cap is flat because a small, fixed share of the track's length
+// leaves the same several-cap-heights of travel whatever the track's width
+// happens to be, where a share of the width shrinks the travel to nothing as
+// soon as the track gets tall and narrow.
+constexpr float capHeightOfTrackHeight = 0.15f;
+
+// How much clear travel a "real throw" needs, in multiples of the hit area's
+// own height. One hit-area height of travel is already enough for the two
+// ends not to overlap; a second one on top of that is the margin that makes
+// them read as two places a finger can aim at separately, rather than two
+// hit areas that merely stop touching at the extremes.
+constexpr float minTravelInHitAreaHeights = 2.f;
 }
 
 FaderGeometry
@@ -55,17 +74,37 @@ faderGeometry (juce::Rectangle<int> bounds, ControlMetrics metrics,
       = juce::Rectangle<int> (trackW, area.getHeight ())
             .withCentre ({ area.getCentreX (), area.getCentreY () });
 
-  // As tall as the track is wide: square-ish whatever the aspect, so it needs
-  // no threshold of its own to stay hittable. Clamped into the track at both
-  // ends, or the last part of the throw could not be reached.
-  auto const capH = juce::jmin (trackW, track.getHeight ());
-  auto const travel = track.getHeight () - capH;
+  // Flat, and exactly the track's own width -- a fader's cap does not
+  // overhang the track (see capHeightOfTrackHeight above for the
+  // measurement this rests on). Clamped to at least a pixel and never past
+  // the whole track, so a track too short to hold a real cap still returns
+  // one rather than dividing by nothing.
+  auto const trackH = track.getHeight ();
+  auto const capH = trackH > 0
+                        ? juce::jlimit (1, trackH,
+                                        juce::roundToInt (
+                                            trackH * capHeightOfTrackHeight))
+                        : 0;
+  auto const travel = trackH - capH;
   auto const top = track.getY ()
                    + juce::roundToInt (travel * (1.f - juce::jlimit (0.f, 1.f,
                                                                     fraction)));
+  auto const cap = juce::Rectangle<int> (track.getX (), top, trackW, capH);
 
-  return { track, juce::Rectangle<int> (track.getX (), top, trackW, capH),
-           caption };
+  // The trap in a flatter cap: it is a smaller *drawn* target, and a smaller
+  // drawn target must not be a smaller one to *touch*. Grown around the
+  // cap's own centre up to fingertipSize in both dimensions rather than
+  // shrunk to match the picture, and kept inside `bounds` -- not just the
+  // track -- since there is room to spare in the caption band below and a
+  // hit area escaping the control's own cell would start covering its
+  // neighbour's.
+  auto const hitArea
+      = juce::Rectangle<int> (juce::jmax (fingertipSize, trackW),
+                              juce::jmax (fingertipSize, capH))
+            .withCentre (cap.getCentre ())
+            .constrainedWithin (bounds);
+
+  return { track, cap, hitArea, caption };
 }
 
 int
@@ -77,19 +116,26 @@ faderHeightForThrow (int width, int maxHeight, ControlMetrics metrics)
   // Both the travel and the cap grow monotonically with the height -- one
   // extra pixel of cell adds at most one to the caption -- so the first
   // height that satisfies the test is also the smallest, and the walk can
-  // stop there.
+  // stop there. Not proven by a test (see the docstring above), and a flat
+  // cap makes it less obviously true than a square one did, since the hit
+  // area's floor stops growing with the height until the cap itself clears
+  // fingertipSize.
   for (auto height = 1; height <= maxHeight; ++height)
     {
       auto const bounds = juce::Rectangle<int> (width, height);
-      auto const bottom = faderGeometry (bounds, metrics, 0.f).cap;
-      auto const top = faderGeometry (bounds, metrics, 1.f).cap;
+      auto const bottom = faderGeometry (bounds, metrics, 0.f);
+      auto const top = faderGeometry (bounds, metrics, 1.f);
 
-      // The cap has to exist before its travel means anything. A cell too
-      // short to hold one at all comes back with a cap of zero height, and
-      // "travelled at least as far as it is tall" is then true of standing
-      // still -- which is how a one-pixel row first claimed to be a fader.
-      if (!bottom.isEmpty ()
-          && bottom.getY () - top.getY () >= bottom.getHeight ())
+      // The cap has to exist before its travel means anything -- a cell too
+      // short to hold one at all comes back with a cap of zero height (see
+      // faderGeometry's capH). And it is minTravelInHitAreaHeights times the
+      // *hit area's* height the travel has to clear, not the cap's own: a
+      // flat cap has almost no height of its own, so a cell just tall enough
+      // to nudge it a few pixels would otherwise count as a fader nobody's
+      // fingertip could actually land on and follow.
+      if (!bottom.cap.isEmpty ()
+          && static_cast<float> (bottom.cap.getY () - top.cap.getY ())
+                 >= bottom.hitArea.getHeight () * minTravelInHitAreaHeights)
         return height;
     }
 

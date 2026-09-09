@@ -101,3 +101,45 @@ TEST (BarFader, AnEmptyBoundsGivesEmptyGeometryAndDoesNotDivideByZero)
   auto const geometry = faderGeometry ({}, metrics, 0.5f);
   EXPECT_TRUE (geometry.track.isEmpty ());
 }
+
+// A fader reads as a handle rather than a fill level when it is flat -- see
+// the measurement in the task brief: REAPER's own cap is 15% of the track's
+// height, not square on the track's width.
+TEST (BarFader, TheCapIsFlatterThanItIsWide)
+{
+  auto const geometry = faderGeometry (aStrip (), metrics, 0.5f);
+  EXPECT_LT (geometry.cap.getHeight (), geometry.cap.getWidth ());
+}
+
+// Corrects an earlier draft of the plan, which claimed a fader's cap
+// overhangs the track on both sides. Measured off REAPER, it does not -- the
+// cap is exactly the track's own width, and it is the cap's flatness alone
+// that makes it read as a handle rather than a fill level.
+TEST (BarFader, TheCapDoesNotOverhangTheTrack)
+{
+  auto const geometry = faderGeometry (aStrip (), metrics, 0.5f);
+  EXPECT_EQ (geometry.cap.getWidth (), geometry.track.getWidth ());
+}
+
+// The whole point of a flat cap: the throw grows without the cell growing.
+// A cap that is a *fraction* of the track's length (the old `min(trackW,
+// trackHeight)`) leaves little travel once it is more than a sliver of the
+// track; a cap that is a small, fixed share of the track's length leaves
+// several cap-heights of travel however tall the track gets.
+TEST (BarFader, TheTravelIsAMultipleOfTheCapsHeightNotAFraction)
+{
+  auto const geometry = faderGeometry (aStrip (), metrics, 0.5f);
+  auto const travel = geometry.track.getHeight () - geometry.cap.getHeight ();
+  EXPECT_GE (travel, geometry.cap.getHeight () * 3);
+}
+
+// The trap this round: a flat cap is a smaller drawn target, and a smaller
+// drawn target is not a smaller one to touch. `hitArea` is what a
+// TouchControl should bind to, and it must not shrink below a fingertip just
+// because the picture inside it did.
+TEST (BarFader, TheHitAreaStaysAtLeastAFingertipEvenAsTheCapFlattens)
+{
+  auto const geometry = faderGeometry (aStrip (), metrics, 0.5f);
+  EXPECT_GE (geometry.hitArea.getWidth (), fingertipSize);
+  EXPECT_GE (geometry.hitArea.getHeight (), fingertipSize);
+}

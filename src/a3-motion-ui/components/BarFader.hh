@@ -36,6 +36,13 @@ struct FaderGeometry
 {
   juce::Rectangle<int> track;
   juce::Rectangle<int> cap;
+
+  /** At least `fingertipSize` in both dimensions, centred on `cap`. A flat
+   *  cap is a smaller *drawn* target than the old square one, and a smaller
+   *  drawn target is not a smaller one to touch -- this is what a
+   *  TouchControl should bind to instead of `cap` itself. */
+  juce::Rectangle<int> hitArea;
+
   juce::Rectangle<int> caption;
 };
 
@@ -45,15 +52,16 @@ FaderGeometry faderGeometry (juce::Rectangle<int> bounds,
 /** The shortest cell of this width in which the fader actually moves.
  *
  *  A throw needs length. The track is a share of the *width*, and the cap is
- *  square on the track, so a cell that is wide and short comes out as a cap
- *  filling its own track with a pixel of travel under it — a lit block that
- *  answers a drag by standing still. A layout that means to draw a fader has
- *  to ask for the height first rather than discover afterwards that it has
- *  drawn one that cannot be operated.
+ *  flat — a small share of the track's own height — so a cell that is wide
+ *  and short comes out as a cap barely nudging in a track it fills almost
+ *  entirely, still a lit block that answers a drag by standing still. A
+ *  layout that means to draw a fader has to ask for the height first rather
+ *  than discover afterwards that it has drawn one that cannot be operated.
  *
- *  "Moves" is read strictly: the travel has to be at least as long as the cap
- *  is tall, so the throw is a stretch a finger can aim along rather than a
- *  couple of pixels that technically differ.
+ *  "Moves" is read strictly: the travel has to clear the cap's *hit area*,
+ *  not merely its drawn height, or a cell just tall enough to nudge a flat
+ *  cap a few pixels would count as a fader nobody's fingertip could actually
+ *  land on and follow.
  *
  *  Answered by walking faderGeometry() rather than by solving its constants
  *  a second time — the caption's height is a share under a floor, so the
