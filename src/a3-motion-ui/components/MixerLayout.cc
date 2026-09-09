@@ -147,8 +147,17 @@ cellForMixerControl (MixerControl control)
   static_assert (controlSlot (MixerControl::Fx) == numMixerControls - 1,
                  "FX joins PFL's row by being the control after it, so it has "
                  "to be the last one in the table");
-  static_assert (numMixerRows == numMixerControls - 1,
-                 "exactly one row was freed, so exactly one pair shares one");
+
+  // The field below is counted from PFL and is bounded by nothing else: a
+  // table that separated the two keys while leaving FX last would hand back a
+  // field index past the end of the row it names. MixerControls'
+  // TheTogglesAreTheLastTwoAndNothingBefore states the same rule from the
+  // table's own side; this is the half of it this arithmetic depends on, said
+  // where the arithmetic is.
+  static_assert (controlSlot (MixerControl::Pfl)
+                     == numMixerControls - fieldsInTheKeyRow,
+                 "the two keys share a row, so they have to be the last two "
+                 "in the table with nothing standing between them");
 
   auto const shared = controlSlot (MixerControl::Pfl);
   auto const slot = controlSlot (control);

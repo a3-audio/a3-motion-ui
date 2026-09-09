@@ -415,6 +415,36 @@ TEST (VuMeter, TheOutputMetersAreOneBlockOfBarsSideBySide)
     }
 }
 
+// One row, and exactly the one the master's five controls leave.
+//
+// It used to be two. rowsNoMasterControlStandsIn reads which rows are free off
+// the master's own map rather than naming them, so when the channel keys began
+// sharing a row the block followed from two into one without being told and
+// without anything noticing. One row is what the maintainer decided to keep,
+// so it is written down here: a decision nothing pins is a decision that can
+// drift back.
+TEST (VuMeter, TheOutputBlockTakesTheMastersOneFreeRow)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  auto block = layout.outputMeterCaption;
+  for (auto const &bar : layout.outputMeters)
+    {
+      ASSERT_FALSE (bar.isEmpty ());
+      block = block.getUnion (bar);
+    }
+
+  // The volume is the lowest of the master's five, so the block begins where
+  // it ends -- and is one of those rows tall, not two. Every row of a strip is
+  // the same height, which is what lets a row be counted by comparing to one.
+  auto const volume = layout.master[static_cast<std::size_t> (
+      controlSlot (MasterControl::Volume))];
+
+  EXPECT_EQ (block.getY (), volume.getBottom ());
+  EXPECT_EQ (block.getHeight (), volume.getHeight ());
+}
+
 // Everything stays inside the area the overlay was given, meters included.
 TEST (VuMeter, TheMetersStayInsideTheOverlaysArea)
 {
