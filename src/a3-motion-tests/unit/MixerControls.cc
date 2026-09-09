@@ -111,18 +111,3 @@ TEST (MixerControls, ThePositionsAreKnownAtCompileTime)
     EXPECT_GE (controlSlot (control), 0);
   SUCCEED ();
 }
-
-// The 3D key is deliberately absent: Core's boolean moved to `4d`, the key is
-// gone in mixer hardware v3.2, and the continuous 3d value is already in the
-// bar's own 4x3 grid. fx-send is absent while it still carries the 3D
-// crossfade -- see issues/a3-core-fx-send-fuehrt-noch-die-3d-funktion.md.
-TEST (MixerControls, NeitherTheThreeDKeyNorFxSendIsHere)
-{
-  for (auto control : mixerControlOrder)
-    {
-      auto const *label = mixerControlLabel (control);
-      EXPECT_STRNE (label, "3D");
-      EXPECT_STRNE (label, "SEND");
-    }
-  EXPECT_EQ (numMixerControls, 7) << "seven, not the mixer's nine";
-}

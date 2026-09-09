@@ -172,7 +172,12 @@ filterControlLabel (FilterControl control)
   return "";
 }
 
-/** Position of a control in its respective order array. */
+/** Where a control sits in its respective order, or -1 for one not in it.
+ *
+ *  Three overloads let a caller ask without knowing which of the three lists
+ *  a control belongs to — useful where a control's type is determined at
+ *  runtime or where mixer state and address lookup want one function name
+ *  for all three. */
 constexpr int
 controlSlot (MixerControl control)
 {
