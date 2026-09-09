@@ -96,6 +96,29 @@ namespace
  *  that are already lit, and every one of them is work done on the timer. */
 constexpr std::size_t elevationFigureSamples = 96;
 
+/** How often this component's own timer runs.
+ *
+ *  Fast enough for a take's write head to move while it is being recorded,
+ *  which is what this rate was chosen for.
+ *
+ *  **It is also the rate the status bar's nine meters are redrawn at**, since
+ *  updateStatusBarMeters() is the first thing timerCallback() does. That is
+ *  deliberately *not* vuMeterRefreshHz: the mixer's meters live on pages that
+ *  come and go and have a timer each, and this bar never goes away, so its
+ *  meters ride the timer that is already running rather than starting a
+ *  second one behind everything else on screen. The two rates being close but
+ *  unequal is therefore a fact about where each set of meters lives, not an
+ *  oversight -- see vuMeterRefreshHz, which says the same thing from the
+ *  other side. */
+constexpr int uiTimerHz = 20;
+
+/** How many of those ticks make the two seconds the directory check runs at.
+ *
+ *  Derived rather than written as 40, which is what it used to be: the count
+ *  and the rate are one decision, and a rate changed without it would move a
+ *  filesystem scan without anybody meaning to. */
+constexpr int libraryCheckTicks = uiTimerHz * 2;
+
 }
 
 
@@ -925,9 +948,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _clipSettings->setSpeedButtons (_speedButtonLog2);
 
 
-  // Fast enough for the write head to move while a take runs; the directory
-  // check inside keeps its old two-second pace by counting ticks.
-  startTimer (50);
+  // See uiTimerHz: fast enough for the write head to move while a take runs,
+  // and the rate the status bar's meters are redrawn at. The directory check
+  // inside keeps its two-second pace by counting ticks.
+  startTimerHz (uiTimerHz);
 
   _engine.addPatternStatusListener (this);
   _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
@@ -5059,6 +5083,11 @@ A3MotionUIComponent::timerCallback ()
   // that something is arriving at all, which is the question asked on the
   // pages that are not the mixer -- and it is a question the conditions below
   // cannot answer, since none of them knows anything about audio.
+  //
+  // So the bar's meters run at uiTimerHz rather than at vuMeterRefreshHz. A
+  // bar that never leaves the screen has no visibility to start and stop a
+  // timer on, and a second timer running for the life of the device is the
+  // one thing vuMeterRefreshHz's own note argues against.
   updateStatusBarMeters ();
 
   // While a take runs its write head moves, and while a clip plays its
@@ -5099,8 +5128,8 @@ A3MotionUIComponent::timerCallback ()
     updateClipSettingsDisplay ();
   _accentWasActive = accent;
 
-  // Every fortieth tick, which is the two seconds this used to run at.
-  if (++_timerTick % 40 != 0)
+  // Two seconds' worth of ticks, which is the pace this used to run at.
+  if (++_timerTick % libraryCheckTicks != 0)
     return;
 
   // Periodically check if pattern directories have changed

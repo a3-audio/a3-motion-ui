@@ -65,11 +65,12 @@ struct StatusBarLayout
   /** The two rectangles a meter refresh is clipped to.
    *
    *  **This is the difference between these meters and the mixer's.** Those
-   *  ran only while their page was on screen; this bar is always there, so a
-   *  refresh that took the whole bar would redraw the beat display and two
-   *  labels twenty-five times a second for the life of the device. Each block
-   *  is exactly its own bars' bounding box and contains nothing else, which
-   *  is what lets `repaint(block)` be both correct and cheap. */
+   *  run only while their page is on screen, at `vuMeterRefreshHz`; this bar
+   *  is always there and its meters ride A3MotionUIComponent's own timer
+   *  (`uiTimerHz`, twenty a second), so a refresh that took the whole bar
+   *  would redraw the beat display and two labels twenty times a second for
+   *  the life of the device. Each block covers its own bars and nothing else,
+   *  which is what lets `repaint(block)` be both correct and cheap. */
   juce::Rectangle<int> inputBlock;
   juce::Rectangle<int> outputBlock;
 };

@@ -134,8 +134,10 @@ TEST (StatusBarLayout, NoMeterTouchesALabelTheIndicatorOrTheIconsBesideThem)
 
 // The two rectangles a repaint is clipped to. The status bar never goes away,
 // so a refresh that took the whole bar would redraw the indicator and two
-// labels twenty-five times a second for the life of the device -- and a block
-// that did not contain its own bars would leave a stale one on screen.
+// labels twenty times a second -- A3MotionUIComponent's uiTimerHz, which is
+// what these meters ride rather than the mixer pages' vuMeterRefreshHz -- for
+// the life of the device. And a block that did not contain its own bars would
+// leave a stale one on screen.
 TEST (StatusBarLayout, EachBlockCoversItsOwnBarsAndNothingElse)
 {
   auto const l = deviceLayout ();

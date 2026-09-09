@@ -49,12 +49,22 @@ constexpr int numOutputMeters = 5;
 constexpr int subwooferMeterIndex = 0;
 constexpr int firstSpeakerMeterIndex = 1;
 
-/** How often a page carrying meters redraws them.
+/** How often a *page* carrying meters redraws them -- the mixer overlay and
+ *  the bar's MIX tab, each of which starts and stops a timer of its own as it
+ *  comes and goes.
  *
  *  Twenty-five a second, chosen for the eye rather than for the wire: past
  *  about that, a bar's movement stops reading as movement and starts reading
  *  as the same picture drawn again, and a booth is not the place to spend a
  *  machine on that.
+ *
+ *  **The status bar's nine meters do not read this**, and turning it up will
+ *  not smooth them. That bar never goes away, so it has no visibility to hang
+ *  a timer on; its meters are redrawn from A3MotionUIComponent::
+ *  timerCallback(), at that component's `uiTimerHz` -- twenty a second. A
+ *  timer of its own would be one running for the life of the device, which is
+ *  what the paragraph below argues against on the other side of the same
+ *  question.
  *
  *  **It deliberately does not track the rate the meters arrive at, and must
  *  not be rewritten to.** VuLevels keeps only the latest sample, so a page
