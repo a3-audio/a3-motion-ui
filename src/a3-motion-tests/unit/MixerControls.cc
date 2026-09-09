@@ -53,6 +53,29 @@ TEST (MixerControls, EveryControlAppearsExactlyOnce)
   EXPECT_EQ (seen.size (), static_cast<std::size_t> (numMixerControls));
 }
 
+// The same for the other two tables, and for the same reason plus one: the
+// address arrays are indexed by these positions, so a control listed twice
+// takes two addresses and leaves the control it displaced with none. That
+// control is then unreachable and one of the two duplicates sends the wrong
+// address -- and every length still agrees, so nothing else here notices.
+TEST (MixerControls, EveryMasterControlAppearsExactlyOnce)
+{
+  std::set<MasterControl> seen;
+  for (auto control : masterControlOrder)
+    EXPECT_TRUE (seen.insert (control).second) << "listed twice";
+
+  EXPECT_EQ (seen.size (), static_cast<std::size_t> (numMasterControls));
+}
+
+TEST (MixerControls, EveryFilterControlAppearsExactlyOnce)
+{
+  std::set<FilterControl> seen;
+  for (auto control : filterControlOrder)
+    EXPECT_TRUE (seen.insert (control).second) << "listed twice";
+
+  EXPECT_EQ (seen.size (), static_cast<std::size_t> (numFilterControls));
+}
+
 // Five continuous, two keys, and the keys are last -- so a layout can take
 // the toggles off the end of the strip without knowing which they are.
 TEST (MixerControls, TheTogglesAreTheLastTwoAndNothingBefore)

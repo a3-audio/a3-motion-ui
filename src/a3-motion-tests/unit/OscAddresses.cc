@@ -297,21 +297,44 @@ TEST (OscAddresses, TheMixerDefaultsAreWhatCoreListensFor)
   // address array is indexed by the control table's order -- that is the
   // invariant TheAddressTableIsAsLongAsTheControlTable exists to hold -- so
   // asking the table where a control sits is exactly the right question.
-  auto const address = [&addresses] (MixerControl control) {
+  //
+  // Every control of all three tables, not one of each: the lengths agreeing
+  // is what the test below checks, and a reorder within a table keeps every
+  // length. Reorder masterControlOrder for a layout reason and mixerMaster[0]
+  // is still /master/volume while the four addresses behind it have all
+  // moved -- you pull the master down, the room stays loud, and the booth
+  // monitor dies because /master/booth is receiving the master volume.
+  auto const channelAddress = [&addresses] (MixerControl control) {
     return addresses.mixerChannel[static_cast<std::size_t> (
         controlSlot (control))];
   };
+  auto const masterAddress = [&addresses] (MasterControl control) {
+    return addresses.mixerMaster[static_cast<std::size_t> (
+        controlSlot (control))];
+  };
+  auto const filterAddress = [&addresses] (FilterControl control) {
+    return addresses.mixerFilter[static_cast<std::size_t> (
+        controlSlot (control))];
+  };
 
-  EXPECT_EQ (address (MixerControl::Gain), "/channel/{ch}/gain");
-  EXPECT_EQ (address (MixerControl::EqHigh), "/channel/{ch}/eq/high");
-  EXPECT_EQ (address (MixerControl::EqMid), "/channel/{ch}/eq/mid");
-  EXPECT_EQ (address (MixerControl::EqLow), "/channel/{ch}/eq/low");
-  EXPECT_EQ (address (MixerControl::Volume), "/channel/{ch}/volume");
-  EXPECT_EQ (address (MixerControl::Pfl), "/channel/{ch}/pfl");
-  EXPECT_EQ (address (MixerControl::Fx), "/channel/{ch}/fx");
+  EXPECT_EQ (channelAddress (MixerControl::Gain), "/channel/{ch}/gain");
+  EXPECT_EQ (channelAddress (MixerControl::EqHigh), "/channel/{ch}/eq/high");
+  EXPECT_EQ (channelAddress (MixerControl::EqMid), "/channel/{ch}/eq/mid");
+  EXPECT_EQ (channelAddress (MixerControl::EqLow), "/channel/{ch}/eq/low");
+  EXPECT_EQ (channelAddress (MixerControl::Volume), "/channel/{ch}/volume");
+  EXPECT_EQ (channelAddress (MixerControl::Pfl), "/channel/{ch}/pfl");
+  EXPECT_EQ (channelAddress (MixerControl::Fx), "/channel/{ch}/fx");
 
-  EXPECT_EQ (addresses.mixerMaster[0], "/master/volume");
-  EXPECT_EQ (addresses.mixerFilter[0], "/fx/mode");
+  EXPECT_EQ (masterAddress (MasterControl::Volume), "/master/volume");
+  EXPECT_EQ (masterAddress (MasterControl::Booth), "/master/booth");
+  EXPECT_EQ (masterAddress (MasterControl::PhonesMix), "/master/phones_mix");
+  EXPECT_EQ (masterAddress (MasterControl::PhonesVolume),
+             "/master/phones_volume");
+  EXPECT_EQ (masterAddress (MasterControl::Return), "/master/return");
+
+  EXPECT_EQ (filterAddress (FilterControl::Mode), "/fx/mode");
+  EXPECT_EQ (filterAddress (FilterControl::Frequency), "/fx/frequency");
+  EXPECT_EQ (filterAddress (FilterControl::Resonance), "/fx/resonance");
 }
 
 // A config file on a device does not rewrite itself, so a file without the
