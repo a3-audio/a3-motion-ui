@@ -36,6 +36,24 @@
 namespace a3
 {
 
+juce::String
+speedLog2Name (int speedLog2)
+{
+  // As recorded is `1` and everything faster is a fraction of it, which is
+  // how a note value is read on any other instrument in the room. The slow
+  // half of the range is plain multiples for the same reason.
+  auto const factor
+      = juce::String (static_cast<int> (std::exp2 (std::abs (speedLog2))));
+
+  return speedLog2 >= 0 ? factor : "1/" + factor;
+}
+
+int
+draggedSpeedLog2 (int speedLog2, int increment)
+{
+  return std::clamp (speedLog2 + increment, speedLog2Min, speedLog2Max);
+}
+
 namespace
 {
 // The bar's own margin. The screen edge is already an edge; this puts a

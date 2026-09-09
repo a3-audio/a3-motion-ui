@@ -170,11 +170,20 @@ private:
   /** Push the clip's direction and end action into the pattern, which is where
    *  the engine reads them. */
   void applyMotionMode (index_t channel, index_t slot);
-  // Speed knob: far left = speedLog2Max (16 bars, slowest), far right =
-  // speedLog2Min (1/128 bar, fastest) — see updateClipSettingsDisplay()'s
-  // speedFrac, which is deliberately inverted against these bounds.
-  static constexpr auto speedLog2Min = -7; // 2^-7 bar = a 128th note
-  static constexpr auto speedLog2Max = 4;  // 2^4 bar = 16 bars
+  /** Play the clip the bar is showing at this speed, and let the bar and the
+   *  set catch up. Both ways to a speed end here — tapping a key for what it
+   *  carries, and dragging a key onto something new. */
+  void applySpeedLog2ToShownClip (int speedLog2);
+
+  /** Write the device's habits out. One place, because there are three
+   *  moments that change one of them and a field added to AppSettings should
+   *  not have to find all three. */
+  void persistSettings () const;
+
+  /** What the bar's four speed keys carry. The device's, not a set's — see
+   *  AppSettings, where the four survive a restart. */
+  std::array<int, numSpeedButtons> _speedButtonLog2
+      = AppSettings{}.speedButtonLog2;
 
   void createMainUI ();
   std::unique_ptr<MotionComponent> _motionComponent;

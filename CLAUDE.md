@@ -424,16 +424,23 @@ is a *layout* change and A3MotionUIComponent is what hands the bar its bounds �
 
 **The Shape section has two faces**, and `BarPage::Record` is the one that turns the card over. The
 front is the clip as it plays — its picture, the **clip field** naming what is in the slot, four
-speed buttons reading from as recorded outwards (`1`, `1/8`, `1/16`, `1/64`), and the **direction and
+speed buttons (`1`, `1/8`, `1/16`, `1/64` on a fresh device), and the **direction and
 end action** under them. Those two came from Motion: what a pass does when it runs out is a property
 of the take, and the take is what this section is about.
 
-**The speed keys are tapped and dragged.** Four keys are the four anybody reaches for; a drag across
-any of them walks the whole of `speedLog2Min..Max`, which is how the other eight steps are reached —
-before this they were reachable from a clip file and from nowhere on the device. Twelve buttons covering the whole of
-`speedLog2Min..Max` took three rows to say every value the range holds; the two rows they gave back
-are what the field stands in, and a speed the four do not name is still reachable from a clip file
-or a script (`~speedLog2`) and simply lights no button. The back is the take you
+**The speed keys are tapped and dragged, and what they carry is the performer's.** A tap plays the
+clip at the speed the key carries; a drag on a key gives *that key* another speed, out of the whole
+of `speedLog2Min..Max`, and applies it straight away — every other drag in the bar changes what you
+hear while you drag, and one that only rearranged keys would be the exception you have to remember.
+The key keeps it, so a speed the four do not yet name is reached once and found again next time.
+The drag used to walk the *shown clip* through the range instead: only the key matching the current
+value ever lit, so it read as jumping between the keys, and the value was gone again the next time.
+Twelve buttons covering the whole of `speedLog2Min..Max` took three rows to say every value the
+range holds; the two rows they gave back are what the field stands in. Their names are computed
+from their values by `speedLog2Name()` — one place where a speed is put into words, since a key
+that can be dragged has to retell itself — and the four values live in `AppSettings`, defaulting to
+what the fixed table carried, because a favourite speed is a working habit like the rec mode rather
+than part of an arrangement a set would rewrite on load. The back is the take you
 are about to make: eight length buttons, the `fade` that closes its join, and the trajectory
 appearing as you play it in, redrawn on the pad-LED tick. Only that one section changes — you are
 still looking at the elevation and the motion the take will get.

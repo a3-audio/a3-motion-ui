@@ -290,14 +290,14 @@ ClipSettingsComponent::createTouchControls ()
         if (onSpeedChosen)
           onSpeedChosen (index);
       };
-      // And a drag over them walks the whole range, not only the four they
-      // name. Four buttons are the four anybody reaches for; the eight steps
-      // between and beyond them were reachable from a file and from nowhere
-      // on the device. Now the same keys are both: tap for the one you want,
-      // push for the one that has no key.
-      button->onDragIncrement = [this] (int, int, int increment) {
+      // And a drag over one gives that key another speed. The key keeps it,
+      // so a speed the four do not yet name is reached once and stays where
+      // it was put — where before a drag walked the shown clip through the
+      // range and left nothing behind, which read as jumping between the
+      // keys because only the key matching the value ever lit.
+      button->onDragIncrement = [this] (int index, int, int increment) {
         if (onSpeedDragged)
-          onSpeedDragged (increment);
+          onSpeedDragged (index, increment);
       };
       addAndMakeVisible (*button);
       _speedTouch[static_cast<size_t> (i)] = std::move (button);
@@ -1088,6 +1088,17 @@ ClipSettingsComponent::setRecMode (RecMode mode)
 }
 
 void
+ClipSettingsComponent::setSpeedButtons (
+    std::array<int, numSpeedButtons> const &speeds)
+{
+  if (speeds == _speedButtonLog2)
+    return;
+
+  _speedButtonLog2 = speeds;
+  repaint ();
+}
+
+void
 ClipSettingsComponent::setSlotDrifted (index_t slot, bool drifted)
 {
   if (slot >= numPadSlots || drifted == _slotDrifted[slot])
@@ -1575,14 +1586,17 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
     }
   else
     {
-      // Four speeds, one row: as recorded and three steps of fast. See
-      // speedButtonLog2 for what that leaves unreachable and why it is worth
-      // it. A clip carrying some other speed lights none of them, which is
-      // the honest answer to "which of these is it".
+      // Four speeds, one row, and what each of them is is the performer's:
+      // tapped for the speed it carries, dragged to give it another. Their
+      // names are computed from their values, so a key retells itself the
+      // moment it is dragged.
       for (int i = 0; i < numSpeedButtons; ++i)
-        paintBarButton (g, _layout.speedButtons[static_cast<size_t> (i)],
-                        speedButtonNames[i], {},
-                        _speedLog2 == speedButtonLog2[i], isSelected);
+        {
+          auto const log2 = _speedButtonLog2[static_cast<size_t> (i)];
+          paintBarButton (g, _layout.speedButtons[static_cast<size_t> (i)],
+                          speedLog2Name (log2), {}, _speedLog2 == log2,
+                          isSelected);
+        }
 
       // Which way a pass runs and what it does when it runs out. They step on
       // a tap -- no chevron, because nothing opens.

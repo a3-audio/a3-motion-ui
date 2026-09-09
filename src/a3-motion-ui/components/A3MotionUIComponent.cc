@@ -561,20 +561,25 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       showBarPage (BarPage::Clip);
   };
 
-  // A drag over the speed keys walks the whole of speedLog2, not only the
-  // four the keys name -- see onSpeedDragged in the bar.
-  _clipSettings->onSpeedDragged = [this] (int increment) {
-    auto const channel = _clipSettingsChannel;
-    auto const slot = _clipSettingsSlot;
-    auto const &pattern = _patterns[channel][slot];
-    if (!pattern || increment == 0)
+  // A drag gives the key under the finger another speed, and the clip is
+  // played at it straight away -- every other drag in this bar changes what
+  // you hear while you drag, and one that only rearranged the keys would be
+  // the exception you have to remember. The key keeps what it was dragged
+  // to, which is how a speed the four do not name is reached and then found
+  // again the next time.
+  _clipSettings->onSpeedDragged = [this] (int index, int increment) {
+    if (index < 0 || index >= numSpeedButtons || increment == 0)
       return;
 
-    pattern->setSpeedLog2 (std::clamp (pattern->getSpeedLog2 () + increment,
-                                       speedLog2Min, speedLog2Max));
-    applyMotionMode (channel, slot);
-    updateClipSettingsDisplay ();
-    scheduleSetSave ();
+    auto &carried = _speedButtonLog2[static_cast<size_t> (index)];
+    auto const moved = draggedSpeedLog2 (carried, increment);
+    if (moved == carried)
+      return;
+
+    carried = moved;
+    _clipSettings->setSpeedButtons (_speedButtonLog2);
+    persistSettings ();
+    applySpeedLog2ToShownClip (moved);
   };
 
   _clipSettings->onLockToggled = [this] (int section) {
@@ -628,23 +633,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // global strip it stands on both pages, so it can be held while the other
   // hand works the pads.
   // The bar's ACT plays the shown clip's accent, exactly as its pad does.
-  // A speed button is the clip's playback length said plainly. Tapping one
-  // sets it outright rather than stepping towards it — that is the point of
-  // there being twelve.
+  // A speed key is the clip's playback length said plainly. Tapping one sets
+  // it outright rather than stepping towards it — that is what the keys are
+  // for, and it is untouched by the keys becoming assignable.
   _clipSettings->onSpeedChosen = [this] (int index) {
     if (index < 0 || index >= numSpeedButtons)
       return;
 
-    auto const channel = _clipSettingsChannel;
-    auto const slot = _clipSettingsSlot;
-    if (auto &chosen = _patterns[channel][slot])
-      chosen->setSpeedLog2 (speedButtonLog2[index]);
-
-    if (auto &pattern = _patterns[channel][slot])
-      pattern->setPlaybackLength (getPlaybackLength (channel, slot));
-
-    updateClipSettingsDisplay ();
-    scheduleSetSave ();
+    applySpeedLog2ToShownClip (_speedButtonLog2[static_cast<size_t> (index)]);
   };
 
   _clipSettings->onAccentHeld = [this] (bool held) {
@@ -907,12 +903,15 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _clipSettings->addChildComponent (*_mixerStrip);
   selectClip (0, 0); // sensible default before any button has been pressed
 
-  // Clockmode is all that is left to restore. Pot Size and the two font sizes
-  // are the skin's now, and the skin brings its own.
+  // The device's own habits, restored: the clock mode, the rec mode, and the
+  // four speeds the bar's keys carry. Pot Size and the two font sizes are the
+  // skin's now, and the skin brings its own.
   auto const persisted = loadSettings (getPersistedSettingsFile ());
   applyClockMode (persisted.clockMode);
   _recMode = persisted.recMode;
   _engine.setRecMode (_recMode);
+  _speedButtonLog2 = persisted.speedButtonLog2;
+  _clipSettings->setSpeedButtons (_speedButtonLog2);
 
 
   // Fast enough for the write head to move while a take runs; the directory
@@ -1125,6 +1124,31 @@ A3MotionUIComponent::applyMotionMode (index_t channel, index_t slot)
   if (params.endAction >= 0
       && params.endAction < static_cast<int> (actions.size ()))
     pattern->setEndAction (*(actions.begin () + params.endAction));
+}
+
+void
+A3MotionUIComponent::applySpeedLog2ToShownClip (int speedLog2)
+{
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto &pattern = _patterns[channel][slot];
+  if (!pattern)
+    return;
+
+  pattern->setSpeedLog2 (speedLog2);
+  // How long one traversal takes is derived from the speed, so the engine
+  // goes on playing the old length until it is told the new one.
+  pattern->setPlaybackLength (getPlaybackLength (channel, slot));
+
+  updateClipSettingsDisplay ();
+  scheduleSetSave ();
+}
+
+void
+A3MotionUIComponent::persistSettings () const
+{
+  saveSettings (getPersistedSettingsFile (),
+                AppSettings{ _clockMode, _recMode, _speedButtonLog2 });
 }
 
 Measure
@@ -5354,8 +5378,7 @@ A3MotionUIComponent::applyRecMode (int index)
   if (runsOnHardware ())
     updateFunctionKeyLEDs ();
 
-  saveSettings (getPersistedSettingsFile (),
-                AppSettings{ _clockMode, _recMode });
+  persistSettings ();
 }
 
 void
@@ -5395,8 +5418,7 @@ A3MotionUIComponent::applyClockMode (int mode)
   clockModeMsg.addInt32 (_clockMode);
   _oscSender.send (clockModeMsg);
 
-  saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _recMode });
+  persistSettings ();
 }
 
 
@@ -5850,8 +5872,7 @@ A3MotionUIComponent::refreshFonts ()
   if (auto *root = getTopLevelComponent ())
     root->repaint ();
 
-  saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _recMode });
+  persistSettings ();
 }
 
 juce::File
@@ -6568,9 +6589,9 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   // _clipSettingsSubIndex only picks which one is highlighted, and only
   // means anything while that section is actually selected.
   //
-  // Speed is passed as an already-normalized knob fraction + a formatted
-  // musical label (e.g. "1/4", "2") rather than the raw speedLog2 value,
-  // so ClipSettingsComponent doesn't need to know speedLog2Min/Max.
+  // Speed is passed as an already-normalized knob fraction + the same words
+  // the keys wear (speedLog2Name) rather than the raw speedLog2 value, so
+  // ClipSettingsComponent need not invert the range itself.
   // Inverted against the raw range: far left (frac 0) = speedLog2Max
   // ("16", slowest), far right (frac 1) = speedLog2Min ("1/128", fastest).
   auto const clipSpeedLog2 = pattern ? pattern->getSpeedLog2 () : 0;
@@ -6580,13 +6601,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       = speedRange > 0.f
             ? (speedLog2Max - clipSpeedLog2) / speedRange
             : 0.f;
-  auto const speedLabel
-      = clipSpeedLog2 >= 0
-            ? juce::String (static_cast<int> (std::exp2 (clipSpeedLog2)))
-            : "1/"
-                  + juce::String (
-                      static_cast<int> (std::exp2 (-clipSpeedLog2)));
-  _clipSettings->setMotionSpeed (speedFrac, speedLabel);
+  _clipSettings->setMotionSpeed (speedFrac, speedLog2Name (clipSpeedLog2));
   // Read back off the pattern rather than from this table. The pattern is
   // where the engine looks and what the file carries, so a clip that came from
   // disk brings its own settings -- and the bar has to show those, not the

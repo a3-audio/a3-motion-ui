@@ -496,7 +496,7 @@ TEST (ClipSettingsLayout, TheFrontHasFourSpeedsAndTheBackEightLengths)
       defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
 
   // Four, not the whole range. The eight rows that went are what the clip
-  // field stands in -- see speedButtonLog2.
+  // field stands in -- see numSpeedButtons.
   EXPECT_EQ (numSpeedButtons, 4);
   EXPECT_EQ (numRecordLengths, 8);
 
@@ -798,32 +798,64 @@ TEST (ClipSettingsLayout, TheLengthButtonsClearThePictogram)
     }
 }
 
-// The wording and the powers of two have to agree: the button says what the
-// take will be, and log2 is what the setting holds.
-// The speeds read from "as recorded" outwards, and each name is the power of
-// two it stands for. Two things one test, because a row of numbers that
-// claims a scale and does not keep one is worse than no scale at all.
-TEST (ClipSettingsLayout, TheSpeedsRunFromAsRecordedIntoTheFastEnd)
+// The keys carry whatever the performer put on them, so their names are
+// computed rather than written down beside four fixed values. The four the
+// device ships with have to come out of the formatter spelled exactly as the
+// fixed strings spelled them, or the same speed would be named two ways in
+// one device -- on a key here, and in the same breath somewhere else.
+TEST (ClipSettingsLayout, TheShippedSpeedsAreNamedAsTheyAlwaysWere)
 {
-  ASSERT_GT (numSpeedButtons, 0);
-  EXPECT_EQ (speedButtonLog2[0], 0) << "the row has to start where a hand does";
+  EXPECT_EQ (speedLog2Name (0), "1");
+  EXPECT_EQ (speedLog2Name (-3), "1/8");
+  EXPECT_EQ (speedLog2Name (-4), "1/16");
+  EXPECT_EQ (speedLog2Name (-6), "1/64");
+}
 
-  for (int i = 0; i < numSpeedButtons; ++i)
+// A key can now be dragged anywhere in the range, so every value in it has to
+// arrive on the key as something readable -- including the positive end, which
+// is slower than recorded and was never on a key before.
+TEST (ClipSettingsLayout, EverySpeedInTheRangeIsWordedAndWordedOnlyOnce)
+{
+  std::set<juce::String> seen;
+
+  for (int log2 = speedLog2Min; log2 <= speedLog2Max; ++log2)
     {
-      auto const log2 = speedButtonLog2[i];
       auto const expected
           = log2 >= 0 ? juce::String (static_cast<int> (std::exp2 (log2)))
                       : "1/" + juce::String (
                             static_cast<int> (std::exp2 (-log2)));
 
-      EXPECT_EQ (juce::String (speedButtonNames[i]), expected) << "button " << i;
-
-      if (i > 0)
-        EXPECT_LT (log2, speedButtonLog2[i - 1])
-            << "button " << i << " does not carry on away from 1";
+      auto const name = speedLog2Name (log2);
+      EXPECT_EQ (name, expected) << "speed " << log2;
+      EXPECT_FALSE (name.isEmpty ()) << "speed " << log2;
+      EXPECT_TRUE (seen.insert (name).second)
+          << "speed " << log2 << " is worded as something already used";
     }
 
-  // And they are laid out in that order, left to right.
+  EXPECT_EQ (speedLog2Name (speedLog2Min), "1/128");
+  EXPECT_EQ (speedLog2Name (speedLog2Max), "16");
+}
+
+// The whole range is reachable a key at a time, and the ends of it are ends:
+// a drag that ran off one and came back on the other would be a key nobody
+// could aim at.
+TEST (ClipSettingsLayout, ADragWalksASpeedKeyAcrossTheRangeAndStopsAtItsEnds)
+{
+  EXPECT_EQ (draggedSpeedLog2 (0, 1), 1);
+  EXPECT_EQ (draggedSpeedLog2 (0, -1), -1);
+  EXPECT_EQ (draggedSpeedLog2 (0, 0), 0);
+
+  EXPECT_EQ (draggedSpeedLog2 (speedLog2Max, 1), speedLog2Max);
+  EXPECT_EQ (draggedSpeedLog2 (speedLog2Min, -1), speedLog2Min);
+
+  // Every value the range holds is a drag away from every other one.
+  for (int log2 = speedLog2Min; log2 <= speedLog2Max; ++log2)
+    EXPECT_EQ (draggedSpeedLog2 (speedLog2Min, log2 - speedLog2Min), log2);
+}
+
+// Left to right, in the order the performer's four sit in.
+TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
+{
   auto const l = defaultLayout ();
   for (int i = 1; i < numSpeedButtons; ++i)
     EXPECT_LT (l.speedButtons[static_cast<size_t> (i - 1)].getX (),

@@ -65,24 +65,39 @@ constexpr int numChannelRows = 3;
  *  may be — it reaches 32 bars, one step past the speed control's range. */
 constexpr int numRecordLengths = 8;
 
-/** The speeds a clip can play at, as powers of two of a bar.
+/** How far a clip's speed may be pushed either way, as a power of two of a
+ *  bar. Here rather than in A3MotionUIComponent, where they were private, so
+ *  that the naming of a speed and the dragging of one can be computed -- and
+ *  checked -- without a component. */
+constexpr int speedLog2Min = -7; // 2^-7 bar = a 128th note
+constexpr int speedLog2Max = 4;  // 2^4 bar = 16 bars
+
+/** How many speeds the Shape section keeps under a finger.
  *
  *  Four, not the whole of speedLog2Min..Max. Twelve buttons said every value
  *  the range holds and took three rows of the section to do it; these are the
- *  four anybody reaches for -- as recorded, and three steps of fast -- and the
- *  two rows they give back are what the clip field stands in.
+ *  four a hand wants at once, and the two rows they give back are what the
+ *  clip field stands in.
  *
- *  What that costs: a speed this table does not name is no longer reachable
- *  from the bar. It is still reachable from a clip file and from a script
- *  (`~speedLog2`), and a clip carrying one plays at it -- no button lights,
- *  which is the honest answer to "which of these is it".
- *
- *  Read from as recorded outwards: `1` is where a hand starts, and the row
- *  runs away from it into the fast end. */
+ *  Which four is the performer's to say: a key is tapped for the speed it
+ *  carries and dragged to give it another, so every value in the range is a
+ *  key away and stays on that key. The four a fresh device starts with live
+ *  in AppSettings, because a favourite speed is a working habit rather than
+ *  part of an arrangement. */
 constexpr int numSpeedButtons = 4;
-constexpr int speedButtonLog2[numSpeedButtons] = { 0, -3, -4, -6 };
-constexpr char const *speedButtonNames[numSpeedButtons]
-    = { "1", "1/8", "1/16", "1/64" };
+
+/** A speed worded the way a musician reads it: `1` for as recorded, `1/8` for
+ *  eight times as fast, `16` for sixteen bars a cycle.
+ *
+ *  The one place a speed is put into words. The four keys used to carry their
+ *  names beside their values as fixed strings, which only works while the
+ *  values are fixed too. */
+juce::String speedLog2Name (int speedLog2);
+
+/** Where a drag leaves the speed key it started on. Clamped rather than
+ *  wrapped: the ends of the range are ends, and a key that jumped from the
+ *  fastest to the slowest under a finger would be a key nobody could aim. */
+int draggedSpeedLog2 (int speedLog2, int increment);
 constexpr int recordLengthLog2[numRecordLengths] = { -2, -1, 0, 1, 2, 3, 4, 5 };
 constexpr char const *recordLengthNames[numRecordLengths]
     = { "1/4", "1/2", "1", "2", "4", "8", "16", "32" };
@@ -362,7 +377,8 @@ struct ClipSettingsLayout
   /** The take's length, on the Shape section's back — in recordLengthLog2
    *  order. */
   std::array<juce::Rectangle<int>, numRecordLengths> lengthButtons;
-  /** How fast the clip plays, on its front — in speedButtonLog2 order. */
+  /** How fast the clip plays, on its front — one key per speed the
+   *  performer has put there, left to right. */
   std::array<juce::Rectangle<int>, numSpeedButtons> speedButtons;
 
   /** Which way a pass runs and what it does when it runs out. Under the
