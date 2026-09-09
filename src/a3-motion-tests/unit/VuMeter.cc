@@ -586,3 +586,47 @@ TEST (VuMeter, AnEmptyOverlayHasNoMeters)
   for (auto const &bar : layout.outputMeters)
     EXPECT_TRUE (bar.isEmpty ());
 }
+
+// The raster both blocks of thin bars are stepped on, extracted because both
+// of them had it written out. Stepped from the left with an integer cell:
+// taken from the right the remainder lands between the bars rather than
+// against the edge, and a block whose bars are not evenly spaced reads as a
+// fault in the picture rather than as a level.
+TEST (VuMeter, ABlockOfBarsIsSteppedEvenlyFromItsLeftEdge)
+{
+  auto const block = juce::Rectangle<int> (10, 4, 47, 20);
+  auto const cell = block.getWidth () / 5;
+  auto const gap = 2;
+
+  std::array<juce::Rectangle<int>, 5> bars{};
+  stepMeterBarsAcross (block, cell, gap, bars);
+
+  EXPECT_EQ (bars.front ().getX (), block.getX ());
+
+  for (auto const &bar : bars)
+    {
+      EXPECT_EQ (bar.getY (), block.getY ());
+      EXPECT_EQ (bar.getHeight (), block.getHeight ());
+      EXPECT_EQ (bar.getWidth (), cell - gap);
+      EXPECT_TRUE (block.contains (bar)) << bar.toString ();
+    }
+
+  for (std::size_t i = 1; i < bars.size (); ++i)
+    {
+      EXPECT_EQ (bars[i].getX () - bars[i - 1].getX (), cell);
+      EXPECT_LT (bars[i - 1].getRight (), bars[i].getX ())
+          << "two bars meeting read as one wide one";
+    }
+}
+
+// A cell narrower than its own gap still has to draw something. A bar of no
+// width is a meter saying nothing, where a hairline says "this output is
+// here, and quiet".
+TEST (VuMeter, ABarTooNarrowForItsGapIsStillAPixelWide)
+{
+  std::array<juce::Rectangle<int>, 5> bars{};
+  stepMeterBarsAcross (juce::Rectangle<int> (0, 0, 5, 10), 1, 4, bars);
+
+  for (auto const &bar : bars)
+    EXPECT_EQ (bar.getWidth (), 1) << bar.toString ();
+}

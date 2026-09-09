@@ -227,6 +227,38 @@ struct OutputMeterBlock
 OutputMeterBlock outputMeterBlock (juce::Rectangle<int> block,
                                    ControlMetrics metrics);
 
+/** One block of thin bars, stepped across from the left edge of `block`.
+ *
+ *  Stepped with an integer cell the way MixerLayout's cellAcross and
+ *  ClipSettingsLayout's colW are: taken from the right the remainder lands
+ *  between the bars rather than against the edge, and a block whose bars are
+ *  not evenly spaced reads as a fault rather than as a level. A cell narrower
+ *  than its own gap still draws a hairline, because a bar of no width is a
+ *  meter saying nothing where the truth is "here, and quiet".
+ *
+ *  Shared rather than written twice. The master column's five outputs and the
+ *  status bar's five are the same five outputs, and the second block was a
+ *  character-for-character copy of the first -- so a change to how bars are
+ *  stepped would have left the same signal drawn on two rasters, side by side
+ *  on the same screen. The gap stays a parameter because the two blocks
+ *  genuinely differ there: an eighth of a cell in the master column, a quarter
+ *  in the bar, where an eighth rounds to the single pixel that makes four bars
+ *  read as one wide one with lines scratched in it.
+ *
+ *  A template over the array's length rather than a pointer and a count: the
+ *  two callers hold four and five, and a count passed by hand is the one part
+ *  of this a copy could still get wrong. */
+template <std::size_t N>
+void
+stepMeterBarsAcross (juce::Rectangle<int> block, int cell, int gap,
+                     std::array<juce::Rectangle<int>, N> &bars)
+{
+  for (std::size_t i = 0; i < N; ++i)
+    bars[i] = juce::Rectangle<int> (
+        block.getX () + cell * static_cast<int> (i), block.getY (),
+        juce::jmax (1, cell - gap), block.getHeight ());
+}
+
 /** Every level the mixer's meters read, and the peak lingering over each.
  *
  *  **Why this exists at all**, given that `/vu/0..3` already lands in

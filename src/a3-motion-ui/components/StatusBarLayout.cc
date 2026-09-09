@@ -23,25 +23,6 @@
 namespace a3
 {
 
-namespace
-{
-/** One block of thin bars, stepped across from the left.
- *
- *  Stepped with an integer cell the way MixerLayout's cellAcross and
- *  VuMeter's own output block are: taken from the right the remainder lands
- *  between the bars rather than against the edge, and a block whose bars are
- *  not evenly spaced reads as a fault rather than as a level. */
-void
-stepBarsAcross (juce::Rectangle<int> block, int cell, int gap,
-                juce::Rectangle<int> *bars, int count)
-{
-  for (int i = 0; i < count; ++i)
-    bars[i] = juce::Rectangle<int> (block.getX () + cell * i, block.getY (),
-                                    juce::jmax (1, cell - gap),
-                                    block.getHeight ());
-}
-}
-
 StatusBarLayout
 statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding)
 {
@@ -126,10 +107,11 @@ statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding)
   out.outputBlock = juce::Rectangle<int> (out.tick.getRight () + blockGap,
                                           row.getY (), outputWidth, rowHeight);
 
-  stepBarsAcross (out.inputBlock, cell, barGap, out.inputMeters.data (),
-                  numChannelsInitial);
-  stepBarsAcross (out.outputBlock, cell, barGap, out.outputMeters.data (),
-                  numOutputMeters);
+  // VuMeter's, not a second copy of it: these are the same five outputs the
+  // master column draws, and two steppings of one signal would show it on two
+  // rasters at once.
+  stepMeterBarsAcross (out.inputBlock, cell, barGap, out.inputMeters);
+  stepMeterBarsAcross (out.outputBlock, cell, barGap, out.outputMeters);
 
   // The labels stop where the meters begin. They used to run under the
   // indicator, which was harmless while the space between them was empty —

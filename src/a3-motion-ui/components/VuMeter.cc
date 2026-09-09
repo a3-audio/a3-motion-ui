@@ -249,15 +249,7 @@ outputMeterBlock (juce::Rectangle<int> block, ControlMetrics metrics)
       1, juce::roundToInt (static_cast<float> (cellWidth)
                            * outputBarGapOfCell));
 
-  // Stepped from the left with an integer cell width, the way MixerLayout's
-  // cellAcross and ClipSettingsLayout's colW are: taken from the right the
-  // remainder lands between the bars rather than against the edge, and a
-  // block whose bars are not evenly spaced reads as a fault.
-  for (int i = 0; i < numOutputMeters; ++i)
-    out.bars[static_cast<std::size_t> (i)]
-        = juce::Rectangle<int> (bars.getX () + cellWidth * i, bars.getY (),
-                                juce::jmax (1, cellWidth - gap),
-                                bars.getHeight ());
+  stepMeterBarsAcross (bars, cellWidth, gap, out.bars);
 
   return out;
 }
