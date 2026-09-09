@@ -763,6 +763,11 @@ private:
   int numSubElementsForSection (int menuIndex) const;
   void updateClipSettingsDisplay ();
   void updateStatusBarPlayheads ();
+  /** The nine small meters on the status bar, read off the one VuLevels the
+   *  mixer's own meters read. Pushed from here rather than pulled by a timer
+   *  of the bar's own — that bar is on screen for the whole of a set, and a
+   *  second clock there would be one that never stops. */
+  void updateStatusBarMeters ();
   /** Where the sphere is being looked at from, or straight down if there is
    *  no sphere yet -- this runs while the interface is still being built. */
   SphereCamera sphereCamera () const;

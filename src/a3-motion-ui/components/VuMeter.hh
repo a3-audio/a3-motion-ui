@@ -275,16 +275,33 @@ private:
 /** One meter, drawn into `bounds`.
  *
  *  A free function beside `paintBarKnob`, for the reason it is: the overlay
- *  draws nine of these and the bar's MIX tab draws one, and the same meter
- *  has to be the same picture in both.
+ *  draws nine of these, the bar's MIX tab draws one and the status bar draws
+ *  nine small ones, and the same meter has to be the same picture in all of
+ *  them.
  *
- *  **It takes no colour.** The fill used to be the channel's own, which is how
- *  this device says whose something is everywhere else — but green, yellow and
- *  red down a level meter is a language older than this device and it does not
- *  survive being said in four hues at once. Whose meter it is, the strip it
- *  stands in already says: the wash behind it and every knob beside it are in
- *  the channel's colour. */
+ *  **It takes no colour for the fill.** That used to be the channel's own,
+ *  which is how this device says whose something is everywhere else — but
+ *  green, yellow and red down a level meter is a language older than this
+ *  device and it does not survive being said in four hues at once. Whose
+ *  meter it is, the strip it stands in already says: the wash behind it and
+ *  every knob beside it are in the channel's colour. */
 void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
                    VuLevel level);
+
+/** The same meter, standing on a different ground.
+ *
+ *  The track is the one part of this picture that is not absolute: it is the
+ *  recess the fill sits in, and a recess is only a recess against what
+ *  surrounds it. The mixer page fills itself with `surface`, so the default
+ *  `surfaceRaised` track reads there as a channel cut into a black panel — and
+ *  the status bar *is* `surfaceRaised`, so the same track drew a meter that
+ *  could not be seen at all until something arrived on it. A meter has to be
+ *  findable before it has anything to say, which is the whole reason the empty
+ *  track is drawn.
+ *
+ *  Only the track. The bands, the mark and every boundary between them stay
+ *  exactly what they are on the mixer page, because those are the reading. */
+void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
+                   VuLevel level, juce::Colour track);
 
 }

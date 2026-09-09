@@ -5014,6 +5014,12 @@ A3MotionUIComponent::refreshAllPadRowLabels ()
 void
 A3MotionUIComponent::timerCallback ()
 {
+  // First and whatever else is happening: what the status bar's meters say is
+  // that something is arriving at all, which is the question asked on the
+  // pages that are not the mixer -- and it is a question the conditions below
+  // cannot answer, since none of them knows anything about audio.
+  updateStatusBarMeters ();
+
   // While a take runs its write head moves, and while a clip plays its
   // playhead does. Both fill the tick indicator, so both have to be followed
   // -- watching only the recording is what left a playing clip with a
@@ -6368,6 +6374,35 @@ A3MotionUIComponent::updateStatusBarPlayheads ()
     }
 
   _statusBar->setChannelPlayheads (positions, colours);
+}
+
+/** Every meter the status bar draws, read at one moment.
+ *
+ *  One reading of the clock for all nine, the way the mixer page does it:
+ *  nine meters each asking the time would draw nine slightly different
+ *  moments, and a peak mark that expired between two bars of the same picture
+ *  is a picture that contradicts itself.
+ *
+ *  Unconditional, unlike the clip settings below it. Whether a level is
+ *  moving is not something this side can know without looking at it, and the
+ *  bar itself only repaints where a level actually changed. */
+void
+A3MotionUIComponent::updateStatusBarMeters ()
+{
+  if (!_statusBar)
+    return;
+
+  auto const now = vuNowMs ();
+
+  std::array<VuLevel, numChannelsInitial> inputs;
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    inputs[static_cast<size_t> (channel)] = _vuLevels.channel (channel, now);
+
+  std::array<VuLevel, numOutputMeters> outputs;
+  for (int meter = 0; meter < numOutputMeters; ++meter)
+    outputs[static_cast<size_t> (meter)] = _vuLevels.output (meter, now);
+
+  _statusBar->setVuLevels (inputs, outputs);
 }
 
 void

@@ -100,6 +100,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternProgressBar.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/VuMeter.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerHitAreas.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/StatusBarLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SettingsPersistence.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SessionFile.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/osc/OscMessageHandler.cc"
@@ -153,6 +154,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/OverlayButtons.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/MixerComponent.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/MixerStripComponent.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/StatusBarLayout.cc"
     )
 
 # The corona visibility test reads the config that actually ships with the app,

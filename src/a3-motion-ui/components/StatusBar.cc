@@ -25,11 +25,23 @@
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
+#include <algorithm>
 #include <sstream>
 
 namespace
 {
 auto constexpr beatsPerBar = 4; // TODO read from tempoclock
+
+/** Whether a meter would be drawn the same twice.
+ *
+ *  The whole point of asking is the repaint it saves, so it compares the two
+ *  numbers a meter is drawn from and nothing else. */
+bool
+sameLevel (a3::VuLevel a, a3::VuLevel b)
+{
+  return juce::approximatelyEqual (a.peak, b.peak)
+         && juce::approximatelyEqual (a.rms, b.rms);
+}
 }
 
 namespace a3
@@ -189,32 +201,70 @@ StatusBar::resized ()
   // rather than a target that is hit.
   _mixIconArea = bounds.removeFromRight (_keyboardIconArea.getWidth ());
 
-  // Clock mode and tempo are one reading in one label — "EXT BPM 123" — so
-  // there is one space between them and one colour over both. Two labels
-  // meant a gap whose width was a guess, and a colour that had to be kept in
-  // step in three places. The tick indicator is centred on the bar itself
-  // (below), not on what this leaves over.
-  auto leftArea = bounds.removeFromLeft (bounds.getWidth () / 2);
-  _labelBPM.setBounds (
-      leftArea.withTrimmedLeft (juce::roundToInt (theme ().paddingSmall)));
+  // Everything left on the bar comes out of one calculation with a test of
+  // its own, the way the clip settings bar and the controller page do it: the
+  // two readings, the nine meters and the beat display are placed against
+  // each other rather than each carving what it wants off the band, and
+  // paint() then draws into the rectangles the test checked.
+  _layout = statusBarLayout (bounds, getWidth (),
+                             juce::roundToInt (theme ().paddingSmall));
 
-  // What is left between the beat display and the keyboard icon. The tick
-  // indicator is centred on the whole bar, so it reaches to three quarters --
-  // the readout starts where it stops.
-  _labelReadout.setBounds (
-      bounds.withTrimmedLeft (bounds.getWidth () / 2)
-          .withTrimmedRight (juce::roundToInt (theme ().paddingSmall)));
+  _labelBPM.setBounds (_layout.bpm);
+  _labelReadout.setBounds (_layout.readout);
+  _tickIndicator.setBounds (_layout.tick);
+}
 
-  // Centred on the bar, not on whatever space the labels left over: it is
-  // the one thing here that is looked at rather than read, and an off-centre
-  // beat display reads as a mistake. Kept inside the gap between the labels
-  // so it cannot grow into them.
-  auto const tickWidth
-      = juce::jmin (bounds.getWidth () * 4 / 5, getWidth () / 2);
-  _tickIndicator.setBounds (
-      juce::Rectangle<int> (tickWidth,
-                            static_cast<int> (bounds.getHeight () * 0.6f))
-          .withCentre ({ getWidth () / 2, bounds.getCentreY () }));
+void
+StatusBar::setVuLevels (std::array<VuLevel, numChannelsInitial> const &inputs,
+                        std::array<VuLevel, numOutputMeters> const &outputs)
+{
+  // Asked block by block, and the repaint is per block. This bar is on screen
+  // for the whole of a set: a plain repaint() here would redraw the beat
+  // display, both labels and both icons at the timer's rate forever, for the
+  // sake of nine bars that between them cover a fifteenth of it.
+  if (!std::equal (inputs.begin (), inputs.end (), _inputLevels.begin (),
+                   sameLevel))
+    {
+      _inputLevels = inputs;
+      repaint (_layout.inputBlock);
+    }
+
+  if (!std::equal (outputs.begin (), outputs.end (), _outputLevels.begin (),
+                   sameLevel))
+    {
+      _outputLevels = outputs;
+      repaint (_layout.outputBlock);
+    }
+}
+
+void
+StatusBar::paintVuMeters (juce::Graphics &g)
+{
+  // The mixer's own picture at a fraction of the size, not a second meter
+  // drawn to a rule of its own: green, yellow and red down a bar is one
+  // language, and a small one that spoke it differently would be read wrong
+  // exactly once, at the moment it mattered.
+  //
+  // The bands do survive the shrinking, which was the open question. Measured
+  // on the device at the shipped skin the bars come out six pixels across and
+  // twenty-four tall, so the red band is about two pixels and the yellow
+  // about five -- but both sit at the *head* of the bar against a dark track,
+  // where a change of hue is legible long before a length is. What is lost is
+  // reading a number off the scale, which is what the mixer page is for.
+  //
+  // **One thing does differ, and it has to.** On the ground the mixer's own
+  // meters stand on, these were invisible until something arrived: that page
+  // fills itself with `surface` and the track is `surfaceRaised`, which is the
+  // colour this bar *is*. Sunk into it instead, so nine empty meters still
+  // read as nine meters -- a meter has to be findable before it has anything
+  // to say. See paintVuMeter's four-argument form.
+  auto const track = toColour (theme ().surface);
+
+  for (std::size_t i = 0; i < _inputLevels.size (); ++i)
+    paintVuMeter (g, _layout.inputMeters[i], _inputLevels[i], track);
+
+  for (std::size_t i = 0; i < _outputLevels.size (); ++i)
+    paintVuMeter (g, _layout.outputMeters[i], _outputLevels[i], track);
 }
 
 void
@@ -417,6 +467,11 @@ StatusBar::paint (juce::Graphics &g)
   // skin can reach — the band under the clock stayed the same grey in every
   // skin. It is painted here instead, from the role that describes it.
   g.fillAll (toColour (theme ().surfaceRaised));
+
+  // Before the two keys and after the ground: they are clipped to their own
+  // blocks on a refresh, so what is drawn after them here costs nothing on
+  // the frames that are actually paid for.
+  paintVuMeters (g);
 
   paintMixKey (g);
 

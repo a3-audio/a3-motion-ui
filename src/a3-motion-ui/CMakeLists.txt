@@ -39,6 +39,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/LookAndFeel.hh
     components/StatusBar.cc
     components/StatusBar.hh
+    components/StatusBarLayout.cc
+    components/StatusBarLayout.hh
     components/ChannelStrip.cc
     components/ChannelStrip.hh
     components/CoronaScaling.cc

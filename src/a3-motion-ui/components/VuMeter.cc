@@ -322,18 +322,27 @@ VuLevels::output (int meter, juce::int64 nowMs) const
 void
 paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds, VuLevel level)
 {
+  // The strip's own raised surface, so a meter reads as part of the block of
+  // controls beside it rather than as a picture laid over it — and, on the
+  // page this was drawn for, as a channel cut into the black the mixer fills
+  // itself with.
+  paintVuMeter (g, bounds, level, toColour (theme ().surfaceRaised));
+}
+
+void
+paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds, VuLevel level,
+              juce::Colour track)
+{
   auto const geometry = vuMeterGeometry (bounds, level);
   if (geometry.track.isEmpty ())
     return;
 
   auto const &t = theme ();
 
-  // The strip's own raised surface, so a meter reads as part of the block of
-  // controls beside it rather than as a picture laid over it. Left plain
-  // above the fill: REAPER draws the bands into the signal and not into the
-  // empty track, and a track pre-painted in three colours would read as a
-  // meter permanently at full scale.
-  g.setColour (toColour (t.surfaceRaised));
+  // Left plain above the fill: REAPER draws the bands into the signal and not
+  // into the empty track, and a track pre-painted in three colours would read
+  // as a meter permanently at full scale.
+  g.setColour (track);
   g.fillRect (geometry.track);
 
   for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
