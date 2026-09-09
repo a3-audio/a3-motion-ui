@@ -137,9 +137,16 @@ MixerStripComponent::resized ()
 {
   _layout = layOutMixerStrip (getLocalBounds (), _metrics);
 
+  // The same rule the overlay follows: a strip drawing "not enough room" must
+  // not go on answering drags across that sentence. It matters more here
+  // rather than less -- the bar stays on screen underneath the overlay, so
+  // this page is reachable even while the mixer is up.
   for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerControls);
        ++i)
-    _touch[i]->setBounds (_layout.controls[0][i]);
+    {
+      _touch[i]->setBounds (_layout.controls[0][i]);
+      _touch[i]->setVisible (_layout.fits);
+    }
 }
 
 void

@@ -302,21 +302,37 @@ MixerComponent::resized ()
 
   _layout = layOutMixerOverlay (area, _metrics);
 
+  // A page that does not fit draws one sentence and no controls, so nothing
+  // here may still take a touch: a hit area with nothing under it is how a
+  // finger changes a value it cannot see -- the rule
+  // ClipSettingsComponent::setPage stands on. The rectangles are deliberately
+  // sane rather than empty when `fits` is false (MixerLayout.cc), which is
+  // what left fifteen full-size targets over the sentence, and the row floor
+  // is made of Pot Size -- a skin value the performer dials on the device --
+  // so this is reachable without resizing anything.
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     for (int i = 0; i < numMixerControls; ++i)
-      _channelTouch[static_cast<std::size_t> (channel)]
-                   [static_cast<std::size_t> (i)]
-                       ->setBounds (
-                           _layout.controls[static_cast<std::size_t> (channel)]
-                                           [static_cast<std::size_t> (i)]);
+      {
+        auto &touch = _channelTouch[static_cast<std::size_t> (channel)]
+                                   [static_cast<std::size_t> (i)];
+        touch->setBounds (_layout.controls[static_cast<std::size_t> (channel)]
+                                          [static_cast<std::size_t> (i)]);
+        touch->setVisible (_layout.fits);
+      }
 
   for (int i = 0; i < numMasterControls; ++i)
-    _masterTouch[static_cast<std::size_t> (i)]->setBounds (
-        _layout.master[static_cast<std::size_t> (i)]);
+    {
+      auto &touch = _masterTouch[static_cast<std::size_t> (i)];
+      touch->setBounds (_layout.master[static_cast<std::size_t> (i)]);
+      touch->setVisible (_layout.fits);
+    }
 
   for (int i = 0; i < numFilterControls; ++i)
-    _filterTouch[static_cast<std::size_t> (i)]->setBounds (
-        _layout.filter[static_cast<std::size_t> (i)]);
+    {
+      auto &touch = _filterTouch[static_cast<std::size_t> (i)];
+      touch->setBounds (_layout.filter[static_cast<std::size_t> (i)]);
+      touch->setVisible (_layout.fits);
+    }
 }
 
 void
