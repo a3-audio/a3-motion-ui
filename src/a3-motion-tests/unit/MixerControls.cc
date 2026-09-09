@@ -111,3 +111,27 @@ TEST (MixerControls, ThePositionsAreKnownAtCompileTime)
     EXPECT_GE (controlSlot (control), 0);
   SUCCEED ();
 }
+
+// The rule is the volume, wherever it appears: five vertical strips, five
+// faders, and the eye runs through. It used to say the master was a knob
+// because a summing level is set once and left -- asked directly, the
+// maintainer chose the fader, and the rule lives in one place so the two
+// lists cannot answer it differently.
+TEST (MixerControls, TheVolumeIsAFaderInBothLists)
+{
+  EXPECT_TRUE (mixerControlIsAFader (MixerControl::Volume));
+  EXPECT_TRUE (mixerControlIsAFader (MasterControl::Volume));
+
+  auto channelFaders = 0;
+  for (auto control : mixerControlOrder)
+    channelFaders += mixerControlIsAFader (control) ? 1 : 0;
+  EXPECT_EQ (channelFaders, 1);
+
+  // The phones have a level of their own and it is not one: a column with two
+  // faders has none the eye runs to.
+  auto masterFaders = 0;
+  for (auto control : masterControlOrder)
+    masterFaders += mixerControlIsAFader (control) ? 1 : 0;
+  EXPECT_EQ (masterFaders, 1);
+  EXPECT_FALSE (mixerControlIsAFader (MasterControl::PhonesVolume));
+}

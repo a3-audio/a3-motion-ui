@@ -79,16 +79,19 @@ mixerControlIsAToggle (MixerControl control)
 
 /** Whether it is thrown rather than turned.
  *
- *  The channel volume, and nothing else. On every mixer a hand has ever been
- *  on, the channel level is a vertical fader and the summing level is a knob:
- *  the fader is what a channel is brought *in* on, and a throw is the one
- *  gesture every booth already has. The master is set at the start of the
- *  night and left alone — it is not a performance control, and a page whose
- *  most fader-looking thing was the master would teach the wrong reach in the
- *  one place muscle memory is strongest. So there is deliberately no
- *  masterControlIsAFader(): nothing in the summing section is one.
+ *  **The volume is a fader wherever it appears**, which is why this question
+ *  is asked here and nowhere else: the overlay stands the master beside the
+ *  four channels as a fifth strip, and five levels on one line is the whole
+ *  reason for that arrangement. A summing level drawn as a knob would be the
+ *  one column of the five the eye had to stop at.
  *
- *  **A rule, not a measurement.** The overlay stands four strips upright and
+ *  It said the opposite for a while, and on a good argument: a channel is
+ *  what a hand brings *in* on a throw, where the master is set at the start
+ *  of the night and left. That argument decided a master sitting in a row of
+ *  its own; asked again with the master standing in the row of faders, the
+ *  maintainer chose the fader.
+ *
+ *  **A rule, not a measurement.** The overlay stands five strips upright and
  *  the bar's MIX tab lays one across its width, so the two see very different
  *  cells; deciding from a cell's proportions would give a hand a control that
  *  changes shape between pages. A layout that cannot give the fader a throw
@@ -143,6 +146,18 @@ constexpr std::array<MasterControl, numMasterControls> masterControlOrder{
   MasterControl::PhonesMix,    MasterControl::PhonesVolume,
   MasterControl::Return,
 };
+
+/** The same rule, for the summing section — an overload rather than a second
+ *  name, the way controlSlot() answers for all three lists.
+ *
+ *  The master's own level and nothing else. The phones carry a level too and
+ *  it is a knob: a column with two faders has none the eye runs to, and what
+ *  lines up across all five columns is the level the room hears. */
+constexpr bool
+mixerControlIsAFader (MasterControl control)
+{
+  return control == MasterControl::Volume;
+}
 
 constexpr char const *
 masterControlLabel (MasterControl control)

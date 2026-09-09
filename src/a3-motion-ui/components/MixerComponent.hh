@@ -99,7 +99,10 @@ private:
   static constexpr int filterGroup = numChannelsInitial + 1;
 
   void paintStrip (juce::Graphics &g, int channel);
-  void paintSumming (juce::Graphics &g);
+  /** The fifth column, drawn as a strip like the four beside it. */
+  void paintMasterColumn (juce::Graphics &g);
+  /** The row across the foot, which belongs to neither. */
+  void paintFilterRow (juce::Graphics &g);
   MixerState &_state;
   MixerLayout _layout;
   ControlMetrics _metrics{};

@@ -43,8 +43,9 @@ constexpr float keyFaceWash = 0.08f;
 constexpr float keyActiveWash = 0.36f;
 constexpr float keyEdgeWash = 0.18f;
 
-// A strip's own ground, faint enough that the four blocks read as four decks
-// without any of them becoming a panel in its own right.
+// A strip's own ground, faint enough that the five columns read as five
+// blocks without any of them becoming a panel in its own right. The master
+// wears it too: it is the fifth strip, not a section standing beside four.
 constexpr float stripWash = 0.07f;
 
 /** Whether the control's middle means neutral.
@@ -310,7 +311,8 @@ MixerComponent::paint (juce::Graphics &g)
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     paintStrip (g, channel);
 
-  paintSumming (g);
+  paintMasterColumn (g);
+  paintFilterRow (g);
 }
 
 void
@@ -341,13 +343,25 @@ MixerComponent::paintStrip (juce::Graphics &g, int channel)
 }
 
 void
-MixerComponent::paintSumming (juce::Graphics &g)
+MixerComponent::paintMasterColumn (juce::Graphics &g)
 {
   // No channel's colour, because none of this belongs to a channel -- the
   // same reason the bar's global strip paints its four keys grey. White
   // rather than the muted grey a deselected control wears, because the master
   // volume is not a secondary control; it is simply nobody's in particular.
   auto const colour = toColour (theme ().textPrimary);
+
+  // The same ground the four strips wear, so the master reads as the fifth of
+  // five rather than as a panel that happens to stand beside them. Only as
+  // far as its own controls go: the two rows under its fader are where the
+  // output meters land, and a wash reaching into them would promise something
+  // that is not drawn yet.
+  auto ground = _layout.master.front ();
+  for (auto const &cell : _layout.master)
+    ground = ground.getUnion (cell);
+
+  g.setColour (colour.withAlpha (stripWash));
+  g.fillRoundedRectangle (ground.toFloat (), theme ().radiusCard);
 
   for (std::size_t i = 0; i < static_cast<std::size_t> (numMasterControls);
        ++i)
@@ -357,13 +371,27 @@ MixerComponent::paintSumming (juce::Graphics &g)
       auto const bounds = _layout.master[i];
       auto const label = juce::String (masterControlLabel (control));
 
-      // Nothing here is a throw, the master volume least of all. It is the
-      // summing level -- set at the start of the night and left -- and a page
-      // whose most fader-looking control was the master would send a hand
-      // reaching for it to bring a channel in.
+      // The summing level is thrown like the four beside it, and it is the
+      // layout that has put its row on their line. Which control that is comes
+      // from mixerControlIsAFader() -- the same rule the strips ask, so the
+      // five faders are one decision rather than a channel rule and a master
+      // rule that agree until somebody edits one of them.
+      if (mixerControlIsAFader (control))
+        {
+          paintBarFader (g, bounds, _metrics, colour, label, value, true,
+                         true);
+          continue;
+        }
+
       paintBarKnob (g, bounds, _metrics, colour, label, angleFor (value),
                     fillsFromTheMiddle (control), false, true);
     }
+}
+
+void
+MixerComponent::paintFilterRow (juce::Graphics &g)
+{
+  auto const colour = toColour (theme ().textPrimary);
 
   for (std::size_t i = 0; i < static_cast<std::size_t> (numFilterControls);
        ++i)

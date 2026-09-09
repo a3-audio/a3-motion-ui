@@ -28,14 +28,31 @@ namespace a3
 
 namespace
 {
-/** How much of the overlay's height the summing row takes.
+/** How much of the overlay's height the filter's own row takes.
  *
- *  A sixth, because the eight controls in it are the ones a hand reaches for
- *  once a set is running — the master and the filter — while the four strips
- *  above carry seven controls each and are what the overlay is for. Never
+ *  A sixth, which is what the row across the foot has always had — the master
+ *  has left it for a column of its own and the three that remain simply have
+ *  the width to themselves. The filter is neither channel nor master, and it
+ *  is the one global control a hand reaches for constantly mid-set: three
+ *  controls across the full width are the biggest targets on the page. Never
  *  less than a row's floor, so on a short screen the row keeps a target
  *  rather than a share. */
-constexpr float summingRowOfHeight = 1.f / 6.f;
+constexpr float filterRowOfHeight = 1.f / 6.f;
+
+/** The master's share of the width, taken before the channels break.
+ *
+ *  A fifth, because the page is five strips and they should read as five of
+ *  one kind. Never less than a row's floor, so on a short screen the column
+ *  keeps a target rather than a share.
+ *
+ *  **Taken first, rather than by breaking the width into five.**
+ *  breakColumns halves its count, so five would come out as two columns —
+ *  and two columns of five is three rows, six cells for five strips, with
+ *  cellIn admitting an index that stands for nothing. The master is not a
+ *  channel anyway. What taking it first buys on a narrow screen is that the
+ *  four fall into a 2x2 block with the master standing beside them, rather
+ *  than a five-way split coming apart. */
+constexpr float masterColumnOfWidth = 1.f / 5.f;
 
 /** The air a control leaves inside its cell.
  *
@@ -84,6 +101,104 @@ cellAcross (juce::Rectangle<int> row, int count, int index)
 
   return cell.reduced (gapIn (cell));
 }
+
+/** One column's rows, in the table's order, and whether they are worth
+ *  drawing. */
+struct StripRows
+{
+  std::array<juce::Rectangle<int>, numMixerControls> rows;
+  bool fits;
+};
+
+/** The rows of one strip, top to bottom.
+ *
+ *  A function of the strip's *height*: which row belongs to the fader comes
+ *  from mixerControlIsAFader() and how tall that row has to be from
+ *  faderHeightForThrow(), which answers about a height rather than about a
+ *  proportion of the width. Two columns of the same height therefore come out
+ *  with the same rows — which is what puts the master's volume exactly on the
+ *  channels' line rather than near it, and the reason this is one function
+ *  instead of two arrangements that agree today. */
+StripRows
+rowsDownStrip (juce::Rectangle<int> strip, ControlMetrics metrics)
+{
+  StripRows out{};
+  out.fits = !strip.isEmpty ();
+  if (strip.isEmpty ())
+    return out;
+
+  auto const floor_ = rowFloor (metrics);
+
+  // The volume is the one control in the strip a hand throws rather than
+  // turns -- mixerControlIsAFader() is where that is decided, once, for every
+  // page that draws one -- so it is given the height a throw needs and the
+  // others share what is left. Equal rows put the fader in a cell wider than
+  // it was tall, where its cap fills its own track and the throw comes out a
+  // pixel long.
+  //
+  // The room it may take is what is left once the others have their floor, so
+  // a strip can never be so generous to the fader that the controls above it
+  // stop being hittable.
+  auto const others = numMixerControls - 1;
+  auto const volumeRoom = strip.getHeight () - others * floor_;
+  auto const throwHeight
+      = volumeRoom > 0
+            ? faderHeightForThrow (strip.getWidth (), volumeRoom, metrics)
+            : 0;
+  if (throwHeight == 0)
+    out.fits = false;
+
+  // Back to equal rows when the throw cannot be had. `fits` is already false
+  // and the overlay draws a sentence instead of a mixer, but the rectangles
+  // still have to be sane: a caller that paints anyway must not paint one
+  // control over another.
+  auto const volumeH
+      = throwHeight > 0 ? throwHeight : strip.getHeight () / numMixerControls;
+  auto const rowH = juce::jmax (0, (strip.getHeight () - volumeH) / others);
+
+  if (rowH < floor_ || strip.getWidth () < floor_)
+    out.fits = false;
+
+  auto y = strip.getY ();
+  for (int i = 0; i < numMixerControls; ++i)
+    {
+      auto const height
+          = mixerControlIsAFader (
+                mixerControlOrder[static_cast<std::size_t> (i)])
+                ? volumeH
+                : rowH;
+
+      out.rows[static_cast<std::size_t> (i)] = juce::Rectangle<int> (
+          strip.getX (), y, strip.getWidth (), height);
+      y += height;
+    }
+
+  return out;
+}
+
+/** Which of those rows a master control stands in.
+ *
+ *  The master's five sit on the channels' own seven-row grid, because five
+ *  levels on one line is the whole point of standing it beside them: its
+ *  volume takes the fader's row and the other four fill the rows above it in
+ *  the table's order.
+ *
+ *  **The two rows that leaves are empty on purpose.** They are where a
+ *  channel's two keys stand, and the master's output level meters go there —
+ *  a layout that filled them with anything else now would only have to be
+ *  undone. */
+constexpr int
+rowForMasterControl (MasterControl control)
+{
+  static_assert (numMasterControls - 1 <= controlSlot (MixerControl::Volume),
+                 "the master's other controls no longer fit above the fader");
+
+  if (mixerControlIsAFader (control))
+    return controlSlot (MixerControl::Volume);
+
+  auto const slot = controlSlot (control);
+  return slot < controlSlot (MasterControl::Volume) ? slot : slot - 1;
+}
 }
 
 MixerLayout
@@ -96,22 +211,27 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
 
   auto const floor_ = rowFloor (metrics);
 
-  // The summing row comes off the bottom first: it is the one part of the
-  // overlay whose size does not depend on how the strips break, and taking it
-  // first is what lets the strips be laid out in whatever is left rather than
-  // in a guess at it.
-  auto stripArea = area;
-  auto const summing = stripArea.removeFromBottom (juce::jmax (
+  // The filter's row comes off the bottom first: it belongs to neither the
+  // channels nor the master, its height does not depend on how the strips
+  // break, and taking it first is what lets the columns be laid out in what
+  // is left rather than in a guess at it.
+  auto columnArea = area;
+  auto const filterRow = columnArea.removeFromBottom (juce::jmax (
       floor_, juce::roundToInt (static_cast<float> (area.getHeight ())
-                                * summingRowOfHeight)));
+                                * filterRowOfHeight)));
 
-  auto const numSumming = numMasterControls + numFilterControls;
-  for (int i = 0; i < numMasterControls; ++i)
-    out.master[static_cast<std::size_t> (i)]
-        = cellAcross (summing, numSumming, i);
   for (int i = 0; i < numFilterControls; ++i)
     out.filter[static_cast<std::size_t> (i)]
-        = cellAcross (summing, numSumming, numMasterControls + i);
+        = cellAcross (filterRow, numFilterControls, i);
+
+  // Then the master's column off the right, before the four break in what is
+  // left of the width. The count below stays numChannelsInitial for that
+  // reason: the master is a strip, not a channel, and it has already taken
+  // its share.
+  auto stripArea = columnArea;
+  auto const masterColumn = stripArea.removeFromRight (juce::jmax (
+      floor_, juce::roundToInt (static_cast<float> (columnArea.getWidth ())
+                                * masterColumnOfWidth)));
 
   // Twice minimumMotionHeight as the height threshold, not once: a strip
   // carries seven controls down its length, and one only minimumMotionHeight
@@ -121,6 +241,19 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
   out.strips = breakColumns (stripArea, numChannelsInitial,
                              static_cast<int> (minimumChannelWidth),
                              static_cast<int> (minimumMotionHeight * 2.f));
+
+  // The arrangement holds exactly the four channels, in every break of them:
+  // four columns, two by two, or one by four. Six cells would mean the master
+  // had been counted in, and cellIn would then admit an index for a strip
+  // that is not there.
+  jassert (out.strips.columns * out.strips.rows == numChannelsInitial);
+
+  // One gap for all five columns, taken from a channel's cell rather than
+  // from each column's own size. The gap is what sets a column's top edge,
+  // and five columns whose gaps differed by a pixel would put five faders on
+  // five lines.
+  auto const firstCell = cellIn (stripArea, out.strips, 0);
+  auto const gap = gapIn (firstCell.isEmpty () ? masterColumn : firstCell);
 
   auto rowsFit = true;
 
@@ -133,58 +266,24 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
           continue;
         }
 
-      auto const strip = cell.reduced (gapIn (cell));
+      auto const rows = rowsDownStrip (cell.reduced (gap), metrics);
+      rowsFit = rowsFit && rows.fits;
+      out.controls[static_cast<std::size_t> (channel)] = rows.rows;
+    }
 
-      // The volume is the one control in the strip a hand throws rather than
-      // turns -- mixerControlIsAFader() is where that is decided, once, for
-      // this page and the bar's -- so it is given the height a throw needs
-      // and the other six share what is left. Equal rows put the fader in a
-      // cell wider than it was tall, where its cap fills its own track and
-      // the throw comes out a pixel long.
-      //
-      // The room it may take is what is left once the others have their
-      // floor, so a strip can never be so generous to the fader that the
-      // controls above it stop being hittable.
-      auto const others = numMixerControls - 1;
-      auto const volumeRoom = strip.getHeight () - others * floor_;
-      auto const throwHeight
-          = volumeRoom > 0 ? faderHeightForThrow (strip.getWidth (),
-                                                  volumeRoom, metrics)
-                           : 0;
-      if (throwHeight == 0)
-        rowsFit = false;
+  // The master stands on the same grid, its column running the full height
+  // the strips have: while the four are side by side that is exactly a
+  // channel's height, so the two arrangements are one and its volume lands on
+  // their line. Broken two by two they cannot both be lined up with, and the
+  // master keeps the height rather than half of it.
+  auto const masterRows = rowsDownStrip (masterColumn.reduced (gap), metrics);
+  rowsFit = rowsFit && masterRows.fits;
 
-      // Back to equal rows when the throw cannot be had. `fits` is already
-      // false and the overlay draws a sentence instead of a mixer, but the
-      // rectangles still have to be sane: a caller that paints anyway must
-      // not paint one control over another.
-      auto const volumeH = throwHeight > 0
-                               ? throwHeight
-                               : strip.getHeight () / numMixerControls;
-      auto const rowH
-          = juce::jmax (0, (strip.getHeight () - volumeH) / others);
-
-      if (rowH < floor_ || strip.getWidth () < floor_)
-        rowsFit = false;
-
-      // Down the strip in the table's order, which is what makes
-      // MixerControls the authority rather than a list that happens to agree
-      // with what is drawn.
-      auto y = strip.getY ();
-      for (int i = 0; i < numMixerControls; ++i)
-        {
-          auto const height
-              = mixerControlIsAFader (
-                    mixerControlOrder[static_cast<std::size_t> (i)])
-                    ? volumeH
-                    : rowH;
-
-          out.controls[static_cast<std::size_t> (channel)]
-                      [static_cast<std::size_t> (i)]
-              = juce::Rectangle<int> (strip.getX (), y, strip.getWidth (),
-                                      height);
-          y += height;
-        }
+  for (int i = 0; i < numMasterControls; ++i)
+    {
+      auto const index = static_cast<std::size_t> (i);
+      out.master[index] = masterRows.rows[static_cast<std::size_t> (
+          rowForMasterControl (masterControlOrder[index]))];
     }
 
   out.fits = out.strips.fits && rowsFit;

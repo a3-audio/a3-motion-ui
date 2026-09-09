@@ -56,6 +56,17 @@ aBarStrip ()
                                static_cast<int> (minimumChannelWidth * 5),
                                static_cast<int> (minimumMotionHeight * 2));
 }
+
+// Too narrow for four strips side by side, and tall enough that breaking them
+// is the only thing being asked. Built here rather than three times over, and
+// parenthesised for the narrowing reason above.
+juce::Rectangle<int>
+aNarrowOverlay ()
+{
+  return juce::Rectangle<int> (0, 0,
+                               static_cast<int> (minimumChannelWidth * 4) - 1,
+                               static_cast<int> (minimumMotionHeight * 12));
+}
 }
 
 // Every control of every channel has a rectangle, and none of them is empty.
@@ -162,10 +173,7 @@ TEST (MixerLayout, TheVolumeRowIsTallerThanTheRowsAroundIt)
 // uses it.
 TEST (MixerLayout, ANarrowOverlayBreaksTheStripsIntoTwoByTwo)
 {
-  auto const narrow
-      = juce::Rectangle<int> (0, 0, minimumChannelWidth * 4 - 1,
-                              minimumMotionHeight * 12);
-  auto const layout = layOutMixerOverlay (narrow, metrics);
+  auto const layout = layOutMixerOverlay (aNarrowOverlay (), metrics);
 
   EXPECT_EQ (layout.strips.columns, 2);
   EXPECT_EQ (layout.strips.rows, 2);
@@ -249,6 +257,149 @@ TEST (MixerLayout, TheBarsStripKeepsEveryControlAtAFingertip)
   ASSERT_TRUE (layout.fits);
 
   for (auto const &control : layout.controls[0])
+    {
+      EXPECT_GE (control.getWidth (), fingertipSize);
+      EXPECT_GE (control.getHeight (), fingertipSize);
+    }
+}
+
+// The master is the fifth strip, not a row under the four: its column stands
+// to the right of every channel's control, so the eye runs across five levels
+// instead of jumping between two arrangements.
+TEST (MixerLayout, TheMasterStandsAsAColumnRightOfTheChannels)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  for (auto const &control : layout.master)
+    {
+      ASSERT_FALSE (control.isEmpty ());
+      for (auto const &strip : layout.controls)
+        for (auto const &cell : strip)
+          EXPECT_GE (control.getX (), cell.getRight ())
+              << "the master's column runs into a channel's";
+    }
+}
+
+// The assurance the whole change stands on. Five vertical strips are five
+// levels on one line; a master volume half a row off the channels' faders is
+// four faders and a stray one, which is the arrangement this replaced.
+TEST (MixerLayout, TheMastersVolumeSitsOnTheChannelsFaderLine)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  auto const channelSlot
+      = static_cast<std::size_t> (controlSlot (MixerControl::Volume));
+  auto const masterSlot
+      = static_cast<std::size_t> (controlSlot (MasterControl::Volume));
+  auto const master = layout.master[masterSlot];
+
+  for (auto const &strip : layout.controls)
+    {
+      EXPECT_EQ (master.getY (), strip[channelSlot].getY ());
+      EXPECT_EQ (master.getHeight (), strip[channelSlot].getHeight ());
+    }
+}
+
+// The master's level is thrown like the four beside it, so its row has to
+// hold a throw as theirs does -- asked of the fader's own geometry rather
+// than of the cell's proportions, the way the channels' is.
+TEST (MixerLayout, TheMastersVolumeCellGivesTheFaderARealThrow)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  auto const cell = layout.master[static_cast<std::size_t> (
+      controlSlot (MasterControl::Volume))];
+  auto const bottom = faderGeometry (cell, metrics, 0.f).cap;
+  auto const top = faderGeometry (cell, metrics, 1.f).cap;
+  EXPECT_GT (bottom.getY (), top.getY ());
+}
+
+// Five controls against a channel's seven, and the two rows that leaves are
+// left empty on purpose: the output level meters go there. A layout that
+// filled them now would have to be undone.
+TEST (MixerLayout, TheMasterLeavesTheRowsBelowItsFaderEmpty)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  auto const faderRow = layout.controls[0][static_cast<std::size_t> (
+      controlSlot (MixerControl::Volume))];
+
+  for (auto const &control : layout.master)
+    EXPECT_LE (control.getBottom (), faderRow.getBottom ())
+        << "the master reaches into the rows the meters are waiting for";
+}
+
+// It is neither channel nor master, and it is the one global control touched
+// constantly mid-set: a row of its own under all five columns, so three
+// controls get the full width and the biggest targets on the page.
+TEST (MixerLayout, TheFilterRunsUnderAllFiveColumns)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  auto span = layout.filter.front ();
+  for (auto const &control : layout.filter)
+    {
+      ASSERT_FALSE (control.isEmpty ());
+      span = span.getUnion (control);
+    }
+
+  std::vector<juce::Rectangle<int> > columns;
+  for (auto const &strip : layout.controls)
+    columns.push_back (strip.front ());
+  columns.push_back (layout.master.front ());
+
+  for (auto const &column : columns)
+    {
+      EXPECT_LT (span.getX (), column.getCentreX ());
+      EXPECT_GT (span.getRight (), column.getCentreX ());
+      EXPECT_GE (span.getY (), column.getBottom ())
+          << "the filter is not under the columns";
+    }
+}
+
+// The break is asked for the four channels, never for five. Five would halve
+// to two columns, and two columns of five is three rows -- six cells for five
+// strips, with cellIn admitting an index that stands for nothing.
+TEST (MixerLayout, TheBreakHoldsExactlyTheFourChannels)
+{
+  auto const roomy = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  EXPECT_EQ (roomy.strips.columns * roomy.strips.rows, numChannelsInitial);
+
+  auto const narrow = layOutMixerOverlay (aNarrowOverlay (), metrics);
+  EXPECT_EQ (narrow.strips.columns * narrow.strips.rows, numChannelsInitial);
+}
+
+// Narrow, the four fall into a 2x2 block and the master keeps standing beside
+// them -- which is what taking its width off first buys, rather than a
+// five-way split coming apart.
+TEST (MixerLayout, ANarrowOverlayLeavesTheMasterBesideTheTwoByTwo)
+{
+  auto const layout = layOutMixerOverlay (aNarrowOverlay (), metrics);
+
+  EXPECT_EQ (layout.strips.columns, 2);
+  EXPECT_EQ (layout.strips.rows, 2);
+
+  for (auto const &control : layout.master)
+    {
+      ASSERT_FALSE (control.isEmpty ());
+      for (auto const &strip : layout.controls)
+        for (auto const &cell : strip)
+          EXPECT_GE (control.getX (), cell.getRight ());
+    }
+}
+
+// Hit in the dark like everything else on the page.
+TEST (MixerLayout, EveryMasterControlIsAtLeastAFingertip)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  for (auto const &control : layout.master)
     {
       EXPECT_GE (control.getWidth (), fingertipSize);
       EXPECT_GE (control.getHeight (), fingertipSize);
