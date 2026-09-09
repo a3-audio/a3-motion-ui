@@ -114,6 +114,33 @@ readPrefix (juce::var const &block, char const *key, juce::String &into)
 
 namespace
 {
+/** What each mixer address is called in config.json, in the same order as
+ *  OscAddresses::mixerChannel/mixerMaster/mixerFilter.
+ *
+ *  Kept here rather than in the ui's MixerControls.hh: a key in a file
+ *  somebody has already edited and the default behind it are one piece of
+ *  vocabulary, and keeping them together is what lets this engine stay free
+ *  of any `a3-motion-ui` include — reading a config file is the engine's
+ *  job, not the ui's, and a table of seven words is not a reason to change
+ *  that. Named per control, so a config file reads as words rather than as
+ *  an index into a table: "mixerGain", not "mixer0". */
+constexpr std::array<char const *, numMixerAddresses> mixerAddressKeys{
+  "mixerGain", "mixerEqHigh", "mixerEqMid", "mixerEqLow",
+  "mixerVolume", "mixerPfl", "mixerFx",
+};
+
+constexpr std::array<char const *, numMasterAddresses> masterAddressKeys{
+  "masterVolume", "masterBooth", "masterPhonesMix",
+  "masterPhonesVolume", "masterReturn",
+};
+
+constexpr std::array<char const *, numFilterAddresses> filterAddressKeys{
+  "filterMode", "filterFrequency", "filterResonance",
+};
+}
+
+namespace
+{
 /** Every key, against whichever block it is being read from. Called once
  *  for the flat block and once per group, so a file written before the
  *  grouping still reads and a grouped one wins over it. */
@@ -139,6 +166,18 @@ readAll (juce::var const &block, OscAddresses &into)
   readAddress (block, "clockMode", into.clockMode);
   readPrefix (block, "vuPrefix", into.vuPrefix);
   readAddress (block, "energyRms", into.energyRms);
+
+  // The mixer's keys, tables over the same three orders as the defaults --
+  // see mixerAddressKeys/masterAddressKeys/filterAddressKeys above for why
+  // they live here rather than in the ui's control table.
+  for (std::size_t i = 0; i < numMixerAddresses; ++i)
+    readAddress (block, mixerAddressKeys[i], into.mixerChannel[i]);
+
+  for (std::size_t i = 0; i < numMasterAddresses; ++i)
+    readAddress (block, masterAddressKeys[i], into.mixerMaster[i]);
+
+  for (std::size_t i = 0; i < numFilterAddresses; ++i)
+    readAddress (block, filterAddressKeys[i], into.mixerFilter[i]);
 }
 }
 

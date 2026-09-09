@@ -25,6 +25,8 @@
 
 #include <a3-motion-engine/OscAddresses.hh>
 
+#include <a3-motion-ui/components/MixerControls.hh>
+
 using namespace a3;
 
 TEST (OscAddresses, DefaultsAreWhatTheSystemHasAlwaysUsed)
@@ -251,4 +253,95 @@ TEST (OscAddresses, BothBeatsDefaultToTheSameAddress)
   auto const a = loadOscAddresses (juce::var{});
   EXPECT_EQ (a.beatOut, a.beatIn);
   EXPECT_EQ (a.beatOut, "/beat");
+}
+
+// The mixer's addresses are a table over mixerControlOrder rather than
+// fifteen named fields: fifteen fields are fifteen readAddress lines and
+// fifteen JSON keys kept in step by hand, and the authority on what a strip
+// has already exists.
+TEST (OscAddresses, EveryMixerControlHasADefaultAddress)
+{
+  OscAddresses addresses;
+
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerControls);
+       ++i)
+    {
+      EXPECT_TRUE (addresses.mixerChannel[i].isNotEmpty ())
+          << mixerControlLabel (mixerControlOrder[i]);
+      EXPECT_TRUE (isSendableOscAddress (addresses.mixerChannel[i]))
+          << addresses.mixerChannel[i];
+      EXPECT_TRUE (addresses.mixerChannel[i].contains ("{ch}"))
+          << addresses.mixerChannel[i] << " is per channel";
+    }
+
+  for (auto const &address : addresses.mixerMaster)
+    {
+      EXPECT_TRUE (address.isNotEmpty ());
+      EXPECT_TRUE (isSendableOscAddress (address)) << address;
+    }
+
+  for (auto const &address : addresses.mixerFilter)
+    {
+      EXPECT_TRUE (address.isNotEmpty ());
+      EXPECT_TRUE (isSendableOscAddress (address)) << address;
+    }
+}
+
+// The defaults are what A3 Core has always listened for. A typo here does not
+// fail loudly: the message is sent correctly, to an address nobody is
+// subscribed to. The reference is web/a3-doc/src/ressources/osc.md.
+TEST (OscAddresses, TheMixerDefaultsAreWhatCoreListensFor)
+{
+  OscAddresses addresses;
+  // controlSlot, not a fourth hand-written search over the same table. The
+  // address array is indexed by the control table's order -- that is the
+  // invariant TheAddressTableIsAsLongAsTheControlTable exists to hold -- so
+  // asking the table where a control sits is exactly the right question.
+  auto const address = [&addresses] (MixerControl control) {
+    return addresses.mixerChannel[static_cast<std::size_t> (
+        controlSlot (control))];
+  };
+
+  EXPECT_EQ (address (MixerControl::Gain), "/channel/{ch}/gain");
+  EXPECT_EQ (address (MixerControl::EqHigh), "/channel/{ch}/eq/high");
+  EXPECT_EQ (address (MixerControl::EqMid), "/channel/{ch}/eq/mid");
+  EXPECT_EQ (address (MixerControl::EqLow), "/channel/{ch}/eq/low");
+  EXPECT_EQ (address (MixerControl::Volume), "/channel/{ch}/volume");
+  EXPECT_EQ (address (MixerControl::Pfl), "/channel/{ch}/pfl");
+  EXPECT_EQ (address (MixerControl::Fx), "/channel/{ch}/fx");
+
+  EXPECT_EQ (addresses.mixerMaster[0], "/master/volume");
+  EXPECT_EQ (addresses.mixerFilter[0], "/fx/mode");
+}
+
+// A config file on a device does not rewrite itself, so a file without the
+// block keeps the defaults -- the same rule every other address here follows.
+TEST (OscAddresses, AConfigWithoutTheMixerBlockKeepsTheDefaults)
+{
+  auto const config = juce::JSON::parse (R"({ "oscAddresses": {} })");
+  auto const addresses = loadOscAddresses (config);
+
+  EXPECT_EQ (addresses.mixerChannel[0], OscAddresses{}.mixerChannel[0]);
+}
+
+// And one that names a control overrides just that one.
+TEST (OscAddresses, AConfigMayRenameOneMixerAddress)
+{
+  auto const config = juce::JSON::parse (R"({
+    "oscAddresses": { "out": { "mixerGain": "/ch/{ch}/g" } } })");
+  auto const addresses = loadOscAddresses (config);
+
+  EXPECT_EQ (addresses.mixerChannel[0], "/ch/{ch}/g");
+  EXPECT_EQ (addresses.mixerChannel[1], OscAddresses{}.mixerChannel[1]);
+}
+
+// The engine holds the addresses and the ui holds the order they are in, and
+// the two never meet in a translation unit -- the engine deliberately does not
+// include a ui header. This is the one place both are visible, so it is the
+// only place the agreement can be checked at all.
+TEST (OscAddresses, TheAddressTableIsAsLongAsTheControlTable)
+{
+  EXPECT_EQ (numMixerAddresses, numMixerControls);
+  EXPECT_EQ (numMasterAddresses, numMasterControls);
+  EXPECT_EQ (numFilterAddresses, numFilterControls);
 }

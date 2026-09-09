@@ -22,7 +22,22 @@
       "iemElevation": "/StereoEncoder/elevation",
       "beat": "/beat",
       "tap": "/tap",
-      "clockMode": "/clockmode"
+      "clockMode": "/clockmode",
+      "mixerGain": "/channel/{ch}/gain",
+      "mixerEqHigh": "/channel/{ch}/eq/high",
+      "mixerEqMid": "/channel/{ch}/eq/mid",
+      "mixerEqLow": "/channel/{ch}/eq/low",
+      "mixerVolume": "/channel/{ch}/volume",
+      "mixerPfl": "/channel/{ch}/pfl",
+      "mixerFx": "/channel/{ch}/fx",
+      "masterVolume": "/master/volume",
+      "masterBooth": "/master/booth",
+      "masterPhonesMix": "/master/phones_mix",
+      "masterPhonesVolume": "/master/phones_volume",
+      "masterReturn": "/master/return",
+      "filterMode": "/fx/mode",
+      "filterFrequency": "/fx/frequency",
+      "filterResonance": "/fx/resonance"
     },
     "in": {
       "vuPrefix": "/vu/",

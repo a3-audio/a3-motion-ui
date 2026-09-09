@@ -21,10 +21,27 @@
 
 #pragma once
 
+#include <array>
+
 #include <JuceHeader.h>
 
 namespace a3
 {
+
+/** How many addresses each of OscAddresses's mixer tables holds.
+ *
+ *  These mirror MixerControls.hh's numMixerControls/numMasterControls/
+ *  numFilterControls, but are the engine's own constants rather than a
+ *  reference to that header: the engine has `src/` on its include path, so
+ *  `#include <a3-motion-ui/...>` would resolve, but the engine pulls
+ *  nothing from the ui today and a table of three counts is not a reason to
+ *  start. The two sides agreeing is therefore not something the compiler
+ *  can check — it is what
+ *  OscAddresses.TheAddressTableIsAsLongAsTheControlTable checks instead, in
+ *  the one place both headers are visible. */
+constexpr int numMixerAddresses = 7;
+constexpr int numMasterAddresses = 5;
+constexpr int numFilterAddresses = 3;
 
 /** The OSC addresses this device speaks.
  *
@@ -50,6 +67,39 @@ struct OscAddresses
    *  name for a while. Core's boolean has since moved to `4d` and `3d` takes
    *  the continuous value, so the name says what it does again. */
   juce::String channelThreeD{ "/channel/{ch}/3d" };
+
+  /** The mixer's addresses, as a table over mixerControlOrder rather than as
+   *  fifteen named fields.
+   *
+   *  Fifteen fields would be fifteen readAddress lines and fifteen JSON keys
+   *  held in step by hand; the authority on what a channel strip has already
+   *  exists (components/MixerControls.hh) and this follows it. Indexed the
+   *  same way, so mixerChannel[i] is the address of mixerControlOrder[i].
+   *
+   *  Defaults are what A3 Core has always listened for — see
+   *  web/a3-doc/src/ressources/osc.md. A typo does not fail loudly: the
+   *  message is sent correctly, to an address nobody is subscribed to. */
+  std::array<juce::String, numMixerAddresses> mixerChannel{
+    "/channel/{ch}/gain",   "/channel/{ch}/eq/high",
+    "/channel/{ch}/eq/mid", "/channel/{ch}/eq/low",
+    "/channel/{ch}/volume", "/channel/{ch}/pfl",
+    "/channel/{ch}/fx",
+  };
+
+  /** The summing section's addresses, not per channel. Same indexing rule as
+   *  mixerChannel, over masterControlOrder. */
+  std::array<juce::String, numMasterAddresses> mixerMaster{
+    "/master/volume",        "/master/booth", "/master/phones_mix",
+    "/master/phones_volume", "/master/return",
+  };
+
+  /** The one filter shared by all four channels. Same indexing rule as
+   *  mixerChannel, over filterControlOrder. */
+  std::array<juce::String, numFilterAddresses> mixerFilter{
+    "/fx/mode",
+    "/fx/frequency",
+    "/fx/resonance",
+  };
 
   // Outgoing, to an IEM plugin chain (SpatBackendIEM).
   juce::String iemAzimuth{ "/StereoEncoder/azimuth" };
