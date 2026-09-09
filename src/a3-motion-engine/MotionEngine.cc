@@ -32,6 +32,7 @@
 #include <a3-motion-engine/Playhead.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-engine/OscAddresses.hh>
+#include <a3-motion-engine/OscEndpoints.hh>
 #include <a3-motion-engine/backends/SpatBackendA3.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-engine/util/Helpers.hh>
@@ -58,11 +59,24 @@ MotionEngine::calculateSubSamplingFactor (Measure recordingLength, int beatsPerB
   return factor;
 }
 
+namespace
+{
+/** The backend the engine sends through, aimed at A3 Core.
+ *
+ *  Through loadOscEndpoints() rather than off the config directly, so that
+ *  the spatial position and the mixer read where Core is from one function
+ *  instead of each picking a key out of the same block by hand. */
+std::unique_ptr<SpatBackendA3>
+coreBackend ()
+{
+  auto const endpoints = loadOscEndpoints (userConfig);
+  return std::make_unique<SpatBackendA3> (endpoints.host, endpoints.corePort,
+                                          loadOscAddresses (userConfig));
+}
+}
+
 MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap)
-    : _heightMap (heightMap), _commandQueue (std::make_unique<SpatBackendA3> (
-                                  userConfig["oscSender"]["host"], 
-                                  static_cast<int> (userConfig["oscSender"]["port"]),
-                                  loadOscAddresses (userConfig)))
+    : _heightMap (heightMap), _commandQueue (coreBackend ())
 {
   createChannels (numChannels);
 

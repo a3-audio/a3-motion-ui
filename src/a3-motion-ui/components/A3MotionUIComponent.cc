@@ -44,6 +44,7 @@
 #include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/ActionScript.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
+#include <a3-motion-engine/OscEndpoints.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
@@ -333,7 +334,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _mixerState.onSend = [this] (juce::String const &address, float value) {
     auto message = juce::OSCMessage (address);
     message.addFloat32 (value);
-    _oscSender.send (message);
+    _mixerSender.send (message);
   };
 
   _globalSettings = std::make_unique<GlobalSettingsComponent> ();
@@ -1007,25 +1008,30 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       std::cerr << "ERROR: Could not bind OSC Energy Receiver to port " << oscEnergyPort << std::endl;
     }
 
-  // Setup OSC Sender from config (for beatclock)
+  // Setup the OSC senders from config. Two destinations, not one: the beat
+  // clock and the tap belong to the beat-analyzer, everything the mixer turns
+  // belongs to A3 Core -- which is where MotionEngine's SpatBackendA3 already
+  // sends the spatial position. loadOscEndpoints() is the one place that reads
+  // which is which.
   if (userConfig.hasProperty ("oscSender"))
     {
-      auto oscSendConfig = userConfig["oscSender"];
-      juce::String oscSendHost = oscSendConfig["host"].toString ();
-      // Use beatclockPort if specified, otherwise fall back to port
-      int oscSendPort = static_cast<int> (oscSendConfig["port"]);
-      if (oscSendConfig.hasProperty ("beatclockPort"))
-        oscSendPort = static_cast<int> (oscSendConfig["beatclockPort"]);
-      if (_oscSender.connect (oscSendHost, oscSendPort))
-        std::cout << "OSC Sender for beatclock connected to " << oscSendHost << ":" << oscSendPort << std::endl;
+      auto const endpoints = loadOscEndpoints (userConfig);
+
+      if (_oscSender.connect (endpoints.host, endpoints.beatclockPort))
+        std::cout << "OSC Sender for beatclock connected to " << endpoints.host << ":" << endpoints.beatclockPort << std::endl;
       else
-        std::cerr << "ERROR: OSC Sender failed to connect to " << oscSendHost << ":" << oscSendPort << std::endl;
-      
+        std::cerr << "ERROR: OSC Sender failed to connect to " << endpoints.host << ":" << endpoints.beatclockPort << std::endl;
+
       // Direct tap sender (same host/port, bypasses async queue for zero latency)
-      if (_tapSender.connect (oscSendHost, oscSendPort))
-        std::cout << "OSC Tap Sender connected to " << oscSendHost << ":" << oscSendPort << std::endl;
+      if (_tapSender.connect (endpoints.host, endpoints.beatclockPort))
+        std::cout << "OSC Tap Sender connected to " << endpoints.host << ":" << endpoints.beatclockPort << std::endl;
       else
         std::cerr << "ERROR: OSC Tap Sender failed to connect" << std::endl;
+
+      if (_mixerSender.connect (endpoints.host, endpoints.corePort))
+        std::cout << "OSC Sender for mixer connected to " << endpoints.host << ":" << endpoints.corePort << std::endl;
+      else
+        std::cerr << "ERROR: OSC Sender for mixer failed to connect to " << endpoints.host << ":" << endpoints.corePort << std::endl;
     }
 }
 
@@ -1040,6 +1046,7 @@ A3MotionUIComponent::~A3MotionUIComponent ()
   _oscReceiver.disconnect ();
   _oscSender.disconnect ();
   _tapSender.disconnect ();
+  _mixerSender.disconnect ();
 
   if (runsOnHardware ())
     {

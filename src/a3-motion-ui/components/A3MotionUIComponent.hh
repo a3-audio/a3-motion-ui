@@ -449,6 +449,11 @@ private:
   
   // Direct OSC Sender for time-critical tap messages (bypasses async queue)
   juce::OSCSender _tapSender;
+
+  /** The mixer's own sender, because the beat clock's points at a different
+   *  process. See OscEndpoints: the two ports in `oscSender` are the beat
+   *  analyzer and A3 Core, and every mixer address belongs to Core. */
+  AsyncOSCSender _mixerSender;
   
   // ClockMode toggle state: 0 = INT, 1 = EXT, 2 = PIO
   int _clockMode = 0;
