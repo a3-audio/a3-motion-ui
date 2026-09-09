@@ -104,8 +104,9 @@ TEST (VuMeter, SilenceIsTheFootAndFullScaleIsTheHead)
   EXPECT_LE (vuMeterFraction (2.f), 1.f);
 }
 
-// A negative amplitude cannot arrive from SendPeakRMS, but a malformed
-// message can carry anything and a meter is not the place to find out.
+// A negative amplitude is not something a level meter can report, but a
+// malformed message can carry anything and a meter is not the place to find
+// that out.
 TEST (VuMeter, ANonsenseAmplitudeStaysOnTheBar)
 {
   EXPECT_FLOAT_EQ (vuMeterFraction (-1.f), 0.f);

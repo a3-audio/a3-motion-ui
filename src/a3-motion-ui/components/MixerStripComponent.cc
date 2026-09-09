@@ -88,6 +88,12 @@ MixerStripComponent::visibilityChanged ()
 void
 MixerStripComponent::timerCallback ()
 {
+  // The same guard the overlay's timer carries, for the same reason: a tab
+  // too small to lay out draws a sentence and no meter, so there is nothing
+  // here to keep up to date.
+  if (!_layout.fits)
+    return;
+
   repaint (_layout.channelMeter[0]);
 }
 

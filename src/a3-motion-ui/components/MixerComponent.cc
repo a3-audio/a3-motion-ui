@@ -245,9 +245,16 @@ MixerComponent::visibilityChanged ()
 void
 MixerComponent::timerCallback ()
 {
+  // A page too small to lay out draws one line of text and no meters at all,
+  // so there is nothing here to keep up to date. The empty rectangles below
+  // would be no-ops anyway; saying so is what makes that deliberate rather
+  // than lucky.
+  if (!_layout.fits)
+    return;
+
   // Only the meters are asked to redraw. paint() still runs, but clipped to
-  // these rectangles -- so the twenty-five frames a second cost nine narrow
-  // bars rather than a whole mixer.
+  // these rectangles -- so a refresh costs nine narrow bars rather than a
+  // whole mixer.
   for (auto const &meter : _layout.channelMeter)
     repaint (meter);
   for (auto const &bar : _layout.outputMeters)

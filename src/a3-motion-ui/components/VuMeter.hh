@@ -51,20 +51,31 @@ constexpr int firstSpeakerMeterIndex = 1;
 
 /** How often a page carrying meters redraws them.
  *
- *  Twenty-five, because that is the rate they arrive at: a3-core's
- *  `a3-vu-meter.scd` sets `SendPeakRMS`'s replyRate to 25, so twenty-five
- *  frames a second per meter is everything there is to show. Faster would
- *  redraw numbers that have not changed; slower would drop transients
- *  somebody needs to see. Twelve meters at that rate is three hundred
- *  messages a second, which is the whole reason a page collects and redraws
- *  on a timer instead of repainting per message. */
+ *  Twenty-five a second, chosen for the eye rather than for the wire: past
+ *  about that, a bar's movement stops reading as movement and starts reading
+ *  as the same picture drawn again, and a booth is not the place to spend a
+ *  machine on that.
+ *
+ *  **It deliberately does not track the rate the meters arrive at, and must
+ *  not be rewritten to.** VuLevels keeps only the latest sample, so a page
+ *  redrawing slower than the sender shows the newest value and one redrawing
+ *  faster shows the same value twice — neither is a fault, and neither needs
+ *  the two numbers to agree. That independence is the point: how fast the
+ *  meters arrive is somebody else's setting on another machine, and a
+ *  constant here derived from it would be one that goes quietly wrong when
+ *  that setting changes.
+ *
+ *  What the *arriving* rate does explain is why this is a timer at all rather
+ *  than a repaint per message. Twelve meters at the rate they currently come
+ *  is a few hundred messages a second; a repaint each would be a few hundred
+ *  repaints. See `vuNowMs` for the other half of that separation. */
 constexpr int vuMeterRefreshHz = 25;
 
 /** One meter's two numbers, as they arrive on the wire.
  *
- *  Linear amplitude in 0..1, peak and rms of the same frame — SuperCollider's
- *  `SendPeakRMS` sends both together (see a3-core's `a3-vu-meter.scd`) and
- *  the OSC reference gives both as [0-1]. Kept as they arrive rather than
+ *  Linear amplitude in 0..1, peak and rms of the same frame — one `/vu/N`
+ *  message carries both floats, and the OSC reference gives both as [0-1].
+ *  Kept as they arrive rather than
  *  converted on receipt: the sphere's corona reads the same values through a
  *  curve of its own, and two units in flight is how the two pictures would
  *  come to disagree. */
@@ -85,10 +96,16 @@ constexpr float vuMeterFloorDb = -60.f;
 
 /** How long the peak's mark stands still before it follows the signal again.
  *
- *  A second and a half. The meters arrive at twenty-five frames a second, so
- *  a transient is one frame — forty milliseconds — and nobody sees it. Long
- *  enough to be read across a booth, short enough that the mark still answers
- *  to what is playing now rather than to what played a chorus ago. */
+ *  A second and a half, and the number is about a person rather than about a
+ *  frame rate. A transient occupies one frame however fast the frames come,
+ *  which is to say nobody sees it; the hold has to be long enough that the
+ *  mark can be found, read and believed with both hands busy, and short
+ *  enough that it still answers to what is playing now rather than to what
+ *  played a chorus ago.
+ *
+ *  In milliseconds rather than in frames for the same reason
+ *  `vuMeterRefreshHz` is not derived from the sending rate: a hold counted in
+ *  frames would mean a different length of time on every setup. */
 constexpr juce::int64 vuPeakHoldMs = 1500;
 
 /** The clock the peak's hold is measured on.
