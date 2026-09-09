@@ -101,21 +101,39 @@ TEST (ColumnBreak, ItSaysWhenNothingFits)
 }
 
 // The cells tile the area: none empty, none overlapping, none outside.
+//
+// Twice, because a width that divides by the column count exercises none of
+// cellIn's arithmetic: the cells are measured from the left and the top and
+// the remainder is left standing against the right and bottom edges, which is
+// what keeps a row lined up with the grid above it. A width divisible by four
+// leaves no remainder to put anywhere.
 TEST (ColumnBreak, TheCellsTileTheAreaWithoutOverlapping)
 {
-  auto const area = juce::Rectangle<int> (7, 11, roomyWidth, roomyHeight);
-  auto const broken = breakColumns (area, 4, minimumChannelWidth,
-                                    minimumMotionHeight);
-
-  for (auto i = 0; i < 4; ++i)
+  for (auto const spare : { 0, 3 })
     {
-      auto const cell = cellIn (area, broken, i);
-      EXPECT_FALSE (cell.isEmpty ()) << i;
-      EXPECT_TRUE (area.contains (cell)) << i;
+      auto const area
+          = juce::Rectangle<int> (7, 11, roomyWidth + spare, roomyHeight);
+      auto const broken = breakColumns (area, 4, minimumChannelWidth,
+                                        minimumMotionHeight);
+      ASSERT_TRUE (broken.fits) << spare;
 
-      for (auto j = i + 1; j < 4; ++j)
-        EXPECT_FALSE (cell.intersects (cellIn (area, broken, j)))
-            << i << " overlaps " << j;
+      for (auto i = 0; i < 4; ++i)
+        {
+          auto const cell = cellIn (area, broken, i);
+          EXPECT_FALSE (cell.isEmpty ()) << i << " with " << spare << " spare";
+          EXPECT_TRUE (area.contains (cell))
+              << i << " with " << spare << " spare";
+
+          for (auto j = i + 1; j < 4; ++j)
+            EXPECT_FALSE (cell.intersects (cellIn (area, broken, j)))
+                << i << " overlaps " << j << " with " << spare << " spare";
+        }
+
+      // The first cell starts at the area's own corner and the leftover is
+      // all of it, at the far edge.
+      EXPECT_EQ (cellIn (area, broken, 0).getTopLeft (), area.getTopLeft ());
+      EXPECT_EQ (area.getRight () - cellIn (area, broken, 3).getRight (),
+                 area.getWidth () % broken.columns);
     }
 }
 
