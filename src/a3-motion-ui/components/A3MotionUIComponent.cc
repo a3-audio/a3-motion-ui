@@ -1723,14 +1723,13 @@ A3MotionUIComponent::updateOverlayButtons ()
                        || _colourPickerOpen || _mixerOpen;
   _overlayButtons->setVisible (anyOpen);
 
-  // The strips walk a list and change the highlighted row's value. An overlay
-  // without a list has nothing for them to do — the colour picker has its own
-  // navigation, the mixer is a grid every control of which is touched
-  // directly. Asked as a question rather than as a list of exceptions: it
-  // read `anyOpen && !_colourPickerOpen`, the mixer would have been the
-  // second exception in a growing chain of negations, and the third is the
-  // one that gets forgotten.
-  auto const openOverlayHasAList = _globalSettingsOpen || _skinEditorOpen;
+  // The strips walk a list and change the highlighted row's value, so they
+  // belong to the overlay in front and only while that one has a list. Asked
+  // in OverlaySideStrips.hh, where a test can reach the question — the answer
+  // decides who receives a fifth of the window on each side, and while the
+  // mixer stood in front of an open menu the menu was still receiving it.
+  auto const openOverlayHasAList = sideStripsHaveAList (
+      _globalSettingsOpen, _skinEditorOpen, _mixerOpen);
 
   // The strips sit beside whichever page is showing, so they follow its
   // panel rather than a fixed width.
