@@ -37,31 +37,17 @@ TEST (BarPages, EveryPageAppearsInTheOrderExactlyOnce)
   EXPECT_EQ (seen.size (), static_cast<std::size_t> (numBarPages));
 }
 
-// The two questions every page has to answer. Asked here rather than left to
-// 23 `if (_page == ...)` comparisons in three files: nothing in C++ warns
-// about a missing `if`, and a page that is not named in one of them is a tab
-// that is dead in a place nobody touches for a fortnight.
-TEST (BarPages, EveryPageAnswersBothQuestions)
-{
-  for (auto page : barPageOrder)
-    {
-      // Not an assertion about the answer -- an assertion that asking is
-      // possible for every page listed in barPageOrder. What actually makes
-      // a forgotten page loud is -Wswitch-enum on the two switches these
-      // functions compile down to: a page missing a case there is a build
-      // warning, not a build failure, and the switch still runs and returns
-      // something for it. This loop only reaches what barPageOrder lists,
-      // which is why the test above checks that list for completeness on
-      // its own.
-      (void)pageCoversClipArea (page);
-      (void)pageDescribesAClip (page);
-    }
-  SUCCEED ();
-}
+// The two questions every page has to answer are asked below, page by page
+// and by name. There used to be a loop over barPageOrder here that called
+// both functions and asserted nothing -- it could not fail, which is dead
+// weight in the one suite this plan leans on. What it gestured at is covered
+// twice over: the two tests below name all six pages and pin both answers for
+// each, and a page missing a case in either switch is what -Wswitch-enum is
+// for.
 
 // The answers as they stand, so a change to one is a change somebody made on
-// purpose. CLIP shows the bar's own three sections; the other three cover
-// them with something of their own.
+// purpose. CLIP shows the bar's own three sections; the other four cover them
+// with something of their own -- MIX with one channel's strip.
 TEST (BarPages, OnlyThePagesWithSomethingOfTheirOwnCoverTheClipArea)
 {
   EXPECT_FALSE (pageCoversClipArea (BarPage::Clip));
@@ -74,7 +60,8 @@ TEST (BarPages, OnlyThePagesWithSomethingOfTheirOwnCoverTheClipArea)
 
 // PADS is the one page that is about every slot at once, so reaching for a
 // channel face there is reaching for its clip -- and the face brings the CLIP
-// view back with it. Everywhere else the face steps the slot and stays.
+// view back with it. Everywhere else the face steps the slot and stays: on
+// MIX that is what swaps the strip without leaving the page.
 TEST (BarPages, PadsIsTheOnlyPageThatDoesNotDescribeOneClip)
 {
   EXPECT_TRUE (pageDescribesAClip (BarPage::Clip));
@@ -83,13 +70,4 @@ TEST (BarPages, PadsIsTheOnlyPageThatDoesNotDescribeOneClip)
   EXPECT_FALSE (pageDescribesAClip (BarPage::Controller));
   EXPECT_TRUE (pageDescribesAClip (BarPage::Mixer));
   EXPECT_TRUE (pageDescribesAClip (BarPage::Browser));
-}
-
-// The MIX tab covers the clip area with one channel's strip, and it is about
-// the channel of the clip the bar describes -- so a tap on a channel face
-// swaps the strip and stays on the page.
-TEST (BarPages, TheMixerCoversTheClipAreaAndDescribesAClip)
-{
-  EXPECT_TRUE (pageCoversClipArea (BarPage::Mixer));
-  EXPECT_TRUE (pageDescribesAClip (BarPage::Mixer));
 }

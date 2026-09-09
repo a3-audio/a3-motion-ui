@@ -63,6 +63,11 @@ TEST (OscAddresses, AnEntryOnlyReplacesItsOwn)
 // Guards against a field being added to the struct and forgotten in
 // loadOscAddresses(): every key below is given a value no default uses, and
 // none of them may still read as its default afterwards.
+//
+// That included the mixer's fifteen the moment the struct grew by fifteen,
+// which is exactly the case this test claims to cover -- three tables read in
+// three loops, each of which could have been left out with every other test
+// here still passing.
 TEST (OscAddresses, EveryFieldIsActuallyRead)
 {
   auto const config = juce::JSON::parse (R"({"oscAddresses": {
@@ -78,7 +83,22 @@ TEST (OscAddresses, EveryFieldIsActuallyRead)
       "tap":              "/c/tap",
       "clockMode":        "/c/mode",
       "vuPrefix":         "/d/",
-      "energyRms":        "/e/rms"}})");
+      "energyRms":        "/e/rms",
+      "mixerGain":          "/f/{ch}/1",
+      "mixerEqHigh":        "/f/{ch}/2",
+      "mixerEqMid":         "/f/{ch}/3",
+      "mixerEqLow":         "/f/{ch}/4",
+      "mixerVolume":        "/f/{ch}/5",
+      "mixerPfl":           "/f/{ch}/6",
+      "mixerFx":            "/f/{ch}/7",
+      "masterVolume":       "/g/1",
+      "masterBooth":        "/g/2",
+      "masterPhonesMix":    "/g/3",
+      "masterPhonesVolume": "/g/4",
+      "masterReturn":       "/g/5",
+      "filterMode":         "/h/1",
+      "filterFrequency":    "/h/2",
+      "filterResonance":    "/h/3"}})");
   auto const a = loadOscAddresses (config);
   auto const d = OscAddresses{};
 
@@ -95,6 +115,15 @@ TEST (OscAddresses, EveryFieldIsActuallyRead)
   EXPECT_NE (a.clockMode, d.clockMode);
   EXPECT_NE (a.vuPrefix, d.vuPrefix);
   EXPECT_NE (a.energyRms, d.energyRms);
+
+  for (auto i = 0u; i < static_cast<std::size_t> (numMixerAddresses); ++i)
+    EXPECT_NE (a.mixerChannel[i], d.mixerChannel[i]) << i;
+
+  for (auto i = 0u; i < static_cast<std::size_t> (numMasterAddresses); ++i)
+    EXPECT_NE (a.mixerMaster[i], d.mixerMaster[i]) << i;
+
+  for (auto i = 0u; i < static_cast<std::size_t> (numFilterAddresses); ++i)
+    EXPECT_NE (a.mixerFilter[i], d.mixerFilter[i]) << i;
 }
 
 // The whole reason this is a unit of its own: juce::OSCMessage throws
