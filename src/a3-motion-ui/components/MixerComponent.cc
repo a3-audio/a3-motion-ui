@@ -32,11 +32,6 @@ namespace a3
 
 namespace
 {
-// The dim the other overlays lay over the sphere. Taken from
-// GlobalSettingsComponent rather than guessed at again: an overlay that dimmed
-// the room by a different amount would read as a different kind of overlay.
-constexpr float overlayOpacity = 0.55f;
-
 // A strip's own ground, faint enough that the five columns read as five
 // blocks without any of them becoming a panel in its own right. The master
 // wears it too: it is the fifth strip, not a section standing beside four.
@@ -285,7 +280,13 @@ MixerComponent::resized ()
 void
 MixerComponent::paint (juce::Graphics &g)
 {
-  g.fillAll (toColour (theme ().surface, overlayOpacity));
+  // Opaque, unlike the menu and the skin editor: those are settings pages you
+  // glance at, and seeing the room through them says the set is still running
+  // behind. This one *is* the set -- nine meters and twenty-three controls
+  // read at a glance in a dark booth -- and a sphere showing through a level
+  // meter is a moving picture behind the one thing on this device that has to
+  // be read exactly.
+  g.fillAll (toColour (theme ().surface));
 
   if (!_layout.fits)
     {

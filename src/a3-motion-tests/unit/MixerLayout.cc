@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <set>
+
 #include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/MixerLayout.hh>
 
@@ -66,6 +68,19 @@ aNarrowOverlay ()
                                static_cast<int> (minimumChannelWidth * 4) - 1,
                                static_cast<int> (minimumMotionHeight * 12));
 }
+
+// Wide enough that the four strips still stand side by side and each row of
+// them clears its floor, and no wider: a column at the break's own minimum
+// leaves the two keys half of what is left after the meter, which is where
+// they fall under a fingertip. The one size at which the row fits and the
+// fields in it do not.
+juce::Rectangle<int>
+aTightOverlay ()
+{
+  return juce::Rectangle<int> (0, 0,
+                               static_cast<int> (minimumChannelWidth * 5),
+                               static_cast<int> (minimumMotionHeight * 8));
+}
 }
 
 // Every control of every channel has a rectangle, and none of them is empty.
@@ -91,9 +106,85 @@ TEST (MixerLayout, TheControlsAreInTheTablesOrderDownTheStrip)
 
   for (std::size_t i = 1; i < static_cast<std::size_t> (numMixerControls);
        ++i)
-    EXPECT_GE (layout.controls[0][i].getY (),
-               layout.controls[0][i - 1].getBottom ())
-        << mixerControlLabel (mixerControlOrder[i]) << " is out of order";
+    {
+      auto const previous = layout.controls[0][i - 1];
+      auto const control = layout.controls[0][i];
+
+      // Down the strip, except across the one row two controls share -- the
+      // same list read the way a row is read rather than a second order.
+      if (control.getY () == previous.getY ())
+        EXPECT_GE (control.getX (), previous.getRight ())
+            << mixerControlLabel (mixerControlOrder[i]) << " is out of order";
+      else
+        EXPECT_GE (control.getY (), previous.getBottom ())
+            << mixerControlLabel (mixerControlOrder[i]) << " is out of order";
+    }
+}
+
+// PFL and FX are the only two of the seven that are pressed rather than
+// turned, and a key asks for a fingertip rather than for a row of its own:
+// they share the last row at half its width each. The row that frees goes to
+// the six above, which is why this is a change of arrangement rather than a
+// gap at the foot of the strip.
+TEST (MixerLayout, TheTwoKeysShareTheLastRowOfAStrip)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  auto const pfl = static_cast<std::size_t> (controlSlot (MixerControl::Pfl));
+  auto const fx = static_cast<std::size_t> (controlSlot (MixerControl::Fx));
+
+  for (auto const &strip : layout.controls)
+    {
+      EXPECT_EQ (strip[pfl].getY (), strip[fx].getY ());
+      EXPECT_EQ (strip[pfl].getHeight (), strip[fx].getHeight ());
+      EXPECT_LE (strip[pfl].getRight (), strip[fx].getX ())
+          << "PFL is not left of FX";
+      EXPECT_FALSE (strip[pfl].intersects (strip[fx]));
+
+      EXPECT_GE (strip[pfl].getWidth (), fingertipSize);
+      EXPECT_GE (strip[fx].getWidth (), fingertipSize);
+    }
+}
+
+// Six rows for seven controls, and the six fill the strip. The row count
+// stopped being the control count the moment two shared one: a layout still
+// dividing the height by the control count would step six rows down a grid
+// made for seven and leave the seventh standing empty.
+TEST (MixerLayout, AStripHasOneRowFewerThanItHasControls)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  std::set<int> lines;
+  for (auto const &control : layout.controls[0])
+    lines.insert (control.getY ());
+
+  EXPECT_EQ (lines.size (), static_cast<std::size_t> (numMixerControls - 1));
+
+  // And the rows they stand on cover the strip's whole length, to within the
+  // remainder an integer row height leaves against the bottom edge.
+  auto const rows = static_cast<int> (lines.size ());
+  auto const covered = layout.controls[0][0].getHeight () * rows;
+  EXPECT_GE (covered, layout.channelMeter[0].getHeight () - rows);
+}
+
+// The trap the half-width keys bring: a column wide enough to carry a row can
+// still be too narrow to carry two fields across it, and a key under a
+// fingertip has to make the page say so rather than shrink quietly.
+TEST (MixerLayout, AColumnTooNarrowForTwoKeysSideBySideSaysSo)
+{
+  auto const layout = layOutMixerOverlay (aTightOverlay (), metrics);
+
+  // The rows themselves clear their floor -- it is only the fields across the
+  // last of them that do not, which is exactly the case a check on the row
+  // alone would let through.
+  EXPECT_GE (layout.controls[0][0].getHeight (), fingertipSize);
+  EXPECT_LT (layout.controls[0][static_cast<std::size_t> (
+                                    controlSlot (MixerControl::Pfl))]
+                 .getWidth (),
+             fingertipSize);
+  EXPECT_FALSE (layout.fits);
 }
 
 // Nothing overlaps anything, within a strip or between strips. A control drawn
@@ -195,12 +286,12 @@ TEST (MixerLayout, TheMeterStandsLeftOfEveryControlOfItsStrip)
       }
 }
 
-// The bar's MIX tab reads the same rule the other way round: its controls run
-// across, so the meter is the column standing before them -- still the strip's
-// full height, still beside the controls rather than inside one of them. Two
-// pages drawing one channel have to draw it the same way, which is what
-// putting both arrangements in this file is for.
-TEST (MixerLayout, TheBarsStripStandsItsMeterBeforeTheControls)
+// The bar's MIX tab keeps the meter a full-height column beside the controls,
+// but at the far right of the band rather than before them -- asked for by the
+// maintainer after using the tab on the device. The overlay's strips are
+// columns and the level reads before them; the tab is one band read left to
+// right, and the level reads at the end of it.
+TEST (MixerLayout, TheBarsStripStandsItsMeterAtTheFarRight)
 {
   auto const layout = layOutMixerStrip (aBarStrip (), metrics);
   ASSERT_TRUE (layout.fits);
@@ -211,7 +302,7 @@ TEST (MixerLayout, TheBarsStripStandsItsMeterBeforeTheControls)
   for (auto const &control : layout.controls[0])
     {
       EXPECT_FALSE (meter.intersects (control));
-      EXPECT_LE (meter.getRight (), control.getX ());
+      EXPECT_GE (meter.getX (), control.getRight ());
       EXPECT_LE (meter.getY (), control.getY ());
       EXPECT_GE (meter.getBottom (), control.getBottom ());
     }
@@ -259,19 +350,51 @@ TEST (MixerLayout, AnEmptyAreaDoesNotDivideByZero)
   EXPECT_FALSE (layout.fits);
 }
 
-// The bar's tab has one strip and three times the width, so it lays the
-// controls across rather than down. The table's order still holds -- left to
-// right is the reading order there.
+// The bar's tab has one strip and three times the width, so it lays the pots
+// across rather than down. The table's order still holds -- left to right is
+// the reading order there.
 TEST (MixerLayout, TheBarsStripReadsAcrossInTheTablesOrder)
 {
   auto const layout = layOutMixerStrip (aBarStrip (), metrics);
   ASSERT_TRUE (layout.fits);
 
-  for (std::size_t i = 1; i < static_cast<std::size_t> (numMixerControls);
-       ++i)
+  auto const keys
+      = static_cast<std::size_t> (controlSlot (MixerControl::Pfl));
+
+  for (std::size_t i = 1; i < keys; ++i)
     EXPECT_GE (layout.controls[0][i].getX (),
                layout.controls[0][i - 1].getRight ())
         << mixerControlLabel (mixerControlOrder[i]) << " is out of order";
+}
+
+// And the two keys are a second row under them, not a sixth and seventh cell
+// beside them. The maintainer asked for it after using the tab: five pots and
+// two keys across one band leaves seven cells of a width nobody wants to aim
+// a knob at, where two rows leave the pots the width they need and the keys
+// the width a key needs anyway.
+TEST (MixerLayout, TheBarsStripPutsTheTwoKeysInARowUnderThePots)
+{
+  auto const layout = layOutMixerStrip (aBarStrip (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  auto const pfl = static_cast<std::size_t> (controlSlot (MixerControl::Pfl));
+  auto const fx = static_cast<std::size_t> (controlSlot (MixerControl::Fx));
+
+  EXPECT_EQ (layout.controls[0][pfl].getY (),
+             layout.controls[0][fx].getY ());
+  EXPECT_LE (layout.controls[0][pfl].getRight (),
+             layout.controls[0][fx].getX ());
+
+  for (std::size_t i = 0; i < pfl; ++i)
+    {
+      EXPECT_LE (layout.controls[0][i].getBottom (),
+                 layout.controls[0][pfl].getY ())
+          << mixerControlLabel (mixerControlOrder[i])
+          << " is not above the keys";
+      EXPECT_FALSE (
+          layout.controls[0][i].intersects (layout.controls[0][pfl]));
+      EXPECT_FALSE (layout.controls[0][i].intersects (layout.controls[0][fx]));
+    }
 }
 
 // One channel, so the other three strips are empty rather than laid out
@@ -367,33 +490,47 @@ TEST (MixerLayout, TheMasterLeavesTheRowsBelowItsVolumeEmpty)
         << "the master reaches into the rows the meters are waiting for";
 }
 
-// It is neither channel nor master, and it is the one global control touched
-// constantly mid-set: a row of its own under all five columns, so three
-// controls get the full width and the biggest targets on the page.
-TEST (MixerLayout, TheFilterRunsUnderAllFiveColumns)
+// The filter is three half-width fields side by side under the columns, not a
+// band across the foot of the page. Each field is half of the third of the row
+// it used to have, which is how the channel keys are read too -- so the row
+// reads as one strip's worth of controls standing for all four decks rather
+// than as a fourth arrangement on a page that already has three.
+TEST (MixerLayout, TheFilterIsThreeHalfWidthFieldsUnderTheColumns)
 {
-  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  auto const area = aRoomyOverlay ();
+  auto const layout = layOutMixerOverlay (area, metrics);
   ASSERT_TRUE (layout.fits);
 
   auto span = layout.filter.front ();
   for (auto const &control : layout.filter)
     {
       ASSERT_FALSE (control.isEmpty ());
+      EXPECT_GE (control.getWidth (), fingertipSize);
+      EXPECT_GE (control.getHeight (), fingertipSize);
       span = span.getUnion (control);
     }
 
+  for (std::size_t i = 1; i < static_cast<std::size_t> (numFilterControls);
+       ++i)
+    EXPECT_GE (layout.filter[i].getX (), layout.filter[i - 1].getRight ())
+        << filterControlLabel (filterControlOrder[i]) << " is out of order";
+
+  // Half the width, and centred in what it no longer fills: a compact block
+  // hanging on one edge under five columns reads as a row that ran out rather
+  // than as one that was placed. The tolerance is the remainder an integer
+  // cell width leaves.
+  EXPECT_LE (span.getWidth () * 2, area.getWidth ());
+  EXPECT_GT (span.getWidth () * 3, area.getWidth ());
+  EXPECT_NEAR (span.getCentreX (), area.getCentreX (), numFilterControls);
+
   std::vector<juce::Rectangle<int> > columns;
   for (auto const &strip : layout.controls)
-    columns.push_back (strip.front ());
-  columns.push_back (layout.master.front ());
+    columns.push_back (strip.back ());
+  columns.push_back (layout.master.back ());
 
   for (auto const &column : columns)
-    {
-      EXPECT_LT (span.getX (), column.getCentreX ());
-      EXPECT_GT (span.getRight (), column.getCentreX ());
-      EXPECT_GE (span.getY (), column.getBottom ())
-          << "the filter is not under the columns";
-    }
+    EXPECT_GE (span.getY (), column.getBottom ())
+        << "the filter is not under the columns";
 }
 
 // The break is asked for the four channels, never for five. Five would halve

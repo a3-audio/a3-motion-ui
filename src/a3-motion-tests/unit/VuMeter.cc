@@ -442,8 +442,10 @@ TEST (VuMeter, TheBarsStripCarriesOneMeterAndNoOutputBlock)
 
   ASSERT_FALSE (layout.channelMeter[0].isEmpty ());
   EXPECT_FALSE (layout.channelMeter[0].intersects (layout.controls[0][slot]));
-  EXPECT_LE (layout.channelMeter[0].getRight (),
-             layout.controls[0][slot].getX ());
+  // At the far right of the band, where the maintainer asked for it -- the
+  // overlay's meter stays on the left of its column.
+  EXPECT_GE (layout.channelMeter[0].getX (),
+             layout.controls[0][slot].getRight ());
 
   for (std::size_t channel = 1;
        channel < static_cast<std::size_t> (numChannelsInitial); ++channel)

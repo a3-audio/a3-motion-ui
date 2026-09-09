@@ -182,9 +182,9 @@ MixerStripComponent::paint (juce::Graphics &g)
                                 _state.channelToggle (_channel, control));
     }
 
-  // The shown channel's input meter, standing before its controls -- the same
+  // The shown channel's input meter, at the far right of the band -- the same
   // picture the overlay draws, from the same store, so the two pages cannot
-  // disagree about how loud a deck is or about where to look for it.
+  // disagree about how loud a deck is.
   paintVuMeter (g, _layout.channelMeter[0],
                 _levels.channel (_channel, vuNowMs ()));
 }

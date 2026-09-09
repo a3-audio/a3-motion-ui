@@ -57,16 +57,18 @@ struct MixerLayout
       controls;
   std::array<juce::Rectangle<int>, numMasterControls> master;
   std::array<juce::Rectangle<int>, numFilterControls> filter;
-  /** Each channel's input meter, standing in the volume row to the left of
-   *  the control whose level it belongs to. Not one of `controls`: a meter is
-   *  read, never touched, so it carries no target and must not be counted
-   *  among the things one is put on. */
+  /** Each channel's input meter: a column of its own beside the controls,
+   *  running the whole length of the strip. Left of them in the overlay, where
+   *  a strip is a column read downwards; right of them on the bar's tab, where
+   *  it is a band read across. Not one of `controls`: a meter is read, never
+   *  touched, so it carries no target and must not be counted among the things
+   *  one is put on. */
   std::array<juce::Rectangle<int>,
              static_cast<std::size_t> (numChannelsInitial)>
       channelMeter;
-  /** The output block -- the subwoofer and the four speakers -- in the two
-   *  rows the master's five controls leave free. Empty on the bar's tab,
-   *  which carries one channel and no summing section. */
+  /** The output block -- the subwoofer and the four speakers -- in the rows
+   *  the master's five controls leave free. Empty on the bar's tab, which
+   *  carries one channel and no summing section. */
   std::array<juce::Rectangle<int>, numOutputMeters> outputMeters;
   /** The word under that block. Its own rectangle rather than a share of the
    *  block, because the bars are stepped across an integer cell width and a
@@ -87,17 +89,30 @@ struct MixerLayout
  *  file's.
  *
  *  The master's five rectangles sit on the channels' own rows — its volume on
- *  the line their volumes are on — and the two rows that leaves it are empty
- *  by design: the output level meters go where a channel's two keys are. */
+ *  the line their volumes are on — and the row that leaves it is empty by
+ *  design: the output level meters go where a channel's two keys are.
+ *
+ *  A strip has one row fewer than it has controls. PFL and FX are pressed
+ *  rather than turned, so they share the last row at half its width each, and
+ *  the height that frees goes to the rows above. The master's column is
+ *  stepped by the same count, or the five levels would stop standing on one
+ *  line. */
 MixerLayout layOutMixerOverlay (juce::Rectangle<int> area,
                                 ControlMetrics metrics);
 
 /** The same arrangement for the bar's MIX tab: one channel, laid across.
  *
  *  The tab has three times the overlay strip's width for a quarter of its
- *  content, so the seven controls go left to right rather than down.
+ *  content, so the controls go left to right rather than down.
  *  `mixerControlOrder` still decides the order; left to right is the reading
  *  order here.
+ *
+ *  **Two rows and a meter at the far right.** The five pots stand across the
+ *  top, PFL and FX in a row under them, and the meter takes a full-height
+ *  column at the right-hand end of the band. That is the overlay's strip
+ *  turned on its side: there the two keys share the last row of a column, here
+ *  they share the last row of a band — and a level is read at the end of a
+ *  band the way it is read before a column.
  *
  *  `master` and `filter` stay empty. The tab is about one channel, and the
  *  whole mixer is one tap away on the status bar's MIX key — a summing
