@@ -30,7 +30,7 @@ namespace a3
 /** The one button face — a wash and a thin edge, never a filled slab, so a
  *  button reads as part of the bar rather than pasted on it.
  *
- *  A free function beside paintBarKnob and paintBarFader, and for the same
+ *  A free function beside paintBarKnob, and for the same
  *  reason: the mixer overlay and the bar are on screen at the same moment,
  *  the overlay covering the sphere and the bar staying visible beneath it, so
  *  two button faces are two faces a hand sees side by side. The mixer's PFL,

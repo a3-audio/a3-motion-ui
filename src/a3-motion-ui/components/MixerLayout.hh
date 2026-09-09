@@ -58,8 +58,8 @@ struct MixerLayout
   std::array<juce::Rectangle<int>, numMasterControls> master;
   std::array<juce::Rectangle<int>, numFilterControls> filter;
   /** Each channel's input meter, standing in the volume row to the left of
-   *  the fader whose level it belongs to. Not one of `controls`: a meter is
-   *  read, never touched, so it carries no hit area and must not be counted
+   *  the control whose level it belongs to. Not one of `controls`: a meter is
+   *  read, never touched, so it carries no target and must not be counted
    *  among the things one is put on. */
   std::array<juce::Rectangle<int>,
              static_cast<std::size_t> (numChannelsInitial)>
@@ -87,7 +87,7 @@ struct MixerLayout
  *  file's.
  *
  *  The master's five rectangles sit on the channels' own rows — its volume on
- *  the line their faders are on — and the two rows that leaves it are empty
+ *  the line their volumes are on — and the two rows that leaves it are empty
  *  by design: the output level meters go where a channel's two keys are. */
 MixerLayout layOutMixerOverlay (juce::Rectangle<int> area,
                                 ControlMetrics metrics);
@@ -95,10 +95,9 @@ MixerLayout layOutMixerOverlay (juce::Rectangle<int> area,
 /** The same arrangement for the bar's MIX tab: one channel, laid across.
  *
  *  The tab has three times the overlay strip's width for a quarter of its
- *  content, so the seven controls go left to right rather than down — and
- *  the cells come out tall and narrow, which is the shape the fader wants
- *  anyway. `mixerControlOrder` still decides the order; left to right is the
- *  reading order here.
+ *  content, so the seven controls go left to right rather than down.
+ *  `mixerControlOrder` still decides the order; left to right is the reading
+ *  order here.
  *
  *  `master` and `filter` stay empty. The tab is about one channel, and the
  *  whole mixer is one tap away on the status bar's MIX key — a summing

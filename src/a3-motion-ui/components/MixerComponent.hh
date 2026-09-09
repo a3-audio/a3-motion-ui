@@ -37,11 +37,11 @@ namespace a3
 
 /** One of a channel's seven controls, drawn into `bounds`.
  *
- *  A free function beside paintBarKnob and paintBarFader, and for the same
- *  reason: the overlay stands four of these strips upright and the bar's MIX
- *  tab lays one across, and the same control has to be the same picture in
- *  both or a hand learns two mixers. Which shape it takes is
- *  mixerControlIsAFader()'s to say — nothing here measures the cell.
+ *  A free function beside paintBarKnob, and for the same reason: the overlay
+ *  stands four of these strips upright and the bar's MIX tab lays one across,
+ *  and the same control has to be the same picture in both or a hand learns
+ *  two mixers. Every continuous control here is a knob and the two keys are
+ *  keys — nothing measures the cell to decide which.
  *
  *  `value` is 0..1 and `isOn` answers for the two-valued controls; the caller
  *  reads them off MixerState, so this stays a painter and knows no state. */
@@ -116,7 +116,7 @@ private:
   void timerCallback () override;
 
   void paintStrip (juce::Graphics &g, int channel);
-  /** The nine meters: each channel's input beside its fader, and the output
+  /** The nine meters: each channel's input beside its level, and the output
    *  block in the master column. Drawn after the strips, from one reading of
    *  the clock, so the whole page shows one moment rather than nine. */
   void paintMeters (juce::Graphics &g);

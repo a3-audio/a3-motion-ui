@@ -35,7 +35,7 @@ namespace a3
  *  disagreement shows up as a control that is on one view and not the other.
  *
  *  The order is what a hand coming from a mixer expects: gain at the top
- *  where it is set once, the three bands under it, the fader under them, the
+ *  where it is set once, the three bands under it, the volume under them, the
  *  two keys at the foot.
  *
  *  **Two of the mixer's controls are deliberately not here.** The 3D key,
@@ -75,32 +75,6 @@ constexpr bool
 mixerControlIsAToggle (MixerControl control)
 {
   return control == MixerControl::Pfl || control == MixerControl::Fx;
-}
-
-/** Whether it is thrown rather than turned.
- *
- *  **The volume is a fader wherever it appears**, which is why this question
- *  is asked here and nowhere else: the overlay stands the master beside the
- *  four channels as a fifth strip, and five levels on one line is the whole
- *  reason for that arrangement. A summing level drawn as a knob would be the
- *  one column of the five the eye had to stop at.
- *
- *  It said the opposite for a while, and on a good argument: a channel is
- *  what a hand brings *in* on a throw, where the master is set at the start
- *  of the night and left. That argument decided a master sitting in a row of
- *  its own; asked again with the master standing in the row of faders, the
- *  maintainer chose the fader.
- *
- *  **A rule, not a measurement.** The overlay stands five strips upright and
- *  the bar's MIX tab lays one across its width, so the two see very different
- *  cells; deciding from a cell's proportions would give a hand a control that
- *  changes shape between pages. A layout that cannot give the fader a throw
- *  says `fits = false`, the same as one whose controls come out under a
- *  fingertip — it does not quietly draw a pot instead. */
-constexpr bool
-mixerControlIsAFader (MixerControl control)
-{
-  return control == MixerControl::Volume;
 }
 
 /** What is written under it. At most four characters: the narrowest a strip
@@ -146,18 +120,6 @@ constexpr std::array<MasterControl, numMasterControls> masterControlOrder{
   MasterControl::PhonesMix,    MasterControl::PhonesVolume,
   MasterControl::Return,
 };
-
-/** The same rule, for the summing section — an overload rather than a second
- *  name, the way controlSlot() answers for all three lists.
- *
- *  The master's own level and nothing else. The phones carry a level too and
- *  it is a knob: a column with two faders has none the eye runs to, and what
- *  lines up across all five columns is the level the room hears. */
-constexpr bool
-mixerControlIsAFader (MasterControl control)
-{
-  return control == MasterControl::Volume;
-}
 
 constexpr char const *
 masterControlLabel (MasterControl control)

@@ -20,7 +20,6 @@
 
 #include <gtest/gtest.h>
 
-#include <a3-motion-ui/components/BarFader.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/MixerLayout.hh>
 
@@ -132,40 +131,20 @@ TEST (MixerLayout, EveryControlIsAtLeastAFingertip)
       }
 }
 
-// The channel volume is thrown, and a throw that cannot move is not one.
-// Asserted on the fader's own geometry rather than on the cell's proportions:
-// what matters is not how the cell is shaped but whether the control moves.
-TEST (MixerLayout, TheVolumeCellGivesTheFaderARealThrow)
+// Every row of a strip is the same size, and that is what makes the master's
+// column line up with the channels' for free rather than by arrangement. The
+// volume row used to be taller than the rows around it, because a fader
+// needed somewhere to travel; nothing in the strip is thrown any more, so
+// nothing has a claim on more of the column than its neighbours.
+TEST (MixerLayout, EveryRowOfAStripIsTheSameHeight)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
-
-  auto const slot
-      = static_cast<std::size_t> (controlSlot (MixerControl::Volume));
 
   for (auto const &strip : layout.controls)
-    {
-      auto const bottom = faderGeometry (strip[slot], metrics, 0.f).cap;
-      auto const top = faderGeometry (strip[slot], metrics, 1.f).cap;
-      EXPECT_GT (bottom.getY (), top.getY ());
-    }
-}
-
-// And the room for it is in the layout, where a reader can see the intent,
-// rather than only in the fader that happens to fit.
-TEST (MixerLayout, TheVolumeRowIsTallerThanTheRowsAroundIt)
-{
-  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
-  ASSERT_TRUE (layout.fits);
-
-  auto const slot
-      = static_cast<std::size_t> (controlSlot (MixerControl::Volume));
-  ASSERT_GT (slot, std::size_t{ 0 });
-  ASSERT_LT (slot + 1, static_cast<std::size_t> (numMixerControls));
-
-  auto const &strip = layout.controls[0];
-  EXPECT_GT (strip[slot].getHeight (), strip[slot - 1].getHeight ());
-  EXPECT_GT (strip[slot].getHeight (), strip[slot + 1].getHeight ());
+    for (std::size_t i = 1; i < static_cast<std::size_t> (numMixerControls);
+         ++i)
+      EXPECT_EQ (strip[i].getHeight (), strip[0].getHeight ()) << i;
 }
 
 // Narrow enough and the strips break into two by two rather than four thin
@@ -282,9 +261,9 @@ TEST (MixerLayout, TheMasterStandsAsAColumnRightOfTheChannels)
 }
 
 // The assurance the whole change stands on. Five vertical strips are five
-// levels on one line; a master volume half a row off the channels' faders is
-// four faders and a stray one, which is the arrangement this replaced.
-TEST (MixerLayout, TheMastersVolumeSitsOnTheChannelsFaderLine)
+// levels on one line; a master volume half a row off the channels' is four
+// levels and a stray one, which is the arrangement this replaced.
+TEST (MixerLayout, TheMastersVolumeSitsOnTheChannelsVolumeLine)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
@@ -302,34 +281,19 @@ TEST (MixerLayout, TheMastersVolumeSitsOnTheChannelsFaderLine)
     }
 }
 
-// The master's level is thrown like the four beside it, so its row has to
-// hold a throw as theirs does -- asked of the fader's own geometry rather
-// than of the cell's proportions, the way the channels' is.
-TEST (MixerLayout, TheMastersVolumeCellGivesTheFaderARealThrow)
-{
-  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
-  ASSERT_TRUE (layout.fits);
-
-  auto const cell = layout.master[static_cast<std::size_t> (
-      controlSlot (MasterControl::Volume))];
-  auto const bottom = faderGeometry (cell, metrics, 0.f).cap;
-  auto const top = faderGeometry (cell, metrics, 1.f).cap;
-  EXPECT_GT (bottom.getY (), top.getY ());
-}
-
 // Five controls against a channel's seven, and the two rows that leaves are
 // left empty on purpose: the output level meters go there. A layout that
 // filled them now would have to be undone.
-TEST (MixerLayout, TheMasterLeavesTheRowsBelowItsFaderEmpty)
+TEST (MixerLayout, TheMasterLeavesTheRowsBelowItsVolumeEmpty)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
 
-  auto const faderRow = layout.controls[0][static_cast<std::size_t> (
+  auto const volumeRow = layout.controls[0][static_cast<std::size_t> (
       controlSlot (MixerControl::Volume))];
 
   for (auto const &control : layout.master)
-    EXPECT_LE (control.getBottom (), faderRow.getBottom ())
+    EXPECT_LE (control.getBottom (), volumeRow.getBottom ())
         << "the master reaches into the rows the meters are waiting for";
 }
 

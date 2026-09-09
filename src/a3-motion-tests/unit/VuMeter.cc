@@ -23,7 +23,6 @@
 #include <limits>
 #include <vector>
 
-#include <a3-motion-ui/components/BarFader.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/MixerLayout.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
@@ -64,7 +63,7 @@ aMeterBar ()
 
 // The property the whole thing stands on. A meter is read at a glance and a
 // meter that has never been told anything must read as silence -- a bar drawn
-// full because nothing arrived would send somebody reaching for a fader that
+// full because nothing arrived would send somebody reaching for a level that
 // is already down.
 TEST (VuMeter, AMeterWithNoValueDrawsNothing)
 {
@@ -279,9 +278,9 @@ TEST (VuMeter, AnIndexOffTheEndChangesNothing)
   EXPECT_FLOAT_EQ (levels.output (numOutputMeters, 1000).peak, 0.f);
 }
 
-// The channel's meter stands beside its fader, in the volume row, and takes
-// none of the room the throw needs.
-TEST (VuMeter, AChannelsMeterStandsBesideItsFaderAndNotOverIt)
+// The channel's meter stands beside its level, in the volume row, and takes
+// none of the room the knob needs.
+TEST (VuMeter, AChannelsMeterStandsBesideItsLevelAndNotOverIt)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
@@ -293,14 +292,14 @@ TEST (VuMeter, AChannelsMeterStandsBesideItsFaderAndNotOverIt)
        channel < static_cast<std::size_t> (numChannelsInitial); ++channel)
     {
       auto const meter = layout.channelMeter[channel];
-      auto const fader = layout.controls[channel][slot];
+      auto const knob = layout.controls[channel][slot];
 
       ASSERT_FALSE (meter.isEmpty ()) << channel;
-      EXPECT_FALSE (meter.intersects (fader)) << channel;
-      EXPECT_LE (meter.getRight (), fader.getX ())
-          << channel << ": the meter is on the wrong side of the fader";
-      EXPECT_GE (meter.getY (), fader.getY ()) << channel;
-      EXPECT_LE (meter.getBottom (), fader.getBottom ()) << channel;
+      EXPECT_FALSE (meter.intersects (knob)) << channel;
+      EXPECT_LE (meter.getRight (), knob.getX ())
+          << channel << ": the meter is on the wrong side of the level";
+      EXPECT_GE (meter.getY (), knob.getY ()) << channel;
+      EXPECT_LE (meter.getBottom (), knob.getBottom ()) << channel;
     }
 }
 
@@ -344,27 +343,8 @@ TEST (VuMeter, NoTwoChannelMetersOverlap)
           << i << " over " << j;
 }
 
-// Taking the meter's width off the fader must not leave a fader that cannot
-// be thrown -- that is the whole reason the layout asks rather than assumes.
-TEST (VuMeter, TheFaderStillHasAThrowBesideItsMeter)
-{
-  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
-  ASSERT_TRUE (layout.fits);
-
-  auto const slot
-      = static_cast<std::size_t> (controlSlot (MixerControl::Volume));
-
-  for (auto const &strip : layout.controls)
-    {
-      auto const bottom = faderGeometry (strip[slot], metrics, 0.f).cap;
-      auto const top = faderGeometry (strip[slot], metrics, 1.f).cap;
-      EXPECT_GT (bottom.getY (), top.getY ());
-      EXPECT_GE (strip[slot].getWidth (), fingertipSize);
-    }
-}
-
-// The five output meters sit in the master column, under its fader, in the
-// two rows Task 10 left for them.
+// The five output meters sit in the master column, under its own five, in
+// the two rows Task 10 left for them.
 TEST (VuMeter, TheFiveOutputMetersSitInTheMasterColumn)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
@@ -383,7 +363,7 @@ TEST (VuMeter, TheFiveOutputMetersSitInTheMasterColumn)
       ASSERT_FALSE (bar.isEmpty ()) << i;
 
       EXPECT_GE (bar.getY (), master.getBottom ())
-          << i << ": the meters are not under the master's fader";
+          << i << ": the meters are not under the master's volume";
       EXPECT_GE (bar.getX (), column.getX ()) << i;
       EXPECT_LE (bar.getRight (), column.getRight ()) << i;
     }

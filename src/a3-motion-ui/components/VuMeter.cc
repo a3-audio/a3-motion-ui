@@ -22,7 +22,6 @@
 
 #include <cmath>
 
-#include <a3-motion-ui/components/BarFader.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -36,24 +35,24 @@ namespace
  *  Measured off REAPER's own mixer on this machine (v7.78, one
  *  "1-channelbus" strip, 92 px wide, read by pixel profile): the meter takes
  *  28 of those 92 px. Written as the measurement rather than as 0.3f so the
- *  next reader can check it against the same picture -- the same way
- *  BarFader.cc carries its cap's 15%. */
+ *  next reader can check it against the same picture rather than having to
+ *  take the rounded number on trust. */
 constexpr float meterWidthOfRow = 28.f / 92.f;
 
-/** The air between the meter and the fader beside it.
+/** The air between the meter and the level beside it.
  *
  *  A fifth of the meter's own width, so it keeps its proportion as the strip
- *  grows. What it buys is that the two read as two controls rather than as
- *  one wide field with a line in it; at a pixel they would touch, and a
- *  meter touching a fader looks like part of the fader's track. */
+ *  grows. What it buys is that the two read as two things rather than as one
+ *  wide field with a line in it; at a pixel they would touch, and a meter
+ *  touching a control looks like part of that control. */
 constexpr float meterGapOfMeterWidth = 1.f / 5.f;
 
 /** How thick the peak's mark is, as a share of the track it lies across.
  *
  *  A sixty-fourth: on the device's own overlay, where a channel's track comes
  *  out around 260 px tall, that is four pixels -- a line laid across the bar
- *  rather than a second block of fill. BarFader's cap is 15% of its track for
- *  the opposite reason, because a cap is a handle and this is a reading.
+ *  rather than a second block of fill: what it reports is where the signal
+ *  reached, and a reading is a mark rather than an area.
  *  Floored at a pixel, since a mark that vanished on a short meter would say
  *  "no transient", which is the one thing a meter must not say untruthfully. */
 constexpr float peakMarkOfTrackHeight = 1.f / 64.f;
@@ -68,10 +67,16 @@ constexpr float outputBarGapOfCell = 1.f / 8.f;
 
 /** The word under the output block, as a share of the block's height.
  *
- *  A fifth, which is what BarFader gives its own caption -- so the word under
- *  the meters is the same size as the word under every control beside them.
- *  Never less than half a knob either; that floor and why it is half a knob
- *  are stated in BarFader.cc's faderGeometry(), where it is first used. */
+ *  A fifth, so the word under the meters reads as the same kind of caption as
+ *  the word under every control beside them rather than as a heading over
+ *  them.
+ *
+ *  **Never less than half a knob**, which is the floor this device puts
+ *  under any part of a control that has to be read: a caption that shrank
+ *  with its cell would become unreadable long before the cell itself was too
+ *  small to draw. Pot Size is the nearest thing here to a statement of how big
+ *  a thing has to be to be read and aimed at, so half of it is what a part of
+ *  a control gets when its share of the cell comes out smaller. */
 constexpr float outputCaptionOfBlock = 1.f / 5.f;
 
 /** Where the meter stops being loud and starts being a fault. Full scale: a
@@ -149,32 +154,30 @@ vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level)
 }
 
 VolumeRow
-splitVolumeRow (juce::Rectangle<int> row, ControlMetrics metrics)
+splitVolumeRow (juce::Rectangle<int> row)
 {
   if (row.isEmpty ())
     return {};
 
-  auto fader = row;
-  auto column = fader.removeFromLeft (juce::roundToInt (
+  auto knob = row;
+  auto column = knob.removeFromLeft (juce::roundToInt (
       static_cast<float> (row.getWidth ()) * meterWidthOfRow));
 
-  if (column.isEmpty () || fader.isEmpty ())
+  if (column.isEmpty () || knob.isEmpty ())
     return { {}, row };
 
   column.removeFromRight (juce::jmax (
       1, juce::roundToInt (static_cast<float> (column.getWidth ())
                            * meterGapOfMeterWidth)));
 
-  // The meter takes the fader's *track* as its own extent, not the whole
-  // cell: a fader's caption sits under its track, and a meter that ran down
-  // past it would put full scale and the fader's top on two different lines.
-  // Two levels a hand is meant to compare have to be read off one line.
-  auto const track = faderGeometry (fader, metrics, 0.f).track;
-  if (track.isEmpty () || column.isEmpty ())
+  if (column.isEmpty ())
     return { {}, row };
 
-  return { column.withTop (track.getY ()).withBottom (track.getBottom ()),
-           fader };
+  // The meter keeps the row's full height. The knob beside it draws its own
+  // caption inside its own cell, so there is no line here for the meter to
+  // stop short of -- and this row is no taller than the six around it, so
+  // every pixel of it is one the meter needs.
+  return { column, knob };
 }
 
 OutputMeterBlock
@@ -282,8 +285,8 @@ paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
 
   auto const &t = theme ();
 
-  // The ground the fader's track wears, so a meter reads as part of the
-  // control block beside it rather than as a picture laid over it.
+  // The strip's own raised surface, so a meter reads as part of the block of
+  // controls beside it rather than as a picture laid over it.
   g.setColour (toColour (t.surfaceRaised));
   g.fillRect (geometry.track);
 

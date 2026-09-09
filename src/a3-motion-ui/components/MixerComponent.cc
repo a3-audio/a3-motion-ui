@@ -21,7 +21,6 @@
 #include "MixerComponent.hh"
 
 #include <a3-motion-ui/components/BarButton.hh>
-#include <a3-motion-ui/components/BarFader.hh>
 #include <a3-motion-ui/components/BarKnob.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/OverlayButtons.hh>
@@ -86,16 +85,6 @@ paintMixerChannelControl (juce::Graphics &g, juce::Rectangle<int> bounds,
       // channel gets, and every key here belongs to one -- so an on key is
       // active and selected at once.
       paintBarButton (g, bounds, metrics, colour, label, {}, isOn, isOn);
-      return;
-    }
-
-  // A throw, because it is the channel's level: mixerControlIsAFader() says
-  // which control that is and nothing here measures the cell to find out. The
-  // layout has already made room for the throw, and said `fits = false` if it
-  // could not.
-  if (mixerControlIsAFader (control))
-    {
-      paintBarFader (g, bounds, metrics, colour, label, value, true, true);
       return;
     }
 
@@ -389,8 +378,8 @@ MixerComponent::paintMasterColumn (juce::Graphics &g)
 
   // The same ground the four strips wear, so the master reads as the fifth of
   // five rather than as a panel that happens to stand beside them. Down to
-  // the foot of the output meters, which stand in the two rows under its
-  // fader: the column is one block, and a wash stopping short of its last two
+  // the foot of the output meters, which stand in the two rows under its own
+  // five: the column is one block, and a wash stopping short of its last two
   // rows would read as the meters having been pasted on underneath it.
   auto ground = _layout.master.front ();
   for (auto const &cell : _layout.master)
@@ -409,18 +398,6 @@ MixerComponent::paintMasterColumn (juce::Graphics &g)
       auto const value = _state.masterValue (control);
       auto const bounds = _layout.master[i];
       auto const label = juce::String (masterControlLabel (control));
-
-      // The summing level is thrown like the four beside it, and it is the
-      // layout that has put its row on their line. Which control that is comes
-      // from mixerControlIsAFader() -- the same rule the strips ask, so the
-      // five faders are one decision rather than a channel rule and a master
-      // rule that agree until somebody edits one of them.
-      if (mixerControlIsAFader (control))
-        {
-          paintBarFader (g, bounds, _metrics, colour, label, value, true,
-                         true);
-          continue;
-        }
 
       paintBarKnob (g, bounds, _metrics, colour, label, angleFor (value),
                     fillsFromTheMiddle (control), false, true);

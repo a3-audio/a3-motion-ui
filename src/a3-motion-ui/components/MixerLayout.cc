@@ -20,7 +20,6 @@
 
 #include "MixerLayout.hh"
 
-#include <a3-motion-ui/components/BarFader.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
 
 namespace a3
@@ -110,15 +109,18 @@ struct StripRows
   bool fits;
 };
 
-/** The rows of one strip, top to bottom.
+/** The rows of one strip, top to bottom, every one the same height.
  *
- *  A function of the strip's *height*: which row belongs to the fader comes
- *  from mixerControlIsAFader() and how tall that row has to be from
- *  faderHeightForThrow(), which answers about a height rather than about a
- *  proportion of the width. Two columns of the same height therefore come out
- *  with the same rows — which is what puts the master's volume exactly on the
- *  channels' line rather than near it, and the reason this is one function
- *  instead of two arrangements that agree today. */
+ *  Seven controls of one kind stand in seven rows of one size: they are all
+ *  turned or pressed, so none of them has a claim on more of the column than
+ *  its neighbours. A row that was taller than the ones around it used to be
+ *  the volume, back when it was thrown rather than turned and needed the
+ *  length to travel in.
+ *
+ *  Because it is a function of the strip's *height* alone, two columns of the
+ *  same height come out with the same rows — which is what puts the master's
+ *  volume exactly on the channels' line rather than near it, and the reason
+ *  this is one function instead of two arrangements that agree today. */
 StripRows
 rowsDownStrip (juce::Rectangle<int> strip, ControlMetrics metrics)
 {
@@ -128,33 +130,7 @@ rowsDownStrip (juce::Rectangle<int> strip, ControlMetrics metrics)
     return out;
 
   auto const floor_ = rowFloor (metrics);
-
-  // The volume is the one control in the strip a hand throws rather than
-  // turns -- mixerControlIsAFader() is where that is decided, once, for every
-  // page that draws one -- so it is given the height a throw needs and the
-  // others share what is left. Equal rows put the fader in a cell wider than
-  // it was tall, where its cap fills its own track and the throw comes out a
-  // pixel long.
-  //
-  // The room it may take is what is left once the others have their floor, so
-  // a strip can never be so generous to the fader that the controls above it
-  // stop being hittable.
-  auto const others = numMixerControls - 1;
-  auto const volumeRoom = strip.getHeight () - others * floor_;
-  auto const throwHeight
-      = volumeRoom > 0
-            ? faderHeightForThrow (strip.getWidth (), volumeRoom, metrics)
-            : 0;
-  if (throwHeight == 0)
-    out.fits = false;
-
-  // Back to equal rows when the throw cannot be had. `fits` is already false
-  // and the overlay draws a sentence instead of a mixer, but the rectangles
-  // still have to be sane: a caller that paints anyway must not paint one
-  // control over another.
-  auto const volumeH
-      = throwHeight > 0 ? throwHeight : strip.getHeight () / numMixerControls;
-  auto const rowH = juce::jmax (0, (strip.getHeight () - volumeH) / others);
+  auto const rowH = strip.getHeight () / numMixerControls;
 
   if (rowH < floor_ || strip.getWidth () < floor_)
     out.fits = false;
@@ -162,15 +138,9 @@ rowsDownStrip (juce::Rectangle<int> strip, ControlMetrics metrics)
   auto y = strip.getY ();
   for (int i = 0; i < numMixerControls; ++i)
     {
-      auto const height
-          = mixerControlIsAFader (
-                mixerControlOrder[static_cast<std::size_t> (i)])
-                ? volumeH
-                : rowH;
-
       out.rows[static_cast<std::size_t> (i)] = juce::Rectangle<int> (
-          strip.getX (), y, strip.getWidth (), height);
-      y += height;
+          strip.getX (), y, strip.getWidth (), rowH);
+      y += rowH;
     }
 
   return out;
@@ -180,7 +150,7 @@ rowsDownStrip (juce::Rectangle<int> strip, ControlMetrics metrics)
  *
  *  The master's five sit on the channels' own seven-row grid, because five
  *  levels on one line is the whole point of standing it beside them: its
- *  volume takes the fader's row and the other four fill the rows above it in
+ *  volume takes the volume row and the other four fill the rows above it in
  *  the table's order.
  *
  *  **The two rows that leaves are empty on purpose.** They are where a
@@ -191,9 +161,9 @@ constexpr int
 rowForMasterControl (MasterControl control)
 {
   static_assert (numMasterControls - 1 <= controlSlot (MixerControl::Volume),
-                 "the master's other controls no longer fit above the fader");
+                 "the master's other controls no longer fit above the volume");
 
-  if (mixerControlIsAFader (control))
+  if (control == MasterControl::Volume)
     return controlSlot (MixerControl::Volume);
 
   auto const slot = controlSlot (control);
@@ -283,8 +253,8 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
 
   // One gap for all five columns, taken from a channel's cell rather than
   // from each column's own size. The gap is what sets a column's top edge,
-  // and five columns whose gaps differed by a pixel would put five faders on
-  // five lines.
+  // and five columns whose gaps differed by a pixel would put the five
+  // levels on five lines.
   auto const firstCell = cellIn (stripArea, out.strips, 0);
   auto const gap = gapIn (firstCell.isEmpty () ? masterColumn : firstCell);
 
@@ -304,27 +274,21 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
       out.controls[static_cast<std::size_t> (channel)] = rows.rows;
 
       // The meter takes its share off the left of the volume row, and what
-      // is left is the fader's cell -- so the fader's own rectangle shrinks
+      // is left is the knob's cell -- so the knob's own rectangle shrinks
       // rather than being drawn across a meter laid under it. Asked here
       // rather than in rowsDownStrip because the master's column has no
       // input meter and must keep its full width, and because the two
       // arrangements have to come out with the same row *heights* for the
-      // five faders to stand on one line.
-      auto const split = splitVolumeRow (
-          rows.rows[volumeSlot ()], metrics);
+      // five levels to stand on one line.
+      auto const split = splitVolumeRow (rows.rows[volumeSlot ()]);
       out.controls[static_cast<std::size_t> (channel)][volumeSlot ()]
-          = split.fader;
+          = split.knob;
       out.channelMeter[static_cast<std::size_t> (channel)] = split.meter;
 
-      // A strip so narrow that the meter leaves the fader nothing is a strip
+      // A strip so narrow that the meter leaves the knob nothing is a strip
       // that cannot be operated, and the page says so rather than drawing a
-      // fader nobody can throw. The width is asked separately because
-      // faderHeightForThrow answers about the travel, which a narrow cell
-      // still has -- a cell under a fingertip is a different fault.
-      if (split.meter.isEmpty () || split.fader.getWidth () < floor_
-          || faderHeightForThrow (split.fader.getWidth (),
-                                  split.fader.getHeight (), metrics)
-                 == 0)
+      // control nobody can land on.
+      if (split.meter.isEmpty () || split.knob.getWidth () < floor_)
         rowsFit = false;
     }
 
@@ -382,15 +346,14 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
       auto cell = cellAcross (area, numMixerControls, i);
 
       // The tab's strip carries the channel's meter too, in the same place
-      // it stands in the overlay: beside the fader, in the volume cell. A
-      // meter that appeared on one page and not the other would be a hand
-      // learning two mixers, which is the thing mixerControlOrder exists to
-      // prevent.
-      if (mixerControlIsAFader (mixerControlOrder[index]))
+      // it stands in the overlay: beside the volume, in its cell. A meter
+      // that appeared on one page and not the other would be a hand learning
+      // two mixers, which is the thing mixerControlOrder exists to prevent.
+      if (index == volumeSlot ())
         {
-          auto const split = splitVolumeRow (cell, metrics);
+          auto const split = splitVolumeRow (cell);
           out.channelMeter[0] = split.meter;
-          cell = split.fader;
+          cell = split.knob;
 
           if (split.meter.isEmpty ())
             cellsFit = false;
@@ -399,16 +362,6 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
       out.controls[0][index] = cell;
 
       if (cell.getWidth () < floor_ || cell.getHeight () < floor_)
-        cellsFit = false;
-
-      // Which control is a fader is a rule, not something read off the cell
-      // -- so the layout has to ask whether the cell it is about to hand the
-      // fader can be thrown in at all, and say `fits = false` when it cannot.
-      // The alternative is a component quietly drawing a pot there, which is
-      // the same control changing shape between the two pages.
-      if (mixerControlIsAFader (mixerControlOrder[index])
-          && faderHeightForThrow (cell.getWidth (), cell.getHeight (), metrics)
-                 == 0)
         cellsFit = false;
     }
 

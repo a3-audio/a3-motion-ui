@@ -122,8 +122,6 @@ target_sources("a3-motion-ui" PRIVATE
     components/ActionComponent.cc
     components/ActionLayout.cc
     components/BarKnob.cc
-    components/BarFader.cc
-    components/BarFader.hh
     components/ColumnBreak.cc
     components/ColumnBreak.hh
     components/MixerControls.hh

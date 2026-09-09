@@ -126,10 +126,10 @@ float vuMeterFraction (float amplitude);
 
 /** Where the parts of one meter are drawn.
  *
- *  Public so the picture and the test can read the same rectangles, the way
- *  `FaderGeometry` is. `rms` and `peak` come back empty for a meter that has
- *  nothing to show, which is what a meter nobody has sent anything to must
- *  look like. */
+ *  Public so the picture and the test can read the same rectangles — the
+ *  lesson ClipSettingsLayout stands on. `rms` and `peak` come back empty for
+ *  a meter that has nothing to show, which is what a meter nobody has sent
+ *  anything to must look like. */
 struct VuMeterGeometry
 {
   /** The whole bar, drawn even when it is empty: a meter has to be findable
@@ -143,19 +143,19 @@ struct VuMeterGeometry
 
 VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level);
 
-/** The volume row, split into the meter and what is left for the fader.
+/** The volume row, split into the meter and what is left for the control.
  *
  *  Measured off REAPER's own mixer on this machine — the meter takes 28 of a
- *  92 px strip, just under a third, and sits to the *left* of the fader. The
- *  volume row is the tall one anyway, so the meter costs no height, and a
- *  meter beside its fader is where every hand looks. */
+ *  92 px strip, just under a third, and sits to the *left* of the level. A
+ *  meter beside the level it belongs to is where every hand looks, and the
+ *  row is the only one in the strip where a channel has anything to read. */
 struct VolumeRow
 {
   juce::Rectangle<int> meter;
-  juce::Rectangle<int> fader;
+  juce::Rectangle<int> knob;
 };
 
-VolumeRow splitVolumeRow (juce::Rectangle<int> row, ControlMetrics metrics);
+VolumeRow splitVolumeRow (juce::Rectangle<int> row);
 
 /** The five output meters across one block, and the word under them.
  *
@@ -219,9 +219,9 @@ private:
 
 /** One meter, drawn into `bounds`.
  *
- *  A free function beside `paintBarFader` and `paintBarKnob`, for the reason
- *  they are: the overlay draws nine of these and the bar's MIX tab draws one,
- *  and the same meter has to be the same picture in both.
+ *  A free function beside `paintBarKnob`, for the reason it is: the overlay
+ *  draws nine of these and the bar's MIX tab draws one, and the same meter
+ *  has to be the same picture in both.
  *
  *  `colour` is what the fill is: a channel's own colour, because that is how
  *  this device says whose something is everywhere else, and the plain text
