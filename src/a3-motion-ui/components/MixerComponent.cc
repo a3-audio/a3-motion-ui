@@ -371,9 +371,15 @@ MixerComponent::paintStrip (juce::Graphics &g, int channel)
   // The strip's ground is the union of its rows and the meter column beside
   // them, so a deck reads as one block however the columns broke. In the
   // channel's own colour, because finding your deck by colour is the one thing
-  // this screen has to answer without being read -- and since the meter itself
-  // stopped wearing that colour when it took up the green/yellow/red banding,
-  // this wash is now what says whose meter it is.
+  // this screen has to answer without being read.
+  //
+  // It does not reach into the meter, and the comment here used to say it did.
+  // paintVuMeter fills the whole meter rectangle with an opaque surfaceRaised
+  // before it draws anything into it, so inside that column the wash is not
+  // visible at all. What says whose meter this is, is the block it stands in:
+  // the seven knobs and keys beside it, and the sliver of colour in the gap
+  // between them. The meter itself gave the channel's colour up when it took
+  // the green/yellow/red banding, and nothing has given it back.
   auto ground = cells.front ();
   for (auto const &cell : cells)
     ground = ground.getUnion (cell);
