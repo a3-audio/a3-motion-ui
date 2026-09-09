@@ -21,6 +21,7 @@
 #include "ClipSettingsComponent.hh"
 #include <algorithm>
 
+#include <a3-motion-ui/components/BarButton.hh>
 #include <a3-motion-ui/components/BarKnob.hh>
 
 #include <a3-motion-engine/ClipSettings.hh>
@@ -1378,10 +1379,11 @@ ClipSettingsComponent::paintActionButton (juce::Graphics &g,
   g.drawFittedText (label, bounds, juce::Justification::centred, 1);
 }
 
-/** The one button face the bar uses — the global section's four, Elevation's
- *  flat and pole, and Motion's two lists. Quiet, like everything else here:
- *  a wash and a thin edge, not a filled slab. Only an active one carries
- *  colour, and that is the state talking, not the button. */
+/** The bar's one button face — the global section's four, Elevation's flat
+ *  and pole, and Motion's two lists. The drawing lives in BarButton so the
+ *  mixer's keys can use the same one: the overlay covers the sphere and this
+ *  bar stays visible under it, so a second face would be a second face on
+ *  screen at the same moment. */
 void
 ClipSettingsComponent::paintBarButton (juce::Graphics &g,
                                        juce::Rectangle<int> bounds,
@@ -1390,50 +1392,9 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
                                        bool isActive, bool isSelected,
                                        juce::Colour valueColour)
 {
-  // An active button lights in the shown clip's colour, except in the global
-  // section — nothing there belongs to a channel, so it lights grey.
-  g.setColour (isActive ? (isSelected
-                               ? _channelColour.withAlpha (highlightWash * 2.f)
-                               : toColour (theme ().textPrimary,
-                                           highlightWash * 2.f))
-                        : toColour (theme ().textPrimary, cardWash));
-  g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
-
-  g.setColour (toColour (theme ().textPrimary, trackWash));
-  g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
-                          theme ().strokeThin);
-
-  // Two lines, both inside the box: the caption on top, the value under it.
-  // The caption used to sit below the button, which made a button a
-  // different height from the box it looked like and left the name floating
-  // between two of them.
-  auto box = bounds.reduced (juce::roundToInt (theme ().paddingSmall),
-                             juce::roundToInt (theme ().paddingTight));
-  auto const captionArea
-      = caption.isEmpty ()
-            ? juce::Rectangle<int>{}
-            : box.removeFromTop (box.getHeight () * 2 / 5);
-
-  if (caption.isNotEmpty ())
-    {
-      g.setFont (juce::Font (
-          juce::jmin (_layout.metrics.captionSize,
-                      static_cast<float> (captionArea.getHeight ()) * 0.95f),
-          juce::Font::plain));
-      g.setColour (captionColour (isSelected));
-      g.drawFittedText (caption, captionArea, juce::Justification::centred, 1);
-    }
-
-  auto const valueSize
-      = juce::jmin (_layout.metrics.valueSize,
-                    static_cast<float> (box.getHeight ()) * 0.9f);
-  g.setFont (juce::Font (valueSize, juce::Font::plain));
-  // A value that has a colour of its own — the clock's mode — writes itself
-  // in it. Everything else takes the bar's.
-  g.setColour (valueColour.isTransparent () ? controlColour (isSelected)
-                                            : valueColour);
-
-  g.drawFittedText (label, box, juce::Justification::centred, 1);
+  // Qualified, because the member name hides the one in the namespace.
+  a3::paintBarButton (g, bounds, _layout.metrics, _channelColour, label,
+                      caption, isActive, isSelected, valueColour);
 }
 
 void

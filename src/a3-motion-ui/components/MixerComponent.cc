@@ -20,6 +20,7 @@
 
 #include "MixerComponent.hh"
 
+#include <a3-motion-ui/components/BarButton.hh>
 #include <a3-motion-ui/components/BarFader.hh>
 #include <a3-motion-ui/components/BarKnob.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
@@ -36,12 +37,6 @@ namespace
 // GlobalSettingsComponent rather than guessed at again: an overlay that dimmed
 // the room by a different amount would read as a different kind of overlay.
 constexpr float overlayOpacity = 0.55f;
-
-// The bar's button face, brought across so a key here reads as the same kind
-// of thing as a key down there -- a wash and a thin edge, never a filled slab.
-constexpr float keyFaceWash = 0.08f;
-constexpr float keyActiveWash = 0.36f;
-constexpr float keyEdgeWash = 0.18f;
 
 // A strip's own ground, faint enough that the five columns read as five
 // blocks without any of them becoming a panel in its own right. The master
@@ -69,47 +64,6 @@ fillsFromTheMiddle (MasterControl control)
   return control == MasterControl::PhonesMix;
 }
 
-/** A key rather than a pot: the same face the bar's buttons wear, so a
- *  two-valued control reads as the same kind of thing wherever it is. */
-void
-paintKeyFace (juce::Graphics &g, juce::Rectangle<int> bounds,
-              ControlMetrics metrics, juce::Colour tint,
-              juce::String const &caption, juce::String const &value,
-              bool isOn)
-{
-  if (bounds.isEmpty ())
-    return;
-
-  // The colour says which key this is and the ground says what it is doing --
-  // two questions in two places, rather than one colour asked to answer both.
-  g.setColour (isOn ? tint.withAlpha (keyActiveWash)
-                    : toColour (theme ().textPrimary, keyFaceWash));
-  g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
-
-  g.setColour (toColour (theme ().textPrimary, keyEdgeWash));
-  g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
-                          theme ().strokeThin);
-
-  auto box = bounds.reduced (juce::roundToInt (theme ().paddingTight));
-  g.setFont (juce::Font (juce::FontOptions (metrics.captionSize)));
-
-  if (value.isEmpty ())
-    {
-      g.setColour (isOn ? tint : toColour (theme ().textMuted));
-      g.drawFittedText (caption, box, juce::Justification::centred, 1);
-      return;
-    }
-
-  // Two lines, both inside the box: the name on top and the value under it,
-  // the way every button in the bar that stands for something is drawn.
-  auto const captionArea = box.removeFromTop (box.getHeight () / 2);
-  g.setColour (toColour (theme ().textMuted));
-  g.drawFittedText (caption, captionArea, juce::Justification::centred, 1);
-
-  g.setColour (isOn ? tint : toColour (theme ().textMuted));
-  g.drawFittedText (value, box, juce::Justification::centred, 1);
-}
-
 /** A 0..1 value on paintBarKnob's -1..1 scale. */
 float
 angleFor (float value)
@@ -127,7 +81,11 @@ paintMixerChannelControl (juce::Graphics &g, juce::Rectangle<int> bounds,
 
   if (mixerControlIsAToggle (control))
     {
-      paintKeyFace (g, bounds, metrics, colour, label, {}, isOn);
+      // A key, drawn as the bar draws its keys. `isSelected` is what asks for
+      // the channel's colour rather than the grey a button belonging to no
+      // channel gets, and every key here belongs to one -- so an on key is
+      // active and selected at once.
+      paintBarButton (g, bounds, metrics, colour, label, {}, isOn, isOn);
       return;
     }
 
@@ -488,8 +446,9 @@ MixerComponent::paintFilterRow (juce::Graphics &g)
           // key naming what you would get is one you press to find out where
           // you are.
           auto const highPass = _state.filterIsHighPass ();
-          paintKeyFace (g, bounds, _metrics, colour, label,
-                        highPass ? "HPF" : "LPF", highPass);
+          paintBarButton (g, bounds, _metrics, colour,
+                          highPass ? "HPF" : "LPF", label, highPass,
+                          highPass);
           continue;
         }
 

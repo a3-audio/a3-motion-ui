@@ -150,6 +150,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/MixerLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/BarFader.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/VuMeter.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/BarButton.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/BarKnob.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/OverlayButtons.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/MixerComponent.cc"
