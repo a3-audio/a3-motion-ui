@@ -147,6 +147,76 @@ TEST (MixerLayout, EveryRowOfAStripIsTheSameHeight)
       EXPECT_EQ (strip[i].getHeight (), strip[0].getHeight ()) << i;
 }
 
+// The meter is a column of its own down the whole strip, not a cell inside one
+// of its rows. Length is what a level meter is read by: a bar a seventh of the
+// strip tall can say "loud" and nothing else, where one running the strip's
+// full height says how much of the headroom is left. REAPER stands its meter
+// beside the column of controls for exactly that reason.
+TEST (MixerLayout, TheMeterRunsTheWholeHeightOfItsStrip)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  for (std::size_t channel = 0;
+       channel < static_cast<std::size_t> (numChannelsInitial); ++channel)
+    {
+      auto const meter = layout.channelMeter[channel];
+      auto const &strip = layout.controls[channel];
+
+      ASSERT_FALSE (meter.isEmpty ()) << channel;
+      EXPECT_LE (meter.getY (), strip.front ().getY ())
+          << channel << ": the meter starts below the strip's first control";
+      EXPECT_GE (meter.getBottom (), strip.back ().getBottom ())
+          << channel << ": the meter stops above the strip's last control";
+    }
+}
+
+// And it stands to the left of every one of them. A meter in its own column
+// takes no room out of any control's cell, which is what lets the seven rows
+// stay the one height they have been since the fader went.
+TEST (MixerLayout, TheMeterStandsLeftOfEveryControlOfItsStrip)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  for (std::size_t channel = 0;
+       channel < static_cast<std::size_t> (numChannelsInitial); ++channel)
+    for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerControls);
+         ++i)
+      {
+        auto const meter = layout.channelMeter[channel];
+        auto const control = layout.controls[channel][i];
+
+        EXPECT_FALSE (meter.intersects (control))
+            << channel << " over " << mixerControlLabel (mixerControlOrder[i]);
+        EXPECT_LE (meter.getRight (), control.getX ())
+            << channel << ": the meter is on the wrong side of "
+            << mixerControlLabel (mixerControlOrder[i]);
+      }
+}
+
+// The bar's MIX tab reads the same rule the other way round: its controls run
+// across, so the meter is the column standing before them -- still the strip's
+// full height, still beside the controls rather than inside one of them. Two
+// pages drawing one channel have to draw it the same way, which is what
+// putting both arrangements in this file is for.
+TEST (MixerLayout, TheBarsStripStandsItsMeterBeforeTheControls)
+{
+  auto const layout = layOutMixerStrip (aBarStrip (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  auto const meter = layout.channelMeter[0];
+  ASSERT_FALSE (meter.isEmpty ());
+
+  for (auto const &control : layout.controls[0])
+    {
+      EXPECT_FALSE (meter.intersects (control));
+      EXPECT_LE (meter.getRight (), control.getX ());
+      EXPECT_LE (meter.getY (), control.getY ());
+      EXPECT_GE (meter.getBottom (), control.getBottom ());
+    }
+}
+
 // Narrow enough and the strips break into two by two rather than four thin
 // ones -- the whole point of ColumnBreak, exercised through the layout that
 // uses it.

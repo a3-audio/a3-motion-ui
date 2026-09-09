@@ -30,16 +30,16 @@ namespace a3
 
 namespace
 {
-/** The meter's share of the volume row's width.
+/** The meter's share of the strip's width.
  *
  *  Measured off REAPER's own mixer on this machine (v7.78, one
  *  "1-channelbus" strip, 92 px wide, read by pixel profile): the meter takes
  *  28 of those 92 px. Written as the measurement rather than as 0.3f so the
  *  next reader can check it against the same picture rather than having to
  *  take the rounded number on trust. */
-constexpr float meterWidthOfRow = 28.f / 92.f;
+constexpr float meterWidthOfStrip = 28.f / 92.f;
 
-/** The air between the meter and the level beside it.
+/** The air between the meter and the controls beside it.
  *
  *  A fifth of the meter's own width, so it keeps its proportion as the strip
  *  grows. What it buys is that the two read as two things rather than as one
@@ -79,10 +79,31 @@ constexpr float outputBarGapOfCell = 1.f / 8.f;
  *  a control gets when its share of the cell comes out smaller. */
 constexpr float outputCaptionOfBlock = 1.f / 5.f;
 
-/** Where the meter stops being loud and starts being a fault. Full scale: a
- *  sample cannot go past it, so anything reaching it is a signal that has
- *  already been cut off somewhere upstream. */
-constexpr float clippingAmplitude = 1.f;
+/** Where each band ends, foot to head, as a share of the track's height.
+ *
+ *  The head one is the whole bar rather than the top band's own ceiling:
+ *  there is nothing above full scale for a fourth band to occupy, and stating
+ *  it as 1 is what makes the three exhaust the track between them. */
+constexpr std::array<float, numVuMeterBands> bandCeilings{
+  vuFractionForDb (vuGreenCeilingDb),
+  vuFractionForDb (vuYellowCeilingDb),
+  1.f,
+};
+
+/** The colour each of those bands is filled in.
+ *
+ *  Looked up rather than guessed at: `highlight` is the skin's yellow at
+ *  255, 214, 10, where `warning` is an orange — and green/orange/red is not
+ *  the banding a hand reads without looking. */
+juce::Colour
+bandColour (Theme const &t, std::size_t band)
+{
+  if (band == vuGreenBand)
+    return toColour (t.accent);
+  if (band == vuYellowBand)
+    return toColour (t.highlight);
+  return toColour (t.danger);
+}
 
 /** The fraction of the block that is one bar plus its gap. */
 int
@@ -131,6 +152,30 @@ vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level)
   if (rmsHeight > 0)
     out.rms = bounds.withTop (bounds.getBottom () - rmsHeight);
 
+  // Every edge in the meter is placed by this one rounding, the fill's foot
+  // and the bands' boundaries alike. Rounded separately they would disagree
+  // by a pixel and leave a hairline of bare track showing through a solid
+  // fill.
+  auto const yFor = [&bounds, height] (float fraction) {
+    return bounds.getBottom ()
+           - juce::roundToInt (static_cast<float> (height) * fraction);
+  };
+
+  auto foot = 0.f;
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
+    {
+      auto const top = yFor (bandCeilings[i]);
+      auto const zone = juce::Rectangle<int> (bounds.getX (), top,
+                                              bounds.getWidth (),
+                                              yFor (foot) - top);
+
+      // The band is the *fill* cut by the zone, never the zone itself: what
+      // makes this a meter rather than three lamps is that a band is only
+      // drawn as far as the signal has actually reached into it.
+      out.bands[i] = zone.getIntersection (out.rms);
+      foot = bandCeilings[i];
+    }
+
   auto const peakFraction = vuMeterFraction (level.peak);
   if (peakFraction > 0.f)
     {
@@ -153,31 +198,30 @@ vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level)
   return out;
 }
 
-VolumeRow
-splitVolumeRow (juce::Rectangle<int> row)
+StripColumns
+splitStripForMeter (juce::Rectangle<int> strip)
 {
-  if (row.isEmpty ())
+  if (strip.isEmpty ())
     return {};
 
-  auto knob = row;
-  auto column = knob.removeFromLeft (juce::roundToInt (
-      static_cast<float> (row.getWidth ()) * meterWidthOfRow));
+  auto controls = strip;
+  auto column = controls.removeFromLeft (juce::roundToInt (
+      static_cast<float> (strip.getWidth ()) * meterWidthOfStrip));
 
-  if (column.isEmpty () || knob.isEmpty ())
-    return { {}, row };
+  if (column.isEmpty () || controls.isEmpty ())
+    return { {}, strip };
 
   column.removeFromRight (juce::jmax (
       1, juce::roundToInt (static_cast<float> (column.getWidth ())
                            * meterGapOfMeterWidth)));
 
   if (column.isEmpty ())
-    return { {}, row };
+    return { {}, strip };
 
-  // The meter keeps the row's full height. The knob beside it draws its own
-  // caption inside its own cell, so there is no line here for the meter to
-  // stop short of -- and this row is no taller than the six around it, so
-  // every pixel of it is one the meter needs.
-  return { column, knob };
+  // The meter keeps the strip's full height, every row of it. Each control
+  // beside it draws its own caption inside its own cell, so there is no line
+  // here for the meter to stop short of.
+  return { column, controls };
 }
 
 OutputMeterBlock
@@ -276,8 +320,7 @@ VuLevels::output (int meter, juce::int64 nowMs) const
 }
 
 void
-paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
-              juce::Colour colour, VuLevel level)
+paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds, VuLevel level)
 {
   auto const geometry = vuMeterGeometry (bounds, level);
   if (geometry.track.isEmpty ())
@@ -286,24 +329,30 @@ paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
   auto const &t = theme ();
 
   // The strip's own raised surface, so a meter reads as part of the block of
-  // controls beside it rather than as a picture laid over it.
+  // controls beside it rather than as a picture laid over it. Left plain
+  // above the fill: REAPER draws the bands into the signal and not into the
+  // empty track, and a track pre-painted in three colours would read as a
+  // meter permanently at full scale.
   g.setColour (toColour (t.surfaceRaised));
   g.fillRect (geometry.track);
 
-  if (!geometry.rms.isEmpty ())
-    {
-      g.setColour (colour);
-      g.fillRect (geometry.rms);
-    }
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
+    if (!geometry.bands[i].isEmpty ())
+      {
+        g.setColour (bandColour (t, i));
+        g.fillRect (geometry.bands[i]);
+      }
 
   if (!geometry.peak.isEmpty ())
     {
-      // The mark is not in the channel's colour: it has to be legible over
-      // the fill, which already is. Full scale is the one thing a meter has
-      // to shout, so it changes colour there and nowhere else -- a mark that
-      // shaded gradually would be a warning nobody could time.
-      g.setColour (toColour (level.peak >= clippingAmplitude ? t.danger
-                                                             : t.highlight));
+      // White, and not one of the three band colours it may land on or beside
+      // -- a mark drawn in the yellow of the band under it says "band" where
+      // it means "peak", and a red one at full scale would be invisible on
+      // exactly the reading a meter exists to shout. It stands over the bare
+      // track whenever there is any headroom between the rms and the peak,
+      // which with real programme material is always, so reading against the
+      // dark is the case it has to answer first.
+      g.setColour (toColour (t.textPrimary));
       g.fillRect (geometry.peak);
     }
 }

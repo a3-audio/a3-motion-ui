@@ -196,12 +196,17 @@ rowsNoMasterControlStandsIn (StripRows const &rows)
   return block;
 }
 
-/** Where the volume row's slot is in the table, as an index into a strip. */
-std::size_t
-volumeSlot ()
-{
-  return static_cast<std::size_t> (controlSlot (MixerControl::Volume));
-}
+/** How many columns the bar's tab lays across: the seven controls, and the
+ *  meter standing before them.
+ *
+ *  The meter takes a column the width of a control rather than the near-third
+ *  of the width REAPER's measurement gives it. That measurement is of a
+ *  *portrait* strip, where a third of 92 px is a bar far taller than it is
+ *  wide; a third of a landscape band would be a block wider than it is tall,
+ *  which is not a meter. What carries across from REAPER is the arrangement —
+ *  a full-height column standing to the left of the controls — and here that
+ *  is one column of eight. */
+constexpr int columnsAcrossTheBarsStrip = numMixerControls + 1;
 }
 
 MixerLayout
@@ -269,26 +274,29 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
           continue;
         }
 
-      auto const rows = rowsDownStrip (cell.reduced (gap), metrics);
+      // The meter takes its column off the left of the whole strip, and the
+      // rows are then stepped down what is left -- so the seven controls all
+      // narrow by the same amount and none of them is drawn across a meter
+      // laid under it. Split before the rows rather than after, because the
+      // meter's job is to be the strip's full height and a cut taken out of
+      // one row could never give it that.
+      //
+      // The master's column is deliberately not split: it has no input meter,
+      // its output block stands in the rows its own controls leave, and its
+      // five have to keep the channels' row *heights* for the five levels to
+      // stand on one line. Splitting the width does not touch those heights,
+      // which is what lets the two arrangements stay one function.
+      auto const split = splitStripForMeter (cell.reduced (gap));
+
+      auto const rows = rowsDownStrip (split.controls, metrics);
       rowsFit = rowsFit && rows.fits;
       out.controls[static_cast<std::size_t> (channel)] = rows.rows;
-
-      // The meter takes its share off the left of the volume row, and what
-      // is left is the knob's cell -- so the knob's own rectangle shrinks
-      // rather than being drawn across a meter laid under it. Asked here
-      // rather than in rowsDownStrip because the master's column has no
-      // input meter and must keep its full width, and because the two
-      // arrangements have to come out with the same row *heights* for the
-      // five levels to stand on one line.
-      auto const split = splitVolumeRow (rows.rows[volumeSlot ()]);
-      out.controls[static_cast<std::size_t> (channel)][volumeSlot ()]
-          = split.knob;
       out.channelMeter[static_cast<std::size_t> (channel)] = split.meter;
 
-      // A strip so narrow that the meter leaves the knob nothing is a strip
-      // that cannot be operated, and the page says so rather than drawing a
-      // control nobody can land on.
-      if (split.meter.isEmpty () || split.knob.getWidth () < floor_)
+      // A strip so narrow that the meter leaves the controls nothing is a
+      // strip that cannot be operated, and the page says so rather than
+      // drawing controls nobody can land on.
+      if (split.meter.isEmpty () || split.controls.getWidth () < floor_)
         rowsFit = false;
     }
 
@@ -338,26 +346,21 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
   auto const floor_ = rowFloor (metrics);
   auto cellsFit = true;
 
+  // The tab's strip carries the channel's meter in the same place it stands
+  // in the overlay: its own full-height column, before the controls. A meter
+  // arranged one way on one page and another way on the other would be a hand
+  // learning two mixers, which is the thing mixerControlOrder exists to
+  // prevent.
+  out.channelMeter[0] = cellAcross (area, columnsAcrossTheBarsStrip, 0);
+  if (out.channelMeter[0].isEmpty ())
+    cellsFit = false;
+
   // Across in the table's order, the way the overlay goes down it -- the same
   // list read the other way rather than a second list that agrees with it.
   for (int i = 0; i < numMixerControls; ++i)
     {
       auto const index = static_cast<std::size_t> (i);
-      auto cell = cellAcross (area, numMixerControls, i);
-
-      // The tab's strip carries the channel's meter too, in the same place
-      // it stands in the overlay: beside the volume, in its cell. A meter
-      // that appeared on one page and not the other would be a hand learning
-      // two mixers, which is the thing mixerControlOrder exists to prevent.
-      if (index == volumeSlot ())
-        {
-          auto const split = splitVolumeRow (cell);
-          out.channelMeter[0] = split.meter;
-          cell = split.knob;
-
-          if (split.meter.isEmpty ())
-            cellsFit = false;
-        }
+      auto const cell = cellAcross (area, columnsAcrossTheBarsStrip, i + 1);
 
       out.controls[0][index] = cell;
 

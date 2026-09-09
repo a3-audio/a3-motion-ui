@@ -124,6 +124,47 @@ juce::int64 vuNowMs ();
  *  computed before that is said is not something a clamp can rescue. */
 float vuMeterFraction (float amplitude);
 
+/** The same place on the meter, asked for in decibels below full scale.
+ *
+ *  `vuMeterFraction` is handed the linear amplitude that arrives on the wire;
+ *  this is the half of that mapping the *bands* are stated in, since where a
+ *  band begins is a decibel figure a mixing engineer already knows and not an
+ *  amplitude anybody would recognise. One function rather than the arithmetic
+ *  written twice, so a change to the floor moves the fill and the bands
+ *  together. */
+constexpr float
+vuFractionForDb (float db)
+{
+  return (db - vuMeterFloorDb) / (0.f - vuMeterFloorDb);
+}
+
+/** Where the meter stops reading as programme and starts reading as headroom.
+ *
+ *  -18 dBFS is the alignment level digital gear is lined up on -- it is what
+ *  the analogue 0 VU a console's green ends at maps to, and it is where a mix
+ *  sitting correctly on this system's inputs lives. Green up to here therefore
+ *  means "this is the level you meant", rather than "this is quiet". */
+constexpr float vuGreenCeilingDb = -18.f;
+
+/** Where what is left of the headroom runs out.
+ *
+ *  -6 dBFS, a few decibels short of full scale: past it a transient that the
+ *  rms has not caught up with yet can reach the ceiling inside one frame, so
+ *  the red is a warning about the next moment rather than a report on this
+ *  one. Below it there is a doubling of amplitude still in hand, which is the
+ *  margin a hand needs to be able to correct in. */
+constexpr float vuYellowCeilingDb = -6.f;
+
+/** The meter's three colour bands, foot to head.
+ *
+ *  Indices rather than an enum because they index an array of rectangles that
+ *  the picture and the test both walk in order, and an enum would be cast at
+ *  every one of those sites. */
+constexpr int numVuMeterBands = 3;
+constexpr std::size_t vuGreenBand = 0;
+constexpr std::size_t vuYellowBand = 1;
+constexpr std::size_t vuRedBand = 2;
+
 /** Where the parts of one meter are drawn.
  *
  *  Public so the picture and the test can read the same rectangles — the
@@ -139,23 +180,37 @@ struct VuMeterGeometry
   juce::Rectangle<int> rms;
   /** The thin mark, laid across the track where the peak reached. */
   juce::Rectangle<int> peak;
+  /** The fill again, cut into its three colour bands foot to head.
+   *
+   *  **A band is a stretch of the track, not a state of the signal.** They are
+   *  the fill intersected with three fixed zones, so a bar filled into the red
+   *  is green at its foot, yellow through its middle and red only at its head
+   *  -- which is what lets it say *how far* over you are. A meter that changed
+   *  colour as a whole would be a warning light, and a warning light answers
+   *  only yes or no.
+   *
+   *  Together they are exactly `rms`: a band that came out empty is one the
+   *  fill has not reached. Cut here rather than in paint() so the boundaries
+   *  can be checked without a screen. */
+  std::array<juce::Rectangle<int>, numVuMeterBands> bands;
 };
 
 VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level);
 
-/** The volume row, split into the meter and what is left for the control.
+/** A strip, split into its meter column and the controls standing beside it.
  *
  *  Measured off REAPER's own mixer on this machine — the meter takes 28 of a
- *  92 px strip, just under a third, and sits to the *left* of the level. A
- *  meter beside the level it belongs to is where every hand looks, and the
- *  row is the only one in the strip where a channel has anything to read. */
-struct VolumeRow
+ *  92 px strip, just under a third, and runs the *full height* of it to the
+ *  left of everything else. The height is the point: the scale runs down the
+ *  meter's length, so length is the resolution it is read with, and a meter
+ *  occupying one row of seven could say "loud" and nothing more. */
+struct StripColumns
 {
   juce::Rectangle<int> meter;
-  juce::Rectangle<int> knob;
+  juce::Rectangle<int> controls;
 };
 
-VolumeRow splitVolumeRow (juce::Rectangle<int> row);
+StripColumns splitStripForMeter (juce::Rectangle<int> strip);
 
 /** The five output meters across one block, and the word under them.
  *
@@ -223,10 +278,13 @@ private:
  *  draws nine of these and the bar's MIX tab draws one, and the same meter
  *  has to be the same picture in both.
  *
- *  `colour` is what the fill is: a channel's own colour, because that is how
- *  this device says whose something is everywhere else, and the plain text
- *  colour for the outputs, which belong to nobody in particular. */
+ *  **It takes no colour.** The fill used to be the channel's own, which is how
+ *  this device says whose something is everywhere else — but green, yellow and
+ *  red down a level meter is a language older than this device and it does not
+ *  survive being said in four hues at once. Whose meter it is, the strip it
+ *  stands in already says: the wash behind it and every knob beside it are in
+ *  the channel's colour. */
 void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
-                   juce::Colour colour, VuLevel level);
+                   VuLevel level);
 
 }

@@ -317,19 +317,17 @@ MixerComponent::paintMeters (juce::Graphics &g)
   // contradicts itself.
   auto const now = vuNowMs ();
 
+  // Every meter on the page is drawn the same, the channels' and the outputs'
+  // alike: green, yellow and red down a bar is a scale, and a scale that meant
+  // something different on the fifth column from the four beside it would be
+  // read wrong exactly once, at the moment it mattered.
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     paintVuMeter (g, _layout.channelMeter[static_cast<std::size_t> (channel)],
-                  toColour (theme ().channel[channel]),
                   _levels.channel (channel, now));
-
-  // The outputs belong to nobody in particular, so they wear the master
-  // column's own colour rather than a channel's -- the same reasoning that
-  // paints the summing controls in the plain text colour.
-  auto const colour = toColour (theme ().textPrimary);
 
   for (int meter = 0; meter < numOutputMeters; ++meter)
     paintVuMeter (g, _layout.outputMeters[static_cast<std::size_t> (meter)],
-                  colour, _levels.output (meter, now));
+                  _levels.output (meter, now));
 
   if (!_layout.outputMeterCaption.isEmpty ())
     {
@@ -346,13 +344,17 @@ MixerComponent::paintStrip (juce::Graphics &g, int channel)
   auto const &cells = _layout.controls[static_cast<std::size_t> (channel)];
   auto const colour = toColour (theme ().channel[channel]);
 
-  // The strip's ground is the union of its rows, so a deck reads as one block
-  // however the columns broke. In the channel's own colour, because finding
-  // your deck by colour is the one thing this screen has to answer without
-  // being read.
+  // The strip's ground is the union of its rows and the meter column beside
+  // them, so a deck reads as one block however the columns broke. In the
+  // channel's own colour, because finding your deck by colour is the one thing
+  // this screen has to answer without being read -- and since the meter itself
+  // stopped wearing that colour when it took up the green/yellow/red banding,
+  // this wash is now what says whose meter it is.
   auto ground = cells.front ();
   for (auto const &cell : cells)
     ground = ground.getUnion (cell);
+  ground = ground.getUnion (
+      _layout.channelMeter[static_cast<std::size_t> (channel)]);
 
   g.setColour (colour.withAlpha (stripWash));
   g.fillRoundedRectangle (ground.toFloat (), theme ().radiusCard);

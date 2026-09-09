@@ -278,34 +278,29 @@ TEST (VuMeter, AnIndexOffTheEndChangesNothing)
   EXPECT_FLOAT_EQ (levels.output (numOutputMeters, 1000).peak, 0.f);
 }
 
-// The channel's meter stands beside its level, in the volume row, and takes
-// none of the room the knob needs.
-TEST (VuMeter, AChannelsMeterStandsBesideItsLevelAndNotOverIt)
+// A meter is a tall thin thing, and that is not decoration: the scale runs
+// down its length, so length is the resolution it is read with. A cell inside
+// one row of a strip came out wider than it was tall at the smaller skin
+// sizes, which is a lamp rather than a meter.
+TEST (VuMeter, AChannelsMeterIsTallerThanItIsWide)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
-
-  auto const slot
-      = static_cast<std::size_t> (controlSlot (MixerControl::Volume));
 
   for (std::size_t channel = 0;
        channel < static_cast<std::size_t> (numChannelsInitial); ++channel)
     {
       auto const meter = layout.channelMeter[channel];
-      auto const knob = layout.controls[channel][slot];
 
       ASSERT_FALSE (meter.isEmpty ()) << channel;
-      EXPECT_FALSE (meter.intersects (knob)) << channel;
-      EXPECT_LE (meter.getRight (), knob.getX ())
-          << channel << ": the meter is on the wrong side of the level";
-      EXPECT_GE (meter.getY (), knob.getY ()) << channel;
-      EXPECT_LE (meter.getBottom (), knob.getBottom ()) << channel;
+      EXPECT_GT (meter.getHeight (), meter.getWidth ()) << channel;
     }
 }
 
-// It stays in its own cell. A meter reaching into the row above would answer
-// for the EQ band drawn there.
-TEST (VuMeter, AChannelsMeterStaysInsideItsCell)
+// It overlaps nothing. A meter reaching into a control's cell would be drawn
+// over a knob a finger is aiming at, and there is no hit area on the meter to
+// say so.
+TEST (VuMeter, AChannelsMeterOverlapsNothingElse)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
@@ -456,6 +451,95 @@ TEST (VuMeter, TheBarsStripCarriesOneMeterAndNoOutputBlock)
 
   for (auto const &bar : layout.outputMeters)
     EXPECT_TRUE (bar.isEmpty ());
+}
+
+// The banding is a property of where you are on the bar, not of how loud the
+// bar is. A fill reaching into the red is green at its foot, yellow through
+// its middle and red only at its head -- a meter that went red as a whole
+// would be a warning light, and a warning light cannot say how far over you
+// are.
+TEST (VuMeter, ABarFilledIntoTheRedIsStillGreenAtItsFoot)
+{
+  auto const bar = aMeterBar ();
+  auto const geometry = vuMeterGeometry (bar, VuLevel{ 1.f, 1.f });
+
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
+    EXPECT_FALSE (geometry.bands[i].isEmpty ()) << i;
+
+  EXPECT_EQ (geometry.bands[vuGreenBand].getBottom (), bar.getBottom ())
+      << "the green band has left the foot of the bar";
+  EXPECT_EQ (geometry.bands[vuRedBand].getY (), bar.getY ())
+      << "the red band has left the head of the bar";
+}
+
+// A quiet passage is green and nothing else: there is no yellow to draw below
+// where the yellow starts.
+TEST (VuMeter, AQuietBarIsGreenAndNothingElse)
+{
+  auto const geometry = vuMeterGeometry (aMeterBar (), VuLevel{ 0.f, 0.01f });
+
+  EXPECT_FALSE (geometry.bands[vuGreenBand].isEmpty ());
+  EXPECT_TRUE (geometry.bands[vuYellowBand].isEmpty ());
+  EXPECT_TRUE (geometry.bands[vuRedBand].isEmpty ());
+}
+
+// The two boundaries land where the scale says they do, on the same 60 dB
+// mapping the fill itself is placed by. Read through vuFractionForDb rather
+// than written as two pixel rows, so the claim survives a change of bar.
+TEST (VuMeter, TheBandsMeetWhereTheScaleSaysTheyDo)
+{
+  auto const bar = aMeterBar ();
+  auto const geometry = vuMeterGeometry (bar, VuLevel{ 1.f, 1.f });
+
+  auto const yFor = [&bar] (float db) {
+    return bar.getBottom ()
+           - juce::roundToInt (static_cast<float> (bar.getHeight ())
+                               * vuFractionForDb (db));
+  };
+
+  EXPECT_EQ (geometry.bands[vuGreenBand].getY (), yFor (vuGreenCeilingDb));
+  EXPECT_EQ (geometry.bands[vuYellowBand].getBottom (),
+             yFor (vuGreenCeilingDb));
+  EXPECT_EQ (geometry.bands[vuYellowBand].getY (), yFor (vuYellowCeilingDb));
+  EXPECT_EQ (geometry.bands[vuRedBand].getBottom (),
+             yFor (vuYellowCeilingDb));
+}
+
+// The bands are the fill cut into three, so together they are exactly the
+// fill: nothing outside it, no gap between them, and no band over another.
+// The trap is the rounding -- three rectangles each rounded on their own
+// would leave a hairline of track showing through a solid fill.
+TEST (VuMeter, TheBandsCutUpTheFillAndNothingElse)
+{
+  auto const geometry = vuMeterGeometry (aMeterBar (), VuLevel{ 0.9f, 0.7f });
+  ASSERT_FALSE (geometry.rms.isEmpty ());
+
+  juce::Rectangle<int> covered;
+
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
+    {
+      if (!geometry.bands[i].isEmpty ())
+        EXPECT_TRUE (geometry.rms.contains (geometry.bands[i])) << i;
+
+      covered = covered.getUnion (geometry.bands[i]);
+
+      for (std::size_t j = i + 1;
+           j < static_cast<std::size_t> (numVuMeterBands); ++j)
+        EXPECT_FALSE (geometry.bands[i].intersects (geometry.bands[j]))
+            << i << " over " << j;
+    }
+
+  EXPECT_EQ (covered, geometry.rms);
+}
+
+// An empty meter has no bands either. The bands are a cut of the fill, and
+// there is no fill to cut.
+TEST (VuMeter, AMeterWithNoValueHasNoBands)
+{
+  auto const geometry = vuMeterGeometry (aMeterBar (), VuLevel{});
+
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
+    EXPECT_TRUE (geometry.bands[i].isEmpty ()) << i;
 }
 
 // An overlay too small to lay out hands back no meters either, rather than
