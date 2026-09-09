@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/StatusBarLayout.hh>
 
 using namespace a3;
@@ -33,8 +34,15 @@ namespace
 // and below, less the two icon squares at its right end. Written the way
 // StatusBar::resized() arrives at it rather than as three round numbers, so
 // the test moves with the bar rather than having to be re-measured.
+//
+// The height is the floor rather than a size read off a screenshot.
+// preferredHeight() is jmax(minimumRowHeight, header * 1.875), and the
+// tallest header any of the nineteen shipped skins asks for is 18.0, which
+// comes to 33 -- so every skin on the device lands on the floor and this bar
+// is 35 pixels tall whichever one is chosen. It stood at 39 and said it was
+// the shipped skin's height, which no skin has ever produced.
 constexpr int deviceWidth = 768;
-constexpr int barHeight = 39;
+constexpr int barHeight = static_cast<int> (minimumRowHeight);
 constexpr int padding = 4;
 
 juce::Rectangle<int>
@@ -182,12 +190,20 @@ TEST (StatusBarLayout, TheIndicatorKeepsMostOfTheWidthItWouldHaveHad)
   auto const row = rowOf (deviceWidth, barHeight);
   auto const l = statusBarLayout (row, deviceWidth, padding);
 
-  // What resized() gave it before the meters existed: centred on the bar, up
-  // to two fifths of the row or half the screen, whichever is less.
-  auto const before
-      = juce::jmin (row.getWidth () * 2 / 5, deviceWidth / 2);
+  // What resized() gave it before the meters existed, taken from the same two
+  // constants the layout is written against rather than restated as fractions
+  // here. Restated, the two arithmetics differed by a pixel -- 694 * 2/5 is
+  // 277 by integer division and 278 rounded -- and the test then disagreed
+  // with the code over a rule both of them meant identically.
+  auto const before = juce::jmin (
+      juce::roundToInt (static_cast<float> (row.getWidth ())
+                        * statusTickWidthOfRow),
+      juce::roundToInt (static_cast<float> (deviceWidth)
+                        * statusTickWidthOfBar));
 
-  EXPECT_GE (l.tick.getWidth (), before * 3 / 4)
+  EXPECT_GE (l.tick.getWidth (),
+             juce::roundToInt (static_cast<float> (before)
+                               * statusMeterMinTickShare))
       << "the indicator came out at " << l.tick.getWidth () << " of " << before;
   EXPECT_LE (l.tick.getWidth (), before);
 
