@@ -425,10 +425,18 @@ MixerComponent::paintFilterRow (juce::Graphics &g)
           // would bring -- the same rule the library's filter key follows. A
           // key naming what you would get is one you press to find out where
           // you are.
-          auto const highPass = _state.filterIsHighPass ();
+          //
+          // Lit whichever mode that is. The filter has no off state, so a key
+          // that dimmed in one of its two positions would say the filter was
+          // off in the more common one -- and the grab that follows, meaning
+          // "switch it on", is LPF to HPF across all four channels. The word
+          // is what says the direction; the brightness has nothing left to
+          // say and so says nothing. Selected, like the master column beside
+          // it, for the same reason: `colour` is textPrimary rather than a
+          // channel's, because none of this belongs to a channel.
           paintBarButton (g, bounds, _metrics, colour,
-                          highPass ? "HPF" : "LPF", label, highPass,
-                          highPass);
+                          _state.filterIsHighPass () ? "HPF" : "LPF", label,
+                          true, true);
           continue;
         }
 
