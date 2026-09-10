@@ -48,6 +48,8 @@
 #include <a3-motion-ui/components/LibraryList.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
+#include <a3-motion-ui/components/MixerComponent.hh>
+#include <a3-motion-ui/components/MixerStripComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
@@ -168,11 +170,20 @@ private:
   /** Push the clip's direction and end action into the pattern, which is where
    *  the engine reads them. */
   void applyMotionMode (index_t channel, index_t slot);
-  // Speed knob: far left = speedLog2Max (16 bars, slowest), far right =
-  // speedLog2Min (1/128 bar, fastest) — see updateClipSettingsDisplay()'s
-  // speedFrac, which is deliberately inverted against these bounds.
-  static constexpr auto speedLog2Min = -7; // 2^-7 bar = a 128th note
-  static constexpr auto speedLog2Max = 4;  // 2^4 bar = 16 bars
+  /** Play the clip the bar is showing at this speed, and let the bar and the
+   *  set catch up. Both ways to a speed end here — tapping a key for what it
+   *  carries, and dragging a key onto something new. */
+  void applySpeedLog2ToShownClip (int speedLog2);
+
+  /** Write the device's habits out. One place, because there are three
+   *  moments that change one of them and a field added to AppSettings should
+   *  not have to find all three. */
+  void persistSettings () const;
+
+  /** What the bar's four speed keys carry. The device's, not a set's — see
+   *  AppSettings, where the four survive a restart. */
+  std::array<int, numSpeedButtons> _speedButtonLog2
+      = AppSettings{}.speedButtonLog2;
 
   void createMainUI ();
   std::unique_ptr<MotionComponent> _motionComponent;
@@ -438,6 +449,11 @@ private:
   
   // Direct OSC Sender for time-critical tap messages (bypasses async queue)
   juce::OSCSender _tapSender;
+
+  /** The mixer's own sender, because the beat clock's points at a different
+   *  process. See OscEndpoints: the two ports in `oscSender` are the beat
+   *  analyzer and A3 Core, and every mixer address belongs to Core. */
+  AsyncOSCSender _mixerSender;
   
   // ClockMode toggle state: 0 = INT, 1 = EXT, 2 = PIO
   int _clockMode = 0;
@@ -451,6 +467,37 @@ private:
   std::unique_ptr<GlobalSettingsComponent> _globalSettings;
   std::unique_ptr<OverlayButtons> _overlayButtons;
   std::unique_ptr<OverlaySideStrips> _overlayStrips;
+
+  /** The software mixer, over the sphere, reached from the MIX key in the
+   *  status bar rather than from a tab in the settings bar: it has nothing to
+   *  do with the clip that bar describes. */
+  std::unique_ptr<MixerComponent> _mixer;
+  /** The same strip for one channel, as the settings bar's MIX page. The
+   *  overlay above is the whole mixer when you want it; this is the reach to
+   *  the channel of the clip the bar is already describing. Both draw from
+   *  the same MixerState and both gestures land in the same two handlers. */
+  std::unique_ptr<MixerStripComponent> _mixerStrip;
+  /** The values it shows, and the one place that knows a value has been
+   *  touched and therefore has to go out on the wire. Held by this component
+   *  rather than by the overlay, so what Core is told does not depend on
+   *  whether anybody is looking at it. */
+  MixerState _mixerState;
+  /** The levels its meters read. Beside _mixerState rather than inside it:
+   *  MixerState is what a finger has set and what therefore goes out on the
+   *  wire, and a meter is the opposite -- what came back, and never sent.
+   *
+   *  Written by all three VU callbacks *in addition to* what they already do:
+   *  the channels keep filling _channelUIStates for the sphere's coronas, the
+   *  subwoofer keeps reaching setSphereGlow and the speakers setSpeakerLight.
+   *  Those three have no other source, so a redirected callback would take
+   *  the sphere its glow and the speaker lights their light. */
+  VuLevels _vuLevels;
+  bool _mixerOpen = false;
+  void toggleMixer ();
+  /** Open or close it and tell everything that shows the state -- the key in
+   *  the status bar and the overlay's own buttons. One place, because Back,
+   *  Close and the key itself all reach it. */
+  void showMixer (bool open);
   bool  _globalSettingsOpen        = false;
   bool  _globalSettingsValueFieldSelected = false;
   // 0 = Clockmode, 1 = Pot Size, 2 = Font Size
@@ -730,6 +777,11 @@ private:
   int numSubElementsForSection (int menuIndex) const;
   void updateClipSettingsDisplay ();
   void updateStatusBarPlayheads ();
+  /** The nine small meters on the status bar, read off the one VuLevels the
+   *  mixer's own meters read. Pushed from here rather than pulled by a timer
+   *  of the bar's own — that bar is on screen for the whole of a set, and a
+   *  second clock there would be one that never stops. */
+  void updateStatusBarMeters ();
   /** Where the sphere is being looked at from, or straight down if there is
    *  no sphere yet -- this runs while the interface is still being built. */
   SphereCamera sphereCamera () const;

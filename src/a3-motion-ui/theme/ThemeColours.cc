@@ -63,6 +63,13 @@ statusBar ()
   return background ().withLightness (0.4f);
 }
 
+juce::Colour
+barText (bool isSelected)
+{
+  return isSelected ? toColour (theme ().textMuted)
+                    : toColour (theme ().textMuted, theme ().alphaInactive);
+}
+
 }
 
 }

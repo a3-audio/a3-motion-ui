@@ -67,4 +67,31 @@ TEST (ThemeColours, TheStatusBarStaysDerivedFromTheBackground)
   setTheme (loadTheme (juce::var{}));
 }
 
+
+// Anything the bar reads is grey in both states, and only its emphasis moves.
+// There were four copies of these two lines -- two in ClipSettingsComponent,
+// one in BarKnob, one in BarButton -- kept apart by a ruling that knobs take
+// the channel's colour when selected and buttons do not. That is true of
+// BarKnob's controlColour, which draws the arc, and was true of none of the
+// four.
+TEST (ThemeColours, WhatTheBarReadsIsGreyWhetherOrNotItIsSelected)
+{
+  Theme skin;
+  skin.textMuted = { 180, 180, 190 };
+  skin.alphaInactive = 0.6f;
+  setTheme (skin);
+
+  auto const selected = Colours::barText (true);
+  auto const quiet = Colours::barText (false);
+
+  EXPECT_EQ (selected.withAlpha (1.f), quiet.withAlpha (1.f))
+      << "a selected reading is the same colour, not another one";
+  EXPECT_EQ (selected, toColour (skin.textMuted));
+  EXPECT_TRUE (selected.isOpaque ())
+      << "selected means no dimming at all, not the top rung of one";
+  EXPECT_NEAR (quiet.getFloatAlpha (), skin.alphaInactive, 0.005f);
+
+  setTheme (loadTheme (juce::var{}));
+}
+
 }

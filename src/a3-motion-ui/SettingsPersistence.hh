@@ -24,6 +24,12 @@
 
 #include <a3-motion-engine/RecMode.hh>
 
+// For numSpeedButtons: how many speed keys the bar has is the bar's to say,
+// and what is on them is this file's.
+#include <a3-motion-ui/components/ClipSettingsLayout.hh>
+
+#include <array>
+
 namespace a3
 {
 
@@ -38,6 +44,18 @@ struct AppSettings
    *  device did before this was a choice, so a settings file that predates it
    *  keeps behaving exactly as it did. */
   RecMode recMode = RecMode::Touch;
+
+  /** What the Shape section's four speed keys carry, as powers of two of a
+   *  bar, left to right. Assignable by dragging a key, which is why they are
+   *  values rather than a table.
+   *
+   *  Here rather than in a set: which four speeds are under your fingers is a
+   *  working habit like the rec mode, and a set that rearranged them on load
+   *  would be a surprise at the one moment nobody wants one.
+   *
+   *  The default is the fixed four the keys used to carry, so a settings file
+   *  that predates this behaves exactly as the device did before it. */
+  std::array<int, numSpeedButtons> speedButtonLog2 = { 0, -3, -4, -6 };
 };
 
 /** Returns defaults if the file doesn't exist or fails to parse as JSON. */

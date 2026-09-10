@@ -51,6 +51,30 @@ juce::Colour clockMode (int mode);
  *  being its own role: a skin that darkens the background should carry the
  *  status bar with it, and two tokens would have to be kept in step by hand. */
 juce::Colour statusBar ();
+
+/** Anything the bar or an overlay *reads*: a control's value, the caption
+ *  naming it, the word on a button face.
+ *
+ *  Grey either way. A value used to be written in the channel's colour once
+ *  its section was picked, which put a red or a white word beside a grey one
+ *  and made the difference look like it meant something about the setting
+ *  rather than about which section a finger last touched. What says whose
+ *  section this is, is the ground behind it -- the colour belongs to the
+ *  highlight, not to the reading.
+ *
+ *  `isSelected` decides emphasis only, and it is full opacity rather than an
+ *  alpha rung: "selected" has always meant no dimming at all, which the
+ *  alpha-less overload already says, and full opacity is the absence of an
+ *  emphasis decision rather than one of its rungs. See
+ *  issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+ *
+ *  One function because there were four of it: ClipSettingsComponent's
+ *  controlColour and captionColour, BarKnob's captionColour and BarButton's
+ *  faceTextColour, all four the same two lines. What kept them apart was a
+ *  ruling that knobs keep the channel's colour when selected and buttons do
+ *  not -- true of BarKnob::controlColour, which does exactly that and stays
+ *  where it is, and untrue of every one of these four. */
+juce::Colour barText (bool isSelected);
 }
 
 }

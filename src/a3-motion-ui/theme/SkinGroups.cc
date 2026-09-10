@@ -92,6 +92,14 @@ constexpr Group groups[] = {
                           "energy.decay", "energy.intensity" } },
   { "Energy: net", { "energy.net*" } },
 
+  // The mixer's fifteen addresses would otherwise scatter alphabetically
+  // among the device's other OSC addresses on the Network page, landing
+  // between `channelThreeD` and `iemAzimuth` with nothing to say they
+  // belong together. Three prefixes rather than fifteen exact paths, for
+  // the same reason `channels.*` is one entry rather than four.
+  { "Mixer", { "oscAddresses.out.mixer*", "oscAddresses.out.master*",
+               "oscAddresses.out.filter*" } },
+
   // Anything left. The parameter list is derived from the file so a new key
   // needs no registering; a grouping that dropped what it did not recognise
   // would take that back, and the value would be unreachable with nothing on

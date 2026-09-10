@@ -20,6 +20,8 @@
 
 #include "SettingsPersistence.hh"
 
+#include <algorithm>
+
 namespace a3
 {
 
@@ -42,6 +44,15 @@ loadSettings (juce::File const &file)
     settings.recMode = recModeFromName (
         parsed["recMode"].toString ());
 
+  // Entry by entry, and only as far as the file goes: a file naming fewer
+  // keys than the device has says nothing about the rest, and a hand-edited
+  // speed outside the range would sit on a key the drag cannot bring back.
+  if (auto const *speeds = parsed["speedButtons"].getArray ())
+    for (int i = 0; i < std::min (speeds->size (), numSpeedButtons); ++i)
+      settings.speedButtonLog2[static_cast<size_t> (i)]
+          = std::clamp (static_cast<int> ((*speeds)[i]), speedLog2Min,
+                        speedLog2Max);
+
   return settings;
 }
 
@@ -52,6 +63,12 @@ saveSettings (juce::File const &file, AppSettings const &settings)
   obj->setProperty ("clockMode", settings.clockMode);
   obj->setProperty ("recMode",
                     recModeName (settings.recMode));
+
+  juce::Array<juce::var> speeds;
+  for (auto const log2 : settings.speedButtonLog2)
+    speeds.add (log2);
+  obj->setProperty ("speedButtons", speeds);
+
   juce::var const state (obj);
 
   file.getParentDirectory ().createDirectory ();

@@ -21,6 +21,7 @@
 #include "ClipSettingsComponent.hh"
 #include <algorithm>
 
+#include <a3-motion-ui/components/BarButton.hh>
 #include <a3-motion-ui/components/BarKnob.hh>
 
 #include <a3-motion-engine/ClipSettings.hh>
@@ -40,20 +41,6 @@
 
 namespace a3
 {
-
-namespace
-{
-/** Pages that cover the clip area with something of their own. The bar's
- *  sections must not be drawn under them -- a page that does not fill every
- *  pixel would otherwise show the clip settings through its own gaps, which is
- *  what the ACTION page did on its first evening. */
-bool
-isFullPage (BarPage page)
-{
-  return page == BarPage::Controller || page == BarPage::Browser
-         || page == BarPage::Action;
-}
-}
 
 namespace
 {
@@ -186,6 +173,7 @@ ClipSettingsComponent::createTouchControls ()
   makeTab (_tabRecordTouch, BarPage::Record);
   makeTab (_tabActionTouch, BarPage::Action);
   makeTab (_tabControllerTouch, BarPage::Controller);
+  makeTab (_tabMixerTouch, BarPage::Mixer);
   makeTab (_tabBrowserTouch, BarPage::Browser);
 
   // In front of the cards, so it swallows what would otherwise reach the
@@ -302,14 +290,28 @@ ClipSettingsComponent::createTouchControls ()
         if (onSpeedChosen)
           onSpeedChosen (index);
       };
-      // And a drag over them walks the whole range, not only the four they
-      // name. Four buttons are the four anybody reaches for; the eight steps
-      // between and beyond them were reachable from a file and from nowhere
-      // on the device. Now the same keys are both: tap for the one you want,
-      // push for the one that has no key.
-      button->onDragIncrement = [this] (int, int, int increment) {
+      // And a drag over one gives that key another speed. The key keeps it,
+      // so a speed the four do not yet name is reached once and stays where
+      // it was put — where before a drag walked the shown clip through the
+      // range and left nothing behind, which read as jumping between the
+      // keys because only the key matching the value ever lit.
+      button->onDragIncrement = [this] (int index, int, int increment) {
+        _speedDragIndex = index;
         if (onSpeedDragged)
-          onSpeedDragged (increment);
+          onSpeedDragged (index, increment);
+        repaint ();
+      };
+      // onRelease rather than onDragEnd: it fires whenever the finger comes
+      // up, where onDragEnd is silent unless the control decided a drag had
+      // happened. A key left marked as dragged would go on claiming to be the
+      // clip's speed until the next gesture, so the clearing has to be the
+      // callback that cannot be skipped.
+      button->onRelease = [this] (int, int) {
+        if (_speedDragIndex == noSpeedKeyDragged)
+          return;
+
+        _speedDragIndex = noSpeedKeyDragged;
+        repaint ();
       };
       addAndMakeVisible (*button);
       _speedTouch[static_cast<size_t> (i)] = std::move (button);
@@ -425,6 +427,7 @@ ClipSettingsComponent::resized ()
   _tabRecordTouch->setBounds (_layout.tabRecord);
   _tabActionTouch->setBounds (_layout.tabAction);
   _tabControllerTouch->setBounds (_layout.tabController);
+  _tabMixerTouch->setBounds (_layout.tabMixer);
   _tabBrowserTouch->setBounds (_layout.tabBrowser);
 
   for (int col = 0; col < numChannelColumns; ++col)
@@ -447,33 +450,6 @@ ClipSettingsComponent::resized ()
   _menuTouch->setBounds (_layout.menuButton);
   _recTouch->setBounds (_layout.recButton);
   _tapTouch->setBounds (_layout.tapButton);
-}
-
-juce::Colour
-ClipSettingsComponent::controlColour (bool isSelected) const
-{
-  // Grey, always. A value used to be written in the channel's colour once its
-  // section was picked, which put a red or a white word next to a grey one
-  // and made the difference between them look like it meant something about
-  // the setting rather than about which section a finger last touched. What
-  // says whose section this is, is the ground behind it -- the colour belongs
-  // to the highlight, not to the reading. Full opacity rather than an alpha
-  // rung: "selected" has always meant no dimming at all, which the alpha-less
-  // overload already says. This used to be `isSelected ? 1.f : theme
-  // ().alphaInactive` -- 1.f fits no rung, and full opacity is the absence of
-  // an emphasis decision rather than one of its rungs, so it deliberately
-  // gets no role of its own. See
-  // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
-  return isSelected ? toColour (theme ().textMuted)
-                    : toColour (theme ().textMuted, theme ().alphaInactive);
-}
-
-juce::Colour
-ClipSettingsComponent::captionColour (bool isSelected) const
-{
-  // Same restructuring as controlColour() above, and the same open question.
-  return isSelected ? toColour (theme ().textMuted)
-                    : toColour (theme ().textMuted, theme ().alphaInactive);
 }
 
 void
@@ -873,7 +849,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // the clip's faces describe a single slot, and the record face -- the take
   // about to be written -- is the one where being sure which slot it is
   // matters most.
-  if (!isFullPage (_page))
+  if (!pageCoversClipArea (_page))
     for (index_t slot = 0; slot < numPadSlots; ++slot)
       {
         auto const bounds = _layout.slotButtons[slot];
@@ -925,7 +901,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // are firing clips is exactly the wrong moment to lose them.
   paintGlobalSection (g, _selectedIndex == globalIndex);
 
-  if (isFullPage (_page))
+  if (pageCoversClipArea (_page))
     return; // ControllerComponent / BrowserComponent draws the rest
 
   paintTrajectorySection (g, _selectedIndex == trajectoryIndex);
@@ -1021,6 +997,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   paintTab (_layout.tabRecord, "REC", _page == BarPage::Record);
   paintTab (_layout.tabAction, "ACTION", _page == BarPage::Action);
   paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
+  paintTab (_layout.tabMixer, "MIX", _page == BarPage::Mixer);
 
   // A word like the three beside it. It was a folder mark, on the reasoning
   // that the tabs are views of the clip and this one leaves it -- but once
@@ -1063,8 +1040,7 @@ ClipSettingsComponent::setPage (BarPage page)
   // The record page is the clip page with one section turned over, so every
   // control stays reachable on it; the pads page and the browser take them
   // away, because neither draws them.
-  auto const showsClip
-      = !isFullPage (_page);
+  auto const showsClip = !pageCoversClipArea (_page);
 
   for (int section = 0; section < numParameters; ++section)
     for (auto &control : _controlTouch[static_cast<size_t> (section)])
@@ -1095,6 +1071,17 @@ ClipSettingsComponent::setRecMode (RecMode mode)
   if (mode == _recMode)
     return;
   _recMode = mode;
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setSpeedButtons (
+    std::array<int, numSpeedButtons> const &speeds)
+{
+  if (speeds == _speedButtonLog2)
+    return;
+
+  _speedButtonLog2 = speeds;
   repaint ();
 }
 
@@ -1253,7 +1240,7 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
         continue;
 
       auto const shown = static_cast<int> (channel) == _shownChannel
-                         && !isFullPage (_page);
+                         && !pageCoversClipArea (_page);
       auto const colour = _channelFaceColours[channel];
 
       // The face carries its channel's colour always, filled when it is the
@@ -1390,10 +1377,11 @@ ClipSettingsComponent::paintActionButton (juce::Graphics &g,
   g.drawFittedText (label, bounds, juce::Justification::centred, 1);
 }
 
-/** The one button face the bar uses — the global section's four, Elevation's
- *  flat and pole, and Motion's two lists. Quiet, like everything else here:
- *  a wash and a thin edge, not a filled slab. Only an active one carries
- *  colour, and that is the state talking, not the button. */
+/** The bar's one button face — the global section's four, Elevation's flat
+ *  and pole, and Motion's two lists. The drawing lives in BarButton so the
+ *  mixer's keys can use the same one: the overlay covers the sphere and this
+ *  bar stays visible under it, so a second face would be a second face on
+ *  screen at the same moment. */
 void
 ClipSettingsComponent::paintBarButton (juce::Graphics &g,
                                        juce::Rectangle<int> bounds,
@@ -1402,50 +1390,9 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
                                        bool isActive, bool isSelected,
                                        juce::Colour valueColour)
 {
-  // An active button lights in the shown clip's colour, except in the global
-  // section — nothing there belongs to a channel, so it lights grey.
-  g.setColour (isActive ? (isSelected
-                               ? _channelColour.withAlpha (highlightWash * 2.f)
-                               : toColour (theme ().textPrimary,
-                                           highlightWash * 2.f))
-                        : toColour (theme ().textPrimary, cardWash));
-  g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
-
-  g.setColour (toColour (theme ().textPrimary, trackWash));
-  g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
-                          theme ().strokeThin);
-
-  // Two lines, both inside the box: the caption on top, the value under it.
-  // The caption used to sit below the button, which made a button a
-  // different height from the box it looked like and left the name floating
-  // between two of them.
-  auto box = bounds.reduced (juce::roundToInt (theme ().paddingSmall),
-                             juce::roundToInt (theme ().paddingTight));
-  auto const captionArea
-      = caption.isEmpty ()
-            ? juce::Rectangle<int>{}
-            : box.removeFromTop (box.getHeight () * 2 / 5);
-
-  if (caption.isNotEmpty ())
-    {
-      g.setFont (juce::Font (
-          juce::jmin (_layout.metrics.captionSize,
-                      static_cast<float> (captionArea.getHeight ()) * 0.95f),
-          juce::Font::plain));
-      g.setColour (captionColour (isSelected));
-      g.drawFittedText (caption, captionArea, juce::Justification::centred, 1);
-    }
-
-  auto const valueSize
-      = juce::jmin (_layout.metrics.valueSize,
-                    static_cast<float> (box.getHeight ()) * 0.9f);
-  g.setFont (juce::Font (valueSize, juce::Font::plain));
-  // A value that has a colour of its own — the clock's mode — writes itself
-  // in it. Everything else takes the bar's.
-  g.setColour (valueColour.isTransparent () ? controlColour (isSelected)
-                                            : valueColour);
-
-  g.drawFittedText (label, box, juce::Justification::centred, 1);
+  // Qualified, because the member name hides the one in the namespace.
+  a3::paintBarButton (g, bounds, _layout.metrics, _channelColour, label,
+                      caption, isActive, isSelected, valueColour);
 }
 
 void
@@ -1626,14 +1573,18 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
     }
   else
     {
-      // Four speeds, one row: as recorded and three steps of fast. See
-      // speedButtonLog2 for what that leaves unreachable and why it is worth
-      // it. A clip carrying some other speed lights none of them, which is
-      // the honest answer to "which of these is it".
+      // Four speeds, one row, and what each of them is is the performer's:
+      // tapped for the speed it carries, dragged to give it another. Their
+      // names are computed from their values, so a key retells itself the
+      // moment it is dragged, and which of them wears the colour is
+      // speedKeyIsActive()'s to say rather than a comparison written here.
       for (int i = 0; i < numSpeedButtons; ++i)
-        paintBarButton (g, _layout.speedButtons[static_cast<size_t> (i)],
-                        speedButtonNames[i], {},
-                        _speedLog2 == speedButtonLog2[i], isSelected);
+        paintBarButton (
+            g, _layout.speedButtons[static_cast<size_t> (i)],
+            speedLog2Name (_speedButtonLog2[static_cast<size_t> (i)]), {},
+            speedKeyIsActive (_speedButtonLog2, i, _speedLog2,
+                              _speedDragIndex),
+            isSelected);
 
       // Which way a pass runs and what it does when it runs out. They step on
       // a tap -- no chevron, because nothing opens.
@@ -1697,7 +1648,7 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
                   static_cast<float> (_layout.trajectoryName.getHeight ())
                       * 0.85f),
       juce::Font::plain));
-  g.setColour (controlColour (isSelected && _trajectorySubIndex == 0));
+  g.setColour (Colours::barText (isSelected && _trajectorySubIndex == 0));
   g.drawFittedText (_trajectoryName, _layout.trajectoryName,
                     juce::Justification::centred, 1);
 }
@@ -2125,7 +2076,7 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   auto labelArea
       = content.removeFromBottom (textRowHeight (content, metrics.captionSize));
 
-  auto const valueColour = controlColour (isSelected);
+  auto const valueColour = Colours::barText (isSelected);
   g.setFont (juce::Font (juce::jmin (metrics.valueSize,
                                      static_cast<float> (content.getHeight ())
                                          * 0.85f),
@@ -2141,7 +2092,7 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
                                      static_cast<float> (labelArea.getHeight ())
                                          * 0.85f),
                          juce::Font::plain));
-  g.setColour (captionColour (isSelected));
+  g.setColour (Colours::barText (isSelected));
   g.drawFittedText (label, labelArea,
                     juce::Justification::centred, 1);
 }

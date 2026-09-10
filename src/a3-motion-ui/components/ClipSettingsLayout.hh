@@ -65,24 +65,49 @@ constexpr int numChannelRows = 3;
  *  may be — it reaches 32 bars, one step past the speed control's range. */
 constexpr int numRecordLengths = 8;
 
-/** The speeds a clip can play at, as powers of two of a bar.
+/** How far a clip's speed may be pushed either way, as a power of two of a
+ *  bar. Here rather than in A3MotionUIComponent, where they were private, so
+ *  that the naming of a speed and the dragging of one can be computed -- and
+ *  checked -- without a component. */
+constexpr int speedLog2Min = -7; // 2^-7 bar = a 128th note
+constexpr int speedLog2Max = 4;  // 2^4 bar = 16 bars
+
+/** How many speeds the Shape section keeps under a finger.
  *
  *  Four, not the whole of speedLog2Min..Max. Twelve buttons said every value
  *  the range holds and took three rows of the section to do it; these are the
- *  four anybody reaches for -- as recorded, and three steps of fast -- and the
- *  two rows they give back are what the clip field stands in.
+ *  four a hand wants at once, and the two rows they give back are what the
+ *  clip field stands in.
  *
- *  What that costs: a speed this table does not name is no longer reachable
- *  from the bar. It is still reachable from a clip file and from a script
- *  (`~speedLog2`), and a clip carrying one plays at it -- no button lights,
- *  which is the honest answer to "which of these is it".
- *
- *  Read from as recorded outwards: `1` is where a hand starts, and the row
- *  runs away from it into the fast end. */
+ *  Which four is the performer's to say: a key is tapped for the speed it
+ *  carries and dragged to give it another, so every value in the range is a
+ *  key away and stays on that key. The four a fresh device starts with live
+ *  in AppSettings, because a favourite speed is a working habit rather than
+ *  part of an arrangement. */
 constexpr int numSpeedButtons = 4;
-constexpr int speedButtonLog2[numSpeedButtons] = { 0, -3, -4, -6 };
-constexpr char const *speedButtonNames[numSpeedButtons]
-    = { "1", "1/8", "1/16", "1/64" };
+
+/** A speed worded the way a musician reads it: `1` for as recorded, `1/8` for
+ *  eight times as fast, `16` for sixteen bars a cycle.
+ *
+ *  The one place a speed is put into words. The four keys used to carry their
+ *  names beside their values as fixed strings, which only works while the
+ *  values are fixed too. */
+juce::String speedLog2Name (int speedLog2);
+
+/** Where a drag leaves the speed key it started on. Clamped rather than
+ *  wrapped: the ends of the range are ends, and a key that jumped from the
+ *  fastest to the slowest under a finger would be a key nobody could aim. */
+int draggedSpeedLog2 (int speedLog2, int increment);
+
+/** No finger is on a speed key — the value speedKeyIsActive() takes when
+ *  nothing is being dragged. */
+constexpr int noSpeedKeyDragged = -1;
+
+/** Whether the speed key at `index` reads as active: which one of the four
+ *  wears the colour. `draggedIndex` is the key currently under a finger, or
+ *  noSpeedKeyDragged. */
+bool speedKeyIsActive (std::array<int, numSpeedButtons> const &keys, int index,
+                       int clipSpeedLog2, int draggedIndex);
 constexpr int recordLengthLog2[numRecordLengths] = { -2, -1, 0, 1, 2, 3, 4, 5 };
 constexpr char const *recordLengthNames[numRecordLengths]
     = { "1/4", "1/2", "1", "2", "4", "8", "16", "32" };
@@ -126,11 +151,105 @@ enum class BarPage
    *  its picture. */
   Action,
   Controller,
+  /** One channel's mixer strip: the channel of the clip this bar describes.
+   *  The whole mixer is an overlay reached from the status bar -- this is the
+   *  one-handed reach to the channel you are already looking at, without
+   *  laying anything over the sphere. */
+  Mixer,
   /** Somewhere else entirely: what is stored, rather than what is loaded. The
    *  eight clips of the device down one side and the library down the other,
    *  so a clip is put where it goes rather than dialled to. */
   Browser,
 };
+
+constexpr int numBarPages = 6;
+
+/** Every page, once. `BarPages.EveryPageAppearsInTheOrderExactlyOnce` fails
+ *  if a page is missing from here or listed twice -- nothing in the compiler
+ *  checks that on its own, since this is data, not a case of an enum. Kept
+ *  beside pageCoversClipArea and pageDescribesAClip because a page has to be
+ *  added here too, alongside a case in each of them, and a forgotten one
+ *  answers wrong quietly forever if this test does not walk it. */
+constexpr std::array<BarPage, numBarPages> barPageOrder{
+  BarPage::Clip,       BarPage::Record, BarPage::Action,
+  BarPage::Controller, BarPage::Mixer,  BarPage::Browser,
+};
+
+/** Pages that cover the clip area with something of their own.
+ *
+ *  The bar's sections must not be drawn under them — a page that does not
+ *  fill every pixel would otherwise show the clip settings through its own
+ *  gaps, which is what the ACTION page did on its first evening.
+ *
+ *  Here rather than in ClipSettingsComponent because it is a property of the
+ *  page, and because nothing in C++ warns about a page missing from an `if`
+ *  chain. There were 23 such comparisons across three files. A `switch` with
+ *  no `default:` is what makes a forgotten page loud instead: `-Wswitch-enum`
+ *  names the case a new enumerator is missing from. Nothing in this project's
+ *  own CMakeLists asks for it: it comes from JUCE's
+ *  `juce::juce_recommended_warning_flags`, linked PUBLIC by the
+ *  `juce_dependencies` target in `src/a3-motion-engine/CMakeLists.txt` and
+ *  inherited from there by every target here (JUCE 9.0.1 defines it in
+ *  `lib/cmake/JUCE-9.0.1/JUCEHelperTargets.cmake`; it is visible in
+ *  `build/.../flags.make`). Said outright because grepping the repository for
+ *  the flag finds nothing, and a reader who concludes it is not on concludes
+ *  this whole guarantee is fictional. It is a warning, not a compile error --
+ *  and it only
+ *  knows about the enum's own cases, which is what `barPageOrder` above is
+ *  for: a page absent from *that* list fails
+ *  `BarPages.EveryPageAppearsInTheOrderExactlyOnce` instead. */
+constexpr bool
+pageCoversClipArea (BarPage page)
+{
+  switch (page)
+    {
+    case BarPage::Clip:
+    case BarPage::Record:
+      return false;
+    case BarPage::Action:
+    case BarPage::Controller:
+    case BarPage::Mixer:
+    case BarPage::Browser:
+      return true;
+    }
+  // Every case above returns, so this is never reached -- it exists only to
+  // stop -Wreturn-type complaining that the function might fall off the end,
+  // which would otherwise drown out the one warning that matters here.
+  __builtin_unreachable ();
+}
+
+/** Pages that are about one clip, so a tap on a channel face steps that
+ *  channel's slot and leaves the page where it is.
+ *
+ *  PADS is the exception: it shows every slot at once, so reaching for a
+ *  channel there is reaching for its clip, and the face brings the CLIP view
+ *  back with it. FILES has a clip in mind too — the one a picked file is put
+ *  into — so choosing the slot and then choosing the file is one errand, and
+ *  being thrown back to CLIP halfway through it meant tabbing back and losing
+ *  the list you were reading. MIX is the same errand from the other side: the
+ *  strip on show is the shown clip's channel, so a face is how you get to the
+ *  next channel's strip and being thrown to CLIP would undo the reach.
+ *
+ *  A `switch` with no `default:` for the same reason as pageCoversClipArea
+ *  above -- `-Wswitch-enum` is what says a new page forgot to answer. */
+constexpr bool
+pageDescribesAClip (BarPage page)
+{
+  switch (page)
+    {
+    case BarPage::Clip:
+    case BarPage::Record:
+    case BarPage::Action:
+    case BarPage::Mixer:
+    case BarPage::Browser:
+      return true;
+    case BarPage::Controller:
+      return false;
+    }
+  // Every case above returns, so this is never reached -- see the matching
+  // comment in pageCoversClipArea.
+  __builtin_unreachable ();
+}
 
 /** The area inside a section's card that its controls are laid out in —
  *  the card less its frame. Public because it is also what the shared
@@ -268,7 +387,8 @@ struct ClipSettingsLayout
   /** The take's length, on the Shape section's back — in recordLengthLog2
    *  order. */
   std::array<juce::Rectangle<int>, numRecordLengths> lengthButtons;
-  /** How fast the clip plays, on its front — in speedButtonLog2 order. */
+  /** How fast the clip plays, on its front — one key per speed the
+   *  performer has put there, left to right. */
   std::array<juce::Rectangle<int>, numSpeedButtons> speedButtons;
 
   /** Which way a pass runs and what it does when it runs out. Under the
@@ -328,6 +448,10 @@ struct ClipSettingsLayout
   /** The clip's fourth view: what ACT does, and the envelope behind it. */
   juce::Rectangle<int> tabAction;
   juce::Rectangle<int> tabController;
+  /** One channel's mixer strip, between PADS and the folder. It is a view of
+   *  the channel whose clip the bar is describing, so it stands with the
+   *  clip's own views rather than after the way out of them. */
+  juce::Rectangle<int> tabMixer;
   /** The way to the browser. A folder rather than a fourth word: the three
    *  tabs are views of the clip you are on, and this leaves it. */
   juce::Rectangle<int> tabBrowser;

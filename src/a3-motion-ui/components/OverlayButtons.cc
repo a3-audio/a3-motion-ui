@@ -63,6 +63,14 @@ OverlayButtons::preferredHeight ()
       40, static_cast<int> (theme ().fontSize (FontRole::Header) * 2.2f));
 }
 
+int
+OverlayButtons::preferredMargin ()
+{
+  // A quarter of the pair's own height, so the gap grows with them and the
+  // corner never reads as tight at one font size and loose at another.
+  return juce::jmax (4, preferredHeight () / 4);
+}
+
 void
 OverlayButtons::resized ()
 {

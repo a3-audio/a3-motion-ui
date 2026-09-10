@@ -44,6 +44,7 @@
 #include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/ActionScript.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
+#include <a3-motion-engine/OscEndpoints.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
@@ -94,6 +95,29 @@ namespace
  *  couple of centimetres across: past this the extra ticks land on pixels
  *  that are already lit, and every one of them is work done on the timer. */
 constexpr std::size_t elevationFigureSamples = 96;
+
+/** How often this component's own timer runs.
+ *
+ *  Fast enough for a take's write head to move while it is being recorded,
+ *  which is what this rate was chosen for.
+ *
+ *  **It is also the rate the status bar's nine meters are redrawn at**, since
+ *  updateStatusBarMeters() is the first thing timerCallback() does. That is
+ *  deliberately *not* vuMeterRefreshHz: the mixer's meters live on pages that
+ *  come and go and have a timer each, and this bar never goes away, so its
+ *  meters ride the timer that is already running rather than starting a
+ *  second one behind everything else on screen. The two rates being close but
+ *  unequal is therefore a fact about where each set of meters lives, not an
+ *  oversight -- see vuMeterRefreshHz, which says the same thing from the
+ *  other side. */
+constexpr int uiTimerHz = 20;
+
+/** How many of those ticks make the two seconds the directory check runs at.
+ *
+ *  Derived rather than written as 40, which is what it used to be: the count
+ *  and the rate are one decision, and a rate changed without it would move a
+ *  filesystem scan without anybody meaning to. */
+constexpr int libraryCheckTicks = uiTimerHz * 2;
 
 }
 
@@ -239,6 +263,102 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
 
   _motionComponent->addChildComponent (*_overlayStrips);
+
+  _mixer = std::make_unique<MixerComponent> (_mixerState, _vuLevels);
+  _mixer->setAlwaysOnTop (true);
+  _motionComponent->addChildComponent (*_mixer);
+
+  // The same step the encoders and the bar's channel grid take, so a finger
+  // moves a mixer value at the rate it moves every other value on this
+  // device.
+  auto const mixerStep = [] (int steps) { return steps * 0.02f; };
+
+  _mixerStrip
+      = std::make_unique<MixerStripComponent> (_mixerState, _vuLevels);
+
+  // Both views of the same seven controls, so both land in one pair of
+  // handlers rather than in two that agree today. Whichever was touched, both
+  // are repainted, and that is load-bearing rather than belt and braces: the
+  // overlay takes MotionComponent's bounds and the settings bar is carved out
+  // of the window before those are computed, so the bar -- MIX tab and all --
+  // stays visible and touchable underneath it. Turn a channel's gain in the
+  // overlay and the strip behind it is showing the same value.
+  auto const repaintMixers = [this] {
+    _mixer->repaint ();
+    _mixerStrip->repaint ();
+  };
+
+  auto const channelDragged
+      = [this, mixerStep, repaintMixers] (int channel, MixerControl control,
+                                          int steps) {
+          // A two-valued control keeps the drag's direction -- up is on, down
+          // is off -- because a drag has one where a tap does not. The same
+          // split tapTogglesValue makes in the bar.
+          auto const next
+              = mixerControlIsAToggle (control)
+                    ? (steps > 0 ? 1.f : 0.f)
+                    : _mixerState.channelValue (channel, control)
+                          + mixerStep (steps);
+          _mixerState.setChannelFromTouch (channel, control, next);
+          repaintMixers ();
+        };
+  auto const channelTapped
+      = [this, repaintMixers] (int channel, MixerControl control) {
+          _mixerState.setChannelFromTouch (
+              channel, control,
+              _mixerState.channelToggle (channel, control) ? 0.f : 1.f);
+          repaintMixers ();
+        };
+
+  _mixer->onChannelDragged = channelDragged;
+  _mixer->onChannelTapped = channelTapped;
+  _mixerStrip->onChannelDragged = channelDragged;
+  _mixerStrip->onChannelTapped = channelTapped;
+  _mixer->onMasterDragged = [this, mixerStep] (MasterControl control,
+                                               int steps) {
+    _mixerState.setMasterFromTouch (
+        control, _mixerState.masterValue (control) + mixerStep (steps));
+    _mixer->repaint ();
+  };
+  _mixer->onFilterDragged = [this, mixerStep] (FilterControl control,
+                                               int steps) {
+    auto const next = control == FilterControl::Mode
+                          ? (steps > 0 ? 1.f : 0.f)
+                          : _mixerState.filterValue (control)
+                                + mixerStep (steps);
+    _mixerState.setFilterFromTouch (control, next);
+    _mixer->repaint ();
+  };
+  _mixer->onFilterTapped = [this] (FilterControl control) {
+    _mixerState.setFilterFromTouch (
+        control, _mixerState.filterIsHighPass () ? 0.f : 1.f);
+    _mixer->repaint ();
+  };
+
+  // Where a touched value goes. The state holds values and knows nothing
+  // about a protocol; the addresses are config, and the tables are indexed by
+  // the ui's own control order -- controlSlot() is the one function that says
+  // where a control sits in it, and it is the same one MixerState indexes
+  // with.
+  _mixerState.channelAddress = [this] (int channel, MixerControl control) {
+    return withChannel (
+        _oscAddresses.mixerChannel[static_cast<std::size_t> (
+            controlSlot (control))],
+        channel);
+  };
+  _mixerState.masterAddress = [this] (MasterControl control) {
+    return _oscAddresses
+        .mixerMaster[static_cast<std::size_t> (controlSlot (control))];
+  };
+  _mixerState.filterAddress = [this] (FilterControl control) {
+    return _oscAddresses
+        .mixerFilter[static_cast<std::size_t> (controlSlot (control))];
+  };
+  _mixerState.onSend = [this] (juce::String const &address, float value) {
+    auto message = juce::OSCMessage (address);
+    message.addFloat32 (value);
+    _mixerSender.send (message);
+  };
 
   _globalSettings = std::make_unique<GlobalSettingsComponent> ();
   _globalSettings->setAlwaysOnTop (true);
@@ -450,20 +570,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // two channels in one move each. The two keys used to be shared, and
   // choosing slot 2 chose it for whichever channel you happened to be on.
   _clipSettings->onChannelFaceTapped = [this] (index_t channel) {
-    // The faces select the clip the settings area is describing, whichever
-    // view is open -- CLIP, REC and ACTION are three ways of looking at one
-    // clip, and which clip that is is a question they share. A face used to
-    // drag ACTION back to CLIP, which meant the one page where you most often
-    // want to hear another channel's clip was the one page you could not stay
-    // on while choosing it.
-    //
-    // FILES is here for the same reason. It has a clip in mind too -- the one
-    // a picked file is put into -- so choosing the slot and then choosing the
-    // file is one errand, and being thrown back to CLIP halfway through it
-    // meant tabbing back and losing the list you were reading.
-    auto const describesAClip
-        = _barPage == BarPage::Clip || _barPage == BarPage::Record
-          || _barPage == BarPage::Action || _barPage == BarPage::Browser;
+    auto const describesAClip = pageDescribesAClip (_barPage);
 
     if (describesAClip && channel == _clipSettingsChannel)
       _channelSlot[channel]
@@ -478,20 +585,25 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       showBarPage (BarPage::Clip);
   };
 
-  // A drag over the speed keys walks the whole of speedLog2, not only the
-  // four the keys name -- see onSpeedDragged in the bar.
-  _clipSettings->onSpeedDragged = [this] (int increment) {
-    auto const channel = _clipSettingsChannel;
-    auto const slot = _clipSettingsSlot;
-    auto const &pattern = _patterns[channel][slot];
-    if (!pattern || increment == 0)
+  // A drag gives the key under the finger another speed, and the clip is
+  // played at it straight away -- every other drag in this bar changes what
+  // you hear while you drag, and one that only rearranged the keys would be
+  // the exception you have to remember. The key keeps what it was dragged
+  // to, which is how a speed the four do not name is reached and then found
+  // again the next time.
+  _clipSettings->onSpeedDragged = [this] (int index, int increment) {
+    if (index < 0 || index >= numSpeedButtons || increment == 0)
       return;
 
-    pattern->setSpeedLog2 (std::clamp (pattern->getSpeedLog2 () + increment,
-                                       speedLog2Min, speedLog2Max));
-    applyMotionMode (channel, slot);
-    updateClipSettingsDisplay ();
-    scheduleSetSave ();
+    auto &carried = _speedButtonLog2[static_cast<size_t> (index)];
+    auto const moved = draggedSpeedLog2 (carried, increment);
+    if (moved == carried)
+      return;
+
+    carried = moved;
+    _clipSettings->setSpeedButtons (_speedButtonLog2);
+    persistSettings ();
+    applySpeedLog2ToShownClip (moved);
   };
 
   _clipSettings->onLockToggled = [this] (int section) {
@@ -545,23 +657,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // global strip it stands on both pages, so it can be held while the other
   // hand works the pads.
   // The bar's ACT plays the shown clip's accent, exactly as its pad does.
-  // A speed button is the clip's playback length said plainly. Tapping one
-  // sets it outright rather than stepping towards it — that is the point of
-  // there being twelve.
+  // A speed key is the clip's playback length said plainly. Tapping one sets
+  // it outright rather than stepping towards it — that is what the keys are
+  // for, and it is untouched by the keys becoming assignable.
   _clipSettings->onSpeedChosen = [this] (int index) {
     if (index < 0 || index >= numSpeedButtons)
       return;
 
-    auto const channel = _clipSettingsChannel;
-    auto const slot = _clipSettingsSlot;
-    if (auto &chosen = _patterns[channel][slot])
-      chosen->setSpeedLog2 (speedButtonLog2[index]);
-
-    if (auto &pattern = _patterns[channel][slot])
-      pattern->setPlaybackLength (getPlaybackLength (channel, slot));
-
-    updateClipSettingsDisplay ();
-    scheduleSetSave ();
+    applySpeedLog2ToShownClip (_speedButtonLog2[static_cast<size_t> (index)]);
   };
 
   _clipSettings->onAccentHeld = [this] (bool held) {
@@ -821,19 +924,34 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _clipSettings->addChildComponent (*_controller);
   _clipSettings->addChildComponent (*_action);
   _clipSettings->addChildComponent (*_browser);
+  _clipSettings->addChildComponent (*_mixerStrip);
   selectClip (0, 0); // sensible default before any button has been pressed
 
-  // Clockmode is all that is left to restore. Pot Size and the two font sizes
-  // are the skin's now, and the skin brings its own.
+  // The device's own habits, restored: the clock mode, the rec mode, and the
+  // four speeds the bar's keys carry. Pot Size and the two font sizes are the
+  // skin's now, and the skin brings its own.
   auto const persisted = loadSettings (getPersistedSettingsFile ());
-  applyClockMode (persisted.clockMode);
+
+  // Read out of `persisted` before applyClockMode() runs, because it writes
+  // the settings back out: anything still sitting at its default when it does
+  // is written over what the file said -- silently, since the UI goes on
+  // showing the value that was read and only the next start reveals it. The
+  // rec mode has stood in that position since it was added and survived only
+  // because the mode it wrote back happened to be the default one. The clock
+  // mode itself is not pre-assigned: applyClockMode() returns early on a mode
+  // it is already in, and would then apply none of it.
   _recMode = persisted.recMode;
+  _speedButtonLog2 = persisted.speedButtonLog2;
+
+  applyClockMode (persisted.clockMode);
   _engine.setRecMode (_recMode);
+  _clipSettings->setSpeedButtons (_speedButtonLog2);
 
 
-  // Fast enough for the write head to move while a take runs; the directory
-  // check inside keeps its old two-second pace by counting ticks.
-  startTimer (50);
+  // See uiTimerHz: fast enough for the write head to move while a take runs,
+  // and the rate the status bar's meters are redrawn at. The directory check
+  // inside keeps its two-second pace by counting ticks.
+  startTimerHz (uiTimerHz);
 
   _engine.addPatternStatusListener (this);
   _tickCallbackHandle = _engine.getTempoClock ().scheduleEventHandlerAddition (
@@ -914,25 +1032,36 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       std::cerr << "ERROR: Could not bind OSC Energy Receiver to port " << oscEnergyPort << std::endl;
     }
 
-  // Setup OSC Sender from config (for beatclock)
+  // Setup the OSC senders from config. Two destinations, not one: the beat
+  // clock and the tap belong to the beat-analyzer, everything the mixer turns
+  // belongs to A3 Core -- which is where MotionEngine's SpatBackendA3 already
+  // sends the spatial position. loadOscEndpoints() is the one place that reads
+  // which is which.
+  //
+  // The guard is older than that function and disagrees with it: without an
+  // "oscSender" block none of these three connects, while MotionEngine takes
+  // loadOscEndpoints()'s defaults and still reaches Core. So a config missing
+  // the block gives spatial motion with a dead mixer rather than a dead app,
+  // which is confusing but not what ships -- config.json has the block.
   if (userConfig.hasProperty ("oscSender"))
     {
-      auto oscSendConfig = userConfig["oscSender"];
-      juce::String oscSendHost = oscSendConfig["host"].toString ();
-      // Use beatclockPort if specified, otherwise fall back to port
-      int oscSendPort = static_cast<int> (oscSendConfig["port"]);
-      if (oscSendConfig.hasProperty ("beatclockPort"))
-        oscSendPort = static_cast<int> (oscSendConfig["beatclockPort"]);
-      if (_oscSender.connect (oscSendHost, oscSendPort))
-        std::cout << "OSC Sender for beatclock connected to " << oscSendHost << ":" << oscSendPort << std::endl;
+      auto const endpoints = loadOscEndpoints (userConfig);
+
+      if (_oscSender.connect (endpoints.host, endpoints.beatclockPort))
+        std::cout << "OSC Sender for beatclock connected to " << endpoints.host << ":" << endpoints.beatclockPort << std::endl;
       else
-        std::cerr << "ERROR: OSC Sender failed to connect to " << oscSendHost << ":" << oscSendPort << std::endl;
-      
+        std::cerr << "ERROR: OSC Sender failed to connect to " << endpoints.host << ":" << endpoints.beatclockPort << std::endl;
+
       // Direct tap sender (same host/port, bypasses async queue for zero latency)
-      if (_tapSender.connect (oscSendHost, oscSendPort))
-        std::cout << "OSC Tap Sender connected to " << oscSendHost << ":" << oscSendPort << std::endl;
+      if (_tapSender.connect (endpoints.host, endpoints.beatclockPort))
+        std::cout << "OSC Tap Sender connected to " << endpoints.host << ":" << endpoints.beatclockPort << std::endl;
       else
         std::cerr << "ERROR: OSC Tap Sender failed to connect" << std::endl;
+
+      if (_mixerSender.connect (endpoints.host, endpoints.corePort))
+        std::cout << "OSC Sender for mixer connected to " << endpoints.host << ":" << endpoints.corePort << std::endl;
+      else
+        std::cerr << "ERROR: OSC Sender for mixer failed to connect to " << endpoints.host << ":" << endpoints.corePort << std::endl;
     }
 }
 
@@ -947,6 +1076,7 @@ A3MotionUIComponent::~A3MotionUIComponent ()
   _oscReceiver.disconnect ();
   _oscSender.disconnect ();
   _tapSender.disconnect ();
+  _mixerSender.disconnect ();
 
   if (runsOnHardware ())
     {
@@ -1043,6 +1173,31 @@ A3MotionUIComponent::applyMotionMode (index_t channel, index_t slot)
     pattern->setEndAction (*(actions.begin () + params.endAction));
 }
 
+void
+A3MotionUIComponent::applySpeedLog2ToShownClip (int speedLog2)
+{
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto &pattern = _patterns[channel][slot];
+  if (!pattern)
+    return;
+
+  pattern->setSpeedLog2 (speedLog2);
+  // How long one traversal takes is derived from the speed, so the engine
+  // goes on playing the old length until it is told the new one.
+  pattern->setPlaybackLength (getPlaybackLength (channel, slot));
+
+  updateClipSettingsDisplay ();
+  scheduleSetSave ();
+}
+
+void
+A3MotionUIComponent::persistSettings () const
+{
+  saveSettings (getPersistedSettingsFile (),
+                AppSettings{ _clockMode, _recMode, _speedButtonLog2 });
+}
+
 Measure
 A3MotionUIComponent::getPlaybackLength (index_t channel, index_t slot) const
 {
@@ -1064,6 +1219,7 @@ A3MotionUIComponent::createMainUI ()
 
   _statusBar = std::make_unique<StatusBar> (_valueBPM);
   _statusBar->onKeyboardIconTapped = [this] { toggleKeyboard (); };
+  _statusBar->onMixIconTapped = [this] { toggleMixer (); };
   addChildComponent (*_statusBar);
   _statusBar->setVisible (true);
   _statusBarCallbackHandle
@@ -1311,6 +1467,8 @@ A3MotionUIComponent::resized ()
     }
   if (_browser && _clipSettings)
     _browser->setBounds (_clipSettings->clipContentBounds ());
+  if (_mixerStrip && _clipSettings)
+    _mixerStrip->setBounds (_clipSettings->clipContentBounds ());
 
   // The menu covers the sphere and nothing else. It used to take the clip
   // settings' space as well — the bar gave up its bounds and the menu had the
@@ -1326,6 +1484,8 @@ A3MotionUIComponent::resized ()
 
   if (_globalSettings)
     _globalSettings->setBounds (_motionComponent->getLocalBounds ());
+  if (_mixer)
+    _mixer->setBounds (_motionComponent->getLocalBounds ());
   if (_skinEditor)
     _skinEditor->setBounds (_motionComponent->getLocalBounds ());
   if (_colourPicker)
@@ -1621,6 +1781,8 @@ A3MotionUIComponent::closeAllOverlays ()
     closeSkinEditor ();
   if (_globalSettingsOpen)
     closeGlobalSettings ();
+  if (_mixerOpen)
+    showMixer (false);
 
   updateOverlayButtons ();
 }
@@ -1631,16 +1793,24 @@ A3MotionUIComponent::updateOverlayButtons ()
   if (!_overlayButtons || !_motionComponent)
     return;
 
-  auto const anyOpen
-      = _globalSettingsOpen || _skinEditorOpen || _colourPickerOpen;
+  auto const anyOpen = _globalSettingsOpen || _skinEditorOpen
+                       || _colourPickerOpen || _mixerOpen;
   _overlayButtons->setVisible (anyOpen);
+
+  // The strips walk a list and change the highlighted row's value, so they
+  // belong to the overlay in front and only while that one has a list. Asked
+  // in OverlaySideStrips.hh, where a test can reach the question — the answer
+  // decides who receives a fifth of the window on each side, and while the
+  // mixer stood in front of an open menu the menu was still receiving it.
+  auto const openOverlayHasAList = sideStripsHaveAList (
+      _globalSettingsOpen, _skinEditorOpen, _colourPickerOpen, _mixerOpen);
 
   // The strips sit beside whichever page is showing, so they follow its
   // panel rather than a fixed width.
   if (_overlayStrips)
     {
-      _overlayStrips->setVisible (anyOpen && !_colourPickerOpen);
-      if (anyOpen && !_colourPickerOpen)
+      _overlayStrips->setVisible (openOverlayHasAList);
+      if (openOverlayHasAList)
         {
           _overlayStrips->setBounds (_motionComponent->getLocalBounds ());
           _overlayStrips->setPanel (_skinEditorOpen
@@ -1655,7 +1825,7 @@ A3MotionUIComponent::updateOverlayButtons ()
 
   auto const height = OverlayButtons::preferredHeight ();
   auto const width = height * 2 + juce::jmax (2, height / 8);
-  auto const margin = juce::jmax (4, height / 4);
+  auto const margin = OverlayButtons::preferredMargin ();
 
   auto const area = _motionComponent->getLocalBounds ();
   _overlayButtons->setBounds (area.getRight () - width - margin,
@@ -1668,8 +1838,18 @@ A3MotionUIComponent::toggleGlobalSettings ()
 {
   updateControlReadout ("-- MENU");
 
-  // One level at a time: a name being typed, then the editor, then the menu
-  // itself.
+  // One level at a time: the mixer, then a name being typed, then the editor,
+  // then the menu itself. The mixer is first because it is the only one of
+  // them that is opened from outside this chain — the MIX key in the status
+  // bar is reachable whatever else is up — so it is the innermost room
+  // whenever it is open. Back and Close do the same thing to it, which is no
+  // fault: it has no levels, and two ways out of one room is not one.
+  if (_mixerOpen)
+    {
+      showMixer (false);
+      return;
+    }
+
   if (_colourPickerOpen)
     closeColourPicker ();
   else if (_skinEditorOpen && _skinEditor->isNaming ())
@@ -1680,6 +1860,38 @@ A3MotionUIComponent::toggleGlobalSettings ()
     closeGlobalSettings ();
   else
     openGlobalSettings ();
+}
+
+void
+A3MotionUIComponent::toggleMixer ()
+{
+  updateControlReadout (_mixerOpen ? "-- MIX OFF" : "-- MIX ON");
+  showMixer (!_mixerOpen);
+}
+
+void
+A3MotionUIComponent::showMixer (bool open)
+{
+  if (!_mixer || !_motionComponent)
+    return;
+
+  _mixerOpen = open;
+
+  // Over the sphere, on the bounds MotionComponent actually has: the settings
+  // bar is carved out of those, so an overlay taking them covers the sphere
+  // and nothing else.
+  _mixer->setBounds (_motionComponent->getLocalBounds ());
+  _mixer->setVisible (open);
+  if (open)
+    _mixer->toFront (false);
+
+  // Guarded because the overlay is built with the rest of the sphere's
+  // furniture, well before the status bar exists — and closeAllOverlays()
+  // is reachable from anywhere.
+  if (_statusBar)
+    _statusBar->setMixOpen (open);
+
+  updateOverlayButtons ();
 }
 
 void
@@ -1943,6 +2155,15 @@ A3MotionUIComponent::showBarPage (BarPage page)
       _browser->setVisible (page == BarPage::Browser);
       if (page == BarPage::Browser)
         refreshBrowser ();
+    }
+  if (_mixerStrip)
+    {
+      _mixerStrip->setVisible (page == BarPage::Mixer);
+      if (page == BarPage::Mixer)
+        // The strip is the shown clip's channel, so it is set here as well as
+        // in selectClip(): arriving on the page has to show the channel you
+        // are on, not the one that was on show when the page was last left.
+        _mixerStrip->setChannel (static_cast<int> (_clipSettingsChannel));
     }
 }
 
@@ -4864,6 +5085,17 @@ A3MotionUIComponent::refreshAllPadRowLabels ()
 void
 A3MotionUIComponent::timerCallback ()
 {
+  // First and whatever else is happening: what the status bar's meters say is
+  // that something is arriving at all, which is the question asked on the
+  // pages that are not the mixer -- and it is a question the conditions below
+  // cannot answer, since none of them knows anything about audio.
+  //
+  // So the bar's meters run at uiTimerHz rather than at vuMeterRefreshHz. A
+  // bar that never leaves the screen has no visibility to start and stop a
+  // timer on, and a second timer running for the life of the device is the
+  // one thing vuMeterRefreshHz's own note argues against.
+  updateStatusBarMeters ();
+
   // While a take runs its write head moves, and while a clip plays its
   // playhead does. Both fill the tick indicator, so both have to be followed
   // -- watching only the recording is what left a playing clip with a
@@ -4902,8 +5134,8 @@ A3MotionUIComponent::timerCallback ()
     updateClipSettingsDisplay ();
   _accentWasActive = accent;
 
-  // Every fortieth tick, which is the two seconds this used to run at.
-  if (++_timerTick % 40 != 0)
+  // Two seconds' worth of ticks, which is the pace this used to run at.
+  if (++_timerTick % libraryCheckTicks != 0)
     return;
 
   // Periodically check if pattern directories have changed
@@ -4949,12 +5181,20 @@ A3MotionUIComponent::onChannelVU (int channel, float peak, float rms)
       _channelUIStates[static_cast<size_t> (channel)]->vuPeak = peak;
       _channelUIStates[static_cast<size_t> (channel)]->vuLevel = rms;
     }
+
+  // And into the mixer's own store, beside the two atomics above rather than
+  // instead of them. Those two are what the GL thread reads for the corona
+  // around the blob and they remember nothing about when a value arrived; a
+  // peak mark that stands still for a moment needs that, and it has to be one
+  // memory for the overlay and the bar's tab both.
+  _vuLevels.setChannel (channel, { peak, rms }, vuNowMs ());
 }
 
 void
 A3MotionUIComponent::onSubwooferVU (float peak, float rms)
 {
   _motionComponent->setSphereGlow (peak, rms);
+  _vuLevels.setOutput (subwooferMeterIndex, { peak, rms }, vuNowMs ());
 }
 
 void
@@ -4967,6 +5207,8 @@ void
 A3MotionUIComponent::onSpeakerVU (int speakerIndex, float peak, float rms)
 {
   _motionComponent->setSpeakerLight (speakerIndex, peak, rms);
+  _vuLevels.setOutput (firstSpeakerMeterIndex + speakerIndex, { peak, rms },
+                       vuNowMs ());
 }
 
 void
@@ -5188,8 +5430,7 @@ A3MotionUIComponent::applyRecMode (int index)
   if (runsOnHardware ())
     updateFunctionKeyLEDs ();
 
-  saveSettings (getPersistedSettingsFile (),
-                AppSettings{ _clockMode, _recMode });
+  persistSettings ();
 }
 
 void
@@ -5229,8 +5470,7 @@ A3MotionUIComponent::applyClockMode (int mode)
   clockModeMsg.addInt32 (_clockMode);
   _oscSender.send (clockModeMsg);
 
-  saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _recMode });
+  persistSettings ();
 }
 
 
@@ -5684,8 +5924,7 @@ A3MotionUIComponent::refreshFonts ()
   if (auto *root = getTopLevelComponent ())
     root->repaint ();
 
-  saveSettings (getPersistedSettingsFile (),
-               AppSettings{ _clockMode, _recMode });
+  persistSettings ();
 }
 
 juce::File
@@ -5731,6 +5970,13 @@ A3MotionUIComponent::selectClip (index_t channel, index_t slot)
   // it walks the pattern folder, and a pad press should not go to disk.
   if (_barPage == BarPage::Browser)
     refreshBrowser ();
+
+  // And so does the MIX page: it is one channel's strip, and which channel is
+  // exactly what has just changed. Unconditionally, unlike the browser --
+  // nothing here goes to disk, and a page told only while it is visible comes
+  // back showing the channel of whoever was on show last.
+  if (_mixerStrip)
+    _mixerStrip->setChannel (static_cast<int> (channel));
 }
 
 void
@@ -6203,6 +6449,35 @@ A3MotionUIComponent::updateStatusBarPlayheads ()
   _statusBar->setChannelPlayheads (positions, colours);
 }
 
+/** Every meter the status bar draws, read at one moment.
+ *
+ *  One reading of the clock for all nine, the way the mixer page does it:
+ *  nine meters each asking the time would draw nine slightly different
+ *  moments, and a peak mark that expired between two bars of the same picture
+ *  is a picture that contradicts itself.
+ *
+ *  Unconditional, unlike the clip settings below it. Whether a level is
+ *  moving is not something this side can know without looking at it, and the
+ *  bar itself only repaints where a level actually changed. */
+void
+A3MotionUIComponent::updateStatusBarMeters ()
+{
+  if (!_statusBar)
+    return;
+
+  auto const now = vuNowMs ();
+
+  std::array<VuLevel, numChannelsInitial> inputs;
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    inputs[static_cast<size_t> (channel)] = _vuLevels.channel (channel, now);
+
+  std::array<VuLevel, numOutputMeters> outputs;
+  for (int meter = 0; meter < numOutputMeters; ++meter)
+    outputs[static_cast<size_t> (meter)] = _vuLevels.output (meter, now);
+
+  _statusBar->setVuLevels (inputs, outputs);
+}
+
 void
 A3MotionUIComponent::updateClipSettingsDisplay ()
 {
@@ -6366,9 +6641,9 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   // _clipSettingsSubIndex only picks which one is highlighted, and only
   // means anything while that section is actually selected.
   //
-  // Speed is passed as an already-normalized knob fraction + a formatted
-  // musical label (e.g. "1/4", "2") rather than the raw speedLog2 value,
-  // so ClipSettingsComponent doesn't need to know speedLog2Min/Max.
+  // Speed is passed as an already-normalized knob fraction + the same words
+  // the keys wear (speedLog2Name) rather than the raw speedLog2 value, so
+  // ClipSettingsComponent need not invert the range itself.
   // Inverted against the raw range: far left (frac 0) = speedLog2Max
   // ("16", slowest), far right (frac 1) = speedLog2Min ("1/128", fastest).
   auto const clipSpeedLog2 = pattern ? pattern->getSpeedLog2 () : 0;
@@ -6378,13 +6653,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       = speedRange > 0.f
             ? (speedLog2Max - clipSpeedLog2) / speedRange
             : 0.f;
-  auto const speedLabel
-      = clipSpeedLog2 >= 0
-            ? juce::String (static_cast<int> (std::exp2 (clipSpeedLog2)))
-            : "1/"
-                  + juce::String (
-                      static_cast<int> (std::exp2 (-clipSpeedLog2)));
-  _clipSettings->setMotionSpeed (speedFrac, speedLabel);
+  _clipSettings->setMotionSpeed (speedFrac, speedLog2Name (clipSpeedLog2));
   // Read back off the pattern rather than from this table. The pattern is
   // where the engine looks and what the file carries, so a clip that came from
   // disk brings its own settings -- and the bar has to show those, not the

@@ -29,6 +29,9 @@
 
 #include <a3-motion-engine/RecMode.hh>
 
+// For AppSettings, which is where the speed keys' four values live.
+#include <a3-motion-ui/SettingsPersistence.hh>
+
 #include <a3-motion-ui/theme/Theme.hh>
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
@@ -136,6 +139,10 @@ public:
   /** The recording mode, shown in the global strip. Not a clip setting: it is
    *  the same for every channel, which is why it sits apart from them. */
   void setRecMode (RecMode mode);
+  /** What the four speed keys carry, left to right. Handed in rather than
+   *  looked up: the values are the performer's and are kept where the rest of
+   *  the device's habits are kept. */
+  void setSpeedButtons (std::array<int, numSpeedButtons> const &speeds);
   /** Whether the main menu is showing, so its key can say so. */
   void setMenuOpen (bool open);
 
@@ -385,13 +392,14 @@ public:
   /** One of the seven length buttons was pressed, by its index in
    *  recordLengthLog2. */
   std::function<void (int index)> onRecordLengthChosen;
-  /** One of the twelve speed buttons was tapped, as an index into
-   *  speedButtonLog2. */
+  /** One of the four speed keys was tapped: play the clip at the speed that
+   *  key carries. */
   std::function<void (int index)> onSpeedChosen;
-  /** A drag across the speed keys, in whole steps of speedLog2. The keys name
-   *  four speeds; the range holds twelve, and this is how the other eight are
-   *  reached. */
-  std::function<void (int increment)> onSpeedDragged;
+  /** A speed key was dragged, in whole steps of speedLog2: give that key
+   *  another speed. The index is which key, and it is the whole point —
+   *  a drag changes the key under the finger rather than walking the shown
+   *  clip through a range no key would remember. */
+  std::function<void (int index, int increment)> onSpeedDragged;
   /** The clock mode steps on: INT, EXT, PIO. */
   std::function<void ()> onClockModePressed;
   std::function<void ()> onMenuPressed;
@@ -507,14 +515,6 @@ private:
   void paintSectionLock (juce::Graphics &g, int sectionIndex);
 
 
-  /** What a control is drawn in — its arc, its icon, its value. Takes the
-   *  channel's colour in the selected section so that the section the
-   *  encoders act on is the one that carries the colour. */
-  juce::Colour controlColour (bool isSelected) const;
-  /** The caption naming a control: quieter than the control itself, and
-   *  quieter again outside the selected section. */
-  juce::Colour captionColour (bool isSelected) const;
-
   /** Largest size for `role` at which `text` still fits inside `area`. */
   float fontFor (FontRole role, juce::Rectangle<int> area,
                  juce::String const &text) const;
@@ -613,8 +613,17 @@ private:
   bool _accentHeld = false;
   BarPage _page = BarPage::Clip;
   int _trajectorySubIndex = 0;
-  /** Which of the twelve speed buttons is in force, as a speedLog2. */
+  /** What the shown clip plays at, as a speedLog2. A key lights when it
+   *  carries this speed; a clip playing at a speed no key carries lights
+   *  none, which is the honest answer to "which of these is it". */
   int _speedLog2 = 0;
+  /** What each of the four keys carries — the performer's, so its default is
+   *  read from the settings rather than written down a second time here. */
+  std::array<int, numSpeedButtons> _speedButtonLog2
+      = AppSettings{}.speedButtonLog2;
+  /** Which speed key a finger is on, or noSpeedKeyDragged. Only the drag
+   *  needs it — see speedKeyIsActive(), which is where it is read. */
+  int _speedDragIndex = noSpeedKeyDragged;
   juce::String _recordLengthLabel { "1" };
   std::array<float, numChannelColumns> _channelFreq{};
   std::array<float, numChannelColumns> _channelFreqReach{};
@@ -658,6 +667,7 @@ private:
   std::unique_ptr<TouchControl> _tabRecordTouch;
   std::unique_ptr<TouchControl> _tabActionTouch;
   std::unique_ptr<TouchControl> _tabControllerTouch;
+  std::unique_ptr<TouchControl> _tabMixerTouch;
   /** One hit area per grid cell, [channel][row]. */
   std::array<std::array<std::unique_ptr<TouchControl>, numChannelRows>,
              numChannelColumns>

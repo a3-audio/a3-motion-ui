@@ -57,6 +57,14 @@ public:
   /** How tall the pair wants to be, from the header font. */
   static int preferredHeight ();
 
+  /** How far off the overlay's corner the pair stands.
+   *
+   *  Said here rather than where they are placed, because a second reader has
+   *  arrived: the mixer keeps this band clear so its top row of controls is
+   *  not drawn under keys that float over it, and a margin worked out twice
+   *  is a margin that eventually differs. */
+  static int preferredMargin ();
+
   void paint (juce::Graphics &g) override;
   void resized () override;
 

@@ -286,6 +286,7 @@ TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
   row.push_back (l.tabRecord);
   row.push_back (l.tabAction);
   row.push_back (l.tabController);
+  row.push_back (l.tabMixer);
   row.push_back (l.tabBrowser);
 
   int previousRight = 0;
@@ -495,7 +496,7 @@ TEST (ClipSettingsLayout, TheFrontHasFourSpeedsAndTheBackEightLengths)
       defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
 
   // Four, not the whole range. The eight rows that went are what the clip
-  // field stands in -- see speedButtonLog2.
+  // field stands in -- see numSpeedButtons.
   EXPECT_EQ (numSpeedButtons, 4);
   EXPECT_EQ (numRecordLengths, 8);
 
@@ -797,32 +798,112 @@ TEST (ClipSettingsLayout, TheLengthButtonsClearThePictogram)
     }
 }
 
-// The wording and the powers of two have to agree: the button says what the
-// take will be, and log2 is what the setting holds.
-// The speeds read from "as recorded" outwards, and each name is the power of
-// two it stands for. Two things one test, because a row of numbers that
-// claims a scale and does not keep one is worse than no scale at all.
-TEST (ClipSettingsLayout, TheSpeedsRunFromAsRecordedIntoTheFastEnd)
+// The keys carry whatever the performer put on them, so their names are
+// computed rather than written down beside four fixed values. The four the
+// device ships with have to come out of the formatter spelled exactly as the
+// fixed strings spelled them, or the same speed would be named two ways in
+// one device -- on a key here, and in the same breath somewhere else.
+TEST (ClipSettingsLayout, TheShippedSpeedsAreNamedAsTheyAlwaysWere)
 {
-  ASSERT_GT (numSpeedButtons, 0);
-  EXPECT_EQ (speedButtonLog2[0], 0) << "the row has to start where a hand does";
+  EXPECT_EQ (speedLog2Name (0), "1");
+  EXPECT_EQ (speedLog2Name (-3), "1/8");
+  EXPECT_EQ (speedLog2Name (-4), "1/16");
+  EXPECT_EQ (speedLog2Name (-6), "1/64");
+}
 
-  for (int i = 0; i < numSpeedButtons; ++i)
+// A key can now be dragged anywhere in the range, so every value in it has to
+// arrive on the key as something readable -- including the positive end, which
+// is slower than recorded and was never on a key before.
+TEST (ClipSettingsLayout, EverySpeedInTheRangeIsWordedAndWordedOnlyOnce)
+{
+  std::set<juce::String> seen;
+
+  for (int log2 = speedLog2Min; log2 <= speedLog2Max; ++log2)
     {
-      auto const log2 = speedButtonLog2[i];
       auto const expected
           = log2 >= 0 ? juce::String (static_cast<int> (std::exp2 (log2)))
                       : "1/" + juce::String (
                             static_cast<int> (std::exp2 (-log2)));
 
-      EXPECT_EQ (juce::String (speedButtonNames[i]), expected) << "button " << i;
-
-      if (i > 0)
-        EXPECT_LT (log2, speedButtonLog2[i - 1])
-            << "button " << i << " does not carry on away from 1";
+      auto const name = speedLog2Name (log2);
+      EXPECT_EQ (name, expected) << "speed " << log2;
+      EXPECT_FALSE (name.isEmpty ()) << "speed " << log2;
+      EXPECT_TRUE (seen.insert (name).second)
+          << "speed " << log2 << " is worded as something already used";
     }
 
-  // And they are laid out in that order, left to right.
+  EXPECT_EQ (speedLog2Name (speedLog2Min), "1/128");
+  EXPECT_EQ (speedLog2Name (speedLog2Max), "16");
+}
+
+// The whole range is reachable a key at a time, and the ends of it are ends:
+// a drag that ran off one and came back on the other would be a key nobody
+// could aim at.
+TEST (ClipSettingsLayout, ADragWalksASpeedKeyAcrossTheRangeAndStopsAtItsEnds)
+{
+  EXPECT_EQ (draggedSpeedLog2 (0, 1), 1);
+  EXPECT_EQ (draggedSpeedLog2 (0, -1), -1);
+  EXPECT_EQ (draggedSpeedLog2 (0, 0), 0);
+
+  EXPECT_EQ (draggedSpeedLog2 (speedLog2Max, 1), speedLog2Max);
+  EXPECT_EQ (draggedSpeedLog2 (speedLog2Min, -1), speedLog2Min);
+
+  // Every value the range holds is a drag away from every other one.
+  for (int log2 = speedLog2Min; log2 <= speedLog2Max; ++log2)
+    EXPECT_EQ (draggedSpeedLog2 (speedLog2Min, log2 - speedLog2Min), log2);
+}
+
+// A key being dragged is the only one that has anything to say while the
+// finger is down. The value walks through what the other keys carry on its
+// way somewhere, and lighting them as it passes is exactly the picture --
+// four keys taking turns -- that this gesture was changed to be rid of.
+TEST (ClipSettingsLayout, ADraggedSpeedKeyIsTheOnlyOneLitWhileItMoves)
+{
+  std::array<int, numSpeedButtons> const keys{ 0, -3, -4, -6 };
+
+  // Key 1 has been dragged as far as what key 2 carries, and key 2 stays dark.
+  for (int i = 0; i < numSpeedButtons; ++i)
+    EXPECT_EQ (speedKeyIsActive (keys, i, -4, 1), i == 1) << "key " << i;
+
+  // Even where no key at all carries the speed under the finger.
+  for (int i = 0; i < numSpeedButtons; ++i)
+    EXPECT_EQ (speedKeyIsActive (keys, i, -5, 1), i == 1) << "key " << i;
+}
+
+// And when the finger comes up the ordinary rule resumes -- on the key that
+// now carries the clip's speed, so there is no jump on release either.
+TEST (ClipSettingsLayout, WithNoFingerDownTheKeyCarryingTheSpeedIsLit)
+{
+  std::array<int, numSpeedButtons> const keys{ 0, -3, -4, -6 };
+
+  for (int i = 0; i < numSpeedButtons; ++i)
+    EXPECT_EQ (speedKeyIsActive (keys, i, -4, noSpeedKeyDragged), i == 2)
+        << "key " << i;
+
+  // A clip playing at a speed no key carries lights none of them, which is
+  // the honest answer to "which of these is it".
+  for (int i = 0; i < numSpeedButtons; ++i)
+    EXPECT_FALSE (speedKeyIsActive (keys, i, -5, noSpeedKeyDragged))
+        << "key " << i;
+}
+
+// Two keys may be assigned the same speed -- that is the performer's to do,
+// and both lighting is the truth about them rather than something to hide.
+TEST (ClipSettingsLayout, TwoKeysCarryingOneSpeedBothLight)
+{
+  std::array<int, numSpeedButtons> const keys{ 0, -3, -3, -6 };
+
+  EXPECT_TRUE (speedKeyIsActive (keys, 1, -3, noSpeedKeyDragged));
+  EXPECT_TRUE (speedKeyIsActive (keys, 2, -3, noSpeedKeyDragged));
+
+  // ... and a drag on one of them still lights only the one under the finger.
+  EXPECT_TRUE (speedKeyIsActive (keys, 1, -3, 1));
+  EXPECT_FALSE (speedKeyIsActive (keys, 2, -3, 1));
+}
+
+// Left to right, in the order the performer's four sit in.
+TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
+{
   auto const l = defaultLayout ();
   for (int i = 1; i < numSpeedButtons; ++i)
     EXPECT_LT (l.speedButtons[static_cast<size_t> (i - 1)].getX (),
@@ -887,7 +968,8 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
       for (auto const &tab : { layout.tabClip, layout.tabRecord,
-                               layout.tabAction, layout.tabController })
+                               layout.tabAction, layout.tabController,
+                               layout.tabMixer })
         {
           EXPECT_GE (tab.getWidth (), fingertipSize) << "width " << width;
           EXPECT_FALSE (tab.isEmpty ()) << "width " << width;
@@ -898,6 +980,8 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
       EXPECT_LE (layout.tabClip.getRight (), layout.tabRecord.getX ());
       EXPECT_LE (layout.tabRecord.getRight (), layout.tabAction.getX ());
       EXPECT_LE (layout.tabAction.getRight (), layout.tabController.getX ());
+      EXPECT_LE (layout.tabController.getRight (), layout.tabMixer.getX ());
+      EXPECT_LE (layout.tabMixer.getRight (), layout.tabBrowser.getX ());
     }
 }
 
@@ -1503,6 +1587,7 @@ TEST (ClipSettingsLayout, TheThreeViewsStandBetweenThem)
   EXPECT_GT (l.tabRecord.getX (), l.tabClip.getX ());
   EXPECT_GT (l.tabAction.getX (), l.tabRecord.getX ());
   EXPECT_GT (l.tabController.getX (), l.tabAction.getX ());
+  EXPECT_GT (l.tabMixer.getX (), l.tabController.getX ());
 }
 
 // Every channel has a face of its own, on every page, and they read left to
@@ -1545,9 +1630,10 @@ TEST (ClipSettingsLayout, TheHeaderHasTwoKindsOfKeyAndEachIsOneSize)
       auto const l
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
-      std::vector<juce::Rectangle<int> > views{ l.tabClip, l.tabRecord,
-                                                l.tabAction, l.tabController,
-                                                l.tabBrowser };
+      std::vector<juce::Rectangle<int> > views{
+        l.tabClip,  l.tabRecord, l.tabAction,
+        l.tabController, l.tabMixer, l.tabBrowser
+      };
 
       for (size_t i = 1; i < views.size (); ++i)
         EXPECT_EQ (views[i].getWidth (), views[0].getWidth ())

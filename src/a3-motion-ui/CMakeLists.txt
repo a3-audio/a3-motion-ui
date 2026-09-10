@@ -39,6 +39,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/LookAndFeel.hh
     components/StatusBar.cc
     components/StatusBar.hh
+    components/StatusBarLayout.cc
+    components/StatusBarLayout.hh
     components/ChannelStrip.cc
     components/ChannelStrip.hh
     components/CoronaScaling.cc
@@ -52,6 +54,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/OverlayButtons.hh
     components/OverlaySideStrips.cc
     components/OverlaySideStrips.hh
+    components/BarButton.cc
+    components/BarButton.hh
     components/ClipSettingsLayout.cc
     components/BrowserComponent.cc
     components/BrowserLayout.cc
@@ -120,6 +124,19 @@ target_sources("a3-motion-ui" PRIVATE
     components/ActionComponent.cc
     components/ActionLayout.cc
     components/BarKnob.cc
+    components/ColumnBreak.cc
+    components/ColumnBreak.hh
+    components/MixerControls.hh
+    components/VuMeter.cc
+    components/VuMeter.hh
+    components/MixerState.cc
+    components/MixerState.hh
+    components/MixerLayout.cc
+    components/MixerLayout.hh
+    components/MixerComponent.cc
+    components/MixerComponent.hh
+    components/MixerStripComponent.cc
+    components/MixerStripComponent.hh
     components/FittedFont.cc
     components/FittedFont.hh
     components/ClipSettingsComponent.cc

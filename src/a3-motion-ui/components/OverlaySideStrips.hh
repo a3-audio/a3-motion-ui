@@ -31,6 +31,54 @@
 namespace a3
 {
 
+/** Whether the strips belong on screen at all, given what is open.
+ *
+ *  A predicate rather than a line inside A3MotionUIComponent::
+ *  updateOverlayButtons, because it is the question the strips exist to
+ *  answer and it was got wrong: the strips serve **the overlay in front**,
+ *  and only if that one has a list to walk.
+ *
+ *  The mixer is in front whenever it is open. It is opened from the MIX key
+ *  in the status bar, which is reachable whatever else is up, so it can stand
+ *  over an open menu -- and toggleGlobalSettings() already treats it as the
+ *  innermost room for exactly that reason. It is a grid, every control of
+ *  which is touched directly, so it has no list.
+ *
+ *  What that cost while the menu's answer was used instead: the strips are a
+ *  fifth of the window each, which is the mixer's master column on the right
+ *  and its first channel on the left. Both were dead to the finger, and a
+ *  drag over them armed the menu's highlighted row, changed its value and
+ *  applied it on release -- the skin, the pattern folder or an OSC address --
+ *  with no cue but a mixer control that did not move.
+ *
+ *  The colour picker sits in the same place one level down, and cost the
+ *  same thing. openColourPicker() hides the skin editor but leaves
+ *  `_skinEditorOpen` true -- it is still the page underneath, and closing the
+ *  picker returns to it -- so a predicate that did not ask about the picker
+ *  went on answering for the editor, and the strips came to the front over
+ *  the picker sized to a panel nobody could see. A drag in the outer fifths
+ *  scrolled that hidden list instead of moving hue.
+ *
+ *  So the flags are read as a stack rather than as one expression: the two
+ *  that can stand in front are the mixer and the colour picker, in the order
+ *  toggleGlobalSettings() closes them, and neither of them is a list -- the
+ *  mixer is a grid touched control by control, the picker a field and a bar
+ *  with navigation of its own. Only behind those two is the question worth
+ *  asking, and there the answer is the menu or the skin editor.
+ *
+ *  Written this way rather than as `anyOpen && !picker && !mixer` because a
+ *  chain of negations is a chain somebody adds a fourth link to and forgets;
+ *  this one says which overlay is being answered for. */
+constexpr bool
+sideStripsHaveAList (bool globalSettingsOpen, bool skinEditorOpen,
+                     bool colourPickerOpen, bool mixerOpen)
+{
+  if (mixerOpen || colourPickerOpen)
+    return false;
+
+  return globalSettingsOpen || skinEditorOpen;
+}
+
 /**
  * OverlaySideStrips
  *

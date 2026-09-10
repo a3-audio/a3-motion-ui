@@ -36,6 +36,44 @@
 namespace a3
 {
 
+juce::String
+speedLog2Name (int speedLog2)
+{
+  // As recorded is `1` and everything faster is a fraction of it, which is
+  // how a note value is read on any other instrument in the room. The slow
+  // half of the range is plain multiples for the same reason.
+  auto const factor
+      = juce::String (static_cast<int> (std::exp2 (std::abs (speedLog2))));
+
+  return speedLog2 >= 0 ? factor : "1/" + factor;
+}
+
+int
+draggedSpeedLog2 (int speedLog2, int increment)
+{
+  return std::clamp (speedLog2 + increment, speedLog2Min, speedLog2Max);
+}
+
+bool
+speedKeyIsActive (std::array<int, numSpeedButtons> const &keys, int index,
+                  int clipSpeedLog2, int draggedIndex)
+{
+  if (index < 0 || index >= numSpeedButtons)
+    return false;
+
+  // A key under a finger is the only one that has anything to say. The value
+  // is on its way somewhere and walks through what the other keys carry to
+  // get there; lighting them as it passes is four keys taking turns, which is
+  // the picture this gesture was changed to be rid of. On release the rule
+  // below resumes on the same key, because by then it carries the speed.
+  if (draggedIndex != noSpeedKeyDragged)
+    return index == draggedIndex;
+
+  // Two keys given the same speed both light. That is the truth about them,
+  // and a display that picked one would disagree with the keys themselves.
+  return keys[static_cast<size_t> (index)] == clipSpeedLog2;
+}
+
 namespace
 {
 // The bar's own margin. The screen edge is already an edge; this puts a
@@ -271,15 +309,16 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // height because a hand goes along the row in one sweep, and the faces are
   // narrower and framed because a group that reads as a group can afford to
   // be -- see channelFacesFrame.
-  constexpr int numViews = 5;
+  constexpr int numViews = 6;
   constexpr int numFaces = static_cast<int> (numChannelColumns);
 
   // Measured in view-widths so the two sizes stay in proportion at every
-  // screen: a face is three quarters of a view. Ten gaps -- the frame's two
-  // edges, three between the faces, one before the views, four between them.
+  // screen: a face is three quarters of a view. Eleven gaps -- the frame's
+  // two edges, three between the faces, one before the views, five between
+  // the six of them.
   auto const viewSpan = juce::jmax (
       fingertipSize,
-      (headerArea.getWidth () - headerGap * 10) * 4
+      (headerArea.getWidth () - headerGap * 11) * 4
           / (numFaces * 3 + numViews * 4));
   auto const faceSpan = juce::jmax (fingertipSize, viewSpan * 3 / 4);
 
@@ -309,6 +348,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // PADS is the view that is about something else.
   out.tabAction = takeView ();
   out.tabController = takeView ();
+
+  // Between PADS and the folder: MIX is about the channel of the clip on
+  // show, so it belongs beside the views of that clip and before the way out
+  // of it.
+  out.tabMixer = takeView ();
 
   // The folder closes the row. It is the way *out* of the clip you are on,
   // so it ends the row rather than leading it -- and it stands where the slot

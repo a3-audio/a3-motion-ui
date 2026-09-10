@@ -34,6 +34,8 @@ target_sources("a3-motion-engine" PRIVATE
     UserConfig.hh
     OscAddresses.cc
     OscAddresses.hh
+    OscEndpoints.cc
+    OscEndpoints.hh
     MotionEngine.cc
     MotionEngine.hh
     AsyncCommandQueue.cc
