@@ -60,6 +60,22 @@ public:
     // Only fires on /beat while clockMode != 0 (EXT/PIO), for
     // LoopLengthDisplay's external-beat interpolation.
     virtual void onExternalBeatSync (int beat, int beatsPerBar) = 0;
+
+    // Where A3 Core says a channel's sound is, in degrees: azimuth
+    // -180..180, elevation -90..90. Two calls rather than one, because they
+    // arrive as two messages and there is no moment at which both are known
+    // at once.
+    //
+    // Core is the only device that can answer this. It writes the position
+    // straight to the IEM plugins' own OSC port rather than through a REAPER
+    // track, so nothing on the rig reports it back and there is nobody else
+    // to ask. In practice this is the answer to /state/recall at start-up.
+    //
+    // What to do with it is the listener's call, not this class's: whether a
+    // channel is playing a trajectory is state this parser has no business
+    // knowing.
+    virtual void onChannelAzimuth (int channel, float azimuth) = 0;
+    virtual void onChannelElevation (int channel, float elevation) = 0;
   };
 
   OscMessageHandler (MotionEngine &engine, Listener &listener);

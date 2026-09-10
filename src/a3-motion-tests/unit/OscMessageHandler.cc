@@ -49,6 +49,12 @@ struct RecordingListener : public OscMessageHandler::Listener
 
   int externalBeatSyncCalls = 0;
 
+  int azimuthCalls = 0;
+  int elevationCalls = 0;
+  int lastPositionChannel = -1;
+  float lastAzimuth = 0.f;
+  float lastElevation = 0.f;
+
   int energyGridCalls = 0;
   int lastEnergyCount = -1;
   float lastEnergyFirst = -1.f;
@@ -101,6 +107,22 @@ struct RecordingListener : public OscMessageHandler::Listener
   onExternalBeatSync (int, int) override
   {
     ++externalBeatSyncCalls;
+  }
+
+  void
+  onChannelAzimuth (int channel, float azimuth) override
+  {
+    ++azimuthCalls;
+    lastPositionChannel = channel;
+    lastAzimuth = azimuth;
+  }
+
+  void
+  onChannelElevation (int channel, float elevation) override
+  {
+    ++elevationCalls;
+    lastPositionChannel = channel;
+    lastElevation = elevation;
   }
 };
 
@@ -232,4 +254,143 @@ TEST (OscMessageHandler, EnergyGridOfTheWrongLengthIsRejected)
   EXPECT_EQ (listener.energyGridCalls, 0);
 }
 
+}
+
+// A3 Core answers /state/recall with the position of every channel it has
+// heard one for. It is the only device that can: it writes the position
+// straight to the IEM plugins' own OSC port rather than through a REAPER
+// track, so nothing on the rig reports it back. Until these arrived, the
+// answer landed in this device's socket and was dropped -- see
+// issues/a3-motion-ui-nimmt-die-position-nicht-entgegen.md.
+
+TEST (OscMessageHandler, RoutesChannelAzimuthToListener)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  juce::OSCMessage message ("/channel/1/azimuth");
+  message.addFloat32 (45.f);
+
+  handler.handleMessage (message, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.azimuthCalls, 1);
+  EXPECT_EQ (listener.lastPositionChannel, 1);
+  EXPECT_FLOAT_EQ (listener.lastAzimuth, 45.f);
+  EXPECT_EQ (listener.elevationCalls, 0);
+}
+
+TEST (OscMessageHandler, RoutesChannelElevationToListener)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  // Degrees, and negative ones at that: Core clamps elevation to -90..90 and
+  // the OSC reference's "[0-1]" for this address is wrong. A handler that
+  // assumed a normalised value would put every sound below the horizon on
+  // the horizon.
+  juce::OSCMessage message ("/channel/3/elevation");
+  message.addFloat32 (-63.f);
+
+  handler.handleMessage (message, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.elevationCalls, 1);
+  EXPECT_EQ (listener.lastPositionChannel, 3);
+  EXPECT_FLOAT_EQ (listener.lastElevation, -63.f);
+  EXPECT_EQ (listener.azimuthCalls, 0);
+}
+
+TEST (OscMessageHandler, IgnoresAPositionWithNoValue)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  handler.handleMessage (juce::OSCMessage ("/channel/1/azimuth"),
+                         /*clockMode=*/0);
+
+  EXPECT_EQ (listener.azimuthCalls, 0);
+}
+
+TEST (OscMessageHandler, IgnoresAPositionThatIsNotANumber)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  juce::OSCMessage message ("/channel/1/azimuth");
+  message.addString ("nach vorne");
+
+  handler.handleMessage (message, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.azimuthCalls, 0);
+}
+
+TEST (OscMessageHandler, IgnoresAChannelThisRigDoesNotHave)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  juce::OSCMessage message ("/channel/9/azimuth");
+  message.addFloat32 (45.f);
+
+  handler.handleMessage (message, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.azimuthCalls, 0);
+}
+
+TEST (OscMessageHandler, AVuMessageIsStillNotAPosition)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  juce::OSCMessage message ("/vu/2");
+  message.addFloat32 (0.5f);
+  message.addFloat32 (0.25f);
+
+  handler.handleMessage (message, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.channelVUCalls, 1);
+  EXPECT_EQ (listener.azimuthCalls, 0);
+  EXPECT_EQ (listener.elevationCalls, 0);
+}
+
+TEST (OscMessageHandler, FollowsAReconfiguredPositionAddress)
+{
+  // The addresses are configurable, so the incoming address cannot be
+  // matched by a hardcoded prefix -- it has to be built from the same table
+  // the sender would use.
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  OscAddresses addresses;
+  addresses.channelAzimuth = "/a3/{ch}/az";
+  handler.setAddresses (addresses);
+
+  juce::OSCMessage message ("/a3/2/az");
+  message.addFloat32 (-12.f);
+
+  handler.handleMessage (message, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.azimuthCalls, 1);
+  EXPECT_EQ (listener.lastPositionChannel, 2);
+  EXPECT_FLOAT_EQ (listener.lastAzimuth, -12.f);
+
+  // And the old address is no longer one.
+  juce::OSCMessage stale ("/channel/2/azimuth");
+  stale.addFloat32 (99.f);
+  handler.handleMessage (stale, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.azimuthCalls, 1);
 }

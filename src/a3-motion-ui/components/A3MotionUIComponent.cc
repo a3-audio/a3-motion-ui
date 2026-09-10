@@ -5224,6 +5224,80 @@ A3MotionUIComponent::onExternalBeatSync (int beat, int beatsPerBar)
   _loopLengthDisplay->setExternalBeat (beat, beatsPerBar);
 }
 
+namespace
+{
+
+/** Whether a position from outside may move this channel.
+ *
+ *  A channel playing a trajectory has its own idea of where it is, four
+ *  times a bar and more; letting an outside position in would be a jump in
+ *  the middle of a movement, heard in the room. At start-up -- the case this
+ *  whole path exists for -- nothing is playing yet, so the recall lands in
+ *  full.
+ *
+ *  The cost, stated because it is invisible: a recall while a channel plays
+ *  does nothing for that channel, and says nothing about it either.
+ *
+ *  Recording is deliberately not guarded here. The blob follows the finger
+ *  through setRecording*Position on every tick, so a stray position would be
+ *  overwritten within the frame rather than fought over.
+ */
+bool
+mayBeMovedFromOutside (MotionEngine &engine, int channel)
+{
+  return engine.getPlayingPattern (static_cast<index_t> (channel)) == nullptr;
+}
+
+}
+
+/** Moves one channel, keeping the two spherical values this message does not
+ *  carry.
+ *
+ *  Azimuth and elevation arrive as two separate messages, so each one has to
+ *  leave the other alone; the distance is preserved for the same reason. It
+ *  is 1 on this device -- Channel's constructor builds fromSpherical(0, 0, 1)
+ *  -- but reading it rather than writing 1 here means this keeps working if
+ *  that ever stops being true.
+ *
+ *  Position::setAzimuth/setElevation would read better and do not exist:
+ *  Geometry.hh declares them and nothing ever defined them.
+ *
+ *  A value that is not finite is dropped. It arrives over the network, and a
+ *  NaN would reach the IEM plugins as a position.
+ */
+void
+A3MotionUIComponent::moveChannelFromOutside (int channel, float azimuth,
+                                             float elevation)
+{
+  if (!std::isfinite (azimuth) || !std::isfinite (elevation))
+    return;
+
+  if (!mayBeMovedFromOutside (_engine, channel))
+    return;
+
+  auto const index = static_cast<index_t> (channel);
+  auto const now = _engine.getChannelPosition (index);
+
+  _engine.setChannel3DPosition (
+      index, Pos::fromSpherical (azimuth, elevation, now.distance ()));
+}
+
+void
+A3MotionUIComponent::onChannelAzimuth (int channel, float azimuth)
+{
+  auto const now
+      = _engine.getChannelPosition (static_cast<index_t> (channel));
+  moveChannelFromOutside (channel, azimuth, now.elevation ());
+}
+
+void
+A3MotionUIComponent::onChannelElevation (int channel, float elevation)
+{
+  auto const now
+      = _engine.getChannelPosition (static_cast<index_t> (channel));
+  moveChannelFromOutside (channel, now.azimuth (), elevation);
+}
+
 // ── Global Settings helpers ──────────────────────────────────────────────────────
 
 void

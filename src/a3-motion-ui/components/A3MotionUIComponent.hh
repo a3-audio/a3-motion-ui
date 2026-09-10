@@ -107,6 +107,9 @@ public:
   void onSpeakerVU (int speakerIndex, float peak, float rms) override;
   void onExternalBeatClock (int beat, int bar, float bpm) override;
   void onExternalBeatSync (int beat, int beatsPerBar) override;
+  void onChannelAzimuth (int channel, float azimuth) override;
+  void onChannelElevation (int channel, float elevation) override;
+  void moveChannelFromOutside (int channel, float azimuth, float elevation);
 
 private:
   std::unique_ptr<HeightMapSphere> _heightMap;

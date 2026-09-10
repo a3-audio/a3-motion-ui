@@ -107,6 +107,37 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
 
       return;
     }
+
+  // The position, coming back from A3 Core -- the answer to /state/recall.
+  // Last of the four because it is the rarest: the VU meters and the energy
+  // grid arrive continuously, a position only when Core is asked.
+  //
+  // Built per channel from the address table rather than matched by prefix.
+  // The addresses are configurable and {ch} may sit anywhere in them, so the
+  // only honest comparison is against what the sender itself would have
+  // built. Four channels times two patterns is eight string compares, paid
+  // only by messages that got past the three checks above.
+  if (message.size () >= 1 && message[0].isFloat32 ())
+    {
+      auto const value = message[0].getFloat32 ();
+
+      for (index_t channel = 0; channel < _engine.getNumChannels (); ++channel)
+        {
+          auto const number = static_cast<int> (channel);
+
+          if (address == withChannel (_addresses.channelAzimuth, number))
+            {
+              _listener.onChannelAzimuth (number, value);
+              return;
+            }
+
+          if (address == withChannel (_addresses.channelElevation, number))
+            {
+              _listener.onChannelElevation (number, value);
+              return;
+            }
+        }
+    }
 }
 
 }
