@@ -159,6 +159,7 @@ readAll (juce::var const &block, OscAddresses &into)
   readAddress (block, "channelPot3", into.channelThreeD);
   readAddress (block, "iemAzimuth", into.iemAzimuth);
   readAddress (block, "iemElevation", into.iemElevation);
+  readAddress (block, "stateRecall", into.stateRecall);
   readAddress (block, "beat", into.beatOut);
   readAddress (block, "beatOut", into.beatOut);
   readAddress (block, "beatIn", into.beatIn);

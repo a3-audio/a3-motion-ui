@@ -105,6 +105,18 @@ struct OscAddresses
   juce::String iemAzimuth{ "/StereoEncoder/azimuth" };
   juce::String iemElevation{ "/StereoEncoder/elevation" };
 
+  /** The one address this device sends in order to be *told* something.
+   *
+   *  A3 Core replays its whole state in answer: the lamps, and the position
+   *  of every channel it has heard one for. Sent once at start-up, so the
+   *  device adopts what is already sounding instead of asserting its own
+   *  idea of it — the audible jump in
+   *  issues/a3-motion-ui-total-recall-at-startup.md.
+   *
+   *  Has to match what Core listens for (OSC_ADDRESS_RECALL in a3-core.py).
+   *  Nothing here can check that, which is the reason it is configurable. */
+  juce::String stateRecall{ "/state/recall" };
+
   /** The beat clock going out — sent every beat in INT mode. */
   juce::String beatOut{ "/beat" };
   juce::String tap{ "/tap" };

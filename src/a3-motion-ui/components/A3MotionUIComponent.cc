@@ -1059,7 +1059,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         std::cerr << "ERROR: OSC Tap Sender failed to connect" << std::endl;
 
       if (_mixerSender.connect (endpoints.host, endpoints.corePort))
-        std::cout << "OSC Sender for mixer connected to " << endpoints.host << ":" << endpoints.corePort << std::endl;
+        {
+          std::cout << "OSC Sender for mixer connected to " << endpoints.host << ":" << endpoints.corePort << std::endl;
+          askCoreForItsState ();
+        }
       else
         std::cerr << "ERROR: OSC Sender for mixer failed to connect to " << endpoints.host << ":" << endpoints.corePort << std::endl;
     }
@@ -5280,6 +5283,36 @@ A3MotionUIComponent::moveChannelFromOutside (int channel, float azimuth,
 
   _engine.setChannel3DPosition (
       index, Pos::fromSpherical (azimuth, elevation, now.distance ()));
+}
+
+/** Ask A3 Core to say its whole state again.
+ *
+ *  Sent from the constructor, at the first moment there is anywhere to send
+ *  it: the receiver is bound a few lines above and the sender to Core has
+ *  just connected. Core answers with its lamps and with the position of
+ *  every channel it has heard one for -- the only place those positions
+ *  exist, since Core writes them straight to the IEM plugins and nothing
+ *  reports them back.
+ *
+ *  Without this the device comes up asserting its own idea of every channel
+ *  and the room hears the difference at once:
+ *  issues/a3-motion-ui-total-recall-at-startup.md.
+ *
+ *  The answer arrives through OSCReceiver::MessageLoopCallback, on the same
+ *  message thread this constructor runs on, so it cannot land while
+ *  construction is still going.
+ *
+ *  Sent once and never repeated. Over UDP a Core that is not up yet simply
+ *  does not answer, and the device keeps its own values -- the documented
+ *  fallback, and what happened before any of this existed. A retry would
+ *  need a notion of "did an answer arrive", which nothing here has.
+ */
+void
+A3MotionUIComponent::askCoreForItsState ()
+{
+  auto message = juce::OSCMessage (_oscAddresses.stateRecall);
+  message.addFloat32 (1.f);
+  _mixerSender.send (message);
 }
 
 void

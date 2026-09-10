@@ -110,6 +110,7 @@ public:
   void onChannelAzimuth (int channel, float azimuth) override;
   void onChannelElevation (int channel, float elevation) override;
   void moveChannelFromOutside (int channel, float azimuth, float elevation);
+  void askCoreForItsState ();
 
 private:
   std::unique_ptr<HeightMapSphere> _heightMap;
