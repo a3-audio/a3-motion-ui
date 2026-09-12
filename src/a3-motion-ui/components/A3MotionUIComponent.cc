@@ -119,6 +119,18 @@ constexpr int uiTimerHz = 20;
  *  filesystem scan without anybody meaning to. */
 constexpr int libraryCheckTicks = uiTimerHz * 2;
 
+/** How long this device keeps its own position to itself at start-up, while
+ *  it waits for A3 Core to answer /state/recall.
+ *
+ *  Core is a UDP hop away -- on the rig, the same machine -- so the answer is
+ *  back in well under a millisecond when Core is up. This is not a guess at
+ *  the round trip; it is how long to wait before concluding that no answer is
+ *  coming, and then going ahead with this device's own values. Nothing is
+ *  playing yet at this point, so the wait is inaudible; what it costs is that
+ *  a rig started with Core down hears its first position a third of a second
+ *  later than it used to. */
+constexpr double recallGraceMillis = 300.;
+
 }
 
 
@@ -127,6 +139,30 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       _engine (numChannels, *_heightMap)
 {
   setLookAndFeel (&_lookAndFeel);
+
+  // First thing, before anything can tick: until Core has had its chance to
+  // say where the sound actually is, this device says nothing about it. The
+  // engine would otherwise announce all four channels the moment it runs,
+  // Core would forward that straight to the IEM plugins, and the sound would
+  // jump to this device's idea of it -- which the recall would then confirm
+  // rather than prevent. See MotionEngine::holdPositionOutputUntil and
+  // issues/a3-motion-ui-recall-kommt-zu-spaet.md.
+  //
+  // Armed here and again in askCoreForItsState(). This one covers
+  // construction itself -- the tick handler is registered part-way through
+  // it, so a tick can fire while the rest is still being built.
+  //
+  // Measured on the rig, 2026-09-12: this arming **alone** was enough, the
+  // order came out right without the second one. It is armed twice anyway,
+  // and the reason is not belt and braces. Measured from here, the grace is
+  // a bet that everything between this line and the question -- the hardware
+  // interface, the pattern library's 39 system and 2 user patterns, the OSC
+  // setup -- fits inside 300 ms. Nobody maintains that property, and the day
+  // it stops holding, this fails silently and reads as "the recall never
+  // worked". Measured from the question, the grace is the thing it claims to
+  // be: how long to wait for an answer.
+  _engine.holdPositionOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                   + recallGraceMillis);
 
   _oscMessageHandler = std::make_unique<OscMessageHandler> (_engine, *this);
   applyOscAddresses (userConfig);
@@ -5310,6 +5346,12 @@ A3MotionUIComponent::moveChannelFromOutside (int channel, float azimuth,
 void
 A3MotionUIComponent::askCoreForItsState ()
 {
+  // Re-armed from here, where the wait for an answer actually begins. See the
+  // comment at the first arming for why this is not redundant even though the
+  // first one measured as sufficient.
+  _engine.holdPositionOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                   + recallGraceMillis);
+
   auto message = juce::OSCMessage (_oscAddresses.stateRecall);
   message.addFloat32 (1.f);
   _mixerSender.send (message);

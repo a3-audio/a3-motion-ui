@@ -518,6 +518,20 @@ MotionEngine::stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint)
 }
 
 void
+MotionEngine::holdPositionOutputUntil (double millisecondCounter)
+{
+  _positionOutputHeldUntil.store (millisecondCounter,
+                                  std::memory_order_relaxed);
+}
+
+bool
+MotionEngine::positionOutputHeld () const
+{
+  return juce::Time::getMillisecondCounterHiRes ()
+         < _positionOutputHeldUntil.load (std::memory_order_relaxed);
+}
+
+void
 MotionEngine::setPreviewMode (index_t channel, bool enabled)
 {
   jassert (channel < _previewMode.size ());
@@ -654,6 +668,11 @@ MotionEngine::tickCallback ()
       = _lastSendMillis > 0. ? nowMillis - _lastSendMillis : 0.;
   _lastSendMillis = nowMillis;
 
+  // Asked once for the whole loop rather than per channel: the answer is the
+  // same for all four, and reading a clock four times to get one answer is
+  // four chances for them to disagree.
+  auto const holdingPositions = positionOutputHeld ();
+
   // compare with last enqueued values and enqueue on change
   for (auto index = 0u; index < _channels.size (); ++index)
     {
@@ -662,7 +681,8 @@ MotionEngine::tickCallback ()
         continue;
 
       auto const position = _channels[index]->getPosition ();
-      if (position.isValid () && _lastSentPositions[index] != position)
+      if (!holdingPositions && position.isValid ()
+          && _lastSentPositions[index] != position)
         {
           _commandQueue.sendPosition (index, position);
           _lastSentPositions[index] = position;
@@ -687,9 +707,14 @@ MotionEngine::tickCallback ()
       // sitting wherever the last session left it. Ramping from this side's
       // zero would send Core *to* zero on the first message and climb back
       // up, which is a bigger jump than the one being smoothed, in the wrong
-      // direction first. Until there is a total recall to restore Core from,
-      // one honest jump beats a fade from a fiction. See
-      // issues/a3-motion-ui-total-recall-at-startup.md.
+      // direction first. One honest jump beats a fade from a fiction.
+      //
+      // There *is* a total recall now, and it does not change this: it
+      // restores the position, which is not slewed, and Core has no reverse
+      // path for these three (see
+      // issues/a3-core-motion-bekommt-beim-recall-nichts.md). So for pot_1,
+      // pot_2 and 3d nothing here knows what the far end has, exactly as
+      // before. See issues/a3-motion-ui-total-recall-at-startup.md.
       auto const primed = _potsPrimed;
 
       auto const sendSlewed

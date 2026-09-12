@@ -205,6 +205,34 @@ public:
   void setPreviewMode (index_t channel, bool enabled);
   bool isPreviewMode (index_t channel) const;
 
+  /** Keep this device's own position output in until `millisecondCounter`.
+   *
+   *  For the gap between start-up and the answer to /state/recall. The send
+   *  loop announces every channel's position as soon as the engine runs, A3
+   *  Core forwards it straight to the IEM plugins, and the sound jumps to
+   *  this device's idea of it before anyone has asked where it actually was.
+   *  Core then answers with what it was just told, which confirms the jump
+   *  rather than preventing it — measured 2026-09-12, see
+   *  issues/a3-motion-ui-recall-kommt-zu-spaet.md.
+   *
+   *  It holds the **output**, not the channel: a position arriving from Core
+   *  during the hold reaches the blob as usual. Only this side's
+   *  announcements wait.
+   *
+   *  A deadline rather than a flag somebody has to clear. The failure mode of
+   *  a flag is a device that never sends a position again, which is worse
+   *  than the jump it was meant to stop; this one runs out on its own. Given
+   *  as an absolute `juce::Time::getMillisecondCounterHiRes()` value rather
+   *  than a duration so that a caller — a test especially — can name a
+   *  deadline that has already passed without sleeping through it.
+   *
+   *  Pots and 3d are deliberately not held. The recall cannot restore them
+   *  (Core has no reverse path for pot_1/pot_2/3d, see
+   *  issues/a3-core-motion-bekommt-beim-recall-nichts.md), so holding them
+   *  would delay a jump it cannot prevent. */
+  void holdPositionOutputUntil (double millisecondCounter);
+  bool positionOutputHeld () const;
+
   // Access the HeightMap (for re-applying coverage to loaded patterns)
   HeightMap const &getHeightMap () const { return _heightMap; }
 
@@ -365,6 +393,11 @@ private:
   /** Whether the channel values have gone out once. Until they have there is
    *  nothing to ramp *from*: see the send loop in tickCallback(). */
   bool _potsPrimed = false;
+
+  /** Read by the send loop on the tick thread, written from the message
+   *  thread at start-up. Zero means "not held", which is what it starts as:
+   *  a millisecond counter is never below zero. */
+  std::atomic<double> _positionOutputHeldUntil{ 0. };
 
   /** The accent per channel: whether ACT is down, where the envelope stands,
    *  and whose shape it is running. Live only — an accent is a gesture, and a
