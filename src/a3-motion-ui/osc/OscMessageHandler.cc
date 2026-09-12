@@ -108,34 +108,40 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
       return;
     }
 
-  // The position, coming back from A3 Core -- the answer to /state/recall.
-  // Last of the four because it is the rarest: the VU meters and the energy
-  // grid arrive continuously, a position only when Core is asked.
+  // The per-channel values coming back from A3 Core -- the answer to
+  // /state/recall. Last of the four because it is the rarest: the VU meters
+  // and the energy grid arrive continuously, these only when Core is asked.
   //
   // Built per channel from the address table rather than matched by prefix.
   // The addresses are configurable and {ch} may sit anywhere in them, so the
   // only honest comparison is against what the sender itself would have
-  // built. Four channels times two patterns is eight string compares, paid
-  // only by messages that got past the three checks above.
+  // built. Four channels times five patterns is twenty string compares, paid
+  // only by messages that got past the three checks above -- which, on a
+  // running rig, is almost nothing.
   if (message.size () >= 1 && message[0].isFloat32 ())
     {
+      using Value = Listener::ChannelValue;
+
+      std::array<std::pair<juce::String const *, Value>, 5> const carried{ {
+          { &_addresses.channelAzimuth, Value::Azimuth },
+          { &_addresses.channelElevation, Value::Elevation },
+          { &_addresses.channelPot1, Value::Pot1 },
+          { &_addresses.channelPot2, Value::Pot2 },
+          { &_addresses.channelThreeD, Value::ThreeD },
+      } };
+
       auto const value = message[0].getFloat32 ();
 
       for (index_t channel = 0; channel < _engine.getNumChannels (); ++channel)
         {
           auto const number = static_cast<int> (channel);
 
-          if (address == withChannel (_addresses.channelAzimuth, number))
-            {
-              _listener.onChannelAzimuth (number, value);
-              return;
-            }
-
-          if (address == withChannel (_addresses.channelElevation, number))
-            {
-              _listener.onChannelElevation (number, value);
-              return;
-            }
+          for (auto const &[pattern, which] : carried)
+            if (address == withChannel (*pattern, number))
+              {
+                _listener.onChannelValue (number, which, value);
+                return;
+              }
         }
     }
 }

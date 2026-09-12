@@ -49,11 +49,15 @@ struct RecordingListener : public OscMessageHandler::Listener
 
   int externalBeatSyncCalls = 0;
 
+  int valueCalls = 0;
   int azimuthCalls = 0;
   int elevationCalls = 0;
   int lastPositionChannel = -1;
   float lastAzimuth = 0.f;
   float lastElevation = 0.f;
+  float lastValue = 0.f;
+  OscMessageHandler::Listener::ChannelValue lastWhich
+      = OscMessageHandler::Listener::ChannelValue::Azimuth;
 
   int energyGridCalls = 0;
   int lastEnergyCount = -1;
@@ -110,19 +114,25 @@ struct RecordingListener : public OscMessageHandler::Listener
   }
 
   void
-  onChannelAzimuth (int channel, float azimuth) override
+  onChannelValue (int channel, OscMessageHandler::Listener::ChannelValue which,
+                  float value) override
   {
-    ++azimuthCalls;
+    using Value = OscMessageHandler::Listener::ChannelValue;
+    ++valueCalls;
     lastPositionChannel = channel;
-    lastAzimuth = azimuth;
-  }
+    lastWhich = which;
+    lastValue = value;
 
-  void
-  onChannelElevation (int channel, float elevation) override
-  {
-    ++elevationCalls;
-    lastPositionChannel = channel;
-    lastElevation = elevation;
+    if (which == Value::Azimuth)
+      {
+        ++azimuthCalls;
+        lastAzimuth = value;
+      }
+    else if (which == Value::Elevation)
+      {
+        ++elevationCalls;
+        lastElevation = value;
+      }
   }
 };
 
@@ -393,4 +403,86 @@ TEST (OscMessageHandler, FollowsAReconfiguredPositionAddress)
   handler.handleMessage (stale, /*clockMode=*/0);
 
   EXPECT_EQ (listener.azimuthCalls, 1);
+}
+
+// The other three per-channel values, added 2026-09-12 once A3 Core could
+// answer for them: the two encoder pots come back through the reverse table
+// (a plain linear map, not a curve), the crossfade out of Core's own memory
+// because REAPER holds two gains and cannot be asked which input made them.
+
+TEST (OscMessageHandler, RoutesTheEncoderPotsToListener)
+{
+  using Value = OscMessageHandler::Listener::ChannelValue;
+
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  juce::OSCMessage first ("/channel/2/pot_1");
+  first.addFloat32 (0.4f);
+  handler.handleMessage (first, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.valueCalls, 1);
+  EXPECT_EQ (listener.lastPositionChannel, 2);
+  EXPECT_EQ (listener.lastWhich, Value::Pot1);
+  EXPECT_FLOAT_EQ (listener.lastValue, 0.4f);
+
+  juce::OSCMessage second ("/channel/2/pot_2");
+  second.addFloat32 (0.5f);
+  handler.handleMessage (second, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.valueCalls, 2);
+  EXPECT_EQ (listener.lastWhich, Value::Pot2);
+  EXPECT_FLOAT_EQ (listener.lastValue, 0.5f);
+}
+
+TEST (OscMessageHandler, RoutesTheCrossfadeToListener)
+{
+  using Value = OscMessageHandler::Listener::ChannelValue;
+
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  juce::OSCMessage message ("/channel/1/3d");
+  message.addFloat32 (0.62f);
+
+  handler.handleMessage (message, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.valueCalls, 1);
+  EXPECT_EQ (listener.lastPositionChannel, 1);
+  EXPECT_EQ (listener.lastWhich, Value::ThreeD);
+  EXPECT_FLOAT_EQ (listener.lastValue, 0.62f);
+}
+
+TEST (OscMessageHandler, TheFiveValuesAreToldApart)
+{
+  // One call with a tag is only an improvement on five callbacks if the tag
+  // is right; a table is exactly the shape that quietly pairs the wrong two.
+  using Value = OscMessageHandler::Listener::ChannelValue;
+
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  std::vector<std::pair<juce::String, Value> > const expected{
+    { "/channel/0/azimuth", Value::Azimuth },
+    { "/channel/0/elevation", Value::Elevation },
+    { "/channel/0/pot_1", Value::Pot1 },
+    { "/channel/0/pot_2", Value::Pot2 },
+    { "/channel/0/3d", Value::ThreeD },
+  };
+
+  for (auto const &[address, which] : expected)
+    {
+      juce::OSCMessage message (address);
+      message.addFloat32 (0.5f);
+      handler.handleMessage (message, /*clockMode=*/0);
+      EXPECT_EQ (listener.lastWhich, which) << address;
+    }
+
+  EXPECT_EQ (listener.valueCalls, static_cast<int> (expected.size ()));
 }

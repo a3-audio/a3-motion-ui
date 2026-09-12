@@ -112,23 +112,23 @@ TEST (MotionEngine, FirstTapPutsTheBeatBackToOne)
 // ask about one that has already passed without sleeping through it — this
 // suite has enough timing flakiness already.
 
-TEST (MotionEngine, PositionOutputIsNotHeldToBeginWith)
+TEST (MotionEngine, OutputIsNotHeldToBeginWith)
 {
   HeightMapSphere heightMap;
   MotionEngine engine (4, heightMap);
 
-  EXPECT_FALSE (engine.positionOutputHeld ());
+  EXPECT_FALSE (engine.outputHeld ());
 }
 
-TEST (MotionEngine, ADeadlineInTheFutureHoldsPositionOutput)
+TEST (MotionEngine, ADeadlineInTheFutureHoldsOutput)
 {
   HeightMapSphere heightMap;
   MotionEngine engine (4, heightMap);
 
-  engine.holdPositionOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
                                   + 60000.);
 
-  EXPECT_TRUE (engine.positionOutputHeld ());
+  EXPECT_TRUE (engine.outputHeld ());
 }
 
 TEST (MotionEngine, ADeadlineThatHasPassedReleasesItself)
@@ -136,10 +136,10 @@ TEST (MotionEngine, ADeadlineThatHasPassedReleasesItself)
   HeightMapSphere heightMap;
   MotionEngine engine (4, heightMap);
 
-  engine.holdPositionOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
                                   - 1.);
 
-  EXPECT_FALSE (engine.positionOutputHeld ());
+  EXPECT_FALSE (engine.outputHeld ());
 }
 
 TEST (MotionEngine, AHoldCanBeLiftedBeforeItRunsOut)
@@ -150,13 +150,13 @@ TEST (MotionEngine, AHoldCanBeLiftedBeforeItRunsOut)
   HeightMapSphere heightMap;
   MotionEngine engine (4, heightMap);
 
-  engine.holdPositionOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
                                   + 60000.);
-  ASSERT_TRUE (engine.positionOutputHeld ());
+  ASSERT_TRUE (engine.outputHeld ());
 
-  engine.holdPositionOutputUntil (0.);
+  engine.holdOutputUntil (0.);
 
-  EXPECT_FALSE (engine.positionOutputHeld ());
+  EXPECT_FALSE (engine.outputHeld ());
 }
 
 TEST (MotionEngine, AHoldDoesNotStopThePositionItselfFromMoving)
@@ -167,7 +167,7 @@ TEST (MotionEngine, AHoldDoesNotStopThePositionItselfFromMoving)
   HeightMapSphere heightMap;
   MotionEngine engine (4, heightMap);
 
-  engine.holdPositionOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
                                   + 60000.);
 
   auto const fromCore = Pos::fromSpherical (120.f, 0.f, 1.f);

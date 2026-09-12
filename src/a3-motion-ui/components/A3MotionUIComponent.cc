@@ -145,7 +145,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // engine would otherwise announce all four channels the moment it runs,
   // Core would forward that straight to the IEM plugins, and the sound would
   // jump to this device's idea of it -- which the recall would then confirm
-  // rather than prevent. See MotionEngine::holdPositionOutputUntil and
+  // rather than prevent. See MotionEngine::holdOutputUntil and
   // issues/a3-motion-ui-recall-kommt-zu-spaet.md.
   //
   // Armed here and again in askCoreForItsState(). This one covers
@@ -161,7 +161,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // it stops holding, this fails silently and reads as "the recall never
   // worked". Measured from the question, the grace is the thing it claims to
   // be: how long to wait for an answer.
-  _engine.holdPositionOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+  _engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
                                    + recallGraceMillis);
 
   _oscMessageHandler = std::make_unique<OscMessageHandler> (_engine, *this);
@@ -5349,7 +5349,7 @@ A3MotionUIComponent::askCoreForItsState ()
   // Re-armed from here, where the wait for an answer actually begins. See the
   // comment at the first arming for why this is not redundant even though the
   // first one measured as sufficient.
-  _engine.holdPositionOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+  _engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
                                    + recallGraceMillis);
 
   auto message = juce::OSCMessage (_oscAddresses.stateRecall);
@@ -5358,19 +5358,45 @@ A3MotionUIComponent::askCoreForItsState ()
 }
 
 void
-A3MotionUIComponent::onChannelAzimuth (int channel, float azimuth)
+A3MotionUIComponent::onChannelValue (
+    int channel, OscMessageHandler::Listener::ChannelValue which, float value)
 {
-  auto const now
-      = _engine.getChannelPosition (static_cast<index_t> (channel));
-  moveChannelFromOutside (channel, azimuth, now.elevation ());
-}
+  using Value = OscMessageHandler::Listener::ChannelValue;
 
-void
-A3MotionUIComponent::onChannelElevation (int channel, float elevation)
-{
-  auto const now
-      = _engine.getChannelPosition (static_cast<index_t> (channel));
-  moveChannelFromOutside (channel, now.azimuth (), elevation);
+  auto const index = static_cast<index_t> (channel);
+
+  switch (which)
+    {
+    case Value::Azimuth:
+      moveChannelFromOutside (channel, value,
+                              _engine.getChannelPosition (index).elevation ());
+      return;
+
+    case Value::Elevation:
+      moveChannelFromOutside (channel,
+                              _engine.getChannelPosition (index).azimuth (),
+                              value);
+      return;
+
+    // The three that are not a position. No playing-channel guard on these:
+    // a clip moves a channel through the room, it does not turn its filter
+    // or its spread -- those are the hand's, and nothing here fights over
+    // them. The start-up hold is what keeps them quiet until Core answers.
+    case Value::Pot1:
+      if (std::isfinite (value))
+        _engine.setChannelPot1 (index, value);
+      return;
+
+    case Value::Pot2:
+      if (std::isfinite (value))
+        _engine.setChannelPot2 (index, value);
+      return;
+
+    case Value::ThreeD:
+      if (std::isfinite (value))
+        _engine.setChannelPot3 (index, value);
+      return;
+    }
 }
 
 // ── Global Settings helpers ──────────────────────────────────────────────────────

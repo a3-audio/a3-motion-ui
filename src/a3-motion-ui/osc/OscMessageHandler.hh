@@ -61,21 +61,37 @@ public:
     // LoopLengthDisplay's external-beat interpolation.
     virtual void onExternalBeatSync (int beat, int beatsPerBar) = 0;
 
-    // Where A3 Core says a channel's sound is, in degrees: azimuth
-    // -180..180, elevation -90..90. Two calls rather than one, because they
-    // arrive as two messages and there is no moment at which both are known
-    // at once.
-    //
-    // Core is the only device that can answer this. It writes the position
-    // straight to the IEM plugins' own OSC port rather than through a REAPER
-    // track, so nothing on the rig reports it back and there is nobody else
-    // to ask. In practice this is the answer to /state/recall at start-up.
-    //
-    // What to do with it is the listener's call, not this class's: whether a
-    // channel is playing a trajectory is state this parser has no business
-    // knowing.
-    virtual void onChannelAzimuth (int channel, float azimuth) = 0;
-    virtual void onChannelElevation (int channel, float elevation) = 0;
+    /** One per-channel value coming back from A3 Core -- in practice, the
+     *  answer to /state/recall at start-up.
+     *
+     *  One call with a tag rather than five of the same shape. They differ
+     *  only in which address carried them and which setter takes them, and
+     *  five near-identical virtuals is five places for the sixth to be
+     *  forgotten.
+     *
+     *  Units are the wire's, not normalised: azimuth -180..180 and elevation
+     *  -90..90 in **degrees**; the two pots and the crossfade 0..1. (The OSC
+     *  reference gives elevation as [0-1]; it is wrong, see
+     *  issues/a3-core-position-hat-keinen-rueckweg-und-keinen-halter.md.)
+     *
+     *  Each value arrives as its own message -- there is no moment at which
+     *  two of them are known together.
+     *
+     *  What to do with one is the listener's call, not this class's: whether
+     *  a channel is playing a trajectory is state this parser has no
+     *  business knowing. */
+    enum class ChannelValue
+    {
+      Azimuth,
+      Elevation,
+      Pot1,
+      Pot2,
+      ThreeD,
+    };
+
+    virtual void onChannelValue (int channel, ChannelValue which,
+                                 float value)
+        = 0;
   };
 
   OscMessageHandler (MotionEngine &engine, Listener &listener);

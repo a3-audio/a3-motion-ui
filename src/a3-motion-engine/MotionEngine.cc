@@ -518,17 +518,16 @@ MotionEngine::stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint)
 }
 
 void
-MotionEngine::holdPositionOutputUntil (double millisecondCounter)
+MotionEngine::holdOutputUntil (double millisecondCounter)
 {
-  _positionOutputHeldUntil.store (millisecondCounter,
-                                  std::memory_order_relaxed);
+  _outputHeldUntil.store (millisecondCounter, std::memory_order_relaxed);
 }
 
 bool
-MotionEngine::positionOutputHeld () const
+MotionEngine::outputHeld () const
 {
   return juce::Time::getMillisecondCounterHiRes ()
-         < _positionOutputHeldUntil.load (std::memory_order_relaxed);
+         < _outputHeldUntil.load (std::memory_order_relaxed);
 }
 
 void
@@ -671,7 +670,7 @@ MotionEngine::tickCallback ()
   // Asked once for the whole loop rather than per channel: the answer is the
   // same for all four, and reading a clock four times to get one answer is
   // four chances for them to disagree.
-  auto const holdingPositions = positionOutputHeld ();
+  auto const holding = outputHeld ();
 
   // compare with last enqueued values and enqueue on change
   for (auto index = 0u; index < _channels.size (); ++index)
@@ -680,9 +679,14 @@ MotionEngine::tickCallback ()
       if (_previewMode[index].load (std::memory_order_relaxed))
         continue;
 
+      // Nothing at all until Core has had its chance to answer — and
+      // nothing recorded as sent either, so what does go out afterwards is
+      // measured against what the far end really has.
+      if (holding)
+        continue;
+
       auto const position = _channels[index]->getPosition ();
-      if (!holdingPositions && position.isValid ()
-          && _lastSentPositions[index] != position)
+      if (position.isValid () && _lastSentPositions[index] != position)
         {
           _commandQueue.sendPosition (index, position);
           _lastSentPositions[index] = position;
@@ -709,12 +713,17 @@ MotionEngine::tickCallback ()
       // up, which is a bigger jump than the one being smoothed, in the wrong
       // direction first. One honest jump beats a fade from a fiction.
       //
-      // There *is* a total recall now, and it does not change this: it
-      // restores the position, which is not slewed, and Core has no reverse
-      // path for these three (see
-      // issues/a3-core-motion-bekommt-beim-recall-nichts.md). So for pot_1,
-      // pot_2 and 3d nothing here knows what the far end has, exactly as
-      // before. See issues/a3-motion-ui-total-recall-at-startup.md.
+      // Since 2026-09-12 the recall answers for these three as well — the
+      // pots through Core's reverse table, the crossfade out of Core's own
+      // memory — and they arrive during the start-up hold, before anything
+      // has been sent. So the first value that does go out is already the far
+      // end's own, and the jump it would have been is gone.
+      //
+      // What is *not* done is priming _lastSentPot*s from it, so that first
+      // send still happens and still goes out whole: one message telling Core
+      // what Core just said. Harmless, and cheaper than reaching into the
+      // tick thread's state from the message thread.
+      // See issues/a3-motion-ui-total-recall-at-startup.md.
       auto const primed = _potsPrimed;
 
       auto const sendSlewed
