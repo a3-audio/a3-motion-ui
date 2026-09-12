@@ -5440,6 +5440,39 @@ A3MotionUIComponent::onChannelValue (
     }
 }
 
+void
+A3MotionUIComponent::onMixerChannelValue (int channel, int slot, float value)
+{
+  // What A3 Core relays back from REAPER for the channel strip. Five of the
+  // eight arrive today -- gain, the three bands, volume -- and the strip used
+  // to come up at its own defaults and stay there, which is how GAIN and VOL
+  // came to read zero on a rig that was making sound.
+  if (!std::isfinite (value))
+    return;
+
+  if (channel < 0 || channel >= static_cast<int> (_engine.getNumChannels ()))
+    return;
+
+  if (slot < 0 || slot >= numMixerControls)
+    return;
+
+  auto const control = mixerControlOrder[static_cast<std::size_t> (slot)];
+
+  // setChannelFromPeer, never setChannelFromTouch. The difference is the
+  // whole provision MixerState was given for this: a value from a finger is
+  // set *and* sent, a value from the wire is set and not sent. Sending it
+  // back would have Core report, Motion set, Motion send, Core report --
+  // which is the loop a3_core_echo.py exists to suppress, rebuilt from this
+  // side and out of its reach.
+  _mixerState.setChannelFromPeer (channel, control, value);
+
+  // Both pages show the same state, and either may be the one on screen.
+  if (_mixer)
+    _mixer->repaint ();
+  if (_mixerStrip)
+    _mixerStrip->repaint ();
+}
+
 // ── Global Settings helpers ──────────────────────────────────────────────────────
 
 void

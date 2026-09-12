@@ -110,6 +110,7 @@ public:
   void onChannelValue (int channel,
                        OscMessageHandler::Listener::ChannelValue which,
                        float value) override;
+  void onMixerChannelValue (int channel, int slot, float value) override;
   void moveChannelFromOutside (int channel, float azimuth, float elevation);
   void askCoreForItsState ();
 

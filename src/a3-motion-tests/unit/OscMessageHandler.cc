@@ -64,6 +64,20 @@ struct RecordingListener : public OscMessageHandler::Listener
   float lastEnergyFirst = -1.f;
   float lastEnergyLast = -1.f;
 
+  int mixerValueCalls = 0;
+  int lastMixerChannel = -1;
+  int lastMixerSlot = -1;
+  float lastMixerValue = -1.f;
+
+  void
+  onMixerChannelValue (int channel, int slot, float value) override
+  {
+    ++mixerValueCalls;
+    lastMixerChannel = channel;
+    lastMixerSlot = slot;
+    lastMixerValue = value;
+  }
+
   void
   onEnergyGrid (float const *values, int count) override
   {
@@ -485,4 +499,83 @@ TEST (OscMessageHandler, TheFiveValuesAreToldApart)
     }
 
   EXPECT_EQ (listener.valueCalls, static_cast<int> (expected.size ()));
+}
+
+// ── What REAPER says about the channel strip ────────────────────────────────
+
+TEST (OscMessageHandler, RoutesAMixerChannelValueToItsSlot)
+{
+  // A3 Core relays gain, the three bands and volume back from REAPER as of
+  // 2026-09-12. Before that the strip came up at its own defaults and stayed
+  // there -- GAIN and VOL reading zero on a rig that was making sound.
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  juce::OSCMessage message ("/channel/2/gain");
+  message.addFloat32 (0.4f);
+
+  handler.handleMessage (message, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.mixerValueCalls, 1);
+  EXPECT_EQ (listener.lastMixerChannel, 2);
+  EXPECT_EQ (listener.lastMixerSlot, 0); // gain is first in mixerControlOrder
+  EXPECT_FLOAT_EQ (listener.lastMixerValue, 0.4f);
+
+  // And it is not mistaken for one of the five position-and-pot values.
+  EXPECT_EQ (listener.valueCalls, 0);
+}
+
+TEST (OscMessageHandler, EveryStripAddressFindsItsOwnSlot)
+{
+  // The slot is an index into OscAddresses::mixerChannel, which is indexed
+  // the same way as MixerControls.hh's mixerControlOrder -- a pairing no
+  // compiler checks and the exact shape that goes wrong silently. Eight
+  // addresses, eight slots, in order.
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  std::vector<juce::String> const addresses{
+    "/channel/0/gain",   "/channel/0/eq/high",
+    "/channel/0/eq/mid", "/channel/0/eq/low",
+    "/channel/0/volume", "/channel/0/fx-send",
+    "/channel/0/pfl",    "/channel/0/fx",
+  };
+
+  for (std::size_t slot = 0; slot < addresses.size (); ++slot)
+    {
+      juce::OSCMessage message (addresses[slot]);
+      message.addFloat32 (0.5f);
+      handler.handleMessage (message, /*clockMode=*/0);
+      EXPECT_EQ (listener.lastMixerSlot, static_cast<int> (slot))
+          << addresses[slot];
+    }
+
+  EXPECT_EQ (listener.mixerValueCalls, static_cast<int> (addresses.size ()));
+}
+
+TEST (OscMessageHandler, TheStripDoesNotSwallowThePots)
+{
+  // /channel/n/pot_1 and /channel/n/gain are both per-channel floats and the
+  // two tables are walked one after the other. A strip address that matched
+  // a pot -- or the other way round -- would put a filter frequency on a
+  // gain knob, and nothing about either value would look wrong.
+  using Value = OscMessageHandler::Listener::ChannelValue;
+
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  juce::OSCMessage message ("/channel/3/pot_1");
+  message.addFloat32 (0.3f);
+
+  handler.handleMessage (message, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.valueCalls, 1);
+  EXPECT_EQ (listener.lastWhich, Value::Pot1);
+  EXPECT_EQ (listener.mixerValueCalls, 0);
 }

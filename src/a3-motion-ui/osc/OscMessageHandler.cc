@@ -143,6 +143,31 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
                 return;
               }
         }
+
+      // And the channel strip, which A3 Core relays back from REAPER: gain,
+      // the three bands and volume. Walked after the five above rather than
+      // merged with them because they are a different thing -- those are the
+      // room, these are a mixing desk -- and because they are rarer still.
+      //
+      // The slot goes out as an index into _addresses.mixerChannel. The
+      // listener turns it into a MixerControl through mixerControlOrder,
+      // which is what that table is indexed by; making that trip here would
+      // mean this file including the ui's control list to learn a name it
+      // immediately hands on.
+      for (index_t channel = 0; channel < _engine.getNumChannels (); ++channel)
+        {
+          auto const number = static_cast<int> (channel);
+
+          for (std::size_t slot = 0; slot < _addresses.mixerChannel.size ();
+               ++slot)
+            if (address
+                == withChannel (_addresses.mixerChannel[slot], number))
+              {
+                _listener.onMixerChannelValue (number,
+                                               static_cast<int> (slot), value);
+                return;
+              }
+        }
     }
 }
 

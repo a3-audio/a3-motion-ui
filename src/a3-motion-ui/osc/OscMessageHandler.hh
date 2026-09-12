@@ -92,6 +92,24 @@ public:
     virtual void onChannelValue (int channel, ChannelValue which,
                                  float value)
         = 0;
+
+    /** One of the channel strip's controls, as A3 Core relays it back from
+     *  REAPER.
+     *
+     *  `slot` is an index into OscAddresses::mixerChannel, which is indexed
+     *  the same way as MixerControls.hh's mixerControlOrder -- so the caller
+     *  turns it into a MixerControl with one array lookup. An index rather
+     *  than the enum because that pairing is already the seam between the
+     *  engine's address table and the ui's control list, and this file has no
+     *  business learning a second vocabulary to cross it.
+     *
+     *  Separate from onChannelValue and its five-value tag on purpose. Those
+     *  five are the room -- where a sound is, how wide, how filtered -- and
+     *  three of them are things an action script drives. These eight are a
+     *  mixing desk. One enum over thirteen values would put a gain and an
+     *  azimuth in the same switch, and the first reader to add a case would
+     *  have to work out which half they were in. */
+    virtual void onMixerChannelValue (int channel, int slot, float value) = 0;
   };
 
   OscMessageHandler (MotionEngine &engine, Listener &listener);
