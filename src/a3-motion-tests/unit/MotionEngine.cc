@@ -98,6 +98,85 @@ TEST (MotionEngine, FirstTapPutsTheBeatBackToOne)
 // the finger — the blob sat under it and slid back out from under it, which
 // reads as "hard to move".
 
+// Between start-up and the answer to /state/recall, this device must keep its
+// own idea of where the sound is to itself. The engine announces every
+// channel's position as soon as it runs; A3 Core forwards it straight to the
+// IEM plugins, so the sound jumps to this device's idea before anyone has
+// asked where it actually was — and Core then answers with what it was just
+// told, confirming the jump instead of preventing it. Measured on 2026-09-12,
+// see issues/a3-motion-ui-recall-kommt-zu-spaet.md.
+//
+// A deadline, not a switch. The failure mode of a switch is a device that
+// never sends a position again, which is worse than the jump it was meant to
+// stop. And an *absolute* deadline rather than a duration, so that a test can
+// ask about one that has already passed without sleeping through it — this
+// suite has enough timing flakiness already.
+
+TEST (MotionEngine, OutputIsNotHeldToBeginWith)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  EXPECT_FALSE (engine.outputHeld ());
+}
+
+TEST (MotionEngine, ADeadlineInTheFutureHoldsOutput)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                  + 60000.);
+
+  EXPECT_TRUE (engine.outputHeld ());
+}
+
+TEST (MotionEngine, ADeadlineThatHasPassedReleasesItself)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                  - 1.);
+
+  EXPECT_FALSE (engine.outputHeld ());
+}
+
+TEST (MotionEngine, AHoldCanBeLiftedBeforeItRunsOut)
+{
+  // Nothing lifts it today — the deadline is meant to run out on its own —
+  // but a hold with no way back would be the one bug that silences the
+  // device, so the way back is pinned here rather than left to be discovered.
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                  + 60000.);
+  ASSERT_TRUE (engine.outputHeld ());
+
+  engine.holdOutputUntil (0.);
+
+  EXPECT_FALSE (engine.outputHeld ());
+}
+
+TEST (MotionEngine, AHoldDoesNotStopThePositionItselfFromMoving)
+{
+  // It holds the *output*, not the channel. The whole point is that a
+  // position arriving from Core during the hold reaches the blob; only this
+  // device's own announcements are kept in.
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                  + 60000.);
+
+  auto const fromCore = Pos::fromSpherical (120.f, 0.f, 1.f);
+  engine.setChannel3DPosition (2, fromCore);
+
+  EXPECT_NEAR (engine.getChannelPosition (2).x (), fromCore.x (), 0.0001f);
+  EXPECT_NEAR (engine.getChannelPosition (2).y (), fromCore.y (), 0.0001f);
+}
+
 TEST (MotionEngine, AHeldChannelKeepsThePositionItWasGiven)
 {
   HeightMapSphere heightMap;

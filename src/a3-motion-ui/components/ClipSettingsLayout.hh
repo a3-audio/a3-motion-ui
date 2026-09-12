@@ -479,6 +479,19 @@ struct ClipSettingsLayout
   juce::Rectangle<int> shiftButton;
 };
 
+/** The signal dot's diameter, as a share of the smaller side of a channel
+ *  face.
+ *
+ *  A fifth. Big enough to be caught out of the corner of an eye at arm's
+ *  length, small enough that it cannot be mistaken for the face's own colour
+ *  or crowd the slot number in the middle. */
+constexpr float channelFaceDotOfFace = 1.f / 5.f;
+
+/** How far the dot is held off the face's corner, as a share of its own
+ *  diameter. Half, so the air around it is of its own size and it reads as
+ *  sitting *in* the face rather than clipped to its edge. */
+constexpr float channelFaceDotInsetOfDot = 0.5f;
+
 /** Lays the whole bar out for the given bounds and the three sizes the
  *  user can actually change (header and body font size, Pot Size). Reads
  *  no theme of its own, so it can be checked at sizes nobody has dialled

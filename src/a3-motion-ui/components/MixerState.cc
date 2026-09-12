@@ -56,9 +56,28 @@ MixerState::MixerState ()
          ++i)
       {
         auto const control = mixerControlOrder[i];
+
+        // Where a control has a rest position, that is where it starts.
+        // "Where does this belong when nothing says otherwise" is one
+        // question asked at two moments, and SEND had two answers to it in
+        // this one file until 2026-09-12: half open here, shut in
+        // mixerControlRestPosition. So a double tap moved a control nobody
+        // had touched -- and a knob showing 0.5 while meaning 0 is, in the
+        // dark, indistinguishable from one showing 0.5 and meaning it.
+        auto const rest = mixerControlRestPosition (control);
+
+        // The two that have no rest position and still must not guess. A gain
+        // or a volume at half is a guess about somebody's system; zero is
+        // silence, which is the one starting point that cannot be wrong in
+        // the direction that matters. Neither may *rest* at zero, though --
+        // a mute two fingertips from a control dragged all evening is a way
+        // to silence the room by accident -- which is why this is a second
+        // condition rather than three more entries in that table.
         auto const silent = control == MixerControl::Gain
                             || control == MixerControl::Volume;
+
         channel[i] = mixerControlIsAToggle (control) ? 0.f
+                     : rest.has_value ()             ? *rest
                      : silent                        ? 0.f
                                                      : 0.5f;
       }

@@ -29,16 +29,31 @@ using namespace a3;
 
 // The order the maintainer asked for, top to bottom on a strip: what a hand
 // coming from a mixer expects to find, in the order it is found there.
-TEST (MixerControls, AStripReadsGainEqVolumeThenTheTwoKeys)
+//
+// SEND joined on 2026-09-12, after VOL rather than at the top where the desk
+// has it: the top of the strip is the set-once end, the foot is where the
+// hand goes during a set, and a send is a gesture rather than a setting.
+TEST (MixerControls, AStripReadsGainEqVolumeSendThenTheTwoKeys)
 {
   EXPECT_EQ (mixerControlOrder[0], MixerControl::Gain);
   EXPECT_EQ (mixerControlOrder[1], MixerControl::EqHigh);
   EXPECT_EQ (mixerControlOrder[2], MixerControl::EqMid);
   EXPECT_EQ (mixerControlOrder[3], MixerControl::EqLow);
   EXPECT_EQ (mixerControlOrder[4], MixerControl::Volume);
-  EXPECT_EQ (mixerControlOrder[5], MixerControl::Pfl);
-  EXPECT_EQ (mixerControlOrder[6], MixerControl::Fx);
-  EXPECT_EQ (numMixerControls, 7);
+  EXPECT_EQ (mixerControlOrder[5], MixerControl::FxSend);
+  EXPECT_EQ (mixerControlOrder[6], MixerControl::Pfl);
+  EXPECT_EQ (mixerControlOrder[7], MixerControl::Fx);
+  EXPECT_EQ (numMixerControls, 8);
+}
+
+// The send is turned, not pressed -- and the layout takes the toggles off the
+// end of the order without knowing which they are, so a continuous control
+// that drifted behind them would be drawn as a key.
+TEST (MixerControls, TheSendIsTurnedAndComesBeforeTheKeys)
+{
+  EXPECT_FALSE (mixerControlIsAToggle (MixerControl::FxSend));
+  EXPECT_TRUE (mixerControlIsAToggle (mixerControlOrder[6]));
+  EXPECT_TRUE (mixerControlIsAToggle (mixerControlOrder[7]));
 }
 
 // One table, two arrangements. A control listed twice would take two places
@@ -133,4 +148,31 @@ TEST (MixerControls, ThePositionsAreKnownAtCompileTime)
   for (auto control : mixerControlOrder)
     EXPECT_GE (controlSlot (control), 0);
   SUCCEED ();
+}
+
+// Two taps put a control back. Only SEND has somewhere to go back to, and
+// that is the point of asking per control rather than resetting everything.
+//
+// GAIN and VOL deliberately have no rest position. Zero on either is a mute,
+// and a mute two fingertips away from a control that is dragged all evening
+// is a way to silence the room by accident. SEND is the one where zero is
+// unambiguous and safe: take the effect out.
+TEST (MixerControls, OnlyTheSendHasARestPosition)
+{
+  EXPECT_TRUE (mixerControlRestPosition (MixerControl::FxSend).has_value ());
+  EXPECT_FLOAT_EQ (*mixerControlRestPosition (MixerControl::FxSend), 0.f);
+
+  for (auto const control : mixerControlOrder)
+    if (control != MixerControl::FxSend)
+      EXPECT_FALSE (mixerControlRestPosition (control).has_value ())
+          << mixerControlLabel (control);
+}
+
+// A control nobody has decided about writes nothing rather than falling
+// through to a plausible number. The way this goes wrong is an eighth control
+// arriving and inheriting whichever value the switch happened to reach.
+TEST (MixerControls, AnUndecidedControlHasNoRestPosition)
+{
+  EXPECT_FALSE (mixerControlRestPosition (static_cast<MixerControl> (99))
+                    .has_value ());
 }

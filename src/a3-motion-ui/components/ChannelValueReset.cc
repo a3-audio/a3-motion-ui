@@ -28,20 +28,24 @@ namespace a3
 std::optional<float>
 channelValueRestPosition (int gridRow)
 {
-  // Twelve o'clock on all three. The knobs sweep 270 degrees, so the middle
-  // of the travel is the middle of the range, and a hand reaching for "put
-  // that back" reaches for one place rather than three it has to remember.
+  // Twelve o'clock for 3d and freq. The knobs sweep 270 degrees, so the
+  // middle of the travel is the middle of the range, and a hand reaching for
+  // "put that back" reaches for one place rather than two it has to
+  // remember.
   //
-  // Q used to come to rest shut rather than centred, on the reasoning that a
-  // resonance at rest is no resonance. That is true of the value and wrong
-  // about the gesture: a double tap is "undo what I turned", and it should
-  // leave the three knobs looking like each other.
+  // Q is the exception, and it has been decided twice. It rested shut; it was
+  // moved to twelve o'clock so a double tap would leave the three knobs
+  // looking alike; the maintainer moved it back on 2026-09-12. The value wins
+  // over the gesture -- a filter that still resonates after being put back
+  // has not been put back -- and the far end agrees: the Airwindows Isolator3
+  // this reaches rests its own Q at zero.
   switch (gridRow)
     {
     case channelRowThreeD:
     case channelRowFreq:
-    case channelRowQ:
       return 0.5f;
+    case channelRowQ:
+      return 0.f;
     }
 
   return {};

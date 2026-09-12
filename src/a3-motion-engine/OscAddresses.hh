@@ -39,7 +39,7 @@ namespace a3
  *  can check — it is what
  *  OscAddresses.TheAddressTableIsAsLongAsTheControlTable checks instead, in
  *  the one place both headers are visible. */
-constexpr int numMixerAddresses = 7;
+constexpr int numMixerAddresses = 8;
 constexpr int numMasterAddresses = 5;
 constexpr int numFilterAddresses = 3;
 
@@ -82,8 +82,8 @@ struct OscAddresses
   std::array<juce::String, numMixerAddresses> mixerChannel{
     "/channel/{ch}/gain",   "/channel/{ch}/eq/high",
     "/channel/{ch}/eq/mid", "/channel/{ch}/eq/low",
-    "/channel/{ch}/volume", "/channel/{ch}/pfl",
-    "/channel/{ch}/fx",
+    "/channel/{ch}/volume", "/channel/{ch}/fx-send",
+    "/channel/{ch}/pfl",    "/channel/{ch}/fx",
   };
 
   /** The summing section's addresses, not per channel. Same indexing rule as
@@ -104,6 +104,18 @@ struct OscAddresses
   // Outgoing, to an IEM plugin chain (SpatBackendIEM).
   juce::String iemAzimuth{ "/StereoEncoder/azimuth" };
   juce::String iemElevation{ "/StereoEncoder/elevation" };
+
+  /** The one address this device sends in order to be *told* something.
+   *
+   *  A3 Core replays its whole state in answer: the lamps, and the position
+   *  of every channel it has heard one for. Sent once at start-up, so the
+   *  device adopts what is already sounding instead of asserting its own
+   *  idea of it — the audible jump in
+   *  issues/a3-motion-ui-total-recall-at-startup.md.
+   *
+   *  Has to match what Core listens for (OSC_ADDRESS_RECALL in a3-core.py).
+   *  Nothing here can check that, which is the reason it is configurable. */
+  juce::String stateRecall{ "/state/recall" };
 
   /** The beat clock going out — sent every beat in INT mode. */
   juce::String beatOut{ "/beat" };

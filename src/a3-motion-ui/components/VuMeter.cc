@@ -95,15 +95,6 @@ constexpr std::array<float, numVuMeterBands> bandCeilings{
  *  Looked up rather than guessed at: `highlight` is the skin's yellow at
  *  255, 214, 10, where `warning` is an orange — and green/orange/red is not
  *  the banding a hand reads without looking. */
-juce::Colour
-bandColour (Theme const &t, std::size_t band)
-{
-  if (band == vuGreenBand)
-    return toColour (t.accent);
-  if (band == vuYellowBand)
-    return toColour (t.highlight);
-  return toColour (t.danger);
-}
 
 /** The fraction of the block that is one bar plus its gap. */
 int
@@ -111,6 +102,47 @@ outputBarCellWidth (juce::Rectangle<int> bars)
 {
   return bars.getWidth () / numOutputMeters;
 }
+}
+
+juce::Colour
+vuBandColour (Theme const &theme, std::size_t band)
+{
+  if (band == vuGreenBand)
+    return toColour (theme.accent);
+  if (band == vuYellowBand)
+    return toColour (theme.highlight);
+  return toColour (theme.danger);
+}
+
+VuDot
+vuDot (VuLevel level)
+{
+  // The rms, not the peak. A dot says whether the channel is making sound,
+  // and the peak is a transient -- read through a mark with no length it
+  // would flicker at every drum hit and read as noise rather than as level.
+  // The peak still has somewhere to be: the meters on the MIX page hold it.
+  auto const fraction = vuMeterFraction (level.rms);
+
+  VuDot dot;
+  if (fraction <= 0.f)
+    return dot;   // below the floor: nothing, which is what silence looks like
+
+  dot.visible = true;
+
+  // The band the head of the fill would be in -- the same ceilings the meter
+  // cuts its bands on, read through the same table, so the dot turns yellow
+  // exactly where the meter's fill first reaches yellow.
+  dot.band = static_cast<std::size_t> (numVuMeterBands) - 1;
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
+    if (fraction <= bandCeilings[i])
+      {
+        dot.band = i;
+        break;
+      }
+
+  dot.alpha
+      = vuDotMinAlpha + (1.f - vuDotMinAlpha) * juce::jmin (1.f, fraction);
+  return dot;
 }
 
 juce::int64
@@ -340,7 +372,7 @@ paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds, VuLevel level,
   for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
     if (!geometry.bands[i].isEmpty ())
       {
-        g.setColour (bandColour (t, i));
+        g.setColour (vuBandColour (t, i));
         g.fillRect (geometry.bands[i]);
       }
 

@@ -101,12 +101,22 @@ mixerControlMetrics ()
 void
 wireMixerChannelTouch (TouchControl &touch, MixerControl control,
                        std::function<void (MixerControl, int)> dragged,
-                       std::function<void (MixerControl)> tapped)
+                       std::function<void (MixerControl)> tapped,
+                       std::function<void (MixerControl)> doubleTapped)
 {
   touch.onDragIncrement = [control, dragged] (int, int, int increment) {
     if (dragged)
       dragged (control, increment);
   };
+
+  // Wired off the rest position rather than off "is it continuous": the
+  // question a double tap asks is "does this have somewhere to go back to",
+  // and only the table that holds the answer should be deciding it.
+  if (mixerControlRestPosition (control).has_value ())
+    touch.onDoubleTap = [control, doubleTapped] (int, int) {
+      if (doubleTapped)
+        doubleTapped (control);
+    };
 
   if (!mixerControlIsAToggle (control))
     return;
@@ -184,6 +194,10 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
             [this, channel] (MixerControl control) {
               if (onChannelTapped)
                 onChannelTapped (channel, control);
+            },
+            [this, channel] (MixerControl control) {
+              if (onChannelDoubleTapped)
+                onChannelDoubleTapped (channel, control);
             });
 
         hookUp (*touch, channel, i);

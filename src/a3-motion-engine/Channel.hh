@@ -61,9 +61,19 @@ private:
   Measure _playingStarted;
 
   Pos _position;
-  std::atomic<float> _pot1 = 0.25f;
-  std::atomic<float> _pot2 = 1.f;
-  std::atomic<float> _pot3 = 0.f;
+  // Where a pot starts is where it comes to rest: twelve o'clock for 3d and
+  // freq, shut for Q. They used to start at a quarter, wide open and shut --
+  // three different answers to the question the reset table already answers
+  // (components/ChannelValueReset.hh), and a test now holds the two together.
+  //
+  // Not only a picture. The device *sends* these, and A3 Core records what it
+  // is sent, so a start value goes into Core's state file as though a hand
+  // had set it and the next recall replays it. All four 3d pots read zero on
+  // the rig on 2026-09-12 and the recall was working perfectly: the last
+  // setting really was zero, sent by this line at the previous start-up.
+  std::atomic<float> _pot1 = 0.5f;
+  std::atomic<float> _pot2 = 0.f;
+  std::atomic<float> _pot3 = 0.5f;
 
   // SeqLock for lock-free position access.
   // Writer (RT timer thread) never blocks.

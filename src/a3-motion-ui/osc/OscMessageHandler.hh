@@ -60,6 +60,69 @@ public:
     // Only fires on /beat while clockMode != 0 (EXT/PIO), for
     // LoopLengthDisplay's external-beat interpolation.
     virtual void onExternalBeatSync (int beat, int beatsPerBar) = 0;
+
+    /** One per-channel value coming back from A3 Core -- in practice, the
+     *  answer to /state/recall at start-up.
+     *
+     *  One call with a tag rather than five of the same shape. They differ
+     *  only in which address carried them and which setter takes them, and
+     *  five near-identical virtuals is five places for the sixth to be
+     *  forgotten.
+     *
+     *  Units are the wire's, not normalised: azimuth -180..180 and elevation
+     *  -90..90 in **degrees**; the two pots and the crossfade 0..1. (The OSC
+     *  reference gives elevation as [0-1]; it is wrong, see
+     *  issues/a3-core-position-hat-keinen-rueckweg-und-keinen-halter.md.)
+     *
+     *  Each value arrives as its own message -- there is no moment at which
+     *  two of them are known together.
+     *
+     *  What to do with one is the listener's call, not this class's: whether
+     *  a channel is playing a trajectory is state this parser has no
+     *  business knowing. */
+    enum class ChannelValue
+    {
+      Azimuth,
+      Elevation,
+      Pot1,
+      Pot2,
+      ThreeD,
+    };
+
+    virtual void onChannelValue (int channel, ChannelValue which,
+                                 float value)
+        = 0;
+
+    /** One of the channel strip's controls, as A3 Core relays it back from
+     *  REAPER.
+     *
+     *  `slot` is an index into OscAddresses::mixerChannel, which is indexed
+     *  the same way as MixerControls.hh's mixerControlOrder -- so the caller
+     *  turns it into a MixerControl with one array lookup. An index rather
+     *  than the enum because that pairing is already the seam between the
+     *  engine's address table and the ui's control list, and this file has no
+     *  business learning a second vocabulary to cross it.
+     *
+     *  Separate from onChannelValue and its five-value tag on purpose. Those
+     *  five are the room -- where a sound is, how wide, how filtered -- and
+     *  three of them are things an action script drives. These eight are a
+     *  mixing desk. One enum over thirteen values would put a gain and an
+     *  azimuth in the same switch, and the first reader to add a case would
+     *  have to work out which half they were in. */
+    virtual void onMixerChannelValue (int channel, int slot, float value) = 0;
+
+    /** The summing section, as A3 Core relays it back. `slot` indexes
+     *  OscAddresses::mixerMaster, which follows masterControlOrder. */
+    virtual void onMasterValue (int slot, float value) = 0;
+
+    /** The one filter all four channels share. `slot` indexes
+     *  OscAddresses::mixerFilter, which follows filterControlOrder.
+     *
+     *  `/fx/mode` arrives as a **number** here, 1 for high pass -- the
+     *  spelling this device already sends on that address. The word the
+     *  desk's LED reads travels `/fx/led`, which is the desk's own wire and
+     *  not this one. */
+    virtual void onFilterValue (int slot, float value) = 0;
   };
 
   OscMessageHandler (MotionEngine &engine, Listener &listener);

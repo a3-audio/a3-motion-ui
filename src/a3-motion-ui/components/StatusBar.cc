@@ -32,16 +32,6 @@ namespace
 {
 auto constexpr beatsPerBar = 4; // TODO read from tempoclock
 
-/** Whether a meter would be drawn the same twice.
- *
- *  The whole point of asking is the repaint it saves, so it compares the two
- *  numbers a meter is drawn from and nothing else. */
-bool
-sameLevel (a3::VuLevel a, a3::VuLevel b)
-{
-  return juce::approximatelyEqual (a.peak, b.peak)
-         && juce::approximatelyEqual (a.rms, b.rms);
-}
 }
 
 namespace a3
@@ -212,59 +202,6 @@ StatusBar::resized ()
   _labelBPM.setBounds (_layout.bpm);
   _labelReadout.setBounds (_layout.readout);
   _tickIndicator.setBounds (_layout.tick);
-}
-
-void
-StatusBar::setVuLevels (std::array<VuLevel, numChannelsInitial> const &inputs,
-                        std::array<VuLevel, numOutputMeters> const &outputs)
-{
-  // Asked block by block, and the repaint is per block. This bar is on screen
-  // for the whole of a set: a plain repaint() here would redraw the beat
-  // display, both labels and both icons at the timer's rate forever, for the
-  // sake of nine bars that between them cover a fifteenth of it.
-  if (!std::equal (inputs.begin (), inputs.end (), _inputLevels.begin (),
-                   sameLevel))
-    {
-      _inputLevels = inputs;
-      repaint (_layout.inputBlock);
-    }
-
-  if (!std::equal (outputs.begin (), outputs.end (), _outputLevels.begin (),
-                   sameLevel))
-    {
-      _outputLevels = outputs;
-      repaint (_layout.outputBlock);
-    }
-}
-
-void
-StatusBar::paintVuMeters (juce::Graphics &g)
-{
-  // The mixer's own picture at a fraction of the size, not a second meter
-  // drawn to a rule of its own: green, yellow and red down a bar is one
-  // language, and a small one that spoke it differently would be read wrong
-  // exactly once, at the moment it mattered.
-  //
-  // The bands do survive the shrinking, which was the open question. Measured
-  // on the device at the shipped skin the bars come out six pixels across and
-  // twenty-four tall, so the red band is about two pixels and the yellow
-  // about five -- but both sit at the *head* of the bar against a dark track,
-  // where a change of hue is legible long before a length is. What is lost is
-  // reading a number off the scale, which is what the mixer page is for.
-  //
-  // **One thing does differ, and it has to.** On the ground the mixer's own
-  // meters stand on, these were invisible until something arrived: that page
-  // fills itself with `surface` and the track is `surfaceRaised`, which is the
-  // colour this bar *is*. Sunk into it instead, so nine empty meters still
-  // read as nine meters -- a meter has to be findable before it has anything
-  // to say. See paintVuMeter's four-argument form.
-  auto const track = toColour (theme ().surface);
-
-  for (std::size_t i = 0; i < _inputLevels.size (); ++i)
-    paintVuMeter (g, _layout.inputMeters[i], _inputLevels[i], track);
-
-  for (std::size_t i = 0; i < _outputLevels.size (); ++i)
-    paintVuMeter (g, _layout.outputMeters[i], _outputLevels[i], track);
 }
 
 void
@@ -471,7 +408,6 @@ StatusBar::paint (juce::Graphics &g)
   // Before the two keys and after the ground: they are clipped to their own
   // blocks on a refresh, so what is drawn after them here costs nothing on
   // the frames that are actually paid for.
-  paintVuMeters (g);
 
   paintMixKey (g);
 

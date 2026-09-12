@@ -135,11 +135,17 @@ TEST (MixerState, TheFilterModeReadsBackAsHighOrLow)
   EXPECT_TRUE (rig.state.filterIsHighPass ());
 }
 
-// Every value starts in the middle except the two that must not: a gain and a
-// volume at half is a guess about somebody's system, but zero is silence,
-// which is the one starting point that cannot be wrong in the direction that
-// matters.
-TEST (MixerState, GainAndVolumeStartAtZeroAndTheRestInTheMiddle)
+// Every value starts in the middle except the ones that must not: a gain, a
+// volume or a send at half is a guess about somebody's system, but zero is
+// silence, which is the one starting point that cannot be wrong in the
+// direction that matters.
+//
+// SEND joined the list on 2026-09-12. It had been coming up half open, which
+// sounds like nothing -- nothing is sent before a control is touched -- and
+// reads as something: a knob showing 0.5 and meaning 0 is, in the dark,
+// indistinguishable from one showing 0.5 and meaning it. A hand reaching to
+// open it a little would have thrown it from nothing to half.
+TEST (MixerState, TheThreeThatMustNotGuessStartAtZero)
 {
   MixerState state;
   for (auto channel = 0; channel < numChannelsInitial; ++channel)
@@ -147,10 +153,32 @@ TEST (MixerState, GainAndVolumeStartAtZeroAndTheRestInTheMiddle)
       EXPECT_FLOAT_EQ (state.channelValue (channel, MixerControl::Gain), 0.f);
       EXPECT_FLOAT_EQ (state.channelValue (channel, MixerControl::Volume),
                        0.f);
+      EXPECT_FLOAT_EQ (state.channelValue (channel, MixerControl::FxSend),
+                       0.f);
       EXPECT_FLOAT_EQ (state.channelValue (channel, MixerControl::EqMid),
                        0.5f);
     }
   EXPECT_FLOAT_EQ (state.masterValue (MasterControl::Volume), 0.f);
+}
+
+// The start and the rest position are the same question asked at two moments:
+// "where does this belong when nothing says otherwise". SEND had two different
+// answers to it in one file -- 0.5 in the constructor, 0 in
+// mixerControlRestPosition -- and a double tap therefore moved a control that
+// had never been touched.
+TEST (MixerState, AControlWithARestPositionStartsOnIt)
+{
+  MixerState state;
+  for (auto const control : mixerControlOrder)
+    {
+      auto const rest = mixerControlRestPosition (control);
+      if (!rest.has_value ())
+        continue;
+
+      for (auto channel = 0; channel < numChannelsInitial; ++channel)
+        EXPECT_FLOAT_EQ (state.channelValue (channel, control), *rest)
+            << mixerControlLabel (control);
+    }
 }
 
 // A channel outside the four is a caller's bug, not a crash: the strip is

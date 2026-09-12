@@ -518,6 +518,19 @@ MotionEngine::stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint)
 }
 
 void
+MotionEngine::holdOutputUntil (double millisecondCounter)
+{
+  _outputHeldUntil.store (millisecondCounter, std::memory_order_relaxed);
+}
+
+bool
+MotionEngine::outputHeld () const
+{
+  return juce::Time::getMillisecondCounterHiRes ()
+         < _outputHeldUntil.load (std::memory_order_relaxed);
+}
+
+void
 MotionEngine::setPreviewMode (index_t channel, bool enabled)
 {
   jassert (channel < _previewMode.size ());
@@ -654,11 +667,22 @@ MotionEngine::tickCallback ()
       = _lastSendMillis > 0. ? nowMillis - _lastSendMillis : 0.;
   _lastSendMillis = nowMillis;
 
+  // Asked once for the whole loop rather than per channel: the answer is the
+  // same for all four, and reading a clock four times to get one answer is
+  // four chances for them to disagree.
+  auto const holding = outputHeld ();
+
   // compare with last enqueued values and enqueue on change
   for (auto index = 0u; index < _channels.size (); ++index)
     {
       // Skip OSC output for channels in preview mode
       if (_previewMode[index].load (std::memory_order_relaxed))
+        continue;
+
+      // Nothing at all until Core has had its chance to answer — and
+      // nothing recorded as sent either, so what does go out afterwards is
+      // measured against what the far end really has.
+      if (holding)
         continue;
 
       auto const position = _channels[index]->getPosition ();
@@ -687,9 +711,19 @@ MotionEngine::tickCallback ()
       // sitting wherever the last session left it. Ramping from this side's
       // zero would send Core *to* zero on the first message and climb back
       // up, which is a bigger jump than the one being smoothed, in the wrong
-      // direction first. Until there is a total recall to restore Core from,
-      // one honest jump beats a fade from a fiction. See
-      // issues/a3-motion-ui-total-recall-at-startup.md.
+      // direction first. One honest jump beats a fade from a fiction.
+      //
+      // Since 2026-09-12 the recall answers for these three as well — the
+      // pots through Core's reverse table, the crossfade out of Core's own
+      // memory — and they arrive during the start-up hold, before anything
+      // has been sent. So the first value that does go out is already the far
+      // end's own, and the jump it would have been is gone.
+      //
+      // What is *not* done is priming _lastSentPot*s from it, so that first
+      // send still happens and still goes out whole: one message telling Core
+      // what Core just said. Harmless, and cheaper than reaching into the
+      // tick thread's state from the message thread.
+      // See issues/a3-motion-ui-total-recall-at-startup.md.
       auto const primed = _potsPrimed;
 
       auto const sendSlewed
@@ -719,7 +753,16 @@ MotionEngine::tickCallback ()
                   &AsyncCommandQueue::sendPot3);
     }
 
-  _potsPrimed = true;
+  // Not while the loop was skipped. "Primed" means the ramps have a value to
+  // start from, and they only do once something has actually been sent --
+  // while output is held, nothing was. Setting it anyway left every ramp
+  // starting from a zero it had never sent, and any value that happened to
+  // *be* zero was then never sent at all: it compared equal to what this side
+  // wrongly believed the far end had. Measured on the rig, 2026-09-12 --
+  // three of twelve channel values never reached Core, and they were exactly
+  // the three sitting at 0.0.
+  if (!holding)
+    _potsPrimed = true;
 }
 
 void

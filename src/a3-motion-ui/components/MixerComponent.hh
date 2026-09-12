@@ -75,14 +75,22 @@ ControlMetrics mixerControlMetrics ();
  *  left the *same channel* behaving differently in the overlay and in the MIX
  *  tab.
  *
+ *  Two taps are a different question and are answered by a different rule:
+ *  they mean "put that back", which needs no direction either, and they are
+ *  wired for exactly the controls that have somewhere to go back to. Today
+ *  that is SEND alone -- see mixerControlRestPosition for why GAIN and VOL
+ *  deliberately do not.
+ *
  *  The control is bound here rather than read out of the hit area's identity,
  *  because the two pages number their identities differently -- the overlay
  *  needs a channel in it, the strip's channel is the component's and is read
  *  at the moment of the gesture. Which channel a gesture belongs to is
  *  therefore the caller's to close over. */
-void wireMixerChannelTouch (TouchControl &touch, MixerControl control,
-                            std::function<void (MixerControl, int steps)> dragged,
-                            std::function<void (MixerControl)> tapped);
+void wireMixerChannelTouch (
+    TouchControl &touch, MixerControl control,
+    std::function<void (MixerControl, int steps)> dragged,
+    std::function<void (MixerControl)> tapped,
+    std::function<void (MixerControl)> doubleTapped = {});
 
 /** The meter timer, which runs only while its page is on screen.
  *
@@ -153,6 +161,10 @@ public:
    *  a tap flips it, because stepping a boolean is direction-tied and a tap
    *  has no direction. */
   std::function<void (int channel, MixerControl)> onChannelTapped;
+
+  /** Two taps: put this channel's control back where mixerControlRestPosition
+   *  says. Fires only for a control that has one. */
+  std::function<void (int channel, MixerControl)> onChannelDoubleTapped;
   std::function<void (MasterControl, int steps)> onMasterDragged;
   std::function<void (FilterControl, int steps)> onFilterDragged;
   std::function<void (FilterControl)> onFilterTapped;

@@ -46,6 +46,19 @@ TEST (OscAddresses, DefaultsAreWhatTheSystemHasAlwaysUsed)
   EXPECT_EQ (a.clockMode, "/clockmode");
   EXPECT_EQ (a.vuPrefix, "/vu/");
   EXPECT_EQ (a.energyRms, "/EnergyVisualizer/RMS");
+  EXPECT_EQ (a.stateRecall, "/state/recall");
+}
+
+TEST (OscAddresses, TheRecallRequestCanBePointedElsewhere)
+{
+  // The one address this device sends in order to be *told* something. It
+  // has to match what A3 Core listens for (a3-core.py's
+  // OSC_ADDRESS_RECALL); nothing here can check that, which is why it is
+  // configurable at all.
+  auto const config = juce::JSON::parse (
+      R"({"oscAddresses": {"out": {"stateRecall": "/state/again"}}})");
+
+  EXPECT_EQ (loadOscAddresses (config).stateRecall, "/state/again");
 }
 
 TEST (OscAddresses, AnEntryOnlyReplacesItsOwn)
@@ -89,6 +102,7 @@ TEST (OscAddresses, EveryFieldIsActuallyRead)
       "mixerEqMid":         "/f/{ch}/3",
       "mixerEqLow":         "/f/{ch}/4",
       "mixerVolume":        "/f/{ch}/5",
+      "mixerFxSend":        "/f/{ch}/5b",
       "mixerPfl":           "/f/{ch}/6",
       "mixerFx":            "/f/{ch}/7",
       "masterVolume":       "/g/1",

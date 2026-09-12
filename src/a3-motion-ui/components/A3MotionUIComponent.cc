@@ -101,13 +101,13 @@ constexpr std::size_t elevationFigureSamples = 96;
  *  Fast enough for a take's write head to move while it is being recorded,
  *  which is what this rate was chosen for.
  *
- *  **It is also the rate the status bar's nine meters are redrawn at**, since
- *  updateStatusBarMeters() is the first thing timerCallback() does. That is
- *  deliberately *not* vuMeterRefreshHz: the mixer's meters live on pages that
- *  come and go and have a timer each, and this bar never goes away, so its
- *  meters ride the timer that is already running rather than starting a
+ *  **It is also the rate the channel faces' signal dots are redrawn at**,
+ *  since updateInputLevelDots() is the first thing timerCallback() does. That
+ *  is deliberately *not* vuMeterRefreshHz: the mixer's meters live on pages
+ *  that come and go and have a timer each, and this bar never goes away, so
+ *  its dots ride the timer that is already running rather than starting a
  *  second one behind everything else on screen. The two rates being close but
- *  unequal is therefore a fact about where each set of meters lives, not an
+ *  unequal is therefore a fact about where each of them lives, not an
  *  oversight -- see vuMeterRefreshHz, which says the same thing from the
  *  other side. */
 constexpr int uiTimerHz = 20;
@@ -119,6 +119,18 @@ constexpr int uiTimerHz = 20;
  *  filesystem scan without anybody meaning to. */
 constexpr int libraryCheckTicks = uiTimerHz * 2;
 
+/** How long this device keeps its own position to itself at start-up, while
+ *  it waits for A3 Core to answer /state/recall.
+ *
+ *  Core is a UDP hop away -- on the rig, the same machine -- so the answer is
+ *  back in well under a millisecond when Core is up. This is not a guess at
+ *  the round trip; it is how long to wait before concluding that no answer is
+ *  coming, and then going ahead with this device's own values. Nothing is
+ *  playing yet at this point, so the wait is inaudible; what it costs is that
+ *  a rig started with Core down hears its first position a third of a second
+ *  later than it used to. */
+constexpr double recallGraceMillis = 300.;
+
 }
 
 
@@ -127,6 +139,30 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       _engine (numChannels, *_heightMap)
 {
   setLookAndFeel (&_lookAndFeel);
+
+  // First thing, before anything can tick: until Core has had its chance to
+  // say where the sound actually is, this device says nothing about it. The
+  // engine would otherwise announce all four channels the moment it runs,
+  // Core would forward that straight to the IEM plugins, and the sound would
+  // jump to this device's idea of it -- which the recall would then confirm
+  // rather than prevent. See MotionEngine::holdOutputUntil and
+  // issues/a3-motion-ui-recall-kommt-zu-spaet.md.
+  //
+  // Armed here and again in askCoreForItsState(). This one covers
+  // construction itself -- the tick handler is registered part-way through
+  // it, so a tick can fire while the rest is still being built.
+  //
+  // Measured on the rig, 2026-09-12: this arming **alone** was enough, the
+  // order came out right without the second one. It is armed twice anyway,
+  // and the reason is not belt and braces. Measured from here, the grace is
+  // a bet that everything between this line and the question -- the hardware
+  // interface, the pattern library's 39 system and 2 user patterns, the OSC
+  // setup -- fits inside 300 ms. Nobody maintains that property, and the day
+  // it stops holding, this fails silently and reads as "the recall never
+  // worked". Measured from the question, the grace is the thing it claims to
+  // be: how long to wait for an answer.
+  _engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                   + recallGraceMillis);
 
   _oscMessageHandler = std::make_unique<OscMessageHandler> (_engine, *this);
   applyOscAddresses (userConfig);
@@ -310,10 +346,26 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
           repaintMixers ();
         };
 
+  // Two taps put a control back where it belongs. Only SEND has an answer;
+  // the rest of the strip stays where the hand left it, which is why this
+  // asks the table rather than resetting whatever was tapped. See
+  // mixerControlRestPosition.
+  auto const channelDoubleTapped
+      = [this, repaintMixers] (int channel, MixerControl control) {
+          auto const rest = mixerControlRestPosition (control);
+          if (!rest.has_value ())
+            return;
+
+          _mixerState.setChannelFromTouch (channel, control, *rest);
+          repaintMixers ();
+        };
+
   _mixer->onChannelDragged = channelDragged;
   _mixer->onChannelTapped = channelTapped;
+  _mixer->onChannelDoubleTapped = channelDoubleTapped;
   _mixerStrip->onChannelDragged = channelDragged;
   _mixerStrip->onChannelTapped = channelTapped;
+  _mixerStrip->onChannelDoubleTapped = channelDoubleTapped;
   _mixer->onMasterDragged = [this, mixerStep] (MasterControl control,
                                                int steps) {
     _mixerState.setMasterFromTouch (
@@ -1059,7 +1111,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         std::cerr << "ERROR: OSC Tap Sender failed to connect" << std::endl;
 
       if (_mixerSender.connect (endpoints.host, endpoints.corePort))
-        std::cout << "OSC Sender for mixer connected to " << endpoints.host << ":" << endpoints.corePort << std::endl;
+        {
+          std::cout << "OSC Sender for mixer connected to " << endpoints.host << ":" << endpoints.corePort << std::endl;
+          askCoreForItsState ();
+        }
       else
         std::cerr << "ERROR: OSC Sender for mixer failed to connect to " << endpoints.host << ":" << endpoints.corePort << std::endl;
     }
@@ -4413,6 +4468,12 @@ A3MotionUIComponent::applySet (juce::File const &file)
 
       // Where the channel was parked. Empty on a first run, which is zero,
       // which is where they start anyway.
+      //
+      // These three are also what A3 Core answers a recall with, so both
+      // claim them. At start-up Core wins, because the recall lands after
+      // this; when a set is loaded by hand the set wins, because nothing
+      // asks Core afterwards. Decided that way on purpose -- see the long
+      // comment in askCoreForItsState().
       _engine.setChannelPot1 (index, channel.freq);
       _engine.setChannelPot2 (index, channel.q);
       _engine.setChannelPot3 (index, channel.threeD);
@@ -5094,7 +5155,7 @@ A3MotionUIComponent::timerCallback ()
   // bar that never leaves the screen has no visibility to start and stop a
   // timer on, and a second timer running for the life of the device is the
   // one thing vuMeterRefreshHz's own note argues against.
-  updateStatusBarMeters ();
+  updateInputLevelDots ();
 
   // While a take runs its write head moves, and while a clip plays its
   // playhead does. Both fill the tick indicator, so both have to be followed
@@ -5222,6 +5283,232 @@ void
 A3MotionUIComponent::onExternalBeatSync (int beat, int beatsPerBar)
 {
   _loopLengthDisplay->setExternalBeat (beat, beatsPerBar);
+}
+
+namespace
+{
+
+/** Whether a position from outside may move this channel.
+ *
+ *  A channel playing a trajectory has its own idea of where it is, four
+ *  times a bar and more; letting an outside position in would be a jump in
+ *  the middle of a movement, heard in the room. At start-up -- the case this
+ *  whole path exists for -- nothing is playing yet, so the recall lands in
+ *  full.
+ *
+ *  The cost, stated because it is invisible: a recall while a channel plays
+ *  does nothing for that channel, and says nothing about it either.
+ *
+ *  Recording is deliberately not guarded here. The blob follows the finger
+ *  through setRecording*Position on every tick, so a stray position would be
+ *  overwritten within the frame rather than fought over.
+ */
+bool
+mayBeMovedFromOutside (MotionEngine &engine, int channel)
+{
+  return engine.getPlayingPattern (static_cast<index_t> (channel)) == nullptr;
+}
+
+}
+
+/** Moves one channel, keeping the two spherical values this message does not
+ *  carry.
+ *
+ *  Azimuth and elevation arrive as two separate messages, so each one has to
+ *  leave the other alone; the distance is preserved for the same reason. It
+ *  is 1 on this device -- Channel's constructor builds fromSpherical(0, 0, 1)
+ *  -- but reading it rather than writing 1 here means this keeps working if
+ *  that ever stops being true.
+ *
+ *  Position::setAzimuth/setElevation would read better and do not exist:
+ *  Geometry.hh declares them and nothing ever defined them.
+ *
+ *  A value that is not finite is dropped. It arrives over the network, and a
+ *  NaN would reach the IEM plugins as a position.
+ */
+void
+A3MotionUIComponent::moveChannelFromOutside (int channel, float azimuth,
+                                             float elevation)
+{
+  if (!std::isfinite (azimuth) || !std::isfinite (elevation))
+    return;
+
+  if (!mayBeMovedFromOutside (_engine, channel))
+    return;
+
+  auto const index = static_cast<index_t> (channel);
+  auto const now = _engine.getChannelPosition (index);
+
+  _engine.setChannel3DPosition (
+      index, Pos::fromSpherical (azimuth, elevation, now.distance ()));
+}
+
+/** Ask A3 Core to say its whole state again.
+ *
+ *  Sent from the constructor, at the first moment there is anywhere to send
+ *  it: the receiver is bound a few lines above and the sender to Core has
+ *  just connected. Core answers with its lamps and with the position of
+ *  every channel it has heard one for -- the only place those positions
+ *  exist, since Core writes them straight to the IEM plugins and nothing
+ *  reports them back.
+ *
+ *  Without this the device comes up asserting its own idea of every channel
+ *  and the room hears the difference at once:
+ *  issues/a3-motion-ui-total-recall-at-startup.md.
+ *
+ *  The answer arrives through OSCReceiver::MessageLoopCallback, on the same
+ *  message thread this constructor runs on, so it cannot land while
+ *  construction is still going.
+ *
+ *  Sent once and never repeated. Over UDP a Core that is not up yet simply
+ *  does not answer, and the device keeps its own values -- the documented
+ *  fallback, and what happened before any of this existed. A retry would
+ *  need a notion of "did an answer arrive", which nothing here has.
+ */
+void
+A3MotionUIComponent::askCoreForItsState ()
+{
+  // WHO WINS, AND WHY IT IS NOT AN ACCIDENT.
+  //
+  // Core's answer carries freq, Q and 3d, and so does a set. Both claim the
+  // same three values, and which one the channel ends up with is decided by
+  // nothing but the order they run in. Decided by the maintainer 2026-09-12,
+  // written down here because the code only expresses it by accident:
+  //
+  //   at start-up      applySet() runs first, this answer lands after it,
+  //                    so CORE WINS -- the rig comes up where it actually
+  //                    sounds, which is the whole point of asking.
+  //   loading a set    the set is applied and nothing asks Core afterwards,
+  //                    so THE SET WINS -- you asked for those values, and a
+  //                    jump to them is the instruction, not a fault.
+  //
+  // That holds only because this is the one and only call site, and it is in
+  // the constructor. Asking again later -- on a reconnect, on a timer, from
+  // a menu -- would make Core win over a set that was just loaded by hand,
+  // silently. If you add a second call, this is the rule you are changing.
+  //
+  // Re-armed from here, where the wait for an answer actually begins. See the
+  // comment at the first arming for why this is not redundant even though the
+  // first one measured as sufficient.
+  _engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                   + recallGraceMillis);
+
+  auto message = juce::OSCMessage (_oscAddresses.stateRecall);
+  message.addFloat32 (1.f);
+  _mixerSender.send (message);
+}
+
+void
+A3MotionUIComponent::onChannelValue (
+    int channel, OscMessageHandler::Listener::ChannelValue which, float value)
+{
+  using Value = OscMessageHandler::Listener::ChannelValue;
+
+  auto const index = static_cast<index_t> (channel);
+
+  switch (which)
+    {
+    case Value::Azimuth:
+      moveChannelFromOutside (channel, value,
+                              _engine.getChannelPosition (index).elevation ());
+      return;
+
+    case Value::Elevation:
+      moveChannelFromOutside (channel,
+                              _engine.getChannelPosition (index).azimuth (),
+                              value);
+      return;
+
+    // The three that are not a position. No playing-channel guard on these:
+    // a clip moves a channel through the room, it does not turn its filter
+    // or its spread -- those are the hand's, and nothing here fights over
+    // them. The start-up hold is what keeps them quiet until Core answers.
+    case Value::Pot1:
+      if (std::isfinite (value))
+        _engine.setChannelPot1 (index, value);
+      return;
+
+    case Value::Pot2:
+      if (std::isfinite (value))
+        _engine.setChannelPot2 (index, value);
+      return;
+
+    case Value::ThreeD:
+      if (std::isfinite (value))
+        _engine.setChannelPot3 (index, value);
+      return;
+    }
+}
+
+void
+A3MotionUIComponent::repaintMixerPages ()
+{
+  // Both pages read the same MixerState and either may be the one on screen,
+  // so a value from the wire repaints both. The overlay's four strips and the
+  // bar's one are the same mixer seen twice; repainting only the visible one
+  // would mean the other carried a stale picture until something else
+  // happened to touch it.
+  if (_mixer)
+    _mixer->repaint ();
+  if (_mixerStrip)
+    _mixerStrip->repaint ();
+}
+
+void
+A3MotionUIComponent::onMixerChannelValue (int channel, int slot, float value)
+{
+  // What A3 Core relays back from REAPER for the channel strip. Five of the
+  // eight arrive today -- gain, the three bands, volume -- and the strip used
+  // to come up at its own defaults and stay there, which is how GAIN and VOL
+  // came to read zero on a rig that was making sound.
+  if (!std::isfinite (value))
+    return;
+
+  if (channel < 0 || channel >= static_cast<int> (_engine.getNumChannels ()))
+    return;
+
+  if (slot < 0 || slot >= numMixerControls)
+    return;
+
+  auto const control = mixerControlOrder[static_cast<std::size_t> (slot)];
+
+  // setChannelFromPeer, never setChannelFromTouch. The difference is the
+  // whole provision MixerState was given for this: a value from a finger is
+  // set *and* sent, a value from the wire is set and not sent. Sending it
+  // back would have Core report, Motion set, Motion send, Core report --
+  // which is the loop a3_core_echo.py exists to suppress, rebuilt from this
+  // side and out of its reach.
+  _mixerState.setChannelFromPeer (channel, control, value);
+  repaintMixerPages ();
+}
+
+void
+A3MotionUIComponent::onMasterValue (int slot, float value)
+{
+  // The summing section. Nothing here belonged to a channel, so A3 Core had
+  // no way back for any of it until 2026-09-12 and this page showed its own
+  // defaults for as long as it existed.
+  if (!std::isfinite (value) || slot < 0 || slot >= numMasterControls)
+    return;
+
+  _mixerState.setMasterFromPeer (
+      masterControlOrder[static_cast<std::size_t> (slot)], value);
+  repaintMixerPages ();
+}
+
+void
+A3MotionUIComponent::onFilterValue (int slot, float value)
+{
+  // The one filter all four channels share. /fx/mode arrives as a number --
+  // 1 is high pass -- which is the spelling this device sends on that same
+  // address; the word the desk's LED reads travels /fx/led and never comes
+  // here.
+  if (!std::isfinite (value) || slot < 0 || slot >= numFilterControls)
+    return;
+
+  _mixerState.setFilterFromPeer (
+      filterControlOrder[static_cast<std::size_t> (slot)], value);
+  repaintMixerPages ();
 }
 
 // ── Global Settings helpers ──────────────────────────────────────────────────────
@@ -6451,18 +6738,21 @@ A3MotionUIComponent::updateStatusBarPlayheads ()
 
 /** Every meter the status bar draws, read at one moment.
  *
- *  One reading of the clock for all nine, the way the mixer page does it:
- *  nine meters each asking the time would draw nine slightly different
- *  moments, and a peak mark that expired between two bars of the same picture
- *  is a picture that contradicts itself.
+ *  One reading of the clock for all four: four dots each asking the time
+ *  would draw four slightly different moments of one picture.
  *
- *  Unconditional, unlike the clip settings below it. Whether a level is
- *  moving is not something this side can know without looking at it, and the
- *  bar itself only repaints where a level actually changed. */
+ *  Unconditional. Whether a level is moving is not something this side can
+ *  know without looking at it, and the bar itself only repaints where a dot
+ *  would actually be drawn differently.
+ *
+ *  It fed nine bars in the status bar until 2026-09-12 -- these four and the
+ *  five outputs. The outputs went to the MIX page, where the same five have
+ *  always been; these four went to the channel faces, which is where a hand
+ *  looking for a channel already looks. */
 void
-A3MotionUIComponent::updateStatusBarMeters ()
+A3MotionUIComponent::updateInputLevelDots ()
 {
-  if (!_statusBar)
+  if (!_clipSettings)
     return;
 
   auto const now = vuNowMs ();
@@ -6471,11 +6761,7 @@ A3MotionUIComponent::updateStatusBarMeters ()
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     inputs[static_cast<size_t> (channel)] = _vuLevels.channel (channel, now);
 
-  std::array<VuLevel, numOutputMeters> outputs;
-  for (int meter = 0; meter < numOutputMeters; ++meter)
-    outputs[static_cast<size_t> (meter)] = _vuLevels.output (meter, now);
-
-  _statusBar->setVuLevels (inputs, outputs);
+  _clipSettings->setInputLevels (inputs);
 }
 
 void
