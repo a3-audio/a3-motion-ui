@@ -753,7 +753,16 @@ MotionEngine::tickCallback ()
                   &AsyncCommandQueue::sendPot3);
     }
 
-  _potsPrimed = true;
+  // Not while the loop was skipped. "Primed" means the ramps have a value to
+  // start from, and they only do once something has actually been sent --
+  // while output is held, nothing was. Setting it anyway left every ramp
+  // starting from a zero it had never sent, and any value that happened to
+  // *be* zero was then never sent at all: it compared equal to what this side
+  // wrongly believed the far end had. Measured on the rig, 2026-09-12 --
+  // three of twelve channel values never reached Core, and they were exactly
+  // the three sitting at 0.0.
+  if (!holding)
+    _potsPrimed = true;
 }
 
 void
