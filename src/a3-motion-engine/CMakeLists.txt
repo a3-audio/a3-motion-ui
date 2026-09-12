@@ -7,8 +7,7 @@ target_link_libraries(juce_dependencies
         juce::juce_osc
         juce::juce_core
         juce::juce_recommended_config_flags
-        juce::juce_recommended_warning_flags
-        juce::juce_recommended_lto_flags)
+        juce::juce_recommended_warning_flags)
 
 target_compile_definitions(juce_dependencies
     PUBLIC
@@ -33,6 +32,10 @@ juce_generate_juce_header("a3-motion-engine")
 target_sources("a3-motion-engine" PRIVATE
     UserConfig.cc
     UserConfig.hh
+    OscAddresses.cc
+    OscAddresses.hh
+    OscEndpoints.cc
+    OscEndpoints.hh
     MotionEngine.cc
     MotionEngine.hh
     AsyncCommandQueue.cc
@@ -41,12 +44,36 @@ target_sources("a3-motion-engine" PRIVATE
     Channel.hh
     Measure.cc
     Measure.hh
+    ActionScript.cc
+    ClipFile.cc
+    ClipMigration.cc
+    ClipSettings.cc
+    RecordingName.cc
+    SplitFolder.cc
     Pattern.cc
+    RecordingSpans.cc
+    RecordingSeam.cc
+    PlaybackRate.cc
+    ActionScript.hh
+    ClipFile.hh
+    ClipMigration.hh
+    ClipSettings.hh
     Pattern.hh
     PatternGenerator.cc
     PatternGenerator.hh
-    Master.cc
-    Master.hh
+    Playhead.cc
+    PatternFile.cc
+    TrajectoryBridges.cc
+    TrajectoryShape.cc
+    ClipLocks.cc
+    TrajectoryShaping.cc
+    TrajectorySpin.cc
+    TempoLfo.cc
+    Envelope.cc
+    RecMode.cc
+    PatternFile.hh
+    PatternLibrary.cc
+    PatternLibrary.hh
     tempo/TempoClock.cc
     tempo/TempoClock.hh
     tempo/TempoEstimator.cc
@@ -65,14 +92,15 @@ target_sources("a3-motion-engine" PRIVATE
     backends/SpatBackendA3.cc
     backends/SpatBackendA3.hh
     elevation/HeightMap.hh
-    elevation/HeightMapFlat.cc
-    elevation/HeightMapFlat.hh
     elevation/HeightMapSphere.cc
     elevation/HeightMapSphere.hh
     util/Timing.cc
     util/Timing.hh
     util/Geometry.hh
     util/Helpers.hh
+    util/SeedSpread.hh
+    util/Slew.cc
+    util/Slew.hh
     util/Helpers.cc
 )
 

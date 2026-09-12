@@ -27,18 +27,32 @@
 namespace a3
 {
 
+/**
+ * Alternate SpatBackend for the IEM plugin suite. Intentionally parked,
+ * not yet wired up: never selected in MotionEngine.cc (which hardcodes
+ * SpatBackendA3), and sendPot1/sendPot2 are stubs. Not dead code pending
+ * removal.
+ */
 class SpatBackendIEM : public SpatBackend
 {
 public:
-  SpatBackendIEM (juce::String address, int basePort);
+  SpatBackendIEM (juce::String address, int basePort,
+                  OscAddresses const &addresses);
 
   void sendPosition (index_t channel, Pos const &pos) override;
-  void sendWidth (index_t channel, float width) override;
-  void sendAmbisonicsOrder (index_t channel, int order) override;
+  void sendPot1 (index_t channel, float pot1) override;
+  void sendPot2 (index_t channel, float pot2) override;
+  void sendPot3 (index_t channel, float pot3) override;
+
+protected:
+  void addressesChanged (OscAddresses const &addresses) override;
 
 private:
   juce::String _address;
   int _basePort;
+
+  juce::String _azimuthAddress;
+  juce::String _elevationAddress;
 
   juce::OSCSender _sender;
 };

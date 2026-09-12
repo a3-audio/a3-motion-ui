@@ -1,0 +1,6 @@
+SPDX-FileCopyrightText: Institute of Electronic Music and Acoustics (IEM), Graz
+SPDX-License-Identifier: GPL-3.0-or-later
+
+Grid point coordinates of the IEM EnergyVisualizer's 426-point sphere, taken
+from https://plugins.iem.at/docs/energyvisualizergrid/EnergyVisualizerGrid.json
+The index order has to match the plugin's, so this is its data rather than ours.

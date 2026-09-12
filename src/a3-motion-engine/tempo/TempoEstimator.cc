@@ -34,6 +34,8 @@ TempoEstimator::tap (juce::int64 timeMicros)
   auto deltaT = timeMicros - timeTapLastMicros;
   timeTapLastMicros = timeMicros;
 
+  bool isFirstTap = false;
+
   if (deltaT > std::chrono::duration_cast<std::chrono::microseconds> (
                    timeBetweenTapsMax)
                    .count ())
@@ -41,6 +43,7 @@ TempoEstimator::tap (juce::int64 timeMicros)
       // juce::Logger::writeToLog ("flushing tap time queue");
       std::deque<ClockT::time_point> queueEmpty;
       std::swap (_queueTapTimes, queueEmpty);
+      isFirstTap = true;  // Queue was flushed - this is the first tap
     }
   else if (_queueTapTimes.size () == numTapsMax)
     _queueTapTimes.pop_front ();
@@ -53,6 +56,10 @@ TempoEstimator::tap (juce::int64 timeMicros)
       estimateTempo ();
       return TapResult::TempoAvailable;
     }
+
+  // First tap signals beat reset needed
+  if (isFirstTap)
+    return TapResult::FirstTap;
 
   return TapResult::TempoNotAvailable;
 }

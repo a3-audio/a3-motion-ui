@@ -1,0 +1,285 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2023 Patric Schmitz
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#include <gtest/gtest.h>
+
+#include <JuceHeader.h>
+
+#include <a3-motion-engine/TrajectoryBridges.hh>
+
+#include <algorithm>
+#include <cmath>
+
+using namespace a3;
+
+namespace
+{
+/** Three runs in a line with wide gaps between them, long enough that there
+ *  is something for a join to take over. */
+std::vector<Pos>
+threeRunsInALine ()
+{
+  std::vector<Pos> ticks;
+  auto run = [&ticks] (float x, float y) {
+    for (int i = 0; i < 20; ++i)
+      ticks.push_back (
+          Pos::fromCartesian (x + 0.005f * static_cast<float> (i), y, 0.f));
+  };
+  run (-0.7f, 0.0f);
+  run (0.4f, 0.35f);
+  run (-0.2f, -0.4f);
+  return ticks;
+}
+
+/** A short crawl along the left edge and then one jump clean across.
+ *
+ *  Ten small steps rather than two: the jump threshold is eight times the
+ *  MEDIAN step, so a fixture where half the steps are jumps has no jumps at
+ *  all -- which is true of a real take too, and worth knowing before writing
+ *  a fixture that looks nothing like one. */
+constexpr size_t crawlLength = 10;
+constexpr size_t gapAt = crawlLength - 1;
+
+std::vector<Pos>
+aRunWithOneWideGap ()
+{
+  std::vector<Pos> ticks;
+  for (size_t i = 0; i < crawlLength; ++i)
+    ticks.push_back (
+        Pos::fromCartesian (-0.9f + 0.02f * static_cast<float> (i), 0.f, 0.f));
+
+  // 1.62 from where the crawl ended.
+  ticks.push_back (Pos::fromCartesian (0.9f, 0.f, 0.f));
+  return ticks;
+}
+}
+
+/** The rule the whole feature is: the fade says how much of the take the
+ *  crossings take over.
+ *
+ *  It used to say which gaps were closed -- a gap wider than the reach stayed
+ *  a jump -- and that made most of the pot's travel do nothing at all and then
+ *  switch. What a fade should do is fill in: turn it up and the joins grow,
+ *  taking more of the trajectory's own length as they go.
+ */
+TEST (TrajectoryBridges, TheFadeSaysHowMuchOfTheTakeTheJoinsTakeOver)
+{
+  auto const ticks = threeRunsInALine ();
+
+  index_t previous = 0;
+  for (float fade : { 0.2f, 0.4f, 0.6f, 0.8f, 1.f })
+    {
+      auto const plan = planBridges (ticks, fade, 0, 1);
+      ASSERT_FALSE (plan.bridges.empty ()) << "at fade " << fade;
+
+      auto const window = plan.bridges.front ().windowTicks;
+      EXPECT_GT (window, previous)
+          << "at fade " << fade << " the join stopped growing";
+      previous = window;
+    }
+}
+
+/** And a gap's width does not decide whether it is joined. It used to: the
+ *  wide gap below is 1.62 across, which did not fit inside half a diameter, so
+ *  half a pot of travel did nothing to it. */
+TEST (TrajectoryBridges, AWideGapIsJoinedLikeAnyOther)
+{
+  auto const ticks = aRunWithOneWideGap ();
+
+  EXPECT_TRUE (planBridges (ticks, 0.5f, 0, 1).bridged (gapAt))
+      << "a gap was left open for being wide, which is the fault this fixes";
+}
+
+// The two ends of the dial, which is what the pot's travel has to mean.
+TEST (TrajectoryBridges, NothingAtZeroAndEverythingAtOne)
+{
+  auto const ticks = aRunWithOneWideGap ();
+
+  EXPECT_TRUE (planBridges (ticks, 0.f, 0, 1).bridges.empty ());
+  EXPECT_TRUE (planBridges (ticks, 1.f, 0, 1).bridged (gapAt))
+      << "full reach left a gap open";
+}
+
+// The base rule, and the one a performer can predict.
+TEST (TrajectoryBridges, WithoutBiasABridgeGoesToTheNextTickInTime)
+{
+  auto const plan = planBridges (aRunWithOneWideGap (), 1.f, 0, 1);
+  ASSERT_TRUE (plan.via (gapAt).has_value ());
+  EXPECT_EQ (*plan.via (gapAt), gapAt + 1);
+}
+
+namespace
+{
+/** Three separate runs with wide gaps between them, so a gap has more than one
+ *  place it could lead. The third run sits close to where the first one ends,
+ *  which is what makes "the nearest one" a different answer from "the next one
+ *  in time". */
+constexpr size_t runLength = 10;
+constexpr size_t endOfFirstRun = runLength - 1;
+constexpr size_t startOfSecondRun = runLength;
+constexpr size_t startOfThirdRun = 2 * runLength;
+
+std::vector<Pos>
+threeRunsApart ()
+{
+  std::vector<Pos> ticks;
+  auto run = [&ticks] (float x, float y) {
+    for (size_t i = 0; i < runLength; ++i)
+      ticks.push_back (Pos::fromCartesian (
+          x + 0.02f * static_cast<float> (i), y, 0.f));
+  };
+
+  run (-0.6f, 0.0f);   // ends at -0.42, 0
+  run (0.5f, 0.3f);    // far away
+  run (-0.3f, 0.15f);  // close to where the first one ended
+  return ticks;
+}
+}
+
+// Turned left, a bridge takes the smoothest way out it can find: the nearest
+// run, rather than the one that happens to come next in time.
+TEST (TrajectoryBridges, NegativeBiasGoesToTheNearestReachableRun)
+{
+  auto const ticks = threeRunsApart ();
+  auto const plan = planBridges (ticks, 1.f, -4, seedForTicks (ticks));
+
+  ASSERT_TRUE (plan.via (endOfFirstRun).has_value ());
+  EXPECT_EQ (*plan.via (endOfFirstRun), startOfThirdRun)
+      << "the far run was chosen over the near one";
+}
+
+// Turned to the middle, the base rule holds however far the reach goes.
+TEST (TrajectoryBridges, WithoutBiasItIsStillTheNextRunInTime)
+{
+  auto const ticks = threeRunsApart ();
+  auto const plan = planBridges (ticks, 1.f, 0, seedForTicks (ticks));
+
+  ASSERT_TRUE (plan.via (endOfFirstRun).has_value ());
+  EXPECT_EQ (*plan.via (endOfFirstRun), startOfSecondRun);
+}
+
+// What cannot be reproduced cannot be saved: the same clip at the same setting
+// has to go the same way, restart or no restart.
+TEST (TrajectoryBridges, TheSameSeedGivesTheSamePlan)
+{
+  auto const ticks = threeRunsApart ();
+  auto const seed = seedForTicks (ticks);
+
+  auto const first = planBridges (ticks, 1.f, 4, seed);
+  auto const second = planBridges (ticks, 1.f, 4, seed);
+
+  ASSERT_EQ (first.bridges.size (), second.bridges.size ());
+  for (size_t i = 0; i < first.bridges.size (); ++i)
+    {
+      EXPECT_EQ (first.bridges[i].fromTick, second.bridges[i].fromTick);
+      EXPECT_EQ (first.bridges[i].viaTick, second.bridges[i].viaTick);
+    }
+}
+
+// The seed follows the movement, not the name -- renaming a clip must not
+// change where it goes.
+TEST (TrajectoryBridges, TheSeedFollowsTheTicks)
+{
+  auto const ticks = threeRunsApart ();
+  EXPECT_EQ (seedForTicks (ticks), seedForTicks (ticks));
+
+  auto moved = ticks;
+  moved[3] = Pos::fromCartesian (0.42f, -0.3f, 0.f);
+  EXPECT_NE (seedForTicks (ticks), seedForTicks (moved));
+}
+
+// Turning the pot adds departures rather than redealing them: what strays at
+// +1 still strays at +4. A pot that reshuffled on every degree could not be
+// dialled in -- you would never get back the one you liked.
+TEST (TrajectoryBridges, TheMagnitudeMixesMonotonically)
+{
+  auto const ticks = threeRunsApart ();
+  auto const seed = seedForTicks (ticks);
+
+  auto straying = [&] (int bias) {
+    std::vector<index_t> out;
+    for (auto const &b : planBridges (ticks, 1.f, bias, seed).bridges)
+      if (b.viaTick != (b.fromTick + 1) % ticks.size ())
+        out.push_back (b.fromTick);
+    return out;
+  };
+
+  auto const gentle = straying (1);
+  auto const full = straying (4);
+
+  EXPECT_LE (gentle.size (), full.size ());
+  for (auto const tick : gentle)
+    EXPECT_NE (std::find (full.begin (), full.end (), tick), full.end ())
+        << "tick " << tick << " strayed at +1 but not at +4";
+}
+
+// With nothing else in range there is nothing to choose, so the base rule
+// holds whatever the bias says.
+TEST (TrajectoryBridges, WithNoAlternativeInRangeTheBaseRuleHolds)
+{
+  auto const ticks = aRunWithOneWideGap ();
+  auto const plan = planBridges (ticks, 0.9f, 4, seedForTicks (ticks));
+
+  ASSERT_TRUE (plan.via (gapAt).has_value ());
+  EXPECT_EQ (*plan.via (gapAt), gapAt + 1);
+}
+
+// Each gap draws for itself, and neighbouring gaps must draw differently.
+//
+// They did not: the draw was seeded `seed + at`, and juce::Random's first
+// value off two neighbouring seeds is the same value -- so at a middling bias
+// either every gap strayed or none did, and the pot was a switch wearing a
+// knob's clothes. Many gaps, one bias in the middle: some must stray and some
+// must not.
+TEST (TrajectoryBridges, AMiddlingBiasStraysOnSomeGapsAndNotOthers)
+{
+  // Twelve short runs, each thrown to the far side of the sphere from the
+  // last, so every join between them is unmistakably a jump. Strung out along
+  // one line they were not: the threshold is eight times the median step or
+  // 0.15, whichever is larger, and evenly spaced runs never clear it.
+  std::vector<Pos> ticks;
+  for (int run = 0; run < 12; ++run)
+    {
+      auto const x = run % 2 == 0 ? -0.6f : 0.6f;
+      auto const y = -0.6f + 0.1f * static_cast<float> (run);
+
+      for (int i = 0; i < 10; ++i)
+        ticks.push_back (Pos::fromCartesian (
+            x + 0.002f * static_cast<float> (i), y, 0.f));
+    }
+
+  auto const seed = seedForTicks (ticks);
+  auto const plan = planBridges (ticks, 1.f, 2, seed);
+
+  auto strayed = 0;
+  auto stayed = 0;
+  for (auto const &bridge : plan.bridges)
+    {
+      if (bridge.viaTick == (bridge.fromTick + 1) % ticks.size ())
+        ++stayed;
+      else
+        ++strayed;
+    }
+
+  ASSERT_GT (plan.bridges.size (), 8u) << "the fixture has too few gaps to say";
+  EXPECT_GT (strayed, 0) << "no gap strayed at all";
+  EXPECT_GT (stayed, 0)
+      << "every gap strayed -- the draws are not independent of each other";
+}

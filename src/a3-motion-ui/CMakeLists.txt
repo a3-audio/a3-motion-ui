@@ -27,48 +27,152 @@ target_sources("a3-motion-ui" PRIVATE
     StandaloneApp.hh
     MainWindow.cc
     MainWindow.hh
+    io/SerialReconnect.cc
+    io/SerialReconnect.hh
     io/InputOutputAdapter.cc
     io/InputOutputAdapter.hh
-    io/LEDColours.cc
-    io/LEDColours.hh
+    osc/OscMessageHandler.cc
+    osc/OscMessageHandler.hh
     components/A3MotionUIComponent.cc
     components/A3MotionUIComponent.hh
     components/LookAndFeel.cc
     components/LookAndFeel.hh
-    components/LayoutHints.cc
-    components/LayoutHints.hh
     components/StatusBar.cc
     components/StatusBar.hh
-    components/ChannelHeader.cc
-    components/ChannelHeader.hh
+    components/StatusBarLayout.cc
+    components/StatusBarLayout.hh
     components/ChannelStrip.cc
     components/ChannelStrip.hh
+    components/CoronaScaling.cc
+    components/DragAccumulator.cc
+    components/DragAccumulator.hh
+    components/ScriptBuffer.cc
+    components/ScriptBuffer.hh
+    components/TouchControl.cc
+    components/TouchControl.hh
+    components/OverlayButtons.cc
+    components/OverlayButtons.hh
+    components/OverlaySideStrips.cc
+    components/OverlaySideStrips.hh
+    components/BarButton.cc
+    components/BarButton.hh
+    components/ClipSettingsLayout.cc
+    components/BrowserComponent.cc
+    components/BrowserLayout.cc
+    components/ControllerLayout.cc
+    components/ListScroll.cc
+    components/ListScroll.hh
+    components/BrowserComponent.hh
+    components/BrowserLayout.hh
+    components/ControllerLayout.hh
+    components/ControllerComponent.cc
+    components/ControllerComponent.hh
+    theme/FunctionKeyColours.cc
+    theme/TransportLook.cc
+    theme/PadStatusColours.cc
+    components/ChannelValueReset.cc
+    components/RecordingIndicator.cc
+    components/LibraryKeys.cc
+    components/LibraryList.cc
+    theme/SkinGroups.cc
+    theme/SkinGroups.hh
+    theme/FunctionKeyColours.hh
+    theme/TransportLook.hh
+    components/ClipSettingsLayout.hh
+    components/TouchGrabs.cc
+    components/TouchGrabs.hh
+    components/SpeakerLightScaling.cc
+    components/EnergyMap.cc
+    components/SphereProjection.cc
+    components/ElevationSideView.cc
+    components/Listener.cc
+    io/ButtonLedColours.cc
+    io/OnScreenKeyboard.cc
+    io/OnScreenKeyboard.hh
+    theme/Theme.cc
+    theme/ThemeColours.cc
+    theme/ThemedComponent.cc
+    theme/SkinParameters.cc
+    theme/TextInput.cc
     components/MotionComponent.cc
     components/MotionComponent.hh
+    components/SphereShader.cc
+    components/SphereShader.hh
     components/TickIndicator.cc
+    components/TickPlayheads.cc
+    components/TickPlayheads.hh
     components/TickIndicator.hh
+    components/LoopLengthDisplay.cc
+    components/LoopLengthDisplay.hh
+    components/PadRowDisplay.cc
+    components/PadRowDisplay.hh
+    components/TrajectoryIcon.cc
+    components/TrajectoryIcon.hh
+    components/ElevationDisplay.cc
+    components/ElevationDisplay.hh
     components/DirectivityComponent.cc
     components/DirectivityComponent.hh
-    # components/PatternMenu.cc
-    # components/PatternMenu.hh
+    components/GlobalSettingsComponent.cc
+    components/ColourPickerComponent.cc
+    components/ColourPickerComponent.hh
+    components/SkinEditorComponent.cc
+    components/SkinEditorComponent.hh
+    components/GlobalSettingsComponent.hh
+    components/ClipSettingsCaptions.cc
+    components/PatternProgressBar.cc
+    components/PatternProgressBar.hh
+    components/ActionComponent.cc
+    components/ActionLayout.cc
+    components/BarKnob.cc
+    components/ColumnBreak.cc
+    components/ColumnBreak.hh
+    components/MixerControls.hh
+    components/VuMeter.cc
+    components/VuMeter.hh
+    components/MixerState.cc
+    components/MixerState.hh
+    components/MixerLayout.cc
+    components/MixerLayout.hh
+    components/MixerComponent.cc
+    components/MixerComponent.hh
+    components/MixerStripComponent.cc
+    components/MixerStripComponent.hh
+    components/FittedFont.cc
+    components/FittedFont.hh
+    components/ClipSettingsComponent.cc
+    components/ClipSettingsComponent.hh
+    ConfigFileWatcher.cc
+    ConfigFileWatcher.hh
+    SettingsPersistence.cc
+    SessionFile.cc
+    SessionFile.hh
+    SettingsPersistence.hh
     tests/TempoEstimatorTest.cc
     tests/TempoEstimatorTest.hh
 )
 
 set(HARDWARE_INTERFACE_ENABLED FALSE CACHE BOOL "Enable interfacing with hardware")
 if(${HARDWARE_INTERFACE_ENABLED})
-    set(HARDWARE_INTERFACE_VERSION "V2" CACHE STRING "Hardware interface to use, options are: V2")
+    set(HARDWARE_INTERFACE_VERSION "V3" CACHE STRING "Hardware interface to use, options are: V2, V3")
 else()
     unset(HARDWARE_INTERFACE_VERSION CACHE)
 endif()
 
 set(HARDWARE_INTERFACE_LIBRARIES "")
 set(HARDWARE_INTERFACE_V2 FALSE)
+set(HARDWARE_INTERFACE_V3 FALSE)
 if("${HARDWARE_INTERFACE_VERSION}" STREQUAL "V2")
     set(HARDWARE_INTERFACE_V2 TRUE)
     target_sources("a3-motion-ui" PRIVATE
         io/InputOutputAdapterV2.cc
         io/InputOutputAdapterV2.hh
+    )
+    set(HARDWARE_INTERFACE_LIBRARIES "serial;gpiod")
+elseif("${HARDWARE_INTERFACE_VERSION}" STREQUAL "V3")
+    set(HARDWARE_INTERFACE_V3 TRUE)
+    target_sources("a3-motion-ui" PRIVATE
+        io/InputOutputAdapterV3.cc
+        io/InputOutputAdapterV3.hh
     )
     set(HARDWARE_INTERFACE_LIBRARIES "serial;gpiod")
 endif()
@@ -80,6 +184,9 @@ target_compile_definitions("a3-motion-ui" PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1
     DONT_SET_USING_JUCE_NAMESPACE=1
+    $<$<BOOL:${HARDWARE_INTERFACE_ENABLED}>:HARDWARE_INTERFACE_ENABLED>
+    $<$<BOOL:${HARDWARE_INTERFACE_V2}>:HARDWARE_INTERFACE_V2>
+    $<$<BOOL:${HARDWARE_INTERFACE_V3}>:HARDWARE_INTERFACE_V3>
 )
 
 target_include_directories("a3-motion-ui" PUBLIC

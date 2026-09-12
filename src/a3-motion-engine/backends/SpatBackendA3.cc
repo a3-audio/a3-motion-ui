@@ -21,49 +21,90 @@
 #include "SpatBackendA3.hh"
 
 #include <JuceHeader.h>
+#include <cmath>
 
 namespace a3
 {
 
-SpatBackendA3::SpatBackendA3 (juce::String address, int port)
+SpatBackendA3::SpatBackendA3 (juce::String address, int port,
+                              OscAddresses const &addresses)
     : _address (address), _port (port)
 {
-  _sender.connect (address, port);
+  if (_sender.connect (address, port))
+    std::cout << "OSC Sender connected to " << address << ":" << port << std::endl;
+  else
+    std::cerr << "ERROR: OSC Sender failed to connect to " << address << ":" << port << std::endl;
+
+  // Not through setAddresses(): nothing else exists yet to race with, and
+  // the cache has to be there before the first send.
+  addressesChanged (addresses);
+}
+
+void
+SpatBackendA3::addressesChanged (OscAddresses const &addresses)
+{
+  // Pre-cache OSC address patterns to avoid heap allocation per send
+  for (int ch = 0; ch < kMaxChannels; ++ch)
+    {
+      _azimuthPatterns[ch] = withChannel (addresses.channelAzimuth, ch);
+      _elevationPatterns[ch] = withChannel (addresses.channelElevation, ch);
+      _pot1Patterns[ch] = withChannel (addresses.channelPot1, ch);
+      _pot2Patterns[ch] = withChannel (addresses.channelPot2, ch);
+      _pot3Patterns[ch] = withChannel (addresses.channelThreeD, ch);
+    }
 }
 
 void
 SpatBackendA3::sendPosition (index_t channel, Pos const &pos)
 {
+  jassert (channel < kMaxChannels);
+  
+  float az = pos.azimuth();
+  float el = pos.elevation();
+  
+  // Deduplicate: skip if values haven't changed significantly
+  float dAz = std::abs(az - _lastAzimuth[channel]);
+  float dEl = std::abs(el - _lastElevation[channel]);
+  
+  if (dAz < kAngleTolerance && dEl < kAngleTolerance)
+    return;  // Skip duplicate send
+  
+  _lastAzimuth[channel] = az;
+  _lastElevation[channel] = el;
+  
   juce::OSCBundle bundle;
 
-  auto const azimuthPattern
-      = juce::String ("/channel/") + juce::String (channel) + "/azimuth";
-  auto message = juce::OSCMessage (azimuthPattern, pos.azimuth ());
+  auto message = juce::OSCMessage (_azimuthPatterns[channel], az);
   bundle.addElement ({ message });
 
-  auto const elevationPattern
-      = juce::String ("/channel/") + juce::String (channel) + "/elevation";
-  message = juce::OSCMessage (elevationPattern, pos.elevation ());
+  message = juce::OSCMessage (_elevationPatterns[channel], el);
   bundle.addElement ({ message });
 
-  _sender.sendToIPAddress (_address, _port, bundle);
+  if (!_sender.sendToIPAddress (_address, _port, bundle))
+    std::cerr << "OSC send failed for channel " << channel << std::endl;
 }
 
 void
-SpatBackendA3::sendWidth (index_t channel, float width)
+SpatBackendA3::sendPot1 (index_t channel, float pot1)
 {
-  auto const widthPattern
-      = juce::String ("/channel/") + juce::String (channel) + "/width";
-  auto message = juce::OSCMessage (widthPattern, width);
+  jassert (channel < kMaxChannels);
+  auto message = juce::OSCMessage (_pot1Patterns[channel], pot1);
   _sender.sendToIPAddress (_address, _port, message);
 }
 
 void
-SpatBackendA3::sendAmbisonicsOrder (index_t channel, int order)
+SpatBackendA3::sendPot2 (index_t channel, float pot2)
 {
-  auto const widthPattern
-      = juce::String ("/channel/") + juce::String (channel) + "/order";
-  auto message = juce::OSCMessage (widthPattern, order);
+  jassert (channel < kMaxChannels);
+  auto message = juce::OSCMessage (_pot2Patterns[channel], pot2);
+  _sender.sendToIPAddress (_address, _port, message);
+}
+
+void
+SpatBackendA3::sendPot3 (index_t channel, float pot3)
+{
+  jassert (channel < kMaxChannels);
+  auto message = juce::OSCMessage (_pot3Patterns[channel], pot3);
   _sender.sendToIPAddress (_address, _port, message);
 }
 }

@@ -1,0 +1,253 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2023 Patric Schmitz
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#include <gtest/gtest.h>
+
+#include <JuceHeader.h>
+
+#include <a3-motion-engine/MotionEngine.hh>
+#include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/elevation/HeightMapSphere.hh>
+
+using namespace a3;
+
+namespace
+{
+
+TEST (MotionEngine, TempoFacadeForwardsToTempoClock)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  // Defaults come straight from TempoClock's own defaults.
+  EXPECT_EQ (engine.getBeatsPerBar (), 4);
+
+  engine.setTempoBPM (140.f);
+  EXPECT_FLOAT_EQ (engine.getTempoBPM (), 140.f);
+
+  // First tap after construction always reports FirstTap (per
+  // TempoClock::TapResult's own semantics — this just confirms the facade
+  // reaches the real TempoClock instance, not a copy).
+  auto const result = engine.tap (juce::Time::getHighResolutionTicks ());
+  EXPECT_EQ (result, TempoClock::TapResult::FirstTap);
+
+  // TempoClock::reset() only resets metrical position (bar/beat/tick),
+  // never the tempo itself — this just confirms resetTempo() reaches the
+  // real instance and doesn't accidentally clear BPM as a side effect.
+  engine.resetTempo ();
+  EXPECT_FLOAT_EQ (engine.getTempoBPM (), 140.f);
+}
+
+
+// The first tap is supposed to put the beat back to 1. TempoClock::tap() calls
+// reset() for it, and the clock's timer thread applies that by zeroing its
+// measure and emitting Tick/Beat/Bar. This walks that whole path, because
+// reading it told us nothing — every link looked correct while the rig still
+// showed the beat not resetting in INT mode.
+TEST (MotionEngine, FirstTapPutsTheBeatBackToOne)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  std::atomic<int> lastBeat{ -1 };
+  std::atomic<int> beatCallbacks{ 0 };
+
+  auto handle = engine.getTempoClock ().scheduleEventHandlerAddition (
+      [&lastBeat, &beatCallbacks] (Measure measure) {
+        lastBeat = static_cast<int> (measure.beat ());
+        ++beatCallbacks;
+      },
+      TempoClock::Event::Beat, TempoClock::Execution::TimerThread);
+
+  // Let the clock run far enough into a bar that a reset is visible as a
+  // change rather than as the state it was already in.
+  engine.setTempoBPM (240.f);
+  juce::Thread::sleep (600);
+  ASSERT_GT (beatCallbacks.load (), 0) << "the clock is not ticking at all";
+
+  auto const before = beatCallbacks.load ();
+  engine.tap (juce::Time::getHighResolutionTicks ());
+  juce::Thread::sleep (100);
+
+  EXPECT_GT (beatCallbacks.load (), before)
+      << "the tap produced no beat event, so reset() never reached the timer";
+  EXPECT_EQ (lastBeat.load (), 0)
+      << "the beat did not go back to the start of the bar";
+}
+
+
+// Dragging a blob writes the channel's position; playback writes it again on
+// the very next tick. Both were doing it, so a clip that was running fought
+// the finger — the blob sat under it and slid back out from under it, which
+// reads as "hard to move".
+
+// Between start-up and the answer to /state/recall, this device must keep its
+// own idea of where the sound is to itself. The engine announces every
+// channel's position as soon as it runs; A3 Core forwards it straight to the
+// IEM plugins, so the sound jumps to this device's idea before anyone has
+// asked where it actually was — and Core then answers with what it was just
+// told, confirming the jump instead of preventing it. Measured on 2026-09-12,
+// see issues/a3-motion-ui-recall-kommt-zu-spaet.md.
+//
+// A deadline, not a switch. The failure mode of a switch is a device that
+// never sends a position again, which is worse than the jump it was meant to
+// stop. And an *absolute* deadline rather than a duration, so that a test can
+// ask about one that has already passed without sleeping through it — this
+// suite has enough timing flakiness already.
+
+TEST (MotionEngine, OutputIsNotHeldToBeginWith)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  EXPECT_FALSE (engine.outputHeld ());
+}
+
+TEST (MotionEngine, ADeadlineInTheFutureHoldsOutput)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                  + 60000.);
+
+  EXPECT_TRUE (engine.outputHeld ());
+}
+
+TEST (MotionEngine, ADeadlineThatHasPassedReleasesItself)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                  - 1.);
+
+  EXPECT_FALSE (engine.outputHeld ());
+}
+
+TEST (MotionEngine, AHoldCanBeLiftedBeforeItRunsOut)
+{
+  // Nothing lifts it today — the deadline is meant to run out on its own —
+  // but a hold with no way back would be the one bug that silences the
+  // device, so the way back is pinned here rather than left to be discovered.
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                  + 60000.);
+  ASSERT_TRUE (engine.outputHeld ());
+
+  engine.holdOutputUntil (0.);
+
+  EXPECT_FALSE (engine.outputHeld ());
+}
+
+TEST (MotionEngine, AHoldDoesNotStopThePositionItselfFromMoving)
+{
+  // It holds the *output*, not the channel. The whole point is that a
+  // position arriving from Core during the hold reaches the blob; only this
+  // device's own announcements are kept in.
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
+                                  + 60000.);
+
+  auto const fromCore = Pos::fromSpherical (120.f, 0.f, 1.f);
+  engine.setChannel3DPosition (2, fromCore);
+
+  EXPECT_NEAR (engine.getChannelPosition (2).x (), fromCore.x (), 0.0001f);
+  EXPECT_NEAR (engine.getChannelPosition (2).y (), fromCore.y (), 0.0001f);
+}
+
+TEST (MotionEngine, AHeldChannelKeepsThePositionItWasGiven)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  auto const held = Pos::fromCartesian (0.3f, 0.2f, 0.9f);
+
+  engine.setChannelPositionHeld (0, true);
+  engine.setChannel3DPosition (0, held);
+
+  EXPECT_TRUE (engine.isChannelPositionHeld (0));
+  EXPECT_NEAR (engine.getChannelPosition (0).x (), held.x (), 0.0001f);
+  EXPECT_NEAR (engine.getChannelPosition (0).y (), held.y (), 0.0001f);
+}
+
+// And letting go hands it back: the clip carries on from wherever it is,
+// rather than the channel staying wherever the finger left it.
+TEST (MotionEngine, ReleasingAChannelEndsTheHold)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.setChannelPositionHeld (0, true);
+  EXPECT_TRUE (engine.isChannelPositionHeld (0));
+
+  engine.setChannelPositionHeld (0, false);
+  EXPECT_FALSE (engine.isChannelPositionHeld (0));
+}
+
+// A take is armed on the Record button but only starts on the next downbeat,
+// which at a slow tempo is seconds away. In that gap the finger has to already
+// belong to the take: the user puts it down and starts moving before the beat
+// arrives, and expects the blob to come with it. Asking isRecording() there
+// answers "no" — the take has not begun — and the finger falls back to the
+// ordinary grab, which only takes a blob it lands close enough to and which
+// the still-playing old clip keeps dragging away. That is what reads as
+// "I cannot grab the blob straight away" and then "the blob stands still".
+
+TEST (MotionEngine, AnArmedTakeOwnsTheFingerBeforeItsDownbeat)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  auto pattern = std::make_shared<Pattern> ();
+  pattern->setChannel (0);
+  pattern->resize (64);
+
+  engine.setTempoBPM (60.f);
+
+  // Far enough out that the take is certainly still waiting when we look.
+  auto const timepoint = Measure{ 8, 0, 0 };
+  engine.recordPattern (pattern, timepoint, Measure{ 1, 0, 0 });
+  juce::Thread::sleep (100);
+
+  EXPECT_FALSE (engine.isRecording ())
+      << "the take must not have started yet for this test to mean anything";
+  EXPECT_TRUE (engine.isRecordingOrScheduled ())
+      << "an armed take does not claim the finger, so the finger grabs instead";
+}
+
+TEST (MotionEngine, HoldingOneChannelLeavesTheOthersAlone)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+
+  engine.setChannelPositionHeld (2, true);
+
+  EXPECT_FALSE (engine.isChannelPositionHeld (0));
+  EXPECT_FALSE (engine.isChannelPositionHeld (1));
+  EXPECT_TRUE (engine.isChannelPositionHeld (2));
+  EXPECT_FALSE (engine.isChannelPositionHeld (3));
+}
+
+}

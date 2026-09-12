@@ -36,6 +36,10 @@ struct ChannelUIState
 
   bool isRecording = false;
   float progress = 1.f;
+
+  // VU meter level (0.0 - 1.0), received via OSC
+  std::atomic<float> vuLevel{ 0.f };
+  std::atomic<float> vuPeak{ 0.f };
 };
 
 }

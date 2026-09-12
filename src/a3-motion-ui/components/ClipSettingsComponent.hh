@@ -1,0 +1,725 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2023 Patric Schmitz
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#pragma once
+
+#include <JuceHeader.h>
+
+#include <array>
+#include <functional>
+#include <memory>
+#include <vector>
+
+#include <a3-motion-engine/RecMode.hh>
+
+// For AppSettings, which is where the speed keys' four values live.
+#include <a3-motion-ui/SettingsPersistence.hh>
+
+#include <a3-motion-ui/theme/Theme.hh>
+
+#include <a3-motion-ui/components/ClipSettingsCaptions.hh>
+#include <a3-motion-ui/components/ClipSettingsLayout.hh>
+#include <a3-motion-ui/components/VuMeter.hh>
+#include <a3-motion-ui/components/ElevationSideView.hh>
+#include <a3-motion-ui/components/TouchControl.hh>
+#include <a3-motion-ui/components/TrajectoryIcon.hh>
+#include <a3-motion-ui/theme/ThemeColours.hh>
+#include <a3-motion-ui/theme/FunctionKeyColours.hh>
+#include <a3-motion-ui/theme/ThemedComponent.hh>
+
+namespace a3
+{
+
+/**
+ * ClipSettingsComponent
+ *
+ * Permanent bottom panel showing the last-selected clip's settings, as 4
+ * vertical sections side by side (Shape, Elevation, Motion, Filter). The
+ * leftmost section (Shape) shows a pictogram of the loaded pattern with
+ * its name underneath; the second (Elevation) shows a small side-view
+ * sphere graphic (listener's head at the centre, grey bands for the
+ * clip-top/clip-bottom excluded zones, and a solid marker line at the
+ * reach cone's edge — or, in flat mode, a single flat elevation line
+ * instead) on top of six small controls: reach, clip-top, clip-bottom
+ * (rotary knobs), mirror-south, flat (toggles), and flat-elevation (rotary
+ * knob, only meaningful while flat is on) — see Pattern::getReach()/
+ * getMirrorSouth()/getClipTop()/getClipBottom()/getFlat()/
+ * getFlatElevation(). Strictly monotonic model: the centre of the recorded
+ * 2D trajectory always maps to the pole (mirror-south picks which one),
+ * the disc's edge always maps to `reach`'s point — no folding or
+ * base-point interaction, unlike the wrap/elevation scheme this replaced.
+ * All Elevation controls are visible in parallel, with whichever one the
+ * Pot-Encoder currently edits highlighted (the graphic highlights too,
+ * whenever the highlighted control affects it). Motion (Speed/Direction/
+ * End-Action) and Filter (Freq/Q) use the same small-control style —
+ * Freq/Q as rotary knobs, Speed/Direction/End-Action as value displays
+ * showing their current name or note value instead of a knob (Speed is
+ * quantized to note values, and a knob angle says nothing a reader of
+ * "1/4" does not already know) — laid out in a single row per section
+ * since there's no graphic to share space with. Every knob/toggle
+ * across every section (Elevation included) is given the same fixed-size
+ * bounds — see controlBounds() — sized to fit Elevation's tightest layout
+ * (graphic + 2x3 grid) and reused as-is (centred, with extra margin) by
+ * Motion/Filter's roomier single-row layouts, rather than each stretching
+ * to fill its own section's grid cell; a control's caption sits directly
+ * below it, and a value display's value directly above its caption. That
+ * shared size scales with the skin's potSize, and its text separately via
+ * the theme's font scale — both driven by their own Global Settings
+ * options ("Pot Size"/"Font Size"), adjustable live without a rebuild.
+ * Every caption in the bar is drawn at one size, from the tightest
+ * caption box across all sections (see sharedCaptionSize()); fitting each
+ * caption to its own box instead made short captions like "Q" several
+ * times the height of the long ones beside them. The values share a
+ * second size the same way (see sharedValueSize()), which is what brought
+ * the lone "1" in the Motion section back into proportion.
+ * Section headings are deliberately small (see paintSectionLabel()) so
+ * most of each section's height goes to its controls. Driven by two
+ * per-channel encoders in A3MotionUIComponent: the Motion-Encoder scrolls
+ * which section is selected, the Pot-Encoder changes that section's
+ * (sub-)value — this component only renders whatever it's told via
+ * setTrajectoryIcon()/setElevationReach()/setMotionSpeed()/
+ * setFilterSweep()/setSelectedParameterIndex() etc., it holds no logic of
+ * its own. Sizing is derived from whatever bounds the parent gives it (see
+ * A3MotionUIComponent::resized()), not a fixed pixel height.
+ */
+class ClipSettingsComponent : public juce::Component,
+                              public ThemedComponent,
+                              private juce::Timer
+{
+public:
+  /** How many sections describe the shown clip. They and the global strip
+   *  beside them share the bar's width equally. */
+  static constexpr int numClipSections = 3;
+
+  /** Stops the Motion-Encoder scrolls through: the clip's sections, then the
+   *  global strip. */
+  static constexpr int numParameters = numClipSections + 1;
+
+  static constexpr int trajectoryIndex = 0; // leftmost, pictogram section
+  static constexpr int elevationIndex = 1;  // sphere/coverage section
+  static constexpr int motionIndex = 2;     // speed/direction/end-action
+  static constexpr int globalIndex = 3;     // rightmost, not the clip's
+
+  /** How wide one of the clip's four sections is, given the width the row of
+   *  sections has to share.
+   *
+   *  Five equal parts: the four sections and the global strip beside them.
+   *  The strip used to be half a section — an aside rather than a section of
+   *  its own — but it now carries the Menu/Rec/Tap buttons, and a finger
+   *  needs a target the size of a finger. */
+  static constexpr int
+  clipSectionWidth (int rowWidth)
+  {
+    return rowWidth * 3 / 4 / numClipSections;
+  }
+
+  explicit ClipSettingsComponent ();
+
+  /** Which channel/clip-slot the panel currently describes, and that
+   *  channel's colour (drawn as a frame + section accents). */
+  void setTarget (int channel, int slot, juce::Colour channelColour);
+
+  /** Pictogram + name shown in the Shape section. */
+  /** The recording mode, shown in the global strip. Not a clip setting: it is
+   *  the same for every channel, which is why it sits apart from them. */
+  void setRecMode (RecMode mode);
+  /** What the four speed keys carry, left to right. Handed in rather than
+   *  looked up: the values are the performer's and are kept where the rest of
+   *  the device's habits are kept. */
+  void setSpeedButtons (std::array<int, numSpeedButtons> const &speeds);
+  /** Whether the main menu is showing, so its key can say so. */
+  void setMenuOpen (bool open);
+
+  /** Whether a slot has drifted from the clip it was filled from. Shown as a
+   *  small mark on its key: without it you would never know whether Save is
+   *  about to do anything. */
+  void setSlotDrifted (index_t slot, bool drifted);
+
+  void setTrajectoryIcon (TrajectoryIconData const &icon);
+  void setTrajectoryName (juce::String const &name);
+
+  /** What the clip field says: the name of the settings the slot is played
+   *  with, and whether they have been turned since they were loaded.
+   *
+   *  Not the shape's name -- that is over the picture, where the control that
+   *  changes it is. An empty name is a slot playing a figure with no clip
+   *  behind it, which is a thing you can be in and worth being able to see. */
+  void setClipName (juce::String const &name, bool drifted);
+
+  /** Which of the three sections is being held. A held section is one nothing
+   *  writes over -- see ClipLocks, where what that means per field lives. */
+  void setLocks (bool shape, bool elevation, bool motion);
+
+
+  /** Elevation section values, shown as six small controls, always visible
+   *  together. reach/clipTop/clipBottom/flatElevation are unipolar
+   *  (0..1); mirrorSouth/flat are booleans. */
+  /** `swept` is where the swell has carried the coverage: the pointer stays on
+   *  what the hand set and the arc between them fills, the same rule spin
+   *  follows on rotate and the accent follows on 3d. One idea, said the same
+   *  way everywhere, so a blue arc always means "something is moving this". */
+  void setElevationReach (float reach, float swept = -1.f);
+  /** Where the middle of the trajectory sits, 0 north and 1 south -- the one
+   *  line in the graphic a finger sets. */
+  /** Where the middle of the trajectory sits, and where the sway is holding
+   *  it right now. A `swept` below zero means it is standing still: the
+   *  graphic then draws the line alone, with nothing filled beside it. */
+  void setElevationBase (float base, float swept = -1.f);
+  void setElevationMirrorSouth (bool mirrorSouth);
+  void setElevationClipTop (float clipTop);
+  void setElevationClipBottom (float clipBottom);
+  void setElevationFlat (bool flat);
+  void setElevationFlatElevation (float flatElevation);
+
+  /** The clip's figure, as the side-on circle draws it: where the sound
+   *  actually goes, height by height, with the reach and the sway already in
+   *  it. The sphere above says where in the room the figure is; this says how
+   *  high it runs, which is the one thing the overhead view cannot show.
+   *
+   *  Pushed already mapped rather than as a shape to be mapped here: the
+   *  engine's own mapping is the only one that can be right, and there is
+   *  exactly one of it. */
+  void setElevationFigure (std::vector<ElevationSidePoint> figure);
+
+  /** And where on that figure the sound is at this moment. `valid` is false
+   *  when the slot is not playing, and then no ball is drawn -- an empty
+   *  circle says "nothing is running" better than a ball parked somewhere
+   *  does. */
+  void setElevationHead (ElevationSidePoint head, bool valid);
+
+  /** Where the sphere above is being looked at from. The circle is a second
+   *  view of the same room, kept a quarter turn from it, so it has to be told
+   *  when that one moves. */
+  void setSphereCamera (SphereCamera camera);
+
+  /** Which of the Elevation section's 6 controls (0 = reach, 1 = clip-top,
+   *  2 = clip-bottom, 3 = mirror-south, 4 = flat, 5 = flat-elevation) the
+   *  Pot-Encoder currently edits, cycled by pressing it. All six are always
+   *  shown; this only controls which one is highlighted. */
+  void setElevationSubIndex (int subIndex);
+
+  /** Motion section values. Speed is quantized to musical note-value
+   *  fractions/multiples of a bar rather than a free value — the caller
+   *  (A3MotionUIComponent, which owns the actual speedLog2 range) passes
+   *  an already-normalized knob position (0..1) plus the formatted label
+   *  to show above the knob (e.g. "1/4", "2"), so this component doesn't
+   *  need to know the underlying range. direction/endAction are discrete
+   *  (0..2), shown as toggles with their state name. */
+  void setMotionSpeed (float normalizedFrac, juce::String const &label);
+  void setMotionDirection (int direction);
+  void setMotionEndAction (int endAction);
+  void setMotionActMode (int mode);
+
+  /** The four faces: what colour each channel is, which slot it is showing,
+   *  and which of them is the one the bar describes. */
+  void setChannelFaces (std::array<juce::Colour, numChannelColumns> colours,
+                        std::array<int, numChannelColumns> slots,
+                        int shownChannel);
+
+  /** Which of the Motion section's 3 controls (0 = speed, 1 = direction,
+   *  2 = end-action) the Pot-Encoder currently edits, cycled by pressing
+   *  it. All three are always shown; this only controls highlighting. */
+  void setMotionSubIndex (int subIndex);
+
+  /** Which stretch-filling a take will use — 0 glide, 1 hard. */
+  /** How far a gap may be for the fade to draw through it, 0..1. */
+  void setMotionFadeReach (float reach);
+
+  /** Where a drawn-through gap leads, -4..+4. */
+  void setMotionBridgeBias (int bias);
+
+  /** How far the figure is squeezed along each horizontal axis, bipolar with
+   *  the middle at zero. X is front-back (the screen's vertical), Y
+   *  left-right -- see PlaneShaping. */
+  void setMotionSqueeze (float squeezeX, float squeezeY, float sweptX = -2.f,
+                         float sweptY = -2.f);
+  /** Each squeeze's own sweep, as signed TempoLfo steps. */
+  void setMotionStretch (int x, int y);
+
+  /** The clip's three slow sweeps, as signed TempoLfo steps: how fast the
+   *  figure turns under the blob, how fast reach opens and closes, how fast
+   *  the elevation base travels. Zero is off for all three.
+   *
+   *  One setter, two sections. Each sweep is drawn beside the value it works
+   *  on -- spin under rot, swell beside reach, sway under the graphic whose
+   *  line it travels -- because a sweep says what it does only when it stands
+   *  next to what it does it to. */
+  void setSweeps (int spin, int swell, int sway);
+
+  /** The accent's shape, as Envelope steps: how long it rises while ACT is
+   *  held, how long it falls once let go. */
+  void setMotionEnvelope (int attackStep, int decayStep);
+
+  /** How far the accent throws, 0..1 — the 3d it rises to. */
+  void setMotionEnvelopeMax (float value);
+
+  /** Which way the clip's shape faces, in revolutions, and where the spin has
+   *  carried it. The pointer sits on the first and the arc runs to the second
+   *  — the spin remote-controls the rotation, so the knob shows the hand's
+   *  value and the movement over it at once. */
+  void setShapeRotate (float rotate, float reach);
+
+  /** Which speed button reads as in force, as a speedLog2. */
+  void setShapeSpeed (int speedLog2);
+
+  /** ACT went down or came up on the bar. Held, like the pad: the accent
+   *  stays up for as long as it does. */
+  std::function<void (bool held)> onAccentHeld;
+
+  /** The length the next take will have, already worded ("2", "1/4"), and
+   *  which of the shape section's two elements is armed. */
+  void setRecordLength (juce::String const &label);
+  void setTrajectorySubIndex (int subIndex);
+
+
+  /** One channel's three values in the global section's grid — freq, Q and
+   *  the third one ("3d"), all unipolar (0..1). These belong to the channel,
+   *  not to the clip the bar happens to show, which is why they sit in the
+   *  global section rather than in a section of the clip's. */
+  /** A channel's three grid values, each with what is carrying it.
+   *
+   *  Every one comes twice: what was set, which the pointer stands on, and
+   *  what is going out, which is the set value with its envelope laid over
+   *  it. The arc between the two is the modulation, drawn where you can watch
+   *  it move -- a knob whose pointer moved with the modulation would have
+   *  nothing left to say where the hand had put it.
+   *
+   *  Only 3d used to come in pairs, because only 3d had an envelope. freq and
+   *  Q have had their own since the filter's two were split, and the engine
+   *  has been sending all three moving; the grid was still drawing two of
+   *  them still. Paired in the signature so the next value to gain one cannot
+   *  be added without its partner. */
+  /** The four channels' input levels, as a dot on each channel's own face.
+   *
+   *  **Pushed in, not pulled**, from A3MotionUIComponent's timer, off the one
+   *  VuLevels the mixer's meters read. This bar has no repeating timer of its
+   *  own for it and must not grow one.
+   *
+   *  These used to be four bars in the status bar, beside five more for the
+   *  outputs. The maintainer's verdict on 2026-09-12: *"die vu-meter in der
+   *  statusleiste sind too much. das machts unuebersichtlich."* The answer
+   *  was not to drop them but to put them where the question is asked --
+   *  which channel is making sound is asked *of a channel*, and the faces
+   *  are where a hand looking for one already looks.
+   *
+   *  The repaint is clipped to the faces and happens only where a dot would
+   *  actually be drawn differently. See VuMeter.hh's vuDot for what the mark
+   *  says and what it deliberately does not. */
+  void setInputLevels (std::array<VuLevel, numChannelsInitial> const &inputs);
+
+  void setChannelValues (int channel, float freq, float freqEffective,
+                         float q, float qEffective, float threeD,
+                         float threeDEffective);
+
+  /** Which section (0..numParameters-1) is currently selected/highlighted. */
+  void setSelectedParameterIndex (int index);
+
+  /** Scale factor for every knob/toggle's shared size (see class doc) —
+   *  1.0 = default. Set from A3MotionUIComponent's Global Settings "Pot
+   *  Size" option, so it's adjustable live on the device without a
+
+
+  /** One-line terminal-style readout of the last-operated control, shown
+   *  top-right (e.g. "CH2 POT1 0.73"). Global, independent of setTarget(). */
+  void setLastControlReadout (juce::String const &text);
+
+  /** Which page the bar is showing — the clip's settings, or the panel's pads
+   *  (see ControllerComponent). The header row and the global strip belong to
+   *  the bar itself and stay put on both. */
+  void setPage (BarPage page);
+  /** The clip part's content, in the bar's own coordinates — what the
+   *  controller page covers when it is showing. Under the header row, which
+   *  belongs to the bar on both pages. */
+  juce::Rectangle<int> clipContentBounds () const;
+  /** Where the global strip's three channel rows stand, in the bar's own
+   *  coordinates — one rectangle over all three. The ACTION page lines its
+   *  own rows up with these so 3d, freq and q read straight across the bar. */
+  juce::Rectangle<int> globalGridRowsBounds () const;
+  /** A tab was tapped. */
+  std::function<void (BarPage page)> onPageSelected;
+  /** Tapped, except Action, which is held for as long as the finger is down --
+   *  the same distinction the pads make, because these are the same four
+   *  things and two ways to do one thing must not behave differently. */
+  /** Which of the channel's two clips the bar describes. */
+  /** A channel face was touched. Replaces both CLIP and the shared slot
+   *  keys: it says "show me the clip", says whose, and -- touched again on
+   *  the channel already shown -- turns that channel's slot over. */
+  std::function<void (index_t channel)> onChannelFaceTapped;
+  std::function<void (index_t slot)> onSlotSelected;
+  std::function<void (TransportKey key)> onTransportTapped;
+  std::function<void (bool held)> onTransportActionHeld;
+
+  /** What the transport keys show: whether this clip is running, and whether a
+   *  take is being recorded into it. */
+  void setTransportState (bool playing, bool recording);
+
+  /** A control was tapped: select its section and sub-element in one go —
+   *  what the encoders reach by scrolling and pressing. */
+  /** The lock above a section was pressed. */
+  std::function<void (int section)> onLockToggled;
+  std::function<void (int section, int sub)> onControlTapped;
+  /** A control was dragged, by one increment. Same increment the
+   *  Pot-Encoder produces, so both go through one handler. */
+  std::function<void (int section, int sub, int increment)> onControlDragged;
+  /** A two-state control was tapped and wants to be flipped. Its own
+   *  callback rather than an increment, because "the other one" is not a
+   *  direction — see tapTogglesValue(). */
+  std::function<void (int section, int sub)> onControlToggled;
+  /** A finger landed in the elevation graphic at this height, 0 north to 1
+   *  south. Absolute rather than an increment: the graphic is a picture of
+   *  where things are, so touching it means "there", not "a bit further". */
+  std::function<void (float base)> onElevationBaseSet;
+  /** Two taps on the graphic put the line back in the middle of the range the
+   *  clips have left it -- the same "back to the middle" every knob in the bar
+   *  answers a double tap with. Separate from onElevationBaseSet so the reset
+   *  can say so in the readout, which is what tells a hand it landed. */
+  std::function<void (float base)> onElevationBaseReset;
+  /** Two taps on a knob put it back to its default. Separate from a toggle:
+   *  the value it lands on is decided by whoever owns the value, not here. */
+  std::function<void (int section, int sub)> onControlReset;
+
+  /** A cell of the per-channel grid was dragged. `row` is in channelRow*
+   *  order. */
+  std::function<void (int channel, int row, int increment)>
+      onChannelValueDragged;
+
+  /** Two taps on one of the three channel knobs: put it back to its rest.
+   *  Not wired when the hardware panel is attached -- see where it is set. */
+  std::function<void (int channel, int row)> onChannelValueReset;
+
+  /** The global strip's action buttons. Device-wide functions the hardware
+   *  has its own keys for — this is the way to them with a finger. */
+  /** The rec mode steps on — what its encoder used to do. */
+  std::function<void ()> onRecModePressed;
+  /** One of the seven length buttons was pressed, by its index in
+   *  recordLengthLog2. */
+  std::function<void (int index)> onRecordLengthChosen;
+  /** One of the four speed keys was tapped: play the clip at the speed that
+   *  key carries. */
+  std::function<void (int index)> onSpeedChosen;
+  /** A speed key was dragged, in whole steps of speedLog2: give that key
+   *  another speed. The index is which key, and it is the whole point —
+   *  a drag changes the key under the finger rather than walking the shown
+   *  clip through a range no key would remember. */
+  std::function<void (int index, int increment)> onSpeedDragged;
+  /** The clock mode steps on: INT, EXT, PIO. */
+  std::function<void ()> onClockModePressed;
+  std::function<void ()> onMenuPressed;
+  std::function<void ()> onRecordPressed;
+  std::function<void ()> onTapPressed;
+  /** Shift went down or came up. Held, not tapped: Shift+Action previews for
+   *  as long as it is down, so a latch would have nothing to release. */
+  std::function<void (bool held)> onShiftHeld;
+
+  /** Whether the Rec button should read as armed. */
+  void setRecording (bool recording);
+
+  /** Which clock the device is following: 0 INT, 1 EXT, 2 PIO. */
+  void setClockMode (int mode);
+
+  /** TAP lights up briefly, so a press that landed looks different from one
+   *  that missed. Only on touch: it used to blink on every beat as well,
+   *  which put a flashing light on a bar you are meant to read. */
+
+  /** Everything the six function keys' look depends on, gathered here because
+   *  this is the one place that knows all of it — the strip paints from it and
+   *  A3MotionUIComponent mirrors it to the panel's LEDs. */
+  FunctionKeyLook functionKeyLook () const;
+
+  /** Shift is down — from the panel's key or the strip's, they are one
+   *  state. Setting it does not fire onShiftHeld: that reports the *strip's*
+   *  key, and a panel press echoed back would look like a second finger. */
+  void setShiftHeld (bool held);
+
+  /** TAP was pressed — from the strip's key or the panel's. */
+  void flashTap ();
+
+  /** A beat went by. The TAP key breathes with it, faintly — the maintainer
+   *  asked for the blink back after it was taken out for being too loud, so
+   *  it is a wash at a fraction of the touch flash, not the flash itself. */
+  void pulseTapOnBeat ();
+
+  void paint (juce::Graphics &g) override;
+  void resized () override;
+
+  /** The bar caches its whole geometry, and that geometry is built from
+   *  the skin's font and pot sizes — so a skin change is a re-layout here,
+   *  not only a repaint. */
+  void applyTheme () override;
+
+  /** How tall this bar wants to be at the current font and pot sizes, given
+   *  the width it will get. The caller clamps it — see
+   *  clipSettingsHeightWithin(). */
+  int preferredHeight (int width) const;
+
+private:
+  /** The card behind a section plus its title — every section opens with
+   *  it, and it is the only thing they all draw the same way. */
+  void paintTabs (juce::Graphics &g);
+  void paintSectionCard (juce::Graphics &g, int sectionIndex, bool isSelected);
+
+  /** Recomputes _layout from the current bounds and theme. Called by both
+   *  paint() and resized(), so the picture and the hit areas can never
+   *  disagree. */
+  void updateLayout ();
+
+  void paintTrajectorySection (juce::Graphics &g, bool isSelected);
+  void paintElevationSection (juce::Graphics &g, bool isSelected);
+  /** Side-view sphere graphic for the Elevation section: circle + head dot
+   *  at the pole (mirror-south picks which one), grey clip-top/clip-bottom
+   *  excluded bands, and a solid marker line at reach's edge — or, while
+   *  flat is on, a single flat elevation line instead of the cone/head-dot.
+   *  `isActive` highlights it exactly like a knob would, whenever the
+   *  Pot-Encoder currently edits a control that affects this graphic
+   *  (reach, mirror-south, flat, or flat-elevation). */
+  void paintElevationGraphic (juce::Graphics &g, juce::Rectangle<int> bounds,
+                              bool isSelected);
+  /** Speed (knob) / Direction / End-Action (toggles), single row, always
+   *  visible in parallel — same style as the Elevation controls. */
+  void paintMotionSection (juce::Graphics &g, bool isSelected);
+  /** Freq / Q (knobs), single row. */
+  /** The global section's 4x3 grid, each column in its channel's colour. */
+  void paintChannelGrid (juce::Graphics &g);
+  /** A grid knob. `value` is where the pointer stands; `reach` is how far a
+   *  modulation has carried it, and the arc from one to the other is filled
+   *  — pass `reach` equal to `value` for a knob nothing is modulating. */
+  void paintGridKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
+                      ControlMetrics metrics, float value, float reach,
+                      juce::Colour colour);
+  /** Small, deliberately unobtrusive section title (see class doc) — most
+   *  of a section's height goes to its controls, not this label. */
+  void paintGlobalSection (juce::Graphics &g, bool isSelected);
+  /** One action button: a filled, labelled box. Not paintMiniToggle — that
+   *  shows a value under a caption, and these have no value, only a name
+   *  and the fact that they can be pressed. */
+  /** One of the strip's six function keys. `tint` colours the face and the
+   *  label when it is set — the clock's mode, REC's armed orange — and a
+   *  transparent tint leaves the button in the bar's quiet grey. */
+  void paintActionButton (juce::Graphics &g, juce::Rectangle<int> bounds,
+                          juce::String const &label, bool isActive,
+                          juce::Colour tint = {});
+  /** The bar's one button face — see the definition. `caption` may be empty
+   *  for a button that names itself. */
+  void paintBarButton (juce::Graphics &g, juce::Rectangle<int> bounds,
+                       juce::String const &label, juce::String const &caption,
+                       bool isActive, bool isSelected,
+                       juce::Colour valueColour = {});
+
+  void paintChannelFaces (juce::Graphics &g);
+  void paintChannelFaceDot (juce::Graphics &g, juce::Rectangle<int> face,
+                            VuDot const &dot);
+  /** A block of controls set off from the card it stands on -- the strip's
+   *  knobs, its transport, the header's four faces. One painter rather than
+   *  three, so a group anywhere in the bar reads as the same kind of group. */
+  void paintSetOffFrame (juce::Graphics &g, juce::Rectangle<int> bounds);
+  void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
+                          juce::String const &text, bool isSelected);
+  /** The padlock over a section: shut when the section is held, open and
+   *  quiet when it is not. */
+  void paintSectionLock (juce::Graphics &g, int sectionIndex);
+
+
+  /** Largest size for `role` at which `text` still fits inside `area`. */
+  float fontFor (FontRole role, juce::Rectangle<int> area,
+                 juce::String const &text) const;
+
+  /** Small labelled rotary knob (Ableton/Bitwig-style), sized to fill
+   *  `bounds` (a fixed box from controlBounds(), unaffected by Font
+   *  Size — see its comment). `angleFrac` is -1..1, mapped onto the
+   *  knob's -135deg..+135deg sweep (0 = straight up). `fillFromZero`
+   *  picks the fill style: true draws the value arc from centre (for
+   *  bipolar params), false draws it from the sweep's start (for
+   *  unipolar params like clip-top/clip-bottom, whose 0..1 range the
+   *  caller has already remapped to -1..1). `isActive` highlights it as
+   *  the one the Pot-Encoder currently edits. A knob shows no value text:
+   *  a continuous param is read off the angle, and the ones whose exact
+   *  value matters (Speed) are drawn as value displays instead — see
+   *  paintMiniToggle(). The caption's size comes from the bar, not from
+   *  this box; the knob's own position and size are unaffected by Font
+   *  Size. */
+  /** `reachFrac`, when it is not the value itself, is where a modulation has
+   *  carried the knob: the pointer stays on what was set and the arc between
+   *  the two is filled, the same way the channel grid shows the accent. A
+   *  reach that has wrapped past the end of the sweep is drawn in two pieces,
+   *  because a rotation that goes round is a rotation, not an error. */
+  /** `wraps` makes it a closed ring: the whole turn, no gap at the bottom and
+   *  no end to run into. A value that comes round to itself needs a scale that
+   *  does too -- on the usual 270-degree sweep a rotation reads as an amount
+   *  rather than as a position, because the two ends of the scale are the same
+   *  angle with a dead zone between them. */
+  void paintMiniKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
+                      ControlMetrics metrics,
+                      juce::String const &label, float angleFrac,
+                      bool fillFromZero, bool isActive, bool isSelected,
+                      float reachFrac = -2.f, bool wraps = false);
+  /** Small labelled value display (mirror-south, flat, direction,
+   *  end-action, speed), styled to match paintMiniKnob: the current state
+   *  or value as centred text instead of an arc, with the caption below
+   *  it. */
+  void paintMiniToggle (juce::Graphics &g, juce::Rectangle<int> bounds,
+                        ControlMetrics metrics,
+                        juce::String const &label,
+                        juce::String const &stateText,
+                        bool isActive, bool isSelected);
+
+  float _elevationReachSwept = -1.f;
+  bool _transportPlaying = false;
+  bool _transportRecording = false;
+
+  int _channel = 0;
+  int _slot = 0;
+  juce::Colour _channelColour; // set from the theme in the constructor
+  juce::String _lastControlText;
+  TrajectoryIconData _trajectoryIcon;
+  RecMode _recMode = RecMode::Touch;
+  juce::String _trajectoryName{ "Empty" };
+  juce::String _clipName;
+  bool _clipDrifted = false;
+  std::array<bool, numClipSections> _locked{ false, false, false };
+  float _elevationReach = 0.5f;
+  float _elevationBase = 0.f;
+  float _elevationBaseSwept = -1.f;
+  std::vector<ElevationSidePoint> _elevationFigure;
+  ElevationSidePoint _elevationHead{};
+  SphereCamera _sphereCamera{};
+  bool _elevationHeadValid = false;
+  bool _elevationMirrorSouth = false;
+  float _elevationClipTop = 0.0f;
+  float _elevationClipBottom = 0.0f;
+  bool _elevationFlat = false;
+  float _elevationFlatElevation = 0.5f;
+  int _elevationSubIndex = 0;
+  float _motionSpeedFrac = 0.5f;
+  juce::String _motionSpeedLabel{ "1" };
+  int _motionDirection = 0;
+  int _motionActMode = 0;
+  int _motionEndAction = 0;
+  int _motionSubIndex = 0;
+  float _motionFadeReach = 0.25f;
+  int _motionBridgeBias = 0;
+  float _motionSqueezeX = 0.f;
+  float _motionSqueezeY = 0.f;
+  int _motionSpin = 0;
+  int _motionSwell = 0;
+  int _motionSqueezeXLfo = 0;
+  int _motionSqueezeYLfo = 0;
+  /** Where each stretch has carried its squeeze right now, or below -1.5 when
+   *  it is standing still. Bipolar, so "not sweeping" cannot be a negative
+   *  number the way reach's is. */
+  float _motionSqueezeXSwept = -2.f;
+  float _motionSqueezeYSwept = -2.f;
+  int _elevationSway = 0;
+  int _motionAttack = 0;
+  int _motionDecay = 0;
+  float _motionEnvelopeMax = 1.f;
+  float _shapeRotate = 0.f;
+  float _shapeRotateReach = 0.f;
+  bool _accentHeld = false;
+  BarPage _page = BarPage::Clip;
+  int _trajectorySubIndex = 0;
+  /** What the shown clip plays at, as a speedLog2. A key lights when it
+   *  carries this speed; a clip playing at a speed no key carries lights
+   *  none, which is the honest answer to "which of these is it". */
+  int _speedLog2 = 0;
+  /** What each of the four keys carries — the performer's, so its default is
+   *  read from the settings rather than written down a second time here. */
+  std::array<int, numSpeedButtons> _speedButtonLog2
+      = AppSettings{}.speedButtonLog2;
+  /** Which speed key a finger is on, or noSpeedKeyDragged. Only the drag
+   *  needs it — see speedKeyIsActive(), which is where it is read. */
+  int _speedDragIndex = noSpeedKeyDragged;
+  juce::String _recordLengthLabel { "1" };
+  std::array<float, numChannelColumns> _channelFreq{};
+  std::array<float, numChannelColumns> _channelFreqReach{};
+  std::array<float, numChannelColumns> _channelQ{};
+  std::array<float, numChannelColumns> _channelQReach{};
+  std::array<float, numChannelColumns> _channelThreeD{};
+  std::array<float, numChannelColumns> _channelThreeDReach{};
+  int _selectedIndex = 0;
+
+  /** Every rectangle in the bar, recomputed by updateLayout(). */
+  ClipSettingsLayout _layout;
+
+  /** Invisible hit areas over what paint() draws: one per section card,
+   *  and one per control on top of it. The cards are created first so the
+   *  controls sit in front of them — a tap on a knob must not be caught by
+   *  the card it lies on. */
+  std::array<std::unique_ptr<TouchControl>, numParameters> _sectionTouch;
+  /** Over the Elevation section's sphere graphic, in front of that
+   *  section's card, with no callbacks at all: the graphic is a picture of
+   *  what the controls below it do, and touching a picture should do
+   *  nothing. Without it the card underneath would answer. */
+  std::unique_ptr<TouchControl> _elevationGraphicTouch;
+  std::array<std::unique_ptr<TouchControl>, numClipSections> _lockTouch;
+  /** The four transport keys in the header. Their look follows the same rule
+   *  as the global strip's function keys: a key that is doing something is
+   *  coloured, and one that is not is not. */
+  bool _menuOpen = false;
+  std::array<bool, numPadSlots> _slotDrifted{};
+  std::array<std::unique_ptr<TouchControl>, numPadSlots> _slotTouch;
+  std::array<std::unique_ptr<TouchControl>, numChannelColumns> _faceTouch;
+
+  /** Which channel each face stands for, which slot its toggle shows, and
+   *  the colour it wears. Fed from the bar's owner, which is the one place
+   *  that knows all four. */
+  std::array<juce::Colour, numChannelColumns> _channelFaceColours;
+  std::array<int, numChannelColumns> _channelFaceSlots{};
+  std::array<VuDot, numChannelColumns> _channelFaceDots{};
+  int _shownChannel = 0;
+  std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;
+  std::unique_ptr<TouchControl> _tabBrowserTouch;
+  std::unique_ptr<TouchControl> _tabClipTouch;
+  std::unique_ptr<TouchControl> _tabRecordTouch;
+  std::unique_ptr<TouchControl> _tabActionTouch;
+  std::unique_ptr<TouchControl> _tabControllerTouch;
+  std::unique_ptr<TouchControl> _tabMixerTouch;
+  /** One hit area per grid cell, [channel][row]. */
+  std::array<std::array<std::unique_ptr<TouchControl>, numChannelRows>,
+             numChannelColumns>
+      _gridTouch;
+  std::array<std::unique_ptr<TouchControl>, numRecordLengths> _lengthTouch;
+  std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
+
+  std::unique_ptr<TouchControl> _recModeTouch;
+  std::unique_ptr<TouchControl> _clockModeTouch;
+  std::unique_ptr<TouchControl> _menuTouch;
+  std::unique_ptr<TouchControl> _recTouch;
+  std::unique_ptr<TouchControl> _tapTouch;
+  std::unique_ptr<TouchControl> _shiftTouch;
+  std::unique_ptr<TouchControl> _accentTouch;
+  bool _shiftHeld = false;
+  bool _recording = false;
+  int _clockMode = 0;
+  /** TAP is lit: on the beat, and while a finger is on it. */
+  bool _tapLit = false;
+  bool _tapBeat = false;
+  void timerCallback () override;
+  std::array<std::vector<std::unique_ptr<TouchControl>>, numParameters>
+      _controlTouch;
+
+  /** Builds the hit areas once; resized() only moves them afterwards. */
+  void createTouchControls ();
+
+  static constexpr char const *parameterNames[numParameters] = {
+    "Shape", "Elevation", "Motion", "Global",
+  };
+};
+
+}

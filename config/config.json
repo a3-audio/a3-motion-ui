@@ -1,4 +1,59 @@
 {
-  "hostname": "192.168.43.53",
-  "port": 9000,
+  "patternDir": "/home/aaa/a3-system/a3-motion-ui/pattern",
+  "oscSender": {
+    "host": "127.0.0.1",
+    "port": 9000,
+    "beatclockPort": 7775
+  },
+  "oscReceiver": {
+    "host": "0.0.0.0",
+    "port": 7771,
+    "vuPort": 7772,
+    "energyPort": 7777
+  },
+  "oscAddresses": {
+    "out": {
+      "channelAzimuth": "/channel/{ch}/azimuth",
+      "channelElevation": "/channel/{ch}/elevation",
+      "channelPot1": "/channel/{ch}/pot_1",
+      "channelPot2": "/channel/{ch}/pot_2",
+      "channelThreeD": "/channel/{ch}/3d",
+      "iemAzimuth": "/StereoEncoder/azimuth",
+      "iemElevation": "/StereoEncoder/elevation",
+      "beat": "/beat",
+      "tap": "/tap",
+      "clockMode": "/clockmode",
+      "mixerGain": "/channel/{ch}/gain",
+      "mixerEqHigh": "/channel/{ch}/eq/high",
+      "mixerEqMid": "/channel/{ch}/eq/mid",
+      "mixerEqLow": "/channel/{ch}/eq/low",
+      "mixerVolume": "/channel/{ch}/volume",
+      "mixerPfl": "/channel/{ch}/pfl",
+      "mixerFx": "/channel/{ch}/fx",
+      "masterVolume": "/master/volume",
+      "masterBooth": "/master/booth",
+      "masterPhonesMix": "/master/phones_mix",
+      "masterPhonesVolume": "/master/phones_volume",
+      "masterReturn": "/master/return",
+      "filterMode": "/fx/mode",
+      "filterFrequency": "/fx/frequency",
+      "filterResonance": "/fx/resonance"
+    },
+    "in": {
+      "vuPrefix": "/vu/",
+      "energyRms": "/EnergyVisualizer/RMS",
+      "beat": "/beat"
+    }
+  },
+  "ui": {
+    "pauseRenderingInMenu": false,
+    "skin": "custom-2"
+  },
+  "buttonLeds": {
+    "idle": {
+      "r": 31,
+      "g": 214,
+      "b": 205
+    }
+  }
 }

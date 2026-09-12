@@ -1,0 +1,144 @@
+{
+  "channels": [
+    {
+      "threeD": 0.170000001788139,
+      "freq": 0.300000011920929,
+      "q": 0.200000002980232,
+      "slots": [
+        {
+          "pattern": "Spiral",
+          "recordLengthLog2": 3,
+          "overrides": {
+            "rotate": 0.75,
+            "reach": 0.949999988079071,
+            "spin": 1,
+            "envAttack": 5,
+            "envDecay": 5,
+            "envMax": 0.899999976158142,
+            "freqMax": 0.600000023841858
+          }
+        },
+        {
+          "pattern": "Hypo 7-2",
+          "recordLengthLog2": 3,
+          "overrides": {
+            "rotate": 0.25,
+            "reach": 0.800000011920929,
+            "spin": -1,
+            "swell": -3,
+            "envAttack": 5,
+            "envDecay": 6,
+            "envMax": 0.649999976158142,
+            "freqMax": 0.300000011920929
+          }
+        }
+      ]
+    },
+    {
+      "threeD": 0.28999999165535,
+      "freq": 0.300000011920929,
+      "q": 0.200000002980232,
+      "slots": [
+        {
+          "pattern": "Helix",
+          "recordLengthLog2": 3,
+          "overrides": {
+            "rotate": 0.25,
+            "reach": 0.800000011920929,
+            "spin": -1,
+            "swell": -3,
+            "envAttack": 5,
+            "envDecay": 6,
+            "envMax": 0.649999976158142,
+            "freqMax": 0.300000011920929
+          }
+        },
+        {
+          "pattern": "Epicycloid 7-3",
+          "recordLengthLog2": 3,
+          "overrides": {
+            "rotate": 0.879999995231628,
+            "reach": 0.449999988079071,
+            "envAttack": 1,
+            "envDecay": 2,
+            "envMax": 0.600000023841858,
+            "fadeReach": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "threeD": 0.409999996423721,
+      "freq": 0.300000011920929,
+      "q": 0.200000002980232,
+      "slots": [
+        {
+          "pattern": "Hypo",
+          "recordLengthLog2": 3,
+          "overrides": {
+            "reach": 0.300000011920929,
+            "clipBottom": 0.150000005960464,
+            "elevationBase": 0.119999997317791,
+            "spin": 2,
+            "envAttack": 4,
+            "envDecay": 4,
+            "envMax": 0.699999988079071,
+            "freqMax": 0.5
+          }
+        },
+        {
+          "pattern": "Orbit",
+          "recordLengthLog2": 3,
+          "overrides": {
+            "reach": 0.300000011920929,
+            "clipBottom": 0.150000005960464,
+            "elevationBase": 0.119999997317791,
+            "spin": 2,
+            "envAttack": 4,
+            "envDecay": 4,
+            "envMax": 0.699999988079071,
+            "freqMax": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "threeD": 0.529999971389771,
+      "freq": 0.300000011920929,
+      "q": 0.200000002980232,
+      "slots": [
+        {
+          "pattern": "Hypo 8-3",
+          "recordLengthLog2": 3,
+          "overrides": {
+            "rotate": 0.5,
+            "reach": 0.349999994039536,
+            "clipTop": 0.150000005960464,
+            "elevationBase": 0.920000016689301,
+            "spin": -2,
+            "envAttack": 4,
+            "envDecay": 5,
+            "envMax": 0.699999988079071,
+            "freqMax": 0.25
+          }
+        },
+        {
+          "pattern": "Epicycloid 5-2",
+          "recordLengthLog2": 3,
+          "overrides": {
+            "rotate": 0.5,
+            "reach": 0.349999994039536,
+            "clipTop": 0.150000005960464,
+            "elevationBase": 0.920000016689301,
+            "spin": -2,
+            "envAttack": 4,
+            "envDecay": 5,
+            "envMax": 0.699999988079071,
+            "freqMax": 0.25
+          }
+        }
+      ]
+    }
+  ],
+  "name": "Breakdown"
+}

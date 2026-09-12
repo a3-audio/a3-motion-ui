@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include <a3-motion-engine/elevation/HeightMap.hh>
 
 namespace a3
@@ -28,7 +30,67 @@ namespace a3
 class HeightMapSphere : public HeightMap
 {
 public:
+  /** Controls what happens when a 2D position is dragged past the visible
+   *  disc (r > 1): Wrap keeps growing colatitude past thetaMax so the
+   *  position continues under the sphere (default, original behaviour).
+   *  Clamp freezes colatitude at thetaMax, i.e. the position stays pinned
+   *  to the sphere's edge instead of wrapping underneath. */
+  enum class EdgeMode { Wrap, Clamp };
+
+  void setEdgeMode (EdgeMode mode);
+  EdgeMode getEdgeMode () const;
+
+  // Un-hide HeightMap's other mapTo3D/mapTo2D overloads (e.g. the 1-arg
+  // ones), which would otherwise be hidden by overriding just some of them
+  // below.
+  using HeightMap::mapTo3D;
+  using HeightMap::mapTo2D;
+
   float computeHeight (Pos const &pos) const override;
+
+  /** Map 2D disc position onto the sphere surface.
+   *  Coverage controls how far around the sphere the disc wraps:
+   *    coverage = 0.5  → hemisphere (north pole to equator)
+   *    coverage = 1.0  → full sphere (north pole to south pole)
+   *    coverage = 0.33 → top third (~60° colatitude)
+   *  The mapping preserves the azimuth angle and remaps the radial
+   *  distance to colatitude: θ = (r / r_max) × θ_max. */
+  Pos mapTo3D (Pos const &pos2D) const override;
+
+  /** Map 2D disc position onto sphere using an explicit coverage value.
+   *  Same as mapTo3D(pos2D) but uses the given coverage instead of
+   *  the internal stored value. Enables per-channel elevation. */
+  Pos mapTo3D (Pos const &pos2D, float coverage) const override;
+
+  /** Same as mapTo3D(pos2D, coverage) but with an explicit edge mode too,
+   *  instead of reading the internal stored value. Enables per-clip
+   *  elevation strategy without touching shared state. */
+  Pos mapTo3D (Pos const &pos2D, float coverage, EdgeMode edgeMode) const;
+
+  /** Per-clip elevation mapping — see HeightMap::mapTo3D()'s
+   *  ElevationParams overload for the parameter semantics. Independent of
+   *  EdgeMode/coverage/setCoverage, which stay as the separate, stateful
+   *  mechanism used for live blob dragging past the visible disc (r > 1). */
+  Pos mapTo3D (Pos const &pos2D, ElevationParams const &params) const override;
+
+  /** Exact inverse of mapTo3D(): recovers the 2D disc position from a full
+   *  3D point, unambiguous between front and back hemisphere (see
+   *  HeightMap::mapTo2D). */
+  Pos mapTo2D (Pos const &pos3D) const override;
+  Pos mapTo2D (Pos const &pos3D, float coverage) const override;
+  Pos mapTo2D (Pos const &pos3D, float coverage, EdgeMode edgeMode) const;
+
+  /** Best-effort inverse of mapTo3D(pos2D, ElevationParams) — exact for the
+   *  reach/mirrorSouth shape; in flat mode there is no radius information
+   *  left to recover, so it falls back to a nominal mid radius. */
+  Pos mapTo2D (Pos const &pos3D, ElevationParams const &params) const override;
+
+  void setCoverage (float coverage) override;
+  float getCoverage () const override;
+
+private:
+  std::atomic<float> _coverage{ 0.5f };  // 0.5 = hemisphere (default)
+  std::atomic<EdgeMode> _edgeMode{ EdgeMode::Wrap };
 };
 
 }

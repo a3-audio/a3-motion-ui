@@ -21,11 +21,23 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <a3-motion-ui/components/SphereProjection.hh>
+
+#include <functional>
+
+#include <array>
+#include <map>
 
 #include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/util/Types.hh>
 
 #include <a3-motion-ui/Helpers.hh>
+#include <a3-motion-ui/ConfigFileWatcher.hh>
+#include <a3-motion-ui/components/CoronaScaling.hh>
+#include <a3-motion-ui/components/TouchGrabs.hh>
+#include <a3-motion-ui/components/EnergyMap.hh>
+#include <a3-motion-ui/components/SphereShader.hh>
+#include <a3-motion-ui/osc/OscMessageHandler.hh>
 
 namespace a3
 {
@@ -39,6 +51,19 @@ class MotionComponent : public juce::Component,
                         public juce::Timer
 {
 public:
+  /** Where the room is being looked at from. The overhead view is the
+   *  default, and the little sphere in the corner is what moves it -- see
+   *  cameraBallBounds(). It used to be SHIFT with a finger anywhere on the
+   *  big sphere, which asked the performer to know that a modifier existed
+   *  and gave them nothing to aim at. */
+  SphereCamera getCamera () const;
+  void setCamera (SphereCamera const &camera);
+
+  /** Called on the message thread right after config.json was re-read and
+   *  the global userConfig replaced. The watcher lives here, but things
+   *  outside this component are configured by that file too. */
+  std::function<void (juce::var const &)> onAppConfigReloaded;
+
   MotionComponent (MotionEngine &engine,
                    std::vector<std::unique_ptr<ChannelUIState> > &);
   ~MotionComponent ();
@@ -57,13 +82,36 @@ public:
 
   void timerCallback () override;
 
-  void setPreviewPattern (std::shared_ptr<Pattern> pattern);
+  void setPreviewPattern (std::shared_ptr<Pattern> pattern,
+                         juce::Path displayPath = {},
+                         std::vector<std::pair<float,float>> jumpDots = {});
   void unsetPreviewPattern (std::shared_ptr<Pattern> pattern);
+
+  /** Register display data for a pattern so its trajectory can be drawn
+   *  as a faint line whenever it is playing. */
+  void setPatternDisplayData (std::shared_ptr<Pattern> pattern,
+                              juce::Path displayPath = {},
+                              std::vector<std::pair<float,float>> jumpDots = {});
+  void removePatternDisplayData (std::shared_ptr<Pattern> pattern);
 
   void setBackgroundColour (juce::Colour const &colour);
 
+  // Temporarily pause/resume GL redraws (keeps component alive and interactive).
+  /** Show a sphere size without writing it anywhere. The menu previews
+   *  while the encoder turns; only the press makes it the skin's. */
+  void setSphereScalePreview (float scale);
+
+  void setRenderingPaused (bool paused);
+
+  // VU-driven lighting: sphere glow and speaker spotlights
+  void setSphereGlow (float peak, float rms);
+  void setSpeakerLight (int speakerIndex, float peak, float rms);
+
+  /** One value per grid point of the IEM EnergyVisualizer, in its own order.
+   *  Safe to call from the OSC thread. */
+  void setEnergyGrid (float const *values, int count);
+
 private:
-  void printFrameTime ();
   void updateBoundsAndTransform ();
   void renderBoundsChanged ();
 
@@ -71,26 +119,94 @@ private:
 
   void drawCircle (juce::Graphics &g);
   void drawChannelBlobs (juce::Graphics &g);
-  void drawPatternPreview (Pattern const &pattern, juce::Graphics &g);
+
+public:
+  /** What the running take is being recorded over, or nullptr for none. */
+  void setRecordingUnderlay (std::shared_ptr<Pattern> pattern);
+
+private:
+
+  struct PatternDisplayData
+  {
+    juce::Path displayPath;
+    std::vector<std::pair<float,float>> jumpDots;
+  };
+  /** The take as it stands while it is being played in, drawn from its own
+   *  ticks — a fresh recording has no display path. Stretches nobody has
+   *  played yet are absent rather than faint. */
+  void drawRecordingTrail (Pattern const &pattern, juce::Graphics &g);
+
+  /** What was in the slot before the take began, drawn faintly underneath it
+   *  with a dim blob where it would be playing right now. Touch and Latch
+   *  leave parts of it standing, so you have to see what you are writing over
+   *  and where the old motion is at this point in the loop. */
+  void drawRecordingUnderlay (Pattern const &pattern, juce::Graphics &g);
+
+
+  void drawPatternPreview (Pattern const &pattern,
+                          PatternDisplayData const &displayData,
+                          juce::Graphics &g);
+
+  /** Draw a faint trajectory line for a playing pattern. */
+  void drawPlayingTrajectory (Pattern const &pattern,
+                              PatternDisplayData const &displayData,
+                              juce::Graphics &g);
 
   float getActiveDistanceInPixel () const;
 
   juce::Point<float> normalizedToLocal2DPosition (Pos const &posNorm) const;
+
+  /** Where a direction in the room lands on the screen, and back again, from
+   *  where the room is being looked at. */
+  juce::Point<float> projectToScreen (Pos const &direction) const;
+  Pos pixelToDirection (juce::Point<float> const &posPixel) const;
+
+  /** The finger that is moving the eye, and where it was last seen. Its own
+   *  grab, not one of `_grabs`: it is holding the view, not a blob. */
+  /** Where the little sphere is, in the component's own pixels. */
+  juce::Rectangle<int> cameraBall () const;
+  void drawCameraBall (juce::Graphics &g);
+  void drawBearings (juce::Graphics &g);
+  void drawListener (juce::Graphics &g);
+
+  std::optional<int> _cameraGrab;
+  /** For the double tap that puts the view back overhead. A finger is not a
+   *  mouse: the second tap lands a few pixels from the first. */
+  juce::int64 _ballTapMs = 0;
+  juce::Point<float> _cameraGrabbedAt;
+  SphereCamera _cameraAtGrab;
   Pos localToNormalized2DPosition (juce::Point<float> const &posLocal) const;
 
   std::optional<index_t>
   getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
                                    float radiusPixel) const;
 
+  /** The same, but ignoring blobs another finger is already holding. */
+  std::optional<index_t>
+  getClosestFreeBlobIndexWithinRadius (juce::Point<float> posPixel,
+                                       float radiusPixel) const;
+
   void disoccludeBlobs ();
 
   MotionEngine &_engine;
 
   std::vector<std::unique_ptr<ChannelUIState> > &_uiStates;
-  std::optional<index_t> _grabbedIndex;
+  // Which finger holds which channel. JUCE 9 gives every touch its own
+  // MouseInputSource; before it there was one pointer and so one grab.
+  TouchGrabs _grabs;
 
-  std::set<std::shared_ptr<Pattern> > _patternsPreview;
+  std::map<std::shared_ptr<Pattern>, PatternDisplayData> _patternsPreview;
   std::mutex _mutexPreview;
+
+  /** The slot's pattern from before the running take. Read on the GL thread,
+   *  set from the message thread when a take starts and ends. */
+  std::shared_ptr<Pattern> _recordingUnderlay;
+  std::mutex _mutexUnderlay;
+
+  // Display data for all loaded patterns — used to draw faint trajectory
+  // lines for currently playing patterns (separate from explicit previews).
+  std::map<std::shared_ptr<Pattern>, PatternDisplayData> _patternsDisplayData;
+  std::mutex _mutexDisplayData;
 
   juce::OpenGLContext _glContext;
 
@@ -109,9 +225,107 @@ private:
   std::unique_ptr<juce::Image> _imageBlend;
   juce::Image _imageIsoSphere;
   std::unique_ptr<juce::Drawable> _drawableHead;
+  std::unique_ptr<juce::Drawable> _drawableSpeaker;
 
-  juce::Colour _backgroundColour;
-  std::mutex _mutexBackgroundColour;
+  // 3D raytraced sphere shader
+  SphereShader _sphereShader;
+
+  // Blit resources for compositing 2D overlay onto 3D shader output
+  struct BlitResources
+  {
+    unsigned int program = 0;
+    unsigned int vbo = 0;
+    int  aPos = -1;
+    int  uTex = -1;
+    bool valid = false;
+
+    void create ();
+    void destroy ();
+    void blit (unsigned int textureID, int vpW, int vpH) const;
+  };
+  BlitResources _blit;
+
+  // VU-driven sphere glow (/vu/4 = subwoofer)
+  std::atomic<float> _vuSphereGlowPeak{ 0.f };
+  std::atomic<float> _vuSphereGlowRms{ 0.f };
+
+  // VU-driven speaker spotlights (/vu/5-8 → speakers at 45°,135°,225°,315°)
+  std::atomic<float> _vuSpeakerPeak[4]{ {0.f}, {0.f}, {0.f}, {0.f} };
+  std::atomic<float> _vuSpeakerRms[4]{ {0.f}, {0.f}, {0.f}, {0.f} };
+
+  // Smoothed VU values (updated per render frame, exponential decay)
+  float _smoothGlowPeak = 0.f, _smoothGlowRms = 0.f;
+  float _smoothSpotPeak[4]{}, _smoothSpotRms[4]{};
+  float _smoothBlobPeak[4]{}, _smoothBlobRms[4]{};
+
+  // Background colour packed as ARGB — lock-free atomic access
+  std::atomic<juce::uint32> _backgroundColourPacked{ 0 };
+
+  // Cached corona config (loaded once in newOpenGLContextCreated, avoids JSON lookup per frame)
+  CoronaConfig _coronaCfg;
+
+  // Sphere and blob size, as a share of the component's shorter side
+  // Read every frame on the GL thread; the menu previews into it from the
+  // message thread while the encoder turns.
+  std::atomic<float> _sphereScale{ 0.62f };
+  float _blobScale = 0.05f;
+
+  /** How the take's underlay is drawn: how far it fades back behind the trail
+   *  over it, how big its blob is next to a real one, and how thick its line
+   *  is. All three are judged by eye against a running take, which is exactly
+   *  what the skin is for. */
+  float _underlayOpacity = 0.28f;
+  float _underlayBlobScale = 0.55f;
+  float _underlayLineThickness = 0.02f;
+
+  // Envelope time constants for the speaker beams, in seconds
+  float _spotAttack = 0.08f, _spotDecay = 0.4f;
+
+  // Envelope for the subwoofer glow, in seconds
+  float _glowAttack = 0.05f, _glowDecay = 1.2f;
+
+  // Energy over the sphere, from the IEM EnergyVisualizer. Arrives on the OSC
+  // thread at 9 Hz, is folded into an equirectangular map on the GL thread and
+  // uploaded as a texture — 426 values cannot be uniforms in GLSL 1.20.
+  juce::SpinLock _energyLock;
+  std::array<float, energyGridPointCount> _energyIncoming{};
+  bool _energyPending = false;
+  std::unique_ptr<EnergyMapProjection> _energyProjection;
+  std::vector<float> _energyTarget, _energySmoothed;
+  std::vector<unsigned char> _energyTexels;
+  unsigned int _energyTexture = 0;
+  float _energyVuMax = 0.05f, _energyCurve = 0.8f;
+  float _energyAttack = 0.05f, _energyDecay = 0.25f;
+
+  juce::uint32 _startMillis = 0;
+
+  void uploadEnergyMap ();
+
+public:
+  /** Take a skin's visual values as they stand — the same door the file
+   *  watcher comes through, so the editor can show a change while it is being
+   *  made rather than after the file is written. */
+  void applyVisualConfig (juce::var const &config);
+
+private:
+  void applyTheme (juce::var const &skin);
+  void reloadVisualConfigIfChanged ();
+
+  // config.json is watched for ui.skin changing; the second watcher follows
+  // whichever skin that names, so tuning saves are noticed too.
+  ConfigFileWatcher _appConfigWatcher{
+    juce::File::getCurrentWorkingDirectory ().getChildFile (
+        "config/config.json")
+  };
+  juce::File _activeSkinFile;
+
+  ConfigFileWatcher _configWatcher{
+    juce::File::getCurrentWorkingDirectory ().getChildFile (
+        "config/config.json")
+  };
+
+  // Frame counter for throttling expensive 2D overlay (speaker SVGs)
+  unsigned _frameCount = 0;
 };
 
 }

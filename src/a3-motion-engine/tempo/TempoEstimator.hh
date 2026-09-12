@@ -34,7 +34,8 @@ public:
   enum class TapResult
   {
     TempoAvailable,
-    TempoNotAvailable
+    TempoNotAvailable,
+    FirstTap  // First tap after timeout - beat should reset to 1
   };
 
   virtual ~TempoEstimator (){};
@@ -60,7 +61,11 @@ protected:
 
 private:
   std::deque<ClockT::time_point> _queueTapTimes;
-  juce::int64 timeTapLastMicros;
+
+  // Must start at zero: the first tap subtracts this, and a garbage value
+  // there decides at random whether that tap counts as the first one and
+  // resets the beat.
+  juce::int64 timeTapLastMicros = 0;
   ClockT::duration _tempoDeltaT;
 };
 

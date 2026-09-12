@@ -20,10 +20,14 @@
 
 #pragma once
 
+#include <a3-motion-engine/ClipSettings.hh>
+#include <a3-motion-engine/Envelope.hh>
+#include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/AsyncCommandQueue.hh>
-#include <a3-motion-engine/Master.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Helpers.hh>
+
+#include <optional>
 
 namespace a3
 {
@@ -35,11 +39,23 @@ class HeightMap;
 class MotionEngine
 {
 public:
-  MotionEngine (index_t numChannels, const HeightMap &heightMap);
+  MotionEngine (index_t numChannels, HeightMap &heightMap);
+
+  /** New OSC addresses, e.g. after config.json was edited on the device.
+   *  Reaches the backend on its own thread — see AsyncCommandQueue. */
+  void setOscAddresses (OscAddresses const &addresses);
   ~MotionEngine ();
 
   TempoClock const &getTempoClock () const;
   TempoClock &getTempoClock ();
+
+  // Tempo facade: forwards to the internal TempoClock so callers (in
+  // particular the UI layer) never need to reach into TempoClock directly.
+  TempoClock::TapResult tap (juce::int64 timeMicros);
+  float getTempoBPM () const;
+  void setTempoBPM (float bpm);
+  int getBeatsPerBar () const;
+  void resetTempo ();
 
   // TODO refactor to access channels directly
   index_t getNumChannels ();
@@ -48,11 +64,88 @@ public:
   void setChannel2DPosition (index_t channel, Pos const &position);
   void setChannel3DPosition (index_t channel, Pos const &position);
 
-  float getChannelWidth (index_t channel);
-  void setChannelWidth (index_t channel, float width);
+  /** Hold a channel's position where it was put, so playback leaves it
+   *  alone until it is let go.
+   *
+   *  Both a drag and playback write the same channel position, and playback
+   *  writes it on every tick — so dragging a blob on a channel with a clip
+   *  running was a tug of war the finger could not win. */
+  void setChannelPositionHeld (index_t channel, bool held);
+  bool isChannelPositionHeld (index_t channel) const;
 
-  int getChannelAmbisonicsOrder (index_t channel);
-  void setChannelAmbisonicsOrder (index_t channel, int order);
+  float getChannelPot1 (index_t channel);
+  void setChannelPot1 (index_t channel, float pot1);
+
+  float getChannelPot2 (index_t channel);
+  void setChannelPot2 (index_t channel, float pot2);
+
+  float getChannelPot3 (index_t channel);
+  void setChannelPot3 (index_t channel, float pot3);
+
+  /** What actually goes out: the set value with the accent laid over it. The
+   *  grid shows this rather than the setting, so an envelope you fired is an
+   *  envelope you can see — a modulation nothing on screen moves for is one
+   *  you have to take on trust. */
+  float getChannelPot3Effective (index_t channel);
+
+  /** The same for the two filter values, each off an envelope of its own:
+   *  pot1 is the cutoff, pot2 the resonance, and they have separate times and
+   *  separate ceilings because a sweep whose resonance had to arrive exactly
+   *  when its cutoff does only has one shape.
+   *
+   *  Both only ever raise, like pot3 -- so a ceiling under where the encoder
+   *  already stands leaves it alone. Q sits at the top of its range by
+   *  default, which is why its envelope is silent until Q is turned down. */
+  float getChannelPot1Effective (index_t channel);
+  float getChannelPot2Effective (index_t channel);
+
+  /** ACT went down or came up on this channel. The accent rises while it is
+   *  down and falls when it is let go; its shape comes from the clip that was
+   *  fired, and it can only ever raise the channel's 3d above what the pot
+   *  and the grid set — see envelopeOver(). */
+  void setChannelAccentHeld (index_t channel, bool held,
+                             std::shared_ptr<Pattern> pattern);
+
+  /** What ACT throws this channel's clip *to*, for the length of the accent.
+   *
+   *  Set just before the press, or cleared with an empty optional when the
+   *  slot has no action on it. The clip's settings as they stand are taken
+   *  down first and put back when the envelope has finished falling — not
+   *  when the finger lifts, which for a hold is the middle of an audible
+   *  decay and the worst moment to snap a trajectory back.
+   *
+   *  Comes in ready to use rather than as a file: the settings are read off
+   *  disk when the action is assigned, because the thread that fires this is
+   *  the one that must never touch a disk. */
+  void setChannelAction (index_t channel,
+                         std::optional<ClipSettings> action);
+
+  /** Whether anything about this channel is still moving on its own: the
+   *  accent's level, or a clip still wearing the action fired at it.
+   *
+   *  The screen asks so that it keeps redrawing while neither the transport
+   *  nor a hand is doing anything. Without it, a clip an action stopped would
+   *  keep showing the action's settings for good -- the values came home and
+   *  nothing was left running to notice. */
+  bool isChannelAccentActive (index_t channel) const;
+
+private:
+  /** One tick of every channel's accent. Runs on the tempo-clock thread with
+   *  the rest of playback, so the envelope and the trajectory move together.
+   */
+  void advanceAccents ();
+
+  /** The accent has finished falling: the clip does what its end action says.
+   *  Stop and Pause end the pass; the ones that mean "keep going" keep going,
+   *  or the accent would be a stop button that only some settings noticed. */
+  void applyEndActionAfterAccent (index_t channel);
+
+  /** The accent has finished falling: the clip goes back to what it was
+   *  before the action was fired at it. After the end action, which the
+   *  action is entitled to have brought with it. */
+  void restoreAfterAction (index_t channel);
+
+public:
 
   enum class RecordingMode
   {
@@ -66,10 +159,37 @@ public:
   void releaseRecordingPosition ();
 
   void setRecordingMode (RecordingMode recordingMode);
+
+  /** What a take's passes write where the finger is not.
+   *
+   *  Set straight rather than through the command FIFO: the FIFO is there to
+   *  order commands against the clock, and this is a preference chosen in a
+   *  menu between takes, with nothing to order it against. */
+  void setRecMode (RecMode mode);
+  RecMode getRecMode () const;
   RecordingMode getRecordingMode () const;
 
   bool isRecording () const;
+
+  /** Whether a take owns the recording finger — running, or armed and still
+   *  waiting for its downbeat.
+   *
+   *  The input path has to ask this rather than isRecording(): between the
+   *  Record press and the downbeat the finger already belongs to the take,
+   *  and treating it as an ordinary grab in that gap means it only catches a
+   *  blob it lands near, while the outgoing clip keeps pulling that blob
+   *  away from it. */
+  bool isRecordingOrScheduled () const;
+
+  /** How far the running take has got, from 0 to 1, or -1 when none is
+   *  running or one is still waiting for its downbeat.
+   *
+   *  A take does not go through updatePlayPosition — that is for patterns
+   *  being played — so a pattern's play position stays at zero throughout,
+   *  and asking it where the write head is gives the wrong answer. */
+  float getRecordingProgress () const;
   std::shared_ptr<Pattern> getRecordingPattern ();
+  std::shared_ptr<Pattern> getScheduledForRecordingPattern ();
 
   void recordPattern (std::shared_ptr<Pattern> pattern, //
                       Measure timepoint, Measure length);
@@ -80,6 +200,37 @@ public:
 
   // Stop
   void stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
+
+  // Preview mode: suppress OSC output for a channel while pattern plays
+  void setPreviewMode (index_t channel, bool enabled);
+  bool isPreviewMode (index_t channel) const;
+
+  /** Keep this device's own per-channel output in until
+   *  `millisecondCounter` — position, both pots and the crossfade.
+   *
+   *  For the gap between start-up and the answer to /state/recall. The send
+   *  loop announces every channel's values as soon as the engine runs, A3
+   *  Core acts on them at once, and the room hears this device's idea of the
+   *  mix before anyone has asked what it actually was. Core then answers with
+   *  what it was just told, which confirms the jump rather than preventing it
+   *  — measured 2026-09-12, see
+   *  issues/a3-motion-ui-recall-kommt-zu-spaet.md.
+   *
+   *  It holds the **output**, not the values: anything arriving from Core
+   *  during the hold reaches the blob and the knobs as usual. Only this
+   *  side's announcements wait.
+   *
+   *  A deadline rather than a flag somebody has to clear. The failure mode of
+   *  a flag is a device that never sends again, which is worse than the jump
+   *  it was meant to stop; this one runs out on its own. Given as an absolute
+   *  `juce::Time::getMillisecondCounterHiRes()` value rather than a duration
+   *  so that a caller — a test especially — can name a deadline that has
+   *  already passed without sleeping through it. */
+  void holdOutputUntil (double millisecondCounter);
+  bool outputHeld () const;
+
+  // Access the HeightMap (for re-applying coverage to loaded patterns)
+  HeightMap const &getHeightMap () const { return _heightMap; }
 
   class PatternStatusMessage : public juce::Message
   {
@@ -98,7 +249,7 @@ public:
 private:
   void createChannels (index_t numChannels);
   std::vector<std::unique_ptr<Channel> > _channels;
-  const HeightMap &_heightMap;
+  HeightMap &_heightMap;
 
   // MotionEngine runs the record/playback engine, checks for changed
   // parameters and and schedules corresponding commands with the
@@ -129,6 +280,7 @@ private:
     } command;
 
     Pos position;
+    Pos position2D;  // original 2D position (for recording ticks)
     std::shared_ptr<Pattern> pattern;
     Measure timepoint;
     Measure length;
@@ -167,10 +319,48 @@ private:
   void performPlayback ();
   index_t updatePlayPosition (Pattern &pattern);
 
+  // Dynamic playback sub-stepping for smooth slow-motion
+  // Encoder range: -2 to +4 (log2), which translates to:
+  //   Min playbackLength: 2^-2 * 4 beats/bar = 1 beat
+  //   Max playbackLength: 2^4 * 4 beats/bar = 64 beats
+  // So max slowdown is 64x. We use this to calculate sub-steps dynamically.
+  static constexpr int minPlaybackLengthBeats = 1;
+  static constexpr int maxPlaybackLengthBeats = 64;
+  
+  // Keyframe-based recording: record one sample per tick, like hardcoded patterns
+  // This matches the pattern generator approach and avoids redundant data.
+  // Smooth interpolation happens during playback via Cartesian interpolation.
+  static constexpr int recordingSamplesPerTick = 1;
+  static constexpr int minRecordingSamplesPerTick = 1;
+  
+  // Calculate adaptive sub-sampling: higher when recording longer patterns
+  // This ensures smooth motion even at extreme slowdown speeds
+  static int calculateSubSamplingFactor (Measure recordingLength, int beatsPerBar);
+
   Measure _now;
   Measure _recordingStarted;
-  Pos _recordingPosition = Pos::invalid;
+  Pos _recordingPosition = Pos::invalid;     // 3D (mapped) — for OSC + visual
+  Pos _recordingPosition2D = Pos::invalid;   // 2D (original) — for storing in ticks
   std::atomic<RecordingMode> _recordingMode = RecordingMode::OneShot;
+  std::atomic<RecMode> _recMode = RecMode::Touch;
+
+  /** Whether the finger has been down at any point in this take, and the last
+   *  2D position it was at. Latch and Write keep writing that position after
+   *  the finger lifts, so it must outlive the release that invalidates
+   *  _recordingPosition2D. Both are reset when a take starts. */
+  bool _recordingHasTouched = false;
+  Pos _recordingHeldPosition2D = Pos::invalid;
+  /** Written on the clock thread each tick a take is running, read by the UI. */
+  std::atomic<float> _recordingProgress{ -1.f };
+
+  /** Where a Random end action carries on. Lives here so the decision itself
+   *  stays a pure function; only the clock thread draws from it. */
+  juce::Random _random;
+  int _recordingSubSamplingFactor = recordingSamplesPerTick;
+  
+  // High-resolution recording counter to sample motion between ticks
+  // Records at ~1000Hz regardless of tempo/ticks
+  std::atomic<int> _recordingSampleCounter = 0;
 
   // NOTE: the MotionEngine holding shared_ptrs might lead to pattern
   // deallocations on the realtime thread. If this turns out to be
@@ -186,8 +376,45 @@ private:
   // communication.
   AsyncCommandQueue _commandQueue;
   std::vector<Pos> _lastSentPositions;
-  std::vector<float> _lastSentWidths;
-  std::vector<int> _lastSentAmbisonicsOrders;
+  /** The last value each channel value went out at -- which is what the far
+   *  end actually has, and so what a ramp has to start from. See util/Slew.hh
+   *  and the send loop in tickCallback(). */
+  std::vector<float> _lastSentPot1s;
+  std::vector<float> _lastSentPot2s;
+  std::vector<float> _lastSentPot3s;
+  /** When the last send ran, on the wall clock. A tick is two to eight
+   *  milliseconds depending on tempo, and a fade meant to be inaudible cannot
+   *  be a different length at 180 BPM than at 60. */
+  double _lastSendMillis = 0.;
+  /** Whether the channel values have gone out once. Until they have there is
+   *  nothing to ramp *from*: see the send loop in tickCallback(). */
+  bool _potsPrimed = false;
+
+  /** Read by the send loop on the tick thread, written from the message
+   *  thread at start-up. Zero means "not held", which is what it starts as:
+   *  a millisecond counter is never below zero. */
+  std::atomic<double> _outputHeldUntil{ 0. };
+
+  /** The accent per channel: whether ACT is down, where the envelope stands,
+   *  and whose shape it is running. Live only — an accent is a gesture, and a
+   *  gesture is not a thing to reload at startup. */
+  std::vector<char> _accentHeld;
+  std::vector<EnvelopeState> _accentEnvelope;
+  std::vector<EnvelopeState> _freqEnvelope;
+  std::vector<EnvelopeState> _qEnvelope;
+  std::vector<std::shared_ptr<Pattern> > _accentPattern;
+
+  /** The action waiting on each channel, and the clip's own settings taken
+   *  down at the moment one was fired. The second is what "empty" means here:
+   *  no snapshot, nothing to fall back to, so nothing is written back. */
+  std::vector<std::optional<ClipSettings> > _channelAction;
+  std::vector<std::optional<ClipSettings> > _accentRestore;
+
+
+  // Per-channel preview mode: when true, suppress OSC output
+  std::vector<std::atomic<bool>> _previewMode;
+  /** A channel whose position a finger is holding. */
+  std::vector<std::atomic<bool>> _positionHeld;
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);

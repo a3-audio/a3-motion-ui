@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/SvgPathTokens.hh>
 #include <a3-motion-engine/util/Geometry.hh>
 
 namespace juce
@@ -58,6 +59,75 @@ cartesian2DJUCE2HOA (juce::Point<Scalar> const &posJUCE)
 {
   return Position<Scalar>::fromCartesian (-posJUCE.getY (), -posJUCE.getX (),
                                           0.f);
+}
+
+/** Parse an SVG path data string (d="...") into a juce::Path.
+ *  Supports M, L, C, Q, Z commands (absolute only). */
+inline juce::Path
+svgDToPath (std::string const &d)
+{
+  juce::Path path;
+  if (d.empty ())
+    return path;
+
+  auto const tokens = svgPathTokens (juce::String (d));
+
+  int i = 0;
+  auto nextFloat = [&]() -> float {
+    if (i < tokens.size ())
+      return tokens[i++].getFloatValue ();
+    return 0.f;
+  };
+
+  while (i < tokens.size ())
+    {
+      auto cmd = tokens[i];
+      // Read each coordinate into its own variable before handing the pair
+      // over. Passing two nextFloat() calls as arguments leaves the order they
+      // run in up to the compiler, and this one ran them right to left: every
+      // path started at (y, x) and then struck out for its real first point,
+      // which is the straight line that ran out of every shipped shape.
+      if (cmd == "M" || cmd == "m")
+        {
+          ++i;
+          auto const x = nextFloat ();
+          auto const y = nextFloat ();
+          path.startNewSubPath (x, y);
+        }
+      else if (cmd == "L" || cmd == "l")
+        {
+          ++i;
+          auto const x = nextFloat ();
+          auto const y = nextFloat ();
+          path.lineTo (x, y);
+        }
+      else if (cmd == "C" || cmd == "c")
+        {
+          ++i;
+          auto x1 = nextFloat (), y1 = nextFloat ();
+          auto x2 = nextFloat (), y2 = nextFloat ();
+          auto x3 = nextFloat (), y3 = nextFloat ();
+          path.cubicTo (x1, y1, x2, y2, x3, y3);
+        }
+      else if (cmd == "Q" || cmd == "q")
+        {
+          ++i;
+          auto x1 = nextFloat (), y1 = nextFloat ();
+          auto x2 = nextFloat (), y2 = nextFloat ();
+          path.quadraticTo (x1, y1, x2, y2);
+        }
+      else if (cmd == "Z" || cmd == "z")
+        {
+          ++i;
+          path.closeSubPath ();
+        }
+      else
+        {
+          ++i; // Skip unknown tokens
+        }
+    }
+
+  return path;
 }
 
 }

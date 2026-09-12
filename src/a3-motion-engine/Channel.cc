@@ -30,43 +30,65 @@ Channel::Channel () : _position (Pos::fromSpherical (0, 0, 1)) {}
 void
 Channel::setPosition (Pos position)
 {
-  _mutex.lock ();
+  // SeqLock write — increment to odd (write in progress), store, increment to even (done).
+  // This is lock-free: the writer (RT thread) never blocks.
+  auto seq = _seqCount.load (std::memory_order_relaxed);
+  _seqCount.store (seq + 1, std::memory_order_release);  // odd = writing
   _position = position;
-  _mutex.unlock ();
+  _seqCount.store (seq + 2, std::memory_order_release);  // even = done
 }
 
 Pos
 Channel::getPosition () const
 {
-  _mutex.lock_shared ();
-  auto position = _position;
-  _mutex.unlock_shared ();
-
-  return position;
+  // SeqLock read — retry if we caught a torn write.
+  // Typically completes on first try (< 1 µs).
+  Pos pos;
+  unsigned seq0, seq1;
+  do
+    {
+      seq0 = _seqCount.load (std::memory_order_acquire);
+      pos = _position;
+      seq1 = _seqCount.load (std::memory_order_acquire);
+    }
+  while (seq0 != seq1 || (seq0 & 1));  // retry if odd or changed
+  return pos;
 }
 
 float
-Channel::getWidth () const
+Channel::getPot1 () const
 {
-  return _width;
+  return _pot1;
 }
 
 void
-Channel::setWidth (float width)
+Channel::setPot1 (float pot1)
 {
-  _width = width;
+  _pot1 = pot1;
 }
 
-int
-Channel::getAmbisonicsOrder () const
+float
+Channel::getPot2 () const
 {
-  return _order;
+  return _pot2;
 }
 
 void
-Channel::setAmbisonicsOrder (int order)
+Channel::setPot2 (float pot2)
 {
-  _order = order;
+  _pot2 = pot2;
+}
+
+float
+Channel::getPot3 () const
+{
+  return _pot3;
+}
+
+void
+Channel::setPot3 (float pot3)
+{
+  _pot3 = pot3;
 }
 
 }

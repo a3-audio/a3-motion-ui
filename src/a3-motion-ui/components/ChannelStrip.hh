@@ -23,7 +23,6 @@
 #include <JuceHeader.h>
 
 #include "a3-motion-ui/components/DirectivityComponent.hh"
-#include "a3-motion-ui/components/LayoutHints.hh"
 
 namespace a3
 {
@@ -39,15 +38,7 @@ public:
   void resized () override;
   void paint (juce::Graphics &) override;
 
-  DirectivityComponent &getDirectivityComponent ();
-  void setTextBarsLabel (juce::String text);
   void setTextColour(juce::Colour const& colour);
-
-  // static constexpr int
-  // getMinimumHeight ()
-  // {
-  //   return 200;
-  // }
 
 private:
   ChannelUIState const &_uiState;

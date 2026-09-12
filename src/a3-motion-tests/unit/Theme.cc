@@ -1,0 +1,426 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2023 Patric Schmitz
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#include <gtest/gtest.h>
+
+#include <JuceHeader.h>
+
+#include <a3-motion-ui/theme/Theme.hh>
+
+using namespace a3;
+
+namespace
+{
+
+// A skin file that is missing, unreadable or half written must still leave a
+// usable picture. The same rule buttonLedColour already follows: fall back to
+// the built-in value rather than reading absent channels as 0 and quietly
+// going black.
+
+TEST (Theme, DefaultsStandOnTheirOwn)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_GT (theme.textPrimary.r + theme.textPrimary.g + theme.textPrimary.b,
+             300)
+      << "text has to be readable without a skin file";
+  EXPECT_LT (theme.surface.r + theme.surface.g + theme.surface.b, 200)
+      << "the panel ground has to stay dark without a skin file";
+}
+
+TEST (Theme, AFileOverlaysTheDefaults)
+{
+  auto const parsed
+      = juce::JSON::parse (R"({"accent": {"r": 10, "g": 20, "b": 30}})");
+  auto const theme = loadTheme (parsed);
+
+  EXPECT_EQ (theme.accent.r, 10);
+  EXPECT_EQ (theme.accent.g, 20);
+  EXPECT_EQ (theme.accent.b, 30);
+}
+
+TEST (Theme, AnEntryOnlyReplacesItsOwnRole)
+{
+  auto const parsed
+      = juce::JSON::parse (R"({"accent": {"r": 10, "g": 20, "b": 30}})");
+  auto const theme = loadTheme (parsed);
+  auto const defaults = loadTheme (juce::var{});
+
+  EXPECT_EQ (theme.textPrimary.r, defaults.textPrimary.r);
+  EXPECT_EQ (theme.surface.g, defaults.surface.g);
+}
+
+TEST (Theme, APartialEntryFallsBackRatherThanGoingDark)
+{
+  // A missing "b" would otherwise read as 0 and turn the accent into a muddy
+  // dark yellow — which looks like a rendering bug, not a config gap.
+  auto const parsed = juce::JSON::parse (R"({"accent": {"r": 10, "g": 20}})");
+  auto const theme = loadTheme (parsed);
+  auto const defaults = loadTheme (juce::var{});
+
+  EXPECT_EQ (theme.accent.r, defaults.accent.r);
+  EXPECT_EQ (theme.accent.g, defaults.accent.g);
+  EXPECT_EQ (theme.accent.b, defaults.accent.b);
+}
+
+TEST (Theme, ChannelsKeepTheirOrder)
+{
+  auto const parsed = juce::JSON::parse (
+      R"({"channels": [{"r":1,"g":1,"b":1},{"r":2,"g":2,"b":2},)"
+      R"({"r":3,"g":3,"b":3},{"r":4,"g":4,"b":4}]})");
+  auto const theme = loadTheme (parsed);
+
+  for (int i = 0; i < numThemeChannels; ++i)
+    EXPECT_EQ (theme.channel[i].r, i + 1) << "channel " << i;
+}
+
+TEST (Theme, SizesAndAlphasComeFromTheSkinToo)
+{
+  auto const parsed = juce::JSON::parse (
+      R"({"sphereScale": 0.5, "strokeThin": 2.5, "alphaDisabled": 0.25})");
+  auto const theme = loadTheme (parsed);
+
+  EXPECT_NEAR (theme.sphereScale, 0.5f, 0.001f);
+  EXPECT_NEAR (theme.strokeThin, 2.5f, 0.001f);
+  EXPECT_NEAR (theme.alphaDisabled, 0.25f, 0.001f);
+}
+
+
+// Guards against a role being added to the struct and forgotten in
+// loadTheme(): every name below is fed a value no default uses, and none of
+// them may still read as its default afterwards. Without this a new role would
+// silently ignore the skin file.
+TEST (Theme, EveryRoleIsActuallyRead)
+{
+  constexpr char const *roles[] = {
+    "surface",     "surfaceRaised", "background",        "textPrimary",
+    "textMuted",   "textOnAccent",  "accent",            "warning",
+    "danger",      "sphereSurface", "sphereRim",         "sphereEnvironment",
+    "boltCore",    "backgroundGlow", "speakerLight",     "energy",
+  };
+
+  juce::DynamicObject::Ptr skin{ new juce::DynamicObject{} };
+  for (auto const *role : roles)
+    {
+      juce::DynamicObject::Ptr entry{ new juce::DynamicObject{} };
+      entry->setProperty ("r", 7);
+      entry->setProperty ("g", 11);
+      entry->setProperty ("b", 13);
+      skin->setProperty (juce::Identifier (role), entry.get ());
+    }
+
+  auto const theme = loadTheme (juce::var{ skin.get () });
+
+  auto const wasRead = [] (ThemeColour const &c) {
+    return c.r == 7 && c.g == 11 && c.b == 13;
+  };
+
+  EXPECT_TRUE (wasRead (theme.surface)) << "surface";
+  EXPECT_TRUE (wasRead (theme.surfaceRaised)) << "surfaceRaised";
+  EXPECT_TRUE (wasRead (theme.background)) << "background";
+  EXPECT_TRUE (wasRead (theme.textPrimary)) << "textPrimary";
+  EXPECT_TRUE (wasRead (theme.textMuted)) << "textMuted";
+  EXPECT_TRUE (wasRead (theme.textOnAccent)) << "textOnAccent";
+  EXPECT_TRUE (wasRead (theme.accent)) << "accent";
+  EXPECT_TRUE (wasRead (theme.warning)) << "warning";
+  EXPECT_TRUE (wasRead (theme.danger)) << "danger";
+  EXPECT_TRUE (wasRead (theme.sphereSurface)) << "sphereSurface";
+  EXPECT_TRUE (wasRead (theme.sphereRim)) << "sphereRim";
+  EXPECT_TRUE (wasRead (theme.sphereEnvironment)) << "sphereEnvironment";
+  EXPECT_TRUE (wasRead (theme.boltCore)) << "boltCore";
+  EXPECT_TRUE (wasRead (theme.backgroundGlow)) << "backgroundGlow";
+  EXPECT_TRUE (wasRead (theme.speakerLight)) << "speakerLight";
+  EXPECT_TRUE (wasRead (theme.energy)) << "energy";
+}
+
+
+// EveryRoleIsActuallyRead gives every role the same colour, so it cannot see
+// two roles reading one key. That is exactly what happened: the glow was
+// renamed onto `background`, the colour the whole screen sits on, and the
+// screen turned the glow's blue. Here the two carry different colours.
+TEST (Theme, TheBackgroundColourAndTheGlowAreTwoThings)
+{
+  auto const skin = juce::JSON::parse (R"({
+    "background":     { "r": 26, "g": 28,  "b": 32  },
+    "backgroundGlow": { "r": 70, "g": 130, "b": 250 }
+  })");
+
+  auto const theme = loadTheme (skin);
+
+  EXPECT_EQ (theme.background.r, 26);
+  EXPECT_EQ (theme.background.g, 28);
+  EXPECT_EQ (theme.background.b, 32);
+
+  EXPECT_EQ (theme.backgroundGlow.r, 70);
+  EXPECT_EQ (theme.backgroundGlow.g, 130);
+  EXPECT_EQ (theme.backgroundGlow.b, 250);
+}
+
+// ── the active skin on disk ─────────────────────────────────────────────
+
+TEST (Theme, TheSkinFileSitsBesideTheConfig)
+{
+  auto const configDir = juce::File::getSpecialLocation (
+      juce::File::SpecialLocationType::tempDirectory);
+
+  EXPECT_EQ (skinFile (configDir, "mono").getFullPathName (),
+             configDir.getChildFile ("skins").getChildFile ("mono.json")
+                 .getFullPathName ());
+}
+
+TEST (Theme, AnEmptyNameFallsBackToDefault)
+{
+  auto const configDir = juce::File::getSpecialLocation (
+      juce::File::SpecialLocationType::tempDirectory);
+
+  EXPECT_EQ (skinFile (configDir, "").getFileName (), "default.json");
+}
+
+TEST (Theme, ShippedSkinExistsAndParses)
+{
+  auto const configFile = juce::File (A3_CONFIG_JSON_PATH);
+  ASSERT_TRUE (configFile.existsAsFile ());
+
+  auto const config = juce::JSON::parse (configFile.loadFileAsString ());
+  auto const name = config["ui"]["skin"].toString ();
+  ASSERT_TRUE (name.isNotEmpty ()) << "ui.skin names no skin";
+
+  auto const skin = skinFile (configFile.getParentDirectory (), name);
+  ASSERT_TRUE (skin.existsAsFile ()) << skin.getFullPathName ();
+  EXPECT_FALSE (juce::JSON::parse (skin.loadFileAsString ()).isVoid ())
+      << "the shipped skin does not parse";
+}
+
+// The tuned values moved out of config.json; if they were left behind as well
+// there would be two places to change and they would drift.
+TEST (Theme, TheTunedBlocksLeftTheConfig)
+{
+  auto const config = juce::JSON::parse (
+      juce::File (A3_CONFIG_JSON_PATH).loadFileAsString ());
+
+  for (auto const *moved : { "sphereGlow", "speakerLight", "energy",
+                             "corona", "channels" })
+    EXPECT_FALSE (config.hasProperty (moved))
+        << moved << " is still in config.json as well as the skin";
+}
+
+}
+
+// ── Schriftgrößen und Pot Size liegen im Skin ───────────────────────────
+//
+// Bis 2026-08-28 war die Basisgröße im Skin und ein Prozentfaktor daneben in
+// ui_state.json — zwei Quellen für eine Größe, und beim Skinwechsel änderte
+// sich die eine, während die andere stehenblieb. Jetzt trägt der Skin den
+// absoluten Wert, und die Skalen werden daraus abgeleitet, damit LookAndFeel
+// und PadRowDisplay JUCEs eigene Schriften weiterhin mitziehen können.
+
+TEST (SkinSizes, TheSkinCarriesTheFontSizes)
+{
+  auto const theme = loadTheme (
+      juce::JSON::parse (R"({"fontHeader": 24.0, "fontBody": 20.0})"));
+
+  EXPECT_FLOAT_EQ (theme.fontSize (FontRole::Header), 24.f);
+  EXPECT_FLOAT_EQ (theme.fontSize (FontRole::Body), 20.f);
+}
+
+TEST (SkinSizes, ASkinWithoutThemFallsBackToTheDefaults)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_FLOAT_EQ (theme.fontSize (FontRole::Header), 18.f);
+  EXPECT_FLOAT_EQ (theme.fontSize (FontRole::Body), 15.f);
+}
+
+// The scales are no longer set from anywhere — they are what the skin's size
+// is, relative to the built-in one. That keeps the one place JUCE's own fonts
+// are scaled (LookAndFeel, PadRowDisplay) working off the same single source.
+TEST (SkinSizes, TheScalesFollowTheSkinRatherThanBeingSet)
+{
+  auto const theme = loadTheme (
+      juce::JSON::parse (R"({"fontHeader": 36.0, "fontBody": 30.0})"));
+
+  EXPECT_FLOAT_EQ (theme.scaleFor (FontRole::Header), 2.f);
+  EXPECT_FLOAT_EQ (theme.scaleFor (FontRole::Body), 2.f);
+}
+
+TEST (SkinSizes, TheDefaultSkinScalesByOne)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_FLOAT_EQ (theme.scaleFor (FontRole::Header), 1.f);
+  EXPECT_FLOAT_EQ (theme.scaleFor (FontRole::Body), 1.f);
+}
+
+TEST (SkinSizes, TheSkinCarriesPotSize)
+{
+  auto const theme = loadTheme (juce::JSON::parse (R"({"potSize": 1.75})"));
+
+  EXPECT_FLOAT_EQ (theme.potSize, 1.75f);
+  EXPECT_FLOAT_EQ (loadTheme (juce::var{}).potSize, 1.f);
+}
+
+// Changing skin has to move all of it at once — that is the whole point of
+// putting it there.
+TEST (SkinSizes, SwitchingSkinMovesSizesWithIt)
+{
+  auto const small = loadTheme (
+      juce::JSON::parse (R"({"fontBody": 12.0, "potSize": 0.75})"));
+  auto const large = loadTheme (
+      juce::JSON::parse (R"({"fontBody": 26.0, "potSize": 1.75})"));
+
+  EXPECT_LT (small.fontSize (FontRole::Body), large.fontSize (FontRole::Body));
+  EXPECT_LT (small.potSize, large.potSize);
+}
+
+
+// The touchscreen's drag sensitivity: how far a finger travels before a
+// control steps once. A skin value like potSize and the font sizes, because
+// what feels right is decided at the panel, not at compile time.
+TEST (Theme, TouchDragPixelsPerStepDefaultsToTwelve)
+{
+  auto const theme = loadTheme (juce::var{});
+  EXPECT_EQ (theme.touchDragPixelsPerStep, 12);
+}
+
+TEST (Theme, TouchDragPixelsPerStepComesFromTheSkin)
+{
+  auto const parsed = juce::JSON::parse (R"({"touchDragPixelsPerStep": 20})");
+  auto const theme = loadTheme (parsed);
+
+  EXPECT_EQ (theme.touchDragPixelsPerStep, 20);
+}
+
+
+// How tall the clip settings bar may be, as a multiple of what its contents
+// ask for. A skin value like potSize: the bar takes its room from the sphere,
+// and where that line sits is a matter of taste, not of legibility.
+TEST (Theme, ClipSettingsHeightScaleDefaultsToOne)
+{
+  auto const theme = loadTheme (juce::var{});
+  EXPECT_NEAR (theme.clipSettingsHeightScale, 1.f, 0.001f);
+}
+
+TEST (Theme, ClipSettingsHeightScaleComesFromTheSkin)
+{
+  auto const parsed
+      = juce::JSON::parse (R"({"clipSettingsHeightScale": 0.75})");
+  EXPECT_NEAR (loadTheme (parsed).clipSettingsHeightScale, 0.75f, 0.001f);
+}
+
+// Five roles, taken from where a rounded rectangle is drawn rather than from
+// how round it happens to be. A chip inside a card is not the card, and the
+// card is not the panel it sits in — so the scale has to stay ordered even
+// after a skin has been at it.
+TEST (Theme, TheRadiusRolesAreAScale)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_LT (theme.radiusTick, theme.radiusControl);
+  EXPECT_LT (theme.radiusControl, theme.radiusRow);
+  EXPECT_LT (theme.radiusRow, theme.radiusCard);
+  EXPECT_LT (theme.radiusCard, theme.radiusPanel);
+}
+
+TEST (Theme, TheSpacingRolesAreAScale)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_LT (theme.paddingHair, theme.paddingTight);
+  EXPECT_LT (theme.paddingTight, theme.paddingSmall);
+  EXPECT_LT (theme.paddingSmall, theme.padding);
+}
+
+TEST (Theme, ASkinSetsOneMetricAndLeavesTheRest)
+{
+  auto const parsed
+      = juce::JSON::parse (R"({"radiusCard": 12, "padding": 6})");
+  auto const theme = loadTheme (parsed);
+  auto const defaults = loadTheme (juce::var{});
+
+  EXPECT_FLOAT_EQ (theme.radiusCard, 12.f);
+  EXPECT_FLOAT_EQ (theme.padding, 6.f);
+  EXPECT_FLOAT_EQ (theme.radiusPanel, defaults.radiusPanel);
+  EXPECT_FLOAT_EQ (theme.paddingTight, defaults.paddingTight);
+}
+
+// One ladder, not two. alphaDisabled and alphaInactive were here first; the
+// new rungs slot between and around them, so a skin that dims the device dims
+// it consistently instead of moving five values against two.
+TEST (Theme, TheEmphasisRungsAreOrdered)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_LT (theme.alphaFill, theme.alphaOutline);
+  EXPECT_LT (theme.alphaOutline, theme.alphaGuide);
+  EXPECT_LT (theme.alphaGuide, theme.alphaFillEmphasis);
+  EXPECT_LT (theme.alphaFillEmphasis, theme.alphaDisabled);
+  EXPECT_LT (theme.alphaDisabled, theme.alphaMuted);
+  EXPECT_LT (theme.alphaMuted, theme.alphaInactive);
+  EXPECT_LT (theme.alphaInactive, theme.alphaSecondary);
+  EXPECT_LT (theme.alphaSecondary, theme.alphaTextStrong);
+  EXPECT_LT (theme.alphaTextStrong, theme.alphaActive);
+}
+
+TEST (Theme, EveryEmphasisRungIsAnAlpha)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  for (auto const alpha :
+       { theme.alphaFill, theme.alphaOutline, theme.alphaGuide,
+         theme.alphaFillEmphasis, theme.alphaMuted, theme.alphaSecondary,
+         theme.alphaTextStrong, theme.alphaActive })
+    {
+      EXPECT_GT (alpha, 0.f);
+      EXPECT_LE (alpha, 1.f);
+    }
+}
+
+TEST (Theme, ASkinSetsOneRungAndLeavesTheRest)
+{
+  auto const parsed = juce::JSON::parse (R"({"alphaFill": 0.2})");
+  auto const theme = loadTheme (parsed);
+  auto const defaults = loadTheme (juce::var{});
+
+  EXPECT_FLOAT_EQ (theme.alphaFill, 0.2f);
+  EXPECT_FLOAT_EQ (theme.alphaOutline, defaults.alphaOutline);
+}
+
+// Three stroke widths, not two. 1.5 sits exactly between thin and thick --
+// half a pixel from either, which is a doubling rather than a snap -- and two
+// sites draw with it: the response curve in the clip bar and the caret in the
+// file list.
+TEST (Theme, TheStrokeWidthsAreAScale)
+{
+  auto const theme = loadTheme (juce::var{});
+
+  EXPECT_LT (theme.strokeThin, theme.strokeMedium);
+  EXPECT_LT (theme.strokeMedium, theme.strokeThick);
+}
+
+TEST (Theme, ASkinSetsOneStrokeWidthAndLeavesTheRest)
+{
+  auto const parsed = juce::JSON::parse (R"({"strokeMedium": 1.75})");
+  auto const theme = loadTheme (parsed);
+  auto const defaults = loadTheme (juce::var{});
+
+  EXPECT_FLOAT_EQ (theme.strokeMedium, 1.75f);
+  EXPECT_FLOAT_EQ (theme.strokeThin, defaults.strokeThin);
+  EXPECT_FLOAT_EQ (theme.strokeThick, defaults.strokeThick);
+}

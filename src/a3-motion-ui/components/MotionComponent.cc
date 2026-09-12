@@ -20,46 +20,50 @@
 
 #include "MotionComponent.hh"
 
+#include <a3-motion-engine/ClipSettings.hh>
+
+#include <a3-motion-engine/TempoLfo.hh>
+#include <a3-motion-engine/TrajectoryShaping.hh>
+
+#include <a3-motion-engine/TrajectoryShape.hh>
+
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/UserConfig.hh>
+#include <a3-motion-engine/elevation/HeightMap.hh>
 
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/theme/ThemedComponent.hh>
+#include <a3-motion-ui/components/SphereShader.hh>
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
+#include <a3-motion-ui/components/Listener.hh>
+#include <a3-motion-ui/components/SphereProjection.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 
 namespace
 {
 
-/* Convenience RAII object to make sure we always free the
- * OpenGLGraphicsContext after it was used in the rendering callback.
+/* Minimal GLSL 1.20 shader for compositing a texture over the framebuffer
+ * with alpha blending.  Replaces the old GLContextGraphics approach which
+ * called juce::createOpenGLGraphicsContext and clobbered the shader output.
  */
-class GLContextGraphics
-{
-public:
-  GLContextGraphics (juce::OpenGLContext &glContext, int width, int height)
-  {
-    _glRenderer = juce::createOpenGLGraphicsContext (glContext, width, height);
+static const char *blitVertSrc = R"(
+#version 120
+attribute vec2 aPos;
+varying   vec2 vUV;
+void main() {
+  vUV = aPos * 0.5 + 0.5;             // no Y flip — JUCE FBO is standard GL
+  gl_Position = vec4(aPos, 0.0, 1.0);
+})";
 
-    _graphics = std::make_unique<juce::Graphics> (*_glRenderer);
-    _graphics->addTransform (
-        juce::AffineTransform::scale (float (glContext.getRenderingScale ())));
-  }
-
-  ~GLContextGraphics ()
-  {
-    _graphics = nullptr;
-    _glRenderer = nullptr;
-  }
-
-  juce::Graphics &
-  get ()
-  {
-    return *_graphics;
-  }
-
-private:
-  std::unique_ptr<juce::LowLevelGraphicsContext> _glRenderer;
-  std::unique_ptr<juce::Graphics> _graphics;
-};
+static const char *blitFragSrc = R"(
+#version 120
+uniform sampler2D uTex;
+varying vec2 vUV;
+void main() {
+  gl_FragColor = texture2D(uTex, vUV);
+})";
 
 // struct VertexUV
 // {
@@ -92,10 +96,14 @@ private:
 //                                                                uniformName);
 // }
 
-// relative to the (square) component extents
-auto constexpr reduceFactorCircle = .8f;
+// Sphere and blob size come from config.json now (ui.sphereScale,
+// ui.blobScale); these are the fallbacks. The sphere's scale is not free: the
+// speaker icons are drawn at speakerRadius plus their own half-diagonal in the
+// same normalised space, so past a point they run off the shorter edge. See
+// speakerIconsFitOnScreen() and SphereScale.IconsFitAtTheShippedScale.
+auto constexpr reduceFactorCircleDefault = .62f;
+auto constexpr reduceFactorBlobsDefault = 0.05f;
 auto constexpr reduceFactorHead = .35f;
-auto constexpr reduceFactorBlobs = 0.05f;
 
 auto constexpr activeAreaAroundBlobFactor = 3.f;
 auto constexpr blobHighlightFactor = 1.1f;
@@ -104,6 +112,139 @@ auto constexpr blobHighlightFactor = 1.1f;
 
 namespace a3
 {
+
+namespace
+{
+juce::File
+configFile ()
+{
+  return juce::File::getCurrentWorkingDirectory ().getChildFile (
+      "config/config.json");
+}
+
+// The tuned visual values live in the active skin now, not in config.json.
+juce::File
+visualConfigFile ()
+{
+  return skinFile (configFile ().getParentDirectory (),
+                   userConfig["ui"]["skin"].toString ());
+}
+}
+
+
+/* ── BlitResources member methods ─────────────────────────────── */
+
+void MotionComponent::BlitResources::create ()
+{
+  using namespace juce::gl;
+  // Compile vertex shader
+  GLuint vs = glCreateShader (GL_VERTEX_SHADER);
+  glShaderSource (vs, 1, &blitVertSrc, nullptr);
+  glCompileShader (vs);
+  {
+    GLint ok = 0;
+    glGetShaderiv (vs, GL_COMPILE_STATUS, &ok);
+    if (!ok)
+      {
+        char buf[512];
+        glGetShaderInfoLog (vs, sizeof (buf), nullptr, buf);
+        DBG ("BlitResources: vertex shader compile error: " << buf);
+        glDeleteShader (vs);
+        return;
+      }
+  }
+  // Compile fragment shader
+  GLuint fs = glCreateShader (GL_FRAGMENT_SHADER);
+  glShaderSource (fs, 1, &blitFragSrc, nullptr);
+  glCompileShader (fs);
+  {
+    GLint ok = 0;
+    glGetShaderiv (fs, GL_COMPILE_STATUS, &ok);
+    if (!ok)
+      {
+        char buf[512];
+        glGetShaderInfoLog (fs, sizeof (buf), nullptr, buf);
+        DBG ("BlitResources: fragment shader compile error: " << buf);
+        glDeleteShader (vs);
+        glDeleteShader (fs);
+        return;
+      }
+  }
+  // Link
+  program = glCreateProgram ();
+  glAttachShader (program, vs);
+  glAttachShader (program, fs);
+  glLinkProgram (program);
+  glDeleteShader (vs);
+  glDeleteShader (fs);
+  {
+    GLint ok = 0;
+    glGetProgramiv (program, GL_LINK_STATUS, &ok);
+    if (!ok)
+      {
+        char buf[512];
+        glGetProgramInfoLog (program, sizeof (buf), nullptr, buf);
+        DBG ("BlitResources: program link error: " << buf);
+        glDeleteProgram (program);
+        program = 0;
+        return;
+      }
+  }
+
+  aPos = glGetAttribLocation (program, "aPos");
+  uTex = glGetUniformLocation (program, "uTex");
+
+  // Fullscreen quad VBO
+  static const float quad[] = { -1, -1, 1, -1, -1, 1, 1, 1 };
+  glGenBuffers (1, &vbo);
+  glBindBuffer (GL_ARRAY_BUFFER, vbo);
+  glBufferData (GL_ARRAY_BUFFER, sizeof (quad), quad, GL_STATIC_DRAW);
+  glBindBuffer (GL_ARRAY_BUFFER, 0);
+
+  valid = true;
+}
+
+void MotionComponent::BlitResources::destroy ()
+{
+  using namespace juce::gl;
+  if (vbo)     { glDeleteBuffers (1, &vbo); vbo = 0; }
+  if (program) { glDeleteProgram (program);  program = 0; }
+  valid = false;
+}
+
+void MotionComponent::BlitResources::blit (unsigned int textureID,
+                                           int vpW, int vpH) const
+{
+  using namespace juce::gl;
+  if (!valid || !textureID) return;
+
+  glViewport (0, 0, vpW, vpH);
+  glEnable (GL_BLEND);
+  glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+  glUseProgram (program);
+  glActiveTexture (GL_TEXTURE0);
+  glBindTexture (GL_TEXTURE_2D, textureID);
+  if (uTex >= 0) glUniform1i (uTex, 0);
+
+  glBindBuffer (GL_ARRAY_BUFFER, vbo);
+  if (aPos >= 0)
+    {
+      glEnableVertexAttribArray (GLuint (aPos));
+      glVertexAttribPointer (GLuint (aPos), 2, GL_FLOAT, GL_FALSE,
+                             2 * sizeof (float), nullptr);
+    }
+
+  glDrawArrays (GL_TRIANGLE_STRIP, 0, 4);
+
+  if (aPos >= 0) glDisableVertexAttribArray (GLuint (aPos));
+  glBindBuffer (GL_ARRAY_BUFFER, 0);
+  glBindTexture (GL_TEXTURE_2D, 0);
+  glUseProgram (0);
+  glDisable (GL_BLEND);
+}
+
+/* ── MotionComponent ──────────────────────────────────────────── */
 
 MotionComponent::MotionComponent (
     MotionEngine &engine,
@@ -114,7 +255,7 @@ MotionComponent::MotionComponent (
       juce::OpenGLContext::OpenGLVersion::defaultGLVersion);
   _glContext.setRenderer (this);
   _glContext.setContinuousRepainting (true);
-  _glContext.setComponentPaintingEnabled (false);
+  _glContext.setComponentPaintingEnabled (true);
   _glContext.attachTo (*this);
 
   // @TODO: compile as binary resources into executable
@@ -124,9 +265,13 @@ MotionComponent::MotionComponent (
   _drawableHead = juce::Drawable::createFromSVGFile (
       juce::File::getCurrentWorkingDirectory ().getChildFile (
           "resources/head.svg"));
+  _drawableSpeaker = juce::Drawable::createFromSVGFile (
+      juce::File::getCurrentWorkingDirectory ().getChildFile (
+          "resources/speaker.svg"));
 
-  // start disocclusion / animation timer
-  startTimer (1 / 60.f);
+  // start disocclusion / animation timer at 30 Hz
+  // (GL renders at 60 Hz vsync, 30 Hz is enough for blob push-away)
+  startTimerHz (30);
 }
 
 MotionComponent::~MotionComponent ()
@@ -152,22 +297,33 @@ MotionComponent::resized ()
 void
 MotionComponent::mouseMove (const juce::MouseEvent &event)
 {
-  updateChannelBlobHighlight (event.getPosition ().toFloat ());
+  // Skip highlight computation while dragging — saves 4× position lookups per move
+  if (_grabs.empty ())
+    updateChannelBlobHighlight (event.getPosition ().toFloat ());
 }
 
 void
 MotionComponent::timerCallback ()
 {
-  if (_grabbedIndex.has_value ())
+  if (!_grabs.heldChannels ().empty ())
     disoccludeBlobs ();
 }
 
 void
-MotionComponent::setPreviewPattern (std::shared_ptr<Pattern> pattern)
+MotionComponent::setPreviewPattern (std::shared_ptr<Pattern> pattern,
+                                    juce::Path displayPath,
+                                    std::vector<std::pair<float,float>> jumpDots)
 {
   jassert (pattern != nullptr);
   std::lock_guard<std::mutex> guard (_mutexPreview);
-  _patternsPreview.insert (pattern);
+  _patternsPreview[pattern] = { std::move (displayPath), std::move (jumpDots) };
+}
+
+void
+MotionComponent::setRecordingUnderlay (std::shared_ptr<Pattern> pattern)
+{
+  std::lock_guard<std::mutex> guard (_mutexUnderlay);
+  _recordingUnderlay = std::move (pattern);
 }
 
 void
@@ -179,113 +335,224 @@ MotionComponent::unsetPreviewPattern (std::shared_ptr<Pattern> pattern)
 }
 
 void
+MotionComponent::setPatternDisplayData (std::shared_ptr<Pattern> pattern,
+                                        juce::Path displayPath,
+                                        std::vector<std::pair<float,float>> jumpDots)
+{
+  jassert (pattern != nullptr);
+  std::lock_guard<std::mutex> guard (_mutexDisplayData);
+  _patternsDisplayData[pattern] = { std::move (displayPath), std::move (jumpDots) };
+}
+
+void
+MotionComponent::removePatternDisplayData (std::shared_ptr<Pattern> pattern)
+{
+  jassert (pattern != nullptr);
+  std::lock_guard<std::mutex> guard (_mutexDisplayData);
+  _patternsDisplayData.erase (pattern);
+}
+
+void
 MotionComponent::setBackgroundColour (juce::Colour const &colour)
 {
-  std::lock_guard<std::mutex> guard (_mutexBackgroundColour);
-  _backgroundColour = colour;
+  _backgroundColourPacked.store (colour.getARGB (), std::memory_order_relaxed);
+}
+
+void
+MotionComponent::setRenderingPaused (bool paused)
+{
+  _glContext.setContinuousRepainting (!paused);
+}
+
+void
+MotionComponent::setSphereGlow (float peak, float rms)
+{
+  _vuSphereGlowPeak = peak;
+  _vuSphereGlowRms = rms;
+}
+
+void
+MotionComponent::setSpeakerLight (int speakerIndex, float peak, float rms)
+{
+  if (speakerIndex >= 0 && speakerIndex < 4)
+    {
+      _vuSpeakerPeak[speakerIndex] = peak;
+      _vuSpeakerRms[speakerIndex] = rms;
+    }
+}
+
+void
+MotionComponent::setEnergyGrid (float const *values, int count)
+{
+  if (count != energyGridPointCount)
+    return;
+
+  juce::SpinLock::ScopedLockType lock{ _energyLock };
+  std::copy (values, values + count, _energyIncoming.begin ());
+  _energyPending = true;
+}
+
+// Runs on the GL thread. The plugin only sends 9 times a second, so the map is
+// eased towards each new frame rather than stepped to it.
+void
+MotionComponent::uploadEnergyMap ()
+{
+  using namespace juce::gl;
+
+  if (_energyProjection == nullptr || _energyTexture == 0)
+    return;
+
+  {
+    juce::SpinLock::ScopedTryLockType lock{ _energyLock };
+    if (lock.isLocked () && _energyPending)
+      {
+        _energyProjection->project (_energyIncoming.data (),
+                                    _energyTarget.data ());
+        _energyPending = false;
+      }
+  }
+
+  constexpr float dt = 1.f / 60.f;
+  for (int i = 0; i < energyMapTexelCount; ++i)
+    {
+      _energySmoothed[static_cast<size_t> (i)] = speakerLightEnvelope (
+          _energySmoothed[static_cast<size_t> (i)],
+          _energyTarget[static_cast<size_t> (i)], _energyAttack, _energyDecay,
+          dt);
+
+      // The perceptual mapping happens here rather than in the shader so the
+      // texture can stay 8-bit, which every GL 2.1 driver handles.
+      auto const level = speakerLightLevel (
+          _energySmoothed[static_cast<size_t> (i)], _energyVuMax, _energyCurve);
+      _energyTexels[static_cast<size_t> (i)]
+          = static_cast<unsigned char> (std::clamp (level, 0.f, 1.f) * 255.f);
+    }
+
+  glBindTexture (GL_TEXTURE_2D, _energyTexture);
+  glTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, energyMapWidth, energyMapHeight,
+                   GL_LUMINANCE, GL_UNSIGNED_BYTE, _energyTexels.data ());
+  glBindTexture (GL_TEXTURE_2D, 0);
 }
 
 void
 MotionComponent::disoccludeBlobs ()
 {
-  jassert (_grabbedIndex.has_value ());
-
-  auto const posGrabbed = _engine.getChannelPosition (_grabbedIndex.value ());
-  jassert (posGrabbed.isValid ());
-  auto const posGrabbedPixel = normalizedToLocal2DPosition (posGrabbed);
-
-  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+  // Everything in here works in the height map's own 2D space, because that is
+  // what setChannel2DPosition reads at the bottom. Projecting by dropping z
+  // instead — which is what the drawing does — is a different space, shorter by
+  // sqrt(2), and reading in one while writing in the other shrank every
+  // untouched blob's radius by that factor per frame until it sat on the
+  // centre. See HeightMapSphere.DropZRoundTripShrinksTowardsTheCentre.
+  //
+  // With several fingers there is no single blob to give way to. A held blob
+  // never moves — it is where its finger put it — and every untouched one
+  // gives way to all of them in turn.
+  for (auto const held : _grabs.heldChannels ())
     {
-      if (!_uiStates[channel]->grabbed)
+      auto const posGrabbed = _engine.getChannelPosition (held);
+      if (!posGrabbed.isValid ())
+        continue;
+
+      auto const posGrabbedPixel
+          = normalizedToLocal2DPosition (directionToDisc (posGrabbed));
+
+      for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
         {
-          auto position = _engine.getChannelPosition (channel);
-          if (!position.isValid ())
-            continue;
+          if (!_uiStates[channel]->grabbed)
+            {
+              auto position = _engine.getChannelPosition (channel);
+              if (!position.isValid ())
+                continue;
 
-          auto posPixel = normalizedToLocal2DPosition (position);
-          auto const distance = posPixel.getDistanceFrom (posGrabbedPixel);
+              auto posPixel
+                  = normalizedToLocal2DPosition (directionToDisc (position));
+              auto const distance = posPixel.getDistanceFrom (posGrabbedPixel);
 
-          if (distance < getActiveDistanceInPixel ())
-            { // push out onto circumference
-              // juce::Logger::writeToLog ("disoccluding point "
-              //                           + juce::String (channelIndex));
-              auto offset = posPixel - posGrabbedPixel;
-              offset *= (getActiveDistanceInPixel () + 1.f)
-                        / offset.getDistanceFromOrigin ();
+              if (distance < getActiveDistanceInPixel ())
+                { // push out onto circumference
+                  // juce::Logger::writeToLog ("disoccluding point "
+                  //                           + juce::String (channelIndex));
+                  auto offset = posPixel - posGrabbedPixel;
+                  offset *= (getActiveDistanceInPixel () + 1.f)
+                            / offset.getDistanceFromOrigin ();
 
-              posPixel = posGrabbedPixel + offset;
+                  posPixel = posGrabbedPixel + offset;
+                }
+              else if (posPixel.getDistanceFrom (_uiStates[channel]->posAnchor)
+                       > 1.f)
+                { // snap back by projection onto circle
+                  // borrowing math from:
+                  // https://www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
+                  auto R = getActiveDistanceInPixel ();
+
+                  auto C = posGrabbedPixel;
+                  auto P = posPixel;
+
+                  jassert (_uiStates[channel]->posAnchor.isFinite ());
+                  if (!_uiStates[channel]->posAnchor.isFinite ())
+                    {
+                      _uiStates[channel]->posAnchor = posPixel;
+                    }
+
+                  auto Pa = _uiStates[channel]->posAnchor;
+
+                  auto D = Pa - posPixel;
+
+                  auto Delta = P - C;
+                  auto D_dot_Delta = D.getDotProduct (Delta);
+
+                  auto delta
+                      = D_dot_Delta * D_dot_Delta
+                        - D.getDistanceSquaredFromOrigin ()
+                              * (Delta.getDistanceSquaredFromOrigin () - R * R);
+
+                  auto t = .01f; // default: snap back with exponential
+                                 // smoothing
+                  int numValid = 0;
+                  float validTs[2];
+                  if (delta > 0.f)
+                    {
+                      auto t0 = -(D_dot_Delta - std::sqrt (delta))
+                                / D.getDistanceSquaredFromOrigin ();
+                      auto t1 = -(D_dot_Delta + std::sqrt (delta))
+                                / D.getDistanceSquaredFromOrigin ();
+
+                      auto constexpr eps = 0.001f;
+                      if (t0 >= -eps && t0 <= 1.f + eps)
+                        validTs[numValid++] = t0;
+                      if (t1 >= -eps && t1 <= 1.f + eps)
+                        validTs[numValid++] = t1;
+
+                      // Pick the t that moves P closest to its target
+                      float bestDist = std::numeric_limits<float>::max ();
+                      for (int ti = 0; ti < numValid; ++ti)
+                        {
+                          auto d = P.getDistanceSquaredFrom (P + validTs[ti] * D);
+                          if (d < bestDist)
+                            {
+                              bestDist = d;
+                              t = validTs[ti];
+                            }
+                        }
+                    }
+
+                  posPixel = P + t * D;
+
+                  if (numValid > 0)
+                    {
+                      // after projecting shift outwards to induce slipping
+                      auto Drot = juce::Point<float> (-D.y, D.x);
+                      Drot /= Drot.getDistanceFromOrigin ();
+                      if ((P - C).getDotProduct (Drot) < 0.f)
+                        Drot *= -1.f;
+                      posPixel += .25f * Drot;
+                    }
+                }
+
+                  _engine.setChannel3DPosition (
+                      channel,
+                      pixelToDirection (posPixel));
             }
-          else if (posPixel.getDistanceFrom (_uiStates[channel]->posAnchor)
-                   > 1.f)
-            { // snap back by projection onto circle
-              // borrowing math from:
-              // https://www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
-              auto R = getActiveDistanceInPixel ();
-
-              auto C = posGrabbedPixel;
-              auto P = posPixel;
-
-              jassert (_uiStates[channel]->posAnchor.isFinite ());
-              if (!_uiStates[channel]->posAnchor.isFinite ())
-                {
-                  _uiStates[channel]->posAnchor = posPixel;
-                }
-
-              auto Pa = _uiStates[channel]->posAnchor;
-
-              auto D = Pa - posPixel;
-
-              auto Delta = P - C;
-              auto D_dot_Delta = D.getDotProduct (Delta);
-
-              auto delta
-                  = D_dot_Delta * D_dot_Delta
-                    - D.getDistanceSquaredFromOrigin ()
-                          * (Delta.getDistanceSquaredFromOrigin () - R * R);
-
-              auto t = .01f; // default: snap back with exponential
-                             // smoothing
-              std::set<float> ts;
-              if (delta > 0.f)
-                {
-                  auto t0 = -(D_dot_Delta - std::sqrt (delta))
-                            / D.getDistanceSquaredFromOrigin ();
-                  auto t1 = -(D_dot_Delta + std::sqrt (delta))
-                            / D.getDistanceSquaredFromOrigin ();
-
-                  auto constexpr eps = 0.001f;
-                  if (t0 >= -eps && t0 <= 1.f + eps)
-                    ts.insert (t0);
-                  if (t1 >= -eps && t1 <= 1.f + eps)
-                    ts.insert (t1);
-
-                  auto tIt = std::min_element (
-                      ts.begin (), ts.end (),
-                      [&] (auto const &lhs, auto const &rhs) {
-                        return P.getDistanceSquaredFrom (P + lhs * D)
-                               < P.getDistanceSquaredFrom (P + rhs * D);
-                        ;
-                      });
-
-                  if (tIt != ts.end ())
-                    t = *tIt;
-                }
-
-              posPixel = P + t * D;
-
-              if (!ts.empty ())
-                {
-                  // after projecting shift outwards to induce slipping
-                  auto Drot = juce::Point<float> (-D.y, D.x);
-                  Drot /= Drot.getDistanceFromOrigin ();
-                  if ((P - C).getDotProduct (Drot) < 0.f)
-                    Drot *= -1.f;
-                  posPixel += .25f * Drot;
-                }
-            }
-
-          _engine.setChannel2DPosition (
-              channel, localToNormalized2DPosition (posPixel));
         }
     }
 }
@@ -293,36 +560,100 @@ MotionComponent::disoccludeBlobs ()
 void
 MotionComponent::mouseDown (const juce::MouseEvent &event)
 {
-  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
-    _uiStates[channel]->grabbed = false;
+  // No blanket reset any more: a finger going down must not let go of what
+  // another finger is already holding.
+  auto const source = event.source.getIndex ();
 
-  if (_engine.isRecording ())
+  // The little sphere in the corner is what turns the room. A thing you take
+  // hold of rather than a chord you have to remember: it used to be SHIFT and
+  // a finger anywhere on the big sphere, which asked the performer to know
+  // that the modifier existed and gave them nothing to aim at.
+  //
+  // Two taps on it put the view back overhead, which is the one view the
+  // device is designed around and the one you want back in a hurry.
+  auto const ball = cameraBall ();
+  if (!ball.isEmpty () && ball.contains (event.getPosition ()))
     {
-      auto const posPixel = event.getPosition ().toFloat ();
-      auto const posHOA = localToNormalized2DPosition (posPixel);
-      _engine.setRecording2DPosition (posHOA);
+      auto const now = juce::Time::currentTimeMillis ();
+      constexpr int doubleTapMs = 400;
+
+      if (_ballTapMs != 0 && now - _ballTapMs < doubleTapMs)
+        {
+          _ballTapMs = 0;
+          setCamera ({});
+          return;
+        }
+
+      _ballTapMs = now;
+      _cameraGrab = source;
+      _cameraGrabbedAt = event.getPosition ().toFloat ();
+      _cameraAtGrab = getCamera ();
+      return;
+    }
+
+  if (_engine.isRecordingOrScheduled ())
+    {
+      // A recording follows one finger and has to keep following the same
+      // one. Every finger writing the position would make the trajectory
+      // jump between them — impossible with a single pointer, easy with ten.
+      auto const wasEmpty = _grabs.empty ();
+      _grabs.down (source, {});
+
+      if (wasEmpty)
+        {
+          // The same projection the drag path uses. Handing the finger's
+          // disc position over as a pattern coordinate read its radius in the
+          // wrong space and put the blob short of the finger by 1/sqrt(2) —
+          // the same mistake disoccludeBlobs once made.
+          auto const posPixel = event.getPosition ().toFloat ();
+          _engine.setRecording3DPosition (
+              pixelToDirection (posPixel));
+        }
     }
   else
     {
-      auto closestIndex = getClosestBlobIndexWithinRadius (
+      // The nearest blob that is *free*. Taking one already under somebody
+      // else's finger is how two fingers would end up fighting over one blob.
+      auto closestIndex = getClosestFreeBlobIndexWithinRadius (
           event.getPosition ().toFloat (), getActiveDistanceInPixel ());
+      _grabs.down (source, closestIndex);
       if (closestIndex.has_value ())
         {
           auto const index = closestIndex.value ();
           _uiStates[index]->grabbed = true;
-          _uiStates[index]->grabOffset
-              = normalizedToLocal2DPosition (
-                    _engine.getChannelPosition (index))
-                - event.getPosition ().toFloat ();
-          _grabbedIndex = index;
+
+          // Playback writes this channel's position on every tick, and so
+          // does the drag. Holding it means the clip carries on running and
+          // stops fighting the finger for where the blob is.
+          _engine.setChannelPositionHeld (index, true);
+
+          // Recover the raw 2D position via the exact inverse mapping
+          // (unambiguous between front/back hemisphere) rather than
+          // inverting the on-screen (orthographic) position, which would
+          // be ambiguous whenever the blob is currently on the back of
+          // the sphere and could snap it to the front on grab. No Pattern
+          // is in scope here (this is a live/manual grab, not a clip) — use
+          // whatever clip is currently playing on the channel, if any.
+          // The blob jumps under the finger and stays there. Keeping the
+          // offset it was grabbed at is the mouse convention, and on a panel
+          // with a fat finger and a small blob it reads as the blob lagging
+          // beside the finger rather than being held by it.
+          _uiStates[index]->grabOffset = {};
+
+          // Put it there now rather than on the first movement: "jumps under
+          // the finger when grabbed" means when grabbed, and a touch that
+          // presses without moving would otherwise leave it where it was.
+          _engine.setChannel3DPosition (
+              index, pixelToDirection ((
+                         event.getPosition ().toFloat ())));
 
           // disocclusion: save anchor position for all channels
           for (auto channel = 0u; channel < _engine.getNumChannels ();
                ++channel)
             {
               auto const posChannel = _engine.getChannelPosition (channel);
-              _uiStates[channel]->posAnchor
-                  = normalizedToLocal2DPosition (posChannel);
+              _uiStates[channel]->posAnchor = normalizedToLocal2DPosition (
+                  directionToDisc (posChannel));
             }
         }
     }
@@ -331,14 +662,26 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
 void
 MotionComponent::mouseUp (const juce::MouseEvent &event)
 {
-  juce::ignoreUnused (event);
-  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+  // Exactly the channel this finger held, and no other. Clearing them all was
+  // right while there could only be one grab; with several it handed every
+  // other blob back to playback mid-drag.
+  if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
     {
-      _uiStates[channel]->grabbed = false;
+      _cameraGrab.reset ();
+      return;
     }
-  _grabbedIndex = {};
 
-  _engine.releaseRecordingPosition ();
+  auto const released = _grabs.up (event.source.getIndex ());
+  if (released.has_value ())
+    {
+      _uiStates[released.value ()]->grabbed = false;
+      _engine.setChannelPositionHeld (released.value (), false);
+    }
+
+  // The recording follows whichever finger is on the screen, so it is only
+  // over when the last one leaves.
+  if (_grabs.empty ())
+    _engine.releaseRecordingPosition ();
 }
 
 void
@@ -346,24 +689,38 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
 {
   auto const posPixel = event.getPosition ().toFloat ();
 
-  if (_engine.isRecording ())
+  if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
     {
-      auto const posHOA = localToNormalized2DPosition (posPixel);
-      _engine.setRecording2DPosition (posHOA);
+      // Up and down leans the eye over the room, left and right walks it
+      // round -- see cameraFromBallDrag(), which is where the feel of it is
+      // decided and where it can be tested.
+      setCamera (cameraSettled (cameraFromBallDrag (
+          _cameraAtGrab, posPixel - _cameraGrabbedAt, cameraBall ())));
+      return;
     }
-  else
+
+  if (_engine.isRecordingOrScheduled ())
     {
-      for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
-        {
-          if (_uiStates[channel]->grabbed)
-            {
-              auto const posPixelOffsetted
-                  = posPixel + _uiStates[channel]->grabOffset;
-              auto const posHOA
-                  = localToNormalized2DPosition (posPixelOffsetted);
-              _engine.setChannel2DPosition (channel, posHOA);
-            }
-        }
+      // Only the finger that started it; the others are along for the ride.
+      if (_grabs.firstSource () == std::optional<int>{ event.source.getIndex () })
+        _engine.setRecording3DPosition (
+            pixelToDirection (posPixel));
+    }
+  else if (auto const grabbed = _grabs.channelFor (event.source.getIndex ()))
+    {
+      // Only this finger's channel. Another finger's blob is another finger's
+      // business.
+      auto const channel = grabbed.value ();
+      auto const posPixelOffsetted
+          = posPixel + _uiStates[channel]->grabOffset;
+
+      // Straight into the projection the blob is drawn in, so it lands under
+      // the finger. Going through the height map's 2D space instead read the
+      // finger's radius as a pattern radius, where 1.0 is 45 degrees off the
+      // zenith rather than the horizon — the blob came up short by 1/sqrt(2).
+      auto const direction
+          = pixelToDirection (posPixelOffsetted);
+      _engine.setChannel3DPosition (channel, direction);
     }
 }
 
@@ -410,10 +767,42 @@ MotionComponent::getClosestBlobIndexWithinRadius (juce::Point<float> posPixel,
   return {};
 }
 
+std::optional<index_t>
+MotionComponent::getClosestFreeBlobIndexWithinRadius (
+    juce::Point<float> posPixel, float radiusPixel) const
+{
+  // Same search, skipping what another finger already holds. Without this a
+  // second finger landing near an occupied blob takes it away from the first,
+  // which is the single-pointer behaviour wearing a multitouch coat.
+  auto minDistance = std::numeric_limits<float>::infinity ();
+  std::optional<index_t> minIndex;
+
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+    {
+      if (_grabs.isHeld (channel))
+        continue;
+
+      auto const blobPos = _engine.getChannelPosition (channel);
+      if (!blobPos.isValid ())
+        continue;
+
+      auto const distance
+          = normalizedToLocal2DPosition (blobPos).getDistanceFrom (posPixel);
+
+      if (distance < radiusPixel && distance < minDistance)
+        {
+          minDistance = distance;
+          minIndex = channel;
+        }
+    }
+
+  return minIndex;
+}
+
 float
 MotionComponent::getActiveDistanceInPixel () const
 {
-  return _boundsCenterRegion.getWidth () * reduceFactorBlobs
+  return _boundsCenterRegion.getWidth () * _blobScale
          * activeAreaAroundBlobFactor / 2.f;
 }
 
@@ -421,8 +810,259 @@ void
 MotionComponent::newOpenGLContextCreated ()
 {
   using namespace juce::gl;
-  glDebugMessageControl (GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER,
-                         GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
+  // glDebugMessageControl is GL 4.3 / GL_KHR_debug — not available on
+  // RPi4 V3D (GL 2.1).  The JUCE-loaded function pointer may be null.
+  if (glDebugMessageControl != nullptr)
+    glDebugMessageControl (GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER,
+                           GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
+
+  // Initialise the 3D sphere shader
+  if (!_sphereShader.initialise (_glContext))
+    {
+      DBG ("WARNING: SphereShader failed to initialise – falling back to 2D");
+    }
+
+  // Initialise blit shader for FBO compositing
+  _blit.create ();
+
+  // Energy map from the IEM EnergyVisualizer. Folding 426 directions into the
+  // map is a fixed geometry problem, so the weights are resolved once here.
+  {
+    auto const grid = loadEnergyGrid (
+        juce::File::getCurrentWorkingDirectory ().getChildFile (
+            "resources/EnergyVisualizerGrid.json"));
+
+    if (grid.size () == energyGridPointCount)
+      {
+        _energyProjection
+            = std::make_unique<EnergyMapProjection> (grid, energyMapSpreadDegrees);
+        _energyTarget.assign (energyMapTexelCount, 0.f);
+        _energySmoothed.assign (energyMapTexelCount, 0.f);
+        _energyTexels.assign (energyMapTexelCount, 0);
+
+        glGenTextures (1, &_energyTexture);
+        glBindTexture (GL_TEXTURE_2D, _energyTexture);
+        glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, energyMapWidth,
+                      energyMapHeight, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE,
+                      _energyTexels.data ());
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // Azimuth wraps, elevation does not.
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture (GL_TEXTURE_2D, 0);
+      }
+    else
+      {
+        juce::Logger::writeToLog (
+            "energy grid missing or wrong size — sphere stays unlit by it");
+      }
+  }
+
+  _startMillis = juce::Time::getMillisecondCounter ();
+
+  _activeSkinFile = visualConfigFile ();
+  _appConfigWatcher = ConfigFileWatcher{ configFile () };
+  _configWatcher = ConfigFileWatcher{ _activeSkinFile };
+
+  auto const skin = loadActiveSkinVar (configFile (), userConfig);
+  applyVisualConfig (skin);
+  applyTheme (skin);
+}
+
+
+void
+MotionComponent::applyVisualConfig (juce::var const &config)
+{
+  // Load glow / spotlight config from config
+  {
+    auto cfgF = [] (const juce::var &obj, const char *key,
+                    float def) -> float {
+      return obj.hasProperty (key) ? static_cast<float> (obj[key]) : def;
+    };
+
+    SphereShader::GlowConfig gc;
+    auto const &sg = config["backgroundGlow"];
+    gc.r = cfgF (sg, "r", 230.f) / 255.f;
+    gc.g = cfgF (sg, "g", 26.f) / 255.f;
+    gc.b = cfgF (sg, "b", 13.f) / 255.f;
+    gc.alphaMax = cfgF (sg, "alphaMax", 0.6f);
+    gc.vuMax = cfgF (sg, "vuMax", 0.2f);
+    gc.curve = cfgF (sg, "curve", 0.4f);
+    gc.intensity = cfgF (sg, "intensity", 0.8f);
+    gc.netFlow = cfgF (sg, "netFlow", -0.18f);
+    gc.netReach = cfgF (sg, "reach", 2.6f);
+    gc.netRise = cfgF (sg, "rise", 0.25f);
+    gc.netTwist = cfgF (sg, "netTwist", 9.f);
+    gc.netScale = cfgF (sg, "netScale", 7.f);
+    gc.netSharpness = cfgF (sg, "netSharpness", 6.f);
+    gc.netOctaves = cfgF (sg, "netOctaves", 3.f);
+    gc.netLacunarity = cfgF (sg, "netLacunarity", 2.f);
+    gc.netGain = cfgF (sg, "netGain", 0.5f);
+    gc.attack = cfgF (sg, "attack", 0.05f);
+    gc.decay = cfgF (sg, "decay", 1.2f);
+    _glowAttack = gc.attack;
+    _glowDecay = gc.decay;
+    _sphereShader.setGlowConfig (gc);
+
+    SphereShader::SpotlightConfig sc;
+    auto const &sl = config["speakerLight"];
+    sc.r = cfgF (sl, "r", 255.f) / 255.f;
+    sc.g = cfgF (sl, "g", 64.f) / 255.f;
+    sc.b = cfgF (sl, "b", 166.f) / 255.f;
+    sc.alphaMax = cfgF (sl, "alphaMax", 0.35f);
+    sc.vuMax = cfgF (sl, "vuMax", 0.2f);
+    sc.curve = cfgF (sl, "curve", 0.4f);
+    sc.speakerRadius = cfgF (sl, "speakerRadius", 1.55f);
+    sc.edgeSoftness = cfgF (sl, "edgeSoftness", 0.7f);
+    sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
+    sc.apertureAngle = cfgF (sl, "apertureAngle", 6.f);
+    sc.wrapAngle = cfgF (sl, "wrapAngle", 45.f);
+    sc.wander = cfgF (sl, "wander", 14.f);
+    sc.wanderTwist = cfgF (sl, "wanderTwist", 5.f);
+    sc.wanderScale = cfgF (sl, "wanderScale", 4.f);
+    sc.wanderFlow = cfgF (sl, "wanderFlow", 0.08f);
+    sc.root = cfgF (sl, "root", 0.35f);
+    sc.levelFloor = cfgF (sl, "levelFloor", 0.25f);
+    sc.bleed = cfgF (sl, "bleed", 0.22f);
+    sc.fray = cfgF (sl, "fray", 0.8f);
+    sc.cover = cfgF (sl, "cover", 3.f);
+    sc.boltWidth = cfgF (sl, "boltWidth", 0.9f);
+    sc.boltWander = cfgF (sl, "boltWander", 0.55f);
+    sc.boltScale = cfgF (sl, "boltScale", 6.f);
+    sc.boltFlow = cfgF (sl, "boltFlow", 0.5f);
+    sc.boltRate = cfgF (sl, "boltRate", 1.4f);
+    sc.boltDuty = cfgF (sl, "boltDuty", 0.55f);
+    sc.boltCoreExp = cfgF (sl, "boltCoreExp", 5.f);
+    sc.boltCore = cfgF (sl, "boltCore", 0.9f);
+    sc.boltCount = cfgF (sl, "boltCount", 6.f);
+    sc.boltReach = cfgF (sl, "boltReach", 2.4f);
+    sc.boltEscape = cfgF (sl, "boltEscape", 0.55f);
+    sc.boltBranches = cfgF (sl, "boltBranches", 2.f);
+    sc.boltBranch = cfgF (sl, "boltBranch", 1.6f);
+    _sphereShader.setSpotlightConfig (sc);
+
+    auto const &energy = config["energy"];
+    _energyVuMax = cfgF (energy, "vuMax", 0.05f);
+    _energyCurve = cfgF (energy, "curve", 0.8f);
+    _energyAttack = cfgF (energy, "attack", 0.05f);
+    _energyDecay = cfgF (energy, "decay", 0.25f);
+
+    SphereShader::EnergyConfig ec;
+    ec.r = cfgF (energy, "r", 255.f) / 255.f;
+    ec.g = cfgF (energy, "g", 255.f) / 255.f;
+    ec.b = cfgF (energy, "b", 255.f) / 255.f;
+    ec.intensity = cfgF (energy, "intensity", 1.0f);
+    ec.netIntensity = cfgF (energy, "netIntensity", 0.8f);
+    ec.netScale = cfgF (energy, "netScale", 6.f);
+    ec.netSharpness = cfgF (energy, "netSharpness", 8.f);
+    ec.netFlow = cfgF (energy, "netFlow", 0.15f);
+    ec.netBeamIntensity = cfgF (energy, "netBeamIntensity", 1.5f);
+    ec.netTwist = cfgF (energy, "netTwist", 9.f);
+    ec.netOctaves = cfgF (energy, "netOctaves", 3.f);
+    ec.netLacunarity = cfgF (energy, "netLacunarity", 2.f);
+    ec.netGain = cfgF (energy, "netGain", 0.5f);
+    _sphereShader.setEnergyConfig (ec);
+    _sphereShader.setEnergyTexture (_energyTexture);
+
+    // Top level of the skin, which is where they are written — they used to
+    // be read from config["ui"], a place the skin has nothing in, so both
+    // silently kept their built-in defaults. Nobody noticed because the
+    // shipped skin says exactly what those defaults are.
+    _sphereScale = cfgF (config, "sphereScale", reduceFactorCircleDefault);
+    _blobScale = cfgF (config["blob"], "scale", reduceFactorBlobsDefault);
+
+    auto const underlay = config["recordingUnderlay"];
+    _underlayOpacity = cfgF (underlay, "opacity", 0.28f);
+    _underlayBlobScale = cfgF (underlay, "blobScale", 0.55f);
+    _underlayLineThickness = cfgF (underlay, "lineThickness", 0.02f);
+
+    _spotAttack = cfgF (sl, "attack", 0.08f);
+    _spotDecay = cfgF (sl, "decay", 0.4f);
+  }
+
+  // Cache corona config (avoids JSON lookups every frame per blob).
+  // Used directly by drawChannelBlobs() (2D overlay).
+  _coronaCfg = loadCoronaConfig (config);
+}
+
+// Visual tuning is judged by eye, so the values get changed a lot. Picking up
+// config.json while running turns a rebuild-and-restart cycle into a file save.
+// Runs on the GL thread, throttled to roughly once a second, so no handoff from
+// the message thread is needed.
+// Loading the theme is the message thread's job — the 2D components read it
+// while painting — so the repaint goes through the message manager rather than
+// being called from here on the GL thread.
+void
+MotionComponent::applyTheme (juce::var const &skin)
+{
+  auto const loaded = loadTheme (skin);
+
+  juce::Component::SafePointer<MotionComponent> safeThis{ this };
+  juce::MessageManager::callAsync ([safeThis, loaded] {
+    if (safeThis != nullptr)
+      applyThemeEverywhere (loaded, *safeThis);
+  });
+}
+
+void
+MotionComponent::reloadVisualConfigIfChanged ()
+{
+  auto skinChanged = false;
+
+  // config.json first: it may have named a different skin, and then the second
+  // watcher has to follow before it is asked anything.
+  if (_appConfigWatcher.hasChanged ())
+    {
+      juce::var config;
+      if (juce::JSON::parse (configFile ().loadFileAsString (), config)
+              .wasOk ())
+        {
+          // The whole config, not just the skin's name. userConfig was
+          // parsed once at startup and never again, so everything read from
+          // it at runtime — the function keys' LED colours above all — kept
+          // the values the app had booted with, and editing them in the menu
+          // changed the file and nothing else.
+          //
+          // Handed over on the message thread, which is where it is read.
+          juce::Component::SafePointer<MotionComponent> safeThis{ this };
+          juce::MessageManager::callAsync ([safeThis, config] {
+            userConfig = config;
+
+            // Everything that was read out of the file at startup has to be
+            // told, not only the visuals this component owns.
+            if (safeThis != nullptr && safeThis->onAppConfigReloaded)
+              safeThis->onAppConfigReloaded (config);
+          });
+
+          auto const named = skinFile (configFile ().getParentDirectory (),
+                                       config["ui"]["skin"].toString ());
+          if (named != _activeSkinFile)
+            {
+              _activeSkinFile = named;
+              _configWatcher = ConfigFileWatcher{ named };
+              skinChanged = true;
+              juce::Logger::writeToLog ("skin is now "
+                                        + named.getFileName ());
+            }
+        }
+    }
+
+  if (!_configWatcher.hasChanged () && !skinChanged)
+    return;
+
+  juce::var parsed;
+  if (juce::JSON::parse (_activeSkinFile.loadFileAsString (), parsed).failed ())
+    return; // half-written save — the next check picks up the finished file
+
+  // Through the rename like every other read. Skipped here, a file still
+  // carrying the old spellings loses its groups entirely and the sphere falls
+  // back to built-in defaults — which looks like a working skin, only wrong.
+  auto const skin = migrateSkinNames (parsed);
+
+  applyVisualConfig (skin);
+  applyTheme (skin);
+  juce::Logger::writeToLog ("reloaded " + _activeSkinFile.getFileName ());
 }
 
 void
@@ -432,59 +1072,234 @@ MotionComponent::renderOpenGL ()
   using juce::OpenGLHelpers;
 
   jassert (OpenGLHelpers::isContextActive ());
-  _glContext.setSwapInterval (1);
-
-  // printFrameTime ();
+  _glContext.setSwapInterval (1);  // vsync @ 60 Hz — frees CPU for timer thread
 
   updateBoundsAndTransform ();
 
+  if (_frameCount % 60 == 0)
+    reloadVisualConfigIfChanged ();
+
+  uploadEnergyMap ();
+  _sphereShader.setEnergyTexture (_energyTexture);
+  // Seconds since this context came up, not since the machine booted: the
+  // uniform is a float, and on an installation left running for a week the
+  // per-frame increment falls below what it can still represent, freezing the
+  // net in place.
+  _sphereShader.setTime (
+      static_cast<float> (juce::Time::getMillisecondCounter () - _startMillis)
+      * 0.001f);
+
+  // Clear background first
+  OpenGLHelpers::clear (Colours::background ());
+
+  // ── Smooth VU values (exponential moving average per frame) ───
+  // Attack fast, release slower → no flicker, responsive feel.
+  // Corona uses configurable attack/decay; others use fixed values.
   {
-    GLContextGraphics graphics (_glContext, //
-                                _boundsRender.getWidth (),
-                                _boundsRender.getHeight ());
+    constexpr float dt = 1.f / 60.f;  // frame time at 60fps
 
-    graphics.get ().addTransform (_transformNormalizedToLocal);
+    // Fixed smoothing for glow and speakers
+    auto smoothFixed = [] (float &current, float target) {
+      float alpha = (target > current) ? 0.5f : 0.15f;
+      current += alpha * (target - current);
+    };
+    smoothFixed (_smoothGlowPeak, _vuSphereGlowPeak.load ());
 
-    _mutexBackgroundColour.lock ();
-    auto const backgroundColour{ _backgroundColour };
-    _mutexBackgroundColour.unlock ();
-    OpenGLHelpers::clear (Colours::background);
-    graphics.get ().setColour (backgroundColour);
-    graphics.get ().fillAll ();
+    // The glow is the room rather than an event, so it gets its own envelope
+    // and outlasts the bolts striking in front of it.
+    _smoothGlowRms = speakerLightEnvelope (_smoothGlowRms,
+                                           _vuSphereGlowRms.load (),
+                                           _glowAttack, _glowDecay, dt);
+    for (int i = 0; i < 4; ++i)
+      {
+        smoothFixed (_smoothSpotPeak[i], _vuSpeakerPeak[i].load ());
 
-    drawCircle (graphics.get ());
-    drawChannelBlobs (graphics.get ());
+        // The beams get their own configurable envelope: smoothFixed rises in
+        // two frames and falls in seven, which turns even an rms input back
+        // into a peak follower.
+        _smoothSpotRms[i] = speakerLightEnvelope (
+            _smoothSpotRms[i], _vuSpeakerRms[i].load (), _spotAttack,
+            _spotDecay, dt);
+      }
 
-    // create a copy of the shared_ptrs to hold the lock only briefly
+    // Configurable attack/decay for blob coronas
+    // alpha = 1 - exp(-dt/tau) approximated for small dt/tau
+    float attackAlpha = 1.f - std::exp (-dt / std::max (0.001f, _coronaCfg.attack));
+    float decayAlpha  = 1.f - std::exp (-dt / std::max (0.001f, _coronaCfg.decay));
+    auto smoothBlob = [attackAlpha, decayAlpha] (float &current, float target) {
+      float alpha = (target > current) ? attackAlpha : decayAlpha;
+      current += alpha * (target - current);
+    };
+    auto numCh = static_cast<int> (_engine.getNumChannels ());
+    for (int ch = 0; ch < numCh && ch < 4; ++ch)
+      {
+        smoothBlob (_smoothBlobPeak[ch], _uiStates[ch]->vuPeak.load ());
+        smoothBlob (_smoothBlobRms[ch],  _uiStates[ch]->vuLevel.load ());
+      }
+  }
+
+  // ── 3D scene via shader ───────────────────────────────────────
+  {
+    // Forward smoothed VU data to shader
+    _sphereShader.setSphereGlow (_smoothGlowPeak, _smoothGlowRms);
+    for (int i = 0; i < 4; ++i)
+      _sphereShader.setSpeakerLight (i, _smoothSpotPeak[i],
+                                     _smoothSpotRms[i]);
+
+    // Forward blob data to shader
+    auto numChannels = static_cast<int> (_engine.getNumChannels ());
+    _sphereShader.setNumBlobs (numChannels);
+    for (int ch = 0; ch < numChannels && ch < SphereShader::kMaxBlobs; ++ch)
+      {
+        SphereShader::BlobData bd;
+        auto const position = _engine.getChannelPosition (ch);
+        if (position.isValid ())
+          {
+            auto posJuce = projectToScreen (position);
+            // JUCE 2D: Y down. Shader: Y up. Flip Y.
+            bd.x = posJuce.getX ();
+            bd.y = -posJuce.getY ();
+            bd.visible = true;
+          }
+
+        auto blobSize = _blobScale;
+        if (position.isValid ())
+          blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
+        if (_uiStates[ch]->grabbed)
+          blobSize *= activeAreaAroundBlobFactor;
+        else if (_uiStates[ch]->highlighted)
+          blobSize *= blobHighlightFactor;
+        bd.size = blobSize;
+
+        auto col = _uiStates[ch]->colour;
+        bd.r = col.getFloatRed ();
+        bd.g = col.getFloatGreen ();
+        bd.b = col.getFloatBlue ();
+        bd.vuPeak = _smoothBlobPeak[ch];
+        bd.vuRms = _smoothBlobRms[ch];
+        bd.grabbed = _uiStates[ch]->grabbed;
+        bd.highlighted = _uiStates[ch]->highlighted;
+
+        _sphereShader.setBlob (ch, bd);
+      }
+
+    // Compute sphere position and radius in pixels
+    auto const vpW = _boundsRender.getWidth ();
+    auto const vpH = _boundsRender.getHeight ();
+    auto const scale = static_cast<float> (_glContext.getRenderingScale ());
+
+    auto const centreX
+        = static_cast<float> (_boundsCenterRegion.getCentreX ()) * scale;
+    // GL has Y flipped compared to JUCE
+    auto const centreY
+        = static_cast<float> (vpH) * scale
+          - static_cast<float> (_boundsCenterRegion.getCentreY ()) * scale;
+    auto const radius
+        = static_cast<float> (_boundsCenterRegion.getWidth ()) / 2.f * scale;
+
+    glViewport (0, 0, static_cast<int> (vpW * scale),
+                static_cast<int> (vpH * scale));
+
+    _sphereShader.draw (static_cast<int> (vpW * scale),
+                        static_cast<int> (vpH * scale), radius, centreX,
+                        centreY);
+  }
+
+  // ── 2D overlay (blobs, corona, speakers, pattern preview) ──────
+  // Drawn into _imageBlend FBO with transparent background, then composited
+  // over the shader output. This prevents the JUCE software rasterizer from
+  // clobbering the shader-rendered background glow and speaker beams.
+  {
     _mutexPreview.lock ();
     auto const patternsPreview{ _patternsPreview };
     _mutexPreview.unlock ();
 
-    for (auto &pattern : patternsPreview)
-      {
-        drawPatternPreview (*pattern, graphics.get ());
-      }
+    _mutexDisplayData.lock ();
+    auto const patternsDisplayData{ _patternsDisplayData };
+    _mutexDisplayData.unlock ();
 
-    // auto constexpr blobSize = 2;
-    // auto blob = juce::Rectangle<float> (blobSize, blobSize);
-    // graphics.get ().fillEllipse (
-    //     blob.withCentre (juce::Point<float> (0.f, 0.f)));
+    ++_frameCount;
+
+    if (_imageBlend)
+      {
+        _imageBlend->clear (_imageBlend->getBounds ());
+
+        {
+          juce::Graphics gFBO{ *_imageBlend };
+          gFBO.addTransform (_transformNormalizedToLocal);
+
+          // Speaker SVGs
+          if (_drawableSpeaker != nullptr)
+            drawCircle (gFBO);
+
+          drawBearings (gFBO);
+          drawListener (gFBO);
+
+          // Channel blobs + corona
+          drawChannelBlobs (gFBO);
+
+          // The take as it stands, while it is being played in. A fresh
+          // recording has no display path — those come from the library — so
+          // it is drawn from its own ticks.
+          std::shared_ptr<Pattern> underlay;
+          {
+            std::lock_guard<std::mutex> guard (_mutexUnderlay);
+            underlay = _recordingUnderlay;
+          }
+          if (showsRecordingUnderlay (_engine.getRecMode (),
+                                      _engine.isRecording (),
+                                      underlay != nullptr))
+            drawRecordingUnderlay (*underlay, gFBO);
+
+          if (auto const recording = _engine.getRecordingPattern ())
+            if (_engine.isRecording ())
+              drawRecordingTrail (*recording, gFBO);
+
+          // Pattern preview paths
+          for (auto &[pattern, displayData] : patternsPreview)
+            drawPatternPreview (*pattern, displayData, gFBO);
+
+          // Faint trajectory lines for all currently playing patterns
+          // (skip those already drawn as explicit previews)
+          for (auto &[pattern, displayData] : patternsDisplayData)
+            {
+              if (patternsPreview.count (pattern) > 0)
+                continue; // already drawn as preview
+              if (pattern->getStatus () == Pattern::Status::Playing
+                  || pattern->getStatus () == Pattern::Status::Recording)
+                drawPlayingTrajectory (*pattern, displayData, gFBO);
+            }
+
+          // Last, over everything: it is the one thing here that is a control
+          // rather than a reading, and a control drawn under a trajectory is
+          // one you cannot see to aim at.
+          drawCameraBall (gFBO);
+        }
+
+        // Composite the FBO over the shader output using native GL blitting.
+        // The old GLContextGraphics approach called createOpenGLGraphicsContext
+        // which reset GL state and clobbered the shader-rendered pixels.
+        auto *fb = juce::OpenGLImageType::getFrameBufferFrom (*_imageBlend);
+        if (fb && fb->getTextureID ())
+          {
+            // Ensure we're drawing to the default framebuffer (screen)
+            juce::gl::glBindFramebuffer (juce::gl::GL_FRAMEBUFFER, 0);
+
+            auto const scale
+                = static_cast<float> (_glContext.getRenderingScale ());
+            _blit.blit (
+                fb->getTextureID (),
+                static_cast<int> (_boundsRender.getWidth () * scale),
+                static_cast<int> (_boundsRender.getHeight () * scale));
+          }
+      }
   }
 }
 
 void
-MotionComponent::printFrameTime ()
+MotionComponent::setSphereScalePreview (float scale)
 {
-  static auto lastT = std::chrono::high_resolution_clock::now ();
-
-  auto now = std::chrono::high_resolution_clock::now ();
-  auto deltaT
-      = std::chrono::duration_cast<std::chrono::microseconds> (now - lastT)
-            .count ()
-        / 1000.f;
-  lastT = now;
-
-  juce::Logger::writeToLog ("frametime: " + juce::String (deltaT));
+  _sphereScale = scale;
 }
 
 void
@@ -502,8 +1317,8 @@ MotionComponent::updateBoundsAndTransform ()
   auto shorterSideLength
       = juce::jmin (_boundsRender.getWidth (), _boundsRender.getHeight ());
   _boundsCenterRegion = _boundsRender.withSizeKeepingCentre (
-      shorterSideLength * reduceFactorCircle,
-      shorterSideLength * reduceFactorCircle);
+      shorterSideLength * _sphereScale,
+      shorterSideLength * _sphereScale);
 
   _transformNormalizedToLocal = juce::AffineTransform ( //
       _boundsCenterRegion.getWidth () / 2.f, 0.f,
@@ -527,180 +1342,832 @@ MotionComponent::renderBoundsChanged ()
       false, juce::OpenGLImageType ());
 }
 
+SphereCamera
+MotionComponent::getCamera () const
+{
+  return _sphereShader.getCamera ();
+}
+
+void
+MotionComponent::setCamera (SphereCamera const &camera)
+{
+  // The shader holds it, because the ball and its graticule have to turn with
+  // the trajectories drawn over them and the shader is what draws the ball.
+  // One copy, one truth.
+  _sphereShader.setCamera (camera);
+  repaint ();
+}
+
+/** And back: where a pixel of the view points, in the room's own terms.
+ *
+ *  The disc gives the direction *as seen*; the room is what the engine is
+ *  told about, so it has to be handed back. Without this a blob dragged on a
+ *  tilted view goes where the finger is on the screen and not where it is in
+ *  the room -- which is the one thing a drag has to get right. */
+Pos
+MotionComponent::pixelToDirection (juce::Point<float> const &posPixel) const
+{
+  return asSeenFromInverse (
+      discToDirection (localToNormalized2DPosition (posPixel)),
+      _sphereShader.getCamera ());
+}
+
+/** Where a direction in the room lands on the screen, from where the room is
+ *  being looked at.
+ *
+ *  Every projection in this file goes through here. Seven of them applied
+ *  cartesian2DHOA2JUCE by hand, and a camera applied at six of the seven is a
+ *  picture whose halves disagree about the view -- which is worse than one
+ *  that cannot turn at all. */
+juce::Point<float>
+MotionComponent::projectToScreen (Pos const &direction) const
+{
+  return cartesian2DHOA2JUCE (
+      asSeenFrom (direction, _sphereShader.getCamera ()));
+}
+
 void
 MotionComponent::drawCircle (juce::Graphics &g)
 {
   jassert (_boundsCenterRegion.getWidth ()
            == _boundsCenterRegion.getHeight ());
 
-  auto constexpr opacityHead = 0.4f;
-  auto const diameterHead = 2.f * reduceFactorHead;
-  auto const boundsHead = juce::Rectangle<float> ().withSizeKeepingCentre (
-      diameterHead, diameterHead);
-  _drawableHead->drawWithin (g, boundsHead, juce::RectanglePlacement::centred,
-                             opacityHead);
+  // The 3D sphere (body, rim, specular, wireframe, head silhouette,
+  // VU glow and spotlights) is now rendered by the SphereShader in
+  // renderOpenGL() before this 2D overlay pass.
+  //
+  // What remains here: speaker icons drawn as SVG overlays.
 
-  auto const diameterCircle = 2.f;
-  auto const boundsCircle = juce::Rectangle<float> ().withSizeKeepingCentre (
-      diameterCircle, diameterCircle);
+  // --- 4 speakers outside the sphere, like spotlights ---
+  if (_drawableSpeaker != nullptr)
+    {
+      auto constexpr opacitySpeaker = 0.35f;
+      auto constexpr speakerSize = 0.28f;
+      // Use cached speaker radius from spotlight config
+      float speakerRadius = _sphereShader.getSpeakerRadius ();
 
-  auto constexpr opacityIsoSphere = 0.3f;
-  g.setOpacity (opacityIsoSphere);
-  g.drawImage (_imageIsoSphere, boundsCircle);
+      for (int i = 0; i < 4; ++i)
+        {
+          float angleDeg = 45.f + i * 90.f;
+          float angleRad = angleDeg * juce::MathConstants<float>::pi / 180.f;
+
+          float sx = speakerRadius * std::cos (angleRad);
+          float sy = speakerRadius * std::sin (angleRad);
+
+          auto speakerBounds = juce::Rectangle<float> ().withSizeKeepingCentre (
+              speakerSize, speakerSize);
+
+          g.saveState ();
+          g.addTransform (juce::AffineTransform::rotation (
+              angleRad + juce::MathConstants<float>::pi, sx, sy));
+          g.setOpacity (opacitySpeaker);
+          _drawableSpeaker->drawWithin (
+              g, speakerBounds.withCentre ({ sx, sy }),
+              juce::RectanglePlacement::centred, opacitySpeaker);
+          g.restoreState ();
+        }
+    }
 
   g.setOpacity (1.f);
+}
+
+juce::Rectangle<int>
+MotionComponent::cameraBall () const
+{
+  return cameraBallBounds (getLocalBounds ());
+}
+
+/** The four bearings, written round the rim.
+ *
+ *  A room seen from above has no up in it, and once the view can be turned it
+ *  has no fixed up either: the only way to know which way you are looking is
+ *  to be told. Nought is the front of the room, which is where the OSC sends
+ *  a channel at azimuth nought -- the numbers on the ring are the numbers on
+ *  the wire.
+ */
+void
+MotionComponent::drawBearings (juce::Graphics &g)
+{
+  // A graduated ring round the outside of the sphere, which is how a chart, a
+  // compass and every globe worth reading does it -- rather than four numbers
+  // floating on the ball itself, which is what this was and which put a
+  // rotated glyph over whatever happened to be under it.
+  //
+  // The ring is a bezel: it takes the turn and ignores the lean, so it stays a
+  // compass however far the room is tipped. Tipping the room does not change
+  // which way north is, and a compass that leant over with the view would be
+  // one more thing to read rather than the thing you read everything else off.
+  auto const camera = _sphereShader.getCamera ();
+  auto const turn = camera.turn;
+
+  auto const on = [turn] (float degrees, float radius) {
+    auto const a = degrees * pi<float> () / 180.f - turn;
+    // The overhead convention: the room's front up the screen, its left to the
+    // left. Written out rather than projected, because a bezel is flat.
+    return juce::Point<float> (-std::sin (a) * radius, -std::cos (a) * radius);
+  };
+
+  // Ticks: every ten degrees a short one, every thirty a longer one, and a
+  // long one at each of the four the numbers name. Enough to read a bearing
+  // off between the numbers without counting.
+  for (int degrees = 0; degrees < 360; degrees += 10)
+    {
+      auto const major = degrees % 90 == 0;
+      auto const medium = degrees % 30 == 0;
+
+      auto const from = on (static_cast<float> (degrees), 1.035f);
+      auto const to = on (static_cast<float> (degrees),
+                          major ? 1.105f : medium ? 1.085f : 1.065f);
+
+      g.setColour (toColour (theme ().textPrimary,
+                             major ? theme ().alphaMuted
+                                   : medium ? theme ().alphaFillEmphasis
+                                            : theme ().alphaOutline));
+      auto constexpr tickWidthMajor = 0.01f;
+      auto constexpr tickWidthMinor = 0.006f;
+      g.drawLine (from.x, from.y, to.x, to.y,
+                  major ? tickWidthMajor : tickWidthMinor);
+    }
+
+  // And the four numbers outside the ticks, upright: a compass card is read
+  // at a glance and a glance does not tilt its head. Nought is the front of
+  // the room, which is where the OSC sends a channel at azimuth nought -- the
+  // numbers on the ring are the numbers on the wire.
+  struct
+  {
+    float degrees;
+    char const *label;
+  } const marks[]{ { 0.f, "0" }, { 90.f, "90" }, { -90.f, "-90" },
+                   { 180.f, "180" } };
+
+  g.setFont (juce::Font (0.072f, juce::Font::plain));
+
+  for (auto const &mark : marks)
+    {
+      auto const out = on (mark.degrees, 1.165f);
+      auto const box = juce::Rectangle<float> (0.36f, 0.1f).withCentre (out);
+
+      g.setColour (toColour (theme ().textPrimary, theme ().alphaInactive));
+      g.drawText (mark.label, box, juce::Justification::centred, false);
+    }
+}
+
+/** The listener, in the middle of the room they are listening to.
+ *
+ *  The same figure the little sphere in the corner carries, so the two say the
+ *  same thing in the same words: which way the room is turned is which way
+ *  they face, and how far it is tipped is how much of them you can see. */
+void
+MotionComponent::drawListener (juce::Graphics &g)
+{
+  // Big enough to read as a person from a metre away, small enough that the
+  // room is still the subject: the trajectories run round them, not over them.
+  auto const figure
+      = listenerSilhouette (_sphereShader.getCamera (), 0.30f);
+  if (figure.isEmpty ())
+    return;
+
+  // Lit rather than dark: the room is dark, so a dark figure in the middle of
+  // it is a hole. Soft enough that the trajectories running past keep the eye.
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
+  g.fillPath (figure);
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaMuted));
+  g.strokePath (figure, juce::PathStrokeType (0.005f));
+}
+
+/** The little sphere in the corner: what turns the room, and what says which
+ *  way it is turned.
+ *
+ *  Drawn as the room is drawn -- the same graticule seen from the same eye --
+ *  because the thing it is standing for is the view, and a control that does
+ *  not look like what it controls is a control you have to learn.
+ */
+void
+MotionComponent::drawCameraBall (juce::Graphics &g)
+{
+  auto const ball = cameraBall ();
+  if (ball.isEmpty ())
+    return;
+
+  // Into the space the rest of this pass draws in. Straight through the
+  // transform, not through localToNormalized2DPosition -- that one hands back
+  // a position in the *room's* axes, and the room's x is the screen's y.
+  auto const intoDrawn = _transformNormalizedToLocal.inverted ();
+  auto const centre = ball.getCentre ().toFloat ().transformedBy (intoDrawn);
+  auto const edge
+      = juce::Point<float> (static_cast<float> (ball.getRight ()),
+                            static_cast<float> (ball.getCentreY ()))
+            .transformedBy (intoDrawn);
+
+  auto const r = std::abs (edge.x - centre.x) * 0.9f;
+  if (r <= 0.f)
+    return;
+
+  auto const camera = _sphereShader.getCamera ();
+  auto const held = _cameraGrab.has_value ();
+
+  // Where a point of the room lands in the ball.
+  auto const at = [&] (Pos const &in) {
+    auto const seen = asSeenFrom (in, camera);
+    auto const on = cartesian2DHOA2JUCE (seen);
+    return std::pair<juce::Point<float>, float>{
+      { centre.x + on.x * r, centre.y + on.y * r }, seen.z ()
+    };
+  };
+
+  auto const ink = [&] (float depth, float near, float far) {
+    return toColour (theme ().textPrimary, depth < 0.f ? far : near);
+  };
+
+  // The ball itself, so it reads as a thing with a front and a back rather
+  // than as a circle with a drawing in it.
+  g.setColour (toColour (theme ().background, theme ().alphaSecondary));
+  g.fillEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f);
+  g.setColour (toColour (theme ().textPrimary,
+                         held ? theme ().alphaInactive
+                              : theme ().alphaFillEmphasis));
+  g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, r * 0.045f);
+
+  // The room's own horizon, drawn round the ball: the one line that says how
+  // far it has been tipped. Split near from far, which is the convention every
+  // orientation gizmo uses -- an axis coming towards you is drawn solid and
+  // one going away from you is not.
+  {
+    juce::Point<float> previous;
+    float wasDepth = 0.f;
+
+    for (int step = 0; step <= 64; ++step)
+      {
+        auto const degrees = 360.f * static_cast<float> (step) / 64.f;
+        auto const [on, depth] = at (Pos::fromSpherical (degrees, 0.f, 1.f));
+
+        if (step > 0)
+          {
+            g.setColour (ink (juce::jmin (depth, wasDepth), 0.5f, 0.14f));
+            g.drawLine (previous.x, previous.y, on.x, on.y, r * 0.035f);
+          }
+
+        previous = on;
+        wasDepth = depth;
+      }
+  }
+
+  // And a listener in the middle of it, facing the front of the room.
+  //
+  // A person says both things at once and needs no key: which way the room is
+  // turned is which way they face, and how far it is tipped is how much of
+  // them you can see -- from straight down you are looking at the top of a
+  // head, from the horizon you are looking them in the eye. Axis balls with
+  // letters on them would say the same thing and have to be read.
+  {
+    auto figure = listenerSilhouette (camera, r * 1.15f);
+    figure.applyTransform (
+        juce::AffineTransform::translation (centre.x, centre.y));
+
+    g.setColour (toColour (theme ().textPrimary,
+                           held ? theme ().alphaActive
+                                : theme ().alphaSecondary));
+    g.fillPath (figure);
+    g.setColour (toColour (theme ().background, theme ().alphaTextStrong));
+    g.strokePath (figure, juce::PathStrokeType (r * 0.02f));
+  }
 }
 
 void
 MotionComponent::drawChannelBlobs (juce::Graphics &g)
 {
-  using namespace juce::gl;
+  // Draw blobs + corona directly — no FBO compositing (_imageBlend) for
+  // maximum performance on RPi4.
 
-  _imageBlend->clear (_imageBlend->getBounds ());
-
+  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
   {
-    juce::Graphics gFBO{ *_imageBlend };
-    gFBO.addTransform (_transformNormalizedToLocal);
+      auto const position = _engine.getChannelPosition (channel);
+      if (!position.isValid ())
+        continue;
 
-    for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
+      auto blobSize = 2 * _blobScale;
+      blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
+
+      // Blobs on the back of the sphere (z < 0): draw smaller and dimmer
+      // to give a sense of depth through the semi-transparent sphere.
+      float backFade = 1.0f;
+      if (position.z () < 0.f)
+        {
+          backFade = 0.3f + 0.7f * std::clamp (position.z () + 1.f, 0.f, 1.f);
+          blobSize *= (0.5f + 0.5f * backFade);
+        }
+
+      auto posNormalized = projectToScreen (position);
+
+      auto colour = _uiStates[channel]->colour;
+      if (backFade < 1.0f)
+        colour = colour.withMultipliedAlpha (backFade);
+
+      // Draw VU corona (glow effect based on audio level)
+      float vuRms = (channel < 4) ? _smoothBlobRms[channel] : 0.f;
+      float vuPeak = (channel < 4) ? _smoothBlobPeak[channel] : 0.f;
+      bool isGrabbed = _uiStates[channel]->grabbed;
+      bool isHighlighted = _uiStates[channel]->highlighted;
+
+      if (vuRms > 0.0001f || vuPeak > 0.0001f || isGrabbed || isHighlighted)
+        {
+          float peakScaled = coronaPeakLevel (vuPeak, _coronaCfg.vuMax);
+          float vuScaled = coronaVuLevel (vuPeak, vuRms, _coronaCfg.vuMax);
+          float coronaScale = coronaScaleFactor (vuScaled, _coronaCfg);
+
+          float baseBlobScale = 1.0f;
+          if (isGrabbed)
+            {
+              baseBlobScale = activeAreaAroundBlobFactor;
+              coronaScale *= _coronaCfg.sizeGrabbed;
+            }
+          else if (isHighlighted)
+            {
+              baseBlobScale = blobHighlightFactor;
+              coronaScale *= 1.2f;
+            }
+
+          auto coronaDiam = blobSize * baseBlobScale * coronaScale;
+          float coronaAlpha = _coronaCfg.alphaMin
+                              + peakScaled * (_coronaCfg.alphaMax - _coronaCfg.alphaMin);
+
+          // Two glow layers (outer → inner) — blend towards white at high VU
+          auto whiteBlend = peakScaled * _coronaCfg.whiteBlend;
+          // boltCore rather than textPrimary: this is the white-hot centre
+          // of a light effect, the same role the shader's bolts use, not a
+          // piece of text that happens to be white.
+          auto coronaColour
+              = colour.interpolatedWith (toColour (theme ().boltCore), whiteBlend);
+          for (int layer = 2; layer >= 1; --layer)
+            {
+              // Layer 2 is the outer one — keep it tied to the constant the
+              // visibility test asserts against.
+              float layerScale
+                  = 1.0f + (layer - 1) * (coronaOuterLayerScale - 1.0f);
+              float layerAlpha = coronaAlpha / (layer * 2.0f);
+              auto layerSize = coronaDiam * layerScale;
+              auto layerRect = juce::Rectangle<float> (0.f, 0.f, layerSize, layerSize);
+              g.setColour (coronaColour.withAlpha (layerAlpha));
+              g.fillEllipse (layerRect.withCentre (posNormalized));
+            }
+        }
+
+      // Grabbed: transparent area
+      if (isGrabbed)
+        {
+          auto grabSize = blobSize * activeAreaAroundBlobFactor;
+          auto grabRect = juce::Rectangle<float> (0.f, 0.f, grabSize, grabSize);
+          g.setColour (colour.withAlpha (theme ().alphaDisabled));
+          g.fillEllipse (grabRect.withCentre (posNormalized));
+        }
+
+      // Highlighted: brighter outline
+      if (isHighlighted)
+        {
+          auto hlSize = blobSize * blobHighlightFactor;
+          auto hlRect = juce::Rectangle<float> (0.f, 0.f, hlSize, hlSize);
+          g.setColour (colour.withLightness (colour.getLightness () + 0.2f));
+          g.fillEllipse (hlRect.withCentre (posNormalized));
+        }
+
+      // Solid blob disc
+      auto blob = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
+      g.setColour (colour);
+      g.fillEllipse (blob.withCentre (posNormalized));
+    }
+}
+
+// ── Draw a juce::Path (from SVG displayPath) projected onto the sphere ──
+// Flattens the Bézier path into line segments, projects each point
+// through mapTo3D, and draws with depth-band batching.
+// Between consecutive flattened points that are far apart in 2D,
+// intermediate sub-samples are inserted so the line hugs the sphere.
+static void
+drawPathOnSphere (juce::Path const &displayPath,
+                  float lineThickness,
+                  float alpha,
+                  juce::Colour colour,
+                  bool fadeByDepth,
+                  ElevationParams const &elevationParams,
+                  HeightMap const &heightMap,
+                  juce::Graphics &g,
+                  PlaneShaping const &shaping,
+                  SphereCamera const &camera)
+{
+  if (displayPath.isEmpty ())
+    return;
+
+  // Depth-band helpers
+  auto depthBand = [] (float z) -> int {
+    if (z < -0.5f) return 0;
+    if (z < 0.f)   return 1;
+    if (z < 0.5f)  return 2;
+    return 3;
+  };
+
+  // z >= 0 (elevation >= 50%, i.e. at/above the horizon) is always fully
+  // visible; below that it fades toward the far/south pole so it reads as
+  // "behind" the sphere. fadeByDepth == false skips this entirely — used
+  // for whichever trajectory is currently being edited, which must stay
+  // fully legible no matter where it sits.
+  auto fadeForZ = [] (float z) -> float {
+    return (z < 0.f)
+        ? 0.3f + 0.7f * std::clamp (z + 1.f, 0.f, 1.f)
+        : 1.0f;
+  };
+
+  auto flushPath = [&] (juce::Path &path, int band) {
+    float fade = fadeByDepth
+        ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
+                              : (band == 2 ?  0.25f :  0.75f))
+        : 1.0f;
+    float thickness = lineThickness * (0.5f + 0.5f * fade);
+    auto stroke = juce::PathStrokeType (
+        thickness, juce::PathStrokeType::JointStyle::curved,
+        juce::PathStrokeType::EndCapStyle::rounded);
+    g.setColour (colour.withAlpha (alpha * fade));
+    g.strokePath (path, stroke);
+  };
+
+  // Project a 2D HOA point onto the sphere and return screen pos + z.
+  // Every point of the line comes through here, which is why the shaping is
+  // applied here and not by transforming the path: transforming the path would
+  // mean copying it every frame, and the sub-sampling below would then be
+  // measuring distances on the transformed copy.
+  auto projectPoint = [&] (float x, float y) -> Pos {
+    auto pos3D = heightMap.mapTo3D (
+        shapedPosition (Pos::fromCartesian (x, y, 0.f), shaping),
+        elevationParams);
+    // The direction that comes back is the *seen* one: what is drawn nearer
+    // the eye has to fade less, and which of two points that is depends on
+    // where the eye is standing. Kept as a direction rather than flattened to
+    // screen here, because a step too long to be a straight line has to be
+    // walked along the sphere, and that walk is a walk between directions.
+    return asSeenFrom (pos3D, camera);
+  };
+
+  // Maximum 2D step size before we insert intermediate samples.
+  // Smaller = more sub-samples = smoother on the sphere. Flat mode has no
+  // sphere curvature at all, so coarse sampling is fine there.
+  float const maxStep = elevationParams.flat ? 0.06f : 0.03f;
+
+  // ... and how wide a turn is wanted out of one piece. Flat mode has no
+  // azimuth swing worth splitting for either -- there is no pole to be near.
+  // See discStepPieces(), which is where both measures are weighed and why
+  // the second one exists at all.
+  DiscSampling sampling;
+  sampling.maxStep = maxStep;
+  // Flat mode has no pole to be near, so nothing to swing around.
+  sampling.maxSwing = elevationParams.flat
+                          ? juce::MathConstants<float>::pi
+                          : 0.02f;
+
+  // ... and what no amount of cutting can fix. At the disc's exact origin the
+  // azimuth is not merely fast, it is undefined: the path arrives at one
+  // bearing and leaves at the opposite one, so every sample on one side is
+  // half a revolution from every sample on the other. With the base on the
+  // pole that costs nothing -- both bearings are the same point up there --
+  // and off the pole it is a real jump, which several of the shipped shapes
+  // make (Clover, Infinity and Rose 4-Petal all pass exactly through the
+  // origin). Drawn, it is a chord straight across the sphere that is in none
+  // of the data. The pen goes up instead, the way it does at a take's gaps.
+  auto constexpr maxJump = 0.3f;
+
+  // Collect all projected points (with sub-sampling for long segments), and
+  // remember where one subpath ends and the next begins.
+  //
+  // A path with several subpaths is several strokes: a take cut at its jumps,
+  // a shape drawn in pieces. Only the very first point used to start a run, so
+  // every later subpath was joined to the one before it by a line from where
+  // that ended to where this begins -- a chord straight across the sphere that
+  // is in none of the data. The Shape section never showed it because
+  // strokePath knows about subpaths; this walks them by hand.
+  std::vector<std::pair<juce::Point<float>, float>> projected;
+  std::vector<bool> startsRun;
+  projected.reserve (512);
+  startsRun.reserve (512);
+
+  Pos previousSeen;
+  bool haveSeen = false;
+
+  auto const keep = [&projected, &startsRun] (Pos const &seen, bool starts) {
+    projected.push_back ({ cartesian2DHOA2JUCE (seen), seen.z () });
+    startsRun.push_back (starts);
+  };
+
+  auto const apart = [] (Pos const &a, Pos const &b) {
+    auto const dx = a.x () - b.x ();
+    auto const dy = a.y () - b.y ();
+    auto const dz = a.z () - b.z ();
+    return std::sqrt (dx * dx + dy * dy + dz * dz);
+  };
+
+  auto const addPoint = [&] (Pos const &seen, bool starts) {
+    if (!starts && haveSeen)
       {
-        auto const position = _engine.getChannelPosition (channel);
-        if (!position.isValid ())
-          continue;
+        auto const chord = apart (previousSeen, seen);
 
-        auto blobSize = 2 * reduceFactorBlobs;
-        blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
-
-        auto const blob
-            = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
-        auto const blobGrabbed
-            = juce::Rectangle<float> (0.f, 0.f, //
-                                      blobSize * activeAreaAroundBlobFactor,
-                                      blobSize * activeAreaAroundBlobFactor);
-        auto const blobHighlight = juce::Rectangle<float> (
-            0.f, 0.f, //
-            blobSize * blobHighlightFactor, blobSize * blobHighlightFactor);
-
-        auto posScreenNormalized = cartesian2DHOA2JUCE (position);
-
-        auto colour = _uiStates[channel]->colour;
-
-        // DBG (juce::String ("drawing at position: ")
-        //      + juce::String (pos.getX ()) + " " + juce::String (pos.getY
-        //      ()));
-
-        if (_uiStates[channel]->grabbed)
+        if (chord > maxJump)
           {
-            gFBO.setColour (colour.withAlpha (0.4f));
-            gFBO.fillEllipse (blobGrabbed.withCentre (posScreenNormalized));
+            starts = true;
           }
-
-        if (_uiStates[channel]->highlighted)
+        else if (chord > sampling.maxDrawn)
           {
-            gFBO.setColour (
-                colour.withLightness (colour.getLightness () + 0.2f));
-            gFBO.fillEllipse (blobHighlight.withCentre (posScreenNormalized));
+            // Too long to be a straight line, so it is walked along the
+            // sphere instead of ruled across it. This is the pad's origin:
+            // the projection moves there without the disc moving, so no
+            // amount of cutting the *step* brings these two any closer -- a
+            // Clover's junction is nineteen degrees of one latitude, and the
+            // chord between them passes through the inside of the sphere,
+            // where the sound never is.
+            auto const pieces = static_cast<int> (
+                std::ceil (chord / sampling.maxDrawn));
+
+            for (int i = 1; i < pieces; ++i)
+              keep (slerpDirection (previousSeen, seen,
+                                    static_cast<float> (i)
+                                        / static_cast<float> (pieces)),
+                    false);
           }
-
-        // debug: draw anchor
-        // gFBO.setColour (colour.withAlpha (0.4f));
-        // gFBO.fillEllipse (
-        //     blob.withCentre (_uiStates[channelIndex]->posAnchor));
-        gFBO.setColour (colour);
-        gFBO.fillEllipse (blob.withCentre (posScreenNormalized));
-
-        // draw width indicator
-        // auto const width = _engine.getChannelWidth (channel);
-        // auto const posL
-        //     = Pos::fromSpherical (position.azimuth () - width,
-        //                           position.elevation (), position.distance
-        //                           ());
-        // auto const posR
-        //     = Pos::fromSpherical (position.azimuth () + width,
-        //                           position.elevation (), position.distance
-        //                           ());
-
-        // auto const posLNormalized = cartesian2DHOA2JUCE (posL);
-        // auto const posRNormalized = cartesian2DHOA2JUCE (posR);
-
-        // gFBO.setColour (juce::Colours::white);
-        // gFBO.fillEllipse (blob.withCentre (posLNormalized));
-        // gFBO.setColour (juce::Colours::red);
-        // gFBO.fillEllipse (blob.withCentre (posRNormalized));
       }
-  }
 
-  g.setOpacity (0.8f);
-  g.drawImage (*_imageBlend, _boundsRender.toFloat ().transformedBy (
-                                 _transformNormalizedToLocal.inverted ()));
-  g.setOpacity (1.f);
+    keep (seen, starts);
+    previousSeen = seen;
+    haveSeen = true;
+  };
+
+  juce::PathFlatteningIterator iter (displayPath, {}, 0.005f);
+
+  bool firstPoint = true;
+  float prevX = 0.f, prevY = 0.f;
+
+  while (iter.next ())
+    {
+      // A stroke breaks where the segments stop meeting -- this one does not
+      // start where the last one ended.
+      //
+      // Not iter.subPathIndex, whatever its name says: JUCE increments it on
+      // every line marker (juce_PathIterator.cpp), so on a path built out of
+      // lineTo -- which is every trajectory built from ticks -- every single
+      // segment claimed to be a new sub-path. The line was drawn as a couple
+      // of thousand two-point strokes, and wherever two ticks land far apart
+      // in the picture, which is the pad's origin, it simply stopped and
+      // started again. That is the gap at each of a Clover's junctions.
+      auto const beginsSubPath
+          = firstPoint || std::abs (iter.x1 - prevX) > 1e-6f
+            || std::abs (iter.y1 - prevY) > 1e-6f;
+
+      if (beginsSubPath)
+        {
+          // The first point of this subpath. Nothing joins it to what came
+          // before -- that is what makes it a subpath.
+          addPoint (projectPoint (iter.x1, iter.y1), true);
+          prevX = iter.x1;
+          prevY = iter.y1;
+          firstPoint = false;
+        }
+
+
+      // Cut where the projection moves, not evenly along the step -- see
+      // sampleDiscStep(), which halves a piece while its two ends land too
+      // far apart. Spread evenly, the pieces are spent out where nothing is
+      // happening and the closest approach to the disc's origin is starved.
+      sampleDiscStep (prevX, prevY, iter.x2, iter.y2, sampling, projectPoint,
+                      apart, [&addPoint] (Pos const &point, bool joined) {
+                        addPoint (point, !joined);
+                      });
+      prevX = iter.x2;
+      prevY = iter.y2;
+    }
+
+  if (projected.size () < 2)
+    return;
+
+  // Draw with depth-band batching
+  juce::Path currentPath;
+  int currentBand = depthBand (projected[0].second);
+  currentPath.startNewSubPath (projected[0].first);
+
+  for (std::size_t i = 1; i < projected.size (); ++i)
+    {
+      int band = depthBand (projected[i].second);
+
+      if (startsRun[i])
+        {
+          // A new stroke: lift the pen rather than reaching across to it.
+          flushPath (currentPath, currentBand);
+          currentPath.clear ();
+          currentPath.startNewSubPath (projected[i].first);
+          currentBand = band;
+          continue;
+        }
+
+      if (band != currentBand)
+        {
+          flushPath (currentPath, currentBand);
+          currentPath.clear ();
+          currentPath.startNewSubPath (projected[i - 1].first);
+          currentBand = band;
+        }
+      currentPath.lineTo (projected[i].first);
+    }
+  flushPath (currentPath, currentBand);
 }
 
 void
-MotionComponent::drawPatternPreview (Pattern const &pattern, juce::Graphics &g)
+MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
 {
-  auto ticks = pattern.getTicks ();
+  auto const ticks = pattern.getTicks ();
+  if (ticks.positions.empty ())
+    return;
 
+  auto const ch = pattern.getChannel ();
+  if (ch >= _uiStates.size ())
+    return;
+
+  // One subpath per run of ticks that is actually travelled through. What has
+  // not been played is simply absent — plainer than a faint line, and it is
+  // the thing you are looking for while recording: where the gaps still are.
+  // The blob is the write head; it needs no mark of its own.
+  //
+  // Cut at teleports as well as at gaps. Tapping quickly leaves no gap to cut
+  // at: the write head advances a tick or two between two taps, so the last
+  // tick of one and the first of the next are neighbours and the run carried
+  // straight on through, drawing the jump as a line.
+  juce::Path path;
+
+  for (auto const &segment : trajectorySegments (ticks.positions, BridgePlan{}))
+    {
+      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
+      for (size_t i = 1; i < segment.size (); ++i)
+        path.lineTo (segment[i].x (), segment[i].y ());
+    }
+
+  auto constexpr lineThickness = 0.03f;
+  // Unshaped: a take is recorded in the frame it was played in. Turning or
+  // squeezing the trail under the finger would draw the take somewhere the
+  // finger never was.
+  drawPathOnSphere (path, lineThickness, 0.9f, _uiStates[ch]->colour, true,
+                    pattern.getElevationParams (), _engine.getHeightMap (), g,
+                    PlaneShaping{}, _sphereShader.getCamera ());
+}
+
+void
+MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
+                                        juce::Graphics &g)
+{
+  auto const ticks = pattern.getTicks ();
+  if (ticks.positions.empty ())
+    return;
+
+  auto const ch = pattern.getChannel ();
+  if (ch >= _uiStates.size ())
+    return;
+
+  auto const params = pattern.getElevationParams ();
+  auto const colour = _uiStates[ch]->colour;
+
+  // Well below the take's own trail, which is drawn straight over this: it has
+  // to be readable as ground, not competing with what is being played in. How
+  // far below is a judgement made by eye, so it lives in the skin.
+  auto const underlayOpacity = _underlayOpacity;
+  auto const lineThickness = _underlayLineThickness;
+
+  juce::Path path;
+  for (auto const &segment : trajectorySegments (ticks.positions, BridgePlan{}))
+    {
+      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
+      for (size_t i = 1; i < segment.size (); ++i)
+        path.lineTo (segment[i].x (), segment[i].y ());
+    }
+
+  drawPathOnSphere (path, lineThickness, underlayOpacity, colour, true, params,
+                    _engine.getHeightMap (), g, PlaneShaping{},
+                    _sphereShader.getCamera ());
+
+  // And where it would be right now. The write head's own position is the
+  // phase into the loop -- the old pattern is not playing, so there is nothing
+  // else to ask.
+  auto const progress = _engine.getRecordingProgress ();
+  if (progress < 0.f)
+    return;
+
+  auto const count = ticks.positions.size ();
+  auto const index = std::min (
+      count - 1, static_cast<std::size_t> (progress * static_cast<float> (count)));
+  auto const position2D = ticks.positions[index];
+  if (!position2D.isValid ())
+    return;
+
+  auto const position = _engine.getHeightMap ().mapTo3D (position2D, params);
+  if (!position.isValid ())
+    return;
+
+  auto const diameter = 2 * _blobScale * _underlayBlobScale;
+  auto const centre = projectToScreen (position);
+  g.setColour (colour.withAlpha (underlayOpacity));
+  g.fillEllipse (juce::Rectangle<float> (0.f, 0.f, diameter, diameter)
+                     .withCentre (centre));
+}
+
+void
+MotionComponent::drawPatternPreview (Pattern const &pattern,
+                                    PatternDisplayData const &displayData,
+                                    juce::Graphics &g)
+{
   auto constexpr lineThickness = 0.04f;
 
-  auto colour = _uiStates[pattern.getChannel ()]->colour;
-  g.setColour (colour.withAlpha (0.6f));
-  auto const strokeStyle = juce::PathStrokeType (
-      lineThickness, juce::PathStrokeType::JointStyle::curved,
-      juce::PathStrokeType::EndCapStyle::rounded);
-  auto path = juce::Path ();
+  auto const ch = pattern.getChannel ();
+  auto colour = _uiStates[ch]->colour;
+  // The same sweep the engine applies before it projects (performPlayback):
+  // the drawn coverage has to be the coverage the blob is running in.
+  auto const params = sweptElevation (pattern.getElevationParams (), pattern);
+  // The same turn and the same squeeze the engine puts the blob through
+  // (performPlayback): the drawn line has to be the line it is running on.
+  auto const shaping = shapingOf (pattern);
+  auto const &heightMap = _engine.getHeightMap ();
 
-  jassert (ticks.positions.size () <= std::numeric_limits<int>::max ());
-  path.preallocateSpace (static_cast<int> (ticks.positions.size ()));
-
-  auto hasStarted = false;
-  for (auto offset = 0u; offset < ticks.positions.size (); ++offset)
+  // ── Handle jump-dot patterns ──
+  // The pattern currently being edited must always stay fully legible, no
+  // matter which hemisphere it sits in — no depth fade.
+  if (!displayData.jumpDots.empty ())
     {
-      auto const indexWrapped
-          = (ticks.lastUpdatedTick + 1 + offset) % ticks.positions.size ();
-      auto const tick = ticks.positions[indexWrapped];
+      auto constexpr dotSize = lineThickness * 3.f;
+      for (auto const &dot : displayData.jumpDots)
+        {
+          auto pos3D = heightMap.mapTo3D (
+              shapedPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
+                              shaping),
+              params);
+          auto posJuce = projectToScreen (pos3D);
+          pos3D = asSeenFrom (pos3D, _sphereShader.getCamera ());
+          g.setColour (colour);
+          g.fillEllipse (juce::Rectangle<float> (dotSize, dotSize)
+                             .withCentre (posJuce));
+        }
+      return;
+    }
 
-      if (tick.isValid ())
-        {
-          auto posNormalized = cartesian2DHOA2JUCE (tick);
-          if (!hasStarted)
-            {
-              path.startNewSubPath (posNormalized);
-              hasStarted = true;
-            }
-          path.lineTo (posNormalized);
-        }
-      else
-        {
-          if (hasStarted)
-            {
-              if (path.getLength () > lineThickness)
-                {
-                  g.strokePath (path, strokeStyle);
-                }
-              else
-                {
-                  auto ellipse = juce::Rectangle<float> ();
-                  auto constexpr sizeEllipse = lineThickness * 2.f;
-                  ellipse.setSize (sizeEllipse, sizeEllipse);
-                  g.fillEllipse (
-                      ellipse.withCentre (path.getCurrentPosition ()));
-                }
-              path.clear ();
-              hasStarted = false;
-            }
-        }
-    }
-  if (hasStarted)
+  // ── Draw from SVG displayPath projected onto sphere ──
+  drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
+                    false, params, heightMap, g, shaping,
+                    _sphereShader.getCamera ());
+}
+
+void
+MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
+                                        PatternDisplayData const &displayData,
+                                        juce::Graphics &g)
+{
+  // Thinner line is what distinguishes a merely-playing trajectory from
+  // the one currently being edited — depth fade still applies here (full
+  // at/above the horizon, receding toward the far pole below it), unlike
+  // drawPatternPreview()'s always-full override above.
+  auto constexpr lineThickness = 0.025f;
+
+  auto const ch = pattern.getChannel ();
+  auto colour = _uiStates[ch]->colour;
+  // The same sweep the engine applies before it projects (performPlayback):
+  // the drawn coverage has to be the coverage the blob is running in.
+  auto const params = sweptElevation (pattern.getElevationParams (), pattern);
+  // The same turn and the same squeeze the engine puts the blob through
+  // (performPlayback): the drawn line has to be the line it is running on.
+  auto const shaping = shapingOf (pattern);
+  auto const &heightMap = _engine.getHeightMap ();
+
+  // ── Handle jump-dot patterns ──
+  if (!displayData.jumpDots.empty ())
     {
-      g.strokePath (path, strokeStyle);
+      auto constexpr dotSize = lineThickness * 3.f;
+      for (auto const &dot : displayData.jumpDots)
+        {
+          auto pos3D = heightMap.mapTo3D (
+              shapedPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
+                              shaping),
+              params);
+          auto posJuce = projectToScreen (pos3D);
+          pos3D = asSeenFrom (pos3D, _sphereShader.getCamera ());
+          float fade = (pos3D.z () < 0.f)
+              ? 0.3f + 0.7f * std::clamp (pos3D.z () + 1.f, 0.f, 1.f)
+              : 1.0f;
+          float ds = dotSize * (0.5f + 0.5f * fade);
+          g.setColour (colour.withAlpha (fade));
+          g.fillEllipse (juce::Rectangle<float> (ds, ds)
+                             .withCentre (posJuce));
+        }
+      return;
     }
+
+  // ── Draw from SVG displayPath projected onto sphere ──
+  drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
+                    true, params, heightMap, g, shaping,
+                    _sphereShader.getCamera ());
 }
 
 juce::Point<float>
 MotionComponent::normalizedToLocal2DPosition (Pos const &posNorm) const
 {
-  return cartesian2DHOA2JUCE (posNorm).transformedBy (
+  return projectToScreen (posNorm).transformedBy (
       _transformNormalizedToLocal);
 }
 
@@ -715,7 +2182,16 @@ MotionComponent::localToNormalized2DPosition (
 void
 MotionComponent::openGLContextClosing ()
 {
+  using namespace juce::gl;
+
   DBG ("openGLContextClosing");
+  if (_energyTexture != 0)
+    {
+      glDeleteTextures (1, &_energyTexture);
+      _energyTexture = 0;
+    }
+  _blit.destroy ();
+  _sphereShader.shutdown ();
 }
 
 }

@@ -20,8 +20,8 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
-#include <shared_mutex>
 
 #include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/util/Types.hh>
@@ -39,11 +39,16 @@ public:
   Pos getPosition () const;
   void setPosition (Pos position);
 
-  float getWidth () const;
-  void setWidth (float width);
+  float getPot1 () const;
+  void setPot1 (float pot1);
 
-  int getAmbisonicsOrder () const;
-  void setAmbisonicsOrder (int order);
+  float getPot2 () const;
+  void setPot2 (float pot2);
+
+  /** The third value, driven by the channel's pot. What it means is Core's
+   *  business; here it is a number between 0 and 1 like the other two. */
+  float getPot3 () const;
+  void setPot3 (float pot3);
 
 private:
   // TODO reconsider: we want to keep the public API for users of the
@@ -56,14 +61,24 @@ private:
   Measure _playingStarted;
 
   Pos _position;
-  std::atomic<float> _width = 45;
-  std::atomic<int> _order = 3;
+  // Where a pot starts is where it comes to rest: twelve o'clock for 3d and
+  // freq, shut for Q. They used to start at a quarter, wide open and shut --
+  // three different answers to the question the reset table already answers
+  // (components/ChannelValueReset.hh), and a test now holds the two together.
+  //
+  // Not only a picture. The device *sends* these, and A3 Core records what it
+  // is sent, so a start value goes into Core's state file as though a hand
+  // had set it and the next recall replays it. All four 3d pots read zero on
+  // the rig on 2026-09-12 and the recall was working perfectly: the last
+  // setting really was zero, sent by this line at the previous start-up.
+  std::atomic<float> _pot1 = 0.5f;
+  std::atomic<float> _pot2 = 0.f;
+  std::atomic<float> _pot3 = 0.5f;
 
-  // for now we use a "fair" RW lock using std::shared_mutex to see
-  // how it performs.  we might implement a write-preferring RW lock
-  // based on the example at
-  // https://en.wikipedia.org/wiki/Readers%E2%80%93writer_lock#Using_a_condition_variable_and_a_mutex
-  mutable std::shared_mutex _mutex;
+  // SeqLock for lock-free position access.
+  // Writer (RT timer thread) never blocks.
+  // Reader (GL/UI thread) retries on torn read — always consistent, never blocks writer.
+  mutable std::atomic<unsigned> _seqCount{ 0 };
 };
 
 }

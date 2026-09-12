@@ -39,14 +39,13 @@ MainWindow::MainWindow (juce::String const &name)
 }
 
 bool
-MainWindow::keyPressed (const juce::KeyPress &k)
+MainWindow::keyPressed (const juce::KeyPress &)
 {
-  if (k.getKeyCode () == juce::KeyPress::escapeKey)
-    {
-      juce::JUCEApplicationBase::quit ();
-      return true;
-    }
-
+  // Escape used to quit. On a desk that is a convenience; on a device standing
+  // in a booth with a keyboard plugged into it, it is one stray key away from
+  // ending the set -- and there is no dialogue in between, because there is
+  // nothing here that could ask. Quitting is the window manager's job, or the
+  // service's; the app itself no longer offers a shortcut for it.
   return false;
 }
 

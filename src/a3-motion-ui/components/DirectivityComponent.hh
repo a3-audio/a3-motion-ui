@@ -34,14 +34,11 @@ public:
 
   void paint (juce::Graphics &g) override;
 
-  void setWidth (float width);
-  void setOrder (int order);
-
 private:
   ChannelUIState const &_uiState;
 
-  float _width;
-  int _order;
+  float _pot1;
+  float _pot2;
 };
 
 }

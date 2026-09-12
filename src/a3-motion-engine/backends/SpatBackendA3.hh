@@ -30,17 +30,37 @@ namespace a3
 class SpatBackendA3 : public SpatBackend
 {
 public:
-  SpatBackendA3 (juce::String address, int port);
+  SpatBackendA3 (juce::String address, int port,
+                 OscAddresses const &addresses);
 
   void sendPosition (index_t channel, Pos const &pos) override;
-  void sendWidth (index_t channel, float width) override;
-  void sendAmbisonicsOrder (index_t channel, int order) override;
+  void sendPot1 (index_t channel, float pot1) override;
+  void sendPot2 (index_t channel, float pot2) override;
+  void sendPot3 (index_t channel, float pot3) override;
+
+protected:
+  void addressesChanged (OscAddresses const &addresses) override;
 
 private:
   juce::String _address;
   int _port;
 
   juce::OSCSender _sender;
+
+  // Pre-cached OSC address patterns (avoid heap allocation per send)
+  static constexpr int kMaxChannels = 8;
+  juce::String _azimuthPatterns[kMaxChannels];
+  juce::String _elevationPatterns[kMaxChannels];
+  juce::String _pot1Patterns[kMaxChannels];
+  juce::String _pot2Patterns[kMaxChannels];
+  juce::String _pot3Patterns[kMaxChannels];
+
+  // Deduplication: last sent values per channel
+  float _lastAzimuth[kMaxChannels] = {};
+  float _lastElevation[kMaxChannels] = {};
+  
+  // Minimum time between sends per channel (debounce)
+  static constexpr float kAngleTolerance = 0.001f;  // ~0.06 degrees
 };
 
 }

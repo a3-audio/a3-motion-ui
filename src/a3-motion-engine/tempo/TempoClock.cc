@@ -21,16 +21,25 @@
 #include "TempoClock.hh"
 
 #include <future>
+#include <thread>
 
 #include <JuceHeader.h>
+
+#ifdef __linux__
+#include <pthread.h>
+#include <sched.h>
+#include <time.h>
+#endif
 
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/tempo/TempoEstimatorMean.hh>
 
-// TODO define this in anonymous namespace or move to internal
-// implementation file?
-class ClockTimer : public juce::HighResolutionTimer
+// Dedicated real-time clock thread using clock_nanosleep for
+// jitter-free tick scheduling.  Replaces juce::HighResolutionTimer
+// which internally uses usleep and is susceptible to OS scheduling
+// jitter.
+class ClockTimer : public juce::AsyncUpdater
 {
 public:
   using PointerT = std::weak_ptr<std::function<a3::TempoClock::CallbackT> >;
@@ -51,6 +60,11 @@ public:
     });
   }
 
+  ~ClockTimer ()
+  {
+    stopThread ();
+  }
+
   std::future<void>
   submitFifoMessage (Message const &message)
   {
@@ -69,15 +83,126 @@ public:
   }
 
   void
-  hiResTimerCallback () override
+  startThread ()
   {
-    processFifoMessages ();
-    advanceMeasure ();
+    if (_running.load ())
+      return;
+    _running.store (true);
+    _thread = std::thread (&ClockTimer::threadFunc, this);
+  }
+
+  void
+  stopThread ()
+  {
+    _running.store (false);
+    if (_thread.joinable ())
+      _thread.join ();
+  }
+
+  // Called on the JUCE message thread — dispatches pending events to
+  // JuceMessageThread handlers without any heap allocation on the RT thread.
+  void handleAsyncUpdate () override
+  {
+    // Atomically read and clear pending event flags
+    unsigned flags = _pendingEvents.exchange (0, std::memory_order_acq_rel);
+    if (!flags) return;
+
+    // Read the latest measure snapshot (written by RT thread)
+    a3::Measure m;
+    {
+      // SeqLock read — retry if writer was active
+      unsigned seq;
+      do {
+        seq = _measureSeq.load (std::memory_order_acquire);
+        m = _measureSnapshot;
+        std::atomic_thread_fence (std::memory_order_acquire);
+      } while (seq != _measureSeq.load (std::memory_order_acquire) || (seq & 1));
+    }
+
+    auto dispatch = [&] (a3::TempoClock::Event event) {
+      auto &container = _handlers[handlerIndex (event,
+                           a3::TempoClock::Execution::JuceMessageThread)];
+      auto it = std::remove_if (
+          container.begin (), container.end (),
+          [&] (const PointerT &pw) {
+            if (auto ps = pw.lock ())
+              { (*ps) (m); return false; }
+            return true;
+          });
+      container.erase (it, container.end ());
+    };
+
+    if (flags & kPendingTick) dispatch (a3::TempoClock::Event::Tick);
+    if (flags & kPendingBeat) dispatch (a3::TempoClock::Event::Beat);
+    if (flags & kPendingBar)  dispatch (a3::TempoClock::Event::Bar);
+  }
+
+  bool
+  isRunning () const
+  {
+    return _running.load ();
   }
 
   std::atomic<bool> reset{ true };
 
 private:
+  void
+  threadFunc ()
+  {
+    promoteToRealtimePriority ();
+
+#ifdef __linux__
+    // Use CLOCK_MONOTONIC + TIMER_ABSTIME for jitter-free scheduling.
+    // We compute absolute wake-up times so accumulated drift is zero.
+    struct timespec nextWake;
+    clock_gettime (CLOCK_MONOTONIC, &nextWake);
+
+    while (_running.load (std::memory_order_relaxed))
+      {
+        processFifoMessages ();
+        advanceMeasure ();
+
+        // Sleep until next 1ms boundary (absolute time — no drift)
+        nextWake.tv_nsec += 1000000;  // 1 ms
+        if (nextWake.tv_nsec >= 1000000000)
+          {
+            nextWake.tv_nsec -= 1000000000;
+            nextWake.tv_sec += 1;
+          }
+        clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &nextWake, nullptr);
+      }
+#else
+    // Fallback for non-Linux: use chrono sleep
+    auto nextWake = std::chrono::steady_clock::now ();
+    while (_running.load (std::memory_order_relaxed))
+      {
+        processFifoMessages ();
+        advanceMeasure ();
+
+        nextWake += std::chrono::microseconds (1000);  // 1 ms
+        std::this_thread::sleep_until (nextWake);
+      }
+#endif
+  }
+
+  // Promote the clock thread to SCHED_FIFO once.
+  // This guarantees the beatclock preempts GL/UI threads on RPi4.
+  void promoteToRealtimePriority ()
+  {
+#ifdef __linux__
+    struct sched_param param;
+    param.sched_priority = 70;  // high but leaves room for audio (usually 80+)
+    int result = pthread_setschedparam (pthread_self (), SCHED_FIFO, &param);
+    if (result != 0)
+      {
+        DBG ("Clock thread: could not set SCHED_FIFO (error " << result << ")");
+      }
+    else
+      {
+        DBG ("Clock thread promoted to SCHED_FIFO priority 70");
+      }
+#endif
+  }
   struct SubmittedMessage : public Message
   {
     SubmittedMessage () : Message{} {}
@@ -95,7 +220,7 @@ private:
       for (auto notification :
            { a3::TempoClock::Execution::TimerThread,
              a3::TempoClock::Execution::JuceMessageThread })
-        func (event, notification, _handlers[{ event, notification }]);
+        func (event, notification, _handlers[handlerIndex (event, notification)]);
   }
 
   void
@@ -142,7 +267,7 @@ private:
   void
   handleMessage (SubmittedMessage &message)
   {
-    auto &v = _handlers[{ message.event, message.execution }];
+    auto &v = _handlers[handlerIndex (message.event, message.execution)];
     jassert (
         std::find_if (
             v.begin (), v.end (),
@@ -213,35 +338,43 @@ private:
     for (auto execution : { a3::TempoClock::Execution::TimerThread,
                             a3::TempoClock::Execution::JuceMessageThread })
       {
-        auto &container = _handlers[{ event, execution }];
+        if (execution == a3::TempoClock::Execution::JuceMessageThread)
+          {
+            // Throttle tick dispatch to every 4th tick
+            if (event == a3::TempoClock::Event::Tick
+                && (_measure.tick () % 4 != 0))
+              continue;
+
+            // Lock-free dispatch: write measure snapshot via SeqLock,
+            // set pending event flag, and trigger async update.
+            // Zero heap allocations on the RT thread.
+            unsigned seq = _measureSeq.load (std::memory_order_relaxed);
+            _measureSeq.store (seq + 1, std::memory_order_release); // odd = writing
+            _measureSnapshot = _measure;
+            _measureSeq.store (seq + 2, std::memory_order_release); // even = done
+
+            unsigned bit = (event == a3::TempoClock::Event::Tick) ? kPendingTick
+                         : (event == a3::TempoClock::Event::Beat) ? kPendingBeat
+                         : kPendingBar;
+            _pendingEvents.fetch_or (bit, std::memory_order_release);
+            triggerAsyncUpdate ();
+            continue;
+          }
+
+        // TimerThread: execute directly on this thread
+        auto &container = _handlers[handlerIndex (event, execution)];
 
         auto it_erase_begin = std::remove_if (
             container.begin (), container.end (),
             [&] (const std::weak_ptr<std::function<a3::TempoClock::CallbackT> >
                      &ptrFuncWeak) {
               if (auto ptrFuncShared
-                  = ptrFuncWeak.lock ()) // if pointer still valid
+                  = ptrFuncWeak.lock ())
                 {
-                  switch (execution)
-                    {
-                    case a3::TempoClock::Execution::TimerThread:
-                      (*ptrFuncShared) (_measure); // execute directly
-                      break;
-                    case a3::TempoClock::Execution::JuceMessageThread:
-                      // NOTE: we copy the weak_ptr and check for
-                      // validity again during the asynchronous
-                      // execution in the message thread.
-                      auto measureCopy{ _measure };
-                      juce::MessageManager::callAsync ([ptrFuncWeak,
-                                                        measureCopy] () {
-                        if (auto ptrFuncSharedMessage = ptrFuncWeak.lock ())
-                          (*ptrFuncSharedMessage) (measureCopy);
-                      });
-                      break;
-                    }
+                  (*ptrFuncShared) (_measure);
                   return false;
                 }
-              else // remove otherwise
+              else
                 return true;
             });
 
@@ -256,14 +389,26 @@ private:
       }
   }
 
+  // Flat array indexed by (event * 2 + execution) — replaces std::map
+  // for O(1) lookup with zero allocation on the timer thread.
+  // Layout: [Tick/Timer, Tick/Msg, Beat/Timer, Beat/Msg, Bar/Timer, Bar/Msg]
+  static constexpr std::size_t handlerIndex (a3::TempoClock::Event event,
+                                              a3::TempoClock::Execution exec)
+  {
+    return static_cast<std::size_t> (event) * 2
+         + static_cast<std::size_t> (exec);
+  }
+  static constexpr std::size_t kNumHandlerSlots = 6;  // 3 events × 2 executions
+
   static constexpr int numHandlersPreAllocated = 10;
   static constexpr int fifoSize = 32;
   juce::AbstractFifo _abstractFifo{ fifoSize };
   std::array<SubmittedMessage, fifoSize> _fifo;
 
-  std::map<std::pair<a3::TempoClock::Event, a3::TempoClock::Execution>,
-           ContainerT>
-      _handlers;
+  std::array<ContainerT, kNumHandlerSlots> _handlers;
+
+  std::atomic<bool> _running{ false };
+  std::thread _thread;
 
   a3::TempoClock const &_tempoClock;
 
@@ -271,6 +416,16 @@ private:
   ClockT::time_point _lastTick;
 
   a3::Measure _measure;
+
+  // Lock-free RT → message-thread dispatch (no heap allocs)
+  static constexpr unsigned kPendingTick = 1u;
+  static constexpr unsigned kPendingBeat = 2u;
+  static constexpr unsigned kPendingBar  = 4u;
+  std::atomic<unsigned> _pendingEvents{ 0 };
+
+  // SeqLock for Measure snapshot (RT writes, message-thread reads)
+  std::atomic<unsigned> _measureSeq{ 0 };
+  a3::Measure _measureSnapshot;
 };
 
 namespace a3
@@ -339,8 +494,16 @@ TempoClock::getNanoSecondsPerTick () const
 TempoClock::TapResult
 TempoClock::tap (juce::int64 timeMicros)
 {
-  if (_tempoEstimator->tap (timeMicros)
-      == TempoEstimator::TapResult::TempoAvailable)
+  auto const result = _tempoEstimator->tap (timeMicros);
+
+  if (result == TempoEstimator::TapResult::FirstTap)
+    {
+      // First tap after timeout - reset beat to 1
+      reset ();
+      return TapResult::FirstTap;
+    }
+
+  if (result == TempoEstimator::TapResult::TempoAvailable)
     {
       setTempoBPM (_tempoEstimator->getTempoBPM ());
       return TapResult::TempoAvailable;
@@ -353,12 +516,12 @@ TempoClock::tap (juce::int64 timeMicros)
 void
 TempoClock::start ()
 {
-  if (!_timer->isTimerRunning ())
+  if (!_timer->isRunning ())
     {
       _timer->reset = true;
-      _timer->startTimer (timerIntervalMs);
+      _timer->startThread ();
 #ifdef DEBUG
-      juce::Logger::writeToLog ("TempoClock: started");
+      juce::Logger::writeToLog ("TempoClock: started (dedicated thread)");
 #endif
     }
 #ifdef DEBUG
@@ -372,9 +535,9 @@ TempoClock::start ()
 void
 TempoClock::stop ()
 {
-  if (_timer->isTimerRunning ())
+  if (_timer->isRunning ())
     {
-      _timer->stopTimer ();
+      _timer->stopThread ();
 #ifdef DEBUG
       juce::Logger::writeToLog ("TempoClock: stopped");
 #endif
@@ -400,6 +563,26 @@ TempoClock::nextDownBeat (Measure const &measure)
     }
 
   return downbeat;
+}
+
+Measure
+TempoClock::nextBeat (Measure const &measure, int beatsPerBar)
+{
+  auto beat = measure;
+
+  if (beat.tick () == 0)
+    return beat;
+
+  beat.tick () = 0;
+  ++beat.beat ();
+
+  if (beatsPerBar > 0 && beat.beat () >= beatsPerBar)
+    {
+      beat.beat () = 0;
+      ++beat.bar ();
+    }
+
+  return beat;
 }
 
 }

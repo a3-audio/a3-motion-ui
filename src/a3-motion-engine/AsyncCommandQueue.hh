@@ -36,8 +36,13 @@ public:
   ~AsyncCommandQueue ();
 
   void sendPosition (index_t channel, Pos position);
-  void sendWidth (index_t channel, float width);
-  void sendAmbisonicsOrder (index_t channel, int order);
+  void sendPot1 (index_t channel, float pot1);
+  void sendPot2 (index_t channel, float pot2);
+  void sendPot3 (index_t channel, float pot3);
+
+  /** Hand new addresses to the backend. Safe from any thread; the backend
+   *  picks them up on its own thread at the start of the next drain. */
+  void setAddresses (OscAddresses const &addresses);
 
   void run () override;
 
@@ -48,14 +53,16 @@ private:
     enum class Command
     {
       SendPosition,
-      SendWidth,
-      SendAmbisonicsOrder,
+      SendPot1,
+      SendPot2,
+      SendPot3,
     } command;
 
     index_t channel;
     Pos position;
-    float width;
-    int order;
+    float pot1;
+    float pot2;
+    float pot3;
   };
 
   void submitMessage (Message &&message);

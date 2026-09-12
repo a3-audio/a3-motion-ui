@@ -76,17 +76,19 @@ InputOutputAdapter::getPadLED (index_t channel, index_t pad)
 }
 
 juce::Value &
-InputOutputAdapter::getEncoderPress (index_t channel)
+InputOutputAdapter::getEncoderPress (index_t channel, index_t encoderIndex)
 {
   jassert (channel < numChannels);
-  return _valueEncoderPresses[channel];
+  jassert (encoderIndex < numEncodersPerChannel);
+  return _valueEncoderPresses[channel][encoderIndex];
 }
 
 juce::Value &
-InputOutputAdapter::getEncoderIncrement (index_t channel)
+InputOutputAdapter::getEncoderIncrement (index_t channel, index_t encoderIndex)
 {
   jassert (channel < numChannels);
-  return _valueEncoderIncrements[channel];
+  jassert (encoderIndex < numEncodersPerChannel);
+  return _valueEncoderIncrements[channel][encoderIndex];
 }
 
 juce::Value &
@@ -95,6 +97,13 @@ InputOutputAdapter::getPot (index_t channel, index_t pot)
   jassert (channel < numChannels);
   jassert (pot < numPotsPerChannel);
   return _valuePots[channel][pot];
+}
+
+juce::Value &
+InputOutputAdapter::getGlobalPot (index_t potIndex)
+{
+  juce::ignoreUnused (potIndex);
+  return _noGlobalPot;
 }
 
 juce::Value &
@@ -119,6 +128,12 @@ index_t
 InputOutputAdapter::getNumPotsPerChannel ()
 {
   return numPotsPerChannel;
+}
+
+index_t
+InputOutputAdapter::getNumEncodersPerChannel ()
+{
+  return numEncodersPerChannel;
 }
 
 index_t
@@ -180,11 +195,20 @@ void
 InputOutputAdapter::inputEncoderEvent (index_t channel,
                                        InputMessageEncoder::Event event)
 {
+  inputEncoderEvent (channel, 0, event);
+}
+
+void
+InputOutputAdapter::inputEncoderEvent (index_t channel, index_t encoderIndex,
+                                       InputMessageEncoder::Event event)
+{
   jassert (channel < numChannels);
+  jassert (encoderIndex < numEncodersPerChannel);
 
   auto message = std::make_unique<InputMessageEncoder> ();
   message->event = event;
   message->channel = channel;
+  message->encoderIndex = encoderIndex;
   submitInputMessage (std::move (message));
 }
 
@@ -329,7 +353,7 @@ InputOutputAdapter::handleEncoder (InputMessageEncoder const &message)
       auto offset
           = message.event == InputMessageEncoder::Event::Increment ? 1 : -1;
 
-      auto value = _valueEncoderIncrements[message.channel];
+      auto value = _valueEncoderIncrements[message.channel][message.encoderIndex];
 
       // The following is required to send the same increment
       // repeatedly. juce::Value notifies observers only when the
@@ -349,7 +373,7 @@ InputOutputAdapter::handleEncoder (InputMessageEncoder const &message)
   else if (message.event == InputMessageEncoder::Event::Press
            || message.event == InputMessageEncoder::Event::Release)
     {
-      auto value = _valueEncoderPresses[message.channel];
+      auto value = _valueEncoderPresses[message.channel][message.encoderIndex];
       value = message.event == InputMessageEncoder::Event::Press ? 1 : 0;
     }
 }
@@ -382,10 +406,9 @@ InputOutputAdapter::valueChanged (juce::Value &value)
     {
       if (value.refersToSameSourceAs (_valueButtonLEDs[index]))
         {
-          auto message = std::make_unique<OutputMessageButtonLED> ();
-          message->button = static_cast<Button> (index);
-          message->value = value.getValue ();
-          submitOutputMessage (std::move (message));
+          sendButtonLED (
+              static_cast<Button> (index),
+              juce::VariantConverter<juce::Colour>::fromVar (value.getValue ()));
           return;
         }
     }
@@ -405,6 +428,33 @@ InputOutputAdapter::valueChanged (juce::Value &value)
             }
         }
     }
+}
+
+void
+InputOutputAdapter::setButtonLED (Button button, juce::Colour colour)
+{
+  // Sent first, so the key is lit by the time this returns. The assignment
+  // below still happens -- the Value is what anything else reads -- and its
+  // async notification lands on sendButtonLED() too, which drops it as a
+  // repeat.
+  sendButtonLED (button, colour);
+  _valueButtonLEDs[static_cast<std::size_t> (button)]
+      = juce::VariantConverter<juce::Colour>::toVar (colour);
+}
+
+void
+InputOutputAdapter::sendButtonLED (Button button, juce::Colour colour)
+{
+  auto const index = static_cast<std::size_t> (button);
+  if (_lastButtonLEDsSent[index] == colour)
+    return;
+
+  _lastButtonLEDsSent[index] = colour;
+
+  auto message = std::make_unique<OutputMessageButtonLED> ();
+  message->button = button;
+  message->colour = colour;
+  submitOutputMessage (std::move (message));
 }
 
 void
@@ -464,7 +514,7 @@ InputOutputAdapter::handleOutputMessage (
         auto messageButtonLED
             = dynamic_cast<OutputMessageButtonLED *> (message.get ());
         jassert (messageButtonLED != nullptr);
-        outputButtonLED (messageButtonLED->button, messageButtonLED->value);
+        outputButtonLED (messageButtonLED->button, messageButtonLED->colour);
         break;
       }
     case OutputMessage::Type::PadLED:

@@ -20,31 +20,13 @@
 
 #pragma once
 
-#include <chrono>
-
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/Measure.hh>
-#include <a3-motion-engine/util/Timing.hh>
 
 namespace a3
 {
 
-template <class ClockT>
-void
-print (Timings<ClockT> const &timings)
-{
-  for (auto const &t : timings.get ())
-    {
-      juce::Logger::writeToLog (
-          juce::String (t.tag) + ": "
-          + juce::String (
-              std::chrono::duration_cast<std::chrono::nanoseconds> (t.duration)
-                  .count ()));
-    }
-}
-
-juce::String toString (Pos const &position);
 juce::String toString (Measure const &measure);
 
 }

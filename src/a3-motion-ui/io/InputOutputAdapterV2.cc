@@ -20,6 +20,8 @@
 
 #include "InputOutputAdapterV2.hh"
 
+#include <iostream>
+
 namespace a3
 {
 
@@ -45,6 +47,10 @@ InputOutputAdapterV2::serialInit ()
   _serialPort.SetFlowControl (FlowControl::FLOW_CONTROL_NONE);
   _serialPort.SetParity (Parity::PARITY_NONE);
   _serialPort.SetStopBits (StopBits::STOP_BITS_1);
+
+  // Open () throws if there is nothing there, so reaching this line is
+  // this adapter's whole notion of a panel being present.
+  _hardwareAvailable = true;
 
   juce::Logger::writeToLog ("initialized libserial");
 }
@@ -103,7 +109,7 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
           switch (index)
             {
             case 16:
-              inputButtonValue (Button::Shift, value);
+              inputButtonValue (Button::ClockMode, value);
               break;
             case 17:
               inputButtonValue (Button::Record, value);
@@ -166,12 +172,14 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
 }
 
 void
-InputOutputAdapterV2::outputButtonLED (Button button, bool value)
+InputOutputAdapterV2::outputButtonLED (Button button, juce::Colour colour)
 {
+  // This panel's keys light or they do not; it has no colour to give them.
+  // A key with a colour of its own is lit, a transparent one is dark.
   juce::String line = "BL,";
   line += juce::String (static_cast<int> (button));
   line += ",";
-  line += juce::String (static_cast<int> (value));
+  line += juce::String (colour.isTransparent () ? 0 : 1);
   line += "\n";
 
   // juce::Logger::writeToLog ("++++ sending: " + line);

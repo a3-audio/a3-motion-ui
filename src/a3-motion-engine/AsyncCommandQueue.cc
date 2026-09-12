@@ -44,22 +44,32 @@ AsyncCommandQueue::sendPosition (index_t channel, Pos position)
 }
 
 void
-AsyncCommandQueue::sendWidth (index_t channel, float width)
+AsyncCommandQueue::sendPot1 (index_t channel, float pot1)
 {
   Message message;
-  message.command = Message::Command::SendWidth;
+  message.command = Message::Command::SendPot1;
   message.channel = channel;
-  message.width = width;
+  message.pot1 = pot1;
   submitMessage (std::move (message));
 }
 
 void
-AsyncCommandQueue::sendAmbisonicsOrder (index_t channel, int order)
+AsyncCommandQueue::sendPot2 (index_t channel, float pot2)
 {
   Message message;
-  message.command = Message::Command::SendAmbisonicsOrder;
+  message.command = Message::Command::SendPot2;
   message.channel = channel;
-  message.order = order;
+  message.pot2 = pot2;
+  submitMessage (std::move (message));
+}
+
+void
+AsyncCommandQueue::sendPot3 (index_t channel, float pot3)
+{
+  Message message;
+  message.command = Message::Command::SendPot3;
+  message.channel = channel;
+  message.pot3 = pot3;
   submitMessage (std::move (message));
 }
 
@@ -94,8 +104,19 @@ AsyncCommandQueue::submitMessage (Message &&message)
 }
 
 void
+AsyncCommandQueue::setAddresses (OscAddresses const &addresses)
+{
+  _backend->setAddresses (addresses);
+  notify (); // so a change lands even while nothing is being sent
+}
+
+void
 AsyncCommandQueue::processFifo ()
 {
+  // Once per drain, not once per message: this is the sending thread, and
+  // the only place the backend's cached patterns may be rebuilt.
+  _backend->applyPendingAddresses ();
+
   auto const ready = _abstractFifo.getNumReady ();
   const auto scope = _abstractFifo.read (ready);
 
@@ -130,14 +151,19 @@ AsyncCommandQueue::processMessage (Message const &message)
         _backend->sendPosition (message.channel, message.position);
         break;
       }
-    case Message::Command::SendWidth:
+    case Message::Command::SendPot1:
       {
-        _backend->sendWidth (message.channel, message.width);
+        _backend->sendPot1 (message.channel, message.pot1);
         break;
       }
-    case Message::Command::SendAmbisonicsOrder:
+    case Message::Command::SendPot2:
       {
-        _backend->sendAmbisonicsOrder (message.channel, message.order);
+        _backend->sendPot2 (message.channel, message.pot2);
+        break;
+      }
+    case Message::Command::SendPot3:
+      {
+        _backend->sendPot3 (message.channel, message.pot3);
         break;
       }
     }

@@ -20,9 +20,17 @@
 
 #pragma once
 
+#include <optional>
+
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/util/Types.hh>
+
+// PadFunction and the two pad-index tables live here, so that the
+// touchscreen's controller page can be laid out from the same tables
+// the panel is read with.
+#include <a3-motion-ui/io/FunctionKeys.hh>
+#include <a3-motion-ui/io/PadFunctions.hh>
 
 namespace a3
 {
@@ -32,23 +40,53 @@ class InputOutputAdapter : public juce::Thread,
                            public juce::Value::Listener
 {
 public:
-  enum class Button
-  {
-    Record,
-    Tap,
-    Shift,
-  };
+  /** The device's function keys — the panel's two mirrored columns and the
+   *  global strip's six, which are the same set. See io/FunctionKeys.hh for
+   *  the order they are in and why there is only one of it. */
+  using Button = FunctionKey;
 
   InputOutputAdapter ();
   virtual ~InputOutputAdapter ();
 
   juce::Value &getButton (Button button);
   juce::Value &getButtonLED (Button button);
+
+  /** Light a key now rather than on the next message loop.
+   *
+   *  Assigning getButtonLED() works, but a juce::Value notifies its listeners
+   *  asynchronously, so the key lit a loop after the press -- a lag you can
+   *  see on a key you are watching while you press it. This puts the write
+   *  straight into the output FIFO and keeps the Value in step behind it. */
+  void setButtonLED (Button button, juce::Colour colour);
+
+private:
+  void sendButtonLED (Button button, juce::Colour colour);
+
+public:
   juce::Value &getPad (index_t channel, index_t pad);
   juce::Value &getPadLED (index_t channel, index_t pad);
-  juce::Value &getEncoderPress (index_t channel);
-  juce::Value &getEncoderIncrement (index_t channel);
+  juce::Value &getEncoderPress (index_t channel, index_t encoderIndex = 0);
+  juce::Value &getEncoderIncrement (index_t channel, index_t encoderIndex = 0);
   juce::Value &getPot (index_t channel, index_t pot);
+
+  /** The device's physical potentiometers, one per channel.
+   *
+   *  Not to be confused with getPot() above: those are the *pot-encoder's*
+   *  synthetic values — turning it adjusts the selected one, pushing it
+   *  switches which. These are the knobs on the panel. V3 has four and
+   *  overrides this; anything else has none, and hands back a value that
+   *  never changes so a listener costs nothing. */
+  virtual juce::Value &getGlobalPot (index_t potIndex);
+  virtual index_t getNumGlobalPots () const { return 0; }
+
+  /** Whether a panel is actually answering on the wire.
+   *
+   *  Not the same question as whether the hardware interface was compiled
+   *  in: this device ships with it compiled in and spends whole sessions
+   *  with nothing plugged into it. Anything that has to hand the controls
+   *  back to the screen when there is no panel asks this, at runtime. */
+  bool hardwareIsAvailable () const { return _hardwareAvailable; }
+
   juce::Value &getTapTimeMicros ();
 
   void valueChanged (juce::Value &) override;
@@ -60,13 +98,17 @@ public:
   index_t getNumChannels ();
   index_t getNumPadsPerChannel ();
   index_t getNumPotsPerChannel ();
+  index_t getNumEncodersPerChannel ();
   index_t getNumButtons ();
 
 protected:
+  /** Set by whichever adapter has managed to reach a panel. */
+  bool _hardwareAvailable = false;
+
   static auto constexpr numChannels = 4u;
-  static auto constexpr numPadsPerChannel = 4u;
   static auto constexpr numPotsPerChannel = 2u;
-  static auto constexpr numButtons = 3u;
+  static auto constexpr numEncodersPerChannel = 2u;
+  static auto constexpr numButtons = numFunctionKeys;
 
   struct PadIndex
   {
@@ -144,6 +186,7 @@ protected:
     } event;
 
     index_t channel;
+    index_t encoderIndex = 0;
   };
 
   struct InputMessagePot : public InputMessage
@@ -189,7 +232,9 @@ protected:
     }
 
     Button button;
-    bool value;
+    /** A transparent colour means the key's resting look — the adapter knows
+     *  what that is, since it comes out of the user config. */
+    juce::Colour colour;
   };
 
   struct OutputMessagePadLED : public OutputMessage
@@ -212,10 +257,14 @@ protected:
   void inputPadValue (PadIndex const &padIndex, bool value);
   void inputButtonValue (Button button, bool value);
   void inputEncoderEvent (index_t channel, InputMessageEncoder::Event event);
+  void inputEncoderEvent (index_t channel, index_t encoderIndex, InputMessageEncoder::Event event);
   void inputPotValue (index_t channel, index_t pot, float value);
   void inputTapTime (juce::int64 timeMicros);
 
-  virtual void outputButtonLED (Button button, bool value) = 0;
+  /** A key's LED takes a colour, the way a pad's does: what a key looks like
+   *  is one rule (theme/FunctionKeyColours.hh) and this is one of its two
+   *  displays. A transparent colour is the resting look. */
+  virtual void outputButtonLED (Button button, juce::Colour colour) = 0;
   virtual void outputPadLED (PadIndex, juce::Colour colour) = 0;
 
 private:
@@ -240,13 +289,21 @@ private:
   std::map<Button, bool> _lastButtonValues;
   std::array<juce::Value, numButtons> _valueButtons;
   std::array<juce::Value, numButtons> _valueButtonLEDs;
+  /** What was last sent for each key, so the Value's own async notification
+   *  does not send it a second time. The serial link is shared with the input
+   *  frames and has no room for writes that change nothing. */
+  std::array<std::optional<juce::Colour>, numButtons> _lastButtonLEDsSent;
 
   std::map<int, bool> _lastEncoderPressValues;
-  std::array<juce::Value, numChannels> _valueEncoderPresses;
-  std::array<juce::Value, numChannels> _valueEncoderIncrements;
+  std::array<std::array<juce::Value, numEncodersPerChannel>, numChannels>
+      _valueEncoderPresses;
+  std::array<std::array<juce::Value, numEncodersPerChannel>, numChannels>
+      _valueEncoderIncrements;
 
   std::array<std::array<juce::Value, numPotsPerChannel>, numChannels>
       _valuePots;
+  /** Handed back by getGlobalPot() when the hardware has none. */
+  juce::Value _noGlobalPot;
 
   juce::Value _valueTapTimeMicros;
 
