@@ -4452,6 +4452,12 @@ A3MotionUIComponent::applySet (juce::File const &file)
 
       // Where the channel was parked. Empty on a first run, which is zero,
       // which is where they start anyway.
+      //
+      // These three are also what A3 Core answers a recall with, so both
+      // claim them. At start-up Core wins, because the recall lands after
+      // this; when a set is loaded by hand the set wins, because nothing
+      // asks Core afterwards. Decided that way on purpose -- see the long
+      // comment in askCoreForItsState().
       _engine.setChannelPot1 (index, channel.freq);
       _engine.setChannelPot2 (index, channel.q);
       _engine.setChannelPot3 (index, channel.threeD);
@@ -5346,6 +5352,25 @@ A3MotionUIComponent::moveChannelFromOutside (int channel, float azimuth,
 void
 A3MotionUIComponent::askCoreForItsState ()
 {
+  // WHO WINS, AND WHY IT IS NOT AN ACCIDENT.
+  //
+  // Core's answer carries freq, Q and 3d, and so does a set. Both claim the
+  // same three values, and which one the channel ends up with is decided by
+  // nothing but the order they run in. Decided by the maintainer 2026-09-12,
+  // written down here because the code only expresses it by accident:
+  //
+  //   at start-up      applySet() runs first, this answer lands after it,
+  //                    so CORE WINS -- the rig comes up where it actually
+  //                    sounds, which is the whole point of asking.
+  //   loading a set    the set is applied and nothing asks Core afterwards,
+  //                    so THE SET WINS -- you asked for those values, and a
+  //                    jump to them is the instruction, not a fault.
+  //
+  // That holds only because this is the one and only call site, and it is in
+  // the constructor. Asking again later -- on a reconnect, on a timer, from
+  // a menu -- would make Core win over a set that was just loaded by hand,
+  // silently. If you add a second call, this is the rule you are changing.
+  //
   // Re-armed from here, where the wait for an answer actually begins. See the
   // comment at the first arming for why this is not redundant even though the
   // first one measured as sufficient.
