@@ -39,7 +39,7 @@ namespace a3
  *  can check — it is what
  *  OscAddresses.TheAddressTableIsAsLongAsTheControlTable checks instead, in
  *  the one place both headers are visible. */
-constexpr int numMixerAddresses = 7;
+constexpr int numMixerAddresses = 8;
 constexpr int numMasterAddresses = 5;
 constexpr int numFilterAddresses = 3;
 
@@ -82,8 +82,8 @@ struct OscAddresses
   std::array<juce::String, numMixerAddresses> mixerChannel{
     "/channel/{ch}/gain",   "/channel/{ch}/eq/high",
     "/channel/{ch}/eq/mid", "/channel/{ch}/eq/low",
-    "/channel/{ch}/volume", "/channel/{ch}/pfl",
-    "/channel/{ch}/fx",
+    "/channel/{ch}/volume", "/channel/{ch}/fx-send",
+    "/channel/{ch}/pfl",    "/channel/{ch}/fx",
   };
 
   /** The summing section's addresses, not per channel. Same indexing rule as

@@ -102,6 +102,7 @@ TEST (OscAddresses, EveryFieldIsActuallyRead)
       "mixerEqMid":         "/f/{ch}/3",
       "mixerEqLow":         "/f/{ch}/4",
       "mixerVolume":        "/f/{ch}/5",
+      "mixerFxSend":        "/f/{ch}/5b",
       "mixerPfl":           "/f/{ch}/6",
       "mixerFx":            "/f/{ch}/7",
       "masterVolume":       "/g/1",

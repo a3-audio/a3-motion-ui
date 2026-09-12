@@ -126,7 +126,7 @@ namespace
  *  an index into a table: "mixerGain", not "mixer0". */
 constexpr std::array<char const *, numMixerAddresses> mixerAddressKeys{
   "mixerGain", "mixerEqHigh", "mixerEqMid", "mixerEqLow",
-  "mixerVolume", "mixerPfl", "mixerFx",
+  "mixerVolume", "mixerFxSend", "mixerPfl", "mixerFx",
 };
 
 constexpr std::array<char const *, numMasterAddresses> masterAddressKeys{

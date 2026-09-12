@@ -423,7 +423,7 @@ TEST (VuMeter, TheOutputMetersAreOneBlockOfBarsSideBySide)
 // without anything noticing. One row is what the maintainer decided to keep,
 // so it is written down here: a decision nothing pins is a decision that can
 // drift back.
-TEST (VuMeter, TheOutputBlockTakesTheMastersOneFreeRow)
+TEST (VuMeter, TheOutputBlockTakesTheRowsTheMasterLeaves)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
@@ -436,13 +436,23 @@ TEST (VuMeter, TheOutputBlockTakesTheMastersOneFreeRow)
     }
 
   // The volume is the lowest of the master's five, so the block begins where
-  // it ends -- and is one of those rows tall, not two. Every row of a strip is
-  // the same height, which is what lets a row be counted by comparing to one.
+  // it ends. Every row of a strip is the same height, which is what lets rows
+  // be counted by comparing to one.
   auto const volume = layout.master[static_cast<std::size_t> (
       controlSlot (MasterControl::Volume))];
 
+  // How many rows are left is derived, not written down: it was one until
+  // SEND lengthened the strip on 2026-09-12 and is two now. A strip has one
+  // row fewer than it has controls, because the two keys share theirs (see
+  // numMixerRows in MixerLayout.cc), and the master stands in five of them.
+  //
+  // That the meters grow into the room is the wanted answer, not a
+  // regression: a block read at a glance in the dark gains from height, and
+  // a blank row at the foot serves nobody.
+  auto const freeRows = (numMixerControls - 1) - numMasterControls;
+
   EXPECT_EQ (block.getY (), volume.getBottom ());
-  EXPECT_EQ (block.getHeight (), volume.getHeight ());
+  EXPECT_NEAR (block.getHeight (), freeRows * volume.getHeight (), 2);
 }
 
 // Everything stays inside the area the overlay was given, meters included.

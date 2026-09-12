@@ -38,14 +38,23 @@ namespace a3
  *  where it is set once, the three bands under it, the volume under them, the
  *  two keys at the foot.
  *
- *  **Two of the mixer's controls are deliberately not here.** The 3D key,
- *  because Core's boolean moved to `4d`, the key is gone in mixer hardware
- *  v3.2, and the continuous 3d value already sits in the bar's own 4x3 grid —
- *  a key would be a second way to a thing that is no longer a switch. And
- *  fx-send, because it currently carries the 3D crossfade, which is what
- *  Motion's own 3d value does: two controls for one function. It comes when
- *  it is the FX send again, not before. See
+ *  **fx-send arrived on 2026-09-12**, and the condition written here for it
+ *  is what let it in: it used to carry the 3D crossfade, which is what
+ *  Motion's own 3d value does, so a fader for it would have been a second
+ *  control for one function. Core gave the desk's pot its own job back, and
+ *  a beat-synced delay now hangs on that bus — see
  *  issues/a3-core-fx-send-fuehrt-noch-die-3d-funktion.md.
+ *
+ *  It sits after VOL rather than at the top where the desk has it. On the
+ *  desk it is pot 0, above gain; here the top of the strip is the set-once
+ *  end and the foot is where the hand goes during a set, and a send is a
+ *  gesture, not a setting. Moving it is one line if that turns out wrong.
+ *
+ *  **One of the mixer's controls is still deliberately not here.** The 3D
+ *  key, because Core's boolean moved to `4d`, the key is gone in mixer
+ *  hardware v3.2, and the continuous 3d value already sits in the bar's own
+ *  4x3 grid — a key would be a second way to a thing that is no longer a
+ *  switch.
  */
 enum class MixerControl
 {
@@ -54,17 +63,18 @@ enum class MixerControl
   EqMid,
   EqLow,
   Volume,
+  FxSend,
   Pfl,
   Fx,
 };
 
-constexpr int numMixerControls = 7;
+constexpr int numMixerControls = 8;
 
 /** Top to bottom on a vertical strip; left to right on the bar's one. */
 constexpr std::array<MixerControl, numMixerControls> mixerControlOrder{
   MixerControl::Gain,   MixerControl::EqHigh, MixerControl::EqMid,
-  MixerControl::EqLow,  MixerControl::Volume, MixerControl::Pfl,
-  MixerControl::Fx,
+  MixerControl::EqLow,  MixerControl::Volume, MixerControl::FxSend,
+  MixerControl::Pfl,    MixerControl::Fx,
 };
 
 /** Whether it is a key rather than something turned.
@@ -95,6 +105,8 @@ mixerControlLabel (MixerControl control)
       return "LOW";
     case MixerControl::Volume:
       return "VOL";
+    case MixerControl::FxSend:
+      return "SEND";
     case MixerControl::Pfl:
       return "PFL";
     case MixerControl::Fx:
