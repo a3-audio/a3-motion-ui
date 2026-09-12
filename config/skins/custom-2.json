@@ -103,9 +103,9 @@
       "b": 2
     },
     {
-      "r": 33,
-      "g": 131,
-      "b": 128
+      "r": 0,
+      "g": 110,
+      "b": 129
     }
   ],
   "recordingUnderlay": {
@@ -114,9 +114,9 @@
     "lineThickness": 0.02
   },
   "sphereScale": 0.83,
-  "fontHeader": 12.529999999999999,
-  "fontBody": 14.66,
+  "fontHeader": 12.970000000000001,
+  "fontBody": 15.81,
   "clipSettingsHeightScale": 0.81,
-  "potSize": 1.31,
+  "potSize": 1.28,
   "touchDragPixelsPerStep": 12
 }
