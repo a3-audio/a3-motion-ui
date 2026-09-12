@@ -69,6 +69,14 @@ struct RecordingListener : public OscMessageHandler::Listener
   int lastMixerSlot = -1;
   float lastMixerValue = -1.f;
 
+  int masterValueCalls = 0;
+  int lastMasterSlot = -1;
+  float lastMasterValue = -1.f;
+
+  int filterValueCalls = 0;
+  int lastFilterSlot = -1;
+  float lastFilterValue = -1.f;
+
   void
   onMixerChannelValue (int channel, int slot, float value) override
   {
@@ -76,6 +84,22 @@ struct RecordingListener : public OscMessageHandler::Listener
     lastMixerChannel = channel;
     lastMixerSlot = slot;
     lastMixerValue = value;
+  }
+
+  void
+  onMasterValue (int slot, float value) override
+  {
+    ++masterValueCalls;
+    lastMasterSlot = slot;
+    lastMasterValue = value;
+  }
+
+  void
+  onFilterValue (int slot, float value) override
+  {
+    ++filterValueCalls;
+    lastFilterSlot = slot;
+    lastFilterValue = value;
   }
 
   void
@@ -578,4 +602,83 @@ TEST (OscMessageHandler, TheStripDoesNotSwallowThePots)
   EXPECT_EQ (listener.valueCalls, 1);
   EXPECT_EQ (listener.lastWhich, Value::Pot1);
   EXPECT_EQ (listener.mixerValueCalls, 0);
+}
+
+// ── The master section and the shared filter ────────────────────────────────
+
+TEST (OscMessageHandler, EveryMasterAddressFindsItsOwnSlot)
+{
+  // None of these belongs to a channel, which is why A3 Core had no way back
+  // for them at all until 2026-09-12 -- and why this page came up at its own
+  // defaults for as long as it existed.
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  std::vector<juce::String> const addresses{
+    "/master/volume",        "/master/booth", "/master/phones_mix",
+    "/master/phones_volume", "/master/return",
+  };
+
+  for (std::size_t slot = 0; slot < addresses.size (); ++slot)
+    {
+      juce::OSCMessage message (addresses[slot]);
+      message.addFloat32 (0.25f);
+      handler.handleMessage (message, /*clockMode=*/0);
+      EXPECT_EQ (listener.lastMasterSlot, static_cast<int> (slot))
+          << addresses[slot];
+    }
+
+  EXPECT_EQ (listener.masterValueCalls, static_cast<int> (addresses.size ()));
+  EXPECT_EQ (listener.filterValueCalls, 0);
+  EXPECT_EQ (listener.mixerValueCalls, 0);
+}
+
+TEST (OscMessageHandler, EveryFilterAddressFindsItsOwnSlot)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  // /fx/mode arrives as a number, not as the word the desk's LEDs get: 1 is
+  // high pass. That is the spelling this device already *sends* on the same
+  // address, which is the whole reason Core answers on it.
+  std::vector<juce::String> const addresses{
+    "/fx/mode",
+    "/fx/frequency",
+    "/fx/resonance",
+  };
+
+  for (std::size_t slot = 0; slot < addresses.size (); ++slot)
+    {
+      juce::OSCMessage message (addresses[slot]);
+      message.addFloat32 (1.f);
+      handler.handleMessage (message, /*clockMode=*/0);
+      EXPECT_EQ (listener.lastFilterSlot, static_cast<int> (slot))
+          << addresses[slot];
+    }
+
+  EXPECT_EQ (listener.filterValueCalls, static_cast<int> (addresses.size ()));
+  EXPECT_EQ (listener.masterValueCalls, 0);
+}
+
+TEST (OscMessageHandler, AChannelAddressIsNotAMasterOne)
+{
+  // /master/volume and /channel/0/volume are one word apart and the two
+  // tables are walked one after the other. Crossing them would put the room's
+  // level on a channel fader, and neither number would look wrong.
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+
+  juce::OSCMessage message ("/channel/0/volume");
+  message.addFloat32 (0.8f);
+  handler.handleMessage (message, /*clockMode=*/0);
+
+  EXPECT_EQ (listener.mixerValueCalls, 1);
+  EXPECT_EQ (listener.masterValueCalls, 0);
+  EXPECT_EQ (listener.filterValueCalls, 0);
 }

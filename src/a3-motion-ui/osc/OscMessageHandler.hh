@@ -110,6 +110,19 @@ public:
      *  azimuth in the same switch, and the first reader to add a case would
      *  have to work out which half they were in. */
     virtual void onMixerChannelValue (int channel, int slot, float value) = 0;
+
+    /** The summing section, as A3 Core relays it back. `slot` indexes
+     *  OscAddresses::mixerMaster, which follows masterControlOrder. */
+    virtual void onMasterValue (int slot, float value) = 0;
+
+    /** The one filter all four channels share. `slot` indexes
+     *  OscAddresses::mixerFilter, which follows filterControlOrder.
+     *
+     *  `/fx/mode` arrives as a **number** here, 1 for high pass -- the
+     *  spelling this device already sends on that address. The word the
+     *  desk's LED reads travels `/fx/led`, which is the desk's own wire and
+     *  not this one. */
+    virtual void onFilterValue (int slot, float value) = 0;
   };
 
   OscMessageHandler (MotionEngine &engine, Listener &listener);

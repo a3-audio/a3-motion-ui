@@ -111,6 +111,9 @@ public:
                        OscMessageHandler::Listener::ChannelValue which,
                        float value) override;
   void onMixerChannelValue (int channel, int slot, float value) override;
+  void onMasterValue (int slot, float value) override;
+  void onFilterValue (int slot, float value) override;
+  void repaintMixerPages ();
   void moveChannelFromOutside (int channel, float azimuth, float elevation);
   void askCoreForItsState ();
 

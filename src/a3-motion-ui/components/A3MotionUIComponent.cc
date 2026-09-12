@@ -5441,6 +5441,20 @@ A3MotionUIComponent::onChannelValue (
 }
 
 void
+A3MotionUIComponent::repaintMixerPages ()
+{
+  // Both pages read the same MixerState and either may be the one on screen,
+  // so a value from the wire repaints both. The overlay's four strips and the
+  // bar's one are the same mixer seen twice; repainting only the visible one
+  // would mean the other carried a stale picture until something else
+  // happened to touch it.
+  if (_mixer)
+    _mixer->repaint ();
+  if (_mixerStrip)
+    _mixerStrip->repaint ();
+}
+
+void
 A3MotionUIComponent::onMixerChannelValue (int channel, int slot, float value)
 {
   // What A3 Core relays back from REAPER for the channel strip. Five of the
@@ -5465,12 +5479,36 @@ A3MotionUIComponent::onMixerChannelValue (int channel, int slot, float value)
   // which is the loop a3_core_echo.py exists to suppress, rebuilt from this
   // side and out of its reach.
   _mixerState.setChannelFromPeer (channel, control, value);
+  repaintMixerPages ();
+}
 
-  // Both pages show the same state, and either may be the one on screen.
-  if (_mixer)
-    _mixer->repaint ();
-  if (_mixerStrip)
-    _mixerStrip->repaint ();
+void
+A3MotionUIComponent::onMasterValue (int slot, float value)
+{
+  // The summing section. Nothing here belonged to a channel, so A3 Core had
+  // no way back for any of it until 2026-09-12 and this page showed its own
+  // defaults for as long as it existed.
+  if (!std::isfinite (value) || slot < 0 || slot >= numMasterControls)
+    return;
+
+  _mixerState.setMasterFromPeer (
+      masterControlOrder[static_cast<std::size_t> (slot)], value);
+  repaintMixerPages ();
+}
+
+void
+A3MotionUIComponent::onFilterValue (int slot, float value)
+{
+  // The one filter all four channels share. /fx/mode arrives as a number --
+  // 1 is high pass -- which is the spelling this device sends on that same
+  // address; the word the desk's LED reads travels /fx/led and never comes
+  // here.
+  if (!std::isfinite (value) || slot < 0 || slot >= numFilterControls)
+    return;
+
+  _mixerState.setFilterFromPeer (
+      filterControlOrder[static_cast<std::size_t> (slot)], value);
+  repaintMixerPages ();
 }
 
 // ── Global Settings helpers ──────────────────────────────────────────────────────

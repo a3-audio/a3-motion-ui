@@ -168,6 +168,24 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
                 return;
               }
         }
+
+      // The summing section and the shared filter. Not per channel, so no
+      // withChannel and no loop over four -- and walked after the channel
+      // tables because /master/volume and /channel/0/volume are one word
+      // apart and the more specific has to be asked first.
+      for (std::size_t slot = 0; slot < _addresses.mixerMaster.size (); ++slot)
+        if (address == _addresses.mixerMaster[slot])
+          {
+            _listener.onMasterValue (static_cast<int> (slot), value);
+            return;
+          }
+
+      for (std::size_t slot = 0; slot < _addresses.mixerFilter.size (); ++slot)
+        if (address == _addresses.mixerFilter[slot])
+          {
+            _listener.onFilterValue (static_cast<int> (slot), value);
+            return;
+          }
     }
 }
 
