@@ -29,7 +29,6 @@
 #include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/StatusBarLayout.hh>
 #include <a3-motion-ui/components/TickIndicator.hh>
-#include <a3-motion-ui/components/VuMeter.hh>
 
 namespace a3
 {
@@ -131,32 +130,6 @@ public:
       std::array<float, numChannelsInitial> const &positions,
       std::array<juce::Colour, numChannelsInitial> const &colours);
 
-  /** The nine small meters beside the beat display: the four inputs left of
-   *  it, the five outputs right of it.
-   *
-   *  **Pushed in, not pulled.** They come from A3MotionUIComponent's timer,
-   *  read off the one VuLevels the mixer's own meters read — the same route
-   *  the channel playheads take. This bar has no repeating timer of its own
-   *  and must not grow one: it is the component that is always on screen, and
-   *  a clock here would be a clock that never stops.
-   *
-   *  Why they exist at all, given the mixer already draws these: the mixer
-   *  has to be opened. These carry the levels onto CLIP, PADS and FILES,
-   *  which is where the screen is for most of a set.
-   *
-   *  **What they show is the last level that arrived, not that one is
-   *  arriving now.** Nothing here or in VuLevels expires a value: if the
-   *  sender stops — the machine, the analyzer, the network — the held numbers
-   *  stand and the bars stay where they were rather than falling to zero. So
-   *  a lit bar means "this was the level", and silence and a dead sender look
-   *  alike. Giving VuLevels a staleness cutoff would fix that for these nine
-   *  and for the mixer's twelve at once, and is the maintainer's call rather
-   *  than something to slip in behind a comment.
-   *
-   *  The repaint is clipped to the two blocks, and only when a level has
-   *  actually moved — see StatusBarLayout::inputBlock. */
-  void setVuLevels (std::array<VuLevel, numChannelsInitial> const &inputs,
-                    std::array<VuLevel, numOutputMeters> const &outputs);
 
   /** The take's progress is laid over the tick indicator, which is a child —
    *  so it has to be drawn after the children rather than in paint(). */
@@ -197,10 +170,6 @@ private:
    *  how the next reader loses both. */
   void paintPlayheads (juce::Graphics &g, juce::Rectangle<float> tick);
 
-  /** The nine bars. Its own function for the reason paintMixKey() is: paint()
-   *  already carries the keyboard icon's reasoning. */
-  void paintVuMeters (juce::Graphics &g);
-
   /** The MIX key. Its own function rather than four lines in paint(), which
    *  already carries the keyboard icon's reasoning — two keys' worth of
    *  drawing in one body is how the next reader loses both. */
@@ -210,8 +179,6 @@ private:
    *  checks — so paint() draws into what resized() placed. */
   StatusBarLayout _layout;
 
-  std::array<VuLevel, numChannelsInitial> _inputLevels;
-  std::array<VuLevel, numOutputMeters> _outputLevels;
 
   juce::Rectangle<int> _keyboardIconArea;
   KeyboardState _keyboardState = KeyboardState::Unavailable;

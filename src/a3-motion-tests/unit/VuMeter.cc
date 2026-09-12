@@ -20,6 +20,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <limits>
 #include <vector>
 
@@ -639,4 +640,100 @@ TEST (VuMeter, ABarTooNarrowForItsGapIsStillAPixelWide)
 
   for (auto const &bar : bars)
     EXPECT_EQ (bar.getWidth (), 1) << bar.toString ();
+}
+
+
+// ── The signal dot on a channel face ────────────────────────────────────────
+
+namespace
+{
+/** The amplitude a level meter would be handed for a given dBFS.
+ *
+ *  The inverse of what vuMeterFraction does on the way in, written here
+ *  rather than in the header: the tests state levels the way an engineer says
+ *  them, and nothing in the picture needs to go the other way. */
+float
+dbToAmplitude (float db)
+{
+  return std::pow (10.f, db / 20.f);
+}
+}
+
+TEST (VuDot, SilenceIsNoDotAtAll)
+{
+  // A face with no dot is a channel with no signal, which is the reading the
+  // whole thing exists for. Not a dim dot: dim is "quiet", and "quiet" and
+  // "nothing" are the two states a hand needs told apart at a glance.
+  EXPECT_FALSE (vuDot (VuLevel{ 0.f, 0.f }).visible);
+}
+
+TEST (VuDot, AnythingAboveTheFloorIsVisible)
+{
+  auto const justOn = vuDot (VuLevel{ 0.f, dbToAmplitude (-59.f) });
+  EXPECT_TRUE (justOn.visible);
+  EXPECT_GE (justOn.alpha, vuDotMinAlpha);
+}
+
+TEST (VuDot, ItGetsBrighterWithTheLevel)
+{
+  auto const quiet = vuDot (VuLevel{ 0.f, dbToAmplitude (-40.f) });
+  auto const loud = vuDot (VuLevel{ 0.f, dbToAmplitude (-10.f) });
+
+  EXPECT_TRUE (quiet.visible);
+  EXPECT_TRUE (loud.visible);
+  EXPECT_LT (quiet.alpha, loud.alpha);
+  EXPECT_LE (loud.alpha, 1.f);
+}
+
+TEST (VuDot, ItNeverFadesBelowWhereItCanBeFound)
+{
+  // Against a channel's own colour, a dot at a tenth of an alpha is a dot
+  // nobody sees -- so the fade stops short and the last step is to absent.
+  for (float db = -59.f; db < 0.f; db += 1.f)
+    {
+      auto const dot = vuDot (VuLevel{ 0.f, dbToAmplitude (db) });
+      EXPECT_TRUE (dot.visible) << db;
+      EXPECT_GE (dot.alpha, vuDotMinAlpha) << db;
+    }
+}
+
+TEST (VuDot, ItTurnsColourWhereTheMeterDoes)
+{
+  // The same three ceilings, read through the same table. A dot that went
+  // yellow at a different level from the meter beside it on the MIX page
+  // would be two instruments disagreeing about one signal.
+  EXPECT_EQ (vuDot (VuLevel{ 0.f, dbToAmplitude (-30.f) }).band, vuGreenBand);
+  EXPECT_EQ (vuDot (VuLevel{ 0.f, dbToAmplitude (-12.f) }).band, vuYellowBand);
+  EXPECT_EQ (vuDot (VuLevel{ 0.f, dbToAmplitude (-3.f) }).band, vuRedBand);
+}
+
+TEST (VuDot, TheBandBoundariesAreTheMetersOwn)
+{
+  EXPECT_EQ (vuDot (VuLevel{ 0.f, dbToAmplitude (vuGreenCeilingDb - 0.5f) }).band,
+             vuGreenBand);
+  EXPECT_EQ (vuDot (VuLevel{ 0.f, dbToAmplitude (vuGreenCeilingDb + 0.5f) }).band,
+             vuYellowBand);
+  EXPECT_EQ (vuDot (VuLevel{ 0.f, dbToAmplitude (vuYellowCeilingDb + 0.5f) }).band,
+             vuRedBand);
+}
+
+TEST (VuDot, ItReadsTheRmsAndNotThePeak)
+{
+  // A peak is a transient. Read through a mark with no length it would
+  // flicker at every drum hit and say nothing; the peak has somewhere to be
+  // already, on the MIX page's meters.
+  auto const quietWithATransient
+      = vuDot (VuLevel{ dbToAmplitude (-1.f), dbToAmplitude (-40.f) });
+  auto const quiet = vuDot (VuLevel{ 0.f, dbToAmplitude (-40.f) });
+
+  EXPECT_EQ (quietWithATransient.band, quiet.band);
+  EXPECT_FLOAT_EQ (quietWithATransient.alpha, quiet.alpha);
+}
+
+TEST (VuDot, ANonsenseLevelIsSilence)
+{
+  // The levels arrive over UDP from another program.
+  EXPECT_FALSE (vuDot (VuLevel{ 0.f, -1.f }).visible);
+  EXPECT_FALSE (
+      vuDot (VuLevel{ 0.f, std::numeric_limits<float>::quiet_NaN () }).visible);
 }

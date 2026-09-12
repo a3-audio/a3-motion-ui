@@ -36,6 +36,7 @@
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
+#include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/components/ElevationSideView.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
@@ -305,6 +306,24 @@ public:
    *  has been sending all three moving; the grid was still drawing two of
    *  them still. Paired in the signature so the next value to gain one cannot
    *  be added without its partner. */
+  /** The four channels' input levels, as a dot on each channel's own face.
+   *
+   *  **Pushed in, not pulled**, from A3MotionUIComponent's timer, off the one
+   *  VuLevels the mixer's meters read. This bar has no repeating timer of its
+   *  own for it and must not grow one.
+   *
+   *  These used to be four bars in the status bar, beside five more for the
+   *  outputs. The maintainer's verdict on 2026-09-12: *"die vu-meter in der
+   *  statusleiste sind too much. das machts unuebersichtlich."* The answer
+   *  was not to drop them but to put them where the question is asked --
+   *  which channel is making sound is asked *of a channel*, and the faces
+   *  are where a hand looking for one already looks.
+   *
+   *  The repaint is clipped to the faces and happens only where a dot would
+   *  actually be drawn differently. See VuMeter.hh's vuDot for what the mark
+   *  says and what it deliberately does not. */
+  void setInputLevels (std::array<VuLevel, numChannelsInitial> const &inputs);
+
   void setChannelValues (int channel, float freq, float freqEffective,
                          float q, float qEffective, float threeD,
                          float threeDEffective);
@@ -504,6 +523,8 @@ private:
                        juce::Colour valueColour = {});
 
   void paintChannelFaces (juce::Graphics &g);
+  void paintChannelFaceDot (juce::Graphics &g, juce::Rectangle<int> face,
+                            VuDot const &dot);
   /** A block of controls set off from the card it stands on -- the strip's
    *  knobs, its transport, the header's four faces. One painter rather than
    *  three, so a group anywhere in the bar reads as the same kind of group. */
@@ -660,6 +681,7 @@ private:
    *  that knows all four. */
   std::array<juce::Colour, numChannelColumns> _channelFaceColours;
   std::array<int, numChannelColumns> _channelFaceSlots{};
+  std::array<VuDot, numChannelColumns> _channelFaceDots{};
   int _shownChannel = 0;
   std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;
   std::unique_ptr<TouchControl> _tabBrowserTouch;

@@ -31,6 +31,12 @@
 namespace a3
 {
 
+/** Declared rather than included: this header is pulled in by the engine as
+ *  well, which has no business knowing what a skin is. The one function that
+ *  needs a Theme takes it by reference. */
+struct Theme;
+
+
 /** How many meters the output section carries.
  *
  *  One subwoofer and four speakers — the maintainer's "1.4 ch output VU", and
@@ -206,6 +212,52 @@ struct VuMeterGeometry
 };
 
 VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level);
+
+/** The colour a band is filled in, from the skin.
+ *
+ *  Public because the channel faces carry a dot in the same three colours,
+ *  and green/yellow/red read from two places is green/yellow/red that will
+ *  one day disagree. Looked up rather than guessed at: `highlight` is the
+ *  skin's yellow at 255, 214, 10, where `warning` is an orange -- and
+ *  green/orange/red is not the banding a hand reads without looking. */
+juce::Colour vuBandColour (Theme const &theme, std::size_t band);
+
+/** The signal dot a channel face carries: one mark for one channel's input.
+ *
+ *  **This is a warning light, and the meter deliberately is not.** A meter's
+ *  bands are stretches of its track, so a bar filled into the red is green at
+ *  its foot and red only at its head, which is what lets it say *how far*
+ *  over you are; VuMeterGeometry says so at length. A dot has no length, so
+ *  it can only answer where the level *is* -- and that is the trade this
+ *  makes knowingly. The full meter did not go away, it moved: it is on the
+ *  MIX page, four strips of it, where a hand that wants to read a level goes.
+ *
+ *  What the dot is for is the other question, the one asked at a glance with
+ *  both hands busy: **is this channel making sound, and roughly how hot.**
+ *  The status bar carried nine bars to answer it and answered it worse, by
+ *  putting the four channels' levels somewhere that is not the four channels.
+ *
+ *  `band` indexes the same three bands the meter uses. `alpha` follows the
+ *  level so silence is nothing at all and a loud channel is solid -- the size
+ *  stays put, because four dots changing size in the corner of the eye is the
+ *  movement that was too much in the first place. */
+struct VuDot
+{
+  /** False below the meter's floor. Nothing is drawn: a face with no dot is
+   *  a channel with no signal, which is the reading worth having. */
+  bool visible = false;
+  std::size_t band = vuGreenBand;
+  float alpha = 0.f;
+};
+
+/** How faint the dot may get before it is not worth drawing.
+ *
+ *  A signal just off the floor still has to be findable against the channel's
+ *  own colour, so the fade stops short of nothing and the last step is to
+ *  absent. */
+constexpr float vuDotMinAlpha = 0.35f;
+
+VuDot vuDot (VuLevel level);
 
 /** A strip, split into its meter column and the controls standing beside it.
  *

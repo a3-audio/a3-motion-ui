@@ -790,7 +790,7 @@ private:
    *  mixer's own meters read. Pushed from here rather than pulled by a timer
    *  of the bar's own — that bar is on screen for the whole of a set, and a
    *  second clock there would be one that never stops. */
-  void updateStatusBarMeters ();
+  void updateInputLevelDots ();
   /** Where the sphere is being looked at from, or straight down if there is
    *  no sphere yet -- this runs while the interface is still being built. */
   SphereCamera sphereCamera () const;

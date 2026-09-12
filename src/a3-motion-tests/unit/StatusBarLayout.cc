@@ -67,184 +67,45 @@ deviceLayout ()
                           padding);
 }
 
-std::vector<juce::Rectangle<int> >
-everyMeter (StatusBarLayout const &l)
-{
-  std::vector<juce::Rectangle<int> > meters;
-  for (auto const &bar : l.inputMeters)
-    meters.push_back (bar);
-  for (auto const &bar : l.outputMeters)
-    meters.push_back (bar);
-  return meters;
-}
 }
 
-// The arrangement the maintainer asked for, and the only thing about this bar
-// that has to be true whatever the screen: the inputs stand left of the beat
-// display and the outputs right of it. A block on the wrong side would still
-// be four bars and a level, and would still be read as the wrong four.
-TEST (StatusBarLayout, TheInputsStandLeftOfTheIndicatorAndTheOutputsRight)
-{
-  auto const l = deviceLayout ();
-
-  ASSERT_FALSE (l.tick.isEmpty ());
-
-  for (auto const &bar : l.inputMeters)
-    {
-      ASSERT_FALSE (bar.isEmpty ());
-      EXPECT_LE (bar.getRight (), l.tick.getX ())
-          << "input meter " << bar.toString () << " reaches into the indicator "
-          << l.tick.toString ();
-    }
-
-  for (auto const &bar : l.outputMeters)
-    {
-      ASSERT_FALSE (bar.isEmpty ());
-      EXPECT_GE (bar.getX (), l.tick.getRight ())
-          << "output meter " << bar.toString ()
-          << " reaches into the indicator " << l.tick.toString ();
-    }
-}
-
-// The bar is always on screen and every other thing on it is read rather than
-// watched, so a meter laid over one of them would cost a reading permanently
-// and for the sake of a bar a few pixels wide. The icons are outside the row
-// this is handed, so staying inside the row is what keeps clear of them.
-TEST (StatusBarLayout, NoMeterTouchesALabelTheIndicatorOrTheIconsBesideThem)
-{
-  auto const row = rowOf (deviceWidth, barHeight);
-  auto const l = statusBarLayout (row, deviceWidth, padding);
-
-  for (auto const &bar : everyMeter (l))
-    {
-      EXPECT_TRUE (row.contains (bar))
-          << bar.toString () << " outside the bar's own row "
-          << row.toString ();
-      EXPECT_TRUE (bar.getIntersection (l.tick).isEmpty ())
-          << bar.toString () << " overlaps the indicator";
-      EXPECT_TRUE (bar.getIntersection (l.bpm).isEmpty ())
-          << bar.toString () << " overlaps the tempo reading";
-      EXPECT_TRUE (bar.getIntersection (l.readout).isEmpty ())
-          << bar.toString () << " overlaps the control readout";
-    }
-
-  EXPECT_FALSE (l.bpm.isEmpty ());
-  EXPECT_FALSE (l.readout.isEmpty ());
-}
-
-// The two rectangles a repaint is clipped to. The status bar never goes away,
-// so a refresh that took the whole bar would redraw the indicator and two
-// labels twenty times a second -- A3MotionUIComponent's uiTimerHz, which is
-// what these meters ride rather than the mixer pages' vuMeterRefreshHz -- for
-// the life of the device. And a block that did not contain its own bars would
-// leave a stale one on screen.
-TEST (StatusBarLayout, EachBlockCoversItsOwnBarsAndNothingElse)
-{
-  auto const l = deviceLayout ();
-
-  ASSERT_FALSE (l.inputBlock.isEmpty ());
-  ASSERT_FALSE (l.outputBlock.isEmpty ());
-
-  for (auto const &bar : l.inputMeters)
-    EXPECT_TRUE (l.inputBlock.contains (bar))
-        << bar.toString () << " outside the input block "
-        << l.inputBlock.toString ();
-
-  for (auto const &bar : l.outputMeters)
-    EXPECT_TRUE (l.outputBlock.contains (bar))
-        << bar.toString () << " outside the output block "
-        << l.outputBlock.toString ();
-
-  EXPECT_TRUE (l.inputBlock.getIntersection (l.tick).isEmpty ());
-  EXPECT_TRUE (l.outputBlock.getIntersection (l.tick).isEmpty ());
-
-  // And by how much a block is bigger than its bars, which the header used to
-  // claim was nothing. A block is whole cells, so it carries the gap trailing
-  // its last bar -- the difference is one gap, not zero and not a bar's worth.
-  auto const step = l.inputMeters[1].getX () - l.inputMeters[0].getX ();
-  auto const gap = step - l.inputMeters[0].getWidth ();
-  ASSERT_GT (gap, 0);
-
-  EXPECT_EQ (l.inputBlock.getRight () - l.inputMeters.back ().getRight (), gap)
-      << "the input block is not its bars' box plus exactly one gap";
-  EXPECT_EQ (l.outputBlock.getRight () - l.outputMeters.back ().getRight (),
-             gap)
-      << "the output block is not its bars' box plus exactly one gap";
-}
-
-// Bars side by side, evenly stepped and never touching: two meters that met
-// would read as one wide one, and an uneven step reads as a fault in the
-// picture rather than as a level.
-TEST (StatusBarLayout, TheBarsOfABlockAreEvenlyStepped)
-{
-  auto const l = deviceLayout ();
-
-  auto const step = l.inputMeters[1].getX () - l.inputMeters[0].getX ();
-  ASSERT_GT (step, 0);
-
-  for (std::size_t i = 1; i < l.inputMeters.size (); ++i)
-    {
-      EXPECT_EQ (l.inputMeters[i].getX () - l.inputMeters[i - 1].getX (), step);
-      EXPECT_LT (l.inputMeters[i - 1].getRight (), l.inputMeters[i].getX ());
-    }
-
-  for (std::size_t i = 1; i < l.outputMeters.size (); ++i)
-    {
-      EXPECT_EQ (l.outputMeters[i].getX () - l.outputMeters[i - 1].getX (),
-                 step);
-      EXPECT_LT (l.outputMeters[i - 1].getRight (), l.outputMeters[i].getX ());
-    }
-}
-
-// The indicator gives width up rather than a label being dropped -- but only
-// down to a share of what it would otherwise have had. It is the one thing on
-// this bar that is looked at rather than read, and a beat display crushed to
-// a stripe answers no question at all.
-TEST (StatusBarLayout, TheIndicatorKeepsMostOfTheWidthItWouldHaveHad)
-{
-  auto const row = rowOf (deviceWidth, barHeight);
-  auto const l = statusBarLayout (row, deviceWidth, padding);
-
-  // What resized() gave it before the meters existed, taken from the same two
-  // constants the layout is written against rather than restated as fractions
-  // here. Restated, the two arithmetics differed by a pixel -- 694 * 2/5 is
-  // 277 by integer division and 278 rounded -- and the test then disagreed
-  // with the code over a rule both of them meant identically.
-  auto const before = juce::jmin (
-      juce::roundToInt (static_cast<float> (row.getWidth ())
-                        * statusTickWidthOfRow),
-      juce::roundToInt (static_cast<float> (deviceWidth)
-                        * statusTickWidthOfBar));
-
-  EXPECT_GE (l.tick.getWidth (),
-             juce::roundToInt (static_cast<float> (before)
-                               * statusMeterMinTickShare))
-      << "the indicator came out at " << l.tick.getWidth () << " of " << before;
-  EXPECT_LE (l.tick.getWidth (), before);
-
-  // Still centred on the whole bar, not on what the labels left over: an
-  // off-centre beat display reads as a mistake.
-  EXPECT_NEAR (l.tick.getCentreX (), deviceWidth / 2, 1);
-}
-
-// A bar too narrow to hold nine meters and still leave the indicator and the
-// two readings anything drops the meters, rather than shaving every one of
-// them down to something unreadable. The meters are the addition here; the
-// tempo, the beat and the readout were there first.
-TEST (StatusBarLayout, AShortBarKeepsItsReadingsAndDropsTheMeters)
+// The bar carried nine VU meters until 2026-09-12 and most of this suite was
+// about the width they took from the two readings. They are gone -- the four
+// inputs to the channel faces below as a dot each, the five outputs to the
+// MIX page, where the same five have always been -- and what is left is what
+// the bar was before them: two readings and the beat display between them.
+TEST (StatusBarLayout, AShortBarStillKeepsItsReadings)
 {
   auto const narrow = 220;
   auto const l = statusBarLayout (rowOf (narrow, barHeight), narrow, padding);
 
-  for (auto const &bar : everyMeter (l))
-    EXPECT_TRUE (bar.isEmpty ()) << bar.toString () << " drawn on a short bar";
-
-  EXPECT_TRUE (l.inputBlock.isEmpty ());
-  EXPECT_TRUE (l.outputBlock.isEmpty ());
-
   EXPECT_FALSE (l.tick.isEmpty ());
   EXPECT_FALSE (l.bpm.isEmpty ());
   EXPECT_FALSE (l.readout.isEmpty ());
+}
+
+// The one thing about this bar that has to be true whatever the screen: the
+// beat display is centred on the *bar*, not on what the two readings leave
+// over. It is the one thing here that is looked at rather than read, and an
+// off-centre one reads as a mistake.
+//
+// This used to be the harder claim, because two blocks of meters were pushing
+// in from either side and the row is not symmetrical -- the right end gives
+// up two icon squares. With them gone it is one line again.
+TEST (StatusBarLayout, TheBeatDisplayIsCentredOnTheBar)
+{
+  auto const l = deviceLayout ();
+  EXPECT_EQ (l.tick.getCentreX (), deviceWidth / 2);
+}
+
+// The readings keep clear of the bar's ends, and of each other.
+TEST (StatusBarLayout, TheTwoReadingsShareTheRow)
+{
+  auto const l = deviceLayout ();
+
+  EXPECT_LT (l.bpm.getX (), l.readout.getX ());
+  EXPECT_LE (l.bpm.getRight (), l.readout.getX ());
+  EXPECT_GT (l.bpm.getX (), 0);
 }
 
 // Nothing at all is not a layout. An empty row has to come back empty rather
@@ -257,7 +118,4 @@ TEST (StatusBarLayout, AnEmptyRowLaysOutNothing)
   EXPECT_TRUE (l.tick.isEmpty ());
   EXPECT_TRUE (l.bpm.isEmpty ());
   EXPECT_TRUE (l.readout.isEmpty ());
-
-  for (auto const &bar : everyMeter (l))
-    EXPECT_TRUE (bar.isEmpty ());
 }

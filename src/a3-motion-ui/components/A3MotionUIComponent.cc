@@ -101,13 +101,13 @@ constexpr std::size_t elevationFigureSamples = 96;
  *  Fast enough for a take's write head to move while it is being recorded,
  *  which is what this rate was chosen for.
  *
- *  **It is also the rate the status bar's nine meters are redrawn at**, since
- *  updateStatusBarMeters() is the first thing timerCallback() does. That is
- *  deliberately *not* vuMeterRefreshHz: the mixer's meters live on pages that
- *  come and go and have a timer each, and this bar never goes away, so its
- *  meters ride the timer that is already running rather than starting a
+ *  **It is also the rate the channel faces' signal dots are redrawn at**,
+ *  since updateInputLevelDots() is the first thing timerCallback() does. That
+ *  is deliberately *not* vuMeterRefreshHz: the mixer's meters live on pages
+ *  that come and go and have a timer each, and this bar never goes away, so
+ *  its dots ride the timer that is already running rather than starting a
  *  second one behind everything else on screen. The two rates being close but
- *  unequal is therefore a fact about where each set of meters lives, not an
+ *  unequal is therefore a fact about where each of them lives, not an
  *  oversight -- see vuMeterRefreshHz, which says the same thing from the
  *  other side. */
 constexpr int uiTimerHz = 20;
@@ -5155,7 +5155,7 @@ A3MotionUIComponent::timerCallback ()
   // bar that never leaves the screen has no visibility to start and stop a
   // timer on, and a second timer running for the life of the device is the
   // one thing vuMeterRefreshHz's own note argues against.
-  updateStatusBarMeters ();
+  updateInputLevelDots ();
 
   // While a take runs its write head moves, and while a clip plays its
   // playhead does. Both fill the tick indicator, so both have to be followed
@@ -6738,18 +6738,21 @@ A3MotionUIComponent::updateStatusBarPlayheads ()
 
 /** Every meter the status bar draws, read at one moment.
  *
- *  One reading of the clock for all nine, the way the mixer page does it:
- *  nine meters each asking the time would draw nine slightly different
- *  moments, and a peak mark that expired between two bars of the same picture
- *  is a picture that contradicts itself.
+ *  One reading of the clock for all four: four dots each asking the time
+ *  would draw four slightly different moments of one picture.
  *
- *  Unconditional, unlike the clip settings below it. Whether a level is
- *  moving is not something this side can know without looking at it, and the
- *  bar itself only repaints where a level actually changed. */
+ *  Unconditional. Whether a level is moving is not something this side can
+ *  know without looking at it, and the bar itself only repaints where a dot
+ *  would actually be drawn differently.
+ *
+ *  It fed nine bars in the status bar until 2026-09-12 -- these four and the
+ *  five outputs. The outputs went to the MIX page, where the same five have
+ *  always been; these four went to the channel faces, which is where a hand
+ *  looking for a channel already looks. */
 void
-A3MotionUIComponent::updateStatusBarMeters ()
+A3MotionUIComponent::updateInputLevelDots ()
 {
-  if (!_statusBar)
+  if (!_clipSettings)
     return;
 
   auto const now = vuNowMs ();
@@ -6758,11 +6761,7 @@ A3MotionUIComponent::updateStatusBarMeters ()
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     inputs[static_cast<size_t> (channel)] = _vuLevels.channel (channel, now);
 
-  std::array<VuLevel, numOutputMeters> outputs;
-  for (int meter = 0; meter < numOutputMeters; ++meter)
-    outputs[static_cast<size_t> (meter)] = _vuLevels.output (meter, now);
-
-  _statusBar->setVuLevels (inputs, outputs);
+  _clipSettings->setInputLevels (inputs);
 }
 
 void

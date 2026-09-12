@@ -1231,6 +1231,40 @@ ClipSettingsComponent::paintSetOffFrame (juce::Graphics &g,
 }
 
 void
+ClipSettingsComponent::setInputLevels (
+    std::array<VuLevel, numChannelsInitial> const &inputs)
+{
+  // Compared as *dots*, not as levels. An rms wobbles every frame and almost
+  // none of that wobble changes the mark: the band is one of three and the
+  // alpha is a byte by the time it is drawn. Comparing the drawn thing rather
+  // than the number behind it is what keeps this bar -- which is on screen
+  // for the whole of a set -- from repainting twenty times a second forever.
+  auto changed = false;
+
+  for (std::size_t channel = 0; channel < numChannelColumns; ++channel)
+    {
+      auto const dot = vuDot (inputs[channel]);
+      auto const &was = _channelFaceDots[channel];
+
+      auto const same
+          = dot.visible == was.visible
+            && (!dot.visible
+                || (dot.band == was.band
+                    && juce::roundToInt (dot.alpha * 255.f)
+                           == juce::roundToInt (was.alpha * 255.f)));
+
+      if (!same)
+        {
+          _channelFaceDots[channel] = dot;
+          changed = true;
+        }
+    }
+
+  if (changed)
+    repaint (_layout.channelFacesFrame);
+}
+
+void
 ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
 {
   for (size_t channel = 0; channel < numChannelColumns; ++channel)
@@ -1269,7 +1303,41 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
       g.setColour (readableInk (colour, toColour (theme ().background),
                                 toColour (theme ().textPrimary)));
       g.drawText (slotName, face, juce::Justification::centred);
+
+      paintChannelFaceDot (g, face, _channelFaceDots[channel]);
     }
+}
+
+void
+ClipSettingsComponent::paintChannelFaceDot (juce::Graphics &g,
+                                            juce::Rectangle<int> face,
+                                            VuDot const &dot)
+{
+  // Nothing at all for a silent channel. A face with no dot is the reading
+  // this exists for, and a dim dot would say "quiet" where the answer is
+  // "none" -- the two a hand needs told apart at a glance.
+  if (!dot.visible || face.isEmpty ())
+    return;
+
+  // Top right, inside the corner: the slot number has the middle and the
+  // colour has the whole face, so the one place left that is unmistakably
+  // neither is a corner. The right one, because a hand reading the row reads
+  // left to right and finds the number first.
+  auto const size = juce::jmax (
+      2.f, static_cast<float> (juce::jmin (face.getWidth (),
+                                           face.getHeight ()))
+               * channelFaceDotOfFace);
+  auto const inset = size * channelFaceDotInsetOfDot;
+
+  juce::Rectangle<float> const mark (
+      static_cast<float> (face.getRight ()) - inset - size,
+      static_cast<float> (face.getY ()) + inset, size, size);
+
+  // The meter's own three colours, from the meter's own rule. Green, yellow
+  // and red down a level is a language older than this device, and one read
+  // from two places is one that will one day disagree with itself.
+  g.setColour (vuBandColour (theme (), dot.band).withAlpha (dot.alpha));
+  g.fillEllipse (mark);
 }
 
 void
