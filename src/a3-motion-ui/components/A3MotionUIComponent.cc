@@ -346,10 +346,26 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
           repaintMixers ();
         };
 
+  // Two taps put a control back where it belongs. Only SEND has an answer;
+  // the rest of the strip stays where the hand left it, which is why this
+  // asks the table rather than resetting whatever was tapped. See
+  // mixerControlRestPosition.
+  auto const channelDoubleTapped
+      = [this, repaintMixers] (int channel, MixerControl control) {
+          auto const rest = mixerControlRestPosition (control);
+          if (!rest.has_value ())
+            return;
+
+          _mixerState.setChannelFromTouch (channel, control, *rest);
+          repaintMixers ();
+        };
+
   _mixer->onChannelDragged = channelDragged;
   _mixer->onChannelTapped = channelTapped;
+  _mixer->onChannelDoubleTapped = channelDoubleTapped;
   _mixerStrip->onChannelDragged = channelDragged;
   _mixerStrip->onChannelTapped = channelTapped;
+  _mixerStrip->onChannelDoubleTapped = channelDoubleTapped;
   _mixer->onMasterDragged = [this, mixerStep] (MasterControl control,
                                                int steps) {
     _mixerState.setMasterFromTouch (

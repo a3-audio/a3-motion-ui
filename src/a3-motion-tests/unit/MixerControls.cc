@@ -149,3 +149,30 @@ TEST (MixerControls, ThePositionsAreKnownAtCompileTime)
     EXPECT_GE (controlSlot (control), 0);
   SUCCEED ();
 }
+
+// Two taps put a control back. Only SEND has somewhere to go back to, and
+// that is the point of asking per control rather than resetting everything.
+//
+// GAIN and VOL deliberately have no rest position. Zero on either is a mute,
+// and a mute two fingertips away from a control that is dragged all evening
+// is a way to silence the room by accident. SEND is the one where zero is
+// unambiguous and safe: take the effect out.
+TEST (MixerControls, OnlyTheSendHasARestPosition)
+{
+  EXPECT_TRUE (mixerControlRestPosition (MixerControl::FxSend).has_value ());
+  EXPECT_FLOAT_EQ (*mixerControlRestPosition (MixerControl::FxSend), 0.f);
+
+  for (auto const control : mixerControlOrder)
+    if (control != MixerControl::FxSend)
+      EXPECT_FALSE (mixerControlRestPosition (control).has_value ())
+          << mixerControlLabel (control);
+}
+
+// A control nobody has decided about writes nothing rather than falling
+// through to a plausible number. The way this goes wrong is an eighth control
+// arriving and inheriting whichever value the switch happened to reach.
+TEST (MixerControls, AnUndecidedControlHasNoRestPosition)
+{
+  EXPECT_FALSE (mixerControlRestPosition (static_cast<MixerControl> (99))
+                    .has_value ());
+}

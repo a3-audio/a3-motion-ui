@@ -21,6 +21,7 @@
 #pragma once
 
 #include <array>
+#include <optional>
 
 namespace a3
 {
@@ -85,6 +86,28 @@ constexpr bool
 mixerControlIsAToggle (MixerControl control)
 {
   return control == MixerControl::Pfl || control == MixerControl::Fx;
+}
+
+/** Where two taps put a control back, or nothing for one that stays where it
+ *  was left.
+ *
+ *  Only the send has an answer, and the two that obviously might are the
+ *  reason this is asked per control rather than done to the whole strip:
+ *  zero on GAIN or on VOL is a mute, and a mute two fingertips away from a
+ *  control that is dragged all evening is a way to silence the room by
+ *  accident. Zero on SEND is unambiguous and safe -- take the effect out --
+ *  which is the one place a hand can reach for "none of that" and mean it.
+ *
+ *  Nothing for the undecided case rather than a plausible 0.5: a control that
+ *  fell through to a number would look decided without being it. Same rule as
+ *  channelValueRestPosition, and for the same reason.
+ */
+constexpr std::optional<float>
+mixerControlRestPosition (MixerControl control)
+{
+  if (control == MixerControl::FxSend)
+    return 0.f;
+  return {};
 }
 
 /** What is written under it. At most four characters: the narrowest a strip

@@ -56,6 +56,10 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
           [this] (MixerControl control) {
             if (onChannelTapped)
               onChannelTapped (_channel, control);
+          },
+          [this] (MixerControl control) {
+            if (onChannelDoubleTapped)
+              onChannelDoubleTapped (_channel, control);
           });
 
       addAndMakeVisible (*touch);

@@ -84,6 +84,10 @@ public:
   std::function<void (int channel, MixerControl, int steps)> onChannelDragged;
   std::function<void (int channel, MixerControl)> onChannelTapped;
 
+  /** Two taps: put this channel's control back. See
+   *  MixerComponent::onChannelDoubleTapped. */
+  std::function<void (int channel, MixerControl)> onChannelDoubleTapped;
+
 private:
   /** Redraws the meter and nothing else. See vuMeterRefreshHz. */
   void timerCallback () override;
