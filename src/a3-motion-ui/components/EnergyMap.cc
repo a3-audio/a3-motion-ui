@@ -193,6 +193,15 @@ beamSpreadAngle (Pos const &pixelDirection, Pos const &speakerDirection)
 }
 
 float
+boltWidthAtLevel (float baseWidthDegrees, float level, float thin)
+{
+  auto const swell
+      = thin + (1.f - thin) * std::clamp (level, 0.f, 1.f);
+
+  return baseWidthDegrees * swell;
+}
+
+float
 beamBoltSeed (Pos const &speakerRoomDirection)
 {
   auto const length = std::max (

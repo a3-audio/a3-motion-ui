@@ -23,6 +23,7 @@
 #include <a3-motion-ui/theme/Theme.hh>
 
 #include "EnergyMap.hh"
+#include "SphereProjection.hh"
 #include "SpeakerLightScaling.hh"
 
 #include <cmath>
@@ -122,6 +123,7 @@ uniform float uBeamCover;      // how strongly the band hides the glow
 uniform float uBeamMinAnnulus; // narrowest annulus a band is ever given
 uniform float uBeamDepthSoft;  // how softly a band goes behind the sphere
 uniform float uBoltWidth;      // angular width of a bolt's core, degrees
+uniform float uBoltThin;       // what a silent speaker's bolt is worth
 uniform float uBoltWander;     // how far its path strays across the band
 uniform float uBoltScale;      // how quickly it strays with radius
 uniform float uBoltFlow;       // how fast the path creeps
@@ -202,6 +204,7 @@ uniform sampler2D uLineMap3;
 // Which of the four have anything in them, and how far the maps reach.
 uniform vec4  uLineOn;
 uniform float uLineExtent;
+uniform float uLineFarSide;    // dimmest a line goes at the far pole
 // How much of each of the line's four effects there is: glow, filaments,
 // bolts, and how hot it runs where the blob is.
 uniform vec4  uLineEffects;
@@ -486,6 +489,34 @@ float lineArc (vec2 uv, int i)
     return texture2D (uLineMap3, t).g;
 }
 
+/** How much of this pixel's light survives the depth it sits at, out of the
+ *  map's third channel.
+ *
+ *  Carried rather than computed: the map is a flat projection and cannot say,
+ *  of a pixel inside the silhouette, whether the line was in front of the ball
+ *  there or behind it. Every piece of the line -- the cone as well as the cord
+ *  -- is drawn with its own depth in the blue for that reason.
+ *
+ *  Held at uLineFarSide from below: bilinear filtering towards the empty map
+ *  around the line would otherwise black out the very edge of the glow, where
+ *  there is no depth written at all. Mirrors lineDepthFade() in
+ *  SphereProjection.cc.
+ */
+float lineDepth (vec2 uv, int i)
+{
+    vec2 t = uv / uLineExtent * 0.5 + 0.5;
+    if (t.x < 0.0 || t.x > 1.0 || t.y < 0.0 || t.y > 1.0)
+        return 1.0;
+
+    float b;
+    if (i == 0) b = texture2D (uLineMap0, t).b;
+    else if (i == 1) b = texture2D (uLineMap1, t).b;
+    else if (i == 2) b = texture2D (uLineMap2, t).b;
+    else b = texture2D (uLineMap3, t).b;
+
+    return max (b, uLineFarSide);
+}
+
 /** How the cord is twisted here, 0..1.
  *
  *  A braid of three hairlines cannot be drawn as light at this size: the map
@@ -633,10 +664,17 @@ vec3 lineGlow (vec2 uv, int i)
                     0.15 + 0.55 * atBlob
                         + 0.45 * swing * max (weave - 0.5, 0.0));
 
-    return col * wide * 0.055 * uLineEffects.x
-         + hot * tight * 0.45 * uLineEffects.x
-         + hot * filament * (0.16 + 0.30 * atBlob + 0.18 * vu)
-         + mix (col, uBoltCoreColour, 0.75) * bolt * (0.30 + 0.55 * atBlob);
+    // Everything the line throws off goes behind the ball with it. It used to
+    // be only the 2D stroke that faded, and the shader painted the far side as
+    // brightly as the near one straight over the top of it -- which is why a
+    // figure could not be read as passing behind the sphere any more.
+    float depth = lineDepth (uv, i);
+
+    return (col * wide * 0.055 * uLineEffects.x
+          + hot * tight * 0.45 * uLineEffects.x
+          + hot * filament * (0.16 + 0.30 * atBlob + 0.18 * vu)
+          + mix (col, uBoltCoreColour, 0.75) * bolt * (0.30 + 0.55 * atBlob))
+         * depth;
 }
 
 /** The blob itself: a hot core, a corona around it, sparks off it, and a bolt
@@ -838,12 +876,24 @@ vec3 blobLight (vec2 uv, int i)
 //
 // Returns the bolt field in x and its hottest core in y, so the core can be
 // drawn white and the glow in colour.
-vec2 bolts (float dA, float d, float halfWidth, float seed, float mouthR)
+// How wide a bolt's core runs at a given level. Mirrors boltWidthAtLevel()
+// in EnergyMap.cc.
+float boltWidthAt (float level)
 {
-    float width = radians (uBoltWidth);
+    return radians (uBoltWidth)
+         * (uBoltThin + (1.0 - uBoltThin) * clamp (level, 0.0, 1.0));
+}
+
+vec2 bolts (float dA, float d, float halfWidth, float seed, float mouthR,
+            float level)
+{
+    float width = boltWidthAt (level);
     float best = 0.0;
 
-    for (int i = 0; i < 8; ++i)
+    // Fourteen rather than eight: with the level driving thickness instead of
+    // brightness, a band is read as a *number* of hairlines, and eight of them
+    // is a sparse band rather than a dense one.
+    for (int i = 0; i < 14; ++i)
     {
         if (float (i) >= uBoltCount) break;
 
@@ -1078,9 +1128,15 @@ vec2 beamDensity (vec2 point, vec3 spkCentre, float spkSeed, float level)
     float lifted = max (level, uBeamFloor * loudest);
 
     // The envelope is not drawn and does not hide anything — it only says
-    // where a bolt may strike, and how brightly. What reaches the screen is
-    // the bolts alone, so the glow behind them stays visible between them.
-    float envelope = lifted * across * grip * radial;
+    // where a bolt may strike. What reaches the screen is the bolts alone, so
+    // the glow behind them stays visible between them.
+    //
+    // The level is no longer in it. It used to scale brightness, which meant a
+    // band faded out exactly where it was needed most: quiet is most of the
+    // time, and a bolt you can only make out with some imagination is not a
+    // bolt. It drives boltWidthAt() instead — a quiet speaker draws the same
+    // bolts hairline thin, a loud one swells them.
+    float envelope = across * grip * radial;
 
     // A cabinet that has gone round behind the ball takes its band with it --
     // the one thing a flat annulus could never say, since on the screen a
@@ -1098,7 +1154,7 @@ vec2 beamDensity (vec2 point, vec3 spkCentre, float spkSeed, float level)
     // reached seeds the normalised bearing never did, which is what put four
     // escaped bolts across the whole display.
     float seed = spkSeed;
-    vec2 strike = bolts (dA - wander, d, ragged, seed, mouthR);
+    vec2 strike = bolts (dA - wander, d, ragged, seed, mouthR, lifted);
 
     return vec2 (envelope * strike.x, envelope * strike.y);
 }
@@ -1655,6 +1711,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBeamMinAnnulus = glGetUniformLocation (pid, "uBeamMinAnnulus");
   _uBeamDepthSoft = glGetUniformLocation (pid, "uBeamDepthSoft");
   _uBoltWidth = glGetUniformLocation (pid, "uBoltWidth");
+  _uBoltThin = glGetUniformLocation (pid, "uBoltThin");
   _uBoltWander = glGetUniformLocation (pid, "uBoltWander");
   _uBoltScale = glGetUniformLocation (pid, "uBoltScale");
   _uBoltFlow = glGetUniformLocation (pid, "uBoltFlow");
@@ -1722,6 +1779,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uLineMap[3]    = glGetUniformLocation (pid, "uLineMap3");
   _uLineOn        = glGetUniformLocation (pid, "uLineOn");
   _uLineExtent    = glGetUniformLocation (pid, "uLineExtent");
+  _uLineFarSide   = glGetUniformLocation (pid, "uLineFarSide");
   _uLineEffects   = glGetUniformLocation (pid, "uLineEffects");
   _uBraid         = glGetUniformLocation (pid, "uBraid");
   _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
@@ -1862,6 +1920,7 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uBeamDepthSoft >= 0)
     glUniform1f (_uBeamDepthSoft, beamDepthSoftness);
   if (_uBoltWidth >= 0) glUniform1f (_uBoltWidth, _spotCfg.boltWidth);
+  if (_uBoltThin >= 0) glUniform1f (_uBoltThin, _spotCfg.boltThin);
   if (_uBoltWander >= 0) glUniform1f (_uBoltWander, _spotCfg.boltWander);
   if (_uBoltScale >= 0) glUniform1f (_uBoltScale, _spotCfg.boltScale);
   if (_uBoltFlow >= 0) glUniform1f (_uBoltFlow, _spotCfg.boltFlow);
@@ -1977,6 +2036,8 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
       glUniform4f (_uLineOn, on[0], on[1], on[2], on[3]);
     if (_uLineExtent >= 0)
       glUniform1f (_uLineExtent, _lineExtent);
+  if (_uLineFarSide >= 0)
+    glUniform1f (_uLineFarSide, lineFarSidePart);
     if (_uLineEffects >= 0)
       glUniform4f (_uLineEffects, theme ().lineGlow, theme ().lineFilament,
                    theme ().lineBolt, theme ().lineHeat);

@@ -388,6 +388,37 @@ TEST (BeamSpread, PartsCompanyWithTheScreenAzimuthUnderALean)
   EXPECT_GT (std::abs (std::abs (flat) - inTheRoom), 0.1f);
 }
 
+TEST (BoltWidth, RunsFullAtFullLevel)
+{
+  EXPECT_FLOAT_EQ (boltWidthAtLevel (0.9f, 1.f, 0.35f), 0.9f);
+}
+
+TEST (BoltWidth, StaysAHairlineRatherThanGoingOutWhenTheSpeakerIsSilent)
+{
+  // The point of the change. A band whose brightness came off the level was
+  // invisible at the levels it spends most of its time at.
+  EXPECT_FLOAT_EQ (boltWidthAtLevel (0.9f, 0.f, 0.35f), 0.9f * 0.35f);
+  EXPECT_GT (boltWidthAtLevel (0.9f, 0.f, 0.35f), 0.f);
+}
+
+TEST (BoltWidth, ThickensAllTheWayUpWithoutAStep)
+{
+  auto previous = boltWidthAtLevel (0.9f, 0.f, 0.35f);
+  for (auto level = 0.05f; level <= 1.f; level += 0.05f)
+    {
+      auto const here = boltWidthAtLevel (0.9f, level, 0.35f);
+      EXPECT_GT (here, previous) << "at level " << level;
+      EXPECT_LT (here - previous, 0.9f * 0.2f) << "stepped at " << level;
+      previous = here;
+    }
+}
+
+TEST (BoltWidth, HoldsAtTheEndsRatherThanRunningPastThem)
+{
+  EXPECT_FLOAT_EQ (boltWidthAtLevel (0.9f, 2.5f, 0.35f), 0.9f);
+  EXPECT_FLOAT_EQ (boltWidthAtLevel (0.9f, -1.f, 0.35f), 0.9f * 0.35f);
+}
+
 TEST (BeamBoltSeed, StaysWithTheSpeakerWhereverTheEyeGoes)
 {
   // A bolt belongs to a loudspeaker, not to a place on the glass. Read off the

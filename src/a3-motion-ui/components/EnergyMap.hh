@@ -176,6 +176,18 @@ float beamSpreadAngle (Pos const &pixelDirection, Pos const &speakerDirection);
  *  would otherwise ask for an annulus with no room in it. */
 float beamMouthRadiusSeen (Pos const &speakerSeen);
 
+/** How wide a bolt's core runs at a given level, in degrees.
+ *
+ *  The level is a *thickness* now, not a brightness. Driving brightness with
+ *  it meant a band faded out exactly where it was needed most — quiet is most
+ *  of the time, and a bolt you can only make out with some imagination is not
+ *  a bolt. A quiet speaker draws the same bolts as a loud one, hairline thin;
+ *  a loud one swells them.
+ *
+ *  `thin` is what a silent speaker's bolt is worth as a share of the full
+ *  width. Mirrors boltWidthAt() in SphereShader.cc. */
+float boltWidthAtLevel (float baseWidthDegrees, float level, float thin);
+
 /** The seed a speaker's bolts are dealt from.
  *
  *  Taken from where the cabinet stands in the *room*, so a bolt belongs to a

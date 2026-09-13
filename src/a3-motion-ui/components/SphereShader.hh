@@ -166,6 +166,7 @@ public:
     float fray = 0.8f;         // how ragged its edge is
     float cover = 3.f;         // how strongly the band hides the glow
     float boltWidth = 0.9f;    // angular width of a bolt's core, degrees
+    float boltThin = 0.3f;     // what a silent speaker's bolt is worth
     float boltWander = 0.55f;  // how far its path strays across the band
     float boltScale = 6.f;     // how quickly it strays with radius
     float boltFlow = 0.5f;     // how fast the path creeps
@@ -271,6 +272,7 @@ private:
   GLint _uBeamMinAnnulus = -1;
   GLint _uBeamDepthSoft = -1;
   GLint _uBoltWidth = -1;
+  GLint _uBoltThin = -1;
   GLint _uBoltWander = -1;
   GLint _uBoltScale = -1;
   GLint _uBoltFlow = -1;
@@ -325,6 +327,7 @@ private:
   GLint _uLineMap[kMaxBlobs] = {};
   GLint _uLineOn = -1;
   GLint _uLineExtent = -1;
+  GLint _uLineFarSide = -1;
   GLint _uLineEffects = -1;
   GLint _uBraid = -1;
 
