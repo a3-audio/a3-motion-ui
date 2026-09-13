@@ -225,7 +225,6 @@ private:
   std::unique_ptr<juce::Image> _imageBlend;
   juce::Image _imageIsoSphere;
   std::unique_ptr<juce::Drawable> _drawableHead;
-  std::unique_ptr<juce::Drawable> _drawableSpeaker;
 
   // 3D raytraced sphere shader
   SphereShader _sphereShader;
@@ -263,11 +262,6 @@ private:
    *  cannot be procedural: a trail is where the thing has been, and nothing in
    *  a fragment shader remembers that. */
   BlobTrail _blobTrails[4]{};
-
-  /** What the speaker icon is currently drawn in. The SVG ships flat
-   *  #b3b3b3 and `replaceColour` swaps one colour for another, so what it is
-   *  wearing has to be remembered to be able to change it again. */
-  juce::Colour _speakerIconColour{ 0xffb3b3b3 };
 
   // Background colour packed as ARGB — lock-free atomic access
   std::atomic<juce::uint32> _backgroundColourPacked{ 0 };

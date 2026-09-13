@@ -28,18 +28,28 @@ namespace a3
 
 /**
  * Full-scene 3D renderer via a fullscreen-quad fragment shader.
- * Raytraces: dark reflective sphere with head silhouette, 4 speaker
- * boxes, volumetric speaker light beams, and the 4 channel blobs -- each a
- * core, a rim, a VU corona, procedural sparks, a bolt on a transient, a wake
- * behind it and a neon ring while an action runs.
  *
- * The blobs used to be *only* light sources here while a flat 2D ellipse over
- * the top was what you actually saw, and this comment said otherwise. It cost
- * the maintainer a sphere with no blobs on it: the 2D layer was removed to
- * "uncover" a 3D one that had never been written. They are drawn here now --
- * but the lesson stands, so: if you are about to remove a layer because this
- * header says something else draws it, make the replacement draw first and
- * look at it.
+ * Raytraces: a dark reflective sphere with a head silhouette; four speaker
+ * cabinets standing in the room, facing the listener, each with a woofer and a
+ * tweeter that light with what the speaker is being sent; and the 4 channel
+ * blobs -- each a core, a rim, a VU corona, procedural sparks, a bolt on a
+ * transient, a wake behind it and a neon ring while an action runs.
+ *
+ * Drawn flat over the top, not raytraced: the volumetric speaker bands, which
+ * are a two-dimensional annulus in screen polar coordinates. They follow a
+ * walk round the room and cannot follow a lean, and rebuilding them in three
+ * dimensions is the next piece of this.
+ *
+ * This block has been wrong twice, both times in the same way. It claimed the
+ * blobs were raytraced while a flat 2D ellipse over the top was what you
+ * actually saw, and the 2D layer was removed to "uncover" a 3D one that had
+ * never been written -- which cost the maintainer a sphere with no blobs on
+ * it. Then it went on claiming "4 speaker boxes" for a whole session after
+ * that paragraph was written, while the speakers were still four SVG arrows
+ * pinned to the corners of the display.
+ *
+ * So, twice over: if you are about to remove a layer because this header says
+ * something else draws it, make the replacement draw first and look at it.
  *
  * GLSL 1.20 compatible (GL 2.1 desktop).
  */
@@ -314,6 +324,15 @@ private:
   GLint _uLineOn = -1;
   GLint _uLineExtent = -1;
   GLint _uLineEffects = -1;
+
+  GLint _uSpkDir[kMaxBlobs] = {};
+  GLint _uSpkCentre[kMaxBlobs] = {};
+  GLint _uSpkNose[kMaxBlobs] = {};
+  GLint _uSpkSide[kMaxBlobs] = {};
+  /** Where the four cabinets stand as the eye sees them. Once a frame: it is
+   *  the same answer for every pixel, and worked out per pixel it cost a
+   *  quarter of a core in sines and cosines. */
+  void uploadSpeakerFrames ();
   unsigned int _lineTexture[kMaxBlobs] = {};
   float _lineExtent = 1.3f;
 

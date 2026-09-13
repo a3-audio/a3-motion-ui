@@ -301,9 +301,6 @@ MotionComponent::MotionComponent (
   _drawableHead = juce::Drawable::createFromSVGFile (
       juce::File::getCurrentWorkingDirectory ().getChildFile (
           "resources/head.svg"));
-  _drawableSpeaker = juce::Drawable::createFromSVGFile (
-      juce::File::getCurrentWorkingDirectory ().getChildFile (
-          "resources/speaker.svg"));
 
   // start disocclusion / animation timer at 30 Hz
   // (GL renders at 60 Hz vsync, 30 Hz is enough for blob push-away)
@@ -1339,9 +1336,7 @@ MotionComponent::renderOpenGL ()
           juce::Graphics gFBO{ *_imageBlend };
           gFBO.addTransform (_transformNormalizedToLocal);
 
-          // Speaker SVGs
-          if (_drawableSpeaker != nullptr)
-            drawCircle (gFBO);
+          drawCircle (gFBO);
 
           drawBearings (gFBO);
           drawListener (gFBO);
@@ -1517,49 +1512,18 @@ MotionComponent::drawCircle (juce::Graphics &g)
   //
   // What remains here: speaker icons drawn as SVG overlays.
 
-  // --- 4 speakers outside the sphere, like spotlights ---
-  if (_drawableSpeaker != nullptr)
-    {
-      auto constexpr opacitySpeaker = 0.35f;
-      auto constexpr speakerSize = 0.28f;
-
-      // The icon ships as flat grey, which is a faint mark on a dark page and
-      // a heavy one on a light page -- on the two light skins it read as clip
-      // art pinned to the corners. Tinted to `textMuted`, which every skin
-      // sets on the far side of its own ground, it is the same faint mark
-      // either way. Done here rather than at load because the skin can change
-      // under a running app, and `replaceColour` needs to be told what it is
-      // replacing.
-      auto const iconColour = toColour (theme ().textMuted);
-      if (iconColour != _speakerIconColour)
-        {
-          _drawableSpeaker->replaceColour (_speakerIconColour, iconColour);
-          _speakerIconColour = iconColour;
-        }
-      // Use cached speaker radius from spotlight config
-      float speakerRadius = _sphereShader.getSpeakerRadius ();
-
-      for (int i = 0; i < 4; ++i)
-        {
-          float angleDeg = 45.f + i * 90.f;
-          float angleRad = angleDeg * juce::MathConstants<float>::pi / 180.f;
-
-          float sx = speakerRadius * std::cos (angleRad);
-          float sy = speakerRadius * std::sin (angleRad);
-
-          auto speakerBounds = juce::Rectangle<float> ().withSizeKeepingCentre (
-              speakerSize, speakerSize);
-
-          g.saveState ();
-          g.addTransform (juce::AffineTransform::rotation (
-              angleRad + juce::MathConstants<float>::pi, sx, sy));
-          g.setOpacity (opacitySpeaker);
-          _drawableSpeaker->drawWithin (
-              g, speakerBounds.withCentre ({ sx, sy }),
-              juce::RectanglePlacement::centred, opacitySpeaker);
-          g.restoreState ();
-        }
-    }
+  // The speakers used to be drawn here: a flat SVG arrow at a fixed screen
+  // angle, four of them at 45 degrees apart on the *display*. They are
+  // raytraced in the shader now (speakerBoxes) as cabinets standing in the
+  // room, so they turn and lean with it, face the listener, and occlude the
+  // ball and are occluded by it.
+  //
+  // That was the whole of the maintainer's "die speaker müssen mitdrehen wenn
+  // die sphäre dreht": nailed to the glass, they stayed in the corners of the
+  // screen while everything else turned. The four beam directions were written
+  // in as the screen's own diagonals for the same reason and have been given
+  // the room's bearings too -- though the bands themselves are still a flat
+  // annulus and only follow a walk, not a lean.
 
   g.setOpacity (1.f);
 }

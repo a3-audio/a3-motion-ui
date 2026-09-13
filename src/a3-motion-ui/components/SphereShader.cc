@@ -203,6 +203,34 @@ uniform float uLineExtent;
 // bolts, and how hot it runs where the blob is.
 uniform vec4  uLineEffects;
 
+// Where the four speakers are, worked out once per frame on the CPU.
+//
+// These used to be built per pixel out of asSeen(), which is four sines and
+// cosines of the camera's two angles -- times four speakers, times every pixel
+// on the display. It cost a quarter of a core on its own and it is the same
+// answer for every pixel of a frame, which is the definition of work that
+// belongs on the other side.
+//
+// `Dir` is the bearing the flat beam band leaves on, on the screen. The other
+// three are the cabinet's frame in the eye's own terms: where it stands, which
+// way its baffle looks, and which way is along its width.
+uniform vec2  uSpkDir0;
+uniform vec2  uSpkDir1;
+uniform vec2  uSpkDir2;
+uniform vec2  uSpkDir3;
+uniform vec3  uSpkCentre0;
+uniform vec3  uSpkCentre1;
+uniform vec3  uSpkCentre2;
+uniform vec3  uSpkCentre3;
+uniform vec3  uSpkNose0;
+uniform vec3  uSpkNose1;
+uniform vec3  uSpkNose2;
+uniform vec3  uSpkNose3;
+uniform vec3  uSpkSide0;
+uniform vec3  uSpkSide1;
+uniform vec3  uSpkSide2;
+uniform vec3  uSpkSide3;
+
 uniform vec3  uBlobCol0;
 uniform vec3  uBlobCol1;
 uniform vec3  uBlobCol2;
@@ -790,6 +818,50 @@ vec2 bolts (float dA, float d, float halfWidth, float seed, float mouthR)
 // Mirrors beamWrapHalfAngle() in EnergyMap.cc.
 //
 // Needs valueNoise(), so it lives below it.
+// ─── the speakers, as objects in the room ───────────────────────
+
+/** Where a seen direction lands on the screen. Inverts the shuffle
+ *  screenToDirection makes on the way in. */
+vec2 seenToScreen (vec3 seen)
+{
+    return vec2 (-seen.y, seen.x);
+}
+
+float speakerLevel (int i)
+{
+    if (i == 0) return uSpotLevel0;
+    if (i == 1) return uSpotLevel1;
+    if (i == 2) return uSpotLevel2;
+    return uSpotLevel3;
+}
+
+/** Slab test against a box at the origin. x is where the ray goes in, y where
+ *  it comes out; in > out means it missed. */
+vec2 boxSpan (vec3 ro, vec3 rd, vec3 halfExtent)
+{
+    // A ray exactly along a face has a zero in it and 1/0 is an infinity that
+    // the min/max below handles correctly -- but only if it is an infinity and
+    // not a driver's idea of one. Nudged rather than branched.
+    vec3 inv = 1.0 / (rd + (1.0 - abs (sign (rd))) * 0.000001);
+    vec3 a = (-halfExtent - ro) * inv;
+    vec3 b = ( halfExtent - ro) * inv;
+    vec3 lo = min (a, b);
+    vec3 hi = max (a, b);
+    return vec2 (max (max (lo.x, lo.y), lo.z),
+                 min (min (hi.x, hi.y), hi.z));
+}
+
+/** Which face of the box a local hit point is on, as a local normal. */
+vec3 boxNormal (vec3 local, vec3 halfExtent)
+{
+    vec3 share = abs (local) / halfExtent;
+    if (share.x > share.y && share.x > share.z)
+        return vec3 (sign (local.x), 0.0, 0.0);
+    if (share.y > share.z)
+        return vec3 (0.0, sign (local.y), 0.0);
+    return vec3 (0.0, 0.0, sign (local.z));
+}
+
 vec2 beamDensity (vec2 point, vec2 spkDir, float level)
 {
     float mouthR = uSpeakerRadius - uMouthOffset;
@@ -855,12 +927,166 @@ vec2 beamDensity (vec2 point, vec2 spkDir, float level)
 }
 
 // x is the bolts' coloured glow, y their white core.
+/** Which way a speaker lies as the eye sees it, on the screen.
+ *
+ *  The four directions used to be written in as the screen's own diagonals,
+ *  which nails them to the glass: walk round the room and the speakers stay
+ *  in the corners of the display while everything else turns. They come from
+ *  the room now and are carried through the camera like any other direction.
+ *
+ *  Normalised, which is what a two-dimensional band can be given: under a
+ *  *lean* the speaker moves in off the rim and the annulus this is built on
+ *  has no word for that. The cabinets themselves are raytraced and do lean
+ *  properly -- the bands are the half of this that is still flat, and they are
+ *  meant to be rebuilt next. */
+vec2 speakerScreenDir (int i)
+{
+    if (i == 0) return uSpkDir0;
+    if (i == 1) return uSpkDir1;
+    if (i == 2) return uSpkDir2;
+    return uSpkDir3;
+}
+
+vec3 speakerCentre (int i)
+{
+    if (i == 0) return uSpkCentre0;
+    if (i == 1) return uSpkCentre1;
+    if (i == 2) return uSpkCentre2;
+    return uSpkCentre3;
+}
+
+vec3 speakerNose (int i)
+{
+    if (i == 0) return uSpkNose0;
+    if (i == 1) return uSpkNose1;
+    if (i == 2) return uSpkNose2;
+    return uSpkNose3;
+}
+
+vec3 speakerSide (int i)
+{
+    if (i == 0) return uSpkSide0;
+    if (i == 1) return uSpkSide1;
+    if (i == 2) return uSpkSide2;
+    return uSpkSide3;
+}
+
 vec2 beamTotal (vec2 p)
 {
-    return beamDensity (p, vec2 (-0.7071,  0.7071), uSpotLevel0)
-         + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1)
-         + beamDensity (p, vec2 ( 0.7071, -0.7071), uSpotLevel2)
-         + beamDensity (p, vec2 (-0.7071, -0.7071), uSpotLevel3);
+    return beamDensity (p, speakerScreenDir (0), uSpotLevel0)
+         + beamDensity (p, speakerScreenDir (1), uSpotLevel1)
+         + beamDensity (p, speakerScreenDir (2), uSpotLevel2)
+         + beamDensity (p, speakerScreenDir (3), uSpotLevel3);
+}
+
+// How big a cabinet is, in sphere radii: a little taller than it is wide and
+// about as deep, which is the shape of a monitor standing on its end.
+const vec3 kCabinetHalf = vec3 (0.085, 0.130, 0.095);
+
+
+
+/** The four cabinets, raytraced.
+ *
+ *  An orthographic view, so a pixel's ray is a straight drop along the eye's
+ *  own axis: in the frame the eye sees, that is the point (uv.y, -uv.x) coming
+ *  down from far above. Each box is put into that frame whole -- its centre and
+ *  its three axes carried through the camera -- and the ray is then taken into
+ *  the box's own frame and slab-tested, which is the cheapest correct thing
+ *  there is.
+ *
+ *  Each faces the listener. `depth` comes back as how far along the ray the
+ *  nearest one was hit, so the caller can tell a cabinet in front of the ball
+ *  from one behind it. */
+vec4 speakerBoxes (vec2 uv, out float depth)
+{
+    vec3 ro = vec3 (uv.y, -uv.x, 4.0);
+    vec3 rd = vec3 (0.0, 0.0, -1.0);
+
+    depth = 1000.0;
+    vec4 out4 = vec4 (0.0);
+
+    for (int i = 0; i < 4; i++)
+    {
+        vec3 centre = speakerCentre (i);
+
+        // Almost every pixel is nowhere near any cabinet, and the slab test
+        // below is not cheap enough to run for all of them four times over.
+        // A box is never further from its own centre than the length of its
+        // half-extents, so a circle that wide around where the centre lands on
+        // screen rejects the whole display bar a few thousand pixels -- for
+        // two subtractions and a dot. It took the frame from eighty-four per
+        // cent of a core to what the measurement in the commit says.
+        vec2 near = uv - seenToScreen (centre);
+        if (dot (near, near) > 0.0625)   // (0.25)^2, the diagonal plus slack
+            continue;
+
+        // Its own frame: nose towards the listener, head up, and the third
+        // axis from the other two so the set stays right-handed however far
+        // the room has been tipped.
+        vec3 nose = speakerNose (i);
+        vec3 side = speakerSide (i);
+        vec3 head = cross (nose, side);
+
+        vec3 toRay = ro - centre;
+        vec3 roL = vec3 (dot (toRay, side), dot (toRay, head), dot (toRay, nose));
+        vec3 rdL = vec3 (dot (rd, side), dot (rd, head), dot (rd, nose));
+
+        vec2 span = boxSpan (roL, rdL, kCabinetHalf);
+        if (span.x > span.y || span.y < 0.0)
+            continue;
+
+        float t = max (span.x, 0.0);
+        if (t >= depth)
+            continue;
+        depth = t;
+
+        vec3 hitL = roL + rdL * t;
+        vec3 normalL = boxNormal (hitL, kCabinetHalf);
+        vec3 normal = normalL.x * side + normalL.y * head + normalL.z * nose;
+
+        // A key from over the listener's shoulder and a little fill, so the
+        // top and the front read as two different faces rather than one flat
+        // grey. The ball's own surface colour is the ground, brightened: a
+        // cabinet the same value as the sphere is a hole in the picture.
+        vec3 key = normalize (vec3 (0.35, 0.75, 0.55));
+        float lit = 0.30 + 0.70 * max (dot (normal, key), 0.0);
+        vec3 body = mix (uSphereSurface, vec3 (1.0), 0.22) * lit;
+
+        // The edge, so a cabinet stands away from whatever is behind it.
+        float edge = 1.0 - max (max (abs (hitL.x) / kCabinetHalf.x,
+                                     abs (hitL.y) / kCabinetHalf.y),
+                                abs (hitL.z) / kCabinetHalf.z);
+        body += uSphereRim * smoothstep (0.05, 0.0, edge) * 0.35;
+
+        // The drivers, on the face that looks at the listener. A woofer low
+        // and a tweeter high, both sunk into the baffle -- and both lit by
+        // what this speaker is being sent, which is the same number the band
+        // leaving it is drawn from.
+        if (normalL.z > 0.5)
+        {
+            float level = speakerLevel (i);
+            vec2 face = vec2 (hitL.x, hitL.y);
+
+            float woofer = length (face - vec2 (0.0, -0.035)) ;
+            float tweeter = length (face - vec2 (0.0, 0.062));
+
+            float inWoofer = smoothstep (0.050, 0.042, woofer);
+            float inTweeter = smoothstep (0.022, 0.017, tweeter);
+            float cone = max (inWoofer, inTweeter);
+
+            // Sunk: dark in the middle, with a bright ring where the surround
+            // meets the baffle.
+            body = mix (body, body * 0.35, cone);
+            body += uSphereRim * 0.5
+                  * (smoothstep (0.056, 0.050, woofer) - inWoofer
+                     + smoothstep (0.026, 0.022, tweeter) - inTweeter);
+            body += uSpotColour * cone * level * 1.6;
+        }
+
+        out4 = vec4 (body, 1.0);
+    }
+
+    return out4;
 }
 
 // Ridged fractal noise: the filaments are the ridges between noise cells, and
@@ -1111,6 +1337,35 @@ void main ()
     // light does not get occluded by the glass it shines through -- the sphere
     // is semi-transparent and a blob behind it is dimmed by its own depth fade
     // rather than by being drawn under something.
+    // ── the cabinets ────────────────────────────────────────────
+    //
+    // After the ball, because they are solid and it is glass: one in front
+    // covers it outright, one behind shows through dimmed the way anything
+    // behind the ball does. The blobs stay last -- they are light, and light
+    // is not occluded by what it shines through.
+    float boxOpaque = 0.0;
+    {
+        float boxDepth;
+        vec4 box = speakerBoxes (uvScene, boxDepth);
+        if (box.a > 0.0)
+        {
+            // Where the ball is, and how far along the ray. The ray falls from
+            // z = 4, so the near side of the unit sphere is that much less its
+            // own height.
+            float ballDepth = surfaceMix > 0.0
+                            ? 4.0 - sqrt (max (0.0, 1.0 - dist * dist))
+                            : 1000.0;
+
+            float inFront = step (boxDepth, ballDepth);
+            float through = mix (0.30, 1.0, inFront);
+
+            col = mix (col, box.rgb, box.a * through);
+            // Carried past the sphere's own alpha, which is assigned further
+            // down and would otherwise wipe this out.
+            boxOpaque = box.a * inFront;
+        }
+    }
+
     vec3 blobs = vec3 (0.0);
     for (int b = 0; b < 4; b++)
     {
@@ -1125,6 +1380,10 @@ void main ()
     // Outside the sphere is fully opaque background.
     float sphereAlpha = 0.75;  // sphere surface transparency
     alpha = mix (1.0, sphereAlpha, surfaceMix);
+
+    // A cabinet in front of the ball is solid: the glass behind it is not seen
+    // through it.
+    alpha = clamp (alpha + boxOpaque, 0.0, 1.0);
 
     // But light is not seen *through*. The sphere's alpha is what lets a blob
     // on the far side show at all, and it was also quietly taking a quarter
@@ -1279,6 +1538,22 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uLineOn        = glGetUniformLocation (pid, "uLineOn");
   _uLineExtent    = glGetUniformLocation (pid, "uLineExtent");
   _uLineEffects   = glGetUniformLocation (pid, "uLineEffects");
+  _uSpkDir[0]     = glGetUniformLocation (pid, "uSpkDir0");
+  _uSpkDir[1]     = glGetUniformLocation (pid, "uSpkDir1");
+  _uSpkDir[2]     = glGetUniformLocation (pid, "uSpkDir2");
+  _uSpkDir[3]     = glGetUniformLocation (pid, "uSpkDir3");
+  _uSpkCentre[0]  = glGetUniformLocation (pid, "uSpkCentre0");
+  _uSpkCentre[1]  = glGetUniformLocation (pid, "uSpkCentre1");
+  _uSpkCentre[2]  = glGetUniformLocation (pid, "uSpkCentre2");
+  _uSpkCentre[3]  = glGetUniformLocation (pid, "uSpkCentre3");
+  _uSpkNose[0]    = glGetUniformLocation (pid, "uSpkNose0");
+  _uSpkNose[1]    = glGetUniformLocation (pid, "uSpkNose1");
+  _uSpkNose[2]    = glGetUniformLocation (pid, "uSpkNose2");
+  _uSpkNose[3]    = glGetUniformLocation (pid, "uSpkNose3");
+  _uSpkSide[0]    = glGetUniformLocation (pid, "uSpkSide0");
+  _uSpkSide[1]    = glGetUniformLocation (pid, "uSpkSide1");
+  _uSpkSide[2]    = glGetUniformLocation (pid, "uSpkSide2");
+  _uSpkSide[3]    = glGetUniformLocation (pid, "uSpkSide3");
 
   _aPos = glGetAttribLocation (pid, "aPos");
 
@@ -1379,6 +1654,8 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform3f (_uSpotColour, _spotCfg.r, _spotCfg.g, _spotCfg.b);
   if (_uSpeakerRadius >= 0)
     glUniform1f (_uSpeakerRadius, _spotCfg.speakerRadius);
+
+  uploadSpeakerFrames ();
   if (_uBeamEdge >= 0)
     glUniform1f (_uBeamEdge, _spotCfg.edgeSoftness);
   if (_uBeamIntensity >= 0)
@@ -1551,6 +1828,74 @@ void SphereShader::setSpeakerLight (int i, float peak, float rms)
 
 void SphereShader::setBlob (int i, BlobData const &d)
 { if (i >= 0 && i < kMaxBlobs) _blobs[i] = d; }
+
+void
+SphereShader::uploadSpeakerFrames ()
+{
+  using namespace juce::gl;
+
+  // Where the four of them stand, once per frame.
+  //
+  // Bearings first: the four screen diagonals beamTotal was built on, read
+  // back into the room -- uv = (-d.y, d.x), so d = (uv.y, -uv.x, 0) -- which
+  // keeps the numbering and the places exactly what they were, and
+  // uSpotLevel0..3 still belonging to the same corners.
+  static constexpr float k = 0.70710678f;
+  static constexpr float bearings[kMaxBlobs][2]
+      = { { k, k }, { k, -k }, { -k, -k }, { -k, k } };
+
+  // How far *below* the horizon a cabinet stands, in radians.
+  //
+  // On the horizon they are geometrically right and unreadable: the device's
+  // own view is from straight overhead, and from there a speaker beside you is
+  // its top panel -- four grey diamonds, which is very nearly what the SVG
+  // arrows they replaced were. Lifting them and aiming down at the listener
+  // makes it worse, not better: the eye is then behind them and sees the back.
+  // Set below the ear and angled up -- floor monitors around a listening
+  // position -- the baffle turns towards the overhead view, so the drivers are
+  // in sight from the view the device actually ships in, and the geometry is
+  // still a room somebody could build.
+  static constexpr float drop = 0.42f;
+
+  auto const level = std::cos (drop);
+  auto const sink = std::sin (drop);
+
+  for (int i = 0; i < kMaxBlobs; ++i)
+    {
+      auto const bx = bearings[i][0];
+      auto const by = bearings[i][1];
+
+      auto const seen = [this] (float x, float y, float z) {
+        return asSeenFrom (Pos::fromCartesian (x, y, z), _camera);
+      };
+
+      // The band leaving it is still a flat annulus and belongs to the ring on
+      // the horizon, so its bearing comes from there rather than from the
+      // sunken cabinet.
+      auto const onRim = seen (bx, by, 0.f);
+      auto const dir
+          = juce::Point<float> (-onRim.y (), onRim.x ());
+      auto const length = std::max (dir.getDistanceFromOrigin (), 1e-6f);
+
+      auto const radius = _spotCfg.speakerRadius;
+      auto const centre
+          = seen (bx * level * radius, by * level * radius, -sink * radius);
+      auto const nose = seen (-bx * level, -by * level, sink);
+      // Along its width, taken from the bearing rather than from the world's
+      // up: a cabinet angled steeply has a nose near the vertical, and a cross
+      // product against up would collapse there.
+      auto const side = seen (-by, bx, 0.f);
+
+      if (_uSpkDir[i] >= 0)
+        glUniform2f (_uSpkDir[i], dir.x / length, dir.y / length);
+      if (_uSpkCentre[i] >= 0)
+        glUniform3f (_uSpkCentre[i], centre.x (), centre.y (), centre.z ());
+      if (_uSpkNose[i] >= 0)
+        glUniform3f (_uSpkNose[i], nose.x (), nose.y (), nose.z ());
+      if (_uSpkSide[i] >= 0)
+        glUniform3f (_uSpkSide[i], side.x (), side.y (), side.z ());
+    }
+}
 
 void SphereShader::setLineTexture (int channel, unsigned int textureID)
 {
