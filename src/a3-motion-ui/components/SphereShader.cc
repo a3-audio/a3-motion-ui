@@ -597,7 +597,12 @@ vec3 lineGlow (vec2 uv, int i)
     // as one and the weave has somewhere to move it.
     float tight = pow (clamp (near * twist / 0.88, 0.0, 1.0), 9.0)
                 * mix (1.0, 0.40 + 1.25 * weave, swing);
-    float wide  = pow (near, 1.15);
+    // The pale wash standing off the cord. It reached almost as far as the
+    // map does -- an exponent barely above one is nearly the raw field -- and
+    // what it read as was a fat light-red line rather than a thin one with
+    // air around it. The filaments and the bolts are untouched: those are the
+    // parts the maintainer said to keep.
+    float wide  = pow (near, 3.0);
 
     // The filaments. The noise is sampled in scene space and drifts, so they
     // crawl along the line rather than sitting on it.

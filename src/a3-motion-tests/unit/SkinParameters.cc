@@ -27,6 +27,7 @@
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
 #include <algorithm>
+#include <cmath>
 
 using namespace a3;
 
@@ -209,22 +210,70 @@ TEST (SkinParameters, AWrittenFloatIsRoundedToSomethingReadable)
 
   auto const written = juce::JSON::toString (skin);
   EXPECT_FALSE (written.contains ("2.98150695788495")) << written;
-  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 2.98, 0.0001);
+  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 2.982, 0.0001);
 }
 
-// Two places, not four: four still left values nobody would type, and the
-// smallest number any shipped skin carries is 0.01. The step never falls below
-// 0.01 either (see skinValueStep), so no value can round back onto itself and
-// become impossible to turn.
-TEST (SkinParameters, AWrittenFloatKeepsTwoDecimals)
+// Four *significant* digits, not two decimal places.
+//
+// Two places carried an assumption -- "the smallest number any shipped skin
+// carries is 0.01" -- which was true when it was written and stopped being
+// true the day the trajectory's thickness became a skin value at 0.0018.
+// After that the rounding was a floor: typing 0.003 wrote 0.000, and nothing
+// said which of the keyboard or the value had failed.
+TEST (SkinParameters, AWrittenFloatKeepsFourSignificantDigits)
 {
   auto skin = parse (R"({ "corona": { "sizeMin": 1.0 } })");
 
   setSkinValue (skin, "corona.sizeMin", 0.8999123);
-  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 0.9, 0.0001);
+  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 0.8999, 1e-7);
 
   setSkinValue (skin, "corona.sizeMin", 14.0648);
-  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 14.06, 0.0001);
+  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 14.06, 1e-4);
+
+  // The one that was broken.
+  setSkinValue (skin, "corona.sizeMin", 0.003);
+  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 0.003, 1e-7);
+
+  setSkinValue (skin, "corona.sizeMin", 0.0018);
+  EXPECT_NEAR (skinValue (skin, "corona.sizeMin"), 0.0018, 1e-7);
+}
+
+// And the guard that would have caught it, rather than the number that did
+// not: every value the instrument ships has to survive being written back.
+//
+// Derived from the defaults instead of a hand-kept list, because the failure
+// was exactly a default moving below what the rounding could hold, and a list
+// somebody has to remember to update would have moved with it in silence.
+TEST (SkinParameters, EveryShippedDefaultSurvivesBeingWrittenBack)
+{
+  auto const defaults = themeDefaultsVar ();
+  auto const *object = defaults.getDynamicObject ();
+  ASSERT_NE (object, nullptr);
+
+  auto checked = 0;
+  for (auto const &property : object->getProperties ())
+    {
+      if (!property.value.isDouble ())
+        continue;
+
+      auto const path = property.name.toString ();
+      auto const shipped = static_cast<double> (property.value);
+      if (shipped == 0.0)
+        continue;
+
+      auto skin = parse ("{}");
+      setSkinValue (skin, path, shipped, false);
+
+      auto const back = skinValue (skin, path);
+      EXPECT_NEAR (back, shipped, std::abs (shipped) * 1e-3)
+          << path << " ships at " << shipped << " and comes back as " << back
+          << " -- the rounding in setSkinValue cannot hold it.";
+      ++checked;
+    }
+
+  // Without this the loop could pass over an empty set of defaults and report
+  // the whole skin safe.
+  EXPECT_GT (checked, 20);
 }
 
 // The smallest value a skin actually uses has to survive being written back.
