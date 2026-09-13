@@ -96,13 +96,17 @@ TEST (BrowserLayout, TheActionStripSitsUnderTheListAndNotInIt)
   // Side by side, in reading order.
   // The filter first -- it changes what is listed, the other three act on a
   // row of it -- then left to right in the order they are reached for.
+  ASSERT_FALSE (l.loadButton.isEmpty ());
+
+  EXPECT_LE (l.loadButton.getRight (), l.filterButton.getX ());
   EXPECT_LE (l.filterButton.getRight (), l.renameButton.getX ());
   EXPECT_LE (l.renameButton.getRight (), l.saveButton.getX ());
   EXPECT_LE (l.saveButton.getRight (), l.saveAsButton.getX ());
   EXPECT_LE (l.saveAsButton.getRight (), l.deleteButton.getX ());
 
-  // Four keys of one width. One narrower than its neighbours reads as a
+  // Five keys of one width. One narrower than its neighbours reads as a
   // different kind of thing, and these are all keys.
+  EXPECT_EQ (l.loadButton.getWidth (), l.filterButton.getWidth ());
   EXPECT_EQ (l.filterButton.getWidth (), l.renameButton.getWidth ());
   EXPECT_EQ (l.renameButton.getWidth (), l.saveButton.getWidth ());
   EXPECT_EQ (l.saveButton.getWidth (), l.saveAsButton.getWidth ());
@@ -166,4 +170,17 @@ TEST (BrowserLayout, TheListSaysWhichOfTheThreeFoldersItShows)
         EXPECT_EQ (l.setsTab.getY (), l.clipsTab.getY ())
             << width << "x" << height;
       }
+}
+
+// Six keys where there were five, on the panel's own width. Promised to the
+// maintainer as a measurement rather than an assurance: a key you cannot land
+// on without looking is worse than one that is not there.
+TEST (BrowserLayout, SixKeysStayWiderThanAFingertip)
+{
+  // The device's screen, and the bar at the height the browser gets.
+  auto const l = layOutBrowser ({ 0, 0, 768, 360 }, 34, 12.f);
+
+  for (auto const &key : { l.loadButton, l.filterButton, l.renameButton,
+                           l.saveButton, l.saveAsButton, l.deleteButton })
+    EXPECT_GE (key.getWidth (), fingertipSize);
 }

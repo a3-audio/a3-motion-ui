@@ -44,9 +44,14 @@ struct LibraryKeyFacts
   bool canSaveInPlace;
 };
 
-/** Which of the five library keys may be pressed. */
+/** Which of the six library keys may be pressed. */
 struct LibraryKeyStates
 {
+  /** Only the sets tab, and only on a row with a file. A clip or a shape is
+   *  put on a slot by touching it -- small, and undone by touching another --
+   *  where a set replaces the whole arrangement, which is not a thing to do
+   *  by brushing a list. */
+  bool load;
   bool filter;
   bool rename;
   bool save;

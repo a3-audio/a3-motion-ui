@@ -84,6 +84,7 @@ BrowserComponent::BrowserComponent ()
   makeButton (_shapesTabTouch, &BrowserComponent::onShapesChosen);
   makeButton (_actionsTabTouch, &BrowserComponent::onActionsChosen);
   makeButton (_setsTabTouch, &BrowserComponent::onSetsChosen);
+  makeButton (_loadTouch, &BrowserComponent::onLoadPressed);
   makeButton (_filterTouch, &BrowserComponent::onFilterPressed);
   makeButton (_renameTouch, &BrowserComponent::onRenamePressed);
   makeButton (_saveTouch, &BrowserComponent::onSavePressed);
@@ -124,6 +125,7 @@ BrowserComponent::resized ()
   _shapesTabTouch->setBounds (_layout.shapesTab);
   _actionsTabTouch->setBounds (_layout.actionsTab);
   _setsTabTouch->setBounds (_layout.setsTab);
+  _loadTouch->setBounds (_layout.loadButton);
   _filterTouch->setBounds (_layout.filterButton);
   _renameTouch->setBounds (_layout.renameButton);
   _saveTouch->setBounds (_layout.saveButton);
@@ -259,11 +261,12 @@ BrowserComponent::paint (juce::Graphics &g)
   for (int row = 0; row < static_cast<int> (_layout.rows.size ()); ++row)
     paintRow (g, row);
 
-  paintButton (g, _layout.filterButton, _actionLabels[0], _actionEnabled[0]);
-  paintButton (g, _layout.renameButton, _actionLabels[1], _actionEnabled[1]);
-  paintButton (g, _layout.saveButton, _actionLabels[2], _actionEnabled[2]);
-  paintButton (g, _layout.saveAsButton, _actionLabels[3], _actionEnabled[3]);
-  paintButton (g, _layout.deleteButton, _actionLabels[4], _actionEnabled[4]);
+  paintButton (g, _layout.loadButton, _actionLabels[0], _actionEnabled[0]);
+  paintButton (g, _layout.filterButton, _actionLabels[1], _actionEnabled[1]);
+  paintButton (g, _layout.renameButton, _actionLabels[2], _actionEnabled[2]);
+  paintButton (g, _layout.saveButton, _actionLabels[3], _actionEnabled[3]);
+  paintButton (g, _layout.saveAsButton, _actionLabels[4], _actionEnabled[4]);
+  paintButton (g, _layout.deleteButton, _actionLabels[5], _actionEnabled[5]);
 }
 
 void
@@ -350,7 +353,7 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
 
 void
 BrowserComponent::setActions (juce::StringArray const &labels,
-                              std::array<bool, 5> const &enabled)
+                              std::array<bool, 6> const &enabled)
 {
   if (labels == _actionLabels && enabled == _actionEnabled)
     return;

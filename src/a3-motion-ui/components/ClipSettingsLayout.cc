@@ -80,6 +80,15 @@ speedKeyName (int speedLog2, float patternLengthBeats)
   return beatsName (playbackLengthBeats (patternLengthBeats, speedLog2));
 }
 
+int
+selectionAfterRemoving (int row, int remaining)
+{
+  if (remaining <= 0)
+    return 0;
+
+  return std::clamp (row, 0, remaining - 1);
+}
+
 juce::String
 recordLengthName (int recordLengthLog2, int beatsPerBar)
 {

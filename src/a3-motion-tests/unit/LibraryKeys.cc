@@ -116,3 +116,40 @@ TEST (LibraryKeys, ARowWithNoFileBehindItCanBeNeitherRenamedNorDeleted)
   EXPECT_FALSE (keys.rename);
   EXPECT_FALSE (keys.remove);
 }
+
+// ── Loading a set is a key, not a tap ────────────────────────────────────────
+//
+// A tap on a set row used to load it outright, which replaces all eight slots
+// and restarts what was running. The maintainer's verdict: *"das ist sonst
+// etwas überraschend wenn direkt das set geladen wird."* Worse, it was the
+// only way to *reach* a set -- so renaming or deleting one meant loading it
+// first, and losing the arrangement you were working on to do it.
+
+TEST (LibraryKeys, OnlyASetCanBeLoaded)
+{
+  auto facts = plenty ();
+
+  EXPECT_TRUE (libraryKeysFor (BrowserList::Sessions, facts).load);
+
+  for (auto const list : { BrowserList::Clips, BrowserList::Shapes,
+                           BrowserList::Actions })
+    EXPECT_FALSE (libraryKeysFor (list, facts).load) << "list";
+}
+
+TEST (LibraryKeys, ASetWithNoFileCannotBeLoaded)
+{
+  auto facts = plenty ();
+  facts.chosenHasFile = false;
+
+  EXPECT_FALSE (libraryKeysFor (BrowserList::Sessions, facts).load);
+}
+
+// The instrument's own sets load like any other -- they are there to be
+// played. It is writing over them that the split forbids.
+TEST (LibraryKeys, AShippedSetLoadsToo)
+{
+  auto facts = plenty ();
+  facts.chosenIsSystem = true;
+
+  EXPECT_TRUE (libraryKeysFor (BrowserList::Sessions, facts).load);
+}

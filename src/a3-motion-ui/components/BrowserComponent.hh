@@ -130,7 +130,7 @@ public:
    *  not available, and the set of things you can do changes with what is
    *  chosen. An empty label draws no key at all. */
   void setActions (juce::StringArray const &labels,
-                   std::array<bool, 5> const &enabled);
+                   std::array<bool, 6> const &enabled);
 
   /** Narrow what the list shows. What the states are and what they are
    *  called is the page's, not this component's -- it draws the word it is
@@ -147,6 +147,9 @@ public:
    *  decide, and so is asking twice: this fires on every press, armed or
    *  not. */
   std::function<void ()> onDeletePressed;
+
+  /** The sets tab's own: load the chosen arrangement. */
+  std::function<void ()> onLoadPressed;
   std::function<void (int delta)> onScrolled;
 
   /** Type a new name over the chosen row.
@@ -186,8 +189,9 @@ private:
 
   BrowserLayout _layout;
 
-  juce::StringArray _actionLabels{ "", "Rename", "Save", "", "" };
-  std::array<bool, 5> _actionEnabled{ false, false, false, false, false };
+  juce::StringArray _actionLabels{ "", "", "Rename", "Save", "", "" };
+  std::array<bool, 6> _actionEnabled{ false, false, false,
+                                      false, false, false };
   juce::StringArray _names;
   int _scrollOffset = 0;
   int _selectedEntry = -1;
@@ -205,6 +209,7 @@ private:
   std::unique_ptr<TouchControl> _saveTouch;
   std::unique_ptr<TouchControl> _saveAsTouch;
   std::unique_ptr<TouchControl> _deleteTouch;
+  std::unique_ptr<TouchControl> _loadTouch;
 
 
   bool _renaming = false;

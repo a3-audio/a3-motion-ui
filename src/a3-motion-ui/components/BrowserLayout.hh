@@ -75,6 +75,11 @@ struct BrowserLayout
    *  listed*, the other three act on the row that is chosen in it -- which is
    *  why it stands first, at the end the reading starts from: narrow the
    *  list, then do something to a row of it. */
+  /** Load, and only the sets tab lights it. A tap on a row used to load the
+   *  set outright -- all eight slots replaced, and whatever was running
+   *  restarted -- which made the one gesture that *reaches* a set also the one
+   *  that overwrites your arrangement. Its own key, pressed on purpose. */
+  juce::Rectangle<int> loadButton;
   juce::Rectangle<int> filterButton;
   juce::Rectangle<int> renameButton;
   juce::Rectangle<int> saveButton;

@@ -895,6 +895,17 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
 
   _browser->onDeletePressed = [this] { deleteChosenEntry (); };
+  _browser->onLoadPressed = [this] {
+    if (_browserList != BrowserList::Sessions)
+      return;
+
+    // One press, not two. The arrangement is written as it is changed
+    // (scheduleSetSave), so nothing unsaved is lost -- and a key you reach for
+    // and read before pressing is already the deliberate act that the tap was
+    // not.
+    _deleteArmed = false;
+    loadSessionNamed (_browser->entryName (_browser->getSelectedEntry ()));
+  };
 
   // Steps through the three on a tap, like every other few-valued control in
   // the bar. The word on the key is the state it is in, not the one the next
@@ -957,8 +968,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     _browser->cancelRename ();
     _browser->setSelectedEntry (index);
 
+    // A set is *not* loaded by touching it. It replaces all eight slots and
+    // restarts what was running, which is not a thing to do by brushing a
+    // list -- and while the tap did it, touching a set was also the only way
+    // to reach one, so renaming or deleting a set meant loading it first and
+    // losing the arrangement you were working on. The Load key does it now.
     if (_browserList == BrowserList::Sessions)
-      loadSessionNamed (_browser->entryName (index));
+      refreshBrowser (true);
     else if (_browserList == BrowserList::Actions)
       assignActionEntry (index);
     else
@@ -2496,7 +2512,7 @@ A3MotionUIComponent::loadSessionNamed (juce::String const &name)
 }
 
 void
-A3MotionUIComponent::refreshBrowser ()
+A3MotionUIComponent::refreshBrowser (bool keepSelection)
 {
   if (!_browser)
     return;
@@ -2528,7 +2544,16 @@ A3MotionUIComponent::refreshBrowser ()
   // you have to remember what is in a slot in order to see it highlighted --
   // and the highlight is the only thing saying which of seventy rows you are
   // looking at.
-  if (_browserList == BrowserList::Actions)
+  // Held where it is, and only held inside the list that is left: the rows
+  // have just been rebuilt, so a row number from before can point past the
+  // end. The keys below are computed from it either way, which is the half
+  // that was missing when this was set from outside instead.
+  if (keepSelection)
+    {
+      _browser->setSelectedEntry (selectionAfterRemoving (
+          _browser->getSelectedEntry (), _browser->getNumEntries ()));
+    }
+  else if (_browserList == BrowserList::Actions)
     {
       auto const ch = _clipSettingsChannel;
       auto const sl = _clipSettingsSlot;
@@ -2605,9 +2630,10 @@ A3MotionUIComponent::refreshBrowser ()
   // empty slot holds nothing to write.
   auto const keys = currentLibraryKeys ();
 
-  _browser->setActions ({ filter, rename, "Save", "Save as", remove },
-                        { keys.filter, keys.rename, keys.save, keys.saveAs,
-                          keys.remove });
+  _browser->setActions (
+      { "Load", filter, rename, "Save", "Save as", remove },
+      { keys.load, keys.filter, keys.rename, keys.save, keys.saveAs,
+        keys.remove });
 }
 
 void
@@ -3618,13 +3644,43 @@ A3MotionUIComponent::deleteChosenEntry ()
       updateControlReadout (
           "-- DELETE?"
           + currentList ().costOfRemoving (_browser->getSelectedEntry ()));
-      refreshBrowser ();
+
+      // Holding the row. This refresh exists only to redraw the key as
+      // "Sure?" -- and a plain one re-points the list at the shown slot's
+      // clip, which after the previous delete is a clip that is gone. The
+      // selection went with it and the second press found nothing to delete:
+      // the last piece of "deleting works twice and then stops".
+      refreshBrowser (true);
       return;
     }
 
   _deleteArmed = false;
 
-  currentList ().remove (_browser->getSelectedEntry ());
+  // Where the hand was, kept across the removal. Each list's remove() refreshes
+  // the browser on its way out, and refreshBrowser() then decides the selection
+  // for itself -- for a clip, the one the shown slot holds, which is exactly
+  // the file that has just gone. The selection landed on row 0, the library's
+  // "Empty", with no file and every key dark.
+  //
+  // In a library of seventy-odd rows that loses your place, and the row you
+  // reach for next is one of the thirty-nine shipped ones, where Delete is
+  // correctly dark. It reads as the key having stopped working -- which is how
+  // it was reported, and it is why a restart "fixed" it: a fresh browser puts
+  // the selection back beside your own files.
+  //
+  // Afterwards, not before: the old line set it before the refresh, which then
+  // overwrote it. See selectionAfterRemoving().
+  auto const row = _browser->getSelectedEntry ();
+  currentList ().remove (row);
+
+  // Once more, holding the row: remove() refreshed on its way out and pointed
+  // the list back at the slot's clip -- which, when you have just deleted what
+  // the slot was holding, is nothing at all. Setting the row alone was not
+  // enough, because the keys are decided inside the refresh: the highlight
+  // moved and Delete stayed dark. Measured at the device on 2026-09-13.
+  _browser->setSelectedEntry (
+      selectionAfterRemoving (row, _browser->getNumEntries ()));
+  refreshBrowser (true);
 }
 
 void
@@ -3691,7 +3747,8 @@ A3MotionUIComponent::deleteChosenAction ()
   updateControlReadout (
       "-- DELETED " + file.getFileNameWithoutExtension ().toUpperCase ());
 
-  _browser->setSelectedEntry (0);
+  // The selection is not set here: deleteChosenEntry() puts it back on the row
+  // that took this one's place, after everything has refreshed.
   refreshBrowser ();
 }
 
@@ -3887,7 +3944,8 @@ A3MotionUIComponent::deleteChosenClip ()
 
   updateControlReadout ("-- DELETED " + was.toUpperCase ());
 
-  _browser->setSelectedEntry (0);
+  // The selection is not set here either: deleteChosenEntry() puts it back on
+  // the row that took this one's place, after everything has refreshed.
   refreshBrowser ();
 }
 
@@ -5250,8 +5308,13 @@ A3MotionUIComponent::timerCallback ()
       // The browser holds a copy of the list. Refreshing the library behind an
       // open browser and leaving its rows alone is how a file that is plainly
       // in the folder stays missing from the only list that shows it.
+      //
+      // Holding the selection, because this fires on *any* change to the
+      // folder -- including one the performer just made. It used to re-point
+      // the list at the shown slot's clip two seconds after every delete, and
+      // take the highlight with it.
       if (_barPage == BarPage::Browser)
-        refreshBrowser ();
+        refreshBrowser (true);
     }
 }
 

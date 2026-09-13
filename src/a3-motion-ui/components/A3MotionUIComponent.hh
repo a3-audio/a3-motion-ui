@@ -371,7 +371,17 @@ private:
   juce::String saveCurrentSession ();
   void loadSessionNamed (juce::String const &name);
 
-  void refreshBrowser ();
+  /** Rebuild the browser's rows, and decide what is highlighted.
+   *
+   *  `keepSelection` says which of two questions is being asked. By default
+   *  the list points at what the shown slot holds -- right when the page is
+   *  opened or the slot changes, and the only way to see which of seventy
+   *  rows you are looking at. It is wrong for every *other* refresh: the
+   *  directory watcher fires on any change to the folder, so a delete
+   *  re-pointed the list at the clip that had just gone, and the keys were
+   *  then computed for a row with no file. That is the whole of "deleting
+   *  works twice and then stops". */
+  void refreshBrowser (bool keepSelection = false);
   void assignBrowserEntry (int index);
 
   void handlePadPress (index_t channel, index_t pad);

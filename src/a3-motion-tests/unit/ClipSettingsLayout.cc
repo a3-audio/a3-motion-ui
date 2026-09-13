@@ -1856,3 +1856,40 @@ TEST (RecordLengthName, BarsAreShownAsTheBeatsTheyHold)
   EXPECT_EQ (recordLengthName (0, 3), "3");
   EXPECT_EQ (recordLengthName (-2, 3), "3/4");
 }
+
+// ── Where the hand is after a row is thrown away ─────────────────────────────
+//
+// A delete used to put the selection back on row 0 -- the library's "Empty",
+// which has no file -- and the list back at its top. In a library of seventy
+// rows that loses your place, and the row you reach for next is one of the
+// thirty-nine shipped ones, where the Delete key is correctly dark. It reads
+// as the key having stopped working, which is how it was reported: *"clips
+// löschen geht nur 2x. Nach neustart gehts dann wieder."* Measured at the
+// device on 2026-09-13.
+
+TEST (SelectionAfterRemoving, TheRowThatTookItsPlaceIsChosen)
+{
+  // Six rows, the fourth thrown away: five left, and row 3 is now what was
+  // row 4. Staying on the number keeps the hand where it was.
+  EXPECT_EQ (selectionAfterRemoving (3, 5), 3);
+}
+
+TEST (SelectionAfterRemoving, ThrowingAwayTheLastRowStepsBack)
+{
+  // There is no row 4 any more, so the new last one is the honest answer.
+  EXPECT_EQ (selectionAfterRemoving (4, 4), 3);
+}
+
+// Row zero is the library's "Empty" and is always listed, so a list can never
+// be shorter than one row -- but a caller that has just emptied a folder
+// should not be handed a negative.
+TEST (SelectionAfterRemoving, AnEmptiedListLandsOnRowZero)
+{
+  EXPECT_EQ (selectionAfterRemoving (2, 1), 0);
+  EXPECT_EQ (selectionAfterRemoving (2, 0), 0);
+}
+
+TEST (SelectionAfterRemoving, ARowBeforeTheStartIsRowZero)
+{
+  EXPECT_EQ (selectionAfterRemoving (-1, 5), 0);
+}

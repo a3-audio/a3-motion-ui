@@ -135,6 +135,18 @@ juce::String speedKeyName (int speedLog2, float patternLengthBeats);
  *  comes from the clock rather than from a 4 written here, or every one of
  *  these would be wrong in three four. */
 juce::String recordLengthName (int recordLengthLog2, int beatsPerBar);
+
+/** Which row to stand on after the one at `row` has been thrown away.
+ *
+ *  The row that took its place -- the same number, held inside the list that
+ *  is left. A delete used to put the selection back on row 0, which is the
+ *  library's "Empty" and has no file, and the list back at its top: in seventy
+ *  rows that loses your place, and the row you reach for next is one of the
+ *  shipped ones where the Delete key is correctly dark. Reported as the key
+ *  working twice and then not at all.
+ *
+ *  `remaining` is how many rows are left *after* the removal. */
+int selectionAfterRemoving (int row, int remaining);
 /** The four things you do to a clip, as small keys in the bar's header.
  *
  *  The pads page has these already; the header carries them so the clip you

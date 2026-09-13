@@ -36,12 +36,17 @@ libraryKeysFor (BrowserList list, LibraryKeyFacts const &facts)
   // saying that it is a clip. It has a field of its own now.
   auto const canFilter = true;
 
+  // The shipped ones load like any other -- they are there to be played. It is
+  // writing over them that the split forbids.
+  auto const canLoad
+      = list == BrowserList::Sessions && facts.chosenHasFile;
+
   // Nothing shipped may be written over, wherever it lives: that is what the
   // split buys besides the filter, and it is the half that matters. Before
   // it, every action and every set the device ships with could be overwritten
   // in silence.
   if (facts.chosenIsSystem)
-    return { canFilter, facts.chosenHasFile, false,
+    return { canLoad, canFilter, facts.chosenHasFile, false,
              list == BrowserList::Sessions ? true : facts.slotHolds,
              facts.chosenHasFile };
 
@@ -58,7 +63,7 @@ libraryKeysFor (BrowserList list, LibraryKeyFacts const &facts)
   auto const somethingToCopy
       = list == BrowserList::Sessions ? true : facts.slotHolds;
 
-  return { canFilter, facts.chosenHasFile, mayWriteBack, somethingToCopy,
+  return { canLoad, canFilter, facts.chosenHasFile, mayWriteBack, somethingToCopy,
            facts.chosenHasFile };
 }
 
