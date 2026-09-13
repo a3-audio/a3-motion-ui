@@ -39,6 +39,7 @@
     "fray": 0.8,
     "cover": 1.6,
     "boltWidth": 0.45,
+    "boltThin": 0.3,
     "boltWander": 0.55,
     "boltScale": 6,
     "boltFlow": 0.5,
