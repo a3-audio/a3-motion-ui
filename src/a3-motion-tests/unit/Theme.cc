@@ -121,40 +121,30 @@ TEST (Theme, TheBlobsEffectsAreOfferedToTheSkinEditor)
   EXPECT_TRUE (defaults.hasProperty ("blobTrail"));
 }
 
-TEST (Theme, TheBraidAndItsSheathAreSkinValues)
+TEST (Theme, WhatTheLineBurnsWithIsSkinValues)
 {
-  // The trajectory is a braided wire inside a plasma sheath, and both are the
-  // same helix at two radii -- so both are stated the same way, and either
-  // can be turned off on its own.
+  // The line is a vector; everything that glows round it is a field in the
+  // shader. Four numbers say how much of each there is, and each is off on
+  // its own.
   auto const parsed = juce::JSON::parse (
-      R"({"braidRadius": 0.02, "braidTurns": 30, "braidSpin": -0.5,
-          "braidStrands": 2,
-          "sheathRadius": 0.08, "sheathTurns": 5, "sheathSpin": 0.25,
-          "sheathStrands": 4, "sheathArc": 1.5, "sheathCloud": 0.0})");
+      R"({"lineGlow": 0.4, "lineFilament": 1.7, "lineBolt": 0.0,
+          "lineHeat": 2.0})");
   auto const theme = loadTheme (parsed);
 
-  EXPECT_NEAR (theme.braidRadius, 0.02f, 1e-5f);
-  EXPECT_NEAR (theme.braidTurns, 30.f, 1e-3f);
-  EXPECT_NEAR (theme.braidSpin, -0.5f, 1e-5f);
-  EXPECT_NEAR (theme.braidStrands, 2.f, 1e-5f);
-
-  EXPECT_NEAR (theme.sheathRadius, 0.08f, 1e-5f);
-  EXPECT_NEAR (theme.sheathTurns, 5.f, 1e-3f);
-  EXPECT_NEAR (theme.sheathSpin, 0.25f, 1e-5f);
-  EXPECT_NEAR (theme.sheathStrands, 4.f, 1e-5f);
-  EXPECT_NEAR (theme.sheathArc, 1.5f, 1e-5f);
+  EXPECT_NEAR (theme.lineGlow, 0.4f, 1e-5f);
+  EXPECT_NEAR (theme.lineFilament, 1.7f, 1e-5f);
   // Zero has to survive being read as "absent".
-  EXPECT_NEAR (theme.sheathCloud, 0.f, 1e-5f);
+  EXPECT_NEAR (theme.lineBolt, 0.f, 1e-5f);
+  EXPECT_NEAR (theme.lineHeat, 2.f, 1e-5f);
 }
 
-TEST (Theme, TheBraidAndItsSheathAreOfferedToTheSkinEditor)
+TEST (Theme, WhatTheLineBurnsWithIsOfferedToTheSkinEditor)
 {
   auto const defaults = themeDefaultsVar ();
 
   for (auto const *name :
-       { "braidRadius", "braidTurns", "braidSpin", "braidStrands",
-         "sheathRadius", "sheathTurns", "sheathSpin", "sheathStrands",
-         "sheathArc", "sheathCloud" })
+       { "trajectoryThickness", "lineGlow", "lineFilament", "lineBolt",
+         "lineHeat" })
     EXPECT_TRUE (defaults.hasProperty (name)) << name;
 }
 

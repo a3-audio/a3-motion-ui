@@ -305,6 +305,35 @@ private:
   std::vector<float> _energyTarget, _energySmoothed;
   std::vector<unsigned char> _energyTexels;
   unsigned int _energyTexture = 0;
+
+  /** A picture of where each channel's trajectory is, for the shader.
+   *
+   *  A point is cheap in a fragment shader -- four positions are four
+   *  uniforms -- and a curve is not: a thousand points cannot be handed over
+   *  that way, and without them the shader has no idea how far a pixel is
+   *  from the line. So the line is *rasterised* into a small map: the path
+   *  stroked several times, widest and dimmest first, so what comes out is a
+   *  stepped cone of nearness that a bilinear lookup smooths back into a
+   *  field. That field is what the glow, the filaments and the bolts are
+   *  built from.
+   *
+   *  Built in the 2D pass, which runs after the shader, so the shader reads
+   *  the map one frame behind. At sixty a second that is sixteen
+   *  milliseconds, and a glow trailing the line by that has never been
+   *  visible to anybody.
+   *
+   *  It covers the scene in the same units the shader thinks in -- sphere
+   *  radii, the ball's edge at one -- out to `lineMapExtent`, so the glow has
+   *  somewhere to reach. */
+  juce::Image _lineMapImage[4];
+  bool _lineMapValid[4] = {};
+  std::unique_ptr<juce::OpenGLTexture> _lineTexture[4];
+
+  void resetLineMaps ();
+  void uploadLineMaps ();
+  /** Where the trajectory of `channel` is drawn into, cleared and ready, or
+   *  nullptr while the maps are not in use. */
+  juce::Image *lineMapFor (int channel);
   float _energyVuMax = 0.05f, _energyCurve = 0.8f;
   float _energyAttack = 0.05f, _energyDecay = 0.25f;
 

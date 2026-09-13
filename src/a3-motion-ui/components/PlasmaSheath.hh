@@ -27,6 +27,22 @@ namespace a3
 
 /** Strands wound helically around a line, and the lightning that leaves them.
  *
+ *  **Nothing calls this at present.** It was built for a braid of three
+ *  hairlines inside a coil of bolts, drawn as strands offset along the line's
+ *  normal, and that whole approach was taken out again: an offset copy of a
+ *  curve folds where its curvature times the offset passes one, so at the
+ *  pole -- where every azimuth of the figure meets at one point -- it fanned
+ *  out into straight spokes across the middle of the sphere. The glow is a
+ *  field in the fragment shader now, and a level set of a field cannot do
+ *  that.
+ *
+ *  Kept, because the helix itself was never the problem and the maintainer
+ *  may yet want a braid laid over the shader's glow, where the arithmetic
+ *  below is exactly what it would need. If that has not happened by the time
+ *  somebody reads this and wonders, delete it: a unit with no caller is a
+ *  question every reader has to answer again.
+ *
+ *
  *  One unit for two things that look nothing alike and are the same
  *  arithmetic: the trajectory's core is a *braid* -- three hairlines at a
  *  small radius with many turns -- and around it stands a *plasma sheath*,

@@ -191,6 +191,18 @@ uniform vec3  uActionColour;
 // How much of each of the blob's three effects there is: sparkle, bolt, wake.
 uniform vec3  uBlobEffects;
 
+// Where each channel's trajectory is. See SphereShader::setLineTexture.
+uniform sampler2D uLineMap0;
+uniform sampler2D uLineMap1;
+uniform sampler2D uLineMap2;
+uniform sampler2D uLineMap3;
+// Which of the four have anything in them, and how far the maps reach.
+uniform vec4  uLineOn;
+uniform float uLineExtent;
+// How much of each of the line's four effects there is: glow, filaments,
+// bolts, and how hot it runs where the blob is.
+uniform vec4  uLineEffects;
+
 uniform vec3  uBlobCol0;
 uniform vec3  uBlobCol1;
 uniform vec3  uBlobCol2;
@@ -404,6 +416,115 @@ float wakeSegment (vec2 uv, vec2 a, vec2 b, float w0, float w1,
     // of trailing off into a wash the width of the sphere.
     float reach = clamp (1.0 - d / (w * 6.0), 0.0, 1.0);
     return boltAt (d, w * 0.8) * reach * reach * mix (i0, i1, t);
+}
+
+/** How near a channel's trajectory this pixel is, 0 away from it to 1 on it.
+ *
+ *  Sampled rather than computed: a thousand points cannot be handed to a
+ *  fragment shader, so the line is rasterised into a small map on the way past
+ *  (MotionComponent::lineMapFor) and read back here. Bilinear filtering turns
+ *  the stepped cone that was drawn into a smooth enough field. */
+float lineNear (vec2 uv, int i)
+{
+    vec2 t = uv / uLineExtent * 0.5 + 0.5;
+    if (t.x < 0.0 || t.x > 1.0 || t.y < 0.0 || t.y > 1.0)
+        return 0.0;
+
+    if (i == 0) return texture2D (uLineMap0, t).r;
+    if (i == 1) return texture2D (uLineMap1, t).r;
+    if (i == 2) return texture2D (uLineMap2, t).r;
+    return texture2D (uLineMap3, t).r;
+}
+
+float lineOn (int i)
+{
+    if (i == 0) return uLineOn.x;
+    if (i == 1) return uLineOn.y;
+    if (i == 2) return uLineOn.z;
+    return uLineOn.w;
+}
+
+/** What the trajectory burns with.
+ *
+ *  The line itself is still drawn as a vector, over the top, because a vector
+ *  is the one thing that can be a crisp line thinner than a pixel. Everything
+ *  that *glows* is here, because the opposite is true of glow: JUCE's 2D
+ *  context has no additive blend at all, so a stroked "plasma" is a stack of
+ *  translucent ribbons and looks like one.
+ *
+ *  Three things, all built out of the same field:
+ *
+ *  - **The glow.** Two falloffs of the nearness, a tight bright one and a wide
+ *    faint one.
+ *  - **The filaments.** Contours of the field *after the lookup has been
+ *    pushed around by noise*: a contour of a warped distance field runs
+ *    alongside the line, wanders, and -- this is the point -- can never fold
+ *    into spokes the way an offset copy of the curve does at a pole, because
+ *    it is a level set and not a parallel curve.
+ *  - **The bolts.** The same, warped harder and cut sharper, so what is left
+ *    is short and bright.
+ *
+ *  And it is hottest where the sound is: near the channel's own blob it runs
+ *  towards white. That is the physical connection the maintainer asked for --
+ *  the wire is energised where the thing travelling along it is.
+ */
+vec3 lineGlow (vec2 uv, int i)
+{
+    if (lineOn (i) < 0.5)
+        return vec3 (0.0);
+
+    float near = lineNear (uv, i);
+    if (near < 0.02)
+        return vec3 (0.0);
+
+    vec3 col = getBlobCol (i);
+    vec4 st = getBlobState (i);
+    float vu = clamp (st.x, 0.0, 1.0);
+    float seed = st.z;
+
+    // Only near the line. boltAt() never reaches zero -- that long tail is
+    // what ties a bolt into the glow around it -- so every term built on it
+    // has to be shut off by hand where there is no line, or four channels'
+    // worth of tails wash the whole ball white. Which is exactly what the
+    // first build of this did.
+    float presence = smoothstep (0.04, 0.30, near);
+
+    // Where the sound is on this line, and how far this pixel is from it.
+    vec4 ps = getBlobPosSize (i);
+    float atBlob = ps.z > 0.001
+                 ? smoothstep (0.30, 0.0, length (uv - ps.xy)) * uLineEffects.w
+                 : 0.0;
+
+    // The glow.
+    float tight = pow (near, 3.2);
+    float wide  = pow (near, 1.15);
+
+    // The filaments. The noise is sampled in scene space and drifts, so they
+    // crawl along the line rather than sitting on it.
+    vec2 warp = vec2 (valueNoise (vec3 (uv * 7.0, uTime * 0.23 + seed)),
+                      valueNoise (vec3 (uv * 7.0 + 19.0, uTime * 0.23 + seed)))
+              - 0.5;
+    float warped = lineNear (uv + warp * 0.22, i);
+    float filament = (boltAt (warped - 0.46, 0.035)
+                      + boltAt (warped - 0.70, 0.025) * 0.7)
+                   * presence * uLineEffects.y;
+
+    // The bolts: warped harder, cut sharper, and only some of the time.
+    vec2 jag = vec2 (valueNoise (vec3 (uv * 23.0, uTime * 1.7 + seed)),
+                     valueNoise (vec3 (uv * 23.0 + 41.0, uTime * 1.7 + seed)))
+             - 0.5;
+    float struck = lineNear (uv + jag * 0.12, i);
+    float gate = step (0.55, hash13 (vec3 (floor (uTime * 3.0), seed,
+                                           floor (near * 5.0))));
+    float bolt = boltAt (struck - 0.88, 0.012) * gate * presence
+               * uLineEffects.z;
+
+    vec3 hot = mix (col, uBoltCoreColour, 0.15 + 0.55 * atBlob);
+
+    return col * wide * 0.055 * uLineEffects.x
+         + hot * tight * 0.45 * uLineEffects.x
+         + hot * filament * (0.16 + 0.30 * atBlob + 0.18 * vu)
+         + mix (col, uBoltCoreColour, 0.75) * bolt * (0.30 + 0.55 * atBlob);
 }
 
 /** The blob itself: a hot core, a corona around it, sparks off it, and a bolt
@@ -953,6 +1074,7 @@ void main ()
     for (int b = 0; b < 4; b++)
     {
         if (float(b) >= uNumBlobs) break;
+        blobs += lineGlow (uvScene, b);
         blobs += blobLight (uvScene, b);
     }
     col += blobs;
@@ -1109,6 +1231,13 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBlobTrailD[3] = glGetUniformLocation (pid, "uBlobTrailD3");
   _uActionColour  = glGetUniformLocation (pid, "uActionColour");
   _uBlobEffects   = glGetUniformLocation (pid, "uBlobEffects");
+  _uLineMap[0]    = glGetUniformLocation (pid, "uLineMap0");
+  _uLineMap[1]    = glGetUniformLocation (pid, "uLineMap1");
+  _uLineMap[2]    = glGetUniformLocation (pid, "uLineMap2");
+  _uLineMap[3]    = glGetUniformLocation (pid, "uLineMap3");
+  _uLineOn        = glGetUniformLocation (pid, "uLineOn");
+  _uLineExtent    = glGetUniformLocation (pid, "uLineExtent");
+  _uLineEffects   = glGetUniformLocation (pid, "uLineEffects");
 
   _aPos = glGetAttribLocation (pid, "aPos");
 
@@ -1322,6 +1451,29 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
         glUniform4f (_uBlobTrailD[i], tx (6), ty (6), tx (7), ty (7));
     }
 
+  // The line maps, on units one to four -- nought is the energy map's.
+  {
+    float on[kMaxBlobs] = { 0.f, 0.f, 0.f, 0.f };
+    for (int i = 0; i < kMaxBlobs; ++i)
+      {
+        if (_uLineMap[i] < 0)
+          continue;
+        glActiveTexture (GL_TEXTURE1 + static_cast<GLenum> (i));
+        glBindTexture (GL_TEXTURE_2D, _lineTexture[i]);
+        glUniform1i (_uLineMap[i], 1 + i);
+        on[i] = _lineTexture[i] != 0 ? 1.f : 0.f;
+      }
+    glActiveTexture (GL_TEXTURE0);
+
+    if (_uLineOn >= 0)
+      glUniform4f (_uLineOn, on[0], on[1], on[2], on[3]);
+    if (_uLineExtent >= 0)
+      glUniform1f (_uLineExtent, _lineExtent);
+    if (_uLineEffects >= 0)
+      glUniform4f (_uLineEffects, theme ().lineGlow, theme ().lineFilament,
+                   theme ().lineBolt, theme ().lineHeat);
+  }
+
   setThemeUniform (_uActionColour, theme ().blobAction);
   if (_uBlobEffects >= 0)
     glUniform3f (_uBlobEffects, theme ().blobSparkle, theme ().blobBolt,
@@ -1358,6 +1510,12 @@ void SphereShader::setSpeakerLight (int i, float peak, float rms)
 
 void SphereShader::setBlob (int i, BlobData const &d)
 { if (i >= 0 && i < kMaxBlobs) _blobs[i] = d; }
+
+void SphereShader::setLineTexture (int channel, unsigned int textureID)
+{
+  if (channel >= 0 && channel < kMaxBlobs)
+    _lineTexture[channel] = textureID;
+}
 
 void SphereShader::setNumBlobs (int n)
 { _numBlobs = std::min (n, kMaxBlobs); }

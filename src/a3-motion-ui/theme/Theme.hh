@@ -168,41 +168,30 @@ struct Theme
    *  is getting a trail. */
   float trajectoryThickness = 0.0038f;
 
-  /** The trajectory is a braided wire inside a plasma sheath, and the two are
-   *  the same helix at two radii: the braid is hairlines at a small radius
-   *  with many turns, the sheath is strands at a large radius with few.
+  /** What the trajectory burns with.
    *
-   *  `spin` is the ring turning *lengthwise* around the line, signed. That is
-   *  what makes it read as a coil being driven rather than as a fixed piece
-   *  of wire, and it is the whole of the maintainer's "die hüllkurve soll
-   *  sich längs um die trajektorie drehen".
+   *  The line itself is a vector stroke -- the one thing that can be a crisp
+   *  line thinner than a pixel. Everything that *glows* is a field in the
+   *  fragment shader, found through a rasterised map of where the line is
+   *  (SphereShader::setLineTexture), because JUCE's 2D context has no
+   *  additive blend at all and a stroked "plasma" is a stack of translucent
+   *  ribbons that looks like one.
    *
-   *  A radius of zero puts every strand on the line, exactly; a strand count
-   *  of one gives back the single hairline this used to be. Each is off on
-   *  its own, because a look nobody can decline is not a look, it is a mood
-   *  the instrument is in. */
-  // The pitch has to be several times the rope's own diameter or the three
-  // hairlines merge into one fat one -- which is what 60 turns at this radius
-  // looked like: a rope, not a braid.
-  float braidRadius = 0.013f;
-  float braidTurns = 22.f;
-  float braidSpin = 0.10f;
-  float braidStrands = 3.f;
-
-  // The pitch has to be close to the coil's own diameter or it reads as a
-  // second line swooping alongside rather than as something wound round: at
-  // six turns the pitch was nearly six times the diameter, and that is a lazy
-  // spiral, not a sheath.
-  float sheathRadius = 0.055f;
-  float sheathTurns = 9.f;
-  /** Against the braid on purpose: two coils turning opposite ways read as a
-   *  field around a driven wire rather than as one thick rope. */
-  float sheathSpin = -0.08f;
-  float sheathStrands = 3.f;
-  /** How often a strand throws lightning, and how much diffuse energy stands
-   *  around the whole thing. */
-  float sheathArc = 0.6f;
-  float sheathCloud = 1.f;
+   *  This replaced ten values that described a braid of three hairlines
+   *  inside a coil of bolts, all of it built from strands offset along the
+   *  line's normal. An offset copy of a curve folds where its curvature times
+   *  the offset passes one -- and at the pole, where every azimuth meets, it
+   *  fans out into straight spokes across the middle of the sphere. A level
+   *  set of a field cannot do that, and that is what the filaments are now.
+   *
+   *  One is what the device ships with, zero is off, two is as far as it
+   *  goes. */
+  float lineGlow = 1.f;
+  float lineFilament = 1.f;
+  float lineBolt = 1.f;
+  /** How hard the line runs towards white where that channel's blob is. It is
+   *  the wire being energised where the sound on it actually is. */
+  float lineHeat = 1.f;
   /** How far a pad is dimmed from its channel's colour for what the slot is
    *  doing. Subtractions from full, so a bigger number is a darker pad; see
    *  theme/PadStatusColours.hh for which state wears which. */

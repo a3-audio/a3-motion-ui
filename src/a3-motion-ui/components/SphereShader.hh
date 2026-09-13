@@ -194,6 +194,20 @@ public:
   /** Texture holding the equirectangular energy map, owned by the caller. */
   void setEnergyTexture (unsigned int textureID) { _energyTexture = textureID; }
 
+  /** A picture of where one channel's trajectory is, owned by the caller, or
+   *  0 for a channel with nothing playing.
+   *
+   *  A point is four uniforms; a curve of a thousand points is not, and
+   *  without it a fragment has no way of knowing how far it is from the line.
+   *  The map carries nearness -- 1 on the line, falling away from it -- and
+   *  everything the trajectory glows with is built from that field: the glow
+   *  itself, the filaments (which are contours of the field after it has been
+   *  warped by noise, so they wander along the line and can never fold the
+   *  way an offset copy of the curve does), and the bolts. */
+  void setLineTexture (int channel, unsigned int textureID);
+  /** How far the line map reaches, in sphere radii. */
+  void setLineExtent (float extent) { _lineExtent = extent; }
+
   /** Seconds since start, for the net's drift. */
   void setTime (float seconds) { _time = seconds; }
   float getSpeakerRadius () const { return _spotCfg.speakerRadius; }
@@ -295,6 +309,13 @@ private:
   GLint _uBlobTrailD[kMaxBlobs] = {};   // vec4: t6.xy, t7.xy
   GLint _uActionColour = -1;
   GLint _uBlobEffects = -1;
+
+  GLint _uLineMap[kMaxBlobs] = {};
+  GLint _uLineOn = -1;
+  GLint _uLineExtent = -1;
+  GLint _uLineEffects = -1;
+  unsigned int _lineTexture[kMaxBlobs] = {};
+  float _lineExtent = 1.3f;
 
   GLint _uNumBlobs = -1;
 
