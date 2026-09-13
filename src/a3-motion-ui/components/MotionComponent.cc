@@ -1389,6 +1389,10 @@ MotionComponent::renderOpenGL ()
                 drawPlayingTrajectory (*pattern, displayData, gFBO);
             }
 
+          // After the lines and under the camera ball: it belongs to the
+          // blob, and the blob is drawn over everything by the shader anyway.
+          drawInertiaTethers (gFBO);
+
           // Last, over everything: it is the one thing here that is a control
           // rather than a reading, and a control drawn under a trajectory is
           // one you cannot see to aim at.
@@ -2067,6 +2071,67 @@ drawPathOnSphere (juce::Path const &displayPath,
                              juce::PathStrokeType::JointStyle::curved,
                              juce::PathStrokeType::EndCapStyle::rounded));
         }
+    }
+}
+
+/** The rubber band from each blob back to the point on its figure that it is
+ *  hanging off.
+ *
+ *  The drawn line is the score and must not lie about what was recorded, so
+ *  the deviation is *shown* rather than baked into the figure. Both ends come
+ *  out of one tick -- Channel keeps the position and the target under one
+ *  seqlock -- or the band would now and then be drawn between two different
+ *  moments, which is the kind of fault somebody sees once a year and can
+ *  never reproduce.
+ *
+ *  Nothing to draw unless a clip's elasticity is up: with the spring rigid the
+ *  two ends are the same point, exactly. */
+void
+MotionComponent::drawInertiaTethers (juce::Graphics &g)
+{
+  auto const numChannels = static_cast<int> (_engine.getNumChannels ());
+  for (auto ch = 0; ch < numChannels && ch < 4; ++ch)
+    {
+      auto const position = _engine.getChannelPosition (
+          static_cast<index_t> (ch));
+      auto const target = _engine.getChannelTarget (
+          static_cast<index_t> (ch));
+      if (!position.isValid () || !target.isValid ())
+        continue;
+
+      auto const from = projectToScreen (position);
+      auto const to = projectToScreen (target);
+      auto const stretch = from.getDistanceFrom (to);
+
+      // Below a blob's own radius there is nothing to see, and a stroke that
+      // short reads as a smudge on the blob rather than as a tether.
+      if (stretch <= _blobScale * 0.6f)
+        continue;
+
+      juce::Path band;
+      band.startNewSubPath (from);
+      band.lineTo (to);
+
+      // It thins and dims as it stretches, the way something being pulled
+      // does -- carried by the *colour*, not by the alpha.
+      //
+      // This layer is blitted over the shader's output as premultiplied data
+      // through a straight-alpha blend, so anything drawn at part alpha comes
+      // out dark: the first version of this band was a grey stick beside a
+      // pink blob. Opaque, and the dimming done by darkening the colour, it is
+      // the same rule the trajectory's own line follows.
+      // Stretched, it thins rather than darkens. Darkened it read as a
+      // scratch across the glow instead of as a band under tension, which is
+      // the wrong way round: a thing being pulled gets thinner and holds its
+      // colour.
+      auto const give = juce::jlimit (0.f, 1.f, stretch / (_blobScale * 6.f));
+      g.setColour (_uiStates[static_cast<std::size_t> (ch)]
+                       ->colour.brighter (0.25f * give));
+      g.strokePath (band,
+                    juce::PathStrokeType (
+                        _blobScale * 0.24f * (1.f - 0.62f * give),
+                        juce::PathStrokeType::JointStyle::curved,
+                        juce::PathStrokeType::EndCapStyle::rounded));
     }
 }
 

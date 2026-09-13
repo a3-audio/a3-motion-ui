@@ -279,6 +279,13 @@ fields ()
     // How the figure is squeezed in its own plane. X is front-back, Y
     // left-right; the screen mirrors both, so sqzX is what you see as the
     // vertical -- see PlaneShaping.
+    // How loosely the sound follows the figure -- see BlobInertia.hh.
+    { "elast",
+      [] (ClipSettings const &s) { return numberValue (s.elasticity, false); },
+      [] (ClipSettings &s, Value const &v) {
+        s.elasticity = juce::jlimit (0.f, 1.f,
+                                     static_cast<float> (v.number));
+      } },
     { "sqzX",
       [] (ClipSettings const &s) { return numberValue (s.squeezeX, false); },
       [] (ClipSettings &s, Value const &v) {

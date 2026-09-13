@@ -39,6 +39,17 @@ public:
   Pos getPosition () const;
   void setPosition (Pos position);
 
+  /** Where the trajectory says the blob should be, as against where it
+   *  actually is.
+   *
+   *  The two differ only when the clip's elasticity is up -- see
+   *  BlobInertia.hh -- and they are written and read **together**, under the
+   *  one seqlock, because what is drawn between them is a rubber band. Read
+   *  separately it would eventually be drawn between two different ticks:
+   *  the kind of fault somebody sees once a year and can never reproduce. */
+  Pos getTarget () const;
+  void setPositionAndTarget (Pos position, Pos target);
+
   float getPot1 () const;
   void setPot1 (float pot1);
 
@@ -61,6 +72,7 @@ private:
   Measure _playingStarted;
 
   Pos _position;
+  Pos _target;
   // Where a pot starts is where it comes to rest: twelve o'clock for 3d and
   // freq, shut for Q. They used to start at a quarter, wide open and shut --
   // three different answers to the question the reset table already answers

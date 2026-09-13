@@ -51,6 +51,7 @@ heldOver (ClipSettings const &current, ClipSettings incoming,
   if (locks.motion)
     {
       incoming.rotate = current.rotate;
+      incoming.elasticity = current.elasticity;
       incoming.squeezeX = current.squeezeX;
       incoming.squeezeY = current.squeezeY;
       incoming.squeezeXLfo = current.squeezeXLfo;

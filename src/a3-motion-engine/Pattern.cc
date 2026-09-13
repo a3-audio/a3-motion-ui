@@ -406,6 +406,18 @@ Pattern::setRotate (float revolutions)
 }
 
 float
+Pattern::getElasticity () const
+{
+  return _elasticity.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setElasticity (float amount)
+{
+  _elasticity.store (std::clamp (amount, 0.f, 1.f), std::memory_order_relaxed);
+}
+
+float
 Pattern::getSqueezeX () const
 {
   return _squeezeX.load (std::memory_order_relaxed);

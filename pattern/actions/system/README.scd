@@ -81,6 +81,13 @@
 //   ~rotate          0..1    the standing angle, in revolutions. It wraps
 //                            rather than stopping: 1.2 is a fifth of a turn
 //                            past the top, not "as far as it goes".
+//   ~elast           0..1    how loosely the sound follows the figure. 0 is
+//                            rigid and is exactly what the instrument did
+//                            before this existed. Above it the blob hangs off
+//                            its trajectory on a spring: it lags into a
+//                            corner, swings past coming out of one, and the
+//                            spin throws it outward. Counted in bars, so a
+//                            take feels the same at any tempo.
 //   ~sqzX           -1..1    squeeze or stretch the figure along the room's
 //                            front-back axis. 0 is as recorded, -1 half,
 //                            +1 double. The screen mirrors the coordinates,

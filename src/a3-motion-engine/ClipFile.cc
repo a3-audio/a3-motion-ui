@@ -81,6 +81,7 @@ ClipFile::save (Clip const &clip, juce::File const &file)
   auto const &s = clip.settings;
   object->setProperty ("speed", s.speedLog2);
   object->setProperty ("rotate", s.rotate);
+  object->setProperty ("elast", s.elasticity);
   object->setProperty ("sqzX", s.squeezeX);
   object->setProperty ("sqzY", s.squeezeY);
   object->setProperty ("strX", s.squeezeXLfo);
@@ -152,6 +153,7 @@ ClipFile::load (juce::File const &file)
 
   s.speedLog2 = readInt (parsed, "speed", defaults.speedLog2);
   s.rotate = readFloat (parsed, "rotate", defaults.rotate);
+  s.elasticity = readFloat (parsed, "elast", defaults.elasticity);
   s.squeezeX = readFloat (parsed, "sqzX", defaults.squeezeX);
   s.squeezeY = readFloat (parsed, "sqzY", defaults.squeezeY);
   s.squeezeXLfo = readInt (parsed, "strX", defaults.squeezeXLfo);

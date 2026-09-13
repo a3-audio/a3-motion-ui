@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-engine/BlobInertia.hh>
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/RecMode.hh>
@@ -27,6 +28,7 @@
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Helpers.hh>
 
+#include <array>
 #include <optional>
 
 namespace a3
@@ -61,6 +63,10 @@ public:
   index_t getNumChannels ();
 
   Pos getChannelPosition (index_t channel);
+  /** Where the trajectory says the blob should be. It differs from the
+   *  position only while the clip's elasticity is up; the two come from one
+   *  tick -- see Channel::getTarget. */
+  Pos getChannelTarget (index_t channel);
   void setChannel2DPosition (index_t channel, Pos const &position);
   void setChannel3DPosition (index_t channel, Pos const &position);
 
@@ -447,6 +453,14 @@ private:
   std::vector<std::atomic<bool>> _previewMode;
   /** A channel whose position a finger is holding. */
   std::vector<std::atomic<bool>> _positionHeld;
+
+  /** Where each channel's blob is on its spring, and how fast.
+   *
+   *  The tempo-clock thread's alone: written in performPlayback() and read
+   *  nowhere else. What the *renderer* needs of it -- where the blob ended up
+   *  and where the figure said it should be -- reaches it through the
+   *  channel's seqlock, not from here. */
+  std::array<InertialState, 4> _inertia{};
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);

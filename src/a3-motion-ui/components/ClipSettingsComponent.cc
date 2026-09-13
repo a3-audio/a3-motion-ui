@@ -737,6 +737,13 @@ ClipSettingsComponent::setSweeps (int spin, int swell, int sway)
 }
 
 void
+ClipSettingsComponent::setMotionElasticity (float elasticity)
+{
+  _motionElasticity = juce::jlimit (0.f, 1.f, elasticity);
+  repaint ();
+}
+
+void
 ClipSettingsComponent::setMotionFadeReach (float reach)
 {
   _motionFadeReach = juce::jlimit (0.f, 1.f, reach);
@@ -1937,6 +1944,13 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   paintMiniKnob (g, cells[9], metrics, caption::bias,
                  static_cast<float> (_motionBridgeBias) / 4.f, true,
                  _motionSubIndex == 9, isSelected);
+
+  // How loosely the sound follows the figure. Unipolar like fade and reach:
+  // zero is rigid, and rigid is where every take that has never been told
+  // otherwise sits.
+  paintMiniKnob (g, cells[10], metrics, caption::elasticity,
+                 _motionElasticity * 2.f - 1.f, false, _motionSubIndex == 10,
+                 isSelected);
 }
 
 void
