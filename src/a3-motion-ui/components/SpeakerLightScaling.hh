@@ -64,6 +64,23 @@ constexpr float speakerIconSize = 0.28f;
 constexpr float speakerApertureHalfWidth = 16.f / 100.f * speakerIconSize;
 constexpr float speakerMouthOffset = 18.f / 100.f * speakerIconSize;
 
+/** The narrowest annulus a band is ever given, in sphere radii.
+ *
+ *  A cabinet leaned in over the silhouette has no annulus at all, and the
+ *  band's own arithmetic divides by that span. Near enough what a cabinet on
+ *  the rim gets, deliberately: a band that thinned to nothing as its speaker
+ *  came in would make the clamp the thing that takes bands away, and that job
+ *  belongs to beamDepthVisibility() — which knows whether the cabinet went
+ *  behind the ball or is standing in front of it in plain sight. */
+constexpr float beamMinimumAnnulus = 0.22f;
+
+/** How softly a band goes behind the sphere, in sphere radii.
+ *
+ *  Wide enough that a cabinet crossing the silhouette arrives rather than
+ *  snaps: a band blinking out as its speaker passes the rim reads as a fault
+ *  in the drawing rather than as depth. */
+constexpr float beamDepthSoftness = 0.35f;
+
 /** Distance from the sphere centre to the horn's mouth. */
 constexpr float
 speakerMouthRadius (float speakerRadius)

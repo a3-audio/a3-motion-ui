@@ -277,6 +277,261 @@ TEST (EnergyMap, WalkingRoundTheRoomCarriesTheNetWithIt)
   EXPECT_NEAR (std::abs (turned), camera.turn, 0.02f);
 }
 
+// ── The beams as things in the room ──────────────────────────────────────
+//
+// The bands were a ring segment on the glass: a screen azimuth about the
+// centre of the display, between the sphere's rim and a shared mouth radius.
+// That is right only while every cabinet stands on the rim, which is true at
+// exactly one camera. Lean the room over and the speakers come in off it while
+// their bands stay welded to the ring — following a walk but not a lean.
+
+namespace
+{
+
+// What a pixel at (x, y) stands for, in the room, under `camera`.
+Pos
+pixelDirection (float x, float y, SphereCamera const &camera)
+{
+  auto const r = std::min (std::hypot (x, y), 1.f);
+  auto const seen
+      = Pos::fromCartesian (y, -x, std::sqrt (std::max (0.f, 1.f - r * r)));
+  return asSeenFromInverse (seen, camera);
+}
+
+} // namespace
+
+TEST (BeamSpread, IsZeroOnTheSpeakersOwnBearing)
+{
+  auto const dir = Pos::fromCartesian (0.6f, 0.6f, -0.4f);
+
+  EXPECT_NEAR (beamSpreadAngle (dir, dir), 0.f, 1e-4f);
+}
+
+TEST (BeamSpread, ReachesPiAtTheFarSideOfTheRoom)
+{
+  auto const here = Pos::fromCartesian (0.f, 0.f, 1.f);
+  auto const there = Pos::fromCartesian (0.f, 0.f, -1.f);
+
+  EXPECT_NEAR (beamSpreadAngle (here, there),
+               juce::MathConstants<float>::pi, 1e-3f);
+}
+
+TEST (BeamSpread, DoesNotCareHowLongTheVectorsAre)
+{
+  auto const a = Pos::fromCartesian (1.f, 0.f, 0.f);
+  auto const b = Pos::fromCartesian (0.f, 3.f, 0.f);
+
+  EXPECT_NEAR (beamSpreadAngle (a, b), juce::MathConstants<float>::halfPi,
+               1e-3f);
+}
+
+TEST (BeamSpread, TurnsWithTheRoom)
+{
+  // The whole point. A place on the ball and a speaker are both in the room;
+  // walking round them and leaning over them must leave the angle between
+  // them alone. A screen azimuth would not: it is measured about the middle of
+  // the display, which is not a place in the room at all.
+  SphereCamera camera;
+  camera.turn = 0.7f;
+  camera.pitch = 0.5f;
+
+  auto const speaker = Pos::fromCartesian (0.65f, 0.65f, -0.39f);
+  auto const straightOn = beamSpreadAngle (pixelDirection (0.4f, 0.2f, {}),
+                                           speaker);
+  auto const leaned
+      = beamSpreadAngle (pixelDirection (0.4f, 0.2f, camera),
+                         asSeenFromInverse (speaker, camera));
+
+  EXPECT_NEAR (straightOn, leaned, 0.01f);
+}
+
+TEST (BeamSpread, MatchesTheScreenAzimuthAtTheIdentityCamera)
+{
+  // A device nobody has tilted must draw the picture it always drew. On the
+  // rim both readings are the same angle: the old one measured it on the
+  // screen, this one measures it in the room.
+  auto const bearingOf = [] (float degrees) {
+    auto const rad = degrees * juce::MathConstants<float>::pi / 180.f;
+    return pixelDirection (std::cos (rad), std::sin (rad), {});
+  };
+
+  for (auto const separation : { 0.f, 30.f, 90.f, 150.f })
+    EXPECT_NEAR (beamSpreadAngle (bearingOf (45.f + separation),
+                                  bearingOf (45.f)),
+                 separation * juce::MathConstants<float>::pi / 180.f, 1e-3f)
+        << "at " << separation << " degrees apart";
+}
+
+TEST (BeamSpread, PartsCompanyWithTheScreenAzimuthUnderALean)
+{
+  // And the other half of that: it has to actually differ once the room is
+  // leaned over, or the fix would change nothing.
+  SphereCamera camera;
+  camera.pitch = 0.8f;
+
+  auto const speakerRoom = Pos::fromCartesian (0.65f, 0.65f, -0.39f);
+  auto const speakerSeen = asSeenFrom (speakerRoom, camera);
+  auto const pixel = pixelDirection (0.9f, 0.1f, {});
+
+  // What the flat annulus would have said: both flattened onto the screen.
+  auto const screenAngle = [] (Pos const &p) {
+    return std::atan2 (p.x (), -p.y ());
+  };
+  auto flat = screenAngle (asSeenFrom (pixel, {})) - screenAngle (speakerSeen);
+  while (flat > juce::MathConstants<float>::pi)
+    flat -= juce::MathConstants<float>::twoPi;
+  while (flat < -juce::MathConstants<float>::pi)
+    flat += juce::MathConstants<float>::twoPi;
+
+  auto const inTheRoom = beamSpreadAngle (asSeenFrom (pixel, {}), speakerSeen);
+
+  EXPECT_GT (std::abs (std::abs (flat) - inTheRoom), 0.1f);
+}
+
+TEST (BeamBoltSeed, StaysWithTheSpeakerWhereverTheEyeGoes)
+{
+  // A bolt belongs to a loudspeaker, not to a place on the glass. Read off the
+  // screen the seed moved with the camera, so every speaker was dealt a fresh
+  // set of bolts on every frame of a walk.
+  auto const room = Pos::fromCartesian (0.65f, 0.65f, -0.39f);
+  auto const still = beamBoltSeed (room);
+
+  for (auto const turn : { 0.3f, 1.2f, 2.9f })
+    for (auto const pitch : { 0.f, 0.5f, 1.1f })
+      {
+        SphereCamera camera;
+        camera.turn = turn;
+        camera.pitch = pitch;
+        EXPECT_FLOAT_EQ (beamBoltSeed (room), still)
+            << "turn " << turn << " pitch " << pitch;
+      }
+}
+
+TEST (BeamBoltSeed, GivesTheFourSpeakersFourDifferentSeeds)
+{
+  constexpr float k = 0.70710678f;
+  std::vector<float> seeds;
+  for (auto const &b : { std::pair{ k, k }, std::pair{ k, -k },
+                         std::pair{ -k, -k }, std::pair{ -k, k } })
+    seeds.push_back (
+        beamBoltSeed (Pos::fromCartesian (b.first, b.second, -0.41f)));
+
+  for (size_t i = 0; i < seeds.size (); ++i)
+    for (size_t j = i + 1; j < seeds.size (); ++j)
+      EXPECT_GT (std::abs (seeds[i] - seeds[j]), 1.f)
+          << "speakers " << i << " and " << j << " share a seed";
+}
+
+TEST (BeamBoltSeed, DoesNotCareHowFarOutTheCabinetStands)
+{
+  // The seed that put four escaped bolts across the display carried the
+  // speaker radius, because it was read off a screen bearing that is not a
+  // unit vector. Scaled up it reaches noise the bolt field was never sampled
+  // at, and a different set of bolts breaks out of the annulus.
+  for (auto const &b : { std::pair{ 0.7071f, 0.7071f }, std::pair{ 1.f, 0.f },
+                         std::pair{ 0.f, -1.f }, std::pair{ -0.6f, 0.8f } })
+    {
+      auto const near = Pos::fromCartesian (b.first, b.second, -0.41f);
+      for (auto const out : { 1.4f, 3.f, 0.2f })
+        EXPECT_FLOAT_EQ (
+            beamBoltSeed (Pos::fromCartesian (b.first * out, b.second * out,
+                                              -0.41f * out)),
+            beamBoltSeed (near))
+            << "bearing (" << b.first << ", " << b.second << ") at " << out;
+    }
+}
+
+TEST (BeamMouth, SitsAtTheCabinetsOwnScreenRadius)
+{
+  // On the rim, straight on: the mouth is the cabinet pulled in by the horn's
+  // offset, which is what the shared radius used to say for all four.
+  auto const onTheRim = Pos::fromCartesian (1.4f, 0.f, 0.f);
+
+  EXPECT_NEAR (beamMouthRadiusSeen (onTheRim), 1.4f - speakerMouthOffset,
+               1e-4f);
+}
+
+TEST (BeamMouth, FollowsACabinetInUnderALean)
+{
+  // Leaned over, a cabinet's screen radius shrinks, and its mouth has to come
+  // with it or the band starts somewhere the speaker is not.
+  SphereCamera camera;
+  camera.pitch = 0.9f;
+
+  auto const room = Pos::fromCartesian (1.4f, 0.f, 0.f);
+  auto const leaned = beamMouthRadiusSeen (asSeenFrom (room, camera));
+
+  EXPECT_LT (leaned, beamMouthRadiusSeen (room));
+}
+
+TEST (BeamMouth, NeverFallsInsideTheSphere)
+{
+  // A cabinet crossing the silhouette would ask for an annulus with no room
+  // in it, and the band's own arithmetic divides by that span.
+  auto const overTheCentre = Pos::fromCartesian (0.03f, 0.f, 1.4f);
+
+  EXPECT_GT (beamMouthRadiusSeen (overTheCentre), 1.f);
+}
+
+TEST (BeamMouth, LeavesABandRoomToBeSeenWhenTheCabinetComesInOverTheBall)
+{
+  // Which of the two silences a band matters. A cabinet leaned in over the
+  // silhouette but still in front of the ball is in plain sight, and its band
+  // should be too — so the clamp has to leave an annulus a band can live in,
+  // and let beamDepthVisibility() be the one thing that takes a band away.
+  auto const overTheBall = Pos::fromCartesian (0.4f, 0.f, 1.34f);
+
+  EXPECT_NEAR (beamDepthVisibility (overTheBall, beamDepthSoftness), 1.f,
+               1e-3f);
+
+  // As much room as a cabinet standing on the rim gets, near enough: a band
+  // given a tenth of that is a band nobody can see.
+  auto const onTheRim = beamMouthRadiusSeen (Pos::fromCartesian (1.28f, 0.f,
+                                                                 -0.57f))
+                        - 1.f;
+  EXPECT_GT (beamMouthRadiusSeen (overTheBall) - 1.f, onTheRim * 0.5f);
+}
+
+TEST (BeamDepth, ShowsACabinetStandingInFront)
+{
+  auto const inFront = Pos::fromCartesian (0.3f, 0.f, 1.37f);
+
+  EXPECT_NEAR (beamDepthVisibility (inFront, 0.35f), 1.f, 1e-3f);
+}
+
+TEST (BeamDepth, ShowsACabinetOutBesideTheSphere)
+{
+  // Outside the silhouette there is nothing to hide behind, whichever side of
+  // the ball it is on.
+  auto const beside = Pos::fromCartesian (1.28f, 0.f, -0.57f);
+
+  EXPECT_NEAR (beamDepthVisibility (beside, 0.35f), 1.f, 1e-3f);
+}
+
+TEST (BeamDepth, HidesACabinetGoneRoundTheBack)
+{
+  auto const behind = Pos::fromCartesian (0.2f, 0.f, -1.38f);
+
+  EXPECT_LT (beamDepthVisibility (behind, 0.35f), 0.05f);
+}
+
+TEST (BeamDepth, PassesThroughTheEdgeWithoutAStep)
+{
+  // Walked across the silhouette's edge behind the ball, it has to arrive
+  // rather than snap — a band blinking out as a speaker crosses the rim is
+  // the kind of thing that reads as a bug in the drawing.
+  auto previous = beamDepthVisibility (
+      Pos::fromCartesian (2.0f, 0.f, -1.0f), 0.35f);
+
+  for (auto x = 2.0f; x >= 0.f; x -= 0.02f)
+    {
+      auto const here
+          = beamDepthVisibility (Pos::fromCartesian (x, 0.f, -1.0f), 0.35f);
+      EXPECT_LT (std::abs (here - previous), 0.15f) << "stepped at x = " << x;
+      previous = here;
+    }
+}
+
 TEST (EnergyMap, ABearingStraightUpIsNotAnError)
 {
   // The middle of the disc stands for straight up, where every bearing is the

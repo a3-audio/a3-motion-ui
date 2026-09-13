@@ -148,6 +148,55 @@ float beamRimCoverageDegrees (float angleDegrees, float speakerRadius);
 float beamWrapHalfAngle (float distanceFromCentre, float mouthRadius,
                          float apertureAngleDegrees, float wrapAngleDegrees);
 
+/** The angle between what a pixel stands for and where a speaker stands,
+ *  measured in the room.
+ *
+ *  This is the beam's *across* coordinate, and the whole of what makes the
+ *  bands three-dimensional. They used to take it as a difference of screen
+ *  azimuths about the centre of the display, which nails the band to the
+ *  glass: the annulus it was built on has no word for a speaker that is not on
+ *  the rim, and under a lean every speaker comes in off it. Both directions
+ *  here have already been through the camera, so a lean moves the speaker and
+ *  the band goes with it.
+ *
+ *  Zero on the speaker's own bearing, pi at the far side of the room. Mirrors
+ *  beamSpread() in SphereShader.cc. */
+float beamSpreadAngle (Pos const &pixelDirection, Pos const &speakerDirection);
+
+/** Where a speaker's mouth lands on the screen, as a distance from the
+ *  sphere's centre.
+ *
+ *  The mouth radius used to be one number for all four — speakerRadius less
+ *  the horn's offset — which is true only while every cabinet sits on the rim.
+ *  Leaned over, each one lands somewhere else, and a band that still started
+ *  at the shared radius left its own speaker behind.
+ *
+ *  `speakerSeen` is the cabinet's centre as the eye sees it, already scaled by
+ *  the speaker radius. Held off the sphere: a cabinet crossing the silhouette
+ *  would otherwise ask for an annulus with no room in it. */
+float beamMouthRadiusSeen (Pos const &speakerSeen);
+
+/** The seed a speaker's bolts are dealt from.
+ *
+ *  Taken from where the cabinet stands in the *room*, so a bolt belongs to a
+ *  loudspeaker rather than to a place on the glass. Read off the screen it
+ *  moved as the eye moved, which dealt every speaker a fresh set of bolts on
+ *  every frame of a turn — and, since a screen bearing is not a unit vector
+ *  once the speaker radius is in it, reached seeds the old normalised bearing
+ *  never did. Four of them escaped the annulus at once and crossed the whole
+ *  display. */
+float beamBoltSeed (Pos const &speakerRoomDirection);
+
+/** How much of a speaker's band reaches the eye.
+ *
+ *  A cabinet that has gone round behind the ball takes its band with it — the
+ *  one thing a flat annulus could never say, since on the screen a speaker
+ *  behind the sphere and one in front of it sit in the same place.
+ *
+ *  1 in front, falling to 0 for a cabinet both inside the silhouette and past
+ *  the sphere's centre along the view axis. */
+float beamDepthVisibility (Pos const &speakerSeen, float softness);
+
 /** A band's level held up to a share of the loudest band's, so a silent
  *  speaker thins its band rather than losing it and opening the ring around
  *  the sphere.

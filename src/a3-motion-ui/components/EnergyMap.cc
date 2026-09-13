@@ -177,6 +177,55 @@ glowEmergence (float distanceFromCentre, float rise)
 }
 
 float
+beamSpreadAngle (Pos const &pixelDirection, Pos const &speakerDirection)
+{
+  auto const dot = [] (Pos const &a, Pos const &b) {
+    return a.x () * b.x () + a.y () * b.y () + a.z () * b.z ();
+  };
+  auto const norm = [&dot] (Pos const &p) {
+    return std::sqrt (std::max (dot (p, p), 1e-12f));
+  };
+
+  auto const cosine = dot (pixelDirection, speakerDirection)
+                      / (norm (pixelDirection) * norm (speakerDirection));
+
+  return std::acos (std::clamp (cosine, -1.f, 1.f));
+}
+
+float
+beamBoltSeed (Pos const &speakerRoomDirection)
+{
+  auto const length = std::max (
+      std::hypot (speakerRoomDirection.x (), speakerRoomDirection.y ()),
+      1e-6f);
+
+  return (-speakerRoomDirection.y () / length) * 13.f
+         + (speakerRoomDirection.x () / length) * 71.f;
+}
+
+float
+beamMouthRadiusSeen (Pos const &speakerSeen)
+{
+  auto const onScreen = std::hypot (speakerSeen.x (), speakerSeen.y ());
+
+  return std::max (onScreen - speakerMouthOffset, 1.f + beamMinimumAnnulus);
+}
+
+float
+beamDepthVisibility (Pos const &speakerSeen, float softness)
+{
+  auto const span = std::max (softness, 1e-4f);
+  auto const onScreen = std::hypot (speakerSeen.x (), speakerSeen.y ());
+
+  // Hidden only where both are true: inside the silhouette, and past the
+  // sphere's centre along the view axis. Either alone leaves it in sight.
+  auto const inside = std::clamp ((1.f - onScreen) / span, 0.f, 1.f);
+  auto const past = std::clamp (-speakerSeen.z () / span, 0.f, 1.f);
+
+  return 1.f - inside * past;
+}
+
+float
 beamWrapHalfAngle (float distanceFromCentre, float mouthRadius,
                    float apertureAngleDegrees, float wrapAngleDegrees)
 {

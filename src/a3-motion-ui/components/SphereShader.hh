@@ -268,6 +268,8 @@ private:
   GLint _uBeamBleed = -1;
   GLint _uBeamFray = -1;
   GLint _uBeamCover = -1;
+  GLint _uBeamMinAnnulus = -1;
+  GLint _uBeamDepthSoft = -1;
   GLint _uBoltWidth = -1;
   GLint _uBoltWander = -1;
   GLint _uBoltScale = -1;
@@ -326,7 +328,7 @@ private:
   GLint _uLineEffects = -1;
   GLint _uBraid = -1;
 
-  GLint _uSpkDir[kMaxBlobs] = {};
+  GLint _uSpkSeed[kMaxBlobs] = {};
   GLint _uSpkCentre[kMaxBlobs] = {};
   GLint _uSpkNose[kMaxBlobs] = {};
   GLint _uSpkSide[kMaxBlobs] = {};

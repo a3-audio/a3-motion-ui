@@ -22,6 +22,7 @@
 
 #include <a3-motion-ui/theme/Theme.hh>
 
+#include "EnergyMap.hh"
 #include "SpeakerLightScaling.hh"
 
 #include <cmath>
@@ -118,6 +119,8 @@ uniform float uBeamFloor;      // level the band never drops below
 uniform float uBeamBleed;      // how far it reaches past the annulus
 uniform float uBeamFray;       // how ragged its edge is
 uniform float uBeamCover;      // how strongly the band hides the glow
+uniform float uBeamMinAnnulus; // narrowest annulus a band is ever given
+uniform float uBeamDepthSoft;  // how softly a band goes behind the sphere
 uniform float uBoltWidth;      // angular width of a bolt's core, degrees
 uniform float uBoltWander;     // how far its path strays across the band
 uniform float uBoltScale;      // how quickly it strays with radius
@@ -217,10 +220,10 @@ uniform vec4  uBraid;
 // `Dir` is the bearing the flat beam band leaves on, on the screen. The other
 // three are the cabinet's frame in the eye's own terms: where it stands, which
 // way its baffle looks, and which way is along its width.
-uniform vec2  uSpkDir0;
-uniform vec2  uSpkDir1;
-uniform vec2  uSpkDir2;
-uniform vec2  uSpkDir3;
+uniform float uSpkSeed0;
+uniform float uSpkSeed1;
+uniform float uSpkSeed2;
+uniform float uSpkSeed3;
 uniform vec3  uSpkCentre0;
 uniform vec3  uSpkCentre1;
 uniform vec3  uSpkCentre2;
@@ -998,9 +1001,31 @@ vec2 cabinetSpan (vec3 ro, vec3 rd, out vec3 faceNormal)
     return vec2 (tIn, tOut);
 }
 
-vec2 beamDensity (vec2 point, vec2 spkDir, float level)
+// How far round a pixel sits from a speaker's own bearing, signed so a bolt
+// knows which side it strays to. Its magnitude mirrors beamSpreadAngle() in
+// EnergyMap.cc; the cross product decides the sign.
+//
+// One atan rather than a difference of two, so there is no wrap to fold back
+// and no seam where the two readings cross pi.
+//
+// Both bearings are taken in the *view plane*. A speaker's height above or
+// below it says nothing about which way round its band leaves, and folding
+// that in would narrow every band by the cabinet's own tilt. What the plane
+// keeps is where the cabinet actually is -- which is the half a bearing
+// normalised onto the rim threw away.
+float beamAcross (vec2 pixel, vec2 speaker)
 {
-    float mouthR = uSpeakerRadius - uMouthOffset;
+    return atan (pixel.y * speaker.x - pixel.x * speaker.y,
+                 dot (pixel, speaker));
+}
+
+vec2 beamDensity (vec2 point, vec3 spkCentre, float spkSeed, float level)
+{
+    // Where this cabinet's mouth actually lands, rather than the one radius
+    // all four used to share. Mirrors beamMouthRadiusSeen() in EnergyMap.cc.
+    vec2 spkScreen = seenToScreen (spkCentre);
+    float mouthR = max (length (spkScreen) - uMouthOffset,
+                        1.0 + uBeamMinAnnulus);
     float d = length (point);
 
     // Full strength in the annulus, bleeding past both ends so the band runs
@@ -1020,10 +1045,11 @@ vec2 beamDensity (vec2 point, vec2 spkDir, float level)
 
     float halfWidth = radians (mix (uApertureAngle, uWrapAngle, eased));
 
-    // Offset from the speaker's own direction, wrapped to +-pi
+    // Offset from the speaker's own bearing. Taken from where the cabinet is
+    // rather than from a bearing normalised onto the rim: under a lean every
+    // speaker comes in off the rim, and a band built on the rim stayed behind.
     float a = atan (point.y, point.x);
-    float a0 = atan (spkDir.y, spkDir.x);
-    float dA = mod (a - a0 + 9.42477796, 6.28318531) - 3.14159265;
+    float dA = beamAcross (point, spkScreen);
 
     // The centre line wanders sideways, more the further it has travelled —
     // roots, not spokes. Sampled on the direction so it has no seam.
@@ -1056,7 +1082,22 @@ vec2 beamDensity (vec2 point, vec2 spkDir, float level)
     // the bolts alone, so the glow behind them stays visible between them.
     float envelope = lifted * across * grip * radial;
 
-    float seed = spkDir.x * 13.0 + spkDir.y * 71.0;
+    // A cabinet that has gone round behind the ball takes its band with it --
+    // the one thing a flat annulus could never say, since on the screen a
+    // speaker behind the sphere and one in front sit in the same place.
+    // Mirrors beamDepthVisibility() in EnergyMap.cc.
+    float inside = clamp ((1.0 - length (spkScreen)) / uBeamDepthSoft,
+                          0.0, 1.0);
+    float past = clamp (-spkCentre.z / uBeamDepthSoft, 0.0, 1.0);
+    envelope *= 1.0 - inside * past;
+
+    // The speaker's own, fixed: it is where the cabinet stands in the *room*,
+    // so a bolt belongs to a loudspeaker rather than to a place on the glass.
+    // Taken from the screen it changed as the eye moved, which dealt every
+    // speaker a fresh set of bolts on every frame of a turn -- and, unscaled,
+    // reached seeds the normalised bearing never did, which is what put four
+    // escaped bolts across the whole display.
+    float seed = spkSeed;
     vec2 strike = bolts (dA - wander, d, ragged, seed, mouthR);
 
     return vec2 (envelope * strike.x, envelope * strike.y);
@@ -1070,19 +1111,9 @@ vec2 beamDensity (vec2 point, vec2 spkDir, float level)
  *  in the corners of the display while everything else turns. They come from
  *  the room now and are carried through the camera like any other direction.
  *
- *  Normalised, which is what a two-dimensional band can be given: under a
- *  *lean* the speaker moves in off the rim and the annulus this is built on
- *  has no word for that. The cabinets themselves are raytraced and do lean
- *  properly -- the bands are the half of this that is still flat, and they are
- *  meant to be rebuilt next. */
-vec2 speakerScreenDir (int i)
-{
-    if (i == 0) return uSpkDir0;
-    if (i == 1) return uSpkDir1;
-    if (i == 2) return uSpkDir2;
-    return uSpkDir3;
-}
-
+ *  The bands read speakerCentre() rather than a bearing of their own: each one
+ *  starts at its own cabinet's mouth, is measured round from where that
+ *  cabinet actually is, and goes behind the ball when the cabinet does. */
 vec3 speakerCentre (int i)
 {
     if (i == 0) return uSpkCentre0;
@@ -1109,10 +1140,10 @@ vec3 speakerSide (int i)
 
 vec2 beamTotal (vec2 p)
 {
-    return beamDensity (p, speakerScreenDir (0), uSpotLevel0)
-         + beamDensity (p, speakerScreenDir (1), uSpotLevel1)
-         + beamDensity (p, speakerScreenDir (2), uSpotLevel2)
-         + beamDensity (p, speakerScreenDir (3), uSpotLevel3);
+    return beamDensity (p, speakerCentre (0), uSpkSeed0, uSpotLevel0)
+         + beamDensity (p, speakerCentre (1), uSpkSeed1, uSpotLevel1)
+         + beamDensity (p, speakerCentre (2), uSpkSeed2, uSpotLevel2)
+         + beamDensity (p, speakerCentre (3), uSpkSeed3, uSpotLevel3);
 }
 
 
@@ -1621,6 +1652,8 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBeamRoot = glGetUniformLocation (pid, "uBeamRoot");
   _uBeamFray = glGetUniformLocation (pid, "uBeamFray");
   _uBeamCover = glGetUniformLocation (pid, "uBeamCover");
+  _uBeamMinAnnulus = glGetUniformLocation (pid, "uBeamMinAnnulus");
+  _uBeamDepthSoft = glGetUniformLocation (pid, "uBeamDepthSoft");
   _uBoltWidth = glGetUniformLocation (pid, "uBoltWidth");
   _uBoltWander = glGetUniformLocation (pid, "uBoltWander");
   _uBoltScale = glGetUniformLocation (pid, "uBoltScale");
@@ -1691,10 +1724,10 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uLineExtent    = glGetUniformLocation (pid, "uLineExtent");
   _uLineEffects   = glGetUniformLocation (pid, "uLineEffects");
   _uBraid         = glGetUniformLocation (pid, "uBraid");
-  _uSpkDir[0]     = glGetUniformLocation (pid, "uSpkDir0");
-  _uSpkDir[1]     = glGetUniformLocation (pid, "uSpkDir1");
-  _uSpkDir[2]     = glGetUniformLocation (pid, "uSpkDir2");
-  _uSpkDir[3]     = glGetUniformLocation (pid, "uSpkDir3");
+  _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
+  _uSpkSeed[1]    = glGetUniformLocation (pid, "uSpkSeed1");
+  _uSpkSeed[2]    = glGetUniformLocation (pid, "uSpkSeed2");
+  _uSpkSeed[3]    = glGetUniformLocation (pid, "uSpkSeed3");
   _uSpkCentre[0]  = glGetUniformLocation (pid, "uSpkCentre0");
   _uSpkCentre[1]  = glGetUniformLocation (pid, "uSpkCentre1");
   _uSpkCentre[2]  = glGetUniformLocation (pid, "uSpkCentre2");
@@ -1824,6 +1857,10 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uBeamBleed >= 0) glUniform1f (_uBeamBleed, _spotCfg.bleed);
   if (_uBeamFray >= 0) glUniform1f (_uBeamFray, _spotCfg.fray);
   if (_uBeamCover >= 0) glUniform1f (_uBeamCover, _spotCfg.cover);
+  if (_uBeamMinAnnulus >= 0)
+    glUniform1f (_uBeamMinAnnulus, beamMinimumAnnulus);
+  if (_uBeamDepthSoft >= 0)
+    glUniform1f (_uBeamDepthSoft, beamDepthSoftness);
   if (_uBoltWidth >= 0) glUniform1f (_uBoltWidth, _spotCfg.boltWidth);
   if (_uBoltWander >= 0) glUniform1f (_uBoltWander, _spotCfg.boltWander);
   if (_uBoltScale >= 0) glUniform1f (_uBoltScale, _spotCfg.boltScale);
@@ -1996,6 +2033,11 @@ SphereShader::uploadSpeakerFrames ()
   // back into the room -- uv = (-d.y, d.x), so d = (uv.y, -uv.x, 0) -- which
   // keeps the numbering and the places exactly what they were, and
   // uSpotLevel0..3 still belonging to the same corners.
+  //
+  // The band reads the cabinet's own centre now. It used to get a separate
+  // bearing taken from the horizon point (bx, by, 0) and normalised, because
+  // it was an annulus on the glass and an annulus has no word for a speaker
+  // off the rim. That bearing is gone with the flat band.
   static constexpr float k = 0.70710678f;
   static constexpr float bearings[kMaxBlobs][2]
       = { { k, k }, { k, -k }, { -k, -k }, { -k, k } };
@@ -2025,14 +2067,6 @@ SphereShader::uploadSpeakerFrames ()
         return asSeenFrom (Pos::fromCartesian (x, y, z), _camera);
       };
 
-      // The band leaving it is still a flat annulus and belongs to the ring on
-      // the horizon, so its bearing comes from there rather than from the
-      // sunken cabinet.
-      auto const onRim = seen (bx, by, 0.f);
-      auto const dir
-          = juce::Point<float> (-onRim.y (), onRim.x ());
-      auto const length = std::max (dir.getDistanceFromOrigin (), 1e-6f);
-
       auto const radius = _spotCfg.speakerRadius;
       auto const centre
           = seen (bx * level * radius, by * level * radius, -sink * radius);
@@ -2042,8 +2076,11 @@ SphereShader::uploadSpeakerFrames ()
       // product against up would collapse there.
       auto const side = seen (-by, bx, 0.f);
 
-      if (_uSpkDir[i] >= 0)
-        glUniform2f (_uSpkDir[i], dir.x / length, dir.y / length);
+      // From the room's bearing, so a speaker keeps its own bolts however the
+      // eye is standing. Mirrors beamBoltSeed() in EnergyMap.cc.
+      if (_uSpkSeed[i] >= 0)
+        glUniform1f (_uSpkSeed[i],
+                     beamBoltSeed (Pos::fromCartesian (bx, by, 0.f)));
       if (_uSpkCentre[i] >= 0)
         glUniform3f (_uSpkCentre[i], centre.x (), centre.y (), centre.z ());
       if (_uSpkNose[i] >= 0)
