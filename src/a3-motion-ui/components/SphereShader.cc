@@ -574,8 +574,17 @@ vec3 lineGlow (vec2 uv, int i)
     // How the cord is twisted here. It rides on the core rather than on the
     // whole glow: the outer filaments are the plasma and belong to the field,
     // not to the rope.
+    // How deep the twist cuts. Past one it sharpens the wave rather than
+    // being handed to mix() as a factor above one -- mix extrapolates, so a
+    // weave of 2.2 was swinging the cord's waist by half its width and
+    // whitening its core by sixty per cent. That is not a deeper twist, that
+    // is a different picture.
     float weave = braidWeaveAt (lineArc (uv, i));
-    float twist = mix (1.0, 0.78 + 0.44 * weave, uBraid.z);
+    float swing = clamp (uBraid.z, 0.0, 1.0);
+    float gain = 1.0 + max (uBraid.z - 1.0, 0.0);
+    weave = clamp (0.5 + (weave - 0.5) * gain, 0.0, 1.0);
+
+    float twist = mix (1.0, 0.78 + 0.44 * weave, swing);
 
     // The glow. The exponent is what the line's apparent thickness actually
     // is: the vector stroke under it is a single pixel, and everything wider
@@ -586,8 +595,8 @@ vec3 lineGlow (vec2 uv, int i)
     // over the top.
     // Divided by what the core is worth, so a full-strength core still reads
     // as one and the weave has somewhere to move it.
-    float tight = pow (clamp (near * twist / 0.88, 0.0, 1.0), 6.0)
-                * mix (1.0, 0.40 + 1.25 * weave, uBraid.z);
+    float tight = pow (clamp (near * twist / 0.88, 0.0, 1.0), 9.0)
+                * mix (1.0, 0.40 + 1.25 * weave, swing);
     float wide  = pow (near, 1.15);
 
     // The filaments. The noise is sampled in scene space and drifts, so they
@@ -614,7 +623,7 @@ vec3 lineGlow (vec2 uv, int i)
     // as something catching the light rather than as the line simply pulsing.
     vec3 hot = mix (col, uBoltCoreColour,
                     0.15 + 0.55 * atBlob
-                        + 0.55 * uBraid.z * max (weave - 0.5, 0.0));
+                        + 0.45 * swing * max (weave - 0.5, 0.0));
 
     return col * wide * 0.055 * uLineEffects.x
          + hot * tight * 0.45 * uLineEffects.x

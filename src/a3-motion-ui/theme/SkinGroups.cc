@@ -60,7 +60,7 @@ constexpr Group groups[] = {
   { "Channels", { "channels.*" } },
   { "Sphere", { "sphereSurface", "sphereRim", "sphereEnvironment",
                 "sphereScale", "boltCore", "backgroundGlow" } },
-  { "Trajectory", { "trajectoryThickness", "braidWeave", "braidTurns",
+  { "Trajectory", { "trajectoryThickness", "braidRadius", "braidWeave", "braidTurns",
                     "braidSpin", "braidStrands", "lineGlow", "lineFilament",
                     "lineBolt", "lineHeat" } },
   { "Blob effects", { "blobAction", "blobSparkle", "blobBolt", "blobTrail" } },

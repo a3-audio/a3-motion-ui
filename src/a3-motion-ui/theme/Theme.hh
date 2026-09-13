@@ -166,7 +166,7 @@ struct Theme
    *  it thinner" a rebuild rather than a knob. Halved as it moved, on the
    *  maintainer's call -- and the line has to give room back now that the blob
    *  is getting a trail. */
-  float trajectoryThickness = 0.0026f;
+  float trajectoryThickness = 0.0018f;
 
   /** What the trajectory burns with.
    *
@@ -201,8 +201,16 @@ struct Theme
    *  straight grey spokes across the middle of the sphere. The strands are
    *  pulled back onto the axis before it arrives now, so the cord closes to a
    *  single thread through a cusp. */
-  float braidWeave = 1.f;
-  float braidTurns = 18.f;
+  /** How far a strand of the cord stands off its axis. Vectors, because a
+   *  hairline is a vector: a stroke can be thinner than a pixel and a field
+   *  read from a map two and a half screen pixels a texel cannot. */
+  float braidRadius = 0.0048f;
+  /** How hard the same twist runs through the *light* around the cord. The
+   *  glow is the shader's, so it cannot show three strands -- what it can show
+   *  is what a twisted cord does to the light, cresting once per strand per
+   *  winding. Zero leaves the glow smooth. */
+  float braidWeave = 1.6f;
+  float braidTurns = 60.f;
   float braidSpin = 0.10f;
   float braidStrands = 3.f;
 
