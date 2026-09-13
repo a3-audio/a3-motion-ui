@@ -2199,7 +2199,10 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
         path.lineTo (segment[i].x (), segment[i].y ());
     }
 
-  auto constexpr lineThickness = 0.03f;
+  // The take as it is being played in, at the same width as a played one:
+  // this is the same line, and it had its own constant for the same reason
+  // drawPlayingTrajectory() did.
+  auto const lineThickness = theme ().trajectoryThickness;
   // Unshaped: a take is recorded in the frame it was played in. Turning or
   // squeezing the trail under the finger would draw the take somewhere the
   // finger never was.
@@ -2319,11 +2322,18 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
                                         PatternDisplayData const &displayData,
                                         juce::Graphics &g)
 {
-  // Thinner line is what distinguishes a merely-playing trajectory from
-  // the one currently being edited — depth fade still applies here (full
-  // at/above the horizon, receding toward the far pole below it), unlike
-  // drawPatternPreview()'s always-full override above.
-  auto constexpr lineThickness = 0.025f;
+  // Depth fade applies here -- full at or above the horizon, receding towards
+  // the far pole below it -- unlike drawPatternPreview()'s always-full
+  // override above. That, and not a different width, is what distinguishes a
+  // merely-playing trajectory from the one being edited.
+  //
+  // This carried its own `constexpr lineThickness = 0.025f` until 2026-09-13,
+  // which is where every attempt to make the line thinner went to die: the
+  // skin value was introduced by moving the *other* constant, in
+  // drawPatternPreview(), and this one was left where it was. The maintainer
+  // halved the skin value twice, looked at a line fourteen times thicker than
+  // it said, and asked whether something was lying on top of it. Nothing was.
+  auto const lineThickness = theme ().trajectoryThickness;
 
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
@@ -2338,7 +2348,7 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   // ── Handle jump-dot patterns ──
   if (!displayData.jumpDots.empty ())
     {
-      auto constexpr dotSize = lineThickness * 3.f;
+      auto const dotSize = lineThickness * 3.f;
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
