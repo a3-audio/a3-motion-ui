@@ -1750,7 +1750,7 @@ drawPathOnSphere (juce::Path const &displayPath,
   // a diagram and an instrument.
   auto const breathMs = juce::Time::getMillisecondCounter ();
   auto const seconds = static_cast<float> (breathMs) * 0.001f;
-  auto const breath = 0.82f + 0.18f * std::sin (seconds * 1.1f + glowPhase);
+  auto const breath = 0.86f + 0.14f * std::sin (seconds * 0.5f + glowPhase);
 
   // Where a point of the line stands in the light running round the figure.
   //
@@ -1766,9 +1766,9 @@ drawPathOnSphere (juce::Path const &displayPath,
   // as marching ants rather than as light travelling.
   auto const flow = [glowPhase, seconds] (float u) {
     auto const twoPi = juce::MathConstants<float>::twoPi;
-    auto const slow = std::sin (twoPi * (u * 3.f - seconds * 0.55f) + glowPhase);
+    auto const slow = std::sin (twoPi * (u * 3.f - seconds * 0.20f) + glowPhase);
     auto const fast
-        = std::sin (twoPi * (u * 7.f + seconds * 0.31f) + glowPhase * 1.7f);
+        = std::sin (twoPi * (u * 7.f + seconds * 0.11f) + glowPhase * 1.7f);
     return juce::jlimit (0.f, 1.f,
                          0.5f + 0.5f * (0.65f * slow + 0.35f * fast));
   };
@@ -2127,7 +2127,7 @@ drawPathOnSphere (juce::Path const &displayPath,
                   // nothing left to say.
                   if (hot != nullptr)
                     {
-                      auto const lit = flow (u) > 0.68f && sample.depth > 0.f
+                      auto const lit = flow (u) > 0.74f && sample.depth > 0.f
                                        && !startsRun[i];
                       if (!lit)
                         hotOpen = false;
@@ -2210,7 +2210,7 @@ drawPathOnSphere (juce::Path const &displayPath,
       g.setColour (colour.withAlpha (
           juce::jlimit (0.f, 1.f, alpha * fade * 0.22f * t.sheathCloud
                                       * (0.35f + w) * breath)));
-      g.strokePath (path, strokeOf (lineThickness * 15.f * (0.7f + 0.6f * w),
+      g.strokePath (path, strokeOf (lineThickness * 12.f * (0.7f + 0.6f * w),
                                     true));
     });
 
@@ -2223,7 +2223,7 @@ drawPathOnSphere (juce::Path const &displayPath,
   // whole thing is struck afresh. Both follow the coil's own pitch, so a
   // tighter coil is made of shorter bolts rather than of the same bolts drawn
   // closer together.
-  FlickerSettings const flicker{ sheath.turns * 5.f, 9.f };
+  FlickerSettings const flicker{ sheath.turns * 5.f, 3.f };
   FlickerSettings const steady{};
 
   RingPaths sheathPaths;
@@ -2254,7 +2254,7 @@ drawPathOnSphere (juce::Path const &displayPath,
 
   if (haveSheath)
     for (auto tier = 0; tier < midTier; ++tier)
-      strokeRing (sheathPaths, tier, sheathWidth, 0.55f, 0.28f, 0.78f, 6.f);
+      strokeRing (sheathPaths, tier, sheathWidth, 0.55f, 0.24f, 0.68f, 4.5f);
 
   // The wire keeps its colour. Brightened towards white it became the loudest
   // thing on the sphere, and then the coil around it is decoration on a fat
@@ -2266,7 +2266,7 @@ drawPathOnSphere (juce::Path const &displayPath,
   if (haveSheath)
     {
       for (auto tier = midTier; tier < numTiers; ++tier)
-        strokeRing (sheathPaths, tier, sheathWidth, 0.55f, 0.28f, 0.78f, 6.f);
+        strokeRing (sheathPaths, tier, sheathWidth, 0.55f, 0.24f, 0.68f, 4.5f);
 
       // The crests, on top of everything the coil is made of.
       for (auto band = 0; band < numBands; ++band)
@@ -2292,7 +2292,7 @@ drawPathOnSphere (juce::Path const &displayPath,
       // half the slots carrying one, something was alight nearly all the time
       // over a tenth of the figure -- three of them at once read as a second,
       // messier line rather than as lightning.
-      ArcSettings const arcs{ 3.5f * t.sheathArc, 0.32f * t.sheathArc, 0.045f };
+      ArcSettings const arcs{ 2.f * t.sheathArc, 0.22f * t.sheathArc, 0.045f };
       SheathRing const wobble{ sheath.radius * 0.8f, sheath.turns * 11.f,
                                sheath.spin * 3.f, sheath.strands };
 
