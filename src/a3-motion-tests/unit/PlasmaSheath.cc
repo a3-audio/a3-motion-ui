@@ -35,6 +35,49 @@ SheathRing const braid{ /* radius */ 0.01f, /* turns */ 48.f,
 SheathRing const sheath{ 0.09f, 7.f, -0.25f, 3 };
 }
 
+TEST (PlasmaSheath, AGentleBendCarriesTheWholeOffset)
+{
+  // Nearly all of any figure. The guard must be invisible there, or every
+  // braid is thinner than it was asked to be.
+  EXPECT_FLOAT_EQ (foldGuard (1.f, 0.01f), 1.f);
+  EXPECT_FLOAT_EQ (foldGuard (20.f, 0.02f), 1.f);
+  EXPECT_FLOAT_EQ (foldGuard (0.f, 0.02f), 1.f);
+}
+
+TEST (PlasmaSheath, TheOffsetIsGoneBeforeTheFoldArrives)
+{
+  // A parallel curve folds at curvature * radius == 1. The strands have to be
+  // back on the axis by then, not at it.
+  EXPECT_FLOAT_EQ (foldGuard (100.f, 0.01f), 0.f);   // exactly one
+  EXPECT_FLOAT_EQ (foldGuard (500.f, 0.01f), 0.f);   // far past it
+}
+
+TEST (PlasmaSheath, ItClosesSmoothlyRatherThanSnapping)
+{
+  // A strand that switched off would read as the braid breaking rather than
+  // as it being drawn tight through a cusp.
+  auto previous = 1.f;
+  for (int step = 0; step <= 100; ++step)
+    {
+      auto const risk = static_cast<float> (step) / 100.f * 1.2f;
+      auto const now = foldGuard (risk, 1.f);
+      EXPECT_LE (now, previous + 1e-6f) << "at risk " << risk;
+      EXPECT_GE (now, 0.f);
+      EXPECT_LE (now, 1.f);
+      previous = now;
+    }
+
+  // And it is genuinely part way in the middle, not a step in disguise.
+  auto const middle = foldGuard (0.78f, 1.f);
+  EXPECT_GT (middle, 0.1f);
+  EXPECT_LT (middle, 0.9f);
+}
+
+TEST (PlasmaSheath, AZeroRadiusHasNothingToFold)
+{
+  EXPECT_FLOAT_EQ (foldGuard (1e9f, 0.f), 1.f);
+}
+
 TEST (PlasmaSheath, ARadiusOfZeroPutsEveryStrandOnTheLine)
 {
   // Zero is off, and that is a promise rather than an approximation -- the

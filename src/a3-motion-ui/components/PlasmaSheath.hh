@@ -27,7 +27,7 @@ namespace a3
 
 /** Strands wound helically around a line, and the lightning that leaves them.
  *
- *  **Nothing calls this at present.** It was built for a braid of three
+ *  **Used for the trajectory's braid.** It was built for a braid of three
  *  hairlines inside a coil of bolts, drawn as strands offset along the line's
  *  normal, and that whole approach was taken out again: an offset copy of a
  *  curve folds where its curvature times the offset passes one, so at the
@@ -36,11 +36,9 @@ namespace a3
  *  field in the fragment shader now, and a level set of a field cannot do
  *  that.
  *
- *  Kept, because the helix itself was never the problem and the maintainer
- *  may yet want a braid laid over the shader's glow, where the arithmetic
- *  below is exactly what it would need. If that has not happened by the time
- *  somebody reads this and wonders, delete it: a unit with no caller is a
- *  question every reader has to answer again.
+ *  The helix itself was never the problem, and foldGuard() below is what
+ *  makes it safe: it shuts the offset off exactly where a parallel curve
+ *  would fold, which is what drew the spokes.
  *
  *
  *  One unit for two things that look nothing alike and are the same
@@ -132,6 +130,47 @@ sheathHash (int a, int b, int c)
   h *= 1274126177u;
   h ^= h >> 16;
   return static_cast<float> (h & 0xffffffu) / static_cast<float> (0x1000000u);
+}
+
+/** How much of an offset a curve will carry here, 0..1.
+ *
+ *  An offset copy of a curve is a *parallel curve*, and a parallel curve folds
+ *  where the curvature times the offset passes one: past that the outside of
+ *  the bend has overtaken itself and the copy crosses through its own centre.
+ *
+ *  On this sphere that is not a rare corner case, it is the middle of the
+ *  picture. Where a figure runs through the pole -- the Rose and the Heart
+ *  both do -- every azimuth meets at a single point, so the projected points
+ *  crowd together and the tangent swings through half a turn in almost no
+ *  distance. The curvature there is effectively unbounded, and a braid built
+ *  without this fanned out into straight grey spokes across the centre of the
+ *  sphere. The maintainer saw them: *"ich verstehe die random geraden linien
+ *  zur mitte der sphäre nicht. die sollen weg."*
+ *
+ *  So the strands are pulled back onto the axis as the fold is approached, and
+ *  are on it before it arrives. A braid that closes to a single thread through
+ *  a cusp is what a braid pulled tight does; a braid that fans is a fault.
+ *
+ *  `curvature` is in the reciprocal of whatever units `radius` is in -- turn
+ *  per unit length against the offset -- so the product is dimensionless and
+ *  the thresholds below mean the same thing at any scale. */
+inline float
+foldGuard (float curvature, float radius)
+{
+  if (!(radius > 0.f) || !(curvature > 0.f))
+    return 1.f;
+
+  auto const risk = curvature * radius;
+  if (risk <= 0.55f)
+    return 1.f;
+  if (risk >= 1.f)
+    return 0.f;
+
+  // Smooth, because a strand that switched off would read as the braid
+  // snapping rather than as it being drawn tight.
+  auto const t = (risk - 0.55f) / 0.45f;
+  auto const eased = t * t * (3.f - 2.f * t);
+  return 1.f - eased;
 }
 
 /** How the sheath kinks and flickers.

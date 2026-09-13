@@ -166,7 +166,7 @@ struct Theme
    *  it thinner" a rebuild rather than a knob. Halved as it moved, on the
    *  maintainer's call -- and the line has to give room back now that the blob
    *  is getting a trail. */
-  float trajectoryThickness = 0.0038f;
+  float trajectoryThickness = 0.0026f;
 
   /** What the trajectory burns with.
    *
@@ -186,6 +186,26 @@ struct Theme
    *
    *  One is what the device ships with, zero is off, two is as far as it
    *  goes. */
+  /** The braid: three hairlines twisted into a cord.
+   *
+   *  `radius` is how far a strand stands off the axis, `turns` how many
+   *  windings there are over the whole figure, `spin` how fast the cord turns
+   *  along its own length (signed), `strands` how many there are.
+   *
+   *  A radius of zero or a single strand gives back a plain line, exactly.
+   *
+   *  This was built once, taken out, and put back. What made it safe the
+   *  second time is foldGuard() in PlasmaSheath.hh: an offset copy of a curve
+   *  folds where the curvature times the offset passes one, and at the pole --
+   *  where every azimuth of a figure meets at a point -- that fold drew
+   *  straight grey spokes across the middle of the sphere. The strands are
+   *  pulled back onto the axis before it arrives now, so the cord closes to a
+   *  single thread through a cusp. */
+  float braidRadius = 0.0075f;
+  float braidTurns = 44.f;
+  float braidSpin = 0.10f;
+  float braidStrands = 3.f;
+
   float lineGlow = 1.f;
   float lineFilament = 1.f;
   float lineBolt = 1.f;

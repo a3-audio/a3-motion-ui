@@ -143,8 +143,8 @@ TEST (Theme, WhatTheLineBurnsWithIsOfferedToTheSkinEditor)
   auto const defaults = themeDefaultsVar ();
 
   for (auto const *name :
-       { "trajectoryThickness", "lineGlow", "lineFilament", "lineBolt",
-         "lineHeat" })
+       { "trajectoryThickness", "braidRadius", "braidTurns", "braidSpin",
+         "braidStrands", "lineGlow", "lineFilament", "lineBolt", "lineHeat" })
     EXPECT_TRUE (defaults.hasProperty (name)) << name;
 }
 

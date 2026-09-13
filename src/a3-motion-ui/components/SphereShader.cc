@@ -523,8 +523,10 @@ vec3 lineGlow (vec2 uv, int i)
                  ? smoothstep (0.30, 0.0, length (uv - ps.xy)) * uLineEffects.w
                  : 0.0;
 
-    // The glow.
-    float tight = pow (near, 3.2);
+    // The glow. The exponent is what the line's apparent thickness actually
+    // is: the vector stroke under it is a single pixel, and everything wider
+    // than that is this. Asked to halve the line, halve this first.
+    float tight = pow (near, 6.0);
     float wide  = pow (near, 1.15);
 
     // The filaments. The noise is sampled in scene space and drifts, so they
