@@ -23,6 +23,7 @@
 #include <ShippedSkin.hh>
 
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
+#include <a3-motion-ui/theme/SkinParameters.hh>
 
 using namespace a3;
 
@@ -320,6 +321,99 @@ TEST (SkinEditorTouch, ADoubleTapOutsideTheListDoesNothing)
 
   editor.doubleTapRow (-1);
   EXPECT_FALSE (editor.isNaming ());
+}
+
+// The list has to be reachable with a keyboard and with two fingers, not only
+// with a drag over the rows. The maintainer: "ich kann das menu nicht mit 2
+// fingern scrollen. auch die pfeiltasten funktionieren nicht zum scrollen."
+//
+// Neither existed. keyPressed() returned false unless a name was being typed,
+// so arrows did nothing at all, and mouseWheelMove -- which is what a
+// two-finger scroll arrives as -- was implemented in the browser and nowhere
+// else.
+TEST (SkinEditorKeys, ArrowsWalkTheRows)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (
+      juce::JSON::parse (R"({"sphereScale": 0.62, "potSize": 1.0})"), "probe");
+
+  ASSERT_TRUE (browseTo (editor, "sphereScale"));
+  auto const at = editor.browsedRowIndex ();
+
+  EXPECT_TRUE (editor.keyPressed (juce::KeyPress (juce::KeyPress::downKey)));
+  EXPECT_GT (editor.browsedRowIndex (), at);
+
+  EXPECT_TRUE (editor.keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
+  EXPECT_EQ (editor.browsedRowIndex (), at);
+}
+
+TEST (SkinEditorKeys, ArrowsStepOverAHeadingInBothDirections)
+{
+  // Walking up onto a heading and being pushed back down is how the rows
+  // above the first group became unreachable once before.
+  SkinEditorComponent editor;
+  editor.setSkin (juce::JSON::parse (R"({"a": {"x": 1}, "b": {"y": 2}})"),
+                  "probe");
+
+  ASSERT_TRUE (browseTo (editor, "a.x"));
+
+  editor.keyPressed (juce::KeyPress (juce::KeyPress::downKey));
+  EXPECT_EQ (editor.browsedPath (), "b.y");
+
+  editor.keyPressed (juce::KeyPress (juce::KeyPress::upKey));
+  EXPECT_EQ (editor.browsedPath (), "a.x");
+}
+
+TEST (SkinEditorKeys, ArrowsNavigateAndNeverEdit)
+{
+  // An encoder's second level is turning a value; a keyboard's arrows are
+  // navigation and nothing else. A row that happened to be armed must not
+  // have its value changed by somebody trying to scroll.
+  SkinEditorComponent editor;
+  editor.setSkin (juce::JSON::parse (R"({"sphereScale": 0.62})"), "probe");
+
+  ASSERT_TRUE (browseTo (editor, "sphereScale"));
+  editor.toggleEditing (); // arm it, the way a tap does
+  auto const before = skinValue (editor.getSkin (), "sphereScale");
+
+  editor.keyPressed (juce::KeyPress (juce::KeyPress::downKey));
+  editor.keyPressed (juce::KeyPress (juce::KeyPress::upKey));
+
+  EXPECT_NEAR (skinValue (editor.getSkin (), "sphereScale"), before, 1e-9);
+}
+
+TEST (SkinEditorKeys, APageMovesTheWindowAndLeavesTheSelection)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (juce::JSON::parse (R"({"sphereScale": 0.62})"), "probe");
+  editor.setBounds (0, 0, 600, 400);
+
+  ASSERT_TRUE (browseTo (editor, "sphereScale"));
+  auto const selected = editor.browsedRowIndex ();
+  auto const top = editor.firstVisibleRow ();
+
+  EXPECT_TRUE (
+      editor.keyPressed (juce::KeyPress (juce::KeyPress::pageDownKey)));
+  EXPECT_GT (editor.firstVisibleRow (), top);
+  EXPECT_EQ (editor.browsedRowIndex (), selected)
+      << "a page is the window moving, not the selection";
+}
+
+TEST (SkinEditorKeys, TypingStillOwnsTheArrows)
+{
+  // While a value is being typed the arrows walk the caret, and that must not
+  // be taken away by the scrolling.
+  SkinEditorComponent editor;
+  editor.setSkin (juce::JSON::parse (R"({"sphereScale": 0.62})"), "probe");
+
+  ASSERT_TRUE (browseTo (editor, "sphereScale"));
+  editor.doubleTapRow (editor.browsedRowIndex ());
+  ASSERT_TRUE (editor.isNaming ());
+
+  auto const at = editor.browsedRowIndex ();
+  editor.keyPressed (juce::KeyPress (juce::KeyPress::downKey));
+  EXPECT_EQ (editor.browsedRowIndex (), at);
+  EXPECT_TRUE (editor.isNaming ());
 }
 
 TEST (SkinEditorTouch, BrowsingOutsideTheListIsIgnored)

@@ -215,6 +215,9 @@ public:
   /** Real key events, from the system's on-screen keyboard or a plugged-in
    *  one — the app draws no keyboard of its own any more. */
   bool keyPressed (juce::KeyPress const &key) override;
+  void mouseWheelMove (juce::MouseEvent const &event,
+                       juce::MouseWheelDetails const &wheel) override;
+  void visibilityChanged () override;
 
   /** Where the list's panel sits, so the side strips can be put beside it. */
   juce::Rectangle<int> panelBounds () const { return listPanelBounds (); }
