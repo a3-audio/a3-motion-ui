@@ -93,9 +93,9 @@
       "b": 89
     },
     {
-      "r": 32,
-      "g": 56,
-      "b": 177
+      "r": 72,
+      "g": 112,
+      "b": 236
     },
     {
       "r": 247,
@@ -103,9 +103,9 @@
       "b": 2
     },
     {
-      "r": 33,
-      "g": 131,
-      "b": 128
+      "r": 40,
+      "g": 158,
+      "b": 152
     }
   ],
   "recordingUnderlay": {
@@ -114,7 +114,7 @@
     "lineThickness": 0.02
   },
   "sphereScale": 0.83,
-  "fontHeader": 12.529999999999999,
+  "fontHeader": 12.53,
   "fontBody": 14.66,
   "clipSettingsHeightScale": 0.81,
   "potSize": 1.31,

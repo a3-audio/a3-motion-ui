@@ -1449,6 +1449,20 @@ MotionComponent::drawCircle (juce::Graphics &g)
     {
       auto constexpr opacitySpeaker = 0.35f;
       auto constexpr speakerSize = 0.28f;
+
+      // The icon ships as flat grey, which is a faint mark on a dark page and
+      // a heavy one on a light page -- on the two light skins it read as clip
+      // art pinned to the corners. Tinted to `textMuted`, which every skin
+      // sets on the far side of its own ground, it is the same faint mark
+      // either way. Done here rather than at load because the skin can change
+      // under a running app, and `replaceColour` needs to be told what it is
+      // replacing.
+      auto const iconColour = toColour (theme ().textMuted);
+      if (iconColour != _speakerIconColour)
+        {
+          _drawableSpeaker->replaceColour (_speakerIconColour, iconColour);
+          _speakerIconColour = iconColour;
+        }
       // Use cached speaker radius from spotlight config
       float speakerRadius = _sphereShader.getSpeakerRadius ();
 
