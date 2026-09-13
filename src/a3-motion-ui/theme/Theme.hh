@@ -186,6 +186,20 @@ struct Theme
    *
    *  One is what the device ships with, zero is off, two is as far as it
    *  goes. */
+  /** How much of the trajectory is pulled out of shape towards the blob
+   *  while a clip's elasticity has it lagging -- as a share of the whole
+   *  figure, either side of the blob.
+   *
+   *  A skin value and not a clip value on purpose: the sound is at the blob
+   *  whatever this says, so nothing here changes what anybody hears. Zero is
+   *  a rigid line and the blob simply hangs off it.
+   *
+   *  What it feels like is the band's thickness, which is what the maintainer
+   *  called it -- "wie ein gummiband dessen dicke bzw elastizität man
+   *  einstellen kann". A thick band drags a long stretch of line a little
+   *  way; a thin one bends sharply right at the weight. */
+  float trajectoryPull = 0.16f;
+
   float lineGlow = 1.f;
   float lineFilament = 1.f;
   float lineBolt = 1.f;

@@ -128,7 +128,7 @@ TEST (Theme, WhatTheLineBurnsWithIsSkinValues)
   // its own.
   auto const parsed = juce::JSON::parse (
       R"({"lineGlow": 0.4, "lineFilament": 1.7, "lineBolt": 0.0,
-          "lineHeat": 2.0})");
+          "lineHeat": 2.0, "trajectoryPull": 0.0})");
   auto const theme = loadTheme (parsed);
 
   EXPECT_NEAR (theme.lineGlow, 0.4f, 1e-5f);
@@ -136,6 +136,8 @@ TEST (Theme, WhatTheLineBurnsWithIsSkinValues)
   // Zero has to survive being read as "absent".
   EXPECT_NEAR (theme.lineBolt, 0.f, 1e-5f);
   EXPECT_NEAR (theme.lineHeat, 2.f, 1e-5f);
+  // Zero is a rigid line, and it has to survive being read as "absent".
+  EXPECT_NEAR (theme.trajectoryPull, 0.f, 1e-5f);
 }
 
 TEST (Theme, WhatTheLineBurnsWithIsOfferedToTheSkinEditor)
@@ -143,8 +145,8 @@ TEST (Theme, WhatTheLineBurnsWithIsOfferedToTheSkinEditor)
   auto const defaults = themeDefaultsVar ();
 
   for (auto const *name :
-       { "trajectoryThickness", "lineGlow", "lineFilament", "lineBolt",
-         "lineHeat" })
+       { "trajectoryThickness", "trajectoryPull", "lineGlow", "lineFilament",
+         "lineBolt", "lineHeat" })
     EXPECT_TRUE (defaults.hasProperty (name)) << name;
 }
 

@@ -33,6 +33,7 @@
 #include <a3-motion-engine/elevation/HeightMap.hh>
 
 #include <a3-motion-ui/components/ChannelUIState.hh>
+#include <a3-motion-ui/components/ElasticLine.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
@@ -40,6 +41,8 @@
 #include <a3-motion-ui/components/Listener.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
 #include <a3-motion-ui/theme/Theme.hh>
+
+#include <limits>
 
 namespace
 {
@@ -1389,10 +1392,6 @@ MotionComponent::renderOpenGL ()
                 drawPlayingTrajectory (*pattern, displayData, gFBO);
             }
 
-          // After the lines and under the camera ball: it belongs to the
-          // blob, and the blob is drawn over everything by the shader anyway.
-          drawInertiaTethers (gFBO);
-
           // Last, over everything: it is the one thing here that is a control
           // rather than a reading, and a control drawn under a trajectory is
           // one you cannot see to aim at.
@@ -1788,7 +1787,13 @@ drawPathOnSphere (juce::Path const &displayPath,
                   SphereCamera const &camera,
                   /** Where to rasterise this line for the shader, or nullptr
                    *  for a line the glow is not asked to follow. */
-                  juce::Image *lineMap = nullptr)
+                  juce::Image *lineMap = nullptr,
+                  /** Where the blob is, less where this figure says it should
+                   *  be -- see BlobInertia.hh. Both in the room, so the pull
+                   *  is worked out after projection, where the line is.
+                   *  Invalid for a line with no weight hanging off it. */
+                  Pos const &blobAt = Pos::invalid,
+                  Pos const &blobShouldBe = Pos::invalid)
 {
   if (displayPath.isEmpty ())
     return;
@@ -1990,6 +1995,65 @@ drawPathOnSphere (juce::Path const &displayPath,
   // Continuous per depth band, too. Cut into pieces so each could carry its
   // own colour, it beaded at every joint wherever the band was translucent --
   // which is the whole back of the sphere.
+  // ── The line as an elastic band with a weight on it ─────────────
+  //
+  // The blob has mass and hangs behind the point on the figure it belongs to.
+  // The line is not rigid: near the blob it is pulled out of shape towards it
+  // and comes back further along. One vector and a bump -- see ElasticLine.hh
+  // -- not a second simulation.
+  //
+  // Done here, on `projected`, so the drawn line *and* the map the shader's
+  // glow is built from both get it. The blob is painted by the shader at its
+  // own position, which is the peak of the bulge, so the two are attached
+  // rather than merely near each other.
+  if (blobAt.isValid () && blobShouldBe.isValid ()
+      && theme ().trajectoryPull > 0.f && projected.size () > 2)
+    {
+      // The same two steps every point of the line takes: seen from where the
+      // eye is standing, then flattened the way the blobs are placed.
+      auto const toScreen = [&camera] (Pos const &p) {
+        return cartesian2DHOA2JUCE (asSeenFrom (p, camera));
+      };
+
+      auto const anchor = toScreen (blobShouldBe);
+      auto const deflection = toScreen (blobAt) - anchor;
+
+      // Only worth the walk if there is anything to carry.
+      if (deflection.getDistanceFromOrigin () > 1e-4f)
+        {
+          // Which point of the drawn figure the blob belongs to, found by
+          // looking rather than by arithmetic: the display path and the
+          // recorded ticks do not share a parameterisation, and the nearest
+          // point is right whatever they do.
+          std::size_t nearest = 0;
+          auto best = std::numeric_limits<float>::max ();
+          for (std::size_t i = 0; i < projected.size (); ++i)
+            {
+              auto const d = projected[i].first.getDistanceSquaredFrom (anchor);
+              if (d < best)
+                {
+                  best = d;
+                  nearest = i;
+                }
+            }
+
+          auto const closed
+              = projected.front ().first.getDistanceFrom (
+                    projected.back ().first)
+                < 0.02f;
+          auto const reach = theme ().trajectoryPull
+                             * static_cast<float> (projected.size ());
+
+          for (std::size_t i = 0; i < projected.size (); ++i)
+            {
+              auto const weight = bulgeWeight (
+                  arcDistance (i, nearest, projected.size (), closed), reach);
+              if (weight > 0.f)
+                projected[i].first += deflection * weight;
+            }
+        }
+    }
+
   juce::Path path;
   auto currentBand = depthBand (projected[0].second);
   path.startNewSubPath (projected[0].first);
@@ -2071,67 +2135,6 @@ drawPathOnSphere (juce::Path const &displayPath,
                              juce::PathStrokeType::JointStyle::curved,
                              juce::PathStrokeType::EndCapStyle::rounded));
         }
-    }
-}
-
-/** The rubber band from each blob back to the point on its figure that it is
- *  hanging off.
- *
- *  The drawn line is the score and must not lie about what was recorded, so
- *  the deviation is *shown* rather than baked into the figure. Both ends come
- *  out of one tick -- Channel keeps the position and the target under one
- *  seqlock -- or the band would now and then be drawn between two different
- *  moments, which is the kind of fault somebody sees once a year and can
- *  never reproduce.
- *
- *  Nothing to draw unless a clip's elasticity is up: with the spring rigid the
- *  two ends are the same point, exactly. */
-void
-MotionComponent::drawInertiaTethers (juce::Graphics &g)
-{
-  auto const numChannels = static_cast<int> (_engine.getNumChannels ());
-  for (auto ch = 0; ch < numChannels && ch < 4; ++ch)
-    {
-      auto const position = _engine.getChannelPosition (
-          static_cast<index_t> (ch));
-      auto const target = _engine.getChannelTarget (
-          static_cast<index_t> (ch));
-      if (!position.isValid () || !target.isValid ())
-        continue;
-
-      auto const from = projectToScreen (position);
-      auto const to = projectToScreen (target);
-      auto const stretch = from.getDistanceFrom (to);
-
-      // Below a blob's own radius there is nothing to see, and a stroke that
-      // short reads as a smudge on the blob rather than as a tether.
-      if (stretch <= _blobScale * 0.6f)
-        continue;
-
-      juce::Path band;
-      band.startNewSubPath (from);
-      band.lineTo (to);
-
-      // It thins and dims as it stretches, the way something being pulled
-      // does -- carried by the *colour*, not by the alpha.
-      //
-      // This layer is blitted over the shader's output as premultiplied data
-      // through a straight-alpha blend, so anything drawn at part alpha comes
-      // out dark: the first version of this band was a grey stick beside a
-      // pink blob. Opaque, and the dimming done by darkening the colour, it is
-      // the same rule the trajectory's own line follows.
-      // Stretched, it thins rather than darkens. Darkened it read as a
-      // scratch across the glow instead of as a band under tension, which is
-      // the wrong way round: a thing being pulled gets thinner and holds its
-      // colour.
-      auto const give = juce::jlimit (0.f, 1.f, stretch / (_blobScale * 6.f));
-      g.setColour (_uiStates[static_cast<std::size_t> (ch)]
-                       ->colour.brighter (0.25f * give));
-      g.strokePath (band,
-                    juce::PathStrokeType (
-                        _blobScale * 0.24f * (1.f - 0.62f * give),
-                        juce::PathStrokeType::JointStyle::curved,
-                        juce::PathStrokeType::EndCapStyle::rounded));
     }
 }
 
@@ -2324,10 +2327,16 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
     }
 
   // ── Draw from SVG displayPath projected onto sphere ──
+  //
+  // With the blob's own two positions: where it is, and where this figure says
+  // it should be. The line is pulled towards the first near the second -- see
+  // ElasticLine.hh. Both come from one tick.
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     true, params, heightMap, g, shaping,
                     _sphereShader.getCamera (),
-                    lineMapFor (static_cast<int> (ch)));
+                    lineMapFor (static_cast<int> (ch)),
+                    _engine.getChannelPosition (ch),
+                    _engine.getChannelTarget (ch));
 }
 
 juce::Point<float>

@@ -134,7 +134,6 @@ private:
   /** The take as it stands while it is being played in, drawn from its own
    *  ticks — a fresh recording has no display path. Stretches nobody has
    *  played yet are absent rather than faint. */
-  void drawInertiaTethers (juce::Graphics &g);
   void drawRecordingTrail (Pattern const &pattern, juce::Graphics &g);
 
   /** What was in the slot before the take began, drawn faintly underneath it
