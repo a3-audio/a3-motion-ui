@@ -411,4 +411,63 @@ TEST (SphereScale, PullingTheSpeakersInBuysRoom)
   EXPECT_TRUE (speakerIconsFitOnScreen (0.86f, 1.0f));
 }
 
+
+// ── What the beam actually draws ─────────────────────────────────────────
+//
+// beamDensity() hands back two channels: x is the bolt field, the wide soft
+// falloff that ties the band into the glow, and y is its hottest core, the
+// field raised to uBoltCoreExp so it can be drawn white. Two lines in main()
+// draw them, and each must read its own channel.
+//
+// They did not. The return used to be a vec3 — envelope, vein, core — and when
+// it shrank to two the core moved from z to y while the coloured draw was left
+// reading y, so both lines drew the core and the field reached the screen
+// nowhere. With uBoltCoreExp at 5 that is a bolt arriving at a hundredth of
+// its brightness: visible only where it is already white, which is why the
+// speakers' lightning could only be guessed at.
+
+juce::String
+shaderSource ()
+{
+  auto const file = juce::File (A3_UI_SOURCE_DIR)
+                        .getChildFile ("components/SphereShader.cc");
+  EXPECT_TRUE (file.existsAsFile ()) << file.getFullPathName ();
+  return file.loadFileAsString ();
+}
+
+// The line that composites `uniformName` onto the output, not the line that
+// declares the uniform — both carry the name.
+juce::String
+drawLineUsing (juce::String const &source, juce::String const &uniformName)
+{
+  juce::StringArray lines;
+  lines.addLines (source);
+
+  for (auto const &line : lines)
+    if (line.contains ("colOut +=") && line.contains (uniformName))
+      return line;
+
+  return {};
+}
+
+TEST (SpeakerLightDraw, ColouredBandIsDrawnFromTheBoltFieldAndNotItsCore)
+{
+  auto const line = drawLineUsing (shaderSource (), "uBeamIntensity");
+
+  EXPECT_FALSE (line.isEmpty ()) << "nothing draws the coloured band";
+  EXPECT_TRUE (line.contains ("band.x"))
+      << "the coloured band must come off the bolt field: " << line;
+  EXPECT_FALSE (line.contains ("band.y"))
+      << "the coloured band is drawing the white core: " << line;
+}
+
+TEST (SpeakerLightDraw, WhiteCoreIsDrawnFromTheHotChannel)
+{
+  auto const line = drawLineUsing (shaderSource (), "uBoltCore");
+
+  EXPECT_FALSE (line.isEmpty ()) << "nothing draws the bolt core";
+  EXPECT_TRUE (line.contains ("band.y"))
+      << "the white core must come off the sharpened channel: " << line;
+}
+
 }

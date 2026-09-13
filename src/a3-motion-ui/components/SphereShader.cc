@@ -1374,8 +1374,10 @@ void main ()
                     * energyAt (rimDirection) * uGlowIntensity * showGlow;
         }
 
-        // Speaker bands wrapping the sphere
-        colOut += uSpotColour * band.y * uBeamIntensity;
+        // Speaker bands wrapping the sphere. The field, not the core: the
+        // core is the same bolt sharpened by uBoltCoreExp, so drawing the
+        // colour off it left a bolt arriving at a hundredth of itself.
+        colOut += uSpotColour * band.x * uBeamIntensity;
 
         // The core runs white, the way a bolt does against a sky.
         colOut += uBoltCoreColour * band.y * uBoltCore;
