@@ -125,6 +125,16 @@ asSeenFromInverse (Pos const &viewed, SphereCamera const &camera)
   return rotated (unpitched, camera.turn, 0.f);
 }
 
+float
+lineDepthFade (float z)
+{
+  if (z >= 0.f)
+    return 1.f;
+
+  return lineFarSidePart
+         + (1.f - lineFarSidePart) * std::clamp (z + 1.f, 0.f, 1.f);
+}
+
 Pos
 slerpDirection (Pos const &from, Pos const &to, float t)
 {

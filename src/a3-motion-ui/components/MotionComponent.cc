@@ -159,6 +159,11 @@ constexpr LineMapStep lineMapSteps[] = {
 constexpr float lineMapCoreWidth = 1.5f;
 constexpr int lineMapPieces = 120;
 
+// The cone is drawn in pieces too, for the depth it carries in the blue — but
+// far fewer of them. Arc length changes with every step along the line and
+// depth does not, and the cone is ten strokes where the core is one.
+constexpr int lineMapConePieces = 24;
+
 // What the core is worth, and it is deliberately short of one.
 //
 // A field that saturates cannot be modulated: with the core at full nearness
@@ -1035,6 +1040,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.fray = cfgF (sl, "fray", 0.8f);
     sc.cover = cfgF (sl, "cover", 3.f);
     sc.boltWidth = cfgF (sl, "boltWidth", 0.9f);
+    sc.boltThin = cfgF (sl, "boltThin", 0.3f);
     sc.boltWander = cfgF (sl, "boltWander", 0.55f);
     sc.boltScale = cfgF (sl, "boltScale", 6.f);
     sc.boltFlow = cfgF (sl, "boltFlow", 0.5f);
@@ -1795,11 +1801,7 @@ drawPathOnSphere (juce::Path const &displayPath,
   // "behind" the sphere. fadeByDepth == false skips this entirely — used
   // for whichever trajectory is currently being edited, which must stay
   // fully legible no matter where it sits.
-  auto fadeForZ = [] (float z) -> float {
-    return (z < 0.f)
-        ? 0.3f + 0.7f * std::clamp (z + 1.f, 0.f, 1.f)
-        : 1.0f;
-  };
+  auto fadeForZ = [] (float z) -> float { return lineDepthFade (z); };
 
   // Project a 2D HOA point onto the sphere and return screen pos + z.
   // Every point of the line comes through here, which is why the shaping is
@@ -2127,20 +2129,61 @@ drawPathOnSphere (juce::Path const &displayPath,
 
   juce::Graphics mg (*lineMap);
 
+  auto const count = projected.size ();
+
+  // Walk a run of points into a path, lifting the pen where the line does.
+  auto const pieceOf = [&] (std::size_t start, std::size_t stop) {
+    juce::Path piece;
+    piece.startNewSubPath (toMap (projected[start].first));
+    for (auto i = start + 1; i <= stop; ++i)
+      {
+        if (startsRun[i])
+          piece.startNewSubPath (toMap (projected[i].first));
+        else
+          piece.lineTo (toMap (projected[i].first));
+      }
+    return piece;
+  };
+
+  // How far behind the ball a run of the line sits, as the light it keeps.
+  auto const depthOf = [&] (std::size_t start, std::size_t stop) {
+    auto worst = 1.f;
+    for (auto i = start; i <= stop; ++i)
+      worst = std::min (worst, lineDepthFade (projected[i].second));
+    return worst;
+  };
+
   // The falling cone of nearness, widest and dimmest first: a narrower stroke
   // lies wholly inside a wider one, so overwriting is the maximum a distance
   // field needs.
+  //
+  // In pieces, like the core, because each piece carries its own depth in the
+  // blue. The cone is what the glow, the filaments and the bolts are all built
+  // from, so a cone with no depth in it meant everything the shader draws came
+  // out equally bright on both sides of the ball — and drowned the one layer
+  // that did fade. Far fewer pieces than the core needs: depth changes slowly
+  // along a line where the arc length changes with every step.
+  auto const conePer = std::max<std::size_t> (2, count / lineMapConePieces);
   for (auto const &step : lineMapSteps)
     {
-      mg.setColour (juce::Colour::fromFloatRGBA (step.nearness, 0.f, 0.f, 1.f));
-      mg.strokePath (mapPath,
-                     juce::PathStrokeType (
-                         step.width, juce::PathStrokeType::JointStyle::curved,
-                         juce::PathStrokeType::EndCapStyle::rounded));
+      auto const stroke = juce::PathStrokeType (
+          step.width, juce::PathStrokeType::JointStyle::curved,
+          juce::PathStrokeType::EndCapStyle::rounded);
+
+      for (std::size_t start = 0; start + 1 < count; start += conePer)
+        {
+          auto const stop = std::min (start + conePer, count - 1);
+          auto const piece = pieceOf (start, stop);
+          if (piece.isEmpty ())
+            continue;
+
+          mg.setColour (juce::Colour::fromFloatRGBA (
+              step.nearness, 0.f, depthOf (start, stop), 1.f));
+          mg.strokePath (piece, stroke);
+        }
     }
 
   // And the core, in pieces, each carrying where along the figure it is.
-  auto const count = projected.size ();
   auto const per = std::max<std::size_t> (2, count / lineMapPieces);
   auto const coreStroke = juce::PathStrokeType (
       lineMapCoreWidth, juce::PathStrokeType::JointStyle::curved,
@@ -2149,23 +2192,14 @@ drawPathOnSphere (juce::Path const &displayPath,
   for (std::size_t start = 0; start + 1 < count; start += per)
     {
       auto const stop = std::min (start + per, count - 1);
-
-      juce::Path piece;
-      piece.startNewSubPath (toMap (projected[start].first));
-      for (auto i = start + 1; i <= stop; ++i)
-        {
-          if (startsRun[i])
-            piece.startNewSubPath (toMap (projected[i].first));
-          else
-            piece.lineTo (toMap (projected[i].first));
-        }
+      auto const piece = pieceOf (start, stop);
       if (piece.isEmpty ())
         continue;
 
       auto const u = (static_cast<float> (start + stop) * 0.5f)
                      / static_cast<float> (count - 1);
-      mg.setColour (
-          juce::Colour::fromFloatRGBA (lineMapCoreNearness, u, 0.f, 1.f));
+      mg.setColour (juce::Colour::fromFloatRGBA (
+          lineMapCoreNearness, u, depthOf (start, stop), 1.f));
       mg.strokePath (piece, coreStroke);
     }
 }

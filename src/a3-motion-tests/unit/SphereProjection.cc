@@ -345,3 +345,42 @@ TEST (SphereProjection, TheLeanIsLeftAlone)
 {
   EXPECT_NEAR (cameraSettled ({ 0.3f, 0.f }).pitch, 0.3f, 1e-5f);
 }
+
+TEST (LineDepth, IsUntouchedAtAndAboveTheHorizon)
+{
+  EXPECT_FLOAT_EQ (lineDepthFade (0.f), 1.f);
+  EXPECT_FLOAT_EQ (lineDepthFade (0.5f), 1.f);
+  EXPECT_FLOAT_EQ (lineDepthFade (1.f), 1.f);
+}
+
+TEST (LineDepth, IsDimmestAtTheFarPole)
+{
+  EXPECT_FLOAT_EQ (lineDepthFade (-1.f), lineFarSidePart);
+}
+
+TEST (LineDepth, NeverGoesOutAltogether)
+{
+  // The far side of a figure is meant to be read, only more faintly. A line
+  // that vanished outright would leave the figure looking cut in half.
+  for (auto z = -1.f; z <= 0.f; z += 0.05f)
+    EXPECT_GT (lineDepthFade (z), 0.2f) << "at z = " << z;
+}
+
+TEST (LineDepth, FallsAllTheWayDownWithoutAStep)
+{
+  auto previous = lineDepthFade (0.f);
+  for (auto z = -0.02f; z >= -1.f; z -= 0.02f)
+    {
+      auto const here = lineDepthFade (z);
+      EXPECT_LE (here, previous) << "rose at z = " << z;
+      EXPECT_LT (previous - here, 0.1f) << "stepped at z = " << z;
+      previous = here;
+    }
+}
+
+TEST (LineDepth, SeparatesTheTwoSidesEnoughToBeSeen)
+{
+  // The complaint this answers: what is behind the sphere and what is in front
+  // of it could not be told apart.
+  EXPECT_GT (lineDepthFade (0.6f) / lineDepthFade (-0.6f), 1.6f);
+}
