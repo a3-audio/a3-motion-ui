@@ -969,8 +969,20 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
 
       auto const key = transportKeyOrder[i];
       auto const mark = transportColour (key);
-      auto const lit = (key == TransportKey::Record && _transportRecording)
-                       || (key == TransportKey::PlayPause && _transportPlaying);
+
+      // Only Record lights its ground. The rule above -- a key lights while it
+      // is doing something -- carries information for a take, which is
+      // occasional. Play/pause was lit whenever the shown clip was running,
+      // which at the desk is nearly always: a light that is never off says
+      // nothing, and this one said it twice, because drawTransportGlyph()
+      // below already draws the two bars while it plays and the triangle while
+      // it stands. So the glyph keeps the state and the ground lets go of it.
+      //
+      // The price, named rather than hidden: a shape instead of a colour.
+      // Green-or-not is caught from the corner of an eye; bars-or-triangle
+      // wants a look. Worth it here only because the alternative was a green
+      // that was always on.
+      auto const lit = key == TransportKey::Record && _transportRecording;
 
       g.setColour (lit ? mark.withAlpha (theme ().alphaDisabled)
                        : toColour (theme ().textPrimary, theme ().alphaFill));
@@ -1435,7 +1447,15 @@ ClipSettingsComponent::paintActionButton (juce::Graphics &g,
   g.setColour (isActive ? tint.withAlpha (highlightWash * 2.f)
                         : toColour (theme ().textPrimary, cardWash));
   g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
-  g.setColour (tint.withAlpha (trackWash));
+
+  // The same grey outline paintBarButton draws, so all six keys of the global
+  // section have one face. The outline used to take the tint, which is what
+  // the paragraph above says it must not: a blue line is brighter than the
+  // grey and a dark red one is dimmer, so on this ground MENU stood proud and
+  // REC sat sunk, and the six read as keys at three different depths. The
+  // word carries the colour. The ground carries what is happening. The frame
+  // carries neither and is therefore the same everywhere.
+  g.setColour (toColour (theme ().textPrimary, trackWash));
   g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
                           theme ().strokeThin);
 
