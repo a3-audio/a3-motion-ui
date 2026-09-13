@@ -916,31 +916,86 @@ float speakerLevel (int i)
     return uSpotLevel3;
 }
 
-/** Slab test against a box at the origin. x is where the ray goes in, y where
- *  it comes out; in > out means it missed. */
-vec2 boxSpan (vec3 ro, vec3 rd, vec3 halfExtent)
-{
-    // A ray exactly along a face has a zero in it and 1/0 is an infinity that
-    // the min/max below handles correctly -- but only if it is an infinity and
-    // not a driver's idea of one. Nudged rather than branched.
-    vec3 inv = 1.0 / (rd + (1.0 - abs (sign (rd))) * 0.000001);
-    vec3 a = (-halfExtent - ro) * inv;
-    vec3 b = ( halfExtent - ro) * inv;
-    vec3 lo = min (a, b);
-    vec3 hi = max (a, b);
-    return vec2 (max (max (lo.x, lo.y), lo.z),
-                 min (min (hi.x, hi.y), hi.z));
-}
+// The cabinet, in its own frame: the baffle at +z and larger than the back.
+//
+// A Funktion-One Resolution 2 is a wedge -- the sides and the top rake in
+// towards the back -- with the front given over almost entirely to two horn
+// flares side by side and the high frequency between them. That silhouette is
+// the whole of what is recognisable at forty pixels, and it is what these
+// numbers are: not a model, which a fragment shader could not take anyway, but
+// the shape read off one.
+const float kResHalfDepth  = 0.085;
+const float kResFrontHalfW = 0.070;
+const float kResBackHalfW  = 0.046;
+const float kResFrontHalfH = 0.118;
+const float kResBackHalfH  = 0.094;
 
-/** Which face of the box a local hit point is on, as a local normal. */
-vec3 boxNormal (vec3 local, vec3 halfExtent)
+/** Ray against the cabinet: where it goes in, where it comes out, and which
+ *  face it entered by. In greater than out means it missed.
+ *
+ *  Six half-spaces rather than a slab test, because the sides rake: for a
+ *  convex body the entry is the furthest of the entries and the exit the
+ *  nearest of the exits, whatever angles the planes stand at. */
+vec2 cabinetSpan (vec3 ro, vec3 rd, out vec3 faceNormal)
 {
-    vec3 share = abs (local) / halfExtent;
-    if (share.x > share.y && share.x > share.z)
-        return vec3 (sign (local.x), 0.0, 0.0);
-    if (share.y > share.z)
-        return vec3 (0.0, sign (local.y), 0.0);
-    return vec3 (0.0, 0.0, sign (local.z));
+    float tIn = -1000.0;
+    float tOut = 1000.0;
+    faceNormal = vec3 (0.0, 0.0, 1.0);
+
+    for (int p = 0; p < 6; p++)
+    {
+        vec3 n;
+        float d;
+
+        if (p < 2)
+        {
+            // The baffle and the back.
+            float s = (p == 0) ? 1.0 : -1.0;
+            n = vec3 (0.0, 0.0, s);
+            d = kResHalfDepth;
+        }
+        else if (p < 4)
+        {
+            // The raking sides: the plane through the baffle's edge and the
+            // back's.
+            float s = (p == 2) ? 1.0 : -1.0;
+            n = normalize (vec3 (s * 2.0 * kResHalfDepth, 0.0,
+                                 -(kResFrontHalfW - kResBackHalfW)));
+            d = dot (n, vec3 (s * kResFrontHalfW, 0.0, kResHalfDepth));
+        }
+        else
+        {
+            float s = (p == 4) ? 1.0 : -1.0;
+            n = normalize (vec3 (0.0, s * 2.0 * kResHalfDepth,
+                                 -(kResFrontHalfH - kResBackHalfH)));
+            d = dot (n, vec3 (0.0, s * kResFrontHalfH, kResHalfDepth));
+        }
+
+        float denom = dot (rd, n);
+        float num = d - dot (ro, n);
+
+        if (abs (denom) < 0.000001)
+        {
+            // Running along the plane: a miss only if it is outside it.
+            if (num < 0.0)
+                return vec2 (1.0, -1.0);
+            continue;
+        }
+
+        float t = num / denom;
+        if (denom < 0.0)
+        {
+            if (t > tIn)
+            {
+                tIn = t;
+                faceNormal = n;
+            }
+        }
+        else
+            tOut = min (tOut, t);
+    }
+
+    return vec2 (tIn, tOut);
 }
 
 vec2 beamDensity (vec2 point, vec2 spkDir, float level)
@@ -1060,10 +1115,6 @@ vec2 beamTotal (vec2 p)
          + beamDensity (p, speakerScreenDir (3), uSpotLevel3);
 }
 
-// How big a cabinet is, in sphere radii: a little taller than it is wide and
-// about as deep, which is the shape of a monitor standing on its end.
-const vec3 kCabinetHalf = vec3 (0.085, 0.130, 0.095);
-
 
 
 /** The four cabinets, raytraced.
@@ -1112,7 +1163,8 @@ vec4 speakerBoxes (vec2 uv, out float depth)
         vec3 roL = vec3 (dot (toRay, side), dot (toRay, head), dot (toRay, nose));
         vec3 rdL = vec3 (dot (rd, side), dot (rd, head), dot (rd, nose));
 
-        vec2 span = boxSpan (roL, rdL, kCabinetHalf);
+        vec3 normalL;
+        vec2 span = cabinetSpan (roL, rdL, normalL);
         if (span.x > span.y || span.y < 0.0)
             continue;
 
@@ -1122,7 +1174,6 @@ vec4 speakerBoxes (vec2 uv, out float depth)
         depth = t;
 
         vec3 hitL = roL + rdL * t;
-        vec3 normalL = boxNormal (hitL, kCabinetHalf);
         vec3 normal = normalL.x * side + normalL.y * head + normalL.z * nose;
 
         // A key from over the listener's shoulder and a little fill, so the
@@ -1133,36 +1184,54 @@ vec4 speakerBoxes (vec2 uv, out float depth)
         float lit = 0.30 + 0.70 * max (dot (normal, key), 0.0);
         vec3 body = mix (uSphereSurface, vec3 (1.0), 0.22) * lit;
 
-        // The edge, so a cabinet stands away from whatever is behind it.
-        float edge = 1.0 - max (max (abs (hitL.x) / kCabinetHalf.x,
-                                     abs (hitL.y) / kCabinetHalf.y),
-                                abs (hitL.z) / kCabinetHalf.z);
-        body += uSphereRim * smoothstep (0.05, 0.0, edge) * 0.35;
-
-        // The drivers, on the face that looks at the listener. A woofer low
-        // and a tweeter high, both sunk into the baffle -- and both lit by
-        // what this speaker is being sent, which is the same number the band
-        // leaving it is drawn from.
+        // The baffle, on the face that looks at the listener.
+        //
+        // Two horn flares side by side with the high frequency on the spine
+        // between them, which is the Resolution's face. The flare is *shaded*
+        // rather than cut: at the size these are drawn, a real recess would be
+        // detail nobody can see, and the shading sits on a face that turns
+        // with the room, so it reads as a horn from every angle the camera
+        // can be put in.
         if (normalL.z > 0.5)
         {
             float level = speakerLevel (i);
-            vec2 face = vec2 (hitL.x, hitL.y);
+            vec2 f = vec2 (hitL.x / kResFrontHalfW, hitL.y / kResFrontHalfH);
 
-            float woofer = length (face - vec2 (0.0, -0.035)) ;
-            float tweeter = length (face - vec2 (0.0, 0.062));
+            // Folded about the spine: the two flares are one shape drawn
+            // twice, which is what they are.
+            vec2 inLobe = vec2 ((abs (f.x) - 0.50) / 0.44, f.y / 0.84);
 
-            float inWoofer = smoothstep (0.050, 0.042, woofer);
-            float inTweeter = smoothstep (0.022, 0.017, tweeter);
-            float cone = max (inWoofer, inTweeter);
+            // A rounded rectangle rather than an ellipse -- a horn mouth is
+            // square-ish and an ellipse reads as a cone driver.
+            float ell = length (inLobe);
+            float rect = max (abs (inLobe.x), abs (inLobe.y));
+            float r = mix (ell, rect, 0.55);
 
-            // Sunk: dark in the middle, with a bright ring where the surround
-            // meets the baffle.
-            body = mix (body, body * 0.35, cone);
-            body += uSphereRim * 0.5
-                  * (smoothstep (0.056, 0.050, woofer) - inWoofer
-                     + smoothstep (0.026, 0.022, tweeter) - inTweeter);
-            body += uSpotColour * cone * level * 1.6;
+            float mouth = 1.0 - smoothstep (0.86, 1.02, r);
+            float throat = 1.0 - smoothstep (0.10, 0.46, r);
+
+            // Receding: the further in, the less light reaches it.
+            body = mix (body, body * 0.30, mouth * (1.0 - 0.35 * r));
+            // The flare's lip, where the mouth meets the baffle.
+            body += uSphereRim * 0.55
+                  * (smoothstep (1.04, 0.92, r) - smoothstep (0.94, 0.84, r));
+
+            // The high frequency, on the spine between the two.
+            float hf = (1.0 - smoothstep (0.10, 0.16, abs (f.x)))
+                     * (1.0 - smoothstep (0.28, 0.40, abs (f.y - 0.10)));
+            body = mix (body, body * 0.45, hf);
+
+            // What it is being sent, coming out of the throats and the slot.
+            body += uSpotColour * (throat + hf * 0.8) * level * 1.7;
         }
+
+        // The edges, so a cabinet stands away from whatever is behind it.
+        // Measured against the baffle's own half-extents, which is close
+        // enough on a wedge this shallow and costs no second intersection.
+        float edge = 1.0 - max (max (abs (hitL.x) / kResFrontHalfW,
+                                     abs (hitL.y) / kResFrontHalfH),
+                                abs (hitL.z) / kResHalfDepth);
+        body += uSphereRim * smoothstep (0.05, 0.0, edge) * 0.35;
 
         out4 = vec4 (body, 1.0);
     }
