@@ -237,3 +237,86 @@ TEST (PlayheadAdvance, BounceStandsOnTheStartBeforeTurning)
   EXPECT_FLOAT_EQ (away.sign, 1.f);
   EXPECT_GE (away.position, 0.f) << "it must never fall through the start";
 }
+
+// ── Finishing the pass on purpose ────────────────────────────────────────────
+//
+// Pressing play on a running clip used to stop it on the next beat, in the
+// middle of whatever figure it was drawing. It finishes the pass now and stops
+// at its end -- so the three "carry on" end actions are overruled for that one
+// lap, which is the whole point: Loop, Bounce and Random are exactly the
+// clips a person wants to get *out* of at a musical boundary.
+
+TEST (PlayheadAdvance, StopAtEndChangesNothingInsideThePass)
+{
+  auto const next = advancePlayhead (middle, 0.1f, EndAction::Loop, 0.f, true);
+
+  EXPECT_FLOAT_EQ (next.position, 0.6f);
+  EXPECT_FALSE (next.stopped);
+}
+
+TEST (PlayheadAdvance, StopAtEndEndsALoopWhereTheLapEnds)
+{
+  Playhead const nearlyThere{ 0.95f, 1.f, false };
+
+  auto const looping
+      = advancePlayhead (nearlyThere, 0.1f, EndAction::Loop, 0.f, false);
+  EXPECT_FALSE (looping.stopped);
+
+  auto const finishing
+      = advancePlayhead (nearlyThere, 0.1f, EndAction::Loop, 0.f, true);
+  EXPECT_TRUE (finishing.stopped);
+
+  // Back at the take's start, the way EndAction::Stop leaves it: this was
+  // asked for at a boundary, and the next press should be a start.
+  EXPECT_FLOAT_EQ (finishing.position, 0.f);
+}
+
+TEST (PlayheadAdvance, StopAtEndCatchesABounceAtTheEndItRanInto)
+{
+  Playhead const nearlyThere{ 0.95f, 1.f, false };
+
+  auto const bouncing
+      = advancePlayhead (nearlyThere, 0.1f, EndAction::Bounce, 0.f, false);
+  EXPECT_FALSE (bouncing.stopped);
+  EXPECT_FLOAT_EQ (bouncing.sign, -1.f);
+
+  auto const finishing
+      = advancePlayhead (nearlyThere, 0.1f, EndAction::Bounce, 0.f, true);
+  EXPECT_TRUE (finishing.stopped);
+}
+
+TEST (PlayheadAdvance, StopAtEndCatchesARandomJumpToo)
+{
+  Playhead const nearlyThere{ 0.95f, 1.f, false };
+
+  auto const finishing
+      = advancePlayhead (nearlyThere, 0.1f, EndAction::Random, 0.42f, true);
+  EXPECT_TRUE (finishing.stopped);
+  EXPECT_FLOAT_EQ (finishing.position, 0.f);
+}
+
+TEST (PlayheadAdvance, StopAtEndAddsNothingToAClipThatStopsAnyway)
+{
+  Playhead const nearlyThere{ 0.95f, 1.f, false };
+
+  auto const byItself
+      = advancePlayhead (nearlyThere, 0.1f, EndAction::Stop, 0.f, false);
+  auto const asked
+      = advancePlayhead (nearlyThere, 0.1f, EndAction::Stop, 0.f, true);
+
+  EXPECT_EQ (byItself.stopped, asked.stopped);
+  EXPECT_FLOAT_EQ (byItself.position, asked.position);
+}
+
+// Whichever way it was running. "Back to the start" is about the take, not
+// about the direction -- the same rule EndAction::Stop already follows.
+TEST (PlayheadAdvance, StopAtEndCatchesAReverseLapAtItsEnd)
+{
+  Playhead const nearlyBack{ 0.05f, -1.f, false };
+
+  auto const finishing
+      = advancePlayhead (nearlyBack, 0.1f, EndAction::Loop, 0.f, true);
+
+  EXPECT_TRUE (finishing.stopped);
+  EXPECT_FLOAT_EQ (finishing.position, 0.f);
+}

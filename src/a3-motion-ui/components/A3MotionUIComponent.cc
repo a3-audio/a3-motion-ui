@@ -1285,9 +1285,10 @@ A3MotionUIComponent::createMainUI ()
             // The TAP key breathes with the beat, on the screen and on the
             // panel, from the one place that knows a beat went by. It was
             // taken out once for being too loud; it is a faint wash now, not
-            // the flash a press makes.
+            // the flash a press makes. The play key's wait turns over on the
+            // same beat -- see pulseOnBeat().
             if (_clipSettings)
-              _clipSettings->pulseTapOnBeat ();
+              _clipSettings->pulseOnBeat ();
             pulseTapLED ();
 
             // Counting the hand in while a take waits for its downbeat. From
@@ -2047,10 +2048,8 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   // clip, and the encoders with it.
   selectClip (channel, slot);
 
-  // The bar's Rec button says so too — it is the only sign a take is
-  // running for anyone not looking at the hardware key's LED.
-  if (_clipSettings)
-    _clipSettings->setRecording (true);
+  // The bar's REC light is not set here. It follows the engine in the UI
+  // tick, because a take also ends by itself and nothing is pressed then.
 
   updateFunctionKeyLEDs ();
 }
@@ -2097,11 +2096,21 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         if (!pattern)
           break;
 
-        // Both ends on the next beat. The bar is the take's unit, but a bar
-        // is up to a metre's worth of beats away and a clip that starts that
-        // long after the finger reads as a button that did not work; the beat
-        // is close enough to feel immediate and still lands in time.
-        auto const on = TempoClock::nextBeat (_now, _engine.getBeatsPerBar ());
+        // **On the next downbeat**, and with Shift on the spot.
+        //
+        // This used to be the next beat, on the reasoning that a bar is up to
+        // a metre's worth of beats away and a clip starting that late reads as
+        // a button that did not work. What that reasoning was missing is that
+        // a figure which does not begin on the one runs the whole pass against
+        // the music -- and it was written before the key blinked while it
+        // waited, which is what makes the wait legible rather than dead.
+        //
+        // Shift is the instant one beside it, the same pairing ACT has and the
+        // same pairing a deck offers: quantised is what you want almost
+        // always, and the other is for the moment that will not wait.
+        auto const on = isButtonPressed (Button::Shift)
+                            ? _now
+                            : TempoClock::nextDownBeat (_now);
 
         auto const status = pattern->getStatus ();
         if (status == Pattern::Status::Idle)
@@ -2109,10 +2118,26 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
             pattern->setPlaybackLength (getPlaybackLength (channel, slot));
             _engine.playPattern (pattern, on);
           }
-        else if (status == Pattern::Status::Playing
-                 || status == Pattern::Status::ScheduledForPlaying)
+        else if (status == Pattern::Status::Playing)
           {
-            _engine.stopPattern (pattern, on);
+            // Finish the lap, then stop. Pressing play on a running clip used
+            // to cut it off on the next beat, in the middle of whatever figure
+            // it was drawing; the figure is the point of the clip, and the
+            // place to leave it is where it ends. How long that is, is the
+            // playback length the Shape section's keys set.
+            //
+            // Stop is still the way out that does not wait -- quantised by
+            // default with an instant one beside it is the pairing a deck
+            // offers, and here the two are a key apart.
+            _engine.stopPatternAtEnd (pattern);
+          }
+        else if (status == Pattern::Status::ScheduledForPlaying)
+          {
+            // Not started yet, so there is no lap to finish: this is calling
+            // off the start that is waiting for the downbeat. Taken back
+            // rather than stopped -- a stop scheduled on top of a start is
+            // still a start, see cancelScheduledPlay().
+            _engine.cancelScheduledPlay (pattern);
           }
         break;
       }
@@ -4742,8 +4767,7 @@ A3MotionUIComponent::padLEDCallback (int step)
           // The same colour to the screen. One place works out what empty,
           // idle, armed and running look like; two places show it.
           if (_controller)
-            _controller->setPadColour (channel, pad, colour,
-                                       isPlayingOnPlayPause);
+            _controller->setPadColour (channel, pad, colour);
         }
     }
 }
@@ -4985,14 +5009,15 @@ A3MotionUIComponent::createPatternForIndex (int index, index_t channel)
 void
 A3MotionUIComponent::endRecording ()
 {
-  if (_clipSettings)
-    _clipSettings->setRecording (false);
-    updateFunctionKeyLEDs ();
+  // The REC light is not cleared here either -- same reason, and the braces
+  // that were missing are why the three statements under this `if` only
+  // looked like they belonged to it.
+  updateFunctionKeyLEDs ();
 
-    // And back to the clip's own face: the take is made, so what there is to
-    // look at is what it plays.
-    if (_barPage == BarPage::Record)
-      showBarPage (BarPage::Clip);
+  // And back to the clip's own face: the take is made, so what there is to
+  // look at is what it plays.
+  if (_barPage == BarPage::Record)
+    showBarPage (BarPage::Clip);
 
   auto pattern = _engine.getRecordingPattern ();
   if (!pattern || !_recordingSlot.has_value ())
@@ -5162,8 +5187,6 @@ A3MotionUIComponent::timerCallback ()
   // -- watching only the recording is what left a playing clip with a
   // transport key that never turned green and an indicator that stayed empty.
   // The rest of the time nothing here changes on its own.
-  auto const &shown = _patterns[_clipSettingsChannel][_clipSettingsSlot];
-
   // One tick past the accent as well as during it. An action puts its
   // settings on the clip and takes them off again, and the taking off is the
   // last thing that happens -- a screen that stopped following one tick
@@ -5175,25 +5198,41 @@ A3MotionUIComponent::timerCallback ()
   // mark per channel, so a clip running on a channel nobody is looking at
   // still moves something on screen -- watching only the shown clip left
   // those marks standing still.
-  auto anyPlaying = false;
-  for (index_t channel = 0; channel < _patterns.size () && !anyPlaying;
+  auto anyMoving = false;
+  for (index_t channel = 0; channel < _patterns.size () && !anyMoving;
        ++channel)
     for (index_t slot = 0; slot < _patterns[channel].size (); ++slot)
       {
         auto const &pattern = _patterns[channel][slot];
-        if (pattern != nullptr
-            && pattern->getStatus () == Pattern::Status::Playing)
+        if (pattern == nullptr)
+          continue;
+
+        // Waiting counts as moving. A clip pressed and not yet started -- or
+        // stopped and not yet stopped -- is the window the play key blinks in,
+        // and it is a window in which nothing else on this list is true.
+        auto const status = pattern->getStatus ();
+        if (status == Pattern::Status::Playing
+            || status == Pattern::Status::ScheduledForPlaying
+            || status == Pattern::Status::ScheduledForIdle)
           {
-            anyPlaying = true;
+            anyMoving = true;
             break;
           }
       }
 
-  if (_engine.isRecording () || accent || _accentWasActive || anyPlaying
-      || _engine.getScheduledForRecordingPattern () != nullptr
-      || (shown && shown->getStatus () == Pattern::Status::Playing))
+  auto const moving = _engine.isRecording () || accent || anyMoving
+                      || _engine.getScheduledForRecordingPattern () != nullptr;
+
+  // **One tick past, always.** Every transition *out* of motion happens at the
+  // moment nothing is moving any more, and that is exactly the frame that has
+  // to be drawn -- so a condition that only runs while something moves can
+  // never draw it. Measured on 2026-09-13: pause a clip with nothing else
+  // running and the key went on showing the triangle indefinitely, because the
+  // refresh stopped in the same tick the clip did. The accent had this
+  // already, as _accentWasActive; it was the one case somebody had hit.
+  if (moving || _wasMoving)
     updateClipSettingsDisplay ();
-  _accentWasActive = accent;
+  _wasMoving = moving;
 
   // Two seconds' worth of ticks, which is the pace this used to run at.
   if (++_timerTick % libraryCheckTicks != 0)
@@ -6928,7 +6967,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   // means anything while that section is actually selected.
   //
   // Speed is passed as an already-normalized knob fraction + the same words
-  // the keys wear (speedLog2Name) rather than the raw speedLog2 value, so
+  // the keys wear (speedKeyName) rather than the raw speedLog2 value, so
   // ClipSettingsComponent need not invert the range itself.
   // Inverted against the raw range: far left (frac 0) = speedLog2Max
   // ("16", slowest), far right (frac 1) = speedLog2Min ("1/128", fastest).
@@ -6939,7 +6978,9 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       = speedRange > 0.f
             ? (speedLog2Max - clipSpeedLog2) / speedRange
             : 0.f;
-  _clipSettings->setMotionSpeed (speedFrac, speedLog2Name (clipSpeedLog2));
+  _clipSettings->setMotionSpeed (
+      speedFrac,
+      speedKeyName (clipSpeedLog2, getPatternLengthBeats (channel, slot)));
   // Read back off the pattern rather than from this table. The pattern is
   // where the engine looks and what the file carries, so a clip that came from
   // disk brings its own settings -- and the bar has to show those, not the
@@ -7006,14 +7047,19 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   auto const rotate = pattern ? pattern->getRotate () : 0.f;
   _clipSettings->setShapeRotate (rotate, pattern ? turnsOf (*pattern) : 0.f);
 
-  // Worded like Speed is, because it is the same kind of number: bars as a
-  // power of two, "2" for two bars, "1/4" for a quarter of one.
-  _clipSettings->setRecordLength (
-      params.recordLengthLog2 >= 0
-          ? juce::String (static_cast<int> (std::exp2 (params.recordLengthLog2)))
-          : "1/"
-                + juce::String (static_cast<int> (
-                    std::exp2 (-params.recordLengthLog2))));
+  // The value, and the bar words it -- in the ticks the indicator counts, like
+  // every other length in the bar. It used to be formatted here into the same
+  // string the key drew, and the key was then found by comparing the two: one
+  // length spelled in two places, which held only as long as nobody renamed
+  // anything.
+  _clipSettings->setRecordLength (params.recordLengthLog2);
+  _clipSettings->setBeatsPerBar (_engine.getBeatsPerBar ());
+
+  // What the speed keys are a ratio of. Without it they cannot say how many
+  // ticks they would run, because that is a property of the take, not of the
+  // key -- see speedKeyName().
+  _clipSettings->setPatternLengthBeats (
+      getPatternLengthBeats (channel, slot));
   // How far the clip has got, as a line under the tick indicator — over the
   // sphere, where the eye already is. Recording fills in the channel's own
   // colour, playing in the skin's green: the same indicator answers "how far
@@ -7024,9 +7070,25 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
     auto const recording = _engine.getRecordingPattern ();
     auto const isRecordingThis = recording != nullptr && recording == pattern
                                  && _engine.isRecording ();
-    auto const isPlayingThis
-        = pattern != nullptr
-          && pattern->getStatus () == Pattern::Status::Playing;
+    auto const status = pattern != nullptr ? pattern->getStatus ()
+                                          : Pattern::Status::Empty;
+    auto const isPlayingThis = status == Pattern::Status::Playing;
+
+    // Pressed, and waiting for the beat to come round. Both ends of the
+    // transport land on TempoClock::nextBeat(), so this is the window after
+    // either a start or a stop -- up to half a second in which nothing has
+    // happened yet, which without a sign reads as a key that did not work.
+    // Waiting, in all three of its shapes: waiting to start, waiting to stop
+    // on the beat, and -- the long one -- playing out a lap it has been asked
+    // to finish. The last keeps the status Playing, because it *is* playing,
+    // so the engine has to be asked separately or a press would leave no mark
+    // at all for up to a whole phrase.
+    auto const isScheduledThis
+        = status == Pattern::Status::ScheduledForPlaying
+          || status == Pattern::Status::ScheduledForIdle
+          || (status == Pattern::Status::Playing
+              && _engine.isStoppingAtEnd (channel));
+
 
     if (_statusBar)
       {
@@ -7054,7 +7116,26 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       }
 
     if (_clipSettings)
-      _clipSettings->setTransportState (isPlayingThis, isRecordingThis);
+      {
+        _clipSettings->setTransportState (isPlayingThis, isRecordingThis,
+                                          isScheduledThis);
+
+        // The strip's REC light follows the **engine**, not the key that
+        // started the take. A recording ends by itself when it reaches its
+        // length, and nothing is pressed at that moment -- which is why the
+        // light used to stay on until somebody pressed REC again to turn it
+        // off. Armed counts as on: the take is committed from the press, and
+        // the light saying so before the downbeat is the only warning there is.
+        _clipSettings->setRecording (
+            _engine.isRecording ()
+            || _engine.getScheduledForRecordingPattern () != nullptr);
+
+        // What is still moving, not what is still held -- the accent outlives
+        // the finger by its decay, and so does the action's hold on the clip's
+        // settings.
+        _clipSettings->setActionActive (
+            _engine.isChannelAccentActive (channel));
+      }
   }
 
   _clipSettings->setTrajectorySubIndex (

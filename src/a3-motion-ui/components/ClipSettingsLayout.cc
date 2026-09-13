@@ -31,21 +31,60 @@
 #include "ControllerLayout.hh"
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
+#include <a3-motion-engine/PlaybackRate.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
 namespace a3
 {
 
 juce::String
-speedLog2Name (int speedLog2)
+beatsName (float beats)
 {
-  // As recorded is `1` and everything faster is a fraction of it, which is
-  // how a note value is read on any other instrument in the room. The slow
-  // half of the range is plain multiples for the same reason.
-  auto const factor
-      = juce::String (static_cast<int> (std::exp2 (std::abs (speedLog2))));
+  if (!(beats > 0.f))
+    return "--";
 
-  return speedLog2 >= 0 ? factor : "1/" + factor;
+  // Halved until the numerator is whole, which it always becomes: every length
+  // here is a take's beat count times a power of two. Bounded anyway -- a loop
+  // that trusts floating point to land exactly is a loop that one day does
+  // not.
+  auto numerator = static_cast<double> (beats);
+  auto denominator = 1;
+  for (int i = 0; i < 12 && std::abs (numerator - std::round (numerator)) > 1e-4;
+       ++i)
+    {
+      numerator *= 2.0;
+      denominator *= 2;
+    }
+
+  auto whole = static_cast<long> (std::lround (numerator));
+  if (whole < 1)
+    whole = 1;
+
+  // In lowest terms, so four eighths is a half and eight eighths is one.
+  auto const divisor = std::gcd (whole, static_cast<long> (denominator));
+  whole /= divisor;
+  denominator /= static_cast<int> (divisor);
+
+  return denominator == 1 ? juce::String (whole)
+                          : juce::String (whole) + "/"
+                                + juce::String (denominator);
+}
+
+juce::String
+speedKeyName (int speedLog2, float patternLengthBeats)
+{
+  // Through the engine's own function, not a second copy of the arithmetic.
+  // The whole point of the key saying a number of ticks is that the number is
+  // the one the engine plays; two expressions that happen to agree today are
+  // a label and a playback length waiting to drift apart.
+  return beatsName (playbackLengthBeats (patternLengthBeats, speedLog2));
+}
+
+juce::String
+recordLengthName (int recordLengthLog2, int beatsPerBar)
+{
+  return beatsName (std::exp2 (static_cast<float> (recordLengthLog2))
+                    * static_cast<float> (beatsPerBar));
 }
 
 int

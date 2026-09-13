@@ -751,7 +751,7 @@ TEST (ClipSettingsLayout, TheLengthButtonsSitInTwoRowsInOrder)
 
   for (int i = 0; i < numRecordLengths; ++i)
     EXPECT_TRUE (card.contains (l.lengthButtons[static_cast<size_t> (i)]))
-        << "length " << recordLengthNames[i] << " escapes its section";
+        << "length " << recordLengthLog2[i] << " escapes its section";
 
   // Four on each row.
   for (int i = 1; i < 4; ++i)
@@ -780,8 +780,8 @@ TEST (ClipSettingsLayout, NoTwoLengthButtonsOverlap)
       EXPECT_TRUE (l.lengthButtons[a]
                        .getIntersection (l.lengthButtons[b])
                        .isEmpty ())
-          << "lengths " << recordLengthNames[a] << " and "
-          << recordLengthNames[b] << " overlap";
+          << "lengths " << recordLengthLog2[a] << " and "
+          << recordLengthLog2[b] << " overlap";
 }
 
 // The pictogram keeps the room above them, and they do not run into it.
@@ -798,42 +798,27 @@ TEST (ClipSettingsLayout, TheLengthButtonsClearThePictogram)
     }
 }
 
-// The keys carry whatever the performer put on them, so their names are
-// computed rather than written down beside four fixed values. The four the
-// device ships with have to come out of the formatter spelled exactly as the
-// fixed strings spelled them, or the same speed would be named two ways in
-// one device -- on a key here, and in the same breath somewhere else.
-TEST (ClipSettingsLayout, TheShippedSpeedsAreNamedAsTheyAlwaysWere)
-{
-  EXPECT_EQ (speedLog2Name (0), "1");
-  EXPECT_EQ (speedLog2Name (-3), "1/8");
-  EXPECT_EQ (speedLog2Name (-4), "1/16");
-  EXPECT_EQ (speedLog2Name (-6), "1/64");
-}
-
-// A key can now be dragged anywhere in the range, so every value in it has to
+// A key can be dragged anywhere in the range, so every value in it has to
 // arrive on the key as something readable -- including the positive end, which
-// is slower than recorded and was never on a key before.
+// is slower than recorded and was never on a key before. Against a four-beat
+// take, since a name only means anything once there is a take to apply it to.
 TEST (ClipSettingsLayout, EverySpeedInTheRangeIsWordedAndWordedOnlyOnce)
 {
   std::set<juce::String> seen;
 
   for (int log2 = speedLog2Min; log2 <= speedLog2Max; ++log2)
     {
-      auto const expected
-          = log2 >= 0 ? juce::String (static_cast<int> (std::exp2 (log2)))
-                      : "1/" + juce::String (
-                            static_cast<int> (std::exp2 (-log2)));
-
-      auto const name = speedLog2Name (log2);
-      EXPECT_EQ (name, expected) << "speed " << log2;
+      auto const name = speedKeyName (log2, 4.f);
       EXPECT_FALSE (name.isEmpty ()) << "speed " << log2;
+      EXPECT_NE (name, "--") << "speed " << log2;
       EXPECT_TRUE (seen.insert (name).second)
           << "speed " << log2 << " is worded as something already used";
     }
 
-  EXPECT_EQ (speedLog2Name (speedLog2Min), "1/128");
-  EXPECT_EQ (speedLog2Name (speedLog2Max), "16");
+  // The ends, in the ticks a four-beat take actually runs: a 128th of it is
+  // a thirty-second of a beat, sixteen times it is sixty-four beats.
+  EXPECT_EQ (speedKeyName (speedLog2Min, 4.f), "1/32");
+  EXPECT_EQ (speedKeyName (speedLog2Max, 4.f), "64");
 }
 
 // The whole range is reachable a key at a time, and the ends of it are ends:
@@ -913,16 +898,15 @@ TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
 
 TEST (ClipSettingsLayout, TheLengthNamesMatchTheirPowersOfTwo)
 {
-  for (int i = 0; i < numRecordLengths; ++i)
-    {
-      auto const log2 = recordLengthLog2[i];
-      auto const expected
-          = log2 >= 0 ? juce::String (static_cast<int> (std::exp2 (log2)))
-                      : "1/" + juce::String (
-                            static_cast<int> (std::exp2 (-log2)));
+  // In the ticks the indicator counts: a bar is four of them at four four, so
+  // the eight keys read 1, 2, 4, 8, 16, 32, 64, 128 rather than the bars they
+  // used to name.
+  char const *expected[numRecordLengths]
+      = { "1", "2", "4", "8", "16", "32", "64", "128" };
 
-      EXPECT_EQ (juce::String (recordLengthNames[i]), expected);
-    }
+  for (int i = 0; i < numRecordLengths; ++i)
+    EXPECT_EQ (recordLengthName (recordLengthLog2[i], 4), expected[i])
+        << "length " << i;
 }
 
 // ── The header's transport keys ──────────────────────────────────────────
@@ -1803,4 +1787,72 @@ TEST (ClipSettingsLayout, TheBaseSnapsToThePolesAsWellAsToEarHeight)
   // And a value deliberately set just off one of them stays there.
   EXPECT_FLOAT_EQ (snapElevationBase (0.06f), 0.06f);
   EXPECT_FLOAT_EQ (snapElevationBase (0.94f), 0.94f);
+}
+
+// ── Lengths are counted in the ticks you can see ─────────────────────────────
+//
+// A key said "1" for "as long as it was recorded", which is a ratio and reads
+// like a number of something. What a person counts is the indicator's ticks,
+// so that is what the keys say now -- and because the key is still a ratio,
+// the number depends on the take it is applied to. Same key, 4 on a four-beat
+// take and 8 on an eight-beat one, which is the truth about what it does.
+
+TEST (BeatsName, WholeBeatsAreJustTheNumber)
+{
+  EXPECT_EQ (beatsName (1.f), "1");
+  EXPECT_EQ (beatsName (4.f), "4");
+  EXPECT_EQ (beatsName (128.f), "128");
+}
+
+TEST (BeatsName, LessThanABeatIsAFraction)
+{
+  EXPECT_EQ (beatsName (0.5f), "1/2");
+  EXPECT_EQ (beatsName (0.25f), "1/4");
+  EXPECT_EQ (beatsName (0.0625f), "1/16");
+}
+
+// A take is not always a power of two long -- a six-beat one at a sixteenth of
+// its length is three eighths of a beat, and "3/8" is the only honest way to
+// write that. Rounding it to 1/2 or 1/4 would put a number on a key that the
+// indicator then contradicts.
+TEST (BeatsName, AnAwkwardLengthKeepsItsNumerator)
+{
+  EXPECT_EQ (beatsName (0.375f), "3/8");
+  EXPECT_EQ (beatsName (1.5f), "3/2");
+  EXPECT_EQ (beatsName (6.f), "6");
+}
+
+TEST (SpeedKeyName, TheKeyNamesWhatThisTakeWillRun)
+{
+  // Four-beat take: the key that plays it as recorded says four.
+  EXPECT_EQ (speedKeyName (0, 4.f), "4");
+  EXPECT_EQ (speedKeyName (-2, 4.f), "1");
+  EXPECT_EQ (speedKeyName (2, 4.f), "16");
+
+  // Eight-beat take, same keys, different numbers -- because the key is a
+  // ratio and always was.
+  EXPECT_EQ (speedKeyName (0, 8.f), "8");
+  EXPECT_EQ (speedKeyName (-2, 8.f), "2");
+}
+
+// Without a clip there is nothing to be a ratio of, and a key showing a number
+// it cannot honour is worse than one showing none.
+TEST (SpeedKeyName, NoTakeMeansNoNumber)
+{
+  EXPECT_EQ (speedKeyName (0, 0.f), "--");
+}
+
+// The record length is not a ratio: it is the take being made, and it has
+// always been a count of bars. Times the beats in a bar, so it is read in the
+// same ticks as everything else -- and from the clock rather than from a 4
+// written here, or it would be wrong in three four.
+TEST (RecordLengthName, BarsAreShownAsTheBeatsTheyHold)
+{
+  EXPECT_EQ (recordLengthName (0, 4), "4");
+  EXPECT_EQ (recordLengthName (2, 4), "16");
+  EXPECT_EQ (recordLengthName (-2, 4), "1");
+  EXPECT_EQ (recordLengthName (5, 4), "128");
+
+  EXPECT_EQ (recordLengthName (0, 3), "3");
+  EXPECT_EQ (recordLengthName (-2, 3), "3/4");
 }

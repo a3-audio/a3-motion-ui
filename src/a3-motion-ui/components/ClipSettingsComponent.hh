@@ -285,7 +285,21 @@ public:
 
   /** The length the next take will have, already worded ("2", "1/4"), and
    *  which of the shape section's two elements is armed. */
-  void setRecordLength (juce::String const &label);
+  /** Which record length is chosen, as its power of two of a bar.
+   *
+   *  The value, not the word: the key used to be found by comparing the label
+   *  it was given against the label it draws, so the two had to spell the same
+   *  length the same way forever. Renaming lengths from bars to beats broke
+   *  exactly that. */
+  void setRecordLength (int recordLengthLog2);
+
+  /** The take in the shown slot, in beats -- what the speed keys are a ratio
+   *  of, and therefore what they have to be named from. */
+  void setPatternLengthBeats (float beats);
+
+  /** How many beats a bar holds, for the record lengths. From the clock, so
+   *  they are right in three four as well. */
+  void setBeatsPerBar (int beats);
   void setTrajectorySubIndex (int subIndex);
 
 
@@ -331,11 +345,6 @@ public:
   /** Which section (0..numParameters-1) is currently selected/highlighted. */
   void setSelectedParameterIndex (int index);
 
-  /** Scale factor for every knob/toggle's shared size (see class doc) —
-   *  1.0 = default. Set from A3MotionUIComponent's Global Settings "Pot
-   *  Size" option, so it's adjustable live on the device without a
-
-
   /** One-line terminal-style readout of the last-operated control, shown
    *  top-right (e.g. "CH2 POT1 0.73"). Global, independent of setTarget(). */
   void setLastControlReadout (juce::String const &text);
@@ -366,9 +375,21 @@ public:
   std::function<void (TransportKey key)> onTransportTapped;
   std::function<void (bool held)> onTransportActionHeld;
 
-  /** What the transport keys show: whether this clip is running, and whether a
-   *  take is being recorded into it. */
-  void setTransportState (bool playing, bool recording);
+  /** What the transport keys show: whether this clip is running, whether a
+   *  take is being recorded into it, and whether it has been pressed and is
+   *  waiting for the beat to come round.
+   *
+   *  `playing` reaches the glyph alone -- a triangle runs, two bars stand --
+   *  and never a lit ground; see transportKeyGround(). */
+  void setTransportState (bool playing, bool recording, bool scheduled);
+
+  /** Whether the shown channel's action is still running.
+   *
+   *  Not whether ACT is held: the engine puts the clip's settings back when
+   *  the accent's envelope has finished falling, and for a hold that moment is
+   *  the middle of an audible decay. What the key shows is what is still
+   *  moving -- MotionEngine::isChannelAccentActive(). */
+  void setActionActive (bool active);
 
   /** A control was tapped: select its section and sub-element in one go —
    *  what the encoders reach by scrolling and pressing. */
@@ -451,10 +472,13 @@ public:
   /** TAP was pressed — from the strip's key or the panel's. */
   void flashTap ();
 
+  /** Light Stop for a moment: the press landed. */
+  void flashStop ();
+
   /** A beat went by. The TAP key breathes with it, faintly — the maintainer
    *  asked for the blink back after it was taken out for being too loud, so
    *  it is a wash at a fraction of the touch flash, not the flash itself. */
-  void pulseTapOnBeat ();
+  void pulseOnBeat ();
 
   void paint (juce::Graphics &g) override;
   void resized () override;
@@ -582,6 +606,34 @@ private:
   float _elevationReachSwept = -1.f;
   bool _transportPlaying = false;
   bool _transportRecording = false;
+  bool _transportScheduled = false;
+  bool _actionActive = false;
+
+  /** The wait blink's own clock.
+   *
+   *  Its own rather than the component's single Timer, which is the tap
+   *  flash's one-shot and stops itself in timerCallback(): one timer doing
+   *  both would have a beat's blink cancel a press's flash, which is the one
+   *  feedback saying the tap was taken.
+   */
+  struct Blink : juce::Timer
+  {
+    std::function<void ()> onTick;
+
+    void
+    timerCallback () override
+    {
+      if (onTick)
+        onTick ();
+    }
+  };
+
+  bool _waitBlinkOn = false;
+
+  /** Stop's press flash -- one shot, its own timer for the same reason the
+   *  blink has one. */
+  Blink _stopFlash;
+  bool _stopPressed = false;
 
   int _channel = 0;
   int _slot = 0;
@@ -645,7 +697,9 @@ private:
   /** Which speed key a finger is on, or noSpeedKeyDragged. Only the drag
    *  needs it — see speedKeyIsActive(), which is where it is read. */
   int _speedDragIndex = noSpeedKeyDragged;
-  juce::String _recordLengthLabel { "1" };
+  int _recordLengthLog2 = 0;
+  float _patternLengthBeats = 0.f;
+  int _beatsPerBar = 4;
   std::array<float, numChannelColumns> _channelFreq{};
   std::array<float, numChannelColumns> _channelFreqReach{};
   std::array<float, numChannelColumns> _channelQ{};

@@ -53,11 +53,67 @@ juce::Colour transportColour (TransportKey key);
  *  has no such shape and gets its initial instead; a symbol invented for it
  *  would have to be learned, and a shape that has to be learned is a word.
  *
- *  `playing` chooses between the triangle and the bars: what a transport key
- *  shows is what pressing it will do. It does not change any colour -- play is
- *  green whether or not it is running, because green is which key this is. */
+ *  **Play is always the triangle.** It used to switch to two bars while the
+ *  clip ran, so that the glyph carried the state -- and that cannot work,
+ *  because there are three states and a glyph with two shapes can only tell
+ *  two of them apart. Running, held, and stopped: after Stop the key showed
+ *  the same two bars a pause does, and said something untrue. The shape is the
+ *  key's *identity*, the ground is its *state* -- which is the division every
+ *  deck uses, and the reason a deck's play key has one symbol printed on it
+ *  and a lamp behind it.
+ *
+ *  Nor does anything here change colour: play is green running or not,
+ *  because green is which key this is. */
 void drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
-                         TransportKey key, bool playing);
+                         TransportKey key);
+
+/** What a transport key's ground is doing. */
+enum class TransportGround
+{
+  Dark,    ///< nothing of this key's is happening
+  Lit,     ///< it is happening now
+  Waiting, ///< pressed, and waiting for the beat to come round -- blinks
+};
+
+/** What each key's ground is told about, in one place.
+ *
+ *  A struct rather than six booleans in a row: they are all the same type, so
+ *  one transposed pair at a call site is a light on the wrong key and nothing
+ *  that would fail to compile. The same shape FunctionKeyLook already has. */
+struct TransportState
+{
+  bool recording = false;    ///< a take is running or armed on the shown clip
+  bool playing = false;      ///< the shown clip is running
+  bool scheduled = false;    ///< pressed, and waiting for the beat
+  bool actionActive = false; ///< the accent is still moving
+  bool stopPressed = false;  ///< a finger is on Stop at this moment
+};
+
+/** Whether a transport key's ground lights, and how.
+ *
+ *  One rule for the global strip and the pads page, and written down rather
+ *  than worked out inside a paint method: "is this key lit" is a question two
+ *  screens ask and a person asks in the dark, and two answers to it is one
+ *  too many.
+ *
+ *  **The ground is where a key's state lives**, because the glyph cannot hold
+ *  it -- see drawTransportGlyph(). So play lights while the clip runs and
+ *  blinks while it waits for the beat, and the shape stays a triangle
+ *  throughout.
+ *
+ *  Two things it deliberately does not read:
+ *
+ *  * **Whether a finger is down on ACT.** The engine puts a clip's settings
+ *    back when the accent's envelope has finished falling, not when the hand
+ *    lifts -- so `actionActive` is what is still moving, not what is still
+ *    held.
+ *  * **Whether Stop has anything to stop.** It is a way out, and a way out
+ *    that stayed lit afterwards would be claiming to be somewhere. What it
+ *    does read is the *press*: Stop acts instantly and unquantised, so it is
+ *    the one key that can never blink while it waits -- and without a flash,
+ *    the key that always works is the key that never answers. */
+TransportGround transportKeyGround (TransportKey key,
+                                    TransportState const &state);
 
 /** Three stacked bars: the mark a menu has had since phones grew one, and by
  *  now the one shape people look for when they want the rest of the options.

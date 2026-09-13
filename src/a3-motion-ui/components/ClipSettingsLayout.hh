@@ -86,14 +86,6 @@ constexpr int speedLog2Max = 4;  // 2^4 bar = 16 bars
  *  part of an arrangement. */
 constexpr int numSpeedButtons = 4;
 
-/** A speed worded the way a musician reads it: `1` for as recorded, `1/8` for
- *  eight times as fast, `16` for sixteen bars a cycle.
- *
- *  The one place a speed is put into words. The four keys used to carry their
- *  names beside their values as fixed strings, which only works while the
- *  values are fixed too. */
-juce::String speedLog2Name (int speedLog2);
-
 /** Where a drag leaves the speed key it started on. Clamped rather than
  *  wrapped: the ends of the range are ends, and a key that jumped from the
  *  fastest to the slowest under a finger would be a key nobody could aim. */
@@ -109,8 +101,40 @@ constexpr int noSpeedKeyDragged = -1;
 bool speedKeyIsActive (std::array<int, numSpeedButtons> const &keys, int index,
                        int clipSpeedLog2, int draggedIndex);
 constexpr int recordLengthLog2[numRecordLengths] = { -2, -1, 0, 1, 2, 3, 4, 5 };
-constexpr char const *recordLengthNames[numRecordLengths]
-    = { "1/4", "1/2", "1", "2", "4", "8", "16", "32" };
+
+/** A length, written as the ticks you can count on the indicator.
+ *
+ *  Everything in the bar that says how long something is says it in these:
+ *  the record lengths, the speed keys, the Motion section's readout. They used
+ *  to be counted in bars and in ratios, which are two different units on two
+ *  keys a finger's width apart -- and neither is the thing a person actually
+ *  counts while watching the take go round.
+ *
+ *  Exact rather than rounded. A length is a whole number of beats or a
+ *  power-of-two fraction of one, and a six-beat take at a sixteenth of its
+ *  length really is three eighths of a beat: "3/8", not a tidied 1/4 that the
+ *  indicator would then contradict. */
+juce::String beatsName (float beats);
+
+/** What a speed key says, for the take it would be applied to.
+ *
+ *  The key is a **ratio** -- `2^speedLog2` of the take's own recorded length
+ *  -- so the same key is four ticks on a four-beat take and eight on an
+ *  eight-beat one. Naming it with a fixed number would be true for one clip
+ *  and a lie for the next; naming it with the ratio ("1" for "as recorded")
+ *  was honest and unreadable, because 1 is not a number of anything you can
+ *  see. So it is computed, and it changes when the clip does.
+ *
+ *  A take of no length has no answer, and a key showing a number it cannot
+ *  honour is worse than one showing none: that reads `--`. */
+juce::String speedKeyName (int speedLog2, float patternLengthBeats);
+
+/** What a record-length key says.
+ *
+ *  Not a ratio: the take being made is measured in bars outright. `beatsPerBar`
+ *  comes from the clock rather than from a 4 written here, or every one of
+ *  these would be wrong in three four. */
+juce::String recordLengthName (int recordLengthLog2, int beatsPerBar);
 /** The four things you do to a clip, as small keys in the bar's header.
  *
  *  The pads page has these already; the header carries them so the clip you

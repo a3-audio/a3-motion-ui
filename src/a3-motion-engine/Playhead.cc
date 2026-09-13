@@ -76,7 +76,7 @@ endActionFromName (juce::String const &name)
 
 Playhead
 advancePlayhead (Playhead current, float delta, EndAction endAction,
-                 float randomPhase)
+                 float randomPhase, bool stopAtEnd)
 {
   if (current.stopped)
     return current;
@@ -87,6 +87,13 @@ advancePlayhead (Playhead current, float delta, EndAction endAction,
   auto const reachedTheEnd = sign > 0.f ? next >= 1.f : next < 0.f;
   if (!reachedTheEnd)
     return { next, sign, false };
+
+  // Asked to finish, and the lap has finished. Before the switch, because the
+  // three actions below that mean "carry on" are exactly the ones this has to
+  // overrule -- and back to the take's start for EndAction::Stop's reason:
+  // the next press should be a start.
+  if (stopAtEnd)
+    return { 0.f, sign, true };
 
   switch (endAction)
     {

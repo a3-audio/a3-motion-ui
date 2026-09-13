@@ -199,6 +199,17 @@ public:
   float getPlaySign () const;
   void setPlaySign (float sign);
 
+  /** Somebody pressed play on this while it was running: finish the lap and
+   *  stop, whatever the end action says.
+   *
+   *  On the pattern rather than in the engine's channel, because it belongs to
+   *  the pass that is running -- and it is cleared when one starts, so a clip
+   *  fired again never inherits a decision made about a previous lap. Atomic
+   *  like the rest of the playhead: set from the message thread, read on the
+   *  tempo clock's. */
+  bool getStopAtEnd () const;
+  void setStopAtEnd (bool stop);
+
   /** How far the whole trajectory is turned around the vertical axis, in
    *  revolutions [0, 1). A standing angle, not a movement: where the shape
    *  faces.
@@ -393,6 +404,7 @@ private:
   std::atomic<ActMode> _actMode{ ActMode::OneShot };
   std::atomic<int> _speedLog2{ 0 };
   std::atomic<float> _playSign{ 1.f };
+  std::atomic<bool> _stopAtEnd{ false };
   std::atomic<float> _rotate{ 0.f };
   std::atomic<float> _squeezeX{ 0.f };
   std::atomic<float> _squeezeY{ 0.f };

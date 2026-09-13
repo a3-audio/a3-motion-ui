@@ -92,16 +92,14 @@ ControllerComponent::~ControllerComponent () = default;
 
 void
 ControllerComponent::setPadColour (index_t channel, index_t pad,
-                                   juce::Colour colour, bool playing)
+                                   juce::Colour colour)
 {
   if (channel >= numChannelColumns || pad >= numPadsPerChannel)
     return;
-  if (_padColours[channel][pad] == colour
-      && _padPlaying[channel][pad] == playing)
+  if (_padColours[channel][pad] == colour)
     return;
 
   _padColours[channel][pad] = colour;
-  _padPlaying[channel][pad] = playing;
   repaint (_layout.pads[channel][pad]);
 }
 
@@ -186,8 +184,7 @@ ControllerComponent::paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
     }
 
   g.setColour (padFunctionColour (function));
-  drawTransportGlyph (g, glyph, transportKeyForPad (function),
-                      _padPlaying[channel][pad]);
+  drawTransportGlyph (g, glyph, transportKeyForPad (function));
 }
 
 

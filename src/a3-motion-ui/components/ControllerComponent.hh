@@ -51,11 +51,13 @@ public:
 
   /** What this pad looks like right now — empty, idle, armed, running. Pushed
    *  from padLEDCallback(), which computes it once for both displays. */
-  /** `playing` because Play|Pause is written in green while a clip runs and
-   *  red while it does not, and the pad's own colour is the channel's, which
-   *  cannot answer that. */
-  void setPadColour (index_t channel, index_t pad, juce::Colour colour,
-                     bool playing = false);
+  /** The pad's colour, worked out in one place for both displays.
+   *
+   *  It used to take a `playing` flag as well, for the glyph: the play pad
+   *  drew two bars while its clip ran. That is gone -- a shape with two forms
+   *  cannot tell three states apart, and the colour already carries empty,
+   *  idle, armed and running. See drawTransportGlyph(). */
+  void setPadColour (index_t channel, index_t pad, juce::Colour colour);
 
   /** A pad went down or came up. Both matter: Shift+Action runs a preview for
    *  as long as it is held, so a press without its release would leave the
@@ -71,9 +73,6 @@ private:
 
   std::array<std::array<juce::Colour, numPadsPerChannel>, numChannelColumns>
       _padColours;
-  std::array<std::array<bool, numPadsPerChannel>, numChannelColumns>
-      _padPlaying{};
-
   std::array<std::array<std::unique_ptr<TouchControl>, numPadsPerChannel>,
              numChannelColumns>
       _padTouch;

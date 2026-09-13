@@ -59,8 +59,20 @@ StandaloneApp::initialise (juce::String const &commandLine)
   //                           true /* removeOnMouseClick */);
 
   _mainWindow = std::make_unique<MainWindow> (getApplicationName ());
-  // mainWindow->setBounds (0, 0, 600, 1024);
-  _mainWindow->setBounds (0, 0, 450, 768);
+
+  // The panel the device runs on, in the orientation it hangs in: 768x1024,
+  // portrait, because the screen is mounted rotated (i3 sets `--rotate right`
+  // on HDMI-2; see also /etc/X11/xorg.conf.d/99-ilitek-rotation.conf, which
+  // turns the touches with it).
+  //
+  // It asked for 450x768 before -- neither the panel's size nor its shape.
+  // On the rig that never showed, because i3 tiles the window to the whole
+  // workspace a moment later and JUCE lays out again at the size it is given.
+  // It shows when nobody tiles it: on a bare X, on a desk, and at a cold boot
+  // in the seconds before i3 has the window. Then this number *is* the window,
+  // and a window 450 wide on a 768-wide panel is a layout squeezed into a bit
+  // over half the room it has.
+  _mainWindow->setBounds (0, 0, 768, 1024);
   _mainWindow->setVisible (true);
 }
 
