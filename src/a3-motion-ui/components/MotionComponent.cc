@@ -35,6 +35,7 @@
 #include <a3-motion-ui/components/ChannelUIState.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
+#include <a3-motion-ui/components/PlasmaSheath.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 #include <a3-motion-ui/components/Listener.hh>
@@ -1953,29 +1954,44 @@ drawPathOnSphere (juce::Path const &displayPath,
   if (projected.size () < 2)
     return;
 
-  // The line is walked once per layer, not once per piece.
-  //
-  // Per piece was the obvious way and it was wrong twice over: a piece's wide
-  // bloom is painted *after* its neighbour's hot core and covers it, which
-  // draws the crest as a row of dashes; and the halo, flushed at the end of a
-  // depth band, landed on top of every core piece in that band and tinted the
-  // white back to pink. Layers go on in order, so each walk is cheap -- the
-  // projection above is done, this is arithmetic on points already in hand.
+  // The line is a braided wire inside a plasma sheath, and the two are the
+  // same helix at two radii -- see components/PlasmaSheath.hh. What makes it
+  // read as a coil rather than as a zigzag is not the offset but the *depth*:
+  // a strand that is in front of the wire is drawn after it, one behind it
+  // before, so the strand passes behind and comes out the other side.
   auto const total = static_cast<float> (projected.size () - 1);
+  auto const uAt = [total] (std::size_t i) {
+    return total > 0.f ? static_cast<float> (i) / total : 0.f;
+  };
 
-  // Short enough that the wave is smooth along the line, long enough that the
-  // stroke count stays in the low hundreds at the sizes this runs at.
-  auto const piece = std::max<std::size_t> (3, projected.size () / 90);
+  // Which way is "across the line" at each point. Screen space, because that
+  // is where the strands are drawn; taken from the neighbours, and never
+  // across a pen lift, where the neighbour belongs to a different stroke.
+  std::vector<juce::Point<float> > normals (projected.size ());
+  for (std::size_t i = 0; i < projected.size (); ++i)
+    {
+      auto const before = (i > 0 && !startsRun[i]) ? i - 1 : i;
+      auto const after = (i + 1 < projected.size () && !startsRun[i + 1])
+                             ? i + 1
+                             : i;
+      auto const tangent = projected[after].first - projected[before].first;
+      auto const length = tangent.getDistanceFromOrigin ();
+      normals[i] = length > 1e-6f
+                       ? juce::Point<float> (-tangent.y / length,
+                                             tangent.x / length)
+                       : juce::Point<float> ();
+    }
 
-  /** Walk the line, handing each run to `draw`.
+  /** Walk the line in short pieces, handing each to `draw` with where it sits
+   *  along the whole figure.
    *
-   *  `byPiece` false gives one run per depth band, which is what a translucent
-   *  layer needs: two round caps meeting at a joint stack to twice the alpha,
-   *  so a soft halo cut into pieces comes out beaded. True gives short runs,
-   *  each with its own place in the wave. */
-  auto const walk = [&] (bool byPiece, auto &&draw) {
+   *  Only the cloud needs this now: the two rings displace every point
+   *  individually, so they carry the wave in their geometry and want one
+   *  sweep rather than one call per piece. */
+  auto const walkInPieces = [&] (auto &&draw) {
+    auto const piece = std::max<std::size_t> (3, projected.size () / 60);
     juce::Path path;
-    int currentBand = depthBand (projected[0].second);
+    auto currentBand = depthBand (projected[0].second);
     std::size_t runStart = 0;
     path.startNewSubPath (projected[0].first);
 
@@ -1987,11 +2003,10 @@ drawPathOnSphere (juce::Path const &displayPath,
 
     for (std::size_t i = 1; i < projected.size (); ++i)
       {
-        int const band = depthBand (projected[i].second);
+        auto const band = depthBand (projected[i].second);
 
         if (startsRun[i])
           {
-            // A new stroke: lift the pen rather than reaching across to it.
             draw (path, currentBand, centre (i - 1));
             path.clear ();
             path.startNewSubPath (projected[i].first);
@@ -2000,7 +2015,7 @@ drawPathOnSphere (juce::Path const &displayPath,
             continue;
           }
 
-        if (band != currentBand || (byPiece && i - runStart >= piece))
+        if (band != currentBand || i - runStart >= piece)
           {
             draw (path, currentBand, centre (i - 1));
             path.clear ();
@@ -2013,72 +2028,330 @@ drawPathOnSphere (juce::Path const &displayPath,
     draw (path, currentBand, centre (projected.size () - 1));
   };
 
-  // The light travels on the front of the sphere only, and the reason is the
-  // same one the hot core has always had. Behind the horizon a line is drawn
-  // translucent so it reads as being behind glass -- and a translucent stroke
-  // cut into overlapping pieces beads at every joint, which came out as a
-  // dotted line on whichever channels happened to be round the back.
-  auto const litFront = [&] (int band) { return fadeForBand (band) > 0.999f; };
+  // How finely nearness is cut. Five rather than three: a strand winding round
+  // the wire crosses every tier boundary twice a turn, so with three tiers and
+  // plainly different brightnesses it came out as a dark-dash/pale-dash line
+  // and what you read was the boundary, not the strand. A coil brightens as it
+  // comes round; it does not switch.
+  auto constexpr numTiers = 5;
+  auto constexpr numBands = 4;
 
-  // 1 + 2: the glow. Wide and nearly transparent, then a middle body. Plus the
-  // plain tube wherever the wave is not drawing it, in one continuous stroke.
-  walk (false, [&] (juce::Path const &path, int band, float) {
-    auto const fade = fadeForBand (band);
-    auto const thickness = lineThickness * (0.5f + 0.5f * fade);
+  using RingPaths = std::array<std::array<juce::Path, numTiers>, numBands>;
+  using HotPaths = std::array<juce::Path, numBands>;
 
-    g.setColour (colour.withAlpha (alpha * fade * 0.10f * breath));
-    g.strokePath (path, strokeOf (thickness * 5.0f, false));
+  /** Lay one ring's strands down into a path per depth band and depth tier.
+   *
+   *  One sweep over the points per strand, appending to whichever path the
+   *  point belongs in -- rather than a loop per band and tier, which would be
+   *  twelve sweeps for the same answer. Everything in one (band, tier) is
+   *  stroked with a single call afterwards, subpaths and all. */
+  auto const buildRing
+      = [&] (SheathRing const &ring, FlickerSettings const &flicker,
+             float density, float kink, bool followTheWave, RingPaths &out,
+             HotPaths *hot) {
+          auto const strands
+              = juce::jlimit (1, 5, juce::roundToInt (ring.strands));
 
-    g.setColour (colour.withAlpha (alpha * fade * 0.22f * breath));
-    g.strokePath (path, strokeOf (thickness * 2.4f, false));
+          for (int strand = 0; strand < strands; ++strand)
+            {
+              auto lastBand = -1;
+              auto lastTier = -1;
+              auto hotOpen = false;
+              juce::Point<float> lastPoint;
 
-    if (!litFront (band))
+              for (std::size_t i = 0; i < projected.size (); ++i)
+                {
+                  auto const u = uAt (i);
+                  auto const sample = sheathAt (u, strand, ring, seconds);
+
+                  // The travelling wave lives in the sheath's width now: a
+                  // hairline has no width left to carry it.
+                  auto const amplitude
+                      = followTheWave ? 0.45f + 1.1f * flow (u) : 1.f;
+
+                  // A perfect helix is a spring, and no amount of adding
+                  // further smooth helices to it changes that -- they sum to
+                  // a smooth curve, and what came out was a regular sawtooth
+                  // fringe. "Eine hüllkurve aus blitzen" is not a wire bent
+                  // into a spiral: a bolt holds a direction for a stretch and
+                  // then jumps, so the kink is a *held* value and the corner
+                  // is the whole point.
+                  auto const kinked
+                      = kink * flickerAt (u, strand, flicker, seconds);
+
+                  auto const point
+                      = projected[i].first
+                        + normals[i]
+                              * (sample.offset * amplitude
+                                 + ring.radius * kinked);
+
+                  auto const band = depthBand (projected[i].second);
+                  auto const tier = juce::jlimit (
+                      0, numTiers - 1,
+                      static_cast<int> ((sample.depth + 1.f) * 0.5f
+                                        * static_cast<float> (numTiers)));
+
+                  // An envelope *made of* bolts: a strand is alight over some
+                  // stretches and dark over others, and the dark ones are a
+                  // pen lift rather than a faint line.
+                  if (aliveAt (u, strand, flicker, seconds, density) < 0.5f)
+                    {
+                      lastBand = -1;
+                      hotOpen = false;
+                      continue;
+                    }
+
+                  auto const broken
+                      = startsRun[i] || lastBand < 0
+                        || band != lastBand || tier != lastTier;
+
+                  if (broken)
+                    {
+                      // Start where the last piece ended, not where this one
+                      // begins, or every change of tier is a gap.
+                      out[static_cast<std::size_t> (band)]
+                         [static_cast<std::size_t> (tier)]
+                             .startNewSubPath (startsRun[i] || lastBand < 0
+                                                   ? point
+                                                   : lastPoint);
+                    }
+                  out[static_cast<std::size_t> (band)]
+                     [static_cast<std::size_t> (tier)]
+                         .lineTo (point);
+
+                  // Where the travelling wave is at a crest, the strand runs
+                  // white hot. This is the electric half of "psychedelisch,
+                  // elektrisch, magisch": without it the coil is a coloured
+                  // rope wound round another coloured rope, and the wave --
+                  // which used to live in the line's own width -- would have
+                  // nothing left to say.
+                  if (hot != nullptr)
+                    {
+                      auto const lit = flow (u) > 0.68f && sample.depth > 0.f
+                                       && !startsRun[i];
+                      if (!lit)
+                        hotOpen = false;
+                      else
+                        {
+                          auto &path = (*hot)[static_cast<std::size_t> (band)];
+                          if (!hotOpen)
+                            {
+                              path.startNewSubPath (point);
+                              hotOpen = true;
+                            }
+                          else
+                            path.lineTo (point);
+                        }
+                    }
+
+                  lastBand = band;
+                  lastTier = tier;
+                  lastPoint = point;
+                }
+            }
+        };
+
+  /** Stroke one tier of one ring, across every depth band.
+   *
+   *  Width, brightness and opacity are ramped from the tier rather than given
+   *  per tier, so the swing from behind the wire to in front of it is one
+   *  decision in one place and stays smooth however finely it is cut. */
+  auto const strokeRing = [&] (RingPaths const &paths, int tier, float width,
+                               float bright, float alphaLo, float alphaHi,
+                               float halo = 0.f) {
+    auto const front = numTiers > 1 ? static_cast<float> (tier)
+                                          / static_cast<float> (numTiers - 1)
+                                    : 1.f;
+    auto const opacity = alphaLo + (alphaHi - alphaLo) * front;
+
+    for (auto band = 0; band < numBands; ++band)
       {
-        g.setColour (colour.withAlpha (alpha * fade));
-        g.strokePath (path, strokeOf (thickness, false));
+        auto const fade = fadeForBand (band);
+        auto const &path = paths[static_cast<std::size_t> (band)]
+                                [static_cast<std::size_t> (tier)];
+        if (path.isEmpty ())
+          continue;
+
+        // The glow the strand sits in. Without it the coil is drawn in wire
+        // and reads as a spring; with it the wire is the hot middle of
+        // something burning.
+        if (halo > 0.f)
+          {
+            g.setColour (colour.withAlpha (juce::jlimit (
+                0.f, 1.f, alpha * fade * opacity * 0.34f)));
+            g.strokePath (path, strokeOf (lineThickness * width * halo, true));
+          }
+
+        g.setColour (colour.brighter (bright * front * front)
+                         .withAlpha (juce::jlimit (0.f, 1.f,
+                                                   alpha * fade * opacity)));
+        // One width for every tier. Ramping it with depth looked like the
+        // right idea and drew a staircase: a strand crosses a tier boundary
+        // twice a turn, and at each crossing the stroke stepped.
+        //
+        // Round caps, although these are translucent. The beading rule bites
+        // where long pieces *overlap*, and within one tier the pieces are a
+        // winding apart -- they share a single stitched point and nothing
+        // more.
+        g.strokePath (path, strokeOf (lineThickness * width, false));
       }
-  });
+  };
 
-  // 3: the bloom a crest throws into the dark around it. Butt caps here on
-  // purpose -- this one is wide and soft, so the hairline a butt cap leaves on
-  // a curve does not show, where a round cap's overlap at a sixth of an alpha
-  // plainly would.
-  walk (true, [&] (juce::Path const &path, int band, float u) {
-    auto const w = flow (u);
-    if (w <= 0.5f || !litFront (band))
-      return;
-    auto const thickness = lineThickness;
-    g.setColour (
-        litAt (w).withAlpha (alpha * 0.16f * (w - 0.5f) * 2.f * breath));
-    g.strokePath (path, strokeOf (thickness * 4.2f, true));
-  });
+  auto const &t = theme ();
 
-  // 4: the tube itself. Round caps, and the pieces do overlap by half a width:
-  // butt caps end square to the last segment rather than to the joint, which
-  // on a curve leaves a hairline wedge at every piece -- the line came out
-  // looking milled. Drawn opaque, so the overlap costs nothing, and the light
-  // is carried by the colour and the width rather than by alpha for exactly
-  // that reason.
-  walk (true, [&] (juce::Path const &path, int band, float u) {
-    if (!litFront (band))
-      return;
-    auto const w = flow (u);
-    g.setColour (litAt (w).withAlpha (alpha));
-    g.strokePath (path, strokeOf (lineThickness * (0.70f + 0.90f * w), false));
-  });
+  // ── The energy cloud ────────────────────────────────────────────
+  // One wide, faint, wave-driven stroke per depth band. It is what keeps a
+  // hairline legible where it runs behind the sphere: the wire becomes the
+  // *axis* of the thing rather than the thing itself.
+  if (t.sheathCloud > 0.001f)
+    walkInPieces ([&] (juce::Path const &path, int band, float u) {
+      auto const w = flow (u);
+      auto const fade = fadeForBand (band);
+      g.setColour (colour.withAlpha (
+          juce::jlimit (0.f, 1.f, alpha * fade * 0.22f * t.sheathCloud
+                                      * (0.35f + w) * breath)));
+      g.strokePath (path, strokeOf (lineThickness * 15.f * (0.7f + 0.6f * w),
+                                    true));
+    });
 
-  // 5: the hot middle of the tube, where a crest is passing.
-  walk (true, [&] (juce::Path const &path, int band, float u) {
-    auto const w = flow (u);
-    if (w <= 0.5f || !litFront (band))
-      return;
-    auto const crest = (w - 0.5f) * 2.f;
-    g.setColour (litAt (w)
-                     .interpolatedWith (toColour (theme ().boltCore),
-                                        0.8f * crest)
-                     .withAlpha (alpha));
-    g.strokePath (path, strokeOf (lineThickness * 0.6f * crest, false));
-  });
+  SheathRing const sheath{ t.sheathRadius, t.sheathTurns, t.sheathSpin,
+                           juce::roundToInt (t.sheathStrands) };
+  SheathRing const braid{ t.braidRadius, t.braidTurns, t.braidSpin,
+                          juce::roundToInt (t.braidStrands) };
+
+  // How finely the sheath is cut into straight stretches, and how often the
+  // whole thing is struck afresh. Both follow the coil's own pitch, so a
+  // tighter coil is made of shorter bolts rather than of the same bolts drawn
+  // closer together.
+  FlickerSettings const flicker{ sheath.turns * 5.f, 9.f };
+  FlickerSettings const steady{};
+
+  RingPaths sheathPaths;
+  RingPaths braidPaths;
+  HotPaths sheathHot;
+  auto const haveSheath = sheath.strands > 0 && sheath.radius > 0.0001f;
+  if (haveSheath)
+    buildRing (sheath, flicker, 0.62f, 0.5f, true, sheathPaths, &sheathHot);
+  // The wire itself never breaks and never kinks. It is the one thing on the
+  // sphere that says where the take actually goes.
+  buildRing (braid, steady, 1.f, 0.f, false, braidPaths, nullptr);
+
+  // ── Back to front ───────────────────────────────────────────────
+  // Two coaxial cylinders around one axis. This order is the effect: get it
+  // wrong and the coil is a flat ribbon lying next to the wire.
+  //
+  // The step between one tier and the next is kept small on purpose. Three
+  // tiers at plainly different brightnesses turn a winding strand into a
+  // dot-dash line: what you read is the tier boundary rather than the strand.
+  // A coil brightens as it comes round; it does not switch.
+  //
+  // The sheath's strands are thinner than the wire and run from a dark ember
+  // behind it to near-white where they come round the front. That swing is
+  // what makes them read as plasma rather than as a ribbon painted beside
+  // the line.
+  auto constexpr sheathWidth = 0.7f;
+  auto constexpr midTier = numTiers / 2;
+
+  if (haveSheath)
+    for (auto tier = 0; tier < midTier; ++tier)
+      strokeRing (sheathPaths, tier, sheathWidth, 0.55f, 0.28f, 0.78f, 6.f);
+
+  // The wire keeps its colour. Brightened towards white it became the loudest
+  // thing on the sphere, and then the coil around it is decoration on a fat
+  // pale rope rather than energy around a thin bright wire -- white belongs to
+  // the crests and the lightning, which is what makes those read as hot.
+  for (auto tier = 0; tier < numTiers; ++tier)
+    strokeRing (braidPaths, tier, 1.f, 0.3f, 0.5f, 1.0f);
+
+  if (haveSheath)
+    {
+      for (auto tier = midTier; tier < numTiers; ++tier)
+        strokeRing (sheathPaths, tier, sheathWidth, 0.55f, 0.28f, 0.78f, 6.f);
+
+      // The crests, on top of everything the coil is made of.
+      for (auto band = 0; band < numBands; ++band)
+        {
+          if (fadeForBand (band) <= 0.9f || sheathHot[static_cast<std::size_t> (band)].isEmpty ())
+            continue;
+          g.setColour (colour.interpolatedWith (toColour (t.boltCore), 0.7f)
+                           .withAlpha (juce::jlimit (
+                               0.f, 1.f, alpha * 0.85f * breath)));
+          g.strokePath (sheathHot[static_cast<std::size_t> (band)],
+                        strokeOf (lineThickness * sheathWidth * 1.1f, false));
+        }
+    }
+
+  // ── Lightning ───────────────────────────────────────────────────
+  // A strand that snaps: it leaves the sheath, flares out and is gone. The
+  // wobble along it is a second helix at a much finer pitch rather than a
+  // noise field -- the same primitive, so there is one thing to understand
+  // here and not two.
+  if (haveSheath && t.sheathArc > 0.001f)
+    {
+      // Rare and short. At five and a half strikes a second per strand with
+      // half the slots carrying one, something was alight nearly all the time
+      // over a tenth of the figure -- three of them at once read as a second,
+      // messier line rather than as lightning.
+      ArcSettings const arcs{ 3.5f * t.sheathArc, 0.32f * t.sheathArc, 0.045f };
+      SheathRing const wobble{ sheath.radius * 0.8f, sheath.turns * 11.f,
+                               sheath.spin * 3.f, sheath.strands };
+
+      for (auto band = 0; band < numBands; ++band)
+        {
+          auto const fade = fadeForBand (band);
+          if (fade <= 0.9f)
+            continue;  // a bolt behind the glass reads as nearer than the
+                       // line in front of it, which is the rule the hot core
+                       // has always had
+
+          juce::Path bolts;
+          for (int strand = 0; strand < sheath.strands; ++strand)
+            {
+              auto open = false;
+              for (std::size_t i = 0; i < projected.size (); ++i)
+                {
+                  if (depthBand (projected[i].second) != band)
+                    {
+                      open = false;
+                      continue;
+                    }
+
+                  auto const u = uAt (i);
+                  auto const strike = arcAt (u, strand, arcs, seconds)
+                                      * (0.4f + 0.6f * flow (u));
+                  if (strike < 0.02f || startsRun[i])
+                    {
+                      open = false;
+                      continue;
+                    }
+
+                  auto const reach
+                      = sheathAt (u, strand, sheath, seconds).offset
+                        * (1.f + 1.3f * strike)
+                        + sheathAt (u, strand, wobble, seconds).offset * strike
+                              * 0.6f;
+                  auto const point = projected[i].first + normals[i] * reach;
+
+                  if (!open)
+                    {
+                      bolts.startNewSubPath (point);
+                      open = true;
+                    }
+                  else
+                    bolts.lineTo (point);
+                }
+            }
+
+          if (!bolts.isEmpty ())
+            {
+              g.setColour (colour
+                               .interpolatedWith (toColour (t.boltCore), 0.7f)
+                               .withAlpha (juce::jlimit (
+                                   0.f, 1.f, alpha * 0.9f * breath)));
+              g.strokePath (bolts, strokeOf (lineThickness * 0.9f, false));
+            }
+        }
+    }
 }
 
 void

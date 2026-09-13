@@ -325,6 +325,17 @@ loadTheme (juce::var const &skin)
   theme.sphereScale = themeFloat (skin, "sphereScale", theme.sphereScale);
   theme.trajectoryThickness
       = themeFloat (skin, "trajectoryThickness", theme.trajectoryThickness);
+  theme.braidRadius = themeFloat (skin, "braidRadius", theme.braidRadius);
+  theme.braidTurns = themeFloat (skin, "braidTurns", theme.braidTurns);
+  theme.braidSpin = themeFloat (skin, "braidSpin", theme.braidSpin);
+  theme.braidStrands = themeFloat (skin, "braidStrands", theme.braidStrands);
+  theme.sheathRadius = themeFloat (skin, "sheathRadius", theme.sheathRadius);
+  theme.sheathTurns = themeFloat (skin, "sheathTurns", theme.sheathTurns);
+  theme.sheathSpin = themeFloat (skin, "sheathSpin", theme.sheathSpin);
+  theme.sheathStrands
+      = themeFloat (skin, "sheathStrands", theme.sheathStrands);
+  theme.sheathArc = themeFloat (skin, "sheathArc", theme.sheathArc);
+  theme.sheathCloud = themeFloat (skin, "sheathCloud", theme.sheathCloud);
   theme.blobSparkle = themeFloat (skin, "blobSparkle", theme.blobSparkle);
   theme.blobBolt = themeFloat (skin, "blobBolt", theme.blobBolt);
   theme.blobTrail = themeFloat (skin, "blobTrail", theme.blobTrail);
@@ -428,6 +439,16 @@ themeDefaultsVar ()
   number ("strokeThick", defaults.strokeThick);
   number ("sphereScale", defaults.sphereScale);
   number ("trajectoryThickness", defaults.trajectoryThickness);
+  number ("braidRadius", defaults.braidRadius);
+  number ("braidTurns", defaults.braidTurns);
+  number ("braidSpin", defaults.braidSpin);
+  number ("braidStrands", defaults.braidStrands);
+  number ("sheathRadius", defaults.sheathRadius);
+  number ("sheathTurns", defaults.sheathTurns);
+  number ("sheathSpin", defaults.sheathSpin);
+  number ("sheathStrands", defaults.sheathStrands);
+  number ("sheathArc", defaults.sheathArc);
+  number ("sheathCloud", defaults.sheathCloud);
   number ("blobSparkle", defaults.blobSparkle);
   number ("blobBolt", defaults.blobBolt);
   number ("blobTrail", defaults.blobTrail);

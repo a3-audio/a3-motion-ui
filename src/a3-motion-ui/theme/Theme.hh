@@ -166,7 +166,43 @@ struct Theme
    *  it thinner" a rebuild rather than a knob. Halved as it moved, on the
    *  maintainer's call -- and the line has to give room back now that the blob
    *  is getting a trail. */
-  float trajectoryThickness = 0.02f;
+  float trajectoryThickness = 0.005f;
+
+  /** The trajectory is a braided wire inside a plasma sheath, and the two are
+   *  the same helix at two radii: the braid is hairlines at a small radius
+   *  with many turns, the sheath is strands at a large radius with few.
+   *
+   *  `spin` is the ring turning *lengthwise* around the line, signed. That is
+   *  what makes it read as a coil being driven rather than as a fixed piece
+   *  of wire, and it is the whole of the maintainer's "die hüllkurve soll
+   *  sich längs um die trajektorie drehen".
+   *
+   *  A radius of zero puts every strand on the line, exactly; a strand count
+   *  of one gives back the single hairline this used to be. Each is off on
+   *  its own, because a look nobody can decline is not a look, it is a mood
+   *  the instrument is in. */
+  // The pitch has to be several times the rope's own diameter or the three
+  // hairlines merge into one fat one -- which is what 60 turns at this radius
+  // looked like: a rope, not a braid.
+  float braidRadius = 0.009f;
+  float braidTurns = 34.f;
+  float braidSpin = 0.35f;
+  float braidStrands = 3.f;
+
+  // The pitch has to be close to the coil's own diameter or it reads as a
+  // second line swooping alongside rather than as something wound round: at
+  // six turns the pitch was nearly six times the diameter, and that is a lazy
+  // spiral, not a sheath.
+  float sheathRadius = 0.075f;
+  float sheathTurns = 12.f;
+  /** Against the braid on purpose: two coils turning opposite ways read as a
+   *  field around a driven wire rather than as one thick rope. */
+  float sheathSpin = -0.22f;
+  float sheathStrands = 3.f;
+  /** How often a strand throws lightning, and how much diffuse energy stands
+   *  around the whole thing. */
+  float sheathArc = 1.f;
+  float sheathCloud = 1.f;
   /** How far a pad is dimmed from its channel's colour for what the slot is
    *  doing. Subtractions from full, so a bigger number is a darker pad; see
    *  theme/PadStatusColours.hh for which state wears which. */

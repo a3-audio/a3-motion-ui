@@ -428,6 +428,26 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
   if (path == "blobSparkle" || path == "blobBolt" || path == "blobTrail")
     return juce::jlimit (0.0, 2.0, value);
 
+  // The two rings. A radius past this and the sheath is wider than the figure
+  // it is meant to be wrapped around; a turn count past this and the helix is
+  // finer than the pixels that would have to draw it.
+  if (path == "braidRadius")
+    return juce::jlimit (0.0, 0.05, value);
+  if (path == "sheathRadius")
+    return juce::jlimit (0.0, 0.25, value);
+  if (path == "braidTurns")
+    return juce::jlimit (0.0, 200.0, value);
+  if (path == "sheathTurns")
+    return juce::jlimit (0.0, 60.0, value);
+  if (path == "braidSpin" || path == "sheathSpin")
+    return juce::jlimit (-4.0, 4.0, value);
+  if (path == "braidStrands")
+    return juce::jlimit (1.0, 5.0, std::round (value));
+  if (path == "sheathStrands")
+    return juce::jlimit (0.0, 5.0, std::round (value));
+  if (path == "sheathArc" || path == "sheathCloud")
+    return juce::jlimit (0.0, 2.0, value);
+
   if (path == "sphereScale")
     {
       // Not a fixed ceiling: the sphere may grow until the speaker icons run

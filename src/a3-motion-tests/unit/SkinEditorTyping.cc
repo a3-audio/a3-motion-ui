@@ -41,13 +41,19 @@ networkSlice ()
 bool
 browseTo (SkinEditorComponent &editor, juce::String const &path)
 {
-  for (int i = 0; i < 64; ++i)
+  // Walk until the list stops moving rather than for a fixed number of steps.
+  // Sixty-four was enough when it was written and quietly stopped being enough
+  // the day a group of eleven was added ahead of the probe's own rows -- which
+  // reads as "the editor lost a row" and is really "the helper gave up early".
+  auto previous = -1;
+  while (editor.browsedRowIndex () != previous)
     {
       if (editor.browsedPath () == path)
         return true;
+      previous = editor.browsedRowIndex ();
       editor.navigate (1);
     }
-  return false;
+  return editor.browsedPath () == path;
 }
 }
 
