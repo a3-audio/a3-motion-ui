@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <a3-motion-engine/util/Types.hh>
+
 #include <JuceHeader.h>
 
 #include <vector>
@@ -90,12 +92,36 @@ constexpr float screenCornerDistance = 2.26f;
  *  sprouting from its edge. */
 float glowEmergence (float distanceFromCentre, float rise);
 
+/** The bearing a place on the display stands for, as a unit vector.
+ *
+ *  **The room's bearing, not the screen's**, and that distinction is the whole
+ *  of it. The net used to normalise the screen coordinate, which nails the
+ *  weave to the display: turn the camera and the ball rotates under a pattern
+ *  that stays where it was. Exactly the fault the graticule had before it was
+ *  rebuilt in the room's terms -- a net on the screen draws the same picture
+ *  whichever way the room is looked at.
+ *
+ *  `direction` is what the pixel stands for in the room, which is what
+ *  SphereProjection's asSeenFromInverse() gives back. At the identity camera
+ *  this returns the screen bearing exactly: the direction has its axes
+ *  shuffled to { y, -x, up } on the way in, and this shuffles them back.
+ *  Mirrors netBearing() in SphereShader.cc. */
+struct NetBearing
+{
+  float x = 0.f;
+  float y = 0.f;
+};
+NetBearing netBearingForDirection (Pos const &direction);
+
 /** Point in the noise domain a place on the display maps to.
  *
  *  Built from the direction vector rather than from an azimuth angle: an angle
  *  wraps, and the wrap put a visible seam due west where the filaments failed
  *  to meet. `twist` sets how much detail runs around the circle, `scale` how
- *  much runs along the radius. */
+ *  much runs along the radius.
+ *
+ *  `x`/`y` are the **room's** bearing -- see netBearingForDirection(). They are
+ *  normalised here, so handing in an unnormalised one is fine. */
 struct NetDomainPoint
 {
   float x, y, z;

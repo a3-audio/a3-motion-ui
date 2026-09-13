@@ -25,9 +25,11 @@
 #include <ShippedSkin.hh>
 
 #include <a3-motion-ui/components/EnergyMap.hh>
+#include <a3-motion-ui/components/SphereProjection.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 using namespace a3;
@@ -210,6 +212,81 @@ TEST (EnergyNet, FilamentsCrossTheRimOnTheWayIn)
 // west on the horizontal, and the filaments visibly fail to meet across it.
 // Building the domain from the direction vector instead closes the circle by
 // construction.
+
+// The net is painted on the room, not on the display.
+//
+// It used to normalise the screen coordinate, which nails the whole weave to
+// the glass: turn the camera and the ball rotates under a pattern that stays
+// where it was. The maintainer saw it -- "die daten vom energyvisualizer
+// ziehen nicht mit wenn man die sphäre kippt" -- and it is the same fault the
+// graticule had before it was rebuilt in the room's terms.
+TEST (EnergyMap, TheNetsBearingIsTheRoomsNotTheScreens)
+{
+  // What a pixel stands for at the identity camera: screenToDirection puts
+  // the screen's { x, y } at { y, -x, up }.
+  auto const seen = [] (float x, float y) {
+    auto const r = std::min (std::hypot (x, y), 1.f);
+    return Pos::fromCartesian (y, -x, std::sqrt (std::max (0.f, 1.f - r * r)));
+  };
+
+  // Untilted, the room bearing has to be the screen bearing exactly, or every
+  // device nobody has tilted gets a different picture than it had.
+  for (auto const &p : { std::pair<float, float>{ 0.6f, 0.f },
+                         { 0.f, 0.6f },
+                         { -0.4f, 0.4f },
+                         { 0.3f, -0.7f } })
+    {
+      auto const bearing = netBearingForDirection (seen (p.first, p.second));
+      auto const length = std::hypot (p.first, p.second);
+      EXPECT_NEAR (bearing.x, p.first / length, 1e-5f);
+      EXPECT_NEAR (bearing.y, p.second / length, 1e-5f);
+    }
+}
+
+TEST (EnergyMap, WalkingRoundTheRoomCarriesTheNetWithIt)
+{
+  // The point of the whole change: the same place on the *ball* keeps the same
+  // filament as the eye walks round it.
+  auto const seen = [] (float x, float y) {
+    auto const r = std::min (std::hypot (x, y), 1.f);
+    return Pos::fromCartesian (y, -x, std::sqrt (std::max (0.f, 1.f - r * r)));
+  };
+
+  SphereCamera camera;
+  camera.turn = 0.7f;
+
+  auto const straightOn = netBearingForDirection (seen (0.5f, 0.f));
+  auto const walked = netBearingForDirection (
+      asSeenFromInverse (seen (0.5f, 0.f), camera));
+
+  // It moved -- a screen-locked net would have given the same answer.
+  auto const moved = std::hypot (walked.x - straightOn.x,
+                                 walked.y - straightOn.y);
+  EXPECT_GT (moved, 0.1f);
+
+  // And it moved by the angle the eye walked, not by some other amount.
+  auto const angle = [] (NetBearing const &b) {
+    return std::atan2 (b.y, b.x);
+  };
+  auto turned = angle (walked) - angle (straightOn);
+  while (turned > juce::MathConstants<float>::pi)
+    turned -= juce::MathConstants<float>::twoPi;
+  while (turned < -juce::MathConstants<float>::pi)
+    turned += juce::MathConstants<float>::twoPi;
+
+  EXPECT_NEAR (std::abs (turned), camera.turn, 0.02f);
+}
+
+TEST (EnergyMap, ABearingStraightUpIsNotAnError)
+{
+  // The middle of the disc stands for straight up, where every bearing is the
+  // same place. It has to come back as something finite rather than as a
+  // division by nothing.
+  auto const bearing
+      = netBearingForDirection (Pos::fromCartesian (0.f, 0.f, 1.f));
+  EXPECT_TRUE (std::isfinite (bearing.x));
+  EXPECT_TRUE (std::isfinite (bearing.y));
+}
 
 TEST (EnergyNet, DomainHasNoSeamInTheWest)
 {

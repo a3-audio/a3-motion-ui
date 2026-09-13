@@ -872,20 +872,37 @@ vec2 beamTotal (vec2 p)
 // decides whether the filaments run in or out. `reach` clamps how far out the
 // domain still varies; past it the pattern freezes, so it has to cover
 // wherever the filaments are meant to go.
-float netFilaments (vec2 uv, float dist, float flow, float reach,
+/** The bearing a pixel stands for in the *room*, as a unit vector.
+ *
+ *  At the identity camera this is exactly normalize(uv): screenToDirection
+ *  shuffles the axes to { uv.y, -uv.x, up } and this shuffles them back, so a
+ *  device nobody has tilted draws the picture it always drew, to the bit.
+ */
+vec2 netBearing (vec3 dir)
+{
+    vec2 bearing = vec2 (-dir.y, dir.x);
+    float len = max (length (bearing), 0.000001);
+    return bearing / len;
+}
+
+float netFilaments (vec2 bearing, float radialAt, float flow, float reach,
                     float twist, float scale, float sharpness,
                     float octaves, float lacunarity, float gain)
 {
     // Inverts netFilamentRadius() in EnergyMap.cc: the filament standing at
     // this radius now is the one that started further along the flow.
-    float radial = clamp (dist, 0.0, reach) + uTime * flow;
+    float radial = clamp (radialAt, 0.0, reach) + uTime * flow;
 
     // Domain built from the direction, not from an angle. An angle wraps, and
     // the wrap left a seam due west where the filaments failed to meet.
     // Mirrors netDomainPoint() in EnergyMap.cc.
-    float len = max (length (uv), 0.000001);
-    vec2 n = uv / len;
-    vec3 p = vec3 (n * twist, radial * scale);
+    //
+    // And the *room's* bearing, not the screen's. It used to normalise the
+    // screen uv, which nails the whole weave to the display: the ball turns
+    // under the camera and the energy stays where it was. Exactly the fault
+    // the graticule had before it was rebuilt in the room's terms -- a net on
+    // the screen draws the same picture whichever way the room is looked at.
+    vec3 p = vec3 (bearing * twist, radial * scale);
 
     float sum = 0.0;
     float amp = 1.0;
@@ -908,18 +925,35 @@ float netFilaments (vec2 uv, float dist, float flow, float reach,
 }
 
 // The net inside the sphere and along the beams.
-float innerNet (vec2 uv, float dist)
+/** The net on the sphere. Both of its coordinates are the room's: the bearing
+ *  says which filament, and how far the direction lies from straight up says
+ *  how far along it. At the identity camera that second one is the screen
+ *  distance it used to be, exactly -- screenToDirection builds z as
+ *  sqrt(1 - dist^2), so sqrt(1 - z^2) gives the distance back. */
+float innerNetAt (vec2 bearing, float radial)
 {
-    return netFilaments (uv, dist, uNetFlow, 1.6, uNetTwist, uNetScale,
-                         uNetSharpness, uNetOctaves, uNetLacunarity, uNetGain);
+    return netFilaments (bearing, radial, uNetFlow, 1.6, uNetTwist,
+                         uNetScale, uNetSharpness, uNetOctaves,
+                         uNetLacunarity, uNetGain);
 }
 
-// The glow's net, running the other way and reaching to the screen edge.
-float glowNet (vec2 uv, float dist)
+float innerNet (vec3 dir)
 {
-    return netFilaments (uv, dist, uGlowFlow, uGlowReach, uGlowTwist,
-                         uGlowScale, uGlowSharpness, uGlowOctaves,
-                         uGlowLacunarity, uGlowGain);
+    return innerNetAt (netBearing (dir),
+                       sqrt (max (0.0, 1.0 - dir.z * dir.z)));
+}
+
+/** The glow's net, running the other way and reaching to the screen edge.
+ *
+ *  Its bearing is the room's like the inner one, but how far along stays the
+ *  *screen* distance: these filaments come out from behind the sphere and run
+ *  to the corner of the display, which is a thing about the display and has no
+ *  direction in the room to be measured against. */
+float glowNet (vec3 rimDir, float dist)
+{
+    return netFilaments (netBearing (rimDir), dist, uGlowFlow, uGlowReach,
+                         uGlowTwist, uGlowScale, uGlowSharpness,
+                         uGlowOctaves, uGlowLacunarity, uGlowGain);
 }
 
 // ─── main ───────────────────────────────────────────────────────
@@ -958,7 +992,8 @@ void main ()
         {
             vec3 rimDirection = screenToDirection (uvScene / max (dist, 0.001),
                                                    1.0);
-            colOut += uGlowColour * uGlowLevel * glowNet (uvScene, dist)
+            colOut += uGlowColour * uGlowLevel
+                    * glowNet (rimDirection, dist)
                     * glowEmergence (dist, uGlowRise)
                     * energyAt (rimDirection) * uGlowIntensity * showGlow;
         }
@@ -971,9 +1006,15 @@ void main ()
 
 
         // Outside, the net rides the band towards the sphere, so a filament is
-        // already visible before it crosses the rim.
-        colOut += uSpotColour * innerNet (uvScene, dist) * band.x
-                * uNetBeamIntensity;
+        // already visible before it crosses the rim. The same bearing the
+        // inner net has at the rim, so the filament does not step sideways as
+        // it crosses -- and the screen distance to carry it, because out here
+        // there is no room direction to measure along.
+        colOut += uSpotColour
+                * innerNetAt (netBearing (screenToDirection (
+                                  uvScene / max (dist, 0.001), 1.0)),
+                              dist)
+                * band.x * uNetBeamIntensity;
 
         // Blob outside glow removed — blobs only create reflections on sphere surface
     }
@@ -1054,7 +1095,7 @@ void main ()
         // The beams stop at the rim. Inside, the net takes over from them:
         // filaments landing where a beam meets the sphere and running in from
         // there, strongest at the rim and thinning out as they travel.
-        float net = innerNet (uvScene, dist);
+        float net = innerNet (dir);
         vec3 rimDir = screenToDirection (uvScene / max (dist, 0.001), 1.0);
 
         colSurf += uEnergyColour * net * energyAt (rimDir) * dist * dist

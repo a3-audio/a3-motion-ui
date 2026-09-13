@@ -112,6 +112,18 @@ energyDirectionForScreen (float x, float y)
   return { azimuth, elevation / degToRad };
 }
 
+NetBearing
+netBearingForDirection (Pos const &direction)
+{
+  auto const x = -direction.y ();
+  auto const y = direction.x ();
+  auto const length = std::hypot (x, y);
+  if (length < 1e-6f)
+    return { 0.f, 0.f };
+
+  return { x / length, y / length };
+}
+
 NetDomainPoint
 netDomainPoint (float x, float y, float radial, float twist, float scale)
 {
