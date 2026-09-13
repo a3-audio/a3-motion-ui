@@ -268,6 +268,60 @@ TEST (SkinEditorTouch, TurningStepsOverAHeading)
   EXPECT_EQ (editor.browsedPath (), "a.x");
 }
 
+// A double tap always calls the keyboard, whatever the page says a single
+// press does. Turning a value while you watch the sphere is why a skin is
+// edited on the device at all -- but a drag moves by whole increments, and
+// there was no way at all to reach a number between two of them.
+TEST (SkinEditorTouch, ADoubleTapTypesASkinNumberEvenThoughThePageIsTurned)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (juce::JSON::parse (R"({"sphereScale": 0.62})"), "probe");
+
+  ASSERT_TRUE (browseTo (editor, "sphereScale"));
+  ASSERT_FALSE (editor.isNaming ());
+
+  editor.doubleTapRow (editor.browsedRowIndex ());
+  EXPECT_TRUE (editor.isNaming ());
+}
+
+TEST (SkinEditorTouch, ADoubleTapOnAColourStillLeavesItToThePicker)
+{
+  // A colour is picked, not typed. beginTypingBrowsedRow() already refuses
+  // one; this holds the double tap to the same answer.
+  SkinEditorComponent editor;
+  editor.setSkin (
+      juce::JSON::parse (R"({"accent": {"r": 10, "g": 20, "b": 30}})"),
+      "probe");
+
+  ASSERT_TRUE (browseTo (editor, "accent"));
+  editor.doubleTapRow (editor.browsedRowIndex ());
+  EXPECT_FALSE (editor.isNaming ());
+}
+
+TEST (SkinEditorTouch, ADoubleTapLandsOnTheRowItWasMadeOnNotTheBrowsedOne)
+{
+  // The first tap of the pair browses, but a second finger somewhere else
+  // must not open the row that happened to be armed.
+  SkinEditorComponent editor;
+  editor.setSkin (
+      juce::JSON::parse (R"({"sphereScale": 0.62, "potSize": 1.0})"), "probe");
+
+  ASSERT_TRUE (browseTo (editor, "sphereScale"));
+  auto const other = editor.browsedRowIndex () + 1;
+
+  editor.doubleTapRow (other);
+  EXPECT_EQ (editor.browsedRowIndex (), other);
+}
+
+TEST (SkinEditorTouch, ADoubleTapOutsideTheListDoesNothing)
+{
+  SkinEditorComponent editor;
+  editor.setSkin (juce::JSON::parse (R"({"sphereScale": 0.62})"), "probe");
+
+  editor.doubleTapRow (-1);
+  EXPECT_FALSE (editor.isNaming ());
+}
+
 TEST (SkinEditorTouch, BrowsingOutsideTheListIsIgnored)
 {
   SkinEditorComponent editor;

@@ -198,6 +198,9 @@ SkinEditorComponent::createTouchControls ()
       // strip behind the rows meant it could only be grabbed in the gaps
       // between them, which is to say hardly at all. Left half rolls, right
       // half changes the value — the two halves of a row, two jobs.
+      touch.name->onDoubleTap = [this] (int absoluteRow, int) {
+        doubleTapRow (absoluteRow);
+      };
       touch.name->onDragIncrement = [this] (int, int, int increment) {
         // Scrolls, never edits. navigate() would have changed the armed row's
         // value instead, because that is its second level — but this column
@@ -219,6 +222,10 @@ SkinEditorComponent::createTouchControls ()
       touch.value->onTap = [this] (int, int) {
         _dragRow = -1;
         toggleEditing ();
+      };
+      touch.value->onDoubleTap = [this] (int absoluteRow, int) {
+        _dragRow = -1;
+        doubleTapRow (absoluteRow);
       };
       touch.value->onDragEnd = [this] (int, int) { _dragRow = -1; };
       touch.value->onDragIncrement = [this] (int, int, int increment) {
@@ -753,6 +760,19 @@ SkinEditorComponent::canTurnBrowsedRow () const
   // A config number is typed, not turned — see Numbers.
   return !parameter.isColour && !parameter.isText
          && _numbers == Numbers::Turned;
+}
+
+void
+SkinEditorComponent::doubleTapRow (int absoluteRow)
+{
+  // The row the second finger landed on, not the one that happened to be
+  // armed: the first tap of the pair browses, but a double tap somewhere else
+  // must open what it was made on.
+  browseRow (absoluteRow);
+  if (browsedRowIndex () != absoluteRow)
+    return; // a heading, or off the end of the list
+
+  beginTypingBrowsedRow ();
 }
 
 bool
