@@ -418,6 +418,11 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
   if (path == "potSize")
     return juce::jlimit (0.5, 2.0, value);
 
+  // A line thinner than this is gone on the panel at arm's length; thicker
+  // than this and four channels' worth covers the sphere it is drawn on.
+  if (path == "trajectoryThickness")
+    return juce::jlimit (0.004, 0.08, value);
+
   if (path == "sphereScale")
     {
       // Not a fixed ceiling: the sphere may grow until the speaker icons run

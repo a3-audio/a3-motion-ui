@@ -1180,6 +1180,19 @@ MotionComponent::renderOpenGL ()
         bd.grabbed = _uiStates[ch]->grabbed;
         bd.highlighted = _uiStates[ch]->highlighted;
 
+        // What the blob wears while an action runs. From the engine rather
+        // than from whether a finger is down: the accent outlives the hand by
+        // its decay, and so does the action's hold on the clip's settings.
+        bd.action = _engine.isChannelAccentActive (ch) ? 1.f : 0.f;
+
+        // Depth. The sphere is semi-transparent, so a blob behind it is dimmed
+        // rather than hidden -- the same fade the 2D layer used, moved to where
+        // the blob is now drawn.
+        bd.depthFade = 1.f;
+        if (position.isValid () && position.z () < 0.f)
+          bd.depthFade
+              = 0.3f + 0.7f * std::clamp (position.z () + 1.f, 0.f, 1.f);
+
         _sphereShader.setBlob (ch, bd);
       }
 
@@ -1235,8 +1248,15 @@ MotionComponent::renderOpenGL ()
           drawBearings (gFBO);
           drawListener (gFBO);
 
-          // Channel blobs + corona
-          drawChannelBlobs (gFBO);
+          // The blobs are the shader's now -- blobLight(), drawn additively
+          // over the finished scene: a hot core, a corona that follows the
+          // level, sparks, a bolt on transients and the action's neon ring.
+          //
+          // This drew a flat 2D disc with two corona rings. It was taken out
+          // once before, on the assumption that the shader already drew blobs
+          // because its header said so; it did not, and the blobs vanished.
+          // The order that works is the other one: make the shader draw first,
+          // look at it, then take this away.
 
           // The take as it stands, while it is being played in. A fresh
           // recording has no display path — those come from the library — so
@@ -1752,7 +1772,10 @@ drawPathOnSphere (juce::Path const &displayPath,
                   HeightMap const &heightMap,
                   juce::Graphics &g,
                   PlaneShaping const &shaping,
-                  SphereCamera const &camera)
+                  SphereCamera const &camera,
+                  /** Where this line stands in its own slow breath. Per
+                   *  channel, so four trajectories do not pulse as one wall. */
+                  float glowPhase = 0.f)
 {
   if (displayPath.isEmpty ())
     return;
@@ -1776,17 +1799,57 @@ drawPathOnSphere (juce::Path const &displayPath,
         : 1.0f;
   };
 
+  // The line, as neon rather than as a stroke.
+  //
+  // It was one flat pass: a single width, a single alpha, the same in a quiet
+  // passage as under a drop. Three passes make it glow -- a wide, nearly
+  // transparent halo, a middle body, and a thin hot core -- which is how a
+  // neon tube reads and why it looks lit rather than drawn. The thin core is
+  // also why the line could be halved: the glow carries the presence now, so
+  // the stroke itself no longer has to.
+  //
+  // And it breathes. Slowly, and out of phase per channel, so four trajectories
+  // do not pulse as one wall -- the maintainer's note was that a static line is
+  // a boring line, and a figure that is alive at rest is the difference between
+  // a diagram and an instrument.
+  auto const breathMs = juce::Time::getMillisecondCounter ();
+  auto const breath
+      = 0.82f
+        + 0.18f
+              * std::sin (static_cast<float> (breathMs) * 0.0011f + glowPhase);
+
   auto flushPath = [&] (juce::Path &path, int band) {
     float fade = fadeByDepth
         ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
                               : (band == 2 ?  0.25f :  0.75f))
         : 1.0f;
     float thickness = lineThickness * (0.5f + 0.5f * fade);
-    auto stroke = juce::PathStrokeType (
-        thickness, juce::PathStrokeType::JointStyle::curved,
-        juce::PathStrokeType::EndCapStyle::rounded);
+
+    auto strokeOf = [] (float width) {
+      return juce::PathStrokeType (width,
+                                   juce::PathStrokeType::JointStyle::curved,
+                                   juce::PathStrokeType::EndCapStyle::rounded);
+    };
+
+    // Outermost first, so the core lands on top of its own light.
+    g.setColour (colour.withAlpha (alpha * fade * 0.10f * breath));
+    g.strokePath (path, strokeOf (thickness * 5.0f));
+
+    g.setColour (colour.withAlpha (alpha * fade * 0.22f * breath));
+    g.strokePath (path, strokeOf (thickness * 2.4f));
+
     g.setColour (colour.withAlpha (alpha * fade));
-    g.strokePath (path, stroke);
+    g.strokePath (path, strokeOf (thickness));
+
+    // The hot middle of the tube. White only a little, and only on the front
+    // of the sphere -- a back-side line that glowed white would read as nearer
+    // than the one in front of it.
+    if (fade > 0.9f)
+      {
+        g.setColour (colour.interpolatedWith (toColour (theme ().boltCore), 0.5f)
+                         .withAlpha (alpha * 0.5f * breath));
+        g.strokePath (path, strokeOf (thickness * 0.34f));
+      }
   };
 
   // Project a 2D HOA point onto the sphere and return screen pos + z.
@@ -2075,7 +2138,7 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
                                     PatternDisplayData const &displayData,
                                     juce::Graphics &g)
 {
-  auto constexpr lineThickness = 0.04f;
+  auto const lineThickness = theme ().trajectoryThickness;
 
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
@@ -2092,7 +2155,10 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
   // matter which hemisphere it sits in — no depth fade.
   if (!displayData.jumpDots.empty ())
     {
-      auto constexpr dotSize = lineThickness * 3.f;
+      // Three times the line, and the line is a skin value now -- so this
+      // follows it instead of being a number of its own. const, not constexpr:
+      // it is read from the theme at draw time.
+      auto const dotSize = lineThickness * 3.f;
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
@@ -2109,9 +2175,11 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
     }
 
   // ── Draw from SVG displayPath projected onto sphere ──
+  // A phase of its own per channel, so the four do not breathe in step.
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     false, params, heightMap, g, shaping,
-                    _sphereShader.getCamera ());
+                    _sphereShader.getCamera (),
+                    static_cast<float> (pattern.getChannel ()) * 1.9f);
 }
 
 void
@@ -2161,7 +2229,8 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     true, params, heightMap, g, shaping,
-                    _sphereShader.getCamera ());
+                    _sphereShader.getCamera (),
+                    static_cast<float> (pattern.getChannel ()) * 1.9f);
 }
 
 juce::Point<float>

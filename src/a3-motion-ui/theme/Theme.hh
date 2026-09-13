@@ -139,6 +139,15 @@ struct Theme
   // Sizes, as a share of the component's shorter side
   float sphereScale = 0.62f;
   float blobScale = 0.05f;
+
+  /** How thick the played trajectory is drawn on the sphere, in the same
+   *  normalised units as the sphere itself.
+   *
+   *  A constant of 0.04 in MotionComponent until 2026-09-13, which made "draw
+   *  it thinner" a rebuild rather than a knob. Halved as it moved, on the
+   *  maintainer's call -- and the line has to give room back now that the blob
+   *  is getting a trail. */
+  float trajectoryThickness = 0.02f;
   /** How far a pad is dimmed from its channel's colour for what the slot is
    *  doing. Subtractions from full, so a bigger number is a darker pad; see
    *  theme/PadStatusColours.hh for which state wears which. */

@@ -159,6 +159,20 @@ uniform vec4  uBlobPosSize0;
 uniform vec4  uBlobPosSize1;
 uniform vec4  uBlobPosSize2;
 uniform vec4  uBlobPosSize3;
+/** Per blob, the things the light alone could not carry: how loud it is, how
+ *  far an action has it, and a seed so four blobs do not sparkle in step.
+ *  x = vuPeak, y = action 0..1, z = seed, w = depth fade (back of the sphere). */
+uniform vec4  uBlobState0;
+uniform vec4  uBlobState1;
+uniform vec4  uBlobState2;
+uniform vec4  uBlobState3;
+
+/** What an action wears. Neon violet rather than white: white is what a VU
+ *  peak already blends towards, and a signal that borrows another signal's
+ *  colour says nothing. The hue alone will not separate it from channel one's
+ *  pink -- the flicker is the other half of the message. */
+uniform vec3  uActionColour;
+
 uniform vec3  uBlobCol0;
 uniform vec3  uBlobCol1;
 uniform vec3  uBlobCol2;
@@ -203,6 +217,7 @@ vec3 getBlobCol (int i)
     if (i == 2) return uBlobCol2;
     return uBlobCol3;
 }
+
 
 // Truncated cone leaving the horn's mouth at the mouth's own width. Only ever
 // drawn outside the sphere — where it lands, the net takes over. Mirrors
@@ -300,6 +315,135 @@ float valueNoise (vec3 p)
 
     return mix (mix (mix (n000, n100, f.x), mix (n010, n110, f.x), f.y),
                 mix (mix (n001, n101, f.x), mix (n011, n111, f.x), f.y), f.z);
+}
+
+vec4 getBlobState (int i)
+{
+    if (i == 0) return uBlobState0;
+    if (i == 1) return uBlobState1;
+    if (i == 2) return uBlobState2;
+    return uBlobState3;
+}
+
+/** The blob itself: a hot core, a corona around it, sparks off it, and a bolt
+ *  when the channel spikes.
+ *
+ *  Drawn here rather than as a flat disc over the top, which is what it was
+ *  until 2026-09-13 -- and a disc is a disc: hard-edged, unlit, the same in a
+ *  quiet passage as in a drop. Everything below reacts to something.
+ *
+ *  All of it is additive and procedural. No particle lives anywhere: a spark
+ *  is a function of where you are, what time it is and the blob's seed, the
+ *  same way the sphere's own bolts already work. Nothing to allocate, nothing
+ *  to keep in step, and it costs the same whether one channel plays or four.
+ */
+vec3 blobLight (vec2 uv, int i)
+{
+    vec4 ps = getBlobPosSize (i);
+    if (ps.z < 0.001)
+        return vec3 (0.0);
+
+    vec3 col = getBlobCol (i);
+    vec4 st = getBlobState (i);
+
+    float vu     = clamp (st.x, 0.0, 1.0);
+    float action = clamp (st.y, 0.0, 1.0);
+    float seed   = st.z;
+    float depth  = clamp (st.w, 0.0, 1.0);
+
+    vec2 d2 = uv - ps.xy;
+    float d = length (d2);
+    float r = ps.z;
+
+    // The core. Hot in the middle and gone by the edge -- a body rather than a
+    // stamped circle, so it sits *in* the picture instead of on it.
+    float core = smoothstep (r, r * 0.25, d);
+
+    // The corona, swelling with the level. It reached only as far as two
+    // translucent rings before; this falls off continuously, so a loud channel
+    // lights the room around it rather than growing a second outline.
+    float reach = r * (2.2 + 5.5 * vu + 2.0 * action);
+    float halo = pow (clamp (1.0 - d / reach, 0.0, 1.0), 2.6);
+
+    // Sparks. A ring of flecks that drift outwards and burn out, thrown harder
+    // by level and much harder while an action runs. Procedural: the ring is
+    // sampled by angle, and each fleck's life is a fraction of time.
+    float sparks = 0.0;
+    float sparkGain = 0.35 + 1.6 * vu + 3.0 * action;
+    if (sparkGain > 0.01 && d < reach * 1.6)
+    {
+        float ang = atan (d2.y, d2.x);
+        // Twenty-four slots around the blob; each holds one fleck at a time.
+        float slot = floor ((ang / 6.28318531 + 0.5) * 40.0);
+        float life = fract (uTime * (0.7 + 0.5 * vu) + hash13 (vec3 (slot, seed, 1.0)));
+        // Where this fleck has got to, and how bright it still is.
+        float travel = r * (0.9 + 3.4 * life);
+        float fade = 1.0 - life;
+        float onRing = boltAt (d - travel, r * 0.10 * (0.25 + fade));
+        // Only some slots are lit at any moment, or it reads as a gear wheel.
+        float lit = step (0.38, hash13 (vec3 (slot, seed, floor (uTime * 4.0 + life))));
+        sparks += onRing * fade * fade * lit;
+    }
+
+    // The bolt. A short arm that strikes out of the blob on a transient and is
+    // gone -- the sphere's own lightning does the same thing with the same
+    // helper, so the two read as one weather.
+    float bolt = 0.0;
+    if (vu > 0.25)
+    {
+        float strikeId = floor (uTime * 9.0);
+        float fires = step (0.30, hash13 (vec3 (seed, strikeId, 3.0))) * step (0.28, vu);
+        if (fires > 0.0)
+        {
+            float ang = hash13 (vec3 (seed, strikeId, 7.0)) * 6.28318531;
+            vec2 dir = vec2 (cos (ang), sin (ang));
+            float along = dot (d2, dir);
+            float across = abs (dot (d2, vec2 (-dir.y, dir.x)));
+            // Strays as it travels, the way the sphere's bolts do.
+            float stray = (valueNoise (vec3 (along * 26.0, seed, uTime * 5.0)) - 0.5)
+                        * r * 0.9;
+            float len = r * (2.5 + 7.0 * vu);
+            float within = step (0.0, along) * step (along, len);
+            bolt += within * boltAt (across - stray, r * 0.07)
+                  * (1.0 - along / max (len, 0.001));
+        }
+    }
+
+    // What it is all painted in. The channel keeps its colour -- that is how
+    // four of them stay apart -- and the two things that are *events* carry
+    // their own: a peak runs towards the bolt core's white, an action towards
+    // the neon the skin names.
+    // The channel's colour has to survive the level. It blended 0.85 of the
+    // way to white at full VU, which made a loud blob a white dot -- and four
+    // white dots are four channels you can no longer tell apart. Only the very
+    // middle goes white now, and only when it is genuinely loud.
+    vec3 hot   = mix (col, uBoltCoreColour, 0.10 + 0.30 * vu * vu);
+    vec3 spark = mix (hot, uActionColour, action);
+
+    // The action ring: one more corona on top, pulsing, in the action colour.
+    // It is the flicker that carries the message where the hue cannot -- on
+    // channel one the blob is already pink.
+    float ring = 0.0;
+    if (action > 0.001)
+    {
+        float pulse = 0.55 + 0.45 * sin (uTime * 31.0 + seed * 6.0);
+        float edge = r * (1.7 + 0.5 * pulse);
+        ring = boltAt (d - edge, r * 0.22) * pulse * action;
+    }
+
+    // A rim just inside the edge, so the body reads as a body at rest rather
+    // than as the brightest part of a cloud. It is what the flat disc did well
+    // and the first version of this lost.
+    float rim = boltAt (d - r * 0.82, r * 0.20);
+
+    vec3 out3 = hot * core * 1.9
+              + hot * rim * 0.55
+              + col * halo * (0.35 + 1.1 * vu)
+              + spark * sparks * sparkGain * 0.8
+              + mix (col, uBoltCoreColour, 0.8) * bolt * (0.6 + vu)
+              + uActionColour * ring * 1.3;
+
+    return out3 * depth;
 }
 
 // Lightning. A bolt is a path, not a field: for each radius it sits at some
@@ -652,6 +796,16 @@ void main ()
     vec3 colOutFinal = uBgColour + colOut;
     col = mix (colOutFinal, colSurf, surfaceMix);
 
+    // The blobs go on last and additively. Last, because they are light and
+    // light does not get occluded by the glass it shines through -- the sphere
+    // is semi-transparent and a blob behind it is dimmed by its own depth fade
+    // rather than by being drawn under something.
+    for (int b = 0; b < 4; b++)
+    {
+        if (float(b) >= uNumBlobs) break;
+        col += blobLight (uvScene, b);
+    }
+
     // Semi-transparent sphere: alpha < 1 on the sphere surface so
     // blobs on the back side remain partially visible through it.
     // Outside the sphere is fully opaque background.
@@ -775,7 +929,11 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBlobCol[1]     = glGetUniformLocation (pid, "uBlobCol1");
   _uBlobCol[2]     = glGetUniformLocation (pid, "uBlobCol2");
   _uBlobCol[3]     = glGetUniformLocation (pid, "uBlobCol3");
-  // Blob state + corona uniforms removed — blobs drawn as 2D overlay
+  _uBlobState[0]  = glGetUniformLocation (pid, "uBlobState0");
+  _uBlobState[1]  = glGetUniformLocation (pid, "uBlobState1");
+  _uBlobState[2]  = glGetUniformLocation (pid, "uBlobState2");
+  _uBlobState[3]  = glGetUniformLocation (pid, "uBlobState3");
+  _uActionColour  = glGetUniformLocation (pid, "uActionColour");
 
   _aPos = glGetAttribLocation (pid, "aPos");
 
@@ -965,7 +1123,18 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
       if (_uBlobCol[i] >= 0)
         glUniform3f (_uBlobCol[i], b.r, b.g, b.b);
 
+      // The seed keeps four blobs from sparkling in step. From the index
+      // rather than from a clock, so a channel's own flecks stay its own
+      // across a restart instead of shuffling every time the app comes up.
+      if (_uBlobState[i] >= 0)
+        glUniform4f (_uBlobState[i], b.vuPeak, b.action,
+                     1.7f + static_cast<float> (i) * 3.1f,
+                     b.visible ? b.depthFade : 0.f);
     }
+
+  if (_uActionColour >= 0)
+    glUniform3f (_uActionColour, _actionColour[0], _actionColour[1],
+                 _actionColour[2]);
 
   // Draw fullscreen quad (with alpha blending for semi-transparent sphere)
   glEnable (GL_BLEND);

@@ -94,12 +94,18 @@ TEST (Theme, ChannelsKeepTheirOrder)
 TEST (Theme, SizesAndAlphasComeFromTheSkinToo)
 {
   auto const parsed = juce::JSON::parse (
-      R"({"sphereScale": 0.5, "strokeThin": 2.5, "alphaDisabled": 0.25})");
+      R"({"sphereScale": 0.5, "strokeThin": 2.5, "alphaDisabled": 0.25,
+          "trajectoryThickness": 0.011})");
   auto const theme = loadTheme (parsed);
 
   EXPECT_NEAR (theme.sphereScale, 0.5f, 0.001f);
   EXPECT_NEAR (theme.strokeThin, 2.5f, 0.001f);
   EXPECT_NEAR (theme.alphaDisabled, 0.25f, 0.001f);
+
+  // How thick the played trajectory is drawn on the sphere. A constant in
+  // MotionComponent until now, which meant asking for it to be thinner was a
+  // rebuild rather than a knob.
+  EXPECT_NEAR (theme.trajectoryThickness, 0.011f, 0.0001f);
 }
 
 

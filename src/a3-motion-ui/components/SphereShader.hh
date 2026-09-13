@@ -73,12 +73,30 @@ public:
     float size = 0.f;                 // radius in sphere-normalised units
     float vuPeak = 0.f;
     float vuRms = 0.f;
+    /** How far an action has this channel, 0..1. Not whether a finger is down:
+     *  the engine puts a clip's settings back when the accent's envelope has
+     *  finished falling, and that is when the blob stops wearing it. */
+    float action = 0.f;
+    /** Dimmed on the back of the semi-transparent sphere, so depth reads as
+     *  depth rather than as everything being equally bright. */
+    float depthFade = 1.f;
     bool visible = false;
     bool grabbed = false;
     bool highlighted = false;
   };
   void setBlob (int index, BlobData const &data);
   void setNumBlobs (int n);
+
+  /** What an action wears on a blob. Neon rather than white: white is what a
+   *  VU peak already blends towards, and a second signal borrowing the first
+   *  one's colour says nothing. A skin value, so it can be moved off a channel
+   *  colour it happens to collide with. */
+  void setActionColour (float r, float g, float b)
+  {
+    _actionColour[0] = r;
+    _actionColour[1] = g;
+    _actionColour[2] = b;
+  }
 
   // Note: CoronaConfig now lives in MotionComponent (2D blob overlay)
 
@@ -261,6 +279,11 @@ private:
   // Blob uniforms (position+colour kept for lighting on sphere surface)
   GLint _uBlobPosSize[kMaxBlobs] = {};  // vec4: x, y, size, vuLevel
   GLint _uBlobCol[kMaxBlobs] = {};      // vec3: r, g, b
+  GLint _uBlobState[kMaxBlobs] = {};    // vec4: vu, action, seed, depth
+  GLint _uActionColour = -1;
+
+  /** Neon violet until a skin says otherwise. */
+  float _actionColour[3] = { 0.72f, 0.24f, 1.0f };
   GLint _uNumBlobs = -1;
   // Note: blob disc + corona are drawn as 2D overlay by MotionComponent
 
