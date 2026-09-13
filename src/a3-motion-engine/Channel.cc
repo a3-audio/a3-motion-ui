@@ -25,33 +25,16 @@
 namespace a3
 {
 
-Channel::Channel ()
-    : _position (Pos::fromSpherical (0, 0, 1)),
-      _target (Pos::fromSpherical (0, 0, 1))
-{
-}
+Channel::Channel () : _position (Pos::fromSpherical (0, 0, 1)) {}
 
 void
 Channel::setPosition (Pos position)
 {
-  // Nothing lagging behind: the target is where the blob is. Everything that
-  // writes a position without a spring behind it -- a finger dragging the
-  // blob, a live position, a take with elasticity at zero -- comes through
-  // here, and the rubber band then has no length, which is the truth.
-  setPositionAndTarget (position, position);
-}
-
-void
-Channel::setPositionAndTarget (Pos position, Pos target)
-{
   // SeqLock write — increment to odd (write in progress), store, increment to even (done).
   // This is lock-free: the writer (RT thread) never blocks.
-  //
-  // Both under the one count, because a reader draws a line between them.
   auto seq = _seqCount.load (std::memory_order_relaxed);
   _seqCount.store (seq + 1, std::memory_order_release);  // odd = writing
   _position = position;
-  _target = target;
   _seqCount.store (seq + 2, std::memory_order_release);  // even = done
 }
 
@@ -70,21 +53,6 @@ Channel::getPosition () const
     }
   while (seq0 != seq1 || (seq0 & 1));  // retry if odd or changed
   return pos;
-}
-
-Pos
-Channel::getTarget () const
-{
-  Pos target;
-  unsigned seq0, seq1;
-  do
-    {
-      seq0 = _seqCount.load (std::memory_order_acquire);
-      target = _target;
-      seq1 = _seqCount.load (std::memory_order_acquire);
-    }
-  while (seq0 != seq1 || (seq0 & 1));
-  return target;
 }
 
 float

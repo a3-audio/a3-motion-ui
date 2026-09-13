@@ -81,7 +81,7 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
   EXPECT_EQ (l.controls[0].size (), 4u);
   EXPECT_EQ (l.controls[1].size (), 3u); // Elevation: the clips and reach
   // Motion: rot, fade, bias, dir, end, the two squeezes, the three sweeps
-  EXPECT_EQ (l.controls[2].size (), 11u);
+  EXPECT_EQ (l.controls[2].size (), 10u);
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 
@@ -405,7 +405,7 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
     {
       auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
       auto const &motion = l.controls[2];
-      ASSERT_EQ (motion.size (), 11u) << "height " << height;
+      ASSERT_EQ (motion.size (), 10u) << "height " << height;
 
       // Every row is a pair, and both halves of a pair are the same height.
       for (auto const &pair : { std::pair<int, int>{ 0, 7 },
@@ -418,10 +418,8 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
             << "pair " << pair.first << "/" << pair.second << " at height "
             << height;
 
-      // And every knob row is the same height as every other -- the lone
-      // eleventh included, which is a row like the five pairs even though it
-      // carries one control.
-      for (int sub : { 5, 9, 1, 10 })
+      // And every knob row is the same height as every other.
+      for (int sub : { 5, 9, 1 })
         EXPECT_EQ (motion[0].getHeight (),
                    motion[static_cast<size_t> (sub)].getHeight ())
             << "sub " << sub << " at height " << height;
@@ -438,12 +436,9 @@ TEST (ClipSettingsLayout, MotionReadsAsPairsDownTheSection)
     {
       auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
       auto const &motion = l.controls[2];
-      ASSERT_EQ (motion.size (), 11u) << "height " << height;
+      ASSERT_EQ (motion.size (), 10u) << "height " << height;
 
-      // Five pairs, and the eleventh -- elast -- stands alone in the sixth
-      // row's left half. The loop leaves it be: `row + 1 < size` stops before
-      // asking it for a partner it does not have.
-      for (size_t row = 0; row + 1 < motion.size () - 1; row += 2)
+      for (size_t row = 0; row + 1 < motion.size (); row += 2)
         {
           auto const &left = motion[row];
           auto const &right = motion[row + 1];
@@ -1264,7 +1259,7 @@ TEST (ClipSettingsLayout, TheFadeIsAMotionValueNow)
 {
   auto const l = defaultLayout ();
 
-  ASSERT_EQ (l.controls[2].size (), 11u);
+  ASSERT_EQ (l.controls[2].size (), 10u);
   ASSERT_EQ (l.controls[0].size (), 4u);
 
   // Index one since the spin left -- see OnlyFewValuedControlsAdvanceOnTap.
@@ -1388,39 +1383,18 @@ TEST (ClipSettingsLayout, ElevationIsTheTwoClipsAndTheSway)
 
 // And Motion holds each standing value beside the movement that works on it:
 // the angle with its spin, the two squeezes, the reach with its swell, the
-// fade with its bias. Plus one on its own: how loosely the sound follows the
-// figure, which has no movement over it and takes half a row.
+// fade with its bias, and the two lists.
 TEST (ClipSettingsLayout, MotionIsTheMovementAndEverythingThatMovesIt)
 {
-  EXPECT_EQ (numControlsInSection (2), 11);
+  EXPECT_EQ (numControlsInSection (2), 10);
 
   auto const l = defaultLayout ();
-  ASSERT_EQ (l.controls[2].size (), 11u);
+  ASSERT_EQ (l.controls[2].size (), 10u);
 
-  // Eleven knobs and nothing that steps: the two lists went to Shape, where
-  // what a pass does when it runs out belongs with the take.
-  for (int sub = 0; sub < 11; ++sub)
-    EXPECT_FALSE (tapAdvancesValue (2, sub)) << "knob " << sub;
-}
-
-// elast is appended rather than sorted into reading order, and it sits in the
-// sixth row's left half with the right half deliberately empty.
-TEST (ClipSettingsLayout, ElasticityIsTheLastSubIndexAndKeepsTheOthersWhereTheyWere)
-{
-  auto const l = defaultLayout ();
-  ASSERT_EQ (l.controls[2].size (), 11u);
-
-  auto const &elast = l.controls[2][10];
-  EXPECT_FALSE (elast.isEmpty ());
-  EXPECT_TRUE (l.sectionCards[2].contains (elast));
-
-  // Below every other Motion control: it is the bottom row.
+  // Ten knobs and nothing that steps: the two lists went to Shape, where what
+  // a pass does when it runs out belongs with the take.
   for (int sub = 0; sub < 10; ++sub)
-    EXPECT_GE (elast.getY (), l.controls[2][sub].getY ())
-        << "sub " << sub << " sits below elast";
-
-  // And in the left column -- the same left edge the fade has.
-  EXPECT_EQ (elast.getX (), l.controls[2][8].getX ());
+    EXPECT_FALSE (tapAdvancesValue (2, sub)) << "knob " << sub;
 }
 
 // The axis moves inside the clips, not through them. clip-top and

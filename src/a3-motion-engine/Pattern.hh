@@ -234,11 +234,6 @@ public:
    *  transforms anything (shapedPosition). */
   float getSqueezeX () const;
   void setSqueezeX (float amount);
-
-  /** How loosely the sound follows this figure. See ClipSettings::elasticity
-   *  and BlobInertia.hh. */
-  float getElasticity () const;
-  void setElasticity (float amount);
   float getSqueezeY () const;
   void setSqueezeY (float amount);
 
@@ -411,7 +406,6 @@ private:
   std::atomic<float> _playSign{ 1.f };
   std::atomic<bool> _stopAtEnd{ false };
   std::atomic<float> _rotate{ 0.f };
-  std::atomic<float> _elasticity{ 0.f };
   std::atomic<float> _squeezeX{ 0.f };
   std::atomic<float> _squeezeY{ 0.f };
   std::atomic<int> _squeezeXLfo{ 0 };

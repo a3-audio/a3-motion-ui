@@ -66,19 +66,6 @@ struct ClipSettings
   int squeezeXLfo = 0;
   int squeezeYLfo = 0;
 
-  /** How loosely the sound follows the figure, 0..1.
-   *
-   *  Zero is rigid and is *exactly* what the engine did before this existed --
-   *  every take and every set in the world has no value for it and gets the
-   *  zero. Above it the blob hangs off its trajectory on a spring: it lags
-   *  going into a corner, swings past coming out of one, and the spin throws
-   *  it outward. See BlobInertia.hh for why that runs in the shaped disc and
-   *  why it counts in bars rather than in seconds.
-   *
-   *  A property of the take, like the spin and the squeezes: it is applied on
-   *  the way out and never written into the recorded ticks. */
-  float elasticity = 0.f;
-
   /** How far the trajectory spreads from the elevation base, and which way.
    *  The size is the extent, -1..1; the sign says down or up. It ran 0.05..1
    *  while the reach cone chose a pole for itself -- now that it always grows
@@ -171,7 +158,6 @@ operator== (ClipSettings const &a, ClipSettings const &b)
 {
   return a.speedLog2 == b.speedLog2                //
          && a.rotate == b.rotate                   //
-         && a.elasticity == b.elasticity           //
          && a.squeezeX == b.squeezeX               //
          && a.squeezeY == b.squeezeY               //
          && a.squeezeXLfo == b.squeezeXLfo         //

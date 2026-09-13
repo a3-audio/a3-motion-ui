@@ -434,11 +434,6 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
       || path == "lineHeat")
     return juce::jlimit (0.0, 2.0, value);
 
-  // Past half the figure the bulge meets itself coming the other way round a
-  // closed take, and the line stops being a line with a bulge in it.
-  if (path == "trajectoryPull")
-    return juce::jlimit (0.0, 0.5, value);
-
   if (path == "sphereScale")
     {
       // Not a fixed ceiling: the sphere may grow until the speaker icons run

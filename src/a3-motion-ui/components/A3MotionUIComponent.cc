@@ -6503,8 +6503,6 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
           pattern->setBridgeBias (0);
           refreshPatternDisplayFromTicks (pattern);
           break;
-        // Rigid, which is what the instrument did before elasticity existed.
-        case 10: pattern->setElasticity (0.f); break;
         default: return;
         }
       break;
@@ -6752,18 +6750,6 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             pattern->setFadeReach (pattern->getFadeReach ()
                                    + 0.05f * static_cast<float> (increment));
             refreshPatternDisplayFromTicks (pattern);
-            break;
-
-          case 10:
-            // How loosely the sound follows the figure. A twentieth per step,
-            // like fade and reach -- a knob that needs a different amount of
-            // finger for the same travel reads as a different kind of
-            // control.
-            //
-            // Nothing is written into the ticks: the spring is applied on the
-            // way out, so it can be turned down again as freely as up.
-            pattern->setElasticity (pattern->getElasticity ()
-                                    + 0.05f * static_cast<float> (increment));
             break;
 
           default:
@@ -7082,8 +7068,6 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setMotionEndAction (_clipUIParams[channel][slot].endAction);
   _clipSettings->setMotionFadeReach (
       pattern ? pattern->getFadeReach () : ClipSettings{}.fadeReach);
-  _clipSettings->setMotionElasticity (
-      pattern ? pattern->getElasticity () : ClipSettings{}.elasticity);
   _clipSettings->setMotionBridgeBias (
       pattern ? pattern->getBridgeBias () : ClipSettings{}.bridgeBias);
   // Each squeeze, and where its own stretch is holding it now -- the same

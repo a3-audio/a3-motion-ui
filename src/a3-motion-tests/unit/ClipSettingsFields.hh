@@ -46,7 +46,6 @@ clipSettingsFields ()
       fields{
         { "speedLog2", [] (ClipSettings &s) { s.speedLog2 = -3; } },
         { "rotate", [] (ClipSettings &s) { s.rotate = 0.3f; } },
-        { "elasticity", [] (ClipSettings &s) { s.elasticity = 0.4f; } },
         { "squeezeX", [] (ClipSettings &s) { s.squeezeX = 0.4f; } },
         { "squeezeY", [] (ClipSettings &s) { s.squeezeY = -0.6f; } },
         { "squeezeXLfo", [] (ClipSettings &s) { s.squeezeXLfo = 4; } },

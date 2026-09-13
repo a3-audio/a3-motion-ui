@@ -325,8 +325,6 @@ loadTheme (juce::var const &skin)
   theme.sphereScale = themeFloat (skin, "sphereScale", theme.sphereScale);
   theme.trajectoryThickness
       = themeFloat (skin, "trajectoryThickness", theme.trajectoryThickness);
-  theme.trajectoryPull
-      = themeFloat (skin, "trajectoryPull", theme.trajectoryPull);
   theme.lineGlow = themeFloat (skin, "lineGlow", theme.lineGlow);
   theme.lineFilament = themeFloat (skin, "lineFilament", theme.lineFilament);
   theme.lineBolt = themeFloat (skin, "lineBolt", theme.lineBolt);
@@ -434,7 +432,6 @@ themeDefaultsVar ()
   number ("strokeThick", defaults.strokeThick);
   number ("sphereScale", defaults.sphereScale);
   number ("trajectoryThickness", defaults.trajectoryThickness);
-  number ("trajectoryPull", defaults.trajectoryPull);
   number ("lineGlow", defaults.lineGlow);
   number ("lineFilament", defaults.lineFilament);
   number ("lineBolt", defaults.lineBolt);

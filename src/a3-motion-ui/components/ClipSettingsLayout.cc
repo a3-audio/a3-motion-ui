@@ -185,18 +185,12 @@ numControlsInSection (int sectionIndex)
       // sits is what the graphic above draws.
       return 3;
     case 2:
-      // Eleven knobs in six rows, and no buttons: the two lists went to
-      // Shape. Ten of them are numbered in reading order -- rot, spin, reach,
+      // Ten knobs in five rows, and no buttons: the two lists went to Shape.
+      // Numbered in reading order for the first time -- rot, spin, reach,
       // swell, sqzX, strX, sqzY, strY, fade, bias -- because everything in
       // the section had to move anyway when the lists left, and an order that
       // is the order things are read in is one nobody has to look up.
-      //
-      // The eleventh, elast, is *appended* rather than sorted in. Three lists
-      // elsewhere are keyed by sub-index (tapAdvancesValue, dropdownValues,
-      // dropdownCurrentIndex), and renumbering a section without renumbering
-      // all three has broken every list in one before now. An index out of
-      // reading order is cheaper than that.
-      return 11;
+      return 10;
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -675,7 +669,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const gapH = juce::jmax (2, content.getWidth () / 20);
     auto const gapV = juce::jmax (2, content.getHeight () / 20);
 
-    constexpr int motionKnobRows = 6;
+    constexpr int motionKnobRows = 5;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
@@ -688,7 +682,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       return row;
     };
 
-    auto elastRow = knobRow (false);
     auto biasRow = knobRow (false);
     auto sqzYRow = knobRow (false);
     auto sqzXRow = knobRow (false);
@@ -708,11 +701,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const [sqzXArea, strXArea] = split (sqzXRow);
     auto const [sqzYArea, strYArea] = split (sqzYRow);
     auto const [fadeArea, biasArea] = split (biasRow);
-    // The sixth row carries one control and leaves its right half empty. A
-    // second knob invented to make the grid come out even would be a control
-    // somebody has to read to find out it means nothing.
-    auto const [elastArea, elastSpare] = split (elastRow);
-    juce::ignoreUnused (elastSpare);
 
     // In reading order, which is also sub-index order for the first time.
     out.controls[2] = {
@@ -726,7 +714,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       textCell (strYArea, metrics.knobDiam),  // 7 strY
       textCell (fadeArea, metrics.knobDiam),  // 8 fade
       textCell (biasArea, metrics.knobDiam),  // 9 bias
-      textCell (elastArea, metrics.knobDiam), // 10 elast
     };
   }
 

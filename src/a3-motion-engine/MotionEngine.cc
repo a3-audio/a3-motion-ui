@@ -158,12 +158,6 @@ MotionEngine::getChannelPosition (index_t channel)
   return _channels[channel]->getPosition ();
 }
 
-Pos
-MotionEngine::getChannelTarget (index_t channel)
-{
-  return _channels[channel]->getTarget ();
-}
-
 void
 MotionEngine::setChannel2DPosition (index_t channel, Pos const &position)
 {
@@ -1262,16 +1256,8 @@ MotionEngine::performPlayback ()
     {
       // A finger is on this one: playback keeps running, but it does not
       // get to write the position, or the blob slides out from under it.
-      //
-      // The spring goes cold with it. A finger carries the blob somewhere of
-      // its own, and letting go must not fling it back along a path nobody
-      // played -- the same rule the jump cut inside stepInertia() applies,
-      // reached from the outside.
       if (_positionHeld[chIdx].load (std::memory_order_relaxed))
-        {
-          _inertia[chIdx] = {};
-          continue;
-        }
+        continue;
 
       // Same for the finger steering a take that has not started yet: the
       // outgoing clip carries on running, but it stops writing the position,
@@ -1369,34 +1355,6 @@ MotionEngine::performPlayback ()
                   // happen in.
                   position2D = shapedPosition (position2D, shapingOf (playing));
 
-                  // The blob hangs off the figure on a spring -- see
-                  // BlobInertia.hh. Here, between the shaping and the
-                  // elevation, for two reasons that cost nothing: what comes
-                  // out still goes through mapTo3D, so the blob is always on
-                  // the sphere and always inside this clip's own elevation
-                  // clips; and the spin has already happened, so the spin
-                  // throws the blob outward. That is the centrifugal force
-                  // this was asked for.
-                  auto const shapedTarget = position2D;
-                  auto const elasticity = playing.getElasticity ();
-                  if (elasticity > 0.f)
-                    {
-                      auto const ticksPerBarF
-                          = static_cast<float> (TempoClock::getTicksPerBeat ())
-                            * static_cast<float> (_tempoClock.getBeatsPerBar ());
-                      _inertia[chIdx] = stepInertia (
-                          _inertia[chIdx], position2D, elasticity,
-                          ticksPerBarF);
-                      position2D = _inertia[chIdx].position;
-                    }
-                  else
-                    {
-                      // Rigid, and the state goes cold: turning elasticity up
-                      // mid-pass must not resume from wherever the spring was
-                      // left three minutes ago.
-                      _inertia[chIdx] = {};
-                    }
-
                   // Apply this clip's own elevation mapping (sphere
                   // projection) at playback time — elevation parameters
                   // live on the Pattern itself, not the channel.
@@ -1408,11 +1366,7 @@ MotionEngine::performPlayback ()
                   // be drawn somewhere the blob is not running.
                   params = sweptElevation (params, playing);
                   auto position = _heightMap.mapTo3D (position2D, params);
-                  // Both, and together: what the renderer draws between them
-                  // is a rubber band, and read from two different ticks it
-                  // would be drawn between two different moments.
-                  channel->setPositionAndTarget (
-                      position, _heightMap.mapTo3D (shapedTarget, params));
+                  channel->setPosition (position);
                 }
             }
         }

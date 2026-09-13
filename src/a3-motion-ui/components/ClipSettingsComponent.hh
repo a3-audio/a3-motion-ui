@@ -241,8 +241,6 @@ public:
   /** Which stretch-filling a take will use — 0 glide, 1 hard. */
   /** How far a gap may be for the fade to draw through it, 0..1. */
   void setMotionFadeReach (float reach);
-  /** How loosely the sound follows the figure -- see BlobInertia.hh. */
-  void setMotionElasticity (float elasticity);
 
   /** Where a drawn-through gap leads, -4..+4. */
   void setMotionBridgeBias (int bias);
@@ -667,7 +665,6 @@ private:
   int _motionEndAction = 0;
   int _motionSubIndex = 0;
   float _motionFadeReach = 0.25f;
-  float _motionElasticity = 0.f;
   int _motionBridgeBias = 0;
   float _motionSqueezeX = 0.f;
   float _motionSqueezeY = 0.f;

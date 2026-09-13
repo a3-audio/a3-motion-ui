@@ -35,7 +35,6 @@ clipSettingsFrom (Pattern const &pattern)
 
   settings.speedLog2 = pattern.getSpeedLog2 ();
   settings.rotate = pattern.getRotate ();
-  settings.elasticity = pattern.getElasticity ();
   settings.squeezeX = pattern.getSqueezeX ();
   settings.squeezeY = pattern.getSqueezeY ();
   settings.squeezeXLfo = pattern.getSqueezeXLfo ();
@@ -77,7 +76,6 @@ applyClipSettings (Pattern &pattern, ClipSettings const &settings)
 {
   pattern.setSpeedLog2 (settings.speedLog2);
   pattern.setRotate (settings.rotate);
-  pattern.setElasticity (settings.elasticity);
   pattern.setSqueezeX (settings.squeezeX);
   pattern.setSqueezeY (settings.squeezeY);
   pattern.setSqueezeXLfo (settings.squeezeXLfo);

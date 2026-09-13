@@ -98,9 +98,6 @@ constexpr char const *clip = "clip";
  *  picture, because the picture mirrors them: X is front-back, which is what
  *  a viewer sees as the *vertical* of the sphere, and Y is left-right.
  *  Anyone reading a clip file, a set or a script meets the same two names. */
-/** How loosely the sound follows the figure. Zero is rigid; above it the
- *  blob hangs off its trajectory on a spring -- see BlobInertia.hh. */
-constexpr char const *elasticity = "elast";
 constexpr char const *squeezeX = "sqzX";
 constexpr char const *squeezeY = "sqzY";
 /** Each squeeze's own sweep -- what swell is to reach. "str" for stretch,
