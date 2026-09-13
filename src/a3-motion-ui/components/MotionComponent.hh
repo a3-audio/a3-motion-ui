@@ -33,6 +33,7 @@
 
 #include <a3-motion-ui/Helpers.hh>
 #include <a3-motion-ui/ConfigFileWatcher.hh>
+#include <a3-motion-ui/components/BlobTrail.hh>
 #include <a3-motion-ui/components/CoronaScaling.hh>
 #include <a3-motion-ui/components/TouchGrabs.hh>
 #include <a3-motion-ui/components/EnergyMap.hh>
@@ -257,6 +258,12 @@ private:
   float _smoothGlowPeak = 0.f, _smoothGlowRms = 0.f;
   float _smoothSpotPeak[4]{}, _smoothSpotRms[4]{};
   float _smoothBlobPeak[4]{}, _smoothBlobRms[4]{};
+
+  /** The wake behind each blob, advanced once per rendered frame. Here rather
+   *  than in the shader because it is the one part of the blob's effects that
+   *  cannot be procedural: a trail is where the thing has been, and nothing in
+   *  a fragment shader remembers that. */
+  BlobTrail _blobTrails[4]{};
 
   // Background colour packed as ARGB — lock-free atomic access
   std::atomic<juce::uint32> _backgroundColourPacked{ 0 };

@@ -80,6 +80,14 @@ public:
     /** Dimmed on the back of the semi-transparent sphere, so depth reads as
      *  depth rather than as everything being equally bright. */
     float depthFade = 1.f;
+    /** Where the blob has just been: four points that lag it, nearest first.
+     *
+     *  A wake, not a copy of the trajectory. The line under it already says
+     *  exactly where the take goes; what is missing is the sense that
+     *  something heavy is travelling along it, and a plume that cuts the
+     *  corners says that where one tracing them would only be a second line.
+     *  The lag is the caller's -- see MotionComponent::advanceBlobTrails(). */
+    float trailX[4]{}, trailY[4]{};
     bool visible = false;
     bool grabbed = false;
     bool highlighted = false;
@@ -280,6 +288,11 @@ private:
   GLint _uBlobPosSize[kMaxBlobs] = {};  // vec4: x, y, size, vuLevel
   GLint _uBlobCol[kMaxBlobs] = {};      // vec3: r, g, b
   GLint _uBlobState[kMaxBlobs] = {};    // vec4: vu, action, seed, depth
+  // The wake, two points to a vec4 -- separate uniforms rather than one array
+  // because a uniform array in GLSL 1.20 may only be indexed by a
+  // constant-index-expression, and the blob index here is a function argument.
+  GLint _uBlobTrailA[kMaxBlobs] = {};   // vec4: t0.xy, t1.xy
+  GLint _uBlobTrailB[kMaxBlobs] = {};   // vec4: t2.xy, t3.xy
   GLint _uActionColour = -1;
 
   /** Neon violet until a skin says otherwise. */

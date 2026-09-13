@@ -108,6 +108,17 @@ auto constexpr reduceFactorHead = .35f;
 auto constexpr activeAreaAroundBlobFactor = 3.f;
 auto constexpr blobHighlightFactor = 1.1f;
 
+// How hard each link of the blob's wake chases the one in front of it, per
+// rendered frame. Four links at this rate settle about half a second behind
+// the blob -- long enough to read as a trail, short enough that a fast figure
+// does not wear a scarf round the whole sphere.
+auto constexpr blobTrailLag = 0.07f;
+// What counts as a jump rather than a movement, in the sphere's normalised
+// units: a clip looping back to its start, or a finger dropping the blob
+// somewhere else. The wake is cut there instead of being dragged across a
+// path nothing travelled.
+auto constexpr blobTrailCutDistance = 0.35f;
+
 }
 
 namespace a3
@@ -1160,6 +1171,21 @@ MotionComponent::renderOpenGL ()
             bd.x = posJuce.getX ();
             bd.y = -posJuce.getY ();
             bd.visible = true;
+          }
+
+        // The wake follows the blob in the space it is drawn in, not the
+        // room's: the camera can be walked round the sphere, and a trail
+        // advanced in room coordinates would swing as the view turned.
+        if (bd.visible)
+          advanceBlobTrail (_blobTrails[ch], bd.x, bd.y, blobTrailLag,
+                            blobTrailCutDistance);
+        else
+          releaseBlobTrail (_blobTrails[ch]);
+
+        for (int k = 0; k < BlobTrail::numLinks; ++k)
+          {
+            bd.trailX[k] = _blobTrails[ch].x[k];
+            bd.trailY[k] = _blobTrails[ch].y[k];
           }
 
         auto blobSize = _blobScale;

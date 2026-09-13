@@ -166,6 +166,14 @@ uniform vec4  uBlobState0;
 uniform vec4  uBlobState1;
 uniform vec4  uBlobState2;
 uniform vec4  uBlobState3;
+uniform vec4  uBlobTrailA0;
+uniform vec4  uBlobTrailA1;
+uniform vec4  uBlobTrailA2;
+uniform vec4  uBlobTrailA3;
+uniform vec4  uBlobTrailB0;
+uniform vec4  uBlobTrailB1;
+uniform vec4  uBlobTrailB2;
+uniform vec4  uBlobTrailB3;
 
 /** What an action wears. Neon violet rather than white: white is what a VU
  *  peak already blends towards, and a signal that borrows another signal's
@@ -325,6 +333,53 @@ vec4 getBlobState (int i)
     return uBlobState3;
 }
 
+vec4 getBlobTrailA (int i)
+{
+    if (i == 0) return uBlobTrailA0;
+    if (i == 1) return uBlobTrailA1;
+    if (i == 2) return uBlobTrailA2;
+    return uBlobTrailA3;
+}
+
+vec4 getBlobTrailB (int i)
+{
+    if (i == 0) return uBlobTrailB0;
+    if (i == 1) return uBlobTrailB1;
+    if (i == 2) return uBlobTrailB2;
+    return uBlobTrailB3;
+}
+
+/** One link of the wake.
+ *
+ *  The field around the segment a->b, tapering in width and brightness from
+ *  one end to the other and billowing across itself as it goes. Bounded at
+ *  both ends on purpose: boltAt() never reaches zero, and four of these
+ *  running to the edge of the screen is a haze over the whole picture rather
+ *  than a trail behind one blob. */
+float wakeSegment (vec2 uv, vec2 a, vec2 b, float w0, float w1,
+                   float i0, float i1, float seed)
+{
+    vec2 ab = b - a;
+    float len2 = max (dot (ab, ab), 1e-8);
+    float t = clamp (dot (uv - a, ab) / len2, 0.0, 1.0);
+    vec2 onIt = a + ab * t;
+    float w = mix (w0, w1, t);
+
+    // The billow. The centre line is pushed sideways rather than the distance
+    // to it being shifted: shifting the distance and taking its modulus draws
+    // the two edges of a tube and leaves the middle empty, which is a wire
+    // outline following the blob around -- what the first version of this did.
+    vec2 across = normalize (vec2 (-ab.y, ab.x) + 1e-6);
+    float billow = valueNoise (vec3 (onIt * 26.0, uTime * 0.7 + seed)) - 0.5;
+    vec2 centre = onIt + across * billow * w * 1.6;
+
+    float d = length (uv - centre);
+    // Squared rather than linear, so the plume has a body and an edge instead
+    // of trailing off into a wash the width of the sphere.
+    float reach = clamp (1.0 - d / (w * 6.0), 0.0, 1.0);
+    return boltAt (d, w * 0.8) * reach * reach * mix (i0, i1, t);
+}
+
 /** The blob itself: a hot core, a corona around it, sparks off it, and a bolt
  *  when the channel spikes.
  *
@@ -356,14 +411,21 @@ vec3 blobLight (vec2 uv, int i)
     float r = ps.z;
 
     // The core. Hot in the middle and gone by the edge -- a body rather than a
-    // stamped circle, so it sits *in* the picture instead of on it.
-    float core = smoothstep (r, r * 0.25, d);
+    // stamped circle, so it sits *in* the picture instead of on it. Two parts:
+    // a body out to the blob's radius and a hard point inside it, because a
+    // single soft falloff on top of a neon trajectory reads as a smudge over
+    // the line rather than as the thing travelling along it.
+    float core = smoothstep (r, r * 0.35, d);
+    float pip = smoothstep (r * 0.45, r * 0.12, d);
 
     // The corona, swelling with the level. It reached only as far as two
     // translucent rings before; this falls off continuously, so a loud channel
     // lights the room around it rather than growing a second outline.
-    float reach = r * (2.2 + 5.5 * vu + 2.0 * action);
-    float halo = pow (clamp (1.0 - d / reach, 0.0, 1.0), 2.6);
+    // How far it reaches was five and a half blob-radii per unit of level,
+    // which at a working level is a wash a third of the sphere across with the
+    // body lost inside it. A corona is a surround, not a fog.
+    float reach = r * (1.9 + 2.4 * vu + 1.6 * action);
+    float halo = pow (clamp (1.0 - d / reach, 0.0, 1.0), 3.0);
 
     // Sparks. A ring of flecks that drift outwards and burn out, thrown harder
     // by level and much harder while an action runs. Procedural: the ring is
@@ -373,16 +435,26 @@ vec3 blobLight (vec2 uv, int i)
     if (sparkGain > 0.01 && d < reach * 1.6)
     {
         float ang = atan (d2.y, d2.x);
-        // Twenty-four slots around the blob; each holds one fleck at a time.
-        float slot = floor ((ang / 6.28318531 + 0.5) * 40.0);
+        // Forty slots around the blob; each holds one fleck at a time.
+        float slots = 40.0;
+        float turn = ang / 6.28318531 + 0.5;
+        float slot = floor (turn * slots);
         float life = fract (uTime * (0.7 + 0.5 * vu) + hash13 (vec3 (slot, seed, 1.0)));
         // Where this fleck has got to, and how bright it still is.
         float travel = r * (0.9 + 3.4 * life);
         float fade = 1.0 - life;
-        float onRing = boltAt (d - travel, r * 0.10 * (0.25 + fade));
-        // Only some slots are lit at any moment, or it reads as a gear wheel.
-        float lit = step (0.38, hash13 (vec3 (slot, seed, floor (uTime * 4.0 + life))));
-        sparks += onRing * fade * fade * lit;
+        // Round, and off the grid. Bounded by angle as well as by radius, or a
+        // slot is an arc a ninth of the way round the blob and forty of them
+        // read as a gear wheel rather than as sparks; the jitter is what keeps
+        // the survivors off a perfect ring.
+        float jitter = hash13 (vec3 (slot, seed, 5.0)) - 0.5;
+        float dAng = (fract (turn * slots) - 0.5 + jitter * 0.7) / slots
+                   * 6.28318531 * d;
+        float grain = r * 0.11 * (0.3 + fade);
+        float fleck = boltAt (d - travel, grain) * boltAt (dAng, grain * 1.3);
+        // Only some slots are lit at any moment.
+        float lit = step (0.34, hash13 (vec3 (slot, seed, floor (uTime * 6.0 + life))));
+        sparks += fleck * fade * fade * lit;
     }
 
     // The bolt. A short arm that strikes out of the blob on a transient and is
@@ -391,21 +463,30 @@ vec3 blobLight (vec2 uv, int i)
     float bolt = 0.0;
     if (vu > 0.25)
     {
-        float strikeId = floor (uTime * 9.0);
-        float fires = step (0.30, hash13 (vec3 (seed, strikeId, 3.0))) * step (0.28, vu);
+        float strikeId = floor (uTime * 11.0);
+        // Rare enough to be an event. At a threshold of 0.30 one was alight
+        // seven frames in ten, which is not lightning, it is a whisker.
+        float fires = step (0.66, hash13 (vec3 (seed, strikeId, 3.0))) * step (0.28, vu);
         if (fires > 0.0)
         {
             float ang = hash13 (vec3 (seed, strikeId, 7.0)) * 6.28318531;
             vec2 dir = vec2 (cos (ang), sin (ang));
             float along = dot (d2, dir);
-            float across = abs (dot (d2, vec2 (-dir.y, dir.x)));
-            // Strays as it travels, the way the sphere's bolts do.
-            float stray = (valueNoise (vec3 (along * 26.0, seed, uTime * 5.0)) - 0.5)
-                        * r * 0.9;
+            // Signed. Taken as a modulus it is mirrored about the arm's axis,
+            // so a path straying to one side is drawn on both and the bolt
+            // comes out as a closed lens rather than as a line.
+            float across = dot (d2, vec2 (-dir.y, dir.x));
+            // Strays as it travels, the way the sphere's bolts do. Slowly:
+            // at twenty-six noise periods over an arm this long the path
+            // doubled back on itself every few pixels and drew a string of
+            // little wire outlines rather than a bolt.
+            float stray = (valueNoise (vec3 (along * 7.0, seed, uTime * 5.0)) - 0.5)
+                        * r * 1.2;
             float len = r * (2.5 + 7.0 * vu);
             float within = step (0.0, along) * step (along, len);
-            bolt += within * boltAt (across - stray, r * 0.07)
-                  * (1.0 - along / max (len, 0.001));
+            float taper = 1.0 - along / max (len, 0.001);
+            bolt += within * boltAt (across - stray, r * 0.07 * taper)
+                  * taper * taper;
         }
     }
 
@@ -436,12 +517,44 @@ vec3 blobLight (vec2 uv, int i)
     // and the first version of this lost.
     float rim = boltAt (d - r * 0.82, r * 0.20);
 
-    vec3 out3 = hot * core * 1.9
-              + hot * rim * 0.55
-              + col * halo * (0.35 + 1.1 * vu)
+    // The chemtrail. Four links, each thinner and fainter than the one in
+    // front, hung off points that lag the blob -- so it is a wake rather than
+    // a second drawing of the line the take already has under it.
+    //
+    // How far the tail has been left behind is the gate: parked, the four
+    // points sit on the blob and there is nothing to draw, and gating on that
+    // spread costs a length() rather than a uniform nobody would ever set by
+    // hand.
+    vec4 ta = getBlobTrailA (i);
+    vec4 tb = getBlobTrailB (i);
+    float spread = length (tb.zw - ps.xy) / max (r, 0.001);
+    float trail = 0.0;
+    if (spread > 0.35)
+    {
+        trail += wakeSegment (uv, ps.xy, ta.xy, r * 0.80, r * 0.66,
+                              1.00, 0.74, seed);
+        trail += wakeSegment (uv, ta.xy, ta.zw, r * 0.66, r * 0.50,
+                              0.74, 0.48, seed + 1.0);
+        trail += wakeSegment (uv, ta.zw, tb.xy, r * 0.50, r * 0.34,
+                              0.48, 0.26, seed + 2.0);
+        trail += wakeSegment (uv, tb.xy, tb.zw, r * 0.34, r * 0.16,
+                              0.26, 0.08, seed + 3.0);
+        trail *= smoothstep (0.35, 1.0, spread)
+               * (0.75 + 0.85 * vu + 0.7 * action);
+    }
+    // It wears the action too. A trail in the channel's colour while an action
+    // runs would leave the one effect that has to be unmistakable saying
+    // nothing at the very moment it matters.
+    vec3 trailCol = mix (col, uActionColour, action * 0.85);
+
+    vec3 out3 = hot * core * 1.55
+              + mix (hot, uBoltCoreColour, 0.18) * pip * 1.40
+              + hot * rim * 0.85
+              + col * halo * (0.30 + 0.6 * vu)
               + spark * sparks * sparkGain * 0.8
-              + mix (col, uBoltCoreColour, 0.8) * bolt * (0.6 + vu)
-              + uActionColour * ring * 1.3;
+              + mix (col, uBoltCoreColour, 0.55) * bolt * (0.7 + vu)
+              + uActionColour * ring * 1.3
+              + trailCol * trail * 1.5;
 
     return out3 * depth;
 }
@@ -800,17 +913,26 @@ void main ()
     // light does not get occluded by the glass it shines through -- the sphere
     // is semi-transparent and a blob behind it is dimmed by its own depth fade
     // rather than by being drawn under something.
+    vec3 blobs = vec3 (0.0);
     for (int b = 0; b < 4; b++)
     {
         if (float(b) >= uNumBlobs) break;
-        col += blobLight (uvScene, b);
+        blobs += blobLight (uvScene, b);
     }
+    col += blobs;
 
     // Semi-transparent sphere: alpha < 1 on the sphere surface so
     // blobs on the back side remain partially visible through it.
     // Outside the sphere is fully opaque background.
     float sphereAlpha = 0.75;  // sphere surface transparency
     alpha = mix (1.0, sphereAlpha, surfaceMix);
+
+    // But light is not seen *through*. The sphere's alpha is what lets a blob
+    // on the far side show at all, and it was also quietly taking a quarter
+    // off every blob on the near one: a core computed at full came out of the
+    // blend at 0.75 -- a grey dot where a bright one was meant to be. Where a
+    // blob is bright the pixel belongs to the blob.
+    alpha = clamp (alpha + max (blobs.r, max (blobs.g, blobs.b)), 0.0, 1.0);
 
     gl_FragColor = vec4 (col, alpha);
 }
@@ -933,6 +1055,14 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBlobState[1]  = glGetUniformLocation (pid, "uBlobState1");
   _uBlobState[2]  = glGetUniformLocation (pid, "uBlobState2");
   _uBlobState[3]  = glGetUniformLocation (pid, "uBlobState3");
+  _uBlobTrailA[0] = glGetUniformLocation (pid, "uBlobTrailA0");
+  _uBlobTrailA[1] = glGetUniformLocation (pid, "uBlobTrailA1");
+  _uBlobTrailA[2] = glGetUniformLocation (pid, "uBlobTrailA2");
+  _uBlobTrailA[3] = glGetUniformLocation (pid, "uBlobTrailA3");
+  _uBlobTrailB[0] = glGetUniformLocation (pid, "uBlobTrailB0");
+  _uBlobTrailB[1] = glGetUniformLocation (pid, "uBlobTrailB1");
+  _uBlobTrailB[2] = glGetUniformLocation (pid, "uBlobTrailB2");
+  _uBlobTrailB[3] = glGetUniformLocation (pid, "uBlobTrailB3");
   _uActionColour  = glGetUniformLocation (pid, "uActionColour");
 
   _aPos = glGetAttribLocation (pid, "aPos");
@@ -1130,6 +1260,17 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
         glUniform4f (_uBlobState[i], b.vuPeak, b.action,
                      1.7f + static_cast<float> (i) * 3.1f,
                      b.visible ? b.depthFade : 0.f);
+
+      // An invisible blob's wake is collapsed onto the blob rather than left
+      // where it last was: the shader gates the trail on how far the tail has
+      // been left behind, and a stale tail would go on burning under a channel
+      // that has stopped.
+      auto const tx = [&b] (int k) { return b.visible ? b.trailX[k] : 999.f; };
+      auto const ty = [&b] (int k) { return b.visible ? b.trailY[k] : 999.f; };
+      if (_uBlobTrailA[i] >= 0)
+        glUniform4f (_uBlobTrailA[i], tx (0), ty (0), tx (1), ty (1));
+      if (_uBlobTrailB[i] >= 0)
+        glUniform4f (_uBlobTrailB[i], tx (2), ty (2), tx (3), ty (3));
     }
 
   if (_uActionColour >= 0)
