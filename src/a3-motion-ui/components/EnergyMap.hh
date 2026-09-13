@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <a3-motion-engine/util/Types.hh>
+
 #include <JuceHeader.h>
 
 #include <vector>
@@ -90,12 +92,36 @@ constexpr float screenCornerDistance = 2.26f;
  *  sprouting from its edge. */
 float glowEmergence (float distanceFromCentre, float rise);
 
+/** The bearing a place on the display stands for, as a unit vector.
+ *
+ *  **The room's bearing, not the screen's**, and that distinction is the whole
+ *  of it. The net used to normalise the screen coordinate, which nails the
+ *  weave to the display: turn the camera and the ball rotates under a pattern
+ *  that stays where it was. Exactly the fault the graticule had before it was
+ *  rebuilt in the room's terms -- a net on the screen draws the same picture
+ *  whichever way the room is looked at.
+ *
+ *  `direction` is what the pixel stands for in the room, which is what
+ *  SphereProjection's asSeenFromInverse() gives back. At the identity camera
+ *  this returns the screen bearing exactly: the direction has its axes
+ *  shuffled to { y, -x, up } on the way in, and this shuffles them back.
+ *  Mirrors netBearing() in SphereShader.cc. */
+struct NetBearing
+{
+  float x = 0.f;
+  float y = 0.f;
+};
+NetBearing netBearingForDirection (Pos const &direction);
+
 /** Point in the noise domain a place on the display maps to.
  *
  *  Built from the direction vector rather than from an azimuth angle: an angle
  *  wraps, and the wrap put a visible seam due west where the filaments failed
  *  to meet. `twist` sets how much detail runs around the circle, `scale` how
- *  much runs along the radius. */
+ *  much runs along the radius.
+ *
+ *  `x`/`y` are the **room's** bearing -- see netBearingForDirection(). They are
+ *  normalised here, so handing in an unnormalised one is fine. */
 struct NetDomainPoint
 {
   float x, y, z;
@@ -121,6 +147,67 @@ float beamRimCoverageDegrees (float angleDegrees, float speakerRadius);
  *  there is no band behind the mouth and none inside the sphere. */
 float beamWrapHalfAngle (float distanceFromCentre, float mouthRadius,
                          float apertureAngleDegrees, float wrapAngleDegrees);
+
+/** The angle between what a pixel stands for and where a speaker stands,
+ *  measured in the room.
+ *
+ *  This is the beam's *across* coordinate, and the whole of what makes the
+ *  bands three-dimensional. They used to take it as a difference of screen
+ *  azimuths about the centre of the display, which nails the band to the
+ *  glass: the annulus it was built on has no word for a speaker that is not on
+ *  the rim, and under a lean every speaker comes in off it. Both directions
+ *  here have already been through the camera, so a lean moves the speaker and
+ *  the band goes with it.
+ *
+ *  Zero on the speaker's own bearing, pi at the far side of the room. Mirrors
+ *  beamSpread() in SphereShader.cc. */
+float beamSpreadAngle (Pos const &pixelDirection, Pos const &speakerDirection);
+
+/** Where a speaker's mouth lands on the screen, as a distance from the
+ *  sphere's centre.
+ *
+ *  The mouth radius used to be one number for all four — speakerRadius less
+ *  the horn's offset — which is true only while every cabinet sits on the rim.
+ *  Leaned over, each one lands somewhere else, and a band that still started
+ *  at the shared radius left its own speaker behind.
+ *
+ *  `speakerSeen` is the cabinet's centre as the eye sees it, already scaled by
+ *  the speaker radius. Held off the sphere: a cabinet crossing the silhouette
+ *  would otherwise ask for an annulus with no room in it. */
+float beamMouthRadiusSeen (Pos const &speakerSeen);
+
+/** How wide a bolt's core runs at a given level, in degrees.
+ *
+ *  The level is a *thickness* now, not a brightness. Driving brightness with
+ *  it meant a band faded out exactly where it was needed most — quiet is most
+ *  of the time, and a bolt you can only make out with some imagination is not
+ *  a bolt. A quiet speaker draws the same bolts as a loud one, hairline thin;
+ *  a loud one swells them.
+ *
+ *  `thin` is what a silent speaker's bolt is worth as a share of the full
+ *  width. Mirrors boltWidthAt() in SphereShader.cc. */
+float boltWidthAtLevel (float baseWidthDegrees, float level, float thin);
+
+/** The seed a speaker's bolts are dealt from.
+ *
+ *  Taken from where the cabinet stands in the *room*, so a bolt belongs to a
+ *  loudspeaker rather than to a place on the glass. Read off the screen it
+ *  moved as the eye moved, which dealt every speaker a fresh set of bolts on
+ *  every frame of a turn — and, since a screen bearing is not a unit vector
+ *  once the speaker radius is in it, reached seeds the old normalised bearing
+ *  never did. Four of them escaped the annulus at once and crossed the whole
+ *  display. */
+float beamBoltSeed (Pos const &speakerRoomDirection);
+
+/** How much of a speaker's band reaches the eye.
+ *
+ *  A cabinet that has gone round behind the ball takes its band with it — the
+ *  one thing a flat annulus could never say, since on the screen a speaker
+ *  behind the sphere and one in front of it sit in the same place.
+ *
+ *  1 in front, falling to 0 for a cabinet both inside the silhouette and past
+ *  the sphere's centre along the view axis. */
+float beamDepthVisibility (Pos const &speakerSeen, float softness);
 
 /** A band's level held up to a share of the loudest band's, so a silent
  *  speaker thins its band rather than losing it and opening the ring around

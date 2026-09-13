@@ -136,9 +136,90 @@ struct Theme
   ThemeColour speakerLight{ 70, 130, 250 };
   ThemeColour energy{ 150, 220, 255 };
 
+  /** What a blob wears while an action script has it.
+   *
+   *  Neon rather than white: a VU peak already blends the blob towards white,
+   *  and a second signal borrowing the first one's colour says nothing. A
+   *  skin value so it can be moved off a channel colour it happens to collide
+   *  with -- on a skin whose first channel is already pink it is the flicker
+   *  rather than the hue that carries the message. */
+  ThemeColour blobAction{ 184, 61, 255 };
+
+  /** How much of each of the blob's three effects there is: the flecks thrown
+   *  off it, the lightning on a transient, and the wake behind it. One is
+   *  what the device ships with, zero is off, two is as far as it goes.
+   *
+   *  Zero has to mean off for all three, or "psychonautic" is a look nobody
+   *  can decline. */
+  float blobSparkle = 1.f;
+  float blobBolt = 1.f;
+  float blobTrail = 1.f;
+
   // Sizes, as a share of the component's shorter side
   float sphereScale = 0.62f;
   float blobScale = 0.05f;
+
+  /** How thick the played trajectory is drawn on the sphere, in the same
+   *  normalised units as the sphere itself.
+   *
+   *  A constant of 0.04 in MotionComponent until 2026-09-13, which made "draw
+   *  it thinner" a rebuild rather than a knob. Halved as it moved, on the
+   *  maintainer's call -- and the line has to give room back now that the blob
+   *  is getting a trail. */
+  float trajectoryThickness = 0.0018f;
+
+  /** What the trajectory burns with.
+   *
+   *  The line itself is a vector stroke -- the one thing that can be a crisp
+   *  line thinner than a pixel. Everything that *glows* is a field in the
+   *  fragment shader, found through a rasterised map of where the line is
+   *  (SphereShader::setLineTexture), because JUCE's 2D context has no
+   *  additive blend at all and a stroked "plasma" is a stack of translucent
+   *  ribbons that looks like one.
+   *
+   *  This replaced ten values that described a braid of three hairlines
+   *  inside a coil of bolts, all of it built from strands offset along the
+   *  line's normal. An offset copy of a curve folds where its curvature times
+   *  the offset passes one -- and at the pole, where every azimuth meets, it
+   *  fans out into straight spokes across the middle of the sphere. A level
+   *  set of a field cannot do that, and that is what the filaments are now.
+   *
+   *  One is what the device ships with, zero is off, two is as far as it
+   *  goes. */
+  /** The braid: three hairlines twisted into a cord.
+   *
+   *  `radius` is how far a strand stands off the axis, `turns` how many
+   *  windings there are over the whole figure, `spin` how fast the cord turns
+   *  along its own length (signed), `strands` how many there are.
+   *
+   *  A radius of zero or a single strand gives back a plain line, exactly.
+   *
+   *  This was built once, taken out, and put back. What made it safe the
+   *  second time is foldGuard() in PlasmaSheath.hh: an offset copy of a curve
+   *  folds where the curvature times the offset passes one, and at the pole --
+   *  where every azimuth of a figure meets at a point -- that fold drew
+   *  straight grey spokes across the middle of the sphere. The strands are
+   *  pulled back onto the axis before it arrives now, so the cord closes to a
+   *  single thread through a cusp. */
+  /** How far a strand of the cord stands off its axis. Vectors, because a
+   *  hairline is a vector: a stroke can be thinner than a pixel and a field
+   *  read from a map two and a half screen pixels a texel cannot. */
+  float braidRadius = 0.0048f;
+  /** How hard the same twist runs through the *light* around the cord. The
+   *  glow is the shader's, so it cannot show three strands -- what it can show
+   *  is what a twisted cord does to the light, cresting once per strand per
+   *  winding. Zero leaves the glow smooth. */
+  float braidWeave = 1.6f;
+  float braidTurns = 60.f;
+  float braidSpin = 0.10f;
+  float braidStrands = 3.f;
+
+  float lineGlow = 1.f;
+  float lineFilament = 1.f;
+  float lineBolt = 1.f;
+  /** How hard the line runs towards white where that channel's blob is. It is
+   *  the wire being energised where the sound on it actually is. */
+  float lineHeat = 1.f;
   /** How far a pad is dimmed from its channel's colour for what the slot is
    *  doing. Subtractions from full, so a bigger number is a darker pad; see
    *  theme/PadStatusColours.hh for which state wears which. */

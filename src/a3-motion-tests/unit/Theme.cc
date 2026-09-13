@@ -91,15 +91,78 @@ TEST (Theme, ChannelsKeepTheirOrder)
     EXPECT_EQ (theme.channel[i].r, i + 1) << "channel " << i;
 }
 
+TEST (Theme, TheBlobsEffectsAreSkinValuesLikeEverythingElse)
+{
+  // "psychonautisch solls sein und natuerlich per skineditor anpassbar" --
+  // so what the blob throws off is four numbers a skin states, not four
+  // constants in a fragment shader.
+  auto const parsed = juce::JSON::parse (
+      R"({"blobAction": {"r": 10, "g": 20, "b": 30},
+          "blobSparkle": 0.4, "blobBolt": 1.7, "blobTrail": 0.0})");
+  auto const theme = loadTheme (parsed);
+
+  EXPECT_EQ (theme.blobAction.r, 10);
+  EXPECT_EQ (theme.blobAction.g, 20);
+  EXPECT_EQ (theme.blobAction.b, 30);
+  EXPECT_NEAR (theme.blobSparkle, 0.4f, 0.0001f);
+  EXPECT_NEAR (theme.blobBolt, 1.7f, 0.0001f);
+  // Zero is off, and it has to survive being read as "absent".
+  EXPECT_NEAR (theme.blobTrail, 0.f, 0.0001f);
+}
+
+TEST (Theme, TheBlobsEffectsAreOfferedToTheSkinEditor)
+{
+  // A value the editor cannot see is a value nobody can turn.
+  auto const defaults = themeDefaultsVar ();
+
+  EXPECT_TRUE (defaults.hasProperty ("blobAction"));
+  EXPECT_TRUE (defaults.hasProperty ("blobSparkle"));
+  EXPECT_TRUE (defaults.hasProperty ("blobBolt"));
+  EXPECT_TRUE (defaults.hasProperty ("blobTrail"));
+}
+
+TEST (Theme, WhatTheLineBurnsWithIsSkinValues)
+{
+  // The line is a vector; everything that glows round it is a field in the
+  // shader. Four numbers say how much of each there is, and each is off on
+  // its own.
+  auto const parsed = juce::JSON::parse (
+      R"({"lineGlow": 0.4, "lineFilament": 1.7, "lineBolt": 0.0,
+          "lineHeat": 2.0})");
+  auto const theme = loadTheme (parsed);
+
+  EXPECT_NEAR (theme.lineGlow, 0.4f, 1e-5f);
+  EXPECT_NEAR (theme.lineFilament, 1.7f, 1e-5f);
+  // Zero has to survive being read as "absent".
+  EXPECT_NEAR (theme.lineBolt, 0.f, 1e-5f);
+  EXPECT_NEAR (theme.lineHeat, 2.f, 1e-5f);
+}
+
+TEST (Theme, WhatTheLineBurnsWithIsOfferedToTheSkinEditor)
+{
+  auto const defaults = themeDefaultsVar ();
+
+  for (auto const *name :
+       { "trajectoryThickness", "braidRadius", "braidWeave", "braidTurns", "braidSpin",
+         "braidStrands", "lineGlow", "lineFilament", "lineBolt", "lineHeat" })
+    EXPECT_TRUE (defaults.hasProperty (name)) << name;
+}
+
 TEST (Theme, SizesAndAlphasComeFromTheSkinToo)
 {
   auto const parsed = juce::JSON::parse (
-      R"({"sphereScale": 0.5, "strokeThin": 2.5, "alphaDisabled": 0.25})");
+      R"({"sphereScale": 0.5, "strokeThin": 2.5, "alphaDisabled": 0.25,
+          "trajectoryThickness": 0.011})");
   auto const theme = loadTheme (parsed);
 
   EXPECT_NEAR (theme.sphereScale, 0.5f, 0.001f);
   EXPECT_NEAR (theme.strokeThin, 2.5f, 0.001f);
   EXPECT_NEAR (theme.alphaDisabled, 0.25f, 0.001f);
+
+  // How thick the played trajectory is drawn on the sphere. A constant in
+  // MotionComponent until now, which meant asking for it to be thinner was a
+  // rebuild rather than a knob.
+  EXPECT_NEAR (theme.trajectoryThickness, 0.011f, 0.0001f);
 }
 
 

@@ -267,6 +267,55 @@ TEST (NoMetricLiterals, NoFileOutsideTheListHoldsOne)
                    "waiting its turn.";
 }
 
+// A width that is *named* escapes the scan above, because that one reads calls
+// and a named constant is not a call.
+//
+// The trajectory's thickness became a skin value on 2026-09-13 by moving the
+// constant out of drawPatternPreview() -- and drawPlayingTrajectory() had one
+// of its own, which was left where it was. So the value a skin set reached the
+// clip being edited and not the one actually playing. The maintainer halved it
+// twice, looked at a line fourteen times thicker than it said, and asked
+// whether something was lying on top of it. Nothing was.
+//
+// Scoped to the one name rather than to every constant that could be a size:
+// a rule wide enough to catch `speakerIconSize` would need exemptions, and an
+// exemption list with entries in it is a list nobody reads.
+TEST (NoMetricLiterals, NoLineThicknessIsWrittenOut)
+{
+  auto const root = uiSourceDir ();
+
+  for (auto const &entry : juce::RangedDirectoryIterator (
+           root, true, "*.cc;*.hh", juce::File::findFiles))
+    {
+      auto const path
+          = entry.getFile ().getRelativePathFrom (root).replace ("\\", "/");
+      auto const text = entry.getFile ().loadFileAsString ();
+
+      auto lines = juce::StringArray::fromLines (text);
+      for (auto const &line : lines)
+        {
+          auto const trimmed = line.trim ();
+          if (trimmed.startsWith ("//") || trimmed.startsWith ("*"))
+            continue;
+          if (!trimmed.contains ("lineThickness"))
+            continue;
+
+          auto const after
+              = trimmed.fromFirstOccurrenceOf ("lineThickness", false, false)
+                    .trim ();
+          if (!after.startsWith ("="))
+            continue;
+
+          auto const value = after.substring (1).trim ();
+          EXPECT_FALSE (isWrittenOutNumber (value))
+              << path << ": a line's thickness is written out here. It is a "
+                         "skin value (trajectoryThickness) -- take it from "
+                         "the theme, or the skin will set a width that never "
+                         "reaches the line. Offending line: " << trimmed;
+        }
+    }
+}
+
 TEST (NoMetricLiterals, TheListHasNoStaleEntries)
 {
   auto const found = filesWithMetrics ();

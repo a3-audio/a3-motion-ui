@@ -24,6 +24,7 @@
 
 #include <ShippedSkin.hh>
 
+#include <a3-motion-ui/components/EnergyMap.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
 #include <cmath>
@@ -50,7 +51,7 @@ constexpr float loudestRmsPeak = 0.1869f; // /vu/8, highest single message
 
 struct ShippedParams
 {
-  float vuMax, curve, beamIntensity;
+  float vuMax, curve, beamIntensity, boltWidth, boltThin;
 };
 
 ShippedParams
@@ -67,9 +68,16 @@ shippedParams ()
   EXPECT_TRUE (speakerLight.hasProperty ("vuMax"));
   EXPECT_TRUE (speakerLight.hasProperty ("curve"));
 
+  // boltThin has to be in the file, not defaulted: the width swing is the
+  // whole of what the level does now, and a skin that leaves it out would be
+  // tuning a beam through a value it cannot see.
+  EXPECT_TRUE (speakerLight.hasProperty ("boltThin"));
+
   return { static_cast<float> (speakerLight["vuMax"]),
            static_cast<float> (speakerLight["curve"]),
-           static_cast<float> (speakerLight["beamIntensity"]) };
+           static_cast<float> (speakerLight["beamIntensity"]),
+           static_cast<float> (speakerLight["boltWidth"]),
+           static_cast<float> (speakerLight["boltThin"]) };
 }
 
 TEST (SpeakerLightScaling, ShippedConfigSeparatesLoudAndQuietSpeakers)
@@ -106,24 +114,28 @@ TEST (SpeakerLightScaling, ShippedConfigSetsBeamShapeParameters)
   EXPECT_LT (softness, 1.f);
 }
 
-TEST (SpeakerLightScaling, ShippedConfigKeepsLoudestSpeakerBright)
+TEST (SpeakerLightScaling, ShippedConfigTellsALoudSpeakerFromAQuietOne)
 {
+  // This used to assert on level * beamIntensity and call that "what reaches
+  // the screen". It is not that any more: the level drives how *thick* a bolt
+  // runs, not how bright, so a dimmed beamIntensity is no longer the way this
+  // guard gets cheated — a flat level is. What has to survive to the display
+  // is the difference between two speakers, and it has to survive as width.
   auto const params = shippedParams ();
+  auto const width = [&params] (float rms) {
+    return boltWidthAtLevel (
+        params.boltWidth,
+        speakerLightLevel (rms, params.vuMax, params.curve), params.boltThin);
+  };
 
-  // What reaches the screen is the level scaled by beamIntensity, so asserting
-  // on the level alone lets a dimmed beamIntensity pass a test that is meant
-  // to guard brightness.
-  //
-  // The threshold used to be 0.25, from when the beams were the display. They
-  // are an indicator now — the energy map carries the spatial information —
-  // so the bar is that they read at all without drowning the net that is
-  // supposed to look like it comes out of them.
-  auto const level
-      = speakerLightLevel (loudestRms, params.vuMax, params.curve);
-  auto const onScreen = level * params.beamIntensity;
+  // Half again as wide on the loudest speaker as on the quietest, at the
+  // levels programme material actually sits at. Below about a fifth the two
+  // read as the same hairline.
+  EXPECT_GT (width (loudestRms) / width (quietestRms), 1.2f);
 
-  EXPECT_GT (onScreen, 0.08f);
-  EXPECT_LT (onScreen, 0.6f);
+  // And a transient still has somewhere to go: a swing that was already at the
+  // stop on an average passage is a width that never moves.
+  EXPECT_GT (width (loudestRmsPeak) / width (loudestRms), 1.5f);
 }
 
 // The failure mode this guards against: vuMax below the actual signal range
@@ -409,6 +421,65 @@ TEST (SphereScale, PullingTheSpeakersInBuysRoom)
 {
   EXPECT_FALSE (speakerIconsFitOnScreen (0.86f, 1.4f));
   EXPECT_TRUE (speakerIconsFitOnScreen (0.86f, 1.0f));
+}
+
+
+// ── What the beam actually draws ─────────────────────────────────────────
+//
+// beamDensity() hands back two channels: x is the bolt field, the wide soft
+// falloff that ties the band into the glow, and y is its hottest core, the
+// field raised to uBoltCoreExp so it can be drawn white. Two lines in main()
+// draw them, and each must read its own channel.
+//
+// They did not. The return used to be a vec3 — envelope, vein, core — and when
+// it shrank to two the core moved from z to y while the coloured draw was left
+// reading y, so both lines drew the core and the field reached the screen
+// nowhere. With uBoltCoreExp at 5 that is a bolt arriving at a hundredth of
+// its brightness: visible only where it is already white, which is why the
+// speakers' lightning could only be guessed at.
+
+juce::String
+shaderSource ()
+{
+  auto const file = juce::File (A3_UI_SOURCE_DIR)
+                        .getChildFile ("components/SphereShader.cc");
+  EXPECT_TRUE (file.existsAsFile ()) << file.getFullPathName ();
+  return file.loadFileAsString ();
+}
+
+// The line that composites `uniformName` onto the output, not the line that
+// declares the uniform — both carry the name.
+juce::String
+drawLineUsing (juce::String const &source, juce::String const &uniformName)
+{
+  juce::StringArray lines;
+  lines.addLines (source);
+
+  for (auto const &line : lines)
+    if (line.contains ("colOut +=") && line.contains (uniformName))
+      return line;
+
+  return {};
+}
+
+TEST (SpeakerLightDraw, ColouredBandIsDrawnFromTheBoltFieldAndNotItsCore)
+{
+  auto const line = drawLineUsing (shaderSource (), "uBeamIntensity");
+
+  EXPECT_FALSE (line.isEmpty ()) << "nothing draws the coloured band";
+  EXPECT_TRUE (line.contains ("band.x"))
+      << "the coloured band must come off the bolt field: " << line;
+  EXPECT_FALSE (line.contains ("band.y"))
+      << "the coloured band is drawing the white core: " << line;
+}
+
+TEST (SpeakerLightDraw, WhiteCoreIsDrawnFromTheHotChannel)
+{
+  auto const line = drawLineUsing (shaderSource (), "uBoltCore");
+
+  EXPECT_FALSE (line.isEmpty ()) << "nothing draws the bolt core";
+  EXPECT_TRUE (line.contains ("band.y"))
+      << "the white core must come off the sharpened channel: " << line;
 }
 
 }

@@ -22,6 +22,8 @@
 
 #include <a3-motion-ui/theme/Theme.hh>
 
+#include "EnergyMap.hh"
+#include "SphereProjection.hh"
 #include "SpeakerLightScaling.hh"
 
 #include <cmath>
@@ -118,7 +120,10 @@ uniform float uBeamFloor;      // level the band never drops below
 uniform float uBeamBleed;      // how far it reaches past the annulus
 uniform float uBeamFray;       // how ragged its edge is
 uniform float uBeamCover;      // how strongly the band hides the glow
+uniform float uBeamMinAnnulus; // narrowest annulus a band is ever given
+uniform float uBeamDepthSoft;  // how softly a band goes behind the sphere
 uniform float uBoltWidth;      // angular width of a bolt's core, degrees
+uniform float uBoltThin;       // what a silent speaker's bolt is worth
 uniform float uBoltWander;     // how far its path strays across the band
 uniform float uBoltScale;      // how quickly it strays with radius
 uniform float uBoltFlow;       // how fast the path creeps
@@ -159,6 +164,82 @@ uniform vec4  uBlobPosSize0;
 uniform vec4  uBlobPosSize1;
 uniform vec4  uBlobPosSize2;
 uniform vec4  uBlobPosSize3;
+/** Per blob, the things the light alone could not carry: how loud it is, how
+ *  far an action has it, and a seed so four blobs do not sparkle in step.
+ *  x = vuPeak, y = action 0..1, z = seed, w = depth fade (back of the sphere). */
+uniform vec4  uBlobState0;
+uniform vec4  uBlobState1;
+uniform vec4  uBlobState2;
+uniform vec4  uBlobState3;
+uniform vec4  uBlobTrailA0;
+uniform vec4  uBlobTrailA1;
+uniform vec4  uBlobTrailA2;
+uniform vec4  uBlobTrailA3;
+uniform vec4  uBlobTrailB0;
+uniform vec4  uBlobTrailB1;
+uniform vec4  uBlobTrailB2;
+uniform vec4  uBlobTrailB3;
+uniform vec4  uBlobTrailC0;
+uniform vec4  uBlobTrailC1;
+uniform vec4  uBlobTrailC2;
+uniform vec4  uBlobTrailC3;
+uniform vec4  uBlobTrailD0;
+uniform vec4  uBlobTrailD1;
+uniform vec4  uBlobTrailD2;
+uniform vec4  uBlobTrailD3;
+
+/** What an action wears. Neon violet rather than white: white is what a VU
+ *  peak already blends towards, and a signal that borrows another signal's
+ *  colour says nothing. The hue alone will not separate it from channel one's
+ *  pink -- the flicker is the other half of the message. */
+uniform vec3  uActionColour;
+// How much of each of the blob's three effects there is: sparkle, bolt, wake.
+uniform vec3  uBlobEffects;
+
+// Where each channel's trajectory is. See SphereShader::setLineTexture.
+uniform sampler2D uLineMap0;
+uniform sampler2D uLineMap1;
+uniform sampler2D uLineMap2;
+uniform sampler2D uLineMap3;
+// Which of the four have anything in them, and how far the maps reach.
+uniform vec4  uLineOn;
+uniform float uLineExtent;
+uniform float uLineFarSide;    // dimmest a line goes at the far pole
+// How much of each of the line's four effects there is: glow, filaments,
+// bolts, and how hot it runs where the blob is.
+uniform vec4  uLineEffects;
+// The weave: turns over the figure, turns a second along it, how deep it cuts,
+// and how many strands it stands for.
+uniform vec4  uBraid;
+
+// Where the four speakers are, worked out once per frame on the CPU.
+//
+// These used to be built per pixel out of asSeen(), which is four sines and
+// cosines of the camera's two angles -- times four speakers, times every pixel
+// on the display. It cost a quarter of a core on its own and it is the same
+// answer for every pixel of a frame, which is the definition of work that
+// belongs on the other side.
+//
+// `Dir` is the bearing the flat beam band leaves on, on the screen. The other
+// three are the cabinet's frame in the eye's own terms: where it stands, which
+// way its baffle looks, and which way is along its width.
+uniform float uSpkSeed0;
+uniform float uSpkSeed1;
+uniform float uSpkSeed2;
+uniform float uSpkSeed3;
+uniform vec3  uSpkCentre0;
+uniform vec3  uSpkCentre1;
+uniform vec3  uSpkCentre2;
+uniform vec3  uSpkCentre3;
+uniform vec3  uSpkNose0;
+uniform vec3  uSpkNose1;
+uniform vec3  uSpkNose2;
+uniform vec3  uSpkNose3;
+uniform vec3  uSpkSide0;
+uniform vec3  uSpkSide1;
+uniform vec3  uSpkSide2;
+uniform vec3  uSpkSide3;
+
 uniform vec3  uBlobCol0;
 uniform vec3  uBlobCol1;
 uniform vec3  uBlobCol2;
@@ -203,6 +284,7 @@ vec3 getBlobCol (int i)
     if (i == 2) return uBlobCol2;
     return uBlobCol3;
 }
+
 
 // Truncated cone leaving the horn's mouth at the mouth's own width. Only ever
 // drawn outside the sphere — where it lands, the net takes over. Mirrors
@@ -302,6 +384,488 @@ float valueNoise (vec3 p)
                 mix (mix (n001, n101, f.x), mix (n011, n111, f.x), f.y), f.z);
 }
 
+vec4 getBlobState (int i)
+{
+    if (i == 0) return uBlobState0;
+    if (i == 1) return uBlobState1;
+    if (i == 2) return uBlobState2;
+    return uBlobState3;
+}
+
+vec4 getBlobTrailA (int i)
+{
+    if (i == 0) return uBlobTrailA0;
+    if (i == 1) return uBlobTrailA1;
+    if (i == 2) return uBlobTrailA2;
+    return uBlobTrailA3;
+}
+
+vec4 getBlobTrailB (int i)
+{
+    if (i == 0) return uBlobTrailB0;
+    if (i == 1) return uBlobTrailB1;
+    if (i == 2) return uBlobTrailB2;
+    return uBlobTrailB3;
+}
+
+vec4 getBlobTrailC (int i)
+{
+    if (i == 0) return uBlobTrailC0;
+    if (i == 1) return uBlobTrailC1;
+    if (i == 2) return uBlobTrailC2;
+    return uBlobTrailC3;
+}
+
+vec4 getBlobTrailD (int i)
+{
+    if (i == 0) return uBlobTrailD0;
+    if (i == 1) return uBlobTrailD1;
+    if (i == 2) return uBlobTrailD2;
+    return uBlobTrailD3;
+}
+
+/** One link of the wake.
+ *
+ *  The field around the segment a->b, tapering in width and brightness from
+ *  one end to the other and billowing across itself as it goes. Bounded at
+ *  both ends on purpose: boltAt() never reaches zero, and four of these
+ *  running to the edge of the screen is a haze over the whole picture rather
+ *  than a trail behind one blob. */
+float wakeSegment (vec2 uv, vec2 a, vec2 b, float w0, float w1,
+                   float i0, float i1, float seed)
+{
+    vec2 ab = b - a;
+    float len2 = max (dot (ab, ab), 1e-8);
+    float t = clamp (dot (uv - a, ab) / len2, 0.0, 1.0);
+    vec2 onIt = a + ab * t;
+    float w = mix (w0, w1, t);
+
+    // The billow. The centre line is pushed sideways rather than the distance
+    // to it being shifted: shifting the distance and taking its modulus draws
+    // the two edges of a tube and leaves the middle empty, which is a wire
+    // outline following the blob around -- what the first version of this did.
+    vec2 across = normalize (vec2 (-ab.y, ab.x) + 1e-6);
+    float billow = valueNoise (vec3 (onIt * 26.0, uTime * 0.7 + seed)) - 0.5;
+    vec2 centre = onIt + across * billow * w * 1.6;
+
+    float d = length (uv - centre);
+    // Squared rather than linear, so the plume has a body and an edge instead
+    // of trailing off into a wash the width of the sphere.
+    float reach = clamp (1.0 - d / (w * 6.0), 0.0, 1.0);
+    return boltAt (d, w * 0.8) * reach * reach * mix (i0, i1, t);
+}
+
+/** How near a channel's trajectory this pixel is, 0 away from it to 1 on it.
+ *
+ *  Sampled rather than computed: a thousand points cannot be handed to a
+ *  fragment shader, so the line is rasterised into a small map on the way past
+ *  (MotionComponent::lineMapFor) and read back here. Bilinear filtering turns
+ *  the stepped cone that was drawn into a smooth enough field. */
+float lineNear (vec2 uv, int i)
+{
+    vec2 t = uv / uLineExtent * 0.5 + 0.5;
+    if (t.x < 0.0 || t.x > 1.0 || t.y < 0.0 || t.y > 1.0)
+        return 0.0;
+
+    if (i == 0) return texture2D (uLineMap0, t).r;
+    if (i == 1) return texture2D (uLineMap1, t).r;
+    if (i == 2) return texture2D (uLineMap2, t).r;
+    return texture2D (uLineMap3, t).r;
+}
+
+/** Where along the figure a pixel is, 0..1, out of the map's second channel.
+ *
+ *  Only meaningful within the cord itself -- that is the only part of the line
+ *  map drawn in pieces -- which is exactly where the weave is wanted. */
+float lineArc (vec2 uv, int i)
+{
+    vec2 t = uv / uLineExtent * 0.5 + 0.5;
+    if (t.x < 0.0 || t.x > 1.0 || t.y < 0.0 || t.y > 1.0)
+        return 0.0;
+
+    if (i == 0) return texture2D (uLineMap0, t).g;
+    if (i == 1) return texture2D (uLineMap1, t).g;
+    if (i == 2) return texture2D (uLineMap2, t).g;
+    return texture2D (uLineMap3, t).g;
+}
+
+/** How much of this pixel's light survives the depth it sits at, out of the
+ *  map's third channel.
+ *
+ *  Carried rather than computed: the map is a flat projection and cannot say,
+ *  of a pixel inside the silhouette, whether the line was in front of the ball
+ *  there or behind it. Every piece of the line -- the cone as well as the cord
+ *  -- is drawn with its own depth in the blue for that reason.
+ *
+ *  Held at uLineFarSide from below: bilinear filtering towards the empty map
+ *  around the line would otherwise black out the very edge of the glow, where
+ *  there is no depth written at all. Mirrors lineDepthFade() in
+ *  SphereProjection.cc.
+ */
+float lineDepth (vec2 uv, int i)
+{
+    vec2 t = uv / uLineExtent * 0.5 + 0.5;
+    if (t.x < 0.0 || t.x > 1.0 || t.y < 0.0 || t.y > 1.0)
+        return 1.0;
+
+    float b;
+    if (i == 0) b = texture2D (uLineMap0, t).b;
+    else if (i == 1) b = texture2D (uLineMap1, t).b;
+    else if (i == 2) b = texture2D (uLineMap2, t).b;
+    else b = texture2D (uLineMap3, t).b;
+
+    return max (b, uLineFarSide);
+}
+
+/** How the cord is twisted here, 0..1.
+ *
+ *  A braid of three hairlines cannot be drawn as light at this size: the map
+ *  the shader finds the line through is two and a half screen pixels a texel,
+ *  and three strands two pixels apart are one texel. What *can* be drawn is
+ *  what a braid does to the light -- the maximum of three sines a third of a
+ *  turn apart, which crests three times a winding and is the signature of a
+ *  twisted cord rather than a round one.
+ *
+ *  It travels along the line, because a weave that stood still would be a
+ *  texture printed on the figure rather than a rope being laid. */
+float braidWeaveAt (float u)
+{
+    if (uBraid.z < 0.001)
+        return 0.5;
+
+    float phase = 6.28318531 * (u * uBraid.x + uTime * uBraid.y);
+    float strands = max (uBraid.w, 1.0);
+
+    float best = -2.0;
+    for (int k = 0; k < 5; k++)
+    {
+        if (float (k) >= strands) break;
+        best = max (best, sin (phase + 6.28318531 * float (k) / strands));
+    }
+
+    return 0.5 + 0.5 * best;
+}
+
+float lineOn (int i)
+{
+    if (i == 0) return uLineOn.x;
+    if (i == 1) return uLineOn.y;
+    if (i == 2) return uLineOn.z;
+    return uLineOn.w;
+}
+
+/** What the trajectory burns with.
+ *
+ *  The line itself is still drawn as a vector, over the top, because a vector
+ *  is the one thing that can be a crisp line thinner than a pixel. Everything
+ *  that *glows* is here, because the opposite is true of glow: JUCE's 2D
+ *  context has no additive blend at all, so a stroked "plasma" is a stack of
+ *  translucent ribbons and looks like one.
+ *
+ *  Three things, all built out of the same field:
+ *
+ *  - **The glow.** Two falloffs of the nearness, a tight bright one and a wide
+ *    faint one.
+ *  - **The filaments.** Contours of the field *after the lookup has been
+ *    pushed around by noise*: a contour of a warped distance field runs
+ *    alongside the line, wanders, and -- this is the point -- can never fold
+ *    into spokes the way an offset copy of the curve does at a pole, because
+ *    it is a level set and not a parallel curve.
+ *  - **The bolts.** The same, warped harder and cut sharper, so what is left
+ *    is short and bright.
+ *
+ *  And it is hottest where the sound is: near the channel's own blob it runs
+ *  towards white. That is the physical connection the maintainer asked for --
+ *  the wire is energised where the thing travelling along it is.
+ */
+vec3 lineGlow (vec2 uv, int i)
+{
+    if (lineOn (i) < 0.5)
+        return vec3 (0.0);
+
+    float near = lineNear (uv, i);
+    if (near < 0.02)
+        return vec3 (0.0);
+
+    vec3 col = getBlobCol (i);
+    vec4 st = getBlobState (i);
+    float vu = clamp (st.x, 0.0, 1.0);
+    float seed = st.z;
+
+    // Only near the line. boltAt() never reaches zero -- that long tail is
+    // what ties a bolt into the glow around it -- so every term built on it
+    // has to be shut off by hand where there is no line, or four channels'
+    // worth of tails wash the whole ball white. Which is exactly what the
+    // first build of this did.
+    float presence = smoothstep (0.04, 0.30, near);
+
+    // Where the sound is on this line, and how far this pixel is from it.
+    vec4 ps = getBlobPosSize (i);
+    float atBlob = ps.z > 0.001
+                 ? smoothstep (0.30, 0.0, length (uv - ps.xy)) * uLineEffects.w
+                 : 0.0;
+
+    // How the cord is twisted here. It rides on the core rather than on the
+    // whole glow: the outer filaments are the plasma and belong to the field,
+    // not to the rope.
+    // How deep the twist cuts. Past one it sharpens the wave rather than
+    // being handed to mix() as a factor above one -- mix extrapolates, so a
+    // weave of 2.2 was swinging the cord's waist by half its width and
+    // whitening its core by sixty per cent. That is not a deeper twist, that
+    // is a different picture.
+    float weave = braidWeaveAt (lineArc (uv, i));
+    float swing = clamp (uBraid.z, 0.0, 1.0);
+    float gain = 1.0 + max (uBraid.z - 1.0, 0.0);
+    weave = clamp (0.5 + (weave - 0.5) * gain, 0.0, 1.0);
+
+    float twist = mix (1.0, 0.78 + 0.44 * weave, swing);
+
+    // The glow. The exponent is what the line's apparent thickness actually
+    // is: the vector stroke under it is a single pixel, and everything wider
+    // than that is this. Asked to halve the line, halve this first.
+    //
+    // The weave narrows and widens it a little along its length, which is the
+    // scalloped silhouette of a laid rope, and brightens where a strand comes
+    // over the top.
+    // Divided by what the core is worth, so a full-strength core still reads
+    // as one and the weave has somewhere to move it.
+    float tight = pow (clamp (near * twist / 0.88, 0.0, 1.0), 9.0)
+                * mix (1.0, 0.40 + 1.25 * weave, swing);
+    // The pale wash standing off the cord. It reached almost as far as the
+    // map does -- an exponent barely above one is nearly the raw field -- and
+    // what it read as was a fat light-red line rather than a thin one with
+    // air around it. The filaments and the bolts are untouched: those are the
+    // parts the maintainer said to keep.
+    float wide  = pow (near, 3.0);
+
+    // The filaments. The noise is sampled in scene space and drifts, so they
+    // crawl along the line rather than sitting on it.
+    vec2 warp = vec2 (valueNoise (vec3 (uv * 7.0, uTime * 0.23 + seed)),
+                      valueNoise (vec3 (uv * 7.0 + 19.0, uTime * 0.23 + seed)))
+              - 0.5;
+    float warped = lineNear (uv + warp * 0.22, i);
+    float filament = (boltAt (warped - 0.46, 0.035)
+                      + boltAt (warped - 0.70, 0.025) * 0.7)
+                   * presence * uLineEffects.y;
+
+    // The bolts: warped harder, cut sharper, and only some of the time.
+    vec2 jag = vec2 (valueNoise (vec3 (uv * 23.0, uTime * 1.7 + seed)),
+                     valueNoise (vec3 (uv * 23.0 + 41.0, uTime * 1.7 + seed)))
+             - 0.5;
+    float struck = lineNear (uv + jag * 0.12, i);
+    float gate = step (0.55, hash13 (vec3 (floor (uTime * 3.0), seed,
+                                           floor (near * 5.0))));
+    float bolt = boltAt (struck - 0.88, 0.012) * gate * presence
+               * uLineEffects.z;
+
+    // And a little white where a strand rides over the top, so the crest reads
+    // as something catching the light rather than as the line simply pulsing.
+    vec3 hot = mix (col, uBoltCoreColour,
+                    0.15 + 0.55 * atBlob
+                        + 0.45 * swing * max (weave - 0.5, 0.0));
+
+    // Everything the line throws off goes behind the ball with it. It used to
+    // be only the 2D stroke that faded, and the shader painted the far side as
+    // brightly as the near one straight over the top of it -- which is why a
+    // figure could not be read as passing behind the sphere any more.
+    float depth = lineDepth (uv, i);
+
+    return (col * wide * 0.055 * uLineEffects.x
+          + hot * tight * 0.45 * uLineEffects.x
+          + hot * filament * (0.16 + 0.30 * atBlob + 0.18 * vu)
+          + mix (col, uBoltCoreColour, 0.75) * bolt * (0.30 + 0.55 * atBlob))
+         * depth;
+}
+
+/** The blob itself: a hot core, a corona around it, sparks off it, and a bolt
+ *  when the channel spikes.
+ *
+ *  Drawn here rather than as a flat disc over the top, which is what it was
+ *  until 2026-09-13 -- and a disc is a disc: hard-edged, unlit, the same in a
+ *  quiet passage as in a drop. Everything below reacts to something.
+ *
+ *  All of it is additive and procedural. No particle lives anywhere: a spark
+ *  is a function of where you are, what time it is and the blob's seed, the
+ *  same way the sphere's own bolts already work. Nothing to allocate, nothing
+ *  to keep in step, and it costs the same whether one channel plays or four.
+ */
+vec3 blobLight (vec2 uv, int i)
+{
+    vec4 ps = getBlobPosSize (i);
+    if (ps.z < 0.001)
+        return vec3 (0.0);
+
+    vec3 col = getBlobCol (i);
+    vec4 st = getBlobState (i);
+
+    float vu     = clamp (st.x, 0.0, 1.0);
+    float action = clamp (st.y, 0.0, 1.0);
+    float seed   = st.z;
+    float depth  = clamp (st.w, 0.0, 1.0);
+
+    vec2 d2 = uv - ps.xy;
+    float d = length (d2);
+    float r = ps.z;
+
+    // The core. Hot in the middle and gone by the edge -- a body rather than a
+    // stamped circle, so it sits *in* the picture instead of on it. Two parts:
+    // a body out to the blob's radius and a hard point inside it, because a
+    // single soft falloff on top of a neon trajectory reads as a smudge over
+    // the line rather than as the thing travelling along it.
+    float core = smoothstep (r, r * 0.35, d);
+    float pip = smoothstep (r * 0.45, r * 0.12, d);
+
+    // The corona, swelling with the level. It reached only as far as two
+    // translucent rings before; this falls off continuously, so a loud channel
+    // lights the room around it rather than growing a second outline.
+    // How far it reaches was five and a half blob-radii per unit of level,
+    // which at a working level is a wash a third of the sphere across with the
+    // body lost inside it. A corona is a surround, not a fog.
+    float reach = r * (1.9 + 2.4 * vu + 1.6 * action);
+    float halo = pow (clamp (1.0 - d / reach, 0.0, 1.0), 3.0);
+
+    // Sparks. A ring of flecks that drift outwards and burn out, thrown harder
+    // by level and much harder while an action runs. Procedural: the ring is
+    // sampled by angle, and each fleck's life is a fraction of time.
+    float sparks = 0.0;
+    float sparkGain = (0.35 + 1.6 * vu + 3.0 * action) * uBlobEffects.x;
+    if (sparkGain > 0.01 && d < reach * 1.6)
+    {
+        float ang = atan (d2.y, d2.x);
+        // Forty slots around the blob; each holds one fleck at a time.
+        float slots = 40.0;
+        float turn = ang / 6.28318531 + 0.5;
+        float slot = floor (turn * slots);
+        float life = fract (uTime * (0.7 + 0.5 * vu) + hash13 (vec3 (slot, seed, 1.0)));
+        // Where this fleck has got to, and how bright it still is.
+        float travel = r * (0.9 + 3.4 * life);
+        float fade = 1.0 - life;
+        // Round, and off the grid. Bounded by angle as well as by radius, or a
+        // slot is an arc a ninth of the way round the blob and forty of them
+        // read as a gear wheel rather than as sparks; the jitter is what keeps
+        // the survivors off a perfect ring.
+        float jitter = hash13 (vec3 (slot, seed, 5.0)) - 0.5;
+        float dAng = (fract (turn * slots) - 0.5 + jitter * 0.7) / slots
+                   * 6.28318531 * d;
+        float grain = r * 0.11 * (0.3 + fade);
+        float fleck = boltAt (d - travel, grain) * boltAt (dAng, grain * 1.3);
+        // Only some slots are lit at any moment.
+        float lit = step (0.34, hash13 (vec3 (slot, seed, floor (uTime * 6.0 + life))));
+        sparks += fleck * fade * fade * lit;
+    }
+
+    // The bolt. A short arm that strikes out of the blob on a transient and is
+    // gone -- the sphere's own lightning does the same thing with the same
+    // helper, so the two read as one weather.
+    float bolt = 0.0;
+    if (vu > 0.25 && uBlobEffects.y > 0.001)
+    {
+        float strikeId = floor (uTime * 11.0);
+        // Rare enough to be an event. At a threshold of 0.30 one was alight
+        // seven frames in ten, which is not lightning, it is a whisker.
+        float fires = step (0.66, hash13 (vec3 (seed, strikeId, 3.0))) * step (0.28, vu);
+        if (fires > 0.0)
+        {
+            float ang = hash13 (vec3 (seed, strikeId, 7.0)) * 6.28318531;
+            vec2 dir = vec2 (cos (ang), sin (ang));
+            float along = dot (d2, dir);
+            // Signed. Taken as a modulus it is mirrored about the arm's axis,
+            // so a path straying to one side is drawn on both and the bolt
+            // comes out as a closed lens rather than as a line.
+            float across = dot (d2, vec2 (-dir.y, dir.x));
+            // Strays as it travels, the way the sphere's bolts do. Slowly:
+            // at twenty-six noise periods over an arm this long the path
+            // doubled back on itself every few pixels and drew a string of
+            // little wire outlines rather than a bolt.
+            float stray = (valueNoise (vec3 (along * 7.0, seed, uTime * 5.0)) - 0.5)
+                        * r * 1.2;
+            float len = r * (2.5 + 7.0 * vu);
+            float within = step (0.0, along) * step (along, len);
+            float taper = 1.0 - along / max (len, 0.001);
+            bolt += within * boltAt (across - stray, r * 0.07 * taper)
+                  * taper * taper * uBlobEffects.y;
+        }
+    }
+
+    // What it is all painted in. The channel keeps its colour -- that is how
+    // four of them stay apart -- and the two things that are *events* carry
+    // their own: a peak runs towards the bolt core's white, an action towards
+    // the neon the skin names.
+    // The channel's colour has to survive the level. It blended 0.85 of the
+    // way to white at full VU, which made a loud blob a white dot -- and four
+    // white dots are four channels you can no longer tell apart. Only the very
+    // middle goes white now, and only when it is genuinely loud.
+    vec3 hot   = mix (col, uBoltCoreColour, 0.10 + 0.30 * vu * vu);
+    vec3 spark = mix (hot, uActionColour, action);
+
+    // The action ring: one more corona on top, pulsing, in the action colour.
+    // It is the flicker that carries the message where the hue cannot -- on
+    // channel one the blob is already pink.
+    float ring = 0.0;
+    if (action > 0.001)
+    {
+        float pulse = 0.55 + 0.45 * sin (uTime * 31.0 + seed * 6.0);
+        float edge = r * (1.7 + 0.5 * pulse);
+        ring = boltAt (d - edge, r * 0.22) * pulse * action;
+    }
+
+    // A rim just inside the edge, so the body reads as a body at rest rather
+    // than as the brightest part of a cloud. It is what the flat disc did well
+    // and the first version of this lost.
+    float rim = boltAt (d - r * 0.82, r * 0.20);
+
+    // The chemtrail. Four links, each thinner and fainter than the one in
+    // front, hung off points that lag the blob -- so it is a wake rather than
+    // a second drawing of the line the take already has under it.
+    //
+    // How far the tail has been left behind is the gate: parked, the four
+    // points sit on the blob and there is nothing to draw, and gating on that
+    // spread costs a length() rather than a uniform nobody would ever set by
+    // hand.
+    vec4 ta = getBlobTrailA (i);
+    vec4 tb = getBlobTrailB (i);
+    vec4 tc = getBlobTrailC (i);
+    vec4 td = getBlobTrailD (i);
+    float spread = length (td.zw - ps.xy) / max (r, 0.001);
+    float trail = 0.0;
+    if (spread > 0.35 && uBlobEffects.z > 0.001)
+    {
+        trail += wakeSegment (uv, ps.xy, ta.xy, r * 0.88, r * 0.79,
+                              1.00, 0.87, seed);
+        trail += wakeSegment (uv, ta.xy, ta.zw, r * 0.79, r * 0.70,
+                              0.87, 0.74, seed + 1.0);
+        trail += wakeSegment (uv, ta.zw, tb.xy, r * 0.70, r * 0.61,
+                              0.74, 0.62, seed + 2.0);
+        trail += wakeSegment (uv, tb.xy, tb.zw, r * 0.61, r * 0.52,
+                              0.62, 0.50, seed + 3.0);
+        trail += wakeSegment (uv, tb.zw, tc.xy, r * 0.52, r * 0.43,
+                              0.50, 0.39, seed + 4.0);
+        trail += wakeSegment (uv, tc.xy, tc.zw, r * 0.43, r * 0.34,
+                              0.39, 0.28, seed + 5.0);
+        trail += wakeSegment (uv, tc.zw, td.xy, r * 0.34, r * 0.25,
+                              0.28, 0.18, seed + 6.0);
+        trail += wakeSegment (uv, td.xy, td.zw, r * 0.25, r * 0.14,
+                              0.18, 0.07, seed + 7.0);
+        trail *= smoothstep (0.35, 1.2, spread)
+               * (0.75 + 0.85 * vu + 0.7 * action) * uBlobEffects.z;
+    }
+    // It wears the action too. A trail in the channel's colour while an action
+    // runs would leave the one effect that has to be unmistakable saying
+    // nothing at the very moment it matters.
+    vec3 trailCol = mix (col, uActionColour, action * 0.85);
+
+    vec3 out3 = hot * core * 1.55
+              + mix (hot, uBoltCoreColour, 0.18) * pip * 1.40
+              + hot * rim * 0.85
+              + col * halo * (0.30 + 0.6 * vu)
+              + spark * sparks * sparkGain * 0.8
+              + mix (col, uBoltCoreColour, 0.55) * bolt * (0.7 + vu)
+              + uActionColour * ring * 1.3
+              + trailCol * trail * 1.5;
+
+    return out3 * depth;
+}
+
 // Lightning. A bolt is a path, not a field: for each radius it sits at some
 // angle that wanders with noise, and a pixel's brightness comes from its
 // distance to that path -- width/(distance+width), full at the core and
@@ -312,12 +876,24 @@ float valueNoise (vec3 p)
 //
 // Returns the bolt field in x and its hottest core in y, so the core can be
 // drawn white and the glow in colour.
-vec2 bolts (float dA, float d, float halfWidth, float seed, float mouthR)
+// How wide a bolt's core runs at a given level. Mirrors boltWidthAtLevel()
+// in EnergyMap.cc.
+float boltWidthAt (float level)
 {
-    float width = radians (uBoltWidth);
+    return radians (uBoltWidth)
+         * (uBoltThin + (1.0 - uBoltThin) * clamp (level, 0.0, 1.0));
+}
+
+vec2 bolts (float dA, float d, float halfWidth, float seed, float mouthR,
+            float level)
+{
+    float width = boltWidthAt (level);
     float best = 0.0;
 
-    for (int i = 0; i < 8; ++i)
+    // Fourteen rather than eight: with the level driving thickness instead of
+    // brightness, a band is read as a *number* of hairlines, and eight of them
+    // is a sparse band rather than a dense one.
+    for (int i = 0; i < 14; ++i)
     {
         if (float (i) >= uBoltCount) break;
 
@@ -376,9 +952,130 @@ vec2 bolts (float dA, float d, float halfWidth, float seed, float mouthR)
 // Mirrors beamWrapHalfAngle() in EnergyMap.cc.
 //
 // Needs valueNoise(), so it lives below it.
-vec2 beamDensity (vec2 point, vec2 spkDir, float level)
+// ─── the speakers, as objects in the room ───────────────────────
+
+/** Where a seen direction lands on the screen. Inverts the shuffle
+ *  screenToDirection makes on the way in. */
+vec2 seenToScreen (vec3 seen)
 {
-    float mouthR = uSpeakerRadius - uMouthOffset;
+    return vec2 (-seen.y, seen.x);
+}
+
+float speakerLevel (int i)
+{
+    if (i == 0) return uSpotLevel0;
+    if (i == 1) return uSpotLevel1;
+    if (i == 2) return uSpotLevel2;
+    return uSpotLevel3;
+}
+
+// The cabinet, in its own frame: the baffle at +z and larger than the back.
+//
+// A Funktion-One Resolution 2 is a wedge -- the sides and the top rake in
+// towards the back -- with the front given over almost entirely to two horn
+// flares side by side and the high frequency between them. That silhouette is
+// the whole of what is recognisable at forty pixels, and it is what these
+// numbers are: not a model, which a fragment shader could not take anyway, but
+// the shape read off one.
+const float kResHalfDepth  = 0.085;
+const float kResFrontHalfW = 0.070;
+const float kResBackHalfW  = 0.046;
+const float kResFrontHalfH = 0.118;
+const float kResBackHalfH  = 0.094;
+
+/** Ray against the cabinet: where it goes in, where it comes out, and which
+ *  face it entered by. In greater than out means it missed.
+ *
+ *  Six half-spaces rather than a slab test, because the sides rake: for a
+ *  convex body the entry is the furthest of the entries and the exit the
+ *  nearest of the exits, whatever angles the planes stand at. */
+vec2 cabinetSpan (vec3 ro, vec3 rd, out vec3 faceNormal)
+{
+    float tIn = -1000.0;
+    float tOut = 1000.0;
+    faceNormal = vec3 (0.0, 0.0, 1.0);
+
+    for (int p = 0; p < 6; p++)
+    {
+        vec3 n;
+        float d;
+
+        if (p < 2)
+        {
+            // The baffle and the back.
+            float s = (p == 0) ? 1.0 : -1.0;
+            n = vec3 (0.0, 0.0, s);
+            d = kResHalfDepth;
+        }
+        else if (p < 4)
+        {
+            // The raking sides: the plane through the baffle's edge and the
+            // back's.
+            float s = (p == 2) ? 1.0 : -1.0;
+            n = normalize (vec3 (s * 2.0 * kResHalfDepth, 0.0,
+                                 -(kResFrontHalfW - kResBackHalfW)));
+            d = dot (n, vec3 (s * kResFrontHalfW, 0.0, kResHalfDepth));
+        }
+        else
+        {
+            float s = (p == 4) ? 1.0 : -1.0;
+            n = normalize (vec3 (0.0, s * 2.0 * kResHalfDepth,
+                                 -(kResFrontHalfH - kResBackHalfH)));
+            d = dot (n, vec3 (0.0, s * kResFrontHalfH, kResHalfDepth));
+        }
+
+        float denom = dot (rd, n);
+        float num = d - dot (ro, n);
+
+        if (abs (denom) < 0.000001)
+        {
+            // Running along the plane: a miss only if it is outside it.
+            if (num < 0.0)
+                return vec2 (1.0, -1.0);
+            continue;
+        }
+
+        float t = num / denom;
+        if (denom < 0.0)
+        {
+            if (t > tIn)
+            {
+                tIn = t;
+                faceNormal = n;
+            }
+        }
+        else
+            tOut = min (tOut, t);
+    }
+
+    return vec2 (tIn, tOut);
+}
+
+// How far round a pixel sits from a speaker's own bearing, signed so a bolt
+// knows which side it strays to. Its magnitude mirrors beamSpreadAngle() in
+// EnergyMap.cc; the cross product decides the sign.
+//
+// One atan rather than a difference of two, so there is no wrap to fold back
+// and no seam where the two readings cross pi.
+//
+// Both bearings are taken in the *view plane*. A speaker's height above or
+// below it says nothing about which way round its band leaves, and folding
+// that in would narrow every band by the cabinet's own tilt. What the plane
+// keeps is where the cabinet actually is -- which is the half a bearing
+// normalised onto the rim threw away.
+float beamAcross (vec2 pixel, vec2 speaker)
+{
+    return atan (pixel.y * speaker.x - pixel.x * speaker.y,
+                 dot (pixel, speaker));
+}
+
+vec2 beamDensity (vec2 point, vec3 spkCentre, float spkSeed, float level)
+{
+    // Where this cabinet's mouth actually lands, rather than the one radius
+    // all four used to share. Mirrors beamMouthRadiusSeen() in EnergyMap.cc.
+    vec2 spkScreen = seenToScreen (spkCentre);
+    float mouthR = max (length (spkScreen) - uMouthOffset,
+                        1.0 + uBeamMinAnnulus);
     float d = length (point);
 
     // Full strength in the annulus, bleeding past both ends so the band runs
@@ -398,10 +1095,11 @@ vec2 beamDensity (vec2 point, vec2 spkDir, float level)
 
     float halfWidth = radians (mix (uApertureAngle, uWrapAngle, eased));
 
-    // Offset from the speaker's own direction, wrapped to +-pi
+    // Offset from the speaker's own bearing. Taken from where the cabinet is
+    // rather than from a bearing normalised onto the rim: under a lean every
+    // speaker comes in off the rim, and a band built on the rim stayed behind.
     float a = atan (point.y, point.x);
-    float a0 = atan (spkDir.y, spkDir.x);
-    float dA = mod (a - a0 + 9.42477796, 6.28318531) - 3.14159265;
+    float dA = beamAcross (point, spkScreen);
 
     // The centre line wanders sideways, more the further it has travelled —
     // roots, not spokes. Sampled on the direction so it has no seam.
@@ -430,23 +1128,202 @@ vec2 beamDensity (vec2 point, vec2 spkDir, float level)
     float lifted = max (level, uBeamFloor * loudest);
 
     // The envelope is not drawn and does not hide anything — it only says
-    // where a bolt may strike, and how brightly. What reaches the screen is
-    // the bolts alone, so the glow behind them stays visible between them.
-    float envelope = lifted * across * grip * radial;
+    // where a bolt may strike. What reaches the screen is the bolts alone, so
+    // the glow behind them stays visible between them.
+    //
+    // The level is no longer in it. It used to scale brightness, which meant a
+    // band faded out exactly where it was needed most: quiet is most of the
+    // time, and a bolt you can only make out with some imagination is not a
+    // bolt. It drives boltWidthAt() instead — a quiet speaker draws the same
+    // bolts hairline thin, a loud one swells them.
+    float envelope = across * grip * radial;
 
-    float seed = spkDir.x * 13.0 + spkDir.y * 71.0;
-    vec2 strike = bolts (dA - wander, d, ragged, seed, mouthR);
+    // A cabinet that has gone round behind the ball takes its band with it --
+    // the one thing a flat annulus could never say, since on the screen a
+    // speaker behind the sphere and one in front sit in the same place.
+    // Mirrors beamDepthVisibility() in EnergyMap.cc.
+    float inside = clamp ((1.0 - length (spkScreen)) / uBeamDepthSoft,
+                          0.0, 1.0);
+    float past = clamp (-spkCentre.z / uBeamDepthSoft, 0.0, 1.0);
+    envelope *= 1.0 - inside * past;
+
+    // The speaker's own, fixed: it is where the cabinet stands in the *room*,
+    // so a bolt belongs to a loudspeaker rather than to a place on the glass.
+    // Taken from the screen it changed as the eye moved, which dealt every
+    // speaker a fresh set of bolts on every frame of a turn -- and, unscaled,
+    // reached seeds the normalised bearing never did, which is what put four
+    // escaped bolts across the whole display.
+    float seed = spkSeed;
+    vec2 strike = bolts (dA - wander, d, ragged, seed, mouthR, lifted);
 
     return vec2 (envelope * strike.x, envelope * strike.y);
 }
 
 // x is the bolts' coloured glow, y their white core.
+/** Which way a speaker lies as the eye sees it, on the screen.
+ *
+ *  The four directions used to be written in as the screen's own diagonals,
+ *  which nails them to the glass: walk round the room and the speakers stay
+ *  in the corners of the display while everything else turns. They come from
+ *  the room now and are carried through the camera like any other direction.
+ *
+ *  The bands read speakerCentre() rather than a bearing of their own: each one
+ *  starts at its own cabinet's mouth, is measured round from where that
+ *  cabinet actually is, and goes behind the ball when the cabinet does. */
+vec3 speakerCentre (int i)
+{
+    if (i == 0) return uSpkCentre0;
+    if (i == 1) return uSpkCentre1;
+    if (i == 2) return uSpkCentre2;
+    return uSpkCentre3;
+}
+
+vec3 speakerNose (int i)
+{
+    if (i == 0) return uSpkNose0;
+    if (i == 1) return uSpkNose1;
+    if (i == 2) return uSpkNose2;
+    return uSpkNose3;
+}
+
+vec3 speakerSide (int i)
+{
+    if (i == 0) return uSpkSide0;
+    if (i == 1) return uSpkSide1;
+    if (i == 2) return uSpkSide2;
+    return uSpkSide3;
+}
+
 vec2 beamTotal (vec2 p)
 {
-    return beamDensity (p, vec2 (-0.7071,  0.7071), uSpotLevel0)
-         + beamDensity (p, vec2 ( 0.7071,  0.7071), uSpotLevel1)
-         + beamDensity (p, vec2 ( 0.7071, -0.7071), uSpotLevel2)
-         + beamDensity (p, vec2 (-0.7071, -0.7071), uSpotLevel3);
+    return beamDensity (p, speakerCentre (0), uSpkSeed0, uSpotLevel0)
+         + beamDensity (p, speakerCentre (1), uSpkSeed1, uSpotLevel1)
+         + beamDensity (p, speakerCentre (2), uSpkSeed2, uSpotLevel2)
+         + beamDensity (p, speakerCentre (3), uSpkSeed3, uSpotLevel3);
+}
+
+
+
+/** The four cabinets, raytraced.
+ *
+ *  An orthographic view, so a pixel's ray is a straight drop along the eye's
+ *  own axis: in the frame the eye sees, that is the point (uv.y, -uv.x) coming
+ *  down from far above. Each box is put into that frame whole -- its centre and
+ *  its three axes carried through the camera -- and the ray is then taken into
+ *  the box's own frame and slab-tested, which is the cheapest correct thing
+ *  there is.
+ *
+ *  Each faces the listener. `depth` comes back as how far along the ray the
+ *  nearest one was hit, so the caller can tell a cabinet in front of the ball
+ *  from one behind it. */
+vec4 speakerBoxes (vec2 uv, out float depth)
+{
+    vec3 ro = vec3 (uv.y, -uv.x, 4.0);
+    vec3 rd = vec3 (0.0, 0.0, -1.0);
+
+    depth = 1000.0;
+    vec4 out4 = vec4 (0.0);
+
+    for (int i = 0; i < 4; i++)
+    {
+        vec3 centre = speakerCentre (i);
+
+        // Almost every pixel is nowhere near any cabinet, and the slab test
+        // below is not cheap enough to run for all of them four times over.
+        // A box is never further from its own centre than the length of its
+        // half-extents, so a circle that wide around where the centre lands on
+        // screen rejects the whole display bar a few thousand pixels -- for
+        // two subtractions and a dot. It took the frame from eighty-four per
+        // cent of a core to what the measurement in the commit says.
+        vec2 near = uv - seenToScreen (centre);
+        if (dot (near, near) > 0.0625)   // (0.25)^2, the diagonal plus slack
+            continue;
+
+        // Its own frame: nose towards the listener, head up, and the third
+        // axis from the other two so the set stays right-handed however far
+        // the room has been tipped.
+        vec3 nose = speakerNose (i);
+        vec3 side = speakerSide (i);
+        vec3 head = cross (nose, side);
+
+        vec3 toRay = ro - centre;
+        vec3 roL = vec3 (dot (toRay, side), dot (toRay, head), dot (toRay, nose));
+        vec3 rdL = vec3 (dot (rd, side), dot (rd, head), dot (rd, nose));
+
+        vec3 normalL;
+        vec2 span = cabinetSpan (roL, rdL, normalL);
+        if (span.x > span.y || span.y < 0.0)
+            continue;
+
+        float t = max (span.x, 0.0);
+        if (t >= depth)
+            continue;
+        depth = t;
+
+        vec3 hitL = roL + rdL * t;
+        vec3 normal = normalL.x * side + normalL.y * head + normalL.z * nose;
+
+        // A key from over the listener's shoulder and a little fill, so the
+        // top and the front read as two different faces rather than one flat
+        // grey. The ball's own surface colour is the ground, brightened: a
+        // cabinet the same value as the sphere is a hole in the picture.
+        vec3 key = normalize (vec3 (0.35, 0.75, 0.55));
+        float lit = 0.30 + 0.70 * max (dot (normal, key), 0.0);
+        vec3 body = mix (uSphereSurface, vec3 (1.0), 0.22) * lit;
+
+        // The baffle, on the face that looks at the listener.
+        //
+        // Two horn flares side by side with the high frequency on the spine
+        // between them, which is the Resolution's face. The flare is *shaded*
+        // rather than cut: at the size these are drawn, a real recess would be
+        // detail nobody can see, and the shading sits on a face that turns
+        // with the room, so it reads as a horn from every angle the camera
+        // can be put in.
+        if (normalL.z > 0.5)
+        {
+            float level = speakerLevel (i);
+            vec2 f = vec2 (hitL.x / kResFrontHalfW, hitL.y / kResFrontHalfH);
+
+            // Folded about the spine: the two flares are one shape drawn
+            // twice, which is what they are.
+            vec2 inLobe = vec2 ((abs (f.x) - 0.50) / 0.44, f.y / 0.84);
+
+            // A rounded rectangle rather than an ellipse -- a horn mouth is
+            // square-ish and an ellipse reads as a cone driver.
+            float ell = length (inLobe);
+            float rect = max (abs (inLobe.x), abs (inLobe.y));
+            float r = mix (ell, rect, 0.55);
+
+            float mouth = 1.0 - smoothstep (0.86, 1.02, r);
+            float throat = 1.0 - smoothstep (0.10, 0.46, r);
+
+            // Receding: the further in, the less light reaches it.
+            body = mix (body, body * 0.30, mouth * (1.0 - 0.35 * r));
+            // The flare's lip, where the mouth meets the baffle.
+            body += uSphereRim * 0.55
+                  * (smoothstep (1.04, 0.92, r) - smoothstep (0.94, 0.84, r));
+
+            // The high frequency, on the spine between the two.
+            float hf = (1.0 - smoothstep (0.10, 0.16, abs (f.x)))
+                     * (1.0 - smoothstep (0.28, 0.40, abs (f.y - 0.10)));
+            body = mix (body, body * 0.45, hf);
+
+            // What it is being sent, coming out of the throats and the slot.
+            body += uSpotColour * (throat + hf * 0.8) * level * 1.7;
+        }
+
+        // The edges, so a cabinet stands away from whatever is behind it.
+        // Measured against the baffle's own half-extents, which is close
+        // enough on a wedge this shallow and costs no second intersection.
+        float edge = 1.0 - max (max (abs (hitL.x) / kResFrontHalfW,
+                                     abs (hitL.y) / kResFrontHalfH),
+                                abs (hitL.z) / kResHalfDepth);
+        body += uSphereRim * smoothstep (0.05, 0.0, edge) * 0.35;
+
+        out4 = vec4 (body, 1.0);
+    }
+
+    return out4;
 }
 
 // Ridged fractal noise: the filaments are the ridges between noise cells, and
@@ -458,20 +1335,37 @@ vec2 beamTotal (vec2 p)
 // decides whether the filaments run in or out. `reach` clamps how far out the
 // domain still varies; past it the pattern freezes, so it has to cover
 // wherever the filaments are meant to go.
-float netFilaments (vec2 uv, float dist, float flow, float reach,
+/** The bearing a pixel stands for in the *room*, as a unit vector.
+ *
+ *  At the identity camera this is exactly normalize(uv): screenToDirection
+ *  shuffles the axes to { uv.y, -uv.x, up } and this shuffles them back, so a
+ *  device nobody has tilted draws the picture it always drew, to the bit.
+ */
+vec2 netBearing (vec3 dir)
+{
+    vec2 bearing = vec2 (-dir.y, dir.x);
+    float len = max (length (bearing), 0.000001);
+    return bearing / len;
+}
+
+float netFilaments (vec2 bearing, float radialAt, float flow, float reach,
                     float twist, float scale, float sharpness,
                     float octaves, float lacunarity, float gain)
 {
     // Inverts netFilamentRadius() in EnergyMap.cc: the filament standing at
     // this radius now is the one that started further along the flow.
-    float radial = clamp (dist, 0.0, reach) + uTime * flow;
+    float radial = clamp (radialAt, 0.0, reach) + uTime * flow;
 
     // Domain built from the direction, not from an angle. An angle wraps, and
     // the wrap left a seam due west where the filaments failed to meet.
     // Mirrors netDomainPoint() in EnergyMap.cc.
-    float len = max (length (uv), 0.000001);
-    vec2 n = uv / len;
-    vec3 p = vec3 (n * twist, radial * scale);
+    //
+    // And the *room's* bearing, not the screen's. It used to normalise the
+    // screen uv, which nails the whole weave to the display: the ball turns
+    // under the camera and the energy stays where it was. Exactly the fault
+    // the graticule had before it was rebuilt in the room's terms -- a net on
+    // the screen draws the same picture whichever way the room is looked at.
+    vec3 p = vec3 (bearing * twist, radial * scale);
 
     float sum = 0.0;
     float amp = 1.0;
@@ -494,18 +1388,35 @@ float netFilaments (vec2 uv, float dist, float flow, float reach,
 }
 
 // The net inside the sphere and along the beams.
-float innerNet (vec2 uv, float dist)
+/** The net on the sphere. Both of its coordinates are the room's: the bearing
+ *  says which filament, and how far the direction lies from straight up says
+ *  how far along it. At the identity camera that second one is the screen
+ *  distance it used to be, exactly -- screenToDirection builds z as
+ *  sqrt(1 - dist^2), so sqrt(1 - z^2) gives the distance back. */
+float innerNetAt (vec2 bearing, float radial)
 {
-    return netFilaments (uv, dist, uNetFlow, 1.6, uNetTwist, uNetScale,
-                         uNetSharpness, uNetOctaves, uNetLacunarity, uNetGain);
+    return netFilaments (bearing, radial, uNetFlow, 1.6, uNetTwist,
+                         uNetScale, uNetSharpness, uNetOctaves,
+                         uNetLacunarity, uNetGain);
 }
 
-// The glow's net, running the other way and reaching to the screen edge.
-float glowNet (vec2 uv, float dist)
+float innerNet (vec3 dir)
 {
-    return netFilaments (uv, dist, uGlowFlow, uGlowReach, uGlowTwist,
-                         uGlowScale, uGlowSharpness, uGlowOctaves,
-                         uGlowLacunarity, uGlowGain);
+    return innerNetAt (netBearing (dir),
+                       sqrt (max (0.0, 1.0 - dir.z * dir.z)));
+}
+
+/** The glow's net, running the other way and reaching to the screen edge.
+ *
+ *  Its bearing is the room's like the inner one, but how far along stays the
+ *  *screen* distance: these filaments come out from behind the sphere and run
+ *  to the corner of the display, which is a thing about the display and has no
+ *  direction in the room to be measured against. */
+float glowNet (vec3 rimDir, float dist)
+{
+    return netFilaments (netBearing (rimDir), dist, uGlowFlow, uGlowReach,
+                         uGlowTwist, uGlowScale, uGlowSharpness,
+                         uGlowOctaves, uGlowLacunarity, uGlowGain);
 }
 
 // ─── main ───────────────────────────────────────────────────────
@@ -544,22 +1455,31 @@ void main ()
         {
             vec3 rimDirection = screenToDirection (uvScene / max (dist, 0.001),
                                                    1.0);
-            colOut += uGlowColour * uGlowLevel * glowNet (uvScene, dist)
+            colOut += uGlowColour * uGlowLevel
+                    * glowNet (rimDirection, dist)
                     * glowEmergence (dist, uGlowRise)
                     * energyAt (rimDirection) * uGlowIntensity * showGlow;
         }
 
-        // Speaker bands wrapping the sphere
-        colOut += uSpotColour * band.y * uBeamIntensity;
+        // Speaker bands wrapping the sphere. The field, not the core: the
+        // core is the same bolt sharpened by uBoltCoreExp, so drawing the
+        // colour off it left a bolt arriving at a hundredth of itself.
+        colOut += uSpotColour * band.x * uBeamIntensity;
 
         // The core runs white, the way a bolt does against a sky.
         colOut += uBoltCoreColour * band.y * uBoltCore;
 
 
         // Outside, the net rides the band towards the sphere, so a filament is
-        // already visible before it crosses the rim.
-        colOut += uSpotColour * innerNet (uvScene, dist) * band.x
-                * uNetBeamIntensity;
+        // already visible before it crosses the rim. The same bearing the
+        // inner net has at the rim, so the filament does not step sideways as
+        // it crosses -- and the screen distance to carry it, because out here
+        // there is no room direction to measure along.
+        colOut += uSpotColour
+                * innerNetAt (netBearing (screenToDirection (
+                                  uvScene / max (dist, 0.001), 1.0)),
+                              dist)
+                * band.x * uNetBeamIntensity;
 
         // Blob outside glow removed — blobs only create reflections on sphere surface
     }
@@ -640,7 +1560,7 @@ void main ()
         // The beams stop at the rim. Inside, the net takes over from them:
         // filaments landing where a beam meets the sphere and running in from
         // there, strongest at the rim and thinning out as they travel.
-        float net = innerNet (uvScene, dist);
+        float net = innerNet (dir);
         vec3 rimDir = screenToDirection (uvScene / max (dist, 0.001), 1.0);
 
         colSurf += uEnergyColour * net * energyAt (rimDir) * dist * dist
@@ -652,11 +1572,64 @@ void main ()
     vec3 colOutFinal = uBgColour + colOut;
     col = mix (colOutFinal, colSurf, surfaceMix);
 
+    // The blobs go on last and additively. Last, because they are light and
+    // light does not get occluded by the glass it shines through -- the sphere
+    // is semi-transparent and a blob behind it is dimmed by its own depth fade
+    // rather than by being drawn under something.
+    // ── the cabinets ────────────────────────────────────────────
+    //
+    // After the ball, because they are solid and it is glass: one in front
+    // covers it outright, one behind shows through dimmed the way anything
+    // behind the ball does. The blobs stay last -- they are light, and light
+    // is not occluded by what it shines through.
+    float boxOpaque = 0.0;
+    {
+        float boxDepth;
+        vec4 box = speakerBoxes (uvScene, boxDepth);
+        if (box.a > 0.0)
+        {
+            // Where the ball is, and how far along the ray. The ray falls from
+            // z = 4, so the near side of the unit sphere is that much less its
+            // own height.
+            float ballDepth = surfaceMix > 0.0
+                            ? 4.0 - sqrt (max (0.0, 1.0 - dist * dist))
+                            : 1000.0;
+
+            float inFront = step (boxDepth, ballDepth);
+            float through = mix (0.30, 1.0, inFront);
+
+            col = mix (col, box.rgb, box.a * through);
+            // Carried past the sphere's own alpha, which is assigned further
+            // down and would otherwise wipe this out.
+            boxOpaque = box.a * inFront;
+        }
+    }
+
+    vec3 blobs = vec3 (0.0);
+    for (int b = 0; b < 4; b++)
+    {
+        if (float(b) >= uNumBlobs) break;
+        blobs += lineGlow (uvScene, b);
+        blobs += blobLight (uvScene, b);
+    }
+    col += blobs;
+
     // Semi-transparent sphere: alpha < 1 on the sphere surface so
     // blobs on the back side remain partially visible through it.
     // Outside the sphere is fully opaque background.
     float sphereAlpha = 0.75;  // sphere surface transparency
     alpha = mix (1.0, sphereAlpha, surfaceMix);
+
+    // A cabinet in front of the ball is solid: the glass behind it is not seen
+    // through it.
+    alpha = clamp (alpha + boxOpaque, 0.0, 1.0);
+
+    // But light is not seen *through*. The sphere's alpha is what lets a blob
+    // on the far side show at all, and it was also quietly taking a quarter
+    // off every blob on the near one: a core computed at full came out of the
+    // blend at 0.75 -- a grey dot where a bright one was meant to be. Where a
+    // blob is bright the pixel belongs to the blob.
+    alpha = clamp (alpha + max (blobs.r, max (blobs.g, blobs.b)), 0.0, 1.0);
 
     gl_FragColor = vec4 (col, alpha);
 }
@@ -735,7 +1708,10 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBeamRoot = glGetUniformLocation (pid, "uBeamRoot");
   _uBeamFray = glGetUniformLocation (pid, "uBeamFray");
   _uBeamCover = glGetUniformLocation (pid, "uBeamCover");
+  _uBeamMinAnnulus = glGetUniformLocation (pid, "uBeamMinAnnulus");
+  _uBeamDepthSoft = glGetUniformLocation (pid, "uBeamDepthSoft");
   _uBoltWidth = glGetUniformLocation (pid, "uBoltWidth");
+  _uBoltThin = glGetUniformLocation (pid, "uBoltThin");
   _uBoltWander = glGetUniformLocation (pid, "uBoltWander");
   _uBoltScale = glGetUniformLocation (pid, "uBoltScale");
   _uBoltFlow = glGetUniformLocation (pid, "uBoltFlow");
@@ -775,7 +1751,53 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBlobCol[1]     = glGetUniformLocation (pid, "uBlobCol1");
   _uBlobCol[2]     = glGetUniformLocation (pid, "uBlobCol2");
   _uBlobCol[3]     = glGetUniformLocation (pid, "uBlobCol3");
-  // Blob state + corona uniforms removed — blobs drawn as 2D overlay
+  _uBlobState[0]  = glGetUniformLocation (pid, "uBlobState0");
+  _uBlobState[1]  = glGetUniformLocation (pid, "uBlobState1");
+  _uBlobState[2]  = glGetUniformLocation (pid, "uBlobState2");
+  _uBlobState[3]  = glGetUniformLocation (pid, "uBlobState3");
+  _uBlobTrailA[0] = glGetUniformLocation (pid, "uBlobTrailA0");
+  _uBlobTrailA[1] = glGetUniformLocation (pid, "uBlobTrailA1");
+  _uBlobTrailA[2] = glGetUniformLocation (pid, "uBlobTrailA2");
+  _uBlobTrailA[3] = glGetUniformLocation (pid, "uBlobTrailA3");
+  _uBlobTrailB[0] = glGetUniformLocation (pid, "uBlobTrailB0");
+  _uBlobTrailB[1] = glGetUniformLocation (pid, "uBlobTrailB1");
+  _uBlobTrailB[2] = glGetUniformLocation (pid, "uBlobTrailB2");
+  _uBlobTrailB[3] = glGetUniformLocation (pid, "uBlobTrailB3");
+  _uBlobTrailC[0] = glGetUniformLocation (pid, "uBlobTrailC0");
+  _uBlobTrailC[1] = glGetUniformLocation (pid, "uBlobTrailC1");
+  _uBlobTrailC[2] = glGetUniformLocation (pid, "uBlobTrailC2");
+  _uBlobTrailC[3] = glGetUniformLocation (pid, "uBlobTrailC3");
+  _uBlobTrailD[0] = glGetUniformLocation (pid, "uBlobTrailD0");
+  _uBlobTrailD[1] = glGetUniformLocation (pid, "uBlobTrailD1");
+  _uBlobTrailD[2] = glGetUniformLocation (pid, "uBlobTrailD2");
+  _uBlobTrailD[3] = glGetUniformLocation (pid, "uBlobTrailD3");
+  _uActionColour  = glGetUniformLocation (pid, "uActionColour");
+  _uBlobEffects   = glGetUniformLocation (pid, "uBlobEffects");
+  _uLineMap[0]    = glGetUniformLocation (pid, "uLineMap0");
+  _uLineMap[1]    = glGetUniformLocation (pid, "uLineMap1");
+  _uLineMap[2]    = glGetUniformLocation (pid, "uLineMap2");
+  _uLineMap[3]    = glGetUniformLocation (pid, "uLineMap3");
+  _uLineOn        = glGetUniformLocation (pid, "uLineOn");
+  _uLineExtent    = glGetUniformLocation (pid, "uLineExtent");
+  _uLineFarSide   = glGetUniformLocation (pid, "uLineFarSide");
+  _uLineEffects   = glGetUniformLocation (pid, "uLineEffects");
+  _uBraid         = glGetUniformLocation (pid, "uBraid");
+  _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
+  _uSpkSeed[1]    = glGetUniformLocation (pid, "uSpkSeed1");
+  _uSpkSeed[2]    = glGetUniformLocation (pid, "uSpkSeed2");
+  _uSpkSeed[3]    = glGetUniformLocation (pid, "uSpkSeed3");
+  _uSpkCentre[0]  = glGetUniformLocation (pid, "uSpkCentre0");
+  _uSpkCentre[1]  = glGetUniformLocation (pid, "uSpkCentre1");
+  _uSpkCentre[2]  = glGetUniformLocation (pid, "uSpkCentre2");
+  _uSpkCentre[3]  = glGetUniformLocation (pid, "uSpkCentre3");
+  _uSpkNose[0]    = glGetUniformLocation (pid, "uSpkNose0");
+  _uSpkNose[1]    = glGetUniformLocation (pid, "uSpkNose1");
+  _uSpkNose[2]    = glGetUniformLocation (pid, "uSpkNose2");
+  _uSpkNose[3]    = glGetUniformLocation (pid, "uSpkNose3");
+  _uSpkSide[0]    = glGetUniformLocation (pid, "uSpkSide0");
+  _uSpkSide[1]    = glGetUniformLocation (pid, "uSpkSide1");
+  _uSpkSide[2]    = glGetUniformLocation (pid, "uSpkSide2");
+  _uSpkSide[3]    = glGetUniformLocation (pid, "uSpkSide3");
 
   _aPos = glGetAttribLocation (pid, "aPos");
 
@@ -876,6 +1898,8 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform3f (_uSpotColour, _spotCfg.r, _spotCfg.g, _spotCfg.b);
   if (_uSpeakerRadius >= 0)
     glUniform1f (_uSpeakerRadius, _spotCfg.speakerRadius);
+
+  uploadSpeakerFrames ();
   if (_uBeamEdge >= 0)
     glUniform1f (_uBeamEdge, _spotCfg.edgeSoftness);
   if (_uBeamIntensity >= 0)
@@ -891,7 +1915,12 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uBeamBleed >= 0) glUniform1f (_uBeamBleed, _spotCfg.bleed);
   if (_uBeamFray >= 0) glUniform1f (_uBeamFray, _spotCfg.fray);
   if (_uBeamCover >= 0) glUniform1f (_uBeamCover, _spotCfg.cover);
+  if (_uBeamMinAnnulus >= 0)
+    glUniform1f (_uBeamMinAnnulus, beamMinimumAnnulus);
+  if (_uBeamDepthSoft >= 0)
+    glUniform1f (_uBeamDepthSoft, beamDepthSoftness);
   if (_uBoltWidth >= 0) glUniform1f (_uBoltWidth, _spotCfg.boltWidth);
+  if (_uBoltThin >= 0) glUniform1f (_uBoltThin, _spotCfg.boltThin);
   if (_uBoltWander >= 0) glUniform1f (_uBoltWander, _spotCfg.boltWander);
   if (_uBoltScale >= 0) glUniform1f (_uBoltScale, _spotCfg.boltScale);
   if (_uBoltFlow >= 0) glUniform1f (_uBoltFlow, _spotCfg.boltFlow);
@@ -965,7 +1994,62 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
       if (_uBlobCol[i] >= 0)
         glUniform3f (_uBlobCol[i], b.r, b.g, b.b);
 
+      // The seed keeps four blobs from sparkling in step. From the index
+      // rather than from a clock, so a channel's own flecks stay its own
+      // across a restart instead of shuffling every time the app comes up.
+      if (_uBlobState[i] >= 0)
+        glUniform4f (_uBlobState[i], b.vuPeak, b.action,
+                     1.7f + static_cast<float> (i) * 3.1f,
+                     b.visible ? b.depthFade : 0.f);
+
+      // An invisible blob's wake is collapsed onto the blob rather than left
+      // where it last was: the shader gates the trail on how far the tail has
+      // been left behind, and a stale tail would go on burning under a channel
+      // that has stopped.
+      auto const tx = [&b] (int k) { return b.visible ? b.trailX[k] : 999.f; };
+      auto const ty = [&b] (int k) { return b.visible ? b.trailY[k] : 999.f; };
+      if (_uBlobTrailA[i] >= 0)
+        glUniform4f (_uBlobTrailA[i], tx (0), ty (0), tx (1), ty (1));
+      if (_uBlobTrailB[i] >= 0)
+        glUniform4f (_uBlobTrailB[i], tx (2), ty (2), tx (3), ty (3));
+      if (_uBlobTrailC[i] >= 0)
+        glUniform4f (_uBlobTrailC[i], tx (4), ty (4), tx (5), ty (5));
+      if (_uBlobTrailD[i] >= 0)
+        glUniform4f (_uBlobTrailD[i], tx (6), ty (6), tx (7), ty (7));
     }
+
+  // The line maps, on units one to four -- nought is the energy map's.
+  {
+    float on[kMaxBlobs] = { 0.f, 0.f, 0.f, 0.f };
+    for (int i = 0; i < kMaxBlobs; ++i)
+      {
+        if (_uLineMap[i] < 0)
+          continue;
+        glActiveTexture (GL_TEXTURE1 + static_cast<GLenum> (i));
+        glBindTexture (GL_TEXTURE_2D, _lineTexture[i]);
+        glUniform1i (_uLineMap[i], 1 + i);
+        on[i] = _lineTexture[i] != 0 ? 1.f : 0.f;
+      }
+    glActiveTexture (GL_TEXTURE0);
+
+    if (_uLineOn >= 0)
+      glUniform4f (_uLineOn, on[0], on[1], on[2], on[3]);
+    if (_uLineExtent >= 0)
+      glUniform1f (_uLineExtent, _lineExtent);
+  if (_uLineFarSide >= 0)
+    glUniform1f (_uLineFarSide, lineFarSidePart);
+    if (_uLineEffects >= 0)
+      glUniform4f (_uLineEffects, theme ().lineGlow, theme ().lineFilament,
+                   theme ().lineBolt, theme ().lineHeat);
+    if (_uBraid >= 0)
+      glUniform4f (_uBraid, theme ().braidTurns, theme ().braidSpin,
+                   theme ().braidWeave, theme ().braidStrands);
+  }
+
+  setThemeUniform (_uActionColour, theme ().blobAction);
+  if (_uBlobEffects >= 0)
+    glUniform3f (_uBlobEffects, theme ().blobSparkle, theme ().blobBolt,
+                 theme ().blobTrail);
 
   // Draw fullscreen quad (with alpha blending for semi-transparent sphere)
   glEnable (GL_BLEND);
@@ -998,6 +2082,80 @@ void SphereShader::setSpeakerLight (int i, float peak, float rms)
 
 void SphereShader::setBlob (int i, BlobData const &d)
 { if (i >= 0 && i < kMaxBlobs) _blobs[i] = d; }
+
+void
+SphereShader::uploadSpeakerFrames ()
+{
+  using namespace juce::gl;
+
+  // Where the four of them stand, once per frame.
+  //
+  // Bearings first: the four screen diagonals beamTotal was built on, read
+  // back into the room -- uv = (-d.y, d.x), so d = (uv.y, -uv.x, 0) -- which
+  // keeps the numbering and the places exactly what they were, and
+  // uSpotLevel0..3 still belonging to the same corners.
+  //
+  // The band reads the cabinet's own centre now. It used to get a separate
+  // bearing taken from the horizon point (bx, by, 0) and normalised, because
+  // it was an annulus on the glass and an annulus has no word for a speaker
+  // off the rim. That bearing is gone with the flat band.
+  static constexpr float k = 0.70710678f;
+  static constexpr float bearings[kMaxBlobs][2]
+      = { { k, k }, { k, -k }, { -k, -k }, { -k, k } };
+
+  // How far *below* the horizon a cabinet stands, in radians.
+  //
+  // On the horizon they are geometrically right and unreadable: the device's
+  // own view is from straight overhead, and from there a speaker beside you is
+  // its top panel -- four grey diamonds, which is very nearly what the SVG
+  // arrows they replaced were. Lifting them and aiming down at the listener
+  // makes it worse, not better: the eye is then behind them and sees the back.
+  // Set below the ear and angled up -- floor monitors around a listening
+  // position -- the baffle turns towards the overhead view, so the drivers are
+  // in sight from the view the device actually ships in, and the geometry is
+  // still a room somebody could build.
+  static constexpr float drop = 0.42f;
+
+  auto const level = std::cos (drop);
+  auto const sink = std::sin (drop);
+
+  for (int i = 0; i < kMaxBlobs; ++i)
+    {
+      auto const bx = bearings[i][0];
+      auto const by = bearings[i][1];
+
+      auto const seen = [this] (float x, float y, float z) {
+        return asSeenFrom (Pos::fromCartesian (x, y, z), _camera);
+      };
+
+      auto const radius = _spotCfg.speakerRadius;
+      auto const centre
+          = seen (bx * level * radius, by * level * radius, -sink * radius);
+      auto const nose = seen (-bx * level, -by * level, sink);
+      // Along its width, taken from the bearing rather than from the world's
+      // up: a cabinet angled steeply has a nose near the vertical, and a cross
+      // product against up would collapse there.
+      auto const side = seen (-by, bx, 0.f);
+
+      // From the room's bearing, so a speaker keeps its own bolts however the
+      // eye is standing. Mirrors beamBoltSeed() in EnergyMap.cc.
+      if (_uSpkSeed[i] >= 0)
+        glUniform1f (_uSpkSeed[i],
+                     beamBoltSeed (Pos::fromCartesian (bx, by, 0.f)));
+      if (_uSpkCentre[i] >= 0)
+        glUniform3f (_uSpkCentre[i], centre.x (), centre.y (), centre.z ());
+      if (_uSpkNose[i] >= 0)
+        glUniform3f (_uSpkNose[i], nose.x (), nose.y (), nose.z ());
+      if (_uSpkSide[i] >= 0)
+        glUniform3f (_uSpkSide[i], side.x (), side.y (), side.z ());
+    }
+}
+
+void SphereShader::setLineTexture (int channel, unsigned int textureID)
+{
+  if (channel >= 0 && channel < kMaxBlobs)
+    _lineTexture[channel] = textureID;
+}
 
 void SphereShader::setNumBlobs (int n)
 { _numBlobs = std::min (n, kMaxBlobs); }

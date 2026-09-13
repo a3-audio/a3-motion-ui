@@ -136,6 +136,24 @@ SphereCamera cameraSettled (SphereCamera camera);
  *
  *  Both ends are assumed to be on the unit sphere, which is what a projected
  *  direction is. `t` runs 0 at `from` to 1 at `to`. */
+/** How much of a line's light survives at a given depth into the sphere.
+ *
+ *  `z` is the *seen* one — which of two points is nearer the eye depends on
+ *  where the eye stands — so this has to be given a direction that has been
+ *  through the camera, not a room direction.
+ *
+ *  1 at and above the horizon, falling to `farSidePart` at the far pole, so a
+ *  figure reads as passing behind the ball rather than lying flat on it. It
+ *  was a lambda inside the path drawing and so reached only the stroke; the
+ *  glow, the filaments and the bolts all come from the shader, off a map that
+ *  had no word for depth at all, and they drowned the one thing that did.
+ *
+ *  Held short of zero: the far side of a trajectory is meant to be read, only
+ *  more faintly, and a line that vanished outright would leave a figure
+ *  looking cut in half. */
+constexpr float lineFarSidePart = 0.3f;
+float lineDepthFade (float z);
+
 Pos slerpDirection (Pos const &from, Pos const &to, float t);
 
 /** How many pieces a straight step across the *recorded* disc has to be cut

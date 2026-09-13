@@ -28,11 +28,30 @@ namespace a3
 
 /**
  * Full-scene 3D renderer via a fullscreen-quad fragment shader.
- * Raytraces: dark reflective sphere with head silhouette, 4 speaker
- * boxes, volumetric speaker light beams, and up to 4 channel blobs
- * as lit 3D spheres with VU corona glow.
  *
- * GLSL 1.20 compatible (GL 2.1 desktop on RPi 4 V3D).
+ * Raytraces: a dark reflective sphere with a head silhouette; four speaker
+ * cabinets standing in the room, facing the listener, each with a woofer and a
+ * tweeter that light with what the speaker is being sent; and the 4 channel
+ * blobs -- each a core, a rim, a VU corona, procedural sparks, a bolt on a
+ * transient, a wake behind it and a neon ring while an action runs.
+ *
+ * Drawn flat over the top, not raytraced: the volumetric speaker bands, which
+ * are a two-dimensional annulus in screen polar coordinates. They follow a
+ * walk round the room and cannot follow a lean, and rebuilding them in three
+ * dimensions is the next piece of this.
+ *
+ * This block has been wrong twice, both times in the same way. It claimed the
+ * blobs were raytraced while a flat 2D ellipse over the top was what you
+ * actually saw, and the 2D layer was removed to "uncover" a 3D one that had
+ * never been written -- which cost the maintainer a sphere with no blobs on
+ * it. Then it went on claiming "4 speaker boxes" for a whole session after
+ * that paragraph was written, while the speakers were still four SVG arrows
+ * pinned to the corners of the display.
+ *
+ * So, twice over: if you are about to remove a layer because this header says
+ * something else draws it, make the replacement draw first and look at it.
+ *
+ * GLSL 1.20 compatible (GL 2.1 desktop).
  */
 class SphereShader
 {
@@ -73,6 +92,21 @@ public:
     float size = 0.f;                 // radius in sphere-normalised units
     float vuPeak = 0.f;
     float vuRms = 0.f;
+    /** How far an action has this channel, 0..1. Not whether a finger is down:
+     *  the engine puts a clip's settings back when the accent's envelope has
+     *  finished falling, and that is when the blob stops wearing it. */
+    float action = 0.f;
+    /** Dimmed on the back of the semi-transparent sphere, so depth reads as
+     *  depth rather than as everything being equally bright. */
+    float depthFade = 1.f;
+    /** Where the blob has just been: four points that lag it, nearest first.
+     *
+     *  A wake, not a copy of the trajectory. The line under it already says
+     *  exactly where the take goes; what is missing is the sense that
+     *  something heavy is travelling along it, and a plume that cuts the
+     *  corners says that where one tracing them would only be a second line.
+     *  The lag is the caller's -- see MotionComponent::advanceBlobTrails(). */
+    float trailX[8]{}, trailY[8]{};
     bool visible = false;
     bool grabbed = false;
     bool highlighted = false;
@@ -132,6 +166,7 @@ public:
     float fray = 0.8f;         // how ragged its edge is
     float cover = 3.f;         // how strongly the band hides the glow
     float boltWidth = 0.9f;    // angular width of a bolt's core, degrees
+    float boltThin = 0.3f;     // what a silent speaker's bolt is worth
     float boltWander = 0.55f;  // how far its path strays across the band
     float boltScale = 6.f;     // how quickly it strays with radius
     float boltFlow = 0.5f;     // how fast the path creeps
@@ -169,6 +204,20 @@ public:
 
   /** Texture holding the equirectangular energy map, owned by the caller. */
   void setEnergyTexture (unsigned int textureID) { _energyTexture = textureID; }
+
+  /** A picture of where one channel's trajectory is, owned by the caller, or
+   *  0 for a channel with nothing playing.
+   *
+   *  A point is four uniforms; a curve of a thousand points is not, and
+   *  without it a fragment has no way of knowing how far it is from the line.
+   *  The map carries nearness -- 1 on the line, falling away from it -- and
+   *  everything the trajectory glows with is built from that field: the glow
+   *  itself, the filaments (which are contours of the field after it has been
+   *  warped by noise, so they wander along the line and can never fold the
+   *  way an offset copy of the curve does), and the bolts. */
+  void setLineTexture (int channel, unsigned int textureID);
+  /** How far the line map reaches, in sphere radii. */
+  void setLineExtent (float extent) { _lineExtent = extent; }
 
   /** Seconds since start, for the net's drift. */
   void setTime (float seconds) { _time = seconds; }
@@ -220,7 +269,10 @@ private:
   GLint _uBeamBleed = -1;
   GLint _uBeamFray = -1;
   GLint _uBeamCover = -1;
+  GLint _uBeamMinAnnulus = -1;
+  GLint _uBeamDepthSoft = -1;
   GLint _uBoltWidth = -1;
+  GLint _uBoltThin = -1;
   GLint _uBoltWander = -1;
   GLint _uBoltScale = -1;
   GLint _uBoltFlow = -1;
@@ -261,8 +313,36 @@ private:
   // Blob uniforms (position+colour kept for lighting on sphere surface)
   GLint _uBlobPosSize[kMaxBlobs] = {};  // vec4: x, y, size, vuLevel
   GLint _uBlobCol[kMaxBlobs] = {};      // vec3: r, g, b
+  GLint _uBlobState[kMaxBlobs] = {};    // vec4: vu, action, seed, depth
+  // The wake, two points to a vec4 -- separate uniforms rather than one array
+  // because a uniform array in GLSL 1.20 may only be indexed by a
+  // constant-index-expression, and the blob index here is a function argument.
+  GLint _uBlobTrailA[kMaxBlobs] = {};   // vec4: t0.xy, t1.xy
+  GLint _uBlobTrailB[kMaxBlobs] = {};   // vec4: t2.xy, t3.xy
+  GLint _uBlobTrailC[kMaxBlobs] = {};   // vec4: t4.xy, t5.xy
+  GLint _uBlobTrailD[kMaxBlobs] = {};   // vec4: t6.xy, t7.xy
+  GLint _uActionColour = -1;
+  GLint _uBlobEffects = -1;
+
+  GLint _uLineMap[kMaxBlobs] = {};
+  GLint _uLineOn = -1;
+  GLint _uLineExtent = -1;
+  GLint _uLineFarSide = -1;
+  GLint _uLineEffects = -1;
+  GLint _uBraid = -1;
+
+  GLint _uSpkSeed[kMaxBlobs] = {};
+  GLint _uSpkCentre[kMaxBlobs] = {};
+  GLint _uSpkNose[kMaxBlobs] = {};
+  GLint _uSpkSide[kMaxBlobs] = {};
+  /** Where the four cabinets stand as the eye sees them. Once a frame: it is
+   *  the same answer for every pixel, and worked out per pixel it cost a
+   *  quarter of a core in sines and cosines. */
+  void uploadSpeakerFrames ();
+  unsigned int _lineTexture[kMaxBlobs] = {};
+  float _lineExtent = 1.3f;
+
   GLint _uNumBlobs = -1;
-  // Note: blob disc + corona are drawn as 2D overlay by MotionComponent
 
   GLint _aPos = -1;
 

@@ -33,6 +33,7 @@
 
 #include <a3-motion-ui/Helpers.hh>
 #include <a3-motion-ui/ConfigFileWatcher.hh>
+#include <a3-motion-ui/components/BlobTrail.hh>
 #include <a3-motion-ui/components/CoronaScaling.hh>
 #include <a3-motion-ui/components/TouchGrabs.hh>
 #include <a3-motion-ui/components/EnergyMap.hh>
@@ -118,7 +119,6 @@ private:
   void updateChannelBlobHighlight (juce::Point<float> posMousePixel);
 
   void drawCircle (juce::Graphics &g);
-  void drawChannelBlobs (juce::Graphics &g);
 
 public:
   /** What the running take is being recorded over, or nullptr for none. */
@@ -225,7 +225,6 @@ private:
   std::unique_ptr<juce::Image> _imageBlend;
   juce::Image _imageIsoSphere;
   std::unique_ptr<juce::Drawable> _drawableHead;
-  std::unique_ptr<juce::Drawable> _drawableSpeaker;
 
   // 3D raytraced sphere shader
   SphereShader _sphereShader;
@@ -257,6 +256,12 @@ private:
   float _smoothGlowPeak = 0.f, _smoothGlowRms = 0.f;
   float _smoothSpotPeak[4]{}, _smoothSpotRms[4]{};
   float _smoothBlobPeak[4]{}, _smoothBlobRms[4]{};
+
+  /** The wake behind each blob, advanced once per rendered frame. Here rather
+   *  than in the shader because it is the one part of the blob's effects that
+   *  cannot be procedural: a trail is where the thing has been, and nothing in
+   *  a fragment shader remembers that. */
+  BlobTrail _blobTrails[4]{};
 
   // Background colour packed as ARGB — lock-free atomic access
   std::atomic<juce::uint32> _backgroundColourPacked{ 0 };
@@ -294,6 +299,35 @@ private:
   std::vector<float> _energyTarget, _energySmoothed;
   std::vector<unsigned char> _energyTexels;
   unsigned int _energyTexture = 0;
+
+  /** A picture of where each channel's trajectory is, for the shader.
+   *
+   *  A point is cheap in a fragment shader -- four positions are four
+   *  uniforms -- and a curve is not: a thousand points cannot be handed over
+   *  that way, and without them the shader has no idea how far a pixel is
+   *  from the line. So the line is *rasterised* into a small map: the path
+   *  stroked several times, widest and dimmest first, so what comes out is a
+   *  stepped cone of nearness that a bilinear lookup smooths back into a
+   *  field. That field is what the glow, the filaments and the bolts are
+   *  built from.
+   *
+   *  Built in the 2D pass, which runs after the shader, so the shader reads
+   *  the map one frame behind. At sixty a second that is sixteen
+   *  milliseconds, and a glow trailing the line by that has never been
+   *  visible to anybody.
+   *
+   *  It covers the scene in the same units the shader thinks in -- sphere
+   *  radii, the ball's edge at one -- out to `lineMapExtent`, so the glow has
+   *  somewhere to reach. */
+  juce::Image _lineMapImage[4];
+  bool _lineMapValid[4] = {};
+  std::unique_ptr<juce::OpenGLTexture> _lineTexture[4];
+
+  void resetLineMaps ();
+  void uploadLineMaps ();
+  /** Where the trajectory of `channel` is drawn into, cleared and ready, or
+   *  nullptr while the maps are not in use. */
+  juce::Image *lineMapFor (int channel);
   float _energyVuMax = 0.05f, _energyCurve = 0.8f;
   float _energyAttack = 0.05f, _energyDecay = 0.25f;
 

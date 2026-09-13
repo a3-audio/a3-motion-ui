@@ -279,16 +279,30 @@ setSkinValue (juce::var &skin, juce::String const &path, double value,
   // rounding of the way, so an encoder run would otherwise leave something
   // like 2.98150695788495 in a file people still read and diff.
   //
-  // Two places. Four was still more than anybody would type, and nothing is
-  // lost: the smallest number any shipped skin carries is 0.01, and
-  // skinValueStep never returns less than that — so no value can round back
-  // onto itself and become impossible to turn.
-  constexpr double places = 100.0;
+  // Four *significant* digits, not two decimal places.
+  //
+  // Two places was right when it was written -- "the smallest number any
+  // shipped skin carries is 0.01" -- and stopped being right the day the
+  // trajectory's own thickness became a skin value at 0.0018. After that the
+  // rounding was a floor: anything finer than a hundredth went to zero on its
+  // way into the file. Typed 0.003, read back 0.000, and no way to tell from
+  // the outside whether the keyboard or the value had failed.
+  //
+  // Significant digits have no such scale built in. 2.98150695788495 still
+  // comes out as 2.982, and 0.0018 still comes out as 0.0018.
+  auto const readable = [] (double raw) {
+    if (raw == 0.0)
+      return 0.0;
 
-  auto const stored
-      = asWholeNumber
-            ? juce::var (static_cast<int> (std::lround (value)))
-            : juce::var (std::round (value * places) / places);
+    constexpr double digits = 4.0;
+    auto const scale = std::pow (
+        10.0, digits - 1.0 - std::floor (std::log10 (std::abs (raw))));
+    return std::round (raw * scale) / scale;
+  };
+
+  auto const stored = asWholeNumber
+                          ? juce::var (static_cast<int> (std::lround (value)))
+                          : juce::var (readable (value));
 
   if (auto *array = parent->getArray ())
     {
@@ -417,6 +431,39 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
 
   if (path == "potSize")
     return juce::jlimit (0.5, 2.0, value);
+
+  // A line thinner than this is gone on the panel at arm's length; thicker
+  // than this and four channels' worth covers the sphere it is drawn on.
+  //
+  // The floor used to be 0.004, which is above where this value now ships --
+  // a knob whose range does not contain its own default, so the first touch
+  // jumped it.
+  if (path == "trajectoryThickness")
+    return juce::jlimit (0.001, 0.08, value);
+
+  // One is what the device ships with and zero is off; past two an effect
+  // stops being a flourish on the blob and becomes the picture.
+  if (path == "blobSparkle" || path == "blobBolt" || path == "blobTrail")
+    return juce::jlimit (0.0, 2.0, value);
+
+  // One is what the device ships with and zero is off; past two an effect
+  // stops being what the line burns with and becomes the picture.
+  if (path == "lineGlow" || path == "lineFilament" || path == "lineBolt"
+      || path == "lineHeat")
+    return juce::jlimit (0.0, 2.0, value);
+
+  // The cord. A radius past this and three hairlines are a rope; a turn count
+  // past this and the weave is finer than the pixels that would draw it.
+  if (path == "braidRadius")
+    return juce::jlimit (0.0, 0.04, value);
+  if (path == "braidWeave")
+    return juce::jlimit (0.0, 3.0, value);
+  if (path == "braidTurns")
+    return juce::jlimit (0.0, 200.0, value);
+  if (path == "braidSpin")
+    return juce::jlimit (-4.0, 4.0, value);
+  if (path == "braidStrands")
+    return juce::jlimit (1.0, 5.0, std::round (value));
 
   if (path == "sphereScale")
     {

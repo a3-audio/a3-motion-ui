@@ -79,7 +79,12 @@ public:
    *  view, which is the reason to edit a skin on the device at all. A config
    *  value is `Typed`: a port is a number somebody knows, and turning an
    *  encoder across ten thousand of them is not a way to reach it. Text and
-   *  colour rows ignore this — they were always typed and picked. */
+   *  colour rows ignore this — they were always typed and picked.
+   *
+   *  This says what a *single* press does, and nothing more. A double tap
+   *  calls the keyboard on either kind — see doubleTapRow(). It used to mean
+   *  "cannot be typed", which left a dialled value reachable only in whole
+   *  drag increments. */
   enum class Numbers
   {
     Turned,
@@ -175,6 +180,19 @@ public:
    *  false when the row is not something that can be typed, which is what
    *  greys the keyboard icon out. */
   bool beginTypingBrowsedRow ();
+
+  /** What a double tap on a row does: browse it, then call the keyboard.
+   *
+   *  Always, whatever `Numbers` says a single press does. A skin value is
+   *  dialled because dialling it while the sphere is in view is the reason to
+   *  edit a skin on the device -- but a drag moves in whole increments of
+   *  `touchDragPixelsPerStep`, and there was no way at all to reach a value
+   *  between two of them. The maintainer: *"man müsste mit double tap immer
+   *  die tastatur zur eingabe verwenden können."*
+   *
+   *  A method rather than only a touch callback, so what a double tap means
+   *  can be checked without a mouse -- the same seam browseRow() is. */
+  void doubleTapRow (int absoluteRow);
   bool canTypeBrowsedRow () const;
 
   /** The path of the browsed parameter row, empty on an action row. */
@@ -197,6 +215,9 @@ public:
   /** Real key events, from the system's on-screen keyboard or a plugged-in
    *  one — the app draws no keyboard of its own any more. */
   bool keyPressed (juce::KeyPress const &key) override;
+  void mouseWheelMove (juce::MouseEvent const &event,
+                       juce::MouseWheelDetails const &wheel) override;
+  void visibilityChanged () override;
 
   /** Where the list's panel sits, so the side strips can be put beside it. */
   juce::Rectangle<int> panelBounds () const { return listPanelBounds (); }

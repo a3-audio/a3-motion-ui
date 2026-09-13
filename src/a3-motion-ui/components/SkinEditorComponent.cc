@@ -198,6 +198,9 @@ SkinEditorComponent::createTouchControls ()
       // strip behind the rows meant it could only be grabbed in the gaps
       // between them, which is to say hardly at all. Left half rolls, right
       // half changes the value — the two halves of a row, two jobs.
+      touch.name->onDoubleTap = [this] (int absoluteRow, int) {
+        doubleTapRow (absoluteRow);
+      };
       touch.name->onDragIncrement = [this] (int, int, int increment) {
         // Scrolls, never edits. navigate() would have changed the armed row's
         // value instead, because that is its second level — but this column
@@ -219,6 +222,10 @@ SkinEditorComponent::createTouchControls ()
       touch.value->onTap = [this] (int, int) {
         _dragRow = -1;
         toggleEditing ();
+      };
+      touch.value->onDoubleTap = [this] (int absoluteRow, int) {
+        _dragRow = -1;
+        doubleTapRow (absoluteRow);
       };
       touch.value->onDragEnd = [this] (int, int) { _dragRow = -1; };
       touch.value->onDragIncrement = [this] (int, int, int increment) {
@@ -287,11 +294,66 @@ SkinEditorComponent::resized ()
     }
 }
 
+void
+SkinEditorComponent::visibilityChanged ()
+{
+  // The arrows have to land here, and a component that is not focused never
+  // sees a key. Focus used to be taken only when a name was being typed,
+  // which is why the arrows did nothing at all the rest of the time.
+  if (isShowing ())
+    grabKeyboardFocus ();
+}
+
+void
+SkinEditorComponent::mouseWheelMove (juce::MouseEvent const &,
+                                     juce::MouseWheelDetails const &wheel)
+{
+  // What a two-finger scroll arrives as. The list follows the finger, the way
+  // the browser's does and the way a drag over the rows here already did --
+  // pushing the list up shows what is below it.
+  auto const delta = wheel.deltaY > 0.f ? -1 : (wheel.deltaY < 0.f ? 1 : 0);
+  if (delta != 0)
+    scrollList (delta);
+}
+
 bool
 SkinEditorComponent::keyPressed (juce::KeyPress const &key)
 {
   if (!_naming)
-    return false;
+    {
+      // A keyboard's arrows are navigation and nothing else. Deliberately not
+      // navigate(): that carries the encoder's second level, so an arrow on an
+      // armed row would change its value -- and somebody reaching for an arrow
+      // is trying to get somewhere, not to edit. browseRow() also steps over a
+      // heading *in the direction of travel* and brings the row into view,
+      // which is both of the things arrows have to do.
+      if (key == juce::KeyPress::upKey)
+        {
+          browseRow (_index - 1);
+          return true;
+        }
+      if (key == juce::KeyPress::downKey)
+        {
+          browseRow (_index + 1);
+          return true;
+        }
+
+      // A page is the window moving, not the selection: that is what a page
+      // key means everywhere else, and it is the only way to cross a hundred
+      // and forty rows without dragging them past one at a time.
+      if (key == juce::KeyPress::pageUpKey)
+        {
+          scrollList (-visibleRows ());
+          return true;
+        }
+      if (key == juce::KeyPress::pageDownKey)
+        {
+          scrollList (visibleRows ());
+          return true;
+        }
+
+      return false;
+    }
 
   if (key == juce::KeyPress::backspaceKey)
     {
@@ -753,6 +815,19 @@ SkinEditorComponent::canTurnBrowsedRow () const
   // A config number is typed, not turned — see Numbers.
   return !parameter.isColour && !parameter.isText
          && _numbers == Numbers::Turned;
+}
+
+void
+SkinEditorComponent::doubleTapRow (int absoluteRow)
+{
+  // The row the second finger landed on, not the one that happened to be
+  // armed: the first tap of the pair browses, but a double tap somewhere else
+  // must open what it was made on.
+  browseRow (absoluteRow);
+  if (browsedRowIndex () != absoluteRow)
+    return; // a heading, or off the end of the list
+
+  beginTypingBrowsedRow ();
 }
 
 bool

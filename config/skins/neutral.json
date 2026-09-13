@@ -39,6 +39,7 @@
     "fray": 0.8,
     "cover": 1.6,
     "boltWidth": 0.45,
+    "boltThin": 0.3,
     "boltWander": 0.55,
     "boltScale": 6,
     "boltFlow": 0.5,
@@ -88,9 +89,9 @@
       "b": 60
     },
     {
-      "r": 60,
-      "g": 130,
-      "b": 130
+      "r": 70,
+      "g": 160,
+      "b": 158
     }
   ],
   "recordingUnderlay": {
@@ -139,7 +140,11 @@
     "g": 90,
     "b": 90
   },
-  "notice": { "r": 70, "g": 130, "b": 250 },
+  "notice": {
+    "r": 70,
+    "g": 130,
+    "b": 250
+  },
   "sphereSurface": {
     "r": 14,
     "g": 15,

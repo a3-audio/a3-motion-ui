@@ -54,6 +54,7 @@
     "fray": 0.8,
     "cover": 1.6,
     "boltWidth": 0.45,
+    "boltThin": 0.3,
     "boltWander": 0.55,
     "boltScale": 6,
     "boltFlow": 0.5,
@@ -93,9 +94,9 @@
       "b": 101
     },
     {
-      "r": 32,
-      "g": 56,
-      "b": 177
+      "r": 72,
+      "g": 112,
+      "b": 236
     },
     {
       "r": 247,
@@ -103,9 +104,9 @@
       "b": 2
     },
     {
-      "r": 0,
-      "g": 110,
-      "b": 129
+      "r": 40,
+      "g": 158,
+      "b": 152
     }
   ],
   "recordingUnderlay": {
@@ -114,7 +115,7 @@
     "lineThickness": 0.02
   },
   "sphereScale": 0.83,
-  "fontHeader": 12.970000000000001,
+  "fontHeader": 12.97,
   "fontBody": 15.81,
   "clipSettingsHeightScale": 0.81,
   "potSize": 1.28,

@@ -23,7 +23,7 @@
     "b": 170,
     "curve": 1.2,
     "speakerRadius": 1.4,
-    "beamIntensity": 4.0,
+    "beamIntensity": 1.6,
     "attack": 0.08,
     "decay": 0.23,
     "edgeSoftness": 0.7,
@@ -39,6 +39,7 @@
     "fray": 0.72,
     "cover": 1.44,
     "boltWidth": 0.45,
+    "boltThin": 0.3,
     "boltWander": 0.5,
     "boltScale": 6,
     "boltFlow": 0.45,
@@ -61,7 +62,7 @@
     "g": 90,
     "b": 170,
     "intensity": 0.22,
-    "netIntensity": 2.34,
+    "netIntensity": 1.2,
     "netScale": 9,
     "netSharpness": 5,
     "netFlow": 0.16,
@@ -73,24 +74,24 @@
   },
   "channels": [
     {
-      "r": 103,
-      "g": 31,
-      "b": 21
+      "r": 170,
+      "g": 56,
+      "b": 0
     },
     {
-      "r": 64,
-      "g": 137,
-      "b": 151
+      "r": 0,
+      "g": 150,
+      "b": 112
     },
     {
-      "r": 14,
-      "g": 153,
-      "b": 53
+      "r": 10,
+      "g": 20,
+      "b": 190
     },
     {
-      "r": 60,
-      "g": 0,
-      "b": 52
+      "r": 212,
+      "g": 23,
+      "b": 230
     }
   ],
   "recordingUnderlay": {
@@ -145,24 +146,24 @@
     "b": 160
   },
   "sphereSurface": {
-    "r": 196,
-    "g": 204,
-    "b": 216
+    "r": 26,
+    "g": 30,
+    "b": 38
   },
   "sphereRim": {
-    "r": 58,
-    "g": 72,
-    "b": 96
+    "r": 126,
+    "g": 146,
+    "b": 180
   },
   "sphereEnvironment": {
-    "r": 236,
-    "g": 239,
-    "b": 244
+    "r": 15,
+    "g": 18,
+    "b": 24
   },
   "boltCore": {
-    "r": 28,
-    "g": 36,
-    "b": 52
+    "r": 255,
+    "g": 255,
+    "b": 255
   },
   "fontHeader": 17.0,
   "fontBody": 15.0,
@@ -170,8 +171,8 @@
   "potSize": 1.0,
   "touchDragPixelsPerStep": 12,
   "backgroundGlow": {
-    "r": 190,
-    "g": 200,
-    "b": 215
+    "r": 46,
+    "g": 58,
+    "b": 80
   }
 }

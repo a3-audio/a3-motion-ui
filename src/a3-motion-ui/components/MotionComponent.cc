@@ -33,6 +33,7 @@
 #include <a3-motion-engine/elevation/HeightMap.hh>
 
 #include <a3-motion-ui/components/ChannelUIState.hh>
+#include <a3-motion-ui/components/PlasmaSheath.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
@@ -107,6 +108,75 @@ auto constexpr reduceFactorHead = .35f;
 
 auto constexpr activeAreaAroundBlobFactor = 3.f;
 auto constexpr blobHighlightFactor = 1.1f;
+
+// How hard each link of the blob's wake chases the one in front of it, per
+// rendered frame. Eight links at this rate settle roughly a second and a half
+// behind the blob -- the maintainer's call, after the first version came out
+// short: "der schweif vom blob soll laenger".
+auto constexpr blobTrailLag = 0.09f;
+
+// The line map: how many texels across, and how far out it reaches in the
+// units the shader thinks in -- sphere radii, with the ball's edge at one.
+//
+// A little past the ball, because a glow that stopped at the rim would cut
+// where a trajectory runs off the edge. Two hundred and fifty-six across is
+// about two and a half screen pixels per texel at the sizes this ships at:
+// coarse for a *line*, which is why the crisp line is still drawn as a vector
+// on top, and plenty for a *field*, which is all the shader asks of it.
+auto constexpr lineMapSize = 256;
+auto constexpr lineMapExtent = 1.3f;
+
+// The nested strokes that make the stepped cone of nearness: half-width in
+// texels, and how near that says you are. Widest and dimmest first -- each is
+// drawn over the last, and a narrower stroke is wholly inside a wider one, so
+// overwriting *is* the maximum a distance field needs.
+struct LineMapStep
+{
+  float width;
+  float nearness;
+};
+// Ten of them, not five. The shader builds everything it draws out of this
+// ramp, so the ramp's own terraces are what "sehr pixelig" was looking at: at
+// five steps the field jumps by a fifth of its range between neighbouring
+// bands and no amount of bilinear filtering hides a step that size. Ten small
+// strokes into a 256-square image cost almost nothing.
+constexpr LineMapStep lineMapSteps[] = {
+  { 34.f, 0.04f }, { 28.f, 0.10f }, { 23.f, 0.17f }, { 19.f, 0.25f },
+  { 15.f, 0.34f }, { 12.f, 0.44f }, { 9.f, 0.55f },  { 7.f, 0.66f },
+  { 5.f, 0.77f },  { 3.5f, 0.86f },
+};
+
+// The innermost step is drawn on its own, and in pieces.
+//
+// It carries two things at once: full nearness in the red, and *where along
+// the figure* this piece is in the green. The second is what lets the shader
+// twist the cord: a weave is a pattern that travels along a line, and a
+// fragment shader has no idea where along anything it is unless it is told.
+//
+// In pieces because a stroke has one colour and the arc length has to change
+// along the line. Only at this width, not at all of them, or it would be a
+// hundred and twenty strokes five times over.
+constexpr float lineMapCoreWidth = 1.5f;
+constexpr int lineMapPieces = 120;
+
+// The cone is drawn in pieces too, for the depth it carries in the blue — but
+// far fewer of them. Arc length changes with every step along the line and
+// depth does not, and the cone is ten strokes where the core is one.
+constexpr int lineMapConePieces = 24;
+
+// What the core is worth, and it is deliberately short of one.
+//
+// A field that saturates cannot be modulated: with the core at full nearness
+// the shader's weave scaled a value that was already clamped, so the cord's
+// waist never moved and only its brightness did. Left with headroom, the same
+// weave narrows and widens it along its length, which is the scalloped
+// silhouette of a laid rope.
+constexpr float lineMapCoreNearness = 0.88f;
+// What counts as a jump rather than a movement, in the sphere's normalised
+// units: a clip looping back to its start, or a finger dropping the blob
+// somewhere else. The wake is cut there instead of being dragged across a
+// path nothing travelled.
+auto constexpr blobTrailCutDistance = 0.35f;
 
 }
 
@@ -265,9 +335,6 @@ MotionComponent::MotionComponent (
   _drawableHead = juce::Drawable::createFromSVGFile (
       juce::File::getCurrentWorkingDirectory ().getChildFile (
           "resources/head.svg"));
-  _drawableSpeaker = juce::Drawable::createFromSVGFile (
-      juce::File::getCurrentWorkingDirectory ().getChildFile (
-          "resources/speaker.svg"));
 
   // start disocclusion / animation timer at 30 Hz
   // (GL renders at 60 Hz vsync, 30 Hz is enough for blob push-away)
@@ -394,6 +461,51 @@ MotionComponent::setEnergyGrid (float const *values, int count)
 
 // Runs on the GL thread. The plugin only sends 9 times a second, so the map is
 // eased towards each new frame rather than stepped to it.
+juce::Image *
+MotionComponent::lineMapFor (int channel)
+{
+  if (channel < 0 || channel >= 4)
+    return nullptr;
+
+  auto &image = _lineMapImage[channel];
+  if (!image.isValid ())
+    image = juce::Image (juce::Image::ARGB, lineMapSize, lineMapSize, true);
+
+  if (!_lineMapValid[channel])
+    {
+      image.clear (image.getBounds (), juce::Colours::transparentBlack);
+      _lineMapValid[channel] = true;
+    }
+  return &image;
+}
+
+void
+MotionComponent::resetLineMaps ()
+{
+  for (auto &valid : _lineMapValid)
+    valid = false;
+}
+
+void
+MotionComponent::uploadLineMaps ()
+{
+  for (auto channel = 0; channel < 4; ++channel)
+    {
+      if (!_lineMapValid[channel] || !_lineMapImage[channel].isValid ())
+        {
+          _sphereShader.setLineTexture (channel, 0);
+          continue;
+        }
+
+      if (_lineTexture[channel] == nullptr)
+        _lineTexture[channel] = std::make_unique<juce::OpenGLTexture> ();
+
+      _lineTexture[channel]->loadImage (_lineMapImage[channel]);
+      _sphereShader.setLineTexture (
+          channel, _lineTexture[channel]->getTextureID ());
+    }
+}
+
 void
 MotionComponent::uploadEnergyMap ()
 {
@@ -928,6 +1040,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.fray = cfgF (sl, "fray", 0.8f);
     sc.cover = cfgF (sl, "cover", 3.f);
     sc.boltWidth = cfgF (sl, "boltWidth", 0.9f);
+    sc.boltThin = cfgF (sl, "boltThin", 0.3f);
     sc.boltWander = cfgF (sl, "boltWander", 0.55f);
     sc.boltScale = cfgF (sl, "boltScale", 6.f);
     sc.boltFlow = cfgF (sl, "boltFlow", 0.5f);
@@ -982,7 +1095,6 @@ MotionComponent::applyVisualConfig (juce::var const &config)
   }
 
   // Cache corona config (avoids JSON lookups every frame per blob).
-  // Used directly by drawChannelBlobs() (2D overlay).
   _coronaCfg = loadCoronaConfig (config);
 }
 
@@ -1081,6 +1193,9 @@ MotionComponent::renderOpenGL ()
 
   uploadEnergyMap ();
   _sphereShader.setEnergyTexture (_energyTexture);
+  // Last frame's maps: the 2D pass that fills them runs after this one.
+  uploadLineMaps ();
+  _sphereShader.setLineExtent (lineMapExtent);
   // Seconds since this context came up, not since the machine booted: the
   // uniform is a float, and on an installation left running for a week the
   // per-frame increment falls below what it can still represent, freezing the
@@ -1162,6 +1277,21 @@ MotionComponent::renderOpenGL ()
             bd.visible = true;
           }
 
+        // The wake follows the blob in the space it is drawn in, not the
+        // room's: the camera can be walked round the sphere, and a trail
+        // advanced in room coordinates would swing as the view turned.
+        if (bd.visible)
+          advanceBlobTrail (_blobTrails[ch], bd.x, bd.y, blobTrailLag,
+                            blobTrailCutDistance);
+        else
+          releaseBlobTrail (_blobTrails[ch]);
+
+        for (int k = 0; k < BlobTrail::numLinks; ++k)
+          {
+            bd.trailX[k] = _blobTrails[ch].x[k];
+            bd.trailY[k] = _blobTrails[ch].y[k];
+          }
+
         auto blobSize = _blobScale;
         if (position.isValid ())
           blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
@@ -1179,6 +1309,19 @@ MotionComponent::renderOpenGL ()
         bd.vuRms = _smoothBlobRms[ch];
         bd.grabbed = _uiStates[ch]->grabbed;
         bd.highlighted = _uiStates[ch]->highlighted;
+
+        // What the blob wears while an action runs. From the engine rather
+        // than from whether a finger is down: the accent outlives the hand by
+        // its decay, and so does the action's hold on the clip's settings.
+        bd.action = _engine.isChannelAccentActive (ch) ? 1.f : 0.f;
+
+        // Depth. The sphere is semi-transparent, so a blob behind it is dimmed
+        // rather than hidden -- the same fade the 2D layer used, moved to where
+        // the blob is now drawn.
+        bd.depthFade = 1.f;
+        if (position.isValid () && position.z () < 0.f)
+          bd.depthFade
+              = 0.3f + 0.7f * std::clamp (position.z () + 1.f, 0.f, 1.f);
 
         _sphereShader.setBlob (ch, bd);
       }
@@ -1228,15 +1371,20 @@ MotionComponent::renderOpenGL ()
           juce::Graphics gFBO{ *_imageBlend };
           gFBO.addTransform (_transformNormalizedToLocal);
 
-          // Speaker SVGs
-          if (_drawableSpeaker != nullptr)
-            drawCircle (gFBO);
+          drawCircle (gFBO);
 
           drawBearings (gFBO);
           drawListener (gFBO);
 
-          // Channel blobs + corona
-          drawChannelBlobs (gFBO);
+          // The blobs are the shader's now -- blobLight(), drawn additively
+          // over the finished scene: a hot core, a corona that follows the
+          // level, sparks, a bolt on transients and the action's neon ring.
+          //
+          // This drew a flat 2D disc with two corona rings. It was taken out
+          // once before, on the assumption that the shader already drew blobs
+          // because its header said so; it did not, and the blobs vanished.
+          // The order that works is the other one: make the shader draw first,
+          // look at it, then take this away.
 
           // The take as it stands, while it is being played in. A fresh
           // recording has no display path — those come from the library — so
@@ -1261,6 +1409,7 @@ MotionComponent::renderOpenGL ()
 
           // Faint trajectory lines for all currently playing patterns
           // (skip those already drawn as explicit previews)
+          resetLineMaps ();
           for (auto &[pattern, displayData] : patternsDisplayData)
             {
               if (patternsPreview.count (pattern) > 0)
@@ -1398,35 +1547,18 @@ MotionComponent::drawCircle (juce::Graphics &g)
   //
   // What remains here: speaker icons drawn as SVG overlays.
 
-  // --- 4 speakers outside the sphere, like spotlights ---
-  if (_drawableSpeaker != nullptr)
-    {
-      auto constexpr opacitySpeaker = 0.35f;
-      auto constexpr speakerSize = 0.28f;
-      // Use cached speaker radius from spotlight config
-      float speakerRadius = _sphereShader.getSpeakerRadius ();
-
-      for (int i = 0; i < 4; ++i)
-        {
-          float angleDeg = 45.f + i * 90.f;
-          float angleRad = angleDeg * juce::MathConstants<float>::pi / 180.f;
-
-          float sx = speakerRadius * std::cos (angleRad);
-          float sy = speakerRadius * std::sin (angleRad);
-
-          auto speakerBounds = juce::Rectangle<float> ().withSizeKeepingCentre (
-              speakerSize, speakerSize);
-
-          g.saveState ();
-          g.addTransform (juce::AffineTransform::rotation (
-              angleRad + juce::MathConstants<float>::pi, sx, sy));
-          g.setOpacity (opacitySpeaker);
-          _drawableSpeaker->drawWithin (
-              g, speakerBounds.withCentre ({ sx, sy }),
-              juce::RectanglePlacement::centred, opacitySpeaker);
-          g.restoreState ();
-        }
-    }
+  // The speakers used to be drawn here: a flat SVG arrow at a fixed screen
+  // angle, four of them at 45 degrees apart on the *display*. They are
+  // raytraced in the shader now (speakerBoxes) as cabinets standing in the
+  // room, so they turn and lean with it, face the listener, and occlude the
+  // ball and are occluded by it.
+  //
+  // That was the whole of the maintainer's "die speaker müssen mitdrehen wenn
+  // die sphäre dreht": nailed to the glass, they stayed in the corners of the
+  // screen while everything else turned. The four beam directions were written
+  // in as the screen's own diagonals for the same reason and have been given
+  // the room's bearings too -- though the bands themselves are still a flat
+  // annulus and only follow a walk, not a lean.
 
   g.setOpacity (1.f);
 }
@@ -1633,110 +1765,6 @@ MotionComponent::drawCameraBall (juce::Graphics &g)
   }
 }
 
-void
-MotionComponent::drawChannelBlobs (juce::Graphics &g)
-{
-  // Draw blobs + corona directly — no FBO compositing (_imageBlend) for
-  // maximum performance on RPi4.
-
-  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
-  {
-      auto const position = _engine.getChannelPosition (channel);
-      if (!position.isValid ())
-        continue;
-
-      auto blobSize = 2 * _blobScale;
-      blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
-
-      // Blobs on the back of the sphere (z < 0): draw smaller and dimmer
-      // to give a sense of depth through the semi-transparent sphere.
-      float backFade = 1.0f;
-      if (position.z () < 0.f)
-        {
-          backFade = 0.3f + 0.7f * std::clamp (position.z () + 1.f, 0.f, 1.f);
-          blobSize *= (0.5f + 0.5f * backFade);
-        }
-
-      auto posNormalized = projectToScreen (position);
-
-      auto colour = _uiStates[channel]->colour;
-      if (backFade < 1.0f)
-        colour = colour.withMultipliedAlpha (backFade);
-
-      // Draw VU corona (glow effect based on audio level)
-      float vuRms = (channel < 4) ? _smoothBlobRms[channel] : 0.f;
-      float vuPeak = (channel < 4) ? _smoothBlobPeak[channel] : 0.f;
-      bool isGrabbed = _uiStates[channel]->grabbed;
-      bool isHighlighted = _uiStates[channel]->highlighted;
-
-      if (vuRms > 0.0001f || vuPeak > 0.0001f || isGrabbed || isHighlighted)
-        {
-          float peakScaled = coronaPeakLevel (vuPeak, _coronaCfg.vuMax);
-          float vuScaled = coronaVuLevel (vuPeak, vuRms, _coronaCfg.vuMax);
-          float coronaScale = coronaScaleFactor (vuScaled, _coronaCfg);
-
-          float baseBlobScale = 1.0f;
-          if (isGrabbed)
-            {
-              baseBlobScale = activeAreaAroundBlobFactor;
-              coronaScale *= _coronaCfg.sizeGrabbed;
-            }
-          else if (isHighlighted)
-            {
-              baseBlobScale = blobHighlightFactor;
-              coronaScale *= 1.2f;
-            }
-
-          auto coronaDiam = blobSize * baseBlobScale * coronaScale;
-          float coronaAlpha = _coronaCfg.alphaMin
-                              + peakScaled * (_coronaCfg.alphaMax - _coronaCfg.alphaMin);
-
-          // Two glow layers (outer → inner) — blend towards white at high VU
-          auto whiteBlend = peakScaled * _coronaCfg.whiteBlend;
-          // boltCore rather than textPrimary: this is the white-hot centre
-          // of a light effect, the same role the shader's bolts use, not a
-          // piece of text that happens to be white.
-          auto coronaColour
-              = colour.interpolatedWith (toColour (theme ().boltCore), whiteBlend);
-          for (int layer = 2; layer >= 1; --layer)
-            {
-              // Layer 2 is the outer one — keep it tied to the constant the
-              // visibility test asserts against.
-              float layerScale
-                  = 1.0f + (layer - 1) * (coronaOuterLayerScale - 1.0f);
-              float layerAlpha = coronaAlpha / (layer * 2.0f);
-              auto layerSize = coronaDiam * layerScale;
-              auto layerRect = juce::Rectangle<float> (0.f, 0.f, layerSize, layerSize);
-              g.setColour (coronaColour.withAlpha (layerAlpha));
-              g.fillEllipse (layerRect.withCentre (posNormalized));
-            }
-        }
-
-      // Grabbed: transparent area
-      if (isGrabbed)
-        {
-          auto grabSize = blobSize * activeAreaAroundBlobFactor;
-          auto grabRect = juce::Rectangle<float> (0.f, 0.f, grabSize, grabSize);
-          g.setColour (colour.withAlpha (theme ().alphaDisabled));
-          g.fillEllipse (grabRect.withCentre (posNormalized));
-        }
-
-      // Highlighted: brighter outline
-      if (isHighlighted)
-        {
-          auto hlSize = blobSize * blobHighlightFactor;
-          auto hlRect = juce::Rectangle<float> (0.f, 0.f, hlSize, hlSize);
-          g.setColour (colour.withLightness (colour.getLightness () + 0.2f));
-          g.fillEllipse (hlRect.withCentre (posNormalized));
-        }
-
-      // Solid blob disc
-      auto blob = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
-      g.setColour (colour);
-      g.fillEllipse (blob.withCentre (posNormalized));
-    }
-}
-
 // ── Draw a juce::Path (from SVG displayPath) projected onto the sphere ──
 // Flattens the Bézier path into line segments, projects each point
 // through mapTo3D, and draws with depth-band batching.
@@ -1752,7 +1780,10 @@ drawPathOnSphere (juce::Path const &displayPath,
                   HeightMap const &heightMap,
                   juce::Graphics &g,
                   PlaneShaping const &shaping,
-                  SphereCamera const &camera)
+                  SphereCamera const &camera,
+                  /** Where to rasterise this line for the shader, or nullptr
+                   *  for a line the glow is not asked to follow. */
+                  juce::Image *lineMap = nullptr)
 {
   if (displayPath.isEmpty ())
     return;
@@ -1770,24 +1801,7 @@ drawPathOnSphere (juce::Path const &displayPath,
   // "behind" the sphere. fadeByDepth == false skips this entirely — used
   // for whichever trajectory is currently being edited, which must stay
   // fully legible no matter where it sits.
-  auto fadeForZ = [] (float z) -> float {
-    return (z < 0.f)
-        ? 0.3f + 0.7f * std::clamp (z + 1.f, 0.f, 1.f)
-        : 1.0f;
-  };
-
-  auto flushPath = [&] (juce::Path &path, int band) {
-    float fade = fadeByDepth
-        ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
-                              : (band == 2 ?  0.25f :  0.75f))
-        : 1.0f;
-    float thickness = lineThickness * (0.5f + 0.5f * fade);
-    auto stroke = juce::PathStrokeType (
-        thickness, juce::PathStrokeType::JointStyle::curved,
-        juce::PathStrokeType::EndCapStyle::rounded);
-    g.setColour (colour.withAlpha (alpha * fade));
-    g.strokePath (path, stroke);
-  };
+  auto fadeForZ = [] (float z) -> float { return lineDepthFade (z); };
 
   // Project a 2D HOA point onto the sphere and return screen pos + z.
   // Every point of the line comes through here, which is why the shaping is
@@ -1943,35 +1957,251 @@ drawPathOnSphere (juce::Path const &displayPath,
   if (projected.size () < 2)
     return;
 
-  // Draw with depth-band batching
-  juce::Path currentPath;
-  int currentBand = depthBand (projected[0].second);
-  currentPath.startNewSubPath (projected[0].first);
+  // Three hairlines braided into a cord.
+  //
+  // Vectors, on purpose, and this is the third attempt. A hairline *is* a
+  // vector: a stroke can be a crisp line thinner than a pixel and a field
+  // sampled from a map two and a half screen pixels a texel cannot. The
+  // plasma is the other way round, so the two split the work -- the cord is
+  // drawn here, the light around it is the shader's, and the same twist runs
+  // through both.
+  //
+  // The first attempt fanned into straight grey spokes at the pole, where a
+  // figure's azimuths all meet and an offset copy of a curve folds;
+  // foldGuard() is the answer to that. The second looked cheap, and it looked
+  // cheap because the commit that built it deleted the line map at the same
+  // time -- the cord was drawn with no glow at all around it.
 
+  auto const seconds
+      = static_cast<float> (juce::Time::getMillisecondCounter ()) * 0.001f;
+
+  SheathRing const braid{ theme ().braidRadius, theme ().braidTurns,
+                          theme ().braidSpin,
+                          juce::roundToInt (theme ().braidStrands) };
+  auto const strands = juce::jlimit (1, 5, braid.strands);
+  auto const plain = strands < 2 || !(braid.radius > 0.0001f);
+
+  // Which way is across the line at each point, and how hard it is turning.
+  // Never taken across a pen lift, where the neighbour belongs to a different
+  // stroke.
+  std::vector<juce::Point<float> > across (projected.size ());
+  std::vector<float> guard (projected.size (), 1.f);
+  if (!plain)
+    for (std::size_t i = 0; i < projected.size (); ++i)
+      {
+        auto const before = (i > 0 && !startsRun[i]) ? i - 1 : i;
+        auto const after = (i + 1 < projected.size () && !startsRun[i + 1])
+                               ? i + 1
+                               : i;
+        auto const step = projected[after].first - projected[before].first;
+        auto const length = step.getDistanceFromOrigin ();
+        if (length < 1e-6f)
+          {
+            guard[i] = 0.f;
+            continue;
+          }
+        across[i] = { -step.y / length, step.x / length };
+
+        // Curvature as the turn between the two half-steps over the distance
+        // they cover: the definition, on the only data there is.
+        auto const in = projected[i].first - projected[before].first;
+        auto const out = projected[after].first - projected[i].first;
+        auto const lin = in.getDistanceFromOrigin ();
+        auto const lout = out.getDistanceFromOrigin ();
+        if (lin < 1e-6f || lout < 1e-6f)
+          {
+            guard[i] = 0.f;
+            continue;
+          }
+        auto const cross = (in.x * out.y - in.y * out.x) / (lin * lout);
+        auto const dot = (in.x * out.x + in.y * out.y) / (lin * lout);
+        auto const turn = std::abs (std::atan2 (cross, dot));
+        guard[i] = foldGuard (turn / (0.5f * length), braid.radius);
+      }
+
+  // Five depth tiers: a strand crosses every boundary twice a turn, and at
+  // three with plainly different brightnesses you read the boundary rather
+  // than the strand.
+  auto constexpr numTiers = 5;
+  auto constexpr numBands = 4;
+  std::array<std::array<juce::Path, numTiers>, numBands> cord;
+
+  auto const total = static_cast<float> (projected.size () - 1);
+
+  for (auto strand = 0; strand < strands; ++strand)
+    {
+      auto lastBand = -1;
+      auto lastTier = -1;
+      juce::Point<float> lastPoint;
+
+      for (std::size_t i = 0; i < projected.size (); ++i)
+        {
+          auto const u = total > 0.f ? static_cast<float> (i) / total : 0.f;
+          auto const sample
+              = plain ? SheathSample{}
+                      : sheathAt (u, strand, braid, seconds);
+
+          auto const point
+              = projected[i].first + across[i] * (sample.offset * guard[i]);
+
+          auto const band = depthBand (projected[i].second);
+          auto const tier = juce::jlimit (
+              0, numTiers - 1,
+              static_cast<int> ((sample.depth + 1.f) * 0.5f
+                                * static_cast<float> (numTiers)));
+
+          auto const broken = startsRun[i] || lastBand < 0 || band != lastBand
+                              || tier != lastTier;
+          auto &path = cord[static_cast<std::size_t> (band)]
+                           [static_cast<std::size_t> (tier)];
+          if (broken)
+            path.startNewSubPath (
+                startsRun[i] || lastBand < 0 ? point : lastPoint);
+          path.lineTo (point);
+
+          lastBand = band;
+          lastTier = tier;
+          lastPoint = point;
+        }
+    }
+
+  // Back to front, so a strand passes behind the cord and comes out the other
+  // side. The step between one tier and the next is small on purpose: a coil
+  // brightens as it comes round, it does not switch.
+  for (auto tier = 0; tier < numTiers; ++tier)
+    {
+      auto const front = numTiers > 1
+                             ? static_cast<float> (tier)
+                                   / static_cast<float> (numTiers - 1)
+                             : 1.f;
+      for (auto band = 0; band < numBands; ++band)
+        {
+          auto const &path = cord[static_cast<std::size_t> (band)]
+                                 [static_cast<std::size_t> (tier)];
+          if (path.isEmpty ())
+            continue;
+
+          auto const fade
+              = fadeByDepth
+                    ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
+                                          : (band == 2 ? 0.25f : 0.75f))
+                    : 1.0f;
+
+          g.setColour (colour.brighter (0.30f * front * front)
+                           .withAlpha (juce::jlimit (
+                               0.f, 1.f,
+                               alpha * fade * (0.55f + 0.45f * front))));
+          // Round caps: the pieces of one tier are a winding apart and share
+          // only a stitched point, so the beading rule does not bite here --
+          // and butt caps end square to the last segment rather than to the
+          // joint, which on a curve leaves a hairline wedge at every piece.
+          g.strokePath (path, juce::PathStrokeType (
+                                  lineThickness,
+                                  juce::PathStrokeType::JointStyle::curved,
+                                  juce::PathStrokeType::EndCapStyle::rounded));
+        }
+    }
+
+  // ── The map the shader finds this line through ──────────────────
+  //
+  // Lost once already: the braid was built by replacing the block this sits
+  // in, and it went with it -- the trajectory ran for two commits with no glow
+  // at all, which is most of what "das sieht jetzt wieder billig aus" was
+  // looking at. Kept at the end of the function and said out loud here.
+  if (lineMap == nullptr || projected.size () < 2)
+    return;
+
+  auto const toMap = [] (juce::Point<float> const &p) {
+    return juce::Point<float> (
+        (p.x / lineMapExtent * 0.5f + 0.5f) * static_cast<float> (lineMapSize),
+        (p.y / lineMapExtent * 0.5f + 0.5f) * static_cast<float> (lineMapSize));
+  };
+
+  juce::Path mapPath;
+  mapPath.startNewSubPath (toMap (projected[0].first));
   for (std::size_t i = 1; i < projected.size (); ++i)
     {
-      int band = depthBand (projected[i].second);
-
       if (startsRun[i])
-        {
-          // A new stroke: lift the pen rather than reaching across to it.
-          flushPath (currentPath, currentBand);
-          currentPath.clear ();
-          currentPath.startNewSubPath (projected[i].first);
-          currentBand = band;
-          continue;
-        }
-
-      if (band != currentBand)
-        {
-          flushPath (currentPath, currentBand);
-          currentPath.clear ();
-          currentPath.startNewSubPath (projected[i - 1].first);
-          currentBand = band;
-        }
-      currentPath.lineTo (projected[i].first);
+        mapPath.startNewSubPath (toMap (projected[i].first));
+      else
+        mapPath.lineTo (toMap (projected[i].first));
     }
-  flushPath (currentPath, currentBand);
+
+  juce::Graphics mg (*lineMap);
+
+  auto const count = projected.size ();
+
+  // Walk a run of points into a path, lifting the pen where the line does.
+  auto const pieceOf = [&] (std::size_t start, std::size_t stop) {
+    juce::Path piece;
+    piece.startNewSubPath (toMap (projected[start].first));
+    for (auto i = start + 1; i <= stop; ++i)
+      {
+        if (startsRun[i])
+          piece.startNewSubPath (toMap (projected[i].first));
+        else
+          piece.lineTo (toMap (projected[i].first));
+      }
+    return piece;
+  };
+
+  // How far behind the ball a run of the line sits, as the light it keeps.
+  auto const depthOf = [&] (std::size_t start, std::size_t stop) {
+    auto worst = 1.f;
+    for (auto i = start; i <= stop; ++i)
+      worst = std::min (worst, lineDepthFade (projected[i].second));
+    return worst;
+  };
+
+  // The falling cone of nearness, widest and dimmest first: a narrower stroke
+  // lies wholly inside a wider one, so overwriting is the maximum a distance
+  // field needs.
+  //
+  // In pieces, like the core, because each piece carries its own depth in the
+  // blue. The cone is what the glow, the filaments and the bolts are all built
+  // from, so a cone with no depth in it meant everything the shader draws came
+  // out equally bright on both sides of the ball — and drowned the one layer
+  // that did fade. Far fewer pieces than the core needs: depth changes slowly
+  // along a line where the arc length changes with every step.
+  auto const conePer = std::max<std::size_t> (2, count / lineMapConePieces);
+  for (auto const &step : lineMapSteps)
+    {
+      auto const stroke = juce::PathStrokeType (
+          step.width, juce::PathStrokeType::JointStyle::curved,
+          juce::PathStrokeType::EndCapStyle::rounded);
+
+      for (std::size_t start = 0; start + 1 < count; start += conePer)
+        {
+          auto const stop = std::min (start + conePer, count - 1);
+          auto const piece = pieceOf (start, stop);
+          if (piece.isEmpty ())
+            continue;
+
+          mg.setColour (juce::Colour::fromFloatRGBA (
+              step.nearness, 0.f, depthOf (start, stop), 1.f));
+          mg.strokePath (piece, stroke);
+        }
+    }
+
+  // And the core, in pieces, each carrying where along the figure it is.
+  auto const per = std::max<std::size_t> (2, count / lineMapPieces);
+  auto const coreStroke = juce::PathStrokeType (
+      lineMapCoreWidth, juce::PathStrokeType::JointStyle::curved,
+      juce::PathStrokeType::EndCapStyle::rounded);
+
+  for (std::size_t start = 0; start + 1 < count; start += per)
+    {
+      auto const stop = std::min (start + per, count - 1);
+      auto const piece = pieceOf (start, stop);
+      if (piece.isEmpty ())
+        continue;
+
+      auto const u = (static_cast<float> (start + stop) * 0.5f)
+                     / static_cast<float> (count - 1);
+      mg.setColour (juce::Colour::fromFloatRGBA (
+          lineMapCoreNearness, u, depthOf (start, stop), 1.f));
+      mg.strokePath (piece, coreStroke);
+    }
 }
 
 void
@@ -2003,7 +2233,10 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
         path.lineTo (segment[i].x (), segment[i].y ());
     }
 
-  auto constexpr lineThickness = 0.03f;
+  // The take as it is being played in, at the same width as a played one:
+  // this is the same line, and it had its own constant for the same reason
+  // drawPlayingTrajectory() did.
+  auto const lineThickness = theme ().trajectoryThickness;
   // Unshaped: a take is recorded in the frame it was played in. Turning or
   // squeezing the trail under the finger would draw the take somewhere the
   // finger never was.
@@ -2075,7 +2308,7 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
                                     PatternDisplayData const &displayData,
                                     juce::Graphics &g)
 {
-  auto constexpr lineThickness = 0.04f;
+  auto const lineThickness = theme ().trajectoryThickness;
 
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
@@ -2092,7 +2325,10 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
   // matter which hemisphere it sits in — no depth fade.
   if (!displayData.jumpDots.empty ())
     {
-      auto constexpr dotSize = lineThickness * 3.f;
+      // Three times the line, and the line is a skin value now -- so this
+      // follows it instead of being a number of its own. const, not constexpr:
+      // it is read from the theme at draw time.
+      auto const dotSize = lineThickness * 3.f;
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
@@ -2109,6 +2345,7 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
     }
 
   // ── Draw from SVG displayPath projected onto sphere ──
+  // A phase of its own per channel, so the four do not breathe in step.
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     false, params, heightMap, g, shaping,
                     _sphereShader.getCamera ());
@@ -2119,11 +2356,18 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
                                         PatternDisplayData const &displayData,
                                         juce::Graphics &g)
 {
-  // Thinner line is what distinguishes a merely-playing trajectory from
-  // the one currently being edited — depth fade still applies here (full
-  // at/above the horizon, receding toward the far pole below it), unlike
-  // drawPatternPreview()'s always-full override above.
-  auto constexpr lineThickness = 0.025f;
+  // Depth fade applies here -- full at or above the horizon, receding towards
+  // the far pole below it -- unlike drawPatternPreview()'s always-full
+  // override above. That, and not a different width, is what distinguishes a
+  // merely-playing trajectory from the one being edited.
+  //
+  // This carried its own `constexpr lineThickness = 0.025f` until 2026-09-13,
+  // which is where every attempt to make the line thinner went to die: the
+  // skin value was introduced by moving the *other* constant, in
+  // drawPatternPreview(), and this one was left where it was. The maintainer
+  // halved the skin value twice, looked at a line fourteen times thicker than
+  // it said, and asked whether something was lying on top of it. Nothing was.
+  auto const lineThickness = theme ().trajectoryThickness;
 
   auto const ch = pattern.getChannel ();
   auto colour = _uiStates[ch]->colour;
@@ -2138,7 +2382,7 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   // ── Handle jump-dot patterns ──
   if (!displayData.jumpDots.empty ())
     {
-      auto constexpr dotSize = lineThickness * 3.f;
+      auto const dotSize = lineThickness * 3.f;
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
@@ -2161,7 +2405,8 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     true, params, heightMap, g, shaping,
-                    _sphereShader.getCamera ());
+                    _sphereShader.getCamera (),
+                    lineMapFor (static_cast<int> (ch)));
 }
 
 juce::Point<float>

@@ -112,6 +112,18 @@ energyDirectionForScreen (float x, float y)
   return { azimuth, elevation / degToRad };
 }
 
+NetBearing
+netBearingForDirection (Pos const &direction)
+{
+  auto const x = -direction.y ();
+  auto const y = direction.x ();
+  auto const length = std::hypot (x, y);
+  if (length < 1e-6f)
+    return { 0.f, 0.f };
+
+  return { x / length, y / length };
+}
+
 NetDomainPoint
 netDomainPoint (float x, float y, float radial, float twist, float scale)
 {
@@ -162,6 +174,64 @@ glowEmergence (float distanceFromCentre, float rise)
                              0.f, 1.f);
 
   return t * t * (3.f - 2.f * t); // smoothstep, matching GLSL
+}
+
+float
+beamSpreadAngle (Pos const &pixelDirection, Pos const &speakerDirection)
+{
+  auto const dot = [] (Pos const &a, Pos const &b) {
+    return a.x () * b.x () + a.y () * b.y () + a.z () * b.z ();
+  };
+  auto const norm = [&dot] (Pos const &p) {
+    return std::sqrt (std::max (dot (p, p), 1e-12f));
+  };
+
+  auto const cosine = dot (pixelDirection, speakerDirection)
+                      / (norm (pixelDirection) * norm (speakerDirection));
+
+  return std::acos (std::clamp (cosine, -1.f, 1.f));
+}
+
+float
+boltWidthAtLevel (float baseWidthDegrees, float level, float thin)
+{
+  auto const swell
+      = thin + (1.f - thin) * std::clamp (level, 0.f, 1.f);
+
+  return baseWidthDegrees * swell;
+}
+
+float
+beamBoltSeed (Pos const &speakerRoomDirection)
+{
+  auto const length = std::max (
+      std::hypot (speakerRoomDirection.x (), speakerRoomDirection.y ()),
+      1e-6f);
+
+  return (-speakerRoomDirection.y () / length) * 13.f
+         + (speakerRoomDirection.x () / length) * 71.f;
+}
+
+float
+beamMouthRadiusSeen (Pos const &speakerSeen)
+{
+  auto const onScreen = std::hypot (speakerSeen.x (), speakerSeen.y ());
+
+  return std::max (onScreen - speakerMouthOffset, 1.f + beamMinimumAnnulus);
+}
+
+float
+beamDepthVisibility (Pos const &speakerSeen, float softness)
+{
+  auto const span = std::max (softness, 1e-4f);
+  auto const onScreen = std::hypot (speakerSeen.x (), speakerSeen.y ());
+
+  // Hidden only where both are true: inside the silhouette, and past the
+  // sphere's centre along the view axis. Either alone leaves it in sight.
+  auto const inside = std::clamp ((1.f - onScreen) / span, 0.f, 1.f);
+  auto const past = std::clamp (-speakerSeen.z () / span, 0.f, 1.f);
+
+  return 1.f - inside * past;
 }
 
 float

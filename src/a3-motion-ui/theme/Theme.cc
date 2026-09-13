@@ -294,6 +294,7 @@ loadTheme (juce::var const &skin)
   colour ("backgroundGlow", theme.backgroundGlow);
   colour ("speakerLight", theme.speakerLight);
   colour ("energy", theme.energy);
+  colour ("blobAction", theme.blobAction);
 
   // Channels come as an array, and their order is what ties a colour to a
   // channel — an entry out of place renames every channel after it.
@@ -322,6 +323,20 @@ loadTheme (juce::var const &skin)
   theme.alphaActive = themeFloat (skin, "alphaActive", theme.alphaActive);
 
   theme.sphereScale = themeFloat (skin, "sphereScale", theme.sphereScale);
+  theme.trajectoryThickness
+      = themeFloat (skin, "trajectoryThickness", theme.trajectoryThickness);
+  theme.braidRadius = themeFloat (skin, "braidRadius", theme.braidRadius);
+  theme.braidWeave = themeFloat (skin, "braidWeave", theme.braidWeave);
+  theme.braidTurns = themeFloat (skin, "braidTurns", theme.braidTurns);
+  theme.braidSpin = themeFloat (skin, "braidSpin", theme.braidSpin);
+  theme.braidStrands = themeFloat (skin, "braidStrands", theme.braidStrands);
+  theme.lineGlow = themeFloat (skin, "lineGlow", theme.lineGlow);
+  theme.lineFilament = themeFloat (skin, "lineFilament", theme.lineFilament);
+  theme.lineBolt = themeFloat (skin, "lineBolt", theme.lineBolt);
+  theme.lineHeat = themeFloat (skin, "lineHeat", theme.lineHeat);
+  theme.blobSparkle = themeFloat (skin, "blobSparkle", theme.blobSparkle);
+  theme.blobBolt = themeFloat (skin, "blobBolt", theme.blobBolt);
+  theme.blobTrail = themeFloat (skin, "blobTrail", theme.blobTrail);
   theme.blobScale
       = themeFloat (skin["blob"], "scale", theme.blobScale);
   theme.padShadeEmpty = themeFloat (skin, "padShadeEmpty", theme.padShadeEmpty);
@@ -386,6 +401,7 @@ themeDefaultsVar ()
   colour ("sphereRim", defaults.sphereRim);
   colour ("sphereEnvironment", defaults.sphereEnvironment);
   colour ("boltCore", defaults.boltCore);
+  colour ("blobAction", defaults.blobAction);
 
   auto const number = [object] (char const *name, float value) {
     object->setProperty (name, value);
@@ -420,6 +436,19 @@ themeDefaultsVar ()
   number ("strokeMedium", defaults.strokeMedium);
   number ("strokeThick", defaults.strokeThick);
   number ("sphereScale", defaults.sphereScale);
+  number ("trajectoryThickness", defaults.trajectoryThickness);
+  number ("braidRadius", defaults.braidRadius);
+  number ("braidWeave", defaults.braidWeave);
+  number ("braidTurns", defaults.braidTurns);
+  number ("braidSpin", defaults.braidSpin);
+  number ("braidStrands", defaults.braidStrands);
+  number ("lineGlow", defaults.lineGlow);
+  number ("lineFilament", defaults.lineFilament);
+  number ("lineBolt", defaults.lineBolt);
+  number ("lineHeat", defaults.lineHeat);
+  number ("blobSparkle", defaults.blobSparkle);
+  number ("blobBolt", defaults.blobBolt);
+  number ("blobTrail", defaults.blobTrail);
   number ("fontHeader", defaults.fontHeader);
   number ("fontBody", defaults.fontBody);
   number ("potSize", defaults.potSize);
