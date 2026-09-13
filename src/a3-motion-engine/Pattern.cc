@@ -375,6 +375,18 @@ Pattern::setPlaySign (float sign)
   _playSign.store (sign, std::memory_order_relaxed);
 }
 
+bool
+Pattern::getStopAtEnd () const
+{
+  return _stopAtEnd.load ();
+}
+
+void
+Pattern::setStopAtEnd (bool stop)
+{
+  _stopAtEnd.store (stop);
+}
+
 float
 Pattern::getRotate () const
 {

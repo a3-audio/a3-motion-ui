@@ -701,7 +701,13 @@ private:
   std::array<index_t, numChannelColumns> _channelSlot{};
   /** Whether the shown channel's accent was running at the last timer tick,
    *  so that the one after it still redraws. See timerCallback(). */
-  bool _accentWasActive = false;
+  /** Whether anything was moving on the last UI tick.
+   *
+   *  So the bar is drawn once more after everything stops: every transition
+   *  out of motion happens when nothing is moving any more, which a condition
+   *  that only runs while something moves can never catch. It was
+   *  `_accentWasActive` and covered the accent alone. */
+  bool _wasMoving = false;
 
   std::unique_ptr<BrowserComponent> _browser;
   /** What the browser's list is showing: the clips you can put in a slot, the

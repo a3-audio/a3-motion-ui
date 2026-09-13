@@ -43,7 +43,8 @@ transportColour (TransportKey key)
       // Green, running or not. The colour says which key this is, and a key
       // that changes colour with its state is one you have to look at twice --
       // once to find it and once to read it. Whether the clip is running is
-      // said by the shape (triangle or bars) and by the key's own ground.
+      // said by the ground, not by the shape -- the shape is a triangle
+      // always, because three states will not fit into two of them.
       return toColour (theme ().accent);
 
     case TransportKey::Action:
@@ -90,7 +91,7 @@ drawMenuGlyph (juce::Graphics &g, juce::Rectangle<float> area)
 
 void
 drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
-                    TransportKey key, bool playing)
+                    TransportKey key)
 {
   switch (key)
     {
@@ -103,21 +104,17 @@ drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
       return;
 
     case TransportKey::PlayPause:
-      if (playing)
-        {
-          auto const barW = area.getWidth () * 0.34f;
-          g.fillRect (area.withWidth (barW));
-          g.fillRect (area.withWidth (barW).withRightX (area.getRight ()));
-        }
-      else
-        {
-          juce::Path play;
-          play.addTriangle (area.getX (), area.getY (), area.getX (),
-                            area.getBottom (), area.getRight (),
-                            area.getCentreY ());
-          g.fillPath (play);
-        }
-      return;
+      {
+        // Always the triangle. The shape is which key this is; whether it is
+        // running is the ground's to say -- see the header, and
+        // transportKeyGround().
+        juce::Path play;
+        play.addTriangle (area.getX (), area.getY (), area.getX (),
+                          area.getBottom (), area.getRight (),
+                          area.getCentreY ());
+        g.fillPath (play);
+        return;
+      }
 
     case TransportKey::Action:
       {
@@ -129,6 +126,40 @@ drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
         return;
       }
     }
+}
+
+TransportGround
+transportKeyGround (TransportKey key, TransportState const &state)
+{
+  switch (key)
+    {
+    case TransportKey::Record:
+      return state.recording ? TransportGround::Lit : TransportGround::Dark;
+
+    case TransportKey::PlayPause:
+      // Waiting first, and that order is the point: a scheduled *stop* leaves
+      // the clip running until the beat lands, so both are true at once. What
+      // the key has to say then is "your press was taken", not "still
+      // playing" -- the blink is the newer fact.
+      //
+      // Both ends of the transport wait for the next beat, and up to half a
+      // second of nothing after a press reads as a key that did not work.
+      if (state.scheduled)
+        return TransportGround::Waiting;
+
+      return state.playing ? TransportGround::Lit : TransportGround::Dark;
+
+    case TransportKey::Action:
+      return state.actionActive ? TransportGround::Lit : TransportGround::Dark;
+
+    case TransportKey::Stop:
+      // The press alone. Stop has no state to be in, and that is exactly why
+      // it needed this: every other key in the row answers a press by
+      // changing what it shows, and this one had nothing to change.
+      return state.stopPressed ? TransportGround::Lit : TransportGround::Dark;
+    }
+
+  return TransportGround::Dark;
 }
 
 float

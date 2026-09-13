@@ -56,6 +56,36 @@ constexpr float trackWash = 0.18f;
  *  makes: this is the metronome you notice without looking at it, and it was
  *  taken out once already for being louder than that. */
 constexpr float beatWash = 0.035f;
+
+
+/** Where PlayPause sits in the key order -- looked up rather than assumed, so
+ *  rearranging transportKeyOrder cannot leave the blink repainting a
+ *  neighbour. */
+/** How long Stop stays lit under a finger. Same as the tap flash: long enough
+ *  to register as a press having landed, short enough not to linger into the
+ *  next one. */
+constexpr int stopFlashMillis = 110;
+
+int
+playPauseIndex ()
+{
+  for (int i = 0; i < numTransportKeys; ++i)
+    if (transportKeyOrder[i] == TransportKey::PlayPause)
+      return i;
+
+  return 0;
+}
+
+/** And where Stop sits, for the same reason. */
+int
+stopIndex ()
+{
+  for (int i = 0; i < numTransportKeys; ++i)
+    if (transportKeyOrder[i] == TransportKey::Stop)
+      return i;
+
+  return 0;
+}
 constexpr float clippedZoneOpacity = 0.55f;
 constexpr float outlineOpacity = 0.5f;
 }
@@ -68,6 +98,12 @@ ClipSettingsComponent::ClipSettingsComponent ()
 
   // Until setTarget names a channel there is no channel colour to show.
   _channelColour = toColour (theme ().textPrimary);
+
+  _stopFlash.onTick = [this] {
+    _stopFlash.stopTimer ();
+    _stopPressed = false;
+    repaint (_layout.transportButtons[static_cast<size_t> (stopIndex ())]);
+  };
 
   createTouchControls ();
 }
@@ -162,6 +198,14 @@ ClipSettingsComponent::createTouchControls ()
       else
         {
           touch->onTap = [this, key] (int, int) {
+            // Stop answers with a flash, because it has nothing else to answer
+            // with: it acts now and unquantised, so unlike play it can never
+            // blink while it waits, and unlike record it is not a state you
+            // stay in. On press rather than on tap-complete -- what is being
+            // acknowledged is the finger landing.
+            if (key == TransportKey::Stop)
+              flashStop ();
+
             if (onTransportTapped)
               onTransportTapped (key);
           };
@@ -746,9 +790,32 @@ ClipSettingsComponent::setMotionEnvelope (int attackStep, int decayStep)
 }
 
 void
-ClipSettingsComponent::setRecordLength (juce::String const &label)
+ClipSettingsComponent::setRecordLength (int recordLengthLog2)
 {
-  _recordLengthLabel = label;
+  if (recordLengthLog2 == _recordLengthLog2)
+    return;
+
+  _recordLengthLog2 = recordLengthLog2;
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setPatternLengthBeats (float beats)
+{
+  if (juce::approximatelyEqual (beats, _patternLengthBeats))
+    return;
+
+  _patternLengthBeats = beats;
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setBeatsPerBar (int beats)
+{
+  if (beats == _beatsPerBar || beats < 1)
+    return;
+
+  _beatsPerBar = beats;
   repaint ();
 }
 
@@ -912,13 +979,37 @@ ClipSettingsComponent::paint (juce::Graphics &g)
 }
 
 void
-ClipSettingsComponent::setTransportState (bool playing, bool recording)
+ClipSettingsComponent::setTransportState (bool playing, bool recording,
+                                          bool scheduled)
 {
-  if (playing == _transportPlaying && recording == _transportRecording)
+  if (playing == _transportPlaying && recording == _transportRecording
+      && scheduled == _transportScheduled)
     return;
 
   _transportPlaying = playing;
   _transportRecording = recording;
+
+  if (scheduled != _transportScheduled)
+    {
+      _transportScheduled = scheduled;
+
+      // Started bright, so the first thing a press produces is a light rather
+      // than a dark half-period -- a blink that begins by going out reads as
+      // the key having been missed. From here on the beat turns it over; see
+      // pulseOnBeat().
+      _waitBlinkOn = scheduled;
+    }
+
+  repaint ();
+}
+
+void
+ClipSettingsComponent::setActionActive (bool active)
+{
+  if (active == _actionActive)
+    return;
+
+  _actionActive = active;
   repaint ();
 }
 
@@ -961,6 +1052,15 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   // as four labelled controls with one or two of them active rather than as
   // four colours competing. Empty on the pads page, which is these four
   // controls already.
+  // Built once: the four keys read one state, and four copies of it assembled
+  // in a loop is four chances for them to disagree about the same moment.
+  TransportState transport;
+  transport.recording = _transportRecording;
+  transport.playing = _transportPlaying;
+  transport.scheduled = _transportScheduled;
+  transport.actionActive = _actionActive;
+  transport.stopPressed = _stopPressed;
+
   for (int i = 0; i < numTransportKeys; ++i)
     {
       auto const bounds = _layout.transportButtons[static_cast<size_t> (i)];
@@ -970,19 +1070,14 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
       auto const key = transportKeyOrder[i];
       auto const mark = transportColour (key);
 
-      // Only Record lights its ground. The rule above -- a key lights while it
-      // is doing something -- carries information for a take, which is
-      // occasional. Play/pause was lit whenever the shown clip was running,
-      // which at the desk is nearly always: a light that is never off says
-      // nothing, and this one said it twice, because drawTransportGlyph()
-      // below already draws the two bars while it plays and the triangle while
-      // it stands. So the glyph keeps the state and the ground lets go of it.
-      //
-      // The price, named rather than hidden: a shape instead of a colour.
-      // Green-or-not is caught from the corner of an eye; bars-or-triangle
-      // wants a look. Worth it here only because the alternative was a green
-      // that was always on.
-      auto const lit = key == TransportKey::Record && _transportRecording;
+      // One rule for both screens -- see transportKeyGround().
+      auto const ground = transportKeyGround (key, transport);
+
+      // A blink is the lit ground, taken away and put back. Same colour, so
+      // the key that waits and the key that runs are plainly the same key at
+      // two moments rather than two different signals.
+      auto const lit = ground == TransportGround::Lit
+                       || (ground == TransportGround::Waiting && _waitBlinkOn);
 
       g.setColour (lit ? mark.withAlpha (theme ().alphaDisabled)
                        : toColour (theme ().textPrimary, theme ().alphaFill));
@@ -993,10 +1088,10 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
 
       // Shapes, not words -- see drawTransportGlyph(), which the pads page
       // draws from as well so the same action is the same mark in both places.
+      // The mark never changes with the state; the ground above does.
       g.setColour (mark);
-      drawTransportGlyph (g,
-                          bounds.toFloat ().reduced (bounds.getWidth () * 0.28f),
-                          key, _transportPlaying);
+      drawTransportGlyph (
+          g, bounds.toFloat ().reduced (bounds.getWidth () * 0.28f), key);
     }
 
   // The faces stand in a frame of their own: the five keys beside them choose
@@ -1484,6 +1579,17 @@ ClipSettingsComponent::paintBarButton (juce::Graphics &g,
 }
 
 void
+ClipSettingsComponent::flashStop ()
+{
+  _stopPressed = true;
+  repaint (_layout.transportButtons[static_cast<size_t> (stopIndex ())]);
+
+  // One shot, and the same length as the tap flash: both say "your finger
+  // landed" and nothing else, so they should last the same.
+  _stopFlash.startTimer (stopFlashMillis);
+}
+
+void
 ClipSettingsComponent::flashTap ()
 {
   _tapLit = true;
@@ -1520,8 +1626,23 @@ ClipSettingsComponent::functionKeyLook () const
 }
 
 void
-ClipSettingsComponent::pulseTapOnBeat ()
+ClipSettingsComponent::pulseOnBeat ()
 {
+  // The play key's wait, turned over once a beat.
+  //
+  // On the clock rather than on a timer of its own, because what it is waiting
+  // for *is* the clock -- and because the wait is no longer half a beat. Since
+  // pressing play on a running clip means "finish this lap", it can last a
+  // whole phrase: a 32-bar clip at 100 BPM is seventy-seven seconds, and a
+  // 120ms blink over seventy-seven seconds is a strobe. On the beat it reads
+  // as counting down to the end, and it can never run faster than the music.
+  if (_transportScheduled)
+    {
+      _waitBlinkOn = !_waitBlinkOn;
+      repaint (
+          _layout.transportButtons[static_cast<size_t> (playPauseIndex ())]);
+    }
+
   // A press owns the key and its timer while it lasts. Without this a beat
   // landing under the finger restarted the timer at 70ms and cut the press's
   // 110ms flash short — the one feedback that says the tap was taken.
@@ -1654,9 +1775,10 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
       // the slot — that is the picture above, which on this side is the take
       // appearing as you play it in.
       for (int i = 0; i < numRecordLengths; ++i)
-        paintBarButton (g, _layout.lengthButtons[static_cast<size_t> (i)],
-                        recordLengthNames[i], {},
-                        _recordLengthLabel == recordLengthNames[i], isSelected);
+        paintBarButton (
+            g, _layout.lengthButtons[static_cast<size_t> (i)],
+            recordLengthName (recordLengthLog2[i], _beatsPerBar), {},
+            recordLengthLog2[i] == _recordLengthLog2, isSelected);
 
     }
   else
@@ -1669,7 +1791,9 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
       for (int i = 0; i < numSpeedButtons; ++i)
         paintBarButton (
             g, _layout.speedButtons[static_cast<size_t> (i)],
-            speedLog2Name (_speedButtonLog2[static_cast<size_t> (i)]), {},
+            speedKeyName (_speedButtonLog2[static_cast<size_t> (i)],
+                          _patternLengthBeats),
+            {},
             speedKeyIsActive (_speedButtonLog2, i, _speedLog2,
                               _speedDragIndex),
             isSelected);

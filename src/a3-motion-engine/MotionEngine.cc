@@ -518,6 +518,38 @@ MotionEngine::stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint)
 }
 
 void
+MotionEngine::stopPatternAtEnd (std::shared_ptr<Pattern> pattern)
+{
+  Message message;
+  message.command = Message::Command::StopAtEnd;
+  message.pattern = pattern;
+  message.timepoint = {};
+  message.length = {};
+  submitFifoMessage (message);
+}
+
+void
+MotionEngine::cancelScheduledPlay (std::shared_ptr<Pattern> pattern)
+{
+  Message message;
+  message.command = Message::Command::CancelScheduledPlay;
+  message.pattern = pattern;
+  message.timepoint = {};
+  message.length = {};
+  submitFifoMessage (message);
+}
+
+bool
+MotionEngine::isStoppingAtEnd (index_t channel) const
+{
+  if (channel >= _channels.size ())
+    return false;
+
+  auto const &playing = _channels[channel]->_patternPlaying;
+  return playing != nullptr && playing->getStopAtEnd ();
+}
+
+void
 MotionEngine::holdOutputUntil (double millisecondCounter)
 {
   _outputHeldUntil.store (millisecondCounter, std::memory_order_relaxed);
@@ -853,6 +885,31 @@ MotionEngine::handleFifoMessage (Message const &message)
         _messagesStartStop.push (message);
         break;
       }
+    case Message::Command::CancelScheduledPlay:
+      {
+        // Nothing queued and no timepoint: the pointer startPlaying() checks
+        // is cleared here and now, so the message still sitting in the queue
+        // finds nothing to start when its beat comes round.
+        if (!message.pattern)
+          break;
+
+        auto &channel = *_channels[message.pattern->getChannel ()];
+        if (channel._patternScheduledForPlaying != message.pattern)
+          break;
+
+        channel._patternScheduledForPlaying = nullptr;
+        message.pattern->restoreStatus ();
+        break;
+      }
+    case Message::Command::StopAtEnd:
+      {
+        // Nothing is scheduled and nothing is queued: the moment is not a
+        // timepoint, it is wherever the pass runs out. Marked on the pattern,
+        // and performPlayback() reads it when the lap ends.
+        if (message.pattern)
+          message.pattern->setStopAtEnd (true);
+        break;
+      }
     }
 }
 
@@ -1056,6 +1113,8 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
     }
   channel._patternPlaying = channel._patternScheduledForPlaying;
   channel._patternPlaying->setStatus (Pattern::Status::Playing);
+  // A decision made about a previous lap is not this lap's.
+  channel._patternPlaying->setStopAtEnd (false);
   channel._playingStarted = _now;
 
   channel._patternScheduledForPlaying = nullptr;
@@ -1083,6 +1142,8 @@ void
 MotionEngine::stop (std::shared_ptr<Pattern> pattern)
 {
   pattern->setStatus (Pattern::Status::Idle);
+  // The lap it was asked to finish is over either way.
+  pattern->setStopAtEnd (false);
   // _channels[pattern->_channel]->_patternPlaying = nullptr;
   // _channels[pattern->_channel]->_patternScheduledForPlaying = nullptr;
   _patternRecording = nullptr;
@@ -1228,7 +1289,7 @@ MotionEngine::performPlayback ()
               auto const stepped = advancePlayhead (
                   { playing.getPlayPosition (), playing.getPlaySign (), false },
                   playPositionDelta, playing.getEndAction (),
-                  _random.nextFloat ());
+                  _random.nextFloat (), playing.getStopAtEnd ());
 
               playing.setPlayPosition (stepped.position);
               playing.setPlaySign (stepped.sign);
@@ -1239,6 +1300,7 @@ MotionEngine::performPlayback ()
                   // channel's position again: the blob stands where the pass
                   // left it, which is what stopping at the end means.
                   playing.setStatus (Pattern::Status::Idle);
+                  playing.setStopAtEnd (false);
                   channel->_patternPlaying = nullptr;
                   continue;
                 }

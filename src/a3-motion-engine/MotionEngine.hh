@@ -201,6 +201,36 @@ public:
   // Stop
   void stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
 
+  /** Finish the lap, then stop -- whatever the end action says.
+   *
+   *  What pressing play on a running clip means. Not a timepoint, because the
+   *  moment is not a beat somebody can name in advance: it is wherever this
+   *  pass runs out, which depends on the playback length the clip is being
+   *  played at. See advancePlayhead(). */
+  void stopPatternAtEnd (std::shared_ptr<Pattern> pattern);
+
+  /** Take back a start that has not happened yet.
+   *
+   *  Not a stop scheduled on top of it, which is what this used to be: `stop()`
+   *  sets the pattern Idle but leaves `_patternScheduledForPlaying` pointing at
+   *  it, and `startPlaying()` asks only that question -- so the clip started
+   *  anyway a moment later. It looked right only because both messages carried
+   *  the *same* timepoint and the queue happened to pop them in the forgiving
+   *  order. With the start moved to the downbeat the cancel lands first, and
+   *  the bug would have become the normal case.
+   *
+   *  Immediate, and deliberately: taking back a press is not a musical event.
+   */
+  void cancelScheduledPlay (std::shared_ptr<Pattern> pattern);
+
+  /** Whether that has been asked for and has not happened yet.
+   *
+   *  The clip goes on playing meanwhile -- the status stays Playing, because
+   *  it *is* playing -- so this is the only way a screen can tell that a press
+   *  was taken. It is what makes the play key pulse instead of sitting there
+   *  lit as though nothing had been asked. */
+  bool isStoppingAtEnd (index_t channel) const;
+
   // Preview mode: suppress OSC output for a channel while pattern plays
   void setPreviewMode (index_t channel, bool enabled);
   bool isPreviewMode (index_t channel) const;
@@ -277,6 +307,8 @@ private:
       StartRecording,
       StartPlaying,
       Stop,
+      StopAtEnd,
+      CancelScheduledPlay,
     } command;
 
     Pos position;

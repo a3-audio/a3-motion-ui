@@ -112,9 +112,20 @@ EndAction endActionFromName (juce::String const &name);
  *  `delta` is the share of a pass covered in one tick, always positive; the
  *  direction lives in `sign`. `randomPhase` is drawn by the caller rather than
  *  in here, so that this stays a function whose behaviour can be checked. It
- *  is only read when the pass actually ends under EndAction::Random. */
+ *  is only read when the pass actually ends under EndAction::Random.
+ *
+ *  `stopAtEnd` is somebody having pressed play on a running clip: finish this
+ *  lap and stop, whatever the end action says. It overrules exactly the three
+ *  that mean "carry on" -- Loop, Bounce and Random -- which are the clips a
+ *  person wants to get out of at a musical boundary rather than in the middle
+ *  of a figure. Where it leaves the playhead is EndAction::Stop's answer: back
+ *  at the take's start, because the press was made at a boundary and the next
+ *  one should be a start.
+ *
+ *  It defaults to false, which is what every clip did before there was a way
+ *  to ask. */
 Playhead advancePlayhead (Playhead current, float delta, EndAction endAction,
-                          float randomPhase);
+                          float randomPhase, bool stopAtEnd = false);
 
 /** Where in the take a play position lands, as a fractional tick index.
  *
