@@ -202,6 +202,9 @@ uniform float uLineExtent;
 // How much of each of the line's four effects there is: glow, filaments,
 // bolts, and how hot it runs where the blob is.
 uniform vec4  uLineEffects;
+// The weave: turns over the figure, turns a second along it, how deep it cuts,
+// and how many strands it stands for.
+uniform vec4  uBraid;
 
 // Where the four speakers are, worked out once per frame on the CPU.
 //
@@ -464,6 +467,51 @@ float lineNear (vec2 uv, int i)
     return texture2D (uLineMap3, t).r;
 }
 
+/** Where along the figure a pixel is, 0..1, out of the map's second channel.
+ *
+ *  Only meaningful within the cord itself -- that is the only part of the line
+ *  map drawn in pieces -- which is exactly where the weave is wanted. */
+float lineArc (vec2 uv, int i)
+{
+    vec2 t = uv / uLineExtent * 0.5 + 0.5;
+    if (t.x < 0.0 || t.x > 1.0 || t.y < 0.0 || t.y > 1.0)
+        return 0.0;
+
+    if (i == 0) return texture2D (uLineMap0, t).g;
+    if (i == 1) return texture2D (uLineMap1, t).g;
+    if (i == 2) return texture2D (uLineMap2, t).g;
+    return texture2D (uLineMap3, t).g;
+}
+
+/** How the cord is twisted here, 0..1.
+ *
+ *  A braid of three hairlines cannot be drawn as light at this size: the map
+ *  the shader finds the line through is two and a half screen pixels a texel,
+ *  and three strands two pixels apart are one texel. What *can* be drawn is
+ *  what a braid does to the light -- the maximum of three sines a third of a
+ *  turn apart, which crests three times a winding and is the signature of a
+ *  twisted cord rather than a round one.
+ *
+ *  It travels along the line, because a weave that stood still would be a
+ *  texture printed on the figure rather than a rope being laid. */
+float braidWeaveAt (float u)
+{
+    if (uBraid.z < 0.001)
+        return 0.5;
+
+    float phase = 6.28318531 * (u * uBraid.x + uTime * uBraid.y);
+    float strands = max (uBraid.w, 1.0);
+
+    float best = -2.0;
+    for (int k = 0; k < 5; k++)
+    {
+        if (float (k) >= strands) break;
+        best = max (best, sin (phase + 6.28318531 * float (k) / strands));
+    }
+
+    return 0.5 + 0.5 * best;
+}
+
 float lineOn (int i)
 {
     if (i == 0) return uLineOn.x;
@@ -523,10 +571,23 @@ vec3 lineGlow (vec2 uv, int i)
                  ? smoothstep (0.30, 0.0, length (uv - ps.xy)) * uLineEffects.w
                  : 0.0;
 
+    // How the cord is twisted here. It rides on the core rather than on the
+    // whole glow: the outer filaments are the plasma and belong to the field,
+    // not to the rope.
+    float weave = braidWeaveAt (lineArc (uv, i));
+    float twist = mix (1.0, 0.78 + 0.44 * weave, uBraid.z);
+
     // The glow. The exponent is what the line's apparent thickness actually
     // is: the vector stroke under it is a single pixel, and everything wider
     // than that is this. Asked to halve the line, halve this first.
-    float tight = pow (near, 6.0);
+    //
+    // The weave narrows and widens it a little along its length, which is the
+    // scalloped silhouette of a laid rope, and brightens where a strand comes
+    // over the top.
+    // Divided by what the core is worth, so a full-strength core still reads
+    // as one and the weave has somewhere to move it.
+    float tight = pow (clamp (near * twist / 0.88, 0.0, 1.0), 6.0)
+                * mix (1.0, 0.40 + 1.25 * weave, uBraid.z);
     float wide  = pow (near, 1.15);
 
     // The filaments. The noise is sampled in scene space and drifts, so they
@@ -549,7 +610,11 @@ vec3 lineGlow (vec2 uv, int i)
     float bolt = boltAt (struck - 0.88, 0.012) * gate * presence
                * uLineEffects.z;
 
-    vec3 hot = mix (col, uBoltCoreColour, 0.15 + 0.55 * atBlob);
+    // And a little white where a strand rides over the top, so the crest reads
+    // as something catching the light rather than as the line simply pulsing.
+    vec3 hot = mix (col, uBoltCoreColour,
+                    0.15 + 0.55 * atBlob
+                        + 0.55 * uBraid.z * max (weave - 0.5, 0.0));
 
     return col * wide * 0.055 * uLineEffects.x
          + hot * tight * 0.45 * uLineEffects.x
@@ -1540,6 +1605,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uLineOn        = glGetUniformLocation (pid, "uLineOn");
   _uLineExtent    = glGetUniformLocation (pid, "uLineExtent");
   _uLineEffects   = glGetUniformLocation (pid, "uLineEffects");
+  _uBraid         = glGetUniformLocation (pid, "uBraid");
   _uSpkDir[0]     = glGetUniformLocation (pid, "uSpkDir0");
   _uSpkDir[1]     = glGetUniformLocation (pid, "uSpkDir1");
   _uSpkDir[2]     = glGetUniformLocation (pid, "uSpkDir2");
@@ -1792,6 +1858,9 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     if (_uLineEffects >= 0)
       glUniform4f (_uLineEffects, theme ().lineGlow, theme ().lineFilament,
                    theme ().lineBolt, theme ().lineHeat);
+    if (_uBraid >= 0)
+      glUniform4f (_uBraid, theme ().braidTurns, theme ().braidSpin,
+                   theme ().braidWeave, theme ().braidStrands);
   }
 
   setThemeUniform (_uActionColour, theme ().blobAction);

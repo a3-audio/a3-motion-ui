@@ -325,7 +325,7 @@ loadTheme (juce::var const &skin)
   theme.sphereScale = themeFloat (skin, "sphereScale", theme.sphereScale);
   theme.trajectoryThickness
       = themeFloat (skin, "trajectoryThickness", theme.trajectoryThickness);
-  theme.braidRadius = themeFloat (skin, "braidRadius", theme.braidRadius);
+  theme.braidWeave = themeFloat (skin, "braidWeave", theme.braidWeave);
   theme.braidTurns = themeFloat (skin, "braidTurns", theme.braidTurns);
   theme.braidSpin = themeFloat (skin, "braidSpin", theme.braidSpin);
   theme.braidStrands = themeFloat (skin, "braidStrands", theme.braidStrands);
@@ -436,7 +436,7 @@ themeDefaultsVar ()
   number ("strokeThick", defaults.strokeThick);
   number ("sphereScale", defaults.sphereScale);
   number ("trajectoryThickness", defaults.trajectoryThickness);
-  number ("braidRadius", defaults.braidRadius);
+  number ("braidWeave", defaults.braidWeave);
   number ("braidTurns", defaults.braidTurns);
   number ("braidSpin", defaults.braidSpin);
   number ("braidStrands", defaults.braidStrands);

@@ -201,8 +201,8 @@ struct Theme
    *  straight grey spokes across the middle of the sphere. The strands are
    *  pulled back onto the axis before it arrives now, so the cord closes to a
    *  single thread through a cusp. */
-  float braidRadius = 0.0075f;
-  float braidTurns = 44.f;
+  float braidWeave = 1.f;
+  float braidTurns = 18.f;
   float braidSpin = 0.10f;
   float braidStrands = 3.f;
 

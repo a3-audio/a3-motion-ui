@@ -137,8 +137,30 @@ struct LineMapStep
 };
 constexpr LineMapStep lineMapSteps[] = {
   { 34.f, 0.05f }, { 22.f, 0.15f }, { 14.f, 0.31f },
-  { 9.f, 0.53f },  { 5.f, 0.76f },  { 2.5f, 1.00f },
+  { 9.f, 0.53f },  { 5.f, 0.76f },
 };
+
+// The innermost step is drawn on its own, and in pieces.
+//
+// It carries two things at once: full nearness in the red, and *where along
+// the figure* this piece is in the green. The second is what lets the shader
+// twist the cord: a weave is a pattern that travels along a line, and a
+// fragment shader has no idea where along anything it is unless it is told.
+//
+// In pieces because a stroke has one colour and the arc length has to change
+// along the line. Only at this width, not at all of them, or it would be a
+// hundred and twenty strokes five times over.
+constexpr float lineMapCoreWidth = 2.2f;
+constexpr int lineMapPieces = 120;
+
+// What the core is worth, and it is deliberately short of one.
+//
+// A field that saturates cannot be modulated: with the core at full nearness
+// the shader's weave scaled a value that was already clamped, so the cord's
+// waist never moved and only its brightness did. Left with headroom, the same
+// weave narrows and widens it along its length, which is the scalloped
+// silhouette of a laid rope.
+constexpr float lineMapCoreNearness = 0.88f;
 // What counts as a jump rather than a movement, in the sphere's normalised
 // units: a clip looping back to its start, or a finger dropping the blob
 // somewhere else. The wake is cut there instead of being dragged across a
@@ -1983,6 +2005,75 @@ drawPathOnSphere (juce::Path const &displayPath,
       path.lineTo (projected[i].first);
     }
   flush (path, currentBand);
+
+  // ── The map the shader finds this line through ──────────────────
+  //
+  // Lost once already: the braid was built by replacing the block this sits
+  // in, and it went with it -- the trajectory ran for two commits with no glow
+  // at all, which is most of what "das sieht jetzt wieder billig aus" was
+  // looking at. Kept at the end of the function and said out loud here.
+  if (lineMap == nullptr || projected.size () < 2)
+    return;
+
+  auto const toMap = [] (juce::Point<float> const &p) {
+    return juce::Point<float> (
+        (p.x / lineMapExtent * 0.5f + 0.5f) * static_cast<float> (lineMapSize),
+        (p.y / lineMapExtent * 0.5f + 0.5f) * static_cast<float> (lineMapSize));
+  };
+
+  juce::Path mapPath;
+  mapPath.startNewSubPath (toMap (projected[0].first));
+  for (std::size_t i = 1; i < projected.size (); ++i)
+    {
+      if (startsRun[i])
+        mapPath.startNewSubPath (toMap (projected[i].first));
+      else
+        mapPath.lineTo (toMap (projected[i].first));
+    }
+
+  juce::Graphics mg (*lineMap);
+
+  // The falling cone of nearness, widest and dimmest first: a narrower stroke
+  // lies wholly inside a wider one, so overwriting is the maximum a distance
+  // field needs.
+  for (auto const &step : lineMapSteps)
+    {
+      mg.setColour (juce::Colour::fromFloatRGBA (step.nearness, 0.f, 0.f, 1.f));
+      mg.strokePath (mapPath,
+                     juce::PathStrokeType (
+                         step.width, juce::PathStrokeType::JointStyle::curved,
+                         juce::PathStrokeType::EndCapStyle::rounded));
+    }
+
+  // And the core, in pieces, each carrying where along the figure it is.
+  auto const count = projected.size ();
+  auto const per = std::max<std::size_t> (2, count / lineMapPieces);
+  auto const coreStroke = juce::PathStrokeType (
+      lineMapCoreWidth, juce::PathStrokeType::JointStyle::curved,
+      juce::PathStrokeType::EndCapStyle::rounded);
+
+  for (std::size_t start = 0; start + 1 < count; start += per)
+    {
+      auto const stop = std::min (start + per, count - 1);
+
+      juce::Path piece;
+      piece.startNewSubPath (toMap (projected[start].first));
+      for (auto i = start + 1; i <= stop; ++i)
+        {
+          if (startsRun[i])
+            piece.startNewSubPath (toMap (projected[i].first));
+          else
+            piece.lineTo (toMap (projected[i].first));
+        }
+      if (piece.isEmpty ())
+        continue;
+
+      auto const u = (static_cast<float> (start + stop) * 0.5f)
+                     / static_cast<float> (count - 1);
+      mg.setColour (
+          juce::Colour::fromFloatRGBA (lineMapCoreNearness, u, 0.f, 1.f));
+      mg.strokePath (piece, coreStroke);
+    }
 }
 
 void

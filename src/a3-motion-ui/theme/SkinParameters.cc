@@ -436,8 +436,8 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
 
   // The cord. A radius past this and three hairlines are a rope; a turn count
   // past this and the weave is finer than the pixels that would draw it.
-  if (path == "braidRadius")
-    return juce::jlimit (0.0, 0.04, value);
+  if (path == "braidWeave")
+    return juce::jlimit (0.0, 2.0, value);
   if (path == "braidTurns")
     return juce::jlimit (0.0, 200.0, value);
   if (path == "braidSpin")

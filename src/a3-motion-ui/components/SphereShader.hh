@@ -324,6 +324,7 @@ private:
   GLint _uLineOn = -1;
   GLint _uLineExtent = -1;
   GLint _uLineEffects = -1;
+  GLint _uBraid = -1;
 
   GLint _uSpkDir[kMaxBlobs] = {};
   GLint _uSpkCentre[kMaxBlobs] = {};
