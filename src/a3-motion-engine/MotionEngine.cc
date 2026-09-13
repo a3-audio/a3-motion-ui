@@ -917,6 +917,11 @@ void
 MotionEngine::scheduledForRecording (std::shared_ptr<Pattern> pattern,
                                      Measure timepoint)
 {
+  // The timepoint belongs to the queued message, which is what actually fires
+  // the take; nothing here needs it. Kept in the signature rather than dropped
+  // so this reads like its two siblings, which do take one.
+  juce::ignoreUnused (timepoint);
+
   if (_patternScheduledForRecording)
     {
       _patternScheduledForRecording->restoreStatus ();

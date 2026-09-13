@@ -345,11 +345,6 @@ public:
   /** Which section (0..numParameters-1) is currently selected/highlighted. */
   void setSelectedParameterIndex (int index);
 
-  /** Scale factor for every knob/toggle's shared size (see class doc) —
-   *  1.0 = default. Set from A3MotionUIComponent's Global Settings "Pot
-   *  Size" option, so it's adjustable live on the device without a
-
-
   /** One-line terminal-style readout of the last-operated control, shown
    *  top-right (e.g. "CH2 POT1 0.73"). Global, independent of setTarget(). */
   void setLastControlReadout (juce::String const &text);
