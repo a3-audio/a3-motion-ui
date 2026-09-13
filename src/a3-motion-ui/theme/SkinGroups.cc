@@ -61,6 +61,7 @@ constexpr Group groups[] = {
   { "Sphere", { "sphereSurface", "sphereRim", "sphereEnvironment",
                 "sphereScale", "trajectoryThickness", "boltCore",
                 "backgroundGlow" } },
+  { "Blob effects", { "blobAction", "blobSparkle", "blobBolt", "blobTrail" } },
   { "Type and size", { "fontHeader", "fontBody", "potSize",
                        "clipSettingsHeightScale" } },
   { "Metrics", { "radius*", "padding*", "stroke*" } },

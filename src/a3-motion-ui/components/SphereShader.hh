@@ -29,10 +29,19 @@ namespace a3
 /**
  * Full-scene 3D renderer via a fullscreen-quad fragment shader.
  * Raytraces: dark reflective sphere with head silhouette, 4 speaker
- * boxes, volumetric speaker light beams, and up to 4 channel blobs
- * as lit 3D spheres with VU corona glow.
+ * boxes, volumetric speaker light beams, and the 4 channel blobs -- each a
+ * core, a rim, a VU corona, procedural sparks, a bolt on a transient, a wake
+ * behind it and a neon ring while an action runs.
  *
- * GLSL 1.20 compatible (GL 2.1 desktop on RPi 4 V3D).
+ * The blobs used to be *only* light sources here while a flat 2D ellipse over
+ * the top was what you actually saw, and this comment said otherwise. It cost
+ * the maintainer a sphere with no blobs on it: the 2D layer was removed to
+ * "uncover" a 3D one that had never been written. They are drawn here now --
+ * but the lesson stands, so: if you are about to remove a layer because this
+ * header says something else draws it, make the replacement draw first and
+ * look at it.
+ *
+ * GLSL 1.20 compatible (GL 2.1 desktop).
  */
 class SphereShader
 {
@@ -94,17 +103,6 @@ public:
   };
   void setBlob (int index, BlobData const &data);
   void setNumBlobs (int n);
-
-  /** What an action wears on a blob. Neon rather than white: white is what a
-   *  VU peak already blends towards, and a second signal borrowing the first
-   *  one's colour says nothing. A skin value, so it can be moved off a channel
-   *  colour it happens to collide with. */
-  void setActionColour (float r, float g, float b)
-  {
-    _actionColour[0] = r;
-    _actionColour[1] = g;
-    _actionColour[2] = b;
-  }
 
   // Note: CoronaConfig now lives in MotionComponent (2D blob overlay)
 
@@ -294,11 +292,9 @@ private:
   GLint _uBlobTrailA[kMaxBlobs] = {};   // vec4: t0.xy, t1.xy
   GLint _uBlobTrailB[kMaxBlobs] = {};   // vec4: t2.xy, t3.xy
   GLint _uActionColour = -1;
+  GLint _uBlobEffects = -1;
 
-  /** Neon violet until a skin says otherwise. */
-  float _actionColour[3] = { 0.72f, 0.24f, 1.0f };
   GLint _uNumBlobs = -1;
-  // Note: blob disc + corona are drawn as 2D overlay by MotionComponent
 
   GLint _aPos = -1;
 

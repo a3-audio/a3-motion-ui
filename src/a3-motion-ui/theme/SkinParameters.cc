@@ -423,6 +423,11 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
   if (path == "trajectoryThickness")
     return juce::jlimit (0.004, 0.08, value);
 
+  // One is what the device ships with and zero is off; past two an effect
+  // stops being a flourish on the blob and becomes the picture.
+  if (path == "blobSparkle" || path == "blobBolt" || path == "blobTrail")
+    return juce::jlimit (0.0, 2.0, value);
+
   if (path == "sphereScale")
     {
       // Not a fixed ceiling: the sphere may grow until the speaker icons run

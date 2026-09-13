@@ -91,6 +91,36 @@ TEST (Theme, ChannelsKeepTheirOrder)
     EXPECT_EQ (theme.channel[i].r, i + 1) << "channel " << i;
 }
 
+TEST (Theme, TheBlobsEffectsAreSkinValuesLikeEverythingElse)
+{
+  // "psychonautisch solls sein und natuerlich per skineditor anpassbar" --
+  // so what the blob throws off is four numbers a skin states, not four
+  // constants in a fragment shader.
+  auto const parsed = juce::JSON::parse (
+      R"({"blobAction": {"r": 10, "g": 20, "b": 30},
+          "blobSparkle": 0.4, "blobBolt": 1.7, "blobTrail": 0.0})");
+  auto const theme = loadTheme (parsed);
+
+  EXPECT_EQ (theme.blobAction.r, 10);
+  EXPECT_EQ (theme.blobAction.g, 20);
+  EXPECT_EQ (theme.blobAction.b, 30);
+  EXPECT_NEAR (theme.blobSparkle, 0.4f, 0.0001f);
+  EXPECT_NEAR (theme.blobBolt, 1.7f, 0.0001f);
+  // Zero is off, and it has to survive being read as "absent".
+  EXPECT_NEAR (theme.blobTrail, 0.f, 0.0001f);
+}
+
+TEST (Theme, TheBlobsEffectsAreOfferedToTheSkinEditor)
+{
+  // A value the editor cannot see is a value nobody can turn.
+  auto const defaults = themeDefaultsVar ();
+
+  EXPECT_TRUE (defaults.hasProperty ("blobAction"));
+  EXPECT_TRUE (defaults.hasProperty ("blobSparkle"));
+  EXPECT_TRUE (defaults.hasProperty ("blobBolt"));
+  EXPECT_TRUE (defaults.hasProperty ("blobTrail"));
+}
+
 TEST (Theme, SizesAndAlphasComeFromTheSkinToo)
 {
   auto const parsed = juce::JSON::parse (

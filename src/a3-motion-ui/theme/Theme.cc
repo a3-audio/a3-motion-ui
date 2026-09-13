@@ -294,6 +294,7 @@ loadTheme (juce::var const &skin)
   colour ("backgroundGlow", theme.backgroundGlow);
   colour ("speakerLight", theme.speakerLight);
   colour ("energy", theme.energy);
+  colour ("blobAction", theme.blobAction);
 
   // Channels come as an array, and their order is what ties a colour to a
   // channel — an entry out of place renames every channel after it.
@@ -324,6 +325,9 @@ loadTheme (juce::var const &skin)
   theme.sphereScale = themeFloat (skin, "sphereScale", theme.sphereScale);
   theme.trajectoryThickness
       = themeFloat (skin, "trajectoryThickness", theme.trajectoryThickness);
+  theme.blobSparkle = themeFloat (skin, "blobSparkle", theme.blobSparkle);
+  theme.blobBolt = themeFloat (skin, "blobBolt", theme.blobBolt);
+  theme.blobTrail = themeFloat (skin, "blobTrail", theme.blobTrail);
   theme.blobScale
       = themeFloat (skin["blob"], "scale", theme.blobScale);
   theme.padShadeEmpty = themeFloat (skin, "padShadeEmpty", theme.padShadeEmpty);
@@ -388,6 +392,7 @@ themeDefaultsVar ()
   colour ("sphereRim", defaults.sphereRim);
   colour ("sphereEnvironment", defaults.sphereEnvironment);
   colour ("boltCore", defaults.boltCore);
+  colour ("blobAction", defaults.blobAction);
 
   auto const number = [object] (char const *name, float value) {
     object->setProperty (name, value);
@@ -423,6 +428,9 @@ themeDefaultsVar ()
   number ("strokeThick", defaults.strokeThick);
   number ("sphereScale", defaults.sphereScale);
   number ("trajectoryThickness", defaults.trajectoryThickness);
+  number ("blobSparkle", defaults.blobSparkle);
+  number ("blobBolt", defaults.blobBolt);
+  number ("blobTrail", defaults.blobTrail);
   number ("fontHeader", defaults.fontHeader);
   number ("fontBody", defaults.fontBody);
   number ("potSize", defaults.potSize);

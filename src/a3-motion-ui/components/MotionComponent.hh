@@ -119,7 +119,6 @@ private:
   void updateChannelBlobHighlight (juce::Point<float> posMousePixel);
 
   void drawCircle (juce::Graphics &g);
-  void drawChannelBlobs (juce::Graphics &g);
 
 public:
   /** What the running take is being recorded over, or nullptr for none. */

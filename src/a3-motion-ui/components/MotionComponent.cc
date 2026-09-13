@@ -993,7 +993,6 @@ MotionComponent::applyVisualConfig (juce::var const &config)
   }
 
   // Cache corona config (avoids JSON lookups every frame per blob).
-  // Used directly by drawChannelBlobs() (2D overlay).
   _coronaCfg = loadCoronaConfig (config);
 }
 
@@ -1691,110 +1690,6 @@ MotionComponent::drawCameraBall (juce::Graphics &g)
     g.setColour (toColour (theme ().background, theme ().alphaTextStrong));
     g.strokePath (figure, juce::PathStrokeType (r * 0.02f));
   }
-}
-
-void
-MotionComponent::drawChannelBlobs (juce::Graphics &g)
-{
-  // Draw blobs + corona directly — no FBO compositing (_imageBlend) for
-  // maximum performance on RPi4.
-
-  for (auto channel = 0u; channel < _engine.getNumChannels (); ++channel)
-  {
-      auto const position = _engine.getChannelPosition (channel);
-      if (!position.isValid ())
-        continue;
-
-      auto blobSize = 2 * _blobScale;
-      blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
-
-      // Blobs on the back of the sphere (z < 0): draw smaller and dimmer
-      // to give a sense of depth through the semi-transparent sphere.
-      float backFade = 1.0f;
-      if (position.z () < 0.f)
-        {
-          backFade = 0.3f + 0.7f * std::clamp (position.z () + 1.f, 0.f, 1.f);
-          blobSize *= (0.5f + 0.5f * backFade);
-        }
-
-      auto posNormalized = projectToScreen (position);
-
-      auto colour = _uiStates[channel]->colour;
-      if (backFade < 1.0f)
-        colour = colour.withMultipliedAlpha (backFade);
-
-      // Draw VU corona (glow effect based on audio level)
-      float vuRms = (channel < 4) ? _smoothBlobRms[channel] : 0.f;
-      float vuPeak = (channel < 4) ? _smoothBlobPeak[channel] : 0.f;
-      bool isGrabbed = _uiStates[channel]->grabbed;
-      bool isHighlighted = _uiStates[channel]->highlighted;
-
-      if (vuRms > 0.0001f || vuPeak > 0.0001f || isGrabbed || isHighlighted)
-        {
-          float peakScaled = coronaPeakLevel (vuPeak, _coronaCfg.vuMax);
-          float vuScaled = coronaVuLevel (vuPeak, vuRms, _coronaCfg.vuMax);
-          float coronaScale = coronaScaleFactor (vuScaled, _coronaCfg);
-
-          float baseBlobScale = 1.0f;
-          if (isGrabbed)
-            {
-              baseBlobScale = activeAreaAroundBlobFactor;
-              coronaScale *= _coronaCfg.sizeGrabbed;
-            }
-          else if (isHighlighted)
-            {
-              baseBlobScale = blobHighlightFactor;
-              coronaScale *= 1.2f;
-            }
-
-          auto coronaDiam = blobSize * baseBlobScale * coronaScale;
-          float coronaAlpha = _coronaCfg.alphaMin
-                              + peakScaled * (_coronaCfg.alphaMax - _coronaCfg.alphaMin);
-
-          // Two glow layers (outer → inner) — blend towards white at high VU
-          auto whiteBlend = peakScaled * _coronaCfg.whiteBlend;
-          // boltCore rather than textPrimary: this is the white-hot centre
-          // of a light effect, the same role the shader's bolts use, not a
-          // piece of text that happens to be white.
-          auto coronaColour
-              = colour.interpolatedWith (toColour (theme ().boltCore), whiteBlend);
-          for (int layer = 2; layer >= 1; --layer)
-            {
-              // Layer 2 is the outer one — keep it tied to the constant the
-              // visibility test asserts against.
-              float layerScale
-                  = 1.0f + (layer - 1) * (coronaOuterLayerScale - 1.0f);
-              float layerAlpha = coronaAlpha / (layer * 2.0f);
-              auto layerSize = coronaDiam * layerScale;
-              auto layerRect = juce::Rectangle<float> (0.f, 0.f, layerSize, layerSize);
-              g.setColour (coronaColour.withAlpha (layerAlpha));
-              g.fillEllipse (layerRect.withCentre (posNormalized));
-            }
-        }
-
-      // Grabbed: transparent area
-      if (isGrabbed)
-        {
-          auto grabSize = blobSize * activeAreaAroundBlobFactor;
-          auto grabRect = juce::Rectangle<float> (0.f, 0.f, grabSize, grabSize);
-          g.setColour (colour.withAlpha (theme ().alphaDisabled));
-          g.fillEllipse (grabRect.withCentre (posNormalized));
-        }
-
-      // Highlighted: brighter outline
-      if (isHighlighted)
-        {
-          auto hlSize = blobSize * blobHighlightFactor;
-          auto hlRect = juce::Rectangle<float> (0.f, 0.f, hlSize, hlSize);
-          g.setColour (colour.withLightness (colour.getLightness () + 0.2f));
-          g.fillEllipse (hlRect.withCentre (posNormalized));
-        }
-
-      // Solid blob disc
-      auto blob = juce::Rectangle<float> (0.f, 0.f, blobSize, blobSize);
-      g.setColour (colour);
-      g.fillEllipse (blob.withCentre (posNormalized));
-    }
 }
 
 // ── Draw a juce::Path (from SVG displayPath) projected onto the sphere ──

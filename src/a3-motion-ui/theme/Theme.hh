@@ -136,6 +136,25 @@ struct Theme
   ThemeColour speakerLight{ 70, 130, 250 };
   ThemeColour energy{ 150, 220, 255 };
 
+  /** What a blob wears while an action script has it.
+   *
+   *  Neon rather than white: a VU peak already blends the blob towards white,
+   *  and a second signal borrowing the first one's colour says nothing. A
+   *  skin value so it can be moved off a channel colour it happens to collide
+   *  with -- on a skin whose first channel is already pink it is the flicker
+   *  rather than the hue that carries the message. */
+  ThemeColour blobAction{ 184, 61, 255 };
+
+  /** How much of each of the blob's three effects there is: the flecks thrown
+   *  off it, the lightning on a transient, and the wake behind it. One is
+   *  what the device ships with, zero is off, two is as far as it goes.
+   *
+   *  Zero has to mean off for all three, or "psychonautic" is a look nobody
+   *  can decline. */
+  float blobSparkle = 1.f;
+  float blobBolt = 1.f;
+  float blobTrail = 1.f;
+
   // Sizes, as a share of the component's shorter side
   float sphereScale = 0.62f;
   float blobScale = 0.05f;

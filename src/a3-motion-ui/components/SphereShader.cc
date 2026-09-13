@@ -180,6 +180,8 @@ uniform vec4  uBlobTrailB3;
  *  colour says nothing. The hue alone will not separate it from channel one's
  *  pink -- the flicker is the other half of the message. */
 uniform vec3  uActionColour;
+// How much of each of the blob's three effects there is: sparkle, bolt, wake.
+uniform vec3  uBlobEffects;
 
 uniform vec3  uBlobCol0;
 uniform vec3  uBlobCol1;
@@ -431,7 +433,7 @@ vec3 blobLight (vec2 uv, int i)
     // by level and much harder while an action runs. Procedural: the ring is
     // sampled by angle, and each fleck's life is a fraction of time.
     float sparks = 0.0;
-    float sparkGain = 0.35 + 1.6 * vu + 3.0 * action;
+    float sparkGain = (0.35 + 1.6 * vu + 3.0 * action) * uBlobEffects.x;
     if (sparkGain > 0.01 && d < reach * 1.6)
     {
         float ang = atan (d2.y, d2.x);
@@ -461,7 +463,7 @@ vec3 blobLight (vec2 uv, int i)
     // gone -- the sphere's own lightning does the same thing with the same
     // helper, so the two read as one weather.
     float bolt = 0.0;
-    if (vu > 0.25)
+    if (vu > 0.25 && uBlobEffects.y > 0.001)
     {
         float strikeId = floor (uTime * 11.0);
         // Rare enough to be an event. At a threshold of 0.30 one was alight
@@ -486,7 +488,7 @@ vec3 blobLight (vec2 uv, int i)
             float within = step (0.0, along) * step (along, len);
             float taper = 1.0 - along / max (len, 0.001);
             bolt += within * boltAt (across - stray, r * 0.07 * taper)
-                  * taper * taper;
+                  * taper * taper * uBlobEffects.y;
         }
     }
 
@@ -529,7 +531,7 @@ vec3 blobLight (vec2 uv, int i)
     vec4 tb = getBlobTrailB (i);
     float spread = length (tb.zw - ps.xy) / max (r, 0.001);
     float trail = 0.0;
-    if (spread > 0.35)
+    if (spread > 0.35 && uBlobEffects.z > 0.001)
     {
         trail += wakeSegment (uv, ps.xy, ta.xy, r * 0.80, r * 0.66,
                               1.00, 0.74, seed);
@@ -540,7 +542,7 @@ vec3 blobLight (vec2 uv, int i)
         trail += wakeSegment (uv, tb.xy, tb.zw, r * 0.34, r * 0.16,
                               0.26, 0.08, seed + 3.0);
         trail *= smoothstep (0.35, 1.0, spread)
-               * (0.75 + 0.85 * vu + 0.7 * action);
+               * (0.75 + 0.85 * vu + 0.7 * action) * uBlobEffects.z;
     }
     // It wears the action too. A trail in the channel's colour while an action
     // runs would leave the one effect that has to be unmistakable saying
@@ -1064,6 +1066,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBlobTrailB[2] = glGetUniformLocation (pid, "uBlobTrailB2");
   _uBlobTrailB[3] = glGetUniformLocation (pid, "uBlobTrailB3");
   _uActionColour  = glGetUniformLocation (pid, "uActionColour");
+  _uBlobEffects   = glGetUniformLocation (pid, "uBlobEffects");
 
   _aPos = glGetAttribLocation (pid, "aPos");
 
@@ -1273,9 +1276,10 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
         glUniform4f (_uBlobTrailB[i], tx (2), ty (2), tx (3), ty (3));
     }
 
-  if (_uActionColour >= 0)
-    glUniform3f (_uActionColour, _actionColour[0], _actionColour[1],
-                 _actionColour[2]);
+  setThemeUniform (_uActionColour, theme ().blobAction);
+  if (_uBlobEffects >= 0)
+    glUniform3f (_uBlobEffects, theme ().blobSparkle, theme ().blobBolt,
+                 theme ().blobTrail);
 
   // Draw fullscreen quad (with alpha blending for semi-transparent sphere)
   glEnable (GL_BLEND);
