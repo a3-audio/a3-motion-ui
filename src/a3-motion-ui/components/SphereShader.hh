@@ -96,7 +96,7 @@ public:
      *  something heavy is travelling along it, and a plume that cuts the
      *  corners says that where one tracing them would only be a second line.
      *  The lag is the caller's -- see MotionComponent::advanceBlobTrails(). */
-    float trailX[4]{}, trailY[4]{};
+    float trailX[8]{}, trailY[8]{};
     bool visible = false;
     bool grabbed = false;
     bool highlighted = false;
@@ -291,6 +291,8 @@ private:
   // constant-index-expression, and the blob index here is a function argument.
   GLint _uBlobTrailA[kMaxBlobs] = {};   // vec4: t0.xy, t1.xy
   GLint _uBlobTrailB[kMaxBlobs] = {};   // vec4: t2.xy, t3.xy
+  GLint _uBlobTrailC[kMaxBlobs] = {};   // vec4: t4.xy, t5.xy
+  GLint _uBlobTrailD[kMaxBlobs] = {};   // vec4: t6.xy, t7.xy
   GLint _uActionColour = -1;
   GLint _uBlobEffects = -1;
 

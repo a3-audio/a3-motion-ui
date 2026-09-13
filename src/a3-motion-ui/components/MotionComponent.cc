@@ -109,10 +109,10 @@ auto constexpr activeAreaAroundBlobFactor = 3.f;
 auto constexpr blobHighlightFactor = 1.1f;
 
 // How hard each link of the blob's wake chases the one in front of it, per
-// rendered frame. Four links at this rate settle about half a second behind
-// the blob -- long enough to read as a trail, short enough that a fast figure
-// does not wear a scarf round the whole sphere.
-auto constexpr blobTrailLag = 0.07f;
+// rendered frame. Eight links at this rate settle roughly a second and a half
+// behind the blob -- the maintainer's call, after the first version came out
+// short: "der schweif vom blob soll laenger".
+auto constexpr blobTrailLag = 0.09f;
 // What counts as a jump rather than a movement, in the sphere's normalised
 // units: a clip looping back to its start, or a finger dropping the blob
 // somewhere else. The wake is cut there instead of being dragged across a
@@ -1748,43 +1748,55 @@ drawPathOnSphere (juce::Path const &displayPath,
   // a boring line, and a figure that is alive at rest is the difference between
   // a diagram and an instrument.
   auto const breathMs = juce::Time::getMillisecondCounter ();
-  auto const breath
-      = 0.82f
-        + 0.18f
-              * std::sin (static_cast<float> (breathMs) * 0.0011f + glowPhase);
+  auto const seconds = static_cast<float> (breathMs) * 0.001f;
+  auto const breath = 0.82f + 0.18f * std::sin (seconds * 1.1f + glowPhase);
 
-  auto flushPath = [&] (juce::Path &path, int band) {
-    float fade = fadeByDepth
+  // Where a point of the line stands in the light running round the figure.
+  //
+  // Two waves, at three and at seven crests, travelling at different speeds
+  // and in opposite directions, so the pattern never quite repeats on the eye.
+  // It is what makes the figure read as something being *played* rather than
+  // as a drawing of where it goes: a line whose brightness is the same
+  // everywhere is a diagram, and the maintainer said as much twice.
+  //
+  // Two waves and no more. A third at nineteen crests was in here for one
+  // build and it took the wave across the hot core's threshold several times
+  // a piece -- which draws the crest as a dashed line, and a dashed line reads
+  // as marching ants rather than as light travelling.
+  auto const flow = [glowPhase, seconds] (float u) {
+    auto const twoPi = juce::MathConstants<float>::twoPi;
+    auto const slow = std::sin (twoPi * (u * 3.f - seconds * 0.55f) + glowPhase);
+    auto const fast
+        = std::sin (twoPi * (u * 7.f + seconds * 0.31f) + glowPhase * 1.7f);
+    return juce::jlimit (0.f, 1.f,
+                         0.5f + 0.5f * (0.65f * slow + 0.35f * fast));
+  };
+
+  // The colour a piece of the line is lit in.
+  //
+  // The channel keeps its hue -- that is how four lines stay apart -- but it
+  // is turned either side of it as the wave passes, and it runs from a deep
+  // shade in the troughs to near-white at the crests. The first version moved
+  // both by a few percent and the maintainer's verdict was the same as before
+  // it: "gar nicht psychedelisch". A pulse you have to look for is not a pulse.
+  auto const litAt = [&colour] (float w) {
+    return (w < 0.5f ? colour.darker ((0.5f - w) * 1.3f)
+                     : colour.brighter ((w - 0.5f) * 2.2f))
+        .withRotatedHue (0.16f * (w - 0.5f));
+  };
+
+  auto const fadeForBand = [&] (int band) {
+    return fadeByDepth
         ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
                               : (band == 2 ?  0.25f :  0.75f))
         : 1.0f;
-    float thickness = lineThickness * (0.5f + 0.5f * fade);
+  };
 
-    auto strokeOf = [] (float width) {
-      return juce::PathStrokeType (width,
-                                   juce::PathStrokeType::JointStyle::curved,
-                                   juce::PathStrokeType::EndCapStyle::rounded);
-    };
-
-    // Outermost first, so the core lands on top of its own light.
-    g.setColour (colour.withAlpha (alpha * fade * 0.10f * breath));
-    g.strokePath (path, strokeOf (thickness * 5.0f));
-
-    g.setColour (colour.withAlpha (alpha * fade * 0.22f * breath));
-    g.strokePath (path, strokeOf (thickness * 2.4f));
-
-    g.setColour (colour.withAlpha (alpha * fade));
-    g.strokePath (path, strokeOf (thickness));
-
-    // The hot middle of the tube. White only a little, and only on the front
-    // of the sphere -- a back-side line that glowed white would read as nearer
-    // than the one in front of it.
-    if (fade > 0.9f)
-      {
-        g.setColour (colour.interpolatedWith (toColour (theme ().boltCore), 0.5f)
-                         .withAlpha (alpha * 0.5f * breath));
-        g.strokePath (path, strokeOf (thickness * 0.34f));
-      }
+  auto const strokeOf = [] (float width, bool butt) {
+    return juce::PathStrokeType (
+        width, juce::PathStrokeType::JointStyle::curved,
+        butt ? juce::PathStrokeType::EndCapStyle::butt
+             : juce::PathStrokeType::EndCapStyle::rounded);
   };
 
   // Project a 2D HOA point onto the sphere and return screen pos + z.
@@ -1941,35 +1953,132 @@ drawPathOnSphere (juce::Path const &displayPath,
   if (projected.size () < 2)
     return;
 
-  // Draw with depth-band batching
-  juce::Path currentPath;
-  int currentBand = depthBand (projected[0].second);
-  currentPath.startNewSubPath (projected[0].first);
+  // The line is walked once per layer, not once per piece.
+  //
+  // Per piece was the obvious way and it was wrong twice over: a piece's wide
+  // bloom is painted *after* its neighbour's hot core and covers it, which
+  // draws the crest as a row of dashes; and the halo, flushed at the end of a
+  // depth band, landed on top of every core piece in that band and tinted the
+  // white back to pink. Layers go on in order, so each walk is cheap -- the
+  // projection above is done, this is arithmetic on points already in hand.
+  auto const total = static_cast<float> (projected.size () - 1);
 
-  for (std::size_t i = 1; i < projected.size (); ++i)
-    {
-      int band = depthBand (projected[i].second);
+  // Short enough that the wave is smooth along the line, long enough that the
+  // stroke count stays in the low hundreds at the sizes this runs at.
+  auto const piece = std::max<std::size_t> (3, projected.size () / 90);
 
-      if (startsRun[i])
-        {
-          // A new stroke: lift the pen rather than reaching across to it.
-          flushPath (currentPath, currentBand);
-          currentPath.clear ();
-          currentPath.startNewSubPath (projected[i].first);
-          currentBand = band;
-          continue;
-        }
+  /** Walk the line, handing each run to `draw`.
+   *
+   *  `byPiece` false gives one run per depth band, which is what a translucent
+   *  layer needs: two round caps meeting at a joint stack to twice the alpha,
+   *  so a soft halo cut into pieces comes out beaded. True gives short runs,
+   *  each with its own place in the wave. */
+  auto const walk = [&] (bool byPiece, auto &&draw) {
+    juce::Path path;
+    int currentBand = depthBand (projected[0].second);
+    std::size_t runStart = 0;
+    path.startNewSubPath (projected[0].first);
 
-      if (band != currentBand)
-        {
-          flushPath (currentPath, currentBand);
-          currentPath.clear ();
-          currentPath.startNewSubPath (projected[i - 1].first);
-          currentBand = band;
-        }
-      currentPath.lineTo (projected[i].first);
-    }
-  flushPath (currentPath, currentBand);
+    auto const centre = [&] (std::size_t end) {
+      return total > 0.f
+                 ? (static_cast<float> (runStart + end) * 0.5f) / total
+                 : 0.f;
+    };
+
+    for (std::size_t i = 1; i < projected.size (); ++i)
+      {
+        int const band = depthBand (projected[i].second);
+
+        if (startsRun[i])
+          {
+            // A new stroke: lift the pen rather than reaching across to it.
+            draw (path, currentBand, centre (i - 1));
+            path.clear ();
+            path.startNewSubPath (projected[i].first);
+            currentBand = band;
+            runStart = i;
+            continue;
+          }
+
+        if (band != currentBand || (byPiece && i - runStart >= piece))
+          {
+            draw (path, currentBand, centre (i - 1));
+            path.clear ();
+            path.startNewSubPath (projected[i - 1].first);
+            currentBand = band;
+            runStart = i - 1;
+          }
+        path.lineTo (projected[i].first);
+      }
+    draw (path, currentBand, centre (projected.size () - 1));
+  };
+
+  // The light travels on the front of the sphere only, and the reason is the
+  // same one the hot core has always had. Behind the horizon a line is drawn
+  // translucent so it reads as being behind glass -- and a translucent stroke
+  // cut into overlapping pieces beads at every joint, which came out as a
+  // dotted line on whichever channels happened to be round the back.
+  auto const litFront = [&] (int band) { return fadeForBand (band) > 0.999f; };
+
+  // 1 + 2: the glow. Wide and nearly transparent, then a middle body. Plus the
+  // plain tube wherever the wave is not drawing it, in one continuous stroke.
+  walk (false, [&] (juce::Path const &path, int band, float) {
+    auto const fade = fadeForBand (band);
+    auto const thickness = lineThickness * (0.5f + 0.5f * fade);
+
+    g.setColour (colour.withAlpha (alpha * fade * 0.10f * breath));
+    g.strokePath (path, strokeOf (thickness * 5.0f, false));
+
+    g.setColour (colour.withAlpha (alpha * fade * 0.22f * breath));
+    g.strokePath (path, strokeOf (thickness * 2.4f, false));
+
+    if (!litFront (band))
+      {
+        g.setColour (colour.withAlpha (alpha * fade));
+        g.strokePath (path, strokeOf (thickness, false));
+      }
+  });
+
+  // 3: the bloom a crest throws into the dark around it. Butt caps here on
+  // purpose -- this one is wide and soft, so the hairline a butt cap leaves on
+  // a curve does not show, where a round cap's overlap at a sixth of an alpha
+  // plainly would.
+  walk (true, [&] (juce::Path const &path, int band, float u) {
+    auto const w = flow (u);
+    if (w <= 0.5f || !litFront (band))
+      return;
+    auto const thickness = lineThickness;
+    g.setColour (
+        litAt (w).withAlpha (alpha * 0.16f * (w - 0.5f) * 2.f * breath));
+    g.strokePath (path, strokeOf (thickness * 4.2f, true));
+  });
+
+  // 4: the tube itself. Round caps, and the pieces do overlap by half a width:
+  // butt caps end square to the last segment rather than to the joint, which
+  // on a curve leaves a hairline wedge at every piece -- the line came out
+  // looking milled. Drawn opaque, so the overlap costs nothing, and the light
+  // is carried by the colour and the width rather than by alpha for exactly
+  // that reason.
+  walk (true, [&] (juce::Path const &path, int band, float u) {
+    if (!litFront (band))
+      return;
+    auto const w = flow (u);
+    g.setColour (litAt (w).withAlpha (alpha));
+    g.strokePath (path, strokeOf (lineThickness * (0.70f + 0.90f * w), false));
+  });
+
+  // 5: the hot middle of the tube, where a crest is passing.
+  walk (true, [&] (juce::Path const &path, int band, float u) {
+    auto const w = flow (u);
+    if (w <= 0.5f || !litFront (band))
+      return;
+    auto const crest = (w - 0.5f) * 2.f;
+    g.setColour (litAt (w)
+                     .interpolatedWith (toColour (theme ().boltCore),
+                                        0.8f * crest)
+                     .withAlpha (alpha));
+    g.strokePath (path, strokeOf (lineThickness * 0.6f * crest, false));
+  });
 }
 
 void

@@ -174,6 +174,14 @@ uniform vec4  uBlobTrailB0;
 uniform vec4  uBlobTrailB1;
 uniform vec4  uBlobTrailB2;
 uniform vec4  uBlobTrailB3;
+uniform vec4  uBlobTrailC0;
+uniform vec4  uBlobTrailC1;
+uniform vec4  uBlobTrailC2;
+uniform vec4  uBlobTrailC3;
+uniform vec4  uBlobTrailD0;
+uniform vec4  uBlobTrailD1;
+uniform vec4  uBlobTrailD2;
+uniform vec4  uBlobTrailD3;
 
 /** What an action wears. Neon violet rather than white: white is what a VU
  *  peak already blends towards, and a signal that borrows another signal's
@@ -349,6 +357,22 @@ vec4 getBlobTrailB (int i)
     if (i == 1) return uBlobTrailB1;
     if (i == 2) return uBlobTrailB2;
     return uBlobTrailB3;
+}
+
+vec4 getBlobTrailC (int i)
+{
+    if (i == 0) return uBlobTrailC0;
+    if (i == 1) return uBlobTrailC1;
+    if (i == 2) return uBlobTrailC2;
+    return uBlobTrailC3;
+}
+
+vec4 getBlobTrailD (int i)
+{
+    if (i == 0) return uBlobTrailD0;
+    if (i == 1) return uBlobTrailD1;
+    if (i == 2) return uBlobTrailD2;
+    return uBlobTrailD3;
 }
 
 /** One link of the wake.
@@ -529,19 +553,29 @@ vec3 blobLight (vec2 uv, int i)
     // hand.
     vec4 ta = getBlobTrailA (i);
     vec4 tb = getBlobTrailB (i);
-    float spread = length (tb.zw - ps.xy) / max (r, 0.001);
+    vec4 tc = getBlobTrailC (i);
+    vec4 td = getBlobTrailD (i);
+    float spread = length (td.zw - ps.xy) / max (r, 0.001);
     float trail = 0.0;
     if (spread > 0.35 && uBlobEffects.z > 0.001)
     {
-        trail += wakeSegment (uv, ps.xy, ta.xy, r * 0.80, r * 0.66,
-                              1.00, 0.74, seed);
-        trail += wakeSegment (uv, ta.xy, ta.zw, r * 0.66, r * 0.50,
-                              0.74, 0.48, seed + 1.0);
-        trail += wakeSegment (uv, ta.zw, tb.xy, r * 0.50, r * 0.34,
-                              0.48, 0.26, seed + 2.0);
-        trail += wakeSegment (uv, tb.xy, tb.zw, r * 0.34, r * 0.16,
-                              0.26, 0.08, seed + 3.0);
-        trail *= smoothstep (0.35, 1.0, spread)
+        trail += wakeSegment (uv, ps.xy, ta.xy, r * 0.88, r * 0.79,
+                              1.00, 0.87, seed);
+        trail += wakeSegment (uv, ta.xy, ta.zw, r * 0.79, r * 0.70,
+                              0.87, 0.74, seed + 1.0);
+        trail += wakeSegment (uv, ta.zw, tb.xy, r * 0.70, r * 0.61,
+                              0.74, 0.62, seed + 2.0);
+        trail += wakeSegment (uv, tb.xy, tb.zw, r * 0.61, r * 0.52,
+                              0.62, 0.50, seed + 3.0);
+        trail += wakeSegment (uv, tb.zw, tc.xy, r * 0.52, r * 0.43,
+                              0.50, 0.39, seed + 4.0);
+        trail += wakeSegment (uv, tc.xy, tc.zw, r * 0.43, r * 0.34,
+                              0.39, 0.28, seed + 5.0);
+        trail += wakeSegment (uv, tc.zw, td.xy, r * 0.34, r * 0.25,
+                              0.28, 0.18, seed + 6.0);
+        trail += wakeSegment (uv, td.xy, td.zw, r * 0.25, r * 0.14,
+                              0.18, 0.07, seed + 7.0);
+        trail *= smoothstep (0.35, 1.2, spread)
                * (0.75 + 0.85 * vu + 0.7 * action) * uBlobEffects.z;
     }
     // It wears the action too. A trail in the channel's colour while an action
@@ -1065,6 +1099,14 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBlobTrailB[1] = glGetUniformLocation (pid, "uBlobTrailB1");
   _uBlobTrailB[2] = glGetUniformLocation (pid, "uBlobTrailB2");
   _uBlobTrailB[3] = glGetUniformLocation (pid, "uBlobTrailB3");
+  _uBlobTrailC[0] = glGetUniformLocation (pid, "uBlobTrailC0");
+  _uBlobTrailC[1] = glGetUniformLocation (pid, "uBlobTrailC1");
+  _uBlobTrailC[2] = glGetUniformLocation (pid, "uBlobTrailC2");
+  _uBlobTrailC[3] = glGetUniformLocation (pid, "uBlobTrailC3");
+  _uBlobTrailD[0] = glGetUniformLocation (pid, "uBlobTrailD0");
+  _uBlobTrailD[1] = glGetUniformLocation (pid, "uBlobTrailD1");
+  _uBlobTrailD[2] = glGetUniformLocation (pid, "uBlobTrailD2");
+  _uBlobTrailD[3] = glGetUniformLocation (pid, "uBlobTrailD3");
   _uActionColour  = glGetUniformLocation (pid, "uActionColour");
   _uBlobEffects   = glGetUniformLocation (pid, "uBlobEffects");
 
@@ -1274,6 +1316,10 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
         glUniform4f (_uBlobTrailA[i], tx (0), ty (0), tx (1), ty (1));
       if (_uBlobTrailB[i] >= 0)
         glUniform4f (_uBlobTrailB[i], tx (2), ty (2), tx (3), ty (3));
+      if (_uBlobTrailC[i] >= 0)
+        glUniform4f (_uBlobTrailC[i], tx (4), ty (4), tx (5), ty (5));
+      if (_uBlobTrailD[i] >= 0)
+        glUniform4f (_uBlobTrailD[i], tx (6), ty (6), tx (7), ty (7));
     }
 
   setThemeUniform (_uActionColour, theme ().blobAction);

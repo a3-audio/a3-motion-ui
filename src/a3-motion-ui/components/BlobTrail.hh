@@ -39,7 +39,12 @@ namespace a3
  *  channel per frame and passes the four points on as uniforms. */
 struct BlobTrail
 {
-  static constexpr int numLinks = 4;
+  /** Eight rather than four, because four was measurably short: at the lag
+   *  the device ships with, a plume over four links is spent before the eye
+   *  has followed it. More links rather than a slower chase -- a slower chase
+   *  lengthens the *delay* and leaves the same four marks strung further
+   *  apart, which reads as a dotted line rather than as a trail. */
+  static constexpr int numLinks = 8;
 
   float x[numLinks] = {};
   float y[numLinks] = {};
