@@ -72,6 +72,24 @@ CoronaConfig loadCoronaConfig (juce::var const &config);
  *  a blob under a finger tripled. */
 float blobDrawScale (bool grabbed, CoronaConfig const &config);
 
+/** How wide to draw one of the blob's filaments, never thinner than the
+ *  screen can carry.
+ *
+ *  Everything the blob throws off is measured in blob radii, so it all shrinks
+ *  with the blob — and the blob is small. At the shipped scale its bolt core
+ *  is 0.96 screen pixels wide before `taper` narrows it further along the arm,
+ *  so most of a bolt was thinner than a pixel. boltAt() is width/(d+width):
+ *  below a pixel the value between two sample points swings from nearly one to
+ *  nearly nothing, and the arm comes apart into flecks instead of reading as a
+ *  line. That is what "die blitze am blob sehen kaputt aus" was looking at,
+ *  and shrinking the held blob from 3x to 1.5x is what pushed the held one
+ *  under as well.
+ *
+ *  `pixelInUv` is 1/sphereRadiusInPixels — the shader knows it as the same
+ *  quantity aaWidth is built from. Mirrors blobFilamentWidth() in
+ *  SphereShader.cc. */
+float blobFilamentWidth (float wanted, float pixelInUv);
+
 float coronaVuLevel (float vuPeak, float vuRms, float vuMax);
 
 /** The peak leg of that curve on its own — drives alpha and white blend. */

@@ -266,3 +266,48 @@ TEST (BlobDrawScale, IsWiredIn)
   EXPECT_GT (callers, 0) << "nothing asks how big to draw a blob";
 }
 
+// ── Filaments the screen can actually carry ─────────────────────────────
+
+namespace
+{
+// This panel: the sphere is about 275 px across its radius at the shipped
+// sphereScale, so a pixel is 1/275 of a sphere radius.
+constexpr float pixelInUv = 1.f / 275.f;
+constexpr float blobRadius = 0.05f;   // reduceFactorBlobsDefault
+}
+
+TEST (BlobFilament, IsLeftAloneWhereThereIsRoomForIt)
+{
+  auto const wanted = blobRadius * 3.f * 0.07f;  // the old held size
+  EXPECT_FLOAT_EQ (blobFilamentWidth (wanted, pixelInUv), wanted);
+}
+
+TEST (BlobFilament, NeverGoesUnderAPixel)
+{
+  // A bolt tapers to nothing along its arm, so the far half of every bolt asks
+  // for a width the screen cannot draw.
+  EXPECT_GE (blobFilamentWidth (0.f, pixelInUv), pixelInUv);
+  EXPECT_GE (blobFilamentWidth (blobRadius * 0.07f * 0.1f, pixelInUv),
+             pixelInUv);
+}
+
+TEST (BlobFilament, HoldsTheIdleBlobsBoltTogether)
+{
+  // The case in the report: at rest the bolt core is 0.96 px and comes apart.
+  auto const wanted = blobRadius * 0.07f;
+  EXPECT_LT (wanted, pixelInUv) << "the premise changed; re-measure";
+  EXPECT_FLOAT_EQ (blobFilamentWidth (wanted, pixelInUv), pixelInUv);
+}
+
+TEST (BlobFilament, DoesNotDependOnWhetherTheBlobIsHeld)
+{
+  // Both sizes have to survive it, or letting go would still break the bolt.
+  CoronaConfig cfg;
+  for (auto const held : { false, true })
+    {
+      auto const r = blobRadius * blobDrawScale (held, cfg);
+      EXPECT_GE (blobFilamentWidth (r * 0.07f * 0.2f, pixelInUv), pixelInUv)
+          << "held = " << held;
+    }
+}
+

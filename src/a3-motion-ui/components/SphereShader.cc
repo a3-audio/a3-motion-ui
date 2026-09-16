@@ -707,6 +707,14 @@ vec3 lineGlow (vec2 uv, int i)
  *  same way the sphere's own bolts already work. Nothing to allocate, nothing
  *  to keep in step, and it costs the same whether one channel plays or four.
  */
+// How wide to draw one of the blob's filaments, never thinner than the screen
+// can carry. Mirrors blobFilamentWidth() in CoronaScaling.cc -- see there for
+// why a sub-pixel bolt comes apart instead of thinning.
+float blobFilamentWidth (float wanted)
+{
+    return max (wanted, 1.0 / uSphereRadius);
+}
+
 vec3 blobLight (vec2 uv, int i)
 {
     vec4 ps = getBlobPosSize (i);
@@ -765,7 +773,7 @@ vec3 blobLight (vec2 uv, int i)
         float jitter = hash13 (vec3 (slot, seed, 5.0)) - 0.5;
         float dAng = (fract (turn * slots) - 0.5 + jitter * 0.7) / slots
                    * 6.28318531 * d;
-        float grain = r * 0.11 * (0.3 + fade);
+        float grain = blobFilamentWidth (r * 0.11 * (0.3 + fade));
         float fleck = boltAt (d - travel, grain) * boltAt (dAng, grain * 1.3);
         // Only some slots are lit at any moment.
         float lit = step (0.34, hash13 (vec3 (slot, seed, floor (uTime * 6.0 + life))));
@@ -800,7 +808,8 @@ vec3 blobLight (vec2 uv, int i)
             float len = r * (2.5 + 7.0 * vu);
             float within = step (0.0, along) * step (along, len);
             float taper = 1.0 - along / max (len, 0.001);
-            bolt += within * boltAt (across - stray, r * 0.07 * taper)
+            bolt += within * boltAt (across - stray,
+                                     blobFilamentWidth (r * 0.07 * taper))
                   * taper * taper * uBlobEffects.y;
         }
     }

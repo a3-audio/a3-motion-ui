@@ -64,6 +64,12 @@ loadCoronaConfig (juce::var const &config)
 }
 
 float
+blobFilamentWidth (float wanted, float pixelInUv)
+{
+  return std::max (wanted, pixelInUv);
+}
+
+float
 blobDrawScale (bool grabbed, CoronaConfig const &config)
 {
   return grabbed ? config.sizeGrabbed : 1.f;
