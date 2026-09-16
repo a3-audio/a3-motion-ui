@@ -240,6 +240,8 @@ uniform float uStackTopMid;    // where the cluster's own centre sits
 uniform float uStackSubMid;    // where the sub stack's does
 uniform float uStackReach;     // how far a tower can be from its own centre
 uniform float uStackSubCount;  // how many subs are in the stack
+uniform vec3  uStackOne;       // half-extents of one Res 2
+uniform float uStackSplay;     // how far the outer tops turn out
 uniform vec3  uSpkCentre0;
 uniform vec3  uSpkCentre1;
 uniform vec3  uSpkCentre2;
@@ -1099,6 +1101,37 @@ vec2 boxSpan (vec3 ro, vec3 rd, vec3 halfExtent, float midY, float rake,
     return vec2 (tIn, tOut);
 }
 
+/** One Res 2 of the cluster: its own box, shifted along the cluster and turned
+ *  a little out of it.
+ *
+ *  Three separate intersections rather than three panels painted on one box.
+ *  Painted, the cluster kept reading as a single top however dark the seams
+ *  were made -- from any angle but dead ahead what you see of it is its lid,
+ *  and a lid with lines on it is one box. Three bodies have gaps between them
+ *  and each turns its own face, which is what a cluster looks like. */
+vec2 clusterSpan (vec3 ro, vec3 rd, float slot, out vec3 faceNormal)
+{
+    // Across the cluster, and splayed: the outer two turn out of the middle
+    // one, which is the arc a Funktion-One cluster is flown in.
+    float offset = (slot - 1.0) * uStackOne.x * 2.06;
+    float yaw = (slot - 1.0) * uStackSplay;
+
+    float c = cos (yaw);
+    float sn = sin (yaw);
+
+    vec3 o = ro - vec3 (offset, uStackTopMid, 0.0);
+    o = vec3 (c * o.x - sn * o.z, o.y, sn * o.x + c * o.z);
+    vec3 d = vec3 (c * rd.x - sn * rd.z, rd.y, sn * rd.x + c * rd.z);
+
+    vec3 n;
+    vec2 span = boxSpan (o, d, uStackOne, 0.0, 0.80, n);
+
+    // The face comes back out of the cabinet's own frame into the tower's.
+    faceNormal = vec3 (c * n.x + sn * n.z, n.y, -sn * n.x + c * n.z);
+    return span;
+}
+
+
 // How far round a pixel sits from a speaker's own bearing, signed so a bolt
 // knows which side it strays to. Its magnitude mirrors beamSpreadAngle() in
 // EnergyMap.cc; the cross product decides the sign.
@@ -1326,25 +1359,47 @@ vec4 speakerBoxes (vec2 uv, out float depth)
         vec3 roL = vec3 (dot (toRay, side), dot (toRay, head), dot (toRay, nose));
         vec3 rdL = vec3 (dot (rd, side), dot (rd, head), dot (rd, nose));
 
-        // Both boxes, nearer one wins. A Resolution rakes towards its back;
-        // a sub is a plain box.
-        vec3 nTop, nSub;
-        vec2 sTop = boxSpan (roL, rdL, uStackTop, uStackTopMid, 0.80, nTop);
-        vec2 sSub = boxSpan (roL, rdL, uStackSub, uStackSubMid, 1.0, nSub);
+        // Four boxes: the three tops, each its own cabinet, and the sub
+        // stack. Nearest wins.
+        float tHit = 1000.0;
+        vec3 normalL = vec3 (0.0, 0.0, 1.0);
+        bool onTop = false;
+        float topSlot = 0.0;
 
-        bool okTop = sTop.x <= sTop.y && sTop.y >= 0.0;
-        bool okSub = sSub.x <= sSub.y && sSub.y >= 0.0;
-        if (!okTop && !okSub)
+        for (int c = 0; c < 3; c++)
+        {
+            vec3 nc;
+            vec2 sc = clusterSpan (roL, rdL, float (c), nc);
+            if (sc.x > sc.y || sc.y < 0.0)
+                continue;
+
+            float tc = max (sc.x, 0.0);
+            if (tc < tHit)
+            {
+                tHit = tc;
+                normalL = nc;
+                onTop = true;
+                topSlot = float (c);
+            }
+        }
+
+        vec3 nSub;
+        vec2 sSub = boxSpan (roL, rdL, uStackSub, uStackSubMid, 1.0, nSub);
+        if (sSub.x <= sSub.y && sSub.y >= 0.0)
+        {
+            float ts = max (sSub.x, 0.0);
+            if (ts < tHit)
+            {
+                tHit = ts;
+                normalL = nSub;
+                onTop = false;
+            }
+        }
+
+        if (tHit > 999.0)
             continue;
 
-        float tTop = okTop ? max (sTop.x, 0.0) : 1000.0;
-        float tSub = okSub ? max (sSub.x, 0.0) : 1000.0;
-        bool onTop = tTop <= tSub;
-
-        vec3 normalL = onTop ? nTop : nSub;
-        vec2 span = onTop ? sTop : sSub;
-
-        float t = max (span.x, 0.0);
+        float t = tHit;
         if (t >= depth)
             continue;
         depth = t;
@@ -1374,51 +1429,46 @@ vec4 speakerBoxes (vec2 uv, out float depth)
 
             if (onTop)
             {
-                // Three Res 2 side by side. The seams run *down* the cluster,
-                // not across it: they stand beside each other.
-                float across = (hitL.x / uStackTop.x + 1.0) * 0.5;
-                float cell = fract (across * 3.0);
-                // Wide and dark: at this size a hairline between cabinets
-                // is not a gap, and three tops that read as one are the same
-                // mistake as drawing one.
-                float seam = smoothstep (0.0, 0.11, cell)
-                           * smoothstep (1.0, 0.89, cell);
+                // One cabinet's own face: it has a box to itself now, so the
+                // hit point is already in its frame and there is nothing to
+                // divide into thirds.
+                float offset = (topSlot - 1.0) * uStackOne.x * 2.06;
+                float yaw = (topSlot - 1.0) * uStackSplay;
+                float cy = cos (yaw);
+                float sy = sin (yaw);
 
-                float up = (hitL.y - uStackTopMid) / uStackTop.y;
+                vec3 rel = hitL - vec3 (offset, uStackTopMid, 0.0);
+                rel = vec3 (cy * rel.x - sy * rel.z, rel.y,
+                            sy * rel.x + cy * rel.z);
 
-                // The face is two halves. The upper one is a pale baffle with
-                // the horns in it; the lower is the cabinet's own mouth,
-                // open and dark. That division is the whole silhouette of a
+                float across = rel.x / uStackOne.x;
+                float up = rel.y / uStackOne.y;
+
+                // The face is two halves. The upper one is the pale baffle
+                // with the horns in it; the lower is the cabinet's own mouth,
+                // open and dark. That division is the silhouette of a
                 // Resolution and reads before any horn does.
-                float baffle = smoothstep (-0.08, 0.02, up);
-                body = mix (body * 0.42, mix (body, vec3 (1.0), 0.45),
-                            baffle * seam);
+                float baffle = smoothstep (-0.06, 0.04, up);
+                body = mix (body * 0.40, mix (body, vec3 (1.0), 0.55), baffle);
 
                 // Two horns, one over the other, the upper much the larger.
                 // Trapezoid rather than round: a horn mouth has corners, and
-                // that is what separates these from the cones below.
-                vec2 hi = vec2 ((cell - 0.5) * 2.0 / 0.78, (up - 0.55) / 0.30);
+                // that is what separates these from the ports below.
+                vec2 hi = vec2 (across / 0.74, (up - 0.56) / 0.30);
                 float hiR = max (abs (hi.x) * (1.0 + 0.25 * hi.y), abs (hi.y));
                 float hiMouth = 1.0 - smoothstep (0.90, 1.02, hiR);
                 float hiThroat = 1.0 - smoothstep (0.10, 0.44, hiR);
 
-                vec2 lo = vec2 ((cell - 0.5) * 2.0 / 0.40, (up - 0.15) / 0.13);
+                vec2 lo = vec2 (across / 0.38, (up - 0.16) / 0.12);
                 float loR = max (abs (lo.x) * (1.0 + 0.25 * lo.y), abs (lo.y));
                 float loMouth = 1.0 - smoothstep (0.90, 1.04, loR);
                 float loThroat = 1.0 - smoothstep (0.14, 0.50, loR);
 
-                float mouths = max (hiMouth, loMouth) * baffle * seam;
-                body = mix (body, body * 0.26, mouths);
+                body = mix (body, body * 0.24,
+                            max (hiMouth, loMouth) * baffle);
 
-                // The struts across the open mouth below the baffle.
-                float strut = (1.0 - smoothstep (0.02, 0.05,
-                                                 abs (fract (cell * 2.0) - 0.5)))
-                            * (1.0 - baffle) * seam;
-                body = mix (body, body * 1.6, strut * 0.5);
-
-                body *= mix (1.0, 0.34, 1.0 - seam);
                 body += uSpotColour * (hiThroat + loThroat * 0.7)
-                      * baffle * seam * level * 1.7;
+                      * baffle * level * 1.7;
             }
             else
             {
@@ -1463,9 +1513,12 @@ vec4 speakerBoxes (vec2 uv, out float depth)
         // The edges, so a tower stands away from whatever is behind it.
         // Against whichever box was actually hit, or the seam between the two
         // stacks would be drawn as an outer edge and cut the tower in half.
-        vec3 boxHalf = onTop ? uStackTop : uStackSub;
+        vec3 boxHalf = onTop ? uStackOne : uStackSub;
         float boxMid = onTop ? uStackTopMid : uStackSubMid;
-        float edge = 1.0 - max (max (abs (hitL.x) / boxHalf.x,
+        float edgeX = onTop
+            ? abs (hitL.x - (topSlot - 1.0) * uStackOne.x * 2.06) / boxHalf.x
+            : abs (hitL.x) / boxHalf.x;
+        float edge = 1.0 - max (max (edgeX,
                                      abs (hitL.y - boxMid) / boxHalf.y),
                                 abs (hitL.z) / boxHalf.z);
         body += uSphereRim * smoothstep (0.05, 0.0, edge) * 0.35;
@@ -1945,6 +1998,8 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uStackSubMid   = glGetUniformLocation (pid, "uStackSubMid");
   _uStackReach    = glGetUniformLocation (pid, "uStackReach");
   _uStackSubCount = glGetUniformLocation (pid, "uStackSubCount");
+  _uStackOne      = glGetUniformLocation (pid, "uStackOne");
+  _uStackSplay    = glGetUniformLocation (pid, "uStackSplay");
   _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
   _uSpkSeed[1]    = glGetUniformLocation (pid, "uSpkSeed1");
   _uSpkSeed[2]    = glGetUniformLocation (pid, "uSpkSeed2");
@@ -2270,8 +2325,12 @@ SphereShader::uploadStackGeometry ()
   // the old wedge stood for roughly a metre of loudspeaker.
   auto const metre = speakerIconSize * 0.42f / 1.0f;
 
+  // The cluster: three cabinets *side by side*, so it is as wide as all three
+  // together and as tall as one. Stacking them into this — which is what the
+  // first version did — buries it a metre down inside the subs, where it is
+  // not so much wrong as invisible.
   auto const topHalf = juce::Vector3D<float> (
-      resWidthM * 0.5f * metre, resPerStack * resHeightM * 0.5f * metre,
+      clusterWidthM * 0.5f * metre, clusterHeightM * 0.5f * metre,
       resDepthM * 0.5f * metre);
   auto const subHalf = juce::Vector3D<float> (
       subWidthM * 0.5f * metre, subPerStack * subHeightM * 0.5f * metre,
@@ -2294,6 +2353,11 @@ SphereShader::uploadStackGeometry ()
 
   // The reject circle has to cover the whole tower from its centre, or the
   // top and bottom of it are cut off by the very test that makes it cheap.
+  if (_uStackOne >= 0)
+    glUniform3f (_uStackOne, resWidthM * 0.5f * metre, resHeightM * 0.5f * metre,
+                 resDepthM * 0.5f * metre);
+  if (_uStackSplay >= 0)
+    glUniform1f (_uStackSplay, 0.21f);
   if (_uStackSubCount >= 0)
     glUniform1f (_uStackSubCount, static_cast<float> (subPerStack));
   if (_uStackReach >= 0)

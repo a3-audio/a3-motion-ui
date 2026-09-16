@@ -344,6 +344,8 @@ private:
   GLint _uStackSubMid = -1;
   GLint _uStackReach = -1;
   GLint _uStackSubCount = -1;
+  GLint _uStackOne = -1;
+  GLint _uStackSplay = -1;
   GLint _uSpkSeed[kMaxBlobs] = {};
   GLint _uSpkCentre[kMaxBlobs] = {};
   GLint _uSpkNose[kMaxBlobs] = {};
