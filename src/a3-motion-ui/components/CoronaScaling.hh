@@ -90,6 +90,25 @@ float blobDrawScale (bool grabbed, CoronaConfig const &config);
  *  SphereShader.cc. */
 float blobFilamentWidth (float wanted, float pixelInUv);
 
+/** How far out the blob's sparks can still be drawn, in blob radii.
+ *
+ *  The spark loop is skipped past this, which is worth doing — forty flecks
+ *  per pixel is the blob's whole cost. But the bound has to be the *sparks'*
+ *  own reach: a fleck flies to 0.9 + 3.4 radii over its life, and is still
+ *  worth a seventh of its brightness two thirds of the way. The bound used to
+ *  be 1.6 times the corona's reach, which is a different quantity that moves
+ *  with the level, so at low levels it fell inside the flight and cut the
+ *  sparks off on a circle. That circle is what "der kreis ist abrupt
+ *  beschnitten" was looking at, and it got easier to see once the corona grew
+ *  brighter.
+ *
+ *  Mirrors the bound in blobLight()'s spark loop. Keep the two together: these
+ *  numbers are the flight in SphereShader.cc, written out. */
+constexpr float blobSparkLaunch = 0.9f;
+constexpr float blobSparkFlight = 3.4f;
+
+float blobSparkReach (float blobRadius, float grainMargin);
+
 float coronaVuLevel (float vuPeak, float vuRms, float vuMax);
 
 /** The peak leg of that curve on its own — drives alpha and white blend. */

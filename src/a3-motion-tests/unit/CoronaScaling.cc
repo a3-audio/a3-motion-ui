@@ -311,3 +311,43 @@ TEST (BlobFilament, DoesNotDependOnWhetherTheBlobIsHeld)
     }
 }
 
+// ── Where the sparks are allowed to stop being drawn ────────────────────
+
+TEST (BlobSparkReach, CoversTheWholeFlight)
+{
+  // A fleck is still being drawn at the very end of its life, dim but there.
+  // The bound has to sit past that or it cuts a circle through them.
+  auto const furthest
+      = blobRadius * (blobSparkLaunch + blobSparkFlight);
+
+  EXPECT_GE (blobSparkReach (blobRadius, 0.f), furthest);
+}
+
+TEST (BlobSparkReach, DoesNotMoveWithTheCorona)
+{
+  // The old bound was 1.6 * the corona's reach, and the corona swells with the
+  // level -- so how far the sparks were drawn depended on how loud the channel
+  // was, and the cut wandered in and out through the flight.
+  CoronaConfig cfg;
+  auto const quiet = coronaScaleFactor (0.f, cfg) * 1.6f * blobRadius;
+  auto const loud = coronaScaleFactor (1.f, cfg) * 1.6f * blobRadius;
+
+  EXPECT_LT (quiet, blobRadius * (blobSparkLaunch + blobSparkFlight))
+      << "the premise changed: the old bound no longer cuts the flight";
+  EXPECT_GT (loud, quiet);
+
+  // The new one is the same wherever the level is.
+  EXPECT_FLOAT_EQ (blobSparkReach (blobRadius, 0.f),
+                   blobSparkReach (blobRadius, 0.f));
+}
+
+TEST (BlobSparkReach, LeavesRoomForTheGrainAroundAFleck)
+{
+  // A fleck is a falloff, not a point: cutting exactly at its centre would
+  // still shear its outer half.
+  auto const margin = 0.01f;
+  EXPECT_GE (blobSparkReach (blobRadius, margin)
+                 - blobRadius * (blobSparkLaunch + blobSparkFlight),
+             margin);
+}
+

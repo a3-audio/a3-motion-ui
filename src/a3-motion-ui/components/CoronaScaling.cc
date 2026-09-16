@@ -70,6 +70,12 @@ blobFilamentWidth (float wanted, float pixelInUv)
 }
 
 float
+blobSparkReach (float blobRadius, float grainMargin)
+{
+  return blobRadius * (blobSparkLaunch + blobSparkFlight) + grainMargin;
+}
+
+float
 blobDrawScale (bool grabbed, CoronaConfig const &config)
 {
   return grabbed ? config.sizeGrabbed : 1.f;

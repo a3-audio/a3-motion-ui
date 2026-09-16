@@ -755,7 +755,13 @@ vec3 blobLight (vec2 uv, int i)
     // sampled by angle, and each fleck's life is a fraction of time.
     float sparks = 0.0;
     float sparkGain = (0.35 + 1.6 * vu + 3.0 * action) * uBlobEffects.x;
-    if (sparkGain > 0.01 && d < reach * 1.6)
+    // Bounded by how far a fleck actually flies, not by the corona. Those are
+    // two different distances and the corona's moves with the level, so at low
+    // levels the bound fell inside the flight and sheared the sparks off on a
+    // circle. Mirrors blobSparkReach() in CoronaScaling.cc -- the 0.9 and 3.4
+    // below are the flight it is written from, so the two move together.
+    float sparkReach = r * (0.9 + 3.4) + blobFilamentWidth (r * 0.11 * 1.3) * 3.0;
+    if (sparkGain > 0.01 && d < sparkReach)
     {
         float ang = atan (d2.y, d2.x);
         // Forty slots around the blob; each holds one fleck at a time.
