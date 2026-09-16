@@ -247,7 +247,6 @@ uniform float uFloorReach;     // how far out it is drawn
 uniform float uFloorLevel;     // how strongly, 0 for none
 uniform float uFloorThrough;   // how much of it shows through the ball
 uniform float uFloorDark;      // how far it darkens what is behind
-uniform float uFloorMirror;    // how strongly it reflects
 uniform float uFloorBeams;     // how strongly the beams cross it
 uniform vec3  uFloorGrazeDir;  // which way the grazing light lies
 uniform vec3  uRoomUp;         // the room's up, as the eye sees it
@@ -1400,43 +1399,12 @@ vec4 danceFloor (vec2 uv)
     vec3 lit = mix (uSphereSurface, uSphereRim, 0.35)
                  * (0.28 * sheen + 0.55 * graze + 2.2 * cut);
 
-    // What is standing on it, reflected.
-    //
-    // No second trace: the ray that has already hit the floor is turned about
-    // the floor's own normal and met with the unit sphere, which is where
-    // everything worth reflecting lives -- the trajectory is a map wrapped on
-    // it and the blobs sit on it. Where that meets, projected back to the
-    // screen, is the point to ask. One sphere intersection, and the layers
-    // answer for themselves.
-    vec3 rr = rd - 2.0 * dot (rd, up) * up;
-
-    // hit . rr, and hit . hit - 1: the standard quadratic, with rr already a
-    // unit vector because rd and up are.
-    float b = dot (hit, rr);
-    float c = dot (hit, hit) - 1.0;
-    float disc = b * b - c;
-
-    if (disc > 0.0 && uFloorMirror > 0.001)
-    {
-        float tm = -b + sqrt (disc);
-        if (tm > 0.0)
-        {
-            vec2 mv = seenToScreen (hit + rr * tm);
-
-            vec3 refl = vec3 (0.0);
-            for (int m = 0; m < 4; m++)
-            {
-                if (float (m) >= uNumBlobs) break;
-                refl += lineGlow (mv, m);
-                refl += blobLight (mv, m);
-            }
-
-            // Fades with distance the way a reflection does, and is never as
-            // bright as the thing itself -- a mirror that matched would read
-            // as a hole in the floor rather than as a surface.
-            lit += refl * uFloorMirror * (0.30 + 0.70 * sheen);
-        }
-    }
+    // Nothing standing on it is reflected. That was built and taken out
+    // again: a blob doubled below itself competes with the blob, and on a
+    // display where the one thing that must stay readable is where a sound
+    // *is*, a second copy of it a few pixels away is noise however pretty the
+    // physics. The floor keeps its own sheen and the beams that cross it, and
+    // stays a surface rather than becoming a second picture.
 
     // And the beams, running across the floor towards the middle. They are
     // defined in the flattened plane the sphere is drawn in, so the floor
@@ -2156,7 +2124,6 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uFloorLevel    = glGetUniformLocation (pid, "uFloorLevel");
   _uFloorThrough  = glGetUniformLocation (pid, "uFloorThrough");
   _uFloorDark     = glGetUniformLocation (pid, "uFloorDark");
-  _uFloorMirror   = glGetUniformLocation (pid, "uFloorMirror");
   _uFloorBeams    = glGetUniformLocation (pid, "uFloorBeams");
   _uFloorGrazeDir = glGetUniformLocation (pid, "uFloorGrazeDir");
   _uRoomUp        = glGetUniformLocation (pid, "uRoomUp");
@@ -2529,8 +2496,6 @@ SphereShader::uploadStackGeometry ()
     glUniform1f (_uFloorThrough, _spotCfg.floorThrough);
   if (_uFloorDark >= 0)
     glUniform1f (_uFloorDark, _spotCfg.floorDark);
-  if (_uFloorMirror >= 0)
-    glUniform1f (_uFloorMirror, _spotCfg.floorMirror);
   if (_uFloorBeams >= 0)
     glUniform1f (_uFloorBeams, _spotCfg.floorBeams);
   if (_uFloorGrazeDir >= 0)

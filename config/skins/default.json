@@ -69,7 +69,6 @@
     "floorLevel": 1.0,
     "floorThrough": 0.55,
     "floorDark": 0.38,
-    "floorMirror": 0.45,
     "floorBeams": 0.7,
     "boltReach": 2.4,
     "boltEscape": 0.55,
