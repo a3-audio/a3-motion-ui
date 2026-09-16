@@ -516,3 +516,41 @@ TEST (SpeakerLightDraw, WhiteCoreIsDrawnFromTheHotChannel)
 }
 
 }
+
+// ── The stack ───────────────────────────────────────────────────────────
+
+TEST (SpeakerStack, IsAboutThreeMetresTall)
+{
+  // "3x res 2 als cluster mit 3x f218 unten drunter. das ist dann 3m hoch son
+  // turm."
+  EXPECT_NEAR (stackHeightM, 3.0f, 0.15f);
+}
+
+TEST (SpeakerStack, IsMostlySubs)
+{
+  // Three subs at 0.6 m against three tops at 0.4: the bottom is the larger
+  // half, and a tower drawn the other way round would read as the wrong
+  // instrument.
+  EXPECT_GT (stackSubShare, 0.5f);
+  EXPECT_LT (stackSubShare, 0.7f);
+}
+
+TEST (SpeakerStack, HasCabinetsWiderThanTheyAreTall)
+{
+  // Both are landscape boxes. A portrait one is a different loudspeaker.
+  EXPECT_GT (resWidthM / resHeightM, 2.f);
+  EXPECT_GT (subWidthM / subHeightM, 1.5f);
+}
+
+TEST (SpeakerStack, HasDeeperSubsThanTops)
+{
+  EXPECT_GT (subDepthM, resDepthM);
+}
+
+TEST (SpeakerStack, IsTallerThanItIsWide)
+{
+  // Three metres against a metre and a bit — that is the shape you see across
+  // a room, and it is the whole reason this is not a single box any more.
+  EXPECT_GT (stackHeightM / subWidthM, 2.f);
+}
+

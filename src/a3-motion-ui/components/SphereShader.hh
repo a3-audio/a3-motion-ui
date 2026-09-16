@@ -338,6 +338,11 @@ private:
   GLint _uLineEffects = -1;
   GLint _uBraid = -1;
 
+  GLint _uStackTop = -1;
+  GLint _uStackSub = -1;
+  GLint _uStackTopMid = -1;
+  GLint _uStackSubMid = -1;
+  GLint _uStackReach = -1;
   GLint _uSpkSeed[kMaxBlobs] = {};
   GLint _uSpkCentre[kMaxBlobs] = {};
   GLint _uSpkNose[kMaxBlobs] = {};
@@ -345,6 +350,7 @@ private:
   /** Where the four cabinets stand as the eye sees them. Once a frame: it is
    *  the same answer for every pixel, and worked out per pixel it cost a
    *  quarter of a core in sines and cosines. */
+  void uploadStackGeometry ();
   void uploadSpeakerFrames ();
   unsigned int _lineTexture[kMaxBlobs] = {};
   float _lineExtent = 1.3f;

@@ -234,6 +234,11 @@ uniform float uSpkSeed0;
 uniform float uSpkSeed1;
 uniform float uSpkSeed2;
 uniform float uSpkSeed3;
+uniform vec3  uStackTop;       // half-extents of the Res 2 cluster
+uniform vec3  uStackSub;       // half-extents of the sub stack
+uniform float uStackTopMid;    // where the cluster's own centre sits
+uniform float uStackSubMid;    // where the sub stack's does
+uniform float uStackReach;     // how far a tower can be from its own centre
 uniform vec3  uSpkCentre0;
 uniform vec3  uSpkCentre1;
 uniform vec3  uSpkCentre2;
@@ -1004,19 +1009,19 @@ float speakerLevel (int i)
     return uSpotLevel3;
 }
 
-// The cabinet, in its own frame: the baffle at +z and larger than the back.
+// The tower, in its own frame: the baffle at +z, head up, origin at the
+// stack's own middle.
 //
-// A Funktion-One Resolution 2 is a wedge -- the sides and the top rake in
-// towards the back -- with the front given over almost entirely to two horn
-// flares side by side and the high frequency between them. That silhouette is
-// the whole of what is recognisable at forty pixels, and it is what these
-// numbers are: not a model, which a fragment shader could not take anyway, but
-// the shape read off one.
-const float kResHalfDepth  = 0.085;
-const float kResFrontHalfW = 0.070;
-const float kResBackHalfW  = 0.046;
-const float kResFrontHalfH = 0.118;
-const float kResBackHalfH  = 0.094;
+// A position is not one box. It is three Funktion-One Resolution 2 as a
+// cluster over three F218 subs -- about three metres of loudspeaker, which is
+// what you actually see across a room and what a single wedge could never say.
+// The two stacks are two boxes because they are two different cabinets: the
+// subs are deeper and a touch wider, and from any camera that is not dead
+// ahead that step is the thing that reads as a stack rather than as a slab.
+//
+// Every measurement comes from SpeakerLightScaling.hh, in metres, converted
+// once on the way in -- uStackTop and uStackSub are half-extents in sphere
+// radii, uStackSplit the height where the tops meet the subs.
 
 /** Ray against the cabinet: where it goes in, where it comes out, and which
  *  face it entered by. In greater than out means it missed.
@@ -1024,11 +1029,20 @@ const float kResBackHalfH  = 0.094;
  *  Six half-spaces rather than a slab test, because the sides rake: for a
  *  convex body the entry is the furthest of the entries and the exit the
  *  nearest of the exits, whatever angles the planes stand at. */
-vec2 cabinetSpan (vec3 ro, vec3 rd, out vec3 faceNormal)
+// One box of the tower. `half` is its half-extents, `midY` where its own
+// centre sits along the tower, and `rake` how far the back is drawn in as a
+// share of the front -- 1 is a plain box, less than 1 the wedge a Resolution
+// is.
+vec2 boxSpan (vec3 ro, vec3 rd, vec3 halfExtent, float midY, float rake,
+              out vec3 faceNormal)
 {
     float tIn = -1000.0;
     float tOut = 1000.0;
     faceNormal = vec3 (0.0, 0.0, 1.0);
+    ro.y -= midY;
+
+    float backW = halfExtent.x * rake;
+    float backH = halfExtent.y * rake;
 
     for (int p = 0; p < 6; p++)
     {
@@ -1040,23 +1054,21 @@ vec2 cabinetSpan (vec3 ro, vec3 rd, out vec3 faceNormal)
             // The baffle and the back.
             float s = (p == 0) ? 1.0 : -1.0;
             n = vec3 (0.0, 0.0, s);
-            d = kResHalfDepth;
+            d = halfExtent.z;
         }
         else if (p < 4)
         {
             // The raking sides: the plane through the baffle's edge and the
             // back's.
             float s = (p == 2) ? 1.0 : -1.0;
-            n = normalize (vec3 (s * 2.0 * kResHalfDepth, 0.0,
-                                 -(kResFrontHalfW - kResBackHalfW)));
-            d = dot (n, vec3 (s * kResFrontHalfW, 0.0, kResHalfDepth));
+            n = normalize (vec3 (s * 2.0 * halfExtent.z, 0.0, -(halfExtent.x - backW)));
+            d = dot (n, vec3 (s * halfExtent.x, 0.0, halfExtent.z));
         }
         else
         {
             float s = (p == 4) ? 1.0 : -1.0;
-            n = normalize (vec3 (0.0, s * 2.0 * kResHalfDepth,
-                                 -(kResFrontHalfH - kResBackHalfH)));
-            d = dot (n, vec3 (0.0, s * kResFrontHalfH, kResHalfDepth));
+            n = normalize (vec3 (0.0, s * 2.0 * halfExtent.z, -(halfExtent.y - backH)));
+            d = dot (n, vec3 (0.0, s * halfExtent.y, halfExtent.z));
         }
 
         float denom = dot (rd, n);
@@ -1295,7 +1307,7 @@ vec4 speakerBoxes (vec2 uv, out float depth)
         // two subtractions and a dot. It took the frame from eighty-four per
         // cent of a core to what the measurement in the commit says.
         vec2 near = uv - seenToScreen (centre);
-        if (dot (near, near) > 0.0625)   // (0.25)^2, the diagonal plus slack
+        if (dot (near, near) > uStackReach * uStackReach)
             continue;
 
         // Its own frame: nose towards the listener, head up, and the third
@@ -1309,10 +1321,23 @@ vec4 speakerBoxes (vec2 uv, out float depth)
         vec3 roL = vec3 (dot (toRay, side), dot (toRay, head), dot (toRay, nose));
         vec3 rdL = vec3 (dot (rd, side), dot (rd, head), dot (rd, nose));
 
-        vec3 normalL;
-        vec2 span = cabinetSpan (roL, rdL, normalL);
-        if (span.x > span.y || span.y < 0.0)
+        // Both boxes, nearer one wins. A Resolution rakes towards its back;
+        // a sub is a plain box.
+        vec3 nTop, nSub;
+        vec2 sTop = boxSpan (roL, rdL, uStackTop, uStackTopMid, 0.80, nTop);
+        vec2 sSub = boxSpan (roL, rdL, uStackSub, uStackSubMid, 1.0, nSub);
+
+        bool okTop = sTop.x <= sTop.y && sTop.y >= 0.0;
+        bool okSub = sSub.x <= sSub.y && sSub.y >= 0.0;
+        if (!okTop && !okSub)
             continue;
+
+        float tTop = okTop ? max (sTop.x, 0.0) : 1000.0;
+        float tSub = okSub ? max (sSub.x, 0.0) : 1000.0;
+        bool onTop = tTop <= tSub;
+
+        vec3 normalL = onTop ? nTop : nSub;
+        vec2 span = onTop ? sTop : sSub;
 
         float t = max (span.x, 0.0);
         if (t >= depth)
@@ -1341,42 +1366,80 @@ vec4 speakerBoxes (vec2 uv, out float depth)
         if (normalL.z > 0.5)
         {
             float level = speakerLevel (i);
-            vec2 f = vec2 (hitL.x / kResFrontHalfW, hitL.y / kResFrontHalfH);
 
-            // Folded about the spine: the two flares are one shape drawn
-            // twice, which is what they are.
-            vec2 inLobe = vec2 ((abs (f.x) - 0.50) / 0.44, f.y / 0.84);
+            if (onTop)
+            {
+                // Three Resolution 2 in a cluster. One cabinet's face, drawn
+                // three times up the box: the seam between them is what says
+                // "three boxes" rather than one tall one, and it is the only
+                // part of a cluster you can make out at this size.
+                float span = uStackTop.y * 2.0;
+                float up = (hitL.y - uStackTopMid + uStackTop.y) / span;
+                float cell = fract (up * 3.0);
+                float seam = smoothstep (0.0, 0.05, cell)
+                           * smoothstep (1.0, 0.95, cell);
 
-            // A rounded rectangle rather than an ellipse -- a horn mouth is
-            // square-ish and an ellipse reads as a cone driver.
-            float ell = length (inLobe);
-            float rect = max (abs (inLobe.x), abs (inLobe.y));
-            float r = mix (ell, rect, 0.55);
+                vec2 f = vec2 (hitL.x / uStackTop.x, (cell - 0.5) * 2.0);
 
-            float mouth = 1.0 - smoothstep (0.86, 1.02, r);
-            float throat = 1.0 - smoothstep (0.10, 0.46, r);
+                // Folded about the spine: the two flares are one shape drawn
+                // twice, which is what they are.
+                vec2 inLobe = vec2 ((abs (f.x) - 0.50) / 0.44, f.y / 0.84);
 
-            // Receding: the further in, the less light reaches it.
-            body = mix (body, body * 0.30, mouth * (1.0 - 0.35 * r));
-            // The flare's lip, where the mouth meets the baffle.
-            body += uSphereRim * 0.55
-                  * (smoothstep (1.04, 0.92, r) - smoothstep (0.94, 0.84, r));
+                // A rounded rectangle rather than an ellipse -- a horn mouth
+                // is square-ish and an ellipse reads as a cone driver.
+                float ell = length (inLobe);
+                float rect = max (abs (inLobe.x), abs (inLobe.y));
+                float r = mix (ell, rect, 0.55);
 
-            // The high frequency, on the spine between the two.
-            float hf = (1.0 - smoothstep (0.10, 0.16, abs (f.x)))
-                     * (1.0 - smoothstep (0.28, 0.40, abs (f.y - 0.10)));
-            body = mix (body, body * 0.45, hf);
+                float mouth = 1.0 - smoothstep (0.86, 1.02, r);
+                float throat = 1.0 - smoothstep (0.10, 0.46, r);
 
-            // What it is being sent, coming out of the throats and the slot.
-            body += uSpotColour * (throat + hf * 0.8) * level * 1.7;
+                body = mix (body, body * 0.30, mouth * (1.0 - 0.35 * r) * seam);
+
+                // The high frequency on the spine between the flares.
+                float hf = (1.0 - smoothstep (0.10, 0.15, abs (f.x)))
+                         * (1.0 - smoothstep (0.30, 0.36, abs (f.y - 0.10)));
+                body = mix (body, body * 0.22, hf * seam);
+                body *= mix (1.0, 0.72, 1.0 - seam);
+
+                body += uSpotColour * (throat + hf * 0.8) * level * 1.7 * seam;
+            }
+            else
+            {
+                // Three F218: a double-eighteen each, so six cones in two
+                // columns. Round here, deliberately -- a cone is round and a
+                // horn mouth is not, and that difference is most of what tells
+                // the two halves of the tower apart at forty pixels.
+                float span = uStackSub.y * 2.0;
+                float up = (hitL.y - uStackSubMid + uStackSub.y) / span;
+                float cell = fract (up * 3.0);
+                float seam = smoothstep (0.0, 0.04, cell)
+                           * smoothstep (1.0, 0.96, cell);
+
+                vec2 f = vec2 (hitL.x / uStackSub.x, (cell - 0.5) * 2.0);
+                float cone = length (vec2 ((abs (f.x) - 0.48) / 0.40, f.y / 0.80));
+
+                float dust = 1.0 - smoothstep (0.90, 1.04, cone);
+                float centreCap = 1.0 - smoothstep (0.14, 0.34, cone);
+
+                body = mix (body, body * 0.34, dust * (1.0 - 0.3 * cone) * seam);
+                body *= mix (1.0, 0.72, 1.0 - seam);
+
+                // Subs carry the level too, but dimmer: they are not where the
+                // beams leave from, and lighting them as brightly as the tops
+                // would put the loudest thing on the tower at its feet.
+                body += uSpotColour * centreCap * level * 0.7 * seam;
+            }
         }
 
-        // The edges, so a cabinet stands away from whatever is behind it.
-        // Measured against the baffle's own half-extents, which is close
-        // enough on a wedge this shallow and costs no second intersection.
-        float edge = 1.0 - max (max (abs (hitL.x) / kResFrontHalfW,
-                                     abs (hitL.y) / kResFrontHalfH),
-                                abs (hitL.z) / kResHalfDepth);
+        // The edges, so a tower stands away from whatever is behind it.
+        // Against whichever box was actually hit, or the seam between the two
+        // stacks would be drawn as an outer edge and cut the tower in half.
+        vec3 boxHalf = onTop ? uStackTop : uStackSub;
+        float boxMid = onTop ? uStackTopMid : uStackSubMid;
+        float edge = 1.0 - max (max (abs (hitL.x) / boxHalf.x,
+                                     abs (hitL.y - boxMid) / boxHalf.y),
+                                abs (hitL.z) / boxHalf.z);
         body += uSphereRim * smoothstep (0.05, 0.0, edge) * 0.35;
 
         out4 = vec4 (body, 1.0);
@@ -1848,6 +1911,11 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uLineFarSide   = glGetUniformLocation (pid, "uLineFarSide");
   _uLineEffects   = glGetUniformLocation (pid, "uLineEffects");
   _uBraid         = glGetUniformLocation (pid, "uBraid");
+  _uStackTop      = glGetUniformLocation (pid, "uStackTop");
+  _uStackSub      = glGetUniformLocation (pid, "uStackSub");
+  _uStackTopMid   = glGetUniformLocation (pid, "uStackTopMid");
+  _uStackSubMid   = glGetUniformLocation (pid, "uStackSubMid");
+  _uStackReach    = glGetUniformLocation (pid, "uStackReach");
   _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
   _uSpkSeed[1]    = glGetUniformLocation (pid, "uSpkSeed1");
   _uSpkSeed[2]    = glGetUniformLocation (pid, "uSpkSeed2");
@@ -1965,6 +2033,7 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uSpeakerRadius >= 0)
     glUniform1f (_uSpeakerRadius, _spotCfg.speakerRadius);
 
+  uploadStackGeometry ();
   uploadSpeakerFrames ();
   if (_uBeamEdge >= 0)
     glUniform1f (_uBeamEdge, _spotCfg.edgeSoftness);
@@ -2154,6 +2223,54 @@ void SphereShader::setSpeakerLight (int i, float peak, float rms)
 
 void SphereShader::setBlob (int i, BlobData const &d)
 { if (i >= 0 && i < kMaxBlobs) _blobs[i] = d; }
+
+/** The tower's measurements, from metres into sphere radii.
+ *
+ *  One conversion, here: the cabinets are written down in metres in
+ *  SpeakerLightScaling.hh so they can be checked against the real things, and
+ *  the shader wants half-extents. `speakerIconSize` stays the scale — a tower
+ *  three metres tall is drawn as tall as that scale says a metre is.
+ */
+void
+SphereShader::uploadStackGeometry ()
+{
+  using namespace juce::gl;
+
+  // A metre, in sphere radii. Chosen so the whole tower is the height the
+  // single cabinet used to be, times how much taller a tower actually is —
+  // the old wedge stood for roughly a metre of loudspeaker.
+  auto const metre = speakerIconSize * 0.42f / 1.0f;
+
+  auto const topHalf = juce::Vector3D<float> (
+      resWidthM * 0.5f * metre, resPerStack * resHeightM * 0.5f * metre,
+      resDepthM * 0.5f * metre);
+  auto const subHalf = juce::Vector3D<float> (
+      subWidthM * 0.5f * metre, subPerStack * subHeightM * 0.5f * metre,
+      subDepthM * 0.5f * metre);
+
+  // The tower is centred on its own middle, so the tops sit above it and the
+  // subs below by half their own heights.
+  auto const half = stackHeightM * 0.5f * metre;
+  auto const topMid = half - topHalf.y;
+  auto const subMid = -half + subHalf.y;
+
+  if (_uStackTop >= 0)
+    glUniform3f (_uStackTop, topHalf.x, topHalf.y, topHalf.z);
+  if (_uStackSub >= 0)
+    glUniform3f (_uStackSub, subHalf.x, subHalf.y, subHalf.z);
+  if (_uStackTopMid >= 0)
+    glUniform1f (_uStackTopMid, topMid);
+  if (_uStackSubMid >= 0)
+    glUniform1f (_uStackSubMid, subMid);
+
+  // The reject circle has to cover the whole tower from its centre, or the
+  // top and bottom of it are cut off by the very test that makes it cheap.
+  if (_uStackReach >= 0)
+    glUniform1f (_uStackReach,
+                 std::hypot (std::max (topHalf.x, subHalf.x),
+                             half + std::max (subHalf.z, topHalf.z))
+                     + 0.02f);
+}
 
 void
 SphereShader::uploadSpeakerFrames ()
