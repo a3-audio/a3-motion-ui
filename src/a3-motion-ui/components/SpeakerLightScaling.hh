@@ -88,19 +88,29 @@ constexpr float subHeightM = 0.66f;
 constexpr float subDepthM = 0.90f;
 constexpr int subPerStack = 4;      // one on top of the next
 
-/** Where the floor is, in sphere radii — negative, below the listener.
+/** How many sphere radii a metre is.
  *
- *  The towers stand on it, so this is one number and not two: a floor drawn at
- *  one height with the cabinets standing at another is a room that does not
- *  close, and at this size the gap reads as the speakers hovering. */
-inline float
-speakerFloorZ (float speakerRadius, float dropRad)
-{
-  return -std::sin (dropRad) * speakerRadius;
-}
+ *  The one place the picture is tied to the room. Everything physical — the
+ *  towers, the floor, the listener — is written in metres and scaled through
+ *  here, so the drawing keeps one set of proportions instead of several that
+ *  happen to look right next to each other. */
+constexpr float metrePerSphereRadius = speakerIconSize * 0.42f;
 
-/** How far out the floor is drawn, as a share of the speaker radius. Past the
- *  towers, so they stand *on* it rather than at its edge. */
+/** Ear height of a standing listener, in metres.
+ *
+ *  **Zero elevation is ear height.** The sphere is centred on a person, not on
+ *  the middle of the room — so the floor is not somewhere below, it is exactly
+ *  this far below, and the towers stand on it rather than hanging at whatever
+ *  depth looked right.
+ *
+ *  Before this the floor sat at -sin(drop) * speakerRadius, which works out at
+ *  4.9 m under the listener: a cellar, not a dance floor, and it made every
+ *  other measurement a number nothing could check. */
+constexpr float earHeightM = 1.6f;
+
+/** Where the floor is, in sphere radii — negative, below the listener. */
+constexpr float speakerFloorZ = -earHeightM * metrePerSphereRadius;
+
 constexpr float floorReach = 1.35f;
 
 /** How far below the horizon a cabinet stands, in radians. Mirrors `drop` in

@@ -602,32 +602,37 @@ TEST (SpeakerStack, StandsTheRightWayUp)
 
 // ── The floor ───────────────────────────────────────────────────────────
 
-TEST (DanceFloor, IsWhereTheTowersStand)
+TEST (DanceFloor, IsExactlyEarHeightBelowTheListener)
 {
-  // One number, not two. A floor drawn at one height with the cabinets
-  // standing at another is a room that does not close, and at this size the
-  // gap reads as the speakers hovering.
-  auto const radius = 1.4f;
-  EXPECT_FLOAT_EQ (speakerFloorZ (radius, speakerDropRad),
-                   -std::sin (speakerDropRad) * radius);
+  // "0° elevation ist ohrhöhe. mensch ist also unser marker. boden unter die
+  // füße, boxen auf den boden." The sphere is centred on a person, so the
+  // floor is not somewhere below — it is 1.6 m below, and that is a number
+  // anyone can check against a room.
+  EXPECT_FLOAT_EQ (speakerFloorZ, -earHeightM * metrePerSphereRadius);
+  EXPECT_LT (speakerFloorZ, 0.f);
 }
 
-TEST (DanceFloor, IsBelowTheListener)
+TEST (DanceFloor, IsNotTheCellarItUsedToBe)
 {
-  EXPECT_LT (speakerFloorZ (1.4f, speakerDropRad), 0.f);
+  // It sat at -sin(drop) * speakerRadius, which is 4.9 m down.
+  auto const oldFloor = -std::sin (speakerDropRad) * 1.4f;
+  EXPECT_GT (speakerFloorZ, oldFloor)
+      << "the floor is still far under the listener's feet";
+  EXPECT_LT (speakerFloorZ / metrePerSphereRadius, -1.f)
+      << "and it has to stay below them";
+}
+
+TEST (DanceFloor, LetsATowerRiseAboveEarHeight)
+{
+  // A three-and-a-half metre stack standing on a floor 1.6 m down reaches two
+  // metres over the listener's ears. If the numbers did not do that, they
+  // would not be describing a room.
+  auto const top = speakerFloorZ + stackHeightM * metrePerSphereRadius;
+  EXPECT_GT (top, 0.f);
+  EXPECT_NEAR (top / metrePerSphereRadius, stackHeightM - earHeightM, 0.01f);
 }
 
 TEST (DanceFloor, ReachesPastTheTowers)
 {
-  // Drawn only as far as the speaker ring, the towers would stand on its very
-  // edge; a floor has to carry on past what stands on it.
   EXPECT_GT (floorReach, 1.f);
 }
-
-TEST (DanceFloor, StaysUnderTheSphere)
-{
-  // Deep enough that it does not cut the ball in half across the middle of the
-  // picture, which is where the trajectory is read.
-  EXPECT_LT (speakerFloorZ (1.4f, speakerDropRad), -0.4f);
-}
-

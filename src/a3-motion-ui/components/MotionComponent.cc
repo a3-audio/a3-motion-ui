@@ -1053,6 +1053,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.boltDim = cfgF (sl, "boltDim", 0.45f);
     sc.floorLevel = cfgF (sl, "floorLevel", 1.f);
     sc.floorThrough = cfgF (sl, "floorThrough", 0.55f);
+    sc.floorDark = cfgF (sl, "floorDark", 0.38f);
     sc.boltReach = cfgF (sl, "boltReach", 2.4f);
     sc.boltEscape = cfgF (sl, "boltEscape", 0.55f);
     sc.boltBranches = cfgF (sl, "boltBranches", 2.f);

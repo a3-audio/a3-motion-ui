@@ -180,6 +180,7 @@ public:
     float boltDim = 0.45f;     // how far a quiet speaker dims
     float floorLevel = 1.f;    // how strongly the dance floor shows
     float floorThrough = 0.55f; // how much of it shows through the ball
+    float floorDark = 0.38f;   // how far it darkens what is behind it
     float boltReach = 2.4f;    // how far an escaping one carries
     float boltEscape = 0.55f;  // how many of them escape
     float boltBranches = 2.f;  // branches per bolt
@@ -352,6 +353,8 @@ private:
   GLint _uFloorReach = -1;
   GLint _uFloorLevel = -1;
   GLint _uFloorThrough = -1;
+  GLint _uFloorDark = -1;
+  GLint _uFloorGrazeDir = -1;
   GLint _uRoomUp = -1;
   GLint _uSpkSeed[kMaxBlobs] = {};
   GLint _uSpkCentre[kMaxBlobs] = {};
