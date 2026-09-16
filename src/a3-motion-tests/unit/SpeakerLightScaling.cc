@@ -114,6 +114,32 @@ TEST (SpeakerLightScaling, ShippedConfigSetsBeamShapeParameters)
   EXPECT_LT (softness, 1.f);
 }
 
+TEST (SpeakerLightScaling, ShippedConfigDrawsNothingInASilentRoom)
+{
+  auto const parsed = shippedSkin ();
+  auto const &speakerLight = parsed["speakerLight"];
+  EXPECT_TRUE (speakerLight.hasProperty ("beamGate"))
+      << "a gate the skin cannot see is a gate nobody can set for their rig";
+
+  auto const gate = static_cast<float> (speakerLight["beamGate"]);
+  EXPECT_GT (gate, 0.f) << "a gate at zero never closes";
+
+  // The whole chain, not the gate on its own: thickness has a floor by
+  // design, so silence can only be said by the aliveness term.
+  auto const onScreen = [&] (float rms) {
+    auto const level = speakerLightLevel (
+        rms, static_cast<float> (speakerLight["vuMax"]),
+        static_cast<float> (speakerLight["curve"]));
+    return boltWidthAtLevel (static_cast<float> (speakerLight["boltWidth"]),
+                             level,
+                             static_cast<float> (speakerLight["boltThin"]))
+           * beamAliveness (level, gate);
+  };
+
+  EXPECT_FLOAT_EQ (onScreen (0.f), 0.f) << "bolts in a room with no sound";
+  EXPECT_GT (onScreen (quietestRms), 0.f) << "a quiet passage went dark";
+}
+
 TEST (SpeakerLightScaling, ShippedConfigTellsALoudSpeakerFromAQuietOne)
 {
   // This used to assert on level * beamIntensity and call that "what reaches

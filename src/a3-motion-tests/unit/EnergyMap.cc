@@ -388,6 +388,42 @@ TEST (BeamSpread, PartsCompanyWithTheScreenAzimuthUnderALean)
   EXPECT_GT (std::abs (std::abs (flat) - inTheRoom), 0.1f);
 }
 
+TEST (BeamAlive, ShowsNothingInASilentRoom)
+{
+  // What the maintainer saw on 2026-09-16: "warum sehe ich die schlieren aus
+  // den Speakern obwohl kein sound anliegt?" Once the level drove thickness
+  // instead of brightness, level zero still drew a bolt — thin, and just as
+  // bright as a thick one.
+  EXPECT_FLOAT_EQ (beamAliveness (0.f, 0.02f), 0.f);
+}
+
+TEST (BeamAlive, IsFullyOpenOnceAnythingIsPlaying)
+{
+  EXPECT_FLOAT_EQ (beamAliveness (0.02f, 0.02f), 1.f);
+  EXPECT_FLOAT_EQ (beamAliveness (0.5f, 0.02f), 1.f);
+}
+
+TEST (BeamAlive, OpensWithoutAStep)
+{
+  auto previous = beamAliveness (0.f, 0.02f);
+  for (auto level = 0.001f; level <= 0.03f; level += 0.001f)
+    {
+      auto const here = beamAliveness (level, 0.02f);
+      EXPECT_GE (here, previous) << "fell at " << level;
+      EXPECT_LT (here - previous, 0.2f) << "stepped at " << level;
+      previous = here;
+    }
+}
+
+TEST (BeamAlive, KeepsAQuietSpeakerBesideALoudOne)
+{
+  // It is the loudest of the four that decides, not each speaker's own level.
+  // A quiet speaker in a room where something is playing is part of the
+  // picture and keeps its hairline; only silence everywhere takes it away.
+  auto const loudest = 0.3f;
+  EXPECT_FLOAT_EQ (beamAliveness (loudest, 0.02f), 1.f);
+}
+
 TEST (BoltWidth, RunsFullAtFullLevel)
 {
   EXPECT_FLOAT_EQ (boltWidthAtLevel (0.9f, 1.f, 0.35f), 0.9f);
