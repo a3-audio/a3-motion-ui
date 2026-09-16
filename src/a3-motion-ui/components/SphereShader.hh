@@ -167,6 +167,7 @@ public:
     float cover = 3.f;         // how strongly the band hides the glow
     float boltWidth = 0.9f;    // angular width of a bolt's core, degrees
     float boltThin = 0.3f;     // what a silent speaker's bolt is worth
+    float beamGate = 0.02f;    // level below which the room is silent
     float boltWander = 0.55f;  // how far its path strays across the band
     float boltScale = 6.f;     // how quickly it strays with radius
     float boltFlow = 0.5f;     // how fast the path creeps
@@ -271,6 +272,7 @@ private:
   GLint _uBeamCover = -1;
   GLint _uBeamMinAnnulus = -1;
   GLint _uBeamDepthSoft = -1;
+  GLint _uBeamGate = -1;
   GLint _uBoltWidth = -1;
   GLint _uBoltThin = -1;
   GLint _uBoltWander = -1;

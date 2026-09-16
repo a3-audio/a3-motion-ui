@@ -122,6 +122,7 @@ uniform float uBeamFray;       // how ragged its edge is
 uniform float uBeamCover;      // how strongly the band hides the glow
 uniform float uBeamMinAnnulus; // narrowest annulus a band is ever given
 uniform float uBeamDepthSoft;  // how softly a band goes behind the sphere
+uniform float uBeamGate;       // level below which the room counts as silent
 uniform float uBoltWidth;      // angular width of a bolt's core, degrees
 uniform float uBoltThin;       // what a silent speaker's bolt is worth
 uniform float uBoltWander;     // how far its path strays across the band
@@ -1136,7 +1137,16 @@ vec2 beamDensity (vec2 point, vec3 spkCentre, float spkSeed, float level)
     // time, and a bolt you can only make out with some imagination is not a
     // bolt. It drives boltWidthAt() instead — a quiet speaker draws the same
     // bolts hairline thin, a loud one swells them.
-    float envelope = across * grip * radial;
+    //
+    // Which leaves one thing for the level still to say, and it took a silent
+    // room to notice it was gone: whether there is any sound at all. A bolt at
+    // level zero is still drawn, merely thin, and a hairline at full
+    // brightness is exactly as visible as a thick one — so four speakers threw
+    // bolts around a room with nothing playing in it. Off the loudest of the
+    // four, not off this speaker's own level: a quiet speaker beside a loud
+    // one is part of a picture. Mirrors beamAliveness() in EnergyMap.cc.
+    float alive = smoothstep (0.0, max (uBeamGate, 0.000001), loudest);
+    float envelope = across * grip * radial * alive;
 
     // A cabinet that has gone round behind the ball takes its band with it --
     // the one thing a flat annulus could never say, since on the screen a
@@ -1710,6 +1720,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBeamCover = glGetUniformLocation (pid, "uBeamCover");
   _uBeamMinAnnulus = glGetUniformLocation (pid, "uBeamMinAnnulus");
   _uBeamDepthSoft = glGetUniformLocation (pid, "uBeamDepthSoft");
+  _uBeamGate = glGetUniformLocation (pid, "uBeamGate");
   _uBoltWidth = glGetUniformLocation (pid, "uBoltWidth");
   _uBoltThin = glGetUniformLocation (pid, "uBoltThin");
   _uBoltWander = glGetUniformLocation (pid, "uBoltWander");
@@ -1919,6 +1930,7 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform1f (_uBeamMinAnnulus, beamMinimumAnnulus);
   if (_uBeamDepthSoft >= 0)
     glUniform1f (_uBeamDepthSoft, beamDepthSoftness);
+  if (_uBeamGate >= 0) glUniform1f (_uBeamGate, _spotCfg.beamGate);
   if (_uBoltWidth >= 0) glUniform1f (_uBoltWidth, _spotCfg.boltWidth);
   if (_uBoltThin >= 0) glUniform1f (_uBoltThin, _spotCfg.boltThin);
   if (_uBoltWander >= 0) glUniform1f (_uBoltWander, _spotCfg.boltWander);

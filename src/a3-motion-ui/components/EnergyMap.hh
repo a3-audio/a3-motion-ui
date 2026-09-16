@@ -176,6 +176,23 @@ float beamSpreadAngle (Pos const &pixelDirection, Pos const &speakerDirection);
  *  would otherwise ask for an annulus with no room in it. */
 float beamMouthRadiusSeen (Pos const &speakerSeen);
 
+/** Whether there is any sound in the room at all, 0 to 1.
+ *
+ *  The bands are a thing the sound does. Once the level drove thickness rather
+ *  than brightness, nothing was left to say "silence": a bolt at level zero is
+ *  still drawn, merely thin, and a hairline at full brightness is exactly as
+ *  visible as a thick one. So four speakers went on throwing bolts around a
+ *  room with nothing playing in it.
+ *
+ *  Taken from the *loudest* of the four rather than from each speaker's own
+ *  level, which is the same reasoning beamBandLevel() already carries: a quiet
+ *  speaker beside a loud one is part of a picture and keeps its hairline;
+ *  silence everywhere is not a picture. `gate` is where the room counts as
+ *  silent — an anlage with a noise floor needs it above zero.
+ *
+ *  Mirrors beamAlive() in SphereShader.cc. */
+float beamAliveness (float loudestLevel, float gate);
+
 /** How wide a bolt's core runs at a given level, in degrees.
  *
  *  The level is a *thickness* now, not a brightness. Driving brightness with

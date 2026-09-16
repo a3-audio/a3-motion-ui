@@ -1041,6 +1041,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.cover = cfgF (sl, "cover", 3.f);
     sc.boltWidth = cfgF (sl, "boltWidth", 0.9f);
     sc.boltThin = cfgF (sl, "boltThin", 0.3f);
+    sc.beamGate = cfgF (sl, "beamGate", 0.02f);
     sc.boltWander = cfgF (sl, "boltWander", 0.55f);
     sc.boltScale = cfgF (sl, "boltScale", 6.f);
     sc.boltFlow = cfgF (sl, "boltFlow", 0.5f);

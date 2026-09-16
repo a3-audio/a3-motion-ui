@@ -193,6 +193,15 @@ beamSpreadAngle (Pos const &pixelDirection, Pos const &speakerDirection)
 }
 
 float
+beamAliveness (float loudestLevel, float gate)
+{
+  auto const span = std::max (gate, 1e-6f);
+  auto const t = std::clamp (loudestLevel / span, 0.f, 1.f);
+
+  return t * t * (3.f - 2.f * t); // smoothstep, matching GLSL
+}
+
+float
 boltWidthAtLevel (float baseWidthDegrees, float level, float thin)
 {
   auto const swell
