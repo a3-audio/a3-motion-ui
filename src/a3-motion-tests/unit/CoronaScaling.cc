@@ -160,3 +160,52 @@ TEST (CoronaScaling, TheScalingIsActuallyWiredIn)
       << "nothing scales the blob's VU; the raw meter reading reaches the "
          "shader";
 }
+
+TEST (CoronaScaling, TheCoronasOwnSizeIsWiredInToo)
+{
+  // The other half of the same break. coronaScaleFactor() is how far the
+  // corona reaches for a given level, and it is the only part of this a skin
+  // can set — sizeMin and sizeMax. With nothing calling it the shader carried
+  // its own hard-wired ramp instead, so "too subtle" had no control to answer
+  // it.
+  juce::File const root (A3_UI_SOURCE_DIR);
+  auto callers = 0;
+
+  for (auto const &entry : juce::RangedDirectoryIterator (
+           root, true, "*.cc", juce::File::findFiles))
+    {
+      if (entry.getFile ().getFileName () == "CoronaScaling.cc")
+        continue;
+
+      if (entry.getFile ().loadFileAsString ().contains ("coronaScaleFactor ("))
+        ++callers;
+    }
+
+  EXPECT_GT (callers, 0)
+      << "the corona's reach is hard-wired in the shader; sizeMin/sizeMax "
+         "reach nothing";
+}
+
+TEST (CoronaScaling, TheCoronaReachesAtLeastAsFarAsTheRampItReplaced)
+{
+  // sizeMin/sizeMax described a ring drawn around a 2D disc. They now say how
+  // far the shader's corona reaches, in the same unit -- blob radii -- but the
+  // ramp they replaced ran 1.9 to 4.3, and the old ring numbers (1.1 to 2.2)
+  // would have made the blob quieter while answering a complaint that it was
+  // too quiet.
+  CoronaConfig cfg;
+
+  EXPECT_GE (coronaScaleFactor (0.f, cfg), 1.9f) << "a silent blob shrank";
+  EXPECT_GE (coronaScaleFactor (1.f, cfg), 4.3f) << "a loud blob lost its reach";
+}
+
+TEST (CoronaScaling, TheCoronaGrowsEnoughToBeRead)
+{
+  // "wenns nur die blitze sind ist es zu subtil" -- the reach has to be worth
+  // looking at across the range real material covers, not merely non-zero.
+  CoronaConfig cfg;
+  auto const quiet = coronaScaleFactor (0.f, cfg);
+  auto const loud = coronaScaleFactor (1.f, cfg);
+
+  EXPECT_GT (loud / quiet, 1.5f) << "a corona that barely moves says nothing";
+}

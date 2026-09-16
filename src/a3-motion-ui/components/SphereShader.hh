@@ -91,6 +91,7 @@ public:
     float r = 0.f, g = 0.f, b = 0.f; // colour
     float size = 0.f;                 // radius in sphere-normalised units
     float vuPeak = 0.f;
+    float corona = 1.9f;  // how far the corona reaches, in blob radii
     float vuRms = 0.f;
     /** How far an action has this channel, 0..1. Not whether a finger is down:
      *  the engine puts a clip's settings back when the accent's envelope has
@@ -315,7 +316,8 @@ private:
   // Blob uniforms (position+colour kept for lighting on sphere surface)
   GLint _uBlobPosSize[kMaxBlobs] = {};  // vec4: x, y, size, vuLevel
   GLint _uBlobCol[kMaxBlobs] = {};      // vec3: r, g, b
-  GLint _uBlobState[kMaxBlobs] = {};    // vec4: vu, action, seed, depth
+  GLint _uBlobState[kMaxBlobs] = {};
+  GLint _uBlobCorona[kMaxBlobs] = {};    // vec4: vu, action, seed, depth
   // The wake, two points to a vec4 -- separate uniforms rather than one array
   // because a uniform array in GLSL 1.20 may only be indexed by a
   // constant-index-expression, and the blob index here is a function argument.

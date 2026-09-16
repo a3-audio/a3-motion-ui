@@ -1313,8 +1313,15 @@ MotionComponent::renderOpenGL ()
         // around 0.3, which is barely over the threshold the blob's own bolt
         // needs, so most of what it can do never came out. vuMax is what says
         // how loud "loud" is on this rig.
-        bd.vuPeak = coronaVuLevel (_smoothBlobPeak[ch], _smoothBlobRms[ch],
-                                   _coronaCfg.vuMax);
+        auto const blobLevel = coronaVuLevel (
+            _smoothBlobPeak[ch], _smoothBlobRms[ch], _coronaCfg.vuMax);
+        bd.vuPeak = blobLevel;
+
+        // How far the corona reaches, from the skin's own sizeMin..sizeMax
+        // rather than a ramp written into the shader. This is the part of the
+        // blob that says "level" at a glance -- the sparks and the bolt are
+        // detail you have to be looking at it to catch.
+        bd.corona = coronaScaleFactor (blobLevel, _coronaCfg);
         bd.vuRms = _smoothBlobRms[ch];
         bd.grabbed = _uiStates[ch]->grabbed;
         bd.highlighted = _uiStates[ch]->highlighted;

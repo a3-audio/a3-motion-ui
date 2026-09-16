@@ -168,6 +168,10 @@ uniform vec4  uBlobPosSize3;
 /** Per blob, the things the light alone could not carry: how loud it is, how
  *  far an action has it, and a seed so four blobs do not sparkle in step.
  *  x = vuPeak, y = action 0..1, z = seed, w = depth fade (back of the sphere). */
+uniform float uBlobCorona0;
+uniform float uBlobCorona1;
+uniform float uBlobCorona2;
+uniform float uBlobCorona3;
 uniform vec4  uBlobState0;
 uniform vec4  uBlobState1;
 uniform vec4  uBlobState2;
@@ -391,6 +395,19 @@ vec4 getBlobState (int i)
     if (i == 1) return uBlobState1;
     if (i == 2) return uBlobState2;
     return uBlobState3;
+}
+
+/** How far this blob's corona reaches, in blob radii.
+ *
+ *  From coronaScaleFactor() on the CPU rather than a ramp written in here:
+ *  sizeMin and sizeMax are what a rig is tuned with, and a ramp in the shader
+ *  is a ramp nobody can turn. */
+float getBlobCorona (int i)
+{
+    if (i == 0) return uBlobCorona0;
+    if (i == 1) return uBlobCorona1;
+    if (i == 2) return uBlobCorona2;
+    return uBlobCorona3;
 }
 
 vec4 getBlobTrailA (int i)
@@ -722,7 +739,7 @@ vec3 blobLight (vec2 uv, int i)
     // How far it reaches was five and a half blob-radii per unit of level,
     // which at a working level is a wash a third of the sphere across with the
     // body lost inside it. A corona is a surround, not a fog.
-    float reach = r * (1.9 + 2.4 * vu + 1.6 * action);
+    float reach = r * (getBlobCorona (i) + 1.6 * action);
     float halo = pow (clamp (1.0 - d / reach, 0.0, 1.0), 3.0);
 
     // Sparks. A ring of flecks that drift outwards and burn out, thrown harder
@@ -1762,6 +1779,10 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBlobCol[1]     = glGetUniformLocation (pid, "uBlobCol1");
   _uBlobCol[2]     = glGetUniformLocation (pid, "uBlobCol2");
   _uBlobCol[3]     = glGetUniformLocation (pid, "uBlobCol3");
+  _uBlobCorona[0] = glGetUniformLocation (pid, "uBlobCorona0");
+  _uBlobCorona[1] = glGetUniformLocation (pid, "uBlobCorona1");
+  _uBlobCorona[2] = glGetUniformLocation (pid, "uBlobCorona2");
+  _uBlobCorona[3] = glGetUniformLocation (pid, "uBlobCorona3");
   _uBlobState[0]  = glGetUniformLocation (pid, "uBlobState0");
   _uBlobState[1]  = glGetUniformLocation (pid, "uBlobState1");
   _uBlobState[2]  = glGetUniformLocation (pid, "uBlobState2");
@@ -2009,6 +2030,9 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
       // The seed keeps four blobs from sparkling in step. From the index
       // rather than from a clock, so a channel's own flecks stay its own
       // across a restart instead of shuffling every time the app comes up.
+      if (_uBlobCorona[i] >= 0)
+        glUniform1f (_uBlobCorona[i], b.corona);
+
       if (_uBlobState[i] >= 0)
         glUniform4f (_uBlobState[i], b.vuPeak, b.action,
                      1.7f + static_cast<float> (i) * 3.1f,

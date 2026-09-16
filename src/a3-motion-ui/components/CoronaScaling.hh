@@ -31,8 +31,16 @@ namespace a3
 struct CoronaConfig
 {
   float vuMax = 0.25f;
-  float sizeMin = 1.1f;
-  float sizeMax = 2.2f;
+  // How far the corona reaches at silence and at full level, in blob radii.
+  //
+  // These described a ring drawn around a 2D disc until 2026-09-16; they are
+  // the shader's corona reach now, in the same unit. The ramp they replaced
+  // was written into the shader as 1.9 + 2.4 * level, so the floor keeps that
+  // and the ceiling goes above it — the reach is the one thing about a blob
+  // that says "level" from across a booth, and it was reported as too subtle
+  // to read.
+  float sizeMin = 1.9f;
+  float sizeMax = 5.0f;
   float sizeGrabbed = 1.5f;
   float alphaMin = 0.f;
   float alphaMax = 0.75f;
