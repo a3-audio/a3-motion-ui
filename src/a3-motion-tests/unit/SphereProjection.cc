@@ -384,3 +384,28 @@ TEST (LineDepth, SeparatesTheTwoSidesEnoughToBeSeen)
   // of it could not be told apart.
   EXPECT_GT (lineDepthFade (0.6f) / lineDepthFade (-0.6f), 1.6f);
 }
+
+TEST (DefaultCamera, IsLeanedOverALittle)
+{
+  // Straight overhead an upright tower is a lid and nothing else, which is why
+  // the speakers used to be laid back. The default leans instead.
+  EXPECT_GT (defaultCamera ().pitch, 0.25f);
+  EXPECT_LT (defaultCamera ().pitch, 0.45f)
+      << "far enough over that the sphere stops reading as a circle";
+}
+
+TEST (DefaultCamera, HasNotWalkedRound)
+{
+  // Only the lean is a default. Which way round the room is looked at is the
+  // performer's, and starting it turned would move every bearing on the
+  // graticule for no reason.
+  EXPECT_FLOAT_EQ (defaultCamera ().turn, 0.f);
+}
+
+TEST (DefaultCamera, StillFlattensTheSphereOnlySlightly)
+{
+  // A blob near the rim must land close to where a hand has learned it is.
+  // cos(pitch) is what the vertical axis is squashed by.
+  EXPECT_GT (std::cos (defaultCamera ().pitch), 0.9f);
+}
+

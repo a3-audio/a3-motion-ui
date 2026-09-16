@@ -299,7 +299,7 @@ private:
 
   /** Where the room is being looked at from. The overhead view is the
    *  default and costs nothing -- the shader short-circuits on it. */
-  SphereCamera _camera;
+  SphereCamera _camera = defaultCamera ();
 
   GLint _uEnergyMap = -1;
   GLint _uEnergyColour = -1;

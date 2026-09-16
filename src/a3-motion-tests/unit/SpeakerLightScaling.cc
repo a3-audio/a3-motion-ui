@@ -544,11 +544,13 @@ TEST (SpeakerStack, HasPortraitTopsAndLandscapeSubs)
   EXPECT_GT (subWidthM / subHeightM, 2.f) << "an F218 is landscape";
 }
 
-TEST (SpeakerStack, NarrowsTowardsTheTop)
+TEST (SpeakerStack, HasAClusterThatCoversTheSubsCompletely)
 {
-  // The subs are the wide part and carry the cluster. A tower the other way up
-  // would read as the wrong instrument at any size.
-  EXPECT_GT (subWidthM, clusterWidthM);
+  // "mach mal drei davon, sodass die gesamte fläche der subs durch tops
+  // verdeckt wird". Three tops span exactly the sub stack's width, so the
+  // cluster reads as the lid of the tower rather than as a box standing on
+  // one — which is what made three cabinets look like a single top.
+  EXPECT_FLOAT_EQ (clusterWidthM, subWidthM);
 }
 
 TEST (SpeakerStack, HasAClusterAsWideAsItsThreeCabinets)

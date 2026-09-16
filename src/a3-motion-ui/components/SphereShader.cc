@@ -2323,21 +2323,17 @@ SphereShader::uploadSpeakerFrames ()
   static constexpr float bearings[kMaxBlobs][2]
       = { { k, k }, { k, -k }, { -k, -k }, { -k, k } };
 
-  // How far *below* the horizon a cabinet stands, in radians.
+  // Where the floor is, and how tall the thing standing on it is.
   //
-  // On the horizon they are geometrically right and unreadable: the device's
-  // own view is from straight overhead, and from there a speaker beside you is
-  // its top panel -- four grey diamonds, which is very nearly what the SVG
-  // arrows they replaced were. Lifting them and aiming down at the listener
-  // makes it worse, not better: the eye is then behind them and sees the back.
-  // Set below the ear and angled up -- floor monitors around a listening
-  // position -- the baffle turns towards the overhead view, so the drivers are
-  // in sight from the view the device actually ships in, and the geometry is
-  // still a room somebody could build.
-  static constexpr float drop = 0.42f;
-
-  auto const level = std::cos (drop);
-  auto const sink = std::sin (drop);
+  // The cabinets used to be sunk below the horizon and tilted up at the
+  // listener. That was the only way to be recognisable while the view came
+  // from straight overhead: orthographically, an upright speaker seen from the
+  // zenith is its top panel and nothing else. The eye leans over now
+  // (defaultCamera), so a tower can do what a stack of loudspeakers actually
+  // does — stand on the floor with its front level at the listener.
+  auto const level = std::cos (speakerDropRad);
+  auto const floorZ = -std::sin (speakerDropRad) * _spotCfg.speakerRadius;
+  auto const halfTower = stackHeightM * 0.5f * speakerIconSize * 0.42f;
 
   for (int i = 0; i < kMaxBlobs; ++i)
     {
@@ -2349,12 +2345,13 @@ SphereShader::uploadSpeakerFrames ()
       };
 
       auto const radius = _spotCfg.speakerRadius;
-      auto const centre
-          = seen (bx * level * radius, by * level * radius, -sink * radius);
-      auto const nose = seen (-bx * level, -by * level, sink);
-      // Along its width, taken from the bearing rather than from the world's
-      // up: a cabinet angled steeply has a nose near the vertical, and a cross
-      // product against up would collapse there.
+
+      // Upright: the tower's own middle sits half its height above the floor,
+      // and its face looks level at the listener rather than up at them.
+      auto const centre = seen (bx * level * radius, by * level * radius,
+                                floorZ + halfTower);
+      auto const nose = seen (-bx, -by, 0.f);
+      // Along its width, square to the nose and to the room's own up.
       auto const side = seen (-by, bx, 0.f);
 
       // From the room's bearing, so a speaker keeps its own bolts however the

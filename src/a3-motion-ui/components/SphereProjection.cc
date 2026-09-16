@@ -103,6 +103,18 @@ rotated (Pos const &p, float turn, float pitch)
 }
 }
 
+SphereCamera
+defaultCamera ()
+{
+  // 18 degrees. Measured against what it has to do: a tower 3.64 m tall on a
+  // sphere whose radius stands for about five metres needs its height to come
+  // out as a good share of its own width, and below about fifteen degrees it
+  // does not.
+  SphereCamera camera;
+  camera.pitch = 0.31f;
+  return camera;
+}
+
 Pos
 asSeenFrom (Pos const &direction, SphereCamera const &camera)
 {

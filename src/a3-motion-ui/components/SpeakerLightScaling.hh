@@ -73,12 +73,15 @@ constexpr float speakerApertureHalfWidth = 16.f / 100.f * speakerIconSize;
 // a Res 2 is **portrait**, half as wide as it is tall, and the three of them
 // stand **beside** each other rather than stacked. The subs are the wide part
 // and carry the cluster; the tower narrows as it goes up.
-constexpr float resWidthM = 0.53f;
+// Wide enough that three of them cover the subs completely: the cluster is
+// the lid of the tower, not a box sitting on top of one.
+constexpr float subWidthM_ = 1.65f;
+constexpr float resWidthM = subWidthM_ / 3.f;
 constexpr float resHeightM = 1.00f;
 constexpr float resDepthM = 0.62f;
 constexpr int resPerStack = 3;      // side by side
 
-constexpr float subWidthM = 1.65f;
+constexpr float subWidthM = subWidthM_;
 constexpr float subHeightM = 0.66f;
 constexpr float subDepthM = 0.90f;
 constexpr int subPerStack = 4;      // one on top of the next

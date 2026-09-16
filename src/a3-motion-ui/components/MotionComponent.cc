@@ -691,7 +691,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
       if (_ballTapMs != 0 && now - _ballTapMs < doubleTapMs)
         {
           _ballTapMs = 0;
-          setCamera ({});
+          setCamera (defaultCamera ());
           return;
         }
 
