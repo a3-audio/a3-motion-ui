@@ -91,6 +91,7 @@ public:
     float r = 0.f, g = 0.f, b = 0.f; // colour
     float size = 0.f;                 // radius in sphere-normalised units
     float vuPeak = 0.f;
+    float corona = 1.9f;  // how far the corona reaches, in blob radii
     float vuRms = 0.f;
     /** How far an action has this channel, 0..1. Not whether a finger is down:
      *  the engine puts a clip's settings back when the accent's envelope has
@@ -109,7 +110,6 @@ public:
     float trailX[8]{}, trailY[8]{};
     bool visible = false;
     bool grabbed = false;
-    bool highlighted = false;
   };
   void setBlob (int index, BlobData const &data);
   void setNumBlobs (int n);
@@ -167,7 +167,7 @@ public:
     float cover = 3.f;         // how strongly the band hides the glow
     float boltWidth = 0.9f;    // angular width of a bolt's core, degrees
     float boltThin = 0.3f;     // what a silent speaker's bolt is worth
-    float beamGate = 0.02f;    // level below which the room is silent
+    float beamGate = 0.004f;   // level below which the room is silent
     float boltWander = 0.55f;  // how far its path strays across the band
     float boltScale = 6.f;     // how quickly it strays with radius
     float boltFlow = 0.5f;     // how fast the path creeps
@@ -175,8 +175,24 @@ public:
     float boltDuty = 0.55f;    // and how much of the time it is dark
     float boltCoreExp = 5.f;   // how tight the white core is
     float boltCore = 0.9f;     // how bright it runs
-    float boltCount = 6.f;     // bolts per band
-    float boltReach = 2.4f;    // how far an escaping one carries
+    float boltCount = 6.f;     // bolts the loudest speaker draws
+    float boltFewest = 2.f;    // bolts the quietest speaker keeps
+    float boltDim = 0.45f;     // how far a quiet speaker dims
+    float floorLevel = 1.f;    // how strongly the dance floor shows
+    float floorThrough = 0.32f; // how much of it shows through the ball
+    float floorDark = 0.16f;   // how far it darkens what is behind it
+    float floorBeams = 1.4f;   // how strongly the beams cross it
+    float floorBeamInner = 0.02f; // how far in a floor bolt runs
+    float boxOcclude = 0.85f;  // how far a cabinet hides what is behind it
+    float floorGrain = 14.f;   // how fine the floor's own texture is
+    float ballLevel = 1.f;     // how strongly the subs throw ball lightning
+    float ballCount = 3.f;     // balls per sub stack at once
+    float ballRate = 0.32f;    // lives per second
+    float ballReach = 0.72f;   // how far towards the listener a ball gets
+    float ballSize = 0.048f;   // radius of a ball's body, sphere radii
+    float ballWander = 0.10f;  // how far it strays sideways
+    float ballHeight = 0.05f;  // how high above the floor it floats
+    float boltInner = 0.45f;   // how far in an escaping bolt runs
     float boltEscape = 0.55f;  // how many of them escape
     float boltBranches = 2.f;  // branches per bolt
     float boltBranch = 1.6f;   // how hard a branch leaves its trunk
@@ -217,6 +233,9 @@ public:
    *  warped by noise, so they wander along the line and can never fold the
    *  way an offset copy of the curve does), and the bolts. */
   void setLineTexture (int channel, unsigned int textureID);
+  /** The braid strands for a channel: red where a strand is, green how
+   *  far in front of the cord. 0 means no braid for that channel. */
+  void setStrandTexture (int channel, unsigned int textureID);
   /** How far the line map reaches, in sphere radii. */
   void setLineExtent (float extent) { _lineExtent = extent; }
 
@@ -287,7 +306,9 @@ private:
   GLint _uSphereEnvironment = -1;
   GLint _uBoltCoreColour = -1;
   GLint _uBoltCount = -1;
-  GLint _uBoltReach = -1;
+  GLint _uBoltFewest = -1;
+  GLint _uBoltDim = -1;
+  GLint _uBoltInner = -1;
   GLint _uBoltEscape = -1;
   GLint _uBoltBranches = -1;
   GLint _uBoltBranch = -1;
@@ -295,7 +316,7 @@ private:
 
   /** Where the room is being looked at from. The overhead view is the
    *  default and costs nothing -- the shader short-circuits on it. */
-  SphereCamera _camera;
+  SphereCamera _camera = defaultCamera ();
 
   GLint _uEnergyMap = -1;
   GLint _uEnergyColour = -1;
@@ -315,7 +336,8 @@ private:
   // Blob uniforms (position+colour kept for lighting on sphere surface)
   GLint _uBlobPosSize[kMaxBlobs] = {};  // vec4: x, y, size, vuLevel
   GLint _uBlobCol[kMaxBlobs] = {};      // vec3: r, g, b
-  GLint _uBlobState[kMaxBlobs] = {};    // vec4: vu, action, seed, depth
+  GLint _uBlobState[kMaxBlobs] = {};
+  GLint _uBlobCorona[kMaxBlobs] = {};    // vec4: vu, action, seed, depth
   // The wake, two points to a vec4 -- separate uniforms rather than one array
   // because a uniform array in GLSL 1.20 may only be indexed by a
   // constant-index-expression, and the blob index here is a function argument.
@@ -327,12 +349,39 @@ private:
   GLint _uBlobEffects = -1;
 
   GLint _uLineMap[kMaxBlobs] = {};
+  GLint _uStrandMap[kMaxBlobs] = {};
   GLint _uLineOn = -1;
   GLint _uLineExtent = -1;
   GLint _uLineFarSide = -1;
   GLint _uLineEffects = -1;
   GLint _uBraid = -1;
 
+  GLint _uStackTop = -1;
+  GLint _uStackSub = -1;
+  GLint _uStackTopMid = -1;
+  GLint _uStackSubMid = -1;
+  GLint _uStackReach = -1;
+  GLint _uStackSubCount = -1;
+  GLint _uStackOne = -1;
+  GLint _uStackSplay = -1;
+  GLint _uFloorZ = -1;
+  GLint _uFloorReach = -1;
+  GLint _uFloorLevel = -1;
+  GLint _uFloorThrough = -1;
+  GLint _uFloorDark = -1;
+  GLint _uFloorBeams = -1;
+  GLint _uFloorBeamInner = -1;
+  GLint _uBoxOcclude = -1;
+  GLint _uFloorGrain = -1;
+  GLint _uBallLevel = -1;
+  GLint _uBallCount = -1;
+  GLint _uBallRate = -1;
+  GLint _uBallReach = -1;
+  GLint _uBallSize = -1;
+  GLint _uBallWander = -1;
+  GLint _uBallHeight = -1;
+  GLint _uFloorGrazeDir = -1;
+  GLint _uRoomUp = -1;
   GLint _uSpkSeed[kMaxBlobs] = {};
   GLint _uSpkCentre[kMaxBlobs] = {};
   GLint _uSpkNose[kMaxBlobs] = {};
@@ -340,8 +389,10 @@ private:
   /** Where the four cabinets stand as the eye sees them. Once a frame: it is
    *  the same answer for every pixel, and worked out per pixel it cost a
    *  quarter of a core in sines and cosines. */
+  void uploadStackGeometry ();
   void uploadSpeakerFrames ();
   unsigned int _lineTexture[kMaxBlobs] = {};
+  unsigned int _strandTexture[kMaxBlobs] = {};
   float _lineExtent = 1.3f;
 
   GLint _uNumBlobs = -1;

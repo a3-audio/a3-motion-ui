@@ -883,23 +883,30 @@ TEST (Bolts, ShippedConfigStrikesRatherThanGlows)
 }
 
 
-// Some bolts stay in the annulus and some break out towards the edge of the
-// screen, which is what stops the band reading as a ring with a hard outer
-// limit. And there have to be enough of them to look like weather.
-TEST (Bolts, ShippedConfigLetsSomeBoltsBreakOut)
+// A bolt starts at a loudspeaker — "der ursprung der blitze ist immer eine
+// box". They used to break *outwards* to boltReach, 2.4 sphere radii, which is
+// a whole radius behind the towers: a bolt appeared out in the dark and arrived
+// at the box, backwards. The ones that break out now break inwards, towards the
+// listener, and none reaches past the mouth at all (that bound is in the
+// shader, where far = mouthR).
+//
+// So what the skin sets is how far in: a share of the inner edge, below one or
+// it would not be further in, above nothing or it would run through the
+// middle and out the other side.
+TEST (Bolts, ShippedConfigLetsSomeBoltsBreakInwards)
 {
   auto const parsed = shippedSkin ();
   ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &speakerLight = parsed["speakerLight"];
 
-  ASSERT_TRUE (speakerLight.hasProperty ("boltReach"));
+  EXPECT_FALSE (speakerLight.hasProperty ("boltReach"))
+      << "boltReach sent bolts out behind the towers; it should be gone";
+  ASSERT_TRUE (speakerLight.hasProperty ("boltInner"));
   ASSERT_TRUE (speakerLight.hasProperty ("boltCount"));
 
-  auto const mouthRadius = speakerMouthRadius (
-      static_cast<float> (speakerLight["speakerRadius"]));
-
-  EXPECT_GT (static_cast<float> (speakerLight["boltReach"]), mouthRadius)
-      << "an escaping bolt has to get past the mouth to escape anything";
+  auto const inner = static_cast<float> (speakerLight["boltInner"]);
+  EXPECT_LT (inner, 1.f) << "an escaping bolt has to get further in to escape";
+  EXPECT_GT (inner, 0.f) << "and must not run out through the other side";
   EXPECT_GT (static_cast<float> (speakerLight["boltCount"]), 3.f);
 }
 
@@ -974,3 +981,193 @@ TEST (MenuRendering, ShippedConfigKeepsTheSphereRunningWhileTheMenuIsOpen)
 }
 
 }
+
+// ── Which speaker the sound is coming out of ────────────────────────────
+//
+// Measured at the rig on 2026-09-16, one input channel plainly playing, read
+// off port 7772 while the app was running: the four speakers sat at rms
+// 0.0015, 0.0043, 0.0090 and 0.0040. Through vuMax 0.2 and curve 1.2 that is
+// 2.4% of the scale at the loudest, so every bolt was on its floor.
+
+namespace
+{
+constexpr float rigSpeakerRms[4] = { 0.0015f, 0.0043f, 0.0090f, 0.0040f };
+}
+
+TEST (BeamShare, PutsTheLoudestSpeakerAtFullWidth)
+{
+  auto const level = [] (float rms) { return speakerLightLevel (rms, 0.2f, 1.2f); };
+  auto loudest = 0.f;
+  for (auto const rms : rigSpeakerRms)
+    loudest = std::max (loudest, level (rms));
+
+  EXPECT_FLOAT_EQ (beamShare (loudest, loudest), 1.f);
+}
+
+TEST (BeamShare, SeparatesTheRigsFourSpeakers)
+{
+  // The complaint: "die speakerbeams stellen es aber nicht korrekt dar". Read
+  // absolutely the four were 4% apart; as shares they have to be plainly
+  // different.
+  auto const level = [] (float rms) { return speakerLightLevel (rms, 0.2f, 1.2f); };
+  auto loudest = 0.f;
+  for (auto const rms : rigSpeakerRms)
+    loudest = std::max (loudest, level (rms));
+
+  auto const floorShare = 0.22f;  // levelFloor
+  auto const widthOf = [&] (float rms) {
+    auto const lifted = std::max (level (rms), floorShare * loudest);
+    return boltWidthAtLevel (0.45f, beamShare (lifted, loudest), 0.3f);
+  };
+
+  EXPECT_GT (widthOf (0.0090f) / widthOf (0.0015f), 1.8f)
+      << "the loud speaker is not visibly thicker than the quiet one";
+}
+
+TEST (BeamShare, DoesNotCareHowLoudTheRoomIs)
+{
+  // The whole point of a share: turning the system up or down moves every
+  // speaker together and must not change which one looks loudest.
+  auto const level = [] (float rms) { return speakerLightLevel (rms, 0.2f, 1.2f); };
+  for (auto const gain : { 1.f, 4.f, 0.25f })
+    {
+      auto loudest = 0.f;
+      for (auto const rms : rigSpeakerRms)
+        loudest = std::max (loudest, level (rms * gain));
+
+      EXPECT_NEAR (beamShare (level (0.0043f * gain), loudest),
+                   beamShare (level (0.0043f), level (0.0090f)), 0.02f)
+          << "at gain " << gain;
+    }
+}
+
+TEST (BeamShare, IsNothingWhenNothingPlays)
+{
+  EXPECT_FLOAT_EQ (beamShare (0.f, 0.f), 0.f);
+}
+
+TEST (BeamShare, IsWiredIntoTheShader)
+{
+  // The fifth wiring guard this week, and the first that cannot ask "does
+  // anything call it": the shader carries its own GLSL copy of this, so the
+  // C++ mirror has no caller by design. What has to be checked is the line
+  // that draws — that the bolts are handed a share and not the absolute level
+  // the width used to come from.
+  auto const shader
+      = juce::File (A3_UI_SOURCE_DIR)
+            .getChildFile ("components/SphereShader.cc")
+            .loadFileAsString ();
+
+  juce::StringArray lines;
+  lines.addLines (shader);
+
+  juce::String call;
+  for (auto const &line : lines)
+    if (line.contains ("bolts (dA"))
+      call = line;
+
+  EXPECT_FALSE (call.isEmpty ()) << "nothing draws bolts";
+  EXPECT_TRUE (call.contains ("share"))
+      << "the bolts take an absolute level, so their width says how loud the "
+         "room is rather than which speaker the sound is in: "
+      << call;
+}
+
+// ── How many bolts, and how bright ──────────────────────────────────────
+
+TEST (BeamBoltCount, GivesTheLoudestSpeakerAllOfThem)
+{
+  EXPECT_FLOAT_EQ (beamBoltCount (1.f, 7.f, 2.f), 7.f);
+}
+
+TEST (BeamBoltCount, ThinsOutAQuietSpeakerWithoutEmptyingIt)
+{
+  // At the rig's own levels the quiet speakers sat at a share of 0.28.
+  EXPECT_LT (beamBoltCount (0.28f, 7.f, 2.f), 5.f);
+  EXPECT_GE (beamBoltCount (0.f, 7.f, 2.f), 1.f)
+      << "a speaker dropped out entirely and opened a hole in the ring";
+}
+
+TEST (BeamBoltCount, IsSomethingYouCanCount)
+{
+  // The whole reason for touching the count: the width spread at those levels
+  // is 1.3 px against 2.6 px, which reads as two hairlines. A difference in
+  // *number* does not need to be measured to be seen.
+  EXPECT_GE (beamBoltCount (1.f, 7.f, 2.f) - beamBoltCount (0.28f, 7.f, 2.f),
+             3.f);
+}
+
+TEST (BeamBoltCount, NeverAsksForMoreThanTheSkinSet)
+{
+  for (auto const share : { 0.f, 0.3f, 0.7f, 1.f, 2.f })
+    EXPECT_LE (beamBoltCount (share, 7.f, 2.f), 7.f) << "share " << share;
+}
+
+TEST (BeamBrightness, LeavesTheLoudestSpeakerAtFull)
+{
+  EXPECT_FLOAT_EQ (beamBrightness (1.f, 0.45f), 1.f);
+}
+
+TEST (BeamBrightness, NeverPutsAQuietSpeakerOut)
+{
+  // This is the one term that must not repeat the original fault. Relative,
+  // so the floor is a floor against the loudest rather than against silence.
+  EXPECT_FLOAT_EQ (beamBrightness (0.f, 0.45f), 0.45f);
+  EXPECT_GT (beamBrightness (0.f, 0.45f), 0.f);
+}
+
+TEST (BeamBrightness, SeparatesTheRigsQuietSpeakerFromItsLoudOne)
+{
+  EXPECT_GT (beamBrightness (1.f, 0.45f) / beamBrightness (0.28f, 0.45f),
+             1.5f);
+}
+
+// ── Ball lightning, out of the subs ─────────────────────────────────────
+
+TEST (BallLightning, IsBornAtTheSub)
+{
+  // "der ursprung der blitze ist immer eine box" — a ball starts at the stack
+  // that throws it, not somewhere between.
+  EXPECT_FLOAT_EQ (ballLightningTravel (0.f, 0.8f), 0.f);
+}
+
+TEST (BallLightning, DriftsInAndNeverThroughTheListener)
+{
+  auto previous = ballLightningTravel (0.f, 0.8f);
+  for (auto life = 0.05f; life <= 1.f; life += 0.05f)
+    {
+      auto const here = ballLightningTravel (life, 0.8f);
+      EXPECT_GE (here, previous) << "turned back at life " << life;
+      previous = here;
+    }
+  EXPECT_LT (ballLightningTravel (1.f, 2.f), 1.f)
+      << "a ball that reaches the middle goes through the person standing there";
+}
+
+TEST (BallLightning, SlowsAsItGoes)
+{
+  // Ball lightning wanders and lingers; a strike is what the tops are for.
+  auto const early = ballLightningTravel (0.2f, 0.8f) - ballLightningTravel (0.1f, 0.8f);
+  auto const late = ballLightningTravel (0.9f, 0.8f) - ballLightningTravel (0.8f, 0.8f);
+  EXPECT_GT (early, late * 2.f);
+}
+
+TEST (BallLightning, ThrowsNothingFromASilentSub)
+{
+  for (auto life : { 0.2f, 0.5f, 0.8f })
+    EXPECT_FLOAT_EQ (ballLightningBrightness (life, 0.f, 0.004f, 1.f), 0.f);
+}
+
+TEST (BallLightning, SwellsInAndDiesAway)
+{
+  EXPECT_FLOAT_EQ (ballLightningBrightness (0.f, 0.8f, 0.004f, 1.f), 0.f);
+  EXPECT_FLOAT_EQ (ballLightningBrightness (1.f, 0.8f, 0.004f, 1.f), 0.f);
+  EXPECT_GT (ballLightningBrightness (0.45f, 0.8f, 0.004f, 1.f), 0.5f);
+}
+
+TEST (BallLightning, BurnsBrighterOnALouderSub)
+{
+  EXPECT_GT (ballLightningBrightness (0.45f, 0.9f, 0.004f, 1.f),
+             ballLightningBrightness (0.45f, 0.1f, 0.004f, 1.f));
+}
+

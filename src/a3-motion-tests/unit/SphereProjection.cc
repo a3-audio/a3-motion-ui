@@ -384,3 +384,66 @@ TEST (LineDepth, SeparatesTheTwoSidesEnoughToBeSeen)
   // of it could not be told apart.
   EXPECT_GT (lineDepthFade (0.6f) / lineDepthFade (-0.6f), 1.6f);
 }
+
+TEST (DefaultCamera, IsStraightOverhead)
+{
+  // Tried leaned, at 18 and at 29 degrees, and put back: the device is read
+  // from above. A lean makes a tower tall and makes everything else a little
+  // wrong — and it gives up the identity camera, which is what lets a device
+  // nobody has tilted compute exactly what it always computed.
+  EXPECT_FLOAT_EQ (defaultCamera ().pitch, 0.f);
+  EXPECT_FLOAT_EQ (defaultCamera ().turn, 0.f);
+}
+
+TEST (DefaultCamera, TakesTheFastPath)
+{
+  EXPECT_TRUE (defaultCamera ().isOverhead ())
+      << "the default has to be the identity, or every pixel pays for a "
+         "transform nobody asked for";
+}
+
+TEST (SphereProjection, JucesStrokeTransformLeavesTheThicknessAlone)
+{
+  // The braid's strands are built in sphere radii and rasterised into a
+  // 512-texel map, so they need scaling by about two hundred on the way. Passed
+  // as strokePath's own transform, that scale moves the points and does *not*
+  // widen the stroke: every strand came out at a hundredth of a texel, a
+  // tenth-opaque smear the shader's threshold never saw, and the braid was
+  // simply not there. Transform the path first, then stroke in texels.
+  auto const maxAlpha = [] (juce::Image const &image) {
+    juce::Image::BitmapData data (image, juce::Image::BitmapData::readOnly);
+    auto best = 0;
+    for (auto y = 0; y < data.height; ++y)
+      for (auto x = 0; x < data.width; ++x)
+        best = juce::jmax (best, (int) data.getPixelColour (x, y).getAlpha ());
+    return best;
+  };
+
+  juce::Path unit;
+  unit.startNewSubPath (0.05f, 0.1f);
+  unit.lineTo (0.25f, 0.1f);
+  auto const scale = juce::AffineTransform::scale (100.f);
+  auto constexpr texels = 2.f;
+
+  juce::Image viaTransform (juce::Image::ARGB, 32, 32, true);
+  {
+    juce::Graphics g (viaTransform);
+    g.setColour (juce::Colours::white);
+    g.strokePath (unit, juce::PathStrokeType (texels / 100.f), scale);
+  }
+
+  juce::Image transformedFirst (juce::Image::ARGB, 32, 32, true);
+  {
+    juce::Graphics g (transformedFirst);
+    g.setColour (juce::Colours::white);
+    auto mapped = unit;
+    mapped.applyTransform (scale);
+    g.strokePath (mapped, juce::PathStrokeType (texels));
+  }
+
+  EXPECT_LT (maxAlpha (viaTransform), 64)
+      << "JUCE now scales the stroke with the transform; the workaround in "
+         "drawPathOnSphere can go";
+  EXPECT_EQ (maxAlpha (transformedFirst), 255);
+}
+

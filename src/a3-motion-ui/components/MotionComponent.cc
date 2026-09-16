@@ -104,10 +104,18 @@ void main() {
 // speakerIconsFitOnScreen() and SphereScale.IconsFitAtTheShippedScale.
 auto constexpr reduceFactorCircleDefault = .62f;
 auto constexpr reduceFactorBlobsDefault = 0.05f;
+
+// Where the bearing ring sits, in sphere radii.
+//
+// The numbers dock to the equator and the ticks stand outside them — the other
+// way round from a ship's compass card, and on purpose: the equator is the
+// line the numbers name, and a bearing read off a ring floating clear of it is
+// one you have to carry across a gap.
+auto constexpr bearingLabelRadius = 1.055f;
+auto constexpr bearingTickInner = 1.105f;
 auto constexpr reduceFactorHead = .35f;
 
 auto constexpr activeAreaAroundBlobFactor = 3.f;
-auto constexpr blobHighlightFactor = 1.1f;
 
 // How hard each link of the blob's wake chases the one in front of it, per
 // rendered frame. Eight links at this rate settle roughly a second and a half
@@ -123,7 +131,18 @@ auto constexpr blobTrailLag = 0.09f;
 // about two and a half screen pixels per texel at the sizes this ships at:
 // coarse for a *line*, which is why the crisp line is still drawn as a vector
 // on top, and plenty for a *field*, which is all the shader asks of it.
-auto constexpr lineMapSize = 256;
+// 512, not 256.
+//
+// At 256 over 1.3 sphere radii a texel is two and a half screen pixels, and a
+// hairline two pixels wide cannot be held in that at all — which is why the
+// sharp core of the trajectory was drawn by JUCE into an overlay instead, and
+// why it looked raw and floated over everything: that overlay is blitted after
+// the whole scene and knows nothing about depth, towers or glow.
+//
+// Doubled, a texel is 1.4 screen pixels. The core can live in the map, and the
+// trajectory becomes one thing the shader draws rather than two layers that
+// happen to line up.
+auto constexpr lineMapSize = 512;
 auto constexpr lineMapExtent = 1.3f;
 
 // The nested strokes that make the stepped cone of nearness: half-width in
@@ -140,10 +159,12 @@ struct LineMapStep
 // five steps the field jumps by a fifth of its range between neighbouring
 // bands and no amount of bilinear filtering hides a step that size. Ten small
 // strokes into a 256-square image cost almost nothing.
+// Widths are in texels, so they double with the map to keep the same size in
+// the room.
 constexpr LineMapStep lineMapSteps[] = {
-  { 34.f, 0.04f }, { 28.f, 0.10f }, { 23.f, 0.17f }, { 19.f, 0.25f },
-  { 15.f, 0.34f }, { 12.f, 0.44f }, { 9.f, 0.55f },  { 7.f, 0.66f },
-  { 5.f, 0.77f },  { 3.5f, 0.86f },
+  { 68.f, 0.04f }, { 56.f, 0.10f }, { 46.f, 0.17f }, { 38.f, 0.25f },
+  { 30.f, 0.34f }, { 24.f, 0.44f }, { 18.f, 0.55f }, { 14.f, 0.66f },
+  { 10.f, 0.77f }, { 7.f, 0.86f },
 };
 
 // The innermost step is drawn on its own, and in pieces.
@@ -156,7 +177,15 @@ constexpr LineMapStep lineMapSteps[] = {
 // In pieces because a stroke has one colour and the arc length has to change
 // along the line. Only at this width, not at all of them, or it would be a
 // hundred and twenty strokes five times over.
-constexpr float lineMapCoreWidth = 1.5f;
+// Not doubled, but not halved either, and one texel is too few: a stroke that
+// narrow is averaged away by the bilinear filter before it ever reaches full
+// nearness, so the shader finds no core to sharpen and draws glow alone.
+// Measured on the device at 1.0 — the cord had no bright centre at all.
+//
+// At 2.4 texels it is 3.4 screen pixels of *map*, which the shader's own
+// `tight` term (nearness to the ninth power) then pulls back down to a
+// hairline. The map has to hold more than the line is wide.
+constexpr float lineMapCoreWidth = 1.8f;
 constexpr int lineMapPieces = 120;
 
 // The cone is drawn in pieces too, for the depth it carries in the blue — but
@@ -479,10 +508,30 @@ MotionComponent::lineMapFor (int channel)
   return &image;
 }
 
+juce::Image *
+MotionComponent::strandMapFor (int channel)
+{
+  if (channel < 0 || channel >= 4)
+    return nullptr;
+
+  auto &image = _strandMapImage[channel];
+  if (!image.isValid ())
+    image = juce::Image (juce::Image::ARGB, lineMapSize, lineMapSize, true);
+
+  if (!_strandMapValid[channel])
+    {
+      image.clear (image.getBounds (), juce::Colours::transparentBlack);
+      _strandMapValid[channel] = true;
+    }
+  return &image;
+}
+
 void
 MotionComponent::resetLineMaps ()
 {
   for (auto &valid : _lineMapValid)
+    valid = false;
+  for (auto &valid : _strandMapValid)
     valid = false;
 }
 
@@ -503,6 +552,19 @@ MotionComponent::uploadLineMaps ()
       _lineTexture[channel]->loadImage (_lineMapImage[channel]);
       _sphereShader.setLineTexture (
           channel, _lineTexture[channel]->getTextureID ());
+
+      if (!_strandMapValid[channel] || !_strandMapImage[channel].isValid ())
+        {
+          _sphereShader.setStrandTexture (channel, 0);
+          continue;
+        }
+
+      if (_strandTexture[channel] == nullptr)
+        _strandTexture[channel] = std::make_unique<juce::OpenGLTexture> ();
+
+      _strandTexture[channel]->loadImage (_strandMapImage[channel]);
+      _sphereShader.setStrandTexture (
+          channel, _strandTexture[channel]->getTextureID ());
     }
 }
 
@@ -692,7 +754,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
       if (_ballTapMs != 0 && now - _ballTapMs < doubleTapMs)
         {
           _ballTapMs = 0;
-          setCamera ({});
+          setCamera (defaultCamera ());
           return;
         }
 
@@ -1041,7 +1103,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.cover = cfgF (sl, "cover", 3.f);
     sc.boltWidth = cfgF (sl, "boltWidth", 0.9f);
     sc.boltThin = cfgF (sl, "boltThin", 0.3f);
-    sc.beamGate = cfgF (sl, "beamGate", 0.02f);
+    sc.beamGate = cfgF (sl, "beamGate", 0.004f);
     sc.boltWander = cfgF (sl, "boltWander", 0.55f);
     sc.boltScale = cfgF (sl, "boltScale", 6.f);
     sc.boltFlow = cfgF (sl, "boltFlow", 0.5f);
@@ -1050,7 +1112,23 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.boltCoreExp = cfgF (sl, "boltCoreExp", 5.f);
     sc.boltCore = cfgF (sl, "boltCore", 0.9f);
     sc.boltCount = cfgF (sl, "boltCount", 6.f);
-    sc.boltReach = cfgF (sl, "boltReach", 2.4f);
+    sc.boltFewest = cfgF (sl, "boltFewest", 2.f);
+    sc.boltDim = cfgF (sl, "boltDim", 0.45f);
+    sc.floorLevel = cfgF (sl, "floorLevel", 1.f);
+    sc.floorThrough = cfgF (sl, "floorThrough", 0.32f);
+    sc.floorDark = cfgF (sl, "floorDark", 0.16f);
+    sc.floorBeams = cfgF (sl, "floorBeams", 1.4f);
+    sc.floorBeamInner = cfgF (sl, "floorBeamInner", 0.02f);
+    sc.boxOcclude = cfgF (sl, "boxOcclude", 0.85f);
+    sc.floorGrain = cfgF (sl, "floorGrain", 14.f);
+    sc.ballLevel = cfgF (sl, "ballLevel", 1.f);
+    sc.ballCount = cfgF (sl, "ballCount", 3.f);
+    sc.ballRate = cfgF (sl, "ballRate", 0.32f);
+    sc.ballReach = cfgF (sl, "ballReach", 0.72f);
+    sc.ballSize = cfgF (sl, "ballSize", 0.048f);
+    sc.ballWander = cfgF (sl, "ballWander", 0.10f);
+    sc.ballHeight = cfgF (sl, "ballHeight", 0.05f);
+    sc.boltInner = cfgF (sl, "boltInner", 0.45f);
     sc.boltEscape = cfgF (sl, "boltEscape", 0.55f);
     sc.boltBranches = cfgF (sl, "boltBranches", 2.f);
     sc.boltBranch = cfgF (sl, "boltBranch", 1.6f);
@@ -1293,23 +1371,42 @@ MotionComponent::renderOpenGL ()
             bd.trailY[k] = _blobTrails[ch].y[k];
           }
 
-        auto blobSize = _blobScale;
+        // Two sizes and no third, and the held one is the drawn mark rather
+        // than the hit radius. It used to be activeAreaAroundBlobFactor, so a
+        // blob under a finger was drawn at the full size of the area that
+        // catches it -- three times itself. What a finger has to hit is
+        // unchanged; see getActiveDistanceInPixel().
+        auto blobSize = _blobScale * blobDrawScale (_uiStates[ch]->grabbed,
+                                                    _coronaCfg);
+
+        // Elevation is perspective, not a third size: a blob overhead is
+        // nearer the eye than one at the horizon.
         if (position.isValid ())
           blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
-        if (_uiStates[ch]->grabbed)
-          blobSize *= activeAreaAroundBlobFactor;
-        else if (_uiStates[ch]->highlighted)
-          blobSize *= blobHighlightFactor;
         bd.size = blobSize;
 
         auto col = _uiStates[ch]->colour;
         bd.r = col.getFloatRed ();
         bd.g = col.getFloatGreen ();
         bd.b = col.getFloatBlue ();
-        bd.vuPeak = _smoothBlobPeak[ch];
+        // On a scale, not raw. The blob was a 2D disc once and took its
+        // level through coronaVuLevel(); moving it into the shader left the
+        // scaling behind, so what reached it was whatever the meter read —
+        // and a meter reads small. Real material measured at the rig peaks
+        // around 0.3, which is barely over the threshold the blob's own bolt
+        // needs, so most of what it can do never came out. vuMax is what says
+        // how loud "loud" is on this rig.
+        auto const blobLevel = coronaVuLevel (
+            _smoothBlobPeak[ch], _smoothBlobRms[ch], _coronaCfg.vuMax);
+        bd.vuPeak = blobLevel;
+
+        // How far the corona reaches, from the skin's own sizeMin..sizeMax
+        // rather than a ramp written into the shader. This is the part of the
+        // blob that says "level" at a glance -- the sparks and the bolt are
+        // detail you have to be looking at it to catch.
+        bd.corona = coronaScaleFactor (blobLevel, _coronaCfg);
         bd.vuRms = _smoothBlobRms[ch];
         bd.grabbed = _uiStates[ch]->grabbed;
-        bd.highlighted = _uiStates[ch]->highlighted;
 
         // What the blob wears while an action runs. From the engine rather
         // than from whether a finger is down: the accent outlives the hand by
@@ -1317,12 +1414,11 @@ MotionComponent::renderOpenGL ()
         bd.action = _engine.isChannelAccentActive (ch) ? 1.f : 0.f;
 
         // Depth. The sphere is semi-transparent, so a blob behind it is dimmed
-        // rather than hidden -- the same fade the 2D layer used, moved to where
-        // the blob is now drawn.
-        bd.depthFade = 1.f;
-        if (position.isValid () && position.z () < 0.f)
-          bd.depthFade
-              = 0.3f + 0.7f * std::clamp (position.z () + 1.f, 0.f, 1.f);
+        // rather than hidden. The same rule the trajectory goes behind the
+        // ball by, written once: this carried its own copy of the arithmetic,
+        // and two copies of a fade are two things to forget to change.
+        bd.depthFade
+            = position.isValid () ? lineDepthFade (position.z ()) : 1.f;
 
         _sphereShader.setBlob (ch, bd);
       }
@@ -1581,6 +1677,9 @@ MotionComponent::cameraBall () const
 void
 MotionComponent::drawBearings (juce::Graphics &g)
 {
+  static_assert (bearingLabelRadius < bearingTickInner,
+                 "the numbers dock to the equator, the ticks sit outside them");
+
   // A graduated ring round the outside of the sphere, which is how a chart, a
   // compass and every globe worth reading does it -- rather than four numbers
   // floating on the ball itself, which is what this was and which put a
@@ -1600,17 +1699,21 @@ MotionComponent::drawBearings (juce::Graphics &g)
     return juce::Point<float> (-std::sin (a) * radius, -std::cos (a) * radius);
   };
 
-  // Ticks: every ten degrees a short one, every thirty a longer one, and a
-  // long one at each of the four the numbers name. Enough to read a bearing
-  // off between the numbers without counting.
+  // The numbers sit against the equator and the ticks outside them, which is
+  // the other way round from a ship's compass card and deliberate: the equator
+  // is the line the numbers *name*, and a bearing read off a ring that floats
+  // clear of it is a bearing you have to carry across a gap. Docked to the
+  // line, the number and the place it marks are the same glance.
   for (int degrees = 0; degrees < 360; degrees += 10)
     {
       auto const major = degrees % 90 == 0;
       auto const medium = degrees % 30 == 0;
 
-      auto const from = on (static_cast<float> (degrees), 1.035f);
+      auto const from = on (static_cast<float> (degrees), bearingTickInner);
       auto const to = on (static_cast<float> (degrees),
-                          major ? 1.105f : medium ? 1.085f : 1.065f);
+                          major   ? bearingTickInner + 0.070f
+                          : medium ? bearingTickInner + 0.050f
+                                   : bearingTickInner + 0.030f);
 
       g.setColour (toColour (theme ().textPrimary,
                              major ? theme ().alphaMuted
@@ -1637,7 +1740,7 @@ MotionComponent::drawBearings (juce::Graphics &g)
 
   for (auto const &mark : marks)
     {
-      auto const out = on (mark.degrees, 1.165f);
+      auto const out = on (mark.degrees, bearingLabelRadius);
       auto const box = juce::Rectangle<float> (0.36f, 0.1f).withCentre (out);
 
       g.setColour (toColour (theme ().textPrimary, theme ().alphaInactive));
@@ -1784,7 +1887,10 @@ drawPathOnSphere (juce::Path const &displayPath,
                   SphereCamera const &camera,
                   /** Where to rasterise this line for the shader, or nullptr
                    *  for a line the glow is not asked to follow. */
-                  juce::Image *lineMap = nullptr)
+                  juce::Image *lineMap = nullptr,
+                  /** Where to rasterise the braid's strands for the shader,
+                   *  or nullptr for a line whose strands are stroked here. */
+                  juce::Image *strandMap = nullptr)
 {
   if (displayPath.isEmpty ())
     return;
@@ -1973,135 +2079,174 @@ drawPathOnSphere (juce::Path const &displayPath,
   // cheap because the commit that built it deleted the line map at the same
   // time -- the cord was drawn with no glow at all around it.
 
-  auto const seconds
-      = static_cast<float> (juce::Time::getMillisecondCounter ()) * 0.001f;
+  // The braid is built for every line, and only *where it is drawn* differs.
+  // Without a map — the recording trail, the previews — it is stroked here and
+  // is the whole line. With one, the strands go into a map of their own and
+  // the shader draws them: stroked here as vectors they pasted a raw line over
+  // the finished frame, above depth and above the towers, and the blob could
+  // not travel inside a braid it was drawn underneath.
+  if (lineMap == nullptr || strandMap != nullptr)
+  {
+    auto const seconds
+        = static_cast<float> (juce::Time::getMillisecondCounter ()) * 0.001f;
 
-  SheathRing const braid{ theme ().braidRadius, theme ().braidTurns,
-                          theme ().braidSpin,
-                          juce::roundToInt (theme ().braidStrands) };
-  auto const strands = juce::jlimit (1, 5, braid.strands);
-  auto const plain = strands < 2 || !(braid.radius > 0.0001f);
+    SheathRing const braid{ theme ().braidRadius, theme ().braidTurns,
+                            theme ().braidSpin,
+                            juce::roundToInt (theme ().braidStrands) };
+    auto const strands = juce::jlimit (1, 5, braid.strands);
+    auto const plain = strands < 2 || !(braid.radius > 0.0001f);
 
-  // Which way is across the line at each point, and how hard it is turning.
-  // Never taken across a pen lift, where the neighbour belongs to a different
-  // stroke.
-  std::vector<juce::Point<float> > across (projected.size ());
-  std::vector<float> guard (projected.size (), 1.f);
-  if (!plain)
-    for (std::size_t i = 0; i < projected.size (); ++i)
-      {
-        auto const before = (i > 0 && !startsRun[i]) ? i - 1 : i;
-        auto const after = (i + 1 < projected.size () && !startsRun[i + 1])
-                               ? i + 1
-                               : i;
-        auto const step = projected[after].first - projected[before].first;
-        auto const length = step.getDistanceFromOrigin ();
-        if (length < 1e-6f)
-          {
-            guard[i] = 0.f;
-            continue;
-          }
-        across[i] = { -step.y / length, step.x / length };
-
-        // Curvature as the turn between the two half-steps over the distance
-        // they cover: the definition, on the only data there is.
-        auto const in = projected[i].first - projected[before].first;
-        auto const out = projected[after].first - projected[i].first;
-        auto const lin = in.getDistanceFromOrigin ();
-        auto const lout = out.getDistanceFromOrigin ();
-        if (lin < 1e-6f || lout < 1e-6f)
-          {
-            guard[i] = 0.f;
-            continue;
-          }
-        auto const cross = (in.x * out.y - in.y * out.x) / (lin * lout);
-        auto const dot = (in.x * out.x + in.y * out.y) / (lin * lout);
-        auto const turn = std::abs (std::atan2 (cross, dot));
-        guard[i] = foldGuard (turn / (0.5f * length), braid.radius);
-      }
-
-  // Five depth tiers: a strand crosses every boundary twice a turn, and at
-  // three with plainly different brightnesses you read the boundary rather
-  // than the strand.
-  auto constexpr numTiers = 5;
-  auto constexpr numBands = 4;
-  std::array<std::array<juce::Path, numTiers>, numBands> cord;
-
-  auto const total = static_cast<float> (projected.size () - 1);
-
-  for (auto strand = 0; strand < strands; ++strand)
-    {
-      auto lastBand = -1;
-      auto lastTier = -1;
-      juce::Point<float> lastPoint;
-
+    // Which way is across the line at each point, and how hard it is turning.
+    // Never taken across a pen lift, where the neighbour belongs to a different
+    // stroke.
+    std::vector<juce::Point<float> > across (projected.size ());
+    std::vector<float> guard (projected.size (), 1.f);
+    if (!plain)
       for (std::size_t i = 0; i < projected.size (); ++i)
         {
-          auto const u = total > 0.f ? static_cast<float> (i) / total : 0.f;
-          auto const sample
-              = plain ? SheathSample{}
-                      : sheathAt (u, strand, braid, seconds);
+          auto const before = (i > 0 && !startsRun[i]) ? i - 1 : i;
+          auto const after = (i + 1 < projected.size () && !startsRun[i + 1])
+                                 ? i + 1
+                                 : i;
+          auto const step = projected[after].first - projected[before].first;
+          auto const length = step.getDistanceFromOrigin ();
+          if (length < 1e-6f)
+            {
+              guard[i] = 0.f;
+              continue;
+            }
+          across[i] = { -step.y / length, step.x / length };
 
-          auto const point
-              = projected[i].first + across[i] * (sample.offset * guard[i]);
-
-          auto const band = depthBand (projected[i].second);
-          auto const tier = juce::jlimit (
-              0, numTiers - 1,
-              static_cast<int> ((sample.depth + 1.f) * 0.5f
-                                * static_cast<float> (numTiers)));
-
-          auto const broken = startsRun[i] || lastBand < 0 || band != lastBand
-                              || tier != lastTier;
-          auto &path = cord[static_cast<std::size_t> (band)]
-                           [static_cast<std::size_t> (tier)];
-          if (broken)
-            path.startNewSubPath (
-                startsRun[i] || lastBand < 0 ? point : lastPoint);
-          path.lineTo (point);
-
-          lastBand = band;
-          lastTier = tier;
-          lastPoint = point;
+          // Curvature as the turn between the two half-steps over the distance
+          // they cover: the definition, on the only data there is.
+          auto const in = projected[i].first - projected[before].first;
+          auto const out = projected[after].first - projected[i].first;
+          auto const lin = in.getDistanceFromOrigin ();
+          auto const lout = out.getDistanceFromOrigin ();
+          if (lin < 1e-6f || lout < 1e-6f)
+            {
+              guard[i] = 0.f;
+              continue;
+            }
+          auto const cross = (in.x * out.y - in.y * out.x) / (lin * lout);
+          auto const dot = (in.x * out.x + in.y * out.y) / (lin * lout);
+          auto const turn = std::abs (std::atan2 (cross, dot));
+          guard[i] = foldGuard (turn / (0.5f * length), braid.radius);
         }
-    }
 
-  // Back to front, so a strand passes behind the cord and comes out the other
-  // side. The step between one tier and the next is small on purpose: a coil
-  // brightens as it comes round, it does not switch.
-  for (auto tier = 0; tier < numTiers; ++tier)
-    {
-      auto const front = numTiers > 1
-                             ? static_cast<float> (tier)
-                                   / static_cast<float> (numTiers - 1)
-                             : 1.f;
-      for (auto band = 0; band < numBands; ++band)
-        {
-          auto const &path = cord[static_cast<std::size_t> (band)]
-                                 [static_cast<std::size_t> (tier)];
-          if (path.isEmpty ())
-            continue;
+    // Five depth tiers: a strand crosses every boundary twice a turn, and at
+    // three with plainly different brightnesses you read the boundary rather
+    // than the strand.
+    auto constexpr numTiers = 5;
+    auto constexpr numBands = 4;
+    std::array<std::array<juce::Path, numTiers>, numBands> cord;
 
-          auto const fade
-              = fadeByDepth
-                    ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
-                                          : (band == 2 ? 0.25f : 0.75f))
-                    : 1.0f;
+    auto const total = static_cast<float> (projected.size () - 1);
 
-          g.setColour (colour.brighter (0.30f * front * front)
-                           .withAlpha (juce::jlimit (
-                               0.f, 1.f,
-                               alpha * fade * (0.55f + 0.45f * front))));
-          // Round caps: the pieces of one tier are a winding apart and share
-          // only a stitched point, so the beading rule does not bite here --
-          // and butt caps end square to the last segment rather than to the
-          // joint, which on a curve leaves a hairline wedge at every piece.
-          g.strokePath (path, juce::PathStrokeType (
-                                  lineThickness,
-                                  juce::PathStrokeType::JointStyle::curved,
-                                  juce::PathStrokeType::EndCapStyle::rounded));
-        }
-    }
+    for (auto strand = 0; strand < strands; ++strand)
+      {
+        auto lastBand = -1;
+        auto lastTier = -1;
+        juce::Point<float> lastPoint;
+
+        for (std::size_t i = 0; i < projected.size (); ++i)
+          {
+            auto const u = total > 0.f ? static_cast<float> (i) / total : 0.f;
+            auto const sample
+                = plain ? SheathSample{}
+                        : sheathAt (u, strand, braid, seconds);
+
+            auto const point
+                = projected[i].first + across[i] * (sample.offset * guard[i]);
+
+            auto const band = depthBand (projected[i].second);
+            auto const tier = juce::jlimit (
+                0, numTiers - 1,
+                static_cast<int> ((sample.depth + 1.f) * 0.5f
+                                  * static_cast<float> (numTiers)));
+
+            auto const broken = startsRun[i] || lastBand < 0 || band != lastBand
+                                || tier != lastTier;
+            auto &path = cord[static_cast<std::size_t> (band)]
+                             [static_cast<std::size_t> (tier)];
+            if (broken)
+              path.startNewSubPath (
+                  startsRun[i] || lastBand < 0 ? point : lastPoint);
+            path.lineTo (point);
+
+            lastBand = band;
+            lastTier = tier;
+            lastPoint = point;
+          }
+      }
+
+    // Back to front, so a strand passes behind the cord and comes out the other
+    // side. The step between one tier and the next is small on purpose: a coil
+    // brightens as it comes round, it does not switch.
+    for (auto tier = 0; tier < numTiers; ++tier)
+      {
+        auto const front = numTiers > 1
+                               ? static_cast<float> (tier)
+                                     / static_cast<float> (numTiers - 1)
+                               : 1.f;
+        for (auto band = 0; band < numBands; ++band)
+          {
+            auto const &path = cord[static_cast<std::size_t> (band)]
+                                   [static_cast<std::size_t> (tier)];
+            if (path.isEmpty ())
+              continue;
+
+            auto const fade
+                = fadeByDepth
+                      ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
+                                            : (band == 2 ? 0.25f : 0.75f))
+                      : 1.0f;
+
+          if (lineMap != nullptr)
+            {
+              // Into the strand map: red says a strand is here, green how far
+              // in front of the cord it is at this point. Opaque, so the
+              // premultiplied image keeps both values as written; back tiers
+              // first, so where two cross the nearer one is what is left.
+              auto const toMapScale
+                  = static_cast<float> (lineMapSize) / (2.f * lineMapExtent);
+              auto const toMap
+                  = juce::AffineTransform::scale (toMapScale)
+                        .translated (lineMapSize * 0.5f, lineMapSize * 0.5f);
+              juce::Graphics sg (*strandMap);
+              sg.setColour (juce::Colour::fromFloatRGBA (1.f, front, 0.f, 1.f));
+              // A strand wide enough to survive the bilinear filter, and no
+              // wider: the shader sharpens it back down, as it does the cord.
+              auto constexpr strandTexels = 1.7f;
+              // Into map space first, then stroked in texels. strokePath's own
+              // transform moves the points and leaves the thickness alone, so
+              // passing it there drew every strand at a hundredth of a texel —
+              // a tenth-opaque smear the shader's threshold never saw.
+              auto mapped = path;
+              mapped.applyTransform (toMap);
+              sg.strokePath (mapped,
+                             juce::PathStrokeType (
+                                 strandTexels,
+                                 juce::PathStrokeType::JointStyle::curved,
+                                 juce::PathStrokeType::EndCapStyle::rounded));
+              continue;
+            }
+
+            g.setColour (colour.brighter (0.30f * front * front)
+                             .withAlpha (juce::jlimit (
+                                 0.f, 1.f,
+                                 alpha * fade * (0.55f + 0.45f * front))));
+            // Round caps: the pieces of one tier are a winding apart and share
+            // only a stitched point, so the beading rule does not bite here --
+            // and butt caps end square to the last segment rather than to the
+            // joint, which on a curve leaves a hairline wedge at every piece.
+            g.strokePath (path, juce::PathStrokeType (
+                                    lineThickness,
+                                    juce::PathStrokeType::JointStyle::curved,
+                                    juce::PathStrokeType::EndCapStyle::rounded));
+          }
+      }
+  }
 
   // ── The map the shader finds this line through ──────────────────
   //
@@ -2407,7 +2552,8 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     true, params, heightMap, g, shaping,
                     _sphereShader.getCamera (),
-                    lineMapFor (static_cast<int> (ch)));
+                    lineMapFor (static_cast<int> (ch)),
+                    strandMapFor (static_cast<int> (ch)));
 }
 
 juce::Point<float>

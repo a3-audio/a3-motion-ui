@@ -321,6 +321,14 @@ private:
    *  somewhere to reach. */
   juce::Image _lineMapImage[4];
   bool _lineMapValid[4] = {};
+
+  // The braid, per channel: where the strands are and whether each is passing
+  // in front of the cord or behind it. A second map rather than a channel of
+  // the first, because the first is premultiplied ARGB and every one of its
+  // colour channels already carries something.
+  juce::Image _strandMapImage[4];
+  bool _strandMapValid[4] = {};
+  std::unique_ptr<juce::OpenGLTexture> _strandTexture[4];
   std::unique_ptr<juce::OpenGLTexture> _lineTexture[4];
 
   void resetLineMaps ();
@@ -328,6 +336,7 @@ private:
   /** Where the trajectory of `channel` is drawn into, cleared and ready, or
    *  nullptr while the maps are not in use. */
   juce::Image *lineMapFor (int channel);
+  juce::Image *strandMapFor (int channel);
   float _energyVuMax = 0.05f, _energyCurve = 0.8f;
   float _energyAttack = 0.05f, _energyDecay = 0.25f;
 

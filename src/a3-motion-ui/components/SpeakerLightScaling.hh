@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <cmath>
+
 namespace a3
 {
 
@@ -62,6 +64,68 @@ float beamHalfAngleDegrees (float width);
 // through the loudspeaker instead of out of it.
 constexpr float speakerIconSize = 0.28f;
 constexpr float speakerApertureHalfWidth = 16.f / 100.f * speakerIconSize;
+// ── The stack, in metres ────────────────────────────────────────────────
+//
+// Each position is a tower: three Res 2 side by side as a cluster, over three
+// F218 subs, about three metres tall. Read off the reference render the
+// maintainer supplied (`fone08-*.jpg`), not from a datasheet — correct the
+// numbers here if the real ones differ, everything downstream is derived.
+//
+// Two things that render settled, both of which the first attempt had wrong:
+// a Res 2 is **portrait**, half as wide as it is tall, and the three of them
+// stand **beside** each other rather than stacked. The subs are the wide part
+// and carry the cluster; the tower narrows as it goes up.
+// Wide enough that three of them cover the subs completely: the cluster is
+// the lid of the tower, not a box sitting on top of one.
+constexpr float subWidthM_ = 1.65f;
+constexpr float resWidthM = subWidthM_ / 3.f;
+constexpr float resHeightM = 1.00f;
+constexpr float resDepthM = 0.62f;
+constexpr int resPerStack = 3;      // side by side
+
+constexpr float subWidthM = subWidthM_;
+constexpr float subHeightM = 0.66f;
+constexpr float subDepthM = 0.90f;
+constexpr int subPerStack = 4;      // one on top of the next
+
+/** How many sphere radii a metre is.
+ *
+ *  The one place the picture is tied to the room. Everything physical — the
+ *  towers, the floor, the listener — is written in metres and scaled through
+ *  here, so the drawing keeps one set of proportions instead of several that
+ *  happen to look right next to each other. */
+constexpr float metrePerSphereRadius = speakerIconSize * 0.42f;
+
+/** Ear height of a standing listener, in metres.
+ *
+ *  **Zero elevation is ear height.** The sphere is centred on a person, not on
+ *  the middle of the room — so the floor is not somewhere below, it is exactly
+ *  this far below, and the towers stand on it rather than hanging at whatever
+ *  depth looked right.
+ *
+ *  Before this the floor sat at -sin(drop) * speakerRadius, which works out at
+ *  4.9 m under the listener: a cellar, not a dance floor, and it made every
+ *  other measurement a number nothing could check. */
+constexpr float earHeightM = 1.6f;
+
+/** Where the floor is, in sphere radii — negative, below the listener. */
+constexpr float speakerFloorZ = -earHeightM * metrePerSphereRadius;
+
+constexpr float floorReach = 1.35f;
+
+/** How far below the horizon a cabinet stands, in radians. Mirrors `drop` in
+ *  SphereShader's uploadSpeakerFrames(). */
+constexpr float speakerDropRad = 0.42f;
+
+/** The cluster is as wide as its three cabinets together, and one tall. */
+constexpr float clusterWidthM = resPerStack * resWidthM;
+constexpr float clusterHeightM = resHeightM;
+
+constexpr float stackHeightM = clusterHeightM + subPerStack * subHeightM;
+
+/** Where the tops meet the subs, as a share of the tower's height. */
+constexpr float stackSubShare = (subPerStack * subHeightM) / stackHeightM;
+
 constexpr float speakerMouthOffset = 18.f / 100.f * speakerIconSize;
 
 /** The narrowest annulus a band is ever given, in sphere radii.

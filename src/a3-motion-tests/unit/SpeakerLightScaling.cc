@@ -27,6 +27,7 @@
 #include <a3-motion-ui/components/EnergyMap.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
+#include <array>
 #include <cmath>
 
 using namespace a3;
@@ -123,6 +124,13 @@ TEST (SpeakerLightScaling, ShippedConfigDrawsNothingInASilentRoom)
 
   auto const gate = static_cast<float> (speakerLight["beamGate"]);
   EXPECT_GT (gate, 0.f) << "a gate at zero never closes";
+
+  // And it has to sit well under what the rig actually produces. Measured on
+  // 2026-09-16 with one channel playing, the loudest speaker reached a level
+  // of 0.024 — a gate at 0.02 was one quiet passage away from blanking the
+  // bands altogether.
+  EXPECT_LT (gate, 0.024f / 4.f)
+      << "the gate is close enough to real programme levels to cut them off";
 
   // The whole chain, not the gate on its own: thickness has a floor by
   // design, so silence can only be said by the aliveness term.
@@ -508,4 +516,123 @@ TEST (SpeakerLightDraw, WhiteCoreIsDrawnFromTheHotChannel)
       << "the white core must come off the sharpened channel: " << line;
 }
 
+}
+
+// ── The stack ───────────────────────────────────────────────────────────
+
+TEST (SpeakerStack, IsAboutThreeMetresTall)
+{
+  // "3x res 2 als cluster mit 3x f218 unten drunter. das ist dann 3m hoch son
+  // turm" — then "mach ruhig 4 bässe draus", which puts it over three and a
+  // half.
+  EXPECT_GT (stackHeightM, 3.0f);
+  EXPECT_LT (stackHeightM, 4.0f);
+}
+
+TEST (SpeakerStack, IsMostlySubs)
+{
+  EXPECT_GT (stackSubShare, 0.5f);
+  EXPECT_LT (stackSubShare, 0.8f);
+}
+
+TEST (SpeakerStack, HasPortraitTopsAndLandscapeSubs)
+{
+  // The first attempt had a Res 2 in landscape and stacked three of them
+  // vertically. The reference render says otherwise: each top is about half as
+  // wide as it is tall, and the three stand beside each other.
+  EXPECT_LT (resWidthM / resHeightM, 0.7f) << "a Res 2 is portrait";
+  EXPECT_GT (subWidthM / subHeightM, 2.f) << "an F218 is landscape";
+}
+
+TEST (SpeakerStack, HasAClusterThatCoversTheSubsCompletely)
+{
+  // "mach mal drei davon, sodass die gesamte fläche der subs durch tops
+  // verdeckt wird". Three tops span exactly the sub stack's width, so the
+  // cluster reads as the lid of the tower rather than as a box standing on
+  // one — which is what made three cabinets look like a single top.
+  EXPECT_FLOAT_EQ (clusterWidthM, subWidthM);
+}
+
+TEST (SpeakerStack, HasAClusterAsWideAsItsThreeCabinets)
+{
+  EXPECT_FLOAT_EQ (clusterWidthM, 3.f * resWidthM);
+}
+
+TEST (SpeakerStack, HasDeeperSubsThanTops)
+{
+  EXPECT_GT (subDepthM, resDepthM);
+}
+
+TEST (SpeakerStack, IsTallerThanItIsWide)
+{
+  // Three metres against a metre and a half — the proportion the reference
+  // render shows, and the whole reason this is not a single box.
+  EXPECT_GT (stackHeightM / subWidthM, 1.5f);
+  EXPECT_LT (stackHeightM / subWidthM, 2.6f);
+}
+
+TEST (SpeakerStack, StandsTheRightWayUp)
+{
+  // "vor allem ist es falschrum". The box frame is built from the cabinet's
+  // nose and its side, and the third axis has to come out of those two
+  // pointing *up* — the cluster sits at +y and the subs below it, so a frame
+  // whose +y is downwards draws the tower on its head. With a single
+  // near-symmetrical wedge that was invisible; with a tower it is the first
+  // thing you see.
+  auto const cross = [] (std::array<float, 3> a, std::array<float, 3> b) {
+    return std::array<float, 3>{ a[1] * b[2] - a[2] * b[1],
+                                 a[2] * b[0] - a[0] * b[2],
+                                 a[0] * b[1] - a[1] * b[0] };
+  };
+
+  constexpr float k = 0.70710678f;
+  auto const level = std::cos (speakerDropRad);
+  auto const sink = std::sin (speakerDropRad);
+
+  // One speaker, straight on: nose towards the listener and tilted up out of
+  // its drop, side along its width.
+  std::array<float, 3> const nose{ -k * level, -k * level, sink };
+  std::array<float, 3> const side{ -k, k, 0.f };
+
+  EXPECT_GT (cross (side, nose)[2], 0.f)
+      << "side x nose has to be the up axis";
+  EXPECT_LT (cross (nose, side)[2], 0.f)
+      << "nose x side points down — that is the order that had it upside down";
+}
+
+// ── The floor ───────────────────────────────────────────────────────────
+
+TEST (DanceFloor, IsExactlyEarHeightBelowTheListener)
+{
+  // "0° elevation ist ohrhöhe. mensch ist also unser marker. boden unter die
+  // füße, boxen auf den boden." The sphere is centred on a person, so the
+  // floor is not somewhere below — it is 1.6 m below, and that is a number
+  // anyone can check against a room.
+  EXPECT_FLOAT_EQ (speakerFloorZ, -earHeightM * metrePerSphereRadius);
+  EXPECT_LT (speakerFloorZ, 0.f);
+}
+
+TEST (DanceFloor, IsNotTheCellarItUsedToBe)
+{
+  // It sat at -sin(drop) * speakerRadius, which is 4.9 m down.
+  auto const oldFloor = -std::sin (speakerDropRad) * 1.4f;
+  EXPECT_GT (speakerFloorZ, oldFloor)
+      << "the floor is still far under the listener's feet";
+  EXPECT_LT (speakerFloorZ / metrePerSphereRadius, -1.f)
+      << "and it has to stay below them";
+}
+
+TEST (DanceFloor, LetsATowerRiseAboveEarHeight)
+{
+  // A three-and-a-half metre stack standing on a floor 1.6 m down reaches two
+  // metres over the listener's ears. If the numbers did not do that, they
+  // would not be describing a room.
+  auto const top = speakerFloorZ + stackHeightM * metrePerSphereRadius;
+  EXPECT_GT (top, 0.f);
+  EXPECT_NEAR (top / metrePerSphereRadius, stackHeightM - earHeightM, 0.01f);
+}
+
+TEST (DanceFloor, ReachesPastTheTowers)
+{
+  EXPECT_GT (floorReach, 1.f);
 }

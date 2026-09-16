@@ -74,7 +74,23 @@ struct SphereCamera
   bool isOverhead () const { return pitch == 0.f && turn == 0.f; }
 };
 
-/** A direction in the room, seen from where the camera stands.
+/** Where the eye stands when nobody has moved it.
+ *
+ *  Not straight overhead any more. Orthographically, a tower standing upright
+ *  shows a camera directly above it nothing but its lid — so for as long as
+ *  the view was from the zenith the loudspeakers had to be laid back to be
+ *  recognisable at all, and three and a half metres of them came out a few
+ *  pixels tall. Leaning the eye over a little is what lets the towers stand up
+ *  and still be seen.
+ *
+ *  Small on purpose: enough that a vertical thing reads as vertical, little
+ *  enough that the sphere is still very nearly a circle and a hand that has
+ *  learned where a blob sits does not have to learn it again.
+ *
+ *  Double-tapping the camera ball returns here, not to the zenith. */
+SphereCamera defaultCamera ();
+
+/** A direction in the room, seen from where the camera stands./** A direction in the room, seen from where the camera stands.
  *
  *  Turn first, then pitch: walking round the room and then leaning over it is
  *  what a person does, and the other order tips the room sideways instead. */

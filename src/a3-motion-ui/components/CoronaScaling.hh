@@ -31,8 +31,16 @@ namespace a3
 struct CoronaConfig
 {
   float vuMax = 0.25f;
-  float sizeMin = 1.1f;
-  float sizeMax = 2.2f;
+  // How far the corona reaches at silence and at full level, in blob radii.
+  //
+  // These described a ring drawn around a 2D disc until 2026-09-16; they are
+  // the shader's corona reach now, in the same unit. The ramp they replaced
+  // was written into the shader as 1.9 + 2.4 * level, so the floor keeps that
+  // and the ceiling goes above it — the reach is the one thing about a blob
+  // that says "level" from across a booth, and it was reported as too subtle
+  // to read.
+  float sizeMin = 1.9f;
+  float sizeMax = 5.0f;
   float sizeGrabbed = 1.5f;
   float alphaMin = 0.f;
   float alphaMax = 0.75f;
@@ -50,6 +58,57 @@ CoronaConfig loadCoronaConfig (juce::var const &config);
 
 /** Maps raw VU peak/rms onto a perceptual 0..1 level. Peak dominates but is
  *  weighted down so short transients don't wash the corona out. */
+/** How big a blob is drawn, as a factor on its base size.
+ *
+ *  Two sizes and deliberately no third: held, and not held. There used to be a
+ *  "last touched" size as well (1.1x), which meant a blob never came back to
+ *  the size it started at — you could read off the ball which one you had
+ *  touched last, long after it stopped mattering.
+ *
+ *  `sizeGrabbed` is what held is worth. Note that this is the *drawn* size
+ *  only: what a finger has to hit is getActiveDistanceInPixel(), a separate
+ *  and deliberately larger radius, so making the mark smaller does not make
+ *  the blob harder to catch. Those two shared one number until 2026-09-16 and
+ *  a blob under a finger tripled. */
+float blobDrawScale (bool grabbed, CoronaConfig const &config);
+
+/** How wide to draw one of the blob's filaments, never thinner than the
+ *  screen can carry.
+ *
+ *  Everything the blob throws off is measured in blob radii, so it all shrinks
+ *  with the blob — and the blob is small. At the shipped scale its bolt core
+ *  is 0.96 screen pixels wide before `taper` narrows it further along the arm,
+ *  so most of a bolt was thinner than a pixel. boltAt() is width/(d+width):
+ *  below a pixel the value between two sample points swings from nearly one to
+ *  nearly nothing, and the arm comes apart into flecks instead of reading as a
+ *  line. That is what "die blitze am blob sehen kaputt aus" was looking at,
+ *  and shrinking the held blob from 3x to 1.5x is what pushed the held one
+ *  under as well.
+ *
+ *  `pixelInUv` is 1/sphereRadiusInPixels — the shader knows it as the same
+ *  quantity aaWidth is built from. Mirrors blobFilamentWidth() in
+ *  SphereShader.cc. */
+float blobFilamentWidth (float wanted, float pixelInUv);
+
+/** How far out the blob's sparks can still be drawn, in blob radii.
+ *
+ *  The spark loop is skipped past this, which is worth doing — forty flecks
+ *  per pixel is the blob's whole cost. But the bound has to be the *sparks'*
+ *  own reach: a fleck flies to 0.9 + 3.4 radii over its life, and is still
+ *  worth a seventh of its brightness two thirds of the way. The bound used to
+ *  be 1.6 times the corona's reach, which is a different quantity that moves
+ *  with the level, so at low levels it fell inside the flight and cut the
+ *  sparks off on a circle. That circle is what "der kreis ist abrupt
+ *  beschnitten" was looking at, and it got easier to see once the corona grew
+ *  brighter.
+ *
+ *  Mirrors the bound in blobLight()'s spark loop. Keep the two together: these
+ *  numbers are the flight in SphereShader.cc, written out. */
+constexpr float blobSparkLaunch = 0.9f;
+constexpr float blobSparkFlight = 3.4f;
+
+float blobSparkReach (float blobRadius, float grainMargin);
+
 float coronaVuLevel (float vuPeak, float vuRms, float vuMax);
 
 /** The peak leg of that curve on its own — drives alpha and white blend. */

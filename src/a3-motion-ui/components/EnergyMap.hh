@@ -193,6 +193,73 @@ float beamMouthRadiusSeen (Pos const &speakerSeen);
  *  Mirrors beamAlive() in SphereShader.cc. */
 float beamAliveness (float loudestLevel, float gate);
 
+/** How far along its run a ball of lightning is, 0 at the sub it leaves to
+ *  `reach` at the end of its life.
+ *
+ *  The subs throw ball lightning and the tops throw the bolts: two different
+ *  things for two different cabinets, so the eye can tell the low end from the
+ *  rest without reading a meter. A ball is born at the sub stack's own front —
+ *  the origin of anything thrown is always a box — and drifts across the floor
+ *  towards the listener, slowing as it goes, the way ball lightning is
+ *  described: not a strike but something that wanders and lingers.
+ *
+ *  Never all the way: `reach` is below one, so a ball dies short of the person
+ *  in the middle rather than going through them. Mirrors ballTravel() in
+ *  SphereShader.cc. */
+float ballLightningTravel (float life, float reach);
+
+/** How bright a ball of lightning is at a point in its life, 0 to 1.
+ *
+ *  It swells in quickly, holds, and dies away — and it flickers while it holds,
+ *  which is `flicker` (0..1, the shader's own noise). Nothing at all below the
+ *  gate: a silent sub throws nothing, for the same reason a silent room has no
+ *  bolts. Mirrors ballBright() in SphereShader.cc. */
+float ballLightningBrightness (float life, float subLevel, float gate,
+                               float flicker);
+
+/** A speaker's share of the loudest one, 0 to 1.
+ *
+ *  What the bands are asked is *where* the sound is, and that is a question
+ *  about the four speakers relative to each other. Read absolutely it is a
+ *  question about the volume knob instead: measured at the rig with one
+ *  channel plainly playing, the loudest speaker sat at 2.4% of the scale
+ *  (vuMax 0.2 against an rms of 0.009), so all four bolts sat on the boltThin
+ *  floor and were 4% apart. Nothing about the picture said which speaker the
+ *  sound was coming out of.
+ *
+ *  `beamBandLevel()` already works this way — its floor is a share of the
+ *  loudest, not an absolute — so this is that reasoning carried through to the
+ *  thickness. Whether anything is playing at all stays an absolute question
+ *  and belongs to beamAliveness().
+ *
+ *  Mirrors beamShare() in SphereShader.cc. */
+float beamShare (float liftedLevel, float loudestLevel);
+
+/** How many bolts a speaker draws, out of its share of the loudest.
+ *
+ *  The count is what the eye actually reads. Width was doing all the work and
+ *  it cannot: measured at the rig, a share of 0.28 against 1.0 is a bolt core
+ *  of 1.3 screen pixels against 2.6, and both of those are hairlines — while
+ *  all four speakers drew the same seven bolts, which is the thing you can
+ *  count without looking closely.
+ *
+ *  Never none: a speaker that is merely quiet is still part of the picture,
+ *  and one that dropped to nothing would open a hole in the ring. Silence
+ *  everywhere is beamAliveness()'s job.
+ *
+ *  Mirrors the count in beamDensity(). */
+float beamBoltCount (float share, float maxCount, float minCount);
+
+/** How brightly a speaker's bolts are drawn, out of its share.
+ *
+ *  Relative, so it cannot repeat the mistake that started this: brightness
+ *  driven by an *absolute* level made a band vanish at the levels it spends
+ *  most of its time at. The loudest speaker is always at full, whatever the
+ *  room's volume; the others fall back to `floorPart` of that.
+ *
+ *  Mirrors the brightness term in beamDensity(). */
+float beamBrightness (float share, float floorPart);
+
 /** How wide a bolt's core runs at a given level, in degrees.
  *
  *  The level is a *thickness* now, not a brightness. Driving brightness with
