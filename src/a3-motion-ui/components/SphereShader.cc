@@ -248,6 +248,7 @@ uniform float uFloorLevel;     // how strongly, 0 for none
 uniform float uFloorThrough;   // how much of it shows through the ball
 uniform float uFloorDark;      // how far it darkens what is behind
 uniform float uFloorBeams;     // how strongly the beams cross it
+uniform float uFloorBeamInner; // how far in a floor bolt runs
 uniform vec3  uFloorGrazeDir;  // which way the grazing light lies
 uniform vec3  uRoomUp;         // the room's up, as the eye sees it
 uniform vec3  uSpkCentre0;
@@ -1158,7 +1159,8 @@ float beamAcross (vec2 pixel, vec2 speaker)
                  dot (pixel, speaker));
 }
 
-vec2 beamDensity (vec2 point, vec3 spkCentre, float spkSeed, float level)
+vec2 beamDensity (vec2 point, vec3 spkCentre, float spkSeed, float level,
+                  float innerEdge)
 {
     // Where this cabinet's mouth actually lands, rather than the one radius
     // all four used to share. Mirrors beamMouthRadiusSeen() in EnergyMap.cc.
@@ -1172,14 +1174,15 @@ vec2 beamDensity (vec2 point, vec3 spkCentre, float spkSeed, float level)
     // sitting between them. Mirrors beamRadialWindow() in EnergyMap.cc.
     float span = max (uBeamBleed, 0.0001);
     float radial = smoothstep (0.0, 1.0, clamp ((mouthR + span - d) / span, 0.0, 1.0))
-                 * smoothstep (0.0, 1.0, clamp ((d - (1.0 - span)) / span, 0.0, 1.0));
+                 * smoothstep (0.0, 1.0,
+                               clamp ((d - (innerEdge - span)) / span, 0.0, 1.0));
 
     // The body stops at the annulus but the bolts do not — escaping ones carry
     // on to the edge of the screen, so this cannot bail out on `radial`.
-    if (d < 1.0 - span || d > max (mouthR, uBoltReach)) return vec2 (0.0);
+    if (d < innerEdge - span || d > max (mouthR, uBoltReach)) return vec2 (0.0);
 
     // How far along the way in, 0 at the mouth and 1 at the sphere.
-    float t = clamp ((mouthR - d) / max (mouthR - 1.0, 0.0001), 0.0, 1.0);
+    float t = clamp ((mouthR - d) / max (mouthR - innerEdge, 0.0001), 0.0, 1.0);
     float eased = t * t * (3.0 - 2.0 * t);
 
     float halfWidth = radians (mix (uApertureAngle, uWrapAngle, eased));
@@ -1307,12 +1310,16 @@ vec3 speakerSide (int i)
     return uSpkSide3;
 }
 
-vec2 beamTotal (vec2 p)
+/** All four bands at a point. `innerEdge` is how far in they run: the sphere's
+ *  own rim for the bands that wrap it, and nearly nothing for the floor, where
+ *  a bolt carries on to the middle of the room instead of stopping at a
+ *  silhouette that is not there. */
+vec2 beamTotal (vec2 p, float innerEdge)
 {
-    return beamDensity (p, speakerCentre (0), uSpkSeed0, uSpotLevel0)
-         + beamDensity (p, speakerCentre (1), uSpkSeed1, uSpotLevel1)
-         + beamDensity (p, speakerCentre (2), uSpkSeed2, uSpotLevel2)
-         + beamDensity (p, speakerCentre (3), uSpkSeed3, uSpotLevel3);
+    return beamDensity (p, speakerCentre (0), uSpkSeed0, uSpotLevel0, innerEdge)
+         + beamDensity (p, speakerCentre (1), uSpkSeed1, uSpotLevel1, innerEdge)
+         + beamDensity (p, speakerCentre (2), uSpkSeed2, uSpotLevel2, innerEdge)
+         + beamDensity (p, speakerCentre (3), uSpkSeed3, uSpotLevel3, innerEdge);
 }
 
 
@@ -1371,21 +1378,22 @@ vec4 danceFloor (vec2 uv)
     // as something you could stand on.
     float edge = 1.0 - smoothstep (0.70, 1.0, r);
 
-    // What it reflects. There is no second ray here — a mirror done properly
-    // is another trace per pixel and this floor is not worth one — so the
-    // reflection is the one thing actually above it: the ball. Bright close
-    // in, smeared out with distance, which is what a polished floor does to
-    // anything standing on it.
-    float sheen = pow (1.0 - smoothstep (0.0, 0.62, r), 2.2);
+    // A polished floor is dark and *sharp*: what makes it read as a mirror is
+    // not an even wash but the contrast between a near-black surface and a few
+    // hard highlights on it. An even veil is fog; this is meant to be a
+    // surface you could see your shoes in.
 
-    // A grazing highlight across it, the way a sprung floor catches a light.
-    // Along the room's own x, so it turns with the room rather than lying on
-    // the glass.
-    float graze = pow (1.0 - smoothstep (0.0, 0.34,
-                                         abs (dot (normalize (flat + 1e-6),
-                                                   uFloorGrazeDir))),
-                       3.0)
-                * (1.0 - smoothstep (0.25, 0.95, r));
+    // The ball's own light falling on it, close in and falling away fast.
+    float sheen = pow (1.0 - smoothstep (0.0, 0.48, r), 3.4);
+
+    // Two grazing highlights, square to each other, tight enough to read as
+    // reflections of something rather than as a gradient. Along directions in
+    // the room, so they turn with it instead of lying on the glass.
+    vec2 fdir = normalize (flat.xy + 1e-6);
+    float g1 = pow (max (0.0, abs (dot (fdir, uFloorGrazeDir.xy))), 34.0);
+    float g2 = pow (max (0.0, abs (fdir.x * uFloorGrazeDir.y
+                                   - fdir.y * uFloorGrazeDir.x)), 34.0);
+    float graze = (g1 + 0.45 * g2) * (1.0 - smoothstep (0.15, 1.0, r));
 
     // Where the floor cuts the sphere. That circle is the whole of what says
     // the two pass through each other rather than one sitting behind the
@@ -1395,9 +1403,11 @@ vec4 danceFloor (vec2 uv)
     // Dark first. The floor takes light away from what is behind it and gives
     // a little back where it reflects — which is what a dark mirror is, and
     // why it cannot be drawn by adding.
-    float shade = edge * (0.55 + 0.30 * sheen) * uFloorLevel;
+    // Nearly opaque where it is drawn at all: a mirror hides the floor under
+    // it rather than tinting it.
+    float shade = edge * (0.80 + 0.20 * sheen) * uFloorLevel;
     vec3 lit = mix (uSphereSurface, uSphereRim, 0.35)
-                 * (0.28 * sheen + 0.55 * graze + 2.2 * cut);
+                 * (0.22 * sheen + 1.30 * graze + 2.2 * cut);
 
     // Nothing standing on it is reflected. That was built and taken out
     // again: a blob doubled below itself competes with the blob, and on a
@@ -1413,7 +1423,7 @@ vec4 danceFloor (vec2 uv)
     if (uFloorBeams > 0.001)
     {
         vec2 fv = seenToScreen (flat);
-        vec2 band = beamTotal (fv);
+        vec2 band = beamTotal (fv, uFloorBeamInner);
         lit += uSpotColour * band.x * uBeamIntensity * uFloorBeams;
         lit += uBoltCoreColour * band.y * uBoltCore * uFloorBeams;
     }
@@ -1747,7 +1757,7 @@ void main ()
         // screen — the outward counterpart to the net inside, which runs in.
         // Modulated by the energy arriving from this direction, so the spread
         // outside continues what lands inside.
-        vec2 band = beamTotal (uvScene);
+        vec2 band = beamTotal (uvScene, 1.0);
 
         // Only the bolts hide anything. They are thin, so the glow behind
         // them stays visible between them rather than sitting under a veil.
@@ -2125,6 +2135,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uFloorThrough  = glGetUniformLocation (pid, "uFloorThrough");
   _uFloorDark     = glGetUniformLocation (pid, "uFloorDark");
   _uFloorBeams    = glGetUniformLocation (pid, "uFloorBeams");
+  _uFloorBeamInner = glGetUniformLocation (pid, "uFloorBeamInner");
   _uFloorGrazeDir = glGetUniformLocation (pid, "uFloorGrazeDir");
   _uRoomUp        = glGetUniformLocation (pid, "uRoomUp");
   _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
@@ -2498,6 +2509,8 @@ SphereShader::uploadStackGeometry ()
     glUniform1f (_uFloorDark, _spotCfg.floorDark);
   if (_uFloorBeams >= 0)
     glUniform1f (_uFloorBeams, _spotCfg.floorBeams);
+  if (_uFloorBeamInner >= 0)
+    glUniform1f (_uFloorBeamInner, _spotCfg.floorBeamInner);
   if (_uFloorGrazeDir >= 0)
     {
       // The room's own x: the highlight lies along a direction in the room
