@@ -81,7 +81,11 @@ constexpr int resPerStack = 3;      // side by side
 constexpr float subWidthM = 1.65f;
 constexpr float subHeightM = 0.66f;
 constexpr float subDepthM = 0.90f;
-constexpr int subPerStack = 3;      // one on top of the next
+constexpr int subPerStack = 4;      // one on top of the next
+
+/** How far below the horizon a cabinet stands, in radians. Mirrors `drop` in
+ *  SphereShader's uploadSpeakerFrames(). */
+constexpr float speakerDropRad = 0.42f;
 
 /** The cluster is as wide as its three cabinets together, and one tall. */
 constexpr float clusterWidthM = resPerStack * resWidthM;

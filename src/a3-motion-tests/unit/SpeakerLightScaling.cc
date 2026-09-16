@@ -27,6 +27,7 @@
 #include <a3-motion-ui/components/EnergyMap.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
+#include <array>
 #include <cmath>
 
 using namespace a3;
@@ -522,14 +523,16 @@ TEST (SpeakerLightDraw, WhiteCoreIsDrawnFromTheHotChannel)
 TEST (SpeakerStack, IsAboutThreeMetresTall)
 {
   // "3x res 2 als cluster mit 3x f218 unten drunter. das ist dann 3m hoch son
-  // turm."
-  EXPECT_NEAR (stackHeightM, 3.0f, 0.15f);
+  // turm" — then "mach ruhig 4 bässe draus", which puts it over three and a
+  // half.
+  EXPECT_GT (stackHeightM, 3.0f);
+  EXPECT_LT (stackHeightM, 4.0f);
 }
 
 TEST (SpeakerStack, IsMostlySubs)
 {
   EXPECT_GT (stackSubShare, 0.5f);
-  EXPECT_LT (stackSubShare, 0.75f);
+  EXPECT_LT (stackSubShare, 0.8f);
 }
 
 TEST (SpeakerStack, HasPortraitTopsAndLandscapeSubs)
@@ -563,5 +566,35 @@ TEST (SpeakerStack, IsTallerThanItIsWide)
   // Three metres against a metre and a half — the proportion the reference
   // render shows, and the whole reason this is not a single box.
   EXPECT_GT (stackHeightM / subWidthM, 1.5f);
-  EXPECT_LT (stackHeightM / subWidthM, 2.4f);
+  EXPECT_LT (stackHeightM / subWidthM, 2.6f);
 }
+
+TEST (SpeakerStack, StandsTheRightWayUp)
+{
+  // "vor allem ist es falschrum". The box frame is built from the cabinet's
+  // nose and its side, and the third axis has to come out of those two
+  // pointing *up* — the cluster sits at +y and the subs below it, so a frame
+  // whose +y is downwards draws the tower on its head. With a single
+  // near-symmetrical wedge that was invisible; with a tower it is the first
+  // thing you see.
+  auto const cross = [] (std::array<float, 3> a, std::array<float, 3> b) {
+    return std::array<float, 3>{ a[1] * b[2] - a[2] * b[1],
+                                 a[2] * b[0] - a[0] * b[2],
+                                 a[0] * b[1] - a[1] * b[0] };
+  };
+
+  constexpr float k = 0.70710678f;
+  auto const level = std::cos (speakerDropRad);
+  auto const sink = std::sin (speakerDropRad);
+
+  // One speaker, straight on: nose towards the listener and tilted up out of
+  // its drop, side along its width.
+  std::array<float, 3> const nose{ -k * level, -k * level, sink };
+  std::array<float, 3> const side{ -k, k, 0.f };
+
+  EXPECT_GT (cross (side, nose)[2], 0.f)
+      << "side x nose has to be the up axis";
+  EXPECT_LT (cross (nose, side)[2], 0.f)
+      << "nose x side points down — that is the order that had it upside down";
+}
+

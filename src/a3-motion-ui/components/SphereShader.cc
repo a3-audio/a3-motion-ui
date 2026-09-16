@@ -239,6 +239,7 @@ uniform vec3  uStackSub;       // half-extents of the sub stack
 uniform float uStackTopMid;    // where the cluster's own centre sits
 uniform float uStackSubMid;    // where the sub stack's does
 uniform float uStackReach;     // how far a tower can be from its own centre
+uniform float uStackSubCount;  // how many subs are in the stack
 uniform vec3  uSpkCentre0;
 uniform vec3  uSpkCentre1;
 uniform vec3  uSpkCentre2;
@@ -1315,7 +1316,11 @@ vec4 speakerBoxes (vec2 uv, out float depth)
         // the room has been tipped.
         vec3 nose = speakerNose (i);
         vec3 side = speakerSide (i);
-        vec3 head = cross (nose, side);
+        // side x nose, not nose x side: the third axis has to come out of the
+        // other two pointing *up*, or the cluster — which sits at +y — is
+        // drawn at the tower's feet. Invisible on a symmetrical wedge, the
+        // first thing you see on a tower. Pinned by SpeakerStack.
+        vec3 head = cross (side, nose);
 
         vec3 toRay = ro - centre;
         vec3 roL = vec3 (dot (toRay, side), dot (toRay, head), dot (toRay, nose));
@@ -1373,8 +1378,11 @@ vec4 speakerBoxes (vec2 uv, out float depth)
                 // not across it: they stand beside each other.
                 float across = (hitL.x / uStackTop.x + 1.0) * 0.5;
                 float cell = fract (across * 3.0);
-                float seam = smoothstep (0.0, 0.05, cell)
-                           * smoothstep (1.0, 0.95, cell);
+                // Wide and dark: at this size a hairline between cabinets
+                // is not a gap, and three tops that read as one are the same
+                // mistake as drawing one.
+                float seam = smoothstep (0.0, 0.11, cell)
+                           * smoothstep (1.0, 0.89, cell);
 
                 float up = (hitL.y - uStackTopMid) / uStackTop.y;
 
@@ -1408,7 +1416,7 @@ vec4 speakerBoxes (vec2 uv, out float depth)
                             * (1.0 - baffle) * seam;
                 body = mix (body, body * 1.6, strut * 0.5);
 
-                body *= mix (1.0, 0.70, 1.0 - seam);
+                body *= mix (1.0, 0.34, 1.0 - seam);
                 body += uSpotColour * (hiThroat + loThroat * 0.7)
                       * baffle * seam * level * 1.7;
             }
@@ -1421,7 +1429,7 @@ vec4 speakerBoxes (vec2 uv, out float depth)
                 // this half of the tower from the horns above it.
                 float up = (hitL.y - uStackSubMid + uStackSub.y)
                          / (uStackSub.y * 2.0);
-                float cell = fract (up * 3.0);
+                float cell = fract (up * uStackSubCount);
                 float seam = smoothstep (0.0, 0.05, cell)
                            * smoothstep (1.0, 0.95, cell);
 
@@ -1936,6 +1944,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uStackTopMid   = glGetUniformLocation (pid, "uStackTopMid");
   _uStackSubMid   = glGetUniformLocation (pid, "uStackSubMid");
   _uStackReach    = glGetUniformLocation (pid, "uStackReach");
+  _uStackSubCount = glGetUniformLocation (pid, "uStackSubCount");
   _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
   _uSpkSeed[1]    = glGetUniformLocation (pid, "uSpkSeed1");
   _uSpkSeed[2]    = glGetUniformLocation (pid, "uSpkSeed2");
@@ -2285,6 +2294,8 @@ SphereShader::uploadStackGeometry ()
 
   // The reject circle has to cover the whole tower from its centre, or the
   // top and bottom of it are cut off by the very test that makes it cheap.
+  if (_uStackSubCount >= 0)
+    glUniform1f (_uStackSubCount, static_cast<float> (subPerStack));
   if (_uStackReach >= 0)
     glUniform1f (_uStackReach,
                  std::hypot (std::max (topHalf.x, subHalf.x),
