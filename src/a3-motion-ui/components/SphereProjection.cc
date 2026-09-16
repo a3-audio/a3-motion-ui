@@ -106,12 +106,16 @@ rotated (Pos const &p, float turn, float pitch)
 SphereCamera
 defaultCamera ()
 {
-  // 18 degrees. Measured against what it has to do: a tower 3.64 m tall on a
-  // sphere whose radius stands for about five metres needs its height to come
-  // out as a good share of its own width, and below about fifteen degrees it
-  // does not.
+  // Straight overhead, and that is the maintainer's call after trying the
+  // lean: the device is read from above.
+  //
+  // What the lean bought was tower height, and what it cost was the identity
+  // camera — isOverhead() short-circuits the whole transform, so a device
+  // nobody has tilted computes exactly what it always computed, to the bit.
+  // It also cost the floor, which from a lean is a foreshortened ring and from
+  // straight above is a full disc: the one surface that gains from this view
+  // rather than losing by it.
   SphereCamera camera;
-  camera.pitch = 0.31f;
   return camera;
 }
 

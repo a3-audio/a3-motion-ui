@@ -385,27 +385,19 @@ TEST (LineDepth, SeparatesTheTwoSidesEnoughToBeSeen)
   EXPECT_GT (lineDepthFade (0.6f) / lineDepthFade (-0.6f), 1.6f);
 }
 
-TEST (DefaultCamera, IsLeanedOverALittle)
+TEST (DefaultCamera, IsStraightOverhead)
 {
-  // Straight overhead an upright tower is a lid and nothing else, which is why
-  // the speakers used to be laid back. The default leans instead.
-  EXPECT_GT (defaultCamera ().pitch, 0.25f);
-  EXPECT_LT (defaultCamera ().pitch, 0.45f)
-      << "far enough over that the sphere stops reading as a circle";
-}
-
-TEST (DefaultCamera, HasNotWalkedRound)
-{
-  // Only the lean is a default. Which way round the room is looked at is the
-  // performer's, and starting it turned would move every bearing on the
-  // graticule for no reason.
+  // Tried leaned, at 18 and at 29 degrees, and put back: the device is read
+  // from above. A lean makes a tower tall and makes everything else a little
+  // wrong — and it gives up the identity camera, which is what lets a device
+  // nobody has tilted compute exactly what it always computed.
+  EXPECT_FLOAT_EQ (defaultCamera ().pitch, 0.f);
   EXPECT_FLOAT_EQ (defaultCamera ().turn, 0.f);
 }
 
-TEST (DefaultCamera, StillFlattensTheSphereOnlySlightly)
+TEST (DefaultCamera, TakesTheFastPath)
 {
-  // A blob near the rim must land close to where a hand has learned it is.
-  // cos(pitch) is what the vertical axis is squashed by.
-  EXPECT_GT (std::cos (defaultCamera ().pitch), 0.9f);
+  EXPECT_TRUE (defaultCamera ().isOverhead ())
+      << "the default has to be the identity, or every pixel pays for a "
+         "transform nobody asked for";
 }
-

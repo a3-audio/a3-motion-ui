@@ -181,6 +181,8 @@ public:
     float floorLevel = 1.f;    // how strongly the dance floor shows
     float floorThrough = 0.55f; // how much of it shows through the ball
     float floorDark = 0.38f;   // how far it darkens what is behind it
+    float floorMirror = 0.45f; // how strongly it reflects what stands on it
+    float floorBeams = 0.7f;   // how strongly the beams cross it
     float boltReach = 2.4f;    // how far an escaping one carries
     float boltEscape = 0.55f;  // how many of them escape
     float boltBranches = 2.f;  // branches per bolt
@@ -354,6 +356,8 @@ private:
   GLint _uFloorLevel = -1;
   GLint _uFloorThrough = -1;
   GLint _uFloorDark = -1;
+  GLint _uFloorMirror = -1;
+  GLint _uFloorBeams = -1;
   GLint _uFloorGrazeDir = -1;
   GLint _uRoomUp = -1;
   GLint _uSpkSeed[kMaxBlobs] = {};
