@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <cmath>
+
 namespace a3
 {
 
@@ -85,6 +87,21 @@ constexpr float subWidthM = subWidthM_;
 constexpr float subHeightM = 0.66f;
 constexpr float subDepthM = 0.90f;
 constexpr int subPerStack = 4;      // one on top of the next
+
+/** Where the floor is, in sphere radii — negative, below the listener.
+ *
+ *  The towers stand on it, so this is one number and not two: a floor drawn at
+ *  one height with the cabinets standing at another is a room that does not
+ *  close, and at this size the gap reads as the speakers hovering. */
+inline float
+speakerFloorZ (float speakerRadius, float dropRad)
+{
+  return -std::sin (dropRad) * speakerRadius;
+}
+
+/** How far out the floor is drawn, as a share of the speaker radius. Past the
+ *  towers, so they stand *on* it rather than at its edge. */
+constexpr float floorReach = 1.35f;
 
 /** How far below the horizon a cabinet stands, in radians. Mirrors `drop` in
  *  SphereShader's uploadSpeakerFrames(). */

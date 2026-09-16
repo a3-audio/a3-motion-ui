@@ -600,3 +600,34 @@ TEST (SpeakerStack, StandsTheRightWayUp)
       << "nose x side points down — that is the order that had it upside down";
 }
 
+// ── The floor ───────────────────────────────────────────────────────────
+
+TEST (DanceFloor, IsWhereTheTowersStand)
+{
+  // One number, not two. A floor drawn at one height with the cabinets
+  // standing at another is a room that does not close, and at this size the
+  // gap reads as the speakers hovering.
+  auto const radius = 1.4f;
+  EXPECT_FLOAT_EQ (speakerFloorZ (radius, speakerDropRad),
+                   -std::sin (speakerDropRad) * radius);
+}
+
+TEST (DanceFloor, IsBelowTheListener)
+{
+  EXPECT_LT (speakerFloorZ (1.4f, speakerDropRad), 0.f);
+}
+
+TEST (DanceFloor, ReachesPastTheTowers)
+{
+  // Drawn only as far as the speaker ring, the towers would stand on its very
+  // edge; a floor has to carry on past what stands on it.
+  EXPECT_GT (floorReach, 1.f);
+}
+
+TEST (DanceFloor, StaysUnderTheSphere)
+{
+  // Deep enough that it does not cut the ball in half across the middle of the
+  // picture, which is where the trajectory is read.
+  EXPECT_LT (speakerFloorZ (1.4f, speakerDropRad), -0.4f);
+}
+

@@ -66,6 +66,7 @@
     "boltCount": 7,
     "boltFewest": 2,
     "boltDim": 0.45,
+    "floorLevel": 1.0,
     "boltReach": 2.4,
     "boltEscape": 0.55,
     "boltBranches": 2,

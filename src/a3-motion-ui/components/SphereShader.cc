@@ -242,6 +242,10 @@ uniform float uStackReach;     // how far a tower can be from its own centre
 uniform float uStackSubCount;  // how many subs are in the stack
 uniform vec3  uStackOne;       // half-extents of one Res 2
 uniform float uStackSplay;     // how far the outer tops turn out
+uniform float uFloorZ;         // the floor, in the room
+uniform float uFloorReach;     // how far out it is drawn
+uniform float uFloorLevel;     // how strongly, 0 for none
+uniform vec3  uRoomUp;         // the room's up, as the eye sees it
 uniform vec3  uSpkCentre0;
 uniform vec3  uSpkCentre1;
 uniform vec3  uSpkCentre2;
@@ -1321,6 +1325,59 @@ vec2 beamTotal (vec2 p)
  *  Each faces the listener. `depth` comes back as how far along the ray the
  *  nearest one was hit, so the caller can tell a cabinet in front of the ball
  *  from one behind it. */
+/** The dance floor: the plane the towers stand on, drawn faintly.
+ *
+ *  Orthographic, so a pixel's ray is a straight drop along the eye's own axis
+ *  and the plane is one division. What it is for is the lean: without a ground
+ *  the tilted view reads as a ball that has been squashed, and with one it
+ *  reads as a room seen from above. The towers stand on this exact height —
+ *  speakerFloorZ() is the one number both use.
+ *
+ *  Returns colour in rgb and how much of it to lay over what is behind, in a.
+ */
+vec4 danceFloor (vec2 uv)
+{
+    // The room's own up, as the eye sees it. A uniform rather than four
+    // sines per pixel: it is the same vector for the whole frame.
+    vec3 up = uRoomUp;
+
+    // The ray drops along -z in the seen frame; the floor is the plane whose
+    // room-normal is up, at uFloorZ along it.
+    vec3 ro = vec3 (uv.y, -uv.x, 4.0);
+    vec3 rd = vec3 (0.0, 0.0, -1.0);
+
+    float denom = dot (rd, up);
+    if (abs (denom) < 0.001)
+        return vec4 (0.0);
+
+    float t = (uFloorZ - dot (ro, up)) / denom;
+    if (t < 0.0)
+        return vec4 (0.0);
+
+    vec3 hit = ro + rd * t;
+
+    // How far out on the floor, measured in the room rather than on the glass.
+    vec3 flat = hit - up * dot (hit, up);
+    float r = length (flat) / max (uSpeakerRadius * uFloorReach, 0.001);
+    if (r > 1.0)
+        return vec4 (0.0);
+
+    // Fades out at its edge, and again towards the middle -- the centre of the
+    // floor is where the trajectory is read, and a wash under it would be in
+    // the way of the one thing that has to stay legible.
+    float edge = 1.0 - smoothstep (0.72, 1.0, r);
+    float middle = smoothstep (0.10, 0.45, r);
+
+    // A ring every metre or so, so the lean has something to be read off.
+    float rings = 1.0 - smoothstep (0.02, 0.06,
+                                    abs (fract (r * 5.0) - 0.5) - 0.44);
+
+    vec3 tint = mix (uSphereSurface, uSphereRim, 0.5);
+    float a = edge * middle * (0.10 + 0.14 * rings) * uFloorLevel;
+
+    return vec4 (tint * (1.0 + 0.8 * rings), a);
+}
+
 vec4 speakerBoxes (vec2 uv, out float depth)
 {
     vec3 ro = vec3 (uv.y, -uv.x, 4.0);
@@ -1785,6 +1842,16 @@ void main ()
     // covers it outright, one behind shows through dimmed the way anything
     // behind the ball does. The blobs stay last -- they are light, and light
     // is not occluded by what it shines through.
+    // The floor first, so the towers stand on it. Only outside the ball:
+    // inside the silhouette the floor is always behind the sphere's near
+    // face -- it lies below the middle of the room and the ray meets the ball
+    // first -- so drawing it there would be drawing something that is hidden.
+    if (uFloorLevel > 0.001 && dist > 1.0)
+    {
+        vec4 floorCol = danceFloor (uvScene);
+        col = mix (col, floorCol.rgb, floorCol.a);
+    }
+
     float boxOpaque = 0.0;
     {
         float boxDepth;
@@ -2000,6 +2067,10 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uStackSubCount = glGetUniformLocation (pid, "uStackSubCount");
   _uStackOne      = glGetUniformLocation (pid, "uStackOne");
   _uStackSplay    = glGetUniformLocation (pid, "uStackSplay");
+  _uFloorZ        = glGetUniformLocation (pid, "uFloorZ");
+  _uFloorReach    = glGetUniformLocation (pid, "uFloorReach");
+  _uFloorLevel    = glGetUniformLocation (pid, "uFloorLevel");
+  _uRoomUp        = glGetUniformLocation (pid, "uRoomUp");
   _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
   _uSpkSeed[1]    = glGetUniformLocation (pid, "uSpkSeed1");
   _uSpkSeed[2]    = glGetUniformLocation (pid, "uSpkSeed2");
@@ -2358,6 +2429,18 @@ SphereShader::uploadStackGeometry ()
                  resDepthM * 0.5f * metre);
   if (_uStackSplay >= 0)
     glUniform1f (_uStackSplay, 0.21f);
+  if (_uFloorZ >= 0)
+    glUniform1f (_uFloorZ,
+                 speakerFloorZ (_spotCfg.speakerRadius, speakerDropRad));
+  if (_uFloorReach >= 0)
+    glUniform1f (_uFloorReach, floorReach);
+  if (_uFloorLevel >= 0)
+    glUniform1f (_uFloorLevel, _spotCfg.floorLevel);
+  if (_uRoomUp >= 0)
+    {
+      auto const up = asSeenFrom (Pos::fromCartesian (0.f, 0.f, 1.f), _camera);
+      glUniform3f (_uRoomUp, up.x (), up.y (), up.z ());
+    }
   if (_uStackSubCount >= 0)
     glUniform1f (_uStackSubCount, static_cast<float> (subPerStack));
   if (_uStackReach >= 0)

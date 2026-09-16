@@ -178,6 +178,7 @@ public:
     float boltCount = 6.f;     // bolts the loudest speaker draws
     float boltFewest = 2.f;    // bolts the quietest speaker keeps
     float boltDim = 0.45f;     // how far a quiet speaker dims
+    float floorLevel = 1.f;    // how strongly the dance floor shows
     float boltReach = 2.4f;    // how far an escaping one carries
     float boltEscape = 0.55f;  // how many of them escape
     float boltBranches = 2.f;  // branches per bolt
@@ -346,6 +347,10 @@ private:
   GLint _uStackSubCount = -1;
   GLint _uStackOne = -1;
   GLint _uStackSplay = -1;
+  GLint _uFloorZ = -1;
+  GLint _uFloorReach = -1;
+  GLint _uFloorLevel = -1;
+  GLint _uRoomUp = -1;
   GLint _uSpkSeed[kMaxBlobs] = {};
   GLint _uSpkCentre[kMaxBlobs] = {};
   GLint _uSpkNose[kMaxBlobs] = {};
