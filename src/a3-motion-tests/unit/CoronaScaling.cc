@@ -85,3 +85,78 @@ TEST (CoronaScaling, ShippedConfigKeepsCoronaVisibleAtRealisticLevel)
 }
 
 }
+
+// ── What the shader's blob is actually handed ───────────────────────────
+//
+// Captured from the running rig on 2026-09-16 by sharing port 7772 with the
+// app (SO_REUSEPORT) while programme material played: /vu/1 arrived at peak
+// 0.323, rms 0.096. The other three channels were silent to five decimal
+// places, which is what a four-channel rig looks like most of the time.
+//
+// The blob used to be a 2D disc and took its level through coronaVuLevel().
+// When it moved into the shader (ce10153) the scaling was left behind and the
+// raw peak went in instead — so the level the blob reacts to became whatever
+// the meter happened to read, with no vuMax under it. The maintainer's report
+// was "die blobs reagieren nicht mehr auf input vu".
+
+namespace
+{
+constexpr float rigPeak = 0.323f;   // /vu/1, loudest channel, real material
+constexpr float rigRms = 0.096f;
+}
+
+TEST (CoronaScaling, RealMaterialDrivesTheBlobMostOfTheWay)
+{
+  CoronaConfig cfg;
+  auto const level = coronaVuLevel (rigPeak, rigRms, cfg.vuMax);
+
+  EXPECT_GT (level, 0.7f)
+      << "a channel that is plainly playing barely moves the blob";
+  EXPECT_LE (level, 1.f);
+}
+
+TEST (CoronaScaling, TheRawPeakIsNotAUsableBlobLevel)
+{
+  // The other half: it has to be worth scaling. A raw peak of 0.32 sits below
+  // the threshold the blob's own bolt needs (vu > 0.25 only just), so most of
+  // what the blob can do never comes out.
+  CoronaConfig cfg;
+
+  EXPECT_GT (coronaVuLevel (rigPeak, rigRms, cfg.vuMax) / rigPeak, 2.f)
+      << "scaling changes nothing, so it cannot be what went missing";
+}
+
+TEST (CoronaScaling, SilenceStaysSilentAfterScaling)
+{
+  CoronaConfig cfg;
+  EXPECT_FLOAT_EQ (coronaVuLevel (0.f, 0.f, cfg.vuMax), 0.f);
+}
+
+TEST (CoronaScaling, TheScalingIsActuallyWiredIn)
+{
+  // Three times in three days a coupling was lost in a rebuild while every
+  // test stayed green, because the tests checked the piece and nobody checked
+  // that the piece was still plugged in: the coloured band drawn off the bolt
+  // core, the trajectory's depth left out of the line map, and this one.
+  //
+  // coronaVuLevel() had no caller at all outside its own tests. It is the only
+  // place the blob's level is put on a scale, so with nothing calling it the
+  // blob reacted to whatever the meter happened to read.
+  juce::File const root (A3_UI_SOURCE_DIR);
+  auto callers = 0;
+
+  for (auto const &entry : juce::RangedDirectoryIterator (
+           root, true, "*.cc", juce::File::findFiles))
+    {
+      auto const name = entry.getFile ().getFileName ();
+      if (name == "CoronaScaling.cc")
+        continue;
+
+      if (entry.getFile ().loadFileAsString ().contains ("coronaVuLevel ("))
+        ++callers;
+    }
+
+  EXPECT_GT (callers, 0)
+      << "nothing scales the blob's VU; the raw meter reading reaches the "
+         "shader";
+}

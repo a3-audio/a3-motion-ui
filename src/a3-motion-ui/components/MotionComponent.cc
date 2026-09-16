@@ -1306,7 +1306,15 @@ MotionComponent::renderOpenGL ()
         bd.r = col.getFloatRed ();
         bd.g = col.getFloatGreen ();
         bd.b = col.getFloatBlue ();
-        bd.vuPeak = _smoothBlobPeak[ch];
+        // On a scale, not raw. The blob was a 2D disc once and took its
+        // level through coronaVuLevel(); moving it into the shader left the
+        // scaling behind, so what reached it was whatever the meter read —
+        // and a meter reads small. Real material measured at the rig peaks
+        // around 0.3, which is barely over the threshold the blob's own bolt
+        // needs, so most of what it can do never came out. vuMax is what says
+        // how loud "loud" is on this rig.
+        bd.vuPeak = coronaVuLevel (_smoothBlobPeak[ch], _smoothBlobRms[ch],
+                                   _coronaCfg.vuMax);
         bd.vuRms = _smoothBlobRms[ch];
         bd.grabbed = _uiStates[ch]->grabbed;
         bd.highlighted = _uiStates[ch]->highlighted;
@@ -1317,12 +1325,11 @@ MotionComponent::renderOpenGL ()
         bd.action = _engine.isChannelAccentActive (ch) ? 1.f : 0.f;
 
         // Depth. The sphere is semi-transparent, so a blob behind it is dimmed
-        // rather than hidden -- the same fade the 2D layer used, moved to where
-        // the blob is now drawn.
-        bd.depthFade = 1.f;
-        if (position.isValid () && position.z () < 0.f)
-          bd.depthFade
-              = 0.3f + 0.7f * std::clamp (position.z () + 1.f, 0.f, 1.f);
+        // rather than hidden. The same rule the trajectory goes behind the
+        // ball by, written once: this carried its own copy of the arithmetic,
+        // and two copies of a fade are two things to forget to change.
+        bd.depthFade
+            = position.isValid () ? lineDepthFade (position.z ()) : 1.f;
 
         _sphereShader.setBlob (ch, bd);
       }
