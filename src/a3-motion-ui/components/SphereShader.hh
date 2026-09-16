@@ -233,6 +233,9 @@ public:
    *  warped by noise, so they wander along the line and can never fold the
    *  way an offset copy of the curve does), and the bolts. */
   void setLineTexture (int channel, unsigned int textureID);
+  /** The braid strands for a channel: red where a strand is, green how
+   *  far in front of the cord. 0 means no braid for that channel. */
+  void setStrandTexture (int channel, unsigned int textureID);
   /** How far the line map reaches, in sphere radii. */
   void setLineExtent (float extent) { _lineExtent = extent; }
 
@@ -346,6 +349,7 @@ private:
   GLint _uBlobEffects = -1;
 
   GLint _uLineMap[kMaxBlobs] = {};
+  GLint _uStrandMap[kMaxBlobs] = {};
   GLint _uLineOn = -1;
   GLint _uLineExtent = -1;
   GLint _uLineFarSide = -1;
@@ -388,6 +392,7 @@ private:
   void uploadStackGeometry ();
   void uploadSpeakerFrames ();
   unsigned int _lineTexture[kMaxBlobs] = {};
+  unsigned int _strandTexture[kMaxBlobs] = {};
   float _lineExtent = 1.3f;
 
   GLint _uNumBlobs = -1;

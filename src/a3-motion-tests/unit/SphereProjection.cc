@@ -401,3 +401,49 @@ TEST (DefaultCamera, TakesTheFastPath)
       << "the default has to be the identity, or every pixel pays for a "
          "transform nobody asked for";
 }
+
+TEST (SphereProjection, JucesStrokeTransformLeavesTheThicknessAlone)
+{
+  // The braid's strands are built in sphere radii and rasterised into a
+  // 512-texel map, so they need scaling by about two hundred on the way. Passed
+  // as strokePath's own transform, that scale moves the points and does *not*
+  // widen the stroke: every strand came out at a hundredth of a texel, a
+  // tenth-opaque smear the shader's threshold never saw, and the braid was
+  // simply not there. Transform the path first, then stroke in texels.
+  auto const maxAlpha = [] (juce::Image const &image) {
+    juce::Image::BitmapData data (image, juce::Image::BitmapData::readOnly);
+    auto best = 0;
+    for (auto y = 0; y < data.height; ++y)
+      for (auto x = 0; x < data.width; ++x)
+        best = juce::jmax (best, (int) data.getPixelColour (x, y).getAlpha ());
+    return best;
+  };
+
+  juce::Path unit;
+  unit.startNewSubPath (0.05f, 0.1f);
+  unit.lineTo (0.25f, 0.1f);
+  auto const scale = juce::AffineTransform::scale (100.f);
+  auto constexpr texels = 2.f;
+
+  juce::Image viaTransform (juce::Image::ARGB, 32, 32, true);
+  {
+    juce::Graphics g (viaTransform);
+    g.setColour (juce::Colours::white);
+    g.strokePath (unit, juce::PathStrokeType (texels / 100.f), scale);
+  }
+
+  juce::Image transformedFirst (juce::Image::ARGB, 32, 32, true);
+  {
+    juce::Graphics g (transformedFirst);
+    g.setColour (juce::Colours::white);
+    auto mapped = unit;
+    mapped.applyTransform (scale);
+    g.strokePath (mapped, juce::PathStrokeType (texels));
+  }
+
+  EXPECT_LT (maxAlpha (viaTransform), 64)
+      << "JUCE now scales the stroke with the transform; the workaround in "
+         "drawPathOnSphere can go";
+  EXPECT_EQ (maxAlpha (transformedFirst), 255);
+}
+

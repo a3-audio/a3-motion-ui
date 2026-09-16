@@ -508,10 +508,30 @@ MotionComponent::lineMapFor (int channel)
   return &image;
 }
 
+juce::Image *
+MotionComponent::strandMapFor (int channel)
+{
+  if (channel < 0 || channel >= 4)
+    return nullptr;
+
+  auto &image = _strandMapImage[channel];
+  if (!image.isValid ())
+    image = juce::Image (juce::Image::ARGB, lineMapSize, lineMapSize, true);
+
+  if (!_strandMapValid[channel])
+    {
+      image.clear (image.getBounds (), juce::Colours::transparentBlack);
+      _strandMapValid[channel] = true;
+    }
+  return &image;
+}
+
 void
 MotionComponent::resetLineMaps ()
 {
   for (auto &valid : _lineMapValid)
+    valid = false;
+  for (auto &valid : _strandMapValid)
     valid = false;
 }
 
@@ -532,6 +552,19 @@ MotionComponent::uploadLineMaps ()
       _lineTexture[channel]->loadImage (_lineMapImage[channel]);
       _sphereShader.setLineTexture (
           channel, _lineTexture[channel]->getTextureID ());
+
+      if (!_strandMapValid[channel] || !_strandMapImage[channel].isValid ())
+        {
+          _sphereShader.setStrandTexture (channel, 0);
+          continue;
+        }
+
+      if (_strandTexture[channel] == nullptr)
+        _strandTexture[channel] = std::make_unique<juce::OpenGLTexture> ();
+
+      _strandTexture[channel]->loadImage (_strandMapImage[channel]);
+      _sphereShader.setStrandTexture (
+          channel, _strandTexture[channel]->getTextureID ());
     }
 }
 
@@ -1854,7 +1887,10 @@ drawPathOnSphere (juce::Path const &displayPath,
                   SphereCamera const &camera,
                   /** Where to rasterise this line for the shader, or nullptr
                    *  for a line the glow is not asked to follow. */
-                  juce::Image *lineMap = nullptr)
+                  juce::Image *lineMap = nullptr,
+                  /** Where to rasterise the braid's strands for the shader,
+                   *  or nullptr for a line whose strands are stroked here. */
+                  juce::Image *strandMap = nullptr)
 {
   if (displayPath.isEmpty ())
     return;
@@ -2043,13 +2079,13 @@ drawPathOnSphere (juce::Path const &displayPath,
   // cheap because the commit that built it deleted the line map at the same
   // time -- the cord was drawn with no glow at all around it.
 
-  // Only where the shader is not drawing this line itself. A line with a map
-  // is the shader's now — cord, glow and all, at 512 — and the vector strands
-  // here pasted a raw line over the finished frame, above depth and above the
-  // towers. So none of the braid is built for it: not the strands, not the
-  // fold guard, not the paths. The recording trail and the previews have no
-  // map, and for them this is still the whole line.
-  if (lineMap == nullptr)
+  // The braid is built for every line, and only *where it is drawn* differs.
+  // Without a map — the recording trail, the previews — it is stroked here and
+  // is the whole line. With one, the strands go into a map of their own and
+  // the shader draws them: stroked here as vectors they pasted a raw line over
+  // the finished frame, above depth and above the towers, and the blob could
+  // not travel inside a braid it was drawn underneath.
+  if (lineMap == nullptr || strandMap != nullptr)
   {
     auto const seconds
         = static_cast<float> (juce::Time::getMillisecondCounter ()) * 0.001f;
@@ -2165,6 +2201,36 @@ drawPathOnSphere (juce::Path const &displayPath,
                       ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
                                             : (band == 2 ? 0.25f : 0.75f))
                       : 1.0f;
+
+          if (lineMap != nullptr)
+            {
+              // Into the strand map: red says a strand is here, green how far
+              // in front of the cord it is at this point. Opaque, so the
+              // premultiplied image keeps both values as written; back tiers
+              // first, so where two cross the nearer one is what is left.
+              auto const toMapScale
+                  = static_cast<float> (lineMapSize) / (2.f * lineMapExtent);
+              auto const toMap
+                  = juce::AffineTransform::scale (toMapScale)
+                        .translated (lineMapSize * 0.5f, lineMapSize * 0.5f);
+              juce::Graphics sg (*strandMap);
+              sg.setColour (juce::Colour::fromFloatRGBA (1.f, front, 0.f, 1.f));
+              // A strand wide enough to survive the bilinear filter, and no
+              // wider: the shader sharpens it back down, as it does the cord.
+              auto constexpr strandTexels = 1.7f;
+              // Into map space first, then stroked in texels. strokePath's own
+              // transform moves the points and leaves the thickness alone, so
+              // passing it there drew every strand at a hundredth of a texel —
+              // a tenth-opaque smear the shader's threshold never saw.
+              auto mapped = path;
+              mapped.applyTransform (toMap);
+              sg.strokePath (mapped,
+                             juce::PathStrokeType (
+                                 strandTexels,
+                                 juce::PathStrokeType::JointStyle::curved,
+                                 juce::PathStrokeType::EndCapStyle::rounded));
+              continue;
+            }
 
             g.setColour (colour.brighter (0.30f * front * front)
                              .withAlpha (juce::jlimit (
@@ -2486,7 +2552,8 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     true, params, heightMap, g, shaping,
                     _sphereShader.getCamera (),
-                    lineMapFor (static_cast<int> (ch)));
+                    lineMapFor (static_cast<int> (ch)),
+                    strandMapFor (static_cast<int> (ch)));
 }
 
 juce::Point<float>

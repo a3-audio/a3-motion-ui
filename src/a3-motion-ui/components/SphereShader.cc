@@ -208,6 +208,10 @@ uniform sampler2D uLineMap0;
 uniform sampler2D uLineMap1;
 uniform sampler2D uLineMap2;
 uniform sampler2D uLineMap3;
+uniform sampler2D uStrandMap0;
+uniform sampler2D uStrandMap1;
+uniform sampler2D uStrandMap2;
+uniform sampler2D uStrandMap3;
 // Which of the four have anything in them, and how far the maps reach.
 uniform vec4  uLineOn;
 uniform float uLineExtent;
@@ -517,6 +521,34 @@ float lineNear (vec2 uv, int i)
     if (i == 1) return texture2D (uLineMap1, t).r;
     if (i == 2) return texture2D (uLineMap2, t).r;
     return texture2D (uLineMap3, t).r;
+}
+
+/** The braid at a pixel: x is whether a strand is here, y how far in front of
+ *  the cord it is, 0 behind to 1 in front.
+ *
+ *  Its own map because the strands are geometry the CPU already works out —
+ *  three hairlines offset from the line and wound round it — and a fragment
+ *  shader cannot follow a curve to find them. The CPU rasterises, the shader
+ *  lights, depth-fades and occludes, which is what the vector strands drawn
+ *  over the frame could never be.
+ */
+vec2 strandAt (vec2 uv, int i)
+{
+    vec2 t = uv / uLineExtent * 0.5 + 0.5;
+    if (t.x < 0.0 || t.x > 1.0 || t.y < 0.0 || t.y > 1.0)
+        return vec2 (0.0);
+
+    vec4 m;
+    if (i == 0) m = texture2D (uStrandMap0, t);
+    else if (i == 1) m = texture2D (uStrandMap1, t);
+    else if (i == 2) m = texture2D (uStrandMap2, t);
+    else m = texture2D (uStrandMap3, t);
+
+    // Green is only meaningful where red is: divide the filter's blend with
+    // empty texels back out, or a strand's edge reads as behind the cord.
+    float here = m.r;
+    float front = here > 0.001 ? clamp (m.g / here, 0.0, 1.0) : 0.0;
+    return vec2 (here, front);
 }
 
 /** Where along the figure a pixel is, 0..1, out of the map's second channel.
@@ -933,6 +965,50 @@ vec3 blobLight (vec2 uv, int i)
               + trailCol * trail * 1.5;
 
     return out3 * depth;
+}
+
+/** How much of a pixel a blob's body covers, 0..1. */
+float blobBody (vec2 uv, int i)
+{
+    vec4 ps = getBlobPosSize (i);
+    if (ps.z < 0.001)
+        return 0.0;
+    return smoothstep (ps.z, ps.z * 0.45, length (uv - ps.xy));
+}
+
+/** The braid round a channel's line, split by which side of the cord each
+ *  strand is on, so the blob can travel *inside* it: what is behind goes under
+ *  the blob, what is in front goes over it.
+ *
+ *  `frontCover` is how much a front strand hides of what is under it. Drawn
+ *  additively alone, a strand crossing a white-hot blob adds white to white
+ *  and vanishes exactly where the braid is meant to be read.
+ */
+void braidLight (vec2 uv, int i, out vec3 back, out vec3 front,
+                 out float frontCover)
+{
+    back = vec3 (0.0);
+    front = vec3 (0.0);
+    frontCover = 0.0;
+
+    if (lineOn (i) < 0.5)
+        return;
+
+    vec2 sa = strandAt (uv, i);
+    if (sa.x < 0.02)
+        return;
+
+    // A hairline: the map holds each strand a little wider than it is drawn,
+    // so the filter cannot rub it out, and this pulls it back in.
+    // Soft enough that a strand's own texels do not show as steps where it
+    // turns across the cord — tighter than this read as a chain of links.
+    float line = smoothstep (0.16, 0.82, sa.x);
+    float depth = lineDepth (uv, i);
+    vec3 col = getBlobCol (i);
+
+    back = col * line * (1.0 - sa.y) * 0.55 * depth;
+    front = mix (col, uBoltCoreColour, 0.35) * line * sa.y * 1.15 * depth;
+    frontCover = line * sa.y;
 }
 
 // Lightning. A bolt is a path, not a field: for each radius it sits at some
@@ -2097,8 +2173,16 @@ void main ()
     for (int b = 0; b < 4; b++)
     {
         if (float(b) >= uNumBlobs) break;
+        // The blob rides inside its braid: strands behind it go under its
+        // body, strands in front of it go over and partly hide it.
+        vec3 strandBack, strandFront;
+        float strandCover;
+        braidLight (uvScene, b, strandBack, strandFront, strandCover);
+
         blobs += lineGlow (uvScene, b);
-        blobs += blobLight (uvScene, b);
+        blobs += strandBack * (1.0 - blobBody (uvScene, b));
+        blobs += blobLight (uvScene, b) * (1.0 - 0.8 * strandCover);
+        blobs += strandFront;
     }
 
     // Behind a cabinet, dimmed by it. Light is not occluded by the glass it
@@ -2308,6 +2392,10 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uLineMap[1]    = glGetUniformLocation (pid, "uLineMap1");
   _uLineMap[2]    = glGetUniformLocation (pid, "uLineMap2");
   _uLineMap[3]    = glGetUniformLocation (pid, "uLineMap3");
+  _uStrandMap[0]  = glGetUniformLocation (pid, "uStrandMap0");
+  _uStrandMap[1]  = glGetUniformLocation (pid, "uStrandMap1");
+  _uStrandMap[2]  = glGetUniformLocation (pid, "uStrandMap2");
+  _uStrandMap[3]  = glGetUniformLocation (pid, "uStrandMap3");
   _uLineOn        = glGetUniformLocation (pid, "uLineOn");
   _uLineExtent    = glGetUniformLocation (pid, "uLineExtent");
   _uLineFarSide   = glGetUniformLocation (pid, "uLineFarSide");
@@ -2594,6 +2682,15 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
         glUniform1i (_uLineMap[i], 1 + i);
         on[i] = _lineTexture[i] != 0 ? 1.f : 0.f;
       }
+    // And the braids, on units five to eight.
+    for (int i = 0; i < kMaxBlobs; ++i)
+      {
+        if (_uStrandMap[i] < 0)
+          continue;
+        glActiveTexture (GL_TEXTURE5 + static_cast<GLenum> (i));
+        glBindTexture (GL_TEXTURE_2D, _strandTexture[i]);
+        glUniform1i (_uStrandMap[i], 5 + i);
+      }
     glActiveTexture (GL_TEXTURE0);
 
     if (_uLineOn >= 0)
@@ -2821,6 +2918,12 @@ void SphereShader::setLineTexture (int channel, unsigned int textureID)
 {
   if (channel >= 0 && channel < kMaxBlobs)
     _lineTexture[channel] = textureID;
+}
+
+void SphereShader::setStrandTexture (int channel, unsigned int textureID)
+{
+  if (channel >= 0 && channel < kMaxBlobs)
+    _strandTexture[channel] = textureID;
 }
 
 void SphereShader::setNumBlobs (int n)
