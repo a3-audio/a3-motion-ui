@@ -185,7 +185,7 @@ public:
     float floorBeamInner = 0.02f; // how far in a floor bolt runs
     float boxOcclude = 0.85f;  // how far a cabinet hides what is behind it
     float floorGrain = 14.f;   // how fine the floor's own texture is
-    float boltReach = 2.4f;    // how far an escaping one carries
+    float boltInner = 0.45f;   // how far in an escaping bolt runs
     float boltEscape = 0.55f;  // how many of them escape
     float boltBranches = 2.f;  // branches per bolt
     float boltBranch = 1.6f;   // how hard a branch leaves its trunk
@@ -298,7 +298,7 @@ private:
   GLint _uBoltCount = -1;
   GLint _uBoltFewest = -1;
   GLint _uBoltDim = -1;
-  GLint _uBoltReach = -1;
+  GLint _uBoltInner = -1;
   GLint _uBoltEscape = -1;
   GLint _uBoltBranches = -1;
   GLint _uBoltBranch = -1;

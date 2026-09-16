@@ -131,7 +131,18 @@ auto constexpr blobTrailLag = 0.09f;
 // about two and a half screen pixels per texel at the sizes this ships at:
 // coarse for a *line*, which is why the crisp line is still drawn as a vector
 // on top, and plenty for a *field*, which is all the shader asks of it.
-auto constexpr lineMapSize = 256;
+// 512, not 256.
+//
+// At 256 over 1.3 sphere radii a texel is two and a half screen pixels, and a
+// hairline two pixels wide cannot be held in that at all — which is why the
+// sharp core of the trajectory was drawn by JUCE into an overlay instead, and
+// why it looked raw and floated over everything: that overlay is blitted after
+// the whole scene and knows nothing about depth, towers or glow.
+//
+// Doubled, a texel is 1.4 screen pixels. The core can live in the map, and the
+// trajectory becomes one thing the shader draws rather than two layers that
+// happen to line up.
+auto constexpr lineMapSize = 512;
 auto constexpr lineMapExtent = 1.3f;
 
 // The nested strokes that make the stepped cone of nearness: half-width in
@@ -148,10 +159,12 @@ struct LineMapStep
 // five steps the field jumps by a fifth of its range between neighbouring
 // bands and no amount of bilinear filtering hides a step that size. Ten small
 // strokes into a 256-square image cost almost nothing.
+// Widths are in texels, so they double with the map to keep the same size in
+// the room.
 constexpr LineMapStep lineMapSteps[] = {
-  { 34.f, 0.04f }, { 28.f, 0.10f }, { 23.f, 0.17f }, { 19.f, 0.25f },
-  { 15.f, 0.34f }, { 12.f, 0.44f }, { 9.f, 0.55f },  { 7.f, 0.66f },
-  { 5.f, 0.77f },  { 3.5f, 0.86f },
+  { 68.f, 0.04f }, { 56.f, 0.10f }, { 46.f, 0.17f }, { 38.f, 0.25f },
+  { 30.f, 0.34f }, { 24.f, 0.44f }, { 18.f, 0.55f }, { 14.f, 0.66f },
+  { 10.f, 0.77f }, { 7.f, 0.86f },
 };
 
 // The innermost step is drawn on its own, and in pieces.
@@ -164,7 +177,15 @@ constexpr LineMapStep lineMapSteps[] = {
 // In pieces because a stroke has one colour and the arc length has to change
 // along the line. Only at this width, not at all of them, or it would be a
 // hundred and twenty strokes five times over.
-constexpr float lineMapCoreWidth = 1.5f;
+// Not doubled, but not halved either, and one texel is too few: a stroke that
+// narrow is averaged away by the bilinear filter before it ever reaches full
+// nearness, so the shader finds no core to sharpen and draws glow alone.
+// Measured on the device at 1.0 — the cord had no bright centre at all.
+//
+// At 2.4 texels it is 3.4 screen pixels of *map*, which the shader's own
+// `tight` term (nearness to the ninth power) then pulls back down to a
+// hairline. The map has to hold more than the line is wide.
+constexpr float lineMapCoreWidth = 1.8f;
 constexpr int lineMapPieces = 120;
 
 // The cone is drawn in pieces too, for the depth it carries in the blue — but
@@ -1067,7 +1088,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.floorBeamInner = cfgF (sl, "floorBeamInner", 0.02f);
     sc.boxOcclude = cfgF (sl, "boxOcclude", 0.85f);
     sc.floorGrain = cfgF (sl, "floorGrain", 14.f);
-    sc.boltReach = cfgF (sl, "boltReach", 2.4f);
+    sc.boltInner = cfgF (sl, "boltInner", 0.45f);
     sc.boltEscape = cfgF (sl, "boltEscape", 0.55f);
     sc.boltBranches = cfgF (sl, "boltBranches", 2.f);
     sc.boltBranch = cfgF (sl, "boltBranch", 1.6f);
@@ -2015,135 +2036,144 @@ drawPathOnSphere (juce::Path const &displayPath,
   // cheap because the commit that built it deleted the line map at the same
   // time -- the cord was drawn with no glow at all around it.
 
-  auto const seconds
-      = static_cast<float> (juce::Time::getMillisecondCounter ()) * 0.001f;
+  // Only where the shader is not drawing this line itself. A line with a map
+  // is the shader's now — cord, glow and all, at 512 — and the vector strands
+  // here pasted a raw line over the finished frame, above depth and above the
+  // towers. So none of the braid is built for it: not the strands, not the
+  // fold guard, not the paths. The recording trail and the previews have no
+  // map, and for them this is still the whole line.
+  if (lineMap == nullptr)
+  {
+    auto const seconds
+        = static_cast<float> (juce::Time::getMillisecondCounter ()) * 0.001f;
 
-  SheathRing const braid{ theme ().braidRadius, theme ().braidTurns,
-                          theme ().braidSpin,
-                          juce::roundToInt (theme ().braidStrands) };
-  auto const strands = juce::jlimit (1, 5, braid.strands);
-  auto const plain = strands < 2 || !(braid.radius > 0.0001f);
+    SheathRing const braid{ theme ().braidRadius, theme ().braidTurns,
+                            theme ().braidSpin,
+                            juce::roundToInt (theme ().braidStrands) };
+    auto const strands = juce::jlimit (1, 5, braid.strands);
+    auto const plain = strands < 2 || !(braid.radius > 0.0001f);
 
-  // Which way is across the line at each point, and how hard it is turning.
-  // Never taken across a pen lift, where the neighbour belongs to a different
-  // stroke.
-  std::vector<juce::Point<float> > across (projected.size ());
-  std::vector<float> guard (projected.size (), 1.f);
-  if (!plain)
-    for (std::size_t i = 0; i < projected.size (); ++i)
-      {
-        auto const before = (i > 0 && !startsRun[i]) ? i - 1 : i;
-        auto const after = (i + 1 < projected.size () && !startsRun[i + 1])
-                               ? i + 1
-                               : i;
-        auto const step = projected[after].first - projected[before].first;
-        auto const length = step.getDistanceFromOrigin ();
-        if (length < 1e-6f)
-          {
-            guard[i] = 0.f;
-            continue;
-          }
-        across[i] = { -step.y / length, step.x / length };
-
-        // Curvature as the turn between the two half-steps over the distance
-        // they cover: the definition, on the only data there is.
-        auto const in = projected[i].first - projected[before].first;
-        auto const out = projected[after].first - projected[i].first;
-        auto const lin = in.getDistanceFromOrigin ();
-        auto const lout = out.getDistanceFromOrigin ();
-        if (lin < 1e-6f || lout < 1e-6f)
-          {
-            guard[i] = 0.f;
-            continue;
-          }
-        auto const cross = (in.x * out.y - in.y * out.x) / (lin * lout);
-        auto const dot = (in.x * out.x + in.y * out.y) / (lin * lout);
-        auto const turn = std::abs (std::atan2 (cross, dot));
-        guard[i] = foldGuard (turn / (0.5f * length), braid.radius);
-      }
-
-  // Five depth tiers: a strand crosses every boundary twice a turn, and at
-  // three with plainly different brightnesses you read the boundary rather
-  // than the strand.
-  auto constexpr numTiers = 5;
-  auto constexpr numBands = 4;
-  std::array<std::array<juce::Path, numTiers>, numBands> cord;
-
-  auto const total = static_cast<float> (projected.size () - 1);
-
-  for (auto strand = 0; strand < strands; ++strand)
-    {
-      auto lastBand = -1;
-      auto lastTier = -1;
-      juce::Point<float> lastPoint;
-
+    // Which way is across the line at each point, and how hard it is turning.
+    // Never taken across a pen lift, where the neighbour belongs to a different
+    // stroke.
+    std::vector<juce::Point<float> > across (projected.size ());
+    std::vector<float> guard (projected.size (), 1.f);
+    if (!plain)
       for (std::size_t i = 0; i < projected.size (); ++i)
         {
-          auto const u = total > 0.f ? static_cast<float> (i) / total : 0.f;
-          auto const sample
-              = plain ? SheathSample{}
-                      : sheathAt (u, strand, braid, seconds);
+          auto const before = (i > 0 && !startsRun[i]) ? i - 1 : i;
+          auto const after = (i + 1 < projected.size () && !startsRun[i + 1])
+                                 ? i + 1
+                                 : i;
+          auto const step = projected[after].first - projected[before].first;
+          auto const length = step.getDistanceFromOrigin ();
+          if (length < 1e-6f)
+            {
+              guard[i] = 0.f;
+              continue;
+            }
+          across[i] = { -step.y / length, step.x / length };
 
-          auto const point
-              = projected[i].first + across[i] * (sample.offset * guard[i]);
-
-          auto const band = depthBand (projected[i].second);
-          auto const tier = juce::jlimit (
-              0, numTiers - 1,
-              static_cast<int> ((sample.depth + 1.f) * 0.5f
-                                * static_cast<float> (numTiers)));
-
-          auto const broken = startsRun[i] || lastBand < 0 || band != lastBand
-                              || tier != lastTier;
-          auto &path = cord[static_cast<std::size_t> (band)]
-                           [static_cast<std::size_t> (tier)];
-          if (broken)
-            path.startNewSubPath (
-                startsRun[i] || lastBand < 0 ? point : lastPoint);
-          path.lineTo (point);
-
-          lastBand = band;
-          lastTier = tier;
-          lastPoint = point;
+          // Curvature as the turn between the two half-steps over the distance
+          // they cover: the definition, on the only data there is.
+          auto const in = projected[i].first - projected[before].first;
+          auto const out = projected[after].first - projected[i].first;
+          auto const lin = in.getDistanceFromOrigin ();
+          auto const lout = out.getDistanceFromOrigin ();
+          if (lin < 1e-6f || lout < 1e-6f)
+            {
+              guard[i] = 0.f;
+              continue;
+            }
+          auto const cross = (in.x * out.y - in.y * out.x) / (lin * lout);
+          auto const dot = (in.x * out.x + in.y * out.y) / (lin * lout);
+          auto const turn = std::abs (std::atan2 (cross, dot));
+          guard[i] = foldGuard (turn / (0.5f * length), braid.radius);
         }
-    }
 
-  // Back to front, so a strand passes behind the cord and comes out the other
-  // side. The step between one tier and the next is small on purpose: a coil
-  // brightens as it comes round, it does not switch.
-  for (auto tier = 0; tier < numTiers; ++tier)
-    {
-      auto const front = numTiers > 1
-                             ? static_cast<float> (tier)
-                                   / static_cast<float> (numTiers - 1)
-                             : 1.f;
-      for (auto band = 0; band < numBands; ++band)
-        {
-          auto const &path = cord[static_cast<std::size_t> (band)]
-                                 [static_cast<std::size_t> (tier)];
-          if (path.isEmpty ())
-            continue;
+    // Five depth tiers: a strand crosses every boundary twice a turn, and at
+    // three with plainly different brightnesses you read the boundary rather
+    // than the strand.
+    auto constexpr numTiers = 5;
+    auto constexpr numBands = 4;
+    std::array<std::array<juce::Path, numTiers>, numBands> cord;
 
-          auto const fade
-              = fadeByDepth
-                    ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
-                                          : (band == 2 ? 0.25f : 0.75f))
-                    : 1.0f;
+    auto const total = static_cast<float> (projected.size () - 1);
 
-          g.setColour (colour.brighter (0.30f * front * front)
-                           .withAlpha (juce::jlimit (
-                               0.f, 1.f,
-                               alpha * fade * (0.55f + 0.45f * front))));
-          // Round caps: the pieces of one tier are a winding apart and share
-          // only a stitched point, so the beading rule does not bite here --
-          // and butt caps end square to the last segment rather than to the
-          // joint, which on a curve leaves a hairline wedge at every piece.
-          g.strokePath (path, juce::PathStrokeType (
-                                  lineThickness,
-                                  juce::PathStrokeType::JointStyle::curved,
-                                  juce::PathStrokeType::EndCapStyle::rounded));
-        }
-    }
+    for (auto strand = 0; strand < strands; ++strand)
+      {
+        auto lastBand = -1;
+        auto lastTier = -1;
+        juce::Point<float> lastPoint;
+
+        for (std::size_t i = 0; i < projected.size (); ++i)
+          {
+            auto const u = total > 0.f ? static_cast<float> (i) / total : 0.f;
+            auto const sample
+                = plain ? SheathSample{}
+                        : sheathAt (u, strand, braid, seconds);
+
+            auto const point
+                = projected[i].first + across[i] * (sample.offset * guard[i]);
+
+            auto const band = depthBand (projected[i].second);
+            auto const tier = juce::jlimit (
+                0, numTiers - 1,
+                static_cast<int> ((sample.depth + 1.f) * 0.5f
+                                  * static_cast<float> (numTiers)));
+
+            auto const broken = startsRun[i] || lastBand < 0 || band != lastBand
+                                || tier != lastTier;
+            auto &path = cord[static_cast<std::size_t> (band)]
+                             [static_cast<std::size_t> (tier)];
+            if (broken)
+              path.startNewSubPath (
+                  startsRun[i] || lastBand < 0 ? point : lastPoint);
+            path.lineTo (point);
+
+            lastBand = band;
+            lastTier = tier;
+            lastPoint = point;
+          }
+      }
+
+    // Back to front, so a strand passes behind the cord and comes out the other
+    // side. The step between one tier and the next is small on purpose: a coil
+    // brightens as it comes round, it does not switch.
+    for (auto tier = 0; tier < numTiers; ++tier)
+      {
+        auto const front = numTiers > 1
+                               ? static_cast<float> (tier)
+                                     / static_cast<float> (numTiers - 1)
+                               : 1.f;
+        for (auto band = 0; band < numBands; ++band)
+          {
+            auto const &path = cord[static_cast<std::size_t> (band)]
+                                   [static_cast<std::size_t> (tier)];
+            if (path.isEmpty ())
+              continue;
+
+            auto const fade
+                = fadeByDepth
+                      ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
+                                            : (band == 2 ? 0.25f : 0.75f))
+                      : 1.0f;
+
+            g.setColour (colour.brighter (0.30f * front * front)
+                             .withAlpha (juce::jlimit (
+                                 0.f, 1.f,
+                                 alpha * fade * (0.55f + 0.45f * front))));
+            // Round caps: the pieces of one tier are a winding apart and share
+            // only a stitched point, so the beading rule does not bite here --
+            // and butt caps end square to the last segment rather than to the
+            // joint, which on a curve leaves a hairline wedge at every piece.
+            g.strokePath (path, juce::PathStrokeType (
+                                    lineThickness,
+                                    juce::PathStrokeType::JointStyle::curved,
+                                    juce::PathStrokeType::EndCapStyle::rounded));
+          }
+      }
+  }
 
   // ── The map the shader finds this line through ──────────────────
   //

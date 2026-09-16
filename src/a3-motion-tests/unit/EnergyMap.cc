@@ -883,23 +883,30 @@ TEST (Bolts, ShippedConfigStrikesRatherThanGlows)
 }
 
 
-// Some bolts stay in the annulus and some break out towards the edge of the
-// screen, which is what stops the band reading as a ring with a hard outer
-// limit. And there have to be enough of them to look like weather.
-TEST (Bolts, ShippedConfigLetsSomeBoltsBreakOut)
+// A bolt starts at a loudspeaker — "der ursprung der blitze ist immer eine
+// box". They used to break *outwards* to boltReach, 2.4 sphere radii, which is
+// a whole radius behind the towers: a bolt appeared out in the dark and arrived
+// at the box, backwards. The ones that break out now break inwards, towards the
+// listener, and none reaches past the mouth at all (that bound is in the
+// shader, where far = mouthR).
+//
+// So what the skin sets is how far in: a share of the inner edge, below one or
+// it would not be further in, above nothing or it would run through the
+// middle and out the other side.
+TEST (Bolts, ShippedConfigLetsSomeBoltsBreakInwards)
 {
   auto const parsed = shippedSkin ();
   ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
   auto const &speakerLight = parsed["speakerLight"];
 
-  ASSERT_TRUE (speakerLight.hasProperty ("boltReach"));
+  EXPECT_FALSE (speakerLight.hasProperty ("boltReach"))
+      << "boltReach sent bolts out behind the towers; it should be gone";
+  ASSERT_TRUE (speakerLight.hasProperty ("boltInner"));
   ASSERT_TRUE (speakerLight.hasProperty ("boltCount"));
 
-  auto const mouthRadius = speakerMouthRadius (
-      static_cast<float> (speakerLight["speakerRadius"]));
-
-  EXPECT_GT (static_cast<float> (speakerLight["boltReach"]), mouthRadius)
-      << "an escaping bolt has to get past the mouth to escape anything";
+  auto const inner = static_cast<float> (speakerLight["boltInner"]);
+  EXPECT_LT (inner, 1.f) << "an escaping bolt has to get further in to escape";
+  EXPECT_GT (inner, 0.f) << "and must not run out through the other side";
   EXPECT_GT (static_cast<float> (speakerLight["boltCount"]), 3.f);
 }
 

@@ -73,7 +73,7 @@
     "floorBeamInner": 0.02,
     "boxOcclude": 0.85,
     "floorGrain": 14,
-    "boltReach": 2.4,
+    "boltInner": 0.45,
     "boltEscape": 0.55,
     "boltBranches": 2,
     "boltBranch": 1.6
