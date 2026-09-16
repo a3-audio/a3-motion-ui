@@ -245,6 +245,7 @@ uniform float uStackSplay;     // how far the outer tops turn out
 uniform float uFloorZ;         // the floor, in the room
 uniform float uFloorReach;     // how far out it is drawn
 uniform float uFloorLevel;     // how strongly, 0 for none
+uniform float uFloorThrough;   // how much of it shows through the ball
 uniform vec3  uRoomUp;         // the room's up, as the eye sees it
 uniform vec3  uSpkCentre0;
 uniform vec3  uSpkCentre1;
@@ -1362,20 +1363,27 @@ vec4 danceFloor (vec2 uv)
     if (r > 1.0)
         return vec4 (0.0);
 
-    // Fades out at its edge, and again towards the middle -- the centre of the
-    // floor is where the trajectory is read, and a wash under it would be in
-    // the way of the one thing that has to stay legible.
+    // Fades out at its edge, and only a little towards the middle: the centre
+    // is where the trajectory is read, so the floor thins there rather than
+    // stopping -- it has to carry on *through* the ball, not stop at it.
     float edge = 1.0 - smoothstep (0.72, 1.0, r);
-    float middle = smoothstep (0.10, 0.45, r);
+    float middle = 0.45 + 0.55 * smoothstep (0.05, 0.40, r);
 
-    // A ring every metre or so, so the lean has something to be read off.
+    // A ring every fifth of the way out, so the lean has something to be read
+    // off.
     float rings = 1.0 - smoothstep (0.02, 0.06,
                                     abs (fract (r * 5.0) - 0.5) - 0.44);
 
-    vec3 tint = mix (uSphereSurface, uSphereRim, 0.5);
-    float a = edge * middle * (0.10 + 0.14 * rings) * uFloorLevel;
+    // Where the floor cuts the sphere. That circle is the whole of what says
+    // the two things pass through each other rather than one sitting behind
+    // the other, and it is the one part of the floor that is worth drawing
+    // brightly.
+    float cut = 1.0 - smoothstep (0.0, 0.055, abs (length (hit) - 1.0));
 
-    return vec4 (tint * (1.0 + 0.8 * rings), a);
+    vec3 tint = mix (uSphereSurface, uSphereRim, 0.5);
+    float a = edge * middle * (0.10 + 0.14 * rings + 0.30 * cut) * uFloorLevel;
+
+    return vec4 (tint * (1.0 + 0.8 * rings + 1.6 * cut), a);
 }
 
 vec4 speakerBoxes (vec2 uv, out float depth)
@@ -1842,14 +1850,16 @@ void main ()
     // covers it outright, one behind shows through dimmed the way anything
     // behind the ball does. The blobs stay last -- they are light, and light
     // is not occluded by what it shines through.
-    // The floor first, so the towers stand on it. Only outside the ball:
-    // inside the silhouette the floor is always behind the sphere's near
-    // face -- it lies below the middle of the room and the ray meets the ball
-    // first -- so drawing it there would be drawing something that is hidden.
-    if (uFloorLevel > 0.001 && dist > 1.0)
+    // The floor first, so the towers stand on it — and through the ball, not
+    // up to it. Inside the silhouette the floor is behind the sphere's near
+    // face, but that face is semi-transparent: what is behind it shows, dimmed,
+    // the same way a blob on the far side does. Stopping the floor at the rim
+    // drew a room that ended where the instrument began.
+    if (uFloorLevel > 0.001)
     {
         vec4 floorCol = danceFloor (uvScene);
-        col = mix (col, floorCol.rgb, floorCol.a);
+        float behind = (dist < 1.0) ? uFloorThrough : 1.0;
+        col = mix (col, floorCol.rgb, floorCol.a * behind);
     }
 
     float boxOpaque = 0.0;
@@ -2070,6 +2080,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uFloorZ        = glGetUniformLocation (pid, "uFloorZ");
   _uFloorReach    = glGetUniformLocation (pid, "uFloorReach");
   _uFloorLevel    = glGetUniformLocation (pid, "uFloorLevel");
+  _uFloorThrough  = glGetUniformLocation (pid, "uFloorThrough");
   _uRoomUp        = glGetUniformLocation (pid, "uRoomUp");
   _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
   _uSpkSeed[1]    = glGetUniformLocation (pid, "uSpkSeed1");
@@ -2436,6 +2447,8 @@ SphereShader::uploadStackGeometry ()
     glUniform1f (_uFloorReach, floorReach);
   if (_uFloorLevel >= 0)
     glUniform1f (_uFloorLevel, _spotCfg.floorLevel);
+  if (_uFloorThrough >= 0)
+    glUniform1f (_uFloorThrough, _spotCfg.floorThrough);
   if (_uRoomUp >= 0)
     {
       auto const up = asSeenFrom (Pos::fromCartesian (0.f, 0.f, 1.f), _camera);
