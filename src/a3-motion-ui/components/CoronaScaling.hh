@@ -58,6 +58,20 @@ CoronaConfig loadCoronaConfig (juce::var const &config);
 
 /** Maps raw VU peak/rms onto a perceptual 0..1 level. Peak dominates but is
  *  weighted down so short transients don't wash the corona out. */
+/** How big a blob is drawn, as a factor on its base size.
+ *
+ *  Two sizes and deliberately no third: held, and not held. There used to be a
+ *  "last touched" size as well (1.1x), which meant a blob never came back to
+ *  the size it started at — you could read off the ball which one you had
+ *  touched last, long after it stopped mattering.
+ *
+ *  `sizeGrabbed` is what held is worth. Note that this is the *drawn* size
+ *  only: what a finger has to hit is getActiveDistanceInPixel(), a separate
+ *  and deliberately larger radius, so making the mark smaller does not make
+ *  the blob harder to catch. Those two shared one number until 2026-09-16 and
+ *  a blob under a finger tripled. */
+float blobDrawScale (bool grabbed, CoronaConfig const &config);
+
 float coronaVuLevel (float vuPeak, float vuRms, float vuMax);
 
 /** The peak leg of that curve on its own — drives alpha and white blend. */

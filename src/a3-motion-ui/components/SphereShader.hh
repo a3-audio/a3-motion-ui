@@ -110,7 +110,6 @@ public:
     float trailX[8]{}, trailY[8]{};
     bool visible = false;
     bool grabbed = false;
-    bool highlighted = false;
   };
   void setBlob (int index, BlobData const &data);
   void setNumBlobs (int n);

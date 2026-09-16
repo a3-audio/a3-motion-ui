@@ -209,3 +209,60 @@ TEST (CoronaScaling, TheCoronaGrowsEnoughToBeRead)
 
   EXPECT_GT (loud / quiet, 1.5f) << "a corona that barely moves says nothing";
 }
+
+TEST (BlobDrawScale, ComesBackToItsOwnSizeWhenLetGo)
+{
+  // "der soll nach loslassen wieder auf ursprungsgröße zurück" — exactly its
+  // own size, not nearly. A blob that stayed a tenth larger after being
+  // touched left the ball showing which one you had picked up last.
+  CoronaConfig cfg;
+  EXPECT_FLOAT_EQ (blobDrawScale (false, cfg), 1.f);
+}
+
+TEST (BlobDrawScale, IsBiggerWhileHeld)
+{
+  CoronaConfig cfg;
+  EXPECT_GT (blobDrawScale (true, cfg), blobDrawScale (false, cfg));
+}
+
+TEST (BlobDrawScale, HasExactlyTwoSizes)
+{
+  // "nur 2 größen: angefasst und losgelassen". The only way a third can creep
+  // back in is another state being consulted here, so there is nothing else to
+  // pass in.
+  CoronaConfig cfg;
+  EXPECT_FLOAT_EQ (blobDrawScale (true, cfg), cfg.sizeGrabbed);
+}
+
+TEST (BlobDrawScale, StaysWellUnderWhatTheFingerGets)
+{
+  // The drawn mark and the hit area are two things. Held, the blob used to be
+  // drawn at the full hit radius -- three times its own size, which is what
+  // "viel zu groß" was looking at -- and shrinking it must not shrink what a
+  // finger has to land on.
+  CoronaConfig cfg;
+  EXPECT_LT (blobDrawScale (true, cfg), 2.f);
+}
+
+TEST (BlobDrawScale, IsWiredIn)
+{
+  // Fourth time this week that a value existed, was loaded from config and had
+  // no caller: coronaVuLevel, coronaScaleFactor, and now sizeGrabbed, which
+  // was read out of the config file into a field nobody looked at while the
+  // drawing used the hit radius instead.
+  juce::File const root (A3_UI_SOURCE_DIR);
+  auto callers = 0;
+
+  for (auto const &entry : juce::RangedDirectoryIterator (
+           root, true, "*.cc", juce::File::findFiles))
+    {
+      if (entry.getFile ().getFileName () == "CoronaScaling.cc")
+        continue;
+
+      if (entry.getFile ().loadFileAsString ().contains ("blobDrawScale ("))
+        ++callers;
+    }
+
+  EXPECT_GT (callers, 0) << "nothing asks how big to draw a blob";
+}
+

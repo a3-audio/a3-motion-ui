@@ -64,6 +64,12 @@ loadCoronaConfig (juce::var const &config)
 }
 
 float
+blobDrawScale (bool grabbed, CoronaConfig const &config)
+{
+  return grabbed ? config.sizeGrabbed : 1.f;
+}
+
+float
 coronaVuLevel (float vuPeak, float vuRms, float vuMax)
 {
   auto const rmsNorm = std::clamp (vuRms / vuMax, 0.f, 1.f);

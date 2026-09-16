@@ -107,7 +107,6 @@ auto constexpr reduceFactorBlobsDefault = 0.05f;
 auto constexpr reduceFactorHead = .35f;
 
 auto constexpr activeAreaAroundBlobFactor = 3.f;
-auto constexpr blobHighlightFactor = 1.1f;
 
 // How hard each link of the blob's wake chases the one in front of it, per
 // rendered frame. Eight links at this rate settle roughly a second and a half
@@ -1293,13 +1292,18 @@ MotionComponent::renderOpenGL ()
             bd.trailY[k] = _blobTrails[ch].y[k];
           }
 
-        auto blobSize = _blobScale;
+        // Two sizes and no third, and the held one is the drawn mark rather
+        // than the hit radius. It used to be activeAreaAroundBlobFactor, so a
+        // blob under a finger was drawn at the full size of the area that
+        // catches it -- three times itself. What a finger has to hit is
+        // unchanged; see getActiveDistanceInPixel().
+        auto blobSize = _blobScale * blobDrawScale (_uiStates[ch]->grabbed,
+                                                    _coronaCfg);
+
+        // Elevation is perspective, not a third size: a blob overhead is
+        // nearer the eye than one at the horizon.
         if (position.isValid ())
           blobSize *= (1.f + std::clamp (position.z (), 0.f, 1.f) * 0.7f);
-        if (_uiStates[ch]->grabbed)
-          blobSize *= activeAreaAroundBlobFactor;
-        else if (_uiStates[ch]->highlighted)
-          blobSize *= blobHighlightFactor;
         bd.size = blobSize;
 
         auto col = _uiStates[ch]->colour;
@@ -1324,7 +1328,6 @@ MotionComponent::renderOpenGL ()
         bd.corona = coronaScaleFactor (blobLevel, _coronaCfg);
         bd.vuRms = _smoothBlobRms[ch];
         bd.grabbed = _uiStates[ch]->grabbed;
-        bd.highlighted = _uiStates[ch]->highlighted;
 
         // What the blob wears while an action runs. From the engine rather
         // than from whether a finger is down: the accent outlives the hand by
