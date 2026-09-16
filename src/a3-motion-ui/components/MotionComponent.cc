@@ -104,6 +104,15 @@ void main() {
 // speakerIconsFitOnScreen() and SphereScale.IconsFitAtTheShippedScale.
 auto constexpr reduceFactorCircleDefault = .62f;
 auto constexpr reduceFactorBlobsDefault = 0.05f;
+
+// Where the bearing ring sits, in sphere radii.
+//
+// The numbers dock to the equator and the ticks stand outside them — the other
+// way round from a ship's compass card, and on purpose: the equator is the
+// line the numbers name, and a bearing read off a ring floating clear of it is
+// one you have to carry across a gap.
+auto constexpr bearingLabelRadius = 1.055f;
+auto constexpr bearingTickInner = 1.105f;
 auto constexpr reduceFactorHead = .35f;
 
 auto constexpr activeAreaAroundBlobFactor = 3.f;
@@ -1054,8 +1063,9 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.floorLevel = cfgF (sl, "floorLevel", 1.f);
     sc.floorThrough = cfgF (sl, "floorThrough", 0.32f);
     sc.floorDark = cfgF (sl, "floorDark", 0.16f);
-    sc.floorBeams = cfgF (sl, "floorBeams", 0.7f);
+    sc.floorBeams = cfgF (sl, "floorBeams", 1.4f);
     sc.floorBeamInner = cfgF (sl, "floorBeamInner", 0.02f);
+    sc.boxOcclude = cfgF (sl, "boxOcclude", 0.85f);
     sc.boltReach = cfgF (sl, "boltReach", 2.4f);
     sc.boltEscape = cfgF (sl, "boltEscape", 0.55f);
     sc.boltBranches = cfgF (sl, "boltBranches", 2.f);
@@ -1605,6 +1615,9 @@ MotionComponent::cameraBall () const
 void
 MotionComponent::drawBearings (juce::Graphics &g)
 {
+  static_assert (bearingLabelRadius < bearingTickInner,
+                 "the numbers dock to the equator, the ticks sit outside them");
+
   // A graduated ring round the outside of the sphere, which is how a chart, a
   // compass and every globe worth reading does it -- rather than four numbers
   // floating on the ball itself, which is what this was and which put a
@@ -1624,17 +1637,21 @@ MotionComponent::drawBearings (juce::Graphics &g)
     return juce::Point<float> (-std::sin (a) * radius, -std::cos (a) * radius);
   };
 
-  // Ticks: every ten degrees a short one, every thirty a longer one, and a
-  // long one at each of the four the numbers name. Enough to read a bearing
-  // off between the numbers without counting.
+  // The numbers sit against the equator and the ticks outside them, which is
+  // the other way round from a ship's compass card and deliberate: the equator
+  // is the line the numbers *name*, and a bearing read off a ring that floats
+  // clear of it is a bearing you have to carry across a gap. Docked to the
+  // line, the number and the place it marks are the same glance.
   for (int degrees = 0; degrees < 360; degrees += 10)
     {
       auto const major = degrees % 90 == 0;
       auto const medium = degrees % 30 == 0;
 
-      auto const from = on (static_cast<float> (degrees), 1.035f);
+      auto const from = on (static_cast<float> (degrees), bearingTickInner);
       auto const to = on (static_cast<float> (degrees),
-                          major ? 1.105f : medium ? 1.085f : 1.065f);
+                          major   ? bearingTickInner + 0.070f
+                          : medium ? bearingTickInner + 0.050f
+                                   : bearingTickInner + 0.030f);
 
       g.setColour (toColour (theme ().textPrimary,
                              major ? theme ().alphaMuted
@@ -1661,7 +1678,7 @@ MotionComponent::drawBearings (juce::Graphics &g)
 
   for (auto const &mark : marks)
     {
-      auto const out = on (mark.degrees, 1.165f);
+      auto const out = on (mark.degrees, bearingLabelRadius);
       auto const box = juce::Rectangle<float> (0.36f, 0.1f).withCentre (out);
 
       g.setColour (toColour (theme ().textPrimary, theme ().alphaInactive));

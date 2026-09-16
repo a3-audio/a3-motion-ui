@@ -249,6 +249,7 @@ uniform float uFloorThrough;   // how much of it shows through the ball
 uniform float uFloorDark;      // how far it darkens what is behind
 uniform float uFloorBeams;     // how strongly the beams cross it
 uniform float uFloorBeamInner; // how far in a floor bolt runs
+uniform float uBoxOcclude;     // how far a cabinet hides what is behind it
 uniform vec3  uFloorGrazeDir;  // which way the grazing light lies
 uniform vec3  uRoomUp;         // the room's up, as the eye sees it
 uniform vec3  uSpkCentre0;
@@ -1909,13 +1910,15 @@ void main ()
     // out as a pale veil however dark its own colour was made.
     vec4 floorCol = vec4 (0.0);
     float floorA = 0.0;
+    float floorBehind = (dist < 1.0) ? uFloorThrough : 1.0;
     if (uFloorLevel > 0.001)
     {
         floorCol = danceFloor (uvScene);
-        floorA = floorCol.a * ((dist < 1.0) ? uFloorThrough : 1.0);
+        floorA = floorCol.a * floorBehind;
     }
 
     float boxOpaque = 0.0;
+    float boxCover = 0.0;
     {
         float boxDepth;
         vec4 box = speakerBoxes (uvScene, boxDepth);
@@ -1935,6 +1938,11 @@ void main ()
             // Carried past the sphere's own alpha, which is assigned further
             // down and would otherwise wipe this out.
             boxOpaque = box.a * inFront;
+
+            // How much of this pixel the cabinet owns, whichever side of the
+            // ball it is on. A tower is solid: the floor it stands on, and the
+            // light of anything behind it, stop at it.
+            boxCover = box.a * through;
         }
     }
 
@@ -1945,6 +1953,12 @@ void main ()
         blobs += lineGlow (uvScene, b);
         blobs += blobLight (uvScene, b);
     }
+
+    // Behind a cabinet, dimmed by it. Light is not occluded by the glass it
+    // shines through -- that is why the blobs are drawn last at all -- but a
+    // loudspeaker is not glass, and a trajectory showing straight through a
+    // three-metre stack says the stack is not there.
+    blobs *= 1.0 - boxCover * uBoxOcclude;
     col += blobs;
 
     // Semi-transparent sphere: alpha < 1 on the sphere surface so
@@ -1970,12 +1984,21 @@ void main ()
     // after everything that adds any, or it is drowned by them.
     if (floorA > 0.0)
     {
-        col = mix (col, col * uFloorDark, floorA);
-        col += floorCol.rgb * uFloorLevel;
+        // Not over a cabinet: the towers stand on the floor, so the floor
+        // stops where one begins. Applied last, it was being painted over
+        // them.
+        float open = 1.0 - boxCover;
 
-        // And it hides what is behind it, so the sphere's own glass does not
-        // show through the floor covering it.
-        alpha = clamp (alpha + floorA * (1.0 - uFloorDark), 0.0, 1.0);
+        col = mix (col, col * uFloorDark, floorA * open);
+
+        // Its own light is behind the ball as well, wherever the ball is in
+        // front of it -- the cut line and the bolts crossing the floor were
+        // laid on at full strength inside the silhouette, which is why the
+        // cut read as one bright ring all the way round instead of dimming
+        // where the sphere covers it.
+        col += floorCol.rgb * uFloorLevel * floorBehind * open;
+
+        alpha = clamp (alpha + floorA * open * (1.0 - uFloorDark), 0.0, 1.0);
     }
 
     gl_FragColor = vec4 (col, alpha);
@@ -2151,6 +2174,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uFloorDark     = glGetUniformLocation (pid, "uFloorDark");
   _uFloorBeams    = glGetUniformLocation (pid, "uFloorBeams");
   _uFloorBeamInner = glGetUniformLocation (pid, "uFloorBeamInner");
+  _uBoxOcclude    = glGetUniformLocation (pid, "uBoxOcclude");
   _uFloorGrazeDir = glGetUniformLocation (pid, "uFloorGrazeDir");
   _uRoomUp        = glGetUniformLocation (pid, "uRoomUp");
   _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
@@ -2526,6 +2550,8 @@ SphereShader::uploadStackGeometry ()
     glUniform1f (_uFloorBeams, _spotCfg.floorBeams);
   if (_uFloorBeamInner >= 0)
     glUniform1f (_uFloorBeamInner, _spotCfg.floorBeamInner);
+  if (_uBoxOcclude >= 0)
+    glUniform1f (_uBoxOcclude, _spotCfg.boxOcclude);
   if (_uFloorGrazeDir >= 0)
     {
       // The room's own x: the highlight lies along a direction in the room
