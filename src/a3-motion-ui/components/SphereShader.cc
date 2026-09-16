@@ -1398,7 +1398,9 @@ vec4 danceFloor (vec2 uv)
     // Where the floor cuts the sphere. That circle is the whole of what says
     // the two pass through each other rather than one sitting behind the
     // other, and on a dark floor it is the only bright line there is.
-    float cut = 1.0 - smoothstep (0.0, 0.045, abs (length (hit) - 1.0));
+    // A line, not a band. At 0.045 this was a broad bright ring sitting almost
+    // on the equator, and read as one.
+    float cut = 1.0 - smoothstep (0.0, 0.013, abs (length (hit) - 1.0));
 
     // Dark first. The floor takes light away from what is behind it and gives
     // a little back where it reflects — which is what a dark mirror is, and
@@ -1900,18 +1902,17 @@ void main ()
     // face, but that face is semi-transparent: what is behind it shows, dimmed,
     // the same way a blob on the far side does. Stopping the floor at the rim
     // drew a room that ended where the instrument began.
+    // The floor is evaluated here but *applied* at the very end. Its whole
+    // effect is taking light away, and every layer after this one -- the net,
+    // the trajectory, the blobs -- adds light. Applied here it was drowned by
+    // everything drawn on top of it, which is why a dark mirror kept coming
+    // out as a pale veil however dark its own colour was made.
+    vec4 floorCol = vec4 (0.0);
+    float floorA = 0.0;
     if (uFloorLevel > 0.001)
     {
-        vec4 floorCol = danceFloor (uvScene);
-        float behind = (dist < 1.0) ? uFloorThrough : 1.0;
-        float a = floorCol.a * behind;
-
-        // Darkened towards the floor's own colour, then the reflection laid
-        // on top. A mirror is dark *and* carries light; drawing it by adding
-        // alone gave a pale veil, which is what "das sieht nicht hübsch aus"
-        // was looking at.
-        col = mix (col, col * uFloorDark, a);
-        col += floorCol.rgb * behind * uFloorLevel;
+        floorCol = danceFloor (uvScene);
+        floorA = floorCol.a * ((dist < 1.0) ? uFloorThrough : 1.0);
     }
 
     float boxOpaque = 0.0;
@@ -1962,6 +1963,20 @@ void main ()
     // blend at 0.75 -- a grey dot where a bright one was meant to be. Where a
     // blob is bright the pixel belongs to the blob.
     alpha = clamp (alpha + max (blobs.r, max (blobs.g, blobs.b)), 0.0, 1.0);
+
+    // The floor, applied last: darken what is behind it, then lay its own
+    // light on top. This is the whole reason it is evaluated far above and
+    // used here — a surface whose effect is *taking light away* has to act
+    // after everything that adds any, or it is drowned by them.
+    if (floorA > 0.0)
+    {
+        col = mix (col, col * uFloorDark, floorA);
+        col += floorCol.rgb * uFloorLevel;
+
+        // And it hides what is behind it, so the sphere's own glass does not
+        // show through the floor covering it.
+        alpha = clamp (alpha + floorA * (1.0 - uFloorDark), 0.0, 1.0);
+    }
 
     gl_FragColor = vec4 (col, alpha);
 }
