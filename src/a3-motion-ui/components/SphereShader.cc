@@ -1369,66 +1369,86 @@ vec4 speakerBoxes (vec2 uv, out float depth)
 
             if (onTop)
             {
-                // Three Resolution 2 in a cluster. One cabinet's face, drawn
-                // three times up the box: the seam between them is what says
-                // "three boxes" rather than one tall one, and it is the only
-                // part of a cluster you can make out at this size.
-                float span = uStackTop.y * 2.0;
-                float up = (hitL.y - uStackTopMid + uStackTop.y) / span;
+                // Three Res 2 side by side. The seams run *down* the cluster,
+                // not across it: they stand beside each other.
+                float across = (hitL.x / uStackTop.x + 1.0) * 0.5;
+                float cell = fract (across * 3.0);
+                float seam = smoothstep (0.0, 0.05, cell)
+                           * smoothstep (1.0, 0.95, cell);
+
+                float up = (hitL.y - uStackTopMid) / uStackTop.y;
+
+                // The face is two halves. The upper one is a pale baffle with
+                // the horns in it; the lower is the cabinet's own mouth,
+                // open and dark. That division is the whole silhouette of a
+                // Resolution and reads before any horn does.
+                float baffle = smoothstep (-0.08, 0.02, up);
+                body = mix (body * 0.42, mix (body, vec3 (1.0), 0.45),
+                            baffle * seam);
+
+                // Two horns, one over the other, the upper much the larger.
+                // Trapezoid rather than round: a horn mouth has corners, and
+                // that is what separates these from the cones below.
+                vec2 hi = vec2 ((cell - 0.5) * 2.0 / 0.78, (up - 0.55) / 0.30);
+                float hiR = max (abs (hi.x) * (1.0 + 0.25 * hi.y), abs (hi.y));
+                float hiMouth = 1.0 - smoothstep (0.90, 1.02, hiR);
+                float hiThroat = 1.0 - smoothstep (0.10, 0.44, hiR);
+
+                vec2 lo = vec2 ((cell - 0.5) * 2.0 / 0.40, (up - 0.15) / 0.13);
+                float loR = max (abs (lo.x) * (1.0 + 0.25 * lo.y), abs (lo.y));
+                float loMouth = 1.0 - smoothstep (0.90, 1.04, loR);
+                float loThroat = 1.0 - smoothstep (0.14, 0.50, loR);
+
+                float mouths = max (hiMouth, loMouth) * baffle * seam;
+                body = mix (body, body * 0.26, mouths);
+
+                // The struts across the open mouth below the baffle.
+                float strut = (1.0 - smoothstep (0.02, 0.05,
+                                                 abs (fract (cell * 2.0) - 0.5)))
+                            * (1.0 - baffle) * seam;
+                body = mix (body, body * 1.6, strut * 0.5);
+
+                body *= mix (1.0, 0.70, 1.0 - seam);
+                body += uSpotColour * (hiThroat + loThroat * 0.7)
+                      * baffle * seam * level * 1.7;
+            }
+            else
+            {
+                // Three F218, one on top of the next. Horn-loaded and open at
+                // the front: what you see is chambers behind vertical struts,
+                // with a column of round ports through the middle. No cones —
+                // the drivers face inwards — and that is most of what tells
+                // this half of the tower from the horns above it.
+                float up = (hitL.y - uStackSubMid + uStackSub.y)
+                         / (uStackSub.y * 2.0);
                 float cell = fract (up * 3.0);
                 float seam = smoothstep (0.0, 0.05, cell)
                            * smoothstep (1.0, 0.95, cell);
 
-                vec2 f = vec2 (hitL.x / uStackTop.x, (cell - 0.5) * 2.0);
+                float across = (hitL.x / uStackSub.x + 1.0) * 0.5;
 
-                // Folded about the spine: the two flares are one shape drawn
-                // twice, which is what they are.
-                vec2 inLobe = vec2 ((abs (f.x) - 0.50) / 0.44, f.y / 0.84);
+                // The mouth: dark, and inset from the cabinet's own edges.
+                float mouth = (1.0 - smoothstep (0.90, 0.98, abs (hitL.x) / uStackSub.x))
+                            * seam;
+                body = mix (body, body * 0.34, mouth);
 
-                // A rounded rectangle rather than an ellipse -- a horn mouth
-                // is square-ish and an ellipse reads as a cone driver.
-                float ell = length (inLobe);
-                float rect = max (abs (inLobe.x), abs (inLobe.y));
-                float r = mix (ell, rect, 0.55);
+                // Vertical struts dividing it into chambers.
+                float strut = 1.0 - smoothstep (0.03, 0.06,
+                                                abs (fract (across * 5.0) - 0.5));
+                body = mix (body, body * 1.75, strut * mouth * 0.7);
 
-                float mouth = 1.0 - smoothstep (0.86, 1.02, r);
-                float throat = 1.0 - smoothstep (0.10, 0.46, r);
+                // The column of ports, three to a cabinet.
+                vec2 port = vec2 ((across - 0.62) / 0.055,
+                                  (fract (cell * 3.0) - 0.5) / 0.42);
+                float hole = 1.0 - smoothstep (0.85, 1.05, length (port));
+                body = mix (body, body * 0.20, hole * mouth);
 
-                body = mix (body, body * 0.30, mouth * (1.0 - 0.35 * r) * seam);
+                body *= mix (1.0, 0.70, 1.0 - seam);
 
-                // The high frequency on the spine between the flares.
-                float hf = (1.0 - smoothstep (0.10, 0.15, abs (f.x)))
-                         * (1.0 - smoothstep (0.30, 0.36, abs (f.y - 0.10)));
-                body = mix (body, body * 0.22, hf * seam);
-                body *= mix (1.0, 0.72, 1.0 - seam);
-
-                body += uSpotColour * (throat + hf * 0.8) * level * 1.7 * seam;
-            }
-            else
-            {
-                // Three F218: a double-eighteen each, so six cones in two
-                // columns. Round here, deliberately -- a cone is round and a
-                // horn mouth is not, and that difference is most of what tells
-                // the two halves of the tower apart at forty pixels.
-                float span = uStackSub.y * 2.0;
-                float up = (hitL.y - uStackSubMid + uStackSub.y) / span;
-                float cell = fract (up * 3.0);
-                float seam = smoothstep (0.0, 0.04, cell)
-                           * smoothstep (1.0, 0.96, cell);
-
-                vec2 f = vec2 (hitL.x / uStackSub.x, (cell - 0.5) * 2.0);
-                float cone = length (vec2 ((abs (f.x) - 0.48) / 0.40, f.y / 0.80));
-
-                float dust = 1.0 - smoothstep (0.90, 1.04, cone);
-                float centreCap = 1.0 - smoothstep (0.14, 0.34, cone);
-
-                body = mix (body, body * 0.34, dust * (1.0 - 0.3 * cone) * seam);
-                body *= mix (1.0, 0.72, 1.0 - seam);
-
-                // Subs carry the level too, but dimmer: they are not where the
-                // beams leave from, and lighting them as brightly as the tops
-                // would put the loudest thing on the tower at its feet.
-                body += uSpotColour * centreCap * level * 0.7 * seam;
+                // Dimmer than the tops: the subs are not where the beams
+                // leave from, and lighting them as brightly would put the
+                // loudest-looking thing at the tower's feet.
+                body += uSpotColour * hole * mouth * level * 0.5;
             }
         }
 

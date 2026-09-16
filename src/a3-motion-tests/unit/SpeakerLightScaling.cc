@@ -528,18 +528,29 @@ TEST (SpeakerStack, IsAboutThreeMetresTall)
 
 TEST (SpeakerStack, IsMostlySubs)
 {
-  // Three subs at 0.6 m against three tops at 0.4: the bottom is the larger
-  // half, and a tower drawn the other way round would read as the wrong
-  // instrument.
   EXPECT_GT (stackSubShare, 0.5f);
-  EXPECT_LT (stackSubShare, 0.7f);
+  EXPECT_LT (stackSubShare, 0.75f);
 }
 
-TEST (SpeakerStack, HasCabinetsWiderThanTheyAreTall)
+TEST (SpeakerStack, HasPortraitTopsAndLandscapeSubs)
 {
-  // Both are landscape boxes. A portrait one is a different loudspeaker.
-  EXPECT_GT (resWidthM / resHeightM, 2.f);
-  EXPECT_GT (subWidthM / subHeightM, 1.5f);
+  // The first attempt had a Res 2 in landscape and stacked three of them
+  // vertically. The reference render says otherwise: each top is about half as
+  // wide as it is tall, and the three stand beside each other.
+  EXPECT_LT (resWidthM / resHeightM, 0.7f) << "a Res 2 is portrait";
+  EXPECT_GT (subWidthM / subHeightM, 2.f) << "an F218 is landscape";
+}
+
+TEST (SpeakerStack, NarrowsTowardsTheTop)
+{
+  // The subs are the wide part and carry the cluster. A tower the other way up
+  // would read as the wrong instrument at any size.
+  EXPECT_GT (subWidthM, clusterWidthM);
+}
+
+TEST (SpeakerStack, HasAClusterAsWideAsItsThreeCabinets)
+{
+  EXPECT_FLOAT_EQ (clusterWidthM, 3.f * resWidthM);
 }
 
 TEST (SpeakerStack, HasDeeperSubsThanTops)
@@ -549,8 +560,8 @@ TEST (SpeakerStack, HasDeeperSubsThanTops)
 
 TEST (SpeakerStack, IsTallerThanItIsWide)
 {
-  // Three metres against a metre and a bit — that is the shape you see across
-  // a room, and it is the whole reason this is not a single box any more.
-  EXPECT_GT (stackHeightM / subWidthM, 2.f);
+  // Three metres against a metre and a half — the proportion the reference
+  // render shows, and the whole reason this is not a single box.
+  EXPECT_GT (stackHeightM / subWidthM, 1.5f);
+  EXPECT_LT (stackHeightM / subWidthM, 2.4f);
 }
-

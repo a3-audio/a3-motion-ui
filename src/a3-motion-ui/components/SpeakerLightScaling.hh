@@ -64,31 +64,32 @@ constexpr float speakerIconSize = 0.28f;
 constexpr float speakerApertureHalfWidth = 16.f / 100.f * speakerIconSize;
 // ── The stack, in metres ────────────────────────────────────────────────
 //
-// Each position is a tower, not a box: three Res 2 as a cluster over three
-// F218 subs, about three metres tall. Written in metres and converted once,
-// so the proportions can be checked against the real thing rather than
-// guessed at in sphere radii.
+// Each position is a tower: three Res 2 side by side as a cluster, over three
+// F218 subs, about three metres tall. Read off the reference render the
+// maintainer supplied (`fone08-*.jpg`), not from a datasheet — correct the
+// numbers here if the real ones differ, everything downstream is derived.
 //
-// These are the usual proportions for those two cabinets, not measured from a
-// datasheet -- a Res 2 is a wide, shallow-fronted two-way in landscape, an
-// F218 a deeper double-18 sub. Correct the numbers here if the real ones
-// differ; everything downstream is derived.
-constexpr float resWidthM = 1.08f;
-constexpr float resHeightM = 0.40f;
+// Two things that render settled, both of which the first attempt had wrong:
+// a Res 2 is **portrait**, half as wide as it is tall, and the three of them
+// stand **beside** each other rather than stacked. The subs are the wide part
+// and carry the cluster; the tower narrows as it goes up.
+constexpr float resWidthM = 0.53f;
+constexpr float resHeightM = 1.00f;
 constexpr float resDepthM = 0.62f;
-constexpr int resPerStack = 3;
+constexpr int resPerStack = 3;      // side by side
 
-constexpr float subWidthM = 1.14f;
-constexpr float subHeightM = 0.60f;
-constexpr float subDepthM = 0.80f;
-constexpr int subPerStack = 3;
+constexpr float subWidthM = 1.65f;
+constexpr float subHeightM = 0.66f;
+constexpr float subDepthM = 0.90f;
+constexpr int subPerStack = 3;      // one on top of the next
 
-constexpr float stackHeightM
-    = resPerStack * resHeightM + subPerStack * subHeightM;
+/** The cluster is as wide as its three cabinets together, and one tall. */
+constexpr float clusterWidthM = resPerStack * resWidthM;
+constexpr float clusterHeightM = resHeightM;
 
-/** How tall the whole tower is, as a share of its own height taken up by the
- *  sub stack. The tops sit on the subs, so this is also where the two boxes
- *  meet. */
+constexpr float stackHeightM = clusterHeightM + subPerStack * subHeightM;
+
+/** Where the tops meet the subs, as a share of the tower's height. */
 constexpr float stackSubShare = (subPerStack * subHeightM) / stackHeightM;
 
 constexpr float speakerMouthOffset = 18.f / 100.f * speakerIconSize;
