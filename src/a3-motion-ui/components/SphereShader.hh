@@ -184,6 +184,7 @@ public:
     float floorBeams = 1.4f;   // how strongly the beams cross it
     float floorBeamInner = 0.02f; // how far in a floor bolt runs
     float boxOcclude = 0.85f;  // how far a cabinet hides what is behind it
+    float floorGrain = 14.f;   // how fine the floor's own texture is
     float boltReach = 2.4f;    // how far an escaping one carries
     float boltEscape = 0.55f;  // how many of them escape
     float boltBranches = 2.f;  // branches per bolt
@@ -360,6 +361,7 @@ private:
   GLint _uFloorBeams = -1;
   GLint _uFloorBeamInner = -1;
   GLint _uBoxOcclude = -1;
+  GLint _uFloorGrain = -1;
   GLint _uFloorGrazeDir = -1;
   GLint _uRoomUp = -1;
   GLint _uSpkSeed[kMaxBlobs] = {};

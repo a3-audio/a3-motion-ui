@@ -250,6 +250,7 @@ uniform float uFloorDark;      // how far it darkens what is behind
 uniform float uFloorBeams;     // how strongly the beams cross it
 uniform float uFloorBeamInner; // how far in a floor bolt runs
 uniform float uBoxOcclude;     // how far a cabinet hides what is behind it
+uniform float uFloorGrain;     // how fine the floor's own texture is
 uniform vec3  uFloorGrazeDir;  // which way the grazing light lies
 uniform vec3  uRoomUp;         // the room's up, as the eye sees it
 uniform vec3  uSpkCentre0;
@@ -1396,6 +1397,20 @@ vec4 danceFloor (vec2 uv)
                                    - fdir.y * uFloorGrazeDir.x)), 34.0);
     float graze = (g1 + 0.45 * g2) * (1.0 - smoothstep (0.15, 1.0, r));
 
+    // A little tooth in the surface. A mirror with nothing on it is a shape,
+    // not a material: what says "floor" is that the highlights sit *on*
+    // something. Two octaves of the same value noise everything else here is
+    // made of, sampled on the room's own coordinates so the grain stays put on
+    // the floor rather than swimming across the glass, and kept fine enough
+    // that it reads as polish rather than as gravel.
+    vec3 gp = vec3 (flat.xy * uFloorGrain, 0.0);
+    float tooth = valueNoise (gp) * 0.65 + valueNoise (gp * 2.7) * 0.35;
+
+    // It shows in the highlights, not in the dark: a polished surface is even
+    // where no light falls on it and mottled where light grazes it.
+    graze *= 0.55 + 0.90 * tooth;
+    sheen *= 0.80 + 0.40 * tooth;
+
     // Where the floor cuts the sphere. That circle is the whole of what says
     // the two pass through each other rather than one sitting behind the
     // other, and on a dark floor it is the only bright line there is.
@@ -2175,6 +2190,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uFloorBeams    = glGetUniformLocation (pid, "uFloorBeams");
   _uFloorBeamInner = glGetUniformLocation (pid, "uFloorBeamInner");
   _uBoxOcclude    = glGetUniformLocation (pid, "uBoxOcclude");
+  _uFloorGrain    = glGetUniformLocation (pid, "uFloorGrain");
   _uFloorGrazeDir = glGetUniformLocation (pid, "uFloorGrazeDir");
   _uRoomUp        = glGetUniformLocation (pid, "uRoomUp");
   _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
@@ -2552,6 +2568,8 @@ SphereShader::uploadStackGeometry ()
     glUniform1f (_uFloorBeamInner, _spotCfg.floorBeamInner);
   if (_uBoxOcclude >= 0)
     glUniform1f (_uBoxOcclude, _spotCfg.boxOcclude);
+  if (_uFloorGrain >= 0)
+    glUniform1f (_uFloorGrain, _spotCfg.floorGrain);
   if (_uFloorGrazeDir >= 0)
     {
       // The room's own x: the highlight lies along a direction in the room

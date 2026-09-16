@@ -1066,6 +1066,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.floorBeams = cfgF (sl, "floorBeams", 1.4f);
     sc.floorBeamInner = cfgF (sl, "floorBeamInner", 0.02f);
     sc.boxOcclude = cfgF (sl, "boxOcclude", 0.85f);
+    sc.floorGrain = cfgF (sl, "floorGrain", 14.f);
     sc.boltReach = cfgF (sl, "boltReach", 2.4f);
     sc.boltEscape = cfgF (sl, "boltEscape", 0.55f);
     sc.boltBranches = cfgF (sl, "boltBranches", 2.f);
