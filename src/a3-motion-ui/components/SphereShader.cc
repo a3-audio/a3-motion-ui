@@ -133,6 +133,8 @@ uniform float uBoltDuty;       // and how much of the time it is dark
 uniform float uBoltCoreExp;    // how tight the white core is
 uniform float uBoltCore;       // how bright it runs
 uniform float uBoltCount;      // bolts per band
+uniform float uBoltFewest;     // bolts the quietest speaker keeps
+uniform float uBoltDim;        // how far a quiet speaker dims
 uniform float uBoltReach;      // how far an escaping one carries
 uniform float uBoltEscape;     // how many of them escape
 uniform float uBoltBranches;   // branches per bolt
@@ -918,7 +920,7 @@ float boltWidthAt (float level)
 }
 
 vec2 bolts (float dA, float d, float halfWidth, float seed, float mouthR,
-            float level)
+            float level, float count)
 {
     float width = boltWidthAt (level);
     float best = 0.0;
@@ -928,7 +930,7 @@ vec2 bolts (float dA, float d, float halfWidth, float seed, float mouthR,
     // is a sparse band rather than a dense one.
     for (int i = 0; i < 14; ++i)
     {
-        if (float (i) >= uBoltCount) break;
+        if (float (i) >= count) break;
 
         float id = seed + float (i) * 31.7;
 
@@ -1202,7 +1204,16 @@ vec2 beamDensity (vec2 point, vec3 spkCentre, float spkSeed, float level)
     // knob, and at the rig's own levels all four widths came out 4% apart.
     // Mirrors beamShare() in EnergyMap.cc.
     float share = loudest > 0.0 ? clamp (lifted / loudest, 0.0, 1.0) : 0.0;
-    vec2 strike = bolts (dA - wander, d, ragged, seed, mouthR, share);
+
+    // How many, and how bright. Width alone could not carry this: at the
+    // rig's own levels a share of 0.28 against 1.0 is a bolt core of 1.3
+    // screen pixels against 2.6, and both of those read as one hairline —
+    // while all four speakers drew the same number of bolts, which is the
+    // thing an eye counts without being asked to. Both mirror EnergyMap.cc.
+    float count = max (1.0, floor (uBoltFewest
+                                   + share * (uBoltCount - uBoltFewest) + 0.5));
+    vec2 strike = bolts (dA - wander, d, ragged, seed, mouthR, share, count);
+    envelope *= uBoltDim + (1.0 - uBoltDim) * share;
 
     return vec2 (envelope * strike.x, envelope * strike.y);
 }
@@ -1769,6 +1780,8 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBoltCoreExp = glGetUniformLocation (pid, "uBoltCoreExp");
   _uBoltCore = glGetUniformLocation (pid, "uBoltCore");
   _uBoltCount = glGetUniformLocation (pid, "uBoltCount");
+  _uBoltFewest = glGetUniformLocation (pid, "uBoltFewest");
+  _uBoltDim = glGetUniformLocation (pid, "uBoltDim");
   _uBoltReach = glGetUniformLocation (pid, "uBoltReach");
   _uBoltEscape = glGetUniformLocation (pid, "uBoltEscape");
   _uBoltBranches = glGetUniformLocation (pid, "uBoltBranches");
@@ -1983,6 +1996,8 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uBoltCoreExp >= 0) glUniform1f (_uBoltCoreExp, _spotCfg.boltCoreExp);
   if (_uBoltCore >= 0) glUniform1f (_uBoltCore, _spotCfg.boltCore);
   if (_uBoltCount >= 0) glUniform1f (_uBoltCount, _spotCfg.boltCount);
+  if (_uBoltFewest >= 0) glUniform1f (_uBoltFewest, _spotCfg.boltFewest);
+  if (_uBoltDim >= 0) glUniform1f (_uBoltDim, _spotCfg.boltDim);
   if (_uBoltReach >= 0) glUniform1f (_uBoltReach, _spotCfg.boltReach);
   if (_uBoltEscape >= 0) glUniform1f (_uBoltEscape, _spotCfg.boltEscape);
   if (_uBoltBranches >= 0) glUniform1f (_uBoltBranches, _spotCfg.boltBranches);

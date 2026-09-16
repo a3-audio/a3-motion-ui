@@ -1065,3 +1065,53 @@ TEST (BeamShare, IsWiredIntoTheShader)
          "room is rather than which speaker the sound is in: "
       << call;
 }
+
+// ── How many bolts, and how bright ──────────────────────────────────────
+
+TEST (BeamBoltCount, GivesTheLoudestSpeakerAllOfThem)
+{
+  EXPECT_FLOAT_EQ (beamBoltCount (1.f, 7.f, 2.f), 7.f);
+}
+
+TEST (BeamBoltCount, ThinsOutAQuietSpeakerWithoutEmptyingIt)
+{
+  // At the rig's own levels the quiet speakers sat at a share of 0.28.
+  EXPECT_LT (beamBoltCount (0.28f, 7.f, 2.f), 5.f);
+  EXPECT_GE (beamBoltCount (0.f, 7.f, 2.f), 1.f)
+      << "a speaker dropped out entirely and opened a hole in the ring";
+}
+
+TEST (BeamBoltCount, IsSomethingYouCanCount)
+{
+  // The whole reason for touching the count: the width spread at those levels
+  // is 1.3 px against 2.6 px, which reads as two hairlines. A difference in
+  // *number* does not need to be measured to be seen.
+  EXPECT_GE (beamBoltCount (1.f, 7.f, 2.f) - beamBoltCount (0.28f, 7.f, 2.f),
+             3.f);
+}
+
+TEST (BeamBoltCount, NeverAsksForMoreThanTheSkinSet)
+{
+  for (auto const share : { 0.f, 0.3f, 0.7f, 1.f, 2.f })
+    EXPECT_LE (beamBoltCount (share, 7.f, 2.f), 7.f) << "share " << share;
+}
+
+TEST (BeamBrightness, LeavesTheLoudestSpeakerAtFull)
+{
+  EXPECT_FLOAT_EQ (beamBrightness (1.f, 0.45f), 1.f);
+}
+
+TEST (BeamBrightness, NeverPutsAQuietSpeakerOut)
+{
+  // This is the one term that must not repeat the original fault. Relative,
+  // so the floor is a floor against the loudest rather than against silence.
+  EXPECT_FLOAT_EQ (beamBrightness (0.f, 0.45f), 0.45f);
+  EXPECT_GT (beamBrightness (0.f, 0.45f), 0.f);
+}
+
+TEST (BeamBrightness, SeparatesTheRigsQuietSpeakerFromItsLoudOne)
+{
+  EXPECT_GT (beamBrightness (1.f, 0.45f) / beamBrightness (0.28f, 0.45f),
+             1.5f);
+}
+

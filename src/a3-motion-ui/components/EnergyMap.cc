@@ -211,6 +211,21 @@ beamShare (float liftedLevel, float loudestLevel)
 }
 
 float
+beamBoltCount (float share, float maxCount, float minCount)
+{
+  auto const lo = std::min (minCount, maxCount);
+  auto const n = lo + std::clamp (share, 0.f, 1.f) * (maxCount - lo);
+
+  return std::max (1.f, std::floor (n + 0.5f));
+}
+
+float
+beamBrightness (float share, float floorPart)
+{
+  return floorPart + (1.f - floorPart) * std::clamp (share, 0.f, 1.f);
+}
+
+float
 boltWidthAtLevel (float baseWidthDegrees, float level, float thin)
 {
   auto const swell

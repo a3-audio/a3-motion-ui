@@ -175,7 +175,9 @@ public:
     float boltDuty = 0.55f;    // and how much of the time it is dark
     float boltCoreExp = 5.f;   // how tight the white core is
     float boltCore = 0.9f;     // how bright it runs
-    float boltCount = 6.f;     // bolts per band
+    float boltCount = 6.f;     // bolts the loudest speaker draws
+    float boltFewest = 2.f;    // bolts the quietest speaker keeps
+    float boltDim = 0.45f;     // how far a quiet speaker dims
     float boltReach = 2.4f;    // how far an escaping one carries
     float boltEscape = 0.55f;  // how many of them escape
     float boltBranches = 2.f;  // branches per bolt
@@ -287,6 +289,8 @@ private:
   GLint _uSphereEnvironment = -1;
   GLint _uBoltCoreColour = -1;
   GLint _uBoltCount = -1;
+  GLint _uBoltFewest = -1;
+  GLint _uBoltDim = -1;
   GLint _uBoltReach = -1;
   GLint _uBoltEscape = -1;
   GLint _uBoltBranches = -1;

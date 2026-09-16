@@ -211,6 +211,31 @@ float beamAliveness (float loudestLevel, float gate);
  *  Mirrors beamShare() in SphereShader.cc. */
 float beamShare (float liftedLevel, float loudestLevel);
 
+/** How many bolts a speaker draws, out of its share of the loudest.
+ *
+ *  The count is what the eye actually reads. Width was doing all the work and
+ *  it cannot: measured at the rig, a share of 0.28 against 1.0 is a bolt core
+ *  of 1.3 screen pixels against 2.6, and both of those are hairlines — while
+ *  all four speakers drew the same seven bolts, which is the thing you can
+ *  count without looking closely.
+ *
+ *  Never none: a speaker that is merely quiet is still part of the picture,
+ *  and one that dropped to nothing would open a hole in the ring. Silence
+ *  everywhere is beamAliveness()'s job.
+ *
+ *  Mirrors the count in beamDensity(). */
+float beamBoltCount (float share, float maxCount, float minCount);
+
+/** How brightly a speaker's bolts are drawn, out of its share.
+ *
+ *  Relative, so it cannot repeat the mistake that started this: brightness
+ *  driven by an *absolute* level made a band vanish at the levels it spends
+ *  most of its time at. The loudest speaker is always at full, whatever the
+ *  room's volume; the others fall back to `floorPart` of that.
+ *
+ *  Mirrors the brightness term in beamDensity(). */
+float beamBrightness (float share, float floorPart);
+
 /** How wide a bolt's core runs at a given level, in degrees.
  *
  *  The level is a *thickness* now, not a brightness. Driving brightness with
