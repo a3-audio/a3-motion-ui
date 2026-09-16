@@ -193,6 +193,24 @@ float beamMouthRadiusSeen (Pos const &speakerSeen);
  *  Mirrors beamAlive() in SphereShader.cc. */
 float beamAliveness (float loudestLevel, float gate);
 
+/** A speaker's share of the loudest one, 0 to 1.
+ *
+ *  What the bands are asked is *where* the sound is, and that is a question
+ *  about the four speakers relative to each other. Read absolutely it is a
+ *  question about the volume knob instead: measured at the rig with one
+ *  channel plainly playing, the loudest speaker sat at 2.4% of the scale
+ *  (vuMax 0.2 against an rms of 0.009), so all four bolts sat on the boltThin
+ *  floor and were 4% apart. Nothing about the picture said which speaker the
+ *  sound was coming out of.
+ *
+ *  `beamBandLevel()` already works this way — its floor is a share of the
+ *  loudest, not an absolute — so this is that reasoning carried through to the
+ *  thickness. Whether anything is playing at all stays an absolute question
+ *  and belongs to beamAliveness().
+ *
+ *  Mirrors beamShare() in SphereShader.cc. */
+float beamShare (float liftedLevel, float loudestLevel);
+
 /** How wide a bolt's core runs at a given level, in degrees.
  *
  *  The level is a *thickness* now, not a brightness. Driving brightness with

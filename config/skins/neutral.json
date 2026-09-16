@@ -35,7 +35,7 @@
     "wanderFlow": 0.08,
     "root": 0.35,
     "levelFloor": 0.22,
-    "beamGate": 0.02,
+    "beamGate": 0.004,
     "bleed": 0.22,
     "fray": 0.8,
     "cover": 1.6,

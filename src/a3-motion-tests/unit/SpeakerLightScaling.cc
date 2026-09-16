@@ -124,6 +124,13 @@ TEST (SpeakerLightScaling, ShippedConfigDrawsNothingInASilentRoom)
   auto const gate = static_cast<float> (speakerLight["beamGate"]);
   EXPECT_GT (gate, 0.f) << "a gate at zero never closes";
 
+  // And it has to sit well under what the rig actually produces. Measured on
+  // 2026-09-16 with one channel playing, the loudest speaker reached a level
+  // of 0.024 — a gate at 0.02 was one quiet passage away from blanking the
+  // bands altogether.
+  EXPECT_LT (gate, 0.024f / 4.f)
+      << "the gate is close enough to real programme levels to cut them off";
+
   // The whole chain, not the gate on its own: thickness has a floor by
   // design, so silence can only be said by the aliveness term.
   auto const onScreen = [&] (float rms) {

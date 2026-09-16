@@ -1196,7 +1196,13 @@ vec2 beamDensity (vec2 point, vec3 spkCentre, float spkSeed, float level)
     // reached seeds the normalised bearing never did, which is what put four
     // escaped bolts across the whole display.
     float seed = spkSeed;
-    vec2 strike = bolts (dA - wander, d, ragged, seed, mouthR, lifted);
+    // As a share of the loudest, not absolutely. What a band is asked is
+    // *where* the sound is, and that is a question about the four speakers
+    // relative to each other; absolutely it is a question about the volume
+    // knob, and at the rig's own levels all four widths came out 4% apart.
+    // Mirrors beamShare() in EnergyMap.cc.
+    float share = loudest > 0.0 ? clamp (lifted / loudest, 0.0, 1.0) : 0.0;
+    vec2 strike = bolts (dA - wander, d, ragged, seed, mouthR, share);
 
     return vec2 (envelope * strike.x, envelope * strike.y);
 }

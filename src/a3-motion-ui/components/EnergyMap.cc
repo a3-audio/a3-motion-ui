@@ -202,6 +202,15 @@ beamAliveness (float loudestLevel, float gate)
 }
 
 float
+beamShare (float liftedLevel, float loudestLevel)
+{
+  if (loudestLevel <= 0.f)
+    return 0.f;
+
+  return std::clamp (liftedLevel / loudestLevel, 0.f, 1.f);
+}
+
+float
 boltWidthAtLevel (float baseWidthDegrees, float level, float thin)
 {
   auto const swell

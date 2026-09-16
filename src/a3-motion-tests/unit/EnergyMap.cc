@@ -974,3 +974,94 @@ TEST (MenuRendering, ShippedConfigKeepsTheSphereRunningWhileTheMenuIsOpen)
 }
 
 }
+
+// ── Which speaker the sound is coming out of ────────────────────────────
+//
+// Measured at the rig on 2026-09-16, one input channel plainly playing, read
+// off port 7772 while the app was running: the four speakers sat at rms
+// 0.0015, 0.0043, 0.0090 and 0.0040. Through vuMax 0.2 and curve 1.2 that is
+// 2.4% of the scale at the loudest, so every bolt was on its floor.
+
+namespace
+{
+constexpr float rigSpeakerRms[4] = { 0.0015f, 0.0043f, 0.0090f, 0.0040f };
+}
+
+TEST (BeamShare, PutsTheLoudestSpeakerAtFullWidth)
+{
+  auto const level = [] (float rms) { return speakerLightLevel (rms, 0.2f, 1.2f); };
+  auto loudest = 0.f;
+  for (auto const rms : rigSpeakerRms)
+    loudest = std::max (loudest, level (rms));
+
+  EXPECT_FLOAT_EQ (beamShare (loudest, loudest), 1.f);
+}
+
+TEST (BeamShare, SeparatesTheRigsFourSpeakers)
+{
+  // The complaint: "die speakerbeams stellen es aber nicht korrekt dar". Read
+  // absolutely the four were 4% apart; as shares they have to be plainly
+  // different.
+  auto const level = [] (float rms) { return speakerLightLevel (rms, 0.2f, 1.2f); };
+  auto loudest = 0.f;
+  for (auto const rms : rigSpeakerRms)
+    loudest = std::max (loudest, level (rms));
+
+  auto const floorShare = 0.22f;  // levelFloor
+  auto const widthOf = [&] (float rms) {
+    auto const lifted = std::max (level (rms), floorShare * loudest);
+    return boltWidthAtLevel (0.45f, beamShare (lifted, loudest), 0.3f);
+  };
+
+  EXPECT_GT (widthOf (0.0090f) / widthOf (0.0015f), 1.8f)
+      << "the loud speaker is not visibly thicker than the quiet one";
+}
+
+TEST (BeamShare, DoesNotCareHowLoudTheRoomIs)
+{
+  // The whole point of a share: turning the system up or down moves every
+  // speaker together and must not change which one looks loudest.
+  auto const level = [] (float rms) { return speakerLightLevel (rms, 0.2f, 1.2f); };
+  for (auto const gain : { 1.f, 4.f, 0.25f })
+    {
+      auto loudest = 0.f;
+      for (auto const rms : rigSpeakerRms)
+        loudest = std::max (loudest, level (rms * gain));
+
+      EXPECT_NEAR (beamShare (level (0.0043f * gain), loudest),
+                   beamShare (level (0.0043f), level (0.0090f)), 0.02f)
+          << "at gain " << gain;
+    }
+}
+
+TEST (BeamShare, IsNothingWhenNothingPlays)
+{
+  EXPECT_FLOAT_EQ (beamShare (0.f, 0.f), 0.f);
+}
+
+TEST (BeamShare, IsWiredIntoTheShader)
+{
+  // The fifth wiring guard this week, and the first that cannot ask "does
+  // anything call it": the shader carries its own GLSL copy of this, so the
+  // C++ mirror has no caller by design. What has to be checked is the line
+  // that draws — that the bolts are handed a share and not the absolute level
+  // the width used to come from.
+  auto const shader
+      = juce::File (A3_UI_SOURCE_DIR)
+            .getChildFile ("components/SphereShader.cc")
+            .loadFileAsString ();
+
+  juce::StringArray lines;
+  lines.addLines (shader);
+
+  juce::String call;
+  for (auto const &line : lines)
+    if (line.contains ("bolts (dA"))
+      call = line;
+
+  EXPECT_FALSE (call.isEmpty ()) << "nothing draws bolts";
+  EXPECT_TRUE (call.contains ("share"))
+      << "the bolts take an absolute level, so their width says how loud the "
+         "room is rather than which speaker the sound is in: "
+      << call;
+}
