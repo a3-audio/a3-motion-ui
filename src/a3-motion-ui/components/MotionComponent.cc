@@ -1088,6 +1088,13 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.floorBeamInner = cfgF (sl, "floorBeamInner", 0.02f);
     sc.boxOcclude = cfgF (sl, "boxOcclude", 0.85f);
     sc.floorGrain = cfgF (sl, "floorGrain", 14.f);
+    sc.ballLevel = cfgF (sl, "ballLevel", 1.f);
+    sc.ballCount = cfgF (sl, "ballCount", 3.f);
+    sc.ballRate = cfgF (sl, "ballRate", 0.32f);
+    sc.ballReach = cfgF (sl, "ballReach", 0.72f);
+    sc.ballSize = cfgF (sl, "ballSize", 0.048f);
+    sc.ballWander = cfgF (sl, "ballWander", 0.10f);
+    sc.ballHeight = cfgF (sl, "ballHeight", 0.05f);
     sc.boltInner = cfgF (sl, "boltInner", 0.45f);
     sc.boltEscape = cfgF (sl, "boltEscape", 0.55f);
     sc.boltBranches = cfgF (sl, "boltBranches", 2.f);

@@ -1122,3 +1122,52 @@ TEST (BeamBrightness, SeparatesTheRigsQuietSpeakerFromItsLoudOne)
              1.5f);
 }
 
+// ── Ball lightning, out of the subs ─────────────────────────────────────
+
+TEST (BallLightning, IsBornAtTheSub)
+{
+  // "der ursprung der blitze ist immer eine box" — a ball starts at the stack
+  // that throws it, not somewhere between.
+  EXPECT_FLOAT_EQ (ballLightningTravel (0.f, 0.8f), 0.f);
+}
+
+TEST (BallLightning, DriftsInAndNeverThroughTheListener)
+{
+  auto previous = ballLightningTravel (0.f, 0.8f);
+  for (auto life = 0.05f; life <= 1.f; life += 0.05f)
+    {
+      auto const here = ballLightningTravel (life, 0.8f);
+      EXPECT_GE (here, previous) << "turned back at life " << life;
+      previous = here;
+    }
+  EXPECT_LT (ballLightningTravel (1.f, 2.f), 1.f)
+      << "a ball that reaches the middle goes through the person standing there";
+}
+
+TEST (BallLightning, SlowsAsItGoes)
+{
+  // Ball lightning wanders and lingers; a strike is what the tops are for.
+  auto const early = ballLightningTravel (0.2f, 0.8f) - ballLightningTravel (0.1f, 0.8f);
+  auto const late = ballLightningTravel (0.9f, 0.8f) - ballLightningTravel (0.8f, 0.8f);
+  EXPECT_GT (early, late * 2.f);
+}
+
+TEST (BallLightning, ThrowsNothingFromASilentSub)
+{
+  for (auto life : { 0.2f, 0.5f, 0.8f })
+    EXPECT_FLOAT_EQ (ballLightningBrightness (life, 0.f, 0.004f, 1.f), 0.f);
+}
+
+TEST (BallLightning, SwellsInAndDiesAway)
+{
+  EXPECT_FLOAT_EQ (ballLightningBrightness (0.f, 0.8f, 0.004f, 1.f), 0.f);
+  EXPECT_FLOAT_EQ (ballLightningBrightness (1.f, 0.8f, 0.004f, 1.f), 0.f);
+  EXPECT_GT (ballLightningBrightness (0.45f, 0.8f, 0.004f, 1.f), 0.5f);
+}
+
+TEST (BallLightning, BurnsBrighterOnALouderSub)
+{
+  EXPECT_GT (ballLightningBrightness (0.45f, 0.9f, 0.004f, 1.f),
+             ballLightningBrightness (0.45f, 0.1f, 0.004f, 1.f));
+}
+

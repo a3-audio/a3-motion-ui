@@ -185,6 +185,13 @@ public:
     float floorBeamInner = 0.02f; // how far in a floor bolt runs
     float boxOcclude = 0.85f;  // how far a cabinet hides what is behind it
     float floorGrain = 14.f;   // how fine the floor's own texture is
+    float ballLevel = 1.f;     // how strongly the subs throw ball lightning
+    float ballCount = 3.f;     // balls per sub stack at once
+    float ballRate = 0.32f;    // lives per second
+    float ballReach = 0.72f;   // how far towards the listener a ball gets
+    float ballSize = 0.048f;   // radius of a ball's body, sphere radii
+    float ballWander = 0.10f;  // how far it strays sideways
+    float ballHeight = 0.05f;  // how high above the floor it floats
     float boltInner = 0.45f;   // how far in an escaping bolt runs
     float boltEscape = 0.55f;  // how many of them escape
     float boltBranches = 2.f;  // branches per bolt
@@ -362,6 +369,13 @@ private:
   GLint _uFloorBeamInner = -1;
   GLint _uBoxOcclude = -1;
   GLint _uFloorGrain = -1;
+  GLint _uBallLevel = -1;
+  GLint _uBallCount = -1;
+  GLint _uBallRate = -1;
+  GLint _uBallReach = -1;
+  GLint _uBallSize = -1;
+  GLint _uBallWander = -1;
+  GLint _uBallHeight = -1;
   GLint _uFloorGrazeDir = -1;
   GLint _uRoomUp = -1;
   GLint _uSpkSeed[kMaxBlobs] = {};

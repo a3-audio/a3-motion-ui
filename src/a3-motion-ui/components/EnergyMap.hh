@@ -193,6 +193,30 @@ float beamMouthRadiusSeen (Pos const &speakerSeen);
  *  Mirrors beamAlive() in SphereShader.cc. */
 float beamAliveness (float loudestLevel, float gate);
 
+/** How far along its run a ball of lightning is, 0 at the sub it leaves to
+ *  `reach` at the end of its life.
+ *
+ *  The subs throw ball lightning and the tops throw the bolts: two different
+ *  things for two different cabinets, so the eye can tell the low end from the
+ *  rest without reading a meter. A ball is born at the sub stack's own front —
+ *  the origin of anything thrown is always a box — and drifts across the floor
+ *  towards the listener, slowing as it goes, the way ball lightning is
+ *  described: not a strike but something that wanders and lingers.
+ *
+ *  Never all the way: `reach` is below one, so a ball dies short of the person
+ *  in the middle rather than going through them. Mirrors ballTravel() in
+ *  SphereShader.cc. */
+float ballLightningTravel (float life, float reach);
+
+/** How bright a ball of lightning is at a point in its life, 0 to 1.
+ *
+ *  It swells in quickly, holds, and dies away — and it flickers while it holds,
+ *  which is `flicker` (0..1, the shader's own noise). Nothing at all below the
+ *  gate: a silent sub throws nothing, for the same reason a silent room has no
+ *  bolts. Mirrors ballBright() in SphereShader.cc. */
+float ballLightningBrightness (float life, float subLevel, float gate,
+                               float flicker);
+
 /** A speaker's share of the loudest one, 0 to 1.
  *
  *  What the bands are asked is *where* the sound is, and that is a question

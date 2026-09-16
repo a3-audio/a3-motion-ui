@@ -251,6 +251,13 @@ uniform float uFloorBeams;     // how strongly the beams cross it
 uniform float uFloorBeamInner; // how far in a floor bolt runs
 uniform float uBoxOcclude;     // how far a cabinet hides what is behind it
 uniform float uFloorGrain;     // how fine the floor's own texture is
+uniform float uBallLevel;      // how strongly the subs throw ball lightning
+uniform float uBallCount;      // balls per sub stack at once
+uniform float uBallRate;       // lives per second
+uniform float uBallReach;      // how far towards the listener a ball gets
+uniform float uBallSize;       // radius of a ball's body
+uniform float uBallWander;     // how far it strays sideways
+uniform float uBallHeight;     // how high above the floor it floats
 uniform vec3  uFloorGrazeDir;  // which way the grazing light lies
 uniform vec3  uRoomUp;         // the room's up, as the eye sees it
 uniform vec3  uSpkCentre0;
@@ -1358,6 +1365,111 @@ vec2 beamTotal (vec2 p, float innerEdge)
  *  Each faces the listener. `depth` comes back as how far along the ray the
  *  nearest one was hit, so the caller can tell a cabinet in front of the ball
  *  from one behind it. */
+// How far along its run a ball is. Mirrors ballLightningTravel() in
+// EnergyMap.cc.
+float ballTravel (float life, float reach)
+{
+    float t = clamp (life, 0.0, 1.0);
+    float eased = 1.0 - (1.0 - t) * (1.0 - t);
+    return eased * clamp (reach, 0.0, 0.95);
+}
+
+// How bright a ball is. Mirrors ballLightningBrightness() in EnergyMap.cc.
+float ballBright (float life, float subLevel, float gate, float flicker)
+{
+    float t = clamp (life, 0.0, 1.0);
+    float g = clamp (subLevel / max (gate, 0.000001), 0.0, 1.0);
+    float alive = g * g * (3.0 - 2.0 * g);
+    float shape = clamp (t / 0.12, 0.0, 1.0) * clamp ((1.0 - t) / 0.35, 0.0, 1.0);
+    float flick = 0.70 + 0.30 * clamp (flicker, 0.0, 1.0);
+    float heat = 0.35 + 0.65 * clamp (subLevel, 0.0, 1.0);
+    return alive * shape * flick * heat;
+}
+
+/** Ball lightning, thrown by the subs.
+ *
+ *  The tops throw the bolts, the subs throw these: two cabinets, two kinds of
+ *  light, so the low end reads apart from everything above it without a
+ *  meter. Driven by the subwoofer's own level (/vu/4, uGlowLevel), not by the
+ *  four speaker levels the bolts share.
+ *
+ *  Each ball lives in the room, not on the glass: born at the front of a sub
+ *  stack — the origin of anything thrown is a box — and carried across towards
+ *  the listener a little above the floor, wandering as it goes, then projected.
+ *  Built in the room so a tilted camera still sees it leave the right cabinet.
+ */
+vec3 ballLightning (vec2 uv)
+{
+    if (uGlowLevel < 0.00005 || uBallLevel < 0.001)
+        return vec3 (0.0);
+
+    // Where the listener's feet are, lifted to the height a ball floats at.
+    vec3 home = uRoomUp * (uFloorZ + uBallHeight);
+
+    vec3 light = vec3 (0.0);
+    for (int i = 0; i < 4; i++)
+    {
+        vec3 c = speakerCentre (i);
+        vec3 nose = speakerNose (i);
+
+        // The sub stack's own front, at its own middle.
+        vec3 from = c + uRoomUp * uStackSubMid + nose * uStackSub.z;
+        vec3 run = home - from;
+        vec3 across = normalize (cross (uRoomUp, nose) + 1e-6);
+
+        for (int k = 0; k < 4; k++)
+        {
+            if (float (k) >= uBallCount) break;
+
+            float seed = float (i) * 7.31 + float (k) * 3.17;
+            float rate = uBallRate * (0.75 + 0.5 * hash13 (vec3 (seed, 1.0, 0.0)));
+            float phase = uTime * rate + hash13 (vec3 (seed, 2.0, 0.0)) * 7.0;
+            float life = fract (phase);
+            float gen = floor (phase);
+
+            float travel = ballTravel (life, uBallReach);
+            float sway = (valueNoise (vec3 (seed + gen * 1.7, life * 2.2, 0.0)) - 0.5)
+                       * 2.0 * uBallWander * sin (3.14159265 * life);
+
+            vec3 at = from + run * travel + across * sway;
+            vec2 p = seenToScreen (at);
+
+            float r = uBallSize * (0.65 + 0.55 * sin (3.14159265 * life));
+            vec2 d2 = uv - p;
+            float dd = dot (d2, d2);
+            if (dd > r * r * 49.0)
+                continue;
+
+            float flicker = valueNoise (vec3 (seed, uTime * 11.0, 4.0));
+            float b = ballBright (life, uGlowLevel, uBeamGate, flicker);
+            if (b <= 0.0)
+                continue;
+
+            // A hot white body with a soft tail of the sub's own colour — a
+            // ball, not a dot: the tail is what makes it read as lit air.
+            // A body, a skin of crackle round it, and a hof of lit air. Sized
+            // so it reads as a ball from across a booth — at the first size
+            // tried it came out as a spark, which is what the tops already
+            // throw, and the whole point is that these look different.
+            float dist2 = sqrt (dd);
+            float core = exp (-dd / (r * r * 0.55));
+            float skin = exp (-pow ((dist2 - r * 0.95) / (r * 0.22), 2.0))
+                       * (0.55 + 0.45 * valueNoise (vec3 (atan (d2.y, d2.x) * 3.0,
+                                                          uTime * 14.0, seed)));
+            float tail = r / (dist2 + r);
+            tail *= tail;
+
+            vec3 hue = mix (uGlowColour, uBoltCoreColour, 0.35);
+            light += (uBoltCoreColour * core * 1.8
+                      + hue * skin * 1.1
+                      + hue * tail * 1.1)
+                   * b;
+        }
+    }
+
+    return light * uBallLevel;
+}
+
 /** The dance floor: the plane the towers stand on, drawn faintly.
  *
  *  Orthographic, so a pixel's ray is a straight drop along the eye's own axis
@@ -2036,6 +2148,13 @@ void main ()
         alpha = clamp (alpha + floorA * open * (1.0 - uFloorDark), 0.0, 1.0);
     }
 
+    // The balls ride above the floor, so they go on after it. Inside the
+    // silhouette they are behind the sphere's near face like everything on the
+    // floor, and dimmed the same way.
+    vec3 balls = ballLightning (uvScene) * floorBehind;
+    col += balls;
+    alpha = clamp (alpha + max (balls.r, max (balls.g, balls.b)) * 0.8, 0.0, 1.0);
+
     gl_FragColor = vec4 (col, alpha);
 }
 )";
@@ -2211,6 +2330,13 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uFloorBeamInner = glGetUniformLocation (pid, "uFloorBeamInner");
   _uBoxOcclude    = glGetUniformLocation (pid, "uBoxOcclude");
   _uFloorGrain    = glGetUniformLocation (pid, "uFloorGrain");
+  _uBallLevel     = glGetUniformLocation (pid, "uBallLevel");
+  _uBallCount     = glGetUniformLocation (pid, "uBallCount");
+  _uBallRate      = glGetUniformLocation (pid, "uBallRate");
+  _uBallReach     = glGetUniformLocation (pid, "uBallReach");
+  _uBallSize      = glGetUniformLocation (pid, "uBallSize");
+  _uBallWander    = glGetUniformLocation (pid, "uBallWander");
+  _uBallHeight    = glGetUniformLocation (pid, "uBallHeight");
   _uFloorGrazeDir = glGetUniformLocation (pid, "uFloorGrazeDir");
   _uRoomUp        = glGetUniformLocation (pid, "uRoomUp");
   _uSpkSeed[0]    = glGetUniformLocation (pid, "uSpkSeed0");
@@ -2590,6 +2716,13 @@ SphereShader::uploadStackGeometry ()
     glUniform1f (_uBoxOcclude, _spotCfg.boxOcclude);
   if (_uFloorGrain >= 0)
     glUniform1f (_uFloorGrain, _spotCfg.floorGrain);
+  if (_uBallLevel >= 0) glUniform1f (_uBallLevel, _spotCfg.ballLevel);
+  if (_uBallCount >= 0) glUniform1f (_uBallCount, _spotCfg.ballCount);
+  if (_uBallRate >= 0) glUniform1f (_uBallRate, _spotCfg.ballRate);
+  if (_uBallReach >= 0) glUniform1f (_uBallReach, _spotCfg.ballReach);
+  if (_uBallSize >= 0) glUniform1f (_uBallSize, _spotCfg.ballSize);
+  if (_uBallWander >= 0) glUniform1f (_uBallWander, _spotCfg.ballWander);
+  if (_uBallHeight >= 0) glUniform1f (_uBallHeight, _spotCfg.ballHeight);
   if (_uFloorGrazeDir >= 0)
     {
       // The room's own x: the highlight lies along a direction in the room

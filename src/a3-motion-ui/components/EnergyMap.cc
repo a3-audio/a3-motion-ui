@@ -202,6 +202,38 @@ beamAliveness (float loudestLevel, float gate)
 }
 
 float
+ballLightningTravel (float life, float reach)
+{
+  auto const t = std::clamp (life, 0.f, 1.f);
+  // Eased out: quick off the box, slowing as it wanders in.
+  auto const eased = 1.f - (1.f - t) * (1.f - t);
+  return eased * std::clamp (reach, 0.f, 0.95f);
+}
+
+float
+ballLightningBrightness (float life, float subLevel, float gate,
+                         float flicker)
+{
+  auto const t = std::clamp (life, 0.f, 1.f);
+
+  auto const span = std::max (gate, 1e-6f);
+  auto const g = std::clamp (subLevel / span, 0.f, 1.f);
+  auto const alive = g * g * (3.f - 2.f * g);
+
+  auto const swell = std::clamp (t / 0.12f, 0.f, 1.f);
+  auto const dies = std::clamp ((1.f - t) / 0.35f, 0.f, 1.f);
+  auto const shape = swell * dies;
+
+  auto const flick = 0.70f + 0.30f * std::clamp (flicker, 0.f, 1.f);
+
+  // A loud sub burns brighter, but a quiet one still throws a visible ball:
+  // the gate is what says silence, not the level.
+  auto const heat = 0.35f + 0.65f * std::clamp (subLevel, 0.f, 1.f);
+
+  return alive * shape * flick * heat;
+}
+
+float
 beamShare (float liftedLevel, float loudestLevel)
 {
   if (loudestLevel <= 0.f)
