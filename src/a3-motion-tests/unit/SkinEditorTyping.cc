@@ -23,6 +23,7 @@
 #include <ShippedSkin.hh>
 
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
+#include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/theme/SkinParameters.hh>
 
 using namespace a3;
@@ -137,7 +138,10 @@ TEST (SkinEditorPress, ATypedPortFromTheEncoderReachesTheDocument)
   EXPECT_EQ ((int)editor.getSkin ()["oscReceiver"]["port"], 7799);
 }
 
-TEST (SkinEditorPress, PressingANumberInTheSkinEditorStillArmsItForTurning)
+// Opening a skin number now types it too. Dialling it went into the mask's
+// minus and plus keys (MenuSkinEditor tests), so the one way into a value is
+// the same for every number on every page.
+TEST (SkinEditorPress, OpeningANumberInTheSkinEditorTypesIt)
 {
   SkinEditorComponent editor;
   editor.setDocument (juce::JSON::parse (R"({"sphereScale": 0.62})"), "default",
@@ -146,11 +150,8 @@ TEST (SkinEditorPress, PressingANumberInTheSkinEditorStillArmsItForTurning)
 
   editor.toggleEditing ();
 
-  EXPECT_TRUE (editor.isEditing ());
-  EXPECT_FALSE (editor.isNaming ()) << "a skin value is dialled, not typed";
-
-  editor.navigate (1);
-  EXPECT_NE ((double)editor.getSkin ()["sphereScale"], 0.62);
+  EXPECT_TRUE (editor.isNaming ());
+  EXPECT_FALSE (editor.isEditing ());
 }
 
 // A host was always typed on press; that must not have changed with the
@@ -373,7 +374,6 @@ TEST (SkinEditorKeys, ArrowsNavigateAndNeverEdit)
   editor.setSkin (juce::JSON::parse (R"({"sphereScale": 0.62})"), "probe");
 
   ASSERT_TRUE (browseTo (editor, "sphereScale"));
-  editor.toggleEditing (); // arm it, the way a tap does
   auto const before = skinValue (editor.getSkin (), "sphereScale");
 
   editor.keyPressed (juce::KeyPress (juce::KeyPress::downKey));
@@ -431,9 +431,10 @@ TEST (SkinEditorTouch, BrowsingOutsideTheListIsIgnored)
   EXPECT_EQ (editor.browsedRowIndex (), 1);
 }
 
-// Browsing lets an armed row go, the same way turning to another row does —
-// otherwise the next drag would edit a row nobody is looking at.
-TEST (SkinEditorTouch, BrowsingAnotherRowDisarmsTheOldOne)
+// Nothing is armed by browsing, by a tap or by opening a row any more -- a
+// value is changed in its mask. What used to be "browsing disarms the old
+// row" is now "there is never an armed row to leave behind".
+TEST (SkinEditorTouch, NothingIsEverArmedForTurning)
 {
   SkinEditorComponent editor;
   editor.setDocument (networkSlice (), "Network", false,
@@ -441,7 +442,8 @@ TEST (SkinEditorTouch, BrowsingAnotherRowDisarmsTheOldOne)
 
   editor.browseRow (2);
   editor.toggleEditing ();
-  ASSERT_TRUE (editor.isEditing ());
+  EXPECT_FALSE (editor.isEditing ());
+  editor.cancelNaming ();
 
   editor.browseRow (1);
   EXPECT_FALSE (editor.isEditing ());
@@ -469,65 +471,38 @@ TEST (SkinEditorTouch, TheDrawnWindowAlwaysHoldsTheBrowsedRow)
 }
 
 
-// Dragging a value must only ever turn a number. Arming any other kind of
-// row fires it — and on a colour row that opens the picker, which is what
-// dragging the skin's height scale upwards used to do: the window scrolled,
-// the hit area came to stand for the colour row above, and the drag armed it.
-TEST (SkinEditorTouch, OnlyATurnableNumberCanBeDragged)
+// A drag over a row scrolls and never edits -- on any row. This used to be
+// three tests about which rows a drag was allowed to turn: dragging the skin's
+// height scale upwards once scrolled a colour row under the finger, armed it,
+// and opened the picker. Since 2026-09-17 no drag edits at all, and this holds
+// the whole shipped skin to that.
+TEST (SkinEditorTouch, NoDragOverAnyRowEditsOrOpensAnything)
 {
   SkinEditorComponent editor;
   editor.setSkin (shippedSkin (), "default");
+  editor.setBounds (0, 0, 768, 600);
+  auto const before = juce::JSON::toString (editor.getSkin ());
 
   bool sawColourPicker = false;
   editor.onColourPicked
       = [&] (juce::String const &, juce::Colour) { sawColourPicker = true; };
+  int fired = 0;
+  editor.onSave = [&fired] { ++fired; };
+  editor.onSaveAsNew = [&fired] { ++fired; };
+  editor.onDelete = [&fired] { ++fired; };
+  editor.onReset = [&fired] { ++fired; };
 
-  // Every row in the shipped skin, including its colours and its three
-  // action rows: none of them may be turnable except plain numbers.
-  for (int row = 0; row < 64; ++row)
-    {
-      editor.browseRow (row);
-      if (editor.browsedRowIndex () != row)
-        break; // ran off the end of the list
+  for (int pass = 0; pass < 80; ++pass)
+    for (auto *child : editor.getChildren ())
+      if (auto *control = dynamic_cast<TouchControl *> (child);
+          control != nullptr && control->isVisible () && control->onDragIncrement)
+        control->onDragIncrement (control->primary (), -1, 1);
 
-      if (!editor.canTurnBrowsedRow ())
-        continue;
-
-      // A row that says it can be turned must survive being turned without
-      // asking anyone for a colour.
-      editor.toggleEditing ();
-      editor.navigate (1);
-      EXPECT_FALSE (sawColourPicker) << "row " << row;
-      if (editor.isEditing ())
-        editor.toggleEditing ();
-    }
+  EXPECT_FALSE (sawColourPicker);
+  EXPECT_EQ (fired, 0);
+  EXPECT_FALSE (editor.isNaming ());
+  EXPECT_EQ (juce::JSON::toString (editor.getSkin ()), before);
 }
-
-TEST (SkinEditorTouch, ActionRowsAreNotTurnable)
-{
-  SkinEditorComponent editor;
-  editor.setSkin (shippedSkin (), "default");
-
-  // Save, Save As New, Rename — the rows above the parameters.
-  for (int row = 0; row < 3; ++row)
-    {
-      editor.browseRow (row);
-      EXPECT_FALSE (editor.canTurnBrowsedRow ()) << "action row " << row;
-    }
-}
-
-// A config page types its numbers rather than turning them, so a drag must
-// not arm one there either.
-TEST (SkinEditorTouch, TypedNumbersAreNotTurnable)
-{
-  SkinEditorComponent editor;
-  editor.setDocument (networkSlice (), "Network", false,
-                      SkinEditorComponent::Numbers::Typed);
-
-  ASSERT_TRUE (browseTo (editor, "oscReceiver.port"));
-  EXPECT_FALSE (editor.canTurnBrowsedRow ());
-}
-
 
 // Scrolling back to the top has to get past the first group's heading. It
 // did not: browseRow stepped over a heading downwards whatever direction it

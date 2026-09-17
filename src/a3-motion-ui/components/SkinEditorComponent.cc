@@ -170,7 +170,10 @@ SkinEditorComponent::createTouchControls ()
 {
   // Behind everything: a drag anywhere on the list that is not on a value
   // field scrolls it. Added first so the rows sit in front of it.
+  auto *const latch = &FingerLatch::forGroup (FingerLatch::menuList);
+
   _listScroll = std::make_unique<TouchControl> ();
+  _listScroll->setFingerLatch (latch);
   _listScroll->onDragIncrement = [this] (int, int, int increment) {
     // The page under the finger, like the strips beside it. It used to call
     // navigate(), which turns the *armed row's value* — a drag on empty space
@@ -185,75 +188,67 @@ SkinEditorComponent::createTouchControls ()
     {
       RowTouch touch;
 
+      // A tap selects and does nothing else, a double tap opens the row's
+      // mask, a drag scrolls. The same three answers on the name and on the
+      // value: "kein edit ohne eingabemaske, das kollidiert mit scroll." A
+      // tap used to press the row -- fire Save, arm a number -- and a drag on
+      // the value turned it, so a list that was being scrolled was also being
+      // edited.
       touch.name = std::make_unique<TouchControl> ();
       touch.name->onTap = [this] (int absoluteRow, int) {
         browseRow (absoluteRow);
-
-        // What the encoder press on this row would do — an action row acts,
-        // a colour row opens the picker, a typed number calls the keyboard.
-        // toggleEditing() already knows all of those cases.
-        toggleEditing ();
       };
-      // The name column is where the list is rolled. Leaving that to a
-      // strip behind the rows meant it could only be grabbed in the gaps
-      // between them, which is to say hardly at all. Left half rolls, right
-      // half changes the value — the two halves of a row, two jobs.
       touch.name->onDoubleTap = [this] (int absoluteRow, int) {
         doubleTapRow (absoluteRow);
       };
       touch.name->onDragIncrement = [this] (int, int, int increment) {
-        // Scrolls, never edits. navigate() would have changed the armed row's
-        // value instead, because that is its second level — but this column
-        // is the list, not a value. And it scrolls rather than walking the
-        // selection, so a drag over the names moves the page the same way a
-        // drag beside it does.
         scrollList (increment);
       };
 
       touch.value = std::make_unique<TouchControl> ();
-
-      // The row is latched when the finger lands and held for the whole
-      // drag — see _dragRow.
-      touch.value->onPress = [this] (int absoluteRow, int) {
-        _dragRow = absoluteRow;
-        if (browsedRowIndex () != absoluteRow)
-          browseRow (absoluteRow);
-      };
-      touch.value->onTap = [this] (int, int) {
-        _dragRow = -1;
-        toggleEditing ();
+      touch.value->onTap = [this] (int absoluteRow, int) {
+        browseRow (absoluteRow);
       };
       touch.value->onDoubleTap = [this] (int absoluteRow, int) {
-        _dragRow = -1;
         doubleTapRow (absoluteRow);
       };
-      touch.value->onDragEnd = [this] (int, int) { _dragRow = -1; };
       touch.value->onDragIncrement = [this] (int, int, int increment) {
-        if (_dragRow < 0 || _dragRow != browsedRowIndex ())
-          return;
-
-        // Only a number a drag can turn. Arming an action, a colour or a
-        // text row here would fire it — which is exactly what dragging past
-        // a colour used to do.
-        if (!isEditing ())
-          {
-            if (!canTurnBrowsedRow ())
-              return;
-            toggleEditing ();
-          }
-
-        navigate (increment);
+        scrollList (increment);
       };
+      touch.name->setFingerLatch (latch);
+      touch.value->setFingerLatch (latch);
 
       addAndMakeVisible (*touch.name);
       addAndMakeVisible (*touch.value);
       _rowTouch.push_back (std::move (touch));
+    }
+
+  // The mask's two keys for a skin number: dialling while watching the
+  // sphere, which the drag on the row used to do, kept -- inside the mask.
+  for (auto const key : { maskMinusKey, maskPlusKey })
+    {
+      auto control = std::make_unique<TouchControl> ();
+      control->setIdentity (key);
+      control->onTap = [this] (int which, int) {
+        stepTypedNumber (which == maskPlusKey ? 1 : -1);
+      };
+      addChildComponent (*control);
+      (key == maskPlusKey ? _maskPlus : _maskMinus) = std::move (control);
     }
 }
 
 void
 SkinEditorComponent::resized ()
 {
+  auto const keysShown = hasStepKeys ();
+  _maskMinus->setVisible (keysShown);
+  _maskPlus->setVisible (keysShown);
+  if (keysShown)
+    {
+      _maskMinus->setBounds (maskKeyBounds (false));
+      _maskPlus->setBounds (maskKeyBounds (true));
+    }
+
   // While a name is being typed the list steps aside, so nothing on it can
   // be aimed at.
   auto const listShown = totalRows () > 0 && !_naming;
@@ -352,6 +347,13 @@ SkinEditorComponent::keyPressed (juce::KeyPress const &key)
           return true;
         }
 
+      // Enter is the keyboard's double tap: it opens the selected row.
+      if (key == juce::KeyPress::returnKey)
+        {
+          openBrowsedRow ();
+          return true;
+        }
+
       return false;
     }
 
@@ -361,9 +363,23 @@ SkinEditorComponent::keyPressed (juce::KeyPress const &key)
       return true;
     }
 
-  if (key == juce::KeyPress::returnKey || key == juce::KeyPress::escapeKey)
+  if (key == juce::KeyPress::returnKey)
     {
       finishNaming ();
+      return true;
+    }
+
+  if (key == juce::KeyPress::escapeKey)
+    {
+      cancelNaming ();
+      return true;
+    }
+
+  // In a skin number's mask the arrows up and down are its minus and plus.
+  if (hasStepKeys ()
+      && (key == juce::KeyPress::upKey || key == juce::KeyPress::downKey))
+    {
+      stepTypedNumber (key == juce::KeyPress::upKey ? 1 : -1);
       return true;
     }
 
@@ -551,6 +567,7 @@ SkinEditorComponent::finishNaming ()
   auto const typed = _nameEntry.name ();
   auto const path = _textPath;
   _naming = false;
+  _steppedInMask = false;
   resized (); // the list steps aside while typing; its hit areas follow
   _editing = false;
   _textPath = {};
@@ -607,43 +624,84 @@ SkinEditorComponent::navigate (int delta)
       return;
     }
 
-  if (!_editing)
-    {
-      _index = skipHeadings (
-          juce::jlimit (0, totalRows () - 1, _index + delta), delta);
-      // Turning away is how a delete is called off — it never waits around
-      // for a press that was meant for something else.
-      _deleteAsked = false;
-      _saved = false;
-      repaint ();
-      return;
-    }
+  // Walks the rows and nothing else. A value changes in its mask; nothing in
+  // the list is armed for turning any more.
+  _index = skipHeadings (
+      juce::jlimit (0, totalRows () - 1, _index + delta), delta);
+  // Turning away is how a delete is called off — it never waits around
+  // for a press that was meant for something else.
+  _deleteAsked = false;
+  _saved = false;
+  repaint ();
+}
 
-  if (browsedRow () != Row::Parameter)
+void
+SkinEditorComponent::cancelNaming ()
+{
+  if (!_naming)
     return;
 
-  auto const *browsed = browsedParameter ();
-  if (browsed == nullptr)
-    return;
-  auto const &parameter = *browsed;
-  if (parameter.isText || parameter.isColour)
-    return; // typed or picked, not turned
+  // Only a number can have changed before Enter: the minus and plus keys
+  // write it at once. Text and a name are only written by finishNaming().
+  auto const restore = _typingNumber && _steppedInMask;
+  auto const path = _textPath;
 
-  auto const stepped
-      = stepSkinValue (parameterValue (parameter), delta,
-                       parameter.isWholeNumber,
-                       isColourChannelPath (parameter.path));
-
-  // Held inside whatever range this value has one. In the menu these were
-  // named steps and could not fall out of range; as free numbers in the
-  // editor they lost that, which is how fontBody became turnable down to 0.01.
-  setSkinValue (_skin, parameter.path,
-                clampSkinValue (_skin, parameter.path, stepped),
-                parameter.isWholeNumber);
+  _naming = false;
+  _steppedInMask = false;
+  _typingNumber = false;
+  _editing = false;
+  _textPath = {};
+  resized ();
   repaint ();
 
-  if (onValueChanged)
-    onValueChanged ();
+  if (onNamingChanged)
+    onNamingChanged (false);
+
+  if (restore && path.isNotEmpty ())
+    {
+      _skin = juce::JSON::parse (_documentBeforeMask);
+      _parameters = skinParameters (_skin, _actionRows > 0);
+      repaint ();
+      if (onValueChanged)
+        onValueChanged ();
+    }
+}
+
+void
+SkinEditorComponent::openBrowsedRow ()
+{
+  if (_naming)
+    return;
+  toggleEditing ();
+}
+
+bool
+SkinEditorComponent::hasStepKeys () const
+{
+  return _naming && _typingNumber && _numbers == Numbers::Turned;
+}
+
+juce::Rectangle<int>
+SkinEditorComponent::maskKeyBounds (bool plus) const
+{
+  // Laid out the way paint() draws the mask: header, the typed field, a gap,
+  // then the keys -- a row of two, each half the panel and a fingertip tall
+  // at least.
+  auto const itemH
+      = static_cast<int> (theme ().fontSize (FontRole::Body) * 1.9f);
+  auto const headerH
+      = static_cast<int> (theme ().fontSize (FontRole::Header) * 2.2f);
+
+  auto content = listPanelBounds ().reduced (paddingH, paddingV);
+  content.removeFromTop (headerH);
+  content.removeFromTop (
+      typingFieldHeight (theme ().fontSize (FontRole::Header), itemH));
+  content.removeFromTop (rowGap);
+
+  auto keys = content.removeFromTop (juce::jmax (2 * itemH, 48));
+  // Apart by a full padding, so the two read as two keys and not one bar.
+  auto const half = (keys.getWidth () - paddingH) / 2;
+  return plus ? keys.removeFromRight (half) : keys.removeFromLeft (half);
 }
 
 void
@@ -740,6 +798,8 @@ SkinEditorComponent::toggleEditing ()
                                       : TextInput::hostAlphabet;
 
             _textPath = parameter.path;
+            _typingNumber = false;
+            _steppedInMask = false;
             _nameEntry
                 = TextInput{ skinText (_skin, parameter.path), alphabet };
             _naming = true;
@@ -751,15 +811,9 @@ SkinEditorComponent::toggleEditing ()
             return;
           }
 
-        // A config number is typed, a skin number is dialled — see Numbers.
-        if (_numbers == Numbers::Typed)
-          {
-            beginTypingBrowsedRow ();
-            return;
-          }
-
-        _editing = !_editing;
-        repaint ();
+        // Every number is typed now. A skin number's mask has minus and plus
+        // as well, which is where dialling went.
+        beginTypingBrowsedRow ();
         return;
       }
     }
@@ -800,23 +854,6 @@ SkinEditorComponent::canTypeBrowsedRow () const
          || (browsedRow () == Row::Parameter && !_parameters.empty ());
 }
 
-bool
-SkinEditorComponent::canTurnBrowsedRow () const
-{
-  if (_naming || browsedRow () != Row::Parameter || _parameters.empty ())
-    return false;
-
-  auto const *browsed = browsedParameter ();
-  if (browsed == nullptr)
-    return false;
-
-  auto const &parameter = *browsed;
-
-  // A config number is typed, not turned — see Numbers.
-  return !parameter.isColour && !parameter.isText
-         && _numbers == Numbers::Turned;
-}
-
 void
 SkinEditorComponent::doubleTapRow (int absoluteRow)
 {
@@ -827,7 +864,7 @@ SkinEditorComponent::doubleTapRow (int absoluteRow)
   if (browsedRowIndex () != absoluteRow)
     return; // a heading, or off the end of the list
 
-  beginTypingBrowsedRow ();
+  openBrowsedRow ();
 }
 
 bool
@@ -853,6 +890,12 @@ SkinEditorComponent::beginTypingBrowsedRow ()
   // out — one keyboard, whatever the row holds.
   _textPath = parameter.path;
   _typingNumber = !parameter.isText;
+  _steppedInMask = false;
+  // The whole document, not the one number: a value the file never stated
+  // shows the theme's default in the row but reads as 0 from the document,
+  // and putting 0 back would write a key the skin never had.
+  if (_typingNumber)
+    _documentBeforeMask = juce::JSON::toString (_skin, true);
   _nameEntry = TextInput{ parameter.isText
                               ? skinText (_skin, parameter.path)
                               : rowValue (_index),
@@ -867,6 +910,36 @@ SkinEditorComponent::beginTypingBrowsedRow ()
     onNamingChanged (true);
 
   return true;
+}
+
+void
+SkinEditorComponent::stepTypedNumber (int delta)
+{
+  if (!hasStepKeys () || delta == 0 || _textPath.isEmpty ())
+    return;
+
+  auto const *browsed = browsedParameter ();
+  if (browsed == nullptr)
+    return;
+  auto const &parameter = *browsed;
+
+  // From what the field says, so a number typed and then nudged is nudged
+  // from where the hand put it.
+  auto const from = _nameEntry.name ().trim ().isNotEmpty ()
+                        ? _nameEntry.name ().getDoubleValue ()
+                        : skinValue (_skin, _textPath);
+  auto const stepped
+      = clampSkinValue (_skin, _textPath,
+                        stepSkinValue (from, delta, parameter.isWholeNumber,
+                                       isColourChannelPath (_textPath)));
+
+  setSkinValue (_skin, _textPath, stepped, parameter.isWholeNumber);
+  _steppedInMask = true;
+  _nameEntry = TextInput{ rowValue (_index), TextInput::numberAlphabet };
+  repaint ();
+
+  if (onValueChanged)
+    onValueChanged ();
 }
 
 void
@@ -1032,11 +1105,36 @@ SkinEditorComponent::paint (juce::Graphics &g)
                   theme ().strokeThick);
 
       content.removeFromTop (rowGap);
+
+      if (hasStepKeys ())
+        {
+          // The same rectangles the touch areas sit on (maskKeyBounds), so the
+          // picture and the target cannot drift apart.
+          for (auto const plus : { false, true })
+            {
+              auto const key = maskKeyBounds (plus);
+              g.setColour (toColour (theme ().textPrimary, armedRowWash));
+              g.fillRoundedRectangle (key.toFloat (), theme ().radiusRow);
+              g.setColour (toColour (theme ().textPrimary, browsedRowWash));
+              g.drawRoundedRectangle (key.toFloat (), theme ().radiusRow,
+                                      theme ().strokeThick);
+              // As big as the key allows: it is aimed at, not read.
+              g.setColour (toColour (theme ().textPrimary));
+              g.setFont (juce::Font (
+                  juce::FontOptions (static_cast<float> (key.getHeight ())
+                                     * 0.7f)
+                      .withStyle ("Bold")));
+              g.drawText (plus ? "+" : juce::String (juce::CharPointer_UTF8 ("\xe2\x88\x92")),
+                          key, juce::Justification::centred, false);
+            }
+          content.setTop (maskKeyBounds (true).getBottom () + rowGap);
+        }
+
       g.setFont (
           juce::Font (theme ().fontSize (FontRole::Body), juce::Font::plain));
       g.setColour (toColour (theme ().textPrimary, theme ().alphaInactive));
-      g.drawText (_editing ? "type, or turn: letter   press: let go   menu: done"
-                           : "type, or turn: position   press: change   menu: done",
+      g.drawText (hasStepKeys () ? "enter: keep   esc / back: undo   up / down: step"
+                                 : "enter: keep   esc / back: undo",
                   content.removeFromTop (itemH),
                   juce::Justification::centredLeft, true);
       return;

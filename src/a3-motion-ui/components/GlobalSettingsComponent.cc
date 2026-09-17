@@ -7,6 +7,8 @@
 
 #include "GlobalSettingsComponent.hh"
 
+#include <a3-motion-ui/components/ListScroll.hh>
+
 #include <a3-motion-ui/theme/Theme.hh>
 
 namespace a3
@@ -90,7 +92,8 @@ GlobalSettingsComponent::GlobalSettingsComponent ()
   // goes on letting touches through to the sphere, while the panel's rows
   // catch them.
   setInterceptsMouseClicks (false, true);
-
+  // The arrows, Enter and Escape drive it too.
+  setWantsKeyboardFocus (true);
 }
 
 void
@@ -114,53 +117,189 @@ GlobalSettingsComponent::rebuildRowTouch ()
 
       RowTouch touch;
 
+      // Name and value answer the same way: a tap selects, a double tap
+      // opens. Neither drags -- a drag over the rows is a scroll, and six
+      // rows have nothing to scroll.
       touch.name = std::make_unique<TouchControl> ();
-      touch.name->setIdentity (option);
-      touch.name->onTap = [this] (int tapped, int) {
-        if (onRowTapped)
-          onRowTapped (tapped);
-      };
-      // Dragging over the names walks the rows too, so the gesture is the
-      // same wherever the finger lands. The strips beside the panel stay the
-      // better place for it, though: a hand on the rows covers the ones it
-      // is moving through.
-      touch.name->onDragIncrement = [this] (int, int, int increment) {
-        // Same direction as the strips beside the panel: the page follows the
-        // finger. Two gestures for one movement that disagreed about which
-        // way it went would be worse than either.
-        if (onBrowseDragged)
-          onBrowseDragged (increment);
-      };
-
       touch.value = std::make_unique<TouchControl> ();
-      touch.value->setIdentity (option);
-      touch.value->onTap = [this] (int tapped, int) {
-        if (onValueArmed)
-          onValueArmed (tapped);
-      };
-      touch.value->onDragIncrement
-          = [this] (int dragged, int, int increment) {
-              if (onValueDragged)
-                onValueDragged (dragged, increment);
-            };
-      // Coming off the value field is what the second encoder press does:
-      // it applies what the drag landed on.
-      touch.value->onDragEnd = [this] (int released, int) {
-        if (onValueReleased)
-          onValueReleased (released);
-      };
+      for (auto *control : { touch.name.get (), touch.value.get () })
+        {
+          control->setIdentity (option);
+          control->onTap = [this] (int tapped, int) {
+            setOptionIndex (tapped);
+            if (onRowTapped)
+              onRowTapped (tapped);
+          };
+          control->onDoubleTap = [this] (int tapped, int) {
+            setOptionIndex (tapped);
+            if (onRowOpened)
+              onRowOpened (tapped);
+          };
+        }
 
       addAndMakeVisible (*touch.name);
       addAndMakeVisible (*touch.value);
       _rowTouch.push_back (std::move (touch));
     }
 
+  // As many as the tallest list could show. Which value each stands for
+  // changes as the list scrolls, so layOut() re-labels them.
+  _pickerTouch.clear ();
+  for (int slot = 0; slot < 32; ++slot)
+    {
+      auto control = std::make_unique<TouchControl> ();
+      control->onTap = [this] (int value, int) { choosePickerValue (value); };
+      control->onDoubleTap
+          = [this] (int value, int) { choosePickerValue (value); };
+      control->onDragIncrement
+          = [this] (int, int, int increment) { scrollPicker (increment); };
+      control->setFingerLatch (&FingerLatch::forGroup (FingerLatch::menuList));
+      addChildComponent (*control);
+      _pickerTouch.push_back (std::move (control));
+    }
+
   resized ();
+}
+
+int
+GlobalSettingsComponent::pickerValueCount () const
+{
+  if (_options.empty ())
+    return 0;
+  return (int)_options[static_cast<size_t> (_optionIndex)].values.size ();
+}
+
+int
+GlobalSettingsComponent::pickerRowsShown () const
+{
+  // As many rows as the area holds with the panel's padding, and never more
+  // than there are values.
+  auto const room = getHeight () - 2 * paddingV + rowGap;
+  auto const fit = juce::jmax (1, room / (itemH + rowGap));
+  return juce::jlimit (1, juce::jmax (1, pickerValueCount ()),
+                       juce::jmin (fit, (int)_pickerTouch.size ()));
+}
+
+void
+GlobalSettingsComponent::openPicker ()
+{
+  setValueFieldSelected (true);
+}
+
+void
+GlobalSettingsComponent::cancelPicker ()
+{
+  if (!_valueFieldSelected)
+    return;
+  setValueFieldSelected (false);
+  if (onPickerCancelled)
+    onPickerCancelled ();
+}
+
+void
+GlobalSettingsComponent::choosePickerValue (int value)
+{
+  if (!_valueFieldSelected || value < 0 || value >= pickerValueCount ())
+    return;
+
+  _selectedValueIndex = value;
+  if (onPickerChosen)
+    onPickerChosen (value);
+  // The owner normally closes it while applying; closed here as well so the
+  // list never outlives the choice.
+  if (_valueFieldSelected)
+    setValueFieldSelected (false);
+}
+
+void
+GlobalSettingsComponent::scrollPicker (int steps)
+{
+  if (!_valueFieldSelected)
+    return;
+  _pickerTop = scrollBy (_pickerTop, steps, pickerRowsShown (),
+                         pickerValueCount ());
+  layOut ();
+  repaint ();
+}
+
+bool
+GlobalSettingsComponent::keyPressed (juce::KeyPress const &key)
+{
+  auto const up = key == juce::KeyPress::upKey;
+  auto const down = key == juce::KeyPress::downKey;
+
+  if (_valueFieldSelected)
+    {
+      if (up || down)
+        {
+          auto const next = juce::jlimit (0, pickerValueCount () - 1,
+                                          _selectedValueIndex + (down ? 1 : -1));
+          if (next != _selectedValueIndex)
+            {
+              _selectedValueIndex = next;
+              _pickerTop = scrollToShow (_pickerTop, next, pickerRowsShown (),
+                                         pickerValueCount ());
+              layOut ();
+              repaint ();
+              if (onPickerBrowsed)
+                onPickerBrowsed (next);
+            }
+          return true;
+        }
+      if (key == juce::KeyPress::returnKey)
+        {
+          choosePickerValue (_selectedValueIndex);
+          return true;
+        }
+      if (key == juce::KeyPress::escapeKey)
+        {
+          cancelPicker ();
+          return true;
+        }
+      return false;
+    }
+
+  if (up || down)
+    {
+      if (_options.empty ())
+        return true;
+      setOptionIndex (_optionIndex + (down ? 1 : -1));
+      if (onRowTapped)
+        onRowTapped (_optionIndex);
+      return true;
+    }
+  if (key == juce::KeyPress::returnKey)
+    {
+      if (onRowOpened && !_options.empty ())
+        onRowOpened (_optionIndex);
+      return true;
+    }
+  return false;
+}
+
+void
+GlobalSettingsComponent::mouseWheelMove (juce::MouseEvent const &,
+                                         juce::MouseWheelDetails const &wheel)
+{
+  // What a two-finger scroll arrives as.
+  auto const delta = wheel.deltaY > 0.f ? -1 : (wheel.deltaY < 0.f ? 1 : 0);
+  if (delta != 0)
+    scrollPicker (delta);
+}
+
+void
+GlobalSettingsComponent::visibilityChanged ()
+{
+  // The arrows and Enter have to land here.
+  if (isShowing ())
+    grabKeyboardFocus ();
 }
 
 juce::Rectangle<int>
 GlobalSettingsComponent::panelBounds () const
 {
+  if (_valueFieldSelected)
+    return globalSettingsPanelBounds (getLocalBounds (), pickerRowsShown ());
   return globalSettingsPanelBounds (getLocalBounds (),
                                     juce::jmax (1, (int) _options.size ()));
 }
@@ -168,18 +307,44 @@ GlobalSettingsComponent::panelBounds () const
 void
 GlobalSettingsComponent::resized ()
 {
-  auto const numOptions = static_cast<int> (_rowTouch.size ());
-  if (numOptions == 0)
-    return;
+  layOut ();
+}
 
-  auto const panel = globalSettingsPanelBounds (getLocalBounds (), numOptions);
+void
+GlobalSettingsComponent::layOut ()
+{
+  auto const numOptions = static_cast<int> (_rowTouch.size ());
+  auto const picking = _valueFieldSelected;
 
   for (int i = 0; i < numOptions; ++i)
     {
-      auto const row = globalSettingsRowBounds (panel, numOptions, i);
       auto &touch = _rowTouch[static_cast<size_t> (i)];
+      touch.name->setVisible (!picking);
+      touch.value->setVisible (!picking);
+      if (picking)
+        continue;
+
+      auto const panel
+          = globalSettingsPanelBounds (getLocalBounds (), numOptions);
+      auto const row = globalSettingsRowBounds (panel, numOptions, i);
       touch.name->setBounds (globalSettingsNameArea (row));
       touch.value->setBounds (globalSettingsValueArea (row));
+    }
+
+  auto const rows = picking ? pickerRowsShown () : 0;
+  auto const panel = panelBounds ();
+  for (size_t slot = 0; slot < _pickerTouch.size (); ++slot)
+    {
+      auto const value = _pickerTop + static_cast<int> (slot);
+      auto const shown = picking && static_cast<int> (slot) < rows
+                         && value < pickerValueCount ();
+      auto &control = *_pickerTouch[slot];
+      control.setVisible (shown);
+      if (!shown)
+        continue;
+      control.setIdentity (value);
+      control.setBounds (
+          globalSettingsRowBounds (panel, rows, static_cast<int> (slot)));
     }
 }
 
@@ -230,7 +395,13 @@ GlobalSettingsComponent::setValueFieldSelected (bool selected)
 {
   _valueFieldSelected = selected;
   if (selected && !_options.empty ())
-    _selectedValueIndex = _options[static_cast<size_t> (_optionIndex)].activeIndex;
+    {
+      _selectedValueIndex
+          = _options[static_cast<size_t> (_optionIndex)].activeIndex;
+      _pickerTop = scrollToShow (0, _selectedValueIndex, pickerRowsShown (),
+                                 pickerValueCount ());
+    }
+  layOut ();
   repaint ();
 }
 
@@ -246,6 +417,54 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
   int const numOptions = static_cast<int> (_options.size ());
   auto const panelBounds
       = globalSettingsPanelBounds (getLocalBounds (), numOptions);
+
+  // ── the list of one row's values, in place of the rows ───────────────────
+  if (_valueFieldSelected)
+    {
+      auto const panel = this->panelBounds ();
+      g.setColour (toColour (theme ().textPrimary, rowWash));
+      g.fillRoundedRectangle (panel.toFloat (), theme ().radiusPanel);
+
+      auto const &option = _options[static_cast<size_t> (_optionIndex)];
+      auto const rows = pickerRowsShown ();
+      for (int slot = 0; slot < rows; ++slot)
+        {
+          auto const value = _pickerTop + slot;
+          if (value >= (int)option.values.size ())
+            break;
+
+          auto const row = globalSettingsRowBounds (panel, rows, slot);
+          auto const isCandidate = value == _selectedValueIndex;
+          auto const isActive = value == option.activeIndex;
+          auto const &item = option.values[static_cast<size_t> (value)];
+
+          g.setColour (toColour (theme ().textPrimary,
+                                 isCandidate ? armedRowWash : rowWash));
+          g.fillRoundedRectangle (row.toFloat (), theme ().radiusRow);
+
+          // Which row this list belongs to, on the left; the value, with the
+          // one that is in force now in bold.
+          auto text = row.reduced (juce::roundToInt (theme ().padding), 0);
+          g.setFont (juce::Font (theme ().fontSize (FontRole::Body),
+                                 isActive ? juce::Font::bold
+                                          : juce::Font::plain));
+          g.setColour (isCandidate || isActive
+                           ? item.colour
+                           : toColour (theme ().textPrimary,
+                                       theme ().alphaInactive));
+          g.drawText (item.value, text, juce::Justification::centred, true);
+          if (slot == 0)
+            {
+              g.setColour (toColour (theme ().textPrimary,
+                                     theme ().alphaInactive));
+              g.setFont (juce::Font (theme ().fontSize (FontRole::Body),
+                                     juce::Font::plain));
+              g.drawText (option.name, text, juce::Justification::centredLeft,
+                          true);
+            }
+        }
+      return;
+    }
 
   // ── panel background ──────────────────────────────────────────────────────
   g.setColour (toColour (theme ().textPrimary, rowWash)); // a barely visible edge

@@ -42,18 +42,19 @@ OverlaySideStrips::OverlaySideStrips ()
     if (onBrowse)
       onBrowse (increment);
   };
+  _browseZone->setFingerLatch (&FingerLatch::forGroup (FingerLatch::menuList));
   addAndMakeVisible (*_browseZone);
 
-  _valueZone = std::make_unique<TouchControl> ();
-  _valueZone->onDragIncrement = [this] (int, int, int increment) {
-    if (onValue)
-      onValue (increment);
+  // The right strip scrolls as well. It used to turn the highlighted row and
+  // apply it on release -- an edit without a mask, one drag away from a
+  // scroll. A value changes in its mask now, and either hand can scroll.
+  _rightZone = std::make_unique<TouchControl> ();
+  _rightZone->onDragIncrement = [this] (int, int, int increment) {
+    if (onBrowse)
+      onBrowse (increment);
   };
-  _valueZone->onDragEnd = [this] (int, int) {
-    if (onValueReleased)
-      onValueReleased ();
-  };
-  addAndMakeVisible (*_valueZone);
+  _rightZone->setFingerLatch (&FingerLatch::forGroup (FingerLatch::menuList));
+  addAndMakeVisible (*_rightZone);
 }
 
 void
@@ -67,7 +68,7 @@ OverlaySideStrips::setPanel (juce::Rectangle<int> panel)
       = juce::jlimit (0, sides.getWidth (), sides.getRight () - panel.getRight ());
 
   _browseZone->setBounds (sides.removeFromLeft (leftWidth));
-  _valueZone->setBounds (sides.removeFromRight (rightWidth));
+  _rightZone->setBounds (sides.removeFromRight (rightWidth));
 }
 
 }

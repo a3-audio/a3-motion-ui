@@ -246,58 +246,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       // away as you reached.
       _skinEditor->scrollList (delta);
     else if (_globalSettingsOpen)
-      {
-        _globalSettingsValueFieldSelected = false;
-        _globalSettings->setValueFieldSelected (false);
-        _globalSettings->navigateOption (delta > 0 ? 1 : -1);
-        _globalSettingsOptionIndex = _globalSettings->getOptionIndex ();
-      }
-  };
-
-  _overlayStrips->onValue = [this] (int delta) {
-    if (_skinEditorOpen)
-      {
-        // Arms on the first increment — dragging here already means "change
-        // this" — but only a row a drag may turn. Arming an action or a
-        // colour row would fire it.
-        if (!_skinEditor->isEditing ())
-          {
-            if (!_skinEditor->canTurnBrowsedRow ())
-              return;
-            _skinEditor->toggleEditing ();
-          }
-        _skinEditor->navigate (delta);
-        return;
-      }
-
-    if (!_globalSettingsOpen)
-      return;
-
-    if (!_globalSettingsValueFieldSelected)
-      {
-        if (_globalSettings->opensSubmenu (_globalSettingsOptionIndex))
-          return; // a row that leads somewhere has no value to turn
-        _globalSettingsValueFieldSelected = true;
-        _globalSettings->setValueFieldSelected (true);
-      }
-
-    _globalSettings->navigateValue (delta > 0 ? 1 : -1);
-
-    // Seeing the skin while choosing it is the point of choosing it here.
-    if (browsedMenuRow () == std::optional<MenuRow>{ MenuRow::Skin })
-      previewSkin (_globalSettings->getSelectedValueIndex ());
-  };
-
-  _overlayStrips->onValueReleased = [this] {
-    if (_skinEditorOpen)
-      {
-        if (_skinEditor->isEditing ())
-          _skinEditor->toggleEditing ();
-        return;
-      }
-
-    if (_globalSettingsOpen && _globalSettingsValueFieldSelected)
-      confirmGlobalSettingsOption ();
+      // Six rows need no scrolling; the list of a row's values may.
+      _globalSettings->scrollPicker (delta);
   };
 
   _motionComponent->addChildComponent (*_overlayStrips);
@@ -417,69 +367,50 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _globalSettings = std::make_unique<GlobalSettingsComponent> ();
   _globalSettings->setAlwaysOnTop (true);
 
-  // The same two levels the channel-3 encoder drives, reached with a finger:
-  // tapping a name browses, tapping a value field arms, dragging it chooses,
-  // and letting go applies — the release standing in for the second press.
+  // A tap selects, a double tap or Enter opens: a page for a row that leads
+  // somewhere, the list of its values for a row that holds one. A value is
+  // changed in that list and nowhere else -- a drag used to arm and turn it,
+  // one misplaced finger away from a scroll.
   _globalSettings->onRowTapped = [this] (int option) {
     _globalSettingsOptionIndex = option;
-    _globalSettings->setOptionIndex (option);
     _globalSettingsValueFieldSelected = false;
-    _globalSettings->setValueFieldSelected (false);
   };
 
-  _globalSettings->onValueArmed = [this] (int option) {
+  _globalSettings->onRowOpened = [this] (int option) {
     _globalSettingsOptionIndex = option;
     _globalSettings->setOptionIndex (option);
+    _globalSettingsValueFieldSelected = true;
 
-    // A row that leads somewhere has nothing to choose between, so arming it
-    // would be a question with one answer: it opens instead.
     if (_globalSettings->opensSubmenu (option))
       {
-        _globalSettingsValueFieldSelected = true;
         _globalSettings->setValueFieldSelected (true);
         confirmGlobalSettingsOption ();
         return;
       }
 
-    _globalSettingsValueFieldSelected = true;
-    _globalSettings->setValueFieldSelected (true);
+    _globalSettings->openPicker ();
+    updateOverlayButtons (); // the panel changed size; the strips follow
   };
 
-  // The strip left of the panel walks the rows; the strip right of it
-  // changes the highlighted one. Two places instead of a press that switches
-  // between two levels — which is what the encoder had to do, and what a
-  // finger should not have to remember.
-  _globalSettings->onBrowseDragged = [this] (int delta) {
-    _globalSettingsValueFieldSelected = false;
-    _globalSettings->setValueFieldSelected (false);
-    _globalSettings->navigateOption (delta > 0 ? 1 : -1);
-    _globalSettingsOptionIndex = _globalSettings->getOptionIndex ();
-  };
-
-  _globalSettings->onValueDragged = [this] (int, int increment) {
-    // Arms on the first increment: dragging in the right-hand strip means
-    // "change this", so asking for a tap first would be a step that says
-    // nothing.
-    if (!_globalSettingsValueFieldSelected)
-      {
-        if (_globalSettings->opensSubmenu (_globalSettingsOptionIndex))
-          return; // a row that leads somewhere has no value to turn
-        _globalSettingsValueFieldSelected = true;
-        _globalSettings->setValueFieldSelected (true);
-      }
-
-    _globalSettings->navigateValue (increment > 0 ? 1 : -1);
-
-    // Seeing the skin while choosing it is the point of choosing it here.
+  // Seeing the skin while choosing it is the point of choosing it here.
+  _globalSettings->onPickerBrowsed = [this] (int value) {
     if (browsedMenuRow () == std::optional<MenuRow>{ MenuRow::Skin })
-      previewSkin (_globalSettings->getSelectedValueIndex ());
+      previewSkin (value);
   };
 
-  _globalSettings->onValueReleased = [this] (int) {
-    if (!_globalSettingsValueFieldSelected)
-      return;
+  _globalSettings->onPickerChosen = [this] (int) {
     confirmGlobalSettingsOption ();
+    updateOverlayButtons ();
   };
+
+  _globalSettings->onPickerCancelled = [this] {
+    _globalSettingsValueFieldSelected = false;
+    // A skin looked at and not chosen goes back to the one that is running.
+    if (browsedMenuRow () == std::optional<MenuRow>{ MenuRow::Skin })
+      previewSkin (_skinIndex);
+    updateOverlayButtons ();
+  };
+
   _motionComponent->addChildComponent (*_globalSettings);
 
   // The editor is a page of that menu and lives in the same place, for the
@@ -1865,8 +1796,10 @@ A3MotionUIComponent::closeAllOverlays ()
 
   if (_colourPickerOpen)
     closeColourPicker ();
+  // Out of everything at once, and out of a mask without keeping it -- the
+  // same as Back and Escape. Keeping is Enter's.
   if (_skinEditorOpen && _skinEditor->isNaming ())
-    _skinEditor->finishNaming ();
+    _skinEditor->cancelNaming ();
   if (_skinEditorOpen)
     closeSkinEditor ();
   if (_globalSettingsOpen)
@@ -1940,12 +1873,16 @@ A3MotionUIComponent::toggleGlobalSettings ()
       return;
     }
 
+  // Back leaves a mask without keeping what was in it, the way Escape does:
+  // keeping is Enter's, or a tap on the value in a list.
   if (_colourPickerOpen)
     closeColourPicker ();
   else if (_skinEditorOpen && _skinEditor->isNaming ())
-    _skinEditor->finishNaming ();
+    _skinEditor->cancelNaming ();
   else if (_skinEditorOpen)
     closeSkinEditor ();
+  else if (_globalSettingsOpen && _globalSettings->isPickerOpen ())
+    _globalSettings->cancelPicker ();
   else if (_globalSettingsOpen)
     closeGlobalSettings ();
   else

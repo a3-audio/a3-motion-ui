@@ -41,8 +41,28 @@ TouchControl::setIdentity (int primary, int secondary)
 }
 
 void
-TouchControl::mouseDown (juce::MouseEvent const &)
+TouchControl::mouseDown (juce::MouseEvent const &event)
 {
+  // A second finger on a list another finger is already dragging is not a
+  // gesture of its own: it would scroll the list a second time.
+  if (_latch != nullptr)
+    {
+      // A leader that is no longer on the glass let go somewhere this list
+      // never heard about -- its page was hidden under it. Take over.
+      auto const leader = _latch->leader ();
+      if (leader >= 0 && leader != event.source.getIndex ())
+        {
+          auto *const held
+              = juce::Desktop::getInstance ().getMouseSource (leader);
+          if (held == nullptr || !held->isDragging ())
+            _latch->release (leader);
+        }
+
+      if (!_latch->claim (event.source.getIndex ()))
+        return;
+      _latchedSource = event.source.getIndex ();
+    }
+
   // Read here rather than in the constructor: the skin can change while
   // the app runs, and a drag should count with the value in force now.
   _drag = DragAccumulator{ theme ().touchDragPixelsPerStep };
@@ -63,6 +83,9 @@ TouchControl::mouseDown (juce::MouseEvent const &)
 void
 TouchControl::mouseDrag (juce::MouseEvent const &event)
 {
+  if (_latch != nullptr && !_latch->leads (event.source.getIndex ()))
+    return;
+
   if (onDragTo)
     onDragTo (_primary, _secondary, event.getPosition ());
 
@@ -78,8 +101,19 @@ TouchControl::mouseDrag (juce::MouseEvent const &event)
 }
 
 void
-TouchControl::mouseUp (juce::MouseEvent const &)
+TouchControl::mouseUp (juce::MouseEvent const &event)
 {
+  if (_latch != nullptr)
+    {
+      auto const source = event.source.getIndex ();
+      auto const led = _latch->leads (source);
+      _latch->release (source);
+      if (led)
+        _latchedSource = -1;
+      if (!led)
+        return; // an ignored finger ends nothing: no tap, no release
+    }
+
   // First and unconditionally: whoever is holding something needs to hear
   // that the finger left, and the branch below returns early on a tap.
   if (onRelease)
@@ -122,6 +156,19 @@ TouchControl::mouseUp (juce::MouseEvent const &)
 
   if (onDragEnd)
     onDragEnd (_primary, _secondary);
+}
+
+void
+TouchControl::visibilityChanged ()
+{
+  // Hidden under a finger -- a list closing, a mask opening -- the finger's
+  // mouseUp may never arrive here, and a latch left held would ignore every
+  // finger on the list from then on.
+  if (!isVisible () && _latch != nullptr && _latchedSource >= 0)
+    {
+      _latch->release (_latchedSource);
+      _latchedSource = -1;
+    }
 }
 
 }

@@ -34,13 +34,16 @@ namespace a3
  * drawn on top while open. Every Option is shown as its own row
  * simultaneously, sized to fit however many Options are supplied.
  *
- * Navigation is driven by a single rotary encoder: two-level, one input.
- * Turning it while no row is armed calls navigateOption() to move the
- * highlighted row (browse level); pushing arms that row's value field
- * (setValueFieldSelected(true), which also seeds the candidate value from
- * the row's current active value); turning it while armed calls
- * navigateValue() to cycle that Option's values (edit level). The caller
- * reads getSelectedValueIndex() to apply the chosen value.
+ * A value changes only in its mask: a tap selects a row, a double tap or
+ * Enter opens it -- a row that leads somewhere opens that page, a row with a
+ * value opens the list of its values in place of the rows. In that list a
+ * tap or Enter chooses, Escape (and the owner's Back) leaves it as it was, and
+ * the arrows walk it so a skin can be seen before it is chosen. A drag scrolls
+ * and never edits: "kein edit ohne eingabemaske, das kollidiert mit scroll."
+ *
+ * It used to be the encoder's two levels laid out for a finger -- tap the
+ * value to arm, drag it to change, let go to apply -- which put an edit one
+ * drag away from every scroll.
  */
 /** Where the menu's panel sits inside whatever area it was given, and where
  *  each of its rows sits inside that panel. Pulled out of paint() so the hit
@@ -109,18 +112,31 @@ public:
   // currently applied.
   void setValueFieldSelected (bool selected);
 
-  /** A row's name was tapped: browse that row, disarm. */
+  /** A row was tapped, or the arrows moved the selection: it is selected. */
   std::function<void (int option)> onRowTapped;
-  /** A row's value field was tapped: arm it — or, on a row that leads
-   *  somewhere, open it. */
-  std::function<void (int option)> onValueArmed;
-  /** The armed row's value field was dragged, by one increment. */
-  std::function<void (int option, int increment)> onValueDragged;
-  /** Dragged in the strip left of the panel: move the highlighted row. What
-   *  the channel-3 encoder used to do by turning. */
-  std::function<void (int delta)> onBrowseDragged;
-  /** The finger came off after such a drag: apply what it landed on. */
-  std::function<void (int option)> onValueReleased;
+  /** A row was double tapped, or Enter pressed on it: open it. */
+  std::function<void (int option)> onRowOpened;
+  /** The arrows moved through the list of values -- a candidate, not a
+   *  choice. The skin row previews it. */
+  std::function<void (int value)> onPickerBrowsed;
+  /** A value in the list was tapped or Entered. The list has closed. */
+  std::function<void (int value)> onPickerChosen;
+  /** The list was left without choosing. The owner undoes any preview. */
+  std::function<void ()> onPickerCancelled;
+
+  /** The list of the selected row's values, opened on its active one. */
+  void openPicker ();
+  /** Leave the list without choosing; calls onPickerCancelled. */
+  void cancelPicker ();
+  bool isPickerOpen () const { return _valueFieldSelected; }
+  /** The first value the list shows, and moving it. */
+  int pickerFirstVisible () const { return _pickerTop; }
+  void scrollPicker (int steps);
+
+  bool keyPressed (juce::KeyPress const &key) override;
+  void mouseWheelMove (juce::MouseEvent const &,
+                       juce::MouseWheelDetails const &wheel) override;
+  void visibilityChanged () override;
 
   /** Where the panel sits, so the side strips can be put beside it. */
   juce::Rectangle<int> panelBounds () const;
@@ -137,13 +153,21 @@ private:
     std::unique_ptr<TouchControl> value;
   };
   std::vector<RowTouch> _rowTouch;
+  /** One hit area per value the list can show at once; identity is the
+   *  value's index. Only visible while the list is open. */
+  std::vector<std::unique_ptr<TouchControl> > _pickerTouch;
 
   void rebuildRowTouch ();
+  void choosePickerValue (int value);
+  int pickerRowsShown () const;
+  int pickerValueCount () const;
+  void layOut ();
 
   std::vector<Option> _options;
   int _optionIndex        = 0;
   int _selectedValueIndex = 0;
   bool _valueFieldSelected = false;
+  int _pickerTop = 0;
 
 };
 
