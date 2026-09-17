@@ -21,6 +21,8 @@
 #include <a3-motion-ui/io/OnScreenKeyboard.hh>
 #include "A3MotionUIComponent.hh"
 
+#include <a3-motion-engine/tempo/BeatTrace.hh>
+
 #include <a3-motion-ui/components/TickPlayheads.hh>
 
 #include <a3-motion-engine/Envelope.hh>
@@ -1056,6 +1058,21 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     {
       std::cout << "OSC Receiver listening on " << oscRecvHost << ":" << oscRecvPort << std::endl;
       _oscReceiver.addListener (this);
+
+      if (BeatTrace::device ().isEnabled ())
+        {
+          std::cout << "Beat trace on: " << std::getenv ("A3_BEAT_TRACE")
+                    << std::endl;
+          _beatArrivalTrace.address = _oscAddresses.beatIn;
+          _oscReceiver.addListener (&_beatArrivalTrace);
+          _beatTraceHandle
+              = _engine.getTempoClock ().scheduleEventHandlerAddition (
+                  [] (auto measure) {
+                    BeatTrace::device ().record ("engine", measure.beat (),
+                                                 measure.bar (), 0.f);
+                  },
+                  TempoClock::Event::Beat, TempoClock::Execution::TimerThread);
+        }
     }
   else
     {
@@ -5372,6 +5389,24 @@ A3MotionUIComponent::onSpeakerVU (int speakerIndex, float peak, float rms)
   _motionComponent->setSpeakerLight (speakerIndex, peak, rms);
   _vuLevels.setOutput (firstSpeakerMeterIndex + speakerIndex, { peak, rms },
                        vuNowMs ());
+}
+
+void
+A3MotionUIComponent::BeatArrivalTrace::oscMessageReceived (
+    juce::OSCMessage const &message)
+{
+  if (message.getAddressPattern ().toString () != address
+      || message.size () < 3)
+    return;
+
+  auto const number = [] (juce::OSCArgument const &arg) {
+    if (arg.isInt32 ())
+      return static_cast<float> (arg.getInt32 ());
+    return arg.isFloat32 () ? arg.getFloat32 () : 0.f;
+  };
+  BeatTrace::device ().record ("rx", static_cast<int> (number (message[0])),
+                               static_cast<int> (number (message[1])),
+                               number (message[2]));
 }
 
 void

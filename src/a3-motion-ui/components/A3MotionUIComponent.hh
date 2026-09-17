@@ -454,6 +454,20 @@ private:
   std::atomic<bool> _beatAddressPending{ false };
   void applyPendingBeatAddress ();
 
+  /** Stamps a /beat the moment the socket hands it over, before it waits for
+   *  the message thread -- the gap between the two is one of the delays being
+   *  measured. Only listening while $A3_BEAT_TRACE is set; see BeatTrace.
+   *  Declared before the receiver so it outlives it. */
+  struct BeatArrivalTrace
+      : juce::OSCReceiver::Listener<juce::OSCReceiver::RealtimeCallback>
+  {
+    juce::String address;
+    void oscMessageReceived (juce::OSCMessage const &message) override;
+  };
+  BeatArrivalTrace _beatArrivalTrace;
+  /** The engine's own beats, stamped on the clock's thread. */
+  TempoClock::PointerT _beatTraceHandle;
+
   juce::OSCReceiver _oscReceiver;
   // OSC Receiver for VU meters (port 7772)
   juce::OSCReceiver _oscReceiverVU;

@@ -20,6 +20,8 @@
 
 #include "OscMessageHandler.hh"
 
+#include <a3-motion-engine/tempo/BeatTrace.hh>
+
 #include <array>
 
 namespace a3
@@ -96,6 +98,12 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
       int const beat = getIntArg (message[0]);
       int const bar = getIntArg (message[1]);
       int const bpm = getIntArg (message[2]);
+
+      if (BeatTrace::device ().isEnabled ())
+        BeatTrace::device ().record (
+            "handled", beat, bar,
+            message[2].isFloat32 () ? message[2].getFloat32 ()
+                                    : static_cast<float> (bpm));
 
       _listener.onExternalBeatClock (beat, bar, static_cast<float> (bpm));
 
