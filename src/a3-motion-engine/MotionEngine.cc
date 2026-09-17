@@ -30,6 +30,7 @@
 #include <a3-motion-engine/Channel.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/RecordingTrace.hh>
+#include <a3-motion-engine/TakeLaps.hh>
 #include <a3-motion-engine/Playhead.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-engine/OscAddresses.hh>
@@ -1068,6 +1069,11 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
   
   _patternRecording = pattern;
 
+  // A new take starts on its first lap, with no finished one behind it.
+  _recordingLastComplete.clear ();
+  _recordingTicks = 0;
+  _recordingLap = 0;
+
   // Calculate adaptive sub-sampling factor based on recording length
   _recordingSubSamplingFactor = calculateSubSamplingFactor (length, _tempoClock.getBeatsPerBar ());
 #ifdef DEBUG
@@ -1124,11 +1130,7 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   channel._playingStarted = _now;
 
   channel._patternScheduledForPlaying = nullptr;
-  if (_patternRecording && RecordingTrace::device ().isEnabled ())
-    RecordingTrace::device ().finished (
-        _patternRecording->getName (),
-        _patternRecording->getTicks ().positions);
-  _patternRecording = nullptr;
+  finishRecording ();
 
   pattern->setPlayPosition (0.f);
   // Unturned, like the take was recorded. A clip that resumed wherever the
@@ -1156,11 +1158,35 @@ MotionEngine::stop (std::shared_ptr<Pattern> pattern)
   pattern->setStopAtEnd (false);
   // _channels[pattern->_channel]->_patternPlaying = nullptr;
   // _channels[pattern->_channel]->_patternScheduledForPlaying = nullptr;
-  if (_patternRecording && RecordingTrace::device ().isEnabled ())
+  finishRecording ();
+}
+
+void
+MotionEngine::finishRecording ()
+{
+  if (!_patternRecording)
+    return;
+
+  // The lap that was still being played when the take stopped is dropped: it
+  // would meet the lap before it mid-figure, and that join is the jump that
+  // reads as a hole. A take that never finished a lap keeps what it has --
+  // there would be nothing else to play.
+  auto const lapTicks = static_cast<long long> (_patternRecording->getNumTicks ());
+  if (!takeKeepsPartialLap (_recordingTicks, lapTicks)
+      && static_cast<long long> (_recordingLastComplete.size ()) == lapTicks)
+    for (index_t tick = 0; tick < static_cast<index_t> (lapTicks); ++tick)
+      _patternRecording->setTick (tick,
+                                  _recordingLastComplete[static_cast<std::size_t> (tick)]);
+
+  if (RecordingTrace::device ().isEnabled ())
     RecordingTrace::device ().finished (
         _patternRecording->getName (),
         _patternRecording->getTicks ().positions);
+
   _patternRecording = nullptr;
+  _recordingLastComplete.clear ();
+  _recordingTicks = 0;
+  _recordingLap = 0;
 }
 
 void
@@ -1195,6 +1221,21 @@ MotionEngine::performRecording ()
       jassert (ticksSinceStart >= 0);
 
       auto const ticksPatternLength = _patternRecording->getNumTicks ();
+
+      // Each lap writes over the one before, so the take is only ever one lap
+      // deep. What the lap that just ended left behind is kept, because an
+      // unfinished lap is dropped when the take stops -- see finishRecording()
+      // and TakeLaps.hh.
+      _recordingTicks = static_cast<long long> (ticksSinceStart);
+      if (ticksPatternLength > 0)
+        {
+          auto const lap = _recordingTicks / ticksPatternLength;
+          if (lap != _recordingLap)
+            {
+              _recordingLap = lap;
+              _recordingLastComplete = _patternRecording->getTicks ().positions;
+            }
+        }
 
       // Where the write head is, for whoever wants to show it. A take never
       // reaches updatePlayPosition, so the pattern's own play position stays
