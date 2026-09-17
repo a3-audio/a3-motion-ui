@@ -1059,12 +1059,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       std::cout << "OSC Receiver listening on " << oscRecvHost << ":" << oscRecvPort << std::endl;
       _oscReceiver.addListener (this);
 
+      _beatArrival.setAddress (_oscAddresses.beatIn);
+      _oscReceiver.addListener (&_beatArrival);
+
       if (BeatTrace::device ().isEnabled ())
         {
           std::cout << "Beat trace on: " << std::getenv ("A3_BEAT_TRACE")
                     << std::endl;
-          _beatArrivalTrace.address = _oscAddresses.beatIn;
-          _oscReceiver.addListener (&_beatArrivalTrace);
           _beatTraceHandle
               = _engine.getTempoClock ().scheduleEventHandlerAddition (
                   [] (auto measure) {
@@ -5392,11 +5393,24 @@ A3MotionUIComponent::onSpeakerVU (int speakerIndex, float peak, float rms)
 }
 
 void
-A3MotionUIComponent::BeatArrivalTrace::oscMessageReceived (
+A3MotionUIComponent::BeatArrival::setAddress (juce::String const &newAddress)
+{
+  std::lock_guard<std::mutex> lock (_addressMutex);
+  _address = newAddress;
+}
+
+void
+A3MotionUIComponent::BeatArrival::oscMessageReceived (
     juce::OSCMessage const &message)
 {
-  if (message.getAddressPattern ().toString () != address
-      || message.size () < 3)
+  auto const arrival = TempoClock::monotonicNanoseconds ();
+
+  {
+    std::lock_guard<std::mutex> lock (_addressMutex);
+    if (message.getAddressPattern ().toString () != _address)
+      return;
+  }
+  if (message.size () < 3)
     return;
 
   auto const number = [] (juce::OSCArgument const &arg) {
@@ -5404,9 +5418,16 @@ A3MotionUIComponent::BeatArrivalTrace::oscMessageReceived (
       return static_cast<float> (arg.getInt32 ());
     return arg.isFloat32 () ? arg.getFloat32 () : 0.f;
   };
-  BeatTrace::device ().record ("rx", static_cast<int> (number (message[0])),
-                               static_cast<int> (number (message[1])),
-                               number (message[2]));
+  auto const beat = static_cast<int> (number (message[0]));
+
+  if (BeatTrace::device ().isEnabled ())
+    BeatTrace::device ().record ("rx", beat,
+                                 static_cast<int> (number (message[1])),
+                                 number (message[2]));
+
+  // The sender counts beats from 1, the clock from 0.
+  if (follow.load (std::memory_order_relaxed) && beat >= 1)
+    engine.getTempoClock ().syncToBeat (beat - 1, arrival);
 }
 
 void
@@ -5812,6 +5833,7 @@ A3MotionUIComponent::applyOscAddresses (juce::var const &config)
 
   if (_oscMessageHandler)
     _oscMessageHandler->setAddresses (_oscAddresses);
+  _beatArrival.setAddress (_oscAddresses.beatIn);
 
   // The beat is sent from the tempo-clock thread, so it cannot read the
   // struct this function just replaced.
@@ -5864,6 +5886,7 @@ A3MotionUIComponent::applyClockMode (int mode)
     return;
 
   _clockMode = mode;
+  _beatArrival.follow.store (_clockMode != 0);
 
   if (_clockMode != 0)
     {

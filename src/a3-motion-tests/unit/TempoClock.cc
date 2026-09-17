@@ -93,6 +93,41 @@ TEST (TempoClock, FirstTapResetsTheBeat)
 }
 
 
+// In EXT and PIO the clock takes its phase from the beats it is sent, not only
+// their tempo. Told mid-way through beat 0 that beat 2 is happening now, it has
+// to be on beat 2 straight away -- not a second later, and not still on beat 0
+// with the right tempo, which is what it used to do.
+TEST (TempoClock, ABeatFromOutsideMovesTheClockOntoIt)
+{
+  TempoClock tempoClock;
+  tempoClock.setTempoBPM (60.f);
+  tempoClock.start ();
+
+  std::atomic<int> lastBeat{ -1 };
+  auto handle = tempoClock.scheduleEventHandlerAddition (
+      [&lastBeat] (Measure measure) {
+        lastBeat = static_cast<int> (measure.beat ());
+      },
+      TempoClock::Event::Beat, TempoClock::Execution::TimerThread, true);
+
+  tempoClock.reset ();
+  for (int i = 0; i < 100 && lastBeat.load () != 0; ++i)
+    juce::Thread::sleep (2);
+  ASSERT_EQ (lastBeat.load (), 0);
+
+  juce::Thread::sleep (100);
+  tempoClock.syncToBeat (2, TempoClock::monotonicNanoseconds ());
+
+  for (int i = 0; i < 50 && lastBeat.load () != 2; ++i)
+    juce::Thread::sleep (2);
+
+  EXPECT_EQ (lastBeat.load (), 2)
+      << "a beat from outside has to move the clock's phase, not only its "
+         "tempo";
+
+  tempoClock.stop ();
+}
+
 // A clip fired from a pad lands on the next beat, not the next bar: a bar is
 // up to four beats away and that is long enough to feel like the button did
 // not work. The bar is still where a *take* is quantised — this is only about
@@ -124,4 +159,19 @@ TEST (TempoClock, TheWrapFollowsTheMetre)
 {
   EXPECT_EQ (TempoClock::nextBeat ({ 1, 2, 5 }, 3), Measure (2, 0, 0));
   EXPECT_EQ (TempoClock::nextBeat ({ 1, 4, 5 }, 7), Measure (1, 5, 0));
+}
+
+// The phase lock is worth nothing if nothing hands it a beat: a function with
+// no caller is how a coupling goes missing in this project with every test
+// green.
+TEST (TempoClock, BeatsFromOutsideActuallyReachTheClock)
+{
+  juce::File const root (A3_UI_SOURCE_DIR);
+  auto callers = 0;
+  for (auto const &entry : juce::RangedDirectoryIterator (
+           root, true, "*.cc", juce::File::findFiles))
+    if (entry.getFile ().loadFileAsString ().contains ("syncToBeat ("))
+      ++callers;
+
+  EXPECT_GT (callers, 0) << "no /beat ever moves the clock's phase";
 }

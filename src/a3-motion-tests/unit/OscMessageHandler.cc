@@ -263,6 +263,29 @@ TEST (OscMessageHandler, BeatAlwaysNotifiesClockButOnlySyncsTempoInExternalMode)
   EXPECT_FLOAT_EQ (engine.getTempoBPM (), 128.f);
 }
 
+// The beat-analyzer sends the tempo as a float, and it was read as an int:
+// 117.454 became 117, and the clock ran 0.4 per cent slow against the beats it
+// was being sent. Measured 2026-09-17, see
+// issues/a3-motion-ui-haelt-den-takt-nicht.md.
+TEST (OscMessageHandler, TheTempoArrivesWithItsFraction)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  engine.setTempoBPM (60.f);
+
+  juce::OSCMessage message ("/beat");
+  message.addInt32 (1);
+  message.addInt32 (3);
+  message.addFloat32 (117.454f);
+
+  handler.handleMessage (message, /*clockMode=*/1);
+
+  EXPECT_FLOAT_EQ (engine.getTempoBPM (), 117.454f);
+  EXPECT_FLOAT_EQ (listener.lastBpm, 117.454f);
+}
+
 // The IEM EnergyVisualizer sends one float per grid point in a single message.
 // Order is the plugin's, so the handler must pass it through untouched.
 TEST (OscMessageHandler, EnergyGridIsForwardedInOrder)
