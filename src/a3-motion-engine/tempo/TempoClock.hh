@@ -21,6 +21,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -88,6 +89,15 @@ public:
 
   float getTempoBPM () const;
   void setTempoBPM (float tempoBPM);
+
+  /** Put the clock's phase on a beat that arrived from outside: `beatInBar`
+   *  counted from 0, `arrivalNanoseconds` on monotonicNanoseconds(), stamped
+   *  as close to the socket as possible. Safe from any thread; taken up by
+   *  the clock's own thread on its next millisecond. See BeatSync.hh. */
+  void syncToBeat (int beatInBar, std::int64_t arrivalNanoseconds);
+
+  /** CLOCK_MONOTONIC in nanoseconds: what syncToBeat() is stamped on. */
+  static std::int64_t monotonicNanoseconds ();
 
   int getBeatsPerBar () const;
   void setBeatsPerBar (int beatsPerBar);

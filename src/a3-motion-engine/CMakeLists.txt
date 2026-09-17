@@ -74,6 +74,10 @@ target_sources("a3-motion-engine" PRIVATE
     PatternFile.hh
     PatternLibrary.cc
     PatternLibrary.hh
+    tempo/BeatSync.cc
+    tempo/BeatSync.hh
+    tempo/BeatTrace.cc
+    tempo/BeatTrace.hh
     tempo/TempoClock.cc
     tempo/TempoClock.hh
     tempo/TempoEstimator.cc

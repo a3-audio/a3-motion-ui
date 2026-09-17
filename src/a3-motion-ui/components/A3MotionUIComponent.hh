@@ -454,6 +454,32 @@ private:
   std::atomic<bool> _beatAddressPending{ false };
   void applyPendingBeatAddress ();
 
+  /** A /beat the moment the socket hands it over, before it waits for the
+   *  message thread: that is where the clock takes its phase from in EXT and
+   *  PIO, and where the beat trace stamps its arrival. The message thread's
+   *  wait was measured at up to 17 ms, which is a phase error nobody should
+   *  have to hear. Declared before the receiver so it outlives it. */
+  struct BeatArrival
+      : juce::OSCReceiver::Listener<juce::OSCReceiver::RealtimeCallback>
+  {
+    explicit BeatArrival (MotionEngine &engine) : engine (engine) {}
+
+    MotionEngine &engine;
+    /** Whether the clock follows the beats it is sent: EXT and PIO. Written
+     *  on the message thread, read on the socket's. */
+    std::atomic<bool> follow{ false };
+
+    void setAddress (juce::String const &newAddress);
+    void oscMessageReceived (juce::OSCMessage const &message) override;
+
+  private:
+    std::mutex _addressMutex;
+    juce::String _address{ "/beat" };
+  };
+  BeatArrival _beatArrival{ _engine };
+  /** The engine's own beats, stamped on the clock's thread. */
+  TempoClock::PointerT _beatTraceHandle;
+
   juce::OSCReceiver _oscReceiver;
   // OSC Receiver for VU meters (port 7772)
   juce::OSCReceiver _oscReceiverVU;

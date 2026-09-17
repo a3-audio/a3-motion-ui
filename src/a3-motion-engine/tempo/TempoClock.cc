@@ -20,6 +20,9 @@
 
 #include "TempoClock.hh"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <future>
 #include <thread>
 
@@ -33,6 +36,7 @@
 
 #include <a3-motion-engine/Config.hh>
 #include <a3-motion-engine/Measure.hh>
+#include <a3-motion-engine/tempo/BeatSync.hh>
 #include <a3-motion-engine/tempo/TempoEstimatorMean.hh>
 
 // Dedicated real-time clock thread using clock_nanosleep for
@@ -144,6 +148,19 @@ public:
   }
 
   std::atomic<bool> reset{ true };
+
+  /** A beat from outside, handed to this thread in one word: the arrival
+   *  time shifted up, the beat in the low bits. One atomic rather than a
+   *  queue because only the newest beat matters, and one word so a reader
+   *  can never see the time of one beat with the number of another. Zero is
+   *  "nothing waiting"; a monotonic arrival time is never zero. */
+  void
+  submitBeat (int beatInBar, std::int64_t arrivalNanoseconds)
+  {
+    auto const beat = static_cast<std::uint64_t> (beatInBar) & kBeatMask;
+    auto const time = static_cast<std::uint64_t> (arrivalNanoseconds);
+    _pendingBeat.store ((time << kBeatBits) | beat, std::memory_order_release);
+  }
 
 private:
   void
@@ -301,6 +318,8 @@ private:
       }
     else
       {
+        applyPendingBeat (now, nsPerTick);
+
         // catch up ticks
         while (std::chrono::duration_cast<std::chrono::nanoseconds> (
                    now - _lastTick)
@@ -311,6 +330,44 @@ private:
             countTick ();
           }
       }
+  }
+
+  /** Moves the next tick so the clock sits on the beat that arrived. A shift
+   *  forwards makes the catch-up below emit the ticks at once; a shift back
+   *  makes it wait. Either way every tick is still emitted exactly once, so
+   *  playback advances by the same amount it always did, just sooner or
+   *  later. */
+  void
+  applyPendingBeat (ClockT::time_point now, std::int64_t nsPerTick)
+  {
+    auto const packed = _pendingBeat.exchange (0, std::memory_order_acq_rel);
+    if (packed == 0 || nsPerTick <= 0)
+      return;
+
+    auto const beat = static_cast<int> (packed & kBeatMask);
+    auto const arrival = static_cast<std::int64_t> (packed >> kBeatBits);
+    auto const age = std::max<std::int64_t> (
+        0, a3::TempoClock::monotonicNanoseconds () - arrival);
+
+    auto const ticksPerBeat
+        = static_cast<double> (a3::TempoClock::getTicksPerBeat ());
+    auto const nsPerBeat = static_cast<double> (nsPerTick) * ticksPerBeat;
+    auto const sinceTick = static_cast<double> (
+        std::chrono::duration_cast<std::chrono::nanoseconds> (now - _lastTick)
+            .count ());
+
+    auto const positionNow
+        = static_cast<double> (_measure.beat ())
+          + (static_cast<double> (_measure.tick ())
+             + sinceTick / static_cast<double> (nsPerTick))
+                / ticksPerBeat;
+    auto const positionAtArrival
+        = positionNow - static_cast<double> (age) / nsPerBeat;
+
+    auto const shift = a3::beatSyncShift (positionAtArrival, beat,
+                                          _tempoClock.getBeatsPerBar ());
+    _lastTick -= std::chrono::nanoseconds (
+        static_cast<std::int64_t> (std::llround (shift * nsPerBeat)));
   }
 
   void
@@ -412,6 +469,10 @@ private:
 
   a3::TempoClock const &_tempoClock;
 
+  static constexpr int kBeatBits = 6;
+  static constexpr std::uint64_t kBeatMask = (1u << kBeatBits) - 1u;
+  std::atomic<std::uint64_t> _pendingBeat{ 0 };
+
   ClockT::time_point _startTime;
   ClockT::time_point _lastTick;
 
@@ -471,6 +532,20 @@ void
 TempoClock::setTempoBPM (float tempoBPM)
 {
   _beatsPerMinute = tempoBPM;
+}
+
+void
+TempoClock::syncToBeat (int beatInBar, std::int64_t arrivalNanoseconds)
+{
+  _timer->submitBeat (beatInBar, arrivalNanoseconds);
+}
+
+std::int64_t
+TempoClock::monotonicNanoseconds ()
+{
+  timespec ts{};
+  clock_gettime (CLOCK_MONOTONIC, &ts);
+  return static_cast<std::int64_t> (ts.tv_sec) * 1000000000LL + ts.tv_nsec;
 }
 
 int
