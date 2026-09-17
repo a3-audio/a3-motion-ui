@@ -25,6 +25,8 @@
 
 #include <gtest/gtest.h>
 
+#include <JuceHeader.h>
+
 namespace a3
 {
 
@@ -33,6 +35,101 @@ namespace
 SheathRing const braid{ /* radius */ 0.01f, /* turns */ 48.f,
                         /* spin */ 0.4f, /* strands */ 3 };
 SheathRing const sheath{ 0.09f, 7.f, -0.25f, 3 };
+}
+
+namespace
+{
+/** A line as the renderer hands it over: straight pieces a few thousandths
+ *  long, subdivided evenly, meeting at a small corner every `perPiece`
+ *  points. That corner is what flattening a curve leaves behind. */
+std::vector<SheathPoint>
+polylineArc (int pieces, int perPiece, float step, float cornerRadians)
+{
+  std::vector<SheathPoint> points;
+  auto x = 0.f;
+  auto y = 0.f;
+  auto heading = 0.f;
+  points.push_back ({ x, y, true });
+  for (int piece = 0; piece < pieces; ++piece)
+    {
+      for (int k = 0; k < perPiece; ++k)
+        {
+          x += step * std::cos (heading);
+          y += step * std::sin (heading);
+          points.push_back ({ x, y, false });
+        }
+      heading += cornerRadians;
+    }
+  return points;
+}
+}
+
+TEST (PlasmaSheath, TheCornersOfAFlattenedCurveAreNotFolds)
+{
+  // Measured on the device: a figure arrives as straight pieces twenty points
+  // long, and the turn between two neighbouring points is zero along a piece
+  // and all of it at the corner. Point by point that corner is a huge
+  // curvature, so the strands were pulled onto the axis there and let go
+  // again one point later -- a strut across the cord at every corner, which
+  // is what made the plasma read as DNA.
+  // Corner and spacing as logged on the device: guards of 0.04 and 0 at
+  // corners of about a tenth of a radian between points 0.0038 apart.
+  auto const points = polylineArc (20, 20, 0.0038f, 0.1f);
+  auto const guards = foldGuardsAlong (points, 0.04f);
+
+  ASSERT_EQ (guards.size (), points.size ());
+  for (std::size_t i = 0; i < guards.size (); ++i)
+    EXPECT_FLOAT_EQ (guards[i], 1.f) << "at point " << i;
+}
+
+TEST (PlasmaSheath, AHairpinTighterThanTheBraidStillPullsItIn)
+{
+  // What the guard is for must survive being measured over a stretch: a turn
+  // back on itself inside the braid's own radius folds the offset copy.
+  std::vector<SheathPoint> points;
+  auto constexpr step = 0.002f;
+  for (int k = 0; k < 60; ++k)
+    points.push_back ({ step * static_cast<float> (k), 0.f, k == 0 });
+  auto const tip = step * 59.f;
+  for (int k = 1; k < 60; ++k)
+    points.push_back ({ tip - step * static_cast<float> (k), 0.004f, false });
+
+  auto const guards = foldGuardsAlong (points, 0.04f);
+
+  EXPECT_FLOAT_EQ (guards[59], 0.f);
+  EXPECT_FLOAT_EQ (guards[60], 0.f);
+}
+
+TEST (PlasmaSheath, AGuardNeverLooksAcrossAPenLift)
+{
+  // Two strokes that happen to meet at an angle are two strokes. The corner
+  // between them is not a bend in either.
+  std::vector<SheathPoint> points;
+  for (int k = 0; k < 40; ++k)
+    points.push_back ({ 0.003f * static_cast<float> (k), 0.f, k == 0 });
+  auto const corner = 0.003f * 39.f;
+  for (int k = 0; k < 40; ++k)
+    points.push_back ({ corner, 0.003f * static_cast<float> (k + 1), k == 0 });
+
+  auto const guards = foldGuardsAlong (points, 0.04f);
+
+  EXPECT_FLOAT_EQ (guards[39], 1.f);
+  EXPECT_FLOAT_EQ (guards[40], 1.f);
+}
+
+TEST (PlasmaSheath, TheBraidIsGuardedOverAStretch)
+{
+  // The fix above is worth nothing if the renderer goes on measuring point by
+  // point beside it -- a coupling lost with every test green is how this
+  // project breaks.
+  juce::File const root (A3_UI_SOURCE_DIR);
+  auto callers = 0;
+  for (auto const &entry : juce::RangedDirectoryIterator (
+           root, true, "*.cc", juce::File::findFiles))
+    if (entry.getFile ().loadFileAsString ().contains ("foldGuardsAlong ("))
+      ++callers;
+
+  EXPECT_GT (callers, 0) << "the braid is still guarded point by point";
 }
 
 TEST (PlasmaSheath, AGentleBendCarriesTheWholeOffset)

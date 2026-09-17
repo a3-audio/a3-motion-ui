@@ -21,6 +21,8 @@
 #pragma once
 
 #include <cmath>
+#include <cstddef>
+#include <vector>
 
 namespace a3
 {
@@ -264,6 +266,74 @@ arcAt (float u, int strand, ArcSettings const &arcs, float seconds)
   auto const flash = std::sin (withinSlot * 3.14159265f);
 
   return reach * reach * flash * flash;
+}
+
+
+/** One point of a line as it is drawn, and whether a new stroke starts at it. */
+struct SheathPoint
+{
+  float x = 0.f;
+  float y = 0.f;
+  bool startsRun = false;
+};
+
+/** foldGuard() at every point of a line, with the bend measured over a
+ *  stretch as long as the braid is wide.
+ *
+ *  Measured point by point it was measured on the wrong thing. A figure
+ *  arrives flattened into straight pieces, so the turn between two neighbours
+ *  is nothing along a piece and all of it at the corner -- and a corner of a
+ *  tenth of a radian over one step of four thousandths reads as a bend far
+ *  tighter than the braid. The strands were pulled onto the axis at every
+ *  corner and let go one point later: a strut across the cord every twenty
+ *  points, and the plasma read as DNA. *"das sieht aus wie dna soll aber ja
+ *  plasma sein."*
+ *
+ *  What folds an offset copy is a bend tighter than the offset, and that is a
+ *  question about a stretch of about the offset's own length. Over that
+ *  stretch a flattening corner is a gentle bend and a real hairpin is still a
+ *  hairpin.
+ *
+ *  Never across a pen lift: the neighbour there belongs to another stroke. */
+inline std::vector<float>
+foldGuardsAlong (std::vector<SheathPoint> const &points, float radius)
+{
+  std::vector<float> guards (points.size (), 1.f);
+  if (!(radius > 0.f))
+    return guards;
+
+  auto const distance = [&points] (std::size_t a, std::size_t b) {
+    auto const dx = points[a].x - points[b].x;
+    auto const dy = points[a].y - points[b].y;
+    return std::sqrt (dx * dx + dy * dy);
+  };
+
+  for (std::size_t i = 0; i < points.size (); ++i)
+    {
+      auto before = i;
+      while (!points[before].startsRun && before > 0
+             && distance (before, i) < radius)
+        --before;
+
+      auto after = i;
+      while (after + 1 < points.size () && !points[after + 1].startsRun
+             && distance (after, i) < radius)
+        ++after;
+
+      auto const ix = points[i].x - points[before].x;
+      auto const iy = points[i].y - points[before].y;
+      auto const ox = points[after].x - points[i].x;
+      auto const oy = points[after].y - points[i].y;
+      auto const lin = std::sqrt (ix * ix + iy * iy);
+      auto const lout = std::sqrt (ox * ox + oy * oy);
+      if (lin < 1e-6f || lout < 1e-6f)
+        continue;
+
+      auto const turn = std::abs (std::atan2 (ix * oy - iy * ox,
+                                              ix * ox + iy * oy));
+      guards[i] = foldGuard (turn / (0.5f * (lin + lout)), radius);
+    }
+  return guards;
 }
 
 }

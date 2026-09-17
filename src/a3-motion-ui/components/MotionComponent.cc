@@ -2096,43 +2096,37 @@ drawPathOnSphere (juce::Path const &displayPath,
     auto const strands = juce::jlimit (1, 5, braid.strands);
     auto const plain = strands < 2 || !(braid.radius > 0.0001f);
 
-    // Which way is across the line at each point, and how hard it is turning.
-    // Never taken across a pen lift, where the neighbour belongs to a different
-    // stroke.
+    // Which way is across the line at each point. Never taken across a pen
+    // lift, where the neighbour belongs to a different stroke.
     std::vector<juce::Point<float> > across (projected.size ());
     std::vector<float> guard (projected.size (), 1.f);
     if (!plain)
-      for (std::size_t i = 0; i < projected.size (); ++i)
-        {
-          auto const before = (i > 0 && !startsRun[i]) ? i - 1 : i;
-          auto const after = (i + 1 < projected.size () && !startsRun[i + 1])
-                                 ? i + 1
-                                 : i;
-          auto const step = projected[after].first - projected[before].first;
-          auto const length = step.getDistanceFromOrigin ();
-          if (length < 1e-6f)
-            {
-              guard[i] = 0.f;
-              continue;
-            }
-          across[i] = { -step.y / length, step.x / length };
+      {
+        std::vector<SheathPoint> line (projected.size ());
+        for (std::size_t i = 0; i < projected.size (); ++i)
+          line[i] = { projected[i].first.x, projected[i].first.y,
+                      static_cast<bool> (startsRun[i]) };
+        // How hard it is turning, over a stretch as long as the braid is wide
+        // -- see foldGuardsAlong() for the struts measuring it point by point
+        // drew.
+        guard = foldGuardsAlong (line, braid.radius);
 
-          // Curvature as the turn between the two half-steps over the distance
-          // they cover: the definition, on the only data there is.
-          auto const in = projected[i].first - projected[before].first;
-          auto const out = projected[after].first - projected[i].first;
-          auto const lin = in.getDistanceFromOrigin ();
-          auto const lout = out.getDistanceFromOrigin ();
-          if (lin < 1e-6f || lout < 1e-6f)
-            {
-              guard[i] = 0.f;
-              continue;
-            }
-          auto const cross = (in.x * out.y - in.y * out.x) / (lin * lout);
-          auto const dot = (in.x * out.x + in.y * out.y) / (lin * lout);
-          auto const turn = std::abs (std::atan2 (cross, dot));
-          guard[i] = foldGuard (turn / (0.5f * length), braid.radius);
-        }
+        for (std::size_t i = 0; i < projected.size (); ++i)
+          {
+            auto const before = (i > 0 && !startsRun[i]) ? i - 1 : i;
+            auto const after
+                = (i + 1 < projected.size () && !startsRun[i + 1]) ? i + 1 : i;
+            auto const step
+                = projected[after].first - projected[before].first;
+            auto const length = step.getDistanceFromOrigin ();
+            if (length < 1e-6f)
+              {
+                guard[i] = 0.f;
+                continue;
+              }
+            across[i] = { -step.y / length, step.x / length };
+          }
+      }
 
     // Five depth tiers: a strand crosses every boundary twice a turn, and at
     // three with plainly different brightnesses you read the boundary rather
