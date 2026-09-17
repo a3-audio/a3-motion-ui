@@ -29,6 +29,7 @@
 
 #include <a3-motion-engine/Channel.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/RecordingTrace.hh>
 #include <a3-motion-engine/Playhead.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-engine/OscAddresses.hh>
@@ -1123,6 +1124,10 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   channel._playingStarted = _now;
 
   channel._patternScheduledForPlaying = nullptr;
+  if (_patternRecording && RecordingTrace::device ().isEnabled ())
+    RecordingTrace::device ().finished (
+        _patternRecording->getName (),
+        _patternRecording->getTicks ().positions);
   _patternRecording = nullptr;
 
   pattern->setPlayPosition (0.f);
@@ -1151,6 +1156,10 @@ MotionEngine::stop (std::shared_ptr<Pattern> pattern)
   pattern->setStopAtEnd (false);
   // _channels[pattern->_channel]->_patternPlaying = nullptr;
   // _channels[pattern->_channel]->_patternScheduledForPlaying = nullptr;
+  if (_patternRecording && RecordingTrace::device ().isEnabled ())
+    RecordingTrace::device ().finished (
+        _patternRecording->getName (),
+        _patternRecording->getTicks ().positions);
   _patternRecording = nullptr;
 }
 
@@ -1236,6 +1245,12 @@ MotionEngine::performRecording ()
           {
             auto const tick = (baseIndex + slot) % ticksPatternLength;
             _patternRecording->setTick (tick, positionToWrite);
+
+            if (RecordingTrace::device ().isEnabled ())
+              RecordingTrace::device ().wrote (
+                  static_cast<int> (tick), positionToWrite.x (),
+                  positionToWrite.y (), fingerDown,
+                  static_cast<long long> (ticksSinceStart));
           }
 
       if (_recordingPosition.isValid ())

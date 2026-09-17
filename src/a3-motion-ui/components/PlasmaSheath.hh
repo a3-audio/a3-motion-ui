@@ -277,6 +277,25 @@ struct SheathPoint
   bool startsRun = false;
 };
 
+/** Which way is across the line at a point, and how much offset it carries.
+ *
+ *  Both come from the same walk, because both are wrong in the same way when
+ *  taken from the neighbouring points alone: a recording holds stretches of
+ *  repeated points -- the finger's position arrives every ten milliseconds or
+ *  so and a tick is a few -- and a zero-length step has no direction and reads
+ *  as an infinitely tight bend. The renderer answered with guard 0, which
+ *  pulled the strands onto the axis and let them out again: a strut across the
+ *  cord wherever a hand paused. */
+struct SheathFrame
+{
+  float acrossX = 0.f;
+  float acrossY = 0.f;
+  float guard = 1.f;
+};
+
+std::vector<SheathFrame> sheathFrames (std::vector<SheathPoint> const &points,
+                                       float radius);
+
 /** foldGuard() at every point of a line, with the bend measured over a
  *  stretch as long as the braid is wide.
  *
@@ -334,6 +353,50 @@ foldGuardsAlong (std::vector<SheathPoint> const &points, float radius)
       guards[i] = foldGuard (turn / (0.5f * (lin + lout)), radius);
     }
   return guards;
+}
+
+inline std::vector<SheathFrame>
+sheathFrames (std::vector<SheathPoint> const &points, float radius)
+{
+  std::vector<SheathFrame> frames (points.size ());
+  auto const guards = foldGuardsAlong (points, radius);
+
+  for (std::size_t i = 0; i < points.size (); ++i)
+    {
+      frames[i].guard = guards[i];
+
+      // The nearest neighbours that are actually somewhere else, within this
+      // stroke: a still hand leaves the line pointing where it was going.
+      auto before = i;
+      while (before > 0 && !points[before].startsRun
+             && points[before].x == points[i].x
+             && points[before].y == points[i].y)
+        --before;
+      if (points[before].x == points[i].x && points[before].y == points[i].y)
+        before = i;
+
+      auto after = i;
+      while (after + 1 < points.size () && !points[after + 1].startsRun
+             && points[after].x == points[i].x
+             && points[after].y == points[i].y)
+        ++after;
+
+      auto const dx = points[after].x - points[before].x;
+      auto const dy = points[after].y - points[before].y;
+      auto const length = std::sqrt (dx * dx + dy * dy);
+      if (length < 1e-9f)
+        {
+          // A stroke that never moves at all carries no offset: there is no
+          // across, and a made-up one would draw a cord out of a single point.
+          frames[i].guard = 0.f;
+          continue;
+        }
+
+      frames[i].acrossX = -dy / length;
+      frames[i].acrossY = dx / length;
+    }
+
+  return frames;
 }
 
 }

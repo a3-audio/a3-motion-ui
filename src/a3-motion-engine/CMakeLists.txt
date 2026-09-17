@@ -74,6 +74,8 @@ target_sources("a3-motion-engine" PRIVATE
     PatternFile.hh
     PatternLibrary.cc
     PatternLibrary.hh
+    RecordingTrace.cc
+    RecordingTrace.hh
     tempo/BeatSync.cc
     tempo/BeatSync.hh
     tempo/BeatTrace.cc
