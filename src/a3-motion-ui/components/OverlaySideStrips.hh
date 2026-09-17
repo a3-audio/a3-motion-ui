@@ -84,8 +84,10 @@ sideStripsHaveAList (bool globalSettingsOpen, bool skinEditorOpen,
  *
  * The empty ground left and right of whatever page is open — the settings
  * menu, the skin editor, the colour picker — made into two drag zones.
- * Dragging in the **left** one walks the page's list; dragging in the
- * **right** one turns the value of whatever the list is on.
+ * Dragging in either one scrolls the page's list. Neither changes a value:
+ * that happens in a row's mask, opened by a double tap or Enter. The right
+ * strip used to turn the highlighted row, which made a scroll and an edit
+ * one misplaced drag apart.
  *
  * Two reasons it is one component rather than one per page:
  *
@@ -105,15 +107,9 @@ class OverlaySideStrips : public juce::Component
 public:
   OverlaySideStrips ();
 
-  /** Dragged left of the panel: move through the page's list. Positive is
-   *  further down the page, because the finger going down means going down. */
+  /** Dragged beside the panel, on either side: move through the page's list.
+   *  Positive is further down the page. */
   std::function<void (int delta)> onBrowse;
-  /** Dragged right of the panel: change the value the list is on. Positive
-   *  is more, as everywhere else in this interface. */
-  std::function<void (int delta)> onValue;
-  /** The finger came off after such a drag — where a page has something to
-   *  confirm, this is when. */
-  std::function<void ()> onValueReleased;
 
   /** Put the strips either side of `panel`, in this component's own
    *  coordinates. A panel that fills the width leaves no strips, and the
@@ -122,7 +118,7 @@ public:
 
 private:
   std::unique_ptr<TouchControl> _browseZone;
-  std::unique_ptr<TouchControl> _valueZone;
+  std::unique_ptr<TouchControl> _rightZone;
 };
 
 }

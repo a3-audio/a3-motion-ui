@@ -830,39 +830,47 @@ for. A typo does not fail loudly — the app sends correctly to an address
 nobody subscribes to. The reference for what the rest of the system expects is
 `web/a3-doc/src/ressources/osc.md`.
 
-#### The overlays' two side strips
+#### The menu pages: scroll, select, open a mask
 
-The strips left and right of an overlay's panel are drag zones, not margins. Dragging in the
-**left** one walks the highlighted row; dragging in the **right** one arms that row and changes
-its value, and letting go applies it. That is the encoder's two levels laid out as two *places*
-rather than as a press that switches between them, which is a state you have to remember while a
-room is waiting. It matters most where the list is longer than the screen — the skin editor — and
-that is the case a per-page solution would have got wrong.
+On every menu page — the main menu, the skin editor, the Network and other config pages — **a
+value changes in a mask and nowhere else**. A drag scrolls, a tap selects, a double tap or Enter
+opens the selected row. Asked for on 2026-09-17: *"kein edit ohne eingabemaske, das kollidiert mit
+scroll."* The old model was the encoder's two levels laid out for a finger — tap a value to arm it,
+drag it or the right strip to change it, let go to apply — and it put an edit one drag away from
+every scroll.
 
-`OverlaySideStrips` is **one component for all overlays**, a sibling of `OverlayButtons` under
-`MotionComponent`. It owns nothing but the two `TouchControl`s and asks the page it sits around
-for `panelBounds()`; `A3MotionUIComponent::updateOverlayButtons()` hands it the bounds of
-whichever overlay is open and routes `onBrowse`/`onValue`/`onValueReleased` to that page. Adding a
-new overlay means giving it a `panelBounds()` and a branch there, not building strips again — the
-first version did build them per page, and the second one existed only to be deleted.
+What "open" does depends on the row:
 
-They cover what used to pass touches through to the sphere. That was deliberate once and is not
-any more: with an overlay open there is nothing on the sphere worth grabbing. The menu panel is
-narrower for them — `globalSettingsSideZoneWidth` reserves a fifth of the width on each side,
-because a 32px margin is narrower than a fingertip and cannot be landed on without looking.
+| Row | Mask |
+|---|---|
+| main menu, a row with values (Skin, Sphere in Menu) | the list of its values replaces the rows (`GlobalSettingsComponent::openPicker`); the arrows walk it and the skin previews, a tap or Enter chooses, Escape or Back puts it back |
+| main menu, a row that leads somewhere | that page |
+| a number or text | the typing mask and Onboard; Enter keeps, Escape, Back and Close undo |
+| a skin number | the same, plus **− / +** keys (and the arrows) that step it live — dialling while watching the sphere lives here now |
+| a colour | the colour picker |
+| Save, Rename, Delete, Reset | fires — only on a double tap or Enter, never on a tap |
 
-**The list scrolls; it does not walk a selection.** A drag — in the left strip, over the row names,
-anywhere on the list that is not a value — moves the page in the finger's direction, the way it does
-on a phone, and a row is chosen by touching it. Both halves of that were wrong before: the drag ran
-*against* the hand, and the window was placed around the selected row (`_index - rows / 2`), so
-touching a row you could plainly see slid it into the middle and left your finger behind. The window
-is its own value now (`_scrollTop`) and `ListScroll.hh` holds the two rules — move by a drag, and
-move as little as possible to bring a selection into view.
+**Undo restores the whole document**, not the one number (`_documentBeforeMask`). A skin that does
+not state a value shows the theme's default in its row but reads as 0 from the document; putting
+"the old number" back wrote a 0 the file never had, and closing the editor saves.
 
-The right strip **arms on the first increment** rather than asking for a tap first: dragging there
-already means "change this". A row that leads somewhere (`opensSubmenu`) is skipped, since it has
-no value to turn, and the skin editor latches the row it started on (`_dragRow`) so a list that
-scrolls under a moving finger cannot hand the drag to a different row halfway through.
+The strips left and right of an overlay's panel are drag zones, not margins, and **both scroll**.
+`OverlaySideStrips` is one component for all overlays, a sibling of `OverlayButtons` under
+`MotionComponent`, asking the open page for `panelBounds()` — which for the main menu changes size
+while its list of values is open, so `updateOverlayButtons()` runs again then. The menu panel is
+narrower for them: `globalSettingsSideZoneWidth` reserves a fifth of the width on each side.
+
+**The list scrolls; it does not walk a selection.** A drag moves the page in the finger's direction,
+the way it does on a phone, and a row is chosen by touching it. The window is its own value
+(`_scrollTop`, `_pickerTop`) and `ListScroll.hh` holds the two rules — move by a drag, and move as
+little as possible to bring a selection into view.
+
+**Two fingers scroll a list as one.** Two fingers land on two hit areas, or twice on one, and each
+scrolled it — double speed, or a jump as the second restarted the first one's drag. Every scrollable
+area of the menu pages and both strips share `FingerLatch::forGroup (menuList)`: the first finger
+leads, others are ignored until it lifts. A leader whose page was hidden under it never sends its
+mouseUp, so a new finger takes over when JUCE says the leader is no longer down. Controls meant to
+be held two at a time — the channel grid's knobs — take no latch.
 
 **Clockmode is not in this menu.** It is a button in the clip settings bar, visible and switchable
 without opening anything — a setting in two places is a setting whose location you have to

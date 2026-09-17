@@ -20,7 +20,9 @@
 
 #include <gtest/gtest.h>
 
+#include <a3-motion-ui/components/FingerLatch.hh>
 #include <a3-motion-ui/components/OverlaySideStrips.hh>
+#include <a3-motion-ui/components/TouchControl.hh>
 
 using namespace a3;
 
@@ -78,4 +80,41 @@ TEST (OverlayStrips, TheMixerOverTheColourPickerIsStillNoList)
 {
   EXPECT_FALSE (sideStripsHaveAList (false, true, true, true));
   EXPECT_FALSE (sideStripsHaveAList (false, false, true, true));
+}
+
+// Both strips scroll, and neither changes a value: "kein edit ohne
+// eingabemaske, das kollidiert mit scroll." The right strip used to turn the
+// highlighted row and apply it on release -- an edit without a mask, one drag
+// away from a scroll.
+TEST (OverlayStrips, BothStripsScrollAndNeitherEdits)
+{
+  OverlaySideStrips strips;
+  strips.setBounds (0, 0, 768, 600);
+  strips.setPanel ({ 150, 0, 468, 600 });
+
+  int scrolled = 0;
+  strips.onBrowse = [&scrolled] (int) { ++scrolled; };
+
+  int zones = 0;
+  for (auto *child : strips.getChildren ())
+    if (auto *zone = dynamic_cast<TouchControl *> (child); zone != nullptr)
+      {
+        ++zones;
+        ASSERT_TRUE (zone->onDragIncrement);
+        zone->onDragIncrement (0, -1, 1);
+        if (zone->onDragEnd)
+          zone->onDragEnd (0, -1);
+      }
+
+  EXPECT_EQ (zones, 2);
+  EXPECT_EQ (scrolled, 2);
+}
+
+TEST (OverlayStrips, TheStripsShareTheMenuListsLatch)
+{
+  OverlaySideStrips strips;
+  for (auto *child : strips.getChildren ())
+    if (auto *zone = dynamic_cast<TouchControl *> (child); zone != nullptr)
+      EXPECT_EQ (zone->fingerLatch (),
+                 &FingerLatch::forGroup (FingerLatch::menuList));
 }

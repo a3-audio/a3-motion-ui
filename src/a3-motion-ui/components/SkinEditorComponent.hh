@@ -171,6 +171,12 @@ public:
    *  rather than leaving the editor. */
   bool isNaming () const { return _naming; }
   void finishNaming ();
+  /** Closes the mask without keeping anything: a number nudged with minus or
+   *  plus goes back to what it was when the mask opened. Escape and Back. */
+  void cancelNaming ();
+  /** What a double tap or Enter does to the selected row: open its mask, or
+   *  fire it if it is an action. */
+  void openBrowsedRow ();
 
   /** The touchscreen's way into whatever is being typed. */
   void typeIntoName (juce::juce_wchar character);
@@ -198,14 +204,16 @@ public:
   /** The path of the browsed parameter row, empty on an action row. */
   juce::String browsedPath () const;
 
-  /** Whether the browsed row is one a drag can turn — a plain number in a
-   *  document whose numbers are turned. An action row acts, a colour row
-   *  opens a picker and a text row opens the keyboard; none of those may be
-   *  set off by a finger that is only dragging past them. */
-  bool canTurnBrowsedRow () const;
 
   /** What is currently in the typing field. */
   juce::String typedText () const { return _nameEntry.buffer (); }
+
+  /** In a number's mask: one step up or down, applied at once. */
+  void stepTypedNumber (int delta);
+
+  /** Identities of the mask's two keys, so they can be told from a row. */
+  static constexpr int maskMinusKey = -1000;
+  static constexpr int maskPlusKey = -1001;
 
   /** Called whenever a value changed, so the caller can put the edited skin
    *  in force straight away — seeing the change is the whole point of
@@ -249,15 +257,11 @@ private:
   };
   std::vector<RowTouch> _rowTouch;
 
-  /** The absolute row a drag started on, or -1.
-   *
-   *  A drag has to stay on the row it began on. browseRow() moves the window
-   *  of drawn rows, resized() then re-labels the hit areas with their new
-   *  absolute rows — and the area under the finger comes to stand for a
-   *  different row mid-drag. Following it turned "drag the value up" into
-   *  "arm whatever scrolled under your finger", which on a colour row opened
-   *  the picker. */
-  int _dragRow = -1;
+  /** The mask's minus and plus keys, shown for a skin number only. */
+  std::unique_ptr<TouchControl> _maskMinus;
+  std::unique_ptr<TouchControl> _maskPlus;
+  bool hasStepKeys () const;
+  juce::Rectangle<int> maskKeyBounds (bool plus) const;
   std::unique_ptr<TouchControl> _listScroll;
 
   void createTouchControls ();
@@ -334,6 +338,10 @@ private:
   /** Set while a text parameter, rather than a skin name, is being typed. */
   juce::String _textPath;
   bool _typingNumber = false;
+  /** The document as it was when a number's mask opened, for
+   *  cancelNaming(). */
+  juce::String _documentBeforeMask;
+  bool _steppedInMask = false;
   Numbers _numbers = Numbers::Turned;
 };
 

@@ -27,6 +27,8 @@
 
 #include <a3-motion-ui/components/DragAccumulator.hh>
 
+#include <a3-motion-ui/components/FingerLatch.hh>
+
 namespace a3
 {
 
@@ -57,6 +59,12 @@ public:
   TouchControl ();
 
   void setIdentity (int primary, int secondary = -1);
+  int primary () const { return _primary; }
+
+  /** Share a list with other hit areas: while one finger drags any of them,
+   *  a second finger on any of them is ignored. See FingerLatch. */
+  void setFingerLatch (FingerLatch *latch) { _latch = latch; }
+  FingerLatch *fingerLatch () const { return _latch; }
 
   /** The finger going down, before anything is known about what it will
    *  do. Where selection belongs: doing it per increment instead made two
@@ -111,11 +119,14 @@ public:
   void mouseDown (juce::MouseEvent const &event) override;
   void mouseDrag (juce::MouseEvent const &event) override;
   void mouseUp (juce::MouseEvent const &event) override;
+  void visibilityChanged () override;
 
 private:
   int _primary = 0;
   int _secondary = -1;
   DragAccumulator _drag{ 12 };
+  FingerLatch *_latch = nullptr;
+  int _latchedSource = -1;
 
   /** When the last drag on this control let go, and whether it had moved
    *  anything. A screen has an edge, and the controls near it are the ones
