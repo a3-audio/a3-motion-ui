@@ -66,6 +66,12 @@ public:
   void setFingerLatch (FingerLatch *latch) { _latch = latch; }
   FingerLatch *fingerLatch () const { return _latch; }
 
+  /** A list's row height: one increment per row of finger, stepping half way
+   *  through a row so the list stays under the hand. 0 means the skin's
+   *  touchDragPixelsPerStep, stepping on whole steps as a knob does. */
+  void setPixelsPerStep (int pixels) { _pixelsPerStep = pixels; }
+  int pixelsPerStep () const;
+
   /** The finger going down, before anything is known about what it will
    *  do. Where selection belongs: doing it per increment instead made two
    *  fingers on two controls fight over the one selection and flicker. */
@@ -127,6 +133,7 @@ private:
   DragAccumulator _drag{ 12 };
   FingerLatch *_latch = nullptr;
   int _latchedSource = -1;
+  int _pixelsPerStep = 0;
 
   /** When the last drag on this control let go, and whether it had moved
    *  anything. A screen has an edge, and the controls near it are the ones

@@ -57,6 +57,10 @@ public:
    *  must not end as a tap. */
   void resume () { _resumed = true; }
 
+  /** Step once the movement is half way through a step rather than all the
+   *  way: for a list, which should stay under the finger. */
+  void stepAtHalfWay () { _halfWay = true; }
+
   /** Whether anything has moved under this gesture, counting a drag it was
    *  picked up from. */
   bool hasMoved () const { return _resumed || _emittedSteps != 0; }
@@ -65,6 +69,7 @@ private:
   int _pixelsPerStep;
   int _emittedSteps = 0;
   bool _resumed = false;
+  bool _halfWay = false;
 };
 
 }

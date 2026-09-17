@@ -297,6 +297,9 @@ public:
    *  used to be one: the window was placed around the selected row, so
    *  touching a row you could see slid it into the middle. */
   void scrollList (int steps);
+  /** How tall a row is with its gap: how far a finger moves the list by one. */
+  int rowPitch () const;
+  bool isHeadingRow (int index) const;
 
 private:
   /** The first row in view. Its own thing, not derived from `_index`. */

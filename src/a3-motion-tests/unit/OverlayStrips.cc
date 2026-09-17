@@ -118,3 +118,14 @@ TEST (OverlayStrips, TheStripsShareTheMenuListsLatch)
       EXPECT_EQ (zone->fingerLatch (),
                  &FingerLatch::forGroup (FingerLatch::menuList));
 }
+
+// Beside the list the finger moves the page as far as it would on it: the
+// page it sits around says how tall a row is.
+TEST (OverlayStrips, TheStripsTakeTheirStepFromThePage)
+{
+  OverlaySideStrips strips;
+  strips.setPixelsPerStep (34);
+  for (auto *child : strips.getChildren ())
+    if (auto *zone = dynamic_cast<TouchControl *> (child); zone != nullptr)
+      EXPECT_EQ (zone->pixelsPerStep (), 34);
+}

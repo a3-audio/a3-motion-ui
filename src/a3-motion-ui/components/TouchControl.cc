@@ -65,14 +65,20 @@ TouchControl::mouseDown (juce::MouseEvent const &event)
 
   // Read here rather than in the constructor: the skin can change while
   // the app runs, and a drag should count with the value in force now.
-  _drag = DragAccumulator{ theme ().touchDragPixelsPerStep };
+  _drag = DragAccumulator{ pixelsPerStep () };
+  if (_pixelsPerStep > 0)
+    _drag.stepAtHalfWay ();
 
   // A drag that ran out of screen and was picked straight back up is one
   // drag. Without this the second half was a fresh gesture, and on a key that
   // also taps -- the speed keys -- that tap threw away the value the first
   // half had just reached.
   constexpr int resumeMs = 700;
-  if (_lastDragEndedMs != 0
+  //
+  // Not on a list: there the finger coming down again right after a scroll is
+  // how a row is picked, and taking it for more of the drag swallowed the tap
+  // and the double tap that opens a row.
+  if (_pixelsPerStep == 0 && _lastDragEndedMs != 0
       && juce::Time::currentTimeMillis () - _lastDragEndedMs < resumeMs)
     _drag.resume ();
 
@@ -169,6 +175,14 @@ TouchControl::visibilityChanged ()
       _latch->release (_latchedSource);
       _latchedSource = -1;
     }
+}
+
+int
+TouchControl::pixelsPerStep () const
+{
+  // A list sets its row height, so the page follows the finger rather than
+  // running ahead of it; everything else keeps the skin's step.
+  return _pixelsPerStep > 0 ? _pixelsPerStep : theme ().touchDragPixelsPerStep;
 }
 
 }

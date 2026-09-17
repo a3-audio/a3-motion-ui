@@ -71,4 +71,11 @@ OverlaySideStrips::setPanel (juce::Rectangle<int> panel)
   _rightZone->setBounds (sides.removeFromRight (rightWidth));
 }
 
+void
+OverlaySideStrips::setPixelsPerStep (int pixels)
+{
+  _browseZone->setPixelsPerStep (pixels);
+  _rightZone->setPixelsPerStep (pixels);
+}
+
 }

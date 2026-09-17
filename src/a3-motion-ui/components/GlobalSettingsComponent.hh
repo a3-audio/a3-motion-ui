@@ -132,6 +132,8 @@ public:
   /** The first value the list shows, and moving it. */
   int pickerFirstVisible () const { return _pickerTop; }
   void scrollPicker (int steps);
+  /** How tall a row of the list is with its gap. */
+  int rowPitch () const;
 
   bool keyPressed (juce::KeyPress const &key) override;
   void mouseWheelMove (juce::MouseEvent const &,

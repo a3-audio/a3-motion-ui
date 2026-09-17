@@ -196,7 +196,8 @@ SkinEditorComponent::createTouchControls ()
       // edited.
       touch.name = std::make_unique<TouchControl> ();
       touch.name->onTap = [this] (int absoluteRow, int) {
-        browseRow (absoluteRow);
+        if (!isHeadingRow (absoluteRow))
+          browseRow (absoluteRow);
       };
       touch.name->onDoubleTap = [this] (int absoluteRow, int) {
         doubleTapRow (absoluteRow);
@@ -207,7 +208,8 @@ SkinEditorComponent::createTouchControls ()
 
       touch.value = std::make_unique<TouchControl> ();
       touch.value->onTap = [this] (int absoluteRow, int) {
-        browseRow (absoluteRow);
+        if (!isHeadingRow (absoluteRow))
+          browseRow (absoluteRow);
       };
       touch.value->onDoubleTap = [this] (int absoluteRow, int) {
         doubleTapRow (absoluteRow);
@@ -256,6 +258,9 @@ SkinEditorComponent::resized ()
   _listScroll->setVisible (listShown);
   if (listShown)
     _listScroll->setBounds (listContentBounds ());
+  // One row of list per row of finger. The skin's step (12 px) against a row
+  // of 34 ran the list three times faster than the hand, a row at a time.
+  _listScroll->setPixelsPerStep (rowPitch ());
 
   auto const rows = listShown ? visibleRows () : 0;
   auto const first = firstVisibleRow ();
@@ -267,20 +272,20 @@ SkinEditorComponent::resized ()
                          && index < totalRows ();
 
       auto &touch = _rowTouch[slot];
+      // Every area, shown or not: one scrolled into view mid-drag drags at
+      // the same rate as the rest.
+      touch.name->setPixelsPerStep (rowPitch ());
+      touch.value->setPixelsPerStep (rowPitch ());
       touch.name->setVisible (shown);
       touch.value->setVisible (shown);
       if (!shown)
         continue;
 
-      // A heading holds nothing, so nothing on it is worth touching. The
-      // list is still rolled by dragging over it — that is the scroll strip
-      // behind the rows, not these.
-      auto const isHeading = _rows[(size_t)index].kind == Row::Heading;
-      touch.name->setVisible (!isHeading);
-      touch.value->setVisible (!isHeading);
-      if (isHeading)
-        continue;
-
+      // Visible on a heading too. A drag stays with the area the finger went
+      // down on only while that area is visible, and scrolling re-labels the
+      // areas: one that came to stand for a heading was hidden, and the drag
+      // under it stopped half way -- on the list, never beside it. A heading
+      // ignores the tap instead (see the tap handlers).
       auto const row = visibleRowBounds (static_cast<int> (slot));
       touch.name->setIdentity (index);
       touch.value->setIdentity (index);
@@ -1230,6 +1235,19 @@ SkinEditorComponent::paint (juce::Graphics &g)
                                             theme ().alphaInactive)));
       g.drawText (shown, valueArea, juce::Justification::centredRight, true);
     }
+}
+
+bool
+SkinEditorComponent::isHeadingRow (int index) const
+{
+  return index >= 0 && index < totalRows ()
+         && _rows[(size_t)index].kind == Row::Heading;
+}
+
+int
+SkinEditorComponent::rowPitch () const
+{
+  return static_cast<int> (theme ().fontSize (FontRole::Body) * 1.9f) + rowGap;
 }
 
 }
