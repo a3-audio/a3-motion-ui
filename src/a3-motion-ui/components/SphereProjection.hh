@@ -318,4 +318,65 @@ sampleDiscStep (float x1, float y1, float x2, float y2,
     }
 }
 
+
+/**
+ * Which of a run's points survive when it is thinned to points at least
+ * `spacing` apart, measured along the line.
+ *
+ * For the cone of nearness, and for nothing else. The cone is ten nested
+ * strokes up to sixty-eight texels across: it cannot show the difference
+ * between two points two texels apart, but the stroker pays for both — an arc
+ * at every joint, ten times over. At a quarter of a stroke's own width the
+ * chord between two kept points never leaves the stroke it is inside, so the
+ * field is the same and the work is a fraction of it. The core and the
+ * strands are hairlines and are never thinned.
+ *
+ * Three points are kept whatever the spacing says: the first, the last, and
+ * every pen lift together with the point that ends the run before it. The
+ * pieces of the cone overlap by one point — each begins where the last one
+ * ended — and a lift is where the line genuinely stops, at a take's gaps and
+ * at the disc's origin.
+ *
+ * The distance is measured from the last point actually kept rather than from
+ * the one before in the list: measured per point, a run of steps just under
+ * the spacing would keep every one of them and thin nothing at all.
+ */
+inline std::vector<std::size_t>
+thinByArcLength (std::vector<juce::Point<float> > const &points,
+                 std::vector<bool> const &lifts,
+                 float spacing)
+{
+  std::vector<std::size_t> kept;
+  if (points.empty ())
+    return kept;
+
+  auto const minimum = spacing * spacing;
+  juce::Point<float> last;
+  auto have = false;
+
+  for (std::size_t i = 0; i < points.size (); ++i)
+    {
+      auto const liftsHere = i > 0 && i < lifts.size () && lifts[i];
+
+      if (!have || liftsHere)
+        {
+          kept.push_back (i);
+          last = points[i];
+          have = true;
+          continue;
+        }
+
+      auto const endsRun = i + 1 == points.size ()
+                           || (i + 1 < lifts.size () && lifts[i + 1]);
+
+      if (!endsRun && points[i].getDistanceSquaredFrom (last) < minimum)
+        continue;
+
+      kept.push_back (i);
+      last = points[i];
+    }
+
+  return kept;
+}
+
 }

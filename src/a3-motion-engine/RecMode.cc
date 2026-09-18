@@ -24,19 +24,26 @@ namespace a3
 {
 
 bool
-shouldWriteTick (RecMode mode, bool fingerDown, bool hasTouched)
+shouldWriteTick (RecMode mode, FingerHistory const &finger)
 {
-  if (fingerDown)
+  if (finger.down)
     return true;
+
+  // The lap the finger was lifted in is the one the hold belongs to. Without
+  // a length there is no lap to end at, and the old behaviour stands.
+  auto const holdIsStillInItsLap
+      = finger.lapTicks <= 0
+        || (finger.ticksAtLift / finger.lapTicks)
+               == (finger.ticksNow / finger.lapTicks);
 
   switch (mode)
     {
     case RecMode::Touch:
       return false;
     case RecMode::Latch:
-      return hasTouched;
+      return finger.hasTouched && holdIsStillInItsLap;
     case RecMode::Write:
-      return true;
+      return holdIsStillInItsLap;
     }
 
   return false;

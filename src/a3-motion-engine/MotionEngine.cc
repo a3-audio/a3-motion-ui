@@ -1073,6 +1073,8 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
   _recordingLastComplete.clear ();
   _recordingTicks = 0;
   _recordingLap = 0;
+  _recordingTicksAtLift = 0;
+  _recordingFingerWasDown = false;
 
   // Calculate adaptive sub-sampling factor based on recording length
   _recordingSubSamplingFactor = calculateSubSamplingFactor (length, _tempoClock.getBeatsPerBar ());
@@ -1273,6 +1275,13 @@ MotionEngine::performRecording ()
           _recordingHeldPosition2D = _recordingPosition2D;
           _recordingHasTouched = true;
         }
+      else if (_recordingFingerWasDown)
+        {
+          // Where the write head was when the finger left: the hold belongs
+          // to that lap and ends with it. See RecMode::shouldWriteTick.
+          _recordingTicksAtLift = static_cast<long long> (ticksSinceStart);
+        }
+      _recordingFingerWasDown = fingerDown;
 
       // With the finger up, Latch and Write carry on writing where it was left
       // — or, in Write before it was ever put down, where the take started.
@@ -1280,7 +1289,10 @@ MotionEngine::performRecording ()
           = fingerDown ? _recordingPosition2D : _recordingHeldPosition2D;
 
       if (shouldWriteTick (_recMode.load (std::memory_order_relaxed),
-                           fingerDown, _recordingHasTouched)
+                           { fingerDown, _recordingHasTouched,
+                             _recordingTicksAtLift,
+                             static_cast<long long> (ticksSinceStart),
+                             static_cast<long long> (ticksPatternLength) })
           && positionToWrite.isValid ())
         for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
           {

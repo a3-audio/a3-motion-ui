@@ -395,6 +395,11 @@ private:
   std::vector<Pos> _recordingLastComplete;
   long long _recordingTicks = 0;
   long long _recordingLap = 0;
+  /** Where the write head was when the finger last came up, and whether it
+   *  was down on the previous tick — a hold ends with the lap it began in,
+   *  see RecMode::shouldWriteTick. */
+  long long _recordingTicksAtLift = 0;
+  bool _recordingFingerWasDown = false;
   void finishRecording ();
   
   // High-resolution recording counter to sample motion between ticks

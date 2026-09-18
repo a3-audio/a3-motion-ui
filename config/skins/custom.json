@@ -132,6 +132,7 @@
     "lineThickness": 0.02
   },
   "sphereScale": 0.83,
+  "sphereLimb": 0.18,
   "fontHeader": 12.53,
   "fontBody": 14.66,
   "clipSettingsHeightScale": 0.81,

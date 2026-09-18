@@ -21,6 +21,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <a3-motion-ui/FrameRate.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
 
 #include <functional>
@@ -339,6 +340,19 @@ private:
   juce::Image *strandMapFor (int channel);
   float _energyVuMax = 0.05f, _energyCurve = 0.8f;
   float _energyAttack = 0.05f, _energyDecay = 0.25f;
+
+  /** The sphere is rendered into this at twice the screen's resolution and
+   *  drawn down onto it, so every edge the shader cuts gets four samples
+   *  instead of one. Everything the shader draws is a threshold on a field —
+   *  the cord, the strands, the filaments, the bolts, the towers' edges — and
+   *  a threshold has no width to antialias by. Measured on the device, the
+   *  cord's outer edge went from dark to full brightness across a single
+   *  pixel; that step is what reads as pixelated, and no finer map fixes it
+   *  because the map was never what it was standing on. */
+  juce::OpenGLFrameBuffer _superBuffer;
+
+  FrameRate _frameRate;
+  bool const _tracesFrames = FrameRate::wanted ();
 
   juce::uint32 _startMillis = 0;
 

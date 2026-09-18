@@ -214,6 +214,7 @@ uniform sampler2D uStrandMap2;
 uniform sampler2D uStrandMap3;
 // Which of the four have anything in them, and how far the maps reach.
 uniform vec4  uLineOn;
+uniform float uSphereLimb;   // how far the ball's light fades before its edge
 uniform float uLineExtent;
 uniform float uLineFarSide;    // dimmest a line goes at the far pole
 // How much of each of the line's four effects there is: glow, filaments,
@@ -753,7 +754,15 @@ vec3 lineGlow (vec2 uv, int i)
     // the two keeps the core alone -- a line exactly as wide as the stroke that
     // wrote it, drawn here where it can be dimmed by depth and hidden by a
     // tower like everything else, instead of pasted over the finished frame.
-    float cord = smoothstep (0.866, 0.877, near);
+    // Antialiased by how fast the field moves across this pixel rather than
+    // by a fixed pair of numbers. The map is 512 texels over 2.6 radii, about
+    // one and a half screen pixels a texel, so a threshold eleven thousandths
+    // wide falls inside a single texel and the cord came out as a staircase.
+    // fwidth() is the width of one pixel in the field's own units, which is
+    // exactly the band an edge has to be smoothed over -- and it follows the
+    // zoom instead of being retuned for it.
+    float cordEdge = max (fwidth (near), 0.0008);
+    float cord = smoothstep (0.8715 - cordEdge, 0.8715 + cordEdge, near);
 
     return (col * wide * 0.055 * uLineEffects.x
           + mix (hot, uBoltCoreColour, 0.30) * cord * 0.95 * uLineEffects.x
@@ -1002,7 +1011,10 @@ void braidLight (vec2 uv, int i, out vec3 back, out vec3 front,
     // so the filter cannot rub it out, and this pulls it back in.
     // Soft enough that a strand's own texels do not show as steps where it
     // turns across the cord — tighter than this read as a chain of links.
-    float line = smoothstep (0.16, 0.82, sa.x);
+    // Same reason as the cord's edge above: the strand map is the same 512
+    // texels, and a fixed band drew its three strands as steps.
+    float strandEdge = max (0.33, fwidth (sa.x) * 1.5);
+    float line = smoothstep (0.49 - strandEdge, 0.49 + strandEdge, sa.x);
     float depth = lineDepth (uv, i);
     vec3 col = getBlobCol (i);
 
@@ -1974,6 +1986,15 @@ void main ()
     float aaWidth = 2.0 / uSphereRadius;
     float surfaceMix = smoothstep (1.0 + aaWidth, 1.0 - aaWidth, dist);
 
+    // How the ball's *light* ends, as opposed to where its body does. A blob
+    // at standard elevation sits on the equator, and seen from above the
+    // equator is the silhouette: with the light stopping on the silhouette's
+    // own two pixels, half of that blob lay over a ground twice as bright as
+    // the other half, and it read as a blob cut in two. A limb is what a
+    // sphere has anyway.
+    float limbWidth = max (aaWidth, uSphereLimb);
+    float limbMix = smoothstep (1.0 + aaWidth, 1.0 - limbWidth, dist);
+
     // ── Outside sphere contribution ─────────────────────────────
     vec3 colOut = vec3 (0.0);
     if (dist > 1.0 - aaWidth)
@@ -2109,7 +2130,7 @@ void main ()
     // Blend outside and surface with smooth AA transition
     // Outside: start with solid background, add glow/beams on top
     vec3 colOutFinal = uBgColour + colOut;
-    col = mix (colOutFinal, colSurf, surfaceMix);
+    col = mix (colOutFinal, colSurf, limbMix);
 
     // The blobs go on last and additively. Last, because they are light and
     // light does not get occluded by the glass it shines through -- the sphere
@@ -2190,13 +2211,20 @@ void main ()
     // loudspeaker is not glass, and a trajectory showing straight through a
     // three-metre stack says the stack is not there.
     blobs *= 1.0 - boxCover * uBoxOcclude;
-    col += blobs;
+    // Added after the floor, not here: the floor darkens whatever is behind
+    // it, and a blob at ear height is in front of it. Added before, a blob at
+    // standard elevation -- which in the overhead view sits exactly on the
+    // silhouette -- had its outer half darkened to a sixth while its inner
+    // half kept two thirds, and that step read as the blob being cut in two.
+    // "die blobs am sphärenrand abgeschnitten."
 
     // Semi-transparent sphere: alpha < 1 on the sphere surface so
     // blobs on the back side remain partially visible through it.
     // Outside the sphere is fully opaque background.
     float sphereAlpha = 0.75;  // sphere surface transparency
-    alpha = mix (1.0, sphereAlpha, surfaceMix);
+    // With the limb, not the silhouette: a colour that fades while the
+    // transparency does not is the same step again in the same place.
+    alpha = mix (1.0, sphereAlpha, limbMix);
 
     // A cabinet in front of the ball is solid: the glass behind it is not seen
     // through it.
@@ -2237,6 +2265,11 @@ void main ()
     // floor, and dimmed the same way.
     vec3 balls = ballLightning (uvScene) * floorBehind;
     col += balls;
+
+    // The blobs and everything their lines throw off: light from things that
+    // stand at ear height, above the floor, so the floor neither darkens them
+    // nor is drawn over them.
+    col += blobs;
     alpha = clamp (alpha + max (balls.r, max (balls.g, balls.b)) * 0.8, 0.0, 1.0);
 
     gl_FragColor = vec4 (col, alpha);
@@ -2416,6 +2449,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uFloorDark     = glGetUniformLocation (pid, "uFloorDark");
   _uFloorBeams    = glGetUniformLocation (pid, "uFloorBeams");
   _uFloorBeamInner = glGetUniformLocation (pid, "uFloorBeamInner");
+  _uSphereLimb    = glGetUniformLocation (pid, "uSphereLimb");
   _uBoxOcclude    = glGetUniformLocation (pid, "uBoxOcclude");
   _uFloorGrain    = glGetUniformLocation (pid, "uFloorGrain");
   _uBallLevel     = glGetUniformLocation (pid, "uBallLevel");
@@ -2811,6 +2845,8 @@ SphereShader::uploadStackGeometry ()
     glUniform1f (_uFloorBeamInner, _spotCfg.floorBeamInner);
   if (_uBoxOcclude >= 0)
     glUniform1f (_uBoxOcclude, _spotCfg.boxOcclude);
+  if (_uSphereLimb >= 0)
+    glUniform1f (_uSphereLimb, _spotCfg.sphereLimb);
   if (_uFloorGrain >= 0)
     glUniform1f (_uFloorGrain, _spotCfg.floorGrain);
   if (_uBallLevel >= 0) glUniform1f (_uBallLevel, _spotCfg.ballLevel);

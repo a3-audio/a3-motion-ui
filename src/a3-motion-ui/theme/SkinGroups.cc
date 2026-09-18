@@ -59,7 +59,7 @@ constexpr Group groups[] = {
                 "alphaSecondary", "alphaTextStrong", "alphaActive" } },
   { "Channels", { "channels.*" } },
   { "Sphere", { "sphereSurface", "sphereRim", "sphereEnvironment",
-                "sphereScale", "boltCore", "backgroundGlow" } },
+                "sphereScale", "sphereLimb", "boltCore", "backgroundGlow" } },
   { "Trajectory", { "trajectoryThickness", "braidRadius", "braidWeave", "braidTurns",
                     "braidSpin", "braidStrands", "lineGlow", "lineFilament",
                     "lineBolt", "lineHeat" } },
