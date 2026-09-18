@@ -753,7 +753,15 @@ vec3 lineGlow (vec2 uv, int i)
     // the two keeps the core alone -- a line exactly as wide as the stroke that
     // wrote it, drawn here where it can be dimmed by depth and hidden by a
     // tower like everything else, instead of pasted over the finished frame.
-    float cord = smoothstep (0.866, 0.877, near);
+    // Antialiased by how fast the field moves across this pixel rather than
+    // by a fixed pair of numbers. The map is 512 texels over 2.6 radii, about
+    // one and a half screen pixels a texel, so a threshold eleven thousandths
+    // wide falls inside a single texel and the cord came out as a staircase.
+    // fwidth() is the width of one pixel in the field's own units, which is
+    // exactly the band an edge has to be smoothed over -- and it follows the
+    // zoom instead of being retuned for it.
+    float cordEdge = max (fwidth (near), 0.0008);
+    float cord = smoothstep (0.8715 - cordEdge, 0.8715 + cordEdge, near);
 
     return (col * wide * 0.055 * uLineEffects.x
           + mix (hot, uBoltCoreColour, 0.30) * cord * 0.95 * uLineEffects.x
@@ -1002,7 +1010,10 @@ void braidLight (vec2 uv, int i, out vec3 back, out vec3 front,
     // so the filter cannot rub it out, and this pulls it back in.
     // Soft enough that a strand's own texels do not show as steps where it
     // turns across the cord — tighter than this read as a chain of links.
-    float line = smoothstep (0.16, 0.82, sa.x);
+    // Same reason as the cord's edge above: the strand map is the same 512
+    // texels, and a fixed band drew its three strands as steps.
+    float strandEdge = max (0.33, fwidth (sa.x) * 1.5);
+    float line = smoothstep (0.49 - strandEdge, 0.49 + strandEdge, sa.x);
     float depth = lineDepth (uv, i);
     vec3 col = getBlobCol (i);
 
