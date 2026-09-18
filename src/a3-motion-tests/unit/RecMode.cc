@@ -36,9 +36,9 @@ namespace
 
 TEST (RecMode, EveryModeWritesUnderTheFinger)
 {
-  EXPECT_TRUE (shouldWriteTick (RecMode::Touch, true, true));
-  EXPECT_TRUE (shouldWriteTick (RecMode::Latch, true, true));
-  EXPECT_TRUE (shouldWriteTick (RecMode::Write, true, true));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Touch, { true, true, 0, 0, 1024 }));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Latch, { true, true, 0, 0, 1024 }));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Write, { true, true, 0, 0, 1024 }));
 }
 
 // Touch is punch-out: lift the finger and the pass leaves what earlier passes
@@ -46,25 +46,25 @@ TEST (RecMode, EveryModeWritesUnderTheFinger)
 // stays the default.
 TEST (RecMode, TouchWritesOnlyUnderTheFinger)
 {
-  EXPECT_FALSE (shouldWriteTick (RecMode::Touch, false, false));
-  EXPECT_FALSE (shouldWriteTick (RecMode::Touch, false, true));
+  EXPECT_FALSE (shouldWriteTick (RecMode::Touch, { false, false, 0, 10, 1024 }));
+  EXPECT_FALSE (shouldWriteTick (RecMode::Touch, { false, true, 0, 10, 1024 }));
 }
 
 // Latch takes hold at the first touch and does not let go: after the finger
 // lifts it carries on writing the position it was left at.
 TEST (RecMode, LatchKeepsWritingOnceTouched)
 {
-  EXPECT_FALSE (shouldWriteTick (RecMode::Latch, false, false))
+  EXPECT_FALSE (shouldWriteTick (RecMode::Latch, { false, false, 0, 10, 1024 }))
       << "nothing has been touched yet, so there is nothing to hold";
-  EXPECT_TRUE (shouldWriteTick (RecMode::Latch, false, true));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Latch, { false, true, 0, 10, 1024 }));
 }
 
 // Write overwrites the whole pass whether it is touched or not — that is what
 // makes it the one that clears an old take out of the way.
 TEST (RecMode, WriteOverwritesEvenUntouched)
 {
-  EXPECT_TRUE (shouldWriteTick (RecMode::Write, false, false));
-  EXPECT_TRUE (shouldWriteTick (RecMode::Write, false, true));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Write, { false, false, 0, 10, 1024 }));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Write, { false, true, 0, 10, 1024 }));
 }
 
 // Before the first touch, Latch and Write part company. Getting this the wrong
@@ -72,8 +72,61 @@ TEST (RecMode, WriteOverwritesEvenUntouched)
 // Write's job.
 TEST (RecMode, LatchAndWriteDifferBeforeTheFirstTouch)
 {
-  EXPECT_NE (shouldWriteTick (RecMode::Latch, false, false),
-             shouldWriteTick (RecMode::Write, false, false));
+  EXPECT_NE (shouldWriteTick (RecMode::Latch, { false, false, 0, 10, 1024 }),
+             shouldWriteTick (RecMode::Write, { false, false, 0, 10, 1024 }));
+}
+
+// A hold ends with the lap it began in. Found on the device on 2026-09-18:
+// recording in Latch with the finger up wrote the held position into every
+// tick as the write head came round, so the figure that had just been drawn
+// was eaten point by point -- a take of 569 points with 251 of them the same
+// place, and the next one a single dot. "die gezeichnete trajektorie
+// verkürzt sich wenn keine toucheingabe passiert auf 0 > reultat aufnahme
+// leer."
+//
+// Holding to the end of the lap is what Latch is for: the rest of that pass
+// stays where the hand left it. Holding *past* it is not a hold any more, it
+// is an eraser going round and round.
+TEST (RecMode, LatchHoldsToTheEndOfTheLapAndNoFurther)
+{
+  constexpr long long lap = 1024;
+
+  // Lifted a quarter of the way in: the rest of that lap is held.
+  EXPECT_TRUE (shouldWriteTick (RecMode::Latch,
+                                { false, true, 256, 300, lap }));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Latch,
+                                { false, true, 256, 1023, lap }));
+
+  // The next lap writes nothing until the finger comes down again.
+  EXPECT_FALSE (shouldWriteTick (RecMode::Latch,
+                                 { false, true, 256, 1024, lap }));
+  EXPECT_FALSE (shouldWriteTick (RecMode::Latch,
+                                 { false, true, 256, 4000, lap }));
+}
+
+TEST (RecMode, WriteAlsoStopsAtTheLapEnd)
+{
+  constexpr long long lap = 1024;
+
+  EXPECT_TRUE (shouldWriteTick (RecMode::Write, { false, false, 0, 900, lap }))
+      << "the first lap is what Write clears";
+  EXPECT_FALSE (shouldWriteTick (RecMode::Write,
+                                 { false, false, 0, 1100, lap }));
+}
+
+// The finger decides first, whatever the laps say.
+TEST (RecMode, UnderTheFingerTheLapDoesNotMatter)
+{
+  EXPECT_TRUE (shouldWriteTick (RecMode::Latch, { true, true, 0, 9999, 1024 }));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Write, { true, true, 0, 9999, 1024 }));
+}
+
+// A take with no length known behaves as it always did: there is no lap to
+// end at.
+TEST (RecMode, WithoutALapLengthNothingChanges)
+{
+  EXPECT_TRUE (shouldWriteTick (RecMode::Latch, { false, true, 0, 9999, 0 }));
+  EXPECT_TRUE (shouldWriteTick (RecMode::Write, { false, false, 0, 9999, 0 }));
 }
 
 TEST (RecMode, NamesRoundTrip)

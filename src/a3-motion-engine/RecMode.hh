@@ -42,11 +42,13 @@ enum class RecMode
   Touch,
 
   /** Takes hold at the first touch and keeps writing after the finger lifts,
-   *  holding the position it was left at, until the take ends. */
+   *  holding the position it was left at -- to the end of that lap, and no
+   *  further. See shouldWriteTick. */
   Latch,
 
-  /** Writes the whole pass, touched or not. The one that clears an old take
-   *  out of the way rather than adding to it. */
+  /** Writes the whole pass, touched or not: the one that clears an old take
+   *  out of the way rather than adding to it. That is one pass, not every
+   *  pass -- see shouldWriteTick. */
   Write
 };
 
@@ -80,7 +82,31 @@ recMenuIndex (RecMode mode)
  *  `hasTouched` is about the take, not the tick: whether the finger has been
  *  down at any point since the take began. It is what separates Latch from
  *  Write, which are otherwise the same. */
-bool shouldWriteTick (RecMode mode, bool fingerDown, bool hasTouched);
+/** Where the finger is, and how far the take has run.
+ *
+ *  `ticksAtLift` is where the write head was when the finger last came up,
+ *  and `ticksNow` where it is; both counted from the start of the take, so
+ *  they keep counting across laps. `lapTicks` is the take's own length. */
+struct FingerHistory
+{
+  bool down = false;
+  bool hasTouched = false;
+  long long ticksAtLift = 0;
+  long long ticksNow = 0;
+  long long lapTicks = 0;
+};
+
+/** Whether this tick is written.
+ *
+ *  **A hold ends with the lap it began in.** Recording runs round and round
+ *  inside the take's length, so a hold that outlives its lap comes back to
+ *  where the figure is and writes the held position over it, tick by tick.
+ *  Found on the device on 2026-09-18: a take of 569 points with 251 of them
+ *  the same place, and the next one a single dot -- *"die gezeichnete
+ *  trajektorie verkürzt sich wenn keine toucheingabe passiert auf 0 >
+ *  reultat aufnahme leer."* Holding to the end of the pass is what Latch is
+ *  for; holding past it is an eraser going round. */
+bool shouldWriteTick (RecMode mode, FingerHistory const &finger);
 
 /** Whether the take should be drawn over what was in the slot before it.
  *
