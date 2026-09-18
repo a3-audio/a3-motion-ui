@@ -20,6 +20,8 @@
 
 #include "MainWindow.hh"
 
+#include <a3-motion-ui/WindowReport.hh>
+
 #include "Config.hh"
 
 namespace a3
@@ -59,6 +61,12 @@ void
 MainWindow::resized ()
 {
   juce::ResizableWindow::resized ();
+
+  // Every size this window is given, with the screen and the scale it was
+  // given it at. A cold start lands here two or three times while i3 turns
+  // the panel and rotates it, and that sequence is the one thing about this
+  // fault nobody has ever been able to read afterwards. See WindowReport.hh.
+  logWindowReport (getScreenBounds ());
 
   auto const bounds = getLocalBounds ();
   _viewport.setBounds (bounds);
