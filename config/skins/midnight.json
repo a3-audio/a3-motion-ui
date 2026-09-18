@@ -117,6 +117,7 @@
     "lineThickness": 0.02
   },
   "sphereScale": 0.84,
+  "sphereLimb": 0.18,
   "surface": {
     "r": 9,
     "g": 12,

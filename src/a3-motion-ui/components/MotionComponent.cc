@@ -1120,6 +1120,9 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.floorBeams = cfgF (sl, "floorBeams", 1.4f);
     sc.floorBeamInner = cfgF (sl, "floorBeamInner", 0.02f);
     sc.boxOcclude = cfgF (sl, "boxOcclude", 0.85f);
+    // Off the root rather than out of the speaker-light block: it is the
+    // ball's own edge, and it is grouped under Sphere in the editor.
+    sc.sphereLimb = cfgF (config, "sphereLimb", 0.18f);
     sc.floorGrain = cfgF (sl, "floorGrain", 14.f);
     sc.ballLevel = cfgF (sl, "ballLevel", 1.f);
     sc.ballCount = cfgF (sl, "ballCount", 3.f);

@@ -184,6 +184,7 @@ public:
     float floorBeams = 1.4f;   // how strongly the beams cross it
     float floorBeamInner = 0.02f; // how far in a floor bolt runs
     float boxOcclude = 0.85f;  // how far a cabinet hides what is behind it
+    float sphereLimb = 0.18f;  // how far the ball's light fades before its edge
     float floorGrain = 14.f;   // how fine the floor's own texture is
     float ballLevel = 1.f;     // how strongly the subs throw ball lightning
     float ballCount = 3.f;     // balls per sub stack at once
@@ -371,6 +372,7 @@ private:
   GLint _uFloorDark = -1;
   GLint _uFloorBeams = -1;
   GLint _uFloorBeamInner = -1;
+  GLint _uSphereLimb = -1;
   GLint _uBoxOcclude = -1;
   GLint _uFloorGrain = -1;
   GLint _uBallLevel = -1;
