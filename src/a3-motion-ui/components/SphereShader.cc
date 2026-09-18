@@ -2211,7 +2211,12 @@ void main ()
     // loudspeaker is not glass, and a trajectory showing straight through a
     // three-metre stack says the stack is not there.
     blobs *= 1.0 - boxCover * uBoxOcclude;
-    col += blobs;
+    // Added after the floor, not here: the floor darkens whatever is behind
+    // it, and a blob at ear height is in front of it. Added before, a blob at
+    // standard elevation -- which in the overhead view sits exactly on the
+    // silhouette -- had its outer half darkened to a sixth while its inner
+    // half kept two thirds, and that step read as the blob being cut in two.
+    // "die blobs am sphärenrand abgeschnitten."
 
     // Semi-transparent sphere: alpha < 1 on the sphere surface so
     // blobs on the back side remain partially visible through it.
@@ -2260,6 +2265,11 @@ void main ()
     // floor, and dimmed the same way.
     vec3 balls = ballLightning (uvScene) * floorBehind;
     col += balls;
+
+    // The blobs and everything their lines throw off: light from things that
+    // stand at ear height, above the floor, so the floor neither darkens them
+    // nor is drawn over them.
+    col += blobs;
     alpha = clamp (alpha + max (balls.r, max (balls.g, balls.b)) * 0.8, 0.0, 1.0);
 
     gl_FragColor = vec4 (col, alpha);

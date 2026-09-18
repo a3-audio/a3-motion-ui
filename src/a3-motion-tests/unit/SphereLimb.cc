@@ -92,3 +92,37 @@ TEST (SphereLimb, TheShippedSkinCarriesIt)
   EXPECT_TRUE (skin.hasProperty ("sphereLimb"))
       << "a value nobody can reach in the editor is a value nobody will tune";
 }
+
+// The one that actually cut them. The floor darkens what is behind it, and it
+// is applied at the very end because everything else adds light -- so it was
+// darkening the blobs too. Outside the silhouette that is the full darkening
+// and inside only a third of it (uFloorThrough), which put a step across every
+// blob at standard elevation: measured on the yellow one, 148 above the
+// silhouette against 198 below it. A blob stands at ear height, above the
+// floor, so its light is added after the floor rather than before.
+TEST (SphereLimb, TheFloorDoesNotDarkenTheBlobs)
+{
+  auto const shader = juce::File (A3_UI_SOURCE_DIR)
+                          .getChildFile ("components/SphereShader.cc")
+                          .loadFileAsString ();
+
+  juce::StringArray lines;
+  lines.addLines (shader);
+
+  auto blobsAdded = -1;
+  auto floorDarkens = -1;
+  for (int i = 0; i < lines.size (); ++i)
+    {
+      if (lines[i].contains ("col += blobs;"))
+        blobsAdded = i;
+      if (lines[i].contains ("col = mix (col, col * uFloorDark"))
+        floorDarkens = i;
+    }
+
+  EXPECT_GT (blobsAdded, 0) << "nothing draws the blobs";
+  EXPECT_GT (floorDarkens, 0) << "the floor darkens nothing";
+  EXPECT_GT (blobsAdded, floorDarkens)
+      << "the blobs are added before the floor darkens what is behind it, so "
+         "the floor cuts every blob that sits on the silhouette";
+}
+
