@@ -30,7 +30,12 @@ it, for building against a JUCE somewhere else.
 ./build.sh -d           # Debug build
 ./build.sh -c -r        # Clean + Release build
 ./build.sh -r -s        # Release build + restart the a3-motion.service systemd unit
+./build.sh -t           # ... and build the test runner too (see Tests below)
 ```
+
+`build.sh` builds the app and **not** the tests unless given `-t`: a full test build takes minutes
+where an incremental app build takes about one, and the quick way to the device has to stay quick.
+That trade is the reason `test.sh` exists — see Tests.
 
 `build.sh` configures CMake into `build/` with `-DHARDWARE_INTERFACE_ENABLED=ON` and builds only
 the `a3-motion-ui_Standalone` target. It also symlinks `resources/` and `config/` into the build's
@@ -69,9 +74,28 @@ tuning, per-channel colours). The build symlinks this directory next to the bina
 Unit tests use GoogleTest via `src/a3-motion-tests` (built when `TESTS_ENABLED=ON`, the default).
 
 ```bash
+./test.sh                             # build the tests, then run them all
+./test.sh -- -R <TestSuiteName>       # ... only that suite
+./test.sh -d                          # the Debug build
+```
+
+**Use `test.sh`, not `ctest` on its own.** `ctest` *runs* a binary; it does not *build* one, and
+`build.sh` builds only the app unless given `-t`. So `./build.sh && ctest` runs whatever test
+runner was built last — on 2026-09-13 that was the evening before, and two runs were reported as
+green having tested nothing of that morning's work. Demonstrated the other way round on
+2026-09-18: with a planted test deleted from the source, `./build.sh && ctest` still ran it and
+still failed on it. A red result announces itself; a green one that tested the wrong code never
+does.
+
+`test.sh` therefore does the two steps in the order that makes the answer true, and prints **when
+the runner it ran was built**. Quote that timestamp when reporting a result — it is the difference
+between "the tests are green" and "the tests are green for the code that is actually here".
+
+The two steps by hand, if you need them:
+
+```bash
 cmake --build build --target a3-motion-tests -j4
-cd build && ctest                                  # run all tests
-cd build && ctest -R <TestSuiteName>                # run a single test/suite
+cd build && ctest
 ```
 
 Tests are registered via `gtest_discover_tests`; test sources live in

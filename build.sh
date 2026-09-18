@@ -7,6 +7,7 @@
 #   -d, --debug     Build Debug (slow, with symbols)
 #   -r, --release   Build Release (fast, optimized) [default]
 #   -c, --clean     Clean build directory first
+#   -t, --tests     Build the test runner too (see ./test.sh)
 #   -s, --restart   Restart systemd service after build
 #   -h, --help      Show this help
 #
@@ -15,6 +16,13 @@
 #   ./build.sh -d           # Debug build
 #   ./build.sh -r -s        # Release build + restart service
 #   ./build.sh -c -r -s     # Clean + Release + restart
+#
+# This builds the app. It does NOT build the tests unless asked, because a
+# full test build takes minutes where an incremental app build takes about
+# one, and the quick way to the device has to stay quick. That is also why
+# ./test.sh exists: ctest runs a binary, it does not build one, so a plain
+# build.sh followed by ctest tests whatever was built last -- which on
+# 2026-09-13 was the evening before, twice reported as green.
 
 set -e
 
@@ -24,6 +32,7 @@ SRC_DIR="$SCRIPT_DIR"
 BUILD_TYPE="Release"
 DO_CLEAN=false
 DO_RESTART=false
+DO_TESTS=false
 
 # Prefer explicit JUCE_DIR (cmake package dir), then JUCE_PREFIX_PATH, then CMAKE_PREFIX_PATH,
 # finally fall back to ~/local/juce.
@@ -53,12 +62,19 @@ while [[ $# -gt 0 ]]; do
             DO_CLEAN=true
             shift
             ;;
+        -t|--tests)
+            DO_TESTS=true
+            shift
+            ;;
         -s|--restart)
             DO_RESTART=true
             shift
             ;;
         -h|--help)
-            head -16 "$0" | tail -14
+            # Every comment line of the header, however many there are. It
+            # used to be `head -16 | tail -14`, so adding a line to the help
+            # silently truncated the help.
+            sed -n '2,${/^#/!q; s/^# \?//p}' "$0"
             exit 0
             ;;
         *)
@@ -93,7 +109,15 @@ JUCE_IN_USE="$(grep -m1 "^JUCE_DIR:PATH=" "$BUILD_DIR/CMakeCache.txt" 2>/dev/nul
 [ -n "$JUCE_IN_USE" ] || JUCE_IN_USE="$JUCE_PREFIX_PATH"
 echo "=== JUCE: $JUCE_IN_USE ==="
 
-echo "=== Building a3-motion-ui ($BUILD_TYPE) ==="
+# Both targets in one invocation rather than two, so the warning summary at
+# the end covers the tests as well -- they are our sources too.
+BUILD_TARGETS=(a3-motion-ui_Standalone)
+if [ "$DO_TESTS" = true ]; then
+    BUILD_TARGETS+=(a3-motion-tests)
+    echo "=== Building a3-motion-ui + tests ($BUILD_TYPE) ==="
+else
+    echo "=== Building a3-motion-ui ($BUILD_TYPE) ==="
+fi
 
 # Kept so the end of this script can say what the compiler said. A full build
 # writes hundreds of lines and the warnings scroll past between them -- which
@@ -103,7 +127,7 @@ echo "=== Building a3-motion-ui ($BUILD_TYPE) ==="
 BUILD_LOG="$(mktemp -t a3-build-XXXXXX.log)"
 trap 'rm -f "$BUILD_LOG"' EXIT
 
-cmake --build "$BUILD_DIR" --target a3-motion-ui_Standalone -j4 2>&1 \
+cmake --build "$BUILD_DIR" --target "${BUILD_TARGETS[@]}" -j4 2>&1 \
     | tee "$BUILD_LOG"
 BUILD_STATUS=${PIPESTATUS[0]}
 
