@@ -1483,6 +1483,11 @@ MotionComponent::renderOpenGL ()
           // The order that works is the other one: make the shader draw first,
           // look at it, then take this away.
 
+          // Before anything writes into them: the trail being played in goes
+          // into the same per-channel maps the playing lines use, so the
+          // clearing has to happen ahead of it rather than between the two.
+          resetLineMaps ();
+
           // The take as it stands, while it is being played in. A fresh
           // recording has no display path — those come from the library — so
           // it is drawn from its own ticks.
@@ -1506,7 +1511,6 @@ MotionComponent::renderOpenGL ()
 
           // Faint trajectory lines for all currently playing patterns
           // (skip those already drawn as explicit previews)
-          resetLineMaps ();
           for (auto &[pattern, displayData] : patternsDisplayData)
             {
               if (patternsPreview.count (pattern) > 0)
@@ -2369,9 +2373,17 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
   // Unshaped: a take is recorded in the frame it was played in. Turning or
   // squeezing the trail under the finger would draw the take somewhere the
   // finger never was.
+  // Through the shader, like a playing line: the same line map and strand map
+  // the channel's played trajectory uses. It was the one trajectory still
+  // drawn as bare vectors, and against the plasma beside it that reads as
+  // exactly what it is -- "das sieht sehr billig aus". The maps are the
+  // channel's own and nothing else is writing them: a slot being recorded
+  // into is not playing.
   drawPathOnSphere (path, lineThickness, 0.9f, _uiStates[ch]->colour, true,
                     pattern.getElevationParams (), _engine.getHeightMap (), g,
-                    PlaneShaping{}, _sphereShader.getCamera ());
+                    PlaneShaping{}, _sphereShader.getCamera (),
+                    lineMapFor (static_cast<int> (ch)),
+                    strandMapFor (static_cast<int> (ch)));
 }
 
 void
