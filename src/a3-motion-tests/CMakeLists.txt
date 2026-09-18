@@ -22,6 +22,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/CoronaScaling.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/DragAccumulator.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SpeakerLightScaling.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ConeThinning.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ConfigFileWatcher.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/EnergyMap.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/DiscStepPieces.cc"

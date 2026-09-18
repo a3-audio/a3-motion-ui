@@ -142,8 +142,32 @@ auto constexpr blobTrailLag = 0.09f;
 // Doubled, a texel is 1.4 screen pixels. The core can live in the map, and the
 // trajectory becomes one thing the shader draws rather than two layers that
 // happen to line up.
+// It stops here, and what is not here is why: the hairlines have a map of
+// their own now, and this one holds the cone alone. See strandMapSize.
+//
+// Every width below is written in texels of a 512 map and scaled by
+// lineMapTexels, so the cone and the core keep the size they had in the room
+// rather than being halved by a finer grid.
 auto constexpr lineMapSize = 512;
+constexpr float lineMapTexels = lineMapSize / 512.f;
 auto constexpr lineMapExtent = 1.3f;
+
+// The braid's strands get a finer grid than the cone does, and this is the one
+// number that made the trajectory look pixelated.
+//
+// The two maps hold two different kinds of thing. The cone is a wide, soft
+// distance field: ten nested strokes up to sixty-eight texels across, so its
+// cost is *area* and doubling the grid quadruples it — measured on the device,
+// 12 ms a frame at 512 and 20 ms at 1024, for a field that has nothing fine in
+// it to show. The strands are five hairlines 1.7 texels wide: their cost is
+// length, not area, and at 512 they are thin enough that the bilinear filter
+// and the shader's threshold beat against the grid and bead the line. That
+// beading is what "ich will keine Pixel sehen" was looking at.
+//
+// Both maps cover the same `lineMapExtent`, so the shader samples them with
+// the same uv and needs to know nothing about this.
+auto constexpr strandMapSize = 1024;
+constexpr float strandMapTexels = strandMapSize / 512.f;
 
 // The nested strokes that make the stepped cone of nearness: half-width in
 // texels, and how near that says you are. Widest and dimmest first -- each is
@@ -516,7 +540,7 @@ MotionComponent::strandMapFor (int channel)
 
   auto &image = _strandMapImage[channel];
   if (!image.isValid ())
-    image = juce::Image (juce::Image::ARGB, lineMapSize, lineMapSize, true);
+    image = juce::Image (juce::Image::ARGB, strandMapSize, strandMapSize, true);
 
   if (!_strandMapValid[channel])
     {
@@ -2199,15 +2223,16 @@ drawPathOnSphere (juce::Path const &displayPath,
               // premultiplied image keeps both values as written; back tiers
               // first, so where two cross the nearer one is what is left.
               auto const toMapScale
-                  = static_cast<float> (lineMapSize) / (2.f * lineMapExtent);
+                  = static_cast<float> (strandMapSize) / (2.f * lineMapExtent);
               auto const toMap
                   = juce::AffineTransform::scale (toMapScale)
-                        .translated (lineMapSize * 0.5f, lineMapSize * 0.5f);
+                        .translated (strandMapSize * 0.5f,
+                                     strandMapSize * 0.5f);
               juce::Graphics sg (*strandMap);
               sg.setColour (juce::Colour::fromFloatRGBA (1.f, front, 0.f, 1.f));
               // A strand wide enough to survive the bilinear filter, and no
               // wider: the shader sharpens it back down, as it does the cord.
-              auto constexpr strandTexels = 1.7f;
+              auto const strandTexels = 1.7f * strandMapTexels;
               // Into map space first, then stroked in texels. strokePath's own
               // transform moves the points and leaves the thickness alone, so
               // passing it there drew every strand at a hundredth of a texel —
@@ -2281,6 +2306,38 @@ drawPathOnSphere (juce::Path const &displayPath,
     return piece;
   };
 
+  // The same run, thinned to the points a wide stroke can actually show --
+  // see thinByArcLength(), which is where the rule lives and is tested.
+  auto const spacedPieceOf
+      = [&] (std::size_t start, std::size_t stop, float spacing) {
+    std::vector<juce::Point<float> > run;
+    std::vector<bool> runLifts;
+    run.reserve (stop - start + 1);
+    runLifts.reserve (stop - start + 1);
+
+    for (auto i = start; i <= stop; ++i)
+      {
+        run.push_back (toMap (projected[i].first));
+        runLifts.push_back (startsRun[i]);
+      }
+
+    juce::Path piece;
+    auto began = false;
+
+    for (auto const index : thinByArcLength (run, runLifts, spacing))
+      {
+        if (!began || runLifts[index])
+          {
+            piece.startNewSubPath (run[index]);
+            began = true;
+            continue;
+          }
+        piece.lineTo (run[index]);
+      }
+
+    return piece;
+  };
+
   // How far behind the ball a run of the line sits, as the light it keeps.
   auto const depthOf = [&] (std::size_t start, std::size_t stop) {
     auto worst = 1.f;
@@ -2302,14 +2359,16 @@ drawPathOnSphere (juce::Path const &displayPath,
   auto const conePer = std::max<std::size_t> (2, count / lineMapConePieces);
   for (auto const &step : lineMapSteps)
     {
+      auto const width = step.width * lineMapTexels;
       auto const stroke = juce::PathStrokeType (
-          step.width, juce::PathStrokeType::JointStyle::curved,
+          width, juce::PathStrokeType::JointStyle::curved,
           juce::PathStrokeType::EndCapStyle::rounded);
+      auto const coneSpacing = width * 0.25f;
 
       for (std::size_t start = 0; start + 1 < count; start += conePer)
         {
           auto const stop = std::min (start + conePer, count - 1);
-          auto const piece = pieceOf (start, stop);
+          auto const piece = spacedPieceOf (start, stop, coneSpacing);
           if (piece.isEmpty ())
             continue;
 
@@ -2322,7 +2381,7 @@ drawPathOnSphere (juce::Path const &displayPath,
   // And the core, in pieces, each carrying where along the figure it is.
   auto const per = std::max<std::size_t> (2, count / lineMapPieces);
   auto const coreStroke = juce::PathStrokeType (
-      lineMapCoreWidth, juce::PathStrokeType::JointStyle::curved,
+      lineMapCoreWidth * lineMapTexels, juce::PathStrokeType::JointStyle::curved,
       juce::PathStrokeType::EndCapStyle::rounded);
 
   for (std::size_t start = 0; start + 1 < count; start += per)
