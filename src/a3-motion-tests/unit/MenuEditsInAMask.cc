@@ -28,6 +28,8 @@
 
 #include <gtest/gtest.h>
 
+#include <ShippedSkin.hh>
+
 #include <a3-motion-ui/components/FingerLatch.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
@@ -526,6 +528,81 @@ TEST (MenuTwoFingers, EveryListAreaSharesOneLatch)
     if (control->onDragIncrement)
       {
         EXPECT_EQ (control->fingerLatch (), &latch);
+        ++checked;
+      }
+  EXPECT_GT (checked, 0);
+}
+
+// ── Scrolling with one finger, on the list and beside it ───────────────────
+// "ich will mit einem finger sowohl links neben dem menu als auch auf dem menu
+// gut scrollen können" (2026-09-17)
+
+namespace
+{
+TouchControl *
+firstRowControl (juce::Component &parent)
+{
+  for (auto *child : parent.getChildren ())
+    if (auto *control = dynamic_cast<TouchControl *> (child);
+        control != nullptr && control->isVisible () && control->onTap
+        && control->onDragIncrement)
+      return control;
+  return nullptr;
+}
+}
+
+TEST (MenuScroll, TheAreaUnderTheFingerStaysThereWhileTheListScrolls)
+{
+  // A drag keeps going to the component the finger went down on -- as long as
+  // that component stays visible. Scrolling re-labels the row areas, and one
+  // that came to stand for a heading was hidden, which ended the drag mid-way:
+  // on the list, never beside it.
+  SkinEditorComponent editor;
+  editor.setSkin (shippedSkin (), "default");
+  editor.setBounds (0, 0, 768, 600);
+
+  auto *under = firstRowControl (editor);
+  ASSERT_NE (under, nullptr);
+
+  for (int step = 0; step < 60; ++step)
+    {
+      under->onDragIncrement (under->primary (), -1, 1);
+      ASSERT_TRUE (under->isVisible ()) << "hidden after " << step + 1
+                                        << " rows of scrolling";
+    }
+}
+
+TEST (MenuScroll, TheSkinEditorsListMovesOneRowPerRowOfFinger)
+{
+  // A step every 12 px while a row is 34 px tall ran the list three times
+  // faster than the finger, a row at a time.
+  SkinEditorComponent editor;
+  editor.setSkin (shippedSkin (), "default");
+  editor.setBounds (0, 0, 768, 600);
+
+  int checked = 0;
+  for (auto *child : editor.getChildren ())
+    if (auto *control = dynamic_cast<TouchControl *> (child);
+        control != nullptr && control->onDragIncrement)
+      {
+        EXPECT_EQ (control->pixelsPerStep (), editor.rowPitch ());
+        ++checked;
+      }
+  EXPECT_GT (checked, 1);
+  EXPECT_GT (editor.rowPitch (), 12);
+}
+
+TEST (MenuScroll, TheMainMenusListOfValuesMovesOneRowPerRowOfFinger)
+{
+  Menu m (320);
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker ();
+
+  int checked = 0;
+  for (auto *control : visibleControls (m.menu))
+    if (control->onDragIncrement)
+      {
+        EXPECT_EQ (control->pixelsPerStep (), m.menu.rowPitch ());
         ++checked;
       }
   EXPECT_GT (checked, 0);

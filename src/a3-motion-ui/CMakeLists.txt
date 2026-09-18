@@ -26,6 +26,8 @@ target_sources("a3-motion-ui" PRIVATE
     StandaloneApp.cc
     StandaloneApp.hh
     MainWindow.cc
+    WindowReport.cc
+    WindowReport.hh
     MainWindow.hh
     io/SerialReconnect.cc
     io/SerialReconnect.hh

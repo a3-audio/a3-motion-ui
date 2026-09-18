@@ -1839,6 +1839,10 @@ A3MotionUIComponent::updateOverlayButtons ()
           _overlayStrips->setPanel (_skinEditorOpen
                                         ? _skinEditor->panelBounds ()
                                         : _globalSettings->panelBounds ());
+          // Beside the list the finger moves it as far as on it.
+          _overlayStrips->setPixelsPerStep (_skinEditorOpen
+                                                ? _skinEditor->rowPitch ()
+                                                : _globalSettings->rowPitch ());
           _overlayStrips->toFront (false);
         }
     }

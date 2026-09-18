@@ -154,6 +154,8 @@ GlobalSettingsComponent::rebuildRowTouch ()
       control->onDragIncrement
           = [this] (int, int, int increment) { scrollPicker (increment); };
       control->setFingerLatch (&FingerLatch::forGroup (FingerLatch::menuList));
+      // One value per value's height of finger, so the list follows the hand.
+      control->setPixelsPerStep (rowPitch ());
       addChildComponent (*control);
       _pickerTouch.push_back (std::move (control));
     }
@@ -532,6 +534,12 @@ GlobalSettingsComponent::opensSubmenu (int index) const
     return false;
 
   return _options[static_cast<size_t> (index)].opensSubmenu;
+}
+
+int
+GlobalSettingsComponent::rowPitch () const
+{
+  return itemH + rowGap;
 }
 
 } // namespace a3

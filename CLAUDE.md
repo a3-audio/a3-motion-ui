@@ -865,6 +865,16 @@ the way it does on a phone, and a row is chosen by touching it. The window is it
 (`_scrollTop`, `_pickerTop`) and `ListScroll.hh` holds the two rules — move by a drag, and move as
 little as possible to bring a selection into view.
 
+**A list follows the finger one row per row.** A list area sets its row height as its step
+(`TouchControl::setPixelsPerStep`, the strips take it from the open page), and steps half way
+through a row, so list and finger are never more than half a row apart. With the skin's 12 px step
+a 34 px row ran three times faster than the hand; stepping only on whole rows left the first 33 px
+of every drag dead. Two more things only a list needs: its row areas stay **visible on a heading**
+(a drag keeps going to the area it began on only while that area is visible, and scrolling
+re-labels them — the drag stopped half way, on the list and never beside it), and it takes **no
+drag resume** (a finger coming down right after a scroll is picking a row, and was taken for more
+of the drag).
+
 **Two fingers scroll a list as one.** Two fingers land on two hit areas, or twice on one, and each
 scrolled it — double speed, or a jump as the second restarted the first one's drag. Every scrollable
 area of the menu pages and both strips share `FingerLatch::forGroup (menuList)`: the first finger

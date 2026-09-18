@@ -131,3 +131,26 @@ TEST (DragAccumulator, AFreshGestureHasNotMovedUntilItDoes)
   drag.stepsFor (-24);
   EXPECT_TRUE (drag.hasMoved ());
 }
+
+// A list moves a row once the finger is half way there, so list and finger are
+// never more than half a row apart. Cut off at whole rows instead, a list with
+// 34 px rows did not move at all for the first 33 px of a drag and felt stuck.
+TEST (DragAccumulator, AListStepsHalfWayThroughARow)
+{
+  DragAccumulator list{ 34 };
+  list.stepAtHalfWay ();
+
+  EXPECT_EQ (list.stepsFor (16), 0);
+  EXPECT_EQ (list.stepsFor (17), 1);
+  EXPECT_EQ (list.stepsFor (50), 0);
+  EXPECT_EQ (list.stepsFor (51), 1);
+  EXPECT_EQ (list.stepsFor (0), -2) << "back to where it started";
+  EXPECT_EQ (list.stepsFor (-17), -1);
+}
+
+TEST (DragAccumulator, AKnobStillStepsOnlyOnAWholeStep)
+{
+  DragAccumulator knob{ 12 };
+  EXPECT_EQ (knob.stepsFor (11), 0);
+  EXPECT_EQ (knob.stepsFor (12), 1);
+}

@@ -2096,8 +2096,10 @@ drawPathOnSphere (juce::Path const &displayPath,
     auto const strands = juce::jlimit (1, 5, braid.strands);
     auto const plain = strands < 2 || !(braid.radius > 0.0001f);
 
-    // Which way is across the line at each point. Never taken across a pen
-    // lift, where the neighbour belongs to a different stroke.
+    // Which way is across the line at each point, and how much offset it
+    // carries there. Both from sheathFrames(), which looks past the repeated
+    // points every recording holds -- a still hand used to read as an
+    // infinitely tight bend and snap the strands onto the axis.
     std::vector<juce::Point<float> > across (projected.size ());
     std::vector<float> guard (projected.size (), 1.f);
     if (!plain)
@@ -2106,25 +2108,12 @@ drawPathOnSphere (juce::Path const &displayPath,
         for (std::size_t i = 0; i < projected.size (); ++i)
           line[i] = { projected[i].first.x, projected[i].first.y,
                       static_cast<bool> (startsRun[i]) };
-        // How hard it is turning, over a stretch as long as the braid is wide
-        // -- see foldGuardsAlong() for the struts measuring it point by point
-        // drew.
-        guard = foldGuardsAlong (line, braid.radius);
 
+        auto const frames = sheathFrames (line, braid.radius);
         for (std::size_t i = 0; i < projected.size (); ++i)
           {
-            auto const before = (i > 0 && !startsRun[i]) ? i - 1 : i;
-            auto const after
-                = (i + 1 < projected.size () && !startsRun[i + 1]) ? i + 1 : i;
-            auto const step
-                = projected[after].first - projected[before].first;
-            auto const length = step.getDistanceFromOrigin ();
-            if (length < 1e-6f)
-              {
-                guard[i] = 0.f;
-                continue;
-              }
-            across[i] = { -step.y / length, step.x / length };
+            across[i] = { frames[i].acrossX, frames[i].acrossY };
+            guard[i] = frames[i].guard;
           }
       }
 

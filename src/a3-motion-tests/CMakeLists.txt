@@ -9,6 +9,9 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/TestRunnerApp.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TempoClock.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BeatTrace.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingTrace.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/TakeLaps.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/WindowReport.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BeatSync.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Position.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/HeightMapSphere.cc"
@@ -114,6 +117,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/osc/OscMessageHandler.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/CoronaScaling.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/DragAccumulator.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/WindowReport.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/TouchControl.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/OverlaySideStrips.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ScriptBuffer.cc"
@@ -171,6 +175,7 @@ target_sources("a3-motion-tests" PRIVATE
 target_compile_definitions(a3-motion-tests PRIVATE
     A3_CONFIG_JSON_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../config/config.json"
     A3_UI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui"
+    A3_ENGINE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-engine"
     A3_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../resources"
     # The four folders the shipped material lives in. Three of them are the
     # system half of a folder split into shipped and hand-made; pattern/system

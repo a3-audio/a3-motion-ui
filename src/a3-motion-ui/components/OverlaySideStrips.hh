@@ -116,6 +116,9 @@ public:
    *  zones simply end up empty. */
   void setPanel (juce::Rectangle<int> panel);
 
+  /** How far a finger moves the page by one row, from the page itself. */
+  void setPixelsPerStep (int pixels);
+
 private:
   std::unique_ptr<TouchControl> _browseZone;
   std::unique_ptr<TouchControl> _rightZone;

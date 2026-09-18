@@ -40,7 +40,12 @@ DragAccumulator::reset ()
 int
 DragAccumulator::stepsFor (int pixelsMovedSinceStart)
 {
-  auto const wanted = pixelsMovedSinceStart / _pixelsPerStep;
+  auto const half = _pixelsPerStep / 2;
+  auto const wanted
+      = !_halfWay ? pixelsMovedSinceStart / _pixelsPerStep
+        : pixelsMovedSinceStart >= 0
+            ? (pixelsMovedSinceStart + half) / _pixelsPerStep
+            : -((-pixelsMovedSinceStart + half) / _pixelsPerStep);
   auto const pending = wanted - _emittedSteps;
   _emittedSteps = wanted;
   return pending;

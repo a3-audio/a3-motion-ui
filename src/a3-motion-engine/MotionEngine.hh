@@ -389,6 +389,13 @@ private:
    *  stays a pure function; only the clock thread draws from it. */
   juce::Random _random;
   int _recordingSubSamplingFactor = recordingSamplesPerTick;
+
+  /** The take as the last finished lap left it, and how far the recording has
+   *  run. What an unfinished lap is rolled back to — see TakeLaps.hh. */
+  std::vector<Pos> _recordingLastComplete;
+  long long _recordingTicks = 0;
+  long long _recordingLap = 0;
+  void finishRecording ();
   
   // High-resolution recording counter to sample motion between ticks
   // Records at ~1000Hz regardless of tempo/ticks

@@ -126,10 +126,11 @@ TEST (PlasmaSheath, TheBraidIsGuardedOverAStretch)
   auto callers = 0;
   for (auto const &entry : juce::RangedDirectoryIterator (
            root, true, "*.cc", juce::File::findFiles))
-    if (entry.getFile ().loadFileAsString ().contains ("foldGuardsAlong ("))
+    if (entry.getFile ().loadFileAsString ().contains ("sheathFrames ("))
       ++callers;
 
-  EXPECT_GT (callers, 0) << "the braid is still guarded point by point";
+  EXPECT_GT (callers, 0)
+      << "the braid still takes its across and its guard point by point";
 }
 
 TEST (PlasmaSheath, AGentleBendCarriesTheWholeOffset)
@@ -454,6 +455,37 @@ TEST (PlasmaSheath, DifferentStrandsStrikeAtDifferentPlaces)
 
   EXPECT_GT (std::abs (peakOf (0) - peakOf (1)), 0.05f);
   EXPECT_GT (std::abs (peakOf (1) - peakOf (2)), 0.05f);
+}
+
+TEST (PlasmaSheath, AStillFingerIsNotAFold)
+{
+  // Every recording holds stretches of repeated points: the finger's position
+  // arrives every ten milliseconds or so and a tick is a few, so the same
+  // place is written several times over -- up to 55 in a row in the take
+  // traced on 2026-09-17. The renderer read a zero-length step as a fold and
+  // pulled the strands onto the axis there, which is the DNA strut again:
+  // "enthalten sie noch die helixstreben (wie dna) sollte aber ja plasma
+  // sein."
+  std::vector<SheathPoint> points;
+  for (int k = 0; k < 20; ++k)
+    points.push_back ({ 0.004f * static_cast<float> (k), 0.f, k == 0 });
+  // The finger stands still for a while.
+  for (int k = 0; k < 40; ++k)
+    points.push_back ({ 0.004f * 19.f, 0.f, false });
+  for (int k = 1; k < 20; ++k)
+    points.push_back ({ 0.004f * (19.f + static_cast<float> (k)), 0.f, false });
+
+  auto const frames = sheathFrames (points, 0.04f);
+
+  ASSERT_EQ (frames.size (), points.size ());
+  for (std::size_t i = 0; i < frames.size (); ++i)
+    {
+      EXPECT_FLOAT_EQ (frames[i].guard, 1.f) << "at point " << i;
+      // Across a line running along x, the normal is y -- including where the
+      // finger stood still, or the strands would collapse and spring back.
+      EXPECT_NEAR (std::abs (frames[i].acrossY), 1.f, 1e-5f) << "at point " << i;
+      EXPECT_NEAR (frames[i].acrossX, 0.f, 1e-5f) << "at point " << i;
+    }
 }
 
 }
