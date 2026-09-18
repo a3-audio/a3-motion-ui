@@ -26,6 +26,8 @@ target_sources("a3-motion-ui" PRIVATE
     StandaloneApp.cc
     StandaloneApp.hh
     MainWindow.cc
+    FrameRate.cc
+    FrameRate.hh
     WindowReport.cc
     WindowReport.hh
     MainWindow.hh
