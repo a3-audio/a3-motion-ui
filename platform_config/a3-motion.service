@@ -1,9 +1,37 @@
 [Unit]
 Description=A3 Motion User Service
 
+# Part of the rig like everything else. It stood outside the group -- no
+# PartOf, no ordering -- which is why it alone could be restarted on its own
+# while the others could not. One device, one rule.
+PartOf=a3-main.service
+
+# Kept, but it orders against nothing: this is a *user* unit, and there is no
+# user-level graphical.target on this machine (`systemctl --user list-units
+# --type=target` has none, and graphical-session.target is never reached under
+# lightdm+i3 here). What the app actually waits for is in ExecStartPre.
+After=graphical.target
+
 [Service]
-ExecStartPre=/usr/bin/sleep 3
-ExecStart=/home/aaa/bin/a3-motion
+# The screen being *itself*, not X merely answering -- and not three seconds.
+#
+# `xset q` answers long before i3 has set the mode: its config turns the output
+# off, waits a second and rotates it. The app started in that gap, saw a screen
+# of 512x384 at 184 dpi, and JUCE took its display scale from that once and for
+# all -- round(184/96) = 2. The whole interface then ran at half size, blown up.
+# Measured at the cold start of 2026-09-19; the first line of the app's own log
+# says it outright:
+#
+#   layout: window 1x1+0+0  screen 512x384  dpi 184.2  scale 2.00
+#
+# Three seconds would not have helped: that start was already 20 seconds after
+# boot. So this waits for the quantity that actually decides -- the DPI X
+# reports -- and gives up after a minute rather than holding the rig hostage.
+ExecStartPre=/home/aaa/.local/bin/a3-wait-for-the-screen
+ExecStart=/usr/bin/a3-motion
+CPUAffinity=0
+#CPUSchedulingPolicy=rr
+#CPUSchedulingPriority=61
 
 [Install]
 WantedBy=default.target
