@@ -70,4 +70,17 @@ struct LibraryKeyStates
 LibraryKeyStates libraryKeysFor (BrowserList list,
                                  LibraryKeyFacts const &facts);
 
+/** Which row of the library list carries the drift dot, or -1 for none.
+ *
+ *  Drift is a property of the **slot** measured against the file its values
+ *  were loaded from -- not of a row. So at most one row can ever be marked,
+ *  the one the slot came from, and the answer is a row number rather than a
+ *  flag per row.
+ *
+ *  Only on the clips tab. A shape is a figure and has no settings to drift
+ *  from; an action and a set are written whole. A dot that meant something
+ *  else on each tab would have to be read instead of glanced at.
+ */
+int driftedRowIn (BrowserList list, int chosenRow, bool slotHasDrifted);
+
 }

@@ -2483,12 +2483,11 @@ A3MotionUIComponent::refreshBrowser (bool keepSelection)
   // map built beside them, which is two things that had to agree and twice
   // did not.
   juce::StringArray names;
-  std::vector<bool> settingsRows;
 
   for (auto const &row : currentList ().rows (_clipFilter))
     names.add (row.name);
 
-  _browser->setEntries (names, settingsRows);
+  _browser->setEntries (names);
   _browser->setShowingList (_browserList);
 
   // Which channel the page is being used for. Everything else on the device
@@ -2551,6 +2550,18 @@ A3MotionUIComponent::refreshBrowser (bool keepSelection)
       // library would then point at whatever happens to be there.
       _browser->setSelectedEntry (browserRowForLibrary (entry));
     }
+
+  // The dot goes on after the row is known, because it goes on that row: the
+  // clip the slot's values came from, when they have been turned since. Asked
+  // for on 2026-09-19, so that FILES answers the same question the clip field
+  // on the CLIP page already answers, in the same mark and the same colour.
+  //
+  // Read back out of the browser rather than from the branches above: three
+  // of them set the selection and one of them keeps whatever was there, and a
+  // fourth copy of "which row is chosen" is a fourth chance to disagree.
+  _browser->setDriftedRow (driftedRowIn (
+      _browserList, _browser->getSelectedEntry (),
+      slotHasDrifted (_clipSettingsChannel, _clipSettingsSlot)));
 
   // What can actually be done. A key lights only when pressing it would do
   // something -- one that does nothing teaches you to stop trusting the

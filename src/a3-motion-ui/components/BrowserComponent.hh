@@ -78,17 +78,22 @@ public:
   void resized () override;
   void applyTheme () override;
 
-  /** The rows of the library list.
+  /** The rows of the library list. */
+  void setEntries (juce::StringArray const &names);
+
+  /** The row whose clip the slot has been turned away from, or -1.
    *
-   *  @param settingsOnly  Parallel to @p names: a row that changes how a slot
-   *                       is played without touching what it plays. Marked,
-   *                       because such a row does something different from
-   *                       the one above it and a list you have to read to
-   *                       tell them apart is a list you cannot use in the
-   *                       dark. Empty means no row is one.
+   *  One row, not a flag per row: drift is a property of the slot measured
+   *  against the file its values came from, so only the row it came from can
+   *  carry it. driftedRowIn() in LibraryKeys.hh decides which that is.
+   *
+   *  This replaced a per-row flag that marked a settings preset. That
+   *  distinction died with the CLIPS/SVG split -- the clips tab *is* the
+   *  presets now -- and its one caller had been passing an empty vector ever
+   *  since, so the dot had quietly not been drawn for as long as the tabs
+   *  have existed. The drawing was still there, waiting.
    */
-  void setEntries (juce::StringArray const &names,
-                   std::vector<bool> const &settingsOnly = {});
+  void setDriftedRow (int row);
   void setScrollOffset (int firstRow);
   int getScrollOffset () const { return _scrollOffset; }
   int getVisibleRows () const { return _layout.visibleRows; }
@@ -195,7 +200,7 @@ private:
   juce::StringArray _names;
   int _scrollOffset = 0;
   int _selectedEntry = -1;
-  std::vector<bool> _settingsOnly;
+  int _driftedRow = -1;
   /** Which of the three words over the list is lit. */
   BrowserList _list = BrowserList::Clips;
 

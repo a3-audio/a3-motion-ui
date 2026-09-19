@@ -67,4 +67,21 @@ libraryKeysFor (BrowserList list, LibraryKeyFacts const &facts)
            facts.chosenHasFile };
 }
 
+
+/** Which row carries the drift dot, or -1.
+ *
+ *  Row zero is the library's "Empty", which it makes up so that a slot can be
+ *  given nothing. It has no file behind it, so there is nothing for a slot's
+ *  values to differ from -- and a dot there would say the opposite of what
+ *  the row means.
+ */
+int
+driftedRowIn (BrowserList list, int chosenRow, bool slotHasDrifted)
+{
+  if (list != BrowserList::Clips || !slotHasDrifted || chosenRow <= 0)
+    return -1;
+
+  return chosenRow;
+}
+
 }
