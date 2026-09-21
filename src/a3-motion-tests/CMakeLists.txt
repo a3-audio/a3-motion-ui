@@ -7,6 +7,7 @@ juce_generate_juce_header("a3-motion-tests")
 
 target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/TestRunnerApp.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ControlSurface.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TempoClock.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BeatTrace.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingTrace.cc"
@@ -203,6 +204,9 @@ target_include_directories("a3-motion-tests" PRIVATE
 
 target_link_libraries(a3-motion-tests PUBLIC
     a3-motion-engine
+    # The audio engine the app renders with. Buffers and the hand-over from
+    # Motion to the audio thread live here.
+    a3-audio-engine
     # Colour work is most of the theme, and juce::Colour lives here. Without
     # it the LookAndFeel and every colour conversion would be untestable.
     juce::juce_graphics
