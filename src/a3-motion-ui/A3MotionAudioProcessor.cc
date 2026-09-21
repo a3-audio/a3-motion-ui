@@ -90,7 +90,14 @@ bool
 A3MotionAudioProcessor::isMidiEffect () const
 {
   //    Logger::writeToLog("isMidiEffect");
+#ifdef A3_AUDIO_ENGINE_ENABLED
+  // juce::AudioProcessorPlayer gives a MIDI effect no audio channels at all
+  // (findMostSuitableLayout returns 0 in / 0 out), so processBlock would get
+  // an empty buffer while the output bus still claims twelve channels.
+  return false;
+#else
   return true;
+#endif
 }
 
 double

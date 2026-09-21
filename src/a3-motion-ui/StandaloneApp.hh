@@ -46,6 +46,20 @@ public:
 private:
   void setupFileLogger ();
 
+#ifdef A3_AUDIO_ENGINE_ENABLED
+  void startAudio ();
+  void openAudioDevice ();
+  void stopAudio ();
+
+  // Declared in this order so that, should shutdown() be skipped, the
+  // implicit destruction still runs in reverse: the device manager closes the
+  // device first (no more callbacks into the player), then the player lets go
+  // of the processor (calling its releaseResources), then the processor goes.
+  std::unique_ptr<juce::AudioProcessor> _processor;
+  juce::AudioProcessorPlayer _player;
+  juce::AudioDeviceManager _deviceManager;
+#endif
+
   std::unique_ptr<MainWindow> _mainWindow;
   std::unique_ptr<juce::SplashScreen> _splash;
   std::unique_ptr<juce::Logger> _logger;

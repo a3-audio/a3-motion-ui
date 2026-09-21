@@ -64,6 +64,12 @@ public:
   void getStateInformation (juce::MemoryBlock &destData) override;
   void setStateInformation (const void *data, int sizeInBytes) override;
 
+#ifdef A3_AUDIO_ENGINE_ENABLED
+  // Public so the host in StandaloneApp asks the device for exactly these.
+  static constexpr int numInputs = 4;
+  static constexpr int numOutputs = 12;  // up to 7.1.4
+#endif
+
 private:
   // A member function, not a free function: BusesProperties is protected on
   // juce::AudioProcessor, and only a member (or a derived class's member) may
@@ -75,9 +81,6 @@ private:
   std::unique_ptr<juce::FileLogger> _fileLogger;
 
 #ifdef A3_AUDIO_ENGINE_ENABLED
-  static constexpr int numInputs = 4;
-  static constexpr int numOutputs = 12;  // up to 7.1.4
-
   void renderAudio (juce::AudioBuffer<float> &buffer);
 
   juce::AudioBuffer<float> _layoutBuffer;
