@@ -20,6 +20,8 @@
 
 #include "WaitUntil.hh"
 
+#include <atomic>
+
 #include <gtest/gtest.h>
 
 #include <JuceHeader.h>
@@ -219,10 +221,22 @@ TEST (ActionFiring, AOneShotThrowsTheClipAndItComesBack)
   EXPECT_EQ (pattern->getSpin (), 5) << "the action never reached the clip";
   ASSERT_NE (clipSettingsFrom (*pattern), before);
 
+  // Wie viele Ticks waehrend des Wartens kamen. Das ist die Zahl, die den
+  // Befund vom 2026-09-21 entschieden hat: 2048 in vier Sekunden, also genau
+  // die erwarteten sechzehn Beats bei 240 BPM. Die Clock lief einwandfrei --
+  // womit "der Rechner war zu langsam" ausgeschieden war und nur noch der
+  // Zustand uebrig blieb. Bleibt stehen, weil die naechste Untersuchung
+  // dieselbe Frage zuerst stellen wird.
+  std::atomic<int> ticks{ 0 };
+  auto handle = engine.getTempoClock ().scheduleEventHandlerAddition (
+      [&ticks] (Measure) { ++ticks; },
+      TempoClock::Event::Tick, TempoClock::Execution::TimerThread);
+
   // The finger stays down the whole time: a one-shot is over when its
   // envelope is, not when the hand moves.
   EXPECT_TRUE (waitUntil ([&] { return clipSettingsFrom (*pattern) == before; }))
-      << "the engine never got there";
+      << "the engine never got there -- ticks seen while waiting: "
+      << ticks.load ();
 
   EXPECT_EQ (clipSettingsFrom (*pattern), before)
       << "the clip never came back from the action it was thrown to";
