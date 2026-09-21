@@ -18,6 +18,8 @@
 
 */
 
+#include "WaitUntil.hh"
+
 #include <gtest/gtest.h>
 
 #include <JuceHeader.h>
@@ -219,7 +221,8 @@ TEST (ActionFiring, AOneShotThrowsTheClipAndItComesBack)
 
   // The finger stays down the whole time: a one-shot is over when its
   // envelope is, not when the hand moves.
-  juce::Thread::sleep (600);
+  EXPECT_TRUE (waitUntil ([&] { return clipSettingsFrom (*pattern) == before; }))
+      << "the engine never got there";
 
   EXPECT_EQ (clipSettingsFrom (*pattern), before)
       << "the clip never came back from the action it was thrown to";
@@ -244,12 +247,18 @@ TEST (ActionFiring, AHoldComesBackWhenTheFingerLetsGo)
 
   // Still down, still the action's: a hold lasts exactly as long as the
   // finger, and nothing about the clock may end it early.
+  //
+  // A real sleep, and rightly so: there is no moment at which "still
+  // unchanged" becomes true, so there is nothing to poll for. Waiting longer
+  // only makes this a stronger statement, which is why this one never
+  // flickered.
   juce::Thread::sleep (400);
   EXPECT_EQ (pattern->getSpin (), -4)
       << "a hold gave the clip back while the pad was still down";
 
   engine.setChannelAccentHeld (0, false, nullptr);
-  juce::Thread::sleep (400);
+  EXPECT_TRUE (waitUntil ([&] { return clipSettingsFrom (*pattern) == before; }))
+      << "the engine never got there";
 
   EXPECT_EQ (clipSettingsFrom (*pattern), before);
 }
@@ -298,7 +307,8 @@ TEST (ActionFiring, AnActionsEndActionIsWhatEndsTheAccent)
   engine.setChannelAction (0, action);
   engine.setChannelAccentHeld (0, true, pattern);
 
-  juce::Thread::sleep (600);
+  EXPECT_TRUE (waitUntil ([&] { return pattern->getStatus () == Pattern::Status::Idle; }))
+      << "the engine never got there";
 
   EXPECT_EQ (pattern->getStatus (), Pattern::Status::Idle)
       << "the action said stop and the clip kept going";
@@ -328,7 +338,11 @@ TEST (ActionFiring, FreqAndQSweepOnEnvelopesOfTheirOwn)
   engine.setChannelPot2 (0, 0.f);
 
   engine.setChannelAccentHeld (0, true, pattern);
-  juce::Thread::sleep (300);
+  EXPECT_TRUE (waitUntil ([&] {
+    return engine.getChannelPot2Effective (0)
+           > engine.getChannelPot1Effective (0);
+  }))
+      << "the engine never got there";
 
   EXPECT_GT (engine.getChannelPot2Effective (0),
              engine.getChannelPot1Effective (0))

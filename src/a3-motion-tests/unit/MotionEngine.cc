@@ -18,6 +18,8 @@
 
 */
 
+#include "WaitUntil.hh"
+
 #include <gtest/gtest.h>
 
 #include <JuceHeader.h>
@@ -79,12 +81,14 @@ TEST (MotionEngine, FirstTapPutsTheBeatBackToOne)
   // Let the clock run far enough into a bar that a reset is visible as a
   // change rather than as the state it was already in.
   engine.setTempoBPM (240.f);
-  juce::Thread::sleep (600);
+  EXPECT_TRUE (waitUntil ([&] { return beatCallbacks.load () > 0; }))
+      << "the engine never got there";
   ASSERT_GT (beatCallbacks.load (), 0) << "the clock is not ticking at all";
 
   auto const before = beatCallbacks.load ();
   engine.tap (juce::Time::getHighResolutionTicks ());
-  juce::Thread::sleep (100);
+  EXPECT_TRUE (waitUntil ([&] { return beatCallbacks.load () > before; }))
+      << "the engine never got there";
 
   EXPECT_GT (beatCallbacks.load (), before)
       << "the tap produced no beat event, so reset() never reached the timer";
