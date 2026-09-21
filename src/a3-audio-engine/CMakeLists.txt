@@ -28,6 +28,8 @@ _juce_initialise_target("a3-audio-engine")
 juce_generate_juce_header("a3-audio-engine")
 
 target_sources("a3-audio-engine" PRIVATE
+    ChunkedRender.cc
+    ChunkedRender.hh
     ControlSurface.cc
     ControlSurface.hh
     OutputOrder.cc

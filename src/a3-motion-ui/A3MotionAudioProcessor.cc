@@ -21,7 +21,6 @@
 #include "A3MotionAudioProcessor.hh"
 #include "A3MotionEditor.hh"
 
-#include <algorithm>
 #include <cstdlib>
 
 namespace a3
@@ -209,39 +208,8 @@ void
 A3MotionAudioProcessor::renderAudio (juce::AudioBuffer<float> &buffer)
 {
   auto output = getBusBuffer (buffer, false, 0);
-
-  // The host may hand processBlock more samples than prepareToPlay's
-  // samplesPerBlock announced (JUCE only documents that as an upper bound to
-  // plan around, not a hard limit) -- and nothing on the audio thread may
-  // allocate, so _layoutBuffer is never resized here. Instead the block is
-  // walked in chunks no larger than what prepareToPlay already sized it to,
-  // through non-owning views over both buffers.
-  auto const numSamples = buffer.getNumSamples ();
-  auto const chunkCapacity = _layoutBuffer.getNumSamples ();
-
-  if (chunkCapacity == 0)
-    {
-      // prepareToPlay has not run yet.
-      output.clear ();
-      return;
-    }
-
-  for (auto start = 0; start < numSamples; start += chunkCapacity)
-    {
-      auto const chunk = std::min (chunkCapacity, numSamples - start);
-
-      juce::AudioBuffer<float> layout (_layoutBuffer.getArrayOfWritePointers (),
-                                        numOutputs, 0, chunk);
-      juce::AudioBuffer<float> device (output.getArrayOfWritePointers (),
-                                        output.getNumChannels (), start, chunk);
-
-      if (_speakerTest)
-        _speakerTest->render (layout);
-      else
-        layout.clear ();
-
-      _outputOrder.apply (layout, device);
-    }
+  renderThroughOutputOrder (_speakerTest.get (), _outputOrder, _layoutBuffer,
+                            output);
 }
 #endif
 

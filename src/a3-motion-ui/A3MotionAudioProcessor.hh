@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #ifdef A3_AUDIO_ENGINE_ENABLED
+#include <a3-audio-engine/ChunkedRender.hh>
 #include <a3-audio-engine/OutputOrder.hh>
 #include <a3-audio-engine/SpeakerTest.hh>
 #endif
