@@ -119,6 +119,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/WaitUntil.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerHitAreas.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/StatusBarLayout.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SpeakerTest.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SettingsPersistence.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SessionFile.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/osc/OscMessageHandler.cc"

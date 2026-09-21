@@ -34,6 +34,8 @@ target_sources("a3-audio-engine" PRIVATE
     OutputOrder.hh
     SpatBackendInternal.cc
     SpatBackendInternal.hh
+    SpeakerTest.cc
+    SpeakerTest.hh
 )
 
 target_include_directories("a3-audio-engine" PUBLIC
