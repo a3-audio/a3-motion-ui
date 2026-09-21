@@ -218,7 +218,11 @@ TEST (ActionFiring, AOneShotThrowsTheClipAndItComesBack)
   engine.setChannelAction (0, action);
   engine.setChannelAccentHeld (0, true, pattern);
 
-  EXPECT_EQ (pattern->getSpin (), 5) << "the action never reached the clip";
+  // Awaited rather than read straight away: since 2026-09-21 the press is a
+  // queued command, drained at the top of the next tick, because the accent
+  // state belongs to the tempo-clock thread. Four milliseconds at 120 BPM.
+  EXPECT_TRUE (waitUntil ([&] { return pattern->getSpin () == 5; }))
+      << "the action never reached the clip";
   ASSERT_NE (clipSettingsFrom (*pattern), before);
 
   // Wie viele Ticks waehrend des Wartens kamen. Das ist die Zahl, die den
@@ -257,7 +261,8 @@ TEST (ActionFiring, AHoldComesBackWhenTheFingerLetsGo)
 
   engine.setChannelAction (0, action);
   engine.setChannelAccentHeld (0, true, pattern);
-  ASSERT_EQ (pattern->getSpin (), -4);
+  ASSERT_TRUE (waitUntil ([&] { return pattern->getSpin () == -4; }))
+      << "the action never reached the clip";
 
   // Still down, still the action's: a hold lasts exactly as long as the
   // finger, and nothing about the clock may end it early.
@@ -292,6 +297,12 @@ TEST (ActionFiring, WithNoActionOnTheSlotTheClipIsNotTouched)
 
   engine.setChannelAction (0, std::nullopt);
   engine.setChannelAccentHeld (0, true, pattern);
+
+  // Nothing to wait *for* -- the point is that nothing happens. But the press
+  // is queued now, so the tick has to have run at least once, or this would
+  // only be proving that the queue is still full.
+  EXPECT_TRUE (waitUntil ([&] { return engine.isChannelAccentActive (0); }))
+      << "the press never reached the clock";
 
   EXPECT_EQ (clipSettingsFrom (*pattern), before);
 
