@@ -229,6 +229,7 @@ private:
   /** Whether there is a file to write back over -- what lights Save, as
    *  against Save as, which only needs something to write. */
   bool canSaveInPlace () const;
+  bool slotClipIsShipped (index_t channel, index_t slot) const;
   /** The shown clip copied to a clip file of its own, the slot pointed at the
    *  copy. The same thing Save does to a factory clip, asked for outright. */
   juce::String saveSlotClipAsCopy ();

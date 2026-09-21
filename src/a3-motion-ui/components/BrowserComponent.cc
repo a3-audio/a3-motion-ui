@@ -134,14 +134,12 @@ BrowserComponent::resized ()
 }
 
 void
-BrowserComponent::setEntries (juce::StringArray const &names,
-                              std::vector<bool> const &settingsOnly)
+BrowserComponent::setEntries (juce::StringArray const &names)
 {
-  if (names == _names && settingsOnly == _settingsOnly)
+  if (names == _names)
     return;
 
   _names = names;
-  _settingsOnly = settingsOnly;
   _scrollOffset = juce::jlimit (
       0, juce::jmax (0, _names.size () - _layout.visibleRows), _scrollOffset);
   resized ();
@@ -334,21 +332,34 @@ BrowserComponent::paintRow (juce::Graphics &g, int row)
       return;
     }
 
-  // A settings preset carries a dot on the right. A mark rather than a colour
-  // because the selection already owns the accent, and a mark rather than a
-  // word because the row is read at a glance or not at all.
-  auto const index = static_cast<size_t> (entry);
-  if (index < _settingsOnly.size () && _settingsOnly[index])
+  // The clip the slot was turned away from carries a dot on the right. A mark
+  // rather than a colour because the selection already owns the accent, and a
+  // mark rather than a word because the row is read at a glance or not at all.
+  //
+  // The warning colour, and the same mark the clip field on the CLIP page
+  // wears -- it is the same question asked from the other side, so answering
+  // it in a second colour would make it look like a second question.
+  //
+  // Not dimmed when the row is unselected, unlike everything else on it: this
+  // one says something is waiting to be written, and that is as true when you
+  // are looking elsewhere in the list.
+  if (entry == _driftedRow)
     {
       auto const dot = bounds.getHeight () / 5.f;
-      // Same restructuring as above for the chosen case. The unselected
-      // branch does not snap to a rung: see theme ().alphaSecondary above.
-      g.setColour (chosen ? toColour (theme ().accent)
-                          : toColour (theme ().accent,
-                                     theme ().alphaSecondary));
+      g.setColour (toColour (theme ().warning));
       g.fillEllipse (bounds.getRight () - dot * 2.5f,
                      bounds.getCentreY () - dot / 2.f, dot, dot);
     }
+}
+
+void
+BrowserComponent::setDriftedRow (int row)
+{
+  if (row == _driftedRow)
+    return;
+
+  _driftedRow = row;
+  repaint ();
 }
 
 void

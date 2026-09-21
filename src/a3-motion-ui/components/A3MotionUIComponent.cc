@@ -2255,6 +2255,23 @@ A3MotionUIComponent::fillSlotFromLibrary (index_t channel, index_t slot,
   registerPatternDisplayData (_patterns[channel][slot]);
 }
 
+/** Whether the clip a slot came from is one of the instrument's.
+ *
+ *  Of the file, through the library entry that *is* that file -- not through
+ *  the figure's name, which finds a figure. A clip entry's category is Clip
+ *  whichever half it sits in, so isShipped is the field that carries this and
+ *  isFactory() is not.
+ */
+bool
+A3MotionUIComponent::slotClipIsShipped (index_t channel, index_t slot) const
+{
+  if (channel >= _slotClipFile.size () || slot >= _slotClipFile[channel].size ())
+    return false;
+
+  auto const index = _patternLibrary->indexForClipFile (_slotClipFile[channel][slot]);
+  return index > 0 && _patternLibrary->getEntry (index).isShipped;
+}
+
 bool
 A3MotionUIComponent::slotHasDrifted (index_t channel, index_t slot) const
 {
@@ -2299,10 +2316,21 @@ A3MotionUIComponent::saveSlotClip (index_t channel, index_t slot)
       return;
     }
 
-  auto const index = _patternLibrary->indexForName (pattern->getName ());
-  auto const factory = index > 0 && _patternLibrary->isFactory (index);
-
-  if (!factory)
+  // Whether this file may be written over, asked of the file.
+  //
+  // This looked the *figure's* name up in the library and copied when that
+  // entry was one of the instrument's. Figures and clips share the library and
+  // indexForName() takes the first match, so a clip of the performer's own
+  // standing on a shipped figure -- Heart, Epicycloid, most of them -- counted
+  // as shipped and was copied instead of written back. Measured on 2026-09-21:
+  // 18 of the 33 clips in the user folder were such copies.
+  //
+  // isFactory() could not have answered it either way: it asks whether an
+  // entry's category is System, and a clip's category is Clip. For a clip it
+  // is false whatever folder the clip sits in, so the only way the old line
+  // ever came out true was by finding a figure.
+  if (clipMayBeOverwritten (clipFile.existsAsFile (),
+                            slotClipIsShipped (channel, slot)))
     {
       if (saveClipSettings (*pattern, clipFile))
         updateControlReadout ("-- SAVED");
@@ -2483,12 +2511,11 @@ A3MotionUIComponent::refreshBrowser (bool keepSelection)
   // map built beside them, which is two things that had to agree and twice
   // did not.
   juce::StringArray names;
-  std::vector<bool> settingsRows;
 
   for (auto const &row : currentList ().rows (_clipFilter))
     names.add (row.name);
 
-  _browser->setEntries (names, settingsRows);
+  _browser->setEntries (names);
   _browser->setShowingList (_browserList);
 
   // Which channel the page is being used for. Everything else on the device
@@ -2551,6 +2578,18 @@ A3MotionUIComponent::refreshBrowser (bool keepSelection)
       // library would then point at whatever happens to be there.
       _browser->setSelectedEntry (browserRowForLibrary (entry));
     }
+
+  // The dot goes on after the row is known, because it goes on that row: the
+  // clip the slot's values came from, when they have been turned since. Asked
+  // for on 2026-09-19, so that FILES answers the same question the clip field
+  // on the CLIP page already answers, in the same mark and the same colour.
+  //
+  // Read back out of the browser rather than from the branches above: three
+  // of them set the selection and one of them keeps whatever was there, and a
+  // fourth copy of "which row is chosen" is a fourth chance to disagree.
+  _browser->setDriftedRow (driftedRowIn (
+      _browserList, _browser->getSelectedEntry (),
+      slotHasDrifted (_clipSettingsChannel, _clipSettingsSlot)));
 
   // What can actually be done. A key lights only when pressing it would do
   // something -- one that does nothing teaches you to stop trusting the
@@ -3426,11 +3465,21 @@ public:
   bool
   canSaveInPlace () const override
   {
-    // Only when there is something to write. Save on an untouched clip made a
-    // copy of it anyway once -- press it twice out of habit and the library
-    // grows a clip you cannot tell from the original.
-    return _owner.slotHasDrifted (_owner._clipSettingsChannel,
-                                  _owner._clipSettingsSlot);
+    // Only when there is something to write, and only where it may be
+    // written. Save on an untouched clip made a copy of it anyway once --
+    // press it twice out of habit and the library grows a clip you cannot
+    // tell from the original.
+    //
+    // The second half asks exactly what saveSlotClip() asks, of the same
+    // file. It used to ask a different question -- the chosen row's entry --
+    // and a key whose condition is not the one the press acts on is a key
+    // that is dark while it works, or lit while it does something else.
+    auto const ch = _owner._clipSettingsChannel;
+    auto const sl = _owner._clipSettingsSlot;
+
+    return _owner.slotHasDrifted (ch, sl)
+           && clipMayBeOverwritten (_owner._slotClipFile[ch][sl].existsAsFile (),
+                                    _owner.slotClipIsShipped (ch, sl));
   }
 
   void

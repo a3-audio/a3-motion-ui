@@ -153,3 +153,48 @@ TEST (LibraryKeys, AShippedSetLoadsToo)
 
   EXPECT_TRUE (libraryKeysFor (BrowserList::Sessions, facts).load);
 }
+
+// ── The drift dot in the list ───────────────────────────────────────
+//
+// Asked for on 2026-09-19: *"der clip soll durch einen gelben punkt markiert
+// sein, wenn sich die einstellungen zum original geändert haben."* The mark
+// the clip field on the CLIP page already carries, on the row the clip came
+// from, so FILES answers the same question the page next to it does.
+//
+// Drift is a property of the *slot* against the file it was loaded from, not
+// of a row. So at most one row can ever carry it -- the one the slot's values
+// came from -- and asking any other row is a category error.
+
+TEST (LibraryDriftDot, TheChosenClipCarriesItWhenTheSlotHasDrifted)
+{
+  EXPECT_EQ (5, driftedRowIn (BrowserList::Clips, 5, true));
+}
+
+TEST (LibraryDriftDot, NothingIsMarkedWhileTheSlotMatchesItsFile)
+{
+  EXPECT_EQ (-1, driftedRowIn (BrowserList::Clips, 5, false));
+}
+
+// Row zero is the library's "Empty" -- a row it made up so that a slot can be
+// given nothing. It has no file, so there is nothing for values to differ
+// from.
+TEST (LibraryDriftDot, TheEmptyRowIsNeverMarked)
+{
+  EXPECT_EQ (-1, driftedRowIn (BrowserList::Clips, 0, true));
+}
+
+TEST (LibraryDriftDot, NoRowChosenIsNoRowMarked)
+{
+  EXPECT_EQ (-1, driftedRowIn (BrowserList::Clips, -1, true));
+}
+
+// The other three tabs answer a different question. A shape is a figure and
+// has no settings to drift; an action and a set are written whole. Marking a
+// row there would be a dot that means something else on every tab, which is
+// the thing a glance cannot survive.
+TEST (LibraryDriftDot, OnlyTheClipsTabCanShowIt)
+{
+  for (auto const list : { BrowserList::Shapes, BrowserList::Actions,
+                           BrowserList::Sessions })
+    EXPECT_EQ (-1, driftedRowIn (list, 5, true));
+}
