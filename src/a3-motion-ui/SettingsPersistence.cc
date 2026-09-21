@@ -44,6 +44,9 @@ loadSettings (juce::File const &file)
     settings.recMode = recModeFromName (
         parsed["recMode"].toString ());
 
+  if (parsed.hasProperty ("developerMode"))
+    settings.developerMode = static_cast<bool> (parsed["developerMode"]);
+
   // Entry by entry, and only as far as the file goes: a file naming fewer
   // keys than the device has says nothing about the rest, and a hand-edited
   // speed outside the range would sit on a key the drag cannot bring back.
@@ -68,6 +71,7 @@ saveSettings (juce::File const &file, AppSettings const &settings)
   for (auto const log2 : settings.speedButtonLog2)
     speeds.add (log2);
   obj->setProperty ("speedButtons", speeds);
+  obj->setProperty ("developerMode", settings.developerMode);
 
   juce::var const state (obj);
 

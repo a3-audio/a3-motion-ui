@@ -106,6 +106,37 @@ TEST (SettingsPersistence, AFileWithoutOneRecordsAsBefore)
   file.deleteFile ();
 }
 
+// Developer mode survives a restart -- asked for on 2026-09-21: maintaining the
+// factory clips runs over days, and switching it back on every start was the
+// cost the other answer would have had.
+TEST (SettingsPersistence, DeveloperModeSurvivesARestart)
+{
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-developer-mode-settings.json");
+  file.deleteFile ();
+
+  AppSettings settings;
+  settings.developerMode = true;
+  saveSettings (file, settings);
+
+  EXPECT_TRUE (loadSettings (file).developerMode);
+  file.deleteFile ();
+}
+
+// Every settings file on a device predates it, and none of them may switch it
+// on: off is what the device has always done.
+TEST (SettingsPersistence, AFileWithoutDeveloperModeLeavesItOff)
+{
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-developer-mode-legacy.json");
+  file.replaceWithText ("{\"clockMode\": 1, \"recMode\": \"Touch\"}");
+
+  EXPECT_FALSE (loadSettings (file).developerMode);
+  file.deleteFile ();
+}
+
 // The four speeds the Shape section's keys carry. A working habit, like the
 // rec mode beside them -- so they belong to the device rather than to a set,
 // which would change them under the performer at load time.
