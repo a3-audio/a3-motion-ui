@@ -585,3 +585,40 @@ TEST (ClipFile, EveryShippedClipReads)
         }
     }
 }
+
+// ── Whether Save writes back, or makes a copy ───────────────────────
+//
+// Reported 2026-09-20: *"es soll aber der bestehende clip überschrieben werden
+// kein neuer angelegt werden."* Measured in the library the next morning: 18 of
+// 33 of the performer's clips were copies -- "Heart 2", "Epicycloid 3-1 2",
+// "Epicycloid 3-1 3". Every Save had grown the folder instead of writing back.
+//
+// The cause was the question saveSlotClip() asked. It looked the *figure's*
+// name up in the library (indexForName(pattern->getName())) and copied when
+// that entry was one of the instrument's. Figures and clips share the library
+// and the lookup takes the first match, so a clip of the performer's own
+// standing on a shipped figure -- which is most of them -- was treated as
+// shipped and copied.
+//
+// So the rule is not given the figure at all. That is the test: it cannot
+// depend on something it cannot see.
+
+TEST (ClipWriteBack, ThePerformersOwnClipIsWrittenOver)
+{
+  EXPECT_TRUE (clipMayBeOverwritten (true, false));
+}
+
+// Nothing shipped may be written over, wherever it lives -- the half the
+// system/user split buys. Save as is the way to keep such a change.
+TEST (ClipWriteBack, AShippedClipIsNot)
+{
+  EXPECT_FALSE (clipMayBeOverwritten (true, true));
+}
+
+// A slot filled straight from a figure has no clip file behind it. There is
+// nothing to write back to, and Save must not invent one.
+TEST (ClipWriteBack, ASlotWithNoClipFileHasNothingToWriteBackTo)
+{
+  EXPECT_FALSE (clipMayBeOverwritten (false, false));
+  EXPECT_FALSE (clipMayBeOverwritten (false, true));
+}

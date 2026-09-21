@@ -259,4 +259,11 @@ clipHasDrifted (Pattern const &pattern, juce::File const &clipFile)
   return clipSettingsFrom (pattern) != clip->settings;
 }
 
+
+bool
+clipMayBeOverwritten (bool clipFileExists, bool clipFileIsShipped)
+{
+  return clipFileExists && !clipFileIsShipped;
+}
+
 }

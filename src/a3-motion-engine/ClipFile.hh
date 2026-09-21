@@ -89,6 +89,22 @@ std::optional<Clip> load (juce::File const &file);
  */
 bool clipHasDrifted (Pattern const &pattern, juce::File const &clipFile);
 
+/** Whether Save may write back over the clip a slot came from.
+ *
+ *  Deliberately not given the pattern. saveSlotClip() used to decide this by
+ *  looking the *figure's* name up in the library and asking whether that entry
+ *  was one of the instrument's -- but figures and clips share the library and
+ *  the lookup takes the first match, so a clip of the performer's own standing
+ *  on a shipped figure counted as shipped. Measured on 2026-09-21: 18 of the
+ *  33 clips in the user folder were copies Save had made instead of writing
+ *  back.
+ *
+ *  Whether a clip may be overwritten is a fact about that clip's own file and
+ *  nothing else. A function that cannot see the figure cannot be confused by
+ *  it again.
+ */
+bool clipMayBeOverwritten (bool clipFileExists, bool clipFileIsShipped);
+
 /** Write a pattern's settings back into the clip it came from.
  *
  *  Keeps everything about the clip that is not a setting: its name, the shape
