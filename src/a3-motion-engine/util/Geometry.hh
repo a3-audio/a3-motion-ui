@@ -89,10 +89,17 @@ public:
   // static Position fromCartesian (ArrayT const &xyz);
 
   // Spherical coordinates
-  void setAzimuth (ScalarT const &azimuth);
-  void setElevation (ScalarT const &elevation);
-  void setDistance (ScalarT const &distance);
-
+  //
+  // Read only, on purpose. setAzimuth/setElevation/setDistance stood here
+  // until 2026-09-21, declared and never defined anywhere -- using one got
+  // you an undefined reference at link time, which is the latest a compiler
+  // can tell you and the point at which a full build has already run.
+  //
+  // fromSpherical covers every case and forces all three values to be named,
+  // which on a sphere is usually what is actually meant: setting one angle
+  // rebuilds the whole position out of the other two, and a setter hides
+  // that. moveChannelFromOutside() is the one place that wanted them and
+  // says so.
   ScalarT azimuth () const;
   ScalarT elevation () const;
   ScalarT distance () const;
