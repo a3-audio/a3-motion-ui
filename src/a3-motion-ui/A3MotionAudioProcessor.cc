@@ -21,6 +21,7 @@
 #include "A3MotionAudioProcessor.hh"
 #include "A3MotionEditor.hh"
 
+#include <algorithm>
 #include <cstdlib>
 
 namespace a3
@@ -33,8 +34,9 @@ A3MotionAudioProcessor::busesForThisBuild ()
   // Four channels in, as the desk's USB hands them over; twelve out, the most
   // any listed layout needs.
   return BusesProperties ()
-      .withInput ("Input", juce::AudioChannelSet::discreteChannels (4))
-      .withOutput ("Output", juce::AudioChannelSet::discreteChannels (12));
+      .withInput ("Input", juce::AudioChannelSet::discreteChannels (numInputs))
+      .withOutput ("Output",
+                   juce::AudioChannelSet::discreteChannels (numOutputs));
 #else
   return BusesProperties ().withInput ("Input",
                                         juce::AudioChannelSet::stereo ());
@@ -144,6 +146,9 @@ void
 A3MotionAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
 #ifdef A3_AUDIO_ENGINE_ENABLED
+  // The only allocation: renderAudio() never resizes _layoutBuffer, so its
+  // capacity has to be settled here, before the audio thread starts calling
+  // processBlock.
   _layoutBuffer.setSize (numOutputs, samplesPerBlock);
   if (std::getenv ("A3_SPEAKER_TEST") != nullptr)
     {
@@ -205,14 +210,38 @@ A3MotionAudioProcessor::renderAudio (juce::AudioBuffer<float> &buffer)
 {
   auto output = getBusBuffer (buffer, false, 0);
 
-  // Keeps the allocation from prepareToPlay: nothing here may allocate.
-  _layoutBuffer.setSize (numOutputs, buffer.getNumSamples (), false, false, true);
-  _layoutBuffer.clear ();
+  // The host may hand processBlock more samples than prepareToPlay's
+  // samplesPerBlock announced (JUCE only documents that as an upper bound to
+  // plan around, not a hard limit) -- and nothing on the audio thread may
+  // allocate, so _layoutBuffer is never resized here. Instead the block is
+  // walked in chunks no larger than what prepareToPlay already sized it to,
+  // through non-owning views over both buffers.
+  auto const numSamples = buffer.getNumSamples ();
+  auto const chunkCapacity = _layoutBuffer.getNumSamples ();
 
-  if (_speakerTest)
-    _speakerTest->render (_layoutBuffer);
+  if (chunkCapacity == 0)
+    {
+      // prepareToPlay has not run yet.
+      output.clear ();
+      return;
+    }
 
-  _outputOrder.apply (_layoutBuffer, output);
+  for (auto start = 0; start < numSamples; start += chunkCapacity)
+    {
+      auto const chunk = std::min (chunkCapacity, numSamples - start);
+
+      juce::AudioBuffer<float> layout (_layoutBuffer.getArrayOfWritePointers (),
+                                        numOutputs, 0, chunk);
+      juce::AudioBuffer<float> device (output.getArrayOfWritePointers (),
+                                        output.getNumChannels (), start, chunk);
+
+      if (_speakerTest)
+        _speakerTest->render (layout);
+      else
+        layout.clear ();
+
+      _outputOrder.apply (layout, device);
+    }
 }
 #endif
 
