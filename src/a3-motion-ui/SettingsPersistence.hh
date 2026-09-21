@@ -56,6 +56,11 @@ struct AppSettings
    *  The default is the fixed four the keys used to carry, so a settings file
    *  that predates this behaves exactly as the device did before it. */
   std::array<int, numSpeedButtons> speedButtonLog2 = { 0, -3, -4, -6 };
+
+  /** Lets Save write over the instrument's own clips -- how the factory clips
+   *  are maintained. Off by default and in every file written before it, so no
+   *  device starts in it by accident. */
+  bool developerMode = false;
 };
 
 /** Returns defaults if the file doesn't exist or fails to parse as JSON. */

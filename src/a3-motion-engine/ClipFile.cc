@@ -261,9 +261,12 @@ clipHasDrifted (Pattern const &pattern, juce::File const &clipFile)
 
 
 bool
-clipMayBeOverwritten (bool clipFileExists, bool clipFileIsShipped)
+clipMayBeOverwritten (bool clipFileExists, bool clipFileIsShipped,
+                      ShippedClips shipped)
 {
-  return clipFileExists && !clipFileIsShipped;
+  if (!clipFileExists)
+    return false;
+  return !clipFileIsShipped || shipped == ShippedClips::Writable;
 }
 
 }

@@ -31,6 +31,7 @@
 #include <vector>
 
 #include <a3-motion-engine/RecMode.hh>
+#include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/ClipLocks.hh>
 #include <a3-motion-engine/Pattern.hh>
@@ -512,6 +513,13 @@ private:
   // Whether the sphere stops rendering while the settings menu is open. Off:
   // it was a concession to the RPi4's GPU, and the rig is on an Intel NUC.
   bool _pauseRenderingInMenu = false;
+
+  /** Save may write over the instrument's own clips. A device setting,
+   *  persisted with the clock and rec modes; see ShippedClips. */
+  bool _developerMode = false;
+
+  ShippedClips shippedClips () const;
+  void applyDeveloperMode (bool on);
   
   // Async OSC Sender for beatclock output (non-blocking, dedicated thread)
   AsyncOSCSender _oscSender;
@@ -656,6 +664,7 @@ private:
     ButtonLeds,
     PatternFolder,
     SphereInMenu,
+    DeveloperMode,
   };
 
   /** What the browsed menu position does, or nothing if it is out of range. */

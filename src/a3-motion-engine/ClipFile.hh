@@ -103,7 +103,17 @@ bool clipHasDrifted (Pattern const &pattern, juce::File const &clipFile);
  *  nothing else. A function that cannot see the figure cannot be confused by
  *  it again.
  */
-bool clipMayBeOverwritten (bool clipFileExists, bool clipFileIsShipped);
+/** Whether the instrument's own clips may be written over: developer mode,
+ *  a menu setting. Named rather than a third bool, because three bare
+ *  true/false at a call site are three chances to swap two of them. */
+enum class ShippedClips
+{
+  Protected,
+  Writable,
+};
+
+bool clipMayBeOverwritten (bool clipFileExists, bool clipFileIsShipped,
+                           ShippedClips shipped);
 
 /** Write a pattern's settings back into the clip it came from.
  *

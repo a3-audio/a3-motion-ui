@@ -950,6 +950,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // it is already in, and would then apply none of it.
   _recMode = persisted.recMode;
   _speedButtonLog2 = persisted.speedButtonLog2;
+  _developerMode = persisted.developerMode;
 
   applyClockMode (persisted.clockMode);
   _engine.setRecMode (_recMode);
@@ -1222,7 +1223,8 @@ void
 A3MotionUIComponent::persistSettings () const
 {
   saveSettings (getPersistedSettingsFile (),
-                AppSettings{ _clockMode, _recMode, _speedButtonLog2 });
+                AppSettings{ _clockMode, _recMode, _speedButtonLog2,
+                             _developerMode });
 }
 
 Measure
@@ -2339,7 +2341,8 @@ A3MotionUIComponent::saveSlotClip (index_t channel, index_t slot)
   // is false whatever folder the clip sits in, so the only way the old line
   // ever came out true was by finding a figure.
   if (clipMayBeOverwritten (clipFile.existsAsFile (),
-                            slotClipIsShipped (channel, slot)))
+                            slotClipIsShipped (channel, slot),
+                            shippedClips ()))
     {
       if (saveClipSettings (*pattern, clipFile))
         updateControlReadout ("-- SAVED");
@@ -3488,7 +3491,8 @@ public:
 
     return _owner.slotHasDrifted (ch, sl)
            && clipMayBeOverwritten (_owner._slotClipFile[ch][sl].existsAsFile (),
-                                    _owner.slotClipIsShipped (ch, sl));
+                                    _owner.slotClipIsShipped (ch, sl),
+                                    _owner.shippedClips ());
   }
 
   void
@@ -5742,6 +5746,8 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
   add (MenuRow::SphereInMenu,
        { "Sphere in Menu", { { "off" }, { "on" } },
          _pauseRenderingInMenu ? 0 : 1 });
+  add (MenuRow::DeveloperMode,
+       { "Developer Mode", { { "off" }, { "on" } }, _developerMode ? 1 : 0 });
   _globalSettings->setOptions (std::move (options));
   _globalSettings->setOptionIndex (_globalSettingsOptionIndex);
   _globalSettings->setValueFieldSelected (false);
@@ -5814,6 +5820,7 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
       openConfigPage ("Pattern Folder", { "patternDir" });
       break;
     case MenuRow::SphereInMenu: applyPauseRendering (chosen == 0); break;
+    case MenuRow::DeveloperMode: applyDeveloperMode (chosen == 1); break;
     }
 
   _globalSettings->setActiveValueIndex (_globalSettingsOptionIndex, chosen);
@@ -6036,6 +6043,22 @@ A3MotionUIComponent::saveConfigPage ()
   // next start rather than here. Saying so beats a setting that looks live
   // and is not.
   updateControlReadout ("network saved - restart to apply");
+}
+
+ShippedClips
+A3MotionUIComponent::shippedClips () const
+{
+  return _developerMode ? ShippedClips::Writable : ShippedClips::Protected;
+}
+
+void
+A3MotionUIComponent::applyDeveloperMode (bool on)
+{
+  _developerMode = on;
+  persistSettings ();
+  // The Save key asks the same rule, so it has to be asked again: a key that
+  // stays dark after the switch says developer mode did nothing.
+  refreshBrowser ();
 }
 
 void
