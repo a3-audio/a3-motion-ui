@@ -172,6 +172,11 @@ A3MotionAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 void
 A3MotionAudioProcessor::releaseResources ()
 {
+#ifdef A3_AUDIO_ENGINE_ENABLED
+  // prepareToPlay makes a fresh one from A3_SPEAKER_TEST; a device restart
+  // must not carry the old one's position across.
+  _speakerTest.reset ();
+#endif
   // Logger::writeToLog("releaseResources");
 }
 
@@ -193,9 +198,7 @@ A3MotionAudioProcessor::processBlock (juce::AudioBuffer<float> &buffer,
 
 #ifdef A3_AUDIO_ENGINE_ENABLED
   renderAudio (buffer);
-  return;
-#endif
-
+#else
   auto mainInputOutput = getBusBuffer (buffer, true, 0);
 
   // add a hopefully inaudible float epsilon here to circumvent VST3
@@ -208,6 +211,8 @@ A3MotionAudioProcessor::processBlock (juce::AudioBuffer<float> &buffer,
   //         *mainInputOutput.getWritePointer (i, j) =
   //             *mainInputOutput.getReadPointer (i, j) +
   //             std::numeric_limits<float>::epsilon();
+  juce::ignoreUnused (mainInputOutput);
+#endif
 }
 
 #ifdef A3_AUDIO_ENGINE_ENABLED
