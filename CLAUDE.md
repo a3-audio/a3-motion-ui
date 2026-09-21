@@ -551,10 +551,16 @@ and stop, green or red for play/pause depending on whether the clip is running, 
 a skin value like every other colour) for the accent. The bar's header keys, the pads page, the
 global strip's REC and the ACT beside the envelope all read it, and `drawTransportGlyph()` draws the
 marks — circle, square, triangle, bars — for both the header keys and the pads. Words needed a dark
-plate behind them to survive a channel-coloured pad; a shape does not, which is why they are shapes.
-Settings is the one pad that is not a transport action: it gets three bars from `drawMenuGlyph()`,
-in whichever of black or white its pad leaves readable, because it stands for no state and so has no
-colour of its own.
+plate behind them to survive a channel-coloured pad, which is why they are shapes.
+
+**A shape alone did not survive either.** On the pads page each mark was drawn in its function's
+colour straight onto the pad, and nothing asked whether the two told apart: a running clip turns its
+Play pad `accent`, the triangle's own colour, and the mark vanished; with the sunset skin eleven of
+fifteen function/ground pairs measured under 3:1 (2026-09-22). `padGlyphInk()` decides the ink now:
+the function's colour wherever `readableInk()` lets it be read, otherwise whichever of black and
+white stands out more — one of the two always reaches 4.58:1. Settings is the one pad that is not a
+transport action: it gets three bars from `drawMenuGlyph()`, always in black or white, because it
+stands for no state and so has no colour of its own.
 
 Play is green whether or not it is running. The colour says which key it is, not what it is doing —
 a key that changes colour with its state has to be looked at twice, once to find it and once to read

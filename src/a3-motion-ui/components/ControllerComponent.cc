@@ -172,18 +172,18 @@ ControllerComponent::paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
   auto const glyph = bounds.toFloat ().withSizeKeepingCentre (
       bounds.getHeight () * 0.32f, bounds.getHeight () * 0.32f);
 
+  // In the function's colour where the pad lets it be read, black or white
+  // where it does not -- see padGlyphInk(). A running Play pad is `accent`,
+  // the triangle's own colour, and drew its mark invisible.
+  g.setColour (padGlyphInk (function, colour));
+
+  // Settings opens a menu, and a menu's mark is three bars.
   if (!hasTransportGlyph (function))
     {
-      // Settings opens a menu, and a menu's mark is three bars. Drawn in
-      // whichever of black or white the pad leaves readable, because unlike
-      // the other three it stands for no state and so has no colour of its
-      // own.
-      g.setColour (colour.contrasting (0.7f));
       drawMenuGlyph (g, glyph);
       return;
     }
 
-  g.setColour (padFunctionColour (function));
   drawTransportGlyph (g, glyph, transportKeyForPad (function));
 }
 
