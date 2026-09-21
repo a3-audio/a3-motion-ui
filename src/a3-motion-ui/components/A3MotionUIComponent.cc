@@ -5477,8 +5477,9 @@ mayBeMovedFromOutside (MotionEngine &engine, int channel)
  *  -- but reading it rather than writing 1 here means this keeps working if
  *  that ever stops being true.
  *
- *  Position::setAzimuth/setElevation would read better and do not exist:
- *  Geometry.hh declares them and nothing ever defined them.
+ *  Position::setAzimuth/setElevation would read better and deliberately do
+ *  not exist -- see Geometry.hh. Setting one angle rebuilds the position out
+ *  of the other two, and naming all three is honest about that.
  *
  *  A value that is not finite is dropped. It arrives over the network, and a
  *  NaN would reach the IEM plugins as a position.

@@ -266,7 +266,7 @@ fields ()
     { "speedLog2",
       [] (ClipSettings const &s) { return numberValue (s.speedLog2, true); },
       [] (ClipSettings &s, Value const &v) {
-        s.speedLog2 = clampStep (v.number, -8, 8);
+        s.speedLog2 = clampStep (v.number, speedLog2Min, speedLog2Max);
       } },
     { "rotate",
       [] (ClipSettings const &s) { return numberValue (s.rotate, false); },

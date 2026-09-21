@@ -352,3 +352,39 @@ TEST (ActionScript, EveryShippedActionReads)
           << file.getFileName () << ": " << result.errors.joinIntoString ("; ");
     }
 }
+
+// ── What a script may ask of the speed ───────────────────────────────────
+//
+// It used to clamp to -8..+8 while the bar knows speedLog2Min..Max, -7..+4.
+// A script could therefore give a clip a speed no key carries and no drag
+// reaches: the clip played at a tempo the interface could neither show nor
+// restore, and the first touch of the key threw it away. Two numbers in two
+// files that had to agree and did not -- the bar's lived in a UI header, the
+// script's in the engine, and neither knew of the other.
+//
+// They are one pair now, in ClipSettings.hh beside the value they bound.
+
+TEST (ActionScript, ASpeedTooFastForAnyKeyIsClamped)
+{
+  auto const out = run ("~speedLog2 = -8;\n");
+  EXPECT_EQ (speedLog2Min, out.speedLog2);
+}
+
+TEST (ActionScript, ASpeedTooSlowForAnyKeyIsClamped)
+{
+  auto const out = run ("~speedLog2 = 8;\n");
+  EXPECT_EQ (speedLog2Max, out.speedLog2);
+}
+
+TEST (ActionScript, ASpeedTheBarCanReachIsLeftAlone)
+{
+  auto const out = run ("~speedLog2 = -3;\n");
+  EXPECT_EQ (-3, out.speedLog2);
+}
+
+// The bounds are the bar's, so a reader of either file finds the same pair.
+TEST (ActionScript, TheBoundsAreTheOnesTheBarUses)
+{
+  EXPECT_EQ (-7, speedLog2Min);
+  EXPECT_EQ (4, speedLog2Max);
+}

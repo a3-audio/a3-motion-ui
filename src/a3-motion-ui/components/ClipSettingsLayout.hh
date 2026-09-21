@@ -23,6 +23,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Config.hh>
 
 #include <a3-motion-ui/io/PadFunctions.hh>
@@ -65,12 +66,9 @@ constexpr int numChannelRows = 3;
  *  may be — it reaches 32 bars, one step past the speed control's range. */
 constexpr int numRecordLengths = 8;
 
-/** How far a clip's speed may be pushed either way, as a power of two of a
- *  bar. Here rather than in A3MotionUIComponent, where they were private, so
- *  that the naming of a speed and the dragging of one can be computed -- and
- *  checked -- without a component. */
-constexpr int speedLog2Min = -7; // 2^-7 bar = a 128th note
-constexpr int speedLog2Max = 4;  // 2^4 bar = 16 bars
+// speedLog2Min/Max come from ClipSettings.hh, beside the value they bound.
+// They lived here until 2026-09-21, where the engine could not see them --
+// and an action script therefore clamped to a different pair.
 
 /** How many speeds the Shape section keeps under a finger.
  *

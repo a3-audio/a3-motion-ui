@@ -26,6 +26,19 @@
 namespace a3
 {
 
+/** How far a clip's speed may be pushed either way, as a power of two of a
+ *  bar.
+ *
+ *  Beside the value they bound rather than in a UI header, which is where
+ *  they used to live. An action script clamped to -8..+8 while the bar knew
+ *  -7..+4, so a script could give a clip a speed no key carries and no drag
+ *  reaches: it played at a tempo the interface could neither show nor
+ *  restore, and the first touch of the key threw it away. Two numbers in two
+ *  files that had to agree, and the engine could not even see the UI's pair.
+ */
+constexpr int speedLog2Min = -7; // 2^-7 bar = a 128th note
+constexpr int speedLog2Max = 4;  // 2^4 bar = 16 bars
+
 class Pattern;
 
 /** Everything the clip settings menu holds, as plain values.
