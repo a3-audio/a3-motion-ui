@@ -27,6 +27,7 @@
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Helpers.hh>
 
+#include <atomic>
 #include <optional>
 
 namespace a3
@@ -309,6 +310,15 @@ private:
       Stop,
       StopAtEnd,
       CancelScheduledPlay,
+      /** A pad went down or came up. Queued like everything else rather than
+       *  written where it was pressed: the accent state is the clock
+       *  thread's, and it used to be written from the message thread while
+       *  the clock thread read and cleared it. See
+       *  issues/a3-motion-ui-der-oneshot-faellt-unter-last-nicht-zurueck.md.
+       */
+      SetAccentHeld,
+      /** What ACT does to a slot. Same reason. */
+      SetChannelAction,
     } command;
 
     Pos position;
@@ -318,6 +328,10 @@ private:
     Measure length;
 
     RecordingMode recordingMode;
+
+    index_t channel{ 0 };
+    bool held{ false };
+    std::optional<ClipSettings> action;
 
     friend bool
     operator> (const Message &lhs, const Message &rhs)
@@ -453,6 +467,38 @@ private:
    *  no snapshot, nothing to fall back to, so nothing is written back. */
   std::vector<std::optional<ClipSettings> > _channelAction;
   std::vector<std::optional<ClipSettings> > _accentRestore;
+
+  /** What the readers of an accent are allowed to see.
+   *
+   *  Everything above belongs to the tempo-clock thread alone. These are the
+   *  only things any other thread may look at, and they are atomic because
+   *  the grid, the OSC sender and the tests all read them while the clock
+   *  writes them.
+   *
+   *  Published rather than shared for one reason: the getters used to read
+   *  `_accentPattern`, a `std::shared_ptr`, from whichever thread asked --
+   *  and a shared_ptr read while another thread writes it can corrupt the
+   *  reference count, not merely give a stale answer. What they actually
+   *  wanted was three floats.
+   */
+  struct AccentView
+  {
+    std::atomic<float> level{ 0.f };
+    std::atomic<float> max{ 0.f };
+  };
+
+  std::vector<AccentView> _accentView;
+  std::vector<AccentView> _freqView;
+  std::vector<AccentView> _qView;
+
+  /** Copy what the readers may see out of the state the clock owns. Called at
+   *  the end of every advanceAccents(), which is the only place any of it
+   *  changes. */
+  void publishAccentView ();
+
+  /** The press itself, on the tempo-clock thread. */
+  void applyAccentHeld (index_t channel, bool held,
+                        std::shared_ptr<Pattern> pattern);
 
 
   // Per-channel preview mode: when true, suppress OSC output

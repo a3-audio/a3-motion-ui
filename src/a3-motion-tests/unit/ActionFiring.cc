@@ -18,6 +18,10 @@
 
 */
 
+#include "WaitUntil.hh"
+
+#include <atomic>
+
 #include <gtest/gtest.h>
 
 #include <JuceHeader.h>
@@ -214,12 +218,29 @@ TEST (ActionFiring, AOneShotThrowsTheClipAndItComesBack)
   engine.setChannelAction (0, action);
   engine.setChannelAccentHeld (0, true, pattern);
 
-  EXPECT_EQ (pattern->getSpin (), 5) << "the action never reached the clip";
+  // Awaited rather than read straight away: since 2026-09-21 the press is a
+  // queued command, drained at the top of the next tick, because the accent
+  // state belongs to the tempo-clock thread. Four milliseconds at 120 BPM.
+  EXPECT_TRUE (waitUntil ([&] { return pattern->getSpin () == 5; }))
+      << "the action never reached the clip";
   ASSERT_NE (clipSettingsFrom (*pattern), before);
+
+  // Wie viele Ticks waehrend des Wartens kamen. Das ist die Zahl, die den
+  // Befund vom 2026-09-21 entschieden hat: 2048 in vier Sekunden, also genau
+  // die erwarteten sechzehn Beats bei 240 BPM. Die Clock lief einwandfrei --
+  // womit "der Rechner war zu langsam" ausgeschieden war und nur noch der
+  // Zustand uebrig blieb. Bleibt stehen, weil die naechste Untersuchung
+  // dieselbe Frage zuerst stellen wird.
+  std::atomic<int> ticks{ 0 };
+  auto handle = engine.getTempoClock ().scheduleEventHandlerAddition (
+      [&ticks] (Measure) { ++ticks; },
+      TempoClock::Event::Tick, TempoClock::Execution::TimerThread);
 
   // The finger stays down the whole time: a one-shot is over when its
   // envelope is, not when the hand moves.
-  juce::Thread::sleep (600);
+  EXPECT_TRUE (waitUntil ([&] { return clipSettingsFrom (*pattern) == before; }))
+      << "the engine never got there -- ticks seen while waiting: "
+      << ticks.load ();
 
   EXPECT_EQ (clipSettingsFrom (*pattern), before)
       << "the clip never came back from the action it was thrown to";
@@ -240,16 +261,23 @@ TEST (ActionFiring, AHoldComesBackWhenTheFingerLetsGo)
 
   engine.setChannelAction (0, action);
   engine.setChannelAccentHeld (0, true, pattern);
-  ASSERT_EQ (pattern->getSpin (), -4);
+  ASSERT_TRUE (waitUntil ([&] { return pattern->getSpin () == -4; }))
+      << "the action never reached the clip";
 
   // Still down, still the action's: a hold lasts exactly as long as the
   // finger, and nothing about the clock may end it early.
+  //
+  // A real sleep, and rightly so: there is no moment at which "still
+  // unchanged" becomes true, so there is nothing to poll for. Waiting longer
+  // only makes this a stronger statement, which is why this one never
+  // flickered.
   juce::Thread::sleep (400);
   EXPECT_EQ (pattern->getSpin (), -4)
       << "a hold gave the clip back while the pad was still down";
 
   engine.setChannelAccentHeld (0, false, nullptr);
-  juce::Thread::sleep (400);
+  EXPECT_TRUE (waitUntil ([&] { return clipSettingsFrom (*pattern) == before; }))
+      << "the engine never got there";
 
   EXPECT_EQ (clipSettingsFrom (*pattern), before);
 }
@@ -269,6 +297,12 @@ TEST (ActionFiring, WithNoActionOnTheSlotTheClipIsNotTouched)
 
   engine.setChannelAction (0, std::nullopt);
   engine.setChannelAccentHeld (0, true, pattern);
+
+  // Nothing to wait *for* -- the point is that nothing happens. But the press
+  // is queued now, so the tick has to have run at least once, or this would
+  // only be proving that the queue is still full.
+  EXPECT_TRUE (waitUntil ([&] { return engine.isChannelAccentActive (0); }))
+      << "the press never reached the clock";
 
   EXPECT_EQ (clipSettingsFrom (*pattern), before);
 
@@ -298,7 +332,8 @@ TEST (ActionFiring, AnActionsEndActionIsWhatEndsTheAccent)
   engine.setChannelAction (0, action);
   engine.setChannelAccentHeld (0, true, pattern);
 
-  juce::Thread::sleep (600);
+  EXPECT_TRUE (waitUntil ([&] { return pattern->getStatus () == Pattern::Status::Idle; }))
+      << "the engine never got there";
 
   EXPECT_EQ (pattern->getStatus (), Pattern::Status::Idle)
       << "the action said stop and the clip kept going";
@@ -328,7 +363,11 @@ TEST (ActionFiring, FreqAndQSweepOnEnvelopesOfTheirOwn)
   engine.setChannelPot2 (0, 0.f);
 
   engine.setChannelAccentHeld (0, true, pattern);
-  juce::Thread::sleep (300);
+  EXPECT_TRUE (waitUntil ([&] {
+    return engine.getChannelPot2Effective (0)
+           > engine.getChannelPot1Effective (0);
+  }))
+      << "the engine never got there";
 
   EXPECT_GT (engine.getChannelPot2Effective (0),
              engine.getChannelPot1Effective (0))

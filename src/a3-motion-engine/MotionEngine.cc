@@ -122,6 +122,9 @@ MotionEngine::createChannels (index_t const numChannels)
   _accentPattern.resize (numChannels);
   _channelAction.resize (numChannels);
   _accentRestore.resize (numChannels);
+  _accentView = std::vector<AccentView> (numChannels);
+  _freqView = std::vector<AccentView> (numChannels);
+  _qView = std::vector<AccentView> (numChannels);
   _previewMode = std::vector<std::atomic<bool>> (numChannels);
 
   auto constexpr spread = 120.f;
@@ -228,11 +231,15 @@ MotionEngine::getChannelPot3Effective (index_t channel)
 
   // The ceiling belongs to the clip whose accent is running; with none, the
   // whole range, which is what it did before there was a ceiling at all.
-  auto const &pattern = _accentPattern[channel];
-  auto const max = pattern ? pattern->getEnvelopeMax () : 1.f;
-
-  return envelopeOver (_channels[channel]->getPot3 (), max,
-                       _accentEnvelope[channel].level);
+  //
+  // Out of the published view, not out of _accentPattern: this is called from
+  // the message thread and from the OSC sender, and that is a shared_ptr the
+  // clock thread writes.
+  return envelopeOver (_channels[channel]->getPot3 (),
+                       _accentView[channel].max.load (
+                           std::memory_order_relaxed),
+                       _accentView[channel].level.load (
+                           std::memory_order_relaxed));
 }
 
 float
@@ -243,11 +250,10 @@ MotionEngine::getChannelPot1Effective (index_t channel)
 
   // With no clip firing there is nothing to sweep towards, and zero is below
   // every set value, so envelopeOver() leaves the encoder alone.
-  auto const &pattern = _accentPattern[channel];
-  auto const max = pattern ? pattern->getFreqMax () : 0.f;
-
-  return envelopeOver (_channels[channel]->getPot1 (), max,
-                       _freqEnvelope[channel].level);
+  return envelopeOver (_channels[channel]->getPot1 (),
+                       _freqView[channel].max.load (std::memory_order_relaxed),
+                       _freqView[channel].level.load (
+                           std::memory_order_relaxed));
 }
 
 float
@@ -256,11 +262,9 @@ MotionEngine::getChannelPot2Effective (index_t channel)
   if (channel >= _qEnvelope.size ())
     return getChannelPot2 (channel);
 
-  auto const &pattern = _accentPattern[channel];
-  auto const max = pattern ? pattern->getQMax () : 0.f;
-
-  return envelopeOver (_channels[channel]->getPot2 (), max,
-                       _qEnvelope[channel].level);
+  return envelopeOver (_channels[channel]->getPot2 (),
+                       _qView[channel].max.load (std::memory_order_relaxed),
+                       _qView[channel].level.load (std::memory_order_relaxed));
 }
 
 void
@@ -333,6 +337,38 @@ MotionEngine::advanceAccents ()
           && _accentHeld[index] == 0)
         _accentPattern[index] = nullptr;
     }
+
+  publishAccentView ();
+}
+
+/** What the readers may see, copied out once a tick.
+ *
+ *  The ceilings come from the firing clip and the levels from the envelopes,
+ *  and both are read here -- on the thread that owns them -- rather than
+ *  wherever somebody asks. With no clip firing the ceilings fall back to what
+ *  the getters used to answer for a null pattern: the whole range for 3d,
+ *  zero for freq and Q, which is below every set value and so leaves the
+ *  encoders alone.
+ */
+void
+MotionEngine::publishAccentView ()
+{
+  for (auto index = 0u; index < _accentEnvelope.size (); ++index)
+    {
+      auto const &pattern = _accentPattern[index];
+
+      auto const publish = [] (AccentView &view, float level, float max) {
+        view.level.store (level, std::memory_order_relaxed);
+        view.max.store (max, std::memory_order_relaxed);
+      };
+
+      publish (_accentView[index], _accentEnvelope[index].level,
+               pattern ? pattern->getEnvelopeMax () : 1.f);
+      publish (_freqView[index], _freqEnvelope[index].level,
+               pattern ? pattern->getFreqMax () : 0.f);
+      publish (_qView[index], _qEnvelope[index].level,
+               pattern ? pattern->getQMax () : 0.f);
+    }
 }
 
 void
@@ -375,6 +411,38 @@ MotionEngine::setChannelAccentHeld (index_t channel, bool held,
   if (channel >= _accentHeld.size ())
     return;
 
+  // Queued, not written here.
+  //
+  // This used to set _accentHeld, fire the envelopes and store the pattern
+  // straight from the message thread, while the tempo-clock thread was
+  // reading all three in advanceAccents() -- and clearing _accentPattern
+  // whenever it saw an idle envelope with the finger up. Catch it mid-press
+  // and it wiped the pattern of a running accent: the clip then kept the
+  // action's values for ever, because restoreAfterAction() does nothing
+  // without a pattern, and the envelope fell back to the default steps,
+  // twelve seconds at 240 BPM. Measured 2026-09-21, see
+  // issues/a3-motion-ui-der-oneshot-faellt-unter-last-nicht-zurueck.md.
+  //
+  // The queue is drained at the top of the tick, before advanceAccents(), so
+  // a press between two ticks is in effect for the whole of the next one.
+  // That is four milliseconds at 120 BPM -- the accent is still "now".
+  Message message;
+  message.command = Message::Command::SetAccentHeld;
+  message.channel = channel;
+  message.held = held;
+  message.pattern = std::move (pattern);
+
+  submitFifoMessage (message);
+}
+
+/** The press, on the thread that owns the accent state. */
+void
+MotionEngine::applyAccentHeld (index_t channel, bool held,
+                               std::shared_ptr<Pattern> pattern)
+{
+  if (channel >= _accentHeld.size ())
+    return;
+
   _accentHeld[channel] = held ? 1 : 0;
 
   // The press is what starts both envelopes -- in either mode. Asking the
@@ -405,6 +473,8 @@ MotionEngine::setChannelAccentHeld (index_t channel, bool held,
 
       _accentPattern[channel] = std::move (pattern);
     }
+
+  publishAccentView ();
 }
 
 void
@@ -414,7 +484,14 @@ MotionEngine::setChannelAction (index_t channel,
   if (channel >= _channelAction.size ())
     return;
 
-  _channelAction[channel] = std::move (action);
+  // Queued for the same reason as the press: _channelAction is read on the
+  // tick, and a press reads it to decide what to put on the clip.
+  Message message;
+  message.command = Message::Command::SetChannelAction;
+  message.channel = channel;
+  message.action = std::move (action);
+
+  submitFifoMessage (message);
 }
 
 bool
@@ -848,6 +925,17 @@ MotionEngine::handleFifoMessage (Message const &message)
 {
   switch (message.command)
     {
+    case Message::Command::SetAccentHeld:
+      {
+        applyAccentHeld (message.channel, message.held, message.pattern);
+        break;
+      }
+    case Message::Command::SetChannelAction:
+      {
+        if (message.channel < _channelAction.size ())
+          _channelAction[message.channel] = message.action;
+        break;
+      }
     case Message::Command::SetRecordingPosition:
       {
         _recordingPosition = message.position;
