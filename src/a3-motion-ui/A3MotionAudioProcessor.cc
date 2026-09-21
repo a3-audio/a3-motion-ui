@@ -21,16 +21,28 @@
 #include "A3MotionAudioProcessor.hh"
 #include "A3MotionEditor.hh"
 
-namespace
-{
-}
+#include <cstdlib>
 
 namespace a3
 {
 
+A3MotionAudioProcessor::BusesProperties
+A3MotionAudioProcessor::busesForThisBuild ()
+{
+#ifdef A3_AUDIO_ENGINE_ENABLED
+  // Four channels in, as the desk's USB hands them over; twelve out, the most
+  // any listed layout needs.
+  return BusesProperties ()
+      .withInput ("Input", juce::AudioChannelSet::discreteChannels (4))
+      .withOutput ("Output", juce::AudioChannelSet::discreteChannels (12));
+#else
+  return BusesProperties ().withInput ("Input",
+                                        juce::AudioChannelSet::stereo ());
+#endif
+}
+
 A3MotionAudioProcessor::A3MotionAudioProcessor ()
-    : AudioProcessor (BusesProperties ().withInput (
-        "Input", juce::AudioChannelSet::stereo ())),
+    : AudioProcessor (busesForThisBuild ()),
       _namePlugin ("A3 Motion UI")
 {
   auto useFileLogger = false;
@@ -131,8 +143,17 @@ A3MotionAudioProcessor::changeProgramName (int index,
 void
 A3MotionAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+#ifdef A3_AUDIO_ENGINE_ENABLED
+  _layoutBuffer.setSize (numOutputs, samplesPerBlock);
+  if (std::getenv ("A3_SPEAKER_TEST") != nullptr)
+    {
+      auto const twoSecondsPerBox = static_cast<int> (sampleRate * 2.0);
+      _speakerTest = std::make_unique<SpeakerTest> (numOutputs, twoSecondsPerBox);
+    }
+#else
   juce::ignoreUnused (sampleRate);
   juce::ignoreUnused (samplesPerBlock);
+#endif
 
   // Logger::writeToLog("prepareToPlay");
 }
@@ -159,6 +180,11 @@ A3MotionAudioProcessor::processBlock (juce::AudioBuffer<float> &buffer,
 {
   juce::ignoreUnused (midiMessages);
 
+#ifdef A3_AUDIO_ENGINE_ENABLED
+  renderAudio (buffer);
+  return;
+#endif
+
   auto mainInputOutput = getBusBuffer (buffer, true, 0);
 
   // add a hopefully inaudible float epsilon here to circumvent VST3
@@ -172,6 +198,23 @@ A3MotionAudioProcessor::processBlock (juce::AudioBuffer<float> &buffer,
   //             *mainInputOutput.getReadPointer (i, j) +
   //             std::numeric_limits<float>::epsilon();
 }
+
+#ifdef A3_AUDIO_ENGINE_ENABLED
+void
+A3MotionAudioProcessor::renderAudio (juce::AudioBuffer<float> &buffer)
+{
+  auto output = getBusBuffer (buffer, false, 0);
+
+  // Keeps the allocation from prepareToPlay: nothing here may allocate.
+  _layoutBuffer.setSize (numOutputs, buffer.getNumSamples (), false, false, true);
+  _layoutBuffer.clear ();
+
+  if (_speakerTest)
+    _speakerTest->render (_layoutBuffer);
+
+  _outputOrder.apply (_layoutBuffer, output);
+}
+#endif
 
 bool
 A3MotionAudioProcessor::hasEditor () const
