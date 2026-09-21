@@ -30,6 +30,8 @@ juce_generate_juce_header("a3-audio-engine")
 target_sources("a3-audio-engine" PRIVATE
     ControlSurface.cc
     ControlSurface.hh
+    OutputOrder.cc
+    OutputOrder.hh
     SpatBackendInternal.cc
     SpatBackendInternal.hh
 )
