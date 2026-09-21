@@ -78,7 +78,13 @@ coreBackend ()
 }
 
 MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap)
-    : _heightMap (heightMap), _commandQueue (coreBackend ())
+    : MotionEngine (numChannels, heightMap, coreBackend ())
+{
+}
+
+MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap,
+                            std::unique_ptr<SpatBackend> backend)
+    : _heightMap (heightMap), _commandQueue (std::move (backend))
 {
   createChannels (numChannels);
 

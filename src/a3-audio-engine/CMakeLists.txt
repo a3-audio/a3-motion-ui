@@ -27,10 +27,20 @@ set_target_properties("a3-audio-engine" PROPERTIES
 target_sources("a3-audio-engine" PRIVATE
     ControlSurface.cc
     ControlSurface.hh
+    SpatBackendInternal.cc
+    SpatBackendInternal.hh
 )
 
 target_include_directories("a3-audio-engine" PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/.."
+)
+
+# SpatBackend.hh pulls in OscAddresses.hh, which needs JuceHeader.h. That is
+# generated per-target by JUCE's own CMake helpers and kept PRIVATE to
+# a3-motion-engine, so linking against it publicly is not enough -- reuse its
+# already-generated header directory instead of generating a second copy.
+target_include_directories("a3-audio-engine" PRIVATE
+    $<TARGET_PROPERTY:a3-motion-engine,JUCE_GENERATED_SOURCES_DIRECTORY>
 )
 
 target_link_libraries("a3-audio-engine" PUBLIC
