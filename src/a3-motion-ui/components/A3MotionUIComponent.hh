@@ -382,7 +382,30 @@ private:
    *  re-pointed the list at the clip that had just gone, and the keys were
    *  then computed for a row with no file. That is the whole of "deleting
    *  works twice and then stops". */
-  void refreshBrowser (bool keepSelection = false);
+  /** What the library list should point at after it is rebuilt.
+   *
+   *  A named pair rather than a bool, and the safe one by default. It used to
+   *  be `bool keepSelection = false`, so *every* call re-pointed the list at
+   *  the shown slot's clip unless somebody remembered to say otherwise --
+   *  and after a delete, a rename or a save, that threw the highlight away
+   *  from the row the hand was working on. It surfaced as "deleting clips
+   *  only works twice"; three call sites were corrected then and thirty were
+   *  not, because the default was the wrong way round.
+   *
+   *  Pointing at the slot again is right for exactly three occasions: the
+   *  FILES page opening, the shown slot or channel changing, and the tab
+   *  changing. Everything else has a row the performer chose, and keeping it
+   *  is what they asked for by choosing it.
+   */
+  enum class BrowserSelection
+  {
+    /** Stay on the chosen row, clamped if the list got shorter. */
+    Keep,
+    /** Point at the clip the shown slot came from. */
+    PointAtTheSlot,
+  };
+
+  void refreshBrowser (BrowserSelection selection = BrowserSelection::Keep);
   void assignBrowserEntry (int index);
 
   void handlePadPress (index_t channel, index_t pad);

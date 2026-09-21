@@ -863,7 +863,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       case ClipFilter::System: _clipFilter = ClipFilter::All; break;
       }
 
-    refreshBrowser ();
+    // Der Filter engt die Liste ein. Bewusst wie bisher: welche Zeile
+    // danach gemeint ist, ist eine eigene Frage -- die gehaltene Nummer zeigt
+    // in einer kuerzeren Liste auf einen anderen Clip.
+    refreshBrowser (BrowserSelection::PointAtTheSlot);
   };
 
   _browser->onClipsChosen = [this] {
@@ -871,28 +874,32 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     _deleteArmed = false;
     _browser->cancelRename ();
     _browser->setSelectedEntry (-1);
-    refreshBrowser ();
+    // Reiterwechsel: eine andere Liste, also eine andere Frage.
+    refreshBrowser (BrowserSelection::PointAtTheSlot);
   };
   _browser->onShapesChosen = [this] {
     _browserList = BrowserList::Shapes;
     _deleteArmed = false;
     _browser->cancelRename ();
     _browser->setSelectedEntry (-1);
-    refreshBrowser ();
+    // Reiterwechsel.
+    refreshBrowser (BrowserSelection::PointAtTheSlot);
   };
   _browser->onActionsChosen = [this] {
     _browserList = BrowserList::Actions;
     _deleteArmed = false;
     _browser->cancelRename ();
     _browser->setSelectedEntry (-1);
-    refreshBrowser ();
+    // Reiterwechsel.
+    refreshBrowser (BrowserSelection::PointAtTheSlot);
   };
   _browser->onSetsChosen = [this] {
     _browserList = BrowserList::Sessions;
     _deleteArmed = false;
     _browser->cancelRename ();
     _browser->setSelectedEntry (-1);
-    refreshBrowser ();
+    // Reiterwechsel.
+    refreshBrowser (BrowserSelection::PointAtTheSlot);
   };
   _browser->onEntryChosen = [this] (int index) {
     // Anything else you do puts the delete key back to sleep. An armed key
@@ -907,7 +914,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     // to reach one, so renaming or deleting a set meant loading it first and
     // losing the arrangement you were working on. The Load key does it now.
     if (_browserList == BrowserList::Sessions)
-      refreshBrowser (true);
+      refreshBrowser ();
     else if (_browserList == BrowserList::Actions)
       assignActionEntry (index);
     else
@@ -2208,8 +2215,10 @@ A3MotionUIComponent::showBarPage (BarPage page)
   if (_browser)
     {
       _browser->setVisible (page == BarPage::Browser);
+      // The page opening: the list has no chosen row yet that means anything,
+      // so it points at what the shown slot is holding.
       if (page == BarPage::Browser)
-        refreshBrowser ();
+        refreshBrowser (BrowserSelection::PointAtTheSlot);
     }
   if (_mixerStrip)
     {
@@ -2499,7 +2508,7 @@ A3MotionUIComponent::loadSessionNamed (juce::String const &name)
 }
 
 void
-A3MotionUIComponent::refreshBrowser (bool keepSelection)
+A3MotionUIComponent::refreshBrowser (BrowserSelection selection)
 {
   if (!_browser)
     return;
@@ -2534,7 +2543,7 @@ A3MotionUIComponent::refreshBrowser (bool keepSelection)
   // have just been rebuilt, so a row number from before can point past the
   // end. The keys below are computed from it either way, which is the half
   // that was missing when this was set from outside instead.
-  if (keepSelection)
+  if (selection == BrowserSelection::Keep)
     {
       _browser->setSelectedEntry (selectionAfterRemoving (
           _browser->getSelectedEntry (), _browser->getNumEntries ()));
@@ -3658,7 +3667,7 @@ A3MotionUIComponent::deleteChosenEntry ()
       // clip, which after the previous delete is a clip that is gone. The
       // selection went with it and the second press found nothing to delete:
       // the last piece of "deleting works twice and then stops".
-      refreshBrowser (true);
+      refreshBrowser ();
       return;
     }
 
@@ -3688,7 +3697,7 @@ A3MotionUIComponent::deleteChosenEntry ()
   // moved and Delete stayed dark. Measured at the device on 2026-09-13.
   _browser->setSelectedEntry (
       selectionAfterRemoving (row, _browser->getNumEntries ()));
-  refreshBrowser (true);
+  refreshBrowser ();
 }
 
 void
@@ -5322,7 +5331,7 @@ A3MotionUIComponent::timerCallback ()
       // the list at the shown slot's clip two seconds after every delete, and
       // take the highlight with it.
       if (_barPage == BarPage::Browser)
-        refreshBrowser (true);
+        refreshBrowser ();
     }
 }
 
@@ -6406,7 +6415,7 @@ A3MotionUIComponent::selectClip (index_t channel, index_t slot)
   // just changed which slot that is. Only while it is on screen -- refreshing
   // it walks the pattern folder, and a pad press should not go to disk.
   if (_barPage == BarPage::Browser)
-    refreshBrowser ();
+    refreshBrowser (BrowserSelection::PointAtTheSlot);
 
   // And so does the MIX page: it is one channel's strip, and which channel is
   // exactly what has just changed. Unconditionally, unlike the browser --
