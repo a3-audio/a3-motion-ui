@@ -42,6 +42,13 @@ namespace a3
  *  the same tables the hardware is read with, so the screen cannot quietly
  *  come to mean something else.
  */
+/** A scene pad fires one pad row across every channel: the row of a slot's
+ *  Play pads, or the row of its Action pads. */
+constexpr std::size_t numSceneRows = 2;
+constexpr std::array<PadFunction, numSceneRows> sceneRowFunction{
+  PadFunction::PlayPause, PadFunction::Action
+};
+
 struct ControllerLayout
 {
   /** The box a clip's four pads share. [channel][slot]. */
@@ -53,6 +60,11 @@ struct ControllerLayout
   std::array<std::array<juce::Rectangle<int>, numPadsPerChannel>,
              numChannelColumns>
       pads;
+  /** The column left of the channels: one pad per pad row, `scenes[slot][row]`,
+   *  row as in sceneRowFunction. Lined up with the row it fires and as wide as
+   *  a pad, so it reads as one more pad rather than a margin. */
+  std::array<std::array<juce::Rectangle<int>, numSceneRows>, numPadSlots>
+      scenes;
 };
 
 /** The smallest thing a hand can find without looking. Nothing hit in a hurry

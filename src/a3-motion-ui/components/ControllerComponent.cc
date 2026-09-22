@@ -32,6 +32,13 @@ namespace
 constexpr float boxWash = 0.06f;
 constexpr float edgeWash = 0.18f;
 constexpr float padCorner = 4.f;
+/** How far a pad under a finger runs towards the skin's text colour (white
+ *  on a shipped device). Enough to be seen from
+ *  the corner of an eye, not so much that the channel colour is lost. */
+constexpr float pressedLift = 0.35f;
+/** A scene pad belongs to no channel: a neutral skin colour, lifted a little
+ *  off the raised surface so it reads as a pad and not as a gap. */
+constexpr float sceneLift = 0.12f;
 
 /** What a pad is called on the screen. The panel says it with a position and
  *  a colour; here there is room for a word, and a word beats a glyph nobody
@@ -71,11 +78,19 @@ ControllerComponent::ControllerComponent ()
           // the whole gesture a reaction time late, and this is the one place
           // where late is wrong (see the beat clock).
           touch->onPress = [this] (int c, int p) {
+            setPressed (_padPressed[static_cast<index_t> (c)]
+                                   [static_cast<index_t> (p)],
+                        true, _layout.pads[static_cast<index_t> (c)]
+                                          [static_cast<index_t> (p)]);
             if (onPadPressed)
               onPadPressed (static_cast<index_t> (c),
                             static_cast<index_t> (p));
           };
           touch->onRelease = [this] (int c, int p) {
+            setPressed (_padPressed[static_cast<index_t> (c)]
+                                   [static_cast<index_t> (p)],
+                        false, _layout.pads[static_cast<index_t> (c)]
+                                           [static_cast<index_t> (p)]);
             if (onPadReleased)
               onPadReleased (static_cast<index_t> (c),
                              static_cast<index_t> (p));
@@ -85,6 +100,32 @@ ControllerComponent::ControllerComponent ()
           _padTouch[channel][pad] = std::move (touch);
         }
     }
+
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    for (std::size_t row = 0; row < numSceneRows; ++row)
+      {
+        auto touch = std::make_unique<TouchControl> ();
+        touch->setIdentity (static_cast<int> (slot), static_cast<int> (row));
+        // On press, like the pads: a scene is fired when it is touched.
+        touch->onPress = [this] (int s, int r) {
+          auto const slotIndex = static_cast<index_t> (s);
+          auto const rowIndex = static_cast<std::size_t> (r);
+          setPressed (_scenePressed[slotIndex][rowIndex], true,
+                      _layout.scenes[slotIndex][rowIndex]);
+          if (onScenePressed)
+            onScenePressed (slotIndex, rowIndex);
+        };
+        touch->onRelease = [this] (int s, int r) {
+          auto const slotIndex = static_cast<index_t> (s);
+          auto const rowIndex = static_cast<std::size_t> (r);
+          setPressed (_scenePressed[slotIndex][rowIndex], false,
+                      _layout.scenes[slotIndex][rowIndex]);
+          if (onSceneReleased)
+            onSceneReleased (slotIndex, rowIndex);
+        };
+        addAndMakeVisible (*touch);
+        _sceneTouch[slot][row] = std::move (touch);
+      }
 
 }
 
@@ -104,6 +145,16 @@ ControllerComponent::setPadColour (index_t channel, index_t pad,
 }
 
 void
+ControllerComponent::setPressed (bool &pressed, bool down,
+                                 juce::Rectangle<int> area)
+{
+  if (pressed == down)
+    return;
+  pressed = down;
+  repaint (area);
+}
+
+void
 ControllerComponent::applyTheme ()
 {
   resized ();
@@ -120,6 +171,10 @@ ControllerComponent::resized ()
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
     for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
       _padTouch[channel][pad]->setBounds (_layout.pads[channel][pad]);
+
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    for (std::size_t row = 0; row < numSceneRows; ++row)
+      _sceneTouch[slot][row]->setBounds (_layout.scenes[slot][row]);
 }
 
 void
@@ -137,6 +192,10 @@ ControllerComponent::paint (juce::Graphics &g)
     for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
       paintPad (g, _layout.pads[channel][pad], channel, pad);
 
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    for (std::size_t row = 0; row < numSceneRows; ++row)
+      paintScene (g, slot, row);
+
 }
 
 void
@@ -149,7 +208,13 @@ ControllerComponent::paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
   // The colour is the panel's, worked out by padLEDCallback() — empty, idle,
   // armed and running look here exactly as they look on the hardware, and
   // there is one place that decides what that means.
-  auto const colour = _padColours[channel][pad];
+  // Lifted while a finger is on it: a press is seen at once, whatever it
+  // goes on to do to the slot.
+  auto const colour
+      = _padPressed[channel][pad]
+            ? _padColours[channel][pad].interpolatedWith (toColour (theme ().textPrimary),
+                                                          pressedLift)
+            : _padColours[channel][pad];
 
   g.setColour (colour);
   g.fillRoundedRectangle (bounds.toFloat (), padCorner);
@@ -172,18 +237,45 @@ ControllerComponent::paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
   auto const glyph = bounds.toFloat ().withSizeKeepingCentre (
       bounds.getHeight () * 0.32f, bounds.getHeight () * 0.32f);
 
+  // Black or white, whichever the pad lets stand out -- see padGlyphInk().
+  g.setColour (padGlyphInk (colour));
+
+  // Settings opens a menu, and a menu's mark is three bars.
   if (!hasTransportGlyph (function))
     {
-      // Settings opens a menu, and a menu's mark is three bars. Drawn in
-      // whichever of black or white the pad leaves readable, because unlike
-      // the other three it stands for no state and so has no colour of its
-      // own.
-      g.setColour (colour.contrasting (0.7f));
       drawMenuGlyph (g, glyph);
       return;
     }
 
-  g.setColour (padFunctionColour (function));
+  drawTransportGlyph (g, glyph, transportKeyForPad (function));
+}
+
+void
+ControllerComponent::paintScene (juce::Graphics &g, index_t slot,
+                                 std::size_t row)
+{
+  auto const bounds = _layout.scenes[slot][row];
+  if (bounds.isEmpty ())
+    return;
+
+  auto const neutral = toColour (theme ().surfaceRaised)
+                           .interpolatedWith (toColour (theme ().textPrimary),
+                                              sceneLift);
+  auto const ground
+      = _scenePressed[slot][row]
+            ? neutral.interpolatedWith (toColour (theme ().textPrimary), pressedLift)
+            : neutral;
+
+  g.setColour (ground);
+  g.fillRoundedRectangle (bounds.toFloat (), padCorner);
+  g.setColour (toColour (theme ().textPrimary, edgeWash));
+  g.drawRoundedRectangle (bounds.toFloat (), padCorner, theme ().strokeThin);
+
+  // The mark of the row it fires, black or white like every pad's.
+  auto const function = sceneRowFunction[row];
+  auto const glyph = bounds.toFloat ().withSizeKeepingCentre (
+      bounds.getHeight () * 0.32f, bounds.getHeight () * 0.32f);
+  g.setColour (padGlyphInk (ground));
   drawTransportGlyph (g, glyph, transportKeyForPad (function));
 }
 

@@ -193,6 +193,15 @@ readableInk (juce::Colour ink, juce::Colour ground, juce::Colour fallback)
 }
 
 juce::Colour
+padGlyphInk (juce::Colour ground)
+{
+  return contrastRatio (juce::Colours::black, ground)
+                 >= contrastRatio (juce::Colours::white, ground)
+             ? juce::Colours::black
+             : juce::Colours::white;
+}
+
+juce::Colour
 padFunctionColour (PadFunction function)
 {
   if (!hasTransportGlyph (function))

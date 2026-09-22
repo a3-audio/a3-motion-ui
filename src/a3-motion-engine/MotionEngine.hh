@@ -485,6 +485,10 @@ private:
   {
     std::atomic<float> level{ 0.f };
     std::atomic<float> max{ 0.f };
+    /** Whether the accent is still moving -- rising, held, falling, or
+     *  waiting to hand the clip its own values back. Only meaningful in
+     *  `_accentView`; the pads page and the bar's ACT key both light on it. */
+    std::atomic<bool> active{ false };
   };
 
   std::vector<AccentView> _accentView;

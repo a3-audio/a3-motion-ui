@@ -551,10 +551,18 @@ and stop, green or red for play/pause depending on whether the clip is running, 
 a skin value like every other colour) for the accent. The bar's header keys, the pads page, the
 global strip's REC and the ACT beside the envelope all read it, and `drawTransportGlyph()` draws the
 marks — circle, square, triangle, bars — for both the header keys and the pads. Words needed a dark
-plate behind them to survive a channel-coloured pad; a shape does not, which is why they are shapes.
-Settings is the one pad that is not a transport action: it gets three bars from `drawMenuGlyph()`,
-in whichever of black or white its pad leaves readable, because it stands for no state and so has no
-colour of its own.
+plate behind them to survive a channel-coloured pad, which is why they are shapes.
+
+**A shape alone did not survive either.** On the pads page each mark was drawn in its function's
+colour straight onto the pad, and nothing asked whether the two told apart: a running clip turns its
+Play pad `accent`, the triangle's own colour, and the mark vanished; with the sunset skin eleven of
+fifteen function/ground pairs measured under 3:1 (2026-09-22). `padGlyphInk()` decides the ink now: black or white on every pad, whichever
+stands out more — one of the two always reaches 4.58:1. Keeping the function's colour wherever it
+could be read was tried first and made the page a patchwork (one column all black, the others
+green, yellow and white); the maintainer settled it on black and white, and the shape says which
+key it is. Settings is the one pad that is not a
+transport action: it gets three bars from `drawMenuGlyph()`, always in black or white, because it
+stands for no state and so has no colour of its own.
 
 Play is green whether or not it is running. The colour says which key it is, not what it is doing —
 a key that changes colour with its state has to be looked at twice, once to find it and once to read
@@ -939,6 +947,30 @@ read with — those say which pad is which function, but only the hardware says 
 sits under a hand. `fingertipSize` is the floor for anything hit in a hurry, and
 `controllerPreferredHeight()` is why the bar can be taller than the clip settings alone would ask
 for: both pages share one area, so it has to satisfy the hungrier of them.
+
+**A scene column stands left of the channels** (asked for on 2026-09-22), one pad per pad row
+(`ControllerLayout::scenes[slot][row]`, `sceneRowFunction`): the top one fires the slot's row of
+Play pads across every channel, the bottom one its row of Action pads. Nine pad widths across, the
+scene pad exactly as wide as a pad, so it reads as one more pad and not as a margin. Both go through
+`handlePadPress()` per channel — one route to what a pad means. **A scene's Play starts only the
+clips of its row that stand still** (`sceneStartsClip()`); a single Play pad toggles, but a scene
+that toggled would start half a row and stop the other half. Screen only: the panel has no such
+pads.
+
+**What the page shows is a slot's state, a press, and an action.** A pad under a finger runs
+towards the skin's text colour for as long as it is held — before this, Play turned green but Stop
+left nothing behind, since what it does is make a pad go dark. The Action pad of the slot that fired
+a channel's accent turns white with a black mark for as long as that accent runs, on every channel
+(`padBaseColour()`; `highlight` vanished on the yellow channel, and a violet borrowed from the
+sphere was one colour too many), lit from
+`isChannelAccentActive()`): a pressed ACT used to look like a Play and said nothing about how long
+the action would last. The engine knows the accent per channel, so the slot is remembered where the
+pad was pressed (`_actionSlot`). `isChannelAccentActive()` reads a published atomic now rather than
+the clock thread's envelopes — the bar and this page both ask it several times a second.
+
+**The Settings pad goes to the clip it names** — selects it and turns the bar to CLIP. Selecting
+alone was right on the panel, where the clip settings are always on screen, and did nothing visible
+from the pads page, which covers them.
 
 **The strip's six buttons are the panel's six function keys.** Not "like them" — the same list.
 `io/FunctionKeys.hh` holds `functionKeyOrder` (`TAP, clock, REC, recmode, MENU, SHIFT`), and both

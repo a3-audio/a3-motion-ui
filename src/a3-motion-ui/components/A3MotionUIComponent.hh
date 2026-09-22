@@ -413,6 +413,11 @@ private:
   /** The other half of a pad gesture. Shift+Action previews for as long as it
    *  is held, so a press without a release leaves the channel previewing. */
   void handlePadRelease (index_t channel, index_t pad);
+  /** A scene pad on the pads page: `row` fires a slot's row of Play or
+   *  Action pads across every channel, through handlePadPress() -- one route
+   *  to what a pad means, not a second one that decides it for itself. */
+  void handleScenePress (index_t slot, std::size_t row);
+  void handleSceneRelease (index_t slot, std::size_t row);
   bool isButtonPressed (Button button);
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
@@ -715,6 +720,11 @@ private:
   /** Which slot, if any, the Action key is currently holding on each channel
    *  -- the clip that has to stop the moment the finger lifts. -1 for none. */
   std::array<int, numChannelsInitial> _actHeldSlot{ -1, -1, -1, -1 };
+  /** Which slot fired each channel's last action, so its Action pad can light
+   *  for as long as that action runs. The engine knows the accent per
+   *  channel, not per slot; the slot is known only where the pad was pressed.
+   *  -1 for none. */
+  std::array<int, numChannelsInitial> _actionSlot{ -1, -1, -1, -1 };
 
   /** Shift held on the screen rather than on the panel, folded into
    *  isButtonPressed() so nothing downstream has to know which of the two a

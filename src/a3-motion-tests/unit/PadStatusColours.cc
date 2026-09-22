@@ -22,7 +22,9 @@
 
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
+#include <a3-motion-ui/theme/TransportLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
+#include <a3-motion-ui/theme/ThemeColours.hh>
 
 using namespace a3;
 
@@ -147,4 +149,46 @@ TEST (PadStatusColours, TheDefaultsAreWhatTheDeviceHasAlwaysShown)
   EXPECT_FLOAT_EQ (theme.padShadeEmpty, 0.85f);
   EXPECT_FLOAT_EQ (theme.padShadeBlink, 0.6f);
   EXPECT_FLOAT_EQ (theme.padShadeIdle, 0.3f);
+}
+
+// -- The colour a pad starts from, before its slot's status shades it --------
+//
+// Play said "running" by turning `accent`; the Action pad said nothing at all,
+// so a pressed ACT looked like a Play and nobody could tell how long the action
+// was going to last. It turns white -- the skin's text colour, its mark black
+// -- for exactly as long as the action runs, on every channel: the
+// maintainer's call on 2026-09-22, after yellow vanished on the yellow channel
+// and a violet fallback for that one channel was a colour too many.
+
+TEST (PadBaseColour, APlayingPlayPadIsTheAccent)
+{
+  auto const channel = juce::Colour (33, 131, 128);
+  EXPECT_EQ (padBaseColour (PadFunction::PlayPause, true, false, channel),
+             padFunctionColour (PadFunction::PlayPause));
+}
+
+TEST (PadBaseColour, AnActionPadIsWhiteOnEveryChannelWhileItsActionRuns)
+{
+  for (auto const channel :
+       { juce::Colour (216, 17, 89), juce::Colour (69, 78, 158),
+         juce::Colour (247, 208, 2), juce::Colour (33, 131, 128) })
+    {
+      EXPECT_EQ (padBaseColour (PadFunction::Action, true, true, channel),
+                 toColour (theme ().textPrimary))
+          << channel.toDisplayString (false);
+      EXPECT_EQ (padBaseColour (PadFunction::Action, false, true, channel),
+                 toColour (theme ().textPrimary));
+    }
+}
+
+TEST (PadBaseColour, OtherwiseEveryPadWearsItsChannel)
+{
+  auto const channel = juce::Colour (33, 131, 128);
+  EXPECT_EQ (padBaseColour (PadFunction::PlayPause, false, true, channel),
+             channel);
+  EXPECT_EQ (padBaseColour (PadFunction::Action, true, false, channel),
+             channel);
+  EXPECT_EQ (padBaseColour (PadFunction::Stop, true, true, channel), channel);
+  EXPECT_EQ (padBaseColour (PadFunction::Settings, true, true, channel),
+             channel);
 }

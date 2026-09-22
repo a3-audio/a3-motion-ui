@@ -164,4 +164,15 @@ juce::Colour readableInk (juce::Colour ink, juce::Colour ground,
  *  something harder to read. */
 juce::Colour padFunctionColour (PadFunction function);
 
+/** The colour to draw a mark in on the pads page, on a pad of colour
+    `ground`: whichever of black and white stands out more -- one of the two
+    always reaches 4.58:1, whatever the ground.
+
+    Black or white on every pad, decided on 2026-09-22. The marks used to be
+    drawn in their function's colour, which vanished on a running Play pad
+    (`accent`, the triangle's own colour) and on any channel near red, green
+    or yellow; keeping the colour wherever it could be read then made the page
+    a patchwork. Which key it is, the shape says. */
+juce::Colour padGlyphInk (juce::Colour ground);
+
 }

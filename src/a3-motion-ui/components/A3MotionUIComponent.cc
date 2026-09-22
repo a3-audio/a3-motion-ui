@@ -68,6 +68,7 @@
 #include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-ui/components/RecordingIndicator.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
+#include <a3-motion-ui/components/SceneLaunch.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
 #include <a3-motion-ui/components/ClipSettingsComponent.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
@@ -725,6 +726,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
   _controller->onPadReleased = [this] (index_t channel, index_t pad) {
     handlePadRelease (channel, pad);
+  };
+  _controller->onScenePressed = [this] (index_t slot, std::size_t row) {
+    handleScenePress (slot, row);
+  };
+  _controller->onSceneReleased = [this] (index_t slot, std::size_t row) {
+    handleSceneRelease (slot, row);
   };
 
   // The ACTION page: what the ACT key does to the clip the bar is showing.
@@ -2143,6 +2150,9 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       }
     case PadFunction::Action:
       {
+        if (channel < _actionSlot.size ())
+          _actionSlot[channel] = static_cast<int> (slot);
+
         // Shift+Action: preview-and-fire — play in preview mode (OSC
         // silenced) while the encoder can browse the library; releasing
         // Action exits (see handlePadRelease()).
@@ -2192,10 +2202,48 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       }
     case PadFunction::Settings:
       {
+        // Selecting alone was right on the panel, where the clip settings are
+        // always on screen, and did nothing visible from the pads page, which
+        // covers them. So it goes to the clip it names.
         selectClip (channel, slot);
+        showBarPage (BarPage::Clip);
         break;
       }
     }
+}
+
+void
+A3MotionUIComponent::handleScenePress (index_t slot, std::size_t row)
+{
+  if (slot >= numPadSlots || row >= numSceneRows)
+    return;
+
+  auto const function = sceneRowFunction[row];
+  auto const pad = padIndexFor (function, slot);
+
+  for (index_t channel = 0; channel < _patterns.size (); ++channel)
+    {
+      auto const &pattern = _patterns[channel][slot];
+      if (!pattern)
+        continue;
+      // Play starts only what stands still; see sceneStartsClip(). Action
+      // fires on every clip of the row, running or not, as its pad does.
+      if (function == PadFunction::PlayPause
+          && !sceneStartsClip (pattern->getStatus ()))
+        continue;
+      handlePadPress (channel, pad);
+    }
+}
+
+void
+A3MotionUIComponent::handleSceneRelease (index_t slot, std::size_t row)
+{
+  if (slot >= numPadSlots || row >= numSceneRows)
+    return;
+
+  auto const pad = padIndexFor (sceneRowFunction[row], slot);
+  for (index_t channel = 0; channel < _patterns.size (); ++channel)
+    handlePadRelease (channel, pad);
 }
 
 void
@@ -4814,6 +4862,7 @@ A3MotionUIComponent::padLEDCallback (int step)
   for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
     {
       auto const channelColour = _channelUIStates[channel]->colour;
+      auto const accentActive = _engine.isChannelAccentActive (channel);
       for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
         {
           // All 4 buttons of a clip slot share that slot's Pattern, so
@@ -4830,13 +4879,17 @@ A3MotionUIComponent::padLEDCallback (int step)
           // Play|Pause is the one pad that must be readable at a glance:
           // green while actually playing, channel colour otherwise (idle/
           // empty/recording), so play vs. paused/stopped is unambiguous.
-          bool const isPlayingOnPlayPause
-              = padFunctionByPadIndex[pad] == PadFunction::PlayPause
-                && (status == Pattern::Status::Playing
-                    || status == Pattern::Status::ScheduledForPlaying);
-          auto const base
-              = isPlayingOnPlayPause ? toColour (theme ().accent)
-                                     : channelColour;
+          bool const clipPlaying
+              = status == Pattern::Status::Playing
+                || status == Pattern::Status::ScheduledForPlaying;
+          // The Action pad of the slot that fired the channel's accent, for as
+          // long as that accent runs -- the duration of the action, on the pad.
+          bool const actionRunning
+              = accentActive && channel < _actionSlot.size ()
+                && _actionSlot[channel] == static_cast<int> (slot);
+          auto const base = padBaseColour (padFunctionByPadIndex[pad],
+                                           clipPlaying, actionRunning,
+                                           channelColour);
 
           auto const colour = channelColourForPadStatus (
               base, status, statusLast, step);

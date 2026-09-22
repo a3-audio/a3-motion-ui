@@ -20,6 +20,9 @@
 
 #include "PadStatusColours.hh"
 
+#include <a3-motion-ui/theme/ThemeColours.hh>
+#include <a3-motion-ui/theme/TransportLook.hh>
+
 #include <a3-motion-ui/theme/Theme.hh>
 
 namespace a3
@@ -77,6 +80,17 @@ padStatusColour (juce::Colour base, Pattern::Status status,
     }
 
   return shaded (theme ().padShadeEmpty);
+}
+
+juce::Colour
+padBaseColour (PadFunction function, bool clipPlaying, bool actionRunning,
+               juce::Colour channel)
+{
+  if (function == PadFunction::PlayPause && clipPlaying)
+    return padFunctionColour (PadFunction::PlayPause);
+  if (function == PadFunction::Action && actionRunning)
+    return toColour (theme ().textPrimary);
+  return channel;
 }
 
 }
