@@ -737,3 +737,52 @@ TEST (VuDot, ANonsenseLevelIsSilence)
   EXPECT_FALSE (
       vuDot (VuLevel{ 0.f, std::numeric_limits<float>::quiet_NaN () }).visible);
 }
+
+// The volume mark: where VOL stands, laid across the meter it is dragged on.
+// The foot of the bar is VOL at nothing, the head VOL all the way up -- the
+// knob's travel, not a level, so it is linear in the value.
+TEST (VuMeter, TheVolumeMarkIsAtTheFootForNothingAndAtTheHeadForFull)
+{
+  auto const bar = aMeterBar ();
+
+  auto const none = vuVolumeMark (bar, 0.f);
+  auto const full = vuVolumeMark (bar, 1.f);
+
+  EXPECT_EQ (none.getBottom (), bar.getBottom ());
+  EXPECT_EQ (full.getY (), bar.getY ());
+}
+
+TEST (VuMeter, TheVolumeMarkClimbsWithTheValue)
+{
+  auto const bar = aMeterBar ();
+
+  EXPECT_GT (vuVolumeMark (bar, 0.25f).getY (), vuVolumeMark (bar, 0.5f).getY ());
+  EXPECT_GT (vuVolumeMark (bar, 0.5f).getY (), vuVolumeMark (bar, 0.75f).getY ());
+  EXPECT_NEAR (vuVolumeMark (bar, 0.5f).getCentreY (), bar.getCentreY (), 3);
+}
+
+// Across the whole bar, and thicker than the peak mark, so the two lines on
+// one meter cannot be read as each other.
+TEST (VuMeter, TheVolumeMarkSpansTheBarAndOutweighsThePeakMark)
+{
+  auto const bar = aMeterBar ();
+  auto const mark = vuVolumeMark (bar, 0.6f);
+  auto const peak = vuMeterGeometry (bar, { 0.5f, 0.1f }).peak;
+
+  EXPECT_EQ (mark.getX (), bar.getX ());
+  EXPECT_EQ (mark.getWidth (), bar.getWidth ());
+  EXPECT_GT (mark.getHeight (), peak.getHeight ());
+}
+
+TEST (VuMeter, AVolumeOutsideTheRangeStaysOnTheBar)
+{
+  auto const bar = aMeterBar ();
+
+  for (auto const value : { -1.f, 2.f, std::numeric_limits<float>::quiet_NaN () })
+    EXPECT_TRUE (bar.contains (vuVolumeMark (bar, value))) << value;
+}
+
+TEST (VuMeter, AnEmptyMeterHasNoVolumeMark)
+{
+  EXPECT_TRUE (vuVolumeMark ({}, 0.5f).isEmpty ());
+}

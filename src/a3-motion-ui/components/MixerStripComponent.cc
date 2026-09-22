@@ -34,6 +34,11 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
 {
   setInterceptsMouseClicks (false, true);
 
+  auto const dragged = [this] (MixerControl control, int increment) {
+    if (onChannelDragged)
+      onChannelDragged (_channel, control, increment);
+  };
+
   for (int i = 0; i < numMixerControls; ++i)
     {
       auto const index = static_cast<std::size_t> (i);
@@ -48,11 +53,7 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
       touch->setIdentity (i);
 
       wireMixerChannelTouch (
-          *touch, mixerControlOrder[index],
-          [this] (MixerControl control, int increment) {
-            if (onChannelDragged)
-              onChannelDragged (_channel, control, increment);
-          },
+          *touch, mixerControlOrder[index], dragged,
           [this] (MixerControl control) {
             if (onChannelTapped)
               onChannelTapped (_channel, control);
@@ -65,6 +66,13 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
       addAndMakeVisible (*touch);
       _touch[index] = std::move (touch);
     }
+
+  // The meter is a second VOL, wired by the same function as the knob so the
+  // two cannot drift apart in step size or in what a tap does.
+  _meterTouch = std::make_unique<TouchControl> ();
+  _meterTouch->setIdentity (numMixerControls);
+  wireMixerChannelTouch (*_meterTouch, MixerControl::Volume, dragged, {});
+  addAndMakeVisible (*_meterTouch);
 
   applyTheme ();
 }
@@ -126,6 +134,9 @@ MixerStripComponent::resized ()
       _touch[i]->setBounds (_layout.controls[0][i]);
       _touch[i]->setVisible (_layout.fits);
     }
+
+  _meterTouch->setBounds (_layout.channelMeter[0]);
+  _meterTouch->setVisible (_layout.fits);
 }
 
 void
@@ -159,6 +170,9 @@ MixerStripComponent::paint (juce::Graphics &g)
   // disagree about how loud a deck is.
   paintVuMeter (g, _layout.channelMeter[0],
                 _levels.channel (_channel, vuNowMs ()));
+  paintVuVolumeMark (g, _layout.channelMeter[0],
+                     _state.channelValue (_channel, MixerControl::Volume),
+                     toColour (theme ().channel[_channel]));
 }
 
 }

@@ -1057,6 +1057,18 @@ until then), on the baffle — and from overhead the baffle is edge-on, so it wa
 The corona that says which blob is playing is the existing one, `blob.sizeMin..sizeMax` over the
 level; clean raises `sizeMax` so a loud blob's reaches past its body and a silent one's does not.
 
+**A channel's VU meter is a second VOL**, on both MIX pages (the overlay's four strips and the
+bar's MIX tab): a `TouchControl` over `channelMeter`, wired by the same `wireMixerChannelTouch
+(…, MixerControl::Volume, …)` as the knob, so step size, "a tap does nothing" and the way out to
+OSC are the knob's and cannot drift. Relative, like every pot here — where the finger lands does
+not matter, only how far it moves — because an absolute fader would pull a playing channel to
+nothing the moment a finger lands low on the meter in the dark. The meter carries VOL's setting as
+a bar in the channel's colour (`vuVolumeMark()` / `paintVuVolumeMark()`), edged in `surface` so it
+survives crossing a band of its own colour: a hand dragging the meter looks at the meter, not the
+knob. It is the knob's travel, linear foot to head — not a level, so it does not follow the
+meter's dB scale. Checked on the device with `smoke-test/scripts/check_vu_drag_volume.sh`, which
+drags down and back only, since a running instance sends VOL to the live Core.
+
 **`Stop` and `Pause` are two different end actions**, and used to be one under the wrong name. What
 was called Stop stood still wherever the playhead happened to land — that is a pause, and calling it
 a stop left no way to ask for the other one. `Stop` now returns to the beginning of the take,

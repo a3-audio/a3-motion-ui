@@ -207,6 +207,10 @@ private:
   std::array<std::array<std::unique_ptr<TouchControl>, numMixerControls>,
              static_cast<std::size_t> (numChannelsInitial)>
       _channelTouch;
+  /** One per channel, over its meter: dragging it is dragging that VOL. */
+  std::array<std::unique_ptr<TouchControl>,
+             static_cast<std::size_t> (numChannelsInitial)>
+      _meterTouch;
   std::array<std::unique_ptr<TouchControl>, numMasterControls> _masterTouch;
   std::array<std::unique_ptr<TouchControl>, numFilterControls> _filterTouch;
 };

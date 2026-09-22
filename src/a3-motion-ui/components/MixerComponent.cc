@@ -206,6 +206,22 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
             = std::move (touch);
       }
 
+  // Each meter is a second VOL for its channel, wired by the same function as
+  // the knob -- see MixerStripComponent, which does the same for its one.
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    {
+      auto touch = std::make_unique<TouchControl> ();
+      wireMixerChannelTouch (
+          *touch, MixerControl::Volume,
+          [this, channel] (MixerControl control, int increment) {
+            if (onChannelDragged)
+              onChannelDragged (channel, control, increment);
+          },
+          {});
+      hookUp (*touch, channel, numMixerControls);
+      _meterTouch[static_cast<std::size_t> (channel)] = std::move (touch);
+    }
+
   for (int i = 0; i < numMasterControls; ++i)
     {
       auto touch = std::make_unique<TouchControl> ();
@@ -306,6 +322,14 @@ MixerComponent::resized ()
         touch->setVisible (_layout.fits);
       }
 
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    {
+      auto &touch = _meterTouch[static_cast<std::size_t> (channel)];
+      touch->setBounds (
+          _layout.channelMeter[static_cast<std::size_t> (channel)]);
+      touch->setVisible (_layout.fits);
+    }
+
   for (int i = 0; i < numMasterControls; ++i)
     {
       auto &touch = _masterTouch[static_cast<std::size_t> (i)];
@@ -360,8 +384,13 @@ MixerComponent::paintMeters (juce::Graphics &g)
   // something different on the fifth column from the four beside it would be
   // read wrong exactly once, at the moment it mattered.
   for (int channel = 0; channel < numChannelsInitial; ++channel)
-    paintVuMeter (g, _layout.channelMeter[static_cast<std::size_t> (channel)],
-                  _levels.channel (channel, now));
+    {
+      auto const meter = _layout.channelMeter[static_cast<std::size_t> (channel)];
+      paintVuMeter (g, meter, _levels.channel (channel, now));
+      paintVuVolumeMark (g, meter,
+                         _state.channelValue (channel, MixerControl::Volume),
+                         toColour (theme ().channel[channel]));
+    }
 
   for (int meter = 0; meter < numOutputMeters; ++meter)
     paintVuMeter (g, _layout.outputMeters[static_cast<std::size_t> (meter)],

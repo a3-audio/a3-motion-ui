@@ -213,6 +213,19 @@ struct VuMeterGeometry
 
 VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level);
 
+/** Where VOL stands, as a bar laid across a channel's meter -- see
+ *  paintVuVolumeMark(). `value` is VOL's 0..1, foot to head, linear: it is
+ *  the knob's travel, not a level, so it shares the meter's height and not
+ *  its dB scale. */
+juce::Rectangle<int> vuVolumeMark (juce::Rectangle<int> bounds, float value);
+
+/** VOL's mark, in the channel's colour, over a meter already painted. The
+ *  meter is where VOL is dragged -- "im MIX will man volume regeln indem man
+ *  das vu-meter dragt" -- and a hand dragging it looks at the meter, not the
+ *  knob, so the setting has to be where the eye is. */
+void paintVuVolumeMark (juce::Graphics &g, juce::Rectangle<int> bounds,
+                        float value, juce::Colour colour);
+
 /** The colour a band is filled in, from the skin.
  *
  *  Public because the channel faces carry a dot in the same three colours,

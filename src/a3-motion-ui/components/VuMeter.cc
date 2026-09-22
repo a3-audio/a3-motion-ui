@@ -56,6 +56,10 @@ constexpr float meterGapOfMeterWidth = 1.f / 5.f;
  *  Floored at a pixel, since a mark that vanished on a short meter would say
  *  "no transient", which is the one thing a meter must not say untruthfully. */
 constexpr float peakMarkOfTrackHeight = 1.f / 64.f;
+/** Twice the peak mark's weight: two lines on one meter, one saying where the
+ *  signal reached and one where the hand left VOL, must not be read as each
+ *  other. */
+constexpr float volumeMarkOfTrackHeight = 2.f * peakMarkOfTrackHeight;
 
 /** The air between two bars of the output block.
  *
@@ -228,6 +232,46 @@ vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level)
     }
 
   return out;
+}
+
+juce::Rectangle<int>
+vuVolumeMark (juce::Rectangle<int> bounds, float value)
+{
+  if (bounds.isEmpty ())
+    return {};
+
+  // NaN fails every comparison, so it is caught here rather than by the clamp.
+  auto const travel = value >= 0.f ? juce::jmin (value, 1.f) : 0.f;
+  auto const height = bounds.getHeight ();
+  auto const thickness = juce::jmax (
+      2, juce::roundToInt (static_cast<float> (height) * volumeMarkOfTrackHeight));
+
+  // Centred on the value rather than hanging below it, so half-way reads as
+  // half-way; clamped at both ends so the mark never leaves the track.
+  auto const at = bounds.getBottom ()
+                  - juce::roundToInt (static_cast<float> (height) * travel);
+  auto const top = juce::jlimit (bounds.getY (), bounds.getBottom () - thickness,
+                                 at - thickness / 2);
+
+  return { bounds.getX (), top, bounds.getWidth (), thickness };
+}
+
+void
+paintVuVolumeMark (juce::Graphics &g, juce::Rectangle<int> bounds, float value,
+                   juce::Colour colour)
+{
+  auto const mark = vuVolumeMark (bounds, value);
+  if (mark.isEmpty ())
+    return;
+
+  // Edged in the page's own dark, because the mark crosses the bands: a
+  // yellow channel's mark on the yellow band, or a red one's on the red, is
+  // otherwise a line that disappears exactly where it matters.
+  g.setColour (toColour (theme ().surface));
+  auto const edge = juce::jmax (1, juce::roundToInt (theme ().strokeThin));
+  g.fillRect (mark.expanded (0, edge).getIntersection (bounds));
+  g.setColour (colour);
+  g.fillRect (mark);
 }
 
 StripColumns

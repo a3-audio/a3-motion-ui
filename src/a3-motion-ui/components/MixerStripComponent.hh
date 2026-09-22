@@ -105,6 +105,8 @@ private:
   int _channel = 0;
 
   std::array<std::unique_ptr<TouchControl>, numMixerControls> _touch;
+  /** Over the meter: dragging it is dragging VOL. */
+  std::unique_ptr<TouchControl> _meterTouch;
 };
 
 }
