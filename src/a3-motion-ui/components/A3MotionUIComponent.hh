@@ -319,6 +319,8 @@ private:
   int renameInSets (juce::String const &from, juce::String const &to);
   void updateActionPage ();
   void applyActionControl (int control, int increment);
+  /** Where a knob stands now -- the ACTION page's nine are sliders. */
+  void setActionControl (int control, double value);
   void resetActionControl (int control);
   static juce::String actionReadoutFor (int control,
                                         Pattern const &pattern);

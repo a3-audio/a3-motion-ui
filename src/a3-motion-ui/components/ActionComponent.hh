@@ -24,6 +24,7 @@
 
 #include <a3-motion-ui/components/ActionLayout.hh>
 #include <a3-motion-ui/components/ScriptBuffer.hh>
+#include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
@@ -71,6 +72,13 @@ public:
   /** Which clip this page is showing, and the colour it wears. */
   void setTarget (int channel, int slot, juce::Colour channelColour);
 
+  /** Puts a row's three values on its three knobs, without fighting a finger
+   *  that is on one of them. */
+  void putOnKnobs (int first, int attackStep, int decayStep, float max);
+  /** The channel's colour, on all nine. */
+  void putColourOnKnobs ();
+
+public:
   /** Steps 0..envelopeMaxStep, as the engine counts them. */
   void setEnvelope (int attackStep, int decayStep, float max);
   /** The two filter envelopes: the cutoff's, then the resonance's. */
@@ -111,6 +119,10 @@ public:
    *  freely. */
   void setGridReference (juce::Rectangle<int> barCoordinates);
 
+  /** A knob was turned: where it stands now. The nine envelope knobs are
+   *  sliders, so the value is theirs and the page only passes it on -- the
+   *  increments this used to count were the slider's job. */
+  std::function<void (int control, double value)> onControlSet;
   std::function<void (int control, int increment)> onControlDragged;
   std::function<void (int control)> onControlDoubleTapped;
   std::function<void (int control)> onControlTapped;
@@ -188,6 +200,8 @@ private:
   juce::Rectangle<int> _gridReference;
 
   std::array<std::unique_ptr<TouchControl>, numControls> _touch;
+  /** One per envelope control; the mode beside the name stays a key. */
+  std::array<std::unique_ptr<PotKnob>, numControls> _knob;
   /** The name field, which opens the list, and the script, which takes the
    *  caret. Neither is a knob, so neither is in `controls`. */
   std::unique_ptr<TouchControl> _actionTouch;

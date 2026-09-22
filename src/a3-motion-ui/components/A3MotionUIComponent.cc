@@ -785,6 +785,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _action->onControlDragged = [this] (int control, int increment) {
     applyActionControl (control, increment);
   };
+  // A knob says where it stands; the page counts nothing. Two taps are the
+  // slider's own (setDoubleClickReturnValue), and they arrive here the same
+  // way as a turn.
+  _action->onControlSet = [this] (int control, double value) {
+    setActionControl (control, value);
+  };
   _action->onControlDoubleTapped = [this] (int control) {
     resetActionControl (control);
   };
@@ -4273,6 +4279,36 @@ A3MotionUIComponent::applyActionControl (int control, int increment)
       break;
     default:
       return;
+    }
+
+  updateActionPage ();
+  updateControlReadout (actionReadoutFor (control, *pattern));
+}
+
+void
+A3MotionUIComponent::setActionControl (int control, double value)
+{
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto &pattern = _patterns[channel][slot];
+  if (!pattern)
+    return;
+
+  auto const step = static_cast<int> (std::lround (value));
+  auto const level = static_cast<float> (value);
+
+  switch (control)
+    {
+    case ActionComponent::Attack:      pattern->setEnvelopeAttack (step); break;
+    case ActionComponent::Decay:       pattern->setEnvelopeDecay (step); break;
+    case ActionComponent::EnvelopeMax: pattern->setEnvelopeMax (level); break;
+    case ActionComponent::FreqAttack:  pattern->setFreqAttack (step); break;
+    case ActionComponent::FreqDecay:   pattern->setFreqDecay (step); break;
+    case ActionComponent::FreqMax:     pattern->setFreqMax (level); break;
+    case ActionComponent::QAttack:     pattern->setQAttack (step); break;
+    case ActionComponent::QDecay:      pattern->setQDecay (step); break;
+    case ActionComponent::QMax:        pattern->setQMax (level); break;
+    default:                           return;
     }
 
   updateActionPage ();

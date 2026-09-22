@@ -27,6 +27,7 @@
 #include <a3-motion-ui/components/FittedFont.hh>
 #include <a3-motion-ui/components/ListScroll.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
+#include <a3-motion-ui/components/ActionKnobs.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -46,8 +47,34 @@ envFrac (int step)
 
 ActionComponent::ActionComponent ()
 {
+  // The nine envelope controls are knobs of their own -- sliders, drawn by
+  // the LookAndFeel as this device's knob (PotKnob). The mode beside the
+  // action's name is a key and keeps its hit area.
+  for (int i = 0; i < ActMode; ++i)
+    {
+      auto const spec = actionKnobSpec (i);
+
+      auto knob = std::make_unique<PotKnob> ();
+      knob->setLabel (actionKnobIsACeiling (i) ? caption::envelopeMax
+                      : i % 3 == 0             ? caption::attack
+                                               : caption::decay);
+      knob->setRange (0.0, spec.max, spec.interval);
+      knob->setDoubleClickReturnValue (true, spec.resetTo);
+
+      knob->onValueChange = [this, i, k = knob.get ()] {
+        if (onControlSet)
+          onControlSet (i, k->getValue ());
+      };
+
+      addAndMakeVisible (*knob);
+      _knob[static_cast<size_t> (i)] = std::move (knob);
+    }
+
   for (int i = 0; i < numControls; ++i)
     {
+      if (i < ActMode)
+        continue;
+
       auto touch = std::make_unique<TouchControl> ();
       touch->setIdentity (i);
 
@@ -206,7 +233,7 @@ ActionComponent::resized ()
 
   // Every knob comes out of the rows; the mode does not stand in one.
   for (int i = 0; i < ActMode; ++i)
-    _touch[static_cast<size_t> (i)]->setBounds (
+    _knob[static_cast<size_t> (i)]->setBounds (
         _layout.controls[static_cast<size_t> (i)]);
 
   _touch[ActMode]->setBounds (_layout.actModeField);
@@ -226,12 +253,38 @@ ActionComponent::resized ()
 }
 
 void
+ActionComponent::putColourOnKnobs ()
+{
+  for (auto &knob : _knob)
+    if (knob)
+      knob->setKnobColour (_channelColour);
+}
+
+void
 ActionComponent::setTarget (int channel, int slot, juce::Colour channelColour)
 {
   _channel = channel;
   _slot = slot;
   _channelColour = channelColour;
+  putColourOnKnobs ();
   repaint ();
+}
+
+void
+ActionComponent::putOnKnobs (int first, int attackStep, int decayStep,
+                             float max)
+{
+  // Not while a finger is on one: writing a value back into the knob that is
+  // being turned is the page arguing with the hand.
+  auto const put = [this] (int control, double value) {
+    auto &knob = _knob[static_cast<size_t> (control)];
+    if (knob && !knob->isMouseButtonDown ())
+      knob->setValue (value, juce::dontSendNotification);
+  };
+
+  put (first, attackStep);
+  put (first + 1, decayStep);
+  put (first + 2, max);
 }
 
 void
@@ -243,7 +296,7 @@ ActionComponent::setEnvelope (int attackStep, int decayStep, float max)
   _attack = attackStep;
   _decay = decayStep;
   _max = max;
-  repaint ();
+  putOnKnobs (Attack, attackStep, decayStep, max);
 }
 
 void
@@ -255,7 +308,7 @@ ActionComponent::setFreqEnvelope (int attackStep, int decayStep, float max)
   _freqAttack = attackStep;
   _freqDecay = decayStep;
   _freqMax = max;
-  repaint ();
+  putOnKnobs (FreqAttack, attackStep, decayStep, max);
 }
 
 void
@@ -267,7 +320,7 @@ ActionComponent::setQEnvelope (int attackStep, int decayStep, float max)
   _qAttack = attackStep;
   _qDecay = decayStep;
   _qMax = max;
-  repaint ();
+  putOnKnobs (QAttack, attackStep, decayStep, max);
 }
 
 void
@@ -769,23 +822,8 @@ ActionComponent::paint (juce::Graphics &g)
   // Three envelopes, one row each, all the same shape: atk over atk over atk.
   // The accent is read first because it is what ACT has always done, then the
   // cutoff, then the resonance.
-  int const steps[]
-      = { _attack, _decay, 0, _freqAttack, _freqDecay, 0, _qAttack, _qDecay, 0 };
-  float const ceilings[] = { _max, _freqMax, _qMax };
-
-  for (int row = 0; row < ActionLayout::numRows; ++row)
-    {
-      auto const base = row * 3;
-      paintBarKnob (g, _layout.controls[static_cast<size_t> (base)], metrics,
-                    _channelColour, caption::attack,
-                    envFrac (steps[base]), false, false, true);
-      paintBarKnob (g, _layout.controls[static_cast<size_t> (base + 1)],
-                    metrics, _channelColour, caption::decay,
-                    envFrac (steps[base + 1]), false, false, true);
-      paintBarKnob (g, _layout.controls[static_cast<size_t> (base + 2)],
-                    metrics, _channelColour, caption::envelopeMax,
-                    ceilings[row] * 2.f - 1.f, false, false, true);
-    }
+  // The nine knobs draw themselves (PotKnob); the page draws what stands
+  // between them.
 
   // Which row is which, said once each rather than on every knob.
   // "3d", not "accent": what the row drives is the channel's 3d, and naming
