@@ -51,10 +51,9 @@ TEST (SpeakerTest, OnlyTheActiveBoxSounds)
     EXPECT_FLOAT_EQ (buffer.getMagnitude (channel, 0, 512), 0.f);
 }
 
-// -20 dBFS RMS is the level every AV receiver's test tone plays at, and the
-// level a speaker can take without anybody reaching for the volume first.
+// The noise plays at the level the class says, whatever that is set to.
 // Measured over the second second: the filter needs a moment to settle.
-TEST (SpeakerTest, TheLevelIsTwentyDecibelsBelowFullScale)
+TEST (SpeakerTest, TheNoisePlaysAtItsStatedLevel)
 {
   SpeakerTest test (1, longStep);
   juce::AudioBuffer<float> buffer (1, 2 * sampleRate);

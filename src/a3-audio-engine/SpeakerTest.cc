@@ -26,8 +26,12 @@ namespace a3
 namespace
 {
 // Paul Kellet's economy pink filter gives 1.7168 RMS for uniform white noise
-// in [-1, 1] (20 s simulated, 2026-09-21). 0.1 / 1.7168 puts it at -20 dBFS.
-constexpr float pinkGain = 0.058248f;
+// in [-1, 1] (20 s simulated, 2026-09-21). Derived from levelDbfs rather than
+// written as a second number, so turning the level down cannot leave the
+// gain behind.
+constexpr float pinkFilterRms = 1.7168f;
+float const pinkGain
+    = juce::Decibels::decibelsToGain (SpeakerTest::levelDbfs) / pinkFilterRms;
 }
 
 SpeakerTest::SpeakerTest (std::size_t numChannels, int samplesPerStep, juce::int64 seed)

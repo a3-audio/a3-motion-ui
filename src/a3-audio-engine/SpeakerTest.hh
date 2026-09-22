@@ -35,7 +35,11 @@ namespace a3
 class SpeakerTest
 {
 public:
-  static constexpr float levelDbfs = -20.f;
+  /** Quiet on purpose: this plays straight to the interface, past REAPER and
+   *  its master, into whatever the amps are set to. -20 dBFS, the AV
+   *  receiver's level, was asked to be "relativ leise" before the first run
+   *  on the rig. */
+  static constexpr float levelDbfs = -40.f;
 
   SpeakerTest (std::size_t numChannels, int samplesPerStep, juce::int64 seed = 1);
 
