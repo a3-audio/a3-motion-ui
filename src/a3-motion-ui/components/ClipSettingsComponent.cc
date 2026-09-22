@@ -550,6 +550,7 @@ ClipSettingsComponent::setTarget (int channel, int slot,
   _channel = channel;
   _slot = slot;
   _channelColour = channelColour;
+  markKnobs ();
   repaint ();
 }
 
@@ -584,6 +585,7 @@ ClipSettingsComponent::markKnobs ()
         {
           knob->setActive (static_cast<int> (sub) == subIndex);
           knob->setSelected (_selectedIndex == section);
+          knob->setKnobColour (_channelColour);
         }
   };
 
