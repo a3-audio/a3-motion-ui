@@ -137,23 +137,6 @@ runMeterTimerWhileVisible (bool isVisible, juce::Timer &timer)
 }
 
 void
-repaintMixerMeters (juce::Component &page, MixerLayout const &layout)
-{
-  if (!layout.fits)
-    return;
-
-  auto const redraw = [&page] (juce::Rectangle<int> const &meter) {
-    if (!meter.isEmpty ())
-      page.repaint (meter);
-  };
-
-  for (auto const &meter : layout.channelMeter)
-    redraw (meter);
-  for (auto const &bar : layout.outputMeters)
-    redraw (bar);
-}
-
-void
 paintMixerHasNoRoom (juce::Graphics &g, juce::Rectangle<int> bounds,
                      juce::String const &what)
 {
@@ -205,6 +188,29 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
                      [static_cast<std::size_t> (i)]
             = std::move (touch);
       }
+
+  // The meters first, so the faders are added after them and stand over
+  // them: the handle is the layer above.
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    {
+      auto view = std::make_unique<VuMeterView> ();
+      view->level = [this, channel] {
+        return _levels.channel (channel, vuNowMs ());
+      };
+      addAndMakeVisible (*view);
+      _channelMeterView[static_cast<std::size_t> (channel)] = std::move (view);
+    }
+
+  for (int meter = 0; meter < numOutputMeters; ++meter)
+    {
+      auto view = std::make_unique<VuMeterView> ();
+      view->setDirection (VuDirection::Right);
+      view->level = [this, meter] {
+        return _levels.output (meter, vuNowMs ());
+      };
+      addAndMakeVisible (*view);
+      _outputMeterView[static_cast<std::size_t> (meter)] = std::move (view);
+    }
 
   // Each meter is its channel's VOL: a fader over it, JUCE's slider doing
   // the drag -- see VuFader.
@@ -284,7 +290,10 @@ MixerComponent::visibilityChanged ()
 void
 MixerComponent::timerCallback ()
 {
-  repaintMixerMeters (*this, _layout);
+  for (auto const &view : _channelMeterView)
+    view->repaint ();
+  for (auto const &view : _outputMeterView)
+    view->repaint ();
 }
 
 juce::Rectangle<int>
@@ -336,10 +345,22 @@ MixerComponent::resized ()
 
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     {
-      auto &fader = _channelFader[static_cast<std::size_t> (channel)];
-      fader->setBounds (
-          _layout.channelMeter[static_cast<std::size_t> (channel)]);
+      auto const index = static_cast<std::size_t> (channel);
+      auto const meter = _layout.channelMeter[index];
+
+      _channelMeterView[index]->setBounds (meter);
+      _channelMeterView[index]->setVisible (_layout.fits);
+
+      auto &fader = _channelFader[index];
+      fader->setBounds (meter);
       fader->setVisible (_layout.fits);
+    }
+
+  for (int meter = 0; meter < numOutputMeters; ++meter)
+    {
+      auto const index = static_cast<std::size_t> (meter);
+      _outputMeterView[index]->setBounds (_layout.outputMeters[index]);
+      _outputMeterView[index]->setVisible (_layout.fits);
     }
 
   for (int i = 0; i < numMasterFaceControls; ++i)
@@ -388,35 +409,12 @@ MixerComponent::paint (juce::Graphics &g)
 }
 
 void
-MixerComponent::repaintChannelMeter (int channel)
-{
-  if (channel < 0 || channel >= numChannelsInitial)
-    return;
-  repaint (meterRefreshArea (
-      _layout.channelMeter[static_cast<std::size_t> (channel)]));
-}
-
-void
-MixerComponent::repaintMasterMeter ()
-{
-  repaint (meterRefreshArea (_layout.masterMeter));
-}
-
-juce::Rectangle<int>
-MixerComponent::meterRefreshArea (juce::Rectangle<int> meter)
-{
-  // The handle's outline is stroked *on* the meter's edge, so half of it
-  // stands outside: redrawing only the meter left those two hairlines behind
-  // wherever a drag started, on a page that is not repainted whole.
-  return meter.expanded (juce::roundToInt (theme ().strokeThick));
-}
-
-void
 MixerComponent::syncFaders ()
 {
   // The faders carry the value and draw the handle; the page owns the state.
-  // Pushed from paint() rather than from every writer, because a value can
-  // arrive from the wire, from a set being loaded or from the other page.
+  // Pushed from paint() and from whoever changed a value, rather than from
+  // every writer: a value can arrive from the wire, from a set being loaded
+  // or from the other page. A slider that is already there does nothing.
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     {
       auto &fader = _channelFader[static_cast<std::size_t> (channel)];
@@ -433,28 +431,9 @@ MixerComponent::syncFaders ()
 void
 MixerComponent::paintMeters (juce::Graphics &g)
 {
-  // One reading of the clock for the whole page. Nine meters each asking the
-  // time would draw nine slightly different moments, and a peak mark that
-  // expired between two columns of the same picture is a picture that
-  // contradicts itself.
-  auto const now = vuNowMs ();
-
-  // Every meter on the page is drawn the same, the channels' and the outputs'
-  // alike: green, yellow and red down a bar is a scale, and a scale that meant
-  // something different on the fifth column from the four beside it would be
-  // read wrong exactly once, at the moment it mattered.
-  for (int channel = 0; channel < numChannelsInitial; ++channel)
-    {
-      auto const meter = _layout.channelMeter[static_cast<std::size_t> (channel)];
-      paintVuMeter (g, meter, _levels.channel (channel, now));
-    }
-
-  for (int meter = 0; meter < numOutputMeters; ++meter)
-    paintVuMeter (g, _layout.outputMeters[static_cast<std::size_t> (meter)],
-                  _levels.output (meter, now), VuDirection::Right);
-
-  // The master's own fader track: a groove down the column, with the output
-  // meters standing in its foot and the handle -- a VuFader -- on top of it.
+  // The meters draw themselves (VuMeterView). What is left here is the page's
+  // own furniture around them: the master's fader groove and the word under
+  // its block.
   auto const groove = _layout.masterMeter.withSizeKeepingCentre (
       juce::jmax (juce::roundToInt (theme ().strokeThick * 2.f),
                   _layout.masterMeter.getWidth () / 8),

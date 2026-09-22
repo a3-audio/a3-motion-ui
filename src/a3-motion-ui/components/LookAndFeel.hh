@@ -62,6 +62,16 @@ public:
   juce::Font getPopupMenuFont () override;
   juce::Font getTextButtonFont (juce::TextButton &button,
                                 int buttonHeight) override;
+
+  /** The faders over the VU meters: a capped, grooved handle instead of
+   *  JUCE's dot on a line, and no track of its own -- the meter behind it is
+   *  the track. Drawn here rather than in the component so a slider is
+   *  coloured the way any JUCE slider is, through `thumbColourId`. */
+  void drawLinearSlider (juce::Graphics &g, int x, int y, int width,
+                         int height, float sliderPos, float minSliderPos,
+                         float maxSliderPos,
+                         juce::Slider::SliderStyle style,
+                         juce::Slider &slider) override;
 };
 
 

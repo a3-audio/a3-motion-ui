@@ -44,26 +44,17 @@ VuFader::VuFader ()
   // "full", and the master's says nothing -- see onDoubleTapped.
   setDoubleClickReturnValue (false, 0.0);
 
-  _colour = toColour (theme ().textPrimary);
+  setColour (juce::Slider::thumbColourId, toColour (theme ().textPrimary));
 }
 
 void
 VuFader::setHandleColour (juce::Colour colour)
 {
-  if (_colour == colour)
+  if (findColour (juce::Slider::thumbColourId) == colour)
     return;
 
-  _colour = colour;
+  setColour (juce::Slider::thumbColourId, colour);
   repaint ();
-}
-
-void
-VuFader::paint (juce::Graphics &g)
-{
-  // Only the handle: the meter behind it is the page's, and a slider drawing
-  // its own track would cover the reading it stands on.
-  paintVuFaderHandle (g, getLocalBounds (), static_cast<float> (getValue ()),
-                      _colour);
 }
 
 void

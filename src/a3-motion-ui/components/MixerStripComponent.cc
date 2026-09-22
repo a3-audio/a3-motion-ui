@@ -67,6 +67,13 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
       _touch[index] = std::move (touch);
     }
 
+  // The meter first, the fader after it: the handle is the layer above, and
+  // the meter paints itself, so its twenty five refreshes a second never
+  // reach this page.
+  _meterView = std::make_unique<VuMeterView> ();
+  _meterView->level = [this] { return _levels.channel (_channel, vuNowMs ()); };
+  addAndMakeVisible (*_meterView);
+
   // The meter is VOL: a fader over it, JUCE's slider doing the drag, and two
   // taps ask for full volume -- see VuFader.
   _fader = std::make_unique<VuFader> ();
@@ -97,7 +104,7 @@ MixerStripComponent::timerCallback ()
   // The overlay's, and the strip leaves the rectangles it has no meter for
   // empty -- so this asks for one bar and the overlay for nine, out of one
   // loop.
-  repaintMixerMeters (*this, _layout);
+  _meterView->repaint ();
 }
 
 void
@@ -141,6 +148,8 @@ MixerStripComponent::resized ()
       _touch[i]->setVisible (_layout.fits);
     }
 
+  _meterView->setBounds (_layout.channelMeter[0]);
+  _meterView->setVisible (_layout.fits);
   _fader->setBounds (_layout.channelMeter[0]);
   _fader->setVisible (_layout.fits);
 }
@@ -151,12 +160,6 @@ MixerStripComponent::syncFader ()
   _fader->setValue (_state.channelValue (_channel, MixerControl::Volume),
                     juce::dontSendNotification);
   _fader->setHandleColour (toColour (theme ().channel[_channel]));
-}
-
-void
-MixerStripComponent::repaintMeter ()
-{
-  repaint (_layout.channelMeter[0]);
 }
 
 void
@@ -187,11 +190,8 @@ MixerStripComponent::paint (juce::Graphics &g)
                                 _state.channelToggle (_channel, control));
     }
 
-  // The shown channel's input meter, at the far right of the band -- the same
-  // picture the overlay draws, from the same store, so the two pages cannot
-  // disagree about how loud a deck is.
-  paintVuMeter (g, _layout.channelMeter[0],
-                _levels.channel (_channel, vuNowMs ()));
+  // The meter is a component of its own (VuMeterView), standing under the
+  // fader at the far right of the band, and it paints itself.
 }
 
 }

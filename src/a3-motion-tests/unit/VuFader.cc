@@ -157,3 +157,16 @@ TEST (MixerFaders, TheBarsTabCarriesOneToo)
 
   EXPECT_NEAR (moved, 0.3f, 0.001f);
 }
+
+// Coloured the way a JUCE slider is coloured: per component, through the
+// colour ids the LookAndFeel draws from. Ours draws the cap, but nothing
+// about *which* colour it is belongs to us.
+TEST (VuFader, ItsHandleColourIsTheSlidersThumbColour)
+{
+  VuFader fader;
+
+  fader.setHandleColour (juce::Colours::hotpink);
+
+  EXPECT_EQ (fader.findColour (juce::Slider::thumbColourId),
+             juce::Colours::hotpink);
+}

@@ -47,19 +47,16 @@ public:
   VuFader ();
 
   /** The handle's colour: a channel's own, or the skin's text colour for the
-   *  master. Kept here rather than read at paint time because a page's meters
-   *  belong to different channels. */
+   *  master. Set as the slider's own `thumbColourId`, which is where
+   *  LookAndFeel_A3::drawLinearSlider reads it -- the drawing is ours, the
+   *  way it is coloured is JUCE's. */
   void setHandleColour (juce::Colour colour);
 
   /** Two taps on this fader. Empty for the master, whose full volume is the
    *  whole room at once. */
   std::function<void ()> onDoubleTapped;
 
-  void paint (juce::Graphics &g) override;
   void mouseDoubleClick (juce::MouseEvent const &event) override;
-
-private:
-  juce::Colour _colour;
 };
 
 }

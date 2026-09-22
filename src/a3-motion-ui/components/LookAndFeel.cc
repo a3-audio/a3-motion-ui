@@ -20,6 +20,7 @@
 
 #include "LookAndFeel.hh"
 
+#include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
 namespace a3
@@ -108,6 +109,35 @@ LookAndFeel_A3::getTextButtonFont (juce::TextButton &button, int buttonHeight)
       juce::LookAndFeel_V4::getTextButtonFont (button, buttonHeight));
 }
 
+
+void
+LookAndFeel_A3::drawLinearSlider (juce::Graphics &g, int x, int y, int width,
+                                  int height, float sliderPos,
+                                  float minSliderPos, float maxSliderPos,
+                                  juce::Slider::SliderStyle style,
+                                  juce::Slider &slider)
+{
+  if (style != juce::Slider::LinearVertical)
+    {
+      juce::LookAndFeel_V4::drawLinearSlider (g, x, y, width, height,
+                                              sliderPos, minSliderPos,
+                                              maxSliderPos, style, slider);
+      return;
+    }
+
+  // From the slider's own proportion rather than from sliderPos, because the
+  // handle is a cap with a height of its own: where its middle sits is the
+  // value, and vuFaderHandle is what knows how to put it there.
+  auto const range = slider.getMaximum () - slider.getMinimum ();
+  auto const value
+      = range > 0.0
+            ? static_cast<float> ((slider.getValue () - slider.getMinimum ())
+                                  / range)
+            : 0.f;
+
+  paintVuFaderHandle (g, juce::Rectangle<int> (x, y, width, height), value,
+                      slider.findColour (juce::Slider::thumbColourId));
+}
 
 void
 applyThemeEverywhere (Theme loaded, juce::Component &inTree)

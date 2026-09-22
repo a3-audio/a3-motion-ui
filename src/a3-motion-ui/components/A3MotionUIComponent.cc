@@ -335,8 +335,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // made the long faders feel like they were catching.
   auto const meterDraggedTo = [this] (int channel, float value) {
     _mixerState.setChannelFromTouch (channel, MixerControl::Volume, value);
-    _mixer->repaintChannelMeter (channel);
-    _mixerStrip->repaintMeter ();
+    _mixer->syncFaders ();
+    _mixerStrip->syncFader ();
   };
   _mixer->onMeterDraggedTo = meterDraggedTo;
   _mixerStrip->onMeterDraggedTo = meterDraggedTo;
@@ -348,7 +348,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
   _mixer->onMasterMeterDraggedTo = [this] (float value) {
     _mixerState.setMasterFromTouch (MasterControl::Volume, value);
-    _mixer->repaintMasterMeter ();
+    _mixer->syncFaders ();
   };
   _mixer->onFilterDragged = [this, mixerStep] (FilterControl control,
                                                int steps) {

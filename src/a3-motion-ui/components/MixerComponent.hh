@@ -30,6 +30,7 @@
 #include <a3-motion-ui/components/MixerState.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/components/VuFader.hh>
+#include <a3-motion-ui/components/VuMeterView.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
@@ -100,17 +101,6 @@ void wireMixerChannelTouch (
  *  sphere wants the machine. */
 void runMeterTimerWhileVisible (bool isVisible, juce::Timer &timer);
 
-/** Redraws a page's meters and nothing else.
- *
- *  paint() still runs, but clipped to these rectangles -- so a refresh costs a
- *  few narrow bars rather than a whole mixer. A page too small to lay out
- *  draws one line of text and no meters at all, so it has nothing to keep up
- *  to date; saying so is what makes that deliberate rather than lucky.
- *
- *  Both pages read the same MixerLayout, and the strip simply leaves the
- *  rectangles it does not use empty -- so one loop serves both rather than
- *  each naming the meters it happens to have. */
-void repaintMixerMeters (juce::Component &page, MixerLayout const &layout);
 
 /** The one line a page draws where it cannot lay itself out.
  *
@@ -152,12 +142,10 @@ public:
    *  finger moved -- 660x491 at about 2.8 ms a time, measured on the rig,
    *  which is what made the master's long fader feel like it was catching.
    *  The handle never leaves its meter, so its meter is all that changes. */
+  /** Put the faders where the state says, without repainting the page: a
+   *  slider redraws itself when its value changes. */
   void syncFaders ();
-  void repaintChannelMeter (int channel);
-  void repaintMasterMeter ();
 
-  /** A meter plus the hairline its handle's outline stands on. */
-  static juce::Rectangle<int> meterRefreshArea (juce::Rectangle<int> meter);
   /** The whole geometry is worked out from the skin's pot size and fonts, so
    *  a skin change has to re-lay this out, not merely repaint it. */
   void applyTheme () override;
@@ -228,6 +216,13 @@ private:
   std::array<std::array<std::unique_ptr<TouchControl>, numMixerFaceControls>,
              static_cast<std::size_t> (numChannelsInitial)>
       _channelTouch;
+  /** One per channel and one per output: the meters, each painting itself.
+   *  Added before the faders, so a fader stands over its meter. */
+  std::array<std::unique_ptr<VuMeterView>,
+             static_cast<std::size_t> (numChannelsInitial)>
+      _channelMeterView;
+  std::array<std::unique_ptr<VuMeterView>, numOutputMeters> _outputMeterView;
+
   /** One per channel, over its meter: the fader that VOL is dragged on. */
   std::array<std::unique_ptr<VuFader>,
              static_cast<std::size_t> (numChannelsInitial)>
