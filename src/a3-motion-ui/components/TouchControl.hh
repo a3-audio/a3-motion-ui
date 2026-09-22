@@ -124,10 +124,6 @@ public:
    *  silent in exactly that case. */
   std::function<void (int primary, int secondary)> onRelease;
 
-  /** Let a touch that moved something still be half of a double tap -- for
-   *  the VU meter; see DoubleTapMovement. */
-  void letDoubleTapMove () { _doubleTapMovement = DoubleTapMovement::MayMove; }
-
   void mouseDown (juce::MouseEvent const &event) override;
   void mouseDrag (juce::MouseEvent const &event) override;
   void mouseUp (juce::MouseEvent const &event) override;
@@ -152,7 +148,6 @@ private:
   /** The last touch that counted as a tap, for spotting the second one. */
   std::optional<TapTouch> _lastTap;
   juce::int64 _downMs = 0;
-  DoubleTapMovement _doubleTapMovement = DoubleTapMovement::MustBeStill;
 };
 
 }

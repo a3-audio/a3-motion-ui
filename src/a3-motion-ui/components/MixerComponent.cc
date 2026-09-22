@@ -206,33 +206,21 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
             = std::move (touch);
       }
 
-  // Each meter is its channel's VOL, dragged one to one -- see
-  // MixerStripComponent, which does the same for its one.
+  // Each meter is its channel's VOL: a fader over it, JUCE's slider doing
+  // the drag -- see VuFader.
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     {
-      auto touch = std::make_unique<TouchControl> ();
-      auto const index = static_cast<std::size_t> (channel);
-      touch->onPress = [this, channel, index] (int, int) {
-        _meterVolumeAtPress[index]
-            = _state.channelValue (channel, MixerControl::Volume);
-      };
-      touch->onDragBy = [this, channel, index] (int, int,
-                                                juce::Point<int> offset) {
+      auto fader = std::make_unique<VuFader> ();
+      fader->onValueChange = [this, channel, f = fader.get ()] {
         if (onMeterDraggedTo)
-          onMeterDraggedTo (channel,
-                            vuMeterDragVolume (
-                                _meterVolumeAtPress[index], -offset.y,
-                                _layout.channelMeter[index].getHeight ()));
+          onMeterDraggedTo (channel, static_cast<float> (f->getValue ()));
       };
-      // Full volume on two taps -- see MixerStripComponent for why the
-      // meter has this and the knob does not.
-      touch->letDoubleTapMove ();
-      touch->onDoubleTap = [this, channel] (int, int) {
+      fader->onDoubleTapped = [this, channel] {
         if (onMeterDoubleTapped)
           onMeterDoubleTapped (channel);
       };
-      hookUp (*touch, channel, numMixerFaceControls);
-      _meterTouch[static_cast<std::size_t> (channel)] = std::move (touch);
+      addAndMakeVisible (*fader);
+      _channelFader[static_cast<std::size_t> (channel)] = std::move (fader);
     }
 
   for (int i = 0; i < numMasterFaceControls; ++i)
@@ -249,20 +237,16 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
       _masterTouch[static_cast<std::size_t> (i)] = std::move (touch);
     }
 
-  // The output meters are the master volume, dragged one to one like a
-  // channel's meter. No double tap: full volume on the master is the one
-  // gesture that makes the whole room loud at once, and the channels' meters
-  // already offer the jump where it concerns one deck.
-  _masterMeterTouch = std::make_unique<TouchControl> ();
-  _masterMeterTouch->onPress = [this] (int, int) {
-    _masterVolumeAtPress = _state.masterValue (MasterControl::Volume);
-  };
-  _masterMeterTouch->onDragBy = [this] (int, int, juce::Point<int> offset) {
+  // The output meters are the master volume, with the same fader over them.
+  // No double tap: full volume on the master is the one gesture that makes
+  // the whole room loud at once, and the channels' faders already offer the
+  // jump where it concerns one deck.
+  _masterFader = std::make_unique<VuFader> ();
+  _masterFader->onValueChange = [this] {
     if (onMasterMeterDraggedTo)
-      onMasterMeterDraggedTo (vuMeterDragVolume (
-          _masterVolumeAtPress, -offset.y, _layout.masterMeter.getHeight ()));
+      onMasterMeterDraggedTo (static_cast<float> (_masterFader->getValue ()));
   };
-  hookUp (*_masterMeterTouch, masterGroup, numMasterFaceControls);
+  addAndMakeVisible (*_masterFader);
 
   for (int i = 0; i < numFilterControls; ++i)
     {
@@ -352,10 +336,10 @@ MixerComponent::resized ()
 
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     {
-      auto &touch = _meterTouch[static_cast<std::size_t> (channel)];
-      touch->setBounds (
+      auto &fader = _channelFader[static_cast<std::size_t> (channel)];
+      fader->setBounds (
           _layout.channelMeter[static_cast<std::size_t> (channel)]);
-      touch->setVisible (_layout.fits);
+      fader->setVisible (_layout.fits);
     }
 
   for (int i = 0; i < numMasterFaceControls; ++i)
@@ -365,8 +349,8 @@ MixerComponent::resized ()
       touch->setVisible (_layout.fits);
     }
 
-  _masterMeterTouch->setBounds (_layout.masterMeter);
-  _masterMeterTouch->setVisible (_layout.fits);
+  _masterFader->setBounds (_layout.masterMeter);
+  _masterFader->setVisible (_layout.fits);
 
   for (int i = 0; i < numFilterControls; ++i)
     {
@@ -379,6 +363,8 @@ MixerComponent::resized ()
 void
 MixerComponent::paint (juce::Graphics &g)
 {
+  syncFaders ();
+
   // Opaque, unlike the menu and the skin editor: those are settings pages you
   // glance at, and seeing the room through them says the set is still running
   // behind. This one *is* the set -- nine meters and twenty-three controls
@@ -406,13 +392,42 @@ MixerComponent::repaintChannelMeter (int channel)
 {
   if (channel < 0 || channel >= numChannelsInitial)
     return;
-  repaint (_layout.channelMeter[static_cast<std::size_t> (channel)]);
+  repaint (meterRefreshArea (
+      _layout.channelMeter[static_cast<std::size_t> (channel)]));
 }
 
 void
 MixerComponent::repaintMasterMeter ()
 {
-  repaint (_layout.masterMeter);
+  repaint (meterRefreshArea (_layout.masterMeter));
+}
+
+juce::Rectangle<int>
+MixerComponent::meterRefreshArea (juce::Rectangle<int> meter)
+{
+  // The handle's outline is stroked *on* the meter's edge, so half of it
+  // stands outside: redrawing only the meter left those two hairlines behind
+  // wherever a drag started, on a page that is not repainted whole.
+  return meter.expanded (juce::roundToInt (theme ().strokeThick));
+}
+
+void
+MixerComponent::syncFaders ()
+{
+  // The faders carry the value and draw the handle; the page owns the state.
+  // Pushed from paint() rather than from every writer, because a value can
+  // arrive from the wire, from a set being loaded or from the other page.
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    {
+      auto &fader = _channelFader[static_cast<std::size_t> (channel)];
+      fader->setValue (_state.channelValue (channel, MixerControl::Volume),
+                       juce::dontSendNotification);
+      fader->setHandleColour (toColour (theme ().channel[channel]));
+    }
+
+  _masterFader->setValue (_state.masterValue (MasterControl::Volume),
+                          juce::dontSendNotification);
+  _masterFader->setHandleColour (toColour (theme ().textPrimary));
 }
 
 void
@@ -432,29 +447,20 @@ MixerComponent::paintMeters (juce::Graphics &g)
     {
       auto const meter = _layout.channelMeter[static_cast<std::size_t> (channel)];
       paintVuMeter (g, meter, _levels.channel (channel, now));
-      paintVuFaderHandle (g, meter,
-                         _state.channelValue (channel, MixerControl::Volume),
-                         toColour (theme ().channel[channel]));
     }
 
   for (int meter = 0; meter < numOutputMeters; ++meter)
     paintVuMeter (g, _layout.outputMeters[static_cast<std::size_t> (meter)],
                   _levels.output (meter, now), VuDirection::Right);
 
-  // The master's own fader: a groove down the column with the handle on it,
-  // and the output meters standing in its foot. The groove is drawn rather
-  // than left to the meters, because above them the track would otherwise be
-  // an empty stretch of panel with a cap floating on it.
+  // The master's own fader track: a groove down the column, with the output
+  // meters standing in its foot and the handle -- a VuFader -- on top of it.
   auto const groove = _layout.masterMeter.withSizeKeepingCentre (
       juce::jmax (juce::roundToInt (theme ().strokeThick * 2.f),
                   _layout.masterMeter.getWidth () / 8),
       _layout.masterMeter.getHeight ());
   g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
   g.fillRoundedRectangle (groove.toFloat (), theme ().radiusControl);
-
-  paintVuFaderHandle (g, _layout.masterMeter,
-                      _state.masterValue (MasterControl::Volume),
-                      toColour (theme ().textPrimary));
 
   if (!_layout.outputMeterCaption.isEmpty ())
     {

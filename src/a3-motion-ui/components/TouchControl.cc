@@ -138,7 +138,7 @@ TouchControl::mouseUp (juce::MouseEvent const &event)
   TapTouch const touch{ _downMs, juce::Time::currentTimeMillis (),
                         event.getMouseDownPosition (), _drag.hasMoved () };
 
-  if (onDoubleTap && isDoubleTap (_lastTap, touch, _doubleTapMovement))
+  if (onDoubleTap && isDoubleTap (_lastTap, touch))
     {
       // Instead of the second tap, not as well as it: a double tap that also
       // stepped the value would undo half of what it was asked for.
@@ -147,7 +147,7 @@ TouchControl::mouseUp (juce::MouseEvent const &event)
       return;
     }
 
-  if (countsAsTap (touch, _doubleTapMovement))
+  if (countsAsTap (touch))
     _lastTap = touch;
   else
     _lastTap.reset ();

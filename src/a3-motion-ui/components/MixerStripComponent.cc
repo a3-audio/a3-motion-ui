@@ -67,30 +67,18 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
       _touch[index] = std::move (touch);
     }
 
-  // The meter is VOL: dragged one to one from where VOL stood when the finger
-  // came down, and a tap does nothing -- see vuMeterDragVolume.
-  _meterTouch = std::make_unique<TouchControl> ();
-  _meterTouch->setIdentity (numMixerFaceControls);
-  _meterTouch->onPress = [this] (int, int) {
-    _meterVolumeAtPress = _state.channelValue (_channel, MixerControl::Volume);
-  };
-  _meterTouch->onDragBy = [this] (int, int, juce::Point<int> offset) {
+  // The meter is VOL: a fader over it, JUCE's slider doing the drag, and two
+  // taps ask for full volume -- see VuFader.
+  _fader = std::make_unique<VuFader> ();
+  _fader->onValueChange = [this] {
     if (onMeterDraggedTo)
-      onMeterDraggedTo (_channel,
-                        vuMeterDragVolume (_meterVolumeAtPress, -offset.y,
-                                           _layout.channelMeter[0].getHeight ()));
+      onMeterDraggedTo (_channel, static_cast<float> (_fader->getValue ()));
   };
-
-  // Two taps on the meter, and only there, put the channel at full volume.
-  // The knob keeps no double tap (mixerControlRestPosition): a jump two
-  // fingertips from a control dragged all evening is the accident that table
-  // guards against, and the meter is the place that was asked for it.
-  _meterTouch->letDoubleTapMove ();
-  _meterTouch->onDoubleTap = [this] (int, int) {
+  _fader->onDoubleTapped = [this] {
     if (onMeterDoubleTapped)
       onMeterDoubleTapped (_channel);
   };
-  addAndMakeVisible (*_meterTouch);
+  addAndMakeVisible (*_fader);
 
   applyTheme ();
 }
@@ -153,8 +141,16 @@ MixerStripComponent::resized ()
       _touch[i]->setVisible (_layout.fits);
     }
 
-  _meterTouch->setBounds (_layout.channelMeter[0]);
-  _meterTouch->setVisible (_layout.fits);
+  _fader->setBounds (_layout.channelMeter[0]);
+  _fader->setVisible (_layout.fits);
+}
+
+void
+MixerStripComponent::syncFader ()
+{
+  _fader->setValue (_state.channelValue (_channel, MixerControl::Volume),
+                    juce::dontSendNotification);
+  _fader->setHandleColour (toColour (theme ().channel[_channel]));
 }
 
 void
@@ -166,6 +162,8 @@ MixerStripComponent::repaintMeter ()
 void
 MixerStripComponent::paint (juce::Graphics &g)
 {
+  syncFader ();
+
   // No ground of its own. The bar has already filled this area with its own
   // surface, and a second panel over it would make the page read as an
   // overlay laid on the bar rather than as one of its views -- which is the
@@ -194,9 +192,6 @@ MixerStripComponent::paint (juce::Graphics &g)
   // disagree about how loud a deck is.
   paintVuMeter (g, _layout.channelMeter[0],
                 _levels.channel (_channel, vuNowMs ()));
-  paintVuFaderHandle (g, _layout.channelMeter[0],
-                     _state.channelValue (_channel, MixerControl::Volume),
-                     toColour (theme ().channel[_channel]));
 }
 
 }

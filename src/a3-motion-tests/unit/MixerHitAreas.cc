@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-ui/components/MixerComponent.hh>
+#include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/components/MixerStripComponent.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
@@ -28,15 +29,18 @@ using namespace a3;
 
 namespace
 {
-// Every child of these two is a TouchControl -- they draw everything
-// themselves and add nothing else -- so counting the visible ones counts the
-// live hit areas.
+// The pages' children are their TouchControls and their faders; the faders
+// are JUCE sliders and answer for themselves, so what is counted here is the
+// hit areas the page puts on its own controls.
 int
 liveHitAreas (juce::Component const &component)
 {
   auto live = 0;
   for (auto *child : component.getChildren ())
-    live += child->isVisible () ? 1 : 0;
+    live += (child->isVisible ()
+             && dynamic_cast<TouchControl const *> (child) != nullptr)
+                ? 1
+                : 0;
   return live;
 }
 
@@ -74,10 +78,8 @@ TEST (MixerHitAreas, TheOverlayTakesThemAgainOnceItFits)
 
   mixer.setBounds (0, 0, roomy, roomy);
 
-  // Each channel's meter is a hit area too: dragging it drags that VOL.
   EXPECT_EQ (liveHitAreas (mixer), numChannelsInitial * numMixerFaceControls
-                                       + numChannelsInitial
-                                       + numMasterFaceControls + 1
+                                       + numMasterFaceControls
                                        + numFilterControls);
 }
 
@@ -104,6 +106,5 @@ TEST (MixerHitAreas, TheStripTakesThemAgainOnceItFits)
 
   strip.setBounds (0, 0, roomy, roomy / 4);
 
-  // Plus the meter, which drags VOL.
-  EXPECT_EQ (liveHitAreas (strip), numMixerFaceControls + 1);
+  EXPECT_EQ (liveHitAreas (strip), numMixerFaceControls);
 }

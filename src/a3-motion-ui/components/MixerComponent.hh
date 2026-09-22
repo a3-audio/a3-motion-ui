@@ -29,6 +29,7 @@
 #include <a3-motion-ui/components/MixerLayout.hh>
 #include <a3-motion-ui/components/MixerState.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
+#include <a3-motion-ui/components/VuFader.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
@@ -151,8 +152,12 @@ public:
    *  finger moved -- 660x491 at about 2.8 ms a time, measured on the rig,
    *  which is what made the master's long fader feel like it was catching.
    *  The handle never leaves its meter, so its meter is all that changes. */
+  void syncFaders ();
   void repaintChannelMeter (int channel);
   void repaintMasterMeter ();
+
+  /** A meter plus the hairline its handle's outline stands on. */
+  static juce::Rectangle<int> meterRefreshArea (juce::Rectangle<int> meter);
   /** The whole geometry is worked out from the skin's pot size and fonts, so
    *  a skin change has to re-lay this out, not merely repaint it. */
   void applyTheme () override;
@@ -223,17 +228,13 @@ private:
   std::array<std::array<std::unique_ptr<TouchControl>, numMixerFaceControls>,
              static_cast<std::size_t> (numChannelsInitial)>
       _channelTouch;
-  /** One per channel, over its meter: dragging it is dragging that VOL. */
-  std::array<std::unique_ptr<TouchControl>,
+  /** One per channel, over its meter: the fader that VOL is dragged on. */
+  std::array<std::unique_ptr<VuFader>,
              static_cast<std::size_t> (numChannelsInitial)>
-      _meterTouch;
-  /** Each channel's VOL when a finger came down on its meter. */
-  std::array<float, static_cast<std::size_t> (numChannelsInitial)>
-      _meterVolumeAtPress{};
+      _channelFader;
   std::array<std::unique_ptr<TouchControl>, numMasterFaceControls> _masterTouch;
-  /** Over the output meters: dragging them is dragging the master volume. */
-  std::unique_ptr<TouchControl> _masterMeterTouch;
-  float _masterVolumeAtPress = 0.f;
+  /** Over the output meters: the master volume's fader. */
+  std::unique_ptr<VuFader> _masterFader;
   std::array<std::unique_ptr<TouchControl>, numFilterControls> _filterTouch;
 };
 

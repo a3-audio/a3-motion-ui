@@ -29,6 +29,7 @@
 #include <a3-motion-ui/components/MixerLayout.hh>
 #include <a3-motion-ui/components/MixerState.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
+#include <a3-motion-ui/components/VuFader.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
@@ -64,6 +65,7 @@ public:
   void resized () override;
 
   /** Redraw the meter and nothing else -- see MixerComponent's own. */
+  void syncFader ();
   void repaintMeter ();
   /** The geometry is worked out from the skin's pot size and fonts, so a skin
    *  change has to re-lay this out, not merely repaint it. */
@@ -112,10 +114,8 @@ private:
   int _channel = 0;
 
   std::array<std::unique_ptr<TouchControl>, numMixerFaceControls> _touch;
-  /** Over the meter: dragging it is dragging VOL. */
-  std::unique_ptr<TouchControl> _meterTouch;
-  /** VOL when the finger came down on the meter; the drag counts from it. */
-  float _meterVolumeAtPress = 0.f;
+  /** Over the meter: the fader VOL is dragged on. */
+  std::unique_ptr<VuFader> _fader;
 };
 
 }

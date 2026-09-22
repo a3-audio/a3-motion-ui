@@ -24,22 +24,17 @@ namespace a3
 {
 
 bool
-countsAsTap (TapTouch const &touch, DoubleTapMovement movement)
+countsAsTap (TapTouch const &touch)
 {
-  if (!touch.moved)
-    return true;
-
-  return movement == DoubleTapMovement::MayMove
-         && touch.upMs - touch.downMs < shortTouchMs;
+  return !touch.moved;
 }
 
 bool
-isDoubleTap (std::optional<TapTouch> const &previous, TapTouch const &current,
-             DoubleTapMovement movement)
+isDoubleTap (std::optional<TapTouch> const &previous, TapTouch const &current)
 {
   if (!previous.has_value ())
     return false;
-  if (!countsAsTap (*previous, movement) || !countsAsTap (current, movement))
+  if (!countsAsTap (*previous) || !countsAsTap (current))
     return false;
 
   auto const quick = current.upMs - previous->upMs < doubleTapMs;

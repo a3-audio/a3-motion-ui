@@ -36,61 +36,21 @@ tap (juce::int64 downMs, juce::int64 upMs, int x = 100, int y = 100,
 
 TEST (DoubleTap, TwoStillTapsCloseTogetherAreADoubleTap)
 {
-  EXPECT_TRUE (isDoubleTap (tap (0, 80), tap (200, 280),
-                            DoubleTapMovement::MustBeStill));
+  EXPECT_TRUE (isDoubleTap (tap (0, 80), tap (200, 280)));
 }
 
 TEST (DoubleTap, TooSlowIsTwoTaps)
 {
-  EXPECT_FALSE (isDoubleTap (tap (0, 80), tap (500, 580),
-                             DoubleTapMovement::MustBeStill));
+  EXPECT_FALSE (isDoubleTap (tap (0, 80), tap (500, 580)));
 }
 
 TEST (DoubleTap, TooFarApartIsTwoTaps)
 {
-  EXPECT_FALSE (isDoubleTap (tap (0, 80), tap (200, 280, 100 + doubleTapSlopPx, 100),
-                             DoubleTapMovement::MustBeStill));
+  EXPECT_FALSE (isDoubleTap (tap (0, 80), tap (200, 280, 100 + doubleTapSlopPx, 100)));
 }
 
 TEST (DoubleTap, NothingBeforeItIsNoDoubleTap)
 {
-  EXPECT_FALSE (isDoubleTap ({}, tap (200, 280), DoubleTapMovement::MayMove));
+  EXPECT_FALSE (isDoubleTap ({}, tap (200, 280)));
 }
 
-// Where a control asks for stillness, a wobble that stepped the value is a
-// drag, as it always was.
-TEST (DoubleTap, AStillControlTakesAMovedTouchForADrag)
-{
-  auto const wobbled = tap (200, 280, 100, 100, true);
-
-  EXPECT_FALSE (countsAsTap (wobbled, DoubleTapMovement::MustBeStill));
-  EXPECT_FALSE (isDoubleTap (tap (0, 80), wobbled,
-                             DoubleTapMovement::MustBeStill));
-}
-
-// The meter: two fast taps that wobbled are still a double tap.
-TEST (DoubleTap, OnTheMeterAWobbleDoesNotSpoilIt)
-{
-  EXPECT_TRUE (isDoubleTap (tap (0, 80, 100, 100, true),
-                            tap (200, 280, 104, 110, true),
-                            DoubleTapMovement::MayMove));
-}
-
-// But a long touch that moved is a drag even there: pull VOL down, put the
-// finger straight back to pull further, and letting go must not throw the
-// channel to full.
-TEST (DoubleTap, OnTheMeterADragPickedBackUpIsNotADoubleTap)
-{
-  auto const drag = tap (0, 900, 100, 100, true);
-  auto const moreDrag = tap (1000, 1250 + shortTouchMs, 100, 100, true);
-
-  EXPECT_FALSE (countsAsTap (drag, DoubleTapMovement::MayMove));
-  EXPECT_FALSE (isDoubleTap (tap (0, 80), moreDrag, DoubleTapMovement::MayMove));
-}
-
-TEST (DoubleTap, OnTheMeterAShortTouchCountsAsATapMovedOrNot)
-{
-  EXPECT_TRUE (countsAsTap (tap (0, 100, 0, 0, true), DoubleTapMovement::MayMove));
-  EXPECT_TRUE (countsAsTap (tap (0, 100), DoubleTapMovement::MayMove));
-  EXPECT_TRUE (countsAsTap (tap (0, 100), DoubleTapMovement::MustBeStill));
-}
