@@ -75,6 +75,14 @@ public:
    *  the finger over a long fader. */
   int getSliderThumbRadius (juce::Slider &slider) override;
 
+  /** The whole component is the track.
+   *
+   *  JUCE's own layout keeps a margin at each end for a thumb of its own
+   *  size, which is a measurement of nothing here: our cap is a share of the
+   *  track, and the margin held it 37 px short of each end of the meter on
+   *  the device. */
+  juce::Slider::SliderLayout getSliderLayout (juce::Slider &slider) override;
+
   void drawLinearSlider (juce::Graphics &g, int x, int y, int width,
                          int height, float sliderPos, float minSliderPos,
                          float maxSliderPos,

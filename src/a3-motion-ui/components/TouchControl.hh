@@ -25,7 +25,6 @@
 
 #include <functional>
 
-#include <a3-motion-ui/components/DoubleTap.hh>
 #include <a3-motion-ui/components/DragAccumulator.hh>
 
 #include <a3-motion-ui/components/FingerLatch.hh>
@@ -125,6 +124,7 @@ public:
   std::function<void (int primary, int secondary)> onRelease;
 
   void mouseDown (juce::MouseEvent const &event) override;
+  void mouseDoubleClick (juce::MouseEvent const &event) override;
   void mouseDrag (juce::MouseEvent const &event) override;
   void mouseUp (juce::MouseEvent const &event) override;
   void visibilityChanged () override;
@@ -145,9 +145,6 @@ private:
    *  away the value the drag had just reached. */
   juce::int64 _lastDragEndedMs = 0;
 
-  /** The last touch that counted as a tap, for spotting the second one. */
-  std::optional<TapTouch> _lastTap;
-  juce::int64 _downMs = 0;
 };
 
 }

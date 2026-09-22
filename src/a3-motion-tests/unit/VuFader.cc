@@ -236,3 +236,45 @@ TEST (VuFader, TheGrabHasACatchZoneAroundTheHandle)
   EXPECT_FALSE (vuFaderGrabs (handle, { handle.getCentreX (),
                                         handle.getY () - fingertipSize * 2 }));
 }
+
+// The cap has to reach both ends of the grey track: JUCE lays a slider out
+// through getSliderLayout, and the stock one keeps a margin the drawing knows
+// nothing about -- measured on the rig, the cap stopped 29 px short at each
+// end of a 491 px track.
+TEST (VuFader, TheCapReachesBothEndsOfItsTrack)
+{
+  LookAndFeel_A3 lookAndFeel;
+  VuFader fader;
+  fader.setLookAndFeel (&lookAndFeel);
+  fader.setBounds (0, 0, 46, 592);
+
+  auto const track = fader.getLocalBounds ();
+
+  // Where the slider puts the handle at either end, drawn: flush with the
+  // track, since a cap cannot travel past the end of its own fader.
+  auto const atFull = vuFaderHandleAt (
+      track, juce::roundToInt (fader.getPositionOfValue (1.0)));
+  auto const atNothing = vuFaderHandleAt (
+      track, juce::roundToInt (fader.getPositionOfValue (0.0)));
+
+  EXPECT_EQ (atFull.getY (), track.getY ());
+  EXPECT_EQ (atNothing.getBottom (), track.getBottom ());
+
+  fader.setLookAndFeel (nullptr);
+}
+
+// The whole component is the track. JUCE's stock layout keeps a margin for a
+// thumb of its own size, and a slider that was sized before our LookAndFeel
+// reached it kept that margin -- on the rig the cap stopped 29 px short of
+// each end of the grey meter.
+TEST (VuFader, TheTrackIsTheWholeComponent)
+{
+  LookAndFeel_A3 lookAndFeel;
+  VuFader fader;
+  fader.setBounds (0, 0, 46, 592);
+
+  auto const layout = lookAndFeel.getSliderLayout (fader);
+
+  EXPECT_EQ (layout.sliderBounds, fader.getLocalBounds ());
+  EXPECT_TRUE (layout.textBoxBounds.isEmpty ());
+}

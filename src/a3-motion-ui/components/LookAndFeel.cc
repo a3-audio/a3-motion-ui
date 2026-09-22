@@ -119,6 +119,17 @@ LookAndFeel_A3::getSliderThumbRadius (juce::Slider &slider)
   return vuFaderHandle (slider.getLocalBounds (), 0.f).getHeight () / 2;
 }
 
+juce::Slider::SliderLayout
+LookAndFeel_A3::getSliderLayout (juce::Slider &slider)
+{
+  if (slider.getSliderStyle () != juce::Slider::LinearVertical)
+    return juce::LookAndFeel_V4::getSliderLayout (slider);
+
+  juce::Slider::SliderLayout layout;
+  layout.sliderBounds = slider.getLocalBounds ();
+  return layout;
+}
+
 void
 LookAndFeel_A3::drawLinearSlider (juce::Graphics &g, int x, int y, int width,
                                   int height, float sliderPos,
