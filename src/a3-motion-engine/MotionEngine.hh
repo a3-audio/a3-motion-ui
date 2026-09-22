@@ -42,6 +42,11 @@ class MotionEngine
 public:
   MotionEngine (index_t numChannels, HeightMap &heightMap);
 
+  /** The same engine, sending through `backend` instead of to A3 Core. The
+   *  app with its own audio engine hands in a SpatBackendInternal here. */
+  MotionEngine (index_t numChannels, HeightMap &heightMap,
+                std::unique_ptr<SpatBackend> backend);
+
   /** New OSC addresses, e.g. after config.json was edited on the device.
    *  Reaches the backend on its own thread — see AsyncCommandQueue. */
   void setOscAddresses (OscAddresses const &addresses);

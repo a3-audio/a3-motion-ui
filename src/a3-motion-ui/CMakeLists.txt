@@ -158,6 +158,9 @@ target_sources("a3-motion-ui" PRIVATE
 )
 
 set(HARDWARE_INTERFACE_ENABLED FALSE CACHE BOOL "Enable interfacing with hardware")
+# Off for the device build: on the NUC, A3 Core does the audio and this app
+# must not open an audio device of its own.
+set(A3_AUDIO_ENGINE_ENABLED FALSE CACHE BOOL "Run the audio engine inside the app")
 if(${HARDWARE_INTERFACE_ENABLED})
     set(HARDWARE_INTERFACE_VERSION "V3" CACHE STRING "Hardware interface to use, options are: V2, V3")
 else()
@@ -193,6 +196,11 @@ target_compile_definitions("a3-motion-ui" PUBLIC
     $<$<BOOL:${HARDWARE_INTERFACE_ENABLED}>:HARDWARE_INTERFACE_ENABLED>
     $<$<BOOL:${HARDWARE_INTERFACE_V2}>:HARDWARE_INTERFACE_V2>
     $<$<BOOL:${HARDWARE_INTERFACE_V3}>:HARDWARE_INTERFACE_V3>
+    $<$<BOOL:${A3_AUDIO_ENGINE_ENABLED}>:A3_AUDIO_ENGINE_ENABLED>
+    # JACK only with the engine: jackd holds the sound card on the dev machine,
+    # so ALSA alone cannot reach it. JUCE dlopens libjack at runtime and needs
+    # only its headers to build; the device build opens no audio at all.
+    $<$<BOOL:${A3_AUDIO_ENGINE_ENABLED}>:JUCE_JACK=1>
 )
 
 target_include_directories("a3-motion-ui" PUBLIC
@@ -202,6 +210,7 @@ target_include_directories("a3-motion-ui" PUBLIC
 
 target_link_libraries("a3-motion-ui" PUBLIC
     a3-motion-engine
+    a3-audio-engine
     juce::juce_audio_utils
     juce::juce_audio_devices
     juce::juce_gui_basics

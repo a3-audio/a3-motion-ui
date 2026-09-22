@@ -75,10 +75,27 @@ coreBackend ()
   return std::make_unique<SpatBackendA3> (endpoints.host, endpoints.corePort,
                                           loadOscAddresses (userConfig));
 }
+
+/** Passes the backend through, asserting it exists. Checked here, on the way
+ *  into the member initialiser, because by the time the constructor body runs
+ *  the parameter has already been moved from and is always null. */
+std::unique_ptr<SpatBackend>
+requireBackend (std::unique_ptr<SpatBackend> backend)
+{
+  jassert (backend != nullptr);
+  return backend;
+}
 }
 
 MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap)
-    : _heightMap (heightMap), _commandQueue (coreBackend ())
+    : MotionEngine (numChannels, heightMap, coreBackend ())
+{
+}
+
+MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap,
+                            std::unique_ptr<SpatBackend> backend)
+    : _heightMap (heightMap),
+      _commandQueue (requireBackend (std::move (backend)))
 {
   createChannels (numChannels);
 

@@ -22,6 +22,12 @@
 
 #include <JuceHeader.h>
 
+#ifdef A3_AUDIO_ENGINE_ENABLED
+#include <a3-audio-engine/ChunkedRender.hh>
+#include <a3-audio-engine/OutputOrder.hh>
+#include <a3-audio-engine/SpeakerTest.hh>
+#endif
+
 namespace a3
 {
 
@@ -58,10 +64,31 @@ public:
   void getStateInformation (juce::MemoryBlock &destData) override;
   void setStateInformation (const void *data, int sizeInBytes) override;
 
+#ifdef A3_AUDIO_ENGINE_ENABLED
+  // Public so the host in StandaloneApp asks the device for exactly these.
+  static constexpr int numInputs = 4;
+  static constexpr int numOutputs = 12;  // up to 7.1.4
+#endif
+
 private:
+  // A member function, not a free function: BusesProperties is protected on
+  // juce::AudioProcessor, and only a member (or a derived class's member) may
+  // name it.
+  static BusesProperties busesForThisBuild ();
+
   juce::String const _namePlugin;
 
   std::unique_ptr<juce::FileLogger> _fileLogger;
+
+#ifdef A3_AUDIO_ENGINE_ENABLED
+  void renderAudio (juce::AudioBuffer<float> &buffer);
+
+  juce::AudioBuffer<float> _layoutBuffer;
+  OutputOrder _outputOrder{ numOutputs };
+  // Only while A3_SPEAKER_TEST is set: until the output list exists (plan 2)
+  // this is the one way to start it.
+  std::unique_ptr<SpeakerTest> _speakerTest;
+#endif
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (A3MotionAudioProcessor)
 };

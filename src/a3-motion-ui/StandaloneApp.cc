@@ -22,6 +22,12 @@
 
 #include <a3-motion-engine/UserConfig.hh>
 
+#ifdef A3_AUDIO_ENGINE_ENABLED
+#include "A3MotionAudioProcessor.hh"
+
+#include <cstdlib>
+#endif
+
 namespace a3
 {
 
@@ -74,7 +80,107 @@ StandaloneApp::initialise (juce::String const &commandLine)
   // over half the room it has.
   _mainWindow->setBounds (0, 0, 768, 1024);
   _mainWindow->setVisible (true);
+
+#ifdef A3_AUDIO_ENGINE_ENABLED
+  // After the window, not before: the config parse above and the UI's own
+  // construction can throw, and neither should leave an open audio device
+  // behind. The processor does not depend on the window, so nothing needs
+  // it earlier.
+  startAudio ();
+#endif
 }
+
+#ifdef A3_AUDIO_ENGINE_ENABLED
+namespace
+{
+juce::String
+environmentValue (char const *name)
+{
+  auto const *value = std::getenv (name);
+  return value != nullptr ? juce::String (value) : juce::String ();
+}
+}
+
+void
+StandaloneApp::startAudio ()
+{
+  // The processor exists only to render audio. The editor is never created
+  // from it: the performer sees our own MainWindow, which is built above and
+  // knows nothing of this processor.
+  _processor.reset (createPluginFilter ());
+  _player.setProcessor (_processor.get ());
+  openAudioDevice ();
+  _deviceManager.addAudioCallback (&_player);
+}
+
+void
+StandaloneApp::openAudioDevice ()
+{
+  // Chosen by environment until plan 2 brings a selector in the UI.
+  auto const requestedType = environmentValue ("A3_AUDIO_DEVICE_TYPE");
+  auto const requestedOutput = environmentValue ("A3_AUDIO_OUTPUT_DEVICE");
+
+  if (requestedType.isNotEmpty ())
+    {
+      // setCurrentAudioDeviceType only knows the types a scan has found.
+      _deviceManager.getAvailableDeviceTypes ();
+      _deviceManager.setCurrentAudioDeviceType (requestedType, true);
+    }
+
+  juce::AudioDeviceManager::AudioDeviceSetup setup;
+  setup.outputDeviceName = requestedOutput;
+
+  auto const error = _deviceManager.initialise (
+      A3MotionAudioProcessor::numInputs, A3MotionAudioProcessor::numOutputs,
+      nullptr, true, {}, requestedOutput.isNotEmpty () ? &setup : nullptr);
+
+  // initialise() moves on to another type when the requested one has no
+  // devices (JACK without a running server falls back to ALSA). Noise on an
+  // output nobody asked for is worse than none, so that is refused.
+  auto const openedType = _deviceManager.getCurrentAudioDeviceType ();
+  if (requestedType.isNotEmpty () && openedType != requestedType)
+    {
+      juce::StringArray available;
+      for (auto *type : _deviceManager.getAvailableDeviceTypes ())
+        available.add (type->getTypeName ());
+
+      juce::Logger::writeToLog ("audio: device type \"" + requestedType
+                                + "\" not available (have: "
+                                + available.joinIntoString (", ")
+                                + "), no audio device opened");
+      _deviceManager.closeAudioDevice ();
+      return;
+    }
+
+  if (error.isNotEmpty ())
+    juce::Logger::writeToLog ("audio: opening the device failed: " + error);
+
+  auto *device = _deviceManager.getCurrentAudioDevice ();
+  if (device == nullptr)
+    {
+      juce::Logger::writeToLog ("audio: no audio device open");
+      return;
+    }
+
+  juce::Logger::writeToLog (
+      "audio: opened " + openedType + " device \"" + device->getName ()
+      + "\", " + juce::String (device->getActiveInputChannels ().countNumberOfSetBits ())
+      + " in / "
+      + juce::String (device->getActiveOutputChannels ().countNumberOfSetBits ())
+      + " out, " + juce::String (device->getCurrentSampleRate ()) + " Hz, "
+      + juce::String (device->getCurrentBufferSizeSamples ()) + " samples");
+}
+
+void
+StandaloneApp::stopAudio ()
+{
+  // Strictly the reverse of startAudio().
+  _deviceManager.removeAudioCallback (&_player);
+  _player.setProcessor (nullptr);
+  _deviceManager.closeAudioDevice ();
+  _processor = nullptr;
+}
+#endif
 
 void
 StandaloneApp::setupFileLogger ()
@@ -92,6 +198,10 @@ StandaloneApp::setupFileLogger ()
 void
 StandaloneApp::shutdown ()
 {
+#ifdef A3_AUDIO_ENGINE_ENABLED
+  stopAudio ();
+#endif
+
   userConfig = juce::var{};
 
   // explicit deletion of MainWindow to capture tear-down messages
