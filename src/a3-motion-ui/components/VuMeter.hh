@@ -229,10 +229,18 @@ VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level,
                                  VuDirection direction = VuDirection::Up);
 
 /** Where VOL stands, as a bar laid across a channel's meter -- see
- *  paintVuFaderHandle(). `value` is VOL's 0..1, foot to head, linear: it is
+ *  paintVuFaderCap(). `value` is VOL's 0..1, foot to head, linear: it is
  *  the knob's travel, not a level, so it shares the meter's height and not
  *  its dB scale. */
 juce::Rectangle<int> vuFaderHandle (juce::Rectangle<int> bounds, float value);
+
+/** The same handle, centred where the caller says rather than where a value
+ *  would put it: a JUCE slider hands its LookAndFeel the position the handle
+ *  belongs at, and a handle drawn from the value instead drifts away from the
+ *  finger -- the slider maps its travel over the track less the handle, and
+ *  our own arithmetic mapped it over the whole of it. Clamped onto the
+ *  track. */
+juce::Rectangle<int> vuFaderHandleAt (juce::Rectangle<int> bounds, int centreY);
 
 /** How thin a fader handle may get before a finger cannot take hold of it.
  *  Half a fingertip: it is grasped rather than aimed at, and the meter it
@@ -251,8 +259,8 @@ float vuMeterDragVolume (float atPress, int pixelsUp, int meterHeight);
  *  zum angenehm anfassen": the meter is the fader now, and a fader has
  *  something to take hold of. Drawn the way the pots' knobs are, from the
  *  skin's own surface, radius and stroke. */
-void paintVuFaderHandle (juce::Graphics &g, juce::Rectangle<int> bounds,
-                         float value, juce::Colour colour);
+void paintVuFaderCap (juce::Graphics &g, juce::Rectangle<int> track,
+                      juce::Rectangle<int> handle, juce::Colour colour);
 
 /** The colour a band is filled in, from the skin.
  *

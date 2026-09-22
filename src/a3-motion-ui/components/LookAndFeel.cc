@@ -125,18 +125,15 @@ LookAndFeel_A3::drawLinearSlider (juce::Graphics &g, int x, int y, int width,
       return;
     }
 
-  // From the slider's own proportion rather than from sliderPos, because the
-  // handle is a cap with a height of its own: where its middle sits is the
-  // value, and vuFaderHandle is what knows how to put it there.
-  auto const range = slider.getMaximum () - slider.getMinimum ();
-  auto const value
-      = range > 0.0
-            ? static_cast<float> ((slider.getValue () - slider.getMinimum ())
-                                  / range)
-            : 0.f;
+  // sliderPos is where the slider says its handle belongs, and it is the only
+  // answer that stays under the finger: the slider maps its travel over the
+  // track less the handle, where our own arithmetic mapped it over the whole
+  // track and drifted away on the overlay's long faders.
+  auto const bounds = juce::Rectangle<int> (x, y, width, height);
+  auto const handle = vuFaderHandleAt (bounds, juce::roundToInt (sliderPos));
 
-  paintVuFaderHandle (g, juce::Rectangle<int> (x, y, width, height), value,
-                      slider.findColour (juce::Slider::thumbColourId));
+  paintVuFaderCap (g, bounds, handle,
+                   slider.findColour (juce::Slider::thumbColourId));
 }
 
 void

@@ -893,3 +893,21 @@ TEST (VuMeter, TheBarsMeterIsNoWiderThanTheOverlaysAndStillAFingertip)
   EXPECT_GE (strip.channelMeter[0].getWidth (), fingertipSize);
   EXPECT_GE (strip.channelMeter[0].getRight (), strip.controls[0][0].getRight ());
 }
+
+// Where JUCE says, not where our own arithmetic would put it: a slider hands
+// its LookAndFeel the position the handle belongs at, and a handle drawn from
+// the value instead drifted away from the finger on the overlay's long track.
+TEST (VuMeter, TheFaderHandleStandsWhereItIsPut)
+{
+  auto const bar = juce::Rectangle<int> (10, 20, 46, 400);
+
+  auto const middle = vuFaderHandleAt (bar, bar.getCentreY ());
+  EXPECT_EQ (middle.getCentreY (), bar.getCentreY ());
+  EXPECT_EQ (middle.getX (), bar.getX ());
+  EXPECT_EQ (middle.getWidth (), bar.getWidth ());
+  EXPECT_EQ (middle.getHeight (), vuFaderHandle (bar, 0.5f).getHeight ());
+
+  // And never off the track, however far it is asked to go.
+  EXPECT_TRUE (bar.contains (vuFaderHandleAt (bar, bar.getY () - 100)));
+  EXPECT_TRUE (bar.contains (vuFaderHandleAt (bar, bar.getBottom () + 100)));
+}

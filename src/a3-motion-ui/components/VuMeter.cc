@@ -252,6 +252,43 @@ vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level,
   return out;
 }
 
+namespace
+{
+/** How thick the handle is on this track -- see faderHandleOfTrack. */
+int
+faderHandleThickness (juce::Rectangle<int> bounds)
+{
+  auto const wanted = juce::jmax (
+      juce::roundToInt (static_cast<float> (bounds.getHeight ())
+                        * faderHandleOfTrack),
+      juce::roundToInt (static_cast<float> (bounds.getWidth ())
+                        * faderHandleOfWidth));
+
+  // A fingertip is the floor of the ceiling, not the ceiling: on a wide meter
+  // half the width is what keeps the cap from reading as a line, and the
+  // track's own height is the only real limit above that.
+  return juce::jlimit (minimumFaderHandleThickness,
+                       juce::jmax (fingertipSize,
+                                   juce::jmin (bounds.getWidth () / 2,
+                                               bounds.getHeight ())),
+                       wanted);
+}
+}
+
+juce::Rectangle<int>
+vuFaderHandleAt (juce::Rectangle<int> bounds, int centreY)
+{
+  if (bounds.isEmpty ())
+    return {};
+
+  auto const thickness = faderHandleThickness (bounds);
+  auto const top = juce::jlimit (bounds.getY (),
+                                 bounds.getBottom () - thickness,
+                                 centreY - thickness / 2);
+
+  return { bounds.getX (), top, bounds.getWidth (), thickness };
+}
+
 juce::Rectangle<int>
 vuFaderHandle (juce::Rectangle<int> bounds, float value)
 {
@@ -260,28 +297,11 @@ vuFaderHandle (juce::Rectangle<int> bounds, float value)
 
   // NaN fails every comparison, so it is caught here rather than by the clamp.
   auto const travel = value >= 0.f ? juce::jmin (value, 1.f) : 0.f;
-  auto const height = bounds.getHeight ();
-  auto const wanted = juce::jmax (
-      juce::roundToInt (static_cast<float> (height) * faderHandleOfTrack),
-      juce::roundToInt (static_cast<float> (bounds.getWidth ())
-                        * faderHandleOfWidth));
-
-  // A fingertip is the floor of the ceiling, not the ceiling: on a wide meter
-  // half the width is what keeps the cap from reading as a line, and the
-  // track's own height is the only real limit above that.
-  auto const thickness = juce::jlimit (
-      minimumFaderHandleThickness,
-      juce::jmax (fingertipSize, juce::jmin (bounds.getWidth () / 2, height)),
-      wanted);
-
-  // Centred on the value rather than hanging below it, so half-way reads as
-  // half-way; clamped at both ends so the mark never leaves the track.
   auto const at = bounds.getBottom ()
-                  - juce::roundToInt (static_cast<float> (height) * travel);
-  auto const top = juce::jlimit (bounds.getY (), bounds.getBottom () - thickness,
-                                 at - thickness / 2);
+                  - juce::roundToInt (static_cast<float> (bounds.getHeight ())
+                                      * travel);
 
-  return { bounds.getX (), top, bounds.getWidth (), thickness };
+  return vuFaderHandleAt (bounds, at);
 }
 
 float
@@ -297,10 +317,9 @@ vuMeterDragVolume (float atPress, int pixelsUp, int meterHeight)
 }
 
 void
-paintVuFaderHandle (juce::Graphics &g, juce::Rectangle<int> bounds, float value,
-                    juce::Colour colour)
+paintVuFaderCap (juce::Graphics &g, juce::Rectangle<int> track,
+                 juce::Rectangle<int> handle, juce::Colour colour)
 {
-  auto const handle = vuFaderHandle (bounds, value);
   if (handle.isEmpty ())
     return;
 
@@ -323,7 +342,7 @@ paintVuFaderHandle (juce::Graphics &g, juce::Rectangle<int> bounds, float value,
       face.getX (), face.getCentreY () - theme ().strokeThick * 0.5f,
       face.getWidth (), theme ().strokeThick);
   g.setColour (colour);
-  g.fillRect (groove);
+  g.fillRect (groove.getIntersection (track.toFloat ()));
 }
 
 StripColumns

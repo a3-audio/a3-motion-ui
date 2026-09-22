@@ -415,17 +415,22 @@ MixerComponent::syncFaders ()
   // Pushed from paint() and from whoever changed a value, rather than from
   // every writer: a value can arrive from the wire, from a set being loaded
   // or from the other page. A slider that is already there does nothing.
-  for (int channel = 0; channel < numChannelsInitial; ++channel)
-    {
-      auto &fader = _channelFader[static_cast<std::size_t> (channel)];
-      fader->setValue (_state.channelValue (channel, MixerControl::Volume),
-                       juce::dontSendNotification);
-      fader->setHandleColour (toColour (theme ().channel[channel]));
-    }
+  // Never while a finger is on it: writing the state back into a slider that
+  // is being dragged is the page arguing with the hand, and it read as the
+  // handle jumping.
+  auto const put = [] (VuFader &fader, double value, juce::Colour colour) {
+    if (!fader.isMouseButtonDown ())
+      fader.setValue (value, juce::dontSendNotification);
+    fader.setHandleColour (colour);
+  };
 
-  _masterFader->setValue (_state.masterValue (MasterControl::Volume),
-                          juce::dontSendNotification);
-  _masterFader->setHandleColour (toColour (theme ().textPrimary));
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    put (*_channelFader[static_cast<std::size_t> (channel)],
+         _state.channelValue (channel, MixerControl::Volume),
+         toColour (theme ().channel[channel]));
+
+  put (*_masterFader, _state.masterValue (MasterControl::Volume),
+       toColour (theme ().textPrimary));
 }
 
 void

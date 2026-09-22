@@ -157,8 +157,10 @@ MixerStripComponent::resized ()
 void
 MixerStripComponent::syncFader ()
 {
-  _fader->setValue (_state.channelValue (_channel, MixerControl::Volume),
-                    juce::dontSendNotification);
+  // Not while a finger is on it -- see MixerComponent::syncFaders.
+  if (!_fader->isMouseButtonDown ())
+    _fader->setValue (_state.channelValue (_channel, MixerControl::Volume),
+                      juce::dontSendNotification);
   _fader->setHandleColour (toColour (theme ().channel[_channel]));
 }
 
