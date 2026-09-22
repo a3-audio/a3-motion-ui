@@ -95,7 +95,7 @@ padBaseColour (PadFunction function, bool clipPlaying, bool actionRunning,
       auto const highlight = padFunctionColour (PadFunction::Action);
       return colourDistance (highlight, channel) >= minimumFillDistance
                  ? highlight
-                 : toColour (theme ().blobAction);
+                 : toColour (theme ().textPrimary);
     }
   return channel;
 }

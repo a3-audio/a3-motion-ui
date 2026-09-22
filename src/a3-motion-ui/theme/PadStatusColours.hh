@@ -63,9 +63,8 @@ constexpr float minimumFillDistance = 100.f;
  *  colour (`highlight`) for exactly as long as the action runs -- rise, hold
  *  and fall -- so a pressed ACT no longer looks like a Play and says how long
  *  it lasts. Where the highlight is too close to the channel to be seen -- a
- *  yellow channel -- it lights in `blobAction` instead, the colour a blob on
- *  the sphere wears while an action has it. Everything else wears its
- *  channel. */
+ *  yellow channel -- it lights white instead (the skin's text colour), and
+ *  its mark turns black with it. Everything else wears its channel. */
 juce::Colour padBaseColour (PadFunction function, bool clipPlaying,
                             bool actionRunning, juce::Colour channel);
 

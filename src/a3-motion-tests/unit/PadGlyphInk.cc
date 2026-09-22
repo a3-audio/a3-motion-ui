@@ -47,16 +47,12 @@ padGrounds ()
            juce::Colour (119, 119, 119) };
 }
 
-std::vector<PadFunction> const everyPad{ PadFunction::PlayPause,
-                                         PadFunction::Stop,
-                                         PadFunction::Action,
-                                         PadFunction::Settings };
 }
 
 TEST (PadGlyphInk, PlayOnARunningPlayPadCanBeRead)
 {
   auto const running = padFunctionColour (PadFunction::PlayPause);
-  EXPECT_GE (contrastRatio (padGlyphInk (PadFunction::PlayPause, running),
+  EXPECT_GE (contrastRatio (padGlyphInk (running),
                             running),
              minimumInkContrast);
 }
@@ -64,30 +60,27 @@ TEST (PadGlyphInk, PlayOnARunningPlayPadCanBeRead)
 TEST (PadGlyphInk, EveryMarkCanBeReadOnEveryGround)
 {
   for (auto const ground : padGrounds ())
-    for (auto const function : everyPad)
-      EXPECT_GE (contrastRatio (padGlyphInk (function, ground), ground),
-                 minimumInkContrast)
-          << "pad function " << static_cast<int> (function) << " on "
+    EXPECT_GE (contrastRatio (padGlyphInk (ground), ground),
+               minimumInkContrast)
+        << ground.toDisplayString (false);
+}
+
+// Black or white on every pad, whichever stands out more -- decided on
+// 2026-09-22. The function's own colour stayed wherever it could be read, and
+// the page became a patchwork: one column all black, the others a mix of
+// green, yellow and white. Which key it is, the shape says.
+TEST (PadGlyphInk, EveryMarkIsBlackOrWhite)
+{
+  for (auto const ground : padGrounds ())
+    {
+      auto const ink = padGlyphInk (ground);
+      EXPECT_TRUE (ink == juce::Colours::black || ink == juce::Colours::white)
           << ground.toDisplayString (false);
+    }
 }
 
-// The colour says which key it is, so it stays wherever it can be read. Only
-// where it cannot does the mark give it up.
-TEST (PadGlyphInk, AReadableFunctionColourIsKept)
+TEST (PadGlyphInk, ItIsTheOneOfTheTwoThatStandsOutMore)
 {
-  auto const ground = juce::Colours::black;
-  auto const play = padFunctionColour (PadFunction::PlayPause);
-  ASSERT_GE (contrastRatio (play, ground), minimumInkContrast);
-  EXPECT_EQ (padGlyphInk (PadFunction::PlayPause, ground), play);
-}
-
-// Settings stands for no state and so has no colour of its own: it takes
-// whichever of black and white stands out more, the same fallback every
-// other mark falls back to.
-TEST (PadGlyphInk, SettingsIsBlackOrWhite)
-{
-  EXPECT_EQ (padGlyphInk (PadFunction::Settings, juce::Colours::white),
-             juce::Colours::black);
-  EXPECT_EQ (padGlyphInk (PadFunction::Settings, juce::Colours::black),
-             juce::Colours::white);
+  EXPECT_EQ (padGlyphInk (juce::Colours::white), juce::Colours::black);
+  EXPECT_EQ (padGlyphInk (juce::Colours::black), juce::Colours::white);
 }

@@ -237,10 +237,8 @@ ControllerComponent::paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
   auto const glyph = bounds.toFloat ().withSizeKeepingCentre (
       bounds.getHeight () * 0.32f, bounds.getHeight () * 0.32f);
 
-  // In the function's colour where the pad lets it be read, black or white
-  // where it does not -- see padGlyphInk(). A running Play pad is `accent`,
-  // the triangle's own colour, and drew its mark invisible.
-  g.setColour (padGlyphInk (function, colour));
+  // Black or white, whichever the pad lets stand out -- see padGlyphInk().
+  g.setColour (padGlyphInk (colour));
 
   // Settings opens a menu, and a menu's mark is three bars.
   if (!hasTransportGlyph (function))
@@ -273,11 +271,11 @@ ControllerComponent::paintScene (juce::Graphics &g, index_t slot,
   g.setColour (toColour (theme ().textPrimary, edgeWash));
   g.drawRoundedRectangle (bounds.toFloat (), padCorner, theme ().strokeThin);
 
-  // The mark of the row it fires, in the same ink rule as every pad.
+  // The mark of the row it fires, black or white like every pad's.
   auto const function = sceneRowFunction[row];
   auto const glyph = bounds.toFloat ().withSizeKeepingCentre (
       bounds.getHeight () * 0.32f, bounds.getHeight () * 0.32f);
-  g.setColour (padGlyphInk (function, ground));
+  g.setColour (padGlyphInk (ground));
   drawTransportGlyph (g, glyph, transportKeyForPad (function));
 }
 

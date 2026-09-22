@@ -164,14 +164,15 @@ juce::Colour readableInk (juce::Colour ink, juce::Colour ground,
  *  something harder to read. */
 juce::Colour padFunctionColour (PadFunction function);
 
-/** The colour to draw a pad's mark in, on a pad of colour `ground`.
+/** The colour to draw a mark in on the pads page, on a pad of colour
+    `ground`: whichever of black and white stands out more -- one of the two
+    always reaches 4.58:1, whatever the ground.
 
-    The function's own colour wherever it can be read (readableInk), and
-    otherwise whichever of black and white stands out more -- one of the two
-    always reaches 4.58:1, whatever the ground. A running clip turns its Play
-    pad the very colour of the triangle, and a skin's channel colours can sit
-    as close to red, green or yellow as they like; the mark has to survive
-    both. Settings, which stands for no state, is always black or white. */
-juce::Colour padGlyphInk (PadFunction function, juce::Colour ground);
+    Black or white on every pad, decided on 2026-09-22. The marks used to be
+    drawn in their function's colour, which vanished on a running Play pad
+    (`accent`, the triangle's own colour) and on any channel near red, green
+    or yellow; keeping the colour wherever it could be read then made the page
+    a patchwork. Which key it is, the shape says. */
+juce::Colour padGlyphInk (juce::Colour ground);
 
 }

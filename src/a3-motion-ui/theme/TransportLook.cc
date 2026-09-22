@@ -193,17 +193,12 @@ readableInk (juce::Colour ink, juce::Colour ground, juce::Colour fallback)
 }
 
 juce::Colour
-padGlyphInk (PadFunction function, juce::Colour ground)
+padGlyphInk (juce::Colour ground)
 {
-  auto const strongest = contrastRatio (juce::Colours::black, ground)
-                                 >= contrastRatio (juce::Colours::white, ground)
-                             ? juce::Colours::black
-                             : juce::Colours::white;
-
-  if (!hasTransportGlyph (function))
-    return strongest;
-
-  return readableInk (padFunctionColour (function), ground, strongest);
+  return contrastRatio (juce::Colours::black, ground)
+                 >= contrastRatio (juce::Colours::white, ground)
+             ? juce::Colours::black
+             : juce::Colours::white;
 }
 
 juce::Colour

@@ -556,9 +556,11 @@ plate behind them to survive a channel-coloured pad, which is why they are shape
 **A shape alone did not survive either.** On the pads page each mark was drawn in its function's
 colour straight onto the pad, and nothing asked whether the two told apart: a running clip turns its
 Play pad `accent`, the triangle's own colour, and the mark vanished; with the sunset skin eleven of
-fifteen function/ground pairs measured under 3:1 (2026-09-22). `padGlyphInk()` decides the ink now:
-the function's colour wherever `readableInk()` lets it be read, otherwise whichever of black and
-white stands out more — one of the two always reaches 4.58:1. Settings is the one pad that is not a
+fifteen function/ground pairs measured under 3:1 (2026-09-22). `padGlyphInk()` decides the ink now: black or white on every pad, whichever
+stands out more — one of the two always reaches 4.58:1. Keeping the function's colour wherever it
+could be read was tried first and made the page a patchwork (one column all black, the others
+green, yellow and white); the maintainer settled it on black and white, and the shape says which
+key it is. Settings is the one pad that is not a
 transport action: it gets three bars from `drawMenuGlyph()`, always in black or white, because it
 stands for no state and so has no colour of its own.
 
@@ -958,7 +960,7 @@ pads.
 **What the page shows is a slot's state, a press, and an action.** A pad under a finger runs
 towards the skin's text colour for as long as it is held — before this, Play turned green but Stop
 left nothing behind, since what it does is make a pad go dark. The Action pad of the slot that fired
-a channel's accent wears `highlight` for as long as that accent runs — or `blobAction`, the colour a blob wears under an action, where the highlight is too close to the channel to be seen, as on a yellow one (`padBaseColour()`, `colourDistance()`), lit from
+a channel's accent wears `highlight` for as long as that accent runs — or white with a black mark where the highlight is too close to the channel to be seen, as on a yellow one (`padBaseColour()`, `colourDistance()`; a violet borrowed from the sphere was tried and was one colour too many), lit from
 `isChannelAccentActive()`): a pressed ACT used to look like a Play and said nothing about how long
 the action would last. The engine knows the accent per channel, so the slot is remembered where the
 pad was pressed (`_actionSlot`). `isChannelAccentActive()` reads a published atomic now rather than

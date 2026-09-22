@@ -189,14 +189,14 @@ TEST (PadBaseColour, OtherwiseEveryPadWearsItsChannel)
 // A channel coloured like the highlight -- yellow on the shipped skins -- lit
 // its Action pad yellow on yellow, and the running action could not be seen.
 // Measured against the maintainer's third channel on 2026-09-22. Where the
-// highlight is too close to the channel it lights in `blobAction` instead: the
-// colour a blob on the sphere wears while an action has it, which already
-// means exactly this.
-TEST (PadBaseColour, AnActionPadOnAChannelLikeTheHighlightLightsInTheActionColour)
+// highlight is too close to the channel the pad lights white instead (the
+// skin's text colour), with a black mark: the maintainer's call, after a
+// violet borrowed from the sphere was one colour too many on the page.
+TEST (PadBaseColour, AnActionPadOnAChannelLikeTheHighlightLightsWhite)
 {
   auto const yellowChannel = juce::Colour (247, 208, 2);
   auto const lit = padBaseColour (PadFunction::Action, true, true, yellowChannel);
-  EXPECT_EQ (lit, toColour (theme ().blobAction));
+  EXPECT_EQ (lit, toColour (theme ().textPrimary));
 }
 
 TEST (PadBaseColour, TheLitActionPadAlwaysStandsOutFromItsChannel)
