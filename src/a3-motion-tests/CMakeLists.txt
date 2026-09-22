@@ -36,6 +36,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ButtonLedColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TransportKeyGround.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PadGlyphInk.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SceneLaunch.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Theme.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ThemeColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LookAndFeelTheme.cc"

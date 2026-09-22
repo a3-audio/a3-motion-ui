@@ -243,3 +243,53 @@ TEST (ControllerLayout, TheClipsPadsSitWhereThePanelsDo)
         EXPECT_LT (play.getY (), action.getY ());
       }
 }
+
+// -- The scene column --------------------------------------------------------
+//
+// One more pad per pad row, left of the four channels: it fires that row across
+// every channel -- a slot's Play pads, or its Action pads. Asked for on
+// 2026-09-22, the way a scene is launched on a deck-side controller.
+
+TEST (ControllerLayout, TheScenePadsStandLeftOfEveryChannel)
+{
+  auto const layout = defaultLayout ();
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    for (auto const &scene : layout.scenes[slot])
+      {
+        EXPECT_FALSE (scene.isEmpty ());
+        EXPECT_LE (scene.getRight (), layout.clipBoxes[0][slot].getX ());
+      }
+}
+
+TEST (ControllerLayout, EachScenePadLinesUpWithThePadRowItFires)
+{
+  auto const layout = defaultLayout ();
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    for (std::size_t row = 0; row < numSceneRows; ++row)
+      {
+        auto const pad
+            = layout.pads[0][padIndexFor (sceneRowFunction[row], slot)];
+        EXPECT_EQ (layout.scenes[slot][row].getY (), pad.getY ());
+        EXPECT_EQ (layout.scenes[slot][row].getHeight (), pad.getHeight ());
+      }
+}
+
+// It reads as one more pad, not as a margin or a heading.
+TEST (ControllerLayout, AScenePadIsAsWideAsAPad)
+{
+  auto const layout = defaultLayout ();
+  EXPECT_EQ (layout.scenes[0][0].getWidth (), layout.pads[0][0].getWidth ());
+}
+
+TEST (ControllerLayout, TheScenePadsStayInsideTheBarAndOffThePads)
+{
+  auto const layout = defaultLayout ();
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    for (auto const &scene : layout.scenes[slot])
+      {
+        EXPECT_TRUE (area.contains (scene));
+        for (index_t channel = 0; channel < numChannelColumns; ++channel)
+          for (auto const &pad : layout.pads[channel])
+            EXPECT_FALSE (scene.intersects (pad));
+      }
+}

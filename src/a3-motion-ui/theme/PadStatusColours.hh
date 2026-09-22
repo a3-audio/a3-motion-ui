@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-ui/io/PadFunctions.hh>
 
 namespace a3
 {
@@ -45,6 +46,15 @@ namespace a3
  *  coming to rest is not waiting for a beat, so it must not blink as though
  *  it were.
  */
+/** The colour a pad starts from, before its slot's status shades it.
+ *
+ *  Play turns `accent` while its clip runs; the Action pad turns its own
+ *  colour (`highlight`) for exactly as long as the action runs -- rise, hold
+ *  and fall -- so a pressed ACT no longer looks like a Play and says how long
+ *  it lasts. Everything else wears its channel. */
+juce::Colour padBaseColour (PadFunction function, bool clipPlaying,
+                            bool actionRunning, juce::Colour channel);
+
 juce::Colour padStatusColour (juce::Colour base, Pattern::Status status,
                               Pattern::Status statusLast, int step,
                               bool oneShotRecording);

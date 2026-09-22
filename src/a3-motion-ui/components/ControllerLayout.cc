@@ -94,8 +94,15 @@ layOutController (juce::Rectangle<int> contentArea, float, int)
   // Clamped at zero rather than trusted: a bar too small for the page is a
   // layout bug somewhere else, and it must arrive here as small rectangles,
   // not as ones whose right edge is left of their left.
-  auto const boxW = juce::jmax (
-      0, (area.getWidth () - (numChannelColumns - 1) * gap) / numChannelColumns);
+  // Nine pad widths across: the scene column, then two per channel -- with a
+  // gap between every two of them. Solved for the pad, because the scene pad
+  // has to be exactly as wide as the pads it stands beside.
+  auto const columns = static_cast<int> (1 + 2 * numChannelColumns);
+  auto const padW
+      = juce::jmax (0, (area.getWidth () - (columns - 1) * gap) / columns);
+  auto const boxW = 2 * padW + gap;
+  auto const sceneX = area.getX ();
+  area.removeFromLeft (padW + gap);
   auto const slots = static_cast<int> (numPadSlots);
   auto const boxH
       = juce::jmax (0, (area.getHeight () - (slots - 1) * gap) / slots);
@@ -118,6 +125,13 @@ layOutController (juce::Rectangle<int> contentArea, float, int)
         out.pads[channel][pad] = juce::Rectangle<int> (
             box.getX () + cell.x * (padW + gap),
             box.getY () + cell.y * (padH + gap), padW, padH);
+      }
+
+  for (index_t slot = 0; slot < numPadSlots; ++slot)
+    for (std::size_t row = 0; row < numSceneRows; ++row)
+      {
+        auto const pad = out.pads[0][padIndexFor (sceneRowFunction[row], slot)];
+        out.scenes[slot][row] = { sceneX, pad.getY (), padW, pad.getHeight () };
       }
 
   return out;

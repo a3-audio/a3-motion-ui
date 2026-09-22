@@ -65,9 +65,18 @@ public:
   std::function<void (index_t channel, index_t pad)> onPadPressed;
   std::function<void (index_t channel, index_t pad)> onPadReleased;
 
+  /** A scene pad went down or came up. `row` as in sceneRowFunction: the
+   *  slot's row of Play pads, or its row of Action pads, across every
+   *  channel. The release matters for the same reason a pad's does -- an
+   *  action lasts for as long as it is held. */
+  std::function<void (index_t slot, std::size_t row)> onScenePressed;
+  std::function<void (index_t slot, std::size_t row)> onSceneReleased;
+
 private:
   void paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
                  index_t channel, index_t pad);
+  void paintScene (juce::Graphics &g, index_t slot, std::size_t row);
+  void setPressed (bool &pressed, bool down, juce::Rectangle<int> area);
 
   ControllerLayout _layout;
 
@@ -76,6 +85,16 @@ private:
   std::array<std::array<std::unique_ptr<TouchControl>, numPadsPerChannel>,
              numChannelColumns>
       _padTouch;
+
+  /** Which pads a finger is on. The page used to show a slot's state and
+   *  never a press: Play then turned green, but Stop left nothing behind,
+   *  because what it does is make a pad go dark. */
+  std::array<std::array<bool, numPadsPerChannel>, numChannelColumns>
+      _padPressed{};
+  std::array<std::array<bool, numSceneRows>, numPadSlots> _scenePressed{};
+  std::array<std::array<std::unique_ptr<TouchControl>, numSceneRows>,
+             numPadSlots>
+      _sceneTouch;
 };
 
 }

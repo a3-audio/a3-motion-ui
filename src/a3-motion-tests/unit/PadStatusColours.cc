@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
+#include <a3-motion-ui/theme/TransportLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
 using namespace a3;
@@ -147,4 +148,39 @@ TEST (PadStatusColours, TheDefaultsAreWhatTheDeviceHasAlwaysShown)
   EXPECT_FLOAT_EQ (theme.padShadeEmpty, 0.85f);
   EXPECT_FLOAT_EQ (theme.padShadeBlink, 0.6f);
   EXPECT_FLOAT_EQ (theme.padShadeIdle, 0.3f);
+}
+
+// -- The colour a pad starts from, before its slot's status shades it --------
+//
+// Play said "running" by turning `accent`; the Action pad said nothing at all,
+// so a pressed ACT looked like a Play and nobody could tell how long the action
+// was going to last. It wears the accent's own colour for exactly as long as
+// the action runs -- rise, hold and fall -- the way the bar's ACT key does.
+
+TEST (PadBaseColour, APlayingPlayPadIsTheAccent)
+{
+  auto const channel = juce::Colour (33, 131, 128);
+  EXPECT_EQ (padBaseColour (PadFunction::PlayPause, true, false, channel),
+             padFunctionColour (PadFunction::PlayPause));
+}
+
+TEST (PadBaseColour, AnActionPadIsTheHighlightWhileItsActionRuns)
+{
+  auto const channel = juce::Colour (33, 131, 128);
+  EXPECT_EQ (padBaseColour (PadFunction::Action, true, true, channel),
+             padFunctionColour (PadFunction::Action));
+  EXPECT_EQ (padBaseColour (PadFunction::Action, false, true, channel),
+             padFunctionColour (PadFunction::Action));
+}
+
+TEST (PadBaseColour, OtherwiseEveryPadWearsItsChannel)
+{
+  auto const channel = juce::Colour (33, 131, 128);
+  EXPECT_EQ (padBaseColour (PadFunction::PlayPause, false, true, channel),
+             channel);
+  EXPECT_EQ (padBaseColour (PadFunction::Action, true, false, channel),
+             channel);
+  EXPECT_EQ (padBaseColour (PadFunction::Stop, true, true, channel), channel);
+  EXPECT_EQ (padBaseColour (PadFunction::Settings, true, true, channel),
+             channel);
 }

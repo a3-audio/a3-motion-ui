@@ -946,6 +946,28 @@ sits under a hand. `fingertipSize` is the floor for anything hit in a hurry, and
 `controllerPreferredHeight()` is why the bar can be taller than the clip settings alone would ask
 for: both pages share one area, so it has to satisfy the hungrier of them.
 
+**A scene column stands left of the channels** (asked for on 2026-09-22), one pad per pad row
+(`ControllerLayout::scenes[slot][row]`, `sceneRowFunction`): the top one fires the slot's row of
+Play pads across every channel, the bottom one its row of Action pads. Nine pad widths across, the
+scene pad exactly as wide as a pad, so it reads as one more pad and not as a margin. Both go through
+`handlePadPress()` per channel — one route to what a pad means. **A scene's Play starts only the
+clips of its row that stand still** (`sceneStartsClip()`); a single Play pad toggles, but a scene
+that toggled would start half a row and stop the other half. Screen only: the panel has no such
+pads.
+
+**What the page shows is a slot's state, a press, and an action.** A pad under a finger runs
+towards the skin's text colour for as long as it is held — before this, Play turned green but Stop
+left nothing behind, since what it does is make a pad go dark. The Action pad of the slot that fired
+a channel's accent wears `highlight` for as long as that accent runs (`padBaseColour()`, lit from
+`isChannelAccentActive()`): a pressed ACT used to look like a Play and said nothing about how long
+the action would last. The engine knows the accent per channel, so the slot is remembered where the
+pad was pressed (`_actionSlot`). `isChannelAccentActive()` reads a published atomic now rather than
+the clock thread's envelopes — the bar and this page both ask it several times a second.
+
+**The Settings pad goes to the clip it names** — selects it and turns the bar to CLIP. Selecting
+alone was right on the panel, where the clip settings are always on screen, and did nothing visible
+from the pads page, which covers them.
+
 **The strip's six buttons are the panel's six function keys.** Not "like them" — the same list.
 `io/FunctionKeys.hh` holds `functionKeyOrder` (`TAP, clock, REC, recmode, MENU, SHIFT`), and both
 sides read it: the panel is wired from it row by row, the strip is laid out from it as two columns
