@@ -57,3 +57,45 @@ TEST (ClipKnobs, EachKnobCarriesItsCaption)
   EXPECT_STREQ (elevationKnobSpec (1).label, caption::clipTop);
   EXPECT_STREQ (elevationKnobSpec (2).label, caption::sway);
 }
+
+// The Motion row pairs a standing value with the sweep that works on it: the
+// values are continuous, the sweeps count whole LFO steps either way.
+TEST (ClipKnobs, TheMotionRowPairsValuesWithSweeps)
+{
+  for (auto const sweep : { 1, 3, 5, 7 })
+    {
+      EXPECT_EQ (motionKnobSpec (sweep).min, -lfoMaxStep) << sweep;
+      EXPECT_EQ (motionKnobSpec (sweep).max, lfoMaxStep) << sweep;
+      EXPECT_EQ (motionKnobSpec (sweep).interval, 1.0) << sweep;
+      EXPECT_TRUE (motionKnobSpec (sweep).bipolar) << sweep;
+    }
+
+  for (auto const value : { 2, 4, 6 })
+    {
+      EXPECT_EQ (motionKnobSpec (value).min, -1.0) << value;
+      EXPECT_EQ (motionKnobSpec (value).max, 1.0) << value;
+      EXPECT_EQ (motionKnobSpec (value).interval, 0.0) << value;
+      EXPECT_TRUE (motionKnobSpec (value).bipolar) << value;
+    }
+}
+
+// A turn comes round to itself, so its scale is a ring rather than a stop --
+// the same thing Pattern::setRotate does with the value.
+TEST (ClipKnobs, TheRotationIsARing)
+{
+  EXPECT_TRUE (motionKnobSpec (0).wraps);
+  EXPECT_EQ (motionKnobSpec (0).min, 0.0);
+  EXPECT_EQ (motionKnobSpec (0).max, 1.0);
+
+  for (auto const other : { 1, 2, 8, 9 })
+    EXPECT_FALSE (motionKnobSpec (other).wraps) << other;
+}
+
+// The bridge's bias leans in whole notches, four either way, as the engine
+// holds it.
+TEST (ClipKnobs, TheBiasLeansInWholeNotches)
+{
+  EXPECT_EQ (motionKnobSpec (9).min, -4.0);
+  EXPECT_EQ (motionKnobSpec (9).max, 4.0);
+  EXPECT_EQ (motionKnobSpec (9).interval, 1.0);
+}

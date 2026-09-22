@@ -6787,20 +6787,36 @@ A3MotionUIComponent::setClipSettingsValue (index_t channel, int section,
   if (!pattern)
     return;
 
-  // Only the Elevation section's three are knobs so far; the rest of the bar
-  // still arrives as increments.
-  if (section != elevationSection)
-    return;
+  auto const level = static_cast<float> (value);
+  auto const step = static_cast<int> (std::lround (value));
 
-  switch (sub)
-    {
-    case 0: pattern->setClipBottom (static_cast<float> (value)); break;
-    case 1: pattern->setClipTop (static_cast<float> (value)); break;
-    case 2:
-      pattern->setElevationLfo (static_cast<int> (std::lround (value)));
-      break;
-    default: return;
-    }
+  // The Elevation and Motion sections are knobs; what is still a field on
+  // this bar arrives as an increment, and so do the encoders.
+  if (section == elevationSection)
+    switch (sub)
+      {
+      case 0: pattern->setClipBottom (level); break;
+      case 1: pattern->setClipTop (level); break;
+      case 2: pattern->setElevationLfo (step); break;
+      default: return;
+      }
+  else if (section == motionSection)
+    switch (sub)
+      {
+      case 0: pattern->setRotate (level); break;
+      case 1: pattern->setSpin (step); break;
+      case 2: pattern->setReach (level); break;
+      case 3: pattern->setReachLfo (step); break;
+      case 4: pattern->setSqueezeX (level); break;
+      case 5: pattern->setSqueezeXLfo (step); break;
+      case 6: pattern->setSqueezeY (level); break;
+      case 7: pattern->setSqueezeYLfo (step); break;
+      case 8: pattern->setFadeReach (level); break;
+      case 9: pattern->setBridgeBias (step); break;
+      default: return;
+      }
+  else
+    return;
 
   refreshPatternDisplayFromTicks (pattern);
   updateClipSettingsDisplay ();

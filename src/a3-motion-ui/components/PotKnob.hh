@@ -75,6 +75,12 @@ public:
   void setSelected (bool selected);
   bool isSelected () const { return _selected; }
 
+  /** Two taps, where what to go back to is not a constant -- the clip bar's
+   *  rule depends on the clip (reach comes back to where its figure sits).
+   *  Left empty, JUCE's own setDoubleClickReturnValue still works. */
+  std::function<void ()> onDoubleTapped;
+
+  void mouseDoubleClick (juce::MouseEvent const &event) override;
   void resized () override;
 
 private:

@@ -50,6 +50,18 @@ PotKnob::refreshSensitivity ()
 }
 
 void
+PotKnob::mouseDoubleClick (juce::MouseEvent const &event)
+{
+  if (onDoubleTapped)
+    {
+      onDoubleTapped ();
+      return;
+    }
+
+  juce::Slider::mouseDoubleClick (event);
+}
+
+void
 PotKnob::resized ()
 {
   juce::Slider::resized ();

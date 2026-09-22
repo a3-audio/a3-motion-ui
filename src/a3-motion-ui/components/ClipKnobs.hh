@@ -57,6 +57,7 @@ struct ClipKnobSpec
 
 /** Which of the bar's sections is which, in the order they stand. */
 constexpr int elevationSection = 1;
+constexpr int motionSection = 2;
 
 /** The Elevation section: clip-bottom (0), clip-top (1), sway (2). */
 constexpr ClipKnobSpec
@@ -72,6 +73,42 @@ elevationKnobSpec (int sub)
   return { 0.0,   1.0,  0.0,
            0.0,   false, false,
            sub == 0 ? caption::clipBottom : caption::clipTop };
+}
+
+
+/** The Motion section, in reading order: a standing value beside the sweep
+ *  that works on it -- rot with its spin, reach with its swell, each squeeze
+ *  with its stretch, the fade with the bias.
+ *
+ *  The sweeps count whole LFO steps either way; the values they work on are
+ *  continuous. Two taps are not in this table: what a control goes back to
+ *  is the page's own rule (onControlReset), and for reach it depends on where
+ *  the figure sits.
+ */
+constexpr ClipKnobSpec
+motionKnobSpec (int sub)
+{
+  auto const sweep = [] (char const *label) {
+    return ClipKnobSpec{ -lfoMaxStep, lfoMaxStep, 1.0, 0.0, true, false, label };
+  };
+
+  switch (sub)
+    {
+    // A turn has no ends, so its scale has none: the ring comes round to
+    // itself the way the engine's own value does (Pattern::setRotate wraps).
+    case 0: return { 0.0, 1.0, 0.0, 0.0, false, true, caption::rotate };
+    case 1: return sweep (caption::spin);
+    case 2: return { -1.0, 1.0, 0.0, 0.0, true, false, caption::reach };
+    case 3: return sweep (caption::swell);
+    case 4: return { -1.0, 1.0, 0.0, 0.0, true, false, caption::squeezeX };
+    case 5: return sweep (caption::stretchX);
+    case 6: return { -1.0, 1.0, 0.0, 0.0, true, false, caption::squeezeY };
+    case 7: return sweep (caption::stretchY);
+    case 8: return { 0.0, 1.0, 0.0, 0.0, false, false, caption::fade };
+    // Which way a bridge leans, in whole notches either side of the middle.
+    case 9: return { -4.0, 4.0, 1.0, 0.0, true, false, caption::bias };
+    default: return {};
+    }
 }
 
 }

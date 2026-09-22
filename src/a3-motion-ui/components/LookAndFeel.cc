@@ -138,8 +138,10 @@ LookAndFeel_A3::drawRotarySlider (juce::Graphics &g, int x, int y, int width,
       return;
     }
 
-  // -1..1 across the scale, which is what the arc is drawn from.
-  auto const angle = sliderPosProportional * 2.f - 1.f;
+  // -1..1 across the scale, which is what the arc is drawn from -- and for a
+  // ring, 0..2 round it, because a turn has no ends to run between.
+  auto const angle = knob->wraps () ? sliderPosProportional * 2.f
+                                    : sliderPosProportional * 2.f - 1.f;
 
   paintBarKnob (g, juce::Rectangle<int> (x, y, width, height),
                 mixerControlMetrics (),
