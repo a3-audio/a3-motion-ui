@@ -184,6 +184,7 @@ private:
   /** Where a tap in the script area lands, as a line and a column. */
 
   void openActionList ();
+  void closeActionList ();
   void chooseFromActionList (juce::Point<int> point);
 
   ActionLayout _layout;

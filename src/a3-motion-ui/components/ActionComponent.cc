@@ -109,9 +109,7 @@ ActionComponent::ActionComponent ()
     // control that only ever goes one way leaves you tapping elsewhere to
     // undo what it did.
     if (_listOpen)
-      _listOpen = false;
-      if (_scriptTouch)
-        _scriptTouch->setVisible (false);
+      closeActionList ();
     else
       openActionList ();
 
@@ -168,22 +166,14 @@ ActionComponent::ActionComponent ()
     repaint ();
   };
   _scriptTouch->onDragIncrement = [this] (int, int, int increment) {
-    // The page follows the finger, the way it does on a phone: upwards
-    // carries the text up and brings later lines into view. The increment
-    // goes in as it arrives -- it was negated here, which ran the editor
-    // against the hand, the same way the overlay strips once did. See
-    // ScriptBuffer::scrollByDrag(), which is where that sign is tested.
-    //
-    // The open list is a list like any other and follows the same rule: it
-    // used to return here, which left every script past the sixth
-    // unreachable.
-    if (_listOpen)
-      _listTop = a3::scrollBy (_listTop, increment,
-                               actionListVisibleRows (_layout),
-                               _choices.size ());
-    else
-      _editor->scrollBy (-increment);
-
+    // Only ever the open list: this area is shown while the list lies over the
+    // editor and hidden otherwise, and the editor scrolls itself. The list is
+    // a list like any other and follows the same rule -- the page goes the
+    // finger's way, which it used to return out of, leaving every script past
+    // the sixth unreachable.
+    _listTop = a3::scrollBy (_listTop, increment,
+                             actionListVisibleRows (_layout),
+                             _choices.size ());
     repaint ();
   };
   // Added, not shown: the editor stands in this area and answers touches
@@ -518,11 +508,20 @@ ActionComponent::openActionList ()
 }
 
 void
-ActionComponent::chooseFromActionList (juce::Point<int> point)
+ActionComponent::closeActionList ()
 {
   _listOpen = false;
+
+  // The area goes with the list: left in front of the editor it would answer
+  // every touch meant for the text.
   if (_scriptTouch)
     _scriptTouch->setVisible (false);
+}
+
+void
+ActionComponent::chooseFromActionList (juce::Point<int> point)
+{
+  closeActionList ();
 
   auto const rowH = juce::jmax (1, _layout.actionListRowHeight);
   auto const inY = point.y
