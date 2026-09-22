@@ -83,6 +83,16 @@ public:
    *  the device. */
   juce::Slider::SliderLayout getSliderLayout (juce::Slider &slider) override;
 
+  /** The knobs: the arc, the pointer and the caption this device has drawn
+   *  since the bar had knobs at all (paintBarKnob). Drawn from the slider's
+   *  own colour and, where it is a PotKnob, from what it carries -- which way
+   *  the arc fills, whether it is a ring, where something else is holding
+   *  it. */
+  void drawRotarySlider (juce::Graphics &g, int x, int y, int width,
+                         int height, float sliderPosProportional,
+                         float rotaryStartAngle, float rotaryEndAngle,
+                         juce::Slider &slider) override;
+
   void drawLinearSlider (juce::Graphics &g, int x, int y, int width,
                          int height, float sliderPos, float minSliderPos,
                          float maxSliderPos,

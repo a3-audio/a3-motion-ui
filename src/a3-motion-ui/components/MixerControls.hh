@@ -133,6 +133,20 @@ mixerControlRestPosition (MixerControl control)
   return {};
 }
 
+/** Whether the control's middle means neutral.
+ *
+ *  An EQ band is cut or boost either side of flat, so its arc grows out of
+ *  the middle and which side of flat you are on reads at a glance. Gain and
+ *  the volume run from silence upwards and fill from their start, the way a
+ *  volume knob anywhere does. */
+constexpr bool
+fillsFromTheMiddle (MixerControl control)
+{
+  return control == MixerControl::EqHigh || control == MixerControl::EqMid
+         || control == MixerControl::EqLow;
+}
+
+
 /** What is written under it. At most four characters: the narrowest a strip
  *  may get is minimumChannelWidth, and a longer word is drawn clipped, which
  *  reads as a fault rather than as an abbreviation. */
@@ -178,6 +192,14 @@ constexpr std::array<MasterControl, numMasterControls> masterControlOrder{
   MasterControl::PhonesMix,    MasterControl::PhonesVolume,
   MasterControl::Return,
 };
+
+/** The same, for the summing section: the phones' blend sits between two ends
+ *  and reads as a distance from the middle; everything else is a level. */
+constexpr bool
+fillsFromTheMiddle (MasterControl control)
+{
+  return control == MasterControl::PhonesMix;
+}
 
 /** The master's pots, top to bottom: everything but its volume, which is
  *  dragged on the output meters the way a channel's VOL is dragged on its

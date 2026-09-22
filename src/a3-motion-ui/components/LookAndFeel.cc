@@ -20,6 +20,9 @@
 
 #include "LookAndFeel.hh"
 
+#include <a3-motion-ui/components/BarKnob.hh>
+#include <a3-motion-ui/components/MixerComponent.hh>
+#include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
@@ -117,6 +120,33 @@ LookAndFeel_A3::getSliderThumbRadius (juce::Slider &slider)
     return juce::LookAndFeel_V4::getSliderThumbRadius (slider);
 
   return vuFaderHandle (slider.getLocalBounds (), 0.f).getHeight () / 2;
+}
+
+void
+LookAndFeel_A3::drawRotarySlider (juce::Graphics &g, int x, int y, int width,
+                                  int height, float sliderPosProportional,
+                                  float rotaryStartAngle,
+                                  float rotaryEndAngle, juce::Slider &slider)
+{
+  auto *knob = dynamic_cast<PotKnob *> (&slider);
+  if (knob == nullptr)
+    {
+      juce::LookAndFeel_V4::drawRotarySlider (g, x, y, width, height,
+                                              sliderPosProportional,
+                                              rotaryStartAngle, rotaryEndAngle,
+                                              slider);
+      return;
+    }
+
+  // -1..1 across the scale, which is what the arc is drawn from.
+  auto const angle = sliderPosProportional * 2.f - 1.f;
+
+  paintBarKnob (g, juce::Rectangle<int> (x, y, width, height),
+                mixerControlMetrics (),
+                slider.findColour (juce::Slider::thumbColourId),
+                knob->label (), angle, knob->fillsFromTheMiddle (),
+                knob->isActive (), knob->isSelected (), knob->reach (),
+                knob->wraps ());
 }
 
 juce::Slider::SliderLayout

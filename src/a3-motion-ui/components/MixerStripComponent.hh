@@ -29,6 +29,7 @@
 #include <a3-motion-ui/components/MixerLayout.hh>
 #include <a3-motion-ui/components/MixerState.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
+#include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/components/VuFader.hh>
 #include <a3-motion-ui/components/VuMeterView.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
@@ -66,7 +67,7 @@ public:
   void resized () override;
 
   /** Redraw the meter and nothing else -- see MixerComponent's own. */
-  void syncFader ();
+  void syncControls ();
   /** The geometry is worked out from the skin's pot size and fonts, so a skin
    *  change has to re-lay this out, not merely repaint it. */
   void applyTheme () override;
@@ -92,6 +93,9 @@ public:
   /** Two taps: put this channel's control back. See
    *  MixerComponent::onChannelDoubleTapped. */
   std::function<void (int channel, MixerControl)> onChannelDoubleTapped;
+  /** A knob was turned: where it stands now. */
+  std::function<void (int channel, MixerControl, float value)>
+      onChannelValueChanged;
   /** Two taps on the meter: put this channel at full volume. */
   std::function<void (int channel)> onMeterDoubleTapped;
   /** A drag on the meter: VOL, where the finger has taken it. */
@@ -114,6 +118,8 @@ private:
   int _channel = 0;
 
   std::array<std::unique_ptr<TouchControl>, numMixerFaceControls> _touch;
+  /** One per control that is turned; the two keys keep their hit areas. */
+  std::array<std::unique_ptr<PotKnob>, numMixerFaceControls> _knob;
   /** The meter, painting itself, and the fader standing over it. */
   std::unique_ptr<VuMeterView> _meterView;
   std::unique_ptr<VuFader> _fader;

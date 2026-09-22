@@ -52,6 +52,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/DragAccumulator.hh
     components/ScriptBuffer.cc
     components/ScriptBuffer.hh
+    components/PotKnob.cc
+    components/PotKnob.hh
     components/VuFader.cc
     components/VuMeterView.cc
     components/VuMeterView.hh

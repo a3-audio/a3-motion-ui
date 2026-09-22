@@ -37,26 +37,6 @@ namespace
 // wears it too: it is the fifth strip, not a section standing beside four.
 constexpr float stripWash = 0.07f;
 
-/** Whether the control's middle means neutral.
- *
- *  An EQ band is cut or boost either side of flat, so its arc grows out of
- *  the middle and which side of flat you are on reads at a glance. Gain and
- *  the volume run from silence upwards and fill from their start, the way a
- *  volume knob anywhere does. */
-bool
-fillsFromTheMiddle (MixerControl control)
-{
-  return control == MixerControl::EqHigh || control == MixerControl::EqMid
-         || control == MixerControl::EqLow;
-}
-
-/** The same, for the summing section: the phones' blend sits between two ends
- *  and reads as a distance from the middle; everything else is a level. */
-bool
-fillsFromTheMiddle (MasterControl control)
-{
-  return control == MasterControl::PhonesMix;
-}
 
 /** A 0..1 value on paintBarKnob's -1..1 scale. */
 float
@@ -158,9 +138,44 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
     addAndMakeVisible (touch);
   };
 
+  // Everything that is turned is a knob of its own -- a JUCE slider, drawn by
+  // the LookAndFeel as the arc this device has always drawn. Only the two
+  // keys are still hit areas: they are pressed, not turned.
+  auto const makeKnob = [this] (MixerControl control, juce::Colour colour) {
+    auto knob = std::make_unique<PotKnob> ();
+    knob->setLabel (mixerControlLabel (control));
+    knob->setFillsFromTheMiddle (fillsFromTheMiddle (control));
+    knob->setKnobColour (colour);
+
+    // Two taps put a control back where it belongs, and JUCE does that
+    // itself once it is told where that is. Only the send has an answer --
+    // see mixerControlRestPosition.
+    if (auto const rest = mixerControlRestPosition (control))
+      knob->setDoubleClickReturnValue (true, *rest);
+
+    addAndMakeVisible (*knob);
+    return knob;
+  };
+
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     for (int i = 0; i < numMixerFaceControls; ++i)
       {
+        auto const index = static_cast<std::size_t> (i);
+        auto const control = mixerFaceOrder[index];
+
+        if (!mixerControlIsAToggle (control))
+          {
+            auto knob = makeKnob (control, toColour (theme ().channel[channel]));
+            knob->onValueChange = [this, channel, control, k = knob.get ()] {
+              if (onChannelValueChanged)
+                onChannelValueChanged (channel, control,
+                                       static_cast<float> (k->getValue ()));
+            };
+            _channelKnob[static_cast<std::size_t> (channel)][index]
+                = std::move (knob);
+            continue;
+          }
+
         auto touch = std::make_unique<TouchControl> ();
 
         // The channel is closed over rather than read off the identity: a
@@ -231,16 +246,19 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
 
   for (int i = 0; i < numMasterFaceControls; ++i)
     {
-      auto touch = std::make_unique<TouchControl> ();
-      touch->onDragIncrement = [this] (int, int secondary, int increment) {
-        if (onMasterDragged)
-          onMasterDragged (
-              masterFaceOrder[static_cast<std::size_t> (secondary)],
-              increment);
-      };
+      auto const index = static_cast<std::size_t> (i);
+      auto const control = masterFaceOrder[index];
 
-      hookUp (*touch, masterGroup, i);
-      _masterTouch[static_cast<std::size_t> (i)] = std::move (touch);
+      auto knob = std::make_unique<PotKnob> ();
+      knob->setLabel (masterControlLabel (control));
+      knob->setFillsFromTheMiddle (fillsFromTheMiddle (control));
+      knob->setKnobColour (toColour (theme ().textPrimary));
+      knob->onValueChange = [this, control, k = knob.get ()] {
+        if (onMasterValueChanged)
+          onMasterValueChanged (control, static_cast<float> (k->getValue ()));
+      };
+      addAndMakeVisible (*knob);
+      _masterKnob[index] = std::move (knob);
     }
 
   // The output meters are the master volume, with the same fader over them.
@@ -256,6 +274,24 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
 
   for (int i = 0; i < numFilterControls; ++i)
     {
+      auto const index = static_cast<std::size_t> (i);
+      auto const control = filterControlOrder[index];
+
+      if (control != FilterControl::Mode)
+        {
+          auto knob = std::make_unique<PotKnob> ();
+          knob->setLabel (filterControlLabel (control));
+          knob->setKnobColour (toColour (theme ().textPrimary));
+          knob->onValueChange = [this, control, k = knob.get ()] {
+            if (onFilterValueChanged)
+              onFilterValueChanged (control,
+                                    static_cast<float> (k->getValue ()));
+          };
+          addAndMakeVisible (*knob);
+          _filterKnob[index] = std::move (knob);
+          continue;
+        }
+
       auto touch = std::make_unique<TouchControl> ();
       touch->onDragIncrement = [this] (int, int secondary, int increment) {
         if (onFilterDragged)
@@ -336,6 +372,16 @@ MixerComponent::resized ()
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     for (int i = 0; i < numMixerFaceControls; ++i)
       {
+        auto const cell = _layout.controls[static_cast<std::size_t> (channel)]
+                                          [static_cast<std::size_t> (i)];
+        if (auto &knob = _channelKnob[static_cast<std::size_t> (channel)]
+                                     [static_cast<std::size_t> (i)])
+          {
+            knob->setBounds (cell);
+            knob->setVisible (_layout.fits);
+            continue;
+          }
+
         auto &touch = _channelTouch[static_cast<std::size_t> (channel)]
                                    [static_cast<std::size_t> (i)];
         touch->setBounds (_layout.controls[static_cast<std::size_t> (channel)]
@@ -365,9 +411,9 @@ MixerComponent::resized ()
 
   for (int i = 0; i < numMasterFaceControls; ++i)
     {
-      auto &touch = _masterTouch[static_cast<std::size_t> (i)];
-      touch->setBounds (_layout.master[static_cast<std::size_t> (i)]);
-      touch->setVisible (_layout.fits);
+      auto &knob = _masterKnob[static_cast<std::size_t> (i)];
+      knob->setBounds (_layout.master[static_cast<std::size_t> (i)]);
+      knob->setVisible (_layout.fits);
     }
 
   _masterFader->setBounds (_layout.masterMeter);
@@ -375,6 +421,13 @@ MixerComponent::resized ()
 
   for (int i = 0; i < numFilterControls; ++i)
     {
+      if (auto &knob = _filterKnob[static_cast<std::size_t> (i)])
+        {
+          knob->setBounds (_layout.filter[static_cast<std::size_t> (i)]);
+          knob->setVisible (_layout.fits);
+          continue;
+        }
+
       auto &touch = _filterTouch[static_cast<std::size_t> (i)];
       touch->setBounds (_layout.filter[static_cast<std::size_t> (i)]);
       touch->setVisible (_layout.fits);
@@ -384,7 +437,7 @@ MixerComponent::resized ()
 void
 MixerComponent::paint (juce::Graphics &g)
 {
-  syncFaders ();
+  syncControls ();
 
   // Opaque, unlike the menu and the skin editor: those are settings pages you
   // glance at, and seeing the room through them says the set is still running
@@ -409,7 +462,7 @@ MixerComponent::paint (juce::Graphics &g)
 }
 
 void
-MixerComponent::syncFaders ()
+MixerComponent::syncControls ()
 {
   // The faders carry the value and draw the handle; the page owns the state.
   // Pushed from paint() and from whoever changed a value, rather than from
@@ -431,6 +484,29 @@ MixerComponent::syncFaders ()
 
   put (*_masterFader, _state.masterValue (MasterControl::Volume),
        toColour (theme ().textPrimary));
+
+  auto const turn = [] (PotKnob &knob, double value, juce::Colour colour) {
+    if (!knob.isMouseButtonDown ())
+      knob.setValue (value, juce::dontSendNotification);
+    knob.setKnobColour (colour);
+  };
+
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
+         ++i)
+      if (auto &knob = _channelKnob[static_cast<std::size_t> (channel)][i])
+        turn (*knob, _state.channelValue (channel, mixerFaceOrder[i]),
+              toColour (theme ().channel[channel]));
+
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numMasterFaceControls);
+       ++i)
+    turn (*_masterKnob[i], _state.masterValue (masterFaceOrder[i]),
+          toColour (theme ().textPrimary));
+
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numFilterControls); ++i)
+    if (auto &knob = _filterKnob[i])
+      turn (*knob, _state.filterValue (filterControlOrder[i]),
+            toColour (theme ().textPrimary));
 }
 
 void
@@ -486,6 +562,9 @@ MixerComponent::paintStrip (juce::Graphics &g, int channel)
        ++i)
     {
       auto const control = mixerFaceOrder[i];
+      if (!mixerControlIsAToggle (control))
+        continue; // a knob of its own now -- see PotKnob
+
       paintMixerChannelControl (g, cells[i], _metrics, colour, control,
                                 _state.channelValue (channel, control),
                                 _state.channelToggle (channel, control));
@@ -513,17 +592,8 @@ MixerComponent::paintMasterColumn (juce::Graphics &g)
   g.setColour (colour.withAlpha (stripWash));
   g.fillRoundedRectangle (ground.toFloat (), theme ().radiusCard);
 
-  for (std::size_t i = 0; i < static_cast<std::size_t> (numMasterFaceControls);
-       ++i)
-    {
-      auto const control = masterFaceOrder[i];
-      auto const value = _state.masterValue (control);
-      auto const bounds = _layout.master[i];
-      auto const label = juce::String (masterControlLabel (control));
-
-      paintBarKnob (g, bounds, _metrics, colour, label, angleFor (value),
-                    fillsFromTheMiddle (control), false, true);
-    }
+  // The five pots draw themselves (PotKnob); what is left here is the ground
+  // they stand on, above.
 }
 
 void
@@ -559,9 +629,8 @@ MixerComponent::paintFilterRow (juce::Graphics &g)
           continue;
         }
 
-      paintBarKnob (g, bounds, _metrics, colour, label,
-                    angleFor (_state.filterValue (control)), false, false,
-                    true);
+      // FREQ and RES are knobs of their own (PotKnob); only the mode key is
+      // drawn here.
     }
 }
 

@@ -335,8 +335,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // made the long faders feel like they were catching.
   auto const meterDraggedTo = [this] (int channel, float value) {
     _mixerState.setChannelFromTouch (channel, MixerControl::Volume, value);
-    _mixer->syncFaders ();
-    _mixerStrip->syncFader ();
+    _mixer->syncControls ();
+    _mixerStrip->syncControls ();
   };
   _mixer->onMeterDraggedTo = meterDraggedTo;
   _mixerStrip->onMeterDraggedTo = meterDraggedTo;
@@ -346,9 +346,28 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         control, _mixerState.masterValue (control) + mixerStep (steps));
     _mixer->repaint ();
   };
+  // A knob was turned: the slider owns the value, the state is told where it
+  // landed. No steps to add up any more.
+  _mixerStrip->onChannelValueChanged
+      = [this] (int channel, MixerControl control, float value) {
+          _mixerState.setChannelFromTouch (channel, control, value);
+          _mixer->syncControls ();
+        };
+  _mixer->onChannelValueChanged
+      = [this] (int channel, MixerControl control, float value) {
+          _mixerState.setChannelFromTouch (channel, control, value);
+          _mixerStrip->syncControls ();
+        };
+  _mixer->onMasterValueChanged = [this] (MasterControl control, float value) {
+    _mixerState.setMasterFromTouch (control, value);
+  };
+  _mixer->onFilterValueChanged = [this] (FilterControl control, float value) {
+    _mixerState.setFilterFromTouch (control, value);
+  };
+
   _mixer->onMasterMeterDraggedTo = [this] (float value) {
     _mixerState.setMasterFromTouch (MasterControl::Volume, value);
-    _mixer->syncFaders ();
+    _mixer->syncControls ();
   };
   _mixer->onFilterDragged = [this, mixerStep] (FilterControl control,
                                                int steps) {

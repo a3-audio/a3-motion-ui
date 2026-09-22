@@ -42,6 +42,27 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
   for (int i = 0; i < numMixerFaceControls; ++i)
     {
       auto const index = static_cast<std::size_t> (i);
+      auto const control = mixerFaceOrder[index];
+
+      // Everything that is turned is a knob of its own -- see PotKnob and the
+      // overlay, which does the same. Only the two keys keep a hit area.
+      if (!mixerControlIsAToggle (control))
+        {
+          auto knob = std::make_unique<PotKnob> ();
+          knob->setLabel (mixerControlLabel (control));
+          knob->setFillsFromTheMiddle (fillsFromTheMiddle (control));
+          if (auto const rest = mixerControlRestPosition (control))
+            knob->setDoubleClickReturnValue (true, *rest);
+          knob->onValueChange = [this, control, k = knob.get ()] {
+            if (onChannelValueChanged)
+              onChannelValueChanged (_channel, control,
+                                     static_cast<float> (k->getValue ()));
+          };
+          addAndMakeVisible (*knob);
+          _knob[index] = std::move (knob);
+          continue;
+        }
+
       auto touch = std::make_unique<TouchControl> ();
 
       // Where the control sits in mixerFaceOrder, and nothing else -- the
@@ -144,6 +165,13 @@ MixerStripComponent::resized ()
   for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
        ++i)
     {
+      if (auto &knob = _knob[i])
+        {
+          knob->setBounds (_layout.controls[0][i]);
+          knob->setVisible (_layout.fits);
+          continue;
+        }
+
       _touch[i]->setBounds (_layout.controls[0][i]);
       _touch[i]->setVisible (_layout.fits);
     }
@@ -155,19 +183,31 @@ MixerStripComponent::resized ()
 }
 
 void
-MixerStripComponent::syncFader ()
+MixerStripComponent::syncControls ()
 {
-  // Not while a finger is on it -- see MixerComponent::syncFaders.
+  // Not while a finger is on one -- see MixerComponent::syncControls.
+  auto const colour = toColour (theme ().channel[_channel]);
+
   if (!_fader->isMouseButtonDown ())
     _fader->setValue (_state.channelValue (_channel, MixerControl::Volume),
                       juce::dontSendNotification);
-  _fader->setHandleColour (toColour (theme ().channel[_channel]));
+  _fader->setHandleColour (colour);
+
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
+       ++i)
+    if (auto &knob = _knob[i])
+      {
+        if (!knob->isMouseButtonDown ())
+          knob->setValue (_state.channelValue (_channel, mixerFaceOrder[i]),
+                          juce::dontSendNotification);
+        knob->setKnobColour (colour);
+      }
 }
 
 void
 MixerStripComponent::paint (juce::Graphics &g)
 {
-  syncFader ();
+  syncControls ();
 
   // No ground of its own. The bar has already filled this area with its own
   // surface, and a second panel over it would make the page read as an
@@ -186,6 +226,9 @@ MixerStripComponent::paint (juce::Graphics &g)
        ++i)
     {
       auto const control = mixerFaceOrder[i];
+      if (!mixerControlIsAToggle (control))
+        continue; // a knob of its own now -- see PotKnob
+
       paintMixerChannelControl (g, _layout.controls[0][i], _metrics, colour,
                                 control,
                                 _state.channelValue (_channel, control),
