@@ -57,6 +57,12 @@ public:
   std::function<void ()> onDoubleTapped;
 
   void mouseDoubleClick (juce::MouseEvent const &event) override;
+
+  /** Calibrates the drag to the handle's own travel. JUCE's relative drag is
+   *  measured in "pixels for the full range" and defaults to 250, which on
+   *  this device's 490 px track ran the handle 1.8 times as fast as the
+   *  finger. */
+  void resized () override;
 };
 
 }

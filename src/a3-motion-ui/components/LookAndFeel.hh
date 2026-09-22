@@ -67,6 +67,14 @@ public:
    *  JUCE's dot on a line, and no track of its own -- the meter behind it is
    *  the track. Drawn here rather than in the component so a slider is
    *  coloured the way any JUCE slider is, through `thumbColourId`. */
+  /** How thick our cap is, in JUCE's terms.
+   *
+   *  A slider lays its travel over the track *less its thumb*, so a thumb it
+   *  thinks is seven pixels while the drawn cap is thirty-four puts the two
+   *  scales a hair apart -- and a hair per pixel walks the cap out from under
+   *  the finger over a long fader. */
+  int getSliderThumbRadius (juce::Slider &slider) override;
+
   void drawLinearSlider (juce::Graphics &g, int x, int y, int width,
                          int height, float sliderPos, float minSliderPos,
                          float maxSliderPos,

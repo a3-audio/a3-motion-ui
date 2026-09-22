@@ -110,6 +110,15 @@ LookAndFeel_A3::getTextButtonFont (juce::TextButton &button, int buttonHeight)
 }
 
 
+int
+LookAndFeel_A3::getSliderThumbRadius (juce::Slider &slider)
+{
+  if (slider.getSliderStyle () != juce::Slider::LinearVertical)
+    return juce::LookAndFeel_V4::getSliderThumbRadius (slider);
+
+  return vuFaderHandle (slider.getLocalBounds (), 0.f).getHeight () / 2;
+}
+
 void
 LookAndFeel_A3::drawLinearSlider (juce::Graphics &g, int x, int y, int width,
                                   int height, float sliderPos,

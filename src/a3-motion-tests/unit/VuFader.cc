@@ -23,7 +23,9 @@
 #include <a3-motion-ui/components/MixerComponent.hh>
 #include <a3-motion-ui/components/MixerStripComponent.hh>
 #include <a3-motion-ui/components/OverlayButtons.hh>
+#include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/VuFader.hh>
+#include <a3-motion-ui/components/VuMeter.hh>
 
 using namespace a3;
 
@@ -169,4 +171,56 @@ TEST (VuFader, ItsHandleColourIsTheSlidersThumbColour)
 
   EXPECT_EQ (fader.findColour (juce::Slider::thumbColourId),
              juce::Colours::hotpink);
+}
+
+// JUCE lays a slider's travel over the track less its thumb, so it has to be
+// told how thick ours is: with the stock radius the cap walked out from under
+// the finger on the overlay's long faders, a little more with every pixel.
+TEST (VuFader, JuceIsToldHowThickTheCapIs)
+{
+  LookAndFeel_A3 lookAndFeel;
+  VuFader fader;
+  fader.setLookAndFeel (&lookAndFeel);
+  fader.setBounds (0, 0, 46, 400);
+
+  EXPECT_EQ (lookAndFeel.getSliderThumbRadius (fader),
+             vuFaderHandle (fader.getLocalBounds (), 0.5f).getHeight () / 2);
+
+  fader.setLookAndFeel (nullptr);
+}
+
+// JUCE's relative drag is calibrated in "pixels for the full range", and it
+// defaults to 250 -- on a 490 px track that ran the handle 1.8 times as fast
+// as the finger, measured on the rig. The travel the handle actually has is
+// what the finger has to spend.
+TEST (VuFader, AFullDragIsExactlyTheHandlesTravel)
+{
+  VuFader fader;
+  fader.setBounds (0, 0, 46, 490);
+
+  auto const bounds = fader.getLocalBounds ();
+  auto const travel
+      = bounds.getHeight () - vuFaderHandle (bounds, 0.f).getHeight ();
+
+  EXPECT_EQ (fader.getMouseDragSensitivity (), travel);
+
+  // And it follows the bounds: the bar's tab has a much shorter meter.
+  fader.setBounds (0, 0, 46, 260);
+  auto const shorter = fader.getLocalBounds ();
+  EXPECT_EQ (fader.getMouseDragSensitivity (),
+             shorter.getHeight () - vuFaderHandle (shorter, 0.f).getHeight ());
+}
+
+// Laying the slider out is the base class's job, and an override that forgets
+// to call it leaves the track one pixel wide -- the handle then vanishes.
+TEST (VuFader, ItStillLaysOutItsOwnTrack)
+{
+  VuFader fader;
+  fader.setBounds (0, 0, 46, 490);
+  fader.setValue (0.5);
+
+  auto const positionAtHalf = fader.getPositionOfValue (0.5);
+
+  EXPECT_GT (positionAtHalf, fader.getHeight () / 4);
+  EXPECT_LT (positionAtHalf, fader.getHeight () * 3 / 4);
 }

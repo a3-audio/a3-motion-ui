@@ -48,6 +48,20 @@ VuFader::VuFader ()
 }
 
 void
+VuFader::resized ()
+{
+  // First, or the slider never lays its own track out: its region stays one
+  // pixel, and the handle is drawn nowhere at all.
+  juce::Slider::resized ();
+
+  auto const bounds = getLocalBounds ();
+  auto const travel
+      = bounds.getHeight () - vuFaderHandle (bounds, 0.f).getHeight ();
+
+  setMouseDragSensitivity (juce::jmax (1, travel));
+}
+
+void
 VuFader::setHandleColour (juce::Colour colour)
 {
   if (findColour (juce::Slider::thumbColourId) == colour)
