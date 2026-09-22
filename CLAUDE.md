@@ -1070,6 +1070,14 @@ straight back up cannot throw the channel to full. The meter carries VOL's setti
 channel's colour (`vuVolumeMark()` / `paintVuVolumeMark()`), edged in `surface` so it survives
 crossing a band of its own colour; it is the travel, linear, not the meter's dB scale.
 
+**The master is laid out like a channel**: the room's output meters -- sub and speakers -- stand in
+the column on its left, running its whole height, and BTH, MIX, PHN and RET stand beside them in
+the bottom four rows, on the channels' own lines (`masterFaceOrder`, `rowForMasterPot`). Dragging
+the meters is the master volume, one to one like a channel's, with the mark drawn across all of
+them in `textPrimary`; the MST knob is gone. **No double tap there**: full volume on the master is
+the one gesture that makes the whole room loud at once. The meters get a column rather than a row
+because there will be more of them than five.
+
 The overlay meter takes two fifths of its strip (`meterWidthOfStrip`), not the half asked for: the
 strip ends in PFL and FX side by side, and at half a key came out at 32 px on the device, under a
 fingertip. The column break is derived from the same two keys (`minimumMixerStripWidth`), so a

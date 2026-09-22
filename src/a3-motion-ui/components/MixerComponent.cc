@@ -235,19 +235,34 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
       _meterTouch[static_cast<std::size_t> (channel)] = std::move (touch);
     }
 
-  for (int i = 0; i < numMasterControls; ++i)
+  for (int i = 0; i < numMasterFaceControls; ++i)
     {
       auto touch = std::make_unique<TouchControl> ();
       touch->onDragIncrement = [this] (int, int secondary, int increment) {
         if (onMasterDragged)
           onMasterDragged (
-              masterControlOrder[static_cast<std::size_t> (secondary)],
+              masterFaceOrder[static_cast<std::size_t> (secondary)],
               increment);
       };
 
       hookUp (*touch, masterGroup, i);
       _masterTouch[static_cast<std::size_t> (i)] = std::move (touch);
     }
+
+  // The output meters are the master volume, dragged one to one like a
+  // channel's meter. No double tap: full volume on the master is the one
+  // gesture that makes the whole room loud at once, and the channels' meters
+  // already offer the jump where it concerns one deck.
+  _masterMeterTouch = std::make_unique<TouchControl> ();
+  _masterMeterTouch->onPress = [this] (int, int) {
+    _masterVolumeAtPress = _state.masterValue (MasterControl::Volume);
+  };
+  _masterMeterTouch->onDragBy = [this] (int, int, juce::Point<int> offset) {
+    if (onMasterMeterDraggedTo)
+      onMasterMeterDraggedTo (vuMeterDragVolume (
+          _masterVolumeAtPress, -offset.y, _layout.masterMeter.getHeight ()));
+  };
+  hookUp (*_masterMeterTouch, masterGroup, numMasterFaceControls);
 
   for (int i = 0; i < numFilterControls; ++i)
     {
@@ -343,12 +358,15 @@ MixerComponent::resized ()
       touch->setVisible (_layout.fits);
     }
 
-  for (int i = 0; i < numMasterControls; ++i)
+  for (int i = 0; i < numMasterFaceControls; ++i)
     {
       auto &touch = _masterTouch[static_cast<std::size_t> (i)];
       touch->setBounds (_layout.master[static_cast<std::size_t> (i)]);
       touch->setVisible (_layout.fits);
     }
+
+  _masterMeterTouch->setBounds (_layout.masterMeter);
+  _masterMeterTouch->setVisible (_layout.fits);
 
   for (int i = 0; i < numFilterControls; ++i)
     {
@@ -409,6 +427,12 @@ MixerComponent::paintMeters (juce::Graphics &g)
     paintVuMeter (g, _layout.outputMeters[static_cast<std::size_t> (meter)],
                   _levels.output (meter, now));
 
+  // The master volume, across all of them: they are one target, and one
+  // setting drives them all.
+  paintVuVolumeMark (g, _layout.masterMeter,
+                     _state.masterValue (MasterControl::Volume),
+                     toColour (theme ().textPrimary));
+
   if (!_layout.outputMeterCaption.isEmpty ())
     {
       g.setColour (toColour (theme ().textMuted));
@@ -465,10 +489,8 @@ MixerComponent::paintMasterColumn (juce::Graphics &g)
   auto const colour = toColour (theme ().textPrimary);
 
   // The same ground the four strips wear, so the master reads as the fifth of
-  // five rather than as a panel that happens to stand beside them. Down to
-  // the foot of the output meters, which stand in the two rows under its own
-  // five: the column is one block, and a wash stopping short of its last two
-  // rows would read as the meters having been pasted on underneath it.
+  // five rather than as a panel that happens to stand beside them: its pots
+  // and the meter column beside them, as one block.
   auto ground = _layout.master.front ();
   for (auto const &cell : _layout.master)
     ground = ground.getUnion (cell);
@@ -479,10 +501,10 @@ MixerComponent::paintMasterColumn (juce::Graphics &g)
   g.setColour (colour.withAlpha (stripWash));
   g.fillRoundedRectangle (ground.toFloat (), theme ().radiusCard);
 
-  for (std::size_t i = 0; i < static_cast<std::size_t> (numMasterControls);
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numMasterFaceControls);
        ++i)
     {
-      auto const control = masterControlOrder[i];
+      auto const control = masterFaceOrder[i];
       auto const value = _state.masterValue (control);
       auto const bounds = _layout.master[i];
       auto const label = juce::String (masterControlLabel (control));

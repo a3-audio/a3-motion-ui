@@ -56,7 +56,10 @@ struct MixerLayout
   std::array<std::array<juce::Rectangle<int>, numMixerFaceControls>,
              static_cast<std::size_t> (numChannelsInitial)>
       controls;
-  std::array<juce::Rectangle<int>, numMasterControls> master;
+  std::array<juce::Rectangle<int>, numMasterFaceControls> master;
+  /** The master's meter column, left of its pots: the output bars, and the
+   *  target the master volume is dragged on. Empty on the bar's tab. */
+  juce::Rectangle<int> masterMeter;
   std::array<juce::Rectangle<int>, numFilterControls> filter;
   /** Each channel's input meter: a column of its own beside the controls,
    *  running the whole length of the strip. Left of them in the overlay, where

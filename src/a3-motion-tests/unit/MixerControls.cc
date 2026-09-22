@@ -63,6 +63,18 @@ TEST (MixerControls, ThePagesDrawEverythingButTheVolume)
   EXPECT_EQ (faceSlot (MixerControl::Fx), numMixerFaceControls - 1);
 }
 
+// The master's pots: everything but its volume, which is dragged on the
+// output meters the way a channel's is dragged on its own.
+TEST (MixerControls, TheMastersPotsAreEverythingButItsVolume)
+{
+  EXPECT_EQ (numMasterFaceControls, 4);
+  EXPECT_EQ (masterFaceOrder[0], MasterControl::Booth);
+  EXPECT_EQ (masterFaceOrder[1], MasterControl::PhonesMix);
+  EXPECT_EQ (masterFaceOrder[2], MasterControl::PhonesVolume);
+  EXPECT_EQ (masterFaceOrder[3], MasterControl::Return);
+  EXPECT_EQ (masterFaceSlot (MasterControl::Volume), -1);
+}
+
 // The send is turned, not pressed -- and the layout takes the toggles off the
 // end of the order without knowing which they are, so a continuous control
 // that drifted behind them would be drawn as a key.

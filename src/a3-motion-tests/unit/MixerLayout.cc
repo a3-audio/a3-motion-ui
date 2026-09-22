@@ -476,41 +476,45 @@ TEST (MixerLayout, TheMasterStandsAsAColumnRightOfTheChannels)
     }
 }
 
-// The master's five stand on the channels' rows, one row down: the output
-// meters take the top row -- "main vu nach oben über die controls" -- and the
-// volume, last of the five, lands on the row the channels' two keys share.
-TEST (MixerLayout, TheMastersControlsStandOnTheChannelsRowsUnderTheMeters)
+// The master is laid out like a channel: its meters in a column on the left,
+// running the strip's whole height, and its pots beside them. The meters are
+// the room's -- sub and speakers -- and there will be more of them, so they
+// get the column rather than a row.
+TEST (MixerLayout, TheMastersMetersStandLeftOfItsPotsTheWholeHeight)
+{
+  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (layout.fits);
+  ASSERT_FALSE (layout.masterMeter.isEmpty ());
+
+  for (auto const &control : layout.master)
+    EXPECT_LE (layout.masterMeter.getRight (), control.getX ());
+
+  // As tall as a channel's meter, top to foot.
+  EXPECT_EQ (layout.masterMeter.getY (), layout.channelMeter[0].getY ());
+  EXPECT_NEAR (layout.masterMeter.getBottom (),
+               layout.channelMeter[0].getBottom (), layout.channelMeter[0].getHeight () / 8);
+
+  for (auto const &bar : layout.outputMeters)
+    EXPECT_TRUE (layout.masterMeter.contains (bar));
+}
+
+// The pots stand at the foot, on the channels' own rows: the last of them on
+// the row the channels' two keys share.
+TEST (MixerLayout, TheMastersPotsStandInTheBottomRowsOnTheChannelsLines)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
 
   auto const &strip = layout.controls[0];
-  auto const volume = layout.master[static_cast<std::size_t> (
-      controlSlot (MasterControl::Volume))];
   auto const keys = strip[static_cast<std::size_t> (faceSlot (MixerControl::Pfl))];
+  auto const last = layout.master[static_cast<std::size_t> (numMasterFaceControls - 1)];
 
-  EXPECT_EQ (volume.getY (), keys.getY ());
-  EXPECT_EQ (volume.getHeight (), keys.getHeight ());
+  EXPECT_EQ (last.getY (), keys.getY ());
+  EXPECT_EQ (last.getHeight (), keys.getHeight ());
 
-  // The highest of the master's controls starts on the channels' second row.
-  auto top = volume.getY ();
-  for (auto const &control : layout.master)
-    top = juce::jmin (top, control.getY ());
-  EXPECT_EQ (top, strip[1].getY ());
-}
-
-TEST (MixerLayout, TheOutputMetersStandAboveTheMastersControls)
-{
-  auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
-  ASSERT_TRUE (layout.fits);
-
-  for (auto const &bar : layout.outputMeters)
-    {
-      ASSERT_FALSE (bar.isEmpty ());
-      for (auto const &control : layout.master)
-        EXPECT_LE (bar.getBottom (), control.getY ())
-            << "an output meter reaches down into the master's controls";
-    }
+  for (std::size_t i = 1; i < static_cast<std::size_t> (numMasterFaceControls); ++i)
+    EXPECT_EQ (layout.master[i].getY (), layout.master[i - 1].getBottom ())
+        << "the master's pots are not stacked row on row";
 }
 
 // The filter is three half-width fields side by side under the columns, not a

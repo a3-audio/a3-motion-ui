@@ -312,9 +312,12 @@ outputMeterBlock (juce::Rectangle<int> block, ControlMetrics metrics)
   if (block.isEmpty ())
     return out;
 
+  // A share of the block, but never more than a knob is tall: the block was
+  // two rows when this was written and is the master's whole column now,
+  // where a fifth of it is a caption taller than the word in it.
   auto bars = block;
-  out.caption = bars.removeFromBottom (juce::jmax (
-      metrics.knobDiam / 2,
+  out.caption = bars.removeFromBottom (juce::jlimit (
+      metrics.knobDiam / 2, metrics.knobDiam,
       juce::roundToInt (static_cast<float> (block.getHeight ())
                         * outputCaptionOfBlock)));
 

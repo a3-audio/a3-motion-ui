@@ -128,3 +128,34 @@ TEST (MixerMeterTouch, DraggingTheStripsMeterReportsTheValueReached)
 
   EXPECT_NEAR (reached, 0.5f, 0.01f);
 }
+
+// The output meters are the master's volume: dragged one to one, the way a
+// channel's meter is -- and without a double tap, because full volume on the
+// master is the one gesture that makes the whole room loud at once.
+TEST (MixerMeterTouch, DraggingTheMastersMetersSetsTheMasterVolume)
+{
+  MixerState state;
+  VuLevels levels;
+  MixerComponent mixer (state, levels);
+  mixer.setBounds (0, 0, roomy, roomy);
+
+  auto reached = -1.f;
+  mixer.onMasterMeterDraggedTo = [&reached] (float value) { reached = value; };
+
+  auto area = mixer.getLocalBounds ();
+  area.removeFromTop (OverlayButtons::preferredHeight ()
+                      + 2 * OverlayButtons::preferredMargin ());
+  auto const layout = layOutMixerOverlay (area, mixerControlMetrics ());
+
+  auto *touch = touchOver (mixer, layout.masterMeter);
+  ASSERT_NE (touch, nullptr);
+  EXPECT_FALSE (touch->onDoubleTap);
+  ASSERT_TRUE (touch->onPress);
+  ASSERT_TRUE (touch->onDragBy);
+
+  auto const start = state.masterValue (MasterControl::Volume);
+  touch->onPress (0, 0);
+  touch->onDragBy (0, 0, { 0, -layout.masterMeter.getHeight () / 4 });
+
+  EXPECT_NEAR (reached, juce::jmin (1.f, start + 0.25f), 0.01f);
+}

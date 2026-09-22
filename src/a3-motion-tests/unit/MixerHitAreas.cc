@@ -77,7 +77,7 @@ TEST (MixerHitAreas, TheOverlayTakesThemAgainOnceItFits)
   // Each channel's meter is a hit area too: dragging it drags that VOL.
   EXPECT_EQ (liveHitAreas (mixer), numChannelsInitial * numMixerFaceControls
                                        + numChannelsInitial
-                                       + numMasterControls
+                                       + numMasterFaceControls + 1
                                        + numFilterControls);
 }
 

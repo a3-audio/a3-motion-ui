@@ -346,24 +346,14 @@ TEST (VuMeter, TheFiveOutputMetersSitInTheMasterColumn)
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
 
-  auto top = layout.master.front ();
-  for (auto const &control : layout.master)
-    if (control.getY () < top.getY ())
-      top = control;
-
-  auto column = layout.master.front ();
-  for (auto const &control : layout.master)
-    column = column.getUnion (control);
-
   for (std::size_t i = 0; i < static_cast<std::size_t> (numOutputMeters); ++i)
     {
       auto const bar = layout.outputMeters[i];
       ASSERT_FALSE (bar.isEmpty ()) << i;
-
-      EXPECT_LE (bar.getBottom (), top.getY ())
-          << i << ": the meters are not above the master's controls";
-      EXPECT_GE (bar.getX (), column.getX ()) << i;
-      EXPECT_LE (bar.getRight (), column.getRight ()) << i;
+      EXPECT_TRUE (layout.masterMeter.contains (bar)) << i;
+      for (auto const &control : layout.master)
+        EXPECT_LE (bar.getRight (), control.getX ())
+            << i << ": the meters are not left of the master's pots";
     }
 }
 
@@ -426,7 +416,7 @@ TEST (VuMeter, TheOutputMetersAreOneBlockOfBarsSideBySide)
 // without anything noticing. One row is what the maintainer decided to keep,
 // so it is written down here: a decision nothing pins is a decision that can
 // drift back.
-TEST (VuMeter, TheOutputBlockTakesTheRowsTheMasterLeaves)
+TEST (VuMeter, TheOutputBlockRunsTheMastersWholeHeight)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
@@ -438,18 +428,9 @@ TEST (VuMeter, TheOutputBlockTakesTheRowsTheMasterLeaves)
       block = block.getUnion (bar);
     }
 
-  // The block stands above the master's five, in the one row they leave at
-  // the top. Every row of a strip is the same height, which is what lets
-  // rows be counted by comparing to one.
-  auto top = layout.master.front ();
-  for (auto const &control : layout.master)
-    if (control.getY () < top.getY ())
-      top = control;
-
-  auto const freeRows = (numMixerFaceControls - 1) - numMasterControls;
-
-  EXPECT_EQ (block.getBottom (), top.getY ());
-  EXPECT_NEAR (block.getHeight (), freeRows * top.getHeight (), 2);
+  // The column a channel's meter has, less only the caption at its foot.
+  EXPECT_EQ (block.getY (), layout.channelMeter[0].getY ());
+  EXPECT_EQ (block.getBottom (), layout.channelMeter[0].getBottom ());
 }
 
 // Everything stays inside the area the overlay was given, meters included.

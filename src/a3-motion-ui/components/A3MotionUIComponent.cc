@@ -342,6 +342,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         control, _mixerState.masterValue (control) + mixerStep (steps));
     _mixer->repaint ();
   };
+  _mixer->onMasterMeterDraggedTo = [this] (float value) {
+    _mixerState.setMasterFromTouch (MasterControl::Volume, value);
+    _mixer->repaint ();
+  };
   _mixer->onFilterDragged = [this, mixerStep] (FilterControl control,
                                                int steps) {
     auto const next = control == FilterControl::Mode

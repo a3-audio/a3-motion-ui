@@ -165,6 +165,9 @@ public:
   /** Two taps: put this channel's control back where mixerControlRestPosition
    *  says. Fires only for a control that has one. */
   std::function<void (int channel, MixerControl)> onChannelDoubleTapped;
+  /** A drag on the output meters: the master volume, where the finger has
+   *  taken it. No double tap there -- see MixerComponent's constructor. */
+  std::function<void (float value)> onMasterMeterDraggedTo;
   /** Two taps on a channel's meter: put that channel at full volume. */
   std::function<void (int channel)> onMeterDoubleTapped;
   /** A drag on a channel's meter: VOL, where the finger has taken it. */
@@ -218,7 +221,10 @@ private:
   /** Each channel's VOL when a finger came down on its meter. */
   std::array<float, static_cast<std::size_t> (numChannelsInitial)>
       _meterVolumeAtPress{};
-  std::array<std::unique_ptr<TouchControl>, numMasterControls> _masterTouch;
+  std::array<std::unique_ptr<TouchControl>, numMasterFaceControls> _masterTouch;
+  /** Over the output meters: dragging them is dragging the master volume. */
+  std::unique_ptr<TouchControl> _masterMeterTouch;
+  float _masterVolumeAtPress = 0.f;
   std::array<std::unique_ptr<TouchControl>, numFilterControls> _filterTouch;
 };
 

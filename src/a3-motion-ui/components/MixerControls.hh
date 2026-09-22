@@ -179,6 +179,25 @@ constexpr std::array<MasterControl, numMasterControls> masterControlOrder{
   MasterControl::Return,
 };
 
+/** The master's pots, top to bottom: everything but its volume, which is
+ *  dragged on the output meters the way a channel's VOL is dragged on its
+ *  own meter. Volume stays in masterControlOrder for the state and the wire. */
+constexpr int numMasterFaceControls = 4;
+constexpr std::array<MasterControl, numMasterFaceControls> masterFaceOrder{
+  MasterControl::Booth, MasterControl::PhonesMix, MasterControl::PhonesVolume,
+  MasterControl::Return,
+};
+
+/** Where a master control stands among the pots, or -1 for the volume. */
+constexpr int
+masterFaceSlot (MasterControl control)
+{
+  for (std::size_t i = 0; i < numMasterFaceControls; ++i)
+    if (masterFaceOrder[i] == control)
+      return static_cast<int> (i);
+  return -1;
+}
+
 constexpr char const *
 masterControlLabel (MasterControl control)
 {
