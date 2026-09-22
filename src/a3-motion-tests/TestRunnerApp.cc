@@ -55,10 +55,41 @@ private:
   std::unique_ptr<juce::ScopedJuceInitialiser_GUI> initializer;
 };
 
+/** Holds the message thread still for the length of every test.
+ *
+ *  The tests build JUCE components on gtest's own thread while the dispatch
+ *  loop runs beside them, and a Component touches shared machinery -- the
+ *  Desktop, its listeners, the LookAndFeel -- as it is built and torn down.
+ *  That is a data race, and it showed as crashes in whole-suite runs that
+ *  never appeared when the same test ran on its own: four different component
+ *  tests, roughly one run in three. See
+ *  issues/a3-motion-ui-flatternde-tests.md.
+ *
+ *  A lock per test rather than one for the whole run, so a test that wants
+ *  the loop to turn can still let go of it. */
+class MessageThreadParked : public ::testing::EmptyTestEventListener
+{
+  void
+  OnTestStart (::testing::TestInfo const &) override
+  {
+    _lock = std::make_unique<juce::MessageManagerLock> ();
+  }
+
+  void
+  OnTestEnd (::testing::TestInfo const &) override
+  {
+    _lock.reset ();
+  }
+
+  std::unique_ptr<juce::MessageManagerLock> _lock;
+};
+
 int
 main (int argc, char **argv)
 {
   ScopedMessageThread t;
   ::testing::InitGoogleTest (&argc, argv);
+  ::testing::UnitTest::GetInstance ()->listeners ().Append (
+      new MessageThreadParked);
   return RUN_ALL_TESTS ();
 }
