@@ -48,10 +48,14 @@ constexpr float meterGapOfMeterWidth = 1.f / 5.f;
  *  Floored at a pixel, since a mark that vanished on a short meter would say
  *  "no transient", which is the one thing a meter must not say untruthfully. */
 constexpr float peakMarkOfTrackHeight = 1.f / 64.f;
-/** How tall the fader's handle is, as a share of its track -- bounded so it
- *  is graspable on the bar's short meter and not a slab on the overlay's
- *  long one. */
+/** How tall the fader's handle is: a share of the track it travels, or of the
+ *  width it spans, whichever asks for more.
+ *
+ *  The width has a say because a cap is about twice as wide as it is tall, and
+ *  the bar's tab has a short wide meter where a twelfth of the track came out
+ *  flat -- "im clipmixer ist der faderknob zu gestaucht". */
 constexpr float faderHandleOfTrack = 1.f / 12.f;
+constexpr float faderHandleOfWidth = 1.f / 2.f;
 
 /** The air between two bars of the output block.
  *
@@ -257,9 +261,18 @@ vuFaderHandle (juce::Rectangle<int> bounds, float value)
   // NaN fails every comparison, so it is caught here rather than by the clamp.
   auto const travel = value >= 0.f ? juce::jmin (value, 1.f) : 0.f;
   auto const height = bounds.getHeight ();
+  auto const wanted = juce::jmax (
+      juce::roundToInt (static_cast<float> (height) * faderHandleOfTrack),
+      juce::roundToInt (static_cast<float> (bounds.getWidth ())
+                        * faderHandleOfWidth));
+
+  // A fingertip is the floor of the ceiling, not the ceiling: on a wide meter
+  // half the width is what keeps the cap from reading as a line, and the
+  // track's own height is the only real limit above that.
   auto const thickness = juce::jlimit (
-      minimumFaderHandleThickness, fingertipSize,
-      juce::roundToInt (static_cast<float> (height) * faderHandleOfTrack));
+      minimumFaderHandleThickness,
+      juce::jmax (fingertipSize, juce::jmin (bounds.getWidth () / 2, height)),
+      wanted);
 
   // Centred on the value rather than hanging below it, so half-way reads as
   // half-way; clamped at both ends so the mark never leaves the track.

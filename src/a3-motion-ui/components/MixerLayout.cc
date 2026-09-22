@@ -438,8 +438,13 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
   // -- but at the far right of the band rather than before it. A band is read
   // left to right and the level is read at the end of it; the overlay's strips
   // are columns and the level is read before them.
-  out.channelMeter[0] = cellAcross (area, columnsAcrossTheBarsStrip,
-                                    potsAcrossTheBarsStrip);
+  // Half that column, at its right-hand edge: a whole one came out twice the
+  // width of the overlay's meter, and the fader handle on it read as
+  // squashed. The other half is air between the last pot and the meter.
+  auto const meterColumn = cellAcross (area, columnsAcrossTheBarsStrip,
+                                       potsAcrossTheBarsStrip);
+  out.channelMeter[0]
+      = meterColumn.withTrimmedLeft (meterColumn.getWidth () / 2);
   if (out.channelMeter[0].isEmpty ())
     cellsFit = false;
 

@@ -851,3 +851,45 @@ TEST (VuMeter, ASidewaysBandsRunLeftToRight)
           << i << " does not follow the band before it";
     }
 }
+
+// A fader cap is about twice as wide as it is tall. On the bar's tab the
+// meter is short and wide, and a handle measured off the track's height
+// alone came out flat on it -- "im clipmixer ist der faderknob zu gestaucht".
+TEST (VuMeter, TheFaderHandleKeepsItsProportionsOnAShortWideMeter)
+{
+  auto const wide = juce::Rectangle<int> (0, 0, 90, 260);
+  auto const handle = vuFaderHandle (wide, 0.5f);
+
+  EXPECT_GE (handle.getHeight (), wide.getWidth () / 3);
+  EXPECT_LE (handle.getHeight (), wide.getWidth ());
+  EXPECT_TRUE (wide.contains (handle));
+}
+
+// And stays a handle on a long narrow one: the overlay's meter is nearly six
+// hundred pixels tall, where a twelfth of it would be a slab.
+TEST (VuMeter, TheFaderHandleStaysAHandleOnALongMeter)
+{
+  auto const tall = juce::Rectangle<int> (0, 0, 46, 590);
+  auto const handle = vuFaderHandle (tall, 0.5f);
+
+  EXPECT_LE (handle.getHeight (), fingertipSize);
+  EXPECT_GE (handle.getHeight (), minimumFaderHandleThickness);
+}
+
+// The tab's meter is as wide as the overlay's, not twice it: a full column of
+// the band made a meter 93 px across where the overlay's is 46, and the fader
+// handle on it read as squashed -- "mach das vumeter ruhig genauso breit wie
+// im main mixer". Still a fingertip wide, because it is dragged.
+TEST (VuMeter, TheBarsMeterIsNoWiderThanTheOverlaysAndStillAFingertip)
+{
+  auto const strip = layOutMixerStrip (aBarStrip (), metrics);
+  auto const overlay = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (strip.fits);
+  ASSERT_TRUE (overlay.fits);
+
+  auto const pot = strip.controls[0][0].getWidth ();
+
+  EXPECT_NEAR (strip.channelMeter[0].getWidth (), pot / 2, 2);
+  EXPECT_GE (strip.channelMeter[0].getWidth (), fingertipSize);
+  EXPECT_GE (strip.channelMeter[0].getRight (), strip.controls[0][0].getRight ());
+}
