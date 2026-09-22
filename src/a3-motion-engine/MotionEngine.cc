@@ -364,6 +364,12 @@ MotionEngine::publishAccentView ()
 
       publish (_accentView[index], _accentEnvelope[index].level,
                pattern ? pattern->getEnvelopeMax () : 1.f);
+      _accentView[index].active.store (
+          _accentEnvelope[index].stage != EnvelopeStage::Idle
+              || _freqEnvelope[index].stage != EnvelopeStage::Idle
+              || _qEnvelope[index].stage != EnvelopeStage::Idle
+              || _accentRestore[index].has_value (),
+          std::memory_order_relaxed);
       publish (_freqView[index], _freqEnvelope[index].level,
                pattern ? pattern->getFreqMax () : 0.f);
       publish (_qView[index], _qEnvelope[index].level,
@@ -497,13 +503,13 @@ MotionEngine::setChannelAction (index_t channel,
 bool
 MotionEngine::isChannelAccentActive (index_t channel) const
 {
-  if (channel >= _accentEnvelope.size ())
+  // Read from the published view, not from the envelopes: those belong to
+  // the tempo-clock thread, and this is asked from the message thread by the
+  // bar and the pads page several times a second.
+  if (channel >= _accentView.size ())
     return false;
 
-  return _accentEnvelope[channel].stage != EnvelopeStage::Idle
-         || _freqEnvelope[channel].stage != EnvelopeStage::Idle
-         || _qEnvelope[channel].stage != EnvelopeStage::Idle
-         || _accentRestore[channel].has_value ();
+  return _accentView[channel].active.load (std::memory_order_relaxed);
 }
 
 void
