@@ -206,7 +206,7 @@ private:
   MixerLayout _layout;
   ControlMetrics _metrics{};
 
-  std::array<std::array<std::unique_ptr<TouchControl>, numMixerControls>,
+  std::array<std::array<std::unique_ptr<TouchControl>, numMixerFaceControls>,
              static_cast<std::size_t> (numChannelsInitial)>
       _channelTouch;
   /** One per channel, over its meter: dragging it is dragging that VOL. */

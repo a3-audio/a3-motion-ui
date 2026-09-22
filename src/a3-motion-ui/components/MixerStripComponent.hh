@@ -103,10 +103,10 @@ private:
    *  in the header swaps the strip under a finger that is already on the
    *  page, and an identity baked into seven TouchControls would then be a
    *  second thing to keep in step. The identity carries only where a control
-   *  sits in mixerControlOrder. */
+   *  sits in mixerFaceOrder. */
   int _channel = 0;
 
-  std::array<std::unique_ptr<TouchControl>, numMixerControls> _touch;
+  std::array<std::unique_ptr<TouchControl>, numMixerFaceControls> _touch;
   /** Over the meter: dragging it is dragging VOL. */
   std::unique_ptr<TouchControl> _meterTouch;
 };

@@ -46,6 +46,23 @@ TEST (MixerControls, AStripReadsGainEqVolumeSendThenTheTwoKeys)
   EXPECT_EQ (numMixerControls, 8);
 }
 
+// What the two pages draw: everything but VOL, which is set by dragging the
+// channel's meter -- "das vol pot muss weg". VOL stays in the table above,
+// because the state and the wire still carry it.
+TEST (MixerControls, ThePagesDrawEverythingButTheVolume)
+{
+  EXPECT_EQ (numMixerFaceControls, 7);
+  EXPECT_EQ (mixerFaceOrder[0], MixerControl::Gain);
+  EXPECT_EQ (mixerFaceOrder[1], MixerControl::EqHigh);
+  EXPECT_EQ (mixerFaceOrder[2], MixerControl::EqMid);
+  EXPECT_EQ (mixerFaceOrder[3], MixerControl::EqLow);
+  EXPECT_EQ (mixerFaceOrder[4], MixerControl::FxSend);
+  EXPECT_EQ (mixerFaceOrder[5], MixerControl::Pfl);
+  EXPECT_EQ (mixerFaceOrder[6], MixerControl::Fx);
+  EXPECT_EQ (faceSlot (MixerControl::Volume), -1);
+  EXPECT_EQ (faceSlot (MixerControl::Fx), numMixerFaceControls - 1);
+}
+
 // The send is turned, not pressed -- and the layout takes the toggles off the
 // end of the order without knowing which they are, so a continuous control
 // that drifted behind them would be drawn as a key.

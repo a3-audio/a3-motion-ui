@@ -30,14 +30,6 @@ namespace a3
 
 namespace
 {
-/** The meter's share of the strip's width.
- *
- *  Measured off REAPER's own mixer on this machine (v7.78, one
- *  "1-channelbus" strip, 92 px wide, read by pixel profile): the meter takes
- *  28 of those 92 px. Written as the measurement rather than as 0.3f so the
- *  next reader can check it against the same picture rather than having to
- *  take the rounded number on trust. */
-constexpr float meterWidthOfStrip = 28.f / 92.f;
 
 /** The air between the meter and the controls beside it.
  *

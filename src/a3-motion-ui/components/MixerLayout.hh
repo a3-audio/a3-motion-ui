@@ -28,6 +28,7 @@
 
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 #include <a3-motion-ui/components/ColumnBreak.hh>
+#include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/MixerControls.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 
@@ -52,7 +53,7 @@ namespace a3
 struct MixerLayout
 {
   ColumnBreak strips;
-  std::array<std::array<juce::Rectangle<int>, numMixerControls>,
+  std::array<std::array<juce::Rectangle<int>, numMixerFaceControls>,
              static_cast<std::size_t> (numChannelsInitial)>
       controls;
   std::array<juce::Rectangle<int>, numMasterControls> master;
@@ -97,6 +98,28 @@ struct MixerLayout
  *  the height that frees goes to the rows above. The master's column is
  *  stepped by the same count, or the five levels would stop standing on one
  *  line. */
+/** The air a control leaves inside its cell.
+ *
+ *  A fraction of the cell rather than a number of pixels, so it keeps its
+ *  proportion as the overlay grows. What it buys is that a strip reads as a
+ *  block of controls with its neighbours beside it rather than as one
+ *  continuous field — the alternative is a drawn line, and a line here would
+ *  be one more mark over a sphere that is already showing through. */
+constexpr float controlGapOfCell = 1.f / 24.f;
+
+/** The narrowest an overlay strip may be before the four break two by two.
+ *
+ *  Derived rather than written down: the strip ends in PFL and FX side by
+ *  side, each a fingertip wide, and what is left for them is the strip less
+ *  its air and less the meter's share. Written as minimumChannelWidth while
+ *  the meter was narrow; widening the meter made that too small to hold the
+ *  keys, and the page answered with its "no room" sentence instead of
+ *  breaking into two rows of two. */
+constexpr int minimumMixerStripWidth = static_cast<int> (
+    2.f * static_cast<float> (fingertipSize)
+        / ((1.f - meterWidthOfStrip) * (1.f - 2.f * controlGapOfCell))
+    + 1.f);
+
 MixerLayout layOutMixerOverlay (juce::Rectangle<int> area,
                                 ControlMetrics metrics);
 
@@ -104,7 +127,7 @@ MixerLayout layOutMixerOverlay (juce::Rectangle<int> area,
  *
  *  The tab has three times the overlay strip's width for a quarter of its
  *  content, so the controls go left to right rather than down.
- *  `mixerControlOrder` still decides the order; left to right is the reading
+ *  `mixerFaceOrder` still decides the order; left to right is the reading
  *  order here.
  *
  *  **Two rows and a meter at the far right.** The five pots stand across the

@@ -39,12 +39,12 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
       onChannelDragged (_channel, control, increment);
   };
 
-  for (int i = 0; i < numMixerControls; ++i)
+  for (int i = 0; i < numMixerFaceControls; ++i)
     {
       auto const index = static_cast<std::size_t> (i);
       auto touch = std::make_unique<TouchControl> ();
 
-      // Where the control sits in mixerControlOrder, and nothing else -- the
+      // Where the control sits in mixerFaceOrder, and nothing else -- the
       // channel is the component's and is read at the moment of the gesture,
       // so a face tapped in the header swaps the strip without seven hit
       // areas having to be told about it. Which is why _channel is read
@@ -53,7 +53,7 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
       touch->setIdentity (i);
 
       wireMixerChannelTouch (
-          *touch, mixerControlOrder[index], dragged,
+          *touch, mixerFaceOrder[index], dragged,
           [this] (MixerControl control) {
             if (onChannelTapped)
               onChannelTapped (_channel, control);
@@ -70,7 +70,7 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
   // The meter is a second VOL, wired by the same function as the knob so the
   // two cannot drift apart in step size or in what a tap does.
   _meterTouch = std::make_unique<TouchControl> ();
-  _meterTouch->setIdentity (numMixerControls);
+  _meterTouch->setIdentity (numMixerFaceControls);
   wireMixerChannelTouch (*_meterTouch, MixerControl::Volume, dragged, {});
 
   // Two taps on the meter, and only there, put the channel at full volume.
@@ -138,7 +138,7 @@ MixerStripComponent::resized ()
   // not go on answering drags across that sentence. It matters more here
   // rather than less -- the bar stays on screen underneath the overlay, so
   // this page is reachable even while the mixer is up.
-  for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerControls);
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
        ++i)
     {
       _touch[i]->setBounds (_layout.controls[0][i]);
@@ -165,10 +165,10 @@ MixerStripComponent::paint (juce::Graphics &g)
 
   auto const colour = toColour (theme ().channel[_channel]);
 
-  for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerControls);
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
        ++i)
     {
-      auto const control = mixerControlOrder[i];
+      auto const control = mixerFaceOrder[i];
       paintMixerChannelControl (g, _layout.controls[0][i], _metrics, colour,
                                 control,
                                 _state.channelValue (_channel, control),

@@ -75,7 +75,7 @@ TEST (MixerHitAreas, TheOverlayTakesThemAgainOnceItFits)
   mixer.setBounds (0, 0, roomy, roomy);
 
   // Each channel's meter is a hit area too: dragging it drags that VOL.
-  EXPECT_EQ (liveHitAreas (mixer), numChannelsInitial * numMixerControls
+  EXPECT_EQ (liveHitAreas (mixer), numChannelsInitial * numMixerFaceControls
                                        + numChannelsInitial
                                        + numMasterControls
                                        + numFilterControls);
@@ -105,5 +105,5 @@ TEST (MixerHitAreas, TheStripTakesThemAgainOnceItFits)
   strip.setBounds (0, 0, roomy, roomy / 4);
 
   // Plus the meter, which drags VOL.
-  EXPECT_EQ (liveHitAreas (strip), numMixerControls + 1);
+  EXPECT_EQ (liveHitAreas (strip), numMixerFaceControls + 1);
 }

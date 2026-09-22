@@ -41,7 +41,7 @@ juce::Rectangle<int>
 aRoomyOverlay ()
 {
   return juce::Rectangle<int> (0, 0,
-                               static_cast<int> (minimumChannelWidth * 6),
+                               minimumMixerStripWidth * 6,
                                static_cast<int> (minimumMotionHeight * 8));
 }
 
@@ -311,10 +311,10 @@ TEST (VuMeter, AChannelsMeterOverlapsNothingElse)
     {
       auto const meter = layout.channelMeter[channel];
 
-      for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerControls);
+      for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
            ++i)
         EXPECT_FALSE (meter.intersects (layout.controls[channel][i]))
-            << channel << " over " << mixerControlLabel (mixerControlOrder[i]);
+            << channel << " over " << mixerControlLabel (mixerFaceOrder[i]);
 
       for (auto const &control : layout.master)
         EXPECT_FALSE (meter.intersects (control)) << channel;
@@ -346,8 +346,10 @@ TEST (VuMeter, TheFiveOutputMetersSitInTheMasterColumn)
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
 
-  auto const master = layout.master[static_cast<std::size_t> (
-      controlSlot (MasterControl::Volume))];
+  auto top = layout.master.front ();
+  for (auto const &control : layout.master)
+    if (control.getY () < top.getY ())
+      top = control;
 
   auto column = layout.master.front ();
   for (auto const &control : layout.master)
@@ -358,8 +360,8 @@ TEST (VuMeter, TheFiveOutputMetersSitInTheMasterColumn)
       auto const bar = layout.outputMeters[i];
       ASSERT_FALSE (bar.isEmpty ()) << i;
 
-      EXPECT_GE (bar.getY (), master.getBottom ())
-          << i << ": the meters are not under the master's volume";
+      EXPECT_LE (bar.getBottom (), top.getY ())
+          << i << ": the meters are not above the master's controls";
       EXPECT_GE (bar.getX (), column.getX ()) << i;
       EXPECT_LE (bar.getRight (), column.getRight ()) << i;
     }
@@ -436,31 +438,25 @@ TEST (VuMeter, TheOutputBlockTakesTheRowsTheMasterLeaves)
       block = block.getUnion (bar);
     }
 
-  // The volume is the lowest of the master's five, so the block begins where
-  // it ends. Every row of a strip is the same height, which is what lets rows
-  // be counted by comparing to one.
-  auto const volume = layout.master[static_cast<std::size_t> (
-      controlSlot (MasterControl::Volume))];
+  // The block stands above the master's five, in the one row they leave at
+  // the top. Every row of a strip is the same height, which is what lets
+  // rows be counted by comparing to one.
+  auto top = layout.master.front ();
+  for (auto const &control : layout.master)
+    if (control.getY () < top.getY ())
+      top = control;
 
-  // How many rows are left is derived, not written down: it was one until
-  // SEND lengthened the strip on 2026-09-12 and is two now. A strip has one
-  // row fewer than it has controls, because the two keys share theirs (see
-  // numMixerRows in MixerLayout.cc), and the master stands in five of them.
-  //
-  // That the meters grow into the room is the wanted answer, not a
-  // regression: a block read at a glance in the dark gains from height, and
-  // a blank row at the foot serves nobody.
-  auto const freeRows = (numMixerControls - 1) - numMasterControls;
+  auto const freeRows = (numMixerFaceControls - 1) - numMasterControls;
 
-  EXPECT_EQ (block.getY (), volume.getBottom ());
-  EXPECT_NEAR (block.getHeight (), freeRows * volume.getHeight (), 2);
+  EXPECT_EQ (block.getBottom (), top.getY ());
+  EXPECT_NEAR (block.getHeight (), freeRows * top.getHeight (), 2);
 }
 
 // Everything stays inside the area the overlay was given, meters included.
 TEST (VuMeter, TheMetersStayInsideTheOverlaysArea)
 {
   auto const area = juce::Rectangle<int> (
-      5, 9, static_cast<int> (minimumChannelWidth * 6),
+      5, 9, minimumMixerStripWidth * 6,
       static_cast<int> (minimumMotionHeight * 8));
   auto const layout = layOutMixerOverlay (area, metrics);
   ASSERT_TRUE (layout.fits);
@@ -479,7 +475,7 @@ TEST (VuMeter, TheBarsStripCarriesOneMeterAndNoOutputBlock)
   ASSERT_TRUE (layout.fits);
 
   auto const slot
-      = static_cast<std::size_t> (controlSlot (MixerControl::Volume));
+      = static_cast<std::size_t> (faceSlot (MixerControl::FxSend));
 
   ASSERT_FALSE (layout.channelMeter[0].isEmpty ());
   EXPECT_FALSE (layout.channelMeter[0].intersects (layout.controls[0][slot]));
@@ -785,4 +781,17 @@ TEST (VuMeter, AVolumeOutsideTheRangeStaysOnTheBar)
 TEST (VuMeter, AnEmptyMeterHasNoVolumeMark)
 {
   EXPECT_TRUE (vuVolumeMark ({}, 0.5f).isEmpty ());
+}
+
+// The overlay's meter is dragged now, as well as read: two fifths of its
+// strip, where it used to take the share REAPER's own meter takes of a
+// channel.
+TEST (VuMeter, TheOverlaysMeterIsTwoFifthsOfItsStrip)
+{
+  auto const strip = juce::Rectangle<int> (0, 0, 200, 400);
+  auto const split = splitStripForMeter (strip);
+
+  EXPECT_NEAR (split.meter.getWidth () + (strip.getWidth () - split.meter.getWidth ()
+                                          - split.controls.getWidth ()),
+               strip.getWidth () * 2 / 5, 1);
 }

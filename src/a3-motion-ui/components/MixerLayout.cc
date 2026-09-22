@@ -64,14 +64,6 @@ constexpr float filterFieldsOfRowWidth = 1.f / 2.f;
  *  than a five-way split coming apart. */
 constexpr float masterColumnOfWidth = 1.f / 5.f;
 
-/** The air a control leaves inside its cell.
- *
- *  A fraction of the cell rather than a number of pixels, so it keeps its
- *  proportion as the overlay grows. What it buys is that a strip reads as a
- *  block of controls with its neighbours beside it rather than as one
- *  continuous field — the alternative is a drawn line, and a line here would
- *  be one more mark over a sphere that is already showing through. */
-constexpr float controlGapOfCell = 1.f / 24.f;
 
 /** How tall a row has to be to be worth drawing: a fingertip, and the pot the
  *  skin asks for if that is larger. The fingertip is the floor for anything
@@ -122,7 +114,7 @@ cellAcross (juce::Rectangle<int> row, int count, int index)
  *  **The row count is therefore no longer the control count**, which is why
  *  the two are separate names. Dividing the strip by the control count would
  *  step six rows down a grid made for seven and leave the seventh empty. */
-constexpr int numMixerRows = numMixerControls - 1;
+constexpr int numMixerRows = numMixerFaceControls - 1;
 
 /** How many fields stand across the row the two keys share. */
 constexpr int fieldsInTheKeyRow = 2;
@@ -144,7 +136,7 @@ struct ControlCell
 constexpr ControlCell
 cellForMixerControl (MixerControl control)
 {
-  static_assert (controlSlot (MixerControl::Fx) == numMixerControls - 1,
+  static_assert (faceSlot (MixerControl::Fx) == numMixerFaceControls - 1,
                  "FX joins PFL's row by being the control after it, so it has "
                  "to be the last one in the table");
 
@@ -154,13 +146,13 @@ cellForMixerControl (MixerControl control)
   // TheTogglesAreTheLastTwoAndNothingBefore states the same rule from the
   // table's own side; this is the half of it this arithmetic depends on, said
   // where the arithmetic is.
-  static_assert (controlSlot (MixerControl::Pfl)
-                     == numMixerControls - fieldsInTheKeyRow,
+  static_assert (faceSlot (MixerControl::Pfl)
+                     == numMixerFaceControls - fieldsInTheKeyRow,
                  "the two keys share a row, so they have to be the last two "
                  "in the table with nothing standing between them");
 
-  auto const shared = controlSlot (MixerControl::Pfl);
-  auto const slot = controlSlot (control);
+  auto const shared = faceSlot (MixerControl::Pfl);
+  auto const slot = faceSlot (control);
 
   // Everything above the keys keeps a row to itself, and is the only field
   // in it.
@@ -238,27 +230,27 @@ rowsDownStrip (juce::Rectangle<int> strip, ControlMetrics metrics)
 
 /** Which of those rows a master control stands in.
  *
- *  The master's five sit on the channels' own row grid, because five levels on
- *  one line is the whole point of standing it beside them: its volume takes
- *  the volume row and the other four fill the rows above it in the table's
- *  order. Which row that is is asked of cellForMixerControl rather than of the
- *  table, so the two columns move together when the channels' rows change.
+ *  The master's five sit on the channels' own row grid, one row down: the
+ *  output meters take the top row -- "main vu nach oben über die controls" --
+ *  and the five follow in the order they were read before, volume last. The
+ *  volume lands on the row the channels' two keys share, which is asked of
+ *  cellForMixerControl rather than written down, so the two columns move
+ *  together when the channels' rows change.
  *
- *  **The row that leaves is empty on purpose.** It is where a channel's two
- *  keys stand, and the master's output level meters go there — a layout that
- *  filled it with anything else now would only have to be undone. */
+ *  It used to sit on the channels' VOL row. There is no VOL row any more:
+ *  VOL is set by dragging the channel's meter. */
 constexpr int
 rowForMasterControl (MasterControl control)
 {
-  static_assert (numMasterControls - 1
-                     <= cellForMixerControl (MixerControl::Volume).row,
-                 "the master's other controls no longer fit above the volume");
+  static_assert (numMasterControls + 1 == numMixerRows,
+                 "the output meters take the top row and the master's five "
+                 "the rows under it, so there have to be exactly six");
 
   if (control == MasterControl::Volume)
-    return cellForMixerControl (MixerControl::Volume).row;
+    return cellForMixerControl (MixerControl::Pfl).row;
 
   auto const slot = controlSlot (control);
-  return slot < controlSlot (MasterControl::Volume) ? slot : slot - 1;
+  return 1 + (slot < controlSlot (MasterControl::Volume) ? slot : slot - 1);
 }
 
 /** The rows of the master's column that no control of its own stands in.
@@ -289,7 +281,7 @@ rowsNoMasterControlStandsIn (StripRows const &rows)
 
 /** How many pots the bar's tab lays across its first row: everything that is
  *  turned rather than pressed. */
-constexpr int potsAcrossTheBarsStrip = numMixerControls - fieldsInTheKeyRow;
+constexpr int potsAcrossTheBarsStrip = numMixerFaceControls - fieldsInTheKeyRow;
 
 /** How many rows the tab has: the pots across the top, the two keys under
  *  them.
@@ -360,7 +352,7 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
   // break is made on; whether the rows *actually* clear their floor is asked
   // below, where the row height is known.
   out.strips = breakColumns (stripArea, numChannelsInitial,
-                             static_cast<int> (minimumChannelWidth),
+                             minimumMixerStripWidth,
                              static_cast<int> (minimumMotionHeight * 2.f));
 
   // The arrangement holds exactly the four channels, in every break of them:
@@ -405,10 +397,10 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
       rowsFit = rowsFit && rows.fits;
       out.channelMeter[static_cast<std::size_t> (channel)] = split.meter;
 
-      for (int i = 0; i < numMixerControls; ++i)
+      for (int i = 0; i < numMixerFaceControls; ++i)
         {
           auto const index = static_cast<std::size_t> (i);
-          auto const cell = cellForMixerControl (mixerControlOrder[index]);
+          auto const cell = cellForMixerControl (mixerFaceOrder[index]);
           auto const control = fieldAcrossRow (
               rows.rows[static_cast<std::size_t> (cell.row)], cell.fields,
               cell.field);
@@ -503,10 +495,10 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
   // Across in the table's order, the way the overlay goes down it -- the same
   // list read the other way rather than a second list that agrees with it, and
   // the same split of it into what is turned and what is pressed.
-  for (int i = 0; i < numMixerControls; ++i)
+  for (int i = 0; i < numMixerFaceControls; ++i)
     {
       auto const index = static_cast<std::size_t> (i);
-      auto const control = mixerControlOrder[index];
+      auto const control = mixerFaceOrder[index];
       auto const where = cellForMixerControl (control);
       auto const cell
           = mixerControlIsAToggle (control)

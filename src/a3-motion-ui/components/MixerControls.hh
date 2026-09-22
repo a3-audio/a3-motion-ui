@@ -78,6 +78,29 @@ constexpr std::array<MixerControl, numMixerControls> mixerControlOrder{
   MixerControl::Pfl,    MixerControl::Fx,
 };
 
+/** What the two MIX pages draw, in the same order: everything but VOL.
+ *
+ *  VOL is set by dragging the channel's meter -- "das vol pot muss weg" --
+ *  so a knob for it beside the meter was the same control twice. It stays in
+ *  mixerControlOrder, which the state and the wire are counted by; this is
+ *  only what a page lays out. */
+constexpr int numMixerFaceControls = 7;
+constexpr std::array<MixerControl, numMixerFaceControls> mixerFaceOrder{
+  MixerControl::Gain,  MixerControl::EqHigh, MixerControl::EqMid,
+  MixerControl::EqLow, MixerControl::FxSend, MixerControl::Pfl,
+  MixerControl::Fx,
+};
+
+/** Where a control stands on a page, or -1 for one no page draws (VOL). */
+constexpr int
+faceSlot (MixerControl control)
+{
+  for (std::size_t i = 0; i < numMixerFaceControls; ++i)
+    if (mixerFaceOrder[i] == control)
+      return static_cast<int> (i);
+  return -1;
+}
+
 /** Whether it is a key rather than something turned.
  *
  *  The toggles come last in the order, which is what lets a layout take them

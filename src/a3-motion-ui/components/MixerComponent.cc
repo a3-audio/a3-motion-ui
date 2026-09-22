@@ -176,7 +176,7 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
   };
 
   for (int channel = 0; channel < numChannelsInitial; ++channel)
-    for (int i = 0; i < numMixerControls; ++i)
+    for (int i = 0; i < numMixerFaceControls; ++i)
       {
         auto touch = std::make_unique<TouchControl> ();
 
@@ -186,7 +186,7 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
         // wireMixerChannelTouch the same two questions and differ only in how
         // they answer "whose".
         wireMixerChannelTouch (
-            *touch, mixerControlOrder[static_cast<std::size_t> (i)],
+            *touch, mixerFaceOrder[static_cast<std::size_t> (i)],
             [this, channel] (MixerControl control, int increment) {
               if (onChannelDragged)
                 onChannelDragged (channel, control, increment);
@@ -225,7 +225,7 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
         if (onMeterDoubleTapped)
           onMeterDoubleTapped (channel);
       };
-      hookUp (*touch, channel, numMixerControls);
+      hookUp (*touch, channel, numMixerFaceControls);
       _meterTouch[static_cast<std::size_t> (channel)] = std::move (touch);
     }
 
@@ -320,7 +320,7 @@ MixerComponent::resized ()
   // is made of Pot Size -- a skin value the performer dials on the device --
   // so this is reachable without resizing anything.
   for (int channel = 0; channel < numChannelsInitial; ++channel)
-    for (int i = 0; i < numMixerControls; ++i)
+    for (int i = 0; i < numMixerFaceControls; ++i)
       {
         auto &touch = _channelTouch[static_cast<std::size_t> (channel)]
                                    [static_cast<std::size_t> (i)];
@@ -439,10 +439,10 @@ MixerComponent::paintStrip (juce::Graphics &g, int channel)
   g.setColour (colour.withAlpha (stripWash));
   g.fillRoundedRectangle (ground.toFloat (), theme ().radiusCard);
 
-  for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerControls);
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
        ++i)
     {
-      auto const control = mixerControlOrder[i];
+      auto const control = mixerFaceOrder[i];
       paintMixerChannelControl (g, cells[i], _metrics, colour, control,
                                 _state.channelValue (channel, control),
                                 _state.channelToggle (channel, control));

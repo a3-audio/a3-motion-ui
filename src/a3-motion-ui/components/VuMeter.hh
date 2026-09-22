@@ -285,6 +285,19 @@ struct StripColumns
   juce::Rectangle<int> controls;
 };
 
+/** The meter's share of an overlay strip's width: two fifths.
+ *
+ *  It was REAPER's own proportion, measured off its mixer on this machine
+ *  (28 of a 92 px strip), while the meter was only read. It is dragged now --
+ *  it is the channel's VOL -- and a fader wants the width of a finger rather
+ *  than of a glance: "vu im mixer auch breiter".
+ *
+ *  Not the half that was asked for. The controls beside it end in PFL and FX
+ *  side by side, two fingertips across, and at half the strip a key on the
+ *  device came out at 32 px -- under a fingertip. Two fifths leaves it 39.
+ *  Public because MixerLayout derives the narrowest strip from it. */
+constexpr float meterWidthOfStrip = 2.f / 5.f;
+
 StripColumns splitStripForMeter (juce::Rectangle<int> strip);
 
 /** The five output meters across one block, and the word under them.
