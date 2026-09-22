@@ -165,6 +165,8 @@ public:
   /** Two taps: put this channel's control back where mixerControlRestPosition
    *  says. Fires only for a control that has one. */
   std::function<void (int channel, MixerControl)> onChannelDoubleTapped;
+  /** Two taps on a channel's meter: put that channel at full volume. */
+  std::function<void (int channel)> onMeterDoubleTapped;
   std::function<void (MasterControl, int steps)> onMasterDragged;
   std::function<void (FilterControl, int steps)> onFilterDragged;
   std::function<void (FilterControl)> onFilterTapped;

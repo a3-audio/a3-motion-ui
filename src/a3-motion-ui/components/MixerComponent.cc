@@ -218,6 +218,12 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
               onChannelDragged (channel, control, increment);
           },
           {});
+      // Full volume on two taps -- see MixerStripComponent for why the
+      // meter has this and the knob does not.
+      touch->onDoubleTap = [this, channel] (int, int) {
+        if (onMeterDoubleTapped)
+          onMeterDoubleTapped (channel);
+      };
       hookUp (*touch, channel, numMixerControls);
       _meterTouch[static_cast<std::size_t> (channel)] = std::move (touch);
     }

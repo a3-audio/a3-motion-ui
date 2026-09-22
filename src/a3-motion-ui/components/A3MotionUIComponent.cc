@@ -320,6 +320,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _mixerStrip->onChannelDragged = channelDragged;
   _mixerStrip->onChannelTapped = channelTapped;
   _mixerStrip->onChannelDoubleTapped = channelDoubleTapped;
+
+  // Two taps on a meter: that channel at full volume.
+  auto const meterDoubleTapped = [this, repaintMixers] (int channel) {
+    _mixerState.setChannelFromTouch (channel, MixerControl::Volume, 1.f);
+    repaintMixers ();
+  };
+  _mixer->onMeterDoubleTapped = meterDoubleTapped;
+  _mixerStrip->onMeterDoubleTapped = meterDoubleTapped;
   _mixer->onMasterDragged = [this, mixerStep] (MasterControl control,
                                                int steps) {
     _mixerState.setMasterFromTouch (

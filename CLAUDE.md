@@ -1068,6 +1068,11 @@ survives crossing a band of its own colour: a hand dragging the meter looks at t
 knob. It is the knob's travel, linear foot to head — not a level, so it does not follow the
 meter's dB scale. Checked on the device with `smoke-test/scripts/check_vu_drag_volume.sh`, which
 drags down and back only, since a running instance sends VOL to the live Core.
+**Two taps on a meter put that channel at full volume** (`onMeterDoubleTapped`), asked for in the
+smoke test. Only the meter: the VOL knob still has no double tap, because
+`mixerControlRestPosition` keeps GAIN and VOL without one on purpose — a jump two fingertips from a
+control dragged all evening is how a room gets surprised. Not exercised on the rig by the check
+script, which would send a live channel to full.
 
 **`Stop` and `Pause` are two different end actions**, and used to be one under the wrong name. What
 was called Stop stood still wherever the playhead happened to land — that is a pause, and calling it

@@ -121,6 +121,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/VuMeter.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/WaitUntil.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerHitAreas.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerMeterTouch.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/StatusBarLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SpeakerTest.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ChunkedRender.cc"

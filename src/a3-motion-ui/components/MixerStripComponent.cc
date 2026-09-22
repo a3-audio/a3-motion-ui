@@ -72,6 +72,15 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
   _meterTouch = std::make_unique<TouchControl> ();
   _meterTouch->setIdentity (numMixerControls);
   wireMixerChannelTouch (*_meterTouch, MixerControl::Volume, dragged, {});
+
+  // Two taps on the meter, and only there, put the channel at full volume.
+  // The knob keeps no double tap (mixerControlRestPosition): a jump two
+  // fingertips from a control dragged all evening is the accident that table
+  // guards against, and the meter is the place that was asked for it.
+  _meterTouch->onDoubleTap = [this] (int, int) {
+    if (onMeterDoubleTapped)
+      onMeterDoubleTapped (_channel);
+  };
   addAndMakeVisible (*_meterTouch);
 
   applyTheme ();

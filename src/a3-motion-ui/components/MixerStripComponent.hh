@@ -87,6 +87,8 @@ public:
   /** Two taps: put this channel's control back. See
    *  MixerComponent::onChannelDoubleTapped. */
   std::function<void (int channel, MixerControl)> onChannelDoubleTapped;
+  /** Two taps on the meter: put this channel at full volume. */
+  std::function<void (int channel)> onMeterDoubleTapped;
 
 private:
   /** Redraws the meter and nothing else. See vuMeterRefreshHz. */
