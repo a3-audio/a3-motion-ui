@@ -92,6 +92,15 @@ public:
    *  key on this device that stands for a state wears it. */
   void setMixOpen (bool open);
 
+  /** Tapped when the CLEAN key left of MIX is touched. The bar owns no skins
+   *  -- it only says the key was hit. See theme/CleanSkin.hh. */
+  std::function<void ()> onCleanIconTapped;
+
+  /** Whether there is a clean skin to go to, and whether it is up. A key
+   *  with nothing to switch to is greyed out, like the keyboard icon with
+   *  nothing to type into. */
+  void setCleanState (bool available, bool active);
+
   /** How far the running take has got, as a thin line under the tick
    *  indicator, in the recording channel's own colour. A negative fraction
    *  means no take is running and nothing is drawn.
@@ -170,10 +179,12 @@ private:
    *  how the next reader loses both. */
   void paintPlayheads (juce::Graphics &g, juce::Rectangle<float> tick);
 
-  /** The MIX key. Its own function rather than four lines in paint(), which
-   *  already carries the keyboard icon's reasoning — two keys' worth of
-   *  drawing in one body is how the next reader loses both. */
-  void paintMixKey (juce::Graphics &g);
+  /** A key that is a word: MIX and CLEAN. Its own function rather than lines
+   *  in paint(), which already carries the keyboard icon's reasoning — and
+   *  one function for both, so two neighbouring keys cannot drift into
+   *  reading by two rules. */
+  void paintWordKey (juce::Graphics &g, juce::Rectangle<int> area,
+                     juce::String const &word, bool available, bool on);
 
   /** Every rectangle on this bar, from the one pure calculation the test
    *  checks — so paint() draws into what resized() placed. */
@@ -184,6 +195,9 @@ private:
   KeyboardState _keyboardState = KeyboardState::Unavailable;
   juce::Rectangle<int> _mixIconArea;
   bool _mixOpen = false;
+  juce::Rectangle<int> _cleanIconArea;
+  bool _cleanAvailable = false;
+  bool _cleanActive = false;
   TickIndicator _tickIndicator;
   float _recordingProgress = -1.f;
   juce::Colour _recordingColour;

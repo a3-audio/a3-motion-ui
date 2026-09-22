@@ -522,6 +522,9 @@ private:
   /** Save may write over the instrument's own clips. A device setting,
    *  persisted with the clock and rec modes; see ShippedClips. */
   bool _developerMode = false;
+  /** Where the CLEAN key goes back to. Persisted, so a restart in clean
+   *  still knows the way out. */
+  juce::String _skinBeforeClean;
 
   ShippedClips shippedClips () const;
   void applyDeveloperMode (bool on);
@@ -631,6 +634,13 @@ private:
   /** Put a skin in force by name, refreshing the list first — a skin that was
    *  only just written is not in it yet. */
   void  applySkinNamed (juce::String const &name);
+
+  /** The status bar's CLEAN key: to the clean skin and back to the one it
+   *  left -- see theme/CleanSkin.hh. */
+  void  toggleClean ();
+  /** Grey, lit or resting, from what config.json says is running. Read from
+   *  the file rather than from _skinIndex, which only the menu keeps. */
+  void  refreshCleanKey ();
 
   /** Put every value of the skin being edited back to the shipped default,
    *  keeping its name. */

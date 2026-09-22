@@ -80,6 +80,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/LibraryList.cc
     theme/SkinGroups.cc
     theme/SkinGroups.hh
+    theme/CleanSkin.cc
+    theme/CleanSkin.hh
     theme/FunctionKeyColours.hh
     theme/TransportLook.hh
     components/ClipSettingsLayout.hh

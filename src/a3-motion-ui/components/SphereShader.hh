@@ -187,6 +187,9 @@ public:
     float sphereLimb = 0.18f;  // how far the ball's light fades before its edge
     float floorGrain = 14.f;   // how fine the floor's own texture is
     float ballLevel = 1.f;     // how strongly the subs throw ball lightning
+    float topGlow = 1.7f;      // how brightly a top's horns glow with its level
+    float subGlow = 0.5f;      // and a sub's ports
+    float boxGlow = 0.f;       // how brightly the whole cabinet glows with it
     float ballCount = 3.f;     // balls per sub stack at once
     float ballRate = 0.32f;    // lives per second
     float ballReach = 0.72f;   // how far towards the listener a ball gets
@@ -376,6 +379,9 @@ private:
   GLint _uBoxOcclude = -1;
   GLint _uFloorGrain = -1;
   GLint _uBallLevel = -1;
+  GLint _uTopGlow = -1;
+  GLint _uSubGlow = -1;
+  GLint _uBoxGlow = -1;
   GLint _uBallCount = -1;
   GLint _uBallRate = -1;
   GLint _uBallReach = -1;

@@ -61,6 +61,10 @@ struct AppSettings
    *  are maintained. Off by default and in every file written before it, so no
    *  device starts in it by accident. */
   bool developerMode = false;
+
+  /** The skin the status bar's CLEAN key goes back to -- see
+   *  theme/CleanSkin.hh. Empty until the key has been used. */
+  juce::String skinBeforeClean;
 };
 
 /** Returns defaults if the file doesn't exist or fails to parse as JSON. */

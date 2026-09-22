@@ -85,12 +85,17 @@ constexpr Group groups[] = {
                              "speakerLight.wrapAngle",
                              "speakerLight.edgeSoftness", "speakerLight.cover",
                              "speakerLight.fray", "speakerLight.bleed",
-                             "speakerLight.root", "speakerLight.levelFloor" } },
+                             "speakerLight.root", "speakerLight.levelFloor",
+                             "speakerLight.boxGlow" } },
   { "Speaker light: response", { "speakerLight.vuMax", "speakerLight.curve",
                                  "speakerLight.attack",
                                  "speakerLight.decay" } },
   { "Speaker light: wander", { "speakerLight.wander*" } },
-  { "Speaker light: bolts", { "speakerLight.bolt*" } },
+  // Named for the cabinets rather than the physics: these are the two a
+  // performer switches by name, and "kugelblitze ausschalten" had to be
+  // found under Other.
+  { "Topspeaker FX", { "speakerLight.bolt*", "speakerLight.topGlow" } },
+  { "Kickbass FX", { "speakerLight.ball*", "speakerLight.subGlow" } },
 
   { "Energy: response", { "energy.vuMax", "energy.curve", "energy.attack",
                           "energy.decay", "energy.intensity" } },
