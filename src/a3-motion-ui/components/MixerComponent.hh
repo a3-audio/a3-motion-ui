@@ -144,6 +144,15 @@ public:
 
   void paint (juce::Graphics &g) override;
   void resized () override;
+
+  /** Redraw one meter and nothing else.
+   *
+   *  A drag on a fader used to repaint the whole page for every pixel the
+   *  finger moved -- 660x491 at about 2.8 ms a time, measured on the rig,
+   *  which is what made the master's long fader feel like it was catching.
+   *  The handle never leaves its meter, so its meter is all that changes. */
+  void repaintChannelMeter (int channel);
+  void repaintMasterMeter ();
   /** The whole geometry is worked out from the skin's pot size and fonts, so
    *  a skin change has to re-lay this out, not merely repaint it. */
   void applyTheme () override;

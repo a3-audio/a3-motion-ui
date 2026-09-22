@@ -402,6 +402,20 @@ MixerComponent::paint (juce::Graphics &g)
 }
 
 void
+MixerComponent::repaintChannelMeter (int channel)
+{
+  if (channel < 0 || channel >= numChannelsInitial)
+    return;
+  repaint (_layout.channelMeter[static_cast<std::size_t> (channel)]);
+}
+
+void
+MixerComponent::repaintMasterMeter ()
+{
+  repaint (_layout.masterMeter);
+}
+
+void
 MixerComponent::paintMeters (juce::Graphics &g)
 {
   // One reading of the clock for the whole page. Nine meters each asking the

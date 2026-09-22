@@ -62,6 +62,9 @@ public:
 
   void paint (juce::Graphics &g) override;
   void resized () override;
+
+  /** Redraw the meter and nothing else -- see MixerComponent's own. */
+  void repaintMeter ();
   /** The geometry is worked out from the skin's pot size and fonts, so a skin
    *  change has to re-lay this out, not merely repaint it. */
   void applyTheme () override;

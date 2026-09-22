@@ -158,6 +158,12 @@ MixerStripComponent::resized ()
 }
 
 void
+MixerStripComponent::repaintMeter ()
+{
+  repaint (_layout.channelMeter[0]);
+}
+
+void
 MixerStripComponent::paint (juce::Graphics &g)
 {
   // No ground of its own. The bar has already filled this area with its own

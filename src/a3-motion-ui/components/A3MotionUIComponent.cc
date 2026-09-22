@@ -329,10 +329,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _mixer->onMeterDoubleTapped = meterDoubleTapped;
   _mixerStrip->onMeterDoubleTapped = meterDoubleTapped;
 
-  // A drag on a meter: VOL where the finger has taken it, one to one.
-  auto const meterDraggedTo = [this, repaintMixers] (int channel, float value) {
+  // A drag on a meter: VOL where the finger has taken it, one to one. Only
+  // the meters are redrawn, on both pages: the handle stays inside its own
+  // meter, and repainting the whole overlay for every pixel of a drag is what
+  // made the long faders feel like they were catching.
+  auto const meterDraggedTo = [this] (int channel, float value) {
     _mixerState.setChannelFromTouch (channel, MixerControl::Volume, value);
-    repaintMixers ();
+    _mixer->repaintChannelMeter (channel);
+    _mixerStrip->repaintMeter ();
   };
   _mixer->onMeterDraggedTo = meterDraggedTo;
   _mixerStrip->onMeterDraggedTo = meterDraggedTo;
@@ -344,7 +348,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
   _mixer->onMasterMeterDraggedTo = [this] (float value) {
     _mixerState.setMasterFromTouch (MasterControl::Volume, value);
-    _mixer->repaint ();
+    _mixer->repaintMasterMeter ();
   };
   _mixer->onFilterDragged = [this, mixerStep] (FilterControl control,
                                                int steps) {
