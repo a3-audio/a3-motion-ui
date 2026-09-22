@@ -25,6 +25,7 @@
 
 #include <functional>
 
+#include <a3-motion-ui/components/DoubleTap.hh>
 #include <a3-motion-ui/components/DragAccumulator.hh>
 
 #include <a3-motion-ui/components/FingerLatch.hh>
@@ -118,9 +119,9 @@ public:
    *  silent in exactly that case. */
   std::function<void (int primary, int secondary)> onRelease;
 
-  /** When and where the last tap landed, for spotting the second one. */
-  juce::int64 _lastTapMs = 0;
-  juce::Point<int> _lastTapPos;
+  /** Let a touch that moved something still be half of a double tap -- for
+   *  the VU meter; see DoubleTapMovement. */
+  void letDoubleTapMove () { _doubleTapMovement = DoubleTapMovement::MayMove; }
 
   void mouseDown (juce::MouseEvent const &event) override;
   void mouseDrag (juce::MouseEvent const &event) override;
@@ -142,6 +143,11 @@ private:
    *  rather than counting as a tap -- on a key that also taps, a tap threw
    *  away the value the drag had just reached. */
   juce::int64 _lastDragEndedMs = 0;
+
+  /** The last touch that counted as a tap, for spotting the second one. */
+  std::optional<TapTouch> _lastTap;
+  juce::int64 _downMs = 0;
+  DoubleTapMovement _doubleTapMovement = DoubleTapMovement::MustBeStill;
 };
 
 }

@@ -220,6 +220,7 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
           {});
       // Full volume on two taps -- see MixerStripComponent for why the
       // meter has this and the knob does not.
+      touch->letDoubleTapMove ();
       touch->onDoubleTap = [this, channel] (int, int) {
         if (onMeterDoubleTapped)
           onMeterDoubleTapped (channel);

@@ -77,6 +77,7 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
   // The knob keeps no double tap (mixerControlRestPosition): a jump two
   // fingertips from a control dragged all evening is the accident that table
   // guards against, and the meter is the place that was asked for it.
+  _meterTouch->letDoubleTapMove ();
   _meterTouch->onDoubleTap = [this] (int, int) {
     if (onMeterDoubleTapped)
       onMeterDoubleTapped (_channel);

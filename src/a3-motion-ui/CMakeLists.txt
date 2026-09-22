@@ -52,6 +52,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/DragAccumulator.hh
     components/ScriptBuffer.cc
     components/ScriptBuffer.hh
+    components/DoubleTap.cc
+    components/DoubleTap.hh
     components/TouchControl.cc
     components/TouchControl.hh
     components/OverlayButtons.cc
