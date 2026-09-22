@@ -96,6 +96,8 @@ TouchControl::mouseDrag (juce::MouseEvent const &event)
 
   if (onDragTo)
     onDragTo (_primary, _secondary, event.getPosition ());
+  if (onDragBy)
+    onDragBy (_primary, _secondary, event.getOffsetFromDragStart ());
 
   // JUCE's y grows downwards; a finger going up means more.
   auto const pending = _drag.stepsFor (-event.getDistanceFromDragStartY ());

@@ -67,11 +67,19 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
       _touch[index] = std::move (touch);
     }
 
-  // The meter is a second VOL, wired by the same function as the knob so the
-  // two cannot drift apart in step size or in what a tap does.
+  // The meter is VOL: dragged one to one from where VOL stood when the finger
+  // came down, and a tap does nothing -- see vuMeterDragVolume.
   _meterTouch = std::make_unique<TouchControl> ();
   _meterTouch->setIdentity (numMixerFaceControls);
-  wireMixerChannelTouch (*_meterTouch, MixerControl::Volume, dragged, {});
+  _meterTouch->onPress = [this] (int, int) {
+    _meterVolumeAtPress = _state.channelValue (_channel, MixerControl::Volume);
+  };
+  _meterTouch->onDragBy = [this] (int, int, juce::Point<int> offset) {
+    if (onMeterDraggedTo)
+      onMeterDraggedTo (_channel,
+                        vuMeterDragVolume (_meterVolumeAtPress, -offset.y,
+                                           _layout.channelMeter[0].getHeight ()));
+  };
 
   // Two taps on the meter, and only there, put the channel at full volume.
   // The knob keeps no double tap (mixerControlRestPosition): a jump two

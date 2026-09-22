@@ -206,18 +206,24 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
             = std::move (touch);
       }
 
-  // Each meter is a second VOL for its channel, wired by the same function as
-  // the knob -- see MixerStripComponent, which does the same for its one.
+  // Each meter is its channel's VOL, dragged one to one -- see
+  // MixerStripComponent, which does the same for its one.
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     {
       auto touch = std::make_unique<TouchControl> ();
-      wireMixerChannelTouch (
-          *touch, MixerControl::Volume,
-          [this, channel] (MixerControl control, int increment) {
-            if (onChannelDragged)
-              onChannelDragged (channel, control, increment);
-          },
-          {});
+      auto const index = static_cast<std::size_t> (channel);
+      touch->onPress = [this, channel, index] (int, int) {
+        _meterVolumeAtPress[index]
+            = _state.channelValue (channel, MixerControl::Volume);
+      };
+      touch->onDragBy = [this, channel, index] (int, int,
+                                                juce::Point<int> offset) {
+        if (onMeterDraggedTo)
+          onMeterDraggedTo (channel,
+                            vuMeterDragVolume (
+                                _meterVolumeAtPress[index], -offset.y,
+                                _layout.channelMeter[index].getHeight ()));
+      };
       // Full volume on two taps -- see MixerStripComponent for why the
       // meter has this and the knob does not.
       touch->letDoubleTapMove ();

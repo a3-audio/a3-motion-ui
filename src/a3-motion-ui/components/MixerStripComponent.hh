@@ -89,6 +89,8 @@ public:
   std::function<void (int channel, MixerControl)> onChannelDoubleTapped;
   /** Two taps on the meter: put this channel at full volume. */
   std::function<void (int channel)> onMeterDoubleTapped;
+  /** A drag on the meter: VOL, where the finger has taken it. */
+  std::function<void (int channel, float value)> onMeterDraggedTo;
 
 private:
   /** Redraws the meter and nothing else. See vuMeterRefreshHz. */
@@ -109,6 +111,8 @@ private:
   std::array<std::unique_ptr<TouchControl>, numMixerFaceControls> _touch;
   /** Over the meter: dragging it is dragging VOL. */
   std::unique_ptr<TouchControl> _meterTouch;
+  /** VOL when the finger came down on the meter; the drag counts from it. */
+  float _meterVolumeAtPress = 0.f;
 };
 
 }

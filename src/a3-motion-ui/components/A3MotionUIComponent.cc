@@ -328,6 +328,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
   _mixer->onMeterDoubleTapped = meterDoubleTapped;
   _mixerStrip->onMeterDoubleTapped = meterDoubleTapped;
+
+  // A drag on a meter: VOL where the finger has taken it, one to one.
+  auto const meterDraggedTo = [this, repaintMixers] (int channel, float value) {
+    _mixerState.setChannelFromTouch (channel, MixerControl::Volume, value);
+    repaintMixers ();
+  };
+  _mixer->onMeterDraggedTo = meterDraggedTo;
+  _mixerStrip->onMeterDraggedTo = meterDraggedTo;
   _mixer->onMasterDragged = [this, mixerStep] (MasterControl control,
                                                int steps) {
     _mixerState.setMasterFromTouch (

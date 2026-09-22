@@ -1057,22 +1057,27 @@ until then), on the baffle — and from overhead the baffle is edge-on, so it wa
 The corona that says which blob is playing is the existing one, `blob.sizeMin..sizeMax` over the
 level; clean raises `sizeMax` so a loud blob's reaches past its body and a silent one's does not.
 
-**A channel's VU meter is a second VOL**, on both MIX pages (the overlay's four strips and the
-bar's MIX tab): a `TouchControl` over `channelMeter`, wired by the same `wireMixerChannelTouch
-(…, MixerControl::Volume, …)` as the knob, so step size, "a tap does nothing" and the way out to
-OSC are the knob's and cannot drift. Relative, like every pot here — where the finger lands does
-not matter, only how far it moves — because an absolute fader would pull a playing channel to
-nothing the moment a finger lands low on the meter in the dark. The meter carries VOL's setting as
-a bar in the channel's colour (`vuVolumeMark()` / `paintVuVolumeMark()`), edged in `surface` so it
-survives crossing a band of its own colour: a hand dragging the meter looks at the meter, not the
-knob. It is the knob's travel, linear foot to head — not a level, so it does not follow the
-meter's dB scale. Checked on the device with `smoke-test/scripts/check_vu_drag_volume.sh`, which
-drags down and back only, since a running instance sends VOL to the live Core.
-**Two taps on a meter put that channel at full volume** (`onMeterDoubleTapped`), asked for in the
-smoke test. Only the meter: the VOL knob still has no double tap, because
-`mixerControlRestPosition` keeps GAIN and VOL without one on purpose — a jump two fingertips from a
-control dragged all evening is how a room gets surprised. Not exercised on the rig by the check
-script, which would send a live channel to full.
+**A channel's VU meter is its VOL**, on both MIX pages (the overlay's four strips and the bar's MIX
+tab), and the VOL knob is gone from both: `mixerFaceOrder` lists what a page lays out, while
+`mixerControlOrder` still counts the state and the OSC wire, which carry VOL as before. A drag on
+the meter is relative and one to one (`vuMeterDragVolume()`): it starts from where VOL stood when
+the finger came down, so landing low on a playing channel pulls nothing down, and the meter's full
+height is VOL's full travel, stepless, so the mark stays under the finger — the knobs' 2 %-per-12 px
+steps made the tall overlay meter move in visible jumps. A tap does nothing; **two taps put the
+channel at full volume** (`onMeterDoubleTapped`), and a double tap there survives a wobbling finger
+as long as both touches are short (`DoubleTap.hh`, `DoubleTapMovement::MayMove`), so a drag picked
+straight back up cannot throw the channel to full. The meter carries VOL's setting as a bar in the
+channel's colour (`vuVolumeMark()` / `paintVuVolumeMark()`), edged in `surface` so it survives
+crossing a band of its own colour; it is the travel, linear, not the meter's dB scale.
+
+The overlay meter takes two fifths of its strip (`meterWidthOfStrip`), not the half asked for: the
+strip ends in PFL and FX side by side, and at half a key came out at 32 px on the device, under a
+fingertip. The column break is derived from the same two keys (`minimumMixerStripWidth`), so a
+narrower window breaks the strips two by two rather than showing the "no room" sentence. The
+master's output meters stand in the top row of its column, its five controls under them with MST
+on the channels' key row. Checked on the device with `smoke-test/scripts/check_vu_drag_volume.sh`
+(drags down and back only — a running instance sends VOL to the live Core; the double tap is not
+exercised there, since it would send a live channel to full).
 
 **`Stop` and `Pause` are two different end actions**, and used to be one under the wrong name. What
 was called Stop stood still wherever the playhead happened to land — that is a pause, and calling it

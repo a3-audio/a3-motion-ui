@@ -106,6 +106,11 @@ public:
    *  never sits under the finger that is dragging it. */
   std::function<void (int primary, int secondary, juce::Point<int> at)>
       onDragTo;
+  /** Every movement, with how far the finger is from where it came down --
+   *  for a control that follows the finger rather than stepping (the VU
+   *  meter's VOL). */
+  std::function<void (int primary, int secondary, juce::Point<int> offset)>
+      onDragBy;
   /** Coming off after a drag that emitted steps — where there is something
    *  to confirm. */
   /** The drag ended. Only after one: a press that never moved reports as

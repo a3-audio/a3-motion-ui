@@ -219,6 +219,12 @@ VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level);
  *  its dB scale. */
 juce::Rectangle<int> vuVolumeMark (juce::Rectangle<int> bounds, float value);
 
+/** VOL after a drag on its meter: `atPress` plus the pixels dragged upwards
+ *  over the meter's height, held in 0..1. One to one and stepless, so the
+ *  mark stays under the finger -- the knobs' 2 % steps made a tall meter move
+ *  in visible jumps and lag behind the hand. */
+float vuMeterDragVolume (float atPress, int pixelsUp, int meterHeight);
+
 /** VOL's mark, in the channel's colour, over a meter already painted. The
  *  meter is where VOL is dragged -- "im MIX will man volume regeln indem man
  *  das vu-meter dragt" -- and a hand dragging it looks at the meter, not the

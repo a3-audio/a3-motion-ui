@@ -795,3 +795,25 @@ TEST (VuMeter, TheOverlaysMeterIsTwoFifthsOfItsStrip)
                                           - split.controls.getWidth ()),
                strip.getWidth () * 2 / 5, 1);
 }
+
+// Dragging a meter moves VOL one to one with the finger: the whole height of
+// the meter is the whole of VOL's travel. Relative -- it starts from where VOL
+// stood when the finger came down, so landing low on a loud channel does not
+// pull it down -- and without steps, so the mark stays under the finger.
+TEST (VuMeter, AMeterDragMovesVolumeOneToOneWithTheFinger)
+{
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.5f, 100, 400), 0.75f);
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.5f, -100, 400), 0.25f);
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.3f, 0, 400), 0.3f);
+}
+
+TEST (VuMeter, AMeterDragStopsAtBothEnds)
+{
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.9f, 400, 400), 1.f);
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.1f, -400, 400), 0.f);
+}
+
+TEST (VuMeter, AMeterWithNoHeightLeavesVolumeWhereItWas)
+{
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.4f, 50, 0), 0.4f);
+}

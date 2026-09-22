@@ -101,3 +101,30 @@ TEST (MixerMeterTouch, TwoTapsOnTheVolumeKnobStillDoNothing)
 {
   EXPECT_FALSE (mixerControlRestPosition (MixerControl::Volume).has_value ());
 }
+
+// The meter is dragged one to one: the page reports the value the finger has
+// reached, not a count of steps.
+TEST (MixerMeterTouch, DraggingTheStripsMeterReportsTheValueReached)
+{
+  MixerState state;
+  VuLevels levels;
+  MixerStripComponent strip (state, levels);
+  strip.setBounds (0, 0, roomy, roomy / 4);
+
+  auto reached = -1.f;
+  strip.onMeterDraggedTo = [&reached] (int, float value) { reached = value; };
+
+  auto const layout = layOutMixerStrip (strip.getLocalBounds (),
+                                        mixerControlMetrics ());
+  auto const meter = layout.channelMeter[0];
+  auto *touch = touchOver (strip, meter);
+  ASSERT_NE (touch, nullptr);
+  ASSERT_TRUE (touch->onPress);
+  ASSERT_TRUE (touch->onDragBy);
+
+  // VOL starts at 0 on a fresh state; half the meter up is half of VOL.
+  touch->onPress (0, 0);
+  touch->onDragBy (0, 0, { 0, -meter.getHeight () / 2 });
+
+  EXPECT_NEAR (reached, 0.5f, 0.01f);
+}

@@ -167,6 +167,8 @@ public:
   std::function<void (int channel, MixerControl)> onChannelDoubleTapped;
   /** Two taps on a channel's meter: put that channel at full volume. */
   std::function<void (int channel)> onMeterDoubleTapped;
+  /** A drag on a channel's meter: VOL, where the finger has taken it. */
+  std::function<void (int channel, float value)> onMeterDraggedTo;
   std::function<void (MasterControl, int steps)> onMasterDragged;
   std::function<void (FilterControl, int steps)> onFilterDragged;
   std::function<void (FilterControl)> onFilterTapped;
@@ -213,6 +215,9 @@ private:
   std::array<std::unique_ptr<TouchControl>,
              static_cast<std::size_t> (numChannelsInitial)>
       _meterTouch;
+  /** Each channel's VOL when a finger came down on its meter. */
+  std::array<float, static_cast<std::size_t> (numChannelsInitial)>
+      _meterVolumeAtPress{};
   std::array<std::unique_ptr<TouchControl>, numMasterControls> _masterTouch;
   std::array<std::unique_ptr<TouchControl>, numFilterControls> _filterTouch;
 };

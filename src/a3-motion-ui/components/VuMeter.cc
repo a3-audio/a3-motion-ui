@@ -248,6 +248,18 @@ vuVolumeMark (juce::Rectangle<int> bounds, float value)
   return { bounds.getX (), top, bounds.getWidth (), thickness };
 }
 
+float
+vuMeterDragVolume (float atPress, int pixelsUp, int meterHeight)
+{
+  if (meterHeight <= 0)
+    return atPress;
+
+  return juce::jlimit (0.f, 1.f,
+                       atPress
+                           + static_cast<float> (pixelsUp)
+                                 / static_cast<float> (meterHeight));
+}
+
 void
 paintVuVolumeMark (juce::Graphics &g, juce::Rectangle<int> bounds, float value,
                    juce::Colour colour)
