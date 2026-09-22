@@ -289,6 +289,15 @@ vuFaderHandleAt (juce::Rectangle<int> bounds, int centreY)
   return { bounds.getX (), top, bounds.getWidth (), thickness };
 }
 
+bool
+vuFaderGrabs (juce::Rectangle<int> handle, juce::Point<int> at)
+{
+  if (handle.isEmpty ())
+    return false;
+
+  return handle.expanded (0, fingertipSize / 2).contains (at);
+}
+
 juce::Rectangle<int>
 vuFaderHandle (juce::Rectangle<int> bounds, float value)
 {

@@ -32,9 +32,11 @@ VuFader::VuFader ()
   setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
   setRange (0.0, 1.0);
 
-  // Relative: the value moves with the finger from where it stood, so a
-  // finger landing low on a loud channel does not pull it down.
-  setSliderSnapsToMousePosition (false);
+  // JUCE's own mapping: the handle lands under the finger, whatever the
+  // track's length, with no pixels-per-value constant of ours in between.
+  // What keeps a thumb landing low on a loud channel from pulling it down is
+  // that only the handle can be grabbed -- see mouseDown.
+  setSliderSnapsToMousePosition (true);
 
   // No acceleration: a fader travels with the hand. Velocity mode turns a
   // quick move into a big one, which is the opposite of a fader.
@@ -48,20 +50,6 @@ VuFader::VuFader ()
 }
 
 void
-VuFader::resized ()
-{
-  // First, or the slider never lays its own track out: its region stays one
-  // pixel, and the handle is drawn nowhere at all.
-  juce::Slider::resized ();
-
-  auto const bounds = getLocalBounds ();
-  auto const travel
-      = bounds.getHeight () - vuFaderHandle (bounds, 0.f).getHeight ();
-
-  setMouseDragSensitivity (juce::jmax (1, travel));
-}
-
-void
 VuFader::setHandleColour (juce::Colour colour)
 {
   if (findColour (juce::Slider::thumbColourId) == colour)
@@ -69,6 +57,38 @@ VuFader::setHandleColour (juce::Colour colour)
 
   setColour (juce::Slider::thumbColourId, colour);
   repaint ();
+}
+
+void
+VuFader::mouseDown (juce::MouseEvent const &event)
+{
+  // Grabbed by the cap, like a fader on a desk. A press anywhere else on the
+  // meter is ignored outright rather than moving the value, which is what
+  // makes snapping to the finger safe on a channel that is playing.
+  _grabbed = vuFaderGrabs (vuFaderHandle (getLocalBounds (),
+                                          static_cast<float> (getValue ())),
+                           event.getPosition ());
+  if (!_grabbed)
+    return;
+
+  juce::Slider::mouseDown (event);
+}
+
+void
+VuFader::mouseDrag (juce::MouseEvent const &event)
+{
+  if (_grabbed)
+    juce::Slider::mouseDrag (event);
+}
+
+void
+VuFader::mouseUp (juce::MouseEvent const &event)
+{
+  if (!_grabbed)
+    return;
+
+  _grabbed = false;
+  juce::Slider::mouseUp (event);
 }
 
 void

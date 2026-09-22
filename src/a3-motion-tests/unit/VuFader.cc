@@ -47,10 +47,14 @@ faderOver (juce::Component &page, juce::Rectangle<int> meter)
 // The fader is JUCE's, so the drag is JUCE's: relative (it must not jump to
 // where the finger landed), stepless over 0..1, and with no text box of its
 // own to steal room from the meter behind it.
-TEST (VuFader, ItIsARelativeVerticalSliderOverZeroToOne)
+TEST (VuFader, ItIsAVerticalSliderOverZeroToOneThatSnapsToTheFinger)
 {
   VuFader fader;
 
+  // JUCE's own mapping, which needs no pixel constant of ours: the handle
+  // lands under the finger whatever the track's length. What keeps it from
+  // jumping is that only the handle can be grabbed -- see vuFaderGrabs.
+  EXPECT_TRUE (fader.getSliderSnapsToMousePosition ());
   EXPECT_EQ (fader.getSliderStyle (), juce::Slider::LinearVertical);
   EXPECT_EQ (fader.getMinimum (), 0.0);
   EXPECT_EQ (fader.getMaximum (), 1.0);
@@ -189,27 +193,6 @@ TEST (VuFader, JuceIsToldHowThickTheCapIs)
   fader.setLookAndFeel (nullptr);
 }
 
-// JUCE's relative drag is calibrated in "pixels for the full range", and it
-// defaults to 250 -- on a 490 px track that ran the handle 1.8 times as fast
-// as the finger, measured on the rig. The travel the handle actually has is
-// what the finger has to spend.
-TEST (VuFader, AFullDragIsExactlyTheHandlesTravel)
-{
-  VuFader fader;
-  fader.setBounds (0, 0, 46, 490);
-
-  auto const bounds = fader.getLocalBounds ();
-  auto const travel
-      = bounds.getHeight () - vuFaderHandle (bounds, 0.f).getHeight ();
-
-  EXPECT_EQ (fader.getMouseDragSensitivity (), travel);
-
-  // And it follows the bounds: the bar's tab has a much shorter meter.
-  fader.setBounds (0, 0, 46, 260);
-  auto const shorter = fader.getLocalBounds ();
-  EXPECT_EQ (fader.getMouseDragSensitivity (),
-             shorter.getHeight () - vuFaderHandle (shorter, 0.f).getHeight ());
-}
 
 // Laying the slider out is the base class's job, and an override that forgets
 // to call it leaves the track one pixel wide -- the handle then vanishes.
@@ -223,4 +206,33 @@ TEST (VuFader, ItStillLaysOutItsOwnTrack)
 
   EXPECT_GT (positionAtHalf, fader.getHeight () / 4);
   EXPECT_LT (positionAtHalf, fader.getHeight () * 3 / 4);
+}
+
+// Only the cap can be grabbed, the way a fader on a desk can: a thumb landing
+// anywhere else would otherwise throw the channel to wherever it touched.
+TEST (VuFader, OnlyTheHandleIsGrabbed)
+{
+  auto const track = juce::Rectangle<int> (0, 0, 46, 490);
+  auto const handle = vuFaderHandle (track, 0.5f);
+
+  EXPECT_TRUE (vuFaderGrabs (handle, handle.getCentre ()));
+  EXPECT_TRUE (vuFaderGrabs (handle, { handle.getCentreX (), handle.getY () }));
+  EXPECT_FALSE (vuFaderGrabs (handle, { handle.getCentreX (), track.getY () }));
+  EXPECT_FALSE (vuFaderGrabs (handle, { handle.getCentreX (), track.getBottom () }));
+}
+
+// With a little to spare above and below it: a fingertip is wider than the
+// cap is tall, and a grab that missed by two pixels would read as the fader
+// being dead.
+TEST (VuFader, TheGrabHasACatchZoneAroundTheHandle)
+{
+  auto const track = juce::Rectangle<int> (0, 0, 46, 490);
+  auto const handle = vuFaderHandle (track, 0.5f);
+
+  EXPECT_TRUE (vuFaderGrabs (handle, { handle.getCentreX (),
+                                       handle.getY () - fingertipSize / 4 }));
+  EXPECT_TRUE (vuFaderGrabs (handle, { handle.getCentreX (),
+                                       handle.getBottom () + fingertipSize / 4 }));
+  EXPECT_FALSE (vuFaderGrabs (handle, { handle.getCentreX (),
+                                        handle.getY () - fingertipSize * 2 }));
 }

@@ -56,13 +56,15 @@ public:
    *  whole room at once. */
   std::function<void ()> onDoubleTapped;
 
+  void mouseDown (juce::MouseEvent const &event) override;
+  void mouseDrag (juce::MouseEvent const &event) override;
+  void mouseUp (juce::MouseEvent const &event) override;
   void mouseDoubleClick (juce::MouseEvent const &event) override;
 
-  /** Calibrates the drag to the handle's own travel. JUCE's relative drag is
-   *  measured in "pixels for the full range" and defaults to 250, which on
-   *  this device's 490 px track ran the handle 1.8 times as fast as the
-   *  finger. */
-  void resized () override;
+private:
+  /** Whether this gesture took hold of the cap. A press that missed it is
+   *  ignored for as long as the finger is down. */
+  bool _grabbed = false;
 };
 
 }

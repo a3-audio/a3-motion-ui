@@ -242,6 +242,15 @@ juce::Rectangle<int> vuFaderHandle (juce::Rectangle<int> bounds, float value);
  *  track. */
 juce::Rectangle<int> vuFaderHandleAt (juce::Rectangle<int> bounds, int centreY);
 
+/** Whether a touch at `at` takes hold of the handle standing at `handle`.
+ *
+ *  A fader on a desk is grabbed by its cap, and that is what keeps the
+ *  jumping away from a slider that maps the finger's position straight onto
+ *  its track: a thumb landing anywhere else does nothing at all. With a
+ *  fingertip's worth of catch zone above and below, because a fingertip is
+ *  wider than the cap is tall. */
+bool vuFaderGrabs (juce::Rectangle<int> handle, juce::Point<int> at);
+
 /** How thin a fader handle may get before a finger cannot take hold of it.
  *  Half a fingertip: it is grasped rather than aimed at, and the meter it
  *  stands on is the target that has to be a fingertip wide. */
