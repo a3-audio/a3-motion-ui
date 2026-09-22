@@ -75,6 +75,12 @@ freeNameIn (juce::File const &root, juce::String const &base,
   return base + " " + juce::String (juce::Time::currentTimeMillis ());
 }
 
+bool
+isSystemFileIn (juce::File const &root, juce::File const &file)
+{
+  return file != juce::File{} && file.isAChildOf (systemDir (root));
+}
+
 int
 splitLooseFilesIn (juce::File const &root, juce::String const &extension)
 {

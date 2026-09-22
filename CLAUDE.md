@@ -1139,6 +1139,33 @@ control here that has to be hit *in time* and a tempo tap that misses is worse t
 takes a second go. Record needs no screen twin: the strip's REC button already records into the
 shown clip.
 
+#### The ACTION page's script
+
+The editor is `juce::CodeEditorComponent` over a `juce::CodeDocument`
+(`components/ScriptEditor.{hh,cc}`) — line numbers, undo, syntax colours and a caret that can be
+asked where it is, none of which the hand-rolled one had. What the subclass adds is the touch part,
+and it is one rule: **a finger is scrolling until it has come up without moving.** It starts
+read-only; `mouseDown` only remembers where it landed, `mouseDrag` scrolls in both directions, and
+`mouseUp` begins editing — forwarding the press and release on so the caret lands where the finger
+did — but only if nothing was dragged. Editing on the press instead meant every drag moved the caret
+and nothing ever scrolled. Escape leaves the editor (`onEscape`); it does not quit the app.
+
+**Three keys under it: save, save as, cancel**, equal width, in that order. Save writes the
+editor's text over the file the slot came from; **it stays dark on one of the instrument's own**
+(`isSystemFileIn()`, asked of the file rather than remembered), because writing over a shipped
+script takes it from every clip that fires it with no way back. Save as is the way out of exactly
+that: it writes the text to a new file in `user/`, **named after the one it came from** — "Bloom 2"
+beside "Bloom", counted against both halves — and points the slot at the copy, so the page is
+writable from there on. Cancel puts the file's own text back. All three are lit only while something
+has been typed.
+
+The save point is set in the key handler, not by the slot coming back: `setScript()` returns early
+on text the document already holds, so a file written with exactly what is on screen would never
+clear the edited edge.
+
+Renaming is not here. It is the browser's Rename key on the ACTIONS tab, which also carries every
+slot firing the file across — a second place to type a name would be a second thing to keep in step.
+
 #### Getting out of an overlay
 
 `OverlayButtons` draws **back** and **close** in the top right, over whichever overlay is open —

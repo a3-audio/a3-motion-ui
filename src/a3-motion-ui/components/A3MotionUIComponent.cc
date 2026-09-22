@@ -844,6 +844,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                    _slotAction[_clipSettingsChannel][_clipSettingsSlot].file);
   };
 
+  _action->onScriptSavedAs = [this] { saveSlotActionScriptAs (); };
+
   // Cancel puts the file's own text back, which is what the slot still holds.
   _action->onScriptCancelled = [this] {
     _action->setScript (
@@ -3007,6 +3009,47 @@ A3MotionUIComponent::writeSlotActionScript ()
   // it on every character would have half-typed lines setting values.
 }
 
+juce::String
+A3MotionUIComponent::saveSlotActionScriptAs ()
+{
+  if (!_action)
+    return {};
+
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto const from = _slotAction[channel][slot].file;
+
+  actionsDir ().createDirectory ();
+
+  // Named after the one it came from -- "Bloom 2" beside "Bloom" -- because
+  // this is how one of the instrument's own gets corrected: Save is dark on
+  // it, so what is kept is a copy, and a copy arriving as "Action 4" would
+  // have lost the only thing saying where it came from. Counted against both
+  // halves, or a new file would take a shipped name.
+  auto const base = from.existsAsFile ()
+                        ? from.getFileNameWithoutExtension ()
+                        : juce::String{ "Action" };
+  auto const name = freeNameIn (actionsDir (), base, ".scd");
+  auto const file = newFileIn (actionsDir (), name, ".scd");
+
+  if (!file.replaceWithText (_action->script ()))
+    {
+      std::cerr << "could not write action " << file.getFullPathName ()
+                << std::endl;
+      updateControlReadout ("-- SAVE FAILED");
+      return {};
+    }
+
+  // The slot fires the copy from here on. The alternative -- write the file
+  // and leave the slot on the original -- is a Save you have to go and find
+  // afterwards, and on a shipped script it would leave the page still
+  // refusing to save.
+  setSlotAction (channel, slot, file);
+  updateControlReadout ("-- SAVED " + name.toUpperCase ());
+  refreshBrowser ();
+  return name;
+}
+
 void
 A3MotionUIComponent::setSlotAction (index_t channel, index_t slot,
                                     juce::File const &file)
@@ -4229,6 +4272,11 @@ A3MotionUIComponent::updateActionPage ()
   _action->setActionName (action.existsAsFile ()
                               ? action.getFileNameWithoutExtension ()
                               : juce::String{});
+
+  // Save is dark on one of the instrument's own; Save as is the way to keep a
+  // change to it. Asked of the file rather than remembered, because a slot's
+  // action changes from half a dozen places and one of them would forget.
+  _action->setScriptIsShipped (isSystemFileIn (actionsDir (), action));
 }
 
 void

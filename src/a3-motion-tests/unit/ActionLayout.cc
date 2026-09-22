@@ -377,3 +377,28 @@ TEST (ActionLayout, TheActionListShowsFewerRowsThanThereAreScripts)
 }
 
 
+
+// Three keys under the script now, not two: writing back over the file,
+// writing a copy of your own, and walking away. Equal width, in that order,
+// and each still a fingertip.
+TEST (ActionLayout, TheScriptCarriesThreeKeys)
+{
+  auto const layout = layOutActionPage ({ 0, 0, 768, 300 }, 18.f, 14.f, 1.f, {});
+
+  ASSERT_FALSE (layout.saveButton.isEmpty ());
+  ASSERT_FALSE (layout.saveAsButton.isEmpty ());
+  ASSERT_FALSE (layout.cancelButton.isEmpty ());
+
+  EXPECT_LE (layout.saveButton.getRight (), layout.saveAsButton.getX ());
+  EXPECT_LE (layout.saveAsButton.getRight (), layout.cancelButton.getX ());
+
+  for (auto const &key : { layout.saveButton, layout.saveAsButton,
+                           layout.cancelButton })
+    {
+      EXPECT_GE (key.getWidth (), fingertipSize);
+      EXPECT_GE (key.getHeight (), fingertipSize);
+    }
+
+  EXPECT_NEAR (layout.saveButton.getWidth (), layout.cancelButton.getWidth (), 2);
+  EXPECT_NEAR (layout.saveAsButton.getWidth (), layout.cancelButton.getWidth (), 2);
+}

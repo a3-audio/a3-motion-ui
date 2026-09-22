@@ -220,6 +220,7 @@ private:
 
   /** Put what is in the editor back into the slot's script file. */
   void writeSlotActionScript ();
+  juce::String saveSlotActionScriptAs ();
   /** Keep the chosen slot's settings as a new action clip. */
   juce::String saveSlotAsAction ();
   /** Write what is on show back over the file it came from. Per tab: the

@@ -121,6 +121,11 @@ public:
   /** Whether the page is taking keys. Told rather than worked out, because
    *  what shows the keyboard is the page above this one. */
   bool isEditingScript () const { return _editing; }
+
+  /** Whether the action on this slot is one the device ships with. Those are
+   *  read-only: writing over one takes it from every clip that uses it, and
+   *  there is no getting it back -- Save as is the way to keep an edit. */
+  void setScriptIsShipped (bool shipped);
   void stopEditingScript ();
 
   /** Where the global strip's three channel rows stand, in the bar's own
@@ -151,6 +156,9 @@ public:
   std::function<void (bool held)> onFireHeld;
 
   std::function<void ()> onScriptSaved;
+  /** Save as: the text goes to a file of the performer's own. The one way to
+   *  keep an edit to a shipped action. */
+  std::function<void ()> onScriptSavedAs;
   /** Throw the edit away and put the file's text back. */
   std::function<void ()> onScriptCancelled;
 
@@ -211,6 +219,7 @@ private:
    *  cannot be reached at all. */
   int _listTop = 0;
   bool _editing = false;
+  bool _shipped = false;
   juce::Rectangle<int> _gridReference;
 
   std::array<std::unique_ptr<TouchControl>, numControls> _touch;
@@ -220,6 +229,7 @@ private:
    *  caret. Neither is a knob, so neither is in `controls`. */
   std::unique_ptr<TouchControl> _actionTouch;
   std::unique_ptr<TouchControl> _scriptTouch;
+  std::unique_ptr<TouchControl> _saveAsTouch;
   std::unique_ptr<TouchControl> _fireTouch;
   bool _firing = false;
   std::unique_ptr<TouchControl> _saveTouch;

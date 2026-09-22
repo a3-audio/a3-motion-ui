@@ -156,9 +156,14 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
     out.scriptTextField = keys.withTrimmedBottom (gap / 2);
 
     auto const keyGap = juce::jmax (2, row.getWidth () / 40);
-    auto const keyW = juce::jmax (fingertipSize, (row.getWidth () - keyGap) / 2);
+    // Three of them, in the order a hand reads: save, save as, cancel.
+    auto const keyW
+        = juce::jmax (fingertipSize, (row.getWidth () - 2 * keyGap) / 3);
 
     out.cancelButton = row.removeFromRight (keyW);
+    row.removeFromRight (keyGap);
+    out.saveAsButton = row.removeFromRight (
+        juce::jmin (keyW, juce::jmax (fingertipSize, row.getWidth ())));
     row.removeFromRight (keyGap);
     out.saveButton = row.removeFromRight (
         juce::jmin (keyW, juce::jmax (fingertipSize, row.getWidth ())));

@@ -59,7 +59,10 @@ struct ActionLayout
   /** Keep what was typed, or throw it away. Typing used to write on every
    *  keystroke -- fine for a file, wrong for a person, who needs to be able
    *  to try a line and take it back. */
+  /** The three keys under the script: write it back, write a copy of your
+   *  own, walk away. */
   juce::Rectangle<int> saveButton;
+  juce::Rectangle<int> saveAsButton;
   juce::Rectangle<int> cancelButton;
 
   /** Where the action field's list opens: over the script, which is what it

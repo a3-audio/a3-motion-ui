@@ -207,9 +207,28 @@ ActionComponent::ActionComponent ()
   };
   addAndMakeVisible (*_fireTouch);
 
+  _saveAsTouch = std::make_unique<TouchControl> ();
+  _saveAsTouch->onTap = [this] (int, int) {
+    if (!_document.hasChangedSinceSavePoint ())
+      return;
+
+    // The text goes to a file of the performer's own; the page is told what
+    // it is called when the slot comes back with it. Saved here as well as in
+    // the slot, because setScript() returns early on text it already holds --
+    // so the save point would never be reached from outside and the edge would
+    // stay marked on a script that is safely on disk.
+    _document.setSavePoint ();
+    stopEditingScript ();
+    if (onScriptSavedAs)
+      onScriptSavedAs ();
+
+    repaint ();
+  };
+  addAndMakeVisible (*_saveAsTouch);
+
   _saveTouch = std::make_unique<TouchControl> ();
   _saveTouch->onTap = [this] (int, int) {
-    if (!_document.hasChangedSinceSavePoint ())
+    if (!_document.hasChangedSinceSavePoint () || _shipped)
       return;
 
     _document.setSavePoint ();
@@ -325,6 +344,8 @@ ActionComponent::resized ()
     _fireTouch->setBounds (_layout.fireButton);
   if (_saveTouch)
     _saveTouch->setBounds (_layout.saveButton);
+  if (_saveAsTouch)
+    _saveAsTouch->setBounds (_layout.saveAsButton);
   if (_cancelTouch)
     _cancelTouch->setBounds (_layout.cancelButton);
 
@@ -435,6 +456,16 @@ ActionComponent::setActionChoices (juce::StringArray const &names)
     return;
 
   _choices = names;
+  repaint ();
+}
+
+void
+ActionComponent::setScriptIsShipped (bool shipped)
+{
+  if (_shipped == shipped)
+    return;
+
+  _shipped = shipped;
   repaint ();
 }
 
@@ -707,15 +738,22 @@ ActionComponent::paintScriptKeys (juce::Graphics &g)
     g.drawText (word, at, juce::Justification::centred);
   };
 
+  auto const lit = readableInk (_channelColour, toColour (theme ().background),
+                                toColour (theme ().textPrimary));
+  auto const dark = toColour (theme ().textMuted, theme ().alphaDisabled);
+
   // Lit only while there is something to keep or to lose: a key offering to
   // save nothing is a key you have to stop and think about.
-  key (_layout.saveButton, "save",
-       edited ? readableInk (_channelColour, toColour (theme ().background),
-                             toColour (theme ().textPrimary))
-              : toColour (theme ().textMuted, theme ().alphaDisabled));
+  //
+  // Save stays dark on a shipped action however much has been typed: writing
+  // over one of those would take it from every clip that uses it, and there
+  // is no getting it back. Save as is the way out, which is why it is lit in
+  // exactly that case.
+  key (_layout.saveButton, "save", edited && !_shipped ? lit : dark);
+  key (_layout.saveAsButton, "save as", edited ? lit : dark);
   key (_layout.cancelButton, "cancel",
        edited ? toColour (theme ().textPrimary, theme ().alphaTextStrong)
-              : toColour (theme ().textMuted, theme ().alphaDisabled));
+              : dark);
 }
 
 void
