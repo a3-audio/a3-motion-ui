@@ -23,7 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/ActionLayout.hh>
-#include <a3-motion-ui/components/ScriptBuffer.hh>
+#include <a3-motion-ui/components/ScriptEditor.hh>
 #include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
@@ -69,6 +69,13 @@ public:
    *  has to re-lay it out rather than only repaint it. */
   void applyTheme () override;
 
+private:
+  /** Puts the skin on the editor: its colour ids, the tokeniser's scheme and
+   *  the script font. Called whenever the skin changes. */
+  void dressEditor ();
+
+public:
+
   /** Which clip this page is showing, and the colour it wears. */
   void setTarget (int channel, int slot, juce::Colour channelColour);
 
@@ -94,9 +101,12 @@ public:
    *  Loading, not editing: whatever was being typed is replaced. */
   void setScript (juce::String const &script);
   /** What is in the editor now, for whoever writes the file. */
-  juce::String script () const { return _buffer.text (); }
-  bool scriptIsEdited () const { return _buffer.isEdited (); }
-  void markScriptSaved () { _buffer.markSaved (); repaint (); }
+  juce::String script () const { return _document.getAllContent (); }
+  bool scriptIsEdited () const
+  {
+    return _document.hasChangedSinceSavePoint ();
+  }
+  void markScriptSaved () { _document.setSavePoint (); repaint (); }
 
   /** What the script got wrong when it last ran, shown along the bottom of
    *  the editor. Kept apart from the text: an error is about the script, not
@@ -151,7 +161,6 @@ private:
   void paintScriptKeys (juce::Graphics &g);
   void paintActionList (juce::Graphics &g);
 
-  bool keyPressed (juce::KeyPress const &key) override;
   void focusLost (FocusChangeType cause) override;
 
   /** One font for the script, and the three measurements everything else
@@ -165,7 +174,6 @@ private:
   /** How many lines the script area can show at the current size. */
   int visibleScriptLines () const;
   /** Where a tap in the script area lands, as a line and a column. */
-  void caretFromPoint (juce::Point<int> point);
 
   void openActionList ();
   void chooseFromActionList (juce::Point<int> point);
@@ -187,7 +195,13 @@ private:
   float _qMax = 0.f;
   int _actMode = 0;
   juce::String _actionName;
-  ScriptBuffer _buffer;
+  /** The script itself, and the editor over it -- JUCE's, see ScriptEditor.
+   *  The C++ tokeniser rather than one of our own: SuperCollider's comments,
+   *  strings, numbers and brackets are close enough to read by, and a
+   *  tokeniser for the rest is a job of its own. */
+  juce::CodeDocument _document;
+  juce::CPlusPlusCodeTokeniser _tokeniser;
+  std::unique_ptr<ScriptEditor> _editor;
   juce::StringArray _choices;
   juce::StringArray _scriptErrors;
   bool _listOpen = false;

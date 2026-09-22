@@ -117,6 +117,32 @@ ActionComponent::ActionComponent ()
   };
   addAndMakeVisible (*_actionTouch);
 
+  // The script is JUCE's editor, read-only until it is touched -- see
+  // ScriptEditor for the three things a finger needs on top of it.
+  _editor = std::make_unique<ScriptEditor> (_document, &_tokeniser);
+  _editor->onStartEditing = [this] {
+    if (_actionName.isEmpty ())
+      {
+        openActionList ();
+        repaint ();
+        return;
+      }
+
+    if (!_editing)
+      {
+        _editing = true;
+        _editor->setReadOnly (false);
+        _editor->grabKeyboardFocus ();
+        if (onScriptEditingChanged)
+          onScriptEditingChanged (true);
+      }
+
+    repaint ();
+  };
+  _editor->onEscape = [this] { stopEditingScript (); };
+  addAndMakeVisible (*_editor);
+  dressEditor ();
+
   _scriptTouch = std::make_unique<TouchControl> ();
   _scriptTouch->onTapAt = [this] (int, int, juce::Point<int> at) {
     if (_listOpen)
@@ -135,16 +161,8 @@ ActionComponent::ActionComponent ()
         return;
       }
 
-    caretFromPoint (at);
-
-    if (!_editing)
-      {
-        _editing = true;
-        grabKeyboardFocus ();
-        if (onScriptEditingChanged)
-          onScriptEditingChanged (true);
-      }
-
+    // The editor stands over this area and answers a touch itself; what is
+    // left here is the list, which lies over the editor when it is open.
     repaint ();
   };
   _scriptTouch->onDragIncrement = [this] (int, int, int increment) {
@@ -162,7 +180,7 @@ ActionComponent::ActionComponent ()
                                actionListVisibleRows (_layout),
                                _choices.size ());
     else
-      _buffer.scrollByDrag (increment, visibleScriptLines ());
+      _editor->scrollBy (-increment);
 
     repaint ();
   };
@@ -186,10 +204,10 @@ ActionComponent::ActionComponent ()
 
   _saveTouch = std::make_unique<TouchControl> ();
   _saveTouch->onTap = [this] (int, int) {
-    if (!_buffer.isEdited ())
+    if (!_document.hasChangedSinceSavePoint ())
       return;
 
-    _buffer.markSaved ();
+    _document.setSavePoint ();
     stopEditingScript ();
     if (onScriptSaved)
       onScriptSaved ();
@@ -214,8 +232,61 @@ ActionComponent::~ActionComponent () = default;
 void
 ActionComponent::applyTheme ()
 {
+  dressEditor ();
   resized ();
   repaint ();
+}
+
+void
+ActionComponent::dressEditor ()
+{
+  if (!_editor)
+    return;
+
+  // The skin's colours, through the editor's own ids -- the same way a slider
+  // gets its channel colour. The field behind it is already drawn darker than
+  // the page, so the editor itself stays transparent to it.
+  _editor->setColour (juce::CodeEditorComponent::backgroundColourId,
+                      juce::Colours::transparentBlack);
+  _editor->setColour (juce::CodeEditorComponent::defaultTextColourId,
+                      toColour (theme ().textPrimary,
+                                theme ().alphaTextStrong));
+  _editor->setColour (juce::CodeEditorComponent::lineNumberBackgroundId,
+                      juce::Colours::transparentBlack);
+  _editor->setColour (juce::CodeEditorComponent::lineNumberTextId,
+                      toColour (theme ().textMuted, theme ().alphaMuted));
+  _editor->setColour (juce::CodeEditorComponent::highlightColourId,
+                      _channelColour.withAlpha (theme ().alphaFillEmphasis));
+
+  // What the tokeniser names, in the skin's words: a comment is what tells a
+  // written-out script from one somebody explained, which is why it was the
+  // one thing the hand-drawn editor coloured at all.
+  juce::CodeEditorComponent::ColourScheme scheme;
+  scheme.set ("Comment", toColour (theme ().textMuted, theme ().alphaInactive));
+  scheme.set ("String", toColour (theme ().accent));
+  scheme.set ("Integer", toColour (theme ().accent));
+  scheme.set ("Float", toColour (theme ().accent));
+  scheme.set ("Keyword", toColour (theme ().highlight));
+  scheme.set ("Operator", toColour (theme ().textPrimary, theme ().alphaSecondary));
+  scheme.set ("Bracket", toColour (theme ().textPrimary, theme ().alphaSecondary));
+  scheme.set ("Punctuation", toColour (theme ().textPrimary, theme ().alphaSecondary));
+  scheme.set ("Identifier", toColour (theme ().textPrimary, theme ().alphaTextStrong));
+  scheme.set ("Error", toColour (theme ().danger));
+  _editor->setColourScheme (scheme);
+
+  _editor->setFont (scriptFont ());
+
+  // The bars that come with it: the skin's grey, and as wide as a line is
+  // tall rather than JUCE's sixteen pixels -- everything here is measured in
+  // what it stands next to.
+  _editor->setColour (juce::ScrollBar::backgroundColourId,
+                      juce::Colours::transparentBlack);
+  _editor->setColour (juce::ScrollBar::thumbColourId,
+                      toColour (theme ().textMuted, theme ().alphaGuide));
+  _editor->setColour (juce::ScrollBar::trackColourId,
+                      juce::Colours::transparentBlack);
+  _editor->setScrollbarThickness (
+      juce::jmax (1, juce::roundToInt (scriptFont ().getHeight () / 2.f)));
 }
 
 void
@@ -249,7 +320,8 @@ ActionComponent::resized ()
   if (_cancelTouch)
     _cancelTouch->setBounds (_layout.cancelButton);
 
-  _buffer.bringCaretIntoView (visibleScriptLines ());
+  if (_editor)
+    _editor->setBounds (scriptTextArea ());
 }
 
 void
@@ -329,11 +401,12 @@ ActionComponent::setScript (juce::String const &script)
   // Never while it is being typed into, and otherwise only when it is
   // actually different: the page refreshes on a timer, and either would throw
   // away what is being written and put the caret back at the top.
-  if (_editing || script == _buffer.text ())
+  if (_editing || script == _document.getAllContent ())
     return;
 
-  _buffer.setText (script);
-  _buffer.bringCaretIntoView (visibleScriptLines ());
+  _document.replaceAllContent (script);
+  _document.clearUndoHistory ();
+  _document.setSavePoint ();
   repaint ();
 }
 
@@ -364,6 +437,7 @@ ActionComponent::stopEditingScript ()
     return;
 
   _editing = false;
+  _editor->setReadOnly (true);
   if (onScriptEditingChanged)
     onScriptEditingChanged (false);
 
@@ -388,27 +462,6 @@ ActionComponent::visibleScriptLines () const
   return juce::jmax (1, scriptTextArea ().getHeight () / lineH);
 }
 
-void
-ActionComponent::caretFromPoint (juce::Point<int> point)
-{
-  auto const text = scriptTextArea ();
-  auto const lineH = scriptLineHeight ();
-  if (lineH <= 0)
-    return;
-
-  // The point comes in relative to the script's own control, which stands on
-  // scriptField -- so the inset between the two has to come off before it
-  // means a line.
-  auto const inX = point.x - (text.getX () - _layout.scriptField.getX ());
-  auto const inY = point.y - (text.getY () - _layout.scriptField.getY ());
-
-  auto const line = _buffer.firstVisibleLine () + inY / lineH;
-  auto const column = static_cast<int> (
-      std::lround (inX / juce::jmax (1.f, scriptCharacterWidth ())));
-
-  _buffer.placeCaret (line, column);
-  _buffer.bringCaretIntoView (visibleScriptLines ());
-}
 
 void
 ActionComponent::openActionList ()
@@ -440,64 +493,6 @@ ActionComponent::chooseFromActionList (juce::Point<int> point)
   repaint ();
 }
 
-bool
-ActionComponent::keyPressed (juce::KeyPress const &key)
-{
-  if (!_editing)
-    return false;
-
-  // Only a repaint: writing happens on Save. The editor's edge says there is
-  // something unsaved, which is what the two keys are for.
-  auto const changed = [this] {
-    _buffer.bringCaretIntoView (visibleScriptLines ());
-    repaint ();
-  };
-
-  if (key == juce::KeyPress::escapeKey)
-    {
-      stopEditingScript ();
-      return true;
-    }
-
-  if (key == juce::KeyPress::backspaceKey)
-    {
-      _buffer.backspace ();
-      changed ();
-      return true;
-    }
-
-  if (key == juce::KeyPress::returnKey)
-    {
-      _buffer.type ('\n');
-      changed ();
-      return true;
-    }
-
-  // Moving is not an edit, so it does not go through changed().
-  auto const move = [this] (int lines, int columns) {
-    _buffer.moveCaret (lines, columns);
-    _buffer.bringCaretIntoView (visibleScriptLines ());
-    repaint ();
-    return true;
-  };
-
-  if (key == juce::KeyPress::leftKey)
-    return move (0, -1);
-  if (key == juce::KeyPress::rightKey)
-    return move (0, 1);
-  if (key == juce::KeyPress::upKey)
-    return move (-1, 0);
-  if (key == juce::KeyPress::downKey)
-    return move (1, 0);
-
-  auto const character = key.getTextCharacter ();
-  if (character == 0)
-    return false;
-
-  _buffer.type (character);
-  changed ();
-  return true;
-}
 
 void
 ActionComponent::setGridReference (juce::Rectangle<int> barCoordinates)
@@ -633,63 +628,24 @@ ActionComponent::paintScriptField (juce::Graphics &g)
 
   // The edge says whether it is being typed into and whether what is in it
   // has been written -- three states, one line, no words spent on any of it.
-  g.setColour (_buffer.isEdited () ? toColour (theme ().warning)
-               : _editing         ? _channelColour
-                                  : toColour (theme ().textPrimary,
-                                             theme ().alphaOutline));
-  g.drawRect (bounds, juce::roundToInt (_editing || _buffer.isEdited ()
+  auto const edited = _document.hasChangedSinceSavePoint ();
+  g.setColour (edited     ? toColour (theme ().warning)
+               : _editing ? _channelColour
+                          : toColour (theme ().textPrimary,
+                                      theme ().alphaOutline));
+  g.drawRect (bounds, juce::roundToInt (_editing || edited
                                             ? theme ().strokeThick
                                             : theme ().strokeThin));
 
-  auto const text = scriptTextArea ();
-  auto const lineH = scriptLineHeight ();
-  auto const charW = scriptCharacterWidth ();
-
-  g.setFont (scriptFont ());
-
-  if (_buffer.numLines () == 1 && _buffer.line (0).isEmpty () && !_editing)
+  // The text itself is the editor's (ScriptEditor), which stands inside this
+  // frame and draws its own lines, numbers and caret.
+  if (_document.getNumCharacters () == 0 && !_editing)
     {
       g.setColour (toColour (theme ().textMuted, theme ().alphaMuted));
-      g.drawText ("-- no script --", text, juce::Justification::topLeft);
-      return;
+      g.setFont (scriptFont ());
+      g.drawText ("-- no script --", scriptTextArea (),
+                  juce::Justification::topLeft);
     }
-
-  auto const first = _buffer.firstVisibleLine ();
-  auto const rows = visibleScriptLines ();
-
-  for (int row = 0; row < rows; ++row)
-    {
-      auto const index = first + row;
-      if (index >= _buffer.numLines ())
-        break;
-
-      auto const line = _buffer.line (index);
-      auto const at = text.withY (text.getY () + row * lineH)
-                          .withHeight (lineH);
-
-      // Comments in the muted colour, the one thing worth colouring: it is
-      // what tells a written-out script from one somebody explained.
-      g.setColour (line.trimStart ().startsWith ("//")
-                       ? toColour (theme ().textMuted, theme ().alphaInactive)
-                       : toColour (theme ().textPrimary,
-                                  theme ().alphaTextStrong));
-      g.drawText (line, at, juce::Justification::centredLeft);
-    }
-
-  if (!_editing)
-    return;
-
-  // The caret, where the next character goes.
-  auto const caretRow = _buffer.caretLine () - first;
-  if (!juce::isPositiveAndBelow (caretRow, rows))
-    return;
-
-  auto const x = text.getX ()
-                 + juce::roundToInt (_buffer.caretColumn () * charW);
-
-  g.setColour (_channelColour);
-  g.fillRect (x, text.getY () + caretRow * lineH,
-              juce::roundToInt (theme ().strokeThick), lineH);
 }
 
 void
@@ -721,7 +677,7 @@ ActionComponent::paintScriptKeys (juce::Graphics &g)
   if (_layout.saveButton.isEmpty ())
     return;
 
-  auto const edited = _buffer.isEdited ();
+  auto const edited = _document.hasChangedSinceSavePoint ();
 
   auto const key = [&g, this] (juce::Rectangle<int> at, char const *word,
                                juce::Colour ink) {
@@ -816,8 +772,6 @@ ActionComponent::paint (juce::Graphics &g)
   paintScriptField (g);
   paintScriptErrors (g);
   paintScriptKeys (g);
-
-  auto const &metrics = _layout.metrics;
 
   // Three envelopes, one row each, all the same shape: atk over atk over atk.
   // The accent is read first because it is what ACT has always done, then the
