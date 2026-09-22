@@ -46,12 +46,26 @@ namespace a3
  *  coming to rest is not waiting for a beat, so it must not blink as though
  *  it were.
  */
+/** How far apart two fills are, as the straight-line distance between them in
+ *  RGB (0..441). Not contrast: a lit pad differs from its channel by *hue* as
+ *  often as by brightness -- the highlight on a blue pad has a contrast ratio
+ *  near 1 and is obvious -- so a luminance ratio would call the wrong ones
+ *  alike. */
+float colourDistance (juce::Colour a, juce::Colour b);
+
+/** The least distance at which a lit pad reads as changed. The highlight on
+ *  the shipped yellow channel is 12 apart, on every other channel over 200. */
+constexpr float minimumFillDistance = 100.f;
+
 /** The colour a pad starts from, before its slot's status shades it.
  *
  *  Play turns `accent` while its clip runs; the Action pad turns its own
  *  colour (`highlight`) for exactly as long as the action runs -- rise, hold
  *  and fall -- so a pressed ACT no longer looks like a Play and says how long
- *  it lasts. Everything else wears its channel. */
+ *  it lasts. Where the highlight is too close to the channel to be seen -- a
+ *  yellow channel -- it lights in `blobAction` instead, the colour a blob on
+ *  the sphere wears while an action has it. Everything else wears its
+ *  channel. */
 juce::Colour padBaseColour (PadFunction function, bool clipPlaying,
                             bool actionRunning, juce::Colour channel);
 

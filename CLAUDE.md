@@ -958,7 +958,7 @@ pads.
 **What the page shows is a slot's state, a press, and an action.** A pad under a finger runs
 towards the skin's text colour for as long as it is held — before this, Play turned green but Stop
 left nothing behind, since what it does is make a pad go dark. The Action pad of the slot that fired
-a channel's accent wears `highlight` for as long as that accent runs (`padBaseColour()`, lit from
+a channel's accent wears `highlight` for as long as that accent runs — or `blobAction`, the colour a blob wears under an action, where the highlight is too close to the channel to be seen, as on a yellow one (`padBaseColour()`, `colourDistance()`), lit from
 `isChannelAccentActive()`): a pressed ACT used to look like a Play and said nothing about how long
 the action would last. The engine knows the accent per channel, so the slot is remembered where the
 pad was pressed (`_actionSlot`). `isChannelAccentActive()` reads a published atomic now rather than
