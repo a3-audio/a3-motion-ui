@@ -47,6 +47,9 @@ loadSettings (juce::File const &file)
   if (parsed.hasProperty ("developerMode"))
     settings.developerMode = static_cast<bool> (parsed["developerMode"]);
 
+  if (parsed.hasProperty ("skinBeforeClean"))
+    settings.skinBeforeClean = parsed["skinBeforeClean"].toString ();
+
   // Entry by entry, and only as far as the file goes: a file naming fewer
   // keys than the device has says nothing about the rest, and a hand-edited
   // speed outside the range would sit on a key the drag cannot bring back.
@@ -72,6 +75,7 @@ saveSettings (juce::File const &file, AppSettings const &settings)
     speeds.add (log2);
   obj->setProperty ("speedButtons", speeds);
   obj->setProperty ("developerMode", settings.developerMode);
+  obj->setProperty ("skinBeforeClean", settings.skinBeforeClean);
 
   juce::var const state (obj);
 

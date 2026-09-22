@@ -191,6 +191,13 @@ StatusBar::resized ()
   // rather than a target that is hit.
   _mixIconArea = bounds.removeFromRight (_keyboardIconArea.getWidth ());
 
+  // CLEAN left of MIX, a third key of the same size in the same row: asked
+  // for "oben in der statusleiste neben onscreen", and MIX already holds the
+  // place right beside the keyboard. Wider than the other two by a third,
+  // because it is the longer word and a squeezed word is read, not glanced.
+  _cleanIconArea = bounds.removeFromRight (
+      _keyboardIconArea.getWidth () * 4 / 3);
+
   // Everything left on the bar comes out of one calculation with a test of
   // its own, the way the clip settings bar and the controller page do it: the
   // two readings, the nine meters and the beat display are placed against
@@ -355,8 +362,26 @@ StatusBar::setMixOpen (bool open)
 }
 
 void
+StatusBar::setCleanState (bool available, bool active)
+{
+  if (_cleanAvailable == available && _cleanActive == active)
+    return;
+
+  _cleanAvailable = available;
+  _cleanActive = active;
+  repaint (_cleanIconArea);
+}
+
+void
 StatusBar::mouseUp (juce::MouseEvent const &event)
 {
+  if (_cleanIconArea.contains (event.getPosition ()))
+    {
+      if (_cleanAvailable && onCleanIconTapped)
+        onCleanIconTapped ();
+      return;
+    }
+
   if (_mixIconArea.contains (event.getPosition ()) && onMixIconTapped)
     {
       onMixIconTapped ();
@@ -369,9 +394,10 @@ StatusBar::mouseUp (juce::MouseEvent const &event)
 }
 
 void
-StatusBar::paintMixKey (juce::Graphics &g)
+StatusBar::paintWordKey (juce::Graphics &g, juce::Rectangle<int> area,
+                         juce::String const &word, bool available, bool on)
 {
-  if (_mixIconArea.isEmpty ())
+  if (area.isEmpty ())
     return;
 
   // The same rule the strip's function keys are drawn by: the colour says
@@ -384,17 +410,18 @@ StatusBar::paintMixKey (juce::Graphics &g)
   // says state that way: the keyboard icon is muted when it is merely
   // available and accented when it is up, and two neighbouring keys reading
   // by two rules is two rules to learn.
-  if (_mixOpen)
+  if (on)
     {
       g.setColour (toColour (theme ().accent, theme ().alphaFillEmphasis));
-      g.fillRoundedRectangle (_mixIconArea.toFloat (),
-                              theme ().radiusControl);
+      g.fillRoundedRectangle (area.toFloat (), theme ().radiusControl);
     }
 
   g.setFont (juce::Font (juce::FontOptions (headerFontSize ())));
-  g.setColour (_mixOpen ? toColour (theme ().accent)
-                        : toColour (theme ().textMuted));
-  g.drawFittedText ("MIX", _mixIconArea, juce::Justification::centred, 1);
+  g.setColour (on          ? toColour (theme ().accent)
+               : available ? toColour (theme ().textMuted)
+                           : toColour (theme ().textMuted,
+                                       theme ().alphaDisabled));
+  g.drawFittedText (word, area, juce::Justification::centred, 1);
 }
 
 void
@@ -409,7 +436,8 @@ StatusBar::paint (juce::Graphics &g)
   // blocks on a refresh, so what is drawn after them here costs nothing on
   // the frames that are actually paid for.
 
-  paintMixKey (g);
+  paintWordKey (g, _cleanIconArea, "CLEAN", _cleanAvailable, _cleanActive);
+  paintWordKey (g, _mixIconArea, "MIX", true, _mixOpen);
 
   // A keyboard, drawn rather than typed: three rows of keys and a space bar,
   // small enough to read as an icon at this size.

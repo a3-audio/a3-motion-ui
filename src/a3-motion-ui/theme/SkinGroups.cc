@@ -90,7 +90,11 @@ constexpr Group groups[] = {
                                  "speakerLight.attack",
                                  "speakerLight.decay" } },
   { "Speaker light: wander", { "speakerLight.wander*" } },
-  { "Speaker light: bolts", { "speakerLight.bolt*" } },
+  // Named for the cabinets rather than the physics: these are the two a
+  // performer switches by name, and "kugelblitze ausschalten" had to be
+  // found under Other.
+  { "Topspeaker FX", { "speakerLight.bolt*" } },
+  { "Kickbass FX", { "speakerLight.ball*" } },
 
   { "Energy: response", { "energy.vuMax", "energy.curve", "energy.attack",
                           "energy.decay", "energy.intensity" } },

@@ -212,4 +212,33 @@ TEST (SettingsPersistence, AShortListLeavesTheRemainingKeysAlone)
   file.deleteFile ();
 }
 
+// Which skin the CLEAN key goes back to. A restart in the middle of a set
+// that came back up in clean with nowhere to return to would leave the
+// performer hunting through the menu for the skin they were in.
+TEST (SettingsPersistence, TheSkinBeforeCleanSurvivesARestart)
+{
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-skin-before-clean-settings.json");
+  file.deleteFile ();
+
+  AppSettings settings;
+  settings.skinBeforeClean = "ember";
+  saveSettings (file, settings);
+
+  EXPECT_EQ (loadSettings (file).skinBeforeClean, "ember");
+  file.deleteFile ();
+}
+
+TEST (SettingsPersistence, AFileWithoutASkinBeforeCleanRemembersNone)
+{
+  auto const file
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-skin-before-clean-legacy.json");
+  file.replaceWithText ("{\"clockMode\": 1, \"recMode\": \"Touch\"}");
+
+  EXPECT_TRUE (loadSettings (file).skinBeforeClean.isEmpty ());
+  file.deleteFile ();
+}
+
 }

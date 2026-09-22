@@ -68,6 +68,7 @@
 #include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-ui/components/RecordingIndicator.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
+#include <a3-motion-ui/theme/CleanSkin.hh>
 #include <a3-motion-ui/components/SceneLaunch.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
 #include <a3-motion-ui/components/ClipSettingsComponent.hh>
@@ -958,6 +959,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _recMode = persisted.recMode;
   _speedButtonLog2 = persisted.speedButtonLog2;
   _developerMode = persisted.developerMode;
+  _skinBeforeClean = persisted.skinBeforeClean;
+  refreshCleanKey ();
 
   applyClockMode (persisted.clockMode);
   _engine.setRecMode (_recMode);
@@ -1231,7 +1234,7 @@ A3MotionUIComponent::persistSettings () const
 {
   saveSettings (getPersistedSettingsFile (),
                 AppSettings{ _clockMode, _recMode, _speedButtonLog2,
-                             _developerMode });
+                             _developerMode, _skinBeforeClean });
 }
 
 Measure
@@ -1256,6 +1259,7 @@ A3MotionUIComponent::createMainUI ()
   _statusBar = std::make_unique<StatusBar> (_valueBPM);
   _statusBar->onKeyboardIconTapped = [this] { toggleKeyboard (); };
   _statusBar->onMixIconTapped = [this] { toggleMixer (); };
+  _statusBar->onCleanIconTapped = [this] { toggleClean (); };
   addChildComponent (*_statusBar);
   _statusBar->setVisible (true);
   _statusBarCallbackHandle
@@ -6138,8 +6142,42 @@ A3MotionUIComponent::applyPauseRendering (bool paused)
 }
 
 void
+A3MotionUIComponent::toggleClean ()
+{
+  auto const toggle = toggleCleanSkin (
+      activeSkinName (getConfigFile ()), _skinBeforeClean,
+      availableSkins (getConfigFile ().getParentDirectory ()));
+  if (!toggle)
+    return;
+
+  _skinBeforeClean = toggle->remember;
+  persistSettings ();
+  applySkinNamed (toggle->apply);
+  refreshCleanKey ();
+}
+
+void
+A3MotionUIComponent::refreshCleanKey ()
+{
+  if (!_statusBar)
+    return;
+
+  auto const active = activeSkinName (getConfigFile ());
+  auto const available
+      = toggleCleanSkin (active, _skinBeforeClean,
+                         availableSkins (getConfigFile ().getParentDirectory ()))
+            .has_value ();
+  _statusBar->setCleanState (available, active == cleanSkinName);
+}
+
+void
 A3MotionUIComponent::applyTheme ()
 {
+  // Every way a skin comes into force passes here -- the menu, the editor,
+  // the CLEAN key, a hand edit picked up by the watcher -- so the key cannot
+  // be left saying clean after something else took over.
+  refreshCleanKey ();
+
   // A channel's colour was read once, at construction, and kept in
   // ChannelUIState — so editing it in the skin changed the file and the
   // theme and nothing on the screen. Every blob, pad and frame is drawn

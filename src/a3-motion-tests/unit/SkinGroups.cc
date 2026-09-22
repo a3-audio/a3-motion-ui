@@ -179,3 +179,18 @@ TEST (SkinGroups, ThePadShadesShareAHeading)
 
   EXPECT_NE (expected, skinGroupFor ("accent"));
 }
+
+// The two speaker effects a performer switches by name: the tops' bolts and
+// the subs' ball lightning. Under those names, so the heading says which
+// cabinets it is about rather than which physics -- "kugelblitze ausschalten"
+// had to be found under "Other".
+TEST (SkinGroups, TheTwoSpeakerEffectsHaveHeadingsOfTheirOwn)
+{
+  for (auto const *path : { "speakerLight.boltCore", "speakerLight.boltWidth",
+                            "speakerLight.boltCount", "speakerLight.boltRate" })
+    EXPECT_EQ (skinGroupFor (path), "Topspeaker FX") << path;
+
+  for (auto const *path : { "speakerLight.ballLevel", "speakerLight.ballSize",
+                            "speakerLight.ballCount", "speakerLight.ballReach" })
+    EXPECT_EQ (skinGroupFor (path), "Kickbass FX") << path;
+}
