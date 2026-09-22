@@ -188,7 +188,7 @@ MixerStripComponent::paint (juce::Graphics &g)
   // disagree about how loud a deck is.
   paintVuMeter (g, _layout.channelMeter[0],
                 _levels.channel (_channel, vuNowMs ()));
-  paintVuVolumeMark (g, _layout.channelMeter[0],
+  paintVuFaderHandle (g, _layout.channelMeter[0],
                      _state.channelValue (_channel, MixerControl::Volume),
                      toColour (theme ().channel[_channel]));
 }

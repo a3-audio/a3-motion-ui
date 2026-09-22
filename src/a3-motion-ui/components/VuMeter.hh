@@ -26,6 +26,8 @@
 
 #include <a3-motion-engine/Config.hh>
 
+#include <a3-motion-ui/components/ControllerLayout.hh>
+
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 
 namespace a3
@@ -211,13 +213,31 @@ struct VuMeterGeometry
   std::array<juce::Rectangle<int>, numVuMeterBands> bands;
 };
 
-VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level);
+/** Which way a meter swings.
+ *
+ *  Up is a channel's: a column filling from its foot, which is what a meter
+ *  is on a mixer. Right is the master's block of outputs, turned a quarter so
+ *  five of them -- and one day more -- stack down a column that is only as
+ *  wide as a strip's. */
+enum class VuDirection
+{
+  Up,
+  Right,
+};
+
+VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level,
+                                 VuDirection direction = VuDirection::Up);
 
 /** Where VOL stands, as a bar laid across a channel's meter -- see
- *  paintVuVolumeMark(). `value` is VOL's 0..1, foot to head, linear: it is
+ *  paintVuFaderHandle(). `value` is VOL's 0..1, foot to head, linear: it is
  *  the knob's travel, not a level, so it shares the meter's height and not
  *  its dB scale. */
-juce::Rectangle<int> vuVolumeMark (juce::Rectangle<int> bounds, float value);
+juce::Rectangle<int> vuFaderHandle (juce::Rectangle<int> bounds, float value);
+
+/** How thin a fader handle may get before a finger cannot take hold of it.
+ *  Half a fingertip: it is grasped rather than aimed at, and the meter it
+ *  stands on is the target that has to be a fingertip wide. */
+constexpr int minimumFaderHandleThickness = fingertipSize / 2;
 
 /** VOL after a drag on its meter: `atPress` plus the pixels dragged upwards
  *  over the meter's height, held in 0..1. One to one and stepless, so the
@@ -225,12 +245,14 @@ juce::Rectangle<int> vuVolumeMark (juce::Rectangle<int> bounds, float value);
  *  in visible jumps and lag behind the hand. */
 float vuMeterDragVolume (float atPress, int pixelsUp, int meterHeight);
 
-/** VOL's mark, in the channel's colour, over a meter already painted. The
- *  meter is where VOL is dragged -- "im MIX will man volume regeln indem man
- *  das vu-meter dragt" -- and a hand dragging it looks at the meter, not the
- *  knob, so the setting has to be where the eye is. */
-void paintVuVolumeMark (juce::Graphics &g, juce::Rectangle<int> bounds,
-                        float value, juce::Colour colour);
+/** The fader's handle, in the channel's colour, over a meter already painted.
+ *
+ *  A cap rather than a line -- "die sollen nach echten fader knobs aussehen
+ *  zum angenehm anfassen": the meter is the fader now, and a fader has
+ *  something to take hold of. Drawn the way the pots' knobs are, from the
+ *  skin's own surface, radius and stroke. */
+void paintVuFaderHandle (juce::Graphics &g, juce::Rectangle<int> bounds,
+                         float value, juce::Colour colour);
 
 /** The colour a band is filled in, from the skin.
  *
@@ -353,6 +375,23 @@ stepMeterBarsAcross (juce::Rectangle<int> block, int cell, int gap,
         juce::jmax (1, cell - gap), block.getHeight ());
 }
 
+/** The same, stacked up a block from its foot: bar 0 lowest, each the width
+ *  of the block. For meters turned a quarter -- see VuDirection. */
+template <std::size_t N>
+void
+stepMeterBarsUp (juce::Rectangle<int> block, int cell, int gap,
+                 std::array<juce::Rectangle<int>, N> &bars)
+{
+  for (std::size_t i = 0; i < N; ++i)
+    {
+      auto const height = juce::jmax (1, cell - gap);
+      bars[i] = juce::Rectangle<int> (
+          block.getX (),
+          block.getBottom () - cell * static_cast<int> (i) - height,
+          block.getWidth (), height);
+    }
+}
+
 /** Every level the mixer's meters read, and the peak lingering over each.
  *
  *  **Why this exists at all**, given that `/vu/0..3` already lands in
@@ -412,7 +451,7 @@ private:
  *  meter it is, the strip it stands in already says: the wash behind it and
  *  every knob beside it are in the channel's colour. */
 void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
-                   VuLevel level);
+                   VuLevel level, VuDirection direction = VuDirection::Up);
 
 /** The same meter, standing on a different ground.
  *
@@ -428,6 +467,7 @@ void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
  *  Only the track. The bands, the mark and every boundary between them stay
  *  exactly what they are on the mixer page, because those are the reading. */
 void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
-                   VuLevel level, juce::Colour track);
+                   VuLevel level, juce::Colour track,
+                   VuDirection direction = VuDirection::Up);
 
 }

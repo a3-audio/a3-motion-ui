@@ -48,10 +48,10 @@ constexpr float meterGapOfMeterWidth = 1.f / 5.f;
  *  Floored at a pixel, since a mark that vanished on a short meter would say
  *  "no transient", which is the one thing a meter must not say untruthfully. */
 constexpr float peakMarkOfTrackHeight = 1.f / 64.f;
-/** Twice the peak mark's weight: two lines on one meter, one saying where the
- *  signal reached and one where the hand left VOL, must not be read as each
- *  other. */
-constexpr float volumeMarkOfTrackHeight = 2.f * peakMarkOfTrackHeight;
+/** How tall the fader's handle is, as a share of its track -- bounded so it
+ *  is graspable on the bar's short meter and not a slab on the overlay's
+ *  long one. */
+constexpr float faderHandleOfTrack = 1.f / 12.f;
 
 /** The air between two bars of the output block.
  *
@@ -59,6 +59,9 @@ constexpr float volumeMarkOfTrackHeight = 2.f * peakMarkOfTrackHeight;
  *  multi-channel meter by a hairline; a share rather than a count of pixels
  *  so five bars still read as five however wide the master's column comes
  *  out. */
+/** How much of the master's column its meters take, at the foot. */
+constexpr float outputBarsOfBlock = 1.f / 4.f;
+
 constexpr float outputBarGapOfCell = 1.f / 8.f;
 
 /** The word under the output block, as a share of the block's height.
@@ -163,8 +166,38 @@ vuMeterFraction (float amplitude)
   return juce::jlimit (0.f, 1.f, fraction);
 }
 
+namespace
+{
+/** The stretch of a meter between two fractions of its length, measured from
+ *  where it starts -- the foot of a column, the left edge of a bar.
+ *
+ *  One function for both directions rather than two arrangements of the same
+ *  arithmetic: a sideways meter that rounded differently from an upright one
+ *  would put its bands a pixel off its fill. */
+juce::Rectangle<int>
+meterSlice (juce::Rectangle<int> bounds, VuDirection direction, float from,
+            float to)
+{
+  auto const along = direction == VuDirection::Up ? bounds.getHeight ()
+                                                  : bounds.getWidth ();
+  auto const start = juce::roundToInt (static_cast<float> (along)
+                                       * juce::jlimit (0.f, 1.f, from));
+  auto const end = juce::roundToInt (static_cast<float> (along)
+                                     * juce::jlimit (0.f, 1.f, to));
+  if (end <= start)
+    return {};
+
+  return direction == VuDirection::Up
+             ? juce::Rectangle<int> (bounds.getX (), bounds.getBottom () - end,
+                                     bounds.getWidth (), end - start)
+             : juce::Rectangle<int> (bounds.getX () + start, bounds.getY (),
+                                     end - start, bounds.getHeight ());
+}
+}
+
 VuMeterGeometry
-vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level)
+vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level,
+                 VuDirection direction)
 {
   VuMeterGeometry out{};
 
@@ -172,34 +205,15 @@ vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level)
     return out;
 
   out.track = bounds;
-
-  auto const height = bounds.getHeight ();
-
-  auto const rmsHeight = juce::roundToInt (
-      static_cast<float> (height) * vuMeterFraction (level.rms));
-  if (rmsHeight > 0)
-    out.rms = bounds.withTop (bounds.getBottom () - rmsHeight);
-
-  // Every edge in the meter is placed by this one rounding, the fill's foot
-  // and the bands' boundaries alike. Rounded separately they would disagree
-  // by a pixel and leave a hairline of bare track showing through a solid
-  // fill.
-  auto const yFor = [&bounds, height] (float fraction) {
-    return bounds.getBottom ()
-           - juce::roundToInt (static_cast<float> (height) * fraction);
-  };
+  out.rms = meterSlice (bounds, direction, 0.f, vuMeterFraction (level.rms));
 
   auto foot = 0.f;
   for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
     {
-      auto const top = yFor (bandCeilings[i]);
-      auto const zone = juce::Rectangle<int> (bounds.getX (), top,
-                                              bounds.getWidth (),
-                                              yFor (foot) - top);
-
       // The band is the *fill* cut by the zone, never the zone itself: what
       // makes this a meter rather than three lamps is that a band is only
       // drawn as far as the signal has actually reached into it.
+      auto const zone = meterSlice (bounds, direction, foot, bandCeilings[i]);
       out.bands[i] = zone.getIntersection (out.rms);
       foot = bandCeilings[i];
     }
@@ -207,27 +221,35 @@ vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level)
   auto const peakFraction = vuMeterFraction (level.peak);
   if (peakFraction > 0.f)
     {
+      auto const along = direction == VuDirection::Up ? bounds.getHeight ()
+                                                      : bounds.getWidth ();
       auto const thickness = juce::jmax (
-          1, juce::roundToInt (static_cast<float> (height)
+          1, juce::roundToInt (static_cast<float> (along)
                                * peakMarkOfTrackHeight));
+      auto const at = juce::roundToInt (static_cast<float> (along)
+                                        * peakFraction);
 
       // Clamped into the track rather than trusted to land there: at full
-      // scale the mark's top would sit exactly on the track's top edge and
-      // its thickness would carry it out the other side.
-      auto const top = juce::jlimit (
-          bounds.getY (), bounds.getBottom () - thickness,
-          bounds.getBottom ()
-              - juce::roundToInt (static_cast<float> (height) * peakFraction));
-
-      out.peak = juce::Rectangle<int> (bounds.getX (), top,
-                                       bounds.getWidth (), thickness);
+      // scale the mark would sit exactly on the track's far edge and its
+      // thickness would carry it out the other side.
+      if (direction == VuDirection::Up)
+        out.peak = juce::Rectangle<int> (
+            bounds.getX (),
+            juce::jlimit (bounds.getY (), bounds.getBottom () - thickness,
+                          bounds.getBottom () - at),
+            bounds.getWidth (), thickness);
+      else
+        out.peak = juce::Rectangle<int> (
+            juce::jlimit (bounds.getX (), bounds.getRight () - thickness,
+                          bounds.getX () + at - thickness),
+            bounds.getY (), thickness, bounds.getHeight ());
     }
 
   return out;
 }
 
 juce::Rectangle<int>
-vuVolumeMark (juce::Rectangle<int> bounds, float value)
+vuFaderHandle (juce::Rectangle<int> bounds, float value)
 {
   if (bounds.isEmpty ())
     return {};
@@ -235,8 +257,9 @@ vuVolumeMark (juce::Rectangle<int> bounds, float value)
   // NaN fails every comparison, so it is caught here rather than by the clamp.
   auto const travel = value >= 0.f ? juce::jmin (value, 1.f) : 0.f;
   auto const height = bounds.getHeight ();
-  auto const thickness = juce::jmax (
-      2, juce::roundToInt (static_cast<float> (height) * volumeMarkOfTrackHeight));
+  auto const thickness = juce::jlimit (
+      minimumFaderHandleThickness, fingertipSize,
+      juce::roundToInt (static_cast<float> (height) * faderHandleOfTrack));
 
   // Centred on the value rather than hanging below it, so half-way reads as
   // half-way; clamped at both ends so the mark never leaves the track.
@@ -261,21 +284,33 @@ vuMeterDragVolume (float atPress, int pixelsUp, int meterHeight)
 }
 
 void
-paintVuVolumeMark (juce::Graphics &g, juce::Rectangle<int> bounds, float value,
-                   juce::Colour colour)
+paintVuFaderHandle (juce::Graphics &g, juce::Rectangle<int> bounds, float value,
+                    juce::Colour colour)
 {
-  auto const mark = vuVolumeMark (bounds, value);
-  if (mark.isEmpty ())
+  auto const handle = vuFaderHandle (bounds, value);
+  if (handle.isEmpty ())
     return;
 
-  // Edged in the page's own dark, because the mark crosses the bands: a
-  // yellow channel's mark on the yellow band, or a red one's on the red, is
-  // otherwise a line that disappears exactly where it matters.
-  g.setColour (toColour (theme ().surface));
-  auto const edge = juce::jmax (1, juce::roundToInt (theme ().strokeThin));
-  g.fillRect (mark.expanded (0, edge).getIntersection (bounds));
+  auto const face = handle.toFloat ();
+
+  // A cap, not a line: opaque, so the bands do not shine through it -- a
+  // yellow channel's handle over the yellow band was a line that disappeared
+  // exactly where it mattered -- and washed in the channel's colour, so it
+  // still says whose fader this is.
+  g.setColour (toColour (theme ().surfaceRaised));
+  g.fillRoundedRectangle (face, theme ().radiusControl);
+  g.setColour (colour.withAlpha (theme ().alphaFillEmphasis));
+  g.fillRoundedRectangle (face, theme ().radiusControl);
   g.setColour (colour);
-  g.fillRect (mark);
+  g.drawRoundedRectangle (face, theme ().radiusControl, theme ().strokeThick);
+
+  // The groove across its middle, the mark a hand reads a fader's position
+  // off on any desk.
+  auto const groove = juce::Rectangle<float> (
+      face.getX (), face.getCentreY () - theme ().strokeThick * 0.5f,
+      face.getWidth (), theme ().strokeThick);
+  g.setColour (colour);
+  g.fillRect (groove);
 }
 
 StripColumns
@@ -321,18 +356,26 @@ outputMeterBlock (juce::Rectangle<int> block, ControlMetrics metrics)
       juce::roundToInt (static_cast<float> (block.getHeight ())
                         * outputCaptionOfBlock)));
 
-  auto const cellWidth = outputBarCellWidth (bars);
-  if (bars.isEmpty () || cellWidth <= 0)
+  // Only the foot of the column: the rest is the master's fader track, and
+  // five bars filling the whole of it read as a wall rather than as meters.
+  bars = bars.removeFromBottom (juce::roundToInt (
+      static_cast<float> (bars.getHeight ()) * outputBarsOfBlock));
+
+  auto const cellHeight = bars.getHeight () / numOutputMeters;
+  if (bars.isEmpty () || cellHeight <= 0)
     {
       out.caption = {};
       return out;
     }
 
   auto const gap = juce::jmax (
-      1, juce::roundToInt (static_cast<float> (cellWidth)
+      1, juce::roundToInt (static_cast<float> (cellHeight)
                            * outputBarGapOfCell));
 
-  stepMeterBarsAcross (bars, cellWidth, gap, out.bars);
+  // Stacked rather than side by side, and counted up from the foot: the bars
+  // are turned a quarter (VuDirection::Right), and the subwoofer -- meter 0 --
+  // stands at the bottom, where a subwoofer stands in the room.
+  stepMeterBarsUp (bars, cellHeight, gap, out.bars);
 
   return out;
 }
@@ -395,20 +438,21 @@ VuLevels::output (int meter, juce::int64 nowMs) const
 }
 
 void
-paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds, VuLevel level)
+paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds, VuLevel level,
+              VuDirection direction)
 {
   // The strip's own raised surface, so a meter reads as part of the block of
   // controls beside it rather than as a picture laid over it — and, on the
   // page this was drawn for, as a channel cut into the black the mixer fills
   // itself with.
-  paintVuMeter (g, bounds, level, toColour (theme ().surfaceRaised));
+  paintVuMeter (g, bounds, level, toColour (theme ().surfaceRaised), direction);
 }
 
 void
 paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds, VuLevel level,
-              juce::Colour track)
+              juce::Colour track, VuDirection direction)
 {
-  auto const geometry = vuMeterGeometry (bounds, level);
+  auto const geometry = vuMeterGeometry (bounds, level, direction);
   if (geometry.track.isEmpty ())
     return;
 

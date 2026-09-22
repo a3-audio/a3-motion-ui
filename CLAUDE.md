@@ -1066,15 +1066,18 @@ height is VOL's full travel, stepless, so the mark stays under the finger — th
 steps made the tall overlay meter move in visible jumps. A tap does nothing; **two taps put the
 channel at full volume** (`onMeterDoubleTapped`), and a double tap there survives a wobbling finger
 as long as both touches are short (`DoubleTap.hh`, `DoubleTapMovement::MayMove`), so a drag picked
-straight back up cannot throw the channel to full. The meter carries VOL's setting as a bar in the
-channel's colour (`vuVolumeMark()` / `paintVuVolumeMark()`), edged in `surface` so it survives
-crossing a band of its own colour; it is the travel, linear, not the meter's dB scale.
+straight back up cannot throw the channel to full. The meter carries VOL's setting as a **fader handle** in the
+channel's colour (`vuFaderHandle()` / `paintVuFaderHandle()`): a cap with a groove across it, opaque
+so the bands do not shine through, at least half a fingertip thick because it is grasped rather
+than aimed at. It stands at the travel, linear, not on the meter's dB scale.
 
 **The master is laid out like a channel**: the room's output meters -- sub and speakers -- stand in
 the column on its left, running its whole height, and BTH, MIX, PHN and RET stand beside them in
-the bottom four rows, on the channels' own lines (`masterFaceOrder`, `rowForMasterPot`). Dragging
-the meters is the master volume, one to one like a channel's, with the mark drawn across all of
-them in `textPrimary`; the MST knob is gone. **No double tap there**: full volume on the master is
+the bottom four rows, on the channels' own lines (`masterFaceOrder`, `rowForMasterPot`). The whole column is the master's
+fader: a groove down it with the handle on it in `textPrimary`, dragged one to one like a channel's,
+and the meters stand in its **foot** -- a quarter of the column (`outputBarsOfBlock`), turned a
+quarter themselves (`VuDirection::Right`) so they swing left to right, stacked with the subwoofer
+at the bottom where it stands in the room. The MST knob is gone. **No double tap there**: full volume on the master is
 the one gesture that makes the whole room loud at once. The meters get a column rather than a row
 because there will be more of them than five.
 

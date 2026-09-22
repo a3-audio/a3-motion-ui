@@ -489,10 +489,11 @@ TEST (MixerLayout, TheMastersMetersStandLeftOfItsPotsTheWholeHeight)
   for (auto const &control : layout.master)
     EXPECT_LE (layout.masterMeter.getRight (), control.getX ());
 
-  // As tall as a channel's meter, top to foot.
+  // The master's fader track: the column a channel's meter has, top to foot.
+  // The output bars stand in its foot; the rest is where the handle travels.
   EXPECT_EQ (layout.masterMeter.getY (), layout.channelMeter[0].getY ());
-  EXPECT_NEAR (layout.masterMeter.getBottom (),
-               layout.channelMeter[0].getBottom (), layout.channelMeter[0].getHeight () / 8);
+  EXPECT_EQ (layout.masterMeter.getBottom (),
+             layout.channelMeter[0].getBottom ());
 
   for (auto const &bar : layout.outputMeters)
     EXPECT_TRUE (layout.masterMeter.contains (bar));

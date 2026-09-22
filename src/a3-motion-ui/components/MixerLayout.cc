@@ -403,8 +403,10 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
   auto const meters = outputMeterBlock (masterSplit.meter, metrics);
   out.outputMeters = meters.bars;
   out.outputMeterCaption = meters.caption;
-  for (auto const &bar : meters.bars)
-    out.masterMeter = out.masterMeter.getUnion (bar);
+
+  // The whole column, not just the bars: it is the master's fader, and its
+  // handle travels the length of it with the meters standing in its foot.
+  out.masterMeter = masterSplit.meter;
 
   for (int i = 0; i < numMasterFaceControls; ++i)
     out.master[static_cast<std::size_t> (i)]

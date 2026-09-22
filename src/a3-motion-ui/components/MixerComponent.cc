@@ -418,20 +418,29 @@ MixerComponent::paintMeters (juce::Graphics &g)
     {
       auto const meter = _layout.channelMeter[static_cast<std::size_t> (channel)];
       paintVuMeter (g, meter, _levels.channel (channel, now));
-      paintVuVolumeMark (g, meter,
+      paintVuFaderHandle (g, meter,
                          _state.channelValue (channel, MixerControl::Volume),
                          toColour (theme ().channel[channel]));
     }
 
   for (int meter = 0; meter < numOutputMeters; ++meter)
     paintVuMeter (g, _layout.outputMeters[static_cast<std::size_t> (meter)],
-                  _levels.output (meter, now));
+                  _levels.output (meter, now), VuDirection::Right);
 
-  // The master volume, across all of them: they are one target, and one
-  // setting drives them all.
-  paintVuVolumeMark (g, _layout.masterMeter,
-                     _state.masterValue (MasterControl::Volume),
-                     toColour (theme ().textPrimary));
+  // The master's own fader: a groove down the column with the handle on it,
+  // and the output meters standing in its foot. The groove is drawn rather
+  // than left to the meters, because above them the track would otherwise be
+  // an empty stretch of panel with a cap floating on it.
+  auto const groove = _layout.masterMeter.withSizeKeepingCentre (
+      juce::jmax (juce::roundToInt (theme ().strokeThick * 2.f),
+                  _layout.masterMeter.getWidth () / 8),
+      _layout.masterMeter.getHeight ());
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (groove.toFloat (), theme ().radiusControl);
+
+  paintVuFaderHandle (g, _layout.masterMeter,
+                      _state.masterValue (MasterControl::Volume),
+                      toColour (theme ().textPrimary));
 
   if (!_layout.outputMeterCaption.isEmpty ())
     {
@@ -494,8 +503,7 @@ MixerComponent::paintMasterColumn (juce::Graphics &g)
   auto ground = _layout.master.front ();
   for (auto const &cell : _layout.master)
     ground = ground.getUnion (cell);
-  for (auto const &bar : _layout.outputMeters)
-    ground = ground.getUnion (bar);
+  ground = ground.getUnion (_layout.masterMeter);
   ground = ground.getUnion (_layout.outputMeterCaption);
 
   g.setColour (colour.withAlpha (stripWash));
