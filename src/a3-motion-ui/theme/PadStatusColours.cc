@@ -20,8 +20,6 @@
 
 #include "PadStatusColours.hh"
 
-#include <cmath>
-
 #include <a3-motion-ui/theme/ThemeColours.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
 
@@ -91,22 +89,8 @@ padBaseColour (PadFunction function, bool clipPlaying, bool actionRunning,
   if (function == PadFunction::PlayPause && clipPlaying)
     return padFunctionColour (PadFunction::PlayPause);
   if (function == PadFunction::Action && actionRunning)
-    {
-      auto const highlight = padFunctionColour (PadFunction::Action);
-      return colourDistance (highlight, channel) >= minimumFillDistance
-                 ? highlight
-                 : toColour (theme ().textPrimary);
-    }
+    return toColour (theme ().textPrimary);
   return channel;
-}
-
-float
-colourDistance (juce::Colour a, juce::Colour b)
-{
-  auto const dr = static_cast<float> (a.getRed ()) - b.getRed ();
-  auto const dg = static_cast<float> (a.getGreen ()) - b.getGreen ();
-  auto const db = static_cast<float> (a.getBlue ()) - b.getBlue ();
-  return std::sqrt (dr * dr + dg * dg + db * db);
 }
 
 }

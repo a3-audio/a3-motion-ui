@@ -155,8 +155,10 @@ TEST (PadStatusColours, TheDefaultsAreWhatTheDeviceHasAlwaysShown)
 //
 // Play said "running" by turning `accent`; the Action pad said nothing at all,
 // so a pressed ACT looked like a Play and nobody could tell how long the action
-// was going to last. It wears the accent's own colour for exactly as long as
-// the action runs -- rise, hold and fall -- the way the bar's ACT key does.
+// was going to last. It turns white -- the skin's text colour, its mark black
+// -- for exactly as long as the action runs, on every channel: the
+// maintainer's call on 2026-09-22, after yellow vanished on the yellow channel
+// and a violet fallback for that one channel was a colour too many.
 
 TEST (PadBaseColour, APlayingPlayPadIsTheAccent)
 {
@@ -165,13 +167,18 @@ TEST (PadBaseColour, APlayingPlayPadIsTheAccent)
              padFunctionColour (PadFunction::PlayPause));
 }
 
-TEST (PadBaseColour, AnActionPadIsTheHighlightWhileItsActionRuns)
+TEST (PadBaseColour, AnActionPadIsWhiteOnEveryChannelWhileItsActionRuns)
 {
-  auto const channel = juce::Colour (33, 131, 128);
-  EXPECT_EQ (padBaseColour (PadFunction::Action, true, true, channel),
-             padFunctionColour (PadFunction::Action));
-  EXPECT_EQ (padBaseColour (PadFunction::Action, false, true, channel),
-             padFunctionColour (PadFunction::Action));
+  for (auto const channel :
+       { juce::Colour (216, 17, 89), juce::Colour (69, 78, 158),
+         juce::Colour (247, 208, 2), juce::Colour (33, 131, 128) })
+    {
+      EXPECT_EQ (padBaseColour (PadFunction::Action, true, true, channel),
+                 toColour (theme ().textPrimary))
+          << channel.toDisplayString (false);
+      EXPECT_EQ (padBaseColour (PadFunction::Action, false, true, channel),
+                 toColour (theme ().textPrimary));
+    }
 }
 
 TEST (PadBaseColour, OtherwiseEveryPadWearsItsChannel)
@@ -184,30 +191,4 @@ TEST (PadBaseColour, OtherwiseEveryPadWearsItsChannel)
   EXPECT_EQ (padBaseColour (PadFunction::Stop, true, true, channel), channel);
   EXPECT_EQ (padBaseColour (PadFunction::Settings, true, true, channel),
              channel);
-}
-
-// A channel coloured like the highlight -- yellow on the shipped skins -- lit
-// its Action pad yellow on yellow, and the running action could not be seen.
-// Measured against the maintainer's third channel on 2026-09-22. Where the
-// highlight is too close to the channel the pad lights white instead (the
-// skin's text colour), with a black mark: the maintainer's call, after a
-// violet borrowed from the sphere was one colour too many on the page.
-TEST (PadBaseColour, AnActionPadOnAChannelLikeTheHighlightLightsWhite)
-{
-  auto const yellowChannel = juce::Colour (247, 208, 2);
-  auto const lit = padBaseColour (PadFunction::Action, true, true, yellowChannel);
-  EXPECT_EQ (lit, toColour (theme ().textPrimary));
-}
-
-TEST (PadBaseColour, TheLitActionPadAlwaysStandsOutFromItsChannel)
-{
-  for (auto const channel :
-       { juce::Colour (216, 17, 89), juce::Colour (69, 78, 158),
-         juce::Colour (247, 208, 2), juce::Colour (33, 131, 128),
-         juce::Colour (252, 202, 65), juce::Colour (167, 79, 12) })
-    {
-      auto const lit = padBaseColour (PadFunction::Action, true, true, channel);
-      EXPECT_GE (colourDistance (lit, channel), minimumFillDistance)
-          << channel.toDisplayString (false);
-    }
 }
