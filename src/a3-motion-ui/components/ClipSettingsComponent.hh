@@ -782,6 +782,8 @@ private:
 
   /** Puts a value on the knob that stands for it, if that control is one. */
   void putOnKnob (int section, int sub, double value);
+  /** Tells the knobs which of them is picked out and whose section is live. */
+  void markKnobs ();
 
   static constexpr char const *parameterNames[numParameters] = {
     "Shape", "Elevation", "Motion", "Global",

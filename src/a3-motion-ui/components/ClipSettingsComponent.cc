@@ -572,6 +572,26 @@ ClipSettingsComponent::setLocks (bool shape, bool elevation, bool motion)
 }
 
 void
+ClipSettingsComponent::markKnobs ()
+{
+  // Which knob is picked out and which section is the live one -- the browse
+  // state the encoders move through. It used to be handed to the painter on
+  // every frame; a knob that draws itself has to be told instead.
+  auto const mark = [this] (int section, int subIndex) {
+    auto const s = static_cast<size_t> (section);
+    for (size_t sub = 0; sub < _controlKnob[s].size (); ++sub)
+      if (auto &knob = _controlKnob[s][sub])
+        {
+          knob->setActive (static_cast<int> (sub) == subIndex);
+          knob->setSelected (_selectedIndex == section);
+        }
+  };
+
+  mark (elevationIndex, _elevationSubIndex);
+  mark (motionIndex, _motionSubIndex);
+}
+
+void
 ClipSettingsComponent::putOnKnob (int section, int sub, double value)
 {
   auto const s = static_cast<size_t> (section);
@@ -712,6 +732,7 @@ void
 ClipSettingsComponent::setElevationSubIndex (int subIndex)
 {
   _elevationSubIndex = subIndex;
+  markKnobs ();
   repaint ();
 }
 
@@ -907,6 +928,7 @@ void
 ClipSettingsComponent::setMotionSubIndex (int subIndex)
 {
   _motionSubIndex = subIndex;
+  markKnobs ();
   repaint ();
 }
 
@@ -954,6 +976,7 @@ ClipSettingsComponent::setSelectedParameterIndex (int index)
 {
   jassert (index >= 0 && index < numParameters);
   _selectedIndex = index;
+  markKnobs ();
   repaint ();
 }
 
