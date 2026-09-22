@@ -754,9 +754,6 @@ TEST (VuMeter, TheFaderHandleSpansTheBarAndIsThickEnoughToGrasp)
   EXPECT_EQ (handle.getX (), bar.getX ());
   EXPECT_EQ (handle.getWidth (), bar.getWidth ());
   EXPECT_GT (handle.getHeight (), peak.getHeight ());
-  // Something a finger can take hold of, not a line: a fader cap, like the
-  // pots' knobs are knobs.
-  EXPECT_GE (handle.getHeight (), minimumFaderHandleThickness);
 }
 
 TEST (VuMeter, AVolumeOutsideTheRangeKeepsTheHandleOnTheBar)
@@ -865,15 +862,27 @@ TEST (VuMeter, TheFaderHandleKeepsItsProportionsOnAShortWideMeter)
   EXPECT_TRUE (wide.contains (handle));
 }
 
-// And stays a handle on a long narrow one: the overlay's meter is nearly six
-// hundred pixels tall, where a twelfth of it would be a slab.
-TEST (VuMeter, TheFaderHandleStaysAHandleOnALongMeter)
+// A cap, not a tile, and measured in the travel rather than in pixels: an
+// eighth of the track, on the overlay's long meter and the bar's short one
+// alike.
+TEST (VuMeter, TheFaderHandleIsAnEighthOfItsTrack)
 {
-  auto const tall = juce::Rectangle<int> (0, 0, 46, 590);
-  auto const handle = vuFaderHandle (tall, 0.5f);
+  for (auto const height : { 592, 400, 260, 120 })
+    {
+      auto const track = juce::Rectangle<int> (0, 0, 46, height);
+      EXPECT_NEAR (vuFaderHandle (track, 0.5f).getHeight (), height / 8, 1)
+          << height;
+    }
+}
 
-  EXPECT_LE (handle.getHeight (), fingertipSize);
-  EXPECT_GE (handle.getHeight (), minimumFaderHandleThickness);
+// Flush with the ends: at nothing the cap stands on the foot of the track, at
+// full it touches its head, so the travel covers the whole meter.
+TEST (VuMeter, TheFaderHandleSitsFlushAtBothEnds)
+{
+  auto const track = juce::Rectangle<int> (0, 0, 46, 592);
+
+  EXPECT_EQ (vuFaderHandle (track, 0.f).getBottom (), track.getBottom ());
+  EXPECT_EQ (vuFaderHandle (track, 1.f).getY (), track.getY ());
 }
 
 // The tab's meter is as wide as the overlay's, not twice it: a full column of

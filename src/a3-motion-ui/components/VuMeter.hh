@@ -251,11 +251,6 @@ juce::Rectangle<int> vuFaderHandleAt (juce::Rectangle<int> bounds, int centreY);
  *  wider than the cap is tall. */
 bool vuFaderGrabs (juce::Rectangle<int> handle, juce::Point<int> at);
 
-/** How thin a fader handle may get before a finger cannot take hold of it.
- *  Half a fingertip: it is grasped rather than aimed at, and the meter it
- *  stands on is the target that has to be a fingertip wide. */
-constexpr int minimumFaderHandleThickness = fingertipSize / 2;
-
 /** VOL after a drag on its meter: `atPress` plus the pixels dragged upwards
  *  over the meter's height, held in 0..1. One to one and stepless, so the
  *  mark stays under the finger -- the knobs' 2 % steps made a tall meter move

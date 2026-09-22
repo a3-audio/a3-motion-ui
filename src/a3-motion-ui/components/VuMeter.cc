@@ -48,14 +48,14 @@ constexpr float meterGapOfMeterWidth = 1.f / 5.f;
  *  Floored at a pixel, since a mark that vanished on a short meter would say
  *  "no transient", which is the one thing a meter must not say untruthfully. */
 constexpr float peakMarkOfTrackHeight = 1.f / 64.f;
-/** How tall the fader's handle is: a share of the track it travels, or of the
- *  width it spans, whichever asks for more.
+/** How tall the fader's handle is: a share of the track it travels, and
+ *  nothing else.
  *
- *  The width has a say because a cap is about twice as wide as it is tall, and
- *  the bar's tab has a short wide meter where a twelfth of the track came out
- *  flat -- "im clipmixer ist der faderknob zu gestaucht". */
-constexpr float faderHandleOfTrack = 1.f / 12.f;
-constexpr float faderHandleOfWidth = 1.f / 2.f;
+ *  Relative to the travel rather than to a number of pixels -- "soll relative
+ *  größe zum faderweg haben die kappe" -- so it keeps its proportion on the
+ *  overlay's long meter and the bar's short one alike, and through a skin or
+ *  a screen that changes either. */
+constexpr float faderHandleOfTrack = 1.f / 8.f;
 
 /** The air between two bars of the output block.
  *
@@ -258,20 +258,9 @@ namespace
 int
 faderHandleThickness (juce::Rectangle<int> bounds)
 {
-  auto const wanted = juce::jmax (
-      juce::roundToInt (static_cast<float> (bounds.getHeight ())
-                        * faderHandleOfTrack),
-      juce::roundToInt (static_cast<float> (bounds.getWidth ())
-                        * faderHandleOfWidth));
-
-  // A fingertip is the floor of the ceiling, not the ceiling: on a wide meter
-  // half the width is what keeps the cap from reading as a line, and the
-  // track's own height is the only real limit above that.
-  return juce::jlimit (minimumFaderHandleThickness,
-                       juce::jmax (fingertipSize,
-                                   juce::jmin (bounds.getWidth () / 2,
-                                               bounds.getHeight ())),
-                       wanted);
+  return juce::jlimit (1, juce::jmax (1, bounds.getHeight ()),
+                       juce::roundToInt (static_cast<float> (bounds.getHeight ())
+                                         * faderHandleOfTrack));
 }
 }
 
