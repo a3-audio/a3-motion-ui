@@ -38,6 +38,8 @@
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/components/ElevationSideView.hh>
+#include <a3-motion-ui/components/ClipKnobs.hh>
+#include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/components/TrajectoryIcon.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
@@ -398,6 +400,10 @@ public:
   std::function<void (int section, int sub)> onControlTapped;
   /** A control was dragged, by one increment. Same increment the
    *  Pot-Encoder produces, so both go through one handler. */
+  /** A knob was turned: where it stands now, in the scale ClipKnobs.hh gives
+   *  it. The increments below stay for what is still a field, and for the
+   *  encoders, which count steps. */
+  std::function<void (int section, int sub, double value)> onControlSet;
   std::function<void (int section, int sub, int increment)> onControlDragged;
   /** A two-state control was tapped and wants to be flipped. Its own
    *  callback rather than an increment, because "the other one" is not a
@@ -767,9 +773,15 @@ private:
   void timerCallback () override;
   std::array<std::vector<std::unique_ptr<TouchControl>>, numParameters>
       _controlTouch;
+  /** The knobs that are sliders; empty where a control is still a field. */
+  std::array<std::vector<std::unique_ptr<PotKnob>>, numParameters>
+      _controlKnob;
 
   /** Builds the hit areas once; resized() only moves them afterwards. */
   void createTouchControls ();
+
+  /** Puts a value on the knob that stands for it, if that control is one. */
+  void putOnKnob (int section, int sub, double value);
 
   static constexpr char const *parameterNames[numParameters] = {
     "Shape", "Elevation", "Motion", "Global",

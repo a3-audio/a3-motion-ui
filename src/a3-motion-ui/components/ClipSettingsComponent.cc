@@ -386,8 +386,42 @@ ClipSettingsComponent::createTouchControls ()
   for (int section = 0; section < numParameters; ++section)
     {
       auto const count = numControlsInSection (section);
+      _controlKnob[static_cast<size_t> (section)].resize (
+          static_cast<size_t> (count));
+
       for (int sub = 0; sub < count; ++sub)
         {
+          // The Elevation section's three are knobs of their own: sliders,
+          // drawn by the LookAndFeel as this device's knob (PotKnob). The
+          // rest of the bar still works the way it did -- see ClipKnobs.hh
+          // for why a field that is tapped stays a field.
+          if (section == elevationSection)
+            {
+              auto const spec = elevationKnobSpec (sub);
+
+              auto knob = std::make_unique<PotKnob> ();
+              knob->setLabel (spec.label);
+              knob->setRange (spec.min, spec.max, spec.interval);
+              knob->setFillsFromTheMiddle (spec.bipolar);
+              knob->setWraps (spec.wraps);
+              knob->setDoubleClickReturnValue (true, spec.resetTo);
+              knob->onValueChange = [this, section, sub, k = knob.get ()] {
+                if (onControlSet)
+                  onControlSet (section, sub, k->getValue ());
+              };
+
+              // A press picks the control out, exactly as a hit area did.
+              knob->onDragStart = [this, section, sub] {
+                if (onControlTapped)
+                  onControlTapped (section, sub);
+              };
+
+              addAndMakeVisible (*knob);
+              _controlKnob[static_cast<size_t> (section)]
+                          [static_cast<size_t> (sub)] = std::move (knob);
+              continue;
+            }
+
           auto control = std::make_unique<TouchControl> ();
           control->setIdentity (section, sub);
 
@@ -448,6 +482,10 @@ ClipSettingsComponent::resized ()
       auto const &cells = _layout.controls[s];
       for (size_t sub = 0; sub < _controlTouch[s].size (); ++sub)
         _controlTouch[s][sub]->setBounds (cells[sub]);
+
+      for (size_t sub = 0; sub < _controlKnob[s].size (); ++sub)
+        if (auto &knob = _controlKnob[s][sub])
+          knob->setBounds (cells[sub]);
     }
 
   _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
@@ -525,6 +563,22 @@ ClipSettingsComponent::setLocks (bool shape, bool elevation, bool motion)
 }
 
 void
+ClipSettingsComponent::putOnKnob (int section, int sub, double value)
+{
+  auto const s = static_cast<size_t> (section);
+  if (s >= _controlKnob.size ()
+      || static_cast<size_t> (sub) >= _controlKnob[s].size ())
+    return;
+
+  auto &knob = _controlKnob[s][static_cast<size_t> (sub)];
+
+  // Not while a finger is on it: writing the value back into the knob that is
+  // being turned is the page arguing with the hand.
+  if (knob && !knob->isMouseButtonDown ())
+    knob->setValue (value, juce::dontSendNotification);
+}
+
+void
 ClipSettingsComponent::setClipName (juce::String const &name, bool drifted)
 {
   if (name == _clipName && drifted == _clipDrifted)
@@ -573,6 +627,7 @@ void
 ClipSettingsComponent::setElevationClipTop (float clipTop)
 {
   _elevationClipTop = std::clamp (clipTop, 0.0f, 1.0f);
+  putOnKnob (elevationSection, 1, _elevationClipTop);
   repaint ();
 }
 
@@ -580,6 +635,7 @@ void
 ClipSettingsComponent::setElevationClipBottom (float clipBottom)
 {
   _elevationClipBottom = std::clamp (clipBottom, 0.0f, 1.0f);
+  putOnKnob (elevationSection, 0, _elevationClipBottom);
   repaint ();
 }
 
@@ -733,6 +789,7 @@ ClipSettingsComponent::setSweeps (int spin, int swell, int sway)
   _motionSpin = heldSpin;
   _motionSwell = heldSwell;
   _elevationSway = heldSway;
+  putOnKnob (elevationSection, 2, _elevationSway);
   repaint ();
 }
 
@@ -1964,19 +2021,12 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
   // the one order that has nothing to say for it: the graphic above them is a
   // room seen from the side, and in a room seen from the side the floor is not
   // on the right of the ceiling.
-  paintMiniKnob (g, cells[0], metrics, caption::clipBottom,
-                 _elevationClipBottom * 2.f - 1.f, false,
-                 _elevationSubIndex == 0, isSelected);
-  paintMiniKnob (g, cells[1], metrics, caption::clipTop,
-                 _elevationClipTop * 2.f - 1.f, false, _elevationSubIndex == 1,
-                 isSelected);
+  // The three knobs draw themselves (PotKnob); what is above them is the
+  // page's.
 
-  // The graphic's own slow movement: how fast the line it draws travels, and
-  // towards which pole. Bipolar, like the two sweeps it is a sibling of.
-  paintMiniKnob (g, cells[2], metrics, caption::sway,
-                 static_cast<float> (_elevationSway)
-                     / static_cast<float> (lfoMaxStep),
-                 true, _elevationSubIndex == 2, isSelected);
+  // The graphic's own slow movement -- how fast the line travels and towards
+  // which pole -- is the third of those knobs.
+
 }
 
 void

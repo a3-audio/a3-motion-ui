@@ -873,6 +873,10 @@ private:
    *  was selected last. The encoder path passes the selection it drives. */
   /** Two taps on a knob: back to the middle of its range. */
   void handleClipSettingsReset (index_t channel, int section, int sub);
+  /** Where a knob on the bar stands now -- the Elevation section's three are
+   *  sliders. The increments below stay for the fields and the encoders. */
+  void setClipSettingsValue (index_t channel, int section, int sub,
+                             double value);
   void handleClipSettingsValueChange (index_t channel, int section, int sub,
                                       int increment);
 

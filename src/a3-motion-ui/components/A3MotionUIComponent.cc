@@ -727,6 +727,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                                    increment);
   };
 
+  // A knob on the bar says where it stands; the increments below stay for the
+  // fields and for the encoders, which count steps.
+  _clipSettings->onControlSet = [this] (int section, int sub, double value) {
+    setClipSettingsValue (_clipSettingsChannel, section, sub, value);
+  };
+
   _clipSettings->onControlToggled = [this] (int section, int sub) {
     handleClipSettingsToggle (_clipSettingsChannel, section, sub);
   };
@@ -6767,6 +6773,37 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
   // A reset is a value change like any other, and one that is not written is
   // one the next reload undoes -- which reads as the double tap not having
   // worked at all.
+  scheduleSetSave ();
+}
+
+void
+A3MotionUIComponent::setClipSettingsValue (index_t channel, int section,
+                                           int sub, double value)
+{
+  if (channel != _clipSettingsChannel)
+    return;
+
+  auto &pattern = _patterns[channel][_clipSettingsSlot];
+  if (!pattern)
+    return;
+
+  // Only the Elevation section's three are knobs so far; the rest of the bar
+  // still arrives as increments.
+  if (section != elevationSection)
+    return;
+
+  switch (sub)
+    {
+    case 0: pattern->setClipBottom (static_cast<float> (value)); break;
+    case 1: pattern->setClipTop (static_cast<float> (value)); break;
+    case 2:
+      pattern->setElevationLfo (static_cast<int> (std::lround (value)));
+      break;
+    default: return;
+    }
+
+  refreshPatternDisplayFromTicks (pattern);
+  updateClipSettingsDisplay ();
   scheduleSetSave ();
 }
 
