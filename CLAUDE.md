@@ -1046,7 +1046,16 @@ restart in clean still has a way out; gone since (renamed, deleted), it falls ba
 refreshed in `applyTheme()`, which every way a skin comes into force passes through. `clean.json` is
 a copy of `default.json` with the effect values changed, so the colours stay the same. The tops'
 bolts and the subs' ball lightning have their own Skin Editor headings, **Topspeaker FX**
-(`speakerLight.bolt*`) and **Kickbass FX** (`speakerLight.ball*`); the balls used to land in Other.
+(`speakerLight.bolt*`, `topGlow`) and **Kickbass FX** (`speakerLight.ball*`, `subGlow`); the balls
+used to land in Other.
+
+What clean shows instead of the bolts, found in the smoke test: `beamIntensity` *is* the bolts —
+the band round the sphere is made of them — so at 0.4 it had dimmed the bolts rather than left a
+glow. The only glow there was sat in the horns and ports (`topGlow` 1.7, `subGlow` 0.5, compiled in
+until then), on the baffle — and from overhead the baffle is edge-on, so it was never seen.
+`speakerLight.boxGlow` lights the whole cabinet with its level instead; 0 in every older skin.
+The corona that says which blob is playing is the existing one, `blob.sizeMin..sizeMax` over the
+level; clean raises `sizeMax` so a loud blob's reaches past its body and a silent one's does not.
 
 **`Stop` and `Pause` are two different end actions**, and used to be one under the wrong name. What
 was called Stop stood still wherever the playhead happened to land — that is a pause, and calling it

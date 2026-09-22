@@ -257,6 +257,9 @@ uniform float uFloorBeamInner; // how far in a floor bolt runs
 uniform float uBoxOcclude;     // how far a cabinet hides what is behind it
 uniform float uFloorGrain;     // how fine the floor's own texture is
 uniform float uBallLevel;      // how strongly the subs throw ball lightning
+uniform float uTopGlow;        // how brightly a top's horns glow with its level
+uniform float uSubGlow;        // and a sub's ports
+uniform float uBoxGlow;        // how brightly the whole cabinet glows with it
 uniform float uBallCount;      // balls per sub stack at once
 uniform float uBallRate;       // lives per second
 uniform float uBallReach;      // how far towards the listener a ball gets
@@ -1815,8 +1818,11 @@ vec4 speakerBoxes (vec2 uv, out float depth)
                 body = mix (body, body * 0.24,
                             max (hiMouth, loMouth) * baffle);
 
+                // A skin value since the CLEAN key: with the bolts gone, this
+                // glow is all that says a top is playing, and at the 1.7 it
+                // was written with it could not be seen.
                 body += uSpotColour * (hiThroat + loThroat * 0.7)
-                      * baffle * level * 1.7;
+                      * baffle * level * uTopGlow;
             }
             else
             {
@@ -1854,9 +1860,16 @@ vec4 speakerBoxes (vec2 uv, out float depth)
                 // Dimmer than the tops: the subs are not where the beams
                 // leave from, and lighting them as brightly would put the
                 // loudest-looking thing at the tower's feet.
-                body += uSpotColour * hole * mouth * level * 0.5;
+                body += uSpotColour * hole * mouth * level * uSubGlow;
             }
         }
+
+        // The whole cabinet, every face, glowing with its level. The horns
+        // above light only the baffle, and from overhead -- the view the
+        // device is usually in -- the baffle is edge-on: clean, which has no
+        // bolts to say a speaker is playing, showed nothing at all. Off in
+        // every skin written before it.
+        body += uSpotColour * speakerLevel (i) * uBoxGlow;
 
         // The edges, so a tower stands away from whatever is behind it.
         // Against whichever box was actually hit, or the seam between the two
@@ -2453,6 +2466,9 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBoxOcclude    = glGetUniformLocation (pid, "uBoxOcclude");
   _uFloorGrain    = glGetUniformLocation (pid, "uFloorGrain");
   _uBallLevel     = glGetUniformLocation (pid, "uBallLevel");
+  _uTopGlow       = glGetUniformLocation (pid, "uTopGlow");
+  _uSubGlow       = glGetUniformLocation (pid, "uSubGlow");
+  _uBoxGlow       = glGetUniformLocation (pid, "uBoxGlow");
   _uBallCount     = glGetUniformLocation (pid, "uBallCount");
   _uBallRate      = glGetUniformLocation (pid, "uBallRate");
   _uBallReach     = glGetUniformLocation (pid, "uBallReach");
@@ -2850,6 +2866,9 @@ SphereShader::uploadStackGeometry ()
   if (_uFloorGrain >= 0)
     glUniform1f (_uFloorGrain, _spotCfg.floorGrain);
   if (_uBallLevel >= 0) glUniform1f (_uBallLevel, _spotCfg.ballLevel);
+  if (_uTopGlow >= 0) glUniform1f (_uTopGlow, _spotCfg.topGlow);
+  if (_uSubGlow >= 0) glUniform1f (_uSubGlow, _spotCfg.subGlow);
+  if (_uBoxGlow >= 0) glUniform1f (_uBoxGlow, _spotCfg.boxGlow);
   if (_uBallCount >= 0) glUniform1f (_uBallCount, _spotCfg.ballCount);
   if (_uBallRate >= 0) glUniform1f (_uBallRate, _spotCfg.ballRate);
   if (_uBallReach >= 0) glUniform1f (_uBallReach, _spotCfg.ballReach);

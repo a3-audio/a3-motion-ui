@@ -1162,6 +1162,9 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.sphereLimb = cfgF (config, "sphereLimb", 0.18f);
     sc.floorGrain = cfgF (sl, "floorGrain", 14.f);
     sc.ballLevel = cfgF (sl, "ballLevel", 1.f);
+    sc.topGlow = cfgF (sl, "topGlow", 1.7f);
+    sc.subGlow = cfgF (sl, "subGlow", 0.5f);
+    sc.boxGlow = cfgF (sl, "boxGlow", 0.f);
     sc.ballCount = cfgF (sl, "ballCount", 3.f);
     sc.ballRate = cfgF (sl, "ballRate", 0.32f);
     sc.ballReach = cfgF (sl, "ballReach", 0.72f);

@@ -187,10 +187,22 @@ TEST (SkinGroups, ThePadShadesShareAHeading)
 TEST (SkinGroups, TheTwoSpeakerEffectsHaveHeadingsOfTheirOwn)
 {
   for (auto const *path : { "speakerLight.boltCore", "speakerLight.boltWidth",
-                            "speakerLight.boltCount", "speakerLight.boltRate" })
+                            "speakerLight.boltCount", "speakerLight.boltRate",
+                            "speakerLight.topGlow" })
     EXPECT_EQ (skinGroupFor (path), "Topspeaker FX") << path;
 
   for (auto const *path : { "speakerLight.ballLevel", "speakerLight.ballSize",
-                            "speakerLight.ballCount", "speakerLight.ballReach" })
+                            "speakerLight.ballCount", "speakerLight.ballReach",
+                            "speakerLight.subGlow" })
     EXPECT_EQ (skinGroupFor (path), "Kickbass FX") << path;
+}
+
+// The whole cabinet lighting with its level: what clean has instead of the
+// bolts. Seen from above, the only view the device is usually in, the
+// baffle the horns glow in is edge-on and a front-only glow is invisible.
+// With the beam, because it is the speaker's own light, tops and subs alike.
+TEST (SkinGroups, TheCabinetGlowSitsWithTheBeam)
+{
+  EXPECT_EQ (skinGroupFor ("speakerLight.boxGlow"),
+             skinGroupFor ("speakerLight.beamIntensity"));
 }
