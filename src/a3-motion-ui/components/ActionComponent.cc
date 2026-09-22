@@ -110,6 +110,8 @@ ActionComponent::ActionComponent ()
     // undo what it did.
     if (_listOpen)
       _listOpen = false;
+      if (_scriptTouch)
+        _scriptTouch->setVisible (false);
     else
       openActionList ();
 
@@ -184,7 +186,10 @@ ActionComponent::ActionComponent ()
 
     repaint ();
   };
-  addAndMakeVisible (*_scriptTouch);
+  // Added, not shown: the editor stands in this area and answers touches
+  // itself. This one comes to the front only while the action list lies over
+  // it -- in front of the editor, because it is added after it.
+  addChildComponent (*_scriptTouch);
 
   // Held, not tapped: it stands for the ACT pad, and that pad is held.
   _fireTouch = std::make_unique<TouchControl> ();
@@ -312,7 +317,10 @@ ActionComponent::resized ()
   if (_actionTouch)
     _actionTouch->setBounds (_layout.actionField);
   if (_scriptTouch)
-    _scriptTouch->setBounds (_layout.scriptTextField);
+    {
+      _scriptTouch->setBounds (_layout.scriptTextField);
+      _scriptTouch->setVisible (_listOpen);
+    }
   if (_fireTouch)
     _fireTouch->setBounds (_layout.fireButton);
   if (_saveTouch)
@@ -467,6 +475,8 @@ void
 ActionComponent::openActionList ()
 {
   _listOpen = true;
+  if (_scriptTouch)
+    _scriptTouch->setVisible (true);
 
   // Opened onto whatever is already chosen, moved as little as possible: a
   // list that always opens at the top makes you scroll back to where you were
@@ -480,6 +490,8 @@ void
 ActionComponent::chooseFromActionList (juce::Point<int> point)
 {
   _listOpen = false;
+  if (_scriptTouch)
+    _scriptTouch->setVisible (false);
 
   auto const rowH = juce::jmax (1, _layout.actionListRowHeight);
   auto const inY = point.y

@@ -56,10 +56,14 @@ public:
 
   void mouseDown (juce::MouseEvent const &event) override;
   void mouseDrag (juce::MouseEvent const &event) override;
+  void mouseUp (juce::MouseEvent const &event) override;
   bool keyPressed (juce::KeyPress const &key) override;
 
 private:
   int _dragLine = 0;
+  int _dragColumn = 0;
+  /** Which column the view starts at, as this class has scrolled it. */
+  int _column = 0;
 };
 
 }
