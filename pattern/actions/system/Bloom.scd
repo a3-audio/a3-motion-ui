@@ -30,13 +30,13 @@
 //~end = \loop;          //         \loop \stop \pause \bounce \random
 
 // ---- Accent ----------------------------------------------------------
-~attack = 5;             // 0..6    rise while ACT is held, in bar fractions
-~decay = 5;              // 0..6    fall once ACT is let go
+~attack = 4;             // 0..6    rise while ACT is held, in bar fractions
+~decay = 4;              // 0..6    fall once ACT is let go
 ~envelopeMax = 0.9;      // 0..1    the 3d it rises to
-~freqAttack = 5;         // 0..6    the same for the filter's cutoff
-~freqDecay = 5;          // 0..6
+~freqAttack = 4;         // 0..6    the same for the filter's cutoff
+~freqDecay = 4;          // 0..6
 ~freqMax = 0.9;          // 0..1    0 is off
-//~qAttack = 2;          // 0..6    and for its resonance
-//~qDecay = 3;           // 0..6
-//~qMax = 0;             // 0..1    0 is off
+~qAttack = 3;            // 0..6    and for its resonance
+~qDecay = 3;             // 0..6
+~qMax = 0.8;             // 0..1    0 is off
 ~act = \hold;            //         \oneshot \hold
