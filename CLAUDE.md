@@ -1163,6 +1163,13 @@ The save point is set in the key handler, not by the slot coming back: `setScrip
 on text the document already holds, so a file written with exactly what is on screen would never
 clear the edited edge.
 
+**The list and the editor stand in one area, and exactly one of them is on screen**
+(`updateScriptLayers()`). Drawing the list opaque is not enough and was tried: the editor is a
+child component, a child is painted *after* its parent, and its own ground is `transparentBlack` so
+the darker field behind it can show — so the script was drawn over the list however opaque the list
+made itself, and both were read at once. No `toFront()` helps. This is the mirror image of the trap
+the clip bar's lists carry, and it is what changes the moment a painted layer becomes a child.
+
 Renaming is not here. It is the browser's Rename key on the ACTIONS tab, which also carries every
 slot firing the file across — a second place to type a name would be a second thing to keep in step.
 
