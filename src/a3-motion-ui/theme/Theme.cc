@@ -21,6 +21,7 @@
 #include "Theme.hh"
 
 #include <regex>
+#include <a3-motion-engine/TextFile.hh>
 
 namespace a3
 {
@@ -185,9 +186,7 @@ writeActiveSkin (juce::File const &configFile, juce::String const &name)
   if (after == before)
     return true; // already this skin
 
-  // Explicit "\n": replaceWithText writes CRLF by default, which would
-  // rewrite every line in the file to change one word.
-  return configFile.replaceWithText (juce::String (after), false, false, "\n");
+  return writeTextFile (configFile, juce::String (after));
 }
 
 bool

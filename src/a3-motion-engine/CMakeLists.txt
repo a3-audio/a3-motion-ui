@@ -50,6 +50,8 @@ target_sources("a3-motion-engine" PRIVATE
     ClipSettings.cc
     RecordingName.cc
     SplitFolder.cc
+    TextFile.cc
+    TextFile.hh
     Pattern.cc
     RecordingSpans.cc
     RecordingSeam.cc

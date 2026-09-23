@@ -25,6 +25,7 @@
 #include "TrajectoryShape.hh"
 
 #include <a3-motion-engine/tempo/TempoClock.hh>
+#include <a3-motion-engine/TextFile.hh>
 
 #include <cmath>
 #include <algorithm>
@@ -623,7 +624,7 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
     }
 
   file.getParentDirectory ().createDirectory ();
-  return file.replaceWithText (svg->toString ());
+  return writeTextFile (file, svg->toString ());
 }
 
 // ---------------------------------------------------------------------------
