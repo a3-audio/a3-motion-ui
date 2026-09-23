@@ -1253,6 +1253,19 @@ ClipSettingsComponent::setPage (BarPage page)
     for (auto &control : _controlTouch[static_cast<size_t> (section)])
       control->setVisible (showsClip);
 
+  // The knobs go with them, and this is the half that was forgotten when they
+  // stopped being painted and became juce::Sliders. paint() returns early on
+  // a page that covers the clip area -- but a child is not painted by its
+  // parent, so every knob went on drawing itself, caption and all, straight
+  // through the mixer. Reported from the device as "man sieht die pots im
+  // hintergrund".
+  //
+  // Only the clip's three sections: the global strip stands on every page.
+  for (int section = 0; section < numClipSections; ++section)
+    for (auto &knob : _controlKnob[static_cast<size_t> (section)])
+      if (knob)
+        knob->setVisible (showsClip);
+
   for (int section = 0; section < numClipSections; ++section)
     _sectionTouch[static_cast<size_t> (section)]->setVisible (showsClip);
 
