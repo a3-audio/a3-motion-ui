@@ -465,11 +465,27 @@ like `potSize`, so it is dialled in the Skin Editor rather than compiled in. Not
 is a *layout* change and A3MotionUIComponent is what hands the bar its bounds — that is why its
 `applyTheme()` ends in `resized()`. Telling the bar alone changes nothing.
 
-**The Shape section has two faces**, and `BarPage::Record` is the one that turns the card over. The
-front is the clip as it plays — its picture, the **clip field** naming what is in the slot, four
-speed buttons (`1`, `1/8`, `1/16`, `1/64` on a fresh device), and the **direction and
-end action** under them. Those two came from Motion: what a pass does when it runs out is a property
-of the take, and the take is what this section is about.
+**The Shape section has one face**: the clip as it plays — its picture, the **clip field** naming
+what is in the slot and how long the next take will be, four speed buttons (`1`, `1/8`, `1/16`,
+`1/64` on a fresh device), and the **direction and end action** under them. Those two came from
+Motion: what a pass does when it runs out is a property of the take, and the take is what this
+section is about.
+
+It had a second face until 2026-09-23 — `BarPage::Record`, eight length keys and the `fade` — and
+the REC tab that turned the card over. Asked for at the device: *„das REC Tab im settings soll weg.
+rec nimmt cliplänge auf die gerade in playmode ausgewählt."* A take is now as long as the clip it
+is recorded over (`RecordingLength.hh`), so the keys had nothing left to set; `fade` kept its own
+knob in Motion, and REC records straight away instead of turning a card first.
+
+Three things fell out with it, and they are the argument for the change rather than a side effect:
+the Shape knob stopped meaning two different values depending on which face was up (`rot` on the
+front, `fade` on the back), the picture stopped being drawn twice in two places, and a length that
+used to be set on a page you had to open is now written where the clip is named.
+
+**The picture never needed the page.** It is drawn from the pattern: a library entry gives its SVG,
+and a pattern with no entry — which a fresh take is — gives its ticks. So the take appears in the
+CLIP picture as it is played in, and the timer keeps the bar refreshing while `isRecording()`. The
+record face showed the same picture in a different place.
 
 **The speed keys are tapped and dragged, and what they carry is the performer's.** A tap plays the
 clip at the speed the key carries; a drag on a key gives *that key* another speed, out of the whole
@@ -483,22 +499,9 @@ range holds; the two rows they gave back are what the field stands in. Their nam
 from their values by `speedLog2Name()` — one place where a speed is put into words, since a key
 that can be dragged has to retell itself — and the four values live in `AppSettings`, defaulting to
 what the fixed table carried, because a favourite speed is a working habit like the rec mode rather
-than part of an arrangement a set would rewrite on load. The back is the take you
-are about to make: eight length buttons, the `fade` that closes its join, and the trajectory
-appearing as you play it in, redrawn on the pad-LED tick. Only that one section changes — you are
-still looking at the elevation and the motion the take will get.
-
-`speed` and `fade` left Motion for it: a clip's tempo belongs beside its shape, and a fade belongs
-with the take whose join it closes. That forced the first **renumbering** of a section's sub-indices
-rather than the appending everything else has used — an index kept for a control that is gone is
-worse than a finger relearning where three things are.
-
-A knob sits between the picture and the buttons on both faces, but not at the same height: the front
-has three rows of buttons and the back two, and a knob pinned to one height would leave the shorter
-face a hole where the third row would have been. What holds on both is the order.
-
-Both faces' button rows share the same room, so `setPage()` decides which set may be touched —
-hit areas left behind by the hidden face would answer for buttons nobody can see.
+than part of an arrangement a set would rewrite on load. `speed` left Motion for this section: a clip's tempo belongs beside its shape. That forced the first
+**renumbering** of a section's sub-indices rather than the appending everything else has used — an
+index kept for a control that is gone is worse than a finger relearning where three things are.
 
 **The Shape section stands on its own button grid.** The picture takes three of the four columns the
 buttons use and the knob takes the fourth, measured from the left exactly as the buttons are stepped
@@ -561,9 +564,10 @@ long as the finger is down — live there, and `padIndexFor()` in `PadFunctions.
 tables backwards to find the right pad. Two routes to one function that each keep their own copy of
 what it means will differ eventually, and the difference shows up mid-set.
 
-**Record is a toggle wherever it is pressed** — the panel key, the bar's key, the tab — via
-`toggleRecordPage()`. A key that only ever goes one way leaves you reaching for a different control
-to undo what it did.
+**Record is a toggle wherever it is pressed** — the panel key, the bar's key, the transport key —
+via `toggleRecordingOnShownClip()`. A key that only ever goes one way leaves you reaching for a
+different control to undo what it did. It used to turn the Shape card over first; there is no
+second face to turn to.
 
 **`TransportLook.hh` is the one rule for what the four clip actions look like**: red for record
 and stop, green or red for play/pause depending on whether the clip is running, yellow (`highlight`,

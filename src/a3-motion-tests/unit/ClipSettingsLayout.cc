@@ -283,7 +283,6 @@ TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
       row.push_back (l.channelFaces[ch]);
     }
   row.push_back (l.tabClip);
-  row.push_back (l.tabRecord);
   row.push_back (l.tabAction);
   row.push_back (l.tabController);
   row.push_back (l.tabMixer);
@@ -341,7 +340,6 @@ TEST (ClipSettingsLayout, ATabIsWideEnoughToHit)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_GE (l.tabRecord.getWidth (), fingertipSize);
   EXPECT_GE (l.tabController.getWidth (), fingertipSize);
 }
 
@@ -462,58 +460,32 @@ TEST (ClipSettingsLayout, MotionReadsAsPairsDownTheSection)
     }
 }
 
-// The Shape section has two faces. The front is the clip as it plays -- what
-// shape, how fast, which way round -- and the back is the take you are about
-// to make: how long, how its join is closed, and the trajectory appearing as
-// you play it in. Pressing REC turns the card over, so what you are recording
-// is drawn where what you are playing usually is.
-TEST (ClipSettingsLayout, ShapesTwoFacesUseTheSameRoom)
-{
-  auto const front = defaultLayout ();
-  auto const back = layOutClipSettings (
-      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
-      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
-
-  // The section itself does not move: it is one card showing one side or the
-  // other, not two cards.
-  EXPECT_EQ (front.sectionCards[0], back.sectionCards[0]);
-
-  // Everything else in the bar is untouched -- the record page swaps this one
-  // section and nothing more.
-  for (int section = 1; section < numClipSettingsSections; ++section)
-    EXPECT_EQ (front.sectionCards[static_cast<size_t> (section)],
-               back.sectionCards[static_cast<size_t> (section)]);
-}
-
 // Twelve, because speed runs from a 128th of a bar to sixteen bars and eight
-// buttons cannot say twelve things. They are the section's floor either way,
-// so the bar still reads as one row of buttons across its bottom.
-TEST (ClipSettingsLayout, TheFrontHasFourSpeedsAndTheBackEightLengths)
+// buttons cannot say twelve things. They are the section's floor, so the bar
+// reads as one row of buttons across its bottom.
+//
+// There used to be a second face here with eight length keys on it. A take is
+// as long as the clip it is recorded over now -- see RecordingLength.hh -- so
+// the keys are gone and the section has one face.
+TEST (ClipSettingsLayout, TheShapeSectionHasFourSpeedKeys)
 {
   auto const front = defaultLayout ();
-  auto const back = layOutClipSettings (
-      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
-      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
 
   // Four, not the whole range. The eight rows that went are what the clip
   // field stands in -- see numSpeedButtons.
   EXPECT_EQ (numSpeedButtons, 4);
-  EXPECT_EQ (numRecordLengths, 8);
 
-  auto const used = [] (auto const &buttons, int count) {
-    for (int i = 0; i < count; ++i)
-      {
-        EXPECT_FALSE (buttons[static_cast<size_t> (i)].isEmpty ()) << i;
-        for (int j = i + 1; j < count; ++j)
-          EXPECT_FALSE (buttons[static_cast<size_t> (i)].intersects (
-              buttons[static_cast<size_t> (j)]))
-              << i << " overlaps " << j;
-      }
-  };
-
-  used (front.speedButtons, numSpeedButtons);
-  used (back.lengthButtons, numRecordLengths);
+  for (int i = 0; i < numSpeedButtons; ++i)
+    {
+      EXPECT_FALSE (front.speedButtons[static_cast<size_t> (i)].isEmpty ())
+          << i;
+      for (int j = i + 1; j < numSpeedButtons; ++j)
+        EXPECT_FALSE (front.speedButtons[static_cast<size_t> (i)].intersects (
+            front.speedButtons[static_cast<size_t> (j)]))
+            << i << " overlaps " << j;
+    }
 }
+
 // Menu, Rec and Tap sit in the global strip beside the clip's sections. They
 // are not sub-elements of it — no encoder reaches them, only a finger — so
 // they live beside `controls`, not in it.
@@ -737,67 +709,6 @@ TEST (ClipSettingsLayout, TheGridGetsItsFullKnobAtShippedSizes)
 }
 
 
-// The take's length is eight buttons on the Shape section's floor, two rows
-// of four, reading 1/4 .. 32 in order. It used to be a dropdown offering the
-// whole range from 1/128 to 16 bars.
-TEST (ClipSettingsLayout, TheLengthButtonsSitInTwoRowsInOrder)
-{
-  // On the Shape section's back, which is where the take is described. The
-  // front carries the speeds now.
-  auto const l = layOutClipSettings (
-      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
-      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
-  auto const card = l.sectionCards[0];
-
-  for (int i = 0; i < numRecordLengths; ++i)
-    EXPECT_TRUE (card.contains (l.lengthButtons[static_cast<size_t> (i)]))
-        << "length " << recordLengthLog2[i] << " escapes its section";
-
-  // Four on each row.
-  for (int i = 1; i < 4; ++i)
-    {
-      EXPECT_EQ (l.lengthButtons[static_cast<size_t> (i)].getY (),
-                 l.lengthButtons[0].getY ());
-      EXPECT_GT (l.lengthButtons[static_cast<size_t> (i)].getX (),
-                 l.lengthButtons[static_cast<size_t> (i - 1)].getX ());
-    }
-  for (int i = 5; i < numRecordLengths; ++i)
-    {
-      EXPECT_EQ (l.lengthButtons[static_cast<size_t> (i)].getY (),
-                 l.lengthButtons[4].getY ());
-      EXPECT_GT (l.lengthButtons[static_cast<size_t> (i)].getX (),
-                 l.lengthButtons[static_cast<size_t> (i - 1)].getX ());
-    }
-  EXPECT_GT (l.lengthButtons[4].getY (), l.lengthButtons[0].getY ());
-}
-
-TEST (ClipSettingsLayout, NoTwoLengthButtonsOverlap)
-{
-  auto const l = defaultLayout ();
-
-  for (size_t a = 0; a < numRecordLengths; ++a)
-    for (size_t b = a + 1; b < numRecordLengths; ++b)
-      EXPECT_TRUE (l.lengthButtons[a]
-                       .getIntersection (l.lengthButtons[b])
-                       .isEmpty ())
-          << "lengths " << recordLengthLog2[a] << " and "
-          << recordLengthLog2[b] << " overlap";
-}
-
-// The pictogram keeps the room above them, and they do not run into it.
-TEST (ClipSettingsLayout, TheLengthButtonsClearThePictogram)
-{
-  auto const l = layOutClipSettings (
-      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
-      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
-
-  for (auto const &b : l.lengthButtons)
-    {
-      EXPECT_TRUE (b.getIntersection (l.trajectoryIcon).isEmpty ());
-      EXPECT_GE (b.getY (), l.trajectoryIcon.getBottom ());
-    }
-}
-
 // A key can be dragged anywhere in the range, so every value in it has to
 // arrive on the key as something readable -- including the positive end, which
 // is slower than recorded and was never on a key before. Against a four-beat
@@ -896,19 +807,6 @@ TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
         << "button " << i;
 }
 
-TEST (ClipSettingsLayout, TheLengthNamesMatchTheirPowersOfTwo)
-{
-  // In the ticks the indicator counts: a bar is four of them at four four, so
-  // the eight keys read 1, 2, 4, 8, 16, 32, 64, 128 rather than the bars they
-  // used to name.
-  char const *expected[numRecordLengths]
-      = { "1", "2", "4", "8", "16", "32", "64", "128" };
-
-  for (int i = 0; i < numRecordLengths; ++i)
-    EXPECT_EQ (recordLengthName (recordLengthLog2[i], 4), expected[i])
-        << "length " << i;
-}
-
 // ── The header's transport keys ──────────────────────────────────────────
 
 // They led the header row once, then closed it, and now they have left it
@@ -951,7 +849,7 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
       auto const layout
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
-      for (auto const &tab : { layout.tabClip, layout.tabRecord,
+      for (auto const &tab : { layout.tabClip,
                                layout.tabAction, layout.tabController,
                                layout.tabMixer })
         {
@@ -961,8 +859,7 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
 
       // In reading order, none of them overlapping.
       EXPECT_LE (layout.channelFaces[0].getRight (), layout.tabClip.getX ());
-      EXPECT_LE (layout.tabClip.getRight (), layout.tabRecord.getX ());
-      EXPECT_LE (layout.tabRecord.getRight (), layout.tabAction.getX ());
+      EXPECT_LE (layout.tabClip.getRight (), layout.tabAction.getX ());
       EXPECT_LE (layout.tabAction.getRight (), layout.tabController.getX ());
       EXPECT_LE (layout.tabController.getRight (), layout.tabMixer.getX ());
       EXPECT_LE (layout.tabMixer.getRight (), layout.tabBrowser.getX ());
@@ -980,8 +877,6 @@ TEST (ClipSettingsLayout, ThePictureNamesTheShapeAndTheFieldNamesTheClip)
 {
   auto const front
       = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, BarPage::Clip);
-  auto const back = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f,
-                                        BarPage::Record);
 
   ASSERT_FALSE (front.trajectoryIcon.isEmpty ());
   ASSERT_FALSE (front.clipField.isEmpty ());
@@ -997,17 +892,10 @@ TEST (ClipSettingsLayout, ThePictureNamesTheShapeAndTheFieldNamesTheClip)
   EXPECT_EQ (front.controls[0][2], front.directionButton);
   EXPECT_EQ (front.controls[0][3], front.endActionButton);
 
-  // On the back face there is no field -- which clip is in the slot is not a
-  // question the take you are about to record asks -- and an empty cell is
-  // one nothing can land on.
-  ASSERT_FALSE (back.trajectoryIcon.isEmpty ());
-  EXPECT_TRUE (back.clipField.isEmpty ());
-  EXPECT_EQ (back.trajectoryName, back.trajectoryIcon);
-  ASSERT_EQ (back.controls[0].size (), 4u);
-  EXPECT_TRUE (back.controls[0][1].isEmpty ());
-  EXPECT_TRUE (back.controls[0][2].isEmpty ())
-      << "the take being recorded has no direction key of its own";
-  EXPECT_TRUE (back.controls[0][3].isEmpty ());
+  // The field used to be empty on a second face, where which clip is in the
+  // slot was not a question the take being recorded asked. That face is gone
+  // and the field is always there -- it is where the next take's length is
+  // written now.
 }
 
 // The field is a fingertip tall wherever the bar is, and stands between the
@@ -1040,7 +928,7 @@ TEST (ClipSettingsLayout, ThePictureIsTheBiggestThingInTheSection)
   // buttons go away. What has to hold is that the picture outranks every
   // single thing around it -- which is exactly what failed when it was a strip
   // sharing its box with the name.
-  for (auto const page : { BarPage::Clip, BarPage::Record })
+  for (auto const page : { BarPage::Clip })
     {
       auto const layout
           = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
@@ -1098,7 +986,7 @@ TEST (ClipSettingsLayout, TheFourTransportKeysAreFourDifferentPads)
 }
 TEST (ClipSettingsLayout, TheClipFacesStillHaveTheirTransportKeys)
 {
-  for (auto const page : { BarPage::Clip, BarPage::Record })
+  for (auto const page : { BarPage::Clip })
     {
       auto const layout
           = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
@@ -1235,14 +1123,13 @@ TEST (ClipSettingsLayout, MotionStandsBeforeElevation)
 // that lines up exactly reads as structure.
 TEST (ClipSettingsLayout, ThePictureStandsOnTheButtonGrid)
 {
-  for (auto const page : { BarPage::Clip, BarPage::Record })
+  for (auto const page : { BarPage::Clip })
     {
       auto const l = layOutClipSettings (
           grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
           defaultHeaderSize, defaultBodySize, defaultPotSize, page);
 
-      auto const &button = page == BarPage::Record ? l.lengthButtons[0]
-                                                   : l.speedButtons[0];
+      auto const &button = l.speedButtons[0];
       ASSERT_FALSE (l.trajectoryIcon.isEmpty ());
       ASSERT_FALSE (button.isEmpty ());
 
@@ -1275,15 +1162,13 @@ TEST (ClipSettingsLayout, TheFadeIsAMotionValueNow)
 // quarter of the section was empty air beside the one thing worth looking at.
 TEST (ClipSettingsLayout, ThePictureTakesTheWholeWidth)
 {
-  for (auto const page : { BarPage::Clip, BarPage::Record })
+  for (auto const page : { BarPage::Clip })
     {
       auto const l = layOutClipSettings (
           grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
           defaultHeaderSize, defaultBodySize, defaultPotSize, page);
 
-      auto const &last = page == BarPage::Record
-                             ? l.lengthButtons[numRecordLengths - 1]
-                             : l.speedButtons[numSpeedButtons - 1];
+      auto const &last = l.speedButtons[numSpeedButtons - 1];
 
       // Out to the right edge of the button grid, not three columns of four.
       EXPECT_GE (l.trajectoryIcon.getRight (), last.getRight ())
@@ -1297,21 +1182,17 @@ TEST (ClipSettingsLayout, ThePictureTakesTheWholeWidth)
 TEST (ClipSettingsLayout, EveryButtonRowIsTheSameHeight)
 {
   for (int height : { 160, 200, 250, 314, 400 })
-    for (auto const page : { BarPage::Clip, BarPage::Record })
+    for (auto const page : { BarPage::Clip })
       {
         auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f,
                                            1.f, page);
 
-        auto const count
-            = page == BarPage::Record ? numRecordLengths : numSpeedButtons;
-        auto const &buttons0 = page == BarPage::Record ? l.lengthButtons[0]
-                                                       : l.speedButtons[0];
+        auto const count = numSpeedButtons;
+        auto const &buttons0 = l.speedButtons[0];
 
         for (int i = 1; i < count; ++i)
           {
-            auto const &b = page == BarPage::Record
-                                ? l.lengthButtons[static_cast<size_t> (i)]
-                                : l.speedButtons[static_cast<size_t> (i)];
+            auto const &b = l.speedButtons[static_cast<size_t> (i)];
             EXPECT_EQ (b.getHeight (), buttons0.getHeight ())
                 << "button " << i << " at height " << height;
           }
@@ -1504,12 +1385,12 @@ TEST (ClipSettingsLayout, TheClipTabStandsAtTheHeadOfTheViews)
 
   ASSERT_FALSE (l.tabClip.isEmpty ());
   EXPECT_GT (l.tabClip.getX (), l.channelFaces[numChannelColumns - 1].getRight ());
-  EXPECT_LT (l.tabClip.getRight (), l.tabRecord.getX () + 1);
+  EXPECT_LT (l.tabClip.getRight (), l.tabAction.getX () + 1);
 
   EXPECT_GE (l.tabClip.getWidth (), fingertipSize);
-  EXPECT_EQ (l.tabClip.getWidth (), l.tabRecord.getWidth ());
-  EXPECT_EQ (l.tabClip.getY (), l.tabRecord.getY ());
-  EXPECT_EQ (l.tabClip.getHeight (), l.tabRecord.getHeight ());
+  EXPECT_EQ (l.tabClip.getWidth (), l.tabAction.getWidth ());
+  EXPECT_EQ (l.tabClip.getY (), l.tabAction.getY ());
+  EXPECT_EQ (l.tabClip.getHeight (), l.tabAction.getHeight ());
 
   EXPECT_TRUE (l.slotButtons[0].isEmpty ())
       << "the shared slot keys moved into the channel faces";
@@ -1558,7 +1439,7 @@ TEST (ClipSettingsLayout, TheFolderClosesTheRow)
   // Still inside the clip part, and the same key as every other in the row
   // -- see TheHeaderKeysAreAllOneSize.
   EXPECT_TRUE (l.clipBounds.contains (l.tabBrowser));
-  EXPECT_EQ (l.tabBrowser.getWidth (), l.tabRecord.getWidth ());
+  EXPECT_EQ (l.tabBrowser.getWidth (), l.tabAction.getWidth ());
 }
 
 // And the three remaining views keep their place between the faces and the
@@ -1568,8 +1449,7 @@ TEST (ClipSettingsLayout, TheThreeViewsStandBetweenThem)
   auto const l = defaultLayout ();
 
   EXPECT_GT (l.tabClip.getX (), l.channelFaces[numChannelColumns - 1].getX ());
-  EXPECT_GT (l.tabRecord.getX (), l.tabClip.getX ());
-  EXPECT_GT (l.tabAction.getX (), l.tabRecord.getX ());
+  EXPECT_GT (l.tabAction.getX (), l.tabClip.getX ());
   EXPECT_GT (l.tabController.getX (), l.tabAction.getX ());
   EXPECT_GT (l.tabMixer.getX (), l.tabController.getX ());
 }
@@ -1579,7 +1459,7 @@ TEST (ClipSettingsLayout, TheThreeViewsStandBetweenThem)
 // channel is on is answered without leaving where you are.
 TEST (ClipSettingsLayout, EveryChannelHasAFaceOnEveryPage)
 {
-  for (auto const page : { BarPage::Clip, BarPage::Record,
+  for (auto const page : { BarPage::Clip,
                            BarPage::Controller })
     {
       auto const l
@@ -1615,7 +1495,7 @@ TEST (ClipSettingsLayout, TheHeaderHasTwoKindsOfKeyAndEachIsOneSize)
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
       std::vector<juce::Rectangle<int> > views{
-        l.tabClip,  l.tabRecord, l.tabAction,
+        l.tabClip,  l.tabAction,
         l.tabController, l.tabMixer, l.tabBrowser
       };
 
@@ -1724,7 +1604,7 @@ TEST (ClipSettingsLayout, TheGridAndTheTransportHaveTheirOwnFrames)
 // are on every page, and the band above the strip is empty.
 TEST (ClipSettingsLayout, TheTransportIsOneRowOfEqualKeysOnEveryPage)
 {
-  for (auto const page : { BarPage::Clip, BarPage::Record,
+  for (auto const page : { BarPage::Clip,
                            BarPage::Controller, BarPage::Browser })
     {
       auto const l
@@ -1842,19 +1722,23 @@ TEST (SpeedKeyName, NoTakeMeansNoNumber)
   EXPECT_EQ (speedKeyName (0, 0.f), "--");
 }
 
-// The record length is not a ratio: it is the take being made, and it has
-// always been a count of bars. Times the beats in a bar, so it is read in the
-// same ticks as everything else -- and from the clock rather than from a 4
-// written here, or it would be wrong in three four.
-TEST (RecordLengthName, BarsAreShownAsTheBeatsTheyHold)
+// The next take's length is not a ratio: it is the take being made, and it is
+// read in the same ticks as everything else in the bar. beatsName() is what
+// writes it into the clip field now -- recordLengthName() went with the eight
+// keys, but what it spelled is still spelled here.
+TEST (BeatsName, ALengthIsShownAsTheBeatsItHolds)
 {
-  EXPECT_EQ (recordLengthName (0, 4), "4");
-  EXPECT_EQ (recordLengthName (2, 4), "16");
-  EXPECT_EQ (recordLengthName (-2, 4), "1");
-  EXPECT_EQ (recordLengthName (5, 4), "128");
+  EXPECT_EQ (beatsName (4.f), "4");
+  EXPECT_EQ (beatsName (16.f), "16");
+  EXPECT_EQ (beatsName (1.f), "1");
+  EXPECT_EQ (beatsName (128.f), "128");
 
-  EXPECT_EQ (recordLengthName (0, 3), "3");
-  EXPECT_EQ (recordLengthName (-2, 3), "3/4");
+  // Three four, and a quarter of a bar in it.
+  EXPECT_EQ (beatsName (3.f), "3");
+  EXPECT_EQ (beatsName (0.75f), "3/4");
+
+  // Nothing to say is said as nothing.
+  EXPECT_EQ (beatsName (0.f), "--");
 }
 
 // ── Where the hand is after a row is thrown away ─────────────────────────────

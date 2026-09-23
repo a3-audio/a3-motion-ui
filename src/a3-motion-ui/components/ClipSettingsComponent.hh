@@ -287,17 +287,20 @@ public:
 
   /** The length the next take will have, already worded ("2", "1/4"), and
    *  which of the shape section's two elements is armed. */
-  /** Which record length is chosen, as its power of two of a bar.
-   *
-   *  The value, not the word: the key used to be found by comparing the label
-   *  it was given against the label it draws, so the two had to spell the same
-   *  length the same way forever. Renaming lengths from bars to beats broke
-   *  exactly that. */
-  void setRecordLength (int recordLengthLog2);
 
   /** The take in the shown slot, in beats -- what the speed keys are a ratio
    *  of, and therefore what they have to be named from. */
   void setPatternLengthBeats (float beats);
+
+  /** How long the next take into this slot will be, in beats.
+   *
+   *  Worked out where both its inputs are -- see recordingLengthBeats() --
+   *  and handed over as one number, so the bar does not carry a second copy
+   *  of a rule it would then have to be kept in step with. Written in the
+   *  clip field beside the clip's name: the eight length keys are gone with
+   *  the REC tab, and a length you cannot see before you press REC is one you
+   *  find out about afterwards. */
+  void setNextTakeLengthBeats (float beats);
 
   /** How many beats a bar holds, for the record lengths. From the clock, so
    *  they are right in three four as well. */
@@ -435,9 +438,6 @@ public:
    *  has its own keys for — this is the way to them with a finger. */
   /** The rec mode steps on — what its encoder used to do. */
   std::function<void ()> onRecModePressed;
-  /** One of the seven length buttons was pressed, by its index in
-   *  recordLengthLog2. */
-  std::function<void (int index)> onRecordLengthChosen;
   /** One of the four speed keys was tapped: play the clip at the speed that
    *  key carries. */
   std::function<void (int index)> onSpeedChosen;
@@ -703,8 +703,8 @@ private:
   /** Which speed key a finger is on, or noSpeedKeyDragged. Only the drag
    *  needs it — see speedKeyIsActive(), which is where it is read. */
   int _speedDragIndex = noSpeedKeyDragged;
-  int _recordLengthLog2 = 0;
   float _patternLengthBeats = 0.f;
+  float _nextTakeLengthBeats = 0.f;
   int _beatsPerBar = 4;
   std::array<float, numChannelColumns> _channelFreq{};
   std::array<float, numChannelColumns> _channelFreqReach{};
@@ -746,7 +746,6 @@ private:
   std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;
   std::unique_ptr<TouchControl> _tabBrowserTouch;
   std::unique_ptr<TouchControl> _tabClipTouch;
-  std::unique_ptr<TouchControl> _tabRecordTouch;
   std::unique_ptr<TouchControl> _tabActionTouch;
   std::unique_ptr<TouchControl> _tabControllerTouch;
   std::unique_ptr<TouchControl> _tabMixerTouch;
@@ -754,7 +753,6 @@ private:
   std::array<std::array<std::unique_ptr<TouchControl>, numChannelRows>,
              numChannelColumns>
       _gridTouch;
-  std::array<std::unique_ptr<TouchControl>, numRecordLengths> _lengthTouch;
   std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
 
   std::unique_ptr<TouchControl> _recModeTouch;

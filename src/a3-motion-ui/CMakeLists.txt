@@ -67,6 +67,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/BarButton.cc
     components/BarButton.hh
     components/ClipSettingsLayout.cc
+    components/RecordingLength.cc
+    components/RecordingLength.hh
     components/BrowserComponent.cc
     components/BrowserLayout.cc
     components/ControllerLayout.cc

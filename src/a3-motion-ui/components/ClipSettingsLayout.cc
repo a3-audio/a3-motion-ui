@@ -89,12 +89,6 @@ selectionAfterRemoving (int row, int remaining)
   return std::clamp (row, 0, remaining - 1);
 }
 
-juce::String
-recordLengthName (int recordLengthLog2, int beatsPerBar)
-{
-  return beatsName (std::exp2 (static_cast<float> (recordLengthLog2))
-                    * static_cast<float> (beatsPerBar));
-}
 
 int
 draggedSpeedLog2 (int speedLog2, int increment)
@@ -391,9 +385,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // The clip's own view leads the row: it is the one the other two are
   // variations on, and the faces beside it have just said whose clip.
   out.tabClip = takeView ();
-  out.tabRecord = takeView ();
-  // Between REC and PADS: ACTION is another way of looking at the clip, and
-  // PADS is the view that is about something else.
+  // Next to CLIP: ACTION is another way of looking at the clip, and PADS is
+  // the view that is about something else.
   out.tabAction = takeView ();
   out.tabController = takeView ();
 
@@ -489,7 +482,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // appearing as you play it in. The card does not move between them: it is
   // one section showing one side or the other.
   {
-    auto const recording = page == BarPage::Record;
 
     auto content = sectionContentBounds (out.sectionCards[0]);
     {
@@ -533,14 +525,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // and the picture keeps its own name over it. Two names because they are
     // two things, and the two controls under a finger here change one each:
     // the picture swaps the figure, the field swaps the values.
-    if (!recording)
-      {
-        auto const fieldH = juce::jmin (content.getHeight (),
-                                        juce::jmax (fingertipSize,
-                                                    out.buttonHeight));
-        out.clipField = content.removeFromBottom (fieldH);
-        content.removeFromBottom (gap);
-      }
+    {
+      auto const fieldH
+          = juce::jmin (content.getHeight (),
+                        juce::jmax (fingertipSize, out.buttonHeight));
+      out.clipField = content.removeFromBottom (fieldH);
+      content.removeFromBottom (gap);
+    }
 
     // The name lies over the picture rather than under it. As a caption it
     // cost the picture a whole row and told you something you mostly already
@@ -564,11 +555,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         row.removeFromLeft (colGap);
       };
 
-      if (recording)
-        for (int i = 0; i < numRecordLengths; ++i)
-          place (i, out.lengthButtons[static_cast<size_t> (i)]);
-      else
-        {
+      {
           for (int i = 0; i < numSpeedButtons; ++i)
             place (i, out.speedButtons[static_cast<size_t> (i)]);
 
