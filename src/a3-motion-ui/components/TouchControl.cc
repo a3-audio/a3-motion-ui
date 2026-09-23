@@ -94,6 +94,8 @@ TouchControl::mouseDrag (juce::MouseEvent const &event)
 
   if (onDragTo)
     onDragTo (_primary, _secondary, event.getPosition ());
+  if (onDragBy)
+    onDragBy (_primary, _secondary, event.getOffsetFromDragStart ());
 
   // JUCE's y grows downwards; a finger going up means more.
   auto const pending = _drag.stepsFor (-event.getDistanceFromDragStartY ());
@@ -130,32 +132,16 @@ TouchControl::mouseUp (juce::MouseEvent const &event)
 
   if (!_drag.hasMoved ())
     {
-      // A finger is not a mouse: the second tap of a pair lands a few pixels
-      // from the first, so the window is in time and in distance rather than
-      // in JUCE's mouse-sized tolerance.
-      constexpr int doubleTapMs = 400;
-      constexpr int doubleTapSlopPx = 24;
-
-      auto const now = juce::Time::currentTimeMillis ();
       auto const here = getMouseXYRelative ();
-      auto const quick = now - _lastTapMs < doubleTapMs;
-      auto const near = here.getDistanceFrom (_lastTapPos) < doubleTapSlopPx;
 
-      if (_lastTapMs != 0 && quick && near && onDoubleTap)
-        {
-          // Instead of the second tap, not as well as it: a double tap that
-          // also stepped the value would undo half of what it was asked for.
-          _lastTapMs = 0;
-          onDoubleTap (_primary, _secondary);
-          return;
-        }
-
-      _lastTapMs = now;
-      _lastTapPos = here;
+      // Held across the first callback: a tap can close the page this control
+      // stands on -- a menu row opens another list, the skin editor swaps its
+      // rows -- and this object goes with it.
+      juce::Component::SafePointer<TouchControl> alive{ this };
 
       if (onTap)
         onTap (_primary, _secondary);
-      if (onTapAt)
+      if (alive != nullptr && onTapAt)
         onTapAt (_primary, _secondary, here);
       return;
     }
@@ -183,6 +169,17 @@ TouchControl::pixelsPerStep () const
   // A list sets its row height, so the page follows the finger rather than
   // running ahead of it; everything else keeps the skin's step.
   return _pixelsPerStep > 0 ? _pixelsPerStep : theme ().touchDragPixelsPerStep;
+}
+
+
+void
+TouchControl::mouseDoubleClick (juce::MouseEvent const &)
+{
+  // JUCE's own: 400 ms between the two, and 25 px apart for a touch where a
+  // mouse gets 8 (MouseInputSource). We used to count this out ourselves,
+  // believing the tolerance was a mouse's -- it is not, for a finger.
+  if (onDoubleTap)
+    onDoubleTap (_primary, _secondary);
 }
 
 }

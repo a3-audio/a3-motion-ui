@@ -320,11 +320,54 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _mixerStrip->onChannelDragged = channelDragged;
   _mixerStrip->onChannelTapped = channelTapped;
   _mixerStrip->onChannelDoubleTapped = channelDoubleTapped;
+
+  // Two taps on a meter: that channel at full volume.
+  auto const meterDoubleTapped = [this, repaintMixers] (int channel) {
+    _mixerState.setChannelFromTouch (channel, MixerControl::Volume, 1.f);
+    repaintMixers ();
+  };
+  _mixer->onMeterDoubleTapped = meterDoubleTapped;
+  _mixerStrip->onMeterDoubleTapped = meterDoubleTapped;
+
+  // A drag on a meter: VOL where the finger has taken it, one to one. Only
+  // the meters are redrawn, on both pages: the handle stays inside its own
+  // meter, and repainting the whole overlay for every pixel of a drag is what
+  // made the long faders feel like they were catching.
+  auto const meterDraggedTo = [this] (int channel, float value) {
+    _mixerState.setChannelFromTouch (channel, MixerControl::Volume, value);
+    _mixer->syncControls ();
+    _mixerStrip->syncControls ();
+  };
+  _mixer->onMeterDraggedTo = meterDraggedTo;
+  _mixerStrip->onMeterDraggedTo = meterDraggedTo;
   _mixer->onMasterDragged = [this, mixerStep] (MasterControl control,
                                                int steps) {
     _mixerState.setMasterFromTouch (
         control, _mixerState.masterValue (control) + mixerStep (steps));
     _mixer->repaint ();
+  };
+  // A knob was turned: the slider owns the value, the state is told where it
+  // landed. No steps to add up any more.
+  _mixerStrip->onChannelValueChanged
+      = [this] (int channel, MixerControl control, float value) {
+          _mixerState.setChannelFromTouch (channel, control, value);
+          _mixer->syncControls ();
+        };
+  _mixer->onChannelValueChanged
+      = [this] (int channel, MixerControl control, float value) {
+          _mixerState.setChannelFromTouch (channel, control, value);
+          _mixerStrip->syncControls ();
+        };
+  _mixer->onMasterValueChanged = [this] (MasterControl control, float value) {
+    _mixerState.setMasterFromTouch (control, value);
+  };
+  _mixer->onFilterValueChanged = [this] (FilterControl control, float value) {
+    _mixerState.setFilterFromTouch (control, value);
+  };
+
+  _mixer->onMasterMeterDraggedTo = [this] (float value) {
+    _mixerState.setMasterFromTouch (MasterControl::Volume, value);
+    _mixer->syncControls ();
   };
   _mixer->onFilterDragged = [this, mixerStep] (FilterControl control,
                                                int steps) {
@@ -684,6 +727,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                                    increment);
   };
 
+  // A knob on the bar says where it stands; the increments below stay for the
+  // fields and for the encoders, which count steps.
+  _clipSettings->onControlSet = [this] (int section, int sub, double value) {
+    setClipSettingsValue (_clipSettingsChannel, section, sub, value);
+  };
+
   _clipSettings->onControlToggled = [this] (int section, int sub) {
     handleClipSettingsToggle (_clipSettingsChannel, section, sub);
   };
@@ -742,6 +791,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _action->onControlDragged = [this] (int control, int increment) {
     applyActionControl (control, increment);
   };
+  // A knob says where it stands; the page counts nothing. Two taps are the
+  // slider's own (setDoubleClickReturnValue), and they arrive here the same
+  // way as a turn.
+  _action->onControlSet = [this] (int control, double value) {
+    setActionControl (control, value);
+  };
   _action->onControlDoubleTapped = [this] (int control) {
     resetActionControl (control);
   };
@@ -788,6 +843,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     setSlotAction (_clipSettingsChannel, _clipSettingsSlot,
                    _slotAction[_clipSettingsChannel][_clipSettingsSlot].file);
   };
+
+  _action->onScriptSavedAs = [this] { saveSlotActionScriptAs (); };
 
   // Cancel puts the file's own text back, which is what the slot still holds.
   _action->onScriptCancelled = [this] {
@@ -2952,6 +3009,47 @@ A3MotionUIComponent::writeSlotActionScript ()
   // it on every character would have half-typed lines setting values.
 }
 
+juce::String
+A3MotionUIComponent::saveSlotActionScriptAs ()
+{
+  if (!_action)
+    return {};
+
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto const from = _slotAction[channel][slot].file;
+
+  actionsDir ().createDirectory ();
+
+  // Named after the one it came from -- "Bloom 2" beside "Bloom" -- because
+  // this is how one of the instrument's own gets corrected: Save is dark on
+  // it, so what is kept is a copy, and a copy arriving as "Action 4" would
+  // have lost the only thing saying where it came from. Counted against both
+  // halves, or a new file would take a shipped name.
+  auto const base = from.existsAsFile ()
+                        ? from.getFileNameWithoutExtension ()
+                        : juce::String{ "Action" };
+  auto const name = freeNameIn (actionsDir (), base, ".scd");
+  auto const file = newFileIn (actionsDir (), name, ".scd");
+
+  if (!file.replaceWithText (_action->script ()))
+    {
+      std::cerr << "could not write action " << file.getFullPathName ()
+                << std::endl;
+      updateControlReadout ("-- SAVE FAILED");
+      return {};
+    }
+
+  // The slot fires the copy from here on. The alternative -- write the file
+  // and leave the slot on the original -- is a Save you have to go and find
+  // afterwards, and on a shipped script it would leave the page still
+  // refusing to save.
+  setSlotAction (channel, slot, file);
+  updateControlReadout ("-- SAVED " + name.toUpperCase ());
+  refreshBrowser ();
+  return name;
+}
+
 void
 A3MotionUIComponent::setSlotAction (index_t channel, index_t slot,
                                     juce::File const &file)
@@ -4174,6 +4272,11 @@ A3MotionUIComponent::updateActionPage ()
   _action->setActionName (action.existsAsFile ()
                               ? action.getFileNameWithoutExtension ()
                               : juce::String{});
+
+  // Save is dark on one of the instrument's own; Save as is the way to keep a
+  // change to it. Asked of the file rather than remembered, because a slot's
+  // action changes from half a dozen places and one of them would forget.
+  _action->setScriptIsShipped (isSystemFileIn (actionsDir (), action));
 }
 
 void
@@ -4230,6 +4333,36 @@ A3MotionUIComponent::applyActionControl (int control, int increment)
       break;
     default:
       return;
+    }
+
+  updateActionPage ();
+  updateControlReadout (actionReadoutFor (control, *pattern));
+}
+
+void
+A3MotionUIComponent::setActionControl (int control, double value)
+{
+  auto const channel = _clipSettingsChannel;
+  auto const slot = _clipSettingsSlot;
+  auto &pattern = _patterns[channel][slot];
+  if (!pattern)
+    return;
+
+  auto const step = static_cast<int> (std::lround (value));
+  auto const level = static_cast<float> (value);
+
+  switch (control)
+    {
+    case ActionComponent::Attack:      pattern->setEnvelopeAttack (step); break;
+    case ActionComponent::Decay:       pattern->setEnvelopeDecay (step); break;
+    case ActionComponent::EnvelopeMax: pattern->setEnvelopeMax (level); break;
+    case ActionComponent::FreqAttack:  pattern->setFreqAttack (step); break;
+    case ActionComponent::FreqDecay:   pattern->setFreqDecay (step); break;
+    case ActionComponent::FreqMax:     pattern->setFreqMax (level); break;
+    case ActionComponent::QAttack:     pattern->setQAttack (step); break;
+    case ActionComponent::QDecay:      pattern->setQDecay (step); break;
+    case ActionComponent::QMax:        pattern->setQMax (level); break;
+    default:                           return;
     }
 
   updateActionPage ();
@@ -6688,6 +6821,53 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
   // A reset is a value change like any other, and one that is not written is
   // one the next reload undoes -- which reads as the double tap not having
   // worked at all.
+  scheduleSetSave ();
+}
+
+void
+A3MotionUIComponent::setClipSettingsValue (index_t channel, int section,
+                                           int sub, double value)
+{
+  if (channel != _clipSettingsChannel)
+    return;
+
+  auto &pattern = _patterns[channel][_clipSettingsSlot];
+  if (!pattern)
+    return;
+
+  auto const level = static_cast<float> (value);
+  auto const step = static_cast<int> (std::lround (value));
+
+  // The Elevation and Motion sections are knobs; what is still a field on
+  // this bar arrives as an increment, and so do the encoders.
+  if (section == elevationSection)
+    switch (sub)
+      {
+      case 0: pattern->setClipBottom (level); break;
+      case 1: pattern->setClipTop (level); break;
+      case 2: pattern->setElevationLfo (step); break;
+      default: return;
+      }
+  else if (section == motionSection)
+    switch (sub)
+      {
+      case 0: pattern->setRotate (level); break;
+      case 1: pattern->setSpin (step); break;
+      case 2: pattern->setReach (level); break;
+      case 3: pattern->setReachLfo (step); break;
+      case 4: pattern->setSqueezeX (level); break;
+      case 5: pattern->setSqueezeXLfo (step); break;
+      case 6: pattern->setSqueezeY (level); break;
+      case 7: pattern->setSqueezeYLfo (step); break;
+      case 8: pattern->setFadeReach (level); break;
+      case 9: pattern->setBridgeBias (step); break;
+      default: return;
+      }
+  else
+    return;
+
+  refreshPatternDisplayFromTicks (pattern);
+  updateClipSettingsDisplay ();
   scheduleSetSave ();
 }
 

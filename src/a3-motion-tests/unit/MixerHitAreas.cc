@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-ui/components/MixerComponent.hh>
+#include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/components/MixerStripComponent.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
@@ -28,15 +29,29 @@ using namespace a3;
 
 namespace
 {
-// Every child of these two is a TouchControl -- they draw everything
-// themselves and add nothing else -- so counting the visible ones counts the
-// live hit areas.
+// What is left with a hit area of its own: the keys. Everything that is
+// turned is a slider now (PotKnob, VuFader), and a slider answers for itself.
+int
+keysPerChannel ()
+{
+  auto keys = 0;
+  for (auto const control : mixerFaceOrder)
+    keys += mixerControlIsAToggle (control) ? 1 : 0;
+  return keys;
+}
+
+// The pages' children are their TouchControls and their faders; the faders
+// are JUCE sliders and answer for themselves, so what is counted here is the
+// hit areas the page puts on its own controls.
 int
 liveHitAreas (juce::Component const &component)
 {
   auto live = 0;
   for (auto *child : component.getChildren ())
-    live += child->isVisible () ? 1 : 0;
+    live += (child->isVisible ()
+             && dynamic_cast<TouchControl const *> (child) != nullptr)
+                ? 1
+                : 0;
   return live;
 }
 
@@ -74,9 +89,9 @@ TEST (MixerHitAreas, TheOverlayTakesThemAgainOnceItFits)
 
   mixer.setBounds (0, 0, roomy, roomy);
 
-  EXPECT_EQ (liveHitAreas (mixer), numChannelsInitial * numMixerControls
-                                       + numMasterControls
-                                       + numFilterControls);
+  // The channels' keys and the filter's mode key; the master is all knobs.
+  EXPECT_EQ (liveHitAreas (mixer),
+             numChannelsInitial * keysPerChannel () + 1);
 }
 
 // The tab in the settings bar is the same page in a different shape, and it
@@ -102,5 +117,5 @@ TEST (MixerHitAreas, TheStripTakesThemAgainOnceItFits)
 
   strip.setBounds (0, 0, roomy, roomy / 4);
 
-  EXPECT_EQ (liveHitAreas (strip), numMixerControls);
+  EXPECT_EQ (liveHitAreas (strip), keysPerChannel ());
 }

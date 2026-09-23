@@ -62,6 +62,42 @@ public:
   juce::Font getPopupMenuFont () override;
   juce::Font getTextButtonFont (juce::TextButton &button,
                                 int buttonHeight) override;
+
+  /** The faders over the VU meters: a capped, grooved handle instead of
+   *  JUCE's dot on a line, and no track of its own -- the meter behind it is
+   *  the track. Drawn here rather than in the component so a slider is
+   *  coloured the way any JUCE slider is, through `thumbColourId`. */
+  /** How thick our cap is, in JUCE's terms.
+   *
+   *  A slider lays its travel over the track *less its thumb*, so a thumb it
+   *  thinks is seven pixels while the drawn cap is thirty-four puts the two
+   *  scales a hair apart -- and a hair per pixel walks the cap out from under
+   *  the finger over a long fader. */
+  int getSliderThumbRadius (juce::Slider &slider) override;
+
+  /** The whole component is the track.
+   *
+   *  JUCE's own layout keeps a margin at each end for a thumb of its own
+   *  size, which is a measurement of nothing here: our cap is a share of the
+   *  track, and the margin held it 37 px short of each end of the meter on
+   *  the device. */
+  juce::Slider::SliderLayout getSliderLayout (juce::Slider &slider) override;
+
+  /** The knobs: the arc, the pointer and the caption this device has drawn
+   *  since the bar had knobs at all (paintBarKnob). Drawn from the slider's
+   *  own colour and, where it is a PotKnob, from what it carries -- which way
+   *  the arc fills, whether it is a ring, where something else is holding
+   *  it. */
+  void drawRotarySlider (juce::Graphics &g, int x, int y, int width,
+                         int height, float sliderPosProportional,
+                         float rotaryStartAngle, float rotaryEndAngle,
+                         juce::Slider &slider) override;
+
+  void drawLinearSlider (juce::Graphics &g, int x, int y, int width,
+                         int height, float sliderPos, float minSliderPos,
+                         float maxSliderPos,
+                         juce::Slider::SliderStyle style,
+                         juce::Slider &slider) override;
 };
 
 

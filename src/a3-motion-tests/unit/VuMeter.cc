@@ -41,7 +41,7 @@ juce::Rectangle<int>
 aRoomyOverlay ()
 {
   return juce::Rectangle<int> (0, 0,
-                               static_cast<int> (minimumChannelWidth * 6),
+                               minimumMixerStripWidth * 6,
                                static_cast<int> (minimumMotionHeight * 8));
 }
 
@@ -311,10 +311,10 @@ TEST (VuMeter, AChannelsMeterOverlapsNothingElse)
     {
       auto const meter = layout.channelMeter[channel];
 
-      for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerControls);
+      for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
            ++i)
         EXPECT_FALSE (meter.intersects (layout.controls[channel][i]))
-            << channel << " over " << mixerControlLabel (mixerControlOrder[i]);
+            << channel << " over " << mixerControlLabel (mixerFaceOrder[i]);
 
       for (auto const &control : layout.master)
         EXPECT_FALSE (meter.intersects (control)) << channel;
@@ -346,22 +346,14 @@ TEST (VuMeter, TheFiveOutputMetersSitInTheMasterColumn)
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
 
-  auto const master = layout.master[static_cast<std::size_t> (
-      controlSlot (MasterControl::Volume))];
-
-  auto column = layout.master.front ();
-  for (auto const &control : layout.master)
-    column = column.getUnion (control);
-
   for (std::size_t i = 0; i < static_cast<std::size_t> (numOutputMeters); ++i)
     {
       auto const bar = layout.outputMeters[i];
       ASSERT_FALSE (bar.isEmpty ()) << i;
-
-      EXPECT_GE (bar.getY (), master.getBottom ())
-          << i << ": the meters are not under the master's volume";
-      EXPECT_GE (bar.getX (), column.getX ()) << i;
-      EXPECT_LE (bar.getRight (), column.getRight ()) << i;
+      EXPECT_TRUE (layout.masterMeter.contains (bar)) << i;
+      for (auto const &control : layout.master)
+        EXPECT_LE (bar.getRight (), control.getX ())
+            << i << ": the meters are not left of the master's pots";
     }
 }
 
@@ -395,24 +387,26 @@ TEST (VuMeter, TheOutputMetersOverlapNothing)
     }
 }
 
-// One block of thin bars side by side, the way a multi-channel meter is
-// drawn, rather than five widgets scattered down a column.
-TEST (VuMeter, TheOutputMetersAreOneBlockOfBarsSideBySide)
+// One block of thin bars stacked one over the other, each the width of the
+// block: the master's meters are turned a quarter and swing left to right,
+// with the subwoofer at the foot -- "sub ganz unten", which is where a
+// subwoofer stands in the room too.
+TEST (VuMeter, TheOutputMetersAreOneBlockOfBarsStackedWithTheSubAtTheFoot)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
 
   for (std::size_t i = 1; i < static_cast<std::size_t> (numOutputMeters); ++i)
     {
-      EXPECT_GE (layout.outputMeters[i].getX (),
-                 layout.outputMeters[i - 1].getRight ())
-          << i << " is not beside the one before it";
-      EXPECT_EQ (layout.outputMeters[i].getY (),
-                 layout.outputMeters[0].getY ())
-          << i << " does not stand on the block's line";
-      EXPECT_EQ (layout.outputMeters[i].getHeight (),
-                 layout.outputMeters[0].getHeight ())
-          << i << " is not the height of the block";
+      EXPECT_LE (layout.outputMeters[i].getBottom (),
+                 layout.outputMeters[i - 1].getY ())
+          << i << " is not above the one before it";
+      EXPECT_EQ (layout.outputMeters[i].getX (),
+                 layout.outputMeters[0].getX ())
+          << i << " does not stand on the block's edge";
+      EXPECT_EQ (layout.outputMeters[i].getWidth (),
+                 layout.outputMeters[0].getWidth ())
+          << i << " is not the width of the block";
     }
 }
 
@@ -424,43 +418,31 @@ TEST (VuMeter, TheOutputMetersAreOneBlockOfBarsSideBySide)
 // without anything noticing. One row is what the maintainer decided to keep,
 // so it is written down here: a decision nothing pins is a decision that can
 // drift back.
-TEST (VuMeter, TheOutputBlockTakesTheRowsTheMasterLeaves)
+TEST (VuMeter, TheOutputBarsSitInTheFootOfTheMastersColumn)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
 
-  auto block = layout.outputMeterCaption;
+  auto block = layout.outputMeters[0];
   for (auto const &bar : layout.outputMeters)
     {
       ASSERT_FALSE (bar.isEmpty ());
       block = block.getUnion (bar);
     }
 
-  // The volume is the lowest of the master's five, so the block begins where
-  // it ends. Every row of a strip is the same height, which is what lets rows
-  // be counted by comparing to one.
-  auto const volume = layout.master[static_cast<std::size_t> (
-      controlSlot (MasterControl::Volume))];
-
-  // How many rows are left is derived, not written down: it was one until
-  // SEND lengthened the strip on 2026-09-12 and is two now. A strip has one
-  // row fewer than it has controls, because the two keys share theirs (see
-  // numMixerRows in MixerLayout.cc), and the master stands in five of them.
-  //
-  // That the meters grow into the room is the wanted answer, not a
-  // regression: a block read at a glance in the dark gains from height, and
-  // a blank row at the foot serves nobody.
-  auto const freeRows = (numMixerControls - 1) - numMasterControls;
-
-  EXPECT_EQ (block.getY (), volume.getBottom ());
-  EXPECT_NEAR (block.getHeight (), freeRows * volume.getHeight (), 2);
+  // A quarter of the column at its foot: the rest of it is the master's own
+  // fader track, and five bars filling the whole column were a wall.
+  EXPECT_NEAR (block.getHeight (), layout.masterMeter.getHeight () / 4,
+               layout.outputMeters[0].getHeight ());
+  EXPECT_GT (block.getY (), layout.masterMeter.getCentreY ());
+  EXPECT_LE (block.getBottom (), layout.masterMeter.getBottom ());
 }
 
 // Everything stays inside the area the overlay was given, meters included.
 TEST (VuMeter, TheMetersStayInsideTheOverlaysArea)
 {
   auto const area = juce::Rectangle<int> (
-      5, 9, static_cast<int> (minimumChannelWidth * 6),
+      5, 9, minimumMixerStripWidth * 6,
       static_cast<int> (minimumMotionHeight * 8));
   auto const layout = layOutMixerOverlay (area, metrics);
   ASSERT_TRUE (layout.fits);
@@ -479,7 +461,7 @@ TEST (VuMeter, TheBarsStripCarriesOneMeterAndNoOutputBlock)
   ASSERT_TRUE (layout.fits);
 
   auto const slot
-      = static_cast<std::size_t> (controlSlot (MixerControl::Volume));
+      = static_cast<std::size_t> (faceSlot (MixerControl::FxSend));
 
   ASSERT_FALSE (layout.channelMeter[0].isEmpty ());
   EXPECT_FALSE (layout.channelMeter[0].intersects (layout.controls[0][slot]));
@@ -736,4 +718,205 @@ TEST (VuDot, ANonsenseLevelIsSilence)
   EXPECT_FALSE (vuDot (VuLevel{ 0.f, -1.f }).visible);
   EXPECT_FALSE (
       vuDot (VuLevel{ 0.f, std::numeric_limits<float>::quiet_NaN () }).visible);
+}
+
+// The volume mark: where VOL stands, laid across the meter it is dragged on.
+// The foot of the bar is VOL at nothing, the head VOL all the way up -- the
+// knob's travel, not a level, so it is linear in the value.
+TEST (VuMeter, TheFaderHandleIsAtTheFootForNothingAndAtTheHeadForFull)
+{
+  auto const bar = aMeterBar ();
+
+  auto const none = vuFaderHandle (bar, 0.f);
+  auto const full = vuFaderHandle (bar, 1.f);
+
+  EXPECT_EQ (none.getBottom (), bar.getBottom ());
+  EXPECT_EQ (full.getY (), bar.getY ());
+}
+
+TEST (VuMeter, TheFaderHandleClimbsWithTheValue)
+{
+  auto const bar = aMeterBar ();
+
+  EXPECT_GT (vuFaderHandle (bar, 0.25f).getY (), vuFaderHandle (bar, 0.5f).getY ());
+  EXPECT_GT (vuFaderHandle (bar, 0.5f).getY (), vuFaderHandle (bar, 0.75f).getY ());
+  EXPECT_NEAR (vuFaderHandle (bar, 0.5f).getCentreY (), bar.getCentreY (), 3);
+}
+
+// Across the whole bar, and thicker than the peak mark, so the two lines on
+// one meter cannot be read as each other.
+TEST (VuMeter, TheFaderHandleSpansTheBarAndIsThickEnoughToGrasp)
+{
+  auto const bar = aMeterBar ();
+  auto const handle = vuFaderHandle (bar, 0.6f);
+  auto const peak = vuMeterGeometry (bar, { 0.5f, 0.1f }).peak;
+
+  EXPECT_EQ (handle.getX (), bar.getX ());
+  EXPECT_EQ (handle.getWidth (), bar.getWidth ());
+  EXPECT_GT (handle.getHeight (), peak.getHeight ());
+}
+
+TEST (VuMeter, AVolumeOutsideTheRangeKeepsTheHandleOnTheBar)
+{
+  auto const bar = aMeterBar ();
+
+  for (auto const value : { -1.f, 2.f, std::numeric_limits<float>::quiet_NaN () })
+    EXPECT_TRUE (bar.contains (vuFaderHandle (bar, value))) << value;
+}
+
+TEST (VuMeter, AnEmptyMeterHasNoFaderHandle)
+{
+  EXPECT_TRUE (vuFaderHandle ({}, 0.5f).isEmpty ());
+}
+
+// The overlay's meter is dragged now, as well as read: two fifths of its
+// strip, where it used to take the share REAPER's own meter takes of a
+// channel.
+TEST (VuMeter, TheOverlaysMeterIsTwoFifthsOfItsStrip)
+{
+  auto const strip = juce::Rectangle<int> (0, 0, 200, 400);
+  auto const split = splitStripForMeter (strip);
+
+  EXPECT_NEAR (split.meter.getWidth () + (strip.getWidth () - split.meter.getWidth ()
+                                          - split.controls.getWidth ()),
+               strip.getWidth () * 2 / 5, 1);
+}
+
+// Dragging a meter moves VOL one to one with the finger: the whole height of
+// the meter is the whole of VOL's travel. Relative -- it starts from where VOL
+// stood when the finger came down, so landing low on a loud channel does not
+// pull it down -- and without steps, so the mark stays under the finger.
+TEST (VuMeter, AMeterDragMovesVolumeOneToOneWithTheFinger)
+{
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.5f, 100, 400), 0.75f);
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.5f, -100, 400), 0.25f);
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.3f, 0, 400), 0.3f);
+}
+
+TEST (VuMeter, AMeterDragStopsAtBothEnds)
+{
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.9f, 400, 400), 1.f);
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.1f, -400, 400), 0.f);
+}
+
+TEST (VuMeter, AMeterWithNoHeightLeavesVolumeWhereItWas)
+{
+  EXPECT_FLOAT_EQ (vuMeterDragVolume (0.4f, 50, 0), 0.4f);
+}
+
+// Turned a quarter: the fill grows from the left edge rather than up from the
+// foot, and the bands follow it across. Everything else about the meter is
+// the same picture, which is why this is a direction and not a second meter.
+TEST (VuMeter, ASidewaysMeterFillsFromTheLeft)
+{
+  auto const bar = juce::Rectangle<int> (10, 20, 400, 12);
+
+  auto const silent = vuMeterGeometry (bar, { 0.f, 0.f }, VuDirection::Right);
+  EXPECT_TRUE (silent.rms.isEmpty ());
+
+  auto const loud = vuMeterGeometry (bar, { 1.f, 1.f }, VuDirection::Right);
+  EXPECT_EQ (loud.rms, bar);
+
+  auto const half = vuMeterGeometry (bar, { 0.5f, 0.5f }, VuDirection::Right);
+  EXPECT_EQ (half.rms.getX (), bar.getX ());
+  EXPECT_EQ (half.rms.getY (), bar.getY ());
+  EXPECT_EQ (half.rms.getHeight (), bar.getHeight ());
+  EXPECT_GT (half.rms.getWidth (), 0);
+  EXPECT_LT (half.rms.getWidth (), bar.getWidth ());
+}
+
+TEST (VuMeter, ASidewaysPeakMarkStandsUpright)
+{
+  auto const bar = juce::Rectangle<int> (10, 20, 400, 12);
+  auto const geometry = vuMeterGeometry (bar, { 0.5f, 0.2f }, VuDirection::Right);
+
+  ASSERT_FALSE (geometry.peak.isEmpty ());
+  EXPECT_EQ (geometry.peak.getHeight (), bar.getHeight ());
+  EXPECT_LT (geometry.peak.getWidth (), bar.getWidth () / 4);
+  EXPECT_TRUE (bar.contains (geometry.peak));
+}
+
+TEST (VuMeter, ASidewaysBandsRunLeftToRight)
+{
+  auto const bar = juce::Rectangle<int> (0, 0, 400, 12);
+  auto const geometry = vuMeterGeometry (bar, { 1.f, 1.f }, VuDirection::Right);
+
+  for (std::size_t i = 1; i < static_cast<std::size_t> (numVuMeterBands); ++i)
+    {
+      ASSERT_FALSE (geometry.bands[i].isEmpty ()) << i;
+      EXPECT_GE (geometry.bands[i].getX (), geometry.bands[i - 1].getX ())
+          << i << " does not follow the band before it";
+    }
+}
+
+// A fader cap is about twice as wide as it is tall. On the bar's tab the
+// meter is short and wide, and a handle measured off the track's height
+// alone came out flat on it -- "im clipmixer ist der faderknob zu gestaucht".
+TEST (VuMeter, TheFaderHandleKeepsItsProportionsOnAShortWideMeter)
+{
+  auto const wide = juce::Rectangle<int> (0, 0, 90, 260);
+  auto const handle = vuFaderHandle (wide, 0.5f);
+
+  EXPECT_GE (handle.getHeight (), wide.getWidth () / 3);
+  EXPECT_LE (handle.getHeight (), wide.getWidth ());
+  EXPECT_TRUE (wide.contains (handle));
+}
+
+// A cap, not a tile, and measured in the travel rather than in pixels: an
+// eighth of the track, on the overlay's long meter and the bar's short one
+// alike.
+TEST (VuMeter, TheFaderHandleIsAnEighthOfItsTrack)
+{
+  for (auto const height : { 592, 400, 260, 120 })
+    {
+      auto const track = juce::Rectangle<int> (0, 0, 46, height);
+      EXPECT_NEAR (vuFaderHandle (track, 0.5f).getHeight (), height / 8, 1)
+          << height;
+    }
+}
+
+// Flush with the ends: at nothing the cap stands on the foot of the track, at
+// full it touches its head, so the travel covers the whole meter.
+TEST (VuMeter, TheFaderHandleSitsFlushAtBothEnds)
+{
+  auto const track = juce::Rectangle<int> (0, 0, 46, 592);
+
+  EXPECT_EQ (vuFaderHandle (track, 0.f).getBottom (), track.getBottom ());
+  EXPECT_EQ (vuFaderHandle (track, 1.f).getY (), track.getY ());
+}
+
+// The tab's meter is as wide as the overlay's, not twice it: a full column of
+// the band made a meter 93 px across where the overlay's is 46, and the fader
+// handle on it read as squashed -- "mach das vumeter ruhig genauso breit wie
+// im main mixer". Still a fingertip wide, because it is dragged.
+TEST (VuMeter, TheBarsMeterIsNoWiderThanTheOverlaysAndStillAFingertip)
+{
+  auto const strip = layOutMixerStrip (aBarStrip (), metrics);
+  auto const overlay = layOutMixerOverlay (aRoomyOverlay (), metrics);
+  ASSERT_TRUE (strip.fits);
+  ASSERT_TRUE (overlay.fits);
+
+  auto const pot = strip.controls[0][0].getWidth ();
+
+  EXPECT_NEAR (strip.channelMeter[0].getWidth (), pot / 2, 2);
+  EXPECT_GE (strip.channelMeter[0].getWidth (), fingertipSize);
+  EXPECT_GE (strip.channelMeter[0].getRight (), strip.controls[0][0].getRight ());
+}
+
+// Where JUCE says, not where our own arithmetic would put it: a slider hands
+// its LookAndFeel the position the handle belongs at, and a handle drawn from
+// the value instead drifted away from the finger on the overlay's long track.
+TEST (VuMeter, TheFaderHandleStandsWhereItIsPut)
+{
+  auto const bar = juce::Rectangle<int> (10, 20, 46, 400);
+
+  auto const middle = vuFaderHandleAt (bar, bar.getCentreY ());
+  EXPECT_EQ (middle.getCentreY (), bar.getCentreY ());
+  EXPECT_EQ (middle.getX (), bar.getX ());
+  EXPECT_EQ (middle.getWidth (), bar.getWidth ());
+  EXPECT_EQ (middle.getHeight (), vuFaderHandle (bar, 0.5f).getHeight ());
+
+  // And never off the track, however far it is asked to go.
+  EXPECT_TRUE (bar.contains (vuFaderHandleAt (bar, bar.getY () - 100)));
+  EXPECT_TRUE (bar.contains (vuFaderHandleAt (bar, bar.getBottom () + 100)));
 }

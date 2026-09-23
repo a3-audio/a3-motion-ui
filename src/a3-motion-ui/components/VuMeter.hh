@@ -26,6 +26,8 @@
 
 #include <a3-motion-engine/Config.hh>
 
+#include <a3-motion-ui/components/ControllerLayout.hh>
+
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 
 namespace a3
@@ -211,7 +213,58 @@ struct VuMeterGeometry
   std::array<juce::Rectangle<int>, numVuMeterBands> bands;
 };
 
-VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level);
+/** Which way a meter swings.
+ *
+ *  Up is a channel's: a column filling from its foot, which is what a meter
+ *  is on a mixer. Right is the master's block of outputs, turned a quarter so
+ *  five of them -- and one day more -- stack down a column that is only as
+ *  wide as a strip's. */
+enum class VuDirection
+{
+  Up,
+  Right,
+};
+
+VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level,
+                                 VuDirection direction = VuDirection::Up);
+
+/** Where VOL stands, as a bar laid across a channel's meter -- see
+ *  paintVuFaderCap(). `value` is VOL's 0..1, foot to head, linear: it is
+ *  the knob's travel, not a level, so it shares the meter's height and not
+ *  its dB scale. */
+juce::Rectangle<int> vuFaderHandle (juce::Rectangle<int> bounds, float value);
+
+/** The same handle, centred where the caller says rather than where a value
+ *  would put it: a JUCE slider hands its LookAndFeel the position the handle
+ *  belongs at, and a handle drawn from the value instead drifts away from the
+ *  finger -- the slider maps its travel over the track less the handle, and
+ *  our own arithmetic mapped it over the whole of it. Clamped onto the
+ *  track. */
+juce::Rectangle<int> vuFaderHandleAt (juce::Rectangle<int> bounds, int centreY);
+
+/** Whether a touch at `at` takes hold of the handle standing at `handle`.
+ *
+ *  A fader on a desk is grabbed by its cap, and that is what keeps the
+ *  jumping away from a slider that maps the finger's position straight onto
+ *  its track: a thumb landing anywhere else does nothing at all. With a
+ *  fingertip's worth of catch zone above and below, because a fingertip is
+ *  wider than the cap is tall. */
+bool vuFaderGrabs (juce::Rectangle<int> handle, juce::Point<int> at);
+
+/** VOL after a drag on its meter: `atPress` plus the pixels dragged upwards
+ *  over the meter's height, held in 0..1. One to one and stepless, so the
+ *  mark stays under the finger -- the knobs' 2 % steps made a tall meter move
+ *  in visible jumps and lag behind the hand. */
+float vuMeterDragVolume (float atPress, int pixelsUp, int meterHeight);
+
+/** The fader's handle, in the channel's colour, over a meter already painted.
+ *
+ *  A cap rather than a line -- "die sollen nach echten fader knobs aussehen
+ *  zum angenehm anfassen": the meter is the fader now, and a fader has
+ *  something to take hold of. Drawn the way the pots' knobs are, from the
+ *  skin's own surface, radius and stroke. */
+void paintVuFaderCap (juce::Graphics &g, juce::Rectangle<int> track,
+                      juce::Rectangle<int> handle, juce::Colour colour);
 
 /** The colour a band is filled in, from the skin.
  *
@@ -272,6 +325,19 @@ struct StripColumns
   juce::Rectangle<int> controls;
 };
 
+/** The meter's share of an overlay strip's width: two fifths.
+ *
+ *  It was REAPER's own proportion, measured off its mixer on this machine
+ *  (28 of a 92 px strip), while the meter was only read. It is dragged now --
+ *  it is the channel's VOL -- and a fader wants the width of a finger rather
+ *  than of a glance: "vu im mixer auch breiter".
+ *
+ *  Not the half that was asked for. The controls beside it end in PFL and FX
+ *  side by side, two fingertips across, and at half the strip a key on the
+ *  device came out at 32 px -- under a fingertip. Two fifths leaves it 39.
+ *  Public because MixerLayout derives the narrowest strip from it. */
+constexpr float meterWidthOfStrip = 2.f / 5.f;
+
 StripColumns splitStripForMeter (juce::Rectangle<int> strip);
 
 /** The five output meters across one block, and the word under them.
@@ -319,6 +385,23 @@ stepMeterBarsAcross (juce::Rectangle<int> block, int cell, int gap,
     bars[i] = juce::Rectangle<int> (
         block.getX () + cell * static_cast<int> (i), block.getY (),
         juce::jmax (1, cell - gap), block.getHeight ());
+}
+
+/** The same, stacked up a block from its foot: bar 0 lowest, each the width
+ *  of the block. For meters turned a quarter -- see VuDirection. */
+template <std::size_t N>
+void
+stepMeterBarsUp (juce::Rectangle<int> block, int cell, int gap,
+                 std::array<juce::Rectangle<int>, N> &bars)
+{
+  for (std::size_t i = 0; i < N; ++i)
+    {
+      auto const height = juce::jmax (1, cell - gap);
+      bars[i] = juce::Rectangle<int> (
+          block.getX (),
+          block.getBottom () - cell * static_cast<int> (i) - height,
+          block.getWidth (), height);
+    }
 }
 
 /** Every level the mixer's meters read, and the peak lingering over each.
@@ -380,7 +463,7 @@ private:
  *  meter it is, the strip it stands in already says: the wash behind it and
  *  every knob beside it are in the channel's colour. */
 void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
-                   VuLevel level);
+                   VuLevel level, VuDirection direction = VuDirection::Up);
 
 /** The same meter, standing on a different ground.
  *
@@ -396,6 +479,7 @@ void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
  *  Only the track. The bands, the mark and every boundary between them stay
  *  exactly what they are on the mixer page, because those are the reading. */
 void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
-                   VuLevel level, juce::Colour track);
+                   VuLevel level, juce::Colour track,
+                   VuDirection direction = VuDirection::Up);
 
 }

@@ -245,3 +245,31 @@ TEST (SplitFolder, OnlyTheExtensionAskedForIsMoved)
   EXPECT_EQ (splitLooseFilesIn (f.root, ".json"), 1);
   EXPECT_TRUE (f.root.getChildFile ("README.md").existsAsFile ());
 }
+
+// Which half a file sits in, asked of the file rather than of the listing.
+// The ACTION page has the slot's file and nothing else, and what it needs to
+// know is whether Save may write to it.
+TEST (SplitFolder, AFileSaysWhichHalfItIsIn)
+{
+  Fixture f;
+  auto const shipped = f.root.getChildFile ("system").getChildFile ("Bloom.scd");
+  auto const mine = f.root.getChildFile ("user").getChildFile ("Mine.scd");
+  shipped.getParentDirectory ().createDirectory ();
+  mine.getParentDirectory ().createDirectory ();
+  shipped.replaceWithText ("theirs");
+  mine.replaceWithText ("mine");
+
+  EXPECT_TRUE (isSystemFileIn (f.root, shipped));
+  EXPECT_FALSE (isSystemFileIn (f.root, mine));
+}
+
+// A file that is not in this folder at all is nobody's shipped file. A slot
+// with no action holds an empty File, and that must not read as protected --
+// it would leave Save dark on a page with nothing behind it.
+TEST (SplitFolder, AFileFromSomewhereElseIsNotShipped)
+{
+  Fixture f;
+  EXPECT_FALSE (isSystemFileIn (f.root, juce::File{}));
+  EXPECT_FALSE (
+      isSystemFileIn (f.root, f.root.getChildFile ("system.scd")));
+}

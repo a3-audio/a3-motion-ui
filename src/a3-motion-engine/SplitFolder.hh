@@ -70,6 +70,16 @@ juce::File newFileIn (juce::File const &root, juce::String const &name,
 juce::String freeNameIn (juce::File const &root, juce::String const &base,
                          juce::String const &extension);
 
+/** Whether `file` is one of the instrument's own, asked of the file.
+ *
+ *  listFilesIn() answers this for a listing; a page holding one file has no
+ *  listing to consult. A file from anywhere else -- including the empty File a
+ *  slot with nothing in it carries -- is not shipped, so a Save key reading
+ *  this stays live on a page with nothing behind it and is refused by the file
+ *  layer instead.
+ */
+bool isSystemFileIn (juce::File const &root, juce::File const &file);
+
 /** Move whatever is lying flat in `root` into `user/`, and say how many.
  *
  *  What is already there is the performer's, and that is not a guess: the

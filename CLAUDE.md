@@ -1057,6 +1057,39 @@ until then), on the baffle — and from overhead the baffle is edge-on, so it wa
 The corona that says which blob is playing is the existing one, `blob.sizeMin..sizeMax` over the
 level; clean raises `sizeMax` so a loud blob's reaches past its body and a silent one's does not.
 
+**A channel's VU meter is its VOL**, on both MIX pages (the overlay's four strips and the bar's MIX
+tab), and the VOL knob is gone from both: `mixerFaceOrder` lists what a page lays out, while
+`mixerControlOrder` still counts the state and the OSC wire, which carry VOL as before. A drag on
+the meter is relative and one to one (`vuMeterDragVolume()`): it starts from where VOL stood when
+the finger came down, so landing low on a playing channel pulls nothing down, and the meter's full
+height is VOL's full travel, stepless, so the mark stays under the finger — the knobs' 2 %-per-12 px
+steps made the tall overlay meter move in visible jumps. A tap does nothing; **two taps put the
+channel at full volume** (`onMeterDoubleTapped`), and a double tap there survives a wobbling finger
+as long as both touches are short (`DoubleTap.hh`, `DoubleTapMovement::MayMove`), so a drag picked
+straight back up cannot throw the channel to full. The meter carries VOL's setting as a **fader handle** in the
+channel's colour (`vuFaderHandle()` / `paintVuFaderHandle()`): a cap with a groove across it, opaque
+so the bands do not shine through, at least half a fingertip thick because it is grasped rather
+than aimed at. It stands at the travel, linear, not on the meter's dB scale.
+
+**The master is laid out like a channel**: the room's output meters -- sub and speakers -- stand in
+the column on its left, running its whole height, and BTH, MIX, PHN and RET stand beside them in
+the bottom four rows, on the channels' own lines (`masterFaceOrder`, `rowForMasterPot`). The whole column is the master's
+fader: a groove down it with the handle on it in `textPrimary`, dragged one to one like a channel's,
+and the meters stand in its **foot** -- a quarter of the column (`outputBarsOfBlock`), turned a
+quarter themselves (`VuDirection::Right`) so they swing left to right, stacked with the subwoofer
+at the bottom where it stands in the room. The MST knob is gone. **No double tap there**: full volume on the master is
+the one gesture that makes the whole room loud at once. The meters get a column rather than a row
+because there will be more of them than five.
+
+The overlay meter takes two fifths of its strip (`meterWidthOfStrip`), not the half asked for: the
+strip ends in PFL and FX side by side, and at half a key came out at 32 px on the device, under a
+fingertip. The column break is derived from the same two keys (`minimumMixerStripWidth`), so a
+narrower window breaks the strips two by two rather than showing the "no room" sentence. The
+master's output meters stand in the top row of its column, its five controls under them with MST
+on the channels' key row. Checked on the device with `smoke-test/scripts/check_vu_drag_volume.sh`
+(drags down and back only — a running instance sends VOL to the live Core; the double tap is not
+exercised there, since it would send a live channel to full).
+
 **`Stop` and `Pause` are two different end actions**, and used to be one under the wrong name. What
 was called Stop stood still wherever the playhead happened to land — that is a pause, and calling it
 a stop left no way to ask for the other one. `Stop` now returns to the beginning of the take,
@@ -1105,6 +1138,57 @@ which one a hand is on. TAP keeps two thirds of that row against SHIFT's one, be
 control here that has to be hit *in time* and a tempo tap that misses is worse than a modifier that
 takes a second go. Record needs no screen twin: the strip's REC button already records into the
 shown clip.
+
+#### The ACTION page's script
+
+The editor is `juce::CodeEditorComponent` over a `juce::CodeDocument`
+(`components/ScriptEditor.{hh,cc}`) — line numbers, undo, syntax colours and a caret that can be
+asked where it is, none of which the hand-rolled one had. What the subclass adds is the touch part,
+and it is one rule: **a finger is scrolling until it has come up without moving.** It starts
+read-only; `mouseDown` only remembers where it landed, `mouseDrag` scrolls in both directions, and
+`mouseUp` begins editing — forwarding the press and release on so the caret lands where the finger
+did — but only if nothing was dragged. Editing on the press instead meant every drag moved the caret
+and nothing ever scrolled. Escape leaves the editor (`onEscape`); it does not quit the app.
+
+**Three keys under it: save, save as, cancel**, equal width, in that order. Save writes the
+editor's text over the file the slot came from; **it stays dark on one of the instrument's own**
+(`isSystemFileIn()`, asked of the file rather than remembered), because writing over a shipped
+script takes it from every clip that fires it with no way back. Save as is the way out of exactly
+that: it writes the text to a new file in `user/`, **named after the one it came from** — "Bloom 2"
+beside "Bloom", counted against both halves — and points the slot at the copy, so the page is
+writable from there on. Cancel puts the file's own text back. All three are lit only while something
+has been typed.
+
+The save point is set in the key handler, not by the slot coming back: `setScript()` returns early
+on text the document already holds, so a file written with exactly what is on screen would never
+clear the edited edge.
+
+**The list and the editor stand in one area, and exactly one of them is on screen**
+(`updateScriptLayers()`). Drawing the list opaque is not enough and was tried: the editor is a
+child component, a child is painted *after* its parent, and its own ground is `transparentBlack` so
+the darker field behind it can show — so the script was drawn over the list however opaque the list
+made itself, and both were read at once. No `toFront()` helps. This is the mirror image of the trap
+the clip bar's lists carry, and it is what changes the moment a painted layer becomes a child.
+
+**Every script names every parameter, and comments out what it does not touch** (asked for on
+2026-09-23: *„alle Action skripte alle parameter enthalten. wo nichts passieren soll bitte
+auskommentieren"*). A commented line assigns nothing, which is already what "leave this as the hand
+left it" means — so the convention costs the language nothing and makes each script its own
+reference: the range and half a line of what a name does stand on the line, not in `README.scd`.
+
+That text lives once, in `actionScriptNotes()` beside the reader, and two tests hold the twenty-six
+shipped scripts against it — one that every parameter appears exactly once, one that every
+annotation is the table's word for word. Without them the same range would be written in
+twenty-six places and corrected in one. `actionScriptTemplate()` is the same list with everything
+commented at its default; `actionScriptFor()` is the same list with everything live, which is what
+Save Action writes.
+
+`mirrorSouth` is the one field left out: it is dead, kept only so clips written before `~base` load,
+and a script naming it would be teaching it. The two round-trip tests skip it by name rather than
+the writer growing an exception nobody can see.
+
+Renaming is not here. It is the browser's Rename key on the ACTIONS tab, which also carries every
+slot firing the file across — a second place to type a name would be a second thing to keep in step.
 
 #### Getting out of an overlay
 

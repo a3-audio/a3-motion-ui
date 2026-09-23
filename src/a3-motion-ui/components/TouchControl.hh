@@ -105,6 +105,11 @@ public:
    *  never sits under the finger that is dragging it. */
   std::function<void (int primary, int secondary, juce::Point<int> at)>
       onDragTo;
+  /** Every movement, with how far the finger is from where it came down --
+   *  for a control that follows the finger rather than stepping (the VU
+   *  meter's VOL). */
+  std::function<void (int primary, int secondary, juce::Point<int> offset)>
+      onDragBy;
   /** Coming off after a drag that emitted steps — where there is something
    *  to confirm. */
   /** The drag ended. Only after one: a press that never moved reports as
@@ -118,11 +123,8 @@ public:
    *  silent in exactly that case. */
   std::function<void (int primary, int secondary)> onRelease;
 
-  /** When and where the last tap landed, for spotting the second one. */
-  juce::int64 _lastTapMs = 0;
-  juce::Point<int> _lastTapPos;
-
   void mouseDown (juce::MouseEvent const &event) override;
+  void mouseDoubleClick (juce::MouseEvent const &event) override;
   void mouseDrag (juce::MouseEvent const &event) override;
   void mouseUp (juce::MouseEvent const &event) override;
   void visibilityChanged () override;
@@ -142,6 +144,7 @@ private:
    *  rather than counting as a tap -- on a key that also taps, a tap threw
    *  away the value the drag had just reached. */
   juce::int64 _lastDragEndedMs = 0;
+
 };
 
 }

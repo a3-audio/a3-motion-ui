@@ -23,7 +23,8 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/ActionLayout.hh>
-#include <a3-motion-ui/components/ScriptBuffer.hh>
+#include <a3-motion-ui/components/ScriptEditor.hh>
+#include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
@@ -68,9 +69,23 @@ public:
    *  has to re-lay it out rather than only repaint it. */
   void applyTheme () override;
 
+private:
+  /** Puts the skin on the editor: its colour ids, the tokeniser's scheme and
+   *  the script font. Called whenever the skin changes. */
+  void dressEditor ();
+
+public:
+
   /** Which clip this page is showing, and the colour it wears. */
   void setTarget (int channel, int slot, juce::Colour channelColour);
 
+  /** Puts a row's three values on its three knobs, without fighting a finger
+   *  that is on one of them. */
+  void putOnKnobs (int first, int attackStep, int decayStep, float max);
+  /** The channel's colour, on all nine. */
+  void putColourOnKnobs ();
+
+public:
   /** Steps 0..envelopeMaxStep, as the engine counts them. */
   void setEnvelope (int attackStep, int decayStep, float max);
   /** The two filter envelopes: the cutoff's, then the resonance's. */
@@ -86,9 +101,12 @@ public:
    *  Loading, not editing: whatever was being typed is replaced. */
   void setScript (juce::String const &script);
   /** What is in the editor now, for whoever writes the file. */
-  juce::String script () const { return _buffer.text (); }
-  bool scriptIsEdited () const { return _buffer.isEdited (); }
-  void markScriptSaved () { _buffer.markSaved (); repaint (); }
+  juce::String script () const { return _document.getAllContent (); }
+  bool scriptIsEdited () const
+  {
+    return _document.hasChangedSinceSavePoint ();
+  }
+  void markScriptSaved () { _document.setSavePoint (); repaint (); }
 
   /** What the script got wrong when it last ran, shown along the bottom of
    *  the editor. Kept apart from the text: an error is about the script, not
@@ -103,6 +121,11 @@ public:
   /** Whether the page is taking keys. Told rather than worked out, because
    *  what shows the keyboard is the page above this one. */
   bool isEditingScript () const { return _editing; }
+
+  /** Whether the action on this slot is one the device ships with. Those are
+   *  read-only: writing over one takes it from every clip that uses it, and
+   *  there is no getting it back -- Save as is the way to keep an edit. */
+  void setScriptIsShipped (bool shipped);
   void stopEditingScript ();
 
   /** Where the global strip's three channel rows stand, in the bar's own
@@ -111,6 +134,10 @@ public:
    *  freely. */
   void setGridReference (juce::Rectangle<int> barCoordinates);
 
+  /** A knob was turned: where it stands now. The nine envelope knobs are
+   *  sliders, so the value is theirs and the page only passes it on -- the
+   *  increments this used to count were the slider's job. */
+  std::function<void (int control, double value)> onControlSet;
   std::function<void (int control, int increment)> onControlDragged;
   std::function<void (int control)> onControlDoubleTapped;
   std::function<void (int control)> onControlTapped;
@@ -129,6 +156,9 @@ public:
   std::function<void (bool held)> onFireHeld;
 
   std::function<void ()> onScriptSaved;
+  /** Save as: the text goes to a file of the performer's own. The one way to
+   *  keep an edit to a shipped action. */
+  std::function<void ()> onScriptSavedAs;
   /** Throw the edit away and put the file's text back. */
   std::function<void ()> onScriptCancelled;
 
@@ -139,7 +169,6 @@ private:
   void paintScriptKeys (juce::Graphics &g);
   void paintActionList (juce::Graphics &g);
 
-  bool keyPressed (juce::KeyPress const &key) override;
   void focusLost (FocusChangeType cause) override;
 
   /** One font for the script, and the three measurements everything else
@@ -153,9 +182,10 @@ private:
   /** How many lines the script area can show at the current size. */
   int visibleScriptLines () const;
   /** Where a tap in the script area lands, as a line and a column. */
-  void caretFromPoint (juce::Point<int> point);
 
   void openActionList ();
+  void closeActionList ();
+  void updateScriptLayers ();
   void chooseFromActionList (juce::Point<int> point);
 
   ActionLayout _layout;
@@ -175,7 +205,13 @@ private:
   float _qMax = 0.f;
   int _actMode = 0;
   juce::String _actionName;
-  ScriptBuffer _buffer;
+  /** The script itself, and the editor over it -- JUCE's, see ScriptEditor.
+   *  The C++ tokeniser rather than one of our own: SuperCollider's comments,
+   *  strings, numbers and brackets are close enough to read by, and a
+   *  tokeniser for the rest is a job of its own. */
+  juce::CodeDocument _document;
+  juce::CPlusPlusCodeTokeniser _tokeniser;
+  std::unique_ptr<ScriptEditor> _editor;
   juce::StringArray _choices;
   juce::StringArray _scriptErrors;
   bool _listOpen = false;
@@ -185,13 +221,17 @@ private:
    *  cannot be reached at all. */
   int _listTop = 0;
   bool _editing = false;
+  bool _shipped = false;
   juce::Rectangle<int> _gridReference;
 
   std::array<std::unique_ptr<TouchControl>, numControls> _touch;
+  /** One per envelope control; the mode beside the name stays a key. */
+  std::array<std::unique_ptr<PotKnob>, numControls> _knob;
   /** The name field, which opens the list, and the script, which takes the
    *  caret. Neither is a knob, so neither is in `controls`. */
   std::unique_ptr<TouchControl> _actionTouch;
   std::unique_ptr<TouchControl> _scriptTouch;
+  std::unique_ptr<TouchControl> _saveAsTouch;
   std::unique_ptr<TouchControl> _fireTouch;
   bool _firing = false;
   std::unique_ptr<TouchControl> _saveTouch;

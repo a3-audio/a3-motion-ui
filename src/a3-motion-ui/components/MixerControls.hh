@@ -78,6 +78,29 @@ constexpr std::array<MixerControl, numMixerControls> mixerControlOrder{
   MixerControl::Pfl,    MixerControl::Fx,
 };
 
+/** What the two MIX pages draw, in the same order: everything but VOL.
+ *
+ *  VOL is set by dragging the channel's meter -- "das vol pot muss weg" --
+ *  so a knob for it beside the meter was the same control twice. It stays in
+ *  mixerControlOrder, which the state and the wire are counted by; this is
+ *  only what a page lays out. */
+constexpr int numMixerFaceControls = 7;
+constexpr std::array<MixerControl, numMixerFaceControls> mixerFaceOrder{
+  MixerControl::Gain,  MixerControl::EqHigh, MixerControl::EqMid,
+  MixerControl::EqLow, MixerControl::FxSend, MixerControl::Pfl,
+  MixerControl::Fx,
+};
+
+/** Where a control stands on a page, or -1 for one no page draws (VOL). */
+constexpr int
+faceSlot (MixerControl control)
+{
+  for (std::size_t i = 0; i < numMixerFaceControls; ++i)
+    if (mixerFaceOrder[i] == control)
+      return static_cast<int> (i);
+  return -1;
+}
+
 /** Whether it is a key rather than something turned.
  *
  *  The toggles come last in the order, which is what lets a layout take them
@@ -109,6 +132,20 @@ mixerControlRestPosition (MixerControl control)
     return 0.f;
   return {};
 }
+
+/** Whether the control's middle means neutral.
+ *
+ *  An EQ band is cut or boost either side of flat, so its arc grows out of
+ *  the middle and which side of flat you are on reads at a glance. Gain and
+ *  the volume run from silence upwards and fill from their start, the way a
+ *  volume knob anywhere does. */
+constexpr bool
+fillsFromTheMiddle (MixerControl control)
+{
+  return control == MixerControl::EqHigh || control == MixerControl::EqMid
+         || control == MixerControl::EqLow;
+}
+
 
 /** What is written under it. At most four characters: the narrowest a strip
  *  may get is minimumChannelWidth, and a longer word is drawn clipped, which
@@ -155,6 +192,33 @@ constexpr std::array<MasterControl, numMasterControls> masterControlOrder{
   MasterControl::PhonesMix,    MasterControl::PhonesVolume,
   MasterControl::Return,
 };
+
+/** The same, for the summing section: the phones' blend sits between two ends
+ *  and reads as a distance from the middle; everything else is a level. */
+constexpr bool
+fillsFromTheMiddle (MasterControl control)
+{
+  return control == MasterControl::PhonesMix;
+}
+
+/** The master's pots, top to bottom: everything but its volume, which is
+ *  dragged on the output meters the way a channel's VOL is dragged on its
+ *  own meter. Volume stays in masterControlOrder for the state and the wire. */
+constexpr int numMasterFaceControls = 4;
+constexpr std::array<MasterControl, numMasterFaceControls> masterFaceOrder{
+  MasterControl::Booth, MasterControl::PhonesMix, MasterControl::PhonesVolume,
+  MasterControl::Return,
+};
+
+/** Where a master control stands among the pots, or -1 for the volume. */
+constexpr int
+masterFaceSlot (MasterControl control)
+{
+  for (std::size_t i = 0; i < numMasterFaceControls; ++i)
+    if (masterFaceOrder[i] == control)
+      return static_cast<int> (i);
+  return -1;
+}
 
 constexpr char const *
 masterControlLabel (MasterControl control)

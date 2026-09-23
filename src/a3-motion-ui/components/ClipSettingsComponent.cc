@@ -386,8 +386,51 @@ ClipSettingsComponent::createTouchControls ()
   for (int section = 0; section < numParameters; ++section)
     {
       auto const count = numControlsInSection (section);
+      _controlKnob[static_cast<size_t> (section)].resize (
+          static_cast<size_t> (count));
+
       for (int sub = 0; sub < count; ++sub)
         {
+          // The Elevation section's three are knobs of their own: sliders,
+          // drawn by the LookAndFeel as this device's knob (PotKnob). The
+          // rest of the bar still works the way it did -- see ClipKnobs.hh
+          // for why a field that is tapped stays a field.
+          if (section == elevationSection || section == motionSection)
+            {
+              auto const spec = section == elevationSection
+                                    ? elevationKnobSpec (sub)
+                                    : motionKnobSpec (sub);
+
+              auto knob = std::make_unique<PotKnob> ();
+              knob->setLabel (spec.label);
+              knob->setRange (spec.min, spec.max, spec.interval);
+              knob->setFillsFromTheMiddle (spec.bipolar);
+              knob->setWraps (spec.wraps);
+              knob->onValueChange = [this, section, sub, k = knob.get ()] {
+                if (onControlSet)
+                  onControlSet (section, sub, k->getValue ());
+              };
+
+              // Two taps put it back where the page says -- which for reach
+              // depends on where the figure sits, so it is the page's rule
+              // rather than a number in the table.
+              knob->onDoubleTapped = [this, section, sub] {
+                if (onControlReset)
+                  onControlReset (section, sub);
+              };
+
+              // A press picks the control out, exactly as a hit area did.
+              knob->onDragStart = [this, section, sub] {
+                if (onControlTapped)
+                  onControlTapped (section, sub);
+              };
+
+              addAndMakeVisible (*knob);
+              _controlKnob[static_cast<size_t> (section)]
+                          [static_cast<size_t> (sub)] = std::move (knob);
+              continue;
+            }
+
           auto control = std::make_unique<TouchControl> ();
           control->setIdentity (section, sub);
 
@@ -448,6 +491,10 @@ ClipSettingsComponent::resized ()
       auto const &cells = _layout.controls[s];
       for (size_t sub = 0; sub < _controlTouch[s].size (); ++sub)
         _controlTouch[s][sub]->setBounds (cells[sub]);
+
+      for (size_t sub = 0; sub < _controlKnob[s].size (); ++sub)
+        if (auto &knob = _controlKnob[s][sub])
+          knob->setBounds (cells[sub]);
     }
 
   _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
@@ -503,6 +550,7 @@ ClipSettingsComponent::setTarget (int channel, int slot,
   _channel = channel;
   _slot = slot;
   _channelColour = channelColour;
+  markKnobs ();
   repaint ();
 }
 
@@ -522,6 +570,43 @@ ClipSettingsComponent::setLocks (bool shape, bool elevation, bool motion)
 
   _locked = held;
   repaint ();
+}
+
+void
+ClipSettingsComponent::markKnobs ()
+{
+  // Which knob is picked out and which section is the live one -- the browse
+  // state the encoders move through. It used to be handed to the painter on
+  // every frame; a knob that draws itself has to be told instead.
+  auto const mark = [this] (int section, int subIndex) {
+    auto const s = static_cast<size_t> (section);
+    for (size_t sub = 0; sub < _controlKnob[s].size (); ++sub)
+      if (auto &knob = _controlKnob[s][sub])
+        {
+          knob->setActive (static_cast<int> (sub) == subIndex);
+          knob->setSelected (_selectedIndex == section);
+          knob->setKnobColour (_channelColour);
+        }
+  };
+
+  mark (elevationIndex, _elevationSubIndex);
+  mark (motionIndex, _motionSubIndex);
+}
+
+void
+ClipSettingsComponent::putOnKnob (int section, int sub, double value)
+{
+  auto const s = static_cast<size_t> (section);
+  if (s >= _controlKnob.size ()
+      || static_cast<size_t> (sub) >= _controlKnob[s].size ())
+    return;
+
+  auto &knob = _controlKnob[s][static_cast<size_t> (sub)];
+
+  // Not while a finger is on it: writing the value back into the knob that is
+  // being turned is the page arguing with the hand.
+  if (knob && !knob->isMouseButtonDown ())
+    knob->setValue (value, juce::dontSendNotification);
 }
 
 void
@@ -549,6 +634,7 @@ ClipSettingsComponent::setElevationReach (float reach, float swept)
   // more: -2 is outside the knob's range and is what the squeezes already use
   // for the same job.
   _elevationReach = std::clamp (reach, -1.0f, 1.0f);
+  putOnKnob (motionSection, 2, _elevationReach);
   _elevationReachSwept
       = swept <= -2.f ? -2.f : std::clamp (swept, -1.0f, 1.0f);
   repaint ();
@@ -573,6 +659,7 @@ void
 ClipSettingsComponent::setElevationClipTop (float clipTop)
 {
   _elevationClipTop = std::clamp (clipTop, 0.0f, 1.0f);
+  putOnKnob (elevationSection, 1, _elevationClipTop);
   repaint ();
 }
 
@@ -580,6 +667,7 @@ void
 ClipSettingsComponent::setElevationClipBottom (float clipBottom)
 {
   _elevationClipBottom = std::clamp (clipBottom, 0.0f, 1.0f);
+  putOnKnob (elevationSection, 0, _elevationClipBottom);
   repaint ();
 }
 
@@ -646,6 +734,7 @@ void
 ClipSettingsComponent::setElevationSubIndex (int subIndex)
 {
   _elevationSubIndex = subIndex;
+  markKnobs ();
   repaint ();
 }
 
@@ -691,6 +780,7 @@ ClipSettingsComponent::setMotionBridgeBias (int bias)
   if (held == _motionBridgeBias)
     return;
   _motionBridgeBias = held;
+  putOnKnob (motionSection, 9, _motionBridgeBias);
   repaint ();
 }
 
@@ -700,6 +790,8 @@ ClipSettingsComponent::setMotionSqueeze (float squeezeX, float squeezeY,
 {
   _motionSqueezeX = juce::jlimit (-1.f, 1.f, squeezeX);
   _motionSqueezeY = juce::jlimit (-1.f, 1.f, squeezeY);
+  putOnKnob (motionSection, 4, _motionSqueezeX);
+  putOnKnob (motionSection, 6, _motionSqueezeY);
   _motionSqueezeXSwept
       = sweptX < -1.5f ? -2.f : juce::jlimit (-1.f, 1.f, sweptX);
   _motionSqueezeYSwept
@@ -717,6 +809,8 @@ ClipSettingsComponent::setMotionStretch (int x, int y)
 
   _motionSqueezeXLfo = heldX;
   _motionSqueezeYLfo = heldY;
+  putOnKnob (motionSection, 5, _motionSqueezeXLfo);
+  putOnKnob (motionSection, 7, _motionSqueezeYLfo);
   repaint ();
 }
 
@@ -732,7 +826,10 @@ ClipSettingsComponent::setSweeps (int spin, int swell, int sway)
 
   _motionSpin = heldSpin;
   _motionSwell = heldSwell;
+  putOnKnob (motionSection, 1, _motionSpin);
+  putOnKnob (motionSection, 3, _motionSwell);
   _elevationSway = heldSway;
+  putOnKnob (elevationSection, 2, _elevationSway);
   repaint ();
 }
 
@@ -740,6 +837,7 @@ void
 ClipSettingsComponent::setMotionFadeReach (float reach)
 {
   _motionFadeReach = juce::jlimit (0.f, 1.f, reach);
+  putOnKnob (motionSection, 8, _motionFadeReach);
   repaint ();
 }
 
@@ -773,6 +871,7 @@ ClipSettingsComponent::setShapeRotate (float rotate, float reach)
 
   _shapeRotate = rotate;
   _shapeRotateReach = reach;
+  putOnKnob (motionSection, 0, _shapeRotate);
   repaint ();
 }
 
@@ -831,6 +930,7 @@ void
 ClipSettingsComponent::setMotionSubIndex (int subIndex)
 {
   _motionSubIndex = subIndex;
+  markKnobs ();
   repaint ();
 }
 
@@ -878,6 +978,7 @@ ClipSettingsComponent::setSelectedParameterIndex (int index)
 {
   jassert (index >= 0 && index < numParameters);
   _selectedIndex = index;
+  markKnobs ();
   repaint ();
 }
 
@@ -1889,54 +1990,9 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
   // rot is a closed ring: rotation comes round to itself, so its scale has to
   // as well. The pointer is where the hand left it; the blue runs from there
   // to where the spin is holding the shape right now.
-  paintMiniKnob (g, cells[0], metrics, caption::rotate, _shapeRotate * 2.f,
-                 false, _motionSubIndex == 0, isSelected,
-                 _shapeRotateReach * 2.f, true);
+  // The ten knobs draw themselves (PotKnob, from the table in ClipKnobs.hh);
+  // the arcs that say where a sweep is holding a value travel with them.
 
-  auto const sweepRing = [] (int step) {
-    return static_cast<float> (step) / static_cast<float> (lfoMaxStep);
-  };
-
-  paintMiniKnob (g, cells[1], metrics, caption::spin, sweepRing (_motionSpin),
-                 true, _motionSubIndex == 1, isSelected);
-
-  // Where the swell has carried the coverage, if it is moving: the pointer
-  // stays on what the hand set and the arc runs to where the sweep is holding
-  // it, the way rot's does under the spin.
-  // Bipolar, and filled from the middle: nothing is a flat figure sitting on
-  // the base, one way spreads it down and the other up.
-  paintMiniKnob (g, cells[2], metrics, caption::reach, _elevationReach, true,
-                 _motionSubIndex == 2, isSelected, _elevationReachSwept);
-  paintMiniKnob (g, cells[3], metrics, caption::swell,
-                 sweepRing (_motionSwell), true, _motionSubIndex == 3,
-                 isSelected);
-
-  // The two squeezes, each with the stretch that sweeps it. Bipolar, so the
-  // ring runs from twelve o'clock either way and the middle of the travel is
-  // the take as it was recorded -- and the arc says where the stretch is
-  // holding it now, exactly as reach's does.
-  paintMiniKnob (g, cells[4], metrics, caption::squeezeX, _motionSqueezeX,
-                 true, _motionSubIndex == 4, isSelected,
-                 _motionSqueezeXSwept < -1.5f ? -2.f : _motionSqueezeXSwept);
-  paintMiniKnob (g, cells[5], metrics, caption::stretchX,
-                 sweepRing (_motionSqueezeXLfo), true, _motionSubIndex == 5,
-                 isSelected);
-  paintMiniKnob (g, cells[6], metrics, caption::squeezeY, _motionSqueezeY,
-                 true, _motionSubIndex == 6, isSelected,
-                 _motionSqueezeYSwept < -1.5f ? -2.f : _motionSqueezeYSwept);
-  paintMiniKnob (g, cells[7], metrics, caption::stretchY,
-                 sweepRing (_motionSqueezeYLfo), true, _motionSubIndex == 7,
-                 isSelected);
-
-  // How far a gap may be for the fade to draw through it, and where a
-  // drawn-through gap leads. Both read the take's holes rather than changing
-  // them.
-  paintMiniKnob (g, cells[8], metrics, caption::fade,
-                 _motionFadeReach * 2.f - 1.f, false, _motionSubIndex == 8,
-                 isSelected);
-  paintMiniKnob (g, cells[9], metrics, caption::bias,
-                 static_cast<float> (_motionBridgeBias) / 4.f, true,
-                 _motionSubIndex == 9, isSelected);
 }
 
 void
@@ -1964,19 +2020,12 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
   // the one order that has nothing to say for it: the graphic above them is a
   // room seen from the side, and in a room seen from the side the floor is not
   // on the right of the ceiling.
-  paintMiniKnob (g, cells[0], metrics, caption::clipBottom,
-                 _elevationClipBottom * 2.f - 1.f, false,
-                 _elevationSubIndex == 0, isSelected);
-  paintMiniKnob (g, cells[1], metrics, caption::clipTop,
-                 _elevationClipTop * 2.f - 1.f, false, _elevationSubIndex == 1,
-                 isSelected);
+  // The three knobs draw themselves (PotKnob); what is above them is the
+  // page's.
 
-  // The graphic's own slow movement: how fast the line it draws travels, and
-  // towards which pole. Bipolar, like the two sweeps it is a sibling of.
-  paintMiniKnob (g, cells[2], metrics, caption::sway,
-                 static_cast<float> (_elevationSway)
-                     / static_cast<float> (lfoMaxStep),
-                 true, _elevationSubIndex == 2, isSelected);
+  // The graphic's own slow movement -- how fast the line travels and towards
+  // which pole -- is the third of those knobs.
+
 }
 
 void

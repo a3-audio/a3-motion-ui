@@ -64,14 +64,6 @@ constexpr float filterFieldsOfRowWidth = 1.f / 2.f;
  *  than a five-way split coming apart. */
 constexpr float masterColumnOfWidth = 1.f / 5.f;
 
-/** The air a control leaves inside its cell.
- *
- *  A fraction of the cell rather than a number of pixels, so it keeps its
- *  proportion as the overlay grows. What it buys is that a strip reads as a
- *  block of controls with its neighbours beside it rather than as one
- *  continuous field — the alternative is a drawn line, and a line here would
- *  be one more mark over a sphere that is already showing through. */
-constexpr float controlGapOfCell = 1.f / 24.f;
 
 /** How tall a row has to be to be worth drawing: a fingertip, and the pot the
  *  skin asks for if that is larger. The fingertip is the floor for anything
@@ -122,7 +114,7 @@ cellAcross (juce::Rectangle<int> row, int count, int index)
  *  **The row count is therefore no longer the control count**, which is why
  *  the two are separate names. Dividing the strip by the control count would
  *  step six rows down a grid made for seven and leave the seventh empty. */
-constexpr int numMixerRows = numMixerControls - 1;
+constexpr int numMixerRows = numMixerFaceControls - 1;
 
 /** How many fields stand across the row the two keys share. */
 constexpr int fieldsInTheKeyRow = 2;
@@ -130,7 +122,7 @@ constexpr int fieldsInTheKeyRow = 2;
 /** Where a channel control stands: which row, and which field across it.
  *
  *  One answer rather than three functions, and written the way
- *  rowForMasterControl below is -- the table's order shifted by the rows
+ *  rowForMasterPot below is -- the table's order shifted by the rows
  *  collapsed above it, rather than a second table saying where each control
  *  goes. Two such tables is how a control ends up in one place on the overlay
  *  and another on the tab. */
@@ -144,7 +136,7 @@ struct ControlCell
 constexpr ControlCell
 cellForMixerControl (MixerControl control)
 {
-  static_assert (controlSlot (MixerControl::Fx) == numMixerControls - 1,
+  static_assert (faceSlot (MixerControl::Fx) == numMixerFaceControls - 1,
                  "FX joins PFL's row by being the control after it, so it has "
                  "to be the last one in the table");
 
@@ -154,13 +146,13 @@ cellForMixerControl (MixerControl control)
   // TheTogglesAreTheLastTwoAndNothingBefore states the same rule from the
   // table's own side; this is the half of it this arithmetic depends on, said
   // where the arithmetic is.
-  static_assert (controlSlot (MixerControl::Pfl)
-                     == numMixerControls - fieldsInTheKeyRow,
+  static_assert (faceSlot (MixerControl::Pfl)
+                     == numMixerFaceControls - fieldsInTheKeyRow,
                  "the two keys share a row, so they have to be the last two "
                  "in the table with nothing standing between them");
 
-  auto const shared = controlSlot (MixerControl::Pfl);
-  auto const slot = controlSlot (control);
+  auto const shared = faceSlot (MixerControl::Pfl);
+  auto const slot = faceSlot (control);
 
   // Everything above the keys keeps a row to itself, and is the only field
   // in it.
@@ -236,60 +228,24 @@ rowsDownStrip (juce::Rectangle<int> strip, ControlMetrics metrics)
   return out;
 }
 
-/** Which of those rows a master control stands in.
+/** Which of those rows a master pot stands in: the bottom ones, in order.
  *
- *  The master's five sit on the channels' own row grid, because five levels on
- *  one line is the whole point of standing it beside them: its volume takes
- *  the volume row and the other four fill the rows above it in the table's
- *  order. Which row that is is asked of cellForMixerControl rather than of the
- *  table, so the two columns move together when the channels' rows change.
- *
- *  **The row that leaves is empty on purpose.** It is where a channel's two
- *  keys stand, and the master's output level meters go there — a layout that
- *  filled it with anything else now would only have to be undone. */
+ *  The master is laid out like a channel -- its meters in the column on the
+ *  left, its pots beside them -- and the pots stand at the foot, so the last
+ *  of them lands on the row the channels' two keys share and the whole block
+ *  reads along the same lines as the four strips. The rows above are left to
+ *  the meter column's height. */
 constexpr int
-rowForMasterControl (MasterControl control)
+rowForMasterPot (int faceSlot)
 {
-  static_assert (numMasterControls - 1
-                     <= cellForMixerControl (MixerControl::Volume).row,
-                 "the master's other controls no longer fit above the volume");
-
-  if (control == MasterControl::Volume)
-    return cellForMixerControl (MixerControl::Volume).row;
-
-  auto const slot = controlSlot (control);
-  return slot < controlSlot (MasterControl::Volume) ? slot : slot - 1;
-}
-
-/** The rows of the master's column that no control of its own stands in.
- *
- *  Read off rowForMasterControl rather than written down as "the last one":
- *  which rows are free follows from where the master's five sit, and a number
- *  here would be a second answer to a question that already has one -- exactly
- *  the drift the static_assert above guards against from the other side. It is
- *  what let the block follow the keys into a single row without being told.
- *
- *  Returned as one rectangle because that is what the meters want: five thin
- *  bars in a single block, the way a multi-channel meter is drawn, rather
- *  than five widgets sharing out the rows. */
-juce::Rectangle<int>
-rowsNoMasterControlStandsIn (StripRows const &rows)
-{
-  std::array<bool, numMixerRows> claimed{};
-  for (auto const control : masterControlOrder)
-    claimed[static_cast<std::size_t> (rowForMasterControl (control))] = true;
-
-  juce::Rectangle<int> block;
-  for (int i = 0; i < numMixerRows; ++i)
-    if (!claimed[static_cast<std::size_t> (i)])
-      block = block.getUnion (rows.rows[static_cast<std::size_t> (i)]);
-
-  return block;
+  static_assert (numMasterFaceControls <= numMixerRows,
+                 "the master's pots no longer fit into a strip's rows");
+  return numMixerRows - numMasterFaceControls + faceSlot;
 }
 
 /** How many pots the bar's tab lays across its first row: everything that is
  *  turned rather than pressed. */
-constexpr int potsAcrossTheBarsStrip = numMixerControls - fieldsInTheKeyRow;
+constexpr int potsAcrossTheBarsStrip = numMixerFaceControls - fieldsInTheKeyRow;
 
 /** How many rows the tab has: the pots across the top, the two keys under
  *  them.
@@ -360,7 +316,7 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
   // break is made on; whether the rows *actually* clear their floor is asked
   // below, where the row height is known.
   out.strips = breakColumns (stripArea, numChannelsInitial,
-                             static_cast<int> (minimumChannelWidth),
+                             minimumMixerStripWidth,
                              static_cast<int> (minimumMotionHeight * 2.f));
 
   // The arrangement holds exactly the four channels, in every break of them:
@@ -405,10 +361,10 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
       rowsFit = rowsFit && rows.fits;
       out.channelMeter[static_cast<std::size_t> (channel)] = split.meter;
 
-      for (int i = 0; i < numMixerControls; ++i)
+      for (int i = 0; i < numMixerFaceControls; ++i)
         {
           auto const index = static_cast<std::size_t> (i);
-          auto const cell = cellForMixerControl (mixerControlOrder[index]);
+          auto const cell = cellForMixerControl (mixerFaceOrder[index]);
           auto const control = fieldAcrossRow (
               rows.rows[static_cast<std::size_t> (cell.row)], cell.fields,
               cell.field);
@@ -431,30 +387,30 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
         rowsFit = false;
     }
 
-  // The master stands on the same grid, its column running the full height
-  // the strips have: while the four are side by side that is exactly a
-  // channel's height, so the two arrangements are one and its volume lands on
-  // their line. Broken two by two they cannot both be lined up with, and the
-  // master keeps the height rather than half of it.
-  auto const masterRows = rowsDownStrip (masterColumn.reduced (gap), metrics);
-  rowsFit = rowsFit && masterRows.fits;
+  // The master is a strip like the four: its meter column on the left,
+  // running the height a channel's does, and its pots beside it on the same
+  // row grid. While the four are side by side that is exactly a channel's
+  // height, so the pots land on their lines; broken two by two they cannot
+  // both be lined up with, and the master keeps the height rather than half.
+  auto const masterSplit = splitStripForMeter (masterColumn.reduced (gap));
+  auto const masterRows = rowsDownStrip (masterSplit.controls, metrics);
+  rowsFit = rowsFit && masterRows.fits && !masterSplit.meter.isEmpty ();
 
-  // The output meters take the rows the master's own controls leave, which is
-  // what Task 10 kept them for. Not part of `fits`: a block of meters is read
-  // rather than touched, so a page whose meters came out too small to be
-  // useful is still a page that can be operated -- and refusing to draw the
-  // mixer over it would take away the controls as well.
-  auto const meters
-      = outputMeterBlock (rowsNoMasterControlStandsIn (masterRows), metrics);
+  // The output meters fill the column: the room's sub and speakers, and there
+  // will be more of them, which is why they get a column rather than a row.
+  // Not part of `fits`: a block of meters too small to read is still a page
+  // that can be operated -- refusing to draw it would take the pots too.
+  auto const meters = outputMeterBlock (masterSplit.meter, metrics);
   out.outputMeters = meters.bars;
   out.outputMeterCaption = meters.caption;
 
-  for (int i = 0; i < numMasterControls; ++i)
-    {
-      auto const index = static_cast<std::size_t> (i);
-      out.master[index] = masterRows.rows[static_cast<std::size_t> (
-          rowForMasterControl (masterControlOrder[index]))];
-    }
+  // The whole column, not just the bars: it is the master's fader, and its
+  // handle travels the length of it with the meters standing in its foot.
+  out.masterMeter = masterSplit.meter;
+
+  for (int i = 0; i < numMasterFaceControls; ++i)
+    out.master[static_cast<std::size_t> (i)]
+        = masterRows.rows[static_cast<std::size_t> (rowForMasterPot (i))];
 
   out.fits = out.strips.fits && rowsFit;
   return out;
@@ -482,8 +438,13 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
   // -- but at the far right of the band rather than before it. A band is read
   // left to right and the level is read at the end of it; the overlay's strips
   // are columns and the level is read before them.
-  out.channelMeter[0] = cellAcross (area, columnsAcrossTheBarsStrip,
-                                    potsAcrossTheBarsStrip);
+  // Half that column, at its right-hand edge: a whole one came out twice the
+  // width of the overlay's meter, and the fader handle on it read as
+  // squashed. The other half is air between the last pot and the meter.
+  auto const meterColumn = cellAcross (area, columnsAcrossTheBarsStrip,
+                                       potsAcrossTheBarsStrip);
+  out.channelMeter[0]
+      = meterColumn.withTrimmedLeft (meterColumn.getWidth () / 2);
   if (out.channelMeter[0].isEmpty ())
     cellsFit = false;
 
@@ -503,10 +464,10 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
   // Across in the table's order, the way the overlay goes down it -- the same
   // list read the other way rather than a second list that agrees with it, and
   // the same split of it into what is turned and what is pressed.
-  for (int i = 0; i < numMixerControls; ++i)
+  for (int i = 0; i < numMixerFaceControls; ++i)
     {
       auto const index = static_cast<std::size_t> (i);
-      auto const control = mixerControlOrder[index];
+      auto const control = mixerFaceOrder[index];
       auto const where = cellForMixerControl (control);
       auto const cell
           = mixerControlIsAToggle (control)

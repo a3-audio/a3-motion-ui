@@ -29,6 +29,9 @@
 #include <a3-motion-ui/components/MixerLayout.hh>
 #include <a3-motion-ui/components/MixerState.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
+#include <a3-motion-ui/components/PotKnob.hh>
+#include <a3-motion-ui/components/VuFader.hh>
+#include <a3-motion-ui/components/VuMeterView.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
@@ -99,17 +102,6 @@ void wireMixerChannelTouch (
  *  sphere wants the machine. */
 void runMeterTimerWhileVisible (bool isVisible, juce::Timer &timer);
 
-/** Redraws a page's meters and nothing else.
- *
- *  paint() still runs, but clipped to these rectangles -- so a refresh costs a
- *  few narrow bars rather than a whole mixer. A page too small to lay out
- *  draws one line of text and no meters at all, so it has nothing to keep up
- *  to date; saying so is what makes that deliberate rather than lucky.
- *
- *  Both pages read the same MixerLayout, and the strip simply leaves the
- *  rectangles it does not use empty -- so one loop serves both rather than
- *  each naming the meters it happens to have. */
-void repaintMixerMeters (juce::Component &page, MixerLayout const &layout);
 
 /** The one line a page draws where it cannot lay itself out.
  *
@@ -144,6 +136,17 @@ public:
 
   void paint (juce::Graphics &g) override;
   void resized () override;
+
+  /** Redraw one meter and nothing else.
+   *
+   *  A drag on a fader used to repaint the whole page for every pixel the
+   *  finger moved -- 660x491 at about 2.8 ms a time, measured on the rig,
+   *  which is what made the master's long fader feel like it was catching.
+   *  The handle never leaves its meter, so its meter is all that changes. */
+  /** Put the faders and knobs where the state says, without repainting the
+   *  page: a slider redraws itself when its value changes. */
+  void syncControls ();
+
   /** The whole geometry is worked out from the skin's pot size and fonts, so
    *  a skin change has to re-lay this out, not merely repaint it. */
   void applyTheme () override;
@@ -165,6 +168,20 @@ public:
   /** Two taps: put this channel's control back where mixerControlRestPosition
    *  says. Fires only for a control that has one. */
   std::function<void (int channel, MixerControl)> onChannelDoubleTapped;
+  /** A knob was turned: where it stands now. The pages own no values; the
+   *  state does, and a slider tells it where the finger left it. */
+  std::function<void (int channel, MixerControl, float value)>
+      onChannelValueChanged;
+  std::function<void (MasterControl, float value)> onMasterValueChanged;
+  std::function<void (FilterControl, float value)> onFilterValueChanged;
+
+  /** A drag on the output meters: the master volume, where the finger has
+   *  taken it. No double tap there -- see MixerComponent's constructor. */
+  std::function<void (float value)> onMasterMeterDraggedTo;
+  /** Two taps on a channel's meter: put that channel at full volume. */
+  std::function<void (int channel)> onMeterDoubleTapped;
+  /** A drag on a channel's meter: VOL, where the finger has taken it. */
+  std::function<void (int channel, float value)> onMeterDraggedTo;
   std::function<void (MasterControl, int steps)> onMasterDragged;
   std::function<void (FilterControl, int steps)> onFilterDragged;
   std::function<void (FilterControl)> onFilterTapped;
@@ -204,10 +221,31 @@ private:
   MixerLayout _layout;
   ControlMetrics _metrics{};
 
-  std::array<std::array<std::unique_ptr<TouchControl>, numMixerControls>,
+  std::array<std::array<std::unique_ptr<TouchControl>, numMixerFaceControls>,
              static_cast<std::size_t> (numChannelsInitial)>
       _channelTouch;
-  std::array<std::unique_ptr<TouchControl>, numMasterControls> _masterTouch;
+  /** One per channel and one per output: the meters, each painting itself.
+   *  Added before the faders, so a fader stands over its meter. */
+  std::array<std::unique_ptr<VuMeterView>,
+             static_cast<std::size_t> (numChannelsInitial)>
+      _channelMeterView;
+  std::array<std::unique_ptr<VuMeterView>, numOutputMeters> _outputMeterView;
+
+  /** One per channel, over its meter: the fader that VOL is dragged on. */
+  std::array<std::unique_ptr<VuFader>,
+             static_cast<std::size_t> (numChannelsInitial)>
+      _channelFader;
+  /** The knobs: one per control that is turned. The two keys of a channel
+   *  and the filter's mode key keep their hit areas -- they are pressed. */
+  std::array<std::array<std::unique_ptr<PotKnob>, numMixerFaceControls>,
+             static_cast<std::size_t> (numChannelsInitial)>
+      _channelKnob;
+  std::array<std::unique_ptr<PotKnob>, numMasterFaceControls> _masterKnob;
+  std::array<std::unique_ptr<PotKnob>, numFilterControls> _filterKnob;
+
+  std::array<std::unique_ptr<TouchControl>, numMasterFaceControls> _masterTouch;
+  /** Over the output meters: the master volume's fader. */
+  std::unique_ptr<VuFader> _masterFader;
   std::array<std::unique_ptr<TouchControl>, numFilterControls> _filterTouch;
 };
 

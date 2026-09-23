@@ -220,6 +220,7 @@ private:
 
   /** Put what is in the editor back into the slot's script file. */
   void writeSlotActionScript ();
+  juce::String saveSlotActionScriptAs ();
   /** Keep the chosen slot's settings as a new action clip. */
   juce::String saveSlotAsAction ();
   /** Write what is on show back over the file it came from. Per tab: the
@@ -319,6 +320,8 @@ private:
   int renameInSets (juce::String const &from, juce::String const &to);
   void updateActionPage ();
   void applyActionControl (int control, int increment);
+  /** Where a knob stands now -- the ACTION page's nine are sliders. */
+  void setActionControl (int control, double value);
   void resetActionControl (int control);
   static juce::String actionReadoutFor (int control,
                                         Pattern const &pattern);
@@ -871,6 +874,10 @@ private:
    *  was selected last. The encoder path passes the selection it drives. */
   /** Two taps on a knob: back to the middle of its range. */
   void handleClipSettingsReset (index_t channel, int section, int sub);
+  /** Where a knob on the bar stands now -- the Elevation section's three are
+   *  sliders. The increments below stay for the fields and the encoders. */
+  void setClipSettingsValue (index_t channel, int section, int sub,
+                             double value);
   void handleClipSettingsValueChange (index_t channel, int section, int sub,
                                       int increment);
 

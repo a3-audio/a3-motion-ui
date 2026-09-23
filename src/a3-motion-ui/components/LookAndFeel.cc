@@ -20,6 +20,10 @@
 
 #include "LookAndFeel.hh"
 
+#include <a3-motion-ui/components/BarKnob.hh>
+#include <a3-motion-ui/components/MixerComponent.hh>
+#include <a3-motion-ui/components/PotKnob.hh>
+#include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
 namespace a3
@@ -108,6 +112,81 @@ LookAndFeel_A3::getTextButtonFont (juce::TextButton &button, int buttonHeight)
       juce::LookAndFeel_V4::getTextButtonFont (button, buttonHeight));
 }
 
+
+int
+LookAndFeel_A3::getSliderThumbRadius (juce::Slider &slider)
+{
+  if (slider.getSliderStyle () != juce::Slider::LinearVertical)
+    return juce::LookAndFeel_V4::getSliderThumbRadius (slider);
+
+  return vuFaderHandle (slider.getLocalBounds (), 0.f).getHeight () / 2;
+}
+
+void
+LookAndFeel_A3::drawRotarySlider (juce::Graphics &g, int x, int y, int width,
+                                  int height, float sliderPosProportional,
+                                  float rotaryStartAngle,
+                                  float rotaryEndAngle, juce::Slider &slider)
+{
+  auto *knob = dynamic_cast<PotKnob *> (&slider);
+  if (knob == nullptr)
+    {
+      juce::LookAndFeel_V4::drawRotarySlider (g, x, y, width, height,
+                                              sliderPosProportional,
+                                              rotaryStartAngle, rotaryEndAngle,
+                                              slider);
+      return;
+    }
+
+  // -1..1 across the scale, which is what the arc is drawn from -- and for a
+  // ring, 0..2 round it, because a turn has no ends to run between.
+  auto const angle = knob->wraps () ? sliderPosProportional * 2.f
+                                    : sliderPosProportional * 2.f - 1.f;
+
+  paintBarKnob (g, juce::Rectangle<int> (x, y, width, height),
+                mixerControlMetrics (),
+                slider.findColour (juce::Slider::thumbColourId),
+                knob->label (), angle, knob->fillsFromTheMiddle (),
+                knob->isActive (), knob->isSelected (), knob->reach (),
+                knob->wraps ());
+}
+
+juce::Slider::SliderLayout
+LookAndFeel_A3::getSliderLayout (juce::Slider &slider)
+{
+  if (slider.getSliderStyle () != juce::Slider::LinearVertical)
+    return juce::LookAndFeel_V4::getSliderLayout (slider);
+
+  juce::Slider::SliderLayout layout;
+  layout.sliderBounds = slider.getLocalBounds ();
+  return layout;
+}
+
+void
+LookAndFeel_A3::drawLinearSlider (juce::Graphics &g, int x, int y, int width,
+                                  int height, float sliderPos,
+                                  float minSliderPos, float maxSliderPos,
+                                  juce::Slider::SliderStyle style,
+                                  juce::Slider &slider)
+{
+  if (style != juce::Slider::LinearVertical)
+    {
+      juce::LookAndFeel_V4::drawLinearSlider (g, x, y, width, height,
+                                              sliderPos, minSliderPos,
+                                              maxSliderPos, style, slider);
+      return;
+    }
+
+  // sliderPos is where the slider says its handle belongs, and it is the only
+  // answer that stays under the finger: the slider maps its travel over the
+  // track less the handle, where our own arithmetic mapped it over the whole
+  // track and drifted away on the overlay's long faders.
+  auto const bounds = juce::Rectangle<int> (x, y, width, height);
+  auto const handle = vuFaderHandleAt (bounds, juce::roundToInt (sliderPos));
+
+  paintVuFaderCap (g, bounds, handle,
+                   slider.findColour (juce::Slider::thumbColourId));
+}
 
 void
 applyThemeEverywhere (Theme loaded, juce::Component &inTree)

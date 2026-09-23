@@ -24,6 +24,8 @@
 
 #include <JuceHeader.h>
 
+#include <vector>
+
 namespace a3
 {
 
@@ -91,5 +93,33 @@ juce::String actionScriptFor (ClipSettings const &settings);
 /** Every name a script may assign to, for the editor and for error messages.
  *  Sorted, so a "did you mean" can be built off it later. */
 juce::StringArray actionScriptNames ();
+
+/** What one parameter is called, what it may be, and half a line of what it
+ *  does -- the annotation its line carries in every script.
+ *
+ *  `heading` is the section it is written under, repeated on each note rather
+ *  than nested so the list stays one flat thing to walk. An empty `hint` is a
+ *  parameter whose name says it (`~freqDecay` under `~freqAttack`). */
+struct ActionScriptNote
+{
+  char const *name;
+  char const *heading;
+  char const *range;
+  char const *hint;
+};
+
+/** The annotation for every parameter, in the order a script writes them.
+ *
+ *  One place, because the same words stand in twenty-six shipped scripts and
+ *  in every one the performer saves. A test holds the scripts against this.
+ *  `mirrorSouth` is not here: it is dead, and a template that offered it
+ *  would be teaching it. */
+std::vector<ActionScriptNote> const &actionScriptNotes ();
+
+/** Every parameter, commented out at its default -- what a script starts from
+ *  and what makes each one its own reference. Firing it changes nothing until
+ *  a line is uncommented, because a commented line assigns nothing, which is
+ *  exactly "leave this as the hand left it". */
+juce::String actionScriptTemplate ();
 
 }

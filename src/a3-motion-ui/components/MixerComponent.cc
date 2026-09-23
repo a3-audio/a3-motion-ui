@@ -37,26 +37,6 @@ namespace
 // wears it too: it is the fifth strip, not a section standing beside four.
 constexpr float stripWash = 0.07f;
 
-/** Whether the control's middle means neutral.
- *
- *  An EQ band is cut or boost either side of flat, so its arc grows out of
- *  the middle and which side of flat you are on reads at a glance. Gain and
- *  the volume run from silence upwards and fill from their start, the way a
- *  volume knob anywhere does. */
-bool
-fillsFromTheMiddle (MixerControl control)
-{
-  return control == MixerControl::EqHigh || control == MixerControl::EqMid
-         || control == MixerControl::EqLow;
-}
-
-/** The same, for the summing section: the phones' blend sits between two ends
- *  and reads as a distance from the middle; everything else is a level. */
-bool
-fillsFromTheMiddle (MasterControl control)
-{
-  return control == MasterControl::PhonesMix;
-}
 
 /** A 0..1 value on paintBarKnob's -1..1 scale. */
 float
@@ -137,23 +117,6 @@ runMeterTimerWhileVisible (bool isVisible, juce::Timer &timer)
 }
 
 void
-repaintMixerMeters (juce::Component &page, MixerLayout const &layout)
-{
-  if (!layout.fits)
-    return;
-
-  auto const redraw = [&page] (juce::Rectangle<int> const &meter) {
-    if (!meter.isEmpty ())
-      page.repaint (meter);
-  };
-
-  for (auto const &meter : layout.channelMeter)
-    redraw (meter);
-  for (auto const &bar : layout.outputMeters)
-    redraw (bar);
-}
-
-void
 paintMixerHasNoRoom (juce::Graphics &g, juce::Rectangle<int> bounds,
                      juce::String const &what)
 {
@@ -175,9 +138,44 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
     addAndMakeVisible (touch);
   };
 
+  // Everything that is turned is a knob of its own -- a JUCE slider, drawn by
+  // the LookAndFeel as the arc this device has always drawn. Only the two
+  // keys are still hit areas: they are pressed, not turned.
+  auto const makeKnob = [this] (MixerControl control, juce::Colour colour) {
+    auto knob = std::make_unique<PotKnob> ();
+    knob->setLabel (mixerControlLabel (control));
+    knob->setFillsFromTheMiddle (fillsFromTheMiddle (control));
+    knob->setKnobColour (colour);
+
+    // Two taps put a control back where it belongs, and JUCE does that
+    // itself once it is told where that is. Only the send has an answer --
+    // see mixerControlRestPosition.
+    if (auto const rest = mixerControlRestPosition (control))
+      knob->setDoubleClickReturnValue (true, *rest);
+
+    addAndMakeVisible (*knob);
+    return knob;
+  };
+
   for (int channel = 0; channel < numChannelsInitial; ++channel)
-    for (int i = 0; i < numMixerControls; ++i)
+    for (int i = 0; i < numMixerFaceControls; ++i)
       {
+        auto const index = static_cast<std::size_t> (i);
+        auto const control = mixerFaceOrder[index];
+
+        if (!mixerControlIsAToggle (control))
+          {
+            auto knob = makeKnob (control, toColour (theme ().channel[channel]));
+            knob->onValueChange = [this, channel, control, k = knob.get ()] {
+              if (onChannelValueChanged)
+                onChannelValueChanged (channel, control,
+                                       static_cast<float> (k->getValue ()));
+            };
+            _channelKnob[static_cast<std::size_t> (channel)][index]
+                = std::move (knob);
+            continue;
+          }
+
         auto touch = std::make_unique<TouchControl> ();
 
         // The channel is closed over rather than read off the identity: a
@@ -186,7 +184,7 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
         // wireMixerChannelTouch the same two questions and differ only in how
         // they answer "whose".
         wireMixerChannelTouch (
-            *touch, mixerControlOrder[static_cast<std::size_t> (i)],
+            *touch, mixerFaceOrder[static_cast<std::size_t> (i)],
             [this, channel] (MixerControl control, int increment) {
               if (onChannelDragged)
                 onChannelDragged (channel, control, increment);
@@ -206,22 +204,94 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
             = std::move (touch);
       }
 
-  for (int i = 0; i < numMasterControls; ++i)
+  // The meters first, so the faders are added after them and stand over
+  // them: the handle is the layer above.
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
     {
-      auto touch = std::make_unique<TouchControl> ();
-      touch->onDragIncrement = [this] (int, int secondary, int increment) {
-        if (onMasterDragged)
-          onMasterDragged (
-              masterControlOrder[static_cast<std::size_t> (secondary)],
-              increment);
+      auto view = std::make_unique<VuMeterView> ();
+      view->level = [this, channel] {
+        return _levels.channel (channel, vuNowMs ());
       };
-
-      hookUp (*touch, masterGroup, i);
-      _masterTouch[static_cast<std::size_t> (i)] = std::move (touch);
+      addAndMakeVisible (*view);
+      _channelMeterView[static_cast<std::size_t> (channel)] = std::move (view);
     }
+
+  for (int meter = 0; meter < numOutputMeters; ++meter)
+    {
+      auto view = std::make_unique<VuMeterView> ();
+      view->setDirection (VuDirection::Right);
+      view->level = [this, meter] {
+        return _levels.output (meter, vuNowMs ());
+      };
+      addAndMakeVisible (*view);
+      _outputMeterView[static_cast<std::size_t> (meter)] = std::move (view);
+    }
+
+  // Each meter is its channel's VOL: a fader over it, JUCE's slider doing
+  // the drag -- see VuFader.
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    {
+      auto fader = std::make_unique<VuFader> ();
+      fader->onValueChange = [this, channel, f = fader.get ()] {
+        if (onMeterDraggedTo)
+          onMeterDraggedTo (channel, static_cast<float> (f->getValue ()));
+      };
+      fader->onDoubleTapped = [this, channel] {
+        if (onMeterDoubleTapped)
+          onMeterDoubleTapped (channel);
+      };
+      addAndMakeVisible (*fader);
+      _channelFader[static_cast<std::size_t> (channel)] = std::move (fader);
+    }
+
+  for (int i = 0; i < numMasterFaceControls; ++i)
+    {
+      auto const index = static_cast<std::size_t> (i);
+      auto const control = masterFaceOrder[index];
+
+      auto knob = std::make_unique<PotKnob> ();
+      knob->setLabel (masterControlLabel (control));
+      knob->setFillsFromTheMiddle (fillsFromTheMiddle (control));
+      knob->setKnobColour (toColour (theme ().textPrimary));
+      knob->onValueChange = [this, control, k = knob.get ()] {
+        if (onMasterValueChanged)
+          onMasterValueChanged (control, static_cast<float> (k->getValue ()));
+      };
+      addAndMakeVisible (*knob);
+      _masterKnob[index] = std::move (knob);
+    }
+
+  // The output meters are the master volume, with the same fader over them.
+  // No double tap: full volume on the master is the one gesture that makes
+  // the whole room loud at once, and the channels' faders already offer the
+  // jump where it concerns one deck.
+  _masterFader = std::make_unique<VuFader> ();
+  _masterFader->onValueChange = [this] {
+    if (onMasterMeterDraggedTo)
+      onMasterMeterDraggedTo (static_cast<float> (_masterFader->getValue ()));
+  };
+  addAndMakeVisible (*_masterFader);
 
   for (int i = 0; i < numFilterControls; ++i)
     {
+      auto const index = static_cast<std::size_t> (i);
+      auto const control = filterControlOrder[index];
+
+      if (control != FilterControl::Mode)
+        {
+          auto knob = std::make_unique<PotKnob> ();
+          knob->setLabel (filterControlLabel (control));
+          knob->setKnobColour (toColour (theme ().textPrimary));
+          knob->onValueChange = [this, control, k = knob.get ()] {
+            if (onFilterValueChanged)
+              onFilterValueChanged (control,
+                                    static_cast<float> (k->getValue ()));
+          };
+          addAndMakeVisible (*knob);
+          _filterKnob[index] = std::move (knob);
+          continue;
+        }
+
       auto touch = std::make_unique<TouchControl> ();
       touch->onDragIncrement = [this] (int, int secondary, int increment) {
         if (onFilterDragged)
@@ -256,7 +326,10 @@ MixerComponent::visibilityChanged ()
 void
 MixerComponent::timerCallback ()
 {
-  repaintMixerMeters (*this, _layout);
+  for (auto const &view : _channelMeterView)
+    view->repaint ();
+  for (auto const &view : _outputMeterView)
+    view->repaint ();
 }
 
 juce::Rectangle<int>
@@ -297,8 +370,18 @@ MixerComponent::resized ()
   // is made of Pot Size -- a skin value the performer dials on the device --
   // so this is reachable without resizing anything.
   for (int channel = 0; channel < numChannelsInitial; ++channel)
-    for (int i = 0; i < numMixerControls; ++i)
+    for (int i = 0; i < numMixerFaceControls; ++i)
       {
+        auto const cell = _layout.controls[static_cast<std::size_t> (channel)]
+                                          [static_cast<std::size_t> (i)];
+        if (auto &knob = _channelKnob[static_cast<std::size_t> (channel)]
+                                     [static_cast<std::size_t> (i)])
+          {
+            knob->setBounds (cell);
+            knob->setVisible (_layout.fits);
+            continue;
+          }
+
         auto &touch = _channelTouch[static_cast<std::size_t> (channel)]
                                    [static_cast<std::size_t> (i)];
         touch->setBounds (_layout.controls[static_cast<std::size_t> (channel)]
@@ -306,15 +389,45 @@ MixerComponent::resized ()
         touch->setVisible (_layout.fits);
       }
 
-  for (int i = 0; i < numMasterControls; ++i)
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
     {
-      auto &touch = _masterTouch[static_cast<std::size_t> (i)];
-      touch->setBounds (_layout.master[static_cast<std::size_t> (i)]);
-      touch->setVisible (_layout.fits);
+      auto const index = static_cast<std::size_t> (channel);
+      auto const meter = _layout.channelMeter[index];
+
+      _channelMeterView[index]->setBounds (meter);
+      _channelMeterView[index]->setVisible (_layout.fits);
+
+      auto &fader = _channelFader[index];
+      fader->setBounds (meter);
+      fader->setVisible (_layout.fits);
     }
+
+  for (int meter = 0; meter < numOutputMeters; ++meter)
+    {
+      auto const index = static_cast<std::size_t> (meter);
+      _outputMeterView[index]->setBounds (_layout.outputMeters[index]);
+      _outputMeterView[index]->setVisible (_layout.fits);
+    }
+
+  for (int i = 0; i < numMasterFaceControls; ++i)
+    {
+      auto &knob = _masterKnob[static_cast<std::size_t> (i)];
+      knob->setBounds (_layout.master[static_cast<std::size_t> (i)]);
+      knob->setVisible (_layout.fits);
+    }
+
+  _masterFader->setBounds (_layout.masterMeter);
+  _masterFader->setVisible (_layout.fits);
 
   for (int i = 0; i < numFilterControls; ++i)
     {
+      if (auto &knob = _filterKnob[static_cast<std::size_t> (i)])
+        {
+          knob->setBounds (_layout.filter[static_cast<std::size_t> (i)]);
+          knob->setVisible (_layout.fits);
+          continue;
+        }
+
       auto &touch = _filterTouch[static_cast<std::size_t> (i)];
       touch->setBounds (_layout.filter[static_cast<std::size_t> (i)]);
       touch->setVisible (_layout.fits);
@@ -324,6 +437,8 @@ MixerComponent::resized ()
 void
 MixerComponent::paint (juce::Graphics &g)
 {
+  syncControls ();
+
   // Opaque, unlike the menu and the skin editor: those are settings pages you
   // glance at, and seeing the room through them says the set is still running
   // behind. This one *is* the set -- nine meters and twenty-three controls
@@ -347,25 +462,65 @@ MixerComponent::paint (juce::Graphics &g)
 }
 
 void
+MixerComponent::syncControls ()
+{
+  // The faders carry the value and draw the handle; the page owns the state.
+  // Pushed from paint() and from whoever changed a value, rather than from
+  // every writer: a value can arrive from the wire, from a set being loaded
+  // or from the other page. A slider that is already there does nothing.
+  // Never while a finger is on it: writing the state back into a slider that
+  // is being dragged is the page arguing with the hand, and it read as the
+  // handle jumping.
+  auto const put = [] (VuFader &fader, double value, juce::Colour colour) {
+    if (!fader.isMouseButtonDown ())
+      fader.setValue (value, juce::dontSendNotification);
+    fader.setHandleColour (colour);
+  };
+
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    put (*_channelFader[static_cast<std::size_t> (channel)],
+         _state.channelValue (channel, MixerControl::Volume),
+         toColour (theme ().channel[channel]));
+
+  put (*_masterFader, _state.masterValue (MasterControl::Volume),
+       toColour (theme ().textPrimary));
+
+  auto const turn = [] (PotKnob &knob, double value, juce::Colour colour) {
+    if (!knob.isMouseButtonDown ())
+      knob.setValue (value, juce::dontSendNotification);
+    knob.setKnobColour (colour);
+  };
+
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
+         ++i)
+      if (auto &knob = _channelKnob[static_cast<std::size_t> (channel)][i])
+        turn (*knob, _state.channelValue (channel, mixerFaceOrder[i]),
+              toColour (theme ().channel[channel]));
+
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numMasterFaceControls);
+       ++i)
+    turn (*_masterKnob[i], _state.masterValue (masterFaceOrder[i]),
+          toColour (theme ().textPrimary));
+
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numFilterControls); ++i)
+    if (auto &knob = _filterKnob[i])
+      turn (*knob, _state.filterValue (filterControlOrder[i]),
+            toColour (theme ().textPrimary));
+}
+
+void
 MixerComponent::paintMeters (juce::Graphics &g)
 {
-  // One reading of the clock for the whole page. Nine meters each asking the
-  // time would draw nine slightly different moments, and a peak mark that
-  // expired between two columns of the same picture is a picture that
-  // contradicts itself.
-  auto const now = vuNowMs ();
-
-  // Every meter on the page is drawn the same, the channels' and the outputs'
-  // alike: green, yellow and red down a bar is a scale, and a scale that meant
-  // something different on the fifth column from the four beside it would be
-  // read wrong exactly once, at the moment it mattered.
-  for (int channel = 0; channel < numChannelsInitial; ++channel)
-    paintVuMeter (g, _layout.channelMeter[static_cast<std::size_t> (channel)],
-                  _levels.channel (channel, now));
-
-  for (int meter = 0; meter < numOutputMeters; ++meter)
-    paintVuMeter (g, _layout.outputMeters[static_cast<std::size_t> (meter)],
-                  _levels.output (meter, now));
+  // The meters draw themselves (VuMeterView). What is left here is the page's
+  // own furniture around them: the master's fader groove and the word under
+  // its block.
+  auto const groove = _layout.masterMeter.withSizeKeepingCentre (
+      juce::jmax (juce::roundToInt (theme ().strokeThick * 2.f),
+                  _layout.masterMeter.getWidth () / 8),
+      _layout.masterMeter.getHeight ());
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (groove.toFloat (), theme ().radiusControl);
 
   if (!_layout.outputMeterCaption.isEmpty ())
     {
@@ -403,10 +558,13 @@ MixerComponent::paintStrip (juce::Graphics &g, int channel)
   g.setColour (colour.withAlpha (stripWash));
   g.fillRoundedRectangle (ground.toFloat (), theme ().radiusCard);
 
-  for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerControls);
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
        ++i)
     {
-      auto const control = mixerControlOrder[i];
+      auto const control = mixerFaceOrder[i];
+      if (!mixerControlIsAToggle (control))
+        continue; // a knob of its own now -- see PotKnob
+
       paintMixerChannelControl (g, cells[i], _metrics, colour, control,
                                 _state.channelValue (channel, control),
                                 _state.channelToggle (channel, control));
@@ -423,31 +581,19 @@ MixerComponent::paintMasterColumn (juce::Graphics &g)
   auto const colour = toColour (theme ().textPrimary);
 
   // The same ground the four strips wear, so the master reads as the fifth of
-  // five rather than as a panel that happens to stand beside them. Down to
-  // the foot of the output meters, which stand in the two rows under its own
-  // five: the column is one block, and a wash stopping short of its last two
-  // rows would read as the meters having been pasted on underneath it.
+  // five rather than as a panel that happens to stand beside them: its pots
+  // and the meter column beside them, as one block.
   auto ground = _layout.master.front ();
   for (auto const &cell : _layout.master)
     ground = ground.getUnion (cell);
-  for (auto const &bar : _layout.outputMeters)
-    ground = ground.getUnion (bar);
+  ground = ground.getUnion (_layout.masterMeter);
   ground = ground.getUnion (_layout.outputMeterCaption);
 
   g.setColour (colour.withAlpha (stripWash));
   g.fillRoundedRectangle (ground.toFloat (), theme ().radiusCard);
 
-  for (std::size_t i = 0; i < static_cast<std::size_t> (numMasterControls);
-       ++i)
-    {
-      auto const control = masterControlOrder[i];
-      auto const value = _state.masterValue (control);
-      auto const bounds = _layout.master[i];
-      auto const label = juce::String (masterControlLabel (control));
-
-      paintBarKnob (g, bounds, _metrics, colour, label, angleFor (value),
-                    fillsFromTheMiddle (control), false, true);
-    }
+  // The five pots draw themselves (PotKnob); what is left here is the ground
+  // they stand on, above.
 }
 
 void
@@ -483,9 +629,8 @@ MixerComponent::paintFilterRow (juce::Graphics &g)
           continue;
         }
 
-      paintBarKnob (g, bounds, _metrics, colour, label,
-                    angleFor (_state.filterValue (control)), false, false,
-                    true);
+      // FREQ and RES are knobs of their own (PotKnob); only the mode key is
+      // drawn here.
     }
 }
 
