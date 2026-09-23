@@ -326,10 +326,7 @@ ActionComponent::resized ()
   if (_actionTouch)
     _actionTouch->setBounds (_layout.actionField);
   if (_scriptTouch)
-    {
-      _scriptTouch->setBounds (_layout.scriptTextField);
-      _scriptTouch->setVisible (_listOpen);
-    }
+    _scriptTouch->setBounds (_layout.scriptTextField);
   if (_fireTouch)
     _fireTouch->setBounds (_layout.fireButton);
   if (_saveTouch)
@@ -341,6 +338,8 @@ ActionComponent::resized ()
 
   if (_editor)
     _editor->setBounds (scriptTextArea ());
+
+  updateScriptLayers ();
 }
 
 void
@@ -495,9 +494,12 @@ ActionComponent::visibleScriptLines () const
 void
 ActionComponent::openActionList ()
 {
+  // Reaching for the list is leaving the editor wherever the tap came from,
+  // and it is what takes the keyboard away with it.
+  stopEditingScript ();
+
   _listOpen = true;
-  if (_scriptTouch)
-    _scriptTouch->setVisible (true);
+  updateScriptLayers ();
 
   // Opened onto whatever is already chosen, moved as little as possible: a
   // list that always opens at the top makes you scroll back to where you were
@@ -511,11 +513,25 @@ void
 ActionComponent::closeActionList ()
 {
   _listOpen = false;
+  updateScriptLayers ();
+}
 
-  // The area goes with the list: left in front of the editor it would answer
-  // every touch meant for the text.
+void
+ActionComponent::updateScriptLayers ()
+{
+  // The list and the editor stand in one area, and one of the two is on
+  // screen at a time. Drawing the list opaque is not enough: the editor is a
+  // child, a child is painted after its parent by construction, and its own
+  // ground is transparent so the field behind it can show -- so the script
+  // was drawn over the list whatever the list did, and the two were read at
+  // once. No toFront() helps; the editor has to go.
+  if (_editor)
+    _editor->setVisible (!_listOpen);
+
+  // The touch area goes the other way: it lies over the editor only while the
+  // list does, or it would answer every touch meant for the text.
   if (_scriptTouch)
-    _scriptTouch->setVisible (false);
+    _scriptTouch->setVisible (_listOpen);
 }
 
 void

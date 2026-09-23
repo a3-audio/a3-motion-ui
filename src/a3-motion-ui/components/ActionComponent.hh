@@ -185,6 +185,7 @@ private:
 
   void openActionList ();
   void closeActionList ();
+  void updateScriptLayers ();
   void chooseFromActionList (juce::Point<int> point);
 
   ActionLayout _layout;
