@@ -22,7 +22,7 @@
   "qMax": 0.3,
   "reach": 0.65,
   "rotate": 0.62,
-  "speed": 0,
+  "speed": -4,
   "spin": 3,
   "sqzX": 0.0,
   "sqzY": 0.0,
