@@ -161,24 +161,39 @@ TEST (MixerState, TheThreeThatMustNotGuessStartAtZero)
   EXPECT_FLOAT_EQ (state.masterValue (MasterControl::Volume), 0.f);
 }
 
-// The start and the rest position are the same question asked at two moments:
-// "where does this belong when nothing says otherwise". SEND had two different
-// answers to it in one file -- 0.5 in the constructor, 0 in
+// Where a control starts and where two taps put it are the same question at
+// two moments, and the constructor must not answer it a second time by hand.
+// SEND had two answers in one file -- 0.5 in the constructor, 0 in
 // mixerControlRestPosition -- and a double tap therefore moved a control that
 // had never been touched.
-TEST (MixerState, AControlWithARestPositionStartsOnIt)
+//
+// They are allowed to differ; they may not differ *by accident*. GAIN is the
+// case where they genuinely do, and it is stated in
+// mixerControlStartPosition rather than in a loop.
+TEST (MixerState, EveryControlStartsWhereTheTableSaysItDoes)
 {
   MixerState state;
   for (auto const control : mixerControlOrder)
     {
-      auto const rest = mixerControlRestPosition (control);
-      if (!rest.has_value ())
+      if (mixerControlIsAToggle (control))
         continue;
 
       for (auto channel = 0; channel < numChannelsInitial; ++channel)
-        EXPECT_FLOAT_EQ (state.channelValue (channel, control), *rest)
+        EXPECT_FLOAT_EQ (state.channelValue (channel, control),
+                         mixerControlStartPosition (control))
             << mixerControlLabel (control);
     }
+}
+
+// A desk that has just come up is silent, whatever a double tap would do to
+// the same control later. GAIN rests at full and starts at nothing: nobody
+// knows what is patched into the thing at the moment it boots, and a rack of
+// channels arriving at full gain is the one mistake this cannot make.
+TEST (MixerState, GainStartsAtNothingAndStillRestsAtFull)
+{
+  EXPECT_FLOAT_EQ (mixerControlStartPosition (MixerControl::Gain), 0.f);
+  ASSERT_TRUE (mixerControlRestPosition (MixerControl::Gain).has_value ());
+  EXPECT_FLOAT_EQ (*mixerControlRestPosition (MixerControl::Gain), 1.f);
 }
 
 // A channel outside the four is a caller's bug, not a crash: the strip is

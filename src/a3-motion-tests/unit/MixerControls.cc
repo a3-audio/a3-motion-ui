@@ -182,17 +182,46 @@ TEST (MixerControls, ThePositionsAreKnownAtCompileTime)
 // Two taps put a control back. Only SEND has somewhere to go back to, and
 // that is the point of asking per control rather than resetting everything.
 //
-// GAIN and VOL deliberately have no rest position. Zero on either is a mute,
-// and a mute two fingertips away from a control that is dragged all evening
-// is a way to silence the room by accident. SEND is the one where zero is
-// unambiguous and safe: take the effect out.
-TEST (MixerControls, OnlyTheSendHasARestPosition)
+// What the rule guards against is **zero**, not resetting: zero on GAIN or on
+// VOL is a mute, and a mute two fingertips away from a control that is
+// dragged all evening is a way to silence the room by accident. So the three
+// EQ bands go back to flat and GAIN goes to full -- asked for at the device
+// on 2026-09-23, "hi/mid/low doubletap auf 12 uhr fehlt, gain doubletap auf 1
+// fehlt" -- and neither of those quietens anything.
+//
+// VOL still has none. It is the fader now, and two taps there are handled
+// where the fader is, so that the master can be left out of it: full volume
+// on the master is the one gesture that makes the whole room loud at once.
+TEST (MixerControls, TheEqBandsGoBackToFlat)
 {
-  EXPECT_TRUE (mixerControlRestPosition (MixerControl::FxSend).has_value ());
-  EXPECT_FLOAT_EQ (*mixerControlRestPosition (MixerControl::FxSend), 0.f);
+  for (auto const band :
+       { MixerControl::EqHigh, MixerControl::EqMid, MixerControl::EqLow })
+    {
+      ASSERT_TRUE (mixerControlRestPosition (band).has_value ())
+          << mixerControlLabel (band);
+      EXPECT_FLOAT_EQ (*mixerControlRestPosition (band), 0.5f)
+          << mixerControlLabel (band);
 
+      // Flat is the middle for the same reason the arc grows from there.
+      EXPECT_TRUE (fillsFromTheMiddle (band)) << mixerControlLabel (band);
+    }
+}
+
+TEST (MixerControls, GainGoesBackToFullAndTheSendToNone)
+{
+  ASSERT_TRUE (mixerControlRestPosition (MixerControl::Gain).has_value ());
+  EXPECT_FLOAT_EQ (*mixerControlRestPosition (MixerControl::Gain), 1.f);
+
+  ASSERT_TRUE (mixerControlRestPosition (MixerControl::FxSend).has_value ());
+  EXPECT_FLOAT_EQ (*mixerControlRestPosition (MixerControl::FxSend), 0.f);
+}
+
+// The volume is the fader's, and the two keys have nothing to put back.
+TEST (MixerControls, TheVolumeAndTheKeysHaveNoRestPosition)
+{
+  EXPECT_FALSE (mixerControlRestPosition (MixerControl::Volume).has_value ());
   for (auto const control : mixerControlOrder)
-    if (control != MixerControl::FxSend)
+    if (mixerControlIsAToggle (control))
       EXPECT_FALSE (mixerControlRestPosition (control).has_value ())
           << mixerControlLabel (control);
 }

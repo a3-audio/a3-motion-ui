@@ -516,7 +516,7 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
   for (auto const *alpha :
        { "alphaFill", "alphaOutline", "alphaGuide", "alphaFillEmphasis",
          "alphaMuted", "alphaSecondary", "alphaTextStrong", "alphaActive",
-         "alphaDisabled", "alphaInactive" })
+         "alphaDisabled", "alphaInactive", "panelOpacity", "overlayScrim", "overlayOpacity" })
     if (path == alpha)
       return juce::jlimit (0.0, 1.0, value);
 

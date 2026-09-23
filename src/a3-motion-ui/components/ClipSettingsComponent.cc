@@ -48,7 +48,6 @@ namespace
 // sphere, the shading of the elevation graphic, the unlit part of a knob's
 // track. State — selected, inactive, disabled — comes from the theme's alphas
 // instead.
-constexpr float panelOpacity = 0.85f;
 constexpr float cardWash = 0.08f;
 constexpr float highlightWash = 0.18f;
 constexpr float trackWash = 0.18f;
@@ -993,7 +992,7 @@ ClipSettingsComponent::setLastControlReadout (juce::String const &text)
 void
 ClipSettingsComponent::paint (juce::Graphics &g)
 {
-  g.fillAll (toColour (theme ().surface, panelOpacity));
+  g.fillAll (toColour (theme ().surface, theme ().panelOpacity));
 
   updateLayout ();
 
@@ -1253,6 +1252,19 @@ ClipSettingsComponent::setPage (BarPage page)
   for (int section = 0; section < numParameters; ++section)
     for (auto &control : _controlTouch[static_cast<size_t> (section)])
       control->setVisible (showsClip);
+
+  // The knobs go with them, and this is the half that was forgotten when they
+  // stopped being painted and became juce::Sliders. paint() returns early on
+  // a page that covers the clip area -- but a child is not painted by its
+  // parent, so every knob went on drawing itself, caption and all, straight
+  // through the mixer. Reported from the device as "man sieht die pots im
+  // hintergrund".
+  //
+  // Only the clip's three sections: the global strip stands on every page.
+  for (int section = 0; section < numClipSections; ++section)
+    for (auto &knob : _controlKnob[static_cast<size_t> (section)])
+      if (knob)
+        knob->setVisible (showsClip);
 
   for (int section = 0; section < numClipSections; ++section)
     _sectionTouch[static_cast<size_t> (section)]->setVisible (showsClip);

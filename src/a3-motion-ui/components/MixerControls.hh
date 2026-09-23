@@ -111,27 +111,6 @@ mixerControlIsAToggle (MixerControl control)
   return control == MixerControl::Pfl || control == MixerControl::Fx;
 }
 
-/** Where two taps put a control back, or nothing for one that stays where it
- *  was left.
- *
- *  Only the send has an answer, and the two that obviously might are the
- *  reason this is asked per control rather than done to the whole strip:
- *  zero on GAIN or on VOL is a mute, and a mute two fingertips away from a
- *  control that is dragged all evening is a way to silence the room by
- *  accident. Zero on SEND is unambiguous and safe -- take the effect out --
- *  which is the one place a hand can reach for "none of that" and mean it.
- *
- *  Nothing for the undecided case rather than a plausible 0.5: a control that
- *  fell through to a number would look decided without being it. Same rule as
- *  channelValueRestPosition, and for the same reason.
- */
-constexpr std::optional<float>
-mixerControlRestPosition (MixerControl control)
-{
-  if (control == MixerControl::FxSend)
-    return 0.f;
-  return {};
-}
 
 /** Whether the control's middle means neutral.
  *
@@ -144,6 +123,74 @@ fillsFromTheMiddle (MixerControl control)
 {
   return control == MixerControl::EqHigh || control == MixerControl::EqMid
          || control == MixerControl::EqLow;
+}
+
+/** Where two taps put a control back, or nothing for one that stays where it
+ *  was left.
+ *
+ *  What this guards against is **zero**, not resetting. Zero on GAIN or on VOL
+ *  is a mute, and a mute two fingertips away from a control that is dragged
+ *  all evening is a way to silence the room by accident -- which is why it is
+ *  asked per control rather than done to the whole strip. None of the answers
+ *  below quietens anything:
+ *
+ *  - the three EQ bands go back to **flat**, the middle they already fill
+ *    from;
+ *  - GAIN goes back to **full**, not to zero;
+ *  - SEND goes to **none**, the one place a hand reaches for "none of that"
+ *    and means it.
+ *
+ *  VOL keeps none. It is the fader now and two taps there are handled where
+ *  the fader is, so that the master can be left out of it -- full volume on
+ *  the master is the one gesture that makes the whole room loud at once.
+ *
+ *  Nothing for the undecided case rather than a plausible 0.5: a control that
+ *  fell through to a number would look decided without being it. Same rule as
+ *  channelValueRestPosition, and for the same reason.
+ */
+constexpr std::optional<float>
+mixerControlRestPosition (MixerControl control)
+{
+  if (fillsFromTheMiddle (control))
+    return 0.5f;
+  if (control == MixerControl::Gain)
+    return 1.f;
+  if (control == MixerControl::FxSend)
+    return 0.f;
+  return {};
+}
+
+/** Where a control stands on a device that has just come up.
+ *
+ *  The same question as the rest position at a different moment, and for two
+ *  of the seven the answers are genuinely different:
+ *
+ *  **GAIN starts at zero and two taps put it at full.** A desk coming up has
+ *  to be silent -- nobody knows what is patched into it, and zero is the one
+ *  starting point that cannot be wrong in the direction that matters. Two
+ *  taps are a hand asking for something, and what a hand asks of a gain is
+ *  "back to reference".
+ *
+ *  **VOL likewise**, though it has no rest position at all: it is the fader,
+ *  and the fader's own double tap is where that lives.
+ *
+ *  Everything else starts where it rests. Keeping the two answers in one
+ *  place is what the SEND bug of 2026-09-12 cost: half open in the
+ *  constructor, shut here, so a double tap moved a control nobody had
+ *  touched. They may differ -- they may not differ *by accident*, which is
+ *  why this is a function with a reason rather than a number in a loop.
+ */
+constexpr float
+mixerControlStartPosition (MixerControl control)
+{
+  if (control == MixerControl::Gain || control == MixerControl::Volume
+      || control == MixerControl::FxSend)
+    return 0.f;
+
+  if (auto const rest = mixerControlRestPosition (control))
+    return *rest;
+
+  return 0.f;
 }
 
 
