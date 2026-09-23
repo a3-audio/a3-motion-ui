@@ -248,6 +248,31 @@ fillsFromTheMiddle (MasterControl control)
   return control == MasterControl::PhonesMix;
 }
 
+/** Where two taps put a master control, or nothing for one that stays.
+ *
+ *  Two have an answer. The phones' blend sits between two ends and its middle
+ *  *means* something -- half cue, half master. RET is the far end of the
+ *  channels' SEND, so it puts back what SEND puts back: **nothing**, take the
+ *  effect out. Both ends of the effect path therefore behave the same way,
+ *  and both of them in the quiet direction.
+ *
+ *  BTH and PHN keep none. They are levels, and the only value two taps could
+ *  mean on a level is full -- full into a pair of headphones is an ear, full
+ *  into the booth wedge is the same gesture the master fader is deliberately
+ *  without. The master's volume is that fader and keeps none for that reason:
+ *  full there makes the whole room loud at once, and two taps in the dark are
+ *  too cheap for it.
+ */
+constexpr std::optional<float>
+masterControlRestPosition (MasterControl control)
+{
+  if (fillsFromTheMiddle (control))
+    return 0.5f;
+  if (control == MasterControl::Return)
+    return 0.f;
+  return {};
+}
+
 /** The master's pots, top to bottom: everything but its volume, which is
  *  dragged on the output meters the way a channel's VOL is dragged on its
  *  own meter. Volume stays in masterControlOrder for the state and the wire. */
@@ -302,6 +327,26 @@ constexpr std::array<FilterControl, numFilterControls> filterControlOrder{
   FilterControl::Frequency,
   FilterControl::Resonance,
 };
+
+/** Where two taps put a filter knob, or nothing for the mode.
+ *
+ *  The middle for FREQ, chosen over "the open end for whichever mode you are
+ *  in": the filter still bites at 0.5, but two taps then mean one thing
+ *  whatever the mode switch says, and a reset whose result depends on a
+ *  control somewhere else is one you have to look up before you dare use it.
+ *  None for RES, which is the unambiguous "take it out".
+ *
+ *  The mode is a word rather than a value and has nothing to put back.
+ */
+constexpr std::optional<float>
+filterControlRestPosition (FilterControl control)
+{
+  if (control == FilterControl::Frequency)
+    return 0.5f;
+  if (control == FilterControl::Resonance)
+    return 0.f;
+  return {};
+}
 
 constexpr char const *
 filterControlLabel (FilterControl control)
