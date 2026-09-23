@@ -525,6 +525,14 @@ private:
   /** Save may write over the instrument's own clips. A device setting,
    *  persisted with the clock and rec modes; see ShippedClips. */
   bool _developerMode = false;
+
+  /** The skin waiting to be put into force, and whether one is.
+   *
+   *  Set while a colour or a number is being dragged, applied once on the
+   *  next tick. The whole-tree apply is far too expensive to do per mouse
+   *  sample and a queue of them can only fall behind the hand. */
+  juce::var _skinToApply;
+  bool _skinApplyPending = false;
   /** Where the CLEAN key goes back to. Persisted, so a restart in clean
    *  still knows the way out. */
   juce::String _skinBeforeClean;

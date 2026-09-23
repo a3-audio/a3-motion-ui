@@ -220,6 +220,9 @@ target_link_libraries("a3-motion-ui" PUBLIC
     juce::juce_audio_utils
     juce::juce_audio_devices
     juce::juce_gui_basics
+    # ColourSelector lives here: the colour field and the hue strip on the
+    # picker are its, rather than a pair we drew by hand.
+    juce::juce_gui_extra
     juce::juce_opengl
 )
 
