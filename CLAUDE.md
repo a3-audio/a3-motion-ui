@@ -564,10 +564,23 @@ long as the finger is down — live there, and `padIndexFor()` in `PadFunctions.
 tables backwards to find the right pad. Two routes to one function that each keep their own copy of
 what it means will differ eventually, and the difference shows up mid-set.
 
-**Record is a toggle wherever it is pressed** — the panel key, the bar's key, the transport key —
-via `toggleRecordingOnShownClip()`. A key that only ever goes one way leaves you reaching for a
-different control to undo what it did. It used to turn the Shape card over first; there is no
-second face to turn to.
+**Record is a toggle on the screen, and a modifier on the panel.** The bar's key and the transport
+key both call `toggleRecordingOnShownClip()`: press to start a take on the clip the bar is showing,
+press again to end it. A key that only ever goes one way leaves you reaching for a different control
+to undo what it did.
+
+**The panel's REC key is not that key**, and this is the one place the two halves of the device
+deliberately differ. There it is held while a slot's Play|Pause pad names the slot
+(`handlePadPress()`), because the panel has pads and a finger on the screen does not. Pressed alone
+it arms nothing; pressed while a take is running it ends it, because the finger no longer bounds a
+recording and something has to.
+
+**Pressed alone on the panel it now does nothing visible**, and that is a known cost of removing the
+REC tab: it used to turn the Shape card over, which was how you saw the key arrive. Raised at the
+device on 2026-09-24 — *„per touch aufm display geht record nur am hardwarecontroller nicht"* — and
+the maintainer chose to leave the behaviour as it is rather than make the panel key a toggle too.
+Documented rather than changed, on purpose. Anything that says the panel key toggles is this
+paragraph's older, wrong version.
 
 **`TransportLook.hh` is the one rule for what the four clip actions look like**: red for record
 and stop, green or red for play/pause depending on whether the clip is running, yellow (`highlight`,
