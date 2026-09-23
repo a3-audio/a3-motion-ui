@@ -21,7 +21,6 @@ namespace
 // theme's alphas instead.
 // See-through on purpose: the menu is where a skin is chosen and edited,
 // and the sphere behind it is most of what a skin actually changes.
-constexpr float overlayOpacity = 0.55f;
 constexpr float rowWash = 0.063f;
 constexpr float browsedRowWash = 0.086f;
 constexpr float armedRowWash = 0.133f;
@@ -410,8 +409,13 @@ GlobalSettingsComponent::setValueFieldSelected (bool selected)
 void
 GlobalSettingsComponent::paint (juce::Graphics &g)
 {
-  // ── dim background ────────────────────────────────────────────────────────
-  g.fillAll (toColour (theme ().surface, overlayOpacity));
+  // ── dim around the panel, solid under it ──────────────────────────────────
+  //
+  // Two fills rather than one: the scrim says "the sphere is still there and
+  // you are not looking at it", the panel says "read this". One value for
+  // both made the rows see-through at 0.55 and took the whole sphere away at
+  // 1 -- fillAll is the component, not the card.
+  g.fillAll (toColour (theme ().surface, theme ().overlayScrim));
 
   if (_options.empty ())
     return;
@@ -419,6 +423,10 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
   int const numOptions = static_cast<int> (_options.size ());
   auto const panelBounds
       = globalSettingsPanelBounds (getLocalBounds (), numOptions);
+
+  g.setColour (toColour (theme ().surface, theme ().overlayOpacity));
+  g.fillRoundedRectangle (this->panelBounds ().toFloat (),
+                          theme ().radiusPanel);
 
   // ── the list of one row's values, in place of the rows ───────────────────
   if (_valueFieldSelected)

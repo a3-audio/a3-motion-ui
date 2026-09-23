@@ -315,6 +315,10 @@ loadTheme (juce::var const &skin)
       = themeFloat (skin, "alphaFillEmphasis", theme.alphaFillEmphasis);
   theme.alphaMuted = themeFloat (skin, "alphaMuted", theme.alphaMuted);
   theme.alphaGuide = themeFloat (skin, "alphaGuide", theme.alphaGuide);
+  theme.panelOpacity = themeFloat (skin, "panelOpacity", theme.panelOpacity);
+  theme.overlayScrim = themeFloat (skin, "overlayScrim", theme.overlayScrim);
+  theme.overlayOpacity
+      = themeFloat (skin, "overlayOpacity", theme.overlayOpacity);
   theme.alphaSecondary
       = themeFloat (skin, "alphaSecondary", theme.alphaSecondary);
   theme.alphaTextStrong
@@ -413,6 +417,9 @@ themeDefaultsVar ()
   number ("alphaFillEmphasis", defaults.alphaFillEmphasis);
   number ("alphaMuted", defaults.alphaMuted);
   number ("alphaGuide", defaults.alphaGuide);
+  number ("panelOpacity", defaults.panelOpacity);
+  number ("overlayScrim", defaults.overlayScrim);
+  number ("overlayOpacity", defaults.overlayOpacity);
   number ("alphaSecondary", defaults.alphaSecondary);
   number ("alphaTextStrong", defaults.alphaTextStrong);
   number ("alphaActive", defaults.alphaActive);

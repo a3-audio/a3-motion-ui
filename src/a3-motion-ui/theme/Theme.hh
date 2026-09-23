@@ -114,6 +114,26 @@ struct Theme
   float alphaGuide = 0.22f;
   float alphaFillEmphasis = 0.28f;
   float alphaMuted = 0.5f;
+  /** How much of what lies behind them the two panels let through.
+   *
+   *  `panelOpacity` is the clip settings bar over the sphere: it has always
+   *  been 0.85, and the pads page depends on being a child of it rather than
+   *  a sibling under it. The menu, the skin editor and the colour picker have
+   *  two: `overlayScrim` dims everything around their panel, `overlayOpacity`
+   *  is the panel itself.
+   *
+   *  They were one value at 0.55, which drew the sphere's trajectory straight
+   *  through the rows you are reading -- and making that one value opaque took
+   *  the whole sphere away with it, because it fills the component and not the
+   *  card. Two roles, so the rows can be solid while the ball stays visible
+   *  around them and "Sphere in Menu" keeps its meaning.
+   *
+   *  Here rather than compiled in, because a decision about how something
+   *  looks belongs to the skin -- and because the same 0.55 stood in three
+   *  files, which is how it comes to mean three different things. */
+  float panelOpacity = 0.85f;
+  float overlayScrim = 0.55f;
+  float overlayOpacity = 1.f;
   /** Legible, but not the thing you are looking at: captions, resting
    *  states, the rows you did not select. Seven sites sat between 0.70 and
    *  0.75 and meant this; they are one rung now. */

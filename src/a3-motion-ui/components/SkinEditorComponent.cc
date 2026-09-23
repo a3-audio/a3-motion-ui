@@ -35,7 +35,6 @@ constexpr int rowGap = 4;
 constexpr int maxPanelW = 560;
 
 // Structural washes, the same grammar the settings menu uses.
-constexpr float overlayOpacity = 0.55f;
 constexpr float rowWash = 0.063f;
 constexpr float browsedRowWash = 0.086f;
 constexpr float armedRowWash = 0.133f;
@@ -1035,7 +1034,9 @@ SkinEditorComponent::visibleRows () const
 void
 SkinEditorComponent::paint (juce::Graphics &g)
 {
-  g.fillAll (toColour (theme ().surface, overlayOpacity));
+  // Dim around the panel; the panel itself is solid, filled below. See
+  // GlobalSettingsComponent::paint() for why that is two fills.
+  g.fillAll (toColour (theme ().surface, theme ().overlayScrim));
 
   if (totalRows () == 0)
     return;
@@ -1046,6 +1047,8 @@ SkinEditorComponent::paint (juce::Graphics &g)
 
   auto const panelBounds = listPanelBounds ();
 
+  g.setColour (toColour (theme ().surface, theme ().overlayOpacity));
+  g.fillRoundedRectangle (panelBounds.toFloat (), theme ().radiusPanel);
   g.setColour (toColour (theme ().textPrimary, rowWash));
   g.fillRoundedRectangle (panelBounds.toFloat (), theme ().radiusPanel);
 

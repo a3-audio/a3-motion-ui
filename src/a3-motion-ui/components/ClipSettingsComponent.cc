@@ -48,7 +48,6 @@ namespace
 // sphere, the shading of the elevation graphic, the unlit part of a knob's
 // track. State — selected, inactive, disabled — comes from the theme's alphas
 // instead.
-constexpr float panelOpacity = 0.85f;
 constexpr float cardWash = 0.08f;
 constexpr float highlightWash = 0.18f;
 constexpr float trackWash = 0.18f;
@@ -993,7 +992,7 @@ ClipSettingsComponent::setLastControlReadout (juce::String const &text)
 void
 ClipSettingsComponent::paint (juce::Graphics &g)
 {
-  g.fillAll (toColour (theme ().surface, panelOpacity));
+  g.fillAll (toColour (theme ().surface, theme ().panelOpacity));
 
   updateLayout ();
 

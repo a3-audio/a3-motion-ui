@@ -29,7 +29,6 @@ namespace
 {
 constexpr int padding = 20;
 constexpr int hueBarThickness = 30;
-constexpr float overlayOpacity = 0.55f;
 constexpr float rowWash = 0.063f;
 constexpr float browsedRowWash = 0.086f;
 constexpr float armedRowWash = 0.133f;
@@ -174,7 +173,7 @@ ColourPickerComponent::mouseDrag (juce::MouseEvent const &event)
 void
 ColourPickerComponent::paint (juce::Graphics &g)
 {
-  g.setColour (toColour (theme ().surface, overlayOpacity));
+  g.setColour (toColour (theme ().surface, theme ().overlayOpacity));
   g.fillRoundedRectangle (getLocalBounds ().toFloat (), theme ().radiusPanel);
 
   auto const hue = _colour.getHue ();

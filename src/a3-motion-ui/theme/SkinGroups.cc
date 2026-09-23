@@ -53,6 +53,7 @@ struct Group
 constexpr Group groups[] = {
   { "Surfaces", { "surface", "surfaceRaised", "background" } },
   { "Text", { "textPrimary", "textMuted", "textOnAccent" } },
+  { "Panels", { "panelOpacity", "overlayScrim", "overlayOpacity" } },
   { "States", { "accent", "warning", "danger", "notice", "highlight",
                 "alphaDisabled", "alphaInactive", "alphaFill", "alphaOutline",
                 "alphaGuide", "alphaFillEmphasis", "alphaMuted",
