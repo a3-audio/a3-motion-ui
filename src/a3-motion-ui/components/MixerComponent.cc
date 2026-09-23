@@ -251,6 +251,8 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
 
       auto knob = std::make_unique<PotKnob> ();
       knob->setLabel (masterControlLabel (control));
+      if (auto const rest = masterControlRestPosition (control))
+        knob->setDoubleClickReturnValue (true, *rest);
       knob->setFillsFromTheMiddle (fillsFromTheMiddle (control));
       knob->setKnobColour (toColour (theme ().textPrimary));
       knob->onValueChange = [this, control, k = knob.get ()] {
@@ -282,6 +284,8 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
           auto knob = std::make_unique<PotKnob> ();
           knob->setLabel (filterControlLabel (control));
           knob->setKnobColour (toColour (theme ().textPrimary));
+          if (auto const rest = filterControlRestPosition (control))
+            knob->setDoubleClickReturnValue (true, *rest);
           knob->onValueChange = [this, control, k = knob.get ()] {
             if (onFilterValueChanged)
               onFilterValueChanged (control,

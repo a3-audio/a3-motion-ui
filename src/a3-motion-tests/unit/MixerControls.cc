@@ -234,3 +234,67 @@ TEST (MixerControls, AnUndecidedControlHasNoRestPosition)
   EXPECT_FALSE (mixerControlRestPosition (static_cast<MixerControl> (99))
                     .has_value ());
 }
+
+// ── Two taps on the filter and on the master's pots ──────────────────────
+//
+// Asked for at the device on 2026-09-23: "in mixer FREQ und RES fehlt
+// doubletap. das soll bei allen pots und fadern drin sein." Neither the
+// filter nor the master's four had a table at all.
+
+// FREQ goes to the middle and RES to none. The middle is what the maintainer
+// chose over "the open end for the mode you are in": the filter still bites
+// at 0.5, but two taps then mean one thing whatever the mode says, and a
+// reset whose result depends on a switch elsewhere is one you have to look
+// up before you use it.
+TEST (MixerControls, TheFilterKnobsHaveARestPosition)
+{
+  ASSERT_TRUE (
+      filterControlRestPosition (FilterControl::Frequency).has_value ());
+  EXPECT_FLOAT_EQ (*filterControlRestPosition (FilterControl::Frequency), 0.5f);
+
+  ASSERT_TRUE (
+      filterControlRestPosition (FilterControl::Resonance).has_value ());
+  EXPECT_FLOAT_EQ (*filterControlRestPosition (FilterControl::Resonance), 0.f);
+}
+
+// The mode is a word, not a value, and has nothing to put back.
+TEST (MixerControls, TheFilterModeHasNoRestPosition)
+{
+  EXPECT_FALSE (filterControlRestPosition (FilterControl::Mode).has_value ());
+}
+
+// The phones' blend is the one master control whose middle *means* something
+// -- half cue, half master -- so that is where two taps put it.
+TEST (MixerControls, ThePhonesBlendGoesBackToTheMiddle)
+{
+  ASSERT_TRUE (
+      masterControlRestPosition (MasterControl::PhonesMix).has_value ());
+  EXPECT_FLOAT_EQ (*masterControlRestPosition (MasterControl::PhonesMix), 0.5f);
+  EXPECT_TRUE (fillsFromTheMiddle (MasterControl::PhonesMix));
+}
+
+// RET is the far end of the channels' SEND, so two taps put back what two
+// taps on SEND put back: nothing. Both ends of the effect path behave the
+// same way, and both of them in the quiet direction.
+TEST (MixerControls, TheReturnGoesBackToNoneLikeTheSend)
+{
+  ASSERT_TRUE (masterControlRestPosition (MasterControl::Return).has_value ());
+  EXPECT_FLOAT_EQ (*masterControlRestPosition (MasterControl::Return), 0.f);
+
+  ASSERT_TRUE (mixerControlRestPosition (MixerControl::FxSend).has_value ());
+  EXPECT_FLOAT_EQ (*masterControlRestPosition (MasterControl::Return),
+                   *mixerControlRestPosition (MixerControl::FxSend));
+}
+
+// BTH and PHN are levels, and the only value two taps could mean on a level
+// is full. Full into a pair of headphones is an ear, and full into the booth
+// wedge is the same gesture the master fader is deliberately without. So they
+// have none, and the reason is here rather than in a comment nobody reads.
+TEST (MixerControls, TheBoothAndThePhonesHaveNoRestPosition)
+{
+  for (auto const control :
+       { MasterControl::Volume, MasterControl::Booth,
+         MasterControl::PhonesVolume })
+    EXPECT_FALSE (masterControlRestPosition (control).has_value ())
+        << masterControlLabel (control);
+}
