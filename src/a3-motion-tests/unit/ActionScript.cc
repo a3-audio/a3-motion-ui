@@ -276,10 +276,24 @@ TEST (ActionScript, WhatIsWrittenCanBeReadBack)
 // this goes wrong is that somebody adds a field to ClipSettings and does not
 // think of the script -- and a hand-written test only checks the fields
 // whoever wrote it happened to think of. See ClipSettingsFields.hh.
+// `mirrorSouth` is the one field a written script leaves out. It is dead --
+// kept so clips written before ~base still load, read by nothing -- and a
+// script that named it would be teaching it to whoever opens one. It is
+// therefore not in actionScriptNotes(), and these two round trips skip it
+// rather than the writer growing an exception nobody can see.
+bool
+isDeadField (juce::String const &name)
+{
+  return name == "mirrorSouth";
+}
+
 TEST (ActionScript, EveryFieldASettingHasCanBeWrittenAndReadBack)
 {
   for (auto const &[name, mutate] : clipSettingsFields ())
     {
+      if (isDeadField (name))
+        continue;
+
       ClipSettings settings;
       mutate (settings);
 
@@ -300,10 +314,8 @@ TEST (ActionScript, AClipWithEverythingTurnedSurvivesToo)
 {
   ClipSettings settings;
   for (auto const &[name, mutate] : clipSettingsFields ())
-    {
-      juce::ignoreUnused (name);
+    if (!isDeadField (name))
       mutate (settings);
-    }
 
   auto const source = actionScriptFor (settings);
   EXPECT_EQ (run (source), settings) << "round trip through:\n" << source;
@@ -387,4 +399,150 @@ TEST (ActionScript, TheBoundsAreTheOnesTheBarUses)
 {
   EXPECT_EQ (-7, speedLog2Min);
   EXPECT_EQ (4, speedLog2Max);
+}
+
+// ── Every script is its own reference ────────────────────────────────────
+//
+// Asked for on 2026-09-23: *„generell sollen aber alle Action skripte alle
+// parameter enthalten. wo nichts passieren soll bitte auskommentieren. aber
+// immer in der readme zu schauen ist umständlich."* So a script lists every
+// parameter, carries its range and half a line of what it does, and comments
+// out what it does not touch -- a commented line assigns nothing, which is
+// exactly "leave this as the hand left it".
+//
+// The annotation therefore stands in twenty-six files, and these two tests are
+// what keeps it from meaning twenty-six different things: it is written once
+// in the table and every script is held against that.
+
+namespace
+{
+
+/** The parameter a line assigns to, whether or not the line is commented
+ *  out, and the annotation behind it -- or an empty name for a line that
+ *  assigns to nothing. */
+struct ScriptLine
+{
+  juce::String name;
+  juce::String annotation;
+};
+
+/** Whitespace is a column here, not meaning: the annotation stands off the
+ *  values by however many spaces the value needed. Compared word by word. */
+juce::String
+oneSpaced (juce::String const &text)
+{
+  auto out = text.replaceCharacter ('\t', ' ').trim ();
+  while (out.contains ("  "))
+    out = out.replace ("  ", " ");
+
+  return out;
+}
+
+ScriptLine
+parseScriptLine (juce::String const &raw)
+{
+  auto line = raw.trim ();
+  if (line.startsWith ("//"))
+    line = line.substring (2).trim ();
+
+  if (!line.startsWith ("~"))
+    return {};
+
+  auto const equals = line.indexOfChar ('=');
+  if (equals < 0)
+    return {};
+
+  auto const name = line.substring (1, equals).trim ();
+
+  auto const comment = line.indexOf (equals, "//");
+  return { name, comment < 0 ? juce::String{}
+                             : line.substring (comment + 2).trim () };
+}
+
+juce::Array<juce::File>
+shippedActions ()
+{
+  juce::File const dir (A3_PATTERN_ACTIONS_DIR);
+  auto files = dir.findChildFiles (juce::File::findFiles, false, "*.scd");
+
+  // The README is a script whose every line is a comment. It is the one file
+  // here that is not an action, so it answers to none of this.
+  files.removeIf ([] (juce::File const &f) {
+    return f.getFileName () == "README.scd";
+  });
+
+  return files;
+}
+
+}
+
+TEST (ActionScript, EveryShippedActionNamesEveryParameter)
+{
+  auto const files = shippedActions ();
+  ASSERT_FALSE (files.isEmpty ());
+
+  for (auto const &file : files)
+    {
+      std::map<juce::String, int> seen;
+      for (auto const &raw : juce::StringArray::fromLines (
+               file.loadFileAsString ()))
+        {
+          auto const parsed = parseScriptLine (raw);
+          if (parsed.name.isNotEmpty ())
+            ++seen[parsed.name];
+        }
+
+      for (auto const &note : actionScriptNotes ())
+        EXPECT_EQ (seen[note.name], 1)
+            << file.getFileName () << " names ~" << note.name << " "
+            << seen[note.name] << " times, not once";
+    }
+}
+
+// One wording, not twenty-six. A range corrected in the table has to be
+// corrected in every script that carries it, and nothing but a test will say
+// which ones were missed.
+TEST (ActionScript, AShippedActionsAnnotationsComeFromTheTable)
+{
+  std::map<juce::String, juce::String> expected;
+  for (auto const &note : actionScriptNotes ())
+    expected[note.name]
+        = juce::String (note.range).trim ()
+          + (juce::String (note.hint).isEmpty ()
+                 ? juce::String{}
+                 : "  " + juce::String (note.hint));
+
+  for (auto const &file : shippedActions ())
+    for (auto const &raw :
+         juce::StringArray::fromLines (file.loadFileAsString ()))
+      {
+        auto const parsed = parseScriptLine (raw);
+        if (parsed.name.isEmpty ())
+          continue;
+
+        auto const &want = expected[parsed.name];
+        EXPECT_EQ (oneSpaced (parsed.annotation), oneSpaced (want))
+            << file.getFileName () << ", ~" << parsed.name;
+      }
+}
+
+// What a new action starts from: every parameter, all of it commented out, so
+// firing it changes nothing until a line is uncommented.
+TEST (ActionScript, TheTemplateNamesEverythingAndChangesNothing)
+{
+  auto const text = actionScriptTemplate ();
+
+  for (auto const &note : actionScriptNotes ())
+    EXPECT_TRUE (text.contains ("~" + juce::String (note.name) + " ="))
+        << note.name << " is missing from the template";
+
+  ClipSettings turned;
+  turned.spin = 5;
+  turned.reach = 0.25f;
+
+  auto const result = runActionScript (text, turned, 7);
+  EXPECT_TRUE (result.errors.isEmpty ())
+      << result.errors.joinIntoString ("; ");
+  EXPECT_EQ (result.settings.spin, 5);
+  EXPECT_FLOAT_EQ (result.settings.reach, 0.25f);
 }

@@ -24,6 +24,12 @@
 // spins the clip and leaves everything else exactly as the hand left it. That
 // is the difference between an action and a preset.
 //
+// A commented-out line is a name you do not write, which is why every script
+// here carries every parameter with its range beside it and comments out the
+// ones it does not touch. The script is then its own reference: what a name
+// may be is on the line, not in this file. Uncomment a line to take it over,
+// comment it again to hand it back.
+//
 //
 // ---- What you can write on the right --------------------------------------
 //
@@ -147,5 +153,6 @@
 // Dial a clip until it sounds the way ACT should make it sound, then Save
 // Action in FILES. That writes every name above with the clip's value, which
 // is a good place to start reading from -- and a bad action to keep, because
-// an action that names everything overwrites everything. Delete the lines you
-// did not mean and keep the two or three you did.
+// an action that names everything overwrites everything. Comment out the
+// lines you did not mean and keep the two or three you did; the commented
+// ones stay as the list of what else you could reach for.

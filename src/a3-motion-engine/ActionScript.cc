@@ -701,28 +701,163 @@ runActionScript (juce::String const &source, ClipSettings const &current,
   return out;
 }
 
-juce::String
-actionScriptFor (ClipSettings const &settings)
+
+std::vector<ActionScriptNote> const &
+actionScriptNotes ()
 {
-  juce::StringArray lines;
+  // The reading order, which is the ACTION page's and the README's rather
+  // than the field table's: shape, then where it sits, then how it moves,
+  // then what ACT does to it. A performer learns the page and finds the same
+  // order in the file.
+  static std::vector<ActionScriptNote> const list{
+    { "speedLog2", "Shape", "-8..8",
+      "how fast, as a power of two; -3 is the 1/8" },
 
+    { "base", "Elevation", "0..1", "where the middle sits; 0 north, 1 south" },
+    { "reach", "Elevation", "-1..1",
+      "how far it spreads, sign says down or up" },
+    { "clipTop", "Elevation", "0..1", "cut this much off the north side" },
+    { "clipBottom", "Elevation", "0..1", "the same from the south side" },
+    { "flat", "Elevation", "bool", "hold one elevation, ignore the reach" },
+    { "flatElevation", "Elevation", "0..1", "the elevation it is held at" },
+
+    { "rotate", "Motion", "0..1", "standing angle in revolutions; it wraps" },
+    { "sqzX", "Motion", "-1..1", "squeeze front-back; 0 as recorded" },
+    { "sqzY", "Motion", "-1..1", "the same left-right" },
+    { "strX", "Motion", "-8..8", "~sqzX's own sweep, out and back" },
+    { "strY", "Motion", "-8..8", "the same for ~sqzY" },
+    { "spin", "Motion", "-8..8", "bars per revolution, sign = direction" },
+    { "swell", "Motion", "-8..8",
+      "sweeps ~reach out of where it sits and back" },
+    { "sway", "Motion", "-8..8",
+      "sweeps ~base towards the pole the sign says" },
+    { "fade", "Motion", "0..1", "how much of the take the joins take over" },
+    { "bias", "Motion", "-4..4", "where a drawn-through gap leads" },
+    { "dir", "Motion", "", "\\forward \\reverse" },
+    { "end", "Motion", "", "\\loop \\stop \\pause \\bounce \\random" },
+
+    { "attack", "Accent", "0..6", "rise while ACT is held, in bar fractions" },
+    { "decay", "Accent", "0..6", "fall once ACT is let go" },
+    { "envelopeMax", "Accent", "0..1", "the 3d it rises to" },
+    { "freqAttack", "Accent", "0..6", "the same for the filter's cutoff" },
+    { "freqDecay", "Accent", "0..6", "" },
+    { "freqMax", "Accent", "0..1", "0 is off" },
+    { "qAttack", "Accent", "0..6", "and for its resonance" },
+    { "qDecay", "Accent", "0..6", "" },
+    { "qMax", "Accent", "0..1", "0 is off" },
+    { "act", "Accent", "", "\\oneshot \\hold" },
+  };
+
+  return list;
+}
+
+namespace
+{
+
+/** A number as a script writes it: whole numbers plain, fractions without
+ *  the zeros nobody typed. "0.550" reads as three decimals of precision
+ *  somebody chose, and none of these values has that. */
+juce::String
+writtenNumber (Value const &value)
+{
+  if (value.whole)
+    return juce::String (static_cast<int> (value.number));
+
+  auto text = juce::String (value.number, 3);
+  while (text.endsWithChar ('0'))
+    text = text.dropLastCharacters (1);
+  if (text.endsWithChar ('.'))
+    text = text.dropLastCharacters (1);
+
+  return text;
+}
+
+juce::String
+writtenValue (Value const &value)
+{
+  if (value.kind != Value::Kind::Symbol)
+    return writtenNumber (value);
+
+  return value.symbol == "true" || value.symbol == "false"
+             ? value.symbol
+             : "\\" + value.symbol;
+}
+
+Field const *
+fieldNamed (juce::String const &name)
+{
   for (auto const &field : fields ())
+    if (name == field.name)
+      return &field;
+
+  return nullptr;
+}
+
+/** The body both writers share: every parameter under its heading, the
+ *  annotation in one column, and each line either live or commented out.
+ *
+ *  The column is what makes the file readable at a glance -- ranges that
+ *  start at different places are ranges nobody scans. */
+juce::String
+renderScript (ClipSettings const &settings, bool commented)
+{
+  // Wide enough for the longest assignment there is (//~flatElevation = 0.5;)
+  // and no wider: the annotation should stand off the values, not across the
+  // screen.
+  constexpr int annotationColumn = 25;
+
+  juce::StringArray lines;
+  juce::String heading;
+
+  for (auto const &note : actionScriptNotes ())
     {
-      auto const value = field.get (settings);
+      auto const *field = fieldNamed (note.name);
+      if (field == nullptr)
+        continue;
 
-      auto written = value.kind == Value::Kind::Symbol
-                         ? (value.symbol == "true" || value.symbol == "false"
-                                ? value.symbol
-                                : "\\" + value.symbol)
-                         : (value.whole
-                                ? juce::String (
-                                      static_cast<int> (value.number))
-                                : juce::String (value.number, 3));
+      if (heading != note.heading)
+        {
+          heading = note.heading;
+          if (!lines.isEmpty ())
+            lines.add ("");
+          lines.add ("// ---- " + heading + " "
+                     + juce::String::repeatedString (
+                         "-", juce::jmax (1, 64 - heading.length ())));
+        }
 
-      lines.add ("~" + juce::String (field.name) + " = " + written + ";");
+      auto assignment = juce::String (commented ? "//~" : "~")
+                        + note.name + " = "
+                        + writtenValue (field->get (settings)) + ";";
+
+      while (assignment.length () < annotationColumn)
+        assignment += " ";
+
+      auto annotation = juce::String (note.range);
+      if (juce::String (note.hint).isNotEmpty ())
+        {
+          while (annotation.length () < 8)
+            annotation += " ";
+          annotation += note.hint;
+        }
+
+      lines.add ((assignment + "// " + annotation).trimEnd ());
     }
 
   return lines.joinIntoString ("\n") + "\n";
+}
+
+}
+
+juce::String
+actionScriptTemplate ()
+{
+  return renderScript (ClipSettings{}, true);
+}
+
+juce::String
+actionScriptFor (ClipSettings const &settings)
+{
+  return renderScript (settings, false);
 }
 
 juce::StringArray

@@ -1170,6 +1170,23 @@ the darker field behind it can show — so the script was drawn over the list ho
 made itself, and both were read at once. No `toFront()` helps. This is the mirror image of the trap
 the clip bar's lists carry, and it is what changes the moment a painted layer becomes a child.
 
+**Every script names every parameter, and comments out what it does not touch** (asked for on
+2026-09-23: *„alle Action skripte alle parameter enthalten. wo nichts passieren soll bitte
+auskommentieren"*). A commented line assigns nothing, which is already what "leave this as the hand
+left it" means — so the convention costs the language nothing and makes each script its own
+reference: the range and half a line of what a name does stand on the line, not in `README.scd`.
+
+That text lives once, in `actionScriptNotes()` beside the reader, and two tests hold the twenty-six
+shipped scripts against it — one that every parameter appears exactly once, one that every
+annotation is the table's word for word. Without them the same range would be written in
+twenty-six places and corrected in one. `actionScriptTemplate()` is the same list with everything
+commented at its default; `actionScriptFor()` is the same list with everything live, which is what
+Save Action writes.
+
+`mirrorSouth` is the one field left out: it is dead, kept only so clips written before `~base` load,
+and a script naming it would be teaching it. The two round-trip tests skip it by name rather than
+the writer growing an exception nobody can see.
+
 Renaming is not here. It is the browser's Rename key on the ACTIONS tab, which also carries every
 slot firing the file across — a second place to type a name would be a second thing to keep in step.
 
