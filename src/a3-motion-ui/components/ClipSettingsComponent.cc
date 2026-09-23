@@ -213,7 +213,6 @@ ClipSettingsComponent::createTouchControls ()
     }
 
   makeTab (_tabClipTouch, BarPage::Clip);
-  makeTab (_tabRecordTouch, BarPage::Record);
   makeTab (_tabActionTouch, BarPage::Action);
   makeTab (_tabControllerTouch, BarPage::Controller);
   makeTab (_tabMixerTouch, BarPage::Mixer);
@@ -310,18 +309,6 @@ ClipSettingsComponent::createTouchControls ()
         _gridTouch[static_cast<size_t> (col)][static_cast<size_t> (row)]
             = std::move (cell);
       }
-
-  for (int i = 0; i < numRecordLengths; ++i)
-    {
-      auto button = std::make_unique<TouchControl> ();
-      button->setIdentity (i);
-      button->onTap = [this] (int index, int) {
-        if (onRecordLengthChosen)
-          onRecordLengthChosen (index);
-      };
-      addAndMakeVisible (*button);
-      _lengthTouch[static_cast<size_t> (i)] = std::move (button);
-    }
 
   // The speeds sit in the same room as the lengths, on the section's other
   // face — see setPage(), which is what decides who may be touched.
@@ -514,7 +501,6 @@ ClipSettingsComponent::resized ()
   _tabClipTouch->setBounds (_layout.tabClip);
   for (size_t channel = 0; channel < numChannelColumns; ++channel)
     _faceTouch[channel]->setBounds (_layout.channelFaces[channel]);
-  _tabRecordTouch->setBounds (_layout.tabRecord);
   _tabActionTouch->setBounds (_layout.tabAction);
   _tabControllerTouch->setBounds (_layout.tabController);
   _tabMixerTouch->setBounds (_layout.tabMixer);
@@ -527,9 +513,6 @@ ClipSettingsComponent::resized ()
         auto const r = static_cast<size_t> (row);
         _gridTouch[c][r]->setBounds (_layout.channelGrid[c][r]);
       }
-  for (int i = 0; i < numRecordLengths; ++i)
-    _lengthTouch[static_cast<size_t> (i)]->setBounds (
-        _layout.lengthButtons[static_cast<size_t> (i)]);
 
   for (int i = 0; i < numSpeedButtons; ++i)
     _speedTouch[static_cast<size_t> (i)]->setBounds (
@@ -888,12 +871,12 @@ ClipSettingsComponent::setMotionEnvelope (int attackStep, int decayStep)
 }
 
 void
-ClipSettingsComponent::setRecordLength (int recordLengthLog2)
+ClipSettingsComponent::setNextTakeLengthBeats (float beats)
 {
-  if (recordLengthLog2 == _recordLengthLog2)
+  if (juce::approximatelyEqual (beats, _nextTakeLengthBeats))
     return;
 
-  _recordLengthLog2 = recordLengthLog2;
+  _nextTakeLengthBeats = beats;
   repaint ();
 }
 
@@ -1201,7 +1184,6 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   paintChannelFaces (g);
 
   paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
-  paintTab (_layout.tabRecord, "REC", _page == BarPage::Record);
   paintTab (_layout.tabAction, "ACTION", _page == BarPage::Action);
   paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
   paintTab (_layout.tabMixer, "MIX", _page == BarPage::Mixer);
@@ -1271,12 +1253,6 @@ ClipSettingsComponent::setPage (BarPage page)
 
   _elevationGraphicTouch->setVisible (showsClip);
 
-  // The two faces' button rows sit in the same room, so only one may take
-  // touches: hit areas left behind by the hidden face would answer for
-  // buttons nobody can see.
-  for (auto &button : _lengthTouch)
-    if (button)
-      button->setVisible (_page == BarPage::Record);
   for (auto &button : _speedTouch)
     if (button)
       button->setVisible (_page == BarPage::Clip);
@@ -1880,22 +1856,8 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   paintSectionCard (g, trajectoryIndex, isSelected);
 
   auto const &metrics = _layout.metrics;
-  auto const recording = _page == BarPage::Record;
 
-  if (recording)
-    {
-      // The take's length, on the face that is about the take. Not what is in
-      // the slot — that is the picture above, which on this side is the take
-      // appearing as you play it in.
-      for (int i = 0; i < numRecordLengths; ++i)
-        paintBarButton (
-            g, _layout.lengthButtons[static_cast<size_t> (i)],
-            recordLengthName (recordLengthLog2[i], _beatsPerBar), {},
-            recordLengthLog2[i] == _recordLengthLog2, isSelected);
-
-    }
-  else
-    {
+  {
       // Four speeds, one row, and what each of them is is the performer's:
       // tapped for the speed it carries, dragged to give it another. Their
       // names are computed from their values, so a key retells itself the
@@ -1925,9 +1887,18 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
       // The clip field: which settings the slot is played with, and a place to
       // push through them with a thumb. Not the shape's name -- that is over
       // the picture, beside the control that changes it.
+      // The caption carries the next take's length. There is no page to read
+      // it off any more, and a length you only learn after recording is one
+      // you learn too late.
+      auto const clipCaption
+          = _nextTakeLengthBeats > 0.f
+                ? juce::String (caption::clip) + "  "
+                      + beatsName (_nextTakeLengthBeats)
+                : juce::String (caption::clip);
+
       paintBarButton (g, _layout.clipField,
                       _clipName.isEmpty () ? juce::String ("--") : _clipName,
-                      caption::clip, false,
+                      clipCaption, false,
                       isSelected && _trajectorySubIndex == 1);
 
       // Turned since it was loaded. The warning colour rather than the danger

@@ -209,7 +209,6 @@ private:
   /** Show one of the bar's two pages, and put the screen's modifiers down. */
   void showBarPage (BarPage page);
   /** Record's page gesture: to the take's face, or back off it. */
-  void toggleRecordPage ();
   /** Push the shown clip's envelope and act mode to the ACTION page. */
   /** Give the chosen field's slot an action, or take its action away. */
   void assignActionEntry (int row);

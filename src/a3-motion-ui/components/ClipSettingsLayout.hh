@@ -64,7 +64,6 @@ constexpr int numChannelRows = 3;
  *  to 16 bars was a dropdown nobody wanted to scroll, and these are the ones
  *  anybody reaches for. This table is the authority on what a take's length
  *  may be — it reaches 32 bars, one step past the speed control's range. */
-constexpr int numRecordLengths = 8;
 
 // speedLog2Min/Max come from ClipSettings.hh, beside the value they bound.
 // They lived here until 2026-09-21, where the engine could not see them --
@@ -98,7 +97,6 @@ constexpr int noSpeedKeyDragged = -1;
  *  noSpeedKeyDragged. */
 bool speedKeyIsActive (std::array<int, numSpeedButtons> const &keys, int index,
                        int clipSpeedLog2, int draggedIndex);
-constexpr int recordLengthLog2[numRecordLengths] = { -2, -1, 0, 1, 2, 3, 4, 5 };
 
 /** A length, written as the ticks you can count on the indicator.
  *
@@ -127,12 +125,6 @@ juce::String beatsName (float beats);
  *  honour is worse than one showing none: that reads `--`. */
 juce::String speedKeyName (int speedLog2, float patternLengthBeats);
 
-/** What a record-length key says.
- *
- *  Not a ratio: the take being made is measured in bars outright. `beatsPerBar`
- *  comes from the clock rather than from a 4 written here, or every one of
- *  these would be wrong in three four. */
-juce::String recordLengthName (int recordLengthLog2, int beatsPerBar);
 
 /** Which row to stand on after the one at `row` has been thrown away.
  *
@@ -175,10 +167,6 @@ constexpr int channelRowQ = 2;
 enum class BarPage
 {
   Clip,
-  /** The clip page with the Shape section turned over: the take you are about
-   *  to make rather than the clip as it plays. Only that one section changes
-   *  — you are still looking at the elevation and the motion it will get. */
-  Record,
   /** What ACT does: the envelope it fires and the mode it fires in. Its own
    *  page rather than a section, because the clip page's three columns are
    *  already as narrow as a fingertip allows -- a fourth would take the shape
@@ -196,7 +184,7 @@ enum class BarPage
   Browser,
 };
 
-constexpr int numBarPages = 6;
+constexpr int numBarPages = 5;
 
 /** Every page, once. `BarPages.EveryPageAppearsInTheOrderExactlyOnce` fails
  *  if a page is missing from here or listed twice -- nothing in the compiler
@@ -205,7 +193,7 @@ constexpr int numBarPages = 6;
  *  added here too, alongside a case in each of them, and a forgotten one
  *  answers wrong quietly forever if this test does not walk it. */
 constexpr std::array<BarPage, numBarPages> barPageOrder{
-  BarPage::Clip,       BarPage::Record, BarPage::Action,
+  BarPage::Clip,       BarPage::Action,
   BarPage::Controller, BarPage::Mixer,  BarPage::Browser,
 };
 
@@ -238,7 +226,6 @@ pageCoversClipArea (BarPage page)
   switch (page)
     {
     case BarPage::Clip:
-    case BarPage::Record:
       return false;
     case BarPage::Action:
     case BarPage::Controller:
@@ -272,7 +259,6 @@ pageDescribesAClip (BarPage page)
   switch (page)
     {
     case BarPage::Clip:
-    case BarPage::Record:
     case BarPage::Action:
     case BarPage::Mixer:
     case BarPage::Browser:
@@ -418,9 +404,6 @@ struct ClipSettingsLayout
   /** The Shape section's pictogram and the name under it. */
   juce::Rectangle<int> trajectoryIcon;
   juce::Rectangle<int> trajectoryName;
-  /** The take's length, on the Shape section's back — in recordLengthLog2
-   *  order. */
-  std::array<juce::Rectangle<int>, numRecordLengths> lengthButtons;
   /** How fast the clip plays, on its front — one key per speed the
    *  performer has put there, left to right. */
   std::array<juce::Rectangle<int>, numSpeedButtons> speedButtons;
@@ -438,8 +421,9 @@ struct ClipSettingsLayout
    *  A second hit area on the shape control the picture above already is, not
    *  a control of its own -- a name you can push with your thumb where the
    *  name is written, rather than a list that covers the picture you are
-   *  choosing by. Empty on the Record face, which is about the take you are
-   *  making rather than the clip you are holding. */
+   *  choosing by. It also carries how long the next take will be -- see
+   *  RecordingLength.hh: the length is the shown clip's, so it is written
+   *  where the clip is named rather than on keys of its own. */
   juce::Rectangle<int> clipField;
   /** The bar's own header row: the four transport keys, then "Slot N", then
    *  the page tabs closing it. */
@@ -478,7 +462,6 @@ struct ClipSettingsLayout
    *  "which view" at all -- and without this key there would be no way back
    *  to the clip's own page from the pads or the browser. */
   juce::Rectangle<int> tabClip;
-  juce::Rectangle<int> tabRecord;
   /** The clip's fourth view: what ACT does, and the envelope behind it. */
   juce::Rectangle<int> tabAction;
   juce::Rectangle<int> tabController;

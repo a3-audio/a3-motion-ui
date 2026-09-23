@@ -23,6 +23,7 @@
 
 #include <a3-motion-engine/tempo/BeatTrace.hh>
 
+#include <a3-motion-ui/components/RecordingLength.hh>
 #include <a3-motion-ui/components/TickPlayheads.hh>
 
 #include <a3-motion-engine/Envelope.hh>
@@ -551,21 +552,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     scheduleSetSave ();
   };
 
-  _clipSettings->onRecordLengthChosen = [this] (int index) {
-    if (index < 0 || index >= numRecordLengths)
-      return;
-
-    // A setting for the next take, not a property of what is in the slot:
-    // an existing pattern's length is its tick count, and changing that
-    // would throw its data away.
-    // The table decides what a length may be, not the speed control's range:
-    // they are different settings that happened to share a constant, and 32
-    // bars is one step past what speed offers.
-    _clipUIParams[_clipSettingsChannel][_clipSettingsSlot].recordLengthLog2
-        = recordLengthLog2[index];
-    updateClipSettingsDisplay ();
-  };
-
   _clipSettings->onRecModePressed = [this] {
     auto const count = static_cast<int> (recMenuModes.size ());
     applyRecMode ((recMenuIndex (_recMode) + 1) % count);
@@ -577,12 +563,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     _clipSettings->setClockMode (_clockMode);
   };
   _clipSettings->onMenuPressed = [this] { toggleGlobalSettings (); };
-  _clipSettings->onRecordPressed = [this] {
-    // The card turns over as the take is armed, so what you are recording is
-    // drawn where what you are playing usually is.
-    toggleRecordPage ();
-    toggleRecordingOnShownClip ();
-  };
+  // Straight to the take: there is no card to turn over any more. What is
+  // being recorded is drawn where what you are playing usually is, on the
+  // one face the Shape section has left.
+  _clipSettings->onRecordPressed = [this] { toggleRecordingOnShownClip (); };
   // The bar's four transport keys are the shown clip's pads, reached through
   // the pad handler rather than reimplemented: the timing rules live there
   // (play on the next beat, stop now, the accent while the finger is down)
@@ -659,7 +643,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     switch (key)
       {
       case TransportKey::Record:
-        toggleRecordPage ();
         toggleRecordingOnShownClip ();
         return;
       case TransportKey::Stop:
@@ -1658,18 +1641,11 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
         {
           endRecording ();
         }
-      else if (static_cast<bool> (value.getValue ()))
-        {
-          // The panel's key shows the take's settings, the same as the bar's
-          // key and the REC tab do. It arms nothing on its own -- recording
-          // starts when a slot's Play|Pause pad is pressed while this is held
-          // -- but what you are about to set up is on the other face, so that
-          // is the face it turns to.
-          toggleRecordPage ();
-        }
-
-      // Recording itself is armed when a slot's Play|Pause pad is pressed
-      // while this button is held — see handlePadPress().
+      // Held down, the panel's key arms nothing on its own: recording starts
+      // when a slot's Play|Pause pad is pressed while it is held -- see
+      // handlePadPress(). It used to turn the Shape card over to show the
+      // take's settings; there is no second face any more, and the length is
+      // the shown clip's.
     }
   else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Shift)))
     {
@@ -2056,12 +2032,18 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
       _motionComponent->unsetPreviewPattern (pattern);
     }
 
-  // The length set for the next take, not whatever the slot happens to
-  // hold. Recording is the only moment a pattern's length is decided.
-  auto const configuredLengthBeats
-      = std::exp2 (static_cast<float> (
-            _clipUIParams[channel][slot].recordLengthLog2))
-        * _engine.getBeatsPerBar ();
+  // The length the shown clip is set to play at -- the lit speed key, which
+  // names a length rather than a rate. The slot's last one only when there is
+  // no clip. See RecordingLength.hh.
+  auto const beatsPerBar = _engine.getBeatsPerBar ();
+  auto const clipLengthBeats
+      = pattern ? juce::roundToInt (playbackLengthBeats (
+            getPatternLengthBeats (channel, slot), pattern->getSpeedLog2 ()))
+                : 0;
+
+  auto const configuredLengthBeats = static_cast<float> (recordingLengthBeats (
+      clipLengthBeats, _clipUIParams[channel][slot].recordLengthLog2,
+      beatsPerBar));
 
   // A take runs until Record is pressed again. OneShot — the default —
   // schedules its own stop one length in, which is why recording ended by
@@ -4480,14 +4462,6 @@ A3MotionUIComponent::actionReadoutFor (int control, Pattern const &pattern)
     }
 }
 
-void
-A3MotionUIComponent::toggleRecordPage ()
-{
-  // Record turns the card over and turns it back, wherever it is pressed --
-  // the panel's key, the bar's key, the tab. A key that only ever goes one way
-  // leaves you tapping a different control to undo what it did.
-  showBarPage (_barPage == BarPage::Record ? BarPage::Clip : BarPage::Record);
-}
 
 void
 A3MotionUIComponent::handlePadRelease (index_t channel, index_t pad)
@@ -5287,11 +5261,6 @@ A3MotionUIComponent::endRecording ()
   // that were missing are why the three statements under this `if` only
   // looked like they belonged to it.
   updateFunctionKeyLEDs ();
-
-  // And back to the clip's own face: the take is made, so what there is to
-  // look at is what it plays.
-  if (_barPage == BarPage::Record)
-    showBarPage (BarPage::Clip);
 
   auto pattern = _engine.getRecordingPattern ();
   if (!pattern || !_recordingSlot.has_value ())
@@ -6771,21 +6740,14 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
 
   switch (section)
     {
-    case 0: // Shape: rotate on the front, fade on the back
-      if (sub != 1)
+    case 0: // Shape: the turn. The section has one face now, so this knob is
+            // always rot -- fade kept its own in Motion.
+      if (sub != 1 || !pattern)
         return;
-      if (_barPage == BarPage::Record)
-        {
-          // The fade is a reading of the movement now, not a change to it:
-          // there is nothing to write into the ticks and nothing to redraw.
-          pattern->setFadeReach (ClipSettings{}.fadeReach);
-        }
-      else if (pattern)
-        {
-          // No turn at all is this knob's middle: the ring's twelve o'clock
-          // and the shape as it was drawn are the same thing.
-          pattern->setRotate (0.f);
-        }
+
+      // No turn at all is this knob's middle: the ring's twelve o'clock and
+      // the shape as it was drawn are the same thing.
+      pattern->setRotate (0.f);
       break;
 
     case 1: // Elevation
@@ -7482,13 +7444,22 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   auto const rotate = pattern ? pattern->getRotate () : 0.f;
   _clipSettings->setShapeRotate (rotate, pattern ? turnsOf (*pattern) : 0.f);
 
-  // The value, and the bar words it -- in the ticks the indicator counts, like
-  // every other length in the bar. It used to be formatted here into the same
-  // string the key drew, and the key was then found by comparing the two: one
-  // length spelled in two places, which held only as long as nobody renamed
-  // anything.
-  _clipSettings->setRecordLength (params.recordLengthLog2);
   _clipSettings->setBeatsPerBar (_engine.getBeatsPerBar ());
+
+  // How long the next take will be, worked out once and handed over: the slot
+  // has no length keys any more, so the clip field says it.
+  {
+    auto const beatsPerBar = _engine.getBeatsPerBar ();
+    auto const &shown = _patterns[channel][slot];
+    auto const clipBeats
+        = shown ? juce::roundToInt (playbackLengthBeats (
+              getPatternLengthBeats (channel, slot), shown->getSpeedLog2 ()))
+                : 0;
+
+    _clipSettings->setNextTakeLengthBeats (static_cast<float> (
+        recordingLengthBeats (clipBeats, params.recordLengthLog2,
+                              beatsPerBar)));
+  }
 
   // What the speed keys are a ratio of. Without it they cannot say how many
   // ticks they would run, because that is a property of the take, not of the
