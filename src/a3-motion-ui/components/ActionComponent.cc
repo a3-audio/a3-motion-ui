@@ -218,7 +218,7 @@ ActionComponent::ActionComponent ()
 
   _saveTouch = std::make_unique<TouchControl> ();
   _saveTouch->onTap = [this] (int, int) {
-    if (!_document.hasChangedSinceSavePoint () || _shipped)
+    if (!_document.hasChangedSinceSavePoint () || _protected)
       return;
 
     _document.setSavePoint ();
@@ -449,12 +449,12 @@ ActionComponent::setActionChoices (juce::StringArray const &names)
 }
 
 void
-ActionComponent::setScriptIsShipped (bool shipped)
+ActionComponent::setScriptIsProtected (bool locked)
 {
-  if (_shipped == shipped)
+  if (_protected == locked)
     return;
 
-  _shipped = shipped;
+  _protected = locked;
   repaint ();
 }
 
@@ -760,11 +760,12 @@ ActionComponent::paintScriptKeys (juce::Graphics &g)
   // Lit only while there is something to keep or to lose: a key offering to
   // save nothing is a key you have to stop and think about.
   //
-  // Save stays dark on a shipped action however much has been typed: writing
-  // over one of those would take it from every clip that uses it, and there
-  // is no getting it back. Save as is the way out, which is why it is lit in
-  // exactly that case.
-  key (_layout.saveButton, "save", edited && !_shipped ? lit : dark);
+  // Save stays dark on a protected action however much has been typed --
+  // one of the instrument's own, with developer mode off. Writing over it
+  // would take it from every clip that fires it with no way back. Save as is
+  // the way out, which is why it is lit in exactly that case. Same rule the
+  // clips follow: shippedFileMayBeOverwritten().
+  key (_layout.saveButton, "save", edited && !_protected ? lit : dark);
   key (_layout.saveAsButton, "save as", edited ? lit : dark);
   key (_layout.cancelButton, "cancel",
        edited ? toColour (theme ().textPrimary, theme ().alphaTextStrong)

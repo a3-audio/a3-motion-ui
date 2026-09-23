@@ -21,6 +21,7 @@
 #include "SessionFile.hh"
 
 #include <a3-motion-engine/Playhead.hh>
+#include <a3-motion-engine/TextFile.hh>
 
 #include <iostream>
 
@@ -292,7 +293,7 @@ saveSession (juce::File const &file, Session const &set)
   if (!file.getParentDirectory ().createDirectory ())
     return false;
 
-  return file.replaceWithText (juce::JSON::toString (juce::var (root)));
+  return writeTextFile (file, juce::JSON::toString (juce::var (root)));
 }
 
 

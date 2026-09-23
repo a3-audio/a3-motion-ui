@@ -125,7 +125,10 @@ public:
   /** Whether the action on this slot is one the device ships with. Those are
    *  read-only: writing over one takes it from every clip that uses it, and
    *  there is no getting it back -- Save as is the way to keep an edit. */
-  void setScriptIsShipped (bool shipped);
+  /** Whether Save may write over the slot's script: false while it is one
+   *  of the instrument's own and developer mode is off. The rule itself is
+   *  shippedFileMayBeOverwritten(), asked by the page that owns the file. */
+  void setScriptIsProtected (bool locked);
   void stopEditingScript ();
 
   /** Where the global strip's three channel rows stand, in the bar's own
@@ -221,7 +224,7 @@ private:
    *  cannot be reached at all. */
   int _listTop = 0;
   bool _editing = false;
-  bool _shipped = false;
+  bool _protected = false;
   juce::Rectangle<int> _gridReference;
 
   std::array<std::unique_ptr<TouchControl>, numControls> _touch;

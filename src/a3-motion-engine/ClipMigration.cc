@@ -24,6 +24,7 @@
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternFile.hh>
+#include <a3-motion-engine/TextFile.hh>
 
 #include <iostream>
 
@@ -104,7 +105,7 @@ migrateCombinedPatterns (juce::File const &root)
   // Written even when nothing was migrated: the run that finds every take
   // already handled is exactly the one whose record must survive.
   clips.createDirectory ();
-  ledger.replaceWithText (done.joinIntoString ("\n"));
+  writeTextFile (ledger, done.joinIntoString ("\n"));
 
   if (migrated > 0)
     std::cout << "ClipMigration: " << migrated

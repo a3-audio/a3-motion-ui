@@ -52,6 +52,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingName.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LibraryKeys.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SplitFolder.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/TextFile.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FontScale.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsCaptions.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettingsLayout.cc"

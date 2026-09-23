@@ -605,22 +605,22 @@ TEST (ClipFile, EveryShippedClipReads)
 
 TEST (ClipWriteBack, ThePerformersOwnClipIsWrittenOver)
 {
-  EXPECT_TRUE (clipMayBeOverwritten (true, false, ShippedClips::Protected));
+  EXPECT_TRUE (shippedFileMayBeOverwritten (true, false, ShippedClips::Protected));
 }
 
 // Nothing shipped may be written over, wherever it lives -- the half the
 // system/user split buys. Save as is the way to keep such a change.
 TEST (ClipWriteBack, AShippedClipIsNot)
 {
-  EXPECT_FALSE (clipMayBeOverwritten (true, true, ShippedClips::Protected));
+  EXPECT_FALSE (shippedFileMayBeOverwritten (true, true, ShippedClips::Protected));
 }
 
 // A slot filled straight from a figure has no clip file behind it. There is
 // nothing to write back to, and Save must not invent one.
 TEST (ClipWriteBack, ASlotWithNoClipFileHasNothingToWriteBackTo)
 {
-  EXPECT_FALSE (clipMayBeOverwritten (false, false, ShippedClips::Protected));
-  EXPECT_FALSE (clipMayBeOverwritten (false, true, ShippedClips::Protected));
+  EXPECT_FALSE (shippedFileMayBeOverwritten (false, false, ShippedClips::Protected));
+  EXPECT_FALSE (shippedFileMayBeOverwritten (false, true, ShippedClips::Protected));
 }
 
 // Developer mode is how the instrument's own clips are maintained: with it on,
@@ -628,13 +628,94 @@ TEST (ClipWriteBack, ASlotWithNoClipFileHasNothingToWriteBackTo)
 // lands in pattern/clips/system and can be committed.
 TEST (ClipWriteBack, DeveloperModeLetsAShippedClipBeWrittenOver)
 {
-  EXPECT_TRUE (clipMayBeOverwritten (true, true, ShippedClips::Writable));
+  EXPECT_TRUE (shippedFileMayBeOverwritten (true, true, ShippedClips::Writable));
 }
 
 // It lifts the protection and nothing else: a slot with no clip file still has
 // nothing to write back to.
 TEST (ClipWriteBack, DeveloperModeStillNeedsAFileToWriteTo)
 {
-  EXPECT_FALSE (clipMayBeOverwritten (false, true, ShippedClips::Writable));
-  EXPECT_FALSE (clipMayBeOverwritten (false, false, ShippedClips::Writable));
+  EXPECT_FALSE (shippedFileMayBeOverwritten (false, true, ShippedClips::Writable));
+  EXPECT_FALSE (shippedFileMayBeOverwritten (false, false, ShippedClips::Writable));
+}
+
+// ── What a written clip looks like ───────────────────────────────────────
+//
+// Eleven shipped clips stood in the working tree as "modified" for weeks, and
+// every one of them showed all thirty-four lines changed. Three of the four
+// reasons were the writer's: CRLF (fixed in TextFile), keys in insertion
+// order against a sorted file, a float widened to a double so that 0.7 came
+// back as 0.699999988079071, and no newline at the end.
+//
+// The cost is not tidiness. A diff that is always whole-file cannot say
+// whether anybody turned anything -- which is exactly how two hand-edited
+// action scripts went unnoticed for weeks. See
+// issues/a3-motion-ui-geschriebene-clips-driften.md.
+
+namespace
+{
+
+juce::File
+scratchClip ()
+{
+  return juce::File::getSpecialLocation (juce::File::tempDirectory)
+      .getChildFile ("a3-clipform-"
+                     + juce::String (
+                         juce::Random::getSystemRandom ().nextInt (1000000))
+                     + ".json");
+}
+
+}
+
+TEST (ClipFile, ItWritesItsKeysInOrderAndEndsWithANewline)
+{
+  Clip clip;
+  clip.name = "Form";
+  auto const file = scratchClip ();
+  ASSERT_TRUE (ClipFile::save (clip, file));
+
+  auto const text = file.loadFileAsString ();
+  EXPECT_TRUE (text.endsWith ("}\n")) << "no newline at the end";
+  EXPECT_FALSE (text.containsChar ('\r'));
+
+  juce::StringArray keys;
+  for (auto const &line : juce::StringArray::fromLines (text))
+    if (line.trim ().startsWithChar ('"'))
+      keys.add (line.trim ().fromFirstOccurrenceOf ("\"", false, false)
+                    .upToFirstOccurrenceOf ("\"", false, false));
+
+  auto sorted = keys;
+  sorted.sort (false);
+  EXPECT_EQ (keys, sorted) << "written in: " << keys.joinIntoString (", ");
+
+  file.deleteFile ();
+}
+
+// A float carries about seven decimal digits, so writing seventeen says the
+// value was measured to a precision it never had -- and makes every save a
+// diff whether or not a hand moved.
+TEST (ClipFile, ANumberIsWrittenAsShortAsItsFloatReallyIs)
+{
+  Clip clip;
+  clip.name = "Form";
+  clip.settings.envelopeMax = 0.7f;
+  clip.settings.reach = 0.35f;
+  clip.settings.freqMax = 0.85f;
+
+  auto const file = scratchClip ();
+  ASSERT_TRUE (ClipFile::save (clip, file));
+
+  auto const text = file.loadFileAsString ();
+  EXPECT_TRUE (text.contains ("\"envMax\": 0.7,")) << text;
+  EXPECT_TRUE (text.contains ("\"reach\": 0.35,")) << text;
+  EXPECT_TRUE (text.contains ("\"freqMax\": 0.85,")) << text;
+
+  // And it still reads back as the same float.
+  auto const back = ClipFile::load (file);
+  ASSERT_TRUE (back.has_value ());
+  EXPECT_FLOAT_EQ (back->settings.envelopeMax, 0.7f);
+  EXPECT_FLOAT_EQ (back->settings.reach, 0.35f);
+  EXPECT_FLOAT_EQ (back->settings.freqMax, 0.85f);
+
+  file.deleteFile ();
 }

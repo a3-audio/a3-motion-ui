@@ -5,7 +5,7 @@
   "clipTop": 0.0,
   "direction": "fwd",
   "elevationBase": 0.14,
-  "endAction": "bounce",
+  "endAction": "stop",
   "envAttack": 0,
   "envDecay": 2,
   "envMax": 1.0,

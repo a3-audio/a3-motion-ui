@@ -66,6 +66,7 @@
 #include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-engine/RecordingName.hh>
 #include <a3-motion-engine/SplitFolder.hh>
+#include <a3-motion-engine/TextFile.hh>
 #include <a3-motion-ui/components/RecordingIndicator.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
 #include <a3-motion-ui/theme/CleanSkin.hh>
@@ -2449,7 +2450,7 @@ A3MotionUIComponent::saveSlotClip (index_t channel, index_t slot)
   // entry's category is System, and a clip's category is Clip. For a clip it
   // is false whatever folder the clip sits in, so the only way the old line
   // ever came out true was by finding a figure.
-  if (clipMayBeOverwritten (clipFile.existsAsFile (),
+  if (shippedFileMayBeOverwritten (clipFile.existsAsFile (),
                             slotClipIsShipped (channel, slot),
                             shippedClips ()))
     {
@@ -2998,7 +2999,7 @@ A3MotionUIComponent::writeSlotActionScript ()
   // an editor whose work only survives if you remember to leave it properly
   // is one nobody trusts. The mark on the field says it has been touched
   // since it last *ran*, which is the thing worth knowing.
-  if (!action.file.replaceWithText (action.source))
+  if (!writeTextFile (action.file, action.source))
     {
       std::cerr << "could not write action " << action.file.getFullPathName ()
                 << std::endl;
@@ -3032,7 +3033,7 @@ A3MotionUIComponent::saveSlotActionScriptAs ()
   auto const name = freeNameIn (actionsDir (), base, ".scd");
   auto const file = newFileIn (actionsDir (), name, ".scd");
 
-  if (!file.replaceWithText (_action->script ()))
+  if (!writeTextFile (file, _action->script ()))
     {
       std::cerr << "could not write action " << file.getFullPathName ()
                 << std::endl;
@@ -3137,7 +3138,7 @@ A3MotionUIComponent::saveSlotAsAction ()
   auto const name = freeNameIn (actionsDir (), "Action", ".scd");
   auto const file = newFileIn (actionsDir (), name, ".scd");
 
-  if (!file.replaceWithText (actionScriptFor (clipSettingsFrom (*pattern))))
+  if (!writeTextFile (file, actionScriptFor (clipSettingsFrom (*pattern))))
     {
       std::cerr << "could not write action " << file.getFullPathName ()
                 << std::endl;
@@ -3640,7 +3641,7 @@ public:
     auto const sl = _owner._clipSettingsSlot;
 
     return _owner.slotHasDrifted (ch, sl)
-           && clipMayBeOverwritten (_owner._slotClipFile[ch][sl].existsAsFile (),
+           && shippedFileMayBeOverwritten (_owner._slotClipFile[ch][sl].existsAsFile (),
                                     _owner.slotClipIsShipped (ch, sl),
                                     _owner.shippedClips ());
   }
@@ -4138,7 +4139,7 @@ A3MotionUIComponent::saveSlotActionInPlace ()
   // The clip as it stands, over the action this slot already fires. Save as
   // is what makes a second one; this is what lets an action be corrected
   // without collecting "Action 4" beside "Action 3".
-  if (!file.replaceWithText (actionScriptFor (clipSettingsFrom (*pattern))))
+  if (!writeTextFile (file, actionScriptFor (clipSettingsFrom (*pattern))))
     {
       updateControlReadout ("-- SAVE FAILED");
       return;
@@ -4273,10 +4274,14 @@ A3MotionUIComponent::updateActionPage ()
                               ? action.getFileNameWithoutExtension ()
                               : juce::String{});
 
-  // Save is dark on one of the instrument's own; Save as is the way to keep a
-  // change to it. Asked of the file rather than remembered, because a slot's
-  // action changes from half a dozen places and one of them would forget.
-  _action->setScriptIsShipped (isSystemFileIn (actionsDir (), action));
+  // Save is dark on one of the instrument's own unless developer mode says
+  // otherwise -- the same rule the clips follow, asked in the same words.
+  // Asked of the file rather than remembered, because a slot's action changes
+  // from half a dozen places and one of them would forget.
+  _action->setScriptIsProtected (
+      !shippedFileMayBeOverwritten (action.existsAsFile (),
+                                    isSystemFileIn (actionsDir (), action),
+                                    shippedClips ()));
 }
 
 void
@@ -6225,8 +6230,8 @@ A3MotionUIComponent::saveConfigPage ()
 
   config = withKeysReplaced (config, _skinEditor->getSkin (), _configPageKeys);
 
-  getConfigFile ().replaceWithText (
-      juce::JSON::toString (config, false) + "\n", false, false, "\n");
+  writeTextFile (getConfigFile (),
+                 juce::JSON::toString (config, false) + "\n");
   _configPageKeys.clear ();
 
   // Ports and hosts are read when a socket opens, so they take effect at the
@@ -6246,9 +6251,10 @@ A3MotionUIComponent::applyDeveloperMode (bool on)
 {
   _developerMode = on;
   persistSettings ();
-  // The Save key asks the same rule, so it has to be asked again: a key that
-  // stays dark after the switch says developer mode did nothing.
+  // Both Save keys ask the same rule, so both have to be asked again: a key
+  // that stays dark after the switch says developer mode did nothing.
   refreshBrowser ();
+  updateActionPage ();
 }
 
 void
@@ -6264,9 +6270,8 @@ A3MotionUIComponent::applyPauseRendering (bool paused)
         {
           ui->setProperty ("pauseRenderingInMenu", paused);
           object->setProperty ("ui", config["ui"]);
-          getConfigFile ().replaceWithText (
-              juce::JSON::toString (config, false) + "\n", false, false,
-              "\n");
+          writeTextFile (getConfigFile (),
+                         juce::JSON::toString (config, false) + "\n");
         }
     }
 
@@ -6429,10 +6434,8 @@ A3MotionUIComponent::saveSkinAsNew ()
   // The edited state is what gets copied — "save as new" on a skin that has
   // been turned about is meant to keep what is on the screen, not what was
   // last written.
-  skinFile (configDir, name)
-      .replaceWithText (juce::JSON::toString (_skinEditor->getSkin (), false)
-                            + "\n",
-                        false, false, "\n");
+  writeTextFile (skinFile (configDir, name),
+                 juce::JSON::toString (_skinEditor->getSkin (), false) + "\n");
 
   writeActiveSkin (getConfigFile (), name);
   reopenEditorOn (name);
@@ -6540,9 +6543,8 @@ A3MotionUIComponent::saveEditedSkin ()
 
   // Rewritten whole, unlike config.json: a skin file is this editor's own
   // output, and its shape is generated rather than hand-arranged.
-  file.replaceWithText (
-      juce::JSON::toString (_skinEditor->getSkin (), false) + "\n", false,
-      false, "\n");
+  writeTextFile (file,
+                 juce::JSON::toString (_skinEditor->getSkin (), false) + "\n");
 
   // The edits branched off the default, so the skin they landed in is the one
   // that should now be in force -- otherwise they would be written and then

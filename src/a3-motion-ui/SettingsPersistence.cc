@@ -21,6 +21,7 @@
 #include "SettingsPersistence.hh"
 
 #include <algorithm>
+#include <a3-motion-engine/TextFile.hh>
 
 namespace a3
 {
@@ -80,7 +81,7 @@ saveSettings (juce::File const &file, AppSettings const &settings)
   juce::var const state (obj);
 
   file.getParentDirectory ().createDirectory ();
-  file.replaceWithText (juce::JSON::toString (state));
+  writeTextFile (file, juce::JSON::toString (state));
 }
 
 }
