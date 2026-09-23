@@ -605,22 +605,22 @@ TEST (ClipFile, EveryShippedClipReads)
 
 TEST (ClipWriteBack, ThePerformersOwnClipIsWrittenOver)
 {
-  EXPECT_TRUE (clipMayBeOverwritten (true, false, ShippedClips::Protected));
+  EXPECT_TRUE (shippedFileMayBeOverwritten (true, false, ShippedClips::Protected));
 }
 
 // Nothing shipped may be written over, wherever it lives -- the half the
 // system/user split buys. Save as is the way to keep such a change.
 TEST (ClipWriteBack, AShippedClipIsNot)
 {
-  EXPECT_FALSE (clipMayBeOverwritten (true, true, ShippedClips::Protected));
+  EXPECT_FALSE (shippedFileMayBeOverwritten (true, true, ShippedClips::Protected));
 }
 
 // A slot filled straight from a figure has no clip file behind it. There is
 // nothing to write back to, and Save must not invent one.
 TEST (ClipWriteBack, ASlotWithNoClipFileHasNothingToWriteBackTo)
 {
-  EXPECT_FALSE (clipMayBeOverwritten (false, false, ShippedClips::Protected));
-  EXPECT_FALSE (clipMayBeOverwritten (false, true, ShippedClips::Protected));
+  EXPECT_FALSE (shippedFileMayBeOverwritten (false, false, ShippedClips::Protected));
+  EXPECT_FALSE (shippedFileMayBeOverwritten (false, true, ShippedClips::Protected));
 }
 
 // Developer mode is how the instrument's own clips are maintained: with it on,
@@ -628,15 +628,15 @@ TEST (ClipWriteBack, ASlotWithNoClipFileHasNothingToWriteBackTo)
 // lands in pattern/clips/system and can be committed.
 TEST (ClipWriteBack, DeveloperModeLetsAShippedClipBeWrittenOver)
 {
-  EXPECT_TRUE (clipMayBeOverwritten (true, true, ShippedClips::Writable));
+  EXPECT_TRUE (shippedFileMayBeOverwritten (true, true, ShippedClips::Writable));
 }
 
 // It lifts the protection and nothing else: a slot with no clip file still has
 // nothing to write back to.
 TEST (ClipWriteBack, DeveloperModeStillNeedsAFileToWriteTo)
 {
-  EXPECT_FALSE (clipMayBeOverwritten (false, true, ShippedClips::Writable));
-  EXPECT_FALSE (clipMayBeOverwritten (false, false, ShippedClips::Writable));
+  EXPECT_FALSE (shippedFileMayBeOverwritten (false, true, ShippedClips::Writable));
+  EXPECT_FALSE (shippedFileMayBeOverwritten (false, false, ShippedClips::Writable));
 }
 
 // ── What a written clip looks like ───────────────────────────────────────

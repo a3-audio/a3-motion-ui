@@ -1170,13 +1170,23 @@ did — but only if nothing was dragged. Editing on the press instead meant ever
 and nothing ever scrolled. Escape leaves the editor (`onEscape`); it does not quit the app.
 
 **Three keys under it: save, save as, cancel**, equal width, in that order. Save writes the
-editor's text over the file the slot came from; **it stays dark on one of the instrument's own**
-(`isSystemFileIn()`, asked of the file rather than remembered), because writing over a shipped
-script takes it from every clip that fires it with no way back. Save as is the way out of exactly
-that: it writes the text to a new file in `user/`, **named after the one it came from** — "Bloom 2"
-beside "Bloom", counted against both halves — and points the slot at the copy, so the page is
-writable from there on. Cancel puts the file's own text back. All three are lit only while something
-has been typed.
+editor's text over the file the slot came from; **it stays dark on one of the instrument's own
+while developer mode is off**, because writing over a shipped script takes it from every clip that
+fires it with no way back. Save as is the way out of exactly that: it writes the text to a new file
+in `user/`, **named after the one it came from** — "Bloom 2" beside "Bloom", counted against both
+halves — and points the slot at the copy, so the page is writable from there on. Cancel puts the
+file's own text back. All three are lit only while something has been typed.
+
+**That lock is one rule for clips and scripts alike** — `shippedFileMayBeOverwritten (fileExists,
+fileIsShipped, shippedClips ())`, which is why its name no longer says clip. The page is told the
+answer (`setScriptIsProtected`), not the ingredients, and it is told again whenever developer mode
+is switched, or the key would stay dark and make the switch look broken. Two rules for one question
+is how they come to differ, and the difference then has to be explained on a screen with no room to
+explain it. Whether a *script* is shipped is `isSystemFileIn()`, asked of the file rather than
+remembered; whether a *clip* is, is `slotClipIsShipped()`.
+
+Developer mode is what let eleven shipped clips be written over on 2026-09-22 — the lock worked, it
+was simply unlocked (`config/ui_state.json`, `"developerMode": true`).
 
 The save point is set in the key handler, not by the slot coming back: `setScript()` returns early
 on text the document already holds, so a file written with exactly what is on screen would never

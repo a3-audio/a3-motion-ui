@@ -2450,7 +2450,7 @@ A3MotionUIComponent::saveSlotClip (index_t channel, index_t slot)
   // entry's category is System, and a clip's category is Clip. For a clip it
   // is false whatever folder the clip sits in, so the only way the old line
   // ever came out true was by finding a figure.
-  if (clipMayBeOverwritten (clipFile.existsAsFile (),
+  if (shippedFileMayBeOverwritten (clipFile.existsAsFile (),
                             slotClipIsShipped (channel, slot),
                             shippedClips ()))
     {
@@ -3641,7 +3641,7 @@ public:
     auto const sl = _owner._clipSettingsSlot;
 
     return _owner.slotHasDrifted (ch, sl)
-           && clipMayBeOverwritten (_owner._slotClipFile[ch][sl].existsAsFile (),
+           && shippedFileMayBeOverwritten (_owner._slotClipFile[ch][sl].existsAsFile (),
                                     _owner.slotClipIsShipped (ch, sl),
                                     _owner.shippedClips ());
   }
@@ -4274,10 +4274,14 @@ A3MotionUIComponent::updateActionPage ()
                               ? action.getFileNameWithoutExtension ()
                               : juce::String{});
 
-  // Save is dark on one of the instrument's own; Save as is the way to keep a
-  // change to it. Asked of the file rather than remembered, because a slot's
-  // action changes from half a dozen places and one of them would forget.
-  _action->setScriptIsShipped (isSystemFileIn (actionsDir (), action));
+  // Save is dark on one of the instrument's own unless developer mode says
+  // otherwise -- the same rule the clips follow, asked in the same words.
+  // Asked of the file rather than remembered, because a slot's action changes
+  // from half a dozen places and one of them would forget.
+  _action->setScriptIsProtected (
+      !shippedFileMayBeOverwritten (action.existsAsFile (),
+                                    isSystemFileIn (actionsDir (), action),
+                                    shippedClips ()));
 }
 
 void
@@ -6247,9 +6251,10 @@ A3MotionUIComponent::applyDeveloperMode (bool on)
 {
   _developerMode = on;
   persistSettings ();
-  // The Save key asks the same rule, so it has to be asked again: a key that
-  // stays dark after the switch says developer mode did nothing.
+  // Both Save keys ask the same rule, so both have to be asked again: a key
+  // that stays dark after the switch says developer mode did nothing.
   refreshBrowser ();
+  updateActionPage ();
 }
 
 void

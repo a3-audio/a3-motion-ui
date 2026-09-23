@@ -103,7 +103,7 @@ bool clipHasDrifted (Pattern const &pattern, juce::File const &clipFile);
  *  nothing else. A function that cannot see the figure cannot be confused by
  *  it again.
  */
-/** Whether the instrument's own clips may be written over: developer mode,
+/** Whether the instrument's own files may be written over: developer mode,
  *  a menu setting. Named rather than a third bool, because three bare
  *  true/false at a call site are three chances to swap two of them. */
 enum class ShippedClips
@@ -112,8 +112,20 @@ enum class ShippedClips
   Writable,
 };
 
-bool clipMayBeOverwritten (bool clipFileExists, bool clipFileIsShipped,
-                           ShippedClips shipped);
+/** Whether Save may write over this file.
+ *
+ *  Two questions in one: is there a file to write to, and is it one of the
+ *  instrument's own. A shipped file is protected unless developer mode says
+ *  otherwise, because writing over one takes it from every slot that uses it
+ *  and there is no way back -- `save as` is the way to keep a change to one.
+ *
+ *  **Clips and action scripts both ask this**, which is why its name no
+ *  longer says clip: two rules for one question is how they come to differ,
+ *  and the difference then has to be explained on a screen that has no room
+ *  to explain it.
+ */
+bool shippedFileMayBeOverwritten (bool fileExists, bool fileIsShipped,
+                                  ShippedClips shipped);
 
 /** Write a pattern's settings back into the clip it came from.
  *
