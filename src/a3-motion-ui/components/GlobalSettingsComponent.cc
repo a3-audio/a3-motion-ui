@@ -126,6 +126,26 @@ GlobalSettingsComponent::rebuildRowTouch ()
           control->setIdentity (option);
           control->onTap = [this] (int tapped, int) {
             setOptionIndex (tapped);
+
+            // A row that leads somewhere opens on the first press -- asked
+            // for at the device on 2026-09-23, and what Option::opensSubmenu
+            // has said in its comment all along without anybody asking it.
+            // There is nothing to arm on such a row: its value field holds
+            // one answer, so selecting it is a press that asks a question
+            // with one possible reply.
+            //
+            // The rows that hold a value keep both steps. That is the rule
+            // from 2026-09-17 -- "kein edit ohne eingabemaske, das kollidiert
+            // mit scroll" -- and it is about *changing* something, which
+            // walking into a page does not.
+            auto const index = static_cast<size_t> (tapped);
+            if (index < _options.size () && _options[index].opensSubmenu)
+              {
+                if (onRowOpened)
+                  onRowOpened (tapped);
+                return;
+              }
+
             if (onRowTapped)
               onRowTapped (tapped);
           };

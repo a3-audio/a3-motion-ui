@@ -21,6 +21,7 @@
 #include "ColourPickerComponent.hh"
 
 #include <a3-motion-ui/theme/ThemeColours.hh>
+#include <a3-motion-ui/components/ControllerLayout.hh>
 
 namespace a3
 {
@@ -28,7 +29,15 @@ namespace a3
 namespace
 {
 constexpr int padding = 20;
-constexpr int hueBarThickness = 30;
+
+/** The hue strip is grabbed, not aimed at, so it is a fingertip wide.
+ *
+ *  It was 30 against a fingertip of 34 -- four pixels short, and reported
+ *  from the device as hard to hit. The picker draws no components at all: it
+ *  is rectangles with its own mouse handling, so nothing else was going to
+ *  notice that its one continuous control had fallen under the floor every
+ *  other control in this project is held to. */
+constexpr int hueBarThickness = fingertipSize;
 constexpr float rowWash = 0.063f;
 constexpr float browsedRowWash = 0.086f;
 constexpr float armedRowWash = 0.133f;
