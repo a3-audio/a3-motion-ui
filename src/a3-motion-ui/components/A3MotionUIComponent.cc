@@ -5445,6 +5445,16 @@ A3MotionUIComponent::refreshAllPadRowLabels ()
 void
 A3MotionUIComponent::timerCallback ()
 {
+  // At most one theme apply per tick, whatever arrived since the last one --
+  // see applyEditedSkin(). Here rather than in a callAsync of its own because
+  // a timer is what "once per frame" means; a queue is what it did before.
+  if (_skinApplyPending)
+    {
+      _skinApplyPending = false;
+      applyThemeEverywhere (loadTheme (_skinToApply), *this);
+      _skinToApply = juce::var ();
+    }
+
   // First and whatever else is happening: what the status bar's meters say is
   // that something is arriving at all, which is the question asked on the
   // pages that are not the mixer -- and it is a question the conditions below
@@ -6524,12 +6534,20 @@ A3MotionUIComponent::applyEditedSkin ()
   if (_motionComponent != nullptr)
     _motionComponent->applyVisualConfig (edited);
 
-  juce::Component::SafePointer<A3MotionUIComponent> safeThis{ this };
-  auto const loaded = loadTheme (edited);
-  juce::MessageManager::callAsync ([safeThis, loaded] {
-    if (safeThis != nullptr)
-      applyThemeEverywhere (loaded, *safeThis);
-  });
+  // The rest of the interface catches up on the next tick, and **only once**
+  // however many changes arrived in between.
+  //
+  // This used to be a callAsync per change, which does not coalesce: dragging
+  // a colour queued one whole-tree theme apply per mouse sample -- loadTheme
+  // reading 144 values, applyThemeToTree walking every component, a repaint
+  // of the root and the bar's own re-layout, sixty times a second. The queue
+  // could only fall behind the finger, which is what "zäh" was.
+  //
+  // The sphere is not in here on purpose: applyVisualConfig above is cheap
+  // and direct, so what you are watching while you drag still follows the
+  // finger at full rate.
+  _skinToApply = edited;
+  _skinApplyPending = true;
 }
 
 void

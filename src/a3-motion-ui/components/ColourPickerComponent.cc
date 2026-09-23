@@ -29,15 +29,6 @@ namespace a3
 namespace
 {
 constexpr int padding = 20;
-
-/** The hue strip is grabbed, not aimed at, so it is a fingertip wide.
- *
- *  It was 30 against a fingertip of 34 -- four pixels short, and reported
- *  from the device as hard to hit. The picker draws no components at all: it
- *  is rectangles with its own mouse handling, so nothing else was going to
- *  notice that its one continuous control had fallen under the floor every
- *  other control in this project is held to. */
-constexpr int hueBarThickness = fingertipSize;
 constexpr float rowWash = 0.063f;
 constexpr float browsedRowWash = 0.086f;
 constexpr float armedRowWash = 0.133f;
@@ -49,7 +40,23 @@ constexpr float step = 0.01f;
 
 ColourPickerComponent::ColourPickerComponent ()
 {
-  setInterceptsMouseClicks (true, false);
+  setInterceptsMouseClicks (true, true);
+
+  // Only the colourspace: no sliders, no swatches, no alpha, no colour at the
+  // top -- we draw the swatch beside the title ourselves. See the header for
+  // why the rest of ColourSelector stays off.
+  _selector = std::make_unique<juce::ColourSelector> (
+      juce::ColourSelector::showColourspace, 0, 0);
+  _selector->setColour (juce::ColourSelector::backgroundColourId,
+                        juce::Colours::transparentBlack);
+  _selector->addChangeListener (this);
+
+  // ... and its mouse events, because the change message is a tick late and
+  // coalesces. true: the surface's own children are what a finger actually
+  // lands on.
+  _selector->addMouseListener (this, true);
+
+  addAndMakeVisible (*_selector);
 }
 
 void
@@ -60,6 +67,10 @@ ColourPickerComponent::setColour (juce::Colour colour,
   _title = title;
   _index = 0;
   _editing = false;
+
+  if (_selector)
+    _selector->setCurrentColour (colour, juce::dontSendNotification);
+
   repaint ();
 }
 
@@ -69,7 +80,15 @@ ColourPickerComponent::setFromHSL (float hue, float saturation,
 {
   _colour = juce::Colour::fromHSL (juce::jlimit (0.f, 1.f, hue),
                                    juce::jlimit (0.f, 1.f, saturation),
-                                   juce::jlimit (0.f, 1.f, lightness), 1.f);
+                                   juce::jlimit (0.f, 1.f, lightness),
+                                   _colour.getFloatAlpha ());
+
+  // The rows and the surface are two views of one colour, so a row moving
+  // has to move the surface's marker with it. Without a notification, or the
+  // selector would tell us what we just told it and we would go round.
+  if (_selector)
+    _selector->setCurrentColour (_colour, juce::dontSendNotification);
+
   repaint ();
 
   if (onColourChanged)
@@ -123,52 +142,44 @@ ColourPickerComponent::resized ()
   _header.removeFromRight (padding / 2);
   area.removeFromTop (padding / 2);
 
-  _field = area.removeFromLeft (juce::jmin (area.getHeight (),
-                                            area.getWidth () / 2));
-  area.removeFromLeft (padding / 2);
-  _hueBar = area.removeFromLeft (hueBarThickness);
+  // The selector takes the field's old room and the strip's together: it
+  // lays its own two out inside, hue bar included, and gives the strip
+  // min(50, 15% of its width) -- above a fingertip at every size this card
+  // is given.
+  auto const surface
+      = area.removeFromLeft (juce::jmin (area.getHeight () * 3 / 2,
+                                         area.getWidth () * 2 / 3));
+  if (_selector)
+    _selector->setBounds (surface);
+
   area.removeFromLeft (padding);
   _rows = area;
 }
 
-void
-ColourPickerComponent::pickFrom (juce::Point<int> position)
-{
-  if (_hueBar.contains (position))
-    {
-      auto const hue
-          = (position.getY () - _hueBar.getY ())
-            / static_cast<float> (juce::jmax (1, _hueBar.getHeight ()));
-      setFromHSL (hue, _colour.getSaturationHSL (), _colour.getLightness ());
-      return;
-    }
-
-  if (!_field.contains (position))
-    return;
-
-  auto const saturation
-      = (position.getX () - _field.getX ())
-        / static_cast<float> (juce::jmax (1, _field.getWidth ()));
-  auto const lightness
-      = 1.f
-        - (position.getY () - _field.getY ())
-              / static_cast<float> (juce::jmax (1, _field.getHeight ()));
-
-  setFromHSL (_colour.getHue (), saturation, lightness);
-}
 
 void
 ColourPickerComponent::mouseDown (juce::MouseEvent const &event)
 {
-  if (_doneButton.contains (event.getPosition ()))
-    return; // decided on release, so a slip off it is a change of mind
+  // Forwarded from the picking surface: read the colour now.
+  if (event.eventComponent != this)
+    takeColourFromSurface ();
 
-  pickFrom (event.getPosition ());
+  // Our own: the done key is decided on release, so a slip off it is a change
+  // of mind.
 }
 
 void
 ColourPickerComponent::mouseUp (juce::MouseEvent const &event)
 {
+  // A forwarded event's position is in *its* component's coordinates, so it
+  // must never be tested against our rectangles -- the done key sits where
+  // the surface's bottom left is.
+  if (event.eventComponent != this)
+    {
+      takeColourFromSurface ();
+      return;
+    }
+
   if (_doneButton.contains (event.getPosition ()) && onDone)
     onDone ();
 }
@@ -176,7 +187,35 @@ ColourPickerComponent::mouseUp (juce::MouseEvent const &event)
 void
 ColourPickerComponent::mouseDrag (juce::MouseEvent const &event)
 {
-  pickFrom (event.getPosition ());
+  if (event.eventComponent != this)
+    takeColourFromSurface ();
+}
+
+void
+ColourPickerComponent::changeListenerCallback (juce::ChangeBroadcaster *)
+{
+  takeColourFromSurface ();
+}
+
+void
+ColourPickerComponent::takeColourFromSurface ()
+{
+  if (!_selector)
+    return;
+
+  // Keep the alpha we were handed: the selector was built without
+  // showAlphaChannel, so it knows nothing about ours and would hand back an
+  // opaque colour for one that was written translucent.
+  auto const picked = _selector->getCurrentColour ();
+  auto const next = picked.withAlpha (_colour.getFloatAlpha ());
+  if (next == _colour)
+    return;
+
+  _colour = next;
+  repaint ();
+
+  if (onColourChanged)
+    onColourChanged ();
 }
 
 void
@@ -209,56 +248,9 @@ ColourPickerComponent::paint (juce::Graphics &g)
   g.setFont (juce::Font (theme ().fontSize (FontRole::Body), juce::Font::bold));
   g.drawText ("done", _doneButton, juce::Justification::centred, false);
 
-  // The field: saturation across, lightness down, at the chosen hue. Drawn
-  // in strips rather than as a gradient, because a gradient can only run one
-  // way and this runs two.
-  auto constexpr fieldColumnWidth = 3;
-  for (int x = 0; x < _field.getWidth (); x += fieldColumnWidth)
-    {
-      auto const s = x / static_cast<float> (juce::jmax (1, _field.getWidth ()));
-
-      // Three stops, not two: lightness 1 is white and 0 is black whatever
-      // the saturation, so a two-stop gradient between them runs through
-      // grey and the hue never appears. The colour itself lives at the
-      // half-way mark.
-      auto gradient = juce::ColourGradient (
-          juce::Colour::fromHSL (hue, s, 1.f, 1.f),
-          static_cast<float> (_field.getX () + x),
-          static_cast<float> (_field.getY ()),
-          juce::Colour::fromHSL (hue, s, 0.f, 1.f),
-          static_cast<float> (_field.getX () + x),
-          static_cast<float> (_field.getBottom ()), false);
-      gradient.addColour (0.5, juce::Colour::fromHSL (hue, s, 0.5f, 1.f));
-      g.setGradientFill (gradient);
-      g.fillRect (_field.getX () + x, _field.getY (), fieldColumnWidth,
-                  _field.getHeight ());
-    }
-
-  // Where the current colour sits in it.
-  auto const marker = juce::Point<int> (
-      _field.getX () + static_cast<int> (saturation * _field.getWidth ()),
-      _field.getY () + static_cast<int> ((1.f - lightness) * _field.getHeight ()));
-  g.setColour (toColour (theme ().textPrimary));
-  g.drawEllipse (marker.getX () - 7.f, marker.getY () - 7.f, 14.f, 14.f,
-                 theme ().strokeThick);
-
-  auto constexpr hueBarRowHeight = 2;
-  for (int y = 0; y < _hueBar.getHeight (); y += hueBarRowHeight)
-    {
-      g.setColour (juce::Colour::fromHSL (
-          y / static_cast<float> (juce::jmax (1, _hueBar.getHeight ())), 1.f,
-          0.5f, 1.f));
-      g.fillRect (_hueBar.getX (), _hueBar.getY () + y, _hueBar.getWidth (),
-                  hueBarRowHeight);
-    }
-
-  g.setColour (toColour (theme ().textPrimary));
-  g.drawRect (juce::Rectangle<int> (_hueBar.getWidth (), 6)
-                  .withCentre ({ _hueBar.getCentreX (),
-                                 _hueBar.getY ()
-                                     + static_cast<int> (
-                                         hue * _hueBar.getHeight ()) }),
-              2);
+  // The field and the hue strip are juce::ColourSelector's, drawn by it as a
+  // child of this one. What is left here is the card around them: the title,
+  // the swatch, the done key and the three numbers.
 
   // H, S and L as numbers, so the encoder has something to aim at and a
   // value can be read off and written down.
