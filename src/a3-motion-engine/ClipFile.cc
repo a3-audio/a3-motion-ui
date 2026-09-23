@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/Playhead.hh>
+#include <a3-motion-engine/TextFile.hh>
 
 namespace a3
 {
@@ -80,26 +81,26 @@ ClipFile::save (Clip const &clip, juce::File const &file)
 
   auto const &s = clip.settings;
   object->setProperty ("speed", s.speedLog2);
-  object->setProperty ("rotate", s.rotate);
-  object->setProperty ("sqzX", s.squeezeX);
-  object->setProperty ("sqzY", s.squeezeY);
+  object->setProperty ("rotate", shortFloat (s.rotate));
+  object->setProperty ("sqzX", shortFloat (s.squeezeX));
+  object->setProperty ("sqzY", shortFloat (s.squeezeY));
   object->setProperty ("strX", s.squeezeXLfo);
   object->setProperty ("strY", s.squeezeYLfo);
 
-  object->setProperty ("reach", s.reach);
-  object->setProperty ("clipTop", s.clipTop);
-  object->setProperty ("clipBottom", s.clipBottom);
-  object->setProperty ("elevationBase", s.elevationBase);
+  object->setProperty ("reach", shortFloat (s.reach));
+  object->setProperty ("clipTop", shortFloat (s.clipTop));
+  object->setProperty ("clipBottom", shortFloat (s.clipBottom));
+  object->setProperty ("elevationBase", shortFloat (s.elevationBase));
   object->setProperty ("mirrorSouth", s.mirrorSouth);
   object->setProperty ("flat", s.flat);
-  object->setProperty ("flatElevation", s.flatElevation);
+  object->setProperty ("flatElevation", shortFloat (s.flatElevation));
 
   object->setProperty ("spin", s.spin);
   object->setProperty ("swell", s.reachLfo);
   object->setProperty ("sway", s.elevationLfo);
   object->setProperty ("envAttack", s.envelopeAttack);
   object->setProperty ("envDecay", s.envelopeDecay);
-  object->setProperty ("envMax", s.envelopeMax);
+  object->setProperty ("envMax", shortFloat (s.envelopeMax));
   object->setProperty ("actMode", actModeToName (s.actMode));
 
   object->setProperty ("direction", playDirectionToName (s.direction));
@@ -107,17 +108,17 @@ ClipFile::save (Clip const &clip, juce::File const &file)
 
   object->setProperty ("freqAttack", s.freqAttack);
   object->setProperty ("freqDecay", s.freqDecay);
-  object->setProperty ("freqMax", s.freqMax);
+  object->setProperty ("freqMax", shortFloat (s.freqMax));
   object->setProperty ("qAttack", s.qAttack);
   object->setProperty ("qDecay", s.qDecay);
-  object->setProperty ("qMax", s.qMax);
-  object->setProperty ("fadeReach", s.fadeReach);
+  object->setProperty ("qMax", shortFloat (s.qMax));
+  object->setProperty ("fadeReach", shortFloat (s.fadeReach));
   object->setProperty ("bridgeBias", s.bridgeBias);
 
   if (!file.getParentDirectory ().createDirectory ())
     return false;
 
-  return file.replaceWithText (juce::JSON::toString (juce::var (object)));
+  return writeJsonFile (file, juce::var (object));
 }
 
 std::optional<Clip>

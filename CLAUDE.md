@@ -59,6 +59,25 @@ Key CMake options (see `src/a3-motion-ui/CMakeLists.txt`):
 `Config.hh` is generated from `Config.hh.in` for both `a3-motion-engine` and `a3-motion-ui` at
 configure time and is gitignored — don't hand-edit the generated header, edit the `.in` template.
 
+**A failed *configure* leaves the build tree compiling nothing, and says "Built target" while it
+does it.** On 2026-09-23 a source was listed in `src/a3-motion-engine/CMakeLists.txt` before the
+file existed — a deliberate red step, TDD. CMake aborted during configure; from then on
+`liba3-motion-engine.a` held **only the JUCE modules**, not one project object, and every build
+reported success. The failure surfaced two steps later as the whole engine being undefined at link
+(`a3::TempoClock::start`, `a3::MotionEngine::~MotionEngine`, …), which reads like a linker problem
+and is not one.
+
+The fix is to **configure again**, not to build again:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DHARDWARE_INTERFACE_ENABLED=ON \
+      -DCMAKE_PREFIX_PATH="$HOME/local/juce"
+```
+
+Same shape as the `egl.pc` trap above, and worth the same reflex: **any error during configure means
+reconfigure before trusting another build.** The tell is a target that links nothing of its own —
+`ar t build/.../liba3-motion-engine.a` listing only `juce_*.o` says it in one line.
+
 ## Run
 
 ```bash
