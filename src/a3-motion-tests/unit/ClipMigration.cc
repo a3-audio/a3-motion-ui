@@ -193,3 +193,24 @@ TEST (ClipMigration, ATakeThatArrivesLaterIsStillMigrated)
   EXPECT_TRUE (
       root.getChildFile ("clips/Rec_991122.json").existsAsFile ());
 }
+
+// A take recorded since clips were split into system/ and user/ has its clip
+// in user/ already. The migration looked for it in the folder's top level,
+// found nothing, and wrote a second clip -- which the start-up tidy-up then
+// filed as "Rec_... 2". Every new take came back with a twin.
+TEST (ClipMigration, AClipAlreadyInTheUserHalfIsNotDoubled)
+{
+  auto const root = aRootWithAnOldTake ("a3-migration-user-half");
+
+  Clip recorded;
+  recorded.name = "Rec_120613";
+  recorded.svg = "04_Rec_120613";
+  ASSERT_TRUE (ClipFile::save (
+      recorded, root.getChildFile ("clips/user/Rec_120613.json")));
+
+  EXPECT_EQ (migrateCombinedPatterns (root), 0);
+  EXPECT_FALSE (root.getChildFile ("clips/Rec_120613.json").existsAsFile ())
+      << "the migration wrote a twin beside the recorded clip";
+
+  root.deleteRecursively ();
+}

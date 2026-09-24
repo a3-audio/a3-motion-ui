@@ -24,6 +24,7 @@
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternFile.hh>
+#include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-engine/TextFile.hh>
 
 #include <iostream>
@@ -70,7 +71,9 @@ migrateCombinedPatterns (juce::File const &root)
 
       // What somebody set beats what a file once held: an existing clip is
       // never overwritten by a migration that happens to run afterwards.
-      if (clipFile.existsAsFile ())
+      // Wherever it lies -- loose, or already filed into user/ or system/.
+      if (clipFile.existsAsFile ()
+          || namedFileIn (clips, name, ".json").existsAsFile ())
         {
           done.add (shape);
           continue;
