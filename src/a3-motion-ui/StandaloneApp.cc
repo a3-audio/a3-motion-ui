@@ -22,6 +22,8 @@
 
 #include <a3-motion-engine/UserConfig.hh>
 
+#include <iostream>
+
 #ifdef A3_AUDIO_ENGINE_ENABLED
 #include "A3MotionAudioProcessor.hh"
 
@@ -42,6 +44,47 @@ StandaloneApp::initialise (juce::String const &commandLine)
 
   auto appNameVer = getApplicationName () + " " + getApplicationVersion ();
   juce::Logger::writeToLog (appNameVer);
+
+  // Before anything else is set up, because a crash is a poor way to say
+  // "there is no display yet". See issue #15.
+  //
+  // JUCE does not refuse on its own: LinuxComponentPeer's constructor returns
+  // early when X cannot be reached (juce_Windowing_linux.cpp:51), leaving a
+  // peer with no window and a null repainter behind it, and the next thing
+  // that touches it segfaults. The unit is then `failed` with nothing in the
+  // journal saying why, and the rig runs without a surface.
+  //
+  // Displays::findDisplays() leaves the list empty when the X display could
+  // not be opened (juce_Windowing_linux.cpp:699), so an empty list is the
+  // public way to ask what the internal isX11Available() answers.
+  //
+  // Note for anyone testing this: unsetting DISPLAY does *not* produce the
+  // condition. JUCE falls back to ":0.0" when DISPLAY is empty
+  // (juce_XWindowSystem_linux.cpp:3377), so on a machine with a session
+  // running it simply connects to it. Point DISPLAY at a server that is not
+  // there instead -- see smoke-test/scripts/no-display-exits-cleanly.sh.
+  //
+  // Asking here is also ahead of the OSC senders and receivers: on the start
+  // that was reported they were already bound, which is why the log ends on a
+  // connection line and reads as if the network were at fault.
+  if (juce::Desktop::getInstance ().getDisplays ().displays.isEmpty ())
+    {
+      auto const refusal
+          = juce::String ("No display could be reached. Is X running, and is "
+                          "DISPLAY set? Refusing to start rather than putting "
+                          "a window up that cannot exist.");
+
+      // To both, and for different readers. writeToLog() goes to the log file
+      // beside the executable, which is where the app's own history lives;
+      // stderr is what systemd puts in the journal, which is where somebody
+      // looks when the unit is `failed`.
+      juce::Logger::writeToLog (refusal);
+      std::cerr << refusal << std::endl;
+
+      setApplicationReturnValue (1);
+      quit ();
+      return;
+    }
 
   if (juce::JSON::parse (juce::File::getCurrentWorkingDirectory ()
                              .getChildFile ("config/config.json")
