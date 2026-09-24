@@ -509,6 +509,60 @@ constexpr float channelFaceDotOfFace = 1.f / 5.f;
  *  sitting *in* the face rather than clipped to its edge. */
 constexpr float channelFaceDotInsetOfDot = 0.5f;
 
+/** A share of the bar's height, written as the divisor that is actually
+ *  divided by.
+ *
+ *  It carries both forms on purpose. layOutClipSettings() spends these by
+ *  integer division -- `of (height)`, truncating, which is what decides the
+ *  pixels -- while clipSettingsPreferredHeight() has to solve for the same
+ *  chrome as a fraction of the whole, which is `asFraction ()`. Those two
+ *  were written out by hand in two different files, as `height / 40` in one
+ *  and `2.f / 40.f` in the other, and nothing said they were the same
+ *  number. They had to change together and the connection was named
+ *  nowhere. */
+struct HeightShare
+{
+  int divisor;
+
+  constexpr int
+  of (int height) const
+  {
+    return height / divisor;
+  }
+
+  constexpr float
+  asFraction () const
+  {
+    return 1.f / static_cast<float> (divisor);
+  }
+};
+
+/** The panel's own margin, top and bottom -- the vertical counterpart of
+ *  paddingH(). A skinned paddingSmall can widen it; this is its floor. */
+constexpr HeightShare barPadding{ 40 };
+
+/** The gap between the header row and the sections under it. */
+constexpr HeightShare barHeaderGap{ 50 };
+
+/** The header row's height. A ninth of the bar, but never shorter than a
+ *  fingertip: every control in that row is pressed mid-set by a hand that is
+ *  also doing something else. At the sizes the device ships with the ninth
+ *  decides; at the smallest font and pot the fingertip does. */
+constexpr HeightShare barHeader{ 9 };
+
+/** ...and never taller than this, whatever the bar's height. */
+constexpr HeightShare barHeaderMax{ 6 };
+
+/** The gap between the keys *within* the header row -- a share of that row,
+ *  not of the bar. */
+constexpr HeightShare headerGapOfHeader{ 12 };
+
+/** The tallest a row of buttons may get. Also a sixth, and deliberately its
+ *  own name rather than barHeaderMax: the two are different quantities that
+ *  happen to share a number, and folding them together would tie the button
+ *  rows to the header's ceiling for no reason. */
+constexpr HeightShare barButtonMax{ 6 };
+
 /** Lays the whole bar out for the given bounds and the three sizes the
  *  user can actually change (header and body font size, Pot Size). Reads
  *  no theme of its own, so it can be checked at sizes nobody has dialled

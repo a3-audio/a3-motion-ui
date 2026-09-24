@@ -24,6 +24,8 @@
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/ClipSettingsComponent.hh>
+#include <a3-motion-ui/components/ClipSettingsLayout.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 
 using namespace a3;
 
@@ -286,6 +288,46 @@ TEST (ClipSettingsHeight, TheBarNeverEatsMoreThanItsShareOfTheScreen)
              (int)(screen * maxClipSettingsScreenShare));
   EXPECT_EQ (clipSettingsHeightWithin (200, screen), 200)
       << "a modest request passes through untouched";
+}
+
+// The bar's height is solved for in clipSettingsPreferredHeight() and then
+// spent in layOutClipSettings() -- two functions in two files that have to
+// mean the same thing by "the chrome": the panel's padding twice, the header
+// row, and the gap under it.
+//
+// Both sides used to write those shares out by hand, `height / 40` on one and
+// `2.f / 40.f` on the other, with nothing saying they were the same number.
+// When they last disagreed the sections were handed what they asked for minus
+// the chrome, and the global grid's knobs came out a few pixels tall.
+//
+// So this pins the whole of it: what the bar spends before the sections get
+// their room is those three things and nothing else. A fourth item added to
+// the layout and not to the height solve fails here.
+TEST (ClipSettingsHeight, TheBarSpendsExactlyTheChromeItsHeightSolvedFor)
+{
+  for (float bodySize : { 9.f, 14.f, 22.f })
+    for (float potSize : { 0.6f, 0.9f, 1.8f })
+      {
+        auto const headerSize = bodySize * 1.3f;
+        auto const knobDiam = knobDiameterForFont (bodySize, potSize);
+
+        juce::Rectangle<int> const bounds{
+          0, 0, 1280,
+          clipSettingsPreferredHeight (headerSize, bodySize, knobDiam)
+        };
+
+        auto const l
+            = layOutClipSettings (bounds, headerSize, bodySize, potSize);
+
+        auto const height = l.clipBounds.getHeight ();
+        auto const padding = juce::jmax (
+            juce::roundToInt (theme ().paddingSmall), barPadding.of (height));
+        auto const gap = juce::jmax (4, barHeaderGap.of (height));
+
+        EXPECT_EQ (height - l.clipContent.getHeight (),
+                   2 * padding + l.headerHeight + gap)
+            << "body " << bodySize << " pot " << potSize;
+      }
 }
 
 // The global section holds what is not the shown clip's: the per-channel

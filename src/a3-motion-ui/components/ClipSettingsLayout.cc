@@ -327,14 +327,15 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // there is no role for a gap, only for a margin around the outside of the
   // whole panel. A skinned paddingSmall widens this margin and leaves every
   // inner gap exactly as it was.
-  auto const paddingV = juce::jmax (juce::roundToInt (theme ().paddingSmall),
-                                    out.clipBounds.getHeight () / 40);
+  auto const paddingV
+      = juce::jmax (juce::roundToInt (theme ().paddingSmall),
+                    barPadding.of (out.clipBounds.getHeight ()));
   // Tall enough to hit. Every control in this row is pressed mid-set by a hand
   // that is also doing something else, and a twelfth of the bar left them
   // under a fingertip -- the same floor the pads and tabs already keep.
-  auto const headerH
-      = juce::jmin (juce::jmax (fingertipSize, out.clipBounds.getHeight () / 9),
-                    juce::jmax (18, out.clipBounds.getHeight () / 6));
+  auto const headerH = juce::jmin (
+      juce::jmax (fingertipSize, barHeader.of (out.clipBounds.getHeight ())),
+      juce::jmax (18, barHeaderMax.of (out.clipBounds.getHeight ())));
   out.headerHeight = headerH;
 
   auto area = out.clipBounds.reduced (paddingH (), paddingV);
@@ -344,7 +345,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // Left to right, in the order they are reached for: whose clip -- the four
   // faces, framed together -- then the five views of it, the folder closing
   // the row because it is the way out of the clip you are on.
-  auto const headerGap = juce::jmax (2, headerH / 12);
+  auto const headerGap = juce::jmax (2, headerGapOfHeader.of (headerH));
 
   // Two kinds of key, each one size. The five views switch what the settings
   // area shows; the four faces switch which clip it is showing. They share a
@@ -442,7 +443,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // rec, stop, play and act belong to the device the way MENU and TAP do, and
   // taking them out of here is what leaves room for a fourth view of the clip.
 
-  area.removeFromTop (juce::jmax (4, out.clipBounds.getHeight () / 50));
+  area.removeFromTop (
+      juce::jmax (4, barHeaderGap.of (out.clipBounds.getHeight ())));
 
   out.clipContent = area;
 
@@ -477,7 +479,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // stays: below it TAP could not be hit reliably, and that finding is about
   // fingers, not about how much room the picture would like.
   out.buttonHeight = juce::jlimit (
-      34, juce::jmax (34, out.clipBounds.getHeight () / 6),
+      34, juce::jmax (34, barButtonMax.of (out.clipBounds.getHeight ())),
       static_cast<int> (metrics.knobDiam * 1.35f));
 
   // Shape, then Motion, then Elevation. What a clip is and how it moves are
