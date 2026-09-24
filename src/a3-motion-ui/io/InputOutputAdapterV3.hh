@@ -30,6 +30,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/io/ButtonLedColours.hh>
+#include <a3-motion-ui/io/LedCache.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 
 namespace a3
@@ -103,8 +104,19 @@ private:
    *  touched; one with no function stays dark, which is how the panel says
    *  there is nothing there. */
   void refreshIdleButtonLeds ();
+  /** Put every function key back to the colour it was last asked for.
+   *
+   *  Called when this side can no longer speak for the panel: the resting
+   *  light changed, or the controller went away and came back. Both are the
+   *  same problem -- what is remembered as shown is not what is shown. */
+  void reapplyButtonLeds ();
   /** What was last written, so the serial link only carries a change. */
   LedColour _idleLedWritten{ -1, -1, -1 };
+
+  /** What each key was asked for, and what it is showing. Lives on this side
+   *  -- the thread that owns the serial port -- because that is the only side
+   *  that can know what actually reached the panel. See LedCache.hh. */
+  LedCache _ledCache;
 
   // ── Protocol constants ────────────────────────────────────────────────────
   static constexpr uint8_t cmdPing       = 0x01;
