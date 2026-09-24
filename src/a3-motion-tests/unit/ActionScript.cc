@@ -27,6 +27,7 @@
 
 #include "ClipSettingsFields.hh"
 
+#include <algorithm>
 #include <set>
 
 using namespace a3;
@@ -497,6 +498,50 @@ TEST (ActionScript, EveryShippedActionNamesEveryParameter)
             << file.getFileName () << " names ~" << note.name << " "
             << seen[note.name] << " times, not once";
     }
+}
+
+// **A range a comment promises must be a range the reader takes.** Every shipped
+// script carries its parameter's range as a comment on the line, so the
+// annotation is not a note to a maintainer -- it is the interface, sitting where
+// somebody reads it while typing.
+//
+// It said `-8..8` while the reader clamps to speedLog2Min..speedLog2Max, which
+// is -7..4. A script asking for 8 silently got 4, and the comment beside it
+// claimed 8 was allowed. Twenty-six scripts said so.
+TEST (ActionScript, TheSpeedAnnotationNamesTheRangeTheReaderTakes)
+{
+  auto const &notes = actionScriptNotes ();
+  auto const note
+      = std::find_if (notes.begin (), notes.end (), [] (ActionScriptNote const &n) {
+          return juce::String (n.name) == "speedLog2";
+        });
+
+  ASSERT_NE (note, notes.end ());
+
+  auto const expected = juce::String (speedLog2Min) + ".." + juce::String (speedLog2Max);
+  EXPECT_EQ (juce::String (note->range).trim (), expected);
+}
+
+// The same thing said as behaviour, which is what actually bites: a script
+// asking for the bound the annotation names must get it back unchanged. A
+// string test alone would pass on a table that agrees with itself and lies
+// about the reader.
+TEST (ActionScript, TheAnnotatedSpeedBoundsRoundTrip)
+{
+  auto const &notes = actionScriptNotes ();
+  auto const note
+      = std::find_if (notes.begin (), notes.end (), [] (ActionScriptNote const &n) {
+          return juce::String (n.name) == "speedLog2";
+        });
+  ASSERT_NE (note, notes.end ());
+
+  auto const lo = juce::String (note->range).trim ().upToFirstOccurrenceOf ("..", false, false).getIntValue ();
+  auto const hi = juce::String (note->range).trim ().fromLastOccurrenceOf ("..", false, false).getIntValue ();
+
+  EXPECT_EQ (run ("~speedLog2 = " + juce::String (hi) + ";\n").speedLog2, hi)
+      << "the annotation promises " << hi << " but the reader clamps it away";
+  EXPECT_EQ (run ("~speedLog2 = " + juce::String (lo) + ";\n").speedLog2, lo)
+      << "the annotation promises " << lo << " but the reader clamps it away";
 }
 
 // One wording, not twenty-six. A range corrected in the table has to be

@@ -10,7 +10,7 @@
 // have to keep holding is not one.
 
 // ---- Shape -----------------------------------------------------------
-~speedLog2 = ~speedLog2 + 2;// -8..8   how fast, as a power of two; -3 is the 1/8
+~speedLog2 = ~speedLog2 + 2;// -7..4   how fast, as a power of two; -3 is the 1/8
 
 // ---- Elevation -------------------------------------------------------
 //~base = 0;             // 0..1    where the middle sits; 0 north, 1 south

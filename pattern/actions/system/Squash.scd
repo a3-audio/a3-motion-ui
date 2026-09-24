@@ -9,7 +9,7 @@
 // different figure; one that breathes is the same figure being leant on.
 
 // ---- Shape -----------------------------------------------------------
-//~speedLog2 = 0;        // -8..8   how fast, as a power of two; -3 is the 1/8
+//~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 
 // ---- Elevation -------------------------------------------------------
 //~base = 0;             // 0..1    where the middle sits; 0 north, 1 south
