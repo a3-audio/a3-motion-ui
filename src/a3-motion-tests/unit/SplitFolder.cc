@@ -273,3 +273,16 @@ TEST (SplitFolder, AFileFromSomewhereElseIsNotShipped)
   EXPECT_FALSE (
       isSystemFileIn (f.root, f.root.getChildFile ("system.scd")));
 }
+
+// Save as on a set wrote "Set.json" into the folder's top level: the list
+// never showed it, and the name check there could not see that user/ already
+// had a "Set" -- so Save afterwards wrote over that older one instead.
+TEST (SplitFolder, AFreshFileLandsInTheUserHalfUnderAFreeName)
+{
+  Fixture f;
+  f.put ("user", "Set");
+  f.put ("system", "Set 2");
+
+  EXPECT_EQ (freeFileIn (f.root, "Set", ".scd"),
+             f.root.getChildFile ("user").getChildFile ("Set 3.scd"));
+}

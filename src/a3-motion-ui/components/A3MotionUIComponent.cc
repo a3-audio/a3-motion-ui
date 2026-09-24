@@ -2539,14 +2539,18 @@ A3MotionUIComponent::saveCurrentSession ()
   // A name that is not taken yet. Naming one by hand comes with the naming
   // row; until then a set is "Set", "Set 2", "Set 3" -- countable, sayable,
   // and findable in a list, which is what a name is for.
-  auto const dir = sessionsDir ();
-  auto name = juce::String ("Set");
-  for (int n = 2; dir.getChildFile (name + ".json").existsAsFile (); ++n)
-    name = "Set " + juce::String (n);
+  //
+  // In user/, counted against both halves: written into the folder's top
+  // level, a new set was missing from the list, and its name was checked
+  // against nothing -- so the Save after it wrote over an older set of the
+  // same name.
+  auto const file = freeFileIn (sessionsDir (), "Set", ".json");
+  auto name = file.getFileNameWithoutExtension ();
+  file.getParentDirectory ().createDirectory ();
 
   set.name = name.toStdString ();
 
-  if (saveSession (dir.getChildFile (name + ".json"), set))
+  if (saveSession (file, set))
     {
       // The set that is loaded is now this one. Without this, Save stayed
       // dark after a Save as: the device had a file to write back to and no
@@ -3012,8 +3016,8 @@ A3MotionUIComponent::saveSlotActionScriptAs ()
   auto const base = from.existsAsFile ()
                         ? from.getFileNameWithoutExtension ()
                         : juce::String{ "Action" };
-  auto const name = freeNameIn (actionsDir (), base, ".scd");
-  auto const file = newFileIn (actionsDir (), name, ".scd");
+  auto const file = freeFileIn (actionsDir (), base, ".scd");
+  auto const name = file.getFileNameWithoutExtension ();
 
   if (!writeTextFile (file, _action->script ()))
     {
@@ -3117,8 +3121,8 @@ A3MotionUIComponent::saveSlotAsAction ()
   // A new one is the performer's, and its name has to be free in both
   // halves -- counting only against your own would hand back a name a
   // shipped file already has.
-  auto const name = freeNameIn (actionsDir (), "Action", ".scd");
-  auto const file = newFileIn (actionsDir (), name, ".scd");
+  auto const file = freeFileIn (actionsDir (), "Action", ".scd");
+  auto const name = file.getFileNameWithoutExtension ();
 
   if (!writeTextFile (file, actionScriptFor (clipSettingsFrom (*pattern))))
     {
