@@ -351,34 +351,69 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // height because a hand goes along the row in one sweep, and the faces are
   // narrower and framed because a group that reads as a group can afford to
   // be -- see channelFacesFrame.
-  constexpr int numViews = 6;
+  constexpr int numViews = 5;
   constexpr int numFaces = static_cast<int> (numChannelColumns);
 
-  // Measured in view-widths so the two sizes stay in proportion at every
-  // screen: a face is three quarters of a view. Eleven gaps -- the frame's
-  // two edges, three between the faces, one before the views, five between
-  // the six of them.
-  auto const viewSpan = juce::jmax (
-      fingertipSize,
-      (headerArea.getWidth () - headerGap * 11) * 4
-          / (numFaces * 3 + numViews * 4));
-  auto const faceSpan = juce::jmax (fingertipSize, viewSpan * 3 / 4);
+  // Ten gaps: the frame's two edges, three between the faces, one before the
+  // views, four between the five of them.
+  constexpr int numHeaderGaps = 2 + (numFaces - 1) + 1 + (numViews - 1);
 
-  auto facesFrame = headerArea.removeFromLeft (
-      faceSpan * numFaces + headerGap * (numFaces + 1));
-  out.channelFacesFrame = facesFrame;
-  headerArea.removeFromLeft (headerGap);
+  // Measured in quarter-views so the two sizes stay in proportion at every
+  // screen: a face is three of them, a view four.
+  constexpr int faceUnits = 3;
+  constexpr int viewUnits = 4;
+  constexpr int totalUnits = numFaces * faceUnits + numViews * viewUnits;
 
-  facesFrame.removeFromLeft (headerGap);
+  // **Every edge is computed from the row's whole width, not stepped across
+  // it.** Stepping meant an integer span times five, and the remainder of that
+  // division piled up against the right edge -- which is where the eye reads
+  // the row as finished or not. Cumulative, the last edge lands on the right
+  // edge by construction and the remainder is spread a pixel at a time across
+  // the keys, where nobody can see it. The Shape section's button grid is
+  // measured from the left for the same reason.
+  //
+  // This is also where a whole key used to go missing: the span was worked out
+  // for six views and eleven gaps while only five are ever placed, so about 70
+  // pixels of the device's own 768 stood empty at the end of the row.
+  auto const minSpan = totalUnits * fingertipSize / faceUnits;
+  auto const available
+      = juce::jmax (minSpan, headerArea.getWidth () - headerGap * numHeaderGaps);
+
+  auto const rowLeft = headerArea.getX ();
+  auto const rowTop = headerArea.getY ();
+  auto const rowHeight = headerArea.getHeight ();
+
+  // The left edge of the element that begins after `units` quarter-views and
+  // `gaps` gaps. At units == totalUnits it is the row's right edge exactly.
+  auto const edgeAt = [rowLeft, available, headerGap] (int units, int gaps) {
+    return rowLeft + gaps * headerGap + (available * units) / totalUnits;
+  };
+  auto const keyFrom = [rowTop, rowHeight] (int x0, int x1) {
+    return juce::Rectangle<int>{ x0, rowTop, x1 - x0, rowHeight };
+  };
+
+  int units = 0;
+  int gaps = 0;
+
+  auto const frameLeft = edgeAt (units, gaps);
+  ++gaps; // the frame's left edge
   for (size_t channel = 0; channel < numChannelColumns; ++channel)
     {
-      out.channelFaces[channel] = facesFrame.removeFromLeft (faceSpan);
-      facesFrame.removeFromLeft (headerGap);
+      auto const x0 = edgeAt (units, gaps);
+      units += faceUnits;
+      out.channelFaces[channel] = keyFrom (x0, edgeAt (units, gaps));
+      ++gaps; // between the faces, and the frame's right edge after the last
     }
+  out.channelFacesFrame
+      = keyFrom (frameLeft, edgeAt (units, gaps));
 
-  auto const takeView = [&headerArea, viewSpan, headerGap] {
-    auto const key = headerArea.removeFromLeft (viewSpan);
-    headerArea.removeFromLeft (headerGap);
+  ++gaps; // between the frame and the first view
+
+  auto const takeView = [&units, &gaps, &edgeAt, &keyFrom] {
+    auto const x0 = edgeAt (units, gaps);
+    units += viewUnits;
+    auto const key = keyFrom (x0, edgeAt (units, gaps));
+    ++gaps;
     return key;
   };
 
