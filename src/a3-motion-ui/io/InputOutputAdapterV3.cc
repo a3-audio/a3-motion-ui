@@ -102,6 +102,12 @@ InputOutputAdapterV3::serialInit ()
           _hardwareAvailable = true;
           juce::Logger::writeToLog (
               "InputOutputAdapterV3: serial port opened: " + serialDevice);
+
+          // Everything written while there was no controller was dropped by
+          // writeSetLed() and recorded as sent all the same, so a panel that
+          // came back came back dark. It is put back to what it was asked for
+          // here -- the same way a changed resting light is applied.
+          reapplyButtonLeds ();
           return;
         }
       catch (const std::exception &e)
@@ -437,10 +443,26 @@ InputOutputAdapterV3::refreshIdleButtonLeds ()
 
   _idleLedWritten = idle;
 
-  auto const colour = toColour (idle);
-  for (auto const &pair : functionRowHwIndices)
-    for (auto const idx : pair)
-      writeSetLed (hwIndexToLedId[idx], colour);
+  // Not written here any more. A key with nothing to report resolves to the
+  // resting light in outputButtonLED(), so the keys only have to be put back
+  // to what they were asked for -- and a key that *does* report something
+  // keeps its own colour instead of being painted over with the resting one,
+  // which is what writing them here did.
+  reapplyButtonLeds ();
+}
+
+void
+InputOutputAdapterV3::reapplyButtonLeds ()
+{
+  // Whatever the panel is showing, this no longer knows it: either something
+  // wrote past the record, or the resting light moved under it, or the writes
+  // went to a controller that was not there. So forget what is shown -- and
+  // only that; what each key was *asked* for is what we are putting back.
+  _ledCache.forgetWhatIsShown ();
+
+  for (auto const key : functionKeyOrder)
+    if (auto const wanted = _ledCache.wantedFor (key))
+      outputButtonLED (key, *wanted);
 }
 
 bool
@@ -635,17 +657,31 @@ InputOutputAdapterV3::outputButtonLED (Button button, juce::Colour colour)
   // A transparent colour is a key with nothing to report: it takes the resting
   // light, which is not darkness — a key that has a function should say so
   // while nobody is touching it.
+  auto const row = functionKeyPosition (button);
+  if (row < 0)
+    return;
+
+  // Remembered as asked for, before it is resolved: the resting light is a
+  // config value and can change under a key whose own colour did not, and then
+  // this is the only record of what the key was meant to show.
+  _ledCache.remember (button, colour);
+
   auto const lit = ledColour (
       colour.isTransparent ()
           ? toColour (buttonLedIdleColour (userConfig["buttonLeds"]))
           : colour);
 
-  // Both sides of the key light: they are one key with two places to press
-  // it, and a lit left with a dark right would say they were two.
-  auto const row = functionKeyPosition (button);
-  if (row < 0)
+  // **The one place that decides whether the port is written**, and it is on
+  // the thread that owns the port. It used to be decided on the sending side,
+  // against the *logical* colour -- which meant a key whose colour never
+  // changes could not be corrected once anything had written past that record.
+  // MENU is exactly such a key, and it was the one dark key on a panel where
+  // everything else was right.
+  if (!_ledCache.shouldWrite (button, lit))
     return;
 
+  // Both sides of the key light: they are one key with two places to press
+  // it, and a lit left with a dark right would say they were two.
   for (auto const idx : functionRowHwIndices[row])
     writeSetLed (hwIndexToLedId[idx], lit);
 }
