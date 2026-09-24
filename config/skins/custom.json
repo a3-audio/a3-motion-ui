@@ -74,7 +74,7 @@
     "boxOcclude": 0.85,
     "floorGrain": 14,
     "ballLevel": 1.0,
-    "ballCount": 3,
+    "ballCount": 0,
     "ballRate": 0.32,
     "ballReach": 0.72,
     "ballSize": 0.048,
@@ -133,9 +133,14 @@
   },
   "sphereScale": 0.83,
   "sphereLimb": 0.18,
-  "fontHeader": 12.53,
+  "fontHeader": 12.529999999999999,
   "fontBody": 14.66,
   "clipSettingsHeightScale": 0.81,
   "potSize": 1.31,
-  "touchDragPixelsPerStep": 12
+  "touchDragPixelsPerStep": 12,
+  "textMuted": {
+    "r": 192,
+    "g": 192,
+    "b": 192
+  }
 }
