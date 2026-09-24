@@ -7006,7 +7006,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             // swell (3), sqzX (4), strX (5), sqzY (6), strY (7), fade (8),
             // bias (9). Renumbered when the two lists left for Shape:
             // renumbering a section means moving the layout, this handler,
-            // the reset handler and the painter together -- see CLAUDE.md --
+            // the reset handler and the painter together -- see ARCHITECTURE.md --
             // and everything here had to move anyway.
       {
         auto &pattern = _patterns[channel][slot];

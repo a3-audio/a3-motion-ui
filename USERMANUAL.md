@@ -43,7 +43,7 @@ einstellen, direkt am Gerät, ohne Computer.
 
 > **Für wen:** Dieses Handbuch richtet sich an Personen, die das Gerät im Livebetrieb
 > bedienen. Für Entwicklung, Firmware und Hardware-Mapping siehe die technische
-> Dokumentation im Repository (`team.md`, `CLAUDE.md`).
+> Dokumentation im Repository (`team.md`, `ARCHITECTURE.md`).
 
 ## 2. Geräteüberblick
 
