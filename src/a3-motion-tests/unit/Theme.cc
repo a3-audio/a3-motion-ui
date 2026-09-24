@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <regex>
+
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/theme/Theme.hh>
@@ -486,4 +488,49 @@ TEST (Theme, ASkinSetsOneStrokeWidthAndLeavesTheRest)
   EXPECT_FLOAT_EQ (theme.strokeMedium, 1.75f);
   EXPECT_FLOAT_EQ (theme.strokeThin, defaults.strokeThin);
   EXPECT_FLOAT_EQ (theme.strokeThick, defaults.strokeThick);
+}
+
+// A skin is written back as JSON, and every number in it came from a float.
+// juce::var holds a float as a double, so 0.35f arrives as 0.3499999940395355
+// -- sixteen digits claiming a precision the value never had. The file then
+// differs from itself after a save that changed nothing: the maintainer's four
+// skins sat in `git status` for days carrying diffs like
+//
+//     -  "fontHeader": 12.53,
+//     +  "fontHeader": 12.529999999999999,
+//
+// which say nothing and hide the one line that does.
+//
+// `shortFloat()` has existed in the engine since ClipFile was written, and the
+// clip writer has used it all along. The skin writer never did.
+TEST (Theme, ASkinWritesOnlyTheDigitsAFloatCarries)
+{
+  auto const written = juce::JSON::toString (themeDefaultsVar ()).toStdString ();
+
+  std::regex const number{ R"(-?\d+\.\d+)" };
+  auto const end = std::sregex_iterator ();
+
+  for (auto it = std::sregex_iterator (written.begin (), written.end (), number);
+       it != end; ++it)
+    {
+      auto const text = it->str ();
+      auto const decimals = text.size () - text.find ('.') - 1;
+
+      // Nine digits always suffice to name a float32 exactly, and most values
+      // need three. Anything longer is a double's opinion about a number that
+      // was never one.
+      EXPECT_LE (decimals, 9u) << "wrote " << text;
+    }
+}
+
+// The same thing said once, by name, so a failure points at something rather
+// than at a count. alphaDisabled is 0.35f, which a double writes as
+// 0.3499999940395355.
+TEST (Theme, TheDefaultAlphaIsWrittenAsItWasTyped)
+{
+  auto const written = juce::JSON::toString (themeDefaultsVar ());
+
+  EXPECT_TRUE (written.contains ("0.35")) << "alphaDisabled should read as 0.35";
+  EXPECT_FALSE (written.contains ("0.34999"))
+      << "alphaDisabled carries a double's tail";
 }
