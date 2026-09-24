@@ -47,7 +47,7 @@
   },
   "ui": {
     "pauseRenderingInMenu": false,
-    "skin": "ember"
+    "skin": "custom-2"
   },
   "buttonLeds": {
     "idle": {
