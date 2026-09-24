@@ -496,6 +496,8 @@ clip at the speed the key carries; a drag on a key gives *that key* another spee
 of `speedLog2Min..Max`, and applies it straight away — every other drag in the bar changes what you
 hear while you drag, and one that only rearranged keys would be the exception you have to remember.
 The key keeps it, so a speed the four do not yet name is reached once and found again next time.
+The four are part of the set (`speedKeys` in the session file, since 2026-09-25) as well as the
+device settings: loading a set brings its keys, and a set written before then leaves them alone.
 The drag used to walk the *shown clip* through the range instead: only the key matching the current
 value ever lit, so it read as jumping between the keys, and the value was gone again the next time.
 Twelve buttons covering the whole of `speedLog2Min..Max` took three rows to say every value the

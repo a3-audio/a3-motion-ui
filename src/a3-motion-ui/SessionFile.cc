@@ -194,6 +194,24 @@ readOverrides (juce::var const &value)
 
 }
 
+namespace
+{
+/** All four or none: a hand-edited list of the wrong length is not
+ *  half-applied. */
+std::optional<std::array<int, numSpeedButtons> >
+readSpeedKeys (juce::var const &value)
+{
+  auto const *list = value.getArray ();
+  if (list == nullptr || list->size () != numSpeedButtons)
+    return std::nullopt;
+
+  std::array<int, numSpeedButtons> keys{};
+  for (size_t i = 0; i < keys.size (); ++i)
+    keys[i] = static_cast<int> ((*list)[static_cast<int> (i)]);
+  return keys;
+}
+}
+
 Session
 loadSession (juce::File const &file, int numChannels, int numSlots)
 {
@@ -235,6 +253,7 @@ loadSession (juce::File const &file, int numChannels, int numSlots)
     }
 
   set.name = parsed.getProperty ("name", juce::var ()).toString ().toStdString ();
+  set.speedButtonLog2 = readSpeedKeys (parsed["speedKeys"]);
 
   fitToDevice (set, numChannels, numSlots);
 
@@ -289,6 +308,13 @@ saveSession (juce::File const &file, Session const &set)
   root->setProperty ("channels", channels);
   if (!set.name.empty ())
     root->setProperty ("name", juce::String (set.name));
+  if (set.speedButtonLog2)
+    {
+      juce::Array<juce::var> keys;
+      for (auto const key : *set.speedButtonLog2)
+        keys.add (key);
+      root->setProperty ("speedKeys", keys);
+    }
 
   if (!file.getParentDirectory ().createDirectory ())
     return false;

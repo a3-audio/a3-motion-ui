@@ -618,6 +618,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     carried = moved;
     _clipSettings->setSpeedButtons (_speedButtonLog2);
     persistSettings ();
+    scheduleSetSave ();
     applySpeedLog2ToShownClip (moved);
   };
 
@@ -2599,6 +2600,11 @@ A3MotionUIComponent::loadSessionNamed (juce::String const &name)
 
   _sessionName = name;
   applySet (file);
+  // The keys it brought are the device's now too, so a restart comes back
+  // with them. Here rather than in applySet(), which also runs at start-up
+  // before the settings have been read -- writing them out from there would
+  // put every other setting back to its default.
+  persistSettings ();
 
   updateControlReadout ("-- LOADED " + name.toUpperCase ());
   refreshBrowser ();
@@ -4733,6 +4739,15 @@ A3MotionUIComponent::applySet (juce::File const &file)
   auto const set = loadSession (file, numChannels,
                             static_cast<int> (numClipSlots));
 
+  // A set without keys is one written before they were part of it, and
+  // leaves the device's alone.
+  if (set.speedButtonLog2)
+    {
+      _speedButtonLog2 = *set.speedButtonLog2;
+      if (_clipSettings)
+        _clipSettings->setSpeedButtons (_speedButtonLog2);
+    }
+
   for (int ch = 0; ch < numChannels; ++ch)
     {
       auto const index = static_cast<index_t> (ch);
@@ -4913,6 +4928,8 @@ A3MotionUIComponent::buildSession ()
             }
         }
     }
+
+  set.speedButtonLog2 = _speedButtonLog2;
 
   return set;
 }

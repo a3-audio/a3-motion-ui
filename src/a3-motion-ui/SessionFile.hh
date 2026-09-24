@@ -21,6 +21,10 @@
 #pragma once
 
 #include <a3-motion-engine/ClipSettings.hh>
+// For numSpeedButtons, as in SettingsPersistence.hh.
+#include <a3-motion-ui/components/ClipSettingsLayout.hh>
+
+#include <array>
 
 #include <optional>
 
@@ -43,6 +47,9 @@ namespace a3
  *  Which is the whole point of it being its own file next to the takes rather
  *  than something in the app's settings: a folder with a set and the takes it
  *  names is a gig on a stick.
+ *
+ *  The four speed keys are here since 2026-09-25: what they carry is how a set
+ *  is played, not a habit of the device's.
  *
  *  Deliberately **not** here: the clock mode and the rec mode. The clock
  *  depends on what is plugged into the switch at the venue and the rec mode is
@@ -122,6 +129,13 @@ struct Session
   std::string name;
 
   std::vector<Channel> channels;
+
+  /** What the bar's four speed keys carry, as log2 of the speed.
+   *
+   *  Optional for the same reason `Slot::overrides` is: a set written before
+   *  the keys were part of it must go on leaving the device's keys alone
+   *  rather than putting the defaults back. */
+  std::optional<std::array<int, numSpeedButtons> > speedButtonLog2;
 };
 
 /** Reads a set. A missing or unreadable file is an empty set, not an error:
