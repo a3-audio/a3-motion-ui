@@ -53,6 +53,7 @@ target_sources("a3-motion-engine" PRIVATE
     TextFile.cc
     TextFile.hh
     Pattern.cc
+    PatternRunning.cc
     RecordingSpans.cc
     RecordingSeam.cc
     PlaybackRate.cc
@@ -61,6 +62,7 @@ target_sources("a3-motion-engine" PRIVATE
     ClipMigration.hh
     ClipSettings.hh
     Pattern.hh
+    PatternRunning.hh
     PatternGenerator.cc
     PatternGenerator.hh
     Playhead.cc
