@@ -115,6 +115,11 @@ target_sources("a3-motion-engine" PRIVATE
 )
 
 target_include_directories("a3-motion-engine" PUBLIC
+    # The generated Config.hh lives here. It comes *before* the source tree on
+    # purpose: a stale copy left in src/ by an older build would otherwise
+    # shadow it, and the two disagree exactly when it matters.
+    "${CMAKE_CURRENT_BINARY_DIR}/.."
+    "${CMAKE_CURRENT_BINARY_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/.."
     ${GSL_INCLUDE_DIRS}
 )
@@ -130,7 +135,12 @@ target_compile_options("a3-motion-engine" PUBLIC
 )
 
 set(MOTION_NUM_CHANNELS 4 CACHE STRING "Number of channels")
+# **Into the build directory, not the source tree.** One generated header in
+# src/ is shared by every build directory that exists, so configuring a second
+# build with different options rewrites the first one's header underneath it --
+# and the failure then surfaces in the *other* build, looking unrelated to
+# whatever was just done. See issue #10.
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/Config.hh.in"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Config.hh"
+    "${CMAKE_CURRENT_BINARY_DIR}/Config.hh"
 )

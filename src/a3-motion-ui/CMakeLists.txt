@@ -213,6 +213,9 @@ target_compile_definitions("a3-motion-ui" PUBLIC
 )
 
 target_include_directories("a3-motion-ui" PUBLIC
+    # Before the source tree: see the note in a3-motion-engine/CMakeLists.txt.
+    "${CMAKE_CURRENT_BINARY_DIR}/.."
+    "${CMAKE_CURRENT_BINARY_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/.."
     "${CMAKE_CURRENT_SOURCE_DIR}/extern"
 )
@@ -236,7 +239,8 @@ target_link_libraries("a3-motion-ui" PRIVATE
 
 endif()
 
+# Into the build directory -- see the note in a3-motion-engine/CMakeLists.txt.
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/Config.hh.in"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Config.hh"
+    "${CMAKE_CURRENT_BINARY_DIR}/Config.hh"
 )
