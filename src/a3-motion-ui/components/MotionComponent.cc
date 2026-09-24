@@ -21,6 +21,7 @@
 #include "MotionComponent.hh"
 
 #include <a3-motion-engine/ClipSettings.hh>
+#include <a3-motion-engine/PatternRunning.hh>
 
 #include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectoryShaping.hh>
@@ -1604,8 +1605,12 @@ MotionComponent::renderOpenGL ()
             {
               if (patternsPreview.count (pattern) > 0)
                 continue; // already drawn as preview
-              if (pattern->getStatus () == Pattern::Status::Playing
-                  || pattern->getStatus () == Pattern::Status::Recording)
+              // Counted by hand here until 2026-09-24, and it counted one
+              // status short: a clip asked to stop goes on playing until the
+              // downbeat it was asked to stop on, and its line vanished the
+              // instant the key went down. The blob kept travelling along a
+              // line that was no longer drawn.
+              if (patternIsRunning (pattern->getStatus ()))
                 drawPlayingTrajectory (*pattern, displayData, gFBO);
             }
 
