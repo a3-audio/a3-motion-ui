@@ -56,7 +56,7 @@
 //
 // ---- CLIP: the shape ------------------------------------------------------
 //
-//   ~speedLog2      -8..8    how fast the clip plays, as a power of two.
+//   ~speedLog2      -7..4    how fast the clip plays, as a power of two.
 //                            0 is as recorded, negative is faster: -3 is the
 //                            bar's 1/8. The bar offers 0, -3, -4 and -6; the
 //                            rest of the range is reachable only from here

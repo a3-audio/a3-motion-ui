@@ -5,7 +5,7 @@
 // throw, which is what makes a random action something you can rehearse.
 
 // ---- Shape -----------------------------------------------------------
-//~speedLog2 = 0;        // -8..8   how fast, as a power of two; -3 is the 1/8
+//~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 
 // ---- Elevation -------------------------------------------------------
 //~base = 0;             // 0..1    where the middle sits; 0 north, 1 south

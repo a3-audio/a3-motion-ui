@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <string>
 #include <vector>
 
 namespace a3
@@ -705,12 +706,25 @@ runActionScript (juce::String const &source, ClipSettings const &current,
 std::vector<ActionScriptNote> const &
 actionScriptNotes ()
 {
+  // **Built from the constants the reader clamps to, not typed out.** This
+  // string is not a note to a maintainer: every shipped script carries it as a
+  // comment on the parameter's line, so it is the interface, sitting where
+  // somebody reads it while typing. It said -8..8 while the reader took -7..4,
+  // so a script asking for 8 got 4 with the comment beside it claiming
+  // otherwise -- in twenty-six scripts at once.
+  //
+  // The other ranges in this table are bounds of their own kind (0..1, a list
+  // of words) and have no constant to derive from. This one does, and a range
+  // that can be derived must be.
+  static auto const speedRange
+      = std::to_string (speedLog2Min) + ".." + std::to_string (speedLog2Max);
+
   // The reading order, which is the ACTION page's and the README's rather
   // than the field table's: shape, then where it sits, then how it moves,
   // then what ACT does to it. A performer learns the page and finds the same
   // order in the file.
   static std::vector<ActionScriptNote> const list{
-    { "speedLog2", "Shape", "-8..8",
+    { "speedLog2", "Shape", speedRange.c_str (),
       "how fast, as a power of two; -3 is the 1/8" },
 
     { "base", "Elevation", "0..1", "where the middle sits; 0 north, 1 south" },
