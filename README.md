@@ -1,4 +1,4 @@
-# A3 Motion Controller
+# A³ Motion UI
 
 A spatial audio motion controller for recording and playing back movement trajectories.
 
