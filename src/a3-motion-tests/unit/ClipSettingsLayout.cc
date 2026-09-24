@@ -21,6 +21,9 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+#include <limits>
+
 #include <JuceHeader.h>
 
 #include <cmath>
@@ -866,6 +869,56 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
     }
 }
 
+// The row of faces and tabs fills the bar's width: the margin left of the
+// first face and the margin right of the last tab are the same.
+//
+// It did not. The span was worked out for *six* views -- and eleven gaps --
+// while only five are ever placed (clip, action, controller, mixer, browser),
+// so a whole view's width plus a gap was left standing against the right edge:
+// about 90 px on the device's own 768. A row that stops short of the edge it
+// is drawn against reads as a mistake, and this one was one.
+TEST (ClipSettingsLayout, TheHeaderRowFillsTheWidth)
+{
+  for (int width : { 768, 1024, 1280, 1920 })
+    {
+      auto const l = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
+
+      // Against clipBounds, not the rect handed in: the global strip takes the
+      // right quarter, and the header row ends where the clip part does.
+      auto const marginLeft = l.channelFacesFrame.getX () - l.clipBounds.getX ();
+      auto const marginRight
+          = l.clipBounds.getRight () - l.tabBrowser.getRight ();
+
+      EXPECT_LE (std::abs (marginLeft - marginRight), 1)
+          << "width " << width << ": left " << marginLeft << ", right "
+          << marginRight;
+    }
+}
+
+// The remainder of the integer division is spread across the tabs rather than
+// collected against the right edge, so the row ends flush. Which means the
+// tabs may differ by a pixel -- and by no more than that, or "spread" would
+// be a word for something else.
+TEST (ClipSettingsLayout, TheTabsShareTheRemainderEvenly)
+{
+  for (int width : { 768, 1024, 1280, 1920 })
+    {
+      auto const l = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
+
+      int widest = 0;
+      int narrowest = std::numeric_limits<int>::max ();
+      for (auto const &tab : { l.tabClip, l.tabAction, l.tabController,
+                               l.tabMixer, l.tabBrowser })
+        {
+          widest = juce::jmax (widest, tab.getWidth ());
+          narrowest = juce::jmin (narrowest, tab.getWidth ());
+        }
+
+      EXPECT_LE (widest - narrowest, 1)
+          << "width " << width << ": " << narrowest << ".." << widest;
+    }
+}
+
 // ── Shape: the name beside the knob, the picture given the room ──────────
 
 // The picture keeps its own name and the field names the clip. Two names
@@ -1388,7 +1441,10 @@ TEST (ClipSettingsLayout, TheClipTabStandsAtTheHeadOfTheViews)
   EXPECT_LT (l.tabClip.getRight (), l.tabAction.getX () + 1);
 
   EXPECT_GE (l.tabClip.getWidth (), fingertipSize);
-  EXPECT_EQ (l.tabClip.getWidth (), l.tabAction.getWidth ());
+  // Within a pixel, not exactly: the row's remainder is spread across the
+  // tabs so it ends flush against the right edge -- see
+  // TheTabsShareTheRemainderEvenly.
+  EXPECT_LE (std::abs (l.tabClip.getWidth () - l.tabAction.getWidth ()), 1);
   EXPECT_EQ (l.tabClip.getY (), l.tabAction.getY ());
   EXPECT_EQ (l.tabClip.getHeight (), l.tabAction.getHeight ());
 
@@ -1437,9 +1493,10 @@ TEST (ClipSettingsLayout, TheFolderClosesTheRow)
   EXPECT_GT (l.tabBrowser.getX (), l.channelFaces[numChannelColumns - 1].getX ());
 
   // Still inside the clip part, and the same key as every other in the row
-  // -- see TheHeaderKeysAreAllOneSize.
+  // -- within a pixel, since the row's remainder is spread across the keys so
+  // it ends flush. See TheHeaderRowFillsTheWidth.
   EXPECT_TRUE (l.clipBounds.contains (l.tabBrowser));
-  EXPECT_EQ (l.tabBrowser.getWidth (), l.tabAction.getWidth ());
+  EXPECT_LE (std::abs (l.tabBrowser.getWidth () - l.tabAction.getWidth ()), 1);
 }
 
 // And the three remaining views keep their place between the faces and the
@@ -1499,13 +1556,20 @@ TEST (ClipSettingsLayout, TheHeaderHasTwoKindsOfKeyAndEachIsOneSize)
         l.tabController, l.tabMixer, l.tabBrowser
       };
 
+      // One size each, to the pixel the row can afford. Every edge is computed
+      // from the whole width so the last one lands on the right edge exactly,
+      // which leaves the remainder of that division spread a pixel at a time
+      // across the keys rather than piled up at the end -- see
+      // TheHeaderRowFillsTheWidth. A pixel is invisible; a row that stops
+      // short of the edge it is drawn against is not.
       for (size_t i = 1; i < views.size (); ++i)
-        EXPECT_EQ (views[i].getWidth (), views[0].getWidth ())
+        EXPECT_LE (std::abs (views[i].getWidth () - views[0].getWidth ()), 1)
             << "view " << i << " at width " << width;
 
       for (size_t ch = 1; ch < numChannelColumns; ++ch)
-        EXPECT_EQ (l.channelFaces[ch].getWidth (),
-                   l.channelFaces[0].getWidth ())
+        EXPECT_LE (std::abs (l.channelFaces[ch].getWidth ()
+                             - l.channelFaces[0].getWidth ()),
+                   1)
             << "face " << ch << " at width " << width;
 
       // Narrower than a view, and still a fingertip: the row is hit mid-set.
