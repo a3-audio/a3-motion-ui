@@ -406,8 +406,14 @@ themeDefaultsVar ()
   colour ("boltCore", defaults.boltCore);
   colour ("blobAction", defaults.blobAction);
 
+  // **Written as the float it is, not as the double var holds it.** juce::var
+  // has no float, so setProperty() widens 0.35f to 0.349999994039536 -- fifteen
+  // digits claiming a precision the value never had, and a fresh diff on every
+  // save even when nothing moved. The clip writer has used shortFloat() since
+  // it was written; this one never did, and the maintainer's four skins sat in
+  // `git status` for days carrying diffs that said nothing.
   auto const number = [object] (char const *name, float value) {
-    object->setProperty (name, value);
+    object->setProperty (name, shortFloat (value));
   };
 
   number ("alphaDisabled", defaults.alphaDisabled);

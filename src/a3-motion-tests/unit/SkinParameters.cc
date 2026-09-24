@@ -619,10 +619,17 @@ TEST (SkinParameters, TheOfferedDefaultIsTheThemesOwn)
   auto const defaults = themeDefaultsVar ();
   auto const theme = loadTheme (juce::var{});
 
-  EXPECT_DOUBLE_EQ (skinValue (defaults, "radiusCard"),
-                    static_cast<double> (theme.radiusCard));
-  EXPECT_DOUBLE_EQ (skinValue (defaults, "alphaFill"),
-                    static_cast<double> (theme.alphaFill));
+  // Compared as floats, which is what these values are. The written number is
+  // the shortest decimal that reads back as the same float (shortFloat()), so
+  // alphaFill stands in the file as 0.06 -- a double of 0.059999999999999998,
+  // where widening 0.06f gives 0.059999998658895493. Two spellings of one
+  // float. The double-level equality this used to assert was an accident of
+  // the widening, not the property meant: a second, differing copy of the
+  // defaults would still fail here.
+  EXPECT_FLOAT_EQ (static_cast<float> (skinValue (defaults, "radiusCard")),
+                   theme.radiusCard);
+  EXPECT_FLOAT_EQ (static_cast<float> (skinValue (defaults, "alphaFill")),
+                   theme.alphaFill);
 }
 
 // Writing a value whose parent object the file has never named must not
