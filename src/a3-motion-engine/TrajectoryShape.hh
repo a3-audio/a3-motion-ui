@@ -79,6 +79,17 @@ std::vector<Pos> trajectoryPlateaus (std::vector<Pos> const &ticks);
  *  this, so the blob and the line agree on where a jump is. */
 std::vector<float> trajectoryJumpThresholds (std::vector<Pos> const &ticks);
 
+/** What of one run is worth drawing while a take is being recorded: every
+ *  position the hand actually moved to, once, and no more than `maxPoints` of
+ *  them, spread evenly and always including both ends -- the last one is the
+ *  write head, and a line that stopped short of it would trail the blob.
+ *
+ *  The touch panel reports more slowly than the clock ticks, so most ticks of
+ *  a take repeat the one before; drawn from every tick, the line of a take
+ *  being recorded cost the render thread four times its resting load
+ *  (2026-09-25). A played line is already drawn from at most 128 points. */
+std::vector<Pos> trailPoints (std::vector<Pos> const &run, size_t maxPoints);
+
 /** The runs actually travelled through, cut wherever the data is missing or
  *  teleports. Drawing them as one stroke is what put a chord across every
  *  jump. Cut linearly, not around the loop: the icon is a stroke, and the

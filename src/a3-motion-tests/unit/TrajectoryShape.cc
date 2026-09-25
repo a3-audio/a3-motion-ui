@@ -221,3 +221,50 @@ TEST (TrajectoryShape, APassBoundaryInAMovingStrokeIsStillAJump)
   EXPECT_NE (std::find (jumps.begin (), jumps.end (), ticks.size () / 2 - 1),
              jumps.end ());
 }
+
+// ── The line drawn while recording ─────────────────────────────────────────
+//
+// Drawn from every tick, the line of a take being recorded was 512 points for
+// four beats -- two in three of them the same point held again, because the
+// panel reports more slowly than the clock ticks -- and it was stroked,
+// projected and rasterised on the CPU every frame. The render thread ran four
+// times its resting load and the sphere dropped to 40 frames a second while a
+// take was being played in (measured 2026-09-25).
+
+TEST (TrailPoints, APositionHeldForSeveralTicksIsDrawnOnce)
+{
+  EXPECT_EQ (trailPoints (fastStrokeAtTouchPace (20, 3), 128).size (), 20u);
+}
+
+TEST (TrailPoints, ALongTakeIsDrawnWithAtMostTheLimit)
+{
+  EXPECT_LE (trailPoints (drawnCircle (2048), 128).size (), 128u);
+}
+
+// The end of the line is the write head: dropping it would draw the line
+// trailing behind the blob.
+TEST (TrailPoints, BothEndsAreKept)
+{
+  auto const run = drawnCircle (2048);
+  auto const drawn = trailPoints (run, 128);
+  ASSERT_FALSE (drawn.empty ());
+  EXPECT_EQ (drawn.front (), run.front ());
+  EXPECT_EQ (drawn.back (), run.back ());
+}
+
+TEST (TrailPoints, AShortRunIsLeftAsItIs)
+{
+  auto const run = drawnCircle (40);
+  EXPECT_EQ (trailPoints (run, 128), run);
+}
+
+TEST (TrailPoints, NothingStaysNothing)
+{
+  EXPECT_TRUE (trailPoints ({}, 128).empty ());
+}
+
+TEST (TrailPoints, ASingleHeldPositionIsOnePoint)
+{
+  std::vector<Pos> const held (30, Pos::fromCartesian (0.3f, 0.2f, 0.5f));
+  EXPECT_EQ (trailPoints (held, 128).size (), 1u);
+}

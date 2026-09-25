@@ -2488,11 +2488,19 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
   // straight on through, drawing the jump as a line.
   juce::Path path;
 
+  //
+  // Thinned before it is drawn -- see trailPoints(). As many points as a saved
+  // take keeps (PatternFile), so the line while recording is the line that
+  // will be saved, at a quarter of the cost of drawing every tick.
+  constexpr size_t trailMaxPoints = 128;
   for (auto const &segment : trajectorySegments (ticks.positions, BridgePlan{}))
     {
-      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
-      for (size_t i = 1; i < segment.size (); ++i)
-        path.lineTo (segment[i].x (), segment[i].y ());
+      auto const points = trailPoints (segment, trailMaxPoints);
+      if (points.empty ())
+        continue;
+      path.startNewSubPath (points.front ().x (), points.front ().y ());
+      for (size_t i = 1; i < points.size (); ++i)
+        path.lineTo (points[i].x (), points[i].y ());
     }
 
   // The take as it is being played in, at the same width as a played one:
