@@ -128,12 +128,62 @@ drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
     }
 }
 
+namespace
+{
+bool
+takeIsWaiting (TransportState const &state)
+{
+  return state.unsaved && !state.recording;
+}
+
+TransportKey
+keyWearing (TransportFace face)
+{
+  switch (face)
+    {
+    case TransportFace::Record: return TransportKey::Record;
+    case TransportFace::Stop: return TransportKey::Stop;
+    case TransportFace::PlayPause: return TransportKey::PlayPause;
+    case TransportFace::Action: return TransportKey::Action;
+    case TransportFace::Save: return TransportKey::PlayPause;
+    case TransportFace::Discard: return TransportKey::Stop;
+    }
+  return TransportKey::PlayPause;
+}
+}
+
+TransportFace
+transportFace (TransportKey key, TransportState const &state)
+{
+  switch (key)
+    {
+    case TransportKey::Record:
+      return takeIsWaiting (state) ? TransportFace::Save
+                                   : TransportFace::Record;
+    case TransportKey::Action:
+      return takeIsWaiting (state) ? TransportFace::Discard
+                                   : TransportFace::Action;
+    case TransportKey::Stop: return TransportFace::Stop;
+    case TransportKey::PlayPause: return TransportFace::PlayPause;
+    }
+  return TransportFace::PlayPause;
+}
+
+juce::Colour
+transportColour (TransportFace face)
+{
+  return transportColour (keyWearing (face));
+}
+
 TransportGround
 transportKeyGround (TransportKey key, TransportState const &state)
 {
   switch (key)
     {
     case TransportKey::Record:
+      // SAVE is lit while there is something to save.
+      if (takeIsWaiting (state))
+        return TransportGround::Lit;
       return state.recording ? TransportGround::Lit : TransportGround::Dark;
 
     case TransportKey::PlayPause:
@@ -150,6 +200,11 @@ transportKeyGround (TransportKey key, TransportState const &state)
       return state.playing ? TransportGround::Lit : TransportGround::Dark;
 
     case TransportKey::Action:
+      // DISCARD is dark until it has been pressed once: a lit key is one the
+      // eye goes to, and this one should not be.
+      if (takeIsWaiting (state))
+        return state.discardArmed ? TransportGround::Lit
+                                  : TransportGround::Dark;
       return state.actionActive ? TransportGround::Lit : TransportGround::Dark;
 
     case TransportKey::Stop:
@@ -208,6 +263,54 @@ padFunctionColour (PadFunction function)
     return {};
 
   return transportColour (transportKeyForPad (function));
+}
+
+void
+drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
+                    TransportFace face)
+{
+  // A stroke relative to the mark, like everything else here -- the same
+  // area is drawn at pad size and at bar size.
+  auto const stroke
+      = juce::PathStrokeType (area.getHeight () * 0.18f,
+                              juce::PathStrokeType::curved,
+                              juce::PathStrokeType::rounded);
+
+  switch (face)
+    {
+    case TransportFace::Save:
+      {
+        juce::Path tick;
+        tick.startNewSubPath (area.getX (), area.getCentreY ());
+        tick.lineTo (area.getX () + area.getWidth () * 0.38f,
+                     area.getBottom ());
+        tick.lineTo (area.getRight (), area.getY ());
+        g.strokePath (tick, stroke);
+        return;
+      }
+    case TransportFace::Discard:
+      {
+        juce::Path cross;
+        cross.startNewSubPath (area.getTopLeft ());
+        cross.lineTo (area.getBottomRight ());
+        cross.startNewSubPath (area.getTopRight ());
+        cross.lineTo (area.getBottomLeft ());
+        g.strokePath (cross, stroke);
+        return;
+      }
+    case TransportFace::Record:
+      drawTransportGlyph (g, area, TransportKey::Record);
+      return;
+    case TransportFace::Stop:
+      drawTransportGlyph (g, area, TransportKey::Stop);
+      return;
+    case TransportFace::PlayPause:
+      drawTransportGlyph (g, area, TransportKey::PlayPause);
+      return;
+    case TransportFace::Action:
+      drawTransportGlyph (g, area, TransportKey::Action);
+      return;
+    }
 }
 
 }

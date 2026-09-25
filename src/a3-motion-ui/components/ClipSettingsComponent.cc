@@ -1062,6 +1062,18 @@ ClipSettingsComponent::paint (juce::Graphics &g)
 }
 
 void
+ClipSettingsComponent::setTakeState (bool unsaved, bool discardArmed)
+{
+  if (unsaved == _takeUnsaved && discardArmed == _takeDiscardArmed)
+    return;
+
+  _takeUnsaved = unsaved;
+  _takeDiscardArmed = discardArmed;
+  repaint (_layout.transportButtons.front ());
+  repaint (_layout.transportButtons.back ());
+}
+
+void
 ClipSettingsComponent::setTransportState (bool playing, bool recording,
                                           bool scheduled)
 {
@@ -1143,6 +1155,8 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   transport.scheduled = _transportScheduled;
   transport.actionActive = _actionActive;
   transport.stopPressed = _stopPressed;
+  transport.unsaved = _takeUnsaved;
+  transport.discardArmed = _takeDiscardArmed;
 
   for (int i = 0; i < numTransportKeys; ++i)
     {
@@ -1151,7 +1165,8 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
         continue;
 
       auto const key = transportKeyOrder[i];
-      auto const mark = transportColour (key);
+      auto const face = transportFace (key, transport);
+      auto const mark = transportColour (face);
 
       // One rule for both screens -- see transportKeyGround().
       auto const ground = transportKeyGround (key, transport);
@@ -1174,7 +1189,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
       // The mark never changes with the state; the ground above does.
       g.setColour (mark);
       drawTransportGlyph (
-          g, bounds.toFloat ().reduced (bounds.getWidth () * 0.28f), key);
+          g, bounds.toFloat ().reduced (bounds.getWidth () * 0.28f), face);
     }
 
   // The faces stand in a frame of their own: the five keys beside them choose

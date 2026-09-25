@@ -125,6 +125,21 @@ Während der Aufnahme läuft, bewegen Sie den Kanal-Blob auf der Sphäre (siehe 
 > **Tipp:** Stellen Sie Speed *vor* der Aufnahme ein — sie bestimmt, wie viele Takte
 > bzw. welcher Notenwert einem vollen Durchlauf entspricht.
 
+### Keeping or throwing away a take
+
+A finished take is **not saved on its own**. It keeps playing in its slot, and the pad shows a red
+dot where `U` or `S` would stand. In the bar's transport row:
+
+- **SAVE** (a tick, where REC was) keeps it: the shape and every setting on it at that moment,
+  including anything you turned after the take ended. It is named `Rec_<date>_<n>`; rename it in
+  FILES.
+- **DISCARD** (a cross, where ACT was) throws it away. Tap it twice: the first tap arms it
+  (`DISCARD? TAP AGAIN`), the second puts back what the slot held before.
+
+An unsaved take is also thrown away when something replaces it: a new take in the same slot, a shape
+dropped on the slot, a set loaded, or a restart. To record again over an unsaved take from the
+bar, press SAVE or DISCARD first; on the panel, Record + Play pad works straight away.
+
 ## 6. Wiedergabe
 
 Play/Pause und Stop starten bzw. beenden die Wiedergabe eines Slots, jeweils

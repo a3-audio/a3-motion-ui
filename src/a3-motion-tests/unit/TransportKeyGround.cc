@@ -137,3 +137,68 @@ TEST (TransportKeyGround, EachKeyReadsOnlyItsOwnFields)
   EXPECT_EQ (transportKeyGround (TransportKey::Action, other),
              TransportGround::Dark);
 }
+
+// An unsaved take turns REC into SAVE and ACT into DISCARD -- the two keys
+// stay where they are, so the finger finds the same places.
+TEST (TransportKeyGround, AnUnsavedTakeTurnsRecIntoSaveAndActIntoDiscard)
+{
+  TransportState state;
+  state.unsaved = true;
+
+  EXPECT_EQ (transportFace (TransportKey::Record, state), TransportFace::Save);
+  EXPECT_EQ (transportFace (TransportKey::Action, state),
+             TransportFace::Discard);
+  EXPECT_EQ (transportFace (TransportKey::Stop, state), TransportFace::Stop);
+  EXPECT_EQ (transportFace (TransportKey::PlayPause, state),
+             TransportFace::PlayPause);
+}
+
+// While a new take runs on that slot, REC is what ends it -- SAVE would be a
+// key that means something else in the middle of the take.
+TEST (TransportKeyGround, WhileRecordingTheKeysAreTheirOwn)
+{
+  TransportState state;
+  state.unsaved = true;
+  state.recording = true;
+
+  EXPECT_EQ (transportFace (TransportKey::Record, state),
+             TransportFace::Record);
+  EXPECT_EQ (transportFace (TransportKey::Action, state),
+             TransportFace::Action);
+}
+
+TEST (TransportKeyGround, WithoutATakeTheKeysAreTheirOwn)
+{
+  TransportState state;
+
+  EXPECT_EQ (transportFace (TransportKey::Record, state),
+             TransportFace::Record);
+  EXPECT_EQ (transportFace (TransportKey::Action, state),
+             TransportFace::Action);
+}
+
+// SAVE is lit while there is something to save: it is the key the eye has to
+// find. DISCARD is dark, and lights only once it has been pressed once.
+TEST (TransportKeyGround, SaveIsLitAndDiscardLightsWhenArmed)
+{
+  TransportState state;
+  state.unsaved = true;
+
+  EXPECT_EQ (transportKeyGround (TransportKey::Record, state),
+             TransportGround::Lit);
+  EXPECT_EQ (transportKeyGround (TransportKey::Action, state),
+             TransportGround::Dark);
+
+  state.discardArmed = true;
+  EXPECT_EQ (transportKeyGround (TransportKey::Action, state),
+             TransportGround::Lit);
+}
+
+// Green keeps, red takes away -- the same rule the four keys already follow.
+TEST (TransportKeyGround, SaveIsGreenAndDiscardIsRed)
+{
+  EXPECT_EQ (transportColour (TransportFace::Save),
+             transportColour (TransportKey::PlayPause));
+  EXPECT_EQ (transportColour (TransportFace::Discard),
+             transportColour (TransportKey::Stop));
+}

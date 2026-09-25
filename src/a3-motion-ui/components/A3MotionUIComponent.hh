@@ -43,6 +43,7 @@
 #include <a3-motion-ui/components/ColourPickerComponent.hh>
 #include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/components/OverlaySideStrips.hh>
+#include <a3-motion-ui/PendingTakes.hh>
 #include <a3-motion-ui/SessionFile.hh>
 #include <a3-motion-ui/components/BrowserComponent.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
@@ -927,6 +928,27 @@ private:
    *  old one back. */
   std::optional<std::pair<index_t, index_t> > _recordingSlot;
   std::shared_ptr<Pattern> _patternBeforeRecording;
+  /** The clip file the slot pointed at when the take began, beside
+   *  _patternBeforeRecording and for the same reason. */
+  juce::File _clipFileBeforeRecording;
+  /** The takes nobody has saved yet. See PendingTakes and
+   *  .claude/notes/rec-save-discard.md in the workspace. */
+  PendingTakes _pendingTakes{ 0, 0 };
+
+  /** SAVE: write the shown slot's unsaved take, with every setting on it. */
+  void saveShownTake ();
+  /** DISCARD: arm on the first press, put the slot back on the second. */
+  void pressDiscardOnShownTake ();
+  /** Something replaced an unsaved take: forget it without putting anything
+   *  back, because whatever replaced it is what the slot holds now. */
+  void dropPendingTake (index_t channel, index_t slot);
+  /** Tell the bar whether the shown slot is unsaved and armed. */
+  void refreshTakeState ();
+  /** A take running or waiting for its downbeat, on any slot. */
+  bool takeIsUnderway ();
+  /** Whether the ACT press being held landed on DISCARD, so its release
+   *  is not taken for the end of an accent that never started. */
+  bool _actPressWasDiscard = false;
   /** Set when a take ends and started once its Stopped message arrives —
    *  stopping is asynchronous, and playing before it lands leaves the pattern
    *  in a state the Play pad does not recognise. */

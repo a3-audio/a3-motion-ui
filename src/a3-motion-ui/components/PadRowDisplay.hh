@@ -107,6 +107,8 @@ public:
   /** Set the category prefix ("s" for system, "u" for user).
    *  Shown as a small letter to the left of the icon. */
   void setCategoryPrefix (int channel, juce::String prefix);
+  /** Mark the cell as holding a take nobody has saved yet. */
+  void setUnsaved (int channel, bool unsaved);
 
   /** Set the channel colour. */
   void setChannelColour (int channel, juce::Colour colour);
@@ -137,6 +139,7 @@ private:
     TrajectoryIconData icon; ///< built by setTickData()/setIconPath()
     int lengthBeats{ 0 };  ///< pattern length in beats
     juce::String categoryPrefix;  ///< "s" or "u" for system/user
+    bool unsaved{ false };  ///< holds a take nobody has saved yet
   };
 
   std::array<CellState, numChannels> _cells;

@@ -87,6 +87,8 @@ struct TransportState
   bool scheduled = false;    ///< pressed, and waiting for the beat
   bool actionActive = false; ///< the accent is still moving
   bool stopPressed = false;  ///< a finger is on Stop at this moment
+  bool unsaved = false;      ///< the shown slot holds a take nobody has saved
+  bool discardArmed = false; ///< DISCARD has been pressed once on it
 };
 
 /** Whether a transport key's ground lights, and how.
@@ -114,6 +116,34 @@ struct TransportState
  *    the key that always works is the key that never answers. */
 TransportGround transportKeyGround (TransportKey key,
                                     TransportState const &state);
+
+/** What a transport key *is* at this moment.
+ *
+ *  The shape is a key's identity -- see drawTransportGlyph() -- so a key that
+ *  does something else has to wear another shape. Only two ever change, and
+ *  only while the shown slot holds an unsaved take and nothing is recording:
+ *  REC becomes SAVE and ACT becomes DISCARD. In place rather than as a fifth
+ *  key, because a row that narrows under the finger is a row you miss in. See
+ *  .claude/notes/rec-save-discard.md. */
+enum class TransportFace
+{
+  Record,
+  Stop,
+  PlayPause,
+  Action,
+  Save,
+  Discard,
+};
+
+TransportFace transportFace (TransportKey key, TransportState const &state);
+
+/** Green keeps, red takes away: SAVE is play's colour, DISCARD stop's. */
+juce::Colour transportColour (TransportFace face);
+
+/** A tick saves and a cross discards -- the two marks every dialog uses for
+ *  exactly these two answers. The other four draw as their keys do. */
+void drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
+                         TransportFace face);
 
 /** Three stacked bars: the mark a menu has had since phones grew one, and by
  *  now the one shape people look for when they want the rest of the options.

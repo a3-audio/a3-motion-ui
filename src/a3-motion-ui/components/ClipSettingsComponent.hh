@@ -388,6 +388,11 @@ public:
    *  and never a lit ground; see transportKeyGround(). */
   void setTransportState (bool playing, bool recording, bool scheduled);
 
+  /** Whether the shown slot holds an unsaved take, and whether its DISCARD
+   *  has been pressed once. Turns REC and ACT into SAVE and DISCARD -- see
+   *  transportFace(). */
+  void setTakeState (bool unsaved, bool discardArmed);
+
   /** Whether the shown channel's action is still running.
    *
    *  Not whether ACT is held: the engine puts the clip's settings back when
@@ -612,6 +617,8 @@ private:
   float _elevationReachSwept = -1.f;
   bool _transportPlaying = false;
   bool _transportRecording = false;
+  bool _takeUnsaved = false;
+  bool _takeDiscardArmed = false;
   bool _transportScheduled = false;
   bool _actionActive = false;
 

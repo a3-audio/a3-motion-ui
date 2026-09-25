@@ -21,6 +21,7 @@
 #include "PadRowDisplay.hh"
 
 #include <a3-motion-ui/theme/Theme.hh>
+#include <a3-motion-ui/theme/TransportLook.hh>
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
 
@@ -128,7 +129,17 @@ PadRowDisplay::paintCell (juce::Graphics &g, juce::Rectangle<int> bounds,
 
       // --- Category prefix (far left) ---
       auto const prefixWidth = h * 0.45f;
-      if (cell.categoryPrefix.isNotEmpty ())
+      // An unsaved take wears the record mark where U or S would stand: the
+      // one thing on the grid that is not on disk yet, found without opening
+      // the bar.
+      if (cell.unsaved)
+        {
+          auto mark = boundsF.removeFromLeft (prefixWidth);
+          g.setColour (transportColour (TransportKey::Record));
+          drawTransportGlyph (g, mark.withSizeKeepingCentre (h * 0.4f, h * 0.4f),
+                              TransportKey::Record);
+        }
+      else if (cell.categoryPrefix.isNotEmpty ())
         {
           auto const fontSize = h * 0.7f;
           g.setFont (fontSize * theme ().scaleFor (FontRole::Body));
@@ -589,6 +600,17 @@ PadRowDisplay::setLengthBeats (int channel, int beats)
 {
   jassert (channel >= 0 && channel < numChannels);
   _cells[static_cast<size_t> (channel)].lengthBeats = beats;
+  repaint ();
+}
+
+void
+PadRowDisplay::setUnsaved (int channel, bool unsaved)
+{
+  jassert (channel >= 0 && channel < numChannels);
+  auto &cell = _cells[static_cast<size_t> (channel)];
+  if (cell.unsaved == unsaved)
+    return;
+  cell.unsaved = unsaved;
   repaint ();
 }
 
