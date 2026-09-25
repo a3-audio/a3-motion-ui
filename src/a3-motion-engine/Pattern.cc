@@ -599,11 +599,9 @@ Pattern::markComplete ()
     _lastUpdatedTick = _ticks.size () - 1;
 
   // The same measure the drawing uses to decide where one stroke ends and the
-  // next begins, so what is played matches what is shown. The median over all
-  // steps, held ticks included: on a tapped take almost every step is zero and
-  // the few that are not are the taps themselves, while on a drawn one the
-  // median is the motion's own pace and no step comes near eight times it.
-  _jumpThreshold = trajectoryJumpThreshold (typicalTrajectoryStep (_ticks));
+  // next begins, so what is played matches what is shown: each step against
+  // the pace of the hand around it. See trajectoryJumpThresholds().
+  _jumpThresholds = trajectoryJumpThresholds (_ticks);
 }
 
 void
@@ -673,13 +671,13 @@ Pattern::getInterpolatedTick (double fractionalTick) const
   ensureBridgePlanLocked ();
   auto const *crossing = _bridgePlan.crossingAt (tickFloor, effLen);
 
-  if (crossing == nullptr && _jumpThreshold > 0.f)
+  if (crossing == nullptr && tickFloor < _jumpThresholds.size ())
     {
       auto const step = std::sqrt (
           std::pow (posCeil.x () - posFloor.x (), 2.f)
           + std::pow (posCeil.y () - posFloor.y (), 2.f)
           + std::pow (posCeil.z () - posFloor.z (), 2.f));
-      if (step > _jumpThreshold)
+      if (step > _jumpThresholds[tickFloor])
         return posFloor;
     }
 

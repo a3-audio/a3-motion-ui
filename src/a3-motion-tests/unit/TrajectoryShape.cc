@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/TrajectoryShape.hh>
 
+#include <algorithm>
 #include <cmath>
 
 using namespace a3;
@@ -62,6 +63,26 @@ tappedCorners (int holdTicks = 16)
   for (auto const &corner : corners)
     for (int i = 0; i < holdTicks; ++i)
       ticks.push_back (corner);
+  return ticks;
+}
+
+// A fast stroke the way the touch panel delivers it: the panel reports more
+// slowly than the clock ticks, so every position is held for a few ticks and
+// then moves on by a lot. 20 positions round a circle of radius 0.6 is a step
+// of 0.188 -- what a real take measured (0.184 and 0.198, 2026-09-25).
+std::vector<Pos>
+fastStrokeAtTouchPace (int positions = 20, int ticksPerReport = 3)
+{
+  std::vector<Pos> ticks;
+  for (int p = 0; p < positions; ++p)
+    {
+      auto const a = juce::MathConstants<float>::twoPi
+                     * static_cast<float> (p) / static_cast<float> (positions);
+      auto const pos = Pos::fromCartesian (std::cos (a) * 0.6f,
+                                           std::sin (a) * 0.6f, 0.5f);
+      for (int t = 0; t < ticksPerReport; ++t)
+        ticks.push_back (pos);
+    }
   return ticks;
 }
 
@@ -161,4 +182,42 @@ TEST (TrajectoryShape, AnEmptyPatternHasNothingToShow)
   EXPECT_FALSE (isTappedTrajectory ({}));
 }
 
+}
+
+// Most steps of a touch-drawn stroke are zero, because the panel reports more
+// slowly than the clock ticks. Measured against the median of *all* steps --
+// zero -- every report of a fast stroke counted as a teleport, the file cut
+// the line there, and the take came back with holes in it. A step is a jump
+// when it is far larger than the movement *around* it, and around a stroke
+// the hand is moving just as fast.
+TEST (TrajectoryShape, AFastStrokeAtTouchPaceHasNoJumps)
+{
+  EXPECT_TRUE (trajectoryJumps (fastStrokeAtTouchPace ()).empty ());
+}
+
+TEST (TrajectoryShape, AFastStrokeAtTouchPaceStaysOneSegment)
+{
+  EXPECT_EQ (trajectorySegments (fastStrokeAtTouchPace (), BridgePlan{})
+                 .size (),
+             1u);
+}
+
+TEST (TrajectoryShape, AFastStrokeAtTouchPaceIsDrawnNotTapped)
+{
+  EXPECT_FALSE (isTappedTrajectory (fastStrokeAtTouchPace ()));
+}
+
+// Where one pass of an overdub ends and an older pass carries on, the line
+// really does teleport, and it still has to be found as one -- even though
+// the hand was moving on both sides of it.
+TEST (TrajectoryShape, APassBoundaryInAMovingStrokeIsStillAJump)
+{
+  auto ticks = fastStrokeAtTouchPace (40, 3);
+  for (size_t i = ticks.size () / 2; i < ticks.size (); ++i)
+    ticks[i] += Pos::fromCartesian (-1.2f, 0.4f, 0.f);
+
+  auto const jumps = trajectoryJumps (ticks);
+  ASSERT_FALSE (jumps.empty ());
+  EXPECT_NE (std::find (jumps.begin (), jumps.end (), ticks.size () / 2 - 1),
+             jumps.end ());
 }

@@ -377,11 +377,11 @@ private:
   std::vector<Pos> _ticks;
   std::vector<bool> _written;
 
-  /** Past which step from one tick to the next the motion is a jump rather
+  /** Per tick: past which step to the next tick the motion is a jump rather
    *  than a movement. Worked out once when the ticks are finished, because
    *  playback asks on every tick and must not walk the whole pattern to find
-   *  out. Zero means nothing is treated as a jump. */
-  float _jumpThreshold = 0.f;
+   *  out. Empty means nothing is treated as a jump. */
+  std::vector<float> _jumpThresholds;
   /** Guarded by _ticksMutex; ensureBridgePlanLocked() expects it held. */
   mutable BridgePlan _bridgePlan;
   mutable bool _bridgePlanStale = true;
