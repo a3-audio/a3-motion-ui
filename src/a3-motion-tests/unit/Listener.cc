@@ -106,3 +106,47 @@ TEST (Listener, NoHeightIsNoFigure)
 {
   EXPECT_TRUE (listenerSilhouette ({}, 0.f).isEmpty ());
 }
+
+// The figure was worked out afresh every frame, twice -- once in the middle of
+// the sphere and once in the corner -- and that was a sixth of the render
+// thread at rest (measured 2026-09-25), for a picture that only changes when
+// somebody turns the view.
+TEST (ListenerFigure, TheSameViewIsWorkedOutOnce)
+{
+  ListenerFigure figure;
+  SphereCamera const camera{ 0.4f, 0.2f };
+
+  auto const first = figure.silhouette (camera, 0.3f);
+  auto const again = figure.silhouette (camera, 0.3f);
+
+  EXPECT_EQ (figure.computed (), 1);
+  EXPECT_EQ (first.getBounds (), again.getBounds ());
+}
+
+TEST (ListenerFigure, TurningTheViewWorksItOutAgain)
+{
+  ListenerFigure figure;
+  figure.silhouette ({ 0.4f, 0.2f }, 0.3f);
+  figure.silhouette ({ 0.4f, 0.5f }, 0.3f);
+
+  EXPECT_EQ (figure.computed (), 2);
+}
+
+TEST (ListenerFigure, AnotherSizeWorksItOutAgain)
+{
+  ListenerFigure figure;
+  figure.silhouette ({ 0.4f, 0.2f }, 0.3f);
+  figure.silhouette ({ 0.4f, 0.2f }, 0.6f);
+
+  EXPECT_EQ (figure.computed (), 2);
+}
+
+// What comes back is the figure itself, not an approximation of it.
+TEST (ListenerFigure, ItIsTheSameFigureAsWorkedOutDirectly)
+{
+  ListenerFigure figure;
+  SphereCamera const camera{ 0.7f, -0.3f };
+
+  EXPECT_EQ (figure.silhouette (camera, 0.3f).getBounds (),
+             listenerSilhouette (camera, 0.3f).getBounds ());
+}

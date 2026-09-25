@@ -1856,8 +1856,8 @@ MotionComponent::drawListener (juce::Graphics &g)
 {
   // Big enough to read as a person from a metre away, small enough that the
   // room is still the subject: the trajectories run round them, not over them.
-  auto const figure
-      = listenerSilhouette (_sphereShader.getCamera (), 0.30f);
+  auto const &figure
+      = _listenerFigure.silhouette (_sphereShader.getCamera (), 0.30f);
   if (figure.isEmpty ())
     return;
 
@@ -1954,7 +1954,7 @@ MotionComponent::drawCameraBall (juce::Graphics &g)
   // head, from the horizon you are looking them in the eye. Axis balls with
   // letters on them would say the same thing and have to be read.
   {
-    auto figure = listenerSilhouette (camera, r * 1.15f);
+    auto figure = _cameraBallFigure.silhouette (camera, r * 1.15f);
     figure.applyTransform (
         juce::AffineTransform::translation (centre.x, centre.y));
 
