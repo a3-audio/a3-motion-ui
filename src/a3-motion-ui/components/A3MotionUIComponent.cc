@@ -5232,6 +5232,9 @@ A3MotionUIComponent::updatePadRowLabel (index_t channel, index_t slot)
               static_cast<int> (channel), "");
         }
     }
+
+  _padRowDisplays[slot]->setUnsaved (static_cast<int> (channel),
+                                     _pendingTakes.isPending (channel, slot));
 }
 
 void
