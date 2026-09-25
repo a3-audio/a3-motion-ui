@@ -2199,16 +2199,13 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           }
         else if (status == Pattern::Status::Playing)
           {
-            // Finish the lap, then stop. Pressing play on a running clip used
-            // to cut it off on the next beat, in the middle of whatever figure
-            // it was drawing; the figure is the point of the clip, and the
-            // place to leave it is where it ends. How long that is, is the
-            // playback length the Shape section's keys set.
-            //
-            // Stop is still the way out that does not wait -- quantised by
-            // default with an instant one beside it is the pairing a deck
-            // offers, and here the two are a key apart.
-            _engine.stopPatternAtEnd (pattern);
+            // On the next downbeat, like a start, and with Shift on the spot.
+            // From 2026-09-13 it finished the lap instead, so the figure was
+            // never cut off -- but a lap is the playback length, up to sixteen
+            // bars, and a pause that answers half a minute later reads as a
+            // key that does not work (maintainer, 2026-09-25). The key blinks
+            // while it waits; Stop is still the way out that does not wait.
+            _engine.stopPattern (pattern, on);
           }
         else if (status == Pattern::Status::ScheduledForPlaying)
           {
