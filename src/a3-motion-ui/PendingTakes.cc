@@ -52,6 +52,13 @@ PendingTakes::isPending (index_t channel, index_t slot) const
          && _before[channel * _numSlots + slot].has_value ();
 }
 
+bool
+PendingTakes::offersKeys (index_t channel, index_t slot,
+                          bool takeUnderway) const
+{
+  return !takeUnderway && isPending (channel, slot);
+}
+
 SlotContent
 PendingTakes::forSet (index_t channel, index_t slot,
                       SlotContent current) const

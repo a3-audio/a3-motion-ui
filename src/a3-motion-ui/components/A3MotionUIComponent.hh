@@ -944,6 +944,11 @@ private:
   void dropPendingTake (index_t channel, index_t slot);
   /** Tell the bar whether the shown slot is unsaved and armed. */
   void refreshTakeState ();
+  /** A take running or waiting for its downbeat, on any slot. */
+  bool takeIsUnderway ();
+  /** Whether the ACT press being held landed on DISCARD, so its release
+   *  is not taken for the end of an accent that never started. */
+  bool _actPressWasDiscard = false;
   /** Set when a take ends and started once its Stopped message arrives —
    *  stopping is asynchronous, and playing before it lands leaves the pattern
    *  in a state the Play pad does not recognise. */

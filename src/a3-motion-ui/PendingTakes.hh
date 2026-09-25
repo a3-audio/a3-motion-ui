@@ -64,6 +64,12 @@ public:
   void begin (index_t channel, index_t slot, SlotContent before);
   bool isPending (index_t channel, index_t slot) const;
 
+  /** Whether the bar offers SAVE and DISCARD for this slot: it holds an
+   *  unsaved take and no take is running or waiting for its downbeat. While
+   *  one is, REC ends or calls off that take and ACT is the accent, so the
+   *  keys must say so -- one rule for the face and for what a press does. */
+  bool offersKeys (index_t channel, index_t slot, bool takeUnderway) const;
+
   /** What a set writes for this slot: `before` while it is pending, the slot's
    *  own content otherwise. A set names only what is on disk. */
   SlotContent forSet (index_t channel, index_t slot,

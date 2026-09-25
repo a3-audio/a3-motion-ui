@@ -186,3 +186,17 @@ TEST (PendingTakes, OutOfRangeIsNotPending)
   EXPECT_FALSE (takes.isPending (9, 9));
   EXPECT_EQ (takes.resolve (9, 9).pattern, nullptr);
 }
+
+// SAVE and DISCARD are offered only while no take is running or waiting for
+// its downbeat anywhere. The keys used to wear SAVE during a count-in while
+// REC actually called the take off -- a key whose face and whose action
+// disagree is the one you press wrong.
+TEST (PendingTakes, TheKeysAreOfferedOnlyWhileNoTakeIsUnderway)
+{
+  PendingTakes takes (4, 2);
+  takes.begin (0, 0, held ("A"));
+
+  EXPECT_TRUE (takes.offersKeys (0, 0, false));
+  EXPECT_FALSE (takes.offersKeys (0, 0, true));
+  EXPECT_FALSE (takes.offersKeys (1, 0, false));
+}

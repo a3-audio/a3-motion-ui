@@ -665,13 +665,19 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       }
   };
   _clipSettings->onTransportActionHeld = [this] (bool held) {
-    // DISCARD wears ACT's place on an unsaved take. On the press only: the
-    // release of a DISCARD press is not an accent ending.
-    if (!_engine.isRecording ()
-        && _pendingTakes.isPending (_clipSettingsChannel, _clipSettingsSlot))
+    // DISCARD wears ACT's place on an unsaved take. The release goes where
+    // the press went: a take that ends under a held accent turns the key into
+    // DISCARD, and the accent's release must still reach the accent.
+    if (held)
+      _actPressWasDiscard = _pendingTakes.offersKeys (
+          _clipSettingsChannel, _clipSettingsSlot, takeIsUnderway ());
+
+    if (_actPressWasDiscard)
       {
         if (held)
           pressDiscardOnShownTake ();
+        else
+          _actPressWasDiscard = false;
         return;
       }
     auto const pad = padIndexFor (PadFunction::Action, _clipSettingsSlot);
@@ -2002,8 +2008,8 @@ A3MotionUIComponent::toggleRecordingOnShownClip ()
 {
   // SAVE wears REC's place while the shown slot holds an unsaved take and
   // nothing is recording -- see transportFace().
-  if (!_engine.isRecording () && !_recordingSlot.has_value ()
-      && _pendingTakes.isPending (_clipSettingsChannel, _clipSettingsSlot))
+  if (_pendingTakes.offersKeys (_clipSettingsChannel, _clipSettingsSlot,
+                                takeIsUnderway ()))
     {
       _pendingTakes.disarm ();
       saveShownTake ();
@@ -2111,6 +2117,9 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   _engine.recordPattern (pattern, TempoClock::nextDownBeat (_now),
                          recordLength);
 
+  // A take underway turns SAVE and DISCARD back into REC and ACT.
+  refreshTakeState ();
+
   // Show what is being recorded. Starting a recording on one channel while
   // the bar still displayed another one left every setting that shapes the
   // take — speed above all, which is its length — pointing at the wrong
@@ -2212,6 +2221,16 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       }
     case PadFunction::Stop:
       {
+        // Stop on the slot a take is going into ends the take, the same way
+        // REC does. Stopped alone, the engine finished it with nobody to mark
+        // it unsaved, and the next REC put the old clip back over it.
+        if (_recordingSlot.has_value ()
+            && *_recordingSlot == std::make_pair (channel, slot))
+          {
+            endRecording ();
+            break;
+          }
+
         if (!pattern)
           break;
 
@@ -2432,6 +2451,12 @@ A3MotionUIComponent::slotHasDrifted (index_t channel, index_t slot) const
 void
 A3MotionUIComponent::saveSlotClip (index_t channel, index_t slot)
 {
+  if (_pendingTakes.isPending (channel, slot))
+    {
+      updateControlReadout ("-- SAVE THE TAKE FIRST");
+      return;
+    }
+
   if (channel >= _patterns.size () || slot >= _patterns[channel].size ())
     return;
 
@@ -2626,9 +2651,20 @@ A3MotionUIComponent::loadSessionNamed (juce::String const &name)
   // thought to save it.
   writeSet ();
 
-  // Every unsaved take goes with the arrangement it belonged to. After
-  // writeSet(), which has to see what those slots held before.
-  _pendingTakes.clearAll ();
+  // Every unsaved take goes with the arrangement it belonged to, and what
+  // its slot held before comes back -- a slot the set leaves empty would
+  // otherwise keep the take, unmarked. After writeSet(), which has to see
+  // what those slots held before.
+  for (index_t channel = 0; channel < _patterns.size (); ++channel)
+    for (index_t slot = 0; slot < _patterns[channel].size (); ++slot)
+      if (_pendingTakes.isPending (channel, slot))
+        {
+          if (auto const &take = _patterns[channel][slot])
+            _engine.stopPattern (take, _now);
+          auto const before = _pendingTakes.resolve (channel, slot);
+          _patterns[channel][slot] = before.pattern;
+          _slotClipFile[channel][slot] = before.clipFile;
+        }
   refreshTakeState ();
 
   // Everything stops. All eight slots are about to hold something else, and a
@@ -3358,6 +3394,12 @@ A3MotionUIComponent::chosenEntryIsShipped () const
 void
 A3MotionUIComponent::saveSlotShapeInPlace ()
 {
+  if (_pendingTakes.isPending (_clipSettingsChannel, _clipSettingsSlot))
+    {
+      updateControlReadout ("-- SAVE THE TAKE FIRST");
+      return;
+    }
+
   if (chosenEntryIsShipped ())
     {
       updateControlReadout ("-- SYSTEM SHAPE");
@@ -5451,7 +5493,11 @@ A3MotionUIComponent::saveShownTake ()
     }
 
   _pendingTakes.clear (channel, slot);
-  _slotClipFile[channel][slot] = _patternLibrary->getEntry (index).clipFile;
+  // The clip saveUserPattern() wrote beside the shape. Not the library entry
+  // found by name: that is the shape's, and a shape carries no clip file.
+  auto const clip = namedFileIn (_patternLibrary->getClipDir (),
+                                 juce::String (pattern->getName ()), ".json");
+  _slotClipFile[channel][slot] = clip.existsAsFile () ? clip : juce::File{};
   updateControlReadout ("-- SAVED "
                         + juce::String (pattern->getName ()).toUpperCase ());
   updatePadRowLabel (channel, slot);
@@ -5479,6 +5525,10 @@ A3MotionUIComponent::pressDiscardOnShownTake ()
   auto const before = _pendingTakes.resolve (channel, slot);
   _patterns[channel][slot] = before.pattern;
   _slotClipFile[channel][slot] = before.clipFile;
+  // The bar's direction and end action are read from here, and were the
+  // take's: the next edit would have written them onto what came back.
+  if (before.pattern)
+    syncClipUIParamsFromPattern (channel, slot);
 
   updateControlReadout ("-- DISCARDED");
   updatePadRowLabel (channel, slot);
@@ -5494,15 +5544,26 @@ A3MotionUIComponent::dropPendingTake (index_t channel, index_t slot)
   refreshTakeState ();
 }
 
+bool
+A3MotionUIComponent::takeIsUnderway ()
+{
+  return _engine.isRecording () || _recordingSlot.has_value ();
+}
+
 void
 A3MotionUIComponent::refreshTakeState ()
 {
   if (!_clipSettings)
     return;
 
+  // The same rule the two keys act on -- see PendingTakes::offersKeys().
+  auto const offered = _pendingTakes.offersKeys (
+      _clipSettingsChannel, _clipSettingsSlot, takeIsUnderway ());
   _clipSettings->setTakeState (
-      _pendingTakes.isPending (_clipSettingsChannel, _clipSettingsSlot),
-      _pendingTakes.isDiscardArmed (_clipSettingsChannel, _clipSettingsSlot));
+      offered,
+      offered
+          && _pendingTakes.isDiscardArmed (_clipSettingsChannel,
+                                           _clipSettingsSlot));
 }
 
 void
@@ -7119,6 +7180,9 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             _motionComponent->unsetPreviewPattern (pattern);
             _motionComponent->removePatternDisplayData (pattern);
           }
+
+        // A new shape in the slot replaces an unsaved take in it.
+        dropPendingTake (channel, slot);
 
         if (newIndex == 0)
           {
