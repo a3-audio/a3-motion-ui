@@ -2544,17 +2544,42 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
   auto const underlayOpacity = _underlayOpacity;
   auto const lineThickness = _underlayLineThickness;
 
-  juce::Path path;
-  for (auto const &segment : trajectorySegments (ticks.positions, BridgePlan{}))
+  // Drawn once into an image of its own and kept while nothing it depends on
+  // changes -- see UnderlayLook. Its braid stands still there, on purpose.
+  UnderlayLook const look{ &pattern,
+                           ticks.positions.size (),
+                           _sphereShader.getCamera (),
+                           _imageBlend->getWidth (),
+                           _imageBlend->getHeight (),
+                           colour,
+                           underlayOpacity,
+                           lineThickness };
+  if (look != _underlayLook || !_underlayImage.isValid ())
     {
-      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
-      for (size_t i = 1; i < segment.size (); ++i)
-        path.lineTo (segment[i].x (), segment[i].y ());
+      _underlayImage
+          = juce::Image (juce::Image::ARGB, look.width, look.height, true);
+      juce::Graphics picture (_underlayImage);
+      picture.addTransform (_transformNormalizedToLocal);
+
+      juce::Path path;
+      for (auto const &segment :
+           trajectorySegments (ticks.positions, BridgePlan{}))
+        {
+          path.startNewSubPath (segment.front ().x (), segment.front ().y ());
+          for (size_t i = 1; i < segment.size (); ++i)
+            path.lineTo (segment[i].x (), segment[i].y ());
+        }
+
+      drawPathOnSphere (path, lineThickness, underlayOpacity, colour, true,
+                        params, _engine.getHeightMap (), picture,
+                        PlaneShaping{}, _sphereShader.getCamera ());
+      _underlayLook = look;
     }
 
-  drawPathOnSphere (path, lineThickness, underlayOpacity, colour, true, params,
-                    _engine.getHeightMap (), g, PlaneShaping{},
-                    _sphereShader.getCamera ());
+  // Pixel for pixel: g carries the normalised-to-local transform, and the
+  // picture is already in local pixels.
+  g.drawImageTransformed (_underlayImage,
+                          _transformNormalizedToLocal.inverted ());
 
   // And where it would be right now. The write head's own position is the
   // phase into the loop -- the old pattern is not playing, so there is nothing
