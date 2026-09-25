@@ -573,6 +573,25 @@ key both call `toggleRecordingOnShownClip()`: press to start a take on the clip 
 press again to end it. A key that only ever goes one way leaves you reaching for a different control
 to undo what it did.
 
+**A take is kept when somebody says so** (issue #28). The Stopped message no longer saves: a take
+with anything written in it stays in its slot, playing, marked unsaved, until SAVE writes it --
+the shape and a clip with every setting on it at the moment of the press, including what was dialled
+after the take ended -- or DISCARD puts back what the slot held. `PendingTakes` holds that "before"
+per slot, and a second take on a still-unsaved slot keeps the *original* one, so DISCARD always goes
+back to the last saved state and a second take that comes to nothing leaves the first standing.
+
+It is dropped only when something **replaces** it: a new take, a shape dropped on the slot, a set
+loaded, a restart. Never on a timer and never because the performer moved on -- the good take at 2 a.m.
+is exactly the one nobody remembers to save at once. A set names only what is on disk
+(`PendingTakes::forSet()`), so `current.json` brings back the old state after a restart.
+
+REC and ACT change **face** in place rather than a fifth key appearing (`transportFace()`): SAVE is a
+tick where REC was, DISCARD a cross where ACT was, asked twice like Delete in FILES. A row that
+narrows under the finger is a row you miss in. The accent is not on the bar while a take waits; the
+pad and the panel still have it. FILES keeps Save and Save as dark for clips and shapes on an unsaved
+slot: it still points at the clip file of what it held before, and Save would write the take's
+values over that.
+
 **The panel's REC key is not that key**, and this is the one place the two halves of the device
 deliberately differ. There it is held while a slot's Play|Pause pad names the slot
 (`handlePadPress()`), because the panel has pads and a finger on the screen does not. Pressed alone
