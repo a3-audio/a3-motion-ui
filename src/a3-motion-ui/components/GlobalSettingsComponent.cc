@@ -444,7 +444,9 @@ GlobalSettingsComponent::paint (juce::Graphics &g)
   auto const panelBounds
       = globalSettingsPanelBounds (getLocalBounds (), numOptions);
 
-  g.setColour (toColour (theme ().surface, theme ().overlayOpacity));
+  // The panel on top of the scrim: its own value, see-through by default so
+  // the sphere shows through the main menu -- see Theme::menuPanelOpacity.
+  g.setColour (toColour (theme ().surface, theme ().menuPanelOpacity));
   g.fillRoundedRectangle (this->panelBounds ().toFloat (),
                           theme ().radiusPanel);
 

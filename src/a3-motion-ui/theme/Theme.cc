@@ -319,6 +319,8 @@ loadTheme (juce::var const &skin)
   theme.overlayScrim = themeFloat (skin, "overlayScrim", theme.overlayScrim);
   theme.overlayOpacity
       = themeFloat (skin, "overlayOpacity", theme.overlayOpacity);
+  theme.menuPanelOpacity
+      = themeFloat (skin, "menuPanelOpacity", theme.menuPanelOpacity);
   theme.alphaSecondary
       = themeFloat (skin, "alphaSecondary", theme.alphaSecondary);
   theme.alphaTextStrong
@@ -426,6 +428,7 @@ themeDefaultsVar ()
   number ("panelOpacity", defaults.panelOpacity);
   number ("overlayScrim", defaults.overlayScrim);
   number ("overlayOpacity", defaults.overlayOpacity);
+  number ("menuPanelOpacity", defaults.menuPanelOpacity);
   number ("alphaSecondary", defaults.alphaSecondary);
   number ("alphaTextStrong", defaults.alphaTextStrong);
   number ("alphaActive", defaults.alphaActive);
