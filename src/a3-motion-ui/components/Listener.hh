@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include <JuceHeader.h>
 
 #include <vector>
@@ -50,6 +52,27 @@ namespace a3
  *  Graphics after a translate.
  */
 juce::Path listenerSilhouette (SphereCamera camera, float height);
+
+/** The silhouette, worked out once per view and size and kept.
+ *
+ *  It changes only when somebody turns the view, and working it out -- a few
+ *  hundred points projected, sorted and hulled -- was a sixth of the render
+ *  thread at rest when it was done every frame (2026-09-25). One of these per
+ *  place the figure is drawn, since each draws it at its own size. */
+class ListenerFigure
+{
+public:
+  juce::Path const &silhouette (SphereCamera camera, float height);
+
+  /** How often it has actually been worked out, for the tests. */
+  int computed () const { return _computed; }
+
+private:
+  std::optional<SphereCamera> _camera;
+  float _height = 0.f;
+  juce::Path _path;
+  int _computed = 0;
+};
 
 /** The outline of a set of points, anticlockwise from the leftmost.
  *

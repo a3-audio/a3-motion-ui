@@ -319,6 +319,25 @@ trajectoryPlateaus (std::vector<Pos> const &ticks)
   return plateaus;
 }
 
+std::vector<Pos>
+trailPoints (std::vector<Pos> const &run, size_t maxPoints)
+{
+  std::vector<Pos> moved;
+  moved.reserve (run.size ());
+  for (auto const &pos : run)
+    if (moved.empty () || distance (moved.back (), pos) >= holdDistance)
+      moved.push_back (pos);
+
+  if (moved.size () <= maxPoints || maxPoints < 2)
+    return moved;
+
+  std::vector<Pos> drawn;
+  drawn.reserve (maxPoints);
+  for (size_t k = 0; k < maxPoints; ++k)
+    drawn.push_back (moved[k * (moved.size () - 1) / (maxPoints - 1)]);
+  return drawn;
+}
+
 std::vector<std::vector<Pos> >
 trajectorySegments (std::vector<Pos> const &ticks, BridgePlan const &plan)
 {

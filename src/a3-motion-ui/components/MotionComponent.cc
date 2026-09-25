@@ -1856,8 +1856,8 @@ MotionComponent::drawListener (juce::Graphics &g)
 {
   // Big enough to read as a person from a metre away, small enough that the
   // room is still the subject: the trajectories run round them, not over them.
-  auto const figure
-      = listenerSilhouette (_sphereShader.getCamera (), 0.30f);
+  auto const &figure
+      = _listenerFigure.silhouette (_sphereShader.getCamera (), 0.30f);
   if (figure.isEmpty ())
     return;
 
@@ -1954,7 +1954,7 @@ MotionComponent::drawCameraBall (juce::Graphics &g)
   // head, from the horizon you are looking them in the eye. Axis balls with
   // letters on them would say the same thing and have to be read.
   {
-    auto figure = listenerSilhouette (camera, r * 1.15f);
+    auto figure = _cameraBallFigure.silhouette (camera, r * 1.15f);
     figure.applyTransform (
         juce::AffineTransform::translation (centre.x, centre.y));
 
@@ -2488,11 +2488,19 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
   // straight on through, drawing the jump as a line.
   juce::Path path;
 
+  //
+  // Thinned before it is drawn -- see trailPoints(). As many points as a saved
+  // take keeps (PatternFile), so the line while recording is the line that
+  // will be saved, at a quarter of the cost of drawing every tick.
+  constexpr size_t trailMaxPoints = 128;
   for (auto const &segment : trajectorySegments (ticks.positions, BridgePlan{}))
     {
-      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
-      for (size_t i = 1; i < segment.size (); ++i)
-        path.lineTo (segment[i].x (), segment[i].y ());
+      auto const points = trailPoints (segment, trailMaxPoints);
+      if (points.empty ())
+        continue;
+      path.startNewSubPath (points.front ().x (), points.front ().y ());
+      for (size_t i = 1; i < points.size (); ++i)
+        path.lineTo (points[i].x (), points[i].y ());
     }
 
   // The take as it is being played in, at the same width as a played one:
@@ -2536,17 +2544,42 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
   auto const underlayOpacity = _underlayOpacity;
   auto const lineThickness = _underlayLineThickness;
 
-  juce::Path path;
-  for (auto const &segment : trajectorySegments (ticks.positions, BridgePlan{}))
+  // Drawn once into an image of its own and kept while nothing it depends on
+  // changes -- see UnderlayLook. Its braid stands still there, on purpose.
+  UnderlayLook const look{ &pattern,
+                           ticks.positions.size (),
+                           _sphereShader.getCamera (),
+                           _imageBlend->getWidth (),
+                           _imageBlend->getHeight (),
+                           colour,
+                           underlayOpacity,
+                           lineThickness };
+  if (look != _underlayLook || !_underlayImage.isValid ())
     {
-      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
-      for (size_t i = 1; i < segment.size (); ++i)
-        path.lineTo (segment[i].x (), segment[i].y ());
+      _underlayImage
+          = juce::Image (juce::Image::ARGB, look.width, look.height, true);
+      juce::Graphics picture (_underlayImage);
+      picture.addTransform (_transformNormalizedToLocal);
+
+      juce::Path path;
+      for (auto const &segment :
+           trajectorySegments (ticks.positions, BridgePlan{}))
+        {
+          path.startNewSubPath (segment.front ().x (), segment.front ().y ());
+          for (size_t i = 1; i < segment.size (); ++i)
+            path.lineTo (segment[i].x (), segment[i].y ());
+        }
+
+      drawPathOnSphere (path, lineThickness, underlayOpacity, colour, true,
+                        params, _engine.getHeightMap (), picture,
+                        PlaneShaping{}, _sphereShader.getCamera ());
+      _underlayLook = look;
     }
 
-  drawPathOnSphere (path, lineThickness, underlayOpacity, colour, true, params,
-                    _engine.getHeightMap (), g, PlaneShaping{},
-                    _sphereShader.getCamera ());
+  // Pixel for pixel: g carries the normalised-to-local transform, and the
+  // picture is already in local pixels.
+  g.drawImageTransformed (_underlayImage,
+                          _transformNormalizedToLocal.inverted ());
 
   // And where it would be right now. The write head's own position is the
   // phase into the loop -- the old pattern is not playing, so there is nothing

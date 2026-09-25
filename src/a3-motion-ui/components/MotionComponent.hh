@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 #include <a3-motion-ui/FrameRate.hh>
+#include <a3-motion-ui/components/Listener.hh>
+#include <a3-motion-ui/components/UnderlayLook.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
 
 #include <functional>
@@ -350,6 +352,15 @@ private:
    *  pixel; that step is what reads as pixelated, and no finer map fixes it
    *  because the map was never what it was standing on. */
   juce::OpenGLFrameBuffer _superBuffer;
+
+  /** The listener in the middle of the sphere and in the camera ball, each
+   *  worked out once per view rather than every frame. See ListenerFigure. */
+  ListenerFigure _listenerFigure;
+  ListenerFigure _cameraBallFigure;
+
+  /** The underlay as last drawn, and what it was drawn from. */
+  juce::Image _underlayImage;
+  UnderlayLook _underlayLook;
 
   FrameRate _frameRate;
   bool const _tracesFrames = FrameRate::wanted ();

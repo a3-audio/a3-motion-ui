@@ -189,4 +189,20 @@ listenerSilhouette (SphereCamera camera, float height)
   return path;
 }
 
+
+juce::Path const &
+ListenerFigure::silhouette (SphereCamera camera, float height)
+{
+  auto const same = _camera.has_value () && _camera->pitch == camera.pitch
+                    && _camera->turn == camera.turn && _height == height;
+  if (!same)
+    {
+      _path = listenerSilhouette (camera, height);
+      _camera = camera;
+      _height = height;
+      ++_computed;
+    }
+  return _path;
+}
+
 }

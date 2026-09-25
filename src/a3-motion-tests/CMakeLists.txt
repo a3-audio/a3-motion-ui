@@ -36,6 +36,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ElevationSideView.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TrajectoryIcon.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Listener.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/UnderlayLook.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ButtonLedColours.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LedCache.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TransportKeyGround.cc"
