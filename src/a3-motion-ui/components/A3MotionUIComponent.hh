@@ -436,6 +436,13 @@ private:
   /** Write the set out shortly. Debounced: a drag on the grid is dozens of
    *  changes and one arrangement. */
   void scheduleSetSave ();
+  /** Point a slot at the clip file its values come from, and let the set
+   *  know. Every place a performer changes that link goes through here: it
+   *  used to be set in five places and saved in none of them, so the clip
+   *  chosen in the clip field was gone again after a restart. The set load
+   *  itself (applySet) sets the link directly -- saving back what was just
+   *  read would write away names this stick cannot resolve. */
+  void setSlotClipFile (index_t channel, index_t slot, juce::File const &file);
   void writeSet ();
   // _patterns[channel][slot]: 2 clip slots per channel (see numClipSlots).
   std::vector<std::vector<std::shared_ptr<Pattern> > > _patterns;

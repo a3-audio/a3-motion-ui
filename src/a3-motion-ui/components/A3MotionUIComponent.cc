@@ -2509,7 +2509,7 @@ A3MotionUIComponent::saveSlotClipAsCopy ()
       return {};
     }
 
-  _slotClipFile[channel][slot] = target;
+  setSlotClipFile (channel, slot, target);
   updateControlReadout ("-- SAVED "
                         + juce::String (copy.name).toUpperCase ());
 
@@ -2797,7 +2797,7 @@ A3MotionUIComponent::assignBrowserEntry (int index)
         applyClipSettings (*filled, held);
         // And the clip those values came from is still where they came from:
         // the figure changed, not what it is played with.
-        _slotClipFile[channel][slot] = wasFrom;
+        setSlotClipFile (channel, slot, wasFrom);
         syncClipUIParamsFromPattern (channel, slot);
       }
 
@@ -2826,6 +2826,10 @@ A3MotionUIComponent::assignBrowserEntry (int index)
   refreshAllPadRowLabels ();
   if (channel == _clipSettingsChannel && slot == _clipSettingsSlot)
     updateClipSettingsDisplay ();
+
+  // What was dropped is what the slot holds now, and the set has to say so
+  // -- it did not, until something else happened to save it.
+  scheduleSetSave ();
 }
 
 void
@@ -2888,7 +2892,7 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   // Set after filling: fillSlotFromLibrary() points the slot at the shape's
   // own clip, and a shape has none any more -- the clip names the shape, not
   // the other way round.
-  _slotClipFile[channel][slot] = entry.clipFile;
+  setSlotClipFile (channel, slot, entry.clipFile);
 
   // The bar follows what was just changed, the same as choosing a shape does.
   selectClip (channel, slot);
@@ -4029,7 +4033,7 @@ A3MotionUIComponent::renameChosenClip (juce::String const &name)
                 for (index_t slot = 0;
                      slot < _slotClipFile[channel].size (); ++slot)
                   if (_slotClipFile[channel][slot] == entry.clipFile)
-                    _slotClipFile[channel][slot] = to;
+                    setSlotClipFile (channel, slot, to);
             }
         }
     }
@@ -4090,7 +4094,7 @@ A3MotionUIComponent::deleteChosenClip ()
     for (index_t slot = 0; slot < _slotClipFile[channel].size (); ++slot)
       if (_slotClipFile[channel][slot] == entry.clipFile
           && entry.clipFile != juce::File{})
-        _slotClipFile[channel][slot] = juce::File{};
+        setSlotClipFile (channel, slot, juce::File{});
 
   _patternLibrary->refresh ();
   refreshAllPadRowLabels ();
@@ -4847,6 +4851,14 @@ A3MotionUIComponent::scheduleSetSave ()
 
         safeThis->writeSet ();
       });
+}
+
+void
+A3MotionUIComponent::setSlotClipFile (index_t channel, index_t slot,
+                                      juce::File const &file)
+{
+  _slotClipFile[channel][slot] = file;
+  scheduleSetSave ();
 }
 
 void
