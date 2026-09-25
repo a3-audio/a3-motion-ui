@@ -24,6 +24,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/theme/SkinGroups.hh>
+#include <a3-motion-ui/theme/SkinParameters.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
 using namespace a3;
@@ -533,4 +535,31 @@ TEST (Theme, TheDefaultAlphaIsWrittenAsItWasTyped)
   EXPECT_TRUE (written.contains ("0.35")) << "alphaDisabled should read as 0.35";
   EXPECT_FALSE (written.contains ("0.34999"))
       << "alphaDisabled carries a double's tail";
+}
+
+// The main menu is see-through again (maintainer, 2026-09-25): the sphere
+// shows through its panel as it did before 2026-09-23. It gets a value of its
+// own, because `overlayOpacity` is also the skin editor's panel and the colour
+// picker's whole ground, and those stay solid -- the picker has no scrim under
+// it, so at 0 it would vanish.
+TEST (Theme, TheMainMenusPanelIsSeeThroughByDefault)
+{
+  Theme const defaults;
+  EXPECT_FLOAT_EQ (defaults.menuPanelOpacity, 0.f);
+  EXPECT_FLOAT_EQ (defaults.overlayOpacity, 1.f)
+      << "the skin editor and the colour picker stay solid";
+}
+
+TEST (Theme, TheMainMenusPanelIsASkinValue)
+{
+  auto const theme
+      = loadTheme (juce::JSON::parse (R"({"menuPanelOpacity": 0.3})"));
+  EXPECT_NEAR (theme.menuPanelOpacity, 0.3f, 0.001f);
+}
+
+TEST (Theme, TheMainMenusPanelIsOfferedBesideTheOtherPanels)
+{
+  EXPECT_EQ (skinGroupFor ("menuPanelOpacity"), skinGroupFor ("overlayOpacity"));
+  EXPECT_NEAR (clampSkinValue (juce::var{}, "menuPanelOpacity", 1.5), 1.0, 1e-9);
+  EXPECT_NEAR (clampSkinValue (juce::var{}, "menuPanelOpacity", -0.5), 0.0, 1e-9);
 }

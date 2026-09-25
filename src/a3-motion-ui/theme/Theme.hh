@@ -134,6 +134,11 @@ struct Theme
   float panelOpacity = 0.85f;
   float overlayScrim = 0.55f;
   float overlayOpacity = 1.f;
+  /** The main menu's own panel, over the scrim. See-through (0) by default:
+   *  the maintainer wanted the sphere back behind the menu (2026-09-25),
+   *  while the skin editor and the colour picker keep `overlayOpacity` --
+   *  the picker has no scrim, and at 0 it would vanish. */
+  float menuPanelOpacity = 0.f;
   /** Legible, but not the thing you are looking at: captions, resting
    *  states, the rows you did not select. Seven sites sat between 0.70 and
    *  0.75 and meant this; they are one rung now. */
