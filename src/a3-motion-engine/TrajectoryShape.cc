@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 namespace a3
 {
@@ -39,6 +40,17 @@ constexpr float minJumpDistance = 0.15f;
 
 /** Below this, two ticks are the same held position rather than a movement. */
 constexpr float holdDistance = 1e-4f;
+
+/** How far either side of a step its neighbours are looked at, in ticks.
+ *
+ *  A step is measured against the movement around it rather than against the
+ *  whole take. The touch panel reports more slowly than the clock ticks, so a
+ *  drawn stroke holds each position for a few ticks and most of its steps are
+ *  zero: measured against the median of the whole take -- zero -- every report
+ *  of a fast stroke counted as a teleport, the file cut the line there, and
+ *  the take came back full of holes (2026-09-25). Eight ticks either side is
+ *  several reports at any tempo the clock runs at. */
+constexpr long paceWindow = 8;
 
 /** More held positions than this and it is a drawn trajectory that paused,
  *  not a handful of taps. */
@@ -98,10 +110,38 @@ typicalStep (std::vector<float> const &steps)
   return *middle;
 }
 
-float
-jumpThreshold (std::vector<float> const &steps)
+/** Each step's own threshold: eight times the pace of the hand around it,
+ *  and never less than the floor. Around a tap the hand is standing still, so
+ *  the floor decides and the tap stays a jump; around a fast stroke the hand
+ *  moves just as fast, so the stroke stays a stroke. */
+std::vector<float>
+localJumpThresholds (std::vector<float> const &steps)
 {
-  return trajectoryJumpThreshold (typicalStep (steps));
+  auto const n = static_cast<long> (steps.size ());
+  std::vector<float> thresholds (steps.size (), minJumpDistance);
+
+  std::vector<float> around;
+  for (long i = 0; i < n; ++i)
+    {
+      around.clear ();
+      for (long d = -paceWindow; d <= paceWindow; ++d)
+        {
+          if (d == 0 || std::abs (d) >= n)
+            continue;
+          auto const step = steps[static_cast<size_t> (((i + d) % n + n) % n)];
+          if (step >= holdDistance)
+            around.push_back (step);
+        }
+
+      if (around.empty ())
+        continue;
+
+      auto const middle = around.begin () + static_cast<long> (around.size () / 2);
+      std::nth_element (around.begin (), middle, around.end ());
+      thresholds[static_cast<size_t> (i)] = trajectoryJumpThreshold (*middle);
+    }
+
+  return thresholds;
 }
 
 }
@@ -139,6 +179,14 @@ trajectoryJumpThreshold (float typicalStep)
   return std::max (minJumpDistance, jumpFactor * typicalStep);
 }
 
+std::vector<float>
+trajectoryJumpThresholds (std::vector<Pos> const &ticks)
+{
+  if (ticks.size () < 2)
+    return {};
+  return localJumpThresholds (ringSteps (ticks));
+}
+
 std::vector<size_t>
 trajectoryJumps (std::vector<Pos> const &ticks)
 {
@@ -147,10 +195,10 @@ trajectoryJumps (std::vector<Pos> const &ticks)
     return jumps;
 
   auto const steps = ringSteps (ticks);
-  auto const threshold = jumpThreshold (steps);
+  auto const thresholds = localJumpThresholds (steps);
 
   for (size_t i = 0; i < steps.size (); ++i)
-    if (steps[i] > threshold)
+    if (steps[i] > thresholds[i])
       jumps.push_back (i);
 
   return jumps;
@@ -191,14 +239,15 @@ isTappedTrajectory (std::vector<Pos> const &ticks)
   // the ground covered rather than counting ticks -- a take that spent most of
   // its distance jumping was tapped, and one that spent it moving was drawn,
   // whatever fraction of the ring either of them sat out.
-  auto const threshold = jumpThreshold (steps);
+  auto const thresholds = localJumpThresholds (steps);
   float jumped = 0.f;
   float travelled = 0.f;
-  for (auto const step : steps)
+  for (size_t i = 0; i < steps.size (); ++i)
     {
+      auto const step = steps[i];
       if (step < holdDistance)
         continue;
-      (step > threshold ? jumped : travelled) += step;
+      (step > thresholds[i] ? jumped : travelled) += step;
     }
 
   // A take that never went anywhere is a held position, and a held position is
@@ -278,7 +327,7 @@ trajectorySegments (std::vector<Pos> const &ticks, BridgePlan const &plan)
     return segments;
 
   auto const steps = ringSteps (ticks);
-  auto const threshold = jumpThreshold (steps);
+  auto const thresholds = localJumpThresholds (steps);
 
   std::vector<Pos> current;
   for (size_t i = 0; i < ticks.size (); ++i)
@@ -307,7 +356,7 @@ trajectorySegments (std::vector<Pos> const &ticks, BridgePlan const &plan)
       // A gap the fade draws through is a line, not a break -- and it is the
       // same plan the movement is played from, so the line cannot be cut where
       // the blob runs on.
-      if (i + 1 < ticks.size () && steps[i] > threshold
+      if (i + 1 < ticks.size () && steps[i] > thresholds[i]
           && !plan.bridged (static_cast<index_t> (i)))
         {
           segments.push_back (std::move (current));

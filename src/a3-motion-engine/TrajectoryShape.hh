@@ -71,6 +71,14 @@ bool isTappedTrajectory (std::vector<Pos> const &ticks);
  *  the repeats that hold them. */
 std::vector<Pos> trajectoryPlateaus (std::vector<Pos> const &ticks);
 
+/** Each step's jump threshold, one per tick: the step from tick i to the
+ *  next is a jump when it is longer than element i. Measured against the pace
+ *  of the hand around that step rather than the whole take, so a fast stroke
+ *  from a touch panel that reports every few ticks is not cut into pieces.
+ *  Empty for fewer than two ticks. Playback and the drawn line both read
+ *  this, so the blob and the line agree on where a jump is. */
+std::vector<float> trajectoryJumpThresholds (std::vector<Pos> const &ticks);
+
 /** The runs actually travelled through, cut wherever the data is missing or
  *  teleports. Drawing them as one stroke is what put a chord across every
  *  jump. Cut linearly, not around the loop: the icon is a stroke, and the
