@@ -508,3 +508,48 @@ TEST (SessionFile, EveryShippedSetNamesShapesThatExist)
         }
     }
 }
+
+// ── The speed keys travel with the set ────────────────────────────────────
+
+// What the four keys carry is how a set is played -- a slow set wants its
+// slow speeds under the finger -- so loading one puts them back.
+TEST (SessionFile, TheSpeedKeysSurviveTheRoundTrip)
+{
+  auto set = aSet ();
+  set.speedButtonLog2 = std::array<int, numSpeedButtons>{ 1, -2, -5, -7 };
+
+  auto const file = tempSession ("a3-session-speeds.json");
+  ASSERT_TRUE (saveSession (file, set));
+
+  auto const read = loadSession (file, numChannels, numSlots);
+  ASSERT_TRUE (read.speedButtonLog2.has_value ());
+  EXPECT_EQ (*read.speedButtonLog2, *set.speedButtonLog2);
+
+  file.deleteFile ();
+}
+
+// A set written before the keys were part of it says nothing about them, and
+// that has to go on meaning "leave the device's keys alone" -- not "put the
+// defaults back".
+TEST (SessionFile, AnOlderSessionLeavesTheSpeedKeysAlone)
+{
+  auto const file = tempSession ("a3-session-no-speeds.json");
+  file.replaceWithText (
+      R"({"channels":[{"threeD":0.5,"freq":0.0,"q":0.0,)"
+      R"("slots":[{"pattern":"Wave","recordLengthLog2":0}]}]})");
+
+  EXPECT_FALSE (loadSession (file, 1, 1).speedButtonLog2.has_value ());
+
+  file.deleteFile ();
+}
+
+// A hand-edited file with the wrong number of keys is not half-applied.
+TEST (SessionFile, AWrongNumberOfSpeedKeysIsIgnored)
+{
+  auto const file = tempSession ("a3-session-bad-speeds.json");
+  file.replaceWithText (R"({"channels":[],"speedKeys":[0,-3]})");
+
+  EXPECT_FALSE (loadSession (file, 1, 1).speedButtonLog2.has_value ());
+
+  file.deleteFile ();
+}

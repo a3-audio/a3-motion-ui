@@ -75,6 +75,13 @@ freeNameIn (juce::File const &root, juce::String const &base,
   return base + " " + juce::String (juce::Time::currentTimeMillis ());
 }
 
+juce::File
+freeFileIn (juce::File const &root, juce::String const &base,
+            juce::String const &extension)
+{
+  return newFileIn (root, freeNameIn (root, base, extension), extension);
+}
+
 bool
 isSystemFileIn (juce::File const &root, juce::File const &file)
 {

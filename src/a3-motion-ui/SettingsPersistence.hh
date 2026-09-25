@@ -49,9 +49,10 @@ struct AppSettings
    *  bar, left to right. Assignable by dragging a key, which is why they are
    *  values rather than a table.
    *
-   *  Here rather than in a set: which four speeds are under your fingers is a
-   *  working habit like the rec mode, and a set that rearranged them on load
-   *  would be a surprise at the one moment nobody wants one.
+   *  Here *and* in the set, since 2026-09-25: the four belong to how a set is
+   *  played, so a set brings its own (Session::speedButtonLog2). This copy is
+   *  what the device comes back with, and a set older than that leaves it
+   *  alone.
    *
    *  The default is the fixed four the keys used to carry, so a settings file
    *  that predates this behaves exactly as the device did before it. */

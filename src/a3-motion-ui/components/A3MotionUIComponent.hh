@@ -190,8 +190,8 @@ private:
    *  not have to find all three. */
   void persistSettings () const;
 
-  /** What the bar's four speed keys carry. The device's, not a set's — see
-   *  AppSettings, where the four survive a restart. */
+  /** What the bar's four speed keys carry. Written to both the set and
+   *  AppSettings; a loaded set brings its own -- see Session::speedButtonLog2. */
   std::array<int, numSpeedButtons> _speedButtonLog2
       = AppSettings{}.speedButtonLog2;
 

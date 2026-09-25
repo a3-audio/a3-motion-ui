@@ -618,6 +618,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     carried = moved;
     _clipSettings->setSpeedButtons (_speedButtonLog2);
     persistSettings ();
+    scheduleSetSave ();
     applySpeedLog2ToShownClip (moved);
   };
 
@@ -2539,14 +2540,18 @@ A3MotionUIComponent::saveCurrentSession ()
   // A name that is not taken yet. Naming one by hand comes with the naming
   // row; until then a set is "Set", "Set 2", "Set 3" -- countable, sayable,
   // and findable in a list, which is what a name is for.
-  auto const dir = sessionsDir ();
-  auto name = juce::String ("Set");
-  for (int n = 2; dir.getChildFile (name + ".json").existsAsFile (); ++n)
-    name = "Set " + juce::String (n);
+  //
+  // In user/, counted against both halves: written into the folder's top
+  // level, a new set was missing from the list, and its name was checked
+  // against nothing -- so the Save after it wrote over an older set of the
+  // same name.
+  auto const file = freeFileIn (sessionsDir (), "Set", ".json");
+  auto name = file.getFileNameWithoutExtension ();
+  file.getParentDirectory ().createDirectory ();
 
   set.name = name.toStdString ();
 
-  if (saveSession (dir.getChildFile (name + ".json"), set))
+  if (saveSession (file, set))
     {
       // The set that is loaded is now this one. Without this, Save stayed
       // dark after a Save as: the device had a file to write back to and no
@@ -2595,6 +2600,11 @@ A3MotionUIComponent::loadSessionNamed (juce::String const &name)
 
   _sessionName = name;
   applySet (file);
+  // The keys it brought are the device's now too, so a restart comes back
+  // with them. Here rather than in applySet(), which also runs at start-up
+  // before the settings have been read -- writing them out from there would
+  // put every other setting back to its default.
+  persistSettings ();
 
   updateControlReadout ("-- LOADED " + name.toUpperCase ());
   refreshBrowser ();
@@ -3012,8 +3022,8 @@ A3MotionUIComponent::saveSlotActionScriptAs ()
   auto const base = from.existsAsFile ()
                         ? from.getFileNameWithoutExtension ()
                         : juce::String{ "Action" };
-  auto const name = freeNameIn (actionsDir (), base, ".scd");
-  auto const file = newFileIn (actionsDir (), name, ".scd");
+  auto const file = freeFileIn (actionsDir (), base, ".scd");
+  auto const name = file.getFileNameWithoutExtension ();
 
   if (!writeTextFile (file, _action->script ()))
     {
@@ -3117,8 +3127,8 @@ A3MotionUIComponent::saveSlotAsAction ()
   // A new one is the performer's, and its name has to be free in both
   // halves -- counting only against your own would hand back a name a
   // shipped file already has.
-  auto const name = freeNameIn (actionsDir (), "Action", ".scd");
-  auto const file = newFileIn (actionsDir (), name, ".scd");
+  auto const file = freeFileIn (actionsDir (), "Action", ".scd");
+  auto const name = file.getFileNameWithoutExtension ();
 
   if (!writeTextFile (file, actionScriptFor (clipSettingsFrom (*pattern))))
     {
@@ -4729,6 +4739,15 @@ A3MotionUIComponent::applySet (juce::File const &file)
   auto const set = loadSession (file, numChannels,
                             static_cast<int> (numClipSlots));
 
+  // A set without keys is one written before they were part of it, and
+  // leaves the device's alone.
+  if (set.speedButtonLog2)
+    {
+      _speedButtonLog2 = *set.speedButtonLog2;
+      if (_clipSettings)
+        _clipSettings->setSpeedButtons (_speedButtonLog2);
+    }
+
   for (int ch = 0; ch < numChannels; ++ch)
     {
       auto const index = static_cast<index_t> (ch);
@@ -4909,6 +4928,8 @@ A3MotionUIComponent::buildSession ()
             }
         }
     }
+
+  set.speedButtonLog2 = _speedButtonLog2;
 
   return set;
 }

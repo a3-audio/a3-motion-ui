@@ -70,6 +70,13 @@ juce::File newFileIn (juce::File const &root, juce::String const &name,
 juce::String freeNameIn (juce::File const &root, juce::String const &base,
                          juce::String const &extension);
 
+/** Where something new called `base` is written: in `user/`, under the first
+ *  name neither half holds. The two above together, because a caller that
+ *  took only one of them wrote into the folder's top level or over a name
+ *  that was taken -- see saveCurrentSession(). */
+juce::File freeFileIn (juce::File const &root, juce::String const &base,
+                       juce::String const &extension);
+
 /** Whether `file` is one of the instrument's own, asked of the file.
  *
  *  listFilesIn() answers this for a listing; a page holding one file has no
