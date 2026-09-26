@@ -202,3 +202,27 @@ TEST (TransportKeyGround, SaveIsGreenAndDiscardIsRed)
   EXPECT_EQ (transportColour (TransportFace::Discard),
              transportColour (TransportKey::Stop));
 }
+
+// The mark is a shape, and a shape stretched with its key is a different
+// shape: on the global strip's wide 2x2 keys the rec dot came out an oval and
+// play a flat wedge. Square and centred, whatever the key's proportions.
+TEST (TransportLook, TheGlyphIsSquareAndCentredInItsKey)
+{
+  for (auto const key : { juce::Rectangle<float>{ 0, 0, 80, 56 },
+                          juce::Rectangle<float>{ 10, 20, 40, 90 },
+                          juce::Rectangle<float>{ 0, 0, 50, 50 } })
+    {
+      auto const glyph = transportGlyphArea (key);
+
+      EXPECT_FLOAT_EQ (glyph.getWidth (), glyph.getHeight ()) << key.toString ();
+      EXPECT_FLOAT_EQ (glyph.getCentreX (), key.getCentreX ()) << key.toString ();
+      EXPECT_FLOAT_EQ (glyph.getCentreY (), key.getCentreY ()) << key.toString ();
+      EXPECT_TRUE (key.contains (glyph)) << key.toString ();
+
+      // Sized by the key's shorter side, at the share a square key always gave
+      // it -- so the square keys of before look exactly as they did.
+      auto const shorter = std::min (key.getWidth (), key.getHeight ());
+      EXPECT_FLOAT_EQ (glyph.getWidth (), shorter * transportGlyphOfKey)
+          << key.toString ();
+    }
+}

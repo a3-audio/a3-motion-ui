@@ -1165,8 +1165,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
       // draws from as well so the same action is the same mark in both places.
       // The mark never changes with the state; the ground above does.
       g.setColour (mark);
-      drawTransportGlyph (
-          g, bounds.toFloat ().reduced (bounds.getWidth () * 0.28f), face);
+      drawTransportGlyph (g, transportGlyphArea (bounds.toFloat ()), face);
     }
 
   paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);

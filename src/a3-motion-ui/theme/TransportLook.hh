@@ -145,6 +145,14 @@ juce::Colour transportColour (TransportFace face);
 void drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
                          TransportFace face);
 
+/** How much of a bar transport key's shorter side its mark takes. The share a
+ *  square key always gave it: inset by 0.28 of the width on each side. */
+constexpr float transportGlyphOfKey = 1.f - 2.f * 0.28f;
+
+/** Where a bar transport key draws its mark: a square on the key's shorter
+ *  side, centred. */
+juce::Rectangle<float> transportGlyphArea (juce::Rectangle<float> key);
+
 /** Three stacked bars: the mark a menu has had since phones grew one, and by
  *  now the one shape people look for when they want the rest of the options.
  *  Settings has no transport meaning, so it is drawn on its own rather than
