@@ -640,6 +640,19 @@ InputOutputAdapterV3::writeSetLed (uint8_t ledId, juce::Colour colour)
   if (!_hardwareAvailable)
     return;
 
+  _ledLoad.set (ledId, colour);
+  if (_ledLoad.takeNewPeak (10))
+    juce::Logger::writeToLog ("key LEDs: new peak "
+                              + juce::String (_ledLoad.peakMilliamps ())
+                              + " mA (estimated as the firmware does)");
+  if (_ledLoad.takeBudgetCrossing ())
+    juce::Logger::writeToLog (
+        "key LEDs: " + juce::String (_ledLoad.estimateMilliamps ())
+        + " mA is over the firmware's budget of "
+        + juce::String (firmwareLedBudgetMa)
+        + " -- the controller dims every key. A skin or colour rule is "
+          "brighter than the keys can take (#21).");
+
   const uint8_t frame[] = { cmdSetLed, ledId, colour.getRed (),
                             colour.getGreen (), colour.getBlue () };
   _serialPort.Write (
