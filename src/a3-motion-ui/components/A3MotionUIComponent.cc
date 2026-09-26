@@ -365,6 +365,20 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
           _mixerState.setChannelFromTouch (channel, control, value);
           _mixerStrip->syncControls ();
         };
+  // 3D, FREQ and Q stand in both pages but belong to the engine: the same
+  // two handlers the grid had, set outright rather than stepped.
+  auto const channelPotChanged = [this] (int channel, ChannelPot pot,
+                                         float value) {
+    setChannelPotValue (static_cast<index_t> (channel), pot, value);
+  };
+  auto const channelPotDoubleTapped = [this] (int channel, ChannelPot pot) {
+    resetChannelPot (static_cast<index_t> (channel), pot);
+  };
+  _mixer->onChannelPotChanged = channelPotChanged;
+  _mixerStrip->onChannelPotChanged = channelPotChanged;
+  _mixer->onChannelPotDoubleTapped = channelPotDoubleTapped;
+  _mixerStrip->onChannelPotDoubleTapped = channelPotDoubleTapped;
+
   _mixer->onMasterValueChanged = [this] (MasterControl control, float value) {
     _mixerState.setMasterFromTouch (control, value);
   };
@@ -5095,6 +5109,36 @@ A3MotionUIComponent::buildSession ()
 }
 
 void
+A3MotionUIComponent::setChannelPotValue (index_t channel, ChannelPot pot,
+                                         float value)
+{
+  auto const clamped = std::clamp (value, 0.f, 1.f);
+
+  // The engine numbers them by the panel: pot 1 is freq, pot 2 is Q, pot 3
+  // is the 3d pot.
+  switch (pot)
+    {
+    case ChannelPot::ThreeD: _engine.setChannelPot3 (channel, clamped); break;
+    case ChannelPot::Freq: _engine.setChannelPot1 (channel, clamped); break;
+    case ChannelPot::Q: _engine.setChannelPot2 (channel, clamped); break;
+    }
+
+  updateClipSettingsDisplay ();
+  scheduleSetSave ();
+}
+
+void
+A3MotionUIComponent::resetChannelPot (index_t channel, ChannelPot pot)
+{
+  if (!channelValueResetIsAllowed (_ioAdapter
+                                   && _ioAdapter->hardwareIsAvailable ()))
+    return;
+
+  if (auto const rest = channelPotRestPosition (pot))
+    setChannelPotValue (channel, pot, *rest);
+}
+
+void
 A3MotionUIComponent::refreshChannelValues ()
 {
   if (!_clipSettings)
@@ -5115,6 +5159,19 @@ A3MotionUIComponent::refreshChannelValues ()
           _engine.getChannelPot2Effective (index),
           _engine.getChannelPot3 (index),
           _engine.getChannelPot3Effective (index));
+
+      // In channelPotOrder: 3D, FREQ, Q.
+      auto const pots = ChannelPotValues{
+        { _engine.getChannelPot3 (index), _engine.getChannelPot1 (index),
+          _engine.getChannelPot2 (index) },
+        { _engine.getChannelPot3Effective (index),
+          _engine.getChannelPot1Effective (index),
+          _engine.getChannelPot2Effective (index) }
+      };
+      if (_mixer)
+        _mixer->setChannelPots (ch, pots);
+      if (_mixerStrip)
+        _mixerStrip->setChannelPots (ch, pots);
     }
 }
 

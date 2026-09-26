@@ -27,28 +27,6 @@ namespace a3
 
 namespace
 {
-/** How much of the overlay's height the filter's own row takes.
- *
- *  A sixth, which is what the row across the foot has always had — the master
- *  has left it for a column of its own and the three that remain simply have
- *  the width to themselves. The filter is neither channel nor master, and it
- *  is the one global control a hand reaches for constantly mid-set: three
- *  controls across the full width are the biggest targets on the page. Never
- *  less than a row's floor, so on a short screen the row keeps a target
- *  rather than a share. */
-constexpr float filterRowOfHeight = 1.f / 6.f;
-
-/** How much of that row's width the filter's three fields take.
- *
- *  Half, which is what "half the width each" comes to: every field gets half
- *  of the third of the row it used to have. The filter is three controls, not
- *  a band across the foot of the page, and at half a cell each the row reads
- *  like a strip's key row -- which is what it is, one deck-wide control
- *  standing for all four. The block is centred in what it no longer fills:
- *  hung on one edge under five columns it would read as a row that ran out
- *  rather than as one that was placed. */
-constexpr float filterFieldsOfRowWidth = 1.f / 2.f;
-
 /** The master's share of the width, taken before the channels break.
  *
  *  A fifth, because the page is five strips and they should read as five of
@@ -113,8 +91,12 @@ cellAcross (juce::Rectangle<int> row, int count, int index)
  *
  *  **The row count is therefore no longer the control count**, which is why
  *  the two are separate names. Dividing the strip by the control count would
- *  step six rows down a grid made for seven and leave the seventh empty. */
-constexpr int numMixerRows = numMixerFaceControls - 1;
+ *  step six rows down a grid made for seven and leave the seventh empty.
+ *
+ *  Nine since 2026-09-26: the channel's 3D, FREQ and Q stand under SEND,
+ *  a row each, above the keys. They came out of the bar's 4x3 grid, and the
+ *  filter row across the foot gave up its height for them. */
+constexpr int numMixerRows = numMixerFaceControls - 1 + numChannelPots;
 
 /** How many fields stand across the row the two keys share. */
 constexpr int fieldsInTheKeyRow = 2;
@@ -155,11 +137,19 @@ cellForMixerControl (MixerControl control)
   auto const slot = faceSlot (control);
 
   // Everything above the keys keeps a row to itself, and is the only field
-  // in it.
+  // in it. The keys are the last row, under the channel pots.
   if (slot < shared)
     return { slot, 0, 1 };
 
-  return { shared, slot - shared, fieldsInTheKeyRow };
+  return { numMixerRows - 1, slot - shared, fieldsInTheKeyRow };
+}
+
+/** The row a channel pot stands in: straight after the turned controls, in
+ *  channelPotOrder -- 3D under SEND, then FREQ, then Q. */
+constexpr int
+rowForChannelPot (int index)
+{
+  return faceSlot (MixerControl::Pfl) + index;
 }
 
 /** One of the fields a row is divided into, side by side across it.
@@ -228,7 +218,13 @@ rowsDownStrip (juce::Rectangle<int> strip, ControlMetrics metrics)
   return out;
 }
 
-/** Which of those rows a master pot stands in: the bottom ones, in order.
+/** How many of the filter's controls are turned and stand under RET in the
+ *  OUT column: FX FREQ and FX RES. FX MODE is pressed and stands on the keys'
+ *  line, like PFL and FX. */
+constexpr int filterPotsInOut = numFilterControls - 1;
+
+/** Which of those rows a master pot stands in: the bottom ones, in order,
+ *  above FX FREQ and FX RES and the keys' line.
  *
  *  The master is laid out like a channel -- its meters in the column on the
  *  left, its pots beside them -- and the pots stand at the foot, so the last
@@ -238,24 +234,25 @@ rowsDownStrip (juce::Rectangle<int> strip, ControlMetrics metrics)
 constexpr int
 rowForMasterPot (int faceSlot)
 {
-  static_assert (numMasterFaceControls <= numMixerRows,
-                 "the master's pots no longer fit into a strip's rows");
-  return numMixerRows - numMasterFaceControls + faceSlot;
+  static_assert (numMasterFaceControls + filterPotsInOut < numMixerRows,
+                 "the master's pots and the filter no longer fit into a "
+                 "strip's rows");
+  return numMixerRows - 1 - filterPotsInOut - numMasterFaceControls + faceSlot;
 }
 
 /** How many pots the bar's tab lays across its first row: everything that is
  *  turned rather than pressed. */
 constexpr int potsAcrossTheBarsStrip = numMixerFaceControls - fieldsInTheKeyRow;
 
-/** How many rows the tab has: the pots across the top, the two keys under
- *  them.
+/** How many rows the tab has: the pots across the top, the channel's 3D,
+ *  FREQ and Q under them (since 2026-09-26), the two keys at the foot.
  *
  *  The maintainer asked for it after using the tab on the device. Seven cells
  *  across one band leaves the pots a width nobody wants to aim a knob at,
  *  where two rows leave the pots the width they need and the keys the width a
  *  key needs anyway — the same trade the overlay's strip makes down its
  *  column, read the other way round. */
-constexpr int rowsDownTheBarsStrip = 2;
+constexpr int rowsDownTheBarsStrip = 3;
 
 /** How many columns the tab lays across: the five pots, and the meter
  *  standing after them.
@@ -285,26 +282,7 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
   // channels nor the master, its height does not depend on how the strips
   // break, and taking it first is what lets the columns be laid out in what
   // is left rather than in a guess at it.
-  auto columnArea = area;
-  auto const filterRow = columnArea.removeFromBottom (juce::jmax (
-      floor_, juce::roundToInt (static_cast<float> (area.getHeight ())
-                                * filterRowOfHeight)));
-
-  // Half-width fields side by side rather than the full width in thirds, and
-  // centred in the row they no longer fill. See filterFieldsOfRowWidth.
-  auto const filterFields = filterRow.withSizeKeepingCentre (
-      juce::roundToInt (static_cast<float> (filterRow.getWidth ())
-                        * filterFieldsOfRowWidth),
-      filterRow.getHeight ());
-
-  for (int i = 0; i < numFilterControls; ++i)
-    out.filter[static_cast<std::size_t> (i)]
-        = cellAcross (filterFields, numFilterControls, i);
-
-  // Then the master's column off the right, before the four break in what is
-  // left of the width. The count below stays numChannelsInitial for that
-  // reason: the master is a strip, not a channel, and it has already taken
-  // its share.
+  auto const columnArea = area;
   auto stripArea = columnArea;
   auto const masterColumn = stripArea.removeFromRight (juce::jmax (
       floor_, juce::roundToInt (static_cast<float> (columnArea.getWidth ())
@@ -383,6 +361,17 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
       // A strip so narrow that the meter leaves the controls nothing is a
       // strip that cannot be operated, and the page says so rather than
       // drawing controls nobody can land on.
+      for (int i = 0; i < numChannelPots; ++i)
+        {
+          auto const pot = rows.rows[static_cast<std::size_t> (
+              rowForChannelPot (i))];
+          out.channelPots[static_cast<std::size_t> (channel)]
+                         [static_cast<std::size_t> (i)]
+              = pot;
+          if (pot.getWidth () < floor_)
+            rowsFit = false;
+        }
+
       if (split.meter.isEmpty () || split.controls.getWidth () < floor_)
         rowsFit = false;
     }
@@ -411,6 +400,20 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
   for (int i = 0; i < numMasterFaceControls; ++i)
     out.master[static_cast<std::size_t> (i)]
         = masterRows.rows[static_cast<std::size_t> (rowForMasterPot (i))];
+
+  // The filter under RET: FX FREQ and FX RES on the next two rows, FX MODE on
+  // the keys' line.
+  for (int i = 0; i < numFilterControls; ++i)
+    {
+      auto const control = filterControlOrder[static_cast<std::size_t> (i)];
+      auto const row
+          = control == FilterControl::Mode ? numMixerRows - 1
+          : control == FilterControl::Frequency
+              ? rowForMasterPot (numMasterFaceControls)
+              : rowForMasterPot (numMasterFaceControls + 1);
+      out.filter[static_cast<std::size_t> (i)]
+          = masterRows.rows[static_cast<std::size_t> (row)];
+    }
 
   out.fits = out.strips.fits && rowsFit;
   return out;
@@ -454,12 +457,22 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
   auto const cellW = area.getWidth () / columnsAcrossTheBarsStrip;
   auto const controlArea = area.withWidth (cellW * potsAcrossTheBarsStrip);
 
-  // Two rows of the same height: the pots across the top, the keys under them.
-  // Stepped from the top with an integer row height, so the remainder lands
-  // against the bottom edge rather than between the two rows.
+  // Three rows of the same height: the pots across the top, the channel's 3D,
+  // FREQ and Q under the first three of them, the keys at the foot. Stepped
+  // from the top with an integer row height, so the remainder lands against
+  // the bottom edge rather than between the rows.
   auto const rowH = controlArea.getHeight () / rowsDownTheBarsStrip;
   auto const potRow = controlArea.withHeight (rowH);
-  auto const keyRow = potRow.withY (potRow.getY () + rowH);
+  auto const channelPotRow = potRow.withY (potRow.getY () + rowH);
+  auto const keyRow = channelPotRow.withY (channelPotRow.getY () + rowH);
+
+  for (int i = 0; i < numChannelPots; ++i)
+    {
+      auto const cell = cellAcross (channelPotRow, potsAcrossTheBarsStrip, i);
+      out.channelPots[0][static_cast<std::size_t> (i)] = cell;
+      if (cell.getWidth () < floor_ || cell.getHeight () < floor_)
+        cellsFit = false;
+    }
 
   // Across in the table's order, the way the overlay goes down it -- the same
   // list read the other way rather than a second list that agrees with it, and

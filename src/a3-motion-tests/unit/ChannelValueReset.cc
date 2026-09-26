@@ -108,3 +108,17 @@ TEST (ChannelValueReset, EachPotStartsOnItsRestPosition)
   EXPECT_FLOAT_EQ (channel.getPot1 (), restOf (channelRowFreq));
   EXPECT_FLOAT_EQ (channel.getPot2 (), restOf (channelRowQ));
 }
+
+// The three moved from the grid into the mixer strips on 2026-09-26. The
+// gesture moved with them, so what it puts back must not change on the way:
+// a knob that rests somewhere else in the mixer than it did in the grid is the
+// same value with two homes.
+TEST (ChannelValueReset, AChannelPotRestsWhereItsGridRowDid)
+{
+  EXPECT_EQ (channelPotRestPosition (ChannelPot::ThreeD),
+             channelValueRestPosition (channelRowThreeD));
+  EXPECT_EQ (channelPotRestPosition (ChannelPot::Freq),
+             channelValueRestPosition (channelRowFreq));
+  EXPECT_EQ (channelPotRestPosition (ChannelPot::Q),
+             channelValueRestPosition (channelRowQ));
+}

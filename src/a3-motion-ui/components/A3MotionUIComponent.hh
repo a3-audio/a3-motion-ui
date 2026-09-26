@@ -867,6 +867,14 @@ private:
    *  channel, not by what the bar is showing. */
   void handleChannelValueChange (index_t channel, int row, int increment);
 
+  /** One channel's 3D, FREQ or Q, set outright -- where a mixer page's knob
+   *  was turned to. The engine holds these, not MixerState. */
+  void setChannelPotValue (index_t channel, ChannelPot pot, float value);
+
+  /** Two taps on a mixer page's 3D, FREQ or Q: the grid's reset rule, see
+   *  ChannelValueReset.hh. */
+  void resetChannelPot (index_t channel, ChannelPot pot);
+
   /** Arm and start a take on this slot. Reached from the hardware (Record
    *  held while a Play|Pause pad is pressed) and from the bar's Rec button,
    *  which has no pad to name a slot and so uses the one on show. */

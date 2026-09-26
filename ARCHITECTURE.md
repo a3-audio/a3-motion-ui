@@ -1187,6 +1187,19 @@ at the bottom where it stands in the room. The MST knob is gone. **No double tap
 the one gesture that makes the whole room loud at once. The meters get a column rather than a row
 because there will be more of them than five.
 
+**The filter stands in the master's column, and each channel carries its 3D, FREQ and Q**
+(2026-09-26). The row across the overlay's foot is gone: FX FREQ and FX RES stand under RET, FX
+MODE on the channels' key line (`filterPotsInOut`, `rowForMasterPot`). The height went to the
+channels, which gained three rows under SEND for the engine's channel pots (`ChannelPot`,
+`channelPotOrder`, `rowForChannelPot`); the bar's MIX tab carries the same three as a second row
+under GAIN, HIGH and MID, and its keys shrank to a third of the height. These are the engine's
+values, not `MixerState`'s -- they reach Core through the spat backend, not the desk's wire -- so
+both pages are handed them (`setChannelPots`, from `refreshChannelValues`) with the envelope's
+effective value beside the setting, and draw the envelope as the arc above the setting
+(`channelPotReach`), the way the bar's 4x3 grid did. A knob is set outright
+(`setChannelPotValue`); two taps follow the grid's rule, including "not while a panel answers"
+(`resetChannelPot`, `channelPotRestPosition`).
+
 The overlay meter takes two fifths of its strip (`meterWidthOfStrip`), not the half asked for: the
 strip ends in PFL and FX side by side, and at half a key came out at 32 px on the device, under a
 fingertip. The column break is derived from the same two keys (`minimumMixerStripWidth`), so a

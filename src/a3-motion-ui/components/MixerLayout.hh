@@ -41,10 +41,12 @@ namespace a3
  *  into it and resized() puts the hit areas on it, so the picture and the
  *  target cannot disagree — the lesson ClipSettingsLayout stands on.
  *
- *  **Five vertical strips over one row.** The four channels, the master
- *  beside them as the fifth, and the global filter across the foot — so the
- *  eye runs across five levels instead of jumping between two arrangements,
- *  which is what a row of summing controls under the strips made it do.
+ *  **Five vertical strips.** The four channels and the master beside them as
+ *  the fifth, so the eye runs across five levels instead of jumping between
+ *  two arrangements, which is what a row of summing controls under the strips
+ *  made it do. The global filter stood in a row across the foot until
+ *  2026-09-26; it now stands in the master's column under RET, and the height
+ *  that row took went to each channel's 3D, FREQ and Q under SEND.
  *
  *  The four go through ColumnBreak rather than assuming they fit side by
  *  side, which is what makes this the widest demand the device makes and the
@@ -56,6 +58,11 @@ struct MixerLayout
   std::array<std::array<juce::Rectangle<int>, numMixerFaceControls>,
              static_cast<std::size_t> (numChannelsInitial)>
       controls;
+  /** Each channel's 3D, FREQ and Q, in channelPotOrder: under SEND in the
+   *  overlay, a second row under the pots on the bar's tab. */
+  std::array<std::array<juce::Rectangle<int>, numChannelPots>,
+             static_cast<std::size_t> (numChannelsInitial)>
+      channelPots;
   std::array<juce::Rectangle<int>, numMasterFaceControls> master;
   /** The master's meter column, left of its pots: the output bars, and the
    *  target the master volume is dragged on. Empty on the bar's tab. */
@@ -92,14 +99,13 @@ struct MixerLayout
  *  it, and how big that pot is is the performer's setting rather than this
  *  file's.
  *
- *  The master's five rectangles sit on the channels' own rows — its volume on
- *  the line their volumes are on — and the row that leaves it is empty by
- *  design: the output level meters go where a channel's two keys are.
+ *  The master's pots sit on the channels' own rows, then FX FREQ and FX RES
+ *  under RET, and FX MODE on the line the channels' two keys are on.
  *
- *  A strip has one row fewer than it has controls. PFL and FX are pressed
- *  rather than turned, so they share the last row at half its width each, and
- *  the height that frees goes to the rows above. The master's column is
- *  stepped by the same count, or the five levels would stop standing on one
+ *  A strip has a row for each turned control -- the four face pots, then 3D,
+ *  FREQ and Q -- and one more for PFL and FX, which are pressed rather than
+ *  turned and share it at half its width each. The master's column is
+ *  stepped by the same count, or the five columns would stop standing on one
  *  line. */
 /** The air a control leaves inside its cell.
  *
@@ -133,9 +139,10 @@ MixerLayout layOutMixerOverlay (juce::Rectangle<int> area,
  *  `mixerFaceOrder` still decides the order; left to right is the reading
  *  order here.
  *
- *  **Two rows and a meter at the far right.** The five pots stand across the
- *  top, PFL and FX in a row under them, and the meter takes a full-height
- *  column at the right-hand end of the band. That is the overlay's strip
+ *  **Three rows and a meter at the far right.** The five pots stand across
+ *  the top, the channel's 3D, FREQ and Q under the first three of them, PFL
+ *  and FX in a row at the foot, and the meter takes a full-height column at
+ *  the right-hand end of the band. That is the overlay's strip
  *  turned on its side: there the two keys share the last row of a column, here
  *  they share the last row of a band — and a level is read at the end of a
  *  band the way it is read before a column.

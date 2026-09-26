@@ -298,3 +298,21 @@ TEST (MixerControls, TheBoothAndThePhonesHaveNoRestPosition)
     EXPECT_FALSE (masterControlRestPosition (control).has_value ())
         << masterControlLabel (control);
 }
+
+// A channel pot's envelope is drawn the way the grid drew it: upward from the
+// setting to where the envelope holds the value, never below it. In the
+// knob's angle fraction, -1 to 1 across the scale.
+TEST (MixerControls, AChannelPotsModulationIsAnArcAboveItsSetting)
+{
+  EXPECT_FLOAT_EQ (channelPotReach (0.3f, 0.8f), 0.6f);
+  EXPECT_FLOAT_EQ (channelPotReach (0.2f, 2.f), 1.f);
+}
+
+// No arc where nothing moves the value, and none where the envelope sits
+// below the setting -- the grid clamped that to the setting, which is an arc
+// of no length. Below -1 is PotKnob's "nothing".
+TEST (MixerControls, AChannelPotWithNothingAboveItHasNoArc)
+{
+  EXPECT_LT (channelPotReach (0.3f, 0.3f), -1.f);
+  EXPECT_LT (channelPotReach (0.6f, 0.1f), -1.f);
+}

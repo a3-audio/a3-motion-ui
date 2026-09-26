@@ -28,6 +28,22 @@ namespace a3
 std::optional<float>
 channelValueRestPosition (int gridRow)
 {
+  switch (gridRow)
+    {
+    case channelRowThreeD:
+      return channelPotRestPosition (ChannelPot::ThreeD);
+    case channelRowFreq:
+      return channelPotRestPosition (ChannelPot::Freq);
+    case channelRowQ:
+      return channelPotRestPosition (ChannelPot::Q);
+    }
+
+  return {};
+}
+
+std::optional<float>
+channelPotRestPosition (ChannelPot pot)
+{
   // Twelve o'clock for 3d and freq. The knobs sweep 270 degrees, so the
   // middle of the travel is the middle of the range, and a hand reaching for
   // "put that back" reaches for one place rather than two it has to
@@ -39,12 +55,12 @@ channelValueRestPosition (int gridRow)
   // over the gesture -- a filter that still resonates after being put back
   // has not been put back -- and the far end agrees: the Airwindows Isolator3
   // this reaches rests its own Q at zero.
-  switch (gridRow)
+  switch (pot)
     {
-    case channelRowThreeD:
-    case channelRowFreq:
+    case ChannelPot::ThreeD:
+    case ChannelPot::Freq:
       return 0.5f;
-    case channelRowQ:
+    case ChannelPot::Q:
       return 0.f;
     }
 

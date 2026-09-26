@@ -22,6 +22,8 @@
 
 #include <optional>
 
+#include <a3-motion-ui/components/MixerControls.hh>
+
 namespace a3
 {
 
@@ -37,6 +39,9 @@ namespace a3
  *  about. Not a default of 0.5 for the unknown case: a row that fell through
  *  to a plausible value would look decided without being it. */
 std::optional<float> channelValueRestPosition (int gridRow);
+
+/** The same, for a channel pot where the mixer strips show it. */
+std::optional<float> channelPotRestPosition (ChannelPot pot);
 
 /** Whether the screen may put a channel value back at all.
  *
