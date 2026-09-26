@@ -330,3 +330,58 @@ TEST (PatternLibraryClips, EachCategoryIsSortedByTheNameThatIsShown)
   EXPECT_EQ (shown[3], "Anvil");
   EXPECT_EQ (shown[4], "Breathe");
 }
+
+// ── Saving a take: the shape and its clip, or neither (#33) ──────
+
+namespace
+{
+
+std::shared_ptr<Pattern>
+aTakeNamed (std::string const &name)
+{
+  auto take = std::make_shared<Pattern> ();
+  auto const ticks = static_cast<index_t> (TempoClock::getTicksPerBeat () * 4);
+  take->resize (ticks);
+  for (index_t tick = 0; tick < ticks; ++tick)
+    {
+      auto const t = static_cast<float> (tick) / static_cast<float> (ticks);
+      take->setTick (tick, Pos::fromCartesian (0.5f * std::cos (6.28f * t),
+                                               0.5f * std::sin (6.28f * t),
+                                               0.f));
+    }
+  take->markComplete ();
+  take->setName (name);
+  return take;
+}
+
+}
+
+TEST (PatternLibraryClips, ASavedTakeWritesTheShapeAndItsClip)
+{
+  auto const root = aRootHolding ("a3-library-save-both", "16_Wave.svg");
+  PatternLibrary library (root);
+  library.refresh ();
+
+  EXPECT_GT (library.saveUserPattern (aTakeNamed ("Rec_both")), 0);
+  EXPECT_TRUE (root.getChildFile ("clips/user/Rec_both.json").existsAsFile ());
+}
+
+TEST (PatternLibraryClips, ATakeWhoseClipCannotBeWrittenIsNotSaved)
+{
+  // A file where the clip folder should be: writing the clip fails whoever
+  // runs the test, which a read-only folder would not guarantee.
+  auto const root = aRootHolding ("a3-library-save-no-clip", "16_Wave.svg");
+  root.getChildFile ("clips").deleteRecursively ();
+  root.getChildFile ("clips").replaceWithText ("in the way");
+
+  PatternLibrary library (root);
+  library.refresh ();
+
+  EXPECT_EQ (library.saveUserPattern (aTakeNamed ("Rec_half")), 0)
+      << "SAVE has to be told, or it reports SAVED for a slot with no clip";
+  EXPECT_EQ (library.indexForName ("Rec_half"), 0);
+  EXPECT_EQ (root.getChildFile ("user").getNumberOfChildFiles (
+                 juce::File::findFiles, "*.svg"),
+             0)
+      << "a shape left behind would be a half-saved take in the library";
+}
