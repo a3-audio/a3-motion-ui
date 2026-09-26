@@ -24,6 +24,8 @@
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 
+#include <optional>
+
 namespace a3
 {
 
@@ -109,6 +111,27 @@ motionKnobSpec (int sub)
     case 9: return { -4.0, 4.0, 1.0, 0.0, true, false, caption::bias };
     default: return {};
     }
+}
+
+/** Where a modulation is holding a knob's value right now, in the angle
+ *  fraction PotKnob draws in -- -1 to 1 across the scale, 0 to 2 round a
+ *  ring -- or -2 when nothing is moving it.
+ *
+ *  The same mapping the LookAndFeel applies to the value itself, so the blue
+ *  arc starts exactly at the pointer. When the knobs became sliders on
+ *  2026-09-23 the modulation was left behind with the old painting code and
+ *  the arcs vanished (a3-motion-ui#35); this is the one place that says how
+ *  a held value becomes an arc. */
+constexpr float
+reachOnKnob (ClipKnobSpec const &spec, std::optional<float> held)
+{
+  if (!held.has_value () || !(spec.max > spec.min))
+    return -2.f;
+
+  auto const proportion
+      = (static_cast<double> (*held) - spec.min) / (spec.max - spec.min);
+  return static_cast<float> (spec.wraps ? proportion * 2.0
+                                        : proportion * 2.0 - 1.0);
 }
 
 }

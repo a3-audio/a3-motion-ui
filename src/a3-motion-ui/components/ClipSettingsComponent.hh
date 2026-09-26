@@ -787,6 +787,8 @@ private:
 
   /** Puts a value on the knob that stands for it, if that control is one. */
   void putOnKnob (int section, int sub, double value);
+  /** The blue arc: where a modulation is holding this knob's value now. */
+  void putReachOnKnob (int section, int sub, std::optional<float> held);
   /** Tells the knobs which of them is picked out and whose section is live. */
   void markKnobs ();
 

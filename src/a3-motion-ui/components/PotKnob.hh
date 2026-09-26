@@ -61,7 +61,9 @@ public:
   bool wraps () const { return _wraps; }
 
   /** Where something else is holding the value right now -- the spin under
-   *  the rotation. Below -1 for nothing. */
+   *  the rotation -- in the angle fraction the knob is drawn in: -1 to 1
+   *  across the scale, 0 to 2 round a ring. Below -1 for nothing. The clip
+   *  bar gets there from a held value with reachOnKnob(). */
   void setReach (float reach);
   float reach () const { return _reach; }
 

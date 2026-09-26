@@ -592,6 +592,22 @@ ClipSettingsComponent::putOnKnob (int section, int sub, double value)
 }
 
 void
+ClipSettingsComponent::putReachOnKnob (int section, int sub,
+                                       std::optional<float> held)
+{
+  auto const s = static_cast<size_t> (section);
+  if (s >= _controlKnob.size ()
+      || static_cast<size_t> (sub) >= _controlKnob[s].size ())
+    return;
+
+  if (auto &knob = _controlKnob[s][static_cast<size_t> (sub)])
+    knob->setReach (reachOnKnob (section == elevationSection
+                                     ? elevationKnobSpec (sub)
+                                     : motionKnobSpec (sub),
+                                 held));
+}
+
+void
 ClipSettingsComponent::setClipName (juce::String const &name, bool drifted)
 {
   if (name == _clipName && drifted == _clipDrifted)
@@ -619,6 +635,10 @@ ClipSettingsComponent::setElevationReach (float reach, float swept)
   putOnKnob (motionSection, 2, _elevationReach);
   _elevationReachSwept
       = swept <= -2.f ? -2.f : std::clamp (swept, -1.0f, 1.0f);
+  putReachOnKnob (motionSection, 2,
+                  _elevationReachSwept <= -2.f
+                      ? std::nullopt
+                      : std::optional<float> (_elevationReachSwept));
   repaint ();
 }
 
@@ -778,6 +798,14 @@ ClipSettingsComponent::setMotionSqueeze (float squeezeX, float squeezeY,
       = sweptX < -1.5f ? -2.f : juce::jlimit (-1.f, 1.f, sweptX);
   _motionSqueezeYSwept
       = sweptY < -1.5f ? -2.f : juce::jlimit (-1.f, 1.f, sweptY);
+  putReachOnKnob (motionSection, 4,
+                  _motionSqueezeXSwept < -1.5f
+                      ? std::nullopt
+                      : std::optional<float> (_motionSqueezeXSwept));
+  putReachOnKnob (motionSection, 6,
+                  _motionSqueezeYSwept < -1.5f
+                      ? std::nullopt
+                      : std::optional<float> (_motionSqueezeYSwept));
   repaint ();
 }
 
@@ -854,6 +882,9 @@ ClipSettingsComponent::setShapeRotate (float rotate, float reach)
   _shapeRotate = rotate;
   _shapeRotateReach = reach;
   putOnKnob (motionSection, 0, _shapeRotate);
+  // Where the spin is holding the rotation -- the blue arc, which went
+  // missing when these became sliders (a3-motion-ui#35).
+  putReachOnKnob (motionSection, 0, _shapeRotateReach);
   repaint ();
 }
 
