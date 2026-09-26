@@ -1598,3 +1598,19 @@ TEST (ClipSettingsLayout, TheElevationPictureLeadsTheGlobalStrip)
   auto const circle = elevationCircleBounds (l.elevationGraphic);
   EXPECT_GE (circle.getWidth (), l.globalContent.getWidth () / 3);
 }
+
+// A small camera in the picture's top right corner says what touching the
+// picture does: it selects the camera.
+TEST (ClipSettingsLayout, ACameraMarkSitsInThePicturesCorner)
+{
+  auto const l = defaultLayout ();
+  auto const mark = l.elevationCameraMark;
+
+  ASSERT_FALSE (mark.isEmpty ());
+  EXPECT_TRUE (l.elevationFrame.contains (mark));
+  EXPECT_EQ (mark.getWidth (), mark.getHeight ());
+  EXPECT_GT (mark.getCentreX (), l.elevationFrame.getCentreX ());
+  EXPECT_LT (mark.getCentreY (), l.elevationFrame.getCentreY ());
+  EXPECT_LE (mark.getWidth (), l.elevationFrame.getWidth () / 4)
+      << "a mark, not a second picture";
+}

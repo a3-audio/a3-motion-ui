@@ -68,6 +68,10 @@ public:
    *  on is in plain view. */
   void setCameraMode (bool on);
 
+  void mouseWheelMove (juce::MouseEvent const &event,
+                       juce::MouseWheelDetails const &wheel) override;
+  void mouseMagnify (juce::MouseEvent const &event, float scaleFactor) override;
+
   /** Called on the message thread right after config.json was re-read and
    *  the global userConfig replaced. The watcher lives here, but things
    *  outside this component are configured by that file too. */
@@ -179,6 +183,19 @@ private:
    *  mouse: the second tap lands a few pixels from the first. */
   juce::int64 _cameraTapMs = 0;
   bool _cameraMode = false;
+
+  /** How far the sphere is zoomed, as a factor on its size -- set in camera
+   *  mode by the wheel or a two-finger pinch, and read by the render thread
+   *  every frame (updateBoundsAndTransform). */
+  std::atomic<float> _cameraZoom{ 1.f };
+  /** The fingers on the sphere in camera mode, and where each was last seen.
+   *  One turns the view; two pinch the zoom. */
+  std::map<int, juce::Point<float> > _cameraFingers;
+  float _pinchDistanceAtStart = 0.f;
+  float _zoomAtPinch = 1.f;
+
+  /** The distance between the two fingers in _cameraFingers. */
+  float pinchDistance () const;
   juce::Point<float> _cameraGrabbedAt;
   SphereCamera _cameraAtGrab;
   Pos localToNormalized2DPosition (juce::Point<float> const &posLocal) const;

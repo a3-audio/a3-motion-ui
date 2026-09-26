@@ -648,21 +648,42 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
   // In camera mode the whole sphere turns the room: selected by the elevation
   // picture in the bar, which is in plain view while it is on. Two taps put
   // the view back where it starts, the one you want back in a hurry.
+  //
+  // A second finger turns the gesture into a pinch: the turning stops, and
+  // the distance between the two zooms the sphere in and out.
   if (_cameraMode)
     {
+      auto const at = event.getPosition ().toFloat ();
+      auto const alone = _cameraFingers.empty ();
+      _cameraFingers[source] = at;
+
+      if (_cameraFingers.size () == 2)
+        {
+          _cameraGrab.reset ();
+          _pinchDistanceAtStart = pinchDistance ();
+          _zoomAtPinch = _cameraZoom;
+          return;
+        }
+
+      if (!alone)
+        return;
+
+      // Only a finger alone on the sphere counts towards two taps: the
+      // second finger of a pinch lands just as quickly.
       auto const now = juce::Time::currentTimeMillis ();
       constexpr int doubleTapMs = 400;
 
       if (_cameraTapMs != 0 && now - _cameraTapMs < doubleTapMs)
         {
           _cameraTapMs = 0;
+          _cameraZoom = 1.f;
           setCamera (defaultCamera ());
           return;
         }
 
       _cameraTapMs = now;
       _cameraGrab = source;
-      _cameraGrabbedAt = event.getPosition ().toFloat ();
+      _cameraGrabbedAt = at;
       _cameraAtGrab = getCamera ();
       return;
     }
@@ -741,9 +762,14 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
   // Exactly the channel this finger held, and no other. Clearing them all was
   // right while there could only be one grab; with several it handed every
   // other blob back to playback mid-drag.
-  if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
+  if (_cameraMode)
     {
-      _cameraGrab.reset ();
+      // A pinch that loses a finger does not turn back into a turn: the
+      // finger left is still wherever the pinch put it, and a view that
+      // jumped from there would be a surprise.
+      _cameraFingers.erase (event.source.getIndex ());
+      if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
+        _cameraGrab.reset ();
       return;
     }
 
@@ -764,6 +790,26 @@ void
 MotionComponent::mouseDrag (const juce::MouseEvent &event)
 {
   auto const posPixel = event.getPosition ().toFloat ();
+
+  if (_cameraMode)
+    {
+      auto const finger = _cameraFingers.find (event.source.getIndex ());
+      if (finger != _cameraFingers.end ())
+        finger->second = posPixel;
+
+      if (_cameraFingers.size () == 2)
+        {
+          _cameraZoom = zoomFromPinch (_zoomAtPinch, _pinchDistanceAtStart,
+                                       pinchDistance ());
+          repaint ();
+          return;
+        }
+
+      // A finger that is not turning the view -- the one left over from a
+      // pinch -- does nothing. In camera mode no finger takes a blob.
+      if (_cameraGrab != std::optional<int>{ event.source.getIndex () })
+        return;
+    }
 
   if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
     {
@@ -1527,9 +1573,12 @@ MotionComponent::updateBoundsAndTransform ()
 
   auto shorterSideLength
       = juce::jmin (_boundsRender.getWidth (), _boundsRender.getHeight ());
+  // The camera's zoom on top of the skin's sphere size: camera mode's wheel
+  // and pinch make the sphere bigger or smaller, and everything drawn on it
+  // follows because everything is placed through this region.
+  auto const scale = _sphereScale * _cameraZoom;
   _boundsCenterRegion = _boundsRender.withSizeKeepingCentre (
-      shorterSideLength * _sphereScale,
-      shorterSideLength * _sphereScale);
+      shorterSideLength * scale, shorterSideLength * scale);
 
   _transformNormalizedToLocal = juce::AffineTransform ( //
       _boundsCenterRegion.getWidth () / 2.f, 0.f,
@@ -1558,8 +1607,41 @@ MotionComponent::setCameraMode (bool on)
 {
   _cameraMode = on;
   _cameraTapMs = 0;
+  _cameraFingers.clear ();
   if (!on)
     _cameraGrab.reset ();
+}
+
+float
+MotionComponent::pinchDistance () const
+{
+  if (_cameraFingers.size () != 2)
+    return 0.f;
+
+  auto const first = _cameraFingers.begin ()->second;
+  auto const second = std::next (_cameraFingers.begin ())->second;
+  return first.getDistanceFrom (second);
+}
+
+void
+MotionComponent::mouseWheelMove (juce::MouseEvent const &,
+                                 juce::MouseWheelDetails const &wheel)
+{
+  if (!_cameraMode)
+    return;
+
+  _cameraZoom = zoomFromWheel (_cameraZoom, wheel.deltaY);
+  repaint ();
+}
+
+void
+MotionComponent::mouseMagnify (juce::MouseEvent const &, float scaleFactor)
+{
+  if (!_cameraMode)
+    return;
+
+  _cameraZoom = zoomFromPinch (_cameraZoom, 1.f, scaleFactor);
+  repaint ();
 }
 
 SphereCamera

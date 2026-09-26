@@ -412,6 +412,9 @@ struct ClipSettingsLayout
    *  like the faces' and the transport's. Touched, it selects the picture:
    *  while selected, the big sphere turns the camera. */
   juce::Rectangle<int> elevationFrame;
+  /** The little camera in the frame's top right corner: what touching the
+   *  picture selects. */
+  juce::Rectangle<int> elevationCameraMark;
   /** The Shape section's pictogram and the name under it. */
   juce::Rectangle<int> trajectoryIcon;
   juce::Rectangle<int> trajectoryName;

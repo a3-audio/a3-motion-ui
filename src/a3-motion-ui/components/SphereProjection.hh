@@ -128,6 +128,19 @@ SphereCamera cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
  *  ball. */
 SphereCamera cameraSettled (SphereCamera camera);
 
+/** How far the sphere may be zoomed, as a factor on its size. */
+constexpr float minCameraZoom = 0.5f;
+constexpr float maxCameraZoom = 3.f;
+
+/** Where a two-finger pinch leaves the zoom: the zoom when it began, times
+ *  how far the fingers have moved apart since, held inside the limits. */
+float zoomFromPinch (float zoomAtStart, float distanceAtStart,
+                     float distanceNow);
+
+/** Where a turn of the wheel leaves the zoom: up is in, in steps that feel
+ *  the same at every zoom. Held inside the limits. */
+float zoomFromWheel (float zoom, float wheelDeltaY);
+
 /** A point of the way from one direction to another, walked *along* the
  *  sphere rather than straight across it.
  *

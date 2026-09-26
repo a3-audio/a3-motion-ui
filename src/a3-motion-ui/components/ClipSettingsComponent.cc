@@ -1143,6 +1143,31 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
 }
 
 void
+ClipSettingsComponent::paintCameraMark (juce::Graphics &g,
+                                        juce::Rectangle<int> bounds) const
+{
+  if (bounds.isEmpty ())
+    return;
+
+  // A camera, drawn: a body, a lens in it and the finder on top. In the
+  // accent while camera mode is on, muted while it waits to be chosen.
+  auto const area = bounds.toFloat ();
+  auto const w = area.getWidth ();
+  auto const body = area.withTrimmedTop (w * 0.3f).withTrimmedBottom (w * 0.1f);
+  auto const finder = juce::Rectangle<float> (w * 0.3f, w * 0.18f)
+                          .withCentre ({ body.getCentreX (),
+                                         body.getY () - w * 0.08f });
+  auto const lensR = body.getHeight () * 0.3f;
+
+  g.setColour (_cameraMode ? toColour (theme ().accent)
+                           : toColour (theme ().textMuted));
+  g.fillRoundedRectangle (finder, w * 0.04f);
+  g.drawRoundedRectangle (body, w * 0.1f, theme ().strokeThin * 1.5f);
+  g.drawEllipse (body.getCentreX () - lensR, body.getCentreY () - lensR,
+                 lensR * 2.f, lensR * 2.f, theme ().strokeThin * 1.5f);
+}
+
+void
 ClipSettingsComponent::setCameraMode (bool on)
 {
   if (_cameraMode == on)
@@ -1533,6 +1558,7 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
                               theme ().radiusControl);
     }
   paintElevationGraphic (g, _layout.elevationGraphic, _cameraMode);
+  paintCameraMark (g, _layout.elevationCameraMark);
 
   paintSetOffFrame (g, _layout.channelFacesFrame);
   paintSetOffFrame (g, _layout.transportFrame);

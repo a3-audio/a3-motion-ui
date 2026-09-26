@@ -518,6 +518,8 @@ private:
   /** The REC page's card: its title, and the rec mode's key. Fade and bias
    *  are knobs and draw themselves. */
   void paintRecordSection (juce::Graphics &g);
+  /** The little camera in the elevation picture's corner. */
+  void paintCameraMark (juce::Graphics &g, juce::Rectangle<int> bounds) const;
   /** Show each control on the pages it stands on, hide it elsewhere. */
   void showControlsOfPage ();
   /** One action button: a filled, labelled box. Not paintMiniToggle — that

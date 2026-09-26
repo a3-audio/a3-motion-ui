@@ -753,6 +753,15 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                                     content.getHeight () * 9 / 20);
       out.elevationFrame = content.removeFromTop (side);
       out.elevationGraphic = out.elevationFrame.reduced (frameInset);
+
+      // The little camera in the top right corner, where the round picture
+      // leaves room: an eighth of the frame, inset like the frame's content.
+      auto const markSide = juce::jmax (1, out.elevationFrame.getWidth () / 8);
+      out.elevationCameraMark
+          = juce::Rectangle<int> (markSide, markSide)
+                .withPosition (out.elevationFrame.getRight () - frameInset
+                                   - markSide,
+                               out.elevationFrame.getY () + frameInset);
       content.removeFromTop (juce::jmin (content.getHeight (), blockGap));
     }
 
