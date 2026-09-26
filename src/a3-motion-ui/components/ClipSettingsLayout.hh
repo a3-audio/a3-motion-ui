@@ -434,6 +434,9 @@ struct ClipSettingsLayout
    *  the channel whose clip the bar is describing, so it stands with the
    *  clip's own views rather than after the way out of them. */
   juce::Rectangle<int> tabMixer;
+  /** Not a view: opens and closes the big mixer over the sphere, and is lit
+   *  while it is open. It stood in the status bar as MIX until 2026-09-26. */
+  juce::Rectangle<int> tabMainMix;
   /** The way to the browser. A folder rather than a fourth word: the three
    *  tabs are views of the clip you are on, and this leaves it. */
   juce::Rectangle<int> tabBrowser;

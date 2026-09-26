@@ -753,6 +753,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   _clipSettings->onPageSelected
       = [this] (BarPage page) { showBarPage (page); };
+  _clipSettings->onMainMixTapped = [this] { toggleMixer (); };
+  _clipSettings->setMainMixOpen (_mixerOpen);
 
   _controller = std::make_unique<ControllerComponent> ();
   _controller->onPadPressed = [this] (index_t channel, index_t pad) {
@@ -1300,7 +1302,6 @@ A3MotionUIComponent::createMainUI ()
 
   _statusBar = std::make_unique<StatusBar> (_valueBPM);
   _statusBar->onKeyboardIconTapped = [this] { toggleKeyboard (); };
-  _statusBar->onMixIconTapped = [this] { toggleMixer (); };
   _statusBar->onCleanIconTapped = [this] { toggleClean (); };
   addChildComponent (*_statusBar);
   _statusBar->setVisible (true);
@@ -1912,8 +1913,8 @@ A3MotionUIComponent::toggleGlobalSettings ()
 
   // One level at a time: the mixer, then a name being typed, then the editor,
   // then the menu itself. The mixer is first because it is the only one of
-  // them that is opened from outside this chain — the MIX key in the status
-  // bar is reachable whatever else is up — so it is the innermost room
+  // them that is opened from outside this chain — MAINMIX in the bar's header
+  // is reachable whatever else is up — so it is the innermost room
   // whenever it is open. Back and Close do the same thing to it, which is no
   // fault: it has no levels, and two ways out of one room is not one.
   if (_mixerOpen)
@@ -1962,10 +1963,10 @@ A3MotionUIComponent::showMixer (bool open)
     _mixer->toFront (false);
 
   // Guarded because the overlay is built with the rest of the sphere's
-  // furniture, well before the status bar exists — and closeAllOverlays()
-  // is reachable from anywhere.
-  if (_statusBar)
-    _statusBar->setMixOpen (open);
+  // furniture, well before the bar exists — and closeAllOverlays() is
+  // reachable from anywhere.
+  if (_clipSettings)
+    _clipSettings->setMainMixOpen (open);
 
   updateOverlayButtons ();
 }

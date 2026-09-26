@@ -84,15 +84,8 @@ public:
 
   void setKeyboardState (KeyboardState state);
 
-  /** Tapped when the MIX key left of the keyboard icon is touched. The bar
-   *  owns no mixer — it only says the key was hit. */
-  std::function<void ()> onMixIconTapped;
-
-  /** Whether the mixer overlay is open, so the key can wear it. Every other
-   *  key on this device that stands for a state wears it. */
-  void setMixOpen (bool open);
-
-  /** Tapped when the CLEAN key left of MIX is touched. The bar owns no skins
+  /** Tapped when the CLEAN key left of the keyboard icon is touched. The bar
+   *  owns no skins
    *  -- it only says the key was hit. See theme/CleanSkin.hh. */
   std::function<void ()> onCleanIconTapped;
 
@@ -179,10 +172,10 @@ private:
    *  how the next reader loses both. */
   void paintPlayheads (juce::Graphics &g, juce::Rectangle<float> tick);
 
-  /** A key that is a word: MIX and CLEAN. Its own function rather than lines
-   *  in paint(), which already carries the keyboard icon's reasoning — and
-   *  one function for both, so two neighbouring keys cannot drift into
-   *  reading by two rules. */
+  /** A key that is a word: CLEAN. Its own function rather than lines in
+   *  paint(), which already carries the keyboard icon's reasoning. MIX used
+   *  to be drawn by it too; that key moved into the bar as MAINMIX on
+   *  2026-09-26. */
   void paintWordKey (juce::Graphics &g, juce::Rectangle<int> area,
                      juce::String const &word, bool available, bool on);
 
@@ -193,8 +186,6 @@ private:
 
   juce::Rectangle<int> _keyboardIconArea;
   KeyboardState _keyboardState = KeyboardState::Unavailable;
-  juce::Rectangle<int> _mixIconArea;
-  bool _mixOpen = false;
   juce::Rectangle<int> _cleanIconArea;
   bool _cleanAvailable = false;
   bool _cleanActive = false;

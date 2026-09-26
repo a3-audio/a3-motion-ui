@@ -382,7 +382,7 @@ TEST (MixerLayout, TheBarsStripLaysOutOneChannelOnly)
 }
 
 // The master and the filter are not here: the tab is about one channel, and
-// the whole mixer is one tap away on the MIX key in the status bar.
+// the whole mixer is one tap away on MAINMIX.
 TEST (MixerLayout, TheBarsStripCarriesNoMasterAndNoFilter)
 {
   auto const layout = layOutMixerStrip (aBarStrip (), metrics);

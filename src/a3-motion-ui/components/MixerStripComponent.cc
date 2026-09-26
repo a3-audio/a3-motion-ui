@@ -254,7 +254,7 @@ MixerStripComponent::paint (juce::Graphics &g)
   // No ground of its own. The bar has already filled this area with its own
   // surface, and a second panel over it would make the page read as an
   // overlay laid on the bar rather than as one of its views -- which is the
-  // whole distinction between this and the MIX key in the status bar.
+  // whole distinction between this and MAINMIX beside it.
 
   if (!_layout.fits)
     {

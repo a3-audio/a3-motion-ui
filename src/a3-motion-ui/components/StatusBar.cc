@@ -183,18 +183,10 @@ StatusBar::resized ()
   _keyboardIconArea = bounds.removeFromRight (
       static_cast<int> (bounds.getHeight () * 1.5f));
 
-  // Left of the keyboard icon and the same size, so the two read as a pair of
-  // keys at the end of the bar rather than as two unrelated marks. What it
-  // costs is width off the band the two labels share; the readout absorbs
-  // most of it, being right-aligned and growing leftwards into the gap, and
-  // it is the one thing here that can give width up — text that is read
-  // rather than a target that is hit.
-  _mixIconArea = bounds.removeFromRight (_keyboardIconArea.getWidth ());
-
-  // CLEAN left of MIX, a third key of the same size in the same row: asked
-  // for "oben in der statusleiste neben onscreen", and MIX already holds the
-  // place right beside the keyboard. Wider than the other two by a third,
-  // because it is the longer word and a squeezed word is read, not glanced.
+  // CLEAN left of the keyboard icon, in the same row: asked for "oben in der
+  // statusleiste neben onscreen". Wider than the icon by a third, because it
+  // is a word and a squeezed word is read, not glanced. MIX stood between the
+  // two until 2026-09-26; it is MAINMIX in the bar's header row now.
   _cleanIconArea = bounds.removeFromRight (
       _keyboardIconArea.getWidth () * 4 / 3);
 
@@ -352,16 +344,6 @@ StatusBar::setKeyboardState (KeyboardState state)
 }
 
 void
-StatusBar::setMixOpen (bool open)
-{
-  if (_mixOpen == open)
-    return;
-
-  _mixOpen = open;
-  repaint (_mixIconArea);
-}
-
-void
 StatusBar::setCleanState (bool available, bool active)
 {
   if (_cleanAvailable == available && _cleanActive == active)
@@ -379,12 +361,6 @@ StatusBar::mouseUp (juce::MouseEvent const &event)
     {
       if (_cleanAvailable && onCleanIconTapped)
         onCleanIconTapped ();
-      return;
-    }
-
-  if (_mixIconArea.contains (event.getPosition ()) && onMixIconTapped)
-    {
-      onMixIconTapped ();
       return;
     }
 
@@ -437,8 +413,6 @@ StatusBar::paint (juce::Graphics &g)
   // the frames that are actually paid for.
 
   paintWordKey (g, _cleanIconArea, "CLEAN", _cleanAvailable, _cleanActive);
-  paintWordKey (g, _mixIconArea, "MIX", true, _mixOpen);
-
   // A keyboard, drawn rather than typed: three rows of keys and a space bar,
   // small enough to read as an icon at this size.
   auto const face = _keyboardIconArea.reduced (_keyboardIconArea.getWidth () / 5,

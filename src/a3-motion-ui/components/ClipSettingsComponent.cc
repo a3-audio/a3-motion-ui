@@ -218,6 +218,13 @@ ClipSettingsComponent::createTouchControls ()
   makeTab (_tabMixerTouch, BarPage::Mixer);
   makeTab (_tabBrowserTouch, BarPage::Browser);
 
+  _tabMainMixTouch = std::make_unique<TouchControl> ();
+  _tabMainMixTouch->onTap = [this] (int, int) {
+    if (onMainMixTapped)
+      onMainMixTapped ();
+  };
+  addAndMakeVisible (*_tabMainMixTouch);
+
   // In front of the cards, so it swallows what would otherwise reach the
   // Elevation card. No callbacks: a picture is not a control.
   _elevationGraphicTouch = std::make_unique<TouchControl> ();
@@ -480,6 +487,7 @@ ClipSettingsComponent::resized ()
   _tabActionTouch->setBounds (_layout.tabAction);
   _tabControllerTouch->setBounds (_layout.tabController);
   _tabMixerTouch->setBounds (_layout.tabMixer);
+  _tabMainMixTouch->setBounds (_layout.tabMainMix);
   _tabBrowserTouch->setBounds (_layout.tabBrowser);
 
   for (int i = 0; i < numSpeedButtons; ++i)
@@ -1171,7 +1179,8 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
   paintTab (_layout.tabAction, "ACTION", _page == BarPage::Action);
   paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
-  paintTab (_layout.tabMixer, "MIX", _page == BarPage::Mixer);
+  paintTab (_layout.tabMixer, "CHMIX", _page == BarPage::Mixer);
+  paintTab (_layout.tabMainMix, "MAINMIX", _mainMixOpen);
 
   // A word like the three beside it. It was a folder mark, on the reasoning
   // that the tabs are views of the clip and this one leaves it -- but once
@@ -1180,6 +1189,16 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   // smudge.
   paintTab (_layout.tabBrowser, "FILES", _page == BarPage::Browser);
 
+}
+
+void
+ClipSettingsComponent::setMainMixOpen (bool open)
+{
+  if (_mainMixOpen == open)
+    return;
+
+  _mainMixOpen = open;
+  repaint (_layout.tabMainMix);
 }
 
 juce::Rectangle<int>

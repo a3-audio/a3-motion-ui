@@ -360,6 +360,11 @@ public:
   juce::Rectangle<int> clipContentBounds () const;
   /** A tab was tapped. */
   std::function<void (BarPage page)> onPageSelected;
+  /** MAINMIX was tapped: open or close the big mixer. Not a page -- the
+   *  mixer lies over the sphere, and the bar stays on the page it was on. */
+  std::function<void ()> onMainMixTapped;
+  /** Whether the big mixer is open, so MAINMIX can wear it. */
+  void setMainMixOpen (bool open);
   /** Tapped, except Action, which is held for as long as the finger is down --
    *  the same distinction the pads make, because these are the same four
    *  things and two ways to do one thing must not behave differently. */
@@ -730,6 +735,8 @@ private:
   std::unique_ptr<TouchControl> _tabActionTouch;
   std::unique_ptr<TouchControl> _tabControllerTouch;
   std::unique_ptr<TouchControl> _tabMixerTouch;
+  std::unique_ptr<TouchControl> _tabMainMixTouch;
+  bool _mainMixOpen = false;
   std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
 
   std::unique_ptr<TouchControl> _recModeTouch;

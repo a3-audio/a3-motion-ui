@@ -905,8 +905,9 @@ than three sections each arranging their own. TAP lights up for **a finger only*
 on every beat too, which put a blinking light on a bar meant to be read.
 
 The global section is laid out top to bottom (2026-09-26): the **four channel faces** in a frame of
-their own, moved up out of the clip's header row, which now holds only the five views (CLIP ACTION
-PADS MIX FILES); then the **transport two by two**, arranged like a clip's pads on PADS — play and
+their own, moved up out of the clip's header row, which now reads CLIP ACTION FILES CHMIX MAINMIX
+PADS. CHMIX is the shown channel's strip (the MIX tab before); MAINMIX is not a page but the toggle
+for the big mixer over the sphere, lit while it is open, which stood in the status bar as MIX; then the **transport two by two**, arranged like a clip's pads on PADS — play and
 stop over act and rec, rec taking the corner the pads give to Settings — taking all the
 height between the faces and the keys, which the 4x3 grid used to have; then the **six function
 keys** two by three. The rec mode is a button like the others and steps through the modes on a tap,
@@ -1145,7 +1146,7 @@ it is comes from the clock key, on the screen and under the hand; a third place 
 place to keep in step. That readout also had three writers, one of which set the text without the
 colour, so what you got depended on which arrived last. One writer now.
 
-**The CLEAN key** (left of MIX) switches to the skin `config/skins/clean.json` and back to the one it
+**The CLEAN key** (left of the keyboard icon) switches to the skin `config/skins/clean.json` and back to the one it
 left — trajectories as a thin line, plain blobs, a faint glow in the speakers, every other effect at
 0. A skin rather than a layer of switches over the skins, because a skin can already turn each of
 those down to nothing; what the key adds is only the way back (`theme/CleanSkin.hh`,
@@ -1166,7 +1167,7 @@ until then), on the baffle — and from overhead the baffle is edge-on, so it wa
 The corona that says which blob is playing is the existing one, `blob.sizeMin..sizeMax` over the
 level; clean raises `sizeMax` so a loud blob's reaches past its body and a silent one's does not.
 
-**A channel's VU meter is its VOL**, on both MIX pages (the overlay's four strips and the bar's MIX
+**A channel's VU meter is its VOL**, on both mixer pages (the overlay's four strips and the bar's CHMIX
 tab), and the VOL knob is gone from both: `mixerFaceOrder` lists what a page lays out, while
 `mixerControlOrder` still counts the state and the OSC wire, which carry VOL as before. A drag on
 the meter is relative and one to one (`vuMeterDragVolume()`): it starts from where VOL stood when
@@ -1194,7 +1195,7 @@ because there will be more of them than five.
 (2026-09-26). The row across the overlay's foot is gone: FX FREQ and FX RES stand under RET, FX
 MODE on the channels' key line (`filterPotsInOut`, `rowForMasterPot`). The height went to the
 channels, which gained three rows under SEND for the engine's channel pots (`ChannelPot`,
-`channelPotOrder`, `rowForChannelPot`); the bar's MIX tab carries the same three as a second row
+`channelPotOrder`, `rowForChannelPot`); the bar's CHMIX tab carries the same three as a second row
 under GAIN, HIGH and MID, and its keys shrank to a third of the height. These are the engine's
 values, not `MixerState`'s -- they reach Core through the spat backend, not the desk's wire -- so
 both pages are handed them (`setChannelPots`, from `refreshChannelValues`) with the envelope's

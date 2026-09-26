@@ -148,7 +148,7 @@ MixerLayout layOutMixerOverlay (juce::Rectangle<int> area,
  *  band the way it is read before a column.
  *
  *  `master` and `filter` stay empty. The tab is about one channel, and the
- *  whole mixer is one tap away on the status bar's MIX key — a summing
+ *  whole mixer is one tap away on MAINMIX — a summing
  *  section squeezed into a quarter of the bar would be neither.
  *
  *  It returns the same struct as the overlay's so the two components draw

@@ -335,13 +335,12 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   auto headerArea = area.removeFromTop (headerH);
 
-  // Left to right, in the order they are reached for: the five views of the
-  // clip, the folder closing the row because it is the way out of the clip
-  // you are on. The channel faces that led the row stand at the top of the
-  // global strip since 2026-09-26 -- see there.
+  // Left to right, as the maintainer set it on 2026-09-26: CLIP ACTION FILES
+  // CHMIX MAINMIX PADS. The channel faces that led the row stand at the top of
+  // the global strip since then -- see there.
   auto const headerGap = juce::jmax (2, headerGapOfHeader.of (headerH));
 
-  constexpr int numViews = 5;
+  constexpr int numViews = 6;
   constexpr int numHeaderGaps = numViews - 1;
 
   // **Every edge is computed from the row's whole width, not stepped across
@@ -382,20 +381,16 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // The clip's own view leads the row: it is the one the others are
   // variations on.
   out.tabClip = takeView ();
-  // Next to CLIP: ACTION is another way of looking at the clip, and PADS is
-  // the view that is about something else.
   out.tabAction = takeView ();
-  out.tabController = takeView ();
-
-  // Between PADS and the folder: MIX is about the channel of the clip on
-  // show, so it belongs beside the views of that clip and before the way out
-  // of it.
-  out.tabMixer = takeView ();
-
-  // The folder closes the row. It is the way *out* of the clip you are on,
-  // so it ends the row rather than leading it -- and it stands where the slot
-  // keys used to, which is where a hand already goes for "something else".
   out.tabBrowser = takeView ();
+
+  // The two mixers side by side: the shown channel's strip (CHMIX), then the
+  // whole mixer over the sphere (MAINMIX), which came down from the status
+  // bar so both are opened from one place.
+  out.tabMixer = takeView ();
+  out.tabMainMix = takeView ();
+
+  out.tabController = takeView ();
 
   for (index_t slot = 0; slot < numPadSlots; ++slot)
     out.slotButtons[slot] = {};

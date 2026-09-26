@@ -574,9 +574,9 @@ private:
   std::unique_ptr<OverlayButtons> _overlayButtons;
   std::unique_ptr<OverlaySideStrips> _overlayStrips;
 
-  /** The software mixer, over the sphere, reached from the MIX key in the
-   *  status bar rather than from a tab in the settings bar: it has nothing to
-   *  do with the clip that bar describes. */
+  /** The software mixer, over the sphere, reached from MAINMIX in the bar's
+   *  header row (the status bar's MIX key until 2026-09-26). Not a page: the
+   *  bar stays on the page it was on while the mixer lies over the sphere. */
   std::unique_ptr<MixerComponent> _mixer;
   /** The same strip for one channel, as the settings bar's MIX page. The
    *  overlay above is the whole mixer when you want it; this is the reach to

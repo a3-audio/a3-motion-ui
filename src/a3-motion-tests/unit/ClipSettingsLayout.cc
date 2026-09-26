@@ -65,6 +65,15 @@ grownBar (float headerSize, float bodySize, float potSize)
                headerSize, bodySize, knobDiameterForFont (bodySize, potSize)) };
 }
 
+/** The header's keys in the order they stand, left to right (2026-09-26):
+ *  CLIP ACTION FILES CHMIX MAINMIX PADS. */
+std::vector<juce::Rectangle<int> >
+headerKeys (ClipSettingsLayout const &l)
+{
+  return { l.tabClip,  l.tabAction,  l.tabBrowser,
+           l.tabMixer, l.tabMainMix, l.tabController };
+}
+
 ClipSettingsLayout
 defaultLayout ()
 {
@@ -268,7 +277,9 @@ TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
     }
 }
 
-// The header row is the five views of the clip and nothing else. The channel
+// The header row is CLIP ACTION FILES CHMIX MAINMIX PADS, in that order.
+// MAINMIX came down from the status bar on 2026-09-26: the big mixer is
+// opened from where the channel's own strip is. The channel
 // faces that led it went up into the global strip on 2026-09-26, where the
 // 4x3 grid was: which clip the bar describes is a device-wide choice, like
 // the transport under them.
@@ -276,9 +287,7 @@ TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
 {
   auto const l = defaultLayout ();
 
-  std::vector<juce::Rectangle<int> > const row{ l.tabClip, l.tabAction,
-                                                l.tabController, l.tabMixer,
-                                                l.tabBrowser };
+  auto const row = headerKeys (l);
 
   int previousRight = 0;
   for (size_t i = 0; i < row.size (); ++i)
@@ -685,35 +694,24 @@ TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
 
 // ── The header's transport keys ──────────────────────────────────────────
 
-// Three views share the row with four channel faces, their toggles and the
-// folder. The tabs are how you change page and are hit mid-set, so each keeps
-// a fingertip.
-//
-// From the device's own width up. The screen is 768 wide (1024 tall, turned
-// on its side), and below that the row cannot hold what it holds: twelve
-// targets at a fingertip each are 408 pixels before a single gap, against
-// three quarters of the width. Testing widths the device does not have would
-// only ask the layout to do something no layout can.
-TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
+// Every key in the header keeps a fingertip, at every width from the
+// device's own 768 up, in reading order and none overlapping.
+TEST (ClipSettingsLayout, TheTabsKeepTheirRoomAtEveryWidth)
 {
   for (int width : { 768, 1024, 1280, 1920 })
     {
       auto const layout
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
+      auto const row = headerKeys (layout);
 
-      for (auto const &tab : { layout.tabClip,
-                               layout.tabAction, layout.tabController,
-                               layout.tabMixer })
+      for (size_t i = 0; i < row.size (); ++i)
         {
-          EXPECT_GE (tab.getWidth (), fingertipSize) << "width " << width;
-          EXPECT_FALSE (tab.isEmpty ()) << "width " << width;
+          EXPECT_GE (row[i].getWidth (), fingertipSize)
+              << "key " << i << " at width " << width;
+          if (i > 0)
+            EXPECT_LE (row[i - 1].getRight (), row[i].getX ())
+                << "key " << i << " at width " << width;
         }
-
-      // In reading order, none of them overlapping.
-      EXPECT_LE (layout.tabClip.getRight (), layout.tabAction.getX ());
-      EXPECT_LE (layout.tabAction.getRight (), layout.tabController.getX ());
-      EXPECT_LE (layout.tabController.getRight (), layout.tabMixer.getX ());
-      EXPECT_LE (layout.tabMixer.getRight (), layout.tabBrowser.getX ());
     }
 }
 
@@ -735,7 +733,7 @@ TEST (ClipSettingsLayout, TheHeaderRowFillsTheWidth)
       // right quarter, and the header row ends where the clip part does.
       auto const marginLeft = l.tabClip.getX () - l.clipBounds.getX ();
       auto const marginRight
-          = l.clipBounds.getRight () - l.tabBrowser.getRight ();
+          = l.clipBounds.getRight () - headerKeys (l).back ().getRight ();
 
       EXPECT_LE (std::abs (marginLeft - marginRight), 1)
           << "width " << width << ": left " << marginLeft << ", right "
@@ -755,8 +753,7 @@ TEST (ClipSettingsLayout, TheTabsShareTheRemainderEvenly)
 
       int widest = 0;
       int narrowest = std::numeric_limits<int>::max ();
-      for (auto const &tab : { l.tabClip, l.tabAction, l.tabController,
-                               l.tabMixer, l.tabBrowser })
+      for (auto const &tab : headerKeys (l))
         {
           widest = juce::jmax (widest, tab.getWidth ());
           narrowest = juce::jmin (narrowest, tab.getWidth ());
@@ -1318,34 +1315,17 @@ TEST (ClipSettingsLayout, TheFacesStandTogetherInAFrameAtTheTopOfTheStrip)
     }
 }
 
-// The folder goes to the far right, where the slot keys were. It is the way
-// out of the clip you are on, so it sits at the end of the row rather than
-// leading it.
-TEST (ClipSettingsLayout, TheFolderClosesTheRow)
+// PADS closes the row, after the two mixers.
+TEST (ClipSettingsLayout, PadsCloseTheRow)
 {
   auto const l = defaultLayout ();
 
-  ASSERT_FALSE (l.tabBrowser.isEmpty ());
-  EXPECT_GT (l.tabBrowser.getX (), l.tabController.getX ());
-  EXPECT_GT (l.tabBrowser.getX (), l.tabMixer.getX ());
-
-  // Still inside the clip part, and the same key as every other in the row
-  // -- within a pixel, since the row's remainder is spread across the keys so
-  // it ends flush. See TheHeaderRowFillsTheWidth.
-  EXPECT_TRUE (l.clipBounds.contains (l.tabBrowser));
-  EXPECT_LE (std::abs (l.tabBrowser.getWidth () - l.tabAction.getWidth ()), 1);
+  ASSERT_FALSE (l.tabController.isEmpty ());
+  for (auto const &key : headerKeys (l))
+    EXPECT_LE (key.getX (), l.tabController.getX ());
+  EXPECT_TRUE (l.clipBounds.contains (l.tabController));
 }
 
-// And the three remaining views keep their place between the faces and the
-// folder, in reading order.
-TEST (ClipSettingsLayout, TheThreeViewsStandBetweenThem)
-{
-  auto const l = defaultLayout ();
-
-  EXPECT_GT (l.tabAction.getX (), l.tabClip.getX ());
-  EXPECT_GT (l.tabController.getX (), l.tabAction.getX ());
-  EXPECT_GT (l.tabMixer.getX (), l.tabController.getX ());
-}
 
 // Every channel has a face of its own, on every page: the global strip
 // stands on all of them.
@@ -1376,9 +1356,7 @@ TEST (ClipSettingsLayout, TheHeaderViewsAreOneSize)
       auto const l
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
-      std::vector<juce::Rectangle<int> > const views{
-        l.tabClip, l.tabAction, l.tabController, l.tabMixer, l.tabBrowser
-      };
+      auto const views = headerKeys (l);
 
       for (size_t i = 1; i < views.size (); ++i)
         {

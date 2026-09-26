@@ -44,7 +44,7 @@ namespace a3
  *  The overlay is the whole mixer when you want it; this is the one-handed
  *  reach to the channel you are already looking at, without laying anything
  *  over the sphere. So it carries one strip and no summing section — those
- *  are one tap away on the status bar's MIX key.
+ *  are one tap away on MAINMIX, beside this page's own tab.
  *
  *  MixerComponent's smaller sibling, and deliberately built the same way: a
  *  pure layout (`layOutMixerStrip`) says where the seven controls sit,

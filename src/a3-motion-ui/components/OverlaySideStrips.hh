@@ -38,8 +38,8 @@ namespace a3
  *  answer and it was got wrong: the strips serve **the overlay in front**,
  *  and only if that one has a list to walk.
  *
- *  The mixer is in front whenever it is open. It is opened from the MIX key
- *  in the status bar, which is reachable whatever else is up, so it can stand
+ *  The mixer is in front whenever it is open. It is opened from MAINMIX in
+ *  the bar's header row, which is reachable whatever else is up, so it can stand
  *  over an open menu -- and toggleGlobalSettings() already treats it as the
  *  innermost room for exactly that reason. It is a grid, every control of
  *  which is touched directly, so it has no list.
