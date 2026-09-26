@@ -343,10 +343,6 @@ public:
    *  says and what it deliberately does not. */
   void setInputLevels (std::array<VuLevel, numChannelsInitial> const &inputs);
 
-  void setChannelValues (int channel, float freq, float freqEffective,
-                         float q, float qEffective, float threeD,
-                         float threeDEffective);
-
   /** Which section (0..numParameters-1) is currently selected/highlighted. */
   void setSelectedParameterIndex (int index);
 
@@ -362,10 +358,6 @@ public:
    *  controller page covers when it is showing. Under the header row, which
    *  belongs to the bar on both pages. */
   juce::Rectangle<int> clipContentBounds () const;
-  /** Where the global strip's three channel rows stand, in the bar's own
-   *  coordinates — one rectangle over all three. The ACTION page lines its
-   *  own rows up with these so 3d, freq and q read straight across the bar. */
-  juce::Rectangle<int> globalGridRowsBounds () const;
   /** A tab was tapped. */
   std::function<void (BarPage page)> onPageSelected;
   /** Tapped, except Action, which is held for as long as the finger is down --
@@ -434,15 +426,6 @@ public:
   /** Two taps on a knob put it back to its default. Separate from a toggle:
    *  the value it lands on is decided by whoever owns the value, not here. */
   std::function<void (int section, int sub)> onControlReset;
-
-  /** A cell of the per-channel grid was dragged. `row` is in channelRow*
-   *  order. */
-  std::function<void (int channel, int row, int increment)>
-      onChannelValueDragged;
-
-  /** Two taps on one of the three channel knobs: put it back to its rest.
-   *  Not wired when the hardware panel is attached -- see where it is set. */
-  std::function<void (int channel, int row)> onChannelValueReset;
 
   /** The global strip's action buttons. Device-wide functions the hardware
    *  has its own keys for — this is the way to them with a finger. */
@@ -535,14 +518,6 @@ private:
    *  visible in parallel — same style as the Elevation controls. */
   void paintMotionSection (juce::Graphics &g, bool isSelected);
   /** Freq / Q (knobs), single row. */
-  /** The global section's 4x3 grid, each column in its channel's colour. */
-  void paintChannelGrid (juce::Graphics &g);
-  /** A grid knob. `value` is where the pointer stands; `reach` is how far a
-   *  modulation has carried it, and the arc from one to the other is filled
-   *  — pass `reach` equal to `value` for a knob nothing is modulating. */
-  void paintGridKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
-                      ControlMetrics metrics, float value, float reach,
-                      juce::Colour colour);
   /** Small, deliberately unobtrusive section title (see class doc) — most
    *  of a section's height goes to its controls, not this label. */
   void paintGlobalSection (juce::Graphics &g, bool isSelected);
@@ -718,12 +693,6 @@ private:
   float _patternLengthBeats = 0.f;
   float _nextTakeLengthBeats = 0.f;
   int _beatsPerBar = 4;
-  std::array<float, numChannelColumns> _channelFreq{};
-  std::array<float, numChannelColumns> _channelFreqReach{};
-  std::array<float, numChannelColumns> _channelQ{};
-  std::array<float, numChannelColumns> _channelQReach{};
-  std::array<float, numChannelColumns> _channelThreeD{};
-  std::array<float, numChannelColumns> _channelThreeDReach{};
   int _selectedIndex = 0;
 
   /** Every rectangle in the bar, recomputed by updateLayout(). */
@@ -761,10 +730,6 @@ private:
   std::unique_ptr<TouchControl> _tabActionTouch;
   std::unique_ptr<TouchControl> _tabControllerTouch;
   std::unique_ptr<TouchControl> _tabMixerTouch;
-  /** One hit area per grid cell, [channel][row]. */
-  std::array<std::array<std::unique_ptr<TouchControl>, numChannelRows>,
-             numChannelColumns>
-      _gridTouch;
   std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
 
   std::unique_ptr<TouchControl> _recModeTouch;

@@ -53,11 +53,8 @@ struct ControlMetrics
  *  where they belong. */
 constexpr int numClipSettingsSections = 4;
 
-/** The global section's per-channel grid is one column per channel. */
+/** One channel face per channel, at the top of the global section. */
 constexpr int numChannelColumns = numChannelsInitial;
-
-/** ... and three rows. The order they are read in, top to bottom. */
-constexpr int numChannelRows = 3;
 
 /** The lengths a take can be given, as powers of two of a bar, and how they
  *  are worded. Eight buttons rather than a list: the whole range from 1/128
@@ -154,10 +151,6 @@ constexpr int numTransportKeys = 4;
 constexpr TransportKey transportKeyOrder[numTransportKeys]
     = { TransportKey::Record, TransportKey::Stop, TransportKey::PlayPause,
         TransportKey::Action };
-
-constexpr int channelRowThreeD = 0;
-constexpr int channelRowFreq = 1;
-constexpr int channelRowQ = 2;
 
 /** Which of the bar's two pages is showing.
  *
@@ -282,20 +275,6 @@ juce::Rectangle<int> sectionContentBounds (juce::Rectangle<int> card);
  *  control by the same sub-index the encoder does. */
 int numControlsInSection (int sectionIndex);
 
-/** How far a grid knob's modulation arc reaches, given where the knob was set
- *  and where a modulation has carried it.
- *
- *  All three rows have one: 3d rides the accent, freq and Q ride their own
- *  envelopes, and the engine has always sent all three moving. Only 3d was
- *  drawn moving -- the other two were handed their own value as their reach,
- *  which is an arc of zero length, so two thirds of what the device was doing
- *  had to be taken on trust.
- *
- *  Never below where the knob was set: envelopeOver() only ever raises, and a
- *  ceiling dialled under the floor leaves the floor alone. An arc that ran
- *  backwards from the pointer would draw a modulation that cannot happen. */
-float gridKnobReach (float set, float effective);
-
 /** Whether a tap on this control already steps its value on, rather than
  *  only selecting it. True for the few-valued ones — direction, end-action
  *  and the global strip's rec mode — which wrap, so every tap arrives
@@ -379,26 +358,10 @@ struct ClipSettingsLayout
   std::array<std::vector<juce::Rectangle<int>>, numClipSettingsSections>
       controls;
 
-  /** The global section's per-channel grid: [channel][row], the rows in
-   *  channelRow* order. Not part of `controls` — these belong to a channel each,
-   *  not to the clip the bar is showing, so they are dragged through their
-   *  own callback. */
-  std::array<std::array<juce::Rectangle<int>, numChannelRows>,
-             numChannelColumns>
-      channelGrid;
-  /** Empty. The channel numbers over the grid are gone: each column already
-   *  wears its channel's colour, and a colour is read without being read.
-   *  Kept as a field so nothing has to special-case its absence. */
-  std::array<juce::Rectangle<int>, numChannelColumns> channelLabels;
-
-  /** The two blocks of the strip, each in a frame of its own: the knobs
-   *  above, the transport below. Drawn slightly set off from the card so the
-   *  strip reads as what it is -- values, then the things you do. */
-  juce::Rectangle<int> channelGridFrame;
+  /** The two blocks of the global strip, each in a frame of its own: the
+   *  channel faces above, the transport below -- whose clip, then what to do
+   *  to it. */
   juce::Rectangle<int> transportFrame;
-  /** The row captions down the side: freq, Q, 3d. */
-  std::array<juce::Rectangle<int>, numChannelRows> channelRowLabels;
-
   /** The Elevation section's side-view sphere. */
   juce::Rectangle<int> elevationGraphic;
   /** The Shape section's pictogram and the name under it. */
@@ -425,8 +388,8 @@ struct ClipSettingsLayout
    *  RecordingLength.hh: the length is the shown clip's, so it is written
    *  where the clip is named rather than on keys of its own. */
   juce::Rectangle<int> clipField;
-  /** The bar's own header row: the four transport keys, then "Slot N", then
-   *  the page tabs closing it. */
+  /** Rec, stop, play and act, two by two in the global strip under the
+   *  channel faces: rec and stop on top, play and act under them. */
   std::array<juce::Rectangle<int>, numTransportKeys> transportButtons;
   /** One key per slot, where the slot's name used to be written. A heading
    *  that says which clip you are looking at and a control that changes which
@@ -441,16 +404,17 @@ struct ClipSettingsLayout
    *  the clip" and you had to remember whose; a face says the same thing,
    *  says whose, and says which of its two slots -- with all four on screen
    *  at once. The number in it *is* the slot, and touching the face you are
-   *  already on turns it over. */
+   *  already on turns it over.
+   *
+   *  At the top of the global strip since 2026-09-26, where the 4x3 grid of
+   *  3D, FREQ and Q stood until those moved into the mixer strips. Which
+   *  clip the bar describes is a choice for the whole device, like the
+   *  transport under them, so they stand with it rather than in the clip's
+   *  own header. */
   std::array<juce::Rectangle<int>, numChannelColumns> channelFaces;
 
-  /** The frame the four faces stand in, the way the global strip's knobs and
-   *  transport each stand in one.
-   *
-   *  Nine keys in a row read as nine of the same thing, and they are not:
-   *  five choose what the settings area shows, four choose *which clip* it is
-   *  showing. The frame is what says so -- and it is what lets the faces be
-   *  narrower than a view without reading as keys that came out wrong. */
+  /** The frame the four faces stand in, the way the transport under them
+   *  stands in one. */
   juce::Rectangle<int> channelFacesFrame;
 
   /** The clip's plainest view, and the head of the row of views.

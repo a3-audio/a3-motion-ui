@@ -528,49 +528,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     selectClipSettingsSection (section);
     selectClipSettingsSubElement (juce::jmax (0, sub));
   };
-  // The grid's cells name their own channel — unlike everything else in the
-  // bar, they are not about the clip on display.
-  _clipSettings->onChannelValueDragged
-      = [this] (int channel, int row, int increment) {
-          handleChannelValueChange (static_cast<index_t> (channel), row,
-                                    increment);
-        };
-
-  // Two taps put one of the three back to twelve o'clock. Only while no panel
-  // is answering -- with one on the wire these are physical controls, and the
-  // 3d pot is absolute, so a value the screen moved would be snatched back by
-  // the next hair of pot movement. The rule and the rest positions live in
-  // components/ChannelValueReset.hh, where a test can reach them without a
-  // panel; the condition is exactly the one that had no other way of being
-  // checked.
-  //
-  // Registered unconditionally and decided at runtime. It used to hang on
-  // #if !HARDWARE_INTERFACE_ENABLED, which build.sh always sets, so the whole
-  // thing was compiled out of every build this device has ever run -- for a
-  // machine that is regularly used with no panel plugged in.
-  _clipSettings->onChannelValueReset = [this] (int channel, int row) {
-    if (!channelValueResetIsAllowed (_ioAdapter
-                                     && _ioAdapter->hardwareIsAvailable ()))
-      return;
-
-    auto const rest = channelValueRestPosition (row);
-    if (!rest.has_value ())
-      return;
-
-    auto const at = static_cast<index_t> (channel);
-
-    switch (row)
-      {
-      case channelRowThreeD: _engine.setChannelPot3 (at, *rest); break;
-      case channelRowFreq: _engine.setChannelPot1 (at, *rest); break;
-      case channelRowQ: _engine.setChannelPot2 (at, *rest); break;
-      default: return;
-      }
-
-    updateClipSettingsDisplay ();
-    scheduleSetSave ();
-  };
-
   _clipSettings->onRecModePressed = [this] {
     auto const count = static_cast<int> (recMenuModes.size ());
     applyRecMode ((recMenuIndex (_recMode) + 1) % count);
@@ -1587,10 +1544,6 @@ A3MotionUIComponent::resized ()
   if (_action)
     {
       _action->setBounds (_clipSettings->clipContentBounds ());
-      // After the bounds, not before: the page subtracts its own origin from
-      // this to bring the strip's rows into its own coordinates, so it has to
-      // know where it is standing first.
-      _action->setGridReference (_clipSettings->globalGridRowsBounds ());
     }
   if (_browser && _clipSettings)
     _browser->setBounds (_clipSettings->clipContentBounds ());
@@ -1768,7 +1721,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                   // are not -- their noise would drop an armed DISCARD before
                   // the second tap could land (#32).
                   disarmOnOtherInput ();
-                  handleChannelValueChange (channel, channelRowFreq,
+                  handleChannelValueChange (channel, ChannelPot::Freq,
                                             increment);
                   updateControlReadout (
                       "CH" + juce::String (channel + 1) + " FREQ "
@@ -1784,7 +1737,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               if (increment != 0)
                 {
                   disarmOnOtherInput ();
-                  handleChannelValueChange (channel, channelRowQ, increment);
+                  handleChannelValueChange (channel, ChannelPot::Q, increment);
                   updateControlReadout (
                       "CH" + juce::String (channel + 1) + " Q "
                       + juce::String (_engine.getChannelPot2 (channel), 2));
@@ -1858,39 +1811,27 @@ A3MotionUIComponent::handleTapAt (juce::int64 tapTimeMicros)
 }
 
 void
-A3MotionUIComponent::handleChannelValueChange (index_t channel, int row,
+A3MotionUIComponent::handleChannelValueChange (index_t channel, ChannelPot pot,
                                                int increment)
 {
   // The same step the encoders take, so a finger and a knob move a value at
   // the same rate.
   auto const step = increment * 0.02f;
+  setChannelPotValue (channel, pot, channelPotValue (channel, pot) + step);
+}
 
-  // The rows read 3d, freq, Q from the top — see channelRow* in
-  // ClipSettingsLayout.hh. The grid's order is the screen's, not the
-  // engine's pot numbering.
-  switch (row)
+float
+A3MotionUIComponent::channelPotValue (index_t channel, ChannelPot pot)
+{
+  // The engine numbers them by the panel: pot 1 is freq, pot 2 is Q, pot 3
+  // is the 3d pot.
+  switch (pot)
     {
-    case channelRowThreeD:
-      _engine.setChannelPot3 (
-          channel,
-          std::clamp (_engine.getChannelPot3 (channel) + step, 0.f, 1.f));
-      break;
-    case channelRowFreq:
-      _engine.setChannelPot1 (
-          channel,
-          std::clamp (_engine.getChannelPot1 (channel) + step, 0.f, 1.f));
-      break;
-    case channelRowQ:
-      _engine.setChannelPot2 (
-          channel,
-          std::clamp (_engine.getChannelPot2 (channel) + step, 0.f, 1.f));
-      break;
-    default:
-      return;
+    case ChannelPot::ThreeD: return _engine.getChannelPot3 (channel);
+    case ChannelPot::Freq: return _engine.getChannelPot1 (channel);
+    case ChannelPot::Q: return _engine.getChannelPot2 (channel);
     }
-
-  updateClipSettingsDisplay ();
-  scheduleSetSave ();
+  return 0.f;
 }
 
 void
@@ -4789,8 +4730,8 @@ A3MotionUIComponent::tickCallback (Measure measure)
           // same tick as the pad LEDs because it is the same kind of thing —
           // what is shown catching up with what the engine is doing — and
           // often enough to read as movement without repainting the bar every
-          // tick. setChannelValues() repaints only when something moved, so a
-          // still grid costs nothing here.
+          // tick. A knob repaints only when its value or arc moved, so still
+          // knobs cost nothing here.
           refreshChannelValues ();
         }
 
@@ -5114,8 +5055,7 @@ A3MotionUIComponent::setChannelPotValue (index_t channel, ChannelPot pot,
 {
   auto const clamped = std::clamp (value, 0.f, 1.f);
 
-  // The engine numbers them by the panel: pot 1 is freq, pot 2 is Q, pot 3
-  // is the 3d pot.
+  // Numbered by the panel -- see channelPotValue().
   switch (pot)
     {
     case ChannelPot::ThreeD: _engine.setChannelPot3 (channel, clamped); break;
@@ -5141,24 +5081,17 @@ A3MotionUIComponent::resetChannelPot (index_t channel, ChannelPot pot)
 void
 A3MotionUIComponent::refreshChannelValues ()
 {
-  if (!_clipSettings)
+  if (!_mixer || !_mixerStrip)
     return;
 
-  // Every channel's three, not only the shown one's: the grid belongs to the
-  // channels rather than to the clip on display. Each goes in with its
-  // *effective* value beside it — the setting with its envelope laid over it —
-  // because a modulation that moves nothing on screen is one you have to take
-  // on trust. Only 3d used to; freq and Q were sent moving and drawn still.
+  // Every channel's three, not only the shown one's: the overlay shows all
+  // four, and the bar's strip keeps them so a face tapped shows its channel's
+  // at once. Each goes in with its *effective* value beside it -- the setting
+  // with its envelope laid over it -- because a modulation that moves nothing
+  // on screen is one you have to take on trust.
   for (int ch = 0; ch < numChannelColumns; ++ch)
     {
       auto const index = static_cast<index_t> (ch);
-      _clipSettings->setChannelValues (
-          ch, _engine.getChannelPot1 (index),
-          _engine.getChannelPot1Effective (index),
-          _engine.getChannelPot2 (index),
-          _engine.getChannelPot2Effective (index),
-          _engine.getChannelPot3 (index),
-          _engine.getChannelPot3Effective (index));
 
       // In channelPotOrder: 3D, FREQ, Q.
       auto const pots = ChannelPotValues{
@@ -5168,10 +5101,8 @@ A3MotionUIComponent::refreshChannelValues ()
           _engine.getChannelPot1Effective (index),
           _engine.getChannelPot2Effective (index) }
       };
-      if (_mixer)
-        _mixer->setChannelPots (ch, pots);
-      if (_mixerStrip)
-        _mixerStrip->setChannelPots (ch, pots);
+      _mixer->setChannelPots (ch, pots);
+      _mixerStrip->setChannelPots (ch, pots);
     }
 }
 

@@ -27,20 +27,17 @@
 namespace a3
 {
 
-/** Where two taps put one of the global grid's three per-channel values, and
- *  whether they may.
+/** Where two taps put one of a channel's 3D, FREQ and Q, and whether they
+ *  may.
  *
  *  Both answers are pulled out of A3MotionUIComponent so a test can reach
  *  them without a panel on the wire -- which is the whole point of the
  *  second one, and the one condition that had no other way of being checked.
  */
 
-/** The rest position of a grid row, or nothing for a row nobody has decided
- *  about. Not a default of 0.5 for the unknown case: a row that fell through
+/** The rest position of a channel pot, or nothing for one nobody has decided
+ *  about. Not a default of 0.5 for the unknown case: a pot that fell through
  *  to a plausible value would look decided without being it. */
-std::optional<float> channelValueRestPosition (int gridRow);
-
-/** The same, for a channel pot where the mixer strips show it. */
 std::optional<float> channelPotRestPosition (ChannelPot pot);
 
 /** Whether the screen may put a channel value back at all.

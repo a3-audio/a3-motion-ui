@@ -147,7 +147,7 @@ fillsFromTheMiddle (MixerControl control)
  *
  *  Nothing for the undecided case rather than a plausible 0.5: a control that
  *  fell through to a number would look decided without being it. Same rule as
- *  channelValueRestPosition, and for the same reason.
+ *  channelPotRestPosition, and for the same reason.
  */
 constexpr std::optional<float>
 mixerControlRestPosition (MixerControl control)

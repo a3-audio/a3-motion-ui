@@ -268,28 +268,17 @@ TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
     }
 }
 
-// Two pages share the bar — the clip's settings and the panel's pads — and the
-// strip that switches them closes the header row, where the readout used to
-// be. The readout moved into the global strip, which is the one part of the
-// bar that stands on both pages.
+// The header row is the five views of the clip and nothing else. The channel
+// faces that led it went up into the global strip on 2026-09-26, where the
+// 4x3 grid was: which clip the bar describes is a device-wide choice, like
+// the transport under them.
 TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
 {
-  // Folder, the three views of the clip, the two slots, the four things you
-  // do to it. The browser leads because it is where a set begins; the
-  // transport closes because it is what you touch once everything else is
-  // decided.
   auto const l = defaultLayout ();
 
-  std::vector<juce::Rectangle<int> > row;
-  for (size_t ch = 0; ch < numChannelColumns; ++ch)
-    {
-      row.push_back (l.channelFaces[ch]);
-    }
-  row.push_back (l.tabClip);
-  row.push_back (l.tabAction);
-  row.push_back (l.tabController);
-  row.push_back (l.tabMixer);
-  row.push_back (l.tabBrowser);
+  std::vector<juce::Rectangle<int> > const row{ l.tabClip, l.tabAction,
+                                                l.tabController, l.tabMixer,
+                                                l.tabBrowser };
 
   int previousRight = 0;
   for (size_t i = 0; i < row.size (); ++i)
@@ -298,11 +287,13 @@ TEST (ClipSettingsLayout, TheHeaderReadsLeftToRightInTheOrderItIsReachedFor)
       EXPECT_GE (row[i].getX (), previousRight) << "item " << i;
       previousRight = row[i].getRight ();
 
-      // On the header's own line, not above or below it.
-      EXPECT_EQ (row[i].getY (), l.channelFaces[0].getY ()) << "item " << i;
-      EXPECT_EQ (row[i].getHeight (), l.channelFaces[0].getHeight ())
-          << "item " << i;
+      EXPECT_EQ (row[i].getY (), l.tabClip.getY ()) << "item " << i;
+      EXPECT_EQ (row[i].getHeight (), l.tabClip.getHeight ()) << "item " << i;
     }
+
+  for (auto const &face : l.channelFaces)
+    EXPECT_FALSE (l.clipBounds.intersects (face))
+        << "a channel face is still in the clip's header";
 }
 
 // The row used to mix square marks with wider words, on the reasoning that a
@@ -318,7 +309,7 @@ TEST (ClipSettingsLayout, TheHeaderIsTallEnoughToHitAtTheSizeItShipsAt)
   for (int height : { 250, 314, 400 })
     {
       auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
-      EXPECT_GE (l.channelFaces[0].getHeight (), fingertipSize)
+      EXPECT_GE (l.tabClip.getHeight (), fingertipSize)
           << "height " << height;
     }
 }
@@ -358,7 +349,7 @@ TEST (ClipSettingsLayout, TheClipContentStartsBelowTheHeaderRow)
   EXPECT_FALSE (l.clipContent.isEmpty ());
   EXPECT_TRUE (l.clipBounds.contains (l.clipContent));
 
-  EXPECT_GE (l.clipContent.getY (), l.channelFaces[0].getBottom ());
+  EXPECT_GE (l.clipContent.getY (), l.tabClip.getBottom ());
   EXPECT_GE (l.clipContent.getY (), l.tabBrowser.getBottom ());
   EXPECT_GE (l.clipContent.getY (), l.tabController.getBottom ());
 
@@ -551,10 +542,8 @@ TEST (ClipSettingsLayout, TheSixFunctionButtonsAreOneGrid)
 
   EXPECT_LT (l.tapButton.getRight (), l.recModeButton.getX ());
 
-  // Under the grid, not beside it.
-  for (auto const &column : l.channelGrid)
-    for (auto const &cell : column)
-      EXPECT_LE (cell.getBottom (), l.tapButton.getY ());
+  // Under the transport, not beside it.
+  EXPECT_LE (l.transportFrame.getBottom (), l.tapButton.getY ());
 }
 
 // A target a finger can actually hit, at every size the bar is used at.
@@ -588,128 +577,12 @@ TEST (ClipSettingsLayout, TheActionButtonsStayBigEnoughToHit)
 }
 
 
-// Freq, Q and the third value belong to a channel each, not to the clip the
-// bar happens to show — so they are a grid of their own in the global
-// section, one column per channel.
-TEST (ClipSettingsLayout, TheChannelGridHasAColumnPerChannelAndThreeRows)
-{
-  auto const l = defaultLayout ();
-  auto const card = l.sectionCards[3];
-
-  for (int col = 0; col < numChannelColumns; ++col)
-    for (int row = 0; row < numChannelRows; ++row)
-      EXPECT_TRUE (card.contains (
-          l.channelGrid[static_cast<size_t> (col)][static_cast<size_t> (row)]))
-          << "channel " << col << " row " << row << " escapes the section";
-}
-
-TEST (ClipSettingsLayout, NoTwoGridCellsOverlap)
-{
-  auto const l = defaultLayout ();
-
-  std::vector<juce::Rectangle<int>> cells;
-  for (auto const &column : l.channelGrid)
-    for (auto const &cell : column)
-      cells.push_back (cell);
-
-  for (size_t a = 0; a < cells.size (); ++a)
-    for (size_t b = a + 1; b < cells.size (); ++b)
-      EXPECT_TRUE (cells[a].getIntersection (cells[b]).isEmpty ())
-          << "cells " << a << " and " << b << " overlap";
-}
-
-// Channels read left to right, the three values top to bottom — freq, Q, 3d.
-TEST (ClipSettingsLayout, TheGridReadsLeftToRightAndTopToBottom)
-{
-  auto const l = defaultLayout ();
-
-  for (int col = 1; col < numChannelColumns; ++col)
-    EXPECT_GT (l.channelGrid[static_cast<size_t> (col)][0].getX (),
-               l.channelGrid[static_cast<size_t> (col - 1)][0].getX ());
-
-  for (int row = 1; row < numChannelRows; ++row)
-    EXPECT_GT (l.channelGrid[0][static_cast<size_t> (row)].getY (),
-               l.channelGrid[0][static_cast<size_t> (row - 1)].getY ());
-}
-
-// The grid must not run into the strip that holds the rec mode and the
-// buttons beside it.
-TEST (ClipSettingsLayout, TheGridClearsTheActionButtonsAndTheRecMode)
-{
-  auto const l = defaultLayout ();
-
-  for (auto const &column : l.channelGrid)
-    for (auto const &cell : column)
-      {
-        EXPECT_TRUE (cell.getIntersection (l.recModeButton).isEmpty ());
-        EXPECT_TRUE (cell.getIntersection (l.clockModeButton).isEmpty ());
-        EXPECT_TRUE (cell.getIntersection (l.menuButton).isEmpty ());
-        EXPECT_TRUE (cell.getIntersection (l.recButton).isEmpty ());
-        EXPECT_TRUE (cell.getIntersection (l.tapButton).isEmpty ());
-      }
-}
-
-// A cell a finger can hit, at every size the bar is used at.
-TEST (ClipSettingsLayout, GridCellsStayBigEnoughToHit)
-{
-  for (float potSize : { 0.6f, 1.f, 1.8f })
-    for (float bodySize : { 9.f, 16.f, 28.f })
-      {
-        auto const headerSize = bodySize * 1.3f;
-        auto const knobDiam = knobDiameterForFont (bodySize, potSize);
-        auto const l = layOutClipSettings (
-            grownBar (headerSize, bodySize, potSize), headerSize, bodySize,
-            potSize);
-
-        // The invariant that matters: a cell holds the knob it draws. An
-        // absolute floor was the wrong test — at the smallest font and pot
-        // setting knobDiameterForFont() bottoms out at 10 px, and a 12 px
-        // cell around a 10 px knob is right, not cramped. Everything on the
-        // bar is that small at that setting.
-        // Only that a cell stays usable. It cannot be promised the bar's
-        // standard knob diameter any more: the global section is a quarter
-        // of the bar, and at the largest pot size four columns of full-size
-        // knobs want more than that quarter holds — paintGridKnob then
-        // draws to the cell. What the grid gets at the sizes the device
-        // ships with is asserted separately, below.
-        juce::ignoreUnused (knobDiam);
-
-        for (auto const &column : l.channelGrid)
-          for (auto const &cell : column)
-            {
-              EXPECT_GE (cell.getHeight (), 10)
-                  << "pot " << potSize << " body " << bodySize;
-              EXPECT_GE (cell.getWidth (), 10)
-                  << "pot " << potSize << " body " << bodySize;
-            }
-      }
-}
 
 
-// At the sizes the device actually ships with, the grid gets the fifth more
-// it asks for — the clamp above is for the extremes, not the normal case.
-TEST (ClipSettingsLayout, TheGridGetsItsFullKnobAtShippedSizes)
-{
-  constexpr float bodySize = 14.f;
-  constexpr float headerSize = 18.f;
-  constexpr float potSize = 0.9f; // config/skins/default.json
 
-  auto const knobDiam = knobDiameterForFont (bodySize, potSize);
-  auto const gridKnob = static_cast<int> (knobDiam * 1.2f);
 
-  juce::Rectangle<int> const grown{
-    0, 0, panelWidth,
-    clipSettingsPreferredHeight (headerSize, bodySize, knobDiam)
-  };
-  auto const l = layOutClipSettings (grown, headerSize, bodySize, potSize);
 
-  for (auto const &column : l.channelGrid)
-    for (auto const &cell : column)
-      {
-        EXPECT_GE (cell.getWidth (), gridKnob);
-        EXPECT_GE (cell.getHeight (), gridKnob);
-      }
-}
+
 
 
 // A key can be dragged anywhere in the range, so every value in it has to
@@ -812,30 +685,6 @@ TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
 
 // ── The header's transport keys ──────────────────────────────────────────
 
-// They led the header row once, then closed it, and now they have left it
-// altogether -- which is what makes room for a fourth view of the clip. In
-// reading order over the global strip, rec first and act last.
-TEST (ClipSettingsLayout, TheTransportReadsLeftToRightOverTheStrip)
-{
-  auto const layout = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f);
-
-  int previousRight = layout.globalBounds.getX ();
-  for (int i = 0; i < numTransportKeys; ++i)
-    {
-      auto const &key = layout.transportButtons[static_cast<size_t> (i)];
-      ASSERT_FALSE (key.isEmpty ()) << "key " << i;
-      EXPECT_GE (key.getX (), previousRight)
-          << "key " << i << " overlaps its neighbour";
-      previousRight = key.getRight ();
-    }
-
-  EXPECT_LE (previousRight, layout.globalBounds.getRight ())
-      << "the row still fits the strip";
-
-  // And nothing of them is left in the clip header, where the tabs now are.
-  for (auto const &key : layout.transportButtons)
-    EXPECT_FALSE (layout.tabAction.intersects (key));
-}
 // Three views share the row with four channel faces, their toggles and the
 // folder. The tabs are how you change page and are hit mid-set, so each keeps
 // a fingertip.
@@ -861,7 +710,6 @@ TEST (ClipSettingsLayout, TheThreeTabsKeepTheirRoomAtEveryWidth)
         }
 
       // In reading order, none of them overlapping.
-      EXPECT_LE (layout.channelFaces[0].getRight (), layout.tabClip.getX ());
       EXPECT_LE (layout.tabClip.getRight (), layout.tabAction.getX ());
       EXPECT_LE (layout.tabAction.getRight (), layout.tabController.getX ());
       EXPECT_LE (layout.tabController.getRight (), layout.tabMixer.getX ());
@@ -885,7 +733,7 @@ TEST (ClipSettingsLayout, TheHeaderRowFillsTheWidth)
 
       // Against clipBounds, not the rect handed in: the global strip takes the
       // right quarter, and the header row ends where the clip part does.
-      auto const marginLeft = l.channelFacesFrame.getX () - l.clipBounds.getX ();
+      auto const marginLeft = l.tabClip.getX () - l.clipBounds.getX ();
       auto const marginRight
           = l.clipBounds.getRight () - l.tabBrowser.getRight ();
 
@@ -1131,20 +979,6 @@ TEST (ClipSettingsLayout, TheGlobalCardIsNotTitled)
     EXPECT_FALSE (l.sectionLabels[i].isEmpty ()) << "section " << i;
 }
 
-// The grid still clears the keys above it, whatever the card does.
-TEST (ClipSettingsLayout, TheChannelGridStaysClearOfTheTransportKeys)
-{
-  for (int height : { 200, 300, 400 })
-    {
-      auto const l = layOutClipSettings ({ 0, 0, 1280, height }, 18.f, 14.f, 1.f);
-
-      for (auto const &column : l.channelGrid)
-        for (auto const &cell : column)
-          for (auto const &key : l.transportButtons)
-            EXPECT_FALSE (cell.intersects (key))
-                << "a grid cell runs into a transport key at height " << height;
-    }
-}
 
 // ── The sections after the reshuffle ─────────────────────────────────────
 
@@ -1397,31 +1231,40 @@ TEST (ClipSettingsLayout, TheAxisSnapsToEarHeight)
 
 // ── The header row after the channel keys ────────────────────────────────
 
-// Four channel faces where CLIP and the two slot keys were, each in its
-// channel's colour with its own 1/2 toggle beside it. Touching a face is
-// "show me this channel's clip", which is what CLIP used to mean -- except
-// that it now says *which* clip, and there are four of them on screen at
-// once instead of one you have to remember.
-TEST (ClipSettingsLayout, TheHeaderCarriesAFaceForEveryChannel)
+// Four channel faces, each in its channel's colour with its slot number in
+// it. Touching a face is "show me this channel's clip". They stand at the top
+// of the global strip since 2026-09-26, where the 4x3 grid was.
+TEST (ClipSettingsLayout, TheGlobalStripCarriesAFaceForEveryChannel)
 {
-  auto const l = defaultLayout ();
-
-  for (size_t ch = 0; ch < numChannelColumns; ++ch)
+  for (int width : { 768, 1024, 1280 })
     {
-      ASSERT_FALSE (l.channelFaces[ch].isEmpty ()) << "face " << ch;
+      auto const l = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
-      // A fingertip in both directions: hit mid-set, one-handed, and the
-      // number in it has to be readable at a glance.
-      EXPECT_GE (l.channelFaces[ch].getHeight (), fingertipSize)
-          << "face " << ch;
-      EXPECT_GE (l.channelFaces[ch].getWidth (), fingertipSize)
-          << "face " << ch;
+      for (size_t ch = 0; ch < numChannelColumns; ++ch)
+        {
+          ASSERT_FALSE (l.channelFaces[ch].isEmpty ()) << "face " << ch;
+          EXPECT_TRUE (l.sectionCards[3].contains (l.channelFaces[ch]))
+              << "face " << ch << " at width " << width;
+
+          // A fingertip in both directions: hit mid-set, one-handed, and the
+          // number in it has to be readable at a glance.
+          EXPECT_GE (l.channelFaces[ch].getHeight (), fingertipSize)
+              << "face " << ch << " at width " << width;
+          EXPECT_GE (l.channelFaces[ch].getWidth (), fingertipSize)
+              << "face " << ch << " at width " << width;
+          EXPECT_LE (std::abs (l.channelFaces[ch].getWidth ()
+                               - l.channelFaces[0].getWidth ()),
+                     1)
+              << "face " << ch << " at width " << width;
+          EXPECT_EQ (l.channelFaces[ch].getY (), l.channelFaces[0].getY ());
+        }
+
+      // Left to right, in channel order.
+      for (size_t ch = 1; ch < numChannelColumns; ++ch)
+        EXPECT_GT (l.channelFaces[ch].getX (),
+                   l.channelFaces[ch - 1].getRight () - 1)
+            << "channel " << ch << " is out of order";
     }
-
-  // Left to right, in channel order.
-  for (size_t ch = 1; ch < numChannelColumns; ++ch)
-    EXPECT_GT (l.channelFaces[ch].getX (), l.channelFaces[ch - 1].getX ())
-        << "channel " << ch << " is out of order";
 }
 
 // CLIP is back, and the faces mean something else than they did.
@@ -1437,7 +1280,6 @@ TEST (ClipSettingsLayout, TheClipTabStandsAtTheHeadOfTheViews)
   auto const l = defaultLayout ();
 
   ASSERT_FALSE (l.tabClip.isEmpty ());
-  EXPECT_GT (l.tabClip.getX (), l.channelFaces[numChannelColumns - 1].getRight ());
   EXPECT_LT (l.tabClip.getRight (), l.tabAction.getX () + 1);
 
   EXPECT_GE (l.tabClip.getWidth (), fingertipSize);
@@ -1452,14 +1294,9 @@ TEST (ClipSettingsLayout, TheClipTabStandsAtTheHeadOfTheViews)
       << "the shared slot keys moved into the channel faces";
 }
 
-// The four faces stand together in a frame of their own, the way the global
-// strip's two blocks do.
-//
-// Without it, nine keys in a row read as nine of the same thing -- and they
-// are not: five of them choose what you are looking at, four choose what it
-// is you are looking at. The frame is what says so, and it is what lets the
-// faces be narrower without reading as keys that came out wrong.
-TEST (ClipSettingsLayout, TheFacesStandTogetherInAFrameOfTheirOwn)
+// The four faces stand together in a frame of their own at the top of the
+// global strip, over the transport: first whose clip, then what to do to it.
+TEST (ClipSettingsLayout, TheFacesStandTogetherInAFrameAtTheTopOfTheStrip)
 {
   for (int width : { 768, 1024, 1280 })
     {
@@ -1472,11 +1309,11 @@ TEST (ClipSettingsLayout, TheFacesStandTogetherInAFrameOfTheirOwn)
         EXPECT_TRUE (l.channelFacesFrame.contains (l.channelFaces[ch]))
             << "face " << ch << " at width " << width;
 
-      // Clear of the views: a frame that ran under the CLIP key would say the
-      // key belonged to the group.
-      EXPECT_LE (l.channelFacesFrame.getRight (), l.tabClip.getX ())
+      EXPECT_TRUE (l.globalContent.contains (l.channelFacesFrame))
           << "width " << width;
-      EXPECT_TRUE (l.clipBounds.contains (l.channelFacesFrame))
+      EXPECT_EQ (l.channelFacesFrame.getY (), l.globalContent.getY ())
+          << "width " << width;
+      EXPECT_LE (l.channelFacesFrame.getBottom (), l.transportFrame.getY ())
           << "width " << width;
     }
 }
@@ -1490,7 +1327,7 @@ TEST (ClipSettingsLayout, TheFolderClosesTheRow)
 
   ASSERT_FALSE (l.tabBrowser.isEmpty ());
   EXPECT_GT (l.tabBrowser.getX (), l.tabController.getX ());
-  EXPECT_GT (l.tabBrowser.getX (), l.channelFaces[numChannelColumns - 1].getX ());
+  EXPECT_GT (l.tabBrowser.getX (), l.tabMixer.getX ());
 
   // Still inside the clip part, and the same key as every other in the row
   // -- within a pixel, since the row's remainder is spread across the keys so
@@ -1505,168 +1342,109 @@ TEST (ClipSettingsLayout, TheThreeViewsStandBetweenThem)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_GT (l.tabClip.getX (), l.channelFaces[numChannelColumns - 1].getX ());
   EXPECT_GT (l.tabAction.getX (), l.tabClip.getX ());
   EXPECT_GT (l.tabController.getX (), l.tabAction.getX ());
   EXPECT_GT (l.tabMixer.getX (), l.tabController.getX ());
 }
 
-// Every channel has a face of its own, on every page, and they read left to
-// right before the views. The face carries the slot number, so which slot a
-// channel is on is answered without leaving where you are.
+// Every channel has a face of its own, on every page: the global strip
+// stands on all of them.
 TEST (ClipSettingsLayout, EveryChannelHasAFaceOnEveryPage)
 {
-  for (auto const page : { BarPage::Clip,
-                           BarPage::Controller })
+  for (auto const page : { BarPage::Clip, BarPage::Controller,
+                           BarPage::Browser })
     {
       auto const l
           = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
 
-      int previousRight = 0;
       for (size_t ch = 0; ch < numChannelColumns; ++ch)
         {
           ASSERT_FALSE (l.channelFaces[ch].isEmpty ()) << "channel " << ch;
-
-          EXPECT_GE (l.channelFaces[ch].getX (), previousRight)
+          EXPECT_TRUE (l.globalBounds.contains (l.channelFaces[ch]))
               << "channel " << ch;
-          previousRight = l.channelFaces[ch].getRight ();
         }
-
-      // Before the views, which are before the folder.
-      EXPECT_LE (previousRight, l.tabClip.getX ());
     }
 }
 
-// Two kinds of key in the row, and each kind is one size.
-//
-// It was one size for all eight, which was right while they were all the same
-// kind of thing. They are not any more: the five views switch what the area
-// shows, the four faces switch which clip it shows. Same height, because they
-// share a row and a hand goes along it in one sweep; the faces narrower and
-// framed, because a group that reads as a group can afford to.
-TEST (ClipSettingsLayout, TheHeaderHasTwoKindsOfKeyAndEachIsOneSize)
+// The five views are one size, to the pixel the row can afford: every edge
+// is computed from the whole width, so the remainder is spread a pixel at a
+// time rather than piled against the right edge.
+TEST (ClipSettingsLayout, TheHeaderViewsAreOneSize)
 {
   for (int width : { 768, 1024, 1280 })
     {
       auto const l
           = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
 
-      std::vector<juce::Rectangle<int> > views{
-        l.tabClip,  l.tabAction,
-        l.tabController, l.tabMixer, l.tabBrowser
+      std::vector<juce::Rectangle<int> > const views{
+        l.tabClip, l.tabAction, l.tabController, l.tabMixer, l.tabBrowser
       };
 
-      // One size each, to the pixel the row can afford. Every edge is computed
-      // from the whole width so the last one lands on the right edge exactly,
-      // which leaves the remainder of that division spread a pixel at a time
-      // across the keys rather than piled up at the end -- see
-      // TheHeaderRowFillsTheWidth. A pixel is invisible; a row that stops
-      // short of the edge it is drawn against is not.
       for (size_t i = 1; i < views.size (); ++i)
-        EXPECT_LE (std::abs (views[i].getWidth () - views[0].getWidth ()), 1)
-            << "view " << i << " at width " << width;
-
-      for (size_t ch = 1; ch < numChannelColumns; ++ch)
-        EXPECT_LE (std::abs (l.channelFaces[ch].getWidth ()
-                             - l.channelFaces[0].getWidth ()),
-                   1)
-            << "face " << ch << " at width " << width;
-
-      // Narrower than a view, and still a fingertip: the row is hit mid-set.
-      EXPECT_LT (l.channelFaces[0].getWidth (), views[0].getWidth ())
-          << "width " << width;
-      EXPECT_GE (l.channelFaces[0].getWidth (), fingertipSize)
-          << "width " << width;
-
-      // One height throughout -- that part does not change.
-      for (auto const &key : views)
-        EXPECT_EQ (key.getHeight (), l.channelFaces[0].getHeight ())
-            << "width " << width;
+        {
+          EXPECT_LE (std::abs (views[i].getWidth () - views[0].getWidth ()), 1)
+              << "view " << i << " at width " << width;
+          EXPECT_EQ (views[i].getHeight (), views[0].getHeight ())
+              << "view " << i << " at width " << width;
+        }
     }
 }
+
 
 // ── The global strip, rearranged ─────────────────────────────────────────
 
-// The transport moved down into the strip, under the knobs it belongs with.
-// It stood in the band above, at the header's height, which made it the one
-// row of keys in the bar that was a different size from every other.
-TEST (ClipSettingsLayout, TheTransportStandsUnderTheKnobs)
+// Rec, stop, play and act, two by two under the faces: rec and stop on top,
+// play and act under them.
+TEST (ClipSettingsLayout, TheTransportIsTwoByTwoUnderTheFaces)
 {
   auto const l = defaultLayout ();
+  auto const &k = l.transportButtons;
 
-  for (size_t i = 0; i < l.transportButtons.size (); ++i)
+  for (size_t i = 0; i < k.size (); ++i)
     {
-      ASSERT_FALSE (l.transportButtons[i].isEmpty ()) << "key " << i;
-
-      // Inside the strip's card, below every knob in the grid.
-      EXPECT_TRUE (l.sectionCards[3].contains (l.transportButtons[i]))
-          << "key " << i;
-      for (auto const &column : l.channelGrid)
-        EXPECT_GE (l.transportButtons[i].getY (), column.back ().getBottom ())
-            << "key " << i;
+      ASSERT_FALSE (k[i].isEmpty ()) << "key " << i;
+      EXPECT_TRUE (l.sectionCards[3].contains (k[i])) << "key " << i;
+      EXPECT_TRUE (l.transportFrame.contains (k[i])) << "key " << i;
+      EXPECT_GE (k[i].getY (), l.channelFacesFrame.getBottom ()) << "key " << i;
+      EXPECT_EQ (k[i].getWidth (), k[0].getWidth ()) << "key " << i;
+      EXPECT_EQ (k[i].getHeight (), k[0].getHeight ()) << "key " << i;
     }
 
-  // Level with each other, left to right, and all one size.
-  for (size_t i = 1; i < l.transportButtons.size (); ++i)
-    {
-      EXPECT_EQ (l.transportButtons[i].getY (), l.transportButtons[0].getY ());
-      EXPECT_EQ (l.transportButtons[i].getHeight (),
-                 l.transportButtons[0].getHeight ());
-      EXPECT_GT (l.transportButtons[i].getX (),
-                 l.transportButtons[i - 1].getX ());
-    }
+  EXPECT_EQ (k[0].getY (), k[1].getY ());
+  EXPECT_EQ (k[2].getY (), k[3].getY ());
+  EXPECT_GE (k[2].getY (), k[0].getBottom ());
+  EXPECT_EQ (k[0].getX (), k[2].getX ());
+  EXPECT_EQ (k[1].getX (), k[3].getX ());
+  EXPECT_GE (k[1].getX (), k[0].getRight ());
 }
 
-// As tall as the strip's other keys. It used to be the header's height, which
-// is a different size from everything it now stands among.
-TEST (ClipSettingsLayout, TheTransportIsAsTallAsTheOtherKeys)
+// Bigger than the strip's other keys: the grid's room went to them. What you
+// do to a clip is what the hand goes to most, and it goes there mid-set.
+TEST (ClipSettingsLayout, TheTransportIsBiggerThanTheOtherKeys)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_EQ (l.transportButtons[0].getHeight (), l.buttonHeight);
+  EXPECT_GT (l.transportButtons[0].getHeight (), l.buttonHeight);
   EXPECT_EQ (l.tapButton.getHeight (), l.buttonHeight);
 }
 
-// The channel numbers over the grid are gone. Each column already wears its
-// channel's colour, and a colour is read without being read -- the numbers
-// were a row of the strip spent saying what four colours already say.
-TEST (ClipSettingsLayout, TheGridHasNoChannelNumbers)
+
+// The two blocks stand apart: the faces in one frame, the transport in
+// another -- whose clip, then what to do to it.
+TEST (ClipSettingsLayout, TheFacesAndTheTransportHaveTheirOwnFrames)
 {
   auto const l = defaultLayout ();
 
-  for (auto const &label : l.channelLabels)
-    EXPECT_TRUE (label.isEmpty ());
-}
-
-// The two blocks stand apart: the grid in one frame, the transport in
-// another, so the strip reads as what it is -- values above, actions below.
-TEST (ClipSettingsLayout, TheGridAndTheTransportHaveTheirOwnFrames)
-{
-  auto const l = defaultLayout ();
-
-  ASSERT_FALSE (l.channelGridFrame.isEmpty ());
+  ASSERT_FALSE (l.channelFacesFrame.isEmpty ());
   ASSERT_FALSE (l.transportFrame.isEmpty ());
 
-  EXPECT_FALSE (l.channelGridFrame.intersects (l.transportFrame));
-  EXPECT_LT (l.channelGridFrame.getY (), l.transportFrame.getY ());
-
-  // Each frame holds what it is a frame for.
-  for (auto const &column : l.channelGrid)
-    for (auto const &cell : column)
-      EXPECT_TRUE (l.channelGridFrame.contains (cell));
-  for (auto const &key : l.transportButtons)
-    EXPECT_TRUE (l.transportFrame.contains (key));
+  EXPECT_FALSE (l.channelFacesFrame.intersects (l.transportFrame));
+  EXPECT_LT (l.channelFacesFrame.getY (), l.transportFrame.getY ());
 }
 
-// The transport used to stand in the band over the strip, at the header's
-// height, and it was square there because a mark needs no width. Three cases
-// held that shape. It is inside the strip now, under the knobs, sized like
-// every other key there -- see TheTransportStandsUnderTheKnobs and
-// TheTransportIsAsTallAsTheOtherKeys.
-//
-// What those three protected and this keeps: the keys are all one size, they
-// are on every page, and the band above the strip is empty.
-TEST (ClipSettingsLayout, TheTransportIsOneRowOfEqualKeysOnEveryPage)
+// The transport is on every page, its four keys one size, never under a
+// fingertip.
+TEST (ClipSettingsLayout, TheTransportIsFourEqualKeysOnEveryPage)
 {
   for (auto const page : { BarPage::Clip,
                            BarPage::Controller, BarPage::Browser })
@@ -1683,38 +1461,15 @@ TEST (ClipSettingsLayout, TheTransportIsOneRowOfEqualKeysOnEveryPage)
           EXPECT_EQ (l.transportButtons[i].getHeight (),
                      l.transportButtons[0].getHeight ())
               << "key " << i;
+          EXPECT_GE (l.transportButtons[i].getHeight (), fingertipSize)
+              << "key " << i;
         }
 
-      // Nothing is left in the band the header row stands on.
       EXPECT_TRUE (l.readout.isEmpty ());
     }
 }
 
 
-// Every knob in the global grid shows what is carrying it.
-//
-// The engine has always sent all three moving -- 3d on the accent, freq and Q
-// on envelopes of their own -- but the grid handed freq and Q their own value
-// as their reach, which is an arc of zero length. Two thirds of what the
-// device was doing had to be taken on trust.
-TEST (ClipSettingsLayout, AGridKnobsArcReachesWhereTheModulationCarriedIt)
-{
-  EXPECT_FLOAT_EQ (gridKnobReach (0.3f, 0.8f), 0.8f);
-
-  // At rest the arc has no length: the effective value is the set one exactly,
-  // or the knob would drift every time an envelope finished.
-  EXPECT_FLOAT_EQ (gridKnobReach (0.3f, 0.3f), 0.3f);
-
-  // Never backwards. envelopeOver() only ever raises, and a ceiling dialled
-  // under the floor leaves the floor alone -- an arc running back from the
-  // pointer would draw a modulation that cannot happen.
-  EXPECT_FLOAT_EQ (gridKnobReach (0.6f, 0.1f), 0.6f);
-
-  // And never off either end, whatever it is handed.
-  EXPECT_FLOAT_EQ (gridKnobReach (-1.f, 2.f), 1.f);
-  EXPECT_FLOAT_EQ (gridKnobReach (2.f, 2.f), 1.f);
-  EXPECT_FLOAT_EQ (gridKnobReach (-1.f, -1.f), 0.f);
-}
 
 /** The base snaps to the poles as well as to ear height, and for a reason the
  *  ears do not have: a figure whose middle crosses the middle of the pad is

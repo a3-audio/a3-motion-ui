@@ -22,8 +22,6 @@
 
 #include <a3-motion-engine/Channel.hh>
 #include <a3-motion-ui/components/ChannelValueReset.hh>
-#include <a3-motion-ui/components/ClipSettingsLayout.hh>
-
 using namespace a3;
 
 // Twelve o'clock for the two that have a middle. The knobs sweep 270 degrees,
@@ -31,11 +29,11 @@ using namespace a3;
 // for "put that back" reaches for the same place on both.
 TEST (ChannelValueReset, ThreeDAndFreqRestAtTwelveOClock)
 {
-  for (auto const row : { channelRowThreeD, channelRowFreq })
+  for (auto const pot : { ChannelPot::ThreeD, ChannelPot::Freq })
     {
-      auto const rest = channelValueRestPosition (row);
-      ASSERT_TRUE (rest.has_value ()) << row;
-      EXPECT_FLOAT_EQ (*rest, 0.5f) << row;
+      auto const rest = channelPotRestPosition (pot);
+      ASSERT_TRUE (rest.has_value ()) << channelPotLabel (pot);
+      EXPECT_FLOAT_EQ (*rest, 0.5f) << channelPotLabel (pot);
     }
 }
 
@@ -48,18 +46,19 @@ TEST (ChannelValueReset, ThreeDAndFreqRestAtTwelveOClock)
 // Isolator3 whose own Q rests at zero.
 TEST (ChannelValueReset, QRestsShut)
 {
-  auto const rest = channelValueRestPosition (channelRowQ);
+  auto const rest = channelPotRestPosition (ChannelPot::Q);
   ASSERT_TRUE (rest.has_value ());
   EXPECT_FLOAT_EQ (*rest, 0.f);
 }
 
-// A row nobody has decided about writes nothing. The way this goes wrong is a
-// fourth row being added to the grid and inheriting whichever value the switch
-// happened to fall through to.
-TEST (ChannelValueReset, ARowWithNoRestPositionWritesNothing)
+// A pot nobody has decided about writes nothing. The way this goes wrong is a
+// fourth pot being added and inheriting whichever value the switch happened
+// to fall through to.
+TEST (ChannelValueReset, APotWithNoRestPositionWritesNothing)
 {
-  EXPECT_FALSE (channelValueRestPosition (-1).has_value ());
-  EXPECT_FALSE (channelValueRestPosition (numChannelRows).has_value ());
+  EXPECT_FALSE (
+      channelPotRestPosition (static_cast<ChannelPot> (numChannelPots))
+          .has_value ());
 }
 
 // With the panel answering, these three are physical pots and an encoder pair.
@@ -98,27 +97,14 @@ TEST (ChannelValueReset, EachPotStartsOnItsRestPosition)
 {
   Channel channel;
 
-  auto const restOf = [] (int row) {
-    auto const rest = channelValueRestPosition (row);
-    EXPECT_TRUE (rest.has_value ()) << row;
+  auto const restOf = [] (ChannelPot pot) {
+    auto const rest = channelPotRestPosition (pot);
+    EXPECT_TRUE (rest.has_value ()) << channelPotLabel (pot);
     return rest.value_or (-1.f);
   };
 
-  EXPECT_FLOAT_EQ (channel.getPot3 (), restOf (channelRowThreeD));
-  EXPECT_FLOAT_EQ (channel.getPot1 (), restOf (channelRowFreq));
-  EXPECT_FLOAT_EQ (channel.getPot2 (), restOf (channelRowQ));
+  EXPECT_FLOAT_EQ (channel.getPot3 (), restOf (ChannelPot::ThreeD));
+  EXPECT_FLOAT_EQ (channel.getPot1 (), restOf (ChannelPot::Freq));
+  EXPECT_FLOAT_EQ (channel.getPot2 (), restOf (ChannelPot::Q));
 }
 
-// The three moved from the grid into the mixer strips on 2026-09-26. The
-// gesture moved with them, so what it puts back must not change on the way:
-// a knob that rests somewhere else in the mixer than it did in the grid is the
-// same value with two homes.
-TEST (ChannelValueReset, AChannelPotRestsWhereItsGridRowDid)
-{
-  EXPECT_EQ (channelPotRestPosition (ChannelPot::ThreeD),
-             channelValueRestPosition (channelRowThreeD));
-  EXPECT_EQ (channelPotRestPosition (ChannelPot::Freq),
-             channelValueRestPosition (channelRowFreq));
-  EXPECT_EQ (channelPotRestPosition (ChannelPot::Q),
-             channelValueRestPosition (channelRowQ));
-}

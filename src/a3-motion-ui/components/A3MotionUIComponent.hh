@@ -863,9 +863,11 @@ private:
   void selectClipSettingsSection (int index);
   void selectClipSettingsSubElement (int index);
 
-  /** One channel's freq/Q/3d, from the global section's grid. Named by
+  /** One channel's 3D, FREQ or Q, stepped -- the panel's encoders. Named by
    *  channel, not by what the bar is showing. */
-  void handleChannelValueChange (index_t channel, int row, int increment);
+  void handleChannelValueChange (index_t channel, ChannelPot pot,
+                                 int increment);
+  float channelPotValue (index_t channel, ChannelPot pot);
 
   /** One channel's 3D, FREQ or Q, set outright -- where a mixer page's knob
    *  was turned to. The engine holds these, not MixerState. */

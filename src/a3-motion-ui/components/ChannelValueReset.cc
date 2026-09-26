@@ -20,26 +20,8 @@
 
 #include "ChannelValueReset.hh"
 
-#include <a3-motion-ui/components/ClipSettingsLayout.hh>
-
 namespace a3
 {
-
-std::optional<float>
-channelValueRestPosition (int gridRow)
-{
-  switch (gridRow)
-    {
-    case channelRowThreeD:
-      return channelPotRestPosition (ChannelPot::ThreeD);
-    case channelRowFreq:
-      return channelPotRestPosition (ChannelPot::Freq);
-    case channelRowQ:
-      return channelPotRestPosition (ChannelPot::Q);
-    }
-
-  return {};
-}
 
 std::optional<float>
 channelPotRestPosition (ChannelPot pot)

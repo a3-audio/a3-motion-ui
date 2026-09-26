@@ -286,30 +286,6 @@ ClipSettingsComponent::createTouchControls ()
           addAndMakeVisible (*into);
         };
 
-  // The grid: one hit area per cell, each carrying its channel and row.
-  for (int col = 0; col < numChannelColumns; ++col)
-    for (int row = 0; row < numChannelRows; ++row)
-      {
-        auto cell = std::make_unique<TouchControl> ();
-        cell->setIdentity (col, row);
-        cell->onDragIncrement
-            = [this] (int channel, int gridRow, int increment) {
-                if (onChannelValueDragged)
-                  onChannelValueDragged (channel, gridRow, increment);
-              };
-        // Two taps put a knob back where it started. Only worth having when
-        // the screen is the only way in: with the panel attached these three
-        // are physical pots, and a knob that jumped away from where the pot
-        // is standing would be telling the truth about neither.
-        cell->onDoubleTap = [this] (int channel, int gridRow) {
-          if (onChannelValueReset)
-            onChannelValueReset (channel, gridRow);
-        };
-        addAndMakeVisible (*cell);
-        _gridTouch[static_cast<size_t> (col)][static_cast<size_t> (row)]
-            = std::move (cell);
-      }
-
   // The speeds sit in the same room as the lengths, on the section's other
   // face — see setPage(), which is what decides who may be touched.
   for (int i = 0; i < numSpeedButtons; ++i)
@@ -505,14 +481,6 @@ ClipSettingsComponent::resized ()
   _tabControllerTouch->setBounds (_layout.tabController);
   _tabMixerTouch->setBounds (_layout.tabMixer);
   _tabBrowserTouch->setBounds (_layout.tabBrowser);
-
-  for (int col = 0; col < numChannelColumns; ++col)
-    for (int row = 0; row < numChannelRows; ++row)
-      {
-        auto const c = static_cast<size_t> (col);
-        auto const r = static_cast<size_t> (row);
-        _gridTouch[c][r]->setBounds (_layout.channelGrid[c][r]);
-      }
 
   for (int i = 0; i < numSpeedButtons; ++i)
     _speedTouch[static_cast<size_t> (i)]->setBounds (
@@ -965,45 +933,6 @@ ClipSettingsComponent::setMotionSubIndex (int subIndex)
 }
 
 void
-ClipSettingsComponent::setChannelValues (int channel, float freq,
-                                         float freqEffective, float q,
-                                         float qEffective, float threeD,
-                                         float threeDEffective)
-{
-  if (channel < 0 || channel >= numChannelColumns)
-    return;
-
-  auto const c = static_cast<size_t> (channel);
-
-  // Through gridKnobReach() for all three, so no row can quietly be given its
-  // own value as its reach again -- which is how freq and Q came to be drawn
-  // standing still while the engine was sending them moving.
-  auto const set = std::array<float, 3>{ std::clamp (freq, 0.f, 1.f),
-                                         std::clamp (q, 0.f, 1.f),
-                                         std::clamp (threeD, 0.f, 1.f) };
-  auto const reach = std::array<float, 3>{
-    gridKnobReach (freq, freqEffective), gridKnobReach (q, qEffective),
-    gridKnobReach (threeD, threeDEffective)
-  };
-
-  if (juce::approximatelyEqual (_channelFreq[c], set[0])
-      && juce::approximatelyEqual (_channelQ[c], set[1])
-      && juce::approximatelyEqual (_channelThreeD[c], set[2])
-      && juce::approximatelyEqual (_channelFreqReach[c], reach[0])
-      && juce::approximatelyEqual (_channelQReach[c], reach[1])
-      && juce::approximatelyEqual (_channelThreeDReach[c], reach[2]))
-    return; // nothing moved; this runs on every LED tick
-
-  _channelFreq[c] = set[0];
-  _channelQ[c] = set[1];
-  _channelThreeD[c] = set[2];
-  _channelFreqReach[c] = reach[0];
-  _channelQReach[c] = reach[1];
-  _channelThreeDReach[c] = reach[2];
-  repaint ();
-}
-
-void
 ClipSettingsComponent::setSelectedParameterIndex (int index)
 {
   jassert (index >= 0 && index < numParameters);
@@ -1240,12 +1169,6 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
           g, bounds.toFloat ().reduced (bounds.getWidth () * 0.28f), face);
     }
 
-  // The faces stand in a frame of their own: the five keys beside them choose
-  // what the settings area shows, these four choose which clip it is showing,
-  // and nine keys in an unbroken row would read as one kind of thing.
-  paintSetOffFrame (g, _layout.channelFacesFrame);
-  paintChannelFaces (g);
-
   paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
   paintTab (_layout.tabAction, "ACTION", _page == BarPage::Action);
   paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
@@ -1264,18 +1187,6 @@ juce::Rectangle<int>
 ClipSettingsComponent::clipContentBounds () const
 {
   return _layout.clipContent;
-}
-
-juce::Rectangle<int>
-ClipSettingsComponent::globalGridRowsBounds () const
-{
-  // The row captions rather than the cells: the cells give a pixel back on
-  // each side, so a page lining up with them would sit one pixel out.
-  auto bounds = _layout.channelRowLabels.front ();
-  for (auto const &label : _layout.channelRowLabels)
-    bounds = bounds.getUnion (label);
-
-  return bounds;
 }
 
 void
@@ -1605,16 +1516,12 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
 {
   paintSectionCard (g, globalIndex, isSelected);
 
-  // Two blocks, each in a frame of its own: the values above, the things you
-  // do below. Set off from the card rather than boxed in it -- a heavier edge
+  // Two blocks, each in a frame of its own: whose clip above, what to do to
+  // it below. Set off from the card rather than boxed in it -- a heavier edge
   // would make the strip read as two panels that happen to touch.
-  paintSetOffFrame (g, _layout.channelGridFrame);
+  paintSetOffFrame (g, _layout.channelFacesFrame);
   paintSetOffFrame (g, _layout.transportFrame);
-
-  // Through textCell like every other control in the bar: handed the whole
-  // remaining column instead, the value floated in the middle and its caption
-  // sat pinned to the bottom edge, a finger's width away from what it names.
-  paintChannelGrid (g);
+  paintChannelFaces (g);
 
   // Every key's colour from the one rule (theme/FunctionKeyColours.hh), which
   // is what makes it one rule. Each of these used to carry its own copy —
@@ -2402,99 +2309,6 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   g.setColour (Colours::barText (isSelected));
   g.drawFittedText (label, labelArea,
                     juce::Justification::centred, 1);
-}
-
-void
-ClipSettingsComponent::paintChannelGrid (juce::Graphics &g)
-{
-  auto const &metrics = _layout.metrics;
-
-  static char const *rowCaptions[numChannelRows] = { "3d", "freq", "Q" };
-
-  // The row captions once down the side, rather than under all twelve knobs.
-  g.setFont (juce::Font (metrics.captionSize, juce::Font::plain));
-  g.setColour (toColour (theme ().textMuted, theme ().alphaInactive));
-  for (int row = 0; row < numChannelRows; ++row)
-    g.drawFittedText (rowCaptions[row],
-                      _layout.channelRowLabels[static_cast<size_t> (row)],
-                      juce::Justification::centredRight, 1);
-
-  for (int col = 0; col < numChannelColumns; ++col)
-    {
-      auto const c = static_cast<size_t> (col);
-      auto const colour = toColour (theme ().channel[c]);
-
-      // No number over the column: the channel's own colour says which is
-      // whose, and it says it without being read. The row it took is a row
-      // the twelve knobs wanted.
-
-      // In channelRow* order — 3d on top, then freq, then Q. All three have
-      // something carrying them past where they were set: the accent, and the
-      // cutoff's and resonance's own envelopes.
-      float const values[numChannelRows]
-          = { _channelThreeD[c], _channelFreq[c], _channelQ[c] };
-      float const reaches[numChannelRows]
-          = { _channelThreeDReach[c], _channelFreqReach[c],
-              _channelQReach[c] };
-
-      for (int row = 0; row < numChannelRows; ++row)
-        paintGridKnob (g, _layout.channelGrid[c][static_cast<size_t> (row)],
-                       metrics, values[row], reaches[row], colour);
-    }
-}
-
-/** A knob without a caption: the column says which channel, the row caption
- *  down the side says which value, so the knob itself has nothing to add. */
-void
-ClipSettingsComponent::paintGridKnob (juce::Graphics &g,
-                                      juce::Rectangle<int> bounds,
-                                      ControlMetrics metrics, float value,
-                                      float reach, juce::Colour colour)
-{
-  // The same diameter every other knob in the bar is drawn at. Filling the
-  // cell instead made these twelve the largest thing on screen, which is
-  // not what they are.
-  // A fifth over the bar's standard diameter — see the grid's layout: these
-  // carry no caption, so at the same size they read smaller than the knobs
-  // in the clip's sections.
-  auto const size = static_cast<float> (juce::jmin (
-      static_cast<int> (metrics.knobDiam * 1.2f),
-      juce::jmin (bounds.getWidth (), bounds.getHeight ())));
-  auto const centre = bounds.toFloat ().getCentre ();
-  auto const r = size * 0.5f * 0.78f;
-
-  auto constexpr sweep = juce::MathConstants<float>::pi * 0.75f;
-  auto const angle = (std::clamp (value, 0.f, 1.f) * 2.f - 1.f) * sweep;
-
-  juce::Path track;
-  track.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, sweep, true);
-  g.setColour (toColour (theme ().textPrimary, trackWash));
-  g.strokePath (track, juce::PathStrokeType (juce::jmax (1.f, r * 0.18f)));
-
-  auto const thickness = juce::jmax (1.5f, r * 0.18f);
-
-  juce::Path valueArc;
-  valueArc.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, angle, true);
-  g.setColour (colour);
-  g.strokePath (valueArc, juce::PathStrokeType (thickness));
-
-  // What a modulation is doing right now: the stretch from the pointer to
-  // where the value has actually been carried. It grows out of the pointer
-  // and shrinks back into it, so the knob shows the floor and the movement at
-  // once — the pointer stays where the hand put it while the arc moves.
-  auto const reachAngle
-      = (std::clamp (reach, 0.f, 1.f) * 2.f - 1.f) * sweep;
-  if (reachAngle > angle)
-    {
-      juce::Path reachArc;
-      reachArc.addCentredArc (centre.x, centre.y, r, r, 0.f, angle, reachAngle,
-                              true);
-      g.setColour (toColour (theme ().notice));
-      g.strokePath (reachArc, juce::PathStrokeType (thickness));
-    }
-
-  auto const tip = centre.getPointOnCircumference (r, angle);
-  g.drawLine (centre.x, centre.y, tip.x, tip.y, juce::jmax (1.5f, r * 0.14f));
 }
 
 }

@@ -288,13 +288,14 @@ generator and the test runner:
   else here moves. The hardware pot and the grid keep meaning what
   they always meant; what they mean *is* now the bottom of the swing. `MotionEngine::advanceAccents()`
   runs it on the tempo-clock thread beside playback, and `getChannelPot3Effective()` is what both the
-  OSC sender and the grid read, so the knob on screen moves with the accent instead of leaving you to
-  take it on trust.
+  OSC sender and the mixer pages' 3D knobs read, so the knob on screen moves with the accent instead
+  of leaving you to take it on trust.
 
-  The grid draws it where you can watch it: the 3d knob's **pointer stays on the set value** and the
+  The knob draws it where you can watch it: the 3d knob's **pointer stays on the set value** and the
   arc from there to the effective value is filled in the notice colour, so the knob shows the floor
-  and the movement at once. That is why `setChannelValues()` takes 3d twice — a knob whose pointer
-  moved with the modulation would have nothing left to say where the hand had put it.
+  and the movement at once. That is why `ChannelPotValues` carries the setting and the effective
+  value side by side — a knob whose pointer moved with the modulation would have nothing left to
+  say where the hand had put it.
 
   **When the decay runs out the clip does what its end action says** (`applyEndActionAfterAccent`),
   and only on that edge, once. Stop and Pause end the pass; Loop, Bounce and Random mean "keep
@@ -365,9 +366,10 @@ adjusts the selected one, pushing it switches which; see the protocol comment at
 encoder turns Q outright now and never produces those values any more. `getGlobalPot()` is virtual
 on the base class and returns a value that never changes where the hardware has no pots.
 
-Note also that `handleChannelValueChange` takes a **grid row**, not a pot number: the rows read
-3d, freq, Q from the top (`channelRow*`), so passing a literal 0 for "freq" reaches 3d. That is
-exactly what went wrong when the rows were reordered.
+Note also that `handleChannelValueChange` takes a `ChannelPot`, not a pot number. It took a grid
+row until 2026-09-26, and the rows read 3d, freq, Q from the top, so a literal 0 meant for "freq"
+reached 3d — exactly what went wrong when the rows were reordered. The engine's numbering (pot 1
+freq, pot 2 Q, pot 3 3d) is translated in one place, `channelPotValue` / `setChannelPotValue`.
 
 They used to scroll the bar's sections, change the selected row's value, and — on channel 3 —
 navigate the settings menu, the skin editor and the colour picker. **All of that is touch now.**
@@ -453,14 +455,12 @@ Two things are not obvious:
   Reading a `juce::String` on one thread while another replaces it is a race,
   refcount and all.
 
-The bar's **global section** takes its right half and holds three things: a 4x3 grid of
-per-channel values (columns = channels in their own colours, rows = freq, Q, 3d), the rec mode, and
-the action buttons. A **Filter section** used to sit among the clip's sections showing freq and Q —
-but those were never the clip's: `handleClipSettingsValueChange` wrote them through
-`setChannelPot1/2`, the same per-channel values the hardware drives. Dissolving that section moved
-them where they belong, and nothing was lost. The grid's cells are dragged through
-`onChannelValueDragged` and name their own channel, unlike everything else in the bar, which is
-about the clip on show.
+The bar's **global section** takes its right quarter and holds three things: the four channel
+faces, the transport two by two, and the six function keys. A **Filter section** used to sit among
+the clip's sections showing freq and Q — but those were never the clip's: they are the same
+per-channel values the hardware drives. They moved into a 4x3 grid in the global section, and on
+2026-09-26 out of the bar altogether, into the mixer strips (3D, FREQ, Q under SEND; see the mixer
+paragraphs below).
 
 **How tall the bar is** comes from `clipSettingsPreferredHeight` — what the tallest section's
 contents need at the current fonts and pot size — times the skin's `clipSettingsHeightScale`
@@ -904,12 +904,14 @@ Every section's buttons sit on the bar's bottom edge — Shape's `len`, Elevatio
 than three sections each arranging their own. TAP lights up for **a finger only**; it used to flash
 on every beat too, which put a blinking light on a bar meant to be read.
 
-The global section is laid out top to bottom: the per-channel grid (rows read **3d, freq, Q** — see
-`channelRow*`), centred as one block with its row captions, then **four buttons two by two** — rec mode, menu / rec, tap. The rec mode is a
-button like the others now and steps through the modes on a tap, which is what its encoder used to
-do; it reads as active whenever it is not Touch. Rows and columns of the grid are capped to what a
-knob needs rather than sharing out the section's whole width and height, so the twelve knobs sit
-together instead of scattered across half the bar.
+The global section is laid out top to bottom (2026-09-26): the **four channel faces** in a frame of
+their own, moved up out of the clip's header row, which now holds only the five views (CLIP ACTION
+PADS MIX FILES); then the **transport two by two** — rec and stop over play and act — taking all the
+height between the faces and the keys, which the 4x3 grid used to have; then the **six function
+keys** two by three. The rec mode is a button like the others and steps through the modes on a tap,
+which is what its encoder used to do; it reads as active whenever it is not Touch. The ACTION page
+used to line its rows up with the grid's (`setGridReference`); with the grid gone it lays out
+freely, and `layOutActionPage` is handed an empty reference.
 
 The buttons carry three device-wide functions — **MENU**, **REC**, **TAP** — beside its rec-mode display. They are the
 finger's way to what the hardware has keys for, and they are not sub-elements of
