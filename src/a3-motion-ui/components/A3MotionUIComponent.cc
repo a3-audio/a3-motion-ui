@@ -751,9 +751,19 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     handleClipSettingsReset (_clipSettingsChannel, section, sub);
   };
 
-  _clipSettings->onPageSelected
-      = [this] (BarPage page) { showBarPage (page); };
-  _clipSettings->onMainMixTapped = [this] { toggleMixer (); };
+  // MAINMIX is a tab: it shows the big mixer and a second tap leaves it up.
+  // Any other tab takes it away and shows its page.
+  _clipSettings->onPageSelected = [this] (BarPage page) {
+    if (_mixerOpen)
+      showMixer (false);
+    showBarPage (page);
+  };
+  _clipSettings->onMainMixTapped = [this] {
+    if (_mixerOpen)
+      return;
+    updateControlReadout ("-- MIX ON");
+    showMixer (true);
+  };
   _clipSettings->setMainMixOpen (_mixerOpen);
 
   _controller = std::make_unique<ControllerComponent> ();
@@ -1937,13 +1947,6 @@ A3MotionUIComponent::toggleGlobalSettings ()
     closeGlobalSettings ();
   else
     openGlobalSettings ();
-}
-
-void
-A3MotionUIComponent::toggleMixer ()
-{
-  updateControlReadout (_mixerOpen ? "-- MIX OFF" : "-- MIX ON");
-  showMixer (!_mixerOpen);
 }
 
 void

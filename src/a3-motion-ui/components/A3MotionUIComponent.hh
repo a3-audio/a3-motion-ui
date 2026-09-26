@@ -599,7 +599,6 @@ private:
    *  the sphere its glow and the speaker lights their light. */
   VuLevels _vuLevels;
   bool _mixerOpen = false;
-  void toggleMixer ();
   /** Open or close it and tell everything that shows the state -- the key in
    *  the status bar and the overlay's own buttons. One place, because Back,
    *  Close and the key itself all reach it. */

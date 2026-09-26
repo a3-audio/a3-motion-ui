@@ -1588,3 +1588,15 @@ TEST (SelectionAfterRemoving, ARowBeforeTheStartIsRowZero)
 {
   EXPECT_EQ (selectionAfterRemoving (-1, 5), 0);
 }
+
+// MAINMIX is a tab like the others since 2026-09-26, not a toggle: while the
+// big mixer is shown, MAINMIX is the one lit tab, and the page underneath
+// does not also claim to be selected. With the mixer away, the shown page is.
+TEST (ClipSettingsLayout, OneTabIsLitAndMainMixTakesItWhileOpen)
+{
+  EXPECT_TRUE (pageTabIsLit (BarPage::Clip, BarPage::Clip, false));
+  EXPECT_FALSE (pageTabIsLit (BarPage::Action, BarPage::Clip, false));
+
+  EXPECT_FALSE (pageTabIsLit (BarPage::Clip, BarPage::Clip, true))
+      << "the page under the big mixer is lit beside MAINMIX";
+}

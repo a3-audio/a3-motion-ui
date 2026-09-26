@@ -1176,10 +1176,14 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
       drawTransportGlyph (g, transportGlyphArea (bounds.toFloat ()), face);
     }
 
-  paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
-  paintTab (_layout.tabAction, "ACTION", _page == BarPage::Action);
-  paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
-  paintTab (_layout.tabMixer, "CHMIX", _page == BarPage::Mixer);
+  paintTab (_layout.tabClip, "CLIP",
+            pageTabIsLit (BarPage::Clip, _page, _mainMixOpen));
+  paintTab (_layout.tabAction, "ACTION",
+            pageTabIsLit (BarPage::Action, _page, _mainMixOpen));
+  paintTab (_layout.tabController, "PADS",
+            pageTabIsLit (BarPage::Controller, _page, _mainMixOpen));
+  paintTab (_layout.tabMixer, "CHMIX",
+            pageTabIsLit (BarPage::Mixer, _page, _mainMixOpen));
   paintTab (_layout.tabMainMix, "MAINMIX", _mainMixOpen);
 
   // A word like the three beside it. It was a folder mark, on the reasoning
@@ -1187,7 +1191,8 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   // every key in the row became one size, a drawing among words was the odd
   // one out rather than the distinct one, and at this size it read as a
   // smudge.
-  paintTab (_layout.tabBrowser, "FILES", _page == BarPage::Browser);
+  paintTab (_layout.tabBrowser, "FILES",
+            pageTabIsLit (BarPage::Browser, _page, _mainMixOpen));
 
 }
 

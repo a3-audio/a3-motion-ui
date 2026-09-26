@@ -312,6 +312,14 @@ float elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow = 0.f,
 float snapElevationBase (float base);
 
 
+/** Whether a page's tab is lit: the page on show, unless the big mixer is
+ *  over the sphere -- then MAINMIX is the lit tab. */
+constexpr bool
+pageTabIsLit (BarPage tab, BarPage shown, bool mainMixOpen)
+{
+  return !mainMixOpen && tab == shown;
+}
+
 /** Whether a tap on this control flips it. True for the two-state ones —
  *  pole and flat. They used to be stepped like the rest, but stepping is
  *  tied to a direction (an encoder turned right meant South) and a tap has
