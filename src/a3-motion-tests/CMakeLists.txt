@@ -132,6 +132,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerHitAreas.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/VuFader.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PotKnob.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/BarKnob.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionKnobs.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipKnobs.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/VuMeterView.cc"

@@ -51,6 +51,26 @@ controlColour (juce::Colour channelColour, bool isSelected)
 
 }
 
+std::vector<std::pair<float, float> >
+modulationArcs (float valueAngle, float reachAngle, float sweep, bool wraps)
+{
+  if (juce::approximatelyEqual (valueAngle, reachAngle))
+    return {};
+
+  if (reachAngle > valueAngle)
+    return { { valueAngle, reachAngle } };
+
+  if (!wraps)
+    return { { reachAngle, valueAngle } };
+
+  // Gone round. Drawn as the two pieces it is rather than as nothing:
+  // a rotation that passes the end of the scale has not stopped, and
+  // an arc that vanished at the top would say it had. On a ring the
+  // two pieces meet, so what you see is one arc crossing the top --
+  // which is what actually happened.
+  return { { valueAngle, sweep }, { -sweep, reachAngle } };
+}
+
 void
 paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
               ControlMetrics metrics, juce::Colour channelColour,
@@ -132,26 +152,13 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
           = (wraps ? wrapped (reachFrac) : std::clamp (reachFrac, -1.f, 1.f))
             * sweep;
 
-      auto const arc = [&] (float from, float to) {
-        if (to <= from)
-          return;
-        juce::Path piece;
-        piece.addCentredArc (centre.x, centre.y, r, r, 0.f, from, to, true);
-        g.setColour (toColour (theme ().notice));
-        g.strokePath (piece, juce::PathStrokeType (thickness));
-      };
-
-      if (reachAngle >= angleValue)
-        arc (angleValue, reachAngle);
-      else
+      g.setColour (toColour (theme ().notice));
+      for (auto const &[from, to] :
+           modulationArcs (angleValue, reachAngle, sweep, wraps))
         {
-          // Gone round. Drawn as the two pieces it is rather than as nothing:
-          // a rotation that passes the end of the scale has not stopped, and
-          // an arc that vanished at the top would say it had. On a ring the
-          // two pieces meet, so what you see is one arc crossing the top --
-          // which is what actually happened.
-          arc (angleValue, sweep);
-          arc (-sweep, reachAngle);
+          juce::Path piece;
+          piece.addCentredArc (centre.x, centre.y, r, r, 0.f, from, to, true);
+          g.strokePath (piece, juce::PathStrokeType (thickness));
         }
     }
 
