@@ -27,6 +27,21 @@
 namespace a3
 {
 
+juce::Path
+pathOf (std::vector<juce::Point<float> > const &points,
+        std::vector<bool> const &lifts)
+{
+  juce::Path path;
+  for (std::size_t i = 0; i < points.size (); ++i)
+    {
+      if (lifts[i])
+        path.startNewSubPath (points[i]);
+      else
+        path.lineTo (points[i]);
+    }
+  return path;
+}
+
 juce::Point<float>
 toLineMap (juce::Point<float> const &seen)
 {
@@ -151,6 +166,172 @@ lineMapStrokes (ProjectedLine const &line)
       keep (pieceOf (start, stop), lineMapCoreWidth * lineMapTexels,
             juce::Colour::fromFloatRGBA (lineMapCoreNearness, u,
                                          depthOf (start, stop), 1.f));
+    }
+
+  return strokes;
+}
+
+}
+
+namespace a3
+{
+
+juce::Point<float>
+toStrandMap (juce::Point<float> const &seen)
+{
+  return juce::Point<float> (
+      (seen.x / lineMapExtent * 0.5f + 0.5f) * static_cast<float> (strandMapSize),
+      (seen.y / lineMapExtent * 0.5f + 0.5f) * static_cast<float> (strandMapSize));
+}
+
+namespace
+{
+
+// Depth-band helpers
+int
+depthBand (float z)
+{
+  if (z < -0.5f)
+    return 0;
+  if (z < 0.f)
+    return 1;
+  if (z < 0.5f)
+    return 2;
+  return 3;
+}
+
+bool
+hasALine (Polyline const &piece)
+{
+  for (std::size_t i = 1; i < piece.points.size (); ++i)
+    if (!piece.lifts[i])
+      return true;
+  return false;
+}
+
+}
+
+BraidCord
+braidCord (ProjectedLine const &line, SheathRing const &braid, float seconds)
+{
+  BraidCord cord;
+  auto const count = line.points.size ();
+  if (count < 2)
+    return cord;
+
+  auto const strands = juce::jlimit (1, 5, braid.strands);
+  auto const plain = strands < 2 || !(braid.radius > 0.0001f);
+
+  // Which way is across the line at each point, and how much offset it
+  // carries there. Both from sheathFrames(), which looks past the repeated
+  // points every recording holds -- a still hand used to read as an
+  // infinitely tight bend and snap the strands onto the axis.
+  std::vector<juce::Point<float> > across (count);
+  std::vector<float> guard (count, 1.f);
+  if (!plain)
+    {
+      std::vector<SheathPoint> sheath (count);
+      for (std::size_t i = 0; i < count; ++i)
+        sheath[i] = { line.points[i].x, line.points[i].y,
+                      static_cast<bool> (line.startsRun[i]) };
+
+      auto const frames = sheathFrames (sheath, braid.radius);
+      for (std::size_t i = 0; i < count; ++i)
+        {
+          across[i] = { frames[i].acrossX, frames[i].acrossY };
+          guard[i] = frames[i].guard;
+        }
+    }
+
+  // Five depth tiers: a strand crosses every boundary twice a turn, and at
+  // three with plainly different brightnesses you read the boundary rather
+  // than the strand.
+  auto constexpr numTiers = BraidCord::tiers;
+
+  auto const total = static_cast<float> (count - 1);
+
+  for (auto strand = 0; strand < strands; ++strand)
+    {
+      auto lastBand = -1;
+      auto lastTier = -1;
+      juce::Point<float> lastPoint;
+
+      for (std::size_t i = 0; i < count; ++i)
+        {
+          auto const u = total > 0.f ? static_cast<float> (i) / total : 0.f;
+          auto const sample
+              = plain ? SheathSample{} : sheathAt (u, strand, braid, seconds);
+
+          auto const point
+              = line.points[i] + across[i] * (sample.offset * guard[i]);
+
+          auto const band = depthBand (line.depth[i]);
+          auto const tier = juce::jlimit (
+              0, numTiers - 1,
+              static_cast<int> ((sample.depth + 1.f) * 0.5f
+                                * static_cast<float> (numTiers)));
+
+          auto const broken = line.startsRun[i] || lastBand < 0
+                              || band != lastBand || tier != lastTier;
+          auto &piece = cord.pieces[static_cast<std::size_t> (band)]
+                                   [static_cast<std::size_t> (tier)];
+          if (broken)
+            {
+              piece.points.push_back (
+                  line.startsRun[i] || lastBand < 0 ? point : lastPoint);
+              piece.lifts.push_back (true);
+            }
+          piece.points.push_back (point);
+          piece.lifts.push_back (false);
+
+          lastBand = band;
+          lastTier = tier;
+          lastPoint = point;
+        }
+    }
+
+  return cord;
+}
+
+std::vector<MapStroke>
+strandMapStrokes (BraidCord const &cord)
+{
+  std::vector<MapStroke> strokes;
+
+  // Back to front, so a strand passes behind the cord and comes out the other
+  // side. The step between one tier and the next is small on purpose: a coil
+  // brightens as it comes round, it does not switch.
+  for (auto tier = 0; tier < BraidCord::tiers; ++tier)
+    {
+      auto const front = BraidCord::tiers > 1
+                             ? static_cast<float> (tier)
+                                   / static_cast<float> (BraidCord::tiers - 1)
+                             : 1.f;
+      for (auto band = 0; band < BraidCord::bands; ++band)
+        {
+          auto const &piece = cord.pieces[static_cast<std::size_t> (band)]
+                                         [static_cast<std::size_t> (tier)];
+          if (!hasALine (piece))
+            continue;
+
+          // Into the strand map: red says a strand is here, green how far
+          // in front of the cord it is at this point. Opaque, so the
+          // premultiplied image keeps both values as written; back tiers
+          // first, so where two cross the nearer one is what is left.
+          MapStroke stroke;
+          // Into map space first, then stroked in texels. strokePath's own
+          // transform moves the points and leaves the thickness alone, so
+          // passing it there drew every strand at a hundredth of a texel —
+          // a tenth-opaque smear the shader's threshold never saw.
+          for (auto const &p : piece.points)
+            stroke.points.push_back (toStrandMap (p));
+          stroke.lifts = piece.lifts;
+          // A strand wide enough to survive the bilinear filter, and no
+          // wider: the shader sharpens it back down, as it does the cord.
+          stroke.width = 1.7f * strandMapTexels;
+          stroke.colour = juce::Colour::fromFloatRGBA (1.f, front, 0.f, 1.f);
+          strokes.push_back (std::move (stroke));
+        }
     }
 
   return strokes;

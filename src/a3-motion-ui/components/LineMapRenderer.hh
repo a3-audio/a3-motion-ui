@@ -47,6 +47,9 @@ namespace a3
 class LineMapRenderer
 {
 public:
+  /** How many texels across the map is: lineMapSize or strandMapSize. */
+  explicit LineMapRenderer (int mapSize) : _size (mapSize) {}
+
   /** False, with a line in the log, if the program does not build here --
    *  the caller then stays on the software path. */
   bool initialise (juce::OpenGLContext &context);
@@ -60,6 +63,7 @@ public:
   static constexpr int channels = 4;
 
 private:
+  int const _size;
   juce::OpenGLContext *_context = nullptr;
   std::unique_ptr<juce::OpenGLShaderProgram> _program;
   GLuint _vbo = 0;

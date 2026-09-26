@@ -236,11 +236,15 @@ private:
   // config.json says so (a3-motion-ui#34). Decided once per frame, when the
   // maps are reset, so a frame's strokes are painted the way they were
   // collected even if the switch flips in between.
-  LineMapRenderer _lineMapRenderer;
+  LineMapRenderer _lineMapRenderer{ lineMapSize };
+  LineMapRenderer _strandMapRenderer{ strandMapSize };
   bool _gpuLineMaps = false;
   bool _lineMapsOnGpu = false;
   std::array<std::vector<MapStroke>, 4> _lineStrokes;
+  std::array<std::vector<MapStroke>, 4> _strandStrokes;
   std::vector<MapStroke> *lineStrokesFor (int channel);
+  std::vector<MapStroke> *strandStrokesFor (int channel);
+  void logLineMapMode () const;
 
   // Blit resources for compositing 2D overlay onto 3D shader output
   struct BlitResources

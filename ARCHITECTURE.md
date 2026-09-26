@@ -696,7 +696,15 @@ the renderer with four clips playing (8.5 fps, 2026-09-26).
   *next* frame, and a flip in between would otherwise paint strokes that were never collected.
 - Orientation: `OpenGLTexture::loadImage()` flips an image on its way to the GPU, so the pass writes
   `clipY = 1 − 2·y/size` to put its rows where the upload put them.
-- The braid's strand map is still stroked in software. Both only became visible when `sway` started
+- The braid's strand map goes the same way: `braidCord()` cuts the strands into pieces by depth
+  band and tier (tested), `strandMapStrokes()` turns them into the list for the 1024² map, tiers
+  back to front, and a second `LineMapRenderer` paints it. The visible braid of a line with no map
+  (previews) is stroked from the same `braidCord()`.
+- The switch is read when the GL context comes up as well as on reload: the reload only fires when
+  `config.json` changes, and without the first read the app came up in software whatever the file
+  said.
+- Measured on the rig with four clips playing (2026-09-26): software 8.5 fps, GPU line map only
+  14.3, line and strand map on the GPU 38.5. Both only became visible when `sway` started
 moving the base off the pole as a matter of course.
 
 **Each of the bar's three sections can be held**, by the lock at the right end of its title row.

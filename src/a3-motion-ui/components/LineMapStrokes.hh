@@ -23,7 +23,9 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/LineMapGeometry.hh>
+#include <a3-motion-ui/components/PlasmaSheath.hh>
 
+#include <array>
 #include <vector>
 
 namespace a3
@@ -115,6 +117,23 @@ constexpr int lineMapConePieces = 24;
 // silhouette of a laid rope.
 constexpr float lineMapCoreNearness = 0.88f;
 
+// The braid's strands get a finer grid than the cone does, and this is the one
+// number that made the trajectory look pixelated.
+//
+// The two maps hold two different kinds of thing. The cone is a wide, soft
+// distance field: ten nested strokes up to sixty-eight texels across, so its
+// cost is *area* and doubling the grid quadruples it — measured on the device,
+// 12 ms a frame at 512 and 20 ms at 1024, for a field that has nothing fine in
+// it to show. The strands are five hairlines 1.7 texels wide: their cost is
+// length, not area, and at 512 they are thin enough that the bilinear filter
+// and the shader's threshold beat against the grid and bead the line. That
+// beading is what "ich will keine Pixel sehen" was looking at.
+//
+// Both maps cover the same `lineMapExtent`, so the shader samples them with
+// the same uv and needs to know nothing about this.
+auto constexpr strandMapSize = 1024;
+constexpr float strandMapTexels = strandMapSize / 512.f;
+
 /** One piece of a line map as it is painted: a polyline in map texels
  *  (image orientation, y down), stroked at one width in one opaque colour
  *  over whatever is already there -- curved joins, rounded ends.
@@ -132,6 +151,12 @@ struct MapStroke
   juce::Colour colour;
 };
 
+/** The pen's path through `points`: a new sub-path wherever `lifts` says,
+ *  a line to every other point. How the software path hands a stroke list
+ *  or a braid piece to juce::Graphics. */
+juce::Path pathOf (std::vector<juce::Point<float> > const &points,
+                   std::vector<bool> const &lifts);
+
 /** Where a point the camera sees lands in the line map. */
 juce::Point<float> toLineMap (juce::Point<float> const &seen);
 
@@ -146,5 +171,39 @@ bool gpuLineMapsWanted (juce::var const &config);
 
 /** The cone's ten steps, widest first, then the core -- in painting order. */
 std::vector<MapStroke> lineMapStrokes (ProjectedLine const &line);
+
+/** Where a point the camera sees lands in the strand map: the same extent as
+ *  the line map, on its finer grid. */
+juce::Point<float> toStrandMap (juce::Point<float> const &seen);
+
+/** A run of points with the pen lifted where a new sub-path begins -- what a
+ *  juce::Path built from startNewSubPath/lineTo holds. */
+struct Polyline
+{
+  std::vector<juce::Point<float> > points;
+  std::vector<bool> lifts;
+};
+
+/** The braid around a line, cut into pieces by how far behind the ball
+ *  (band, from the line's depth) and how far round the cord (tier, from the
+ *  strand's own depth) each stretch is. Tiers are painted back to front, so
+ *  a strand passes behind the cord and comes out the other side.
+ *
+ *  In the sphere's screen units, like ProjectedLine. `seconds` turns the
+ *  strands; `braid` with fewer than two strands or no radius is one plain
+ *  strand on the line itself. */
+struct BraidCord
+{
+  static constexpr int tiers = 5;
+  static constexpr int bands = 4;
+  std::array<std::array<Polyline, tiers>, bands> pieces;
+};
+
+BraidCord braidCord (ProjectedLine const &line, SheathRing const &braid,
+                     float seconds);
+
+/** The braid as strokes into the strand map: tiers back to front, each band
+ *  within a tier, R 1 where a strand is, G how far in front of the cord. */
+std::vector<MapStroke> strandMapStrokes (BraidCord const &cord);
 
 }

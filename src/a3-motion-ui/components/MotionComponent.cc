@@ -140,22 +140,6 @@ auto constexpr blobTrailLag = 0.09f;
 // between four texels, so one bilinear tap *is* the average of the four.
 auto constexpr sphereSupersample = 2;
 
-// The braid's strands get a finer grid than the cone does, and this is the one
-// number that made the trajectory look pixelated.
-//
-// The two maps hold two different kinds of thing. The cone is a wide, soft
-// distance field: ten nested strokes up to sixty-eight texels across, so its
-// cost is *area* and doubling the grid quadruples it — measured on the device,
-// 12 ms a frame at 512 and 20 ms at 1024, for a field that has nothing fine in
-// it to show. The strands are five hairlines 1.7 texels wide: their cost is
-// length, not area, and at 512 they are thin enough that the bilinear filter
-// and the shader's threshold beat against the grid and bead the line. That
-// beading is what "ich will keine Pixel sehen" was looking at.
-//
-// Both maps cover the same `lineMapExtent`, so the shader samples them with
-// the same uv and needs to know nothing about this.
-auto constexpr strandMapSize = 1024;
-constexpr float strandMapTexels = strandMapSize / 512.f;
 
 // What counts as a jump rather than a movement, in the sphere's normalised
 // units: a clip looping back to its start, or a finger dropping the blob
@@ -490,11 +474,22 @@ MotionComponent::lineStrokesFor (int channel)
   return &_lineStrokes[static_cast<std::size_t> (channel)];
 }
 
+std::vector<MapStroke> *
+MotionComponent::strandStrokesFor (int channel)
+{
+  if (!_lineMapsOnGpu || channel < 0 || channel >= 4)
+    return nullptr;
+  return &_strandStrokes[static_cast<std::size_t> (channel)];
+}
+
 void
 MotionComponent::resetLineMaps ()
 {
-  _lineMapsOnGpu = _gpuLineMaps && _lineMapRenderer.isReady ();
+  _lineMapsOnGpu = _gpuLineMaps && _lineMapRenderer.isReady ()
+                   && _strandMapRenderer.isReady ();
   for (auto &strokes : _lineStrokes)
+    strokes.clear ();
+  for (auto &strokes : _strandStrokes)
     strokes.clear ();
   for (auto &valid : _lineMapValid)
     valid = false;
@@ -533,6 +528,15 @@ MotionComponent::uploadLineMaps ()
       if (!_strandMapValid[channel] || !_strandMapImage[channel].isValid ())
         {
           _sphereShader.setStrandTexture (channel, 0);
+          continue;
+        }
+
+      if (_lineMapsOnGpu)
+        {
+          _sphereShader.setStrandTexture (
+              channel,
+              _strandMapRenderer.paint (
+                  channel, _strandStrokes[static_cast<std::size_t> (channel)]));
           continue;
         }
 
@@ -979,6 +983,7 @@ MotionComponent::newOpenGLContextCreated ()
   // The line maps on the GPU, if this GPU builds the program; the software
   // path stays either way (a3-motion-ui#34).
   _lineMapRenderer.initialise (_glContext);
+  _strandMapRenderer.initialise (_glContext);
 
   // Energy map from the IEM EnergyVisualizer. Folding 426 directions into the
   // map is a fixed geometry problem, so the weights are resolved once here.
@@ -1023,6 +1028,25 @@ MotionComponent::newOpenGLContextCreated ()
   auto const skin = loadActiveSkinVar (configFile (), userConfig);
   applyVisualConfig (skin);
   applyTheme (skin);
+
+  // Read here as well as on reload: the watcher above has just taken the
+  // file's current state as seen, so reloadVisualConfigIfChanged() only
+  // hears about the switch once the file changes. Without this the app came
+  // up in software whatever config.json said.
+  _gpuLineMaps = gpuLineMapsWanted (userConfig);
+  logLineMapMode ();
+}
+
+void
+MotionComponent::logLineMapMode () const
+{
+  juce::Logger::writeToLog (
+      juce::String ("line maps: ")
+      + (_gpuLineMaps ? (_lineMapRenderer.isReady ()
+                                 && _strandMapRenderer.isReady ()
+                             ? "GPU"
+                             : "GPU asked, not available")
+                      : "software"));
 }
 
 
@@ -1207,11 +1231,7 @@ MotionComponent::reloadVisualConfigIfChanged ()
           if (gpu != _gpuLineMaps)
             {
               _gpuLineMaps = gpu;
-              juce::Logger::writeToLog (
-                  juce::String ("line maps: ")
-                  + (gpu ? (_lineMapRenderer.isReady () ? "GPU"
-                                                        : "GPU asked, not available")
-                         : "software"));
+              logLineMapMode ();
             }
 
           juce::Component::SafePointer<MotionComponent> safeThis{ this };
@@ -1945,18 +1965,13 @@ drawPathOnSphere (juce::Path const &displayPath,
                   juce::Image *strandMap = nullptr,
                   /** When the line map is painted on the GPU: where its
                    *  strokes are collected instead of being painted here. */
-                  std::vector<MapStroke> *lineStrokes = nullptr)
+                  std::vector<MapStroke> *lineStrokes = nullptr,
+                  /** The same for the strand map. */
+                  std::vector<MapStroke> *strandStrokes = nullptr)
 {
   if (displayPath.isEmpty ())
     return;
 
-  // Depth-band helpers
-  auto depthBand = [] (float z) -> int {
-    if (z < -0.5f) return 0;
-    if (z < 0.f)   return 1;
-    if (z < 0.5f)  return 2;
-    return 3;
-  };
 
   // z >= 0 (elevation >= 50%, i.e. at/above the horizon) is always fully
   // visible; below that it fades toward the far/south pole so it reads as
@@ -2007,141 +2022,74 @@ drawPathOnSphere (juce::Path const &displayPath,
     SheathRing const braid{ theme ().braidRadius, theme ().braidTurns,
                             theme ().braidSpin,
                             juce::roundToInt (theme ().braidStrands) };
-    auto const strands = juce::jlimit (1, 5, braid.strands);
-    auto const plain = strands < 2 || !(braid.radius > 0.0001f);
 
-    // Which way is across the line at each point, and how much offset it
-    // carries there. Both from sheathFrames(), which looks past the repeated
-    // points every recording holds -- a still hand used to read as an
-    // infinitely tight bend and snap the strands onto the axis.
-    std::vector<juce::Point<float> > across (projected.size ());
-    std::vector<float> guard (projected.size (), 1.f);
-    if (!plain)
+    // Where the strands run, and which pieces go in which tier, is
+    // braidCord()'s: the strand map and the visible braid draw from it.
+    auto const cord = braidCord (onSphere, braid, seconds);
+
+    if (lineMap != nullptr)
       {
-        std::vector<SheathPoint> line (projected.size ());
-        for (std::size_t i = 0; i < projected.size (); ++i)
-          line[i] = { projected[i].first.x, projected[i].first.y,
-                      static_cast<bool> (startsRun[i]) };
-
-        auto const frames = sheathFrames (line, braid.radius);
-        for (std::size_t i = 0; i < projected.size (); ++i)
+        auto strokes = strandMapStrokes (cord);
+        if (strandStrokes != nullptr)
           {
-            across[i] = { frames[i].acrossX, frames[i].acrossY };
-            guard[i] = frames[i].guard;
+            strandStrokes->insert (strandStrokes->end (),
+                                   std::make_move_iterator (strokes.begin ()),
+                                   std::make_move_iterator (strokes.end ()));
+          }
+        else
+          {
+            juce::Graphics sg (*strandMap);
+            for (auto const &stroke : strokes)
+              {
+                sg.setColour (stroke.colour);
+                sg.strokePath (pathOf (stroke.points, stroke.lifts),
+                               juce::PathStrokeType (
+                                   stroke.width,
+                                   juce::PathStrokeType::JointStyle::curved,
+                                   juce::PathStrokeType::EndCapStyle::rounded));
+              }
           }
       }
-
-    // Five depth tiers: a strand crosses every boundary twice a turn, and at
-    // three with plainly different brightnesses you read the boundary rather
-    // than the strand.
-    auto constexpr numTiers = 5;
-    auto constexpr numBands = 4;
-    std::array<std::array<juce::Path, numTiers>, numBands> cord;
-
-    auto const total = static_cast<float> (projected.size () - 1);
-
-    for (auto strand = 0; strand < strands; ++strand)
+    else
       {
-        auto lastBand = -1;
-        auto lastTier = -1;
-        juce::Point<float> lastPoint;
-
-        for (std::size_t i = 0; i < projected.size (); ++i)
+        // Back to front, so a strand passes behind the cord and comes out
+        // the other side. See strandMapStrokes() for the same order.
+        for (auto tier = 0; tier < BraidCord::tiers; ++tier)
           {
-            auto const u = total > 0.f ? static_cast<float> (i) / total : 0.f;
-            auto const sample
-                = plain ? SheathSample{}
-                        : sheathAt (u, strand, braid, seconds);
+            auto const front
+                = BraidCord::tiers > 1
+                      ? static_cast<float> (tier)
+                            / static_cast<float> (BraidCord::tiers - 1)
+                      : 1.f;
+            for (auto band = 0; band < BraidCord::bands; ++band)
+              {
+                auto const &piece
+                    = cord.pieces[static_cast<std::size_t> (band)]
+                                 [static_cast<std::size_t> (tier)];
+                if (piece.points.size () < 2)
+                  continue;
 
-            auto const point
-                = projected[i].first + across[i] * (sample.offset * guard[i]);
+                auto const fade
+                    = fadeByDepth
+                          ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
+                                                : (band == 2 ? 0.25f : 0.75f))
+                          : 1.0f;
 
-            auto const band = depthBand (projected[i].second);
-            auto const tier = juce::jlimit (
-                0, numTiers - 1,
-                static_cast<int> ((sample.depth + 1.f) * 0.5f
-                                  * static_cast<float> (numTiers)));
-
-            auto const broken = startsRun[i] || lastBand < 0 || band != lastBand
-                                || tier != lastTier;
-            auto &path = cord[static_cast<std::size_t> (band)]
-                             [static_cast<std::size_t> (tier)];
-            if (broken)
-              path.startNewSubPath (
-                  startsRun[i] || lastBand < 0 ? point : lastPoint);
-            path.lineTo (point);
-
-            lastBand = band;
-            lastTier = tier;
-            lastPoint = point;
-          }
-      }
-
-    // Back to front, so a strand passes behind the cord and comes out the other
-    // side. The step between one tier and the next is small on purpose: a coil
-    // brightens as it comes round, it does not switch.
-    for (auto tier = 0; tier < numTiers; ++tier)
-      {
-        auto const front = numTiers > 1
-                               ? static_cast<float> (tier)
-                                     / static_cast<float> (numTiers - 1)
-                               : 1.f;
-        for (auto band = 0; band < numBands; ++band)
-          {
-            auto const &path = cord[static_cast<std::size_t> (band)]
-                                   [static_cast<std::size_t> (tier)];
-            if (path.isEmpty ())
-              continue;
-
-            auto const fade
-                = fadeByDepth
-                      ? fadeForZ (band <= 1 ? (band == 0 ? -0.75f : -0.25f)
-                                            : (band == 2 ? 0.25f : 0.75f))
-                      : 1.0f;
-
-          if (lineMap != nullptr)
-            {
-              // Into the strand map: red says a strand is here, green how far
-              // in front of the cord it is at this point. Opaque, so the
-              // premultiplied image keeps both values as written; back tiers
-              // first, so where two cross the nearer one is what is left.
-              auto const toMapScale
-                  = static_cast<float> (strandMapSize) / (2.f * lineMapExtent);
-              auto const toMap
-                  = juce::AffineTransform::scale (toMapScale)
-                        .translated (strandMapSize * 0.5f,
-                                     strandMapSize * 0.5f);
-              juce::Graphics sg (*strandMap);
-              sg.setColour (juce::Colour::fromFloatRGBA (1.f, front, 0.f, 1.f));
-              // A strand wide enough to survive the bilinear filter, and no
-              // wider: the shader sharpens it back down, as it does the cord.
-              auto const strandTexels = 1.7f * strandMapTexels;
-              // Into map space first, then stroked in texels. strokePath's own
-              // transform moves the points and leaves the thickness alone, so
-              // passing it there drew every strand at a hundredth of a texel —
-              // a tenth-opaque smear the shader's threshold never saw.
-              auto mapped = path;
-              mapped.applyTransform (toMap);
-              sg.strokePath (mapped,
-                             juce::PathStrokeType (
-                                 strandTexels,
-                                 juce::PathStrokeType::JointStyle::curved,
-                                 juce::PathStrokeType::EndCapStyle::rounded));
-              continue;
-            }
-
-            g.setColour (colour.brighter (0.30f * front * front)
-                             .withAlpha (juce::jlimit (
-                                 0.f, 1.f,
-                                 alpha * fade * (0.55f + 0.45f * front))));
-            // Round caps: the pieces of one tier are a winding apart and share
-            // only a stitched point, so the beading rule does not bite here --
-            // and butt caps end square to the last segment rather than to the
-            // joint, which on a curve leaves a hairline wedge at every piece.
-            g.strokePath (path, juce::PathStrokeType (
-                                    lineThickness,
-                                    juce::PathStrokeType::JointStyle::curved,
-                                    juce::PathStrokeType::EndCapStyle::rounded));
+                g.setColour (colour.brighter (0.30f * front * front)
+                                 .withAlpha (juce::jlimit (
+                                     0.f, 1.f,
+                                     alpha * fade * (0.55f + 0.45f * front))));
+                // Round caps: the pieces of one tier are a winding apart and
+                // share only a stitched point, so the beading rule does not
+                // bite here -- and butt caps end square to the last segment
+                // rather than to the joint, which on a curve leaves a
+                // hairline wedge at every piece.
+                g.strokePath (pathOf (piece.points, piece.lifts),
+                              juce::PathStrokeType (
+                                  lineThickness,
+                                  juce::PathStrokeType::JointStyle::curved,
+                                  juce::PathStrokeType::EndCapStyle::rounded));
+              }
           }
       }
   }
@@ -2169,16 +2117,9 @@ drawPathOnSphere (juce::Path const &displayPath,
   juce::Graphics mg (*lineMap);
   for (auto const &stroke : strokes)
     {
-      juce::Path path;
-      for (std::size_t i = 0; i < stroke.points.size (); ++i)
-        {
-          if (stroke.lifts[i])
-            path.startNewSubPath (stroke.points[i]);
-          else
-            path.lineTo (stroke.points[i]);
-        }
       mg.setColour (stroke.colour);
-      mg.strokePath (path, juce::PathStrokeType (
+      mg.strokePath (pathOf (stroke.points, stroke.lifts),
+                     juce::PathStrokeType (
                                stroke.width,
                                juce::PathStrokeType::JointStyle::curved,
                                juce::PathStrokeType::EndCapStyle::rounded));
@@ -2240,7 +2181,8 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
                     PlaneShaping{}, _sphereShader.getCamera (),
                     lineMapFor (static_cast<int> (ch)),
                     strandMapFor (static_cast<int> (ch)),
-                    lineStrokesFor (static_cast<int> (ch)));
+                    lineStrokesFor (static_cast<int> (ch)),
+                    strandStrokesFor (static_cast<int> (ch)));
 }
 
 void
@@ -2431,7 +2373,8 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
                     _sphereShader.getCamera (),
                     lineMapFor (static_cast<int> (ch)),
                     strandMapFor (static_cast<int> (ch)),
-                    lineStrokesFor (static_cast<int> (ch)));
+                    lineStrokesFor (static_cast<int> (ch)),
+                    strandStrokesFor (static_cast<int> (ch)));
 }
 
 juce::Point<float>
@@ -2462,6 +2405,7 @@ MotionComponent::openGLContextClosing ()
     }
   _blit.destroy ();
   _lineMapRenderer.shutdown ();
+  _strandMapRenderer.shutdown ();
   _sphereShader.shutdown ();
 }
 

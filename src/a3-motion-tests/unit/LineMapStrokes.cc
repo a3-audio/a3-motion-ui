@@ -177,3 +177,122 @@ TEST (LineMapStrokes, TheGpuPaintsTheMapOnlyWhenTheConfigSaysTrue)
   EXPECT_FALSE (gpuLineMapsWanted (config ("{\"gpuLineMaps\": \"true\"}")));
   EXPECT_TRUE (gpuLineMapsWanted (config ("{\"gpuLineMaps\": true}")));
 }
+
+// ── The braid and its strand map ────────────────────────────────
+
+namespace
+{
+
+SheathRing const plainBraid{ 0.f, 3.f, 0.f, 1 };
+
+std::size_t
+pointsIn (BraidCord const &cord)
+{
+  std::size_t n = 0;
+  for (auto const &band : cord.pieces)
+    for (auto const &piece : band)
+      n += piece.points.size ();
+  return n;
+}
+
+}
+
+TEST (LineMapStrokes, APlainLineIsOnePieceInTheMiddleTier)
+{
+  // No braid: every sample has depth 0, which is the middle of five tiers,
+  // and a line wholly in front of the ball is the front band.
+  auto const cord = braidCord (straightLine (50, 0.9f), plainBraid, 0.f);
+  auto const &piece = cord.pieces[3][2];
+  ASSERT_EQ (piece.points.size (), 51u) << "a start and fifty points drawn";
+  EXPECT_TRUE (piece.lifts.front ());
+  EXPECT_EQ (pointsIn (cord), piece.points.size ());
+}
+
+TEST (LineMapStrokes, ABandChangeCutsAndStitchesToTheLastPoint)
+{
+  auto line = straightLine (50, 0.9f);
+  for (auto i = 25; i < 50; ++i)
+    line.depth[static_cast<std::size_t> (i)] = -0.9f;
+  auto const cord = braidCord (line, plainBraid, 0.f);
+
+  auto const &front = cord.pieces[3][2];
+  auto const &back = cord.pieces[0][2];
+  ASSERT_FALSE (back.points.empty ());
+  EXPECT_TRUE (back.lifts.front ());
+  EXPECT_EQ (back.points.front (), front.points.back ())
+      << "the back piece starts where the front one stopped, so no gap";
+}
+
+TEST (LineMapStrokes, ALiftedPenStaysLiftedInTheBraid)
+{
+  auto line = straightLine (50, 0.9f);
+  line.startsRun[20] = true;
+  // Held, not referenced through the call: a reference into the returned
+  // cord dangled, and the test passed or failed by chance.
+  auto const cord = braidCord (line, plainBraid, 0.f);
+  auto const &piece = cord.pieces[3][2];
+  auto const lifted = line.points[20];
+  auto found = false;
+  for (std::size_t i = 0; i < piece.points.size (); ++i)
+    if (piece.points[i] == lifted && piece.lifts[i])
+      found = true;
+  EXPECT_TRUE (found);
+}
+
+TEST (LineMapStrokes, StrandsWithARadiusLeaveTheLine)
+{
+  SheathRing const braid{ 0.02f, 3.f, 0.f, 3 };
+  auto const line = straightLine (50, 0.9f);
+  auto const cord = braidCord (line, braid, 0.f);
+  EXPECT_GE (pointsIn (cord), 3u * 50u);
+
+  auto off = 0;
+  for (auto const &band : cord.pieces)
+    for (auto const &piece : band)
+      for (auto const &p : piece.points)
+        if (std::abs (p.y - line.points[0].y) > 1e-4f)
+          ++off;
+  EXPECT_GT (off, 0);
+}
+
+TEST (LineMapStrokes, TheStrandMapIsPaintedBackTiersFirst)
+{
+  SheathRing const braid{ 0.02f, 3.f, 0.f, 3 };
+  auto const strokes
+      = strandMapStrokes (braidCord (straightLine (200, 0.9f), braid, 0.3f));
+  ASSERT_FALSE (strokes.empty ());
+
+  std::vector<juce::uint8> fronts;
+  for (auto const &stroke : strokes)
+    {
+      EXPECT_EQ (stroke.width, 1.7f * strandMapTexels);
+      EXPECT_EQ (stroke.colour.getRed (), 255);
+      EXPECT_EQ (stroke.colour.getBlue (), 0);
+      fronts.push_back (stroke.colour.getGreen ());
+    }
+  EXPECT_TRUE (std::is_sorted (fronts.begin (), fronts.end ()))
+      << "a nearer tier has to land on a farther one";
+}
+
+TEST (LineMapStrokes, TheStrandMapHasTheLineMapsExtentOnAFinerGrid)
+{
+  auto const half = static_cast<float> (strandMapSize) * 0.5f;
+  EXPECT_EQ (toStrandMap ({ 0.f, 0.f }), juce::Point<float> (half, half));
+  EXPECT_EQ (toStrandMap ({ lineMapExtent, lineMapExtent }),
+             juce::Point<float> (static_cast<float> (strandMapSize),
+                                 static_cast<float> (strandMapSize)));
+}
+
+TEST (LineMapStrokes, APathOfPointsLiftsThePenWhereItSays)
+{
+  auto const path = pathOf ({ { 0, 0 }, { 10, 0 }, { 20, 5 }, { 30, 5 } },
+                            { true, false, true, false });
+  juce::Path::Iterator it (path);
+  std::vector<juce::Path::Iterator::PathElementType> kinds;
+  while (it.next ())
+    kinds.push_back (it.elementType);
+  using E = juce::Path::Iterator;
+  EXPECT_EQ (kinds, (std::vector<juce::Path::Iterator::PathElementType>{
+                        E::startNewSubPath, E::lineTo, E::startNewSubPath,
+                        E::lineTo }));
+}

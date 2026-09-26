@@ -144,7 +144,7 @@ LineMapRenderer::paint (int channel, std::vector<MapStroke> const &strokes)
 
   auto &map = _maps[static_cast<std::size_t> (channel)];
   if (!map.isValid ())
-    map.initialise (*_context, lineMapSize, lineMapSize);
+    map.initialise (*_context, _size, _size);
   if (!map.isValid ())
     return 0;
 
@@ -170,12 +170,12 @@ LineMapRenderer::paint (int channel, std::vector<MapStroke> const &strokes)
   // without this the map was painted at the *screen's* size: every stroke
   // magnified from the bottom left and cut off at the map's edge, which on
   // the rig was a hard line through the sphere 1.3 radii right of centre.
-  glViewport (0, 0, lineMapSize, lineMapSize);
+  glViewport (0, 0, _size, _size);
 
   if (!vertices.empty ())
     {
       _program->use ();
-      glUniform1f (_uMapSize, static_cast<GLfloat> (lineMapSize));
+      glUniform1f (_uMapSize, static_cast<GLfloat> (_size));
 
       glEnable (GL_BLEND);
       glBlendFunc (GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
