@@ -30,6 +30,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/io/ButtonLedColours.hh>
+#include <a3-motion-ui/io/LedLoad.hh>
 #include <a3-motion-ui/io/LedCache.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 
@@ -228,6 +229,10 @@ private:
   };
 
   void writeSetLed (uint8_t ledId, juce::Colour colour);
+  // What the key LEDs draw, as the firmware estimates it: every new peak goes
+  // to the log, which is how the firmware's current budget is set from what
+  // the app really shows (#21).
+  LedLoad _ledLoad{ numHwButtons };
 
   // ── Button state tracking ─────────────────────────────────────────────────
   std::array<bool, numHwButtons> _buttonPressed{};

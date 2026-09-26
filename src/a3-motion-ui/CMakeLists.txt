@@ -105,6 +105,7 @@ target_sources("a3-motion-ui" PRIVATE
     components/ElevationSideView.cc
     components/Listener.cc
     io/ButtonLedColours.cc
+    io/LedLoad.cc
     io/LedCache.cc
     io/OnScreenKeyboard.cc
     io/OnScreenKeyboard.hh
