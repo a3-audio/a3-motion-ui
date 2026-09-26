@@ -931,10 +931,21 @@ corner the pads give to Settings. The 4x3 grid and the six function keys that st
 The ACTION page used to line its rows up with the grid's (`setGridReference`); with the grid gone it
 lays out freely, and `layOutActionPage` is handed an empty reference.
 
-The header row reads **CLIP ACTION FILES CHMIX MAINMIX REC PADS**. CHMIX is the shown channel's
+The header row reads **CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS**. CHMIX is the shown channel's
 strip (the MIX tab before). MAINMIX shows the big mixer over the sphere and is the lit tab while it
 is up; a second tap leaves it up, any other tab takes it away (`pageTabIsLit`). It stood in the
 status bar as a MIX toggle until then.
+
+**CLIP and MOTION** (2026-09-26). The clip area is three columns (`layOutClipSettings`), and which
+card stands in them depends on the page. CLIP: Shape's card with the clip picker over the picture,
+then a card with **dir** (Fwd Rev Bnce Rnd) over **end** (Loop Stop Paus) as keys chosen outright
+(`directionKeys`, `endActionKeys`, `onDirectionChosen`/`onEndActionChosen`), then the four lengths
+two by two (`lengthCard`). MOTION (`BarPage::Motion`): Motion's eight knobs in two rows of four
+across the first two columns, Elevation's four in the third. The sub-indices did not move:
+`directionButton`/`endActionButton` are still Shape's 2 and 3 — the rows the keys stand in, taking
+no touch of their own — so the encoders step them as before. `controlIsOnPage` and
+`cardOfControl` say where each control is shown and drawn; cards of different pages overlap by
+design (Shape and Motion both start in the left column).
 
 **REC** (`BarPage::Record`) is the take about to be made: Shape as CLIP shows it, beside one card
 across the other two columns (`recordCard`) with the rec mode's key on top and **fade and bias**

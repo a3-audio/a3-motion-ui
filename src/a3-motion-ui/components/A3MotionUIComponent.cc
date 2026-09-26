@@ -659,6 +659,22 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // A speed key is the clip's playback length said plainly. Tapping one sets
   // it outright rather than stepping towards it — that is what the keys are
   // for, and it is untouched by the keys becoming assignable.
+  // dir and end, chosen outright from CLIP's middle card -- the same
+  // parameters the encoders step, applied the same way.
+  auto const choosePlayback = [this] (int ClipUIParams::*field, int value) {
+    auto &params = _clipUIParams[_clipSettingsChannel][_clipSettingsSlot];
+    params.*field = value;
+    applyMotionMode (_clipSettingsChannel, _clipSettingsSlot);
+    updateClipSettingsDisplay ();
+    scheduleSetSave ();
+  };
+  _clipSettings->onDirectionChosen = [choosePlayback] (int direction) {
+    choosePlayback (&ClipUIParams::direction, direction);
+  };
+  _clipSettings->onEndActionChosen = [choosePlayback] (int endAction) {
+    choosePlayback (&ClipUIParams::endAction, endAction);
+  };
+
   _clipSettings->onSpeedChosen = [this] (int index) {
     if (index < 0 || index >= numSpeedButtons)
       return;

@@ -219,6 +219,29 @@ ClipSettingsComponent::createTouchControls ()
   makeTab (_tabMixerTouch, BarPage::Mixer);
   makeTab (_tabBrowserTouch, BarPage::Browser);
   makeTab (_tabRecordTouch, BarPage::Record);
+  makeTab (_tabMotionTouch, BarPage::Motion);
+
+  // dir and end: a key per choice, chosen outright.
+  for (size_t i = 0; i < _directionKeyTouch.size (); ++i)
+    {
+      auto key = std::make_unique<TouchControl> ();
+      key->onTap = [this, i] (int, int) {
+        if (onDirectionChosen)
+          onDirectionChosen (static_cast<int> (i));
+      };
+      addAndMakeVisible (*key);
+      _directionKeyTouch[i] = std::move (key);
+    }
+  for (size_t i = 0; i < _endActionKeyTouch.size (); ++i)
+    {
+      auto key = std::make_unique<TouchControl> ();
+      key->onTap = [this, i] (int, int) {
+        if (onEndActionChosen)
+          onEndActionChosen (static_cast<int> (i));
+      };
+      addAndMakeVisible (*key);
+      _endActionKeyTouch[i] = std::move (key);
+    }
 
   // The elevation picture is selected by a touch anywhere on its field, and
   // selected it hands the big sphere to the camera. A tap, not a drag: the
@@ -422,6 +445,11 @@ ClipSettingsComponent::resized ()
   _tabMainMixTouch->setBounds (_layout.tabMainMix);
   _elevationPictureTouch->setBounds (_layout.elevationFrame);
   _tabRecordTouch->setBounds (_layout.tabRecord);
+  _tabMotionTouch->setBounds (_layout.tabMotion);
+  for (size_t i = 0; i < _directionKeyTouch.size (); ++i)
+    _directionKeyTouch[i]->setBounds (_layout.directionKeys[i]);
+  for (size_t i = 0; i < _endActionKeyTouch.size (); ++i)
+    _endActionKeyTouch[i]->setBounds (_layout.endActionKeys[i]);
   _tabBrowserTouch->setBounds (_layout.tabBrowser);
 
   for (int i = 0; i < numSpeedButtons; ++i)
@@ -976,6 +1004,15 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   if (pageCoversClipArea (_page))
     return; // ControllerComponent / BrowserComponent draws the rest
 
+  // Which cards a page shows (2026-09-26): CLIP the shape, dir and end, and
+  // the lengths; MOTION the movement; REC the shape and the take.
+  if (_page == BarPage::Motion)
+    {
+      paintMotionSection (g, _selectedIndex == motionIndex);
+      paintElevationSection (g, _selectedIndex == elevationIndex);
+      return;
+    }
+
   paintTrajectorySection (g, _selectedIndex == trajectoryIndex);
 
   if (_page == BarPage::Record)
@@ -984,8 +1021,8 @@ ClipSettingsComponent::paint (juce::Graphics &g)
       return;
     }
 
-  paintElevationSection (g, _selectedIndex == elevationIndex);
-  paintMotionSection (g, _selectedIndex == motionIndex);
+  paintPlaySection (g);
+  paintLengthSection (g);
 
   // Last, so it covers whichever section it belongs to.
 }
@@ -1131,6 +1168,8 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   paintTab (_layout.tabMainMix, "MAINMIX", _mainMixOpen);
   paintTab (_layout.tabRecord, "REC",
             pageTabIsLit (BarPage::Record, _page, _mainMixOpen));
+  paintTab (_layout.tabMotion, "MOTION",
+            pageTabIsLit (BarPage::Motion, _page, _mainMixOpen));
 
   // A word like the three beside it. It was a folder mark, on the reasoning
   // that the tabs are views of the clip and this one leaves it -- but once
@@ -1224,9 +1263,15 @@ ClipSettingsComponent::showControlsOfPage ()
 
   _recModeTouch->setVisible (_page == BarPage::Record);
 
+  // The lengths, dir and end stand on CLIP alone.
+  auto const onClip = _page == BarPage::Clip;
   for (auto &button : _speedTouch)
     if (button)
-      button->setVisible (controlIsOnPage (trajectoryIndex, 0, _page));
+      button->setVisible (onClip);
+  for (auto &key : _directionKeyTouch)
+    key->setVisible (onClip);
+  for (auto &key : _endActionKeyTouch)
+    key->setVisible (onClip);
 }
 
 void
@@ -1515,6 +1560,49 @@ ClipSettingsComponent::paintChannelFaceDot (juce::Graphics &g,
   // from two places is one that will one day disagree with itself.
   g.setColour (vuBandColour (theme (), dot.band).withAlpha (dot.alpha));
   g.fillEllipse (mark);
+}
+
+void
+ClipSettingsComponent::paintPlaySection (juce::Graphics &g)
+{
+  // CLIP's middle card: dir over end, every choice a key of its own, the one
+  // in force lit.
+  auto const isSelected = _selectedIndex == trajectoryIndex;
+  g.setColour (toColour (theme ().textPrimary, cardWash));
+  g.fillRoundedRectangle (_layout.playCard.toFloat (), theme ().radiusCard);
+  paintSectionLabel (g, _layout.playLabel, "dir / end", false);
+
+  for (size_t i = 0; i < _layout.directionKeys.size (); ++i)
+    paintBarButton (g, _layout.directionKeys[i], value::directionNames[i], {},
+                    static_cast<int> (i) == _motionDirection,
+                    isSelected && _trajectorySubIndex == 2);
+
+  for (size_t i = 0; i < _layout.endActionKeys.size (); ++i)
+    paintBarButton (g, _layout.endActionKeys[i], value::endActionNames[i], {},
+                    static_cast<int> (i) == _motionEndAction,
+                    isSelected && _trajectorySubIndex == 3);
+}
+
+void
+ClipSettingsComponent::paintLengthSection (juce::Graphics &g)
+{
+  // CLIP's right card: the four lengths, two by two. What each is is the
+  // performer's: tapped for the speed it carries, dragged to give it another,
+  // and named from its value, so a key retells itself the moment it is
+  // dragged.
+  auto const isSelected = _selectedIndex == trajectoryIndex;
+  g.setColour (toColour (theme ().textPrimary, cardWash));
+  g.fillRoundedRectangle (_layout.lengthCard.toFloat (), theme ().radiusCard);
+  paintSectionLabel (g, _layout.lengthLabel, "length", false);
+
+  for (int i = 0; i < numSpeedButtons; ++i)
+    paintBarButton (
+        g, _layout.speedButtons[static_cast<size_t> (i)],
+        speedKeyName (_speedButtonLog2[static_cast<size_t> (i)],
+                      _patternLengthBeats),
+        {},
+        speedKeyIsActive (_speedButtonLog2, i, _speedLog2, _speedDragIndex),
+        isSelected);
 }
 
 void
@@ -1824,32 +1912,6 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   auto const &metrics = _layout.metrics;
 
   {
-      // Four speeds, one row, and what each of them is is the performer's:
-      // tapped for the speed it carries, dragged to give it another. Their
-      // names are computed from their values, so a key retells itself the
-      // moment it is dragged, and which of them wears the colour is
-      // speedKeyIsActive()'s to say rather than a comparison written here.
-      for (int i = 0; i < numSpeedButtons; ++i)
-        paintBarButton (
-            g, _layout.speedButtons[static_cast<size_t> (i)],
-            speedKeyName (_speedButtonLog2[static_cast<size_t> (i)],
-                          _patternLengthBeats),
-            {},
-            speedKeyIsActive (_speedButtonLog2, i, _speedLog2,
-                              _speedDragIndex),
-            isSelected);
-
-      // Which way a pass runs and what it does when it runs out. They step on
-      // a tap -- no chevron, because nothing opens.
-      paintBarButton (g, _layout.directionButton,
-                      value::directionNames[_motionDirection],
-                      caption::direction,
-                      _trajectorySubIndex == 2 && isSelected, false);
-      paintBarButton (g, _layout.endActionButton,
-                      value::endActionNames[_motionEndAction],
-                      caption::endAction,
-                      _trajectorySubIndex == 3 && isSelected, false);
-
       // The clip field: which settings the slot is played with, and a place to
       // push through them with a thumb. Not the shape's name -- that is over
       // the picture, beside the control that changes it.

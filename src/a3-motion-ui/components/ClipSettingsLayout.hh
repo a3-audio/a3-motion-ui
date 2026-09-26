@@ -179,9 +179,13 @@ enum class BarPage
    *  the rec mode, fade and bias. The bar's own sections, so it covers
    *  nothing. */
   Record,
+  /** The clip's movement: Motion's knobs and Elevation's, which stood beside
+   *  the shape on CLIP until 2026-09-26. The bar's own sections, so it covers
+   *  nothing. */
+  Motion,
 };
 
-constexpr int numBarPages = 6;
+constexpr int numBarPages = 7;
 
 /** Every page, once. `BarPages.EveryPageAppearsInTheOrderExactlyOnce` fails
  *  if a page is missing from here or listed twice -- nothing in the compiler
@@ -192,7 +196,7 @@ constexpr int numBarPages = 6;
 constexpr std::array<BarPage, numBarPages> barPageOrder{
   BarPage::Clip,       BarPage::Action,
   BarPage::Controller, BarPage::Mixer,  BarPage::Browser,
-  BarPage::Record,
+  BarPage::Record,    BarPage::Motion,
 };
 
 /** Pages that cover the clip area with something of their own.
@@ -225,6 +229,7 @@ pageCoversClipArea (BarPage page)
     {
     case BarPage::Clip:
     case BarPage::Record:
+    case BarPage::Motion:
       return false;
     case BarPage::Action:
     case BarPage::Controller:
@@ -262,6 +267,7 @@ pageDescribesAClip (BarPage page)
     case BarPage::Mixer:
     case BarPage::Browser:
     case BarPage::Record:
+    case BarPage::Motion:
       return true;
     case BarPage::Controller:
       return false;
@@ -319,30 +325,28 @@ knobForElevationBase (float base)
 }
 
 
-/** How many of Motion's controls stand on the CLIP page: the first eight.
+/** How many of Motion's controls stand on the MOTION page: the first eight.
  *  Its last two, fade (8) and bias (9), stand on REC since 2026-09-26 and
  *  keep their sub-indices, so the encoders and the take reach them as before. */
-constexpr std::size_t motionSubsOnTheClipPage = 8;
+constexpr std::size_t motionSubsOnTheMotionPage = 8;
 
 /** Whether a control stands on a page. */
 constexpr bool
 controlIsOnPage (int section, int sub, BarPage page)
 {
-  if (page != BarPage::Clip && page != BarPage::Record)
-    return false;
-
-  auto const onRecord = page == BarPage::Record;
   switch (section)
     {
-    case 0: // Shape, on both
-      return true;
+    case 0: // Shape: picker and picture on CLIP and REC; dir and end (2, 3)
+            // are keys of their own on CLIP, so their fields take no touch.
+      return sub < 2 && (page == BarPage::Clip || page == BarPage::Record);
     case 1: // Elevation
-      return !onRecord;
-    case 2: // Motion: the first eight on CLIP, fade and bias on REC
-      return (static_cast<std::size_t> (sub) < motionSubsOnTheClipPage)
-             != onRecord;
+      return page == BarPage::Motion;
+    case 2: // Motion: the first eight on MOTION, fade and bias on REC
+      return static_cast<std::size_t> (sub) < motionSubsOnTheMotionPage
+                 ? page == BarPage::Motion
+                 : page == BarPage::Record;
     case 3: // the rec mode
-      return onRecord;
+      return page == BarPage::Record;
     default:
       return false;
     }
@@ -489,6 +493,20 @@ struct ClipSettingsLayout
    *  while it is open. It stood in the status bar as MIX until 2026-09-26. */
   juce::Rectangle<int> tabMainMix;
   juce::Rectangle<int> tabRecord;
+  juce::Rectangle<int> tabMotion;
+
+  /** CLIP's middle and right columns (2026-09-26): dir and end, and the four
+   *  lengths. The left one is Shape's card, sectionCards[0]. */
+  juce::Rectangle<int> playCard;
+  juce::Rectangle<int> lengthCard;
+  /** Their title rows. */
+  juce::Rectangle<int> playLabel;
+  juce::Rectangle<int> lengthLabel;
+  /** Fwd Rev Bnce Rnd and Loop Stop Paus, a key each, chosen outright. In
+   *  the enums' order. directionButton and endActionButton are the rows they
+   *  stand in. */
+  std::array<juce::Rectangle<int>, 4> directionKeys;
+  std::array<juce::Rectangle<int>, 3> endActionKeys;
 
   /** The REC page's card, across the two columns Elevation and Motion take
    *  on CLIP, and its title row. */
@@ -516,8 +534,8 @@ struct ClipSettingsLayout
   juce::Rectangle<int> recModeButton;
 };
 
-/** The card a control is drawn in: its section's, or the REC page's for the
- *  controls that stand on REC alone -- fade, bias and the rec mode. */
+/** The card a control is drawn in: its section's; CLIP's middle card for dir
+ *  and end; the REC page's for fade, bias and the rec mode. */
 juce::Rectangle<int> cardOfControl (ClipSettingsLayout const &layout,
                                     int section, int sub);
 
