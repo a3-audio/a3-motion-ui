@@ -227,62 +227,6 @@ ClipSettingsComponent::createTouchControls ()
   };
   addAndMakeVisible (*_tabMainMixTouch);
 
-  // In front of the cards, so it swallows what would otherwise reach the
-  // Elevation card. No callbacks: a picture is not a control.
-  _elevationGraphicTouch = std::make_unique<TouchControl> ();
-  // The graphic is a picture of what the controls under it do, so it names
-  // no control — but it is inside the section, and touching a section
-  // should select it. -1 says "the section, not one of its controls".
-  _elevationGraphicTouch->onPress = [this] (int, int) {
-    if (onControlTapped)
-      onControlTapped (elevationIndex, -1);
-  };
-
-  // The graphic is a control the finger carries: the axis sits under it and
-  // follows it, which is what a line you can see and touch has to do.
-  //
-  // Not increments. Those arrive once per drag threshold, twelve pixels
-  // apart, so the line lurched a step at a time and never sat where the
-  // finger was -- and a step small enough to be fine made the whole sphere
-  // take thousands of pixels to cross.
-  auto const setBaseAt = [this] (juce::Point<int> at) {
-    if (!onElevationBaseSet)
-      return;
-
-    auto const low = std::clamp (_elevationClipTop, 0.f, 1.f);
-    auto const high = 1.f - std::clamp (_elevationClipBottom, 0.f, 1.f);
-
-    // Up is higher, at every tilt. Not un-projected onto whatever the circle
-    // is currently a view of, which is what this did and which cost the
-    // control both its ends: tip the sphere far enough and the circle becomes
-    // an overhead view, where straight up is the *middle* of it and the whole
-    // lower half of the room is round the back. A finger pushed to the top of
-    // the picture then asked for the equator, and neither pole could be
-    // reached at all -- so a figure could not be put back on the pole, which
-    // is the one place its middle does not tear.
-    //
-    // The picture is a view and follows the room. This is a control and
-    // follows the hand: the same travel means the same thing whatever is
-    // being looked at, which is what a control is for.
-    onElevationBaseSet (snapElevationBase (elevationBaseAt (
-        _layout.elevationGraphic.withZeroOrigin (), at.y,
-        juce::jmin (low, high), juce::jmax (low, high))));
-  };
-
-  _elevationGraphicTouch->onTapAt
-      = [setBaseAt] (int, int, juce::Point<int> at) { setBaseAt (at); };
-  _elevationGraphicTouch->onDragTo
-      = [setBaseAt] (int, int, juce::Point<int> at) { setBaseAt (at); };
-
-  // ... and two taps put it back to the middle of the circle, the way two taps
-  // on a knob put it back to the middle of its ring. The graphic is a control
-  // like any other here; it was the one that had no way back.
-  _elevationGraphicTouch->onDoubleTap = [this] (int, int) {
-    if (onElevationBaseReset)
-      onElevationBaseReset (
-          defaultElevationBase (_elevationClipTop, _elevationClipBottom));
-  };
-  addAndMakeVisible (*_elevationGraphicTouch);
 
   auto const makeButton
       = [this] (std::unique_ptr<TouchControl> &into,
@@ -447,8 +391,6 @@ ClipSettingsComponent::resized ()
         if (auto &knob = _controlKnob[s][sub])
           knob->setBounds (cells[sub]);
     }
-
-  _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
 
   for (int section = 0; section < numClipSections; ++section)
     _lockTouch[static_cast<size_t> (section)]->setBounds (
@@ -615,8 +557,15 @@ ClipSettingsComponent::setElevationReach (float reach, float swept)
 void
 ClipSettingsComponent::setElevationBase (float base, float swept)
 {
+  // On elv, the other way up (clockwise is higher), with the sway's hold on
+  // the line as the blue arc every swept knob wears. The graphic draws the
+  // base only; the sway is shown on the knob since 2026-09-26.
   _elevationBase = std::clamp (base, 0.f, 1.f);
-  _elevationBaseSwept = swept < 0.f ? -1.f : std::clamp (swept, 0.f, 1.f);
+  putOnKnob (elevationSection, 3, knobForElevationBase (_elevationBase));
+  putReachOnKnob (elevationSection, 3,
+                  swept < 0.f ? std::nullopt
+                              : std::optional<float> (knobForElevationBase (
+                                    std::clamp (swept, 0.f, 1.f))));
   repaint ();
 }
 
@@ -1227,8 +1176,6 @@ ClipSettingsComponent::showControlsOfPage ()
     _sectionTouch[static_cast<size_t> (section)]->setVisible (
         controlIsOnPage (section, 0, _page));
 
-  _elevationGraphicTouch->setVisible (
-      controlIsOnPage (elevationIndex, 0, _page));
   _recModeTouch->setVisible (_page == BarPage::Record);
 
   for (auto &button : _speedTouch)
@@ -2009,16 +1956,6 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   auto const baseFrac = std::clamp (std::clamp (_elevationBase, 0.f, 1.f),
                                     bandLow, bandHigh);
 
-  // Where the sway has carried that line, if it is moving. Clamped into the
-  // same band the line is: the clips bound where the sound can go, and a
-  // modulation drawn past them would promise elevation the sound never
-  // reaches.
-  auto const sweptFrac
-      = _elevationBaseSwept < 0.f
-            ? -1.f
-            : std::clamp (std::clamp (_elevationBaseSwept, 0.f, 1.f), bandLow,
-                          bandHigh);
-
   // Everything in here is projected, not ruled. The circle is a second view
   // of the room, kept a quarter turn from the sphere above: overhead up there
   // is a side view down here, and a side view up there is an overhead down
@@ -2119,18 +2056,6 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
       g.fillPath (bandBetween (bandHigh, 1.f));
   }
 
-  // What the sway is doing, between where the hand left the line and where the
-  // sweep is holding it now -- the same stretch of the room, drawn the same
-  // way.
-  if (sweptFrac >= 0.f)
-    {
-      auto const from = juce::jmin (baseFrac, sweptFrac);
-      auto const to = juce::jmax (baseFrac, sweptFrac);
-
-      g.setColour (toColour (theme ().notice, theme ().alphaFillEmphasis));
-      g.fillPath (bandBetween (from, to));
-    }
-
   // ── The figure ────────────────────────────────────────────────────────
   //
   // Where the sound actually goes. The sphere above says where in the room the
@@ -2178,13 +2103,6 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
     if (degrees != 90)
       g.strokePath (latitude (static_cast<float> (degrees) / 180.f),
                     juce::PathStrokeType (1.f));
-
-  // Where the sway has carried the line.
-  if (sweptFrac >= 0.f)
-    {
-      g.setColour (toColour (theme ().notice));
-      g.strokePath (latitude (sweptFrac), juce::PathStrokeType (1.5f));
-    }
 
   // The base: where the middle of the trajectory sits, and the one ring in
   // here a finger sets. Drawn boldest and last, so the sway's own mark never

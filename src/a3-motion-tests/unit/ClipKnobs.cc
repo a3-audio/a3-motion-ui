@@ -40,6 +40,12 @@ TEST (ClipKnobs, TheElevationSectionsScales)
   EXPECT_EQ (elevationKnobSpec (2).max, lfoMaxStep);
   EXPECT_EQ (elevationKnobSpec (2).interval, 1.0);
   EXPECT_TRUE (elevationKnobSpec (2).bipolar);
+
+  // elv: where the middle of the trajectory sits, bottom to top.
+  EXPECT_EQ (elevationKnobSpec (3).min, 0.0);
+  EXPECT_EQ (elevationKnobSpec (3).max, 1.0);
+  EXPECT_EQ (elevationKnobSpec (3).interval, 0.0);
+  EXPECT_FALSE (elevationKnobSpec (3).bipolar);
 }
 
 // Two taps put all three back to nothing: no clipping, no sway.
@@ -56,6 +62,8 @@ TEST (ClipKnobs, EachKnobCarriesItsCaption)
   EXPECT_STREQ (elevationKnobSpec (0).label, caption::clipBottom);
   EXPECT_STREQ (elevationKnobSpec (1).label, caption::clipTop);
   EXPECT_STREQ (elevationKnobSpec (2).label, caption::sway);
+  EXPECT_STREQ (elevationKnobSpec (3).label, caption::elevation);
+  EXPECT_STREQ (caption::elevation, "elv");
 }
 
 // The Motion row pairs a standing value with the sweep that works on it: the

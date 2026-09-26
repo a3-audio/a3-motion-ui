@@ -695,32 +695,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     handleClipSettingsToggle (_clipSettingsChannel, section, sub);
   };
 
-  // The elevation graphic sets where the middle of the trajectory sits. An
-  // absolute height, not an increment: the graphic shows where things are,
-  // so a finger on it means that height.
-  _clipSettings->onElevationBaseSet = [this] (float base) {
-    auto &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
-    if (!pattern)
-      return;
-
-    pattern->setElevationBase (base);
-    refreshPatternDisplayFromTicks (pattern);
-    updateClipSettingsDisplay ();
-    scheduleSetSave ();
-  };
-
-  _clipSettings->onElevationBaseReset = [this] (float base) {
-    auto &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
-    if (!pattern)
-      return;
-
-    pattern->setElevationBase (base);
-    refreshPatternDisplayFromTicks (pattern);
-    updateControlReadout ("-- DEFAULT");
-    updateClipSettingsDisplay ();
-    scheduleSetSave ();
-  };
-
   _clipSettings->onControlReset = [this] (int section, int sub) {
     handleClipSettingsReset (_clipSettingsChannel, section, sub);
   };
@@ -7006,7 +6980,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   // by the same sub-index an encoder would. They had drifted: elevation said
   // six and motion four long after either was true.
   if (menuIndex == ClipSettingsComponent::elevationIndex)
-    return 3; // clip-top, clip-bottom, sway
+    return 4; // clip-bottom, clip-top, sway, elv
   if (menuIndex == ClipSettingsComponent::motionIndex)
     // In reading order: rot, spin, reach, swell, sqzX, strX, sqzY, strY,
     // fade, bias. The two lists went to Shape.
@@ -7062,6 +7036,14 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
       else if (sub == 2)
         // Off. The middle of a bipolar sweep is no sweep at all.
         pattern->setElevationLfo (0);
+      else if (sub == 3)
+        {
+          // elv: the middle of what the clips leave, which is where the line
+          // sat before anyone moved it.
+          pattern->setElevationBase (defaultElevationBase (
+              pattern->getClipTop (), pattern->getClipBottom ()));
+          refreshPatternDisplayFromTicks (pattern);
+        }
       else
         return;
       break;
@@ -7130,6 +7112,10 @@ A3MotionUIComponent::setClipSettingsValue (index_t channel, int section,
       case 0: pattern->setClipBottom (level); break;
       case 1: pattern->setClipTop (level); break;
       case 2: pattern->setElevationLfo (step); break;
+      case 3:
+        pattern->setElevationBase (elevationBaseForKnob (
+            level, pattern->getClipTop (), pattern->getClipBottom ()));
+        break;
       default: return;
       }
   else if (section == motionSection)
@@ -7273,13 +7259,11 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         updatePadRowLabel (channel, slot);
         break;
       }
-    case 1: // Elevation — clip-bottom (0), clip-top (1), sway (2). In that
-            // order because that is the order they stand in, and they stand
-            // in it because the floor is on the left of a room drawn from the
-            // side. Where the middle of the trajectory sits is set in the
-            // graphic above them, not by a knob, and sway is how fast that
-            // line travels. reach went to Motion, beside the swell that
-            // sweeps it.
+    case 1: // Elevation — clip-bottom (0), clip-top (1), sway (2), elv (3).
+            // The clips in the order they stand, because the floor is on the
+            // left of a room drawn from the side. elv is where the middle of
+            // the trajectory sits (the graphic's touch until 2026-09-26) and
+            // sway is how fast that line travels.
       {
         auto &pattern = _patterns[channel][slot];
         if (!pattern)
@@ -7294,7 +7278,15 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           case 1:
             pattern->setClipTop (pattern->getClipTop () + increment * 0.05f);
             break;
-          default:
+          case 3:
+            // elv, stepped the way the knob turns it: clockwise is higher.
+            pattern->setElevationBase (elevationBaseForKnob (
+                knobForElevationBase (pattern->getElevationBase ())
+                    + increment * 0.02f,
+                pattern->getClipTop (), pattern->getClipBottom ()));
+            refreshPatternDisplayFromTicks (pattern);
+            break;
+          case 2:
             // How fast the line the graphic draws travels, and towards which
             // pole. It moved here from Motion to stand under the thing it
             // moves; reach went the other way, to stand beside its own sweep.

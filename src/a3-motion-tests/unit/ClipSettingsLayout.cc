@@ -91,7 +91,7 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
 
   // Shape: the picture, the clip field, then the direction and end action
   EXPECT_EQ (l.controls[0].size (), 4u);
-  EXPECT_EQ (l.controls[1].size (), 3u); // Elevation: the clips and reach
+  EXPECT_EQ (l.controls[1].size (), 4u); // Elevation: the clips, sway, elv
   // Motion: rot, fade, bias, dir, end, the two squeezes, the three sweeps
   EXPECT_EQ (l.controls[2].size (), 10u);
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
@@ -137,9 +137,12 @@ TEST (ClipSettingsLayout, ControlsWithinASectionDoNotOverlap)
           for (size_t b = a + 1; b < section.size (); ++b)
             if (controlIsOnPage (s, static_cast<int> (a), page)
                 && controlIsOnPage (s, static_cast<int> (b), page))
-              EXPECT_TRUE (section[a].getIntersection (section[b]).isEmpty ())
-                  << "section " << s << ": controls " << a << " and " << b
-                  << " overlap";
+              {
+                EXPECT_TRUE (
+                    section[a].getIntersection (section[b]).isEmpty ())
+                    << "section " << s << ": controls " << a << " and " << b
+                    << " overlap";
+              }
       }
 }
 
@@ -625,8 +628,10 @@ TEST (ClipSettingsLayout, TheTabsKeepTheirRoomAtEveryWidth)
           EXPECT_GE (row[i].getWidth (), fingertipSize)
               << "key " << i << " at width " << width;
           if (i > 0)
-            EXPECT_LE (row[i - 1].getRight (), row[i].getX ())
-                << "key " << i << " at width " << width;
+            {
+              EXPECT_LE (row[i - 1].getRight (), row[i].getX ())
+                  << "key " << i << " at width " << width;
+            }
         }
     }
 }
@@ -999,36 +1004,9 @@ TEST (ClipSettingsLayout, EveryButtonRowIsTheSameHeight)
       }
 }
 
-// ── Motion after the tidy-up ─────────────────────────────────────────────// ── The elevation graphic, which is a control now ────────────────────────
-
-// The circle is the sphere seen from the side, north at the top. A finger on
-// it says where the middle of the trajectory should sit, so the y it lands on
-// has to come back as that fraction -- and the two ends have to be exactly 0
-// and 1, or the poles would be unreachable by a hair.
-TEST (ClipSettingsLayout, TheGraphicReadsAHeightOutOfAPoint)
-{
-  juce::Rectangle<int> const bounds{ 20, 40, 100, 100 };
-  auto const circle = elevationCircleBounds (bounds);
-
-  ASSERT_FALSE (circle.isEmpty ());
-
-  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, circle.getY ()), 0.f);
-  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, circle.getBottom ()), 1.f);
-  EXPECT_NEAR (elevationBaseAt (bounds, circle.getCentreY ()), 0.5f, 0.02f);
-}
-
-// Above and below the circle it holds at the poles rather than running past
-// them. A finger that slides off the top must not wrap round to the bottom.
-TEST (ClipSettingsLayout, AFingerPastTheCircleHoldsAtThePole)
-{
-  juce::Rectangle<int> const bounds{ 0, 0, 80, 80 };
-
-  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, -500), 0.f);
-  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, 500), 1.f);
-}
-
-// It reads the same circle the graphic draws, whatever shape the cell is --
-// otherwise the line would sit where the finger did not.
+// ── Motion after the tidy-up ─────────────────────────────────────────────
+// ── The elevation graphic, a picture again (2026-09-26) ──────────────────
+// The circle is round and centred, whatever shape the cell is.
 TEST (ClipSettingsLayout, TheCircleIsSquareInsideWhateverCellItGets)
 {
   for (auto const bounds : { juce::Rectangle<int>{ 0, 0, 200, 60 },
@@ -1047,19 +1025,24 @@ TEST (ClipSettingsLayout, TheCircleIsSquareInsideWhateverCellItGets)
 
 // ── The sections after reach and swell went home ─────────────────────────
 
-// Elevation is four: the two clips, then reach with the swell that sweeps it.
-// flat, flat-elevation and pole are gone -- the base the graphic sets says
-// what they said, and says it in one place you can see.
-TEST (ClipSettingsLayout, ElevationIsTheTwoClipsAndTheSway)
+// Elevation is four: the two clips, the sway, and elv -- the base the graphic
+// used to set by touch, a knob left of the sway since 2026-09-26. Sub-index 3,
+// so the three before it keep theirs.
+TEST (ClipSettingsLayout, ElevationIsTheTwoClipsTheSwayAndElv)
 {
-  EXPECT_EQ (numControlsInSection (1), 3);
+  EXPECT_EQ (numControlsInSection (1), 4);
 
   auto const l = defaultLayout ();
-  ASSERT_EQ (l.controls[1].size (), 3u);
+  ASSERT_EQ (l.controls[1].size (), 4u);
 
-  // Nothing in it toggles any more.
-  for (int sub = 0; sub < 3; ++sub)
+  for (int sub = 0; sub < 4; ++sub)
     EXPECT_FALSE (tapTogglesValue (1, sub)) << "sub " << sub;
+
+  auto const sway = l.controls[1][2];
+  auto const elv = l.controls[1][3];
+  EXPECT_EQ (elv.getY (), sway.getY ());
+  EXPECT_LE (elv.getRight (), sway.getX ()) << "elv stands left of sway";
+  EXPECT_TRUE (l.sectionCards[1].contains (elv));
 }
 
 // And Motion holds each standing value beside the movement that works on it:
@@ -1078,42 +1061,42 @@ TEST (ClipSettingsLayout, MotionIsTheMovementAndEverythingThatMovesIt)
     EXPECT_FALSE (tapAdvancesValue (2, sub)) << "knob " << sub;
 }
 
+// elv turns the way a level does: clockwise is higher. The base counts from
+// the top (0 is the north pole), so the knob shows it the other way up.
+TEST (ClipSettingsLayout, ElvRaisesTheLineClockwise)
+{
+  EXPECT_FLOAT_EQ (elevationBaseForKnob (1.f, 0.f, 0.f), 0.f);
+  EXPECT_FLOAT_EQ (elevationBaseForKnob (0.f, 0.f, 0.f), 1.f);
+  EXPECT_FLOAT_EQ (knobForElevationBase (0.2f), 0.8f);
+  EXPECT_FLOAT_EQ (knobForElevationBase (elevationBaseForKnob (0.3f, 0.f, 0.f)),
+                   0.3f);
+}
+
 // The axis moves inside the clips, not through them. clip-top and
 // clip-bottom cut the sphere down from each end, and the middle of the
 // trajectory has to stay in what is left -- a base outside the band would be
 // a line you can see but the sound cannot reach.
 TEST (ClipSettingsLayout, TheBaseStaysInsideTheClips)
 {
-  juce::Rectangle<int> const bounds{ 0, 0, 100, 100 };
-  auto const circle = elevationCircleBounds (bounds);
-
   // A third clipped off the top, a quarter off the bottom.
-  auto constexpr low = 0.33f;
-  auto constexpr high = 0.75f;
-
-  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, circle.getY (), low, high), low)
-      << "a finger at the north pole must stop at the top clip";
-  EXPECT_FLOAT_EQ (
-      elevationBaseAt (bounds, circle.getBottom (), low, high), high)
-      << "a finger at the south pole must stop at the bottom clip";
-
-  // Inside the band it is untouched.
-  auto const middle = elevationBaseAt (bounds, circle.getCentreY (), low, high);
-  EXPECT_GE (middle, low);
-  EXPECT_LE (middle, high);
-  EXPECT_NEAR (middle, 0.5f, 0.02f);
+  EXPECT_FLOAT_EQ (elevationBaseForKnob (1.f, 0.33f, 0.25f), 0.33f)
+      << "turned full up it must stop at the top clip";
+  EXPECT_FLOAT_EQ (elevationBaseForKnob (0.f, 0.33f, 0.25f), 0.75f)
+      << "turned full down it must stop at the bottom clip";
 }
 
 // Clips that have been pushed past each other leave no band at all, and the
 // axis then has exactly one place to be: where they crossed.
 TEST (ClipSettingsLayout, CrossedClipsPinTheAxis)
 {
-  juce::Rectangle<int> const bounds{ 0, 0, 100, 100 };
-  auto const circle = elevationCircleBounds (bounds);
+  EXPECT_FLOAT_EQ (elevationBaseForKnob (1.f, 0.6f, 0.4f), 0.6f);
+  EXPECT_FLOAT_EQ (elevationBaseForKnob (0.f, 0.6f, 0.4f), 0.6f);
+}
 
-  EXPECT_FLOAT_EQ (elevationBaseAt (bounds, circle.getY (), 0.6f, 0.6f), 0.6f);
-  EXPECT_FLOAT_EQ (
-      elevationBaseAt (bounds, circle.getBottom (), 0.6f, 0.6f), 0.6f);
+// Ear height is as easy to land on with the knob as it was with a finger.
+TEST (ClipSettingsLayout, ElvSnapsToEarHeight)
+{
+  EXPECT_FLOAT_EQ (elevationBaseForKnob (0.51f, 0.f, 0.f), 0.5f);
 }
 
 // Ear height is where a sound is level with the listener, and it is the one
@@ -1134,13 +1117,6 @@ TEST (ClipSettingsLayout, TheAxisSnapsToEarHeight)
   EXPECT_FLOAT_EQ (snapElevationBase (0.f), 0.f);
   EXPECT_FLOAT_EQ (snapElevationBase (1.f), 1.f);
 }
-
-// The axis follows the finger rather than stepping. It was increments for a
-// moment, and those arrive once per drag threshold -- twelve pixels apart --
-// so the line lurched a step at a time and never sat where the finger was.
-// What replaced them is TouchControl::onDragTo, and what it hands over is a
-// position, so the maths is elevationBaseAt() either way. The cases above
-// cover it.
 
 // ── The header row after the channel keys ────────────────────────────────
 

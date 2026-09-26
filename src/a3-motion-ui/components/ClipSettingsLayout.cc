@@ -165,12 +165,12 @@ numControlsInSection (int sectionIndex)
       // Motion is what the movement *is*, not how it is played through.
       return 4;
     case 1:
-      // clip-top, clip-bottom, then the sway. reach went to Motion to stand
-      // beside the swell that sweeps it -- the two of them are one control
-      // with a movement over it, the way rot is with spin -- and the sway
-      // came here in its place, because where the middle of the trajectory
-      // sits is what the graphic above draws.
-      return 3;
+      // clip-top, clip-bottom, the sway, then elv. reach went to Motion to
+      // stand beside the swell that sweeps it, and the sway came here in its
+      // place, because where the middle of the trajectory sits is what the
+      // graphic above draws. elv is that middle: set by a finger on the
+      // graphic until 2026-09-26, a knob since.
+      return 4;
     case 2:
       // Ten knobs in five rows, and no buttons: the two lists went to Shape.
       // Numbered in reading order for the first time -- rot, spin, reach,
@@ -214,22 +214,20 @@ elevationCircleBounds (juce::Rectangle<int> cell)
 }
 
 float
-elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow,
-                 float bandHigh)
+elevationBaseForKnob (float knob, float clipTop, float clipBottom)
 {
-  auto const circle = elevationCircleBounds (cell);
-  if (circle.getHeight () <= 0)
-    return 0.f;
+  // What clip-top and clip-bottom have left of the sphere, ordered before the
+  // clamp so clips pushed past each other pin the axis to where they crossed
+  // rather than inverting the range. Snapped first and clamped last, so the
+  // snap cannot pull the line out of the band.
+  auto const top = std::clamp (clipTop, 0.f, 1.f);
+  auto const bottom = 1.f - std::clamp (clipBottom, 0.f, 1.f);
+  auto const low = juce::jmin (top, bottom);
+  auto const high = juce::jmax (top, bottom);
 
-  auto const frac = static_cast<float> (y - circle.getY ())
-                    / static_cast<float> (circle.getHeight ());
-
-  // Ordered before clamping, so clips pushed past each other pin the axis to
-  // where they crossed rather than inverting the range.
-  auto const low = juce::jmin (bandLow, bandHigh);
-  auto const high = juce::jmax (bandLow, bandHigh);
-
-  return juce::jlimit (low, high, juce::jlimit (0.f, 1.f, frac));
+  auto const base = snapElevationBase (knobForElevationBase (
+      std::clamp (knob, 0.f, 1.f)));
+  return juce::jlimit (low, high, base);
 }
 
 float
@@ -615,19 +613,17 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                                                                      row };
     };
 
-    // The two clips above, the sway on its own below. reach went to Motion to
-    // stand beside the swell that sweeps it; what is left here is the band the
-    // trajectory is allowed into and the slow travel of its middle. Centred
-    // rather than left in a half, or the row would read as a pair with
-    // something missing from it.
+    // The two clips above; below, elv -- where the middle of the trajectory
+    // sits -- with the sway that moves it on its right: the standing value
+    // beside the movement over it, the way Motion pairs its knobs.
     auto const [clipTopArea, clipBottomArea] = split (row1);
-    auto const swayArea = row2.withSizeKeepingCentre (
-        juce::jmin (row2.getWidth (), row2.getWidth () / 2), row2.getHeight ());
+    auto const [elvArea, swayArea] = split (row2);
 
     out.controls[1] = {
       textCell (clipTopArea, metrics.knobDiam),
       textCell (clipBottomArea, metrics.knobDiam),
       textCell (swayArea, metrics.knobDiam),
+      textCell (elvArea, metrics.knobDiam), // 3 elv, left of the sway
     };
   }
 

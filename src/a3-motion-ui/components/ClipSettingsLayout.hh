@@ -292,22 +292,10 @@ bool tapAdvancesValue (int sectionIndex, int subIndex);
 
 /** The circle the elevation graphic draws, inside whatever cell it is given.
  *
- *  Its own function because the graphic is a control now: a finger on it sets
- *  where the middle of the trajectory sits, and the circle drawing and the
- *  circle being touched have to be the same circle or the line lands where
- *  the finger did not. */
+ *  A picture again since 2026-09-26: the middle of the trajectory is set by
+ *  the elv knob, not by a finger on the circle. */
 juce::Rectangle<int> elevationCircleBounds (juce::Rectangle<int> cell);
 
-/** The elevation a point in that cell stands for: 0 at the top of the circle
- *  (north pole), 1 at the bottom (south). Past either end it holds at the
- *  pole -- a finger sliding off the top must not wrap round to the bottom.
- *
- *  `bandLow`/`bandHigh` are what clip-top and clip-bottom have left of the
- *  sphere, and the axis stays inside them: a base outside the band would be a
- *  line you can see and the sound cannot reach. Crossed clips leave a band of
- *  nothing, and then the axis has exactly one place to be. */
-float elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow = 0.f,
-                       float bandHigh = 1.f);
 
 /** Pull a base that is nearly at ear height exactly onto it.
  *
@@ -317,6 +305,18 @@ float elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow = 0.f,
  *  lets go a little further out, or the equator would become a hole you
  *  cannot set a value beside. */
 float snapElevationBase (float base);
+
+/** The base elv sets: the knob turned the way a level is (clockwise is
+ *  higher, where the base counts from the top), held inside the clip band
+ *  and snapped like the graphic's finger was. */
+float elevationBaseForKnob (float knob, float clipTop, float clipBottom);
+
+/** Where elv stands for a base -- the base the other way up. */
+constexpr float
+knobForElevationBase (float base)
+{
+  return 1.f - base;
+}
 
 
 /** How many of Motion's controls stand on the CLIP page: the first eight.

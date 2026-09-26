@@ -599,7 +599,10 @@ TEST (MixerLayout, TheMastersPotsStandRowOnRowOnTheChannelsLines)
       EXPECT_EQ (channelLines.count (layout.master[i].getY ()), 1u)
           << masterControlLabel (masterFaceOrder[i]) << " is off the lines";
       if (i > 0)
-        EXPECT_EQ (layout.master[i].getY (), layout.master[i - 1].getBottom ());
+        {
+          EXPECT_EQ (layout.master[i].getY (),
+                     layout.master[i - 1].getBottom ());
+        }
     }
 }
 

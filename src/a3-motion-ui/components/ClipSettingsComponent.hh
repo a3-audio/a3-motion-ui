@@ -178,11 +178,10 @@ public:
    *  follows on rotate and the accent follows on 3d. One idea, said the same
    *  way everywhere, so a blue arc always means "something is moving this". */
   void setElevationReach (float reach, float swept = -1.f);
-  /** Where the middle of the trajectory sits, 0 north and 1 south -- the one
-   *  line in the graphic a finger sets. */
-  /** Where the middle of the trajectory sits, and where the sway is holding
-   *  it right now. A `swept` below zero means it is standing still: the
-   *  graphic then draws the line alone, with nothing filled beside it. */
+  /** Where the middle of the trajectory sits (0 north, 1 south), and where
+   *  the sway is holding it right now -- shown on the elv knob, the setting
+   *  as its pointer and the sway as the blue arc. A `swept` below zero means
+   *  it is standing still. The graphic draws the setting alone. */
   void setElevationBase (float base, float swept = -1.f);
   void setElevationMirrorSouth (bool mirrorSouth);
   void setElevationClipTop (float clipTop);
@@ -419,15 +418,6 @@ public:
    *  callback rather than an increment, because "the other one" is not a
    *  direction — see tapTogglesValue(). */
   std::function<void (int section, int sub)> onControlToggled;
-  /** A finger landed in the elevation graphic at this height, 0 north to 1
-   *  south. Absolute rather than an increment: the graphic is a picture of
-   *  where things are, so touching it means "there", not "a bit further". */
-  std::function<void (float base)> onElevationBaseSet;
-  /** Two taps on the graphic put the line back in the middle of the range the
-   *  clips have left it -- the same "back to the middle" every knob in the bar
-   *  answers a double tap with. Separate from onElevationBaseSet so the reset
-   *  can say so in the readout, which is what tells a hand it landed. */
-  std::function<void (float base)> onElevationBaseReset;
   /** Two taps on a knob put it back to its default. Separate from a toggle:
    *  the value it lands on is decided by whoever owns the value, not here. */
   std::function<void (int section, int sub)> onControlReset;
@@ -643,7 +633,6 @@ private:
   std::array<bool, numClipSections> _locked{ false, false, false };
   float _elevationReach = 0.5f;
   float _elevationBase = 0.f;
-  float _elevationBaseSwept = -1.f;
   std::vector<ElevationSidePoint> _elevationFigure;
   ElevationSidePoint _elevationHead{};
   SphereCamera _sphereCamera{};
@@ -710,7 +699,6 @@ private:
    *  section's card, with no callbacks at all: the graphic is a picture of
    *  what the controls below it do, and touching a picture should do
    *  nothing. Without it the card underneath would answer. */
-  std::unique_ptr<TouchControl> _elevationGraphicTouch;
   std::array<std::unique_ptr<TouchControl>, numClipSections> _lockTouch;
   /** The four transport keys in the header. Their look follows the same rule
    *  as the global strip's function keys: a key that is doing something is

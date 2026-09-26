@@ -321,11 +321,12 @@ generator and the test runner:
   every row of that section is a standing value next to the movement that works on it, the way `rot`
   stands next to `spin` and each squeeze stands next to its own `str`. Motion is five such rows and
   nothing else — `rot|spin`, `reach|swell`, `sqzX|strX`, `sqzY|strY`, `fade|bias` — numbered in
-  reading order, which is the first time its sub-indices and its layout have agreed.
+  reading order, which is the first time its sub-indices and its layout have agreed. (Since
+  2026-09-26 `fade|bias` stand on the REC page, still as Motion's 8 and 9.)
 
-  `sway`, which does the same to the elevation base, sits in **Elevation**
-  under the graphic whose line it travels, for the same reason: a sweep says what it does only when
-  it stands next to what it does it to.
+  `sway`, which does the same to the elevation base, sits in **Elevation** beside `elv`, the base
+  itself, for the same reason: a sweep says what it does only when it stands next to what it does
+  it to.
 
 ### UI (`src/a3-motion-ui`)
 
@@ -869,13 +870,15 @@ grey and reads as a button stuck half-pressed. What they do carry is the value's
 `recModeColour` and `Colours::clockMode`. REC and TAP still light, because what they show is
 momentary and has no label of its own.
 
-**The elevation graphic draws the sway.** The chord a finger sets stays where it was put and the
-stretch between it and where the sweep is holding it now is filled in `notice`, with a thin chord of
-its own at the far edge — the same thing the knobs' blue arcs say, in the same colour, because it is
-the same question. Filled rather than drawn as a second line: what a sway does is cover a stretch of
-elevation, and a stretch reads as an area. Both are clamped into the band the clips leave, or the
-fill would promise elevation the sound never reaches. `setElevationBase()` takes the pair the way
-`setElevationReach()` does, and a `swept` below zero means "standing still, draw the line alone".
+**The elevation graphic is a picture, and `elv` is the base** (2026-09-26). The base — where the
+middle of the trajectory sits — used to be set by a finger on the circle, with the sway drawn as a
+blue band beside it. Both went: the circle takes no touch and draws the base line alone, and the
+base is Elevation's fourth knob, `elv`, left of `sway` (sub-index 3, so the other three kept
+theirs). The knob turns the way a level does, clockwise higher, while the base counts from the top
+(0 north), so it shows `knobForElevationBase(base)`; `elevationBaseForKnob` goes back, snapped to
+ear height as the finger was and clamped into the band the clips leave. The sway is the blue arc on
+`elv`, as every swept knob wears it: `setElevationBase()` still takes the setting and the swept
+value, and a `swept` below zero means "standing still".
 
 **No section wears the selection.** The selected card used to be filled with the channel's colour —
 a coloured field a third of the bar wide, laid over the controls you are reading, that moved every
