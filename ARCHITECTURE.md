@@ -564,6 +564,13 @@ the blue says where the spin is holding it now. Watch for the trap that caught t
 colour used to be inherited from whatever the value arc had set, so removing the arc drew the
 pointer in the modulation's blue. It sets its own colour now.
 
+**A knob's blue arc is fed, not drawn from what the knob knows.** A `PotKnob` holds its value; where
+a modulation is carrying that value right now — the spin under `rot`, the swell under `reach`, the
+stretches under the two squeezes — comes from the page, through `putReachOnKnob()`, converted by
+`reachOnKnob()` (`ClipKnobs.hh`, tested) into the angle the knob is drawn in. When the knobs became
+sliders on 2026-09-23 that wiring stayed behind with the old painting code, and every blue arc in
+the bar was gone for three days without a test noticing (a3-motion-ui#35).
+
 **The header's four transport keys are the shown clip's pads**, routed through `handlePadPress()`
 rather than reimplemented. The timing rules — play on the next beat, stop now, the accent for as
 long as the finger is down — live there, and `padIndexFor()` in `PadFunctions.hh` reads the pad

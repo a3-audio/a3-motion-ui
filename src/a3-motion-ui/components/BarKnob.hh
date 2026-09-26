@@ -20,6 +20,9 @@
 
 #pragma once
 
+#include <utility>
+#include <vector>
+
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
@@ -42,6 +45,21 @@ namespace a3
  *                      the spin under the rotation. -2 for nothing.
  *  @param wraps        A closed ring, for a value that comes round to itself.
  */
+/** The blue arc of a modulation, as the pieces to stroke: angles in JUCE's
+ *  addCentredArc convention (0 at twelve o'clock, clockwise), each piece
+ *  from its first angle to its second.
+ *
+ *  It always runs between the pointer and where the modulation is holding
+ *  the value. A knob with ends gets that as one piece, whichever side the
+ *  modulation is on. Only a ring can go round the top, and there a reach
+ *  that reads as "below" the pointer has passed the end of the scale: two
+ *  pieces that meet at the top. Treating a knob with ends the same way drew
+ *  sqzX's arc from the start of its scale instead of from the pointer
+ *  (a3-motion-ui#35). */
+std::vector<std::pair<float, float> > modulationArcs (float valueAngle,
+                                                      float reachAngle,
+                                                      float sweep, bool wraps);
+
 void paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
                    ControlMetrics metrics, juce::Colour channelColour,
                    juce::String const &label, float angleFrac,

@@ -99,3 +99,27 @@ TEST (ClipKnobs, TheBiasLeansInWholeNotches)
   EXPECT_EQ (motionKnobSpec (9).max, 4.0);
   EXPECT_EQ (motionKnobSpec (9).interval, 1.0);
 }
+
+TEST (ClipKnobs, NothingMovingAKnobDrawsNoArc)
+{
+  EXPECT_EQ (reachOnKnob (motionKnobSpec (0), std::nullopt), -2.f);
+  EXPECT_EQ (reachOnKnob (motionKnobSpec (2), std::nullopt), -2.f);
+}
+
+TEST (ClipKnobs, TheSpinsHoldOnTheRotationIsARingAngle)
+{
+  // rot runs 0..1 round a ring, which PotKnob draws as 0..2.
+  EXPECT_FLOAT_EQ (reachOnKnob (motionKnobSpec (0), 0.25f), 0.5f);
+  EXPECT_FLOAT_EQ (reachOnKnob (motionKnobSpec (0), 0.f), 0.f);
+}
+
+TEST (ClipKnobs, TheSwellAndTheStretchesHoldOnTheirOwnScale)
+{
+  // reach and the two squeezes run -1..1, which is already the angle.
+  for (auto const sub : { 2, 4, 6 })
+    {
+      EXPECT_FLOAT_EQ (reachOnKnob (motionKnobSpec (sub), 0.3f), 0.3f) << sub;
+      EXPECT_FLOAT_EQ (reachOnKnob (motionKnobSpec (sub), -1.f), -1.f) << sub;
+      EXPECT_FLOAT_EQ (reachOnKnob (motionKnobSpec (sub), 1.f), 1.f) << sub;
+    }
+}
