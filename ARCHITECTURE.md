@@ -519,9 +519,14 @@ as a mistake; one that lines up exactly reads as structure.
 **The sphere can be looked at from somewhere else.** `SphereCamera` is two angles — how far the eye
 has come down from straight above, and how far round it has walked — and **both being zero is the
 view the device has always had**, short-circuited to the identity so a device nobody has tilted
-computes exactly what it computed before, to the bit. **SHIFT with a finger on the sphere** moves it:
-a modifier rather than two sliders beside the picture, because sliders would stand there taking room
-and asking to be read at every glance, where the view is set once in a while and then left.
+computes exactly what it computed before, to the bit. **Camera mode** moves it (2026-09-26): a touch
+on the elevation picture at the top of the bar's global strip selects it — its grey field lights —
+and while it is on a finger on the sphere turns the view instead of taking a blob
+(`MotionComponent::setCameraMode`), and two taps put the view back where it starts. It was SHIFT
+with a finger on the sphere once, then a little sphere in the view's corner; a mode shown by a lit
+picture in plain view replaced both. **The eye stops at the horizon** either way over
+(`cameraFromBallDrag` clamps the lean to a right angle): nobody wants to look at the sphere from
+below, and a view that can end up under the floor is one you can get lost in mid-set.
 
 Everything that projects goes through `MotionComponent::projectToScreen()` and everything that reads
 a finger goes through `pixelToDirection()`. There were seven hand-written projections, and a camera
@@ -907,8 +912,9 @@ Every section's buttons sit on the bar's bottom edge — Shape's `len`, Elevatio
 than three sections each arranging their own.
 
 The global section is laid out top to bottom (2026-09-26): the **elevation picture** — moved out of
-the Elevation card, a square on the strip's width and never more than two fifths of its height, so
-it stands on every page — then the **four channel faces** in a frame of their own, moved up out of
+the Elevation card into a grey field of its own (`elevationFrame`), never more than nine twentieths
+of the strip's height, so it stands on every page, and touched it switches camera mode (below) —
+then the **four channel faces** in a frame of their own, moved up out of
 the clip's header row, then the **transport two by two** down to the
 strip's foot, arranged like a clip's pads on PADS — play and stop over act and rec, rec taking the
 corner the pads give to Settings. The 4x3 grid and the six function keys that stood there are gone.

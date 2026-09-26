@@ -408,6 +408,10 @@ struct ClipSettingsLayout
   juce::Rectangle<int> transportFrame;
   /** The Elevation section's side-view sphere. */
   juce::Rectangle<int> elevationGraphic;
+  /** The grey field the picture stands in, at the top of the global strip,
+   *  like the faces' and the transport's. Touched, it selects the picture:
+   *  while selected, the big sphere turns the camera. */
+  juce::Rectangle<int> elevationFrame;
   /** The Shape section's pictogram and the name under it. */
   juce::Rectangle<int> trajectoryIcon;
   juce::Rectangle<int> trajectoryName;

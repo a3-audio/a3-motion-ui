@@ -220,6 +220,16 @@ ClipSettingsComponent::createTouchControls ()
   makeTab (_tabBrowserTouch, BarPage::Browser);
   makeTab (_tabRecordTouch, BarPage::Record);
 
+  // The elevation picture is selected by a touch anywhere on its field, and
+  // selected it hands the big sphere to the camera. A tap, not a drag: the
+  // picture shows the view, the sphere is what turns it.
+  _elevationPictureTouch = std::make_unique<TouchControl> ();
+  _elevationPictureTouch->onTap = [this] (int, int) {
+    if (onElevationPictureTapped)
+      onElevationPictureTapped ();
+  };
+  addAndMakeVisible (*_elevationPictureTouch);
+
   _tabMainMixTouch = std::make_unique<TouchControl> ();
   _tabMainMixTouch->onTap = [this] (int, int) {
     if (onMainMixTapped)
@@ -410,6 +420,7 @@ ClipSettingsComponent::resized ()
   _tabControllerTouch->setBounds (_layout.tabController);
   _tabMixerTouch->setBounds (_layout.tabMixer);
   _tabMainMixTouch->setBounds (_layout.tabMainMix);
+  _elevationPictureTouch->setBounds (_layout.elevationFrame);
   _tabRecordTouch->setBounds (_layout.tabRecord);
   _tabBrowserTouch->setBounds (_layout.tabBrowser);
 
@@ -1132,6 +1143,16 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
 }
 
 void
+ClipSettingsComponent::setCameraMode (bool on)
+{
+  if (_cameraMode == on)
+    return;
+
+  _cameraMode = on;
+  repaint (_layout.elevationFrame);
+}
+
+void
 ClipSettingsComponent::setMainMixOpen (bool open)
 {
   if (_mainMixOpen == open)
@@ -1501,8 +1522,17 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // The elevation picture heads the strip, so it stands on every page: where
   // the shown clip sits and how high it may go is worth seeing while the
   // pads or the mixer are up, too.
-  paintElevationGraphic (g, _layout.elevationGraphic,
-                         _selectedIndex == elevationIndex);
+  // In a grey field of its own like the faces and the transport, washed in
+  // the accent while it is selected -- camera mode, where the big sphere turns
+  // the view -- the way a lit key says what it is doing.
+  paintSetOffFrame (g, _layout.elevationFrame);
+  if (_cameraMode)
+    {
+      g.setColour (toColour (theme ().accent, theme ().alphaFillEmphasis));
+      g.fillRoundedRectangle (_layout.elevationFrame.toFloat (),
+                              theme ().radiusControl);
+    }
+  paintElevationGraphic (g, _layout.elevationGraphic, _cameraMode);
 
   paintSetOffFrame (g, _layout.channelFacesFrame);
   paintSetOffFrame (g, _layout.transportFrame);

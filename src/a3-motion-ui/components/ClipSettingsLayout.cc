@@ -744,13 +744,15 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // ── the elevation picture ─────────────────────────────────────────
     //
     // At the head of the strip, over the faces: the side view of where the
-    // shown clip sits and how high it may go. A square on the strip's width,
-    // never more than two fifths of its height, so the faces and the
+    // shown clip sits and how high it may go, in a grey field of its own like
+    // the faces and the transport -- a field that is touched to select it.
+    // Never more than nine twentieths of the strip's height, so the faces and the
     // transport keep theirs.
     {
       auto const side = juce::jmin (content.getWidth (),
-                                    content.getHeight () * 2 / 5);
-      out.elevationGraphic = content.removeFromTop (side);
+                                    content.getHeight () * 9 / 20);
+      out.elevationFrame = content.removeFromTop (side);
+      out.elevationGraphic = out.elevationFrame.reduced (frameInset);
       content.removeFromTop (juce::jmin (content.getHeight (), blockGap));
     }
 

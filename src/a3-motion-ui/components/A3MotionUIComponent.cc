@@ -706,6 +706,15 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       showMixer (false);
     showBarPage (page);
   };
+  // The elevation picture switches camera mode: while it is on, a finger on
+  // the sphere turns the view instead of taking a blob.
+  _clipSettings->onElevationPictureTapped = [this] {
+    _cameraMode = !_cameraMode;
+    if (_motionComponent)
+      _motionComponent->setCameraMode (_cameraMode);
+    _clipSettings->setCameraMode (_cameraMode);
+    updateControlReadout (_cameraMode ? "-- CAMERA ON" : "-- CAMERA OFF");
+  };
   _clipSettings->onMainMixTapped = [this] {
     if (_mixerOpen)
       return;

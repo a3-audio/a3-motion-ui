@@ -1578,16 +1578,21 @@ TEST (ClipSettingsLayout, EachControlStandsOnItsOwnPage)
 
 
 // The elevation picture stands at the top of the global strip since
-// 2026-09-26, over the channel faces -- on every page, since the strip is.
-// The Elevation card keeps its four knobs and nothing else.
+// 2026-09-26, over the channel faces -- on every page, since the strip is --
+// in a grey frame of its own like the faces and the transport. The Elevation
+// card keeps its four knobs and nothing else.
 TEST (ClipSettingsLayout, TheElevationPictureLeadsTheGlobalStrip)
 {
   auto const l = defaultLayout ();
 
-  ASSERT_FALSE (l.elevationGraphic.isEmpty ());
-  EXPECT_TRUE (l.globalContent.contains (l.elevationGraphic));
-  EXPECT_EQ (l.elevationGraphic.getY (), l.globalContent.getY ());
-  EXPECT_FALSE (l.sectionCards[1].intersects (l.elevationGraphic));
+  ASSERT_FALSE (l.elevationFrame.isEmpty ());
+  EXPECT_EQ (l.elevationFrame.getY (), l.globalContent.getY ());
+  EXPECT_TRUE (l.globalContent.contains (l.elevationFrame));
+  EXPECT_TRUE (l.elevationFrame.contains (l.elevationGraphic));
+  EXPECT_LT (l.elevationGraphic.getWidth (), l.elevationFrame.getWidth ())
+      << "the picture stands inside its frame, not on its edge";
+  EXPECT_LE (l.elevationFrame.getBottom (), l.channelFacesFrame.getY ());
+  EXPECT_FALSE (l.sectionCards[1].intersects (l.elevationFrame));
 
   // Big enough to read a line off: a circle across most of the strip.
   auto const circle = elevationCircleBounds (l.elevationGraphic);

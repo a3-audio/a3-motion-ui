@@ -210,38 +210,14 @@ TEST (SphereProjection, AStrokeBreaksWhereTheSegmentsStopMeeting)
   EXPECT_EQ (breaks, 2) << "one for the start, one for the second sub-path";
 }
 
-// ── The little sphere ───────────────────────────────────────────────────
+// ── Turning the camera ──────────────────────────────────────────────────
 
 /** It sits in the top right of the view, clear of it, and is big enough to
  *  take hold of. Turning the room is a thing you do with a finger, so a mark
  *  too small to land on is a mark that cannot do its job. */
-TEST (SphereProjection, TheCameraBallSitsInTheTopRightAndCanBeGrabbed)
-{
-  for (int width : { 480, 768, 1024 })
-    for (int height : { 400, 700, 900 })
-      {
-        juce::Rectangle<int> const view{ 0, 0, width, height };
-        auto const ball = cameraBallBounds (view);
-
-        ASSERT_FALSE (ball.isEmpty ()) << width << "x" << height;
-        EXPECT_TRUE (view.contains (ball)) << width << "x" << height;
-        EXPECT_GE (ball.getWidth (), fingertipSize) << width << "x" << height;
-        EXPECT_EQ (ball.getWidth (), ball.getHeight ());
-
-        // In the corner: nearer the top than the bottom, nearer the right
-        // than the left.
-        EXPECT_LT (ball.getCentreY (), view.getCentreY ());
-        EXPECT_GT (ball.getCentreX (), view.getCentreX ());
-      }
-}
 
 /** A view too small to hold one gets none rather than a ball drawn over the
  *  sphere it is meant to sit beside. */
-TEST (SphereProjection, AViewTooSmallForTheBallGetsNone)
-{
-  EXPECT_TRUE (cameraBallBounds ({ 0, 0, 20, 20 }).isEmpty ());
-  EXPECT_TRUE (cameraBallBounds ({}).isEmpty ());
-}
 
 /** Its own width is a whole turn and its own height a right angle, so one
  *  sweep across it has been all the way round the room.
@@ -282,20 +258,26 @@ TEST (SphereProjection, TheBallTipsBothWays)
  *  right angle the eye is under the floor looking up at it -- but that is a
  *  view of the room, and a room you cannot look at from underneath is one
  *  whose floor you have to take on trust. A ball has no stops in it. */
-TEST (SphereProjection, TheBallRollsPastTheHorizon)
+/** And it stops at the horizon (2026-09-26). It used to roll on through, on
+ *  the grounds that a room you cannot look at from underneath is one whose
+ *  floor you have to take on trust -- but nobody wants to look at the sphere
+ *  from below, and a view that can end up under the floor is one you can get
+ *  lost in mid-set. Either way over, the eye stops level with the room. */
+TEST (SphereProjection, TheEyeNeverGoesBelowTheHorizon)
 {
   juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
   auto const halfPi = juce::MathConstants<float>::halfPi;
 
-  // A drag of one and a half ball-heights is a lean of three right angles,
-  // which is past straight down and out the other side.
-  auto const under = cameraFromBallDrag ({}, { 0.f, 90.f }, ball).pitch;
-  EXPECT_LT (under, -halfPi - 1e-4f) << "it held at the horizon";
+  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, 90.f }, ball).pitch, -halfPi,
+               1e-4f);
+  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, -4.f * 60.f }, ball).pitch,
+               halfPi, 1e-4f);
 
-  // And rolled far enough it comes back to where it started.
-  auto const round
-      = cameraFromBallDrag ({}, { 0.f, -4.f * 60.f }, ball).pitch;
-  EXPECT_NEAR (round, 0.f, 1e-3f) << "four right angles is a whole turn";
+  // And a drag that starts past it -- a view saved before the limit -- comes
+  // back inside.
+  EXPECT_LE (std::abs (cameraFromBallDrag ({ 2.5f, 0.f }, { 0.f, 0.f }, ball)
+                           .pitch),
+             halfPi + 1e-4f);
 }
 
 /** A drag carries on from where the eye already was, so picking the ball up

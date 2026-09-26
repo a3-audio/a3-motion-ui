@@ -173,25 +173,6 @@ slerpDirection (Pos const &from, Pos const &to, float t)
                              a * from.z () + b * to.z ());
 }
 
-juce::Rectangle<int>
-cameraBallBounds (juce::Rectangle<int> view)
-{
-  if (view.isEmpty ())
-    return {};
-
-  auto const side = juce::jmax (
-      fingertipSize,
-      juce::jmin (view.getWidth (), view.getHeight ()) / 6);
-
-  if (side > view.getWidth () || side > view.getHeight ())
-    return {};
-
-  auto const margin = juce::jmax (4, side / 4);
-
-  return juce::Rectangle<int> (view.getRight () - side - margin,
-                               view.getY () + margin, side, side);
-}
-
 SphereCamera
 cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
                     juce::Rectangle<int> ball)
@@ -202,19 +183,15 @@ cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
   SphereCamera moving;
 
   // Up and down lean the eye over the room, and the room follows the finger
-  // here too: dragged down, the near side of the ball rolls towards you and
-  // the eye comes up over the far side.
+  // here too: dragged down, the near side rolls towards you and the eye comes
+  // up over the far side.
   //
-  // And it keeps going: a ball has no stops in it. It used to hold at the
-  // horizon, on the grounds that past a right angle the eye is under the floor
-  // looking up at it -- but that is a view of the room, and a room you cannot
-  // look at from underneath is one whose floor you have to take on trust.
-  // Rolled far enough it comes back to where it started, the way rolling a
-  // ball does.
-  auto const pitch
-      = atGrab.pitch - moved.y / down * juce::MathConstants<float>::halfPi;
-
-  moving.pitch = std::remainder (pitch, juce::MathConstants<float>::twoPi);
+  // It stops at the horizon, either way over (2026-09-26): nobody wants to
+  // look at the sphere from below, and a view that can end up under the floor
+  // is one you can get lost in mid-set. It rolled on through for a while.
+  auto const halfPi = juce::MathConstants<float>::halfPi;
+  auto const pitch = atGrab.pitch - moved.y / down * halfPi;
+  moving.pitch = std::clamp (pitch, -halfPi, halfPi);
 
   // And across walks it round, which has no end to stop at. Negated, so the
   // room follows the finger: a ball dragged to the right turns its front to

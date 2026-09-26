@@ -359,6 +359,12 @@ public:
   juce::Rectangle<int> clipContentBounds () const;
   /** A tab was tapped. */
   std::function<void (BarPage page)> onPageSelected;
+  /** The elevation picture in the global strip was tapped: switch camera
+   *  mode, in which the big sphere turns the view. */
+  std::function<void ()> onElevationPictureTapped;
+  /** Whether camera mode is on, so the picture's field can wear it. */
+  void setCameraMode (bool on);
+
   /** MAINMIX was tapped: open or close the big mixer. Not a page -- the
    *  mixer lies over the sphere, and the bar stays on the page it was on. */
   std::function<void ()> onMainMixTapped;
@@ -722,6 +728,8 @@ private:
   std::unique_ptr<TouchControl> _tabControllerTouch;
   std::unique_ptr<TouchControl> _tabMixerTouch;
   std::unique_ptr<TouchControl> _tabMainMixTouch;
+  std::unique_ptr<TouchControl> _elevationPictureTouch;
+  bool _cameraMode = false;
   std::unique_ptr<TouchControl> _tabRecordTouch;
   bool _mainMixOpen = false;
   std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
