@@ -4157,6 +4157,9 @@ A3MotionUIComponent::renameChosenClip (juce::String const &name)
                      slot < _slotClipFile[channel].size (); ++slot)
                   if (_slotClipFile[channel][slot] == entry.clipFile)
                     setSlotClipFile (channel, slot, to);
+              // And so does what an unsaved take's slot held before it: a
+              // set writes that, and DISCARD puts it back (#30).
+              _pendingTakes.moveClipFile (entry.clipFile, to);
             }
         }
     }
@@ -4166,11 +4169,13 @@ A3MotionUIComponent::renameChosenClip (juce::String const &name)
   // that is not an error there, it is a slot that loads empty.
   auto const sets = renameInSets (was, name);
 
-  // The patterns already in slots carry the old name in memory.
+  // The patterns already in slots carry the old name in memory -- and so do
+  // the ones an unsaved take is waiting to hand back (#30).
   for (auto &channel : _patterns)
     for (auto &pattern : channel)
       if (pattern && juce::String (pattern->getName ()) == was)
         pattern->setName (name.toStdString ());
+  _pendingTakes.renamePattern (was, name);
 
   _patternLibrary->refresh ();
   refreshAllPadRowLabels ();

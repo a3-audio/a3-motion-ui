@@ -20,6 +20,8 @@
 
 #include "PendingTakes.hh"
 
+#include <a3-motion-engine/Pattern.hh>
+
 namespace a3
 {
 
@@ -126,6 +128,23 @@ void
 PendingTakes::disarm ()
 {
   _armed.reset ();
+}
+
+void
+PendingTakes::renamePattern (juce::String const &from, juce::String const &to)
+{
+  for (auto &before : _before)
+    if (before.has_value () && before->pattern
+        && juce::String (before->pattern->getName ()) == from)
+      before->pattern->setName (to.toStdString ());
+}
+
+void
+PendingTakes::moveClipFile (juce::File const &from, juce::File const &to)
+{
+  for (auto &before : _before)
+    if (before.has_value () && before->clipFile == from)
+      before->clipFile = to;
 }
 
 }
