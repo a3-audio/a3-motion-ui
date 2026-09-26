@@ -72,7 +72,7 @@ TEST (ActionFiring, AnActionDrivesWhereTheClipGoes)
   action.reach = 0.9f;
   action.spin = 4;
   action.direction = PlayDirection::Reverse;
-  action.endAction = EndAction::Bounce;
+  action.endAction = EndAction::Pause;
   action.fadeReach = 0.8f;
   action.bridgeBias = -3;
 
@@ -82,7 +82,7 @@ TEST (ActionFiring, AnActionDrivesWhereTheClipGoes)
   EXPECT_FLOAT_EQ (fired.reach, 0.9f);
   EXPECT_EQ (fired.spin, 4);
   EXPECT_EQ (fired.direction, PlayDirection::Reverse);
-  EXPECT_EQ (fired.endAction, EndAction::Bounce);
+  EXPECT_EQ (fired.endAction, EndAction::Pause);
   EXPECT_FLOAT_EQ (fired.fadeReach, 0.8f);
   EXPECT_EQ (fired.bridgeBias, -3);
 }
@@ -167,7 +167,7 @@ TEST (ActionFiring, FallingBackPutsEveryFieldWhereItWas)
   ClipSettings action;
   action.spin = -5;
   action.reach = 1.f;
-  action.endAction = EndAction::Bounce;
+  action.endAction = EndAction::Stop;
 
   applyClipSettings (pattern, actionOver (before, action));
   EXPECT_NE (clipSettingsFrom (pattern), before) << "the action did nothing";
@@ -213,7 +213,8 @@ TEST (ActionFiring, AOneShotThrowsTheClipAndItComesBack)
 
   ClipSettings action;
   action.spin = 5;
-  action.endAction = EndAction::Bounce;
+  // A bounce keeps playing through the accent, as the bounce end action did.
+  action.direction = PlayDirection::Bounce;
 
   engine.setChannelAction (0, action);
   engine.setChannelAccentHeld (0, true, pattern);

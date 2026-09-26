@@ -184,10 +184,20 @@ readOverrides (juce::var const &value)
 
   if (auto const s = named ("actMode"); s.isNotEmpty ())
     settings.actMode = a3::actModeFromName (s);
-  if (auto const s = named ("direction"); s.isNotEmpty ())
-    settings.direction = a3::playDirectionFromName (s);
-  if (auto const s = named ("endAction"); s.isNotEmpty ())
-    settings.endAction = a3::endActionFromName (s);
+  // Both through the one reader that knows Bounce and Random were end
+  // actions; either left out keeps what the settings already say.
+  auto const direction = named ("direction");
+  auto const endAction = named ("endAction");
+  if (direction.isNotEmpty () || endAction.isNotEmpty ())
+    {
+      auto const mode = a3::playbackModeFromNames (
+          direction.isNotEmpty () ? direction
+                                  : a3::playDirectionToName (settings.direction),
+          endAction.isNotEmpty () ? endAction
+                                  : a3::endActionToName (settings.endAction));
+      settings.direction = mode.direction;
+      settings.endAction = mode.endAction;
+    }
 
   return settings;
 }

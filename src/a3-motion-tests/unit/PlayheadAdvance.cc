@@ -32,7 +32,7 @@ Playhead const middle{ 0.5f, 1.f, false };
 
 TEST (PlayheadAdvance, InsideTheLoopItJustMovesOn)
 {
-  auto const next = advancePlayhead (middle, 0.1f, EndAction::Loop, 0.f);
+  auto const next = advancePlayhead (middle, 0.1f, PlayDirection::Forward, EndAction::Loop, 0.f);
 
   EXPECT_FLOAT_EQ (next.position, 0.6f);
   EXPECT_FLOAT_EQ (next.sign, 1.f);
@@ -48,7 +48,7 @@ TEST (PlayheadAdvance, ForwardIsWhereReverseIsNot)
 TEST (PlayheadAdvance, ReverseWalksBackwards)
 {
   Playhead const backwards{ 0.5f, -1.f, false };
-  auto const next = advancePlayhead (backwards, 0.1f, EndAction::Loop, 0.f);
+  auto const next = advancePlayhead (backwards, 0.1f, PlayDirection::Forward, EndAction::Loop, 0.f);
 
   EXPECT_FLOAT_EQ (next.position, 0.4f);
   EXPECT_FLOAT_EQ (next.sign, -1.f);
@@ -57,12 +57,12 @@ TEST (PlayheadAdvance, ReverseWalksBackwards)
 TEST (PlayheadAdvance, LoopWrapsAtEitherEnd)
 {
   Playhead const nearEnd{ 0.95f, 1.f, false };
-  auto const wrapped = advancePlayhead (nearEnd, 0.1f, EndAction::Loop, 0.f);
+  auto const wrapped = advancePlayhead (nearEnd, 0.1f, PlayDirection::Forward, EndAction::Loop, 0.f);
   EXPECT_NEAR (wrapped.position, 0.05f, 1e-5f);
   EXPECT_FALSE (wrapped.stopped);
 
   Playhead const nearStart{ 0.05f, -1.f, false };
-  auto const under = advancePlayhead (nearStart, 0.1f, EndAction::Loop, 0.f);
+  auto const under = advancePlayhead (nearStart, 0.1f, PlayDirection::Forward, EndAction::Loop, 0.f);
   EXPECT_NEAR (under.position, 0.95f, 1e-5f);
   EXPECT_FLOAT_EQ (under.sign, -1.f);
 }
@@ -73,7 +73,7 @@ TEST (PlayheadAdvance, LoopWrapsAtEitherEnd)
 TEST (PlayheadAdvance, BounceTurnsRoundAtTheEnd)
 {
   Playhead const nearEnd{ 0.95f, 1.f, false };
-  auto const turned = advancePlayhead (nearEnd, 0.1f, EndAction::Bounce, 0.f);
+  auto const turned = advancePlayhead (nearEnd, 0.1f, PlayDirection::Bounce, EndAction::Loop, 0.f);
 
   EXPECT_NEAR (turned.position, 0.95f, 1e-5f);
   EXPECT_FLOAT_EQ (turned.sign, -1.f);
@@ -83,7 +83,7 @@ TEST (PlayheadAdvance, BounceTurnsRoundAtTheEnd)
 TEST (PlayheadAdvance, BounceTurnsRoundAtTheStartToo)
 {
   Playhead const nearStart{ 0.05f, -1.f, false };
-  auto const turned = advancePlayhead (nearStart, 0.1f, EndAction::Bounce, 0.f);
+  auto const turned = advancePlayhead (nearStart, 0.1f, PlayDirection::Bounce, EndAction::Loop, 0.f);
 
   EXPECT_NEAR (turned.position, 0.05f, 1e-5f);
   EXPECT_FLOAT_EQ (turned.sign, 1.f);
@@ -99,7 +99,7 @@ TEST (PlayheadAdvance, BounceTurnsRoundAtTheStartToo)
 TEST (PlayheadAdvance, PauseHoldsThePositionItReached)
 {
   Playhead const nearEnd{ 0.95f, 1.f, false };
-  auto const halted = advancePlayhead (nearEnd, 0.1f, EndAction::Pause, 0.f);
+  auto const halted = advancePlayhead (nearEnd, 0.1f, PlayDirection::Forward, EndAction::Pause, 0.f);
 
   EXPECT_FLOAT_EQ (halted.position, 0.95f);
   EXPECT_TRUE (halted.stopped);
@@ -107,7 +107,7 @@ TEST (PlayheadAdvance, PauseHoldsThePositionItReached)
 
 TEST (PlayheadAdvance, StopDoesNothingUntilTheEndIsReached)
 {
-  auto const next = advancePlayhead (middle, 0.1f, EndAction::Stop, 0.f);
+  auto const next = advancePlayhead (middle, 0.1f, PlayDirection::Forward, EndAction::Stop, 0.f);
 
   EXPECT_FLOAT_EQ (next.position, 0.6f);
   EXPECT_FALSE (next.stopped);
@@ -118,7 +118,7 @@ TEST (PlayheadAdvance, StopDoesNothingUntilTheEndIsReached)
 TEST (PlayheadAdvance, RandomCarriesOnAtTheDrawnPhase)
 {
   Playhead const nearEnd{ 0.95f, 1.f, false };
-  auto const jumped = advancePlayhead (nearEnd, 0.1f, EndAction::Random, 0.42f);
+  auto const jumped = advancePlayhead (nearEnd, 0.1f, PlayDirection::Random, EndAction::Loop, 0.42f);
 
   EXPECT_FLOAT_EQ (jumped.position, 0.42f);
   EXPECT_FLOAT_EQ (jumped.sign, 1.f) << "it carries on the way it was going";
@@ -127,7 +127,7 @@ TEST (PlayheadAdvance, RandomCarriesOnAtTheDrawnPhase)
 
 TEST (PlayheadAdvance, RandomOnlyJumpsAtTheEnd)
 {
-  auto const next = advancePlayhead (middle, 0.1f, EndAction::Random, 0.42f);
+  auto const next = advancePlayhead (middle, 0.1f, PlayDirection::Random, EndAction::Loop, 0.42f);
 
   EXPECT_FLOAT_EQ (next.position, 0.6f) << "mid-loop nothing is drawn";
 }
@@ -136,12 +136,13 @@ TEST (PlayheadAdvance, RandomOnlyJumpsAtTheEnd)
 // a very fast clip advances by more than one pass per tick.
 TEST (PlayheadAdvance, AHugeStepStaysInsideTheLoop)
 {
-  for (auto const action : { EndAction::Loop, EndAction::Bounce,
-                             EndAction::Random })
+  for (auto const direction : { PlayDirection::Forward, PlayDirection::Bounce,
+                                PlayDirection::Random })
     {
-      auto const next = advancePlayhead (middle, 7.3f, action, 0.5f);
+      auto const next
+          = advancePlayhead (middle, 7.3f, direction, EndAction::Loop, 0.5f);
       EXPECT_GE (next.position, 0.f);
-      EXPECT_LT (next.position, 1.f);
+      EXPECT_LE (next.position, 1.f);
     }
 }
 
@@ -171,7 +172,7 @@ TEST (PlayheadAdvance, ChoosingADirectionTurnsAClipAtOnce)
 TEST (PlayheadAdvance, StopEndsThePassAtTheBeginning)
 {
   auto const stepped = advancePlayhead ({ 0.99f, 1.f, false }, 0.02f,
-                                        EndAction::Stop, 0.f);
+                                        PlayDirection::Forward, EndAction::Stop, 0.f);
 
   EXPECT_TRUE (stepped.stopped);
   EXPECT_FLOAT_EQ (stepped.position, 0.f);
@@ -182,7 +183,7 @@ TEST (PlayheadAdvance, StopEndsThePassAtTheBeginning)
 TEST (PlayheadAdvance, StopGoesToTheBeginningWhicheverWayItWasGoing)
 {
   auto const stepped = advancePlayhead ({ 0.01f, -1.f, false }, 0.02f,
-                                        EndAction::Stop, 0.f);
+                                        PlayDirection::Forward, EndAction::Stop, 0.f);
 
   EXPECT_TRUE (stepped.stopped);
   EXPECT_FLOAT_EQ (stepped.position, 0.f);
@@ -193,7 +194,7 @@ TEST (PlayheadAdvance, StopGoesToTheBeginningWhicheverWayItWasGoing)
 TEST (PlayheadAdvance, PauseHoldsWhereItGotTo)
 {
   auto const stepped = advancePlayhead ({ 0.99f, 1.f, false }, 0.02f,
-                                        EndAction::Pause, 0.f);
+                                        PlayDirection::Forward, EndAction::Pause, 0.f);
 
   EXPECT_TRUE (stepped.stopped);
   EXPECT_FLOAT_EQ (stepped.position, 0.99f);
@@ -207,14 +208,14 @@ TEST (PlayheadAdvance, PauseHoldsWhereItGotTo)
 TEST (PlayheadAdvance, BounceTurningExactlyOnTheEndStaysAtTheEnd)
 {
   Playhead const atTheEdge{ 0.9f, 1.f, false };
-  auto const turned = advancePlayhead (atTheEdge, 0.1f, EndAction::Bounce, 0.f);
+  auto const turned = advancePlayhead (atTheEdge, 0.1f, PlayDirection::Bounce, EndAction::Loop, 0.f);
 
   EXPECT_FLOAT_EQ (turned.position, 1.f);
   EXPECT_FLOAT_EQ (turned.sign, -1.f);
   EXPECT_FALSE (turned.stopped);
 
   // And away from it on the next tick, rather than sticking there.
-  auto const away = advancePlayhead (turned, 0.1f, EndAction::Bounce, 0.f);
+  auto const away = advancePlayhead (turned, 0.1f, PlayDirection::Bounce, EndAction::Loop, 0.f);
   EXPECT_FLOAT_EQ (away.position, 0.9f);
   EXPECT_FLOAT_EQ (away.sign, -1.f);
 }
@@ -227,12 +228,12 @@ TEST (PlayheadAdvance, BounceTurningExactlyOnTheEndStaysAtTheEnd)
 TEST (PlayheadAdvance, BounceStandsOnTheStartBeforeTurning)
 {
   Playhead const arriving{ 0.1f, -1.f, false };
-  auto const onIt = advancePlayhead (arriving, 0.1f, EndAction::Bounce, 0.f);
+  auto const onIt = advancePlayhead (arriving, 0.1f, PlayDirection::Bounce, EndAction::Loop, 0.f);
 
   EXPECT_FLOAT_EQ (onIt.position, 0.f);
   EXPECT_FLOAT_EQ (onIt.sign, -1.f) << "not turned yet: it is standing on it";
 
-  auto const away = advancePlayhead (onIt, 0.1f, EndAction::Bounce, 0.f);
+  auto const away = advancePlayhead (onIt, 0.1f, PlayDirection::Bounce, EndAction::Loop, 0.f);
   EXPECT_FLOAT_EQ (away.position, 0.1f);
   EXPECT_FLOAT_EQ (away.sign, 1.f);
   EXPECT_GE (away.position, 0.f) << "it must never fall through the start";
@@ -248,7 +249,7 @@ TEST (PlayheadAdvance, BounceStandsOnTheStartBeforeTurning)
 
 TEST (PlayheadAdvance, StopAtEndChangesNothingInsideThePass)
 {
-  auto const next = advancePlayhead (middle, 0.1f, EndAction::Loop, 0.f, true);
+  auto const next = advancePlayhead (middle, 0.1f, PlayDirection::Forward, EndAction::Loop, 0.f, true);
 
   EXPECT_FLOAT_EQ (next.position, 0.6f);
   EXPECT_FALSE (next.stopped);
@@ -259,11 +260,11 @@ TEST (PlayheadAdvance, StopAtEndEndsALoopWhereTheLapEnds)
   Playhead const nearlyThere{ 0.95f, 1.f, false };
 
   auto const looping
-      = advancePlayhead (nearlyThere, 0.1f, EndAction::Loop, 0.f, false);
+      = advancePlayhead (nearlyThere, 0.1f, PlayDirection::Forward, EndAction::Loop, 0.f, false);
   EXPECT_FALSE (looping.stopped);
 
   auto const finishing
-      = advancePlayhead (nearlyThere, 0.1f, EndAction::Loop, 0.f, true);
+      = advancePlayhead (nearlyThere, 0.1f, PlayDirection::Forward, EndAction::Loop, 0.f, true);
   EXPECT_TRUE (finishing.stopped);
 
   // Back at the take's start, the way EndAction::Stop leaves it: this was
@@ -271,18 +272,22 @@ TEST (PlayheadAdvance, StopAtEndEndsALoopWhereTheLapEnds)
   EXPECT_FLOAT_EQ (finishing.position, 0.f);
 }
 
-TEST (PlayheadAdvance, StopAtEndCatchesABounceAtTheEndItRanInto)
+// A bounce is asked to finish at the end of its whole round -- out and back --
+// not at the far end it turns at (the maintainer's call, 2026-09-26): half a
+// round is half a figure.
+TEST (PlayheadAdvance, StopAtEndLetsABounceFinishItsRound)
 {
-  Playhead const nearlyThere{ 0.95f, 1.f, false };
+  Playhead const atTheFarEnd{ 0.95f, 1.f, false };
+  auto const turned = advancePlayhead (atTheFarEnd, 0.1f, PlayDirection::Bounce,
+                                       EndAction::Loop, 0.f, true);
+  EXPECT_FALSE (turned.stopped) << "it stopped halfway round";
+  EXPECT_FLOAT_EQ (turned.sign, -1.f);
 
-  auto const bouncing
-      = advancePlayhead (nearlyThere, 0.1f, EndAction::Bounce, 0.f, false);
-  EXPECT_FALSE (bouncing.stopped);
-  EXPECT_FLOAT_EQ (bouncing.sign, -1.f);
-
-  auto const finishing
-      = advancePlayhead (nearlyThere, 0.1f, EndAction::Bounce, 0.f, true);
-  EXPECT_TRUE (finishing.stopped);
+  Playhead const nearlyHome{ 0.05f, -1.f, false };
+  auto const home = advancePlayhead (nearlyHome, 0.1f, PlayDirection::Bounce,
+                                     EndAction::Loop, 0.f, true);
+  EXPECT_TRUE (home.stopped);
+  EXPECT_FLOAT_EQ (home.position, 0.f);
 }
 
 TEST (PlayheadAdvance, StopAtEndCatchesARandomJumpToo)
@@ -290,7 +295,7 @@ TEST (PlayheadAdvance, StopAtEndCatchesARandomJumpToo)
   Playhead const nearlyThere{ 0.95f, 1.f, false };
 
   auto const finishing
-      = advancePlayhead (nearlyThere, 0.1f, EndAction::Random, 0.42f, true);
+      = advancePlayhead (nearlyThere, 0.1f, PlayDirection::Random, EndAction::Loop, 0.42f, true);
   EXPECT_TRUE (finishing.stopped);
   EXPECT_FLOAT_EQ (finishing.position, 0.f);
 }
@@ -300,9 +305,9 @@ TEST (PlayheadAdvance, StopAtEndAddsNothingToAClipThatStopsAnyway)
   Playhead const nearlyThere{ 0.95f, 1.f, false };
 
   auto const byItself
-      = advancePlayhead (nearlyThere, 0.1f, EndAction::Stop, 0.f, false);
+      = advancePlayhead (nearlyThere, 0.1f, PlayDirection::Forward, EndAction::Stop, 0.f, false);
   auto const asked
-      = advancePlayhead (nearlyThere, 0.1f, EndAction::Stop, 0.f, true);
+      = advancePlayhead (nearlyThere, 0.1f, PlayDirection::Forward, EndAction::Stop, 0.f, true);
 
   EXPECT_EQ (byItself.stopped, asked.stopped);
   EXPECT_FLOAT_EQ (byItself.position, asked.position);
@@ -315,8 +320,134 @@ TEST (PlayheadAdvance, StopAtEndCatchesAReverseLapAtItsEnd)
   Playhead const nearlyBack{ 0.05f, -1.f, false };
 
   auto const finishing
-      = advancePlayhead (nearlyBack, 0.1f, EndAction::Loop, 0.f, true);
+      = advancePlayhead (nearlyBack, 0.1f, PlayDirection::Forward, EndAction::Loop, 0.f, true);
 
   EXPECT_TRUE (finishing.stopped);
   EXPECT_FLOAT_EQ (finishing.position, 0.f);
+}
+
+// ── Direction and end, combined (2026-09-26) ────────────────────────────────
+//
+// Bounce and Random moved from the end actions to the directions: they say
+// how a clip travels, and the end -- Loop, Stop, Pause -- says what it does
+// when that travel is over. A bounce's travel is its whole round, out and
+// back; a random one's is a lap from wherever it was dropped in.
+
+TEST (PlayheadAdvance, ABounceTurnsAtTheFarEndWhateverItsEnd)
+{
+  Playhead const atTheFarEnd{ 0.95f, 1.f, false };
+  for (auto const end : { EndAction::Loop, EndAction::Stop, EndAction::Pause })
+    {
+      auto const turned = advancePlayhead (atTheFarEnd, 0.1f,
+                                           PlayDirection::Bounce, end, 0.f);
+      EXPECT_FALSE (turned.stopped);
+      EXPECT_FLOAT_EQ (turned.sign, -1.f);
+    }
+}
+
+TEST (PlayheadAdvance, ABounceThatStopsStopsWhenItIsHome)
+{
+  Playhead const nearlyHome{ 0.05f, -1.f, false };
+  auto const home = advancePlayhead (nearlyHome, 0.1f, PlayDirection::Bounce,
+                                     EndAction::Stop, 0.f);
+
+  EXPECT_TRUE (home.stopped);
+  EXPECT_FLOAT_EQ (home.position, 0.f);
+  EXPECT_FLOAT_EQ (home.sign, 1.f) << "the next start sets off outwards";
+}
+
+TEST (PlayheadAdvance, ABounceThatPausesHoldsWhereItGotHome)
+{
+  Playhead const nearlyHome{ 0.05f, -1.f, false };
+  auto const held = advancePlayhead (nearlyHome, 0.1f, PlayDirection::Bounce,
+                                     EndAction::Pause, 0.f);
+
+  EXPECT_TRUE (held.stopped);
+  EXPECT_FLOAT_EQ (held.position, 0.05f);
+}
+
+TEST (PlayheadAdvance, ARandomLapThatStopsDoesNotJump)
+{
+  Playhead const nearEnd{ 0.95f, 1.f, false };
+
+  auto const stopped = advancePlayhead (nearEnd, 0.1f, PlayDirection::Random,
+                                        EndAction::Stop, 0.42f);
+  EXPECT_TRUE (stopped.stopped);
+  EXPECT_FLOAT_EQ (stopped.position, 0.f);
+
+  auto const paused = advancePlayhead (nearEnd, 0.1f, PlayDirection::Random,
+                                       EndAction::Pause, 0.42f);
+  EXPECT_TRUE (paused.stopped);
+  EXPECT_FLOAT_EQ (paused.position, 0.95f);
+}
+
+// Where a clip sets off from: the start forwards, the end backwards, a random
+// phase at random, and a bounce outwards from the start.
+TEST (PlayheadAdvance, EachDirectionSetsOffFromItsOwnPlace)
+{
+  EXPECT_FLOAT_EQ (initialPosition (PlayDirection::Forward, 0.42f), 0.f);
+  EXPECT_FLOAT_EQ (initialPosition (PlayDirection::Reverse, 0.42f), 1.f);
+  EXPECT_FLOAT_EQ (initialPosition (PlayDirection::Bounce, 0.42f), 0.f);
+  EXPECT_FLOAT_EQ (initialPosition (PlayDirection::Random, 0.42f), 0.42f);
+
+  EXPECT_FLOAT_EQ (initialSign (PlayDirection::Bounce), 1.f);
+  EXPECT_FLOAT_EQ (initialSign (PlayDirection::Random), 1.f);
+}
+
+// Every direction and end is written by a name and read back by it.
+TEST (PlayheadAdvance, TheNamesRoundTrip)
+{
+  for (auto const direction : { PlayDirection::Forward, PlayDirection::Reverse,
+                                PlayDirection::Bounce, PlayDirection::Random })
+    EXPECT_EQ (playDirectionFromName (playDirectionToName (direction)),
+               direction);
+
+  for (auto const end : { EndAction::Loop, EndAction::Stop, EndAction::Pause })
+    EXPECT_EQ (endActionFromName (endActionToName (end)), end);
+}
+
+// A clip written when Bounce and Random were end actions keeps playing the
+// way it did: the end it named becomes its direction, and it loops.
+TEST (PlayheadAdvance, AnOldBounceOrRandomEndBecomesADirection)
+{
+  auto const bounce = playbackModeFromNames ("fwd", "bounce");
+  EXPECT_EQ (bounce.direction, PlayDirection::Bounce);
+  EXPECT_EQ (bounce.endAction, EndAction::Loop);
+
+  auto const random = playbackModeFromNames ("rev", "random");
+  EXPECT_EQ (random.direction, PlayDirection::Random);
+  EXPECT_EQ (random.endAction, EndAction::Loop);
+
+  auto const plain = playbackModeFromNames ("rev", "stop");
+  EXPECT_EQ (plain.direction, PlayDirection::Reverse);
+  EXPECT_EQ (plain.endAction, EndAction::Stop);
+
+  auto const unknown = playbackModeFromNames ("", "");
+  EXPECT_EQ (unknown.direction, PlayDirection::Forward);
+  EXPECT_EQ (unknown.endAction, EndAction::Loop);
+}
+
+// A pattern set to bounce or to random sets off forwards.
+TEST (PlayheadAdvance, BounceAndRandomSetOffForwards)
+{
+  Pattern pattern;
+  pattern.resize (16);
+  pattern.setPlaySign (-1.f);
+
+  pattern.setPlayDirection (PlayDirection::Bounce);
+  EXPECT_FLOAT_EQ (pattern.getPlaySign (), 1.f);
+}
+
+// Only a clip that runs off one end and on at the other travels the step from
+// the take's last tick to its first -- forwards or backwards, looping. A
+// bounce turns before it, a random lap jumps it, and a clip that stops never
+// gets there.
+TEST (PlayheadAdvance, OnlyALoopRunningStraightTravelsTheWrap)
+{
+  EXPECT_TRUE (travelsTheWrap (PlayDirection::Forward, EndAction::Loop));
+  EXPECT_TRUE (travelsTheWrap (PlayDirection::Reverse, EndAction::Loop));
+  EXPECT_FALSE (travelsTheWrap (PlayDirection::Bounce, EndAction::Loop));
+  EXPECT_FALSE (travelsTheWrap (PlayDirection::Random, EndAction::Loop));
+  EXPECT_FALSE (travelsTheWrap (PlayDirection::Forward, EndAction::Stop));
+  EXPECT_FALSE (travelsTheWrap (PlayDirection::Forward, EndAction::Pause));
 }

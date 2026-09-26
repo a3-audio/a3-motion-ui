@@ -298,8 +298,8 @@ generator and the test runner:
   say where the hand had put it.
 
   **When the decay runs out the clip does what its end action says** (`applyEndActionAfterAccent`),
-  and only on that edge, once. Stop and Pause end the pass; Loop, Bounce and Random mean "keep
-  going" and are left alone, or the accent would be a stop button that only some settings noticed.
+  and only on that edge, once. Stop and Pause end the pass; Loop means "keep going" and is left
+  alone, or the accent would be a stop button that only some settings noticed.
 
   **The bar follows the hand.** Pressing play or the accent on a pad selects that clip in the clip
   settings, so what you are reading is what you just touched. On a *press*, not on every start: a
@@ -1235,6 +1235,17 @@ a stop left no way to ask for the other one. `Stop` now returns to the beginning
 whichever way it was running, so the next start is visibly a start; `Paus` is the old behaviour,
 correctly named. The end-action list's length lives in one place (`numEndActions`) because it was
 written as a literal `4` in three.
+
+**Direction and end are two axes** (2026-09-26). `PlayDirection` is how a clip travels — **Fwd,
+Rev, Bnce, Rnd** — and `EndAction` what it does when that travel is over — **Loop, Stop, Paus** —
+and any direction combines with any end. Bounce and Random were end actions before, which made them
+exclusive with stopping. A bounce's travel is its whole round: the far end only turns it, and the
+end action, and a Play press asking it to finish (`stopAtEnd`), apply when it is home. A random lap
+starts at a random phase (`initialPosition`, the first lap too) and runs to the end of the pass.
+Only Fwd/Rev with Loop travel the step from the last tick to the first (`travelsTheWrap`), which
+decides whether the fade joins it. Files, sessions and scripts that named bounce or random as the
+end are read as that direction, looping (`playbackModeFromNames`, and the script's `~end` setter),
+which is how they played. The bar's index for both is the enum itself, in the captions' order.
 
 **When a pad takes effect** is a set, not four separate decisions:
 

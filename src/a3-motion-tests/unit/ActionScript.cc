@@ -77,11 +77,24 @@ TEST (ActionScript, BlankLinesAndCommentsAreNotErrors)
 // this week.
 TEST (ActionScript, ListsAreWrittenAsSymbols)
 {
-  auto const out = run ("~end = \\bounce;\n~dir = \\reverse;\n~act = \\hold;\n");
+  auto const out = run ("~end = \\pause;\n~dir = \\bounce;\n~act = \\hold;\n");
 
-  EXPECT_EQ (out.endAction, EndAction::Bounce);
-  EXPECT_EQ (out.direction, PlayDirection::Reverse);
+  EXPECT_EQ (out.endAction, EndAction::Pause);
+  EXPECT_EQ (out.direction, PlayDirection::Bounce);
   EXPECT_EQ (out.actMode, ActMode::Hold);
+}
+
+// A script written while bounce and random were end actions keeps doing what
+// it did: the end it names becomes the direction, looping.
+TEST (ActionScript, AnOldBounceOrRandomEndBecomesADirection)
+{
+  auto const bounce = run ("~end = \\bounce;\n");
+  EXPECT_EQ (bounce.direction, PlayDirection::Bounce);
+  EXPECT_EQ (bounce.endAction, EndAction::Loop);
+
+  auto const random = run ("~end = \\random;\n");
+  EXPECT_EQ (random.direction, PlayDirection::Random);
+  EXPECT_EQ (random.endAction, EndAction::Loop);
 }
 
 TEST (ActionScript, SwitchesAreTrueAndFalse)
@@ -256,7 +269,7 @@ TEST (ActionScript, WhatIsWrittenCanBeReadBack)
   settings.spin = -3;
   settings.reach = 0.42f;
   settings.flat = true;
-  settings.endAction = EndAction::Bounce;
+  settings.endAction = EndAction::Pause;
   settings.direction = PlayDirection::Reverse;
   settings.actMode = ActMode::Hold;
   settings.qMax = 0.75f;

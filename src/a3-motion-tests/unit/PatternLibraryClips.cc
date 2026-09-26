@@ -71,7 +71,7 @@ TEST (PatternLibraryClips, AClipCarriesItsValuesAndNamesItsShape)
   clip.svg = "Wave";
   clip.settings.spin = 3;
   clip.settings.speedLog2 = -2;
-  clip.settings.endAction = EndAction::Bounce;
+  clip.settings.endAction = EndAction::Pause;
   ASSERT_TRUE (
       ClipFile::save (clip, root.getChildFile ("clips/user/Wave slow.json")));
 
@@ -90,7 +90,7 @@ TEST (PatternLibraryClips, AClipCarriesItsValuesAndNamesItsShape)
   ASSERT_TRUE (read.has_value ());
   EXPECT_EQ (read->settings.spin, 3);
   EXPECT_EQ (read->settings.speedLog2, -2);
-  EXPECT_EQ (read->settings.endAction, EndAction::Bounce);
+  EXPECT_EQ (read->settings.endAction, EndAction::Pause);
 
   // The figure, by the name it carries.
   auto const shape = library.indexForName (entry.svg);

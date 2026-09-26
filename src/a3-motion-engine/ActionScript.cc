@@ -226,9 +226,11 @@ symbolIndex (Value const &v, juce::StringArray const &words)
   return at;
 }
 
-juce::StringArray const endActionWords{ "loop", "stop", "pause", "bounce",
+// In the enums' order. Bounce and random are directions since 2026-09-26;
+// the end still accepts them from older scripts -- see its setter.
+juce::StringArray const endActionWords{ "loop", "stop", "pause" };
+juce::StringArray const directionWords{ "forward", "reverse", "bounce",
                                         "random" };
-juce::StringArray const directionWords{ "forward", "reverse" };
 juce::StringArray const actModeWords{ "oneshot", "hold" };
 
 Value
@@ -409,19 +411,28 @@ fields ()
       } },
     { "dir",
       [] (ClipSettings const &s) {
-        return symbolValue (
-            directionWords[s.direction == PlayDirection::Reverse ? 1 : 0]);
+        return symbolValue (directionWords[static_cast<int> (s.direction)]);
       },
       [] (ClipSettings &s, Value const &v) {
-        s.direction = symbolIndex (v, directionWords) == 1
-                          ? PlayDirection::Reverse
-                          : PlayDirection::Forward;
+        s.direction
+            = static_cast<PlayDirection> (symbolIndex (v, directionWords));
       } },
     { "end",
       [] (ClipSettings const &s) {
         return symbolValue (endActionWords[static_cast<int> (s.endAction)]);
       },
       [] (ClipSettings &s, Value const &v) {
+        // An older script's \bounce or \random as the end: the direction it
+        // meant, looping -- the translation a file gets too.
+        if (v.kind == Value::Kind::Symbol
+            && (v.symbol == "bounce" || v.symbol == "random"))
+          {
+            auto const mode = playbackModeFromNames ("", v.symbol);
+            s.direction = mode.direction;
+            s.endAction = mode.endAction;
+            return;
+          }
+
         s.endAction
             = static_cast<EndAction> (symbolIndex (v, endActionWords));
       } },

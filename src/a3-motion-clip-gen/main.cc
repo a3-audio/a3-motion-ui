@@ -158,10 +158,15 @@ aPreset ()
   if (chance (0.3f))
     s.clipBottom = step (between (0.f, 0.35f));
 
-  s.direction = chance (Ranges::reverseChance) ? PlayDirection::Reverse
-                                               : PlayDirection::Forward;
-  s.endAction = chance (Ranges::bounceChance) ? EndAction::Bounce
-                                              : EndAction::Loop;
+  // Drawn in the order they always were, so a seed still makes the same
+  // clips. Bounce is a direction since 2026-09-26 and wins over reverse; it
+  // sets off forwards either way.
+  auto const reverse = chance (Ranges::reverseChance);
+  auto const bounce = chance (Ranges::bounceChance);
+  s.direction = bounce    ? PlayDirection::Bounce
+                : reverse ? PlayDirection::Reverse
+                          : PlayDirection::Forward;
+  s.endAction = EndAction::Loop;
 
   s.envelopeAttack = between (0, envelopeMaxStep);
   s.envelopeDecay = between (0, envelopeMaxStep);
@@ -213,7 +218,7 @@ describe (ClipSettings const &s)
 
   if (s.direction == PlayDirection::Reverse)
     words.add ("Back");
-  if (s.endAction == EndAction::Bounce)
+  if (s.direction == PlayDirection::Bounce)
     words.add ("Bounce");
   if (s.mirrorSouth)
     words.add ("Mirror");

@@ -1221,16 +1221,13 @@ A3MotionUIComponent::applyMotionMode (index_t channel, index_t slot)
     return;
 
   auto const &params = _clipUIParams[channel][slot];
-  pattern->setPlayDirection (params.direction == 1 ? PlayDirection::Reverse
-                                                   : PlayDirection::Forward);
-
-  // The bar's order is the engine's order; a value out of range would be a
-  // list that grew in one place and not the other.
-  auto const actions = { EndAction::Loop, EndAction::Stop, EndAction::Pause,
-                         EndAction::Bounce, EndAction::Random };
-  if (params.endAction >= 0
-      && params.endAction < static_cast<int> (actions.size ()))
-    pattern->setEndAction (*(actions.begin () + params.endAction));
+  // The bar's order is the engine's order -- the captions are listed in it
+  // (ClipSettingsCaptions.hh) -- so the index is the enum. A value out of
+  // range would be a list that grew in one place and not the other.
+  if (params.direction >= 0 && params.direction < value::numDirections)
+    pattern->setPlayDirection (static_cast<PlayDirection> (params.direction));
+  if (params.endAction >= 0 && params.endAction < value::numEndActions)
+    pattern->setEndAction (static_cast<EndAction> (params.endAction));
 }
 
 void
@@ -2986,17 +2983,10 @@ A3MotionUIComponent::syncClipUIParamsFromPattern (index_t channel,
   if (!pattern)
     return;
 
-  auto &params = _clipUIParams[channel][slot];
-  params.direction
-      = pattern->getPlayDirection () == PlayDirection::Reverse ? 1 : 0;
-
   // Same order as applyMotionMode(): the bar's order is the engine's order.
-  auto const actions = { EndAction::Loop, EndAction::Stop, EndAction::Pause,
-                         EndAction::Bounce, EndAction::Random };
-  auto const found
-      = std::find (actions.begin (), actions.end (), pattern->getEndAction ());
-  if (found != actions.end ())
-    params.endAction = static_cast<int> (found - actions.begin ());
+  auto &params = _clipUIParams[channel][slot];
+  params.direction = static_cast<int> (pattern->getPlayDirection ());
+  params.endAction = static_cast<int> (pattern->getEndAction ());
 }
 
 void
@@ -7229,7 +7219,10 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
         if (sub == 2)
           {
-            params.direction = (params.direction + increment % 2 + 2) % 2;
+            params.direction
+                = (params.direction + increment % value::numDirections
+                   + value::numDirections)
+                  % value::numDirections;
             applyMotionMode (channel, slot);
             break;
           }
@@ -7730,17 +7723,8 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   if (pattern)
     {
       auto &editable = _clipUIParams[channel][slot];
-      editable.direction
-          = pattern->getPlayDirection () == PlayDirection::Reverse ? 1 : 0;
-
-      switch (pattern->getEndAction ())
-        {
-        case EndAction::Loop: editable.endAction = 0; break;
-        case EndAction::Stop: editable.endAction = 1; break;
-        case EndAction::Pause: editable.endAction = 2; break;
-        case EndAction::Bounce: editable.endAction = 3; break;
-        case EndAction::Random: editable.endAction = 4; break;
-        }
+      editable.direction = static_cast<int> (pattern->getPlayDirection ());
+      editable.endAction = static_cast<int> (pattern->getEndAction ());
     }
 
   _clipSettings->setMotionDirection (_clipUIParams[channel][slot].direction);

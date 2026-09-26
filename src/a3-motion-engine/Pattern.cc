@@ -185,6 +185,10 @@ Pattern::setPlayDirection (PlayDirection direction)
   // clip that is already playing rather than waiting for the next start. Only
   // Bounce moves the two apart, and it does that as it goes.
   _playSign.store (initialSign (direction), std::memory_order_relaxed);
+
+  // Whether the wrap is a gap depends on this too -- see
+  // ensureBridgePlanLocked().
+  markBridgePlanStale ();
 }
 
 int
@@ -305,11 +309,12 @@ Pattern::ensureBridgePlanLocked () const
   if (!_bridgePlanStale)
     return;
 
-  // Only a looping clip travels the step from its last tick to its first, so
-  // only a looping clip has a gap there to join.
+  // Only a clip running straight on, looping, travels the step from its last
+  // tick to its first, so only such a clip has a gap there to join.
   _bridgePlan = planBridges (_ticks, _fadeReach.load (), _bridgeBias.load (),
                              seedForTicks (_ticks),
-                             _endAction.load () == EndAction::Loop);
+                             travelsTheWrap (_playDirection.load (),
+                                             _endAction.load ()));
   _bridgePlanStale = false;
 }
 

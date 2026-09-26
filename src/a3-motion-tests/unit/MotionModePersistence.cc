@@ -52,8 +52,13 @@ aCircle (juce::String const &name)
 TEST (MotionModePersistence, EveryEndActionSurvives)
 {
   for (auto const action : { EndAction::Loop, EndAction::Stop,
-                             EndAction::Bounce, EndAction::Random })
+                             EndAction::Pause })
     EXPECT_EQ (endActionFromName (endActionToName (action)), action);
+
+  for (auto const direction : { PlayDirection::Forward, PlayDirection::Reverse,
+                                PlayDirection::Bounce, PlayDirection::Random })
+    EXPECT_EQ (playDirectionFromName (playDirectionToName (direction)),
+               direction);
 }
 
 // A file written before the setting existed plays the way every clip did then.

@@ -74,7 +74,7 @@ TEST (BouncePlayback, TheTurnDoesNotRunIntoTheSeam)
   // The clip bounces, and the pattern has to know: whether the step from its
   // last tick to its first is a gap the fade joins depends on whether it is
   // ever travelled, and a bouncing clip turns round before it gets there.
-  pattern.setEndAction (EndAction::Bounce);
+  pattern.setPlayDirection (PlayDirection::Bounce);
 
   auto const interior = 1.6f / static_cast<float> (numTicks - 1);
 
@@ -82,15 +82,15 @@ TEST (BouncePlayback, TheTurnDoesNotRunIntoTheSeam)
   auto const delta = 1.f / static_cast<float> (numTicks);
 
   auto previous = pattern.getInterpolatedTick (
-      fractionalTickForPlayback (head.position, numTicks, EndAction::Bounce));
+      fractionalTickForPlayback (head.position, numTicks, PlayDirection::Bounce));
 
   auto worst = 0.f;
   // Far enough to cross the end and come back past where it started.
   for (int step = 0; step < 2 * static_cast<int> (numTicks); ++step)
     {
-      head = advancePlayhead (head, delta, EndAction::Bounce, 0.f);
+      head = advancePlayhead (head, delta, PlayDirection::Bounce, EndAction::Loop, 0.f);
       auto const here = pattern.getInterpolatedTick (fractionalTickForPlayback (
-          head.position, numTicks, EndAction::Bounce));
+          head.position, numTicks, PlayDirection::Bounce));
       worst = std::max (worst, distanceTo (previous, here));
       previous = here;
     }
@@ -108,23 +108,23 @@ TEST (BouncePlayback, TheTurnDoesNotRunIntoTheSeam)
 // would drop the last tick out of the loop.
 TEST (BouncePlayback, LoopingStillReachesTheSeam)
 {
-  EXPECT_FLOAT_EQ (fractionalTickForPlayback (0.f, numTicks, EndAction::Loop),
+  EXPECT_FLOAT_EQ (fractionalTickForPlayback (0.f, numTicks, PlayDirection::Forward),
                    0.f);
-  EXPECT_NEAR (fractionalTickForPlayback (0.999f, numTicks, EndAction::Loop),
+  EXPECT_NEAR (fractionalTickForPlayback (0.999f, numTicks, PlayDirection::Forward),
                static_cast<double> (numTicks) * 0.999, 1e-4);
 }
 
 // The turning points are the take's own ends, exactly.
 TEST (BouncePlayback, BounceSpansTheTicksThemselves)
 {
-  EXPECT_FLOAT_EQ (fractionalTickForPlayback (0.f, numTicks, EndAction::Bounce),
+  EXPECT_FLOAT_EQ (fractionalTickForPlayback (0.f, numTicks, PlayDirection::Bounce),
                    0.f);
-  EXPECT_NEAR (fractionalTickForPlayback (1.f, numTicks, EndAction::Bounce),
+  EXPECT_NEAR (fractionalTickForPlayback (1.f, numTicks, PlayDirection::Bounce),
                static_cast<double> (numTicks - 1), 1e-6);
 }
 
 // One tick is a standing still, not a division by zero.
 TEST (BouncePlayback, ASingleTickIsNotDividedBy)
 {
-  EXPECT_FLOAT_EQ (fractionalTickForPlayback (0.7f, 1, EndAction::Bounce), 0.f);
+  EXPECT_FLOAT_EQ (fractionalTickForPlayback (0.7f, 1, PlayDirection::Bounce), 0.f);
 }

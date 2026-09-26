@@ -418,10 +418,8 @@ MotionEngine::applyEndActionAfterAccent (index_t channel)
       break;
 
     case EndAction::Loop:
-    case EndAction::Bounce:
-    case EndAction::Random:
-      // These say what to do at the *take's* end, not at the accent's, and
-      // what they say is "keep going". Ending the clip here would make the
+      // This says what to do at the *take's* end, not at the accent's, and
+      // what it says is "keep going". Ending the clip here would make the
       // accent a stop button that only some settings noticed.
       break;
     }
@@ -1256,11 +1254,12 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   pattern->setSqueezeYLfoPhase (0.f);
 
   // Reverse starts at the end and walks back, so the first tick has somewhere
-  // to come from.
-  auto const sign = initialSign (pattern->getPlayDirection ());
-  pattern->setPlaySign (sign);
-  if (sign < 0.f)
-    pattern->setPlayPosition (1.f);
+  // to come from; Random drops in at a random phase.
+  auto const direction = pattern->getPlayDirection ();
+  pattern->setPlaySign (initialSign (direction));
+  auto const from = initialPosition (direction, _random.nextFloat ());
+  if (from > 0.f)
+    pattern->setPlayPosition (from);
 }
 
 void
@@ -1472,8 +1471,9 @@ MotionEngine::performPlayback ()
               auto &playing = *channel->_patternPlaying;
               auto const stepped = advancePlayhead (
                   { playing.getPlayPosition (), playing.getPlaySign (), false },
-                  playPositionDelta, playing.getEndAction (),
-                  _random.nextFloat (), playing.getStopAtEnd ());
+                  playPositionDelta, playing.getPlayDirection (),
+                  playing.getEndAction (), _random.nextFloat (),
+                  playing.getStopAtEnd ());
 
               playing.setPlayPosition (stepped.position);
               playing.setPlaySign (stepped.sign);
@@ -1496,7 +1496,7 @@ MotionEngine::performPlayback ()
               // includes the seam back to the first tick, a bounce turns round
               // at the last one instead of running into it.
               auto const fractionalTick = fractionalTickForPlayback (
-                  playPosition, ticksPatternLength, playing.getEndAction ());
+                  playPosition, ticksPatternLength, playing.getPlayDirection ());
               auto position2D = channel->_patternPlaying->getInterpolatedTick (fractionalTick);
 
               // The whole shape turns under the blob. One tick's worth here,

@@ -50,7 +50,7 @@ aCircleWithSettings ()
   pattern->setSpeedLog2 (-2);
   pattern->setRotate (0.25f);
   pattern->setReach (0.4f);
-  pattern->setEndAction (EndAction::Bounce);
+  pattern->setEndAction (EndAction::Pause);
   pattern->setActMode (ActMode::Hold);
   pattern->setPlayDirection (PlayDirection::Reverse);
 
@@ -123,7 +123,9 @@ TEST (PatternFileGeometryOnly, TheReaderStillUnderstandsAnOldFile)
   auto const pattern = PatternFile::load (file);
   ASSERT_NE (pattern, nullptr);
   EXPECT_EQ (pattern->getSpin (), 3);
-  EXPECT_EQ (pattern->getEndAction (), EndAction::Bounce);
+  // Bounce was an end action then; it is the direction now, looping.
+  EXPECT_EQ (pattern->getPlayDirection (), PlayDirection::Bounce);
+  EXPECT_EQ (pattern->getEndAction (), EndAction::Loop);
 
   file.deleteFile ();
 }

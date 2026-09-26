@@ -209,7 +209,7 @@ TEST (SessionFile, WhatASlotHasBeenTurnedToSurvivesTheRoundTrip)
   turned.rotate = 0.5f;
   turned.squeezeX = -0.5f;
   turned.squeezeY = 0.25f;
-  turned.endAction = EndAction::Bounce;
+  turned.endAction = EndAction::Pause;
   set.channels[0].slots[0].overrides = turned;
 
   auto const file = tempSession ("a3-session-overrides.json");
@@ -222,7 +222,7 @@ TEST (SessionFile, WhatASlotHasBeenTurnedToSurvivesTheRoundTrip)
   EXPECT_FLOAT_EQ (read.channels[0].slots[0].overrides->squeezeX, -0.5f);
   EXPECT_FLOAT_EQ (read.channels[0].slots[0].overrides->squeezeY, 0.25f);
   EXPECT_EQ (read.channels[0].slots[0].overrides->endAction,
-             EndAction::Bounce);
+             EndAction::Pause);
 
   file.deleteFile ();
 }

@@ -182,10 +182,12 @@ ClipFile::load (juce::File const &file)
   s.actMode = actModeFromName (
       readString (parsed, "actMode", actModeToName (defaults.actMode)));
 
-  s.direction = playDirectionFromName (readString (
-      parsed, "direction", playDirectionToName (defaults.direction)));
-  s.endAction = endActionFromName (
+  // Through the one reader that knows Bounce and Random were end actions.
+  auto const mode = playbackModeFromNames (
+      readString (parsed, "direction", playDirectionToName (defaults.direction)),
       readString (parsed, "endAction", endActionToName (defaults.endAction)));
+  s.direction = mode.direction;
+  s.endAction = mode.endAction;
 
   // The cutoff's envelope was written as "filter*" while there was only one
   // of them, so those names are what a clip saved before the split carries.

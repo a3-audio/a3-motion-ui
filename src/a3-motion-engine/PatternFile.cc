@@ -684,10 +684,13 @@ PatternFile::load (juce::File const &file)
   for (index_t t = 0; t < numTicks && t < sampled.size (); ++t)
     pattern->setTick (t, sampled[t]);
 
-  if (xml->getStringAttribute ("data-direction") == "rev")
-    pattern->setPlayDirection (PlayDirection::Reverse);
-  pattern->setEndAction (
-      endActionFromName (xml->getStringAttribute ("data-end-action")));
+  {
+    auto const mode = playbackModeFromNames (
+        xml->getStringAttribute ("data-direction"),
+        xml->getStringAttribute ("data-end-action"));
+    pattern->setPlayDirection (mode.direction);
+    pattern->setEndAction (mode.endAction);
+  }
   // Absent in every take written before the mode existed, and those were all
   // shots -- so the fallback is the behaviour they had rather than the new one.
   pattern->setActMode (

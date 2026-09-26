@@ -66,7 +66,7 @@ TEST (ClipFile, AClipSurvivesARoundTrip)
   clip.settings.envelopeMax = 0.75f;
   clip.settings.actMode = ActMode::Hold;
   clip.settings.direction = PlayDirection::Reverse;
-  clip.settings.endAction = EndAction::Bounce;
+  clip.settings.endAction = EndAction::Pause;
   clip.settings.fadeReach = 0.8f;
   clip.settings.bridgeBias = 2;
 
@@ -97,7 +97,7 @@ TEST (ClipFile, AClipSurvivesARoundTrip)
   EXPECT_FLOAT_EQ (read->settings.envelopeMax, 0.75f);
   EXPECT_EQ (read->settings.actMode, ActMode::Hold);
   EXPECT_EQ (read->settings.direction, PlayDirection::Reverse);
-  EXPECT_EQ (read->settings.endAction, EndAction::Bounce);
+  EXPECT_EQ (read->settings.endAction, EndAction::Pause);
   EXPECT_FLOAT_EQ (read->settings.fadeReach, 0.8f);
   EXPECT_EQ (read->settings.bridgeBias, 2);
 
@@ -319,7 +319,7 @@ TEST (ClipFile, TheFileNamesItsValuesInWords)
   Clip clip;
   clip.name = "Readable";
   clip.svg = "16_Wave";
-  clip.settings.endAction = EndAction::Bounce;
+  clip.settings.endAction = EndAction::Pause;
   clip.settings.direction = PlayDirection::Reverse;
   clip.settings.actMode = ActMode::Hold;
 
@@ -329,7 +329,7 @@ TEST (ClipFile, TheFileNamesItsValuesInWords)
   auto const text = file.loadFileAsString ();
   EXPECT_TRUE (text.contains ("\"svg\""));
   EXPECT_TRUE (text.contains ("16_Wave"));
-  EXPECT_TRUE (text.contains ("bounce"));
+  EXPECT_TRUE (text.contains ("pause"));
   EXPECT_TRUE (text.contains ("rev"));
   EXPECT_TRUE (text.contains ("hold"));
 
@@ -411,13 +411,13 @@ TEST (ClipFile, SavingWritesTheSettingsBack)
   auto const file = aClipOnDisk ("a3-save-back", clipSettingsFrom (pattern));
 
   pattern.setSpin (5);
-  pattern.setEndAction (EndAction::Bounce);
+  pattern.setEndAction (EndAction::Pause);
   ASSERT_TRUE (saveClipSettings (pattern, file));
 
   auto const read = ClipFile::load (file);
   ASSERT_TRUE (read.has_value ());
   EXPECT_EQ (read->settings.spin, 5);
-  EXPECT_EQ (read->settings.endAction, EndAction::Bounce);
+  EXPECT_EQ (read->settings.endAction, EndAction::Pause);
   EXPECT_FALSE (clipHasDrifted (pattern, file)) << "still shows as unsaved";
 
   file.deleteFile ();
