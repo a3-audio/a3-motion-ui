@@ -223,9 +223,9 @@ generator and the test runner:
   right-hand turn on the sphere.
 
   Two places apply it and both must, or the blob leaves its line: `MotionEngine::performPlayback()`
-  turns the position before projecting it, and `MotionComponent`'s `drawPathOnSphere()` turns each
-  point of the drawn path by the same phase — inside `projectPoint()` rather than by transforming
-  the path, which would mean copying it every frame. The phase lives on the `Pattern` beside
+  turns the position before projecting it, and `projectLine()` (`components/LineMapGeometry`, which
+  `drawPathOnSphere()` draws from) turns each point of the drawn path by the same phase — inside
+  `projectPoint()` rather than by transforming the path, which would mean copying it every frame. The phase lives on the `Pattern` beside
   `playPosition` and resets when playback starts, so a clip fired again begins where it was
   recorded.
 
@@ -659,12 +659,19 @@ continuously, so the crossing rises over the listener and comes down the other s
 
 **Off the pole it is a real singularity, and the drawing has to know.** With a base of 0.5 the
 disc's origin is drawn out at the rim, not in the middle, so a path passing *near* it swings the
-azimuth through most of a revolution in almost no 2D distance — and `drawPathOnSphere()` decided how
-finely to cut a step by its length in the disc alone, so it drew that arc as one straight line clean
+azimuth through most of a revolution in almost no 2D distance — and `drawPathOnSphere()` (today
+`projectLine()`, see below) decided how finely to cut a step by its length in the disc alone, so it drew that arc as one straight line clean
 across the sphere. `discStepPieces()` (SphereProjection, and testable) weighs the swing as well as
 the length. A path passing *exactly* through the origin is not fast but discontinuous — it arrives
 at one bearing and leaves at the opposite one — so no amount of cutting helps and `addPoint()` lifts
-the pen instead, the way it does at a take's gaps. Both only became visible when `sway` started
+the pen instead, the way it does at a take's gaps.
+
+**Where the line runs is decided once, in `projectLine()`** (`components/LineMapGeometry.{hh,cc}`,
+tested in `unit/LineMapGeometry.cc`): the shaped, lifted, camera-turned points with their depth and
+the places the pen lifts. `drawPathOnSphere()` only rasterises what it returns. It was taken out on
+2026-09-26 so that the GPU pass for the line maps (a3-motion-ui#34) draws from the same points as
+the software strokes — two projections would be two lines that merely happen to agree, and the
+blob runs on exactly one of them. Both only became visible when `sway` started
 moving the base off the pole as a matter of course.
 
 **Each of the bar's three sections can be held**, by the lock at the right end of its title row.

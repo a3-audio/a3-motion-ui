@@ -98,6 +98,7 @@ target_sources("a3-motion-ui" PRIVATE
     components/SpeakerLightScaling.cc
     components/EnergyMap.cc
     components/SphereProjection.cc
+    components/LineMapGeometry.cc
     components/ElevationSideView.cc
     components/Listener.cc
     io/ButtonLedColours.cc
