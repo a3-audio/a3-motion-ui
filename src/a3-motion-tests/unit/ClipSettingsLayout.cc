@@ -1523,9 +1523,8 @@ TEST (ClipSettingsLayout, TheTransportRunsToTheFootOfTheStrip)
   EXPECT_EQ (l.transportFrame.getBottom (), l.globalContent.getBottom ());
 }
 
-// Which control a page shows. CLIP: the picker and the picture (Shape's own
-// controls 0 and 1); dir and end are keys of their own there, so their
-// fields (2 and 3) take no touch. MOTION: Motion's first eight and
+// Which control a page shows. CLIP: Shape's four -- the picker, the picture,
+// dir and end. MOTION: Motion's first eight and
 // Elevation's four. REC: the picker and the picture, fade, bias and the rec
 // mode. Nothing of the clip on a page that covers it.
 TEST (ClipSettingsLayout, EachControlStandsOnItsOwnPage)
@@ -1534,7 +1533,9 @@ TEST (ClipSettingsLayout, EachControlStandsOnItsOwnPage)
 
   EXPECT_TRUE (controlIsOnPage (shape, 0, BarPage::Clip));
   EXPECT_TRUE (controlIsOnPage (shape, 1, BarPage::Clip));
-  EXPECT_FALSE (controlIsOnPage (shape, 2, BarPage::Clip));
+  EXPECT_TRUE (controlIsOnPage (shape, 2, BarPage::Clip));
+  EXPECT_TRUE (controlIsOnPage (shape, 3, BarPage::Clip));
+  EXPECT_FALSE (controlIsOnPage (shape, 2, BarPage::Record));
   EXPECT_FALSE (controlIsOnPage (shape, 0, BarPage::Motion));
   EXPECT_TRUE (controlIsOnPage (shape, 0, BarPage::Record));
 
@@ -1616,32 +1617,20 @@ TEST (ClipSettingsLayout, TheClipPageIsThreeColumns)
     }
 }
 
-// dir on top -- Fwd Rev Bnce Rnd -- and end under it -- Loop Stop Paus --
-// each a key that is chosen outright, a fingertip each.
-TEST (ClipSettingsLayout, DirAndEndAreKeysInTheMiddle)
+// dir over end in CLIP's middle card, each one field that steps on a tap --
+// as they did before the pages were rebuilt (the maintainer wanted them back
+// as toggles, 2026-09-26) -- a fingertip tall and the card's width.
+TEST (ClipSettingsLayout, DirAndEndAreTwoFieldsInTheMiddle)
 {
   auto const l = defaultLayout ();
 
-  for (auto const &key : l.directionKeys)
+  for (auto const &field : { l.directionButton, l.endActionButton })
     {
-      EXPECT_TRUE (l.directionButton.contains (key));
-      EXPECT_GE (key.getWidth (), fingertipSize);
-      EXPECT_GE (key.getHeight (), fingertipSize);
-      EXPECT_EQ (key.getY (), l.directionKeys[0].getY ());
+      EXPECT_TRUE (l.playCard.contains (field));
+      EXPECT_GE (field.getHeight (), fingertipSize);
+      EXPECT_GE (field.getWidth (), l.playCard.getWidth () / 2);
     }
-  for (auto const &key : l.endActionKeys)
-    {
-      EXPECT_TRUE (l.endActionButton.contains (key));
-      EXPECT_GE (key.getWidth (), fingertipSize);
-      EXPECT_GE (key.getHeight (), fingertipSize);
-      EXPECT_EQ (key.getY (), l.endActionKeys[0].getY ());
-    }
-
-  EXPECT_TRUE (l.playCard.contains (l.directionButton));
-  EXPECT_TRUE (l.playCard.contains (l.endActionButton));
   EXPECT_LE (l.directionButton.getBottom (), l.endActionButton.getY ());
-  for (size_t i = 1; i < l.directionKeys.size (); ++i)
-    EXPECT_LE (l.directionKeys[i - 1].getRight (), l.directionKeys[i].getX ());
-  for (size_t i = 1; i < l.endActionKeys.size (); ++i)
-    EXPECT_LE (l.endActionKeys[i - 1].getRight (), l.endActionKeys[i].getX ());
+  EXPECT_TRUE (tapAdvancesValue (0, 2));
+  EXPECT_TRUE (tapAdvancesValue (0, 3));
 }

@@ -517,40 +517,27 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     out.trajectoryName = content;
   }
 
-  // ── dir and end: keys chosen outright ─────────────────────────────
+  // ── dir and end: two fields that step on a tap ────────────────────
   //
-  // The middle column on CLIP: dir on top (Fwd Rev Bnce Rnd), end under it
-  // (Loop Stop Paus), a key each. They were two fields stepped by a tap;
-  // with Bounce and Random directions that combine with any end, the whole
-  // choice is on screen at once. directionButton and endActionButton are the
-  // rows the keys stand in -- still Shape's sub-elements 2 and 3, so the
-  // encoders step them as before.
+  // The middle column on CLIP: dir on top, end under it, each one field that
+  // steps through its list on a tap -- Fwd Rev Bnce Rnd, Loop Stop Paus. They
+  // were a key per choice for a day; the maintainer wanted the toggles back.
+  // As tall as the bar's other keys, centred in their half of the card.
   {
     auto content = sectionContentBounds (out.playCard);
     out.playLabel = content.removeFromTop (titleRowHeight (content, headerSize));
 
     auto const gap = juce::jmax (2, out.buttonHeight / 8);
     auto const halfH = (content.getHeight () - gap) / 2;
-    out.directionButton = content.removeFromTop (halfH);
+    auto const top = content.removeFromTop (halfH);
     content.removeFromTop (juce::jmin (content.getHeight (), gap));
-    out.endActionButton = content.removeFromTop (halfH);
+    auto const bottom = content.removeFromTop (halfH);
 
-    auto const keysAcross = [gap] (juce::Rectangle<int> row, auto &keys) {
-      auto const count = static_cast<int> (keys.size ());
-      auto const keyH = juce::jmin (row.getHeight (),
-                                    juce::jmax (fingertipSize, row.getHeight () * 2 / 3));
-      auto const band = row.withSizeKeepingCentre (row.getWidth (), keyH);
-      auto const span = band.getWidth () - (count - 1) * gap;
-      for (int i = 0; i < count; ++i)
-        {
-          auto const x0 = band.getX () + i * gap + (span * i) / count;
-          auto const x1 = band.getX () + i * gap + (span * (i + 1)) / count;
-          keys[static_cast<size_t> (i)]
-              = { x0, band.getY (), x1 - x0, band.getHeight () };
-        }
-    };
-    keysAcross (out.directionButton, out.directionKeys);
-    keysAcross (out.endActionButton, out.endActionKeys);
+    auto const fieldH = juce::jmin (
+        halfH, juce::jmax (fingertipSize, out.buttonHeight));
+    out.directionButton = top.withSizeKeepingCentre (top.getWidth (), fieldH);
+    out.endActionButton
+        = bottom.withSizeKeepingCentre (bottom.getWidth (), fieldH);
   }
 
   // ── the lengths, two by two ───────────────────────────────────────
