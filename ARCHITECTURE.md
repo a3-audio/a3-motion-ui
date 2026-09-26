@@ -524,9 +524,10 @@ on the elevation picture at the top of the bar's global strip selects it — its
 and while it is on a finger on the sphere turns the view instead of taking a blob
 (`MotionComponent::setCameraMode`), and two taps put the view back where it starts. It was SHIFT
 with a finger on the sphere once, then a little sphere in the view's corner; a mode shown by a lit
-picture in plain view replaced both. **The eye stops at the horizon** either way over
-(`cameraFromBallDrag` clamps the lean to a right angle): nobody wants to look at the sphere from
-below, and a view that can end up under the floor is one you can get lost in mid-set.
+picture in plain view replaced both. **The lean runs from straight above to the horizon, one way
+over only** (`cameraFromBallDrag` clamps it to `[-π/2, 0]`): past the horizon the sphere is seen
+from below, and leaning the other way from the zenith tipped the view over the top and stood the
+room on its head. Walking round is left and right, so one way over is every view there is.
 
 Everything that projects goes through `MotionComponent::projectToScreen()` and everything that reads
 a finger goes through `pixelToDirection()`. There were seven hand-written projections, and a camera

@@ -105,8 +105,9 @@ Pos asSeenFromInverse (Pos const &viewed, SphereCamera const &camera);
  *  2026-09-26, on a little sphere in the corner before.
  *
  *  `ball`'s width is a whole turn and its height a right angle, so it answers
- *  a finger the way a trackball does. The lean stops at the horizon either
- *  way over: the sphere is never seen from below.
+ *  a finger the way a trackball does. The lean runs from straight above to
+ *  the horizon, one way over only: the sphere is never seen from below and
+ *  never stood on its head.
  *
  *  `moved` is how far the finger has come since it went down, in pixels. */
 SphereCamera cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,

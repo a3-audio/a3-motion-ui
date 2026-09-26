@@ -242,16 +242,19 @@ TEST (SphereProjection, ASweepAcrossTheBallIsAWholeTurn)
  *  decision about which half of the room you would be able to look into, taken
  *  before you knew which one you wanted -- and the way back was to walk the
  *  long way round rather than to rock back through the view you started in. */
-TEST (SphereProjection, TheBallTipsBothWays)
+/** It leans one way only (2026-09-26): from straight above, dragged down, the
+ *  eye comes over the near side; dragged up it stays overhead. Leaning both
+ *  ways let the view tip through the zenith to the other side, and the room
+ *  came out upside down -- the front at the bottom of the screen. Walking
+ *  round is left and right, so one way over is every view there is. */
+TEST (SphereProjection, TheEyeLeansOneWayOnly)
 {
   juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
 
-  auto const one = cameraFromBallDrag ({}, { 0.f, 20.f }, ball).pitch;
-  auto const other = cameraFromBallDrag ({}, { 0.f, -20.f }, ball).pitch;
-
-  EXPECT_LT (one, 0.f);
-  EXPECT_GT (other, 0.f);
-  EXPECT_NEAR (one, -other, 1e-4f) << "the same finger, the same lean";
+  EXPECT_LT (cameraFromBallDrag ({}, { 0.f, 20.f }, ball).pitch, 0.f);
+  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, -20.f }, ball).pitch, 0.f,
+               1e-5f)
+      << "dragged up from overhead it tipped over the top";
 }
 
 /** And it does not stop at the horizon. It used to, on the grounds that past a
@@ -270,8 +273,10 @@ TEST (SphereProjection, TheEyeNeverGoesBelowTheHorizon)
 
   EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, 90.f }, ball).pitch, -halfPi,
                1e-4f);
-  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, -4.f * 60.f }, ball).pitch,
-               halfPi, 1e-4f);
+  EXPECT_NEAR (cameraFromBallDrag ({ -1.f, 0.f }, { 0.f, -4.f * 60.f }, ball)
+                   .pitch,
+               0.f, 1e-4f)
+      << "dragged back up it stops overhead";
 
   // And a drag that starts past it -- a view saved before the limit -- comes
   // back inside.
@@ -285,7 +290,7 @@ TEST (SphereProjection, TheEyeNeverGoesBelowTheHorizon)
 TEST (SphereProjection, ADragCarriesOnFromWhereTheEyeWas)
 {
   juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
-  SphereCamera const leant{ 0.4f, 1.2f };
+  SphereCamera const leant{ -0.4f, 1.2f };
 
   auto const moved = cameraFromBallDrag (leant, { 15.f, 0.f }, ball);
 

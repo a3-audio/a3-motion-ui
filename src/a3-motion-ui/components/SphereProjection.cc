@@ -186,12 +186,15 @@ cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
   // here too: dragged down, the near side rolls towards you and the eye comes
   // up over the far side.
   //
-  // It stops at the horizon, either way over (2026-09-26): nobody wants to
-  // look at the sphere from below, and a view that can end up under the floor
-  // is one you can get lost in mid-set. It rolled on through for a while.
+  // Between straight above and the horizon, and one way over only
+  // (2026-09-26). Past the horizon the sphere is seen from below, which
+  // nobody wants; leaning the other way from the zenith tipped the view over
+  // the top and stood the room on its head, the front at the bottom. Walking
+  // round is left and right, so one way over is every view there is. It
+  // rolled on through, both ways, for a while.
   auto const halfPi = juce::MathConstants<float>::halfPi;
   auto const pitch = atGrab.pitch - moved.y / down * halfPi;
-  moving.pitch = std::clamp (pitch, -halfPi, halfPi);
+  moving.pitch = std::clamp (pitch, -halfPi, 0.f);
 
   // And across walks it round, which has no end to stop at. Negated, so the
   // room follows the finger: a ball dragged to the right turns its front to
