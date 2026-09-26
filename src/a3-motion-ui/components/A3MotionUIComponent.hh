@@ -91,6 +91,9 @@ public:
 
   void paint (juce::Graphics &g) override;
   void resized () override;
+  /** Every touch anywhere on the device comes through here as well (a global
+   *  mouse listener), which is what lets one rule drop an armed DISCARD. */
+  void mouseDown (juce::MouseEvent const &event) override;
 
   float getMinimumWidth () const;
   float getMinimumHeight () const;
@@ -946,6 +949,8 @@ private:
   void saveShownTake ();
   /** DISCARD: arm on the first press, put the slot back on the second. */
   void pressDiscardOnShownTake ();
+  /** Anything but DISCARD's own key was used: an armed DISCARD goes. */
+  void disarmOnOtherInput ();
   /** Something replaced an unsaved take: forget it without putting anything
    *  back, because whatever replaced it is what the slot holds now. */
   void dropPendingTake (index_t channel, index_t slot);

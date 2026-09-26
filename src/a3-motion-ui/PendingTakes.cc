@@ -147,4 +147,10 @@ PendingTakes::moveClipFile (juce::File const &from, juce::File const &to)
       before->clipFile = to;
 }
 
+bool
+PendingTakes::anyDiscardArmed () const
+{
+  return _armed.has_value ();
+}
+
 }

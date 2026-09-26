@@ -378,6 +378,11 @@ public:
   std::function<void (index_t channel)> onChannelFaceTapped;
   std::function<void (index_t slot)> onSlotSelected;
   std::function<void (TransportKey key)> onTransportTapped;
+  /** Whether `component` is this transport key, or lies inside it. Asked by
+   *  the page's global touch listener: every touch except one on ACT drops an
+   *  armed DISCARD (#32). */
+  bool isOnTransportKey (juce::Component const *component,
+                         TransportKey key) const;
   std::function<void (bool held)> onTransportActionHeld;
 
   /** What the transport keys show: whether this clip is running, whether a

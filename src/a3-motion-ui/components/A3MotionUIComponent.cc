@@ -146,6 +146,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 {
   setLookAndFeel (&_lookAndFeel);
 
+  // Every touch on the device, whichever component takes it -- see
+  // mouseDown(). JUCE calls global listeners after the touched component, so
+  // DISCARD's own press has already been handled when this hears it.
+  juce::Desktop::getInstance ().addGlobalMouseListener (this);
+
   // First thing, before anything can tick: until Core has had its chance to
   // say where the sound actually is, this device says nothing about it. The
   // engine would otherwise announce all four channels the moment it runs,
@@ -1170,6 +1175,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
+  juce::Desktop::getInstance ().removeGlobalMouseListener (this);
   stopTimer ();
   _oscReceiverEnergy.removeListener (this);
   _oscReceiverEnergy.disconnect ();
@@ -1744,6 +1750,10 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                   _ioAdapter->getEncoderIncrement (channel).getValue ());
               if (increment != 0)
                 {
+                  // An encoder step is an input like a touch; the analog pots
+                  // are not -- their noise would drop an armed DISCARD before
+                  // the second tap could land (#32).
+                  disarmOnOtherInput ();
                   handleChannelValueChange (channel, channelRowFreq,
                                             increment);
                   updateControlReadout (
@@ -1759,6 +1769,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                   _ioAdapter->getEncoderIncrement (channel, 1).getValue ());
               if (increment != 0)
                 {
+                  disarmOnOtherInput ();
                   handleChannelValueChange (channel, channelRowQ, increment);
                   updateControlReadout (
                       "CH" + juce::String (channel + 1) + " Q "
@@ -2136,6 +2147,10 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
 void
 A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 {
+  // A pad, on the screen or on the device, is another input: DISCARD only
+  // confirms if nothing came between its two taps (#32).
+  disarmOnOtherInput ();
+
   auto const function = padFunctionByPadIndex[pad];
   auto const slot = slotForPadIndex[pad];
   auto &pattern = _patterns[channel][slot];
@@ -5587,6 +5602,29 @@ A3MotionUIComponent::pressDiscardOnShownTake ()
   updateClipSettingsDisplay ();
   refreshTakeState ();
   scheduleSetSave ();
+}
+
+void
+A3MotionUIComponent::disarmOnOtherInput ()
+{
+  if (!_pendingTakes.anyDiscardArmed ())
+    return;
+  _pendingTakes.disarm ();
+  refreshTakeState ();
+}
+
+void
+A3MotionUIComponent::mouseDown (juce::MouseEvent const &event)
+{
+  // An armed DISCARD drops on anything else that is touched, as the spec
+  // asked (#32) -- one rule here instead of a call in every handler, which
+  // had covered seven of them. ACT itself is the one exception: its press is
+  // what confirms.
+  if (_clipSettings != nullptr
+      && _clipSettings->isOnTransportKey (event.originalComponent,
+                                          TransportKey::Action))
+    return;
+  disarmOnOtherInput ();
 }
 
 void

@@ -575,6 +575,23 @@ ClipSettingsComponent::markKnobs ()
   mark (motionIndex, _motionSubIndex);
 }
 
+bool
+ClipSettingsComponent::isOnTransportKey (juce::Component const *component,
+                                         TransportKey key) const
+{
+  if (component == nullptr)
+    return false;
+
+  for (int i = 0; i < numTransportKeys; ++i)
+    if (transportKeyOrder[i] == key)
+      {
+        auto const &touch = _transportTouch[static_cast<size_t> (i)];
+        return touch != nullptr
+               && (component == touch.get () || touch->isParentOf (component));
+      }
+  return false;
+}
+
 void
 ClipSettingsComponent::putOnKnob (int section, int sub, double value)
 {

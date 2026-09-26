@@ -94,6 +94,8 @@ public:
    *  armed. */
   bool pressDiscard (index_t channel, index_t slot);
   bool isDiscardArmed (index_t channel, index_t slot) const;
+  /** Whether a DISCARD is armed anywhere. */
+  bool anyDiscardArmed () const;
   /** Anything else touched. */
   void disarm ();
 
