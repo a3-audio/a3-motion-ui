@@ -182,8 +182,9 @@ cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
 
   SphereCamera moving;
 
-  // Up and down lean the eye over the room: dragged down, it comes down from
-  // straight above towards the horizon.
+  // Up and down lean the eye over the room: dragged up, it comes down from
+  // straight above towards the horizon -- the maintainer's way round, after
+  // trying it the other way on 2026-09-26.
   //
   // Between straight above and the horizon, and one way over only
   // (2026-09-26). Past the horizon the sphere is seen from below, which
@@ -192,7 +193,7 @@ cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
   // side -- every speaker hung upside down -- so it is the positive lean.
   // Walking round is left and right, so one way over is every view there is.
   auto const halfPi = juce::MathConstants<float>::halfPi;
-  auto const pitch = atGrab.pitch + moved.y / down * halfPi;
+  auto const pitch = atGrab.pitch - moved.y / down * halfPi;
   moving.pitch = std::clamp (pitch, 0.f, halfPi);
 
   // And across walks it round, which has no end to stop at. Negated, so the

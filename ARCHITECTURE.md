@@ -525,7 +525,7 @@ and while it is on a finger on the sphere turns the view instead of taking a blo
 (`MotionComponent::setCameraMode`), and two taps put the view back where it starts. It was SHIFT
 with a finger on the sphere once, then a little sphere in the view's corner; a mode shown by a lit
 picture in plain view replaced both. **The lean runs from straight above to the horizon, one way
-over only** (`cameraFromBallDrag` clamps it to `[0, π/2]`, dragging down leans): past the horizon
+over only** (`cameraFromBallDrag` clamps it to `[0, π/2]`, dragging up leans): past the horizon
 the sphere is seen from below, and the other side of the zenith stood every speaker on its head —
 which is what the first limit, `[-π/2, 0]`, kept by mistake. Walking round is left and right, so
 one way over is every view there is. **Zoom** is camera mode's too: the wheel (`zoomFromWheel`, a
@@ -534,7 +534,9 @@ the sphere between `minCameraZoom` and `maxCameraZoom`; it is a factor on the sk
 `updateBoundsAndTransform`, so everything placed through that region follows. A second finger
 turns a turn into a pinch; only a finger alone on the sphere counts towards the double tap, which
 puts view and zoom back. A small camera in the picture's top right corner (`elevationCameraMark`)
-says what touching the picture selects.
+says what touching the picture selects. **The view survives a restart**: lean, walk and zoom are
+device settings (`AppSettings::camera*`), saved whenever a camera gesture settles
+(`MotionComponent::onCameraChanged`) and held to the same limits when read back.
 
 Everything that projects goes through `MotionComponent::projectToScreen()` and everything that reads
 a finger goes through `pixelToDirection()`. There were seven hand-written projections, and a camera

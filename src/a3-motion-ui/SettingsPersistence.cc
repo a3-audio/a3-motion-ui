@@ -51,6 +51,19 @@ loadSettings (juce::File const &file)
   if (parsed.hasProperty ("skinBeforeClean"))
     settings.skinBeforeClean = parsed["skinBeforeClean"].toString ();
 
+  // Held to the limits a gesture has, whatever wrote the file: never seen
+  // from below or upside down, never zoomed past the ends.
+  if (parsed.hasProperty ("cameraPitch"))
+    settings.cameraPitch
+        = std::clamp (static_cast<float> (parsed["cameraPitch"]), 0.f,
+                      juce::MathConstants<float>::halfPi);
+  if (parsed.hasProperty ("cameraTurn"))
+    settings.cameraTurn = static_cast<float> (parsed["cameraTurn"]);
+  if (parsed.hasProperty ("cameraZoom"))
+    settings.cameraZoom
+        = std::clamp (static_cast<float> (parsed["cameraZoom"]), minCameraZoom,
+                      maxCameraZoom);
+
   // Entry by entry, and only as far as the file goes: a file naming fewer
   // keys than the device has says nothing about the rest, and a hand-edited
   // speed outside the range would sit on a key the drag cannot bring back.
@@ -77,6 +90,9 @@ saveSettings (juce::File const &file, AppSettings const &settings)
   obj->setProperty ("speedButtons", speeds);
   obj->setProperty ("developerMode", settings.developerMode);
   obj->setProperty ("skinBeforeClean", settings.skinBeforeClean);
+  obj->setProperty ("cameraPitch", settings.cameraPitch);
+  obj->setProperty ("cameraTurn", settings.cameraTurn);
+  obj->setProperty ("cameraZoom", settings.cameraZoom);
 
   juce::var const state (obj);
 

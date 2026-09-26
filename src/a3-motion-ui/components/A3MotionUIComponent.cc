@@ -972,6 +972,17 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _skinBeforeClean = persisted.skinBeforeClean;
   refreshCleanKey ();
 
+  // The view the room was last looked at from, and saved again whenever a
+  // camera gesture settles. Wired after it is applied, so putting it back is
+  // not itself a change that writes the file.
+  if (_motionComponent)
+    {
+      _motionComponent->setCamera (
+          { persisted.cameraPitch, persisted.cameraTurn });
+      _motionComponent->setCameraZoom (persisted.cameraZoom);
+      _motionComponent->onCameraChanged = [this] { persistSettings (); };
+    }
+
   applyClockMode (persisted.clockMode);
   _engine.setRecMode (_recMode);
   _clipSettings->setSpeedButtons (_speedButtonLog2);
@@ -1243,9 +1254,16 @@ A3MotionUIComponent::applySpeedLog2ToShownClip (int speedLog2)
 void
 A3MotionUIComponent::persistSettings () const
 {
-  saveSettings (getPersistedSettingsFile (),
-                AppSettings{ _clockMode, _recMode, _speedButtonLog2,
-                             _developerMode, _skinBeforeClean });
+  auto settings = AppSettings{ _clockMode, _recMode, _speedButtonLog2,
+                               _developerMode, _skinBeforeClean };
+  if (_motionComponent)
+    {
+      auto const camera = _motionComponent->getCamera ();
+      settings.cameraPitch = camera.pitch;
+      settings.cameraTurn = camera.turn;
+      settings.cameraZoom = _motionComponent->getCameraZoom ();
+    }
+  saveSettings (getPersistedSettingsFile (), settings);
 }
 
 Measure
@@ -6650,11 +6668,32 @@ A3MotionUIComponent::applyPickedColour ()
   applyEditedSkin ();
 }
 
+namespace
+{
+/** How long Onboard takes to fade in or out before it answers with the state
+ *  it arrived at. */
+constexpr int keyboardSettleMs = 800;
+}
+
 void
 A3MotionUIComponent::showKeyboard (bool shown)
 {
   shown ? onScreenKeyboard::show () : onScreenKeyboard::hide ();
-  refreshKeyboardIcon ();
+
+  // What was just asked for, at once. Onboard is asked again once it has
+  // settled rather than now: it fades in and out, and asked straight away it
+  // still answers with the state it is leaving -- which lit KEYS while the
+  // keyboard went away and greyed it while it came up. The second look is
+  // what catches Onboard's own hide key.
+  if (_statusBar)
+    _statusBar->setKeyboardState (shown ? StatusBar::KeyboardState::Shown
+                                        : StatusBar::KeyboardState::Available);
+
+  juce::Component::SafePointer<A3MotionUIComponent> self (this);
+  juce::Timer::callAfterDelay (keyboardSettleMs, [self] {
+    if (self != nullptr)
+      self->refreshKeyboardIcon ();
+  });
 }
 
 void

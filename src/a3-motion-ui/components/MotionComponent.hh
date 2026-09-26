@@ -68,6 +68,15 @@ public:
    *  on is in plain view. */
   void setCameraMode (bool on);
 
+  /** How far the sphere is zoomed, as a factor on its size. */
+  float getCameraZoom () const;
+  void setCameraZoom (float zoom);
+
+  /** A camera gesture has settled -- a turn let go, a wheel notch, a pinch
+   *  lifted, a reset -- and the view is worth keeping. Not on every frame of
+   *  a drag. */
+  std::function<void ()> onCameraChanged;
+
   void mouseWheelMove (juce::MouseEvent const &event,
                        juce::MouseWheelDetails const &wheel) override;
   void mouseMagnify (juce::MouseEvent const &event, float scaleFactor) override;

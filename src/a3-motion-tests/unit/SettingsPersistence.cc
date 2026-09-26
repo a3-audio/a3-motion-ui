@@ -242,3 +242,63 @@ TEST (SettingsPersistence, AFileWithoutASkinBeforeCleanRemembersNone)
 }
 
 }
+
+// Where the room is looked at from, and how close, comes back after a
+// restart (2026-09-26): a view set up for a room is set up once.
+TEST (SettingsPersistence, TheCameraSurvivesARestart)
+{
+  auto const file = juce::File::getSpecialLocation (
+                        juce::File::SpecialLocationType::tempDirectory)
+                        .getChildFile ("a3-motion-ui-test-settings-camera.json");
+  file.deleteFile ();
+
+  AppSettings original;
+  original.cameraPitch = 0.5f;
+  original.cameraTurn = 1.2f;
+  original.cameraZoom = 1.5f;
+  saveSettings (file, original);
+
+  auto const loaded = loadSettings (file);
+  EXPECT_FLOAT_EQ (loaded.cameraPitch, 0.5f);
+  EXPECT_FLOAT_EQ (loaded.cameraTurn, 1.2f);
+  EXPECT_FLOAT_EQ (loaded.cameraZoom, 1.5f);
+
+  file.deleteFile ();
+}
+
+// A file from before looks from straight above, unzoomed.
+TEST (SettingsPersistence, AFileWithoutACameraLooksFromAbove)
+{
+  AppSettings const defaults;
+  EXPECT_FLOAT_EQ (defaults.cameraPitch, 0.f);
+  EXPECT_FLOAT_EQ (defaults.cameraTurn, 0.f);
+  EXPECT_FLOAT_EQ (defaults.cameraZoom, 1.f);
+}
+
+// A stored view is held to the limits a gesture has: never from below, never
+// upside down, never zoomed past the ends -- whatever a hand-edited file or an
+// older limit wrote.
+TEST (SettingsPersistence, AStoredCameraIsHeldToItsLimits)
+{
+  auto const file = juce::File::getSpecialLocation (
+                        juce::File::SpecialLocationType::tempDirectory)
+                        .getChildFile ("a3-motion-ui-test-settings-camlimit.json");
+  file.deleteFile ();
+
+  AppSettings wild;
+  wild.cameraPitch = 2.5f;
+  wild.cameraZoom = 10.f;
+  saveSettings (file, wild);
+  auto const high = loadSettings (file);
+  EXPECT_FLOAT_EQ (high.cameraPitch, juce::MathConstants<float>::halfPi);
+  EXPECT_FLOAT_EQ (high.cameraZoom, maxCameraZoom);
+
+  wild.cameraPitch = -0.3f;
+  wild.cameraZoom = 0.01f;
+  saveSettings (file, wild);
+  auto const low = loadSettings (file);
+  EXPECT_FLOAT_EQ (low.cameraPitch, 0.f);
+  EXPECT_FLOAT_EQ (low.cameraZoom, minCameraZoom);
+
+  file.deleteFile ();
+}

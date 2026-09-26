@@ -678,6 +678,8 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
           _cameraTapMs = 0;
           _cameraZoom = 1.f;
           setCamera (defaultCamera ());
+          if (onCameraChanged)
+            onCameraChanged ();
           return;
         }
 
@@ -770,6 +772,8 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
       _cameraFingers.erase (event.source.getIndex ());
       if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
         _cameraGrab.reset ();
+      if (onCameraChanged)
+        onCameraChanged ();
       return;
     }
 
@@ -1613,6 +1617,19 @@ MotionComponent::setCameraMode (bool on)
 }
 
 float
+MotionComponent::getCameraZoom () const
+{
+  return _cameraZoom;
+}
+
+void
+MotionComponent::setCameraZoom (float zoom)
+{
+  _cameraZoom = std::clamp (zoom, minCameraZoom, maxCameraZoom);
+  repaint ();
+}
+
+float
 MotionComponent::pinchDistance () const
 {
   if (_cameraFingers.size () != 2)
@@ -1632,6 +1649,8 @@ MotionComponent::mouseWheelMove (juce::MouseEvent const &,
 
   _cameraZoom = zoomFromWheel (_cameraZoom, wheel.deltaY);
   repaint ();
+  if (onCameraChanged)
+    onCameraChanged ();
 }
 
 void
@@ -1642,6 +1661,8 @@ MotionComponent::mouseMagnify (juce::MouseEvent const &, float scaleFactor)
 
   _cameraZoom = zoomFromPinch (_cameraZoom, 1.f, scaleFactor);
   repaint ();
+  if (onCameraChanged)
+    onCameraChanged ();
 }
 
 SphereCamera

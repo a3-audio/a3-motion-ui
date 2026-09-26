@@ -234,7 +234,7 @@ TEST (SphereProjection, ASweepAcrossTheBallIsAWholeTurn)
   EXPECT_NEAR (round.turn, -juce::MathConstants<float>::twoPi, 1e-4f);
   EXPECT_NEAR (round.pitch, 0.f, 1e-4f);
 
-  auto const over = cameraFromBallDrag (overhead, { 0.f, 60.f }, ball);
+  auto const over = cameraFromBallDrag (overhead, { 0.f, -60.f }, ball);
   EXPECT_NEAR (over.pitch, juce::MathConstants<float>::halfPi, 1e-4f);
 }
 
@@ -247,8 +247,9 @@ TEST (SphereProjection, ASweepAcrossTheBallIsAWholeTurn)
  *  ways let the view tip through the zenith to the other side, and the room
  *  came out upside down -- the front at the bottom of the screen. Walking
  *  round is left and right, so one way over is every view there is. */
-/** It leans one way only: from straight above, dragged down, the eye comes
- *  down towards the horizon; dragged up it stays overhead. Leaning both ways
+/** It leans one way only: from straight above, dragged up, the eye comes
+ *  down towards the horizon; dragged down it stays overhead (the maintainer
+ *  turned the vertical round on 2026-09-26). Leaning both ways
  *  let the view tip through the zenith and stand the room on its head, and
  *  the first limit (2026-09-26) kept the wrong side -- the one where every
  *  speaker hung upside down. Walking round is left and right, so one way
@@ -257,10 +258,10 @@ TEST (SphereProjection, TheEyeLeansOneWayOnly)
 {
   juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
 
-  EXPECT_GT (cameraFromBallDrag ({}, { 0.f, 20.f }, ball).pitch, 0.f);
-  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, -20.f }, ball).pitch, 0.f,
+  EXPECT_GT (cameraFromBallDrag ({}, { 0.f, -20.f }, ball).pitch, 0.f);
+  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, 20.f }, ball).pitch, 0.f,
                1e-5f)
-      << "dragged up from overhead it tipped over the top";
+      << "dragged down from overhead it tipped over the top";
 }
 
 /** And it does not stop at the horizon. It used to, on the grounds that past a
@@ -278,12 +279,12 @@ TEST (SphereProjection, TheEyeNeverGoesBelowTheHorizon)
   juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
   auto const halfPi = juce::MathConstants<float>::halfPi;
 
-  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, 90.f }, ball).pitch, halfPi,
+  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, -90.f }, ball).pitch, halfPi,
                1e-4f);
-  EXPECT_NEAR (cameraFromBallDrag ({ 1.f, 0.f }, { 0.f, -4.f * 60.f }, ball)
+  EXPECT_NEAR (cameraFromBallDrag ({ 1.f, 0.f }, { 0.f, 4.f * 60.f }, ball)
                    .pitch,
                0.f, 1e-4f)
-      << "dragged back up it stops overhead";
+      << "dragged back down it stops overhead";
   EXPECT_LE (cameraFromBallDrag ({ 2.5f, 0.f }, { 0.f, 0.f }, ball).pitch,
              halfPi + 1e-4f);
 }
