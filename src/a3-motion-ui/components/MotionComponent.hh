@@ -41,6 +41,7 @@
 #include <a3-motion-ui/components/TouchGrabs.hh>
 #include <a3-motion-ui/components/EnergyMap.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
+#include <a3-motion-ui/components/LineMapRenderer.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
 
 namespace a3
@@ -231,6 +232,11 @@ private:
 
   // 3D raytraced sphere shader
   SphereShader _sphereShader;
+  // What paints the line and strand maps (a3-motion-ui#34): on the GPU,
+  // from the strokes collected below. Stroking them in software was ninety
+  // per cent of the renderer with four clips playing.
+  LineMapRenderer _lineMapRenderer{ lineMapSize };
+  LineMapRenderer _strandMapRenderer{ strandMapSize };
 
   // Blit resources for compositing 2D overlay onto 3D shader output
   struct BlitResources
@@ -321,25 +327,24 @@ private:
    *
    *  It covers the scene in the same units the shader thinks in -- sphere
    *  radii, the ball's edge at one -- out to `lineMapExtent`, so the glow has
-   *  somewhere to reach. */
-  juce::Image _lineMapImage[4];
-  bool _lineMapValid[4] = {};
+   *  somewhere to reach.
+   *
+   *  Collected here as strokes during the 2D pass (lineMapStrokes()) and
+   *  painted into the map on the GPU at the start of the next frame
+   *  (LineMapRenderer). A channel with no strokes has no map that frame. */
+  std::array<std::vector<MapStroke>, 4> _lineStrokes;
 
   // The braid, per channel: where the strands are and whether each is passing
   // in front of the cord or behind it. A second map rather than a channel of
   // the first, because the first is premultiplied ARGB and every one of its
   // colour channels already carries something.
-  juce::Image _strandMapImage[4];
-  bool _strandMapValid[4] = {};
-  std::unique_ptr<juce::OpenGLTexture> _strandTexture[4];
-  std::unique_ptr<juce::OpenGLTexture> _lineTexture[4];
+  std::array<std::vector<MapStroke>, 4> _strandStrokes;
 
   void resetLineMaps ();
   void uploadLineMaps ();
-  /** Where the trajectory of `channel` is drawn into, cleared and ready, or
-   *  nullptr while the maps are not in use. */
-  juce::Image *lineMapFor (int channel);
-  juce::Image *strandMapFor (int channel);
+  /** Where the strokes of `channel`'s maps are collected. */
+  std::vector<MapStroke> *lineStrokesFor (int channel);
+  std::vector<MapStroke> *strandStrokesFor (int channel);
   float _energyVuMax = 0.05f, _energyCurve = 0.8f;
   float _energyAttack = 0.05f, _energyDecay = 0.25f;
 

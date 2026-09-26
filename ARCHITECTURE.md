@@ -223,9 +223,9 @@ generator and the test runner:
   right-hand turn on the sphere.
 
   Two places apply it and both must, or the blob leaves its line: `MotionEngine::performPlayback()`
-  turns the position before projecting it, and `MotionComponent`'s `drawPathOnSphere()` turns each
-  point of the drawn path by the same phase — inside `projectPoint()` rather than by transforming
-  the path, which would mean copying it every frame. The phase lives on the `Pattern` beside
+  turns the position before projecting it, and `projectLine()` (`components/LineMapGeometry`, which
+  `drawPathOnSphere()` draws from) turns each point of the drawn path by the same phase — inside
+  `projectPoint()` rather than by transforming the path, which would mean copying it every frame. The phase lives on the `Pattern` beside
   `playPosition` and resets when playback starts, so a clip fired again begins where it was
   recorded.
 
@@ -659,13 +659,51 @@ continuously, so the crossing rises over the listener and comes down the other s
 
 **Off the pole it is a real singularity, and the drawing has to know.** With a base of 0.5 the
 disc's origin is drawn out at the rim, not in the middle, so a path passing *near* it swings the
-azimuth through most of a revolution in almost no 2D distance — and `drawPathOnSphere()` decided how
-finely to cut a step by its length in the disc alone, so it drew that arc as one straight line clean
+azimuth through most of a revolution in almost no 2D distance — and `drawPathOnSphere()` (today
+`projectLine()`, see below) decided how finely to cut a step by its length in the disc alone, so it drew that arc as one straight line clean
 across the sphere. `discStepPieces()` (SphereProjection, and testable) weighs the swing as well as
 the length. A path passing *exactly* through the origin is not fast but discontinuous — it arrives
 at one bearing and leaves at the opposite one — so no amount of cutting helps and `addPoint()` lifts
 the pen instead, the way it does at a take's gaps. Both only became visible when `sway` started
 moving the base off the pole as a matter of course.
+
+**Where the line runs is decided once, in `projectLine()`** (`components/LineMapGeometry.{hh,cc}`,
+tested in `unit/LineMapGeometry.cc`): the shaped, lifted, camera-turned points with their depth and
+the places the pen lifts. `drawPathOnSphere()` draws from what it returns. It was taken out on
+2026-09-26 so that everything drawn from a line — the visible strokes, the line map, the braid —
+starts from the same points: two projections would be two lines that merely happen to agree, and
+the blob runs on exactly one of them.
+
+**What goes into the line map, and in which order, is `lineMapStrokes()`'s**
+(`components/LineMapStrokes.{hh,cc}`, tested in `unit/LineMapStrokes.cc`): the cone's ten steps
+widest first, then the core, each piece one opaque colour — R nearness, G where along the figure
+(core only), B the depth fade — painted over what is already there. The painting order *is* the
+distance field: a narrower step lies wholly inside a wider one, so the last colour down is the
+nearest. The constants (`lineMapSteps`, `lineMapCoreWidth`, …) live in that header with their
+reasons. The braid's strand map works the same way: `braidCord()` cuts the strands into pieces by
+depth band and tier, `strandMapStrokes()` turns them into the list for the 1024² map, back tiers
+first. The visible braid of a line that has no map (previews) is stroked from the same
+`braidCord()`.
+
+**Both maps are painted on the GPU** (`components/LineMapRenderer.{hh,cc}`, a3-motion-ui#34).
+`drawPathOnSphere()` only *collects* the strokes during the 2D pass; `uploadLineMaps()` paints them
+at the start of the next frame, ahead of the sphere pass that samples them. `capsuleVertices()`
+(`LineMapCapsules`, tested) turns a stroke list into two triangles per segment, and a fragment
+shader keeps what lies within half the stroke's width — curved joins and round ends for free —
+fading the last texel, composited premultiplied "over" into a framebuffer, one per channel and map.
+
+- Stroked in software with `juce::Graphics`, the two maps were ninety per cent of the renderer with
+  four clips playing. Measured on the rig on 2026-09-26: 8.5 fps in software, 14.3 with the line
+  map on the GPU, 38.5 with both. The software stroking was removed after the maintainer compared
+  the two side by side.
+- Orientation: the sphere shader was written against maps uploaded with
+  `OpenGLTexture::loadImage()`, which flips an image on its way to the GPU, so the pass writes
+  `clipY = 1 − 2·y/size` to put its rows where those were.
+- `OpenGLFrameBuffer::makeCurrentAndClear()` binds and clears **but does not set the viewport**.
+  Without its own `glViewport` the first version painted the map at the screen's size: everything
+  magnified from the bottom left, with a hard edge through the sphere at the map's own border. The
+  pass sets its viewport and restores viewport, framebuffer, buffer, program and blend state.
+- A GPU that cannot build the program says so in the log, and the trajectories then have no glow.
 
 **Each of the bar's three sections can be held**, by the lock at the right end of its title row.
 A held section is one nothing writes over: step through clips with Elevation held and every figure
