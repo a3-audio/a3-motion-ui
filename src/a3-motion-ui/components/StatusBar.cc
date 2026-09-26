@@ -428,9 +428,10 @@ void
 StatusBar::paintKeyboardKey (juce::Graphics &g)
 {
   // A word like its neighbours, not a drawn keyboard: CLEAN, KEYS and MENU
-  // are one row of the same kind of key (asked for on 2026-09-26).
-  paintWordKey (g, _layout.keyboardKey, "KEYS",
-                _keyboardState != KeyboardState::Unavailable,
+  // are one row of the same kind of key (asked for on 2026-09-26). Two looks
+  // only, off and on: never the dimmed "nothing to type into" it wore as an
+  // icon, which read as a third state nobody had asked about.
+  paintWordKey (g, _layout.keyboardKey, "KEYS", true,
                 _keyboardState == KeyboardState::Shown);
 }
 
