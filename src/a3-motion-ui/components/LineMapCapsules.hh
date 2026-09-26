@@ -32,8 +32,9 @@ namespace a3
  *  The quad only has to be big enough; the shape comes from the fragment
  *  shader, which keeps what lies within `halfWidth` of the segment from `a`
  *  to `b` and fades the last texel for the edge. A run of these capsules is
- *  a stroke with curved joins and rounded ends -- what juce::PathStrokeType
- *  draws for the software path (a3-motion-ui#34).
+ *  a stroke with curved joins and rounded ends -- the shape
+ *  juce::PathStrokeType drew when these maps were stroked in software
+ *  (a3-motion-ui#34).
  *
  *  Everything is in map texels, image orientation (y down), like MapStroke.
  */

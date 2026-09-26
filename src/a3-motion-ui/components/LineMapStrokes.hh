@@ -138,9 +138,8 @@ constexpr float strandMapTexels = strandMapSize / 512.f;
  *  (image orientation, y down), stroked at one width in one opaque colour
  *  over whatever is already there -- curved joins, rounded ends.
  *
- *  The software path strokes these with juce::Graphics, the GPU pass as
- *  capsules (a3-motion-ui#34); both paint the list in its order, which is
- *  what makes the stepped cone a distance field.
+ *  LineMapRenderer paints them as capsules (a3-motion-ui#34), in the list's
+ *  order, which is what makes the stepped cone a distance field.
  */
 struct MapStroke
 {
@@ -152,22 +151,13 @@ struct MapStroke
 };
 
 /** The pen's path through `points`: a new sub-path wherever `lifts` says,
- *  a line to every other point. How the software path hands a stroke list
- *  or a braid piece to juce::Graphics. */
+ *  a line to every other point. How the visible braid of a line that has
+ *  no map is handed to juce::Graphics. */
 juce::Path pathOf (std::vector<juce::Point<float> > const &points,
                    std::vector<bool> const &lifts);
 
 /** Where a point the camera sees lands in the line map. */
 juce::Point<float> toLineMap (juce::Point<float> const &seen);
-
-/** Whether config.json asks for the line map to be painted on the GPU
- *  (`"ui": { "gpuLineMaps": true }`) instead of by the software strokes.
- *
- *  Off unless it is a real JSON true: the two paths paint the same list, and
- *  the switch exists so they can be compared on the device (a3-motion-ui#34).
- *  Read with the rest of the visual config, so it can be flipped while the
- *  app runs. */
-bool gpuLineMapsWanted (juce::var const &config);
 
 /** The cone's ten steps, widest first, then the core -- in painting order. */
 std::vector<MapStroke> lineMapStrokes (ProjectedLine const &line);

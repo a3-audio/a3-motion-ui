@@ -55,7 +55,7 @@ namespace
 
 /** A stroke has a line in it only if some point is joined to the one before;
  *  a piece that is all pen-lifts is what juce::Path::isEmpty() called empty,
- *  and the software path always skipped it. */
+ *  and stroking the maps in software always skipped it. */
 bool
 hasALine (MapStroke const &stroke)
 {
@@ -65,13 +65,6 @@ hasALine (MapStroke const &stroke)
   return false;
 }
 
-}
-
-bool
-gpuLineMapsWanted (juce::var const &config)
-{
-  auto const wanted = config["ui"]["gpuLineMaps"];
-  return wanted.isBool () && static_cast<bool> (wanted);
 }
 
 std::vector<MapStroke>

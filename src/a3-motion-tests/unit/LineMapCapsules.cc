@@ -115,8 +115,12 @@ TEST (LineMapCapsules, TheQuadHoldsTheWholeCapsuleAndItsEdge)
 
   for (auto x = 0.f; x <= 100.f; x += 0.5f)
     for (auto y = 0.f; y <= 100.f; y += 0.5f)
-      if (distanceToSegment (x, y, vertices[0]) <= width * 0.5f + 1.f)
-        EXPECT_TRUE (quadCovers (vertices, 0, x, y)) << x << ", " << y;
+      {
+        if (distanceToSegment (x, y, vertices[0]) <= width * 0.5f + 1.f)
+          {
+            EXPECT_TRUE (quadCovers (vertices, 0, x, y)) << x << ", " << y;
+          }
+      }
 }
 
 TEST (LineMapCapsules, APointWithNoLengthIsStillARoundDot)

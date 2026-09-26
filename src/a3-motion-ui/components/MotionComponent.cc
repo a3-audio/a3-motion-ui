@@ -428,48 +428,10 @@ MotionComponent::setEnergyGrid (float const *values, int count)
   _energyPending = true;
 }
 
-// Runs on the GL thread. The plugin only sends 9 times a second, so the map is
-// eased towards each new frame rather than stepped to it.
-juce::Image *
-MotionComponent::lineMapFor (int channel)
-{
-  if (channel < 0 || channel >= 4)
-    return nullptr;
-
-  auto &image = _lineMapImage[channel];
-  if (!image.isValid ())
-    image = juce::Image (juce::Image::ARGB, lineMapSize, lineMapSize, true);
-
-  if (!_lineMapValid[channel])
-    {
-      image.clear (image.getBounds (), juce::Colours::transparentBlack);
-      _lineMapValid[channel] = true;
-    }
-  return &image;
-}
-
-juce::Image *
-MotionComponent::strandMapFor (int channel)
-{
-  if (channel < 0 || channel >= 4)
-    return nullptr;
-
-  auto &image = _strandMapImage[channel];
-  if (!image.isValid ())
-    image = juce::Image (juce::Image::ARGB, strandMapSize, strandMapSize, true);
-
-  if (!_strandMapValid[channel])
-    {
-      image.clear (image.getBounds (), juce::Colours::transparentBlack);
-      _strandMapValid[channel] = true;
-    }
-  return &image;
-}
-
 std::vector<MapStroke> *
 MotionComponent::lineStrokesFor (int channel)
 {
-  if (!_lineMapsOnGpu || channel < 0 || channel >= 4)
+  if (channel < 0 || channel >= 4)
     return nullptr;
   return &_lineStrokes[static_cast<std::size_t> (channel)];
 }
@@ -477,7 +439,7 @@ MotionComponent::lineStrokesFor (int channel)
 std::vector<MapStroke> *
 MotionComponent::strandStrokesFor (int channel)
 {
-  if (!_lineMapsOnGpu || channel < 0 || channel >= 4)
+  if (channel < 0 || channel >= 4)
     return nullptr;
   return &_strandStrokes[static_cast<std::size_t> (channel)];
 }
@@ -485,16 +447,10 @@ MotionComponent::strandStrokesFor (int channel)
 void
 MotionComponent::resetLineMaps ()
 {
-  _lineMapsOnGpu = _gpuLineMaps && _lineMapRenderer.isReady ()
-                   && _strandMapRenderer.isReady ();
   for (auto &strokes : _lineStrokes)
     strokes.clear ();
   for (auto &strokes : _strandStrokes)
     strokes.clear ();
-  for (auto &valid : _lineMapValid)
-    valid = false;
-  for (auto &valid : _strandMapValid)
-    valid = false;
 }
 
 void
@@ -502,53 +458,23 @@ MotionComponent::uploadLineMaps ()
 {
   for (auto channel = 0; channel < 4; ++channel)
     {
-      if (!_lineMapValid[channel] || !_lineMapImage[channel].isValid ())
+      auto const index = static_cast<std::size_t> (channel);
+      if (_lineStrokes[index].empty ())
         {
           _sphereShader.setLineTexture (channel, 0);
-          continue;
-        }
-
-      if (_lineMapsOnGpu)
-        {
-          _sphereShader.setLineTexture (
-              channel,
-              _lineMapRenderer.paint (
-                  channel, _lineStrokes[static_cast<std::size_t> (channel)]));
-        }
-      else
-        {
-          if (_lineTexture[channel] == nullptr)
-            _lineTexture[channel] = std::make_unique<juce::OpenGLTexture> ();
-
-          _lineTexture[channel]->loadImage (_lineMapImage[channel]);
-          _sphereShader.setLineTexture (
-              channel, _lineTexture[channel]->getTextureID ());
-        }
-
-      if (!_strandMapValid[channel] || !_strandMapImage[channel].isValid ())
-        {
           _sphereShader.setStrandTexture (channel, 0);
           continue;
         }
 
-      if (_lineMapsOnGpu)
-        {
-          _sphereShader.setStrandTexture (
-              channel,
-              _strandMapRenderer.paint (
-                  channel, _strandStrokes[static_cast<std::size_t> (channel)]));
-          continue;
-        }
-
-      if (_strandTexture[channel] == nullptr)
-        _strandTexture[channel] = std::make_unique<juce::OpenGLTexture> ();
-
-      _strandTexture[channel]->loadImage (_strandMapImage[channel]);
+      _sphereShader.setLineTexture (
+          channel, _lineMapRenderer.paint (channel, _lineStrokes[index]));
       _sphereShader.setStrandTexture (
-          channel, _strandTexture[channel]->getTextureID ());
+          channel, _strandMapRenderer.paint (channel, _strandStrokes[index]));
     }
 }
 
+// Runs on the GL thread. The plugin only sends 9 times a second, so the map is
+// eased towards each new frame rather than stepped to it.
 void
 MotionComponent::uploadEnergyMap ()
 {
@@ -980,8 +906,9 @@ MotionComponent::newOpenGLContextCreated ()
   // Initialise blit shader for FBO compositing
   _blit.create ();
 
-  // The line maps on the GPU, if this GPU builds the program; the software
-  // path stays either way (a3-motion-ui#34).
+  // The line and strand maps are painted on the GPU (a3-motion-ui#34). A GPU
+  // that cannot build the program says so in the log, and the trajectories
+  // then have no glow -- there is no software path any more.
   _lineMapRenderer.initialise (_glContext);
   _strandMapRenderer.initialise (_glContext);
 
@@ -1028,25 +955,6 @@ MotionComponent::newOpenGLContextCreated ()
   auto const skin = loadActiveSkinVar (configFile (), userConfig);
   applyVisualConfig (skin);
   applyTheme (skin);
-
-  // Read here as well as on reload: the watcher above has just taken the
-  // file's current state as seen, so reloadVisualConfigIfChanged() only
-  // hears about the switch once the file changes. Without this the app came
-  // up in software whatever config.json said.
-  _gpuLineMaps = gpuLineMapsWanted (userConfig);
-  logLineMapMode ();
-}
-
-void
-MotionComponent::logLineMapMode () const
-{
-  juce::Logger::writeToLog (
-      juce::String ("line maps: ")
-      + (_gpuLineMaps ? (_lineMapRenderer.isReady ()
-                                 && _strandMapRenderer.isReady ()
-                             ? "GPU"
-                             : "GPU asked, not available")
-                      : "software"));
 }
 
 
@@ -1227,13 +1135,6 @@ MotionComponent::reloadVisualConfigIfChanged ()
           // changed the file and nothing else.
           //
           // Handed over on the message thread, which is where it is read.
-          auto const gpu = gpuLineMapsWanted (config);
-          if (gpu != _gpuLineMaps)
-            {
-              _gpuLineMaps = gpu;
-              logLineMapMode ();
-            }
-
           juce::Component::SafePointer<MotionComponent> safeThis{ this };
           juce::MessageManager::callAsync ([safeThis, config] {
             userConfig = config;
@@ -1957,16 +1858,13 @@ drawPathOnSphere (juce::Path const &displayPath,
                   juce::Graphics &g,
                   PlaneShaping const &shaping,
                   SphereCamera const &camera,
-                  /** Where to rasterise this line for the shader, or nullptr
-                   *  for a line the glow is not asked to follow. */
-                  juce::Image *lineMap = nullptr,
-                  /** Where to rasterise the braid's strands for the shader,
-                   *  or nullptr for a line whose strands are stroked here. */
-                  juce::Image *strandMap = nullptr,
-                  /** When the line map is painted on the GPU: where its
-                   *  strokes are collected instead of being painted here. */
+                  /** Where this line's strokes for the shader's map are
+                   *  collected, or nullptr for a line the glow is not asked
+                   *  to follow. */
                   std::vector<MapStroke> *lineStrokes = nullptr,
-                  /** The same for the strand map. */
+                  /** Where the braid's strokes for the strand map are
+                   *  collected, or nullptr for a line whose strands are
+                   *  stroked here. */
                   std::vector<MapStroke> *strandStrokes = nullptr)
 {
   if (displayPath.isEmpty ())
@@ -1984,13 +1882,8 @@ drawPathOnSphere (juce::Path const &displayPath,
   // place that decides, for this and for the GPU pass (a3-motion-ui#34).
   auto const onSphere = projectLine (displayPath, elevationParams, heightMap,
                                  shaping, camera);
-  auto const &startsRun = onSphere.startsRun;
-  std::vector<std::pair<juce::Point<float>, float> > projected;
-  projected.reserve (onSphere.points.size ());
-  for (std::size_t i = 0; i < onSphere.points.size (); ++i)
-    projected.push_back ({ onSphere.points[i], onSphere.depth[i] });
 
-  if (projected.size () < 2)
+  if (onSphere.points.size () < 2)
     return;
 
   // Three hairlines braided into a cord.
@@ -2014,7 +1907,7 @@ drawPathOnSphere (juce::Path const &displayPath,
   // the shader draws them: stroked here as vectors they pasted a raw line over
   // the finished frame, above depth and above the towers, and the blob could
   // not travel inside a braid it was drawn underneath.
-  if (lineMap == nullptr || strandMap != nullptr)
+  if (lineStrokes == nullptr || strandStrokes != nullptr)
   {
     auto const seconds
         = static_cast<float> (juce::Time::getMillisecondCounter ()) * 0.001f;
@@ -2027,28 +1920,12 @@ drawPathOnSphere (juce::Path const &displayPath,
     // braidCord()'s: the strand map and the visible braid draw from it.
     auto const cord = braidCord (onSphere, braid, seconds);
 
-    if (lineMap != nullptr)
+    if (lineStrokes != nullptr)
       {
         auto strokes = strandMapStrokes (cord);
-        if (strandStrokes != nullptr)
-          {
-            strandStrokes->insert (strandStrokes->end (),
-                                   std::make_move_iterator (strokes.begin ()),
-                                   std::make_move_iterator (strokes.end ()));
-          }
-        else
-          {
-            juce::Graphics sg (*strandMap);
-            for (auto const &stroke : strokes)
-              {
-                sg.setColour (stroke.colour);
-                sg.strokePath (pathOf (stroke.points, stroke.lifts),
-                               juce::PathStrokeType (
-                                   stroke.width,
-                                   juce::PathStrokeType::JointStyle::curved,
-                                   juce::PathStrokeType::EndCapStyle::rounded));
-              }
-          }
+        strandStrokes->insert (strandStrokes->end (),
+                               std::make_move_iterator (strokes.begin ()),
+                               std::make_move_iterator (strokes.end ()));
       }
     else
       {
@@ -2100,30 +1977,15 @@ drawPathOnSphere (juce::Path const &displayPath,
   // in, and it went with it -- the trajectory ran for two commits with no glow
   // at all, which is most of what "das sieht jetzt wieder billig aus" was
   // looking at. Kept at the end of the function and said out loud here.
-  if (lineMap == nullptr || projected.size () < 2)
+  if (lineStrokes == nullptr || onSphere.points.size () < 2)
     return;
 
   // What is painted into the map, and in which order, is lineMapStrokes()'s:
   // the GPU pass paints the same list (a3-motion-ui#34).
   auto strokes = lineMapStrokes (onSphere);
-  if (lineStrokes != nullptr)
-    {
-      lineStrokes->insert (lineStrokes->end (),
-                           std::make_move_iterator (strokes.begin ()),
-                           std::make_move_iterator (strokes.end ()));
-      return;
-    }
-
-  juce::Graphics mg (*lineMap);
-  for (auto const &stroke : strokes)
-    {
-      mg.setColour (stroke.colour);
-      mg.strokePath (pathOf (stroke.points, stroke.lifts),
-                     juce::PathStrokeType (
-                               stroke.width,
-                               juce::PathStrokeType::JointStyle::curved,
-                               juce::PathStrokeType::EndCapStyle::rounded));
-    }
+  lineStrokes->insert (lineStrokes->end (),
+                       std::make_move_iterator (strokes.begin ()),
+                       std::make_move_iterator (strokes.end ()));
 }
 
 void
@@ -2179,8 +2041,6 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
   drawPathOnSphere (path, lineThickness, 0.9f, _uiStates[ch]->colour, true,
                     pattern.getElevationParams (), _engine.getHeightMap (), g,
                     PlaneShaping{}, _sphereShader.getCamera (),
-                    lineMapFor (static_cast<int> (ch)),
-                    strandMapFor (static_cast<int> (ch)),
                     lineStrokesFor (static_cast<int> (ch)),
                     strandStrokesFor (static_cast<int> (ch)));
 }
@@ -2371,8 +2231,6 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     true, params, heightMap, g, shaping,
                     _sphereShader.getCamera (),
-                    lineMapFor (static_cast<int> (ch)),
-                    strandMapFor (static_cast<int> (ch)),
                     lineStrokesFor (static_cast<int> (ch)),
                     strandStrokesFor (static_cast<int> (ch)));
 }

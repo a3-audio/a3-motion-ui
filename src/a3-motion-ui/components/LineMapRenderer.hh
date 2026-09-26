@@ -31,12 +31,12 @@
 namespace a3
 {
 
-/** Paints a channel's line map on the GPU (a3-motion-ui#34).
+/** Paints a channel's line or strand map on the GPU (a3-motion-ui#34).
  *
- *  The software path stroked the map with juce::Graphics every frame and
- *  uploaded it; with four clips playing that was ninety per cent of the
- *  renderer and 8.5 frames a second (measured 2026-09-26). This paints the
- *  same list -- lineMapStrokes() -- into a framebuffer instead: one capsule
+ *  These maps were stroked with juce::Graphics every frame and uploaded;
+ *  with four clips playing that was ninety per cent of the renderer and 8.5
+ *  frames a second (measured 2026-09-26; 38.5 with this). This paints the
+ *  stroke list -- lineMapStrokes(), strandMapStrokes() -- into a framebuffer: one capsule
  *  per segment (capsuleVertices()), in the list's order, each fragment
  *  keeping what lies within half the stroke's width and fading the last
  *  texel, composited premultiplied "over" the way JUCE's own renderer does.
@@ -51,7 +51,7 @@ public:
   explicit LineMapRenderer (int mapSize) : _size (mapSize) {}
 
   /** False, with a line in the log, if the program does not build here --
-   *  the caller then stays on the software path. */
+   *  the trajectories then have no glow. */
   bool initialise (juce::OpenGLContext &context);
   void shutdown ();
   bool isReady () const { return _program != nullptr; }

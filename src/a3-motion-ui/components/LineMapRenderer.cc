@@ -30,10 +30,11 @@ namespace a3
 namespace
 {
 
-// Map texels in, image orientation (y down). OpenGLTexture::loadImage turns
-// an image upside down on the way to the GPU, so the software path's maps
-// have their top row at the top of the texture; drawing y down into clip
-// space here puts this map's rows in the same place.
+// Map texels in, image orientation (y down). The sphere shader was written
+// against maps uploaded with OpenGLTexture::loadImage, which turns an image
+// upside down on the way to the GPU and so puts its top row at the top of
+// the texture; drawing y down into clip space here puts this map's rows in
+// the same place.
 char const *const vertexShader = R"(
 attribute vec2 aPosition;
 attribute vec4 aSegment;
@@ -97,7 +98,7 @@ LineMapRenderer::initialise (juce::OpenGLContext &context)
     {
       juce::Logger::writeToLog ("LineMapRenderer: "
                                 + program->getLastError ()
-                                + " -- line maps stay in software");
+                                + " -- the trajectories have no glow");
       return false;
     }
 
@@ -110,8 +111,8 @@ LineMapRenderer::initialise (juce::OpenGLContext &context)
   if (_aPosition < 0 || _aSegment < 0 || _aHalfWidth < 0 || _aColour < 0)
     {
       juce::Logger::writeToLog (
-          "LineMapRenderer: an attribute is missing -- line maps stay in "
-          "software");
+          "LineMapRenderer: an attribute is missing -- the trajectories "
+          "have no glow");
       return false;
     }
 

@@ -26,6 +26,7 @@
 #include <a3-motion-ui/components/SphereProjection.hh>
 
 #include <algorithm>
+#include <cmath>
 #include <set>
 
 using namespace a3;
@@ -33,10 +34,10 @@ using namespace a3;
 namespace
 {
 
-// The stroke list is what both rasterisers of the line map paint -- the
-// software strokes and the GPU pass (a3-motion-ui#34). These tests pin down
-// the rules the software path has always followed, so the GPU pass inherits
-// them instead of re-deriving them.
+// The stroke list is what the GPU paints into the line map
+// (a3-motion-ui#34). These tests pin down the rules the maps followed while
+// they were stroked in software, so the GPU pass inherits them instead of
+// re-deriving them.
 
 ProjectedLine
 straightLine (int count, float depth = 1.f)
@@ -55,7 +56,7 @@ straightLine (int count, float depth = 1.f)
 bool
 isCore (MapStroke const &stroke)
 {
-  return stroke.width == lineMapCoreWidth * lineMapTexels;
+  return std::abs (stroke.width - lineMapCoreWidth * lineMapTexels) < 1e-6f;
 }
 
 juce::uint8
@@ -164,18 +165,6 @@ TEST (LineMapStrokes, EveryStrokeStartsWithItsPenDownAndHasALine)
       EXPECT_TRUE (stroke.lifts.front ());
       EXPECT_EQ (stroke.colour.getAlpha (), 255);
     }
-}
-
-TEST (LineMapStrokes, TheGpuPaintsTheMapOnlyWhenTheConfigSaysTrue)
-{
-  auto const config = [] (juce::String const &ui) {
-    return juce::JSON::parse ("{\"ui\": " + ui + "}");
-  };
-  EXPECT_FALSE (gpuLineMapsWanted (juce::JSON::parse ("{}")));
-  EXPECT_FALSE (gpuLineMapsWanted (config ("{}")));
-  EXPECT_FALSE (gpuLineMapsWanted (config ("{\"gpuLineMaps\": false}")));
-  EXPECT_FALSE (gpuLineMapsWanted (config ("{\"gpuLineMaps\": \"true\"}")));
-  EXPECT_TRUE (gpuLineMapsWanted (config ("{\"gpuLineMaps\": true}")));
 }
 
 // ── The braid and its strand map ────────────────────────────────
