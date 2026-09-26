@@ -4684,13 +4684,23 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
         // on the sphere, a pad that shows it and a bar that offers the keys.
         if (messagePatternStatus.pattern->wasRecording ())
           {
+            auto sitsInASlot = false;
+            for (index_t slot = 0; slot < _patterns[channel].size (); ++slot)
+              if (_patterns[channel][slot] == messagePatternStatus.pattern)
+                {
+                  sitsInASlot = true;
+                  updatePadRowLabel (channel, slot);
+                }
+
             // saveRecordedPattern() used to do this; a take outside the
             // library is drawn from its ticks (registerPatternDisplayData()
             // falls through to refreshPatternDisplayFromTicks()).
-            registerPatternDisplayData (messagePatternStatus.pattern);
-            for (index_t slot = 0; slot < _patterns[channel].size (); ++slot)
-              if (_patterns[channel][slot] == messagePatternStatus.pattern)
-                updatePadRowLabel (channel, slot);
+            //
+            // Only while the take is still in a slot. A DISCARDed take stops
+            // *after* it has been taken out, and registering it here put it
+            // back into the display data it had just been removed from (#31).
+            if (sitsInASlot)
+              registerPatternDisplayData (messagePatternStatus.pattern);
             refreshTakeState ();
           }
         break;
@@ -5554,8 +5564,15 @@ A3MotionUIComponent::pressDiscardOnShownTake ()
       return;
     }
 
+  // Stopped, and taken off the sphere the way a slot filled from the library
+  // takes its old pattern off: left in the display data, every discarded take
+  // stayed there for the rest of the evening (#31).
   if (auto const &take = _patterns[channel][slot])
-    _engine.stopPattern (take, _now);
+    {
+      _engine.stopPattern (take, _now);
+      _motionComponent->unsetPreviewPattern (take);
+      _motionComponent->removePatternDisplayData (take);
+    }
 
   auto const before = _pendingTakes.resolve (channel, slot);
   _patterns[channel][slot] = before.pattern;
