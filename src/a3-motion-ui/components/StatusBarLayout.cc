@@ -50,20 +50,26 @@ statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding)
                                   * statusTickHeightOfRow))
             .withCentre ({ barWidth / 2, row.getCentreY () });
 
-  // The tempo takes the left half of the row and the readout the right half
-  // of what is left. Both overlap the indicator's rectangle and always have
-  // -- one is aligned left and the other right, so the text keeps clear of it
-  // even where the bounds do not.
-  //
-  // This is the whole layout again. Between 2026-09-10 and 2026-09-12 it was
-  // one branch of a negotiation over how much width nine meters could take
-  // from the two labels and the indicator; the meters went, and what is left
-  // is what the bar looked like before they arrived.
+  // The keys at the ends, one size: wide enough for a word, as tall as the
+  // row. CLOCK leads it, left of the tempo it decides; CLEAN, the on-screen
+  // keyboard and MENU close it, MENU at the very edge where a thumb finds it.
   auto rest = row;
-  out.bpm = rest.removeFromLeft (rest.getWidth () / 2)
-                .withTrimmedLeft (padding);
-  out.readout = rest.withTrimmedLeft (rest.getWidth () / 2)
-                    .withTrimmedRight (padding);
+  auto const keyW = juce::jmin (rowHeight * statusKeyWidthOfHeight,
+                                row.getWidth () / 8);
+  out.menuKey = rest.removeFromRight (keyW);
+  out.keyboardKey = rest.removeFromRight (keyW);
+  out.cleanKey = rest.removeFromRight (keyW);
+  out.clockKey = rest.removeFromLeft (keyW);
+
+  // What is left of the display's left edge carries the two readings: the
+  // tempo, then what was last done, standing against the display so the
+  // right end is keys only. The readout gets the larger share, being the
+  // longer text.
+  auto left = rest.withRight (juce::jmin (rest.getRight (), out.tick.getX ()))
+                  .withTrimmedLeft (padding)
+                  .withTrimmedRight (padding);
+  out.bpm = left.removeFromLeft (left.getWidth () * 2 / 5);
+  out.readout = left;
 
   return out;
 }

@@ -68,11 +68,24 @@ public:
   /** Just the font half of applyTheme(), for a size change. */
   void refreshFonts ();
 
-  /** Tapped when the little keyboard icon at the far right is touched.
-   *  The bar owns no keyboard — it only says the icon was hit. */
+  /** Tapped when the keyboard key, left of MENU, is touched. The bar owns
+   *  no keyboard — it only says the key was hit. */
   std::function<void ()> onKeyboardIconTapped;
 
-  /** How the keyboard icon reads: there is nothing to type into, there is
+  /** The clock key, left of the tempo: step to the next clock mode. */
+  std::function<void ()> onClockKeyTapped;
+  /** MENU, at the right end: open or close the menu. */
+  std::function<void ()> onMenuKeyTapped;
+  /** The beat display was touched: a tap for the tempo. On the finger's
+   *  way down, not up -- a tap is a moment, and the release comes a
+   *  variable time after it. The TAP key in the bar's global strip was
+   *  this until 2026-09-26. */
+  std::function<void ()> onTickTapped;
+
+  /** Whether the menu is open, so MENU can wear it. */
+  void setMenuOpen (bool open);
+
+  /** How the KEYS key reads: there is nothing to type into, there is
    *  and it is hidden, or it is up. A tap that does nothing has to look
    *  like one. */
   enum class KeyboardState
@@ -84,20 +97,13 @@ public:
 
   void setKeyboardState (KeyboardState state);
 
-  /** Tapped when the MIX key left of the keyboard icon is touched. The bar
-   *  owns no mixer — it only says the key was hit. */
-  std::function<void ()> onMixIconTapped;
-
-  /** Whether the mixer overlay is open, so the key can wear it. Every other
-   *  key on this device that stands for a state wears it. */
-  void setMixOpen (bool open);
-
-  /** Tapped when the CLEAN key left of MIX is touched. The bar owns no skins
+  /** Tapped when the CLEAN key left of KEYS is touched. The bar
+   *  owns no skins
    *  -- it only says the key was hit. See theme/CleanSkin.hh. */
   std::function<void ()> onCleanIconTapped;
 
   /** Whether there is a clean skin to go to, and whether it is up. A key
-   *  with nothing to switch to is greyed out, like the keyboard icon with
+   *  with nothing to switch to is greyed out, like KEYS with
    *  nothing to type into. */
   void setCleanState (bool available, bool active);
 
@@ -144,6 +150,7 @@ public:
    *  so it has to be drawn after the children rather than in paint(). */
   void paintOverChildren (juce::Graphics &g) override;
 
+  void mouseDown (juce::MouseEvent const &event) override;
   void mouseUp (juce::MouseEvent const &event) override;
 
   /** The header size this bar can actually show — the theme's, unless the
@@ -179,23 +186,24 @@ private:
    *  how the next reader loses both. */
   void paintPlayheads (juce::Graphics &g, juce::Rectangle<float> tick);
 
-  /** A key that is a word: MIX and CLEAN. Its own function rather than lines
-   *  in paint(), which already carries the keyboard icon's reasoning — and
-   *  one function for both, so two neighbouring keys cannot drift into
-   *  reading by two rules. */
+  /** The ground every key on this bar stands on -- CLOCK, CLEAN, the
+   *  keyboard and MENU look alike (asked for on 2026-09-26): a framed key,
+   *  washed in the accent while what it stands for is on. */
+  void paintKeyGround (juce::Graphics &g, juce::Rectangle<int> area,
+                       bool on) const;
+  /** The colour of what is written or drawn on a key. */
+  juce::Colour keyInk (bool available, bool on) const;
   void paintWordKey (juce::Graphics &g, juce::Rectangle<int> area,
                      juce::String const &word, bool available, bool on);
+  void paintKeyboardKey (juce::Graphics &g);
 
   /** Every rectangle on this bar, from the one pure calculation the test
    *  checks — so paint() draws into what resized() placed. */
   StatusBarLayout _layout;
 
 
-  juce::Rectangle<int> _keyboardIconArea;
   KeyboardState _keyboardState = KeyboardState::Unavailable;
-  juce::Rectangle<int> _mixIconArea;
-  bool _mixOpen = false;
-  juce::Rectangle<int> _cleanIconArea;
+  bool _menuOpen = false;
   bool _cleanAvailable = false;
   bool _cleanActive = false;
   TickIndicator _tickIndicator;

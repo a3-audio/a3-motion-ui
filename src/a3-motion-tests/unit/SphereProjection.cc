@@ -210,38 +210,14 @@ TEST (SphereProjection, AStrokeBreaksWhereTheSegmentsStopMeeting)
   EXPECT_EQ (breaks, 2) << "one for the start, one for the second sub-path";
 }
 
-// ── The little sphere ───────────────────────────────────────────────────
+// ── Turning the camera ──────────────────────────────────────────────────
 
 /** It sits in the top right of the view, clear of it, and is big enough to
  *  take hold of. Turning the room is a thing you do with a finger, so a mark
  *  too small to land on is a mark that cannot do its job. */
-TEST (SphereProjection, TheCameraBallSitsInTheTopRightAndCanBeGrabbed)
-{
-  for (int width : { 480, 768, 1024 })
-    for (int height : { 400, 700, 900 })
-      {
-        juce::Rectangle<int> const view{ 0, 0, width, height };
-        auto const ball = cameraBallBounds (view);
-
-        ASSERT_FALSE (ball.isEmpty ()) << width << "x" << height;
-        EXPECT_TRUE (view.contains (ball)) << width << "x" << height;
-        EXPECT_GE (ball.getWidth (), fingertipSize) << width << "x" << height;
-        EXPECT_EQ (ball.getWidth (), ball.getHeight ());
-
-        // In the corner: nearer the top than the bottom, nearer the right
-        // than the left.
-        EXPECT_LT (ball.getCentreY (), view.getCentreY ());
-        EXPECT_GT (ball.getCentreX (), view.getCentreX ());
-      }
-}
 
 /** A view too small to hold one gets none rather than a ball drawn over the
  *  sphere it is meant to sit beside. */
-TEST (SphereProjection, AViewTooSmallForTheBallGetsNone)
-{
-  EXPECT_TRUE (cameraBallBounds ({ 0, 0, 20, 20 }).isEmpty ());
-  EXPECT_TRUE (cameraBallBounds ({}).isEmpty ());
-}
 
 /** Its own width is a whole turn and its own height a right angle, so one
  *  sweep across it has been all the way round the room.
@@ -258,44 +234,59 @@ TEST (SphereProjection, ASweepAcrossTheBallIsAWholeTurn)
   EXPECT_NEAR (round.turn, -juce::MathConstants<float>::twoPi, 1e-4f);
   EXPECT_NEAR (round.pitch, 0.f, 1e-4f);
 
-  auto const over = cameraFromBallDrag (overhead, { 0.f, 60.f }, ball);
-  EXPECT_NEAR (over.pitch, -juce::MathConstants<float>::halfPi, 1e-4f);
+  auto const over = cameraFromBallDrag (overhead, { 0.f, -60.f }, ball);
+  EXPECT_NEAR (over.pitch, juce::MathConstants<float>::halfPi, 1e-4f);
 }
 
 /** It tips both ways. One way meant that leaving the overhead view was a
  *  decision about which half of the room you would be able to look into, taken
  *  before you knew which one you wanted -- and the way back was to walk the
  *  long way round rather than to rock back through the view you started in. */
-TEST (SphereProjection, TheBallTipsBothWays)
+/** It leans one way only (2026-09-26): from straight above, dragged down, the
+ *  eye comes over the near side; dragged up it stays overhead. Leaning both
+ *  ways let the view tip through the zenith to the other side, and the room
+ *  came out upside down -- the front at the bottom of the screen. Walking
+ *  round is left and right, so one way over is every view there is. */
+/** It leans one way only: from straight above, dragged up, the eye comes
+ *  down towards the horizon; dragged down it stays overhead (the maintainer
+ *  turned the vertical round on 2026-09-26). Leaning both ways
+ *  let the view tip through the zenith and stand the room on its head, and
+ *  the first limit (2026-09-26) kept the wrong side -- the one where every
+ *  speaker hung upside down. Walking round is left and right, so one way
+ *  over is every view there is. */
+TEST (SphereProjection, TheEyeLeansOneWayOnly)
 {
   juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
 
-  auto const one = cameraFromBallDrag ({}, { 0.f, 20.f }, ball).pitch;
-  auto const other = cameraFromBallDrag ({}, { 0.f, -20.f }, ball).pitch;
-
-  EXPECT_LT (one, 0.f);
-  EXPECT_GT (other, 0.f);
-  EXPECT_NEAR (one, -other, 1e-4f) << "the same finger, the same lean";
+  EXPECT_GT (cameraFromBallDrag ({}, { 0.f, -20.f }, ball).pitch, 0.f);
+  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, 20.f }, ball).pitch, 0.f,
+               1e-5f)
+      << "dragged down from overhead it tipped over the top";
 }
 
 /** And it does not stop at the horizon. It used to, on the grounds that past a
  *  right angle the eye is under the floor looking up at it -- but that is a
  *  view of the room, and a room you cannot look at from underneath is one
  *  whose floor you have to take on trust. A ball has no stops in it. */
-TEST (SphereProjection, TheBallRollsPastTheHorizon)
+/** And it stops at the horizon (2026-09-26). It used to roll on through, on
+ *  the grounds that a room you cannot look at from underneath is one whose
+ *  floor you have to take on trust -- but nobody wants to look at the sphere
+ *  from below, and a view that can end up under the floor is one you can get
+ *  lost in mid-set. Either way over, the eye stops level with the room. */
+/** And it stops at the horizon: the sphere is never seen from below. */
+TEST (SphereProjection, TheEyeNeverGoesBelowTheHorizon)
 {
   juce::Rectangle<int> const ball{ 0, 0, 60, 60 };
   auto const halfPi = juce::MathConstants<float>::halfPi;
 
-  // A drag of one and a half ball-heights is a lean of three right angles,
-  // which is past straight down and out the other side.
-  auto const under = cameraFromBallDrag ({}, { 0.f, 90.f }, ball).pitch;
-  EXPECT_LT (under, -halfPi - 1e-4f) << "it held at the horizon";
-
-  // And rolled far enough it comes back to where it started.
-  auto const round
-      = cameraFromBallDrag ({}, { 0.f, -4.f * 60.f }, ball).pitch;
-  EXPECT_NEAR (round, 0.f, 1e-3f) << "four right angles is a whole turn";
+  EXPECT_NEAR (cameraFromBallDrag ({}, { 0.f, -90.f }, ball).pitch, halfPi,
+               1e-4f);
+  EXPECT_NEAR (cameraFromBallDrag ({ 1.f, 0.f }, { 0.f, 4.f * 60.f }, ball)
+                   .pitch,
+               0.f, 1e-4f)
+      << "dragged back down it stops overhead";
+  EXPECT_LE (cameraFromBallDrag ({ 2.5f, 0.f }, { 0.f, 0.f }, ball).pitch,
+             halfPi + 1e-4f);
 }
 
 /** A drag carries on from where the eye already was, so picking the ball up
@@ -447,3 +438,31 @@ TEST (SphereProjection, JucesStrokeTransformLeavesTheThicknessAlone)
   EXPECT_EQ (maxAlpha (transformedFirst), 255);
 }
 
+// ── Zoom (2026-09-26) ───────────────────────────────────────────────────
+
+/** Two fingers moving apart zoom in by as much as they moved apart, and the
+ *  pinch carries on from the zoom there was when it began. */
+TEST (SphereProjection, APinchZoomsByHowFarTheFingersMoved)
+{
+  EXPECT_NEAR (zoomFromPinch (1.f, 100.f, 150.f), 1.5f, 1e-5f);
+  EXPECT_NEAR (zoomFromPinch (1.5f, 100.f, 50.f), 0.75f, 1e-5f);
+  EXPECT_NEAR (zoomFromPinch (1.2f, 0.f, 80.f), 1.2f, 1e-5f)
+      << "two fingers on the same pixel say nothing about distance";
+}
+
+/** The wheel zooms in steps that feel the same at every zoom: up is in. */
+TEST (SphereProjection, TheWheelZoomsInSteps)
+{
+  EXPECT_GT (zoomFromWheel (1.f, 0.1f), 1.f);
+  EXPECT_LT (zoomFromWheel (1.f, -0.1f), 1.f);
+  EXPECT_NEAR (zoomFromWheel (zoomFromWheel (1.f, 0.1f), -0.1f), 1.f, 1e-5f);
+}
+
+/** Never so far out the sphere is a dot, never so far in it is a wall. */
+TEST (SphereProjection, TheZoomHasLimits)
+{
+  EXPECT_FLOAT_EQ (zoomFromPinch (1.f, 10.f, 1000.f), maxCameraZoom);
+  EXPECT_FLOAT_EQ (zoomFromPinch (1.f, 1000.f, 10.f), minCameraZoom);
+  EXPECT_LT (minCameraZoom, 1.f);
+  EXPECT_GT (maxCameraZoom, 1.f);
+}

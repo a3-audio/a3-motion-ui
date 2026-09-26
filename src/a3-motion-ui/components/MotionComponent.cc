@@ -645,29 +645,47 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
   // another finger is already holding.
   auto const source = event.source.getIndex ();
 
-  // The little sphere in the corner is what turns the room. A thing you take
-  // hold of rather than a chord you have to remember: it used to be SHIFT and
-  // a finger anywhere on the big sphere, which asked the performer to know
-  // that the modifier existed and gave them nothing to aim at.
+  // In camera mode the whole sphere turns the room: selected by the elevation
+  // picture in the bar, which is in plain view while it is on. Two taps put
+  // the view back where it starts, the one you want back in a hurry.
   //
-  // Two taps on it put the view back overhead, which is the one view the
-  // device is designed around and the one you want back in a hurry.
-  auto const ball = cameraBall ();
-  if (!ball.isEmpty () && ball.contains (event.getPosition ()))
+  // A second finger turns the gesture into a pinch: the turning stops, and
+  // the distance between the two zooms the sphere in and out.
+  if (_cameraMode)
     {
-      auto const now = juce::Time::currentTimeMillis ();
-      constexpr int doubleTapMs = 400;
+      auto const at = event.getPosition ().toFloat ();
+      auto const alone = _cameraFingers.empty ();
+      _cameraFingers[source] = at;
 
-      if (_ballTapMs != 0 && now - _ballTapMs < doubleTapMs)
+      if (_cameraFingers.size () == 2)
         {
-          _ballTapMs = 0;
-          setCamera (defaultCamera ());
+          _cameraGrab.reset ();
+          _pinchDistanceAtStart = pinchDistance ();
+          _zoomAtPinch = _cameraZoom;
           return;
         }
 
-      _ballTapMs = now;
+      if (!alone)
+        return;
+
+      // Only a finger alone on the sphere counts towards two taps: the
+      // second finger of a pinch lands just as quickly.
+      auto const now = juce::Time::currentTimeMillis ();
+      constexpr int doubleTapMs = 400;
+
+      if (_cameraTapMs != 0 && now - _cameraTapMs < doubleTapMs)
+        {
+          _cameraTapMs = 0;
+          _cameraZoom = 1.f;
+          setCamera (defaultCamera ());
+          if (onCameraChanged)
+            onCameraChanged ();
+          return;
+        }
+
+      _cameraTapMs = now;
       _cameraGrab = source;
-      _cameraGrabbedAt = event.getPosition ().toFloat ();
+      _cameraGrabbedAt = at;
       _cameraAtGrab = getCamera ();
       return;
     }
@@ -746,9 +764,16 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
   // Exactly the channel this finger held, and no other. Clearing them all was
   // right while there could only be one grab; with several it handed every
   // other blob back to playback mid-drag.
-  if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
+  if (_cameraMode)
     {
-      _cameraGrab.reset ();
+      // A pinch that loses a finger does not turn back into a turn: the
+      // finger left is still wherever the pinch put it, and a view that
+      // jumped from there would be a surprise.
+      _cameraFingers.erase (event.source.getIndex ());
+      if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
+        _cameraGrab.reset ();
+      if (onCameraChanged)
+        onCameraChanged ();
       return;
     }
 
@@ -770,13 +795,34 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
 {
   auto const posPixel = event.getPosition ().toFloat ();
 
+  if (_cameraMode)
+    {
+      auto const finger = _cameraFingers.find (event.source.getIndex ());
+      if (finger != _cameraFingers.end ())
+        finger->second = posPixel;
+
+      if (_cameraFingers.size () == 2)
+        {
+          _cameraZoom = zoomFromPinch (_zoomAtPinch, _pinchDistanceAtStart,
+                                       pinchDistance ());
+          repaint ();
+          return;
+        }
+
+      // A finger that is not turning the view -- the one left over from a
+      // pinch -- does nothing. In camera mode no finger takes a blob.
+      if (_cameraGrab != std::optional<int>{ event.source.getIndex () })
+        return;
+    }
+
   if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
     {
       // Up and down leans the eye over the room, left and right walks it
       // round -- see cameraFromBallDrag(), which is where the feel of it is
-      // decided and where it can be tested.
+      // decided and where it can be tested. The sphere's own size is the
+      // scale: a sweep across it is a whole turn, its height a right angle.
       setCamera (cameraSettled (cameraFromBallDrag (
-          _cameraAtGrab, posPixel - _cameraGrabbedAt, cameraBall ())));
+          _cameraAtGrab, posPixel - _cameraGrabbedAt, getLocalBounds ())));
       return;
     }
 
@@ -1489,10 +1535,6 @@ MotionComponent::renderOpenGL ()
                 drawPlayingTrajectory (*pattern, displayData, gFBO);
             }
 
-          // Last, over everything: it is the one thing here that is a control
-          // rather than a reading, and a control drawn under a trajectory is
-          // one you cannot see to aim at.
-          drawCameraBall (gFBO);
         }
 
         // Composite the FBO over the shader output using native GL blitting.
@@ -1535,9 +1577,12 @@ MotionComponent::updateBoundsAndTransform ()
 
   auto shorterSideLength
       = juce::jmin (_boundsRender.getWidth (), _boundsRender.getHeight ());
+  // The camera's zoom on top of the skin's sphere size: camera mode's wheel
+  // and pinch make the sphere bigger or smaller, and everything drawn on it
+  // follows because everything is placed through this region.
+  auto const scale = _sphereScale * _cameraZoom;
   _boundsCenterRegion = _boundsRender.withSizeKeepingCentre (
-      shorterSideLength * _sphereScale,
-      shorterSideLength * _sphereScale);
+      shorterSideLength * scale, shorterSideLength * scale);
 
   _transformNormalizedToLocal = juce::AffineTransform ( //
       _boundsCenterRegion.getWidth () / 2.f, 0.f,
@@ -1559,6 +1604,65 @@ MotionComponent::renderBoundsChanged ()
       juce::Image::PixelFormat::ARGB,                        //
       _boundsRender.getWidth (), _boundsRender.getHeight (), //
       false, juce::OpenGLImageType ());
+}
+
+void
+MotionComponent::setCameraMode (bool on)
+{
+  _cameraMode = on;
+  _cameraTapMs = 0;
+  _cameraFingers.clear ();
+  if (!on)
+    _cameraGrab.reset ();
+}
+
+float
+MotionComponent::getCameraZoom () const
+{
+  return _cameraZoom;
+}
+
+void
+MotionComponent::setCameraZoom (float zoom)
+{
+  _cameraZoom = std::clamp (zoom, minCameraZoom, maxCameraZoom);
+  repaint ();
+}
+
+float
+MotionComponent::pinchDistance () const
+{
+  if (_cameraFingers.size () != 2)
+    return 0.f;
+
+  auto const first = _cameraFingers.begin ()->second;
+  auto const second = std::next (_cameraFingers.begin ())->second;
+  return first.getDistanceFrom (second);
+}
+
+void
+MotionComponent::mouseWheelMove (juce::MouseEvent const &,
+                                 juce::MouseWheelDetails const &wheel)
+{
+  if (!_cameraMode)
+    return;
+
+  _cameraZoom = zoomFromWheel (_cameraZoom, wheel.deltaY);
+  repaint ();
+  if (onCameraChanged)
+    onCameraChanged ();
+}
+
+void
+MotionComponent::mouseMagnify (juce::MouseEvent const &, float scaleFactor)
+{
+  if (!_cameraMode)
+    return;
+
+  _cameraZoom = zoomFromPinch (_cameraZoom, 1.f, scaleFactor);
+  repaint ();
+  if (onCameraChanged)
+    onCameraChanged ();
 }
 
 SphereCamera
@@ -1631,12 +1735,6 @@ MotionComponent::drawCircle (juce::Graphics &g)
   // annulus and only follow a walk, not a lean.
 
   g.setOpacity (1.f);
-}
-
-juce::Rectangle<int>
-MotionComponent::cameraBall () const
-{
-  return cameraBallBounds (getLocalBounds ());
 }
 
 /** The four bearings, written round the rim.
@@ -1742,104 +1840,6 @@ MotionComponent::drawListener (juce::Graphics &g)
   g.fillPath (figure);
   g.setColour (toColour (theme ().textPrimary, theme ().alphaMuted));
   g.strokePath (figure, juce::PathStrokeType (0.005f));
-}
-
-/** The little sphere in the corner: what turns the room, and what says which
- *  way it is turned.
- *
- *  Drawn as the room is drawn -- the same graticule seen from the same eye --
- *  because the thing it is standing for is the view, and a control that does
- *  not look like what it controls is a control you have to learn.
- */
-void
-MotionComponent::drawCameraBall (juce::Graphics &g)
-{
-  auto const ball = cameraBall ();
-  if (ball.isEmpty ())
-    return;
-
-  // Into the space the rest of this pass draws in. Straight through the
-  // transform, not through localToNormalized2DPosition -- that one hands back
-  // a position in the *room's* axes, and the room's x is the screen's y.
-  auto const intoDrawn = _transformNormalizedToLocal.inverted ();
-  auto const centre = ball.getCentre ().toFloat ().transformedBy (intoDrawn);
-  auto const edge
-      = juce::Point<float> (static_cast<float> (ball.getRight ()),
-                            static_cast<float> (ball.getCentreY ()))
-            .transformedBy (intoDrawn);
-
-  auto const r = std::abs (edge.x - centre.x) * 0.9f;
-  if (r <= 0.f)
-    return;
-
-  auto const camera = _sphereShader.getCamera ();
-  auto const held = _cameraGrab.has_value ();
-
-  // Where a point of the room lands in the ball.
-  auto const at = [&] (Pos const &in) {
-    auto const seen = asSeenFrom (in, camera);
-    auto const on = cartesian2DHOA2JUCE (seen);
-    return std::pair<juce::Point<float>, float>{
-      { centre.x + on.x * r, centre.y + on.y * r }, seen.z ()
-    };
-  };
-
-  auto const ink = [&] (float depth, float near, float far) {
-    return toColour (theme ().textPrimary, depth < 0.f ? far : near);
-  };
-
-  // The ball itself, so it reads as a thing with a front and a back rather
-  // than as a circle with a drawing in it.
-  g.setColour (toColour (theme ().background, theme ().alphaSecondary));
-  g.fillEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f);
-  g.setColour (toColour (theme ().textPrimary,
-                         held ? theme ().alphaInactive
-                              : theme ().alphaFillEmphasis));
-  g.drawEllipse (centre.x - r, centre.y - r, r * 2.f, r * 2.f, r * 0.045f);
-
-  // The room's own horizon, drawn round the ball: the one line that says how
-  // far it has been tipped. Split near from far, which is the convention every
-  // orientation gizmo uses -- an axis coming towards you is drawn solid and
-  // one going away from you is not.
-  {
-    juce::Point<float> previous;
-    float wasDepth = 0.f;
-
-    for (int step = 0; step <= 64; ++step)
-      {
-        auto const degrees = 360.f * static_cast<float> (step) / 64.f;
-        auto const [on, depth] = at (Pos::fromSpherical (degrees, 0.f, 1.f));
-
-        if (step > 0)
-          {
-            g.setColour (ink (juce::jmin (depth, wasDepth), 0.5f, 0.14f));
-            g.drawLine (previous.x, previous.y, on.x, on.y, r * 0.035f);
-          }
-
-        previous = on;
-        wasDepth = depth;
-      }
-  }
-
-  // And a listener in the middle of it, facing the front of the room.
-  //
-  // A person says both things at once and needs no key: which way the room is
-  // turned is which way they face, and how far it is tipped is how much of
-  // them you can see -- from straight down you are looking at the top of a
-  // head, from the horizon you are looking them in the eye. Axis balls with
-  // letters on them would say the same thing and have to be read.
-  {
-    auto figure = _cameraBallFigure.silhouette (camera, r * 1.15f);
-    figure.applyTransform (
-        juce::AffineTransform::translation (centre.x, centre.y));
-
-    g.setColour (toColour (theme ().textPrimary,
-                           held ? theme ().alphaActive
-                                : theme ().alphaSecondary));
-    g.fillPath (figure);
-    g.setColour (toColour (theme ().background, theme ().alphaTextStrong));
-    g.strokePath (figure, juce::PathStrokeType (r * 0.02f));
-  }
 }
 
 // ── Draw a juce::Path (from SVG displayPath) projected onto the sphere ──

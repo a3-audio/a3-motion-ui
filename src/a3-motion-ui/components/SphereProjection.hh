@@ -101,24 +101,13 @@ Pos asSeenFrom (Pos const &direction, SphereCamera const &camera);
  *  the room, or the blob does not come out under it. */
 Pos asSeenFromInverse (Pos const &viewed, SphereCamera const &camera);
 
-/** Where the little sphere sits: a square in the top right corner of the view.
+/** Where a drag leaves the eye -- on the big sphere in camera mode since
+ *  2026-09-26, on a little sphere in the corner before.
  *
- *  Top right because that is the one corner of the sphere's own picture with
- *  nothing in it -- the blobs live on the ring and the trajectories in the
- *  middle -- and because a thing you set once in a while belongs out of the
- *  way of the thing you are watching.
- *
- *  A sixth of the shorter side, never smaller than a fingertip: it is grabbed
- *  and turned, so it has to be big enough to grab. */
-juce::Rectangle<int> cameraBallBounds (juce::Rectangle<int> view);
-
-/** Where a drag on the little sphere leaves the eye.
- *
- *  Its own width is a whole turn and its own height a right angle, so the ball
- *  answers a finger the way a trackball does: one sweep across it and you have
- *  been all the way round the room. Dragging on the big sphere used to do this
- *  with a modifier held, which asked the performer to remember a chord for a
- *  thing they can now simply take hold of.
+ *  `ball`'s width is a whole turn and its height a right angle, so it answers
+ *  a finger the way a trackball does. The lean runs from straight above to
+ *  the horizon, one way over only: the sphere is never seen from below and
+ *  never stood on its head.
  *
  *  `moved` is how far the finger has come since it went down, in pixels. */
 SphereCamera cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
@@ -138,6 +127,19 @@ SphereCamera cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
  *  and the horizon the other, and both are easy to reach by running out of
  *  ball. */
 SphereCamera cameraSettled (SphereCamera camera);
+
+/** How far the sphere may be zoomed, as a factor on its size. */
+constexpr float minCameraZoom = 0.5f;
+constexpr float maxCameraZoom = 3.f;
+
+/** Where a two-finger pinch leaves the zoom: the zoom when it began, times
+ *  how far the fingers have moved apart since, held inside the limits. */
+float zoomFromPinch (float zoomAtStart, float distanceAtStart,
+                     float distanceNow);
+
+/** Where a turn of the wheel leaves the zoom: up is in, in steps that feel
+ *  the same at every zoom. Held inside the limits. */
+float zoomFromWheel (float zoom, float wheelDeltaY);
 
 /** A point of the way from one direction to another, walked *along* the
  *  sphere rather than straight across it.

@@ -40,7 +40,7 @@ TEST (OverlayStrips, WithNoListOpenThereAreNoStrips)
   EXPECT_FALSE (sideStripsHaveAList (false, false, false, false));
 }
 
-// The one this exists for. The MIX key is reachable whatever else is up, so
+// The one this exists for. MAINMIX is reachable whatever else is up, so
 // the mixer can stand over an open menu -- and it is then the overlay in
 // front. The strips are a fifth of the window each: the master column on the
 // right and the first channel on the left. Left up, they took every touch

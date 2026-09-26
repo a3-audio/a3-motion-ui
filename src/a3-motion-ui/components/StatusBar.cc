@@ -42,6 +42,8 @@ StatusBar::StatusBar (juce::Value &valueBPM)
 {
   addChildComponent (_tickIndicator);
   _tickIndicator.setVisible (true);
+  // The bar takes the touch on the beat display itself: it is the tap key.
+  _tickIndicator.setInterceptsMouseClicks (false, false);
   
 
   addChildComponent (_labelBPM);
@@ -49,8 +51,8 @@ StatusBar::StatusBar (juce::Value &valueBPM)
   _labelBPM.setJustificationType (juce::Justification::centredLeft);
   _labelBPM.setText ("BPM 60.0", juce::dontSendNotification);
 
-  // Right-aligned, so it grows leftwards into the gap rather than towards the
-  // keyboard icon a thumb is reaching for.
+  // Right-aligned against the beat display, so it grows leftwards into the
+  // gap beside the tempo.
   addChildComponent (_labelReadout);
   _labelReadout.setVisible (true);
   _labelReadout.setJustificationType (juce::Justification::centredRight);
@@ -176,33 +178,9 @@ StatusBar::resized ()
   bounds.removeFromTop (verticalPadding);
   bounds.removeFromBottom (verticalPadding);
 
-  // The keyboard toggle sits at the very edge, right of everything else, so
-  // it is reachable with a thumb without covering a reading. Half again as
-  // wide as it is tall: the face inside is inset on all four sides, and at a
-  // square it came out small enough to have to aim at.
-  _keyboardIconArea = bounds.removeFromRight (
-      static_cast<int> (bounds.getHeight () * 1.5f));
-
-  // Left of the keyboard icon and the same size, so the two read as a pair of
-  // keys at the end of the bar rather than as two unrelated marks. What it
-  // costs is width off the band the two labels share; the readout absorbs
-  // most of it, being right-aligned and growing leftwards into the gap, and
-  // it is the one thing here that can give width up — text that is read
-  // rather than a target that is hit.
-  _mixIconArea = bounds.removeFromRight (_keyboardIconArea.getWidth ());
-
-  // CLEAN left of MIX, a third key of the same size in the same row: asked
-  // for "oben in der statusleiste neben onscreen", and MIX already holds the
-  // place right beside the keyboard. Wider than the other two by a third,
-  // because it is the longer word and a squeezed word is read, not glanced.
-  _cleanIconArea = bounds.removeFromRight (
-      _keyboardIconArea.getWidth () * 4 / 3);
-
-  // Everything left on the bar comes out of one calculation with a test of
-  // its own, the way the clip settings bar and the controller page do it: the
-  // two readings, the nine meters and the beat display are placed against
-  // each other rather than each carving what it wants off the band, and
-  // paint() then draws into the rectangles the test checked.
+  // Everything on the bar comes out of one calculation with a test of its
+  // own, the keys at its ends included: paint() then draws into the
+  // rectangles the test checked.
   _layout = statusBarLayout (bounds, getWidth (),
                              juce::roundToInt (theme ().paddingSmall));
 
@@ -352,16 +330,6 @@ StatusBar::setKeyboardState (KeyboardState state)
 }
 
 void
-StatusBar::setMixOpen (bool open)
-{
-  if (_mixOpen == open)
-    return;
-
-  _mixOpen = open;
-  repaint (_mixIconArea);
-}
-
-void
 StatusBar::setCleanState (bool available, bool active)
 {
   if (_cleanAvailable == available && _cleanActive == active)
@@ -369,28 +337,78 @@ StatusBar::setCleanState (bool available, bool active)
 
   _cleanAvailable = available;
   _cleanActive = active;
-  repaint (_cleanIconArea);
+  repaint (_layout.cleanKey);
+}
+
+void
+StatusBar::setMenuOpen (bool open)
+{
+  if (_menuOpen == open)
+    return;
+
+  _menuOpen = open;
+  repaint (_layout.menuKey);
+}
+
+void
+StatusBar::mouseDown (juce::MouseEvent const &event)
+{
+  if (_layout.tick.contains (event.getPosition ()) && onTickTapped)
+    onTickTapped ();
 }
 
 void
 StatusBar::mouseUp (juce::MouseEvent const &event)
 {
-  if (_cleanIconArea.contains (event.getPosition ()))
+  auto const at = event.getPosition ();
+
+  if (_layout.cleanKey.contains (at))
     {
       if (_cleanAvailable && onCleanIconTapped)
         onCleanIconTapped ();
       return;
     }
 
-  if (_mixIconArea.contains (event.getPosition ()) && onMixIconTapped)
+  if (_layout.keyboardKey.contains (at))
     {
-      onMixIconTapped ();
+      if (onKeyboardIconTapped)
+        onKeyboardIconTapped ();
       return;
     }
 
-  if (_keyboardIconArea.contains (event.getPosition ())
-      && onKeyboardIconTapped)
-    onKeyboardIconTapped ();
+  if (_layout.menuKey.contains (at))
+    {
+      if (onMenuKeyTapped)
+        onMenuKeyTapped ();
+      return;
+    }
+
+  if (_layout.clockKey.contains (at) && onClockKeyTapped)
+    onClockKeyTapped ();
+}
+
+void
+StatusBar::paintKeyGround (juce::Graphics &g, juce::Rectangle<int> area,
+                           bool on) const
+{
+  // The bar's own key: a face and a hairline, as the strip's keys wear them,
+  // and the accent washed in while what it stands for is on. One ground for
+  // all four, so the row reads as keys rather than as words and a picture.
+  auto const face
+      = area.reduced (juce::roundToInt (theme ().paddingHair)).toFloat ();
+  g.setColour (on ? toColour (theme ().accent, theme ().alphaFillEmphasis)
+                  : toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (face, theme ().radiusControl);
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
+  g.drawRoundedRectangle (face, theme ().radiusControl, theme ().strokeThin);
+}
+
+juce::Colour
+StatusBar::keyInk (bool available, bool on) const
+{
+  return on          ? toColour (theme ().accent)
+         : available ? toColour (theme ().textMuted)
+                     : toColour (theme ().textMuted, theme ().alphaDisabled);
 }
 
 void
@@ -400,28 +418,21 @@ StatusBar::paintWordKey (juce::Graphics &g, juce::Rectangle<int> area,
   if (area.isEmpty ())
     return;
 
-  // The same rule the strip's function keys are drawn by: the colour says
-  // which key this is and the ground says what it is doing. Open, the accent
-  // is washed into a face behind the word the way MENU wears the menu it is
-  // inside of; closed, there is no face at all — this bar is not a card, and
-  // a resting box here would put a permanent frame on a strip that has none.
-  //
-  // Muted while closed rather than tinted, because the key beside it already
-  // says state that way: the keyboard icon is muted when it is merely
-  // available and accented when it is up, and two neighbouring keys reading
-  // by two rules is two rules to learn.
-  if (on)
-    {
-      g.setColour (toColour (theme ().accent, theme ().alphaFillEmphasis));
-      g.fillRoundedRectangle (area.toFloat (), theme ().radiusControl);
-    }
-
+  paintKeyGround (g, area, on);
   g.setFont (juce::Font (juce::FontOptions (headerFontSize ())));
-  g.setColour (on          ? toColour (theme ().accent)
-               : available ? toColour (theme ().textMuted)
-                           : toColour (theme ().textMuted,
-                                       theme ().alphaDisabled));
+  g.setColour (keyInk (available, on));
   g.drawFittedText (word, area, juce::Justification::centred, 1);
+}
+
+void
+StatusBar::paintKeyboardKey (juce::Graphics &g)
+{
+  // A word like its neighbours, not a drawn keyboard: CLEAN, KEYS and MENU
+  // are one row of the same kind of key (asked for on 2026-09-26). Two looks
+  // only, off and on: never the dimmed "nothing to type into" it wore as an
+  // icon, which read as a third state nobody had asked about.
+  paintWordKey (g, _layout.keyboardKey, "KEYS", true,
+                _keyboardState == KeyboardState::Shown);
 }
 
 void
@@ -432,38 +443,21 @@ StatusBar::paint (juce::Graphics &g)
   // skin. It is painted here instead, from the role that describes it.
   g.fillAll (toColour (theme ().surfaceRaised));
 
-  // Before the two keys and after the ground: they are clipped to their own
-  // blocks on a refresh, so what is drawn after them here costs nothing on
-  // the frames that are actually paid for.
+  // The clock's key in the clock's own colour: whose tempo this is has one
+  // answer, in one colour, wherever it is written -- the tempo beside it
+  // wears the same.
+  if (!_layout.clockKey.isEmpty ())
+    {
+      paintKeyGround (g, _layout.clockKey, false);
+      g.setFont (juce::Font (juce::FontOptions (headerFontSize ())));
+      g.setColour (Colours::clockMode (_clockMode));
+      g.drawFittedText (clockModeName (_clockMode), _layout.clockKey,
+                        juce::Justification::centred, 1);
+    }
 
-  paintWordKey (g, _cleanIconArea, "CLEAN", _cleanAvailable, _cleanActive);
-  paintWordKey (g, _mixIconArea, "MIX", true, _mixOpen);
-
-  // A keyboard, drawn rather than typed: three rows of keys and a space bar,
-  // small enough to read as an icon at this size.
-  auto const face = _keyboardIconArea.reduced (_keyboardIconArea.getWidth () / 5,
-                                               _keyboardIconArea.getHeight () / 3);
-  if (face.isEmpty ())
-    return;
-
-  g.setColour (_keyboardState == KeyboardState::Shown
-                   ? toColour (theme ().accent)
-               : _keyboardState == KeyboardState::Available
-                   ? toColour (theme ().textMuted)
-                   : toColour (theme ().textMuted, theme ().alphaDisabled));
-  g.drawRoundedRectangle (face.toFloat (), theme ().radiusTick,
-                          theme ().strokeThin);
-
-  auto const keyW = face.getWidth () / 5.f;
-  auto const keyH = face.getHeight () / 4.f;
-  for (int row = 0; row < 2; ++row)
-    for (int column = 0; column < 4; ++column)
-      g.fillRect (face.getX () + keyW * (column + 0.5f),
-                  face.getY () + keyH * (row + 0.6f), keyW * 0.6f,
-                  keyH * 0.6f);
-
-  g.fillRect (face.getX () + keyW * 1.f,
-              face.getY () + keyH * 2.7f, keyW * 3.f, keyH * 0.6f);
+  paintWordKey (g, _layout.cleanKey, "CLEAN", _cleanAvailable, _cleanActive);
+  paintKeyboardKey (g);
+  paintWordKey (g, _layout.menuKey, "MENU", true, _menuOpen);
 }
 
 void
@@ -546,6 +540,7 @@ StatusBar::setClockMode (int mode)
   juce::MessageManager::callAsync ([safeThis, mode] () {
     if (safeThis == nullptr) return;
     auto *self = safeThis.getComponent ();
+    self->repaint (self->_layout.clockKey);
     if (mode != 0)
       {
         self->refreshClockReadout ();

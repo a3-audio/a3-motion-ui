@@ -107,6 +107,23 @@ wireMixerChannelTouch (TouchControl &touch, MixerControl control,
   };
 }
 
+std::unique_ptr<PotKnob>
+makeChannelPotKnob (ChannelPot pot)
+{
+  auto knob = std::make_unique<PotKnob> ();
+  knob->setLabel (channelPotLabel (pot));
+  return knob;
+}
+
+void
+showChannelPot (PotKnob &knob, float set, float effective, juce::Colour colour)
+{
+  if (!knob.isMouseButtonDown ())
+    knob.setValue (std::clamp (set, 0.f, 1.f), juce::dontSendNotification);
+  knob.setReach (channelPotReach (set, effective));
+  knob.setKnobColour (colour);
+}
+
 void
 runMeterTimerWhileVisible (bool isVisible, juce::Timer &timer)
 {
@@ -202,6 +219,26 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
         _channelTouch[static_cast<std::size_t> (channel)]
                      [static_cast<std::size_t> (i)]
             = std::move (touch);
+      }
+
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    for (int i = 0; i < numChannelPots; ++i)
+      {
+        auto const pot = channelPotOrder[static_cast<std::size_t> (i)];
+        auto knob = makeChannelPotKnob (pot);
+        knob->onValueChange = [this, channel, pot, k = knob.get ()] {
+          if (onChannelPotChanged)
+            onChannelPotChanged (channel, pot,
+                                 static_cast<float> (k->getValue ()));
+        };
+        knob->onDoubleTapped = [this, channel, pot] {
+          if (onChannelPotDoubleTapped)
+            onChannelPotDoubleTapped (channel, pot);
+        };
+        addAndMakeVisible (*knob);
+        _channelPotKnob[static_cast<std::size_t> (channel)]
+                       [static_cast<std::size_t> (i)]
+            = std::move (knob);
       }
 
   // The meters first, so the faders are added after them and stand over
@@ -393,6 +430,13 @@ MixerComponent::resized ()
         touch->setVisible (_layout.fits);
       }
 
+  for (std::size_t c = 0; c < _channelPotKnob.size (); ++c)
+    for (std::size_t i = 0; i < static_cast<std::size_t> (numChannelPots); ++i)
+      {
+        _channelPotKnob[c][i]->setBounds (_layout.channelPots[c][i]);
+        _channelPotKnob[c][i]->setVisible (_layout.fits);
+      }
+
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     {
       auto const index = static_cast<std::size_t> (channel);
@@ -461,7 +505,7 @@ MixerComponent::paint (juce::Graphics &g)
     paintStrip (g, channel);
 
   paintMasterColumn (g);
-  paintFilterRow (g);
+  paintFilterMode (g);
   paintMeters (g);
 }
 
@@ -502,6 +546,16 @@ MixerComponent::syncControls ()
         turn (*knob, _state.channelValue (channel, mixerFaceOrder[i]),
               toColour (theme ().channel[channel]));
 
+  for (int channel = 0; channel < numChannelsInitial; ++channel)
+    {
+      auto const c = static_cast<std::size_t> (channel);
+      for (std::size_t i = 0; i < static_cast<std::size_t> (numChannelPots);
+           ++i)
+        showChannelPot (*_channelPotKnob[c][i], _channelPots[c].set[i],
+                        _channelPots[c].effective[i],
+                        toColour (theme ().channel[channel]));
+    }
+
   for (std::size_t i = 0; i < static_cast<std::size_t> (numMasterFaceControls);
        ++i)
     turn (*_masterKnob[i], _state.masterValue (masterFaceOrder[i]),
@@ -511,6 +565,20 @@ MixerComponent::syncControls ()
     if (auto &knob = _filterKnob[i])
       turn (*knob, _state.filterValue (filterControlOrder[i]),
             toColour (theme ().textPrimary));
+}
+
+void
+MixerComponent::setChannelPots (int channel, ChannelPotValues const &values)
+{
+  if (channel < 0 || channel >= numChannelsInitial)
+    return;
+
+  auto const c = static_cast<std::size_t> (channel);
+  _channelPots[c] = values;
+
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numChannelPots); ++i)
+    showChannelPot (*_channelPotKnob[c][i], values.set[i], values.effective[i],
+                    toColour (theme ().channel[channel]));
 }
 
 void
@@ -556,6 +624,9 @@ MixerComponent::paintStrip (juce::Graphics &g, int channel)
   auto ground = cells.front ();
   for (auto const &cell : cells)
     ground = ground.getUnion (cell);
+  for (auto const &cell :
+       _layout.channelPots[static_cast<std::size_t> (channel)])
+    ground = ground.getUnion (cell);
   ground = ground.getUnion (
       _layout.channelMeter[static_cast<std::size_t> (channel)]);
 
@@ -590,18 +661,20 @@ MixerComponent::paintMasterColumn (juce::Graphics &g)
   auto ground = _layout.master.front ();
   for (auto const &cell : _layout.master)
     ground = ground.getUnion (cell);
+  for (auto const &cell : _layout.filter)
+    ground = ground.getUnion (cell);
   ground = ground.getUnion (_layout.masterMeter);
   ground = ground.getUnion (_layout.outputMeterCaption);
 
   g.setColour (colour.withAlpha (stripWash));
   g.fillRoundedRectangle (ground.toFloat (), theme ().radiusCard);
 
-  // The five pots draw themselves (PotKnob); what is left here is the ground
-  // they stand on, above.
+  // The pots draw themselves (PotKnob), the filter's two among them; what is
+  // left here is the ground they stand on, above.
 }
 
 void
-MixerComponent::paintFilterRow (juce::Graphics &g)
+MixerComponent::paintFilterMode (juce::Graphics &g)
 {
   auto const colour = toColour (theme ().textPrimary);
 

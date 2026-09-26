@@ -173,25 +173,6 @@ slerpDirection (Pos const &from, Pos const &to, float t)
                              a * from.z () + b * to.z ());
 }
 
-juce::Rectangle<int>
-cameraBallBounds (juce::Rectangle<int> view)
-{
-  if (view.isEmpty ())
-    return {};
-
-  auto const side = juce::jmax (
-      fingertipSize,
-      juce::jmin (view.getWidth (), view.getHeight ()) / 6);
-
-  if (side > view.getWidth () || side > view.getHeight ())
-    return {};
-
-  auto const margin = juce::jmax (4, side / 4);
-
-  return juce::Rectangle<int> (view.getRight () - side - margin,
-                               view.getY () + margin, side, side);
-}
-
 SphereCamera
 cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
                     juce::Rectangle<int> ball)
@@ -201,20 +182,19 @@ cameraFromBallDrag (SphereCamera atGrab, juce::Point<float> moved,
 
   SphereCamera moving;
 
-  // Up and down lean the eye over the room, and the room follows the finger
-  // here too: dragged down, the near side of the ball rolls towards you and
-  // the eye comes up over the far side.
+  // Up and down lean the eye over the room: dragged up, it comes down from
+  // straight above towards the horizon -- the maintainer's way round, after
+  // trying it the other way on 2026-09-26.
   //
-  // And it keeps going: a ball has no stops in it. It used to hold at the
-  // horizon, on the grounds that past a right angle the eye is under the floor
-  // looking up at it -- but that is a view of the room, and a room you cannot
-  // look at from underneath is one whose floor you have to take on trust.
-  // Rolled far enough it comes back to where it started, the way rolling a
-  // ball does.
-  auto const pitch
-      = atGrab.pitch - moved.y / down * juce::MathConstants<float>::halfPi;
-
-  moving.pitch = std::remainder (pitch, juce::MathConstants<float>::twoPi);
+  // Between straight above and the horizon, and one way over only
+  // (2026-09-26). Past the horizon the sphere is seen from below, which
+  // nobody wants; leaning the other way from the zenith tipped the view over
+  // the top and stood the room on its head. The first limit kept the wrong
+  // side -- every speaker hung upside down -- so it is the positive lean.
+  // Walking round is left and right, so one way over is every view there is.
+  auto const halfPi = juce::MathConstants<float>::halfPi;
+  auto const pitch = atGrab.pitch - moved.y / down * halfPi;
+  moving.pitch = std::clamp (pitch, 0.f, halfPi);
 
   // And across walks it round, which has no end to stop at. Negated, so the
   // room follows the finger: a ball dragged to the right turns its front to
@@ -241,6 +221,28 @@ cameraSettled (SphereCamera camera)
     camera.turn = nearest;
 
   return camera;
+}
+
+float
+zoomFromPinch (float zoomAtStart, float distanceAtStart, float distanceNow)
+{
+  if (!(distanceAtStart > 0.f) || !(distanceNow > 0.f))
+    return std::clamp (zoomAtStart, minCameraZoom, maxCameraZoom);
+
+  return std::clamp (zoomAtStart * distanceNow / distanceAtStart,
+                     minCameraZoom, maxCameraZoom);
+}
+
+float
+zoomFromWheel (float zoom, float wheelDeltaY)
+{
+  // Exponential, so a notch in is undone by a notch out and a notch is the
+  // same share of the zoom wherever it stands. A notch of a mouse wheel is
+  // about 0.2 here, and at 0.5 per unit that is a tenth: 2.0 took the whole
+  // range in three notches on the rig.
+  constexpr float perUnit = 0.5f;
+  return std::clamp (zoom * std::exp (wheelDeltaY * perUnit), minCameraZoom,
+                     maxCameraZoom);
 }
 
 }

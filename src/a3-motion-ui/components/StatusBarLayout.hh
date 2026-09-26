@@ -58,8 +58,16 @@ struct StatusBarLayout
    *  read, and an off-centre one reads as a mistake. */
   juce::Rectangle<int> tick;
 
-  /** What was last turned, at the right end. */
+  /** What was last done, against the beat display's left edge. */
   juce::Rectangle<int> readout;
+
+  /** The clock mode's key, leading the row. */
+  juce::Rectangle<int> clockKey;
+  /** The three keys closing the row, one size: CLEAN, the on-screen
+   *  keyboard, MENU. */
+  juce::Rectangle<int> cleanKey;
+  juce::Rectangle<int> keyboardKey;
+  juce::Rectangle<int> menuKey;
 };
 
 /** The beat display's width, as a share of the row and of the whole bar.
@@ -71,14 +79,30 @@ struct StatusBarLayout
 constexpr float statusTickWidthOfRow = 2.f / 5.f;
 constexpr float statusTickWidthOfBar = 1.f / 2.f;
 
+/** The clock mode's short name, as its key says it: 0 = INT, 1 = EXT,
+ *  2 = PIO. */
+constexpr char const *
+clockModeName (int mode)
+{
+  switch (mode)
+    {
+    case 1: return "EXT";
+    case 2: return "PIO";
+    default: return "INT";
+    }
+}
+
+/** A key's width at either end of the bar, in row heights: room for a word
+ *  like CLEAN or MENU at the header size. */
+constexpr int statusKeyWidthOfHeight = 2;
+
 /** The beat display's height, as a share of the row. */
 constexpr float statusTickHeightOfRow = 3.f / 5.f;
 
 /** Where everything on the bar goes.
  *
- *  `row` is the band the bar lays out in -- padded top and bottom, with the
- *  MIX and keyboard icons already taken off its right end, so staying inside
- *  it is what keeps the meters clear of them. `barWidth` is the bar's full
+ *  `row` is the band the bar lays out in -- padded top and bottom, whole: the
+ *  keys at its ends are this function's to place. `barWidth` is the bar's full
  *  width, because the beat display is centred on the bar and not on the row.
  *  `padding` is the air the labels are held off the bar's ends by. */
 StatusBarLayout statusBarLayout (juce::Rectangle<int> row, int barWidth,

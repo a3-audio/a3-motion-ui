@@ -88,6 +88,25 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
       _touch[index] = std::move (touch);
     }
 
+  // The channel is read at the moment of the gesture, for the reason the
+  // keys above read it.
+  for (int i = 0; i < numChannelPots; ++i)
+    {
+      auto const pot = channelPotOrder[static_cast<std::size_t> (i)];
+      auto knob = makeChannelPotKnob (pot);
+      knob->onValueChange = [this, pot, k = knob.get ()] {
+        if (onChannelPotChanged)
+          onChannelPotChanged (_channel, pot,
+                               static_cast<float> (k->getValue ()));
+      };
+      knob->onDoubleTapped = [this, pot] {
+        if (onChannelPotDoubleTapped)
+          onChannelPotDoubleTapped (_channel, pot);
+      };
+      addAndMakeVisible (*knob);
+      _channelPotKnob[static_cast<std::size_t> (i)] = std::move (knob);
+    }
+
   // The meter first, the fader after it: the handle is the layer above, and
   // the meter paints itself, so its twenty five refreshes a second never
   // reach this page.
@@ -145,6 +164,18 @@ MixerStripComponent::getChannel () const
 }
 
 void
+MixerStripComponent::setChannelPots (int channel,
+                                     ChannelPotValues const &values)
+{
+  if (channel < 0 || channel >= numChannelsInitial)
+    return;
+
+  _channelPots[static_cast<std::size_t> (channel)] = values;
+  if (channel == _channel)
+    syncControls ();
+}
+
+void
 MixerStripComponent::applyTheme ()
 {
   _metrics = mixerControlMetrics ();
@@ -176,6 +207,12 @@ MixerStripComponent::resized ()
       _touch[i]->setVisible (_layout.fits);
     }
 
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numChannelPots); ++i)
+    {
+      _channelPotKnob[i]->setBounds (_layout.channelPots[0][i]);
+      _channelPotKnob[i]->setVisible (_layout.fits);
+    }
+
   _meterView->setBounds (_layout.channelMeter[0]);
   _meterView->setVisible (_layout.fits);
   _fader->setBounds (_layout.channelMeter[0]);
@@ -202,6 +239,11 @@ MixerStripComponent::syncControls ()
                           juce::dontSendNotification);
         knob->setKnobColour (colour);
       }
+
+  auto const &pots = _channelPots[static_cast<std::size_t> (_channel)];
+  for (std::size_t i = 0; i < static_cast<std::size_t> (numChannelPots); ++i)
+    showChannelPot (*_channelPotKnob[i], pots.set[i], pots.effective[i],
+                    colour);
 }
 
 void
@@ -212,7 +254,7 @@ MixerStripComponent::paint (juce::Graphics &g)
   // No ground of its own. The bar has already filled this area with its own
   // surface, and a second panel over it would make the page read as an
   // overlay laid on the bar rather than as one of its views -- which is the
-  // whole distinction between this and the MIX key in the status bar.
+  // whole distinction between this and MAINMIX beside it.
 
   if (!_layout.fits)
     {

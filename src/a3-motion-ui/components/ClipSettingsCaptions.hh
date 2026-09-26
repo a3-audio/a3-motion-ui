@@ -80,6 +80,8 @@ constexpr char const *swell = "swell";
  *  out of where the elevation graphic's line was left, towards the pole the
  *  sign points at, and back. What swell is to reach. */
 constexpr char const *sway = "sway";
+/** Where the middle of the trajectory sits -- the base, as a knob. */
+constexpr char const *elevation = "elv";
 /** The accent's rise and fall, played with ACT rather than set: how long it
  *  takes to come up while the pad is down, and to fall once it is let go. */
 constexpr char const *attack = "atk";
@@ -179,6 +181,7 @@ struct TextEntry
 constexpr TextEntry captionTable[] = {
   { caption::reach, 2 },       { caption::pole, 2 },
   { caption::clipTop, 2 },     { caption::clipBottom, 2 },
+  { caption::elevation, 2 },
   { caption::flat, 2 },        { caption::flatElevation, 2 },
   // Motion carries four since the fade joined it — the tightest columns in
   // the bar, and what pins the shared size for everything above.

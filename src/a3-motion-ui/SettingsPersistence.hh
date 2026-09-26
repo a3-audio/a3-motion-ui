@@ -27,6 +27,8 @@
 // For numSpeedButtons: how many speed keys the bar has is the bar's to say,
 // and what is on them is this file's.
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
+// For the camera's limits, which a stored view is held to.
+#include <a3-motion-ui/components/SphereProjection.hh>
 
 #include <array>
 
@@ -66,6 +68,14 @@ struct AppSettings
   /** The skin the status bar's CLEAN key goes back to -- see
    *  theme/CleanSkin.hh. Empty until the key has been used. */
   juce::String skinBeforeClean;
+
+  /** Where the sphere is looked at from and how close (2026-09-26): the lean
+   *  from straight above, the walk round, the zoom. Straight above and
+   *  unzoomed in every file written before, which is the view the device
+   *  always had. */
+  float cameraPitch = 0.f;
+  float cameraTurn = 0.f;
+  float cameraZoom = 1.f;
 };
 
 /** Returns defaults if the file doesn't exist or fails to parse as JSON. */

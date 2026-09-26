@@ -26,6 +26,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/components/MixerComponent.hh>
 #include <a3-motion-ui/components/MixerLayout.hh>
 #include <a3-motion-ui/components/MixerState.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
@@ -43,7 +44,7 @@ namespace a3
  *  The overlay is the whole mixer when you want it; this is the one-handed
  *  reach to the channel you are already looking at, without laying anything
  *  over the sphere. So it carries one strip and no summing section — those
- *  are one tap away on the status bar's MIX key.
+ *  are one tap away on MAINMIX, beside this page's own tab.
  *
  *  MixerComponent's smaller sibling, and deliberately built the same way: a
  *  pure layout (`layOutMixerStrip`) says where the seven controls sit,
@@ -96,6 +97,17 @@ public:
   /** A knob was turned: where it stands now. */
   std::function<void (int channel, MixerControl, float value)>
       onChannelValueChanged;
+  /** The shown channel's 3D, FREQ or Q, turned or tapped twice -- see
+   *  MixerComponent's own. */
+  std::function<void (int channel, ChannelPot, float value)>
+      onChannelPotChanged;
+  std::function<void (int channel, ChannelPot)> onChannelPotDoubleTapped;
+
+  /** Where the engine holds one channel's 3D, FREQ and Q. Kept for all four,
+   *  so a face tapped in the header shows the new channel's at once rather
+   *  than on the next push. */
+  void setChannelPots (int channel, ChannelPotValues const &values);
+
   /** Two taps on the meter: put this channel at full volume. */
   std::function<void (int channel)> onMeterDoubleTapped;
   /** A drag on the meter: VOL, where the finger has taken it. */
@@ -120,6 +132,10 @@ private:
   std::array<std::unique_ptr<TouchControl>, numMixerFaceControls> _touch;
   /** One per control that is turned; the two keys keep their hit areas. */
   std::array<std::unique_ptr<PotKnob>, numMixerFaceControls> _knob;
+  /** The second row: the shown channel's 3D, FREQ and Q. */
+  std::array<std::unique_ptr<PotKnob>, numChannelPots> _channelPotKnob;
+  std::array<ChannelPotValues, static_cast<std::size_t> (numChannelsInitial)>
+      _channelPots{};
   /** The meter, painting itself, and the fader standing over it. */
   std::unique_ptr<VuMeterView> _meterView;
   std::unique_ptr<VuFader> _fader;

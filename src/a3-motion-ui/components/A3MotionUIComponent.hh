@@ -574,9 +574,9 @@ private:
   std::unique_ptr<OverlayButtons> _overlayButtons;
   std::unique_ptr<OverlaySideStrips> _overlayStrips;
 
-  /** The software mixer, over the sphere, reached from the MIX key in the
-   *  status bar rather than from a tab in the settings bar: it has nothing to
-   *  do with the clip that bar describes. */
+  /** The software mixer, over the sphere, reached from MAINMIX in the bar's
+   *  header row (the status bar's MIX key until 2026-09-26). Not a page: the
+   *  bar stays on the page it was on while the mixer lies over the sphere. */
   std::unique_ptr<MixerComponent> _mixer;
   /** The same strip for one channel, as the settings bar's MIX page. The
    *  overlay above is the whole mixer when you want it; this is the reach to
@@ -599,7 +599,9 @@ private:
    *  the sphere its glow and the speaker lights their light. */
   VuLevels _vuLevels;
   bool _mixerOpen = false;
-  void toggleMixer ();
+  /** Camera mode: the elevation picture is selected and the sphere turns the
+   *  view. */
+  bool _cameraMode = false;
   /** Open or close it and tell everything that shows the state -- the key in
    *  the status bar and the overlay's own buttons. One place, because Back,
    *  Close and the key itself all reach it. */
@@ -836,8 +838,6 @@ private:
    *  values lives here. */
   BarPage _barPage = BarPage::Clip;
 
-  bool _screenShiftHeld = false;
-
   // Clip Settings: permanent bottom panel showing the last-selected clip's
   // settings. Selected by a slot's Settings button; the Motion-
   // Encoder (upper, per channel) scrolls its 4 menu items, the Pot-Encoder
@@ -863,9 +863,21 @@ private:
   void selectClipSettingsSection (int index);
   void selectClipSettingsSubElement (int index);
 
-  /** One channel's freq/Q/3d, from the global section's grid. Named by
+  /** One channel's 3D, FREQ or Q, stepped -- the panel's encoders. Named by
    *  channel, not by what the bar is showing. */
-  void handleChannelValueChange (index_t channel, int row, int increment);
+  void handleChannelValueChange (index_t channel, ChannelPot pot,
+                                 int increment);
+  /** The clock key: INT, EXT, PIO and round again. */
+  void stepClockMode ();
+  float channelPotValue (index_t channel, ChannelPot pot);
+
+  /** One channel's 3D, FREQ or Q, set outright -- where a mixer page's knob
+   *  was turned to. The engine holds these, not MixerState. */
+  void setChannelPotValue (index_t channel, ChannelPot pot, float value);
+
+  /** Two taps on a mixer page's 3D, FREQ or Q: the grid's reset rule, see
+   *  ChannelValueReset.hh. */
+  void resetChannelPot (index_t channel, ChannelPot pot);
 
   /** Arm and start a take on this slot. Reached from the hardware (Record
    *  held while a Play|Pause pad is pressed) and from the bar's Rec button,

@@ -288,13 +288,14 @@ generator and the test runner:
   else here moves. The hardware pot and the grid keep meaning what
   they always meant; what they mean *is* now the bottom of the swing. `MotionEngine::advanceAccents()`
   runs it on the tempo-clock thread beside playback, and `getChannelPot3Effective()` is what both the
-  OSC sender and the grid read, so the knob on screen moves with the accent instead of leaving you to
-  take it on trust.
+  OSC sender and the mixer pages' 3D knobs read, so the knob on screen moves with the accent instead
+  of leaving you to take it on trust.
 
-  The grid draws it where you can watch it: the 3d knob's **pointer stays on the set value** and the
+  The knob draws it where you can watch it: the 3d knob's **pointer stays on the set value** and the
   arc from there to the effective value is filled in the notice colour, so the knob shows the floor
-  and the movement at once. That is why `setChannelValues()` takes 3d twice — a knob whose pointer
-  moved with the modulation would have nothing left to say where the hand had put it.
+  and the movement at once. That is why `ChannelPotValues` carries the setting and the effective
+  value side by side — a knob whose pointer moved with the modulation would have nothing left to
+  say where the hand had put it.
 
   **When the decay runs out the clip does what its end action says** (`applyEndActionAfterAccent`),
   and only on that edge, once. Stop and Pause end the pass; Loop, Bounce and Random mean "keep
@@ -320,11 +321,12 @@ generator and the test runner:
   every row of that section is a standing value next to the movement that works on it, the way `rot`
   stands next to `spin` and each squeeze stands next to its own `str`. Motion is five such rows and
   nothing else — `rot|spin`, `reach|swell`, `sqzX|strX`, `sqzY|strY`, `fade|bias` — numbered in
-  reading order, which is the first time its sub-indices and its layout have agreed.
+  reading order, which is the first time its sub-indices and its layout have agreed. (Since
+  2026-09-26 `fade|bias` stand on the REC page, still as Motion's 8 and 9.)
 
-  `sway`, which does the same to the elevation base, sits in **Elevation**
-  under the graphic whose line it travels, for the same reason: a sweep says what it does only when
-  it stands next to what it does it to.
+  `sway`, which does the same to the elevation base, sits in **Elevation** beside `elv`, the base
+  itself, for the same reason: a sweep says what it does only when it stands next to what it does
+  it to.
 
 ### UI (`src/a3-motion-ui`)
 
@@ -365,9 +367,10 @@ adjusts the selected one, pushing it switches which; see the protocol comment at
 encoder turns Q outright now and never produces those values any more. `getGlobalPot()` is virtual
 on the base class and returns a value that never changes where the hardware has no pots.
 
-Note also that `handleChannelValueChange` takes a **grid row**, not a pot number: the rows read
-3d, freq, Q from the top (`channelRow*`), so passing a literal 0 for "freq" reaches 3d. That is
-exactly what went wrong when the rows were reordered.
+Note also that `handleChannelValueChange` takes a `ChannelPot`, not a pot number. It took a grid
+row until 2026-09-26, and the rows read 3d, freq, Q from the top, so a literal 0 meant for "freq"
+reached 3d — exactly what went wrong when the rows were reordered. The engine's numbering (pot 1
+freq, pot 2 Q, pot 3 3d) is translated in one place, `channelPotValue` / `setChannelPotValue`.
 
 They used to scroll the bar's sections, change the selected row's value, and — on channel 3 —
 navigate the settings menu, the skin editor and the colour picker. **All of that is touch now.**
@@ -453,14 +456,12 @@ Two things are not obvious:
   Reading a `juce::String` on one thread while another replaces it is a race,
   refcount and all.
 
-The bar's **global section** takes its right half and holds three things: a 4x3 grid of
-per-channel values (columns = channels in their own colours, rows = freq, Q, 3d), the rec mode, and
-the action buttons. A **Filter section** used to sit among the clip's sections showing freq and Q —
-but those were never the clip's: `handleClipSettingsValueChange` wrote them through
-`setChannelPot1/2`, the same per-channel values the hardware drives. Dissolving that section moved
-them where they belong, and nothing was lost. The grid's cells are dragged through
-`onChannelValueDragged` and name their own channel, unlike everything else in the bar, which is
-about the clip on show.
+The bar's **global section** takes its right quarter and holds three things: the elevation picture,
+the four channel faces and the transport two by two. A **Filter section** used to sit among
+the clip's sections showing freq and Q — but those were never the clip's: they are the same
+per-channel values the hardware drives. They moved into a 4x3 grid in the global section, and on
+2026-09-26 out of the bar altogether, into the mixer strips (3D, FREQ, Q under SEND; see the mixer
+paragraphs below).
 
 **How tall the bar is** comes from `clipSettingsPreferredHeight` — what the tallest section's
 contents need at the current fonts and pot size — times the skin's `clipSettingsHeightScale`
@@ -518,9 +519,24 @@ as a mistake; one that lines up exactly reads as structure.
 **The sphere can be looked at from somewhere else.** `SphereCamera` is two angles — how far the eye
 has come down from straight above, and how far round it has walked — and **both being zero is the
 view the device has always had**, short-circuited to the identity so a device nobody has tilted
-computes exactly what it computed before, to the bit. **SHIFT with a finger on the sphere** moves it:
-a modifier rather than two sliders beside the picture, because sliders would stand there taking room
-and asking to be read at every glance, where the view is set once in a while and then left.
+computes exactly what it computed before, to the bit. **Camera mode** moves it (2026-09-26): a touch
+on the elevation picture at the top of the bar's global strip selects it — its grey field lights —
+and while it is on a finger on the sphere turns the view instead of taking a blob
+(`MotionComponent::setCameraMode`), and two taps put the view back where it starts. It was SHIFT
+with a finger on the sphere once, then a little sphere in the view's corner; a mode shown by a lit
+picture in plain view replaced both. **The lean runs from straight above to the horizon, one way
+over only** (`cameraFromBallDrag` clamps it to `[0, π/2]`, dragging up leans): past the horizon
+the sphere is seen from below, and the other side of the zenith stood every speaker on its head —
+which is what the first limit, `[-π/2, 0]`, kept by mistake. Walking round is left and right, so
+one way over is every view there is. **Zoom** is camera mode's too: the wheel (`zoomFromWheel`, a
+tenth a notch), a trackpad's magnify and a two-finger pinch on the sphere (`zoomFromPinch`) scale
+the sphere between `minCameraZoom` and `maxCameraZoom`; it is a factor on the skin's sphere size in
+`updateBoundsAndTransform`, so everything placed through that region follows. A second finger
+turns a turn into a pinch; only a finger alone on the sphere counts towards the double tap, which
+puts view and zoom back. A small camera in the picture's top right corner (`elevationCameraMark`)
+says what touching the picture selects. **The view survives a restart**: lean, walk and zoom are
+device settings (`AppSettings::camera*`), saved whenever a camera gesture settles
+(`MotionComponent::onCameraChanged`) and held to the same limits when read back.
 
 Everything that projects goes through `MotionComponent::projectToScreen()` and everything that reads
 a finger goes through `pixelToDirection()`. There were seven hand-written projections, and a camera
@@ -869,13 +885,15 @@ grey and reads as a button stuck half-pressed. What they do carry is the value's
 `recModeColour` and `Colours::clockMode`. REC and TAP still light, because what they show is
 momentary and has no label of its own.
 
-**The elevation graphic draws the sway.** The chord a finger sets stays where it was put and the
-stretch between it and where the sweep is holding it now is filled in `notice`, with a thin chord of
-its own at the far edge — the same thing the knobs' blue arcs say, in the same colour, because it is
-the same question. Filled rather than drawn as a second line: what a sway does is cover a stretch of
-elevation, and a stretch reads as an area. Both are clamped into the band the clips leave, or the
-fill would promise elevation the sound never reaches. `setElevationBase()` takes the pair the way
-`setElevationReach()` does, and a `swept` below zero means "standing still, draw the line alone".
+**The elevation graphic is a picture, and `elv` is the base** (2026-09-26). The base — where the
+middle of the trajectory sits — used to be set by a finger on the circle, with the sway drawn as a
+blue band beside it. Both went: the circle takes no touch and draws the base line alone, and the
+base is Elevation's fourth knob, `elv`, left of `sway` (sub-index 3, so the other three kept
+theirs). The knob turns the way a level does, clockwise higher, while the base counts from the top
+(0 north), so it shows `knobForElevationBase(base)`; `elevationBaseForKnob` goes back, snapped to
+ear height as the finger was and clamped into the band the clips leave. The sway is the blue arc on
+`elv`, as every swept knob wears it: `setElevationBase()` still takes the setting and the swept
+value, and a `swept` below zero means "standing still".
 
 **No section wears the selection.** The selected card used to be filled with the channel's colour —
 a coloured field a third of the bar wide, laid over the controls you are reading, that moved every
@@ -901,34 +919,37 @@ entry tapped.
 
 Every section's buttons sit on the bar's bottom edge — Shape's `len`, Elevation's `flat` and
 `pole`, Motion's `dir` and `end` — so the bar reads as one row of buttons across its floor rather
-than three sections each arranging their own. TAP lights up for **a finger only**; it used to flash
-on every beat too, which put a blinking light on a bar meant to be read.
+than three sections each arranging their own.
 
-The global section is laid out top to bottom: the per-channel grid (rows read **3d, freq, Q** — see
-`channelRow*`), centred as one block with its row captions, then **four buttons two by two** — rec mode, menu / rec, tap. The rec mode is a
-button like the others now and steps through the modes on a tap, which is what its encoder used to
-do; it reads as active whenever it is not Touch. Rows and columns of the grid are capped to what a
-knob needs rather than sharing out the section's whole width and height, so the twelve knobs sit
-together instead of scattered across half the bar.
+The global section is laid out top to bottom (2026-09-26): the **elevation picture** — moved out of
+the Elevation card into a grey field of its own (`elevationFrame`), never more than nine twentieths
+of the strip's height, so it stands on every page, and touched it switches camera mode (below) —
+then the **four channel faces** in a frame of their own, moved up out of
+the clip's header row, then the **transport two by two** down to the
+strip's foot, arranged like a clip's pads on PADS — play and stop over act and rec, rec taking the
+corner the pads give to Settings. The 4x3 grid and the six function keys that stood there are gone.
+The ACTION page used to line its rows up with the grid's (`setGridReference`); with the grid gone it
+lays out freely, and `layOutActionPage` is handed an empty reference.
 
-The buttons carry three device-wide functions — **MENU**, **REC**, **TAP** — beside its rec-mode display. They are the
-finger's way to what the hardware has keys for, and they are not sub-elements of
-the section: no encoder reaches them, so they sit beside `controls` in
-`ClipSettingsLayout` rather than in it, and `numControlsInSection(4)` stays 1.
-The strip is a full section wide for them; it used to be half a section, and a
-finger needs a target the size of a finger.
+The header row reads **CLIP ACTION FILES CHMIX MAINMIX REC PADS**. CHMIX is the shown channel's
+strip (the MIX tab before). MAINMIX shows the big mixer over the sphere and is the lit tab while it
+is up; a second tap leaves it up, any other tab takes it away (`pageTabIsLit`). It stood in the
+status bar as a MIX toggle until then.
 
-Two of the three are not quite the key they stand for:
+**REC** (`BarPage::Record`) is the take about to be made: Shape as CLIP shows it, beside one card
+across the other two columns (`recordCard`) with the rec mode's key on top and **fade and bias**
+under it. Fade and bias came out of Motion, which keeps eight knobs in four rows, but they keep
+Motion's sub-indices 8 and 9 — the encoders, the take and `numControlsInSection` see no change;
+only where they are drawn moved. `controlIsOnPage` says which control stands on which page, and
+`ClipSettingsComponent::showControlsOfPage` hides the rest; `cardOfControl` names the card a
+control is drawn in. The rec mode's key is still the global section's one sub-element.
 
-- **REC** starts a take on the clip the bar is showing and ends a running one
-  (`toggleRecordingOnShownClip`). The hardware key cannot do that: there it is a
-  *modifier*, held while a slot's Play|Pause pad names the slot — and a finger
-  cannot hold it while pressing a pad that only exists in hardware. The bar
-  already says which slot it describes, so that is the slot it uses.
-- **TAP** has to bring its own timestamp. The hardware's tap arrives with one
-  from the adapter (`getTapTimeMicros`); `handleScreenTap()` reads the clock
-  itself and hands it to the shared `handleTapAt()`, or the tempo estimator
-  would never see a screen tap at all.
+Where the other five keys went: **CLOCK** leads the status bar, left of the tempo; **MENU** closes
+it, beside CLEAN and KEYS (the on-screen keyboard), the three alike words (`StatusBarLayout`); **TAP** is a touch on the
+beat display, taken on the finger's way down — the screen tap brings its own timestamp through
+`handleScreenTap()`, since only the hardware's tap arrives with one. **REC** and **SHIFT** left the
+screen: the transport's rec key records, and the Shift gestures need the panel now. Their state
+stays in `functionKeyLook()`, because the panel's LEDs still show it.
 
 MENU is exactly the key (`toggleGlobalSettings`), closing one level at a time.
 
@@ -1078,11 +1099,10 @@ the clock thread's envelopes — the bar and this page both ask it several times
 alone was right on the panel, where the clip settings are always on screen, and did nothing visible
 from the pads page, which covers them.
 
-**The strip's six buttons are the panel's six function keys.** Not "like them" — the same list.
-`io/FunctionKeys.hh` holds `functionKeyOrder` (`TAP, clock, REC, recmode, MENU, SHIFT`), and both
-sides read it: the panel is wired from it row by row, the strip is laid out from it as two columns
-of three filled top-left to bottom-right. A hand that has learned one has learned the other, and two
-tables would eventually disagree.
+**The panel's six function keys** are listed once: `io/FunctionKeys.hh` holds `functionKeyOrder`
+(`TAP, clock, REC, recmode, MENU, SHIFT`), and the panel is wired from it row by row. The screen
+carried the same six as two columns of three in the global strip until 2026-09-26; they are spread
+over the status bar and the REC page now (see above).
 
 On the panel those keys are a **vertical column of six at each end** (col0 and col9, rows 0–5),
 mirrored so either hand reaches them. The two columns are one set of keys, not twelve: a key is down
@@ -1142,7 +1162,7 @@ it is comes from the clock key, on the screen and under the hand; a third place 
 place to keep in step. That readout also had three writers, one of which set the text without the
 colour, so what you got depended on which arrived last. One writer now.
 
-**The CLEAN key** (left of MIX) switches to the skin `config/skins/clean.json` and back to the one it
+**The CLEAN key** (left of the keyboard icon) switches to the skin `config/skins/clean.json` and back to the one it
 left — trajectories as a thin line, plain blobs, a faint glow in the speakers, every other effect at
 0. A skin rather than a layer of switches over the skins, because a skin can already turn each of
 those down to nothing; what the key adds is only the way back (`theme/CleanSkin.hh`,
@@ -1163,7 +1183,7 @@ until then), on the baffle — and from overhead the baffle is edge-on, so it wa
 The corona that says which blob is playing is the existing one, `blob.sizeMin..sizeMax` over the
 level; clean raises `sizeMax` so a loud blob's reaches past its body and a silent one's does not.
 
-**A channel's VU meter is its VOL**, on both MIX pages (the overlay's four strips and the bar's MIX
+**A channel's VU meter is its VOL**, on both mixer pages (the overlay's four strips and the bar's CHMIX
 tab), and the VOL knob is gone from both: `mixerFaceOrder` lists what a page lays out, while
 `mixerControlOrder` still counts the state and the OSC wire, which carry VOL as before. A drag on
 the meter is relative and one to one (`vuMeterDragVolume()`): it starts from where VOL stood when
@@ -1186,6 +1206,19 @@ quarter themselves (`VuDirection::Right`) so they swing left to right, stacked w
 at the bottom where it stands in the room. The MST knob is gone. **No double tap there**: full volume on the master is
 the one gesture that makes the whole room loud at once. The meters get a column rather than a row
 because there will be more of them than five.
+
+**The filter stands in the master's column, and each channel carries its 3D, FREQ and Q**
+(2026-09-26). The row across the overlay's foot is gone: FX FREQ and FX RES stand under RET, FX
+MODE on the channels' key line (`filterPotsInOut`, `rowForMasterPot`). The height went to the
+channels, which gained three rows under SEND for the engine's channel pots (`ChannelPot`,
+`channelPotOrder`, `rowForChannelPot`); the bar's CHMIX tab carries the same three as a second row
+under GAIN, HIGH and MID, and its keys shrank to a third of the height. These are the engine's
+values, not `MixerState`'s -- they reach Core through the spat backend, not the desk's wire -- so
+both pages are handed them (`setChannelPots`, from `refreshChannelValues`) with the envelope's
+effective value beside the setting, and draw the envelope as the arc above the setting
+(`channelPotReach`), the way the bar's 4x3 grid did. A knob is set outright
+(`setChannelPotValue`); two taps follow the grid's rule, including "not while a panel answers"
+(`resetChannelPot`, `channelPotRestPosition`).
 
 The overlay meter takes two fifths of its strip (`meterWidthOfStrip`), not the half asked for: the
 strip ends in PFL and FX side by side, and at half a key came out at 32 px on the device, under a

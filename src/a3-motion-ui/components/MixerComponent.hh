@@ -52,6 +52,27 @@ void paintMixerChannelControl (juce::Graphics &g, juce::Rectangle<int> bounds,
                                ControlMetrics metrics, juce::Colour colour,
                                MixerControl control, float value, bool isOn);
 
+/** A channel's 3D, FREQ and Q as the engine holds them, in channelPotOrder:
+ *  where the hand set each, and where its envelope carries it right now.
+ *  Pushed into both mixer pages, because the engine owns these values and
+ *  MixerState does not. */
+struct ChannelPotValues
+{
+  std::array<float, numChannelPots> set{};
+  std::array<float, numChannelPots> effective{};
+};
+
+/** One of a channel's 3D, FREQ and Q knobs, as both mixer pages build it.
+ *  No double-tap return value of its own: whether the screen may put one of
+ *  these back depends on the panel being on the wire, which only the caller
+ *  knows -- it answers through PotKnob::onDoubleTapped. */
+std::unique_ptr<PotKnob> makeChannelPotKnob (ChannelPot pot);
+
+/** Put a channel pot's knob where the engine says, with its envelope drawn
+ *  as the arc above it (channelPotReach). Not while a finger is on it. */
+void showChannelPot (PotKnob &knob, float set, float effective,
+                     juce::Colour colour);
+
 /** The metrics both mixer pages lay themselves out with.
  *
  *  The knob's diameter is the skin's pot size and the layout's floor for a row
@@ -173,6 +194,15 @@ public:
   std::function<void (int channel, MixerControl, float value)>
       onChannelValueChanged;
   std::function<void (MasterControl, float value)> onMasterValueChanged;
+
+  /** A channel's 3D, FREQ or Q was turned: where it stands now. */
+  std::function<void (int channel, ChannelPot, float value)>
+      onChannelPotChanged;
+  /** Two taps on a channel's 3D, FREQ or Q: put it back, if the screen may. */
+  std::function<void (int channel, ChannelPot)> onChannelPotDoubleTapped;
+
+  /** Where the engine holds one channel's 3D, FREQ and Q. */
+  void setChannelPots (int channel, ChannelPotValues const &values);
   std::function<void (FilterControl, float value)> onFilterValueChanged;
 
   /** A drag on the output meters: the master volume, where the finger has
@@ -214,8 +244,9 @@ private:
   void paintMeters (juce::Graphics &g);
   /** The fifth column, drawn as a strip like the four beside it. */
   void paintMasterColumn (juce::Graphics &g);
-  /** The row across the foot, which belongs to neither. */
-  void paintFilterRow (juce::Graphics &g);
+  /** The filter's mode key, on the keys' line of the master column. FX FREQ
+   *  and FX RES above it are knobs and draw themselves. */
+  void paintFilterMode (juce::Graphics &g);
   MixerState &_state;
   VuLevels const &_levels;
   MixerLayout _layout;
@@ -240,6 +271,13 @@ private:
   std::array<std::array<std::unique_ptr<PotKnob>, numMixerFaceControls>,
              static_cast<std::size_t> (numChannelsInitial)>
       _channelKnob;
+  /** Each channel's 3D, FREQ and Q, under SEND, and what the engine last
+   *  said they are. */
+  std::array<std::array<std::unique_ptr<PotKnob>, numChannelPots>,
+             static_cast<std::size_t> (numChannelsInitial)>
+      _channelPotKnob;
+  std::array<ChannelPotValues, static_cast<std::size_t> (numChannelsInitial)>
+      _channelPots{};
   std::array<std::unique_ptr<PotKnob>, numMasterFaceControls> _masterKnob;
   std::array<std::unique_ptr<PotKnob>, numFilterControls> _filterKnob;
 

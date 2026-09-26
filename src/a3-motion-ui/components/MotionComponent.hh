@@ -56,13 +56,30 @@ class MotionComponent : public juce::Component,
                         public juce::Timer
 {
 public:
-  /** Where the room is being looked at from. The overhead view is the
-   *  default, and the little sphere in the corner is what moves it -- see
-   *  cameraBallBounds(). It used to be SHIFT with a finger anywhere on the
-   *  big sphere, which asked the performer to know that a modifier existed
-   *  and gave them nothing to aim at. */
+  /** Where the room is being looked at from. */
   SphereCamera getCamera () const;
   void setCamera (SphereCamera const &camera);
+
+  /** While on, a finger on the sphere turns the camera instead of taking a
+   *  blob, and two taps put the view back where it starts. Switched by
+   *  selecting the elevation picture in the bar's global strip (2026-09-26);
+   *  the little sphere in the corner that did this before is gone. A mode
+   *  rather than a modifier held down, because the picture that says it is
+   *  on is in plain view. */
+  void setCameraMode (bool on);
+
+  /** How far the sphere is zoomed, as a factor on its size. */
+  float getCameraZoom () const;
+  void setCameraZoom (float zoom);
+
+  /** A camera gesture has settled -- a turn let go, a wheel notch, a pinch
+   *  lifted, a reset -- and the view is worth keeping. Not on every frame of
+   *  a drag. */
+  std::function<void ()> onCameraChanged;
+
+  void mouseWheelMove (juce::MouseEvent const &event,
+                       juce::MouseWheelDetails const &wheel) override;
+  void mouseMagnify (juce::MouseEvent const &event, float scaleFactor) override;
 
   /** Called on the message thread right after config.json was re-read and
    *  the global userConfig replaced. The watcher lives here, but things
@@ -167,16 +184,27 @@ private:
 
   /** The finger that is moving the eye, and where it was last seen. Its own
    *  grab, not one of `_grabs`: it is holding the view, not a blob. */
-  /** Where the little sphere is, in the component's own pixels. */
-  juce::Rectangle<int> cameraBall () const;
-  void drawCameraBall (juce::Graphics &g);
   void drawBearings (juce::Graphics &g);
   void drawListener (juce::Graphics &g);
 
   std::optional<int> _cameraGrab;
   /** For the double tap that puts the view back overhead. A finger is not a
    *  mouse: the second tap lands a few pixels from the first. */
-  juce::int64 _ballTapMs = 0;
+  juce::int64 _cameraTapMs = 0;
+  bool _cameraMode = false;
+
+  /** How far the sphere is zoomed, as a factor on its size -- set in camera
+   *  mode by the wheel or a two-finger pinch, and read by the render thread
+   *  every frame (updateBoundsAndTransform). */
+  std::atomic<float> _cameraZoom{ 1.f };
+  /** The fingers on the sphere in camera mode, and where each was last seen.
+   *  One turns the view; two pinch the zoom. */
+  std::map<int, juce::Point<float> > _cameraFingers;
+  float _pinchDistanceAtStart = 0.f;
+  float _zoomAtPinch = 1.f;
+
+  /** The distance between the two fingers in _cameraFingers. */
+  float pinchDistance () const;
   juce::Point<float> _cameraGrabbedAt;
   SphereCamera _cameraAtGrab;
   Pos localToNormalized2DPosition (juce::Point<float> const &posLocal) const;
@@ -358,10 +386,9 @@ private:
    *  because the map was never what it was standing on. */
   juce::OpenGLFrameBuffer _superBuffer;
 
-  /** The listener in the middle of the sphere and in the camera ball, each
-   *  worked out once per view rather than every frame. See ListenerFigure. */
+  /** The listener in the middle of the sphere, worked out once per view
+   *  rather than every frame. See ListenerFigure. */
   ListenerFigure _listenerFigure;
-  ListenerFigure _cameraBallFigure;
 
   /** The underlay as last drawn, and what it was drawn from. */
   juce::Image _underlayImage;

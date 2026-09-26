@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <optional>
 
@@ -146,7 +147,7 @@ fillsFromTheMiddle (MixerControl control)
  *
  *  Nothing for the undecided case rather than a plausible 0.5: a control that
  *  fell through to a number would look decided without being it. Same rule as
- *  channelValueRestPosition, and for the same reason.
+ *  channelPotRestPosition, and for the same reason.
  */
 constexpr std::optional<float>
 mixerControlRestPosition (MixerControl control)
@@ -311,8 +312,63 @@ masterControlLabel (MasterControl control)
   return "";
 }
 
+/** A channel's three values that are not the mixer's: 3D, FREQ and Q -- the
+ *  engine's channel pots, which the bar's 4x3 grid used to carry and which
+ *  now stand in each mixer strip under SEND (2026-09-26).
+ *
+ *  Not MixerControls: those are the desk's state and go out on its wire; these
+ *  are the engine's (setChannelPot1/2/3) and reach Core through the spat
+ *  backend. The order is the grid's, top to bottom. */
+enum class ChannelPot
+{
+  ThreeD,
+  Freq,
+  Q,
+};
+
+constexpr int numChannelPots = 3;
+
+constexpr std::array<ChannelPot, numChannelPots> channelPotOrder{
+  ChannelPot::ThreeD,
+  ChannelPot::Freq,
+  ChannelPot::Q,
+};
+
+constexpr char const *
+channelPotLabel (ChannelPot pot)
+{
+  switch (pot)
+    {
+    case ChannelPot::ThreeD:
+      return "3D";
+    case ChannelPot::Freq:
+      return "FREQ";
+    case ChannelPot::Q:
+      return "Q";
+    }
+  return "";
+}
+
 /** The one filter, for all four channels at once. Mode is a key, the other
  *  two are turned. */
+/** Where a channel pot's envelope is holding it, as an arc for PotKnob: -1
+ *  to 1 across the scale, or -2 for none.
+ *
+ *  Upward from the setting only, as the bar's grid drew it: the envelope
+ *  opens the value from where the hand left it, so the stretch above the
+ *  setting is what it adds. An envelope at or under the setting draws no
+ *  arc rather than one of no length. */
+constexpr float
+channelPotReach (float set, float effective)
+{
+  auto const floor = std::clamp (set, 0.f, 1.f);
+  auto const held = std::clamp (effective, 0.f, 1.f);
+  if (!(held > floor))
+    return -2.f;
+
+  return held * 2.f - 1.f;
+}
+
 enum class FilterControl
 {
   Mode,
@@ -354,11 +410,11 @@ filterControlLabel (FilterControl control)
   switch (control)
     {
     case FilterControl::Mode:
-      return "MODE";
+      return "FX MODE";
     case FilterControl::Frequency:
-      return "FREQ";
+      return "FX FREQ";
     case FilterControl::Resonance:
-      return "RES";
+      return "FX RES";
     }
   return "";
 }

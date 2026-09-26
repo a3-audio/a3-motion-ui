@@ -105,6 +105,7 @@ ClipSettingsComponent::ClipSettingsComponent ()
   };
 
   createTouchControls ();
+  showControlsOfPage ();
 }
 
 void
@@ -217,63 +218,25 @@ ClipSettingsComponent::createTouchControls ()
   makeTab (_tabControllerTouch, BarPage::Controller);
   makeTab (_tabMixerTouch, BarPage::Mixer);
   makeTab (_tabBrowserTouch, BarPage::Browser);
+  makeTab (_tabRecordTouch, BarPage::Record);
 
-  // In front of the cards, so it swallows what would otherwise reach the
-  // Elevation card. No callbacks: a picture is not a control.
-  _elevationGraphicTouch = std::make_unique<TouchControl> ();
-  // The graphic is a picture of what the controls under it do, so it names
-  // no control — but it is inside the section, and touching a section
-  // should select it. -1 says "the section, not one of its controls".
-  _elevationGraphicTouch->onPress = [this] (int, int) {
-    if (onControlTapped)
-      onControlTapped (elevationIndex, -1);
+  // The elevation picture is selected by a touch anywhere on its field, and
+  // selected it hands the big sphere to the camera. A tap, not a drag: the
+  // picture shows the view, the sphere is what turns it.
+  _elevationPictureTouch = std::make_unique<TouchControl> ();
+  _elevationPictureTouch->onTap = [this] (int, int) {
+    if (onElevationPictureTapped)
+      onElevationPictureTapped ();
   };
+  addAndMakeVisible (*_elevationPictureTouch);
 
-  // The graphic is a control the finger carries: the axis sits under it and
-  // follows it, which is what a line you can see and touch has to do.
-  //
-  // Not increments. Those arrive once per drag threshold, twelve pixels
-  // apart, so the line lurched a step at a time and never sat where the
-  // finger was -- and a step small enough to be fine made the whole sphere
-  // take thousands of pixels to cross.
-  auto const setBaseAt = [this] (juce::Point<int> at) {
-    if (!onElevationBaseSet)
-      return;
-
-    auto const low = std::clamp (_elevationClipTop, 0.f, 1.f);
-    auto const high = 1.f - std::clamp (_elevationClipBottom, 0.f, 1.f);
-
-    // Up is higher, at every tilt. Not un-projected onto whatever the circle
-    // is currently a view of, which is what this did and which cost the
-    // control both its ends: tip the sphere far enough and the circle becomes
-    // an overhead view, where straight up is the *middle* of it and the whole
-    // lower half of the room is round the back. A finger pushed to the top of
-    // the picture then asked for the equator, and neither pole could be
-    // reached at all -- so a figure could not be put back on the pole, which
-    // is the one place its middle does not tear.
-    //
-    // The picture is a view and follows the room. This is a control and
-    // follows the hand: the same travel means the same thing whatever is
-    // being looked at, which is what a control is for.
-    onElevationBaseSet (snapElevationBase (elevationBaseAt (
-        _layout.elevationGraphic.withZeroOrigin (), at.y,
-        juce::jmin (low, high), juce::jmax (low, high))));
+  _tabMainMixTouch = std::make_unique<TouchControl> ();
+  _tabMainMixTouch->onTap = [this] (int, int) {
+    if (onMainMixTapped)
+      onMainMixTapped ();
   };
+  addAndMakeVisible (*_tabMainMixTouch);
 
-  _elevationGraphicTouch->onTapAt
-      = [setBaseAt] (int, int, juce::Point<int> at) { setBaseAt (at); };
-  _elevationGraphicTouch->onDragTo
-      = [setBaseAt] (int, int, juce::Point<int> at) { setBaseAt (at); };
-
-  // ... and two taps put it back to the middle of the circle, the way two taps
-  // on a knob put it back to the middle of its ring. The graphic is a control
-  // like any other here; it was the one that had no way back.
-  _elevationGraphicTouch->onDoubleTap = [this] (int, int) {
-    if (onElevationBaseReset)
-      onElevationBaseReset (
-          defaultElevationBase (_elevationClipTop, _elevationClipBottom));
-  };
-  addAndMakeVisible (*_elevationGraphicTouch);
 
   auto const makeButton
       = [this] (std::unique_ptr<TouchControl> &into,
@@ -285,30 +248,6 @@ ClipSettingsComponent::createTouchControls ()
           };
           addAndMakeVisible (*into);
         };
-
-  // The grid: one hit area per cell, each carrying its channel and row.
-  for (int col = 0; col < numChannelColumns; ++col)
-    for (int row = 0; row < numChannelRows; ++row)
-      {
-        auto cell = std::make_unique<TouchControl> ();
-        cell->setIdentity (col, row);
-        cell->onDragIncrement
-            = [this] (int channel, int gridRow, int increment) {
-                if (onChannelValueDragged)
-                  onChannelValueDragged (channel, gridRow, increment);
-              };
-        // Two taps put a knob back where it started. Only worth having when
-        // the screen is the only way in: with the panel attached these three
-        // are physical pots, and a knob that jumped away from where the pot
-        // is standing would be telling the truth about neither.
-        cell->onDoubleTap = [this] (int channel, int gridRow) {
-          if (onChannelValueReset)
-            onChannelValueReset (channel, gridRow);
-        };
-        addAndMakeVisible (*cell);
-        _gridTouch[static_cast<size_t> (col)][static_cast<size_t> (row)]
-            = std::move (cell);
-      }
 
   // The speeds sit in the same room as the lengths, on the section's other
   // face — see setPage(), which is what decides who may be touched.
@@ -348,26 +287,6 @@ ClipSettingsComponent::createTouchControls ()
     }
 
   makeButton (_recModeTouch, &ClipSettingsComponent::onRecModePressed);
-  makeButton (_clockModeTouch, &ClipSettingsComponent::onClockModePressed);
-  makeButton (_menuTouch, &ClipSettingsComponent::onMenuPressed);
-  makeButton (_recTouch, &ClipSettingsComponent::onRecordPressed);
-  makeButton (_tapTouch, &ClipSettingsComponent::onTapPressed);
-  _tapTouch->onPress = [this] (int, int) { flashTap (); };
-
-  // Held, not tapped, and so it needs onRelease rather than onTap — see
-  // TouchControl, where the two are deliberately different things.
-  _shiftTouch = std::make_unique<TouchControl> ();
-  _shiftTouch->onPress = [this] (int, int) {
-    setShiftHeld (true);
-    if (onShiftHeld)
-      onShiftHeld (true);
-  };
-  _shiftTouch->onRelease = [this] (int, int) {
-    setShiftHeld (false);
-    if (onShiftHeld)
-      onShiftHeld (false);
-  };
-  addAndMakeVisible (*_shiftTouch);
 
   for (int section = 0; section < numParameters; ++section)
     {
@@ -483,13 +402,9 @@ ClipSettingsComponent::resized ()
           knob->setBounds (cells[sub]);
     }
 
-  _elevationGraphicTouch->setBounds (_layout.elevationGraphic);
-
   for (int section = 0; section < numClipSections; ++section)
     _lockTouch[static_cast<size_t> (section)]->setBounds (
         _layout.sectionLocks[static_cast<size_t> (section)]);
-
-  _shiftTouch->setBounds (_layout.shiftButton);
 
   for (index_t slot = 0; slot < numPadSlots; ++slot)
     _slotTouch[slot]->setBounds (_layout.slotButtons[slot]);
@@ -504,25 +419,16 @@ ClipSettingsComponent::resized ()
   _tabActionTouch->setBounds (_layout.tabAction);
   _tabControllerTouch->setBounds (_layout.tabController);
   _tabMixerTouch->setBounds (_layout.tabMixer);
+  _tabMainMixTouch->setBounds (_layout.tabMainMix);
+  _elevationPictureTouch->setBounds (_layout.elevationFrame);
+  _tabRecordTouch->setBounds (_layout.tabRecord);
   _tabBrowserTouch->setBounds (_layout.tabBrowser);
-
-  for (int col = 0; col < numChannelColumns; ++col)
-    for (int row = 0; row < numChannelRows; ++row)
-      {
-        auto const c = static_cast<size_t> (col);
-        auto const r = static_cast<size_t> (row);
-        _gridTouch[c][r]->setBounds (_layout.channelGrid[c][r]);
-      }
 
   for (int i = 0; i < numSpeedButtons; ++i)
     _speedTouch[static_cast<size_t> (i)]->setBounds (
         _layout.speedButtons[static_cast<size_t> (i)]);
 
   _recModeTouch->setBounds (_layout.recModeButton);
-  _clockModeTouch->setBounds (_layout.clockModeButton);
-  _menuTouch->setBounds (_layout.menuButton);
-  _recTouch->setBounds (_layout.recButton);
-  _tapTouch->setBounds (_layout.tapButton);
 }
 
 void
@@ -662,8 +568,15 @@ ClipSettingsComponent::setElevationReach (float reach, float swept)
 void
 ClipSettingsComponent::setElevationBase (float base, float swept)
 {
+  // On elv, the other way up (clockwise is higher), with the sway's hold on
+  // the line as the blue arc every swept knob wears. The graphic draws the
+  // base only; the sway is shown on the knob since 2026-09-26.
   _elevationBase = std::clamp (base, 0.f, 1.f);
-  _elevationBaseSwept = swept < 0.f ? -1.f : std::clamp (swept, 0.f, 1.f);
+  putOnKnob (elevationSection, 3, knobForElevationBase (_elevationBase));
+  putReachOnKnob (elevationSection, 3,
+                  swept < 0.f ? std::nullopt
+                              : std::optional<float> (knobForElevationBase (
+                                    std::clamp (swept, 0.f, 1.f))));
   repaint ();
 }
 
@@ -965,45 +878,6 @@ ClipSettingsComponent::setMotionSubIndex (int subIndex)
 }
 
 void
-ClipSettingsComponent::setChannelValues (int channel, float freq,
-                                         float freqEffective, float q,
-                                         float qEffective, float threeD,
-                                         float threeDEffective)
-{
-  if (channel < 0 || channel >= numChannelColumns)
-    return;
-
-  auto const c = static_cast<size_t> (channel);
-
-  // Through gridKnobReach() for all three, so no row can quietly be given its
-  // own value as its reach again -- which is how freq and Q came to be drawn
-  // standing still while the engine was sending them moving.
-  auto const set = std::array<float, 3>{ std::clamp (freq, 0.f, 1.f),
-                                         std::clamp (q, 0.f, 1.f),
-                                         std::clamp (threeD, 0.f, 1.f) };
-  auto const reach = std::array<float, 3>{
-    gridKnobReach (freq, freqEffective), gridKnobReach (q, qEffective),
-    gridKnobReach (threeD, threeDEffective)
-  };
-
-  if (juce::approximatelyEqual (_channelFreq[c], set[0])
-      && juce::approximatelyEqual (_channelQ[c], set[1])
-      && juce::approximatelyEqual (_channelThreeD[c], set[2])
-      && juce::approximatelyEqual (_channelFreqReach[c], reach[0])
-      && juce::approximatelyEqual (_channelQReach[c], reach[1])
-      && juce::approximatelyEqual (_channelThreeDReach[c], reach[2]))
-    return; // nothing moved; this runs on every LED tick
-
-  _channelFreq[c] = set[0];
-  _channelQ[c] = set[1];
-  _channelThreeD[c] = set[2];
-  _channelFreqReach[c] = reach[0];
-  _channelQReach[c] = reach[1];
-  _channelThreeDReach[c] = reach[2];
-  repaint ();
-}
-
-void
 ClipSettingsComponent::setSelectedParameterIndex (int index)
 {
   jassert (index >= 0 && index < numParameters);
@@ -1094,15 +968,22 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // tempo and the beat -- the row the device says what it is doing on -- and
   // the band it stood in is where the transport keys go.
 
-  // The global strip stands on both pages: recmode, clock, MENU, REC and TAP
-  // belong to the device rather than to the clip, and losing them while you
-  // are firing clips is exactly the wrong moment to lose them.
+  // The global strip stands on every page: the faces and the transport belong
+  // to the device rather than to one view of the clip, and losing them while
+  // you are firing clips is exactly the wrong moment to lose them.
   paintGlobalSection (g, _selectedIndex == globalIndex);
 
   if (pageCoversClipArea (_page))
     return; // ControllerComponent / BrowserComponent draws the rest
 
   paintTrajectorySection (g, _selectedIndex == trajectoryIndex);
+
+  if (_page == BarPage::Record)
+    {
+      paintRecordSection (g);
+      return;
+    }
+
   paintElevationSection (g, _selectedIndex == elevationIndex);
   paintMotionSection (g, _selectedIndex == motionIndex);
 
@@ -1236,28 +1117,74 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
       // draws from as well so the same action is the same mark in both places.
       // The mark never changes with the state; the ground above does.
       g.setColour (mark);
-      drawTransportGlyph (
-          g, bounds.toFloat ().reduced (bounds.getWidth () * 0.28f), face);
+      drawTransportGlyph (g, transportGlyphArea (bounds.toFloat ()), face);
     }
 
-  // The faces stand in a frame of their own: the five keys beside them choose
-  // what the settings area shows, these four choose which clip it is showing,
-  // and nine keys in an unbroken row would read as one kind of thing.
-  paintSetOffFrame (g, _layout.channelFacesFrame);
-  paintChannelFaces (g);
-
-  paintTab (_layout.tabClip, "CLIP", _page == BarPage::Clip);
-  paintTab (_layout.tabAction, "ACTION", _page == BarPage::Action);
-  paintTab (_layout.tabController, "PADS", _page == BarPage::Controller);
-  paintTab (_layout.tabMixer, "MIX", _page == BarPage::Mixer);
+  paintTab (_layout.tabClip, "CLIP",
+            pageTabIsLit (BarPage::Clip, _page, _mainMixOpen));
+  paintTab (_layout.tabAction, "ACTION",
+            pageTabIsLit (BarPage::Action, _page, _mainMixOpen));
+  paintTab (_layout.tabController, "PADS",
+            pageTabIsLit (BarPage::Controller, _page, _mainMixOpen));
+  paintTab (_layout.tabMixer, "CHMIX",
+            pageTabIsLit (BarPage::Mixer, _page, _mainMixOpen));
+  paintTab (_layout.tabMainMix, "MAINMIX", _mainMixOpen);
+  paintTab (_layout.tabRecord, "REC",
+            pageTabIsLit (BarPage::Record, _page, _mainMixOpen));
 
   // A word like the three beside it. It was a folder mark, on the reasoning
   // that the tabs are views of the clip and this one leaves it -- but once
   // every key in the row became one size, a drawing among words was the odd
   // one out rather than the distinct one, and at this size it read as a
   // smudge.
-  paintTab (_layout.tabBrowser, "FILES", _page == BarPage::Browser);
+  paintTab (_layout.tabBrowser, "FILES",
+            pageTabIsLit (BarPage::Browser, _page, _mainMixOpen));
 
+}
+
+void
+ClipSettingsComponent::paintCameraMark (juce::Graphics &g,
+                                        juce::Rectangle<int> bounds) const
+{
+  if (bounds.isEmpty ())
+    return;
+
+  // A camera, drawn: a body, a lens in it and the finder on top. In the
+  // accent while camera mode is on, muted while it waits to be chosen.
+  auto const area = bounds.toFloat ();
+  auto const w = area.getWidth ();
+  auto const body = area.withTrimmedTop (w * 0.3f).withTrimmedBottom (w * 0.1f);
+  auto const finder = juce::Rectangle<float> (w * 0.3f, w * 0.18f)
+                          .withCentre ({ body.getCentreX (),
+                                         body.getY () - w * 0.08f });
+  auto const lensR = body.getHeight () * 0.3f;
+
+  g.setColour (_cameraMode ? toColour (theme ().accent)
+                           : toColour (theme ().textMuted));
+  g.fillRoundedRectangle (finder, w * 0.04f);
+  g.drawRoundedRectangle (body, w * 0.1f, theme ().strokeThin * 1.5f);
+  g.drawEllipse (body.getCentreX () - lensR, body.getCentreY () - lensR,
+                 lensR * 2.f, lensR * 2.f, theme ().strokeThin * 1.5f);
+}
+
+void
+ClipSettingsComponent::setCameraMode (bool on)
+{
+  if (_cameraMode == on)
+    return;
+
+  _cameraMode = on;
+  repaint (_layout.elevationFrame);
+}
+
+void
+ClipSettingsComponent::setMainMixOpen (bool open)
+{
+  if (_mainMixOpen == open)
+    return;
+
+  _mainMixOpen = open;
+  repaint (_layout.tabMainMix);
 }
 
 juce::Rectangle<int>
@@ -1266,16 +1193,40 @@ ClipSettingsComponent::clipContentBounds () const
   return _layout.clipContent;
 }
 
-juce::Rectangle<int>
-ClipSettingsComponent::globalGridRowsBounds () const
+void
+ClipSettingsComponent::showControlsOfPage ()
 {
-  // The row captions rather than the cells: the cells give a pixel back on
-  // each side, so a page lining up with them would sit one pixel out.
-  auto bounds = _layout.channelRowLabels.front ();
-  for (auto const &label : _layout.channelRowLabels)
-    bounds = bounds.getUnion (label);
+  // Every control stands on the pages controlIsOnPage() names and takes no
+  // touch anywhere else: a hit area with nothing under it is how a finger
+  // changes a value it cannot see. The knobs go with their hit areas, and
+  // that half matters as much -- a child is not painted by its parent, so a
+  // knob left visible draws itself, caption and all, straight through
+  // whatever page is on top ("man sieht die pots im hintergrund").
+  for (int section = 0; section < numParameters; ++section)
+    {
+      auto const s = static_cast<size_t> (section);
+      for (size_t sub = 0; sub < _controlTouch[s].size (); ++sub)
+        _controlTouch[s][sub]->setVisible (
+            controlIsOnPage (section, static_cast<int> (sub), _page));
 
-  return bounds;
+      for (size_t sub = 0; sub < _controlKnob[s].size (); ++sub)
+        if (auto &knob = _controlKnob[s][sub])
+          knob->setVisible (
+              controlIsOnPage (section, static_cast<int> (sub), _page));
+    }
+
+  // A card's own touch stands where the card is drawn: Shape on CLIP and REC,
+  // Elevation and Motion on CLIP only -- on REC their columns are the Record
+  // card.
+  for (int section = 0; section < numClipSections; ++section)
+    _sectionTouch[static_cast<size_t> (section)]->setVisible (
+        controlIsOnPage (section, 0, _page));
+
+  _recModeTouch->setVisible (_page == BarPage::Record);
+
+  for (auto &button : _speedTouch)
+    if (button)
+      button->setVisible (controlIsOnPage (trajectoryIndex, 0, _page));
 }
 
 void
@@ -1286,41 +1237,7 @@ ClipSettingsComponent::setPage (BarPage page)
 
   _page = page;
 
-  // The clip's own controls stop taking touches: they are not drawn on the
-  // controller page, and a hit area with nothing under it is how a finger
-  // changes a value it cannot see.
-  // The record page is the clip page with one section turned over, so every
-  // control stays reachable on it; the pads page and the browser take them
-  // away, because neither draws them.
-  auto const showsClip = !pageCoversClipArea (_page);
-
-  for (int section = 0; section < numParameters; ++section)
-    for (auto &control : _controlTouch[static_cast<size_t> (section)])
-      control->setVisible (showsClip);
-
-  // The knobs go with them, and this is the half that was forgotten when they
-  // stopped being painted and became juce::Sliders. paint() returns early on
-  // a page that covers the clip area -- but a child is not painted by its
-  // parent, so every knob went on drawing itself, caption and all, straight
-  // through the mixer. Reported from the device as "man sieht die pots im
-  // hintergrund".
-  //
-  // Only the clip's three sections: the global strip stands on every page.
-  for (int section = 0; section < numClipSections; ++section)
-    for (auto &knob : _controlKnob[static_cast<size_t> (section)])
-      if (knob)
-        knob->setVisible (showsClip);
-
-  for (int section = 0; section < numClipSections; ++section)
-    _sectionTouch[static_cast<size_t> (section)]->setVisible (showsClip);
-
-  _elevationGraphicTouch->setVisible (showsClip);
-
-  for (auto &button : _speedTouch)
-    if (button)
-      button->setVisible (_page == BarPage::Clip);
-
-
+  showControlsOfPage ();
   repaint ();
 }
 
@@ -1360,8 +1277,9 @@ ClipSettingsComponent::setMenuOpen (bool open)
   if (open == _menuOpen)
     return;
 
+  // No key of its own on screen any more -- MENU is in the status bar -- but
+  // the panel's MENU LED still reads this through functionKeyLook().
   _menuOpen = open;
-  repaint (_layout.menuButton);
 }
 
 void
@@ -1600,21 +1518,51 @@ ClipSettingsComponent::paintChannelFaceDot (juce::Graphics &g,
 }
 
 void
+ClipSettingsComponent::paintRecordSection (juce::Graphics &g)
+{
+  // The same wash and title every card wears, across both columns.
+  g.setColour (toColour (theme ().textPrimary, cardWash));
+  g.fillRoundedRectangle (_layout.recordCard.toFloat (), theme ().radiusCard);
+  paintSectionLabel (g, _layout.recordLabel, "Record", false);
+
+  // The rec mode in its own colour: how much of an old take this pass will
+  // destroy, on the same scale the rest of the device uses. It carries a
+  // value and names it, so it does not light.
+  auto const look = functionKeyLook ();
+  paintBarButton (g, _layout.recModeButton, recModeName (_recMode), "recmode",
+                  false, false, functionKeyColour (FunctionKey::RecMode, look));
+
+  // Fade and bias are knobs and draw themselves (PotKnob).
+}
+
+void
 ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
                                            bool isSelected)
 {
   paintSectionCard (g, globalIndex, isSelected);
 
-  // Two blocks, each in a frame of its own: the values above, the things you
-  // do below. Set off from the card rather than boxed in it -- a heavier edge
+  // Two blocks, each in a frame of its own: whose clip above, what to do to
+  // it below. Set off from the card rather than boxed in it -- a heavier edge
   // would make the strip read as two panels that happen to touch.
-  paintSetOffFrame (g, _layout.channelGridFrame);
-  paintSetOffFrame (g, _layout.transportFrame);
+  // The elevation picture heads the strip, so it stands on every page: where
+  // the shown clip sits and how high it may go is worth seeing while the
+  // pads or the mixer are up, too.
+  // In a grey field of its own like the faces and the transport, washed in
+  // the accent while it is selected -- camera mode, where the big sphere turns
+  // the view -- the way a lit key says what it is doing.
+  paintSetOffFrame (g, _layout.elevationFrame);
+  if (_cameraMode)
+    {
+      g.setColour (toColour (theme ().accent, theme ().alphaFillEmphasis));
+      g.fillRoundedRectangle (_layout.elevationFrame.toFloat (),
+                              theme ().radiusControl);
+    }
+  paintElevationGraphic (g, _layout.elevationGraphic, _cameraMode);
+  paintCameraMark (g, _layout.elevationCameraMark);
 
-  // Through textCell like every other control in the bar: handed the whole
-  // remaining column instead, the value floated in the middle and its caption
-  // sat pinned to the bottom edge, a finger's width away from what it names.
-  paintChannelGrid (g);
+  paintSetOffFrame (g, _layout.channelFacesFrame);
+  paintSetOffFrame (g, _layout.transportFrame);
+  paintChannelFaces (g);
 
   // Every key's colour from the one rule (theme/FunctionKeyColours.hh), which
   // is what makes it one rule. Each of these used to carry its own copy —
@@ -1622,54 +1570,7 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // changed to say red always, and nothing was wrong anywhere: the screen
   // simply was not asking. Two displays reading one rule only works if both
   // of them read it.
-  auto const look = functionKeyLook ();
-  auto const colourFor = [&look] (FunctionKey key) {
-    return functionKeyColour (key, look);
-  };
 
-  // Both carry a value, so both name it: two lines, like every other button
-  // in the bar that stands for something rather than doing something.
-  static char const *clockNames[] = { "INT", "EXT", "PIO" };
-  auto const clock = juce::jlimit (0, 2, _clockMode);
-
-  // Neither lights up. They carry a value, and the value is written on them —
-  // a wash that comes and goes says the same thing a second time, in grey,
-  // and reads as a button that is somehow half-pressed. REC and TAP still
-  // light, because what they show is momentary and has no label of its own.
-  // The mode in its own colour: how much of an old take this pass will
-  // destroy, on the same scale the rest of the device uses.
-  paintBarButton (g, _layout.recModeButton, recModeName (_recMode), "recmode",
-                  false, false, colourFor (FunctionKey::RecMode));
-  // The clock's own colour, from the same rule as the rest — which for this
-  // key is Colours::clockMode, so the status bar reads it the same way: whose
-  // tempo this is has one answer, in one colour, wherever it is written.
-  paintBarButton (g, _layout.clockModeButton, clockNames[clock], "clock",
-                  false, false, colourFor (FunctionKey::ClockMode));
-
-  paintActionButton (g, _layout.menuButton, "MENU", _menuOpen,
-                     colourFor (FunctionKey::Menu));
-  paintActionButton (g, _layout.recButton, "REC", _recording,
-                     colourFor (FunctionKey::Record));
-
-  // TAP lights under a finger, and breathes with the beat — but not through
-  // the same door. Routed through the button's own "active" look the beat
-  // more than doubled the key's brightness, which is a blink you watch
-  // instead of one you catch out of the corner of an eye. It is a wash laid
-  // over the finished button instead, a fraction of the press's.
-  paintActionButton (g, _layout.tapButton, "TAP", _tapLit,
-                     _tapLit ? colourFor (FunctionKey::Tap) : juce::Colour{});
-  if (_tapBeat && !_tapLit)
-    {
-      g.setColour (toColour (theme ().textPrimary, beatWash));
-      g.fillRoundedRectangle (_layout.tapButton.toFloat (),
-                              theme ().radiusControl);
-    }
-
-  // Lit in the accent while it is down. A modifier you cannot see at a glance
-  // is a modifier you will get wrong, and this one decides what the next pad
-  // press means.
-  paintActionButton (g, _layout.shiftButton, "SHIFT", _shiftHeld,
-                     colourFor (FunctionKey::Shift));
 }
 
 void
@@ -1758,8 +1659,9 @@ ClipSettingsComponent::setShiftHeld (bool held)
   if (_shiftHeld == held)
     return;
 
+  // The panel's SHIFT LED reads this; the screen has no SHIFT key since
+  // 2026-09-26.
   _shiftHeld = held;
-  repaint (_layout.shiftButton);
 }
 
 FunctionKeyLook
@@ -1801,8 +1703,9 @@ ClipSettingsComponent::pulseOnBeat ()
   if (_tapLit)
     return;
 
+  // For the panel's TAP LED: the screen's TAP is the status bar's beat
+  // display since 2026-09-26.
   _tapBeat = true;
-  repaint (_layout.tapButton);
 
   // Shorter than the touch flash and never in place of it: a finger on the
   // key must still read as a press even if a beat lands under it.
@@ -2056,12 +1959,8 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
       < static_cast<size_t> (numControlsInSection (elevationIndex)))
     return;
 
-  // The graphic on top, which is a control now: a finger on it sets where the
-  // middle of the trajectory sits, and the line it draws is that value. Under
-  // it the two clips that bound the band, then the sway that travels the line
-  // itself. reach went to Motion to stand beside the swell that sweeps it.
-  paintElevationGraphic (g, _layout.elevationGraphic, isSelected);
-
+  // The picture of what these set stands at the top of the global strip since
+  // 2026-09-26 -- see paintGlobalSection.
   // Bottom then top, left to right. They were the other way round, which is
   // the one order that has nothing to say for it: the graphic above them is a
   // room seen from the side, and in a room seen from the side the floor is not
@@ -2114,16 +2013,6 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   // trajectory spreads from the line, and it has its own knob to say so.
   auto const baseFrac = std::clamp (std::clamp (_elevationBase, 0.f, 1.f),
                                     bandLow, bandHigh);
-
-  // Where the sway has carried that line, if it is moving. Clamped into the
-  // same band the line is: the clips bound where the sound can go, and a
-  // modulation drawn past them would promise elevation the sound never
-  // reaches.
-  auto const sweptFrac
-      = _elevationBaseSwept < 0.f
-            ? -1.f
-            : std::clamp (std::clamp (_elevationBaseSwept, 0.f, 1.f), bandLow,
-                          bandHigh);
 
   // Everything in here is projected, not ruled. The circle is a second view
   // of the room, kept a quarter turn from the sphere above: overhead up there
@@ -2225,18 +2114,6 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
       g.fillPath (bandBetween (bandHigh, 1.f));
   }
 
-  // What the sway is doing, between where the hand left the line and where the
-  // sweep is holding it now -- the same stretch of the room, drawn the same
-  // way.
-  if (sweptFrac >= 0.f)
-    {
-      auto const from = juce::jmin (baseFrac, sweptFrac);
-      auto const to = juce::jmax (baseFrac, sweptFrac);
-
-      g.setColour (toColour (theme ().notice, theme ().alphaFillEmphasis));
-      g.fillPath (bandBetween (from, to));
-    }
-
   // ── The figure ────────────────────────────────────────────────────────
   //
   // Where the sound actually goes. The sphere above says where in the room the
@@ -2284,13 +2161,6 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
     if (degrees != 90)
       g.strokePath (latitude (static_cast<float> (degrees) / 180.f),
                     juce::PathStrokeType (1.f));
-
-  // Where the sway has carried the line.
-  if (sweptFrac >= 0.f)
-    {
-      g.setColour (toColour (theme ().notice));
-      g.strokePath (latitude (sweptFrac), juce::PathStrokeType (1.5f));
-    }
 
   // The base: where the middle of the trajectory sits, and the one ring in
   // here a finger sets. Drawn boldest and last, so the sway's own mark never
@@ -2402,99 +2272,6 @@ ClipSettingsComponent::paintMiniToggle (juce::Graphics &g,
   g.setColour (Colours::barText (isSelected));
   g.drawFittedText (label, labelArea,
                     juce::Justification::centred, 1);
-}
-
-void
-ClipSettingsComponent::paintChannelGrid (juce::Graphics &g)
-{
-  auto const &metrics = _layout.metrics;
-
-  static char const *rowCaptions[numChannelRows] = { "3d", "freq", "Q" };
-
-  // The row captions once down the side, rather than under all twelve knobs.
-  g.setFont (juce::Font (metrics.captionSize, juce::Font::plain));
-  g.setColour (toColour (theme ().textMuted, theme ().alphaInactive));
-  for (int row = 0; row < numChannelRows; ++row)
-    g.drawFittedText (rowCaptions[row],
-                      _layout.channelRowLabels[static_cast<size_t> (row)],
-                      juce::Justification::centredRight, 1);
-
-  for (int col = 0; col < numChannelColumns; ++col)
-    {
-      auto const c = static_cast<size_t> (col);
-      auto const colour = toColour (theme ().channel[c]);
-
-      // No number over the column: the channel's own colour says which is
-      // whose, and it says it without being read. The row it took is a row
-      // the twelve knobs wanted.
-
-      // In channelRow* order — 3d on top, then freq, then Q. All three have
-      // something carrying them past where they were set: the accent, and the
-      // cutoff's and resonance's own envelopes.
-      float const values[numChannelRows]
-          = { _channelThreeD[c], _channelFreq[c], _channelQ[c] };
-      float const reaches[numChannelRows]
-          = { _channelThreeDReach[c], _channelFreqReach[c],
-              _channelQReach[c] };
-
-      for (int row = 0; row < numChannelRows; ++row)
-        paintGridKnob (g, _layout.channelGrid[c][static_cast<size_t> (row)],
-                       metrics, values[row], reaches[row], colour);
-    }
-}
-
-/** A knob without a caption: the column says which channel, the row caption
- *  down the side says which value, so the knob itself has nothing to add. */
-void
-ClipSettingsComponent::paintGridKnob (juce::Graphics &g,
-                                      juce::Rectangle<int> bounds,
-                                      ControlMetrics metrics, float value,
-                                      float reach, juce::Colour colour)
-{
-  // The same diameter every other knob in the bar is drawn at. Filling the
-  // cell instead made these twelve the largest thing on screen, which is
-  // not what they are.
-  // A fifth over the bar's standard diameter — see the grid's layout: these
-  // carry no caption, so at the same size they read smaller than the knobs
-  // in the clip's sections.
-  auto const size = static_cast<float> (juce::jmin (
-      static_cast<int> (metrics.knobDiam * 1.2f),
-      juce::jmin (bounds.getWidth (), bounds.getHeight ())));
-  auto const centre = bounds.toFloat ().getCentre ();
-  auto const r = size * 0.5f * 0.78f;
-
-  auto constexpr sweep = juce::MathConstants<float>::pi * 0.75f;
-  auto const angle = (std::clamp (value, 0.f, 1.f) * 2.f - 1.f) * sweep;
-
-  juce::Path track;
-  track.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, sweep, true);
-  g.setColour (toColour (theme ().textPrimary, trackWash));
-  g.strokePath (track, juce::PathStrokeType (juce::jmax (1.f, r * 0.18f)));
-
-  auto const thickness = juce::jmax (1.5f, r * 0.18f);
-
-  juce::Path valueArc;
-  valueArc.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, angle, true);
-  g.setColour (colour);
-  g.strokePath (valueArc, juce::PathStrokeType (thickness));
-
-  // What a modulation is doing right now: the stretch from the pointer to
-  // where the value has actually been carried. It grows out of the pointer
-  // and shrinks back into it, so the knob shows the floor and the movement at
-  // once — the pointer stays where the hand put it while the arc moves.
-  auto const reachAngle
-      = (std::clamp (reach, 0.f, 1.f) * 2.f - 1.f) * sweep;
-  if (reachAngle > angle)
-    {
-      juce::Path reachArc;
-      reachArc.addCentredArc (centre.x, centre.y, r, r, 0.f, angle, reachAngle,
-                              true);
-      g.setColour (toColour (theme ().notice));
-      g.strokePath (reachArc, juce::PathStrokeType (thickness));
-    }
-
-  auto const tip = centre.getPointOnCircumference (r, angle);
-  g.drawLine (centre.x, centre.y, tip.x, tip.y, juce::jmax (1.5f, r * 0.14f));
 }
 
 }

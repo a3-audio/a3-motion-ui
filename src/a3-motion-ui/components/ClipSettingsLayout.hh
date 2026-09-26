@@ -53,11 +53,8 @@ struct ControlMetrics
  *  where they belong. */
 constexpr int numClipSettingsSections = 4;
 
-/** The global section's per-channel grid is one column per channel. */
+/** One channel face per channel, at the top of the global section. */
 constexpr int numChannelColumns = numChannelsInitial;
-
-/** ... and three rows. The order they are read in, top to bottom. */
-constexpr int numChannelRows = 3;
 
 /** The lengths a take can be given, as powers of two of a bar, and how they
  *  are worded. Eight buttons rather than a list: the whole range from 1/128
@@ -155,10 +152,6 @@ constexpr TransportKey transportKeyOrder[numTransportKeys]
     = { TransportKey::Record, TransportKey::Stop, TransportKey::PlayPause,
         TransportKey::Action };
 
-constexpr int channelRowThreeD = 0;
-constexpr int channelRowFreq = 1;
-constexpr int channelRowQ = 2;
-
 /** Which of the bar's two pages is showing.
  *
  *  Here rather than inside ClipSettingsComponent because two components and
@@ -182,9 +175,13 @@ enum class BarPage
    *  eight clips of the device down one side and the library down the other,
    *  so a clip is put where it goes rather than dialled to. */
   Browser,
+  /** The take about to be made: Shape as CLIP shows it, beside one card with
+   *  the rec mode, fade and bias. The bar's own sections, so it covers
+   *  nothing. */
+  Record,
 };
 
-constexpr int numBarPages = 5;
+constexpr int numBarPages = 6;
 
 /** Every page, once. `BarPages.EveryPageAppearsInTheOrderExactlyOnce` fails
  *  if a page is missing from here or listed twice -- nothing in the compiler
@@ -195,6 +192,7 @@ constexpr int numBarPages = 5;
 constexpr std::array<BarPage, numBarPages> barPageOrder{
   BarPage::Clip,       BarPage::Action,
   BarPage::Controller, BarPage::Mixer,  BarPage::Browser,
+  BarPage::Record,
 };
 
 /** Pages that cover the clip area with something of their own.
@@ -226,6 +224,7 @@ pageCoversClipArea (BarPage page)
   switch (page)
     {
     case BarPage::Clip:
+    case BarPage::Record:
       return false;
     case BarPage::Action:
     case BarPage::Controller:
@@ -262,6 +261,7 @@ pageDescribesAClip (BarPage page)
     case BarPage::Action:
     case BarPage::Mixer:
     case BarPage::Browser:
+    case BarPage::Record:
       return true;
     case BarPage::Controller:
       return false;
@@ -282,20 +282,6 @@ juce::Rectangle<int> sectionContentBounds (juce::Rectangle<int> card);
  *  control by the same sub-index the encoder does. */
 int numControlsInSection (int sectionIndex);
 
-/** How far a grid knob's modulation arc reaches, given where the knob was set
- *  and where a modulation has carried it.
- *
- *  All three rows have one: 3d rides the accent, freq and Q ride their own
- *  envelopes, and the engine has always sent all three moving. Only 3d was
- *  drawn moving -- the other two were handed their own value as their reach,
- *  which is an arc of zero length, so two thirds of what the device was doing
- *  had to be taken on trust.
- *
- *  Never below where the knob was set: envelopeOver() only ever raises, and a
- *  ceiling dialled under the floor leaves the floor alone. An arc that ran
- *  backwards from the pointer would draw a modulation that cannot happen. */
-float gridKnobReach (float set, float effective);
-
 /** Whether a tap on this control already steps its value on, rather than
  *  only selecting it. True for the few-valued ones — direction, end-action
  *  and the global strip's rec mode — which wrap, so every tap arrives
@@ -306,22 +292,10 @@ bool tapAdvancesValue (int sectionIndex, int subIndex);
 
 /** The circle the elevation graphic draws, inside whatever cell it is given.
  *
- *  Its own function because the graphic is a control now: a finger on it sets
- *  where the middle of the trajectory sits, and the circle drawing and the
- *  circle being touched have to be the same circle or the line lands where
- *  the finger did not. */
+ *  A picture again since 2026-09-26: the middle of the trajectory is set by
+ *  the elv knob, not by a finger on the circle. */
 juce::Rectangle<int> elevationCircleBounds (juce::Rectangle<int> cell);
 
-/** The elevation a point in that cell stands for: 0 at the top of the circle
- *  (north pole), 1 at the bottom (south). Past either end it holds at the
- *  pole -- a finger sliding off the top must not wrap round to the bottom.
- *
- *  `bandLow`/`bandHigh` are what clip-top and clip-bottom have left of the
- *  sphere, and the axis stays inside them: a base outside the band would be a
- *  line you can see and the sound cannot reach. Crossed clips leave a band of
- *  nothing, and then the axis has exactly one place to be. */
-float elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow = 0.f,
-                       float bandHigh = 1.f);
 
 /** Pull a base that is nearly at ear height exactly onto it.
  *
@@ -332,6 +306,55 @@ float elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow = 0.f,
  *  cannot set a value beside. */
 float snapElevationBase (float base);
 
+/** The base elv sets: the knob turned the way a level is (clockwise is
+ *  higher, where the base counts from the top), held inside the clip band
+ *  and snapped like the graphic's finger was. */
+float elevationBaseForKnob (float knob, float clipTop, float clipBottom);
+
+/** Where elv stands for a base -- the base the other way up. */
+constexpr float
+knobForElevationBase (float base)
+{
+  return 1.f - base;
+}
+
+
+/** How many of Motion's controls stand on the CLIP page: the first eight.
+ *  Its last two, fade (8) and bias (9), stand on REC since 2026-09-26 and
+ *  keep their sub-indices, so the encoders and the take reach them as before. */
+constexpr std::size_t motionSubsOnTheClipPage = 8;
+
+/** Whether a control stands on a page. */
+constexpr bool
+controlIsOnPage (int section, int sub, BarPage page)
+{
+  if (page != BarPage::Clip && page != BarPage::Record)
+    return false;
+
+  auto const onRecord = page == BarPage::Record;
+  switch (section)
+    {
+    case 0: // Shape, on both
+      return true;
+    case 1: // Elevation
+      return !onRecord;
+    case 2: // Motion: the first eight on CLIP, fade and bias on REC
+      return (static_cast<std::size_t> (sub) < motionSubsOnTheClipPage)
+             != onRecord;
+    case 3: // the rec mode
+      return onRecord;
+    default:
+      return false;
+    }
+}
+
+/** Whether a page's tab is lit: the page on show, unless the big mixer is
+ *  over the sphere -- then MAINMIX is the lit tab. */
+constexpr bool
+pageTabIsLit (BarPage tab, BarPage shown, bool mainMixOpen)
+{
+  return !mainMixOpen && tab == shown;
+}
 
 /** Whether a tap on this control flips it. True for the two-state ones —
  *  pole and flat. They used to be stepped like the rest, but stepping is
@@ -379,28 +402,19 @@ struct ClipSettingsLayout
   std::array<std::vector<juce::Rectangle<int>>, numClipSettingsSections>
       controls;
 
-  /** The global section's per-channel grid: [channel][row], the rows in
-   *  channelRow* order. Not part of `controls` — these belong to a channel each,
-   *  not to the clip the bar is showing, so they are dragged through their
-   *  own callback. */
-  std::array<std::array<juce::Rectangle<int>, numChannelRows>,
-             numChannelColumns>
-      channelGrid;
-  /** Empty. The channel numbers over the grid are gone: each column already
-   *  wears its channel's colour, and a colour is read without being read.
-   *  Kept as a field so nothing has to special-case its absence. */
-  std::array<juce::Rectangle<int>, numChannelColumns> channelLabels;
-
-  /** The two blocks of the strip, each in a frame of its own: the knobs
-   *  above, the transport below. Drawn slightly set off from the card so the
-   *  strip reads as what it is -- values, then the things you do. */
-  juce::Rectangle<int> channelGridFrame;
+  /** The two blocks of the global strip, each in a frame of its own: the
+   *  channel faces above, the transport below -- whose clip, then what to do
+   *  to it. */
   juce::Rectangle<int> transportFrame;
-  /** The row captions down the side: freq, Q, 3d. */
-  std::array<juce::Rectangle<int>, numChannelRows> channelRowLabels;
-
   /** The Elevation section's side-view sphere. */
   juce::Rectangle<int> elevationGraphic;
+  /** The grey field the picture stands in, at the top of the global strip,
+   *  like the faces' and the transport's. Touched, it selects the picture:
+   *  while selected, the big sphere turns the camera. */
+  juce::Rectangle<int> elevationFrame;
+  /** The little camera in the frame's top right corner: what touching the
+   *  picture selects. */
+  juce::Rectangle<int> elevationCameraMark;
   /** The Shape section's pictogram and the name under it. */
   juce::Rectangle<int> trajectoryIcon;
   juce::Rectangle<int> trajectoryName;
@@ -425,8 +439,9 @@ struct ClipSettingsLayout
    *  RecordingLength.hh: the length is the shown clip's, so it is written
    *  where the clip is named rather than on keys of its own. */
   juce::Rectangle<int> clipField;
-  /** The bar's own header row: the four transport keys, then "Slot N", then
-   *  the page tabs closing it. */
+  /** Rec, stop, play and act, two by two in the global strip under the
+   *  channel faces, as a clip's pads stand on PADS: play and stop on top,
+   *  act and rec under them. Indexed like transportKeyOrder. */
   std::array<juce::Rectangle<int>, numTransportKeys> transportButtons;
   /** One key per slot, where the slot's name used to be written. A heading
    *  that says which clip you are looking at and a control that changes which
@@ -441,16 +456,17 @@ struct ClipSettingsLayout
    *  the clip" and you had to remember whose; a face says the same thing,
    *  says whose, and says which of its two slots -- with all four on screen
    *  at once. The number in it *is* the slot, and touching the face you are
-   *  already on turns it over. */
+   *  already on turns it over.
+   *
+   *  At the top of the global strip since 2026-09-26, where the 4x3 grid of
+   *  3D, FREQ and Q stood until those moved into the mixer strips. Which
+   *  clip the bar describes is a choice for the whole device, like the
+   *  transport under them, so they stand with it rather than in the clip's
+   *  own header. */
   std::array<juce::Rectangle<int>, numChannelColumns> channelFaces;
 
-  /** The frame the four faces stand in, the way the global strip's knobs and
-   *  transport each stand in one.
-   *
-   *  Nine keys in a row read as nine of the same thing, and they are not:
-   *  five choose what the settings area shows, four choose *which clip* it is
-   *  showing. The frame is what says so -- and it is what lets the faces be
-   *  narrower than a view without reading as keys that came out wrong. */
+  /** The frame the four faces stand in, the way the transport under them
+   *  stands in one. */
   juce::Rectangle<int> channelFacesFrame;
 
   /** The clip's plainest view, and the head of the row of views.
@@ -469,6 +485,15 @@ struct ClipSettingsLayout
    *  the channel whose clip the bar is describing, so it stands with the
    *  clip's own views rather than after the way out of them. */
   juce::Rectangle<int> tabMixer;
+  /** Not a view: opens and closes the big mixer over the sphere, and is lit
+   *  while it is open. It stood in the status bar as MIX until 2026-09-26. */
+  juce::Rectangle<int> tabMainMix;
+  juce::Rectangle<int> tabRecord;
+
+  /** The REC page's card, across the two columns Elevation and Motion take
+   *  on CLIP, and its title row. */
+  juce::Rectangle<int> recordCard;
+  juce::Rectangle<int> recordLabel;
   /** The way to the browser. A folder rather than a fourth word: the three
    *  tabs are views of the clip you are on, and this leaves it. */
   juce::Rectangle<int> tabBrowser;
@@ -485,16 +510,16 @@ struct ClipSettingsLayout
    *  different heights in three sections. */
   int buttonHeight = 0;
 
+  /** The rec mode's key, at the top of the REC page's card. CLOCK, MENU and
+   *  TAP went to the status bar on 2026-09-26; REC and SHIFT left the screen
+   *  (the transport and the panel carry them). */
   juce::Rectangle<int> recModeButton;
-  juce::Rectangle<int> clockModeButton;
-  juce::Rectangle<int> menuButton;
-  juce::Rectangle<int> recButton;
-  juce::Rectangle<int> tapButton;
-  /** Held, not tapped: Shift+Action previews for as long as it is down. In
-   *  the global strip because it modifies the whole device, and a modifier on
-   *  a page you have to leave is one you cannot hold. */
-  juce::Rectangle<int> shiftButton;
 };
+
+/** The card a control is drawn in: its section's, or the REC page's for the
+ *  controls that stand on REC alone -- fade, bias and the rec mode. */
+juce::Rectangle<int> cardOfControl (ClipSettingsLayout const &layout,
+                                    int section, int sub);
 
 /** The signal dot's diameter, as a share of the smaller side of a channel
  *  face.

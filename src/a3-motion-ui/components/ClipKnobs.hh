@@ -61,12 +61,17 @@ struct ClipKnobSpec
 constexpr int elevationSection = 1;
 constexpr int motionSection = 2;
 
-/** The Elevation section: clip-bottom (0), clip-top (1), sway (2). */
+/** The Elevation section: clip-bottom (0), clip-top (1), sway (2), elv (3). */
 constexpr ClipKnobSpec
 elevationKnobSpec (int sub)
 {
   if (sub == 2)
     return { -lfoMaxStep, lfoMaxStep, 1.0, 0.0, true, false, caption::sway };
+
+  // Where the middle of the trajectory sits, bottom to top. Two taps are the
+  // page's rule (the middle of the clip band), not a number in the table.
+  if (sub == 3)
+    return { 0.0, 1.0, 0.0, 0.5, false, false, caption::elevation };
 
   // The two clips are shares of the height, and zero is "do not clip" for
   // both -- which is where two taps put them. Bottom first, left to right:

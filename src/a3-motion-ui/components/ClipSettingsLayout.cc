@@ -153,13 +153,6 @@ sectionContentBounds (juce::Rectangle<int> card)
                        juce::roundToInt (theme ().paddingTight));
 }
 
-float
-gridKnobReach (float set, float effective)
-{
-  auto const floor = std::clamp (set, 0.f, 1.f);
-  return std::clamp (effective, floor, 1.f);
-}
-
 int
 numControlsInSection (int sectionIndex)
 {
@@ -172,12 +165,12 @@ numControlsInSection (int sectionIndex)
       // Motion is what the movement *is*, not how it is played through.
       return 4;
     case 1:
-      // clip-top, clip-bottom, then the sway. reach went to Motion to stand
-      // beside the swell that sweeps it -- the two of them are one control
-      // with a movement over it, the way rot is with spin -- and the sway
-      // came here in its place, because where the middle of the trajectory
-      // sits is what the graphic above draws.
-      return 3;
+      // clip-top, clip-bottom, the sway, then elv. reach went to Motion to
+      // stand beside the swell that sweeps it, and the sway came here in its
+      // place, because where the middle of the trajectory sits is what the
+      // graphic above draws. elv is that middle: set by a finger on the
+      // graphic until 2026-09-26, a knob since.
+      return 4;
     case 2:
       // Ten knobs in five rows, and no buttons: the two lists went to Shape.
       // Numbered in reading order for the first time -- rot, spin, reach,
@@ -221,22 +214,20 @@ elevationCircleBounds (juce::Rectangle<int> cell)
 }
 
 float
-elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow,
-                 float bandHigh)
+elevationBaseForKnob (float knob, float clipTop, float clipBottom)
 {
-  auto const circle = elevationCircleBounds (cell);
-  if (circle.getHeight () <= 0)
-    return 0.f;
+  // What clip-top and clip-bottom have left of the sphere, ordered before the
+  // clamp so clips pushed past each other pin the axis to where they crossed
+  // rather than inverting the range. Snapped first and clamped last, so the
+  // snap cannot pull the line out of the band.
+  auto const top = std::clamp (clipTop, 0.f, 1.f);
+  auto const bottom = 1.f - std::clamp (clipBottom, 0.f, 1.f);
+  auto const low = juce::jmin (top, bottom);
+  auto const high = juce::jmax (top, bottom);
 
-  auto const frac = static_cast<float> (y - circle.getY ())
-                    / static_cast<float> (circle.getHeight ());
-
-  // Ordered before clamping, so clips pushed past each other pin the axis to
-  // where they crossed rather than inverting the range.
-  auto const low = juce::jmin (bandLow, bandHigh);
-  auto const high = juce::jmax (bandLow, bandHigh);
-
-  return juce::jlimit (low, high, juce::jlimit (0.f, 1.f, frac));
+  auto const base = snapElevationBase (knobForElevationBase (
+      std::clamp (knob, 0.f, 1.f)));
+  return juce::jlimit (low, high, base);
 }
 
 float
@@ -295,6 +286,15 @@ textCell (juce::Rectangle<int> cell, int knobDiam)
       .withCentre (cell.getCentre ());
 }
 
+juce::Rectangle<int>
+cardOfControl (ClipSettingsLayout const &layout, int section, int sub)
+{
+  if (!controlIsOnPage (section, sub, BarPage::Clip))
+    return layout.recordCard;
+
+  return layout.sectionCards[static_cast<size_t> (section)];
+}
+
 int
 titleRowHeight (juce::Rectangle<int> content, float headerSize)
 {
@@ -342,28 +342,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   auto headerArea = area.removeFromTop (headerH);
 
-  // Left to right, in the order they are reached for: whose clip -- the four
-  // faces, framed together -- then the five views of it, the folder closing
-  // the row because it is the way out of the clip you are on.
+  // Left to right, as the maintainer set it on 2026-09-26: CLIP ACTION FILES
+  // CHMIX MAINMIX REC PADS. The channel faces that led the row stand at the top of
+  // the global strip since then -- see there.
   auto const headerGap = juce::jmax (2, headerGapOfHeader.of (headerH));
 
-  // Two kinds of key, each one size. The five views switch what the settings
-  // area shows; the four faces switch which clip it is showing. They share a
-  // height because a hand goes along the row in one sweep, and the faces are
-  // narrower and framed because a group that reads as a group can afford to
-  // be -- see channelFacesFrame.
-  constexpr int numViews = 5;
-  constexpr int numFaces = static_cast<int> (numChannelColumns);
-
-  // Ten gaps: the frame's two edges, three between the faces, one before the
-  // views, four between the five of them.
-  constexpr int numHeaderGaps = 2 + (numFaces - 1) + 1 + (numViews - 1);
-
-  // Measured in quarter-views so the two sizes stay in proportion at every
-  // screen: a face is three of them, a view four.
-  constexpr int faceUnits = 3;
-  constexpr int viewUnits = 4;
-  constexpr int totalUnits = numFaces * faceUnits + numViews * viewUnits;
+  constexpr int numViews = 7;
+  constexpr int numHeaderGaps = numViews - 1;
 
   // **Every edge is computed from the row's whole width, not stepped across
   // it.** Stepping meant an integer span times five, and the remainder of that
@@ -372,11 +357,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // edge by construction and the remainder is spread a pixel at a time across
   // the keys, where nobody can see it. The Shape section's button grid is
   // measured from the left for the same reason.
-  //
-  // This is also where a whole key used to go missing: the span was worked out
-  // for six views and eleven gaps while only five are ever placed, so about 70
-  // pixels of the device's own 768 stood empty at the end of the row.
-  auto const minSpan = totalUnits * fingertipSize / faceUnits;
+  auto const minSpan = numViews * fingertipSize;
   auto const available
       = juce::jmax (minSpan, headerArea.getWidth () - headerGap * numHeaderGaps);
 
@@ -384,10 +365,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   auto const rowTop = headerArea.getY ();
   auto const rowHeight = headerArea.getHeight ();
 
-  // The left edge of the element that begins after `units` quarter-views and
-  // `gaps` gaps. At units == totalUnits it is the row's right edge exactly.
+  // The left edge of the view that begins after `units` views and `gaps`
+  // gaps. At units == numViews it is the row's right edge exactly.
   auto const edgeAt = [rowLeft, available, headerGap] (int units, int gaps) {
-    return rowLeft + gaps * headerGap + (available * units) / totalUnits;
+    return rowLeft + gaps * headerGap + (available * units) / numViews;
   };
   auto const keyFrom = [rowTop, rowHeight] (int x0, int x1) {
     return juce::Rectangle<int>{ x0, rowTop, x1 - x0, rowHeight };
@@ -396,45 +377,27 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   int units = 0;
   int gaps = 0;
 
-  auto const frameLeft = edgeAt (units, gaps);
-  ++gaps; // the frame's left edge
-  for (size_t channel = 0; channel < numChannelColumns; ++channel)
-    {
-      auto const x0 = edgeAt (units, gaps);
-      units += faceUnits;
-      out.channelFaces[channel] = keyFrom (x0, edgeAt (units, gaps));
-      ++gaps; // between the faces, and the frame's right edge after the last
-    }
-  out.channelFacesFrame
-      = keyFrom (frameLeft, edgeAt (units, gaps));
-
-  ++gaps; // between the frame and the first view
-
   auto const takeView = [&units, &gaps, &edgeAt, &keyFrom] {
     auto const x0 = edgeAt (units, gaps);
-    units += viewUnits;
+    ++units;
     auto const key = keyFrom (x0, edgeAt (units, gaps));
     ++gaps;
     return key;
   };
 
-  // The clip's own view leads the row: it is the one the other two are
-  // variations on, and the faces beside it have just said whose clip.
+  // The clip's own view leads the row: it is the one the others are
+  // variations on.
   out.tabClip = takeView ();
-  // Next to CLIP: ACTION is another way of looking at the clip, and PADS is
-  // the view that is about something else.
   out.tabAction = takeView ();
-  out.tabController = takeView ();
-
-  // Between PADS and the folder: MIX is about the channel of the clip on
-  // show, so it belongs beside the views of that clip and before the way out
-  // of it.
-  out.tabMixer = takeView ();
-
-  // The folder closes the row. It is the way *out* of the clip you are on,
-  // so it ends the row rather than leading it -- and it stands where the slot
-  // keys used to, which is where a hand already goes for "something else".
   out.tabBrowser = takeView ();
+
+  // The two mixers side by side: the shown channel's strip (CHMIX), then the
+  // whole mixer over the sphere (MAINMIX), which came down from the status
+  // bar so both are opened from one place.
+  out.tabMixer = takeView ();
+  out.tabMainMix = takeView ();
+  out.tabRecord = takeView ();
+  out.tabController = takeView ();
 
   for (index_t slot = 0; slot < numPadSlots; ++slot)
     out.slotButtons[slot] = {};
@@ -503,8 +466,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // stand here instead, over the strip that also carries MENU, REC and TAP.
   // The whole strip, band included. The band held the transport and then the
   // readout before it; both have gone, so the card takes the height rather
-  // than leaving an empty row above itself -- and the strip needs it: twelve
-  // knobs, the transport and six keys is the tallest thing in the bar.
+  // than leaving an empty row above itself.
   auto const globalCard = globalArea;
   out.readout = {};
 
@@ -629,14 +591,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       out.sectionLabels[1] = title;
     }
 
-    // The graphic takes a bigger share now: it is the control that sets where
-    // the middle of the trajectory sits, so it has to be big enough to put a
-    // finger on and read a line off.
-    auto const gapV0 = juce::jmax (2, content.getHeight () / 20);
-    out.elevationGraphic = content.removeFromTop (
-        static_cast<int> (content.getHeight () * 0.5f));
-    content.removeFromTop (gapV0);
-
+    // Four knobs in two rows and nothing else: the picture that stood above
+    // them is at the top of the global strip since 2026-09-26.
     auto const gapV = juce::jmax (2, content.getHeight () / 30);
     auto const rowH = (content.getHeight () - gapV) / 2;
     auto row1 = content.removeFromTop (rowH);
@@ -651,19 +607,17 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                                                                      row };
     };
 
-    // The two clips above, the sway on its own below. reach went to Motion to
-    // stand beside the swell that sweeps it; what is left here is the band the
-    // trajectory is allowed into and the slow travel of its middle. Centred
-    // rather than left in a half, or the row would read as a pair with
-    // something missing from it.
+    // The two clips above; below, elv -- where the middle of the trajectory
+    // sits -- with the sway that moves it on its right: the standing value
+    // beside the movement over it, the way Motion pairs its knobs.
     auto const [clipTopArea, clipBottomArea] = split (row1);
-    auto const swayArea = row2.withSizeKeepingCentre (
-        juce::jmin (row2.getWidth (), row2.getWidth () / 2), row2.getHeight ());
+    auto const [elvArea, swayArea] = split (row2);
 
     out.controls[1] = {
       textCell (clipTopArea, metrics.knobDiam),
       textCell (clipBottomArea, metrics.knobDiam),
       textCell (swayArea, metrics.knobDiam),
+      textCell (elvArea, metrics.knobDiam), // 3 elv, left of the sway
     };
   }
 
@@ -679,12 +633,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       out.sectionLabels[2] = title;
     }
 
-    // Five rows of two, and no buttons: the two lists went to Shape, where
-    // what a pass does when it runs out belongs with the take.
+    // Four rows of two, and no buttons: the two lists went to Shape, where
+    // what a pass does when it runs out belongs with the take, and the fade
+    // and the bias went to the REC page (2026-09-26) -- see below.
     //
     // Each row is a standing value beside the movement that works on it --
     // rot with its spin, reach with its swell, each squeeze with its own
-    // stretch, the fade with the bias. Grouping by what a control does is
+    // stretch. Grouping by what a control does is
     // what lets a hand find the right knob without reading the words.
     //
     // Shared out rather than taken one after another from the bottom. A skin
@@ -693,7 +648,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const gapH = juce::jmax (2, content.getWidth () / 20);
     auto const gapV = juce::jmax (2, content.getHeight () / 20);
 
-    constexpr int motionKnobRows = 5;
+    constexpr int motionKnobRows = 4;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
@@ -706,13 +661,12 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       return row;
     };
 
-    auto biasRow = knobRow (false);
     auto sqzYRow = knobRow (false);
     auto sqzXRow = knobRow (false);
     auto reachRow = knobRow (false);
     auto rotRow = knobRow (true);
 
-    auto const colW = (biasRow.getWidth () - gapH) / 2;
+    auto const colW = (sqzYRow.getWidth () - gapH) / 2;
     auto const split = [colW, gapH] (juce::Rectangle<int> &row) {
       auto const left = row.removeFromLeft (colW);
       row.removeFromLeft (gapH);
@@ -724,7 +678,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const [reachArea, swellArea] = split (reachRow);
     auto const [sqzXArea, strXArea] = split (sqzXRow);
     auto const [sqzYArea, strYArea] = split (sqzYRow);
-    auto const [fadeArea, biasArea] = split (biasRow);
 
     // In reading order, which is also sub-index order for the first time.
     out.controls[2] = {
@@ -736,167 +689,151 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       textCell (strXArea, metrics.knobDiam),  // 5 strX
       textCell (sqzYArea, metrics.knobDiam),  // 6 sqzY
       textCell (strYArea, metrics.knobDiam),  // 7 strY
-      textCell (fadeArea, metrics.knobDiam),  // 8 fade
-      textCell (biasArea, metrics.knobDiam),  // 9 bias
+      {},                                     // 8 fade, on REC -- below
+      {},                                     // 9 bias, on REC -- below
     };
+  }
+
+  // ── The REC page's card ──────────────────────────────────────────────
+  //
+  // Across both of the columns Elevation and Motion stand in on CLIP: the
+  // rec mode on top, as the key it has always been, and the fade and the
+  // bias under it, big. They keep Motion's sub-indices 8 and 9, so the
+  // encoders and the take reach them as before; only where they are drawn
+  // moved.
+  {
+    out.recordCard = out.sectionCards[1].getUnion (out.sectionCards[2]);
+    auto content = sectionContentBounds (out.recordCard);
+    out.recordLabel = content.removeFromTop (
+        titleRowHeight (content, headerSize));
+
+    auto const gap = juce::jmax (2, out.buttonHeight / 4);
+    auto keyRow = content.removeFromTop (
+        juce::jmin (content.getHeight (), out.buttonHeight));
+    out.recModeButton = keyRow.removeFromLeft (keyRow.getWidth () / 2);
+    content.removeFromTop (juce::jmin (content.getHeight (), gap));
+
+    auto const gapH = juce::jmax (2, content.getWidth () / 20);
+    auto const half = (content.getWidth () - gapH) / 2;
+    auto const fadeArea = content.removeFromLeft (half);
+    content.removeFromLeft (gapH);
+    auto const biasArea = content;
+
+    out.controls[2][8] = textCell (fadeArea, metrics.knobDiam);
+    out.controls[2][9] = textCell (biasArea, metrics.knobDiam);
   }
 
   // ── Global section ───────────────────────────────────────────────────
   {
     // No title: "global" named a panel whose contents name themselves -- the
-    // rows are written beside the knobs and the keys carry words -- and the
-    // row it took is a row the twelve knobs wanted.
+    // faces wear their channels' colours and the keys carry words or marks.
     auto content = out.globalContent;
     out.sectionLabels[3] = {};
 
-    // The grid across the whole section, the four buttons in one row under
-    // it. Beside each other the grid was cramped into two thirds of the
-    // width while the strip beside it stood half empty.
-    // The bar's one button height — the same one Elevation's and Motion's
-    // buttons get.
+    // Top to bottom: the elevation picture, whose clip (the four faces), then
+    // what to do to it (the transport, two by two) down to the foot. The 4x3 grid of 3D, FREQ
+    // and Q went into the mixer strips and the six function keys went to the
+    // status bar and the REC page, both on 2026-09-26; their room is the
+    // transport's.
     auto const buttonRowH = out.buttonHeight;
     auto const buttonGap = juce::jmax (2, buttonRowH / 8);
-    auto buttons
-        = content.removeFromBottom (3 * buttonRowH + 2 * buttonGap);
-    content.removeFromBottom (juce::jmax (2, buttonRowH / 4));
 
-    // ── the 4 x 3 grid, and the transport under it ────────────────────
+    auto const frameInset = juce::jmax (2, content.getWidth () / 40);
+    auto const blockGap = juce::jmax (4, buttonGap * 2);
+
+    // ── the elevation picture ─────────────────────────────────────────
+    //
+    // At the head of the strip, over the faces: the side view of where the
+    // shown clip sits and how high it may go, in a grey field of its own like
+    // the faces and the transport -- a field that is touched to select it.
+    // Never more than nine twentieths of the strip's height, so the faces and the
+    // transport keep theirs.
     {
-      auto const labelH = textRowHeight (content, metrics.captionSize);
+      auto const side = juce::jmin (content.getWidth (),
+                                    content.getHeight () * 9 / 20);
+      out.elevationFrame = content.removeFromTop (side);
+      out.elevationGraphic = out.elevationFrame.reduced (frameInset);
 
-      // As tall as a knob and its breathing room, not a third of whatever is
-      // left: stretched to fill, the twelve knobs floated in cells several
-      // times their size and the grid read as scattered dots. A touch larger
-      // than the bar's standard knob, since these carry no caption of their
-      // own to give them presence.
-      auto const gridKnob = static_cast<int> (metrics.knobDiam * 1.2f);
+      // The little camera in the top right corner, where the round picture
+      // leaves room: an eighth of the frame, inset like the frame's content.
+      auto const markSide = juce::jmax (1, out.elevationFrame.getWidth () / 8);
+      out.elevationCameraMark
+          = juce::Rectangle<int> (markSide, markSide)
+                .withPosition (out.elevationFrame.getRight () - frameInset
+                                   - markSide,
+                               out.elevationFrame.getY () + frameInset);
+      content.removeFromTop (juce::jmin (content.getHeight (), blockGap));
+    }
 
-      // The transport takes its row off the bottom first, at the same height
-      // as every other key in the strip, with a gap that sets the two blocks
-      // apart.
-      auto const frameInset = juce::jmax (2, content.getWidth () / 40);
-      auto const blockGap = juce::jmax (4, buttonGap * 2);
+    // ── the four channel faces ────────────────────────────────────────
+    //
+    // In a frame of their own, the way the transport stands in one: four
+    // keys that choose *which clip* the bar describes, not what it does.
+    // As tall as a function key, and never under a fingertip.
+    {
+      auto const faceH = juce::jmax (fingertipSize, buttonRowH);
+      auto frame = content.removeFromTop (
+          juce::jmin (content.getHeight (), faceH + 2 * frameInset));
+      out.channelFacesFrame = frame;
+      content.removeFromTop (juce::jmin (content.getHeight (), blockGap));
 
-      // The transport takes what it needs, but never at the grid's expense:
-      // twelve knobs squeezed to nothing are twelve controls gone, while a
-      // slightly shorter transport is still four keys you can hit. Below the
-      // fingertip neither is any use, and that is the floor both share.
-      auto const gridFloor = numChannelRows * fingertipSize;
-      auto const transportH = juce::jlimit (
-          fingertipSize,
-          juce::jmax (fingertipSize,
-                      content.getHeight () - gridFloor - blockGap),
-          out.buttonHeight + 2 * frameInset);
+      auto faces = frame.reduced (frameInset);
+      auto const faceGap = juce::jmax (2, faces.getWidth () / 60);
+      auto const numFaces = static_cast<int> (numChannelColumns);
+      auto const span = faces.getWidth () - (numFaces - 1) * faceGap;
 
-      auto transportArea = content.removeFromBottom (
-          juce::jmin (content.getHeight (), transportH));
-      content.removeFromBottom (
-          juce::jmin (content.getHeight (), blockGap));
-
-      auto const rowH = juce::jmin (
-          content.getHeight () / numChannelRows,
-          juce::jmax (labelH, juce::jmax (gridKnob + 2,
-                                          static_cast<int> (
-                                              gridKnob * 1.15f))));
-
-      // No label row: each column wears its channel's colour, and a colour is
-      // read without being read. The numbers were a row of the strip spent
-      // saying what four colours already say.
-      auto const blockH = numChannelRows * rowH;
-      auto grid = content.removeFromTop (
-          juce::jmin (content.getHeight (), blockH + 2 * frameInset));
-
-      out.channelGridFrame = grid;
-      grid = grid.reduced (frameInset);
-
-      // Columns no wider than a knob needs: spread across the whole section
-      // the four channels sat so far apart that reading a row meant
-      // travelling the width of the bar.
-      auto const gutterW = juce::jmax (labelH, grid.getWidth () / 12);
-      auto const colW = juce::jmin (
-          (grid.getWidth () - gutterW) / numChannelColumns,
-          juce::jmax (labelH, juce::jmax (gridKnob + 2,
-                                          static_cast<int> (
-                                              gridKnob * 1.35f))));
-
-      // Captions and knobs centred together, as one block. Indenting only the
-      // columns left "freq / Q / 3d" stranded at the far edge with the knobs
-      // they name half a section away.
-      auto const blockW = gutterW + colW * numChannelColumns;
-      auto const indent = juce::jmax (0, (grid.getWidth () - blockW) / 2);
-      grid.removeFromLeft (indent);
-
-      auto gutter = grid.removeFromLeft (gutterW);
-      auto columns = grid;
-
-      for (int row = 0; row < numChannelRows; ++row)
-        out.channelRowLabels[static_cast<size_t> (row)]
-            = gutter.removeFromTop (rowH);
-
-      for (int col = 0; col < numChannelColumns; ++col)
+      // Edges from the whole width, like the header's, so the last face ends
+      // flush with the frame.
+      for (int i = 0; i < numFaces; ++i)
         {
-          auto const c = static_cast<size_t> (col);
-          out.channelLabels[c] = {};
-
-          auto column = columns.removeFromLeft (colW);
-          for (int row = 0; row < numChannelRows; ++row)
-            out.channelGrid[c][static_cast<size_t> (row)]
-                = column.removeFromTop (rowH).reduced (juce::roundToInt (theme ().paddingHair));
+          auto const x0 = faces.getX () + i * faceGap + (span * i) / numFaces;
+          auto const x1
+              = faces.getX () + i * faceGap + (span * (i + 1)) / numFaces;
+          out.channelFaces[static_cast<size_t> (i)]
+              = { x0, faces.getY (), x1 - x0, faces.getHeight () };
         }
+    }
 
-      // The four things you do to a clip, in their own frame under the
-      // values: the strip reads as what it is, values above and actions
-      // below.
-      out.transportFrame = transportArea;
-      auto keys = transportArea.reduced (frameInset);
+    // ── the transport, two by two ─────────────────────────────────────
+    //
+    // Everything between the faces and the function keys, arranged as a
+    // clip's pads are on PADS: play over act on the left, stop on the right,
+    // and rec in the corner the pads give to Settings -- rec has no pad of
+    // its own. Two rows rather than one because the grid's room is theirs
+    // now, and a key the hand goes to mid-set is better big than wide.
+    {
+      out.transportFrame = content;
+      auto keys = content.reduced (frameInset);
 
       auto const keyGap = juce::jmax (2, keys.getWidth () / 60);
-      auto const keyW
-          = (keys.getWidth () - (numTransportKeys - 1) * keyGap)
-            / numTransportKeys;
+      auto const keyW = (keys.getWidth () - keyGap) / 2;
+      auto const keyH = (keys.getHeight () - keyGap) / 2;
+
+      auto const cellOf = [] (TransportKey key) {
+        switch (key)
+          {
+          case TransportKey::PlayPause: return std::pair{ 0, 0 };
+          case TransportKey::Stop: return std::pair{ 1, 0 };
+          case TransportKey::Action: return std::pair{ 0, 1 };
+          case TransportKey::Record: return std::pair{ 1, 1 };
+          }
+        return std::pair{ 0, 0 };
+      };
 
       for (int i = 0; i < numTransportKeys; ++i)
         {
+          auto const [column, row]
+              = cellOf (transportKeyOrder[static_cast<size_t> (i)]);
           out.transportButtons[static_cast<size_t> (i)]
-              = keys.removeFromLeft (keyW);
-          if (i + 1 < numTransportKeys)
-            keys.removeFromLeft (keyGap);
+              = { keys.getX () + column * (keyW + keyGap),
+                  keys.getY () + row * (keyH + keyGap), keyW, keyH };
         }
     }
 
-    // ── the six function keys, two by three ───────────────────────────
-    //
-    // These stand for the panel's six function keys, so they are laid out
-    // like them: one size for all of them, filled top-left to bottom-right.
-    // Left down: tap, clock, rec. Right down: recmode, menu, shift. A button
-    // sized differently from its neighbours reads as a different kind of
-    // thing, and all six are the same kind — the thing your hand goes to
-    // without looking.
-    {
-      auto const gapH = juce::jmax (2, buttons.getWidth () / 60);
-      auto const buttonW = (buttons.getWidth () - gapH) / 2;
-
-      auto row = [&] (bool last) {
-        auto r = buttons.removeFromTop (buttonRowH);
-        if (!last)
-          buttons.removeFromTop (buttonGap);
-
-        auto const left = r.removeFromLeft (buttonW);
-        r.removeFromLeft (gapH);
-        return std::pair<juce::Rectangle<int>, juce::Rectangle<int> >{
-          left, r.removeFromLeft (buttonW)
-        };
-      };
-
-      std::tie (out.tapButton, out.recModeButton) = row (false);
-      std::tie (out.clockModeButton, out.menuButton) = row (false);
-      std::tie (out.recButton, out.shiftButton) = row (true);
-
-      // The rec mode no longer has a knob-style box of its own; its button
-      // is where it lives. controls[3] stays so the encoder-era index does
-      // not have to be special-cased away everywhere.
-      out.controls[3] = { out.recModeButton };
-    }
+    // The rec mode's key stands on the REC page (above), and is still the
+    // global section's one sub-element, so the encoder-era index does not
+    // have to be special-cased away everywhere.
+    out.controls[3] = { out.recModeButton };
   }
 
   return out;

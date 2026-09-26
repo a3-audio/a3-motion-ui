@@ -131,11 +131,6 @@ public:
   void setScriptIsProtected (bool locked);
   void stopEditingScript ();
 
-  /** Where the global strip's three channel rows stand, in the bar's own
-   *  coordinates. The page puts its own rows on those so the two blocks of
-   *  knobs read across at one height; an empty rectangle means lay out
-   *  freely. */
-  void setGridReference (juce::Rectangle<int> barCoordinates);
 
   /** A knob was turned: where it stands now. The nine envelope knobs are
    *  sliders, so the value is theirs and the page only passes it on -- the
@@ -225,8 +220,6 @@ private:
   int _listTop = 0;
   bool _editing = false;
   bool _protected = false;
-  juce::Rectangle<int> _gridReference;
-
   std::array<std::unique_ptr<TouchControl>, numControls> _touch;
   /** One per envelope control; the mode beside the name stays a key. */
   std::array<std::unique_ptr<PotKnob>, numControls> _knob;

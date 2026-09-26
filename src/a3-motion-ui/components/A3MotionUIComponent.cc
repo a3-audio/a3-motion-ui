@@ -365,6 +365,20 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
           _mixerState.setChannelFromTouch (channel, control, value);
           _mixerStrip->syncControls ();
         };
+  // 3D, FREQ and Q stand in both pages but belong to the engine: the same
+  // two handlers the grid had, set outright rather than stepped.
+  auto const channelPotChanged = [this] (int channel, ChannelPot pot,
+                                         float value) {
+    setChannelPotValue (static_cast<index_t> (channel), pot, value);
+  };
+  auto const channelPotDoubleTapped = [this] (int channel, ChannelPot pot) {
+    resetChannelPot (static_cast<index_t> (channel), pot);
+  };
+  _mixer->onChannelPotChanged = channelPotChanged;
+  _mixerStrip->onChannelPotChanged = channelPotChanged;
+  _mixer->onChannelPotDoubleTapped = channelPotDoubleTapped;
+  _mixerStrip->onChannelPotDoubleTapped = channelPotDoubleTapped;
+
   _mixer->onMasterValueChanged = [this] (MasterControl control, float value) {
     _mixerState.setMasterFromTouch (control, value);
   };
@@ -514,64 +528,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     selectClipSettingsSection (section);
     selectClipSettingsSubElement (juce::jmax (0, sub));
   };
-  // The grid's cells name their own channel — unlike everything else in the
-  // bar, they are not about the clip on display.
-  _clipSettings->onChannelValueDragged
-      = [this] (int channel, int row, int increment) {
-          handleChannelValueChange (static_cast<index_t> (channel), row,
-                                    increment);
-        };
-
-  // Two taps put one of the three back to twelve o'clock. Only while no panel
-  // is answering -- with one on the wire these are physical controls, and the
-  // 3d pot is absolute, so a value the screen moved would be snatched back by
-  // the next hair of pot movement. The rule and the rest positions live in
-  // components/ChannelValueReset.hh, where a test can reach them without a
-  // panel; the condition is exactly the one that had no other way of being
-  // checked.
-  //
-  // Registered unconditionally and decided at runtime. It used to hang on
-  // #if !HARDWARE_INTERFACE_ENABLED, which build.sh always sets, so the whole
-  // thing was compiled out of every build this device has ever run -- for a
-  // machine that is regularly used with no panel plugged in.
-  _clipSettings->onChannelValueReset = [this] (int channel, int row) {
-    if (!channelValueResetIsAllowed (_ioAdapter
-                                     && _ioAdapter->hardwareIsAvailable ()))
-      return;
-
-    auto const rest = channelValueRestPosition (row);
-    if (!rest.has_value ())
-      return;
-
-    auto const at = static_cast<index_t> (channel);
-
-    switch (row)
-      {
-      case channelRowThreeD: _engine.setChannelPot3 (at, *rest); break;
-      case channelRowFreq: _engine.setChannelPot1 (at, *rest); break;
-      case channelRowQ: _engine.setChannelPot2 (at, *rest); break;
-      default: return;
-      }
-
-    updateClipSettingsDisplay ();
-    scheduleSetSave ();
-  };
-
   _clipSettings->onRecModePressed = [this] {
     auto const count = static_cast<int> (recMenuModes.size ());
     applyRecMode ((recMenuIndex (_recMode) + 1) % count);
     updateClipSettingsDisplay ();
   };
-  _clipSettings->onClockModePressed = [this] {
-    // The same three the menu offers, in the same order.
-    applyClockMode ((_clockMode + 1) % 3);
-    _clipSettings->setClockMode (_clockMode);
-  };
-  _clipSettings->onMenuPressed = [this] { toggleGlobalSettings (); };
-  // Straight to the take: there is no card to turn over any more. What is
-  // being recorded is drawn where what you are playing usually is, on the
-  // one face the Shape section has left.
-  _clipSettings->onRecordPressed = [this] { toggleRecordingOnShownClip (); };
+
   // The bar's four transport keys are the shown clip's pads, reached through
   // the pad handler rather than reimplemented: the timing rules live there
   // (play on the next beat, stop now, the accent while the finger is down)
@@ -693,10 +655,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       handlePadRelease (_clipSettingsChannel, pad);
   };
 
-  _clipSettings->onTapPressed = [this] { handleScreenTap (); };
-  // Held, not tapped: Shift+Action previews for as long as it is down. In the
-  // global strip it stands on both pages, so it can be held while the other
-  // hand works the pads.
   // The bar's ACT plays the shown clip's accent, exactly as its pad does.
   // A speed key is the clip's playback length said plainly. Tapping one sets
   // it outright rather than stepping towards it — that is what the keys are
@@ -721,19 +679,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                           + " ACTION");
   };
 
-  _clipSettings->onShiftHeld = [this] (bool held) {
-    _screenShiftHeld = held;
-    updateFunctionKeyLEDs ();
-    updateControlReadout (juce::String ("-- SHIFT ") + (held ? "ON" : "OFF"));
-  };
-  // Held, not tapped: Shift+Action previews for as long as it is down. In the
-  // global strip it stands on both pages, so it can be held while the other
-  // hand works the pads.
-  _clipSettings->onShiftHeld = [this] (bool held) {
-    _screenShiftHeld = held;
-    updateControlReadout (juce::String ("-- SHIFT ") + (held ? "ON" : "OFF"));
-  };
-
   _clipSettings->onControlDragged = [this] (int section, int sub,
                                            int increment) {
     handleClipSettingsValueChange (_clipSettingsChannel, section, sub,
@@ -750,38 +695,33 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     handleClipSettingsToggle (_clipSettingsChannel, section, sub);
   };
 
-  // The elevation graphic sets where the middle of the trajectory sits. An
-  // absolute height, not an increment: the graphic shows where things are,
-  // so a finger on it means that height.
-  _clipSettings->onElevationBaseSet = [this] (float base) {
-    auto &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
-    if (!pattern)
-      return;
-
-    pattern->setElevationBase (base);
-    refreshPatternDisplayFromTicks (pattern);
-    updateClipSettingsDisplay ();
-    scheduleSetSave ();
-  };
-
-  _clipSettings->onElevationBaseReset = [this] (float base) {
-    auto &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
-    if (!pattern)
-      return;
-
-    pattern->setElevationBase (base);
-    refreshPatternDisplayFromTicks (pattern);
-    updateControlReadout ("-- DEFAULT");
-    updateClipSettingsDisplay ();
-    scheduleSetSave ();
-  };
-
   _clipSettings->onControlReset = [this] (int section, int sub) {
     handleClipSettingsReset (_clipSettingsChannel, section, sub);
   };
 
-  _clipSettings->onPageSelected
-      = [this] (BarPage page) { showBarPage (page); };
+  // MAINMIX is a tab: it shows the big mixer and a second tap leaves it up.
+  // Any other tab takes it away and shows its page.
+  _clipSettings->onPageSelected = [this] (BarPage page) {
+    if (_mixerOpen)
+      showMixer (false);
+    showBarPage (page);
+  };
+  // The elevation picture switches camera mode: while it is on, a finger on
+  // the sphere turns the view instead of taking a blob.
+  _clipSettings->onElevationPictureTapped = [this] {
+    _cameraMode = !_cameraMode;
+    if (_motionComponent)
+      _motionComponent->setCameraMode (_cameraMode);
+    _clipSettings->setCameraMode (_cameraMode);
+    updateControlReadout (_cameraMode ? "-- CAMERA ON" : "-- CAMERA OFF");
+  };
+  _clipSettings->onMainMixTapped = [this] {
+    if (_mixerOpen)
+      return;
+    updateControlReadout ("-- MIX ON");
+    showMixer (true);
+  };
+  _clipSettings->setMainMixOpen (_mixerOpen);
 
   _controller = std::make_unique<ControllerComponent> ();
   _controller->onPadPressed = [this] (index_t channel, index_t pad) {
@@ -1031,6 +971,17 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _developerMode = persisted.developerMode;
   _skinBeforeClean = persisted.skinBeforeClean;
   refreshCleanKey ();
+
+  // The view the room was last looked at from, and saved again whenever a
+  // camera gesture settles. Wired after it is applied, so putting it back is
+  // not itself a change that writes the file.
+  if (_motionComponent)
+    {
+      _motionComponent->setCamera (
+          { persisted.cameraPitch, persisted.cameraTurn });
+      _motionComponent->setCameraZoom (persisted.cameraZoom);
+      _motionComponent->onCameraChanged = [this] { persistSettings (); };
+    }
 
   applyClockMode (persisted.clockMode);
   _engine.setRecMode (_recMode);
@@ -1303,9 +1254,16 @@ A3MotionUIComponent::applySpeedLog2ToShownClip (int speedLog2)
 void
 A3MotionUIComponent::persistSettings () const
 {
-  saveSettings (getPersistedSettingsFile (),
-                AppSettings{ _clockMode, _recMode, _speedButtonLog2,
-                             _developerMode, _skinBeforeClean });
+  auto settings = AppSettings{ _clockMode, _recMode, _speedButtonLog2,
+                               _developerMode, _skinBeforeClean };
+  if (_motionComponent)
+    {
+      auto const camera = _motionComponent->getCamera ();
+      settings.cameraPitch = camera.pitch;
+      settings.cameraTurn = camera.turn;
+      settings.cameraZoom = _motionComponent->getCameraZoom ();
+    }
+  saveSettings (getPersistedSettingsFile (), settings);
 }
 
 Measure
@@ -1329,8 +1287,10 @@ A3MotionUIComponent::createMainUI ()
 
   _statusBar = std::make_unique<StatusBar> (_valueBPM);
   _statusBar->onKeyboardIconTapped = [this] { toggleKeyboard (); };
-  _statusBar->onMixIconTapped = [this] { toggleMixer (); };
   _statusBar->onCleanIconTapped = [this] { toggleClean (); };
+  _statusBar->onClockKeyTapped = [this] { stepClockMode (); };
+  _statusBar->onMenuKeyTapped = [this] { toggleGlobalSettings (); };
+  _statusBar->onTickTapped = [this] { handleScreenTap (); };
   addChildComponent (*_statusBar);
   _statusBar->setVisible (true);
   _statusBarCallbackHandle
@@ -1573,10 +1533,6 @@ A3MotionUIComponent::resized ()
   if (_action)
     {
       _action->setBounds (_clipSettings->clipContentBounds ());
-      // After the bounds, not before: the page subtracts its own origin from
-      // this to bring the strip's rows into its own coordinates, so it has to
-      // know where it is standing first.
-      _action->setGridReference (_clipSettings->globalGridRowsBounds ());
     }
   if (_browser && _clipSettings)
     _browser->setBounds (_clipSettings->clipContentBounds ());
@@ -1754,7 +1710,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                   // are not -- their noise would drop an armed DISCARD before
                   // the second tap could land (#32).
                   disarmOnOtherInput ();
-                  handleChannelValueChange (channel, channelRowFreq,
+                  handleChannelValueChange (channel, ChannelPot::Freq,
                                             increment);
                   updateControlReadout (
                       "CH" + juce::String (channel + 1) + " FREQ "
@@ -1770,7 +1726,7 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
               if (increment != 0)
                 {
                   disarmOnOtherInput ();
-                  handleChannelValueChange (channel, channelRowQ, increment);
+                  handleChannelValueChange (channel, ChannelPot::Q, increment);
                   updateControlReadout (
                       "CH" + juce::String (channel + 1) + " Q "
                       + juce::String (_engine.getChannelPot2 (channel), 2));
@@ -1844,39 +1800,27 @@ A3MotionUIComponent::handleTapAt (juce::int64 tapTimeMicros)
 }
 
 void
-A3MotionUIComponent::handleChannelValueChange (index_t channel, int row,
+A3MotionUIComponent::handleChannelValueChange (index_t channel, ChannelPot pot,
                                                int increment)
 {
   // The same step the encoders take, so a finger and a knob move a value at
   // the same rate.
   auto const step = increment * 0.02f;
+  setChannelPotValue (channel, pot, channelPotValue (channel, pot) + step);
+}
 
-  // The rows read 3d, freq, Q from the top — see channelRow* in
-  // ClipSettingsLayout.hh. The grid's order is the screen's, not the
-  // engine's pot numbering.
-  switch (row)
+float
+A3MotionUIComponent::channelPotValue (index_t channel, ChannelPot pot)
+{
+  // The engine numbers them by the panel: pot 1 is freq, pot 2 is Q, pot 3
+  // is the 3d pot.
+  switch (pot)
     {
-    case channelRowThreeD:
-      _engine.setChannelPot3 (
-          channel,
-          std::clamp (_engine.getChannelPot3 (channel) + step, 0.f, 1.f));
-      break;
-    case channelRowFreq:
-      _engine.setChannelPot1 (
-          channel,
-          std::clamp (_engine.getChannelPot1 (channel) + step, 0.f, 1.f));
-      break;
-    case channelRowQ:
-      _engine.setChannelPot2 (
-          channel,
-          std::clamp (_engine.getChannelPot2 (channel) + step, 0.f, 1.f));
-      break;
-    default:
-      return;
+    case ChannelPot::ThreeD: return _engine.getChannelPot3 (channel);
+    case ChannelPot::Freq: return _engine.getChannelPot1 (channel);
+    case ChannelPot::Q: return _engine.getChannelPot2 (channel);
     }
-
-  updateClipSettingsDisplay ();
-  scheduleSetSave ();
+  return 0.f;
 }
 
 void
@@ -1957,8 +1901,8 @@ A3MotionUIComponent::toggleGlobalSettings ()
 
   // One level at a time: the mixer, then a name being typed, then the editor,
   // then the menu itself. The mixer is first because it is the only one of
-  // them that is opened from outside this chain — the MIX key in the status
-  // bar is reachable whatever else is up — so it is the innermost room
+  // them that is opened from outside this chain — MAINMIX in the bar's header
+  // is reachable whatever else is up — so it is the innermost room
   // whenever it is open. Back and Close do the same thing to it, which is no
   // fault: it has no levels, and two ways out of one room is not one.
   if (_mixerOpen)
@@ -1984,13 +1928,6 @@ A3MotionUIComponent::toggleGlobalSettings ()
 }
 
 void
-A3MotionUIComponent::toggleMixer ()
-{
-  updateControlReadout (_mixerOpen ? "-- MIX OFF" : "-- MIX ON");
-  showMixer (!_mixerOpen);
-}
-
-void
 A3MotionUIComponent::showMixer (bool open)
 {
   if (!_mixer || !_motionComponent)
@@ -2007,10 +1944,10 @@ A3MotionUIComponent::showMixer (bool open)
     _mixer->toFront (false);
 
   // Guarded because the overlay is built with the rest of the sphere's
-  // furniture, well before the status bar exists — and closeAllOverlays()
-  // is reachable from anywhere.
-  if (_statusBar)
-    _statusBar->setMixOpen (open);
+  // furniture, well before the bar exists — and closeAllOverlays() is
+  // reachable from anywhere.
+  if (_clipSettings)
+    _clipSettings->setMainMixOpen (open);
 
   updateOverlayButtons ();
 }
@@ -2045,6 +1982,15 @@ A3MotionUIComponent::toggleRecordingOnShownClip ()
   // there is no pad here, and the bar already says which slot it describes.
   updateControlReadout ("-- REC ON");
   startRecording (_clipSettingsChannel, _clipSettingsSlot);
+}
+
+void
+A3MotionUIComponent::stepClockMode ()
+{
+  // The same three the menu offers, in the same order.
+  applyClockMode ((_clockMode + 1) % 3);
+  if (_clipSettings)
+    _clipSettings->setClockMode (_clockMode);
 }
 
 void
@@ -4726,13 +4672,8 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
 bool
 A3MotionUIComponent::isButtonPressed (Button button)
 {
-  // The panel's key or the screen's, whichever is down. One state, so that
-  // everything asking "is Shift held" gets the same answer no matter which
-  // of the two the hand is on — and so that a build with no panel can still
-  // reach the gestures that need a modifier.
-  if (button == Button::Shift && _screenShiftHeld)
-    return true;
-
+  // The panel's key only: the screen's SHIFT went on 2026-09-26, so the
+  // gestures that need the modifier need the panel.
   return _ioAdapter->getButton (button).getValue ();
 }
 
@@ -4775,8 +4716,8 @@ A3MotionUIComponent::tickCallback (Measure measure)
           // same tick as the pad LEDs because it is the same kind of thing —
           // what is shown catching up with what the engine is doing — and
           // often enough to read as movement without repainting the bar every
-          // tick. setChannelValues() repaints only when something moved, so a
-          // still grid costs nothing here.
+          // tick. A knob repaints only when its value or arc moved, so still
+          // knobs cost nothing here.
           refreshChannelValues ();
         }
 
@@ -5095,26 +5036,59 @@ A3MotionUIComponent::buildSession ()
 }
 
 void
-A3MotionUIComponent::refreshChannelValues ()
+A3MotionUIComponent::setChannelPotValue (index_t channel, ChannelPot pot,
+                                         float value)
 {
-  if (!_clipSettings)
+  auto const clamped = std::clamp (value, 0.f, 1.f);
+
+  // Numbered by the panel -- see channelPotValue().
+  switch (pot)
+    {
+    case ChannelPot::ThreeD: _engine.setChannelPot3 (channel, clamped); break;
+    case ChannelPot::Freq: _engine.setChannelPot1 (channel, clamped); break;
+    case ChannelPot::Q: _engine.setChannelPot2 (channel, clamped); break;
+    }
+
+  updateClipSettingsDisplay ();
+  scheduleSetSave ();
+}
+
+void
+A3MotionUIComponent::resetChannelPot (index_t channel, ChannelPot pot)
+{
+  if (!channelValueResetIsAllowed (_ioAdapter
+                                   && _ioAdapter->hardwareIsAvailable ()))
     return;
 
-  // Every channel's three, not only the shown one's: the grid belongs to the
-  // channels rather than to the clip on display. Each goes in with its
-  // *effective* value beside it — the setting with its envelope laid over it —
-  // because a modulation that moves nothing on screen is one you have to take
-  // on trust. Only 3d used to; freq and Q were sent moving and drawn still.
+  if (auto const rest = channelPotRestPosition (pot))
+    setChannelPotValue (channel, pot, *rest);
+}
+
+void
+A3MotionUIComponent::refreshChannelValues ()
+{
+  if (!_mixer || !_mixerStrip)
+    return;
+
+  // Every channel's three, not only the shown one's: the overlay shows all
+  // four, and the bar's strip keeps them so a face tapped shows its channel's
+  // at once. Each goes in with its *effective* value beside it -- the setting
+  // with its envelope laid over it -- because a modulation that moves nothing
+  // on screen is one you have to take on trust.
   for (int ch = 0; ch < numChannelColumns; ++ch)
     {
       auto const index = static_cast<index_t> (ch);
-      _clipSettings->setChannelValues (
-          ch, _engine.getChannelPot1 (index),
+
+      // In channelPotOrder: 3D, FREQ, Q.
+      auto const pots = ChannelPotValues{
+        { _engine.getChannelPot3 (index), _engine.getChannelPot1 (index),
+          _engine.getChannelPot2 (index) },
+        { _engine.getChannelPot3Effective (index),
           _engine.getChannelPot1Effective (index),
-          _engine.getChannelPot2 (index),
-          _engine.getChannelPot2Effective (index),
-          _engine.getChannelPot3 (index),
-          _engine.getChannelPot3Effective (index));
+          _engine.getChannelPot2Effective (index) }
+      };
+      _mixer->setChannelPots (ch, pots);
+      _mixerStrip->setChannelPots (ch, pots);
     }
 }
 
@@ -6179,6 +6153,8 @@ A3MotionUIComponent::openGlobalSettings ()
   // worse than one that never lit at all.
   if (_clipSettings)
     _clipSettings->setMenuOpen (true);
+  if (_statusBar)
+    _statusBar->setMenuOpen (true);
   if (runsOnHardware ())
     updateFunctionKeyLEDs ();
 
@@ -6257,6 +6233,8 @@ A3MotionUIComponent::closeGlobalSettings ()
   // worse than one that never lit at all.
   if (_clipSettings)
     _clipSettings->setMenuOpen (false);
+  if (_statusBar)
+    _statusBar->setMenuOpen (false);
   if (runsOnHardware ())
     updateFunctionKeyLEDs ();
 
@@ -6690,11 +6668,32 @@ A3MotionUIComponent::applyPickedColour ()
   applyEditedSkin ();
 }
 
+namespace
+{
+/** How long Onboard takes to fade in or out before it answers with the state
+ *  it arrived at. */
+constexpr int keyboardSettleMs = 800;
+}
+
 void
 A3MotionUIComponent::showKeyboard (bool shown)
 {
   shown ? onScreenKeyboard::show () : onScreenKeyboard::hide ();
-  refreshKeyboardIcon ();
+
+  // What was just asked for, at once. Onboard is asked again once it has
+  // settled rather than now: it fades in and out, and asked straight away it
+  // still answers with the state it is leaving -- which lit KEYS while the
+  // keyboard went away and greyed it while it came up. The second look is
+  // what catches Onboard's own hide key.
+  if (_statusBar)
+    _statusBar->setKeyboardState (shown ? StatusBar::KeyboardState::Shown
+                                        : StatusBar::KeyboardState::Available);
+
+  juce::Component::SafePointer<A3MotionUIComponent> self (this);
+  juce::Timer::callAfterDelay (keyboardSettleMs, [self] {
+    if (self != nullptr)
+      self->refreshKeyboardIcon ();
+  });
 }
 
 void
@@ -7029,7 +7028,7 @@ A3MotionUIComponent::numSubElementsForSection (int menuIndex) const
   // by the same sub-index an encoder would. They had drifted: elevation said
   // six and motion four long after either was true.
   if (menuIndex == ClipSettingsComponent::elevationIndex)
-    return 3; // clip-top, clip-bottom, sway
+    return 4; // clip-bottom, clip-top, sway, elv
   if (menuIndex == ClipSettingsComponent::motionIndex)
     // In reading order: rot, spin, reach, swell, sqzX, strX, sqzY, strY,
     // fade, bias. The two lists went to Shape.
@@ -7085,6 +7084,14 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
       else if (sub == 2)
         // Off. The middle of a bipolar sweep is no sweep at all.
         pattern->setElevationLfo (0);
+      else if (sub == 3)
+        {
+          // elv: the middle of what the clips leave, which is where the line
+          // sat before anyone moved it.
+          pattern->setElevationBase (defaultElevationBase (
+              pattern->getClipTop (), pattern->getClipBottom ()));
+          refreshPatternDisplayFromTicks (pattern);
+        }
       else
         return;
       break;
@@ -7153,6 +7160,10 @@ A3MotionUIComponent::setClipSettingsValue (index_t channel, int section,
       case 0: pattern->setClipBottom (level); break;
       case 1: pattern->setClipTop (level); break;
       case 2: pattern->setElevationLfo (step); break;
+      case 3:
+        pattern->setElevationBase (elevationBaseForKnob (
+            level, pattern->getClipTop (), pattern->getClipBottom ()));
+        break;
       default: return;
       }
   else if (section == motionSection)
@@ -7296,13 +7307,11 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         updatePadRowLabel (channel, slot);
         break;
       }
-    case 1: // Elevation — clip-bottom (0), clip-top (1), sway (2). In that
-            // order because that is the order they stand in, and they stand
-            // in it because the floor is on the left of a room drawn from the
-            // side. Where the middle of the trajectory sits is set in the
-            // graphic above them, not by a knob, and sway is how fast that
-            // line travels. reach went to Motion, beside the swell that
-            // sweeps it.
+    case 1: // Elevation — clip-bottom (0), clip-top (1), sway (2), elv (3).
+            // The clips in the order they stand, because the floor is on the
+            // left of a room drawn from the side. elv is where the middle of
+            // the trajectory sits (the graphic's touch until 2026-09-26) and
+            // sway is how fast that line travels.
       {
         auto &pattern = _patterns[channel][slot];
         if (!pattern)
@@ -7317,7 +7326,15 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           case 1:
             pattern->setClipTop (pattern->getClipTop () + increment * 0.05f);
             break;
-          default:
+          case 3:
+            // elv, stepped the way the knob turns it: clockwise is higher.
+            pattern->setElevationBase (elevationBaseForKnob (
+                knobForElevationBase (pattern->getElevationBase ())
+                    + increment * 0.02f,
+                pattern->getClipTop (), pattern->getClipBottom ()));
+            refreshPatternDisplayFromTicks (pattern);
+            break;
+          case 2:
             // How fast the line the graphic draws travels, and towards which
             // pole. It moved here from Motion to stand under the thing it
             // moves; reach went the other way, to stand beside its own sweep.

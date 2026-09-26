@@ -178,11 +178,10 @@ public:
    *  follows on rotate and the accent follows on 3d. One idea, said the same
    *  way everywhere, so a blue arc always means "something is moving this". */
   void setElevationReach (float reach, float swept = -1.f);
-  /** Where the middle of the trajectory sits, 0 north and 1 south -- the one
-   *  line in the graphic a finger sets. */
-  /** Where the middle of the trajectory sits, and where the sway is holding
-   *  it right now. A `swept` below zero means it is standing still: the
-   *  graphic then draws the line alone, with nothing filled beside it. */
+  /** Where the middle of the trajectory sits (0 north, 1 south), and where
+   *  the sway is holding it right now -- shown on the elv knob, the setting
+   *  as its pointer and the sway as the blue arc. A `swept` below zero means
+   *  it is standing still. The graphic draws the setting alone. */
   void setElevationBase (float base, float swept = -1.f);
   void setElevationMirrorSouth (bool mirrorSouth);
   void setElevationClipTop (float clipTop);
@@ -343,10 +342,6 @@ public:
    *  says and what it deliberately does not. */
   void setInputLevels (std::array<VuLevel, numChannelsInitial> const &inputs);
 
-  void setChannelValues (int channel, float freq, float freqEffective,
-                         float q, float qEffective, float threeD,
-                         float threeDEffective);
-
   /** Which section (0..numParameters-1) is currently selected/highlighted. */
   void setSelectedParameterIndex (int index);
 
@@ -362,12 +357,19 @@ public:
    *  controller page covers when it is showing. Under the header row, which
    *  belongs to the bar on both pages. */
   juce::Rectangle<int> clipContentBounds () const;
-  /** Where the global strip's three channel rows stand, in the bar's own
-   *  coordinates — one rectangle over all three. The ACTION page lines its
-   *  own rows up with these so 3d, freq and q read straight across the bar. */
-  juce::Rectangle<int> globalGridRowsBounds () const;
   /** A tab was tapped. */
   std::function<void (BarPage page)> onPageSelected;
+  /** The elevation picture in the global strip was tapped: switch camera
+   *  mode, in which the big sphere turns the view. */
+  std::function<void ()> onElevationPictureTapped;
+  /** Whether camera mode is on, so the picture's field can wear it. */
+  void setCameraMode (bool on);
+
+  /** MAINMIX was tapped: open or close the big mixer. Not a page -- the
+   *  mixer lies over the sphere, and the bar stays on the page it was on. */
+  std::function<void ()> onMainMixTapped;
+  /** Whether the big mixer is open, so MAINMIX can wear it. */
+  void setMainMixOpen (bool open);
   /** Tapped, except Action, which is held for as long as the finger is down --
    *  the same distinction the pads make, because these are the same four
    *  things and two ways to do one thing must not behave differently. */
@@ -422,27 +424,9 @@ public:
    *  callback rather than an increment, because "the other one" is not a
    *  direction — see tapTogglesValue(). */
   std::function<void (int section, int sub)> onControlToggled;
-  /** A finger landed in the elevation graphic at this height, 0 north to 1
-   *  south. Absolute rather than an increment: the graphic is a picture of
-   *  where things are, so touching it means "there", not "a bit further". */
-  std::function<void (float base)> onElevationBaseSet;
-  /** Two taps on the graphic put the line back in the middle of the range the
-   *  clips have left it -- the same "back to the middle" every knob in the bar
-   *  answers a double tap with. Separate from onElevationBaseSet so the reset
-   *  can say so in the readout, which is what tells a hand it landed. */
-  std::function<void (float base)> onElevationBaseReset;
   /** Two taps on a knob put it back to its default. Separate from a toggle:
    *  the value it lands on is decided by whoever owns the value, not here. */
   std::function<void (int section, int sub)> onControlReset;
-
-  /** A cell of the per-channel grid was dragged. `row` is in channelRow*
-   *  order. */
-  std::function<void (int channel, int row, int increment)>
-      onChannelValueDragged;
-
-  /** Two taps on one of the three channel knobs: put it back to its rest.
-   *  Not wired when the hardware panel is attached -- see where it is set. */
-  std::function<void (int channel, int row)> onChannelValueReset;
 
   /** The global strip's action buttons. Device-wide functions the hardware
    *  has its own keys for — this is the way to them with a finger. */
@@ -456,15 +440,6 @@ public:
    *  a drag changes the key under the finger rather than walking the shown
    *  clip through a range no key would remember. */
   std::function<void (int index, int increment)> onSpeedDragged;
-  /** The clock mode steps on: INT, EXT, PIO. */
-  std::function<void ()> onClockModePressed;
-  std::function<void ()> onMenuPressed;
-  std::function<void ()> onRecordPressed;
-  std::function<void ()> onTapPressed;
-  /** Shift went down or came up. Held, not tapped: Shift+Action previews for
-   *  as long as it is down, so a latch would have nothing to release. */
-  std::function<void (bool held)> onShiftHeld;
-
   /** Whether the Rec button should read as armed. */
   void setRecording (bool recording);
 
@@ -475,9 +450,11 @@ public:
    *  that missed. Only on touch: it used to blink on every beat as well,
    *  which put a flashing light on a bar you are meant to read. */
 
-  /** Everything the six function keys' look depends on, gathered here because
-   *  this is the one place that knows all of it — the strip paints from it and
-   *  A3MotionUIComponent mirrors it to the panel's LEDs. */
+  /** Everything the panel's six function keys' look depends on, gathered
+   *  here because this is the one place that knows all of it —
+   *  A3MotionUIComponent mirrors it to the panel's LEDs, and the rec mode's
+   *  key on the REC page paints from it. The other five keys left the screen
+   *  on 2026-09-26; their state stays, because the LEDs still show it. */
   FunctionKeyLook functionKeyLook () const;
 
   /** Shift is down — from the panel's key or the strip's, they are one
@@ -535,17 +512,16 @@ private:
    *  visible in parallel — same style as the Elevation controls. */
   void paintMotionSection (juce::Graphics &g, bool isSelected);
   /** Freq / Q (knobs), single row. */
-  /** The global section's 4x3 grid, each column in its channel's colour. */
-  void paintChannelGrid (juce::Graphics &g);
-  /** A grid knob. `value` is where the pointer stands; `reach` is how far a
-   *  modulation has carried it, and the arc from one to the other is filled
-   *  — pass `reach` equal to `value` for a knob nothing is modulating. */
-  void paintGridKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
-                      ControlMetrics metrics, float value, float reach,
-                      juce::Colour colour);
   /** Small, deliberately unobtrusive section title (see class doc) — most
    *  of a section's height goes to its controls, not this label. */
   void paintGlobalSection (juce::Graphics &g, bool isSelected);
+  /** The REC page's card: its title, and the rec mode's key. Fade and bias
+   *  are knobs and draw themselves. */
+  void paintRecordSection (juce::Graphics &g);
+  /** The little camera in the elevation picture's corner. */
+  void paintCameraMark (juce::Graphics &g, juce::Rectangle<int> bounds) const;
+  /** Show each control on the pages it stands on, hide it elsewhere. */
+  void showControlsOfPage ();
   /** One action button: a filled, labelled box. Not paintMiniToggle — that
    *  shows a value under a caption, and these have no value, only a name
    *  and the fact that they can be pressed. */
@@ -665,7 +641,6 @@ private:
   std::array<bool, numClipSections> _locked{ false, false, false };
   float _elevationReach = 0.5f;
   float _elevationBase = 0.f;
-  float _elevationBaseSwept = -1.f;
   std::vector<ElevationSidePoint> _elevationFigure;
   ElevationSidePoint _elevationHead{};
   SphereCamera _sphereCamera{};
@@ -718,12 +693,6 @@ private:
   float _patternLengthBeats = 0.f;
   float _nextTakeLengthBeats = 0.f;
   int _beatsPerBar = 4;
-  std::array<float, numChannelColumns> _channelFreq{};
-  std::array<float, numChannelColumns> _channelFreqReach{};
-  std::array<float, numChannelColumns> _channelQ{};
-  std::array<float, numChannelColumns> _channelQReach{};
-  std::array<float, numChannelColumns> _channelThreeD{};
-  std::array<float, numChannelColumns> _channelThreeDReach{};
   int _selectedIndex = 0;
 
   /** Every rectangle in the bar, recomputed by updateLayout(). */
@@ -738,7 +707,6 @@ private:
    *  section's card, with no callbacks at all: the graphic is a picture of
    *  what the controls below it do, and touching a picture should do
    *  nothing. Without it the card underneath would answer. */
-  std::unique_ptr<TouchControl> _elevationGraphicTouch;
   std::array<std::unique_ptr<TouchControl>, numClipSections> _lockTouch;
   /** The four transport keys in the header. Their look follows the same rule
    *  as the global strip's function keys: a key that is doing something is
@@ -761,18 +729,14 @@ private:
   std::unique_ptr<TouchControl> _tabActionTouch;
   std::unique_ptr<TouchControl> _tabControllerTouch;
   std::unique_ptr<TouchControl> _tabMixerTouch;
-  /** One hit area per grid cell, [channel][row]. */
-  std::array<std::array<std::unique_ptr<TouchControl>, numChannelRows>,
-             numChannelColumns>
-      _gridTouch;
+  std::unique_ptr<TouchControl> _tabMainMixTouch;
+  std::unique_ptr<TouchControl> _elevationPictureTouch;
+  bool _cameraMode = false;
+  std::unique_ptr<TouchControl> _tabRecordTouch;
+  bool _mainMixOpen = false;
   std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
 
   std::unique_ptr<TouchControl> _recModeTouch;
-  std::unique_ptr<TouchControl> _clockModeTouch;
-  std::unique_ptr<TouchControl> _menuTouch;
-  std::unique_ptr<TouchControl> _recTouch;
-  std::unique_ptr<TouchControl> _tapTouch;
-  std::unique_ptr<TouchControl> _shiftTouch;
   std::unique_ptr<TouchControl> _accentTouch;
   bool _shiftHeld = false;
   bool _recording = false;

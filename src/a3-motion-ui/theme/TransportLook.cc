@@ -313,4 +313,12 @@ drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
     }
 }
 
+juce::Rectangle<float>
+transportGlyphArea (juce::Rectangle<float> key)
+{
+  auto const side
+      = juce::jmin (key.getWidth (), key.getHeight ()) * transportGlyphOfKey;
+  return key.withSizeKeepingCentre (side, side);
+}
+
 }

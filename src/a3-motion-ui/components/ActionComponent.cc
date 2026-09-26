@@ -309,12 +309,9 @@ ActionComponent::resized ()
   _layout = layOutActionPage (
       getLocalBounds (), theme ().fontSize (FontRole::Header),
       theme ().fontSize (FontRole::Body), theme ().potSize,
-      // The strip's rows arrive in the bar's coordinates; this page is a
-      // child of the bar placed at clipContent, so they have to come back to
-      // its own origin before they mean anything here.
-      _gridReference.isEmpty ()
-          ? _gridReference
-          : _gridReference - getBounds ().getPosition ());
+      // No reference rows: the global strip's grid they lined up with went
+      // into the mixer strips on 2026-09-26.
+      {});
 
   // Every knob comes out of the rows; the mode does not stand in one.
   for (int i = 0; i < ActMode; ++i)
@@ -551,18 +548,6 @@ ActionComponent::chooseFromActionList (juce::Point<int> point)
   repaint ();
 }
 
-
-void
-ActionComponent::setGridReference (juce::Rectangle<int> barCoordinates)
-{
-  if (barCoordinates == _gridReference)
-    return;
-
-  // Geometry, so a re-layout rather than a repaint.
-  _gridReference = barCoordinates;
-  resized ();
-  repaint ();
-}
 
 void
 ActionComponent::setActionName (juce::String const &name)

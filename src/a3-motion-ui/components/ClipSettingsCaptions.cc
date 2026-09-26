@@ -120,33 +120,24 @@ clipSettingsPreferredHeight (float headerSize, float bodySize,
   auto const graphic = static_cast<int> (std::ceil (boxes * 0.34f / 0.66f));
   auto const elevation = titleRow + graphic + boxes;
 
-  // The global section: three rows of knobs, the transport under them, then
-  // three rows of buttons. It used to fit in whatever Elevation asked for,
-  // back when it held one value — with the per-channel grid it can be the
-  // taller of the two, and then the bar has to grow for it or the knobs get
-  // squeezed to a few pixels.
+  // The global section: the four channel faces, the transport two by two
+  // under them, then three rows of buttons. No title row: the strip is not
+  // named. The faces and the transport each stand in a frame with a gap
+  // under it.
   //
-  // No title row and no row of channel numbers: the strip is not named any
-  // more, and each grid column wears its channel's colour instead of being
-  // numbered.
-  //
-  // The grid draws a fifth over the standard diameter and gives each row a
-  // little more again — see layOutClipSettings().
-  auto const gridRows
-      = numChannelRows * static_cast<int> (std::ceil (knobDiameter * 1.4f));
-  // Three rows of buttons plus the gaps between them — rec mode and clock
-  // mode, menu and rec, then TAP across the width. Asking for one row's
-  // worth is what collapsed the grid above them to a few pixels.
+  // Three rows of buttons plus the gaps between them -- asking for one row's
+  // worth once collapsed what stood above them to a few pixels.
   auto const buttonRow
       = std::max (34, static_cast<int> (std::ceil (knobDiameter * 1.6f)));
-  auto const buttons = 3 * buttonRow + 2 * std::max (2, buttonRow / 8);
+  auto const buttonGap = std::max (2, buttonRow / 8);
+  auto const buttons = 3 * buttonRow + 2 * buttonGap;
+  auto const faces = buttonRow + 4 * buttonGap;
+  // The transport's floor: two rows of keys as tall as the buttons. It gets
+  // whatever the tallest section leaves over that, which at the sizes the
+  // device ships with is what makes its keys the biggest in the strip.
+  auto const transport = 2 * buttonRow + 5 * buttonGap;
 
-  // The transport came down into the strip, in a frame of its own with a gap
-  // above it. Asked for as its own block, or it takes the grid's room --
-  // which is exactly what it did on the first try.
-  auto const transport = buttonRow + 4 * std::max (2, buttonRow / 8);
-
-  auto const global = gridRows + transport + buttons;
+  auto const global = faces + transport + buttons;
 
   // Motion: a title row, four rows of knobs and one of buttons. It used to
   // fit inside whatever the other two asked for, back when it had one row of
@@ -161,7 +152,7 @@ clipSettingsPreferredHeight (float headerSize, float bodySize,
   // what a *section* needs. The bar spends its own chrome first: the header
   // row, the vertical padding twice and the gap under the header. Without
   // allowing for it the sections were handed what they asked for minus the
-  // chrome, and the global grid's knobs came out a few pixels tall.
+  // chrome, and the global strip's contents came out a few pixels tall.
   //
   // The shares come from layOutClipSettings()'s own constants rather than
   // being written out again here, because this function has to solve for
@@ -171,7 +162,8 @@ clipSettingsPreferredHeight (float headerSize, float bodySize,
   // there are two answers rather than one fraction: at the sizes the device
   // ships with the ninth decides, and at the smallest font and pot the
   // fingertip does -- it is a fixed thirty-four pixels there, not a share, and
-  // solving as though it were a share is what left the grid at six pixels.
+  // solving as though it were a share is what once left the global strip's
+  // knobs at six pixels.
   constexpr float otherChrome
       = 2.f * barPadding.asFraction () + barHeaderGap.asFraction ();
 
