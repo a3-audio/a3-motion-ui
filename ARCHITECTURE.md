@@ -938,12 +938,12 @@ status bar as a MIX toggle until then.
 
 **CLIP and MOTION** (2026-09-26). The clip area is three columns (`layOutClipSettings`), and which
 card stands in them depends on the page. CLIP: Shape's card with the clip picker over the picture,
-then a card with **dir** (Fwd Rev Bnce Rnd) over **end** (Loop Stop Paus) as keys chosen outright
-(`directionKeys`, `endActionKeys`, `onDirectionChosen`/`onEndActionChosen`), then the four lengths
-two by two (`lengthCard`). MOTION (`BarPage::Motion`): Motion's eight knobs in two rows of four
-across the first two columns, Elevation's four in the third. The sub-indices did not move:
-`directionButton`/`endActionButton` are still Shape's 2 and 3 — the rows the keys stand in, taking
-no touch of their own — so the encoders step them as before. `controlIsOnPage` and
+then a card with **dir** (Fwd Rev Bnce Rnd) over **end** (Loop Stop Paus), each one field that
+steps on a tap (`tapAdvancesValue`) — for a day they were a key per choice, and the maintainer
+wanted the toggles back — then the four lengths two by two (`lengthCard`). MOTION
+(`BarPage::Motion`): Motion's eight knobs in two rows of four across the first two columns,
+Elevation's four in the third. The sub-indices did not move: `directionButton`/`endActionButton`
+are still Shape's 2 and 3, so the encoders step them as before. `controlIsOnPage` and
 `cardOfControl` say where each control is shown and drawn; cards of different pages overlap by
 design (Shape and Motion both start in the left column).
 

@@ -221,27 +221,6 @@ ClipSettingsComponent::createTouchControls ()
   makeTab (_tabRecordTouch, BarPage::Record);
   makeTab (_tabMotionTouch, BarPage::Motion);
 
-  // dir and end: a key per choice, chosen outright.
-  for (size_t i = 0; i < _directionKeyTouch.size (); ++i)
-    {
-      auto key = std::make_unique<TouchControl> ();
-      key->onTap = [this, i] (int, int) {
-        if (onDirectionChosen)
-          onDirectionChosen (static_cast<int> (i));
-      };
-      addAndMakeVisible (*key);
-      _directionKeyTouch[i] = std::move (key);
-    }
-  for (size_t i = 0; i < _endActionKeyTouch.size (); ++i)
-    {
-      auto key = std::make_unique<TouchControl> ();
-      key->onTap = [this, i] (int, int) {
-        if (onEndActionChosen)
-          onEndActionChosen (static_cast<int> (i));
-      };
-      addAndMakeVisible (*key);
-      _endActionKeyTouch[i] = std::move (key);
-    }
 
   // The elevation picture is selected by a touch anywhere on its field, and
   // selected it hands the big sphere to the camera. A tap, not a drag: the
@@ -446,10 +425,6 @@ ClipSettingsComponent::resized ()
   _elevationPictureTouch->setBounds (_layout.elevationFrame);
   _tabRecordTouch->setBounds (_layout.tabRecord);
   _tabMotionTouch->setBounds (_layout.tabMotion);
-  for (size_t i = 0; i < _directionKeyTouch.size (); ++i)
-    _directionKeyTouch[i]->setBounds (_layout.directionKeys[i]);
-  for (size_t i = 0; i < _endActionKeyTouch.size (); ++i)
-    _endActionKeyTouch[i]->setBounds (_layout.endActionKeys[i]);
   _tabBrowserTouch->setBounds (_layout.tabBrowser);
 
   for (int i = 0; i < numSpeedButtons; ++i)
@@ -1263,15 +1238,11 @@ ClipSettingsComponent::showControlsOfPage ()
 
   _recModeTouch->setVisible (_page == BarPage::Record);
 
-  // The lengths, dir and end stand on CLIP alone.
+  // The lengths stand on CLIP alone.
   auto const onClip = _page == BarPage::Clip;
   for (auto &button : _speedTouch)
     if (button)
       button->setVisible (onClip);
-  for (auto &key : _directionKeyTouch)
-    key->setVisible (onClip);
-  for (auto &key : _endActionKeyTouch)
-    key->setVisible (onClip);
 }
 
 void
@@ -1565,22 +1536,19 @@ ClipSettingsComponent::paintChannelFaceDot (juce::Graphics &g,
 void
 ClipSettingsComponent::paintPlaySection (juce::Graphics &g)
 {
-  // CLIP's middle card: dir over end, every choice a key of its own, the one
-  // in force lit.
+  // CLIP's middle card: dir over end, each a field that steps on a tap -- no
+  // chevron, because nothing opens.
   auto const isSelected = _selectedIndex == trajectoryIndex;
   g.setColour (toColour (theme ().textPrimary, cardWash));
   g.fillRoundedRectangle (_layout.playCard.toFloat (), theme ().radiusCard);
   paintSectionLabel (g, _layout.playLabel, "dir / end", false);
 
-  for (size_t i = 0; i < _layout.directionKeys.size (); ++i)
-    paintBarButton (g, _layout.directionKeys[i], value::directionNames[i], {},
-                    static_cast<int> (i) == _motionDirection,
-                    isSelected && _trajectorySubIndex == 2);
-
-  for (size_t i = 0; i < _layout.endActionKeys.size (); ++i)
-    paintBarButton (g, _layout.endActionKeys[i], value::endActionNames[i], {},
-                    static_cast<int> (i) == _motionEndAction,
-                    isSelected && _trajectorySubIndex == 3);
+  paintBarButton (g, _layout.directionButton,
+                  value::directionNames[_motionDirection], caption::direction,
+                  _trajectorySubIndex == 2 && isSelected, false);
+  paintBarButton (g, _layout.endActionButton,
+                  value::endActionNames[_motionEndAction], caption::endAction,
+                  _trajectorySubIndex == 3 && isSelected, false);
 }
 
 void

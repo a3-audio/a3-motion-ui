@@ -336,9 +336,8 @@ controlIsOnPage (int section, int sub, BarPage page)
 {
   switch (section)
     {
-    case 0: // Shape: picker and picture on CLIP and REC; dir and end (2, 3)
-            // are keys of their own on CLIP, so their fields take no touch.
-      return sub < 2 && (page == BarPage::Clip || page == BarPage::Record);
+    case 0: // Shape: all four on CLIP; on REC the picker and the picture.
+      return page == BarPage::Clip || (page == BarPage::Record && sub < 2);
     case 1: // Elevation
       return page == BarPage::Motion;
     case 2: // Motion: the first eight on MOTION, fade and bias on REC
@@ -502,11 +501,7 @@ struct ClipSettingsLayout
   /** Their title rows. */
   juce::Rectangle<int> playLabel;
   juce::Rectangle<int> lengthLabel;
-  /** Fwd Rev Bnce Rnd and Loop Stop Paus, a key each, chosen outright. In
-   *  the enums' order. directionButton and endActionButton are the rows they
-   *  stand in. */
-  std::array<juce::Rectangle<int>, 4> directionKeys;
-  std::array<juce::Rectangle<int>, 3> endActionKeys;
+
 
   /** The REC page's card, across the two columns Elevation and Motion take
    *  on CLIP, and its title row. */
