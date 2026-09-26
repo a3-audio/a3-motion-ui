@@ -312,9 +312,18 @@ PatternLibrary::saveUserPattern (std::shared_ptr<Pattern> const &pattern)
 
     auto const clipFile
         = newFileIn (getClipDir (), juce::String (clip.name), ".json");
+    // Both or neither. A shape without its clip is a take that looks saved
+    // and is not: SAVE reported SAVED, the slot pointed at no clip, and the
+    // settings the performer dialled lived only in the set (#33). Taking the
+    // shape back leaves the take unsaved, so SAVE says so and can be tried
+    // again.
     if (!ClipFile::save (clip, clipFile))
-      std::cerr << "PatternLibrary: failed to save the clip for "
-                << file.getFullPathName () << std::endl;
+      {
+        std::cerr << "PatternLibrary: failed to save the clip for "
+                  << file.getFullPathName () << " -- not saved" << std::endl;
+        file.deleteFile ();
+        return 0;
+      }
   }
 
   std::cout << "PatternLibrary: saved user pattern '"

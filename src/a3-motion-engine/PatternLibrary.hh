@@ -127,9 +127,10 @@ public:
   /** Load a full Pattern object for the given index. */
   std::shared_ptr<Pattern> loadPattern (int index) const;
 
-  /** Save a pattern to the user directory.
-   *  Generates a unique filename.  Returns the assigned index
-   *  after refreshing the library, or 0 on failure. */
+  /** Save a pattern to the user directory, with the clip that carries its
+   *  settings beside it. Generates a unique filename. Returns the assigned
+   *  index after refreshing the library, or 0 on failure -- and a failure is
+   *  either half: a shape whose clip could not be written is taken back. */
   int saveUserPattern (std::shared_ptr<Pattern> const &pattern);
 
   /** Number of system patterns. */
