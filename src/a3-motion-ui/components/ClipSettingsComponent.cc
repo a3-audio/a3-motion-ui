@@ -992,7 +992,10 @@ ClipSettingsComponent::paint (juce::Graphics &g)
 
   if (_page == BarPage::Record)
     {
+      // The take being set up: its settings in the middle, its length on the
+      // right, where the lengths stand on CLIP too.
       paintRecordSection (g);
+      paintLengthSection (g);
       return;
     }
 
@@ -1012,6 +1015,16 @@ ClipSettingsComponent::setTakeState (bool unsaved, bool discardArmed)
   _takeDiscardArmed = discardArmed;
   repaint (_layout.transportButtons.front ());
   repaint (_layout.transportButtons.back ());
+}
+
+void
+ClipSettingsComponent::setRecArmed (bool armed)
+{
+  if (_transportArmed == armed)
+    return;
+
+  _transportArmed = armed;
+  repaint ();
 }
 
 void
@@ -1098,6 +1111,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   transport.stopPressed = _stopPressed;
   transport.unsaved = _takeUnsaved;
   transport.discardArmed = _takeDiscardArmed;
+  transport.armed = _transportArmed;
 
   for (int i = 0; i < numTransportKeys; ++i)
     {
@@ -1238,11 +1252,11 @@ ClipSettingsComponent::showControlsOfPage ()
 
   _recModeTouch->setVisible (_page == BarPage::Record);
 
-  // The lengths stand on CLIP alone.
-  auto const onClip = _page == BarPage::Clip;
+  // The lengths stand on CLIP and on REC, where the lit one is the take's
+  // length.
   for (auto &button : _speedTouch)
     if (button)
-      button->setVisible (onClip);
+      button->setVisible (lengthKeysStandOn (_page));
 }
 
 void

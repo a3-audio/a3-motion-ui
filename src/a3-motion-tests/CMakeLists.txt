@@ -45,6 +45,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LedLoad.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LedCache.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TransportKeyGround.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecArming.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PadGlyphInk.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SceneLaunch.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Theme.cc"

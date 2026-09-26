@@ -226,3 +226,38 @@ TEST (TransportLook, TheGlyphIsSquareAndCentredInItsKey)
           << key.toString ();
     }
 }
+
+// ── Play/Pause wears the usual marks, and REC PAUSE (2026-09-26) ────────────
+
+// ▶ while the clip stands, ❚❚ while it runs: the marks every player has, so
+// the key says what a press will do.
+TEST (TransportKeyGround, PlayShowsPauseWhileTheClipRuns)
+{
+  TransportState state;
+  EXPECT_EQ (transportFace (TransportKey::PlayPause, state),
+             TransportFace::PlayPause);
+
+  state.playing = true;
+  EXPECT_EQ (transportFace (TransportKey::PlayPause, state),
+             TransportFace::Pause);
+}
+
+// Armed, ▶ starts the take -- so it shows ▶ even over a running clip, and it
+// lights together with ●: the two keys that matter now.
+TEST (TransportKeyGround, ArmedLightsRecAndPlayTogether)
+{
+  TransportState state;
+  state.armed = true;
+  state.playing = true;
+
+  EXPECT_EQ (transportFace (TransportKey::PlayPause, state),
+             TransportFace::PlayPause);
+  EXPECT_EQ (transportKeyGround (TransportKey::Record, state),
+             TransportGround::Lit);
+  EXPECT_EQ (transportKeyGround (TransportKey::PlayPause, state),
+             TransportGround::Lit);
+
+  state.playing = false;
+  EXPECT_EQ (transportKeyGround (TransportKey::PlayPause, state),
+             TransportGround::Lit);
+}

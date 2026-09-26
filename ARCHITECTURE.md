@@ -955,6 +955,16 @@ only where they are drawn moved. `controlIsOnPage` says which control stands on 
 `ClipSettingsComponent::showControlsOfPage` hides the rest; `cardOfControl` names the card a
 control is drawn in. The rec mode's key is still the global section's one sub-element.
 
+**REC PAUSE** (2026-09-26). The bar's ● no longer starts a take outright: it arms the shown slot,
+jumps to REC and lights ● and ▶ together (`TransportState::armed`); the take is set up there —
+the length keys stand on REC too (`lengthKeysStandOn`), beside rec mode, fade and bias — and ▶
+starts it on the next downbeat. ● or ■ while armed takes it back and writes nothing; showing
+another slot drops it (`refreshRecArmed`). The clip on the slot keeps playing while armed. What
+each key does is `RecArming.hh`'s, as pure functions with tests. The panel's REC + Play|Pause pad
+still starts a take directly. **Play|Pause wears ▶ or ❚❚** (`TransportFace::Pause`) — ❚❚ while the
+clip runs, ▶ otherwise and whenever armed — on the bar's key and on the pads page
+(`ControllerComponent::setPadPlaying`).
+
 Where the other five keys went: **CLOCK** leads the status bar, left of the tempo; **MENU** closes
 it, beside CLEAN and KEYS (the on-screen keyboard), the three alike words (`StatusBarLayout`); **TAP** is a touch on the
 beat display, taken on the finger's way down — the screen tap brings its own timestamp through

@@ -156,7 +156,7 @@ TEST (ClipSettingsLayout, SectionCardsDoNotOverlapEachOther)
   std::vector<std::vector<juce::Rectangle<int> > > const pages{
     { c[0], l.playCard, l.lengthCard, c[3] }, // CLIP
     { c[2], c[1], c[3] },                     // MOTION
-    { c[0], l.recordCard, c[3] },             // REC
+    { c[0], l.recordCard, l.lengthCard, c[3] }, // REC
   };
 
   for (size_t page = 0; page < pages.size (); ++page)
@@ -1468,20 +1468,22 @@ TEST (ClipSettingsLayout, OneTabIsLitAndMainMixTakesItWhileOpen)
 
 // ── The REC page (2026-09-26) ─────────────────────────────────────────────
 
-// REC shows Shape as CLIP does, and one card across the rest of the width:
-// the rec mode on top, fade and bias under it. The card takes both of the
-// columns Elevation and Motion stand in on CLIP.
-TEST (ClipSettingsLayout, TheRecordCardTakesTheTwoRightColumns)
+// REC is the take being set up (2026-09-26): Shape on the left, the Record
+// card -- rec mode, fade, bias -- in the middle, and the four lengths on the
+// right, where they stand on CLIP too, since the lit one is the take's length.
+TEST (ClipSettingsLayout, TheRecordCardTakesTheMiddleColumn)
 {
   auto const l = defaultLayout ();
 
   ASSERT_FALSE (l.recordCard.isEmpty ());
-  auto const both = l.playCard.getUnion (l.lengthCard);
-  EXPECT_EQ (l.recordCard.getX (), both.getX ());
-  EXPECT_EQ (l.recordCard.getRight (), both.getRight ());
-  EXPECT_FALSE (l.recordCard.intersects (l.sectionCards[0]));
+  EXPECT_EQ (l.recordCard, l.playCard);
+  EXPECT_FALSE (l.recordCard.intersects (l.lengthCard));
   EXPECT_FALSE (l.recordLabel.isEmpty ());
   EXPECT_TRUE (l.recordCard.contains (l.recordLabel));
+
+  EXPECT_TRUE (lengthKeysStandOn (BarPage::Clip));
+  EXPECT_TRUE (lengthKeysStandOn (BarPage::Record));
+  EXPECT_FALSE (lengthKeysStandOn (BarPage::Motion));
 }
 
 TEST (ClipSettingsLayout, FadeAndBiasStandUnderTheRecModeInTheRecordCard)

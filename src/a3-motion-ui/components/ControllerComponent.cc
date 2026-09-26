@@ -145,6 +145,19 @@ ControllerComponent::setPadColour (index_t channel, index_t pad,
 }
 
 void
+ControllerComponent::setPadPlaying (index_t channel, index_t pad,
+                                    bool playing)
+{
+  if (channel >= numChannelColumns || pad >= numPadsPerChannel)
+    return;
+  if (_padPlaying[channel][pad] == playing)
+    return;
+
+  _padPlaying[channel][pad] = playing;
+  repaint (_layout.pads[channel][pad]);
+}
+
+void
 ControllerComponent::setPressed (bool &pressed, bool down,
                                  juce::Rectangle<int> area)
 {
@@ -244,6 +257,13 @@ ControllerComponent::paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
   if (!hasTransportGlyph (function))
     {
       drawMenuGlyph (g, glyph);
+      return;
+    }
+
+  // Play|Pause wears ❚❚ while its clip runs, as the bar's key does.
+  if (function == PadFunction::PlayPause && _padPlaying[channel][pad])
+    {
+      drawTransportGlyph (g, glyph, TransportFace::Pause);
       return;
     }
 
