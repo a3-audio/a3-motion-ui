@@ -150,8 +150,14 @@ LineMapRenderer::paint (int channel, std::vector<MapStroke> const &strokes)
 
   auto const vertices = capsuleVertices (strokes);
 
-  // Leave the blend state as it was found: the passes after this one set
-  // what they need, but not all of them say so.
+  // Leave everything as it was found: this runs at the start of a frame,
+  // ahead of the sphere pass and JUCE's own drawing.
+  GLint framebufferWas = 0, arrayBufferWas = 0, programWas = 0;
+  GLint viewportWas[4] = { 0, 0, 0, 0 };
+  glGetIntegerv (GL_FRAMEBUFFER_BINDING, &framebufferWas);
+  glGetIntegerv (GL_ARRAY_BUFFER_BINDING, &arrayBufferWas);
+  glGetIntegerv (GL_CURRENT_PROGRAM, &programWas);
+  glGetIntegerv (GL_VIEWPORT, viewportWas);
   auto const blendWasOn = glIsEnabled (GL_BLEND);
   GLint srcRGB = 0, dstRGB = 0, srcAlpha = 0, dstAlpha = 0;
   glGetIntegerv (GL_BLEND_SRC_RGB, &srcRGB);
@@ -160,6 +166,11 @@ LineMapRenderer::paint (int channel, std::vector<MapStroke> const &strokes)
   glGetIntegerv (GL_BLEND_DST_ALPHA, &dstAlpha);
 
   map.makeCurrentAndClear ();
+  // makeCurrentAndClear() binds and clears but leaves the viewport alone, so
+  // without this the map was painted at the *screen's* size: every stroke
+  // magnified from the bottom left and cut off at the map's edge, which on
+  // the rig was a hard line through the sphere 1.3 radii right of centre.
+  glViewport (0, 0, lineMapSize, lineMapSize);
 
   if (!vertices.empty ())
     {
@@ -192,12 +203,13 @@ LineMapRenderer::paint (int channel, std::vector<MapStroke> const &strokes)
 
       for (auto const location : { _aPosition, _aSegment, _aHalfWidth, _aColour })
         glDisableVertexAttribArray (static_cast<GLuint> (location));
-      glBindBuffer (GL_ARRAY_BUFFER, 0);
-      glUseProgram (0);
     }
 
   map.releaseAsRenderingTarget ();
-  glBindFramebuffer (GL_FRAMEBUFFER, 0);
+  glBindFramebuffer (GL_FRAMEBUFFER, static_cast<GLuint> (framebufferWas));
+  glBindBuffer (GL_ARRAY_BUFFER, static_cast<GLuint> (arrayBufferWas));
+  glUseProgram (static_cast<GLuint> (programWas));
+  glViewport (viewportWas[0], viewportWas[1], viewportWas[2], viewportWas[3]);
 
   glBlendFuncSeparate (static_cast<GLenum> (srcRGB),
                        static_cast<GLenum> (dstRGB),
