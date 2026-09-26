@@ -100,6 +100,7 @@ target_sources("a3-motion-ui" PRIVATE
     components/SphereProjection.cc
     components/LineMapGeometry.cc
     components/LineMapStrokes.cc
+    components/LineMapCapsules.cc
     components/ElevationSideView.cc
     components/Listener.cc
     io/ButtonLedColours.cc
