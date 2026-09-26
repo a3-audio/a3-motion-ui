@@ -754,10 +754,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
     // ── the transport, two by two ─────────────────────────────────────
     //
-    // Everything between the faces and the function keys: rec and stop on
-    // top, play and act under them. Two rows rather than one because the
-    // grid's room is theirs now, and a key the hand goes to mid-set is
-    // better big than wide.
+    // Everything between the faces and the function keys, arranged as a
+    // clip's pads are on PADS: play over act on the left, stop on the right,
+    // and rec in the corner the pads give to Settings -- rec has no pad of
+    // its own. Two rows rather than one because the grid's room is theirs
+    // now, and a key the hand goes to mid-set is better big than wide.
     {
       out.transportFrame = content;
       auto keys = content.reduced (frameInset);
@@ -766,10 +767,21 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       auto const keyW = (keys.getWidth () - keyGap) / 2;
       auto const keyH = (keys.getHeight () - keyGap) / 2;
 
+      auto const cellOf = [] (TransportKey key) {
+        switch (key)
+          {
+          case TransportKey::PlayPause: return std::pair{ 0, 0 };
+          case TransportKey::Stop: return std::pair{ 1, 0 };
+          case TransportKey::Action: return std::pair{ 0, 1 };
+          case TransportKey::Record: return std::pair{ 1, 1 };
+          }
+        return std::pair{ 0, 0 };
+      };
+
       for (int i = 0; i < numTransportKeys; ++i)
         {
-          auto const column = i % 2;
-          auto const row = i / 2;
+          auto const [column, row]
+              = cellOf (transportKeyOrder[static_cast<size_t> (i)]);
           out.transportButtons[static_cast<size_t> (i)]
               = { keys.getX () + column * (keyW + keyGap),
                   keys.getY () + row * (keyH + keyGap), keyW, keyH };

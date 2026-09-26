@@ -389,7 +389,8 @@ struct ClipSettingsLayout
    *  where the clip is named rather than on keys of its own. */
   juce::Rectangle<int> clipField;
   /** Rec, stop, play and act, two by two in the global strip under the
-   *  channel faces: rec and stop on top, play and act under them. */
+   *  channel faces, as a clip's pads stand on PADS: play and stop on top,
+   *  act and rec under them. Indexed like transportKeyOrder. */
   std::array<juce::Rectangle<int>, numTransportKeys> transportButtons;
   /** One key per slot, where the slot's name used to be written. A heading
    *  that says which clip you are looking at and a control that changes which

@@ -906,7 +906,8 @@ on every beat too, which put a blinking light on a bar meant to be read.
 
 The global section is laid out top to bottom (2026-09-26): the **four channel faces** in a frame of
 their own, moved up out of the clip's header row, which now holds only the five views (CLIP ACTION
-PADS MIX FILES); then the **transport two by two** — rec and stop over play and act — taking all the
+PADS MIX FILES); then the **transport two by two**, arranged like a clip's pads on PADS — play and
+stop over act and rec, rec taking the corner the pads give to Settings — taking all the
 height between the faces and the keys, which the 4x3 grid used to have; then the **six function
 keys** two by three. The rec mode is a button like the others and steps through the modes on a tap,
 which is what its encoder used to do; it reads as active whenever it is not Touch. The ACTION page

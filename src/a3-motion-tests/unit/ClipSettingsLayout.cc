@@ -1393,29 +1393,43 @@ TEST (ClipSettingsLayout, TheHeaderViewsAreOneSize)
 
 // ── The global strip, rearranged ─────────────────────────────────────────
 
-// Rec, stop, play and act, two by two under the faces: rec and stop on top,
-// play and act under them.
-TEST (ClipSettingsLayout, TheTransportIsTwoByTwoUnderTheFaces)
+// Two by two under the faces, arranged as a clip's pads are on PADS: play
+// over act on the left, stop on the right. Rec has no pad of its own and
+// takes the corner the pads give to Settings. One arrangement in both places,
+// so a hand that learnt one has learnt the other.
+TEST (ClipSettingsLayout, TheTransportIsTwoByTwoLikeThePads)
 {
   auto const l = defaultLayout ();
-  auto const &k = l.transportButtons;
 
-  for (size_t i = 0; i < k.size (); ++i)
+  auto const keyFor = [&l] (TransportKey key) {
+    for (size_t i = 0; i < static_cast<size_t> (numTransportKeys); ++i)
+      if (transportKeyOrder[i] == key)
+        return l.transportButtons[i];
+    return juce::Rectangle<int>{};
+  };
+
+  auto const play = keyFor (TransportKey::PlayPause);
+  auto const stop = keyFor (TransportKey::Stop);
+  auto const act = keyFor (TransportKey::Action);
+  auto const rec = keyFor (TransportKey::Record);
+
+  for (auto const &k : l.transportButtons)
     {
-      ASSERT_FALSE (k[i].isEmpty ()) << "key " << i;
-      EXPECT_TRUE (l.sectionCards[3].contains (k[i])) << "key " << i;
-      EXPECT_TRUE (l.transportFrame.contains (k[i])) << "key " << i;
-      EXPECT_GE (k[i].getY (), l.channelFacesFrame.getBottom ()) << "key " << i;
-      EXPECT_EQ (k[i].getWidth (), k[0].getWidth ()) << "key " << i;
-      EXPECT_EQ (k[i].getHeight (), k[0].getHeight ()) << "key " << i;
+      ASSERT_FALSE (k.isEmpty ());
+      EXPECT_TRUE (l.sectionCards[3].contains (k));
+      EXPECT_TRUE (l.transportFrame.contains (k));
+      EXPECT_GE (k.getY (), l.channelFacesFrame.getBottom ());
+      EXPECT_EQ (k.getWidth (), play.getWidth ());
+      EXPECT_EQ (k.getHeight (), play.getHeight ());
     }
 
-  EXPECT_EQ (k[0].getY (), k[1].getY ());
-  EXPECT_EQ (k[2].getY (), k[3].getY ());
-  EXPECT_GE (k[2].getY (), k[0].getBottom ());
-  EXPECT_EQ (k[0].getX (), k[2].getX ());
-  EXPECT_EQ (k[1].getX (), k[3].getX ());
-  EXPECT_GE (k[1].getX (), k[0].getRight ());
+  // Top row: play, stop. Bottom row: act, rec.
+  EXPECT_EQ (play.getY (), stop.getY ());
+  EXPECT_EQ (act.getY (), rec.getY ());
+  EXPECT_GE (act.getY (), play.getBottom ());
+  EXPECT_EQ (play.getX (), act.getX ());
+  EXPECT_EQ (stop.getX (), rec.getX ());
+  EXPECT_GE (stop.getX (), play.getRight ());
 }
 
 // Bigger than the strip's other keys: the grid's room went to them. What you
