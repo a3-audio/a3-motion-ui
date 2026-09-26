@@ -41,6 +41,7 @@
 #include <a3-motion-ui/components/TouchGrabs.hh>
 #include <a3-motion-ui/components/EnergyMap.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
+#include <a3-motion-ui/components/LineMapRenderer.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
 
 namespace a3
@@ -231,6 +232,15 @@ private:
 
   // 3D raytraced sphere shader
   SphereShader _sphereShader;
+  // The line maps painted on the GPU instead of stroked in software, when
+  // config.json says so (a3-motion-ui#34). Decided once per frame, when the
+  // maps are reset, so a frame's strokes are painted the way they were
+  // collected even if the switch flips in between.
+  LineMapRenderer _lineMapRenderer;
+  bool _gpuLineMaps = false;
+  bool _lineMapsOnGpu = false;
+  std::array<std::vector<MapStroke>, 4> _lineStrokes;
+  std::vector<MapStroke> *lineStrokesFor (int channel);
 
   // Blit resources for compositing 2D overlay onto 3D shader output
   struct BlitResources

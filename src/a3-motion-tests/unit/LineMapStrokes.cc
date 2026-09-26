@@ -165,3 +165,15 @@ TEST (LineMapStrokes, EveryStrokeStartsWithItsPenDownAndHasALine)
       EXPECT_EQ (stroke.colour.getAlpha (), 255);
     }
 }
+
+TEST (LineMapStrokes, TheGpuPaintsTheMapOnlyWhenTheConfigSaysTrue)
+{
+  auto const config = [] (juce::String const &ui) {
+    return juce::JSON::parse ("{\"ui\": " + ui + "}");
+  };
+  EXPECT_FALSE (gpuLineMapsWanted (juce::JSON::parse ("{}")));
+  EXPECT_FALSE (gpuLineMapsWanted (config ("{}")));
+  EXPECT_FALSE (gpuLineMapsWanted (config ("{\"gpuLineMaps\": false}")));
+  EXPECT_FALSE (gpuLineMapsWanted (config ("{\"gpuLineMaps\": \"true\"}")));
+  EXPECT_TRUE (gpuLineMapsWanted (config ("{\"gpuLineMaps\": true}")));
+}

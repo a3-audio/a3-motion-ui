@@ -680,7 +680,23 @@ widest first, then the core, each piece one opaque colour — R nearness, G wher
 distance field: a narrower step lies wholly inside a wider one, so the last colour down is the
 nearest. `drawPathOnSphere()` strokes that list with `juce::Graphics`; a GPU pass paints the same
 list. The constants (`lineMapSteps`, `lineMapCoreWidth`, …) live in that header with their
-reasons. Both only became visible when `sway` started
+reasons.
+
+**The line map can be painted on the GPU instead** (`components/LineMapRenderer.{hh,cc}`,
+a3-motion-ui#34): `capsuleVertices()` (`LineMapCapsules`, tested) turns the same list into two
+triangles per segment, and a fragment shader keeps what lies within half the stroke's width —
+curved joins and round ends for free — fading the last texel, composited premultiplied "over" into
+a framebuffer the sphere shader samples like the upload. Software stroking was ninety per cent of
+the renderer with four clips playing (8.5 fps, 2026-09-26).
+
+- Switched by `"ui": { "gpuLineMaps": true }` in `config/config.json`, read with the visual config
+  every sixty frames, so it can be flipped while the app runs; off unless it is a real JSON `true`.
+  A GPU that cannot build the program keeps the software path and says so in the log.
+- The choice is fixed per frame in `resetLineMaps()`: `uploadLineMaps()` paints at the start of the
+  *next* frame, and a flip in between would otherwise paint strokes that were never collected.
+- Orientation: `OpenGLTexture::loadImage()` flips an image on its way to the GPU, so the pass writes
+  `clipY = 1 − 2·y/size` to put its rows where the upload put them.
+- The braid's strand map is still stroked in software. Both only became visible when `sway` started
 moving the base off the pole as a matter of course.
 
 **Each of the bar's three sections can be held**, by the lock at the right end of its title row.

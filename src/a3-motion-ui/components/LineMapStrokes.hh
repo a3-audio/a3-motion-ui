@@ -135,6 +135,15 @@ struct MapStroke
 /** Where a point the camera sees lands in the line map. */
 juce::Point<float> toLineMap (juce::Point<float> const &seen);
 
+/** Whether config.json asks for the line map to be painted on the GPU
+ *  (`"ui": { "gpuLineMaps": true }`) instead of by the software strokes.
+ *
+ *  Off unless it is a real JSON true: the two paths paint the same list, and
+ *  the switch exists so they can be compared on the device (a3-motion-ui#34).
+ *  Read with the rest of the visual config, so it can be flipped while the
+ *  app runs. */
+bool gpuLineMapsWanted (juce::var const &config);
+
 /** The cone's ten steps, widest first, then the core -- in painting order. */
 std::vector<MapStroke> lineMapStrokes (ProjectedLine const &line);
 

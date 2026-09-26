@@ -52,6 +52,13 @@ hasALine (MapStroke const &stroke)
 
 }
 
+bool
+gpuLineMapsWanted (juce::var const &config)
+{
+  auto const wanted = config["ui"]["gpuLineMaps"];
+  return wanted.isBool () && static_cast<bool> (wanted);
+}
+
 std::vector<MapStroke>
 lineMapStrokes (ProjectedLine const &line)
 {
