@@ -238,3 +238,21 @@ TEST (PendingTakes, RenamingTouchesNothingThatIsNotPending)
   takes.moveClipFile (juce::File ("/tmp/a.json"), juce::File ("/tmp/b.json"));
   EXPECT_FALSE (takes.isPending (0, 0));
 }
+
+// An armed DISCARD is dropped by anything else that is touched (#32). The
+// component asks this before redrawing the bar, so a touch with nothing armed
+// costs nothing.
+TEST (PendingTakes, SaysWhetherAnyDiscardIsArmed)
+{
+  PendingTakes takes (4, 2);
+  EXPECT_FALSE (takes.anyDiscardArmed ());
+
+  takes.begin (1, 0, held ("Breath"));
+  EXPECT_FALSE (takes.anyDiscardArmed ());
+
+  EXPECT_FALSE (takes.pressDiscard (1, 0));
+  EXPECT_TRUE (takes.anyDiscardArmed ());
+
+  takes.disarm ();
+  EXPECT_FALSE (takes.anyDiscardArmed ());
+}
