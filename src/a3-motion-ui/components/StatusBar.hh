@@ -85,7 +85,7 @@ public:
   /** Whether the menu is open, so MENU can wear it. */
   void setMenuOpen (bool open);
 
-  /** How the keyboard icon reads: there is nothing to type into, there is
+  /** How the KEYS key reads: there is nothing to type into, there is
    *  and it is hidden, or it is up. A tap that does nothing has to look
    *  like one. */
   enum class KeyboardState
@@ -97,13 +97,13 @@ public:
 
   void setKeyboardState (KeyboardState state);
 
-  /** Tapped when the CLEAN key left of the keyboard icon is touched. The bar
+  /** Tapped when the CLEAN key left of KEYS is touched. The bar
    *  owns no skins
    *  -- it only says the key was hit. See theme/CleanSkin.hh. */
   std::function<void ()> onCleanIconTapped;
 
   /** Whether there is a clean skin to go to, and whether it is up. A key
-   *  with nothing to switch to is greyed out, like the keyboard icon with
+   *  with nothing to switch to is greyed out, like KEYS with
    *  nothing to type into. */
   void setCleanState (bool available, bool active);
 

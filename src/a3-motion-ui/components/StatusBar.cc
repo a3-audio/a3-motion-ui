@@ -427,35 +427,11 @@ StatusBar::paintWordKey (juce::Graphics &g, juce::Rectangle<int> area,
 void
 StatusBar::paintKeyboardKey (juce::Graphics &g)
 {
-  auto const area = _layout.keyboardKey;
-  if (area.isEmpty ())
-    return;
-
-  auto const shown = _keyboardState == KeyboardState::Shown;
-  paintKeyGround (g, area, shown);
-
-  // A keyboard, drawn rather than typed: three rows of keys and a space bar,
-  // small enough to read as an icon at this size. Kept to the key's height
-  // and centred, so it does not stretch with the key.
-  auto const faceH = area.getHeight () / 3;
-  auto const face = area.withSizeKeepingCentre (faceH * 2, faceH);
-  if (face.isEmpty ())
-    return;
-
-  g.setColour (keyInk (_keyboardState != KeyboardState::Unavailable, shown));
-  g.drawRoundedRectangle (face.toFloat (), theme ().radiusTick,
-                          theme ().strokeThin);
-
-  auto const keyW = face.getWidth () / 5.f;
-  auto const keyH = face.getHeight () / 4.f;
-  for (int row = 0; row < 2; ++row)
-    for (int column = 0; column < 4; ++column)
-      g.fillRect (face.getX () + keyW * (column + 0.5f),
-                  face.getY () + keyH * (row + 0.6f), keyW * 0.6f,
-                  keyH * 0.6f);
-
-  g.fillRect (face.getX () + keyW * 1.f,
-              face.getY () + keyH * 2.7f, keyW * 3.f, keyH * 0.6f);
+  // A word like its neighbours, not a drawn keyboard: CLEAN, KEYS and MENU
+  // are one row of the same kind of key (asked for on 2026-09-26).
+  paintWordKey (g, _layout.keyboardKey, "KEYS",
+                _keyboardState != KeyboardState::Unavailable,
+                _keyboardState == KeyboardState::Shown);
 }
 
 void

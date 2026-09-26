@@ -943,7 +943,7 @@ only where they are drawn moved. `controlIsOnPage` says which control stands on 
 control is drawn in. The rec mode's key is still the global section's one sub-element.
 
 Where the other five keys went: **CLOCK** leads the status bar, left of the tempo; **MENU** closes
-it, beside CLEAN and the keyboard, the three alike (`StatusBarLayout`); **TAP** is a touch on the
+it, beside CLEAN and KEYS (the on-screen keyboard), the three alike words (`StatusBarLayout`); **TAP** is a touch on the
 beat display, taken on the finger's way down — the screen tap brings its own timestamp through
 `handleScreenTap()`, since only the hardware's tap arrives with one. **REC** and **SHIFT** left the
 screen: the transport's rec key records, and the Shift gestures need the panel now. Their state
