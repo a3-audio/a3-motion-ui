@@ -671,7 +671,16 @@ tested in `unit/LineMapGeometry.cc`): the shaped, lifted, camera-turned points w
 the places the pen lifts. `drawPathOnSphere()` only rasterises what it returns. It was taken out on
 2026-09-26 so that the GPU pass for the line maps (a3-motion-ui#34) draws from the same points as
 the software strokes — two projections would be two lines that merely happen to agree, and the
-blob runs on exactly one of them. Both only became visible when `sway` started
+blob runs on exactly one of them.
+
+**What goes into the line map, and in which order, is `lineMapStrokes()`'s**
+(`components/LineMapStrokes.{hh,cc}`, tested in `unit/LineMapStrokes.cc`): the cone's ten steps
+widest first, then the core, each piece one opaque colour — R nearness, G where along the figure
+(core only), B the depth fade — painted over what is already there. The painting order *is* the
+distance field: a narrower step lies wholly inside a wider one, so the last colour down is the
+nearest. `drawPathOnSphere()` strokes that list with `juce::Graphics`; a GPU pass paints the same
+list. The constants (`lineMapSteps`, `lineMapCoreWidth`, …) live in that header with their
+reasons. Both only became visible when `sway` started
 moving the base off the pole as a matter of course.
 
 **Each of the bar's three sections can be held**, by the lock at the right end of its title row.

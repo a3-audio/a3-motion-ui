@@ -42,6 +42,7 @@
 #include <a3-motion-ui/components/Listener.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
 #include <a3-motion-ui/components/LineMapGeometry.hh>
+#include <a3-motion-ui/components/LineMapStrokes.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
 namespace
@@ -125,34 +126,6 @@ auto constexpr activeAreaAroundBlobFactor = 3.f;
 // short: "der schweif vom blob soll laenger".
 auto constexpr blobTrailLag = 0.09f;
 
-// The line map: how many texels across, and how far out it reaches in the
-// units the shader thinks in -- sphere radii, with the ball's edge at one.
-//
-// A little past the ball, because a glow that stopped at the rim would cut
-// where a trajectory runs off the edge. Two hundred and fifty-six across is
-// about two and a half screen pixels per texel at the sizes this ships at:
-// coarse for a *line*, which is why the crisp line is still drawn as a vector
-// on top, and plenty for a *field*, which is all the shader asks of it.
-// 512, not 256.
-//
-// At 256 over 1.3 sphere radii a texel is two and a half screen pixels, and a
-// hairline two pixels wide cannot be held in that at all — which is why the
-// sharp core of the trajectory was drawn by JUCE into an overlay instead, and
-// why it looked raw and floated over everything: that overlay is blitted after
-// the whole scene and knows nothing about depth, towers or glow.
-//
-// Doubled, a texel is 1.4 screen pixels. The core can live in the map, and the
-// trajectory becomes one thing the shader draws rather than two layers that
-// happen to line up.
-// It stops here, and what is not here is why: the hairlines have a map of
-// their own now, and this one holds the cone alone. See strandMapSize.
-//
-// Every width below is written in texels of a 512 map and scaled by
-// lineMapTexels, so the cone and the core keep the size they had in the room
-// rather than being halved by a finer grid.
-auto constexpr lineMapSize = 512;
-constexpr float lineMapTexels = lineMapSize / 512.f;
-auto constexpr lineMapExtent = 1.3f;
 
 // How much finer than the screen the sphere pass is rendered before being
 // drawn back down onto it. See _superBuffer.
@@ -184,62 +157,6 @@ auto constexpr sphereSupersample = 2;
 auto constexpr strandMapSize = 1024;
 constexpr float strandMapTexels = strandMapSize / 512.f;
 
-// The nested strokes that make the stepped cone of nearness: half-width in
-// texels, and how near that says you are. Widest and dimmest first -- each is
-// drawn over the last, and a narrower stroke is wholly inside a wider one, so
-// overwriting *is* the maximum a distance field needs.
-struct LineMapStep
-{
-  float width;
-  float nearness;
-};
-// Ten of them, not five. The shader builds everything it draws out of this
-// ramp, so the ramp's own terraces are what "sehr pixelig" was looking at: at
-// five steps the field jumps by a fifth of its range between neighbouring
-// bands and no amount of bilinear filtering hides a step that size. Ten small
-// strokes into a 256-square image cost almost nothing.
-// Widths are in texels, so they double with the map to keep the same size in
-// the room.
-constexpr LineMapStep lineMapSteps[] = {
-  { 68.f, 0.04f }, { 56.f, 0.10f }, { 46.f, 0.17f }, { 38.f, 0.25f },
-  { 30.f, 0.34f }, { 24.f, 0.44f }, { 18.f, 0.55f }, { 14.f, 0.66f },
-  { 10.f, 0.77f }, { 7.f, 0.86f },
-};
-
-// The innermost step is drawn on its own, and in pieces.
-//
-// It carries two things at once: full nearness in the red, and *where along
-// the figure* this piece is in the green. The second is what lets the shader
-// twist the cord: a weave is a pattern that travels along a line, and a
-// fragment shader has no idea where along anything it is unless it is told.
-//
-// In pieces because a stroke has one colour and the arc length has to change
-// along the line. Only at this width, not at all of them, or it would be a
-// hundred and twenty strokes five times over.
-// Not doubled, but not halved either, and one texel is too few: a stroke that
-// narrow is averaged away by the bilinear filter before it ever reaches full
-// nearness, so the shader finds no core to sharpen and draws glow alone.
-// Measured on the device at 1.0 — the cord had no bright centre at all.
-//
-// At 2.4 texels it is 3.4 screen pixels of *map*, which the shader's own
-// `tight` term (nearness to the ninth power) then pulls back down to a
-// hairline. The map has to hold more than the line is wide.
-constexpr float lineMapCoreWidth = 1.8f;
-constexpr int lineMapPieces = 120;
-
-// The cone is drawn in pieces too, for the depth it carries in the blue — but
-// far fewer of them. Arc length changes with every step along the line and
-// depth does not, and the cone is ten strokes where the core is one.
-constexpr int lineMapConePieces = 24;
-
-// What the core is worth, and it is deliberately short of one.
-//
-// A field that saturates cannot be modulated: with the core at full nearness
-// the shader's weave scaled a value that was already clamped, so the cord's
-// waist never moved and only its brightness did. Left with headroom, the same
-// weave narrows and widens it along its length, which is the scalloped
-// silhouette of a laid rope.
-constexpr float lineMapCoreNearness = 0.88f;
 // What counts as a jump rather than a movement, in the sphere's normalised
 // units: a clip looping back to its start, or a finger dropping the blob
 // somewhere else. The wake is cut there instead of being dragged across a
@@ -2011,13 +1928,13 @@ drawPathOnSphere (juce::Path const &displayPath,
 
   // Where the line runs, as the camera sees it: projectLine() is the one
   // place that decides, for this and for the GPU pass (a3-motion-ui#34).
-  auto const line = projectLine (displayPath, elevationParams, heightMap,
+  auto const onSphere = projectLine (displayPath, elevationParams, heightMap,
                                  shaping, camera);
-  auto const &startsRun = line.startsRun;
+  auto const &startsRun = onSphere.startsRun;
   std::vector<std::pair<juce::Point<float>, float> > projected;
-  projected.reserve (line.points.size ());
-  for (std::size_t i = 0; i < line.points.size (); ++i)
-    projected.push_back ({ line.points[i], line.depth[i] });
+  projected.reserve (onSphere.points.size ());
+  for (std::size_t i = 0; i < onSphere.points.size (); ++i)
+    projected.push_back ({ onSphere.points[i], onSphere.depth[i] });
 
   if (projected.size () < 2)
     return;
@@ -2199,130 +2116,24 @@ drawPathOnSphere (juce::Path const &displayPath,
   if (lineMap == nullptr || projected.size () < 2)
     return;
 
-  auto const toMap = [] (juce::Point<float> const &p) {
-    return juce::Point<float> (
-        (p.x / lineMapExtent * 0.5f + 0.5f) * static_cast<float> (lineMapSize),
-        (p.y / lineMapExtent * 0.5f + 0.5f) * static_cast<float> (lineMapSize));
-  };
-
-  juce::Path mapPath;
-  mapPath.startNewSubPath (toMap (projected[0].first));
-  for (std::size_t i = 1; i < projected.size (); ++i)
-    {
-      if (startsRun[i])
-        mapPath.startNewSubPath (toMap (projected[i].first));
-      else
-        mapPath.lineTo (toMap (projected[i].first));
-    }
-
+  // What is painted into the map, and in which order, is lineMapStrokes()'s:
+  // the GPU pass paints the same list (a3-motion-ui#34).
   juce::Graphics mg (*lineMap);
-
-  auto const count = projected.size ();
-
-  // Walk a run of points into a path, lifting the pen where the line does.
-  auto const pieceOf = [&] (std::size_t start, std::size_t stop) {
-    juce::Path piece;
-    piece.startNewSubPath (toMap (projected[start].first));
-    for (auto i = start + 1; i <= stop; ++i)
-      {
-        if (startsRun[i])
-          piece.startNewSubPath (toMap (projected[i].first));
-        else
-          piece.lineTo (toMap (projected[i].first));
-      }
-    return piece;
-  };
-
-  // The same run, thinned to the points a wide stroke can actually show --
-  // see thinByArcLength(), which is where the rule lives and is tested.
-  auto const spacedPieceOf
-      = [&] (std::size_t start, std::size_t stop, float spacing) {
-    std::vector<juce::Point<float> > run;
-    std::vector<bool> runLifts;
-    run.reserve (stop - start + 1);
-    runLifts.reserve (stop - start + 1);
-
-    for (auto i = start; i <= stop; ++i)
-      {
-        run.push_back (toMap (projected[i].first));
-        runLifts.push_back (startsRun[i]);
-      }
-
-    juce::Path piece;
-    auto began = false;
-
-    for (auto const index : thinByArcLength (run, runLifts, spacing))
-      {
-        if (!began || runLifts[index])
-          {
-            piece.startNewSubPath (run[index]);
-            began = true;
-            continue;
-          }
-        piece.lineTo (run[index]);
-      }
-
-    return piece;
-  };
-
-  // How far behind the ball a run of the line sits, as the light it keeps.
-  auto const depthOf = [&] (std::size_t start, std::size_t stop) {
-    auto worst = 1.f;
-    for (auto i = start; i <= stop; ++i)
-      worst = std::min (worst, lineDepthFade (projected[i].second));
-    return worst;
-  };
-
-  // The falling cone of nearness, widest and dimmest first: a narrower stroke
-  // lies wholly inside a wider one, so overwriting is the maximum a distance
-  // field needs.
-  //
-  // In pieces, like the core, because each piece carries its own depth in the
-  // blue. The cone is what the glow, the filaments and the bolts are all built
-  // from, so a cone with no depth in it meant everything the shader draws came
-  // out equally bright on both sides of the ball — and drowned the one layer
-  // that did fade. Far fewer pieces than the core needs: depth changes slowly
-  // along a line where the arc length changes with every step.
-  auto const conePer = std::max<std::size_t> (2, count / lineMapConePieces);
-  for (auto const &step : lineMapSteps)
+  for (auto const &stroke : lineMapStrokes (onSphere))
     {
-      auto const width = step.width * lineMapTexels;
-      auto const stroke = juce::PathStrokeType (
-          width, juce::PathStrokeType::JointStyle::curved,
-          juce::PathStrokeType::EndCapStyle::rounded);
-      auto const coneSpacing = width * 0.25f;
-
-      for (std::size_t start = 0; start + 1 < count; start += conePer)
+      juce::Path path;
+      for (std::size_t i = 0; i < stroke.points.size (); ++i)
         {
-          auto const stop = std::min (start + conePer, count - 1);
-          auto const piece = spacedPieceOf (start, stop, coneSpacing);
-          if (piece.isEmpty ())
-            continue;
-
-          mg.setColour (juce::Colour::fromFloatRGBA (
-              step.nearness, 0.f, depthOf (start, stop), 1.f));
-          mg.strokePath (piece, stroke);
+          if (stroke.lifts[i])
+            path.startNewSubPath (stroke.points[i]);
+          else
+            path.lineTo (stroke.points[i]);
         }
-    }
-
-  // And the core, in pieces, each carrying where along the figure it is.
-  auto const per = std::max<std::size_t> (2, count / lineMapPieces);
-  auto const coreStroke = juce::PathStrokeType (
-      lineMapCoreWidth * lineMapTexels, juce::PathStrokeType::JointStyle::curved,
-      juce::PathStrokeType::EndCapStyle::rounded);
-
-  for (std::size_t start = 0; start + 1 < count; start += per)
-    {
-      auto const stop = std::min (start + per, count - 1);
-      auto const piece = pieceOf (start, stop);
-      if (piece.isEmpty ())
-        continue;
-
-      auto const u = (static_cast<float> (start + stop) * 0.5f)
-                     / static_cast<float> (count - 1);
-      mg.setColour (juce::Colour::fromFloatRGBA (
-          lineMapCoreNearness, u, depthOf (start, stop), 1.f));
-      mg.strokePath (piece, coreStroke);
+      mg.setColour (stroke.colour);
+      mg.strokePath (path, juce::PathStrokeType (
+                               stroke.width,
+                               juce::PathStrokeType::JointStyle::curved,
+                               juce::PathStrokeType::EndCapStyle::rounded));
     }
 }
 
