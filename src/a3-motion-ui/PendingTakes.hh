@@ -82,6 +82,13 @@ public:
   void clear (index_t channel, index_t slot);
   void clearAll ();
 
+  /** A shape was renamed: what a pending slot held before its take follows
+   *  it, the way the live slots do (#30). */
+  void renamePattern (juce::String const &from, juce::String const &to);
+  /** A clip file was renamed: the same for the file a slot's values came
+   *  from. */
+  void moveClipFile (juce::File const &from, juce::File const &to);
+
   /** One press on DISCARD. The first arms, the second on the same slot
    *  confirms -- true means "discard now". A slot without a take cannot be
    *  armed. */

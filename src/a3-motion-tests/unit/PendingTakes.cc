@@ -200,3 +200,41 @@ TEST (PendingTakes, TheKeysAreOfferedOnlyWhileNoTakeIsUnderway)
   EXPECT_FALSE (takes.offersKeys (0, 0, true));
   EXPECT_FALSE (takes.offersKeys (1, 0, false));
 }
+
+// A clip or shape renamed in FILES while a slot holds an unsaved take over it
+// (#30): what the slot held before still names the old one, and a set written
+// or a Discard pressed afterwards reached for a name and a file that were gone.
+TEST (PendingTakes, ARenamedShapeIsRenamedInWhatASlotHeldBefore)
+{
+  PendingTakes takes (4, 2);
+  auto before = held ("Wave");
+  before.pattern->setName ("Wave");
+  takes.begin (1, 1, before);
+
+  takes.renamePattern ("Wave", "Swell");
+
+  EXPECT_EQ (takes.forSet (1, 1, held ("take")).pattern->getName (), "Swell");
+}
+
+TEST (PendingTakes, AMovedClipFileIsFollowedByWhatASlotHeldBefore)
+{
+  PendingTakes takes (4, 2);
+  takes.begin (0, 1, held ("Wave slow"));
+  takes.begin (2, 0, held ("Other"));
+
+  takes.moveClipFile (juce::File ("/tmp/Wave slow.json"),
+                      juce::File ("/tmp/Swell slow.json"));
+
+  EXPECT_EQ (takes.resolve (0, 1).clipFile,
+             juce::File ("/tmp/Swell slow.json"));
+  EXPECT_EQ (takes.resolve (2, 0).clipFile, juce::File ("/tmp/Other.json"))
+      << "a slot that held something else is left alone";
+}
+
+TEST (PendingTakes, RenamingTouchesNothingThatIsNotPending)
+{
+  PendingTakes takes (4, 2);
+  takes.renamePattern ("Wave", "Swell");
+  takes.moveClipFile (juce::File ("/tmp/a.json"), juce::File ("/tmp/b.json"));
+  EXPECT_FALSE (takes.isPending (0, 0));
+}
