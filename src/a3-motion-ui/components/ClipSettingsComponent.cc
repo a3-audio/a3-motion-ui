@@ -1498,6 +1498,12 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // Two blocks, each in a frame of its own: whose clip above, what to do to
   // it below. Set off from the card rather than boxed in it -- a heavier edge
   // would make the strip read as two panels that happen to touch.
+  // The elevation picture heads the strip, so it stands on every page: where
+  // the shown clip sits and how high it may go is worth seeing while the
+  // pads or the mixer are up, too.
+  paintElevationGraphic (g, _layout.elevationGraphic,
+                         _selectedIndex == elevationIndex);
+
   paintSetOffFrame (g, _layout.channelFacesFrame);
   paintSetOffFrame (g, _layout.transportFrame);
   paintChannelFaces (g);
@@ -1897,12 +1903,8 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
       < static_cast<size_t> (numControlsInSection (elevationIndex)))
     return;
 
-  // The graphic on top, which is a control now: a finger on it sets where the
-  // middle of the trajectory sits, and the line it draws is that value. Under
-  // it the two clips that bound the band, then the sway that travels the line
-  // itself. reach went to Motion to stand beside the swell that sweeps it.
-  paintElevationGraphic (g, _layout.elevationGraphic, isSelected);
-
+  // The picture of what these set stands at the top of the global strip since
+  // 2026-09-26 -- see paintGlobalSection.
   // Bottom then top, left to right. They were the other way round, which is
   // the one order that has nothing to say for it: the graphic above them is a
   // room seen from the side, and in a room seen from the side the floor is not

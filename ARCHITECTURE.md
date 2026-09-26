@@ -456,8 +456,8 @@ Two things are not obvious:
   Reading a `juce::String` on one thread while another replaces it is a race,
   refcount and all.
 
-The bar's **global section** takes its right quarter and holds two things: the four channel faces
-and the transport two by two. A **Filter section** used to sit among
+The bar's **global section** takes its right quarter and holds three things: the elevation picture,
+the four channel faces and the transport two by two. A **Filter section** used to sit among
 the clip's sections showing freq and Q — but those were never the clip's: they are the same
 per-channel values the hardware drives. They moved into a 4x3 grid in the global section, and on
 2026-09-26 out of the bar altogether, into the mixer strips (3D, FREQ, Q under SEND; see the mixer
@@ -906,8 +906,10 @@ Every section's buttons sit on the bar's bottom edge — Shape's `len`, Elevatio
 `pole`, Motion's `dir` and `end` — so the bar reads as one row of buttons across its floor rather
 than three sections each arranging their own.
 
-The global section is laid out top to bottom (2026-09-26): the **four channel faces** in a frame of
-their own, moved up out of the clip's header row, then the **transport two by two** down to the
+The global section is laid out top to bottom (2026-09-26): the **elevation picture** — moved out of
+the Elevation card, a square on the strip's width and never more than two fifths of its height, so
+it stands on every page — then the **four channel faces** in a frame of their own, moved up out of
+the clip's header row, then the **transport two by two** down to the
 strip's foot, arranged like a clip's pads on PADS — play and stop over act and rec, rec taking the
 corner the pads give to Settings. The 4x3 grid and the six function keys that stood there are gone.
 The ACTION page used to line its rows up with the grid's (`setGridReference`); with the grid gone it

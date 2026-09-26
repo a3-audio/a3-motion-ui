@@ -591,14 +591,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       out.sectionLabels[1] = title;
     }
 
-    // The graphic takes a bigger share now: it is the control that sets where
-    // the middle of the trajectory sits, so it has to be big enough to put a
-    // finger on and read a line off.
-    auto const gapV0 = juce::jmax (2, content.getHeight () / 20);
-    out.elevationGraphic = content.removeFromTop (
-        static_cast<int> (content.getHeight () * 0.5f));
-    content.removeFromTop (gapV0);
-
+    // Four knobs in two rows and nothing else: the picture that stood above
+    // them is at the top of the global strip since 2026-09-26.
     auto const gapV = juce::jmax (2, content.getHeight () / 30);
     auto const rowH = (content.getHeight () - gapV) / 2;
     auto row1 = content.removeFromTop (rowH);
@@ -736,8 +730,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto content = out.globalContent;
     out.sectionLabels[3] = {};
 
-    // Top to bottom: whose clip (the four faces), then what to do to it
-    // (the transport, two by two) down to the foot. The 4x3 grid of 3D, FREQ
+    // Top to bottom: the elevation picture, whose clip (the four faces), then
+    // what to do to it (the transport, two by two) down to the foot. The 4x3 grid of 3D, FREQ
     // and Q went into the mixer strips and the six function keys went to the
     // status bar and the REC page, both on 2026-09-26; their room is the
     // transport's.
@@ -746,6 +740,19 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
     auto const frameInset = juce::jmax (2, content.getWidth () / 40);
     auto const blockGap = juce::jmax (4, buttonGap * 2);
+
+    // ── the elevation picture ─────────────────────────────────────────
+    //
+    // At the head of the strip, over the faces: the side view of where the
+    // shown clip sits and how high it may go. A square on the strip's width,
+    // never more than two fifths of its height, so the faces and the
+    // transport keep theirs.
+    {
+      auto const side = juce::jmin (content.getWidth (),
+                                    content.getHeight () * 2 / 5);
+      out.elevationGraphic = content.removeFromTop (side);
+      content.removeFromTop (juce::jmin (content.getHeight (), blockGap));
+    }
 
     // ── the four channel faces ────────────────────────────────────────
     //

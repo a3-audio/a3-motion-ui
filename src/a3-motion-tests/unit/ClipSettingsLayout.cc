@@ -1183,9 +1183,10 @@ TEST (ClipSettingsLayout, TheClipTabStandsAtTheHeadOfTheViews)
       << "the shared slot keys moved into the channel faces";
 }
 
-// The four faces stand together in a frame of their own at the top of the
-// global strip, over the transport: first whose clip, then what to do to it.
-TEST (ClipSettingsLayout, TheFacesStandTogetherInAFrameAtTheTopOfTheStrip)
+// The four faces stand together in a frame of their own in the global strip,
+// under the elevation picture and over the transport: first whose clip, then
+// what to do to it.
+TEST (ClipSettingsLayout, TheFacesStandTogetherInAFrameUnderThePicture)
 {
   for (int width : { 768, 1024, 1280 })
     {
@@ -1200,7 +1201,7 @@ TEST (ClipSettingsLayout, TheFacesStandTogetherInAFrameAtTheTopOfTheStrip)
 
       EXPECT_TRUE (l.globalContent.contains (l.channelFacesFrame))
           << "width " << width;
-      EXPECT_EQ (l.channelFacesFrame.getY (), l.globalContent.getY ())
+      EXPECT_GE (l.channelFacesFrame.getY (), l.elevationGraphic.getBottom ())
           << "width " << width;
       EXPECT_LE (l.channelFacesFrame.getBottom (), l.transportFrame.getY ())
           << "width " << width;
@@ -1573,4 +1574,22 @@ TEST (ClipSettingsLayout, EachControlStandsOnItsOwnPage)
   for (auto const page : { BarPage::Action, BarPage::Controller,
                            BarPage::Mixer, BarPage::Browser })
     EXPECT_FALSE (controlIsOnPage (shape, 0, page));
+}
+
+
+// The elevation picture stands at the top of the global strip since
+// 2026-09-26, over the channel faces -- on every page, since the strip is.
+// The Elevation card keeps its four knobs and nothing else.
+TEST (ClipSettingsLayout, TheElevationPictureLeadsTheGlobalStrip)
+{
+  auto const l = defaultLayout ();
+
+  ASSERT_FALSE (l.elevationGraphic.isEmpty ());
+  EXPECT_TRUE (l.globalContent.contains (l.elevationGraphic));
+  EXPECT_EQ (l.elevationGraphic.getY (), l.globalContent.getY ());
+  EXPECT_FALSE (l.sectionCards[1].intersects (l.elevationGraphic));
+
+  // Big enough to read a line off: a circle across most of the strip.
+  auto const circle = elevationCircleBounds (l.elevationGraphic);
+  EXPECT_GE (circle.getWidth (), l.globalContent.getWidth () / 3);
 }
