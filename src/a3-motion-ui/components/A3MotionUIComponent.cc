@@ -533,11 +533,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     applyRecMode ((recMenuIndex (_recMode) + 1) % count);
     updateClipSettingsDisplay ();
   };
-  _clipSettings->onClockModePressed = [this] {
-    // The same three the menu offers, in the same order.
-    applyClockMode ((_clockMode + 1) % 3);
-    _clipSettings->setClockMode (_clockMode);
-  };
+  _clipSettings->onClockModePressed = [this] { stepClockMode (); };
   _clipSettings->onMenuPressed = [this] { toggleGlobalSettings (); };
   // Straight to the take: there is no card to turn over any more. What is
   // being recorded is drawn where what you are playing usually is, on the
@@ -1313,6 +1309,9 @@ A3MotionUIComponent::createMainUI ()
   _statusBar = std::make_unique<StatusBar> (_valueBPM);
   _statusBar->onKeyboardIconTapped = [this] { toggleKeyboard (); };
   _statusBar->onCleanIconTapped = [this] { toggleClean (); };
+  _statusBar->onClockKeyTapped = [this] { stepClockMode (); };
+  _statusBar->onMenuKeyTapped = [this] { toggleGlobalSettings (); };
+  _statusBar->onTickTapped = [this] { handleScreenTap (); };
   addChildComponent (*_statusBar);
   _statusBar->setVisible (true);
   _statusBarCallbackHandle
@@ -2004,6 +2003,15 @@ A3MotionUIComponent::toggleRecordingOnShownClip ()
   // there is no pad here, and the bar already says which slot it describes.
   updateControlReadout ("-- REC ON");
   startRecording (_clipSettingsChannel, _clipSettingsSlot);
+}
+
+void
+A3MotionUIComponent::stepClockMode ()
+{
+  // The same three the menu offers, in the same order.
+  applyClockMode ((_clockMode + 1) % 3);
+  if (_clipSettings)
+    _clipSettings->setClockMode (_clockMode);
 }
 
 void
@@ -6171,6 +6179,8 @@ A3MotionUIComponent::openGlobalSettings ()
   // worse than one that never lit at all.
   if (_clipSettings)
     _clipSettings->setMenuOpen (true);
+  if (_statusBar)
+    _statusBar->setMenuOpen (true);
   if (runsOnHardware ())
     updateFunctionKeyLEDs ();
 
@@ -6249,6 +6259,8 @@ A3MotionUIComponent::closeGlobalSettings ()
   // worse than one that never lit at all.
   if (_clipSettings)
     _clipSettings->setMenuOpen (false);
+  if (_statusBar)
+    _statusBar->setMenuOpen (false);
   if (runsOnHardware ())
     updateFunctionKeyLEDs ();
 

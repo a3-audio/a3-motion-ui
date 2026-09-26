@@ -866,6 +866,8 @@ private:
    *  channel, not by what the bar is showing. */
   void handleChannelValueChange (index_t channel, ChannelPot pot,
                                  int increment);
+  /** The clock key: INT, EXT, PIO and round again. */
+  void stepClockMode ();
   float channelPotValue (index_t channel, ChannelPot pot);
 
   /** One channel's 3D, FREQ or Q, set outright -- where a mixer page's knob

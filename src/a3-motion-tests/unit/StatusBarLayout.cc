@@ -31,9 +31,10 @@ namespace
 {
 // The device's own screen, and the band the bar actually lays out in: the
 // height it asks for at the shipped skin, less the sixth it keeps free above
-// and below, less the two icon squares at its right end. Written the way
-// StatusBar::resized() arrives at it rather than as three round numbers, so
-// the test moves with the bar rather than having to be re-measured.
+// and below. The keys at the ends are the layout's own since 2026-09-26, so
+// the band is handed over whole. Written the way StatusBar::resized() arrives
+// at it rather than as round numbers, so the test moves with the bar rather
+// than having to be re-measured.
 //
 // The height is the floor rather than a size read off a screenshot.
 // preferredHeight() is jmax(minimumRowHeight, header * 1.875), and the
@@ -53,10 +54,6 @@ rowOf (int width, int height)
   row.removeFromTop (verticalPadding);
   row.removeFromBottom (verticalPadding);
 
-  auto const iconWidth = static_cast<int> (row.getHeight () * 1.5f);
-  row.removeFromRight (iconWidth);
-  row.removeFromRight (iconWidth);
-
   return row;
 }
 
@@ -69,19 +66,18 @@ deviceLayout ()
 
 }
 
-// The bar carried nine VU meters until 2026-09-12 and most of this suite was
-// about the width they took from the two readings. They are gone -- the four
-// inputs to the channel faces below as a dot each, the five outputs to the
-// MIX page, where the same five have always been -- and what is left is what
-// the bar was before them: two readings and the beat display between them.
+// A narrower screen than the device's still keeps both readings, the beat
+// display and all four keys.
 TEST (StatusBarLayout, AShortBarStillKeepsItsReadings)
 {
-  auto const narrow = 220;
+  auto const narrow = 600;
   auto const l = statusBarLayout (rowOf (narrow, barHeight), narrow, padding);
 
   EXPECT_FALSE (l.tick.isEmpty ());
   EXPECT_FALSE (l.bpm.isEmpty ());
   EXPECT_FALSE (l.readout.isEmpty ());
+  for (auto const &key : { l.clockKey, l.cleanKey, l.keyboardKey, l.menuKey })
+    EXPECT_FALSE (key.isEmpty ());
 }
 
 // The one thing about this bar that has to be true whatever the screen: the
@@ -98,14 +94,48 @@ TEST (StatusBarLayout, TheBeatDisplayIsCentredOnTheBar)
   EXPECT_EQ (l.tick.getCentreX (), deviceWidth / 2);
 }
 
-// The readings keep clear of the bar's ends, and of each other.
-TEST (StatusBarLayout, TheTwoReadingsShareTheRow)
+// Left of the beat display, in reading order: the clock's key, the tempo, and
+// what was last done -- the readout stands against the display since
+// 2026-09-26, so the right end is keys only.
+TEST (StatusBarLayout, TheReadingsStandLeftOfTheBeatDisplay)
 {
   auto const l = deviceLayout ();
 
-  EXPECT_LT (l.bpm.getX (), l.readout.getX ());
+  EXPECT_LE (l.clockKey.getRight (), l.bpm.getX ());
   EXPECT_LE (l.bpm.getRight (), l.readout.getX ());
-  EXPECT_GT (l.bpm.getX (), 0);
+  EXPECT_LE (l.readout.getRight (), l.tick.getX ());
+  EXPECT_GT (l.readout.getWidth (), l.bpm.getWidth ())
+      << "the readout says more than the tempo does";
+}
+
+// CLOCK leads the row, left of the tempo it decides.
+TEST (StatusBarLayout, TheClockKeyLeadsTheRow)
+{
+  auto const row = rowOf (deviceWidth, barHeight);
+  auto const l = deviceLayout ();
+
+  EXPECT_EQ (l.clockKey.getX (), row.getX ());
+  EXPECT_EQ (l.clockKey.getWidth (), l.menuKey.getWidth ());
+}
+
+// CLEAN, the on-screen keyboard and MENU close the row, one size and one look,
+// MENU at the very end.
+TEST (StatusBarLayout, TheThreeKeysCloseTheRowInOneSize)
+{
+  auto const row = rowOf (deviceWidth, barHeight);
+  auto const l = deviceLayout ();
+
+  EXPECT_EQ (l.menuKey.getRight (), row.getRight ());
+  EXPECT_LE (l.keyboardKey.getRight (), l.menuKey.getX ());
+  EXPECT_LE (l.cleanKey.getRight (), l.keyboardKey.getX ());
+  EXPECT_LE (l.tick.getRight (), l.cleanKey.getX ());
+
+  for (auto const &key : { l.cleanKey, l.keyboardKey })
+    EXPECT_EQ (key.getWidth (), l.menuKey.getWidth ());
+
+  // Wide enough for a word, and never under the row's height.
+  EXPECT_GE (l.menuKey.getWidth (), row.getHeight ());
+  EXPECT_EQ (l.menuKey.getHeight (), row.getHeight ());
 }
 
 // Nothing at all is not a layout. An empty row has to come back empty rather
@@ -118,4 +148,5 @@ TEST (StatusBarLayout, AnEmptyRowLaysOutNothing)
   EXPECT_TRUE (l.tick.isEmpty ());
   EXPECT_TRUE (l.bpm.isEmpty ());
   EXPECT_TRUE (l.readout.isEmpty ());
+  EXPECT_TRUE (l.menuKey.isEmpty ());
 }
