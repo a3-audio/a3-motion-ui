@@ -66,12 +66,12 @@ grownBar (float headerSize, float bodySize, float potSize)
 }
 
 /** The header's keys in the order they stand, left to right (2026-09-26):
- *  CLIP ACTION FILES CHMIX MAINMIX PADS. */
+ *  CLIP ACTION FILES CHMIX MAINMIX REC PADS. */
 std::vector<juce::Rectangle<int> >
 headerKeys (ClipSettingsLayout const &l)
 {
-  return { l.tabClip,  l.tabAction,  l.tabBrowser,
-           l.tabMixer, l.tabMainMix, l.tabController };
+  return { l.tabClip,    l.tabAction, l.tabBrowser,   l.tabMixer,
+           l.tabMainMix, l.tabRecord, l.tabController };
 }
 
 ClipSettingsLayout
@@ -109,25 +109,38 @@ TEST (ClipSettingsLayout, TheCountMatchesWhatIsLaidOut)
         << "section " << s;
 }
 
+// Inside the card it is drawn in: its section's, or -- for fade, bias and the
+// rec mode -- the REC page's card (cardOfControl).
 TEST (ClipSettingsLayout, EveryControlSitsInsideItsSectionCard)
 {
   auto const l = defaultLayout ();
 
   for (int s = 0; s < numClipSettingsSections; ++s)
-    for (auto const &control : l.controls[static_cast<size_t> (s)])
-      EXPECT_TRUE (l.sectionCards[static_cast<size_t> (s)].contains (control))
-          << "section " << s << " control escapes its card";
+    for (size_t sub = 0; sub < l.controls[static_cast<size_t> (s)].size ();
+         ++sub)
+      EXPECT_TRUE (cardOfControl (l, s, static_cast<int> (sub))
+                       .contains (l.controls[static_cast<size_t> (s)][sub]))
+          << "section " << s << " sub " << sub << " escapes its card";
 }
 
+// No two controls a page shows overlap. Two on different pages may: the REC
+// card lies where Elevation and Motion stand on CLIP.
 TEST (ClipSettingsLayout, ControlsWithinASectionDoNotOverlap)
 {
   auto const l = defaultLayout ();
 
-  for (auto const &section : l.controls)
-    for (size_t a = 0; a < section.size (); ++a)
-      for (size_t b = a + 1; b < section.size (); ++b)
-        EXPECT_TRUE (section[a].getIntersection (section[b]).isEmpty ())
-            << "controls " << a << " and " << b << " overlap";
+  for (auto const page : { BarPage::Clip, BarPage::Record })
+    for (int s = 0; s < numClipSettingsSections; ++s)
+      {
+        auto const &section = l.controls[static_cast<size_t> (s)];
+        for (size_t a = 0; a < section.size (); ++a)
+          for (size_t b = a + 1; b < section.size (); ++b)
+            if (controlIsOnPage (s, static_cast<int> (a), page)
+                && controlIsOnPage (s, static_cast<int> (b), page))
+              EXPECT_TRUE (section[a].getIntersection (section[b]).isEmpty ())
+                  << "section " << s << ": controls " << a << " and " << b
+                  << " overlap";
+      }
 }
 
 TEST (ClipSettingsLayout, SectionCardsDoNotOverlapEachOther)
@@ -204,25 +217,21 @@ TEST (ClipSettingsLayout, NoControlBothStepsAndToggles)
           << "section " << section << " sub " << sub;
 }
 
-// The frame around a section is a line, not a border zone. Every control it
-// holds has to sit inside the same content area the fonts were sized against
-// — when those were two separate calculations the text was fitted to a
-// narrower box than it was drawn in, and the sections looked cramped at
-// widths where they were not.
 TEST (ClipSettingsLayout, ControlsStayInsideTheirSectionContent)
 {
   auto const l = defaultLayout ();
 
   for (int section = 0; section < numClipSettingsSections; ++section)
-    {
-      auto const content
-          = sectionContentBounds (l.sectionCards[static_cast<size_t> (section)]);
-
-      for (auto const &cell : l.controls[static_cast<size_t> (section)])
+    for (size_t sub = 0;
+         sub < l.controls[static_cast<size_t> (section)].size (); ++sub)
+      {
+        auto const content = sectionContentBounds (
+            cardOfControl (l, section, static_cast<int> (sub)));
+        auto const cell = l.controls[static_cast<size_t> (section)][sub];
         EXPECT_TRUE (content.contains (cell))
             << "section " << section << ": " << cell.toString ()
             << " outside " << content.toString ();
-    }
+      }
 }
 
 // A frame that eats more than a tenth of a section's width is a border zone
@@ -277,7 +286,7 @@ TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
     }
 }
 
-// The header row is CLIP ACTION FILES CHMIX MAINMIX PADS, in that order.
+// The header row is CLIP ACTION FILES CHMIX MAINMIX REC PADS, in that order.
 // MAINMIX came down from the status bar on 2026-09-26: the big mixer is
 // opened from where the channel's own strip is. The channel
 // faces that led it went up into the global strip on 2026-09-26, where the
@@ -397,7 +406,7 @@ TEST (ClipSettingsLayout, MotionsControlsStayBigEnoughToHit)
       }
 }
 
-// Four knob rows and a button floor. Short of room they give up the same
+// Four knob rows since fade and bias went to REC. Short of room they give up the same
 // amount: a section that helps itself row by row leaves the whole shortfall
 // on one row, which came out a sliver while the others were untouched.
 TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
@@ -409,27 +418,26 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
       ASSERT_EQ (motion.size (), 10u) << "height " << height;
 
       // Every row is a pair, and both halves of a pair are the same height.
-      for (auto const &pair : { std::pair<int, int>{ 0, 7 },
-                                { 5, 6 },
-                                { 9, 8 },
-                                { 1, 2 },
-                                { 3, 4 } })
+      for (auto const &pair : { std::pair<int, int>{ 0, 1 },
+                                { 2, 3 },
+                                { 4, 5 },
+                                { 6, 7 } })
         EXPECT_EQ (motion[static_cast<size_t> (pair.first)].getHeight (),
                    motion[static_cast<size_t> (pair.second)].getHeight ())
             << "pair " << pair.first << "/" << pair.second << " at height "
             << height;
 
       // And every knob row is the same height as every other.
-      for (int sub : { 5, 9, 1 })
+      for (int sub : { 2, 4, 6 })
         EXPECT_EQ (motion[0].getHeight (),
                    motion[static_cast<size_t> (sub)].getHeight ())
             << "sub " << sub << " at height " << height;
     }
 }
 
-// Which knob sits where. Five rows of two, each a standing value beside the
+// Which knob sits where. Four rows of two, each a standing value beside the
 // movement that works on it: rot with its spin, reach with its swell, each
-// squeeze with its own stretch, the fade with the bias. Sub-index order is
+// squeeze with its own stretch. The fade and the bias went to REC. Sub-index order is
 // reading order, which it had not been since the section started growing.
 TEST (ClipSettingsLayout, MotionReadsAsPairsDownTheSection)
 {
@@ -439,7 +447,8 @@ TEST (ClipSettingsLayout, MotionReadsAsPairsDownTheSection)
       auto const &motion = l.controls[2];
       ASSERT_EQ (motion.size (), 10u) << "height " << height;
 
-      for (size_t row = 0; row + 1 < motion.size (); row += 2)
+      // The first eight: fade and bias (8, 9) stand on the REC page.
+      for (size_t row = 0; row + 1 < motionSubsOnTheClipPage; row += 2)
         {
           auto const &left = motion[row];
           auto const &right = motion[row + 1];
@@ -489,101 +498,8 @@ TEST (ClipSettingsLayout, TheShapeSectionHasFourSpeedKeys)
     }
 }
 
-// Menu, Rec and Tap sit in the global strip beside the clip's sections. They
-// are not sub-elements of it — no encoder reaches them, only a finger — so
-// they live beside `controls`, not in it.
-TEST (ClipSettingsLayout, TheActionButtonsSitInTheGlobalStrip)
-{
-  auto const l = defaultLayout ();
-  auto const card = l.sectionCards[3];
 
-  EXPECT_TRUE (card.contains (l.menuButton));
-  EXPECT_TRUE (card.contains (l.recButton));
-  EXPECT_TRUE (card.contains (l.tapButton));
-}
 
-TEST (ClipSettingsLayout, TheActionButtonsDoNotOverlapEachOther)
-{
-  auto const l = defaultLayout ();
-
-  std::vector<juce::Rectangle<int>> const row{ l.recModeButton,
-                                               l.clockModeButton,
-                                               l.menuButton, l.recButton,
-                                               l.tapButton };
-
-  for (size_t a = 0; a < row.size (); ++a)
-    for (size_t b = a + 1; b < row.size (); ++b)
-      EXPECT_TRUE (row[a].getIntersection (row[b]).isEmpty ())
-          << "buttons " << a << " and " << b << " overlap";
-}
-// The strip's six buttons stand for the panel's six function keys, so they are
-// laid out like them: one size for all of them, two columns of three, filled
-// top-left to bottom-right. Left down: tap, clock, rec. Right down: recmode,
-// menu, shift. A button that is a different size from the others reads as a
-// different kind of thing, and these are all the same kind.
-TEST (ClipSettingsLayout, TheSixFunctionButtonsAreOneGrid)
-{
-  auto const l = defaultLayout ();
-
-  std::array<juce::Rectangle<int>, 6> const all{
-    l.tapButton,      l.recModeButton, l.clockModeButton,
-    l.menuButton,     l.recButton,     l.shiftButton,
-  };
-
-  for (auto const &b : all)
-    {
-      EXPECT_EQ (b.getWidth (), l.tapButton.getWidth ());
-      EXPECT_EQ (b.getHeight (), l.tapButton.getHeight ());
-    }
-
-  // Left column, top to bottom.
-  EXPECT_EQ (l.tapButton.getX (), l.clockModeButton.getX ());
-  EXPECT_EQ (l.tapButton.getX (), l.recButton.getX ());
-  EXPECT_LT (l.tapButton.getY (), l.clockModeButton.getY ());
-  EXPECT_LT (l.clockModeButton.getY (), l.recButton.getY ());
-
-  // Right column, the same three rows.
-  EXPECT_EQ (l.recModeButton.getX (), l.menuButton.getX ());
-  EXPECT_EQ (l.recModeButton.getX (), l.shiftButton.getX ());
-  EXPECT_EQ (l.recModeButton.getY (), l.tapButton.getY ());
-  EXPECT_EQ (l.menuButton.getY (), l.clockModeButton.getY ());
-  EXPECT_EQ (l.shiftButton.getY (), l.recButton.getY ());
-
-  EXPECT_LT (l.tapButton.getRight (), l.recModeButton.getX ());
-
-  // Under the transport, not beside it.
-  EXPECT_LE (l.transportFrame.getBottom (), l.tapButton.getY ());
-}
-
-// A target a finger can actually hit, at every size the bar is used at.
-//
-// The bar's height follows the font — see A3MotionUIComponent::resized() and
-// clipSettingsPreferredHeight() — so the height has to follow it here too.
-// Held at a fixed 180 px this failed at body size 28, which is a combination
-// the app never puts on screen.
-TEST (ClipSettingsLayout, TheActionButtonsStayBigEnoughToHit)
-{
-  for (float potSize : { 0.6f, 1.f, 1.8f })
-    for (float bodySize : { 9.f, 16.f, 28.f })
-      {
-        auto const headerSize = bodySize * 1.3f;
-        auto const knobDiam = knobDiameterForFont (bodySize, potSize);
-        auto const l = layOutClipSettings (
-            grownBar (headerSize, bodySize, potSize), headerSize, bodySize,
-            potSize);
-
-        for (auto const &b : { l.recModeButton, l.clockModeButton, l.menuButton,
-                         l.recButton, l.tapButton })
-          {
-            // 34 is the floor the layout clamps to; above it the buttons
-            // follow knobDiam like every other control in the bar. It was 24,
-            // which measured fine and missed the point: a fingertip is wider
-            // than that, and TAP was hard to hit.
-            EXPECT_GE (b.getWidth (), 40) << "pot " << potSize;
-            EXPECT_GE (b.getHeight (), 34) << "body " << bodySize;
-          }
-      }
-}
 
 
 
@@ -1417,7 +1333,6 @@ TEST (ClipSettingsLayout, TheTransportIsBiggerThanTheOtherKeys)
   auto const l = defaultLayout ();
 
   EXPECT_GT (l.transportButtons[0].getHeight (), l.buttonHeight);
-  EXPECT_EQ (l.tapButton.getHeight (), l.buttonHeight);
 }
 
 
@@ -1599,4 +1514,87 @@ TEST (ClipSettingsLayout, OneTabIsLitAndMainMixTakesItWhileOpen)
 
   EXPECT_FALSE (pageTabIsLit (BarPage::Clip, BarPage::Clip, true))
       << "the page under the big mixer is lit beside MAINMIX";
+}
+
+// ── The REC page (2026-09-26) ─────────────────────────────────────────────
+
+// REC shows Shape as CLIP does, and one card across the rest of the width:
+// the rec mode on top, fade and bias under it. The card takes both of the
+// columns Elevation and Motion stand in on CLIP.
+TEST (ClipSettingsLayout, TheRecordCardTakesTheTwoRightColumns)
+{
+  auto const l = defaultLayout ();
+
+  ASSERT_FALSE (l.recordCard.isEmpty ());
+  auto const both = l.sectionCards[1].getUnion (l.sectionCards[2]);
+  EXPECT_EQ (l.recordCard.getX (), both.getX ());
+  EXPECT_EQ (l.recordCard.getRight (), both.getRight ());
+  EXPECT_FALSE (l.recordCard.intersects (l.sectionCards[0]));
+  EXPECT_FALSE (l.recordLabel.isEmpty ());
+  EXPECT_TRUE (l.recordCard.contains (l.recordLabel));
+}
+
+TEST (ClipSettingsLayout, FadeAndBiasStandUnderTheRecModeInTheRecordCard)
+{
+  auto const l = defaultLayout ();
+  auto const fade = l.controls[2][8];
+  auto const bias = l.controls[2][9];
+
+  EXPECT_TRUE (l.recordCard.contains (l.recModeButton));
+  EXPECT_GE (l.recModeButton.getHeight (), fingertipSize);
+
+  for (auto const &knob : { fade, bias })
+    {
+      EXPECT_TRUE (l.recordCard.contains (knob));
+      EXPECT_GE (knob.getY (), l.recModeButton.getBottom ());
+      EXPECT_GE (knob.getHeight (), l.metrics.knobDiam);
+    }
+
+  EXPECT_EQ (fade.getY (), bias.getY ());
+  EXPECT_LE (fade.getRight (), bias.getX ());
+}
+
+// Motion keeps its first eight in its own card on CLIP.
+TEST (ClipSettingsLayout, MotionKeepsEightKnobsOnTheClipPage)
+{
+  auto const l = defaultLayout ();
+
+  for (size_t sub = 0; sub < motionSubsOnTheClipPage; ++sub)
+    EXPECT_TRUE (l.sectionCards[2].contains (l.controls[2][sub]))
+        << "sub " << sub;
+}
+
+// The global strip is the faces and the transport: the six function keys are
+// gone, and the transport runs to the strip's foot.
+TEST (ClipSettingsLayout, TheTransportRunsToTheFootOfTheStrip)
+{
+  auto const l = defaultLayout ();
+
+  EXPECT_EQ (l.transportFrame.getBottom (), l.globalContent.getBottom ());
+}
+
+// Which control a page shows. Shape stands on CLIP and REC alike; Elevation
+// and Motion's first eight on CLIP only; fade, bias and the rec mode on REC
+// only; nothing of the clip on a page that covers it.
+TEST (ClipSettingsLayout, EachControlStandsOnItsOwnPage)
+{
+  constexpr int shape = 0, elevation = 1, motion = 2, global = 3;
+
+  EXPECT_TRUE (controlIsOnPage (shape, 0, BarPage::Clip));
+  EXPECT_TRUE (controlIsOnPage (shape, 0, BarPage::Record));
+  EXPECT_TRUE (controlIsOnPage (elevation, 0, BarPage::Clip));
+  EXPECT_FALSE (controlIsOnPage (elevation, 0, BarPage::Record));
+
+  EXPECT_TRUE (controlIsOnPage (motion, 7, BarPage::Clip));
+  EXPECT_FALSE (controlIsOnPage (motion, 7, BarPage::Record));
+  EXPECT_FALSE (controlIsOnPage (motion, 8, BarPage::Clip));
+  EXPECT_TRUE (controlIsOnPage (motion, 8, BarPage::Record));
+  EXPECT_TRUE (controlIsOnPage (motion, 9, BarPage::Record));
+
+  EXPECT_TRUE (controlIsOnPage (global, 0, BarPage::Record));
+  EXPECT_FALSE (controlIsOnPage (global, 0, BarPage::Clip));
+
+  for (auto const page : { BarPage::Action, BarPage::Controller,
+                           BarPage::Mixer, BarPage::Browser })
+    EXPECT_FALSE (controlIsOnPage (shape, 0, page));
 }

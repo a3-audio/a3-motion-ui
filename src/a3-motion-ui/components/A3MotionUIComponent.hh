@@ -835,8 +835,6 @@ private:
    *  values lives here. */
   BarPage _barPage = BarPage::Clip;
 
-  bool _screenShiftHeld = false;
-
   // Clip Settings: permanent bottom panel showing the last-selected clip's
   // settings. Selected by a slot's Settings button; the Motion-
   // Encoder (upper, per channel) scrolls its 4 menu items, the Pot-Encoder

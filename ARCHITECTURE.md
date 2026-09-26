@@ -455,8 +455,8 @@ Two things are not obvious:
   Reading a `juce::String` on one thread while another replaces it is a race,
   refcount and all.
 
-The bar's **global section** takes its right quarter and holds three things: the four channel
-faces, the transport two by two, and the six function keys. A **Filter section** used to sit among
+The bar's **global section** takes its right quarter and holds two things: the four channel faces
+and the transport two by two. A **Filter section** used to sit among
 the clip's sections showing freq and Q — but those were never the clip's: they are the same
 per-channel values the hardware drives. They moved into a 4x3 grid in the global section, and on
 2026-09-26 out of the bar altogether, into the mixer strips (3D, FREQ, Q under SEND; see the mixer
@@ -901,38 +901,34 @@ entry tapped.
 
 Every section's buttons sit on the bar's bottom edge — Shape's `len`, Elevation's `flat` and
 `pole`, Motion's `dir` and `end` — so the bar reads as one row of buttons across its floor rather
-than three sections each arranging their own. TAP lights up for **a finger only**; it used to flash
-on every beat too, which put a blinking light on a bar meant to be read.
+than three sections each arranging their own.
 
 The global section is laid out top to bottom (2026-09-26): the **four channel faces** in a frame of
-their own, moved up out of the clip's header row, which now reads CLIP ACTION FILES CHMIX MAINMIX
-PADS. CHMIX is the shown channel's strip (the MIX tab before); MAINMIX is not a page but the toggle
-for the big mixer over the sphere, lit while it is open, which stood in the status bar as MIX; then the **transport two by two**, arranged like a clip's pads on PADS — play and
-stop over act and rec, rec taking the corner the pads give to Settings — taking all the
-height between the faces and the keys, which the 4x3 grid used to have; then the **six function
-keys** two by three. The rec mode is a button like the others and steps through the modes on a tap,
-which is what its encoder used to do; it reads as active whenever it is not Touch. The ACTION page
-used to line its rows up with the grid's (`setGridReference`); with the grid gone it lays out
-freely, and `layOutActionPage` is handed an empty reference.
+their own, moved up out of the clip's header row, then the **transport two by two** down to the
+strip's foot, arranged like a clip's pads on PADS — play and stop over act and rec, rec taking the
+corner the pads give to Settings. The 4x3 grid and the six function keys that stood there are gone.
+The ACTION page used to line its rows up with the grid's (`setGridReference`); with the grid gone it
+lays out freely, and `layOutActionPage` is handed an empty reference.
 
-The buttons carry three device-wide functions — **MENU**, **REC**, **TAP** — beside its rec-mode display. They are the
-finger's way to what the hardware has keys for, and they are not sub-elements of
-the section: no encoder reaches them, so they sit beside `controls` in
-`ClipSettingsLayout` rather than in it, and `numControlsInSection(4)` stays 1.
-The strip is a full section wide for them; it used to be half a section, and a
-finger needs a target the size of a finger.
+The header row reads **CLIP ACTION FILES CHMIX MAINMIX REC PADS**. CHMIX is the shown channel's
+strip (the MIX tab before). MAINMIX shows the big mixer over the sphere and is the lit tab while it
+is up; a second tap leaves it up, any other tab takes it away (`pageTabIsLit`). It stood in the
+status bar as a MIX toggle until then.
 
-Two of the three are not quite the key they stand for:
+**REC** (`BarPage::Record`) is the take about to be made: Shape as CLIP shows it, beside one card
+across the other two columns (`recordCard`) with the rec mode's key on top and **fade and bias**
+under it. Fade and bias came out of Motion, which keeps eight knobs in four rows, but they keep
+Motion's sub-indices 8 and 9 — the encoders, the take and `numControlsInSection` see no change;
+only where they are drawn moved. `controlIsOnPage` says which control stands on which page, and
+`ClipSettingsComponent::showControlsOfPage` hides the rest; `cardOfControl` names the card a
+control is drawn in. The rec mode's key is still the global section's one sub-element.
 
-- **REC** starts a take on the clip the bar is showing and ends a running one
-  (`toggleRecordingOnShownClip`). The hardware key cannot do that: there it is a
-  *modifier*, held while a slot's Play|Pause pad names the slot — and a finger
-  cannot hold it while pressing a pad that only exists in hardware. The bar
-  already says which slot it describes, so that is the slot it uses.
-- **TAP** has to bring its own timestamp. The hardware's tap arrives with one
-  from the adapter (`getTapTimeMicros`); `handleScreenTap()` reads the clock
-  itself and hands it to the shared `handleTapAt()`, or the tempo estimator
-  would never see a screen tap at all.
+Where the other five keys went: **CLOCK** leads the status bar, left of the tempo; **MENU** closes
+it, beside CLEAN and the keyboard, the three alike (`StatusBarLayout`); **TAP** is a touch on the
+beat display, taken on the finger's way down — the screen tap brings its own timestamp through
+`handleScreenTap()`, since only the hardware's tap arrives with one. **REC** and **SHIFT** left the
+screen: the transport's rec key records, and the Shift gestures need the panel now. Their state
+stays in `functionKeyLook()`, because the panel's LEDs still show it.
 
 MENU is exactly the key (`toggleGlobalSettings`), closing one level at a time.
 
@@ -1082,11 +1078,10 @@ the clock thread's envelopes — the bar and this page both ask it several times
 alone was right on the panel, where the clip settings are always on screen, and did nothing visible
 from the pads page, which covers them.
 
-**The strip's six buttons are the panel's six function keys.** Not "like them" — the same list.
-`io/FunctionKeys.hh` holds `functionKeyOrder` (`TAP, clock, REC, recmode, MENU, SHIFT`), and both
-sides read it: the panel is wired from it row by row, the strip is laid out from it as two columns
-of three filled top-left to bottom-right. A hand that has learned one has learned the other, and two
-tables would eventually disagree.
+**The panel's six function keys** are listed once: `io/FunctionKeys.hh` holds `functionKeyOrder`
+(`TAP, clock, REC, recmode, MENU, SHIFT`), and the panel is wired from it row by row. The screen
+carried the same six as two columns of three in the global strip until 2026-09-26; they are spread
+over the status bar and the REC page now (see above).
 
 On the panel those keys are a **vertical column of six at each end** (col0 and col9, rows 0–5),
 mirrored so either hand reaches them. The two columns are one set of keys, not twelve: a key is down

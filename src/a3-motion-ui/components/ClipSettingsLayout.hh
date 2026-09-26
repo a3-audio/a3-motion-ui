@@ -175,9 +175,13 @@ enum class BarPage
    *  eight clips of the device down one side and the library down the other,
    *  so a clip is put where it goes rather than dialled to. */
   Browser,
+  /** The take about to be made: Shape as CLIP shows it, beside one card with
+   *  the rec mode, fade and bias. The bar's own sections, so it covers
+   *  nothing. */
+  Record,
 };
 
-constexpr int numBarPages = 5;
+constexpr int numBarPages = 6;
 
 /** Every page, once. `BarPages.EveryPageAppearsInTheOrderExactlyOnce` fails
  *  if a page is missing from here or listed twice -- nothing in the compiler
@@ -188,6 +192,7 @@ constexpr int numBarPages = 5;
 constexpr std::array<BarPage, numBarPages> barPageOrder{
   BarPage::Clip,       BarPage::Action,
   BarPage::Controller, BarPage::Mixer,  BarPage::Browser,
+  BarPage::Record,
 };
 
 /** Pages that cover the clip area with something of their own.
@@ -219,6 +224,7 @@ pageCoversClipArea (BarPage page)
   switch (page)
     {
     case BarPage::Clip:
+    case BarPage::Record:
       return false;
     case BarPage::Action:
     case BarPage::Controller:
@@ -255,6 +261,7 @@ pageDescribesAClip (BarPage page)
     case BarPage::Action:
     case BarPage::Mixer:
     case BarPage::Browser:
+    case BarPage::Record:
       return true;
     case BarPage::Controller:
       return false;
@@ -311,6 +318,35 @@ float elevationBaseAt (juce::Rectangle<int> cell, int y, float bandLow = 0.f,
  *  cannot set a value beside. */
 float snapElevationBase (float base);
 
+
+/** How many of Motion's controls stand on the CLIP page: the first eight.
+ *  Its last two, fade (8) and bias (9), stand on REC since 2026-09-26 and
+ *  keep their sub-indices, so the encoders and the take reach them as before. */
+constexpr std::size_t motionSubsOnTheClipPage = 8;
+
+/** Whether a control stands on a page. */
+constexpr bool
+controlIsOnPage (int section, int sub, BarPage page)
+{
+  if (page != BarPage::Clip && page != BarPage::Record)
+    return false;
+
+  auto const onRecord = page == BarPage::Record;
+  switch (section)
+    {
+    case 0: // Shape, on both
+      return true;
+    case 1: // Elevation
+      return !onRecord;
+    case 2: // Motion: the first eight on CLIP, fade and bias on REC
+      return (static_cast<std::size_t> (sub) < motionSubsOnTheClipPage)
+             != onRecord;
+    case 3: // the rec mode
+      return onRecord;
+    default:
+      return false;
+    }
+}
 
 /** Whether a page's tab is lit: the page on show, unless the big mixer is
  *  over the sphere -- then MAINMIX is the lit tab. */
@@ -445,6 +481,12 @@ struct ClipSettingsLayout
   /** Not a view: opens and closes the big mixer over the sphere, and is lit
    *  while it is open. It stood in the status bar as MIX until 2026-09-26. */
   juce::Rectangle<int> tabMainMix;
+  juce::Rectangle<int> tabRecord;
+
+  /** The REC page's card, across the two columns Elevation and Motion take
+   *  on CLIP, and its title row. */
+  juce::Rectangle<int> recordCard;
+  juce::Rectangle<int> recordLabel;
   /** The way to the browser. A folder rather than a fourth word: the three
    *  tabs are views of the clip you are on, and this leaves it. */
   juce::Rectangle<int> tabBrowser;
@@ -461,16 +503,16 @@ struct ClipSettingsLayout
    *  different heights in three sections. */
   int buttonHeight = 0;
 
+  /** The rec mode's key, at the top of the REC page's card. CLOCK, MENU and
+   *  TAP went to the status bar on 2026-09-26; REC and SHIFT left the screen
+   *  (the transport and the panel carry them). */
   juce::Rectangle<int> recModeButton;
-  juce::Rectangle<int> clockModeButton;
-  juce::Rectangle<int> menuButton;
-  juce::Rectangle<int> recButton;
-  juce::Rectangle<int> tapButton;
-  /** Held, not tapped: Shift+Action previews for as long as it is down. In
-   *  the global strip because it modifies the whole device, and a modifier on
-   *  a page you have to leave is one you cannot hold. */
-  juce::Rectangle<int> shiftButton;
 };
+
+/** The card a control is drawn in: its section's, or the REC page's for the
+ *  controls that stand on REC alone -- fade, bias and the rec mode. */
+juce::Rectangle<int> cardOfControl (ClipSettingsLayout const &layout,
+                                    int section, int sub);
 
 /** The signal dot's diameter, as a share of the smaller side of a channel
  *  face.

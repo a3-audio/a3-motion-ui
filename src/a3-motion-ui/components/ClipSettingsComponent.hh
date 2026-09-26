@@ -444,15 +444,6 @@ public:
    *  a drag changes the key under the finger rather than walking the shown
    *  clip through a range no key would remember. */
   std::function<void (int index, int increment)> onSpeedDragged;
-  /** The clock mode steps on: INT, EXT, PIO. */
-  std::function<void ()> onClockModePressed;
-  std::function<void ()> onMenuPressed;
-  std::function<void ()> onRecordPressed;
-  std::function<void ()> onTapPressed;
-  /** Shift went down or came up. Held, not tapped: Shift+Action previews for
-   *  as long as it is down, so a latch would have nothing to release. */
-  std::function<void (bool held)> onShiftHeld;
-
   /** Whether the Rec button should read as armed. */
   void setRecording (bool recording);
 
@@ -463,9 +454,11 @@ public:
    *  that missed. Only on touch: it used to blink on every beat as well,
    *  which put a flashing light on a bar you are meant to read. */
 
-  /** Everything the six function keys' look depends on, gathered here because
-   *  this is the one place that knows all of it — the strip paints from it and
-   *  A3MotionUIComponent mirrors it to the panel's LEDs. */
+  /** Everything the panel's six function keys' look depends on, gathered
+   *  here because this is the one place that knows all of it —
+   *  A3MotionUIComponent mirrors it to the panel's LEDs, and the rec mode's
+   *  key on the REC page paints from it. The other five keys left the screen
+   *  on 2026-09-26; their state stays, because the LEDs still show it. */
   FunctionKeyLook functionKeyLook () const;
 
   /** Shift is down — from the panel's key or the strip's, they are one
@@ -526,6 +519,11 @@ private:
   /** Small, deliberately unobtrusive section title (see class doc) — most
    *  of a section's height goes to its controls, not this label. */
   void paintGlobalSection (juce::Graphics &g, bool isSelected);
+  /** The REC page's card: its title, and the rec mode's key. Fade and bias
+   *  are knobs and draw themselves. */
+  void paintRecordSection (juce::Graphics &g);
+  /** Show each control on the pages it stands on, hide it elsewhere. */
+  void showControlsOfPage ();
   /** One action button: a filled, labelled box. Not paintMiniToggle — that
    *  shows a value under a caption, and these have no value, only a name
    *  and the fact that they can be pressed. */
@@ -736,15 +734,11 @@ private:
   std::unique_ptr<TouchControl> _tabControllerTouch;
   std::unique_ptr<TouchControl> _tabMixerTouch;
   std::unique_ptr<TouchControl> _tabMainMixTouch;
+  std::unique_ptr<TouchControl> _tabRecordTouch;
   bool _mainMixOpen = false;
   std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
 
   std::unique_ptr<TouchControl> _recModeTouch;
-  std::unique_ptr<TouchControl> _clockModeTouch;
-  std::unique_ptr<TouchControl> _menuTouch;
-  std::unique_ptr<TouchControl> _recTouch;
-  std::unique_ptr<TouchControl> _tapTouch;
-  std::unique_ptr<TouchControl> _shiftTouch;
   std::unique_ptr<TouchControl> _accentTouch;
   bool _shiftHeld = false;
   bool _recording = false;

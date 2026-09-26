@@ -533,12 +533,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     applyRecMode ((recMenuIndex (_recMode) + 1) % count);
     updateClipSettingsDisplay ();
   };
-  _clipSettings->onClockModePressed = [this] { stepClockMode (); };
-  _clipSettings->onMenuPressed = [this] { toggleGlobalSettings (); };
-  // Straight to the take: there is no card to turn over any more. What is
-  // being recorded is drawn where what you are playing usually is, on the
-  // one face the Shape section has left.
-  _clipSettings->onRecordPressed = [this] { toggleRecordingOnShownClip (); };
+
   // The bar's four transport keys are the shown clip's pads, reached through
   // the pad handler rather than reimplemented: the timing rules live there
   // (play on the next beat, stop now, the accent while the finger is down)
@@ -660,10 +655,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       handlePadRelease (_clipSettingsChannel, pad);
   };
 
-  _clipSettings->onTapPressed = [this] { handleScreenTap (); };
-  // Held, not tapped: Shift+Action previews for as long as it is down. In the
-  // global strip it stands on both pages, so it can be held while the other
-  // hand works the pads.
   // The bar's ACT plays the shown clip's accent, exactly as its pad does.
   // A speed key is the clip's playback length said plainly. Tapping one sets
   // it outright rather than stepping towards it — that is what the keys are
@@ -686,19 +677,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                                   held ? _patterns[channel][slot] : nullptr);
     updateControlReadout (juce::String ("CH") + juce::String (channel + 1)
                           + " ACTION");
-  };
-
-  _clipSettings->onShiftHeld = [this] (bool held) {
-    _screenShiftHeld = held;
-    updateFunctionKeyLEDs ();
-    updateControlReadout (juce::String ("-- SHIFT ") + (held ? "ON" : "OFF"));
-  };
-  // Held, not tapped: Shift+Action previews for as long as it is down. In the
-  // global strip it stands on both pages, so it can be held while the other
-  // hand works the pads.
-  _clipSettings->onShiftHeld = [this] (bool held) {
-    _screenShiftHeld = held;
-    updateControlReadout (juce::String ("-- SHIFT ") + (held ? "ON" : "OFF"));
   };
 
   _clipSettings->onControlDragged = [this] (int section, int sub,
@@ -4693,13 +4671,8 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
 bool
 A3MotionUIComponent::isButtonPressed (Button button)
 {
-  // The panel's key or the screen's, whichever is down. One state, so that
-  // everything asking "is Shift held" gets the same answer no matter which
-  // of the two the hand is on — and so that a build with no panel can still
-  // reach the gestures that need a modifier.
-  if (button == Button::Shift && _screenShiftHeld)
-    return true;
-
+  // The panel's key only: the screen's SHIFT went on 2026-09-26, so the
+  // gestures that need the modifier need the panel.
   return _ioAdapter->getButton (button).getValue ();
 }
 

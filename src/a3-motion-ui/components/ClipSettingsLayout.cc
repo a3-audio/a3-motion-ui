@@ -288,6 +288,15 @@ textCell (juce::Rectangle<int> cell, int knobDiam)
       .withCentre (cell.getCentre ());
 }
 
+juce::Rectangle<int>
+cardOfControl (ClipSettingsLayout const &layout, int section, int sub)
+{
+  if (!controlIsOnPage (section, sub, BarPage::Clip))
+    return layout.recordCard;
+
+  return layout.sectionCards[static_cast<size_t> (section)];
+}
+
 int
 titleRowHeight (juce::Rectangle<int> content, float headerSize)
 {
@@ -336,11 +345,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   auto headerArea = area.removeFromTop (headerH);
 
   // Left to right, as the maintainer set it on 2026-09-26: CLIP ACTION FILES
-  // CHMIX MAINMIX PADS. The channel faces that led the row stand at the top of
+  // CHMIX MAINMIX REC PADS. The channel faces that led the row stand at the top of
   // the global strip since then -- see there.
   auto const headerGap = juce::jmax (2, headerGapOfHeader.of (headerH));
 
-  constexpr int numViews = 6;
+  constexpr int numViews = 7;
   constexpr int numHeaderGaps = numViews - 1;
 
   // **Every edge is computed from the row's whole width, not stepped across
@@ -389,7 +398,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // bar so both are opened from one place.
   out.tabMixer = takeView ();
   out.tabMainMix = takeView ();
-
+  out.tabRecord = takeView ();
   out.tabController = takeView ();
 
   for (index_t slot = 0; slot < numPadSlots; ++slot)
@@ -634,12 +643,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       out.sectionLabels[2] = title;
     }
 
-    // Five rows of two, and no buttons: the two lists went to Shape, where
-    // what a pass does when it runs out belongs with the take.
+    // Four rows of two, and no buttons: the two lists went to Shape, where
+    // what a pass does when it runs out belongs with the take, and the fade
+    // and the bias went to the REC page (2026-09-26) -- see below.
     //
     // Each row is a standing value beside the movement that works on it --
     // rot with its spin, reach with its swell, each squeeze with its own
-    // stretch, the fade with the bias. Grouping by what a control does is
+    // stretch. Grouping by what a control does is
     // what lets a hand find the right knob without reading the words.
     //
     // Shared out rather than taken one after another from the bottom. A skin
@@ -648,7 +658,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const gapH = juce::jmax (2, content.getWidth () / 20);
     auto const gapV = juce::jmax (2, content.getHeight () / 20);
 
-    constexpr int motionKnobRows = 5;
+    constexpr int motionKnobRows = 4;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
@@ -661,13 +671,12 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       return row;
     };
 
-    auto biasRow = knobRow (false);
     auto sqzYRow = knobRow (false);
     auto sqzXRow = knobRow (false);
     auto reachRow = knobRow (false);
     auto rotRow = knobRow (true);
 
-    auto const colW = (biasRow.getWidth () - gapH) / 2;
+    auto const colW = (sqzYRow.getWidth () - gapH) / 2;
     auto const split = [colW, gapH] (juce::Rectangle<int> &row) {
       auto const left = row.removeFromLeft (colW);
       row.removeFromLeft (gapH);
@@ -679,7 +688,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const [reachArea, swellArea] = split (reachRow);
     auto const [sqzXArea, strXArea] = split (sqzXRow);
     auto const [sqzYArea, strYArea] = split (sqzYRow);
-    auto const [fadeArea, biasArea] = split (biasRow);
 
     // In reading order, which is also sub-index order for the first time.
     out.controls[2] = {
@@ -691,9 +699,38 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       textCell (strXArea, metrics.knobDiam),  // 5 strX
       textCell (sqzYArea, metrics.knobDiam),  // 6 sqzY
       textCell (strYArea, metrics.knobDiam),  // 7 strY
-      textCell (fadeArea, metrics.knobDiam),  // 8 fade
-      textCell (biasArea, metrics.knobDiam),  // 9 bias
+      {},                                     // 8 fade, on REC -- below
+      {},                                     // 9 bias, on REC -- below
     };
+  }
+
+  // ── The REC page's card ──────────────────────────────────────────────
+  //
+  // Across both of the columns Elevation and Motion stand in on CLIP: the
+  // rec mode on top, as the key it has always been, and the fade and the
+  // bias under it, big. They keep Motion's sub-indices 8 and 9, so the
+  // encoders and the take reach them as before; only where they are drawn
+  // moved.
+  {
+    out.recordCard = out.sectionCards[1].getUnion (out.sectionCards[2]);
+    auto content = sectionContentBounds (out.recordCard);
+    out.recordLabel = content.removeFromTop (
+        titleRowHeight (content, headerSize));
+
+    auto const gap = juce::jmax (2, out.buttonHeight / 4);
+    auto keyRow = content.removeFromTop (
+        juce::jmin (content.getHeight (), out.buttonHeight));
+    out.recModeButton = keyRow.removeFromLeft (keyRow.getWidth () / 2);
+    content.removeFromTop (juce::jmin (content.getHeight (), gap));
+
+    auto const gapH = juce::jmax (2, content.getWidth () / 20);
+    auto const half = (content.getWidth () - gapH) / 2;
+    auto const fadeArea = content.removeFromLeft (half);
+    content.removeFromLeft (gapH);
+    auto const biasArea = content;
+
+    out.controls[2][8] = textCell (fadeArea, metrics.knobDiam);
+    out.controls[2][9] = textCell (biasArea, metrics.knobDiam);
   }
 
   // ── Global section ───────────────────────────────────────────────────
@@ -703,17 +740,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto content = out.globalContent;
     out.sectionLabels[3] = {};
 
-    // Top to bottom: whose clip (the four faces), what to do to it (the
-    // transport, two by two), and the device's six function keys at the
-    // foot. The 4x3 grid of 3D, FREQ and Q that stood here went into the
-    // mixer strips on 2026-09-26, and its room went to the transport.
-    // The bar's one button height -- the same one Elevation's and Motion's
-    // buttons get.
+    // Top to bottom: whose clip (the four faces), then what to do to it
+    // (the transport, two by two) down to the foot. The 4x3 grid of 3D, FREQ
+    // and Q went into the mixer strips and the six function keys went to the
+    // status bar and the REC page, both on 2026-09-26; their room is the
+    // transport's.
     auto const buttonRowH = out.buttonHeight;
     auto const buttonGap = juce::jmax (2, buttonRowH / 8);
-    auto buttons
-        = content.removeFromBottom (3 * buttonRowH + 2 * buttonGap);
-    content.removeFromBottom (juce::jmax (2, buttonRowH / 4));
 
     auto const frameInset = juce::jmax (2, content.getWidth () / 40);
     auto const blockGap = juce::jmax (4, buttonGap * 2);
@@ -783,39 +816,10 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
         }
     }
 
-    // ── the six function keys, two by three ───────────────────────────
-    //
-    // These stand for the panel's six function keys, so they are laid out
-    // like them: one size for all of them, filled top-left to bottom-right.
-    // Left down: tap, clock, rec. Right down: recmode, menu, shift. A button
-    // sized differently from its neighbours reads as a different kind of
-    // thing, and all six are the same kind — the thing your hand goes to
-    // without looking.
-    {
-      auto const gapH = juce::jmax (2, buttons.getWidth () / 60);
-      auto const buttonW = (buttons.getWidth () - gapH) / 2;
-
-      auto row = [&] (bool last) {
-        auto r = buttons.removeFromTop (buttonRowH);
-        if (!last)
-          buttons.removeFromTop (buttonGap);
-
-        auto const left = r.removeFromLeft (buttonW);
-        r.removeFromLeft (gapH);
-        return std::pair<juce::Rectangle<int>, juce::Rectangle<int> >{
-          left, r.removeFromLeft (buttonW)
-        };
-      };
-
-      std::tie (out.tapButton, out.recModeButton) = row (false);
-      std::tie (out.clockModeButton, out.menuButton) = row (false);
-      std::tie (out.recButton, out.shiftButton) = row (true);
-
-      // The rec mode no longer has a knob-style box of its own; its button
-      // is where it lives. controls[3] stays so the encoder-era index does
-      // not have to be special-cased away everywhere.
-      out.controls[3] = { out.recModeButton };
-    }
+    // The rec mode's key stands on the REC page (above), and is still the
+    // global section's one sub-element, so the encoder-era index does not
+    // have to be special-cased away everywhere.
+    out.controls[3] = { out.recModeButton };
   }
 
   return out;

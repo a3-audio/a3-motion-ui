@@ -105,6 +105,7 @@ ClipSettingsComponent::ClipSettingsComponent ()
   };
 
   createTouchControls ();
+  showControlsOfPage ();
 }
 
 void
@@ -217,6 +218,7 @@ ClipSettingsComponent::createTouchControls ()
   makeTab (_tabControllerTouch, BarPage::Controller);
   makeTab (_tabMixerTouch, BarPage::Mixer);
   makeTab (_tabBrowserTouch, BarPage::Browser);
+  makeTab (_tabRecordTouch, BarPage::Record);
 
   _tabMainMixTouch = std::make_unique<TouchControl> ();
   _tabMainMixTouch->onTap = [this] (int, int) {
@@ -331,26 +333,6 @@ ClipSettingsComponent::createTouchControls ()
     }
 
   makeButton (_recModeTouch, &ClipSettingsComponent::onRecModePressed);
-  makeButton (_clockModeTouch, &ClipSettingsComponent::onClockModePressed);
-  makeButton (_menuTouch, &ClipSettingsComponent::onMenuPressed);
-  makeButton (_recTouch, &ClipSettingsComponent::onRecordPressed);
-  makeButton (_tapTouch, &ClipSettingsComponent::onTapPressed);
-  _tapTouch->onPress = [this] (int, int) { flashTap (); };
-
-  // Held, not tapped, and so it needs onRelease rather than onTap — see
-  // TouchControl, where the two are deliberately different things.
-  _shiftTouch = std::make_unique<TouchControl> ();
-  _shiftTouch->onPress = [this] (int, int) {
-    setShiftHeld (true);
-    if (onShiftHeld)
-      onShiftHeld (true);
-  };
-  _shiftTouch->onRelease = [this] (int, int) {
-    setShiftHeld (false);
-    if (onShiftHeld)
-      onShiftHeld (false);
-  };
-  addAndMakeVisible (*_shiftTouch);
 
   for (int section = 0; section < numParameters; ++section)
     {
@@ -472,8 +454,6 @@ ClipSettingsComponent::resized ()
     _lockTouch[static_cast<size_t> (section)]->setBounds (
         _layout.sectionLocks[static_cast<size_t> (section)]);
 
-  _shiftTouch->setBounds (_layout.shiftButton);
-
   for (index_t slot = 0; slot < numPadSlots; ++slot)
     _slotTouch[slot]->setBounds (_layout.slotButtons[slot]);
 
@@ -488,6 +468,7 @@ ClipSettingsComponent::resized ()
   _tabControllerTouch->setBounds (_layout.tabController);
   _tabMixerTouch->setBounds (_layout.tabMixer);
   _tabMainMixTouch->setBounds (_layout.tabMainMix);
+  _tabRecordTouch->setBounds (_layout.tabRecord);
   _tabBrowserTouch->setBounds (_layout.tabBrowser);
 
   for (int i = 0; i < numSpeedButtons; ++i)
@@ -495,10 +476,6 @@ ClipSettingsComponent::resized ()
         _layout.speedButtons[static_cast<size_t> (i)]);
 
   _recModeTouch->setBounds (_layout.recModeButton);
-  _clockModeTouch->setBounds (_layout.clockModeButton);
-  _menuTouch->setBounds (_layout.menuButton);
-  _recTouch->setBounds (_layout.recButton);
-  _tapTouch->setBounds (_layout.tapButton);
 }
 
 void
@@ -1031,15 +1008,22 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // tempo and the beat -- the row the device says what it is doing on -- and
   // the band it stood in is where the transport keys go.
 
-  // The global strip stands on both pages: recmode, clock, MENU, REC and TAP
-  // belong to the device rather than to the clip, and losing them while you
-  // are firing clips is exactly the wrong moment to lose them.
+  // The global strip stands on every page: the faces and the transport belong
+  // to the device rather than to one view of the clip, and losing them while
+  // you are firing clips is exactly the wrong moment to lose them.
   paintGlobalSection (g, _selectedIndex == globalIndex);
 
   if (pageCoversClipArea (_page))
     return; // ControllerComponent / BrowserComponent draws the rest
 
   paintTrajectorySection (g, _selectedIndex == trajectoryIndex);
+
+  if (_page == BarPage::Record)
+    {
+      paintRecordSection (g);
+      return;
+    }
+
   paintElevationSection (g, _selectedIndex == elevationIndex);
   paintMotionSection (g, _selectedIndex == motionIndex);
 
@@ -1185,6 +1169,8 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   paintTab (_layout.tabMixer, "CHMIX",
             pageTabIsLit (BarPage::Mixer, _page, _mainMixOpen));
   paintTab (_layout.tabMainMix, "MAINMIX", _mainMixOpen);
+  paintTab (_layout.tabRecord, "REC",
+            pageTabIsLit (BarPage::Record, _page, _mainMixOpen));
 
   // A word like the three beside it. It was a folder mark, on the reasoning
   // that the tabs are views of the clip and this one leaves it -- but once
@@ -1213,6 +1199,44 @@ ClipSettingsComponent::clipContentBounds () const
 }
 
 void
+ClipSettingsComponent::showControlsOfPage ()
+{
+  // Every control stands on the pages controlIsOnPage() names and takes no
+  // touch anywhere else: a hit area with nothing under it is how a finger
+  // changes a value it cannot see. The knobs go with their hit areas, and
+  // that half matters as much -- a child is not painted by its parent, so a
+  // knob left visible draws itself, caption and all, straight through
+  // whatever page is on top ("man sieht die pots im hintergrund").
+  for (int section = 0; section < numParameters; ++section)
+    {
+      auto const s = static_cast<size_t> (section);
+      for (size_t sub = 0; sub < _controlTouch[s].size (); ++sub)
+        _controlTouch[s][sub]->setVisible (
+            controlIsOnPage (section, static_cast<int> (sub), _page));
+
+      for (size_t sub = 0; sub < _controlKnob[s].size (); ++sub)
+        if (auto &knob = _controlKnob[s][sub])
+          knob->setVisible (
+              controlIsOnPage (section, static_cast<int> (sub), _page));
+    }
+
+  // A card's own touch stands where the card is drawn: Shape on CLIP and REC,
+  // Elevation and Motion on CLIP only -- on REC their columns are the Record
+  // card.
+  for (int section = 0; section < numClipSections; ++section)
+    _sectionTouch[static_cast<size_t> (section)]->setVisible (
+        controlIsOnPage (section, 0, _page));
+
+  _elevationGraphicTouch->setVisible (
+      controlIsOnPage (elevationIndex, 0, _page));
+  _recModeTouch->setVisible (_page == BarPage::Record);
+
+  for (auto &button : _speedTouch)
+    if (button)
+      button->setVisible (controlIsOnPage (trajectoryIndex, 0, _page));
+}
+
+void
 ClipSettingsComponent::setPage (BarPage page)
 {
   if (_page == page)
@@ -1220,41 +1244,7 @@ ClipSettingsComponent::setPage (BarPage page)
 
   _page = page;
 
-  // The clip's own controls stop taking touches: they are not drawn on the
-  // controller page, and a hit area with nothing under it is how a finger
-  // changes a value it cannot see.
-  // The record page is the clip page with one section turned over, so every
-  // control stays reachable on it; the pads page and the browser take them
-  // away, because neither draws them.
-  auto const showsClip = !pageCoversClipArea (_page);
-
-  for (int section = 0; section < numParameters; ++section)
-    for (auto &control : _controlTouch[static_cast<size_t> (section)])
-      control->setVisible (showsClip);
-
-  // The knobs go with them, and this is the half that was forgotten when they
-  // stopped being painted and became juce::Sliders. paint() returns early on
-  // a page that covers the clip area -- but a child is not painted by its
-  // parent, so every knob went on drawing itself, caption and all, straight
-  // through the mixer. Reported from the device as "man sieht die pots im
-  // hintergrund".
-  //
-  // Only the clip's three sections: the global strip stands on every page.
-  for (int section = 0; section < numClipSections; ++section)
-    for (auto &knob : _controlKnob[static_cast<size_t> (section)])
-      if (knob)
-        knob->setVisible (showsClip);
-
-  for (int section = 0; section < numClipSections; ++section)
-    _sectionTouch[static_cast<size_t> (section)]->setVisible (showsClip);
-
-  _elevationGraphicTouch->setVisible (showsClip);
-
-  for (auto &button : _speedTouch)
-    if (button)
-      button->setVisible (_page == BarPage::Clip);
-
-
+  showControlsOfPage ();
   repaint ();
 }
 
@@ -1294,8 +1284,9 @@ ClipSettingsComponent::setMenuOpen (bool open)
   if (open == _menuOpen)
     return;
 
+  // No key of its own on screen any more -- MENU is in the status bar -- but
+  // the panel's MENU LED still reads this through functionKeyLook().
   _menuOpen = open;
-  repaint (_layout.menuButton);
 }
 
 void
@@ -1534,6 +1525,24 @@ ClipSettingsComponent::paintChannelFaceDot (juce::Graphics &g,
 }
 
 void
+ClipSettingsComponent::paintRecordSection (juce::Graphics &g)
+{
+  // The same wash and title every card wears, across both columns.
+  g.setColour (toColour (theme ().textPrimary, cardWash));
+  g.fillRoundedRectangle (_layout.recordCard.toFloat (), theme ().radiusCard);
+  paintSectionLabel (g, _layout.recordLabel, "Record", false);
+
+  // The rec mode in its own colour: how much of an old take this pass will
+  // destroy, on the same scale the rest of the device uses. It carries a
+  // value and names it, so it does not light.
+  auto const look = functionKeyLook ();
+  paintBarButton (g, _layout.recModeButton, recModeName (_recMode), "recmode",
+                  false, false, functionKeyColour (FunctionKey::RecMode, look));
+
+  // Fade and bias are knobs and draw themselves (PotKnob).
+}
+
+void
 ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
                                            bool isSelected)
 {
@@ -1552,54 +1561,7 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   // changed to say red always, and nothing was wrong anywhere: the screen
   // simply was not asking. Two displays reading one rule only works if both
   // of them read it.
-  auto const look = functionKeyLook ();
-  auto const colourFor = [&look] (FunctionKey key) {
-    return functionKeyColour (key, look);
-  };
 
-  // Both carry a value, so both name it: two lines, like every other button
-  // in the bar that stands for something rather than doing something.
-  static char const *clockNames[] = { "INT", "EXT", "PIO" };
-  auto const clock = juce::jlimit (0, 2, _clockMode);
-
-  // Neither lights up. They carry a value, and the value is written on them —
-  // a wash that comes and goes says the same thing a second time, in grey,
-  // and reads as a button that is somehow half-pressed. REC and TAP still
-  // light, because what they show is momentary and has no label of its own.
-  // The mode in its own colour: how much of an old take this pass will
-  // destroy, on the same scale the rest of the device uses.
-  paintBarButton (g, _layout.recModeButton, recModeName (_recMode), "recmode",
-                  false, false, colourFor (FunctionKey::RecMode));
-  // The clock's own colour, from the same rule as the rest — which for this
-  // key is Colours::clockMode, so the status bar reads it the same way: whose
-  // tempo this is has one answer, in one colour, wherever it is written.
-  paintBarButton (g, _layout.clockModeButton, clockNames[clock], "clock",
-                  false, false, colourFor (FunctionKey::ClockMode));
-
-  paintActionButton (g, _layout.menuButton, "MENU", _menuOpen,
-                     colourFor (FunctionKey::Menu));
-  paintActionButton (g, _layout.recButton, "REC", _recording,
-                     colourFor (FunctionKey::Record));
-
-  // TAP lights under a finger, and breathes with the beat — but not through
-  // the same door. Routed through the button's own "active" look the beat
-  // more than doubled the key's brightness, which is a blink you watch
-  // instead of one you catch out of the corner of an eye. It is a wash laid
-  // over the finished button instead, a fraction of the press's.
-  paintActionButton (g, _layout.tapButton, "TAP", _tapLit,
-                     _tapLit ? colourFor (FunctionKey::Tap) : juce::Colour{});
-  if (_tapBeat && !_tapLit)
-    {
-      g.setColour (toColour (theme ().textPrimary, beatWash));
-      g.fillRoundedRectangle (_layout.tapButton.toFloat (),
-                              theme ().radiusControl);
-    }
-
-  // Lit in the accent while it is down. A modifier you cannot see at a glance
-  // is a modifier you will get wrong, and this one decides what the next pad
-  // press means.
-  paintActionButton (g, _layout.shiftButton, "SHIFT", _shiftHeld,
-                     colourFor (FunctionKey::Shift));
 }
 
 void
@@ -1688,8 +1650,9 @@ ClipSettingsComponent::setShiftHeld (bool held)
   if (_shiftHeld == held)
     return;
 
+  // The panel's SHIFT LED reads this; the screen has no SHIFT key since
+  // 2026-09-26.
   _shiftHeld = held;
-  repaint (_layout.shiftButton);
 }
 
 FunctionKeyLook
@@ -1731,8 +1694,9 @@ ClipSettingsComponent::pulseOnBeat ()
   if (_tapLit)
     return;
 
+  // For the panel's TAP LED: the screen's TAP is the status bar's beat
+  // display since 2026-09-26.
   _tapBeat = true;
-  repaint (_layout.tapButton);
 
   // Shorter than the touch flash and never in place of it: a finger on the
   // key must still read as a press even if a beat lands under it.

@@ -49,13 +49,14 @@ TEST (BarPages, EveryPageAppearsInTheOrderExactlyOnce)
 // purpose. CLIP shows the bar's own three sections; the other four cover them
 // with something of their own -- MIX with one channel's strip.
 //
-// REC was here until 2026-09-23 and answered false: it was the clip page with
-// the Shape card turned over. The card is gone -- a take is now as long as
-// the clip it is recorded over (RecordingLength.hh), so there was nothing
-// left on the back of it.
+// REC was here until 2026-09-23 as the clip page with the Shape card turned
+// over, and came back on 2026-09-26 as a page of its own: Shape as CLIP shows
+// it, and the rec mode, fade and bias. It shows the bar's own sections, so it
+// covers nothing.
 TEST (BarPages, OnlyThePagesWithSomethingOfTheirOwnCoverTheClipArea)
 {
   EXPECT_FALSE (pageCoversClipArea (BarPage::Clip));
+  EXPECT_FALSE (pageCoversClipArea (BarPage::Record));
   EXPECT_TRUE (pageCoversClipArea (BarPage::Action));
   EXPECT_TRUE (pageCoversClipArea (BarPage::Controller));
   EXPECT_TRUE (pageCoversClipArea (BarPage::Mixer));
@@ -69,6 +70,7 @@ TEST (BarPages, OnlyThePagesWithSomethingOfTheirOwnCoverTheClipArea)
 TEST (BarPages, PadsIsTheOnlyPageThatDoesNotDescribeOneClip)
 {
   EXPECT_TRUE (pageDescribesAClip (BarPage::Clip));
+  EXPECT_TRUE (pageDescribesAClip (BarPage::Record));
   EXPECT_TRUE (pageDescribesAClip (BarPage::Action));
   EXPECT_FALSE (pageDescribesAClip (BarPage::Controller));
   EXPECT_TRUE (pageDescribesAClip (BarPage::Mixer));
