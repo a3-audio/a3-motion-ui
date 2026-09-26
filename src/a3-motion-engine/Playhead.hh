@@ -27,14 +27,24 @@
 namespace a3
 {
 
-/** Which way a clip sets off. Only that: what happens when it gets to the end
- *  is the end action's business, and Bounce turns this round as it goes. There
- *  used to be a third value, "Ping", which meant the same thing as the Bounce
- *  end action -- two controls for one behaviour. */
+/** How a clip travels its take. What it does when that travel is over is the
+ *  end action's business (Loop, Stop, Pause).
+ *
+ *  Bounce and Random were end actions until 2026-09-26, which made them
+ *  exclusive with stopping: a bounce could not be asked to go out and back
+ *  once and stop. They are ways of travelling, so they are here now, and any
+ *  of the four combines with any end. */
 enum class PlayDirection
 {
   Forward,
-  Reverse
+  Reverse,
+  /** Out to the far end and back. Its travel is the whole round, so the end
+   *  action -- and a press asking it to finish -- applies when it is home. */
+  Bounce,
+  /** Each lap from a random phase, to the end of the pass. On a drawn
+   *  trajectory that is the same figure entered at a different point; on a
+   *  tapped one the new phase lands inside a held tap. */
+  Random
 };
 
 /** What a clip does when it reaches the end of its pass. */
@@ -68,13 +78,6 @@ enum class EndAction
    *  where you happen to land is a pause, and calling it a stop meant there
    *  was no way to ask for the other one. */
   Pause,
-  /** Turn round and travel back. Never crosses the loop point, so a take's
-   *  closing move is never played in this mode. */
-  Bounce,
-  /** Carry on somewhere else in the pass. On a drawn trajectory that is the
-   *  same figure entered at a different point; on a tapped one the new phase
-   *  lands inside a held tap, which makes it a random tap. */
-  Random
 };
 
 /** Where a clip's playhead stands, and which way it is travelling.
@@ -90,6 +93,27 @@ struct Playhead
 };
 
 float initialSign (PlayDirection direction);
+
+/** Where a clip sets off: the start, the end for Reverse, the drawn phase for
+ *  Random. `randomPhase` is drawn by the caller so this stays checkable. */
+float initialPosition (PlayDirection direction, float randomPhase);
+
+/** Whether the step from the take's last tick to its first is ever
+ *  travelled -- only by a clip running straight on, looping. It decides
+ *  whether that step is a gap the fade joins. */
+bool travelsTheWrap (PlayDirection direction, EndAction endAction);
+
+/** A clip's direction and end, read from the names a file stores. Files
+ *  written while Bounce and Random were end actions name them as the end;
+ *  those become the direction, looping -- which is how they played. */
+struct PlaybackMode
+{
+  PlayDirection direction = PlayDirection::Forward;
+  EndAction endAction = EndAction::Loop;
+};
+
+PlaybackMode playbackModeFromNames (juce::String const &direction,
+                                    juce::String const &endAction);
 
 /** The name a file stores, and the action it names. An unknown name is a file
  *  written before the setting existed, or edited by hand: it loops, which is
@@ -110,21 +134,24 @@ EndAction endActionFromName (juce::String const &name);
 /** The playhead one tick on.
  *
  *  `delta` is the share of a pass covered in one tick, always positive; the
- *  direction lives in `sign`. `randomPhase` is drawn by the caller rather than
- *  in here, so that this stays a function whose behaviour can be checked. It
- *  is only read when the pass actually ends under EndAction::Random.
+ *  way it is going lives in `sign`. `randomPhase` is drawn by the caller
+ *  rather than in here, so that this stays a function whose behaviour can be
+ *  checked. It is only read when a Random lap ends and loops.
+ *
+ *  The end action applies when the travel is over: at the end of the pass,
+ *  and for a Bounce when it is home again -- the far end only turns it.
  *
  *  `stopAtEnd` is somebody having pressed play on a running clip: finish this
- *  lap and stop, whatever the end action says. It overrules exactly the three
- *  that mean "carry on" -- Loop, Bounce and Random -- which are the clips a
- *  person wants to get out of at a musical boundary rather than in the middle
- *  of a figure. Where it leaves the playhead is EndAction::Stop's answer: back
- *  at the take's start, because the press was made at a boundary and the next
- *  one should be a start.
+ *  travel and stop, whatever the end action says. It overrules Loop, which is
+ *  what a person wants to get out of at a musical boundary rather than in the
+ *  middle of a figure. Where it leaves the playhead is EndAction::Stop's
+ *  answer: back at the take's start, because the press was made at a boundary
+ *  and the next one should be a start.
  *
  *  It defaults to false, which is what every clip did before there was a way
  *  to ask. */
-Playhead advancePlayhead (Playhead current, float delta, EndAction endAction,
+Playhead advancePlayhead (Playhead current, float delta,
+                          PlayDirection direction, EndAction endAction,
                           float randomPhase, bool stopAtEnd = false);
 
 /** Where in the take a play position lands, as a fractional tick index.
@@ -138,6 +165,6 @@ Playhead advancePlayhead (Playhead current, float delta, EndAction endAction,
  *  along the join back to the beginning before turning: on an open path, a
  *  dart across the sphere and back, always at the same spot. */
 double fractionalTickForPlayback (float position, index_t numTicks,
-                                  EndAction endAction);
+                                  PlayDirection direction);
 
 }

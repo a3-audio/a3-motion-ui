@@ -68,7 +68,9 @@ TEST (ClipMigration, AnOldTakeGetsAClipOfItsOwn)
   // every migrated take invisible, which is exactly what happened.
   EXPECT_EQ (clip->svg, "04_Rec_120613");
   EXPECT_EQ (clip->settings.spin, 3);
-  EXPECT_EQ (clip->settings.endAction, EndAction::Bounce);
+  // Written when bounce was an end action: it is the direction now, looping.
+  EXPECT_EQ (clip->settings.direction, PlayDirection::Bounce);
+  EXPECT_EQ (clip->settings.endAction, EndAction::Loop);
   EXPECT_EQ (clip->settings.actMode, ActMode::Hold);
   EXPECT_FLOAT_EQ (clip->settings.reach, 0.4f);
 

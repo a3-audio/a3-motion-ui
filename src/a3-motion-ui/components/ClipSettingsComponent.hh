@@ -359,6 +359,11 @@ public:
   juce::Rectangle<int> clipContentBounds () const;
   /** A tab was tapped. */
   std::function<void (BarPage page)> onPageSelected;
+  /** A dir or end key was tapped: that one, outright -- the index is the
+   *  enum's, in the captions' order. */
+  std::function<void (int direction)> onDirectionChosen;
+  std::function<void (int endAction)> onEndActionChosen;
+
   /** The elevation picture in the global strip was tapped: switch camera
    *  mode, in which the big sphere turns the view. */
   std::function<void ()> onElevationPictureTapped;
@@ -518,6 +523,9 @@ private:
   /** The REC page's card: its title, and the rec mode's key. Fade and bias
    *  are knobs and draw themselves. */
   void paintRecordSection (juce::Graphics &g);
+  /** CLIP's middle card, dir over end, and its right one, the lengths. */
+  void paintPlaySection (juce::Graphics &g);
+  void paintLengthSection (juce::Graphics &g);
   /** The little camera in the elevation picture's corner. */
   void paintCameraMark (juce::Graphics &g, juce::Rectangle<int> bounds) const;
   /** Show each control on the pages it stands on, hide it elsewhere. */
@@ -733,6 +741,9 @@ private:
   std::unique_ptr<TouchControl> _elevationPictureTouch;
   bool _cameraMode = false;
   std::unique_ptr<TouchControl> _tabRecordTouch;
+  std::unique_ptr<TouchControl> _tabMotionTouch;
+  std::array<std::unique_ptr<TouchControl>, 4> _directionKeyTouch;
+  std::array<std::unique_ptr<TouchControl>, 3> _endActionKeyTouch;
   bool _mainMixOpen = false;
   std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
 

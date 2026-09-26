@@ -66,12 +66,12 @@ grownBar (float headerSize, float bodySize, float potSize)
 }
 
 /** The header's keys in the order they stand, left to right (2026-09-26):
- *  CLIP ACTION FILES CHMIX MAINMIX REC PADS. */
+ *  CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS. */
 std::vector<juce::Rectangle<int> >
 headerKeys (ClipSettingsLayout const &l)
 {
-  return { l.tabClip,    l.tabAction, l.tabBrowser,   l.tabMixer,
-           l.tabMainMix, l.tabRecord, l.tabController };
+  return { l.tabClip,  l.tabMotion,  l.tabAction, l.tabBrowser,
+           l.tabMixer, l.tabMainMix, l.tabRecord, l.tabController };
 }
 
 ClipSettingsLayout
@@ -129,7 +129,7 @@ TEST (ClipSettingsLayout, ControlsWithinASectionDoNotOverlap)
 {
   auto const l = defaultLayout ();
 
-  for (auto const page : { BarPage::Clip, BarPage::Record })
+  for (auto const page : { BarPage::Clip, BarPage::Motion, BarPage::Record })
     for (int s = 0; s < numClipSettingsSections; ++s)
       {
         auto const &section = l.controls[static_cast<size_t> (s)];
@@ -146,15 +146,24 @@ TEST (ClipSettingsLayout, ControlsWithinASectionDoNotOverlap)
       }
 }
 
+// No two cards a page shows overlap. Cards of different pages may -- Shape
+// and Motion both start in the left column, on CLIP and MOTION.
 TEST (ClipSettingsLayout, SectionCardsDoNotOverlapEachOther)
 {
   auto const l = defaultLayout ();
+  auto const &c = l.sectionCards;
 
-  for (size_t a = 0; a < l.sectionCards.size (); ++a)
-    for (size_t b = a + 1; b < l.sectionCards.size (); ++b)
-      EXPECT_TRUE (
-          l.sectionCards[a].getIntersection (l.sectionCards[b]).isEmpty ())
-          << "cards " << a << " and " << b << " overlap";
+  std::vector<std::vector<juce::Rectangle<int> > > const pages{
+    { c[0], l.playCard, l.lengthCard, c[3] }, // CLIP
+    { c[2], c[1], c[3] },                     // MOTION
+    { c[0], l.recordCard, c[3] },             // REC
+  };
+
+  for (size_t page = 0; page < pages.size (); ++page)
+    for (size_t a = 0; a < pages[page].size (); ++a)
+      for (size_t b = a + 1; b < pages[page].size (); ++b)
+        EXPECT_TRUE (pages[page][a].getIntersection (pages[page][b]).isEmpty ())
+            << "page " << page << ": cards " << a << " and " << b << " overlap";
 }
 
 // The regression from issues/a3-motion-ui-clip-settings-layout-overflows-at-
@@ -289,7 +298,8 @@ TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
     }
 }
 
-// The header row is CLIP ACTION FILES CHMIX MAINMIX REC PADS, in that order.
+// The header row is CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS, in that
+// order.
 // MAINMIX came down from the status bar on 2026-09-26: the big mixer is
 // opened from where the channel's own strip is. The channel
 // faces that led it went up into the global strip on 2026-09-26, where the
@@ -438,10 +448,9 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
     }
 }
 
-// Which knob sits where. Four rows of two, each a standing value beside the
-// movement that works on it: rot with its spin, reach with its swell, each
-// squeeze with its own stretch. The fade and the bias went to REC. Sub-index order is
-// reading order, which it had not been since the section started growing.
+// Which knob sits where on the MOTION page: two rows of four, each standing
+// value beside the movement that works on it -- rot spin reach swell over
+// sqzX strX sqzY strY.
 TEST (ClipSettingsLayout, MotionReadsAsPairsDownTheSection)
 {
   for (int height : { 200, 314, 460 })
@@ -450,28 +459,18 @@ TEST (ClipSettingsLayout, MotionReadsAsPairsDownTheSection)
       auto const &motion = l.controls[2];
       ASSERT_EQ (motion.size (), 10u) << "height " << height;
 
-      // The first eight: fade and bias (8, 9) stand on the REC page.
-      for (size_t row = 0; row + 1 < motionSubsOnTheClipPage; row += 2)
+      for (size_t i = 1; i < 4; ++i)
         {
-          auto const &left = motion[row];
-          auto const &right = motion[row + 1];
-
-          EXPECT_EQ (left.getY (), right.getY ()) << "row " << row / 2;
-          EXPECT_LT (left.getRight (), right.getX () + 1) << "row " << row / 2;
-          EXPECT_EQ (left.getHeight (), right.getHeight ())
-              << "row " << row / 2;
-
-          // Under the row before it, and in the same two columns.
-          if (row >= 2)
-            {
-              EXPECT_LE (motion[row - 2].getBottom (), left.getY () + 1)
-                  << "row " << row / 2 << " at height " << height;
-              EXPECT_EQ (motion[row - 2].getX (), left.getX ())
-                  << "row " << row / 2;
-              EXPECT_EQ (motion[row - 1].getX (), right.getX ())
-                  << "row " << row / 2;
-            }
+          EXPECT_EQ (motion[i].getY (), motion[0].getY ()) << "sub " << i;
+          EXPECT_EQ (motion[i + 4].getY (), motion[4].getY ()) << "sub " << i;
+          EXPECT_LE (motion[i - 1].getRight (), motion[i].getX ())
+              << "sub " << i;
         }
+
+      EXPECT_GE (motion[4].getY (), motion[0].getBottom ())
+          << "height " << height;
+      for (size_t i = 0; i < 4; ++i)
+        EXPECT_EQ (motion[i].getX (), motion[i + 4].getX ()) << "column " << i;
     }
 }
 
@@ -601,14 +600,25 @@ TEST (ClipSettingsLayout, TwoKeysCarryingOneSpeedBothLight)
   EXPECT_FALSE (speedKeyIsActive (keys, 2, -3, 1));
 }
 
-// Left to right, in the order the performer's four sit in.
+// The four length keys stand two by two in the CLIP page's right column, in
+// reading order.
 TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
 {
   auto const l = defaultLayout ();
-  for (int i = 1; i < numSpeedButtons; ++i)
-    EXPECT_LT (l.speedButtons[static_cast<size_t> (i - 1)].getX (),
-               l.speedButtons[static_cast<size_t> (i)].getX ())
-        << "button " << i;
+  auto const &k = l.speedButtons;
+
+  for (auto const &key : k)
+    {
+      EXPECT_TRUE (l.lengthCard.contains (key));
+      EXPECT_GE (key.getHeight (), fingertipSize);
+    }
+
+  EXPECT_EQ (k[0].getY (), k[1].getY ());
+  EXPECT_EQ (k[2].getY (), k[3].getY ());
+  EXPECT_GE (k[2].getY (), k[0].getBottom ());
+  EXPECT_EQ (k[0].getX (), k[2].getX ());
+  EXPECT_EQ (k[1].getX (), k[3].getX ());
+  EXPECT_GE (k[1].getX (), k[0].getRight ());
 }
 
 // ── The header's transport keys ──────────────────────────────────────────
@@ -702,7 +712,7 @@ TEST (ClipSettingsLayout, ThePictureNamesTheShapeAndTheFieldNamesTheClip)
   EXPECT_EQ (front.trajectoryName, front.trajectoryIcon)
       << "the shape's name lies over its picture";
   EXPECT_FALSE (front.clipField.intersects (front.trajectoryIcon))
-      << "the field would be drawn over the picture it stands under";
+      << "the field would be drawn over the picture it stands over";
 
   // In reading order: the picture, the field, then the two lists.
   ASSERT_EQ (front.controls[0].size (), 4u);
@@ -717,10 +727,9 @@ TEST (ClipSettingsLayout, ThePictureNamesTheShapeAndTheFieldNamesTheClip)
   // written now.
 }
 
-// The field is a fingertip tall wherever the bar is, and stands between the
-// picture and the speeds -- a control reached for mid-set, in the order it is
-// reached for: see what is in the slot, change it, then set how fast it runs.
-TEST (ClipSettingsLayout, TheClipFieldStandsBetweenThePictureAndTheSpeeds)
+// The clip picker stands over the picture in the CLIP page's left column
+// (2026-09-26): which clip, then what it looks like.
+TEST (ClipSettingsLayout, TheClipFieldStandsOverThePicture)
 {
   for (int height : { 200, 250, 314, 460 })
     {
@@ -729,12 +738,11 @@ TEST (ClipSettingsLayout, TheClipFieldStandsBetweenThePictureAndTheSpeeds)
       ASSERT_FALSE (l.clipField.isEmpty ()) << "height " << height;
       EXPECT_GE (l.clipField.getHeight (), fingertipSize)
           << "height " << height;
-
-      EXPECT_LE (l.trajectoryIcon.getBottom (), l.clipField.getY ())
-          << "height " << height;
-      EXPECT_LE (l.clipField.getBottom (), l.speedButtons[0].getY ())
+      EXPECT_LE (l.clipField.getBottom (), l.trajectoryIcon.getY ())
           << "height " << height;
       EXPECT_TRUE (l.sectionCards[0].contains (l.clipField))
+          << "height " << height;
+      EXPECT_TRUE (l.sectionCards[0].contains (l.trajectoryIcon))
           << "height " << height;
     }
 }
@@ -900,20 +908,18 @@ TEST (ClipSettingsLayout, TheGlobalCardIsNotTitled)
 
 // ── The sections after the reshuffle ─────────────────────────────────────
 
-// Motion comes before Elevation now. What a clip *is* and how it *moves* are
-// the two things reached for while playing; where it sits on the sphere is
-// set once and left alone, so it goes to the far end.
-TEST (ClipSettingsLayout, MotionStandsBeforeElevation)
+// The MOTION page (2026-09-26): Motion across the two left columns, Elevation
+// in the right one.
+TEST (ClipSettingsLayout, TheMotionPageHasMotionThenElevation)
 {
   auto const l = defaultLayout ();
 
-  EXPECT_LT (l.sectionCards[0].getX (), l.sectionCards[2].getX ())
-      << "Shape must still come first";
-  EXPECT_LT (l.sectionCards[2].getX (), l.sectionCards[1].getX ())
-      << "Motion must stand before Elevation";
-
-  for (size_t i = 0; i < 3; ++i)
-    ASSERT_FALSE (l.sectionCards[i].isEmpty ()) << "card " << i;
+  EXPECT_EQ (l.sectionCards[2].getX (), l.sectionCards[0].getX ())
+      << "Motion does not start at the left";
+  EXPECT_GT (l.sectionCards[2].getWidth (), l.sectionCards[1].getWidth ())
+      << "Motion is the wider of the two";
+  EXPECT_LE (l.sectionCards[2].getRight (), l.sectionCards[1].getX ());
+  EXPECT_EQ (l.sectionCards[1].getRight (), l.lengthCard.getRight ());
 }
 // ── What the reshuffle replaced ──────────────────────────────────────────
 //
@@ -923,27 +929,6 @@ TEST (ClipSettingsLayout, MotionStandsBeforeElevation)
 // those cases described a bar that no longer exists. What they were
 // protecting is kept here in the shape it has.
 
-// The picture takes the room the knob column had, and still stands on the
-// button grid beneath it -- a row that nearly lines up reads as a mistake, one
-// that lines up exactly reads as structure.
-TEST (ClipSettingsLayout, ThePictureStandsOnTheButtonGrid)
-{
-  for (auto const page : { BarPage::Clip })
-    {
-      auto const l = layOutClipSettings (
-          grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
-          defaultHeaderSize, defaultBodySize, defaultPotSize, page);
-
-      auto const &button = l.speedButtons[0];
-      ASSERT_FALSE (l.trajectoryIcon.isEmpty ());
-      ASSERT_FALSE (button.isEmpty ());
-
-      EXPECT_EQ (l.trajectoryIcon.getX (), button.getX ())
-          << "the picture does not start on the button grid";
-      EXPECT_LE (l.trajectoryIcon.getBottom (), button.getY ())
-          << "the picture runs into the buttons";
-    }
-}
 // The fade is a Motion value now. It reads a take's gaps and decides which are
 // drawn through -- something a movement does over time, not something the
 // picture is.
@@ -957,28 +942,16 @@ TEST (ClipSettingsLayout, TheFadeIsAMotionValueNow)
   // Index one since the spin left -- see OnlyFewValuedControlsAdvanceOnTap.
   EXPECT_FALSE (l.controls[2][1].isEmpty ());
   EXPECT_TRUE (l.sectionCards[2].contains (l.controls[2][1]));
-  EXPECT_FALSE (l.sectionCards[0].contains (l.controls[2][1]));
 }
 
 // ── Shape after the tidy-up ──────────────────────────────────────────────
 
-// The picture takes the whole width now. It had three of the four button
-// columns and left the fourth to a knob column that no longer exists, so a
-// quarter of the section was empty air beside the one thing worth looking at.
+// The picture takes the column's width, as the picker over it does.
 TEST (ClipSettingsLayout, ThePictureTakesTheWholeWidth)
 {
-  for (auto const page : { BarPage::Clip })
-    {
-      auto const l = layOutClipSettings (
-          grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
-          defaultHeaderSize, defaultBodySize, defaultPotSize, page);
-
-      auto const &last = l.speedButtons[numSpeedButtons - 1];
-
-      // Out to the right edge of the button grid, not three columns of four.
-      EXPECT_GE (l.trajectoryIcon.getRight (), last.getRight ())
-          << "the picture stops short of the grid";
-    }
+  auto const l = defaultLayout ();
+  EXPECT_EQ (l.trajectoryIcon.getX (), l.clipField.getX ());
+  EXPECT_EQ (l.trajectoryIcon.getWidth (), l.clipField.getWidth ());
 }
 
 // Every button row is the same height, whatever the section has room for. A
@@ -1503,7 +1476,7 @@ TEST (ClipSettingsLayout, TheRecordCardTakesTheTwoRightColumns)
   auto const l = defaultLayout ();
 
   ASSERT_FALSE (l.recordCard.isEmpty ());
-  auto const both = l.sectionCards[1].getUnion (l.sectionCards[2]);
+  auto const both = l.playCard.getUnion (l.lengthCard);
   EXPECT_EQ (l.recordCard.getX (), both.getX ());
   EXPECT_EQ (l.recordCard.getRight (), both.getRight ());
   EXPECT_FALSE (l.recordCard.intersects (l.sectionCards[0]));
@@ -1531,12 +1504,12 @@ TEST (ClipSettingsLayout, FadeAndBiasStandUnderTheRecModeInTheRecordCard)
   EXPECT_LE (fade.getRight (), bias.getX ());
 }
 
-// Motion keeps its first eight in its own card on CLIP.
-TEST (ClipSettingsLayout, MotionKeepsEightKnobsOnTheClipPage)
+// Motion keeps its first eight in its own card, on the MOTION page.
+TEST (ClipSettingsLayout, MotionKeepsEightKnobsOnTheMotionPage)
 {
   auto const l = defaultLayout ();
 
-  for (size_t sub = 0; sub < motionSubsOnTheClipPage; ++sub)
+  for (size_t sub = 0; sub < motionSubsOnTheMotionPage; ++sub)
     EXPECT_TRUE (l.sectionCards[2].contains (l.controls[2][sub]))
         << "sub " << sub;
 }
@@ -1550,21 +1523,28 @@ TEST (ClipSettingsLayout, TheTransportRunsToTheFootOfTheStrip)
   EXPECT_EQ (l.transportFrame.getBottom (), l.globalContent.getBottom ());
 }
 
-// Which control a page shows. Shape stands on CLIP and REC alike; Elevation
-// and Motion's first eight on CLIP only; fade, bias and the rec mode on REC
-// only; nothing of the clip on a page that covers it.
+// Which control a page shows. CLIP: the picker and the picture (Shape's own
+// controls 0 and 1); dir and end are keys of their own there, so their
+// fields (2 and 3) take no touch. MOTION: Motion's first eight and
+// Elevation's four. REC: the picker and the picture, fade, bias and the rec
+// mode. Nothing of the clip on a page that covers it.
 TEST (ClipSettingsLayout, EachControlStandsOnItsOwnPage)
 {
   constexpr int shape = 0, elevation = 1, motion = 2, global = 3;
 
   EXPECT_TRUE (controlIsOnPage (shape, 0, BarPage::Clip));
+  EXPECT_TRUE (controlIsOnPage (shape, 1, BarPage::Clip));
+  EXPECT_FALSE (controlIsOnPage (shape, 2, BarPage::Clip));
+  EXPECT_FALSE (controlIsOnPage (shape, 0, BarPage::Motion));
   EXPECT_TRUE (controlIsOnPage (shape, 0, BarPage::Record));
-  EXPECT_TRUE (controlIsOnPage (elevation, 0, BarPage::Clip));
+
+  EXPECT_TRUE (controlIsOnPage (elevation, 0, BarPage::Motion));
+  EXPECT_FALSE (controlIsOnPage (elevation, 0, BarPage::Clip));
   EXPECT_FALSE (controlIsOnPage (elevation, 0, BarPage::Record));
 
-  EXPECT_TRUE (controlIsOnPage (motion, 7, BarPage::Clip));
-  EXPECT_FALSE (controlIsOnPage (motion, 7, BarPage::Record));
-  EXPECT_FALSE (controlIsOnPage (motion, 8, BarPage::Clip));
+  EXPECT_TRUE (controlIsOnPage (motion, 7, BarPage::Motion));
+  EXPECT_FALSE (controlIsOnPage (motion, 7, BarPage::Clip));
+  EXPECT_FALSE (controlIsOnPage (motion, 8, BarPage::Motion));
   EXPECT_TRUE (controlIsOnPage (motion, 8, BarPage::Record));
   EXPECT_TRUE (controlIsOnPage (motion, 9, BarPage::Record));
 
@@ -1613,4 +1593,55 @@ TEST (ClipSettingsLayout, ACameraMarkSitsInThePicturesCorner)
   EXPECT_LT (mark.getCentreY (), l.elevationFrame.getCentreY ());
   EXPECT_LE (mark.getWidth (), l.elevationFrame.getWidth () / 4)
       << "a mark, not a second picture";
+}
+
+// ── CLIP and MOTION (2026-09-26) ─────────────────────────────────────────
+
+// CLIP is three columns: the Shape card (picker, picture), the card with dir
+// and end, the card with the four lengths.
+TEST (ClipSettingsLayout, TheClipPageIsThreeColumns)
+{
+  auto const l = defaultLayout ();
+  auto const &shape = l.sectionCards[0];
+
+  ASSERT_FALSE (l.playCard.isEmpty ());
+  ASSERT_FALSE (l.lengthCard.isEmpty ());
+  EXPECT_LE (shape.getRight (), l.playCard.getX ());
+  EXPECT_LE (l.playCard.getRight (), l.lengthCard.getX ());
+  for (auto const &card : { l.playCard, l.lengthCard })
+    {
+      EXPECT_EQ (card.getY (), shape.getY ());
+      EXPECT_EQ (card.getHeight (), shape.getHeight ());
+      EXPECT_TRUE (l.clipContent.contains (card));
+    }
+}
+
+// dir on top -- Fwd Rev Bnce Rnd -- and end under it -- Loop Stop Paus --
+// each a key that is chosen outright, a fingertip each.
+TEST (ClipSettingsLayout, DirAndEndAreKeysInTheMiddle)
+{
+  auto const l = defaultLayout ();
+
+  for (auto const &key : l.directionKeys)
+    {
+      EXPECT_TRUE (l.directionButton.contains (key));
+      EXPECT_GE (key.getWidth (), fingertipSize);
+      EXPECT_GE (key.getHeight (), fingertipSize);
+      EXPECT_EQ (key.getY (), l.directionKeys[0].getY ());
+    }
+  for (auto const &key : l.endActionKeys)
+    {
+      EXPECT_TRUE (l.endActionButton.contains (key));
+      EXPECT_GE (key.getWidth (), fingertipSize);
+      EXPECT_GE (key.getHeight (), fingertipSize);
+      EXPECT_EQ (key.getY (), l.endActionKeys[0].getY ());
+    }
+
+  EXPECT_TRUE (l.playCard.contains (l.directionButton));
+  EXPECT_TRUE (l.playCard.contains (l.endActionButton));
+  EXPECT_LE (l.directionButton.getBottom (), l.endActionButton.getY ());
+  for (size_t i = 1; i < l.directionKeys.size (); ++i)
+    EXPECT_LE (l.directionKeys[i - 1].getRight (), l.directionKeys[i].getX ());
+  for (size_t i = 1; i < l.endActionKeys.size (); ++i)
+    EXPECT_LE (l.endActionKeys[i - 1].getRight (), l.endActionKeys[i].getX ());
 }

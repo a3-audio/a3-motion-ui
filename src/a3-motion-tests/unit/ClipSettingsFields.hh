@@ -74,7 +74,7 @@ clipSettingsFields ()
         { "direction",
           [] (ClipSettings &s) { s.direction = PlayDirection::Reverse; } },
         { "endAction",
-          [] (ClipSettings &s) { s.endAction = EndAction::Bounce; } },
+          [] (ClipSettings &s) { s.endAction = EndAction::Pause; } },
         { "fadeReach", [] (ClipSettings &s) { s.fadeReach = 0.9f; } },
         { "bridgeBias", [] (ClipSettings &s) { s.bridgeBias = 3; } },
       };

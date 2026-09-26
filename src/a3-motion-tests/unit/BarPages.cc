@@ -57,6 +57,7 @@ TEST (BarPages, OnlyThePagesWithSomethingOfTheirOwnCoverTheClipArea)
 {
   EXPECT_FALSE (pageCoversClipArea (BarPage::Clip));
   EXPECT_FALSE (pageCoversClipArea (BarPage::Record));
+  EXPECT_FALSE (pageCoversClipArea (BarPage::Motion));
   EXPECT_TRUE (pageCoversClipArea (BarPage::Action));
   EXPECT_TRUE (pageCoversClipArea (BarPage::Controller));
   EXPECT_TRUE (pageCoversClipArea (BarPage::Mixer));
@@ -71,6 +72,7 @@ TEST (BarPages, PadsIsTheOnlyPageThatDoesNotDescribeOneClip)
 {
   EXPECT_TRUE (pageDescribesAClip (BarPage::Clip));
   EXPECT_TRUE (pageDescribesAClip (BarPage::Record));
+  EXPECT_TRUE (pageDescribesAClip (BarPage::Motion));
   EXPECT_TRUE (pageDescribesAClip (BarPage::Action));
   EXPECT_FALSE (pageDescribesAClip (BarPage::Controller));
   EXPECT_TRUE (pageDescribesAClip (BarPage::Mixer));

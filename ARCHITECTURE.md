@@ -298,8 +298,8 @@ generator and the test runner:
   say where the hand had put it.
 
   **When the decay runs out the clip does what its end action says** (`applyEndActionAfterAccent`),
-  and only on that edge, once. Stop and Pause end the pass; Loop, Bounce and Random mean "keep
-  going" and are left alone, or the accent would be a stop button that only some settings noticed.
+  and only on that edge, once. Stop and Pause end the pass; Loop means "keep going" and is left
+  alone, or the accent would be a stop button that only some settings noticed.
 
   **The bar follows the hand.** Pressing play or the accent on a pad selects that clip in the clip
   settings, so what you are reading is what you just touched. On a *press*, not on every start: a
@@ -931,10 +931,21 @@ corner the pads give to Settings. The 4x3 grid and the six function keys that st
 The ACTION page used to line its rows up with the grid's (`setGridReference`); with the grid gone it
 lays out freely, and `layOutActionPage` is handed an empty reference.
 
-The header row reads **CLIP ACTION FILES CHMIX MAINMIX REC PADS**. CHMIX is the shown channel's
+The header row reads **CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS**. CHMIX is the shown channel's
 strip (the MIX tab before). MAINMIX shows the big mixer over the sphere and is the lit tab while it
 is up; a second tap leaves it up, any other tab takes it away (`pageTabIsLit`). It stood in the
 status bar as a MIX toggle until then.
+
+**CLIP and MOTION** (2026-09-26). The clip area is three columns (`layOutClipSettings`), and which
+card stands in them depends on the page. CLIP: Shape's card with the clip picker over the picture,
+then a card with **dir** (Fwd Rev Bnce Rnd) over **end** (Loop Stop Paus) as keys chosen outright
+(`directionKeys`, `endActionKeys`, `onDirectionChosen`/`onEndActionChosen`), then the four lengths
+two by two (`lengthCard`). MOTION (`BarPage::Motion`): Motion's eight knobs in two rows of four
+across the first two columns, Elevation's four in the third. The sub-indices did not move:
+`directionButton`/`endActionButton` are still Shape's 2 and 3 — the rows the keys stand in, taking
+no touch of their own — so the encoders step them as before. `controlIsOnPage` and
+`cardOfControl` say where each control is shown and drawn; cards of different pages overlap by
+design (Shape and Motion both start in the left column).
 
 **REC** (`BarPage::Record`) is the take about to be made: Shape as CLIP shows it, beside one card
 across the other two columns (`recordCard`) with the rec mode's key on top and **fade and bias**
@@ -1235,6 +1246,17 @@ a stop left no way to ask for the other one. `Stop` now returns to the beginning
 whichever way it was running, so the next start is visibly a start; `Paus` is the old behaviour,
 correctly named. The end-action list's length lives in one place (`numEndActions`) because it was
 written as a literal `4` in three.
+
+**Direction and end are two axes** (2026-09-26). `PlayDirection` is how a clip travels — **Fwd,
+Rev, Bnce, Rnd** — and `EndAction` what it does when that travel is over — **Loop, Stop, Paus** —
+and any direction combines with any end. Bounce and Random were end actions before, which made them
+exclusive with stopping. A bounce's travel is its whole round: the far end only turns it, and the
+end action, and a Play press asking it to finish (`stopAtEnd`), apply when it is home. A random lap
+starts at a random phase (`initialPosition`, the first lap too) and runs to the end of the pass.
+Only Fwd/Rev with Loop travel the step from the last tick to the first (`travelsTheWrap`), which
+decides whether the fade joins it. Files, sessions and scripts that named bounce or random as the
+end are read as that direction, looping (`playbackModeFromNames`, and the script's `~end` setter),
+which is how they played. The bar's index for both is the enum itself, in the captions' order.
 
 **When a pad takes effect** is a set, not four separate decisions:
 

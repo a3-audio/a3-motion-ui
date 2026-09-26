@@ -289,7 +289,11 @@ textCell (juce::Rectangle<int> cell, int knobDiam)
 juce::Rectangle<int>
 cardOfControl (ClipSettingsLayout const &layout, int section, int sub)
 {
-  if (!controlIsOnPage (section, sub, BarPage::Clip))
+  // dir and end stand in CLIP's middle card; fade, bias and the rec mode in
+  // REC's; everything else in its section's own.
+  if (section == 0 && sub >= 2)
+    return layout.playCard;
+  if (section == 3 || (section == 2 && controlIsOnPage (2, sub, BarPage::Record)))
     return layout.recordCard;
 
   return layout.sectionCards[static_cast<size_t> (section)];
@@ -342,12 +346,12 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   auto headerArea = area.removeFromTop (headerH);
 
-  // Left to right, as the maintainer set it on 2026-09-26: CLIP ACTION FILES
-  // CHMIX MAINMIX REC PADS. The channel faces that led the row stand at the top of
+  // Left to right, as the maintainer set it on 2026-09-26: CLIP MOTION ACTION
+  // FILES CHMIX MAINMIX REC PADS. The channel faces that led the row stand at the top of
   // the global strip since then -- see there.
   auto const headerGap = juce::jmax (2, headerGapOfHeader.of (headerH));
 
-  constexpr int numViews = 7;
+  constexpr int numViews = 8;
   constexpr int numHeaderGaps = numViews - 1;
 
   // **Every edge is computed from the row's whole width, not stepped across
@@ -388,6 +392,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // The clip's own view leads the row: it is the one the others are
   // variations on.
   out.tabClip = takeView ();
+  // Right of CLIP: the clip's movement, which stood beside its shape there.
+  out.tabMotion = takeView ();
   out.tabAction = takeView ();
   out.tabBrowser = takeView ();
 
@@ -445,14 +451,20 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       34, juce::jmax (34, barButtonMax.of (out.clipBounds.getHeight ())),
       static_cast<int> (metrics.knobDiam * 1.35f));
 
-  // Shape, then Motion, then Elevation. What a clip is and how it moves are
-  // what a hand reaches for while playing; where it sits on the sphere is set
-  // once and left alone, so it goes to the far end. The indices stay as they
-  // were -- only the places change, which keeps every sub-index list intact.
-  constexpr int sectionOrder[] = { 0, 2, 1 };
-  for (auto const index : sectionOrder)
-    out.sectionCards[static_cast<size_t> (index)]
-        = area.removeFromLeft (sectionW).reduced (gap / 2, 0);
+  // Three columns, and which card stands in them depends on the page
+  // (2026-09-26). CLIP: Shape (picker, picture), then dir and end, then the
+  // lengths. MOTION: Motion across the first two, Elevation in the third.
+  // REC: Shape, then the Record card across the other two. The section
+  // indices stay as they were, which keeps every sub-index list intact.
+  std::array<juce::Rectangle<int>, 3> columns;
+  for (auto &column : columns)
+    column = area.removeFromLeft (sectionW).reduced (gap / 2, 0);
+
+  out.sectionCards[0] = columns[0];
+  out.playCard = columns[1];
+  out.lengthCard = columns[2];
+  out.sectionCards[2] = columns[0].getUnion (columns[1]);
+  out.sectionCards[1] = columns[2];
 
   auto globalArea = out.globalBounds.reduced (paddingH (), paddingV);
 
@@ -473,15 +485,11 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   out.sectionCards[3] = globalCard.reduced (gap / 2, 0);
   out.globalContent = sectionContentBounds (out.sectionCards[3]);
 
-  // ── Shape, and its other side ────────────────────────────────────────
+  // ── Shape: the picker over the picture ────────────────────────────
   //
-  // One card, two faces. The front is the clip as it plays — what shape, how
-  // fast, which way round. The back, which REC turns to, is the take you are
-  // about to make: how long, how its join is closed, and the trajectory
-  // appearing as you play it in. The card does not move between them: it is
-  // one section showing one side or the other.
+  // Which clip, then what it looks like: the picker on top, the picture
+  // taking the rest of the column. Both on CLIP and REC.
   {
-
     auto content = sectionContentBounds (out.sectionCards[0]);
     {
       auto title = content.removeFromTop (titleRowHeight (content, headerSize));
@@ -494,90 +502,80 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
     auto const gap = juce::jmax (2, out.buttonHeight / 8);
 
-    // The front face: one row of speeds and one of the two lists that came
-    // from Motion. The back face: two rows of lengths. The buttons are the
-    // section's floor either way, so the bar still reads as one row of
-    // buttons across its bottom.
-    auto const buttonRows = 2;
-    auto const bandH = juce::jmin (
-        content.getHeight (),
-        buttonRows * out.buttonHeight + (buttonRows - 1) * gap);
-    auto buttons = content.removeFromBottom (bandH);
-    content.removeFromBottom (gap);
-
-    // The rows share what the band has rather than each taking a full button
-    // height from the top. Short of room the old way left the whole shortfall
-    // on the last row, which then read as a mistake beside two full ones.
-    auto const rowH
-        = juce::jmax (1, (buttons.getHeight () - (buttonRows - 1) * gap)
-                             / buttonRows);
-
-    auto const perRow = 4;
-    auto const colGap = juce::jmax (2, buttons.getWidth () / 60);
-    auto const colW = (buttons.getWidth () - (perRow - 1) * colGap) / perRow;
-
-    // The clip field stands between the picture and the speeds, on the front
-    // face only: the back face is the take you are about to make, and which
-    // clip is in the slot is not a question it asks.
-    //
     // The field names the *clip* -- the settings the slot is played with --
     // and the picture keeps its own name over it. Two names because they are
     // two things, and the two controls under a finger here change one each:
     // the picture swaps the figure, the field swaps the values.
-    {
-      auto const fieldH
-          = juce::jmin (content.getHeight (),
-                        juce::jmax (fingertipSize, out.buttonHeight));
-      out.clipField = content.removeFromBottom (fieldH);
-      content.removeFromBottom (gap);
-    }
+    auto const fieldH = juce::jmin (content.getHeight (),
+                                    juce::jmax (fingertipSize, out.buttonHeight));
+    out.clipField = content.removeFromTop (fieldH);
+    content.removeFromTop (juce::jmin (content.getHeight (), gap));
 
-    // The name lies over the picture rather than under it. As a caption it
-    // cost the picture a whole row and told you something you mostly already
-    // know -- you chose the trajectory. Over it, it is there when you look for
-    // it and out of the way when you are reading the shape.
+    // The name lies over the picture rather than under it: there when you
+    // look for it, out of the way when you are reading the shape.
     out.trajectoryIcon = content;
     out.trajectoryName = content;
-
-    {
-      std::array<juce::Rectangle<int>, 3> rows;
-      for (int r = 0; r < buttonRows; ++r)
-        {
-          rows[static_cast<size_t> (r)] = buttons.removeFromTop (rowH);
-          if (r + 1 < buttonRows)
-            buttons.removeFromTop (gap);
-        }
-
-      auto const place = [&] (int index, juce::Rectangle<int> &into) {
-        auto &row = rows[static_cast<size_t> (index / perRow)];
-        into = row.removeFromLeft (colW);
-        row.removeFromLeft (colGap);
-      };
-
-      {
-          for (int i = 0; i < numSpeedButtons; ++i)
-            place (i, out.speedButtons[static_cast<size_t> (i)]);
-
-          // The direction and the end action, under the speeds. What a pass
-          // does when it runs out is a property of the take -- which way it
-          // is played and what happens at the end -- so it belongs with the
-          // take rather than in Motion, which is what the movement *is*.
-          // Half the row each, since they are two of four columns' worth.
-          auto &row = rows[1];
-          auto const wide = colW * 2 + colGap;
-          out.directionButton = row.removeFromLeft (wide);
-          row.removeFromLeft (colGap);
-          out.endActionButton = row.removeFromLeft (wide);
-        }
-    }
-
-    // Two: the picture, and the clip field under it. The lengths and the
-    // speeds are not values a finger turns, so they are not sub-elements of
-    // the section. On the record face the field is empty, and an empty cell
-    // is one nothing can land on.
-    out.controls[0] = { out.trajectoryIcon, out.clipField,
-                        out.directionButton, out.endActionButton };
   }
+
+  // ── dir and end: keys chosen outright ─────────────────────────────
+  //
+  // The middle column on CLIP: dir on top (Fwd Rev Bnce Rnd), end under it
+  // (Loop Stop Paus), a key each. They were two fields stepped by a tap;
+  // with Bounce and Random directions that combine with any end, the whole
+  // choice is on screen at once. directionButton and endActionButton are the
+  // rows the keys stand in -- still Shape's sub-elements 2 and 3, so the
+  // encoders step them as before.
+  {
+    auto content = sectionContentBounds (out.playCard);
+    out.playLabel = content.removeFromTop (titleRowHeight (content, headerSize));
+
+    auto const gap = juce::jmax (2, out.buttonHeight / 8);
+    auto const halfH = (content.getHeight () - gap) / 2;
+    out.directionButton = content.removeFromTop (halfH);
+    content.removeFromTop (juce::jmin (content.getHeight (), gap));
+    out.endActionButton = content.removeFromTop (halfH);
+
+    auto const keysAcross = [gap] (juce::Rectangle<int> row, auto &keys) {
+      auto const count = static_cast<int> (keys.size ());
+      auto const keyH = juce::jmin (row.getHeight (),
+                                    juce::jmax (fingertipSize, row.getHeight () * 2 / 3));
+      auto const band = row.withSizeKeepingCentre (row.getWidth (), keyH);
+      auto const span = band.getWidth () - (count - 1) * gap;
+      for (int i = 0; i < count; ++i)
+        {
+          auto const x0 = band.getX () + i * gap + (span * i) / count;
+          auto const x1 = band.getX () + i * gap + (span * (i + 1)) / count;
+          keys[static_cast<size_t> (i)]
+              = { x0, band.getY (), x1 - x0, band.getHeight () };
+        }
+    };
+    keysAcross (out.directionButton, out.directionKeys);
+    keysAcross (out.endActionButton, out.endActionKeys);
+  }
+
+  // ── the lengths, two by two ───────────────────────────────────────
+  {
+    auto content = sectionContentBounds (out.lengthCard);
+    out.lengthLabel
+        = content.removeFromTop (titleRowHeight (content, headerSize));
+
+    auto const gap = juce::jmax (2, out.buttonHeight / 8);
+    auto const keyW = (content.getWidth () - gap) / 2;
+    auto const keyH = (content.getHeight () - gap) / 2;
+    for (int i = 0; i < numSpeedButtons; ++i)
+      {
+        auto const column = i % 2;
+        auto const row = i / 2;
+        out.speedButtons[static_cast<size_t> (i)]
+            = { content.getX () + column * (keyW + gap),
+                content.getY () + row * (keyH + gap), keyW, keyH };
+      }
+  }
+
+  // Shape's four sub-elements: the picture, the clip field, then dir and end.
+  // The lengths are not values a finger turns, so they are not sub-elements.
+  out.controls[0] = { out.trajectoryIcon, out.clipField, out.directionButton,
+                      out.endActionButton };
 
   // ── Elevation ────────────────────────────────────────────────────────
   {
@@ -633,51 +631,42 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       out.sectionLabels[2] = title;
     }
 
-    // Four rows of two, and no buttons: the two lists went to Shape, where
-    // what a pass does when it runs out belongs with the take, and the fade
-    // and the bias went to the REC page (2026-09-26) -- see below.
+    // Two rows of four across the MOTION page's two left columns, each
+    // standing value beside the movement that works on it: rot spin reach
+    // swell over sqzX strX sqzY strY. Grouping by what a control does is
+    // what lets a hand find the right knob without reading the words. The
+    // fade and the bias went to the REC page -- see below.
     //
-    // Each row is a standing value beside the movement that works on it --
-    // rot with its spin, reach with its swell, each squeeze with its own
-    // stretch. Grouping by what a control does is
-    // what lets a hand find the right knob without reading the words.
-    //
-    // Shared out rather than taken one after another from the bottom. A skin
-    // can cut the bar down (clipSettingsHeightScale), and a section that helps
-    // itself row by row leaves the whole shortfall on the row at the top.
-    auto const gapH = juce::jmax (2, content.getWidth () / 20);
+    // Shared out rather than taken one after another. A skin can cut the bar
+    // down (clipSettingsHeightScale), and a section that helps itself row by
+    // row leaves the whole shortfall on the row at the top.
+    auto const gapH = juce::jmax (2, content.getWidth () / 40);
     auto const gapV = juce::jmax (2, content.getHeight () / 20);
 
-    constexpr int motionKnobRows = 4;
+    constexpr int motionKnobRows = 2;
     auto const wanted = controlBoxHeightForFont (bodySize, metrics.knobDiam);
     auto const available
         = (content.getHeight () - (motionKnobRows - 1) * gapV) / motionKnobRows;
     auto const motionRowH = juce::jmax (1, juce::jmin (wanted, available));
 
-    auto const knobRow = [&content, motionRowH, gapV] (bool last) {
-      auto row = content.removeFromBottom (motionRowH);
-      if (!last)
-        content.removeFromBottom (gapV);
-      return row;
+    auto const topRow = content.removeFromTop (motionRowH);
+    content.removeFromTop (gapV);
+    auto const bottomRow = content.removeFromTop (motionRowH);
+
+    auto const colW = (topRow.getWidth () - 3 * gapH) / 4;
+    auto const cellIn = [colW, gapH] (juce::Rectangle<int> row, int column) {
+      return juce::Rectangle<int> (row.getX () + column * (colW + gapH),
+                                   row.getY (), colW, row.getHeight ());
     };
 
-    auto sqzYRow = knobRow (false);
-    auto sqzXRow = knobRow (false);
-    auto reachRow = knobRow (false);
-    auto rotRow = knobRow (true);
-
-    auto const colW = (sqzYRow.getWidth () - gapH) / 2;
-    auto const split = [colW, gapH] (juce::Rectangle<int> &row) {
-      auto const left = row.removeFromLeft (colW);
-      row.removeFromLeft (gapH);
-      return std::pair<juce::Rectangle<int>, juce::Rectangle<int> >{ left,
-                                                                     row };
-    };
-
-    auto const [rotArea, spinArea] = split (rotRow);
-    auto const [reachArea, swellArea] = split (reachRow);
-    auto const [sqzXArea, strXArea] = split (sqzXRow);
-    auto const [sqzYArea, strYArea] = split (sqzYRow);
+    auto const rotArea = cellIn (topRow, 0);
+    auto const spinArea = cellIn (topRow, 1);
+    auto const reachArea = cellIn (topRow, 2);
+    auto const swellArea = cellIn (topRow, 3);
+    auto const sqzXArea = cellIn (bottomRow, 0);
+    auto const strXArea = cellIn (bottomRow, 1);
+    auto const sqzYArea = cellIn (bottomRow, 2);
+    auto const strYArea = cellIn (bottomRow, 3);
 
     // In reading order, which is also sub-index order for the first time.
     out.controls[2] = {
@@ -702,7 +691,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // encoders and the take reach them as before; only where they are drawn
   // moved.
   {
-    out.recordCard = out.sectionCards[1].getUnion (out.sectionCards[2]);
+    out.recordCard = out.playCard.getUnion (out.lengthCard);
     auto content = sectionContentBounds (out.recordCard);
     out.recordLabel = content.removeFromTop (
         titleRowHeight (content, headerSize));

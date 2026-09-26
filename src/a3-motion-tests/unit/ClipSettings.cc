@@ -56,7 +56,7 @@ TEST (ClipSettings, EveryValueSurvivesLeavingAPatternAndComingBack)
   source.setEnvelopeMax (0.75f);
   source.setActMode (ActMode::Hold);
   source.setPlayDirection (PlayDirection::Reverse);
-  source.setEndAction (EndAction::Bounce);
+  source.setEndAction (EndAction::Pause);
 
   Pattern target;
   applyClipSettings (target, clipSettingsFrom (source));
@@ -78,7 +78,7 @@ TEST (ClipSettings, EveryValueSurvivesLeavingAPatternAndComingBack)
   EXPECT_FLOAT_EQ (target.getEnvelopeMax (), 0.75f);
   EXPECT_EQ (target.getActMode (), ActMode::Hold);
   EXPECT_EQ (target.getPlayDirection (), PlayDirection::Reverse);
-  EXPECT_EQ (target.getEndAction (), EndAction::Bounce);
+  EXPECT_EQ (target.getEndAction (), EndAction::Pause);
 }
 
 // A default-constructed Pattern and a default ClipSettings must agree, or a
@@ -154,7 +154,7 @@ TEST (ClipSettings, TwoOfTheSameAreTheSame)
   Pattern pattern;
   pattern.setSpin (3);
   pattern.setReach (0.4f);
-  pattern.setEndAction (EndAction::Bounce);
+  pattern.setEndAction (EndAction::Pause);
 
   EXPECT_EQ (clipSettingsFrom (pattern), clipSettingsFrom (pattern));
   EXPECT_EQ (ClipSettings{}, ClipSettings{});

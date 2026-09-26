@@ -129,7 +129,11 @@ constexpr char const *off = "Off";
  *  bar could be drawn. "PingPong" held them all below their own captions. */
 /** Where a clip sets off. "Ping" used to sit here and meant the same thing as
  *  the Bounce end action -- two controls for one behaviour. */
-constexpr char const *directionNames[] = { "Fwd", "Rev" };
+/** In PlayDirection's order, which is the bar's order: the index is the
+ *  enum. Bounce and random are directions since 2026-09-26. */
+constexpr char const *directionNames[] = { "Fwd", "Rev", "Bnce", "Rnd" };
+constexpr int numDirections
+    = static_cast<int> (sizeof (directionNames) / sizeof (*directionNames));
 /** Two words for what the Action key does. Short enough for a button a third
  *  of a narrow section wide -- "1shot" rather than "one-shot", which fitted
  *  nowhere. */
@@ -137,8 +141,8 @@ constexpr char const *actModeNames[] = { "1shot", "Hold" };
 constexpr int numActModes
     = static_cast<int> (sizeof (actModeNames) / sizeof (*actModeNames));
 
-constexpr char const *endActionNames[] = { "Loop", "Stop", "Paus", "Bnce",
-                                           "Rnd" };
+/** In EndAction's order, which is the bar's order: the index is the enum. */
+constexpr char const *endActionNames[] = { "Loop", "Stop", "Paus" };
 constexpr int numEndActions
     = static_cast<int> (sizeof (endActionNames) / sizeof (*endActionNames));
 // What happens to what a take never wrote — glide across it, or hold and jump.
@@ -209,13 +213,13 @@ constexpr TextEntry valueTable[] = {
   { value::off, 2 },
   { value::directionNames[0], 4 },
   { value::directionNames[1], 4 },
+  { value::directionNames[2], 4 },
+  { value::directionNames[3], 4 },
   { value::actModeNames[0], 4 },
   { value::actModeNames[1], 4 },
   { value::endActionNames[0], 4 },
   { value::endActionNames[1], 4 },
   { value::endActionNames[2], 4 },
-  { value::endActionNames[3], 4 },
-  { value::endActionNames[4], 4 },
   { "16/16", 4 },
   { value::widestSpeed, 4 },
 };
