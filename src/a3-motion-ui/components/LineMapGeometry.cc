@@ -30,7 +30,8 @@ namespace a3
 ProjectedLine
 projectLine (juce::Path const &displayPath,
              ElevationParams const &elevationParams, HeightMap const &heightMap,
-             PlaneShaping const &shaping, SphereCamera const &camera)
+             PlaneShaping const &shaping, SphereCamera const &camera,
+             SpaceTurn turn)
 {
   ProjectedLine line;
   if (displayPath.isEmpty ())
@@ -42,9 +43,12 @@ projectLine (juce::Path const &displayPath,
   // mean copying it every frame, and the sub-sampling below would then be
   // measuring distances on the transformed copy.
   auto projectPoint = [&] (float x, float y) -> Pos {
-    auto pos3D = heightMap.mapTo3D (
-        shapedPosition (Pos::fromCartesian (x, y, 0.f), shaping),
-        elevationParams);
+    // Leant last, by the engine's own call -- see turnedInSpace.
+    auto pos3D = turnedInSpace (
+        heightMap.mapTo3D (
+            shapedPosition (Pos::fromCartesian (x, y, 0.f), shaping),
+            elevationParams),
+        turn);
     // The direction that comes back is the *seen* one: what is drawn nearer
     // the eye has to fade less, and which of two points that is depends on
     // where the eye is standing. Kept as a direction rather than flattened to

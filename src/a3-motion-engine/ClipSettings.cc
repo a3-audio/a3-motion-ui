@@ -39,6 +39,10 @@ clipSettingsFrom (Pattern const &pattern)
   settings.squeezeY = pattern.getSqueezeY ();
   settings.squeezeXLfo = pattern.getSqueezeXLfo ();
   settings.squeezeYLfo = pattern.getSqueezeYLfo ();
+  settings.tilt = pattern.getTilt ();
+  settings.roll = pattern.getRoll ();
+  settings.tiltLfo = pattern.getTiltLfo ();
+  settings.rollLfo = pattern.getRollLfo ();
 
   settings.reach = pattern.getReach ();
   settings.clipTop = pattern.getClipTop ();
@@ -80,6 +84,10 @@ applyClipSettings (Pattern &pattern, ClipSettings const &settings)
   pattern.setSqueezeY (settings.squeezeY);
   pattern.setSqueezeXLfo (settings.squeezeXLfo);
   pattern.setSqueezeYLfo (settings.squeezeYLfo);
+  pattern.setTilt (settings.tilt);
+  pattern.setRoll (settings.roll);
+  pattern.setTiltLfo (settings.tiltLfo);
+  pattern.setRollLfo (settings.rollLfo);
 
   pattern.setReach (settings.reach);
   pattern.setClipTop (settings.clipTop);

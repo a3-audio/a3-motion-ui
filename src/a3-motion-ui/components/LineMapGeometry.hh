@@ -28,6 +28,8 @@
 
 #include <vector>
 
+#include <a3-motion-engine/SpaceTurn.hh>
+
 namespace a3
 {
 
@@ -56,6 +58,7 @@ ProjectedLine projectLine (juce::Path const &displayPath,
                            ElevationParams const &elevationParams,
                            HeightMap const &heightMap,
                            PlaneShaping const &shaping,
-                           SphereCamera const &camera);
+                           SphereCamera const &camera,
+                           SpaceTurn turn = {});
 
 }

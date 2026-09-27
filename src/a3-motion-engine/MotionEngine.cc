@@ -20,6 +20,7 @@
 
 #include "MotionEngine.hh"
 
+#include <a3-motion-engine/SpaceTurn.hh>
 #include <a3-motion-engine/TakeSeed.hh>
 
 #include <a3-motion-engine/util/Slew.hh>
@@ -1232,7 +1233,9 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
   auto const startPosition = _channels[pattern->getChannel ()]->getPosition ();
   _recordingHeldPosition2D
       = startPosition.isValid ()
-            ? _heightMap.mapTo2D (startPosition, pattern->getElevationParams ())
+            ? _heightMap.mapTo2D (
+                  unturnedInSpace (startPosition, spaceTurnOf (*pattern)),
+                  pattern->getElevationParams ())
             : Pos::invalid;
   _patternRecording->setStatus (Pattern::Status::Recording);
 
@@ -1272,6 +1275,8 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   pattern->setElevationLfoPhase (0.f);
   pattern->setSqueezeXLfoPhase (0.f);
   pattern->setSqueezeYLfoPhase (0.f);
+  pattern->setTiltLfoPhase (0.f);
+  pattern->setRollLfoPhase (0.f);
 
   // Reverse starts at the end and walks back, so the first tick has somewhere
   // to come from; Random drops in at a random phase.
@@ -1404,7 +1409,12 @@ MotionEngine::performRecording ()
 
       if (fingerDown)
         {
-          _recordingPosition2D = _heightMap.mapTo2D (_recordingPosition, params);
+          // The finger draws in the leant plane: turned back before it is
+          // written, so the take plays back under it.
+          _recordingPosition2D = _heightMap.mapTo2D (
+              unturnedInSpace (_recordingPosition,
+                               spaceTurnOf (*_patternRecording)),
+              params);
           _recordingHeldPosition2D = _recordingPosition2D;
           _recordingHasTouched = true;
         }
@@ -1566,6 +1576,12 @@ MotionEngine::performPlayback ()
                   advanceLfoPhase (playing.getSqueezeYLfoPhase (),
                                    playing.getKnobStep (Knob::StretchY),
                   ticksPerBar));
+              playing.setTiltLfoPhase (advanceLfoPhase (
+                  playing.getTiltLfoPhase (),
+                  playing.getKnobStep (Knob::TiltSweep), ticksPerBar));
+              playing.setRollLfoPhase (advanceLfoPhase (
+                  playing.getRollLfoPhase (),
+                  playing.getKnobStep (Knob::RollSweep), ticksPerBar));
 
               if (position2D.isValid ())
                 {
@@ -1591,7 +1607,11 @@ MotionEngine::performPlayback ()
                   // same phases -- see sweptElevation() -- or the line would
                   // be drawn somewhere the blob is not running.
                   params = sweptElevation (params, playing);
-                  auto position = _heightMap.mapTo3D (position2D, params);
+                  // And the whole figure leant in the room, last -- the
+                  // renderer leans it by the same call (spaceTurnOf).
+                  auto position = turnedInSpace (
+                      _heightMap.mapTo3D (position2D, params),
+                      spaceTurnOf (playing));
                   channel->setPosition (position);
                 }
             }

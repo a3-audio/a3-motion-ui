@@ -23,6 +23,7 @@
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/ClipSettings.hh>
+#include <a3-motion-engine/SpaceTurn.hh>
 #include <a3-motion-engine/TrajectoryShape.hh>
 #include <a3-motion-engine/TrajectoryShaping.hh>
 #include <a3-motion-engine/elevation/HeightMap.hh>
@@ -71,8 +72,10 @@ elevationFigureFor (Pattern const &pattern, PatternLibrary const &library,
   // the same shaping, the same swept elevation, the same height map.
   auto const shaping = shapingOf (pattern);
   auto const params = sweptElevation (pattern.getElevationParams (), pattern);
+  auto const turn = spaceTurnOf (pattern);
   auto const onSphere = [&] (Pos const &recorded) {
-    return heightMap.mapTo3D (shapedPosition (recorded, shaping), params);
+    return turnedInSpace (
+        heightMap.mapTo3D (shapedPosition (recorded, shaping), params), turn);
   };
 
   ElevationFigure figure;

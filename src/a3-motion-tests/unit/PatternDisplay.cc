@@ -222,3 +222,25 @@ TEST (PatternDisplay, AnEmptySelectedSlotDrawsNothing)
 {
   EXPECT_TRUE (clipsToDraw (none (), none (), 0, 0).empty ());
 }
+
+// The elevation picture leans a clip by tilt and roll as the sphere does.
+TEST (PatternDisplay, TheElevationPictureLeansWithTheClip)
+{
+  PatternLibrary library (aLibraryWithACrossAndALine ());
+  library.refresh ();
+  HeightMapSphere heightMap;
+  auto const cross = loaded (library, "Cross");
+  ASSERT_NE (cross, nullptr);
+
+  auto const upright = elevationFigureFor (*cross, library, heightMap, {}, 96);
+  cross->setTilt (0.6f);
+  auto const leant = elevationFigureFor (*cross, library, heightMap, {}, 96);
+
+  ASSERT_EQ (upright.dots.size (), leant.dots.size ());
+  auto moved = false;
+  for (std::size_t i = 0; i < leant.dots.size (); ++i)
+    moved = moved
+            || std::abs (leant.dots[i].down - upright.dots[i].down) > 1e-3f
+            || std::abs (leant.dots[i].across - upright.dots[i].across) > 1e-3f;
+  EXPECT_TRUE (moved);
+}

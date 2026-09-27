@@ -20,6 +20,7 @@
 
 #include "MixerStripComponent.hh"
 
+#include <a3-motion-ui/components/BarButton.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/MixerComponent.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -207,10 +208,12 @@ MixerStripComponent::resized ()
       _touch[i]->setVisible (_layout.fits);
     }
 
+  // Empty since 2026-09-27: 3D, FREQ and Q stand in the channel row.
   for (std::size_t i = 0; i < static_cast<std::size_t> (numChannelPots); ++i)
     {
       _channelPotKnob[i]->setBounds (_layout.channelPots[0][i]);
-      _channelPotKnob[i]->setVisible (_layout.fits);
+      _channelPotKnob[i]->setVisible (_layout.fits
+                                      && !_layout.channelPots[0][i].isEmpty ());
     }
 
   _meterView->setBounds (_layout.channelMeter[0]);
@@ -263,6 +266,12 @@ MixerStripComponent::paint (juce::Graphics &g)
     }
 
   auto const colour = toColour (theme ().channel[_channel]);
+
+  // Eight fields, grounded like the bar's keys, four by two as the encoders
+  // stand; the knobs, keys and meter draw on top.
+  for (auto const &field : _layout.stripFields)
+    if (!field.isEmpty ())
+      a3::paintBarButton (g, field, _metrics, colour, {}, {}, false, false);
 
   for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
        ++i)

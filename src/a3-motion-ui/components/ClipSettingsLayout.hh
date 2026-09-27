@@ -335,10 +335,9 @@ controlIsOnPage (int section, int sub, BarPage page)
       return page == BarPage::Clip || (page == BarPage::Record && sub < 2);
     case 1: // Elevation
       return page == BarPage::Motion;
-    case 2: // Motion: the first eight on MOTION, fade and bias on REC
-      return static_cast<std::size_t> (sub) < motionSubsOnTheMotionPage
-                 ? page == BarPage::Motion
-                 : page == BarPage::Record;
+    case 2: // Motion: fade and bias on REC, every other knob on MOTION
+      return sub == 8 || sub == 9 ? page == BarPage::Record
+                                  : page == BarPage::Motion;
     case 3: // the rec mode
       return page == BarPage::Record;
     default:
@@ -635,6 +634,11 @@ juce::Rectangle<int> driftMark (juce::Rectangle<int> bounds);
  *  square in its middle, off the edge by an eighth of the shorter side each
  *  way. */
 juce::Rectangle<int> shapeFieldIconArea (juce::Rectangle<int> field);
+
+/** Where a field's caption stands: small, in its top left corner, clear of
+ *  the value in the middle (2026-09-27). */
+juce::Rectangle<int> fieldCaptionArea (juce::Rectangle<int> field,
+                                       float captionSize);
 
 /** A control's box: as tall as the knob box, but the cell's full width —
  *  the knob is drawn at its own diameter inside it while caption and value

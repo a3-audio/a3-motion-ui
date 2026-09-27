@@ -307,6 +307,27 @@ fields ()
       [] (ClipSettings &s, Value const &v) {
         s.squeezeYLfo = clampStep (v.number, -lfoMaxStep, lfoMaxStep);
       } },
+    // How far the figure's plane is leant in the room, and each lean's sweep.
+    { "tilt",
+      [] (ClipSettings const &s) { return numberValue (s.tilt, false); },
+      [] (ClipSettings &s, Value const &v) {
+        s.tilt = clampBipolar (v.number);
+      } },
+    { "roll",
+      [] (ClipSettings const &s) { return numberValue (s.roll, false); },
+      [] (ClipSettings &s, Value const &v) {
+        s.roll = clampBipolar (v.number);
+      } },
+    { "tswp",
+      [] (ClipSettings const &s) { return numberValue (s.tiltLfo, true); },
+      [] (ClipSettings &s, Value const &v) {
+        s.tiltLfo = clampStep (v.number, -lfoMaxStep, lfoMaxStep);
+      } },
+    { "rswp",
+      [] (ClipSettings const &s) { return numberValue (s.rollLfo, true); },
+      [] (ClipSettings &s, Value const &v) {
+        s.rollLfo = clampStep (v.number, -lfoMaxStep, lfoMaxStep);
+      } },
     { "reach",
       [] (ClipSettings const &s) { return numberValue (s.reach, false); },
       [] (ClipSettings &s, Value const &v) { s.reach = clampUnit (v.number); } },
@@ -751,6 +772,12 @@ actionScriptNotes ()
     { "sqzY", "Motion", "-1..1", "the same left-right" },
     { "strX", "Motion", "-8..8", "~sqzX's own sweep, out and back" },
     { "strY", "Motion", "-8..8", "the same for ~sqzY" },
+    { "tilt", "Motion", "-1..1",
+      "the figure's plane leant forward (+) or back" },
+    { "roll", "Motion", "-1..1",
+      "the figure's plane leant to the left (+) or right" },
+    { "tswp", "Motion", "-8..8", "~tilt's own sweep, out and back" },
+    { "rswp", "Motion", "-8..8", "~roll's own sweep, out and back" },
     { "spin", "Motion", "-8..8", "bars per revolution, sign = direction" },
     { "swell", "Motion", "-8..8",
       "sweeps ~reach out of where it sits and back" },

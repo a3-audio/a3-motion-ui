@@ -20,11 +20,13 @@
 
 #include "BarKnob.hh"
 
+#include <a3-motion-ui/components/ClipKnobs.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
 
+#include <algorithm>
 #include <cmath>
 
 namespace a3
@@ -72,12 +74,58 @@ modulationArcs (float valueAngle, float reachAngle, float sweep, bool wraps)
   return { { valueAngle, sweep }, { -sweep, reachAngle } };
 }
 
+namespace
+{
+/** The widest caption any of the bar's knobs carries, at `size`. */
+float
+widestKnobCaption (float size)
+{
+  juce::Font const font{ juce::FontOptions (size) };
+  auto widest = 0.f;
+  for (int sub = 0; sub < numMotionKnobs; ++sub)
+    widest = std::max (widest, juce::GlyphArrangement::getStringWidth (
+                                   font, motionKnobSpec (sub).label));
+  for (int sub = 0; sub < 4; ++sub)
+    widest = std::max (widest, juce::GlyphArrangement::getStringWidth (
+                                   font, elevationKnobSpec (sub).label));
+  return widest;
+}
+}
+
+/** How tall a knob and its caption stand together: the knob, the caption's
+ *  row under it, and the cell's own padding. A cell taller than this keeps
+ *  them together in its middle rather than pulling them apart. */
+float
+knobBlockHeight (ControlMetrics metrics)
+{
+  return static_cast<float> (metrics.knobDiam)
+         + std::ceil (metrics.captionSize * rowHeightFactor)
+         + 2.f * theme ().paddingTight;
+}
+
+juce::Rectangle<float>
+encoderMarkBounds (juce::Rectangle<int> bounds, ControlMetrics metrics)
+{
+  auto const cell = bounds.toFloat ();
+  auto const inner = std::max (static_cast<float> (metrics.knobDiam),
+                               widestKnobCaption (metrics.captionSize));
+  // Half a caption's height of air each side, so the widest word does not
+  // touch the frame.
+  auto const air = std::max (theme ().paddingTight, metrics.captionSize * 0.5f);
+  auto const width = std::min (cell.getWidth (), inner + 2.f * air);
+  // And as tall as the knob with its caption, with the same air above and
+  // below.
+  auto const height
+      = std::min (cell.getHeight (), knobBlockHeight (metrics) + 2.f * air);
+  return cell.withSizeKeepingCentre (width, height);
+}
+
 void
 paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
               ControlMetrics metrics, juce::Colour channelColour,
               juce::String const &label, float angleFrac, bool fillFromZero,
               bool isActive, bool isSelected, float reachFrac, bool wraps,
-              bool writing, bool laneDriven)
+              bool writing, bool laneDriven, bool encoderMarked)
 {
   bool const highlight = isActive && isSelected;
   if (highlight)
@@ -86,7 +134,30 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
       g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
     }
 
+  // The knob an encoder is on, where a press switches between two: a frame
+  // in the skin's accent, one size on every knob, so a press is seen to move
+  // it.
+  if (encoderMarked)
+    {
+      g.setColour (toColour (theme ().accent));
+      // On whole pixels, the line on their centres: a thin line between two
+      // pixels is drawn as a blur across both.
+      g.drawRoundedRectangle (encoderMarkBounds (bounds, metrics)
+                                  .toNearestInt ()
+                                  .toFloat ()
+                                  .reduced (theme ().strokeThin * 0.5f),
+                              theme ().radiusControl,
+                              theme ().strokeThin);
+    }
+
+  // Knob and caption together in the middle of a tall cell, not the knob up
+  // top and the caption at the foot (2026-09-27).
   auto content = bounds.reduced (juce::roundToInt (theme ().paddingTight));
+  content = content.withSizeKeepingCentre (
+      content.getWidth (),
+      std::min (content.getHeight (),
+                juce::roundToInt (knobBlockHeight (metrics)
+                                  - 2.f * theme ().paddingTight)));
 
   auto labelArea
       = content.removeFromBottom (textRowHeight (content, metrics.captionSize));

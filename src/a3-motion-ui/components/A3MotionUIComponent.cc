@@ -68,6 +68,7 @@
 #include <a3-motion-ui/components/RecArming.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-engine/PatternRunning.hh>
+#include <a3-motion-engine/SpaceTurn.hh>
 #include <a3-motion-engine/RecordingName.hh>
 #include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-engine/TextFile.hh>
@@ -980,6 +981,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       _motionComponent->onCameraChanged = [this] { persistSettings (); };
     }
 
+  // Where each encoder was left on MOTION and REC.
+  _encoderClicksMotion = encoderClicksFromMask (persisted.encoderClicksMotion);
+  _encoderClicksRecord = encoderClicksFromMask (persisted.encoderClicksRecord);
+  showEncoderMarks ();
+
   applyClockMode (persisted.clockMode);
   _engine.setRecMode (_recMode);
   _clipSettings->setSpeedButtons (_speedButtonLog2);
@@ -1257,6 +1263,8 @@ A3MotionUIComponent::persistSettings () const
       settings.cameraTurn = camera.turn;
       settings.cameraZoom = _motionComponent->getCameraZoom ();
     }
+  settings.encoderClicksMotion = encoderClicksMask (_encoderClicksMotion);
+  settings.encoderClicksRecord = encoderClicksMask (_encoderClicksRecord);
   saveSettings (getPersistedSettingsFile (), settings);
 }
 
@@ -2366,9 +2374,8 @@ A3MotionUIComponent::showBarPage (BarPage page)
   _pendingTakes.disarm ();
   refreshTakeState ();
   _barPage = page;
-  // A click belongs to the page it was made on.
-  _encoderClicked = {};
   _clipSettings->setPage (page);
+  showEncoderMarks ();
   _controller->setVisible (page == BarPage::Controller);
   if (_action)
     {
@@ -7149,6 +7156,11 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
           pattern->setBridgeBias (0);
           refreshPatternDisplay (pattern);
           break;
+        // Upright, and no sweep.
+        case 10: pattern->setTilt (0.f); break;
+        case 11: pattern->setTiltLfo (0); break;
+        case 12: pattern->setRoll (0.f); break;
+        case 13: pattern->setRollLfo (0); break;
         default: return;
         }
       break;
@@ -7206,6 +7218,10 @@ A3MotionUIComponent::setClipSettingsValue (index_t channel, int section,
       case 7: pattern->setSqueezeYLfo (step); break;
       case 8: pattern->setFadeReach (level); break;
       case 9: pattern->setBridgeBias (step); break;
+      case 10: pattern->setTilt (level); break;
+      case 11: pattern->setTiltLfo (step); break;
+      case 12: pattern->setRoll (level); break;
+      case 13: pattern->setRollLfo (step); break;
       default: return;
       }
   else
@@ -7476,11 +7492,37 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             refreshPatternDisplay (pattern);
             break;
 
-          default:
+          case 9:
             // Where a drawn-through gap leads. Whole steps: nine positions,
             // and a finger should feel each one rather than slide past them.
             pattern->setBridgeBias (pattern->getBridgeBias () + increment);
             refreshPatternDisplay (pattern);
+            break;
+
+          case 10:
+          case 12:
+            {
+              // The two leans, a tenth per step like the squeezes: bipolar,
+              // -1..1, a quarter turn at the ends.
+              auto const amount = 0.1f * static_cast<float> (increment);
+              if (sub == 10)
+                pattern->setTilt (pattern->getTilt () + amount);
+              else
+                pattern->setRoll (pattern->getRoll () + amount);
+            }
+            break;
+
+          case 11:
+            pattern->setTiltLfo (stepped (pattern->getTiltLfo ()));
+            sweepSaid ("tswp", pattern->getTiltLfo ());
+            break;
+
+          case 13:
+            pattern->setRollLfo (stepped (pattern->getRollLfo ()));
+            sweepSaid ("rswp", pattern->getRollLfo ());
+            break;
+
+          default:
             break;
           }
       }
@@ -7606,12 +7648,33 @@ A3MotionUIComponent::chooseSpeedKey (int index)
   applySpeedLog2ToShownClip (_speedButtonLog2[static_cast<size_t> (index)]);
 }
 
+EncoderClicks &
+A3MotionUIComponent::encoderClicksOfPage ()
+{
+  static EncoderClicks none{};
+  none = {};
+  if (_barPage == BarPage::Motion)
+    return _encoderClicksMotion;
+  if (_barPage == BarPage::Record)
+    return _encoderClicksRecord;
+  return none;
+}
+
+void
+A3MotionUIComponent::showEncoderMarks ()
+{
+  if (_clipSettings)
+    _clipSettings->setEncoderMarks (
+        encoderMarks (_barPage, encoderClicksOfPage ()));
+}
+
 EncoderTarget
 A3MotionUIComponent::encoderTargetAt (int column, int row)
 {
   return encoderTarget (
       _barPage, column, row,
-      _encoderClicked[static_cast<size_t> (column)][static_cast<size_t> (row)],
+      encoderClicksOfPage ()[static_cast<size_t> (column)]
+                            [static_cast<size_t> (row)],
       isButtonPressed (Button::Shift));
 }
 
@@ -7661,13 +7724,13 @@ A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
         return;
       }
 
-    case EncoderTarget::Kind::ShownChannelPot:
+    case EncoderTarget::Kind::MixerKey:
+      // A key is pressed, not turned -- see handleEncoderPress().
+      return;
+
     case EncoderTarget::Kind::ColumnChannelPot:
       {
-        auto const channel
-            = target.kind == EncoderTarget::Kind::ShownChannelPot
-                  ? shown
-                  : static_cast<index_t> (column);
+        auto const channel = static_cast<index_t> (column);
         handleChannelValueChange (channel, target.pot, increment);
         updateControlReadout ("CH" + juce::String (channel + 1) + " "
                               + channelPotLabel (target.pot) + " "
@@ -7689,9 +7752,11 @@ A3MotionUIComponent::handleEncoderPress (int column, int row)
   if (encoderPressClicks (_barPage, column, row)
       && !isButtonPressed (Button::Shift))
     {
-      auto &clicked = _encoderClicked[static_cast<size_t> (column)]
-                                     [static_cast<size_t> (row)];
+      auto &clicked = encoderClicksOfPage ()[static_cast<size_t> (column)]
+                                            [static_cast<size_t> (row)];
       clicked = !clicked;
+      showEncoderMarks ();
+      persistSettings ();
       auto const target = encoderTargetAt (column, row);
       auto const spec = target.section == elevationSection
                             ? elevationKnobSpec (target.sub)
@@ -7700,10 +7765,21 @@ A3MotionUIComponent::handleEncoderPress (int column, int row)
       return;
     }
 
-  // A press on a length chooses it, as a tap does.
+  // A press on a length chooses it, as a tap does; on PFL or FX it flips it.
   auto const target = encoderTargetAt (column, row);
   if (target.kind == EncoderTarget::Kind::Speed)
     chooseSpeedKey (target.speed);
+  if (target.kind == EncoderTarget::Kind::MixerKey)
+    {
+      auto const channel = static_cast<int> (_clipSettingsChannel);
+      auto const on = !_mixerState.channelToggle (channel, target.mixer);
+      _mixerState.setChannelFromTouch (channel, target.mixer, on ? 1.f : 0.f);
+      _mixer->syncControls ();
+      _mixerStrip->syncControls ();
+      updateControlReadout ("CH" + juce::String (channel + 1) + " "
+                            + mixerControlLabel (target.mixer)
+                            + (on ? " ON" : " OFF"));
+    }
 }
 
 void
@@ -7961,6 +8037,18 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
     _clipSettings->setKnobsWriting (writing);
   }
   _clipSettings->setMotionStretch (stretchX, stretchY);
+  {
+    // The two leans, and where each one's sweep is holding it now -- the
+    // same pair the squeezes are given, drawn the same way.
+    auto const tiltSweep = stepOf (Knob::TiltSweep, ClipSettings{}.tiltLfo);
+    auto const rollSweep = stepOf (Knob::RollSweep, ClipSettings{}.rollLfo);
+    auto const turn = pattern ? spaceTurnOf (*pattern) : SpaceTurn{};
+    _clipSettings->setMotionLean (
+        knobOf (Knob::Tilt, ClipSettings{}.tilt),
+        knobOf (Knob::Roll, ClipSettings{}.roll),
+        tiltSweep != 0 ? turn.tilt : -2.f, rollSweep != 0 ? turn.roll : -2.f,
+        tiltSweep, rollSweep);
+  }
   _clipSettings->setSweeps (stepOf (Knob::Spin, ClipSettings{}.spin), swell,
                             sway);
   _clipSettings->setMotionEnvelope (
@@ -7982,21 +8070,6 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
                                  pattern ? turnsOf (*pattern) : 0.f);
 
   _clipSettings->setBeatsPerBar (_engine.getBeatsPerBar ());
-
-  // How long the next take will be, worked out once and handed over: the slot
-  // has no length keys any more, so the clip field says it.
-  {
-    auto const beatsPerBar = _engine.getBeatsPerBar ();
-    auto const &shown = _patterns[channel][slot];
-    auto const clipBeats
-        = shown ? juce::roundToInt (playbackLengthBeats (
-              getPatternLengthBeats (channel, slot), shown->getSpeedLog2 ()))
-                : 0;
-
-    _clipSettings->setNextTakeLengthBeats (static_cast<float> (
-        recordingLengthBeats (clipBeats, params.recordLengthLog2,
-                              beatsPerBar)));
-  }
 
   // What the speed keys are a ratio of. Without it they cannot say how many
   // ticks they would run, because that is a property of the take, not of the

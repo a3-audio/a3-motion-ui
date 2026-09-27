@@ -55,6 +55,10 @@ placeOf (Knob knob)
     case Knob::ClipTop: return { elevationSection, 1 };
     case Knob::Sway: return { elevationSection, 2 };
     case Knob::Elevation: return { elevationSection, 3 };
+    case Knob::Tilt: return { motionSection, 10 };
+    case Knob::TiltSweep: return { motionSection, 11 };
+    case Knob::Roll: return { motionSection, 12 };
+    case Knob::RollSweep: return { motionSection, 13 };
     }
   return {};
 }

@@ -69,6 +69,11 @@ TEST (KnobAutomation, AKnobReadsItsSetting)
   EXPECT_FLOAT_EQ (pattern.getKnob (Knob::Rotate), 0.25f);
   EXPECT_FLOAT_EQ (pattern.getKnob (Knob::Spin), 3.f);
   EXPECT_FLOAT_EQ (pattern.getKnob (Knob::Elevation), 0.4f);
+
+  pattern.setTilt (-0.3f);
+  pattern.setRollLfo (4);
+  EXPECT_FLOAT_EQ (pattern.getKnob (Knob::Tilt), -0.3f);
+  EXPECT_FLOAT_EQ (pattern.getKnob (Knob::RollSweep), 4.f);
 }
 
 TEST (KnobAutomation, AHeldKnobIsRecordedIntoItsLane)

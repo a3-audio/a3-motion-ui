@@ -434,7 +434,9 @@ MixerComponent::resized ()
     for (std::size_t i = 0; i < static_cast<std::size_t> (numChannelPots); ++i)
       {
         _channelPotKnob[c][i]->setBounds (_layout.channelPots[c][i]);
-        _channelPotKnob[c][i]->setVisible (_layout.fits);
+        // Empty since 2026-09-27: 3D, FREQ and Q stand in the channel row.
+        _channelPotKnob[c][i]->setVisible (
+            _layout.fits && !_layout.channelPots[c][i].isEmpty ());
       }
 
   for (int channel = 0; channel < numChannelsInitial; ++channel)

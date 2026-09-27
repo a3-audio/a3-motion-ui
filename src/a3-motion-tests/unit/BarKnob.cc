@@ -23,6 +23,8 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/BarKnob.hh>
+#include <a3-motion-ui/theme/Theme.hh>
+#include <a3-motion-ui/theme/ThemeColours.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
 
 using namespace a3;
@@ -125,4 +127,79 @@ TEST (BarKnob, AKnobALaneTurnsWearsARedDot)
 TEST (BarKnob, ARingALaneTurnsWearsARedDotToo)
 {
   EXPECT_GT (recordRedPixels (false, true, -2.f, true), 5);
+}
+
+namespace
+{
+/** How many pixels of a knob painted into an image are the skin's accent. */
+int
+accentPixels (bool encoderMarked)
+{
+  juce::Image image (juce::Image::ARGB, 80, 80, true);
+  {
+    juce::Graphics g (image);
+    paintBarKnob (g, image.getBounds (), ControlMetrics{ 60, 10.f, 10.f },
+                  juce::Colours::green, "rot", 0.3f, false, true, false, -2.f,
+                  false, false, false, encoderMarked);
+  }
+
+  auto const accent = toColour (theme ().accent);
+  int count = 0;
+  for (int y = 0; y < image.getHeight (); ++y)
+    for (int x = 0; x < image.getWidth (); ++x)
+      {
+        auto const pixel = image.getPixelAt (x, y);
+        if (pixel.getAlpha () > 200
+            && std::abs (pixel.getRed () - accent.getRed ()) < 8
+            && std::abs (pixel.getGreen () - accent.getGreen ()) < 8
+            && std::abs (pixel.getBlue () - accent.getBlue ()) < 8)
+          ++count;
+      }
+  return count;
+}
+}
+
+// The knob an encoder is on, where a press switches between two, wears a
+// frame in the skin's accent: a press moves it (2026-09-27).
+TEST (BarKnob, TheKnobAnEncoderIsOnIsFramed)
+{
+  EXPECT_EQ (accentPixels (false), 0);
+  EXPECT_GT (accentPixels (true), 20);
+}
+
+// The frame is only as wide as the widest knob caption needs, and every
+// frame is that wide: the same frame on "rot" and on "clip-bot", whatever
+// cell each stands in (2026-09-27).
+TEST (BarKnob, EveryEncoderFrameIsOneSizeAndFitsItsKnob)
+{
+  ControlMetrics const metrics{ 30, 10.f, 10.f };
+
+  auto const wide = encoderMarkBounds ({ 0, 0, 200, 60 }, metrics);
+  auto const narrower = encoderMarkBounds ({ 0, 0, 150, 60 }, metrics);
+
+  EXPECT_EQ (wide.getWidth (), narrower.getWidth ()) << "one size";
+  EXPECT_LT (wide.getWidth (), 200.f) << "not the whole cell";
+  EXPECT_GE (wide.getWidth (), static_cast<float> (metrics.knobDiam));
+  EXPECT_FLOAT_EQ (wide.getCentreX (), 100.f) << "centred on the knob";
+}
+
+// A bit taller than the knob and its caption, with air above and below --
+// and in a tall cell no taller than that (2026-09-27).
+TEST (BarKnob, AFrameLeavesItsKnobAirAboveAndBelow)
+{
+  ControlMetrics const metrics{ 30, 10.f, 10.f };
+  auto const frame = encoderMarkBounds ({ 0, 0, 120, 200 }, metrics);
+
+  EXPECT_GT (frame.getHeight (), static_cast<float> (metrics.knobDiam) + 10.f)
+      << "knob, caption and air";
+  EXPECT_LT (frame.getHeight (), 200.f) << "not the whole tall cell";
+  EXPECT_FLOAT_EQ (frame.getCentreY (), 100.f);
+}
+
+TEST (BarKnob, AFrameNeverLeavesItsCell)
+{
+  ControlMetrics const metrics{ 30, 10.f, 10.f };
+  juce::Rectangle<int> const tight{ 0, 0, 20, 60 };
+
+  EXPECT_TRUE (tight.toFloat ().contains (encoderMarkBounds (tight, metrics)));
 }

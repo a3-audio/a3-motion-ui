@@ -96,12 +96,14 @@ onMotion (int column, int row, bool clicked)
       return control (motion, clicked ? standing[column] : sweeps[column]);
     }
 
-  // sway clip-top; a click: elv clip-bottom. Nothing under strX and strY.
+  // sway clip-top tswp rswp; a click: elv clip-bottom tilt roll.
   if (column == 0)
     return control (elevation, clicked ? 3 : 2);
   if (column == 1)
     return control (elevation, clicked ? 0 : 1);
-  return {};
+  if (column == 2)
+    return control (motion, clicked ? 10 : 11);
+  return control (motion, clicked ? 12 : 13);
 }
 
 EncoderTarget
@@ -116,14 +118,12 @@ onMixer (int column, int row)
       t.mixer = eq[column];
       return t;
     }
-  if (column == 0)
-    {
-      t.kind = EncoderTarget::Kind::Mixer;
-      t.mixer = MixerControl::FxSend;
-      return t;
-    }
-  t.kind = EncoderTarget::Kind::ShownChannelPot;
-  t.pot = channelPotOrder[static_cast<std::size_t> (column - 1)];
+  // SEND PFL FX VOL, as CHMIX's fields stand (2026-09-27).
+  MixerControl const bottom[] = { MixerControl::FxSend, MixerControl::Pfl,
+                                  MixerControl::Fx, MixerControl::Volume };
+  t.mixer = bottom[column];
+  t.kind = mixerControlIsAToggle (t.mixer) ? EncoderTarget::Kind::MixerKey
+                                           : EncoderTarget::Kind::Mixer;
   return t;
 }
 }
@@ -150,10 +150,54 @@ bool
 encoderPressClicks (BarPage page, int column, int row)
 {
   if (page == BarPage::Motion)
-    return row == 0 || column < 2;
+    return true;
   if (page == BarPage::Record)
     return column == 1 && row == 1;
   return false;
+}
+
+std::vector<std::pair<int, int> >
+encoderMarks (BarPage page, EncoderClicks const &clicked)
+{
+  std::vector<std::pair<int, int> > marked;
+  for (int column = 0; column < 4; ++column)
+    for (int row = 0; row < 2; ++row)
+      {
+        if (!encoderPressClicks (page, column, row))
+          continue;
+        auto const target = encoderTarget (
+            page, column, row,
+            clicked[static_cast<std::size_t> (column)]
+                   [static_cast<std::size_t> (row)],
+            false);
+        if (target.kind == EncoderTarget::Kind::Control)
+          marked.emplace_back (target.section, target.sub);
+      }
+  return marked;
+}
+
+int
+encoderClicksMask (EncoderClicks const &clicked)
+{
+  int mask = 0;
+  for (int column = 0; column < 4; ++column)
+    for (int row = 0; row < 2; ++row)
+      if (clicked[static_cast<std::size_t> (column)]
+                 [static_cast<std::size_t> (row)])
+        mask |= 1 << (column * 2 + row);
+  return mask;
+}
+
+EncoderClicks
+encoderClicksFromMask (int mask)
+{
+  EncoderClicks clicked{};
+  for (int column = 0; column < 4; ++column)
+    for (int row = 0; row < 2; ++row)
+      clicked[static_cast<std::size_t> (column)]
+             [static_cast<std::size_t> (row)]
+          = (mask >> (column * 2 + row)) & 1;
+  return clicked;
 }
 
 }
