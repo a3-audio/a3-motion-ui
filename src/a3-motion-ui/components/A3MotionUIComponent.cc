@@ -24,7 +24,6 @@
 #include <a3-motion-engine/tempo/BeatTrace.hh>
 
 #include <a3-motion-ui/components/RecordingLength.hh>
-#include <a3-motion-ui/components/TickPlayheads.hh>
 
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/TempoLfo.hh>
