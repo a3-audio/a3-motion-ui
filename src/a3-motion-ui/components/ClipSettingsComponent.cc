@@ -19,6 +19,8 @@
 */
 
 #include "ClipSettingsComponent.hh"
+
+#include <a3-motion-ui/components/KnobHold.hh>
 #include <algorithm>
 
 #include <a3-motion-ui/components/BarButton.hh>
@@ -330,6 +332,12 @@ ClipSettingsComponent::createTouchControls ()
               knob->onDragStart = [this, section, sub] {
                 if (onControlTapped)
                   onControlTapped (section, sub);
+                if (onControlHeld)
+                  onControlHeld (section, sub, true);
+              };
+              knob->onDragEnd = [this, section, sub] {
+                if (onControlHeld)
+                  onControlHeld (section, sub, false);
               };
 
               addAndMakeVisible (*knob);
@@ -819,6 +827,22 @@ ClipSettingsComponent::setShapeRotate (float rotate, float reach)
   // missing when these became sliders (a3-motion-ui#35).
   putReachOnKnob (motionSection, 0, _shapeRotateReach);
   repaint ();
+}
+
+void
+ClipSettingsComponent::setLanesPlayed (
+    std::array<std::optional<float>, numKnobs> const &played)
+{
+  auto const onKnob = [this, &played] (Knob knob) {
+    auto const place = placeOf (knob);
+    putReachOnKnob (place.section, place.sub,
+                    played[static_cast<std::size_t> (knob)]);
+  };
+
+  for (auto const knob : { Knob::Spin, Knob::Swell, Knob::StretchX,
+                           Knob::StretchY, Knob::ClipBottom, Knob::ClipTop,
+                           Knob::Sway })
+    onKnob (knob);
 }
 
 void

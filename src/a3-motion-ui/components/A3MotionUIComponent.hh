@@ -46,6 +46,7 @@
 #include <a3-motion-ui/PendingTakes.hh>
 #include <a3-motion-ui/SessionFile.hh>
 #include <a3-motion-ui/components/BrowserComponent.hh>
+#include <a3-motion-ui/components/KnobHold.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-ui/components/LibraryList.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
@@ -821,6 +822,11 @@ private:
    *  `_accentWasActive` and covered the accent alone. */
   bool _wasMoving = false;
 
+  /** Which knobs a hand is on, and the pattern those holds were last handed
+   *  to -- see pushKnobHolds(). */
+  KnobHold _knobHold;
+  std::weak_ptr<Pattern> _knobHoldPattern;
+
   std::unique_ptr<BrowserComponent> _browser;
   /** What the browser's list is showing: the clips you can put in a slot, the
    *  actions the ACT key can fire on one, or the sessions you can put in all
@@ -917,6 +923,10 @@ private:
   void handleClipSettingsSubElementCycle (index_t channel);
   int numSubElementsForSection (int menuIndex) const;
   void updateClipSettingsDisplay ();
+  /** Hands the shown clip which of its knobs a hand is on, every tick: an
+   *  encoder's hold runs out without anything happening. Lets go of the clip
+   *  the holds were on when another one is shown. */
+  void pushKnobHolds ();
   void updateStatusBarPlayheads ();
   /** The nine small meters on the status bar, read off the one VuLevels the
    *  mixer's own meters read. Pushed from here rather than pulled by a timer
