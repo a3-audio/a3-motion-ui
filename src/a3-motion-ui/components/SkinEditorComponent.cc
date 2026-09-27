@@ -765,6 +765,10 @@ SkinEditorComponent::toggleEditing ()
         onReset ();
       return;
 
+    case Row::Heading:
+      // Not something you can browse to; turning and tapping step over it.
+      return;
+
     case Row::Parameter:
       {
         if (_parameters.empty ())

@@ -2238,6 +2238,48 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 
   switch (function)
     {
+    case PadFunction::PlayPause:
+      {
+        if (!pattern)
+          break;
+
+        // **On the next downbeat**, and with Shift on the spot -- which,
+        // since the panel lost its Stop pads (2026-09-27), is also how a
+        // running clip is stopped now.
+        //
+        // This used to be the next beat, on the reasoning that a bar is up to
+        // a metre's worth of beats away and a clip starting that late reads as
+        // a button that did not work. What that reasoning was missing is that
+        // a figure which does not begin on the one runs the whole pass against
+        // the music -- and it was written before the key blinked while it
+        // waited, which is what makes the wait legible rather than dead.
+        auto const on = isButtonPressed (Button::Shift)
+                            ? _now
+                            : TempoClock::nextDownBeat (_now);
+
+        auto const status = pattern->getStatus ();
+        if (status == Pattern::Status::Idle)
+          {
+            pattern->setPlaybackLength (getPlaybackLength (channel, slot));
+            _engine.playPattern (pattern, on);
+          }
+        else if (status == Pattern::Status::Playing)
+          {
+            // On the next downbeat, like a start, and with Shift on the spot.
+            // A pause that answered a lap later read as a key that does not
+            // work (maintainer, 2026-09-25). The key blinks while it waits.
+            _engine.stopPattern (pattern, on);
+          }
+        else if (status == Pattern::Status::ScheduledForPlaying)
+          {
+            // Not started yet, so there is no lap to finish: this is calling
+            // off the start that is waiting for the downbeat. Taken back
+            // rather than stopped -- a stop scheduled on top of a start is
+            // still a start, see cancelScheduledPlay().
+            _engine.cancelScheduledPlay (pattern);
+          }
+        break;
+      }
     case PadFunction::Page:
       {
         // Another channel's PAGE brings that channel up on the page you are

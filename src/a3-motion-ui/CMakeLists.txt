@@ -210,6 +210,12 @@ elseif("${HARDWARE_INTERFACE_VERSION}" STREQUAL "V3")
 endif()
 
 
+# A switch over an enum that forgets a value is an error here, not a warning.
+# On 2026-09-27 the pad handler lost its Play|Pause case in a rewrite; the
+# compiler said so, and the line drowned in the float-equal warnings. Private,
+# so it guards this target's own sources and nothing that includes them.
+target_compile_options("a3-motion-ui" PRIVATE -Werror=switch)
+
 target_compile_definitions("a3-motion-ui" PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
