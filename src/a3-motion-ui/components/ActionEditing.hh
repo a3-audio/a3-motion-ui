@@ -78,6 +78,18 @@ PanelSync panelSyncFor (juce::File const &chosen, juce::File const &inPanel,
 /** What a script gets wrong, line by line, for the panel's error strip. */
 juce::StringArray scriptErrorsOf (juce::String const &script);
 
+/** What any file in FILES gets wrong, read as the kind its extension says:
+ *  a script is run (scriptErrorsOf), a set parsed as JSON, a clip or a shape
+ *  parsed as XML. */
+juce::StringArray fileErrorsOf (juce::String const &text,
+                                juce::File const &file);
+
+/** Whether those errors keep Save from writing. A set or an SVG that does not
+ *  parse would make the file unloadable; a script with an error still runs
+ *  the lines that read, as it always has. */
+bool errorsBlockSaving (juce::StringArray const &errors,
+                        juce::File const &file);
+
 /** What a copy is named after: the file it came from ("Bloom" gives
  *  "Bloom 2" through freeFileIn), or "Action" for one with no origin. */
 juce::String copyBaseFor (juce::File const &from);

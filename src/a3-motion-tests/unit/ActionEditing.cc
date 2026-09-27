@@ -97,3 +97,30 @@ TEST (ActionEditing, ACopyIsNamedAfterItsOrigin)
   EXPECT_EQ (copyBaseFor (bloom), "Bloom");
   EXPECT_EQ (copyBaseFor (juce::File{}), "Action");
 }
+
+// Every file in FILES is edited as text (2026-09-27): what is wrong with it
+// is said in the panel, whatever kind it is.
+TEST (ActionEditing, EveryKindOfFileSaysWhatIsWrongWithIt)
+{
+  juce::File const set ("/p/sessions/user/Set.json");
+  juce::File const clip ("/p/clips/user/Arc.svg");
+
+  EXPECT_TRUE (fileErrorsOf ("{ \"name\": \"x\" }", set).isEmpty ());
+  EXPECT_FALSE (fileErrorsOf ("{ \"name\": ", set).isEmpty ());
+  EXPECT_TRUE (fileErrorsOf ("<svg viewBox=\"-1 -1 2 2\"/>", clip).isEmpty ());
+  EXPECT_FALSE (fileErrorsOf ("<svg viewBox=", clip).isEmpty ());
+  EXPECT_FALSE (fileErrorsOf ("<svg><g></svg>", clip).isEmpty ())
+      << "tags that do not match";
+  EXPECT_FALSE (fileErrorsOf ("~base = ;", bloom).isEmpty ());
+}
+
+// A broken set or SVG is not written: it would make the file unloadable. A
+// script with an error still is -- the lines that read still run, as before.
+TEST (ActionEditing, ABrokenSetOrSvgIsNotWritten)
+{
+  juce::StringArray const wrong{ "line 1: something" };
+  EXPECT_TRUE (errorsBlockSaving (wrong, juce::File ("/p/sessions/user/S.json")));
+  EXPECT_TRUE (errorsBlockSaving (wrong, juce::File ("/p/system/Arc.svg")));
+  EXPECT_FALSE (errorsBlockSaving (wrong, bloom));
+  EXPECT_FALSE (errorsBlockSaving ({}, juce::File ("/p/sessions/user/S.json")));
+}
