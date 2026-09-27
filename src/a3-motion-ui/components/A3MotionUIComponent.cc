@@ -64,6 +64,7 @@
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
 #include <a3-motion-ui/components/ChannelValueReset.hh>
+#include <a3-motion-ui/components/RecArming.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-engine/RecordingName.hh>
 #include <a3-motion-engine/SplitFolder.hh>
@@ -620,10 +621,24 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         toggleRecordingOnShownClip ();
         return;
       case TransportKey::Stop:
+        // Armed, ■ is a way out that writes nothing.
+        if (stopKeyDisarms (recArmedOnShownSlot ()))
+          {
+            _recArmedSlot.reset ();
+            updateControlReadout ("-- REC OFF");
+            refreshRecArmed ();
+            return;
+          }
         handlePadPress (_clipSettingsChannel,
                         padIndexFor (PadFunction::Stop, _clipSettingsSlot));
         return;
       case TransportKey::PlayPause:
+        // Armed, ▶ starts the take set up on the REC page.
+        if (playKeyAction (recArmedOnShownSlot ()) == PlayKeyAction::StartTake)
+          {
+            startArmedTake ();
+            return;
+          }
         handlePadPress (
             _clipSettingsChannel,
             padIndexFor (PadFunction::PlayPause, _clipSettingsSlot));
@@ -1949,36 +1964,81 @@ A3MotionUIComponent::showMixer (bool open)
   updateOverlayButtons ();
 }
 
+bool
+A3MotionUIComponent::recArmedOnShownSlot () const
+{
+  return _recArmedSlot
+         == std::optional<std::pair<index_t, index_t> > (
+             std::pair{ _clipSettingsChannel, _clipSettingsSlot });
+}
+
 void
 A3MotionUIComponent::toggleRecordingOnShownClip ()
 {
-  // SAVE wears REC's place while the shown slot holds an unsaved take and
-  // nothing is recording -- see transportFace().
-  if (_pendingTakes.offersKeys (_clipSettingsChannel, _clipSettingsSlot,
-                                takeIsUnderway ()))
-    {
-      _pendingTakes.disarm ();
-      saveShownTake ();
-      return;
-    }
+  // What ● does is RecArming's to say (2026-09-26): SAVE while an unsaved
+  // take waits, end a take that runs, otherwise arm or disarm REC PAUSE --
+  // the take is set up on the REC page and ▶ starts it.
+  //
+  // "Underway" is asked for, not merely running: startRecording() schedules
+  // the take for the next downbeat, so isRecording() is still false right
+  // after it, and a second tap inside that window must end the take rather
+  // than arm another.
+  auto const underway = takeIsUnderway ();
+  auto const action = recKeyAction (
+      _pendingTakes.offersKeys (_clipSettingsChannel, _clipSettingsSlot,
+                                underway),
+      underway, recArmedOnShownSlot ());
+
   _pendingTakes.disarm ();
   refreshTakeState ();
 
-  // Asked for, not merely running: startRecording() schedules the take for
-  // the next downbeat, so isRecording() is still false right after it. A
-  // second tap inside that window — up to a whole beat at 60 BPM — started
-  // another take instead of ending the first, and the slot ended up with two.
-  if (_engine.isRecording () || _recordingSlot.has_value ())
+  switch (action)
     {
+    case RecKeyAction::Save:
+      saveShownTake ();
+      return;
+
+    case RecKeyAction::EndTake:
       updateControlReadout ("-- REC OFF");
       endRecording ();
       return;
-    }
 
-  // The clip the bar is showing. On the hardware the pad names the slot;
-  // there is no pad here, and the bar already says which slot it describes.
+    case RecKeyAction::Disarm:
+      _recArmedSlot.reset ();
+      updateControlReadout ("-- REC OFF");
+      refreshRecArmed ();
+      return;
+
+    case RecKeyAction::Arm:
+      // The clip the bar is showing, and the page the take is set up on. The
+      // clip on that slot keeps playing: arming changes nothing audible.
+      _recArmedSlot = std::pair{ _clipSettingsChannel, _clipSettingsSlot };
+      updateControlReadout ("-- REC ARMED");
+      showBarPage (BarPage::Record);
+      refreshRecArmed ();
+      return;
+    }
+}
+
+void
+A3MotionUIComponent::startArmedTake ()
+{
+  _recArmedSlot.reset ();
+  refreshRecArmed ();
   updateControlReadout ("-- REC ON");
   startRecording (_clipSettingsChannel, _clipSettingsSlot);
+}
+
+void
+A3MotionUIComponent::refreshRecArmed ()
+{
+  // Armed is only ever the shown slot: showing another drops it, or ▶ there
+  // would start a take on a slot nobody is looking at.
+  if (_recArmedSlot && !recArmedOnShownSlot ())
+    _recArmedSlot.reset ();
+
+  if (_clipSettings)
+    _clipSettings->setRecArmed (recArmedOnShownSlot ());
 }
 
 void
@@ -5160,7 +5220,10 @@ A3MotionUIComponent::padLEDCallback (int step)
           // The same colour to the screen. One place works out what empty,
           // idle, armed and running look like; two places show it.
           if (_controller)
-            _controller->setPadColour (channel, pad, colour);
+            {
+              _controller->setPadColour (channel, pad, colour);
+              _controller->setPadPlaying (channel, pad, clipPlaying);
+            }
         }
     }
 }
@@ -7854,6 +7917,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       {
         _clipSettings->setTransportState (isPlayingThis, isRecordingThis,
                                           isScheduledThis);
+        refreshRecArmed ();
 
         // The strip's REC light follows the **engine**, not the key that
         // started the take. A recording ends by itself when it reaches its

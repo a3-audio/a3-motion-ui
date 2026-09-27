@@ -144,6 +144,7 @@ keyWearing (TransportFace face)
     case TransportFace::Record: return TransportKey::Record;
     case TransportFace::Stop: return TransportKey::Stop;
     case TransportFace::PlayPause: return TransportKey::PlayPause;
+    case TransportFace::Pause: return TransportKey::PlayPause;
     case TransportFace::Action: return TransportKey::Action;
     case TransportFace::Save: return TransportKey::PlayPause;
     case TransportFace::Discard: return TransportKey::Stop;
@@ -164,7 +165,11 @@ transportFace (TransportKey key, TransportState const &state)
       return takeIsWaiting (state) ? TransportFace::Discard
                                    : TransportFace::Action;
     case TransportKey::Stop: return TransportFace::Stop;
-    case TransportKey::PlayPause: return TransportFace::PlayPause;
+    case TransportKey::PlayPause:
+      // ❚❚ while the clip runs, ▶ otherwise -- the marks every player has.
+      // Armed, ▶ starts the take, so it shows ▶ over a running clip too.
+      return state.playing && !state.armed ? TransportFace::Pause
+                                           : TransportFace::PlayPause;
     }
   return TransportFace::PlayPause;
 }
@@ -184,7 +189,8 @@ transportKeyGround (TransportKey key, TransportState const &state)
       // SAVE is lit while there is something to save.
       if (takeIsWaiting (state))
         return TransportGround::Lit;
-      return state.recording ? TransportGround::Lit : TransportGround::Dark;
+      return state.recording || state.armed ? TransportGround::Lit
+                                            : TransportGround::Dark;
 
     case TransportKey::PlayPause:
       // Waiting first, and that order is the point: a scheduled *stop* leaves
@@ -197,7 +203,9 @@ transportKeyGround (TransportKey key, TransportState const &state)
       if (state.scheduled)
         return TransportGround::Waiting;
 
-      return state.playing ? TransportGround::Lit : TransportGround::Dark;
+      // Armed: lit with ●, because ▶ is what starts the take now.
+      return state.playing || state.armed ? TransportGround::Lit
+                                          : TransportGround::Dark;
 
     case TransportKey::Action:
       // DISCARD is dark until it has been pressed once: a lit key is one the
@@ -307,6 +315,14 @@ drawTransportGlyph (juce::Graphics &g, juce::Rectangle<float> area,
     case TransportFace::PlayPause:
       drawTransportGlyph (g, area, TransportKey::PlayPause);
       return;
+    case TransportFace::Pause:
+      {
+        // Two bars, a third of the width each, with a third between them.
+        auto const bar = area.getWidth () / 3.f;
+        g.fillRect (area.withWidth (bar));
+        g.fillRect (area.withTrimmedLeft (area.getWidth () - bar));
+        return;
+      }
     case TransportFace::Action:
       drawTransportGlyph (g, area, TransportKey::Action);
       return;

@@ -59,6 +59,10 @@ public:
    *  idle, armed and running. See drawTransportGlyph(). */
   void setPadColour (index_t channel, index_t pad, juce::Colour colour);
 
+  /** Whether a pad's clip is playing: its Play|Pause pad wears ❚❚ then, and
+   *  ▶ otherwise -- the marks every player has (2026-09-26). */
+  void setPadPlaying (index_t channel, index_t pad, bool playing);
+
   /** A pad went down or came up. Both matter: Shift+Action runs a preview for
    *  as long as it is held, so a press without its release would leave the
    *  channel previewing forever. */
@@ -82,6 +86,8 @@ private:
 
   std::array<std::array<juce::Colour, numPadsPerChannel>, numChannelColumns>
       _padColours;
+  std::array<std::array<bool, numPadsPerChannel>, numChannelColumns>
+      _padPlaying{};
   std::array<std::array<std::unique_ptr<TouchControl>, numPadsPerChannel>,
              numChannelColumns>
       _padTouch;

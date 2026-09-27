@@ -394,6 +394,8 @@ public:
    *  `playing` reaches the glyph alone -- a triangle runs, two bars stand --
    *  and never a lit ground; see transportKeyGround(). */
   void setTransportState (bool playing, bool recording, bool scheduled);
+  /** REC PAUSE on the shown slot: ● and ▶ light together, ▶ shows ▶. */
+  void setRecArmed (bool armed);
 
   /** Whether the shown slot holds an unsaved take, and whether its DISCARD
    *  has been pressed once. Turns REC and ACT into SAVE and DISCARD -- see
@@ -604,6 +606,7 @@ private:
   bool _takeUnsaved = false;
   bool _takeDiscardArmed = false;
   bool _transportScheduled = false;
+  bool _transportArmed = false;
   bool _actionActive = false;
 
   /** The wait blink's own clock.

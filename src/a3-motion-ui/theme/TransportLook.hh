@@ -89,6 +89,7 @@ struct TransportState
   bool stopPressed = false;  ///< a finger is on Stop at this moment
   bool unsaved = false;      ///< the shown slot holds a take nobody has saved
   bool discardArmed = false; ///< DISCARD has been pressed once on it
+  bool armed = false;        ///< REC PAUSE: ● pressed, ▶ will start the take
 };
 
 /** Whether a transport key's ground lights, and how.
@@ -130,6 +131,8 @@ enum class TransportFace
   Record,
   Stop,
   PlayPause,
+  /** ❚❚ -- the PlayPause key while the clip runs. */
+  Pause,
   Action,
   Save,
   Discard,

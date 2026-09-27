@@ -351,6 +351,14 @@ controlIsOnPage (int section, int sub, BarPage page)
     }
 }
 
+/** Whether the four length keys stand on a page. */
+constexpr bool
+lengthKeysStandOn (BarPage page)
+{
+  // On CLIP, and on REC, where the lit one is the take's length.
+  return page == BarPage::Clip || page == BarPage::Record;
+}
+
 /** Whether a page's tab is lit: the page on show, unless the big mixer is
  *  over the sphere -- then MAINMIX is the lit tab. */
 constexpr bool

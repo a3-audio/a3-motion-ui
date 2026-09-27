@@ -949,6 +949,14 @@ private:
    *  begins, so a take that turns out empty can only be undone by putting the
    *  old one back. */
   std::optional<std::pair<index_t, index_t> > _recordingSlot;
+  /** REC PAUSE: the slot ● armed, where ▶ will start the take. Only ever the
+   *  shown slot -- showing another drops it. */
+  std::optional<std::pair<index_t, index_t> > _recArmedSlot;
+  bool recArmedOnShownSlot () const;
+  /** ▶ while armed: the take starts, on the next downbeat. */
+  void startArmedTake ();
+  /** Drops an arming the shown slot no longer has, and tells the bar. */
+  void refreshRecArmed ();
   std::shared_ptr<Pattern> _patternBeforeRecording;
   /** The clip file the slot pointed at when the take began, beside
    *  _patternBeforeRecording and for the same reason. */

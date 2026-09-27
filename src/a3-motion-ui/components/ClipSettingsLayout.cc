@@ -672,13 +672,14 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   // ── The REC page's card ──────────────────────────────────────────────
   //
-  // Across both of the columns Elevation and Motion stand in on CLIP: the
-  // rec mode on top, as the key it has always been, and the fade and the
-  // bias under it, big. They keep Motion's sub-indices 8 and 9, so the
-  // encoders and the take reach them as before; only where they are drawn
-  // moved.
+  // The middle column on REC: the rec mode on top, as the key it has always
+  // been, and the fade and the bias under it. They keep Motion's sub-indices
+  // 8 and 9, so the encoders and the take reach them as before; only where
+  // they are drawn moved.
   {
-    out.recordCard = out.playCard.getUnion (out.lengthCard);
+    // The middle column: the lengths stand on the right, where they stand on
+    // CLIP too (2026-09-26).
+    out.recordCard = out.playCard;
     auto content = sectionContentBounds (out.recordCard);
     out.recordLabel = content.removeFromTop (
         titleRowHeight (content, headerSize));
@@ -686,7 +687,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto const gap = juce::jmax (2, out.buttonHeight / 4);
     auto keyRow = content.removeFromTop (
         juce::jmin (content.getHeight (), out.buttonHeight));
-    out.recModeButton = keyRow.removeFromLeft (keyRow.getWidth () / 2);
+    out.recModeButton = keyRow;
     content.removeFromTop (juce::jmin (content.getHeight (), gap));
 
     auto const gapH = juce::jmax (2, content.getWidth () / 20);
