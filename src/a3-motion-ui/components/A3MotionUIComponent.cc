@@ -2598,6 +2598,7 @@ A3MotionUIComponent::saveSlotClipAsCopy ()
       = freeNameIn (_patternLibrary->getClipDir (), base, ".json")
             .toStdString ();
   copy.settings = clipSettingsFrom (*pattern);
+  copy.lanes = pattern->getLanes ();
 
   auto const target = newFileIn (_patternLibrary->getClipDir (),
                                  juce::String (copy.name), ".json");
@@ -2892,6 +2893,7 @@ A3MotionUIComponent::assignBrowserEntry (int index)
   // because it is the same gesture reached from the other side. Choosing a
   // whole clip is what replaces the values, and that has its own tab.
   auto const held = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
+  auto const heldLanes = pattern ? pattern->getLanes () : KnobLanes{};
   auto const hadOne = pattern != nullptr;
 
   // Whatever was there stops first. Dropping a clip onto a slot that is
@@ -2919,6 +2921,7 @@ A3MotionUIComponent::assignBrowserEntry (int index)
     if (auto const &filled = _patterns[channel][slot])
       {
         applyClipSettings (*filled, held);
+        applyLanes (*filled, heldLanes);
         // And the clip those values came from is still where they came from:
         // the figure changed, not what it is played with.
         setSlotClipFile (channel, slot, wasFrom);
@@ -3012,6 +3015,7 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   applyClipSettings (
       *pattern,
       heldOver (clipSettingsFrom (*pattern), clip->settings, _clipLocks));
+  applyLanes (*pattern, *clip);
 
   // Set after filling: fillSlotFromLibrary() points the slot at the shape's
   // own clip, and a shape has none any more -- the clip names the shape, not
@@ -4960,17 +4964,21 @@ A3MotionUIComponent::applySet (juce::File const &file)
           // itself as drifted from Breath, which is exactly what it was.
           if (auto const &pattern = _patterns[index][slot])
             {
+              auto const clip = ClipFile::load (_slotClipFile[index][slot]);
               if (saved.overrides.has_value ())
                 {
                   applyClipSettings (*pattern, *saved.overrides);
                   syncClipUIParamsFromPattern (index, slot);
                 }
-              else if (auto const clip
-                       = ClipFile::load (_slotClipFile[index][slot]))
+              else if (clip)
                 {
                   applyClipSettings (*pattern, clip->settings);
                   syncClipUIParamsFromPattern (index, slot);
                 }
+              // The lanes are the clip's whatever the set turned: a set
+              // carries settings, not takes.
+              if (clip)
+                applyLanes (*pattern, *clip);
             }
 
           // And what was running runs again -- from the top, on the next
@@ -7341,6 +7349,8 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         // how the slot is played.
         auto const held
             = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
+        // And the knobs it plays, stretched onto the new figure.
+        auto const heldLanes = pattern ? pattern->getLanes () : KnobLanes{};
 
         bool const wasPlaying
             = pattern
@@ -7369,7 +7379,10 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           {
             pattern = createPatternForIndex (newIndex, channel);
             if (pattern)
-              applyClipSettings (*pattern, held);
+              {
+                applyClipSettings (*pattern, held);
+                applyLanes (*pattern, heldLanes);
+              }
             registerPatternDisplayData (pattern);
 
             if (wasPlaying && pattern)

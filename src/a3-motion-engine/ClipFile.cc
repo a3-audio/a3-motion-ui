@@ -62,6 +62,70 @@ readString (juce::var const &object, char const *key,
 }
 }
 
+namespace
+{
+/** Only the lanes that play anything, each as the points where it changes,
+ *  with the length they were written over. Nothing at all for a clip with
+ *  no lanes, so the file is the one it was before lanes existed. */
+juce::var
+lanesToVar (KnobLanes const &lanes)
+{
+  auto *object = new juce::DynamicObject ();
+  long long ticks = 0;
+
+  for (int k = 0; k < numKnobs; ++k)
+    {
+      auto const &lane = lanes[static_cast<std::size_t> (k)];
+      if (lane.empty ())
+        continue;
+
+      ticks = lane.ticks ();
+      juce::Array<juce::var> points;
+      for (auto const &[tick, value] : lane.changePoints ())
+        points.add (juce::Array<juce::var>{ tick, shortFloat (value) });
+      object->setProperty (knobName (static_cast<Knob> (k)), points);
+    }
+
+  if (ticks == 0)
+    return {};
+
+  object->setProperty ("ticks", static_cast<juce::int64> (ticks));
+  return juce::var (object);
+}
+
+KnobLanes
+lanesFromVar (juce::var const &object)
+{
+  KnobLanes lanes;
+  if (!object.isObject ())
+    return lanes;
+
+  auto const ticks = static_cast<long long> (
+      static_cast<juce::int64> (object.getProperty ("ticks", 0)));
+  if (ticks <= 0)
+    return lanes;
+
+  for (int k = 0; k < numKnobs; ++k)
+    {
+      auto const *points
+          = object.getProperty (knobName (static_cast<Knob> (k)), {})
+                .getArray ();
+      if (points == nullptr)
+        continue;
+
+      std::vector<std::pair<int, float> > read;
+      for (auto const &point : *points)
+        if (auto const *pair = point.getArray (); pair && pair->size () == 2)
+          read.emplace_back (static_cast<int> ((*pair)[0]),
+                             static_cast<float> ((*pair)[1]));
+
+      lanes[static_cast<std::size_t> (k)]
+          = KnobLane::fromChangePoints (read, ticks);
+    }
+  return lanes;
+}
+}
+
 bool
 ClipFile::save (Clip const &clip, juce::File const &file)
 {
@@ -114,6 +178,9 @@ ClipFile::save (Clip const &clip, juce::File const &file)
   object->setProperty ("qMax", shortFloat (s.qMax));
   object->setProperty ("fadeReach", shortFloat (s.fadeReach));
   object->setProperty ("bridgeBias", s.bridgeBias);
+
+  if (auto const lanes = lanesToVar (clip.lanes); !lanes.isVoid ())
+    object->setProperty ("lanes", lanes);
 
   if (!file.getParentDirectory ().createDirectory ())
     return false;
@@ -206,6 +273,8 @@ ClipFile::load (juce::File const &file)
   s.fadeReach = readFloat (parsed, "fadeReach", defaults.fadeReach);
   s.bridgeBias = readInt (parsed, "bridgeBias", defaults.bridgeBias);
 
+  clip.lanes = lanesFromVar (parsed.getProperty ("lanes", {}));
+
   return clip;
 }
 
@@ -262,6 +331,38 @@ clipHasDrifted (Pattern const &pattern, juce::File const &clipFile)
   return clipSettingsFrom (pattern) != clip->settings;
 }
 
+
+void
+applyLanes (Pattern &pattern, Clip const &clip)
+{
+  applyLanes (pattern, clip.lanes);
+}
+
+void
+applyLanes (Pattern &pattern, KnobLanes const &lanes)
+{
+  auto const ticks = static_cast<long long> (pattern.getNumTicks ());
+  KnobLanes stretched;
+
+  for (std::size_t k = 0; k < stretched.size (); ++k)
+    {
+      auto const &lane = lanes[k];
+      if (lane.empty () || ticks <= 0)
+        continue;
+
+      // Each change lands where it stood in the take, as a share of it.
+      auto const scale
+          = static_cast<double> (ticks) / static_cast<double> (lane.ticks ());
+      auto points = lane.changePoints ();
+      for (auto &point : points)
+        point.first = static_cast<int> (
+            std::lround (static_cast<double> (point.first) * scale));
+
+      stretched[k] = KnobLane::fromChangePoints (points, ticks);
+    }
+
+  pattern.setLanes (std::move (stretched));
+}
 
 bool
 shippedFileMayBeOverwritten (bool fileExists, bool fileIsShipped,

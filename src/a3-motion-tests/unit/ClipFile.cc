@@ -719,3 +719,83 @@ TEST (ClipFile, ANumberIsWrittenAsShortAsItsFloatReallyIs)
 
   file.deleteFile ();
 }
+
+namespace
+{
+KnobLanes
+reachLane (long long ticks)
+{
+  KnobLanes lanes;
+  auto &reach = lanes[static_cast<std::size_t> (Knob::Reach)];
+  reach = KnobLane (ticks);
+  reach.write (0, 0.2f);
+  reach.write (ticks / 2, 0.7f);
+  return lanes;
+}
+}
+
+TEST (ClipFile, ALaneSurvivesTheFile)
+{
+  auto const file = tempClip ("lane-roundtrip.json");
+  Clip clip;
+  clip.name = "Take";
+  clip.lanes = reachLane (16);
+
+  ASSERT_TRUE (ClipFile::save (clip, file));
+  auto const back = ClipFile::load (file);
+  ASSERT_TRUE (back.has_value ());
+
+  auto const &reach = back->lanes[static_cast<std::size_t> (Knob::Reach)];
+  EXPECT_EQ (reach.ticks (), 16);
+  EXPECT_FLOAT_EQ (reach.at (3.0).value_or (-1.f), 0.2f);
+  EXPECT_FLOAT_EQ (reach.at (9.0).value_or (-1.f), 0.7f);
+  EXPECT_TRUE (back->lanes[static_cast<std::size_t> (Knob::Rotate)].empty ());
+
+  file.deleteFile ();
+}
+
+TEST (ClipFile, AClipWithoutLanesWritesNone)
+{
+  // Every clip written before lanes existed, and every one without a knob
+  // turned in its take, stays the file it was.
+  auto const file = tempClip ("no-lanes.json");
+  Clip clip;
+  clip.name = "Plain";
+
+  ASSERT_TRUE (ClipFile::save (clip, file));
+
+  auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+  EXPECT_FALSE (parsed.hasProperty ("lanes"));
+
+  file.deleteFile ();
+}
+
+TEST (ClipFile, LanesStretchOntoTheShapeTheyArePlayedOn)
+{
+  Clip clip;
+  clip.lanes = reachLane (16);
+
+  Pattern pattern;
+  pattern.resize (32);
+  applyLanes (pattern, clip);
+
+  auto const lanes = pattern.getLanes ();
+  auto const &reach = lanes[static_cast<std::size_t> (Knob::Reach)];
+  EXPECT_EQ (reach.ticks (), 32);
+  EXPECT_FLOAT_EQ (reach.at (15.0).value_or (-1.f), 0.2f);
+  EXPECT_FLOAT_EQ (reach.at (17.0).value_or (-1.f), 0.7f);
+}
+
+TEST (ClipFile, AClipWithoutLanesTakesThemAway)
+{
+  Clip withLanes;
+  withLanes.lanes = reachLane (16);
+  Pattern pattern;
+  pattern.resize (16);
+  applyLanes (pattern, withLanes);
+  ASSERT_TRUE (pattern.hasLanes ());
+
+  applyLanes (pattern, Clip{});
+
+  EXPECT_FALSE (pattern.hasLanes ());
+}
