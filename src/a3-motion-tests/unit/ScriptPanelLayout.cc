@@ -32,9 +32,10 @@ constexpr int buttonHeight = 44;
 constexpr int lineHeight = 16;
 }
 
-// Four keys in one row at the foot, a fingertip each, in the order
-// FROM CLIP, Cancel, Save, Save as, none of them over the text.
-TEST (ScriptPanelLayout, FourKeysAtTheFootAFingertipEach)
+// Four keys in one row at the top, where back and close stood before FILES
+// lost them (2026-09-27), a fingertip each, in the order FROM, Cancel, Save,
+// Save as, none of them over the text.
+TEST (ScriptPanelLayout, FourKeysAtTheTopAFingertipEach)
 {
   auto const l = layOutScriptPanel (column, buttonHeight, 0, lineHeight);
   for (auto const &key : { l.fromClipButton, l.cancelButton, l.saveButton,
@@ -44,7 +45,7 @@ TEST (ScriptPanelLayout, FourKeysAtTheFootAFingertipEach)
       EXPECT_GE (key.getHeight (), fingertipSize);
       EXPECT_TRUE (column.contains (key));
       EXPECT_FALSE (key.intersects (l.textArea));
-      EXPECT_EQ (key.getBottom (), column.getBottom ());
+      EXPECT_EQ (key.getY (), column.getY ());
     }
   EXPECT_LT (l.fromClipButton.getRight (), l.cancelButton.getX () + 1);
   EXPECT_LT (l.cancelButton.getRight (), l.saveButton.getX () + 1);
@@ -64,7 +65,9 @@ TEST (ScriptPanelLayout, ErrorsTakeTheirRoomOffTheText)
   auto const l = layOutScriptPanel (column, buttonHeight, 3, lineHeight);
   EXPECT_EQ (l.errorArea.getHeight (), 3 * lineHeight);
   EXPECT_FALSE (l.errorArea.intersects (l.textArea));
-  EXPECT_LE (l.errorArea.getBottom (), l.saveButton.getY ());
+  EXPECT_GE (l.errorArea.getY (), l.saveButton.getBottom ());
+  EXPECT_EQ (l.errorArea.getBottom (), column.getBottom ())
+      << "under the text, at the foot";
 
   auto const many = layOutScriptPanel (column, buttonHeight, 100, lineHeight);
   EXPECT_GE (many.textArea.getHeight (), many.errorArea.getHeight ());
@@ -102,4 +105,28 @@ TEST (ScriptPanelLayout, NothingOnTheSlotNothingToTakeFrom)
   EXPECT_FALSE (scriptKeysFor (false, false, true, false).fromClip);
   EXPECT_FALSE (scriptKeysFor (true, false, false, true).save);
   EXPECT_TRUE (scriptKeysFor (true, false, false, true).saveAs);
+}
+
+// Every file in FILES opens in the panel (2026-09-27): clips and shapes are
+// SVG and read best as XML, sets are JSON and actions scripts -- both of
+// which the C-like tokeniser colours well enough.
+TEST (ScriptPanelLayout, EachKindOfFileIsColouredInItsOwnLanguage)
+{
+  EXPECT_EQ (languageFor (juce::File ("/p/clips/user/Arc.svg")),
+             ScriptLanguage::Xml);
+  EXPECT_EQ (languageFor (juce::File ("/p/sessions/user/Set.json")),
+             ScriptLanguage::CLike);
+  EXPECT_EQ (languageFor (juce::File ("/p/actions/user/Bloom.scd")),
+             ScriptLanguage::CLike);
+  EXPECT_EQ (languageFor (juce::File{}), ScriptLanguage::CLike);
+}
+
+// What the FROM key takes the current state of: the shown clip on three
+// tabs, the arrangement on SETS.
+TEST (ScriptPanelLayout, TheFromKeySaysWhatItTakes)
+{
+  EXPECT_EQ (juce::String (fromKeyLabelFor (BrowserList::Clips)), "from clip");
+  EXPECT_EQ (juce::String (fromKeyLabelFor (BrowserList::Shapes)), "from clip");
+  EXPECT_EQ (juce::String (fromKeyLabelFor (BrowserList::Actions)), "from clip");
+  EXPECT_EQ (juce::String (fromKeyLabelFor (BrowserList::Sessions)), "from set");
 }

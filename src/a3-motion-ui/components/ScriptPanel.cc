@@ -39,28 +39,7 @@ ScriptPanel::ScriptPanel ()
   // been typed into this one yet.
   _document.setSavePoint ();
 
-  // The script is JUCE's editor, read-only until it is touched -- see
-  // ScriptEditor for the three things a finger needs on top of it.
-  _editor = std::make_unique<ScriptEditor> (_document, &_tokeniser);
-  // JUCE's editor calls itself opaque, but it is drawn transparent over the
-  // darker field. Believed, a scroll repaints only the editor and not the
-  // ground behind it -- and over the sphere that ground is the OpenGL
-  // picture, so the trajectory showed through the script.
-  _editor->setOpaque (false);
-  _editor->onStartEditing = [this] {
-    if (!_editing)
-      {
-        _editing = true;
-        _editor->setReadOnly (false);
-        _editor->grabKeyboardFocus ();
-        if (onEditingChanged)
-          onEditingChanged (true);
-      }
-    repaint ();
-  };
-  _editor->onEscape = [this] { stopEditing (); };
-  addAndMakeVisible (*_editor);
-  dressEditor ();
+  buildEditor ();
 
   // Each key asks the rule it is lit by (scriptKeysFor), so a dark key is
   // also a dead one: a save that depends on a key having been dark happens
@@ -107,6 +86,61 @@ ScriptPanel::ScriptPanel ()
 }
 
 ScriptPanel::~ScriptPanel () = default;
+
+void
+ScriptPanel::buildEditor ()
+{
+  if (_editor)
+    removeChildComponent (_editor.get ());
+
+  // The script is JUCE's editor, read-only until it is touched -- see
+  // ScriptEditor for the three things a finger needs on top of it.
+  _editor = std::make_unique<ScriptEditor> (
+      _document, _language == ScriptLanguage::Xml
+                     ? static_cast<juce::CodeTokeniser *> (&_xmlTokeniser)
+                     : static_cast<juce::CodeTokeniser *> (&_tokeniser));
+  // JUCE's editor calls itself opaque, but it is drawn transparent over the
+  // darker field. Believed, a scroll repaints only the editor and not the
+  // ground behind it -- and over the sphere that ground is the OpenGL
+  // picture, so the trajectory showed through the script.
+  _editor->setOpaque (false);
+  _editor->onStartEditing = [this] {
+    if (!_editing)
+      {
+        _editing = true;
+        _editor->setReadOnly (false);
+        _editor->grabKeyboardFocus ();
+        if (onEditingChanged)
+          onEditingChanged (true);
+      }
+    repaint ();
+  };
+  _editor->onEscape = [this] { stopEditing (); };
+  addAndMakeVisible (*_editor);
+  dressEditor ();
+}
+
+void
+ScriptPanel::setLanguage (ScriptLanguage language)
+{
+  if (language == _language)
+    return;
+
+  stopEditing ();
+  _language = language;
+  buildEditor ();
+  resized ();
+}
+
+void
+ScriptPanel::setFromLabel (juce::String const &label)
+{
+  if (label == _fromLabel)
+    return;
+  _fromLabel = label;
+  repaint ();
+}
+
 
 void
 ScriptPanel::applyTheme ()
@@ -435,7 +469,8 @@ ScriptPanel::paintKeys (juce::Graphics &g)
   // Flashing: the two ways out of an unsaved edit, in the warning colour the
   // field's edge already wears for it.
   auto const flash = toColour (theme ().warning);
-  key (_layout.fromClipButton, "from clip", k.fromClip ? lit : dark);
+  key (_layout.fromClipButton, _fromLabel.toRawUTF8 (),
+       k.fromClip ? lit : dark);
   key (_layout.cancelButton, "cancel",
        _flashing  ? flash
        : k.cancel ? toColour (theme ().textPrimary, theme ().alphaTextStrong)

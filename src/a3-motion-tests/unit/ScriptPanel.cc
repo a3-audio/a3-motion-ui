@@ -72,3 +72,23 @@ TEST (ScriptPanel, TheEditorDoesNotClaimToBeOpaque)
       }
   EXPECT_TRUE (found);
 }
+
+// JUCE's editor takes its tokeniser once, so a change of language builds a
+// new editor -- which must keep the text, its saved state, and the fix above.
+TEST (ScriptPanel, AChangeOfLanguageKeepsTheTextAndTheGround)
+{
+  ScriptPanel panel;
+  panel.setScript ("<svg/>");
+  panel.setLanguage (ScriptLanguage::Xml);
+  EXPECT_EQ (panel.script (), "<svg/>");
+  EXPECT_FALSE (panel.hasUnsavedChanges ());
+
+  auto editors = 0;
+  for (auto *child : panel.getChildren ())
+    if (dynamic_cast<juce::CodeEditorComponent *> (child) != nullptr)
+      {
+        ++editors;
+        EXPECT_FALSE (child->isOpaque ());
+      }
+  EXPECT_EQ (editors, 1) << "the old editor is gone";
+}

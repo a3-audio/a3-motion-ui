@@ -22,11 +22,13 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/components/BrowserLayout.hh>
+
 namespace a3
 {
 
-/** Where the script panel puts things: the text, the errors under it, and
- *  four keys at its foot. Reads no theme, so it can be checked at any size. */
+/** Where the script panel puts things: four keys at its top, the text, and
+ *  the errors under it. Reads no theme, so it can be checked at any size. */
 struct ScriptPanelLayout
 {
   juce::Rectangle<int> textArea;
@@ -58,5 +60,19 @@ struct ScriptKeyStates
  *  @param slotHolds the shown slot has a clip to take settings from */
 ScriptKeyStates scriptKeysFor (bool unsaved, bool locked, bool hasFile,
                                bool slotHolds);
+
+/** How a file's text is coloured in the panel. */
+enum class ScriptLanguage
+{
+  /** Scripts and JSON: comments, strings, numbers and brackets. */
+  CLike,
+  /** Clips and shapes, which are SVG. */
+  Xml,
+};
+
+ScriptLanguage languageFor (juce::File const &file);
+
+/** The word on the FROM key: what it takes the current state of. */
+char const *fromKeyLabelFor (BrowserList list);
 
 }

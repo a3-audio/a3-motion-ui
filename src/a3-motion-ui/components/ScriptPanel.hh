@@ -74,6 +74,12 @@ public:
   void setSlotHolds (bool holds);
   void setChannelColour (juce::Colour colour);
   void stopEditing ();
+  /** How the text is coloured: C-like for scripts and JSON, XML for SVG.
+   *  JUCE's editor takes its tokeniser once, so this builds a new one; the
+   *  text, being the document's, stays. */
+  void setLanguage (ScriptLanguage language);
+  /** The word on the FROM key -- what it takes the current state of. */
+  void setFromLabel (juce::String const &label);
   /** Save and Cancel light up for a moment: the list beside the panel is
    *  waiting for one of them (2026-09-27). */
   void flashKeys ();
@@ -90,6 +96,7 @@ private:
   /** Puts the skin on the editor: its colour ids, the tokeniser's scheme and
    *  the script font. Called whenever the skin changes. */
   void dressEditor ();
+  void buildEditor ();
   ScriptKeyStates keys () const;
 
   void paintField (juce::Graphics &g);
@@ -114,6 +121,9 @@ private:
    *  tokeniser for the rest is a job of its own. */
   juce::CodeDocument _document;
   juce::CPlusPlusCodeTokeniser _tokeniser;
+  juce::XmlTokeniser _xmlTokeniser;
+  ScriptLanguage _language = ScriptLanguage::CLike;
+  juce::String _fromLabel{ "from clip" };
   std::unique_ptr<ScriptEditor> _editor;
   juce::StringArray _errors;
   bool _editing = false;
