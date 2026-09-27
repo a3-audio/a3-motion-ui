@@ -567,8 +567,8 @@ private:
                        juce::Colour valueColour = {});
 
   void paintChannelFaces (juce::Graphics &g);
-  /** A field's caption, small in its top left corner -- see
-   *  fieldCaptionArea(). */
+  /** A field's caption, small on a plate in its top left corner -- see
+   *  fieldCaptionPlate(). Nothing for an empty caption. */
   void paintFieldCaption (juce::Graphics &g, juce::Rectangle<int> field,
                           juce::String const &text);
   /** A block of controls set off from the card it stands on -- the strip's

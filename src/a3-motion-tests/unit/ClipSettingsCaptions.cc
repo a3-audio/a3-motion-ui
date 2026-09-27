@@ -348,3 +348,20 @@ TEST (ClipSettingsLayout, TheGlobalSectionTakesAQuarterOfTheBar)
           << "row width " << rowWidth << ": section " << section;
     }
 }
+
+// The field showed "Rev" for Bounce and Random: its setter held the direction
+// to the first two, while the engine played all four (2026-09-27).
+TEST (ClipSettingsCaptions, EveryDirectionIsShownByItsOwnName)
+{
+  for (int direction = 0; direction < value::numDirections; ++direction)
+    EXPECT_EQ (shownDirection (direction), direction);
+  EXPECT_STREQ (value::directionNames[shownDirection (2)], "Bnce");
+  EXPECT_STREQ (value::directionNames[shownDirection (3)], "Rnd");
+  EXPECT_EQ (shownDirection (9), value::numDirections - 1);
+  EXPECT_EQ (shownDirection (-1), 0);
+
+  for (int end = 0; end < value::numEndActions; ++end)
+    EXPECT_EQ (shownEndAction (end), end);
+  EXPECT_EQ (shownEndAction (3), value::numEndActions - 1)
+      << "three names, so no fourth index into them";
+}

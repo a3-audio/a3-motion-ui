@@ -24,6 +24,8 @@
 
 #include <JuceHeader.h>
 
+#include <algorithm>
+
 namespace a3
 {
 
@@ -176,6 +178,38 @@ inline juce::String fadeName (int sixteenths)
 /** The widest speed label the Motion section can produce — whole bars
  *  above 1, fractions below (see A3MotionUIComponent's speedLog2 range). */
 constexpr char const *widestSpeed = "1/16";
+}
+
+/** Which of the names a direction shows. All four: the field held it to the
+ *  first two until 2026-09-27, so Bounce and Random played while it said
+ *  "Rev". */
+constexpr int
+shownDirection (int direction)
+{
+  return std::clamp (direction, 0, value::numDirections - 1);
+}
+
+/** Which of the names an end action shows -- one of the three there are. */
+constexpr int
+shownEndAction (int endAction)
+{
+  return std::clamp (endAction, 0, value::numEndActions - 1);
+}
+
+/** The names over the fields of CLIP, MOTION and REC (2026-09-27): what a
+ *  field holds, in capitals, on a plate in its top left corner. The knobs'
+ *  own captions under them stay as they are. */
+namespace fieldCaption
+{
+constexpr char const *clip = "CLIP";
+constexpr char const *svg = "SVG";
+constexpr char const *direction = "DIRECTION";
+constexpr char const *endAction = "END-ACTION";
+constexpr char const *recMode = "RECMODE";
+constexpr char const *gapConnector = "GAP-CONNECTOR";
+constexpr char const *motion[] = { "ROTATION",  "REACH",     "SQUEEZE X",
+                                   "SQUEEZE Y", "ELEVATION", "ELEVATION CLIP",
+                                   "TILT",      "ROLL" };
 }
 
 /** A string drawn on a control, together with the number of columns its

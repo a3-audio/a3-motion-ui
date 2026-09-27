@@ -35,6 +35,7 @@
 
 #include <a3-motion-ui/components/ClipKnobs.hh>
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
+#include <a3-motion-ui/components/BarKnob.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
 
 using namespace a3;
@@ -1823,20 +1824,109 @@ TEST (ClipSettingsLayout, TheShapePictureKeepsOffTheFieldsEdge)
       << "a quarter of the shorter side left as margin";
 }
 
-// A field's caption -- dir, end, recmode, shape -- stands small in its top
-// left corner, out of the way of the value in the middle (2026-09-27).
-TEST (ClipSettingsLayout, AFieldsCaptionStandsInItsTopLeftCorner)
+// A field's caption stands small in its top left corner, out of the way of
+// the value in the middle (2026-09-27), on a plate of its own that is as wide
+// as its words and no wider than the field.
+TEST (ClipSettingsLayout, AFieldsCaptionSitsOnAPlateInItsTopLeftCorner)
 {
   juce::Rectangle<int> const field{ 10, 20, 130, 120 };
-  auto const caption = fieldCaptionArea (field, 12.f);
+  auto const plate = fieldCaptionPlate (field, 12.f, 40.f);
 
-  ASSERT_FALSE (caption.isEmpty ());
-  EXPECT_TRUE (field.contains (caption));
-  EXPECT_LT (caption.getX () - field.getX (), 10);
-  EXPECT_LT (caption.getY () - field.getY (), 10);
-  EXPECT_LE (caption.getBottom (), field.getCentreY () - 20)
+  ASSERT_FALSE (plate.isEmpty ());
+  EXPECT_TRUE (field.contains (plate));
+  EXPECT_LT (plate.getX () - field.getX (), 10);
+  EXPECT_LT (plate.getY () - field.getY (), 10);
+  EXPECT_LE (plate.getBottom (), field.getCentreY () - 20)
       << "clear of the value in the middle";
-  EXPECT_GE (caption.getHeight (), 12);
+  EXPECT_GE (plate.getHeight (), 12);
+  EXPECT_GT (plate.getWidth (), 40) << "the words and some air round them";
+  EXPECT_LT (plate.getWidth (), field.getWidth () / 2)
+      << "as wide as its words, not as the field";
+
+  auto const long_ = fieldCaptionPlate (field, 12.f, 400.f);
+  EXPECT_TRUE (field.contains (long_)) << "never wider than the field";
+}
+
+// The caption is a tab (2026-09-27, evening): set into the field's top left
+// corner flush with its edges, down to where the knobs begin -- the label
+// band is the tab's, not a plate floating inside the field.
+TEST (ClipSettingsLayout, AFieldsCaptionIsATabSetIntoItsTopLeftCorner)
+{
+  juce::Rectangle<int> const field{ 10, 20, 130, 120 };
+  auto const tab = fieldCaptionPlate (field, 12.f, 40.f);
+
+  EXPECT_EQ (tab.getTopLeft (), field.getTopLeft ());
+  EXPECT_EQ (tab.getBottom (), fieldBelowCaption (field, 12.f).getY ())
+      << "the tab fills the label band down to the knobs";
+}
+
+// What each field is called (2026-09-27): CLIP and REC name the clip, the
+// picture and their own two; MOTION one name per field. The lengths name
+// themselves by their value.
+TEST (ClipSettingsLayout, EveryFieldNamesWhatItHolds)
+{
+  auto const name = [] (BarPage page, int field) {
+    return std::string (fieldCaptionOf (page, field));
+  };
+  EXPECT_EQ (name (BarPage::Clip, 0), "CLIP");
+  EXPECT_EQ (name (BarPage::Clip, 1), "DIRECTION");
+  EXPECT_EQ (name (BarPage::Clip, 4), "SVG");
+  EXPECT_EQ (name (BarPage::Clip, 5), "END-ACTION");
+  EXPECT_EQ (name (BarPage::Record, 0), "CLIP");
+  EXPECT_EQ (name (BarPage::Record, 1), "RECMODE");
+  EXPECT_EQ (name (BarPage::Record, 4), "SVG");
+  EXPECT_EQ (name (BarPage::Record, 5), "GAP-CONNECTOR");
+  for (auto const page : { BarPage::Clip, BarPage::Record })
+    for (int field : { 2, 3, 6, 7 })
+      EXPECT_EQ (name (page, field), "") << "a length names itself";
+
+  char const *const motion[] = { "ROTATION",  "REACH",          "SQUEEZE X",
+                                 "SQUEEZE Y", "ELEVATION",      "ELEVATION CLIP",
+                                 "TILT",      "ROLL" };
+  for (int field = 0; field < 8; ++field)
+    EXPECT_EQ (name (BarPage::Motion, field), motion[field]);
+
+  EXPECT_EQ (name (BarPage::Action, 0), "") << "a page without fields";
+}
+
+// The plate stands above the knobs, so neither a knob nor the frame an
+// encoder puts round it runs under the words -- on MOTION's eight fields and
+// on REC's fade|bias.
+TEST (ClipSettingsLayout, TheCaptionPlateKeepsClearOfTheKnobsAndTheirFrames)
+{
+  auto const clearOf = [] (ClipSettingsLayout const &l, int field,
+                           std::vector<juce::Rectangle<int> > const &knobs) {
+    auto const plate = fieldCaptionPlate (
+        l.pageFields[static_cast<size_t> (field)], l.metrics.captionSize,
+        1000.f);
+    for (auto const &knob : knobs)
+      {
+        EXPECT_FALSE (plate.intersects (knob)) << "field " << field;
+        EXPECT_FALSE (plate.toFloat ().intersects (
+            encoderMarkBounds (knob, l.metrics)))
+            << "field " << field;
+      }
+  };
+
+  for (int height : { 300, 366, 420 })
+    {
+      auto const m = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f,
+                                         1.f, BarPage::Motion);
+      auto const &mo = m.controls[2];
+      auto const &el = m.controls[1];
+      clearOf (m, 0, { mo[1], mo[0] });
+      clearOf (m, 1, { mo[3], mo[2] });
+      clearOf (m, 2, { mo[5], mo[4] });
+      clearOf (m, 3, { mo[7], mo[6] });
+      clearOf (m, 4, { el[2], el[3] });
+      clearOf (m, 5, { el[1], el[0] });
+      clearOf (m, 6, { mo[11], mo[10] });
+      clearOf (m, 7, { mo[13], mo[12] });
+
+      auto const r = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f,
+                                         1.f, BarPage::Record);
+      clearOf (r, 5, { r.controls[2][8], r.controls[2][9] });
+    }
 }
 
 // tilt and roll, each with its sweep, stand on MOTION (2026-09-27): subs 10
